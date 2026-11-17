@@ -24,8 +24,8 @@ commutative identities of finite products and sums apply, for instance
 `∑_a ∏_j P_{a_j}(O_j) = ∏_j ∑_b P_b(O_j) = 1` (`Cslib.Quantum.sum_jointProj`).
 
 The relations of the family determine which outcomes occur: each `O_j` acts on `P_a` by its sign
-`σ_{a_j}` (`Cslib.Quantum.mul_jointProj`), so if the product of the family is `c · 1`
-(`Cslib.Quantum.jointProd`), every outcome with `∏_j σ_{a_j} ≠ c` has effect `0`
+`σ_{a_j} = Cslib.BitString.signVal a_j` (`Cslib.Quantum.mul_jointProj`), so if the product of the
+family is `c · 1` (`Cslib.Quantum.jointProd`), every outcome with `∏_j σ_{a_j} ≠ c` has effect `0`
 (`Cslib.Quantum.jointProj_eq_zero`).
 
 ## Main definitions
@@ -48,6 +48,7 @@ The relations of the family determine which outcomes occur: each `O_j` acts on `
 namespace Cslib.Quantum
 
 open Finset
+open BitString (signVal)
 open scoped IsMulCommutative
 
 section Ring
@@ -130,18 +131,18 @@ include hO'
 omit [DecidableEq ι] in
 /-- Each observable acts on a joint projection by its sign: `O_j P_a = σ_{a_j} P_a`. -/
 theorem mul_jointProj (a : ι → Bool) (j : ι) :
-    O j * jointProj O hO a = boolSign (a j) • jointProj O hO a := by
+    O j * jointProj O hO a = (signVal (a j) : ℂ) • jointProj O hO a := by
   obtain ⟨M, -, hM⟩ := exists_jointProj_eq_mul O hO a j
   rw [hM, ← mul_assoc, mul_signProj (hO' j), smul_mul_assoc]
 
 omit [DecidableEq ι] in
 /-- The product of the family acts on a joint projection by the product of the signs. -/
 theorem jointProd_mul_jointProj (a : ι → Bool) :
-    jointProd O hO * jointProj O hO a = (∏ j, boolSign (a j)) • jointProj O hO a := by
+    jointProd O hO * jointProj O hO a = (∏ j, (signVal (a j) : ℂ)) • jointProj O hO a := by
   classical
   have := isMulCommutative_jointAlg O hO
   have key : ∀ s : Finset ι, (jointAlg O).val (∏ j ∈ s, (⟨O j, mem_jointAlg O j⟩ : jointAlg O)) *
-      jointProj O hO a = (∏ j ∈ s, boolSign (a j)) • jointProj O hO a := by
+      jointProj O hO a = (∏ j ∈ s, (signVal (a j) : ℂ)) • jointProj O hO a := by
     intro s
     induction s using Finset.induction_on with
     | empty => simp
@@ -154,10 +155,10 @@ omit [DecidableEq ι] in
 /-- **Outcomes contradicting the product vanish**: if `∏_j O_j = c · 1` and the signs of `a`
 multiply to something other than `c`, then `P_a = 0`. -/
 theorem jointProj_eq_zero {c : ℂ} (hprod : jointProd O hO = c • 1) {a : ι → Bool}
-    (ha : c ≠ ∏ j, boolSign (a j)) : jointProj O hO a = 0 := by
+    (ha : c ≠ ∏ j, (signVal (a j) : ℂ)) : jointProj O hO a = 0 := by
   have h := jointProd_mul_jointProj O hO hO' a
   rw [hprod, smul_mul_assoc, one_mul] at h
-  have hz : (c - ∏ j, boolSign (a j)) • jointProj O hO a = 0 := by rw [sub_smul, h, sub_self]
+  have hz : (c - ∏ j, (signVal (a j) : ℂ)) • jointProj O hO a = 0 := by rw [sub_smul, h, sub_self]
   rw [← one_smul ℂ (jointProj O hO a), ← inv_mul_cancel₀ (sub_ne_zero.mpr ha), mul_smul, hz,
     smul_zero]
 
@@ -182,6 +183,14 @@ theorem jointProj_mul_signProj_of_ne {a : ι → Bool} {j : ι} {b : Bool} (hb :
 end Involution
 
 end Ring
+
+/-- In a commutative algebra, `jointProd` is the product of the family. -/
+theorem jointProd_eq_prod {ι A : Type*} [Fintype ι] [CommRing A] [Algebra ℂ A] (O : ι → A)
+    (hO : ∀ i j, Commute (O i) (O j)) : jointProd O hO = ∏ j, O j := by
+  have := isMulCommutative_jointAlg O hO
+  unfold jointProd
+  rw [map_prod]
+  rfl
 
 section Order
 

@@ -4,7 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 
 /-! # Linear constraint system games
 
@@ -14,15 +18,19 @@ vanish on outcomes that contradict the product of the family, and operator solut
 linear constraint system game with certainty in any C⋆-algebra.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.LinearSystem
 
 open Cslib Cslib.Quantum Cslib.PCP
+open scoped ComplexOrder
 
 /-- The assignment `(1, 1, 0)` has even parity on all three variables, so its signs multiply to
 `1`. -/
-example : ∏ v : Fin 3, boolSign (![true, true, false] v) = 1 := by
-  have h : setParity Finset.univ ![true, true, false] = false := by decide
-  rw [prod_boolSign_eq, h, boolSign_false]
+example : ∏ v : Fin 3, BitString.signVal (![true, true, false] v) = 1 := by
+  rw [← BitString.signVal_sum]
+  have h : (∑ a, ![true, true, false] a) = false := by decide
+  rw [h, BitString.signVal_false]
 
 /-- Joint projections of commuting observables sum to `1`. -/
 example {ι A : Type} [Fintype ι] [DecidableEq ι] [Ring A] [Algebra ℂ A] (O : ι → A)
@@ -32,7 +40,8 @@ example {ι A : Type} [Fintype ι] [DecidableEq ι] [Ring A] [Algebra ℂ A] (O 
 /-- An outcome contradicting the product of a family of involutions has effect `0`. -/
 example {ι A : Type} [Fintype ι] [DecidableEq ι] [Ring A] [Algebra ℂ A] (O : ι → A)
     (hO : ∀ i j, Commute (O i) (O j)) (hO' : ∀ j, O j * O j = 1)
-    (hprod : jointProd O hO = (1 : ℂ) • 1) (a : ι → Bool) (ha : (1 : ℂ) ≠ ∏ j, boolSign (a j)) :
+    (hprod : jointProd O hO = (1 : ℂ) • 1) (a : ι → Bool)
+    (ha : (1 : ℂ) ≠ ∏ j, (BitString.signVal (a j) : ℂ)) :
     jointProj O hO a = 0 :=
   jointProj_eq_zero O hO hO' hprod ha
 
@@ -44,5 +53,35 @@ example {V E 𝒜 : Type} [Fintype V] [DecidableEq V] [Finite E] [CStarAlgebra �
     (μ : PMF (E × V)) :
     (L.game μ).commutingWinProb (X.strategy Y hY hY' φ hXY) = 1 :=
   X.commutingWinProb_strategy Y hY hY' φ hXY hagree μ
+
+/-- The identity state on `ℂ`. -/
+noncomputable def complexState : AlgState ℂ where
+  toFun z := z
+  map_add' _ _ := rfl
+  map_smul' _ _ := rfl
+  monotone' _ _ h := h
+  map_one' := rfl
+
+/-- The one equation `x₀ ⊕ x₁ = 0` on two variables. -/
+def evenPair : LinearSystem (Fin 2) Unit where
+  support _ := Finset.univ
+  parity _ := false
+
+theorem evenPair_satisfies : ∀ e, evenPair.Satisfies e (fun _ => false) := by
+  intro e
+  cases e
+  decide
+
+/-- The all-zero assignment is an operator solution of `evenPair` in `ℂ`, and with Bob holding the
+same scalars it wins the game with certainty, for every question distribution. -/
+example (μ : PMF (Unit × Fin 2)) :
+    (evenPair.game μ).commutingWinProb
+      ((LinearSystem.OperatorSolution.ofAssignment (fun _ => false) evenPair_satisfies).strategy
+        (fun v => (BitString.signVal ((fun _ => false : Fin 2 → Bool) v) : ℂ))
+        (fun _ => Complex.conj_ofReal _)
+        (fun _ => by simp)
+        complexState (fun _ _ => Commute.all _ _)) = 1 :=
+  LinearSystem.OperatorSolution.commutingWinProb_strategy _ _ _ _ _ _
+    (fun _ => AlgState.approx_self _ _) μ
 
 end CslibFrontierTests.LinearSystem

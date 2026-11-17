@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
+public import CslibFrontier.Foundations.Data.BitString.Parity
+import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Probability.PMF
 
 /-!
@@ -19,8 +21,10 @@ variables `V`: the variables in `support e` must have parity `parity e`. Its gam
 (`Cslib.PCP.LinearSystem.game`), for a distribution `μ` of pairs of an equation and a variable,
 asks Alice for an assignment satisfying the equation `e` and Bob for the value of the variable
 `v`, and accepts when Alice's assignment satisfies `e` and agrees with Bob's bit on `v` whenever
-`v` occurs in `e` [Cleve and Mittal][CleveMittal2014]. The magic square is the system of its six
-rows and columns.
+`v` occurs in `e`. These are the binary constraint system games of
+[Cleve and Mittal, §1][CleveMittal2014] (arXiv:1209.2729v1, p. 2), which ask a uniformly random
+equation and a uniformly random variable of it; here the question distribution is arbitrary. The
+magic square is the system of its six rows and columns.
 
 An **operator solution** (`Cslib.PCP.LinearSystem.OperatorSolution`) replaces the variables by
 `±1` observables: self-adjoint involutions commuting within every equation, whose product over
@@ -28,7 +32,7 @@ each equation is the sign `(-1)^{parity e}`. A satisfying assignment is an opera
 `ℂ`, but there are systems, such as the magic square, with operator solutions and no satisfying
 assignment.
 
-**Operator solutions give perfect strategies** [Cleve and Mittal][CleveMittal2014]: if Alice
+**Operator solutions give perfect strategies**: if Alice
 measures each equation jointly in an operator solution `X` (`Cslib.Quantum.Measurement.ofCommuting`)
 and Bob measures each variable `v` by an observable `Y_v` commuting with Alice's and agreeing
 perfectly with `X_v` in the shared state, they win with probability `1` for every question
@@ -36,7 +40,12 @@ distribution, in every commuting-operator model
 (`Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy`). Outcomes violating the
 equation vanish because of the product relation (`Cslib.Quantum.jointProj_eq_zero`), and
 disagreement on `v` vanishes after exchanging Bob's `Y_v` for Alice's `X_v` inside the state
-(`Cslib.Quantum.AlgState.apply_mul_signProj_eq_of_approx_zero`).
+(`Cslib.Quantum.AlgState.apply_mul_signProj_eq_of_approx_zero`). This generalizes the
+direction "operator solution ⇒ perfect strategy" of [Cleve and Mittal, §2][CleveMittal2014]
+(pp. 2–3), proved there for finite-dimensional Hermitian involutions with the maximally entangled
+transpose strategy, to every commuting-operator model and question distribution. A satisfying
+assignment gives the scalar operator solution `(-1)^{s_v}` in `ℂ`
+(`Cslib.PCP.LinearSystem.OperatorSolution.ofAssignment`).
 
 ## Main definitions
 
@@ -44,10 +53,11 @@ disagreement on `v` vanishes after exchanging Bob's `Y_v` for Alice's `X_v` insi
 * `Cslib.PCP.LinearSystem.game`: its game.
 * `Cslib.PCP.LinearSystem.OperatorSolution`: operator solutions.
 * `Cslib.PCP.LinearSystem.OperatorSolution.strategy`: the strategy of an operator solution.
+* `Cslib.PCP.LinearSystem.OperatorSolution.ofAssignment`: the operator solution of a satisfying
+  assignment.
 
 ## Main results
 
-* `Cslib.PCP.prod_boolSign_eq`: the sign of an assignment is the sign of its parity.
 * `Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy`: operator solutions with
   perfect agreement win with certainty.
 
@@ -62,34 +72,20 @@ disagreement on `v` vanishes after exchanging Bob's `Y_v` for Alice's `X_v` insi
 namespace Cslib.PCP
 
 open Finset Quantum
+open BitString (signVal)
 
 variable {V E : Type*}
 
-/-- The parity of the assignment `a` on the finite set `s`. -/
-def setParity (s : Finset V) (a : V → Bool) : Bool :=
-  decide (Odd (s.filter fun v => a v = true).card)
+private theorem ofReal_signVal_injective {a b : Bool}
+    (h : (signVal a : ℂ) = signVal b) : a = b := by
+  cases a <;> cases b <;> first | rfl | norm_num at h
 
 /-- The product of the signs of an assignment on `s` is the sign of its parity. -/
-theorem prod_boolSign_eq (s : Finset V) (a : V → Bool) :
-    ∏ v ∈ s, boolSign (a v) = boolSign (setParity s a) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp [setParity]
-  | insert w s hw ih =>
-    rw [prod_insert hw, ih]
-    unfold setParity
-    rw [filter_insert]
-    cases h : a w
-    · simp
-    · have hw' : w ∉ s.filter fun v => a v = true := by simp [hw]
-      simp only [↓reduceIte, card_insert_of_notMem hw']
-      by_cases ho : Odd (s.filter fun v => a v = true).card
-      · have : ¬ Odd ((s.filter fun v => a v = true).card + 1) := by
-          rw [Nat.odd_add_one]; exact not_not.mpr ho
-        simp [ho, this]
-      · have : Odd ((s.filter fun v => a v = true).card + 1) := by
-          rw [Nat.odd_add_one]; exact ho
-        simp [ho, this]
+private theorem prod_signVal_eq (s : Finset V) (a : V → Bool) :
+    ∏ v ∈ s, (signVal (a v) : ℂ) = signVal (parityOn s a) := by
+  rw [parityOn_eq_sum, BitString.signVal_sum]
+  push_cast
+  rfl
 
 /-- A **binary linear constraint system**: each equation `e` asks that the variables in
 `support e` have parity `parity e`. -/
@@ -105,7 +101,7 @@ variable (L : LinearSystem V E)
 
 /-- The assignment `a` satisfies the equation `e`. -/
 def Satisfies (e : E) (a : V → Bool) : Prop :=
-  setParity (L.support e) a = L.parity e
+  parityOn (L.support e) a = L.parity e
 
 instance (e : E) (a : V → Bool) : Decidable (L.Satisfies e a) :=
   inferInstanceAs (Decidable (_ = _))
@@ -130,7 +126,7 @@ structure OperatorSolution (𝒜 : Type*) [Ring 𝒜] [StarRing 𝒜] [Algebra �
   mul_self : ∀ v, op v * op v = 1
   commute : ∀ e, ∀ u ∈ L.support e, ∀ w ∈ L.support e, Commute (op u) (op w)
   prod_eq : ∀ e, jointProd (fun v : L.support e => op v)
-    (fun u w => commute e u u.2 w w.2) = boolSign (L.parity e) • 1
+    (fun u w => commute e u u.2 w w.2) = (signVal (L.parity e) : ℂ) • 1
 
 namespace OperatorSolution
 
@@ -207,21 +203,22 @@ theorem apply_effect_mul_effect_eq_zero (Y : V → 𝒜) (φ : AlgState 𝒜)
         (j := ⟨v, hv⟩) (by rw [hval]; exact hne)
     rw [← AlgState.apply_mul_signProj_eq_of_approx_zero (hagree v), hz, map_zero]
   · have hval' : ∀ i : L.support e, a' i = a i := fun i => hval i i.2
-    have hprod : ∏ i, boolSign (a' i) = boolSign (setParity (L.support e) a) :=
-      calc ∏ i, boolSign (a' i) = ∏ i : L.support e, boolSign (a i) :=
+    have hprod : ∏ i, (signVal (a' i) : ℂ) = (signVal (parityOn (L.support e) a) : ℂ) :=
+      calc ∏ i, (signVal (a' i) : ℂ) = ∏ i : L.support e, (signVal (a i) : ℂ) :=
             Finset.prod_congr rfl fun i _ => by rw [hval' i]
-        _ = ∏ w ∈ L.support e, boolSign (a w) :=
-          Finset.prod_coe_sort (L.support e) (fun w => boolSign (a w))
-        _ = boolSign (setParity (L.support e) a) := prod_boolSign_eq _ _
+        _ = ∏ w ∈ L.support e, (signVal (a w) : ℂ) :=
+          Finset.prod_coe_sort (L.support e) (fun w => (signVal (a w) : ℂ))
+        _ = (signVal (parityOn (L.support e) a) : ℂ) := prod_signVal_eq _ _
     have hz : jointProj (X.eqOp e) (X.eqOp_commute e) a' = 0 :=
       jointProj_eq_zero (X.eqOp e) (X.eqOp_commute e) (X.eqOp_mul_self e) (X.prod_eq e)
-        (by rw [hprod]; exact fun h => hsat (boolSign_injective h).symm)
+        (by rw [hprod]; exact fun h => hsat (ofReal_signVal_injective h).symm)
     rw [hz, zero_mul, map_zero]
 
 variable [TopologicalSpace 𝒜] [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint]
   [NonnegSpectrumClass ℝ 𝒜] [Finite E]
 
-/-- **Operator solutions win with certainty** [Cleve and Mittal][CleveMittal2014]: if Alice
+/-- **Operator solutions win with certainty**, generalizing
+[Cleve and Mittal, §2][CleveMittal2014]: if Alice
 measures the equations jointly in an operator solution `X`, and Bob measures each variable by an
 observable `Y_v` commuting with Alice's and agreeing perfectly with `X_v` in the state, they win the
 game of the linear constraint system with probability `1`, for every question distribution. -/
@@ -245,6 +242,23 @@ theorem commutingWinProb_strategy (Y : V → 𝒜) (hY : ∀ v, IsSelfAdjoint (Y
   simp only [hsum, mul_one]
   rw [← Fintype.sum_prod_type']
   exact Cslib.Probability.PMF.sum_toReal μ
+
+end OperatorSolution
+
+namespace OperatorSolution
+
+variable {L}
+
+/-- A satisfying assignment `s` is an operator solution in `ℂ`: the scalars `(-1)^{s_v}`. -/
+noncomputable def ofAssignment (s : V → Bool) (hs : ∀ e, L.Satisfies e s) :
+    L.OperatorSolution ℂ where
+  op v := (signVal (s v) : ℂ)
+  isSelfAdjoint v := Complex.conj_ofReal _
+  mul_self v := by rw [← Complex.ofReal_mul, BitString.signVal_mul_self, Complex.ofReal_one]
+  commute _ _ _ _ _ := Commute.all _ _
+  prod_eq e := by
+    rw [jointProd_eq_prod, smul_eq_mul, mul_one, ← hs e, ← prod_signVal_eq]
+    exact Finset.prod_coe_sort (L.support e) (fun v => (signVal (s v) : ℂ))
 
 end OperatorSolution
 
