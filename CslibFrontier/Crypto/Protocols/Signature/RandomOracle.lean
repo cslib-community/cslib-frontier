@@ -19,7 +19,7 @@ import CslibFrontier.Probability.PMF.Bind
 /-!
 # Signatures in the random-oracle model
 
-A signature scheme in the random-oracle model ([BonehShoup2023], Section 13.2.1) signs and
+A signature scheme in the random-oracle model ([BonehShoup2023], Section 8.10.2) signs and
 verifies with oracle access to a function `H : Query → Digest`, which the security experiment
 draws uniformly at random. Signing draws its coins and then runs an `OracleComp` program against
 `H`; verification is a deterministic `OracleComp` program. The oracle is sampled lazily: each new
