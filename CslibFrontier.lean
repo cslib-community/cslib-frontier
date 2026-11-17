@@ -1803,6 +1803,7 @@ public import CslibFrontier.Computability.Circuit.Wiring
 public import CslibFrontier.Computability.Communication.Amplification
 public import CslibFrontier.Computability.Communication.Announce
 public import CslibFrontier.Computability.Communication.BinarySearch
+public import CslibFrontier.Computability.Communication.CliqueIndependentSet
 public import CslibFrontier.Computability.Communication.Corruption
 public import CslibFrontier.Computability.Communication.DagProtocol
 public import CslibFrontier.Computability.Communication.Discrepancy
