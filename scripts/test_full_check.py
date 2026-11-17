@@ -353,7 +353,7 @@ class AggregatorTests(unittest.TestCase):
 
     def test_required_context_depends_on_both_jobs_and_forwards_lean_publication(self):
         header = "\n".join(self.lines[:self.lines.index("    steps:")])
-        self.assertIn("needs: [source-checks, lean-checks]", header)
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", header)
         self.assertIn("if: always()", header)
         self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", header)
         self.assertNotIn("steps.upload-publication.outputs", header)
@@ -368,21 +368,27 @@ class AggregatorTests(unittest.TestCase):
             with self.subTest(job=job):
                 lines = job_lines(self.text, job)
                 header = "\n".join(lines[:lines.index("    steps:")])
-                self.assertNotIn("needs:", header)
+                self.assertNotIn("needs: source-checks", header)
+                self.assertNotIn("needs: lean-checks", header)
 
-    def test_only_two_successful_dependencies_pass(self):
+    def test_gate_accepts_only_the_selected_lean_result(self):
+        env = self.steps[0]["env"]
+        self.assertIn("SELECTION_RESULT: ${{ needs.select-checks.result }}", env)
+        self.assertIn("EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && "
+                      "needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}", env)
         script = self.steps[0]["run"]
-        results = ("success", "failure", "cancelled", "skipped")
-        for source_result in results:
-            for lean_result in results:
-                with self.subTest(source=source_result, lean=lean_result):
-                    result = subprocess.run(
-                        ["bash", "-e", "-c", script],
-                        env={**os.environ, "SOURCE_RESULT": source_result,
-                             "LEAN_RESULT": lean_result},
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for expected in ("success", "skipped"):
+            for selection, source, lean in (
+                ("success", "success", "success"), ("success", "success", "skipped"),
+                ("failure", "success", expected), ("success", "failure", expected),
+                ("success", "success", "failure"), ("success", "success", "cancelled")
+            ):
+                with self.subTest(expected=expected, selection=selection, source=source, lean=lean):
+                    result = subprocess.run(["bash", "-e", "-c", script], env={
+                        **os.environ, "SELECTION_RESULT": selection, "SOURCE_RESULT": source,
+                        "EXPECTED_LEAN": expected, "LEAN_RESULT": lean})
                     self.assertEqual(result.returncode == 0,
-                                     source_result == lean_result == "success", result.stdout)
+                                     selection == source == "success" and lean == expected)
 
 
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"

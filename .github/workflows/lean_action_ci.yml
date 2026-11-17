@@ -30,7 +30,26 @@ env:
   MATHLIB_NO_CACHE_ON_UPDATE: ${{ (vars.DISABLE_CACHE_RESTORE == 'true' || vars.DISABLE_CACHE_RESTORE == '1') && '1' || '0' }}
 
 jobs:
+  select-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      lean: ${{ steps.select.outputs.lean }}
+      origin: ${{ steps.select.outputs.origin }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          sparse-checkout: scripts/ci
+      - id: select
+        env:
+          FORCE_FULL_CI: ${{ vars.FORCE_FULL_CI }}
+        run: python3 -B scripts/ci/select_checks.py
+
   cache-origin-checks:
+    needs: select-checks
+    if: needs.select-checks.outputs.origin == 'true'
     name: HTTP cache origin
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -142,6 +161,8 @@ jobs:
         run: python3 -B scripts/check_docs.py --config-only
 
   lean-checks:
+    needs: select-checks
+    if: needs.select-checks.outputs.lean == 'true'
     runs-on: ubuntu-24.04
     outputs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
@@ -480,7 +501,7 @@ jobs:
   # Lean job may prepare an unused publication artifact when source validation fails, but no
   # publisher consumes it unless this aggregator succeeds.
   ci-checks:
-    needs: [source-checks, lean-checks]
+    needs: [select-checks, source-checks, lean-checks]
     if: always()
     runs-on: ubuntu-latest
     permissions: {}
@@ -489,11 +510,14 @@ jobs:
     steps:
       - name: Require source and Lean validation
         env:
+          SELECTION_RESULT: ${{ needs.select-checks.result }}
+          EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}
           SOURCE_RESULT: ${{ needs.source-checks.result }}
           LEAN_RESULT: ${{ needs.lean-checks.result }}
         run: |
+          test "$SELECTION_RESULT" = success
           test "$SOURCE_RESULT" = success
-          test "$LEAN_RESULT" = success
+          test "$LEAN_RESULT" = "$EXPECTED_LEAN"
 
   publish-gcs-cache:
     needs: ci-checks

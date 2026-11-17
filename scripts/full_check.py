@@ -4,7 +4,7 @@
 Usage: python3 scripts/full_check.py [--base REF]
 
 `ci-checks` in `.github/workflows/lean_action_ci.yml` is the repository's only required status
-check. It requires the parallel `source-checks` and `lean-checks` jobs to succeed. `STEPS` repeats
+check. It requires source checks and the selected Lean validation. `STEPS` repeats
 each step of those jobs that can run on a contributor's machine, preserving each job's order and
 using CI's commands, so that a local full check fails where pull-request CI would. Steps that
 compare a change with its base use the merge base of REF (default `origin/main`) with `HEAD`, and
