@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.Collision
 import CslibFrontier.Probability.IID.Birthday
 import CslibFrontier.Probability.IID.Distinct
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Choose.Cast
 
 /-!
@@ -93,10 +94,8 @@ theorem one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision (f :
   have hunion : (μ.toOuterMeasure {x | ¬ Function.Injective fun i => g (x i)}).toReal ≤
       (μ.toOuterMeasure {x | ∃ i j, f (x i) = f (x j) ∧ x i ≠ x j}).toReal +
         (μ.toOuterMeasure {x | ¬ Function.Injective x}).toReal := by
-    rw [← ENNReal.toReal_add (toOuterMeasure_ne_top _ _) (toOuterMeasure_ne_top _ _)]
-    exact ENNReal.toReal_mono
-      (ENNReal.add_ne_top.mpr ⟨toOuterMeasure_ne_top _ _, toOuterMeasure_ne_top _ _⟩)
-      ((MeasureTheory.measure_mono hsub).trans (MeasureTheory.measure_union_le _ _))
+    ennreal_to_real using (MeasureTheory.measure_mono (μ := μ.toOuterMeasure) hsub).trans
+      (MeasureTheory.measure_union_le _ _)
   linarith
 
 /-- The bound of `one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision` is at least

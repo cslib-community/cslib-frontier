@@ -566,8 +566,28 @@ register_result "reingold" where
     encoded instance of length L within c·(⌊log₂ L⌋ + 1) work cells; malformed inputs are \
     unconstrained. The reduction-defined SL = L corollary is not part of this entry."
 
--- Bipartite.mem_L remains proved; registry admission awaits a human maintainer source check
--- (PR #5440, issuecomment-6877385426).
+register_result "bipartite-in-logspace" where
+  title := "Non-bipartiteness is log-space many-one equivalent to undirected connectivity; \
+    bipartiteness is in L"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.16",
+      locator := "January 2007 r2.pdf, printed p. 196; PDF p. 80" }
+  ]
+  theorems := [
+    Cslib.Complexity.Bipartite.compl_logSpaceReducible_USTCON,
+    Cslib.Complexity.Bipartite.logSpaceReducible_compl_USTCON,
+    Cslib.Complexity.Bipartite.USTCON_logSpaceReducible_compl,
+    Cslib.Complexity.Bipartite.mem_L
+  ]
+  scope := "Undirected graphs as symmetric loopless adjacency matrices on Fin n, encoded by \
+    encUGraph (a unary header 1^n 0 and the row-major matrix); bipartite means Mathlib's \
+    SimpleGraph.IsBipartite. The equivalence is under native visited-cell logspace many-one \
+    reductions, in the form non-bipartiteness ≤ USTCON (n disjoint copies of the guideline's \
+    double cover, one USTCON query) and USTCON ≤ non-bipartiteness, the latter the trivial \
+    reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
+    ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
+
 
 register_result "strongly-connected-nl-complete" where
   title := "Strongly connected digraphs are NL-complete"
@@ -1288,8 +1308,8 @@ register_result "goldreich-levin-hard-core" where
   topic := "cryptography"
   sources := [
     { paper := GoldreichLevin1989, theorem := unverified, locator := unverified },
-    { paper := Goldreich2007Draft, theorem := "Theorem 7.7",
-      locator := "March 2007 draft r4.pdf, PDF p. 12; printed p. 276" }
+    { paper := Goldreich2007DraftR4, theorem := "Theorem 7.7 and Proposition 8.9",
+      locator := "March 2007 draft r4.pdf, PDF pp. 12 and 66; printed pp. 276 and 330" }
   ]
   theorems := [
     Cslib.Crypto.GoldreichLevin.padded_hardCore,
@@ -1300,8 +1320,10 @@ register_result "goldreich-levin-hard-core" where
     spare bit s so that every seed length is covered, against uniform strict PPT predictors \
     with negligible bias. This is not a hard-core predicate for f itself. For a length-preserving \
     one-way permutation, appending that bit gives a deterministic polynomial-time generator with \
-    one-bit stretch, secure against uniform strict PPT distinguishers. Asymptotic security; the \
-    source's explicit runtime and advantage trade-off is not stated."
+    one-bit stretch, secure against uniform strict PPT distinguishers: Proposition 8.9 applied \
+    to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
+    predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
+    stated."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -1322,22 +1344,25 @@ register_result "naor-yung-uowhf" where
     the domain. Asymptotic security; no compact key-length bound."
 
 register_result "inaccessible-entropy-from-owf" where
-  title := "Inaccessible average max-entropy from any one-way function"
+  title := "Inaccessible average max-entropy from one-way functions"
   topic := "cryptography"
   sources := [
     { paper := HHRVW2020, theorem := "Theorem 4.5", locator := "Section 4.2, p. 21" }
   ]
   theorems := [
-    Cslib.Crypto.OneWay.rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily_logGap
+    Cslib.Crypto.OneWay.rompelBase_logGap
   ]
-  scope := "Every uniform one-way function on bit strings yields a single uniform polynomial-time \
-    fixed-width function family whose accessible average max-entropy against uniform strict PPT \
-    adversaries is eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, \
-    witnessed at each d > 0 by an adversary-independent accessible preimage set family with \
-    polynomial light-image threshold and packaged as an InaccessibleEntropyFamily with \
-    Θ(n / log n) gap denominator."
+  scope := "For a uniform one-way function g with fixed output length m(n), the uniform \
+    polynomial-time function F₀(x, A, b, r) = (A, b, r, first min(r, n) bits of A g(x) + b, \
+    zero-padded) has accessible average max-entropy against uniform strict PPT adversaries \
+    eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, witnessed at each d \
+    by an adversary-independent accessible preimage set family. The construction deviates from \
+    the source's F(x, g, i) = (g(f(x))₁..ᵢ, g, i) in three ways. The hash is the Boolean affine \
+    family, whose n·m(n) + n-bit seed makes the input width n + (n·m(n) + n) + (⌊log₂ n⌋ + 1) = \
+    Θ(n·m(n)), instead of the O(n) the source gets from O(n)-bit hash descriptions (its Theorem \
+    5.2). The prefix length is min(r, n) for a uniform (⌊log₂ n⌋ + 1)-bit r, not uniform on [n]. \
+    And g has a fixed output length rather than being length-preserving; an arbitrary one-way \
+    function is first padded to such a g."
 
 register_result "rompel-uowhf" where
   title := "Rompel: one-way functions yield universal one-way hash functions"
@@ -2363,8 +2388,10 @@ register_result "gmw-zero-knowledge" where
   sources := [
     { paper := GoldreichMicaliWigderson1991, theorem := unverified,
       locator := unverified },
-    { paper := Goldreich2001, theorem := unverified,
-      locator := "Sections 4.3.3 and 4.4" }
+    { paper := Goldreich1998Fragments, theorem := "Theorem 4.4.10, with Definition 4.3.8",
+      locator := "Section 4.3.3 (Definition 4.3.8, pp. 151–152) and Section 4.4.3 \
+        (Theorem 4.4.10 and the remark after it, pp. 175–176) of the posted draft of \
+        February 27, 1998" }
   ]
   theorems := [
     Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP,
@@ -2374,7 +2401,13 @@ register_result "gmw-zero-knowledge" where
     NPRelation R admits a sequentially amplified ZKProof system (adapted masked-3SAT \
     protocol) with soundness (1/3)^(n+1), NegligibleSoundness, and auxiliary-input zero \
     knowledge in family-indexed, unbounded-auxiliary-input, and Goldreich instance-indexed \
-    forms; the relation version preserves R's native witnesses via a Levin reduction."
+    forms; the relation version preserves R's native witnesses via a Levin reduction. \
+    Theorem 4.4.10 assumes a commitment scheme with nonuniform secrecy, which the remark after \
+    it obtains from nonuniformly one-way functions. Of the three forms, only the instance-indexed \
+    one, InstanceAuxiliaryInputZeroKnowledge, follows the indexing and clocks of Definition \
+    4.3.8; it ranges over valid witnesses of polynomially bounded length in place of every \
+    prover input that meets the completeness condition. The other two are novel to this \
+    library and imply it."
 
 register_result "gkst-pir-to-smooth-code" where
   title := "Smooth codes from private information retrieval schemes"
@@ -5236,30 +5269,48 @@ register_result "quantum-general-adversaries" where
     general composition theorems are not formalized here."
 
 register_result "fujisaki-okamoto-bot-ind-cca" where
-  title := "ROM IND-CCA security of the explicit-rejection Fujisaki–Okamoto transform FO^⊥"
+  title := "ROM IND-CCA security of the word-level explicit-rejection FO^⊥ KEM from IND-CPA of the \
+    PKE family"
   topic := "cryptography"
   sources := [
     { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.3",
-      locator := "§3.1, §3.2.1 and the §3.3 bounds table (IACR ePrint 2017/604, full version of \
+      locator := "§3.1 (Theorem 3.2, p. 12), §3.2.1 (Theorem 3.3, p. 14), §3.3 (p. 21; Fig. 18, \
+        the FO^⊥ row of the bounds table and \"Concrete parameters\", p. 22), the §1.1.2 table \
+        (p. 6) and the query-count convention of §2.1 (p. 9) (IACR ePrint 2017/604, version of \
         2 November 2021)" }
   ]
   theorems := [
-    Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le
+    Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.INDCPA.romINDCCABot
   ]
-  scope := "Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
-    messages, a δ-correct and γ-spread PKE, and a randomized adversary with explicit coins each \
-    of whose coin values makes at most qG queries to G, qH queries to H, and qD queries to \
-    decapsulation (FullQueryBounds A qG qH qD), the ROM IND-CCA advantage is at most \
-    2·Adv^{IND-CPA}(romBotCpaReduction A) + 2(qG + qH)/|M| + 2(qG + qH + 1)δ + \
-    2(qG + qH + qD)2^{-γ}, against two-stage IND-CPA (HHK17 Def. 2.2) and one reduction that \
-    draws its own challenge messages. Concrete bound only: no security parameter and no \
-    running-time certificate for the reduction. Necessity of the qD·2^{-γ} ciphertext-validity \
-    spreadness term is proved in FujisakiOkamoto.SpreadNecessity \
-    (advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv). \
-    Composes the T and U^⊥ hops directly instead of through standalone OW-PCVA; \
-    roIndCcaBotGame and eagerIndCcaBotGame draw both real (H) replies and the independent ideal \
-    challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
-    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4)."
+  scope := "Asymptotic, random oracle model; explicit-rejection FO^⊥ = U^⊥ ∘ T (HHK17 §3.3, \
+    Fig. 18). Let P be a word-level PKE family (at parameter n: messages of length msgLen n, \
+    uniform coins of length coinLen n, ciphertext space the words of length at most ctLen n) \
+    that is efficient (uniform strict PPT key generation; polynomial-time encryption, decryption \
+    and lengths), whose ciphertexts lie in its ciphertext space (CiphertextFits), that is \
+    δ-correct (HHK17 §2.1, p. 7) with δ negligible and γ-spread (p. 8) with 2^{-γ(n)} negligible, \
+    and with 2^{-msgLen n} negligible; let keyLen be polynomial-time. γ-spreadness is a \
+    requirement of the source for FO^⊥ (§1.1.2 table, p. 6; Theorem 3.2), and the premises on \
+    δ, γ and msgLen are the asymptotic form of its \"Concrete parameters\" (δ ≤ 2^{-κ}, γ ≥ κ, \
+    |M| ≥ 2^κ; p. 22). If P is IND-CPA secure against uniform strict PPT adversaries \
+    (single-challenge two-stage game of HHK17 Def. 2.2, both challenge messages of length \
+    msgLen n), its FO^⊥ KEM with keys of length keyLen n is IND-CCA secure (HHK17 Def. 2.4 / \
+    Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and decapsulation; \
+    no premise bounds the number of queries. Encapsulation draws m uniformly from words of \
+    length msgLen n, as in Fig. 18. G and H are lazily sampled random oracles on word domains, \
+    and a request outside a domain gets the empty word. The key is the domain-separated \
+    H(false, m, c) in place of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
+    rejects words longer than ctLen n with ⊥, and treats decryption results of the wrong length \
+    as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice HHK17's \
+    |Pr[b' = b] - 1/2|. HHK17 state a concrete bound (the FO^⊥ row of the §3.3 table, p. 22: \
+    q_RO(δ + 2^{-γ}) + 3q_RO/|M| + 3·Adv^{IND-CPA}(A')), counting every evaluation of G and H \
+    in the experiment (§2.1, p. 9); this theorem states none. Its proof applies IND-CPA to the \
+    explicit reduction romBotCpaReductionWord, certified uniform strict PPT \
+    (IsEfficient.isPPT_romBotCpaReductionWord), through the per-parameter step \
+    Scheme.indCcaBotAdvantage_le, whose bound 2·Adv^{IND-CPA} + 2(qG + qH)/|M| + \
+    2(qG + qH + 1)δ + 2(qG + qH + qD)2^{-γ} counts the adversary's explicit queries and differs \
+    from HHK17's in every term (neither implies the other); every term is negligible under the \
+    premises. The proof composes the T and U^⊥ hops directly instead of through standalone \
+    OW-PCVA, and gives no concrete runtime map."
 
 register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
   title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
@@ -5294,8 +5345,7 @@ register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
     OW-PCA form (remark closing its proof, p. 13). The proof composes the T and U-notbot hops \
     directly instead of through standalone OW-PCA, and applies IND-CPA to the explicit reduction \
     romCpaReductionWord, certified uniform strict PPT (IsEfficient.isPPT_romCpaReductionWord); \
-    it gives no concrete runtime map. FO^⊥ has no word-level theorem; its fixed-scheme concrete \
-    bound is fujisaki-okamoto-bot-ind-cca."
+    it gives no concrete runtime map. FO^⊥ is fujisaki-okamoto-bot-ind-cca."
 
 register_result "cgks-pir-coalition-lower-bound" where
   title := "Chor–Goldreich–Kushilevitz–Sudan: coalition t-privacy and full-coalition \

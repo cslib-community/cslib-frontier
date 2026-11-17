@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Computability/Circuit/Replication.lean`)
 
 public import CslibFrontier.Computability.Circuit.Replication
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # The depth of replicated circuits
@@ -30,6 +31,7 @@ namespace Cslib.Circuits.Circuit
 variable {σ : Signature} {n : ℕ}
 
 /-- **Copies side by side are no deeper than one copy.** -/
+@[circuit_bound]
 theorem depth_replicateScalar_le (c : Circuit σ n 1) (k : ℕ) :
     (c.replicateScalar k).depth ≤ c.depth :=
   depth_pi_le _ fun _ => (depth_comp_le _ _).trans (by rw [depth_wiring, add_zero])

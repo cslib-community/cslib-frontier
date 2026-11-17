@@ -161,6 +161,12 @@ theorem frontier_init (G : ListInstance) :
     (Memory.State.init G.encode).frontier = G.n + 2 * G.m + 4 := by
   simp only [Memory.State.init, G.encode_length]
 
+/-- In the encoded graph input, cell `G.n + 3` holds the edge count `G.m`. -/
+theorem init_mem_edgeCount (G : ListInstance) :
+    (Memory.State.init G.encode).mem (G.n + 3) = G.m := by
+  rw [← G.offset_n]
+  exact G.init_offset (r := 0) le_rfl
+
 /-- The input convention holds the graph in the adjacency arrays `inputGraph`. -/
 theorem holds_inputGraph (G : ListInstance) :
     AdjacencyList.Memory.Holds (inputGraph G.n G.m) G.adj (Memory.State.init G.encode).mem := by
@@ -309,9 +315,7 @@ theorem run_triple (G : ListInstance) {w : ℕ}
   have hz : ZeroAbove s₀ := zeroAbove_init _
   have hn1 : s₀.mem 1 = G.n := rfl
   have hsrc : s₀.mem 2 = G.source := rfl
-  have hm : s₀.mem (G.n + 3) = G.m := by
-    rw [← G.offset_n]
-    exact G.init_offset (r := 0) le_rfl
+  have hm : s₀.mem (G.n + 3) = G.m := init_mem_edgeCount G
   -- The bounds of the interfaces and the facts that fit a word.
   set K := G.n * G.maxWeight with hK
   have hW : 2 ≤ G.maxWeight + 2 := by omega

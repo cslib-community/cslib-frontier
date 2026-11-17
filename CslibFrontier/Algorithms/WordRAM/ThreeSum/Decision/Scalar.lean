@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged polynomial value bound
@@ -43,9 +44,9 @@ theorem exec_power {w B E : ℕ} (x : Data 16)
   have hbody (y : Data 16) (hy : I y) (hlt : (Cond.lt zero remaining).Holds y) :
       ∃ z, ExecWithin w powerBody y z 2 ∧ I z ∧ z.regs remaining < y.regs remaining := by
     obtain ⟨hyc, hyv, hyr, hym⟩ := hy
-    have hyz : y.regs zero = 0 := (hyr _ (by decide) (by decide)).trans hz
-    have hyo : y.regs one = 1 := (hyr _ (by decide) (by decide)).trans ho
-    have hys : y.regs scale = B := (hyr _ (by decide) (by decide)).trans hs
+    have hyz : y.regs zero = 0 := by regs_frame
+    have hyo : y.regs one = 1 := by regs_frame
+    have hys : y.regs scale = B := by regs_frame
     have hcpos : 0 < y.regs remaining := by simpa only [Cond.holds_lt, hyz] using hlt
     have hexp : E - y.regs remaining + 1 = E - (y.regs remaining - 1) := by omega
     have hmul : Fits w (B ^ (E - y.regs remaining) * B) := by
@@ -73,7 +74,7 @@ theorem exec_power {w B E : ℕ} (x : Data 16)
   obtain ⟨y, he, hy, hstop⟩ := ExecWithin.loop_invariant I
     (fun y => y.regs remaining) hbody hx
   obtain ⟨hyc, hyv, hyr, hym⟩ := hy
-  have hyz : y.regs zero = 0 := (hyr _ (by decide) (by decide)).trans hz
+  have hyz : y.regs zero = 0 := by regs_frame
   have hy0 : y.regs remaining = 0 := by
     change ¬y.regs zero < y.regs remaining at hstop
     omega

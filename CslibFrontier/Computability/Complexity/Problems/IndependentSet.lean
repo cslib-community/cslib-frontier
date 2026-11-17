@@ -319,10 +319,7 @@ theorem _root_.Cslib.Logic.PL.Occurrence.computableInPolyTime_conflict :
 @[fun_prop]
 theorem computableInPolyTime_toIndependentSet :
     ComputableInPolyTime toIndependentSet encCNF encIndependentSetInstance := by
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encNat :=
-    length_list_binary _
-  unfold toIndependentSet
-  fun_prop
+  fun_prop [toIndependentSet]
 
 end SAT
 
@@ -351,12 +348,7 @@ theorem isVerifier :
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier
       (encPair encIndependentSetInstance encBits) encBool := by
-  have h1 : ComputableInPolyTime
-      (fun p : IndependentSetInstance × List Bool => ((p.1.graph, p.1.m), p.2))
-      (encPair encIndependentSetInstance encBits)
-      (encPair (encPair encGraph encNat) encBits) := by
-    fun_prop
-  exact (Graph.computableInPolyTime_verifySubset (by fun_prop)).comp h1
+  fun_prop [verifier]
 
 /-- `IndependentSet` belongs to `NP`. -/
 theorem mem_NP : IndependentSet ∈ NP encIndependentSetInstance :=

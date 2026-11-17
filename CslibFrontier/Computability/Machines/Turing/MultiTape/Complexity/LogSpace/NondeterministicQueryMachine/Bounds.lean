@@ -110,7 +110,7 @@ theorem choose_inWindow {input : List Bool} (Inv : (Fin k → List Bool) → Pro
       intro p hlen ws out hInv hhead
       by_cases hzero : p.length = 0
       · rintro _ ⟨j, rfl⟩ i
-        have hj : j = 0 := by apply Fin.ext; have := j.isLt; omega
+        have hj : j = 0 := by omega
         subst hj
         change p.head.workTapePos i ∈ _
         simp [hhead, mem_window]

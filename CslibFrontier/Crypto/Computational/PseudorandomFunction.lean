@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -136,11 +137,9 @@ theorem prfIdealGame_eq_lazy (inLen outLen : ℕ → ℕ) (adversary : OracleDis
           (randomFunctionQuery (inLen n) query) =
         PMF.pure (randomFunctionOracle (inLen n) table query) :=
     interpret_randomFunctionQuery ProbComp.unifOracle (inLen n) table query
-  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame,
-    ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run, ProbComp.eval_pure,
-    OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    ProbOracleComp.interpret_sample, ProbComp.unifFin, OracleComp.interpret_query, heager,
-    lazyRandomFunctionOracle, PMF.monad_bind_eq_bind] using h
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame, ProbComp.eval_uniform,
+    ProbOracleComp.eval_run, OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
+    interp_norm, pmf_norm, ProbComp.unifFin, heager, lazyRandomFunctionOracle] using h
 
 /-- A keyed family with `n`-bit keys, `inLen n`-bit inputs and `outLen n`-bit outputs, evaluated in
 plain polynomial time and secure against every uniform adaptive oracle test: [BonehShoup2023],

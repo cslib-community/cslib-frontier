@@ -138,6 +138,24 @@ theorem sublinear_space_bound :
       infoBits testU testV testN + spaceConst * testR :=
   totalTreeBits_le_infoBits_add sublinearRegime
 
+/-- Concrete instantiation of the shared `ValidRegime` and `TreeSchedule` bit-budget helpers. -/
+theorem sublinear_regime_helpers :
+    10 * (1 + 1 + 4) ≤ Nat.log 2 testN ∧
+    300 ≤ Nat.log 2 (Nat.log 2 testN) ∧
+    Nat.log 2 testU ≤ (Nat.log 2 testN) ^ 2 ∧
+    redundancyRatio testN testR ≤ Nat.log 2 testN ∧
+    FeistelPerm.childRouterHalfInd ((canonicalSchedule sublinearRegime).nHigh 0) ≤
+      3 * Nat.log 2 testN + 7 ∧
+    2 * (canonicalSchedule sublinearRegime).delta 1 ≤
+      (canonicalSchedule sublinearRegime).nFloor 1 :=
+  ⟨sublinearRegime.mul_param_le_log (by decide : 10 ≤ 2560000),
+    sublinearRegime.three_hundred_le_log_log,
+    sublinearRegime.log_univ_le_sq_log,
+    sublinearRegime.redundancyRatio_le_log,
+    canonicalSchedule_childRouterHalfInd_nHigh_zero_le sublinearRegime,
+    canonicalSchedule_two_mul_delta_le_nFloor sublinearRegime
+      ((by decide : 1 ≤ 2).trans (canonicalSchedule sublinearRegime).two_le_depth)⟩
+
 /-! ## 2. Concrete Bit Budget Accounting -/
 
 /-- Concrete `depth = 3` schedule (`cap = 16`, `paddedUniv = 64`) exercising top, root, inner, and
@@ -192,6 +210,16 @@ def smallDepth3Sched : TreeSchedule where
 
 -- Tree operational metadata bits on small schedule: clog 2 (16 + 1) + 1 = 5 + 1 = 6.
 example : smallDepth3Sched.treeMetaBits = 6 := by decide
+
+-- Shared non-root ID-compressor and waiting-list bit-width bounds on `smallDepth3Sched`.
+example :
+    FeistelPerm.idCompressorSeedBits (smallDepth3Sched.idBits 2)
+        (smallDepth3Sched.idCompRightUniv 2) ≤ 6 * max (smallDepth3Sched.idBits 1) 1 ∧
+      waitingListBits (smallDepth3Sched.waitCap 2) (smallDepth3Sched.idBits 2)
+        (smallDepth3Sched.idBits 1) ≤
+        (4 * smallDepth3Sched.delta 2 + 1) * smallDepth3Sched.idBits 1 :=
+  ⟨smallDepth3Sched.idCompressorSeedBits_le_of_two_le le_rfl (by decide),
+    smallDepth3Sched.waitingListBits_le_of_two_le le_rfl (by decide)⟩
 
 -- Positive capacity on small schedule.
 example : 0 < smallDepth3Sched.cap := by decide
