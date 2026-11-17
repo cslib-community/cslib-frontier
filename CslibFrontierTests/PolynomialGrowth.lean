@@ -34,6 +34,42 @@ example (hu : PolyBounded size u) (hv : PolyBounded size v) :
     PolyBounded size (fun a => max (u a) (v a) + (u a - v a) + u a / (v a + 1)) := by
   growth_poly
 
+-- Ceiling logarithms (including degenerate bases) and remainders against arbitrary divisors.
+example (hu : PolyBounded size u) :
+    PolyBounded size (fun a =>
+      Nat.clog 2 (u a + 1) + Nat.clog 1 (u a) + Nat.clog 0 (u a) + u a % (2 ^ size a)) := by
+  growth_poly
+
+-- One-sided minimum in both argument orders, clamping an exponential expression.
+example (hu : PolyBounded size u) :
+    PolyBounded size (fun a => min (u a) (2 ^ size a) + min (2 ^ size a) (u a + 1)) := by
+  growth_poly
+
+-- Conditionals: `ite`, non-dependent `dite`, and `cond`.
+example {c : α → Prop} [DecidablePred c] {b : α → Bool}
+    (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a =>
+      (if c a then u a else v a + 1) +
+      (if _h : c a then 2 * u a else v a) +
+      cond (b a) (u a ^ 2) (size a)) := by
+  growth_poly
+
+-- Structural `List.length` normalization across constructors and length-preserving/shrinking ops.
+example {β γ : Type*} {xs ys : α → List β} {f : β → γ} {x : α → β}
+    (hxs : PolyBounded size (fun a => (xs a).length))
+    (hys : PolyBounded size (fun a => (ys a).length))
+    (hu : PolyBounded size u) :
+    PolyBounded size (fun a =>
+      ((x a :: xs a ++ ys a).map f).length +
+      (List.replicate (u a) (x a)).length +
+      (xs a).reverse.length +
+      ((xs a).take (2 ^ size a)).length +
+      ((List.replicate (2 ^ size a) (x a)).take (u a)).length +
+      ((ys a).drop (2 ^ size a)).length +
+      (List.append (xs a) (ys a)).length +
+      ([] : List β).length) := by
+  growth_poly
+
 -- Substitution through a bound at another size, found in the context.
 example {β : Type*} {size' v : β → ℕ} {g : α → β}
     (hv : PolyBounded size' v) (hg : PolyBounded size (fun a => size' (g a))) :
@@ -61,10 +97,15 @@ example (h : PolyBounded size u ∧ True) : PolyBounded size (fun a => u a ^ 2) 
   have : PolyBounded size B := by growth_poly
   growth_poly [h.1]
 
--- A variable exponent and an unknown function are deliberately unsupported.
+-- A variable exponent, variable logarithm base, unbounded dividend, and unknown function are
+-- deliberately unsupported.
 example (_hu : PolyBounded size u) : True := by
   fail_if_success have : PolyBounded id (fun n : ℕ => 2 ^ n) := by growth_poly
   fail_if_success have : PolyBounded size (fun a => u a ^ size a) := by growth_poly
+  fail_if_success have : PolyBounded size (fun a => Nat.clog (size a) (u a)) := by growth_poly
+  fail_if_success have : PolyBounded size (fun a => 2 ^ size a % u a) := by growth_poly
+  fail_if_success have : PolyBounded id (fun n : ℕ =>
+      if h : n < [2 ^ n].length then [2 ^ n][n] else 0) := by growth_poly
   fail_if_success have : PolyBounded size (fun a => Nat.factorial (u a)) := by growth_poly
   trivial
 
@@ -82,10 +123,11 @@ example (hu : PolyBounded size u) (hv : PolyBounded size v) :
 
 -- Failure is decided by the syntax of the bound, within a small budget.
 set_option maxHeartbeats 2000 in
--- A small budget: the unbounded factorial must be rejected without search.
+-- A small budget: the unbounded factorial and unbounded `min` must be rejected without search.
 example (_hu : PolyBounded size u) : True := by
   let w := fun a => (u a + 1) ^ 4 * (2 * u a + 3) + (u a + size a) * (u a + 7)
   fail_if_success have : PolyBounded size (fun a => w a + Nat.factorial (size a)) := by growth_poly
+  fail_if_success have : PolyBounded id (fun n : ℕ => min (2 ^ n) n.factorial) := by growth_poly
   trivial
 
 end
