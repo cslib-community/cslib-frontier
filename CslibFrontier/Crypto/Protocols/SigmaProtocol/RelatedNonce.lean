@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
@@ -164,10 +165,8 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
     (a b : ZMod q) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     1 - (Fintype.card C : ℝ≥0)⁻¹ ≤ Game.succProbability (relatedNonceGame ι g a b m₀ m₁) := by
   have hfail : relatedNonceGame ι g a b m₀ m₁ false ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
-    simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interpret_map,
-      interpret_query, interpret_bind, interpret_pure, StateT.run_map, StateT.run_bind,
-      StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.bind_bind, PMF.pure_bind,
-      PMF.map, Function.Embedding.refl_apply]
+    simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interp_norm,
+      pmf_norm, PMF.map, Function.Embedding.refl_apply]
     refine PMF.bind_apply_le_on_support _ fun key _ => ?_
     refine PMF.bind_apply_le_on_support _ fun r _ => ?_
     rw [run_oracle_of_lookup_eq_none (cache := []) rfl]

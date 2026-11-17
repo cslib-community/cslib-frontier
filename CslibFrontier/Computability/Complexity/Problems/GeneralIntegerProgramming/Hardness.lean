@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming
+public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming.Coordinate
 public import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
@@ -41,16 +41,6 @@ open Finset Turing.MultiTapeTM ComputableInPolyTime
 
 namespace IntegerProgram
 
-private def unitCoeffs (n j : ℕ) (s : ℤ) : List ℤ :=
-  (List.range n).map fun k => if k = j then s else 0
-
-private lemma sum_unitCoeffs {n j : ℕ} (hj : j < n) (s : ℤ) (x : Fin n → ℤ) :
-    ∑ k : Fin n, (unitCoeffs n j s).getD k 0 * x k = s * x ⟨j, hj⟩ := by
-  have heq : ∀ k : Fin n, (unitCoeffs n j s).getD k 0 = if k = ⟨j, hj⟩ then s else 0 := by
-    intro k
-    simp [unitCoeffs, List.getD_eq_getElem?_getD, Fin.ext_iff, k.isLt]
-  simp only [heq, ite_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
-
 /-- Convert zero-one equalities into unrestricted integer inequalities: the encoded source
 length is the unary target dimension; each equality has both signs, and every variable has
 upper bound one and lower bound zero. -/
@@ -62,21 +52,25 @@ def ofZeroOne (C : List ZeroOneIP.Equation) : IntegerProgram :=
     ((List.range n).flatMap fun j =>
       [⟨unitCoeffs n j 1, 1⟩, ⟨unitCoeffs n j (-1), 0⟩])⟩
 
-private lemma ofZeroOne_feasible_iff (C : List ZeroOneIP.Equation) :
-    ofZeroOne C ∈ Feasible ↔ ∃ x : Fin (encZeroOneIP C).length → ℤ,
+/-- The Boolean bounds and original equalities enforced by `ofZeroOne`. -/
+theorem satisfies_ofZeroOne_iff (C : List ZeroOneIP.Equation)
+    (x : Fin (ofZeroOne C).numVars → ℤ) :
+    (∀ c ∈ (ofZeroOne C).constraints,
+      ∑ j : Fin (ofZeroOne C).numVars, c.coeffs.getD j 0 * x j ≤ c.rhs) ↔
       (∀ j, 0 ≤ x j ∧ x j ≤ 1) ∧
-      ∀ c ∈ C, ∑ j : Fin (encZeroOneIP C).length, (c.coeffs.getD j 0 : ℤ) * x j = c.rhs := by
+      ∀ c ∈ C, ∑ j : Fin (ofZeroOne C).numVars, (c.coeffs.getD j 0 : ℤ) * x j = c.rhs := by
+  dsimp +instances only [ofZeroOne] at x ⊢
   have hpos (a : List ℕ) (j : ℕ) :
       (a.map (fun (a : ℕ) => (a : ℤ))).getD j 0 = (a.getD j 0 : ℤ) :=
     List.getD_map (l := a) (d := 0) (n := j) (fun (a : ℕ) => (a : ℤ))
   have hneg (a : List ℕ) (j : ℕ) :
       (a.map (fun (a : ℕ) => -(a : ℤ))).getD j 0 = -(a.getD j 0 : ℤ) :=
     List.getD_map (l := a) (d := 0) (n := j) (fun (a : ℕ) => -(a : ℤ))
-  simp only [Feasible, Set.mem_ofPred_eq, ofZeroOne, List.mem_append, List.mem_flatMap,
+  simp only [List.mem_append, List.mem_flatMap,
     List.mem_cons, List.not_mem_nil, or_false, List.mem_range]
   constructor
-  · rintro ⟨x, hx⟩
-    refine ⟨x, fun j => ?_, fun c hc => ?_⟩
+  · intro hx
+    refine ⟨fun j => ?_, fun c hc => ?_⟩
     · have h1 := hx _ (Or.inr ⟨j.val, j.isLt, Or.inl rfl⟩)
       have h2 := hx _ (Or.inr ⟨j.val, j.isLt, Or.inr rfl⟩)
       simp only [sum_unitCoeffs j.isLt, one_mul, neg_one_mul] at h1 h2
@@ -86,14 +80,21 @@ private lemma ofZeroOne_feasible_iff (C : List ZeroOneIP.Equation) :
       simp only [hpos, hneg, neg_mul,
         Finset.sum_neg_distrib] at h1 h2
       omega
-  · rintro ⟨x, hx, hC⟩
-    refine ⟨x, fun c hc => ?_⟩
+  · rintro ⟨hx, hC⟩
+    intro c hc
     rcases hc with ⟨c, hc, rfl | rfl⟩ | ⟨j, hj, rfl | rfl⟩
     · simpa only [hpos] using (hC c hc).le
     · simpa only [hpos, hneg, neg_mul,
         Finset.sum_neg_distrib] using neg_le_neg (hC c hc).ge
     · simpa only [sum_unitCoeffs hj, one_mul] using (hx ⟨j, hj⟩).2
     · simpa only [sum_unitCoeffs hj, neg_one_mul, neg_nonpos] using (hx ⟨j, hj⟩).1
+
+private lemma ofZeroOne_feasible_iff (C : List ZeroOneIP.Equation) :
+    ofZeroOne C ∈ Feasible ↔ ∃ x : Fin (encZeroOneIP C).length → ℤ,
+      (∀ j, 0 ≤ x j ∧ x j ≤ 1) ∧
+      ∀ c ∈ C, ∑ j : Fin (encZeroOneIP C).length, (c.coeffs.getD j 0 : ℤ) * x j = c.rhs := by
+  simpa +instances only [Feasible, Set.mem_ofPred_eq, ofZeroOne] using
+    (exists_congr (satisfies_ofZeroOne_iff C))
 
 /-- Correctness of the zero-one-to-integer-inequality reduction. -/
 theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :

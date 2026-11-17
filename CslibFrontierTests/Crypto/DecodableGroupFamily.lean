@@ -218,7 +218,7 @@ example {setup : ℕ → PMF schnorrDecodableGroups.Desc}
     INDCPAOn (schnorrDecodableGroups.elGamalGroupValid d) encBits
       (schnorrDecodableGroups.elGamalKeyGenProb d)
       (schnorrDecodableGroups.elGamalEncryptProb (fun _ m => m) d) :=
-  ⟨DecodablePrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGame hDDH hA,
+  ⟨DecodablePrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGame_ideal hDDH hA,
    DecodablePrimeOrderGroupFamily.DDH.indcpaOn_elGamalGroupEncryptProb hDDH_pure hd⟩
 
 end CslibFrontierTests.Crypto.DecodableGroupFamily

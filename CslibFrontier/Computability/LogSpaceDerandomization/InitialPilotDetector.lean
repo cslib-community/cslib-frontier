@@ -303,9 +303,7 @@ theorem initialPilotDetector_allocated
     apply sum_congr (by ext y; simp only [mem_filter, mem_univ, true_and])
     intro y hy
     rfl
-  convert he.trans (mul_le_mul_of_nonneg_left hs'
-    (div_nonneg (mul_nonneg (Nat.cast_nonneg _) (rate_pos kt).le)
-      (mul_pos (rate_pos ks) hπ).le)) using 1;
+  convert he.trans (mul_le_mul_of_nonneg_left hs' (by positivity)) using 1;
       dsimp only [rowNormPow, initialPilotDetector, A, r, initialDetectorRequest, X, Y, Yt];
       congr 3 with σ : 1
   apply sum_congr (by ext x; simp only [mem_filter, mem_univ, true_and])
@@ -349,8 +347,7 @@ theorem initialPilotDetector_accuracy
   refine ⟨L, hL, ?_⟩
   intro P J inst D hD R H bin ks kt hkt ss st cutoff h C hkh η hη hρη hK hC hC1
     hcover π hπ hY ε hε payment tolerance steps
-  have hc : 0 ≤ payment := div_nonneg
-    (mul_nonneg (Nat.cast_nonneg _) (rate_pos kt).le) (mul_pos (rate_pos ks) hπ).le
+  have hc : 0 ≤ payment := by positivity
   have hden : 0 < 1 + payment := by linarith
   have ht : 0 < tolerance := div_pos hε hden
   obtain ⟨hs, he⟩ := ha P J D hD R H bin ks kt hkt ss st cutoff h C hkh η hη hρη hK hC hC1

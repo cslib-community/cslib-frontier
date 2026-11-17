@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Interleaved
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.LimitQueries
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontierTests.Crypto.CCA
@@ -140,8 +141,7 @@ theorem limitQueries_one_cuts_off_second :
     (do
       let r₁ ← ProbOracleComp.query ()
       return (r₁, ([] : List Bool))) := by
-  simp only [OracleComp.limitQueries, OracleComp.interpret_bind, StateT.run_bind,
-    ProbOracleComp.interpret_query, OracleComp.interpret_pure, StateT.run_pure]
+  simp only [OracleComp.limitQueries, interp_norm]
   dsimp only [OracleComp.limitQueriesHandler, StateT.run]
   simp
 

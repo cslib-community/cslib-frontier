@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandMeaning
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged native splitting of tensor-string digits
@@ -44,10 +45,7 @@ structure SplitParameters (L : ℕ) (x : Data 96) : Prop where
 private def splitParameterRegisters : Finset (Fin 96) := {levels, one, two, three, four, seven}
 
 private theorem SplitParameters.of_eq {L : ℕ} {x y : Data 96} (hx : SplitParameters L x)
-    (h : ∀ i ∈ splitParameterRegisters, y.regs i = x.regs i) : SplitParameters L y :=
-  ⟨(h _ (by decide)).trans hx.levels, (h _ (by decide)).trans hx.one,
-    (h _ (by decide)).trans hx.two, (h _ (by decide)).trans hx.three,
-    (h _ (by decide)).trans hx.four, (h _ (by decide)).trans hx.seven⟩
+    (h : ∀ i ∈ splitParameterRegisters, y.regs i = x.regs i) : SplitParameters L y := by regs_frame
 
 /-- Remaining-digit equations and elementary counter bounds during the native scan. -/
 structure SplitProgress (L a : ℕ) (x : Data 96) : Prop where

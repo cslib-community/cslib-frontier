@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 import Cslib.Probability.PMF
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -109,13 +110,9 @@ residue `i < m`, `m` times its probability is at least `1 - m / 2 ^ w`. -/
 theorem one_le_mul_eval_sampleModNat_add {w m i : ℕ} (hi : i < m) :
     1 ≤ (m : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat w m) i + m / 2 ^ w := by
   have hmR : (0 : ℝ) < m := by exact_mod_cast (Nat.zero_le i).trans_lt hi
-  have hmul : (m : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat w m) i ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (PMF.apply_ne_top _ _)
   have hdiv : (m : ℝ≥0∞) / 2 ^ w ≠ ⊤ :=
     ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (pow_ne_zero _ two_ne_zero)
-  rw [← ENNReal.ofReal_one, ENNReal.ofReal_le_iff_le_toReal (ENNReal.add_ne_top.2 ⟨hmul, hdiv⟩),
-    ENNReal.toReal_add hmul hdiv, ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_natCast,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat]
+  ennreal_to_real
   have hcancel :
       (m : ℝ) * ((1 - (m : ℝ) / (2 : ℝ) ^ w) * (m : ℝ)⁻¹) = 1 - (m : ℝ) / (2 : ℝ) ^ w := by
     field_simp

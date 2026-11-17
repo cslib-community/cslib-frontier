@@ -14,12 +14,14 @@ public import CslibFrontier.Languages.Probabilistic.RandomPermutation
 public import CslibFrontier.Languages.Probabilistic.Sum
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Tactic.Linarith
@@ -556,8 +558,7 @@ theorem pure_evalTwoPerms {α : Type} (E π : Equiv.Perm G)
         (sumHandler (fun q => PMF.pure (evalPerm E q)) (fun q => PMF.pure (evalPerm π q)))
         (OracleComp.query q >>= cont)
     cases q <;>
-      · simp only [evalTwoPerms, sumHandler, OracleComp.interpret_bind, OracleComp.interpret_query,
-          Id.run_bind, PMF.monad_bind_eq_bind, PMF.pure_bind]
+      · simp only [evalTwoPerms, interp_norm, pmf_norm, Id.run_bind]
         exact ih _
 
 omit [AddGroup G] in
@@ -947,12 +948,8 @@ private theorem toOuterMeasure_any_any_toReal_le {K : Type*} (μ : PMF K)
     (T_e T_π : List (G × G)) :
     (μ.toOuterMeasure {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true}).toReal ≤
       (c : ℝ) * (T_e.length : ℝ) * (T_π.length : ℝ) / (Fintype.card G : ℝ) := by
-  have h := toOuterMeasure_any_any_le μ badPair c hpair T_e T_π
-  have hne : (c : ℝ≥0∞) * T_e.length * T_π.length * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ := by
-    refine ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.natCast_ne_top _)) (ENNReal.natCast_ne_top _)) ?_
-    simp [Fintype.card_ne_zero]
-  simpa [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using ENNReal.toReal_mono hne h
+  rw [div_eq_mul_inv]
+  ennreal_to_real using toOuterMeasure_any_any_le μ badPair c hpair T_e T_π
 
 /-- **Boneh–Shoup Theorem 4.14 bad-key union bound (`ℝ≥0∞`)**: for any cipher transcript `T_e` and
 primitive permutation transcript `T_π`, a uniform key pair `(k₀, k₁) ← G × G` is bad with
@@ -1804,8 +1801,7 @@ private theorem advantage_le_of_forall_bool_le {g₁ g₂ : Game} {ε : ℝ≥0�
     (hle : ∀ b : Bool, g₂ b ≤ g₁ b + ε) :
     (Game.advantage g₁ g₂ : ℝ) ≤ ε.toReal := by
   have htoReal (b : Bool) : (g₂ b).toReal ≤ (g₁ b).toReal + ε.toReal := by
-    have h := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top g₁ b, hε⟩) (hle b)
-    rwa [ENNReal.toReal_add (PMF.apply_ne_top g₁ b) hε] at h
+    ennreal_to_real using hle b
   have h1 := PMF.sum_toReal g₁
   have h2 := PMF.sum_toReal g₂
   rw [Fintype.sum_bool] at h1 h2
