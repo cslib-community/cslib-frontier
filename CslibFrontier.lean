@@ -4331,12 +4331,15 @@ public import CslibFrontier.Computability.WangTile.Compactness
 public import CslibFrontier.Computability.WangTile.EveryTileOccurs
 public import CslibFrontier.Computability.WangTile.OfTM0
 public import CslibFrontier.Computability.WangTile.Pointed
+public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Certificates
+public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 public import CslibFrontier.Computability.WangTile.Robinson.Hierarchy
 public import CslibFrontier.Computability.WangTile.Robinson.Recognizability
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Geometry
+public import CslibFrontier.Computability.WangTile.Robinson.Signals
 public import CslibFrontier.Computability.WangTile.Robinson.Tiles
 public import CslibFrontier.Computability.WangTile.Routing
 public import CslibFrontier.Computability.WangTile.SeededUndecidable
