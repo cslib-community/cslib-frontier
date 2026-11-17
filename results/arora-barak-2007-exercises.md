@@ -51,7 +51,7 @@ linked issue bodies read; a mention only in an older body may be missed.
 | 7 | 12 | 3 | 8 | 2 | — |
 | 8 | 11 | 6 | 7 | 2 | — |
 | 9 | 7 | 2 | 7 | 0 | — |
-| 10 | 9 | 4 | 4 | 0 | — |
+| 10 | 9 | 3 | 5 | 0 | — |
 | 11 | 4 | 0 | 4 | 0 | — |
 | 12 | 12 | 1 | 7 | 2 | — |
 | 13 | 9 | 1 | 8 | 1 | — |
