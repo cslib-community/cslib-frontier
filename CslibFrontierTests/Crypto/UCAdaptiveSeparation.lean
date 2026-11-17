@@ -29,6 +29,8 @@ open Cslib Cslib.Crypto Cslib.Crypto.Protocols.UC
 open CslibFrontierTests.Crypto.UCAdaptive
 open CslibFrontierTests.Crypto.UCAdaptiveDummy
 open OracleComp (sumHandler)
+open Machine (closeEval closeEval_pure closeEval_bind closeEval_map closeEval_sample
+  mem_support_closeEval_runFrom_invariant)
 open scoped ENNReal NNReal
 
 private theorem coin_router_corrupt_mono {α : Type} (κ : ℕ)
