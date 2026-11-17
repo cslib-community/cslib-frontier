@@ -97,9 +97,10 @@ example (A : schnorrGroups.Carrier d23 →
         (schnorrGroups.pedersenToDL A) :=
   schnorrGroups.succProbability_pedersen_bindingExperiment_le A
 
-/-- Unconditional hiding: for any (even computationally unbounded) `Encryption.WordAdversary` and
-any setup law over Schnorr groups of order at least `2 ^ n`, the hiding advantage in
-`schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)` is negligible. -/
+/-- Unconditional hiding of the ideal-sampling game: for any (even computationally unbounded)
+`Encryption.WordAdversary` and any setup law over Schnorr groups of order at least `2 ^ n`, the
+hiding advantage in `schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)`
+is negligible. -/
 example (setup : ℕ → PMF schnorrGroups.Desc)
     (adversary : Encryption.WordAdversary)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
@@ -109,7 +110,7 @@ example (setup : ℕ → PMF schnorrGroups.Desc)
           (schnorrGroups.pedersenKeyDist setup) adversary false n)
         (schnorrGroups.pedersenScheme.hidingGame
           (schnorrGroups.pedersenKeyDist setup) adversary true n) :=
-  schnorrGroups.negligible_advantage_pedersenHidingGame setup adversary
+  schnorrGroups.negligible_advantage_pedersenHidingGame_ideal setup adversary
     Nat.two_pow_pos hsize
     (by
       simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
@@ -140,12 +141,12 @@ example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLo
   hDL.pedersenBinding trivialBindingAdversary isPPTOn_trivialBindingAdversary
 
 /-- Packaged `CommitmentScheme.StatisticalHiding` and `CommitmentScheme.Binding` for
-`schnorrGroups.pedersenScheme`. -/
+`schnorrGroups.pedersenScheme` under the ideal key law `schnorrGroups.pedersenKeyDist setup`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLog setup)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
     schnorrGroups.pedersenScheme.StatisticalHiding (schnorrGroups.pedersenKeyDist setup) ∧
       schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDist setup) :=
-  ⟨schnorrGroups.pedersenScheme_statisticalHiding setup Nat.two_pow_pos hsize
+  ⟨schnorrGroups.pedersenScheme_statisticalHiding_ideal setup Nat.two_pow_pos hsize
       (by
         simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
           negligible_geometric (ratio := 2⁻¹) (by norm_num)),

@@ -59,18 +59,22 @@ one. We establish:
 2. **Unconditional hiding (`pedersenCommitLaw_eq_uniform_of_ne_zero`,
    `pedersenCommitLaw_eq_of_ne_zero`, `pedersen_perfectlyHidingAt`,
    `advantage_pedersen_hidingExperiment_le`, `pedersenHidingForKey_eq_of_ne_zero`,
-   `advantage_pedersenHidingGame_le`, `negligible_advantage_pedersenHidingGame`,
-   `pedersenScheme_statisticalHiding`)**: for every non-identity commitment key `h ≠ 0`, a uniform
-   blinding exponent `r ← PMF.uniformOfFintype (ZMod (F.order d))` makes `pedersenCommit d h m r`
-   uniformly distributed on `F.Carrier d` and independent of `m`. Consequently, at any fixed `d` and
-   `h ≠ 0`, the chosen-message hiding distributions for `bit = false` and `bit = true` in
-   `F.pedersenScheme.hidingForKey ⟨d, h⟩` are identical against every (even computationally
-   unbounded) two-stage adversary `Encryption.WordAdversary`. When the key exponent
-   `α ← PMF.uniformOfFintype (ZMod (F.order d))` is drawn uniformly from all of `ZMod (F.order d)`
-   (matching `discreteLogGame` and [BonehShoup2023], Exercise 20.5), the degenerate key `α = 0`
-   occurs with probability `1 / F.order d`, bounding any unbounded adversary's hiding advantage in
-   `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)` by `1 / m` whenever supported groups have
-   order at least `m`.
+   `advantage_pedersenHidingGame_le`, `negligible_advantage_pedersenHidingGame_ideal`,
+   `pedersenScheme_statisticalHiding_ideal`)**: for every non-identity commitment key `h ≠ 0`, a
+   uniform blinding exponent `r ← PMF.uniformOfFintype (ZMod (F.order d))` makes
+   `pedersenCommit d h m r` uniformly distributed on `F.Carrier d` and independent of `m`.
+   Consequently, at any fixed `d` and `h ≠ 0`, the chosen-message hiding distributions for
+   `bit = false` and `bit = true` in `F.pedersenScheme.hidingForKey ⟨d, h⟩` are identical against
+   every (even computationally unbounded) two-stage adversary `Encryption.WordAdversary`. When the
+   key exponent `α ← PMF.uniformOfFintype (ZMod (F.order d))` is drawn uniformly from all of
+   `ZMod (F.order d)` (matching `discreteLogGame` and [BonehShoup2023], Exercise 20.5), the
+   degenerate key `α = 0` occurs with probability `1 / F.order d`, bounding any unbounded
+   adversary's hiding advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)` by
+   `1 / m` whenever supported groups have order at least `m`. That game draws the key exponent and
+   the commitment randomness exactly uniformly at the `PMF` level, so its asymptotic hiding
+   theorems are ideal-sampling steps; the hiding bound for the fair-coin samplers is
+   `negligible_advantage_pedersenHidingProbGame` in
+   `CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean`.
 3. **Computational binding under the discrete-logarithm assumption (`pedersenVerify`,
    `inv_mul_eq_of_pedersenCommit_eq`, `succProbability_pedersen_bindingExperiment_le`,
    `extractNat_eq_of_pedersenCommit_eq`, `pedersenToDLAdversary`, `pedersenToDLAdversary_encode`,
@@ -138,11 +142,8 @@ one. We establish:
   run the experiments of `pedersen d`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_uniform_of_ne_zero`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_of_ne_zero`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenHidingForKey_eq_of_ne_zero`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingGame_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme_statisticalHiding`: perfect hiding for
-  `h ≠ 0` and unconditional `1 / m` hiding bound over uniform `α : ZMod (F.order d)`.
+  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenHidingForKey_eq_of_ne_zero`: perfect hiding for
+  `h ≠ 0`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_eq_of_pedersenCommit_eq`: two distinct openings
   of one commitment under `h = α • g` recover `α` with `extractNat`; shared with the
   discrete-logarithm hash reduction in `CslibFrontier.Crypto.Computational.DiscreteLog.GroupHash`.
@@ -153,6 +154,19 @@ one. We establish:
   `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenBinding`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding`: computational binding
   under the discrete-logarithm assumption.
+
+## Ideal-sampling steps
+
+The hiding game `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)` draws the key exponent and
+the commitment randomness exactly uniformly at the `PMF` level. These results are steps toward
+`negligible_advantage_pedersenHidingProbGame`
+(`CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean`), which samples both with
+`sampleExp`, not the cited result.
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingGame_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme_statisticalHiding_ideal`: unconditional
+  `1 / m` hiding bound over uniform `α : ZMod (F.order d)`, and its asymptotic form.
 
 ## References
 
@@ -666,12 +680,13 @@ theorem advantage_pedersenHidingGame_le (setup : ℕ → PMF F.Desc)
   rw [one_div]
   exact inv_anti₀ (by exact_mod_cast hm0) (by exact_mod_cast hm d hd)
 
-/-- **Asymptotic unconditional hiding of Pedersen commitments** ([Pedersen1991], Section 3,
-Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and Exercise 20.5): when every
-supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is negligible, every
-(even computationally unbounded) `Encryption.WordAdversary` has negligible advantage in
-`F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)`. -/
-theorem negligible_advantage_pedersenHidingGame (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+when every supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is
+negligible, every (even computationally unbounded) `Encryption.WordAdversary` has negligible
+advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)`, whose key exponent and
+commitment randomness are drawn exactly uniformly at the `PMF` level (after [Pedersen1991],
+Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and Exercise 20.5). -/
+theorem negligible_advantage_pedersenHidingGame_ideal (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
@@ -681,14 +696,18 @@ theorem negligible_advantage_pedersenHidingGame (setup : ℕ → PMF F.Desc)
   negligible_of_le hinv fun n =>
     F.advantage_pedersenHidingGame_le setup adversary n (m n) (hm0 n) (hm n)
 
-/-- **Statistical hiding (`CommitmentScheme.StatisticalHiding`) of `pedersenScheme`**
-([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and
-Exercise 20.5). -/
-theorem pedersenScheme_statisticalHiding (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+`pedersenScheme` is statistically hiding (`CommitmentScheme.StatisticalHiding`) under the key law
+`F.pedersenKeyDist setup`, where the key exponent and the commitment randomness are drawn exactly
+uniformly at the `PMF` level (after [Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023],
+Section 8.12, Definition 8.8, and Exercise 20.5). `CommitmentScheme.commitDist` takes no
+security parameter, so `pedersenScheme` cannot commit with the fair-coin sampler
+`pedersenCommitProb`. -/
+theorem pedersenScheme_statisticalHiding_ideal (setup : ℕ → PMF F.Desc)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
     F.pedersenScheme.StatisticalHiding (F.pedersenKeyDist setup) :=
-  fun adversary _ => F.negligible_advantage_pedersenHidingGame setup adversary hm0 hm hinv
+  fun adversary _ => F.negligible_advantage_pedersenHidingGame_ideal setup adversary hm0 hm hinv
 
 /-! ### Computational binding under the discrete-logarithm assumption -/
 
