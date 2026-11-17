@@ -9,6 +9,7 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
+import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
@@ -172,6 +173,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
+import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
@@ -196,6 +198,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
 import CslibFrontier.DataStructure.Paging.Marking
@@ -5593,24 +5596,30 @@ register_result "prp-prf-switching" where
     charged and no asymptotic form is stated."
 
 register_result "ajtai-collision-sis" where
-  title := "Finding collisions in Ajtai's hash function is no easier than SIS"
+  title := "Ajtai's hash family is collision resistant under SIS"
   topic := "cryptography"
   sources := [
-    { paper := Ajtai1996, theorem := unverified, locator := unverified }
+    { paper := GoldreichGoldwasserHalevi1996, theorem := "Theorem 2",
+      locator := "Section 3, p. 4" }
   ]
   theorems := [
-    Cslib.Crypto.IsAjtaiCollision.isSolution_sub,
-    Cslib.Crypto.isSolution_sub_of_abs_le,
-    Cslib.Crypto.ajtaiAdvantage_le_sisAdvantage
+    Cslib.Crypto.SIS.collisionResistantForOn_ajtaiWordHash
   ]
-  scope := "Ajtai's hash x ↦ A x mod q on integer vectors, for every nonzero modulus q (the two \
-    collision lemmas need no assumption on q), dimensions n × m and bound β, with no primality \
-    or compression assumption. Distinct inputs in [0, β]^m (or [-β, β]^m) with equal hashes \
-    differ by a nonzero solution with ∞-norm at most β (or 2β), and the collision-finding \
-    success probability of any finder against a uniform A ∈ ℤ_q^{n×m} is at most the SIS \
-    success probability of collisionToSIS, which subtracts the two inputs. Ajtai's \
-    worst-case-to-average-case reduction for lattice problems is not formalized; no running \
-    time is charged."
+  scope := "Goldreich–Goldwasser–Halevi, ECCC TR96-042, Theorem 2 (Section 3, p. 4): Ajtai's \
+    hash family h_A(s) = A s mod q on the words s of length m (the source's {0,1}^m), keyed by \
+    a uniform A ∈ ℤ_q^{n×m}. Under SIS P (at P.β = 1, the source's Problem (A2)), every \
+    uniform strict PPT finder given κ and the key ⟨κ, A⟩ finds two distinct words with equal \
+    hashes only with negligible probability (CollisionResistantForOn, Boneh–Shoup \
+    Definition 8.2). The reduction subtracts the two words read as 0/1 vectors and is \
+    certified PPT from the finder's certificate. Deviations: (1) any SIS parameter family P \
+    is allowed; the source's relations n log q < m ≤ q/(2n⁴) and q = O(n^c) are not \
+    required; (2) the bound P.β must be at least 1 (hβ), since SIS P holds vacuously at \
+    bound 0; (3) the column count P.m must be computable in polynomial time (hm), so that \
+    the reduction can write a length-m answer for malformed words; (4) finders and solvers \
+    are uniform strict PPT with negligible success, where the source's Theorem 2 is stated \
+    for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
+    hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
+    Ajtai) is not formalized."
 
 register_result "mldsa-key-only-forgery" where
   title := "ML-DSA key-only unforgeability from Module-LWE and self-target MSIS"
@@ -6007,6 +6016,50 @@ register_result "goldreich-expander-varying-density-hitting" where
     retained, with explicit transport to lambda/d and the constant-set real half-length power. \
     No machine uniformity, runtime or Exercise 8.44 concentration claim."
 
+register_result "goldreich-small-bias-stretch-limits" where
+  title := "Small-bias generators: stretch limits for low-degree and linear generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.37",
+      locator := "March 2007 draft, printed pp. 379–380 / PDF pp. 115–116" }
+  ]
+  theorems := [
+    Cslib.BitString.le_sum_choose_of_isSmallBias,
+    Cslib.BitString.card_lt_card_of_isSmallBias,
+    Cslib.BitString.not_exists_linearMap_of_isSmallBias
+  ]
+  scope := "Uniform seeds; IsSmallBias ε of the output distribution with ε < 1. If every output \
+    bit of G : {0,1}^k → {0,1}^ℓ is a GF(2) polynomial of total degree at most d in the seed \
+    bits, then ℓ ≤ ∑_{i=1}^d C(k,i). Corollaries: fewer output bits than seeds for any finite \
+    seed space (so ℓ < 2^k), and no GF(2)-linear G with ℓ > k."
+
+register_result "goldreich-read-once-prg-small-bias" where
+  title := "Space-bounded pseudorandom generators are 2ε-bias generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.38 (corrected: 2ε-bias)",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.isSmallBias]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε is a 2ε-bias generator. The printed conclusion ε-bias is false: \
+    exists_secure_not_isSmallBias gives σ ↦ σσ on one seed bit, which fools every test with \
+    error 1/2 but has bias 1. Under the source's Eq. (8.18) bias is twice the parity \
+    automaton's distinguishing gap."
+
+register_result "goldreich-read-once-prg-stretch" where
+  title := "Space-bounded pseudorandom generators with error below 1/2 have ℓ < 2^k"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.25(2) (corrected: ε < 1/2)",
+      locator := "March 2007 draft, printed p. 376 / PDF p. 112" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.lt_two_pow]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
+    printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
+    (exists_secure_not_isSmallBias)."
+
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"
   topic := "property testing"
@@ -6091,6 +6144,38 @@ register_result "tally-np-exp-nexp" where
   scope := "(∀ L ∈ TALLY, L ∈ NP encBits → L ∈ P encBits) → EXP enc = NEXP enc and E enc = NE enc \
     for every encoding enc; TALLY is the set of bit-languages of all-true words. Only this \
     direction of Hartmanis–Immerman–Sewelson is proved."
+
+register_result "uniform-probing-expected-probes" where
+  title :=
+    "Expected probe count for unsuccessful search and fresh-key insertion under uniform probing"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "Theorem 11.6 and Corollary 11.7",
+      locator := "Section 11.4, pp. 274–276" }
+  ]
+  theorems := [
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le_two,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le_two
+  ]
+  scope := "Uniform full-cycle probing over m slots: expect_unsuccessfulProbes_le and \
+    expect_unsuccessfulProbes_le_two sample a single uniform permutation σ : Equiv.Perm (Fin m) \
+    via PMF.uniformOfFintype against any occupied slot set O : Finset (Fin m) with O.card < m \
+    (or 0 < m and 2 * O.card ≤ m). expect_probeCount_of_eq_none_le and \
+    expect_probeCount_of_eq_none_le_two sample independent per-key permutations \
+    π : Fin U → Equiv.Perm (Fin m) via PMF.uniformOfFintype (lazy-sampling equivalence proved \
+    separately in uniform_interpret_eq_lazy_perm) and run any non-adaptive admissible history \
+    ops of the insert-only bounded-capacity dictionary specification Dictionary.spec U V n_max \
+    (ValidHistory, empty, run, dom, with n_max ≤ m) on Table U m := Fin m → Option (Fin U × ℕ) \
+    via runTable and TableRep. Probe counts unsuccessfulProbes O σ := 1 + missedProbes O σ and \
+    probeCount T u (π u) := unsuccessfulProbes (otherOccupiedSlots T u) (π u) count all \
+    inspected slots along the probe sequence up to and including the first slot outside O \
+    (< m). Proves ℝ≥0∞ expected probe bounds ≤ m / (m - n) for any absent key s u = none with \
+    (Dictionary.dom s).card = n < m, and ≤ 2 under 2 * n_max ≤ m. Abstract uniform-hashing table \
+    model only: no concrete hash construction or Word-RAM runtime claim, and excludes the \
+    uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
+    per-key intermediate step)."
 
 register_result "goldreich-modular-square-root-descent" where
   title := "Square roots modulo a prime from a quadratic non-residue"
