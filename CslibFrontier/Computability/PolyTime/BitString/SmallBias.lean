@@ -52,7 +52,8 @@ caller-supplied field operation.
 
 ## References
 
-* [Alon, Goldreich, Håstad and Peralta][AlonGoldreichHastadPeralta1992], Section 3.
+* [Alon, Goldreich, Håstad and Peralta][AlonGoldreichHastadPeralta1992],
+  author-hosted June 14, 1992 version, §5, Construction 3 and Proposition 3, printed/PDF p. 10.
 * [Goldreich][Goldreich2007DraftR5], Exercise 10.6.
 -/
 
