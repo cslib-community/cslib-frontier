@@ -22,8 +22,10 @@ import Mathlib.Tactic.Ring
 # CBC-MAC Finite Security Bounds and Forgery Separations
 
 Formalizes the Cipher Block Chaining Message Authentication Code (CBC-MAC) over `BitString n`, its
-prefix-free smoothness and information-theoretic adaptive decision-tree PRF bound
-([KatzLindell2020], Section 4.4, Construction 4.9, Theorem 4.12, and Claim 4.13), and explicit
+prefix-free smoothness ([KatzLindell2020], Section 4.4, Construction 4.9 and Claim 4.13), the
+information-theoretic uniform-random-function step toward [KatzLindell2020], Section 4.4,
+Theorem 4.12 (page 124) bounding `cbcMacFinite g` for a uniform random function
+`g : BitString n → BitString n` rather than a keyed computational PRF (#6046), and explicit
 forgery counterexamples for each of the six relaxations in [KatzLindell2020], Exercises
 4.13–4.16.
 
@@ -36,7 +38,8 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
 * `CBCOracleSpec`, `cbcQueryRun`, `CBCAdmissible`, `cbcRealSuccess`, `cbcIdealSuccess`: adaptive
   oracle distinguishers as `OracleComp (CBCOracleSpec n ℓ) Bool` programs, their query-logging run
   through `OracleComp.interpret`, the execution-based prefix-free query budget, and real/ideal
-  acceptance probabilities for the information-theoretic step of Theorem 4.12.
+  acceptance probabilities for the information-theoretic uniform-random-function step toward
+  Theorem 4.12 (#6046).
 * `ForgeryTrace`, `ForgeryTrace.Valid`, `cbcTwoToFourAttack`, `cbcToThreeAttack`, `cbcAllTagsTwo`,
   `cbcLeakedTagsAttack`, `cbcRandomIVMac`, `cbcRandomIVAttack`, `lengthAppendedCBC`,
   `cbcLengthSuffixAttack`, `zeroPadCBC`, `zeroPadAttack`: explicit CBC-MAC forgery constructions
@@ -49,8 +52,10 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   and equivalence between the final block of `cbcEncryptBlocks` and `cbcMacBlocks`.
 * `cbcSmooth_iff`, `cbcSmooth_of_prefixFree`: counting characterization and `(q, ℓ, q^2 * ℓ^2 /
   2^n)`-smoothness of prefix-free CBC-MAC ([KatzLindell2020], Claim 4.13).
-* `abs_cbcRealSuccess_sub_cbcIdealSuccess_le`: adaptive oracle-program PRF bound
-  `|cbcRealSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` ([KatzLindell2020], Theorem 4.12).
+* `abs_cbcRealSuccess_sub_cbcIdealSuccess_le`: information-theoretic uniform-random-function step
+  `|cbcRealSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` toward [KatzLindell2020], Section 4.4,
+  Theorem 4.12 (page 124), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF (#6046).
 * `cbcTwoToFourAttack_valid`, `cbcToThreeAttack_valid`, `cbcLeakedTagsAttack_valid`,
   `cbcRandomIVAttack_valid`, `cbcLengthSuffixAttack_valid_any_encoding`,
   `cbcLengthSuffixAttack_valid`, `rightpad_false_true_collide`, `zeroPadAttack_valid`:
@@ -526,7 +531,7 @@ theorem cbcSmooth_of_prefixFree (n q ℓ : ℕ) :
       ((1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * N) / ((2 : ℝ) ^ n) ^ q by ring,
     div_le_iff₀ hY]
   nlinarith
-/-! ### Section 3: Adaptive Oracle-Program PRF Bound ([KatzLindell2020], Theorem 4.12) -/
+/-! ### Section 3: Uniform-Random-Function Step Toward [KatzLindell2020], Theorem 4.12 (#6046) -/
 /-- The oracle interface of CBC-MAC distinguishers: a query is a bounded nonempty block input
   `CBCInput n ℓ`, answered by an `n`-bit tag. -/
 abbrev CBCOracleSpec (n ℓ : ℕ) : OracleSpec (CBCInput n ℓ) := fun _ => BitString n
@@ -829,11 +834,12 @@ private theorem uniformOfFintype_bind_comm {ℓ : ℕ} {G : Type} [Fintype G] [N
       let g ← PMF.uniformOfFintype G let T ← D return h g T) =
       D.bind (fun T => (PMF.uniformOfFintype G).map (fun g => h g T)) :=
   PMF.bind_comm _ D fun g T => PMF.pure (h g T)
-/-- **Prefix-Free CBC-MAC Adaptive PRF Security Bound ([KatzLindell2020], Section 4.4, Theorem
-  4.12, p. 124)**: for every block width `n`, query budget `q`, maximum block length `ℓ`, and
-  distribution `D` over `q`-admissible adaptive oracle programs, the distinguishing advantage
-  between `cbcMacFinite g` (for uniform `g : BitString n → BitString n`) and a uniform random
-  function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / 2^n`. -/
+/-- Information-theoretic uniform-random-function step toward [KatzLindell2020], Section 4.4,
+  Theorem 4.12 (page 124), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF (#6046): for every block
+  width `n`, query budget `q`, maximum block length `ℓ`, and distribution `D` over `q`-admissible
+  adaptive oracle programs, the distinguishing advantage between `cbcMacFinite g` and a uniform
+  random function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / 2^n`. -/
 theorem abs_cbcRealSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
     (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool))
     (hD : ∀ tree, D tree ≠ 0 → CBCAdmissible q tree) :

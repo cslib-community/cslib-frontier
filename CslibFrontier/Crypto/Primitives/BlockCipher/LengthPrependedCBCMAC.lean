@@ -11,18 +11,19 @@ import CslibFrontier.Probability.Uniform
 /-!
 # Length-Prepended CBC-MAC for Variable-Length Messages
 
+This module proves the information-theoretic uniform-random-function step toward
+[KatzLindell2020], Section 4.4.2, Theorems 4.11–4.12 (pages 123–124) and Exercise 4.18, bounding
+length-prepended CBC-MAC over a uniform random function rather than a computational PRF (#6046).
 Basic CBC-MAC is secure only for messages of one fixed length ([KatzLindell2020], Section 4.4.1,
-Theorem 4.10). One fix described in [KatzLindell2020] (Section 4.4.1, p. 122, Figure 4.2) prepends
-the length of the message, encoded as an `n`-bit block, and then computes basic CBC-MAC on the
-result. The book derives its security from the prefix-free analysis of Section 4.4.2: the
-length-prepended encoding is prefix-free ([KatzLindell2020], Exercise 4.18), and CBC-MAC on
-prefix-free inputs is a pseudorandom function ([KatzLindell2020], Theorems 4.11 and 4.12).
+Theorem 4.10); [KatzLindell2020] (Section 4.4.1, page 122, Figure 4.2) prepends the length of the
+message encoded as an `n`-bit block and runs basic CBC-MAC on the result, deriving variable-length
+security from the prefix-free analysis of Section 4.4.2 (Exercise 4.18 and Theorems 4.11–4.12).
 
-This file carries out that argument for block-aligned messages of `0` to `L` blocks, where the
-length block encodes the number of blocks. Every adaptive distinguisher that asks such messages is
-translated into a distinguisher against basic CBC-MAC on inputs of at most `L + 1` blocks, whose
-queries are prefix-free whenever the length encoding is injective. The prefix-free bound of
-`abs_cbcRealSuccess_sub_cbcIdealSuccess_le` then gives the variable-length bound
+Here block-aligned messages of `0` to `L` blocks prepend an `n`-bit block encoding the number of
+blocks. Every adaptive distinguisher that asks such messages is translated into a distinguisher
+against basic random-function CBC-MAC on inputs of at most `L + 1` blocks whose queries are
+prefix-free whenever the length encoding is injective. The uniform-random-function step
+`abs_cbcRealSuccess_sub_cbcIdealSuccess_le` (#6046) then gives the variable-length bound
 `q ^ 2 * (L + 1) ^ 2 / 2 ^ n`.
 
 ## Main definitions
@@ -42,10 +43,10 @@ queries are prefix-free whenever the length encoding is injective. The prefix-fr
   ([KatzLindell2020], Exercise 4.18).
 * `cbcRealSuccess_map_prependLengthQueries`, `cbcIdealSuccess_map_prependLengthQueries`: the
   translated distinguisher has the same real and ideal acceptance probabilities.
-* `abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le`: variable-length security
-  of length-prepended CBC-MAC with a random function,
-  `|real - ideal| ≤ q ^ 2 * (L + 1) ^ 2 / 2 ^ n` ([KatzLindell2020], Section 4.4.2,
-  Theorems 4.11 and 4.12).
+* `abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le`: information-theoretic
+  uniform-random-function step `|real - ideal| ≤ q ^ 2 * (L + 1) ^ 2 / 2 ^ n` toward
+  [KatzLindell2020], Section 4.4.2, Theorems 4.11–4.12 (pages 123–124) and Exercise 4.18, bounding
+  length-prepended CBC-MAC over a uniform random function rather than a computational PRF (#6046).
 
 ## References
 
@@ -236,10 +237,11 @@ theorem cbcIdealSuccess_map_prependLengthQueries {L : ℕ}
   rw [← PMF.uniformOfFintype_map_comp (prependLength_injective encodeLength)]
   simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_map]
   simp only [Function.comp_def, cbcQueryRun_fst, interpret_prependLengthQueries]
-/-- **Variable-length security of length-prepended CBC-MAC ([KatzLindell2020], Section 4.4.2,
-  Theorems 4.11 and 4.12, pp. 123–124, with Exercise 4.18)**: for an injective length encoding
-  and every distribution `D` over distinguishers that ask at most `q` block-aligned messages of at
-  most `L` blocks, length-prepended CBC-MAC with a uniform random function is
+/-- Information-theoretic uniform-random-function step toward [KatzLindell2020], Section 4.4.2,
+  Theorems 4.11–4.12 (pages 123–124) and Exercise 4.18, bounding length-prepended CBC-MAC over a
+  uniform random function rather than a computational PRF (#6046): for an injective length
+  encoding and every distribution `D` over distinguishers that ask at most `q` block-aligned
+  messages of at most `L` blocks, length-prepended CBC-MAC with a uniform random function is
   `q ^ 2 * (L + 1) ^ 2 / 2 ^ n`-close to a uniform random function on such messages. -/
 theorem abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le (n q L : ℕ)
     {encodeLength : Fin (L + 1) → BitString n} (he : Function.Injective encodeLength)
