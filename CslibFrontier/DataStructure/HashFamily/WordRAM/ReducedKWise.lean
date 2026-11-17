@@ -2105,30 +2105,15 @@ private theorem packOutStep_exec {w t b' evalVal : ℕ}
   set next2 := packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1)
   have hmasked_lt : masked < 2 ^ c :=
     lt_of_le_of_lt Nat.and_le_right (reducedOutMask_lt c b' m)
-  have hshifted_lt : shifted < 2 ^ w := by
-    dsimp only [shifted, masked, reducedOutMask, reducedOutShift]
-    split_ifs with hlt
-    · have hand : limb &&& (2 ^ min c (b' - m * c) - 1) < 2 ^ (b' - m * c) := by
-        rw [Nat.and_two_pow_sub_one_eq_mod]
-        exact (Nat.mod_lt _ (Nat.two_pow_pos _)).trans_le
-          (Nat.pow_le_pow_right two_pos (Nat.min_le_right _ _))
-      rw [Nat.shiftLeft_eq]
-      calc (limb &&& (2 ^ min c (b' - m * c) - 1)) * 2 ^ (m * c)
-          < 2 ^ (b' - m * c) * 2 ^ (m * c) :=
-            Nat.mul_lt_mul_of_pos_right hand (Nat.two_pow_pos _)
-        _ = 2 ^ b' := by rw [← pow_add, Nat.sub_add_cancel (le_of_lt hlt)]
-        _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hb'_le
-    · have hmin : min c (b' - m * c) = 0 := by omega
-      rw [hmin]
-      simp only [pow_zero, Nat.sub_self, Nat.and_zero, Nat.zero_shiftLeft]
-      exact Nat.two_pow_pos w
   have hnext2_eq : x.regs 2 ^^^ shifted = next2 := by
     rw [h2, ← packLimbs_and_mask_succ c b' m (getLimb c evalVal)]
   have hnext2_lt : next2 < 2 ^ w := by
     calc next2 < 2 ^ b' := and_two_pow_sub_one_lt _ b'
       _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hb'_le
   have hfit_masked : Fits w masked := lt_trans hmasked_lt hpow_c_lt
-  have hfit_shifted : Fits w shifted := hshifted_lt
+  have hfit_shifted : Fits w shifted :=
+    (and_reducedOutMask_shiftLeft_lt c b' m limb).trans_le
+      (Nat.pow_le_pow_right two_pos (max_le hb'_le (by omega)))
   have hfit_next2 : Fits w next2 := hnext2_lt
   have hacc_m : x.regs (accReg m) = limb := hacc m hm
   have hL_le : L ≤ 54 := reducedLimbCount_le t
