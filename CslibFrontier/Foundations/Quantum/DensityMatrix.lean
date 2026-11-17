@@ -89,7 +89,7 @@ noncomputable def pureState (ψ : EuclideanSpace ℂ ι) : Matrix ι ι ℂ :=
     pureState ψ i j = ψ.ofLp i * star (ψ.ofLp j) := by
   rfl
 
-theorem posSemidef_pureState [Finite ι] (ψ : EuclideanSpace ℂ ι) : (pureState ψ).PosSemidef :=
+theorem posSemidef_pureState (ψ : EuclideanSpace ℂ ι) : (pureState ψ).PosSemidef :=
   posSemidef_vecMulVec_self_star _
 
 theorem trace_pureState [Fintype ι] (ψ : EuclideanSpace ℂ ι) :
