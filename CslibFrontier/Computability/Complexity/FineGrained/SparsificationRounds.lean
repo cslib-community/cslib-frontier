@@ -63,9 +63,6 @@ theorem length_encNat_rounds (M : ℕ) (φ : CNF ℕ) :
 /-- The round count is computable in polynomial time. -/
 theorem computableInPolyTime_rounds (M : ℕ) :
     ComputableInPolyTime (rounds M) encCNF encNat := by
-  have hvars := SAT.computableInPolyTime_distinctVars
-  have h := ComputableInPolyTime.unary_div_const M
-  unfold rounds
-  fun_prop
+  fun_prop [rounds]
 
 end Cslib.Complexity.Sparsify

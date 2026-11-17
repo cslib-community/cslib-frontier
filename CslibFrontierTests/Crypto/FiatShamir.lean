@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamir
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification
@@ -62,9 +63,8 @@ theorem succProbability_knower : Game.succProbability (eufCmaGame scheme knower)
   have hrel := mem_support_schnorrKeyGen hkey
   refine PMF.le_bind_apply_on_support _ fun (r : ZMod 11) _ => ?_
   refine PMF.le_bind_apply_on_support _ fun forged hforged => ?_
-  simp only [knower, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-    OracleComp.interpret_pure, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff,
-    StateT.run_pure, PMF.monad_pure_eq_pure, _root_.PMF.mem_support_pure_iff] at hforged
+  simp only [knower, interp_norm, pmf_norm, PMF.mem_support_bind_iff,
+    _root_.PMF.mem_support_pure_iff] at hforged
   obtain ⟨answer, hanswer, rfl⟩ := hforged
   change answer ∈ ((memoize (fun _ => PMF.uniformOfFintype (ZMod 11)) (true, r • (2 : ZMod 11))
     []).bind fun a => PMF.pure (a.1, a.2, ([] : List Bool))).support at hanswer
@@ -73,8 +73,8 @@ theorem succProbability_knower : Game.succProbability (eufCmaGame scheme knower)
     PMF.mem_support_bind_iff, _root_.PMF.mem_support_pure_iff] at hanswer
   obtain ⟨c, -, rfl⟩ := hanswer
   refine PMF.le_bind_apply_on_support _ fun verified hverified => ?_
-  simp only [scheme, fiatShamir, OracleComp.interpret_map, OracleComp.interpret_query,
-    StateT.run_map, PMF.monad_map_eq_map, _root_.PMF.mem_support_map_iff] at hverified
+  simp only [scheme, fiatShamir, interp_norm, PMF.monad_map_eq_map,
+    _root_.PMF.mem_support_map_iff] at hverified
   obtain ⟨v, hv, rfl⟩ := hverified
   change v ∈ (memoize (fun _ => PMF.uniformOfFintype (ZMod 11)) (true, r • (2 : ZMod 11))
     [((true, r • 2), c)]).support at hv

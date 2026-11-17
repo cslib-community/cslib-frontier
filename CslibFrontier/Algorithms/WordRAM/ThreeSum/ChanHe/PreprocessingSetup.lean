@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingProg
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingLayout
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingReserve
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Internal initialization proof for native preprocessing
@@ -224,8 +225,7 @@ private theorem finish_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
     exact hregs i (by intro hh; subst i; norm_num [power] at hi)
       (by intro hh; subst i; norm_num [remaining] at hi))
-  have pcount : p.regs Traversal.outputCount = 0 :=
-    (hregs _ (by decide) (by decide)).trans hcount
+  have pcount : p.regs Traversal.outputCount = 0 := by regs_frame
   let y := p |>.set outputCapacity a.outputCapacity |>.set Traversal.heap a.floor
     |>.set heapFloor a.floor
   have hcap : Fits w a.outputCapacity := hfloor.of_le (by dsimp only [a, arena]; omega)

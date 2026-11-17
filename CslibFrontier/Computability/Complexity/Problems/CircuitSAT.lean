@@ -114,31 +114,11 @@ theorem isVerifier : IsVerifier (encCircuit 1) Polynomial.X verifier CircuitSAT 
   convert hx using 3 with i
   rw [List.getD_append _ _ _ _ (by simp), List.getD_ofFn]
 
-/-- The verifier evaluates the code of the circuit on the first bits of the certificate. -/
-private theorem verifier_eq_evalOutput (p : (Σ n, Circuit signature n 1) × List Bool) :
-    verifier p = evalOutput ((List.range p.1.1).map fun i => p.2.getD i false) p.1.2.code.1
-      (p.1.2.code.2.headD 0) := by
-  have h : List.ofFn (fun i : Fin p.1.1 => p.2.getD i false) =
-      (List.range p.1.1).map fun i => p.2.getD i false :=
-    List.ext_getElem (by simp) fun _ _ _ => by simp
-  rw [verifier, Circuit.eval_eq_evalOutput, h]
-  rfl
-
 /-- The `CircuitSAT` verifier is polynomial-time, on certificates of arbitrary length. -/
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair (encCircuit 1) encBits) encBool := by
-  have hraw : ComputableInPolyTime
-      (fun p : (Σ n, Circuit signature n 1) × List Bool => ((p.1.1, p.1.2.code), p.2))
-      (encPair (encCircuit 1) encBits) (encPair (encPair encUnary encCode) encBits) :=
-    .of_eq fun _ => rfl
-  have hout : ComputableInPolyTime
-      (fun r : (ℕ × (List (Op × List ℕ) × List ℕ)) × List Bool =>
-        evalOutput ((List.range r.1.1).map fun i => r.2.getD i false) r.1.2.1 (r.1.2.2.headD 0))
-      (encPair (encPair encUnary encCode) encBits) encBool := by
-    apply computableInPolyTime_evalOutput <;> fun_prop
-  rw [funext verifier_eq_evalOutput]
-  exact hout.comp hraw
+  fun_prop [verifier]
 
 /-- **Circuit satisfiability is in `NP`**, with certificates as long as the encoded circuit. -/
 theorem mem_NP : CircuitSAT ∈ NP (encCircuit 1) :=

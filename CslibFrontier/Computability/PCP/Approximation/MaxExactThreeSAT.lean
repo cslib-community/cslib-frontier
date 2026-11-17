@@ -131,15 +131,7 @@ theorem unsatVal_toExactThreeSAT (φ : CNF ℕ) :
 /-- The reduction is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_reduce : ComputableInPolyTime reduce encCNF encCNF := by
-  unfold reduce
-  have hempty : ComputableInPolyTime (List.isEmpty : Clause ℕ → Bool)
-      (encList (encPair encNat encBool)) encBool := by
-    exact (ListEncoding.isEmpty (enc₁ := encPair encNat encBool)
-      (enc := encList (encPair encNat encBool))).computableInPolyTime
-  have hany : ComputableInPolyTime (fun φ : CNF ℕ => φ.any List.isEmpty) encCNF encBool :=
-    ComputableInPolyTime.anyWithInput (ComputableInPolyTime.id' (encIn := encCNF))
-      (hempty.comp (ComputableInPolyTime.snd _ _))
-  exact ComputableInPolyTime.ite hany (.const _) computableInPolyTime_toExactThreeSAT
+  fun_prop [reduce]
 
 end GapExactThreeSAT
 

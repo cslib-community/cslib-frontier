@@ -147,7 +147,7 @@ private theorem bank_injective : Function.Injective bank := by
   exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
 
 private theorem header_preserves : ∀ i : Fin 32,
-    17 ≤ i.val → i.val < 29 → (Code.seq setup writeHeader).Preserves i := by decide
+    17 ≤ i.val → i.val < 29 → (Code.seq setup writeHeader).Preserves i := by decide +kernel
 
 private theorem matrix_preserves (side : Bool) : ∀ i : Fin 32,
     17 ≤ i.val → (matrix side).Preserves i := by cases side <;> decide

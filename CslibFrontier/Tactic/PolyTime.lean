@@ -796,8 +796,9 @@ private meta def polytimePlainFunProp : TacticM Unit :=
   Internal.funPropWithPlainBoundary 256
 
 open Lean Meta Elab Tactic in
-/-- Check existing finite-domain or supplied-table recipes without retaining a proof,
-encoding choice or metavariable assignment. The actual search keeps all alternatives. -/
+/-- Check existing finite-domain, supplied-table or supplied-conversion recipes without
+retaining a proof, encoding choice or metavariable assignment. The actual search keeps all
+alternatives. -/
 private meta def hasPlainConstructionRecipe (goal : MVarId) : TacticM Bool := do
   let saved ← saveState
   try
@@ -809,13 +810,16 @@ private meta def hasPlainConstructionRecipe (goal : MVarId) : TacticM Bool := do
       if (← plainGoal.applyConst ``ComputableInPolyTime.of_finite).isEmpty then return true
     catch _ => pure ()
     before.restore
-    for rule in [``ComputableInPolyTime.pi_apply', ``ComputableInPolyTime.pi_update'] do
+    for (rule, premise) in [(``ComputableInPolyTime.pi_apply', `hvalues),
+        (``ComputableInPolyTime.pi_update', `hvalues),
+        (``ComputableInPolyTime.fstWithEncoding, `h),
+        (``ComputableInPolyTime.sndWithEncoding, `h)] do
       let before ← saveState
       try
         let goals ← plainGoal.applyConst rule
-        if let some values ← goals.findM? fun g => return (`hvalues).isSuffixOf (← g.getTag) then
-          let known ← values.withContext do
-            knownLocalCertificate (← values.getType)
+        if let some premiseGoal ← goals.findM? fun g => return premise.isSuffixOf (← g.getTag) then
+          let known ← premiseGoal.withContext do
+            knownLocalCertificate (← premiseGoal.getType)
           if known.isSome then return true
       catch _ => pure ()
       before.restore
@@ -823,9 +827,10 @@ private meta def hasPlainConstructionRecipe (goal : MVarId) : TacticM Bool := do
   finally saved.restore
 
 open Lean Meta Elab Tactic in
-/-- An explicit raw construction goal may use an indexed plain certificate, an existing finite
-recipe or a table recipe supported by complete local evidence. Nested search remains plain;
-this rule never applies to a plain goal. -/
+/-- An explicit raw construction goal may use a complete compositional plain proof, an indexed
+program certificate, or a finite/table/conversion recipe supported by local evidence. A theorem
+for only the outer operation does not authorize a second unrestricted search of its missing
+premises. Nested search remains plain; this rule never applies to a plain goal. -/
 @[aesop unsafe 70% tactic (rule_sets := [PolyTime])]
 private meta def polytimeRawFromPlain : TacticM Unit :=
   withMainContext <| Term.withoutErrToSorry <| withoutRecover do
@@ -833,15 +838,24 @@ private meta def polytimeRawFromPlain : TacticM Unit :=
     let target := (← instantiateMVars (← goal.getType)).consumeMData
     unless target.isAppOf ``ComputableTidilyInPolyTime do
       throwError "expected an explicit raw polynomial-time goal"
-    let indexed ← try
+    let (hasNamedCertificate, hasTopLevelRule) ← try
       let key ← Cslib.Tactic.efficiencyKey target
       let plainKey := (``ComputableInPolyTime, key.2.1, key.2.2)
       let named := (Cslib.Tactic.certificateExt.getState (← getEnv)).getD plainKey #[]
       let functions ← Mathlib.Meta.FunProp.getTheoremsForFunction key.2.1 ``ComputableInPolyTime
-      pure (!named.isEmpty || !functions.isEmpty)
-    catch _ => pure false
-    unless indexed || (← hasPlainConstructionRecipe goal) do
-      throwError "no indexed or locally supported plain construction for this raw goal"
+      pure (!named.isEmpty, !functions.isEmpty)
+    catch _ => pure (false, false)
+    if !hasNamedCertificate && hasTopLevelRule then
+      let saved ← saveState
+      try
+        replaceMainGoal (← goal.applyConst ``ComputableInPolyTime.tidy)
+        polytimePlainFunProp
+        if ← Aesop.hasSorry (mkMVar goal) then
+          throwError "plain compositional certificate admitted a premise"
+        return
+      catch _ => saved.restore
+    unless hasNamedCertificate || (← hasPlainConstructionRecipe goal) do
+      throwError "no complete compositional proof or supported plain construction for this raw goal"
     -- Unification with a raw rule alone does not prove its premises. Retain this plain
     -- alternative after raw search fails, rather than vetoing it on application alone.
     replaceMainGoal (← goal.applyConst ``ComputableInPolyTime.tidy)
@@ -1018,6 +1032,20 @@ private meta partial def isEfficiencyGoal (type : Expr) : Bool :=
         fn.isConstOf `Cslib.Probability.IsOraclePPTOn ||
         fn.isConstOf `Cslib.Probability.IsOraclePPT
 
+open Lean in
+/-- Whether `type` is a closed PPT goal (possibly under binders or conjunctions) whose encoded
+samplers `enc _ <$> sample _` must not be fused by monad-map `@[simp]` lemmas. -/
+private meta partial def hasClosedPPTGoal (type : Expr) : Bool :=
+  match type.consumeMData with
+  | .forallE _ _ body _ => hasClosedPPTGoal body
+  | .letE _ _ _ body _ => hasClosedPPTGoal body
+  | e =>
+    if e.isAppOfArity ``And 2 then
+      hasClosedPPTGoal e.getAppArgs[0]! || hasClosedPPTGoal e.getAppArgs[1]!
+    else
+      let fn := e.getAppFn
+      fn.isConstOf `Cslib.Probability.IsPPTOn || fn.isConstOf `Cslib.Probability.IsPPT
+
 open Lean Meta Elab Tactic in
 /-- Run Aesop-style `simp_all` with the default and `PolyTime` simp sets, failing when nothing
 changes or when a metavariable from the goal or context would be dropped. When
@@ -1032,9 +1060,13 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
     unless decl.isImplementationDetail do
       for m in ← getMVars decl.type do goalMVars := goalMVars.insert m
   let (_, _, simpExt, _, simprocExt) ← Aesop.Frontend.getGlobalRuleSetData `PolyTime
+  let closedPPT := hasClosedPPTGoal (← instantiateMVars (← goal.getType))
   let config : Simp.Config :=
     if preserveDefinitions then
-      { dsimp := false, proj := false, iota := false, zeta := false, zetaDelta := false }
+      if closedPPT then
+        { zetaDelta := false }
+      else
+        { dsimp := false, proj := false, iota := false, zeta := false, zetaDelta := false }
     else
       {}
   let ctx ← Simp.mkContext
@@ -1049,6 +1081,18 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
       if decl.hasValue && !decl.isImplementationDetail then
         thms := thms.modify 0 (·.addLetDeclToUnfold decl.fvarId)
     pure (ctx.setSimpTheorems thms)
+  let ctx ←
+    if closedPPT then
+      -- Note: `eraseCore` silently ignores names that are not in the simp theorem set.
+      let erased := #[
+        `bind_map_left, `LawfulMonad.bind_pure_comp,
+        `Functor.map_map, `LawfulMonad.map_map, `map_bind,
+        `PFunctor.FreeM.bind_pure_comp, `PFunctor.FreeM.map_bind]
+      let thms := ctx.simpTheorems.map fun t =>
+        erased.foldl (init := t) fun acc nm => acc.eraseCore (.decl nm)
+      pure (ctx.setSimpTheorems thms)
+    else
+      pure ctx
   let simprocs := #[← simprocExt.getSimprocs, ← Simp.getSimprocs]
   let preState ← saveState
   match ← Lean.Meta.simpAll goal ctx simprocs with
@@ -1060,7 +1104,47 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
   | (some newGoal, _) =>
     if newGoal == goal then
       throwError "polytime simp left goal unchanged"
-    replaceMainGoal [newGoal]
+    if closedPPT then
+      -- `Lean.Meta.simpAll` cannot clear a rewritten hypothesis whose fvar still sits in an
+      -- unassigned metavariable's local context, so it leaves the old hypothesis and appends a
+      -- simplified copy; drop newly appended duplicates and detect no-op passes.
+      let collectDecls (m : MVarId) : MetaM (Array (FVarId × Expr × Option Expr)) :=
+        m.withContext do
+          let mut out := #[]
+          for d in ← getLCtx do
+            unless d.isImplementationDetail do
+              let t ← instantiateMVars d.type
+              let v ← d.value?.mapM instantiateMVars
+              out := out.push (d.fvarId, t, v)
+          return out
+      let oldDecls ← collectDecls goal
+      let oldPairs := oldDecls.map fun (_, t, v) => (t, v)
+      let mut cleanedGoal := newGoal
+      let mut seenNew : Array (Expr × Option Expr) := #[]
+      let mut dupIds : Array FVarId := #[]
+      for (fid, t, v) in ← collectDecls newGoal do
+        let pair := (t, v)
+        let oldCount := oldPairs.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        let seenCount := seenNew.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        if seenCount < max 1 oldCount then
+          seenNew := seenNew.push pair
+        else
+          dupIds := dupIds.push fid
+      for fid in dupIds.reverse do
+        cleanedGoal ← cleanedGoal.tryClear fid
+      let oldType ← instantiateMVars (← goal.getType)
+      let newType ← cleanedGoal.withContext do instantiateMVars (← cleanedGoal.getType)
+      if oldType == newType then
+        let newPairs := (← collectDecls cleanedGoal).map fun (_, t, v) => (t, v)
+        let sameSet :=
+          newPairs.all (fun p => oldPairs.any (· == p)) &&
+          oldPairs.all (fun p => newPairs.any (· == p))
+        if sameSet then
+          preState.restore
+          throwError "polytime simp left goal unchanged"
+      replaceMainGoal [cleanedGoal]
+    else
+      replaceMainGoal [newGoal]
 
 open Lean Meta Elab Tactic in
 /-- Normalize side goals with full `simp_all`, while preserving reducible wrappers, projections,

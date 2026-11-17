@@ -262,15 +262,11 @@ theorem count_eq_modelCount (φ : CNF ℕ) : count φ = φ.modelCount := by
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_init : ComputableInPolyTime init encCNF encState := by
-  have := SAT.computableInPolyTime_distinctVars
-  unfold init
-  fun_prop
+  fun_prop [init]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_rounds : ComputableInPolyTime rounds encCNF encNat := by
-  have := SAT.computableInPolyTime_distinctVars
-  unfold rounds
-  exact binary_two_pow.comp (by fun_prop)
+  fun_prop [rounds]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_step : ComputableInPolyTime step encState encState := by

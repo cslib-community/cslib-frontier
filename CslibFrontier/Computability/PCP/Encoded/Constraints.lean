@@ -122,11 +122,7 @@ theorem isPolyTime_constraintTable [Fintype α] {alphabet : α ↪ List Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
       (encPair enc (encPair alphabet alphabet)) encBool) :
     ComputableInPolyTime eval enc encConstraintTable := by
-  apply ComputableInPolyTime.pi
-  intro a
-  apply ComputableInPolyTime.pi
-  intro b
-  exact heval.comp (.prod (.id' (encIn := enc)) (.prod (.const a) (.const b)))
+  fun_prop
 
 /-- A fixed finite alphabet lets an efficient evaluator be materialized as its entire table.
 The source descriptor may have unbounded encoded size. -/

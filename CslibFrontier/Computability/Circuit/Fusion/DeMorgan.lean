@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Circuit.Fusion.Boolean
 import CslibFrontier.Computability.Circuit.MapOp
 import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Fusion covers and De Morgan circuit size
@@ -119,15 +120,13 @@ theorem eval_literalsRailCircuit (x : BitString n) :
       (Boolean.AltFormula.literals x) = fun _ => true := by
     funext j
     rw [Formula.eval_toCircuit, eval_const]
-  rw [literalsRailCircuit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring, hconst,
-    Circuit.eval_wiring, railBitString_eq_append_literals]
+  simp only [circuit_simps, literalsRailCircuit, hconst, railBitString_eq_append_literals]
   rfl
 
 /-- `literalsRailCircuit n` uses `0` conjunction gates. -/
 @[simp] theorem cost_literalsRailCircuit :
     (literalsRailCircuit n).program.cost andCost = 0 := by
-  rw [literalsRailCircuit, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Circuit.cost_program_append, Circuit.cost_program_wiring, Formula.cost_toCircuit]
+  simp only [circuit_simps, literalsRailCircuit, Formula.cost_toCircuit]
   simp [const]
 
 end Cslib.Circuits.Monotone

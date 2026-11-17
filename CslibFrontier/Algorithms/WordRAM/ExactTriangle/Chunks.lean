@@ -77,7 +77,7 @@ def program : Code .standard 14 :=
 theorem program_fixed : program.size ≤ 48 ∧ ¬program.ReadsWidth := by decide
 
 private theorem body_preserves : ∀ i : Fin 14,
-    (i.val < 5 ∨ i = one ∨ i = three) → body.Preserves i := by decide
+    (i.val < 5 ∨ i = one ∨ i = three) → body.Preserves i := by decide +kernel
 
 private theorem exec_body {w : ℕ} (x : Data 14) (ho : x.regs one = 1)
     (hthree : x.regs three = 3) (hp : x.regs pos < x.regs total)

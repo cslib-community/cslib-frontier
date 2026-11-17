@@ -22,7 +22,8 @@ These are specializations of `Block.Realizes`, not an additional memory model.
 
 * `Block.HoldsList.append_one`: a store immediately after a list appends one element.
 * `Block.HoldsList.frame`: writes outside the block preserve its list.
-* `Block.holdsList_append_iff`: concatenation is equivalent to two adjacent represented blocks.
+* `Block.holdsList_append_iff`, `Block.holdsList_cons_iff`: concatenation and head-tail
+  decomposition of represented blocks.
 -/
 
 @[expose] public section
@@ -107,5 +108,19 @@ theorem holdsList_append_iff {base : ℕ} {xs ys : List ℕ} {mem : ℕ → ℕ}
         Nat.add_sub_cancel_left, Nat.add_assoc] using hh
   · rintro ⟨hx, hy⟩
     exact hx.append hy
+
+/-- A represented list with a first entry decomposes into its head cell and shifted tail block. -/
+theorem holdsList_cons_iff {base a : ℕ} {l : List ℕ} {mem : ℕ → ℕ} :
+    HoldsList base (a :: l) mem ↔ mem base = a ∧ HoldsList (base + 1) l mem := by
+  rw [show a :: l = [a] ++ l from rfl, holdsList_append_iff]
+  constructor
+  · rintro ⟨h1, h2⟩
+    exact ⟨by simpa using h1.get 0 (by simp), by simpa using h2⟩
+  · rintro ⟨h1, h2⟩
+    refine ⟨fun i => ?_, by simpa using h2⟩
+    obtain ⟨i, hi⟩ := i
+    have hi' : i = 0 := by dsimp only at hi; simp at hi; omega
+    subst hi'
+    simpa [Block.read] using h1
 
 end Cslib.WordRAM.Block
