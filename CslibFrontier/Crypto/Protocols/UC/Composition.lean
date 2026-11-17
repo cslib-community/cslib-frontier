@@ -700,10 +700,12 @@ theorem compose_polyBounded {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut
 variable {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
   {π : Protocol n SubIn SubOut NQ₁ NR₁} {φ : Protocol n SubIn SubOut NQ₂ NR₂}
 
-/-- The UC composition theorem for simulators of the dummy adversary: if `S` simulates the dummy
-adversary of `π` in `φ` with budget `pD` and error `ε`, then the composed simulator simulates the
-dummy adversary of `ρ^π` in `ρ^φ` with budget `pD + 1` and error `ε` evaluated at the absorbed
-environment's budget `absorbPoly pZ pρ`. -/
+/-- Composition for `EmulatesDummyWithin`, this library's novel call-bounded, fixed-`n`-party,
+port-model emulation of the dummy adversary, a step toward Canetti's computational UC composition
+theorem but not that theorem (#6043): if `S` simulates the dummy adversary of `π` in `φ` with
+budget `pD` and error `ε`, then the composed simulator simulates the dummy adversary of `ρ^π` in
+`ρ^φ` with budget `pD + 1` and error `ε` evaluated at the absorbed environment's budget
+`absorbPoly pZ pρ`. -/
 theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (hρ : ρ.PolyBounded pρ) (h : EmulatesDummyWithin π φ pD ε) :
     EmulatesDummyWithin (compose ρ π) (compose ρ φ) (pD + 1) (fun pZ => ε (absorbPoly pZ pρ)) := by
@@ -712,9 +714,11 @@ theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial �
   rw [advantage_compose]
   exact hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z
 
-/-- The concrete UC composition theorem: if `π` emulates `φ` with simulator overhead `g` and error
-`ε`, then `ρ^π` emulates `ρ^φ` with the overhead below and error `ε 1` evaluated at the
-environment budget that absorbs both the adversary and the hybrid protocol. -/
+/-- Concrete composition for `EmulatesWithin`, this library's novel call-bounded, fixed-`n`-party,
+port-model emulation notion, a step toward Canetti's computational UC composition theorem but not
+that theorem (#6043): if `π` emulates `φ` with simulator overhead `g` and error `ε`, then `ρ^π`
+emulates `ρ^φ` with the overhead below and error `ε 1` evaluated at the environment budget that
+absorbs both the adversary and the hybrid protocol. -/
 theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (hρ : ρ.PolyBounded pρ)
     (h : EmulatesWithin π φ g ε) :
@@ -731,9 +735,11 @@ theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
     Polynomial.eval_comp]
   gcongr
 
-/-- The UC composition theorem, adapting Theorem 3 of Section 2.3 of [Canetti2020] (see the
-module docstring for the model): if `π` UC-emulates `φ`, then `ρ^π` UC-emulates `ρ^φ` for every
-hybrid protocol `ρ` with a polynomial budget. -/
+/-- Composition for `Emulates`, this library's novel call-bounded, fixed-`n`-party, port-model
+emulation notion, which is related to but is not UC emulation (Definition 9 of [Canetti2020]): a
+step toward the computational UC composition theorem, Theorem 3 of Section 2.3, but not that
+theorem (#6043; see the module docstring for the model). If `π` emulates `φ`, then `ρ^π` emulates
+`ρ^φ` for every hybrid protocol `ρ` with a polynomial budget. -/
 theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : Emulates π φ) :
     Emulates (compose ρ π) (compose ρ φ) := by
   rw [emulates_iff_emulatesDummy] at h ⊢
@@ -744,18 +750,20 @@ theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : 
   rw [advantage_compose]
   exact hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z
 
-/-- Replacing an ideal functionality by a protocol that realizes it, corollary (a) after Theorem 3
-of Section 2.3 of [Canetti2020]: if `π` UC-realizes `F`, then `ρ^π` UC-emulates the `F`-hybrid
-protocol `ρ^F`. -/
+/-- Replacing an ideal functionality by a protocol that realizes it in the sense of `Realizes`,
+this library's novel call-bounded, fixed-`n`-party, port-model notion: a step after corollary (a)
+of Theorem 3 of Section 2.3 of [Canetti2020], not that corollary (#6043). If `π` realizes `F`, then
+`ρ^π` emulates the `F`-hybrid protocol `ρ^F` in the sense of `Emulates`. -/
 theorem Realizes.compose {BackQ BackR : Type} {π : Protocol n SubIn SubOut NQ NR}
     {F : IdealFunctionality n SubIn SubOut BackQ BackR} {pρ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (h : Realizes π F) :
     Emulates (compose ρ π) (compose ρ F.toProtocol) :=
   Emulates.compose hρ h
 
-/-- Modular protocol design, corollary (b) after Theorem 3 of Section 2.3 of [Canetti2020]: if
-`ρ^F` UC-realizes `G` in the `F`-hybrid model and `π` UC-realizes `F`, then `ρ^π` UC-realizes
-`G`. -/
+/-- Modular protocol design for `Realizes`, this library's novel call-bounded, fixed-`n`-party,
+port-model notion: a step after corollary (b) of Theorem 3 of Section 2.3 of [Canetti2020], not
+that corollary (#6043). If `ρ^F` realizes `G` in the `F`-hybrid model and `π` realizes `F`, then
+`ρ^π` realizes `G`. -/
 theorem Realizes.compose_trans {BackQ BackR GQ GR : Type} {π : Protocol n SubIn SubOut NQ NR}
     {F : IdealFunctionality n SubIn SubOut BackQ BackR} {G : IdealFunctionality n In Out GQ GR}
     {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hπ : Realizes π F)

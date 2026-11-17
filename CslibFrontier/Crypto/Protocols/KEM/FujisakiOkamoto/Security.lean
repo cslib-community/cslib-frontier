@@ -15,6 +15,7 @@ import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Union
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -329,13 +330,7 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
     exact tsum_congr fun ω => mul_left_comm _ _ _
   have hle := Game.closeTo_iff_coe_advantage_le.mp hclose
   rw [hsum] at hle
-  have htop : ENNReal.ofReal e + 2 * ProbComp.eval (A.coins >>= fun ω => ow (A.run ω)) true ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨ENNReal.ofReal_ne_top,
-      ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)⟩
-  have hreal := ENNReal.toReal_mono htop hle
-  rwa [ENNReal.coe_toReal, ENNReal.toReal_add ENNReal.ofReal_ne_top
-    (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)), ENNReal.toReal_ofReal he,
-    ENNReal.toReal_mul, ENNReal.toReal_ofNat] at hreal
+  ennreal_to_real using hle
 
 end RandomizedROAdversary
 

@@ -24,6 +24,7 @@ import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Retry
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformPoint
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.Negligible
 
 /-!
@@ -700,11 +701,7 @@ theorem dlSelfReduceRetryAdversary_error_le_pow
     ext out
     simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_and_or, not_not, ne_eq]
   rw [hset]
-  calc _ ≤ ((1 - (c : ℝ≥0∞)) ^ (n * (2 * invEps n))).toReal :=
-        ENNReal.toReal_mono (ne_top_of_le_ne_top ENNReal.one_ne_top hpow1) herr
-    _ = (1 - (c : ℝ)) ^ (n * (2 * invEps n)) := by
-        rw [ENNReal.toReal_pow, ENNReal.toReal_sub_of_le (by exact_mod_cast hc1)
-          ENNReal.one_ne_top, ENNReal.toReal_one, ENNReal.coe_toReal]
+  calc _ ≤ (1 - (c : ℝ)) ^ (n * (2 * invEps n)) := by ennreal_to_real using herr
     _ ≤ (1 - 1 / (2 * (invEps n : ℝ))) ^ (n * (2 * invEps n)) :=
         pow_le_pow_left₀ (sub_nonneg.mpr (by exact_mod_cast hc1)) (by linarith) _
     _ ≤ Real.exp (-(n : ℝ)) := by

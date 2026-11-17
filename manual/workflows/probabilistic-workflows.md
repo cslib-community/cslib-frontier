@@ -329,7 +329,11 @@ carry a pointwise sum identity between continuations over to the experiments,
 `PMF.bind_apply_le_add_of_ne` bounds continuations that are close away from one first-stage result,
 and `PMF.bind_apply_eq_of_good` equates stateful experiments that agree until a bad state. The
 one-sided comparisons on the support are in
-[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean).
+[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean); for general `ℝ≥0∞`-valued
+integrands `∑' a, p a * f a`, import
+[PMF/SupportTsum.lean](../../CslibFrontier/Probability/PMF/SupportTsum.lean) for
+`PMF.tsum_mul_congr_support`, `PMF.tsum_mul_mono_support`, `PMF.tsum_mul_add_of_support` and
+`PMF.tsum_mul_le_of_support`.
 
 Moving a bound between `ℝ≥0∞` and `ℝ` or `ℝ≥0` (`ENNReal.toReal_mono`, `ENNReal.toReal_add`,
 `ENNReal.toNNReal_mono`, `ENNReal.toReal_sum`) needs every term to be finite. Import
@@ -343,7 +347,18 @@ the `x < _` case working alongside its sum rule. A factor with no such reason, s
 `x : ℝ≥0∞`, makes it fail, often only after Aesop's rule-application limit; add a hypothesis
 `x ≠ ∞` or prove that factor separately. Each successful call costs roughly 100 to 800 heartbeats
 of Aesop search and positivity, so where the explicit term is
-a single `PMF.apply_ne_top _ _` keep the term. To compare success probabilities, import
+a single `PMF.apply_ne_top _ _` keep the term. When the transfer takes several such steps (a
+bridge lemma, its finiteness facts and a chain of `toReal` rewrites), import
+[Tactic/ENNRealToReal.lean](../../CslibFrontier/Tactic/ENNRealToReal.lean) and call
+`ennreal_to_real` instead: on a goal or, with `at h`, a hypothesis `a R b` in `ℝ≥0∞` it proves the
+sides finite, replaces the statement by `a.toReal R b.toReal` and pushes `toReal` through the
+arithmetic, and `ennreal_to_real using h` closes a real goal from the `ℝ≥0∞` fact `h`. Each call
+runs `finiteness` once per transferred side and once per side condition of a rewrite, up to a few
+tenths of a second of CPU per call, so for a single side condition keep the in-place
+`by finiteness` or the explicit term. Its
+[checked examples](../../CslibFrontierTests/ENNRealToReal.lean) cover the three forms, the
+subterms it leaves in place and its failure messages. To compare success
+probabilities, import
 [Game/Order.lean](../../CslibFrontier/Crypto/Game/Order.lean):
 `apply Game.succProbability_mono` leaves the goal `g₁ true ≤ g₂ true`, without unfolding
 `Game.succProbability`, and `Game.succProbability_le_add_of_advantage_le` turns a bound on
