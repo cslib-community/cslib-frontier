@@ -5781,38 +5781,6 @@ register_result "luby-rackoff-prp" where
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
 
-register_result "pedersen-commitment-hiding" where
-  title := "Pedersen commitments are statistically hiding"
-  topic := "cryptography"
-  sources := [
-    { paper := Pedersen1991, theorem := unverified, locator := unverified },
-    { paper := BonehShoup2023,
-      theorem := "hiding experiment and unconditional hiding; no theorem on this scheme",
-      locator := "Section 8.12, pp. 344 and 346" }
-  ]
-  theorems := [
-    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
-  ]
-  scope := "Pedersen's commitment c = m·g + r·h (additive notation for g^m h^r) over any \
-    prime-order group family and any setup law for the group, with no efficiency condition on \
-    it. The key is h = α·g with α drawn by the fair-coin program pedersenKeyGenProb, and the \
-    commitment randomness r by pedersenCommitProb; both use sampleExp, within statistical \
-    distance 1/2^n of uniform on Z_q. Messages are the canonical binary words of naturals below \
-    q, and the opening is the canonical binary word of r. The game pedersenHidingProbGame is \
-    the hiding experiment of Section 8.12 (p. 344) with the key given to the adversary: it \
-    chooses two words, receives the commitment string for m_b (for m₀ unless both words are \
-    valid messages), and outputs a guess. Every adversary, with no efficiency bound, has \
-    negligible advantage provided every group in the setup's support at parameter n has order \
-    at least m n > 0 with 1/m n negligible: the key h = 0, of probability 1/q when α is exactly \
-    uniform, is the only loss besides 4/2^n of sampling error \
-    (advantage_pedersenHidingProbGame_le gives 1/m + 4/2^n). This is \
-    unconditional hiding in the sense of Section 8.12 (p. 346) for a scheme with a public key \
-    drawn at key generation, where Section 8.12's schemes have no key. It is stated on the game \
-    and not as CommitmentScheme.StatisticalHiding, whose commitment law takes no security \
-    parameter (#6133). Boneh–Shoup state no theorem on this scheme; the result is Pedersen's, \
-    whose theorem number and locator were not checked: no copy is recorded in the manual's \
-    sources."
-
 register_result "pedersen-commitment-binding" where
   title := "Pedersen commitments are computationally binding under the discrete-logarithm \
     assumption"
@@ -5869,50 +5837,6 @@ register_result "elgamal-ddh-ind-cpa" where
     without requiring equal lengths; an inadmissible pair makes both experiments output false. \
     Decryption correctness on the same programs is elGamalDecryptDet_elGamalEncryptProb. \
     Asymptotic; the exercise's concrete bound 2ε is not stated."
-
-register_result "cramer-shoup-ddh-cca" where
-  title := "Multiplicative Cramer–Shoup is CCA secure under DDH and a collision-resistant hash"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 12.27",
-      locator := "Section 12.11, pp. 521–522; proof method of Theorem 12.9, Section 12.5.3, \
-        p. 489; Theorem 12.1, p. 468, and its extension to associated data, p. 502" }
-  ]
-  theorems := [
-    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup,
-    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2On_cramerShoup,
-    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup,
-    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2MultiOn_cramerShoup
-  ]
-  scope := "The scheme E_MCS of the exercise (v = β·g, w = β·u, e = β·h + m, \
-    ρ = H'(v, w, e, ad), z' = β·(h₁ + ρ·h₂), in additive notation) over a decodable prime-order \
-    group family (efficiently recognizable groups, Definition 10.9(1), p. 413), at a \
-    deterministic polynomial-time group schedule d in place of a sampled system parameter. \
-    Assumptions: DDH (Definition 10.8, p. 411) for the point-mass setup at d, and collision \
-    resistance (Attack Game 8.1 and Definition 8.1, p. 290) of the hash H' = H mod q, keyed by \
-    d n and a uniform keyLen n-bit hash key, with H, d and keyLen polynomial time. Two \
-    deviations concern \
-    the hash: key generation draws that hash key and publishes it in the public key, where the \
-    exercise's H' is fixed with the group; and collision resistance is assumed for H' on all \
-    input words, which is at least as strong as the exercise's assumption on G³ × D. The \
-    premises 0 < m n ≤ q(d n) with 1/m n negligible add no assumption: DDH implies that \
-    1/q(d n) is negligible (DDH.cdh and CDH.negligible_inv_order), so m n = q(d n) meets them. \
-    The scheme's own fair-coin programs (cramerShoupKeyGenProb and the encryption programs) \
-    draw the seven key exponents and the encryption exponent with sampleExp, each within \
-    statistical distance 1/2^n of uniform on Z_q; decryption is deterministic polynomial time \
-    and checks the framing and the group membership of v, w and e. A challenge pair is \
-    admissible when both words encode group elements (cramerShoupValid); an inadmissible pair \
-    makes both experiments output false. Notions, all against uniform strict oracle-PPT \
-    adversaries reading 1^n: indcca2ADOn_cramerShoup is 1CCA security with associated data \
-    (Definition 12.7, pp. 501–502, one challenge), the exercise's statement in the one-challenge \
-    form that Theorem 12.1 lifts to many challenges (p. 502); indcca2On_cramerShoup is the \
-    1CCA form without associated data (Definition 12.2, ad = []); \
-    indcca2InterleavedOn_cramerShoup is CCA security with adaptively interleaved challenge and \
-    decryption queries (Attack Game 12.1 and Definition 12.1, pp. 467–468), without associated \
-    data; indcca2MultiOn_cramerShoup is its restriction to one batch of challenges. A decryption \
-    query on a challenge ciphertext (with its associated data) is answered as a rejection, \
-    where the source forbids it. The proof follows Theorem 12.9 for the hybrid scheme E_CS of \
-    Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
