@@ -194,6 +194,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
 import CslibFrontier.DataStructure.Paging.Marking
@@ -6050,3 +6051,36 @@ register_result "tally-np-exp-nexp" where
   scope := "(∀ L ∈ TALLY, L ∈ NP encBits → L ∈ P encBits) → EXP enc = NEXP enc and E enc = NE enc \
     for every encoding enc; TALLY is the set of bit-languages of all-true words. Only this \
     direction of Hartmanis–Immerman–Sewelson is proved."
+
+register_result "uniform-probing-expected-probes" where
+  title :=
+    "Expected probe count for unsuccessful search and fresh-key insertion under uniform probing"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "Theorem 11.6 and Corollary 11.7",
+      locator := "Section 11.4, pp. 274–276" }
+  ]
+  theorems := [
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le_two,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le_two
+  ]
+  scope := "Uniform full-cycle probing over m slots: expect_unsuccessfulProbes_le and \
+    expect_unsuccessfulProbes_le_two sample a single uniform permutation σ : Equiv.Perm (Fin m) \
+    via PMF.uniformOfFintype against any occupied slot set O : Finset (Fin m) with O.card < m \
+    (or 0 < m and 2 * O.card ≤ m). expect_probeCount_of_eq_none_le and \
+    expect_probeCount_of_eq_none_le_two sample independent per-key permutations \
+    π : Fin U → Equiv.Perm (Fin m) via PMF.uniformOfFintype (lazy-sampling equivalence proved \
+    separately in uniform_interpret_eq_lazy_perm) and run any non-adaptive admissible history \
+    ops of the insert-only bounded-capacity dictionary specification Dictionary.spec U V n_max \
+    (ValidHistory, empty, run, dom, with n_max ≤ m) on Table U m := Fin m → Option (Fin U × ℕ) \
+    via runTable and TableRep. Probe counts unsuccessfulProbes O σ := 1 + missedProbes O σ and \
+    probeCount T u (π u) := unsuccessfulProbes (otherOccupiedSlots T u) (π u) count all \
+    inspected slots along the probe sequence up to and including the first slot outside O \
+    (< m). Proves ℝ≥0∞ expected probe bounds ≤ m / (m - n) for any absent key s u = none with \
+    (Dictionary.dom s).card = n < m, and ≤ 2 under 2 * n_max ≤ m. Abstract uniform-hashing table \
+    model only: no concrete hash construction or Word-RAM runtime claim, and excludes the \
+    uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
+    per-key intermediate step)."
+
