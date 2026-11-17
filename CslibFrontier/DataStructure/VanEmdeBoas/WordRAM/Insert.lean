@@ -102,18 +102,6 @@ private theorem insert_descent_safe {d base m M key : ℕ} {s : Tree d}
   refine ⟨hi, Nat.mod_lt _ (universeSize_pos d), ?_⟩
   simpa only [Nat.add_assoc] using Nat.add_le_add_left (cluster_end_le_span d hi) base
 
-/-- Continuation of `insertBody` after updating the local header's extrema `(min m key, max M key)`
-and setting `x` to the displaced key `max m key`. -/
-private def insertTail : Code .standard 32 := ram[
-  ⟪readAt addr q p three⟫;
-  if q = zero then [ runFlag ← zero ] else [
-    ⟪readAt addr t p four⟫; ⟪coordinates⟫; present ← *child;
-    if present = zero then [
-      *child ← one; ⟪writeAt addr child one low⟫; ⟪writeAt addr child two low⟫;
-      p ← p + five; x ← high
-    ] else [ p ← child; x ← low ]
-  ] ]
-
 /-- Execute the header-check and extrema-update prefix of `insertBody` on an occupied record with
 `key ≠ m`, joining the conditional paths into a single state `y` with
 `InsertEntry base (max m key) y` and `y.mem = writeBounds s.mem base (some (min m key, max M key))`
@@ -128,20 +116,7 @@ private theorem exists_execWithin_insertBody_occupied {w base key m M : ℕ} {s 
       WP w insertTail y fun z T' => T' ≤ 21 ∧ P z) :
     ∃ z, ExecWithin w insertBody s z 37 ∧ P z := by
   apply WP.exists_execWithin
-  change WP w ram[
-    present ← *p;
-    if present = zero then [
-      *p ← one; ⟪writeAt addr p one x⟫; ⟪writeAt addr p two x⟫; runFlag ← zero
-    ] else [
-      ⟪readAt addr mn p one⟫;
-      if x = mn then [ runFlag ← zero ] else [
-        if x < mn then [ ⟪writeAt addr p one x⟫; x ← mn ] else [ x ← x ];
-        ⟪readAt addr mx p two⟫;
-        if mx < x then [ ⟪writeAt addr p two x⟫ ] else [ mx ← mx ];
-        ⟪insertTail⟫
-      ]
-    ] ] s _
-  dsimp only [readAt, writeAt]
+  unfold insertBody readAt writeAt
   have hp := hs.p_eq; have hx := hs.x_eq; have hz := hs.zero_eq
   have ho := hs.one_eq; have htwo := hs.two_eq; have hrun := hs.runFlag_eq
   wram_exec -split [hp, hx, hz, ho, htwo, hpres, hm, heq]

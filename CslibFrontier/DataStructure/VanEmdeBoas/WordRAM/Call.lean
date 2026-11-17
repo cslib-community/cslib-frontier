@@ -233,10 +233,6 @@ theorem member_executes_log {d w base query : ℕ} {tree : Tree d} {s : Data 32}
 
 /-! ## Complete native strict-successor calls -/
 
-/-- Named wrapper for the two-phase strict-successor body `successorDescent; successorUnwind`. -/
-private def successorPhase : Code .standard 32 :=
-  ram[ ⟪successorDescent⟫; ⟪successorUnwind⟫ ]
-
 /-- A complete strict-successor dispatch (`tag = 2`), including setup, descent, and stack unwind
 but not final halt, executes in at most `65 * (d + 1) + 21` instructions, preserves the
 represented tree at `base`, restores `sp = stackBase₀`, and modifies no memory outside the
@@ -253,12 +249,7 @@ theorem successor_dispatch_spec {d w base stackBase₀ query : ℕ} {tree : Tree
       (∀ a, a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a → z.mem a = s.mem a) := by
   have hw : Fits w 5 := hstk_fit.of_le (by have := five_le_span d; omega)
   apply WP.exists_execWithin
-  change WP w ram[
-    ⟪setup⟫;
-    if tag = zero then [ ⟪insertLoop⟫ ] else [
-      if tag = one then [ ⟪memberLoop⟫ ] else [ ⟪successorPhase⟫ ]
-    ] ] s _
-  unfold setup
+  unfold program setup
   wram_exec [hroot, hstk, harg, htag]
   apply WP.name; intro s₁ hs₁
   have hentry : SuccessorEntry stackBase₀ stackBase₀ base query s₁ := by
