@@ -205,10 +205,7 @@ theorem computableInPolyTime_publicKey :
     ComputableInPolyTime
       (fun p : List Bool × List (List Bool × List Bool) => publicKey H p.1 p.2)
       (encPair encBits (encList (encPair encBits encBits))) encBits := by
-  have hk := ComputableInPolyTime.fst encBits (encList (encPair encBits encBits))
-  have hroot := (computableInPolyTime_merkleRoot hH hlen).comp
-    (hk.prod (computableInPolyTime_keyMap.comp (ComputableInPolyTime.snd _ _)))
-  exact (hk.prod hroot).encoding_comp
+  fun_prop [publicKey]
 
 include hH hlen hcap in
 /-- Merkle key generation is uniformly strict PPT. -/

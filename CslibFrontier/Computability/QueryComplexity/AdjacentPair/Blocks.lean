@@ -142,7 +142,6 @@ theorem pairwise_disjoint_adjacentPairWitness (h : ∑ b, sizes b = n) :
     apply hne
     cases hb
     congr 1
-    apply Fin.ext
     omega
 
 /-- Different witness indices give different blocks. -/

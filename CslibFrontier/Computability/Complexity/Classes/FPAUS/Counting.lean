@@ -16,6 +16,7 @@ import CslibFrontier.Languages.Probabilistic.Concentration
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Almost uniform sampling gives approximate counting for self-reducible families
@@ -354,9 +355,7 @@ private theorem step_failure {S : α → ℕ → ProbComp (Option (List Bool))} 
         · simpa [bad] using hc₁')
     rw [compl_compl] at h
     exact h.trans (add_le_add (hbadE false) le_rfl)
-  have hreal := ENNReal.toReal_mono (by finiteness) hle
-  rw [ENNReal.toReal_add ENNReal.ofReal_ne_top ENNReal.ofReal_ne_top,
-    ENNReal.toReal_ofReal (by positivity)] at hreal
+  ennreal_to_real at hle
   linarith
 
 /-- At the last level the invariant gives the accuracy guarantee. -/

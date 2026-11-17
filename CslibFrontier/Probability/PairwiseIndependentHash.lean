@@ -119,7 +119,7 @@ private theorem mem_image_iff_card_filter_pos (f : X → Y) (S : Finset X) (y : 
   rw [mem_image, card_pos, filter_nonempty_iff]
 
 /-- Inclusion–exclusion for a count `n`: `n - n (n - 1) / 2` is at most the indicator of `n ≠ 0`. -/
-private theorem natCast_sub_mul_sub_one_div_two_le [Field 𝕜] [LinearOrder 𝕜]
+theorem natCast_sub_mul_sub_one_div_two_le [Field 𝕜] [LinearOrder 𝕜]
     [IsStrictOrderedRing 𝕜] (n : ℕ) :
     (n : 𝕜) - n * (n - 1) / 2 ≤ if 0 < n then 1 else 0 := by
   rcases n with _ | _ | n

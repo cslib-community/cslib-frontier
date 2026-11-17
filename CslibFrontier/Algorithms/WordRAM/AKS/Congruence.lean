@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 
@@ -110,7 +110,6 @@ def Keep (j : Fin 25) : Prop := j = R ∨ j = B ∨ j = T ∨ j = rr ∨ j = nn 
 instance : DecidablePred Keep := fun _ => by unfold Keep; infer_instance
 
 private theorem fill_preserves : ∀ j, Keep j → fill.Preserves j := by decide
-private theorem pow_preserves : ∀ j, Keep j → pow.Preserves j := by decide
 private theorem cmp_preserves : ∀ j, Keep j → cmp.Preserves j := by decide
 
 private theorem fill_exec {w : ℕ} (x : Data 25) {bs r n e' A : ℕ} (hb : x.regs pa = bs)
@@ -123,32 +122,6 @@ private theorem fill_exec {w : ℕ} (x : Data 25) {bs r n e' A : ℕ} (hb : x.re
   obtain ⟨y, hy, hblk, hframe, -⟩ := Fill.exec (x.comap fillMap) hb hr hn her ha hr0 hn0 hfb hfa hfn
   have hy' := hy.rename fillMap_injective
   exact ⟨_, hy', hblk, hframe, fun j hj => hy'.regs_eq (fill_preserves j hj)⟩
-
-private theorem cmp_exec {w : ℕ} (x : Data 25) {a b r : ℕ} (ha : x.regs pa = a)
-    (hb : x.regs pb = b) (hr : x.regs rr = r) (hfa : Fits w (a + r)) (hfb : Fits w (b + r))
-    (h1 : Fits w 1) :
-    ∃ y, ExecWithin w cmp x y (11 * r + 5) ∧ y.regs flag ≤ 1 ∧
-      (y.regs flag = 1 ↔ ∀ k' < r, x.mem (a + k') = x.mem (b + k')) ∧
-      (∀ j, Keep j → y.regs j = x.regs j) := by
-  obtain ⟨y, hy, ⟨hle, hiff, -⟩, -⟩ :=
-    ExecWithin.rename_post cmpMap_injective (Compare.exec (x.comap cmpMap) ha hb hr hfa hfb h1)
-  exact ⟨y, hy, hle, hiff, fun j hj => hy.regs_eq (cmp_preserves j hj)⟩
-
-private theorem pow_exec {w : ℕ} (x : Data 25) {a b t r n : ℕ} (ha : x.regs R = a)
-    (hb : x.regs B = b) (ht : x.regs T = t) (hr : x.regs rr = r) (hn : x.regs nn = n)
-    (hn0 : 0 < n) (hab : a + r ≤ b ∨ b + r ≤ a) (hta : t + r ≤ a ∨ a + r ≤ t)
-    (htb : t + r ≤ b ∨ b + r ≤ t) (hpa : ∀ i < r, x.mem (a + i) < n)
-    (hpb : ∀ i < r, x.mem (b + i) < n) (hfa : Fits w (a + r)) (hfb : Fits w (b + r))
-    (hft : Fits w (t + r)) (hf2 : Fits w (2 * r)) (hfn : Fits w (n * n + n))
-    (hfe : Fits w (x.regs e)) :
-    ∃ y, ExecWithin w pow x y (PolyPow.time r (x.regs e)) ∧
-      toQuot n r (fun i => y.mem (a + i)) =
-        toQuot n r (fun i => x.mem (a + i)) * toQuot n r (fun i => x.mem (b + i)) ^ x.regs e ∧
-      (∀ i < r, y.mem (a + i) < n) ∧ (∀ j, Keep j → y.regs j = x.regs j) := by
-  obtain ⟨y, hy, hq, hred, -⟩ := PolyPow.exec (x.comap powMap) ha hb ht hr hn hn0 hab hta htb hpa
-    hpb hfa hfb hft hf2 hfn hfe
-  have hy' := hy.rename powMap_injective
-  exact ⟨_, hy', hq, hred, fun j hj => hy'.regs_eq (pow_preserves j hj)⟩
 
 /-- The class of `1`, written as `X^0 + 0`. -/
 private theorem toQuot_one {n r : ℕ} (hr : 0 < r) : toQuot n r (powAddCoeff n r 0 0) = 1 := by
@@ -169,89 +142,97 @@ theorem exec {w : ℕ} (x : Data 25) {a b t r n A : ℕ} (ha : x.regs R = a) (hb
   have h1 : Fits w 1 := hfn.of_le (by nlinarith)
   have hfn1 : Fits w (n + 1) := hfn.of_le (by nlinarith)
   have hfnn : Fits w n := hfn.of_le (by nlinarith)
-  have hfr : Fits w r := hf2.of_le (by omega)
-  -- `B := X + A`.
-  let x₁ := (((x.set one 1).set er (1 % r)).set aa A).set pa b
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ one ← #1; er ← one % rr; aa ← av; pa ← B ])
-      x x₁ 4 := by
-    ram_eval [x₁, hr, hA, hb, h1, h1.of_le (Nat.mod_le 1 r)]
-  have hx₁ (j : Fin 25) (hj : Keep j) : x₁.regs j = x.regs j := by
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> simp +decide [x₁]
-  obtain ⟨y₁, hrun₂, hB₁, hfr₁, hy₁⟩ := fill_exec (w := w) x₁ (bs := b) (r := r) (n := n) (e' := 1)
-    (A := A) (by simp +decide [x₁]) (by rw [hx₁ rr (by simp [Keep]), hr])
-    (by rw [hx₁ nn (by simp [Keep]), hn]) (by simp +decide [x₁]) (by simp +decide [x₁]) hr0 hn0
-    hfb hfA hfn1
-  have hy₁' (j : Fin 25) (hj : Keep j) : y₁.regs j = x.regs j := by rw [hy₁ j hj, hx₁ j hj]
-  -- `R := 1`.
-  let x₂ := ((y₁.set er 0).set aa 0).set pa a
-  have hrun₃ : ExecWithin (B := .standard) w (ram[ er ← #0; aa ← #0; pa ← R ]) y₁ x₂ 3 := by
-    ram_eval [x₂, hy₁' R (by simp [Keep]), ha]
-  have hx₂ (j : Fin 25) (hj : Keep j) : x₂.regs j = x.regs j := by
-    rw [← hy₁' j hj]
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> simp +decide [x₂]
-  obtain ⟨y₂, hrun₄, hR₂, hfr₂, hy₂⟩ := fill_exec (w := w) x₂ (bs := a) (r := r) (n := n) (e' := 0)
-    (A := 0) (by simp +decide [x₂]) (by rw [hx₂ rr (by simp [Keep]), hr])
-    (by rw [hx₂ nn (by simp [Keep]), hn]) (by simp +decide [x₂]) (by simp +decide [x₂]) hr0 hn0 hfa
-    (fits_zero w) hfn1
-  have hy₂' (j : Fin 25) (hj : Keep j) : y₂.regs j = x.regs j := by rw [hy₂ j hj, hx₂ j hj]
-  have hB₂ (k : ℕ) (hk : k < r) : y₂.mem (b + k) = powAddCoeff n r 1 A k := by
-    rw [hfr₂ _ (by rcases hab with h | h <;> omega)]
-    exact hB₁ k hk
-  -- `R := R · B^n`.
-  let x₃ := y₂.set e n
-  have hrun₅ : ExecWithin (B := .standard) w (ram[ e ← nn ]) y₂ x₃ 1 := by
-    ram_eval [x₃, hy₂' nn (by simp [Keep]), hn]
-  have hx₃ (j : Fin 25) (hj : Keep j) : x₃.regs j = x.regs j := by
-    rw [← hy₂' j hj]
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> simp +decide [x₃]
-  obtain ⟨y₃, hrun₆, hq₃, hred₃, hy₃⟩ := pow_exec (w := w) x₃ (a := a) (b := b) (t := t) (r := r)
-    (n := n) (by rw [hx₃ R (by simp [Keep]), ha]) (by rw [hx₃ B (by simp [Keep]), hb])
-    (by rw [hx₃ T (by simp [Keep]), ht]) (by rw [hx₃ rr (by simp [Keep]), hr])
-    (by rw [hx₃ nn (by simp [Keep]), hn]) hn0 hab hta htb
-    (fun i hi => by rw [show x₃.mem = y₂.mem from rfl, hR₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
-    (fun i hi => by rw [show x₃.mem = y₂.mem from rfl, hB₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
-    hfa hfb hft hf2 hfn (by simpa [x₃] using hfnn)
-  have hx₃e : x₃.regs e = n := by simp +decide [x₃]
-  rw [hx₃e] at hrun₆ hq₃
-  have hy₃' (j : Fin 25) (hj : Keep j) : y₃.regs j = x.regs j := by rw [hy₃ j hj, hx₃ j hj]
-  -- `T := X^n + A`.
-  let x₄ := ((y₃.set er (n % r)).set aa A).set pa t
-  have hrun₇ : ExecWithin (B := .standard) w (ram[ er ← nn % rr; aa ← av; pa ← T ]) y₃ x₄ 3 := by
-    ram_eval [x₄, hy₃' nn (by simp [Keep]), hn, hy₃' rr (by simp [Keep]), hr,
-      hy₃' av (by simp [Keep]), hA, hy₃' T (by simp [Keep]), ht,
-      hfnn.of_le (Nat.mod_le _ _)]
-  have hx₄ (j : Fin 25) (hj : Keep j) : x₄.regs j = x.regs j := by
-    rw [← hy₃' j hj]
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> simp +decide [x₄]
-  obtain ⟨y₄, hrun₈, hT₄, hfr₄, hy₄⟩ := fill_exec (w := w) x₄ (bs := t) (r := r) (n := n) (e' := n)
-    (A := A) (by simp +decide [x₄]) (by rw [hx₄ rr (by simp [Keep]), hr])
-    (by rw [hx₄ nn (by simp [Keep]), hn]) (by simp +decide [x₄]) (by simp +decide [x₄]) hr0 hn0
-    hft hfA hfn1
-  have hy₄' (j : Fin 25) (hj : Keep j) : y₄.regs j = x.regs j := by rw [hy₄ j hj, hx₄ j hj]
-  have hR₄ (k : ℕ) (hk : k < r) : y₄.mem (a + k) = y₃.mem (a + k) := by
-    rw [hfr₄ _ (by rcases hta with h | h <;> omega)]
-    rfl
-  -- Compare `R` with `T`.
-  let x₅ := (y₄.set pa a).set pb t
-  have hrun₉ : ExecWithin (B := .standard) w (ram[ pa ← R; pb ← T ]) y₄ x₅ 2 := by
-    ram_eval [x₅, hy₄' R (by simp [Keep]), ha, hy₄' T (by simp [Keep]), ht]
-  have hx₅ (j : Fin 25) (hj : Keep j) : x₅.regs j = x.regs j := by
-    rw [← hy₄' j hj]
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> simp +decide [x₅]
-  obtain ⟨y₅, hrun₁₀, hle, hiff, hy₅⟩ := cmp_exec (w := w) x₅ (a := a) (b := t) (r := r)
-    (by simp +decide [x₅]) (by simp +decide [x₅]) (by rw [hx₅ rr (by simp [Keep]), hr]) hfa hft h1
-  refine ⟨y₅, ?_, hle, ?_, fun j hj => by rw [hy₅ j hj, hx₅ j hj]⟩
-  · refine (hrun₁.seq (hrun₂.seq (hrun₃.seq (hrun₄.seq (hrun₅.seq (hrun₆.seq (hrun₇.seq
-      (hrun₈.seq (hrun₉.seq hrun₁₀))))))))).mono ?_
-    unfold time
-    omega
-  · rw [hiff, congruence_iff_toQuot hr0]
-    change (∀ k' < r, y₄.mem (a + k') = y₄.mem (t + k')) ↔ _
+  have hmod1 : 1 % r ≤ 1 := Nat.mod_le 1 r
+  have hmodn : n % r ≤ n := Nat.mod_le n r
+  unfold program
+  wram_exec [hr, hA, hb]
+  refine WP.name fun x₁ hx₁ => ?_
+  have hx₁k (j : Fin 25) (hj : Keep j) : x₁.regs j = x.regs j := by
+    subst hx₁; rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
+  wram_call (fill_exec (w := w) x₁ (bs := b) (r := r) (n := n) (e' := 1) (A := A)
+    (by subst hx₁; wram_simp) ((hx₁k rr (by simp [Keep])).trans hr)
+    ((hx₁k nn (by simp [Keep])).trans hn) (by subst hx₁; wram_simp)
+    (by subst hx₁; wram_simp) hr0 hn0 hfb hfA hfn1) with y₁ ⟨hB₁, -, hy₁⟩
+  have hy₁' (j : Fin 25) (hj : Keep j) : y₁.regs j = x.regs j :=
+    (hy₁ j hj).trans (hx₁k j hj)
+  wram_exec [hy₁' R (by simp [Keep]), ha]
+  refine WP.name fun x₂ hx₂ => ?_
+  have hx₂k (j : Fin 25) (hj : Keep j) : x₂.regs j = x.regs j := by
+    rw [← hy₁' j hj]; subst hx₂
+    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
+  have hx₂m : x₂.mem = y₁.mem := by subst hx₂; rfl
+  wram_call (fill_exec (w := w) x₂ (bs := a) (r := r) (n := n) (e' := 0) (A := 0)
+    (by subst hx₂; wram_simp) ((hx₂k rr (by simp [Keep])).trans hr)
+    ((hx₂k nn (by simp [Keep])).trans hn) (by subst hx₂; wram_simp [Nat.zero_mod])
+    (by subst hx₂; wram_simp) hr0 hn0 hfa (fits_zero w) hfn1) with y₂ ⟨hR₂, hfr₂, hy₂⟩
+  have hy₂' (j : Fin 25) (hj : Keep j) : y₂.regs j = x.regs j :=
+    (hy₂ j hj).trans (hx₂k j hj)
+  have hB₂ (k : ℕ) (hk : k < r) : y₂.mem (b + k) = powAddCoeff n r 1 A k :=
+    (hfr₂ _ (by rcases hab with h | h <;> omega)).trans (hx₂m ▸ hB₁ k hk)
+  wram_exec [hy₂' nn (by simp [Keep]), hn]
+  refine WP.name fun x₃ hx₃ => ?_
+  have hx₃k (j : Fin 25) (hj : Keep j) : x₃.regs j = x.regs j := by
+    rw [← hy₂' j hj]; subst hx₃
+    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
+  have hx₃e : x₃.regs e = n := by subst hx₃; wram_simp
+  have hx₃m : x₃.mem = y₂.mem := by subst hx₃; rfl
+  unfold pow
+  wram_call (PolyPow.exec (x₃.comap powMap)
+    ((hx₃k R (by simp [Keep])).trans ha) ((hx₃k B (by simp [Keep])).trans hb)
+    ((hx₃k T (by simp [Keep])).trans ht) ((hx₃k rr (by simp [Keep])).trans hr)
+    ((hx₃k nn (by simp [Keep])).trans hn) hn0 hab hta htb
+    (fun i hi => by change x₃.mem (a + i) < n; rw [hx₃m, hR₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
+    (fun i hi => by change x₃.mem (b + i) < n; rw [hx₃m, hB₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
+    hfa hfb hft hf2 hfn (by change Fits w (x₃.regs e); exact hx₃e ▸ hfnn))
+    renamed powMap_injective with y₃ ⟨⟨hq₃, hred₃, hy₃R, hy₃B, hy₃T, hy₃r, hy₃n⟩, hout₃⟩
+  change toQuot n r (fun i => y₃.mem (a + i)) =
+    toQuot n r (fun i => x₃.mem (a + i)) * toQuot n r (fun i => x₃.mem (b + i)) ^ x₃.regs e at hq₃
+  rw [hx₃e, hx₃m] at hq₃
+  have hy₃' (j : Fin 25) (hj : Keep j) : y₃.regs j = x.regs j := by
+    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl
+    · exact (show y₃.regs R = a from hy₃R).trans ha.symm
+    · exact (show y₃.regs B = b from hy₃B).trans hb.symm
+    · exact (show y₃.regs T = t from hy₃T).trans ht.symm
+    · exact (show y₃.regs rr = r from hy₃r).trans hr.symm
+    · exact (show y₃.regs nn = n from hy₃n).trans hn.symm
+    · exact (hout₃ av (by decide)).trans (hx₃k av (by simp [Keep]))
+  wram_exec [hy₃' nn (by simp [Keep]), hn, hy₃' rr (by simp [Keep]), hr,
+    hy₃' av (by simp [Keep]), hA, hy₃' T (by simp [Keep]), ht]
+  refine WP.name fun x₄ hx₄ => ?_
+  have hx₄k (j : Fin 25) (hj : Keep j) : x₄.regs j = x.regs j := by
+    rw [← hy₃' j hj]; subst hx₄
+    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
+  have hx₄m : x₄.mem = y₃.mem := by subst hx₄; rfl
+  wram_call (fill_exec (w := w) x₄ (bs := t) (r := r) (n := n) (e' := n) (A := A)
+    (by subst hx₄; wram_simp) ((hx₄k rr (by simp [Keep])).trans hr)
+    ((hx₄k nn (by simp [Keep])).trans hn) (by subst hx₄; wram_simp)
+    (by subst hx₄; wram_simp) hr0 hn0 hft hfA hfn1) with y₄ ⟨hT₄, hfr₄, hy₄⟩
+  have hy₄' (j : Fin 25) (hj : Keep j) : y₄.regs j = x.regs j :=
+    (hy₄ j hj).trans (hx₄k j hj)
+  have hR₄ (k : ℕ) (hk : k < r) : y₄.mem (a + k) = y₃.mem (a + k) :=
+    (hfr₄ _ (by rcases hta with h | h <;> omega)).trans (congrFun hx₄m _)
+  wram_exec [hy₄' R (by simp [Keep]), ha, hy₄' T (by simp [Keep]), ht]
+  refine WP.name fun x₅ hx₅ => ?_
+  have hx₅k (j : Fin 25) (hj : Keep j) : x₅.regs j = x.regs j := by
+    rw [← hy₄' j hj]; subst hx₅
+    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
+  have hx₅m : x₅.mem = y₄.mem := by subst hx₅; rfl
+  obtain ⟨y₅, hy₅, ⟨hle, hiff, -⟩, -⟩ := ExecWithin.rename_post cmpMap_injective
+    (Compare.exec (x₅.comap cmpMap) (a := a) (b := t) (r := r)
+      (by change x₅.regs pa = a; subst hx₅; wram_simp)
+      (by change x₅.regs pb = t; subst hx₅; wram_simp)
+      ((hx₅k rr (by simp [Keep])).trans hr) hfa hft h1)
+  refine WP.of_execWithin hy₅ ⟨?_, hle, ?_,
+    fun j hj => (hy₅.regs_eq (cmp_preserves j hj)).trans (hx₅k j hj)⟩
+  · rw [show powMap PolyPow.e = e from rfl, hx₃e]; unfold time; omega
+  · rw [show y₅.regs flag = (y₅.comap cmpMap).regs Compare.flag from rfl, hiff,
+      congruence_iff_toQuot hr0]
+    change (∀ k' < r, x₅.mem (a + k') = x₅.mem (t + k')) ↔ _
+    simp only [hx₅m]
     have hRred (k : ℕ) (hk : k < r) : y₄.mem (a + k) < n := by rw [hR₄ k hk]; exact hred₃ k hk
     have hTred (k : ℕ) (hk : k < r) : y₄.mem (t + k) < n := by
       rw [hT₄ k hk]; exact powAddCoeff_lt hn0 _ _ _
     rw [← toQuot_eq_toQuot_iff hn0 hr0 hRred hTred, toQuot_congr hR₄, hq₃, toQuot_congr hT₄,
-      toQuot_congr (c := fun i => x₃.mem (a + i)) (fun k hk => hR₂ k hk),
-      toQuot_congr (c := fun i => x₃.mem (b + i)) (fun k hk => hB₂ k hk), toQuot_one hr0, one_mul]
+      toQuot_congr hR₂, toQuot_congr hB₂, toQuot_one hr0, one_mul]
 
 end Cslib.Algorithms.WordRAM.AKS.Congruence

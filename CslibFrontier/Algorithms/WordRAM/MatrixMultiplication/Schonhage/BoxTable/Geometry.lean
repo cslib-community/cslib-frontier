@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.CatalogueLoop
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Index
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete shared native box geometry
@@ -116,23 +117,16 @@ theorem exec_geometry {w L m t D : ℕ} (x : Data registers)
   have hS : Nat.count (Eligible L (m - t)) S ≤ S := Nat.count_le _
   have h10 : Fits w 10 := hfit.of_le ((by decide : 10 ≤ 12).trans (Nat.le_add_left _ _))
   obtain ⟨a, ha, a0, a1, a10, a9, a3, am, af⟩ := exec_constants x h10
-  have aL : a.regs Reg.levels = L := (af _ (by decide) (by decide)
-    (by decide) (by decide) (by decide)).trans hL
+  have aL : a.regs Reg.levels = L := by regs_frame
   obtain ⟨b, hb, bT, b1, bm, bf⟩ := exec_span a aL a10 (hfit.of_le (by omega))
-  have bL : b.regs Reg.levels = L := (bf _ (by decide) (by decide) (by decide)).trans aL
-  have bD : b.regs Reg.directory = D :=
-    (bf _ (by decide) (by decide) (by decide)).trans
-      ((af _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hD)
-  have bm' : b.regs Reg.inner = m :=
-    (bf _ (by decide) (by decide) (by decide)).trans
-      ((af _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hm)
-  have bt : b.regs Reg.threshold = t :=
-    (bf _ (by decide) (by decide) (by decide)).trans
-      ((af _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans ht)
-  have b0 : b.regs Reg.nil = 0 := (bf _ (by decide) (by decide) (by decide)).trans a0
-  have b10 : b.regs Reg.ten = 10 := (bf _ (by decide) (by decide) (by decide)).trans a10
-  have b9 : b.regs Reg.nine = 9 := (bf _ (by decide) (by decide) (by decide)).trans a9
-  have b3 : b.regs Reg.three = 3 := (bf _ (by decide) (by decide) (by decide)).trans a3
+  have bL : b.regs Reg.levels = L := by regs_frame
+  have bD : b.regs Reg.directory = D := by regs_frame
+  have bm' : b.regs Reg.inner = m := by regs_frame
+  have bt : b.regs Reg.threshold = t := by regs_frame
+  have b0 : b.regs Reg.nil = 0 := by regs_frame
+  have b10 : b.regs Reg.ten = 10 := by regs_frame
+  have b9 : b.regs Reg.nine = 9 := by regs_frame
+  have b3 : b.regs Reg.three = 3 := by regs_frame
   obtain ⟨c, hc, cp, cs, cc, cm⟩ := exec_geometrySetup b bL bm' bt bD bT b1 b10 b9 b3 b0
     (hfit.of_le (by omega))
   obtain ⟨d, hd, dp, ds, dc, dmem⟩ := exec_catalogueLoop c cp cs cc

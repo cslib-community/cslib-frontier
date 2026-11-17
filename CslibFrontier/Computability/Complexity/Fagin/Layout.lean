@@ -155,8 +155,8 @@ theorem nextBase_and_getElem?_frame_of_realize_frameChunkSentence
       simp only [Matrix.cons_val_zero] at hmap0 hsj
       have hy0 : (y 0 : ℕ) = base + 2 * m := (ih (by omega) j₀ (y 0) rfl).1 hmap0
       have hy2 : (y 2 : ℕ) = base + 2 * (m + 1) := by omega
-      rw [show y 3 = j from Fin.ext (by omega)] at hmap1
-      refine ⟨fun hjp => ?_, fun hp => by rwa [show p = y 2 from Fin.ext (by omega)]⟩
+      rw [show y 3 = j by omega] at hmap1
+      refine ⟨fun hjp => ?_, fun hp => by rwa [show p = y 2 by omega]⟩
       have heq : p = y 2 := hfunc ![j, p, y 2] ⟨hjp, hmap1⟩
       rw [heq, hy2]
   let jM : Fin B := ⟨w.length, hMB⟩
@@ -204,7 +204,7 @@ theorem realize_frameChunkSentence_of_canonical
   fo_simp [frameChunkSentence, realize_isZero hlt, realize_succ hlt,
     realize_isFirstOut hlt hMB hdom]
   refine ⟨⟨⟨fun v ⟨h1, h2⟩ => ?_, fun v hv0 => ?_⟩, fun v hv => ?_⟩, fun v hv => ?_⟩
-  · rw [hmap] at h1 h2; exact Fin.ext (by omega)
+  · rw [hmap] at h1 h2; omega
   · rw [hmap, hbase, hv0]; omega
   · have hj : (v 0 : ℕ) < w.length := (hdom (v 0)).1 hv
     let p0 : Fin B := ⟨base + 2 * (v 0 : ℕ), by omega⟩
@@ -468,7 +468,7 @@ private theorem realize_layoutInRaw_iff (a : EncodedStructure) {B : ℕ}
   refine ⟨fun ⟨y, hy, hjy⟩ => ?_, fun hj => ⟨![⟨(encStructure a).length, hrawB⟩],
     (hbase_last _).2 rfl, by simpa [Fin.lt_def] using hj⟩⟩
   have hy' := (hbase_last (y 0)).1 hy
-  rw [Fin.lt_def] at hjy; omega
+  omega
 
 private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFormed a) {B : ℕ}
     (hB : (frame (encStructure a)).length < B)

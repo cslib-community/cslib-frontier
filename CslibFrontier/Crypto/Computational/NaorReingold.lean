@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The Naor–Reingold pseudorandom function from Decisional Diffie–Hellman
@@ -448,9 +449,7 @@ theorem naorReingoldSuffixExp_succ_update (d : F.Desc) {n k : ℕ} (hk : k < n)
   refine Finset.prod_congr rfl fun i _ => ?_
   by_cases h : k + 1 ≤ i.1
   · have hne : i ≠ ⟨k, hk⟩ := by
-      intro heq
-      have hval : i.1 = k := congrArg Fin.val heq
-      omega
+      fin_index
     simp [hne]
   · simp [h]
 

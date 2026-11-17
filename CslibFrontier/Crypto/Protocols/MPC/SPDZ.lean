@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Beaver
 public import CslibFrontier.Probability.LinearCombination
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Algebra.Group.TransferInstance
 
@@ -757,8 +758,7 @@ theorem probability_macCheckSoundnessGame_le {p T : ℕ} [Fact (Nat.Prime p)]
     rw [div_eq_mul_inv]
     refine ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.inv_ne_top.mpr ?_)
     exact Nat.cast_ne_zero.mpr (Fact.out : Nat.Prime p).pos.ne'
-  have htr := ENNReal.toReal_mono hne_top h
-  rwa [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_natCast] at htr
+  ennreal_to_real using h
 
 /-- Standalone `MACCheck` cheating-equation bound against any prior randomized adversary
 `adv : ProbComp S` that selects state `s` (fixing `err s` and `deltaShift s`) before the

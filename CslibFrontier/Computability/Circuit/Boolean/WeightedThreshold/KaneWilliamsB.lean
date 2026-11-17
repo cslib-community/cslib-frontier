@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Foundations.Data.Finset.Markov
 import CslibFrontier.Probability.SmallBias.Correlation
 import CslibFrontier.Probability.SmallBias.Powering
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The Kane–Williams depth-three function: gate, wire and correlation bounds
@@ -192,11 +193,8 @@ theorem kaneWilliamsBlockVar_joint_injective (n k ℓ : ℕ) (j₁ : Fin k) (t�
 
 /-- No message coordinate is a block variable. -/
 theorem kaneWilliamsMessageIndex_ne_blockVar (n k ℓ : ℕ) (i : Fin n) (j : Fin k) (t : Fin ℓ) :
-    kaneWilliamsMessageIndex n k ℓ i ≠ kaneWilliamsBlockVar n k ℓ j t := fun h => by
-  have hval := congrArg Fin.val h
-  simp only [kaneWilliamsMessageIndex, kaneWilliamsBlockVar, Fin.val_castAdd,
-    Fin.val_natAdd] at hval
-  omega
+    kaneWilliamsMessageIndex n k ℓ i ≠ kaneWilliamsBlockVar n k ℓ j t := by
+  fin_index [kaneWilliamsMessageIndex, kaneWilliamsBlockVar]
 
 /-- The message of an input is the first component of its split into message and blocks. -/
 theorem kaneWilliamsMessage_eq_fst (n k ℓ : ℕ) (y : BitString (n + k * ℓ)) :

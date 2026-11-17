@@ -42,9 +42,6 @@ other fixed encoded) source variables. No bound on arity or degree is needed. -/
 theorem computableInPolyTime_occurrences (encRel : Rel ↪ List Bool) (encV : V ↪ List Bool) :
     ComputableInPolyTime (CSP.occurrences (Rel := Rel) (V := V))
       (encCSP encRel encV) (encList (encOccurrenceRecord encV)) := by
-  have ho := Cslib.Logic.PL.computableInPolyTime_occurrences encV
-  have hv := computableInPolyTime_varCNF encRel encV
-  unfold CSP.occurrences encOccurrenceRecord
-  fun_prop
+  fun_prop [CSP.occurrences]
 
 end Cslib.Complexity.CSP

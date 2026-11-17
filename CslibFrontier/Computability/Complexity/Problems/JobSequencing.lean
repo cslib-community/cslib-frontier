@@ -184,9 +184,7 @@ private theorem check_iff (x : JobSequencingInstance) (σ : List Job) :
 
 private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encJobSequencing (encList encJob)) encBool := by
-  unfold check
-  simp only [List.count_eq_countP]
-  fun_prop
+  fun_prop [check]
 
 /-- A total decoder for `Job` induced by `encJob`'s binary triple layout. -/
 private def decoderJob : Decoder encJob :=

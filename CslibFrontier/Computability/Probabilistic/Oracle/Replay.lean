@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.WithOracleInput
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Efficient saved-coin replay of oracle-PPT programs
@@ -94,8 +95,7 @@ theorem IsOraclePPTOn.exists_savedCoins {Operation α β : Type} [DecidableEq Op
     (fun _ => by simp only [ProbOracleComp.run_interpret_sample, ProbComp.eval_uniform])
     (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a)) s
   have hout := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2))) hc
-  simpa only [ProbOracleComp.runWith_eq_run_interpret, MultiTapePTM.runOracle,
-    MultiTapePTM.run, MultiTapePTM.runFrom, runCoins, runFromCoins, OracleComp.interpret_map,
-    StateT.run_map, PMF.monad_map_eq_map, PMF.map_bind] using hout
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, MultiTapePTM.runOracle, MultiTapePTM.run,
+    MultiTapePTM.runFrom, runCoins, runFromCoins, interp_norm, pmf_norm] using hout
 
 end Cslib.Probability

@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 import CslibFrontier.Foundations.Data.List.OfFnPositions
 import CslibFrontier.Foundations.GroupTheory.Perm.Fin
 import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AppendScope
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Adjacent identification on actual ordered boundary words
@@ -59,17 +60,12 @@ noncomputable def Witness.identifyFirstTwoOfFn {F : CSP Rel V} {n : ℕ}
     change p.var = scope ⟨n, by omega⟩ at he
     rw [he]
     apply congrArg v
-    apply Fin.ext
-    simp only [Fin.rev, Fin.val_mk, Fin.val_one]
-    omega
+    fin_index
   have hne : o.var ≠ p.var := by rwa [ho, hp]
   have hsucc : argumentSuccessor p = o := by
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
     apply congrArg (fun i => appendOfFnOccurrenceEquiv B none scope (Sum.inr i))
-    apply Fin.ext
-    rw [val_finRotate]
-    simp only [Fin.val_last]
-    split_ifs <;> omega
+    fin_index [val_finRotate]
   have hsource : S = probeBody F (List.ofFn v) := by
     simp only [S, B, scope, probeBody, List.reverse_ofFn]
   have hkernel : ∀ a ∈ S.vars, ∀ b ∈ S.vars,

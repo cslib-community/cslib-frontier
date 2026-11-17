@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF
@@ -189,13 +190,9 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
   congr 1
   funext q
   rcases q with m | request
-  · simp only [ProbComp.unifFin, ProbOracleComp.interpret_sample, OracleComp.interpret_query,
-      ProbComp.unifOracle]
+  · simp only [ProbComp.unifFin, interp_norm, ProbComp.unifOracle]
     exact ProbComp.eval_unifFin m
-  · simp only [OracleComp.sumHandler, weakSampleQuery, weakSample, OracleComp.interpret_bind,
-      ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query, OracleComp.interpret_pure,
-      OracleComp.interpret_map, ProbComp.interpret_unifFin, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map]
+  · simp only [interp_norm, pmf_norm, weakSampleQuery, weakSample]
     refine PMF.bind_congr_on_support _ _ _ fun point hpoint => ?_
     rw [BitString.eval_sampleList] at hpoint
     have hpointLen : point.length = n := BitString.length_of_mem_support_uniformList hpoint
@@ -289,8 +286,7 @@ theorem eval_eufCmaGame_prfMAC_zeroPatch_zeroForger
       (fun pair : List Bool × List Bool => zeroPatch family pair.1 pair.2)
       (encPair encBits encBits) encBits) (n : ℕ) :
     ProbComp.eval ((prfMAC (zeroPatch family) hpoly).eufCmaGame zeroForger n) = PMF.pure true := by
-  simp only [MACScheme.eufCmaGame, zeroForger, OracleComp.interpret_pure, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [MACScheme.eufCmaGame, zeroForger, interp_norm, pmf_norm]
   refine (PMF.bind_congr_on_support _ _ _ fun key hkey => ?_).trans (PMF.bind_const _ _)
   simp only [prfMAC, BitString.eval_sampleList] at hkey ⊢
   have hkeyLen : key.length = n := BitString.length_of_mem_support_uniformList hkey
@@ -331,7 +327,7 @@ private theorem weakRun_query_bind {α : Type} (n : ℕ) (oracle : List Bool →
       (OracleComp.sumHandler ProbComp.unifOracle
         (fun _ => ProbComp.eval (weakSample n oracle)) q).bind
         (fun x => weakRun n oracle (k x)) := by
-  simp only [weakRun, OracleComp.interpret_bind, OracleComp.interpret_query]
+  simp only [weakRun, interp_norm]
   rfl
 
 private theorem eval_weakSample (n : ℕ) (oracle : List Bool → List Bool) :
