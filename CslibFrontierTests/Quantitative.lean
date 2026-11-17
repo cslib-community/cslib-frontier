@@ -119,19 +119,23 @@ example (f g : List Bool → List Bool)
 -- mapped bit uses no work-tape cells even though the output grows.
 example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool → σ) (init : σ)
     (f : Bool → Bool) :
-    ComputableTidilyInO (fun l : List Bool => l.foldl (· ^^ ·) false)
+    ComputableInO (fun l : List Bool => l.foldl (· ^^ ·) false)
       encBits encBool List.length (fun _ => 0) ∧
-    ComputableTidilyInO (List.foldl (fun state bit => state ^^ bit) false)
+    ComputableInO (List.foldl (fun state bit => state ^^ bit) false)
       encBits (encFramed encBool) (fun l => l.length) (fun _ => 0) ∧
-    ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
+    ComputableInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool => l.map f) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [f b]) []) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
-  refine ⟨by fun_prop, by fun_prop, by fun_prop, by fun_prop, ?_⟩
-  simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
-    ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
+  refine ⟨?_, ?_, ?_, by fun_prop, ?_⟩
+  · exact (ComputableTidilyInO.foldl_bits_finite encBool (· ^^ ·) false).computableInO
+  · exact (ComputableTidilyInO.foldl_bits_finite
+      (encFramed encBool) (fun state bit => state ^^ bit) false).computableInO
+  · exact (ComputableTidilyInO.foldl_bits_finite enc step init).computableInO
+  · simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
+      ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
 
 -- The numerical loop contract also handles a genuinely growing stored accumulator.
 -- Its invariant is one stored bit per consumed input bit. The cost at index i uses i, not the
