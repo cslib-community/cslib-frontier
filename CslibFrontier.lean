@@ -1205,6 +1205,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Hamming
 public import CslibFrontier.Computability.Circuit.Boolean.HardCore
 public import CslibFrontier.Computability.Circuit.Boolean.HardCore.Set
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.DirectProduct.Complexity
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.DirectProduct.Decode
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.DirectProduct.Density
@@ -4015,6 +4016,7 @@ public import CslibFrontier.Computability.PCP.SelectedComposition
 public import CslibFrontier.Computability.PCP.ThreeSAT
 public import CslibFrontier.Computability.PCP.TwoProverGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
+public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
@@ -6870,6 +6872,7 @@ public import CslibFrontier.Foundations.Probability.SpectralPayment
 public import CslibFrontier.Foundations.Probability.TwoStage
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
+public import CslibFrontier.Foundations.Quantum.Algebra.CHSHRigidity
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson

@@ -57,14 +57,18 @@ noncomputable def agreement (φ : AlgState A) (P Q : Measurement α A) : ℝ :=
 variable [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A]
 
-/-- An effect satisfies `E² ≤ E`. -/
-theorem effect_mul_self_le (P : Measurement α A) (a : α) :
-    P.effect a * P.effect a ≤ P.effect a := by
-  have h0 := P.nonneg a
-  have h1 : 0 ≤ 1 - P.effect a := sub_nonneg.mpr (P.effect_le_one a)
-  have := Commute.mul_nonneg h0 h1 ((Commute.one_right _).sub_right (Commute.refl _))
+/-- An element between `0` and `1` satisfies `e² ≤ e`. -/
+theorem _root_.Cslib.Quantum.mul_self_le_self_of_nonneg_of_le_one {e : A} (h0 : 0 ≤ e)
+    (h1 : e ≤ 1) : e * e ≤ e := by
+  have := Commute.mul_nonneg h0 (sub_nonneg.mpr h1)
+    ((Commute.one_right _).sub_right (Commute.refl _))
   rw [mul_sub, mul_one, sub_nonneg] at this
   exact this
+
+/-- An effect satisfies `E² ≤ E`. -/
+theorem effect_mul_self_le (P : Measurement α A) (a : α) :
+    P.effect a * P.effect a ≤ P.effect a :=
+  mul_self_le_self_of_nonneg_of_le_one (P.nonneg a) (P.effect_le_one a)
 
 variable [StarModule ℂ A] [SelfAdjointDecompose A]
 

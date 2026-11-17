@@ -64,7 +64,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 | 2 | 36 | 22 | 15 | 0 | — |
 | 5 | 30 | 27 | 6 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
 | 6 | 39 | 31 | 14 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
-| 7 | 24 | 22 | 4 | 1 | — |
+| 7 | 24 | 21 | 5 | 1 | — |
 | 8 | 44 | 30 | 13 | 1 | — |
 | 9 | 29 | 21 | 9 | 1 | — |
 | 10 | 29 | 24 | 3 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
@@ -83,6 +83,9 @@ covered by `SharpSATExact_mem_IP`) from T to C; the Chapter 9 totals are recount
 
 The 2026-11-17 xSAT update moves 2.36(1) from T to C; the Chapter 2 totals are recounted from its
 rows.
+
+The 2026-11-17 circuit agreement bound moves 7.10 from T to C; the Chapter 7 totals are
+recounted from its rows.
 
 The 2026-11-17 vertex-cover gap update ([#6088](https://github.com/cslib-community/cslib-frontier/issues/6088))
 moves 10.4 from T to C; the Chapter 10 totals are recounted from its rows.
@@ -277,7 +280,7 @@ Source: `r4.pdf` (March 2007), PDF pp. 41–46 / printed pp. 305–310 (printed 
 | 7.7 | 306 / 42 | **T** | From a poly(n/ε)-time oracle machine M with Pr[M^B(n,ε)=x] = Ω(ε²/n) for every x satisfying the correlation condition, derive Theorem 7.8 (one list containing all such x, with probability ≥ 1/2) by coupon collecting. Points at the audit row for Theorem 7.8 (**Partial**: the simultaneous list guarantee is not located). |
 | 7.8 | 306 / 42 | **T** | No universal hard-core predicate exists: for every polynomial-time b, if a one-way function f exists, then b is not a hard-core of the one-way function f′(x) = (f(x), b(x)). Not located; the predicate is `Cslib.Crypto.HardCore` in [HardCore](../CslibFrontier/Crypto/Computational/HardCore.lean). As stated, the exercise also needs the existence of some one-way function. Under the guideline, the endpoint is conditional on that. |
 | 7.9 | 306 / 42 | **T** | If NP ⊄ P/poly then E ⊄ P/poly. Quantitatively: if some NP problem lacks circuits of size S, then for some ε > 0 some E problem lacks circuits of size S′(n) = S(n^ε). The same holds in the almost-everywhere version. Cited in §7.2.1. Not located. Prerequisites: `Cslib.Complexity.E` ([EXP.lean](../CslibFrontier/Computability/Complexity/Classes/EXP.lean)), `PPoly`/`SIZE` ([PPoly](../CslibFrontier/Computability/Circuit/Boolean/PPoly.lean)). |
-| 7.10 | 306 / 42 | **T** | For every f : {0,1}ⁿ → {0,1}: some linear-size circuit has Pr[C(U_n)=f(U_n)] ≥ 1/2+2⁻ⁿ, and for t ≤ 2ⁿ⁻¹ some size-O(t·n) circuit has agreement ≥ 1/2+t·2⁻ⁿ. This shows the limit of Definition 7.9, cited right after it. Checked: majority constant plus hard-wired disagreement points gives these bounds. Not located. |
+| 7.10 | 306 / 42 | **C** | For every f : {0,1}ⁿ → {0,1}: some linear-size circuit has Pr[C(U_n)=f(U_n)] ≥ 1/2+2⁻ⁿ, and for t ≤ 2ⁿ⁻¹ some size-O(t·n) circuit has agreement ≥ 1/2+t·2⁻ⁿ. This shows the limit of Definition 7.9, cited right after it. Covered (registered as `goldreich-circuit-agreement-limit`): `Cslib.Circuits.Boolean.exists_complexity_le_and_add_le_card_agree` in [HardnessAmplification/AgreementLimit](../CslibFrontier/Computability/Circuit/Boolean/HardnessAmplification/AgreementLimit.lean): for `2 t ≤ 2 ^ n`, a Boolean function of De Morgan complexity ≤ t(2n+3)+1 (`Cslib.Circuits.complexity`, every AND, OR, NOT and constant gate counted) agrees with f on a ≥ 1/2 + t/2ⁿ fraction of the inputs (majority value, corrected on at most t inputs where f takes the other value, via `complexity_ite_mem_le`). The first claim is t = 1, size 2n+4. Qualification: the first claim needs n ≥ 1 (at n = 0 it asks for agreement 3/2); `2 t ≤ 2 ^ n` is t ≤ 2ⁿ⁻¹ for n ≥ 1. Statement rechecked in the `r4.pdf` text, PDF p. 42 (SHA-256 as in #4772). [Checked client](../CslibFrontierTests/CircuitAgreementLimit.lean). |
 | 7.11(1) | 306 / 42 | **C** | For p : F^m → F of individual degree d, t = dm+1 distinct nonzero α_i (\|F\| > t), and any x, y: p(x) = Σ_i λ_i·p(x+α_i y) with fixed Lagrange weights. Covered: `Cslib.Code.lagrangeDecode_eq_of_mem_reedMuller` in [Code/SelfCorrection](../CslibFrontier/Foundations/Data/Code/SelfCorrection.lean), with degree D = dm (individual degree d implies total degree ≤ dm, giving membership in `reedMuller F m (d*m)`; a one-line degree bridge). |
 | 7.12 | 307 / 43 | **T** | For H ⊆ F and f : H^m → F, there is an m-variate polynomial f̂ of individual degree ≤ \|H\|−1 with f̂ = f on H^m. Partial: `Cslib.Code.lowDegreeExtension_apply_embed` and `lowDegreeExtension_mem_reedMuller` in [Code/LowDegreeExtension](../CslibFrontier/Foundations/Data/Code/LowDegreeExtension.lean) give the extension with total degree ≤ m(\|H\|−1). The module docstring says the individual-degree bound is not stated. Remaining: the individual-degree bound. |
 | 7.13 | 307 / 43 | **T** | If f̂ and S′ are as in the conclusion of Theorem 7.12, then g(x,i) = the i-th bit of f̂(x) is a Boolean function in E that is (S″,ε)-inapproximable for S″(n′+O(log n′)) = S′(n′)/n′ and ε(m) = 1/m³. Needed for the first proof of Theorem 7.10. Not located (Theorem 7.12 row is Partial). |

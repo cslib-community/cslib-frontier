@@ -57,6 +57,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
+import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
 import CslibFrontier.Computability.Circuit.Boolean.ParityNC1
 import CslibFrontier.Computability.Circuit.Boolean.Braverman.Fooling
 import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
@@ -1324,6 +1325,19 @@ register_result "goldreich-levin-hard-core" where
     to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
+
+register_result "goldreich-circuit-agreement-limit" where
+  title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.10",
+      locator := "March 2007 draft r4.pdf, PDF p. 42; printed p. 306" }
+  ]
+  theorems := [Cslib.Circuits.Boolean.exists_complexity_le_and_add_le_card_agree]
+  scope := "Circuit complexity as in Cslib.Circuits.complexity, every gate counted; for every \
+    f : {0,1}^n → {0,1} and every t with 2 t ≤ 2 ^ n, some function of complexity at most \
+    t (2 n + 3) + 1 agrees with f on at least a 1/2 + t/2^n fraction of the inputs. For t = 1 \
+    and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
