@@ -114,7 +114,7 @@ example (D : Measure (ℕ × Bool)) [IsProbabilityMeasure D] :
     (H := fun t => {threshold t})
     (fun t => hasUniformConvergenceRate_singleton (measurableSet_misclassified_nat _))
     D (Set.mem_univ D) (by norm_num) (by norm_num : (0 : ℝ) < 1 / 20))
-  exact ⟨0, threshold 0, rfl, lt_of_le_of_lt (by linarith [srm_gap_le]) hS⟩
+  exact ⟨0, threshold 0, rfl, lt_of_le_of_lt (by linarith [srm_gap_le]) hS.out⟩
 
 /-! ### Prefix-free descriptions and the MDL bound -/
 

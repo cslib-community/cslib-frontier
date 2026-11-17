@@ -147,7 +147,7 @@ private theorem llr_dirac_self (ha : ν {a} ≠ 0) :
 
 /-- The divergence of a point mass at an atom of `ν` is finite. -/
 theorem klDiv_dirac_ne_top (ha : ν {a} ≠ 0) : klDiv (Measure.dirac a) ν ≠ ⊤ :=
-  klDiv_ne_top (dirac_absolutelyContinuous ha) (integrable_dirac enorm_lt_top)
+  klDiv_ne_top (dirac_absolutelyContinuous ha) (integrable_dirac eNorm_lt_top)
 
 /-- The divergence of a point mass at an atom `a` of `ν` is `log (1 / ν {a})`, in nats. -/
 theorem toReal_klDiv_dirac (ha : ν {a} ≠ 0) :
