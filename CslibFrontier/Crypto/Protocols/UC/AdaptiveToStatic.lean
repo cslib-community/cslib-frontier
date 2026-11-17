@@ -28,6 +28,8 @@ public section
 namespace Cslib.Crypto.Protocols.UC
 
 open OracleComp (sumHandler)
+open Machine (closeEval closeEval_pure closeEval_bind closeEval_map closeEval_sample
+  mem_support_closeEval_runFrom_invariant)
 open scoped ENNReal NNReal
 
 section AdaptiveToStatic
@@ -35,61 +37,12 @@ section AdaptiveToStatic
 variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
 variable {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ : Type}
 
-/-- Private uniform index queries are unchanged under `liftAdaptiveNet`. -/
-theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
+private theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
     liftAdaptiveNet (n := n) (In := In) (Out := Out) (Q := Q) (R := R)
         (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
       ProbOracleComp.sample (ProbComp.unifFin k) := by
   simp only [liftAdaptiveNet, ProbOracleComp.sample, ProbComp.unifFin, OracleComp.interpret_query,
     sumHandler, OracleComp.substitute_query]
-
-private theorem adaptiveRouter_handle_inl_party (mode : CorruptionMode)
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (i : Fin n) (x : In) (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter mode P κ C₀).handle (.inl (.party i x))).run s =
-      if i ∈ s.corrupted then pure (none, s)
-      else ((P.machine κ).handle (.inl (i, x))).run s.inner >>= fun p =>
-        pure (p.1, P.recordSnapshot κ p.2 s.corrupted s.trace) := rfl
-
-private theorem adaptiveRouter_handle_inl_status (mode : CorruptionMode)
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter mode P κ C₀).handle (.inl .status)).run s = pure (s.corrupted, s) := rfl
-
-private theorem adaptiveRouter_handle_inr_party (mode : CorruptionMode)
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (i : Fin n) (x : In) (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter mode P κ C₀).handle (.inr (.party i x))).run s =
-      if i ∈ s.corrupted then
-        ((P.machine κ).handle (.inl (i, x))).run s.inner >>= fun p =>
-          pure (.party p.1, P.recordSnapshot κ p.2 s.corrupted s.trace)
-      else pure (.party none, s) := rfl
-
-private theorem adaptiveRouter_handle_inr_corrupt_static
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (i : Fin n) (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter .static P κ C₀).handle (.inr (.corrupt i))).run s =
-      if i ∈ s.corrupted then pure (.corrupt (some (P.corruptionReport κ i s)), s)
-      else pure (.corrupt none, s) := rfl
-
-private theorem adaptiveRouter_handle_inr_corrupt_adaptive
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (i : Fin n) (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter .adaptive P κ C₀).handle (.inr (.corrupt i))).run s =
-      let s' : AdaptiveRouterState (P.machine κ).State View n :=
-        if i ∈ s.corrupted then s
-        else
-          { inner := P.onCorrupt κ i s.inner
-            corrupted := insert i s.corrupted
-            trace := s.trace }
-      pure (.corrupt (some (P.corruptionReport κ i s')), s') := rfl
-
-private theorem adaptiveRouter_handle_inr_net (mode : CorruptionMode)
-    (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
-    (q : NetQ) (s : AdaptiveRouterState (P.machine κ).State View n) :
-    ((adaptiveRouter mode P κ C₀).handle (.inr (.net q))).run s =
-      ((P.machine κ).handle (.inr q)).run s.inner >>= fun p =>
-        pure (.net p.1, P.recordSnapshot κ p.2 s.corrupted s.trace) := rfl
 
 /-- Rewrite an adaptive network program to drop `.corrupt i` queries for `i ∉ C₀` (returning
 `pure (.corrupt none)`), matching `.static` router behavior. -/
@@ -196,7 +149,8 @@ private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
   rcases hR with ⟨rfl, hrs₁⟩
   cases q with
   | party i x =>
-    erw [OracleComp.interpret_query, Machine.runFrom_query, adaptiveRouter_handle_inr_party]
+    erw [OracleComp.interpret_query, Machine.runFrom_query]
+    dsimp only [adaptiveRouter, StateT.run]
     by_cases hi : i ∈ rs₁.corrupted
     · simp only [hi, ↓reduceIte]
       erw [bind_assoc, bind_assoc]
@@ -207,7 +161,8 @@ private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
       erw [pure_bind]
       exact hcont (.party none) _ _ ⟨rfl, hrs₁⟩
   | net nq =>
-    erw [OracleComp.interpret_query, Machine.runFrom_query, adaptiveRouter_handle_inr_net]
+    erw [OracleComp.interpret_query, Machine.runFrom_query]
+    dsimp only [adaptiveRouter, StateT.run]
     erw [bind_assoc, bind_assoc]
     refine bind_congr fun ⟨r, s'⟩ => ?_
     erw [pure_bind]
@@ -216,15 +171,17 @@ private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
     by_cases hi : i ∈ C₀
     · have hi' : i ∈ rs₁.corrupted := hrs₁ ▸ hi
       simp only [hi, ↓reduceIte]
-      erw [OracleComp.interpret_query, Machine.runFrom_query,
-        adaptiveRouter_handle_inr_corrupt_static]
+      erw [OracleComp.interpret_query, Machine.runFrom_query]
+      dsimp only [adaptiveRouter, StateT.run]
       simp only [hi', ↓reduceIte]
       erw [pure_bind]
       exact hcont (.corrupt (some (P.corruptionReport κ i rs₁))) _ _ ⟨rfl, hrs₁⟩
     · have hi' : i ∉ rs₁.corrupted := hrs₁ ▸ hi
       simp only [hi, ↓reduceIte, OracleComp.interpret_pure]
-      erw [Machine.runFrom_pure, Machine.runFrom_query, adaptiveRouter_handle_inr_corrupt_static]
-      simp only [hi', ↓reduceIte, pure_bind]
+      erw [Machine.runFrom_pure, Machine.runFrom_query]
+      dsimp only [adaptiveRouter, StateT.run]
+      simp only [hi', ↓reduceIte]
+      erw [pure_bind]
       exact hcont (.corrupt none) _ _ ⟨rfl, hrs₁⟩
 
 private theorem runFrom_adaptiveExecMachine_clampStatic {α : Type}
@@ -299,64 +256,6 @@ theorem adaptiveExec_static_eq_adaptive_clampStatic
       Z κ z)
 
 /-! #### Closing and evaluating joint router states for `static_of_adaptive` -/
-
-/-- Close an empty-spec probabilistic computation and return its `PMF`. -/
-@[expose] noncomputable def closeEval {α : Type}
-    (program : ProbOracleComp OracleSpec.empty α) : PMF α :=
-  ProbComp.eval (Machine.closeProgram program)
-
-/-- Closing a `pure` program yields `PMF.pure`. -/
-@[simp] theorem closeEval_pure {α : Type} (a : α) :
-    closeEval (pure a) = PMF.pure a := rfl
-
-/-- Closing a bind distributes over `PMF.bind`. -/
-@[simp] theorem closeEval_bind {α β : Type} (p : ProbOracleComp OracleSpec.empty α)
-    (next : α → ProbOracleComp OracleSpec.empty β) :
-    closeEval (p >>= next) = (closeEval p).bind fun a => closeEval (next a) := by
-  simp only [closeEval, Machine.closeProgram_bind, ProbComp.eval_bind]
-
-/-- Closing a mapped program maps the `PMF`. -/
-@[simp] theorem closeEval_map {α β : Type} (f : α → β)
-    (p : ProbOracleComp OracleSpec.empty α) :
-    closeEval (f <$> p) = (closeEval p).map f := by
-  simp only [closeEval, Machine.closeProgram_map, ProbComp.eval_map]
-
-/-- Closing a sampled `ProbComp` evaluates it directly. -/
-@[simp] theorem closeEval_sample {α : Type} (p : ProbComp α) :
-    closeEval (ProbOracleComp.sample p) = p.eval := by
-  simp only [closeEval, Machine.closeProgram_sample]
-
-/-- Support invariant for `closeEval (M.runFrom prog s)` under a reflexive, transitive state
-relation preserved by every allowed machine query. -/
-theorem mem_support_closeEval_runFrom_invariant {ιE α : Type} {E : ιE → Type}
-    (M : Machine OracleSpec.empty E) (Inv : ιE → Prop) (R : M.State → M.State → Prop)
-    (hR_refl : ∀ s, R s s) (hR_trans : ∀ {a b c}, R a b → R b c → R a c)
-    (prog : ProbOracleComp E α)
-    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
-    (s : M.State) {x : α × M.State}
-    (hx : x ∈ (closeEval (M.runFrom prog s)).support)
-    (hstep : ∀ (q : ιE) (s' : M.State) {y : E q × M.State},
-      Inv q → y ∈ (closeEval ((M.handle q).run s')).support → R s' y.2) :
-    R s x.2 := by
-  induction prog using OracleComp.induction generalizing s with
-  | pure a =>
-    erw [Machine.runFrom_pure, closeEval_pure, PMF.mem_support_pure_iff] at hx
-    rcases hx with rfl
-    exact hR_refl s
-  | query_bind q cont ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind] at hinv hx
-    rcases q with k | q
-    · erw [Machine.runFrom_bind, Machine.runFrom_call, StateT.run_lift, bind_pure_comp,
-        closeEval_bind, PMF.mem_support_bind_iff] at hx
-      rcases hx with ⟨y, hy, hx'⟩
-      erw [closeEval_map, PMF.mem_support_map_iff] at hy
-      rcases hy with ⟨a, _, rfl⟩
-      exact ih a ((OracleComp.QueriesSatisfy.liftBind_iff.mp hinv).2 a) s hx'
-    · have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
-      erw [Machine.runFrom_bind, Machine.runFrom_query, closeEval_bind,
-        PMF.mem_support_bind_iff] at hx
-      rcases hx with ⟨y, hy, hx'⟩
-      exact hR_trans (hstep q s hq.1 hy) (ih y.1 (hq.2 y.1) y.2 hx')
 
 private noncomputable def execState (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View)
@@ -458,26 +357,26 @@ private theorem corrupted_rel_of_mem_support_router {α : Type}
     (fun _ => hR_refl _) hR_trans (liftAdaptiveNet netProg) hinv rs hx
     fun q s' y hq hy => ?_
   rcases q with (⟨i, u⟩ | _) | (⟨i, u⟩ | i | nq)
-  · erw [adaptiveRouter_handle_inl_party] at hy
+  · dsimp only [adaptiveRouter, StateT.run] at hy
     by_cases hi : i ∈ s'.corrupted <;> simp only [hi, ↓reduceIte] at hy
     · erw [closeEval_pure, PMF.mem_support_pure_iff] at hy; rcases hy with rfl; exact hR_refl _
     · erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
       rcases hy with ⟨⟨_, _⟩, _, hy'⟩
       erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'; rcases hy' with rfl; exact hR_refl _
-  · erw [adaptiveRouter_handle_inl_status] at hy
+  · dsimp only [adaptiveRouter, StateT.run] at hy
     erw [closeEval_pure, PMF.mem_support_pure_iff] at hy; rcases hy with rfl; exact hR_refl _
-  · erw [adaptiveRouter_handle_inr_party] at hy
+  · dsimp only [adaptiveRouter, StateT.run] at hy
     by_cases hi : i ∈ s'.corrupted <;> simp only [hi, ↓reduceIte] at hy
     · erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
       rcases hy with ⟨⟨_, _⟩, _, hy'⟩
       erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'; rcases hy' with rfl; exact hR_refl _
     · erw [closeEval_pure, PMF.mem_support_pure_iff] at hy; rcases hy with rfl; exact hR_refl _
-  · erw [adaptiveRouter_handle_inr_corrupt_adaptive] at hy
+  · dsimp only [adaptiveRouter, StateT.run] at hy
     erw [closeEval_pure, PMF.mem_support_pure_iff] at hy; rcases hy with rfl
     by_cases hi : i ∈ s'.corrupted
     · simpa [hi] using hcor s'.corrupted i hq
     · simpa [hi] using hcor s'.corrupted i hq
-  · erw [adaptiveRouter_handle_inr_net] at hy
+  · dsimp only [adaptiveRouter, StateT.run] at hy
     erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
     rcases hy with ⟨⟨_, _⟩, _, hy'⟩
     erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'; rcases hy' with rfl; exact hR_refl _
@@ -624,7 +523,7 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
         erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
           Machine.runFrom_query]
         erw [bind_assoc, bind_assoc]
-        erw [adaptiveRouter_handle_inr_party]
+        dsimp only [adaptiveRouter, StateT.run]
         by_cases hi : i ∈ C₀
         · have hi' : i ∈ rs.corrupted := hrs ▸ hi
           simp only [hi', ↓reduceIte]
@@ -644,7 +543,7 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
         erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
           Machine.runFrom_query]
         erw [bind_assoc, bind_assoc]
-        erw [adaptiveRouter_handle_inr_net]
+        dsimp only [adaptiveRouter, StateT.run]
         erw [bind_assoc, bind_assoc]
         rw [closeEval_bind, closeEval_bind, PMF.bind_apply, PMF.bind_apply]
         refine tsum_le_tsum fun ⟨r, s'⟩ => ?_
@@ -659,7 +558,7 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
           erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
             Machine.runFrom_query]
           erw [bind_assoc, bind_assoc]
-          erw [adaptiveRouter_handle_inr_corrupt_adaptive]
+          dsimp only [adaptiveRouter, StateT.run]
           have hi' : i ∈ rs.corrupted := hrs ▸ hi
           simp only [hi', ↓reduceIte]
           erw [pure_bind, pure_bind]
@@ -667,14 +566,18 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
         · simp only [sumHandler, hi, ↓reduceIte, pure_bind, liftAdaptiveNet_bind]
           erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_query]
           erw [bind_assoc]
-          erw [adaptiveRouter_handle_inr_corrupt_adaptive]
-          have hi' : i ∉ rs.corrupted := hrs ▸ hi
-          simp only [hi', ↓reduceIte]
-          erw [pure_bind]
           let rs₁ : AdaptiveRouterState (P.machine κ).State View n :=
             { inner := P.onCorrupt κ i rs.inner
               corrupted := insert i rs.corrupted
               trace := rs.trace }
+          have hi' : i ∉ rs.corrupted := hrs ▸ hi
+          have hhandle :
+              ((adaptiveRouter .adaptive P κ C₀).handle (.inr (.corrupt i))).run rs =
+                pure (.corrupt (some (P.corruptionReport κ i rs₁)), rs₁) := by
+            dsimp only [adaptiveRouter, StateT.run]
+            simp only [hi', ↓reduceIte, rs₁]
+          rw [hhandle]
+          erw [pure_bind]
           have hsub_zero : closeEval ((adaptiveRouter .adaptive P κ C₀).runFrom
               (liftAdaptiveNet (cont (.corrupt (some (P.corruptionReport κ i rs₁))))) rs₁ >>= f)
               y = 0 := by
