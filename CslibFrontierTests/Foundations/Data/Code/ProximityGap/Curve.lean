@@ -7,6 +7,7 @@ Authors: Mayank Rathee
 module
 
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
+import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.FieldTheory.Finite.GaloisField
@@ -24,11 +25,13 @@ on concrete finite-field Reed–Solomon instances:
 2. **Negative / tightness weighted dichotomy over `ZMod 11`:** uses non-constant weights
    `W = ![1, 1, 2, 2, 2]` on disjoint spikes (`z = 0` achieves weight `7`, `z = 1` achieves weight
    `< 7` for every codeword) to instantiate `weighted_proximityGap_unique`.
-3. **2D affine space (`ℓ = 2`) over `ZMod 23` (`2 * 6 * 23 = 276 < 529 = 23 ^ 2`):**
-   - Positive nonzero-error instantiation of `exists_correlatedAgreement_affine_unique` and
-     `exists_weighted_correlatedAgreement_affine_unique` with three corrupted words `∉ RS`;
-   - Negative / tightness instantiation of `proximityGap_affine_unique` proving at most `276` of
-     the `529` affine combinations lie within distance `1` of the code.
+3. **2D affine space (`ℓ = 2`) over `ZMod 23`:**
+   - Positive nonzero-error instantiation of `exists_correlatedAgreement_affine_unique_sharp`,
+     `exists_correlatedAgreement_affine_of_curve`, and
+     `exists_weighted_correlatedAgreement_affine_unique_sharp` with three corrupted words `∉ RS`;
+   - Negative / tightness instantiation of `proximityGap_affine_unique_sharp` proving at most `120`
+     (`22 * #T ≤ 5 * (23 ^ 2 - 1) = 2640`) of the `529` affine combinations lie within distance `1`
+     of the code.
 4. **Dimension-independent 2D affine space (`ℓ = 2`) over `ZMod 11` (`5 * 120 = 600 < 10 * #T`):**
    - Here the linear-in-`ℓ` bound `2 * (5 + 1) * 11 = 132 > 121 = 11 ^ 2` is vacuous even on the
      entire plane, while the dimension-independent threshold is `#T > 60`;
@@ -102,12 +105,7 @@ private theorem third_diff_zero_of_mem_rs {p : ℕ} [Fact (Nat.Prime p)]
 
 private theorem card_agree_add_hammingDist {p : ℕ} {n : ℕ} (x y : Fin n → ZMod p) :
     (Finset.univ.filter fun i => x i = y i).card + hammingDist x y = n := by
-  rw [hammingDist, ← Finset.card_union_of_disjoint]
-  · have hunion : (Finset.univ.filter fun i => x i = y i) ∪
-        (Finset.univ.filter fun i => x i ≠ y i) = Finset.univ := by
-      ext i; simp only [mem_union, mem_filter, mem_univ, true_and, iff_true]; exact em _
-    rw [hunion, Finset.card_univ, Fintype.card_fin]
-  · exact Finset.disjoint_filter.2 fun _ _ h hne => hne h
+  simpa only [Fintype.card_fin] using card_filter_eq_add_hammingDist x y
 
 /-- Underlying codewords and corrupted words over `ZMod p` sharing a single error at index `0`. -/
 private noncomputable def v0 (p : ℕ) : Fin 5 → ZMod p :=
@@ -434,7 +432,8 @@ theorem test_weighted_proximityGap_unique_negative :
 /-! ### Test 3: 2D affine space (`ℓ = 2`) over `ZMod 23` (positive, weighted, & negative) -/
 
 /-- Positive nonzero-error 2D affine space (`ℓ = 2`) instantiation of
-`exists_correlatedAgreement_affine_unique` over `ZMod 23` (`2 * 6 * 23 = 276 < 529 = 23 ^ 2`). -/
+`exists_correlatedAgreement_affine_unique_sharp` (and the generic curve reduction
+`exists_correlatedAgreement_affine_of_curve`) over `ZMod 23`. -/
 theorem test_correlatedAgreement_affine_unique_2d :
     u0 23 ∉ reedSolomon (pts5 23) 3 ∧
     u1 23 ∉ reedSolomon (pts5 23) 3 ∧
@@ -464,18 +463,33 @@ theorem test_correlatedAgreement_affine_unique_2d :
       Submodule.add_mem _ v0_mem_rs
         (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvTrue_mem j)),
       hammingDist_affine_le_of_eq_on (D' := Finset.univ.erase 0) (by decide) hagree_true z⟩
-  have hT : 2 * (Fintype.card (Fin 5) + 1) * (Fintype.card (ZMod 23)) ^ (2 - 1) <
+  -- Also exercise the `(Fˣ)^ℓ × Fˣ` curve reduction `exists_correlatedAgreement_affine_of_curve`.
+  have hT_curve : (2 * Fintype.card (Fin 5) + 2) * (Fintype.card (ZMod 23)) ^ (2 - 1) <
       (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
     rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
     norm_num
+  have _h_of_curve :=
+    exists_correlatedAgreement_affine_of_curve (α := pts5 23) (k := 3) (ℓ := 2)
+      (B_curve := 2 * Fintype.card (Fin 5)) (by omega)
+      (P := fun w => ∃ c ∈ reedSolomon (pts5 23) 3, hammingDist w c ≤ 1)
+      (Q := fun D' => Fintype.card (Fin 5) - 1 ≤ D'.card)
+      (fun u' S hS hcl =>
+        exists_correlatedAgreement_curve_unique (d := 2) pts5_23_injective (e := 1) (k := 3)
+          (by decide) u' S hS hcl)
+      (u0 23) u Finset.univ hT_curve hclose
+  have hT : Fintype.card (Fin 5) * ((Fintype.card (ZMod 23)) ^ 2 - 1) <
+      (Fintype.card (ZMod 23) - 1) * (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
+    rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
+    norm_num
   obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-    exists_correlatedAgreement_affine_unique (ℓ := 2) pts5_23_injective (e := 1) (k := 3)
+    exists_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_23_injective (e := 1) (k := 3)
       (by decide) (u0 23) u Finset.univ hT hclose
   exact ⟨u0_not_mem_rs_23, u1_not_mem_rs_23, u2_not_mem_rs_23, D',
     by simpa only [Fintype.card_fin] using hD', v₀, hv₀, v, hvRS, hagree⟩
 
 /-- Positive weighted 2D affine space (`ℓ = 2`, non-constant `W = ![0, 2, 2, 2, 1]`, `M = 2`,
-`B = 7`) instantiation of `exists_weighted_correlatedAgreement_affine_unique` over `ZMod 23`. -/
+`B = 7`) instantiation of `exists_weighted_correlatedAgreement_affine_unique_sharp` over
+`ZMod 23`. -/
 theorem test_weighted_correlatedAgreement_affine_unique_2d :
     ∃ D' : Finset (Fin 5), 7 ≤ ∑ i ∈ D', wNonConst i ∧
       ∃ v₀ ∈ reedSolomon (pts5 23) 3, ∃ v : Fin 2 → (Fin 5 → ZMod 23),
@@ -505,25 +519,25 @@ theorem test_weighted_correlatedAgreement_affine_unique_2d :
         (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvTrue_mem j)), ?_⟩
     have hD : 7 ≤ ∑ i ∈ Finset.univ.erase (0 : Fin 5), wNonConst i := by decide
     exact hD.trans (weightedAgree_affine_ge_of_eq_on wNonConst hagree_true z)
-  have hT : 2 * (Fintype.card (Fin 5) + 1) * (Fintype.card (ZMod 23)) ^ (2 - 1) <
-      (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
+  have hT : Fintype.card (Fin 5) * ((Fintype.card (ZMod 23)) ^ 2 - 1) <
+      (Fintype.card (ZMod 23) - 1) * (Finset.univ : Finset (Fin 2 → ZMod 23)).card := by
     rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, ZMod.card]
     norm_num
-  exact exists_weighted_correlatedAgreement_affine_unique (ℓ := 2) pts5_23_injective
+  exact exists_weighted_correlatedAgreement_affine_unique_sharp (ℓ := 2) pts5_23_injective
     (k := 3) (M := 2) (B := 7) (by decide) hW (by decide) (u0 23) u Finset.univ hT hclose
 
-/-- Negative / tightness 2D affine space dichotomy instantiation of `proximityGap_affine_unique`
-over `ZMod 23`: since `(z₀, z₁) = (1, 0)` yields `spike0 + 1 • spike1` at distance `> 1` from
-every codeword, at most `2 * 6 * 23 = 276` of the `529` affine combinations lie within distance
-`1`. -/
+/-- Negative / tightness 2D affine space dichotomy instantiation of
+`proximityGap_affine_unique_sharp` over `ZMod 23`: since `(z₀, z₁) = (1, 0)` yields
+`spike0 + 1 • spike1` at distance `> 1` from every codeword, `22 * #T ≤ 5 * (23 ^ 2 - 1) = 2640`,
+so at most `120` of the `529` affine combinations lie within distance `1`. -/
 theorem test_proximityGap_affine_unique_negative_2d :
     open scoped Classical in
     (Finset.univ.filter fun z : Fin 2 → ZMod 23 => ∃ c ∈ reedSolomon (pts5 23) 3,
       hammingDist (spike0 23 + ∑ j : Fin 2, z j • (![spike1 23, (0 : Fin 5 → ZMod 23)] j)) c ≤
-        1).card ≤ 276 := by
+        1).card ≤ 120 := by
   classical
   let u : Fin 2 → (Fin 5 → ZMod 23) := ![spike1 23, 0]
-  rcases proximityGap_affine_unique (ℓ := 2) pts5_23_injective (e := 1) (k := 3) (by decide)
+  rcases proximityGap_affine_unique_sharp (ℓ := 2) pts5_23_injective (e := 1) (k := 3) (by decide)
       (spike0 23) u with hall | hcard
   · obtain ⟨c, hcRS, hdist⟩ := hall ![1, 0]
     have hsum : (spike0 23 + ∑ j : Fin 2, (![(1 : ZMod 23), 0] j) • u j) =
@@ -535,7 +549,8 @@ theorem test_proximityGap_affine_unique_negative_2d :
     rw [hsum] at hdist
     exact absurd hdist (not_le.2 (spike_far_at_one (p := 23) (by decide) (by decide) c hcRS))
   · rw [Fintype.card_fin, ZMod.card] at hcard
-    exact hcard.trans (by decide)
+    dsimp only [u] at hcard
+    omega
 
 /-! ### Test 4: Dimension-independent 2D affine space (`ℓ = 2`) over `ZMod 11` -/
 
@@ -1503,15 +1518,8 @@ theorem test_proximityGap_curve_johnson_asymptotic_gf11_14 :
     obtain ⟨c, hcRS, hdist⟩ := hall 0
     rw [hcurve0] at hdist
     have hle1 := card_agree_inj_rs1_le_one hα hcRS
-    have hdisj : Disjoint (Finset.univ.filter fun i => α i = c i)
-        (Finset.univ.filter fun i => α i ≠ c i) :=
-      Finset.disjoint_filter.2 fun _ _ h hne => hne h
-    have hunion : (Finset.univ.filter fun i => α i = c i) ∪
-        (Finset.univ.filter fun i => α i ≠ c i) = Finset.univ := by
-      ext i; simp only [mem_union, mem_filter, mem_univ, true_and, iff_true]; exact em _
-    have htot : (Finset.univ.filter fun i => α i = c i).card + hammingDist α c = 9 := by
-      rw [hammingDist, ← Finset.card_union_of_disjoint hdisj, hunion, Finset.card_univ,
-        Fintype.card_fin]
+    have htot := card_filter_eq_add_hammingDist α c
+    rw [Fintype.card_fin] at htot
     omega
   -- Exercise both `proximityGap_curve_johnson` and `proximityGap_curve_johnson_of_eta`.
   have hgap_m := (proximityGap_curve_johnson (e := 5) (k := 1) (m := 2) (r := 2) hα (by omega)
@@ -1638,15 +1646,8 @@ theorem test_proximityGap_affine_johnson_asymptotic_gf11_14 :
     obtain ⟨c, hcRS, hdist⟩ := hall 0
     rw [haff0] at hdist
     have hle1 := card_agree_inj_rs1_le_one hα hcRS
-    have hdisj : Disjoint (Finset.univ.filter fun i => α i = c i)
-        (Finset.univ.filter fun i => α i ≠ c i) :=
-      Finset.disjoint_filter.2 fun _ _ h hne => hne h
-    have hunion : (Finset.univ.filter fun i => α i = c i) ∪
-        (Finset.univ.filter fun i => α i ≠ c i) = Finset.univ := by
-      ext i; simp only [mem_union, mem_filter, mem_univ, true_and, iff_true]; exact em _
-    have htot : (Finset.univ.filter fun i => α i = c i).card + hammingDist α c = 9 := by
-      rw [hammingDist, ← Finset.card_union_of_disjoint hdisj, hunion, Finset.card_univ,
-        Fintype.card_fin]
+    have htot := card_filter_eq_add_hammingDist α c
+    rw [Fintype.card_fin] at htot
     omega
   -- Exercise both `proximityGap_affine_johnson` and `proximityGap_affine_johnson_of_eta`.
   have hgap_m := (proximityGap_affine_johnson (e := 5) (k := 1) (m := 2) (ℓ := 2) hα (by omega)
