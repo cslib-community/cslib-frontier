@@ -176,25 +176,24 @@ theorem IsVertex.card_tightRows (hnd : IsNondegenerateSystem A b) (hx : IsVertex
 theorem tightRows_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ)
     (A : Matrix κ ι K) (b : κ → K) (x : ι → K) :
     tightRows (A.submatrix e id) (b ∘ e) x = (tightRows A b x).map e.symm.toEmbedding := by
+  have hmul : (A.submatrix e id) *ᵥ x = (A *ᵥ x) ∘ e :=
+    A.submatrix_mulVec_equiv x e (.refl ι)
   ext k'
-  simp only [mem_tightRows, mulVec, dotProduct, submatrix_apply, id_eq, Function.comp_apply,
-    mem_map_equiv, Equiv.symm_symm]
+  simp only [mem_tightRows, hmul, Function.comp_apply, mem_map_equiv, Equiv.symm_symm]
 
 /-- Permuting the rows of `A *ᵥ x ≤ b` by an equivalence preserves vertices. -/
 theorem isVertex_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ) :
     IsVertex (A.submatrix e id) (b ∘ e) x ↔ IsVertex A b x := by
-  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e := fun v => by
-    funext k'
-    simp only [mulVec, dotProduct, submatrix_apply, id_eq, Function.comp_apply]
+  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
+    fun v => A.submatrix_mulVec_equiv v e (.refl ι)
   simp only [IsVertex, tightRows_submatrix_equiv, hmul, Pi.le_def, Function.comp_apply,
     e.forall_congr_left, Equiv.apply_symm_apply, mem_map_equiv, Equiv.symm_symm]
 
 /-- Permuting the rows of `A *ᵥ x ≤ b` by an equivalence preserves nondegeneracy. -/
 theorem isNondegenerateSystem_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ) :
     IsNondegenerateSystem (A.submatrix e id) (b ∘ e) ↔ IsNondegenerateSystem A b := by
-  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e := fun v => by
-    funext k'
-    simp only [mulVec, dotProduct, submatrix_apply, id_eq, Function.comp_apply]
+  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
+    fun v => A.submatrix_mulVec_equiv v e (.refl ι)
   simp only [IsNondegenerateSystem, tightRows_submatrix_equiv, card_map, hmul, Pi.le_def,
     Function.comp_apply, e.forall_congr_left, Equiv.apply_symm_apply]
 
