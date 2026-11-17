@@ -1138,7 +1138,7 @@ The lean-wang declarations and locators above were checked against the pinned so
 authoring Codex worker on 2026-11-16; this is authoring evidence, not independent review.
 
 Robinson/Reduction discharges both concrete obligations and proves
-`TilesPlane (forgetSeed I) ↔ TilesQuadrant I`, with a primitive-recursive map.
+`TilesPlane (removeSeed I) ↔ TilesQuadrant I`, with a primitive-recursive map.
 Undecidable then proves Berger's theorem `¬ ComputablePred TilesPlane`, using the existing
 `List WangTile` instance encoding through `(top, bottom, left, right)`.
 This is after Robinson's proof in the Ollinger form presented here, ported and restructured

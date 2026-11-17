@@ -31,13 +31,13 @@ example (f : List Cslib.WangTile → Bool) (hf : Computable f) :
     ⟨inferInstance, hf.of_eq fun _ => by simp⟩
   exact hp.of_eq decides
 
-example : TilesPlane (forgetSeed ⟨[⟨3, 3, 3, 3⟩], ⟨3, 3, 3, 3⟩⟩) := by
-  apply (tilesPlane_forgetSeed_iff _).mpr
+example : TilesPlane (removeSeed ⟨[⟨3, 3, 3, 3⟩], ⟨3, 3, 3, 3⟩⟩) := by
+  apply (tilesPlane_removeSeed_iff _).mpr
   refine ⟨fun _ _ => ⟨3, 3, 3, 3⟩, rfl, ?_⟩
   intro x y
   exact ⟨by simp, rfl, rfl⟩
 
-example : ¬ TilesPlane (forgetSeed ⟨[], ⟨3, 3, 3, 3⟩⟩) := by
+example : ¬ TilesPlane (removeSeed ⟨[], ⟨3, 3, 3, 3⟩⟩) := by
   intro h
-  obtain ⟨f, _, hf⟩ := (tilesPlane_forgetSeed_iff _).mp h
+  obtain ⟨f, _, hf⟩ := (tilesPlane_removeSeed_iff _).mp h
   simpa using (hf 0 0).1

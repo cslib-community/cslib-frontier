@@ -32,7 +32,7 @@ We retain lean-wang's corrected component transcription; agreement of its litera
 all printed figures is not proved here.
 
 The seeded-quadrant reduction encodes nonhalting of a universal `TM0` machine.
-`Robinson.forgetSeed` extends the quadrant to a pointed plane and combines that palette with
+`Robinson.removeSeed` extends the quadrant to a pointed plane and combines that palette with
 the concrete scaffold. Its primitive-recursive certificate and unconditional tileability
 equivalence transfer undecidability to the unseeded plane problem. No aperiodicity theorem or
 co-recursively-enumerable completeness result is asserted.
@@ -49,7 +49,7 @@ co-recursively-enumerable completeness result is asserted.
 * [Ollinger2008]. Internal locator not verified.
 * [JeandelVanier2020], §1.1, Theorem 1, manuscript p. 2; §3.3, Theorem 10, manuscript p. 29;
   §3.4, pp. 29–30 attributes this proof route to Robinson and its underlying tile set to Ollinger.
-* [lean-wang, revision 64268a3, Robinson endpoint](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Final.lean#L29).
+* [lean-wang, revision 64268a3, Robinson endpoint](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Final.lean#L49).
 -/
 
 public section
@@ -57,9 +57,10 @@ public section
 namespace Cslib.WangTile
 
 /-- **The domino problem is undecidable** (Berger, [Berger1966], Mem. AMS 66; internal locator
-not verified). The proof is after Robinson (1971), §7, pp. 201–205, in Ollinger's 104-tile form
-(2008; internal locator not verified), as presented by [JeandelVanier2020], §3.3, Theorem 10,
-manuscript p. 29, ported and restructured from lean-wang revision `64268a3`. Instances are
+not verified). The proof is after [Robinson1971], §7, pp. 201–205, in the 104-tile form of
+[Ollinger2008] (internal locator not verified), as presented by [JeandelVanier2020], §3.3,
+Theorem 10, manuscript p. 29, ported and restructured from lean-wang revision `64268a3`.
+Instances are
 `List WangTile`, with the `Primcodable` tile encoding given by the explicit tuple equivalence
 `(top, bottom, left, right)`. The prior formalization uses its `(n, s, e, w)` record and
 `Fin 4 → ℕ` tiles; identifying `top = n`, `bottom = s`, `left = w`, `right = e` preserves the
@@ -68,7 +69,7 @@ theorem not_computablePred_tilesPlane : ¬ ComputablePred TilesPlane := by
   intro h
   apply not_computablePred_tilesQuadrant
   exact ComputablePred.computable_of_manyOneReducible
-    ⟨Robinson.forgetSeed, Robinson.primrec_forgetSeed.to_comp,
-      fun I => (Robinson.tilesPlane_forgetSeed_iff I).symm⟩ h
+    ⟨Robinson.removeSeed, Robinson.primrec_removeSeed.to_comp,
+      fun I => (Robinson.tilesPlane_removeSeed_iff I).symm⟩ h
 
 end Cslib.WangTile
