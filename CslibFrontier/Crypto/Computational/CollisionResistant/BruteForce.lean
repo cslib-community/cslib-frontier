@@ -7,11 +7,14 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
+public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+public import CslibFrontier.Languages.Probabilistic.Oracle.Run
+public import CslibFrontier.Languages.Probabilistic.Vector
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import CslibFrontier.Languages.Probabilistic.Oracle.Vector
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # The brute-force collision finder and its `2 ^ ℓ + 1` hash evaluations
@@ -88,6 +91,44 @@ section Search
 
 variable {M T : Type} [DecidableEq M] [DecidableEq T]
 
+/-- The first pair of positions (in lexicographic order) whose digests agree and whose messages
+differ, returned as the two messages and their common digest. -/
+@[expose] def collidingPair? {s : ℕ} (ms : Fin s → M) (ds : Fin s → T) : Option (M × M × T) :=
+  ((List.finRange s ×ˢ List.finRange s).find? fun p => ds p.1 = ds p.2 ∧ ms p.1 ≠ ms p.2).map
+    fun p => (ms p.1, ms p.2, ds p.1)
+
+/-- An output `some (m, m', d)` of `collidingPair?` is two different messages that occur among
+`ms` with digest `d`. -/
+theorem collidingPair?_eq_some {s : ℕ} {ms : Fin s → M} {ds : Fin s → T} {m m' : M} {d : T}
+    (h : collidingPair? ms ds = some (m, m', d)) :
+    m ≠ m' ∧ ∃ i j, ms i = m ∧ ms j = m' ∧ ds i = d ∧ ds j = d := by
+  obtain ⟨p, hp, heq⟩ := Option.map_eq_some_iff.mp h
+  have hp' := List.find?_some hp
+  simp only [decide_eq_true_eq] at hp'
+  simp only [Prod.mk.injEq] at heq
+  obtain ⟨rfl, rfl, rfl⟩ := heq
+  exact ⟨hp'.2, p.1, p.2, rfl, rfl, rfl, hp'.1.symm⟩
+
+/-- `collidingPair?` finds a pair exactly when two positions have equal digests and different
+messages. -/
+theorem isSome_collidingPair?_iff {s : ℕ} {ms : Fin s → M} {ds : Fin s → T} :
+    (collidingPair? ms ds).isSome ↔ ∃ i j, ds i = ds j ∧ ms i ≠ ms j := by
+  simp [collidingPair?]
+
+/-- The outputs of a collision finder that are collisions of `f`: two different messages and their
+common value. -/
+@[expose] def collisionOutputs (f : M → T) : Set (Option (M × M × T)) :=
+  {o | ∃ m m', m ≠ m' ∧ f m' = f m ∧ o = some (m, m', f m)}
+
+/-- Any non-`none` output of `collidingPair? ms (fun i => f (ms i))` is a collision of `f` in
+`collisionOutputs f`. -/
+theorem collidingPair?_mem_collisionOutputs_of_isSome {s : ℕ} {ms : Fin s → M} {f : M → T}
+    (h : (collidingPair? ms fun i => f (ms i)).isSome) :
+    collidingPair? ms (fun i => f (ms i)) ∈ collisionOutputs f := by
+  obtain ⟨⟨m, m', d⟩, hc⟩ := Option.isSome_iff_exists.mp h
+  obtain ⟨hne, i, j, rfl, rfl, rfl, hd⟩ := collidingPair?_eq_some hc
+  exact ⟨_, _, hne, hd, hc⟩
+
 /-- **Pigeonhole for `collidingPair?`**: among `s` distinct messages whose digests all lie in a
 finite set `D` of cardinality strictly less than `s`, two positions have equal digests and
 different messages. -/
@@ -99,13 +140,6 @@ theorem isSome_collidingPair?_of_card_lt {s : ℕ} {ms : Fin s → M} (hms : Fun
   obtain ⟨i, -, j, -, hij, heq⟩ :=
     Finset.exists_ne_map_eq_of_card_lt_of_maps_to hcard fun i _ => hds i
   exact ⟨i, j, heq, hms.ne hij⟩
-
-private theorem collidingPair?_mem_collisionOutputs_of_isSome {s : ℕ} {ms : Fin s → M} {f : M → T}
-    (h : (collidingPair? ms fun i => f (ms i)).isSome) :
-    collidingPair? ms (fun i => f (ms i)) ∈ collisionOutputs f := by
-  obtain ⟨⟨m, m', d⟩, hc⟩ := Option.isSome_iff_exists.mp h
-  obtain ⟨hne, i, j, rfl, rfl, rfl, hd⟩ := collidingPair?_eq_some hc
-  exact ⟨_, _, hne, hd, hc⟩
 
 /-- When `s` distinct messages have digests under `f` in a finite set `D` with `D.card < s`,
 `collidingPair?` outputs a collision of `f`. -/
