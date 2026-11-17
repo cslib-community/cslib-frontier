@@ -178,6 +178,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
+import CslibFrontier.Crypto.Computational.OneWay.Iterate
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
@@ -6170,3 +6171,22 @@ register_result "uniform-probing-expected-probes" where
     uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
     per-key intermediate step)."
 
+register_result "owp-iterate-one-way" where
+  title := "Iterates of a one-way permutation are one-way, for rational exponents and \
+    certified counts"
+  topic := "cryptography"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 10, Exercise 3",
+      locator := "Web draft 2007-01-08, printed p. 204; PDF p. 220" }
+  ]
+  theorems := [Cslib.Crypto.OneWayPermutation.iterate_ceil_rpow,
+    Cslib.Crypto.OneWayPermutation.iterateByLength]
+  scope := "Covers every rational exponent c = p / q (count ⌈|x| ^ c⌉) and every other exponent \
+    whose rounded count has a polynomial-time unary certificate; no uniform algorithm is given \
+    for an arbitrary real c. The general form allows any polynomial-time unary count that is \
+    eventually nonzero. OneWayPermutation is a length-preserving bijection on List Bool, \
+    polynomial-time computable, with negligible inversion probability for every uniform strict \
+    PPT inverter given unary n and f x for uniform n-bit x (any preimage accepted). This is the \
+    asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
+    concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
+    bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."
