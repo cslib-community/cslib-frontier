@@ -75,15 +75,29 @@ class GuideCacheTests(unittest.TestCase):
     def test_backup_requires_successful_scheduled_docs_producer_on_same_repo(self):
         artifact = self.artifact_helper()
         repo = "owner/project"
-        entry = {"name": "key", "expired": False, "workflow_run": {"id": 15}}
-        run = {"id": 15, "event": "schedule", "head_branch": "main", "conclusion": "success",
+        entry = {"id": 42, "name": "key", "expired": False, "workflow_run": {"id": 15}}
+        run = {"id": 15, "run_attempt": 2, "event": "schedule", "head_branch": "main", "conclusion": "success",
                "path": ".github/workflows/docs.yml", "head_repository": {"full_name": repo}}
         for change in ({}, {"id": 16}, {"event": "pull_request"}, {"head_branch": "topic"},
                        {"path": ".github/workflows/guide.yml"}, {"conclusion": "cancelled"},
                        {"head_repository": {"full_name": "fork/project"}}):
             with self.subTest(change=change), patch.object(artifact, "api", side_effect=[
                     {"artifacts": [entry]}, {"workflow_runs": [run | change]}]):
-                self.assertEqual(artifact.producer(repo, "key"), None if change else 15)
+                self.assertEqual(artifact.producer(repo, "key"), None if change else (15, 2, 42))
+
+    def test_download_pins_artifact_id_and_refuses_restarted_run(self):
+        artifact = self.artifact_helper()
+        with patch.object(artifact, "producer", return_value=(15, 2, 42)), \
+             patch.object(artifact, "api", return_value={"run_attempt": 3, "conclusion": "success"}), \
+             patch.object(artifact.subprocess, "run") as download, \
+             patch.object(artifact, "install") as install, \
+             patch.dict(os.environ, GITHUB_REPOSITORY="owner/project"), \
+             patch.object(sys, "argv", ["artifact.py", "restore", "exact-key"]):
+            with self.assertRaisesRegex(ValueError, "rerun"):
+                artifact.main()
+            self.assertEqual(download.call_args.args[0],
+                             ["gh", "api", "repos/owner/project/actions/artifacts/42/zip"])
+            install.assert_not_called()
 
     def test_every_compatibility_input_invalidates(self):
         original = cache.cache_key(self.root, self.env)

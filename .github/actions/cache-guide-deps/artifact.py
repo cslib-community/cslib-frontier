@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import zipfile
 
 from key import PATHS
 
@@ -19,13 +20,13 @@ def api(endpoint):
 def producer(repository, key):
     prefix = f"repos/{repository}/actions"
     artifacts = api(f"{prefix}/artifacts?name={key}&per_page=100")["artifacts"]
-    candidates = {a["workflow_run"]["id"] for a in artifacts
+    candidates = {a["workflow_run"]["id"]: a["id"] for a in artifacts
                   if a["name"] == key and not a["expired"] and a.get("workflow_run")}
     if not candidates:
         return None
     runs = api(f"{prefix}/workflows/docs.yml/runs?branch=main&event=schedule"
                "&status=success&per_page=14")["workflow_runs"]
-    return next((r["id"] for r in runs if r["id"] in candidates
+    return next(((r["id"], r["run_attempt"], candidates[r["id"]]) for r in runs if r["id"] in candidates
                  and r["event"] == "schedule" and r["head_branch"] == "main"
                  and r["conclusion"] == "success" and r["path"] == ".github/workflows/docs.yml"
                  and (r.get("head_repository") or {}).get("full_name") == repository), None)
@@ -78,15 +79,28 @@ def main():
         pack(Path.cwd(), args.archive)
         return
     repo = os.environ["GITHUB_REPOSITORY"]
-    run = producer(repo, args.key)
-    if not run:
+    selected = producer(repo, args.key)
+    if not selected:
         print("No compatible scheduled Guide artifact. Lake will build the dependencies.")
         return
+    run, attempt, artifact_id = selected
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["gh", "run", "download", str(run), "--repo", repo,
-                        "--name", args.key, "--dir", tmp], check=True, timeout=120)
-        install(Path.cwd(), Path(tmp) / "guide-builds.tar.gz")
-    print(f"Restored Guide dependency builds from docs run {run}.")
+        package = Path(tmp) / "artifact.zip"
+        with package.open("wb") as stream:
+            subprocess.run(["gh", "api", f"repos/{repo}/actions/artifacts/{artifact_id}/zip"],
+                           stdout=stream, check=True, timeout=120)
+        current = api(f"repos/{repo}/actions/runs/{run}")
+        if current["run_attempt"] != attempt or current["conclusion"] != "success":
+            raise ValueError("Guide producer was rerun during download")
+        archive = Path(tmp) / "guide-builds.tar.gz"
+        with zipfile.ZipFile(package) as bundle:
+            if bundle.namelist() != [archive.name]:
+                raise ValueError("Unexpected Guide artifact contents")
+            with bundle.open(archive.name) as source, archive.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+        install(Path.cwd(), archive)
+    print(f"Restored Guide dependency builds from docs run {run} attempt {attempt}, artifact {artifact_id}.")
+
 
 
 if __name__ == "__main__":
