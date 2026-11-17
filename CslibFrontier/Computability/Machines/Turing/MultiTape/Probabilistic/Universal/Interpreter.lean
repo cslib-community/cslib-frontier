@@ -94,6 +94,8 @@ compiler, in which case they must be included in that program's online resources
   their source-symbol and encoded-bit bounds.
 * `Turing.MultiTapePTM.Universal.queriesSatisfy_run_encodedRequestBound`: encoded request bits.
 * `Turing.MultiTapePTM.Universal.run_query_bounds`: source fuel bounds calls and request symbols.
+* `Turing.MultiTapePTM.Universal.runInputSize_eq_framed`: the exact framed partition of the
+  supplied descriptor and the other runtime parameters.
 * `Turing.MultiTapePTM.Universal.unaryListDecoder_take_encList`: a sufficient reply prefix decodes
   every source reply symbol the instruction clock can observe.
 
@@ -144,6 +146,14 @@ reply-prefix budget. This and the framed supplied description partition `eRunInp
 `suppliedDescSize` to `runInputSize`, which already contains both. -/
 def runParameterSize (i : RunInput) : ℕ :=
   (eRunParameters (i.fuel, i.input, i.replyBits)).length
+
+/-- The encoded runtime input is the framed supplied description followed by the remaining
+runtime parameters. The factor `2` and delimiter bit are the actual `encPair` framing charge; in
+particular, the supplied description is already included in `runInputSize`. -/
+theorem runInputSize_eq_framed (i : RunInput) :
+    runInputSize i = 2 * suppliedDescSize i + 1 + runParameterSize i := by
+  simp only [runInputSize, suppliedDescSize, runParameterSize, eRunInput_apply,
+    eRunParameters, descLen, length_encPair]
 
 /-- Maximum number of private fair coins: at most one is drawn per source instruction, and halted
 storage draws none. -/

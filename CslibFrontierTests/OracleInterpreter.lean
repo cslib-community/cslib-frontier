@@ -20,8 +20,7 @@ finite-channel dispatch before returning the second reply. The encoded reply bud
 for either one-symbol unary answer.
 
 These tests check source semantics, structural coin/call/request coordinates, and the retained
-native witness's exact installed inventory, static structural bound and componentwise online
-aggregation.
+native witness's open semantics, framed runtime-input partition and static structural bound.
 
 The boundary checks cover a channel-count mismatch, a zero source clock and a malformed framed-list
 request. Each returns locally without changing the shared handler state.
@@ -31,34 +30,37 @@ request. Each returns locally without changing the shared handler state.
 
 namespace CslibFrontierTests.OracleInterpreter
 
-open Cslib Cslib.Probability Turing.MultiTapePTM.Universal
+open Cslib Cslib.Probability Turing.MultiTapeMachine Turing.MultiTapeTM
+  Turing.MultiTapePTM.Universal
 open Turing.MultiTapePTM.Universal.NativeInterpreter
 
-namespace OD := CslibFrontierTests.OracleDescription
-
 /-- Runtime request for the adaptive four-instruction fixture. -/
-def runInput : RunInput := ⟨OD.description, 4, [], 19⟩
+def runInput : RunInput := ⟨CslibFrontierTests.OracleDescription.description, 4, [], 19⟩
 
 /-- Nineteen bits contain either encoded reply `[7]` or `[9]`. -/
-theorem handler_prefix_fits : ReplyBoundsFit runInput OD.handler := by
+theorem handler_prefix_fits :
+    ReplyBoundsFit runInput CslibFrontierTests.OracleDescription.handler := by
   intro query log reply nextState hreply
   by_cases hlog : log.isEmpty
-  · simp only [OD.handler, hlog, ↓reduceIte, PMF.mem_support_pure_iff,
+  · simp only [CslibFrontierTests.OracleDescription.handler, hlog,
+      PMF.mem_support_pure_iff,
       Prod.mk.injEq] at hreply
     rcases hreply with ⟨rfl, rfl⟩
     decide
-  · simp only [OD.handler, hlog, ↓reduceIte, PMF.mem_support_pure_iff,
+  · simp only [CslibFrontierTests.OracleDescription.handler, hlog,
+      PMF.mem_support_pure_iff,
       Prod.mk.injEq] at hreply
     rcases hreply with ⟨rfl, rfl⟩
     decide
 
 /-- The Boolean interpreter preserves the complete adaptive output/log law. -/
 theorem run_interpreter :
-    ProbOracleComp.runWith OD.handler
+    ProbOracleComp.runWith CslibFrontierTests.OracleDescription.handler
         ((wordCodec 1).adapt (run 1 runInput)) [] =
       PMF.pure ([9], [[], [7]]) := by
-  exact (runWith_input_eq_runOracle runInput OD.handler [] handler_prefix_fits).trans
-    OD.run_description
+  exact (runWith_input_eq_runOracle runInput
+    CslibFrontierTests.OracleDescription.handler [] handler_prefix_fits).trans
+      CslibFrontierTests.OracleDescription.run_description
 
 /-- The adaptive client submits only canonical requests satisfying both request coordinates. -/
 theorem run_request_bounds : (run 1 runInput).QueriesSatisfy (RequestFits runInput) :=
@@ -77,17 +79,19 @@ theorem run_queries : (run 1 runInput).IsQueryBounded (queryBound runInput) :=
 
 /-- A fixed-channel mismatch is rejected before the shared handler is called. -/
 theorem run_channel_mismatch (log : List (List ℕ)) :
-    ProbOracleComp.runWith OD.handler
-        ((wordCodec 0).adapt (run 0 ⟨OD.description, 4, [], 19⟩)) log =
+    ProbOracleComp.runWith (fun query : Fin 0 × List ℕ => Fin.elim0 query.1)
+        ((wordCodec 0).adapt
+          (run 0 ⟨CslibFrontierTests.OracleDescription.description, 4, [], 19⟩)) log =
       PMF.pure ([], log) := by
   rw [run_of_operations_ne]
   · simp only [OracleCodec.adapt_pure, ProbOracleComp.runWith_pure]
-  · simp [OD.description]
+  · simp [CslibFrontierTests.OracleDescription.description]
 
 /-- A zero clock returns before sampling or calling the handler. -/
 theorem run_zero (log : List (List ℕ)) :
-    ProbOracleComp.runWith OD.handler
-        ((wordCodec 1).adapt (run 1 ⟨OD.description, 0, [], 19⟩)) log =
+    ProbOracleComp.runWith CslibFrontierTests.OracleDescription.handler
+        ((wordCodec 1).adapt
+          (run 1 ⟨CslibFrontierTests.OracleDescription.description, 0, [], 19⟩)) log =
       PMF.pure ([], log) := by
   simp only [Turing.MultiTapePTM.Universal.run_zero, OracleCodec.adapt_pure,
     ProbOracleComp.runWith_pure]
@@ -95,17 +99,22 @@ theorem run_zero (log : List (List ℕ)) :
 /-- A single unmatched terminator is not a canonical framed unary-list request. -/
 def malformedRequest : Fin 1 × List Bool := (0, [true])
 
-theorem decode_malformedRequest : (wordCodec 1).decodeQuery malformedRequest = none := rfl
+theorem decode_malformedRequest : (wordCodec 1).decodeQuery malformedRequest = none := by
+  simp [wordCodec, malformedRequest, unaryListDecoder, Decoder.list, Decoder.unary,
+    frames_of_ne_nil, unframe, dropFrame, encList_cons, encList_nil, encUnary_apply, frame]
 
 /-- The malformed request is answered by `[]` without changing the typed handler state. -/
 theorem malformed_request_no_call (log : List (List ℕ)) :
-    (wordCodec 1).wordOracle OD.handler malformedRequest log = PMF.pure ([], log) := by
-  rw [wordCodec_wordOracle_of_malformed OD.handler malformedRequest decode_malformedRequest]
+    (wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler malformedRequest log =
+      PMF.pure ([], log) := by
+  rw [wordCodec_wordOracle_of_malformed CslibFrontierTests.OracleDescription.handler
+    malformedRequest decode_malformedRequest]
   rfl
 
 /-- The adaptive fixture has four table rows, so successful execution does not reduce to a
 constant head-entry lookup. -/
-theorem description_table_length : OD.description.table.length = 4 := rfl
+theorem description_table_length :
+    CslibFrontierTests.OracleDescription.description.table.length = 4 := rfl
 
 /-! ### Retained native interpreter -/
 
@@ -118,30 +127,21 @@ theorem native_interpreter_computes :
 /-- The actual machine certificate specializes to the adaptive shared-state fixture, not merely a
 closed output distribution. -/
 theorem native_interpreter_open :
-    ProbOracleComp.runWith ((wordCodec 1).wordOracle OD.handler)
+    ProbOracleComp.runWith
+        ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler)
         ((artifact 1).machine.runOracle ((artifact 1).time runInput) (eRunInput runInput)) [] =
-      ProbOracleComp.runWith ((wordCodec 1).wordOracle OD.handler)
+      ProbOracleComp.runWith
+        ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler)
         ((encList encUnary) <$> run 1 runInput) [] :=
   runWith_artifact_machine 1 runInput (List (List ℕ))
-    ((wordCodec 1).wordOracle OD.handler) []
+    ((wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler) []
 
-/-- The complete composed interpreter is one installed occurrence, not the sum of its inlined
-controller, dispatcher, codec and query-primitive descriptions. -/
-theorem native_inventory :
-    (artifact 1).installedDescriptions = [(artifact 1).description] ∧
-      (artifact 1).installedBits = generatedStaticBits 1 :=
-  ⟨installedDescriptions_eq_singleton 1, installedBits_eq_generatedStaticBits 1⟩
-
-/-- Generated code, runtime input, supplied runtime description and emitted output remain
-separate inspectable coordinates. -/
-example (result : List ℕ) :
-    generatedStaticBits 1 = (artifact 1).staticBits ∧
-      runInputSize runInput = (eRunInput runInput).length ∧
-      suppliedDescSize runInput = descLen runInput.desc ∧
-      runParameterSize runInput =
-        (eRunParameters (runInput.fuel, runInput.input, runInput.replyBits)).length ∧
-      emittedOutputBits result = (encList encUnary result).length :=
-  ⟨rfl, rfl, rfl, rfl, rfl⟩
+/-- The actual runtime word charges the supplied description once, including the `encPair`
+framing overhead, and then the clock/input/reply-budget tail. -/
+theorem run_input_size_partition :
+    runInputSize runInput =
+      2 * suppliedDescSize runInput + 1 + runParameterSize runInput :=
+  runInputSize_eq_framed runInput
 
 /-- The exact generated size has both an honest structural bound and a fixed-channel polynomial
 family theorem. -/
@@ -150,17 +150,10 @@ example : generatedStaticBits 1 ≤ structuralBound 1 ∧
   ⟨generatedStaticBits_le_structuralBound 1,
     staticBits_polynomiallyBounded_fixed 1⟩
 
-/-- Scalar runtime and workspace are derived from the phase ledger. -/
+/-- The zero-channel specialization is also certified by the actual retained machine. -/
 example :
-    (artifact 1).time runInput = ∑ phase, phaseTime 1 phase runInput ∧
-      (artifact 1).workspace runInput = Finset.univ.sup fun phase =>
-        phaseWorkspace 1 phase runInput :=
-  ⟨time_eq_sum_phaseTime 1 runInput, workspace_eq_sup_phaseWorkspace 1 runInput⟩
-
-/-- Zero channels construct an actual witness with an empty finite query-dispatch case list and no
-inhabited `Fin 0` fallback. -/
-example : (operations 0).isEmpty ∧
-    (artifact 0).installedDescriptions = [(artifact 0).description] := by
-  exact ⟨rfl, installedDescriptions_eq_singleton 0⟩
+    (artifact 0).machine.ComputesTidily (eRunInput runInput) ((artifact 0).time runInput)
+      ((encList encUnary) <$> run 0 runInput) :=
+  artifact_computes 0 runInput
 
 end CslibFrontierTests.OracleInterpreter
