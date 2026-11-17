@@ -15,7 +15,8 @@ public import CslibFrontier.Init
 The simp set that `fin_index` (`CslibFrontier.Tactic.FinIndex`) rewrites with before it calls
 `omega`, declared in a file of its own because an attribute cannot be used in the file declaring
 it. A simp set is indexed once, when its lemmas are tagged. Listing the lemmas in each call made
-`simp` index them at every call: 0.9 s over the 79 calls in `Computability/WordRAM/OfTuring.lean`.
+`simp` index them at every call: 0.45 to 0.8 s over the 79 calls in
+`CslibFrontier/Computability/WordRAM/OfTuring.lean`.
 
 ## Main definitions
 
