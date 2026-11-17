@@ -70,14 +70,10 @@ private theorem fin_add_one_eq_zero {n : ℕ} [NeZero n] (hn : 1 < n) {i : Fin n
     (h : i.1 + 1 = n) : i + 1 = 0 :=
   Fin.ext (by rw [fin_val_add_one_eq_ite hn, ite_eq_left h, Fin.val_zero])
 
-private theorem fin_val_add_one_lt {n : ℕ} [NeZero n] {i : Fin n}
-    (h : i.1 + 1 < n) : (i + 1).1 = i.1 + 1 := by
-  rw [fin_val_add_one_eq_ite (by omega), ite_eq_right (by omega)]
-
 private theorem fin_add_one_ne_zero {n : ℕ} [NeZero n] {i : Fin n}
     (h : i.1 + 1 < n) : i + 1 ≠ 0 := fun h0 => by
   have := congrArg Fin.val h0
-  rw [fin_val_add_one_lt h, Fin.val_zero] at this
+  rw [Fin.val_add_one_of_lt' h, Fin.val_zero] at this
   omega
 
 private theorem finCongr_add_one {a b : ℕ} (hab : a = b) [NeZero a] [NeZero b] (k : Fin a) :
@@ -484,7 +480,7 @@ private theorem splitEquiv_vIn_add_one {W : Type*} [Fintype W] [DecidableEq W]
   have hbound := splitPos_add_bound v₀ pad τ' w
   have hmid := splitMidLen_pos v₀ pad w
   ext
-  rw [fin_val_add_one_lt (by simp only [splitFrom]; omega)]
+  rw [Fin.val_add_one_of_lt' (by simp only [splitFrom]; omega)]
   simp only [splitFrom, Fin.val_mk, add_zero]
 
 private theorem splitEquiv_vMid_add_one {W : Type*} [Fintype W] [DecidableEq W]
@@ -499,7 +495,7 @@ private theorem splitEquiv_vMid_add_one {W : Type*} [Fintype W] [DecidableEq W]
   ext
   by_cases hlast : k.1 + 1 = splitMidLen v₀ pad w <;>
     simp only [midNext, hlast, ↓reduceDIte] <;>
-    rw [fin_val_add_one_lt (by simp only [splitFrom]; omega)] <;>
+    rw [Fin.val_add_one_of_lt' (by simp only [splitFrom]; omega)] <;>
     simp only [splitFrom, Fin.val_mk] <;> omega
 
 private theorem splitEquiv_vOut_add_one {W : Type*} [Fintype W] [DecidableEq W]
@@ -517,7 +513,7 @@ private theorem splitEquiv_vOut_add_one {W : Type*} [Fintype W] [DecidableEq W]
       rw [fin_one_val (by omega), Fin.val_zero] at this
       omega
     have hτ'1 : τ' 1 ≠ v₀ := fun h => h1_ne (τ'.injective (h.trans hτ'0.symm))
-    rw [fin_val_add_one_lt (by
+    rw [Fin.val_add_one_of_lt' (by
       simp only [splitFrom, splitPos, splitMidLen, hτ'0, ↓reduceIte]; omega)]
     simp only [splitFrom, splitPos, splitMidLen, hτ'0, hτ'1, ↓reduceIte, Equiv.symm_apply_apply,
       fin_one_val (n := Fintype.card W) (by omega), zero_add]
@@ -533,8 +529,8 @@ private theorem splitEquiv_vOut_add_one {W : Type*} [Fintype W] [DecidableEq W]
       rw [ite_eq_left (by omega)]
     · have ht0' : t + 1 ≠ 0 := fin_add_one_ne_zero (by omega)
       have hτ't1 : τ' (t + 1) ≠ v₀ := fun h => ht0' (τ'.injective (h.trans hτ'0.symm))
-      have ht1' : (t + 1).1 = t.1 + 1 := fin_val_add_one_lt (by omega)
-      rw [fin_val_add_one_lt (by
+      have ht1' : (t + 1).1 = t.1 + 1 := Fin.val_add_one_of_lt' (by omega)
+      rw [Fin.val_add_one_of_lt' (by
         simp only [splitFrom, splitPos, splitMidLen, hτ't, ↓reduceIte, Equiv.symm_apply_apply]
         omega)]
       simp only [splitFrom, splitPos, splitMidLen, hτ't, hτ't1, ↓reduceIte, Equiv.symm_apply_apply,
@@ -1030,7 +1026,7 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
   have hvert_succ : ∀ t : Fin m, vert (t + 1).1 = vert (t.1 + 1) := fun t => by
     by_cases hlast : t.1 + 1 = m
     · rw [fin_add_one_eq_zero (by omega) hlast, Fin.val_zero, hlast, hvert_m]
-    · rw [fin_val_add_one_lt (by omega)]
+    · rw [Fin.val_add_one_of_lt' (by omega)]
   have hdir : IsDirTour adjD τ := fun t => by
     change adjD (vert t.1) (vert (t + 1).1)
     rw [hvert_succ]
