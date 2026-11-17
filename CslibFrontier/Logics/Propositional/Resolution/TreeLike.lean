@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import Cslib.Foundations.Logic.InferenceSystem
+public import Cslib.Foundations.Logic.InferenceSystem.Defs
 public import CslibFrontier.Logics.Propositional.Resolution.Proof
 public import CslibFrontier.Computability.DecisionTree.Leaves
 import CslibFrontier.Logics.Propositional.CNF.Eval
