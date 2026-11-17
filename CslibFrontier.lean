@@ -6626,6 +6626,7 @@ public import CslibFrontier.Foundations.NumberTheory.CRTCircle
 public import CslibFrontier.Foundations.NumberTheory.CRTFiniteSet
 public import CslibFrontier.Foundations.NumberTheory.CRTSign
 public import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
+public import CslibFrontier.Foundations.NumberTheory.ContinuedFractions.BestApproximation
 public import CslibFrontier.Foundations.NumberTheory.DoublingSign
 public import CslibFrontier.Foundations.NumberTheory.DyadicCircle
 public import CslibFrontier.Foundations.NumberTheory.DyadicResidues
