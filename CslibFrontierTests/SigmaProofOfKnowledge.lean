@@ -110,7 +110,7 @@ private theorem xorSimulator_isPPT : Simulator.IsPPT xorEncoding xorSimulator :=
         (fun input : Unit × List Bool × List Bool => ([], List.zipWith xor input.2.2 input.2.1))
         (encSimulatorWordInput encUnit) (encPair encBits encBits))).isPPTOn
   · intro i y c
-    rfl
+    simp [xorSimulator, xorEncoding, ProbComp.eval_pure]
 
 private def xorEfficientHVZK :
     EfficientSpecialHVZK (fun _ => xorProtocol) (fun _ x y => x = y) xorEncoding
