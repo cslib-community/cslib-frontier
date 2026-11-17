@@ -1377,6 +1377,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Shift
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Weights
 public import CslibFrontier.Computability.Circuit.Boolean.ShannonConstruction
 public import CslibFrontier.Computability.Circuit.Boolean.ShannonSynthesis
+public import CslibFrontier.Computability.Circuit.Boolean.Simps
 public import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 public import CslibFrontier.Computability.Circuit.Boolean.Smolensky.Approximation
 public import CslibFrontier.Computability.Circuit.Boolean.Smolensky.Gates
@@ -1775,6 +1776,7 @@ public import CslibFrontier.Computability.Circuit.Replication
 public import CslibFrontier.Computability.Circuit.ReplicationDepth
 public import CslibFrontier.Computability.Circuit.SatCount
 public import CslibFrontier.Computability.Circuit.SignatureHom
+public import CslibFrontier.Computability.Circuit.Simps
 public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Computability.Circuit.SimulationContext
 public import CslibFrontier.Computability.Circuit.SimulationDepth
@@ -7792,6 +7794,8 @@ public import CslibFrontier.Probability.UniformNat
 public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
+public import CslibFrontier.Tactic.CircuitBound
+public import CslibFrontier.Tactic.CircuitBound.Init
 public import CslibFrontier.Tactic.Degree
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator
