@@ -13,6 +13,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # The re-encryption check of `FO-notbot` is load-bearing
@@ -331,11 +332,7 @@ private theorem le_advantage_of_apply_le {g₀ g₁ : Game} {n k : ℕ} (hk : k 
     (h₀ : g₀ false ≤ n * (k : ℝ≥0∞)⁻¹) (h₁ : g₁ true ≤ (k : ℝ≥0∞)⁻¹) :
     1 - ((n : ℝ) + 1) / k ≤ (Game.advantage g₀ g₁ : ℝ) := by
   have hk' : (k : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.2 (by exact_mod_cast hk)
-  have hr₀ := ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) hk') h₀
-  have hr₁ := ENNReal.toReal_mono hk' h₁
-  rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast]
-    at hr₀
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hr₁
+  ennreal_to_real at h₀ h₁
   have hsum := toReal_true_add_toReal_false g₀
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
   refine le_trans ?_ (le_abs_self _)

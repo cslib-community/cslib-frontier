@@ -51,11 +51,12 @@ recover `s`, and derives the key from `s`.
 
 ## Main results
 
-* `Cslib.Crypto.FuzzyExtractor.failProbability_reproduceGame_decodeThenExtract_le`,
-  `Cslib.Crypto.FuzzyExtractor.DecoderCorrectWithError.correctHammingWithError_decodeThenExtract`:
-  `δ`-error average-case decoder correctness over uniform `A` implies `δ`-error Hamming
-  fuzzy-extractor correctness (the correctness part of Theorem 4.11, with the decoder of
-  Lemma 4.10 taken as a hypothesis).
+* `Cslib.Crypto.FuzzyExtractor.failProbability_reproduceGame_decodeThenExtract_le` and
+  `Cslib.Crypto.FuzzyExtractor.correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError`
+  are decoder-relative steps establishing `δ`-error Hamming reproduction correctness of
+  `decodeThenExtract` from a caller-supplied `DecoderCorrectWithError` hypothesis, not the
+  unconditional correctness part of Theorem 4.11 (p. 17), since the random-subset LWE decoder of
+  Construction 4.9 / Lemma 4.10 (pp. 15–16, over prime `q`) is not formalized (#6040).
 * `Cslib.Crypto.FuzzyExtractor.uniform_bind_decode_bind_apply_false_le`: the decode-failure step
   shared with the correctness proofs of the reusable extractors in
   `CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable`.
@@ -83,7 +84,9 @@ recover `s`, and derives the key from `s`.
   `CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security` certifies the
   reductions as strict PPT and proves the asymptotic step at modulus `2 ^ w κ`,
   `computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors`.
-* Correctness of the decoder of Construction 4.9 (Lemma 4.10); it is a hypothesis.
+* The random-subset LWE decoder of Construction 4.9 and its correctness over prime `q`
+  (Lemma 4.10, pp. 15–16), which stays open (#6040); decoder correctness is taken as a hypothesis
+  (`DecoderCorrectWithError`).
 * The symbol-fixing and block-source results of Section 5.
 * No security claim is made for `decodeThenExtract` with a general `ext`: with a public seed and
   an `ext` that reveals the secret (for example `ext s x = s + x`), the key determines the
@@ -92,7 +95,8 @@ recover `s`, and derives the key from `s`.
 ## References
 
 * [B. Fuller, X. Meng, and L. Reyzin, *Computational Fuzzy Extractors*][FullerMengReyzin2020],
-  Section 4 (Construction 4.1, Definition 4.5, Lemma 4.7, Theorem 4.11).
+  Section 4 (Construction 4.1, Definition 4.5, Lemma 4.7, Construction 4.9, Lemma 4.10,
+  Theorem 4.11).
 * [N. Döttling and J. Müller-Quade, *Lossy Codes and a New Variant of the
   Learning-With-Errors Problem*][DottlingMullerQuade2013]
 * [S. Bai, T. Lepoint, A. Roux-Langlois, A. Sakzad, D. Stehlé and R. Steinfeld, *Improved Security
@@ -171,9 +175,12 @@ noncomputable def decodeGame {m n q : ℕ} [NeZero q]
   ProbComp.eval (decodeCheck decode s e)
 
 /-- Average-case decoder correctness with failure probability at most `δ` up to Hamming weight `t`
-([FullerMengReyzin2020], Lemma 4.10): for every secret `s` and error `e` with
-`hammingNorm e ≤ t`, `decode A (A s + e)` fails to output `some s` with probability at most `δ`
-over uniform `A` and the coins of `decode`. -/
+(abstracting the conclusion of [FullerMengReyzin2020], Lemma 4.10, p. 16): for every secret `s`
+and error `e` with `hammingNorm e ≤ t`, `decode A (A s + e)` fails to output `some s` with
+probability at most `δ` over uniform `A` and the coins of `decode`.
+
+No concrete random-subset LWE decoder ([FullerMengReyzin2020], Construction 4.9 and Lemma 4.10,
+pp. 15–16, over prime `q`) is formalized in the library yet (#6040). -/
 def DecoderCorrectWithError {m n q : ℕ} [NeZero q]
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
@@ -241,10 +248,12 @@ theorem failProbability_reproduceGame_decodeThenExtract_le {m n q : ℕ} [NeZero
   exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode s (w - w') _
     (fun A => by simp) (hδ s)
 
-/-- Average-case decoder correctness with error `δ` implies `δ`-error Hamming reproduction
-correctness of `decodeThenExtract` (the correctness part of [FullerMengReyzin2020],
-Theorem 4.11, with the decoder of Lemma 4.10 taken as the hypothesis `h`). -/
-theorem DecoderCorrectWithError.correctHammingWithError_decodeThenExtract
+/-- A step of [FullerMengReyzin2020] Theorem 4.11 (p. 17) establishing `δ`-error Hamming
+reproduction correctness of `decodeThenExtract` relative to a caller-supplied decoder
+(`hdec : DecoderCorrectWithError decode t δ`), not the unconditional correctness part of
+Theorem 4.11, because the random-subset LWE decoder of Construction 4.9 and Lemma 4.10
+(pp. 15–16, over prime `q`) is not formalized (#6040). -/
+theorem correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError
     {m n q : ℕ} [NeZero q]
     {Seed Key : Type} [Fintype Seed] [Nonempty Seed] [Inhabited Key] [DecidableEq Key]
     {decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
