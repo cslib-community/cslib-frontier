@@ -5063,6 +5063,8 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.Foundations
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.Games

@@ -198,35 +198,13 @@ section Legality
 
 variable (hash : List Bool → List Bool → List Bool)
 
-/-- The cost of a word request for the tweak `t` at level `k`: one when it has `2 k + 3` bits, the
-length of a query's request, and its bits `k + 2` to `2 k + 1` are `t`. -/
-private def tweakCost (k : ℕ) (t : BitString k) (request : Unit × List Bool) : ℕ :=
-  if request.2.length = 2 * k + 3 ∧ (request.2.drop (k + 2)).take k = List.ofFn t then 1 else 0
-
-/-- A query with the tweak `t` costs one on its request. -/
-private theorem tweakCost_encodeQuery (k : ℕ) (t : BitString k)
-    (q : CCR.Query (BitString (k + 1) × Bool) (BitString k)) :
-    (if q.tweak = t then 1 else 0) ≤ tweakCost k t ((CCR.codec k).encodeQuery q) := by
-  obtain ⟨x, t', b⟩ := q
-  dsimp only
-  split_ifs with h
-  · subst h
-    have hreq : (CCR.codec k).encodeQuery ⟨x, t', b⟩ =
-        ((), labelBits x ++ (List.ofFn t' ++ [b])) := rfl
-    have hcond : (labelBits x ++ (List.ofFn t' ++ [b])).length = 2 * k + 3 ∧
-        ((labelBits x ++ (List.ofFn t' ++ [b])).drop (k + 2)).take k = List.ofFn t' :=
-      ⟨by simp; omega, by rw [List.drop_left' (length_labelBits x),
-        List.take_left' (List.length_ofFn)]⟩
-    simp only [hreq, tweakCost, hcond, and_self, ↓reduceIte, le_refl]
-  · exact Nat.zero_le _
-
 /-- A request at the tweak of slot `b` of gate `g` costs at most one, and only when that tweak is
 `t`. -/
 private theorem tweakCost_request_le (k : ℕ) (t : BitString k) (a : List Bool) (g : ℕ)
     (b c : Bool) :
-    tweakCost k t ((), a ++ (tweakWord k g b ++ [c])) ≤
+    CCR.tweakCost k t ((), a ++ (tweakWord k g b ++ [c])) ≤
       if tweakWord k g b = List.ofFn t then 1 else 0 := by
-  unfold tweakCost
+  unfold CCR.tweakCost
   split_ifs with h₁ h₂ <;> try omega
   obtain ⟨hlen, htw⟩ := h₁
   have ha : a.length = k + 2 := by
@@ -239,7 +217,7 @@ private theorem tweakCost_request_le (k : ℕ) (t : BitString k) (a : List Bool)
 only there. -/
 private theorem isCostBounded_reductionStep (k n : ℕ) (gates : List (ℕ × ℕ × List Bool))
     (ws : List Bool) (t : BitString k) (st : GateLoopState) :
-    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (tweakCost k t))
+    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (CCR.tweakCost k t))
       (reductionStep hash ⟨k, n, gates, ws⟩ st)
       ((if tweakWord k (st.labels.length - n) false = List.ofFn t then 1 else 0) +
         (if tweakWord k (st.labels.length - n) true = List.ofFn t then 1 else 0)) := by
@@ -282,7 +260,7 @@ private theorem exists_of_mem_support_reductionStep {d : GateLoopData} {st next 
 private theorem isCostBounded_iterate_reductionStep (k n : ℕ)
     (gates : List (ℕ × ℕ × List Bool)) (ws : List Bool) (t : BitString k)
     (init : GateLoopState) (hinit : init.labels.length = n) (c : ℕ) (hc : 2 * c ≤ 2 ^ k) :
-    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (tweakCost k t))
+    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (CCR.tweakCost k t))
       (OracleComp.iterate c (reductionStep hash ⟨k, n, gates, ws⟩) init)
       (if ∃ j < 2 * c, BitString.lowBits k j = List.ofFn t then 1 else 0) ∧
     ∀ st ∈ (OracleComp.iterate c (reductionStep hash ⟨k, n, gates, ws⟩) init).support,
@@ -337,8 +315,8 @@ through `CCR.codec k`, asks each tweak at most once on every run: it asks only w
 theorem isTweakUnique_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary XorAndCircuit σ)
     (k : ℕ) : CCR.IsTweakUnique ((CCR.codec k).adapt (prvSimReduction hash B k [])) := by
   intro t
-  refine (CCR.codec k).isCostBounded_adapt (wordCost := tweakCost k t)
-    (tweakCost_encodeQuery k t) ?_
+  refine (CCR.codec k).isCostBounded_adapt (wordCost := CCR.tweakCost k t)
+    (CCR.tweakCost_encodeQuery k t) ?_
   refine ((ProbOracleComp.isCostBounded_sample _ _).bind (m := 1) fun ⟨query, state⟩ => ?_).mono
     (by omega)
   dsimp only
@@ -379,15 +357,6 @@ private noncomputable def blocksUpTo (T : Slot (toCircuit f) → BitString (k + 
   (List.ofFn (ctBlock k f T)).take s
 
 variable {hash k f}
-
-/-- The word oracle of a fixed typed oracle answers a query's request with the query's label. -/
-private theorem wordOracle_codec_encodeQuery
-    (O : CCR.Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool)
-    (q : CCR.Query (BitString (k + 1) × Bool) (BitString k)) :
-    (CCR.codec k).wordOracle (fun q => (pure (O q) : ProbComp _)) ((CCR.codec k).encodeQuery q) =
-      pure (labelBits (O q)) := by
-  rw [OracleCodec.wordOracle_encodeQuery, map_pure]
-  rfl
 
 /-- **One gate of the reduction against a fixed oracle.** When the labelling `E` is fixed by one
 evaluation round of the table `T`, and `T` is the typed reduction's entry with oracle `O` on the
@@ -505,7 +474,7 @@ private theorem run_reductionStep {x : List Bool} (hx : x.length = f.circuit.n)
       simp only [entry, slotKnown, ↓reduceIte, labelBits_add, labelBits_atLevel, ht₂]
     rw [ite_eq_left hG, ← hq₁, ← hq₂]
     simp only [ProbOracleComp.run_bind, ProbOracleComp.run_map, ProbOracleComp.run_query,
-      wordOracle_codec_encodeQuery, map_pure, pure_bind, ProbOracleComp.run_pure, htake]
+      CCR.wordOracle_codec_encodeQuery, map_pure, pure_bind, ProbOracleComp.run_pure, htake]
     simp only [andState, hTG, hTE, ctBlock, dite_eq_left hop]
     rw [← labelBits_andEval hash k s ht₁ ht₂, ← hEg]
     simp only [evalStep, dite_eq_left hop]
