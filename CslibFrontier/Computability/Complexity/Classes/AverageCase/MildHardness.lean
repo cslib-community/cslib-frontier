@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Distrib
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -77,8 +78,7 @@ theorem exists_heuristic_of_mem_HeurP (b : List Bool → Bool)
     simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not, hlen] at hx
     simp only [Set.mem_ofPred_eq]
     cases hAx : A (x, 2 * p.eval n) <;> cases hbx : b x <;> simp_all
-  have hreal := ENNReal.toReal_mono (by simp) hfalse
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hreal
+  ennreal_to_real at hfalse
   rw [Probability.PMF.toReal_true_eq_one_sub]
   have hp0 : (0 : ℝ) < (p.eval n : ℕ) := by exact_mod_cast hp n
   have hlt : ((2 * p.eval n + 1 : ℕ) : ℝ)⁻¹ < 1 / ((p.eval n : ℕ) : ℝ) := by

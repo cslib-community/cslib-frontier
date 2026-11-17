@@ -20,6 +20,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -542,12 +543,7 @@ theorem advantage_idealExperiment_simulate_le
       (K.choose 2 : ℝ) / 2 ^ n := by
   rw [← freshGame_simulate_eq_blockModeIdealExperiment program ℓ adversary hprogram]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_
-  have hne : ((K.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.2 (pow_ne_zero _ two_ne_zero))
-  refine (ENNReal.toReal_mono hne
-    (toOuterMeasure_repeated_freshStep_simulate_le program ℓ hbad hlen h)).trans (le_of_eq ?_)
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofNat, div_eq_mul_inv]
+  rw [div_eq_mul_inv]
+  ennreal_to_real using toOuterMeasure_repeated_freshStep_simulate_le program ℓ hbad hlen h
 
 end Cslib.Crypto
