@@ -15,6 +15,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Native strict-PPT programmable random oracles
@@ -637,11 +638,7 @@ private theorem programWordHandlerWith_support
   cases op with
   | hash =>
       simp only [programWordHandlerWith] at hresult
-      change result ∈ (ProbComp.eval ((fun cached =>
-        (cached.1, (⟨cached.2, state.log⟩ : ProgrammingState Log))) <$>
-          memoize (fun _ => dist caller) word state.cache)).support at hresult
-      rw [ProbComp.eval_map, ProbComp.eval_memoize] at hresult
-      obtain ⟨cached, hcached, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
+      supp_cases hresult [ProbComp.eval_memoize] with ⟨cached, hcached, rfl⟩
       obtain ⟨hreply, hcache', hgrowth⟩ := Probability.memoize_call_size_le encBits encBits
         (fun _ => ProbComp.eval (dist caller)) word state.cache (digestBound caller) hcache
         (fun digest hdigest => hdist caller digest hdigest) cached hcached
@@ -655,12 +652,7 @@ private theorem programWordHandlerWith_support
   | program =>
       simp only [programWordHandlerWith] at hresult
       split_ifs at hresult with hactive
-      · rw [ProbComp.eval_bind] at hresult
-        obtain ⟨coins, hcoins, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
-        rw [ProbComp.eval_bind] at hresult
-        obtain ⟨cached, hcached, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-        subst result
+      · supp_cases hresult with ⟨coins, hcoins, cached, hcached, rfl⟩
         obtain ⟨hdigest, hcache', hcacheGrowth⟩ :=
           hactiveCache caller word coins hcoins state.cache hcache cached hcached
         obtain ⟨hlog', hreply, hlogGrowth⟩ :=
@@ -671,12 +663,7 @@ private theorem programWordHandlerWith_support
         · rw [length_encProgrammingState, length_encProgrammingState]
           unfold programmingResources
           lia
-      · change result ∈ (ProbComp.eval ((fun inactiveResult =>
-          (inactiveResult.1, (⟨state.cache, inactiveResult.2⟩ : ProgrammingState Log))) <$>
-            inactive caller word state.log)).support at hresult
-        rw [ProbComp.eval_map] at hresult
-        obtain ⟨inactiveResult, hinactiveResult, rfl⟩ :=
-          (PMF.mem_support_map_iff _ _ _).mp hresult
+      · supp_cases hresult with ⟨inactiveResult, hinactiveResult, rfl⟩
         obtain ⟨hlog', hreply, hlogGrowth⟩ :=
           hinactive caller word state.log hlog inactiveResult hinactiveResult
         refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩
@@ -867,8 +854,7 @@ theorem isPPTOn_run_overwriteProgramWordHandler {β : Type} (input : Caller ↪ 
       rw [overwriteProgramWordHandler_eq_with] at hresult
       exact programWordHandlerWith_support hdist
         (fun caller word coins hcoins cache hcache cached hcached => by
-          rw [ProbComp.eval_map] at hcached
-          obtain ⟨digest, hdigestSupport, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hcached
+          supp_cases hcached with ⟨digest, hdigestSupport, rfl⟩
           have hdigest := hdist caller digest hdigestSupport
           have hpt := hpoint caller word coins hcoins
           refine ⟨hdigest, by simpa using And.intro hdigest hcache, ?_⟩
