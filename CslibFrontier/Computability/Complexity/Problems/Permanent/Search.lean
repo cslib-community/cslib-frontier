@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.MatchingParity
 import CslibFrontier.Computability.Complexity.Problems.BipartitePerfectMatching.Membership
+import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Algorithms.Lean.MaxFlow.AugmentingPath
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
@@ -58,17 +60,9 @@ private theorem tableWord_polyTime : ComputableInPolyTime tableWord encBoolTable
   unfold tableWord
   exact mapToBitsWithInput (by fun_prop) (by fun_prop)
 
-private theorem tableWord_eq (A : List (List Bool)) :
-    tableWord A = List.ofFn (fun k : Fin (A.length * A.length) =>
-      (A.getD (k / A.length) []).getD (k % A.length) false) := by
-  apply List.ext_getElem
-  · simp [tableWord]
-  · intro i hi hj
-    simp [tableWord]
-
 private theorem graph_tableWord (A : List (List Bool)) (i j : Fin A.length) :
     graph (tableWord A) A.length (i, j) = A[i].getD j false := by
-  rw [tableWord_eq, graph_ofFn]
+  rw [tableWord, List.map_range_eq_ofFn, graph_ofFn]
   simp [Circuits.BipartiteMatching.graph, finProdFinEquiv, Nat.add_mul_div_left,
     Nat.div_eq_of_lt j.isLt, Nat.mod_eq_of_lt j.isLt,
     Nat.pos_of_ne_zero (Nat.ne_zero_of_lt j.isLt)]
@@ -85,15 +79,6 @@ private theorem matchingWord_polyTime :
   unfold matchingWord
   exact mapToBitsWithInput (by fun_prop) (anyWithInput (hM.comp (fst _ _)) (by fun_prop))
 
-private theorem matchingWord_eq (A : List (List Bool)) :
-    matchingWord A = List.ofFn (fun k : Fin (A.length * A.length) =>
-      (maximumMatching (tableWord A) A.length).any fun e =>
-      decide (e.1 = k / A.length ∧ e.2 = k % A.length)) := by
-  apply List.ext_getElem
-  · simp [matchingWord]
-  · intro i hi hj
-    simp [matchingWord]
-
 private theorem matchingWord_spec (A : List (List Bool)) :
     ZeroOnePermanent.verifier (A, matchingWord A) = true ↔ ∃ w, searchRel A w := by
   let M := edgeSet A.length (maximumMatching (tableWord A) A.length)
@@ -105,20 +90,14 @@ private theorem matchingWord_spec (A : List (List Bool)) :
     simp [M, finProdFinEquiv, Nat.add_mul_div_left, Nat.div_eq_of_lt j.isLt,
       Nat.mod_eq_of_lt j.isLt, Nat.pos_of_ne_zero (Nat.ne_zero_of_lt j.isLt),
       List.any_eq_true]
-  rw [matchingWord_eq, ZeroOnePermanent.verifier_ofFn]
+  rw [matchingWord, List.map_range_eq_ofFn, ZeroOnePermanent.verifier_ofFn]
   simp only [hbit]
   constructor
   · intro h
     refine ⟨matchingWord A, by simp [matchingWord], ?_⟩
-    simpa only [matchingWord_eq, ZeroOnePermanent.verifier_ofFn, hbit] using h
+    simpa only [matchingWord, List.map_range_eq_ofFn, ZeroOnePermanent.verifier_ofFn, hbit] using h
   · rintro ⟨w, hlen, hw⟩
-    have hw' : w = List.ofFn (fun i : Fin (A.length * A.length) => w.getD i false) := by
-      apply List.ext_getElem
-      · simp [hlen]
-      · intro i hi hj
-        simp only [List.getElem_ofFn]
-        exact (List.getD_eq_getElem w false hi).symm
-    rw [hw', ZeroOnePermanent.verifier_ofFn] at hw
+    rw [← List.ofFn_getD_eq_of_length false hlen, ZeroOnePermanent.verifier_ofFn] at hw
     obtain ⟨hrow, hleft, hright, hsupp⟩ := hw
     let N : Finset (Fin A.length × Fin A.length) :=
       Finset.univ.filter fun e => w.getD (finProdFinEquiv e) false = true
@@ -170,7 +149,8 @@ theorem searchRel_mem_FPSearch : searchRel ∈ FPSearch encBoolTable := by
 
 /-- Goldreich Exercise 6.36(b): an easy perfect-matching search relation has a metric-#P-complete
 count and a polynomial-time unique-versus-none promise solver. The yes/no sets are stated using
-the relation's own solution count. Part (a) is a separate assertion. -/
+the relation's own solution count: count one is `US_R`, and count zero is the complement
+of `S_R` (the instances with a solution). Part (a) is a separate assertion. -/
 theorem exercise_6_36b :
     searchRel ∈ FPSearch encBoolTable ∧
       SharpPMetricComplete encBoolTable (searchCount searchRel) ∧
