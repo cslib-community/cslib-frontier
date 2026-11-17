@@ -1213,6 +1213,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpCircuit
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpDecode
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLSynthesis
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.RandomFunction
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Samples
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Schedule
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Stages
