@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 
 /-!
@@ -71,7 +72,7 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
   have vK : v.regs ⟨21, by decide⟩ = K := by
     exact (boxBank_injective.extend_apply _ _ _).trans zK
   have vt : v.regs Reg.threshold = t :=
-    (boxBank_extend_high z u _ (by decide)).trans ((hu.regs_eq (by decide)).trans ht)
+    (boxBank_extend_high z u _ (by decide)).trans (by regs_frame)
   have vD : v.regs Reg.directory = D := by
     rw [boxBank_extend_high z u _ (by decide)]
     simp [u, Reg.directory, boxBank, BoxTable.Reg.levels, BoxTable.Reg.inner,
@@ -117,8 +118,8 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
   refine ⟨y, (hu.seq (hv.seq hy)).mono (by unfold BoxTable.geometryTime; omega), yp,
     ?_, by simp [y], ?_, ?_⟩
   · constructor
-    · exact (hy.regs_eq (by decide)).trans vt
-    · exact (hy.regs_eq (by decide)).trans vD
+    · regs_frame
+    · regs_frame
     · simp [y, y₀, y₁, y₂, y₃, Reg.records, Reg.values, Reg.count, Reg.results,
         QueriedProduct.Reg.temporary, QueriedProduct.Reg.index, R]
     · simp [y, y₀, y₁, y₂, y₃, Reg.records, Reg.values, Reg.count, Reg.results,

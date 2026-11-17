@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Menu
 public import CslibFrontier.Computability.Circuit.CompositionLines
 public import CslibFrontier.Computability.Circuit.Simulation
 public import Mathlib.Algebra.Ring.NegOnePow
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Depth-two weighted threshold circuits and wire counts
@@ -210,11 +211,7 @@ theorem size_depthTwo (top : Op) (bottom : Fin top.arity → Op)
 theorem depth_depthTwo_le (top : Op) (bottom : Fin top.arity → Op)
     (args : ∀ j, Fin (bottom j).arity → Fin n) :
     (depthTwo top bottom args).depth ≤ 2 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have := Circuit.depth_pi_le (D := 1)
-    (fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)) fun _ => by simp
-  simp only [Circuit.depth_oneGate]
-  omega
+  circuit_bound [depthTwo]
 
 /-- The syntactic argument-slot count of `depthTwo top bottom args` is the sum of the bottom-gate
 arities plus `top.arity`. -/
@@ -222,8 +219,7 @@ theorem cost_arity_depthTwo (top : Op) (bottom : Fin top.arity → Op)
     (args : ∀ j, Fin (bottom j).arity → Fin n) :
     (depthTwo top bottom args).program.cost Op.arity =
       (∑ j, (bottom j).arity) + top.arity := by
-  rw [depthTwo, Circuit.cost_program_comp, Circuit.cost_program_pi, Circuit.cost_program_oneGate]
-  simp_rw [Circuit.cost_program_oneGate]
+  simp only [circuit_simps, depthTwo]
 
 /-- The active wire count of `depthTwo top bottom args` is at most the sum of the bottom-gate
 arities plus `top.arity`. -/

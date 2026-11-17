@@ -15,6 +15,7 @@ public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.BigOperators
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Alternating formulas
@@ -345,6 +346,7 @@ theorem size_toFormula {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     cases op <;> simp only [toFormula, Formula.size_gate, h, size] <;> omega
 
 /-- An alternating formula of depth `d` translates to a formula of depth at most `d`. -/
+@[circuit_bound]
 theorem depth_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depth ≤ d := by
   induction d generalizing op with
@@ -353,6 +355,7 @@ theorem depth_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     cases op <;> exact Nat.succ_le_succ (Finset.sup_le fun j _ => ih _ _)
 
 /-- An alternating formula of depth `d` translates to a formula of AND/OR depth at most `d`. -/
+@[circuit_bound]
 theorem depthWith_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depthWith Unbounded.andOrCost ≤ d := by
   induction d generalizing op with
@@ -392,11 +395,12 @@ theorem size_deMorganLiteralsCircuit (n : ℕ) : (deMorganLiteralsCircuit n).siz
   simp [deMorganLiteralsCircuit]
 
 /-- `literalsCircuit n` has depth at most `1`. -/
-theorem depth_literalsCircuit_le (n : ℕ) : (literalsCircuit n).depth ≤ 1 :=
-  (Circuit.depth_append_le _ _).trans (max_le (by simp)
-    (Circuit.depth_pi_le _ fun _ => (Circuit.depth_oneGate _ _).le))
+@[circuit_bound]
+theorem depth_literalsCircuit_le (n : ℕ) : (literalsCircuit n).depth ≤ 1 := by
+  circuit_bound [literalsCircuit]
 
 /-- Negations are free in the AND/OR depth, so the literals have AND/OR depth zero. -/
+@[circuit_bound]
 theorem depthWith_literalsCircuit (n : ℕ) :
     (literalsCircuit n).depthWith Unbounded.andOrCost = 0 :=
   Nat.eq_zero_of_le_zero <| (Circuit.depthWith_append_le _ _ _).trans <| max_le
@@ -416,13 +420,8 @@ theorem exists_circuit {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     funext j
     rw [Formula.eval_toCircuit, eval_toFormula]
     rfl
-  · refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-    rw [depthWith_literalsCircuit, add_zero]
-    exact (Formula.depthWith_toCircuit_le _ _).trans (depthWith_toFormula_le op f)
-  · refine (Circuit.depth_comp_le _ _).trans ?_
-    have h₁ := (Formula.depth_toCircuit_le (toFormula op f)).trans (depth_toFormula_le op f)
-    have h₂ := depth_literalsCircuit_le n
-    omega
+  · circuit_bound
+  · circuit_bound
   · rw [Circuit.size_comp, size_literalsCircuit, Formula.size_toCircuit, size_toFormula,
       Nat.add_comm]
 

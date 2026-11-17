@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Signed.ArrayArithmetic.Body
 public import CslibFrontier.Computability.WordRAM.Signed.Fits
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native signed array arithmetic with exact aliases
@@ -90,7 +91,7 @@ theorem exec {w n A B : ℕ} (subtract : Bool) (x : Data 16) (u v : ℕ → ℤ)
     obtain ⟨hvalues', hframe'⟩ :=
       prefix_write_step (e := fun i => encode (if subtract then u i - v i else u i + v i))
         hvalues hframe hm
-    exact ⟨z, hz, ⟨hpres, (hzregs Reg.one (by decide)).trans h1, hvalues', hframe'⟩, hzi⟩
+    exact ⟨z, hz, ⟨hpres, by regs_frame, hvalues', hframe'⟩, hzi⟩
   let x₀ := (x.set Reg.index 0).set Reg.one 1
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   have hinit : ExecWithin (B := .standard) (w + 2)

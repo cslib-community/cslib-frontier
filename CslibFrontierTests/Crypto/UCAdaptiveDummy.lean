@@ -4,8 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+-- upstream: local-only (tests)
+
 import CslibFrontier.Crypto.Protocols.UC.AdaptiveToStatic
 import CslibFrontier.Crypto.Protocols.UC.AdaptiveDummyAdversary
+-- Non-module test import: reuses the shared `P_coin`/`F_coin`/`corruptAdv` fixture from
+-- `UCAdaptive`; ordinary `module`-mode clients of the public API live in
+-- `UCAdaptiveDummyModule.lean`.
 import CslibFrontierTests.Crypto.UCAdaptive
 
 /-!

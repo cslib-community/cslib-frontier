@@ -16,6 +16,7 @@ public import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Dynamic programming for CSPs on bounded treewidth
@@ -141,22 +142,14 @@ variable {Rel V : Type*} [DecidableEq V]
     TimeM.tick 1
     pure (b1 && b2)
 
+@[time_simps]
 theorem ret_subsetListM (xs LB : List V) :
     (subsetListM xs LB).ret = decide (xs.toFinset ⊆ LB.toFinset) := by
-  induction xs with
-  | nil => simp [subsetListM]
-  | cons x xs ih =>
-    simp only [subsetListM, TimeM.ret_bind, TimeM.ret_pure, ret_memM, ih, List.toFinset_cons,
-      Finset.insert_subset_iff, List.mem_toFinset, Bool.decide_and]
+  time_spec subsetListM [List.toFinset_cons, Finset.insert_subset_iff, List.mem_toFinset]
 
 theorem time_subsetListM (xs LB : List V) :
     (subsetListM xs LB).time = xs.length * (LB.length + 1) := by
-  induction xs with
-  | nil => simp [subsetListM]
-  | cons x xs ih =>
-    simp only [subsetListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_memM, ih,
-      List.length_cons]
-    ring
+  time_spec subsetListM [Nat.succ_mul]
 
 /-- Evaluate all zero-arity constraints of `F` on a constant `Fin q` assignment. -/
 @[expose] def checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) :
@@ -171,6 +164,7 @@ theorem time_subsetListM (xs LB : List V) :
     pure (ok && r)
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).ret =
       F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) := by
@@ -185,12 +179,7 @@ theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) �
 omit [DecidableEq V] in
 theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).time = F.length := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkNilScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih,
-      List.length_cons]
-    omega
+  time_spec checkNilScopeM
 
 /-- Check all constraints in `F` whose scopes lie in `LB` and include `v`, under `ofRadixFin`. -/
 @[expose] def checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
@@ -204,17 +193,14 @@ theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) �
     TimeM.tick 1
     pure ((!(hsub && hv) || sem c.rel vals) && r)
 
+@[time_simps]
 theorem ret_checkIntroScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
     (checkIntroScopeM q hq sem v LB m F).ret =
       F.all fun c =>
         !(decide (c.scope.toFinset ⊆ LB.toFinset) && decide (v ∈ c.scope)) ||
           c.eval sem (ofRadixFin q hq LB m) := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkIntroScopeM, TimeM.ret_bind, TimeM.ret_pure, ret_subsetListM, ret_memM,
-      ret_evalScopeM, ih, List.all_cons, Constraint.eval]
+  time_spec checkIntroScopeM
 
 theorem time_checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
@@ -244,10 +230,9 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
   | nil => rfl
   | cons u LP ih =>
     by_cases huv : u = v
-    · simp only [projectUpdateM, huv, ite_true, TimeM.ret_bind, TimeM.ret_pure, ih, toRadix_cons,
-        Function.update_self]
-    · simp only [projectUpdateM, huv, ite_false, TimeM.ret_bind, TimeM.ret_pure, ret_lookupM, ih,
-        toRadix_cons, Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
+    · simp only [projectUpdateM, huv, ite_true, time_simps, ih, toRadix_cons, Function.update_self]
+    · simp only [projectUpdateM, huv, ite_false, time_simps, ih, toRadix_cons,
+        Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
@@ -273,16 +258,14 @@ theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m :
 
 theorem size_tableLoopM {β : Type} (n : ℕ) (f : ℕ → TimeM ℕ β) :
     (tableLoopM n f).ret.size = n := by
-  induction n with
-  | zero => rfl
-  | succ n ih => simp [tableLoopM, ih]
+  time_spec tableLoopM [Array.size_push]
 
 theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs : s < n) (z : β) :
     (tableLoopM n f).ret.getD s z = (f s).ret := by
   induction n with
   | zero => omega
   | succ n ih =>
-    simp only [tableLoopM, TimeM.ret_bind, TimeM.ret_pure]
+    simp only [tableLoopM, time_simps]
     rw [Array.getD_eq_getD_getElem?, Array.getElem?_push, size_tableLoopM]
     by_cases hsn : s = n
     · subst hsn
@@ -291,13 +274,7 @@ theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs :
 
 theorem time_tableLoopM_le {β : Type} {n B : ℕ} {f : ℕ → TimeM ℕ β}
     (hB : ∀ s < n, (f s).time ≤ B) : (tableLoopM n f).time ≤ n * (B + 1) := by
-  induction n with
-  | zero => simp [tableLoopM]
-  | succ n ih =>
-    simp only [tableLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    have h1 := ih fun s hs => hB s (Nat.lt_succ_of_lt hs)
-    have h2 := hB n (Nat.lt_succ_self n)
-    nlinarith
+  time_spec tableLoopM
 
 /-- Aggregate `f 0, ..., f (k - 1)` using `add` and identity `z` in `TimeM ℕ`. -/
 @[expose] def sumLoopM {β : Type} (z : β) (add : β → β → β) :
@@ -312,13 +289,7 @@ theorem time_tableLoopM_le {β : Type} {n B : ℕ} {f : ℕ → TimeM ℕ β}
 private theorem time_sumLoopM_le {β : Type} (z : β) (add : β → β → β) {k B : ℕ}
     {f : ℕ → TimeM ℕ β} (hB : ∀ d < k, (f d).time ≤ B) :
     (sumLoopM z add k f).time ≤ k * (B + 1) := by
-  induction k with
-  | zero => simp [sumLoopM]
-  | succ k ih =>
-    simp only [sumLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    have h1 := ih fun d hd => hB d (Nat.lt_succ_of_lt hd)
-    have h2 := hB k (Nat.lt_succ_self k)
-    nlinarith
+  time_spec sumLoopM
 
 end Helpers
 
@@ -391,9 +362,7 @@ private theorem dpAlgFold_congr {β : Type} {z : β} {add : β → β → β} {k
 private theorem ret_sumLoopM_eq_dpAlgFold {β : Type} (z : β) (add : β → β → β) (k : ℕ)
     (f : ℕ → TimeM ℕ β) :
     (sumLoopM z add k f).ret = dpAlgFold z add k (fun d => (f d).ret) := by
-  induction k with
-  | zero => rfl
-  | succ k ih => simp only [sumLoopM, TimeM.ret_bind, TimeM.ret_pure, dpAlgFold, ih]
+  time_spec sumLoopM
 
 private theorem dpAlgFold_nat (k : ℕ) (g : ℕ → ℕ) :
     dpAlgFold 0 (· + ·) k g = ∑ d ∈ Finset.range k, g d := by
@@ -781,9 +750,8 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       simp only [bagList, List.length_nil, Nat.pow_zero] at hm
       omega
     subst hm0
-    simp only [dpTreeM, TimeM.ret_bind, TimeM.ret_pure, Array.getD_eq_getD_getElem?,
-      List.getElem?_toArray, List.getElem?_cons_zero, Option.getD_some,
-      ret_checkNilScopeM hq sem F, dpSpec]
+    simp only [dpTreeM, time_simps, Array.getD_eq_getD_getElem?, List.getElem?_toArray,
+      List.getElem?_cons_zero, Option.getD_some, dpSpec]
   | .introduce v child, hval, m, hm => by
     have hm' : m < q * q ^ (bagList child).length := by
       rw [Nat.mul_comm]
@@ -801,7 +769,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       exact ofRadix_cons_ne huv (bagList child) m
     simp only [dpTreeM, bagList, TimeM.ret_bind]
     rw [getD_tableLoopM _ (by simpa [bagList] using hm) A.zero]
-    simp only [TimeM.ret_bind, TimeM.ret_pure, ret_checkIntroScopeM, hbagT, dpSpec]
+    simp only [time_simps, hbagT, dpSpec]
     rw [ih, dpSpec_congr A q hq sem F F.vars.toFinset hval.2 fun u hu => (hcongr u hu).symm]
   | .forget v child, hval, m, hm => by
     have hbagC : (bagList child).toFinset = child.bag := toFinset_bagList hval.2
@@ -844,11 +812,10 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       simp only [hv, decide_true, ite_true, hvF]
       rw [ret_sumLoopM_eq_dpAlgFold]
       refine dpAlgFold_congr fun d hd => ?_
-      simp only [hd, ↓reduceDIte, TimeM.ret_bind, TimeM.ret_pure]
+      simp only [hd, ↓reduceDIte, time_simps]
       exact hret d hd
     · have hvF : v ∉ F.vars.toFinset := by simpa [List.mem_toFinset] using hv
-      simp only [hv, decide_false, Bool.false_eq_true, ite_false, hvF, TimeM.ret_bind,
-        TimeM.ret_pure]
+      simp only [hv, decide_false, Bool.false_eq_true, ite_false, hvF, time_simps]
       exact hret 0 hq
   | .join left right, hval, m, hm => by
     have hmL : m < q ^ (bagList left).length := by simpa [bagList] using hm
@@ -869,7 +836,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
         (fun w _ => ofRadix_lt hq (bagList left) m w) huR]
     simp only [dpTreeM, bagList, TimeM.ret_bind]
     rw [getD_tableLoopM _ (by simpa [bagList] using hm) A.zero]
-    simp only [TimeM.ret_bind, TimeM.ret_pure, dpSpec]
+    simp only [time_simps, dpSpec]
     rw [ihL, ihR, dpSpec_congr A q hq sem F F.vars.toFinset hval.2.2.2 hagree]
 
 private theorem dpSpec_dpCountAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
@@ -1039,8 +1006,7 @@ theorem ret_cspCountNiceTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q)
     (cspCountNiceTreeM q hq sem F T).ret =
       @CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F := by
   have hm : 0 < q ^ (bagList T).length := Nat.one_le_pow _ _ hq
-  simp only [cspCountNiceTreeM, TimeM.ret_bind, TimeM.ret_pure,
-    getD_cspCountTreeM hq sem F hval hm]
+  simp only [cspCountNiceTreeM, time_simps, getD_cspCountTreeM hq sem F hval hm]
   exact @CSP.specDPCount_eq_modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
     sem F T hval hbag hsub hcov _
 
@@ -1050,8 +1016,7 @@ theorem ret_cspDecideNiceTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q
     (cspDecideNiceTreeM q hq sem F T).ret = true ↔
       CSP.Satisfiable sem F := by
   have hm : 0 < q ^ (bagList T).length := Nat.one_le_pow _ _ hq
-  simp only [cspDecideNiceTreeM, TimeM.ret_bind, TimeM.ret_pure,
-    getD_cspDecideTreeM hq sem F hval hm]
+  simp only [cspDecideNiceTreeM, time_simps, getD_cspDecideTreeM hq sem F hval hm]
   exact @CSP.specDPDecide_eq_true_iff_satisfiable _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
     sem F T hval hbag hsub hcov _
 
