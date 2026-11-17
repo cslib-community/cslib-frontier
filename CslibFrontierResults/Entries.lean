@@ -5314,8 +5314,8 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
     Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and decapsulation; \
     no premise bounds the number of queries. Encapsulation draws m uniformly from words of \
     length msgLen n, as in Fig. 18. G and H are lazily sampled random oracles on word domains, \
-    and a request outside a domain gets the empty word. The key is the domain-separated \
-    H(false, m, c) in place of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
+    and a request outside a domain gets the empty word. The key uses the canonical encoding \
+    H(false, m, c) of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
     rejects words longer than ctLen n with ⊥, and treats decryption results of the wrong length \
     as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice HHK17's \
     |Pr[b' = b] - 1/2|. HHK17 state a concrete bound (the FO^⊥ row of the §3.3 table, p. 22: \
@@ -5353,8 +5353,8 @@ register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
     / Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and \
     decapsulation; no premise bounds the number of decapsulation queries. G and H are lazily \
     sampled random oracles on word domains, and a request outside a domain gets the empty word. \
-    H is domain-separated (H(false, m, c) for keys, H(true, s, c) for implicit rejection) in \
-    place of HHK17's untagged H(m, c) and H(s, c). Decapsulation refuses the challenge \
+    Key derivation and implicit rejection query the same H on (m, c) and (s, c), respectively, \
+    as in HHK17 Fig. 12. Decapsulation refuses the challenge \
     ciphertext, rejects words longer than ctLen n with ⊥, and treats decryption results of the \
     wrong length as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice \
     HHK17's |Pr[b' = b] - 1/2|. As in the source, no γ-spreadness is assumed (§1.1.2 table, \
