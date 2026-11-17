@@ -4070,6 +4070,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemConverse
 public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
@@ -6958,6 +6959,7 @@ public import CslibFrontier.Foundations.Probability.TwoStage
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.CHSHRigidity
+public import CslibFrontier.Foundations.Quantum.Algebra.CStar
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Foundations.Quantum.Algebra.Involution
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
