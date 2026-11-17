@@ -6,6 +6,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
+public import CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Probability.Uniform
 /-!
@@ -37,9 +38,9 @@ queries are prefix-free whenever the length encoding is injective. The prefix-fr
 
 ## Main results
 
-* `prependLength_injective`, `not_isPrefix_prependLength`, `cbcPrefixFree_of_forall_mem_range`:
-  length prepending is injective and, for an injective length encoding, prefix-free
-  ([KatzLindell2020], Exercise 4.18).
+* `prependLength_injective`, `not_isPrefix_prependLength`, `isPrefixFreeEncoding_prependLength`,
+  `cbcPrefixFree_of_forall_mem_range`: length prepending is injective and, for an injective length
+  encoding, prefix-free ([KatzLindell2020], Exercise 4.18; [BonehShoup2023], Section 6.6.1, p. 235).
 * `cbcRealSuccess_map_prependLengthQueries`, `cbcIdealSuccess_map_prependLengthQueries`: the
   translated distinguisher has the same real and ideal acceptance probabilities.
 * `abs_lengthPrependedRealSuccess_sub_lengthPrependedIdealSuccess_le`: variable-length security
@@ -49,6 +50,8 @@ queries are prefix-free whenever the length encoding is injective. The prefix-fr
 
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Version 0.6,
+  Section 6.6.1, p. 235.
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, 3rd ed.][KatzLindell2020],
   Section 4.4 (pp. 120–125) and Exercise 4.18 (p. 143).
 -/
@@ -120,6 +123,16 @@ theorem not_isPrefix_prependLength {L : ℕ} {encodeLength : Fin (L + 1) → Bit
   rintro ⟨hk, hp⟩
   refine hxy (lengthPrependedBlocks_injective (hp.eq_of_length ?_))
   rw [length_lengthPrependedBlocks, length_lengthPrependedBlocks, he hk]
+/-- **Method 1: length prepending is a prefix-free encoding** ([BonehShoup2023], Section 6.6.1,
+p. 235): restates `not_isPrefix_prependLength` as `PRF.IsPrefixFreeEncoding`. -/
+theorem isPrefixFreeEncoding_prependLength {L : ℕ}
+    {encodeLength : Fin (L + 1) → BitString n} (he : Function.Injective encodeLength) :
+    PRF.IsPrefixFreeEncoding
+      (fun x : LengthPrependedInput n L => cbcInputBlocks (prependLength encodeLength x)) := by
+  rw [PRF.IsPrefixFreeEncoding.iff_forall_prefix]
+  refine ⟨fun x => cbcInputBlocks_ne_nil _, fun x y hpre => ?_⟩
+  by_contra hxy
+  exact not_isPrefix_prependLength he hxy hpre
 /-- Every list of length-prepended inputs is prefix-free, for an injective length encoding. -/
 theorem cbcPrefixFree_of_forall_mem_range {L : ℕ} {encodeLength : Fin (L + 1) → BitString n}
     (he : Function.Injective encodeLength) {queries : List (CBCInput n (L + 1))}
