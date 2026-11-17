@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Crypto.Protocols.UC.Machine
+public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import Cslib.Foundations.Data.Polynomial.Monotone
 
 /-!
@@ -212,25 +212,15 @@ theorem handle_corruptRouter_map_state (C : Finset (Fin n))
     rfl
 
 /-- A program calling only the network port, as a program calling the ports of a protocol. -/
-@[expose] def liftNet {α : Type} (program : ProbOracleComp (netSpec NetQ NetR) α) :
+abbrev liftNet {α : Type} (program : ProbOracleComp (netSpec NetQ NetR) α) :
     ProbOracleComp (protocolSpec n In Out NetQ NetR) α :=
-  OracleComp.interpret
-    (sumHandler
-      (fun k => OracleComp.query (spec := probOracleSpec (protocolSpec n In Out NetQ NetR))
-        (Sum.inl k))
-      fun q => ProbOracleComp.query (Sum.inr q))
-    program
+  Machine.liftRightProgram (partySpec n In Out) program
 
 /-- The adversary in front of the network port: party queries pass through unchanged, and the
 adversary's activations call the network port. -/
-@[expose] def liftAdversary (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) :
-    Machine (protocolSpec n In Out NetQ NetR) (execSpec n In Out AdvQ AdvR) where
-  State := A.State
-  init := A.init
-  handle
-    | .inl p => StateT.lift (ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR)
-        (Sum.inl p))
-    | .inr q => fun s => liftNet ((A.handle q).run s)
+abbrev liftAdversary (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) :
+    Machine (protocolSpec n In Out NetQ NetR) (execSpec n In Out AdvQ AdvR) :=
+  Machine.liftRight (partySpec n In Out) A
 
 /-- The closed system the environment talks to: the adversary in front of the corruption-routed
 protocol. -/
