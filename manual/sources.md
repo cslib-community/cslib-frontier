@@ -167,7 +167,11 @@ Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of A
 <a id="bciks20"></a>
 ## bciks20
 
-Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow ePrint 2020/654 (Sections 1, 5, 6 and 7). Johnson-bound correlated agreement and proximity gaps for Reed–Solomon lines and weighted parameterized curves over arbitrary fields of arbitrary characteristic (Theorems 1.4, 5.1, 6.2 and 7.2) are formalized in [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean) (follow-up milestones for unique decoding, affine spaces, and FRI soundness are tracked in #5968).
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow ePrint 2020/654 (Sections 1, 4, 5, 6 and 7). Formalized across:
+
+- unique-decoding correlated agreement and proximity gaps for lines and parameterized curves (Theorems 1.2, 4.1 and 6.1) in [Unique.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Unique.lean);
+- Johnson-bound correlated agreement and proximity gaps for lines and weighted parameterized curves over arbitrary fields of arbitrary characteristic (Theorems 1.4, 5.1, 6.2 and 7.2) in [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean);
+- unique-decoding and Johnson-bound curves, dimension-independent affine spaces, and Section 7 weighted correlated agreement (Theorems 1.5, 1.6, 6.2, 7.1 and 7.2) in [Curve.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean).
 
 <a id="bcs16"></a>
 ## bcs16
