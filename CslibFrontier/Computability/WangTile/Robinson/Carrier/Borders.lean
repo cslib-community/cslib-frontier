@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
+public import CslibFrontier.Computability.WangTile.Robinson.Carrier.BorderCertificates
 import Mathlib.Data.Nat.Periodic
 
 /-!
@@ -33,10 +34,10 @@ with the selected shade boundaries of the actual decorated substitution.
 ## References
 
 After [JeandelVanier2020], §3.3, pp. 26–29. The recursive owner and halo
-argument is ported and restructured from lean-wang revision
+argument is ported from lean-wang revision
 `64268a3aaaef3eac65559352ef94f62ab9c00482`, `ShadedCarrierHierarchy` (lines 24–193),
-`ShadedCarrierBorderGeometry`, and `ShadedCarrierBorderHierarchy`. These are ingredients of
-seed removal, not a proof of domino undecidability.
+`ShadedCarrierBorderGeometry`, and `ShadedCarrierBorderHierarchy`. The arithmetic closely
+follows the source; the halo bridge is restructured around the named `BorderState` invariant.
 -/
 
 public section
@@ -81,6 +82,20 @@ open Canonical
   coordinate % period depth = frameStartResidue depth ||
     coordinate % period depth = frameEndResidue depth
 
+/-- Membership in a frame is the pair of bounds on the coordinate's period residue. -/
+theorem inFrame_eq_true_iff (depth coordinate : ℕ) :
+    inFrame depth coordinate = true ↔
+      frameStartResidue depth ≤ coordinate % period depth ∧
+        coordinate % period depth ≤ frameEndResidue depth := by
+  simp [inFrame]
+
+/-- An interior coordinate has neither boundary residue. -/
+theorem onFrameBoundary_eq_false_iff (depth coordinate : ℕ) :
+    onFrameBoundary depth coordinate = false ↔
+      coordinate % period depth ≠ frameStartResidue depth ∧
+        coordinate % period depth ≠ frameEndResidue depth := by
+  simp [onFrameBoundary]
+
 /-- Smallest frame depth at most `bound` containing a coordinate. -/
 @[expose] def depthAt : ℕ → ℕ → Option ℕ
   | 0, _ => none
@@ -95,146 +110,76 @@ open Canonical
     depthAt 0 coordinate = none := by
   rfl
 
-/-- Once a coordinate acquires an owner, increasing the search bound preserves
-that smallest owner. -/
+/-- `depthAt` is a bounded `List.find?`. -/
+private theorem depthAt_eq_find? (bound coordinate : ℕ) :
+    depthAt bound coordinate = (List.range' 1 bound).find? (inFrame · coordinate) := by
+  induction bound with
+  | zero => rfl
+  | succ bound ih =>
+    rw [depthAt, ih, List.range'_1_concat, List.find?_append]
+    cases (List.range' 1 bound).find? (inFrame · coordinate) <;> simp [Nat.add_comm]
+
+private theorem depthAt_eq_some_iff {bound coordinate depth : ℕ} :
+    depthAt bound coordinate = some depth ↔
+      (0 < depth ∧ depth ≤ bound) ∧ inFrame depth coordinate = true ∧
+        ∀ smaller, 0 < smaller → smaller < depth → inFrame smaller coordinate = false := by
+  rw [depthAt_eq_find?, List.find?_range'_eq_some, List.mem_range'_1]
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
+  constructor
+  · rintro ⟨inside, range, least⟩
+    exact ⟨by omega, inside, fun smaller positive below => least smaller positive below⟩
+  · rintro ⟨range, inside, least⟩
+    exact ⟨inside, by omega, fun smaller positive below => least smaller positive below⟩
+
+private theorem depthAt_eq_none_iff {bound coordinate : ℕ} :
+    depthAt bound coordinate = none ↔
+      ∀ depth, 0 < depth → depth ≤ bound → inFrame depth coordinate = false := by
+  rw [depthAt_eq_find?, List.find?_range'_eq_none]
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
+  exact ⟨fun h depth positive bounded => h depth positive (by omega),
+    fun h depth positive bounded => h depth positive (by omega)⟩
+
+/-- Once a coordinate acquires an owner, increasing the search bound preserves it. -/
 theorem depthAt_eq_some_mono {small bound coordinate depth : ℕ}
     (owner : depthAt small coordinate = some depth) (hsmall : small ≤ bound) :
     depthAt bound coordinate = some depth := by
-  induction bound, hsmall using Nat.le_induction with
-  | base => exact owner
-  | succ bound _ inductionHypothesis =>
-      simp [depthAt, inductionHypothesis]
+  rw [depthAt_eq_some_iff] at owner ⊢
+  exact ⟨⟨owner.1.1, owner.1.2.trans hsmall⟩, owner.2⟩
 
 /-- Every owner depth lies inside the bound searched by `depthAt`. -/
 theorem depthAt_le {bound coordinate depth : ℕ}
-    (owner : depthAt bound coordinate = some depth) : depth ≤ bound := by
-  induction bound with
-  | zero => simp at owner
-  | succ bound inductionHypothesis =>
-      simp only [depthAt] at owner
-      cases previous : depthAt bound coordinate with
-      | some previousDepth =>
-          simp only [previous] at owner
-          cases owner
-          exact Nat.le.step (inductionHypothesis previous)
-      | none =>
-          simp only [previous] at owner
-          split at owner
-          · cases owner
-            exact le_rfl
-          · simp at owner
+    (owner : depthAt bound coordinate = some depth) : depth ≤ bound :=
+  (depthAt_eq_some_iff.mp owner).1.2
 
 /-- `depthAt` never returns the unsearched depth zero. -/
 theorem depthAt_pos {bound coordinate depth : ℕ}
-    (owner : depthAt bound coordinate = some depth) : 0 < depth := by
-  induction bound with
-  | zero => simp at owner
-  | succ bound inductionHypothesis =>
-      simp only [depthAt] at owner
-      cases previous : depthAt bound coordinate with
-      | some previousDepth =>
-          simp only [previous] at owner
-          cases owner
-          exact inductionHypothesis previous
-      | none =>
-          simp only [previous] at owner
-          split at owner
-          · cases owner
-            omega
-          · simp at owner
+    (owner : depthAt bound coordinate = some depth) : 0 < depth :=
+  (depthAt_eq_some_iff.mp owner).1.1
 
 /-- An owner is a frame that actually contains the coordinate. -/
 theorem inFrame_eq_true_of_depthAt_eq_some {bound coordinate depth : ℕ}
-    (owner : depthAt bound coordinate = some depth) :
-    inFrame depth coordinate = true := by
-  induction bound with
-  | zero => simp at owner
-  | succ bound inductionHypothesis =>
-      simp only [depthAt] at owner
-      cases previous : depthAt bound coordinate with
-      | some previousDepth =>
-          simp only [previous] at owner
-          cases owner
-          exact inductionHypothesis previous
-      | none =>
-          simp only [previous] at owner
-          split at owner
-          · rename_i contained
-            cases owner
-            exact contained
-          · simp at owner
+    (owner : depthAt bound coordinate = some depth) : inFrame depth coordinate = true :=
+  (depthAt_eq_some_iff.mp owner).2.1
 
-/-- If no owner was found, none of the searched positive-depth frames contains
-the coordinate. -/
-theorem inFrame_eq_false_of_depthAt_eq_none
-    {bound coordinate depth : ℕ} (owner : depthAt bound coordinate = none)
-    (hpositive : 0 < depth) (hbound : depth ≤ bound) :
-    inFrame depth coordinate = false := by
-  induction bound with
-  | zero => omega
-  | succ bound inductionHypothesis =>
-      simp only [depthAt] at owner
-      cases previous : depthAt bound coordinate with
-      | some previousDepth => simp [previous] at owner
-      | none =>
-          simp only [previous] at owner
-          split at owner
-          · simp at owner
-          · rename_i currentOutside
-            by_cases hdepth : depth ≤ bound
-            · exact inductionHypothesis previous hdepth
-            · have : depth = bound + 1 := by omega
-              subst depth
-              simpa using currentOutside
+/-- If no owner was found, none of the searched positive-depth frames contains the coordinate. -/
+theorem inFrame_eq_false_of_depthAt_eq_none {bound coordinate depth : ℕ}
+    (owner : depthAt bound coordinate = none) (hpositive : 0 < depth) (hbound : depth ≤ bound) :
+    inFrame depth coordinate = false :=
+  depthAt_eq_none_iff.mp owner depth hpositive hbound
 
-/-- The returned owner is the smallest searched frame containing the
-coordinate. -/
-theorem depthAt_le_of_inFrame
-    {bound coordinate ownerDepth depth : ℕ}
-    (owner : depthAt bound coordinate = some ownerDepth)
-    (hpositive : 0 < depth) (hbound : depth ≤ bound)
+/-- The returned owner is the smallest positive frame containing the coordinate. -/
+theorem depthAt_le_of_inFrame {bound coordinate ownerDepth depth : ℕ}
+    (owner : depthAt bound coordinate = some ownerDepth) (hpositive : 0 < depth)
     (contained : inFrame depth coordinate = true) : ownerDepth ≤ depth := by
-  induction bound with
-  | zero => simp at owner
-  | succ bound inductionHypothesis =>
-      simp only [depthAt] at owner
-      cases previous : depthAt bound coordinate with
-      | some previousDepth =>
-          have previousLe : previousDepth ≤ bound :=
-            depthAt_le previous
-          simp only [previous] at owner
-          cases owner
-          by_cases hdepth : depth ≤ bound
-          · exact inductionHypothesis previous hdepth
-          · omega
-      | none =>
-          simp only [previous] at owner
-          split at owner
-          · cases owner
-            by_contra notLe
-            have hdepth : depth ≤ bound := by omega
-            have outside := inFrame_eq_false_of_depthAt_eq_none previous
-              hpositive hdepth
-            simp [contained] at outside
-          · simp at owner
+  by_contra larger
+  have outside := (depthAt_eq_some_iff.mp owner).2.2 depth hpositive (by omega)
+  simp [contained] at outside
 
 /-- Restricting the search to the returned depth still finds the same owner. -/
 theorem depthAt_self_of_depthAt_eq_some {bound coordinate depth : ℕ}
-    (owner : depthAt bound coordinate = some depth) :
-    depthAt depth coordinate = some depth := by
-  cases restricted : depthAt depth coordinate with
-  | none =>
-      have outside := inFrame_eq_false_of_depthAt_eq_none restricted
-        (depthAt_pos owner) le_rfl
-      simp [inFrame_eq_true_of_depthAt_eq_some owner] at outside
-  | some restrictedDepth =>
-      have restrictedLe : restrictedDepth ≤ depth := depthAt_le restricted
-      have ownerLe : depth ≤ restrictedDepth := depthAt_le_of_inFrame owner
-        (depthAt_pos restricted)
-        (restrictedLe.trans (depthAt_le owner))
-        (inFrame_eq_true_of_depthAt_eq_some restricted)
-      have : restrictedDepth = depth := Nat.le_antisymm restrictedLe ownerLe
-      simp [this]
+    (owner : depthAt bound coordinate = some depth) : depthAt depth coordinate = some depth := by
+  rw [depthAt_eq_some_iff] at owner ⊢
+  exact ⟨⟨owner.1.1, le_rfl⟩, owner.2⟩
 
 /-- Every frame has positive scale. -/
 theorem scale_pos (depth : ℕ) : 0 < scale depth := by
@@ -244,6 +189,12 @@ theorem scale_pos (depth : ℕ) : 0 < scale depth := by
 theorem period_eq_four_mul_scale (depth : ℕ) :
     period depth = 4 * scale depth := by
   simp [period, scale, pow_succ, Nat.mul_comm]
+
+/-- Every frame period exceeds one. -/
+theorem one_lt_period (depth : ℕ) : 1 < period depth := by
+  rw [period_eq_four_mul_scale]
+  have := scale_pos depth
+  omega
 
 /-- The closing boundary lies strictly inside one period. -/
 theorem frameEndResidue_lt_period (depth : ℕ) :
@@ -292,7 +243,7 @@ theorem period_succ (depth : ℕ) :
 private theorem frameStartResidue_succ (depth : ℕ) :
     frameStartResidue (depth + 1) = 4 * frameStartResidue depth - 3 := by
   simp only [frameStartResidue, scale, pow_succ]
-  have positive : 0 < 4 ^ depth := pow_pos (by decide) _
+  have positive : 0 < 4 ^ depth := scale_pos depth
   omega
 
 private theorem frameEndResidue_succ (depth : ℕ) :
@@ -320,7 +271,7 @@ private theorem FrameSide.boundaryResidue_pos
 private theorem FrameSide.boundaryResidue_lt_period
     (side : FrameSide) (depth : ℕ) :
     side.boundaryResidue depth < period depth := by
-  have positive : 0 < scale depth := pow_pos (by decide) _
+  have positive : 0 < scale depth := scale_pos depth
   rw [period_eq_four_mul_scale]
   cases side <;> simp only [boundaryResidue, frameStartResidue,
     frameEndResidue] <;> omega
@@ -354,7 +305,7 @@ theorem inFrame_succ_iff_ceilDivFour (depth coordinate : ℕ) :
       inFrame depth (ceilDivFour coordinate) := by
   let residue := coordinate % period (depth + 1)
   have residueLt : residue < period (depth + 1) :=
-    Nat.mod_lt _ (pow_pos (by decide) _)
+    Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_period (depth + 1)))
   rw [← (inFrame_periodic (depth + 1)).map_mod_nat coordinate]
   rw [← (inFrame_ceilDivFour_periodic depth).map_mod_nat coordinate]
   change inFrame (depth + 1) residue =
@@ -374,15 +325,15 @@ theorem inFrame_succ_iff_ceilDivFour (depth coordinate : ℕ) :
     unfold ceilDivFour
     omega
   · have coarseEq : ceilDivFour residue = period depth := by omega
-    have scalePositive : 0 < scale depth := pow_pos (by decide) _
+    have scalePositive : 0 < scale depth := scale_pos depth
     have fineFalse : inFrame (depth + 1) residue = false := by
       apply Bool.eq_false_iff.mpr
       intro inside
       have insideData :
           frameStartResidue (depth + 1) ≤ residue ∧
             residue ≤ frameEndResidue (depth + 1) := by
-        simpa only [inFrame, Nat.mod_eq_of_lt residueLt,
-          Bool.and_eq_true, decide_eq_true_eq] using inside
+        simpa only [Nat.mod_eq_of_lt residueLt] using
+          (inFrame_eq_true_iff _ _).mp inside
       unfold ceilDivFour at coarseEq
       rw [endEq] at insideData
       have periodScale := period_eq_four_mul_scale depth
@@ -422,7 +373,7 @@ private theorem boundary_succ_iff
         coordinate % 4 = side.fineResidue := by
   let residue := coordinate % period (depth + 1)
   have residueLt : residue < period (depth + 1) :=
-    Nat.mod_lt _ (pow_pos (by decide) _)
+    Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_period (depth + 1)))
   rw [← (boundary_periodic side depth).map_mod_nat coordinate]
   rw [← (boundaryLiftCondition_periodic side depth).map_mod_nat coordinate]
   change residue % period (depth + 1) = side.boundaryResidue (depth + 1) ↔
@@ -470,7 +421,8 @@ theorem openingBoundary_succ_iff (depth coordinate : ℕ) :
   simpa [FrameSide.boundaryResidue, FrameSide.fineResidue] using
     boundary_succ_iff .opening depth coordinate
 
-private theorem closingBoundary_succ_iff (depth coordinate : ℕ) :
+/-- A closing boundary survives refinement exactly at fine residue zero. -/
+theorem closingBoundary_succ_iff (depth coordinate : ℕ) :
     coordinate % period (depth + 1) = frameEndResidue (depth + 1) ↔
       ceilDivFour coordinate % period depth = frameEndResidue depth ∧
         coordinate % 4 = 0 := by
@@ -487,7 +439,7 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
   simp only [openingBoundary_succ_iff, closingBoundary_succ_iff]
   have boundaryDistinct :
       frameStartResidue depth ≠ frameEndResidue depth := by
-    have scalePositive : 0 < scale depth := pow_pos (by decide) _
+    have scalePositive : 0 < scale depth := scale_pos depth
     simp only [frameStartResidue, frameEndResidue]
     omega
   have boundaryDistinctSymm :
@@ -536,10 +488,7 @@ private theorem largeBoundary_mod_small (side : FrameSide)
           rw [FrameSide.boundaryResidue, FrameSide.fineResidue,
             frameStartResidue, Nat.add_mod,
             Nat.mod_eq_zero_of_dvd scaleDvd]
-          have oneLt : 1 < period small := by
-            rw [period_eq_four_mul_scale]
-            have := scale_pos small
-            omega
+          have oneLt := one_lt_period small
           simp [Nat.mod_eq_of_lt oneLt]
       | closing =>
           rw [FrameSide.boundaryResidue, FrameSide.fineResidue,
@@ -656,10 +605,7 @@ private theorem outerBorder_frameBorder_disjoint
     (frame : frameBorder depth coordinate transverse = some frameOrientation) :
     False := by
   have coordinateOne := (outerBorder_eq_some_iff _ _ _).mp outer |>.1
-  have oneLtPeriod : 1 < period depth := by
-    rw [period_eq_four_mul_scale]
-    have := scale_pos depth
-    omega
+  have oneLtPeriod := one_lt_period depth
   have coordinateMod : coordinate % period depth = 1 := by
     rw [coordinateOne, Nat.mod_eq_of_lt oneLtPeriod]
   have boundary := frameBorder_residue_gt_one frame
@@ -752,6 +698,7 @@ private theorem lift_selectedBorder_eq_some_iff
         (ceilDivFour coordinate) (ceilDivFour transverse) orientation).2
         (Or.inr ⟨prior, by omega, by omega, coarseBorder⟩)
       simpa only [coarseSelected, coarseBorder] using border
+
 private theorem ceilDivFour_eight_mul_add (block offset : ℕ) :
     ceilDivFour (8 * block + offset) =
       2 * block + ceilDivFour offset := by
@@ -860,7 +807,6 @@ private theorem selectedBorder_succ_child
   exact selectedBorder_succ_block level blockX blockY
     (2 * childX + x) (2 * childY + y)
 
-
 /-- The arithmetic halo at a canonical node, including its one-quarter boundary margin. -/
 private def arithmeticState (level x y : ℕ) : BorderState where
   node := supertileNodeGrid level seedNode x y
@@ -877,8 +823,8 @@ private theorem arithmeticState_succ (level x y : ℕ) (i j : Fin 4) :
       (arithmeticState level x y).refine i j := by
   have node : supertileNodeGrid (level + 1) seedNode (4 * x + i.val) (4 * y + j.val) =
       (supertileNodeGrid level seedNode x y).child (blockPosition i j) := by
-    simp only [supertileNodeGrid, childPosition, blockPosition]
-    congr 2 <;> omega
+    have node := supertileNodeGrid_block level seedNode x y i.val j.val i.isLt j.isLt
+    simpa only [childPosition, Nat.mod_eq_of_lt i.isLt, Nat.mod_eq_of_lt j.isLt] using node
   unfold arithmeticState BorderState.refine
   simp only [node]
   congr 1

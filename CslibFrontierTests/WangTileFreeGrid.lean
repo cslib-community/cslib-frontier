@@ -8,16 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Robinson.Forcing
-public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.OddCoverage
+public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
 import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
+import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Obstruction
 
 /-!
 # Marked free grids and nontrivial Robinson routing
 
 Clients check a nontrivial odd-base path and an absent port, then construct a two-by-two
-routed grid from an actual canonical scaffold plane. Every cell between its first two
-crossings is a horizontal wire, so the extraction does not skip another crossing. A constant
-payload on the canonical scaffold plane supplies a satisfying input to `scaffold_forces`.
+routed grid from an actual canonical scaffold plane. A constant payload on that plane supplies
+a satisfying input to `scaffold_forces`; incompatible edge colours and a seed outside the
+palette exercise its use in refuting combined tilings.
 -/
 
 -- These are local regression examples, with no test-only public API.
@@ -41,20 +42,14 @@ example : ∃ (source : Port) (parity : Bool), source ≠ ⟨6, 6, .west⟩ ∧
 -- The coverage premise is substantive: a nearby port is absent.
 example : portPresent oddGrid ⟨4, 4, .west⟩ = false := by decide +kernel
 
--- The plane and grid hypotheses have a genuine instance with two distinct rows and columns.
-example : ∃ (P : Cslib.WangTile.Plane scaffold.tiles)
-    (G : Cslib.WangTile.RoutedGrid scaffold P 1),
-    G.column 0 < G.column 1 ∧ G.row 0 < G.row 1 ∧
-      scaffold.role (P.tile (G.column 0) (G.row 0)) = .corner ∧
-      ∀ x, G.column 0 < x → x < G.column 1 →
-        scaffold.role (P.tile x (G.row 0)) = .horizontal := by
+-- An actual canonical scaffold plane has a routed grid with two rows and columns.
+example : ∃ P : Cslib.WangTile.Plane scaffold.tiles,
+    Nonempty (Cslib.WangTile.RoutedGrid scaffold P 1) := by
   obtain ⟨P⟩ := (Cslib.WangTile.nonempty_plane_iff _).2 Canonical.scaffold_tilesPlane
   let D := DecodedPlane.ofPlane P
   let R := QuarterPlane.regroup D.quarterPlane
-  obtain ⟨a, b, scale, cycle, shaded, ⟨grid⟩⟩ := FreeGrid.exists_markedGrid D R 1
-  let G := grid.routedGrid D R a b cycle shaded
-  exact ⟨P, G, G.column_strictMono (by decide), G.row_strictMono (by decide), G.corner,
-    fun x hl hr => G.horizontal 0 0 x hl hr⟩
+  obtain ⟨a, b, scale, cycle, shaded, ⟨grid⟩⟩ := exists_markedFreeGrid D R 1
+  exact ⟨P, ⟨grid.routedGrid D R a b cycle shaded⟩⟩
 
 private def payload : SeededInstance := ⟨[⟨0, 0, 0, 0⟩], ⟨0, 0, 0, 0⟩⟩
 
@@ -78,8 +73,31 @@ private theorem populated_combination : TilesPlane (combine scaffold payload) :=
   · change Nat.pair (f x y).top 0 = Nat.pair (f x (y + 1)).bottom 0
     rw [(matching x y).2.2]
 
--- The actual combined plane yields a seeded square with two rows and two columns.
-example : Nonempty (SeededSquare payload 1) :=
-  scaffold_forces payload populated_combination 1
+-- The premise of the forcing theorem is satisfiable.
+example : TilesPlane (combine scaffold payload) := populated_combination
+
+-- Incompatible horizontal colours forbid a row of width two.
+private def bad : SeededInstance := ⟨[⟨0, 0, 0, 1⟩], ⟨0, 0, 0, 1⟩⟩
+
+example : ¬ TilesPlane (combine scaffold bad) := by
+  intro h
+  obtain ⟨sq⟩ := scaffold_forces bad h 1
+  have hi : (0 : Fin 2).val + 1 < 1 + 1 := by decide
+  have h0 := sq.mem 0 0
+  have h1 := sq.mem ⟨(0 : Fin 2).val + 1, hi⟩ 0
+  have hm := sq.horizontal 0 0 hi
+  simp only [bad, List.mem_singleton] at h0 h1
+  rw [h0, h1] at hm
+  exact absurd hm (by decide)
+
+-- A seed outside the palette is impossible even in a one-cell square.
+private def outside : SeededInstance := ⟨[⟨0, 0, 0, 0⟩], ⟨1, 1, 1, 1⟩⟩
+
+example : ¬ TilesPlane (combine scaffold outside) := by
+  intro h
+  obtain ⟨sq⟩ := scaffold_forces outside h 0
+  have h0 := sq.mem 0 0
+  rw [sq.corner] at h0
+  simp [outside] at h0
 
 end Cslib.Tests.WangTile.FreeGrid

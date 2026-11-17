@@ -23,9 +23,11 @@ Consequently every corner marker has logical payload address `(0, 0)`.
 
 ## References
 
-Restructured from [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3), revision
-`64268a3`, `ShadedCarrierConcreteRoles` and `ShadedCarrierCornerAddressing` (especially the
-centered-marker induction and corner-zero theorem, lines 250–422). This is the backward
+Ported from [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3), revision
+`64268a3`, `ShadedCarrierConcreteRoles`, `ShadedCarrierSquareGeometry` (lines 57–77),
+and `ShadedCarrierCornerAddressing` (the centered-marker induction and corner-zero theorem,
+lines 247–420, and the addressed-square construction, lines 424–431). The proofs closely
+follow the source, with `AddressedSquare` replacing `SquareAddressing`. This is the backward
 seed-removal construction after [Robinson1971], in the corrected scaffold of [Ollinger2008]
 as presented in [JeandelVanier2020], §3.3, pp. 26–29. Robinson describes the geometric
 construction in §7, pp. 201–205; the Ollinger internal locator is not verified.
@@ -251,14 +253,7 @@ private theorem onFrameBoundary_eq_false_of_liftCoordinate
     (fineInterior :
       onFrameBoundary (depth + 1) (liftCoordinate coordinate) = false) :
     onFrameBoundary depth coordinate = false := by
-  have fineData :
-      liftCoordinate coordinate % period (depth + 1) ≠
-          frameStartResidue (depth + 1) ∧
-        liftCoordinate coordinate % period (depth + 1) ≠
-          frameEndResidue (depth + 1) := by
-    simpa only [onFrameBoundary,
-      Bool.or_eq_false_eq_eq_false_and_eq_false,
-      decide_eq_false_iff_not] using fineInterior
+  have fineData := (onFrameBoundary_eq_false_iff _ _).mp fineInterior
   apply Bool.eq_false_iff.2
   intro boundary
   have coarseData : coordinate % period depth = frameStartResidue depth ∨
@@ -503,7 +498,7 @@ private theorem cast_square_tile {τ : List WangTile} {m n : ℕ}
 
 /-- A canonical decorated seed square with compatible integer payload addresses.
 Every seeded crossing receives the pointed payload's origin. -/
-@[expose] noncomputable def canonicalAddressing (level : ℕ) :
+def canonicalAddressing (level : ℕ) :
     AddressedSquare scaffold (side level - 1) :=
   let sideEq : side level = side level - 1 + 1 := by
     have sidePositive : 0 < side level := by simp [side]
@@ -518,5 +513,14 @@ Every seeded crossing receives the pointed payload's origin. -/
       intro i j hc
       rw [cast_square_tile] at hc
       exact corner_point_zero level _ _ hc)
+
+/-- The addressed canonical square retains the canonical decorated tile at each coordinate. -/
+@[simp] theorem canonicalAddressing_base_tile (level : ℕ)
+    (i j : Fin (side level - 1 + 1)) :
+    (canonicalAddressing level).base.tile i j =
+      ShadedSite.tile (site level seedNode i.val j.val) := by
+  unfold canonicalAddressing
+  rw [addressedSquareOfHierarchy_base, cast_square_tile]
+  rfl
 
 end Cslib.WangTile.Robinson.Carrier

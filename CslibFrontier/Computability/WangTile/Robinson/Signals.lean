@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Basic
 public import CslibFrontier.Computability.WangTile.Routing
 public import CslibFrontier.Computability.WangTile.Robinson.Hierarchy
-import Mathlib.Algebra.Ring.Periodic
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -27,18 +26,18 @@ the clear northeast quarter of index zero additionally marks a seeded crossing.
 * `ShadedSite`: a quarter with a shade state and an obstruction state.
 * `scaffold`: the finite shaded Robinson scaffold with its routing decoder.
 * `DecodedPlane`: the semantic sites of an ordinary scaffold plane.
+* `QuarterPlane.regroup`: exact parent regrouping of any matching quarter plane.
 
 ## Main results
 
-* `QuarterPlane.regroup`: every matching quarter plane has an exact parent regrouping.
 * `DecodedPlane.validGrid`: both decorations remain valid on any regrouped quadrant.
 * `ShadedSite.horizontal_iff`, `ShadedSite.vertical_iff`: exact matching semantics.
-* `ShadedSite.routeRole_tile`: the local clear-edge description of the routing role.
 
 ## References
 
-The signal rules are a step of the seed-removal construction in [JeandelVanier2020],
+The obstruction signals are a step of the seed-removal construction in [JeandelVanier2020],
 Section 3.3, pp. 26–29 of the authors' manuscript, using its corrected 104-tile alphabet.
+The directed encoding and the precise absorption rule here are those of lean-wang's `Signals`.
 Prior formalization, revision `64268a3`:
 [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3/LeanWang/Robinson/Closed104),
 modules `QuarterRegrouping` (`phase_even`, `exists_southwest_origin`, `block_spec`),
@@ -101,31 +100,6 @@ private theorem phase_north (P : QuarterPlane) (x y : ℤ) :
   cases hl : (P.quarter x y).quadrant <;>
     cases hr : (P.quarter x (y + 1)).quadrant <;> simp_all [northPhase]
 
-private theorem phase_even (P : QuarterPlane) (x y u v : ℤ) :
-    (P.quarter (x + 2 * u) (y + 2 * v)).quadrant = (P.quarter x y).quadrant := by
-  have ee (q : Quadrant) : eastPhase (eastPhase q) = q := by cases q <;> rfl
-  have nn (q : Quadrant) : northPhase (northPhase q) = q := by cases q <;> rfl
-  have east (a b : ℤ) : (P.quarter (a + 2) b).quadrant = (P.quarter a b).quadrant := by
-    have h := phase_east P (a + 1) b
-    rw [phase_east P a b] at h
-    simpa only [add_assoc, Int.reduceAdd, ee] using h
-  have north (a b : ℤ) : (P.quarter a (b + 2)).quadrant = (P.quarter a b).quadrant := by
-    have h := phase_north P a (b + 1)
-    rw [phase_north P a b] at h
-    simpa only [add_assoc, Int.reduceAdd, nn] using h
-  have hx : Function.Periodic
-      (fun a : ℤ => (P.quarter (x + a) (y + 2 * v)).quadrant) 2 := by
-    intro a
-    simpa only [← add_assoc] using east (x + a) (y + 2 * v)
-  have hy : Function.Periodic (fun b : ℤ => (P.quarter x (y + b)).quadrant) 2 := by
-    intro b
-    simpa only [← add_assoc] using north x (y + b)
-  calc
-    _ = (P.quarter x (y + 2 * v)).quadrant := by
-      simpa only [Int.cast_id, mul_comm, add_zero] using hx.int_mul_eq u
-    _ = (P.quarter x y).quadrant := by
-      simpa only [Int.cast_id, mul_comm, add_zero] using hy.int_mul_eq v
-
 private theorem exists_origin (P : QuarterPlane) :
     ∃ x y : ℤ, (P.quarter x y).quadrant = .southwest := by
   have he := phase_east P 0 0
@@ -183,7 +157,7 @@ structure Regrouped (Q : QuarterPlane) where
   /-- Southwest corner of the parent at the origin. -/
   origin : ℤ × ℤ
   /-- The matching corrected parent plane. -/
-  parent : Robinson.Plane
+  parent : IndexPlane
   /-- All four quarters in every parent block have that parent index and the expected phase. -/
   blocks : ∀ x y,
     Q.quarter (origin.1 + 2 * x) (origin.2 + 2 * y) =
@@ -203,8 +177,11 @@ noncomputable def regroup (Q : QuarterPlane) : Regrouped Q := by
   have origin : (Q.quarter ox oy).quadrant = .southwest :=
     Classical.choose_spec (Classical.choose_spec (exists_origin Q))
   let index x y := (Q.quarter (ox + 2 * x) (oy + 2 * y)).index
-  have blocks x y := block_spec Q ((phase_even Q ox oy x y).trans origin)
-  let parent : Robinson.Plane := {
+  have blocks x y := block_spec Q ((phase_even_of_involutive
+    (fun x y => (Q.quarter x y).quadrant) eastPhase northPhase
+    (by intro q; cases q <;> rfl) (by intro q; cases q <;> rfl)
+    (phase_east Q) (phase_north Q) ox oy x y).trans origin)
+  let parent : IndexPlane := {
     index := index
     horizontal := by
       intro x y
@@ -252,6 +229,8 @@ private theorem mem_all (f : SignalFlow) : f ∈ all := by cases f <;> decide
 
 end SignalFlow
 
+-- Expose the derived equality so clients can decide the clear-state role characterizations.
+@[expose] public section
 /-- Directed obstruction signals on the four edges of a quarter tile. -/
 structure SignalState where
   /-- West-edge flow. -/
@@ -262,6 +241,8 @@ structure SignalState where
   south : SignalFlow
   /-- North-edge flow. -/
   north : SignalFlow
+  deriving DecidableEq
+end
 
 /-- The state with all four signal directions absent. -/
 @[expose] def SignalState.clear : SignalState := ⟨.none, .none, .none, .none⟩
@@ -321,23 +302,26 @@ structure ShadedSite where
   /-- Its directed obstruction signals. -/
   signal : SignalState
 
-namespace ShadedSite
-
-private def shadeCode : Option Shade → ℕ
+/-- Code optional red shades as edge colours: absent is zero, light is one, dark is two.
+The canonical seam certificates use the same coding as the scaffold's shade layer. -/
+@[expose] def Shade.code : Option Shade → ℕ
   | none => 0
   | some .light => 1
   | some .dark => 2
 
-private theorem shadeCode_injective : Function.Injective shadeCode := by
+/-- The shade edge code retains absence and both shades. -/
+theorem Shade.code_injective : Function.Injective Shade.code := by
   intro a b h
   rcases a with _ | a <;> rcases b with _ | b
   · rfl
-  · cases b <;> simp [shadeCode] at h
-  · cases a <;> simp [shadeCode] at h
-  · cases a <;> cases b <;> simp_all [shadeCode]
+  · cases b <;> simp [Shade.code] at h
+  · cases a <;> simp [Shade.code] at h
+  · cases a <;> cases b <;> simp_all [Shade.code]
+
+namespace ShadedSite
 
 private def shadeTile (s : ShadeState) : WangTile :=
-  ⟨shadeCode s.north, shadeCode s.south, shadeCode s.west, shadeCode s.east⟩
+  ⟨Shade.code s.north, Shade.code s.south, Shade.code s.west, Shade.code s.east⟩
 
 private def signalTile (s : SignalState) : WangTile :=
   ⟨s.north.code, s.south.code, s.west.code, s.east.code⟩
@@ -367,7 +351,7 @@ theorem horizontal_iff (a b : ShadedSite) :
       (quarterTile a.quarter).right = (quarterTile b.quarter).left ∧
       a.shade.east = b.shade.west ∧ a.signal.east = b.signal.west := by
   simp [tile, layer, shadeTile, signalTile, Nat.pair_eq_pair,
-    shadeCode_injective.eq_iff, SignalFlow.code_injective.eq_iff, and_assoc]
+    Shade.code_injective.eq_iff, SignalFlow.code_injective.eq_iff, and_assoc]
 
 /-- Vertical matching means quarter matching and equality of both decorations. -/
 theorem vertical_iff (a b : ShadedSite) :
@@ -375,7 +359,7 @@ theorem vertical_iff (a b : ShadedSite) :
       (quarterTile a.quarter).top = (quarterTile b.quarter).bottom ∧
       a.shade.north = b.shade.south ∧ a.signal.north = b.signal.south := by
   simp [tile, layer, shadeTile, signalTile, Nat.pair_eq_pair,
-    shadeCode_injective.eq_iff, SignalFlow.code_injective.eq_iff, and_assoc]
+    Shade.code_injective.eq_iff, SignalFlow.code_injective.eq_iff, and_assoc]
 
 private def horizontalClear (t : WangTile) : Bool :=
   decide ((Nat.unpair t.left).2 = 0 ∧ (Nat.unpair t.right).2 = 0)
@@ -483,7 +467,7 @@ theorem tile_mem (s : ShadedSite)
 end ShadedSite
 
 /-- The semantic content of a scaffold plane; all components retain their shared-edge rules. -/
-structure DecodedPlane (P : Cslib.WangTile.Plane scaffold.tiles) where
+structure DecodedPlane (P : Plane scaffold.tiles) where
   /-- The three components at each position. -/
   site : ℤ → ℤ → ShadedSite
   /-- The components encode the original tile. -/
@@ -508,7 +492,7 @@ structure DecodedPlane (P : Cslib.WangTile.Plane scaffold.tiles) where
       (site x y).signal.north = (site x (y + 1)).signal.south
 
 /-- Decode any ordinary scaffold plane; no choice of special plane or hierarchy is assumed. -/
-noncomputable def DecodedPlane.ofPlane (P : Cslib.WangTile.Plane scaffold.tiles) :
+noncomputable def DecodedPlane.ofPlane (P : Plane scaffold.tiles) :
     DecodedPlane P := by
   classical
   choose s hs ht he using fun x y => ShadedSite.mem_scaffold.mp (P.mem x y)
@@ -525,7 +509,7 @@ noncomputable def DecodedPlane.ofPlane (P : Cslib.WangTile.Plane scaffold.tiles)
 namespace DecodedPlane
 
 /-- Forget decorations while retaining matching of quarter edges. -/
-@[expose] def quarterPlane {P : Cslib.WangTile.Plane scaffold.tiles} (D : DecodedPlane P) :
+@[expose] def quarterPlane {P : Plane scaffold.tiles} (D : DecodedPlane P) :
     QuarterPlane where
   quarter x y := (D.site x y).quarter
   horizontal x y := (D.horizontal x y).1
@@ -573,12 +557,12 @@ structure ValidSignalGrid (indexGrid : ℕ → ℕ → Index)
 namespace DecodedPlane
 
 /-- Restrict a decoded plane to natural quarter coordinates above a chosen parent origin. -/
-@[expose] def siteGrid {P : Cslib.WangTile.Plane scaffold.tiles} (D : DecodedPlane P)
+@[expose] def siteGrid {P : Plane scaffold.tiles} (D : DecodedPlane P)
     (R : QuarterPlane.Regrouped D.quarterPlane) (a b : ℤ) (x y : ℕ) : ShadedSite :=
   D.site (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y)
 
 /-- Both decorations of an arbitrary decoded plane remain valid on its regrouped quarter grid. -/
-theorem validGrid {P : Cslib.WangTile.Plane scaffold.tiles} (D : DecodedPlane P)
+theorem validGrid {P : Plane scaffold.tiles} (D : DecodedPlane P)
     (R : QuarterPlane.Regrouped D.quarterPlane) (a b : ℤ) :
     ValidSignalGrid (fun i j => R.parent.index (a + i) (b + j))
       (fun x y => (D.siteGrid R a b x y).shade)

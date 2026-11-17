@@ -14,7 +14,8 @@ public import CslibFrontier.Computability.WangTile.Robinson.Carrier.Corners
 
 Canonical seed patches have compatible integer carrier addresses and assign address zero to
 every corner marker. Their unbounded side lengths therefore realize any pointed payload plane,
-by finite-square compactness through the generic routed construction.
+by finite-square compactness through the generic routed construction. Each marked board
+places the seed at its center and carries a window of the input pointed plane.
 
 ## Main results
 
@@ -23,7 +24,7 @@ by finite-square compactness through the generic routed construction.
 ## References
 
 After [Robinson1971], §7, pp. 201–205 and [JeandelVanier2020], §3.3, Theorem 10, manuscript p. 29.
-Ported and restructured from lean-wang revision `64268a3aaaef3eac65559352ef94f62ab9c00482`,
+Ported from lean-wang revision `64268a3aaaef3eac65559352ef94f62ab9c00482`,
 `Robinson/Closed104/ShadedCarrierCornerAddressing.lean:435–440`.
 -/
 
@@ -37,9 +38,7 @@ theorem scaffold_realizes : Realizes scaffold := by
   apply realizes_of_addressedSquares
   intro n
   refine ⟨Canonical.side (n + 1) - 1, ?_, ⟨Carrier.canonicalAddressing (n + 1)⟩⟩
-  have := (Nat.lt_two_pow_self : n + 1 < 2 ^ (n + 1))
-  have := Nat.pow_le_pow_left (show 2 ≤ 4 by decide) (n + 1)
-  unfold Canonical.side
+  have := Canonical.lt_side (n + 1)
   omega
 
 end Cslib.WangTile.Robinson

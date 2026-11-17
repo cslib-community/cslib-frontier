@@ -10,36 +10,53 @@ module
 public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 
 /-! Ordinary-import client for canonical boundary signals. The index-zero marker in the
-smallest canonical patch is blocked by its outer borders; the marker alone is not a corner. -/
+smallest canonical patch is blocked by its outer borders; the level-two patch exhibits all
+five routing roles, and an infinite decoded grid supplies a live coarsening instance. -/
 
 -- These regression examples intentionally add no public test API.
 set_option linter.privateModule false
 
 open Cslib.WangTile Cslib.WangTile.Robinson Cslib.WangTile.Robinson.Canonical
 
-private theorem seed_row (x y : ℕ) :
-    rowInterior 0 seedNode x y = outerBorder (x % 2) (y % 2) := by
-  have h := (BorderState.observations BorderState.seed_admissible
-    ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩).1
-  simpa [rowInterior, supertileNodeGrid, BorderState.seed] using h.symm
-
-private theorem seed_column (x y : ℕ) :
-    columnInterior 0 seedNode x y = outerBorder (y % 2) (x % 2) := by
-  have h := (BorderState.observations BorderState.seed_admissible
-    ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩).2
-  simpa [columnInterior, supertileNodeGrid, BorderState.seed] using h.symm
-
+/-- The smallest marker is blocked by its outer borders. -/
 example : scaffold.role ((canonicalPatch 0 seedNode).tile
     ⟨1, by simp [side]⟩ ⟨1, by simp [side]⟩) = .inactive := by
   rw [scaffold_role]
   change ShadedSite.routeRole (ShadedSite.tile (site 0 seedNode 1 1)) = _
   rw [ShadedSite.routeRole_tile]
-  simp [site, side, intervalEdge, previousInterior, nextInterior, seed_row, seed_column,
-    outerBorder]
+  decide +kernel
 
-/-- A nonzero child retains the certified selected-border halo. -/
-example : (BorderState.seed.refine 2 3).Admissible :=
-  BorderState.refine_admissible BorderState.seed_admissible 2 3
+/-- A genuine corner in the level-two patch; its characterization is decidable by clients. -/
+example : scaffold.role ((canonicalPatch 2 seedNode).tile
+    ⟨9, by decide⟩ ⟨9, by decide⟩) = .corner := by
+  rw [scaffold_role]
+  change ShadedSite.routeRole (ShadedSite.tile (site 2 seedNode 9 9)) = _
+  rw [ShadedSite.corner_iff]
+  decide +kernel
+
+/-- The neighboring crossing carries a payload without marking the seed. -/
+example : scaffold.role ((canonicalPatch 2 seedNode).tile
+    ⟨8, by decide⟩ ⟨9, by decide⟩) = .active := by
+  rw [scaffold_role]
+  change ShadedSite.routeRole (ShadedSite.tile (site 2 seedNode 8 9)) = _
+  rw [ShadedSite.routeRole_tile]
+  decide +kernel
+
+/-- A horizontal wire has its vertical signals blocked. -/
+example : scaffold.role ((canonicalPatch 2 seedNode).tile
+    ⟨6, by decide⟩ ⟨5, by decide⟩) = .horizontal := by
+  rw [scaffold_role]
+  change ShadedSite.routeRole (ShadedSite.tile (site 2 seedNode 6 5)) = _
+  rw [ShadedSite.horizontal_iff_role]
+  decide +kernel
+
+/-- A vertical wire has its horizontal signals blocked. -/
+example : scaffold.role ((canonicalPatch 2 seedNode).tile
+    ⟨5, by decide⟩ ⟨6, by decide⟩) = .vertical := by
+  rw [scaffold_role]
+  change ShadedSite.routeRole (ShadedSite.tile (site 2 seedNode 5 6)) = _
+  rw [ShadedSite.vertical_iff_role]
+  decide +kernel
 
 /-- Two neighboring children remain compatible across their own expanded block boundary. -/
 example :
@@ -47,7 +64,7 @@ example :
       ((seedNode.child (blockPosition 1 1)).child (blockPosition 0 2)) :=
   children_hCompatible_boundary (children_hCompatible_within seedNode 0 1) 2
 
-private theorem parent_refine {fine : Cslib.WangTile.Robinson.Plane} (p : Parent fine)
+private theorem parent_refine {fine : IndexPlane} (p : Parent fine)
     (a b : ℤ) (x y : ℕ) :
     refineIndexGrid (fun i j => p.coarse.index (a + i) (b + j)) x y =
       fine.index (p.offsetX.val + 2 * a + x) (p.offsetY.val + 2 * b + y) := by

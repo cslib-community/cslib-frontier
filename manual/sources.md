@@ -1074,21 +1074,27 @@ obstruction signals, free-grid transmission and the two directions of seed remov
 Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
 consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
 and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
-decorated nodes and 376 border states from that same lean-wang revision's
-[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean)
-and
-[ShadedCarrierBorderHierarchyData](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedCarrierBorderHierarchyData.lean).
-Nodes are reindexed in source-list order; semantic seam certificates and indexed
-border-refinement witnesses replace repeated searches through the source tables.
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
 Canonical patches assign nearest-border obstruction signals to matching decorated
 substitutions and establish that the resulting finite scaffold tiles the plane.
-Carrier/Borders, Carrier/Addresses, Carrier/Corners and Realization further adapt the pinned
+Carrier/BorderCertificates retains the 376-state invariant from
+[ShadedCarrierBorderHierarchyData](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedCarrierBorderHierarchyData.lean).
+Each state records a decorated node, coordinate parities and a three-by-three border halo.
+Indexed witnesses certify all sixteen child refinements, visible border observations and
+index-zero child configurations. Carrier/Borders gives these certificates their recursive
+frame interpretation.
+Carrier/Borders, Carrier/Addresses, Carrier/Corners and Realization port the pinned
 revision's ShadedCarrierHierarchy, ShadedCarrierBorderHierarchy, ShadedCarrierBorderGeometry,
 ShadedCarrierBorderIntervals, ShadedCarrierSquareGeometry, ShadedCarrierHierarchyAddressing,
 ShadedCarrierConcreteRoles and ShadedCarrierCornerAddressing. Recursive owner frames identify
 the canonical carriers, their integer addresses satisfy wire equations, and every corner has
 address zero. Thus the concrete scaffold realizes every pointed payload plane, as in
-ShadedCarrierCornerAddressing.lean:435–440. This supplies the backward seed-removal direction.
+ShadedCarrierCornerAddressing.lean:435–440. The named border halo and `AddressedSquare`
+replace the source's raw halo lists and `SquareAddressing`; the carrier arithmetic and
+centered-marker induction closely follow the source.
 The backward authoring worker also read Theorem 10 on manuscript p. 29 and the proof-route
 attribution in §3.4, pp. 29–30, plus [Robinson's primary paper](https://lipn.univ-paris13.fr/~fernique/qc/robinson.pdf),
 §7, printed pp. 201–205, on 2026-11-16.
@@ -1114,7 +1120,7 @@ Marker transport follows
 the arbitrary-plane assembly and gap filling follow
 [SparseFreeLineDecodedMarkedGrid, line 43](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/SparseFreeLineDecodedMarkedGrid.lean#L43)
 and [ShadedConsecutiveFreeGrid, line 220](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedConsecutiveFreeGrid.lean#L220).
-The `RedPaths/OddCoverage` module supplies the odd-phase finite base after
+The `RedPaths/Certificates` module supplies the odd-phase finite base after
 [CanonicalOddShadeBase.exists_boundedPath, line 22](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeBase.lean#L22),
 using the [oddNodes witnesses, line 5412](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/RedShadeGraphPathWitnesses.lean#L5412)
 with shared path prefixes and semantic-side certificates.

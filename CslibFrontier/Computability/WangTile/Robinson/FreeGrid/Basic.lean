@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Geometry
 public import CslibFrontier.Computability.WangTile.Robinson.Signals
 import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
-import CslibFrontier.Computability.WangTile.Robinson.RedPaths.OddCoverage
+import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
 import Mathlib.Algebra.Order.Monoid.Unbundled.Pow
 import Mathlib.Algebra.Ring.Parity
 import Mathlib.Data.Finset.Sort
@@ -30,12 +30,12 @@ comparison supplies sparse free lines, and sorting all free lines above the mark
 
 ## Main definitions
 
-* `FreeGrid.ConsecutiveMarkedFreeGrid`: consecutive free rows and columns with a marked
+* `MarkedFreeGrid`: consecutive free rows and columns with a marked
   southwest crossing, indexed by `Fin (n + 1)`.
 
 ## Main results
 
-* `FreeGrid.exists_markedGrid`: every scaffold plane contains such grids of every size
+* `exists_markedFreeGrid`: every scaffold plane contains such grids of every size
   inside uniformly light oriented boards.
 
 ## References
@@ -50,11 +50,13 @@ replace branch lists, and one shade comparison handles both parity phases.
 
 public section
 
-namespace Cslib.WangTile.Robinson.FreeGrid
+namespace Cslib.WangTile.Robinson
+
+open Canonical
 
 /-- Consecutive free rows and columns inside one board, with a marked southwest crossing.
 The parameter `n` denotes one less than the number of selected rows and columns. -/
-structure ConsecutiveMarkedFreeGrid (indexGrid : ℕ → ℕ → Index)
+structure MarkedFreeGrid (indexGrid : ℕ → ℕ → Index)
     (shadeGrid : ℕ → ℕ → ShadeState) (west east south north n : ℕ) where
   /-- Increasing quarter coordinates of columns. -/
   column : Fin (n + 1) → ℕ
@@ -137,7 +139,7 @@ private theorem select_lines {n lo hi : ℕ} {p : ℕ → Prop}
     omega
 
 /-- Fill all gaps in sparse free lines without moving their marked southwest crossing. -/
-private noncomputable def ConsecutiveMarkedFreeGrid.ofSparse
+private theorem MarkedFreeGrid.ofSparse
     {g : ℕ → ℕ → Index} {s : ℕ → ℕ → ShadeState}
     {west east south north n : ℕ}
     (columns rows : Fin (n + 1) → ℕ)
@@ -148,7 +150,7 @@ private noncomputable def ConsecutiveMarkedFreeGrid.ofSparse
       IsFreeRow g s west east (rows i))
     (marker : QuarterIndex.mk (g (columns 0 / 2) (rows 0 / 2))
       (quadrantAt (columns 0) (rows 0)) = ⟨0, .northeast⟩) :
-    ConsecutiveMarkedFreeGrid g s west east south north n := Classical.choice <| by
+    Nonempty (MarkedFreeGrid g s west east south north n) := by
   classical
   obtain ⟨c, hc, hc0, cmem, cnext⟩ := select_lines columns hcolumns column_mem
   obtain ⟨r, hr, hr0, rmem, rnext⟩ := select_lines rows hrows row_mem
@@ -165,9 +167,6 @@ private noncomputable def ConsecutiveMarkedFreeGrid.ofSparse
     noFreeRowBetween := rnext
     marker := by simpa only [hc0, hr0] using marker }⟩
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson
 private theorem crossing_ne {g : ℕ → ℕ → Index} {s : ℕ → ℕ → ShadeState}
     {w e b t w' e' b' t' x y : ℕ} {shade shade' : Shade}
     (valid : ValidShadeGrid g s) (c : CycleOn g w e b t) (d : CycleOn g w' e' b' t')
@@ -195,44 +194,10 @@ private theorem crossing_ne {g : ℕ → ℕ → Index} {s : ℕ → ℕ → Sha
   intro eq
   exact (valid.rules x y).crossing_opposite horizontal vertical (by rw [first, second, eq])
 
-private theorem iterateRefine_add (m n : ℕ) (g : ℕ → ℕ → Index) :
-    iterateRefine m (iterateRefine n g) = iterateRefine (m + n) g := by
-  induction m with
-  | zero => simp only [iterateRefine, Nat.zero_add]
-  | succ m ih => simp only [iterateRefine, Nat.succ_add, ih]
-
-private theorem local_refine {g h : ℕ → ℕ → Index} (eq : g 0 0 = h 0 0) (depth : ℕ) :
-    ∀ x y, x < 2 ^ depth → y < 2 ^ depth →
-      iterateRefine depth g x y = iterateRefine depth h x y := by
-  induction depth with
-  | zero =>
-    intro x y hx hy
-    have : x = 0 ∧ y = 0 := by simpa only [pow_zero, Nat.lt_one_iff] using And.intro hx hy
-    simpa only [iterateRefine, this.1, this.2] using eq
-  | succ depth ih =>
-    intro x y hx hy
-    simp only [pow_succ] at hx hy
-    simp only [iterateRefine, refineIndexGrid]
-    rw [ih (x / 2) (y / 2) (by omega) (by omega)]
-
-private theorem cycle_congr {g h : ℕ → ℕ → Index} {w e b t : ℕ}
-    (c : CycleOn g w e b t) (eq : ∀ x y, x ≤ e → y ≤ t → g x y = h x y) :
-    CycleOn h w e b t where
-  west_lt_east := c.west_lt_east
-  south_lt_north := c.south_lt_north
-  southwest := by rw [← eq w b c.west_lt_east.le c.south_lt_north.le]; exact c.southwest
-  southeast := by rw [← eq e b le_rfl c.south_lt_north.le]; exact c.southeast
-  northwest := by rw [← eq w t c.west_lt_east.le le_rfl]; exact c.northwest
-  northeast := by rw [← eq e t le_rfl le_rfl]; exact c.northeast
-  southLane x hl hu := by rw [← eq x b hu.le c.south_lt_north.le]; exact c.southLane x hl hu
-  northLane x hl hu := by rw [← eq x t hu.le le_rfl]; exact c.northLane x hl hu
-  westLane y hl hu := by rw [← eq w y c.west_lt_east.le hu.le]; exact c.westLane y hl hu
-  eastLane y hl hu := by rw [← eq e y le_rfl hu.le]; exact c.eastLane y hl hu
-
 private theorem root_cycle (g : ℕ → ℕ → Index) :
     CycleOn (iterateRefine 2 g) 1 3 1 3 :=
-  cycle_congr (fixed_cycle (g 0 0)) (fun x y hx hy =>
-    local_refine (g := fun _ _ => g 0 0) (h := g) rfl 2 x y (by omega) (by omega))
+  CycleOn.congr (fixed_cycle (g 0 0)) (fun x y hx hy =>
+    iterateRefine_eq_of_root_eq (g := fun _ _ => g 0 0) (h := g) rfl 2 x y (by omega) (by omega))
 
 private theorem large_cycle (g : ℕ → ℕ → Index) (level : ℕ) :
     CycleOn (iterateRefine (level + 2) g)
@@ -272,28 +237,7 @@ private theorem has_light_cycle (g : ℕ → ℕ → Index)
   · exact Or.inr hb
   · exact (neq rfl).elim
 
-end Cslib.WangTile.Robinson
-
-namespace Cslib.WangTile.Robinson
-private theorem Tower.refined_patch {base : Plane} (t : Tower base) (depth : ℕ) :
-    ∀ (level : ℕ) (a b : ℤ), ∃ u v : ℤ,
-      (fun x y : ℕ => (t.plane level).index (u + x) (v + y)) =
-        iterateRefine depth (fun x y : ℕ => (t.plane (level + depth)).index (a + x) (b + y)) := by
-  induction depth with
-  | zero => exact fun level a b => ⟨a, b, rfl⟩
-  | succ depth ih =>
-    intro level a b
-    obtain ⟨u, v, h⟩ := ih (level + 1) a b
-    refine ⟨(t.offsetX level).val + 2 * u, (t.offsetY level).val + 2 * v, ?_⟩
-    funext x y
-    have index := congrFun (congrFun h (x / 2)) (y / 2)
-    simp only [Nat.add_assoc, Nat.add_comm 1 depth] at index
-    simp only [iterateRefine, refineIndexGrid, ← index]
-    rw [t.children]
-    dsimp only
-    congr 1 <;> omega
-
-private theorem exists_refined_zero (base : Plane) (depth : ℕ) :
+private theorem exists_refined_zero (base : IndexPlane) (depth : ℕ) :
     ∃ (g : ℕ → ℕ → Index) (u v : ℤ), g 0 0 = 0 ∧
       (fun x y : ℕ => base.index (u + x) (v + y)) = iterateRefine depth g := by
   let t := tower base
@@ -303,9 +247,6 @@ private theorem exists_refined_zero (base : Plane) (depth : ℕ) :
   · simpa using hab
   · simpa only [t.zero, Nat.zero_add] using h
 
-end Cslib.WangTile.Robinson
-
-namespace Cslib.WangTile.Robinson
 private theorem cell_cycle (g : ℕ → ℕ → Index) (bx by₀ : ℕ) :
     CycleOn (iterateRefine 2 g) (4 * bx + 1) (4 * bx + 3)
       (4 * by₀ + 1) (4 * by₀ + 3) := by
@@ -372,15 +313,15 @@ private theorem corner_shade_opposite
     else quarterSouth (2 ^ depth * (4 * (2 * by₀ + cy.val) + 1))
   apply crossing_ne valid (scaled_cell_cycle g (depth + 1) bx by₀) child_cycle
     ancestor descendant (x := x) (y := y)
-  · dsimp [x]
+  · dsimp only [x]
     split_ifs <;> simp
-  · dsimp [y]
+  · dsimp only [y]
     split_ifs <;> simp
   all_goals
     have positive : 0 < 2 ^ depth := pow_pos (by decide) _
     fin_cases cx <;> fin_cases cy <;>
-      dsimp [x, y, quarterWest, quarterEast, quarterSouth, quarterNorth] <;>
-      rw [pow_succ] <;> nlinarith
+      simp [x, y, quarterWest, quarterEast, quarterSouth, quarterNorth, pow_succ] <;>
+      nlinarith
 
 private theorem cell_half {scale block cell : ℕ}
     (lower : 2 * scale * block ≤ cell) (upper : cell < 2 * scale * (block + 1)) :
@@ -458,10 +399,6 @@ private theorem root_descendant_source (depth : ℕ) (g : ℕ → ℕ → Index)
   have cycle := cell_cycle (iterateRefine depth g) cellX cellY
   rw [iterateRefine_add, Nat.add_comm 2 depth] at cycle
   exact cell_source_value valid cellX cellY cycle shaded
-
-end Cslib.WangTile.Robinson
-
-namespace Cslib.WangTile.Robinson.FreeGrid
 
 /-- The sparse branch at index zero is even; every positive index is an odd branch. -/
 private def offset (depth index : ℕ) : ℕ :=
@@ -545,24 +482,6 @@ private theorem offset_children (depth index : ℕ) :
         pow_succ, hpow]
       omega
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
-
-private instance (predicate : Node → Prop) [DecidablePred predicate] :
-    Decidable (∀ node : Node, predicate node) :=
-  match (inferInstance : Decidable (∀ code : Fin 312, predicate ⟨code⟩)) with
-  | .isTrue valid => .isTrue (fun node => valid node.code)
-  | .isFalse invalid => .isFalse (fun valid => invalid (fun code => valid ⟨code⟩))
-
-/-- Swap the two wire shades without changing port incidence. -/
-private def flipShade (state : ShadeState) : ShadeState :=
-  { west := state.west.map Shade.opposite
-    east := state.east.map Shade.opposite
-    south := state.south.map Shade.opposite
-    north := state.north.map Shade.opposite }
-
 /-- The geometric axis of a free-line scan. -/
 private inductive LineAxis where
   | row
@@ -577,7 +496,7 @@ private def clear (axis : LineAxis) (flipped : Bool) (node : Node) (along fixed 
   let x := if axis = .column then fixed else along
   let y := if axis = .column then along else fixed
   let raw := node.block.at (x % 2) (y % 2)
-  let state := if flipped then flipShade raw else raw
+  let state := if flipped then ShadeState.flip raw else raw
   if axis = .column then
     selectedHorizontalFor (components node.parent).thick
       (quadrantAt x y) state = none
@@ -611,165 +530,63 @@ private def EvenRules (node : Node) : Prop :=
     (∀ a : Fin 6, ∀ fixed : Fin 3, fineClear axis true node (a.val + 2) fixed) ∧
     (∀ a : Fin 2, clear axis true (node.child 10) a 1)
 
-private instance (node : Node) : Decidable (EvenRules node) := inferInstanceAs
-  (Decidable (∀ axis : LineAxis,
-    ((∀ a : Fin 2, clear axis true node a 0) →
-      ∀ a : Fin 8, fineClear axis true node a 0) ∧
-    ((∀ a : Fin 2, clear axis true node a 1) →
-      ∀ a : Fin 8, fineClear axis true node a 1 ∧ fineClear axis true node a 2) ∧
-    (∀ a : Fin 6, ∀ fixed : Fin 3, fineClear axis true node (a.val + 2) fixed) ∧
-    (∀ a : Fin 2, clear axis true (node.child 10) a 1)))
+private instance (node : Node) : Decidable (EvenRules node) := by
+  unfold EvenRules
+  infer_instance
 
 section
 
 -- Serialize the finite certificate proofs to keep their combined peak memory bounded.
 set_option Elab.async false
 
-private theorem forall_nodes {predicate : Fin 312 → Prop}
-    (checked0 : ∀ code : Fin 13, predicate (finProdFinEquiv ((0 : Fin 24), code)))
-    (checked1 : ∀ code : Fin 13, predicate (finProdFinEquiv ((1 : Fin 24), code)))
-    (checked2 : ∀ code : Fin 13, predicate (finProdFinEquiv ((2 : Fin 24), code)))
-    (checked3 : ∀ code : Fin 13, predicate (finProdFinEquiv ((3 : Fin 24), code)))
-    (checked4 : ∀ code : Fin 13, predicate (finProdFinEquiv ((4 : Fin 24), code)))
-    (checked5 : ∀ code : Fin 13, predicate (finProdFinEquiv ((5 : Fin 24), code)))
-    (checked6 : ∀ code : Fin 13, predicate (finProdFinEquiv ((6 : Fin 24), code)))
-    (checked7 : ∀ code : Fin 13, predicate (finProdFinEquiv ((7 : Fin 24), code)))
-    (checked8 : ∀ code : Fin 13, predicate (finProdFinEquiv ((8 : Fin 24), code)))
-    (checked9 : ∀ code : Fin 13, predicate (finProdFinEquiv ((9 : Fin 24), code)))
-    (checked10 : ∀ code : Fin 13, predicate (finProdFinEquiv ((10 : Fin 24), code)))
-    (checked11 : ∀ code : Fin 13, predicate (finProdFinEquiv ((11 : Fin 24), code)))
-    (checked12 : ∀ code : Fin 13, predicate (finProdFinEquiv ((12 : Fin 24), code)))
-    (checked13 : ∀ code : Fin 13, predicate (finProdFinEquiv ((13 : Fin 24), code)))
-    (checked14 : ∀ code : Fin 13, predicate (finProdFinEquiv ((14 : Fin 24), code)))
-    (checked15 : ∀ code : Fin 13, predicate (finProdFinEquiv ((15 : Fin 24), code)))
-    (checked16 : ∀ code : Fin 13, predicate (finProdFinEquiv ((16 : Fin 24), code)))
-    (checked17 : ∀ code : Fin 13, predicate (finProdFinEquiv ((17 : Fin 24), code)))
-    (checked18 : ∀ code : Fin 13, predicate (finProdFinEquiv ((18 : Fin 24), code)))
-    (checked19 : ∀ code : Fin 13, predicate (finProdFinEquiv ((19 : Fin 24), code)))
-    (checked20 : ∀ code : Fin 13, predicate (finProdFinEquiv ((20 : Fin 24), code)))
-    (checked21 : ∀ code : Fin 13, predicate (finProdFinEquiv ((21 : Fin 24), code)))
-    (checked22 : ∀ code : Fin 13, predicate (finProdFinEquiv ((22 : Fin 24), code)))
-    (checked23 : ∀ code : Fin 13, predicate (finProdFinEquiv ((23 : Fin 24), code))) :
-    ∀ code : Fin 312, predicate code := by
-  have checked : ∀ block : Fin 24, ∀ code : Fin 13,
-      predicate (finProdFinEquiv (block, code)) :=
-    Fin.cases checked0 (Fin.cases checked1 (Fin.cases checked2 (
-    Fin.cases checked3 (Fin.cases checked4 (Fin.cases checked5 (
-    Fin.cases checked6 (Fin.cases checked7 (Fin.cases checked8 (
-    Fin.cases checked9 (Fin.cases checked10 (Fin.cases checked11 (
-    Fin.cases checked12 (Fin.cases checked13 (Fin.cases checked14 (
-    Fin.cases checked15 (Fin.cases checked16 (Fin.cases checked17 (
-    Fin.cases checked18 (Fin.cases checked19 (Fin.cases checked20 (
-    Fin.cases checked21 (Fin.cases checked22 (Fin.cases checked23 (
-      (fun i => Fin.elim0 i)))))))))))))))))))))))))
-  intro code
-  obtain ⟨⟨block, localCode⟩, rfl⟩ :=
-    (finProdFinEquiv (m := 24) (n := 13)).surjective code
-  exact checked block localCode
-
-private theorem even_checked0 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((0 : Fin 24), code)⟩ := by
+private theorem even_checked0 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((0 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked1 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((1 : Fin 24), code)⟩ := by
+private theorem even_checked1 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((1 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked2 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((2 : Fin 24), code)⟩ := by
+private theorem even_checked2 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((2 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked3 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((3 : Fin 24), code)⟩ := by
+private theorem even_checked3 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((3 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked4 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((4 : Fin 24), code)⟩ := by
+private theorem even_checked4 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((4 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked5 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((5 : Fin 24), code)⟩ := by
+private theorem even_checked5 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((5 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked6 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((6 : Fin 24), code)⟩ := by
+private theorem even_checked6 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((6 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked7 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((7 : Fin 24), code)⟩ := by
+private theorem even_checked7 : ∀ code : Fin 39,
+    EvenRules ⟨finProdFinEquiv ((7 : Fin 8), code)⟩ := by
   decide +kernel
 
-private theorem even_checked8 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((8 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked9 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((9 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked10 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((10 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked11 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((11 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked12 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((12 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked13 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((13 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked14 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((14 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked15 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((15 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked16 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((16 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked17 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((17 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked18 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((18 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked19 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((19 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked20 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((20 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked21 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((21 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked22 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((22 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem even_checked23 : ∀ code : Fin 13,
-    EvenRules ⟨finProdFinEquiv ((23 : Fin 24), code)⟩ := by
-  decide +kernel
-
-private theorem evenRules (node : Node) : EvenRules node :=
-  forall_nodes (predicate := fun code => EvenRules ⟨code⟩)
-    even_checked0 even_checked1 even_checked2 even_checked3 even_checked4 even_checked5
-    even_checked6 even_checked7 even_checked8 even_checked9 even_checked10 even_checked11
-    even_checked12 even_checked13 even_checked14 even_checked15 even_checked16 even_checked17
-    even_checked18 even_checked19 even_checked20 even_checked21 even_checked22 even_checked23
-    node.code
+private theorem evenRules (node : Node) : EvenRules node := by
+  have checked : ∀ batch : Fin 8, ∀ code : Fin 39,
+      EvenRules ⟨finProdFinEquiv (batch, code)⟩ := by
+    intro batch
+    fin_cases batch
+    · exact even_checked0
+    · exact even_checked1
+    · exact even_checked2
+    · exact even_checked3
+    · exact even_checked4
+    · exact even_checked5
+    · exact even_checked6
+    · exact even_checked7
+  obtain ⟨⟨batch, code⟩, h⟩ := (finProdFinEquiv (m := 8) (n := 39)).surjective node.code
+  have valid := checked batch code
+  rwa [h] at valid
 
 private def rowEven : List ℕ :=
   [260, 253, 252, 222, 262, 177, 176, 79, 174, 77, 156, 186, 158, 184, 11, 250, 73, 224]
@@ -869,96 +686,9 @@ private theorem odd_cycle_colours :
 
 end
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
-
-private theorem two_local (grid : ℕ → ℕ → Index) (x y : ℕ) :
-    iterateRefine 2 grid x y = fineGrid (grid (x / 4) (y / 4)) (x % 4) (y % 4) := by
-  have coords (z : ℕ) : z / 2 / 2 = z / 4 ∧
-      (z % 4) / 2 = z / 2 % 2 ∧ (z % 4) % 2 = z % 2 := by omega
-  obtain ⟨hx₀, hx₁, hx₂⟩ := coords x
-  obtain ⟨hy₀, hy₁, hy₂⟩ := coords y
-  simp only [iterateRefine, refineIndexGrid, fineGrid, coarseGrid,
-    hx₀, hx₁, hx₂, hy₀, hy₁, hy₂, Nat.mod_mod]
-
-private theorem canonical_index (level : ℕ) (root : Node) :
-    supertileIndexGrid level root = iterateRefine (2 * level) (coarseGrid root.parent) := by
-  funext x y
-  induction level generalizing x y with
-  | zero => rfl
-  | succ level ih =>
-      have hx : (childPosition x y).val % 4 = x % 4 := by
-        dsimp [childPosition, blockPosition]
-        omega
-      have hy : (childPosition x y).val / 4 = y % 4 := by
-        dsimp [childPosition, blockPosition]
-        omega
-      rw [show 2 * (level + 1) = 2 + 2 * level by omega, ← iterateRefine_add,
-        two_local]
-      change ((supertileNodeGrid level root (x / 4) (y / 4)).child
-        (childPosition x y)).parent = _
-      rw [Node.child_parent, hx, hy]
-      exact congrArg (fun parent => fineGrid parent (x % 4) (y % 4)) (ih (x / 4) (y / 4))
-
-private theorem canonical_local (level : ℕ) (root : Node) (coarse : ℕ → ℕ → Index)
-    (rootEq : coarse 0 0 = root.parent) {x y : ℕ} (hx : x < 4 ^ level)
-    (hy : y < 4 ^ level) :
-    supertileIndexGrid level root x y = iterateRefine (2 * level) coarse x y := by
-  rw [canonical_index]
-  apply local_refine rootEq.symm
-  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hx
-  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hy
-
-/-- Quarter coordinates in a substituted block select the corresponding child node. -/
-private theorem canonical_node_block (level : ℕ) (root : Node)
-    (bx by₀ x y : ℕ) (hx : x < 8) (hy : y < 8) :
-    supertileNodeGrid (level + 1) root ((8 * bx + x) / 2) ((8 * by₀ + y) / 2) =
-      (supertileNodeGrid level root bx by₀).child (childPosition (x / 2) (y / 2)) := by
-  have hxd : ((8 * bx + x) / 2) / 4 = bx := by omega
-  have hyd : ((8 * by₀ + y) / 2) / 4 = by₀ := by omega
-  have hxm : ((8 * bx + x) / 2) % 4 = x / 2 % 4 := by omega
-  have hym : ((8 * by₀ + y) / 2) % 4 = y / 2 % 4 := by omega
-  simp only [supertileNodeGrid, hxd, hyd, childPosition, hxm, hym]
-
-private theorem canonical_sparse (level : ℕ) (root : Node) (x y : ℕ) :
-    supertileShadeGrid (level + 1) root (sparseCoordinate x) (sparseCoordinate y) =
-      supertileShadeGrid level root x y := by
-  have coords (z : ℕ) : sparseCoordinate z / 2 = 4 * (z / 2) ∧
-      sparseCoordinate z % 2 = z % 2 := by dsimp [sparseCoordinate]; omega
-  obtain ⟨hxd, hxm⟩ := coords x
-  obtain ⟨hyd, hym⟩ := coords y
-  have position : childPosition (4 * (x / 2)) (4 * (y / 2)) = 0 := by
-    apply Fin.ext
-    simp [childPosition, blockPosition]
-  have hx4 : 4 * (x / 2) / 4 = x / 2 := by omega
-  have hy4 : 4 * (y / 2) / 4 = y / 2 := by omega
-  simp only [supertileShadeGrid, hxd, hyd, hxm, hym, supertileNodeGrid,
-    position, Node.child_zero_block, hx4, hy4]
-
-private theorem canonical_block (level : ℕ) (root : Node)
-    (bx by₀ x y : ℕ) (hx : x < 8) (hy : y < 8) :
-    supertileShadeGrid (level + 1) root (8 * bx + x) (8 * by₀ + y) =
-      supertileShadeGrid 1 (supertileNodeGrid level root bx by₀) x y := by
-  have hxm : (8 * bx + x) % 2 = x % 2 := by omega
-  have hym : (8 * by₀ + y) % 2 = y % 2 := by omega
-  dsimp only [supertileShadeGrid]
-  rw [canonical_node_block level root bx by₀ x y hx hy, hxm, hym]
-  rfl
-
-private theorem flip_allowed {component : Thick} {quadrant : Quadrant}
-    {state : ShadeState} (allowed : allowedFor component quadrant state = true) :
-    allowedFor component quadrant (flipShade state) = true := by
-  have flip_eq (a b : Option Shade) :
-      a.map Shade.opposite = b.map Shade.opposite ↔ a = b :=
-    (Option.map_injective
-      (show Function.Involutive Shade.opposite from Shade.opposite_opposite).injective).eq_iff
-  simpa [allowedFor, flipShade, flip_eq] using allowed
-
 private def canonicalStates (flipped : Bool) (level : ℕ) (root : Node) :
     ℕ → ℕ → ShadeState := fun x y =>
-  if flipped then flipShade (supertileShadeGrid level root x y)
+  if flipped then ShadeState.flip (supertileShadeGrid level root x y)
     else supertileShadeGrid level root x y
 
 private theorem canonical_valid (flipped : Bool) (level : ℕ) (root : Node) :
@@ -969,7 +699,7 @@ private theorem canonical_valid (flipped : Bool) (level : ℕ) (root : Node) :
   · exact valid
   · constructor
     · intro x y hx hy
-      exact flip_allowed (valid.allowed x y hx hy)
+      exact ShadeState.flip_allowed (valid.allowed x y hx hy)
     · intro x y hx hy
       change (supertileShadeGrid level root x y).east.map Shade.opposite =
         (supertileShadeGrid level root (x + 1) y).west.map Shade.opposite
@@ -984,7 +714,7 @@ private theorem canonicalStates_sparse (flipped : Bool) (level : ℕ) (root : No
       value (canonicalStates flipped level root) p := by
   cases p with
   | mk x y side =>
-    cases side <;> simp [value, canonicalStates, sparsePort, canonical_sparse]
+    cases side <;> simp [value, canonicalStates, sparsePort, supertileShadeGrid_sparse]
 
 private theorem canonicalStates_block (flipped : Bool) (level : ℕ) (root : Node)
     (bx by₀ : ℕ) (p : Port) (hx : p.x < 8) (hy : p.y < 8) :
@@ -994,12 +724,7 @@ private theorem canonicalStates_block (flipped : Bool) (level : ℕ) (root : Nod
   cases p with
   | mk x y side =>
     cases side <;> simp [value, canonicalStates, translatePort,
-      canonical_block level root bx by₀ x y hx hy]
-
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
+      supertileShadeGrid_block level root bx by₀ x y hx hy]
 
 private def nodeAt (axis : LineAxis) (level : ℕ) (root : Node) (along fixed : ℕ) : Node :=
   if axis = .column then supertileNodeGrid level root fixed along
@@ -1023,11 +748,15 @@ private theorem clearAt_succ_block (axis : LineAxis) (flipped : Bool) (level : �
   have ha2 : (8 * blockAlong + along) % 2 = along % 2 := by omega
   have hf2 : (8 * blockFixed + fixed) % 2 = fixed % 2 := by omega
   cases axis
-  · simp only [clearAt, nodeAt]
-    rw [canonical_node_block _ _ _ _ _ _ ha hf]
+  · simp only [clearAt, nodeAt, reduceCtorEq, ↓reduceIte]
+    rw [show (8 * blockAlong + along) / 2 = 4 * blockAlong + along / 2 by omega,
+      show (8 * blockFixed + fixed) / 2 = 4 * blockFixed + fixed / 2 by omega,
+      supertileNodeGrid_block _ _ _ _ _ _ (by omega) (by omega)]
     simp [fineClear, fineNode, clear, ha2, hf2, quadrantAt]
   · simp only [clearAt, nodeAt, ↓reduceIte]
-    rw [canonical_node_block _ _ _ _ _ _ hf ha]
+    rw [show (8 * blockFixed + fixed) / 2 = 4 * blockFixed + fixed / 2 by omega,
+      show (8 * blockAlong + along) / 2 = 4 * blockAlong + along / 2 by omega,
+      supertileNodeGrid_block _ _ _ _ _ _ (by omega) (by omega)]
     simp [fineClear, fineNode, clear, ha2, hf2, quadrantAt]
 
 private theorem even_base (axis : LineAxis) (root : Node) :
@@ -1076,31 +805,22 @@ private theorem even_child {axis : LineAxis} {root : Node} {depth old child : �
     (hchild : (old % 2 = 0 ∧ (child = 4 * old ∨ child = 4 * old + 1)) ∨
       (old % 2 = 1 ∧ child = 4 * old + 3)) :
     LineFree axis 1 (depth + 1) true root (2 * 4 ^ (depth + 1) + 1 + child) := by
+  have step (fixed parity : ℕ) (hfixed : fixed < 3)
+      (hp : (2 * 4 ^ depth + 1 + old) % 2 = parity)
+      (hc : 2 * 4 ^ (depth + 1) + 1 + child =
+        8 * ((2 * 4 ^ depth + 1 + old) / 2) + fixed)
+      (certificate : ∀ node : Node,
+        (∀ along : Fin 2, clear axis true node along parity) →
+          ∀ along : Fin 8, fineClear axis true node along fixed) :=
+    even_refine hold hc hfixed (by simpa only [hp] using certificate)
   rcases hchild with ⟨hparity, rfl | rfl⟩ | ⟨hparity, rfl⟩
-  · apply even_refine hold (fixed := 1)
-    · rw [pow_succ]
-      omega
-    · decide
-    · intro node hclear along
-      have hp : (2 * 4 ^ depth + 1 + old) % 2 = 1 := by omega
-      rw [hp] at hclear
-      exact ((evenRules node axis).2.1 hclear along).1
-  · apply even_refine hold (fixed := 2)
-    · rw [pow_succ]
-      omega
-    · decide
-    · intro node hclear along
-      have hp : (2 * 4 ^ depth + 1 + old) % 2 = 1 := by omega
-      rw [hp] at hclear
-      exact ((evenRules node axis).2.1 hclear along).2
-  · apply even_refine hold (fixed := 0)
-    · rw [pow_succ]
-      omega
-    · decide
-    · intro node hclear along
-      have hp : (2 * 4 ^ depth + 1 + old) % 2 = 0 := by omega
-      rw [hp] at hclear
-      exact (evenRules node axis).1 hclear along
+  · exact step 1 1 (by decide) (by omega) (by rw [pow_succ]; omega)
+      (fun node hclear along => ((evenRules node axis).2.1 hclear along).1)
+  · exact step 2 1 (by decide) (by omega) (by rw [pow_succ]; omega)
+      (fun node hclear along => ((evenRules node axis).2.1 hclear along).2)
+  · exact step 0 0 (by decide) (by omega) (by rw [pow_succ]; omega)
+      (fun node hclear along => (evenRules node axis).1 hclear along)
+
 
 private theorem offset_parity (depth index : ℕ) :
     offset depth index % 2 = if index = 0 then 0 else 1 := by
@@ -1139,11 +859,6 @@ private theorem even_free (axis : LineAxis) (root : Node) (depth index : ℕ)
       have hold := ih previous hp
       simp only [coordinate, Nat.one_mul] at hold ⊢
       exact even_child hold hchild
-
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
 
 private def stripNode (axis : LineAxis) (depth offset along : ℕ) : Node :=
   nodeAt axis (depth + 2) seedNode along (2 * 4 ^ depth + offset)
@@ -1244,9 +959,6 @@ private theorem odd_free (axis : LineAxis) (depth index : ℕ) (hi : index ≤ d
     ⟨along % 2, Nat.mod_lt _ (by decide)⟩
   simpa only [clearAt, hd, hm, stripNode] using h
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
 private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
     {actual canonical : ℕ → ℕ → ShadeState} {x y : ℕ}
     (valid : ValidShadeGrid grid actual)
@@ -1276,26 +988,6 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
   cases hc : canonical x y
   simp only [value, ha, hc] at hw he hs hn
   congr
-
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-private theorem related_unique {parity : Bool} {a b c : Option Shade}
-    (hab : Related parity a b) (hac : Related parity a c) : b = c := by
-  cases parity
-  · exact hab.symm.trans hac
-  · obtain ⟨s, hs, hb⟩ := hab
-    obtain ⟨t, ht, hc⟩ := hac
-    have hst : s = t := Option.some.inj (hs.symm.trans ht)
-    subst t
-    exact hb.trans hc.symm
-
-private theorem mem_ports {width height : ℕ} {p : Port}
-    (hx : p.x < width) (hy : p.y < height) : p ∈ portsIn width height := by
-  rcases p with ⟨x, y, side⟩
-  simp only [portsIn, List.mem_flatMap, List.mem_range]
-  refine ⟨y, hy, x, hx, ?_⟩
-  cases side <;> simp
 
 private theorem sparse_block {bx by₀ : ℕ} {p : Port} (hx : p.x < 2) (hy : p.y < 2) :
     sparsePort (translatePort p (2 * bx) (2 * by₀)) =
@@ -1375,7 +1067,7 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
         rw [portPresent_two_block (C.grid d) bx by₀ localPort hx hy, C.grid_succ, hlocation]
         exact present
       obtain ⟨source, hsource, parity, path⟩ :=
-        exists_boundedPath (C.grid d bx by₀) (mem_ports hx hy) localPresent
+        exists_boundedPath (C.grid d bx by₀) (mem_portsIn_iff.mpr ⟨hx, hy⟩) localPresent
       have actualPath := boundedPath_two_block (C.grid d) bx by₀ path
       rw [C.grid_succ, hlocation] at actualPath
       have hbx : C.scale d ≤ bx := by
@@ -1403,7 +1095,7 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
         have relation := actualPath.sound valid
         rw [h] at relation
         rw [← targetEq] at canonicalRelation
-        exact related_unique relation canonicalRelation
+        exact Related.right_unique relation canonicalRelation
       rcases source_cases hsource with heq | ⟨old, _, oldPresent, heq⟩
       · subst source
         exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
@@ -1442,22 +1134,12 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
         rw [← sourceGlobalEq]
         exact sparseActual.trans ((C.sparse d oldGlobal).symm.trans blockValue)
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
 private theorem canonical_source (flipped : Bool) (node : Node) :
     value (canonicalStates flipped 1 node) cycleSource =
       some (if flipped then .light else .dark) := by
   have dark := source_dark node
-  cases flipped <;> simp [value, canonicalStates, flipShade, dark,
+  cases flipped <;> simp [value, canonicalStates, ShadeState.flip, dark,
     cycleSource, Shade.opposite]
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
-
-
 
 private def initialLevel (flipped : Bool) : ℕ := if flipped then 1 else 2
 private def phaseScale (flipped : Bool) (depth : ℕ) : ℕ :=
@@ -1506,13 +1188,13 @@ private theorem phase_base (flipped : Bool) (coarse : ℕ → ℕ → Index)
     rw [show baseGrid (x / 2) (y / 2) = phaseGrid flipped 0 coarse (x / 2) (y / 2) from
       by
         simpa only [baseGrid, phaseGrid, Nat.zero_add] using
-          local_refine (g := coarseGrid 0) (h := coarse) rootEq.symm
+          iterateRefine_eq_of_root_eq (g := coarseGrid 0) (h := coarse) rootEq.symm
             (2 * level) (x / 2) (y / 2)
             (by simpa [pow_mul] using (show x / 2 < 4 ^ level by omega))
             (by simpa [pow_mul] using (show y / 2 < 4 ^ level by omega))]
   have canonicalValid : ShadeValidOn baseGrid canonical (2 * 4 ^ level) (2 * 4 ^ level) := by
     have h := canonical_valid flipped level seedNode
-    rw [canonical_index, seedNode_parent] at h
+    rw [supertileIndexGrid_eq_iterateRefine, seedNode_parent] at h
     exact h
   have targetBounds : target.x < 2 * 4 ^ level ∧ target.y < 2 * 4 ^ level := by
     cases flipped <;> norm_num [phaseScale, initialLevel, level] at * <;> omega
@@ -1539,7 +1221,7 @@ private theorem phase_base (flipped : Bool) (coarse : ℕ → ℕ → Index)
       (fun x y hx hy => canonicalValid.hmatch x y (by omega) (by omega))
       (fun x y hx hy => canonicalValid.vmatch x y (by omega) (by omega))
     rw [canonicalSource] at canonicalRelation
-    exact related_unique actualRelation canonicalRelation
+    exact Related.right_unique actualRelation canonicalRelation
   cases flipped
   · obtain ⟨source, parity, sourceMem, path⟩ := odd_base_exists_boundedPath
       west east south north basePresent
@@ -1635,10 +1317,10 @@ private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
         z < 4 ^ (depth + initialLevel flipped) := by
       cases flipped <;> simp [phaseScale, initialLevel, pow_add] at * <;> omega
     have parentEq : node.parent = phaseGrid flipped depth coarse bx by₀ :=
-      canonical_local (depth + initialLevel flipped) seedNode coarse
+      supertileIndexGrid_eq_of_root_eq (depth + initialLevel flipped) seedNode coarse
         (rootEq.trans seedNode_parent.symm) (bound bx hx) (bound by₀ hy)
     have finiteValid := canonical_valid flipped 1 node
-    rw [canonical_index, parentEq] at finiteValid
+    rw [supertileIndexGrid_eq_iterateRefine, parentEq] at finiteValid
     exact path.sound finiteValid.allowed finiteValid.hmatch finiteValid.vmatch
   block := by
     intro depth bx by₀ p hx hy
@@ -1653,11 +1335,6 @@ private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     exact (phase_source flipped depth coarse actual bx by₀ valid shaded hX hY).trans
       (canonical_source flipped _).symm
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
-open Canonical
-
 private theorem phase_bound (flipped : Bool) (depth z : ℕ)
     (hz : z < 6 * phaseScale flipped depth) :
     z < 2 * 4 ^ (depth + initialLevel flipped) := by
@@ -1671,7 +1348,7 @@ private theorem phase_component (flipped : Bool) (depth : ℕ) (coarse : ℕ →
   have hX := phase_bound flipped depth x hx
   have hY := phase_bound flipped depth y hy
   unfold componentAt
-  rw [canonical_local (depth + initialLevel flipped) seedNode coarse
+  rw [supertileIndexGrid_eq_of_root_eq (depth + initialLevel flipped) seedNode coarse
     (rootEq.trans seedNode_parent.symm) (by omega) (by omega)]
   rfl
 
@@ -1739,9 +1416,6 @@ private theorem phase_free (axis : LineAxis) (flipped : Bool) (depth index : ℕ
     simpa [LineFree, clearAt, nodeAt, clear, canonicalStates, initialLevel,
       supertileShadeGrid, supertileIndexGrid, componentAt, quadrantAt, Nat.mod_mod] using free
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
 private theorem marker_checks :
     iterateRefine 4 (fun _ _ => (0 : Index)) 4 4 = 0 ∧
     iterateRefine 4 (fun _ _ => (0 : Index)) 8 8 = 0 ∧
@@ -1786,7 +1460,7 @@ private theorem phase_marker (flipped : Bool) (depth : ℕ)
       (2 * phaseScale flipped depth) = 0 := by
     cases flipped
     · have start : iterateRefine 4 coarse 4 4 = 0 :=
-        (local_refine (h := fun _ _ => 0) rootEq 4 4 4 (by decide) (by decide)).trans
+        (iterateRefine_eq_of_root_eq (h := fun _ _ => 0) rootEq 4 4 4 (by decide) (by decide)).trans
           marker_checks.1
       change iterateRefine (2 * (depth + 2)) coarse (2 * (2 * 4 ^ depth))
         (2 * (2 * 4 ^ depth)) = 0
@@ -1796,7 +1470,7 @@ private theorem phase_marker (flipped : Bool) (depth : ℕ)
     · have hd := positive rfl
       obtain ⟨extra, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : depth ≠ 0)
       have start : iterateRefine 4 coarse 8 8 = 0 :=
-        (local_refine (h := fun _ _ => 0) rootEq 4 8 8 (by decide) (by decide)).trans
+        (iterateRefine_eq_of_root_eq (h := fun _ _ => 0) rootEq 4 8 8 (by decide) (by decide)).trans
           marker_checks.2.1
       change iterateRefine (2 * (extra + 1 + 1)) coarse
         (2 * (1 * 4 ^ (extra + 1))) (2 * (1 * 4 ^ (extra + 1))) = 0
@@ -1817,16 +1491,16 @@ private theorem phase_marker (flipped : Bool) (depth : ℕ)
     simp [quadrantAt, Quadrant.ofBits, odd]
   rw [half, index, phase]
 
-private noncomputable def phase_marked (flipped : Bool) (depth n : ℕ) (hn : n ≤ depth)
+private theorem phase_marked (flipped : Bool) (depth n : ℕ) (hn : n ≤ depth)
     (positive : flipped = true → 0 < depth)
     (coarse : ℕ → ℕ → Index) (rootEq : coarse 0 0 = 0)
     (actual : ℕ → ℕ → ShadeState)
     (valid : ValidShadeGrid (phaseGrid flipped depth coarse) actual)
     (shaded : CycleShade actual (phaseScale flipped depth) (3 * phaseScale flipped depth)
       (phaseScale flipped depth) (3 * phaseScale flipped depth) .light) :
-    ConsecutiveMarkedFreeGrid (phaseGrid flipped depth coarse) actual
+    Nonempty (MarkedFreeGrid (phaseGrid flipped depth coarse) actual
       (phaseScale flipped depth) (3 * phaseScale flipped depth)
-      (phaseScale flipped depth) (3 * phaseScale flipped depth) n := by
+      (phaseScale flipped depth) (3 * phaseScale flipped depth) n) := by
   let lines : Fin (n + 1) → ℕ := fun i => coordinate (if flipped then 1 else 2) depth i
   have positiveScale : 0 < (if flipped then 1 else 2 : ℕ) := by cases flipped <;> decide
   have increasing : StrictMono lines := by
@@ -1835,7 +1509,7 @@ private noncomputable def phase_marked (flipped : Bool) (depth n : ℕ) (hn : n 
   have bounds (i : Fin (n + 1)) : 2 * phaseScale flipped depth + 1 < lines i ∧
       lines i < 6 * phaseScale flipped depth := coordinate_bounds positiveScale
     (show i.val ≤ depth by have := i.isLt; omega)
-  refine ConsecutiveMarkedFreeGrid.ofSparse lines lines increasing increasing ?_ ?_
+  refine MarkedFreeGrid.ofSparse lines lines increasing increasing ?_ ?_
     (phase_marker flipped depth positive coarse rootEq)
   · intro i
     refine ⟨(bounds i).1, ?_, ?_⟩
@@ -1858,19 +1532,16 @@ private noncomputable def phase_marked (flipped : Bool) (depth n : ℕ) (hn : n 
           dsimp only [quarterEast] at upper
           omega)
 
-end Cslib.WangTile.Robinson.FreeGrid
-
-namespace Cslib.WangTile.Robinson.FreeGrid
 /-- For each `n`, every scaffold plane contains a light board with `n + 1` consecutive
 marked free rows and columns. -/
-theorem exists_markedGrid {P : Cslib.WangTile.Plane scaffold.tiles}
+theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
     (D : DecodedPlane P) (R : QuarterPlane.Regrouped D.quarterPlane) (n : ℕ) :
     ∃ (a b : ℤ) (scale : ℕ),
       CycleOn (fun i j => R.parent.index (a + i) (b + j))
         scale (3 * scale) scale (3 * scale) ∧
       CycleShade (fun x y => (D.siteGrid R a b x y).shade)
         scale (3 * scale) scale (3 * scale) .light ∧
-      Nonempty (ConsecutiveMarkedFreeGrid
+      Nonempty (MarkedFreeGrid
         (fun i j => R.parent.index (a + i) (b + j))
         (fun x y => (D.siteGrid R a b x y).shade)
         scale (3 * scale) scale (3 * scale) n) := by
@@ -1888,7 +1559,7 @@ theorem exists_markedGrid {P : Cslib.WangTile.Plane scaffold.tiles}
       ∃ scale, CycleOn (fun i j => R.parent.index (a + i) (b + j))
           scale (3 * scale) scale (3 * scale) ∧
         CycleShade states scale (3 * scale) scale (3 * scale) .light ∧
-        Nonempty (ConsecutiveMarkedFreeGrid
+        Nonempty (MarkedFreeGrid
           (fun i j => R.parent.index (a + i) (b + j)) states
           scale (3 * scale) scale (3 * scale) n) := by
     have phaseValid : ValidShadeGrid (phaseGrid flipped depth coarse) states := by
@@ -1898,7 +1569,7 @@ theorem exists_markedGrid {P : Cslib.WangTile.Plane scaffold.tiles}
     · rw [patch, ← gridEq]
       exact phase_cycle flipped depth coarse
     · rw [patch, ← gridEq]
-      exact ⟨phase_marked flipped depth n hn positive coarse rootEq states phaseValid shaded⟩
+      exact phase_marked flipped depth n hn positive coarse rootEq states phaseValid shaded
   have light := has_light_cycle coarse (2 * n + 2) (by omega)
     (s := states) (by simpa only [Nat.add_assoc] using valid)
   rcases light with large | small
@@ -1919,4 +1590,4 @@ theorem exists_markedGrid {P : Cslib.WangTile.Plane scaffold.tiles}
     apply finish false n le_rfl (by simp) gridEq
     simpa only [phaseScale, Bool.false_eq_true, ↓reduceIte, power] using small
 
-end Cslib.WangTile.Robinson.FreeGrid
+end Cslib.WangTile.Robinson

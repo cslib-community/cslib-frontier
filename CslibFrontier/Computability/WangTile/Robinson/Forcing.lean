@@ -7,10 +7,11 @@ Authors: Erik Demaine, Stefan Langerman, GPT 5.5/5.6, Chris Henson
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Obstruction
+public import CslibFrontier.Computability.WangTile.Robinson.Signals
+import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Obstruction
 
 /-!
-# Seeded squares in every decorated Robinson tiling
+# Seeded payload squares in combined Robinson tilings
 
 Every plane tiling of the concrete scaffold has arbitrarily large routed grids. The generic
 routing theorem extracts a seeded payload square of each size from any combined tiling.
@@ -37,7 +38,7 @@ theorem scaffold_forces : Forces scaffold := by
   intro P n
   let D := DecodedPlane.ofPlane P
   let R := QuarterPlane.regroup D.quarterPlane
-  obtain ⟨a, b, scale, cycle, shaded, ⟨grid⟩⟩ := FreeGrid.exists_markedGrid D R n
+  obtain ⟨a, b, scale, cycle, shaded, ⟨grid⟩⟩ := exists_markedFreeGrid D R n
   exact ⟨grid.routedGrid D R a b cycle shaded⟩
 
 end Cslib.WangTile.Robinson

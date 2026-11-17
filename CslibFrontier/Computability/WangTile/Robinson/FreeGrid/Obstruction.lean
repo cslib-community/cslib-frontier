@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Basic
-public import CslibFrontier.Computability.WangTile.Robinson.Signals
 
 /-!
 # Obstruction signals at Robinson free-line crossings
@@ -18,16 +17,16 @@ row and column. Conversely, a non-free line crossing a free line receives a none
 from its nearest outward-facing selected boundary. These two facts distinguish payload
 crossings from the intervening horizontal and vertical wires.
 
-## Main results
+## Main definitions
 
-* `FreeGrid.ConsecutiveMarkedFreeGrid.routedGrid`: every consecutive marked free grid
+* `MarkedFreeGrid.routedGrid`: every consecutive marked free grid
   inside a light board gives the routed grid consumed by generic seed removal.
 
 The canonical patch construction supplies a plane instance satisfying these hypotheses.
 
 ## References
 
-After the obstruction argument in [JeandelVanier2020], §3.3 (locator not verified here).
+After the obstruction argument in [JeandelVanier2020], §3.3, pp. 27–28, Figure 18.
 Prior formalization: [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3),
 revision `64268a3`, `Closed104.ShadedLightBoardSignals`, `ShadedLightBoardFreeLines`,
 `SignalCorridors`, `ShadedObstructionGeometry`, and `ShadedPayloadCorridors`.
@@ -65,40 +64,49 @@ private theorem flow_clear_between
   exact ⟨at_position, (transmit position hleft hright).symm.trans at_position⟩
 
 private theorem flow_blocked_of_boundary
-    (selected : ℕ → Option Bool) (before after : ℕ → SignalFlow)
+    {δ : Type*} (selected : ℕ → Option δ) (coding : Option δ → Option Bool)
+    (positive negative : δ) (coding_none : coding none = none)
+    (coding_live : ∀ direction, coding (some direction) ≠ none)
+    (coding_positive : coding (some positive) = some true)
+    (coding_negative : coding (some negative) = some false)
+    (before after : ℕ → SignalFlow)
     (matching : ∀ x, after x = before (x + 1))
-    (allowed : ∀ x, flowAllowed (selected x) (before x) (after x) = true)
-    {position : ℕ}
+    (allowed : ∀ x, flowAllowed (coding (selected x)) (before x) (after x) = true)
+    {lower upper position : ℕ}
     (boundary : selected position ≠ none ∨
-      (∃ bound, position < bound ∧ selected bound = some true ∧
+      (∃ bound, position < bound ∧ bound < upper ∧ selected bound = some positive ∧
         ∀ x, position < x → x < bound → selected x = none) ∨
-      (∃ bound, bound < position ∧ selected bound = some false ∧
+      (∃ bound, lower < bound ∧ bound < position ∧ selected bound = some negative ∧
         ∀ x, bound < x → x < position → selected x = none)) :
     ¬ (before position = .none ∧ after position = .none) := by
   intro clear
-  rcases boundary with here | ⟨bound, hbound, selected_bound, between⟩ |
-      ⟨bound, hbound, selected_bound, between⟩
-  · have local_rule := allowed position
-    cases h : selected position with
-    | none => exact here h
+  rcases boundary with here | ⟨bound, hbound, _, selected_bound, between⟩ |
+      ⟨bound, _, hbound, selected_bound, between⟩
+  · have nonempty : coding (selected position) ≠ none := by
+      cases h : selected position with
+      | none => exact (here h).elim
+      | some direction => exact coding_live direction
+    have local_rule := allowed position
+    cases h : coding (selected position) with
+    | none => exact (nonempty h).elim
     | some direction =>
       cases direction <;>
         simp [h, flowAllowed, clear.1, clear.2] at local_rule
   · have outer : before bound ≠ .none := by
       have local_rule := allowed bound
-      simp only [selected_bound, flowAllowed, decide_eq_true_eq] at local_rule
+      simp only [selected_bound, coding_positive, flowAllowed, decide_eq_true_eq] at local_rule
       exact local_rule.1
     have path := value_between (fun x => x) after before hbound
       (fun x _ _ => matching x) (fun x hl hr => flow_transmits (by
-        simpa only [between x hl hr] using allowed x))
+        simpa only [between x hl hr, coding_none] using allowed x))
     exact outer (path.symm.trans clear.2)
   · have outer : after bound ≠ .none := by
       have local_rule := allowed bound
-      simp only [selected_bound, flowAllowed, decide_eq_true_eq] at local_rule
+      simp only [selected_bound, coding_negative, flowAllowed, decide_eq_true_eq] at local_rule
       exact local_rule.1
     have path := value_between (fun x => x) after before hbound
       (fun x _ _ => matching x) (fun x hl hr => flow_transmits (by
-        simpa only [between x hl hr] using allowed x))
+        simpa only [between x hl hr, coding_none] using allowed x))
     exact outer (path.trans clear.1)
 
 private theorem selected_horizontal_of_lane
@@ -315,73 +323,38 @@ private theorem Geometry.crossingObstruction
     CrossingObstruction indexGrid shadeGrid signalGrid west east south north := by
   constructor
   · intro column row hw he hs hn free not_free
-    apply flow_blocked_of_boundary
-      (fun y => verticalInteriorCode (selectedHorizontalFor
-        (componentAt indexGrid column y) (quadrantAt column y) (shadeGrid column y)))
+    exact flow_blocked_of_boundary
+      (fun y => selectedHorizontalFor
+        (componentAt indexGrid column y) (quadrantAt column y) (shadeGrid column y))
+      verticalInteriorCode .north .south rfl
+      (by intro direction; cases direction <;> decide) rfl rfl
       (fun y => (signalGrid column y).south) (fun y => (signalGrid column y).north)
       (fun y => valid.vertical column y) (fun y => valid.vertical_allowed column y)
-    rcases geometry.verticalBoundary hw he hs hn free not_free with here | above | below
-    · left
-      cases h : selectedHorizontalFor
-          (componentAt indexGrid column row) (quadrantAt column row) (shadeGrid column row)
-      · exact (here h).elim
-      · rename_i interior
-        cases interior <;> simp [verticalInteriorCode]
-    · right; left
-      obtain ⟨bound, hbound, _, selected, between⟩ := above
-      refine ⟨bound, hbound, ?_, ?_⟩
-      · simp only [selected, verticalInteriorCode]
-      · intro y hy hb
-        simp only [between y hy hb, verticalInteriorCode]
-    · right; right
-      obtain ⟨bound, _, hbound, selected, between⟩ := below
-      refine ⟨bound, hbound, ?_, ?_⟩
-      · simp only [selected, verticalInteriorCode]
-      · intro y hy hb
-        simp only [between y hy hb, verticalInteriorCode]
+      (geometry.verticalBoundary hw he hs hn free not_free)
   · intro column row hw he hs hn free not_free
-    apply flow_blocked_of_boundary
-      (fun x => horizontalInteriorCode (selectedVerticalFor
-        (componentAt indexGrid x row) (quadrantAt x row) (shadeGrid x row)))
+    exact flow_blocked_of_boundary
+      (fun x => selectedVerticalFor
+        (componentAt indexGrid x row) (quadrantAt x row) (shadeGrid x row))
+      horizontalInteriorCode .east .west rfl
+      (by intro direction; cases direction <;> decide) rfl rfl
       (fun x => (signalGrid x row).west) (fun x => (signalGrid x row).east)
       (fun x => valid.horizontal x row) (fun x => valid.horizontal_allowed x row)
-    rcases geometry.horizontalBoundary hw he hs hn free not_free with here | right | left
-    · left
-      cases h : selectedVerticalFor
-          (componentAt indexGrid column row) (quadrantAt column row) (shadeGrid column row)
-      · exact (here h).elim
-      · rename_i interior
-        cases interior <;> simp [horizontalInteriorCode]
-    · right; left
-      obtain ⟨bound, hbound, _, selected, between⟩ := right
-      refine ⟨bound, hbound, ?_, ?_⟩
-      · simp only [selected, horizontalInteriorCode]
-      · intro x hx hb
-        simp only [between x hx hb, horizontalInteriorCode]
-    · right; right
-      obtain ⟨bound, _, hbound, selected, between⟩ := left
-      refine ⟨bound, hbound, ?_, ?_⟩
-      · simp only [selected, horizontalInteriorCode]
-      · intro x hx hb
-        simp only [between x hx hb, horizontalInteriorCode]
+      (geometry.horizontalBoundary hw he hs hn free not_free)
 
 end
-end Cslib.WangTile.Robinson
-
-namespace Cslib.WangTile.Robinson.FreeGrid
 
 /-- Consecutive free lines in a light Robinson board form a routed grid in the original plane.
 The marker becomes the seeded southwest crossing and every intervening cell is a wire. -/
-def ConsecutiveMarkedFreeGrid.routedGrid
+def MarkedFreeGrid.routedGrid
     {P : Cslib.WangTile.Plane scaffold.tiles} (D : DecodedPlane P)
     (R : QuarterPlane.Regrouped D.quarterPlane) (a b : ℤ)
     {west east south north n : ℕ}
-    (grid : ConsecutiveMarkedFreeGrid
+    (grid : MarkedFreeGrid
       (fun i j => R.parent.index (a + i) (b + j))
       (fun x y => (D.siteGrid R a b x y).shade) west east south north n)
     (cycle : CycleOn (fun i j => R.parent.index (a + i) (b + j)) west east south north)
     (shaded : CycleShade (fun x y => (D.siteGrid R a b x y).shade)
-      west east south north .light) : RoutedGrid scaffold P n := by
+      west east south north .light) : RoutedGrid scaffold P n :=
   let ox := R.origin.1 + 2 * a
   let oy := R.origin.2 + 2 * b
   have valid := D.validGrid R a b
@@ -397,62 +370,61 @@ def ConsecutiveMarkedFreeGrid.routedGrid
     CycleShade.clear_at_free_crossing shaded cycle valid
       (grid.column_west i) (grid.column_east i) (grid.row_south j) (grid.row_north j)
       (grid.freeRow j) (grid.freeColumn i)
-  refine {
-    column := fun i => ox + grid.column i
+  { column := fun i => ox + grid.column i
     row := fun j => oy + grid.row j
-    column_strictMono := ?_
-    row_strictMono := ?_
-    crossing := ?_
-    corner := ?_
-    horizontal := ?_
-    vertical := ?_ }
-  · intro i j hij
-    have h := grid.column_strictMono hij
-    dsimp
-    omega
-  · intro i j hij
-    have h := grid.row_strictMono hij
-    dsimp
-    omega
-  · intro i j
-    simp only [role]
-    exact (ShadedSite.crossing_iff _).2 (crossing_clear i j)
-  · rw [role]
-    apply (ShadedSite.corner_iff _).2
-    exact ⟨crossing_clear 0 0, (R.quarter_at a b (grid.column 0) (grid.row 0)).trans
-      grid.marker⟩
-  · intro i j x hl hr
-    change ox + (grid.column i.castSucc : ℤ) < x at hl
-    change x < ox + (grid.column i.succ : ℤ) at hr
-    let k := (x - ox).toNat
-    have hx : ox + (k : ℤ) = x := by dsimp [k]; omega
-    have left : grid.column i.castSucc < k := by omega
-    have right : k < grid.column i.succ := by omega
-    have hw := (grid.column_west i.castSucc).trans left
-    have he := right.trans (grid.column_east i.succ)
-    have clear := CycleShade.clear_at_free_row shaded cycle valid
-      (grid.row_south j) (grid.row_north j) (grid.freeRow j) hw he
-    have blocked := obstruction.verticalBlocked hw he (grid.row_south j) (grid.row_north j)
-      (grid.freeRow j) (grid.noFreeColumnBetween i k left right)
-    change scaffold.role (P.tile x (oy + grid.row j)) = .horizontal
-    rw [← hx, role]
-    exact (ShadedSite.horizontal_iff_role _).2 ⟨clear, blocked⟩
-  · intro i j y hl hr
-    change oy + (grid.row j.castSucc : ℤ) < y at hl
-    change y < oy + (grid.row j.succ : ℤ) at hr
-    let k := (y - oy).toNat
-    have hy : oy + (k : ℤ) = y := by dsimp [k]; omega
-    have lower : grid.row j.castSucc < k := by omega
-    have upper : k < grid.row j.succ := by omega
-    have hs := (grid.row_south j.castSucc).trans lower
-    have hn := upper.trans (grid.row_north j.succ)
-    have clear := CycleShade.clear_at_free_column shaded cycle valid
-      (grid.column_west i) (grid.column_east i) (grid.freeColumn i) hs hn
-    have blocked := obstruction.horizontalBlocked
-      (grid.column_west i) (grid.column_east i) hs hn (grid.freeColumn i)
-      (grid.noFreeRowBetween j k lower upper)
-    change scaffold.role (P.tile (ox + grid.column i) y) = .vertical
-    rw [← hy, role]
-    exact (ShadedSite.vertical_iff_role _).2 ⟨blocked, clear⟩
+    column_strictMono := by
+      intro i j hij
+      have h := grid.column_strictMono hij
+      dsimp
+      omega
+    row_strictMono := by
+      intro i j hij
+      have h := grid.row_strictMono hij
+      dsimp
+      omega
+    crossing := by
+      intro i j
+      simp only [role]
+      exact (ShadedSite.crossing_iff _).2 (crossing_clear i j)
+    corner := by
+      rw [role]
+      apply (ShadedSite.corner_iff _).2
+      exact ⟨crossing_clear 0 0, (R.quarter_at a b (grid.column 0) (grid.row 0)).trans
+        grid.marker⟩
+    horizontal := by
+      intro i j x hl hr
+      change ox + (grid.column i.castSucc : ℤ) < x at hl
+      change x < ox + (grid.column i.succ : ℤ) at hr
+      let k := (x - ox).toNat
+      have hx : ox + (k : ℤ) = x := by dsimp only [k]; omega
+      have left : grid.column i.castSucc < k := by omega
+      have right : k < grid.column i.succ := by omega
+      have hw := (grid.column_west i.castSucc).trans left
+      have he := right.trans (grid.column_east i.succ)
+      have clear := CycleShade.clear_at_free_row shaded cycle valid
+        (grid.row_south j) (grid.row_north j) (grid.freeRow j) hw he
+      have blocked := obstruction.verticalBlocked hw he (grid.row_south j) (grid.row_north j)
+        (grid.freeRow j) (grid.noFreeColumnBetween i k left right)
+      change scaffold.role (P.tile x (oy + grid.row j)) = .horizontal
+      rw [← hx, role]
+      exact (ShadedSite.horizontal_iff_role _).2 ⟨clear, blocked⟩
+    vertical := by
+      intro i j y hl hr
+      change oy + (grid.row j.castSucc : ℤ) < y at hl
+      change y < oy + (grid.row j.succ : ℤ) at hr
+      let k := (y - oy).toNat
+      have hy : oy + (k : ℤ) = y := by dsimp only [k]; omega
+      have lower : grid.row j.castSucc < k := by omega
+      have upper : k < grid.row j.succ := by omega
+      have hs := (grid.row_south j.castSucc).trans lower
+      have hn := upper.trans (grid.row_north j.succ)
+      have clear := CycleShade.clear_at_free_column shaded cycle valid
+        (grid.column_west i) (grid.column_east i) (grid.freeColumn i) hs hn
+      have blocked := obstruction.horizontalBlocked
+        (grid.column_west i) (grid.column_east i) hs hn (grid.freeColumn i)
+        (grid.noFreeRowBetween j k lower upper)
+      change scaffold.role (P.tile (ox + grid.column i) y) = .vertical
+      rw [← hy, role]
+      exact (ShadedSite.vertical_iff_role _).2 ⟨blocked, clear⟩ }
 
-end Cslib.WangTile.Robinson.FreeGrid
+end Cslib.WangTile.Robinson
