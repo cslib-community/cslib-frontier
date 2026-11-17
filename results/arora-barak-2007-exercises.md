@@ -46,7 +46,7 @@ linked issue bodies read; a mention only in an older body may be missed.
 | 2 | 23 | 5 | 13 | 3 | §1(a), §1(b): [#4213](https://github.com/cslib-community/cslib-frontier/issues/4213) |
 | 3 | 7 | 5 | 1 | 1 | — |
 | 4 | 9 | 6 | 1 | 2 | §4 (partial, space measure as audit 4.16): [#5283](https://github.com/cslib-community/cslib-frontier/issues/5283) |
-| 5 | 11 | 10 | 2 | 0 | — |
+| 5 | 11 | 8 | 4 | 0 | — |
 | 6 | 15 | 10 | 5 | 2 | §9(a)–(c), and the uniform halves of §11 (corrected) and §12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) |
 | 7 | 12 | 5 | 6 | 2 | — |
 | 8 | 11 | 7 | 6 | 2 | — |
