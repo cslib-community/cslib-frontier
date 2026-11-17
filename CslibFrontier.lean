@@ -2857,6 +2857,7 @@ public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Membership
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Routines
+public import CslibFrontier.Computability.Complexity.Problems.UCONN
 public import CslibFrontier.Computability.Complexity.Problems.UGraph
 public import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
 public import CslibFrontier.Computability.Complexity.Problems.USAT
