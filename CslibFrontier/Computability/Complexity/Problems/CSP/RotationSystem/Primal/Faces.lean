@@ -133,6 +133,19 @@ noncomputable def polygonFaceOrbitEquiv (r : Graph.RotationSystem (incidenceGrap
       (fun z => (faceNext_polygonSum r z).symm) x y).symm)).symm.trans
     (Equiv.Perm.sumOrbitEquiv _ _)
 
+/-- Every forward dart maps to its occurrence's black scope-orbit class. -/
+theorem polygonFaceOrbitEquiv_black (r : Graph.RotationSystem (incidenceGraph F))
+    (o : F.Occurrence) :
+    polygonFaceOrbitEquiv r (Quotient.mk _ (polygonDart o false)) = .inl (Quotient.mk _ o) :=
+  (polygonFaceOrbitEquiv r).eq_symm_apply.mp rfl
+
+/-- Every backward dart maps to its preceding occurrence's white incidence-square class. -/
+theorem polygonFaceOrbitEquiv_white (r : Graph.RotationSystem (incidenceGraph F))
+    (o : F.Occurrence) :
+    polygonFaceOrbitEquiv r (Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true)) =
+      .inr (Quotient.mk _ o) :=
+  (polygonFaceOrbitEquiv r).eq_symm_apply.mp rfl
+
 /-- Every positive constraint position, including duplicate constraint records, has exactly
 one scope orbit. Nullary constraints are explicitly excluded by the hypothesis. -/
 noncomputable def argumentOrbitEquiv (F : CSP Rel V)
@@ -160,37 +173,17 @@ theorem polygonFaceEquiv_black (r : Graph.RotationSystem (incidenceGraph F))
     (hOrder : RespectsArgumentOrder r)
     (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) (o : F.Occurrence) :
     polygonFaceEquiv r hOrder hPos (Quotient.mk _ (polygonDart o false)) = .inl o.1 := by
-  let e : Quotient (Equiv.Perm.SameCycle.setoid
-      (Equiv.sumCongr (argumentPermutation F) (incidenceSquarePermutation r))) ≃
-      (polygonRotation r).Face := Quotient.congr (polygonSumEquiv F) (fun x y =>
-    (Equiv.Perm.sameCycle_equiv_iff (polygonSumEquiv F) _ _
-      (fun z => (faceNext_polygonSum r z).symm) x y).symm)
-  have h : e.symm (Quotient.mk _ (polygonDart o false)) = Quotient.mk _ (.inl o) :=
-    e.symm_apply_apply (Quotient.mk _ (.inl o))
-  unfold polygonFaceEquiv polygonFaceOrbitEquiv
-  dsimp only [Equiv.trans_apply]
-  change (Equiv.sumCongr _ _) ((Equiv.Perm.sumOrbitEquiv _ _) (e.symm _)) = _
-  rw [h]
+  change (Equiv.sumCongr (argumentOrbitEquiv F hPos) _) (polygonFaceOrbitEquiv r _) = _
+  rw [polygonFaceOrbitEquiv_black]
   rfl
 
 /-- The variable dart represents its own square orbit in the incidence-face correspondence. -/
 theorem incidenceFaceOrbitEquiv_mk_false (r : Graph.RotationSystem (incidenceGraph F))
     (hOrder : RespectsArgumentOrder r) (o : F.Occurrence) :
     incidenceFaceOrbitEquiv r hOrder (Quotient.mk _ (incidenceDart o false)) =
-      Quotient.mk _ o := by
-  let e : Quotient (Equiv.Perm.SameCycle.setoid
-      (Equiv.Perm.doubled (incidenceSquarePermutation r))) ≃ r.Face :=
-    Quotient.congr (incidenceBlockEquiv F) (fun x y =>
-      (Equiv.Perm.sameCycle_equiv_iff (incidenceBlockEquiv F) _ _
-        (fun z => (faceNext_incidenceBlock r hOrder z).symm) x y).symm)
-  have h : e.symm (Quotient.mk _ (incidenceDart o false)) = Quotient.mk _ (o, false) := by
-    convert e.symm_apply_apply (Quotient.mk _ (o, false)) using 1
-    exact congrArg (fun d => e.symm (Quotient.mk _ d)) (incidenceBlockEquiv_false o).symm
-  unfold incidenceFaceOrbitEquiv
-  dsimp only [Equiv.trans_apply]
-  change (Equiv.Perm.doubledOrbitEquiv _) (e.symm _) = _
-  rw [h]
-  rfl
+      Quotient.mk _ o :=
+  (incidenceFaceOrbitEquiv r hOrder).eq_symm_apply.mp
+    (congrArg (Quotient.mk _) (incidenceBlockEquiv_false o).symm)
 
 /-- The exact white correspondence sends `q_(B⁻¹ o)` to the face of the original variable
 dart `o`. This states the conjugation, not merely an equality of face counts. -/
@@ -200,33 +193,21 @@ theorem polygonFaceEquiv_white (r : Graph.RotationSystem (incidenceGraph F))
     polygonFaceEquiv r hOrder hPos
       (Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true)) =
       .inr (Quotient.mk _ (incidenceDart o false)) := by
-  let e : Quotient (Equiv.Perm.SameCycle.setoid
-      (Equiv.sumCongr (argumentPermutation F) (incidenceSquarePermutation r))) ≃
-      (polygonRotation r).Face := Quotient.congr (polygonSumEquiv F) (fun x y =>
-    (Equiv.Perm.sameCycle_equiv_iff (polygonSumEquiv F) _ _
-      (fun z => (faceNext_polygonSum r z).symm) x y).symm)
-  have h : e.symm (Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true)) =
-      Quotient.mk _ (.inr o) := e.symm_apply_apply (Quotient.mk _ (.inr o))
-  unfold polygonFaceEquiv polygonFaceOrbitEquiv
-  dsimp only [Equiv.trans_apply]
-  change (Equiv.sumCongr _ _) ((Equiv.Perm.sumOrbitEquiv _ _) (e.symm _)) = _
-  rw [h]
-  change Sum.inr ((incidenceFaceOrbitEquiv r hOrder).symm (Quotient.mk _ o)) = _
-  apply congrArg Sum.inr
-  rw [Equiv.symm_apply_eq]
-  exact (incidenceFaceOrbitEquiv_mk_false r hOrder o).symm
+  change (Equiv.sumCongr _ (incidenceFaceOrbitEquiv r hOrder).symm) (polygonFaceOrbitEquiv r _) = _
+  rw [polygonFaceOrbitEquiv_white]
+  exact congrArg Sum.inr
+    ((Equiv.symm_apply_eq _).mpr (incidenceFaceOrbitEquiv_mk_false r hOrder o).symm)
 
 /-- Each edge has distinct black and white incident faces, even for a listed loop. -/
 theorem polygon_edge_faces_distinct (r : Graph.RotationSystem (incidenceGraph F))
-    (hOrder : RespectsArgumentOrder r)
-    (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) (o : F.Occurrence) :
+    (o : F.Occurrence) :
     (Quotient.mk _ (polygonDart o false) : (polygonRotation r).Face) ≠
       Quotient.mk _ (polygonDart o true) := by
-  have hw := polygonFaceEquiv_white r hOrder hPos (argumentPermutation F o)
+  have hw := polygonFaceOrbitEquiv_white r (argumentPermutation F o)
   rw [Equiv.symm_apply_apply] at hw
   intro h
-  have he := congrArg (polygonFaceEquiv r hOrder hPos) h
-  rw [polygonFaceEquiv_black, hw] at he
+  have he := congrArg (polygonFaceOrbitEquiv r) h
+  rw [polygonFaceOrbitEquiv_black, hw] at he
   cases he
 
 /-- The black face at an actual constraint position. Positive scopes provide its darts. -/

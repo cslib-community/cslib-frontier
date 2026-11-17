@@ -206,7 +206,7 @@ the library or cited. Resting it on any other assumption makes it a stand-in und
 Write each reduction as an explicit program with an efficiency witness proved from the
 adversary's certificate: an `isPPT_…` or `isOraclePPT_…` lemma, or the model's efficiency
 certificate (for example a circuit-size bound). Prove the asymptotic theorem by applying the
-assumption to the reduction through that witness, as `DDH.elGamalINDCPA` does
+assumption to the reduction through that witness, as `DDH.kemINDCPA_hashedElGamalEncapsProb` does
 ([pattern](../manual/programs-crypto-and-probability/security-games-and-primitives.md#security-theorems-and-efficiency-witnesses)).
 Asymptotic statements come first; concrete runtime maps are secondary (#4088). A concrete bound
 `Adv(A) ≤ f(Adv(B_A))` is a lemma, not a security theorem. A lemma that takes a bound on `B_A`'s

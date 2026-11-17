@@ -10,9 +10,12 @@ module
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform.Translate
+import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Three-Message DDH 1-out-of-2 Oblivious Transfer
@@ -499,10 +502,7 @@ theorem ddhOT_output_of_mem_support (g : G) (q : ℕ) [NeZero q] [Module (ZMod q
       ((i : Fin 2) → OTOut G i)}
     (hr : r ∈ ((ddhOTProtocol g q).evalWith noOracleWorld x).support) :
     r.2 = otOutputs x := by
-  rw [evalWith_ddhOT, PMF.mem_support_bind_iff] at hr
-  obtain ⟨c₀, _, hr⟩ := hr
-  rw [PMF.mem_support_map_iff] at hr
-  obtain ⟨b, _, rfl⟩ := hr
+  supp_cases hr [evalWith_ddhOT]
   rfl
 
 /-! ### Perfect privacy against a corrupted sender -/
@@ -617,78 +617,41 @@ coins instead. -/
   let s ← ProbComp.uniform (ZMod q)
   ddhOTReductionWithCoins g x D b r s u u' w_ddh
 
-/-- Collapsing `(r₁, s₁)` into a single uniform exponent `k = r₁ + a * s₁` when `(r₀, s₀)` is on
-the chosen branch. -/
-private theorem bind_unchosen_right {q : ℕ} [NeZero q] (a : ZMod q)
-    (f : ZMod q → ZMod q → ZMod q → PMF Bool) :
-    (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ =>
-            f r₀ s₀ (r₁ + a * s₁))))) =
-    (PMF.uniformOfFintype (ZMod q)).bind (fun k =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ =>
-          f r₀ s₀ k))) := by
-  have hinner : ∀ r₀ s₀ : ZMod q,
-      (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ => f r₀ s₀ (r₁ + a * s₁))) =
-      (PMF.uniformOfFintype (ZMod q)).bind (fun k => f r₀ s₀ k) := fun r₀ s₀ => by
-    rw [PMF.bind_comm]
-    have hconst : ∀ s₁ : ZMod q,
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ => f r₀ s₀ (r₁ + a * s₁)) =
-        (PMF.uniformOfFintype (ZMod q)).bind (fun k => f r₀ s₀ k) := fun s₁ => by
-      exact PMF.uniformOfFintype_bind_add_right (a * s₁) (f r₀ s₀)
-    simp_rw [hconst]
-    ext c
-    simp only [PMF.bind_apply, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  simp_rw [hinner]
-  trans (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-    (PMF.uniformOfFintype (ZMod q)).bind (fun k =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ => f r₀ s₀ k)))
-  · refine congrArg (PMF.bind _) (funext fun r₀ => ?_)
-    rw [PMF.bind_comm]
-  · rw [PMF.bind_comm]
+/-- For independent uniform `r, s : ZMod q`, `r + a * s` is uniform on `ZMod q`. -/
+private theorem uniform_bind_add_mul {q : ℕ} [NeZero q] {α : Type} (a : ZMod q)
+    (f : ZMod q → PMF α) :
+    ((PMF.uniformOfFintype (ZMod q)).bind fun r =>
+      (PMF.uniformOfFintype (ZMod q)).bind fun s => f (r + a * s)) =
+      (PMF.uniformOfFintype (ZMod q)).bind f := by
+  rw [PMF.bind_comm]
+  simp only [PMF.uniformOfFintype_bind_add_right, PMF.bind_const]
 
-/-- Collapsing `(r₀, s₀)` into a single uniform exponent `k = r₀ + a * s₀` when `(r₁, s₁)` is on
-the chosen branch. -/
-private theorem bind_unchosen_left {q : ℕ} [NeZero q] (a : ZMod q)
-    (f : ZMod q → ZMod q → ZMod q → PMF Bool) :
-    (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ =>
-            f r₁ s₁ (r₀ + a * s₀))))) =
-    (PMF.uniformOfFintype (ZMod q)).bind (fun k =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ =>
-          f r₁ s₁ k))) := by
-  rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod q))]
-  have hconst : ∀ s₀ : ZMod q,
-      (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ => f r₁ s₁ (r₀ + a * s₀)))) =
-      (PMF.uniformOfFintype (ZMod q)).bind (fun k =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ => f r₁ s₁ k))) := fun s₀ => by
-    exact PMF.uniformOfFintype_bind_add_right (a * s₀) fun k =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun r₁ =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun s₁ => f r₁ s₁ k
-  simp_rw [hconst]
-  ext c
-  simp only [PMF.bind_apply, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-
-/-- Moving the fifth independent bind over `p` to the front of four binds over `p`. -/
-private theorem bind_four_comm {α β : Type} (p : PMF α) (f : α → α → α → α → α → PMF β) :
-    p.bind (fun r₀ => p.bind (fun s₀ => p.bind (fun r₁ => p.bind (fun s₁ => p.bind (fun b =>
-      f r₀ s₀ r₁ s₁ b))))) =
-    p.bind (fun b => p.bind (fun r₀ => p.bind (fun s₀ => p.bind (fun r₁ => p.bind (fun s₁ =>
-      f r₀ s₀ r₁ s₁ b))))) := by
-  simp_rw [PMF.bind_comm p p (fun s₁ b => f _ _ _ s₁ b),
-    PMF.bind_comm p p (fun r₁ b => p.bind fun s₁ => f _ _ r₁ s₁ b),
-    PMF.bind_comm p p (fun s₀ b => p.bind fun r₁ => p.bind fun s₁ => f _ s₀ r₁ s₁ b),
-    PMF.bind_comm p p (fun r₀ b =>
-      p.bind fun s₀ => p.bind fun r₁ => p.bind fun s₁ => f r₀ s₀ r₁ s₁ b)]
+/-- Collapsing the unchosen branch's two uniform exponents `(r', s')` into a single uniform
+exponent `k = r' + a * s'` and reordering `(b, r, s, k)` to `(k, b, r, s)`. -/
+private theorem uniform_bind_branch {q : ℕ} [NeZero q] {α : Type} (a : ZMod q) (σ : Bool)
+    (f : ZMod q → ZMod q → ZMod q → ZMod q → PMF α) :
+    ((PMF.uniformOfFintype (ZMod q)).bind fun r₀ =>
+      (PMF.uniformOfFintype (ZMod q)).bind fun s₀ =>
+        (PMF.uniformOfFintype (ZMod q)).bind fun r₁ =>
+          (PMF.uniformOfFintype (ZMod q)).bind fun s₁ =>
+            (PMF.uniformOfFintype (ZMod q)).bind fun b =>
+              if σ then f b r₁ s₁ (r₀ + a * s₀) else f b r₀ s₀ (r₁ + a * s₁)) =
+    (PMF.uniformOfFintype (ZMod q)).bind fun k =>
+      (PMF.uniformOfFintype (ZMod q)).bind fun b =>
+        (PMF.uniformOfFintype (ZMod q)).bind fun r =>
+          (PMF.uniformOfFintype (ZMod q)).bind fun s => f b r s k := by
+  cases σ <;> simp only [Bool.false_eq_true, ↓reduceIte]
+  · conv_lhs =>
+      enter [2, r₀, 2, s₀]
+      rw [uniform_bind_add_mul a fun k =>
+        (PMF.uniformOfFintype (ZMod q)).bind fun b => f b r₀ s₀ k]
+    pmf_swap
+  · conv_lhs =>
+      rw [uniform_bind_add_mul a fun k =>
+        (PMF.uniformOfFintype (ZMod q)).bind fun r₁ =>
+          (PMF.uniformOfFintype (ZMod q)).bind fun s₁ =>
+            (PMF.uniformOfFintype (ZMod q)).bind fun b => f b r₁ s₁ k]
+    pmf_swap
 
 /-- The real execution for a corrupted receiver is the real DDH world
 `Cslib.Crypto.ddhRealExperiment q g` run on `ddhOTReduction`. -/
@@ -699,74 +662,32 @@ theorem real_receiver_eq_ddhRealExperiment (g : G) (q : ℕ) [NeZero q] [Module 
       ((i : Fin 2) → OTOut G i) → ProbComp Bool) :
     ((ddhOTProtocol g q).realJoint noOracleWorld {1} x).bind (fun r => ProbComp.eval (D r)) =
       ProbComp.eval (ddhRealExperiment q g (ddhOTReduction g q x D)) := by
-  rw [Protocol.realJoint, evalWith_ddhOT, PMF.bind_map]
-  simp only [sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReduction, ddhOTReductionWithCoins,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map]
-  refine congrArg (PMF.bind _) (funext fun a => ?_)
+  rw [Protocol.realJoint, evalWith_ddhOT]
+  simp only [pmf_norm, sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReduction,
+    ddhOTReductionWithCoins, ProbComp.eval_uniform, Prod.map, id, restrict_singleton,
+    ddhOTReceived_one]
+  congr 1 with a : 1
   let σ : Bool := x 1
-  trans (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
-    (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-      (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ =>
-            ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
-              (ddhOTSenderReply g (x 0) (a, r₀, s₀, r₁, s₁)
-                (ddhOTReceiverMsg g σ b (a • g)))), otOutputs x)))))))
-  · rw [bind_four_comm]
-    refine congrArg (PMF.bind _) (funext fun b =>
-      congrArg (PMF.bind _) (funext fun r₀ =>
-        congrArg (PMF.bind _) (funext fun s₀ =>
-          congrArg (PMF.bind _) (funext fun r₁ =>
-            congrArg (PMF.bind _) (funext fun s₁ => ?_)))))
-    simp only [Function.comp_apply, Prod.map, id, restrict_singleton, ddhOTReceived_one]
-    rfl
-  · conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod q))]
-    refine congrArg (PMF.bind _) (funext fun b => ?_)
-    change (PMF.uniformOfFintype (ZMod q)).bind (fun r₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun s₀ =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun r₁ =>
-            (PMF.uniformOfFintype (ZMod q)).bind (fun s₁ =>
-              ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
-                (ddhOTSenderReply g (x 0) (a, r₀, s₀, r₁, s₁)
-                  (ddhOTReceiverMsg g σ b (a • g)))), otOutputs x)))))) =
-      (PMF.uniformOfFintype (ZMod q)).bind (fun k =>
-        (PMF.uniformOfFintype (ZMod q)).bind (fun r =>
-          (PMF.uniformOfFintype (ZMod q)).bind (fun s =>
-            let u := a • g
-            let u' := k • g
-            let w_ddh := (a * k) • g
-            let e_σ := r • g + s • u
-            let m_σ := if σ then (x 0).2 else (x 0).1
-            let m_other := if σ then (x 0).1 else (x 0).2
-            let c_σ := b • e_σ + m_σ
-            let c_other := w_ddh - b • u' + m_other
-            let reply := if σ then ((u', c_other), (e_σ, c_σ)) else ((e_σ, c_σ), (u', c_other))
-            ProbComp.eval (D (singletonView (ddhOTReceiverView σ b u reply), otOutputs x)))))
-    simp only [ddhOTSenderReply, ddhOTReceiverMsg_add, ↓reduceIte]
-    cases σ
-    · simp only [ddhOTReceiverMsg, ↓reduceIte,
-        Bool.false_eq_true, chosen_branch_eq, unchosen_branch_eq]
-      exact bind_unchosen_right a (fun r₀ s₀ k =>
-        let u := a • g
-        let u' := k • g
-        let w_ddh := (a * k) • g
-        let e_σ := r₀ • g + s₀ • u
-        let c_σ := b • e_σ + (x 0).1
-        let c_other := w_ddh - b • u' + (x 0).2
-        ProbComp.eval (D (singletonView (ddhOTReceiverView false b u
-          ((e_σ, c_σ), (u', c_other))), otOutputs x)))
-    · simp only [ddhOTReceiverMsg, ↓reduceIte,
-        chosen_branch_eq, unchosen_branch_eq]
-      exact bind_unchosen_left a (fun r₁ s₁ k =>
-        let u := a • g
-        let u' := k • g
-        let w_ddh := (a * k) • g
-        let e_σ := r₁ • g + s₁ • u
-        let c_σ := b • e_σ + (x 0).2
-        let c_other := w_ddh - b • u' + (x 0).1
-        ProbComp.eval (D (singletonView (ddhOTReceiverView true b u
-          ((u', c_other), (e_σ, c_σ))), otOutputs x)))
+  let m : G × G := x 0
+  refine Eq.trans ?_ (uniform_bind_branch a σ fun b r s k =>
+    let u := a • g
+    let u' := k • g
+    let w_ddh := (a * k) • g
+    let e_σ := r • g + s • u
+    let m_σ := if σ then m.2 else m.1
+    let m_other := if σ then m.1 else m.2
+    let c_σ := b • e_σ + m_σ
+    let c_other := w_ddh - b • u' + m_other
+    let reply := if σ then ((u', c_other), (e_σ, c_σ)) else ((e_σ, c_σ), (u', c_other))
+    ProbComp.eval (D (singletonView (ddhOTReceiverView σ b u reply), otOutputs x)))
+  congr 1 with r₀ : 1; congr 1 with s₀ : 1; congr 1 with r₁ : 1; congr 1 with s₁ : 1
+  congr 1 with b : 1
+  change ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
+      (ddhOTSenderReply g m (a, r₀, s₀, r₁, s₁)
+        (ddhOTReceiverMsg g σ b (a • g)))), otOutputs x)) = _
+  simp only [ddhOTSenderReply, ddhOTReceiverMsg_add, ↓reduceIte]
+  cases σ <;> simp only [ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte,
+    chosen_branch_eq, unchosen_branch_eq]
 
 /-- The simulated view of a corrupted receiver (`{1}`) on exponents `a, b, r, s, k, c`: given the
 receiver's choice bit `σ` and ideal output `m_σ`, the first message is `u = a • g`, the chosen
@@ -807,13 +728,7 @@ private theorem bind_two_three_comm {α β : Type} (p : PMF α) (f : α → α �
       f x₁ x₂ y₁ y₂ y₃))))) =
     p.bind (fun y₁ => p.bind (fun y₂ => p.bind (fun y₃ => p.bind (fun x₁ => p.bind (fun x₂ =>
       f x₁ x₂ y₁ y₂ y₃))))) := by
-  simp_rw [PMF.bind_comm p p (fun x₂ y₁ => p.bind fun y₂ => p.bind fun y₃ => f _ x₂ y₁ y₂ y₃),
-    PMF.bind_comm p p (fun x₂ y₂ => p.bind fun y₃ => f _ x₂ _ y₂ y₃),
-    PMF.bind_comm p p (fun x₂ y₃ => f _ x₂ _ _ y₃),
-    PMF.bind_comm p p (fun x₁ y₁ =>
-      p.bind fun y₂ => p.bind fun y₃ => p.bind fun x₂ => f x₁ x₂ y₁ y₂ y₃),
-    PMF.bind_comm p p (fun x₁ y₂ => p.bind fun y₃ => p.bind fun x₂ => f x₁ x₂ _ y₂ y₃),
-    PMF.bind_comm p p (fun x₁ y₃ => p.bind fun x₂ => f x₁ x₂ _ _ y₃)]
+  pmf_swap
 
 omit [DecidableEq G] in
 /-- When `g` generates `G`, the ideal execution for a corrupted receiver is the random DDH world
