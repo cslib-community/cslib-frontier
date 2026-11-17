@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
 import CslibFrontier.Tactic.Realize
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # `Memory.Prog` Slab Demotion Loop (`demoteStepProg`, `demoteLoopProg`, `demoteSlabProg`)
@@ -195,7 +195,7 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hgm0_pos : 1 ≤ gm 0 := by omega
   have hp_last_lt : p_last < gm 0 := by omega
   have htop_idx_lt : 4 + 3 * b + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
-  have h0_idx_lt : 0 < globalMetaLen n_max := by layout_omega
+  have h0_idx_lt : 0 < globalMetaLen n_max := by wram_omega
   have hg_last_lt : g_last < n_max := by
     dsimp only [g_last, p_last, u]; omega
   have hg_del_lt : g_del < n_max := by
@@ -284,11 +284,11 @@ theorem demoteStepProg_effect {U V w n_max h_space base b k : ℕ}
     by rw [hl5, hl4, hl3, hl2, hl1],
     by rw [hg5, hg4, hg3, hg2, hg1]⟩
   intro a ha
-  rw [hout5 a (by layout_omega [ha]),
-    hout4 a (by layout_omega [ha]),
-    hout3 a (by layout_omega [ha]),
-    hout2 a (by layout_omega [ha]),
-    hout1 a (by layout_omega [ha])]
+  rw [hout5 a (by wram_omega [ha]),
+    hout4 a (by wram_omega [ha]),
+    hout3 a (by wram_omega [ha]),
+    hout2 a (by wram_omega [ha]),
+    hout1 a (by wram_omega [ha])]
 
 /-- Bounds for the reads and writes of `demoteStepProg`, stated on the results of its reads,
 together with the precondition (apart from `DictEnvGen`) of its `appendTailItemProg` call; shared
@@ -351,7 +351,7 @@ private theorem demoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
   have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb (by omega)
   have hgm0_pos : 1 ≤ gm 0 := by omega
   have htop_idx_lt : 4 + 3 * b + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
-  have h0_idx_lt : 0 < globalMetaLen n_max := by layout_omega
+  have h0_idx_lt : 0 < globalMetaLen n_max := by wram_omega
   have hr_cap : gm (gmRIdx b) < tailCapPerBucket n_max := by
     unfold tailCapPerBucket; rw [ite_eq_right hb0, hrb]; omega
   have hepdel : e_pdel = gm (gmSlabTopIdx b) := clientResult_readGMProg s htop_idx_lt
@@ -923,8 +923,8 @@ theorem slotOf_gmPopSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ �
         unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
       have hd_lt : b' * tailCapPerBucket n_max + r < maxTailItems n_max :=
         mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap
-      rw [hf.2.2.2.2 _ (by layout_omega)
-        (by layout_omega)]
+      rw [hf.2.2.2.2 _ (by wram_omega)
+        (by wram_omega)]
       rw [harr.demoted_tail r hr_lt, htop_eq0]
       have hs_eq : j / slabSize n_max = gm₀ (gmQIdx b') - 1 := by
         rw [hj_eq, Nat.mul_comm, Nat.mul_add_div hK_pos,
@@ -950,8 +950,7 @@ theorem slotOf_gmPopSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ �
       have hr_cap : r < tailCapPerBucket n_max := lt_of_lt_of_le hr_lt (htail₀.r_le b' hb')
       have hd_lt : b' * tailCapPerBucket n_max + r < maxTailItems n_max :=
         mul_tailCapPerBucket_add_lt_maxTailItems hb' hr_cap
-      rw [hf.2.2.2.2 _ (by layout_omega)
-        (by layout_omega),
+      rw [hf.2.2.2.2 _ (by wram_omega) (by wram_omega),
         htail_other b' hb' hbeq r hr_lt]
       exact harr.other_tails _ (htail₀.ptr_lt b' hb' r hr_lt)
 
@@ -1060,7 +1059,7 @@ theorem demoteSlabProg_effect {U V w n_max h_space base b : ℕ}
   refine ⟨by rw [hst, hf_pop, hloopK.frontier_eq],
     fun a ha => by
       have ha' : ¬(base + offGM U V w n_max h_space ≤ a ∧
-          a < base + totalSpace U V w n_max h_space) := by layout_omega [ha]
+          a < base + totalSpace U V w n_max h_space) := by wram_omega [ha]
       rw [hst, hout_pop a ha', hloopK.mem_out a ha],
     by rw [hst, hl_pop, hloopK.lm_eq],
     hinv2, hqb, hrb, hother, hbc,

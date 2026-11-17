@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.StorageNode
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRouting
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Multi-Level Dictionary Tree State, Section 5.6 Metadata, and Subtree Capacity Laws
@@ -1146,7 +1146,7 @@ theorem rootKeyCount_le_rootValPoolCap
   have hhi : (P.paddedDom d).card ≤ P.cap := by
     have := hwf.goodSeeds.1.2
     simpa [nHigh] using this
-  layout_omega
+  wram_omega
 
 end TreeState
 

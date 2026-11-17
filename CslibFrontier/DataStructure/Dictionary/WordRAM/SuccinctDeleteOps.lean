@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctBucketOps
 import CslibFrontier.Tactic.Realize
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bucket-Level Dictionary Deletion (`deletePrepProg`, `deleteFinishProg`) in `Memory.Prog`
@@ -813,7 +813,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         refine ⟨by rw [hf_pop, hf_pr, hf_c, hf_u2, hf_u1],
           fun a ha => by
             have ha_lm : ¬(base + offLM U V w₀ n_max h_space ≤ a ∧
-                a < base + offGM U V w₀ n_max h_space) := by layout_omega [ha]
+                a < base + offGM U V w₀ n_max h_space) := by wram_omega [ha]
             rw [hout_pop a ha, hout_pr a ha_lm, hout_c a ha, hout_u2 a ha_lm, hout_u1 a ha_lm],
           hslot_pop, htot_pop, hbc_b_pop, hbc_other_pop,
           fun b' hb' hne j hj => ?_,
@@ -928,7 +928,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         refine ⟨by rw [hf_pop, hf_u1],
           fun a ha => by
             have ha_lm : ¬(base + offLM U V w₀ n_max h_space ≤ a ∧
-                a < base + offGM U V w₀ n_max h_space) := by layout_omega [ha]
+                a < base + offGM U V w₀ n_max h_space) := by wram_omega [ha]
             rw [hout_pop a ha, hout_u1 a ha_lm],
           hslot_pop, htot_pop, hbc_b_pop, hbc_other_pop,
           fun b' hb' hne j hj => ?_,

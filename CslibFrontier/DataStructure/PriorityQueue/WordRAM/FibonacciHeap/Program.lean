@@ -10,8 +10,8 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Basic
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Forest
 public import CslibFrontier.Computability.WordRAM.SymbolicExec
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fibonacci Heap: Static-Array Word-RAM Program and State Representation
@@ -164,11 +164,11 @@ def inputReg (i : Fin rFib) : Bool :=
   decide (17 ≤ i.val)
 
 /-- Static memory footprint on `n` handles: `9 * n + 1` words. -/
-@[layout]
+@[wram_arith]
 def space (n : ℕ) : ℕ :=
   9 * n + 1
 
-theorem space_lower (n : ℕ) : n + 1 ≤ space n := by layout_omega
+theorem space_lower (n : ℕ) : n + 1 ≤ space n := by wram_omega
 
 /-! ## Structured `Basis.exact` Fibonacci-heap subprograms -/
 
@@ -743,7 +743,7 @@ theorem BaseRegs.fits_stop {n base w : ℕ} {x : Data rFib} (hb : x.Bounded w)
 /-- A value at most `base + 9 * n`, such as an address in one of the nine arrays, fits a word. -/
 theorem BaseRegs.fits_of_le {n base w : ℕ} {x : Data rFib} (hb : x.Bounded w)
     (hbr : BaseRegs n base x) (v : ℕ) (hv : v ≤ base + 9 * n) : Fits w v :=
-  (hbr.fits_stop hb).of_le (by layout_omega)
+  (hbr.fits_stop hb).of_le (by wram_omega)
 
 theorem BaseRegs.set_non_base {n base : ℕ} {x : Data rFib} (hbr : BaseRegs n base x)
     {d : Fin rFib} (hd : 13 ≤ d.val) (v : ℕ) : BaseRegs n base (x.set d v) := by

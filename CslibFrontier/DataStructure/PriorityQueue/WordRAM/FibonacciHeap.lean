@@ -12,7 +12,7 @@ public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Cu
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Consolidate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Decode
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Static-array Word-RAM Fibonacci heap
@@ -392,7 +392,7 @@ private theorem initRegs_bounded {n base w : ℕ} (hS : Fits w (base + space n))
   refine ⟨fun i => ?_, hmem⟩
   simp only [initRegs]
   split_ifs
-  · exact hS.of_le (by layout_omega)
+  · exact hS.of_le (by wram_omega)
   · exact hS.of_le (Nat.le_add_right base _)
   · exact hS.of_le (Nat.zero_le _)
 

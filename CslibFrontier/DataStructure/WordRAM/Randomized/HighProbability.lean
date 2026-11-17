@@ -12,8 +12,8 @@ public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # With-High-Probability Word-RAM State-Transition Implementations
@@ -756,12 +756,13 @@ variable {B B' : Basis} {r_ds k_init w base : ℕ}
   {params : Fin k_init → ℕ} {s₀ : D.State}
 
 /-- Deterministic worst-case body instruction bound for `P.initFresh` (`spanTime + setupTime`). -/
-@[expose, layout] def initTime (C : HighProbStateTransitionImpl P D w base params s₀) : ℕ :=
+@[expose, wram_arith] def initTime (C : HighProbStateTransitionImpl P D w base params s₀) : ℕ :=
   C.spanTime + C.setupTime
 
 /-- Deterministic worst-case body instruction bound for `P.initClear`
 (`initTime + (4 * space + 6)`). -/
-@[expose, layout] def initClearTime (C : HighProbStateTransitionImpl P D w base params s₀) : ℕ :=
+@[expose, wram_arith]
+def initClearTime (C : HighProbStateTransitionImpl P D w base params s₀) : ℕ :=
   C.initTime + (4 * C.space + 6)
 
 /-- Extract next data structure state from a step outcome pair `((seed, data), steps)`. -/
@@ -1192,7 +1193,7 @@ theorem initFresh_exec (C : HighProbStateTransitionImpl P D w base params s₀) 
     obtain ⟨z₂, hz₂, hfin⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
     cases OracleComp.eq_of_mem_supportWith_pure hfin
     have h2 := hT₀ z₂ hz₂
-    layout_omega
+    wram_omega
   · rw [heval₀]
     simp [pure_bind, ProbComp.eval_map]
 
@@ -1297,7 +1298,7 @@ theorem initClear_exec (C : HighProbStateTransitionImpl P D w base params s₀) 
     obtain ⟨z₂, hz₂, hfin⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
     cases OracleComp.eq_of_mem_supportWith_pure hfin
     have h3 := hT₀ z₂ hz₂
-    layout_omega
+    wram_omega
   · rw [heval₀]
     dsimp only [m_tail]
     simp [pure_bind, ProbComp.eval_map]

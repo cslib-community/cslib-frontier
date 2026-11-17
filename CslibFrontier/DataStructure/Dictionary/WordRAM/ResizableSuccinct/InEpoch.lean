@@ -11,7 +11,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.M
 public import CslibFrontier.Computability.WordRAM.Resizable.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # In-Epoch Resizable Succinct Compacted Representation and In-Epoch Primitives (Milestone M3a)
@@ -180,7 +180,7 @@ theorem compactedEpochWords_le_succinctWords {U V w N n : ℕ}
             11 * n * Dynamic.logLogFactor n + 1344 * n * Dynamic.logLogFactor n := by ring
         omega
       have hdiv := Nat.div_le_div_right (c := w) hnum
-      layout_omega
+      wram_omega
 
 /-- **Static `1 · OPT` bit-space bound (`w_mul_compactedEpochWords_le_bits`):**
 multiplying `compactedEpochWords U V w N n` by `w` yields at most

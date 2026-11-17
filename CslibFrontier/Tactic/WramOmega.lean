@@ -7,53 +7,55 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Tactic.LayoutOmega.Init
+public import CslibFrontier.Tactic.WramOmega.Init
 public meta import Lean.Elab.Tactic.Omega
 
 /-!
-# Linear arithmetic over memory layouts
+# Linear arithmetic over the definitions of a word-RAM development
 
-A memory layout is a chain of definitions of addresses and sizes, such as
-`tableBase base = base + 20` and `keysBase base n = tableBase base + tableSize n`. `omega` reads
-each application of such a definition as an unknown number, so a proof that compares addresses
-first names the definitions to unfold, and has to be revisited when the layout gains a region.
+A word-RAM development states its arithmetic through chains of definitions: addresses and sizes of
+a memory layout, such as `tableBase base = base + 20` and
+`keysBase base n = tableBase base + tableSize n`, bounds on steps and cost, and numeric parameters.
+`omega` reads each application of such a definition as an unknown number, so a proof that compares
+addresses first names the definitions to unfold, and has to be revisited when the layout gains a
+region.
 
-`layout_omega` proves such a goal from the layout itself. The definitions are tagged `@[layout]`
-where they are written, and the tactic unfolds the tagged definitions that occur, also those in
-the bodies of tagged definitions, before it runs `omega`. It unfolds them in the goal first, which
-is what `unfold tableBase keysBase; omega` does by hand. When `omega` then fails, it also unfolds
-the local definitions (`set S := n + 1`), and reads the arithmetic hypotheses unfolded in the same
-way, as `dsimp only [tableBase, keysBase, S] at *; omega` does. The hypotheses in the context are
-not changed.
+`wram_omega` proves such a goal from the definitions themselves. They are tagged `@[wram_arith]`
+where they are written (the attribute's docstring says which definitions are tagged), and the
+tactic unfolds the tagged definitions that occur, also those in the bodies of tagged definitions,
+before it runs `omega`. It unfolds them in the goal first, which is what
+`unfold tableBase keysBase; omega` does by hand. When `omega` then fails, it also unfolds the local
+definitions (`set S := n + 1`), and reads the arithmetic hypotheses unfolded in the same way, as
+`dsimp only [tableBase, keysBase, S] at *; omega` does. The hypotheses in the context are not
+changed.
 
 A tagged definition that returns a proposition, such as the word-size bound
 `Cslib.WordRAM.Fits w v`, is unfolded in the same way, and each power of two `2 ^ e` the tactic
 meets is known to be positive, which `omega` does not see by itself. So a word-size bound on an
-address follows from the bound on the end of the layout.
+address follows from the bound on the end of the layout. The tactic `fits` of
+`CslibFrontier.Tactic.Fits` proves a word-size bound that needs no tagged definition unfolded;
+`wram_omega` is for the other goals, a word-size bound through tagged definitions among them.
+
+Every tagged definition met is unfolded, and a call cannot keep one folded: where a bound holds
+only with a definition folded, the proof stays `unfold a b; omega`.
 
 ## Main definitions
 
-* `layout_omega`: prove a linear arithmetic goal, unfolding the `@[layout]` definitions that occur.
+* `wram_omega`: prove a linear arithmetic goal, unfolding the `@[wram_arith]` definitions that
+  occur.
 -/
 
 public meta section
 
-namespace Cslib.Tactic.LayoutOmega
+namespace Cslib.Tactic.WramOmega
 
 open Lean Meta Elab Tactic
 
-/-- Whether `layout_omega` warns when it unfolded nothing, so that `omega` alone proves the
-goal. -/
-register_option linter.unnecessaryLayoutOmega : Bool := {
+/-- Whether `wram_omega` warns when it unfolded nothing, so that `omega` alone proves the goal. -/
+register_option linter.unnecessaryWramOmega : Bool := {
   defValue := true
-  descr := "warn when `layout_omega` unfolds no `@[layout]` definition and `omega` proves the goal"
+  descr := "warn when `wram_omega` unfolds no `@[wram_arith]` definition: `omega` proves the goal"
 }
-
-/-- Whether `e` is a power of two `2 ^ k` on natural numbers. -/
-private def isPowerOfTwo (e : Expr) : Bool :=
-  match_expr e with
-  | HPow.hPow α β _ _ b _ => α.isConstOf ``Nat && β.isConstOf ``Nat && b.nat? == some 2
-  | _ => false
 
 /-- Whether `omega` compares numbers of type `α`. -/
 private def isNumberType (α : Expr) : Bool :=
@@ -61,7 +63,7 @@ private def isNumberType (α : Expr) : Bool :=
 
 /-- Whether `omega` reads a hypothesis of type `type` once the tagged predicates are unfolded: a
 comparison of numbers, a tagged predicate, or a propositional combination that contains one. -/
-private partial def isArithmetic (layouts : NameMap Kind) (type : Expr) : Bool :=
+private partial def isArithmetic (tagged : NameMap Kind) (type : Expr) : Bool :=
   match_expr type with
   | Eq α _ _ => isNumberType α
   | Ne α _ _ => isNumberType α
@@ -70,50 +72,51 @@ private partial def isArithmetic (layouts : NameMap Kind) (type : Expr) : Bool :
   | GE.ge α _ _ _ => isNumberType α
   | GT.gt α _ _ _ => isNumberType α
   | Dvd.dvd α _ _ _ => isNumberType α
-  | Not p => isArithmetic layouts p
-  | And p q => isArithmetic layouts p || isArithmetic layouts q
-  | Or p q => isArithmetic layouts p || isArithmetic layouts q
-  | Iff p q => isArithmetic layouts p || isArithmetic layouts q
+  | Not p => isArithmetic tagged p
+  | And p q => isArithmetic tagged p || isArithmetic tagged q
+  | Or p q => isArithmetic tagged p || isArithmetic tagged q
+  | Iff p q => isArithmetic tagged p || isArithmetic tagged q
   | _ =>
     match type with
     | .forallE _ p q _ =>
-      !q.hasLooseBVars && (isArithmetic layouts p || isArithmetic layouts q)
-    | .mdata _ b => isArithmetic layouts b
+      !q.hasLooseBVars && (isArithmetic tagged p || isArithmetic tagged q)
+    | .mdata _ b => isArithmetic tagged b
     | _ =>
       match type.getAppFn with
-      | .const name _ => layouts.find? name == some .predicate
+      | .const name _ => tagged.find? name == some .predicate
       | _ => false
 
-/-- What `layout_omega` unfolds. -/
+/-- What `wram_omega` unfolds. -/
 private structure Context where
-  /-- The active `@[layout]` definitions. -/
-  layouts : NameMap Kind
+  /-- The active `@[wram_arith]` definitions. -/
+  tagged : NameMap Kind
   /-- The local definitions (`set x := …`) to unfold. -/
   locals : FVarIdSet
 
-/-- What `layout_omega` has met so far. -/
+/-- What `wram_omega` has met so far. -/
 private structure State where
   /-- The tagged definitions unfolded, in the order met. -/
   unfolded : Array Name := #[]
   /-- The tagged definitions met whose bodies are not visible here. -/
   hidden : Array Name := #[]
-  /-- Whether a local definition was unfolded or a field of a constructor was read. -/
+  /-- Whether a local definition was unfolded, a field of a constructor was read or a `let` was
+  reduced: `omega` alone does none of these inside a term. -/
   reduced : Bool := false
   /-- The powers of two met. -/
   powers : Std.HashSet Expr := {}
 
-/-- Unfolds terms, with the active `@[layout]` definitions. -/
+/-- Unfolds terms, with the active `@[wram_arith]` definitions. -/
 private abbrev UnfoldM := ReaderT Context <| StateRefT State MetaM
 
 /-- Whether `e` mentions something `ctx` unfolds. -/
 private def Context.mentions (ctx : Context) (e : Expr) : Bool :=
-  e.getUsedConstants.any ctx.layouts.contains ||
+  e.getUsedConstants.any ctx.tagged.contains ||
     (!ctx.locals.isEmpty && e.hasAnyFVar ctx.locals.contains)
 
 /-- The local definitions (`set x := …`): first those whose values mention a definition in
-`layouts`, directly or through an earlier local definition, then all of them. -/
-private def localDefinitions (layouts : NameMap Kind) : MetaM (FVarIdSet × FVarIdSet) := do
-  let mut ctx : Context := { layouts, locals := {} }
+`tagged`, directly or through an earlier local definition, then all of them. -/
+private def localDefinitions (tagged : NameMap Kind) : MetaM (FVarIdSet × FVarIdSet) := do
+  let mut ctx : Context := { tagged, locals := {} }
   let mut all : FVarIdSet := {}
   for d in ← getLCtx do
     if d.isImplementationDetail then continue
@@ -133,7 +136,7 @@ private partial def unfoldReducibleHead (e : Expr) : MetaM Expr := do
   unfoldReducibleHead ((← instantiateValueLevelParams info us).betaRev e.getAppRevArgs)
 
 /-- `t` with a field read from a constructor, as in `(Block.mk base n).base`, replaced by its
-value. A layout definition over a structure reads its fields, and `omega` does not reduce them. The
+value. A tagged definition over a structure reads its fields, and `omega` does not reduce them. The
 structure may be an abbreviation of a constructor application, as `L.keys` for
 `abbrev keys (L : Layout) : Block := ⟨L.base, L.n⟩`. -/
 private def reduceField? (t : Expr) : MetaM (Option Expr) := do
@@ -145,9 +148,9 @@ private def reduceField? (t : Expr) : MetaM (Option Expr) := do
   let some field ← projectCore? (← unfoldReducibleHead struct) info.i | return none
   return some (mkAppN field (args.extract (info.numParams + 1) args.size))
 
-/-- Unfold in `e` the layout definitions, those in their bodies, and the local definitions of the
-context, and read the fields of constructors. -/
-private def unfoldLayouts (e : Expr) : UnfoldM Expr := do
+/-- Unfold in `e` the tagged definitions, those in their bodies, and the local definitions of the
+context, read the fields of constructors, and reduce the `let`s that remain. -/
+private def unfoldTagged (e : Expr) : UnfoldM Expr := do
   let ctx ← read
   let reduce (t : Expr) : UnfoldM TransformStep := do
     let some t ← reduceField? t | return .continue
@@ -162,7 +165,7 @@ private def unfoldLayouts (e : Expr) : UnfoldM Expr := do
           return .visit ((← instantiateMVars value).betaRev t.getAppRevArgs)
       return .continue
     | .const name us =>
-      unless ctx.layouts.contains name do return .continue
+      unless ctx.tagged.contains name do return .continue
       let info ← getConstInfo name
       unless info.hasValue && info.levelParams.length == us.length do
         unless (← get).hidden.contains name do
@@ -173,7 +176,10 @@ private def unfoldLayouts (e : Expr) : UnfoldM Expr := do
       let value ← instantiateValueLevelParams info us
       return .visit (value.betaRev t.getAppRevArgs (useZeta := true))
     | _ => return .continue)
-  if (e.find? (·.isLet)).isSome then zetaReduce e (zetaDelta := false) else return e
+  -- `omega` reads a `let` inside a term as an unknown.
+  unless (e.find? (·.isLet)).isSome do return e
+  modify fun s => { s with reduced := true }
+  zetaReduce e (zetaDelta := false)
 
 /-- Record the powers of two in `e`. -/
 private def recordPowers (e : Expr) : UnfoldM Unit :=
@@ -186,11 +192,11 @@ private def powerFacts : UnfoldM (Array Expr) :=
 
 /-- Whether `omega` reads a hypothesis of type `type`, up to unfolding reducible definitions. -/
 private def readByOmega (type : Expr) : UnfoldM Bool := do
-  let layouts := (← read).layouts
-  if isArithmetic layouts type then return true
+  let tagged := (← read).tagged
+  if isArithmetic tagged type then return true
   let .const name _ := type.getAppFn | return false
   unless ← isReducible name do return false
-  return isArithmetic layouts (← whnfR type)
+  return isArithmetic tagged (← whnfR type)
 
 /-- Close the goal `g` with `omega`, run on `facts` and on the hypotheses other than `replaced`.
 When `omega` fails, the state is restored and its error is returned. -/
@@ -211,42 +217,56 @@ private def omegaWith (g : MVarId) (replaced : FVarIdSet) (facts : Array Expr) :
     saved.restore
     return some ex
 
-/-- `layout_omega` proves a goal of linear arithmetic over `ℕ` and `ℤ` about a memory layout: it
-unfolds the definitions tagged `@[layout]`, also those in the bodies of tagged definitions, and
-runs `omega`. Tagged predicates, such as the word-size bound `Cslib.WordRAM.Fits`, are unfolded in
-the same way, a field read from a structure given by its constructor is replaced by its value, and
-every power of two `2 ^ e` met is known to be positive.
+/-- `wram_omega` proves a goal of linear arithmetic over `ℕ` and `ℤ` about a word-RAM
+development: it unfolds the definitions tagged `@[wram_arith]` (addresses, sizes, cost bounds and
+numeric parameters), also those in the bodies of tagged definitions, and runs `omega`. Tagged
+predicates, such as the word-size bound `Cslib.WordRAM.Fits`, are unfolded in the same way, a field
+read from a structure given by its constructor is replaced by its value, and every power of two
+`2 ^ e` met is known to be positive.
 
 The tactic first unfolds the goal only, as `unfold a b; omega` does. When `omega` then fails, it
 also unfolds the local definitions (`set S := n + 1`) and reads unfolded the arithmetic hypotheses
 that mention a tagged or a local definition, as `dsimp only [a, b, S] at *; omega` does; the
 hypotheses in the context are not changed.
 
-`layout_omega [h₁, h₂]` also uses the statements of the terms `h₁` and `h₂`, unfolded like the
-goal. Use it for facts `omega` cannot derive, such as bounds on products, and to name the
-hypotheses about the layout that the goal follows from: `omega` is then run once, on a smaller
-problem than the one with every hypothesis unfolded.
+`wram_omega [h₁, h₂]` also uses the statements of the terms `h₁` and `h₂`, unfolded like the goal.
+Use it for facts `omega` cannot derive, such as bounds on products, and to name the hypotheses
+that the goal follows from: `omega` is then run once, on a smaller problem than the one with every
+hypothesis unfolded.
+
+Use `fits` for a word-size bound `Fits w v` that needs no tagged definition unfolded. `wram_omega`
+is for the other goals: a word-size bound that follows through tagged definitions, as
+`Fits w (keysBase base n + i)` from `Fits w (base + space n)`, and a goal of another shape that
+uses hypotheses `Fits w v`, which `fits` refuses.
+
+The tactic unfolds every tagged definition it meets; a call cannot keep one folded, and an
+untagged definition stays an unknown. Unfolding can lose a bound that holds only with the
+definition folded, as when its body divides by a variable. The call then fails, and the proof is
+`unfold a b; omega` with the names it needs, as in
+`Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.compactedEpochWords_mono`. For the same
+reason a new `@[wram_arith]` tag can make an existing call fail when its module is built; a call
+never proves a different statement.
 
 When `omega` fails, the error lists the definitions that were unfolded and the tagged definitions
 whose bodies are not visible in the current module. When nothing was unfolded and `omega` proves
-the goal, the linter `linter.unnecessaryLayoutOmega` asks for `omega`. -/
-syntax (name := layoutOmega) "layout_omega" (" [" term,* "]")? : tactic
+the goal, the linter `linter.unnecessaryWramOmega` asks for `omega`. -/
+syntax (name := wramOmega) "wram_omega" (" [" term,* "]")? : tactic
 
 elab_rules : tactic
-  | `(tactic| layout_omega%$tk $[[$args,*]]?) => do
+  | `(tactic| wram_omega%$tk $[[$args,*]]?) => do
     recordExtraModUse (isMeta := false) `Init.Omega
-    let layouts := layoutExt.getState (← getEnv)
+    let tagged := wramArithExt.getState (← getEnv)
     let terms ← ((args.map (·.getElems)).getD #[]).mapM fun t =>
       withMainContext <| elabTerm t none
     liftMetaFinishingTactic fun g => g.withContext do
-      let (locals, allLocals) ← localDefinitions layouts
+      let (locals, allLocals) ← localDefinitions tagged
       -- The goal and the given facts, unfolded.
       let unfoldGoal (g : MVarId) : UnfoldM (MVarId × Array Expr) := do
-        let target ← unfoldLayouts (← instantiateMVars (← g.getType))
+        let target ← unfoldTagged (← instantiateMVars (← g.getType))
         recordPowers target
         let mut facts := #[]
         for h in terms do
-          let type ← unfoldLayouts (← instantiateMVars (← inferType h))
+          let type ← unfoldTagged (← instantiateMVars (← inferType h))
           recordPowers type
           facts := facts.push (← mkExpectedTypeHint h type)
         return (← g.replaceTargetDefEq target, facts)
@@ -256,11 +276,11 @@ elab_rules : tactic
         if (← omegaWith g {} (facts ++ (← powerFacts))).isNone then
           let state ← get
           if state.unfolded.isEmpty && !state.reduced && state.powers.isEmpty && terms.isEmpty then
-            Linter.logLintIf linter.unnecessaryLayoutOmega tk m!"`layout_omega` unfolded no \
-              `@[layout]` definition here: `omega` proves this goal."
+            Linter.logLintIf linter.unnecessaryWramOmega tk m!"`wram_omega` unfolded no \
+              `@[wram_arith]` definition here: `omega` proves this goal."
           return
         -- Then with the local definitions unfolded too, and the arithmetic hypotheses
-        -- that mention a layout definition or a local one restated.
+        -- that mention a tagged definition or a local one restated.
         withReader ({ · with locals := allLocals }) do
           let ctx ← read
           let (g, facts) ← unfoldGoal g
@@ -271,7 +291,7 @@ elab_rules : tactic
             let type ← instantiateMVars d.type
             unless ← readByOmega type do continue
             if ctx.mentions type then
-              let type ← unfoldLayouts type
+              let type ← unfoldTagged type
               recordPowers type
               facts := facts.push (← mkExpectedTypeHint d.toExpr type)
               replaced := replaced.insert d.fvarId
@@ -282,17 +302,17 @@ elab_rules : tactic
           let names (ns : Array Name) :=
             MessageData.joinSep (ns.map (m!"`{.ofConstName ·}`")).toList ", "
           let unfolded := if state.unfolded.isEmpty then
-              m!"No `@[layout]` definition occurs in the goal or in an arithmetic hypothesis."
+              m!"No `@[wram_arith]` definition occurs in the goal or in an arithmetic hypothesis."
             else m!"Unfolded: {names state.unfolded}."
           let hidden := if state.hidden.isEmpty then m!"" else
-            m!"\nTagged `@[layout]` but not unfolded, as their bodies are not visible in this \
-              module: {names state.hidden}."
-          throwError "layout_omega: `omega` could not prove the goal with the `@[layout]` \
+            m!"\nTagged `@[wram_arith]` but not unfolded, as their bodies are not visible in \
+              this module: {names state.hidden}."
+          throwError "wram_omega: `omega` could not prove the goal with the `@[wram_arith]` \
             definitions and the local definitions unfolded in the goal and in the \
             arithmetic hypotheses. Products are unknowns to `omega`: give bounds on them with \
-            `layout_omega [h]`.\n{unfolded}{hidden}\n{ex.toMessageData}"
-      (prove.run { layouts, locals }).run' {}
+            `wram_omega [h]`.\n{unfolded}{hidden}\n{ex.toMessageData}"
+      (prove.run { tagged, locals }).run' {}
 
-end Cslib.Tactic.LayoutOmega
+end Cslib.Tactic.WramOmega
 
 end

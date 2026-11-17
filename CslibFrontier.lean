@@ -7822,8 +7822,6 @@ public import CslibFrontier.Tactic.FirstOrder.Init
 public import CslibFrontier.Tactic.FirstOrder.Simp
 public import CslibFrontier.Tactic.Fits
 public import CslibFrontier.Tactic.GameHop
-public import CslibFrontier.Tactic.LayoutOmega
-public import CslibFrontier.Tactic.LayoutOmega.Init
 public import CslibFrontier.Tactic.LogSpace
 public import CslibFrontier.Tactic.LogSpace.Init
 public import CslibFrontier.Tactic.Negligible
@@ -7838,3 +7836,5 @@ public import CslibFrontier.Tactic.Space
 public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
+public import CslibFrontier.Tactic.WramOmega
+public import CslibFrontier.Tactic.WramOmega.Init

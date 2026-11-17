@@ -10,7 +10,6 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Update
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.DataStructure.Memory.RecordLink
-import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Native consolidation links
@@ -88,7 +87,7 @@ private theorem realizes_linkAs_history : Realizes .exact
       StateTransitionSpec.stepFn, Memory.read, Memory.write, Memory.step_read,
       Memory.step_write, Memory.valid, Function.update_of_ne, hc, ite_false] at hv
     have hfront := hmem.frontier_fits
-    layout_omega [hv, hfront]
+    fits
 
 /-- The original child-list source, keeping its native subtraction domain and intrinsic source
 admissibility. Code is selected before every runtime heap and word width. -/

@@ -12,8 +12,8 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Order.Lattice.Nat
 import Mathlib.Tactic.Ring
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Pure cuckoo tables, displacement, and replay
@@ -78,7 +78,7 @@ def tableSize (n_max : ℕ) : ℕ :=
 
 /-- Maximum number of two-table cuckoo displacement rounds `6 * (⌈log₂ max(n_max, 2)⌉ + 2)` before
 triggering a full-table rehash. -/
-@[expose, layout]
+@[expose, wram_arith]
 def maxEvictions (n_max : ℕ) : ℕ :=
   6 * (Nat.clog 2 (max n_max 2) + 2)
 
@@ -154,7 +154,7 @@ theorem maxEvictions_le_thirtyTwo_mul_max (n_max : ℕ) :
     maxEvictions n_max ≤ 32 * max n_max 4 := by
   have hclog : Nat.clog 2 (max n_max 2) ≤ max n_max 2 :=
     (Nat.clog_le_iff_le_pow (by decide)).mpr (Nat.le_of_lt (max n_max 2).lt_two_pow_self)
-  layout_omega
+  wram_omega
 
 theorem maxEvictions_le_tableSize (n_max : ℕ) :
     maxEvictions n_max ≤ tableSize n_max :=
@@ -162,13 +162,13 @@ theorem maxEvictions_le_tableSize (n_max : ℕ) :
 
 /-- Independence parameter `k = 2 * maxEvictions n_max + 2` required by the two-table cuckoo hashing
 analysis on eviction walks of length up to `maxEvictions n_max`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def cuckooK (n_max : ℕ) : ℕ :=
   2 * maxEvictions n_max + 2
 
 theorem thirtyEight_le_cuckooK (n_max : ℕ) : 38 ≤ cuckooK n_max := by
   have := eighteen_le_maxEvictions n_max
-  layout_omega
+  wram_omega
 
 /-! ### Section 2: Pure two-table cuckoo displacement and replay model -/
 

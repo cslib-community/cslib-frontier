@@ -10,8 +10,8 @@ module
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Basic
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bit-Packed Memory Layout for Succinct Dictionaries
@@ -72,37 +72,37 @@ open scoped BigOperators ENNReal
 /-! ## Section 1: Array offsets and extraction functions -/
 
 /-- Word offset of `Quotients` relative to `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def offQuot (h_space : ℕ) : ℕ :=
   h_space
 
 /-- Word offset of `Values` relative to `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def offVal (U w n_max h_space : ℕ) : ℕ :=
   offQuot h_space + packedWords n_max (quotientBits U n_max) w
 
 /-- Word offset of `LocalMeta` relative to `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def offLM (U V w n_max h_space : ℕ) : ℕ :=
   offVal U w n_max h_space + packedWords n_max (valBits V) w
 
 /-- Word size of each of the 9 `LocalMeta` sub-arrays of length `totalMicroBuckets n_max`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def lmSubWords (n_max w : ℕ) : ℕ :=
   packedWords (totalMicroBuckets n_max) (effBucketPosBits n_max) w
 
 /-- Word offset of the `c`-th `LocalMeta` sub-array (`c < 9`) relative to `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def offLMSub (U V w n_max h_space c : ℕ) : ℕ :=
   offLM U V w n_max h_space + c * lmSubWords n_max w
 
 /-- Word offset of `GlobalMeta` relative to `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def offGM (U V w n_max h_space : ℕ) : ℕ :=
   offLM U V w n_max h_space + 9 * lmSubWords n_max w
 
 /-- Total word footprint of the succinct dictionary block starting at `base`. -/
-@[expose, layout]
+@[expose, wram_arith]
 def totalSpace (U V w n_max h_space : ℕ) : ℕ :=
   offGM U V w n_max h_space + packedWords (globalMetaLen n_max) (globalPtrBits n_max) w
 
@@ -112,7 +112,7 @@ theorem totalSpace_le_succinctWords {U V w n_max h_space : ℕ} :
       Dynamic.succinctWords 79 (35 + h_space) U V w n_max := by
   have h := tableArrays_words_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
     (C_hdr := h_space)
-  layout_omega
+  wram_omega
 
 /-- Pure extraction function for `Quotients[idx]` (`0` for `idx ≥ n_max`). -/
 @[expose]
@@ -187,10 +187,8 @@ theorem quotAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem :
         packedWords n_max (quotientBits U n_max) w :=
       wordOffset_add_one_lt_packedWords hw hidx
     exact readPacked_zero
-      (hzero _ (by layout_omega)
-        (by layout_omega))
-      (hzero _ (by layout_omega)
-        (by layout_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `valAt` is identically
@@ -204,10 +202,8 @@ theorem valAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : 
   · have hlt1 : wordOffset (valBits V) w idx + 1 < packedWords n_max (valBits V) w :=
       wordOffset_add_one_lt_packedWords hw hidx
     exact readPacked_zero
-      (hzero _ (by layout_omega)
-        (by layout_omega))
-      (hzero _ (by layout_omega)
-        (by layout_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `lmAt` is identically
@@ -226,10 +222,8 @@ theorem lmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
       Nat.mul_le_mul_right _ hc
     rw [Nat.add_one_mul] at hsub
     exact readPacked_zero
-      (hzero _ (by layout_omega)
-        (by layout_omega))
-      (hzero _ (by layout_omega)
-        (by layout_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
   · rfl
 
 /-- On zero-initialized table memory `[base + h_space, base + totalSpace)`, `gmAt` is identically
@@ -244,10 +238,8 @@ theorem gmAt_zero_of_init {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem : �
         packedWords (globalMetaLen n_max) (globalPtrBits n_max) w :=
       wordOffset_add_one_lt_packedWords hw hidx
     exact readPacked_zero
-      (hzero _ (by layout_omega)
-        (by layout_omega))
-      (hzero _ (by layout_omega)
-        (by layout_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
+      (hzero _ (by wram_omega) (by wram_omega))
   · rfl
 
 /-- If two memories agree on `[base + h_space, base + totalSpace)`, they have identical `quotAt`,
@@ -262,13 +254,13 @@ theorem arrays_congr_of_eq_on {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem
   refine ⟨?_, ?_, ?_, ?_⟩
   · funext idx; unfold quotAt; split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by layout_omega [ha1])
-          (by layout_omega [ha2])) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
   · funext idx; unfold valAt; split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by layout_omega [ha1])
-          (by layout_omega [ha2])) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
   · funext ⟨c, idx⟩; unfold lmAt; split_ifs with hp
     · rcases hp with ⟨hc, hidx⟩
@@ -276,13 +268,13 @@ theorem arrays_congr_of_eq_on {base U V w n_max h_space : ℕ} (hw : 0 < w) {mem
         Nat.mul_le_mul_right _ hc
       rw [Nat.add_one_mul] at hsub
       exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by layout_omega [ha1])
-          (by layout_omega [ha2, hsub])) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2, hsub])) hidx
     · rfl
   · funext idx; unfold gmAt; split_ifs with hidx
     · exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by layout_omega [ha1])
-          (by layout_omega [ha2])) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [ha2])) hidx
     · rfl
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

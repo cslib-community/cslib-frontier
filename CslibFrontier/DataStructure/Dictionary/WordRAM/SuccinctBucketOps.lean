@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctChainOps
 import CslibFrontier.Tactic.Realize
-import CslibFrontier.Tactic.LayoutOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bucket-Level Dictionary Lookup and Insertion (`query`, `insert`) in `Memory.Prog`
@@ -474,7 +474,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     refine ⟨by rw [hs', eff.1],
       fun a ha => by
         rw [hs', eff.2.1 a
-          (by layout_omega [ha])],
+          (by wram_omega [ha])],
       ⟨L, ?_⟩,
       by rw [hgm_eq, ite_eq_left hsome],
       by rw [hgm_eq]; omega⟩
@@ -594,7 +594,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     refine ⟨by rw [hs', hf_pr, hf_pb],
       fun a ha => by
         rw [hs',
-          hout_pr a (by layout_omega [ha]),
+          hout_pr a (by wram_omega [ha]),
           hout_pb a ha],
       ⟨L', ?_⟩,
       by rw [hgm'_eq, htot_s₁, ite_eq_right hnot_some],

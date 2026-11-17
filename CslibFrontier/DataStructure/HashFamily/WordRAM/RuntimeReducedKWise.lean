@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.ParamsInit
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.Horner
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Runtime-Parameterized `ReducedKWise` Hashing on the Resizable Word RAM
@@ -240,7 +240,7 @@ def evalHashGenProg : HashParams × ℕ × ℕ × ℕ → Memory.Prog ℕ
     pure out
 
 /-- Parameter-independent `O(k)` upper bound on `memoryCost (evalHashGenProg d) s`. -/
-@[expose, layout] def evalMemBound (k : ℕ) : ℕ := 15014 * k + 109
+@[expose, wram_arith] def evalMemBound (k : ℕ) : ℕ := 15014 * k + 109
 
 /-- Entry precondition for `evalHashGenProg`. -/
 def EvalHashGenPre (w : ℕ) : HashParams × ℕ × ℕ × ℕ → Memory.State → Prop
@@ -354,7 +354,7 @@ private theorem evalHashGenProg_aux {w U w₀ b b' k hashBase scratchBase : ℕ}
           (memoryCost (iterate packOutStepGenProg (hp, scratchBase) (rLimbs w₀ b b')
             (0, 0, b', 0)) s₂ + _))) ≤ _
     rw [hrk_cost, hs_p, htail_cost]
-    layout_omega [hcost_h, hcost_p]
+    wram_omega [hcost_h, hcost_p]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, hr_eq, hrk_state,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
       StateTransitionSpec.clientResult_bind, hs_p]

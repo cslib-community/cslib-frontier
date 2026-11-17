@@ -12,8 +12,8 @@ public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontier.Computability.WordRAM.Realization.GlueVector
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
-public import CslibFrontier.Tactic.LayoutOmega.Init
-import CslibFrontier.Tactic.LayoutOmega
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Runtime `ReducedKWise` Parameters and Four-Russians Table Initialization
@@ -66,7 +66,7 @@ open scoped ENNReal
 /-- Number of product limb words (`108 ≥ 2 * reducedLimbCount t`) at `[scratchBase + 54, +108)`. -/
 @[expose] def prodWords : ℕ := 108
 /-- Total scratch footprint (`54 + 108 = 162` words) for runtime polynomial hash evaluation. -/
-@[expose, layout] def scratchWords : ℕ := 162
+@[expose, wram_arith] def scratchWords : ℕ := 162
 
 @[simp] theorem accWords_eq : accWords = 54 := rfl
 @[simp] theorem prodWords_eq : prodWords = 108 := rfl
@@ -174,7 +174,7 @@ theorem fits_mkHashParams {w w₀ b b' k hashBase scratchBase : ℕ}
     (hfit_scr : Fits w (scratchBase + scratchWords)) (i : Fin 19) :
     Fits w (mkHashParams w w₀ b b' k i) := by
   have hw_lt : Fits w w := Nat.lt_two_pow_self
-  have h162 : Fits w 162 := hfit_scr.of_le (by layout_omega)
+  have h162 : Fits w 162 := hfit_scr.of_le (by wram_omega)
   have hspace : Fits w (ReducedKWise.space w w₀ b b' k) := hfit_hash.of_le (by omega)
   have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hpowc_le : 2 ^ rChunk w₀ b b' ≤ 2 ^ (2 * rChunk w₀ b b') :=
