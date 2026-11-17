@@ -5,6 +5,7 @@ Authors: Sam
 -/
 
 module
+-- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.PlantedClique.Program
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div

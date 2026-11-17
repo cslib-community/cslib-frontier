@@ -31,11 +31,12 @@ are separated from that value, so a small residual implies proximity to the seco
 The existing coordinate-rounding and degree-cleanup theorems finish the argument.
 
 The explicit constants here are conservative: `4096 k ≤ n`, `8192 √n ≤ k`, and the existing
-noise event of norm at most `36 √n`. They do not assert the paper's sharp constant `10`.
+noise event of norm at most `36 √n`. Matching the paper's constant `10` and supplying a
+finite-precision implementation with a native running-time certificate are tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 Mathlib's exact eigenvector choice is noncomputable. This file proves mathematical correctness;
-it does not supply a finite-precision implementation or a machine running-time certificate.
-The theorem `recoverFromApproximateSecondEigenvector_eq` gives an explicit `1 / 64` Euclidean
-accuracy tolerance that is sufficient for a future numerical implementation.
+the theorem `recoverFromApproximateSecondEigenvector_eq` gives an explicit `1 / 64` Euclidean
+accuracy tolerance for the numerical implementation.
 -/
 
 public section
@@ -199,7 +200,8 @@ theorem recoverEigenvector_eq_of_opNorm_le (G : SimpleGraph (Fin n)) [DecidableR
 
 /-- The exact spectral bound leaves an explicit numerical tolerance: a vector within
 `1 / 64` of either orientation of the chosen unit second eigenvector supports exact rounding and
-degree cleanup. This theorem certifies the required accuracy, not how an eigensolver attains it. -/
+degree cleanup. The finite-precision eigensolver is tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238). -/
 theorem recoverFromApproximateSecondEigenvector_eq
     (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (S : Finset (Fin n))
     (hk : 6 ≤ S.card) (hsparse : 4096 * S.card ≤ n)

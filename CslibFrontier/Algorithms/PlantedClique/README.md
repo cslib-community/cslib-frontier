@@ -8,7 +8,8 @@ adjacency matrix's second-eigenvector algorithm using Mathlib.
 The program with the native complexity certificate uses an exact integer matrix-power
 algorithm inside a common-neighbor search. The literal second-eigenvector specification has
 a finite probability bound and a numerical approximation tolerance; its finite-precision
-implementation and native runtime certificate remain open.
+implementation and native runtime certificate remain open in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ## 1. Paper and formalized theorems
 
@@ -30,7 +31,8 @@ author manuscript's printed pages, not the journal pagination.
 The formalization uses conservative explicit constants and finite error bounds. The integer
 base algorithm is a variant developed for this formalization. The literal Algorithm A
 specification is analyzed separately. The paper's constant $10$ is not established for that
-literal specification, and no native finite-precision eigensolver is implemented here.
+literal specification, and no native finite-precision eigensolver is implemented here; both
+are tracked in [#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ### The random problem and what counts as success
 
@@ -121,8 +123,9 @@ theorem searchProblem_recoverEigenvector_failure_le {k : ℕ}
 
 All spectral, independence and alignment estimates are proved inside this result. Its remaining
 premises are numerical size conditions. The exact eigenvector definition is noncomputable:
-this is a mathematical recovery guarantee, with no native eigensolver certificate. A checked
-client uses $n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
+this is a mathematical recovery guarantee. A native eigensolver certificate is tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238). A checked client uses
+$n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
 
 ## 2. Algorithm and proof, with the Lean correspondence
 
@@ -209,6 +212,12 @@ $16|S\setminus W|\le k$; `eigenvectorApproximateSet_overlap` is its application 
 The shared cleanup lemma finishes deterministic correctness. The outside-degree failure
 bound is at most $ne^{-k/32}$, and a union bound gives the finite probability theorem.
 
+[Probability/PlantedClique/Recovery.lean](../../Probability/PlantedClique/Recovery.lean)
+shares this probability step between both algorithms. Its
+`dens_recover_ne_le_of_noise_degree` takes a proof that recovery succeeds whenever both
+good conditions hold and returns the common failure bound. Both final modules instantiate
+it with their deterministic correctness proofs.
+
 The same proof also establishes a useful numerical interface:
 `recoverFromApproximateSecondEigenvector_eq` allows an arbitrary vector $v$ satisfying
 
@@ -218,7 +227,8 @@ $$
 
 Under the deterministic noise and degree conditions, selecting coordinates of $v$ and
 performing the same cleanup still returns $S$. Exact normalization of $v$ is unnecessary.
-This specifies the accuracy a future finite-precision implementation must achieve.
+This specifies the accuracy required of the finite-precision implementation tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ### C. The exact integer algorithm with a native runtime certificate
 
@@ -437,6 +447,8 @@ The existing matroid client and the new selection/runtime proof use that shared 
 The circuit-testing layer also gains `isCircuitTest_iff_exists_circuit`, relating its existing
 semantic test class to explicit De Morgan circuits.
 
-The remaining algorithmic work is a native finite-precision implementation of the raw
-second-eigenvector specification and sharper constants. The every-$c$ native recovery
-theorem above is already proved using the integer solver and common-neighbor wrapper.
+The remaining algorithmic work, tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238), is a native
+finite-precision implementation of the raw second-eigenvector specification and sharper
+constants. The every-$c$ native recovery theorem above is already proved using the integer
+solver and common-neighbor wrapper.

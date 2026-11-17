@@ -7807,6 +7807,7 @@ public import CslibFrontier.Probability.PlantedClique.Degree
 public import CslibFrontier.Probability.PlantedClique.Model
 public import CslibFrontier.Probability.PlantedClique.Problem
 public import CslibFrontier.Probability.PlantedClique.RandomMatrix
+public import CslibFrontier.Probability.PlantedClique.Recovery
 public import CslibFrontier.Probability.PlantedClique.Uniqueness
 public import CslibFrontier.Probability.PoissonBinomial
 public import CslibFrontier.Probability.PoissonBinomial.Reflection

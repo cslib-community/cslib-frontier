@@ -5,6 +5,7 @@ Authors: Sam
 -/
 
 module
+-- upstream: local-only (tests)
 
 import CslibFrontier.Crypto.Game.Distributional
 import CslibFrontier.Crypto.Computational.Basic

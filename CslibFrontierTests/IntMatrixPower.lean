@@ -5,6 +5,7 @@ Authors: Sam
 -/
 
 module
+-- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.PlantedClique.IntegerPower
 import CslibFrontier.Computability.PolyTime.Int.MatrixPower
