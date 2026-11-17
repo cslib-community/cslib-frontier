@@ -59,19 +59,6 @@ open scoped Cslib.WordRAM
 
 /-! ## Root scattering (`scatterBody_exec` and `scatterRootCode_exec`) -/
 
-private theorem out_of_footprint (n base a : ℕ)
-    (ha : a < (Block.mk base (space n)).base ∨
-      (Block.mk base (space n)).base + (Block.mk base (space n)).length ≤ a) :
-    a < base ∨ base + 9 * n + 1 ≤ a := by
-  dsimp only [space] at ha
-  omega
-
-private theorem fits_of_le_space {n base w : ℕ} {x : Data rFib} (hb : x.Bounded w)
-    (hbr : BaseRegs n base x) (v : ℕ) (hv : v ≤ base + (9 * n + 1)) : Fits w v := by
-  have h := hbr.fits_stop hb
-  unfold space at h
-  exact h.of_le hv
-
 private abbrev scatterBody : Code .exact rFib :=
   ram_exact[
     s5 ← s3 - oneP;
@@ -157,7 +144,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
         Consolidated sz (RawState.ofData n base a) st' (forestNodes (T_cur :: slotTrees))
           slots' md' := by
   set st := RawState.ofData n base a with hst_def
-  have hfit := fits_of_le_space hb hbr
+  have hfit := hbr.fits_of_le hb
   have hdeg_bds := hP.deg_bounds
   rw [hcur_deg] at hdeg_bds
   have hd_le_n : curD ≤ n := by omega
@@ -237,7 +224,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
       intro hb3
       refine ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
         Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp,
+          have := out_of_footprint n base haddr; wram_simp,
         by wram_simp [ha_curD],
         by wram_simp [st₁, ofData_write_cons hd_le_n, ofData_set_scratch, ← hst_def],
         slotTrees[idx], T_cur, hT_slot1, hslot_deg, List.perm_append_comm.nodup_iff.mp hnd_pair,
@@ -251,7 +238,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
       intro hb3
       refine ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
         Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp,
+          have := out_of_footprint n base haddr; wram_simp,
         by wram_simp [ha_curD],
         by wram_simp [st₁, ofData_write_cons hd_le_n, ofData_set_scratch, ← hst_def],
         T_cur, slotTrees[idx], hT_cur1, hcur_deg, hnd_pair,
@@ -280,7 +267,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
       intro hb5
       refine ⟨by omega, hb5, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr3],
         Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp,
+          have := out_of_footprint n base haddr; wram_simp,
         by wram_simp [ha3_s4], by wram_simp [ha3_cd], Or.inl ⟨hdeg_w1.trans hd0, ?_⟩⟩
       wram_simp [ofData_write_deg, ofData_write_child, ofData_write_right, ofData_write_left,
         ofData_write_par, ofData_set_scratch, hst3, st₁]
@@ -318,7 +305,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
       have hmod_a3_q1 : Modifies (Block.mk base (space n)).footprint a3.mem q1.mem := by
         subst hq1
         exact Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp
+          have := out_of_footprint n base haddr; wram_simp
       refine WP.bounded hb_q2 ?_
       wram_exec [hfit, hbr_q2.regs_degBase, hbr_q2.regs_oneP, hq2_s1, hq2_s4]
       intro hb5 _
@@ -326,7 +313,7 @@ private theorem scatterBody_exec {n sz base w maxDeg curD : ℕ} {a : Data rFib}
           (((q2.set s1 (curD + 1)).set s0 (base + 5 * n + T₁.root.val)).write
             (base + 5 * n + T₁.root.val) (curD + 1)).mem :=
         Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp
+          have := out_of_footprint n base haddr; wram_simp
       refine ⟨by omega, hb5, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr_q2],
         modifies_block_trans (modifies_block_trans hmod_a3_q1 hmod_q2) hmod_q2_a5,
         by wram_simp [hq2_s4], by wram_simp [hq2_cd],
@@ -420,7 +407,7 @@ theorem scatterRootCode_exec {n sz base w maxDeg₀ : ℕ} {x : Data rFib}
       Consolidated sz (RawState.ofData n base x) (RawState.ofData n base y)
         (forestNodes (T₀ :: slotTrees₀)) slotTrees' maxDeg' := by
   set st := RawState.ofData n base x with hst_def
-  have hfit := fits_of_le_space hb hbr
+  have hfit := hbr.fits_of_le hb
   have hu0_lt := T₀.root.isLt
   have hd0_bds := hP.deg_bounds
   have hd0_le_n : T₀.deg ≤ n := by omega
@@ -478,7 +465,7 @@ theorem scatterRootCode_exec {n sz base w maxDeg₀ : ℕ} {x : Data rFib}
       hby, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbrz],
       modifies_block_trans hmod_x_zlp
         (Modifies.block_iff.2 fun addr haddr => by
-          have := out_of_footprint n base addr haddr; wram_simp),
+          have := out_of_footprint n base haddr; wram_simp),
       by wram_simp [hmd_lp, hcd_lp]; omega, ?_⟩
     wram_simp [ofData_write_cons hdf_le_n, ofData_set_scratch]
     refine hback ?_
@@ -542,7 +529,7 @@ private theorem scatterChildrenLoop_exec {n sz base w : ℕ} {z : Fin n} :
       Modifies.refl _ _, fun _ _ _ => rfl, hmd, h.done⟩
   | T_u :: c_tl, a, slotTrees, maxDeg, hb, hbr, h, hrem, hmd, hic => by
     set st := RawState.ofData n base a with hst_def
-    have hfit := fits_of_le_space hb hbr
+    have hfit := hbr.fits_of_le hb
     have hc : (Cond.lt zeroP remReg).Holds a := by
       simp only [Cond.Holds, hbr.regs_zeroP, hrem, List.length_cons]; omega
     have hu_ic : a.regs iterCur = T_u.root.val := hic T_u.root rfl
@@ -593,7 +580,7 @@ private theorem scatterChildrenLoop_exec {n sz base w : ℕ} {z : Fin n} :
           intro hb_mid
           refine ⟨by omega, hb_mid, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
             Modifies.block_iff.2 fun addr haddr => by
-              have := out_of_footprint n base addr haddr; wram_simp,
+              have := out_of_footprint n base haddr; wram_simp,
             by wram_simp [hu_ic], by wram_simp,
             by wram_simp [hrem, List.length_cons], by wram_simp [hmd], ?_⟩
           wram_simp [unmarkState, hmk1, ofData_set_numMarked, ofData_write_mark, ofData_write_par,
@@ -605,7 +592,7 @@ private theorem scatterChildrenLoop_exec {n sz base w : ℕ} {z : Fin n} :
           intro hb_mid
           refine ⟨by omega, hb_mid, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
             Modifies.block_iff.2 fun addr haddr => by
-              have := out_of_footprint n base addr haddr; wram_simp,
+              have := out_of_footprint n base haddr; wram_simp,
             by wram_simp [hu_ic], by wram_simp,
             by wram_simp [hrem, List.length_cons], by wram_simp [hmd], ?_⟩
           wram_simp [unmarkState, hmk0, Nat.sub_zero, hupd, ofData_write_par, ofData_set_scratch,
@@ -693,7 +680,7 @@ private theorem scatterRootsLoop_exec {n sz base w : ℕ} {z : Fin n} :
       Modifies.refl _ _, fun _ _ => rfl, hmd, h.done⟩
   | T_u :: r_tl, a, slotTrees, maxDeg, hb, hbr, h, hrem, hmd, hic => by
     set st := RawState.ofData n base a with hst_def
-    have hfit := fits_of_le_space hb hbr
+    have hfit := hbr.fits_of_le hb
     have hc : (Cond.lt zeroP remReg).Holds a := by
       simp only [Cond.Holds, hbr.regs_zeroP, hrem, List.length_cons]; omega
     have hu_ic : a.regs iterCur = T_u.root.val := hic T_u.root rfl
@@ -815,7 +802,7 @@ private theorem gatherSlotsLoop_exec {n sz base w maxDeg : ℕ} (rem : ℕ) :
   | succ rem' ih =>
     intro a curD slotTrees accRoots hsum hb hbr hcurD hmaxD h hge
     set st := RawState.ofData n base a with hst_def
-    have hfit := fits_of_le_space hb hbr
+    have hfit := hbr.fits_of_le hb
     have hd_le_n : curD ≤ n := SlotInv.le_n h.table (by omega)
     have hc_loop : (Cond.lt curDReg maxDegReg).Holds a := by
       simp only [Cond.Holds, hcurD, hmaxD]; omega
@@ -824,13 +811,15 @@ private theorem gatherSlotsLoop_exec {n sz base w maxDeg : ℕ} (rem : ℕ) :
     rcases h.table.lookup hd_le_n with ⟨hc0, hnone⟩ |
         ⟨idx, hidx, hslot_deg, hcons_eq, _, hno_other⟩
     · -- Unoccupied slot (`st.cons curD = 0`)
+      have hfit_cd1 : Fits w (curD + 1) := (hmaxD ▸ hb.1 maxDegReg).of_le (by omega)
       have hbody : WP w gatherSlotBody a fun a3 t_b =>
           t_b ≤ 6 ∧ a3.Bounded w ∧ BaseRegs n base a3 ∧ a3.mem = a.mem ∧
           a3.regs curDReg = curD + 1 ∧ a3.regs maxDegReg = maxDeg + 1 ∧
           RawState.ofData n base a3 = st := by
         unfold gatherSlotBody
         refine WP.bounded hb ?_
-        wram_exec [hfit, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c, hc0]
+        wram_exec [hfit, hfit_cd1, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c,
+          hc0]
         intro hb3
         exact ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, hbr], rfl,
           by wram_simp, by wram_simp [hmaxD], by wram_simp [ofData_set_scratch, ← hst_def]⟩
@@ -869,7 +858,7 @@ private theorem gatherSlotsLoop_exec {n sz base w maxDeg : ℕ} (rem : ℕ) :
         have hmod_a_a3 : Modifies (Block.mk base (space n)).footprint a.mem a3.mem := by
           subst ha3
           exact Modifies.block_iff.2 fun addr haddr => by
-            have := out_of_footprint n base addr haddr; wram_simp
+            have := out_of_footprint n base haddr; wram_simp
         obtain ⟨hroot, hnr, hnext⟩ := h.take hidx hslot_deg hd_le_n hno_other hst3
         obtain ⟨a4, he_add, hbr4, hmod_add, hadd⟩ :=
           addRootAndUpdateMin_exec (uReg := iterCur) (u := slotTrees[idx].root) hb3 hbr3
@@ -930,7 +919,7 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
         410 * (Nat.log 2 (IndexedMinPQ.dom s).card + 1) + potential x := by
   obtain ⟨hb, hbr, hraw⟩ := hinv
   set st := RawState.ofData n base x with hst_def
-  have hfit := fits_of_le_space hb hbr
+  have hfit := hbr.fits_of_le hb
   change WP w extractMinCode x fun y t =>
     code.decode (n := n) (K_max := K_max) .extractMin y.regs =
       some ((indexedMinPQSpec n K_max).stepFn s .extractMin).2 ∧
@@ -989,13 +978,13 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
         wram_bounded <;> exact hfit _ (by omega)) ?_) ?_
     · cases cs with
       | nil =>
-        have hdz0 : st.deg z = 0 := by simpa using hD.deg
+        have hdz0 : st.deg z = 0 := by simpa only [List.length_nil] using hD.deg
         wram_exec [hbr.regs_zeroP, hdz0]
         intro hb_A1
         refine ⟨[], 0, by simp only [List.length_nil, Nat.mul_zero]; omega,
           hb_A1, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
           Modifies.block_iff.2 fun addr haddr => by
-            have := out_of_footprint n base addr haddr; wram_simp,
+            have := out_of_footprint n base haddr; wram_simp,
           by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, ?_⟩
         wram_simp [detachState, ofData_set_sz, ofData_write_inHeap, ofData_set_scratch, ← hst_def]
         exact hD.scatterChildren.done
@@ -1020,7 +1009,7 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
         have hmod_pre : Modifies (Block.mk base (space n)).footprint x.mem x_c0.mem := by
           subst hx_c0
           exact Modifies.block_iff.2 fun addr haddr => by
-            have := out_of_footprint n base addr haddr; wram_simp
+            have := out_of_footprint n base haddr; wram_simp
         obtain ⟨x_A1, slotTrees_1, maxDeg_1, t_sc1, he_sc1, ht_sc1, hb_A1, hbr_A1, hmod_sc1,
           hregs_sc1, hmd_sc1, hc_sc1⟩ :=
           scatterChildrenLoop_exec (C₀ :: cs₀) x_c0 [] 0 hb_c0 hbr_c0
