@@ -372,7 +372,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 .
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Locators refer to the ePrint revision of February 11, 2020 (106 pages; printed page = PDF page − 3), read through the Internet Archive copy https://web.archive.org/web/20260904164957id_/https://eprint.iacr.org/2000/067.pdf (SHA-256 `0466f041f546ce6db5e86c7ec81ea12604c4bea6c944b73b4eeac8457564703a`, first recorded in [#5680](https://github.com/cslib-community/cslib-frontier/pull/5680); its SHA-1 matches the archive's digest for that capture). The JACM version was not inspected, and its numbering may differ.
 
 <a id="canonne22"></a>
 ## canonne22
@@ -918,7 +918,7 @@ Christopher Henson and Fabrizio Montesi. *Computer Science as Infrastructure: th
 <a id="hhk17"></a>
 ## hhk17
 
-Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, two-stage IND-CPA `cpaAdvantage` via `PKE.cpaExperiment` on `ExplicitCoinPKE.toPKE`, with the single-stage fixed-message `indCpaGame`/`indCpaAdvantage` kept only for the spread-necessity example, and domain-separated `H : Bool × M × CT → K`) documented in the Lean modules and chapter text.
+Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). The pinned copy is the Internet Archive's https://web.archive.org/web/20250427001626id_/https://eprint.iacr.org/2017/604.pdf (38 pages; printed page = PDF page; SHA-256 `056ef846e047ec1e7f69629c839e9160312338d330d27f292e40d595a9c73fff`, first recorded in [#5675](https://github.com/cslib-community/cslib-frontier/pull/5675); its SHA-1 matches the archive's digest for that capture). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, two-stage IND-CPA `cpaAdvantage` via `PKE.cpaExperiment` on `ExplicitCoinPKE.toPKE`, with the single-stage fixed-message `indCpaGame`/`indCpaAdvantage` kept only for the spread-necessity example, and domain-separated `H : Bool × M × CT → K`) documented in the Lean modules and chapter text.
 
 <a id="hhrvw20"></a>
 ## hhrvw20

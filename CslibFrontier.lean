@@ -2348,6 +2348,7 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.WilliamsSeparation
 public import CslibFrontier.Computability.Complexity.Classes.Toda
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Counting
+public import CslibFrontier.Computability.Complexity.Classes.Toda.FormulaAmplification
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Hierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Isolation
 public import CslibFrontier.Computability.Complexity.Classes.Toda.SharpSAT
@@ -2819,6 +2820,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras.PolyTime
+public import CslibFrontier.Computability.Complexity.Problems.SharpFormula
 public import CslibFrontier.Computability.Complexity.Problems.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.SharpThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference
@@ -5035,6 +5037,7 @@ public import CslibFrontier.Crypto.Primitives.BlockCipher.ECB
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
 public import CslibFrontier.Crypto.Primitives.ByteString
+public import CslibFrontier.Crypto.Primitives.ByteString.Blocks
 public import CslibFrontier.Crypto.Primitives.CorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Adaptive
 public import CslibFrontier.Crypto.Primitives.Garbling.Arithmetic.AffineLabel
@@ -5138,6 +5141,8 @@ public import CslibFrontier.Crypto.Primitives.PRP.StrongSwitching
 public import CslibFrontier.Crypto.Primitives.SDitH.ExpandSeed
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
 public import CslibFrontier.Crypto.Primitives.SLHDSA.Address
+public import CslibFrontier.Crypto.Primitives.SLHDSA.HashCalls
+public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
@@ -5241,6 +5246,7 @@ public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Basic
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Piano
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Relocation
+public import CslibFrontier.Crypto.Protocols.PIR.SelectiveFailure
 public import CslibFrontier.Crypto.Protocols.PIR.Shamir
 public import CslibFrontier.Crypto.Protocols.PIR.SingleServer
 public import CslibFrontier.Crypto.Protocols.PIR.SmoothCode
@@ -5268,6 +5274,7 @@ public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sourc
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Interpolation
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Linear
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Product
+public import CslibFrontier.Crypto.Protocols.SelectiveFailure
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort.FiatShamir
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort.RandomOracle
@@ -5343,6 +5350,8 @@ public import CslibFrontier.DataStructure.ApproximateMembership.Spec
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
+public import CslibFrontier.DataStructure.BPlusTree.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
@@ -6327,6 +6336,7 @@ public import CslibFrontier.Foundations.Data.List.RowMajor
 public import CslibFrontier.Foundations.Data.List.SelectDistinct
 public import CslibFrontier.Foundations.Data.List.Sort
 public import CslibFrontier.Foundations.Data.List.SortedAssoc
+public import CslibFrontier.Foundations.Data.List.SortedAssoc.Scan
 public import CslibFrontier.Foundations.Data.List.SortedCount
 public import CslibFrontier.Foundations.Data.List.SumIndicator
 public import CslibFrontier.Foundations.Data.List.TakeQuantifiers
@@ -6643,6 +6653,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UpperTriangularQuadratic
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Vertex
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexOrientation
+public import CslibFrontier.Foundations.LinearAlgebra.MultivariateQuadratic
 public import CslibFrontier.Foundations.LinearAlgebra.PivotSpace
 public import CslibFrontier.Foundations.LinearAlgebra.PlaneRotation
 public import CslibFrontier.Foundations.LinearAlgebra.Rank

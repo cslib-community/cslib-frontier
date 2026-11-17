@@ -1282,8 +1282,8 @@ register_result "goldreich-levin-hard-core" where
   topic := "cryptography"
   sources := [
     { paper := GoldreichLevin1989, theorem := unverified, locator := unverified },
-    { paper := Goldreich2007Draft, theorem := "Theorem 7.7",
-      locator := "March 2007 draft r4.pdf, PDF p. 12; printed p. 276" }
+    { paper := Goldreich2007DraftR4, theorem := "Theorem 7.7 and Proposition 8.9",
+      locator := "March 2007 draft r4.pdf, PDF pp. 12 and 66; printed pp. 276 and 330" }
   ]
   theorems := [
     Cslib.Crypto.GoldreichLevin.padded_hardCore,
@@ -1294,8 +1294,10 @@ register_result "goldreich-levin-hard-core" where
     spare bit s so that every seed length is covered, against uniform strict PPT predictors \
     with negligible bias. This is not a hard-core predicate for f itself. For a length-preserving \
     one-way permutation, appending that bit gives a deterministic polynomial-time generator with \
-    one-bit stretch, secure against uniform strict PPT distinguishers. Asymptotic security; the \
-    source's explicit runtime and advantage trade-off is not stated."
+    one-bit stretch, secure against uniform strict PPT distinguishers: Proposition 8.9 applied \
+    to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
+    predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
+    stated."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -2357,8 +2359,10 @@ register_result "gmw-zero-knowledge" where
   sources := [
     { paper := GoldreichMicaliWigderson1991, theorem := unverified,
       locator := unverified },
-    { paper := Goldreich2001, theorem := unverified,
-      locator := "Sections 4.3.3 and 4.4" }
+    { paper := Goldreich1998Fragments, theorem := "Theorem 4.4.10, with Definition 4.3.8",
+      locator := "Section 4.3.3 (Definition 4.3.8, pp. 151–152) and Section 4.4.3 \
+        (Theorem 4.4.10 and the remark after it, pp. 175–176) of the posted draft of \
+        February 27, 1998" }
   ]
   theorems := [
     Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP,
@@ -2368,7 +2372,13 @@ register_result "gmw-zero-knowledge" where
     NPRelation R admits a sequentially amplified ZKProof system (adapted masked-3SAT \
     protocol) with soundness (1/3)^(n+1), NegligibleSoundness, and auxiliary-input zero \
     knowledge in family-indexed, unbounded-auxiliary-input, and Goldreich instance-indexed \
-    forms; the relation version preserves R's native witnesses via a Levin reduction."
+    forms; the relation version preserves R's native witnesses via a Levin reduction. \
+    Theorem 4.4.10 assumes a commitment scheme with nonuniform secrecy, which the remark after \
+    it obtains from nonuniformly one-way functions. Of the three forms, only the instance-indexed \
+    one, InstanceAuxiliaryInputZeroKnowledge, follows the indexing and clocks of Definition \
+    4.3.8; it ranges over valid witnesses of polynomially bounded length in place of every \
+    prover input that meets the completeness condition. The other two are novel to this \
+    library and imply it."
 
 register_result "gkst-pir-to-smooth-code" where
   title := "Smooth codes from private information retrieval schemes"
@@ -5234,13 +5244,16 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
   topic := "cryptography"
   sources := [
     { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.3",
-      locator := "§3.1, §3.2.1 and the §3.3 bounds table (IACR ePrint 2017/604, full version of \
-        2 November 2021)" }
+      locator := "§3.1 (Theorem 3.2, p. 12), §3.2.1 (Theorem 3.3, p. 14), the query-count \
+        convention of §2.1 (p. 9) and the FO^⊥ row of the §3.3 bounds table (p. 22) (IACR ePrint \
+        2017/604, full version of 2 November 2021)" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le
   ]
-  scope := "Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
+  scope := "Not HHK17's bound: the proof follows the game hops of Theorems 3.2 and 3.3 but \
+    composes them directly, and the result differs from their composition in every term. \
+    Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
     messages, a δ-correct and γ-spread PKE, and a randomized adversary with explicit coins each \
     of whose coin values makes at most qG queries to G, qH queries to H, and qD queries to \
     decapsulation (FullQueryBounds A qG qH qD), the ROM IND-CCA advantage is at most \
@@ -5253,7 +5266,18 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
     Composes the T and U^⊥ hops directly instead of through standalone OW-PCVA; \
     roIndCcaBotGame and eagerIndCcaBotGame draw both real (H) replies and the independent ideal \
     challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
-    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4)."
+    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4). \
+    Comparison with the source: halved to HHK17's hidden-bit advantages, the bound is \
+    2·Adv^{IND-CPA} + (qG + qH)/|M| + (qG + qH + 1)δ + (qG + qH + qD)2^{-γ}; Theorems 3.2 and \
+    3.3 as stated, with the qH plaintext-checking and qH validity queries that Theorem 3.3 gives \
+    its OW-PCVA adversary, compose to 3·Adv^{IND-CPA}(A') + (2qG + 1)/|M| + (qG + qH)δ + \
+    qH·2^{-γ} for some IND-CPA adversary A', which the §3.3 table simplifies to \
+    q_RO(δ + 2^{-γ}) + 3q_RO/|M| + 3·Adv^{IND-CPA}(A') with q_RO = qG + qH. Neither bound \
+    implies the other: this one has the smaller IND-CPA coefficient, and the smaller \
+    message-space term when qH ≤ qG + 1, but a correctness term larger by δ and a spreadness \
+    term that grows with qG and qD. HHK17 also counts every evaluation of G and H in the \
+    experiment, the experiment's own included (§2.1), where FullQueryBounds counts only the \
+    adversary's explicit queries."
 
 register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
   title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
