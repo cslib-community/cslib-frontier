@@ -178,6 +178,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
+import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
@@ -6170,3 +6171,20 @@ register_result "uniform-probing-expected-probes" where
     uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
     per-key intermediate step)."
 
+register_result "owf-iterate-not-one-way" where
+  title := "Iterates of a one-way function need not be one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 10, Exercise 4",
+      locator := "Web draft 2007-01-08, printed p. 204; PDF p. 220" }
+  ]
+  theorems := [Cslib.Crypto.exists_oneWay_not_oneWay_iterate_ceil_rpow,
+    Cslib.Crypto.exists_oneWay_not_oneWay_iterate]
+  scope := "OneWay on List Bool: polynomial-time computable, with negligible inversion \
+    probability for every uniform strict-PPT inverter given unary n and f x for uniform n-bit \
+    x (any preimage accepted). If some OneWay function exists, one OneWay f with a single \
+    polynomial-time output length m(n) per input length (Definition 10.1's family) has \
+    x ↦ f^[⌈|x| ^ c⌉] x not OneWay for every real c > 0, and more generally for every count \
+    that is at least 2 for all large n. The draft's parametric Definition 10.1 is read \
+    asymptotically; the draft's hint only asks for a counterexample, and the construction is \
+    the library's own. Source check: independent review on PR #6278."

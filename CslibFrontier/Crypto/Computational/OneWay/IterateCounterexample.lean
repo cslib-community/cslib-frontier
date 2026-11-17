@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Crypto.Computational.OneWay.Normalize
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
@@ -24,7 +25,8 @@ import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 If one-way functions exist, then some one-way function `f` has iterates `x ↦ f^[k |x|] x` that
 are not one-way, for every count `k` with `k n ≥ 2` for all large `n`
 ([AroraBarak07], Chapter 10, Exercise 4). In particular this holds for `k n = ⌈n ^ c⌉` with any
-real `c > 0`. Iterates of one-way *permutations* stay one-way.
+real `c > 0`. By contrast, iterating a one-way *permutation* by an efficiently computable count
+that is eventually positive gives a one-way permutation; a count of zero gives the identity.
 
 The construction starts from a one-way function `g` whose output length depends only on the
 input length (`OneWay.exists_fixedOutputLength`). Call a word *low-zero* when its first
@@ -47,8 +49,7 @@ challenge determine `g x`.
 
 ## Main results
 
-* `Cslib.Crypto.IterateCounterexample.oneWay_collapse`: `f` is one-way when `g` is one-way with
-  fixed output length.
+* `Cslib.Crypto.IterateCounterexample.oneWay_collapse`: `f` is one-way when `g` is one-way.
 * `Cslib.Crypto.IterateCounterexample.length_collapse`,
   `Cslib.Crypto.IterateCounterexample.iterate_collapse_eq`: fixed output length, and equal second
   images for inputs of equal length.
@@ -166,12 +167,10 @@ theorem not_oneWay_iterate_collapse {g : List Bool → List Bool} {length : ℕ 
           (collapse g)^[k (List.replicate n false).length] (List.replicate n false) ==
             (collapse g)^[k x.length] x := by
       simp [inversionGame, inversionExperiment]
-    rw [heval, ← PMF.bind_pure_comp, PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true)
-      fun x hx => ?_, PMF.bind_const]
+    refine heval.trans (Cslib.Probability.PMF.map_eq_pure_iff.mpr fun x hx => ?_)
     have hxn : x.length = n := BitString.length_of_mem_support_uniformList hx
-    rw [Function.comp_apply, List.length_replicate, hxn, hj,
-      iterate_collapse_eq hlen j (x := List.replicate n false) (y := x)
-      (by rw [List.length_replicate, hxn]), beq_self_eq_true]
+    rw [List.length_replicate, hxn, hj, iterate_collapse_eq hlen j (x := List.replicate n false)
+      (y := x) (by rw [List.length_replicate, hxn]), beq_self_eq_true]
   simp [Game.succProbability, hgame]
 
 /-- The inverter for `g` built from an inverter for `collapse g`: mark the challenge. -/
