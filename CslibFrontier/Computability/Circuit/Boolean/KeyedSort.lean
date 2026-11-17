@@ -126,7 +126,7 @@ theorem cost_program_keyedSortCircuit (key : Circuit signature r k) (depth : ℕ
         (bitonicSortCircuit (Fin.castAdd r : Fin k → Fin (k + r)) depth ascending).program.cost
           cost := by
   simp only [circuit_simps, keyedSortCircuit, keyedSortCircuit.pack, Circuit.cost_program_replicate,
-    Circuit.id, Nat.add_zero]
+    Nat.add_zero]
 
 /-- Exact weighted cost, including all temporary key gates and comparisons. The factor four
 avoids natural division and includes depth zero, empty keys, and empty records. -/

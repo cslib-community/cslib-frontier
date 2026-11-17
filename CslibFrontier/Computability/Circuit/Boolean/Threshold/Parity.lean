@@ -157,8 +157,7 @@ private theorem sum_range_toNat_mod_two (n : ℕ) :
 
 /-- The circuit has `n + 1` threshold gates and `n / 2` negations. -/
 theorem size_parityCircuit : (parityCircuit n).size = n + n / 2 + 1 := by
-  simp only [circuit_simps, parityCircuit, signedLayerGate, size_negIf, sum_add_distrib, sum_const,
-    card_univ, mul_one]
+  simp only [circuit_simps, parityCircuit, signedLayerGate, size_negIf, sum_add_distrib, mul_one]
   rw [Fin.sum_univ_eq_sum_range (fun j => (decide (j % 2 = 1)).toNat), sum_range_toNat_mod_two]
 
 /-- The circuit has threshold depth two: negations are free. -/

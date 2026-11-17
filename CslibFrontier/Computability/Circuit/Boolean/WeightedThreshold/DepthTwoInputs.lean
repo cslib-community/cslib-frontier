@@ -144,7 +144,7 @@ theorem eval_depthTwoInputs (bottom : Fin G → Op) (args : ∀ j, Fin (bottom j
       decide (θ ≤ (∑ j, u j * (interpretation (bottom j) fun a => x (args j a)).toNat) +
         ∑ i, v i * (x i).toNat) := by
   rw [depthTwoInputs, Circuit.eval_comp, Circuit.eval_oneGate]
-  simp only [circuit_simps, interpretation, depthTwoInputsTop, Fin.sum_univ_add, id_eq]
+  simp only [circuit_simps, interpretation, Fin.sum_univ_add, id_eq]
 
 /-- The evaluation of `depthTwoInputs` with every bottom gate written as the linear threshold
 function of its aggregated weights. -/

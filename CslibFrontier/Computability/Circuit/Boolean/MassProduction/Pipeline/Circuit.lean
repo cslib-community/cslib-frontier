@@ -339,7 +339,7 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
     exact congrFun (hmembers q r _) 0
   have h3 : (((bankCircuit members).comp (scatterCircuit t p w ℓ b s copies)).append
       (Circuit.id signature _)).eval interpretation W = Fin.append B W := by
-    simp only [circuit_simps, hB, hS]
+    simp only [circuit_simps]
     rfl
   -- Stage five.
   have hquery (i : Fin t) (j : Fin s) :
@@ -379,7 +379,7 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
       funext _
       simp only [substitute, Sum.elim_inl, Fin.append_left, hbank, hscatter, slotResource,
         Equiv.symm_apply_apply, pointEquiv_coe_symm_pointBits]
-  simp only [circuit_simps, lineSums, recoveryCircuit, h1, h2, h3]
+  simp only [circuit_simps, recoveryCircuit, h1, h2, h3]
   have hsum := sum_resource bits scalar (C := C) (place := place) (f := f) (a i) (z i) (hdirs i)
   rw [Fin.append_castAdd_natAdd] at hsum
   rw [directProduct, ← hsum]

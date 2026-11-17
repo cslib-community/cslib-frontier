@@ -118,7 +118,7 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
     (op' := (· || ·)) (op := fun C D => clauseJoin.comp (C.append D))
     (e := Circuit.oneGate (.const false) Fin.elim0) (f := id)
     (fun C D => by
-      simp only [circuit_simps, clauseJoin, interpretation]
+      simp only [circuit_simps, clauseJoin]
       rfl)
     (c.map (literalCircuit n))
   change (clauseCircuit n c).eval interpretation x 0 = _ at h

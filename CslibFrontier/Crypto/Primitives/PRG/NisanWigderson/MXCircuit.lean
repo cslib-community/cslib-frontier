@@ -101,7 +101,7 @@ variable {S}
 private theorem eval_parityLiterals_castAdd (x : BitString ℓ) (k : Fin m) :
     (parityLiterals S).eval (extInterpretation (modGate 2)) x (Fin.castAdd m k) =
       parityOn (S k) x := by
-  simp only [circuit_simps, parityLiterals, id]
+  simp only [circuit_simps, parityLiterals]
   exact eval_parityOnCircuit _ _ _
 
 private theorem eval_parityLiterals_natAdd (x : BitString ℓ) (k : Fin m) :

@@ -136,6 +136,44 @@ example (d : Circuit σ m k) (c : Circuit σ n m) (hd : d.depth ≤ 3) (hc : c.d
     (d.comp c).depth ≤ 7 := by
   circuit_bound
 
+/-! ### Other open goals
+
+The calls below are not focused on purpose, hence the linter option. -/
+
+-- Called on the first of two goals, the tactic closes it and leaves the second: here `omega`
+-- compares the bound `3 + 4` with the right-hand side.
+set_option linter.style.multiGoal false in
+example (d : Circuit σ m k) (c : Circuit σ n m) (hd : d.depth ≤ 3) (hc : c.depth ≤ 4) :
+    (d.comp c).depth ≤ 7 ∧ c.depth ≤ 4 := by
+  constructor
+  circuit_bound
+  exact hc
+
+-- The same when the simp lemmas given already close the comparison.
+set_option linter.style.multiGoal false in
+example (c : Circuit σ n m) (d : Circuit σ n k) (hd : d.depth ≤ 5) :
+    (c.append d).depth ≤ max c.depth d.depth ∧ d.depth ≤ 5 := by
+  constructor
+  circuit_bound [le_refl]
+  exact hd
+
+/-! ### Metavariables in a cost -/
+
+-- The cost procedure of `circuit_simps` rewrites a cost that contains a metavariable and leaves
+-- the metavariable open.
+example (d : Circuit σ m k) (c : Circuit σ n m) :
+    ∃ w : σ.Op → ℕ, (d.comp c).program.cost w = c.program.cost w + d.program.cost w := by
+  constructor
+  · simp only [circuit_simps]
+  · exact fun _ => 1
+
+-- It does not assign a metavariable that stands for the circuit: no cost rule applies.
+example (w : σ.Op → ℕ) (c : Circuit σ n k) (h : c.program.cost w = 0) :
+    ∃ p : Circuit σ n k, p.program.cost w = 0 := by
+  constructor
+  · fail_if_success simp only [circuit_simps]
+    exact h
+
 /-! ### Failures -/
 
 -- A piece with no bound, where the goal needs one.

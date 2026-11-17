@@ -190,7 +190,7 @@ theorem cost_program_duplicateFlagsCircuit {r k : ℕ} (key : Fin k → Fin r) (
         finProdFinEquiv (row, key bit)).program.cost cost +
       BitonicSort.arity d * cost .or +
       BitonicSort.sortTraceSize d * (2 * (2 * cost .and + cost .or)) := by
-  simp only [circuit_simps, duplicateFlagsCircuit, Circuit.cost_program_parallel, Circuit.id,
+  simp only [circuit_simps, duplicateFlagsCircuit, Circuit.cost_program_parallel,
     duplicateFlagsCircuit.outputs, duplicateFlagsCircuit.rows, Nat.zero_add, Nat.add_zero,
     cost_program_adjacentDuplicateCircuit, cost_program_bitonicUnsortCircuit, Nat.mul_one,
     Nat.add_assoc]

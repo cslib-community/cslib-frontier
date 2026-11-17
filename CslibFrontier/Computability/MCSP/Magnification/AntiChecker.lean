@@ -112,7 +112,7 @@ private theorem eval_finalQuery (O : Language Bool) (s R : ℕ)
       simp only [finalSources, List.get_eq_getElem, List.getElem_ofFn, substitute,
         List.getElem_map]
       rfl
-  simp only [circuit_simps, finalQuery, oracleInterpretation_base, eval_queryLayer]
+  simp only [circuit_simps, finalQuery, eval_queryLayer]
   change (!O.slice _ _) = true ↔ _
   rw [Bool.not_eq_true', ← Bool.not_eq_true, Language.slice_eq_true_iff, hofFn]
 

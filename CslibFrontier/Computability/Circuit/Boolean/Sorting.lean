@@ -281,8 +281,7 @@ private theorem cost_chain {input a b n m r : ℕ}
     (second : Circuit signature (n * r) (b * 2 + m * r)) (cost : signature.Op → ℕ) :
     (chain first second).program.cost cost =
       first.program.cost cost + second.program.cost cost := by
-  simp only [circuit_simps, chain, Circuit.cost_program_parallel, Circuit.id, Nat.zero_add,
-    Nat.add_zero]
+  simp only [circuit_simps, chain, Circuit.cost_program_parallel, Nat.zero_add, Nat.add_zero]
 
 private theorem eval_collect {input a b n m r : ℕ}
     (left : Circuit signature input (a * 2 + n * r))

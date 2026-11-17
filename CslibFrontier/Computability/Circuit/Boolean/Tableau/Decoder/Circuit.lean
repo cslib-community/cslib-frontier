@@ -85,7 +85,7 @@ theorem eval_outTemplate (y : Fin 28 → Bool) :
       (y 0 || (y 1 && (y 2 ^^ y 3)) || (y 4 && (y 5 ^^ y 6)) || (y 7 && (y 8 ^^ y 9)) ||
         (y 10 && (y 11 ^^ y 12)) || (y 13 && (y 14 ^^ y 15)) || (y 16 && (y 17 ^^ y 18)) ||
         (y 19 && (y 20 ^^ y 21)) || (y 22 && (y 23 ^^ y 24)) || (y 25 && (y 26 ^^ y 27))) := by
-  simp only [circuit_simps, outTemplate, term, tIn, Bool.or_assoc]
+  simp only [circuit_simps, outTemplate, term, Bool.or_assoc]
   rfl
 
 /-- The formula of an output bit on the values of numbered wires. -/

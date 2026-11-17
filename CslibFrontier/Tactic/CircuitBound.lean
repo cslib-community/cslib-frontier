@@ -350,8 +350,9 @@ syntax (name := circuitBound) "circuit_bound" (" [" Parser.Tactic.simpLemma,* "]
   goal.assign (← mkAppM ``Nat.le_trans #[b.proof, rest])
   let (rest?, _) ← simpTarget rest.mvarId! ctx simprocs
   let some rest := rest? | replaceMainGoal []
+  -- `omega` closes the main goal only, so the other open goals stay
+  replaceMainGoal [rest]
   try
-    setGoals [rest]
     evalTactic (← `(tactic| omega))
   catch _ =>
     let mut msg := m!"circuit_bound could not prove{indentExpr (← rest.getType)}"

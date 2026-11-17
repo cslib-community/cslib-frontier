@@ -155,7 +155,7 @@ theorem compareSwapCircuit.eval_record {r : ℕ} (flag : Circuit signature (r + 
     (record flag).eval interpretation (Fin.append x y) =
       let b := flag.eval interpretation (Fin.append x y) 0
       Fin.append ![b, !b] (if b then Fin.append y x else Fin.append x y) := by
-  simp only [circuit_simps, record, Circuit.id, Function.comp_id, eval_flagPair]
+  simp only [circuit_simps, record, Function.comp_id, eval_flagPair]
   rw [eval_switch]
   congr 1 with j : 1
   simp
@@ -184,8 +184,8 @@ theorem compareSwapCircuit.cost_record {r : ℕ} (flag : Circuit signature (r + 
     (cost : signature.Op → ℕ) :
     (record flag).program.cost cost =
       flag.program.cost cost + cost .not + 2 * r * (2 * cost .and + cost .or) := by
-  simp only [circuit_simps, record, cost_switch, flagPair, Circuit.id, Formula.cost_toCircuit,
-    Formula.not, Formula.cost_gate, Formula.cost_input, Fin.sum_univ_one, Matrix.cons_val_zero]
+  simp only [circuit_simps, record, cost_switch, flagPair, Formula.cost_toCircuit, Formula.not,
+    Formula.cost_gate, Formula.cost_input, Fin.sum_univ_one, Matrix.cons_val_zero]
   ring
 
 /-- Exposing the controls adds no gates to `exchange`. Unlike `compareSwapCircuit`, `exchange`
@@ -199,14 +199,13 @@ private theorem eval_exchange {r : ℕ} (flag : Circuit signature (r + r) 1)
     (x y : BitString r) : (exchange flag).eval interpretation (Fin.append x y) =
       if flag.eval interpretation (Fin.append x y) 0 then Fin.append y x else Fin.append x y := by
   funext j
-  simp only [circuit_simps, exchange, switch, eval_flagPair, Circuit.id, Function.comp_id,
-    eval_selectBit]
+  simp only [circuit_simps, exchange, switch, eval_flagPair, Function.comp_id, eval_selectBit]
   cases flag.eval interpretation (Fin.append x y) 0 <;>
     cases j using Fin.addCases <;> simp [swapInput, -Fin.natAdd_eq_addNat]
 
 private theorem size_exchange {r : ℕ} (flag : Circuit signature (r + r) 1) :
     (exchange flag).size = flag.size + 6 * r + 1 := by
-  simp only [circuit_simps, exchange, switch, flagPair, Circuit.id, selectBit]
+  simp only [circuit_simps, exchange, switch, flagPair, selectBit]
   lia
 
 open Classical in
@@ -227,8 +226,7 @@ theorem eval_compareSwapCircuit {k r : ℕ} (key : Fin k → Fin r) (x y : BitSt
 @[simp] theorem size_compareSwapCircuit {k r : ℕ} (key : Fin k → Fin r) :
     (compareSwapCircuit key).size = if r = 0 then 0 else 6 * k + 6 * r + 2 := by
   by_cases h : r = 0 <;>
-    simp only [circuit_simps, compareSwapCircuit, h, ↓reduceIte, Circuit.id, size_exchange,
-      Formula.size_lexLt]
+    simp only [circuit_simps, compareSwapCircuit, h, ↓reduceIte, size_exchange, Formula.size_lexLt]
   lia
 
 /-- The selected keys of the two output records are in ascending order. -/

@@ -192,7 +192,7 @@ noncomputable def stageCircuit (k : ℕ) :
 private theorem cost_stageCircuit (k : ℕ) :
     (stageCircuit target input pairs k).program.cost Monotone.andCost = k * pairs.length := by
   simp only [circuit_simps, stageCircuit, Circuit.cost_program_iterate, roundCircuit,
-    cost_updateCircuit, initialCircuit, Circuit.id]
+    cost_updateCircuit, initialCircuit]
   simp [Formula.cost_toCircuit, Monotone.const]
 
 /-- The unrolled program carries the intended pair values; the extra output is a free read
@@ -203,8 +203,7 @@ theorem eval_stageCircuit (k : ℕ) :
   induction k with
   | zero =>
     refine ⟨∅, ?_⟩
-    simp only [circuit_simps, stageCircuit, Circuit.iterate, Circuit.id, Function.comp_id,
-      initialCircuit]
+    simp only [circuit_simps, stageCircuit, Circuit.iterate, Function.comp_id, initialCircuit]
     congr 1 with j : 1
     induction j using Fin.lastCases <;> simp [Monotone.const, stages]
   | succ k ih =>
@@ -216,8 +215,7 @@ theorem eval_stageCircuit (k : ℕ) :
       simp only [Function.comp_apply, Fin.lastCases_castSucc]
     simp only [stageCircuit, Circuit.iterate, Circuit.eval_comp] at houtput ⊢
     rw [houtput]
-    simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit, hrestrict,
-      stages]
+    simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit, hrestrict]
     rfl
 
 /-- A union tree has one disjunction per argument and its seed constant. -/

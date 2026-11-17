@@ -32,7 +32,13 @@ public meta section
 depths of a circuit built with combinators such as `Circuit.comp`, `Circuit.append`, `Circuit.pi`,
 `Circuit.wiring`, `Circuit.oneGate` and `Formula.toCircuit` to those of its parts. It unfolds no
 definition: name the construction's own definitions beside it, as in
-`simp only [circuit_simps, step]`. `CslibFrontier.Computability.Circuit.Simps` lists its lemmas. -/
+`simp only [circuit_simps, step]`. `CslibFrontier.Computability.Circuit.Simps` lists its lemmas.
+
+Seven of them are general: `Fin.append_left`, `Fin.append_right`, `Function.comp_apply`,
+`Finset.sum_const`, `Finset.card_univ`, `Fintype.card_fin` and `smul_eq_mul` rewrite every matching
+subterm of the goal, not only what the circuit lemmas produce. A step that follows
+`simp only [circuit_simps, …]` and depends on the shape of the goal, such as `congr` or
+`exact (Fin.append_left _ _ i).trans h`, sees the goal after these rewrites. -/
 register_simp_attr circuit_simps
 
 namespace Cslib.Tactic.CircuitBound
@@ -54,6 +60,9 @@ initialize boundExt : SimpleScopedEnvExtension (Array DiscrTree.Key × Name) (Di
   registerSimpleScopedEnvExtension {
     addEntry := fun bounds (keys, decl) => bounds.insertKeyValue keys decl
     initial := {}
+    -- as in core's simp extension (`mkSimpExt`), a tag on a private theorem stays in its module
+    exportEntry? := fun _ entry =>
+      if isPrivateName entry.2 then ⟨none, none, some entry⟩ else .uniform (some entry)
   }
 
 /-- `@[circuit_bound]` registers a theorem `m ≤ b` or `m = b` between natural numbers for the
@@ -64,7 +73,9 @@ side.
 
 A hypothesis `∀ j, m' j ≤ D` whose bound `D` occurs nowhere on the left-hand side, as in
 `(∀ j, (cs j).depth ≤ D) → (Circuit.pi cs).depth ≤ D`, asks the tactic for a bound of `m' j` that
-does not depend on `j`. Any other hypothesis must be among the local hypotheses. -/
+does not depend on `j`. Any other hypothesis must be among the local hypotheses.
+
+A tag on a private theorem is used in its own module only. -/
 syntax (name := circuitBoundAttr) "circuit_bound" : attr
 
 initialize registerBuiltinAttribute {

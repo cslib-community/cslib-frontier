@@ -318,7 +318,7 @@ theorem eval_broadcastCircuit_header {count headerWidth keyWidth width : ℕ}
     header ((broadcastCircuit key tag count width).eval interpretation x) record =
       header x record := by
   funext bit
-  simp only [circuit_simps, header, BitString.block, broadcastCircuit, Circuit.id, outputWire,
+  simp only [circuit_simps, header, BitString.block, broadcastCircuit, outputWire,
     Equiv.symm_apply_apply, Fin.addCases_left, id_eq]
 
 /-- The value field is supplied by the shared scans. -/
@@ -377,7 +377,7 @@ theorem cost_program_broadcastCircuit {headerWidth keyWidth : ℕ}
       (if count = 0 then 0 else cost (.const false) + (count - 1) *
         (cost (.const true) + keyWidth * (3 * cost .and + 2 * cost .not + cost .or))) +
       width * (cost (.const false) + count * (cost .not + 2 * cost .and + cost .or)) := by
-  simp only [circuit_simps, broadcastCircuit, Circuit.id, Nat.zero_add, Nat.add_zero,
+  simp only [circuit_simps, broadcastCircuit, Nat.zero_add, Nat.add_zero,
     broadcastCircuit.cost_values, cost_program_adjacentEqualityCircuit]
 
 /-- Exact gate count, including constants and unused gates at empty dimensions. -/

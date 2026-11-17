@@ -112,8 +112,8 @@ theorem cost_program_routeValuesCircuit {h k : ℕ} (key : Fin k → Fin h) (tag
       (bitonicSortTraceCircuit (matchingSelector key tag width) d true).program.cost cost +
       (broadcastCircuit key tag (BitonicSort.arity d) width).program.cost cost +
       BitonicSort.sortTraceSize d * (2 * width * (2 * cost .and + cost .or)) := by
-  simp only [circuit_simps, routeValuesCircuit, Circuit.cost_program_parallel, Circuit.id,
-    answerWiring, Nat.zero_add, Nat.add_zero, cost_program_bitonicUnsortCircuit]
+  simp only [circuit_simps, routeValuesCircuit, Circuit.cost_program_parallel, answerWiring,
+    Nat.zero_add, Nat.add_zero, cost_program_bitonicUnsortCircuit]
 
 /-- Each original destination receives the OR of matching original sources. Requests may repeat;
 no restoration keys, identifiers, rank calculations or source uniqueness are needed. -/

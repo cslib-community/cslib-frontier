@@ -70,14 +70,20 @@ simproc [circuit_simps] Circuit.costProgram (Program.cost _ _) := fun e => do
   for rule in #[``Circuit.cost_program_comp, ``Circuit.cost_program_append,
       ``Circuit.cost_program_pi, ``Circuit.cost_program_wiring, ``Circuit.cost_program_wiringOn,
       ``Circuit.cost_program_oneGate] do
-    let proof ← mkConstWithFreshMVarLevels rule
-    let (args, _, type) ← forallMetaTelescope (← inferType proof)
-    let some (_, lhs, rhs) := type.eq? | continue
-    let_expr Program.cost _ _ _ program' cost' := lhs | continue
-    if ← isDefEq program' program <&&> isDefEq cost' cost then
+    -- as in a rewrite by a simp lemma, matching assigns no metavariable of the goal
+    let step? ← withNewMCtxDepth do
+      let proof ← mkConstWithFreshMVarLevels rule
+      let (args, _, type) ← forallMetaTelescope (← inferType proof)
+      let some (_, lhs, rhs) := type.eq? | return none
+      let_expr Program.cost _ _ _ program' cost' := lhs | return none
+      unless ← isDefEq program' program <&&> isDefEq cost' cost do return none
       let rhs ← instantiateMVars rhs
+      let proof ← instantiateMVars (mkAppN proof args)
+      if (← hasAssignableMVar rhs) || (← hasAssignableMVar proof) then return none
+      return some (rhs, proof)
+    if let some (rhs, proof) := step? then
       trace[Meta.Tactic.simp.rewrite] "{.ofConstName rule}:{indentExpr e}\n==>{indentExpr rhs}"
-      return .visit { expr := rhs, proof? := ← instantiateMVars (mkAppN proof args) }
+      return .visit { expr := rhs, proof? := proof }
   return .continue
 
 attribute [circuit_bound]

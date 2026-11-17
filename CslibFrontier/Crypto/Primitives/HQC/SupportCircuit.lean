@@ -91,8 +91,7 @@ theorem val_eval_candidateCircuit {width bits n offset : ℕ} (hoff : offset < n
     rw [val_equivFin_eq_div_mod_of_testBit (s := width) (N := equivFin (width + bits) product)
       (fun i => (testBit_equivFin product (Fin.natAdd width i)).symm), hp,
       Nat.mod_eq_of_lt (hlow.trans ((Nat.sub_le n offset).trans_lt hn))]
-  simp only [circuit_simps, candidateCircuit, eval_wordConstCircuit, Circuit.id, Function.comp_id,
-    hpad]
+  simp only [circuit_simps, candidateCircuit, eval_wordConstCircuit, Function.comp_id, hpad]
   rw [val_eval_carryLookaheadAdd, hh, hc, Nat.mod_eq_of_lt (hoff.trans hn),
     Nat.mod_eq_of_lt (show (equivFin width x : ℕ) * (n - offset) / 2 ^ width + offset <
       2 ^ bits by omega)]
@@ -103,7 +102,7 @@ Output selections and input copies are free wires in the Boolean circuit model. 
 theorem size_candidateCircuit (width bits n offset : ℕ) :
     (candidateCircuit width bits n offset).size =
       (Modular.multiply (width + bits)).size + (carryLookaheadAdd bits).size + 6 := by
-  simp only [circuit_simps, candidateCircuit, size_wordConstCircuit, Circuit.id]
+  simp only [circuit_simps, candidateCircuit, size_wordConstCircuit]
   omega
 
 /-- Every constant, multiplier and adder gate is charged; output selections are free wires. -/

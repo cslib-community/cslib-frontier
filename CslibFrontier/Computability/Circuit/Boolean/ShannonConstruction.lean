@@ -125,8 +125,8 @@ theorem size_outputFormula_le (f : BooleanFunction (k + d)) :
     (outputFormula f).size ≤ 2 * 2 ^ d := by
   have h := Formula.size_orList_add_one (l := List.ofFn (rowFormula f))
     (by simp [List.ofFn_eq_nil_iff])
-  simp only [circuit_simps, List.map_ofFn, Function.comp_def, rowFormula, Nat.zero_add,
-    List.ofFn_const, List.sum_replicate, mul_one, List.length_ofFn] at h
+  simp only [circuit_simps, List.map_ofFn, Function.comp_def, rowFormula, List.ofFn_const,
+    List.sum_replicate, List.length_ofFn] at h
   change (Formula.orList (List.ofFn (rowFormula f))).size ≤ _
   lia
 
