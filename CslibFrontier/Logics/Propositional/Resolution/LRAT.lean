@@ -16,7 +16,7 @@ A resolvent is a RUP clause of its two premises: from the negation of `c₁.reso
 literal of `c₁` but `(v, true)` is false, so `c₁` forces `v`, and then every literal of `c₂` is
 false. So a tree-like derivation (`Cslib.Logic.PL.CNF.Derivation`) compiles to an LRAT
 certificate with one RUP step for each resolution step, hinting the numbers of its two premises,
-followed by an empty-clause step hinting the conclusion
+followed by an empty-clause step hinting the conclusion, for a derivation of the empty clause
 (`Cslib.Logic.PL.CNF.Derivation.toLRAT`). The checker accepts the certificate of every tree-like
 refutation (`Cslib.Logic.PL.CNF.Derivation.checkLRAT_toLRAT`).
 
@@ -92,9 +92,9 @@ def lratSteps : {c : Clause ℕ} → φ.Derivation c → ℕ → LRATSteps
     ⟨r₁.actions ++ r₂.actions ++ [.addRup r₂.next (c₁.resolvent c₂ v).toDIMACS #[r₁.id, r₂.id]],
       r₂.next, r₂.next + 1⟩
 
-/-- **The LRAT certificate of a tree-like derivation**: its steps, numbering the resolvents from
+/-- **The LRAT certificate of a tree-like refutation**: its steps, numbering the resolvents from
 one past the last clause of the formula, and an empty-clause step hinting its conclusion. -/
-def toLRAT {c : Clause ℕ} (d : φ.Derivation c) : Array LRAT.IntAction :=
+def toLRAT (d : φ.Derivation []) : Array LRAT.IntAction :=
   let r := d.lratSteps (φ.length + 1)
   (r.actions ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty r.next #[r.id]]).toArray
 

@@ -257,11 +257,18 @@ def Result.isSat : Result → Bool
   | .sat _ => true
   | .unsat _ => false
 
+/-- A derivation of a clause falsified by the empty partial assignment derives the empty
+clause. -/
+def refutationOf {φ : CNF ℕ} : (c : Clause ℕ) → φ.Derivation c →
+    (∀ l ∈ c, l.negate ∈ ([] : List (Literal ℕ))) → φ.Derivation []
+  | [], d, _ => d
+  | l :: _, _, h => absurd (h l List.mem_cons_self) List.not_mem_nil
+
 /-- **The DPLL solver**: a model, or the LRAT certificate of the refutation found by the search. -/
 def solve (φ : CNF ℕ) : Result :=
   match dpll φ with
   | .sat σ _ => .sat σ
-  | .unsat _ d _ => .unsat d.toLRAT
+  | .unsat c d h => .unsat (refutationOf c d h).toLRAT
 
 /-- **The models returned by the solver are models.** -/
 theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) : φ.eval σ = true := by
@@ -280,8 +287,7 @@ theorem solve_unsat {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : solve φ =
   · cases h
   · rename_i c d hc _
     cases h
-    obtain rfl : c = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl => by simpa using hc l hl
-    exact d.checkLRAT_toLRAT
+    exact (refutationOf c d hc).checkLRAT_toLRAT
 
 /-- **The solver decides satisfiability.** -/
 theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
