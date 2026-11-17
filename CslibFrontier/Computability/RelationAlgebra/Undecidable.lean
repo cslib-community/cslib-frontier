@@ -9,25 +9,29 @@ module
 
 public import CslibFrontier.Computability.RelationAlgebra.Tiling.Reduction
 import CslibFrontier.Computability.WangTile.TilesPlaneOfEveryTileOccurs
+import CslibFrontier.Computability.WangTile.Undecidable
 
 /-!
-# Representability of finite relation algebras: the step from the domino problem
+# Undecidability of representability for finite relation algebras
 
-Hirsch and Hodkinson prove that no algorithm decides whether a finite relation algebra is
-representable [HirschHodkinson2001], Theorem 8, from the undecidability of the domino problem.
-**This file does not prove that theorem.** It proves the implication between the two: if the
-domino problem is undecidable, then so is the representation problem for finite relation algebras
-given by tables. The undecidability of the domino problem is not proved in this library.
+No algorithm decides whether a finite relation algebra is representable [HirschHodkinson2001],
+Theorem 8. The instances here are atom tables: a finite relation algebra is the complex algebra
+of its atom structure, every finite relation algebra is isomorphic to one that a table presents
+(`AtomTable.exists_presents_equiv`), and isomorphic relation algebras are both representable or
+both not. A table that presents no atom structure is a no-instance.
 
 A decision procedure for the representation problem decides the tiling problem in which every
-tile must occur, through the reduction `everyTileOccurs_manyOneReducible_isRepresentable`, and
-that decides the domino problem by a search over sublists
-(`Cslib.WangTile.computablePred_tilesPlane_of_computablePred_everyTileOccurs`).
+tile must occur, through the reduction `everyTileOccurs_manyOneReducible_isRepresentable`. That
+decides the domino problem by a search over sublists
+(`Cslib.WangTile.computablePred_tilesPlane_of_computablePred_everyTileOccurs`), which is
+undecidable (`Cslib.WangTile.not_computablePred_tilesPlane`, Berger's theorem). The source cites
+Berger's theorem and says without argument that its tiling problem is undecidable too; the search
+over sublists is our argument for that step.
 
 ## Main results
 
-* `Cslib.RelationAlgebra.not_computablePred_isRepresentable_of_not_computablePred_tilesPlane`:
-  the conditional step.
+* `Cslib.RelationAlgebra.AtomTable.not_computablePred_representable_complexAlgebra`: the
+  representation problem for finite relation algebras given by tables is undecidable.
 
 ## References
 
@@ -37,19 +41,20 @@ that decides the domino problem by a search over sublists
 
 public section
 
-namespace Cslib.RelationAlgebra
+namespace Cslib.RelationAlgebra.AtomTable
 
 open WangTile
 
-/-- A step towards Theorem 8 of [HirschHodkinson2001], conditional on the undecidability of the
-domino problem, and not that theorem: **if** no algorithm decides whether a list of Wang tiles
-tiles the plane, then none decides whether a table presents an atom structure whose complex
-algebra is representable. The hypothesis is Berger's theorem, which the source cites and this
-library does not prove; it is milestone 4 of cslib-frontier issue #5920. -/
-theorem not_computablePred_isRepresentable_of_not_computablePred_tilesPlane
-    (h : ¬ComputablePred TilesPlane) : ¬ComputablePred AtomTable.IsRepresentable := fun hrep =>
-  h <| computablePred_tilesPlane_of_computablePred_everyTileOccurs <|
-    ComputablePred.computable_of_manyOneReducible everyTileOccurs_manyOneReducible_isRepresentable
-      hrep
+/-- **Representability of finite relation algebras is undecidable** [HirschHodkinson2001],
+Theorem 8: no algorithm decides whether a table presents an atom structure whose complex algebra
+is representable. The predicate is `AtomTable.IsRepresentable`, written out. -/
+theorem not_computablePred_representable_complexAlgebra :
+    ¬ComputablePred fun t : AtomTable =>
+      ∃ A : AtomStructure (Fin t.size), t.Presents A ∧ Representable (ComplexAlgebra A) :=
+  fun hrep =>
+    not_computablePred_tilesPlane <|
+      computablePred_tilesPlane_of_computablePred_everyTileOccurs <|
+        ComputablePred.computable_of_manyOneReducible
+          everyTileOccurs_manyOneReducible_isRepresentable hrep
 
-end Cslib.RelationAlgebra
+end Cslib.RelationAlgebra.AtomTable
