@@ -9,13 +9,13 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 public import Mathlib.Data.ZMod.Basic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
@@ -130,8 +130,8 @@ second; if `e` is odd, stop. -/
 /-- The square root of `s` modulo `P` found with the non-residue `t`:
 `s ^ ((e + 1) / 2) * t ^ (e' / 2) mod P` for the descent exponents `(e, e')`. -/
 @[expose] def sqrtMod (P s t : ℕ) : ℕ :=
-  powMod P s (((descentExponents P s t).1 + 1) / 2) *
-    powMod P t ((descentExponents P s t).2 / 2) % P
+  let exps := descentExponents P s t
+  powMod P s ((exps.1 + 1) / 2) * powMod P t (exps.2 / 2) % P
 
 /-! ### Correctness -/
 
@@ -317,11 +317,6 @@ private theorem descentStep_le {P s t : ℕ} {st : ℕ × ℕ} (h : st.1 ≤ P �
   dsimp only
   split_ifs <;> dsimp only <;> omega
 
-private theorem length_encNat_le_of_le {a b : ℕ} (h : a ≤ b) :
-    (encNat a).length ≤ (encNat b).length := by
-  rw [length_encNat_eq_size, length_encNat_eq_size]
-  exact Nat.size_le_size h
-
 private theorem computableInPolyTime_descentExponents_triple :
     ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => descentExponents x.1 x.2.1 x.2.2)
       (encPair encNat (encPair encNat encNat)) (encPair encNat encNat) := by
@@ -335,8 +330,8 @@ private theorem computableInPolyTime_descentExponents_triple :
     (size := fun x => 2 * (encPair encNat (encPair encNat encNat) x).length + 2) ?_ ?_).1
   · exact PolyBounded.of_forall_le 2 1 fun x => by simp only [pow_one]; omega
   · rintro ⟨P, s, t⟩ _ ⟨e, e'⟩ _ ⟨he, he'⟩
-    have h1 := length_encNat_le_of_le he
-    have h2 := length_encNat_le_of_le he'
+    have h1 := length_encNat_mono he
+    have h2 := length_encNat_mono he'
     dsimp only at h1 h2 ⊢
     enc_len
 
@@ -361,8 +356,8 @@ theorem computableInPolyTime_sqrtMod {α : Type} {input : α ↪ List Bool} {P s
     (e := fun a => ((descentExponents (P a) (s a) (t a)).1 + 1) / 2) (by fun_prop)
   have h2 := computableInPolyTime_powMod hP ht
     (e := fun a => (descentExponents (P a) (s a) (t a)).2 / 2) (by fun_prop)
-  unfold sqrtMod
-  fun_prop
+  simp only [sqrtMod]
+  exact ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' h1 h2) hP
 
 end RunningTime
 
