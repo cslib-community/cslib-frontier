@@ -238,7 +238,7 @@ private theorem zero_mem_initialCode {F : Type} [Field F] (params : FRIParams F)
 
 /-- Parametric adaptive out-of-order accepting-shaped cheating prover (`t_FS = 2`, `t_MT = 2`,
 `params.proofOracleQueries` depth-`params.d` openings) for any `FRIParams F`. -/
-private def mkAcceptingCheater {F : Type} [Field F] [DecidableEq F] (params : FRIParams F)
+def mkAcceptingCheater {F : Type} [Field F] [DecidableEq F] (params : FRIParams F)
     (farWord : OracleTable params.d F) :
     OracleComp (BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
       (OracleTable params.d F × BCSProof (params.m + 1) F) := do
@@ -259,7 +259,7 @@ private def mkAcceptingCheater {F : Type} [Field F] [DecidableEq F] (params : FR
     { roots := fun _ => d₀
       openings := List.replicate params.proofOracleQueries ⟨0, List.replicate params.d sib⟩ })
 
-private theorem isCostBounded_FS_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+theorem isCostBounded_FS_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) (farWord : OracleTable params.d F) :
     IsCostBounded bcsFSCost (mkAcceptingCheater params farWord) 2 :=
   IsCostBounded.liftBind (cost := bcsFSCost) (Sum.inl [false]) _ 2 fun d₀ =>
@@ -274,7 +274,7 @@ private theorem isCostBounded_FS_mkAcceptingCheater {F : Type} [Field F] [Decida
             (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
           IsCostBounded.pure (cost := bcsFSCost) _ 0
 
-private theorem isCostBounded_MT_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+theorem isCostBounded_MT_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) (farWord : OracleTable params.d F) :
     IsCostBounded bcsMTCost (mkAcceptingCheater params farWord) 2 :=
   IsCostBounded.liftBind (cost := bcsMTCost) (Sum.inl [false]) _ 1 fun d₀ =>
@@ -289,7 +289,7 @@ private theorem isCostBounded_MT_mkAcceptingCheater {F : Type} [Field F] [Decida
             (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
           IsCostBounded.pure (cost := bcsMTCost) _ 0
 
-private theorem mkAcceptingCheater_openings_le {F : Type} [Field F] [DecidableEq F]
+theorem mkAcceptingCheater_openings_le {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) (farWord : OracleTable params.d F)
     (x : OracleTable params.d F) (prf : BCSProof (params.m + 1) F)
     (hmem : (x, prf) ∈ (mkAcceptingCheater params farWord).support) :
@@ -301,7 +301,7 @@ private theorem mkAcceptingCheater_openings_le {F : Type} [Field F] [DecidableEq
   intro op hop
   rw [(List.mem_replicate.mp hop).2, List.length_replicate]
 
-private theorem isCostBounded_soundnessProg_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+theorem isCostBounded_soundnessProg_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) (encSym : F → List Bool) (e : ℕ)
     (farWord : OracleTable params.d F) {Q_MT : ℕ}
     (hQ : 2 + params.proofOracleQueries * (params.d + 1) ≤ Q_MT) :
@@ -993,69 +993,14 @@ theorem friGoldilocks_johnson_romSoundness_lt_one_25th
     (by norm_num : ((3 * 1000 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 3015),
     (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
 
-private def zeroChalGoldilocks : FRIChal (ZMod goldilocksP) 5 6 :=
-  ⟨0, fun _ => ⟨0, by decide⟩⟩
-
 /-- Explicit adaptive out-of-order cheating prover (`t_FS = 2, t_MT = 2, L_path = 5`) attempting
-to forge a Goldilocks BCS-FRI proof for `farWordGoldilocks ∉ paramsGoldilocks.proximityLang 17`. -/
-def friCheaterGoldilocks :
+to forge a Goldilocks BCS-FRI proof for `farWordGoldilocks ∉ paramsGoldilocks.proximityLang 17`,
+instantiating `mkAcceptingCheater` at `paramsGoldilocks` and `farWordGoldilocks`. -/
+abbrev friCheaterGoldilocks :
     OracleComp
       (BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
-      (OracleTable 5 (ZMod goldilocksP) × BCSProof 3 (ZMod goldilocksP)) := do
-  let d₀ ← query
-    (spec := BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
-    (.inl [false])
-  let c₁ ← query
-    (spec := BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
-    (.inr (farWordGoldilocks, [d₀, d₀], [zeroChalGoldilocks]))
-  let c₀ ← query
-    (spec := BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
-    (.inr (farWordGoldilocks, [d₀], []))
-  let sib ← query
-    (spec := BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
-    (.inl [decide (c₀.foldScalar = c₁.foldScalar)])
-  return (farWordGoldilocks,
-    { roots := fun _ => d₀
-      openings :=
-        List.replicate paramsGoldilocks.proofOracleQueries ⟨0, [sib, sib, sib, sib, sib]⟩ })
-
-theorem isCostBounded_FS_friCheaterGoldilocks :
-    IsCostBounded bcsFSCost friCheaterGoldilocks 2 :=
-  IsCostBounded.liftBind (cost := bcsFSCost) (Sum.inl [false]) _ 2 fun d₀ =>
-    IsCostBounded.liftBind (cost := bcsFSCost)
-        (Sum.inr (farWordGoldilocks, [d₀, d₀], [zeroChalGoldilocks])) _ 1
-        fun (c₁ : FRIChal (ZMod goldilocksP) 5 6) =>
-      IsCostBounded.liftBind (cost := bcsFSCost)
-          (Sum.inr (farWordGoldilocks, [d₀], [])) _ 0
-          fun (c₀ : FRIChal (ZMod goldilocksP) 5 6) =>
-        IsCostBounded.liftBind (cost := bcsFSCost)
-            (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
-          IsCostBounded.pure (cost := bcsFSCost) _ 0
-
-theorem isCostBounded_MT_friCheaterGoldilocks :
-    IsCostBounded bcsMTCost friCheaterGoldilocks 2 :=
-  IsCostBounded.liftBind (cost := bcsMTCost) (Sum.inl [false]) _ 1 fun d₀ =>
-    IsCostBounded.liftBind (cost := bcsMTCost)
-        (Sum.inr (farWordGoldilocks, [d₀, d₀], [zeroChalGoldilocks])) _ 1
-        fun (c₁ : FRIChal (ZMod goldilocksP) 5 6) =>
-      IsCostBounded.liftBind (cost := bcsMTCost)
-          (Sum.inr (farWordGoldilocks, [d₀], [])) _ 1
-          fun (c₀ : FRIChal (ZMod goldilocksP) 5 6) =>
-        IsCostBounded.liftBind (cost := bcsMTCost)
-            (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
-          IsCostBounded.pure (cost := bcsMTCost) _ 0
-
-theorem friCheaterGoldilocks_openings_le
-    (x : OracleTable 5 (ZMod goldilocksP)) (prf : BCSProof 3 (ZMod goldilocksP))
-    (hmem : (x, prf) ∈ friCheaterGoldilocks.support) :
-    ∀ op ∈ prf.openings, op.path.length ≤ 5 := by
-  simp only [friCheaterGoldilocks, mem_supportWith_bind_iff, supportWith_query, Set.mem_univ,
-    true_and, supportWith_pure, Set.mem_singleton_iff] at hmem
-  obtain ⟨d₀, c₁, c₀, sib, h⟩ := hmem
-  cases h
-  intro op hop
-  rw [(List.mem_replicate.mp hop).2]
-  simp only [List.length_cons, List.length_nil, le_refl]
+      (OracleTable 5 (ZMod goldilocksP) × BCSProof 3 (ZMod goldilocksP)) :=
+  mkAcceptingCheater paramsGoldilocks farWordGoldilocks
 
 -- Direct instantiation of `friGoldilocks_johnson_romSoundness_lt_one_25th` on the explicit
 -- accepting-shaped adaptive client `friCheaterGoldilocks` (`2 + 49 * 6 = 296 ≤ 1000`).
@@ -1063,13 +1008,10 @@ example :
     bcsSoundnessGame (friIOP paramsGoldilocks) (encZMod (p := goldilocksP))
       (paramsGoldilocks.proximityLang 17) friCheaterGoldilocks 32 true < 1 / 25 :=
   friGoldilocks_johnson_romSoundness_lt_one_25th friCheaterGoldilocks
-    isCostBounded_FS_friCheaterGoldilocks
-    ((isCostBounded_bcsMTCost_bcsSoundnessProg (friIOP paramsGoldilocks)
-      (encZMod (p := goldilocksP)) (paramsGoldilocks.proximityLang 17)
-      isCostBounded_MT_friCheaterGoldilocks fun x prf hmem =>
-        isCostBounded_bcsMTCost_friVerifyROM paramsGoldilocks (encZMod (p := goldilocksP)) x prf
-          (friCheaterGoldilocks_openings_le x prf hmem)).mono
-      (by decide : 2 + paramsGoldilocks.proofOracleQueries * (5 + 1) ≤ 1000))
+    (isCostBounded_FS_mkAcceptingCheater paramsGoldilocks farWordGoldilocks)
+    (isCostBounded_soundnessProg_mkAcceptingCheater paramsGoldilocks
+      (encZMod (p := goldilocksP)) 17 farWordGoldilocks
+      (by decide : 2 + paramsGoldilocks.proofOracleQueries * (paramsGoldilocks.d + 1) ≤ 1000))
 
 /-- **End-to-end unconditional closed-form Johnson-bound BCS-FRI ROM soundness (`< 1 / 3`)** for
 the explicit adaptive out-of-order cheating prover `friCheaterGoldilocks` at digest length
@@ -1080,8 +1022,9 @@ theorem friCheaterGoldilocks_romSoundness_lt_one_third :
   refine lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_prover_verifier_of_johnson paramsGoldilocks (by omega)
       goldilocks_johnson_slack (leftInverse_decZMod_encZMod goldilocksP) 20
-      isCostBounded_MT_friCheaterGoldilocks isCostBounded_FS_friCheaterGoldilocks
-      friCheaterGoldilocks_openings_le) ?_
+      (isCostBounded_MT_mkAcceptingCheater paramsGoldilocks farWordGoldilocks)
+      (isCostBounded_FS_mkAcceptingCheater paramsGoldilocks farWordGoldilocks)
+      (mkAcceptingCheater_openings_le paramsGoldilocks farWordGoldilocks)) ?_
   rw [friGoldilocks_rbrError_eq, card_friChalGoldilocks]
   have hnn :
       (5 * (117649 / 16777216 + 5 * (1 / 19807040623954398381032341504)) +
