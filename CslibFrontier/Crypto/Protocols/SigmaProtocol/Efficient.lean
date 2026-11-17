@@ -848,6 +848,14 @@ theorem computableInPolyTime_parallelExtractWord
       (fun input :
           I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         (input, 0)) encIn (encPair encIn encUnary) from by fun_prop)
+  have hlength : ComputableTidilyInPolyTime
+      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
+        (frames input.2.2.2.1).length) encIn encUnary := by fun_prop
+  have hcond := ComputableTidilyInPolyTime.unary_beq hlength
+    (ComputableTidilyInPolyTime.const 0)
+  have hdefault : ComputableTidilyInPolyTime
+      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
+        defaultWord input.1) encIn encBits := by fun_prop
   have hfallback : ComputableInPolyTime
       (fun input :
           I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
@@ -855,7 +863,9 @@ theorem computableInPolyTime_parallelExtractWord
           f (input.1, input.2.1, (frames input.2.2.1).getD 0 [],
             (frames input.2.2.2.1).getD 0 [], (frames input.2.2.2.2.1).getD 0 [],
             (frames input.2.2.2.2.2.1).getD 0 [], (frames input.2.2.2.2.2.2).getD 0 []))
-      encIn encBits := ComputableInPolyTime.of_tidy (by fun_prop)
+      encIn encBits := by
+    apply ComputableInPolyTime.of_tidy
+    simpa only [beq_iff_eq] using hcond.cond hdefault hbody0'
   unfold parallelExtractWord Encoding.parallelRepetition
   exact hfind.optionElimWithInput hfallback hbody
 
@@ -892,7 +902,7 @@ theorem extractorRealizedBy_parallelExtractWord
       simp only [List.map_ofFn, List.getD_ofFn_of_lt _ hk]
       exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
     · have hk0 : k i = 0 := Nat.eq_zero_of_not_pos hk
-      simp only [hk0, ↓reduceIte, hk, ↓reduceDIte]
+      simp only [hk0, ↓reduceIte]
       exact hdef_eq i hk0
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
