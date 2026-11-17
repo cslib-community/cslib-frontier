@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Un
 public import CslibFrontier.Foundations.Data.Nat.CeilDiv
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.Nat.Sqrt
+import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -102,14 +103,9 @@ theorem one_le_blockLength (t : ℕ) : 1 ≤ blockLength t :=
 theorem le_paddedTime (t : ℕ) : t ≤ paddedTime t :=
   Nat.le_ceilDiv_mul (one_le_blockLength t)
 
-private theorem add_two_le_two_pow {t : ℕ} (ht : 2 ≤ t) : t + 2 ≤ 2 ^ t := by
-  induction t, ht using Nat.le_induction with
-  | base => norm_num
-  | succ n hn ih => rw [pow_succ]; omega
-
 /-- An interval is no longer than the clock, from `t = 2` on. -/
 theorem blockLength_le {t : ℕ} (ht : 2 ≤ t) : blockLength t ≤ t :=
-  Nat.clog_le_of_le_pow (add_two_le_two_pow ht)
+  Nat.clog_le_of_le_pow (Nat.add_two_le_two_pow ht)
 
 /-- **The padded time stays linear**: from `t = 2` on, `paddedTime t + 1 ≤ 2 * t`, since padding
 adds less than one interval. -/
