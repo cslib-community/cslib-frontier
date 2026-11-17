@@ -22,9 +22,10 @@ import Mathlib.Tactic.TypeStar
 # Quantitative computability rules
 
 `fun_prop (disch := lia)` composes degree certificates (`ComputableInDegree`) without replacing
-output-size bounds by runtime bounds. Computation premises determine the intermediate encodings and degrees before the
-arithmetic obligations compare the resulting degrees with the requested ones. The same `fun_prop`
-interface recognizes ordinary finite-state bit folds with linear time and constant work space.
+output-size bounds by runtime bounds. Computation premises determine the intermediate encodings
+and degrees before the arithmetic obligations compare the resulting degrees with the requested ones.
+The same `fun_prop` interface recognizes ordinary finite-state bit folds with linear time and
+constant work space.
 For nested projections with inferred degrees, `disch := first | apply le_refl | lia` first
 instantiates a missing degree with the derived bound, then checks arithmetic inequalities.
 Framed-list and option rules infer the payload encoding from the representation explicitly.
