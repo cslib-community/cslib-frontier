@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Cell
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Computability.GenericRAM.Signed.Fits
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native original-weight interval verification
@@ -118,8 +119,8 @@ theorem exec {w U : ℕ} (A : Args) (AB BC AC : ℕ → ℕ → ℤ) (x : Data 3
       hreadB hreadA (hfit.of_le (by dsimp only [Args.addressBound]; omega))
       habfit hbcfit hacfit hsumfit
     change b.regs Signed.result = Signed.encode (total (A.first + i)) at bsum
-    have bone : b.regs Reg.one = 1 := (bmeta _ (by decide) (by decide)).trans yone
-    have bzero : b.regs Reg.zero = 0 := (bmeta _ (by decide) (by decide)).trans yzero
+    have bone : b.regs Reg.one = 1 := by regs_frame
+    have bzero : b.regs Reg.zero = 0 := by regs_frame
     have bfirst : b.regs Reg.first = A.first :=
       (bmeta _ (by decide) (by decide)).trans yargs.2.2.2.2.2.2.1
     have bindex : b.regs Reg.index = i := bmeta _ (by decide) (by decide)

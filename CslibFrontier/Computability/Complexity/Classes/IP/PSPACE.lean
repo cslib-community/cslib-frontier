@@ -271,11 +271,7 @@ open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 /-- Decoding a word is polynomial-time. -/
 theorem computableInPolyTime_decodeWord :
     ComputableInPolyTime decodeWord encBits encBits := by
-  have hidx : ComputableInPolyTime (fun u : List Bool => u.idxOf true + 1) encBits
-      encUnary := by
-    have h := (idxOf encBool).comp (bitsToList.prod (const (encOut := encBool) true))
-    exact unary_succ.comp h
-  exact bitsDropWithInput id' hidx
+  fun_prop [decodeWord]
 
 /-- Decoding a history is polynomial-time. -/
 private theorem computableInPolyTime_decodeHistory :
@@ -416,10 +412,7 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
-  have hfuel' : ComputableInPolyTime (fun s : EvalState α => fuel s.1) (encEvalState enc)
-      encUnary := hfuel.comp (fst _ _)
-  unfold returnStep
-  fun_prop
+  fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/
 private theorem computableInPolyTime_pushStep :

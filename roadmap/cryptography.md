@@ -90,7 +90,7 @@ Information-theoretic private information retrieval, following Chor–Goldreich�
 - **SDitH foundations**: [#5212](https://github.com/cslib-community/cslib-frontier/issues/5212), [#5263](https://github.com/cslib-community/cslib-frontier/issues/5263) and [#5542](https://github.com/cslib-community/cslib-frontier/issues/5542) are bounded binary-RSD, `TweakSalt` and two-child `ExpandSeed` milestones. Algorithm 6's byte PRG, the full GGM/BAVC tree, the PIOP, commitments, grinding, signing/verification, hardness, machine costs, asymptotic family security and finite instantiated exact-constant bounds remain under [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
 
 - **Concurrent composition**: Extend the protocol semantics with environments, scheduling, session identifiers and concurrent executions, and prove a composition theorem with efficient simulators and explicit setup, corruption and communication assumptions.
-  Then develop selected adaptive-corruption and non-malleability applications, alongside the static-malicious OT target.
+  Remaining adaptive objectives: Canetti §7.1.1 write-once storage, coin exposure and per-party activation granularity (beyond the snapshot model), adaptive `Emulates.compose`, Canetti–Fischlin Theorems 8 and 11, non-malleability and static-malicious OT.
 - **Quantum-secure cryptography**: Define uniform quantum-efficient distinguishers and computational indistinguishability with quantum side information, and justify security reductions for concrete constructions in that model.
   Connect the quantum-computation and lattice tracks through these adversary models.
   Later targets include quantum oracle access, the quantum random-oracle model, and extraction or rewinding under their precise hypotheses.

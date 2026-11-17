@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Tactic.PositivityLemma
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Data.Fintype.Prod
@@ -337,6 +338,7 @@ noncomputable def spectralExpansion : ℝ :=
     (orthogonalSubmodule V).subtypeL‖
 
 /-- The spectral expansion is nonnegative. -/
+@[positivity_lemma]
 theorem spectralExpansion_nonneg : 0 ≤ G.spectralExpansion := by
   rw [spectralExpansion]
   positivity
@@ -398,7 +400,6 @@ theorem spectralExpansion_le_iff {c : ℝ} (hc : 0 ≤ c) :
       ∀ f : V → ℝ, 𝔼 v, f v = 0 → 𝔼 v, G.walk f v ^ 2 ≤ c ^ 2 * 𝔼 v, f v ^ 2 := by
   refine ⟨fun hG f hf ↦ (expect_walk_sq_le_spectralExpansion_sq_mul hf).trans ?_,
     spectralExpansion_le hc⟩
-  have := G.spectralExpansion_nonneg
   gcongr
 
 /-- Polarization identity for the walk quadratic form on `t • f ± G.walk f`: the difference of the
@@ -470,7 +471,6 @@ theorem spectralExpansion_le_of_abs_expect_mul_walk_le {c : ℝ} (hc : 0 ≤ c)
 the second moment of `f` in absolute value. -/
 theorem abs_expect_mul_walk_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) :
     |𝔼 v, f v * G.walk f v| ≤ G.spectralExpansion * 𝔼 v, f v ^ 2 := by
-  have := G.spectralExpansion_nonneg
   refine abs_le_of_sq_le_sq ?_ (by positivity)
   calc
     _ ≤ (𝔼 v, f v ^ 2) * 𝔼 v, G.walk f v ^ 2 := expect_mul_sq_le_sq_mul_sq _ _ _
@@ -522,7 +522,6 @@ theorem expect_walk_pow_sq_le_spectralExpansion_pow_mul {f : V → ℝ}
   induction t with
   | zero => simp
   | succ t ih =>
-    have := G.spectralExpansion_nonneg
     calc
       _ ≤ G.spectralExpansion ^ 2 * 𝔼 v, (G.walk ^ t) f v ^ 2 := by
         rw [pow_succ', mul_apply_eq_comp]

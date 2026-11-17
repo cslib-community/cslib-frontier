@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.SavedGroups
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Kernel
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Magnitude
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One actual tile call on produced arrays and computed routing words
@@ -179,7 +180,7 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
       omega
     exact Function.extend_apply' _ _ _ hnot
   have up : Parameters L m N qs.length u := arp.reframe hhigh
-  have ui : u.regs Reg.index = t := (hhigh _ (by decide)).trans ari
+  have ui : u.regs Reg.index = t := by regs_frame
   have ue : u.regs (bank PrunedQuery.epoch) = k.regs PrunedQuery.epoch :=
     bank_injective.extend_apply _ _ _
   have hnext : Fits (w + 2) (t + 1) := allocated_fits hfit (by

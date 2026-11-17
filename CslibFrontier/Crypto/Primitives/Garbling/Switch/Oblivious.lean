@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Switch.Garble
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Obliviousness of garbled switch systems from circular correlation robustness
@@ -258,8 +259,8 @@ private theorem interpret_reduceGates_ideal [DecidableEq R] [Fintype L] (H : L �
         (reduceGates H col σ i gs A) = simGates H col i gs (gs.map (SwitchGate.isOpen σ)) A
   | _, [], _ => rfl
   | i, g :: gs, A => by
-    simp only [reduceGates, simGates, List.map_cons, OracleComp.interpret_bind,
-      interpret_reduceGate_ideal, interpret_reduceGates_ideal, OracleComp.interpret_pure]
+    simp only [reduceGates, simGates, List.map_cons, interp_norm, interpret_reduceGate_ideal,
+      interpret_reduceGates_ideal]
 
 /-- With the fresh oracle the reduction runs `D` on the simulated view. -/
 private theorem idealGame_reduction [DecidableEq R] [Fintype L] (S : SwitchSystem n m N R)
@@ -267,8 +268,7 @@ private theorem idealGame_reduction [DecidableEq R] [Fintype L] (S : SwitchSyste
     (D : SwitchView L n → ProbComp Bool) :
     CCR.Arithmetic.idealGame (reduction S H col σ D) = simGame S H col (S.controls σ) D := by
   simp only [CCR.Arithmetic.idealGame, ProbOracleComp.run, simGame, simulate, reduction,
-    SwitchSystem.controls, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
-    ProbComp.interpret_unifFin, interpret_reduceGates_ideal, bind_assoc, pure_bind]
+    SwitchSystem.controls, interp_norm, interpret_reduceGates_ideal, bind_assoc, pure_bind]
 
 /-! ### The real side -/
 
@@ -334,8 +334,7 @@ private theorem interpret_reduceGate_real [DecidableEq R] (H : L → ℕ → L)
           add_zero]
       refine ⟨Function.update A (.inr y)
           (A x + CCR.Arithmetic.oracle H Δ ⟨A c, i, σ (.inr y) - σ x⟩),
-        by simp only [reduceGate, hc0, ite_false, OracleComp.interpret_bind,
-          ProbOracleComp.interpret_query, pure_bind, OracleComp.interpret_pure, garbleGate, hcol],
+        by simp only [reduceGate, hc0, ite_false, interp_norm, pure_bind, garbleGate, hcol],
         hnew y _ _ ?_ hg.2.2⟩
       rw [CCR.Arithmetic.oracle_apply, hAc, hx, wireLabel, wireLabel, sub_smul]
       abel
@@ -358,9 +357,9 @@ private theorem interpret_reduceGates_real [DecidableEq R] (H : L → ℕ → L)
   | i, g :: gs, D, K, A, hA, ⟨hg, hgs⟩, hσ => by
     obtain ⟨A', hstep, hA'⟩ :=
       interpret_reduceGate_real H col hΔ i K A hA hg (hσ g List.mem_cons_self)
-    simp only [reduceGates, garbleGates, OracleComp.interpret_bind, hstep, pure_bind,
+    simp only [reduceGates, garbleGates, interp_norm, hstep, pure_bind,
       interpret_reduceGates_real H col hΔ (i + 1) gs (g.define D) _ A' hA' hgs
-        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg')), OracleComp.interpret_pure]
+        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg'))]
 
 /-- With the keyed oracle the reduction runs `D` on the real view. -/
 private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem n m N R}
@@ -384,9 +383,7 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
       PMF.uniformOfFintype (Fin n → L) := fun Δ =>
     PMF.uniformOfFintype_map_equiv (Equiv.addRight fun i => x i • Δ)
   simp only [CCR.Arithmetic.realGame, PRF.realExperiment, ProbOracleComp.run, realGame, garble,
-    reduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
-    ProbComp.interpret_unifFin, hmat, pure_bind, bind_assoc, ProbComp.eval_bind,
-    ProbComp.eval_uniform]
+    reduction, interp_norm, hmat, pure_bind, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
   congr 1
   funext Δ
   conv_lhs => rw [← hshift Δ.1]

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Oracle.LocalCircuit
 public import CslibFrontier.Computability.MCSP.AntiChecker.Generator
 import CslibFrontier.Computability.Circuit.Boolean.AtLeast
 import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Oracle circuits for Gap-MCSP from the anti-checker generator
@@ -111,8 +112,7 @@ private theorem eval_finalQuery (O : Language Bool) (s R : ℕ)
       simp only [finalSources, List.get_eq_getElem, List.getElem_ofFn, substitute,
         List.getElem_map]
       rfl
-  simp only [finalQuery, Circuit.eval_comp, Circuit.eval_oneGate, oracleInterpretation_base,
-    eval_queryLayer]
+  simp only [circuit_simps, finalQuery, eval_queryLayer]
   change (!O.slice _ _) = true ↔ _
   rw [Bool.not_eq_true', ← Bool.not_eq_true, Language.slice_eq_true_iff, hofFn]
 
@@ -121,17 +121,12 @@ private theorem size_finalQuery (s R : ℕ) : (finalQuery (n := n) s R).size = 4
 
 private theorem cost_finalQuery (s R : ℕ) :
     (finalQuery (n := n) s R).program.cost OracleOp.queryWeight = 1 := by
-  rw [finalQuery, Circuit.cost_program_comp, Circuit.cost_program_comp, cost_program_constLayer,
-    cost_program_queryLayer, Circuit.cost_program_oneGate]
+  simp only [circuit_simps, finalQuery, cost_program_constLayer, cost_program_queryLayer]
   rfl
 
 private theorem depthWith_finalQuery_le (s R : ℕ) :
     (finalQuery (n := n) s R).depthWith OracleOp.queryWeight ≤ 1 := by
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [Circuit.depthWith_oneGate, OracleOp.queryWeight_base, Nat.zero_add]
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [depthWith_constLayer, Nat.add_zero]
-  exact depthWith_queryLayer_le _
+  circuit_bound [finalQuery, depthWith_constLayer, OracleOp.queryWeight_base]
 
 private theorem fanInAtMost_finalQuery (s R : ℕ) {r : ℕ} (hr : queryLength n s 1 0 R ≤ r)
     (h1 : 1 ≤ r) : (finalQuery (n := n) s R).FanInAtMost r :=
