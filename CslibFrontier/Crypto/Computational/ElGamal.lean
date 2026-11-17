@@ -37,28 +37,32 @@ and `decodeElGamal` compute public-key generation, encryption, and decryption in
 from natural-number exponents and encoded group elements using `F.generator`, `F.order`, `F.smul`,
 and `F.add`.
 
-We prove IND-CPA security under DDH in the following settings:
+We reduce IND-CPA security to DDH for games that draw the key and challenge exponents exactly
+uniformly at the `PMF` level (see Limitations). These ideal-sampling results are steps: the
+security theorems for the strict-PPT scheme are in
+`CslibFrontier/Crypto/Computational/ElGamal/ProbComp.lean`. The settings are:
 1. **Shared typed-message ElGamal reduction** (`elGamalMsgCPAGameOn`,
    `elGamalMsgToDDHDistinguisher`, `advantage_elGamalMsgCPAGameOn_le`,
-   `isPPT_elGamalMsgToDDHDistinguisher`, `DDH.negligible_elGamalMsgCPAGameOn`). As in
+   `isPPT_elGamalMsgToDDHDistinguisher`, `DDH.negligible_elGamalMsgCPAGameOn_ideal`). As in
    `Encryption.gameOn`, a challenge-pair admissibility predicate
    `valid : ℕ → List Bool → Msg → Msg → Bool` sees the security parameter and the public key, and
    an inadmissible pair makes the game output `false` in both experiments. The reduction needs
    `valid` to be computable in polynomial time and to admit only messages whose encodings are
    group elements (`AdmitsGroupElements`). It is instantiated for:
-   - **Bit ElGamal** (`elGamalCPAGame`, `elGamalINDCPA`, `DDH.elGamalINDCPA`): `false` and `true`
-     are embedded as `0` and `g` (`bitElement`, `encodeBit`), every pair is admissible, and
-     `Encryption.Adversary` chooses two challenge bits.
+   - **Bit ElGamal** (`elGamalCPAGame`, `elGamalIdealINDCPA`, `DDH.elGamalIdealINDCPA`): `false`
+     and `true` are embedded as `0` and `g` (`bitElement`, `encodeBit`), every pair is admissible,
+     and `Encryption.Adversary` chooses two challenge bits.
    - **Group-element ElGamal** (`Encryption.WordAdversary`, `elGamalGroupCPAGameOn`,
-     `DDH.negligible_elGamalGroupCPAGameOn`, [BonehShoup2023], Exercise 11.5(a), p. 459): a
+     `DDH.negligible_elGamalGroupCPAGameOn_ideal`, [BonehShoup2023], Exercise 11.5(a), p. 459): a
      two-stage word-message adversary chooses two words, and `valid` admits only encoded group
      elements, in `Set.range (F.encode d)`. Replacing the Diffie–Hellman mask `(α * β) • g` with an
      independent uniform `γ • g` masks any admissible pair perfectly
      (`uniform_smul_generator_add`). A `PrimeOrderGroupFamily` has no membership test, so `valid`
      is a parameter; the tests instantiate it on Schnorr groups.
 2. **Hashed ElGamal** (`hashedElGamalEncrypt`, `hashedElGamalDecrypt`, `hashedElGamalCPAGame`,
-   `DDH.negligible_hashedElGamalCPAGame`, [BonehShoup2023], Section 11.5, pp. 445–446, Remark 11.1,
-   and Section 11.5.2, Attack Game 11.3, Definition 11.5, and Theorem 11.5, pp. 448–451): given a
+   `DDH.negligible_hashedElGamalCPAGame_ideal`, [BonehShoup2023], Section 11.5, pp. 445–446,
+   Remark 11.1, and Section 11.5.2, Attack Game 11.3, Definition 11.5, and Theorem 11.5,
+   pp. 448–451): given a
    deterministic polynomial-time key-derivation hash function `H : F.Desc × List Bool → List Bool`,
    the sender masks a message word `m` with `pad = H (d, encode (β • u))` via
    `Cslib.BitString.listXor pad.length [pad, m]` (the one-time pad specialization of the `E'_EG`
@@ -103,9 +107,9 @@ encryption given randomness (`encodeElGamalEncrypt`, `encodeHashedElGamalEncrypt
 * `Cslib.Crypto.PrimeOrderGroupFamily.bitElement`, `Cslib.Crypto.PrimeOrderGroupFamily.encodeBit`:
   embedding and polynomial-time encoding of message bits as group elements.
 * `Cslib.Crypto.PrimeOrderGroupFamily.elGamalCPAGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalINDCPA`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalToDDHDistinguisher`: bit ElGamal IND-CPA experiment,
-  security property, and DDH distinguisher.
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalIdealINDCPA`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalToDDHDistinguisher`: bit ElGamal ideal-sampling
+  IND-CPA experiment, its security property, and DDH distinguisher.
 * `Cslib.Crypto.PrimeOrderGroupFamily.elGamalGroupCPAGameOn`,
   `Cslib.Crypto.PrimeOrderGroupFamily.elGamalGroupToDDHDistinguisher`: group-element ElGamal
   IND-CPA experiment and DDH reduction ([BonehShoup2023], Exercise 11.5(a), p. 459).
@@ -147,27 +151,37 @@ encryption given randomness (`encodeElGamalEncrypt`, `encodeHashedElGamalEncrypt
   `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodeElGamalEncrypt`,
   `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_decodeElGamal`: polynomial-time
   certificates for honest ElGamal operations.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalMsgCPAGameOn_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalMsgToDDHDistinguisher`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalMsgCPAGameOn`: shared typed-message
-  ElGamal IND-CPA reduction to DDH.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalCPAGame_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalToDDHDistinguisher`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.elGamalINDCPA`: ElGamal IND-CPA security for bit
-  messages under DDH ([BonehShoup2023], Exercise 11.5(a), p. 459).
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalGroupCPAGameOn_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGameOn`: ElGamal IND-CPA
-  security for group-element messages under DDH ([BonehShoup2023], Exercise 11.5(a), p. 459).
 * `Cslib.Crypto.PrimeOrderGroupFamily.hashedElGamalDecrypt_hashedElGamalEncrypt`,
   `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodeHashedElGamalEncrypt`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_decodeHashedElGamal`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddhRandomGame_kdfToDDHDistinguisher`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_kdfToDDHDistinguisher`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_hashedElGamalCPAGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_decodeHashedElGamal`: Hashed ElGamal
+  correctness and polynomial-time certificates.
+* `Cslib.Crypto.PrimeOrderGroupFamily.ddhRandomGame_kdfToDDHDistinguisher`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_kdfToDDHDistinguisher`: the random DDH game of the
+  key-derivation reduction is the real key-derivation game, and the reduction is PPT.
+
+## Ideal-sampling steps
+
+These results concern the games of this module, which draw exponents exactly uniformly at the
+`PMF` level. They are steps toward the native theorems of
+`CslibFrontier/Crypto/Computational/ElGamal/ProbComp.lean` (`DDH.indcpaOn_elGamalEncryptProb`,
+`DDH.indcpa_elGamalBitEncryptProb`, `DDH.kemINDCPA_hashedElGamalEncapsProb`,
+`DDH.wordINDCPA_hybrid_hashedElGamal`), not the cited results. They hold for an arbitrary setup
+law, while the native theorems fix the group description at each security parameter.
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalMsgCPAGameOn_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalMsgToDDHDistinguisher`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalMsgCPAGameOn_ideal`: shared
+  typed-message reduction to DDH.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalCPAGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalToDDHDistinguisher`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.elGamalIdealINDCPA`: bit messages.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalGroupCPAGameOn_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGameOn_ideal`: group-element
+  messages.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_hashedElGamalCPAGame_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_hashedElGamalToKDFDistinguisher`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame`: Hashed ElGamal
-  correctness, polynomial-time certificates, and IND-CPA security under DDH and `SecureKDF`
-  ([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451).
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame_ideal`: Hashed ElGamal
+  with a one-time pad, under DDH and `SecureKDF`.
 
 ## References
 
@@ -677,11 +691,13 @@ theorem isPPT_elGamalMsgToDDHDistinguisher {Msg : Type} {encMsg : Msg ↪ List B
     (F.elGamalMsgToDDHDistinguisher valid encodeMsg adversary bit).IsPPT :=
   F.isPPT_elGamalMsgToDDHDistinguisherWith (F.computableInPolyTime_liftValid hvalid) hencMsg hA bit
 
-/-- **Typed-message ElGamal encryption is IND-CPA secure under the DDH assumption**
-([BonehShoup2023], Exercise 11.5(a), p. 459): when `valid` admits only group elements under
-`encodeMsg` on groups supported by `setup`, every uniform strict PPT adversary has negligible
-advantage in `elGamalMsgCPAGameOn valid encodeMsg`. -/
-theorem DDH.negligible_elGamalMsgCPAGameOn_on {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step toward `DDH.indcpaOn_elGamalEncryptProb`, not the cited result: under DDH,
+when `valid` admits only group elements under `encodeMsg` on groups supported by `setup`, every
+uniform strict PPT adversary has negligible advantage in `elGamalMsgCPAGameOn valid encodeMsg`,
+whose key and challenge exponents are drawn exactly uniformly at the `PMF` level (after
+[BonehShoup2023], Exercise 11.5(a), p. 459). The setup law is arbitrary. -/
+theorem DDH.negligible_elGamalMsgCPAGameOn_ideal {F : PrimeOrderGroupFamily}
+    {setup : ℕ → PMF F.Desc}
     {Msg : Type} {encMsg : Msg ↪ List Bool} {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encodeMsg : F.Desc → Msg → List Bool}
     (hDDH : F.DDH setup)
@@ -697,27 +713,6 @@ theorem DDH.negligible_elGamalMsgCPAGameOn_on {F : PrimeOrderGroupFamily} {setup
       Game.advantage (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary false n)
         (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary true n) :=
   hDDH.negligible_elGamalMsgCPAGameWith (F.computableInPolyTime_liftValid hvalid) hsound hencMsg hA
-
-/-- **Typed-message ElGamal encryption is IND-CPA secure under the DDH assumption**
-([BonehShoup2023], Exercise 11.5(a), p. 459): for a polynomial-time admissibility predicate `valid`
-that admits only group elements under `encodeMsg`, every uniform strict PPT adversary has
-negligible advantage in `elGamalMsgCPAGameOn valid encodeMsg`. -/
-theorem DDH.negligible_elGamalMsgCPAGameOn {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
-    {Msg : Type} {encMsg : Msg ↪ List Bool} {valid : ℕ → List Bool → Msg → Msg → Bool}
-    {encodeMsg : F.Desc → Msg → List Bool}
-    (hDDH : F.DDH setup)
-    (hvalid : ComputableInPolyTime
-      (fun ⟨n, pk, m₀, m₁⟩ => valid n pk m₀ m₁)
-      (Encryption.encChallengePairInput encMsg) encBool)
-    (hsound : F.AdmitsGroupElements encodeMsg valid)
-    (hencMsg : ComputableInPolyTime (fun p : F.Desc × Msg => encodeMsg p.1 p.2)
-      (encPair F.encDesc encMsg) encBits)
-    {adversary : Encryption.AdversaryOf Msg}
-    (hA : Encryption.AdversaryOf.IsPPT encMsg adversary) :
-    Negligible fun n =>
-      Game.advantage (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary false n)
-        (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary true n) :=
-  hDDH.negligible_elGamalMsgCPAGameOn_on hvalid hsound.on hencMsg hA
 
 /-! ### Bit encryption and IND-CPA security under DDH -/
 
@@ -786,10 +781,13 @@ theorem elGamalCPAGame_eq_elGamalMsgCPAGameOn (setup : ℕ → PMF F.Desc)
   simp only [elGamalCPAGame, elGamalMsgCPAGameOn, elGamalMsgCPAGameWith, ↓reduceIte,
     F.encodeBit_eq_encode_bitElement, F.add_encode]
 
-/-- IND-CPA security of ElGamal bit encryption over `F` for a setup law `setup`: every uniform
-strict PPT `Encryption.Adversary` has negligible distinguishing advantage between challenge bit
-`false` and challenge bit `true`. -/
-def elGamalINDCPA (setup : ℕ → PMF F.Desc) : Prop :=
+/-- IND-CPA security of ElGamal bit encryption with ideal exponent sampling over `F` for a setup law
+`setup`: every uniform strict PPT `Encryption.Adversary` has negligible distinguishing advantage
+between challenge bit `false` and challenge bit `true` in `elGamalCPAGame`, which draws the key and
+challenge exponents exactly uniformly at the `PMF` level. For a group family `d`, the strict-PPT
+scheme's notion is `Encryption.INDCPA (F.elGamalKeyGenProb d) (F.elGamalEncryptProb F.encodeBit d)`.
+-/
+def elGamalIdealINDCPA (setup : ℕ → PMF F.Desc) : Prop :=
   Game.Indistinguishable
     (fun adversary n => F.elGamalCPAGame setup adversary false n)
     (fun adversary n => F.elGamalCPAGame setup adversary true n)
@@ -843,10 +841,11 @@ theorem isPPT_elGamalToDDHDistinguisher {adversary : Encryption.Adversary}
     (ComputableTidilyInPolyTime.const true).computableInPolyTime F.computableInPolyTime_encodeBit hA
     bit
 
-/-- **ElGamal bit encryption is IND-CPA secure under the DDH assumption**
-([BonehShoup2023], Exercise 11.5(a), p. 459). -/
-theorem DDH.elGamalINDCPA {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
-    (hDDH : F.DDH setup) : F.elGamalINDCPA setup := by
+/-- Ideal-sampling step toward `DDH.indcpa_elGamalBitEncryptProb`, not the cited result: under DDH
+for any setup law, bit ElGamal satisfies the ideal-sampling notion `elGamalIdealINDCPA` (after
+[BonehShoup2023], Exercise 11.5(a), p. 459). -/
+theorem DDH.elGamalIdealINDCPA {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+    (hDDH : F.DDH setup) : F.elGamalIdealINDCPA setup := by
   intro adversary hA
   have h₀ := hDDH _ (F.isPPT_elGamalToDDHDistinguisher hA false)
   have h₁ := hDDH _ (F.isPPT_elGamalToDDHDistinguisher hA true)
@@ -889,11 +888,13 @@ theorem advantage_elGamalGroupCPAGameOn_le
         (F.ddhRandomGame setup (F.elGamalGroupToDDHDistinguisher valid adversary true) n) :=
   F.advantage_elGamalMsgCPAGameOn_le valid (fun _ m => m) setup adversary n hsound
 
-/-- **Group-element ElGamal encryption is IND-CPA secure under the DDH assumption**
-([BonehShoup2023], Exercise 11.5(a), p. 459): for a polynomial-time admissibility predicate `valid`
-that admits only encoded group elements, every uniform strict PPT `Encryption.WordAdversary` has
-negligible advantage in `elGamalGroupCPAGameOn valid`. -/
-theorem DDH.negligible_elGamalGroupCPAGameOn {F : PrimeOrderGroupFamily}
+/-- Ideal-sampling step toward `DDH.indcpaOn_elGamalEncryptProb` (at the identity message
+encoding), not the cited result: under DDH for any setup law, for a polynomial-time admissibility
+predicate `valid` that admits only encoded group elements, every uniform strict PPT
+`Encryption.WordAdversary` has negligible advantage in `elGamalGroupCPAGameOn valid`, whose
+exponents are drawn exactly uniformly at the `PMF` level (after [BonehShoup2023], Exercise 11.5(a),
+p. 459). -/
+theorem DDH.negligible_elGamalGroupCPAGameOn_ideal {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {valid : ℕ → List Bool → List Bool → List Bool → Bool}
     (hDDH : F.DDH setup)
     (hvalid : ComputableInPolyTime
@@ -904,7 +905,7 @@ theorem DDH.negligible_elGamalGroupCPAGameOn {F : PrimeOrderGroupFamily}
     Negligible fun n =>
       Game.advantage (F.elGamalGroupCPAGameOn valid setup adversary false n)
         (F.elGamalGroupCPAGameOn valid setup adversary true n) :=
-  hDDH.negligible_elGamalMsgCPAGameOn hvalid hsound (.snd F.encDesc encBits) hA
+  hDDH.negligible_elGamalMsgCPAGameOn_ideal hvalid hsound.on (.snd F.encDesc encBits) hA
 
 /-! ### Hashed ElGamal encryption and IND-CPA security ([BonehShoup2023], Section 11.5) -/
 
@@ -1297,12 +1298,16 @@ theorem advantage_hashedElGamalCPAGame_le (setup : ℕ → PMF F.Desc)
       F.kdfIdealGame_hashedElGamalToKDFDistinguisher_false_eq_true setup msgLen adversary n,
       le_rfl, le_rfl]
 
-/-- **Hashed ElGamal encryption is IND-CPA secure under DDH and `SecureKDF`**
-([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451): when `H` is computable in
-polynomial time, every uniform strict PPT `Encryption.WordAdversary` has negligible IND-CPA
-distinguishing advantage. Note that `SecureKDF` is assumed as a hypothesis; no nondegenerate
-`SecureKDF` instance (`msgLen n > 0`) is constructed in this module. -/
-theorem DDH.negligible_hashedElGamalCPAGame {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step, not the cited result: under DDH and `SecureKDF` for any setup law, when
+`H` is computable in polynomial time, every uniform strict PPT `Encryption.WordAdversary` has
+negligible advantage in the one-time-pad Hashed ElGamal game `hashedElGamalCPAGame`, whose
+exponents are drawn exactly uniformly at the `PMF` level (after [BonehShoup2023], Section 11.5.2,
+Theorem 11.5, pp. 449–451). The strict-PPT scheme's theorems are
+`DDH.kemINDCPA_hashedElGamalEncapsProb` and `DDH.wordINDCPA_hybrid_hashedElGamal`;
+`DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF` discharges `SecureKDF` for a seeded
+linear hash. -/
+theorem DDH.negligible_hashedElGamalCPAGame_ideal {F : PrimeOrderGroupFamily}
+    {setup : ℕ → PMF F.Desc}
     {H : F.Desc × List Bool → List Bool} {msgLen : ℕ → ℕ}
     (hDDH : F.DDH setup) (hKDF : F.SecureKDF setup H msgLen)
     (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits)

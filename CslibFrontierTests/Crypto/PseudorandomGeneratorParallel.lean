@@ -25,9 +25,8 @@ Exercises the finite-type and word-level parallel PRG API in
   polynomial-time generator;
 * `computationallyIndistinguishable_parallelGenerator` applied to an arbitrary
   `PseudorandomGenerator` with `count n = n`;
-* concrete `decide` evaluation of `PRG.Generator.parallel`, exact application of
-  `PRG.Generator.advantage_parallel_eq`, and the `Secure.prod`-shaped finite corollary as a checked
-  example.
+* concrete `decide` evaluation of `PRG.Generator.parallel` and exact application of
+  `PRG.Generator.advantage_parallel_eq`.
 -/
 
 set_option linter.privateModule false
@@ -35,7 +34,6 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Crypto.PseudorandomGeneratorParallel
 
 open Cslib Cslib.Crypto Turing.MultiTapeTM
-open scoped NNReal
 
 -- Concrete `decide` evaluations of `parallelGenerator`: `count = 2`, `count = 0`, and short seed.
 example :
@@ -86,19 +84,5 @@ example (A : PRG.Adversary (Fin 2 → Bool × Bool)) :
     (dupGenerator.parallel 2).advantage A =
       2 * dupGenerator.advantage (dupGenerator.parallelReduction 2 A) :=
   dupGenerator.advantage_parallel_eq 2 A
-
--- One `Secure.prod`-shaped finite corollary as a checked example (no closure theorem in library).
-example {Seed Output : Type*} [Fintype Seed] [Nonempty Seed] [Fintype Output] [Nonempty Output]
-    {G : PRG.Generator Seed Output} (n : ℕ) [NeZero n]
-    {Admissible₁ : PRG.Adversary Output → Prop}
-    {Admissible₂ : PRG.Adversary (Fin n → Output) → Prop} {ε : ℝ≥0}
-    (hG : G.Secure Admissible₁ ε)
-    (hred : ∀ A, Admissible₂ A → Admissible₁ (G.parallelReduction n A)) :
-    (G.parallel n).Secure Admissible₂ (n * ε) := by
-  intro A hA
-  rw [G.advantage_parallel_eq n A]
-  have hle := hG (G.parallelReduction n A) (hred A hA)
-  push_cast
-  gcongr
 
 end CslibFrontierTests.Crypto.PseudorandomGeneratorParallel

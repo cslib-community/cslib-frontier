@@ -24,9 +24,13 @@ import CslibFrontier.Probability.Product
 
 A generator `G` with `m`-bit outputs is unpredictable when no predictor, shown the first `i` bits of
 a generated output, guesses bit `i` with probability much better than `1 / 2`
-[Boneh and Shoup, Attack Game 3.2 and Definition 3.3][BonehShoup2023]. This file proves that
-unpredictability is equivalent to security in the sense of Attack Game 3.1, up to a factor of `m` in
-the error. This is the next-bit theorem usually credited to Yao; the proof follows
+[Boneh and Shoup, Attack Game 3.2 and Definition 3.3][BonehShoup2023]. This file relates
+prediction to distinguishing for arbitrary tests and predictors: the test built from a predictor has
+exactly the advantage of the predictor, and the advantage of a test is at most the sum, over the
+positions, of the advantages of the predictors built from it. These are steps towards the next-bit
+theorem usually credited to Yao, [Boneh and Shoup, Theorems 3.4 and 3.6][BonehShoup2023], not that
+theorem: it is about efficient adversaries, and nothing here bounds the cost of the tests and
+predictors that the reductions build. The proof follows
 [Boneh and Shoup, Section 3.5][BonehShoup2023] (see also
 [Arora and Barak, Chapter 9][AroraBarak09]).
 
@@ -42,10 +46,9 @@ probability exactly `1 / 2` plus the `i`-th hybrid gap.
 
 Here the position `i` is a parameter of the prediction game, whereas the adversary of Attack Game
 3.2 chooses it. A predictor that chooses its position at random wins with the average of the
-fixed-position probabilities, so a bound for every fixed position also bounds it. As in the
-definition of `Cslib.Crypto.PRG.Generator.Secure`, admissible tests and predictors are given by
-caller-supplied predicates; the reductions between them are `Cslib.Crypto.PRG.nextBitPredictor`
-and `Cslib.Crypto.PRG.predictionTest`.
+fixed-position probabilities, so a bound for every fixed position also bounds it. The reductions
+between tests and predictors are `Cslib.Crypto.PRG.nextBitPredictor` and
+`Cslib.Crypto.PRG.predictionTest`.
 
 ## Main definitions
 
@@ -71,16 +74,10 @@ and `Cslib.Crypto.PRG.predictionTest`.
 * `Cslib.Crypto.PRG.Generator.advantage_le_sum_predictionAdvantage`,
   `Cslib.Crypto.PRG.Generator.exists_half_add_div_le_predictionExperiment`: a test with
   advantage `ε` yields a predictor for some position with success probability `1 / 2 + ε / m`.
-* `Cslib.Crypto.PRG.Generator.Unpredictable.secure_of_admissible_nextBitPredictor`:
-  unpredictability with error `δ` implies security with error `m * δ`, when the predictors built
-  from admissible tests are admissible.
-* `Cslib.Crypto.PRG.Generator.Secure.unpredictable_of_admissible_predictionTest`: security with
-  error `ε` implies unpredictability with error `ε`, when the tests built from admissible
-  predictors are admissible.
+* `Cslib.Crypto.PRG.Generator.advantage_predictionTest`: the test built from a predictor has the
+  advantage of the predictor.
 
-Both are algebraic helpers over abstract admissibility classes: they assume that the class contains
-the objects that the proof builds. The uniform next-bit theorem for strict-PPT adversaries is
-open (#5293).
+The uniform next-bit theorem for strict-PPT adversaries is open (#5293).
 
 ## References
 
@@ -371,10 +368,11 @@ theorem Generator.exists_div_le_predictionAdvantage (G : Generator Seed (Fin m �
       exact G.advantage_le_sum_predictionAdvantage adversary)
   exact ⟨i, hi⟩
 
-/-- **The next-bit theorem** in the one-sided form of [Arora and Barak, Chapter 9.][AroraBarak09] If
-`0 < m` and a test accepts in the real experiment with probability at least `ε` more than in the
-ideal experiment, then for some position `i` the predictor built from the test guesses bit `i`
-correctly with probability at least `1 / 2 + ε / m`. -/
+/-- A step of the next-bit theorem, in the one-sided form of
+[Arora and Barak, Chapter 9][AroraBarak09], for an arbitrary test: if `0 < m` and a test accepts in
+the real experiment with probability at least `ε` more than in the ideal experiment, then for some
+position `i` the predictor built from the test guesses bit `i` correctly with probability at least
+`1 / 2 + ε / m`. The cost of the predictor is not bounded here. -/
 theorem Generator.exists_half_add_div_le_predictionExperiment
     (G : Generator Seed (Fin m → Bool)) (adversary : Adversary (Fin m → Bool)) (hm : 0 < m)
     {ε : ℝ} (hε : ε ≤ (G.realExperiment adversary true).toReal -
@@ -385,25 +383,6 @@ theorem Generator.exists_half_add_div_le_predictionExperiment
   refine ⟨i, ?_⟩
   rw [G.toReal_predictionExperiment_nextBitPredictor]
   linarith
-
-/-- **Unpredictability implies security** [Boneh and Shoup, Theorem 3.6][BonehShoup2023]. If every
-admissible predictor has advantage at most `δ`, and the predictors built from admissible tests are
-admissible, then every admissible test has advantage at most `m * δ`. An algebraic helper: `hred`
-assumes that the class admits the predictors that the proof builds. -/
-theorem Generator.Unpredictable.secure_of_admissible_nextBitPredictor
-    {G : Generator Seed (Fin m → Bool)}
-    {Admissible : Adversary (Fin m → Bool) → Prop}
-    {AdmissiblePredictor : (i : Fin m) → Adversary (Fin i → Bool) → Prop} {δ : ℝ≥0}
-    (hG : G.Unpredictable AdmissiblePredictor δ)
-    (hred : ∀ adversary, Admissible adversary →
-      ∀ i, AdmissiblePredictor i (nextBitPredictor adversary i)) :
-    G.Secure Admissible (m * δ) := by
-  intro adversary ha
-  calc G.advantage adversary
-      ≤ ∑ i, G.predictionAdvantage i (nextBitPredictor adversary i) :=
-        G.advantage_le_sum_predictionAdvantage adversary
-    _ ≤ ∑ _i : Fin m, (δ : ℝ) := Finset.sum_le_sum fun i _ => hG i _ (hred adversary ha i)
-    _ = ((m * δ : ℝ≥0) : ℝ) := by simp
 
 /-- The test built from a predictor for bit `i`, following the proof of
 [Boneh and Shoup, Theorem 3.4][BonehShoup2023]: run the predictor on the first `i` bits and accept
@@ -441,20 +420,6 @@ theorem Generator.advantage_predictionTest (G : Generator Seed (Fin m → Bool))
   rw [Generator.advantage, realExperiment_predictionTest,
     idealExperiment_predictionTest_apply_true, Generator.predictionAdvantage]
   norm_num
-
-/-- **Security implies unpredictability** [Boneh and Shoup, Theorem 3.4][BonehShoup2023]. If every
-admissible test has advantage at most `ε`, and the tests built from admissible predictors are
-admissible, then every admissible predictor has advantage at most `ε`. An algebraic helper: `hred`
-assumes that the class admits the tests that the proof builds. -/
-theorem Generator.Secure.unpredictable_of_admissible_predictionTest
-    {G : Generator Seed (Fin m → Bool)}
-    {Admissible : Adversary (Fin m → Bool) → Prop}
-    {AdmissiblePredictor : (i : Fin m) → Adversary (Fin i → Bool) → Prop} {ε : ℝ≥0}
-    (hG : G.Secure Admissible ε)
-    (hred : ∀ i predictor, AdmissiblePredictor i predictor →
-      Admissible (predictionTest i predictor)) :
-    G.Unpredictable AdmissiblePredictor ε := fun i predictor h =>
-  G.advantage_predictionTest i predictor ▸ hG _ (hred i predictor h)
 
 end Prediction
 
