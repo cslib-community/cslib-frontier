@@ -207,10 +207,10 @@ circuits with `T' n` vertices decide strictly more languages than circuits with 
 
 The draft counts the `n` input vertices in the size of a circuit, so its `SIZE (T(n))` is
 `SIZE (fun n => T n - n)` here, under the convention of `SIZE`: the library's circuits may also
-use constant gates and need no separate output vertex. The draft assumes
-`2 ^ n / (100 n) > T'(n)` for every `n`, which no `T' > T > n` satisfies for `n ≤ 14` (at
-`n = 0` the bound divides by zero), so that bound is assumed only eventually; the other two
-bounds are the draft's. The proof reduces to `SIZE_ssubset`: `T log T = o(T')` gives the gap of
+use constant gates and need no separate output vertex. The cap `2 ^ n / (100 n) > T'(n)` is
+read eventually, as is standard for asymptotic hypotheses: the literal every-`n` reading cannot
+hold for `n ≤ 14` and would make the theorem vacuous. The other two bounds are assumed for every
+`n`, as printed. The proof reduces to `SIZE_ssubset`: `T log T = o(T')` gives the gap of
 `2 n + 3` gates, and the draft's bound keeps `T` below Shannon's `2 ^ n / n`. -/
 theorem SIZE_sub_ssubset_of_isLittleO {T T' : ℕ → ℕ} (hT : ∀ n, n < T n)
     (hTT' : ∀ n, T n < T' n) (hT' : ∀ᶠ n in atTop, (T' n : ℝ) < 2 ^ n / (100 * n))
