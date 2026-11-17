@@ -657,7 +657,7 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
       _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
           have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
           gcongr
-          all_goals omega
+          omega
   have hout : 2 ^ w * (2 * w + 2) + 1 ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
     rw [← hq]
     have : q * (2 * w + 2) + 1 ≤ 5 * w ^ 2 * q := by
@@ -671,7 +671,7 @@ theorem reconstructionCost_le {w b m D K L s q M : ℕ} (hq : q = 2 ^ w) (hw : 1
       _ ≤ 5 * P * m * w ^ 2 * q ^ 9 * E * (s + 1) := by
           have hq9 : q ≤ q ^ 9 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq1 (by norm_num))
           gcongr
-          all_goals omega
+          omega
   unfold reconstructionCost
   nlinarith only [hcube, hsc, hout]
 
