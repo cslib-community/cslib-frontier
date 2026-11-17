@@ -197,19 +197,34 @@ noncomputable def tower (base : IndexPlane) : Tower base where
   zero := rfl
   children n := (chooseParent (parentPlane base n)).children
 
-private theorem expansion_occurs {base : IndexPlane} (t : Tower base) :
-    ∀ (depth level : ℕ) (x y : ℤ) (i j : ℕ), ∃ u v : ℤ,
-      (t.plane level).index u v =
-        iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
-  intro depth
+/-- Every level of a parent tower contains a translated refinement of any quadrant
+at a higher level. -/
+theorem Tower.refined_patch {base : IndexPlane} (t : Tower base) (depth : ℕ) :
+    ∀ (level : ℕ) (a b : ℤ), ∃ u v : ℤ,
+      (fun x y : ℕ => (t.plane level).index (u + x) (v + y)) =
+        iterateRefine depth (fun x y : ℕ => (t.plane (level + depth)).index (a + x) (b + y)) := by
   induction depth with
-  | zero => intro level x y i j; exact ⟨x, y, rfl⟩
+  | zero => exact fun level a b => ⟨a, b, rfl⟩
   | succ depth ih =>
-    intro level x y i j
-    obtain ⟨u, v, huv⟩ := ih (level + 1) x y (i / 2) (j / 2)
-    rw [Nat.add_right_comm] at huv
-    exact ⟨_, _, by rw [← t.children level u v ⟨i % 2, Nat.mod_lt _ (by decide)⟩
-        ⟨j % 2, Nat.mod_lt _ (by decide)⟩, huv]; rfl⟩
+    intro level a b
+    obtain ⟨u, v, h⟩ := ih (level + 1) a b
+    refine ⟨(t.offsetX level).val + 2 * u, (t.offsetY level).val + 2 * v, ?_⟩
+    funext x y
+    have index := congrFun (congrFun h (x / 2)) (y / 2)
+    simp only [Nat.add_assoc, Nat.add_comm 1 depth] at index
+    simp only [iterateRefine, refineIndexGrid, ← index]
+    rw [t.children]
+    dsimp only
+    congr 1 <;> omega
+
+private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
+    (depth level : ℕ) (x y : ℤ) (i j : ℕ) (hi : i < 2 ^ depth) (hj : j < 2 ^ depth) :
+    ∃ u v : ℤ, (t.plane level).index u v =
+      iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
+  obtain ⟨u, v, patch⟩ := t.refined_patch depth level x y
+  refine ⟨u + i, v + j, ?_⟩
+  rw [congrFun (congrFun patch i) j]
+  exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
 
 private theorem zero_descends :
     ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
@@ -223,9 +238,9 @@ private theorem descends_zero :
 theorem Tower.every_tile {base : IndexPlane} (t : Tower base) (level : ℕ) (target : Index) :
     ∃ x y : ℤ, (t.plane level).index x y = target := by
   obtain ⟨i, j, hij⟩ := zero_descends ((t.plane (level + 5 + 3)).index 0 0)
-  obtain ⟨x, y, hxy⟩ := expansion_occurs t 3 (level + 5) 0 0 i j
+  obtain ⟨x, y, hxy⟩ := expansion_occurs t 3 (level + 5) 0 0 i j i.isLt j.isLt
   obtain ⟨i', j', hij'⟩ := descends_zero target
-  obtain ⟨u, v, huv⟩ := expansion_occurs t 5 level x y i' j'
+  obtain ⟨u, v, huv⟩ := expansion_occurs t 5 level x y i' j' i'.isLt j'.isLt
   exact ⟨u, v, by rw [huv, hxy, hij, hij']⟩
 
 private theorem parity_step (x : ℕ) :

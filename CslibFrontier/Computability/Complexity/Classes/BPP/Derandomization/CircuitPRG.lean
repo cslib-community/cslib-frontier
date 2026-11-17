@@ -88,6 +88,8 @@ finitely many instances need to be patched.
 * `Cslib.Crypto.NonuniformPRG.circuitSecurePRG`: non-uniformly strong generators fool circuits of
   every polynomial size.
 * `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG`: Theorem 8.13 of Goldreich.
+* `Cslib.Complexity.exists_rootSeed_DTIME_subset`: seeds of `⌊n ^ (1 / d)⌋ + K` bits give time
+  `2 ^ ⌈n ^ ε⌉`, shared with Arora and Barak's Corollary 16.6 (3).
 
 ## References
 
@@ -176,6 +178,56 @@ private theorem le_findGreatest_root {d R n : ℕ} (hd : 1 ≤ d) (hn : R ^ d �
 
 end Arithmetic
 
+/-- **Seeds of `⌊n ^ (1 / d)⌋ + K` bits give time `2 ^ ⌈n ^ ε⌉`.** For every `ε > 0` there are
+`d ≥ 1` and a seed length `r n = ⌊n ^ (1 / d)⌋`, computable in unary in polynomial time, with
+`n + 1 ≤ (r n + 1) ^ d`, such that for all constants `C`, `D` and `K` the time bound
+`C 2 ^ (D (r n + K)) (n + 1) ^ D` of seed enumeration is within `DTIME (2 ^ ⌈n ^ ε⌉)`. -/
+theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
+    ∃ (d : ℕ) (r : ℕ → ℕ), 1 ≤ d ∧ ComputableInPolyTime r encUnary encUnary ∧
+      (∀ n, n + 1 ≤ (r n + 1) ^ d) ∧
+      ∀ {α : Type} (enc : α ↪ List Bool) (C D K : ℕ),
+        DTIME enc (fun n => C * 2 ^ (D * (r n + K)) * (n + 1) ^ D) ⊆
+          DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
+  -- `d = 2 e` with `1 / e ≤ ε`
+  obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
+  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
+  set d := 2 * e with hd_def
+  have hd : 1 ≤ d := by omega
+  refine ⟨d, rootFloor d, hd, ?_,
+    fun n => (findGreatest_root_spec hd n).2, fun enc C D K => ?_⟩
+  · change ComputableInPolyTime (fun n => Nat.findGreatest (fun j => j ^ d ≤ n) n) encUnary encUnary
+    fun_prop
+  -- the time bound is eventually below `2 ^ ⌈n ^ ε⌉`
+  have hev : ∀ᶠ n in atTop, C * 2 ^ (D * (rootFloor d n + K)) * (n + 1) ^ D ≤
+      C * 2 ^ (D * K) * 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
+    filter_upwards [eventually_ge_atTop ((D * (d + 1)) ^ d)] with n hn
+    obtain ⟨hρd, hroot⟩ := findGreatest_root_spec hd n
+    have hR := le_findGreatest_root hd hn
+    set ρ := rootFloor d n
+    have hsq : ρ * ρ ≤ ⌈(n : ℝ) ^ ε⌉₊ := by
+      have h₁ := sq_le_rpow he (r := ρ) (n := n) (by rw [← hd_def]; exact hρd) hεe
+      have h₂ := h₁.trans (Nat.le_ceil _)
+      rw [← sq]
+      exact_mod_cast h₂
+    have hpow : (n + 1) ^ D ≤ 2 ^ (ρ * d * D) :=
+      calc (n + 1) ^ D ≤ ((ρ + 1) ^ d) ^ D := Nat.pow_le_pow_left hroot D
+        _ ≤ ((2 ^ ρ) ^ d) ^ D :=
+          Nat.pow_le_pow_left (Nat.pow_le_pow_left Nat.lt_two_pow_self d) D
+        _ = 2 ^ (ρ * d * D) := by rw [← pow_mul, ← pow_mul, ← Nat.mul_assoc]
+    have hexp : D * ρ + ρ * d * D ≤ ρ * ρ := by
+      have := Nat.mul_le_mul_right ρ hR
+      nlinarith
+    calc C * 2 ^ (D * (ρ + K)) * (n + 1) ^ D
+        ≤ C * 2 ^ (D * (ρ + K)) * 2 ^ (ρ * d * D) :=
+          Nat.mul_le_mul_left _ hpow
+      _ = C * 2 ^ (D * K) * 2 ^ (D * ρ + ρ * d * D) := by
+          rw [mul_assoc, ← pow_add, mul_assoc C (2 ^ (D * K)), ← pow_add]
+          ring_nf
+      _ ≤ C * 2 ^ (D * K) * 2 ^ ⌈(n : ℝ) ^ ε⌉₊ :=
+          Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (hexp.trans hsq))
+  exact (DTIME_mono_of_eventually_le hev).trans
+    (DTIME_mono_of_le_mul_add (C := C * 2 ^ (D * K)) fun n => Nat.le_add_right _ _)
+
 /-! ### Seed enumeration with a generator fooling the verifier -/
 
 section SeedEnumeration
@@ -210,23 +262,22 @@ theorem exists_complexity_verifierTest_le (p : Polynomial ℕ) {V : α × List B
   simp only [Tc] at this
   omega
 
-/-- **Seed enumeration is correct for a generator that fools the verifier.** Let `V` decide `A`
-with bounded error, reading `m = p(|x|)` random bits, and let the generator `G` have output
+/-- **Seed enumeration is correct for a generator that fools the verifier.** Let `V` answer whether
+`x ∈ A` with bounded error on random strings of `m` bits, and let the generator `G` have output
 length `ℓ k` on seeds of `k` bits, with `m ≤ ℓ (seed x)`. If `G` on seeds of `seed x` bits fools
 the test `y ↦ V (x, (first m bits of y))` with advantage below `1 / 6`, then the seed decider that
 runs `V` on the first `m` bits of the generated strings answers correctly on `x`. -/
-theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {p : Polynomial ℕ}
-    {V : α × List Bool → Bool} (hA : DecidesWithBoundedError enc p V A)
+theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {V : α × List Bool → Bool} {x : α}
+    {m : ℕ} (hyes : x ∈ A → 2 * 2 ^ m ≤ 3 * acceptCount V x m)
+    (hno : x ∉ A → 3 * acceptCount V x m ≤ 2 ^ m)
     {G : List Bool → List Bool} {ℓ : ℕ → ℕ} (hlen : ∀ z, (G z).length = ℓ z.length)
-    (gen : α → List Bool → List Bool) (seed : α → ℕ) {x : α}
-    (hgen : ∀ z : Fin (seed x) → Bool,
-      gen x (List.ofFn z) = (G (List.ofFn z)).take (p.eval (enc x).length))
-    (hm : p.eval (enc x).length ≤ ℓ (seed x))
+    (gen : α → List Bool → List Bool) (seed : α → ℕ)
+    (hgen : ∀ z : Fin (seed x) → Bool, gen x (List.ofFn z) = (G (List.ofFn z)).take m)
+    (hm : m ≤ ℓ (seed x))
     (hadv : (wordFamily G ℓ (seed x)).advantage
-      (fun y => PMF.pure (V (x, (List.ofFn y).take (p.eval (enc x).length)))) < 1 / 6) :
+      (fun y => PMF.pure (V (x, (List.ofFn y).take m))) < 1 / 6) :
     seedDecider V gen seed x = true ↔ x ∈ A := by
   set k := seed x
-  set m := p.eval (enc x).length
   set test : BooleanFunction (ℓ k) := fun y => V (x, (List.ofFn y).take m) with htest_def
   rw [Generator.advantage_pure_eq] at hadv
   have hseeds : #{z : BitString k | test (wordFamily G ℓ k z) = true} =
@@ -243,7 +294,7 @@ theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {p : Polynomial ℕ
     push_cast
     field_simp
   rw [hseeds, hstrings] at hadv
-  exact seedDecider_eq_true_iff hA gen seed hadv
+  exact seedDecider_eq_true_iff hyes hno gen seed hadv
 
 end SeedEnumeration
 
@@ -270,17 +321,14 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
   intro ε hε
   -- the verifier with its instance hardwired is a circuit of polynomial size
   obtain ⟨c₁, a₁, hB⟩ := exists_complexity_verifierTest_le p hV
-  -- seeds of `⌊n ^ (1 / d)⌋ + K` bits, with `1 / e ≤ ε` and `d = 2 e`
-  obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
-  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
-  set d := 2 * e with hd_def
-  have hd : 1 ≤ d := by omega
+  -- seeds of `⌊n ^ (1 / d)⌋ + K` bits
+  obtain ⟨d, r, hd, hr, hroot, hsub⟩ := exists_rootSeed_DTIME_subset hε
   -- the generator for circuits of size `k ^ c`
   set c := d * a₁ + 2
   obtain ⟨G, ℓ, hℓ, hG⟩ := h c (by omega)
   obtain ⟨K, hK⟩ := eventually_atTop.1 (((hG.secure 1).and hℓ).and
     (eventually_ge_atTop (c₁ + 7)))
-  set seed : α → ℕ := fun x => rootFloor d (enc x).length + (K + 1)
+  set seed : α → ℕ := fun x => r (enc x).length + (K + 1)
   set gen : α → List Bool → List Bool := fun x z => (G z).take (p.eval (enc x).length)
   -- the running time
   have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2) (encPair enc encBits)
@@ -293,12 +341,14 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
         ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
     exact .of_tidy (ComputableTidilyInPolyTime.bitsTakeWithInput h₁.tidy h₂.tidy)
   have hseed : ComputableInPolyTime seed enc encUnary := by
-    have hlen := ComputableInPolyTime.encoding_length enc
-    simp only [seed, rootFloor]
+    have hlen := hr.comp (ComputableInPolyTime.encoding_length enc)
     fun_prop
-  obtain ⟨C, D, hO⟩ := exists_computableInO_seedDecider hV hgen hseed
+  obtain ⟨C, D, hO⟩ := exists_computableInO_seedDecider (fun q => gen q.1) hV
+    (hgen.comp (((ComputableInPolyTime.fst enc encUnary).comp
+      (ComputableInPolyTime.fst _ encBits)).prod (ComputableInPolyTime.snd _ encBits)))
+    (fun _ _ _ => rfl) hseed
   have hmem := setOf_mem_DTIME_of_computableInO hO
-    (t := fun n => C * 2 ^ (D * (rootFloor d n + (K + 1))) * (n + 1) ^ D) fun x => le_rfl
+    (t := fun n => C * 2 ^ (D * (r n + (K + 1))) * (n + 1) ^ D) fun x => le_rfl
   -- correctness on every instance
   have hAeq : A = {x | seedDecider V gen seed x = true} := by
     ext x
@@ -306,11 +356,10 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     set k := seed x with hk
     have hKk : K ≤ k := by simp only [hk, seed]; omega
     obtain ⟨⟨hsec, hℓk⟩, hk7⟩ := hK k hKk
-    obtain ⟨-, hroot⟩ := findGreatest_root_spec hd (enc x).length
     -- the sizes are at most `k ^ c`
     have hk1 : 1 ≤ k := by omega
     have hnk : (enc x).length + 1 ≤ k ^ d :=
-      hroot.trans (Nat.pow_le_pow_left (by simp only [hk, seed]; omega) d)
+      (hroot _).trans (Nat.pow_le_pow_left (by simp only [hk, seed]; omega) d)
     have hsize : c₁ * ((enc x).length + 1) ^ a₁ ≤ k ^ c := by
       calc c₁ * ((enc x).length + 1) ^ a₁
           ≤ k * (k ^ d) ^ a₁ := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hnk a₁)
@@ -329,39 +378,11 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     have h7' : ((((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) : ℝ) ≤ 1 / 7 := by
       have := NNReal.coe_le_coe.2 h7
       simpa using this
-    exact (seedDecider_eq_true_iff_of_advantage_lt hA hG.length_eq gen seed (fun _ => rfl) hmℓ
+    exact (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
+      (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun _ => rfl) hmℓ
       (by linarith)).symm
   rw [hAeq]
-  -- the time bound is eventually below `2 ^ ⌈n ^ ε⌉`
-  have hev : ∀ᶠ n in atTop, C * 2 ^ (D * (rootFloor d n + (K + 1))) * (n + 1) ^ D ≤
-      C * 2 ^ (D * (K + 1)) * 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
-    filter_upwards [eventually_ge_atTop ((D * (d + 1)) ^ d)] with n hn
-    obtain ⟨hρd, hroot⟩ := findGreatest_root_spec hd n
-    have hR := le_findGreatest_root hd hn
-    set ρ := rootFloor d n
-    have hsq : ρ * ρ ≤ ⌈(n : ℝ) ^ ε⌉₊ := by
-      have h₁ := sq_le_rpow he (r := ρ) (n := n) (by rw [← hd_def]; exact hρd) hεe
-      have h₂ := h₁.trans (Nat.le_ceil _)
-      rw [← sq]
-      exact_mod_cast h₂
-    have hpow : (n + 1) ^ D ≤ 2 ^ (ρ * d * D) :=
-      calc (n + 1) ^ D ≤ ((ρ + 1) ^ d) ^ D := Nat.pow_le_pow_left hroot D
-        _ ≤ ((2 ^ ρ) ^ d) ^ D :=
-          Nat.pow_le_pow_left (Nat.pow_le_pow_left Nat.lt_two_pow_self d) D
-        _ = 2 ^ (ρ * d * D) := by rw [← pow_mul, ← pow_mul, ← Nat.mul_assoc]
-    have hexp : D * ρ + ρ * d * D ≤ ρ * ρ := by
-      have := Nat.mul_le_mul_right ρ hR
-      nlinarith
-    calc C * 2 ^ (D * (ρ + (K + 1))) * (n + 1) ^ D
-        ≤ C * 2 ^ (D * (ρ + (K + 1))) * 2 ^ (ρ * d * D) :=
-          Nat.mul_le_mul_left _ hpow
-      _ = C * 2 ^ (D * (K + 1)) * 2 ^ (D * ρ + ρ * d * D) := by
-          rw [mul_assoc, ← pow_add, mul_assoc C (2 ^ (D * (K + 1))), ← pow_add]
-          ring_nf
-      _ ≤ C * 2 ^ (D * (K + 1)) * 2 ^ ⌈(n : ℝ) ^ ε⌉₊ :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (hexp.trans hsq))
-  exact DTIME_mono_of_le_mul_add (C := C * 2 ^ (D * (K + 1))) (fun n => Nat.le_add_right _ _)
-    (DTIME_mono_of_eventually_le hev hmem)
+  exact hsub enc C D (K + 1) hmem
 
 /-! ### Nonuniform pseudorandom generators fool circuits -/
 

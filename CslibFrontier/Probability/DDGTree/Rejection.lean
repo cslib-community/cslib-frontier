@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Log
 import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
 
@@ -113,6 +114,11 @@ variable {α : Type*}
 theorem rejectProb_le_one (spec : BlockRejectionSpec α) : spec.rejectProb ≤ 1 :=
   PMF.coe_le_one _ _
 
+/-- The rejection probability is finite, as a `finiteness` rule. -/
+@[aesop (rule_sets := [finiteness]) safe apply]
+theorem rejectProb_ne_top (spec : BlockRejectionSpec α) : spec.rejectProb ≠ ⊤ :=
+  PMF.apply_ne_top _ _
+
 theorem acceptProb_add_rejectProb (spec : BlockRejectionSpec α) :
     spec.acceptProb + spec.rejectProb = 1 :=
   tsub_add_cancel_of_le spec.rejectProb_le_one
@@ -129,8 +135,7 @@ private theorem acceptProb_eq_tsum_some (spec : BlockRejectionSpec α) :
     spec.acceptProb = ∑' a, spec.singleLaw (some a) := by
   have h := spec.singleLaw.tsum_coe
   rw [tsum_option_eq, add_comm] at h
-  exact (ENNReal.eq_sub_of_add_eq
-    (ne_top_of_le_ne_top ENNReal.one_ne_top spec.rejectProb_le_one) h).symm
+  exact (ENNReal.eq_sub_of_add_eq spec.rejectProb_ne_top h).symm
 
 /-- Decode at most `trials` consecutive `width`-bit blocks from `bits`, returning the first
 accepted value or `none`. -/
@@ -358,22 +363,13 @@ theorem dist_runCapped_eq [Fintype α] {spec : BlockRejectionSpec α} {target : 
     dist (spec.runCapped fallback t) target =
       (spec.rejectProb ^ t).toReal * (1 - (target fallback).toReal) := by
   classical
-  set r := spec.rejectProb ^ t
+  set r := spec.rejectProb ^ t with hr
+  -- `ennreal_to_real` splits `(1 - r).toReal` with `hr1`.
   have hr1 : r ≤ 1 := pow_le_one₀ zero_le spec.rejectProb_le_one
-  have hr_top : r ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hr1
-  have h1r_top : 1 - r ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top tsub_le_self
-  have h1r_toReal : (1 - r).toReal = 1 - r.toReal := by
-    rw [ENNReal.toReal_sub_of_le hr1 ENNReal.one_ne_top, ENNReal.toReal_one]
   have hval (a : α) : (spec.runCapped fallback t a).toReal =
       (1 - r.toReal) * (target a).toReal + if a = fallback then r.toReal else 0 := by
-    rw [runCapped_apply h fallback t a]
-    by_cases haf : a = fallback
-    · subst haf
-      simp only [↓reduceIte]
-      rw [ENNReal.toReal_add (ENNReal.mul_ne_top h1r_top (PMF.apply_ne_top _ _)) hr_top,
-        ENNReal.toReal_mul, h1r_toReal]
-    · simp only [haf, ↓reduceIte, add_zero]
-      rw [ENNReal.toReal_mul, h1r_toReal]
+    rw [runCapped_apply h fallback t a, ← hr]
+    split_ifs <;> ennreal_to_real
   rw [PMF.dist_eq, ← Finset.add_sum_erase _ _ (Finset.mem_univ fallback)]
   have hrest : ∑ b ∈ Finset.univ.erase fallback,
       |(spec.runCapped fallback t b).toReal - (target b).toReal| =
