@@ -34,9 +34,10 @@ Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `Oracle
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
 (`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Closed
 PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp` so `PolyTime`'s
-`simp_all` rules normalize definitions, projections and match clauses while erasing monad-map
-fusion lemmas (`bind_map_left`, `Functor.map_map`, `map_bind`, `bind_pure_comp`) so encoded
-samplers (`enc _ <$> sample _`) stay intact. Local
+`simp_all` rules normalize definitions, projections and match clauses (`zetaDelta := false`) while
+erasing monad-map fusion lemmas (`bind_map_left`, `LawfulMonad.bind_pure_comp`,
+`Functor.map_map`, `LawfulMonad.map_map`, `map_bind`, `PFunctor.FreeM.bind_pure_comp`,
+`PFunctor.FreeM.map_bind`) so encoded samplers (`enc _ <$> sample _`) stay intact. Local
 and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess'`;
 `pure`, `ProbOracleComp.sample` and `query_take'` bridge to deterministic `PolyTime`, closed `PPT`
 and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
@@ -395,7 +396,9 @@ private meta def unfoldOracleParameter : TacticM Unit := withMainContext do
       goal := next
   replaceMainGoal [goal]
 
-/-- Whether `type` is an oracle PPT goal (possibly under binders or conjunctions). -/
+/-- Whether `type` is an oracle PPT goal (possibly under binders or conjunctions) whose `List.take`
+reply prefixes must not be rewritten by `@[simp]` lemmas such as `Functor.map_map` or
+`bind_map_left`. -/
 private meta partial def hasOraclePPTGoal (type : Expr) : Bool :=
   match type.consumeMData with
   | .forallE _ _ body _ => hasOraclePPTGoal body

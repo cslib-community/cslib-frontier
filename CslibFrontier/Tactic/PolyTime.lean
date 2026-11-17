@@ -1083,8 +1083,9 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
     pure (ctx.setSimpTheorems thms)
   let ctx ←
     if closedPPT then
+      -- Note: `eraseCore` silently ignores names that are not in the simp theorem set.
       let erased := #[
-        `bind_map_left, `bind_pure_comp, `LawfulMonad.bind_pure_comp,
+        `bind_map_left, `LawfulMonad.bind_pure_comp,
         `Functor.map_map, `LawfulMonad.map_map, `map_bind,
         `PFunctor.FreeM.bind_pure_comp, `PFunctor.FreeM.map_bind]
       let thms := ctx.simpTheorems.map fun t =>
@@ -1103,44 +1104,47 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
   | (some newGoal, _) =>
     if newGoal == goal then
       throwError "polytime simp left goal unchanged"
-    -- `Lean.Meta.simpAll` cannot clear a rewritten hypothesis whose fvar still sits in an
-    -- unassigned metavariable's local context, so it leaves the old hypothesis and appends a
-    -- simplified copy; drop newly appended duplicates and detect no-op passes.
-    let collectDecls (m : MVarId) : MetaM (Array (FVarId × Expr × Option Expr)) :=
-      m.withContext do
-        let mut out := #[]
-        for d in ← getLCtx do
-          unless d.isImplementationDetail do
-            let t ← instantiateMVars d.type
-            let v ← d.value?.mapM instantiateMVars
-            out := out.push (d.fvarId, t, v)
-        return out
-    let oldDecls ← collectDecls goal
-    let oldPairs := oldDecls.map fun (_, t, v) => (t, v)
-    let mut cleanedGoal := newGoal
-    let mut seenNew : Array (Expr × Option Expr) := #[]
-    let mut dupIds : Array FVarId := #[]
-    for (fid, t, v) in ← collectDecls newGoal do
-      let pair := (t, v)
-      let oldCount := oldPairs.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
-      let seenCount := seenNew.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
-      if seenCount < max 1 oldCount then
-        seenNew := seenNew.push pair
-      else
-        dupIds := dupIds.push fid
-    for fid in dupIds.reverse do
-      cleanedGoal ← cleanedGoal.tryClear fid
-    let oldType ← instantiateMVars (← goal.getType)
-    let newType ← cleanedGoal.withContext do instantiateMVars (← cleanedGoal.getType)
-    if oldType == newType then
-      let newPairs := (← collectDecls cleanedGoal).map fun (_, t, v) => (t, v)
-      let sameSet :=
-        newPairs.all (fun p => oldPairs.any (· == p)) &&
-        oldPairs.all (fun p => newPairs.any (· == p))
-      if sameSet then
-        preState.restore
-        throwError "polytime simp left goal unchanged"
-    replaceMainGoal [cleanedGoal]
+    if closedPPT then
+      -- `Lean.Meta.simpAll` cannot clear a rewritten hypothesis whose fvar still sits in an
+      -- unassigned metavariable's local context, so it leaves the old hypothesis and appends a
+      -- simplified copy; drop newly appended duplicates and detect no-op passes.
+      let collectDecls (m : MVarId) : MetaM (Array (FVarId × Expr × Option Expr)) :=
+        m.withContext do
+          let mut out := #[]
+          for d in ← getLCtx do
+            unless d.isImplementationDetail do
+              let t ← instantiateMVars d.type
+              let v ← d.value?.mapM instantiateMVars
+              out := out.push (d.fvarId, t, v)
+          return out
+      let oldDecls ← collectDecls goal
+      let oldPairs := oldDecls.map fun (_, t, v) => (t, v)
+      let mut cleanedGoal := newGoal
+      let mut seenNew : Array (Expr × Option Expr) := #[]
+      let mut dupIds : Array FVarId := #[]
+      for (fid, t, v) in ← collectDecls newGoal do
+        let pair := (t, v)
+        let oldCount := oldPairs.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        let seenCount := seenNew.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        if seenCount < max 1 oldCount then
+          seenNew := seenNew.push pair
+        else
+          dupIds := dupIds.push fid
+      for fid in dupIds.reverse do
+        cleanedGoal ← cleanedGoal.tryClear fid
+      let oldType ← instantiateMVars (← goal.getType)
+      let newType ← cleanedGoal.withContext do instantiateMVars (← cleanedGoal.getType)
+      if oldType == newType then
+        let newPairs := (← collectDecls cleanedGoal).map fun (_, t, v) => (t, v)
+        let sameSet :=
+          newPairs.all (fun p => oldPairs.any (· == p)) &&
+          oldPairs.all (fun p => newPairs.any (· == p))
+        if sameSet then
+          preState.restore
+          throwError "polytime simp left goal unchanged"
+      replaceMainGoal [cleanedGoal]
+    else
+      replaceMainGoal [newGoal]
 
 open Lean Meta Elab Tactic in
 /-- Normalize side goals with full `simp_all`, while preserving reducible wrappers, projections,
