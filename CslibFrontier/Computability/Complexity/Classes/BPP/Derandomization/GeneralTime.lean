@@ -373,7 +373,8 @@ length `S(ℓ)` need only be at least `2 ^ (ℓ ^ ε)` for all large `ℓ`, whic
 
 The draft derives the corollary from its Lemma 16.4 (Exercise 16.1). Here it follows from the
 seed-length step `Cslib.Complexity.CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME`, with
-seeds of `O((log n) ^ (1 / ε))` bits, which needs no growth condition on `S`: the time bound of a
+seeds of polylogarithmic length `(b * (log₂ n + 1)) ^ e + M`, for an integer `e` with
+`1 / e < ε`, which needs no growth condition on `S`: the time bound of a
 `BPP` problem is a polynomial `n ^ a`, and the seeds are chosen with polynomial slack. -/
 theorem BPP_subset_quasiPoly_of_exponentialTimePRG {G : List Bool → List Bool} {S : ℕ → ℕ}
     (hG : ExponentialTimePRG G S)
