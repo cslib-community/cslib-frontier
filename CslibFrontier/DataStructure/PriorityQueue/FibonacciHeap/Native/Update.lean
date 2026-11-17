@@ -146,10 +146,9 @@ private theorem realizes_incrementSize_history : Realizes .exact incrementSize
       PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_lift, Record.Layout.methods, layout]
   realize
   all_goals try exact h.1.1.of_le (by have := h.1.2; omega)
-  all_goals
-    have hv := h.2
-    change _ ∧ (_ ∧ Fits w (s.mem (d 1 + 9 * d 0 + 4) + 1)) ∧ True at hv
-    exact hv.2.1.2
+  have hv := h.2
+  change _ ∧ (_ ∧ Fits w (s.mem (d 1 + 9 * d 0 + 4) + 1)) ∧ True at hv
+  exact hv.2.1.2
 
 private theorem realizes_incrementSize : Realizes .exact incrementSize
     (.refl _) (WordEncoding.encode (α := Unit))
@@ -264,19 +263,17 @@ private theorem realizes_setKey_history : Realizes .exact
     | exact h.1.1.of_le (by have := h.1.2.1; omega)
     | exact h.1.2.2
     | omega
-  all_goals
-    have hv := h.2
-    clear h
-    simp only [DataStructure.link, setKey, rd, wr, IndexedMinPQ.RawPrioLT,
-      PFunctor.FreeM.liftM_bind, Record.Layout.lift_read, Record.Layout.lift_write, layout] at hv
-    simp_all only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind',
-      StateTransitionSpec.validHistory_cons, StateTransitionSpec.stepFn, Memory.read,
-      Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
-      Function.update_of_ne haddr]
-  all_goals
-    have hfront := hmem.frontier_fits
-    simp only [Fits] at hv hfront ⊢
-    omega
+  have hv := h.2
+  clear h
+  simp only [DataStructure.link, setKey, rd, wr, IndexedMinPQ.RawPrioLT,
+    PFunctor.FreeM.liftM_bind, Record.Layout.lift_read, Record.Layout.lift_write, layout] at hv
+  simp_all only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind',
+    StateTransitionSpec.validHistory_cons, StateTransitionSpec.stepFn, Memory.read,
+    Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
+    Function.update_of_ne haddr]
+  have hfront := hmem.frontier_fits
+  simp only [Fits] at hv hfront ⊢
+  omega
 
 /-- Store the runtime key and perform the original minimum-root priority comparison. The
 positive minimum pointer makes exact subtraction defined; heap correctness supplies this
@@ -320,15 +317,14 @@ private theorem realizes_toRoot_history : Realizes .exact
     | exact hmpos
     | exact hmark
     | omega
-  all_goals
-    simp only [DataStructure.link, toRoot, spliceAfter, rd, wr, PFunctor.FreeM.liftM_bind,
-      Record.Layout.lift_read, Record.Layout.lift_write, layout] at hv
-    simp (disch := omega) only [StateTransitionSpec.clientHistory, bind_assoc,
-      StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.runClient_lift,
-      StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
-      StateTransitionSpec.stepFn, Memory.read, Memory.write, Memory.step_read,
-      Memory.step_write, Memory.valid, Function.update_of_ne] at hv
-    simp_all only []
+  simp only [DataStructure.link, toRoot, spliceAfter, rd, wr, PFunctor.FreeM.liftM_bind,
+    Record.Layout.lift_read, Record.Layout.lift_write, layout] at hv
+  simp (disch := omega) only [StateTransitionSpec.clientHistory, bind_assoc,
+    StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.runClient_lift,
+    StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
+    StateTransitionSpec.stepFn, Memory.read, Memory.write, Memory.step_read,
+    Memory.step_write, Memory.valid, Function.update_of_ne] at hv
+  simp_all only []
 
 /-- Move the detached handle into the root list using its original memory source. The minimum
 and its right neighbour are actual handle words; the mark/count inequality makes exact

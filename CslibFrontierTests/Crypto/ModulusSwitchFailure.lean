@@ -167,11 +167,10 @@ private theorem witness_support :
   refine ⟨![![1]], hspos, ?_⟩
   refine ⟨![2], he, ?_⟩
   refine ⟨![![2]], ?_, rfl⟩
-  all_goals
-    rw [PMF.mem_support_pi_iff]
-    intro j
-    fin_cases j
-    exact he
+  rw [PMF.mem_support_pi_iff]
+  intro j
+  fin_cases j
+  exact he
 
 /-- Positive actual failure accompanies the strict upper bound; the event is not empty. -/
 example : 0 < ((sampledView 2).toOuterMeasure failure).toReal := by

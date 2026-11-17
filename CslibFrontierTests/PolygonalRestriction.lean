@@ -76,9 +76,11 @@ example : ∃ ρ > 0, (drawing.outsideRoute big ρ 0).IsSimple ∧
     (drawing.outsideRoute big ρ 0).start ≠ (drawing.outsideRoute big ρ 0).finish := by
   obtain ⟨ρ, hρ, _, hs, _⟩ := embedded.exists_restriction big (by simp)
   refine ⟨ρ, hρ, hs 0, ?_⟩
-  change (drawing.outsideRoute big ρ 0).endpoint false ≠
-    (drawing.outsideRoute big ρ 0).endpoint true
-  rw [PolygonalDrawing.endpoint_outsideRoute, PolygonalDrawing.endpoint_outsideRoute]
+  -- stated for a variable route, so that the kernel does not evaluate `drawing`
+  have hstart (p : Route) : p.start = p.endpoint false := rfl
+  have hfinish (p : Route) : p.finish = p.endpoint true := rfl
+  rw [hstart, hfinish, PolygonalDrawing.endpoint_outsideRoute,
+    PolygonalDrawing.endpoint_outsideRoute]
   have hv0 : Dart.vertex (G := listed) (0, false) = big := rfl
   have hv1 : Dart.vertex (G := listed) (0, true) = big := rfl
   rw [ite_eq_left hv0, ite_eq_left hv1]

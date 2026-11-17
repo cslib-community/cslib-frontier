@@ -702,13 +702,13 @@ theorem realizesBounded_readCompBucketCountGen :
     have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
     unfold bCount at hbc_le; simp only [hb_ne, ↓reduceIte, hb] at hbc_le
-    try simp only [hq_eq, hr_eq, StateTransitionSpec.clientState,
+    simp only [hq_eq, hr_eq, StateTransitionSpec.clientState,
       clientResult_readCompGMGenProg hq_lt, clientResult_readCompGMGenProg hr_lt,
       runClient_state_readCompGMGenProg] at *)
   all_goals try exact fits_of_le_globalMetaLen_comp hb_pos hw hnU hU (by
     unfold gmQIdx gmRIdx at *; omega)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
-  all_goals exact lt_of_le_of_lt (by omega) hU
+  exact lt_of_le_of_lt (by omega) hU
 
 private def recoverOwnerTailProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
   | ((cp, metaBase), d) => do
@@ -741,7 +741,7 @@ private theorem realizesBounded_recoverOwnerTail :
     have hr_lt : idx_d % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
     have hidx_lt := gmTailOwnerIdx_lt hb_pos ht_M
     have hlen_le := globalMetaLen_le_of_bucketBits_pos hb_pos
-    try simp only [cpMaxTail_mk, cpGmTailOwnerBase_mk, cpTailCap_mk,
+    simp only [cpMaxTail_mk, cpGmTailOwnerBase_mk, cpTailCap_mk,
       StateTransitionSpec.clientState, clientResult_readCompDTGenProg hr_lt,
       runClient_state_readCompDTGenProg] at *)
   all_goals try omega
