@@ -9,6 +9,7 @@ module
 -- vendored: `spaceUsed` is `space` since cslib #1133
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 
 /-!
 # Branching on a work tape
@@ -21,11 +22,14 @@ is empty.
 ## Main definitions
 
 * `Turing.MultiTapeTM.branch`: the branching machine.
+* `Turing.MultiTapeMachine.branch`: its choice-free explicit transition table.
 
 ## Main results
 
 * `Turing.MultiTapeTM.transformsTapes_branch`: a specification of `branch i tm₁ tm₂` from
   specifications of `tm₁` for a non-empty word on tape `i` and of `tm₂` for an empty one.
+* `Turing.MultiTapeMachine.toTM_branch`: forgetting the explicit table recovers the legacy
+  branching machine.
 -/
 
 namespace Turing.MultiTapeTM
@@ -47,6 +51,46 @@ public noncomputable def branch (i : Fin k) (tm₁ : MultiTapeTM k Symbol S₁)
     | some (.inr q) =>
       let a := tm₂.tr q inp work
       { a with state := a.state.map (some ∘ .inr) }
+
+end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeMachine
+
+variable {k : ℕ} {Symbol S₁ S₂ : Type*}
+
+/-- Choice-free branching between two explicit tables according to whether work tape `i` is
+blank. -/
+public def branch (i : Fin k) (first : MultiTapeMachine k Symbol S₁ Empty Id)
+    (second : MultiTapeMachine k Symbol S₂ Empty Id) :
+    MultiTapeMachine k Symbol (Option (S₁ ⊕ S₂)) Empty Id :=
+  ofTr none fun state input work =>
+    match state with
+    | none =>
+      { inputTape := 0, workTapes := fun _ => (none, 0), output := none,
+        state := some (some ((work i).elim (.inr second.initial) fun _ => .inl first.initial)) }
+    | some (.inl state) =>
+      let action := Action.emptyOracleEquiv (first.tr state input work Empty.elim)
+      { action with state := action.state.map (some ∘ .inl) }
+    | some (.inr state) =>
+      let action := Action.emptyOracleEquiv (second.tr state input work Empty.elim)
+      { action with state := action.state.map (some ∘ .inr) }
+
+/-- Forgetting explicit branching recovers the legacy deterministic branching machine. -/
+public theorem toTM_branch (i : Fin k) (first : MultiTapeMachine k Symbol S₁ Empty Id)
+    (second : MultiTapeMachine k Symbol S₂ Empty Id) :
+    (branch i first second).toTM = MultiTapeTM.branch i first.toTM second.toTM := by
+  rw [branch, toTM_ofTr, MultiTapeTM.branch]
+  congr 1 with state input work : 3
+  cases state with
+  | none => rfl
+  | some state =>
+      cases state <;> simp only [toTM, MultiTapeTM.tr_ofTr]
+
+end Turing.MultiTapeMachine
+
+namespace Turing.MultiTapeTM
+
+variable {k : ℕ} {Symbol S₁ S₂ : Type*} {input : List Symbol}
 
 namespace Branch
 

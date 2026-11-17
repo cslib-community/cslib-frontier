@@ -329,7 +329,11 @@ carry a pointwise sum identity between continuations over to the experiments,
 `PMF.bind_apply_le_add_of_ne` bounds continuations that are close away from one first-stage result,
 and `PMF.bind_apply_eq_of_good` equates stateful experiments that agree until a bad state. The
 one-sided comparisons on the support are in
-[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean).
+[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean); for general `ℝ≥0∞`-valued
+integrands `∑' a, p a * f a`, import
+[PMF/SupportTsum.lean](../../CslibFrontier/Probability/PMF/SupportTsum.lean) for
+`PMF.tsum_mul_congr_support`, `PMF.tsum_mul_mono_support`, `PMF.tsum_mul_add_of_support` and
+`PMF.tsum_mul_le_of_support`.
 
 Moving a bound between `ℝ≥0∞` and `ℝ` or `ℝ≥0` (`ENNReal.toReal_mono`, `ENNReal.toReal_add`,
 `ENNReal.toNNReal_mono`, `ENNReal.toReal_sum`) needs every term to be finite. Import
