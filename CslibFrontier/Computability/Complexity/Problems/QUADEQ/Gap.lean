@@ -40,9 +40,11 @@ the satisfiable systems, as in the source. No-instances are the systems in which
 violates at least a `δ` fraction of the equations, counted with multiplicity. The source's
 thresholds are `δ = 1/3` and `δ = 1/2 - ε`; `GapQUADEQ_npHard` proves every `0 < δ < 1/2`. The
 empty system and thresholds `δ ≤ 0` give no no-instances, as in
-`Cslib.Complexity.PromiseProblem.gapMin`, so that the two sets are disjoint. The source's bias is
-`|Pr[⟨r, s⟩ = 1] - 1/2|` (bias `1/6` suffices for `1/3`), half of the character bias bounded by
-`Cslib.BitString.IsSmallBias`; the reduction is unaffected because it chooses the bias from `δ`.
+`Cslib.Complexity.PromiseProblem.gapMin`, so that the two sets are disjoint. Goldreich's bias
+(§8.5.2, equations (8.18)–(8.19)) is the absolute character expectation, as in
+`Cslib.BitString.IsSmallBias`. Character bias `ε` gives the stronger violation fraction
+`(1 - ε) / 2`, hence also the source's `1/2 - ε`; the guideline's bias `1/6` is a sufficient,
+conservative choice for violation fraction `1/3`.
 Hardness is under polynomial-time Karp reductions of promise problems
 (`Cslib.Complexity.PromiseProblem.NPHard`), and membership is in promise-NP, which together are
 the source's NP-completeness.
