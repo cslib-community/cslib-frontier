@@ -239,6 +239,13 @@ theorem encInput_apply (x : P.Input) :
     P.encInput x = frame (encUnary x.secParam) ++ SIS.encodeMatrix x.matrix := by
   simp [encInput, Input.words, encPair, encBits]
 
+variable {P} in
+/-- The security parameter of a SIS input is computable in polynomial time from its encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : P.Input => x.secParam) P.encInput encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
 /-- A SIS solver for the family `P`: given the security parameter `κ` and a matrix of the
 dimensions and modulus of `P` at `κ`, it returns an integer vector. `Solver.IsPPT` states its
 efficiency on encodings. -/

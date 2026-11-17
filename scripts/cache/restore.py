@@ -23,6 +23,8 @@ SCOPE = "cslib-community/complexitylib"
 ROOT = Path(__file__).resolve().parents[2]
 MAX_REVISIONS = 100
 STALLED_FALLBACK_REVISIONS = 20
+# Exit status of an origin attempt that found no ancestor worth asking any origin for.
+NO_COMPATIBLE_ANCESTOR = 3
 
 
 def origins(env):
@@ -134,16 +136,74 @@ def candidate_revisions(root, limit=MAX_REVISIONS, stalled_limit=STALLED_FALLBAC
     return ordered
 
 
+def mathlib_revision(manifest):
+    """The Mathlib commit pinned by a `lake-manifest.json` text, or None if it cannot be read."""
+    try:
+        return next(package["rev"] for package in json.loads(manifest)["packages"]
+                    if package["name"] == "mathlib")
+    except (ValueError, KeyError, TypeError, StopIteration):
+        return None
+
+
+def same_mathlib(root, revisions):
+    """Keep the revisions whose manifest pins the Mathlib commit this checkout pins.
+
+    A module's input hash covers the outputs of everything it imports, so outputs built against
+    another Mathlib commit match no module here: of the 3,880 to 10,469 modules published before
+    each Mathlib bump up to November 2026, at most one was reusable after it. Restoring such a
+    revision downloads a complete set and then compiles everything anyway. Bumps of cslib alone
+    and other `lakefile.toml` changes kept 52% to 100% of outputs reusable, so only Mathlib's pin
+    is compared. A revision whose pin cannot be read is kept.
+    """
+    try:
+        current = mathlib_revision((root / "lake-manifest.json").read_text())
+    except (OSError, UnicodeError):
+        current = None
+    if current is None or not revisions:
+        return list(revisions)
+    try:
+        output = subprocess.run(
+            ["git", "cat-file", "--batch"], cwd=root, check=True, stdout=subprocess.PIPE,
+            input="".join(f"{revision}:lake-manifest.json\n" for revision in revisions).encode(),
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return list(revisions)
+    kept = []
+    position = 0
+    for revision in revisions:
+        end = output.find(b"\n", position)
+        if end < 0:  # truncated answer: keep what could not be checked
+            kept.append(revision)
+            continue
+        header = output[position:end].split()
+        position = end + 1
+        pinned = None
+        if len(header) == 3 and header[1] == b"blob" and header[2].isdigit():
+            size = int(header[2])
+            pinned = mathlib_revision(output[position:position + size].decode(errors="replace"))
+            position += size + 1
+        if pinned is None or pinned == current:
+            kept.append(revision)
+    return kept
+
+
 def one_origin(root, origin, work, missing):
     """This worker and all curl/Lake children share the parent's supervised group."""
     env = {**os.environ, "LAKE_CACHE_ARTIFACT_ENDPOINT": origin + "/a0",
            "LAKE_CACHE_REVISION_ENDPOINT": origin + "/r0"}
     toolchain = (root / "lean-toolchain").read_text().strip().replace("/", "--").replace(":", "---")
     try:
-        revisions = candidate_revisions(root)
+        ancestors = candidate_revisions(root)
     except subprocess.CalledProcessError as error:
         print(f"Could not list candidate revisions for {origin}: {error}", flush=True)
         return 1
+    revisions = same_mathlib(root, ancestors)
+    if len(revisions) < len(ancestors):
+        print(f"Skipping {len(ancestors) - len(revisions)} of {len(ancestors)} candidate ancestors "
+              "that pin another Mathlib revision: their outputs cannot match this checkout.",
+              flush=True)
+        if not revisions:
+            return NO_COMPATIBLE_ANCESTOR
     mapping = work / "map.jsonl"
     found = None
     checked = 0
@@ -161,9 +221,9 @@ def one_origin(root, origin, work, missing):
         if result.returncode == 0:
             found = (back, revision)
             break
-        # Both 404 and 403 can mean a revision is unpublished: GCS with
-        # roles/storage.legacyObjectReader (read without list) answers missing
-        # objects with 403. Fail fast only on transport errors, timeouts, or 5xx/other errors.
+        # Both 404 and 403 are taken to mean an unpublished revision; the public GCS bucket
+        # answered 404 for one on 2026-11-17, and 403 for everything while public read is revoked.
+        # Fail fast only on transport errors, timeouts, or 5xx/other errors.
         if result.stdout.strip() not in ("403", "404"):
             break
     if found is None:
@@ -244,11 +304,18 @@ def restore(root, env, missing=False):
                 args.append("--missing")
             result = run(args, timeout=timeout, cwd=root, env=env)
         outcome = ("completed" if result.returncode == 0 else "timed out"
-                   if result.returncode == 124 else f"failed (exit {result.returncode})")
+                   if result.returncode == 124 else "skipped"
+                   if result.returncode == NO_COMPATIBLE_ANCESTOR
+                   else f"failed (exit {result.returncode})")
         print(f"cslib-frontier cache origin {index}/{len(urls)}: {outcome} in "
               f"{time.monotonic() - started:.1f}s: {origin}", flush=True)
         if result.returncode == 0:
             return True
+        if result.returncode == NO_COMPATIBLE_ANCESTOR:
+            # The answer depends on the checkout alone, so no other origin can do better.
+            print("note: no candidate ancestor shares this checkout's Mathlib revision; "
+                  "lake build will compile missing outputs", flush=True)
+            return False
         print("note: origin missed, failed or timed out; trying the next configured origin", flush=True)
     print("note: no configured origin completed restoration; lake build will compile missing outputs",
           file=sys.stderr, flush=True)

@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
+import CslibFrontier.Computability.Complexity.Problems.UCONN
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
@@ -72,6 +73,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
+import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.Discrepancy
 import CslibFrontier.Computability.Communication.Discrepancy.Spectral
 import CslibFrontier.Computability.Communication.DistinctRows
@@ -178,6 +180,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
+import CslibFrontier.Crypto.Computational.OneWay.Iterate
 import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
@@ -283,6 +286,7 @@ import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
+import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
 
 /-!
 # Collected results
@@ -593,6 +597,25 @@ register_result "bipartite-in-logspace" where
     reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
     ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
 
+
+register_result "uconn-in-logspace" where
+  title := "Undirected connectivity of a whole graph is in L"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Theorem 5.6",
+      locator := "January 2007 r2.pdf, printed p. 170; PDF p. 54" }
+  ]
+  theorems := [
+    Cslib.Complexity.UCONN.logSpaceReducible_USTCON,
+    Cslib.Complexity.UCONN_mem_L
+  ]
+  scope := "Undirected graphs as symmetric loopless adjacency matrices on Fin n, encoded by \
+    encUGraph (a unary header 1^n 0 and the row-major matrix). Connected means a path between \
+    every pair of vertices (Appendix G.1), formalized as SimpleGraph.Preconnected, so the graph \
+    with no vertices is connected. Native visited-cell L. The proof is a logspace many-one \
+    reduction to USTCON (n copies of the graph in series, one query) and Reingold's USTCON ∈ L, \
+    not the draft's direct expander transformation (Claims 5.7, 5.9 and Lemma 5.10 are \
+    separate)."
 
 register_result "strongly-connected-nl-complete" where
   title := "Strongly connected digraphs are NL-complete"
@@ -1330,6 +1353,20 @@ register_result "goldreich-levin-hard-core" where
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
 
+register_result "goldreich-low-degree-extension-individual-degree" where
+  title := "Low-degree extensions of individual degree |H| - 1"
+  topic := "codes"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.12",
+      locator := "March 2007 draft r4.pdf, PDF p. 43; printed p. 307" }
+  ]
+  theorems := [Cslib.Code.exists_degreeOf_le_eval_eq_lowDegreeExtension]
+  scope := "Any field F (the source's F is the finite field of its Theorem 7.12 construction) \
+    and any finite H embedded in F. For every f : H^m → F there is an m-variate polynomial of \
+    degree at most |H| - 1 in each variable that agrees with f on H^m; it is the Lagrange-basis \
+    extension of the guideline. Uniqueness and the running time of footnote 12 are not \
+    formalized."
+
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
   topic := "circuit complexity"
@@ -1474,6 +1511,21 @@ register_result "communication-rank-distinct-rows" where
     its relation symbol, and this is its evident repair. Pairwise distinct rows on n-bit \
     inputs give rank >= n and C(f) >= ceil(log2 n), with no n >= 1 hypothesis. C(f) is \
     the depth of leaf-labelled protocol trees in which both players know the output."
+
+-- Outside-fleet source check: SamuelSchlesinger (codex-coord-20261111-1634),
+-- https://github.com/cslib-community/cslib-frontier/pull/6262#pullrequestreview-5947135257
+register_result "communication-clique-independent-set" where
+  title := "Clique versus independent set in O(log² n) bits"
+  topic := "communication complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 12, Exercise 8",
+      locator := "Web draft 2007-01-08; printed p. 232 / PDF p. 248" }
+  ]
+  theorems := [Cslib.Communication.ecomplexity_clique_indepSet_le]
+  scope := "For every simple graph on a finite vertex type with n vertices, deterministic \
+    protocol trees in which Alice holds a clique C and Bob an independent set I and both \
+    learn |C ∩ I| (a natural number, at most one) need depth at most 3 (floor(log2 n) + 1)^2, \
+    uniformly in the graph. The open second question of the exercise is not addressed."
 
 register_result "communication-tiling-discrepancy" where
   title := "Discrepancy bounds the minimum arbitrary monochromatic tiling size"
@@ -5596,24 +5648,30 @@ register_result "prp-prf-switching" where
     charged and no asymptotic form is stated."
 
 register_result "ajtai-collision-sis" where
-  title := "Finding collisions in Ajtai's hash function is no easier than SIS"
+  title := "Ajtai's hash family is collision resistant under SIS"
   topic := "cryptography"
   sources := [
-    { paper := Ajtai1996, theorem := unverified, locator := unverified }
+    { paper := GoldreichGoldwasserHalevi1996, theorem := "Theorem 2",
+      locator := "Section 3, p. 4" }
   ]
   theorems := [
-    Cslib.Crypto.IsAjtaiCollision.isSolution_sub,
-    Cslib.Crypto.isSolution_sub_of_abs_le,
-    Cslib.Crypto.ajtaiAdvantage_le_sisAdvantage
+    Cslib.Crypto.SIS.collisionResistantForOn_ajtaiWordHash
   ]
-  scope := "Ajtai's hash x ↦ A x mod q on integer vectors, for every nonzero modulus q (the two \
-    collision lemmas need no assumption on q), dimensions n × m and bound β, with no primality \
-    or compression assumption. Distinct inputs in [0, β]^m (or [-β, β]^m) with equal hashes \
-    differ by a nonzero solution with ∞-norm at most β (or 2β), and the collision-finding \
-    success probability of any finder against a uniform A ∈ ℤ_q^{n×m} is at most the SIS \
-    success probability of collisionToSIS, which subtracts the two inputs. Ajtai's \
-    worst-case-to-average-case reduction for lattice problems is not formalized; no running \
-    time is charged."
+  scope := "Goldreich–Goldwasser–Halevi, ECCC TR96-042, Theorem 2 (Section 3, p. 4): Ajtai's \
+    hash family h_A(s) = A s mod q on the words s of length m (the source's {0,1}^m), keyed by \
+    a uniform A ∈ ℤ_q^{n×m}. Under SIS P (at P.β = 1, the source's Problem (A2)), every \
+    uniform strict PPT finder given κ and the key ⟨κ, A⟩ finds two distinct words with equal \
+    hashes only with negligible probability (CollisionResistantForOn, Boneh–Shoup \
+    Definition 8.2). The reduction subtracts the two words read as 0/1 vectors and is \
+    certified PPT from the finder's certificate. Deviations: (1) any SIS parameter family P \
+    is allowed; the source's relations n log q < m ≤ q/(2n⁴) and q = O(n^c) are not \
+    required; (2) the bound P.β must be at least 1 (hβ), since SIS P holds vacuously at \
+    bound 0; (3) the column count P.m must be computable in polynomial time (hm), so that \
+    the reduction can write a length-m answer for malformed words; (4) finders and solvers \
+    are uniform strict PPT with negligible success, where the source's Theorem 2 is stated \
+    for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
+    hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
+    Ajtai) is not formalized."
 
 register_result "mldsa-key-only-forgery" where
   title := "ML-DSA key-only unforgeability from Module-LWE and self-target MSIS"
@@ -6170,6 +6228,26 @@ register_result "uniform-probing-expected-probes" where
     model only: no concrete hash construction or Word-RAM runtime claim, and excludes the \
     uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
     per-key intermediate step)."
+
+register_result "owp-iterate-one-way" where
+  title := "Iterates of a one-way permutation are one-way, for rational exponents and \
+    certified counts"
+  topic := "cryptography"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 10, Exercise 3",
+      locator := "Web draft 2007-01-08, printed p. 204; PDF p. 220" }
+  ]
+  theorems := [Cslib.Crypto.OneWayPermutation.iterate_ceil_rpow,
+    Cslib.Crypto.OneWayPermutation.iterateByLength]
+  scope := "Covers every rational exponent c = p / q (count ⌈|x| ^ c⌉) and every other exponent \
+    whose rounded count has a polynomial-time unary certificate; no uniform algorithm is given \
+    for an arbitrary real c. The general form allows any polynomial-time unary count that is \
+    eventually nonzero. OneWayPermutation is a length-preserving bijection on List Bool, \
+    polynomial-time computable, with negligible inversion probability for every uniform strict \
+    PPT inverter given unary n and f x for uniform n-bit x (any preimage accepted). This is the \
+    asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
+    concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
+    bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."
 
 register_result "owf-iterate-not-one-way" where
   title := "Iterates of a one-way function need not be one-way"
