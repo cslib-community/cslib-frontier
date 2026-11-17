@@ -59,9 +59,10 @@ Chapter 5:
 
 * **`n`-bit message space and threshold `1 ≤ n`.** In `SymmetricCipher`, the message space at
   security parameter `n` is `{0, 1}^n` of size `2^n`, sampled uniformly in polynomial time via
-  `BitString.sampleList n`. Both Example 5.1 ("assuming `|M| ≥ 2`", printed p. 182) and
-  Exercise 5.12 ("where `|M| ≥ 2`, all messages have the same length, and messages in `M` can be
-  sampled uniformly at random in polynomial time", printed p. 211) correspond quantitatively to
+  `BitString.sampleList n`. Both Example 5.1 ("Let `m, m'` be any two, distinct messages in the
+  message space of `E`", printed p. 182) and Exercise 5.12 ("Assume that there are at least two
+  messages in `M`, that all messages have the same length, and that we can efficiently generate
+  messages in `M` uniformly at random", printed p. 211) correspond quantitatively to
   `1 ≤ n`, which disappears in the asymptotic `Negligible` conclusions.
 * **Determinism on `0^n` only.** As in `Encryption.not_indcpaOn_of_deterministic`, Example 5.1 uses
   determinism only on the single plaintext `0^n = List.replicate n false` from some parameter `n₀`

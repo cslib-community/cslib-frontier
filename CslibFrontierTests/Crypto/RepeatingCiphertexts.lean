@@ -185,33 +185,22 @@ example (B : OracleDistinguisher) :
 
 /-! ### Randomized `prfCipher` Instance -/
 
-/-- A length-preserving family, computable in polynomial time. -/
-def xorFamily (key query : List Bool) : List Bool :=
-  List.zipWith xor key query
-
-theorem xorFamily_polyTime :
-    ComputableInPolyTime (fun pair : List Bool × List Bool => xorFamily pair.1 pair.2)
-      (encPair encBits encBits) encBits :=
-  ComputableInPolyTime.bitsZipWithInput xor (by fun_prop) (by fun_prop)
-
-theorem xorFamily_length (key query : List Bool) (h : query.length = key.length) :
-    (xorFamily key query).length = key.length := by
-  simp [xorFamily, h]
-
-/-- Concrete Exercise 5.12 bound instantiated on the randomized cipher `prfCipher xorFamily`. -/
+/-- Concrete Exercise 5.12 bound instantiated on `prfCipher` with the key-projection family
+`fun key _ => key`. -/
 example {α : Type} (A : ℕ → List Bool → WordOracleComp Unit α) {n : ℕ} (hn : 1 ≤ n) :
     Game.succProbability
-        ((prfCipher xorFamily xorFamily_polyTime xorFamily_length).repeatCiphertextGame A n) ≤
+        ((prfCipher (fun key _ => key) (ComputableInPolyTime.fst encBits encBits)
+          (fun _ _ _ => rfl)).repeatCiphertextGame A n) ≤
       2 * Game.advantage
-        (ProbComp.eval ((prfCipher xorFamily xorFamily_polyTime xorFamily_length).cpaGame
-          (repeatToCPAAdversary (2 * ·) A) false n))
-        (ProbComp.eval ((prfCipher xorFamily xorFamily_polyTime xorFamily_length).cpaGame
-          (repeatToCPAAdversary (2 * ·) A) true n)) :=
-  (prfCipher xorFamily xorFamily_polyTime
-    xorFamily_length).succProbability_repeatCiphertextGame_le_two_mul_advantage (2 * ·) A hn
+        (ProbComp.eval ((prfCipher (fun key _ => key) (ComputableInPolyTime.fst encBits encBits)
+          (fun _ _ _ => rfl)).cpaGame (repeatToCPAAdversary (2 * ·) A) false n))
+        (ProbComp.eval ((prfCipher (fun key _ => key) (ComputableInPolyTime.fst encBits encBits)
+          (fun _ _ _ => rfl)).cpaGame (repeatToCPAAdversary (2 * ·) A) true n)) :=
+  (prfCipher (fun key _ => key) (ComputableInPolyTime.fst encBits encBits)
+    (fun _ _ _ => rfl)).succProbability_repeatCiphertextGame_le_two_mul_advantage (2 * ·) A hn
     fun k hk m hm c hc =>
-      (prfCipher_ciphertext_length xorFamily xorFamily_polyTime xorFamily_length n k hk m hm c
-        hc).le
+      (prfCipher_ciphertext_length (fun key _ => key) (ComputableInPolyTime.fst encBits encBits)
+        (fun _ _ _ => rfl) n k hk m hm c hc).le
 
 /-- Asymptotic Exercise 5.12 instantiated on `prfCipher` for any `PseudorandomFunction`. -/
 example {α : Type} {encOut : α ↪ List Bool} {family : List Bool → List Bool → List Bool}
@@ -221,37 +210,5 @@ example {α : Type} {encOut : α ↪ List Bool} {family : List Bool → List Boo
       Game.succProbability
         ((prfCipher family hprf.polyTime hprf.length_eq).repeatCiphertextGame A n) :=
   hprf.indcpa_prfCipher.negligible_repeatCiphertextGame A hA
-
-/-! ### Axiom Checks -/
-
-/--
-info: 'Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms SymmetricCipher.not_indcpa_of_deterministic
-
-/--
-info: 'Cslib.Crypto.SymmetricCipher.isOraclePPT_repeatToCPAAdversary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms SymmetricCipher.isOraclePPT_repeatToCPAAdversary
-
-/--
-info: 'Cslib.Crypto.SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage
-
-/--
-info: 'Cslib.Crypto.SymmetricCipher.INDCPA.negligible_repeatCiphertextGame' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms SymmetricCipher.INDCPA.negligible_repeatCiphertextGame
 
 end CslibFrontierTests.Crypto.RepeatingCiphertexts
