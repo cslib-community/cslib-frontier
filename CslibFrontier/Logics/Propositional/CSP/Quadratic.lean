@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.Propositional.CNF
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Algebra.Ring.BooleanRing
 public import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.CharP.Two
 
 /-!
 # Quadratic equations over `𝔽₂`
@@ -203,12 +204,6 @@ theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V �
       ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 := by
     rw [← sum_map_filter_zip QuadEquation.rhs F r]
     rfl
-  have hcast (n : ℕ) : (n : Bool) = 0 ↔ Even n := by
-    induction n with
-    | zero => simp
-    | succ n ih =>
-      rw [Nat.cast_succ, Nat.even_add_one, ← ih]
-      cases (n : Bool) <;> decide
   have hterm (i : Fin F.length) :
       ((if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum else 0) +
         if r.getD i false then F[i].rhs else 0) =
@@ -218,8 +213,10 @@ theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V �
       decide
     exact key _ _ _
   have hiff : ∀ x y : Bool, x = y ↔ x + y = 0 := by decide
+  let : CharP Bool 2 := CharTwo.of_one_ne_zero_of_two_eq_zero (by decide) (by decide)
   rw [QuadEquation.Holds, hlhs, hrhs, hiff, ← Finset.sum_add_distrib, Finset.sum_congr rfl
-    fun i _ => hterm i, Finset.sum_boole, hcast]
+    fun i _ => hterm i, Finset.sum_boole, CharTwo.natCast_eq_ite]
+  simp
 
 end QuadSystem
 

@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.Collision
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Small-bias distributions and the XOR lemma
@@ -248,20 +249,13 @@ the `d` sample points `s j` is `ε`-biased, then for every nonempty `S` at least
 theorem le_card_filter_parityOn {d : ℕ} [NeZero d] {s : Fin d → ι → Bool}
     (hs : IsSmallBias ε ((PMF.uniformOfFintype (Fin d)).map s)) {S : Finset ι}
     (hS : S.Nonempty) : (1 - ε) / 2 * d ≤ #{j | parityOn S (s j) = true} := by
+  classical
   have h := (le_abs_self _).trans (hs S hS)
-  rw [bias_uniformOfFintype_map, Fintype.expect_eq_sum_div_card, Fintype.card_fin] at h
-  have hsum : ∑ j, chi ℝ S (s j) = d - 2 * #{j | parityOn S (s j) = true} := by
-    simp only [chi_eq_signVal_parityOn, signVal, Finset.sum_ite, sum_const, nsmul_eq_mul,
-      mul_neg, mul_one]
-    have := card_filter_add_card_filter_not (s := univ) (fun j => parityOn S (s j) = true)
-    simp only [card_univ, Fintype.card_fin, Bool.not_eq_true] at this
-    simp only [Bool.not_eq_true]
-    have h' : ((#{j | parityOn S (s j) = true} : ℕ) : ℝ) + #{j | parityOn S (s j) = false} =
-        d := by
-      exact_mod_cast this
-    linarith
+  rw [bias_eq_one_sub_two_mul, PMF.toOuterMeasure_map_apply,
+    toOuterMeasure_uniformOfFintype_toReal] at h
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fintype.card_fin] at h
   have hd : (0 : ℝ) < d := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne d)
-  rw [hsum, div_le_iff₀ hd] at h
+  apply (le_div_iff₀ hd).1
   linarith
 
 end IsSmallBias
