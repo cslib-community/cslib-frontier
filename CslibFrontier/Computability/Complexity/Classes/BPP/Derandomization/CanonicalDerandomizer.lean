@@ -210,11 +210,8 @@ private theorem exists_two_pow_div_le {ℓ : ℕ → ℕ}
     ∃ e K : ℕ, 0 < e ∧ ∀ k, K ≤ k → 2 ^ (k / e) ≤ ℓ k := by
   obtain ⟨ε, hε, hev⟩ := h
   obtain ⟨K, hK⟩ := eventually_atTop.1 hev
-  set e := ⌈ε⁻¹⌉₊ + 1 with he_def
-  have he : 0 < e := Nat.succ_pos _
-  have hεe : 1 / (e : ℝ) ≤ ε := by
-    rw [one_div, inv_le_comm₀ (by positivity) hε]
-    exact (Nat.le_ceil _).trans (by rw [he_def]; push_cast; linarith)
+  obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
+  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
   refine ⟨e, K, he, fun k hk => ?_⟩
   have hdiv : ((k / e : ℕ) : ℝ) ≤ ε * k := by
     calc ((k / e : ℕ) : ℝ) ≤ (k : ℝ) / e := Nat.cast_div_le

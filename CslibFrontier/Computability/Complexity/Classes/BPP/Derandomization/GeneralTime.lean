@@ -327,13 +327,10 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
     ∃ e M : ℕ, 1 ≤ e ∧ ∀ X : ℕ, 2 ^ X ≤ S (X ^ e + M) := by
   obtain ⟨ε, hε, hev⟩ := h
   obtain ⟨M, hM⟩ := eventually_atTop.1 hev
-  set e := ⌈ε⁻¹⌉₊ with he_def
-  have he : 1 ≤ e := Nat.one_le_iff_ne_zero.2 (by simp [e, hε])
+  obtain ⟨e, he, heε⟩ := Real.exists_nat_pos_inv_lt hε
   have heε : 1 ≤ (e : ℝ) * ε := by
-    have := Nat.le_ceil ε⁻¹
-    rw [← he_def] at this
-    calc (1 : ℝ) = ε⁻¹ * ε := (inv_mul_cancel₀ hε.ne').symm
-      _ ≤ e * ε := mul_le_mul_of_nonneg_right this hε.le
+    rw [inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)] at heε
+    exact heε.le
   refine ⟨e, M, he, fun X => ?_⟩
   set m := X ^ e + M
   have hm := hM m (Nat.le_add_left _ _)
