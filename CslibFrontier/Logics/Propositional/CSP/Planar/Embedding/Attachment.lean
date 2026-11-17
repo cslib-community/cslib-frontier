@@ -7,7 +7,7 @@ Authors: OpenAI
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryAppend
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryTransport
 
 /-!
@@ -54,7 +54,7 @@ noncomputable def Witness.attachAt {F H : CSP Rel V} {left right extra : List V}
     have ha' : a ∈ F.vars ++ (left ++ x :: right) := by
       simpa only [List.mem_append, List.mem_cons, or_assoc, or_left_comm, or_comm] using ha
     exact List.disjoint_left.mp hd ha' hb
-  let wa := wr'.appendWords v (by simp) (by simp) hdrot hnrot
+  let wa := wr'.appendComputed v hdrot hnrot
   let wa' : Witness (F ++ H) ((x :: (right ++ left ++ extra)) ++ [y]) :=
     ⟨wa.certificate, by simpa only [List.cons_append, List.append_assoc] using wa.accepted⟩
   have hna : ((x :: (right ++ left ++ extra)) ++ [y]).Nodup := by

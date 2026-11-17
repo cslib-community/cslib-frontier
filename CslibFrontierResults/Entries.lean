@@ -73,6 +73,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
+import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.Discrepancy
 import CslibFrontier.Computability.Communication.Discrepancy.Spectral
 import CslibFrontier.Computability.Communication.DistinctRows
@@ -144,6 +145,7 @@ import CslibFrontier.Computability.Kolmogorov.MINKT
 import CslibFrontier.Computability.Kolmogorov.MINKTStar.Hardness
 import CslibFrontier.Computability.Kolmogorov.MKtP
 import CslibFrontier.Computability.Kolmogorov.SymmetryOfInformation
+import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 import CslibFrontier.Computability.MCSP.AntiChecker
 import CslibFrontier.Computability.MCSP.AntiChecker.Efficient
 import CslibFrontier.Computability.MCSP.FormulaMagnification
@@ -170,6 +172,7 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
@@ -179,6 +182,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
+import CslibFrontier.Crypto.Computational.OneWay.Iterate
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
@@ -283,6 +287,7 @@ import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
+import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
 
 /-!
 # Collected results
@@ -1349,6 +1354,20 @@ register_result "goldreich-levin-hard-core" where
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
 
+register_result "goldreich-low-degree-extension-individual-degree" where
+  title := "Low-degree extensions of individual degree |H| - 1"
+  topic := "codes"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.12",
+      locator := "March 2007 draft r4.pdf, PDF p. 43; printed p. 307" }
+  ]
+  theorems := [Cslib.Code.exists_degreeOf_le_eval_eq_lowDegreeExtension]
+  scope := "Any field F (the source's F is the finite field of its Theorem 7.12 construction) \
+    and any finite H embedded in F. For every f : H^m → F there is an m-variate polynomial of \
+    degree at most |H| - 1 in each variable that agrees with f on H^m; it is the Lagrange-basis \
+    extension of the guideline. Uniqueness and the running time of footnote 12 are not \
+    formalized."
+
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
   topic := "circuit complexity"
@@ -1493,6 +1512,21 @@ register_result "communication-rank-distinct-rows" where
     its relation symbol, and this is its evident repair. Pairwise distinct rows on n-bit \
     inputs give rank >= n and C(f) >= ceil(log2 n), with no n >= 1 hypothesis. C(f) is \
     the depth of leaf-labelled protocol trees in which both players know the output."
+
+-- Outside-fleet source check: SamuelSchlesinger (codex-coord-20261111-1634),
+-- https://github.com/cslib-community/cslib-frontier/pull/6262#pullrequestreview-5947135257
+register_result "communication-clique-independent-set" where
+  title := "Clique versus independent set in O(log² n) bits"
+  topic := "communication complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 12, Exercise 8",
+      locator := "Web draft 2007-01-08; printed p. 232 / PDF p. 248" }
+  ]
+  theorems := [Cslib.Communication.ecomplexity_clique_indepSet_le]
+  scope := "For every simple graph on a finite vertex type with n vertices, deterministic \
+    protocol trees in which Alice holds a clique C and Bob an independent set I and both \
+    learn |C ∩ I| (a natural number, at most one) need depth at most 3 (floor(log2 n) + 1)^2, \
+    uniformly in the graph. The open second question of the exercise is not addressed."
 
 register_result "communication-tiling-discrepancy" where
   title := "Discrepancy bounds the minimum arbitrary monochromatic tiling size"
@@ -4409,6 +4443,25 @@ register_result "chaitin-incompleteness" where
     collection. Prefix-free complexity, Chaitin's Omega and logic-level theories are not \
     formalized."
 
+register_result "goldreich-kolmogorov-universal" where
+  title := "Kolmogorov complexity with respect to a universal machine"
+  topic := "Kolmogorov complexity"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Theorem 1.10",
+      locator := "December 2006 r1.pdf, printed p. 34; PDF p. 59" }
+  ]
+  theorems := [Turing.MultiTapeTM.IsUniversal.exists_ecomplexity_le]
+  scope := "The compared machine M is a deterministic native multi-tape machine over Bool with \
+    finitely many states, run on arbitrary bit strings. The universal machine U is any \
+    deterministic native multi-tape machine over Bool, with any state type, satisfying \
+    IsUniversal (Definition 1.8): on encPair encBits encBits (eDesc (desc eS eBit M'), x) it \
+    halts with output o exactly when M' halts on x with o, for every finite-state binary M'; \
+    the finite-state case includes the source's machines. The pair encoding writes each \
+    description bit b as 1b, then 0, so the constant is 2|<M>| + 1. Complexities are extended \
+    naturals, top without a description. Universality is a hypothesis: an unclocked native \
+    universal machine (Theorem 1.9) is not constructed. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6289#pullrequestreview-5947845222"
+
 register_result "symmetry-of-information" where
   title := "Kolmogorov–Levin symmetry of information for plain complexity"
   topic := "Kolmogorov complexity"
@@ -5716,6 +5769,42 @@ register_result "ofb-mode-cpa" where
     at most K blocks in total and at most ℓ per query, over a finite key set; it charges no \
     running time."
 
+register_result "hashed-elgamal-ddh-kdf-cpa" where
+  title := "Hashed ElGamal (the variant E′_EG) is semantically secure under DDH and a secure KDF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 11.5 (for the variant E′_EG of Remark 11.1)",
+      locator := "Section 11.5.2, Theorem 11.5, pp. 449–451; Section 11.5, Remark 11.1, p. 446" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.wordINDCPA_hybrid_hashedElGamal,
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOn_hybrid_hashedElGamal,
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOf_hybrid_hashedElGamal
+  ]
+  scope := "Asymptotic, standard model. The scheme is the variant E′_EG of Remark 11.1: \
+    encapsulation (hashedElGamalEncapsProb) sends v = b • g and derives the key H(d, w) from \
+    w = b • u alone, where Theorem 11.5's E_EG hashes (v, w). Remark 11.1 states that the \
+    security results of Chapter 11 hold for E′_EG as well as for E_EG. The group comes from a \
+    PrimeOrderGroupFamily through a deterministic group schedule d : ℕ → F.Desc computable in \
+    polynomial time from unary n: the system parameterization P(λ) of Section 10.5.2 (p. 413) \
+    taken deterministic, so randomized parameter generation is not covered. Key generation and \
+    encapsulation draw exponents with the fair-coin sampler sampleExp, within statistical \
+    distance 1/2^n of uniform, and are uniform strict PPT; H is polynomial-time and the \
+    symmetric cipher is uniform strict PPT with uniform keyLen n-bit keys. Hypotheses: DDH for \
+    the setup PMF.pure (d n) (Attack Game 10.6); SecureKDF for H, which is Attack Game 11.3 for \
+    the hash of one group element, with two independent uniform group elements public and keys \
+    uniform keyLen n-bit words; and one-time semantic security of the cipher (Attack Game 2.1). \
+    Conclusion: single-challenge IND-CPA (Attack Game 11.1, two-experiment advantage) of the \
+    KEM–DEM hybrid against uniform strict PPT two-stage adversaries. \
+    wordINDCPA_hybrid_hashedElGamal holds the cipher and the scheme to the source's equal-length \
+    rule on bit-word messages; indcpaOn_hybrid_hashedElGamal takes for both any polynomial-time \
+    admissibility predicate that ignores the public key; indcpaOf_hybrid_hashedElGamal admits \
+    every pair for both, the source's notion when all messages have one length. The proof \
+    applies DDH and SecureKDF to certified uniform strict PPT reductions to obtain KEM security \
+    of E′_EG (DDH.kemINDCPA_hashedElGamalEncapsProb, Games 0–2 of the proof of Theorem 11.5), \
+    then the KEM–DEM composition of Exercise 11.9(b) (p. 461). No concrete bound in the form \
+    of (11.14) is stated for the encryption scheme."
+
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
   topic := "fine-grained complexity"
@@ -6196,3 +6285,22 @@ register_result "uniform-probing-expected-probes" where
     uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
     per-key intermediate step)."
 
+register_result "owp-iterate-one-way" where
+  title := "Iterates of a one-way permutation are one-way, for rational exponents and \
+    certified counts"
+  topic := "cryptography"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 10, Exercise 3",
+      locator := "Web draft 2007-01-08, printed p. 204; PDF p. 220" }
+  ]
+  theorems := [Cslib.Crypto.OneWayPermutation.iterate_ceil_rpow,
+    Cslib.Crypto.OneWayPermutation.iterateByLength]
+  scope := "Covers every rational exponent c = p / q (count ⌈|x| ^ c⌉) and every other exponent \
+    whose rounded count has a polynomial-time unary certificate; no uniform algorithm is given \
+    for an arbitrary real c. The general form allows any polynomial-time unary count that is \
+    eventually nonzero. OneWayPermutation is a length-preserving bijection on List Bool, \
+    polynomial-time computable, with negligible inversion probability for every uniform strict \
+    PPT inverter given unary n and f x for uniform n-bit x (any preimage accepted). This is the \
+    asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
+    concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
+    bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."

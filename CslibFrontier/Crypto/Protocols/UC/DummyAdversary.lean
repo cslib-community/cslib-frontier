@@ -50,8 +50,6 @@ running time.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.UC.liftAdversary_id`, `Cslib.Crypto.Protocols.UC.liftAdversary_comp`: the
-  adversary's place in front of the network respects forwarding and composition.
 * `Cslib.Crypto.Protocols.UC.exec_dummyAdversary`,
   `Cslib.Crypto.Protocols.UC.exec_eq_exec_dummy`, `Cslib.Crypto.Protocols.UC.exec_compSim`,
   `Cslib.Crypto.Protocols.UC.advantage_compSim`: running the dummy adversary and absorbing an
@@ -85,138 +83,6 @@ open scoped NNReal
 
 variable {n : ℕ} {In Out NetQ NetR NetQ₁ NetR₁ NetQ₂ NetR₂ AdvQ AdvR BackQ BackR α : Type}
 
-/-! ### Programs on the network port -/
-
-section LiftNet
-
-@[simp] theorem liftNet_pure (a : α) :
-    liftNet (n := n) (In := In) (Out := Out) (pure a : ProbOracleComp (netSpec NetQ NetR) α) =
-      pure a := rfl
-
-@[simp] theorem liftNet_bind {β : Type} (program : ProbOracleComp (netSpec NetQ NetR) α)
-    (next : α → ProbOracleComp (netSpec NetQ NetR) β) :
-    liftNet (n := n) (In := In) (Out := Out) (program >>= next) =
-      liftNet program >>= fun a => liftNet (next a) :=
-  OracleComp.interpret_bind _ _ _
-
-@[simp] theorem liftNet_map {β : Type} (f : α → β)
-    (program : ProbOracleComp (netSpec NetQ NetR) α) :
-    liftNet (n := n) (In := In) (Out := Out) (f <$> program) = f <$> liftNet program :=
-  OracleComp.interpret_map _ _ _
-
-/-- A network query becomes a query of the protocol's network port. -/
-@[simp] theorem liftNet_query (q : NetQ) :
-    liftNet (n := n) (In := In) (Out := Out) (ProbOracleComp.query (spec := netSpec NetQ NetR) q) =
-      ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR) (.inr q) :=
-  OracleComp.interpret_query _ _
-
-/-- Private samples are unchanged. -/
-@[simp] theorem liftNet_sample (program : ProbComp α) :
-    liftNet (n := n) (In := In) (Out := Out)
-        (ProbOracleComp.sample (spec := netSpec NetQ NetR) program) =
-      ProbOracleComp.sample program := by
-  simp only [liftNet, ProbOracleComp.interpret_sample]
-  exact (OracleComp.substitute_eq_interpret _ _).symm
-
-/-- Lifting to the network port makes the same number of calls. -/
-theorem isQueryBounded_liftNet {program : ProbOracleComp (netSpec NetQ NetR) α} {m : ℕ}
-    (h : program.IsQueryBounded m) :
-    (liftNet (n := n) (In := In) (Out := Out) program).IsQueryBounded m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl k => exact OracleComp.IsCostBounded.query _
-  | inr q => exact OracleComp.IsCostBounded.query _
-
-/-- Running a lifted network program against a lifted adversary is lifting the run against the
-adversary. -/
-theorem runFrom_liftAdversary_liftNet (S : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR))
-    (program : ProbOracleComp (netSpec AdvQ AdvR) α) (s : S.State) :
-    (liftAdversary (n := n) (In := In) (Out := Out) S).runFrom (liftNet program) s =
-      liftNet (S.runFrom program s) := by
-  induction program using OracleComp.induction generalizing s with
-  | pure a => rfl
-  | query_bind q cont ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind]
-    cases q with
-    | inl k =>
-      have h₁ : liftNet (n := n) (In := In) (Out := Out)
-          (OracleComp.query (spec := probOracleSpec (netSpec AdvQ AdvR)) (Sum.inl k)) =
-          ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [← liftNet_sample (NetQ := AdvQ) (NetR := AdvR)]
-        rfl
-      have h₂ : S.runFrom (OracleComp.query (spec := probOracleSpec (netSpec AdvQ AdvR))
-          (Sum.inl k)) s = (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) :=
-        S.runFrom_sample (ProbComp.unifFin k) s
-      rw [liftNet_bind, h₁, Machine.runFrom_bind, h₂, liftNet_bind, liftNet_map, liftNet_sample,
-        bind_map_left]
-      erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
-      exact bind_congr fun a => ih a s
-    | inr e =>
-      rw [liftNet_bind, Machine.runFrom_bind, liftNet_bind]
-      erw [Machine.runFrom_bind]
-      have h₁ : (liftAdversary (n := n) (In := In) (Out := Out) S).runFrom
-          (liftNet (OracleComp.query (spec := probOracleSpec (netSpec AdvQ AdvR)) (Sum.inr e))) s =
-          liftNet (S.runFrom (OracleComp.query (spec := probOracleSpec (netSpec AdvQ AdvR))
-            (Sum.inr e)) s) := by
-        erw [liftNet_query, Machine.runFrom_query, Machine.runFrom_query]
-        rfl
-      exact (congrArg (fun m => m >>= _) h₁).trans
-        (bind_congr fun (x : AdvR × S.State) => ih x.1 x.2)
-
-end LiftNet
-
-/-! ### The adversary in front of the network -/
-
-/-- Placing the forwarding machine in front of the network gives the forwarding machine. -/
-@[simp] theorem liftAdversary_id :
-    liftAdversary (n := n) (In := In) (Out := Out) (Machine.id (netSpec NetQ NetR)) =
-      Machine.id (protocolSpec n In Out NetQ NetR) := by
-  simp only [liftAdversary, Machine.id]
-  congr 1 with q s : 2
-  cases q with
-  | inl p => rfl
-  | inr q =>
-    change liftNet ((fun a => (a, s)) <$> ProbOracleComp.query q) = _
-    rw [liftNet_map, liftNet_query]
-    rfl
-
-/-- Placing a composition in front of the network is composing the placed machines. -/
-theorem liftAdversary_comp (A : Machine (netSpec NetQ₁ NetR₁) (netSpec AdvQ AdvR))
-    (S : Machine (netSpec NetQ₂ NetR₂) (netSpec NetQ₁ NetR₁)) :
-    liftAdversary (n := n) (In := In) (Out := Out) (A.comp S) =
-      (liftAdversary A).comp (liftAdversary S) := by
-  simp only [liftAdversary, Machine.comp]
-  congr 1 with q s : 2
-  cases q with
-  | inl p =>
-    change (StateT.lift (ProbOracleComp.query (spec := protocolSpec n In Out NetQ₂ NetR₂)
-        (Sum.inl p))) s =
-      Equiv.prodAssoc _ _ _ <$> (liftAdversary (n := n) (In := In) (Out := Out) S).runFrom
-        ((StateT.lift (ProbOracleComp.query (spec := protocolSpec n In Out NetQ₁ NetR₁)
-          (Sum.inl p))).run s.1) s.2
-    simp only [StateT.lift, StateT.run, bind_pure_comp]
-    erw [Machine.runFrom_map, Machine.runFrom_query]
-    simp only [liftAdversary, StateT.lift, StateT.run, bind_pure_comp, Functor.map_map]
-    rfl
-  | inr e =>
-    change liftNet (Equiv.prodAssoc _ _ _ <$> S.runFrom ((A.handle e).run s.1) s.2) =
-      Equiv.prodAssoc _ _ _ <$> (liftAdversary S).runFrom (liftNet ((A.handle e).run s.1)) s.2
-    rw [runFrom_liftAdversary_liftNet, liftNet_map]
-    rfl
-
-/-- A machine with at most `t` calls per activation, placed in front of the network, makes at most
-`t + 1` calls per activation: party queries pass through with one call. -/
-theorem isBounded_liftAdversary {M : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)} {t : ℕ}
-    (h : M.IsBounded t) :
-    (liftAdversary (n := n) (In := In) (Out := Out) M).IsBounded (t + 1) := by
-  refine ⟨h.1.mono (Nat.le_succ t), fun q s => ?_⟩
-  cases q with
-  | inl p =>
-    change ((fun a => (a, s)) <$> ProbOracleComp.query _).IsQueryBounded _
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      ((OracleComp.IsCostBounded.query _).mono (by omega))
-  | inr q => exact (isQueryBounded_liftNet (h.2 q s)).mono (Nat.le_succ t)
-
 /-! ### Dummy adversary, black-box simulators and absorbed environments -/
 
 /-- The dummy adversary forwards the environment's queries to the network port. -/
@@ -241,7 +107,7 @@ talks to the network through the dummy adversary. -/
     (Z : Environment n In Out (RoutedNetQ n In NetQ) (RoutedNetR Out NetR))
     (κ : ℕ) (z : List Bool) :
     exec π (dummyAdversary n _ _) C Z κ z = (corruptRouter C (π κ C)).run (Z κ z) := by
-  simp only [exec, execMachine, dummyAdversary, Machine.run_comp, liftAdversary_id,
+  simp only [exec, execMachine, dummyAdversary, Machine.run_comp, Machine.liftRight_id,
     Machine.link_id]
 
 /-- Running an adversary is running the dummy adversary with the adversary absorbed into the
@@ -252,7 +118,7 @@ theorem exec_eq_exec_dummy (π : Protocol n In Out NetQ NetR)
     exec π A C Z κ z =
       exec π (dummyAdversary n _ _) C (absorbAdversary C A Z) κ z := by
   simp only [exec, execMachine, Machine.run_comp, dummyAdversary, absorbAdversary,
-    liftAdversary_id, Machine.link_id]
+    Machine.liftRight_id, Machine.link_id]
 
 /-- Running the black-box simulator is running the dummy-adversary simulator with the adversary
 absorbed into the environment. -/
@@ -262,14 +128,14 @@ theorem exec_compSim (φ : Protocol n In Out NetQ₂ NetR₂)
     (A : ExecAdversary n In Out NetQ₁ NetR₁ AdvQ AdvR) (C : Finset (Fin n))
     (Z : Environment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
     exec φ (compSim S_D A) C Z κ z = exec φ S_D C (absorbAdversary C A Z) κ z := by
-  simp only [exec, execMachine, Machine.run_comp, compSim, absorbAdversary, liftAdversary_comp,
+  simp only [exec, execMachine, Machine.run_comp, compSim, absorbAdversary, Machine.liftRight_comp,
     Machine.link_comp]
 
 /-- Absorbing the dummy adversary leaves the environment unchanged. -/
 @[simp] theorem absorbAdversary_dummy (C : Finset (Fin n)) (Z : Environment n In Out NetQ NetR) :
     absorbAdversary C (dummyAdversary n NetQ NetR) Z = Z := by
   funext κ z
-  simp only [absorbAdversary, dummyAdversary, liftAdversary_id, Machine.link_id]
+  simp only [absorbAdversary, dummyAdversary, Machine.liftRight_id, Machine.link_id]
 
 /-- The advantage against an adversary and its black-box simulator is the advantage against the
 dummy adversary and the core simulator, for the absorbed environment. -/
@@ -340,8 +206,8 @@ theorem absorbAdversary_polyBounded (C : Finset (Fin n)) {A : Adversary n AdvQ A
     {Z : Environment n In Out AdvQ AdvR} {pA pZ : Polynomial ℕ} (hA : A.PolyBounded pA)
     (hZ : Z.PolyBounded pZ) : (absorbAdversary C A Z).PolyBounded (absorbPoly pZ pA) :=
   fun κ z => by
-  have h := Machine.isQueryBounded_link (isBounded_liftAdversary (n := n) (In := In)
-    (Out := Out) (hA κ C)) (hZ κ z)
+  have h := Machine.isQueryBounded_link (Machine.isBounded_liftRight (partySpec n In Out)
+    (hA κ C)) (hZ κ z)
   refine h.mono (le_of_eq ?_)
   rw [eval_absorbPoly]
 
