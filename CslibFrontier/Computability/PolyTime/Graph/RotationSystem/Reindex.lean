@@ -42,18 +42,18 @@ theorem computableInPolyTime_reindex {α : Type} {input : α ↪ List Bool}
       (encPair input encNat) encNat) :
     ComputableInPolyTime (fun x => reindex (table x) (count x) (forward x) (back x))
       input encRotationCertificate := by
-  have hw : ComputableTidilyInPolyTime (fun x => (List.range (count x)).map
+  have hw : ComputableInPolyTime (fun x => (List.range (count x)).map
       (fun i => forward x ((table x).successor.getD (back x i) 0))) input (encList encNat) := by
-    apply ComputableTidilyInPolyTime.mapWithInput (encA := encUnary)
-      (ComputableTidilyInPolyTime.range.comp hn.tidy)
-    have hx := ComputableTidilyInPolyTime.fst input encUnary
-    have hi := ComputableTidilyInPolyTime.unary_to_binary.comp
-      (ComputableTidilyInPolyTime.snd input encUnary)
-    have hback := hb.tidy.comp (hx.prod hi)
-    have htable := computableInPolyTime_successor.tidy.comp (hc.tidy.comp hx)
-    have hread := ComputableTidilyInPolyTime.listGetD_binary (encA := encNat) 0 htable hback
-    exact hf.tidy.comp (hx.prod hread)
-  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hw.computableInPolyTime
+    apply ComputableInPolyTime.mapWithInput (encA := encUnary)
+      (ComputableInPolyTime.range.comp hn)
+    have hx := ComputableInPolyTime.fst input encUnary
+    have hi := ComputableInPolyTime.unary_to_binary.comp
+      (ComputableInPolyTime.snd input encUnary)
+    have hback := hb.comp (hx.prod hi)
+    have htable := computableInPolyTime_successor.comp (hc.comp hx)
+    have hread := ComputableInPolyTime.listGetD_binary (encA := encNat) 0 htable hback
+    exact hf.comp (hx.prod hread)
+  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hw
 
 /-- Exchange two computed binary-indexed outgoing entries. Even invalid corner indices
 are only compared and read; the actual table length funds the iteration. -/
@@ -66,7 +66,7 @@ theorem computableInPolyTime_swapSuccessors {α : Type} {input : α ↪ List Boo
       input encRotationCertificate := by
   have hn : ComputableInPolyTime (fun x => (table x).successor.length) input encUnary := by
     have hs := computableInPolyTime_successor.comp hc
-    exact ((ComputableTidilyInPolyTime.length_list encNat).comp hs.tidy).computableInPolyTime
+    exact (ComputableInPolyTime.length_list encNat).comp hs
   have hl' := hl.comp (ComputableInPolyTime.fst input encNat)
   have hr' := hr.comp (ComputableInPolyTime.fst input encNat)
   have hb : ComputableInPolyTime (fun p : α × ℕ =>

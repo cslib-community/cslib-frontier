@@ -44,10 +44,10 @@ theorem computableInPolyTime_appendRawCertificate {α : Type} {input : α ↪ Li
       (rightBody x) (rightPorts x) (left x) (right x)) input encRotationCertificate := by
   let offset (x : α) := 2 * (leftBody x + leftPorts x)
   have hoff : ComputableInPolyTime offset input encUnary := by dsimp [offset]; fun_prop
-  have hoffb := ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp hoff
+  have hoffb := ComputableInPolyTime.unary_to_binary.comp hoff
   have hrlen : ComputableInPolyTime (fun x => 2 * (rightBody x + rightPorts x))
       input encUnary := by fun_prop
-  have hrlenb := ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp hrlen
+  have hrlenb := ComputableInPolyTime.unary_to_binary.comp hrlen
   have hleft := RotationCertificate.computableInPolyTime_successor.comp hl
   have hright := RotationCertificate.computableInPolyTime_successor.comp hr
   have hshift : ComputableInPolyTime
@@ -59,9 +59,8 @@ theorem computableInPolyTime_appendRawCertificate {α : Type} {input : α ↪ Li
   let disjoint (x : α) : RotationCertificate :=
     ⟨(left x).successor ++ (right x).successor.map (offset x + ·)⟩
   have hd : ComputableInPolyTime disjoint input encRotationCertificate := by
-    have hw := (ComputableTidilyInPolyTime.listAppend encNat).computableInPolyTime
     exact encRotationCertificate_mk_deg.computableInPolyTime.comp
-      (hw.comp (hleft.prod hshift))
+      (ComputableInPolyTime.listAppend' hleft hshift)
   let joined (x : α) := if leftPorts x = 0 ∨ rightPorts x = 0 then disjoint x else
     (disjoint x).swapSuccessors (offset x - 1)
       (offset x + 2 * (rightBody x + rightPorts x) - 1)
@@ -78,9 +77,9 @@ theorem computableInPolyTime_appendRawCertificate {α : Type} {input : α ↪ Li
       (fun x => 2 * (leftBody x + leftPorts x + rightBody x + rightPorts x)) input encUnary := by
     fun_prop
   have hbefore : ComputableInPolyTime (fun x => 2 * leftBody x) input encNat :=
-    ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp (by fun_prop)
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hmoved : ComputableInPolyTime (fun x => 2 * leftPorts x) input encNat :=
-    ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp (by fun_prop)
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have ha := hrlenb
   have hf : ComputableInPolyTime (fun p : α × ℕ =>
       Nat.blockMove (2 * leftBody p.1) (2 * leftPorts p.1)
