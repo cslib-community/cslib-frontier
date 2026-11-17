@@ -249,17 +249,13 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
     (hcov : ∀ a ∈ R, 1 ≤ ∑ j ∈ C with a ∈ S j, x j) :
     ((greedyLoop S w J k R).map w).sum ≤
       ∑ j ∈ C, x j * w j * (harmonic (S j ∩ R).card : 𝕜) := by
-  induction k generalizing R with
-  | zero =>
+  fun_induction greedyLoop S w J k R with
+  | case1 | case2 =>
     exact Finset.sum_nonneg fun j hj => mul_nonneg (mul_nonneg (hx j hj) (hw j (hCJ j hj)))
       (Rat.cast_nonneg.2 (harmonic_nonneg _))
-  | succ k ih =>
-    unfold greedyLoop
-    rcases h : bestSet S w J R with _ | i
-    · exact Finset.sum_nonneg fun j hj => mul_nonneg (mul_nonneg (hx j hj) (hw j (hCJ j hj)))
-        (Rat.cast_nonneg.2 (harmonic_nonneg _))
+  | case3 k R i h ih =>
     obtain ⟨hiJ, hne, hmin⟩ := bestSet_spec h
-    have ih' := ih (R := R \ S i) fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
+    have ih' := ih fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
     rw [List.map_cons, List.sum_cons]
     set A := S i ∩ R with hA
     set ρ : 𝕜 := w i / A.card with hρ

@@ -1477,7 +1477,16 @@ private theorem localValid_introduceChain {vs : List V} {t : NiceTree V}
 
 private theorem maxBagCard_introduceChain_le (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).maxBagCard ≤ max (vs.toFinset ∪ t.bag).card t.maxBagCard := by
-  fun_induction introduceChain vs t <;> grind [maxBagCard, bag_introduceChain, List.toFinset_cons]
+  induction vs with
+  | nil => simp [introduceChain]
+  | cons v vs ih =>
+    simp only [introduceChain, maxBagCard]
+    refine max_le ?_ (ih.trans (max_le_max ?_ le_rfl))
+    · have hsub : insert v (introduceChain vs t).bag ⊆ (v :: vs).toFinset ∪ t.bag := by
+        rw [bag_introduceChain, List.toFinset_cons, Finset.insert_union]
+      exact (Finset.card_le_card hsub).trans (le_max_left _ _)
+    · exact Finset.card_le_card (Finset.union_subset_union_left (by
+        rw [List.toFinset_cons]; exact Finset.subset_insert _ _))
 
 private theorem coversFinset_introduceChain {vs : List V} {t : NiceTree V} {K : Finset V}
     (h : t.CoversFinset K) : (introduceChain vs t).CoversFinset K := by

@@ -342,15 +342,13 @@ theorem exists_leftCherryAtDepth_rotateDeepestLeft {δ : Type*} (l r : CodeTree 
         simp only [CodeTree.maxDepth] at hab ⊢
         omega
       exact ⟨u, v, fun z => .branch (C z) b, hd ▸ LeftCherryAtDepth.left hC⟩
-  induction T with
-  | leaf _ => simp [CodeTree.maxDepth] at h1
-  | branch l r ihl ihr =>
-    simp only [rotateDeepestLeft]
-    split_ifs with hcmp
-    · exact hstep hcmp ihl
-    · have hcomm : (CodeTree.branch l r).maxDepth = (CodeTree.branch r l).maxDepth := by
-        simp [CodeTree.maxDepth, Nat.max_comm]
-      exact hcomm ▸ hstep (by omega) ihr
+  fun_induction rotateDeepestLeft T with
+  | case1 => simp [CodeTree.maxDepth] at h1
+  | case2 l r hcmp ih => exact hstep hcmp ih
+  | case3 l r hcmp ih =>
+    have hcomm : (CodeTree.branch l r).maxDepth = (CodeTree.branch r l).maxDepth := by
+      simp [CodeTree.maxDepth, Nat.max_comm]
+    exact hcomm ▸ hstep (by omega) ih
 
 theorem LeftCherryAtDepth.leaves_and_depths {δ : Type*} {T : CodeTree δ} {D : ℕ} {u v : δ}
     {C : δ → CodeTree δ} (h : LeftCherryAtDepth T D u v C) :

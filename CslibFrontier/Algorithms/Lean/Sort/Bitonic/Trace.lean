@@ -311,6 +311,16 @@ theorem two_mul_mergeTraceSize (d : ℕ) : 2 * mergeTraceSize d = d * 2 ^ d := b
 /-- A sort retains `d * (d + 1) * 2^d / 4` decisions. -/
 theorem four_mul_sortTraceSize (d : ℕ) :
     4 * sortTraceSize d = d * (d + 1) * 2 ^ d := by
-  fun_induction sortTraceSize d <;> grind [two_mul_mergeTraceSize]
+  induction d with
+  | zero => rfl
+  | succ d ih =>
+    calc
+      4 * sortTraceSize (d + 1) =
+          2 * (4 * sortTraceSize d) + 2 * (2 * mergeTraceSize (d + 1)) := by
+        rw [sortTraceSize]
+        ring
+      _ = (d + 1) * (d + 1 + 1) * 2 ^ (d + 1) := by
+        rw [ih, two_mul_mergeTraceSize, pow_succ]
+        ring
 
 end Cslib.BitonicSort
