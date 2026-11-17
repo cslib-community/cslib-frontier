@@ -160,39 +160,47 @@ private noncomputable def liftFiberIsoAt {P A B : Type*} [Fintype P] [Fintype A]
     EuclideanSpace ℂ P →ₗᵢ[ℂ] EuclideanSpace ℂ P :=
   liftFiberIso e fun a => if a = a₀ then f else .id
 
-private def embedFiber {P A B : Type*} [DecidableEq A] (e : P ≃ A × B) (a₀ : A)
-    (ψ : EuclideanSpace ℂ B) : EuclideanSpace ℂ P :=
-  WithLp.toLp 2 fun p => if (e p).1 = a₀ then ψ.ofLp (e p).2 else 0
+private def fiberEmb {P A B : Type*} (e : P ≃ A × B) (a₀ : A) : B ↪ P where
+  toFun b := e.symm (a₀, b)
+  inj' _ _ h := (Prod.ext_iff.mp (e.symm.injective h)).2
 
-@[simp] private theorem embedFiber_apply {P A B : Type*} [DecidableEq A] (e : P ≃ A × B)
-    (a₀ : A) (ψ : EuclideanSpace ℂ B) (p : P) :
-    (embedFiber e a₀ ψ).ofLp p = if (e p).1 = a₀ then ψ.ofLp (e p).2 else 0 :=
-  rfl
+@[simp] private theorem fiberEmb_apply {P A B : Type*} (e : P ≃ A × B) (a₀ : A) (b : B) :
+    fiberEmb e a₀ b = e.symm (a₀, b) := rfl
 
-private theorem norm_embedFiber {P A B : Type*} [Fintype P] [Finite A] [Fintype B]
-    [DecidableEq A] (e : P ≃ A × B) (a₀ : A) (ψ : EuclideanSpace ℂ B) :
-    ‖embedFiber e a₀ ψ‖ = ‖ψ‖ := by
-  let := Fintype.ofFinite A
-  have hsq : ‖embedFiber e a₀ ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-    rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq,
-      Fintype.sum_equiv e _ (fun ab => if ab.1 = a₀ then ‖ψ.ofLp ab.2‖ ^ 2 else 0)
-        (fun p => by by_cases h : (e p).1 = a₀ <;> simp [embedFiber, h]),
-      Fintype.sum_prod_type]
-    simp
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp hsq
-
-private theorem liftFiberIsoAt_embedFiber {P A B : Type*} [Fintype P] [Fintype A] [Fintype B]
-    [DecidableEq A] (e : P ≃ A × B) (a₀ : A)
-    (f : EuclideanSpace ℂ B →ₗᵢ[ℂ] EuclideanSpace ℂ B) (ψ : EuclideanSpace ℂ B) :
-    liftFiberIsoAt e a₀ f (embedFiber e a₀ ψ) = embedFiber e a₀ (f ψ) := by
-  ext p
-  simp only [liftFiberIsoAt, liftFiberIso_apply, embedFiber_apply]
+private theorem piLpExtendByZero_fiberEmb_apply {P A B : Type*} [Fintype P] [Fintype B]
+    [DecidableEq A] (e : P ≃ A × B) (a₀ : A) (ψ : EuclideanSpace ℂ B) (p : P) :
+    (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ).ofLp p =
+      if (e p).1 = a₀ then ψ.ofLp (e p).2 else 0 := by
   split_ifs with h
-  · have hs : sliceSecond (reindexProd e (embedFiber e a₀ ψ)) (e p).1 = ψ := by
-      ext b; simp [h]
+  · have hp : p = fiberEmb e a₀ (e p).2 := by
+      rw [fiberEmb_apply, ← (Prod.ext h rfl : e p = (a₀, (e p).2)), e.symm_apply_apply]
+    conv_lhs => rw [hp]
+    change Function.extend (fiberEmb e a₀) ψ.ofLp 0 (fiberEmb e a₀ (e p).2) = _
+    exact (fiberEmb e a₀).injective.extend_apply ψ.ofLp 0 (e p).2
+  · have hp : p ∉ Set.range (fiberEmb e a₀) := by
+      rintro ⟨b, rfl⟩
+      simp at h
+    exact LinearIsometry.piLpExtendByZero_apply_eq_zero hp ψ
+
+private theorem liftFiberIsoAt_piLpExtendByZero {P A B : Type*} [Fintype P] [Fintype A]
+    [Fintype B] [DecidableEq A] (e : P ≃ A × B) (a₀ : A)
+    (f : EuclideanSpace ℂ B →ₗᵢ[ℂ] EuclideanSpace ℂ B) (ψ : EuclideanSpace ℂ B) :
+    liftFiberIsoAt e a₀ f (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ) =
+      LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) (f ψ) := by
+  ext p
+  simp only [liftFiberIsoAt, liftFiberIso_apply, piLpExtendByZero_fiberEmb_apply]
+  split_ifs with h
+  · have hs : sliceSecond
+        (reindexProd e (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ))
+        (e p).1 = ψ := by
+      ext b; simp only [sliceSecond_apply, reindexProd_apply]
+      rw [piLpExtendByZero_fiberEmb_apply]; simp [h]
     rw [hs]
-  · have hs : sliceSecond (reindexProd e (embedFiber e a₀ ψ)) (e p).1 = 0 := by
-      ext b; simp [h]
+  · have hs : sliceSecond
+        (reindexProd e (LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb e a₀) ψ))
+        (e p).1 = 0 := by
+      ext b; simp only [sliceSecond_apply, reindexProd_apply]
+      rw [piLpExtendByZero_fiberEmb_apply]; simp [h]
     rw [hs, map_zero, WithLp.ofLp_zero, Pi.zero_apply]
 
 end FiberHelpers
@@ -334,20 +342,16 @@ private def valueStateEquiv {ι V W : Type*} {N : ℕ} (e : ι ≃ Fin N) :
 
 /-- Embedding `ValueState ι V W` into the `ctrl = false` sector of `State N (V × W)` along
 `e : ι ≃ Fin N`. -/
-private def embedState {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueState ι V W) : State N (V × W) :=
-  embedFiber (valueStateEquiv e) false ψ
+private noncomputable def embedState {N : ℕ} (e : ι ≃ Fin N) :
+    ValueState ι V W →ₗᵢ[ℂ] State N (V × W) :=
+  LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb (valueStateEquiv e) false)
 
-omit [Fintype ι] [Fintype V] [Fintype W] in
 @[simp] private theorem embedState_apply {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueState ι V W)
     (j : Fin N) (c : Bool) (v : V) (w : W) :
     (embedState e ψ).ofLp (j, c, v, w) = if c then 0 else ψ.ofLp (e.symm j, v, w) := by
-  cases c <;> simp [embedState, valueStateEquiv]
+  rw [embedState, piLpExtendByZero_fiberEmb_apply]
+  cases c <;> simp [valueStateEquiv]
 
-private theorem norm_embedState {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueState ι V W) :
-    ‖embedState e ψ‖ = ‖ψ‖ :=
-  norm_embedFiber (valueStateEquiv e) false ψ
-
-omit [Fintype ι] [Fintype V] [Fintype W] in
 private theorem measureProb_embedState {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueState ι V W)
     (S : Finset (ι × V × W)) :
     measureProb (embedState e ψ) (S.map (embedOutcome e)) = measureProb ψ S := by
@@ -365,7 +369,7 @@ private noncomputable def liftValueIso {N : ℕ} (e : ι ≃ Fin N)
 private theorem liftValueIso_embedState {N : ℕ} (e : ι ≃ Fin N)
     (f : ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) (ψ : ValueState ι V W) :
     liftValueIso e f (embedState e ψ) = embedState e (f ψ) :=
-  liftFiberIsoAt_embedFiber (valueStateEquiv e) false f ψ
+  liftFiberIsoAt_piLpExtendByZero (valueStateEquiv e) false f ψ
 
 private def bvSlice {N : ℕ} (φ : State N (V × W)) (j : Fin N) (w : W) :
     EuclideanSpace ℂ (Bool × V) :=
@@ -457,14 +461,12 @@ private theorem bvSlice_phaseOracle {N : ℕ} (b : Fin N → Bool) (φ : State N
 private def embedBoolFalse (φ : EuclideanSpace ℂ V) : EuclideanSpace ℂ (Bool × V) :=
   WithLp.toLp 2 fun ⟨c, v⟩ => if c then 0 else φ.ofLp v
 
-omit [Fintype ι] [Fintype V] [Fintype W] in
 private theorem bvSlice_embedState {N : ℕ} (e : ι ≃ Fin N) (ψ : ValueState ι V W)
     (j : Fin N) (w : W) :
     bvSlice (embedState e ψ) j w = embedBoolFalse (valSlice ψ (e.symm j) w) := by
   ext ⟨c, v⟩
   cases c <;> simp [embedBoolFalse]
 
-omit [Fintype ι] [Fintype V] [Fintype W] in
 private theorem eq_embedState_of_bvSlice {N : ℕ} (e : ι ≃ Fin N)
     (φ : State N (V × W)) (ψ : ValueState ι V W)
     (h : ∀ j w, bvSlice φ j w = embedBoolFalse (valSlice ψ (e.symm j) w)) :
@@ -681,7 +683,7 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
       else if r + 1 = T then
         (liftValueIso e (U T)).comp (liftBoolV Gpost).toLinearIsometry
       else LinearIsometry.id
-  refine ⟨Vsim, embedState e ψ₀, norm_embedState e ψ₀, fun b S => ?_⟩
+  refine ⟨Vsim, embedState e ψ₀, (embedState e).norm_map ψ₀, fun b S => ?_⟩
   let x : ι → α := fun i => if b (e i) then a₁ else a₀
   have hrun : ∀ t ≤ T,
       run Vsim (embedState e ψ₀) b (stride * t) =
@@ -1045,21 +1047,18 @@ private def idxProdEquiv {ι V W : Type*} :
   left_inv _ := rfl
   right_inv _ := rfl
 
-private def embedFalse {ι V W : Type*} [DecidableEq ι] [DecidableEq V] (v₀ : V) (i₀ : ι)
-    (ψ : ValueState ι V W) : ValueState ι V (Bool × V × W × ι) :=
-  embedFiber extProdEquiv (false, v₀, i₀) ψ
+private noncomputable def embedFalse {ι V W : Type*} [Fintype ι] [Fintype V] [Fintype W]
+    (v₀ : V) (i₀ : ι) :
+    ValueState ι V W →ₗᵢ[ℂ] ValueState ι V (Bool × V × W × ι) :=
+  LinearIsometry.piLpExtendByZero 2 ℂ ℂ (fiberEmb extProdEquiv (false, v₀, i₀))
 
-@[simp] private theorem embedFalse_apply {ι V W : Type*} [DecidableEq ι] [DecidableEq V]
-    (v₀ : V) (i₀ : ι) (ψ : ValueState ι V W) (i : ι) (v : V) (b : Bool) (v' : V) (w : W)
-    (i' : ι) :
+@[simp] private theorem embedFalse_apply {ι V W : Type*} [Fintype ι] [Fintype V] [Fintype W]
+    [DecidableEq ι] [DecidableEq V] (v₀ : V) (i₀ : ι) (ψ : ValueState ι V W) (i : ι) (v : V)
+    (b : Bool) (v' : V) (w : W) (i' : ι) :
     (embedFalse v₀ i₀ ψ).ofLp (i, v, b, v', w, i') =
       if b = false ∧ v' = v₀ ∧ i' = i₀ then ψ.ofLp (i, v, w) else 0 := by
-  simp [embedFalse, extProdEquiv]
-
-private theorem norm_embedFalse {ι V W : Type*} [Fintype ι] [Fintype V] [Fintype W]
-    [DecidableEq ι] [DecidableEq V] (v₀ : V) (i₀ : ι) (ψ : ValueState ι V W) :
-    ‖embedFalse v₀ i₀ ψ‖ = ‖ψ‖ :=
-  norm_embedFiber extProdEquiv (false, v₀, i₀) ψ
+  rw [embedFalse, piLpExtendByZero_fiberEmb_apply]
+  simp [extProdEquiv]
 
 private noncomputable def liftFalse {ι V W : Type*} [Fintype ι] [Fintype V] [Fintype W]
     [DecidableEq ι] [DecidableEq V] (v₀ : V) (i₀ : ι)
@@ -1071,7 +1070,7 @@ private theorem liftFalse_embedFalse {ι V W : Type*} [Fintype ι] [Fintype V] [
     [DecidableEq ι] [DecidableEq V] (v₀ : V) (i₀ : ι)
     (U : ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) (ψ : ValueState ι V W) :
     liftFalse v₀ i₀ U (embedFalse v₀ i₀ ψ) = embedFalse v₀ i₀ (U ψ) :=
-  liftFiberIsoAt_embedFiber extProdEquiv (false, v₀, i₀) U ψ
+  liftFiberIsoAt_piLpExtendByZero extProdEquiv (false, v₀, i₀) U ψ
 
 /-- **Index-to-value `(T + 1)`-query simulation**: given a `T`-query value-query algorithm
 `(U, ψ₀)` returning a query index `idx : ι × V × W → ι`, a basis state `ket v₀` and readout
@@ -1104,7 +1103,7 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       else LinearIsometry.id
   let ψ₀' := embedFalse v₀ i₀ ψ₀
   let out' : ι × V × Bool × V × W × ι → α := fun (_, v, _, _, _, _) => read v
-  refine ⟨U', ψ₀', out', norm_embedFalse v₀ i₀ ψ₀, fun X hread Pred _ => ?_⟩
+  refine ⟨U', ψ₀', out', (embedFalse v₀ i₀).norm_map ψ₀, fun X hread Pred _ => ?_⟩
   have hvo : ∀ ψ : ValueState ι V W,
       valueOracle step X (embedFalse v₀ i₀ ψ) = embedFalse v₀ i₀ (valueOracle step X ψ) := by
     intro ψ
