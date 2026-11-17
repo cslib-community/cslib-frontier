@@ -21,9 +21,14 @@ monad gives the pure query, and a query monad counts comparisons. This is the sh
 
 Each scan stops as early as a sorted list allows. `lookupM`, `rankM` and `predM` stop at the
 first key that is not below the query; `succM` stops at the first key above it; `rangeM` skips
-the keys below the lower bound and then takes keys up to the upper bound with `takeUpToM`. A
-scan asks one question per entry it passes, and `lookupM` one more where it stops, to tell
-equality from a strictly larger key.
+the keys below the lower bound and then takes keys up to the upper bound with `takeUpToM`.
+
+`rankM`, `predM` and `succM` ask one question per entry up to and including the one where they
+stop. `lookupM` asks one more where it stops, to tell equality from a strictly larger key.
+`rangeM` runs two phases: one question against the lower bound per entry up to and including the
+first key that is not below it, then one question against the upper bound per entry from that
+same key up to and including the first key above the upper bound. The first entry that is not
+below the lower bound is therefore compared twice, once in each phase.
 
 With the comparator `leI` of a linear order, the identity-monad instance of each scan is the
 corresponding function of `Cslib.SortedAssoc` on a sorted list (`idRun_lookupM` and its

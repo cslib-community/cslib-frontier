@@ -78,7 +78,9 @@ example : (lookupM LEQuery.ask 3 sample).countQueries natOracle = 3 := by
 example : (rankM LEQuery.ask 4 sample).countQueries natOracle = 3 := by
   simp [sample, natOracle, rankM]
 
-/-- A range scan asks once per entry skipped or taken, and once more to stop. -/
+/-- A range scan has two phases, and the first entry it keeps is compared in both. Here the lower
+phase asks `2 ≤ 1` and `2 ≤ 3`, and the upper phase asks `3 ≤ 4` and `5 ≤ 4`: four comparisons,
+with `3` compared against both bounds. -/
 example : (rangeM LEQuery.ask 2 4 sample).countQueries natOracle = 4 := by
   simp [sample, natOracle, rangeM, takeUpToM]
 
