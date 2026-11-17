@@ -62,6 +62,6 @@ example : IntegerProgram.ofZeroOne [⟨[1], 2⟩] ∉ IntegerProgram.Feasible :=
   rw [IntegerProgram.ofZeroOne_mem_iff]
   rintro ⟨x, hx⟩
   have h := hx ⟨[1], 2⟩ (by simp)
-  simp at h
   have hbound := Bool.toNat_le (x 0)
+  simp at h
   omega

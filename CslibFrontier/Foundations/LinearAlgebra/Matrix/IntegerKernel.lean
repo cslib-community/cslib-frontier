@@ -107,6 +107,10 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
           rw [heq_sub]
           linarith [hsplit, hrow]
   let B' : ℕ := (r + 1) * B
+  have hn' : Fintype.card n' ≤ r := by
+    rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
+      Finset.card_univ]
+    omega
   have hA'_bd : ∀ i (j : n'), |A' i j| ≤ B' := fun i j =>
     (hA i j.1).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
   have hb'_bd : ∀ i, |b' i| ≤ B' := fun i => by
@@ -115,10 +119,6 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
           ≤ ∑ _j : n', (B : ℤ) :=
             (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hA i j.1)
         _ = (Fintype.card n' : ℤ) * B := by simp
-    have hn' : Fintype.card n' ≤ r := by
-      rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
-        Finset.card_univ]
-      omega
     calc |b' i| = |-A i j₀ + ∑ j : n', A i j.1| := rfl
       _ ≤ |-A i j₀| + |∑ j : n', A i j.1| := abs_add_le _ _
       _ ≤ B + (Fintype.card n' : ℤ) * B := add_le_add (by simpa [abs_neg] using hA i j₀) hsum_bd
@@ -129,10 +129,6 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
         nlinarith [Int.natCast_nonneg B]
   obtain ⟨d, p', hd_pos, hp'_nonneg, hAp', hd_le, hp'_le⟩ :=
     Matrix.exists_int_nonneg_mulVec_eq hA'_bd hb'_bd hx'_nonneg hAx'
-  have hn' : Fintype.card n' ≤ r := by
-    rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
-      Finset.card_univ]
-    omega
   have hbound : (Fintype.card n').factorial *
       (Fintype.card m * B' ^ 2 + 1) ^ Fintype.card n' ≤
       r.factorial * (Fintype.card m * B' ^ 2 + 1) ^ r :=

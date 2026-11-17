@@ -17,8 +17,8 @@ import Mathlib.Tactic.Positivity
 /-!
 # Small integer solutions of equality and inequality systems
 
-An integer feasible equality system has a nonnegative integer solution of explicitly bounded
-size, and split variables and slack variables give the corresponding bound for inequalities.
+If an integer equality system has a nonnegative integer solution, it has one of explicitly
+bounded size. Split variables and slack variables give the corresponding bound for inequalities.
 This is a mathematical step toward NP membership of integer programming, not the
 NP-completeness statements of Arora–Barak or Goldreich.
 
