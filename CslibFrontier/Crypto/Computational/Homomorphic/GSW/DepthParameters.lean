@@ -194,9 +194,7 @@ theorem nand_margin (security : ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_logSize :
     ComputableInPolyTime logSize encUnary encUnary := by
-  have := unary_clog_const 2
-  unfold logSize
-  fun_prop
+  fun_prop [logSize]
 
 /-- Compute the unary digit width, including its quadratic dependence on the logarithm. -/
 @[fun_prop]
