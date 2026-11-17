@@ -337,7 +337,7 @@ theorem expectedECost_lt_top_iff_integrable (μ : ProbabilityMeasure G) (a : G) 
     (stronglyMeasurable_dist_left a).aestronglyMeasurable
   have heq : expectedECost μ a = ∫⁻ y, ‖dist a y‖ₑ ∂(μ : Measure G) := by
     refine lintegral_congr fun y => ?_
-    rw [Real.enorm_eq_ofReal_abs, abs_of_nonneg dist_nonneg, edist_dist]
+    rw [Real.eNorm_eq_ofReal_abs, abs_of_nonneg dist_nonneg, edist_dist]
   rw [heq]
   exact ⟨fun h => ⟨hmeas, h⟩, fun h => h.hasFiniteIntegral⟩
 
@@ -596,7 +596,7 @@ variable {ι G : Type*} [PseudoMetricSpace G] [MeasurableSpace G] [OpensMeasurab
 
 theorem hasFiniteCost_dirac (a : G) :
     HasFiniteCost ((Measure.dirac a).toProbabilityMeasure) :=
-  fun b => integrable_dirac' (stronglyMeasurable_dist_left b) (a := a) enorm_lt_top
+  fun b => integrable_dirac' (stronglyMeasurable_dist_left b) (a := a) eNorm_lt_top
 
 @[simp]
 theorem expectedECost_dirac (a loc : G) :

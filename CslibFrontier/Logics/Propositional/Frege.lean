@@ -28,11 +28,12 @@ schemes form a classical axiomatization of `→`, `⊥`, `∧` and `∨`) but no
 their
 first, and the size of a proof is its number of lines.
 
-Formulas are cslib's propositions `Cslib.Logic.PL.Proposition` over the atoms `WithBot V`, with
-cslib's `⊥` (the atom `⊥`) read as falsity and cslib's `Proposition.neg φ = φ → ⊥` as negation.
-cslib's propositions are a syntax for proof systems and carry no Boolean semantics, so this file
-adds one (`Cslib.Logic.PL.Frege.Formula.eval`). No other formula type of the library fits: the CNF
-and QBF types have no implication, and circuit formulas are indexed by a fixed number of inputs.
+Formulas are cslib's propositions `Cslib.Logic.PL.Proposition` over the atoms `V`, with cslib's
+`⊥` (the constructor `Proposition.falsum`) as falsity and cslib's `Proposition.neg φ = φ → ⊥` as
+negation. cslib's propositions are a syntax for proof systems and carry no Boolean semantics, so
+this file adds one (`Cslib.Logic.PL.Frege.Formula.eval`). No other formula type of the library
+fits: the CNF and QBF types have no implication, and circuit formulas are indexed by a fixed number
+of inputs.
 
 The file proves soundness (`Cslib.Logic.PL.Frege.IsProof.eval`) and the tools used to build proofs
 with explicit line counts:
@@ -68,20 +69,22 @@ namespace Cslib.Logic.PL.Frege
 
 variable {V : Type*}
 
-/-- Formulas: cslib's propositions over the atoms `WithBot V`, where the atom `⊥` is falsity. -/
-abbrev Formula (V : Type*) := Proposition (WithBot V)
+/-- Formulas: cslib's propositions over the atoms `V`, with `⊥` (`Proposition.falsum`) as
+falsity. -/
+abbrev Formula (V : Type*) := Proposition V
 
 namespace Formula
 
 /-- A variable. -/
-abbrev var (v : V) : Formula V := Proposition.atom (v : WithBot V)
+abbrev var (v : V) : Formula V := Proposition.atom v
 
 /-- Implication. -/
 abbrev imp (φ ψ : Formula V) : Formula V := Proposition.imp φ ψ
 
-/-- Boolean value of a formula under an assignment; the atom `⊥` is false. -/
+/-- Boolean value of a formula under an assignment; `⊥` is false. -/
 @[expose] def eval (σ : V → Bool) : Formula V → Bool
-  | .atom a => a.recBotCoe false σ
+  | .atom v => σ v
+  | .falsum => false
   | .and φ ψ => eval σ φ && eval σ ψ
   | .or φ ψ => eval σ φ || eval σ ψ
   | .imp φ ψ => !eval σ φ || eval σ ψ
