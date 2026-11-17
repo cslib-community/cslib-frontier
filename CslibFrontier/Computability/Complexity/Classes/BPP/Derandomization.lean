@@ -215,7 +215,8 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
       rw [htest_def, List.take_of_length_le (by simp), hVL', encPair_apply, encBits_apply]
     rwa [length_frame] at h
   have hgap := abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
-  refine (seedDecider_eq_true_iff hdec _ _ ?_).symm
+  refine (seedDecider_eq_true_iff (hdec x).1 (fun hx => boundedErrorAt_false_iff.1 ((hdec x).2 hx))
+    _ _ ?_).symm
   have hseeds : #{z : Fin ((b + 1) * τ) → Bool |
       V (x, nwGen g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
         (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) =
