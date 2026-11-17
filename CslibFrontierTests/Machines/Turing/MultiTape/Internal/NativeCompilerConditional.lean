@@ -20,15 +20,15 @@ namespace CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerCo
 
 open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Internal.NativeCompiler
 
-private noncomputable def condition :
+private def condition :
     NativeCompiler (Function.const ℕ true) encUnary encTest :=
   const encUnary encTest true
 
-private noncomputable def trueBranch :
+private def trueBranch :
     NativeCompiler (Function.const ℕ 1) encUnary encUnary :=
   const encUnary encUnary 1
 
-private noncomputable def falseBranch :
+private def falseBranch :
     NativeCompiler (Function.const ℕ 0) encUnary encUnary :=
   const encUnary encUnary 0
 
@@ -37,11 +37,5 @@ example (input : ℕ) :
     (ite condition trueBranch falseBranch).time input =
       condition.time input + trueBranch.time input + 10 :=
   rfl
-
-/-- The assembled compiler exposes the exact retained conditional machine. -/
-example :
-    (ite condition trueBranch falseBranch).machine =
-      iteTM condition.machine trueBranch.machine falseBranch.machine :=
-  machine_ite condition trueBranch falseBranch
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerConditional

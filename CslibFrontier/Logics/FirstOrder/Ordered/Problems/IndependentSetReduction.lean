@@ -270,7 +270,10 @@ private theorem adj_junk_to_clause (M : Structure FO.cnf) {u v : Fin 4 → Fin M
     (satToIndependentSetInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] := by
   rw [satToIndependentSetInterpretation,
     FullTupleInterpretation.relMap_tupleStructure_ofQFProjection, satToIndependentSetFormula]
-  simp [ProjectionFormula.realize_toFormula_branch, hu0, hv0, realize_isAnchor0, huan]
+  simp only [ProjectionFormula.realize_toFormula_branch, QFNumeric.realize_isZero,
+    Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one, hu0, hv0,
+    realize_isAnchor0, huan]
+  tauto
 
 private theorem adj_anchor_to_clause_iff (M : Structure FO.cnf) {v : Fin 4 → Fin M.size}
     (hv0 : v 0 = 0) :
