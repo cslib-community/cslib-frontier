@@ -8,7 +8,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
@@ -22,16 +24,18 @@ import Mathlib.Data.Nat.Choose.Basic
 Checks for `CslibFrontier/Crypto/Computational/Encryption/CBCMode/Uniform.lean`:
 - concrete CBC encryption/decryption and round-trip inversion for a non-involution `BlockCipher`
   (`revXorCipher`, XORing the key and reversing each block);
-- `isPPTOn_cbcWordEncrypt`, `computableInPolyTime_cbcWordDecrypt` and
-  `isOraclePPT_cbcToPrfDistinguisher` certificates;
+- `isPPTOn_cbcWordEncrypt`, `computableInPolyTime_cbcWordDecrypt`,
+  `BlockCipher.isPPTOn_cbcEncrypt`, `BlockCipher.computableInPolyTime_cbcDecrypt`,
+  `isOraclePPT_cbcToPrfDistinguisher` and `BlockCipher.isOraclePPT_cbcToPrpDistinguisher`
+  certificates;
 - non-vacuous concrete PRF and block-cipher `(5.22)` bounds at `n = 16` with additive term strictly
   below `1`;
 - asymptotic CPA security theorems (`PseudorandomFunction.indcpa_cbcWordEncrypt` and
-  `BlockCipher.PRP.indcpa_cbcWordEncrypt`);
+  `BlockCipher.PRP.indcpa_cbcEncrypt`), instantiated on `lubyRackoffCipher` (`keyLen n = 3 * n`,
+  `blockLen n = 2 * n`);
 - a negative/non-vacuity witness showing that with the identity block cipher `E(k, x) = x`,
   random-IV CBC is **not** CPA-secure (`not_indcpa_cbcWordEncrypt_id`), via an explicit 2-block
-  chosen-plaintext distinguisher (`(0ⁿ ++ 0ⁿ, 0ⁿ ++ 1ⁿ)`);
-- `#print axioms` guards on the main public theorems.
+  chosen-plaintext distinguisher (`(0ⁿ ++ 0ⁿ, 0ⁿ ++ 1ⁿ)`).
 -/
 
 public section
@@ -88,42 +92,45 @@ example :
 
 /-- Round-trip decryption for `revXorCipher` on a 3-block message over all random IVs in support. -/
 example {ct : List Bool}
-    (hct : ct ∈ (ProbComp.eval (cbcWordEncrypt
-      (fun k x => revXorCipher.encrypt k.length k x) 2 [true, false]
+    (hct : ct ∈ (ProbComp.eval (revXorCipher.cbcEncrypt 2 [true, false]
       [true, false, false, true, true, true])).support) :
-    cbcWordDecrypt (fun k y => revXorCipher.decrypt k.length k y) 2 [true, false] ct =
+    revXorCipher.cbcDecrypt 2 [true, false] ct =
       some [true, false, false, true, true, true] :=
-  revXorCipher.cbcWordDecrypt_cbcWordEncrypt (n := 2) (k := [true, false]) rfl rfl rfl
-    (by decide) hct
+  revXorCipher.cbcDecrypt_cbcEncrypt (n := 2) (k := [true, false]) rfl (by decide) hct
 
 /-! ### Efficiency certificates for honest algorithms and reduction -/
 
-/-- `cbcWordEncrypt` for `revXorCipher` is uniformly strict PPT. -/
+/-- `revXorCipher.cbcEncrypt` is uniformly strict PPT. -/
+example :
+    IsPPTOn (encKeyedInput encBits) encBits
+      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => revXorCipher.cbcEncrypt n k msg) :=
+  revXorCipher.isPPTOn_cbcEncrypt
+
+/-- `revXorCipher.cbcDecrypt` is computable in polynomial time. -/
+example :
+    ComputableInPolyTime
+      (fun ((n, k, ct) : ℕ × List Bool × List Bool) => revXorCipher.cbcDecrypt n k ct)
+      (encKeyedInput encBits) (encOption encBits) :=
+  revXorCipher.computableInPolyTime_cbcDecrypt
+
+/-- `cbcWordEncrypt` and `cbcWordDecrypt` are efficient for a poly-time family. -/
 example :
     IsPPTOn (encKeyedInput encBits) encBits
       (fun ((n, k, msg) : ℕ × List Bool × List Bool) =>
-        cbcWordEncrypt (fun key block => revXorCipher.encrypt key.length key block) n k msg) :=
-  isPPTOn_cbcWordEncrypt (by
-    exact revXorCipher.computableInPolyTime_encrypt_comp
-      ((ComputableInPolyTime.fst encBits encBits).trans ComputableInPolyTime.length_bits)
-      (ComputableInPolyTime.fst encBits encBits)
-      (ComputableInPolyTime.snd encBits encBits))
-
-/-- `cbcWordDecrypt` for `revXorCipher` is computable in polynomial time. -/
-example :
+        cbcWordEncrypt (fun key block => List.zipWith xor key block) n k msg) ∧
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) =>
-        cbcWordDecrypt (fun key block => revXorCipher.decrypt key.length key block) n k ct)
+        cbcWordDecrypt (fun key block => List.zipWith xor key block) n k ct)
       (encKeyedInput encBits) (encOption encBits) :=
-  computableInPolyTime_cbcWordDecrypt (by
-    exact revXorCipher.computableInPolyTime_decrypt_comp
-      ((ComputableInPolyTime.fst encBits encBits).trans ComputableInPolyTime.length_bits)
-      (ComputableInPolyTime.fst encBits encBits)
-      (ComputableInPolyTime.snd encBits encBits))
+  ⟨isPPTOn_cbcWordEncrypt (by polytime), computableInPolyTime_cbcWordDecrypt (by polytime)⟩
 
-/-- The reduction built from `oneBlockAdversary` is uniform strict oracle PPT. -/
-example : IsOraclePPT encBool (cbcToPrfDistinguisher oneBlockAdversary false) :=
-  isOraclePPT_cbcToPrfDistinguisher isOraclePPT_oneBlockAdversary false
+/-- Both PRF and block-cipher reductions built from `oneBlockAdversary` are uniform strict oracle
+PPT. -/
+example :
+    IsOraclePPT encBool (cbcToPrfDistinguisher oneBlockAdversary false) ∧
+    IsOraclePPT encBool (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary false) :=
+  ⟨isOraclePPT_cbcToPrfDistinguisher isOraclePPT_oneBlockAdversary false,
+   revXorCipher.isOraclePPT_cbcToPrpDistinguisher isOraclePPT_oneBlockAdversary false⟩
 
 /-! ### Non-vacuous concrete bounds at `n = 16` -/
 
@@ -153,42 +160,57 @@ example {family : List Bool → List Bool → List Bool}
 `4 * (50.choose 2 / 2 ^ 16) = 4900 / 65536 < 1`. -/
 example :
     (Game.advantage
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun k x => revXorCipher.encrypt k.length k x) oneBlockAdversary false 16))
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun k x => revXorCipher.encrypt k.length k x) oneBlockAdversary true
-          16)) : ℝ) ≤
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (revXorCipher.blockLen m))
+        (fun m => BitString.sampleList (revXorCipher.keyLen m))
+        revXorCipher.cbcEncrypt oneBlockAdversary false 16))
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (revXorCipher.blockLen m))
+        (fun m => BitString.sampleList (revXorCipher.keyLen m))
+        revXorCipher.cbcEncrypt oneBlockAdversary true 16)) : ℝ) ≤
       (Game.advantage
         (ProbComp.eval
-          (revXorCipher.prpRealGame (cbcToPrfDistinguisher oneBlockAdversary false) 16))
+          (revXorCipher.prpRealGame
+            (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary false) 16))
         (ProbComp.eval
           (prpIdealGame revXorCipher.blockLen
-            (cbcToPrfDistinguisher oneBlockAdversary false) 16)) : ℝ) +
+            (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary false) 16)) : ℝ) +
       (Game.advantage
         (ProbComp.eval
-          (revXorCipher.prpRealGame (cbcToPrfDistinguisher oneBlockAdversary true) 16))
+          (revXorCipher.prpRealGame
+            (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary true) 16))
         (ProbComp.eval
           (prpIdealGame revXorCipher.blockLen
-            (cbcToPrfDistinguisher oneBlockAdversary true) 16)) : ℝ) +
-      4 * (((1 * 50).choose 2 : ℝ) / 2 ^ 16) ∧
-    4 * (((1 * 50).choose 2 : ℝ) / 2 ^ 16) < 1 :=
-  ⟨revXorCipher.advantage_cbcWordCPAGame_le rfl rfl oneBlockAdversary
+            (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary true) 16)) : ℝ) +
+      4 * (((1 * 50).choose 2 : ℝ) / 2 ^ revXorCipher.blockLen 16) ∧
+    4 * (((1 * 50).choose 2 : ℝ) / 2 ^ revXorCipher.blockLen 16) < 1 :=
+  ⟨revXorCipher.advantage_cbcEncrypt_le oneBlockAdversary
       (isQueryBounded_oneBlockAdversary 16) (queriesSatisfy_oneBlockAdversary 16),
-    by norm_num [Nat.choose]⟩
+    by norm_num [revXorCipher, Nat.choose]⟩
 
-/-! ### Asymptotic security theorems -/
+/-! ### Asymptotic security theorems (including non-`id` Luby–Rackoff instantiation) -/
 
 /-- Random-IV CBC mode is CPA-secure for every `PseudorandomFunction`. -/
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     SymmetricINDCPAOn blockPairValid BitString.sampleList (cbcWordEncrypt family) :=
   hprf.indcpa_cbcWordEncrypt
 
-/-- Random-IV CBC mode is CPA-secure for every `BlockCipher.PRP` with `keyLen = id` and
-`blockLen = id` ([BonehShoup2023], Theorem 5.4). -/
-example {E : BlockCipher} (hkey : E.keyLen = id) (hblock : E.blockLen = id) (hprp : E.PRP) :
-    SymmetricINDCPAOn blockPairValid BitString.sampleList
-      (cbcWordEncrypt fun k x => E.encrypt k.length k x) :=
-  hprp.indcpa_cbcWordEncrypt hkey hblock
+open scoped NNReal in
+/-- Random-IV CBC mode is CPA-secure for every `BlockCipher.PRP` with super-polynomial block space
+([BonehShoup2023], Theorem 5.4). -/
+example {E : BlockCipher} (hprp : E.PRP)
+    (hneg : Negligible fun n => ((2 : ℝ≥0) ^ E.blockLen n)⁻¹) :
+    SymmetricINDCPAOn (fun n => blockPairValid (E.blockLen n))
+      (fun n => BitString.sampleList (E.keyLen n)) E.cbcEncrypt :=
+  hprp.indcpa_cbcEncrypt hneg
+
+/-- End-to-end instantiation of Theorems 4.9 + 5.4 with non-`id` key and block schedules: for any
+`PseudorandomFunction family`, random-IV CBC mode over the 3-round Luby–Rackoff cipher
+(`keyLen n = 3 * n`, `blockLen n = 2 * n`) is CPA-secure. -/
+example {family : List Bool → List Bool → List Bool} (hfamily : PseudorandomFunction family) :
+    let E := lubyRackoffCipher family hfamily.polyTime hfamily.length_eq
+    SymmetricINDCPAOn (fun n => blockPairValid (E.blockLen n))
+      (fun n => BitString.sampleList (E.keyLen n)) E.cbcEncrypt :=
+  hfamily.prp_lubyRackoffCipher.indcpa_cbcEncrypt
+    (negligible_inv_two_pow_comp_of_le fun n => by dsimp only [lubyRackoffCipher]; omega)
 
 /-! ### Insecurity of random-IV CBC with the identity block cipher -/
 

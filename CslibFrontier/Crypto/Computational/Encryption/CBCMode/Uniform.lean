@@ -27,83 +27,94 @@ import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
 /-!
-# Cipher block chaining with a random IV from a uniform PRF or block cipher
+# Cipher block chaining with a random IV from a uniform block cipher or PRF
 
 Cipher block chaining (CBC) with a random initialization vector ([BonehShoup2023], Section 5.4.3,
 printed pp. 194–195) encrypts a message of `v` blocks `m[0], …, m[v - 1]` under a key `k` by
-drawing a uniform `n`-bit initial value `c[0] = iv` and computing `c[j + 1] = E(k, c[j] ⊕ m[j])`,
-outputting `c[0] ++ c[1] ++ … ++ c[v]`; decryption recovers `m[j] = c[j] ⊕ D(k, c[j + 1])`. Here
-the security parameter `n` is the block length (`N = 2 ^ n`): keys and blocks have `n` bits. A
-message is any word made of whole `n`-bit blocks. `cbcWordEncrypt` is the shared random-IV envelope
-`ivModeEncrypt` with the chained body `cbcWordBody` (truncating each block-function output to at
-most `n` bits so encryption is polynomial-time on arbitrary keys and families, which changes
-nothing on valid `n`-bit outputs), and `cbcWordDecrypt` inverts it whenever `decFamily k`
-left-inverts `encFamily k` on `n`-bit blocks (`cbcWordDecrypt_cbcWordEncrypt`, specialized to a
-`BlockCipher` in `BlockCipher.cbcWordDecrypt_cbcWordEncrypt`).
+drawing a uniform initial value `c[0] = iv` and computing `c[j + 1] = E(k, c[j] ⊕ m[j])`,
+outputting `c[0] ++ c[1] ++ … ++ c[v]`; decryption recovers `m[j] = c[j] ⊕ D(k, c[j + 1])`.
+Unlike CTR and OFB modes, CBC decryption applies the block cipher's inverse `D`, so the primary
+cipher (`BlockCipher.cbcEncrypt`, `BlockCipher.cbcDecrypt`) is parameterized by an arbitrary
+uniform `E : BlockCipher` with key length `E.keyLen n` and block length `E.blockLen n` (with no
+`id` restriction on either schedule). For a parameter-free family `family` with `n`-bit keys and
+`n`-bit blocks, `cbcWordEncrypt` and `cbcWordDecrypt` provide the `PseudorandomFunction`
+counterpart matching `CslibFrontier/Crypto/Computational/Encryption/CTRMode/Uniform.lean` and
+`CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`. Both share `ivModeEncrypt`
+and `ivModeDecrypt` with the chained bodies `cbcWordBody` and `cbcWordDecBody` (truncating each
+step output to the block width so encryption and decryption are polynomial-time on arbitrary keys
+and families, which changes nothing on valid outputs).
 
-Security is many-query left-or-right CPA security (`SymmetricINDCPAOn`, Attack Game 5.2) on
-equal-length pairs of whole blocks (`blockPairValid`), in the standard model, against uniform
-strict oracle-PPT adversaries. The word-oracle distinguisher `cbcToPrfDistinguisher adversary bit`
-is `ivModeToPrfDistinguisher cbcBodyQueries adversary bit`: it runs `adversary` and answers each
-admissible pair by drawing a uniform `n`-bit initial value and querying its function oracle
-sequentially on `c[j] ⊕ m[j]`, keeping at most `n` bits of each reply.
+Security is many-query left-or-right CPA security (`SymmetricINDCPAOn`, Attack Game 5.2 and
+Definition 5.2) on equal-length pairs of whole blocks (`blockPairValid`), in the standard model,
+against uniform strict oracle-PPT adversaries. For a `BlockCipher` `E`, the distinguisher
+`E.cbcToPrpDistinguisher adversary bit` runs `cbcToPrfDistinguisher` (`ivModeToPrfDistinguisher
+cbcBodyQueries`) at block width `E.blockLen n` on `adversary n []`, answering each admissible pair
+by drawing a uniform `E.blockLen n`-bit initial value and querying its encryption oracle
+sequentially on `c[j] ⊕ m[j]`.
 
-1. It is uniform strict oracle PPT whenever the adversary is
-   (`isOraclePPT_cbcToPrfDistinguisher`).
-2. Against the keyed oracle, its output law is that of the adversary in the CBC CPA game with
-   challenge bit `bit` (`eval_prfRealGame_cbcToPrfDistinguisher`).
-3. Against a uniform random function (and likewise a uniform random permutation), for an adversary
-   whose requests have at most `L` bits, its output law is that of the typed reduction
-   `cbcReduction L bit` on `blockModeWordAdversary adversary n`
-   (`eval_prfIdealGame_cbcToPrfDistinguisher`). Combining this with the typed collision and
-   switching bounds of `CBCMode.lean` gives the concrete keyed PRF bound
-   `advantage_cbcWordCPAGame_prf_le`, the concrete keyed block-cipher bound
-   `BlockCipher.advantage_cbcWordCPAGame_le` corresponding to equation (5.22), and the asymptotic
-   CPA security theorems `PseudorandomFunction.indcpa_cbcWordEncrypt` and
-   `BlockCipher.PRP.indcpa_cbcWordEncrypt` (Theorem 5.4).
+1. Both `cbcToPrfDistinguisher` and `E.cbcToPrpDistinguisher` are uniform strict oracle PPT
+   whenever the adversary is (`isOraclePPT_cbcToPrfDistinguisher`,
+   `BlockCipher.isOraclePPT_cbcToPrpDistinguisher`).
+2. Against the keyed oracle, they have the exact output law of the adversary in the CBC CPA game
+   with challenge bit `bit` (`eval_prfRealGame_cbcToPrfDistinguisher`,
+   `BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`).
+3. Against a uniform random function or permutation, for an adversary whose requests have at most
+   `L` bits, they have the output law of the typed CBC experiment (`CBCMode.lean`), giving the
+   concrete PRF bound `advantage_cbcWordCPAGame_prf_le`, the concrete block-cipher bound
+   `BlockCipher.advantage_cbcEncrypt_le` corresponding to equation (5.22), and the asymptotic CPA
+   security theorems `PseudorandomFunction.indcpa_cbcWordEncrypt` and
+   `BlockCipher.PRP.indcpa_cbcEncrypt` ([BonehShoup2023], Theorem 5.4, for any `E : BlockCipher`
+   with `E.PRP` and super-polynomial block space
+   `Negligible fun n => ((2 : ℝ≥0) ^ E.blockLen n)⁻¹`).
 
 ## Deviations from Theorem 5.4
 
-* **`n`-bit keys and `n`-bit blocks.** At security parameter `n`, keys and blocks both have `n`
-  bits, matching `PseudorandomFunction` and `BlockCipher` with `keyLen = id` and `blockLen = id`.
 * **Any number of whole blocks.** Section 5.4.3 fixes a poly-bounded `ℓ` and the message space
-  `X^{≤ℓ}`. Here `blockPairValid` admits equal-length pairs of any number of whole `n`-bit blocks,
-  which implies the statement for every `ℓ` (a PPT adversary can only write polynomially long
-  requests).
+  `X^{≤ℓ}`. Here `blockPairValid` admits equal-length pairs of any number of whole
+  `E.blockLen n`-bit blocks, which implies the statement for every `ℓ` (a PPT adversary can only
+  write polynomially long requests).
 * **Two fixed-bit distinguishers and bit-length query cap.** As in
   `CslibFrontier/Crypto/Computational/Encryption/CTRMode/Uniform.lean` and
   `CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`, the concrete bounds sum the
-  advantages of `cbcToPrfDistinguisher adversary false` and
-  `cbcToPrfDistinguisher adversary true` instead of one coin-flipping distinguisher with factor `2`,
-  and bound the total encrypted blocks of `Q` requests of at most `L` bits by `Q * L`, giving the
-  additive term `4 * ((Q * L).choose 2 / 2 ^ n)` (`≤ 2 * (Q * L) ^ 2 / 2 ^ n`, matching `(5.22)`'s
-  `2 Q² ℓ² / N` when `ℓ = L`).
+  advantages of the `false` and `true` distinguishers instead of one coin-flipping distinguisher
+  with factor `2`, and bound the total encrypted blocks of `Q` requests of at most `L` bits by
+  `Q * L`, giving the additive term `4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)`
+  (`≤ 2 * (Q * L) ^ 2 / 2 ^ E.blockLen n`, matching `(5.22)`'s `2 Q² ℓ² / N` when `ℓ = L`).
 * **Uniform strict oracle-PPT adversaries** in place of concrete/circuit adversaries, following the
   asymptotic reading of [BonehShoup2023], Sections 2.3 and 4.1.5.
 
 ## Main definitions
 
-* `Cslib.Crypto.cbcWordBody`: the CBC ciphertext body after the initial value.
+* `Cslib.Crypto.cbcWordBody`, `Cslib.Crypto.cbcWordDecBody`: the CBC encryption and decryption
+  bodies after the initial value.
 * `Cslib.Crypto.cbcWordEncrypt`, `Cslib.Crypto.cbcWordDecrypt`: random-IV CBC encryption and
-  decryption on whole-block words.
+  decryption for `n`-bit-block families.
+* `Cslib.Crypto.BlockCipher.cbcEncrypt`, `Cslib.Crypto.BlockCipher.cbcDecrypt`: random-IV CBC
+  encryption and decryption for an arbitrary `BlockCipher`.
 * `Cslib.Crypto.cbcBodyStep`, `Cslib.Crypto.cbcBodyQueries`: the CBC body computed from a word
   oracle.
-* `Cslib.Crypto.cbcToPrfDistinguisher`: the certified word-oracle reduction.
+* `Cslib.Crypto.cbcToPrfDistinguisher`, `Cslib.Crypto.BlockCipher.cbcToPrpDistinguisher`: the
+  certified word-oracle reductions.
 
 ## Main results
 
 * `Cslib.Crypto.cbcWordDecrypt_cbcWordEncrypt`,
-  `Cslib.Crypto.BlockCipher.cbcWordDecrypt_cbcWordEncrypt`: round-trip decryption correctness.
-* `Cslib.Crypto.isPPTOn_cbcWordEncrypt`, `Cslib.Crypto.computableInPolyTime_cbcWordDecrypt`:
-  efficiency of the honest algorithms.
-* `Cslib.Crypto.isOraclePPT_cbcToPrfDistinguisher`: the reduction is uniform strict oracle PPT.
+  `Cslib.Crypto.BlockCipher.cbcDecrypt_cbcEncrypt`: round-trip decryption correctness.
+* `Cslib.Crypto.isPPTOn_cbcWordEncrypt`, `Cslib.Crypto.computableInPolyTime_cbcWordDecrypt`,
+  `Cslib.Crypto.BlockCipher.isPPTOn_cbcEncrypt`,
+  `Cslib.Crypto.BlockCipher.computableInPolyTime_cbcDecrypt`: efficiency of the honest algorithms.
+* `Cslib.Crypto.isOraclePPT_cbcToPrfDistinguisher`,
+  `Cslib.Crypto.BlockCipher.isOraclePPT_cbcToPrpDistinguisher`: the reductions are uniform strict
+  oracle PPT.
 * `Cslib.Crypto.eval_prfRealGame_cbcToPrfDistinguisher`,
-  `Cslib.Crypto.eval_prfIdealGame_cbcToPrfDistinguisher`: exact real- and ideal-game bridges.
+  `Cslib.Crypto.eval_prfIdealGame_cbcToPrfDistinguisher`,
+  `Cslib.Crypto.BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`: exact real- and ideal-game
+  bridges.
 * `Cslib.Crypto.advantage_cbcWordCPAGame_prf_le`,
-  `Cslib.Crypto.BlockCipher.advantage_cbcWordCPAGame_le`: concrete word-level CPA bounds (PRF form
-  and block-cipher form `(5.22)`).
+  `Cslib.Crypto.BlockCipher.advantage_cbcEncrypt_le`: concrete word-level CPA bounds (PRF form and
+  block-cipher form `(5.22)`).
 * `Cslib.Crypto.PseudorandomFunction.indcpa_cbcWordEncrypt`,
-  `Cslib.Crypto.BlockCipher.PRP.indcpa_cbcWordEncrypt`: CBC mode with a random IV is CPA-secure
+  `Cslib.Crypto.BlockCipher.PRP.indcpa_cbcEncrypt`: CBC mode with a random IV is CPA-secure
   ([BonehShoup2023], Theorem 5.4).
 
 ## References
@@ -281,77 +292,153 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
     exact BitString.flatten_listRows_of_length
       (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
-/-- For a `BlockCipher` with `keyLen = id` and `blockLen = id`, `cbcWordDecrypt` with `E.decrypt`
-inverts `cbcWordEncrypt` with `E.encrypt` on whole-block messages under `n`-bit keys. -/
-theorem BlockCipher.cbcWordDecrypt_cbcWordEncrypt (E : BlockCipher)
-    (hkey : E.keyLen = id) (hblock : E.blockLen = id)
-    {n : ℕ} {k : List Bool} (hk : k.length = n) {msg : List Bool} (hmsg : msg.length % n = 0)
-    {ct : List Bool}
-    (hct : ct ∈ (ProbComp.eval
-      (cbcWordEncrypt (fun key block => E.encrypt key.length key block) n k msg)).support) :
-    cbcWordDecrypt (fun key block => E.decrypt key.length key block) n k ct = some msg :=
-  Cslib.Crypto.cbcWordDecrypt_cbcWordEncrypt
-    (fun block hlen => by
-      simpa [hk, hblock] using E.length_encrypt k.length k block (by simp [hkey])
-        (by simpa [hk, hblock] using hlen))
-    (fun block hlen => by
-      simpa [hk] using E.decrypt_encrypt k.length k block (by simp [hkey])
-        (by simpa [hk, hblock] using hlen))
-    hmsg hct
+/-- Random-IV CBC encryption for an arbitrary uniform `BlockCipher` `E` ([BonehShoup2023],
+Section 5.4.3, printed pp. 194–195): at parameter `n`, draw a uniform `E.blockLen n`-bit initial
+value `iv` and output `iv` followed by `cbcWordBody (E.encrypt n) (E.blockLen n) k iv msg`. -/
+@[expose]
+noncomputable def BlockCipher.cbcEncrypt (E : BlockCipher) (n : ℕ) (k msg : List Bool) :
+    ProbComp (List Bool) :=
+  ivModeEncrypt (cbcWordBody (E.encrypt n)) (E.blockLen n) k msg
+
+/-- Random-IV CBC decryption for an arbitrary uniform `BlockCipher` `E` ([BonehShoup2023],
+Section 5.4.3, printed p. 195): accept an `E.blockLen n`-bit initial value followed by whole
+`E.blockLen n`-bit ciphertext blocks (`ivModeDecrypt`), and recover the plaintext blocks via
+`cbcWordDecBody (E.decrypt n)`. -/
+@[expose]
+def BlockCipher.cbcDecrypt (E : BlockCipher) (n : ℕ) (k ct : List Bool) : Option (List Bool) :=
+  ivModeDecrypt (cbcWordDecBody (E.decrypt n)) (E.blockLen n) k ct
+
+/-- For every `BlockCipher` `E`, `E.cbcDecrypt` inverts `E.cbcEncrypt` on whole-block messages
+under `E.keyLen n`-bit keys. -/
+theorem BlockCipher.cbcDecrypt_cbcEncrypt (E : BlockCipher) {n : ℕ} {k : List Bool}
+    (hk : k.length = E.keyLen n) {msg : List Bool} (hmsg : msg.length % E.blockLen n = 0)
+    {ct : List Bool} (hct : ct ∈ (ProbComp.eval (E.cbcEncrypt n k msg)).support) :
+    E.cbcDecrypt n k ct = some msg :=
+  cbcWordDecrypt_cbcWordEncrypt (fun block hb => E.length_encrypt n k block hk hb)
+    (fun block hb => E.decrypt_encrypt n k block hk hb) hmsg hct
 
 /-! ### Efficiency of the honest algorithms -/
 
-/-- `cbcWordBody` is computable in polynomial time from `encFamily`'s evaluator: every step output
-is truncated to at most `n` bits, so the encoded accumulator grows by at most `3 n` bits per
-message block. -/
-theorem computableInPolyTime_cbcWordBody {encFamily : List Bool → List Bool → List Bool}
-    (hpoly : ComputableInPolyTime (fun pair => encFamily pair.1 pair.2)
-      (encPair encBits encBits) encBits)
-    {α : Type} {input : α ↪ List Bool} {n : α → ℕ} {k iv msg : α → List Bool}
-    (hn : ComputableInPolyTime n input encUnary) (hk : ComputableInPolyTime k input encBits)
+private theorem computableInPolyTime_cbcWordBody_param
+    {encFamily : ℕ → List Bool → List Bool → List Bool}
+    (hpoly : ComputableInPolyTime (fun ((n, k, x) : ℕ × List Bool × List Bool) => encFamily n k x)
+      (encPair encUnary (encPair encBits encBits)) encBits)
+    {α : Type} {input : α ↪ List Bool} {par width : α → ℕ} {k iv msg : α → List Bool}
+    (hpar : ComputableInPolyTime par input encUnary)
+    (hwidth : ComputableInPolyTime width input encUnary)
+    (hk : ComputableInPolyTime k input encBits)
     (hiv : ComputableInPolyTime iv input encBits)
     (hmsg : ComputableInPolyTime msg input encBits) :
-    ComputableInPolyTime (fun a => cbcWordBody encFamily (n a) (k a) (iv a) (msg a))
+    ComputableInPolyTime
+      (fun a => cbcWordBody (encFamily (par a)) (width a) (k a) (iv a) (msg a))
       input encBits := by
-  let EPar := encPair encUnary encBits
+  let EPar := encPair encUnary (encPair encUnary encBits)
   let EState := encPair encBits encBits
   let EFold := encPair (encPair EPar EState) encBits
   have hblocks : ComputableInPolyTime
-      (fun a => BitString.listRows ((msg a).length / n a) (n a) (msg a))
+      (fun a => BitString.listRows ((msg a).length / width a) (width a) (msg a))
       input (encList encBits) :=
     ComputableInPolyTime.bitsRowsWithInput
-      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hn) hn hmsg
+      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth)
+      hwidth hmsg
   have hc : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        (encFamily p.1.1.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.1)
+      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
+        (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1)
       EFold encBits :=
     ComputableInPolyTime.bitsTakeWithInput
-      (hpoly.comp ((show ComputableInPolyTime (fun p => p.1.1.2) EFold encBits by
-          dsimp only [EFold, EPar, EState]; fun_prop).prod
-        (ComputableInPolyTime.bitsZipWithInput xor
-          (by dsimp only [EFold, EPar, EState]; fun_prop)
-          (by dsimp only [EFold, EPar, EState]; fun_prop))))
+      (hpoly.comp
+        ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
+            dsimp only [EFold, EPar, EState]; fun_prop).prod
+          ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
+              dsimp only [EFold, EPar, EState]; fun_prop).prod
+            (ComputableInPolyTime.bitsZipWithInput xor
+              (by dsimp only [EFold, EPar, EState]; fun_prop)
+              (by dsimp only [EFold, EPar, EState]; fun_prop)))))
       (by dsimp only [EFold, EPar, EState]; fun_prop)
   have hstep : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        let c := (encFamily p.1.1.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.1
+      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
+        let c := (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1
         (c, p.1.2.2 ++ c))
       EFold EState :=
     hc.prod (ComputableInPolyTime.bitsAppend
       (by dsimp only [EFold, EPar, EState]; fun_prop) hc)
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
-    (par := fun a => (n a, k a))
-    (list := fun a => BitString.listRows ((msg a).length / n a) (n a) (msg a))
+    (par := fun a => (par a, width a, k a))
+    (list := fun a => BitString.listRows ((msg a).length / width a) (width a) (msg a))
     (init := fun a => (iv a, ([] : List Bool)))
-    (step := fun nk (prev, acc) block =>
-      let c := (encFamily nk.2 (List.zipWith xor prev block)).take nk.1
+    (step := fun pwk (prev, acc) block =>
+      let c := (encFamily pwk.1 pwk.2.2 (List.zipWith xor prev block)).take pwk.2.1
       (c, acc ++ c))
-    (hn.prod hk) hblocks (hiv.prod (ComputableInPolyTime.const [])) hstep
-    (growth := fun a => 3 * n a) ((PolyBounded.const 3).mul hn.polyBounded)
+    (hpar.prod (hwidth.prod hk)) hblocks (hiv.prod (ComputableInPolyTime.const [])) hstep
+    (growth := fun a => 3 * width a) ((PolyBounded.const 3).mul hwidth.polyBounded)
     (fun a (prev, acc) block _ => by
-      have htake := List.length_take_le (n a) (encFamily (k a) (List.zipWith xor prev block))
+      have htake := List.length_take_le (width a)
+        (encFamily (par a) (k a) (List.zipWith xor prev block))
       simp only [EState, length_encPair, encBits_apply, List.length_append]
+      omega)
+  exact (ComputableInPolyTime.snd encBits encBits).comp hfold
+
+private theorem computableInPolyTime_cbcWordDecBody_param
+    {decFamily : ℕ → List Bool → List Bool → List Bool}
+    (hpoly : ComputableInPolyTime (fun ((n, k, y) : ℕ × List Bool × List Bool) => decFamily n k y)
+      (encPair encUnary (encPair encBits encBits)) encBits)
+    {α : Type} {input : α ↪ List Bool} {par width : α → ℕ} {k iv body : α → List Bool}
+    (hpar : ComputableInPolyTime par input encUnary)
+    (hwidth : ComputableInPolyTime width input encUnary)
+    (hk : ComputableInPolyTime k input encBits)
+    (hiv : ComputableInPolyTime iv input encBits)
+    (hbody : ComputableInPolyTime body input encBits) :
+    ComputableInPolyTime
+      (fun a => cbcWordDecBody (decFamily (par a)) (width a) (k a) (iv a) (body a))
+      input encBits := by
+  let EPar := encPair encUnary (encPair encUnary encBits)
+  let EState := encPair encBits encBits
+  let EFold := encPair (encPair EPar EState) encBits
+  have hblocks : ComputableInPolyTime
+      (fun a => BitString.listRows ((body a).length / width a) (width a) (body a))
+      input (encList encBits) :=
+    ComputableInPolyTime.bitsRowsWithInput
+      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hbody) hwidth)
+      hwidth hbody
+  have hplain : ComputableInPolyTime
+      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
+        List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1))
+      EFold encBits :=
+    ComputableInPolyTime.bitsZipWithInput xor
+      (by dsimp only [EFold, EPar, EState]; fun_prop)
+      (ComputableInPolyTime.bitsTakeWithInput
+        (hpoly.comp
+          ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
+              dsimp only [EFold, EPar, EState]; fun_prop).prod
+            ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
+                dsimp only [EFold, EPar, EState]; fun_prop).prod
+              (by dsimp only [EFold, EPar, EState]; fun_prop))))
+        (by dsimp only [EFold, EPar, EState]; fun_prop))
+  have hstep : ComputableInPolyTime
+      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
+        (p.2, p.1.2.2 ++
+          List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1)))
+      EFold EState :=
+    (show ComputableInPolyTime (fun p => p.2) EFold encBits by
+      dsimp only [EFold, EPar, EState]; fun_prop).prod
+      (ComputableInPolyTime.bitsAppend (by dsimp only [EFold, EPar, EState]; fun_prop) hplain)
+  have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
+    (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
+    (par := fun a => (par a, width a, k a))
+    (list := fun a => BitString.listRows ((body a).length / width a) (width a) (body a))
+    (init := fun a => (iv a, ([] : List Bool)))
+    (step := fun pwk (prev, acc) block =>
+      (block, acc ++ List.zipWith xor prev ((decFamily pwk.1 pwk.2.2 block).take pwk.2.1)))
+    (hpar.prod (hwidth.prod hk)) hblocks (hiv.prod (ComputableInPolyTime.const [])) hstep
+    (growth := fun a => 3 * width a) ((PolyBounded.const 3).mul hwidth.polyBounded)
+    (fun a (prev, acc) block hmem => by
+      have hblk : block.length = width a := BitString.length_of_mem_listRows hmem
+      have htake := List.length_take_le (width a) (decFamily (par a) (k a) block)
+      have hzip : (List.zipWith xor prev
+          ((decFamily (par a) (k a) block).take (width a))).length ≤ width a := by
+        rw [List.length_zipWith]; omega
+      simp only [EState, length_encPair, encBits_apply, List.length_append, hblk]
       omega)
   exact (ComputableInPolyTime.snd encBits encBits).comp hfold
 
@@ -362,8 +449,9 @@ theorem isPPTOn_cbcWordEncrypt {encFamily : List Bool → List Bool → List Boo
     IsPPTOn (encKeyedInput encBits) encBits
       (fun ((n, k, msg) : ℕ × List Bool × List Bool) => cbcWordEncrypt encFamily n k msg) :=
   isPPTOn_ivModeEncrypt
-    (computableInPolyTime_cbcWordBody hpoly (by fun_prop) (by fun_prop) (by fun_prop)
-      (by fun_prop))
+    (computableInPolyTime_cbcWordBody_param (encFamily := fun _ => encFamily)
+      (hpoly.comp (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const 0)
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
 
 /-- Random-IV CBC decryption is computable in polynomial time on `(n, k, ct)`. -/
 theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool → List Bool}
@@ -371,62 +459,62 @@ theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool
       (encPair encBits encBits) encBits) :
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) => cbcWordDecrypt decFamily n k ct)
+      (encKeyedInput encBits) (encOption encBits) :=
+  computableInPolyTime_ivModeDecrypt (decBody := cbcWordDecBody decFamily)
+    (computableInPolyTime_cbcWordDecBody_param (decFamily := fun _ => decFamily)
+      (hpoly.comp (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const 0)
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
+
+/-- For every `BlockCipher` `E`, `E.cbcEncrypt` is uniformly strict PPT in `(n, k, msg)`. -/
+theorem BlockCipher.isPPTOn_cbcEncrypt (E : BlockCipher) :
+    IsPPTOn (encKeyedInput encBits) encBits
+      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => E.cbcEncrypt n k msg) := by
+  let EIn := encPair (encKeyedInput encBits) encBits
+  have hn : ComputableInPolyTime (fun p : (ℕ × List Bool × List Bool) × List Bool => p.1.1)
+      EIn encUnary := by dsimp only [EIn]; fun_prop
+  have hbody := computableInPolyTime_cbcWordBody_param E.encrypt_polyTime
+    (k := fun p => p.1.2.1) (iv := fun p => p.2) (msg := fun p => p.1.2.2) hn
+    (E.blockLen_polyTime.comp hn)
+    (by dsimp only [EIn, encKeyedInput]; fun_prop) (by dsimp only [EIn]; fun_prop)
+    (by dsimp only [EIn, encKeyedInput]; fun_prop)
+  have hpost : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
+        p.2 ++ cbcWordBody (E.encrypt p.1.1) (E.blockLen p.1.1) p.1.2.1 p.2 p.1.2.2)
+      EIn encBits :=
+    ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop) hbody
+  exact (ComputableInPolyTime.sampleList
+    (E.blockLen_polyTime.comp
+      ((ComputableInPolyTime.fst _ _).comp
+        (by dsimp only [encKeyedInput]; exact ComputableInPolyTime.id')))).bind_with hpost.isPPTOn
+
+/-- For every `BlockCipher` `E`, `E.cbcDecrypt` is computable in polynomial time on `(n, k, ct)`. -/
+theorem BlockCipher.computableInPolyTime_cbcDecrypt (E : BlockCipher) :
+    ComputableInPolyTime
+      (fun ((n, k, ct) : ℕ × List Bool × List Bool) => E.cbcDecrypt n k ct)
       (encKeyedInput encBits) (encOption encBits) := by
-  let EBody := encPair encUnary (encPair encBits (encPair encBits encBits))
-  let EPar := encPair encUnary encBits
-  let EState := encPair encBits encBits
-  let EFold := encPair (encPair EPar EState) encBits
-  have hn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.1)
-      EBody encUnary := by dsimp only [EBody]; fun_prop
-  have hk : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.2.1)
-      EBody encBits := by dsimp only [EBody]; fun_prop
-  have hblocks : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool × List Bool =>
-        BitString.listRows (p.2.2.2.length / p.1) p.1 p.2.2.2)
-      EBody (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput
-      (by dsimp only [EBody]; fun_prop) hn (by dsimp only [EBody]; fun_prop)
-  have hinit : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool × List Bool => (p.2.2.1, ([] : List Bool)))
-      EBody EState :=
-    (show ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.2.2.1)
-      EBody encBits by dsimp only [EBody]; fun_prop).prod (ComputableInPolyTime.const [])
-  have hplain : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        List.zipWith xor p.1.2.1 ((decFamily p.1.1.2 p.2).take p.1.1.1))
-      EFold encBits :=
-    ComputableInPolyTime.bitsZipWithInput xor
-      (by dsimp only [EFold, EPar, EState]; fun_prop)
-      (ComputableInPolyTime.bitsTakeWithInput
-        (hpoly.comp ((show ComputableInPolyTime (fun p => p.1.1.2) EFold encBits by
-            dsimp only [EFold, EPar, EState]; fun_prop).prod
-          (by dsimp only [EFold, EPar, EState]; fun_prop)))
-        (by dsimp only [EFold, EPar, EState]; fun_prop))
-  have hstep : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        (p.2, p.1.2.2 ++ List.zipWith xor p.1.2.1 ((decFamily p.1.1.2 p.2).take p.1.1.1)))
-      EFold EState :=
-    (show ComputableInPolyTime (fun p => p.2) EFold encBits by
-      dsimp only [EFold, EPar, EState]; fun_prop).prod
-      (ComputableInPolyTime.bitsAppend (by dsimp only [EFold, EPar, EState]; fun_prop) hplain)
-  have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
-    (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
-    (par := fun p : ℕ × List Bool × List Bool × List Bool => (p.1, p.2.1))
-    (list := fun p => BitString.listRows (p.2.2.2.length / p.1) p.1 p.2.2.2)
-    (init := fun p => (p.2.2.1, ([] : List Bool)))
-    (step := fun nk (prev, acc) block =>
-      (block, acc ++ List.zipWith xor prev ((decFamily nk.2 block).take nk.1)))
-    (hn.prod hk) hblocks hinit hstep
-    (growth := fun p => 3 * p.1) ((PolyBounded.const 3).mul hn.polyBounded)
-    (fun p (prev, acc) block hmem => by
-      have hblk : block.length = p.1 := BitString.length_of_mem_listRows hmem
-      have htake := List.length_take_le p.1 (decFamily p.2.1 block)
-      have hzip : (List.zipWith xor prev ((decFamily p.2.1 block).take p.1)).length ≤ p.1 := by
-        rw [List.length_zipWith]; omega
-      simp only [EState, length_encPair, encBits_apply, List.length_append, hblk]
-      omega)
-  exact computableInPolyTime_ivModeDecrypt (decBody := cbcWordDecBody decFamily)
-    ((ComputableInPolyTime.snd encBits encBits).comp hfold)
+  let EIn := encKeyedInput encBits
+  have hn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.1) EIn encUnary := by
+    dsimp only [EIn, encKeyedInput]; fun_prop
+  have hw : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => E.blockLen p.1)
+      EIn encUnary :=
+    E.blockLen_polyTime.comp hn
+  have hct : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2) EIn encBits := by
+    dsimp only [EIn, encKeyedInput]; fun_prop
+  have hcond : ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool =>
+        decide (E.blockLen p.1 ≤ p.2.2.length) &&
+          ((p.2.2.length - E.blockLen p.1) % E.blockLen p.1 == 0))
+      EIn encBool := by
+    polytime
+  have hdec := computableInPolyTime_cbcWordDecBody_param E.decrypt_polyTime
+    (k := fun p => p.2.1) hn hw
+    (by dsimp only [EIn, encKeyedInput]; fun_prop)
+    (ComputableInPolyTime.bitsTakeWithInput hct hw)
+    (ComputableInPolyTime.bitsDropWithInput hct hw)
+  unfold BlockCipher.cbcDecrypt ivModeDecrypt
+  exact ComputableInPolyTime.ite hcond
+    ((ComputableInPolyTime.optionSome encBits).comp hdec)
+    (ComputableInPolyTime.const none)
 
 /-! ### Certified word-oracle reduction -/
 
@@ -749,58 +837,114 @@ theorem advantage_cbcWordCPAGame_prf_le {family : List Bool → List Bool → Li
     (ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary true) n)) _).trans ?_
   linarith
 
+/-- The block-cipher distinguisher built from a left-or-right CPA adversary against `E.cbcEncrypt`
+([BonehShoup2023], proof of Theorem 5.4, adversary `B`): run `cbcToPrfDistinguisher` at block width
+`E.blockLen n` on `adversary n []`. -/
+noncomputable def BlockCipher.cbcToPrpDistinguisher (E : BlockCipher)
+    (adversary : OracleDistinguisher) (bit : Bool) : OracleDistinguisher :=
+  fun n aux => cbcToPrfDistinguisher (fun _ _ => adversary n []) bit (E.blockLen n) aux
+
+/-- **Efficiency of the block-cipher reduction.** For every `BlockCipher` `E` and every uniform
+strict oracle-PPT adversary, `E.cbcToPrpDistinguisher adversary bit` is uniform strict oracle
+PPT. -/
+theorem BlockCipher.isOraclePPT_cbcToPrpDistinguisher (E : BlockCipher)
+    {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
+    IsOraclePPT encBool (E.cbcToPrpDistinguisher adversary bit) :=
+  isOraclePPT_ivModeToPrfDistinguisher_blockLen E.blockLen_polyTime isOraclePPTOn_cbcBodyQueries
+    length_le_of_mem_support_cbcBodyQueries hadversary bit
+
+/-- **Real block-cipher game.** Against `E.prpRealGame`, `E.cbcToPrpDistinguisher adversary bit` has
+the exact output law of `adversary` in the random-IV CBC CPA game for `E.cbcEncrypt` with challenge
+bit `bit`. -/
+theorem BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher (E : BlockCipher)
+    (adversary : OracleDistinguisher) (bit : Bool) (n : ℕ) :
+    ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary bit) n) =
+      ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (E.blockLen m))
+        (fun m => BitString.sampleList (E.keyLen m)) E.cbcEncrypt adversary bit n) := by
+  simp only [BlockCipher.prpRealGame, symmetricCPAGameOn, ProbComp.eval_bind,
+    BitString.eval_sampleList]
+  refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
+  have hkLen : k.length = E.keyLen n := BitString.length_of_mem_support_uniformList hk
+  let w := E.blockLen n
+  let constFamily : List Bool → List Bool → List Bool := fun _ query => E.prpOracle n k query
+  have horacle (k' query : List Bool) :
+      prfOracle constFamily w k' query = E.prpOracle n k query := by
+    by_cases hq : query.length = w <;> simp [prfOracle, BlockCipher.prpOracle, constFamily, w, hq]
+  have hreal := eval_prfRealGame_ivModeToPrfDistinguisher
+    (bodyQueries := cbcBodyQueries)
+    (body := fun m _ iv msg => cbcWordBody (E.encrypt n) m k iv msg)
+    (family := constFamily) (n := w)
+    (fun k' _ iv hiv msg _ => by
+      rw [show (fun request : Unit × List Bool => pure (prfOracle constFamily w k' request.2)) =
+          fun request => pure (E.prpOracle n k request.2) by
+        funext request; rw [horacle]]
+      rw [run_cbcBodyQueries, cbcWordBody_eq_flatten_cbcChainWords,
+        cbcWordBody_eq_flatten_cbcChainWords]
+      congr 2
+      exact cbcChainWords_congr_of_length
+        (fun x hx => by
+          simpa [BlockCipher.prpOracle, w, hx] using E.length_encrypt n k x hkLen hx)
+        (fun x hx => by simp [BlockCipher.prpOracle, w, hx])
+        hiv (fun _ hm => BitString.length_of_mem_listRows hm))
+    (fun _ _ => adversary n []) bit
+  have hreply_indep (k' : List Bool) :
+      symmetricCPAReplyOn blockPairValid
+          (ivModeEncrypt fun m _ iv msg => cbcWordBody (E.encrypt n) m k iv msg) w k' bit =
+        symmetricCPAReplyOn (fun m => blockPairValid (E.blockLen m)) E.cbcEncrypt n k bit := rfl
+  simp only [prfRealGame, id_eq, horacle, symmetricCPAGameOn, hreply_indep, ProbComp.eval_bind,
+    BitString.eval_sampleList, PMF.bind_const] at hreal
+  exact hreal
+
 /-- **Concrete word-level block-cipher CPA bound for random-IV CBC mode** ([BonehShoup2023],
-Theorem 5.4, equation (5.22)). For a `BlockCipher` `E` with `keyLen = id` and `blockLen = id`, an
-adversary at parameter `n` making at most `Q` requests of at most `L` bits has CPA advantage
-against `cbcWordEncrypt (fun k x => E.encrypt k.length k x)` at most the PRP advantages of
-`cbcToPrfDistinguisher adversary false` and `cbcToPrfDistinguisher adversary true` plus
-`4 * ((Q * L).choose 2 / 2 ^ n)` (`≤ 2 * (Q * L) ^ 2 / 2 ^ n`, matching `(5.22)`'s `2 Q² ℓ² / N`
-with two fixed-bit distinguishers and `ℓ = L`). -/
-theorem BlockCipher.advantage_cbcWordCPAGame_le (E : BlockCipher) (hkey : E.keyLen = id)
-    (hblock : E.blockLen = id) (adversary : OracleDistinguisher) {n Q L : ℕ}
-    (hQ : (adversary n []).IsQueryBounded Q)
+Theorem 5.4, equation (5.22)). For any `BlockCipher` `E`, an adversary at parameter `n` making at
+most `Q` requests of at most `L` bits has CPA advantage against `E.cbcEncrypt` at most the PRP
+advantages of `E.cbcToPrpDistinguisher adversary false` and `E.cbcToPrpDistinguisher adversary true`
+plus `4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)` (`≤ 2 * (Q * L) ^ 2 / 2 ^ E.blockLen n`, matching
+`(5.22)`'s `2 Q² ℓ² / N` with two fixed-bit distinguishers and `ℓ = L`). -/
+theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : OracleDistinguisher)
+    {n Q L : ℕ} (hQ : (adversary n []).IsQueryBounded Q)
     (hL : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ L) :
     (Game.advantage
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun k x => E.encrypt k.length k x) adversary false n))
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun k x => E.encrypt k.length k x) adversary true n)) : ℝ) ≤
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (E.blockLen m))
+        (fun m => BitString.sampleList (E.keyLen m)) E.cbcEncrypt adversary false n))
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (E.blockLen m))
+        (fun m => BitString.sampleList (E.keyLen m)) E.cbcEncrypt adversary true n)) : ℝ) ≤
       (Game.advantage
-        (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary false) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary false) n)) : ℝ) +
+        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
+        (ProbComp.eval
+          (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n)) : ℝ) +
       (Game.advantage
-        (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary true) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary true) n)) : ℝ) +
-      4 * (((Q * L).choose 2 : ℝ) / 2 ^ n) := by
-  have hlen : ∀ key query : List Bool, query.length = key.length →
-      (E.encrypt key.length key query).length = key.length := fun key query hq => by
-    simpa [hblock] using E.length_encrypt key.length key query (by simp [hkey])
-      (by simpa [hblock] using hq)
-  have hreal (bit : Bool) :
-      ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun k x => E.encrypt k.length k x) adversary bit n) =
-      ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary bit) n) := by
-    rw [← eval_prfRealGame_cbcToPrfDistinguisher hlen adversary bit n,
-      eval_prpRealGame_eq_eval_prfRealGame hkey, hblock]
-  rw [hreal false, hreal true]
+        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n))
+        (ProbComp.eval
+          (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary true) n)) : ℝ) +
+      4 * (((Q * L).choose 2 : ℝ) / 2 ^ E.blockLen n) := by
+  rw [← E.eval_prpRealGame_cbcToPrpDistinguisher adversary false n,
+    ← E.eval_prpRealGame_cbcToPrpDistinguisher adversary true n]
+  let A' : OracleDistinguisher := fun _ _ => adversary n []
+  have hQ' : (A' (E.blockLen n) []).IsQueryBounded Q := hQ
+  have hL' : (A' (E.blockLen n) []).QueriesSatisfy fun request => request.2.length ≤ L := hL
   have hperm := advantage_cbcCpaGame_randomPermutation_le L
-    (isCostBounded_blockModeWordAdversary hQ L)
-  rw [← eval_prpIdealGame_cbcToPrfDistinguisher adversary false hL,
-    ← eval_prpIdealGame_cbcToPrfDistinguisher adversary true hL, ← hblock] at hperm
+    (isCostBounded_blockModeWordAdversary hQ' L)
+  have hideal (bit : Bool) :
+      ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary bit) n) =
+        cbcCpaGame (fun π : Equiv.Perm (BitString (E.blockLen n)) => ⇑π) L bit
+          (blockModeWordAdversary A' (E.blockLen n)) :=
+    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL'
+  rw [← hideal false, ← hideal true] at hperm
   have htri₁ : (Game.advantage
-      (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary false) n))
-      (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary true) n)) : ℝ) ≤
+      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
+      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) : ℝ) ≤
       Game.advantage
-        (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary false) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary false) n)) +
+        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
+        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n)) +
       Game.advantage
-        (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary false) n))
-        (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary true) n)) := by
+        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
+        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) := by
     exact_mod_cast Game.advantage_triangle _ _ _
   have htri₂ := advantage_le_two
-    (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary false) n))
-    (ProbComp.eval (prpIdealGame E.blockLen (cbcToPrfDistinguisher adversary true) n))
-    (ProbComp.eval (E.prpRealGame (cbcToPrfDistinguisher adversary true) n))
+    (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
+    (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary true) n))
+    (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n))
   linarith
 
 /-! ### Asymptotic CPA security (Theorem 5.4) -/
@@ -826,16 +970,28 @@ theorem PseudorandomFunction.indcpa_cbcWordEncrypt {family : List Bool → List 
     (isOraclePPT_cbcToPrfDistinguisher hadversary true)
   negligible using fun n => advantage_cbcWordCPAGame_prf_le hprf.length_eq adversary (hq n) (hl n)
 
+open scoped NNReal in
 /-- **Random-IV CBC mode is CPA-secure for a pseudorandom permutation** ([BonehShoup2023],
-Section 5.4.3, Theorem 5.4, printed pp. 195–199): if `E` is a `BlockCipher` with `keyLen = id`,
-`blockLen = id` and `E.PRP`, random-IV CBC mode with `n`-bit keys and `n`-bit blocks at security
-parameter `n` has negligible many-query left-or-right CPA advantage on equal-length pairs of whole
-blocks, against every uniform strict oracle-PPT adversary. See the module's deviations for the
-unbounded whole-block message space and uniform adversary conventions. -/
-theorem BlockCipher.PRP.indcpa_cbcWordEncrypt {E : BlockCipher} (hkey : E.keyLen = id)
-    (hblock : E.blockLen = id) (hprp : E.PRP) :
-    SymmetricINDCPAOn blockPairValid BitString.sampleList
-      (cbcWordEncrypt fun k x => E.encrypt k.length k x) :=
-  (hprp.pseudorandomFunction hkey hblock).indcpa_cbcWordEncrypt
+Section 5.4.3, Theorem 5.4, printed pp. 195–199): for any uniform `BlockCipher` `E` with `E.PRP`
+and super-polynomial block space `Negligible fun n => ((2 : ℝ≥0) ^ E.blockLen n)⁻¹`, random-IV CBC
+mode `E.cbcEncrypt` has negligible many-query left-or-right CPA advantage on equal-length pairs of
+whole `E.blockLen n`-bit blocks under uniform `E.keyLen n`-bit keys, against every uniform strict
+oracle-PPT adversary. -/
+theorem BlockCipher.PRP.indcpa_cbcEncrypt {E : BlockCipher} (hprp : E.PRP)
+    (hneg : Negligible fun n => ((2 : ℝ≥0) ^ E.blockLen n)⁻¹) :
+    SymmetricINDCPAOn (fun n => blockPairValid (E.blockLen n))
+      (fun n => BitString.sampleList (E.keyLen n)) E.cbcEncrypt := by
+  intro adversary hadversary
+  obtain ⟨c, d, hbounds⟩ := hadversary.query_bounds
+  let P : ℕ → ℕ := fun n => c * (n + 2) ^ d
+  have hq (n : ℕ) : (adversary n []).IsQueryBounded (P n) := by
+    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).1
+  have hl (n : ℕ) : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ P n := by
+    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).2
+  have hprp₀ := hprp (E.cbcToPrpDistinguisher adversary false)
+    (E.isOraclePPT_cbcToPrpDistinguisher hadversary false)
+  have hprp₁ := hprp (E.cbcToPrpDistinguisher adversary true)
+    (E.isOraclePPT_cbcToPrpDistinguisher hadversary true)
+  negligible using fun n => E.advantage_cbcEncrypt_le adversary (hq n) (hl n)
 
 end Cslib.Crypto
