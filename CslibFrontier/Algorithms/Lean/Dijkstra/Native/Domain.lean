@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
 
 /-!
 # Shared reached-state reasoning for native Dijkstra clients
@@ -24,9 +25,12 @@ and domain transport, not native instruction bounds.
 
 ## Main results
 
-* `remainingEdges_step`: refinement and suffix validity after one relaxation.
+* `remainingEdges_step`, `scan_valid_remainingEdges`: refinement and suffix validity along a scan.
+* `abstractLoopStep_extract`: extraction-to-scan refinement and key-bound transport for one round.
 * `client_keys`: the queued-key bound after an admissible client.
 * `loopStep_eq_link`: complete program equality for the original round.
+* `initial_loop_safe`, `initial_loop_safe_insert`, `init_mem_edgeCount`: initial loop admissibility
+  and input-header edge count.
 -/
 
 public section
@@ -109,6 +113,20 @@ theorem remainingEdges_step {n K V w : ℕ}
   refine ⟨hv.1, hinv', ?_⟩
   rw [he]
   exact hv.2
+
+/-- An admissible `scan u du` history supplies an admissible `remainingEdges` suffix from `0`. -/
+theorem scan_valid_remainingEdges {n K V : ℕ} (s : (spec n K V).State) (u : Fin n) (du : ℕ)
+    (hv : (spec n K V).ValidHistory s ((spec n K V).clientHistory s (scan u du))) :
+    (spec n K V).ValidHistory s
+      ((spec n K V).clientHistory s (remainingEdges u du (s.2.2 u).length 0)) := by
+  unfold scan at hv
+  dsimp only [degree, StateTransitionSpec.clientHistory, StateTransitionSpec.runClient,
+    PFunctor.FreeM.lift, PFunctor.FreeM.bind, Bind.bind, Pure.pure,
+    PFunctor.FreeM.instBind, PFunctor.FreeM.instPure, StateTransitionSpec.stepFn,
+    productStepFn, AdjacencyList.step] at hv
+  change _ ∧ (spec n K V).ValidHistory s
+    ((spec n K V).clientHistory s ((List.range (s.2.2 u).length).forM (relaxEdge u du))) at hv
+  simpa only [remainingEdges, Nat.sub_zero, List.range_eq_range'] using hv.2
 
 
 /-- Every word-level round lowers the remaining-round counter, including the empty exit. -/
@@ -353,5 +371,122 @@ theorem initial_loop_safe {K V w : ℕ}
     cases hk
   · rw [hstate]
     exact hv.2
+
+/-- Running an erased native `extractMin` on an admissible `abstractLoopStep` state either yields
+`none` or yields `some (u.val, du)` for some `u : Fin n` with `du ≤ K` and an admissible `scan u du`
+in the post-extraction state. -/
+theorem abstractLoopStep_extract {n K V w a : ℕ}
+    (M : Refinement (spec n K V) (Memory.spec w))
+    (extract : Memory.Prog (Option (ℕ × ℕ)))
+    (hex : extract =
+      (show Memory.Prog (Option (Fin n × ℕ)) from M.methods (.inl .extractMin)).map
+        (Option.map fun p => (p.1.val, p.2)))
+    (s : Memory.State) (hf : M.inv s)
+    (hb : ∀ v k, (M.abs s).1 v = some k → k ≤ K)
+    (hv : (spec n K V).ValidHistory (M.abs s)
+      ((spec n K V).clientHistory (M.abs s) (abstractLoopStep a))) :
+    (Memory.spec 0).clientResult s extract = none ∨
+      ∃ (u : Fin n) (du : ℕ),
+        (Memory.spec 0).clientResult s extract = some (u.val, du) ∧
+        du ≤ K ∧
+        M.inv ((Memory.spec 0).clientState s extract) ∧
+        (spec n K V).ValidHistory (M.abs ((Memory.spec 0).clientState s extract))
+          ((spec n K V).clientHistory (M.abs ((Memory.spec 0).clientState s extract))
+            (scan u du)) := by
+  let q : Memory.Prog (Option (Fin n × ℕ)) := M.methods (.inl .extractMin)
+  change extract = q.map (Option.map fun p => (p.1.val, p.2)) at hex
+  unfold abstractLoopStep at hv
+  rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
+    StateTransitionSpec.run_runClient] at hv
+  obtain ⟨_, hres, hstate, hinv⟩ := M.simulates_client (queue .extractMin) hf hv.1
+  have hql : link M.methods (queue (n := n) (K := K) (V := V) .extractMin) = q :=
+    PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M.methods (.inl .extractMin)
+  rw [hql] at hres hstate hinv
+  change (Memory.spec w).clientResult s q = _ at hres
+  change M.abs ((Memory.spec w).clientState s q) = _ at hstate
+  change M.inv ((Memory.spec w).clientState s q) at hinv
+  rw [clientResult_width] at hres
+  rw [clientState_width] at hstate hinv
+  have hrmap : (Memory.spec 0).clientResult s extract =
+      Option.map (fun p => (p.1.val, p.2))
+        ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
+    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientResult,
+      StateTransitionSpec.runClient_bind]
+    simp only [Function.comp_apply, StateTransitionSpec.runClient_pure']
+    exact congrArg (Option.map fun p : Fin n × ℕ => (p.1.val, p.2)) hres
+  have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
+    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientState,
+      StateTransitionSpec.runClient_bind]
+    rfl
+  cases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with
+  | none => exact Or.inl (by simp only [hrmap, hq, Option.map_none])
+  | some uk =>
+    rcases uk with ⟨u, du⟩
+    have hfind : IndexedMinPQ.findMin (M.abs s).1 = some (u, du) := by
+      have he : (spec n K V).clientResult (M.abs s) (queue .extractMin) =
+          IndexedMinPQ.findMin (M.abs s).1 := by
+        change (IndexedMinPQ.step (M.abs s).1 .extractMin).2 = _
+        cases h : IndexedMinPQ.findMin (M.abs s).1 <;> simp only [IndexedMinPQ.step, h]
+      exact he ▸ hq
+    refine Or.inr ⟨u, du, by simp only [hrmap, hq, Option.map_some],
+      hb u du (IndexedMinPQ.findMin_eq_some_state hfind), hsmap ▸ hinv, ?_⟩
+    rw [hsmap, hstate]
+    have htail := hv.2
+    rw [hq] at htail
+    dsimp only at htail
+    rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
+      StateTransitionSpec.run_runClient] at htail
+    exact htail.1
+
+/-- Installing the source distance word at `f + G.source.val` and executing the queue insertion
+`ins0` leaves an admissible main loop with queued keys bounded by `K`. -/
+theorem initial_loop_safe_insert {K V w f : ℕ}
+    (G : Cslib.Algorithms.Dijkstra.ListInstance)
+    (hK : G.n * G.maxWeight ≤ K) (hV : G.n * G.maxWeight < V)
+    (M : Refinement (spec G.n K V) (Memory.spec w))
+    (ins0 : Memory.Prog Unit)
+    (hset : M.methods (.inr (.inl (.insert G.source 0))) = write (f + G.source.val) 1)
+    (hins : M.methods (.inl (.insert G.source 0)) = ins0)
+    (s : Memory.State) (hi : M.inv s) (habs : M.abs s = init G) :
+    let t := (Memory.spec 0).clientState
+      ⟨Function.update s.mem (f + G.source.val) 1, s.frontier⟩ ins0
+    M.inv t ∧ (∀ v k, (M.abs t).1 v = some k → k ≤ K) ∧
+      (spec G.n K V).ValidHistory (M.abs t)
+        ((spec G.n K V).clientHistory (M.abs t) (loop G.n)) := by
+  let p : (spec G.n K V).Client Unit := do
+    setDist G.source 0
+    queue (.insert G.source 0)
+  have hloop := initial_loop_safe G hK hV M s hi habs
+  have hpeq : link M.methods p = (do write (f + G.source.val) 1; ins0) := by
+    unfold p link
+    rw [PFunctor.FreeM.liftM_bind]
+    have hset' : (setDist (K := K) (V := V) G.source 0).liftM M.methods =
+        write (f + G.source.val) 1 :=
+      (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
+        (.inr (.inl (.insert G.source 0)))).trans hset
+    rw [hset']
+    congr 1
+    funext _
+    exact (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
+      (.inl (.insert G.source 0))).trans hins
+  have hs : (Memory.spec w).clientState s (link M.methods p) =
+      (Memory.spec 0).clientState
+        ⟨Function.update s.mem (f + G.source.val) 1, s.frontier⟩ ins0 := by
+    rw [hpeq, StateTransitionSpec.clientState_bind]
+    exact clientState_width _ _ _
+  change M.inv ((Memory.spec w).clientState s (link M.methods p)) ∧
+    (∀ v k, (M.abs ((Memory.spec w).clientState s (link M.methods p))).1 v = some k →
+      k ≤ K) ∧
+    (spec G.n K V).ValidHistory
+      (M.abs ((Memory.spec w).clientState s (link M.methods p)))
+      ((spec G.n K V).clientHistory
+        (M.abs ((Memory.spec w).clientState s (link M.methods p))) (loop G.n)) at hloop
+  rwa [hs] at hloop
+
+/-- In the encoded graph input, cell `G.n + 3` holds the edge count `G.m`. -/
+theorem init_mem_edgeCount (G : Cslib.Algorithms.Dijkstra.ListInstance) :
+    (Memory.State.init G.encode).mem (G.n + 3) = G.m := by
+  rw [← G.offset_n]
+  exact G.init_offset (r := 0) le_rfl
 
 end Cslib.Algorithms.Lean.Dijkstra.Native
