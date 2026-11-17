@@ -567,7 +567,8 @@ register_result "reingold" where
     unconstrained. The reduction-defined SL = L corollary is not part of this entry."
 
 register_result "bipartite-in-logspace" where
-  title := "Bipartiteness is log-space equivalent to undirected connectivity, and is in L"
+  title := "Non-bipartiteness is log-space many-one equivalent to undirected connectivity; \
+    bipartiteness is in L"
   topic := "space complexity"
   sources := [
     { paper := Goldreich2007DraftR2, theorem := "Exercise 5.16",
