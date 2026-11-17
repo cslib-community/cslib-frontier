@@ -26,13 +26,16 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Yao's protocol is semi-honest secure in the oblivious-transfer hybrid model
+# Steps for Yao's protocol in the ideal oblivious-transfer hybrid model
 
 `CslibFrontier/Crypto/Protocols/MPC/Yao/Family.lean` runs Yao's protocol over a garbling scheme `G`
-as the protocol family `Yao.family G` and proves it secure against a corrupted garbler. This module
-proves it secure against a corrupted evaluator, from simulation privacy of `G`
-(`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`), and states security against either
-party: `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`.
+in the ideal `batchOTWorld` (`batchOTSpec`) oblivious-transfer hybrid model (#6045) as the protocol
+family `Yao.family G` and proves the corrupted-garbler step (`Yao.hybridSemiHonestSecure_garbler`).
+This module proves the corrupted-evaluator step from simulation privacy of `G`
+(`Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator`) and combines both parties in
+`Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure`, rather than plain-model Theorem 7 of
+[LindellPinkas2009] (ePrint 2004/175, §4.2, p. 15, which composes with a concrete semi-honest
+1-out-of-2 oblivious-transfer protocol).
 
 **The assumption.** `ProtocolFamily.SemiHonestSecure` asks for one simulator family for every
 environment, and the reduction below builds one garbling adversary per environment. So the scheme
@@ -69,8 +72,8 @@ environment's advantage is exactly the `prv.sim` advantage of the reduction
 
 ## Comparison with [LindellPinkas2009], Theorem 7
 
-`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` is a step towards Theorem 7 (§4.2, p. 15), not
-that theorem:
+`Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure` is a step towards Theorem 7 (§4.2, p. 15),
+not that theorem:
 
 * **Oblivious transfer.** The transfers are the ideal `batchOTSpec`. Theorem 7 assumes an
   oblivious transfer protocol secure against semi-honest adversaries, and its proof simulates that
@@ -110,10 +113,10 @@ that theorem:
 * `Cslib.Crypto.Protocols.MPC.Yao.isPPT_evaluatorSim`,
   `Cslib.Crypto.Protocols.MPC.Yao.isPPT_evaluatorToPrvSim`: the simulator and the reduction are
   PPT.
-* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`: security
-  against a corrupted evaluator.
-* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`: security against
-  either party.
+* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator`: step
+  for a corrupted evaluator in the ideal `batchOTWorld` hybrid (#6045).
+* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure`: step against
+  either party in the ideal `batchOTWorld` hybrid (#6045).
 
 ## References
 
@@ -499,13 +502,12 @@ theorem advantage_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect :
   rfl
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) under the novel
-assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (Section 4.2,
-page 15), not plain-model Theorem 7 or its Case 2 (pages 18–24 of the author's copy), which compose
-with a concrete
-semi-honest 1-out-of-2 oblivious-transfer protocol. Case 2 first replaces the oblivious-transfer
-protocol by its simulator, then the real garbled circuit by a fake one; with the ideal
-`batchOTWorld` (`batchOTSpec`) the first step is empty, and the second is the `prv.sim` security of
-`G`. When `G` is `prv.sim` secure with one simulator `S` for every adversary
+assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (ePrint
+2004/175, §4.2, p. 15), not plain-model Theorem 7 or its Case 2 (pp. 18–19), which compose with a
+concrete semi-honest 1-out-of-2 oblivious-transfer protocol. Case 2 first replaces the
+oblivious-transfer protocol by its simulator, then the real garbled circuit by a fake one; with the
+ideal `batchOTWorld` (`batchOTSpec`) the first step is empty, and the second is the `prv.sim`
+security of `G`. When `G` is `prv.sim` secure with one simulator `S` for every adversary
 (`Scheme.PrvSimSecureUniversal`) for side information `Φ` computed in polynomial time, `G` is
 correct, its encoding is `projectiveEncode`, and it reads input lengths and evaluates `ev` in
 polynomial time, then for public parameters drawn by any PPT sampler the PPT simulator family
@@ -513,7 +515,8 @@ polynomial time, then for public parameters drawn by any PPT sampler the PPT sim
 from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the certified reduction
 `evaluatorToPrvSim` (`advantage_evaluator_eq`, `isPPT_evaluatorToPrvSim`). The other deviations
 are those of the module documentation. -/
-theorem _root_.Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator
+theorem
+    _root_.Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator
     {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
     {Φ : SideInfo Fn Λ} (hG : G.PrvSimSecureUniversal Φ encFn encΛ)
     (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
@@ -538,22 +541,22 @@ open Protocols.MPC Probability Turing.MultiTapeTM
 variable {Fn Λ : Type} {G : Scheme Fn}
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) under the novel
-assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (Section 4.2,
-page 15), not plain-model Theorem 7 (which composes with a concrete semi-honest 1-out-of-2
-oblivious-transfer protocol): the oblivious transfers are the ideal `batchOTWorld` (`batchOTSpec`),
-and the module documentation lists the other deviations (uniform environments that choose the
-inputs, a setup law, the scheme as a parameter). The garbling scheme `G` is `prv.sim` secure with
-one simulator for every adversary (`Scheme.PrvSimSecureUniversal`) for side information `Φ`
-computed in polynomial time; it has polynomial-time algorithms (`Scheme.IsEfficient`), it is
+assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (ePrint
+2004/175, §4.2, p. 15), not plain-model Theorem 7 (which composes with a concrete semi-honest
+1-out-of-2 oblivious-transfer protocol): the oblivious transfers are the ideal `batchOTWorld`
+(`batchOTSpec`), and the module documentation lists the other deviations (uniform environments that
+choose the inputs, a setup law, the scheme as a parameter). The garbling scheme `G` is `prv.sim`
+secure with one simulator for every adversary (`Scheme.PrvSimSecureUniversal`) for side information
+`Φ` computed in polynomial time; it has polynomial-time algorithms (`Scheme.IsEfficient`), it is
 correct, and its encoding is `projectiveEncode`; and the public parameters are drawn by a PPT
 sampler `samp`. Then `Yao.family G` is semi-honest secure, in the sense of
 `ProtocolFamily.SemiHonestSecure`, against the corruption of the garbler
-(`Yao.semiHonestSecure_garbler`, which needs no assumption) and of the evaluator
-(`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`, through the certified reduction
-`Yao.evaluatorToPrvSim`). The modular form over a garbling scheme follows
+(`Yao.hybridSemiHonestSecure_garbler`, which needs no assumption) and of the evaluator
+(`Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator`, through the certified
+reduction `Yao.evaluatorToPrvSim`). The modular form over a garbling scheme follows
 [BellareHoangRogaway2012], §7.1 (Theorem 14, p. 35), whose quantifiers are `∀ B ∃ S` on both
 sides. -/
-theorem Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure {encFn : Fn ↪ List Bool}
+theorem Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure {encFn : Fn ↪ List Bool}
     {encΛ : Λ ↪ List Bool} {Φ : SideInfo Fn Λ} (hG : G.PrvSimSecureUniversal Φ encFn encΛ)
     (heff : G.IsEfficient encFn) (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
     (hΦ : ComputableInPolyTime Φ.phi encFn encΛ) {samp : ℕ → ProbComp (Yao.Params G)}
@@ -561,7 +564,7 @@ theorem Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure {encFn : Fn ↪ List Bo
     (Yao.family G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) {i}
       (Yao.encoding G encFn) := by
   fin_cases i
-  · exact Yao.semiHonestSecure_garbler heff.coins hproj hcorrect _
-  · exact hG.yaoSemiHonestSecure_evaluator heff.inLen heff.ev hproj hcorrect hΦ hsamp
+  · exact Yao.hybridSemiHonestSecure_garbler heff.coins hproj hcorrect _
+  · exact hG.yaoHybridSemiHonestSecure_evaluator heff.inLen heff.ev hproj hcorrect hΦ hsamp
 
 end Cslib.Crypto.Garbling
