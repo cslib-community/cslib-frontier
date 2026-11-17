@@ -328,9 +328,11 @@ or `index`, and dereferences any package symlink whose target is absolute or esc
 directory. Pass `--copy-cslib` or `--copy-packages` when package sources must change.
 
 Before copying, the helper compares both checkouts’ toolchains and manifests and verifies the
-primary dependency checkouts against the requested Git revisions. When the inputs differ or a
-locked dependency cannot be verified, Lake bootstraps the destination directly. With matching
-inputs, APFS and GNU `cp` use copy-on-write clones of build outputs where supported and copy
+primary dependency checkouts against the requested Git revisions. It checks for staged, unstaged
+and nonignored untracked changes outside each dependency's `.lake`. When a pin or toolchain
+differs, it seeds only the matching clean packages' sources and private Git controls. Lake
+bootstraps the missing packages and build outputs. An unreadable destination manifest skips the
+entire seed. With matching inputs, APFS and GNU `cp` use copy-on-write clones of build outputs where supported and copy
 bytes on other filesystems. Each worker can rewrite its own outputs independently.
 
 When the primary checkout's outputs are changing, create a worktree without copying them:
