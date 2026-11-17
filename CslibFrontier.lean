@@ -3888,6 +3888,7 @@ public import CslibFrontier.Computability.PCP.Approximation.LabelCover.SmallSoun
 public import CslibFrontier.Computability.PCP.Approximation.MaxCSP
 public import CslibFrontier.Computability.PCP.Approximation.MaxExactThreeSAT
 public import CslibFrontier.Computability.PCP.Approximation.MaxThreeSAT
+public import CslibFrontier.Computability.PCP.Approximation.MaxThreeSAT.Approx
 public import CslibFrontier.Computability.PCP.Approximation.ParitySearch
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.ApproxReduction
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.LundYannakakis
