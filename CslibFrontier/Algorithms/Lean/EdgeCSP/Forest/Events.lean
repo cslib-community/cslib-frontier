@@ -667,9 +667,10 @@ theorem Trace.left_drop_disjoint_right (h : Trace sem f m) (k : ℕ)
   have hindex := h.expansion.grown.ancestry_step_prefix_length hs
   omega
 
-/-- `Meeting.blossomData` returns `b` iff `m.ancestor?` selects either a variable LCA (joining
-the two `k`-dropped ancestries) or a constraint LCA with valid `k`-th steps `s` and `t`
-(joining the `(k + 1)`-dropped ancestries and closing through `(t.2, s.2)`). -/
+/-- For `k = (m.commonNodes.length - 1) / 2`, `Meeting.blossomData` returns `b` iff `m.ancestor?`
+selects either a variable LCA (joining the two `k`-dropped ancestries) or a constraint LCA with
+valid `k`-th steps `s` and `t` (joining the `(k + 1)`-dropped ancestries and closing through
+`(t.2, s.2)`). -/
 theorem blossomData_eq_some_iff (m : Meeting F) (b : BlossomData F) :
     m.blossomData = some b ↔
       let k := (m.commonNodes.length - 1) / 2
@@ -703,24 +704,15 @@ theorem blossomData_eq_some_iff (m : Meeting F) (b : BlossomData F) :
         split at hb
         next ain lp bin rp hs ht =>
           cases hb
-          obtain ⟨hkl, hsl⟩ := List.getElem?_eq_some_iff.mp hs
-          obtain ⟨hkr, hsr⟩ := List.getElem?_eq_some_iff.mp ht
-          have hl : (m.left.walk.take ((m.commonNodes.length - 1) / 2 + 1)).finish = lp.var := by
-            rw [Walk.finish_take_succ _ hkl, hsl]
-          have hr : (m.right.walk.take ((m.commonNodes.length - 1) / 2 + 1)).finish = rp.var := by
-            rw [Walk.finish_take_succ _ hkr, hsr]
-          exact Or.inr ⟨c, (ain, lp), (bin, rp), ha, hs, ht, by simp only [Walk.drop, hl, hr]⟩
+          exact Or.inr ⟨c, (ain, lp), (bin, rp), ha, hs, ht,
+            by simp only [Walk.drop, Walk.finish_take_succ_of_getElem? hs,
+              Walk.finish_take_succ_of_getElem? ht]⟩
         · cases hb
   · rintro (⟨v, ha, rfl⟩ | ⟨c, ⟨ain, lp⟩, ⟨bin, rp⟩, ha, hs, ht, rfl⟩)
     · obtain ⟨hl, hr⟩ := m.ancestor_variable_prefix ha
       simp only [blossomData, ha, Walk.drop, hl, hr]
-    · obtain ⟨hkl, hsl⟩ := List.getElem?_eq_some_iff.mp hs
-      obtain ⟨hkr, hsr⟩ := List.getElem?_eq_some_iff.mp ht
-      have hl : (m.left.walk.take ((m.commonNodes.length - 1) / 2 + 1)).finish = lp.var := by
-        rw [Walk.finish_take_succ _ hkl, hsl]
-      have hr : (m.right.walk.take ((m.commonNodes.length - 1) / 2 + 1)).finish = rp.var := by
-        rw [Walk.finish_take_succ _ hkr, hsr]
-      simp only [blossomData, ha, hs, ht, Walk.drop, hl, hr]
+    · simp only [blossomData, ha, hs, ht, Walk.drop, Walk.finish_take_succ_of_getElem? hs,
+        Walk.finish_take_succ_of_getElem? ht]
 
 /-- At a same-root event the actual raw extractor returns cycle data; neither LCA case
 is lost through an absent ancestor or an out-of-bounds child port. -/
@@ -871,8 +863,7 @@ theorem Trace.blossom_cycle_closed (h : Trace sem f m) {b : BlossomData F}
     exact (Walk.finish_join_meeting _ _ _ _ (h.right_directed.walk.drop _).1
       (by simp only [Walk.finish_drop, Meeting.right, Log.ancestry_finish])).trans
       (hr.trans hl.symm)
-  · obtain ⟨hkl, rfl⟩ := List.getElem?_eq_some_iff.mp hs
-    exact (Walk.finish_snoc _ _ _).trans (Walk.finish_take_succ _ hkl).symm
+  · exact (Walk.finish_snoc _ _ _).trans (Walk.finish_take_succ_of_getElem? hs).symm
 
 /-- In the variable-LCA branch, the cycle's actual timestamped graph is an f-DAG after
 the returned preparatory flip. Both feasibility and no shortcuts are preserved. -/
@@ -881,57 +872,53 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     {base : V} (ha : m.ancestor? = some (.inl base)) {b : BlossomData F}
     (hb : m.blossomData = some b) :
     (blossomDAG b.cycle b.times b.pivot).IsFDAG sem (b.prepare.flip f) := by
-  rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, _, rfl⟩ | ⟨_, _, _, hc, _, _, _⟩
-  · let k := (m.commonNodes.length - 1) / 2
-    have hlen : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
-    have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
-        (fun s => m.older.stamp s.1) := by
-      simpa only [Meeting.left, Walk.drop, List.map_drop] using congrArg (List.drop k)
-        (h.expansion.grown.ancestry_times_eq_stamp m.current.input.var)
-    have htr : m.right.times.drop k = (m.right.walk.drop k).steps.map
-        (fun s => m.older.stamp s.1) := by
-      simpa only [Meeting.right, Walk.drop, List.map_drop] using congrArg (List.drop k)
-        (h.expansion.grown.ancestry_times_eq_stamp m.output.var)
-    dsimp only
-    rw [htl, htr]
-    have ht := h.pruned_isFDAG hF hf
-    have hlp := h.left_directed.drop ht.supported k
-    have hrp := h.right_directed.drop ht.supported k
-    let S := blossomDAG
-      (((m.left.walk.drop k).snoc m.current.input m.output).append (m.right.walk.drop k).reverse)
-      ((m.left.walk.drop k).steps.map (fun s => m.older.stamp s.1) ++ [m.older.length] ++
-        ((m.right.walk.drop k).steps.map fun s => m.older.stamp s.1).reverse)
-      ((m.left.walk.drop k).steps.length + 1)
-    have hsub : S.Subgraph m.prunedDAG := by
-      apply blossomDAG_subgraph_meeting hlp hrp ht.supported
-      · rw [h.pruned_arcs]; simp
-      · rw [h.pruned_arcs]; simp
-    have hchron : (m.left.walk.take k).steps.Pairwise
-        (fun s t => m.older.stamp s.1 < m.older.stamp t.1) :=
-      (h.expansion.grown.ancestry_chronological _).sublist (List.take_sublist k _)
-    apply (h.left_directed.take k).flip_later_subgraph ht hM hchron hsub
-      (blossomDAG_supported _ _ _)
-    intro c hc s hs
-    have hctime := blossomDAG_copy_time_mem _ _ _ hc
-    rcases List.mem_append.mp hctime with hc | hc
-    · rcases List.mem_append.mp hc with hc | hc
-      · obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
-        have hpair : (m.left.walk.steps.take k ++ m.left.walk.steps.drop k).Pairwise
-            (fun s t => m.older.stamp s.1 < m.older.stamp t.1) := by
-          rw [List.take_append_drop]
-          exact h.expansion.grown.ancestry_chronological _
-        rw [← he]
-        exact (List.pairwise_append.mp hpair).2.2 s hs t ht'
-      · have he : c.2 = m.older.length := List.mem_singleton.mp hc
-        rw [he]
-        exact (m.older.mem_arcs
-          (h.expansion.grown.ancestry_arcs _ (List.mem_of_mem_take hs)).1).2
-    · rw [List.mem_reverse] at hc
-      obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
-      rw [← he]
-      exact h.prefix_time_lt_right_drop k (by omega) hs ht'
+  rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, _, rfl⟩ | ⟨_, _, _, hc, _, _, _⟩; swap
   · rw [ha] at hc
     cases hc
+  let k := (m.commonNodes.length - 1) / 2
+  have hlen : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
+  have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
+      (fun s => m.older.stamp s.1) := by
+    simpa only [Meeting.left, Walk.drop, List.map_drop] using congrArg (List.drop k)
+      (h.expansion.grown.ancestry_times_eq_stamp m.current.input.var)
+  have htr : m.right.times.drop k = (m.right.walk.drop k).steps.map
+      (fun s => m.older.stamp s.1) := by
+    simpa only [Meeting.right, Walk.drop, List.map_drop] using congrArg (List.drop k)
+      (h.expansion.grown.ancestry_times_eq_stamp m.output.var)
+  dsimp only
+  rw [htl, htr]
+  have ht := h.pruned_isFDAG hF hf
+  have hlp := h.left_directed.drop ht.supported k
+  have hrp := h.right_directed.drop ht.supported k
+  let S := blossomDAG
+    (((m.left.walk.drop k).snoc m.current.input m.output).append (m.right.walk.drop k).reverse)
+    ((m.left.walk.drop k).steps.map (fun s => m.older.stamp s.1) ++ [m.older.length] ++
+      ((m.right.walk.drop k).steps.map fun s => m.older.stamp s.1).reverse)
+    ((m.left.walk.drop k).steps.length + 1)
+  have hsub : S.Subgraph m.prunedDAG := by
+    apply blossomDAG_subgraph_meeting hlp hrp ht.supported
+    · rw [h.pruned_arcs]; simp
+    · rw [h.pruned_arcs]; simp
+  have hchron : (m.left.walk.take k).steps.Pairwise
+      (fun s t => m.older.stamp s.1 < m.older.stamp t.1) :=
+    (h.expansion.grown.ancestry_chronological _).sublist (List.take_sublist k _)
+  apply (h.left_directed.take k).flip_later_subgraph ht hM hchron hsub
+    (blossomDAG_supported _ _ _)
+  intro c hc s hs
+  have hctime := blossomDAG_copy_time_mem _ _ _ hc
+  rcases List.mem_append.mp hctime with hc | hc
+  · rcases List.mem_append.mp hc with hc | hc
+    · obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
+      rw [← he]
+      exact (h.expansion.grown.ancestry_chronological _).rel_of_mem_take_of_mem_drop hs ht'
+    · have he : c.2 = m.older.length := List.mem_singleton.mp hc
+      rw [he]
+      exact (m.older.mem_arcs
+        (h.expansion.grown.ancestry_arcs _ (List.mem_of_mem_take hs)).1).2
+  · rw [List.mem_reverse] at hc
+    obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
+    rw [← he]
+    exact h.prefix_time_lt_right_drop k (by omega) hs ht'
 
 end Meeting
 

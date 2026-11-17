@@ -119,12 +119,8 @@ theorem Trace.prepare_fork_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   rcases Finset.mem_union.mp hc with hc | hc
   · rcases Finset.mem_union.mp hc with hc | hc
     · obtain ⟨t, ht, he⟩ := hw.mem_copies.mp hc
-      have hpair : (m.left.walk.steps.take k ++ m.left.walk.steps.drop k).Pairwise
-          (fun s t => m.older.stamp s.1 < m.older.stamp t.1) := by
-        rw [List.take_append_drop]
-        exact h.expansion.grown.ancestry_chronological _
-      have hh := (List.pairwise_append.mp hpair).2.2 s hs t ht
-      exact (congrArg Prod.snd he) ▸ hh
+      exact (congrArg Prod.snd he) ▸
+        (h.expansion.grown.ancestry_chronological _).rel_of_mem_take_of_mem_drop hs ht
     · obtain ⟨t, ht, he⟩ := hz.mem_copies.mp hc
       have hh := h.prefix_time_lt_right_drop k hk hs ht
       exact (congrArg Prod.snd he) ▸ hh
@@ -181,32 +177,15 @@ theorem Trace.constraint_first_copies (h : Trace sem f m) {c : Copy F}
     hside _ _ t rfl (m.ancestor_constraint_index_lt hc).2
       (m.ancestor_at_common_index hc).2 ht⟩
 
-omit [DecidableEq V] in
-private theorem walk_drop_of_getElem? {w : Walk F} {k : ℕ}
-    {s : Occurrence F × Occurrence F} (hs : w.steps[k]? = some s) :
-    (w.drop k).steps = s :: (w.drop (k + 1)).steps ∧
-      s ∈ w.steps ∧ (w.drop (k + 1)).start = s.2.var := by
-  obtain ⟨hk, rfl⟩ := List.getElem?_eq_some_iff.mp hs
-  exact ⟨List.drop_eq_getElem_cons hk, List.getElem_mem hk, Walk.finish_take_succ w hk⟩
-
 private theorem Trace.stamp_gt_of_drop_succ (h : Trace sem f m) {u : V} {k : ℕ}
     {s t : Occurrence F × Occurrence F}
     (hs : (m.older.ancestry u).walk.steps[k]? = some s)
     (ht : t ∈ ((m.older.ancestry u).walk.drop (k + 1)).steps) :
     m.older.stamp s.1 < m.older.stamp t.1 := by
-  obtain ⟨hk, rfl⟩ := List.getElem?_eq_some_iff.mp hs
   have hp := (h.expansion.grown.ancestry_chronological u).sublist (List.drop_sublist k _)
-  change ((m.older.ancestry u).walk.steps.drop k).Pairwise _ at hp
-  rw [List.drop_eq_getElem_cons hk] at hp
+  change ((m.older.ancestry u).walk.drop k).steps.Pairwise _ at hp
+  rw [Walk.steps_drop_of_getElem? hs] at hp
   exact (List.pairwise_cons.mp hp).1 t ht
-
-private theorem Trace.right_drop_copies_subset (h : Trace sem f m)
-    (hs : m.prunedDAG.Supported) (k : ℕ) :
-    (pathDAG (m.right.walk.drop k) m.older.stamp).copies ⊆
-      (pathDAG m.right.walk m.older.stamp).copies := by
-  intro c hc
-  obtain ⟨s, hsm, he⟩ := (h.right_directed.drop hs k).mem_copies.mp hc
-  exact h.right_directed.mem_copies.mpr ⟨s, List.mem_of_mem_drop hsm, he⟩
 
 /-- The child ports at a constraint LCA name distinct variables. Otherwise their common
 child would extend the computed common-node prefix, contradicting maximality. -/
@@ -216,8 +195,9 @@ theorem Trace.constraint_children_ne (h : Trace sem f m) {c : Copy F}
     (ht : m.right.walk.steps[(m.commonNodes.length - 1) / 2]? = some t) :
     s.2.var ≠ t.2.var := by
   let k := (m.commonNodes.length - 1) / 2
-  obtain ⟨hdl, hsl, -⟩ := walk_drop_of_getElem? hs
-  obtain ⟨_, htr, -⟩ := walk_drop_of_getElem? ht
+  have hdl := Walk.steps_drop_of_getElem? hs
+  have hsl := List.mem_of_getElem? hs
+  have htr := List.mem_of_getElem? ht
   have hsd : s ∈ (m.left.walk.drop ((m.commonNodes.length - 1) / 2)).steps :=
     hdl ▸ List.mem_cons_self
   have hcopies := h.constraint_first_copies hc hs ht
@@ -246,8 +226,9 @@ theorem Trace.constraint_fork_earliest (h : Trace sem f m) {c : Copy F}
     (ht : m.right.walk.steps[(m.commonNodes.length - 1) / 2]? = some t) :
     (m.forkDAG ((m.commonNodes.length - 1) / 2)).Earliest c := by
   let k := (m.commonNodes.length - 1) / 2
-  obtain ⟨hdl, hsl, -⟩ := walk_drop_of_getElem? hs
-  obtain ⟨hdr, -, -⟩ := walk_drop_of_getElem? ht
+  have hdl := Walk.steps_drop_of_getElem? hs
+  have hsl := List.mem_of_getElem? hs
+  have hdr := Walk.steps_drop_of_getElem? ht
   have hw := (h.expansion.grown.ancestry_directed h.expansion.visited).drop
     (m.older.toDAG_supported m.roots) k
   have hz := (h.expansion.grown.ancestry_directed h.old_visited).drop
@@ -298,8 +279,10 @@ theorem Trace.constraint_fork_leaf (h : Trace sem f m) (hF : EdgeInstance F)
       a.occurrence.var = s.1.var → a = inArc m.older.stamp s := by
   let k := (m.commonNodes.length - 1) / 2
   have hT := h.pruned_isFDAG hF hf
-  obtain ⟨hdl, hsl, -⟩ := walk_drop_of_getElem? hs
-  obtain ⟨hdr, htr, -⟩ := walk_drop_of_getElem? ht
+  have hdl := Walk.steps_drop_of_getElem? hs
+  have hsl := List.mem_of_getElem? hs
+  have hdr := Walk.steps_drop_of_getElem? ht
+  have htr := List.mem_of_getElem? ht
   have hw := h.left_directed.drop hT.supported k
   have hz := h.right_directed.drop hT.supported k
   have hcs := h.constraint_first_copies hc hs ht
@@ -322,18 +305,17 @@ theorem Trace.constraint_fork_leaf (h : Trace sem f m) (hF : EdgeInstance F)
   · exact False.elim (hneL (hv.trans hls))
   · exact False.elim (hneR (hv.trans ((congrArg Occurrence.var hin).trans hrs)))
 
-/-- At the LCA copy, the selected forest fork has precisely its original single incoming
-port. The second incoming meeting port is at the strictly later terminal copy. -/
+/-- At the step selected at `(m.commonNodes.length - 1) / 2`, the suffix fork has precisely
+its original single incoming port. The second incoming meeting port is at the strictly later
+terminal copy. -/
 theorem Trace.constraint_fork_incoming_eq (h : Trace sem f m) (hF : EdgeInstance F)
-    (hf : ValidLabeling sem f) {c : Copy F} (_hc : m.ancestor? = some (.inr c))
-    {s : Occurrence F × Occurrence F}
+    (hf : ValidLabeling sem f) {s : Occurrence F × Occurrence F}
     (hs : m.left.walk.steps[(m.commonNodes.length - 1) / 2]? = some s) :
     ∀ a ∈ (m.forkDAG ((m.commonNodes.length - 1) / 2)).arcs,
       a.incoming = true → a.copy = (inArc m.older.stamp s).copy →
       a = inArc m.older.stamp s := by
   let k := (m.commonNodes.length - 1) / 2
-  obtain ⟨_, hsl, -⟩ := walk_drop_of_getElem? hs
-  have hA := (h.expansion.grown.ancestry_arcs _ hsl).1
+  have hA := (h.expansion.grown.ancestry_arcs _ (List.mem_of_getElem? hs)).1
   have hbound := (m.older.mem_arcs hA).2
   change m.older.stamp s.1 < m.older.length at hbound
   have hsub := (h.fork_subgraph hF hf k).1
@@ -365,7 +347,7 @@ theorem Trace.reroot_constraint_fork (h : Trace sem f m) (hF : EdgeInstance F)
       ((m.left.walk.take ((m.commonNodes.length - 1) / 2 + 1)).flip f) := by
   let k := (m.commonNodes.length - 1) / 2
   obtain ⟨hkl, hsval⟩ := List.getElem?_eq_some_iff.mp hs
-  obtain ⟨hdl, -, -⟩ := walk_drop_of_getElem? hs
+  have hdl := Walk.steps_drop_of_getElem? hs
   have hsm : s ∈ (m.left.walk.drop k).steps := hdl ▸ List.mem_cons_self
   have hlink := (h.left_directed.walk.drop k).1
   rw [hdl] at hlink
@@ -383,7 +365,7 @@ theorem Trace.reroot_constraint_fork (h : Trace sem f m) (hF : EdgeInstance F)
     rw [(h.constraint_first_copies hc hs ht).1]
     exact h.constraint_fork_earliest hc hs ht
   have hR := hY.reroot_earliest hM hA hB rfl rfl hcopy hfirst
-    (h.constraint_fork_leaf hF hf hc hs ht) (h.constraint_fork_incoming_eq hF hf hc hs)
+    (h.constraint_fork_leaf hF hf hc hs ht) (h.constraint_fork_incoming_eq hF hf hs)
   have hflip : (m.left.walk.take (k + 1)).flip f =
       pairFlip ((m.left.walk.take k).flip f) s.1 s.2 := by
     simpa only [hsval] using h.left_directed.walk.flip_take_succ f hkl
@@ -412,8 +394,9 @@ theorem Trace.constraint_cycle_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   let R := (m.forkDAG k).reroot (inArc m.older.stamp s) (outArc m.older.stamp s)
   have hR : R.IsFDAG sem ((m.left.walk.take (k + 1)).flip f) :=
     h.reroot_constraint_fork hF hf hM hc hs ht
-  obtain ⟨hdl, hsm, hwstart⟩ := walk_drop_of_getElem? hs
-  obtain ⟨hdr, _, _⟩ := walk_drop_of_getElem? ht
+  have hdl := Walk.steps_drop_of_getElem? hs
+  have hsm := List.mem_of_getElem? hs
+  have hdr := Walk.steps_drop_of_getElem? ht
   have hcs := h.constraint_first_copies hc hs ht
   have hst : m.older.stamp s.1 = c.2 := congrArg Prod.snd hcs.1
   have htt : m.older.stamp t.1 = c.2 := congrArg Prod.snd hcs.2
@@ -461,7 +444,9 @@ theorem Trace.constraint_cycle_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     · intro he
       exact h.constraint_children_ne hc hs ht (congrArg (fun a : Arc F => a.occurrence.var) he).symm
   apply hR.subgraph (S := blossomDAG _ _ _) ?_ (blossomDAG_supported _ _ _)
-  apply blossomDAG_subgraph_of_arcs _ _ _ (by change w.start ∈ R.vars; rwa [hwstart]) hR.supported
+  apply blossomDAG_subgraph_of_arcs _ _ _
+    (by change (m.left.walk.take (k + 1)).finish ∈ R.vars
+        rwa [Walk.finish_take_succ_of_getElem? hs]) hR.supported
   intro a ham
   have hlen :
       (w.steps.map (fun u => m.older.stamp u.1) ++ [m.older.length] ++
@@ -504,8 +489,8 @@ theorem Trace.drop_join_isWalk (h : Trace sem f m) (hF : EdgeInstance F)
   have hT := h.pruned_isFDAG hF hf
   have hw := h.left_directed.drop hT.supported k
   have hz := h.right_directed.drop hT.supported k
-  have hd :=
-    (h.left_drop_disjoint_right k hk).mono_right (h.right_drop_copies_subset hT.supported k)
+  have hd := (h.left_drop_disjoint_right k hk).mono_right
+    (h.right_directed.drop_copies_subset hT.supported k)
   have hpair := (mem_partners sem f _ _).mp h.partner
   have hused : ∀ v n o, o ∈ ((m.older.ancestry v).walk.drop n).edges → o ∈ m.older.used := by
     intro v n o ho
@@ -534,8 +519,8 @@ theorem Trace.constraint_cycle_isWalk (h : Trace sem f m) (hF : EdgeInstance F)
   let k := (m.commonNodes.length - 1) / 2
   let w := m.left.walk.drop (k + 1)
   let z := m.right.walk.drop (k + 1)
-  obtain ⟨_, hsm, _⟩ := walk_drop_of_getElem? hs
-  obtain ⟨_, htm, hzstart⟩ := walk_drop_of_getElem? ht
+  have hsm := List.mem_of_getElem? hs
+  have htm := List.mem_of_getElem? ht
   have hcs := h.constraint_first_copies hc hs ht
   have hT := h.pruned_isFDAG hF hf
   have hw := h.left_directed.drop hT.supported (k + 1)
@@ -575,7 +560,7 @@ theorem Trace.constraint_cycle_isWalk (h : Trace sem f m) (hF : EdgeInstance F)
   apply hj.snoc
   · rw [Walk.finish_join_meeting _ _ _ _ hz.walk.1
       (by simp only [Walk.finish_drop, Meeting.right, Log.ancestry_finish])]
-    exact hzstart.symm
+    exact (Walk.finish_take_succ_of_getElem? ht).symm
   · have hl := h.left_directed.walk.1
     have hr := h.right_directed.walk.1
     obtain ⟨pre, post, he⟩ := List.mem_iff_append.mp hsm
@@ -658,7 +643,6 @@ theorem Trace.blossom_original_consistent (h : Trace sem f m) {b : BlossomData F
   rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, _, rfl⟩ | ⟨_, s, t, _, _, ht, rfl⟩
   · exact h.drop_join_consistent _
   · let k := (m.commonNodes.length - 1) / 2
-    obtain ⟨_, htm, hzstart⟩ := walk_drop_of_getElem? ht
     have hg : Grown sem f (Forest.roots f) m.older := h.roots_eq ▸ h.expansion.grown
     apply (h.drop_join_consistent (k + 1)).snoc
       (m.left.walk.drop (k + 1)).start t.2 s.2 (Or.inr ?_)
@@ -666,8 +650,9 @@ theorem Trace.blossom_original_consistent (h : Trace sem f m) {b : BlossomData F
       (((m.left.walk.drop (k + 1)).snoc m.current.input m.output).append
         (m.right.walk.drop (k + 1)).reverse).finish
     rw [Walk.finish_join_meeting _ _ _ _ (h.right_directed.walk.drop (k + 1)).1
-      (by simp only [Walk.finish_drop, Meeting.right, Log.ancestry_finish]), hzstart]
-    exact hg.ancestry_output_consistent _ htm
+      (by simp only [Walk.finish_drop, Meeting.right, Log.ancestry_finish]),
+      Walk.drop, Walk.finish_take_succ_of_getElem? ht]
+    exact hg.ancestry_output_consistent _ (List.mem_of_getElem? ht)
 
 /-- Both actual LCA cycles are closed incidence trails, including the final pair of
 fresh LCA child ports in the copied-constraint branch. -/
@@ -763,10 +748,10 @@ theorem Trace.blossom_times_nodup (h : Trace sem f m) {b : BlossomData F}
     have hl := m.ancestor_variable_length ha
     omega
   · let k := (m.commonNodes.length - 1) / 2
-    obtain ⟨_, hsm, -⟩ := walk_drop_of_getElem? hs
     have hcs := h.constraint_first_copies ha hs ht
     have hlast : c.2 < m.older.length := by
-      have hh := (m.older.mem_arcs (h.expansion.grown.ancestry_arcs _ hsm).1).2
+      have hh := (m.older.mem_arcs
+        (h.expansion.grown.ancestry_arcs _ (List.mem_of_getElem? hs)).1).2
       change m.older.stamp s.1 < m.older.length at hh
       exact (congrArg Prod.snd hcs.1) ▸ hh
     have hbound : m.commonNodes.length < 2 * (k + 1) + 2 := by
@@ -819,7 +804,7 @@ theorem Trace.variable_prepare_empty (h : Trace sem f m) (hF : EdgeInstance F)
     change m.commonNodes.length = 2 * k + 1 at hh
     omega
   have hd := (h.left_drop_disjoint_right k hbound).mono_right
-    (h.right_drop_copies_subset hT.supported k)
+    (h.right_directed.drop_copies_subset hT.supported k)
   have hab := (mem_partners sem f _ _).mp h.partner
   let a : Arc F := ⟨m.current.input, m.older.length, true⟩
   let b : Arc F := ⟨m.output, m.older.length, true⟩
@@ -854,14 +839,10 @@ theorem Trace.variable_prepare_empty (h : Trace sem f m) (hF : EdgeInstance F)
     intro he
     rcases hxc with hxc | rfl <;> rcases hyc with hyc | rfl
     · exact Finset.disjoint_left.mp hd hxc (he.symm ▸ hyc)
-    · exact h.copy_fresh h.expansion.visited (by
-        obtain ⟨s, hs, hsx⟩ := hw.mem_copies.mp hxc
-        exact h.left_directed.mem_copies.mpr
-          ⟨s, List.mem_of_mem_drop hs, hsx.trans ((congrArg Arc.copy he).trans hbc)⟩)
-    · exact h.copy_fresh h.old_visited (by
-        obtain ⟨s, hs, hsy⟩ := hz.mem_copies.mp hyc
-        exact h.right_directed.mem_copies.mpr
-          ⟨s, List.mem_of_mem_drop hs, hsy.trans ((congrArg Arc.copy he).symm.trans hac)⟩)
+    · exact h.copy_fresh h.expansion.visited (((congrArg Arc.copy he).trans hbc) ▸
+        h.left_directed.drop_copies_subset hT.supported k hxc)
+    · exact h.copy_fresh h.old_visited (((congrArg Arc.copy he).symm.trans hac) ▸
+        h.right_directed.drop_copies_subset hT.supported k hyc)
     · exact hab.2.1 (congrArg (fun e : Arc F => e.occurrence.var) he)
   by_contra hn
   obtain ⟨s, hs, hsf⟩ := Walk.finish_step (m.left.walk.take k) hn
