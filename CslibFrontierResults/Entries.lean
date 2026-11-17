@@ -3369,7 +3369,7 @@ register_result "immerman-lander" where
     initial coloring fun _ => (). Round-by-round correspondence between Hella's bijective \
     2-pebble game (with 0, 1 or 2 placed pebbles) and color refinement: sentences of quantifier \
     rank at most n + 1 correspond to round-n color histograms (for nonempty vertex types, since \
-    CountingFormula.Realize takes a total assignment Fin 2 → V), and one-variable formulas of \
+    GenFormula.Realize takes a total assignment Fin 2 → V), and one-variable formulas of \
     rank at most n + 1 correspond to round-(n + 1) vertex colors paired with round-n histograms. \
     Full C²-equivalence reduces to round |V| + |W|. The k-dimensional generalization to C^(k+1) \
     is in weisfeiler-leman-counting; colored graphs with arbitrary initial colorings are not \

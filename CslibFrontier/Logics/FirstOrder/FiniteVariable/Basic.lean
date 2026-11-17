@@ -24,9 +24,9 @@ formula with two variables can say that there are at least `n` elements, for eve
 Mathlib's `FirstOrder.Language.BoundedFormula` gives every quantifier a fresh de Bruijn index, so
 it cannot say that two quantifiers bind the same variable. This file introduces a quantifier-generic
 syntax `Cslib.Logic.FO.FiniteVariable.GenFormula Q L k` whose variables are `Fin k` and whose
-single-variable quantifiers come from `Q` (`Quantifier`), and instantiates it at `UniversalQuant` to
-obtain `Cslib.Logic.FO.FiniteVariable.Formula L k` (`FO^k`). In `Counting.lean`, instantiating the
-same syntax at `CountingQuant` yields `CountingFormula L k` (`C^k`) without duplicating derived
+single-variable quantifiers come from `Q` (`Quantifier`), and instantiates it at `ExistentialQuant`
+to obtain `Cslib.Logic.FO.FiniteVariable.Formula L k` (`FO^k`). In `Counting.lean`, instantiating
+the same syntax at `CountingQuant` yields `CountingFormula L k` (`C^k`) without duplicating derived
 connectives, semantics, quantifier rank, free variables or congruence. The translation
 `Formula.toFormula` into Mathlib's `L.Formula (Fin k)` preserves truth (`Formula.realize_toFormula`)
 and quantifier rank (`Formula.quantifierRank_toFormula`), so `FO^k` is a fragment of ordinary
@@ -41,17 +41,17 @@ are simply not used, so the language need not be relational.
 * `Cslib.Logic.FO.FiniteVariable.Quantifier`: extensional semantics for single-variable quantifiers.
 * `Cslib.Logic.FO.FiniteVariable.GenFormula`: `k`-variable formulas parameterized by a quantifier
   kind `Q`, with `GenFormula.Realize`, `GenFormula.quantifierRank`, `GenFormula.freeVars`,
-  `GenFormula.not`, `GenFormula.all`, `GenFormula.ex`, `GenFormula.iInf`, and `GenFormula.iSup`.
+  `GenFormula.not`, `GenFormula.ex`, `GenFormula.all`, `GenFormula.iInf`, and `GenFormula.iSup`.
 * `Cslib.Logic.FO.FiniteVariable.Formula`: formulas of `FO^k` over the relation symbols of `L`.
-* `Cslib.Logic.FO.FiniteVariable.GenFormula.toFormula`: the translation of `Formula` to Mathlib's
-  formulas (also exported as `Formula.toFormula`).
+* `Cslib.Logic.FO.FiniteVariable.Formula.toFormula`: the translation of `Formula` to Mathlib's
+  formulas.
 
 ## Main results
 
 * `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_congr`: truth depends only on the values of the
   free variables.
-* `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_toFormula`,
-  `Cslib.Logic.FO.FiniteVariable.GenFormula.quantifierRank_toFormula`: the translation preserves
+* `Cslib.Logic.FO.FiniteVariable.Formula.realize_toFormula`,
+  `Cslib.Logic.FO.FiniteVariable.Formula.quantifierRank_toFormula`: the translation preserves
   truth and quantifier rank.
 
 ## References
@@ -79,44 +79,16 @@ class Quantifier (Q : Type) (M : Type w) where
   eval_congr (q : Q) {p p' : M → Prop} :
     (∀ c, p c ↔ p' c) → (eval q p ↔ eval q p')
 
-/-- Choice of primitive quantifier tag equipping `GenFormula Q L k` with `all` and `ex`:
-`.inl q` when `q` is a primitive universal quantifier, or `.inr q` when `q` is a primitive
-existential quantifier. -/
-class FirstOrderQuantTag (Q : Type) where
-  /-- Either a primitive universal tag (`.inl q`) or a primitive existential tag (`.inr q`). -/
-  primQuant : Q ⊕ Q
+/-- Distinguished existential quantifier tag equipping `GenFormula Q L k` and
+`InfinitaryGenFormula Q L k` with `ex` and `all`. -/
+class ExQuantTag (Q : Type) where
+  /-- The quantifier tag representing `∃`. -/
+  exQuant : Q
 
-/-- Semantic lawfulness for `FirstOrderQuantTag`: a left tag evaluates as `∀` and a right tag
-evaluates as `∃`. -/
-class LawfulFirstOrderQuant (Q : Type) (M : Type w) [Quantifier Q M]
-    [FirstOrderQuantTag Q] : Prop where
-  /-- Semantic characterization of `FirstOrderQuantTag.primQuant`. -/
-  eval_primQuant (p : M → Prop) :
-    match FirstOrderQuantTag.primQuant (Q := Q) with
-    | .inl q => Quantifier.eval q p ↔ ∀ c, p c
-    | .inr q => Quantifier.eval q p ↔ ∃ c, p c
-
-theorem LawfulFirstOrderQuant.eval_all {Q : Type} {M : Type w} [Quantifier Q M]
-    [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M] (p : M → Prop) :
-    (match FirstOrderQuantTag.primQuant (Q := Q) with
-      | .inl q => Quantifier.eval q p
-      | .inr q => ¬Quantifier.eval q fun c => ¬p c) ↔ ∀ c, p c := by
-  have hp := eval_primQuant (Q := Q) p
-  have hnp := eval_primQuant (Q := Q) fun c => ¬p c
-  cases h : FirstOrderQuantTag.primQuant (Q := Q) <;> rw [h] at hp hnp
-  · exact hp
-  · simp only [hnp, not_exists, not_not]
-
-theorem LawfulFirstOrderQuant.eval_ex {Q : Type} {M : Type w} [Quantifier Q M]
-    [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M] (p : M → Prop) :
-    (match FirstOrderQuantTag.primQuant (Q := Q) with
-      | .inl q => ¬Quantifier.eval q fun c => ¬p c
-      | .inr q => Quantifier.eval q p) ↔ ∃ c, p c := by
-  have hp := eval_primQuant (Q := Q) p
-  have hnp := eval_primQuant (Q := Q) fun c => ¬p c
-  cases h : FirstOrderQuantTag.primQuant (Q := Q) <;> rw [h] at hp hnp
-  · simp only [hnp, not_forall, not_not]
-  · exact hp
+/-- Semantic lawfulness for `ExQuantTag`: `exQuant` evaluates as `∃`. -/
+class LawfulExQuant (Q : Type) (M : Type w) [Quantifier Q M] [ExQuantTag Q] : Prop where
+  /-- `ExQuantTag.exQuant` holds of `p` iff some element satisfies `p`. -/
+  eval_exQuant (p : M → Prop) : Quantifier.eval (ExQuantTag.exQuant (Q := Q)) p ↔ ∃ c, p c
 
 /-! ### Quantifier-parameterized `k`-variable syntax -/
 
@@ -142,17 +114,13 @@ variable {Q : Type} {L : Language.{u, v}} {k : ℕ}
 def not (φ : GenFormula Q L k) : GenFormula Q L k :=
   imp φ falsum
 
-/-- Universal quantification of the variable `xᵢ`. -/
-def all [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) : GenFormula Q L k :=
-  match FirstOrderQuantTag.primQuant (Q := Q) with
-  | .inl q => quant q i φ
-  | .inr q => (quant q i φ.not).not
-
 /-- Existential quantification of the variable `xᵢ`. -/
-def ex [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) : GenFormula Q L k :=
-  match FirstOrderQuantTag.primQuant (Q := Q) with
-  | .inl q => (quant q i φ.not).not
-  | .inr q => quant q i φ
+def ex [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) : GenFormula Q L k :=
+  quant ExQuantTag.exQuant i φ
+
+/-- Universal quantification of the variable `xᵢ`, as `¬∃ xᵢ ¬φ`. -/
+def all [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) : GenFormula Q L k :=
+  (ex i φ.not).not
 
 instance : Bot (GenFormula Q L k) :=
   ⟨falsum⟩
@@ -226,27 +194,15 @@ variable {M : Type w} [L.Structure M] [Quantifier Q M]
     φ.not.Realize a ↔ ¬φ.Realize a := by
   rw [not, realize_imp, realize_falsum]
 
-@[simp] theorem realize_all [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M]
+@[simp] theorem realize_ex [ExQuantTag Q] [LawfulExQuant Q M]
+    (i : Fin k) (φ : GenFormula Q L k) (a : Fin k → M) :
+    (ex i φ).Realize a ↔ ∃ c : M, φ.Realize (Function.update a i c) :=
+  (realize_quant _ i φ a).trans (LawfulExQuant.eval_exQuant _)
+
+@[simp] theorem realize_all [ExQuantTag Q] [LawfulExQuant Q M]
     (i : Fin k) (φ : GenFormula Q L k) (a : Fin k → M) :
     (all i φ).Realize a ↔ ∀ c : M, φ.Realize (Function.update a i c) := by
-  refine Iff.trans ?_ (LawfulFirstOrderQuant.eval_all (Q := Q) _)
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) with
-  | inl q => exact realize_quant q i φ a
-  | inr q =>
-    exact not_congr ((realize_quant q i φ.not a).trans
-      (Quantifier.eval_congr q fun c => realize_not φ _))
-
-@[simp] theorem realize_ex [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M]
-    (i : Fin k) (φ : GenFormula Q L k) (a : Fin k → M) :
-    (ex i φ).Realize a ↔ ∃ c : M, φ.Realize (Function.update a i c) := by
-  refine Iff.trans ?_ (LawfulFirstOrderQuant.eval_ex (Q := Q) _)
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) with
-  | inl q =>
-    exact not_congr ((realize_quant q i φ.not a).trans
-      (Quantifier.eval_congr q fun c => realize_not φ _))
-  | inr q => exact realize_quant q i φ a
+  simp only [all, realize_not, realize_ex, not_exists, not_not]
 
 @[simp] theorem realize_bot (a : Fin k → M) : (⊥ : GenFormula Q L k).Realize a ↔ False :=
   realize_falsum a
@@ -308,17 +264,13 @@ def quantifierRank : GenFormula Q L k → ℕ
     φ.not.quantifierRank = φ.quantifierRank := by
   rw [not, quantifierRank_imp, quantifierRank_falsum, Nat.max_zero]
 
-@[simp] theorem quantifierRank_all [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
-    (all i φ).quantifierRank = φ.quantifierRank + 1 := by
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRank_not, quantifierRank_quant]
+@[simp] theorem quantifierRank_ex [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
+    (ex i φ).quantifierRank = φ.quantifierRank + 1 :=
+  quantifierRank_quant _ i φ
 
-@[simp] theorem quantifierRank_ex [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
-    (ex i φ).quantifierRank = φ.quantifierRank + 1 := by
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRank_not, quantifierRank_quant]
+@[simp] theorem quantifierRank_all [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
+    (all i φ).quantifierRank = φ.quantifierRank + 1 := by
+  simp only [all, quantifierRank_not, quantifierRank_ex]
 
 @[simp] theorem quantifierRank_bot : (⊥ : GenFormula Q L k).quantifierRank = 0 :=
   quantifierRank_falsum
@@ -381,17 +333,13 @@ def freeVars : GenFormula Q L k → Finset (Fin k)
 @[simp] theorem freeVars_not (φ : GenFormula Q L k) : φ.not.freeVars = φ.freeVars := by
   rw [not, freeVars_imp, freeVars_falsum, Finset.union_empty]
 
-@[simp] theorem freeVars_all [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
-    (all i φ).freeVars = φ.freeVars.erase i := by
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [freeVars_not, freeVars_quant]
+@[simp] theorem freeVars_ex [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
+    (ex i φ).freeVars = φ.freeVars.erase i :=
+  freeVars_quant _ i φ
 
-@[simp] theorem freeVars_ex [FirstOrderQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
-    (ex i φ).freeVars = φ.freeVars.erase i := by
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [freeVars_not, freeVars_quant]
+@[simp] theorem freeVars_all [ExQuantTag Q] (i : Fin k) (φ : GenFormula Q L k) :
+    (all i φ).freeVars = φ.freeVars.erase i := by
+  simp only [all, freeVars_not, freeVars_ex]
 
 @[simp] theorem freeVars_bot : (⊥ : GenFormula Q L k).freeVars = ∅ :=
   freeVars_falsum
@@ -453,50 +401,50 @@ end GenFormula
 
 /-! ### `FO^k`: finite-variable first-order logic -/
 
-/-- The single universal quantifier tag of `FO^k`. -/
-inductive UniversalQuant : Type
-  /-- Universal quantification `∀`. -/
-  | all : UniversalQuant
+/-- The single existential quantifier tag of `FO^k` and `L^k_{∞ω}`. -/
+inductive ExistentialQuant : Type
+  /-- Existential quantification `∃`. -/
+  | ex : ExistentialQuant
 
-instance {M : Type w} : Quantifier UniversalQuant M where
-  eval _ p := ∀ c, p c
-  eval_congr _ {_ _} h := forall_congr' h
+instance {M : Type w} : Quantifier ExistentialQuant M where
+  eval _ p := ∃ c, p c
+  eval_congr _ {_ _} h := exists_congr h
 
-@[simp] theorem UniversalQuant.eval_all {M : Type w} (p : M → Prop) :
-    Quantifier.eval UniversalQuant.all p ↔ ∀ c, p c := by
-  rfl
+@[simp] theorem ExistentialQuant.eval_ex {M : Type w} (p : M → Prop) :
+    Quantifier.eval ExistentialQuant.ex p ↔ ∃ c, p c :=
+  Iff.rfl
 
-instance : FirstOrderQuantTag UniversalQuant where
-  primQuant := .inl .all
+instance : ExQuantTag ExistentialQuant where
+  exQuant := .ex
 
-instance {M : Type w} : LawfulFirstOrderQuant UniversalQuant M where
-  eval_primQuant _ := by rfl
+instance {M : Type w} : LawfulExQuant ExistentialQuant M where
+  eval_exQuant _ := Iff.rfl
 
 /-- Formulas of the `k`-variable fragment `FO^k` over the relation symbols of `L`. The variables
-are `Fin k`, and `all i φ` quantifies the variable `i`, which may already be bound or free in an
-enclosing formula. -/
+are `Fin k`, and `ex i φ` / `all i φ` quantify the variable `i`, which may already be bound or free
+in an enclosing formula. -/
 abbrev Formula (L : Language.{u, v}) (k : ℕ) : Type v :=
-  GenFormula UniversalQuant L k
+  GenFormula ExistentialQuant L k
 
-namespace GenFormula
+namespace Formula
 
 /-! #### Translation of `FO^k` to Mathlib's first-order formulas -/
 
 variable {L : Language.{u, v}} {k : ℕ} {M : Type w} [L.Structure M]
 
 /-- The translation of a formula of `FO^k` into Mathlib's `L.Formula (Fin k)`: the variable `i`
-becomes the free variable `i`, and `all i φ` quantifies over a fresh bound variable which replaces
+becomes the free variable `i`, and `ex i φ` quantifies over a fresh bound variable which replaces
 `i` in the translation of `φ`. -/
 def toFormula : Formula L k → L.Formula (Fin k)
-  | falsum => ⊥
-  | equal i j => Term.equal (.var i) (.var j)
-  | rel R f => R.formula fun t => .var (f t)
-  | imp φ ψ => (toFormula φ).imp (toFormula ψ)
-  | quant .all i φ =>
+  | .falsum => ⊥
+  | .equal i j => Term.equal (.var i) (.var j)
+  | .rel R f => R.formula fun t => .var (f t)
+  | .imp φ ψ => (toFormula φ).imp (toFormula ψ)
+  | .quant .ex i φ =>
     (BoundedFormula.relabel (fun j : Fin k => if j = i then (Sum.inr 0 : Fin k ⊕ Fin 1) else
-      Sum.inl j) (toFormula φ) : L.BoundedFormula (Fin k) 1).all
+      Sum.inl j) (toFormula φ) : L.BoundedFormula (Fin k) 1).ex
 
-private theorem toFormula_all_assignment (i : Fin k) (a : Fin k → M) (c : M) :
+private theorem toFormula_ex_assignment (i : Fin k) (a : Fin k → M) (c : M) :
     Sum.elim a (((Fin.snoc (default : Fin 0 → M) c : Fin 1 → M)) ∘ Fin.castAdd 0) ∘
         (fun j : Fin k => if j = i then (Sum.inr 0 : Fin k ⊕ Fin 1) else Sum.inl j) =
       Function.update a i c := by
@@ -511,57 +459,39 @@ private theorem toFormula_all_assignment (i : Fin k) (a : Fin k → M) (c : M) :
 @[simp] theorem realize_toFormula (φ : Formula L k) (a : Fin k → M) :
     (toFormula φ).Realize a ↔ φ.Realize a := by
   induction φ generalizing a with
-  | falsum => simp only [toFormula, Language.Formula.realize_bot, realize_falsum]
+  | falsum => simp only [toFormula, Language.Formula.realize_bot, GenFormula.realize_falsum]
   | equal i j =>
-    simp only [toFormula, Language.Formula.realize_equal, Term.realize_var, realize_equal]
+    simp only [toFormula, Language.Formula.realize_equal, Term.realize_var,
+      GenFormula.realize_equal]
   | rel R f =>
-    simp only [toFormula, Language.Formula.realize_rel, Term.realize_var, realize_rel]
+    simp only [toFormula, Language.Formula.realize_rel, Term.realize_var, GenFormula.realize_rel]
     rfl
   | imp φ ψ ihφ ihψ =>
-    simp only [toFormula, Language.Formula.realize_imp, ihφ, ihψ, realize_imp]
+    simp only [toFormula, Language.Formula.realize_imp, ihφ, ihψ, GenFormula.realize_imp]
   | quant q i φ ih =>
     cases q
-    rw [realize_quant, UniversalQuant.eval_all, toFormula, Language.Formula.Realize,
-      BoundedFormula.realize_all]
-    refine forall_congr' fun c => ?_
-    rw [BoundedFormula.realize_relabel, toFormula_all_assignment, ← ih]
+    rw [GenFormula.realize_quant, ExistentialQuant.eval_ex, toFormula, Language.Formula.Realize,
+      BoundedFormula.realize_ex]
+    refine exists_congr fun c => ?_
+    rw [BoundedFormula.realize_relabel, toFormula_ex_assignment, ← ih]
     exact iff_of_eq (congrArg _ (Subsingleton.elim _ _))
 
 /-- The translation preserves quantifier rank. -/
 @[simp] theorem quantifierRank_toFormula (φ : Formula L k) :
     FO.quantifierRank (toFormula φ) = φ.quantifierRank := by
   induction φ with
-  | falsum => rw [toFormula, FO.quantifierRank_bot, quantifierRank_falsum]
-  | equal i j => rw [toFormula, Term.equal, FO.quantifierRank_bdEqual, quantifierRank_equal]
+  | falsum => rw [toFormula, FO.quantifierRank_bot, GenFormula.quantifierRank_falsum]
+  | equal i j =>
+    rw [toFormula, Term.equal, FO.quantifierRank_bdEqual, GenFormula.quantifierRank_equal]
   | rel R f =>
     rw [toFormula, Relations.formula, FO.quantifierRank_relations_boundedFormula,
-      quantifierRank_rel]
-  | imp φ ψ ihφ ihψ => rw [toFormula, FO.quantifierRank_imp, ihφ, ihψ, quantifierRank_imp]
+      GenFormula.quantifierRank_rel]
+  | imp φ ψ ihφ ihψ =>
+    rw [toFormula, FO.quantifierRank_imp, ihφ, ihψ, GenFormula.quantifierRank_imp]
   | quant q i φ ih =>
     cases q
-    rw [toFormula, FO.quantifierRank_all, FO.quantifierRank_relabel, ih, quantifierRank_quant]
-
-end GenFormula
-
-namespace Formula
-
-/-- Atomic relation `R(x_{f 0}, …)` in `FO^k`. -/
-@[match_pattern] abbrev rel {L : Language.{u, v}} {k l : ℕ} (R : L.Relations l)
-    (f : Fin l → Fin k) : Formula L k :=
-  GenFormula.rel R f
-
-export GenFormula (falsum equal quant all ex iInf iSup toFormula
-  realize_falsum realize_equal realize_rel realize_imp realize_quant
-  realize_not realize_all realize_ex realize_bot realize_top realize_inf realize_sup
-  realize_iInf realize_iSup
-  quantifierRank_falsum quantifierRank_equal quantifierRank_rel
-  quantifierRank_imp quantifierRank_quant quantifierRank_not quantifierRank_all
-  quantifierRank_ex quantifierRank_bot quantifierRank_top quantifierRank_inf
-  quantifierRank_sup quantifierRank_iInf_le quantifierRank_iSup_le
-  freeVars_falsum freeVars_equal freeVars_rel freeVars_imp freeVars_quant
-  freeVars_not freeVars_all freeVars_ex freeVars_bot freeVars_top freeVars_inf
-  freeVars_sup freeVars_iInf_subset freeVars_iSup_subset
-  realize_toFormula quantifierRank_toFormula)
+    rw [toFormula, FO.quantifierRank_ex, FO.quantifierRank_relabel, ih,
+      GenFormula.quantifierRank_quant]
 
 end Formula
 

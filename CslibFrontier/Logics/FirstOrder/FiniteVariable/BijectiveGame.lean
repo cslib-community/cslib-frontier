@@ -320,23 +320,6 @@ theorem _root_.FirstOrder.Language.Equiv.bijPebbleWins (e : M ≃[L] N) (n : ℕ
 
 /-! ### The easy direction of the game characterization of `C^k` -/
 
-/-- A bijection matching the witnesses of `pM` and `pN` preserves every counting quantifier. -/
-theorem FiniteVariable.CountingQuant.eval_iff_of_equiv (q : FiniteVariable.CountingQuant)
-    {pM : M → Prop} {pN : N → Prop} (f : M ≃ N) (hf : ∀ c, pM c ↔ pN (f c)) :
-    FiniteVariable.Quantifier.eval q pM ↔ FiniteVariable.Quantifier.eval q pN := by
-  cases q with
-  | atLeast m =>
-    rw [FiniteVariable.CountingQuant.eval_atLeast, FiniteVariable.CountingQuant.eval_atLeast]
-    have himage : f '' {c | pM c} = {d | pN d} := by
-      ext d
-      constructor
-      · rintro ⟨c, hc, rfl⟩
-        exact (hf c).1 hc
-      · intro hd
-        refine ⟨f.symm d, (hf (f.symm d)).2 ?_, f.apply_symm_apply d⟩
-        rwa [f.apply_symm_apply]
-    rw [← himage, f.injective.encard_image]
-
 /-- **Bijective pebble games, easy direction.** If Duplicator wins the `n`-round bijective
 `k`-pebble game from `(S, a, b)`, then `a` and `b` satisfy the same `k`-variable counting formulas
 of quantifier rank at most `n` whose free variables are placed pebbles. No finiteness assumption

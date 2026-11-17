@@ -36,13 +36,14 @@ their derived connectives, semantics, free variables, congruence, finite quantif
   `InfinitaryGenFormula.QuantifierRankLE`.
 * `Cslib.Logic.FO.FiniteVariable.InfinitaryFormula`: formulas of `L^k_{∞ω}` with disjunctions
   indexed in `Type w`.
-* `Cslib.Logic.FO.FiniteVariable.Formula.toInfinitary`: truth-, rank-, and free-variable-preserving
-  embedding of `FO^k` into `L^k_{∞ω}`.
 * `Cslib.Logic.FO.FiniteVariable.InfinitaryCountingFormula`: formulas of `C^k_{∞ω}` with counting
-  quantifiers `atLeast m i φ` and disjunctions indexed in `Type w`.
-* `Cslib.Logic.FO.FiniteVariable.CountingFormula.toInfinitary`,
-  `Cslib.Logic.FO.FiniteVariable.InfinitaryGenFormula.toCounting`: embeddings from `C^k` and
-  `L^k_{∞ω}` into `C^k_{∞ω}` (the latter exported as `InfinitaryFormula.toCounting`).
+  quantifiers `InfinitaryCountingFormula.atLeast` and `InfinitaryCountingFormula.exactly` and
+  disjunctions indexed in `Type w`.
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.toInfinitary`,
+  `Cslib.Logic.FO.FiniteVariable.InfinitaryFormula.toCounting`: truth-, rank-, and
+  free-variable-preserving embeddings from `GenFormula Q` into `InfinitaryGenFormula Q`
+  (specializing to both `FO^k → L^k_{∞ω}` and `C^k → C^k_{∞ω}`) and from `L^k_{∞ω}` into
+  `C^k_{∞ω}`.
 * `Cslib.Logic.FO.FiniteVariable.walkFormula`,
   `Cslib.Logic.FO.FiniteVariable.reachableInfinitary`,
   `Cslib.Logic.FO.FiniteVariable.connectedInfinitary`: 3-variable sliding-pebble formulas defining
@@ -99,26 +100,7 @@ open FirstOrder Language Structure
 
 namespace Cslib.Logic.FO.FiniteVariable
 
-/-! ### Existential quantifier tags and parameterized infinitary syntax -/
-
-/-- The single existential quantifier tag of `L^k_{∞ω}`. -/
-inductive ExistentialQuant : Type
-  /-- Existential quantification `∃`. -/
-  | ex : ExistentialQuant
-
-instance {M : Type w₁} : Quantifier ExistentialQuant M where
-  eval _ p := ∃ c, p c
-  eval_congr _ {_ _} h := exists_congr h
-
-@[simp] theorem ExistentialQuant.eval_ex {M : Type w₁} (p : M → Prop) :
-    Quantifier.eval ExistentialQuant.ex p ↔ ∃ c, p c := by
-  rfl
-
-instance : FirstOrderQuantTag ExistentialQuant where
-  primQuant := .inr .ex
-
-instance {M : Type w₁} : LawfulFirstOrderQuant ExistentialQuant M where
-  eval_primQuant _ := by rfl
+/-! ### Parameterized infinitary syntax -/
 
 /-- Formulas of an infinitary `k`-variable relational logic over `L`, with single-variable
 quantifiers `Q` and indexed disjunctions ranging over index types in `Type w`. -/
@@ -164,29 +146,14 @@ def imp (φ ψ : InfinitaryGenFormula.{w, u, v} Q L k) : InfinitaryGenFormula.{w
   sup φ.not ψ
 
 /-- Existential quantification of the variable `xᵢ`. -/
-def ex [FirstOrderQuantTag Q] (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
+def ex [ExQuantTag Q] (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
     InfinitaryGenFormula.{w, u, v} Q L k :=
-  match FirstOrderQuantTag.primQuant (Q := Q) with
-  | .inl q => (quant q i φ.not).not
-  | .inr q => quant q i φ
+  quant ExQuantTag.exQuant i φ
 
-/-- Universal quantification of the variable `xᵢ`. -/
-def all [FirstOrderQuantTag Q] (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
+/-- Universal quantification of the variable `xᵢ`, as `¬∃ xᵢ ¬φ`. -/
+def all [ExQuantTag Q] (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
     InfinitaryGenFormula.{w, u, v} Q L k :=
-  match FirstOrderQuantTag.primQuant (Q := Q) with
-  | .inl q => quant q i φ
-  | .inr q => (quant q i φ.not).not
-
-/-- The counting quantifier `∃^{≥ m} xᵢ φ`: at least `m` values of `xᵢ` satisfy `φ`. -/
-def atLeast (m : ℕ) (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    InfinitaryGenFormula.{w, u, v} CountingQuant L k :=
-  quant (.atLeast m) i φ
-
-/-- Exact counting quantifier `∃^{= m} xᵢ φ`: at least `m` and fewer than `m + 1` values of `xᵢ`
-satisfy `φ`. -/
-def exactly (m : ℕ) (i : Fin k) (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    InfinitaryGenFormula.{w, u, v} CountingQuant L k :=
-  inf (atLeast m i φ) (atLeast (m + 1) i φ).not
+  (ex i φ.not).not
 
 instance : Bot (InfinitaryGenFormula.{w, u, v} Q L k) := ⟨bot⟩
 instance : Top (InfinitaryGenFormula.{w, u, v} Q L k) := ⟨top⟩
@@ -271,50 +238,15 @@ variable {M : Type w₁} [L.Structure M] [Quantifier Q M]
     (imp φ ψ).Realize a ↔ (φ.Realize a → ψ.Realize a) := by
   simp only [imp, realize_sup, realize_not, imp_iff_not_or]
 
-@[simp] theorem realize_ex [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M] (i : Fin k)
+@[simp] theorem realize_ex [ExQuantTag Q] [LawfulExQuant Q M] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) (a : Fin k → M) :
-    (ex i φ).Realize a ↔ ∃ c : M, φ.Realize (Function.update a i c) := by
-  refine Iff.trans ?_ (LawfulFirstOrderQuant.eval_ex (Q := Q) _)
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) with
-  | inl q =>
-    exact not_congr ((realize_quant q i φ.not a).trans
-      (Quantifier.eval_congr q fun c => realize_not φ _))
-  | inr q => exact realize_quant q i φ a
+    (ex i φ).Realize a ↔ ∃ c : M, φ.Realize (Function.update a i c) :=
+  (realize_quant _ i φ a).trans (LawfulExQuant.eval_exQuant _)
 
-@[simp] theorem realize_all [FirstOrderQuantTag Q] [LawfulFirstOrderQuant Q M] (i : Fin k)
+@[simp] theorem realize_all [ExQuantTag Q] [LawfulExQuant Q M] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) (a : Fin k → M) :
     (all i φ).Realize a ↔ ∀ c : M, φ.Realize (Function.update a i c) := by
-  refine Iff.trans ?_ (LawfulFirstOrderQuant.eval_all (Q := Q) _)
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) with
-  | inl q => exact realize_quant q i φ a
-  | inr q =>
-    exact not_congr ((realize_quant q i φ.not a).trans
-      (Quantifier.eval_congr q fun c => realize_not φ _))
-
-@[simp] theorem realize_atLeast (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (a : Fin k → M) :
-    (atLeast m i φ).Realize a ↔
-      (m : ℕ∞) ≤ {c : M | φ.Realize (Function.update a i c)}.encard := by
-  rw [atLeast, realize_quant, CountingQuant.eval_atLeast]
-
-@[simp] theorem realize_exactly (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (a : Fin k → M) :
-    (exactly m i φ).Realize a ↔
-      {c : M | φ.Realize (Function.update a i c)}.encard = m := by
-  rw [exactly, realize_inf, realize_not, realize_atLeast, realize_atLeast]
-  exact CountingQuant.le_and_not_succ_le_encard_iff _ m
-
-theorem realize_atLeast_iff_ncard [Finite M] (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (a : Fin k → M) :
-    (atLeast m i φ).Realize a ↔ m ≤ {c : M | φ.Realize (Function.update a i c)}.ncard := by
-  rw [realize_atLeast, ← (Set.toFinite _).cast_ncard_eq, Nat.cast_le]
-
-theorem realize_exactly_iff_ncard [Finite M] (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (a : Fin k → M) :
-    (exactly m i φ).Realize a ↔ {c : M | φ.Realize (Function.update a i c)}.ncard = m := by
-  rw [realize_exactly, ← (Set.toFinite _).cast_ncard_eq, Nat.cast_inj]
+  simp only [all, realize_not, realize_ex, not_exists, not_not]
 
 end Semantics
 
@@ -389,27 +321,15 @@ def freeVars : InfinitaryGenFormula.{w, u, v} Q L k → Set (Fin k)
     (imp φ ψ).freeVars = φ.freeVars ∪ ψ.freeVars := by
   simp only [imp, freeVars_sup, freeVars_not]
 
-@[simp] theorem freeVars_ex [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem freeVars_ex [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
-    (ex i φ).freeVars = φ.freeVars \ {i} := by
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;> simp only [freeVars_not, freeVars_quant]
+    (ex i φ).freeVars = φ.freeVars \ {i} :=
+  freeVars_quant _ i φ
 
-@[simp] theorem freeVars_all [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem freeVars_all [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
     (all i φ).freeVars = φ.freeVars \ {i} := by
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;> simp only [freeVars_not, freeVars_quant]
-
-@[simp] theorem freeVars_atLeast (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    (atLeast m i φ).freeVars = φ.freeVars \ {i} := by
-  rw [atLeast, freeVars_quant]
-
-@[simp] theorem freeVars_exactly (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    (exactly m i φ).freeVars = φ.freeVars \ {i} := by
-  simp only [exactly, freeVars_inf, freeVars_not, freeVars_atLeast, Set.union_self]
+  simp only [all, freeVars_not, freeVars_ex]
 
 /-- Truth of an infinitary `k`-variable formula depends only on the values of its free variables. -/
 theorem realize_congr {M : Type w₁} [L.Structure M] [Quantifier Q M]
@@ -518,55 +438,25 @@ def QuantifierRankLE : InfinitaryGenFormula.{w, u, v} Q L k → ℕ → Prop
     (imp φ ψ).QuantifierRankLE n ↔ φ.QuantifierRankLE n ∧ ψ.QuantifierRankLE n := by
   simp only [imp, quantifierRankLE_sup, quantifierRankLE_not]
 
-@[simp] theorem quantifierRankLE_ex_zero [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem quantifierRankLE_ex_zero [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
-    (ex i φ).QuantifierRankLE 0 ↔ False := by
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRankLE_not, quantifierRankLE_quant_zero]
+    (ex i φ).QuantifierRankLE 0 ↔ False :=
+  quantifierRankLE_quant_zero _ i φ
 
-@[simp] theorem quantifierRankLE_ex_succ [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem quantifierRankLE_ex_succ [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) (n : ℕ) :
-    (ex i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
-  rw [ex]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRankLE_not, quantifierRankLE_quant_succ]
+    (ex i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n :=
+  quantifierRankLE_quant_succ _ i φ n
 
-@[simp] theorem quantifierRankLE_all_zero [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem quantifierRankLE_all_zero [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) :
     (all i φ).QuantifierRankLE 0 ↔ False := by
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRankLE_not, quantifierRankLE_quant_zero]
+  simp only [all, quantifierRankLE_not, quantifierRankLE_ex_zero]
 
-@[simp] theorem quantifierRankLE_all_succ [FirstOrderQuantTag Q] (i : Fin k)
+@[simp] theorem quantifierRankLE_all_succ [ExQuantTag Q] (i : Fin k)
     (φ : InfinitaryGenFormula.{w, u, v} Q L k) (n : ℕ) :
     (all i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
-  rw [all]
-  cases FirstOrderQuantTag.primQuant (Q := Q) <;>
-    simp only [quantifierRankLE_not, quantifierRankLE_quant_succ]
-
-@[simp] theorem quantifierRankLE_atLeast_zero (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    (atLeast m i φ).QuantifierRankLE 0 ↔ False := by
-  rw [atLeast, quantifierRankLE_quant_zero]
-
-@[simp] theorem quantifierRankLE_atLeast_succ (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (n : ℕ) :
-    (atLeast m i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
-  rw [atLeast, quantifierRankLE_quant_succ]
-
-@[simp] theorem quantifierRankLE_exactly_zero (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) :
-    (exactly m i φ).QuantifierRankLE 0 ↔ False := by
-  simp only [exactly, quantifierRankLE_inf, quantifierRankLE_not, quantifierRankLE_atLeast_zero,
-    and_self]
-
-@[simp] theorem quantifierRankLE_exactly_succ (m : ℕ) (i : Fin k)
-    (φ : InfinitaryGenFormula.{w, u, v} CountingQuant L k) (n : ℕ) :
-    (exactly m i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
-  simp only [exactly, quantifierRankLE_inf, quantifierRankLE_not, quantifierRankLE_atLeast_succ,
-    and_self]
+  simp only [all, quantifierRankLE_not, quantifierRankLE_ex_succ]
 
 theorem QuantifierRankLE.mono {φ : InfinitaryGenFormula.{w, u, v} Q L k} {m n : ℕ}
     (hmn : m ≤ n) (h : φ.QuantifierRankLE m) : φ.QuantifierRankLE n := by
@@ -589,89 +479,78 @@ end InfinitaryGenFormula
 
 namespace GenFormula
 
-variable {Q Q' : Type} {L : Language.{u, v}} {k : ℕ}
+variable {Q : Type} {L : Language.{u, v}} {k : ℕ}
 
-/-- Embed a finitary `GenFormula` into `InfinitaryGenFormula`, translating quantifiers by `tr`. -/
-def toInfinitaryWith
-    (tr : Q → Fin k → InfinitaryGenFormula.{w, u, v} Q' L k →
-      InfinitaryGenFormula.{w, u, v} Q' L k) :
-    GenFormula Q L k → InfinitaryGenFormula.{w, u, v} Q' L k
+/-- Embed a finitary `GenFormula` into `InfinitaryGenFormula` at any index universe `w`.
+Specializes to both `FO^k → L^k_{∞ω}` (`Q = ExistentialQuant`) and `C^k → C^k_{∞ω}`
+(`Q = CountingQuant`). -/
+def toInfinitary : GenFormula Q L k → InfinitaryGenFormula.{w, u, v} Q L k
   | falsum => ⊥
   | equal i j => .equal i j
   | rel R f => .rel R f
-  | imp φ ψ => (φ.toInfinitaryWith tr).imp (ψ.toInfinitaryWith tr)
-  | quant q i φ => tr q i (φ.toInfinitaryWith tr)
+  | imp φ ψ => (toInfinitary φ).imp (toInfinitary ψ)
+  | quant q i φ => .quant q i (toInfinitary φ)
 
-theorem realize_toInfinitaryWith {M : Type w₁} [L.Structure M] [Quantifier Q M]
-    [Quantifier Q' M]
-    (tr : Q → Fin k → InfinitaryGenFormula.{w, u, v} Q' L k →
-      InfinitaryGenFormula.{w, u, v} Q' L k)
-    (htr : ∀ q i (ψ : InfinitaryGenFormula.{w, u, v} Q' L k) (a : Fin k → M),
-      (tr q i ψ).Realize a ↔ Quantifier.eval q fun c : M => ψ.Realize (Function.update a i c))
+@[simp] theorem realize_toInfinitary {M : Type w₁} [L.Structure M] [Quantifier Q M]
     (φ : GenFormula Q L k) (a : Fin k → M) :
-    (φ.toInfinitaryWith tr).Realize a ↔ φ.Realize a := by
+    (φ.toInfinitary : InfinitaryGenFormula.{w, u, v} Q L k).Realize a ↔ φ.Realize a := by
   induction φ generalizing a with
   | falsum =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.realize_bot_inst, realize_falsum]
+    simp only [toInfinitary, InfinitaryGenFormula.realize_bot_inst, realize_falsum]
   | equal i j =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.realize_equal, realize_equal]
+    simp only [toInfinitary, InfinitaryGenFormula.realize_equal, realize_equal]
   | rel R f =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.realize_rel, realize_rel]
-  | imp φ ψ ihφ ihψ =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.realize_imp, realize_imp, ihφ, ihψ]
-  | quant q i φ ih =>
-    rw [toInfinitaryWith, htr, realize_quant]
+    simp only [toInfinitary, InfinitaryGenFormula.realize_rel, realize_rel]
+  | imp _ _ ihφ ihψ =>
+    simp only [toInfinitary, InfinitaryGenFormula.realize_imp, realize_imp, ihφ, ihψ]
+  | quant q _ _ ih =>
+    rw [toInfinitary, InfinitaryGenFormula.realize_quant, realize_quant]
     exact Quantifier.eval_congr q fun c => ih _
 
-theorem freeVars_toInfinitaryWith
-    (tr : Q → Fin k → InfinitaryGenFormula.{w, u, v} Q' L k →
-      InfinitaryGenFormula.{w, u, v} Q' L k)
-    (htr : ∀ q i ψ, (tr q i ψ).freeVars = ψ.freeVars \ {i})
-    (φ : GenFormula Q L k) :
-    (φ.toInfinitaryWith tr).freeVars = ↑φ.freeVars := by
+@[simp] theorem freeVars_toInfinitary (φ : GenFormula Q L k) :
+    (φ.toInfinitary : InfinitaryGenFormula.{w, u, v} Q L k).freeVars = ↑φ.freeVars := by
   induction φ with
   | falsum =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.freeVars_bot_inst, freeVars_falsum,
+    simp only [toInfinitary, InfinitaryGenFormula.freeVars_bot_inst, freeVars_falsum,
       Finset.coe_empty]
   | equal i j =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.freeVars_equal, freeVars_equal,
+    simp only [toInfinitary, InfinitaryGenFormula.freeVars_equal, freeVars_equal,
       Finset.coe_insert, Finset.coe_singleton]
   | rel R f =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.freeVars_rel, freeVars_rel,
+    simp only [toInfinitary, InfinitaryGenFormula.freeVars_rel, freeVars_rel,
       Finset.coe_image, Finset.coe_univ, Set.image_univ]
-  | imp φ ψ ihφ ihψ =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.freeVars_imp, freeVars_imp,
+  | imp _ _ ihφ ihψ =>
+    simp only [toInfinitary, InfinitaryGenFormula.freeVars_imp, freeVars_imp,
       Finset.coe_union, ihφ, ihψ]
-  | quant q i φ ih =>
-    simp only [toInfinitaryWith, htr, freeVars_quant, Finset.coe_erase, ih]
+  | quant _ _ _ ih =>
+    simp only [toInfinitary, InfinitaryGenFormula.freeVars_quant, freeVars_quant,
+      Finset.coe_erase, ih]
 
-theorem quantifierRankLE_toInfinitaryWith
-    (tr : Q → Fin k → InfinitaryGenFormula.{w, u, v} Q' L k →
-      InfinitaryGenFormula.{w, u, v} Q' L k)
-    (htr0 : ∀ q i ψ, ¬(tr q i ψ).QuantifierRankLE 0)
-    (htrS : ∀ q i ψ n, (tr q i ψ).QuantifierRankLE (n + 1) ↔ ψ.QuantifierRankLE n)
-    (φ : GenFormula Q L k) (n : ℕ) :
-    (φ.toInfinitaryWith tr).QuantifierRankLE n ↔ φ.quantifierRank ≤ n := by
+@[simp] theorem quantifierRankLE_toInfinitary (φ : GenFormula Q L k) (n : ℕ) :
+    (φ.toInfinitary : InfinitaryGenFormula.{w, u, v} Q L k).QuantifierRankLE n ↔
+      φ.quantifierRank ≤ n := by
   induction φ generalizing n with
   | falsum =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.quantifierRankLE_bot_inst,
+    simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_bot_inst,
       quantifierRank_falsum, Nat.zero_le]
   | equal i j =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.quantifierRankLE_equal,
+    simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_equal,
       quantifierRank_equal, Nat.zero_le]
   | rel R f =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.quantifierRankLE_rel,
+    simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_rel,
       quantifierRank_rel, Nat.zero_le]
-  | imp φ ψ ihφ ihψ =>
-    simp only [toInfinitaryWith, InfinitaryGenFormula.quantifierRankLE_imp, quantifierRank_imp,
+  | imp _ _ ihφ ihψ =>
+    simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_imp, quantifierRank_imp,
       max_le_iff, ihφ, ihψ]
-  | quant q i φ ih =>
+  | quant _ _ _ ih =>
     cases n with
     | zero =>
-      simp only [toInfinitaryWith, quantifierRank_quant]
-      exact ⟨fun h => False.elim (htr0 q i _ h), by omega⟩
+      simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_quant_zero,
+        quantifierRank_quant]
+      exact ⟨False.elim, by omega⟩
     | succ n =>
-      simp only [toInfinitaryWith, htrS, quantifierRank_quant, Nat.succ_le_succ_iff, ih]
+      simp only [toInfinitary, InfinitaryGenFormula.quantifierRankLE_quant_succ,
+        quantifierRank_quant, Nat.succ_le_succ_iff, ih]
 
 end GenFormula
 
@@ -682,177 +561,159 @@ with indexed disjunctions ranging over index types in `Type w`. -/
 abbrev InfinitaryFormula (L : Language.{u, v}) (k : ℕ) : Type (max v (w + 1)) :=
   InfinitaryGenFormula.{w, u, v} ExistentialQuant L k
 
-namespace InfinitaryFormula
-
-/-- Atomic relation `R(x_{f 0}, …)` in `L^k_{∞ω}`. -/
-@[match_pattern] abbrev rel {L : Language.{u, v}} {k l : ℕ} (R : L.Relations l)
-    (f : Fin l → Fin k) : InfinitaryFormula.{w, u, v} L k :=
-  InfinitaryGenFormula.rel R f
-
-export InfinitaryGenFormula (equal iSup quant bot top iInf ex all
-  realize_equal realize_rel realize_not realize_iSup realize_quant
-  realize_bot realize_bot_inst realize_top realize_top_inst realize_sup realize_max
-  realize_iInf realize_inf realize_min realize_imp realize_ex realize_all
-  freeVars_equal freeVars_rel freeVars_not freeVars_iSup freeVars_quant
-  freeVars_bot freeVars_bot_inst freeVars_top freeVars_top_inst freeVars_sup freeVars_max
-  freeVars_iInf freeVars_inf freeVars_min freeVars_imp freeVars_ex freeVars_all
-  quantifierRankLE_equal quantifierRankLE_rel quantifierRankLE_not quantifierRankLE_iSup
-  quantifierRankLE_quant_zero quantifierRankLE_quant_succ
-  quantifierRankLE_bot quantifierRankLE_bot_inst quantifierRankLE_top quantifierRankLE_top_inst
-  quantifierRankLE_sup quantifierRankLE_max quantifierRankLE_iInf quantifierRankLE_inf
-  quantifierRankLE_min quantifierRankLE_imp
-  quantifierRankLE_ex_zero quantifierRankLE_ex_succ
-  quantifierRankLE_all_zero quantifierRankLE_all_succ)
-
-end InfinitaryFormula
-
 /-- Formulas of the infinitary `k`-variable counting logic `C^k_{∞ω}` over the relation symbols of
-`L`, with counting quantifiers `atLeast m i φ` (`∃^{≥ m} xᵢ φ`) and arbitrary disjunctions indexed
-by types in `Type w`. -/
+`L`, with counting quantifiers `InfinitaryCountingFormula.atLeast` (`∃^{≥ m} xᵢ φ`) and arbitrary
+disjunctions indexed by types in `Type w`. -/
 abbrev InfinitaryCountingFormula (L : Language.{u, v}) (k : ℕ) : Type (max v (w + 1)) :=
   InfinitaryGenFormula.{w, u, v} CountingQuant L k
 
 namespace InfinitaryCountingFormula
 
-/-- Atomic relation `R(x_{f 0}, …)` in `C^k_{∞ω}`. -/
-@[match_pattern] abbrev rel {L : Language.{u, v}} {k l : ℕ} (R : L.Relations l)
-    (f : Fin l → Fin k) : InfinitaryCountingFormula.{w, u, v} L k :=
-  InfinitaryGenFormula.rel R f
+variable {L : Language.{u, v}} {k : ℕ}
 
-export InfinitaryGenFormula (equal iSup quant bot top iInf ex all atLeast exactly
-  realize_equal realize_rel realize_not realize_iSup realize_quant
-  realize_bot realize_bot_inst realize_top realize_top_inst realize_sup realize_max
-  realize_iInf realize_inf realize_min realize_imp realize_ex realize_all
-  realize_atLeast realize_exactly realize_atLeast_iff_ncard realize_exactly_iff_ncard
-  freeVars_equal freeVars_rel freeVars_not freeVars_iSup freeVars_quant
-  freeVars_bot freeVars_bot_inst freeVars_top freeVars_top_inst freeVars_sup freeVars_max
-  freeVars_iInf freeVars_inf freeVars_min freeVars_imp freeVars_ex freeVars_all
-  freeVars_atLeast freeVars_exactly
-  quantifierRankLE_equal quantifierRankLE_rel quantifierRankLE_not quantifierRankLE_iSup
-  quantifierRankLE_quant_zero quantifierRankLE_quant_succ
-  quantifierRankLE_bot quantifierRankLE_bot_inst quantifierRankLE_top quantifierRankLE_top_inst
-  quantifierRankLE_sup quantifierRankLE_max quantifierRankLE_iInf quantifierRankLE_inf
-  quantifierRankLE_min quantifierRankLE_imp
-  quantifierRankLE_ex_zero quantifierRankLE_ex_succ
-  quantifierRankLE_all_zero quantifierRankLE_all_succ
-  quantifierRankLE_atLeast_zero quantifierRankLE_atLeast_succ
-  quantifierRankLE_exactly_zero quantifierRankLE_exactly_succ)
+/-- The counting quantifier `∃^{≥ m} xᵢ φ`: at least `m` values of `xᵢ` satisfy `φ`. -/
+def atLeast (m : ℕ) (i : Fin k) (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    InfinitaryCountingFormula.{w, u, v} L k :=
+  .quant (.atLeast m) i φ
+
+/-- Exact counting quantifier `∃^{= m} xᵢ φ`: at least `m` and fewer than `m + 1` values of `xᵢ`
+satisfy `φ`. -/
+def exactly (m : ℕ) (i : Fin k) (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    InfinitaryCountingFormula.{w, u, v} L k :=
+  .inf (atLeast m i φ) (atLeast (m + 1) i φ).not
+
+section Semantics
+
+variable {M : Type w₁} [L.Structure M]
+
+@[simp] theorem realize_atLeast (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (a : Fin k → M) :
+    (atLeast m i φ).Realize a ↔
+      (m : ℕ∞) ≤ {c : M | φ.Realize (Function.update a i c)}.encard := by
+  rw [atLeast, InfinitaryGenFormula.realize_quant, CountingQuant.eval_atLeast]
+
+@[simp] theorem realize_exactly (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (a : Fin k → M) :
+    (exactly m i φ).Realize a ↔
+      {c : M | φ.Realize (Function.update a i c)}.encard = m := by
+  rw [exactly, InfinitaryGenFormula.realize_inf, InfinitaryGenFormula.realize_not,
+    realize_atLeast, realize_atLeast, Nat.cast_add_one,
+    ENat.add_one_le_iff (ENat.natCast_ne_top m), not_lt, and_comm, ← le_antisymm_iff]
+
+theorem realize_atLeast_iff_ncard [Finite M] (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (a : Fin k → M) :
+    (atLeast m i φ).Realize a ↔ m ≤ {c : M | φ.Realize (Function.update a i c)}.ncard := by
+  rw [realize_atLeast, ← (Set.toFinite _).cast_ncard_eq, Nat.cast_le]
+
+theorem realize_exactly_iff_ncard [Finite M] (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (a : Fin k → M) :
+    (exactly m i φ).Realize a ↔ {c : M | φ.Realize (Function.update a i c)}.ncard = m := by
+  rw [realize_exactly, ← (Set.toFinite _).cast_ncard_eq, Nat.cast_inj]
+
+end Semantics
+
+@[simp] theorem freeVars_atLeast (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    (atLeast m i φ).freeVars = φ.freeVars \ {i} := by
+  rw [atLeast, InfinitaryGenFormula.freeVars_quant]
+
+@[simp] theorem freeVars_exactly (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    (exactly m i φ).freeVars = φ.freeVars \ {i} := by
+  simp only [exactly, InfinitaryGenFormula.freeVars_inf, InfinitaryGenFormula.freeVars_not,
+    freeVars_atLeast, Set.union_self]
+
+@[simp] theorem quantifierRankLE_atLeast_zero (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    (atLeast m i φ).QuantifierRankLE 0 ↔ False := by
+  rw [atLeast, InfinitaryGenFormula.quantifierRankLE_quant_zero]
+
+@[simp] theorem quantifierRankLE_atLeast_succ (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (n : ℕ) :
+    (atLeast m i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
+  rw [atLeast, InfinitaryGenFormula.quantifierRankLE_quant_succ]
+
+@[simp] theorem quantifierRankLE_exactly_zero (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) :
+    (exactly m i φ).QuantifierRankLE 0 ↔ False := by
+  simp only [exactly, InfinitaryGenFormula.quantifierRankLE_inf,
+    InfinitaryGenFormula.quantifierRankLE_not, quantifierRankLE_atLeast_zero, and_self]
+
+@[simp] theorem quantifierRankLE_exactly_succ (m : ℕ) (i : Fin k)
+    (φ : InfinitaryCountingFormula.{w, u, v} L k) (n : ℕ) :
+    (exactly m i φ).QuantifierRankLE (n + 1) ↔ φ.QuantifierRankLE n := by
+  simp only [exactly, InfinitaryGenFormula.quantifierRankLE_inf,
+    InfinitaryGenFormula.quantifierRankLE_not, quantifierRankLE_atLeast_succ, and_self]
 
 end InfinitaryCountingFormula
 
-namespace Formula
+namespace InfinitaryFormula
 
 variable {L : Language.{u, v}} {k : ℕ}
 
-/-- Embedding of `FO^k` into `L^k_{∞ω}` at any index universe `w`. -/
-def toInfinitary (φ : Formula L k) : InfinitaryFormula.{w, u, v} L k :=
-  GenFormula.toInfinitaryWith (fun _ i ψ => ψ.all i) φ
-
-@[simp] theorem realize_toInfinitary {M : Type w₁} [L.Structure M] (φ : Formula L k)
-    (a : Fin k → M) :
-    (φ.toInfinitary : InfinitaryFormula.{w, u, v} L k).Realize a ↔ φ.Realize a :=
-  GenFormula.realize_toInfinitaryWith _
-    (fun | .all, i, ψ, a => InfinitaryFormula.realize_all i ψ a) φ a
-
-@[simp] theorem freeVars_toInfinitary (φ : Formula L k) :
-    (φ.toInfinitary : InfinitaryFormula.{w, u, v} L k).freeVars = ↑φ.freeVars :=
-  GenFormula.freeVars_toInfinitaryWith _
-    (fun | .all, i, ψ => InfinitaryFormula.freeVars_all i ψ) φ
-
-@[simp] theorem quantifierRankLE_toInfinitary (φ : Formula L k) (n : ℕ) :
-    (φ.toInfinitary : InfinitaryFormula.{w, u, v} L k).QuantifierRankLE n ↔
-      φ.quantifierRank ≤ n :=
-  GenFormula.quantifierRankLE_toInfinitaryWith _
-    (fun _ i ψ h => (InfinitaryFormula.quantifierRankLE_all_zero i ψ).1 h)
-    (fun _ i ψ n => InfinitaryFormula.quantifierRankLE_all_succ i ψ n) φ n
-
-end Formula
-
-namespace CountingFormula
-
-variable {L : Language.{u, v}} {k : ℕ}
-
-/-- Embedding of `C^k` into `C^k_{∞ω}` at any index universe `w`. -/
-def toInfinitary (φ : CountingFormula L k) : InfinitaryCountingFormula.{w, u, v} L k :=
-  GenFormula.toInfinitaryWith (fun q i ψ => .quant q i ψ) φ
-
-@[simp] theorem realize_toInfinitary {M : Type w₁} [L.Structure M] (φ : CountingFormula L k)
-    (a : Fin k → M) :
-    (φ.toInfinitary : InfinitaryCountingFormula.{w, u, v} L k).Realize a ↔ φ.Realize a :=
-  GenFormula.realize_toInfinitaryWith _
-    (fun q i ψ a => InfinitaryCountingFormula.realize_quant q i ψ a) φ a
-
-@[simp] theorem freeVars_toInfinitary (φ : CountingFormula L k) :
-    (φ.toInfinitary : InfinitaryCountingFormula.{w, u, v} L k).freeVars = ↑φ.freeVars :=
-  GenFormula.freeVars_toInfinitaryWith _
-    (fun q i ψ => InfinitaryCountingFormula.freeVars_quant q i ψ) φ
-
-@[simp] theorem quantifierRankLE_toInfinitary (φ : CountingFormula L k) (n : ℕ) :
-    (φ.toInfinitary : InfinitaryCountingFormula.{w, u, v} L k).QuantifierRankLE n ↔
-      φ.quantifierRank ≤ n :=
-  GenFormula.quantifierRankLE_toInfinitaryWith _
-    (fun q i ψ h => (InfinitaryCountingFormula.quantifierRankLE_quant_zero q i ψ).1 h)
-    (fun q i ψ n => InfinitaryCountingFormula.quantifierRankLE_quant_succ q i ψ n) φ n
-
-end CountingFormula
-
-namespace InfinitaryGenFormula
-
-variable {L : Language.{u, v}} {k : ℕ}
-
-/-- Embedding of `L^k_{∞ω}` into `C^k_{∞ω}` translating `ex i φ` as `atLeast 1 i φ`. -/
+/-- Embedding of `L^k_{∞ω}` into `C^k_{∞ω}` translating `ex i φ` as
+`InfinitaryCountingFormula.atLeast 1 i φ`. -/
 def toCounting : InfinitaryFormula.{w, u, v} L k → InfinitaryCountingFormula.{w, u, v} L k
-  | equal i j => .equal i j
-  | rel R f => .rel R f
-  | not φ => (toCounting φ).not
-  | iSup f => .iSup fun idx => toCounting (f idx)
-  | quant .ex i φ => .atLeast 1 i (toCounting φ)
+  | .equal i j => .equal i j
+  | .rel R f => .rel R f
+  | .not φ => (toCounting φ).not
+  | .iSup f => .iSup fun idx => toCounting (f idx)
+  | .quant .ex i φ => InfinitaryCountingFormula.atLeast 1 i (toCounting φ)
 
 @[simp] theorem realize_toCounting {M : Type w₁} [L.Structure M]
     (φ : InfinitaryFormula.{w, u, v} L k) (a : Fin k → M) :
     (toCounting φ).Realize a ↔ φ.Realize a := by
   induction φ generalizing a with
-  | equal i j => rw [toCounting, realize_equal, realize_equal]
-  | rel R f => rw [toCounting, realize_rel, realize_rel]
-  | not _ ih => simp only [toCounting, realize_not, ih]
+  | equal i j =>
+    rw [toCounting, InfinitaryGenFormula.realize_equal, InfinitaryGenFormula.realize_equal]
+  | rel R f => rw [toCounting, InfinitaryGenFormula.realize_rel, InfinitaryGenFormula.realize_rel]
+  | not _ ih => simp only [toCounting, InfinitaryGenFormula.realize_not, ih]
   | iSup _ ih =>
-    simp only [toCounting, realize_iSup]
+    simp only [toCounting, InfinitaryGenFormula.realize_iSup]
     exact exists_congr fun idx => ih idx a
   | quant q i _ ih =>
     cases q
-    simp only [toCounting, realize_atLeast, Nat.cast_one, Set.one_le_encard_iff_nonempty,
-      Set.Nonempty, Set.mem_ofPred_eq, realize_quant, ExistentialQuant.eval_ex, ih]
+    simp only [toCounting, InfinitaryCountingFormula.realize_atLeast, Nat.cast_one,
+      Set.one_le_encard_iff_nonempty, Set.Nonempty, Set.mem_ofPred_eq,
+      InfinitaryGenFormula.realize_quant, ExistentialQuant.eval_ex, ih]
 
 @[simp] theorem freeVars_toCounting (φ : InfinitaryFormula.{w, u, v} L k) :
     (toCounting φ).freeVars = φ.freeVars := by
   induction φ with
-  | equal i j => rw [toCounting, freeVars_equal, freeVars_equal]
-  | rel R f => rw [toCounting, freeVars_rel, freeVars_rel]
-  | not _ ih => rw [toCounting, freeVars_not, freeVars_not, ih]
-  | iSup _ ih => simp only [toCounting, freeVars_iSup, ih]
+  | equal i j =>
+    rw [toCounting, InfinitaryGenFormula.freeVars_equal, InfinitaryGenFormula.freeVars_equal]
+  | rel R f =>
+    rw [toCounting, InfinitaryGenFormula.freeVars_rel, InfinitaryGenFormula.freeVars_rel]
+  | not _ ih =>
+    rw [toCounting, InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_not, ih]
+  | iSup _ ih => simp only [toCounting, InfinitaryGenFormula.freeVars_iSup, ih]
   | quant q i _ ih =>
     cases q
-    rw [toCounting, freeVars_atLeast, freeVars_quant, ih]
+    rw [toCounting, InfinitaryCountingFormula.freeVars_atLeast,
+      InfinitaryGenFormula.freeVars_quant, ih]
 
 @[simp] theorem quantifierRankLE_toCounting (φ : InfinitaryFormula.{w, u, v} L k) (n : ℕ) :
     (toCounting φ).QuantifierRankLE n ↔ φ.QuantifierRankLE n := by
   induction φ generalizing n with
-  | equal i j => rw [toCounting, quantifierRankLE_equal, quantifierRankLE_equal]
-  | rel R f => rw [toCounting, quantifierRankLE_rel, quantifierRankLE_rel]
-  | not _ ih => rw [toCounting, quantifierRankLE_not, quantifierRankLE_not, ih]
-  | iSup _ ih => simp only [toCounting, quantifierRankLE_iSup, ih]
+  | equal i j =>
+    rw [toCounting, InfinitaryGenFormula.quantifierRankLE_equal,
+      InfinitaryGenFormula.quantifierRankLE_equal]
+  | rel R f =>
+    rw [toCounting, InfinitaryGenFormula.quantifierRankLE_rel,
+      InfinitaryGenFormula.quantifierRankLE_rel]
+  | not _ ih =>
+    rw [toCounting, InfinitaryGenFormula.quantifierRankLE_not,
+      InfinitaryGenFormula.quantifierRankLE_not, ih]
+  | iSup _ ih => simp only [toCounting, InfinitaryGenFormula.quantifierRankLE_iSup, ih]
   | quant q i _ ih =>
     cases q
     cases n with
-    | zero => rw [toCounting, quantifierRankLE_atLeast_zero, quantifierRankLE_quant_zero]
-    | succ n => rw [toCounting, quantifierRankLE_atLeast_succ, quantifierRankLE_quant_succ, ih]
-
-end InfinitaryGenFormula
-
-namespace InfinitaryFormula
-
-export InfinitaryGenFormula (toCounting realize_toCounting freeVars_toCounting
-  quantifierRankLE_toCounting)
+    | zero =>
+      rw [toCounting, InfinitaryCountingFormula.quantifierRankLE_atLeast_zero,
+        InfinitaryGenFormula.quantifierRankLE_quant_zero]
+    | succ n =>
+      rw [toCounting, InfinitaryCountingFormula.quantifierRankLE_atLeast_succ,
+        InfinitaryGenFormula.quantifierRankLE_quant_succ, ih]
 
 end InfinitaryFormula
 
@@ -870,7 +731,7 @@ variable {L : Language.{u, v}} {M : Type w₁} {N : Type w₂}
   [L.Structure M] [L.Structure N] {k : ℕ}
 
 /-- Generic bounded-rank game preservation for `InfinitaryGenFormula`. -/
-theorem FiniteVariable.InfinitaryGenFormula.realize_iff_of_rank_step {Q : Type}
+private theorem realize_iff_of_rank_step {Q : Type}
     [Quantifier Q M] [Quantifier Q N]
     (R : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop)
     (h0 : ∀ {n S a b}, R n S a b → PartialIsoOn L S a b)
@@ -907,7 +768,7 @@ theorem FiniteVariable.InfinitaryGenFormula.realize_iff_of_rank_step {Q : Type}
 
 /-- Generic back-and-forth invariant preservation for `InfinitaryGenFormula` (including unbounded
 quantifier depth). -/
-theorem FiniteVariable.InfinitaryGenFormula.realize_iff_of_invariant {Q : Type}
+private theorem realize_iff_of_invariant {Q : Type}
     [Quantifier Q M] [Quantifier Q N]
     (I : Set (Fin k) → (Fin k → M) → (Fin k → N) → Prop)
     (h0 : ∀ {S a b}, I S a b → PartialIsoOn L S a b)
@@ -944,7 +805,7 @@ universe `w`. -/
 theorem PebbleWins.realize_infinitaryFormula_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M}
     {b : Fin k → N} (h : PebbleWins L n S a b) {φ : InfinitaryFormula.{w, u, v} L k}
     (hr : φ.QuantifierRankLE n) (hS : φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
-  InfinitaryGenFormula.realize_iff_of_rank_step (PebbleWins L) PebbleWins.partialIsoOn
+  realize_iff_of_rank_step (PebbleWins L) PebbleWins.partialIsoOn
     (fun q i _ _ hstep ih => by
       cases q
       simp only [ExistentialQuant.eval_ex]
@@ -960,7 +821,7 @@ theorem IsPebbleBackAndForth.realize_infinitaryFormula_iff
     {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} (hSab : I S a b)
     {φ : InfinitaryFormula.{w, u, v} L k} (hS : φ.freeVars ⊆ S) :
     φ.Realize a ↔ φ.Realize b :=
-  InfinitaryGenFormula.realize_iff_of_invariant I hI.partialIsoOn
+  realize_iff_of_invariant I hI.partialIsoOn
     (fun q i _ _ hstep ih => by
       cases q
       simp only [ExistentialQuant.eval_ex]
@@ -992,10 +853,10 @@ private theorem partialIsoOn_of_forall_infinitaryFormula {S : Set (Fin k)} {a : 
       (φ.Realize a ↔ φ.Realize b)) : PartialIsoOn L S a b := by
   refine ⟨fun i hi j hj => ?_, fun R f hf => ?_⟩
   · exact h (.equal i j) trivial
-      (by simp only [InfinitaryFormula.freeVars_equal, Set.insert_subset_iff,
+      (by simp only [InfinitaryGenFormula.freeVars_equal, Set.insert_subset_iff,
         Set.singleton_subset_iff]; exact ⟨hi, hj⟩)
   · exact h (.rel R f) trivial
-      (by simp only [InfinitaryFormula.freeVars_rel, Set.range_subset_iff]; exact hf)
+      (by simp only [InfinitaryGenFormula.freeVars_rel, Set.range_subset_iff]; exact hf)
 
 /-- Shared witness-existence step by `iInf`-separation for both bounded-rank and unbounded
 pebble-game completeness directions, in both forth and back orientations. -/
@@ -1010,7 +871,7 @@ private theorem exists_step_of_forall_sep {M' N' : Type*} [L.Structure M'] [L.St
       (∀ ψ : InfinitaryFormula.{w, u, v} L k, P ψ → ψ.freeVars ⊆ insert i S →
         (ψ.Realize (Function.update a i c) ↔ ψ.Realize (Function.update b i d))) → Goal d)
     (hex : ∀ ψ : InfinitaryFormula.{w, u, v} L k, P ψ → ψ.freeVars ⊆ insert i S →
-      ((InfinitaryFormula.ex i ψ).Realize a → (InfinitaryFormula.ex i ψ).Realize b)) :
+      ((InfinitaryGenFormula.ex i ψ).Realize a → (InfinitaryGenFormula.ex i ψ).Realize b)) :
     ∃ d : N', Goal d := by
   classical
   by_contra hno
@@ -1033,12 +894,12 @@ private theorem exists_step_of_forall_sep {M' N' : Type*} [L.Structure M'] [L.St
   let Ψ : InfinitaryFormula.{w, u, v} L k := .iInf fun idx : ι => ψ (e.symm idx)
   have hΨP : P Ψ := hiInf fun idx => hP (e.symm idx)
   have hΨS : Ψ.freeVars ⊆ insert i S := by
-    rw [InfinitaryFormula.freeVars_iInf, Set.iUnion_subset_iff]
+    rw [InfinitaryGenFormula.freeVars_iInf, Set.iUnion_subset_iff]
     exact fun idx => hS' (e.symm idx)
-  have hΦa : (InfinitaryFormula.ex i Ψ).Realize a :=
-    ⟨c, (InfinitaryFormula.realize_iInf _ _).2 fun idx => ha (e.symm idx)⟩
+  have hΦa : (InfinitaryGenFormula.ex i Ψ).Realize a :=
+    ⟨c, (InfinitaryGenFormula.realize_iInf _ _).2 fun idx => ha (e.symm idx)⟩
   obtain ⟨d, hd⟩ := hex Ψ hΨP hΨS hΦa
-  have hd' := (InfinitaryFormula.realize_iInf _ _).1 hd (e d)
+  have hd' := (InfinitaryGenFormula.realize_iInf _ _).1 hd (e d)
   rw [e.symm_apply_apply] at hd'
   exact hb d hd'
 
@@ -1057,15 +918,15 @@ theorem pebbleWins_of_forall_infinitaryFormula_rankLE {n : ℕ} {S : Set (Fin k)
     refine pebbleWins_succ.2 ⟨partialIsoOn_of_forall_infinitaryFormula fun φ hr hS =>
         h φ (hr.mono (Nat.zero_le _)) hS, fun i c => ?_, fun i d => ?_⟩
     · exact exists_step_of_forall_sep (P := fun ψ => ψ.QuantifierRankLE n) Equiv.ulift.symm
-        (fun hP => hP) (fun hP => (InfinitaryFormula.quantifierRankLE_iInf _ _).2 hP) i c
+        (fun hP => hP) (fun hP => (InfinitaryGenFormula.quantifierRankLE_iInf _ _).2 hP) i c
         (fun _ hall => ih hall)
         (fun ψ hP hS' => (h (.ex i ψ) hP (by
-          rwa [InfinitaryFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).1)
+          rwa [InfinitaryGenFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).1)
     · exact exists_step_of_forall_sep (P := fun ψ => ψ.QuantifierRankLE n) Equiv.ulift.symm
-        (fun hP => hP) (fun hP => (InfinitaryFormula.quantifierRankLE_iInf _ _).2 hP) i d
+        (fun hP => hP) (fun hP => (InfinitaryGenFormula.quantifierRankLE_iInf _ _).2 hP) i d
         (fun _ hall => ih fun ψ hr hS' => (hall ψ hr hS').symm)
         (fun ψ hP hS' => (h (.ex i ψ) hP (by
-          rwa [InfinitaryFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).2)
+          rwa [InfinitaryGenFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).2)
 
 /-- **Pebble-game characterization of bounded-rank `L^k_{∞ω}`** ([Libkin2004], Theorem 11.5(a)).
 Over any language and arbitrary structures, Duplicator wins the `n`-round `k`-pebble game from
@@ -1094,12 +955,12 @@ theorem exists_isPebbleBackAndForth_of_forall_infinitaryFormula {S : Set (Fin k)
       (fun _ => trivial) (fun _ => trivial) i c
       (fun _ hall φ hS' => hall φ trivial hS')
       (fun ψ _ hS' => (hT (.ex i ψ) (by
-        rwa [InfinitaryFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).1)
+        rwa [InfinitaryGenFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).1)
   · exact exists_step_of_forall_sep (P := fun _ => True) Equiv.ulift.symm
       (fun _ => trivial) (fun _ => trivial) i d
       (fun _ hall φ hS' => (hall φ trivial hS').symm)
       (fun ψ _ hS' => (hT (.ex i ψ) (by
-        rwa [InfinitaryFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).2)
+        rwa [InfinitaryGenFormula.freeVars_ex, Set.sdiff_subset_iff, Set.singleton_union])).2)
 
 /-- **Back-and-forth characterization of `L^k_{∞ω}` on arbitrary structures** ([Libkin2004],
 Theorem 11.5(b)). Over any language and arbitrary (possibly infinite) structures `M : Type w₁` and
@@ -1146,7 +1007,7 @@ theorem BijPebbleWins.realize_infinitaryCountingFormula_iff {n : ℕ} {S : Set (
     {a : Fin k → M} {b : Fin k → N} (h : BijPebbleWins L n S a b)
     {φ : InfinitaryCountingFormula.{w, u, v} L k} (hr : φ.QuantifierRankLE n)
     (hS : φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
-  InfinitaryGenFormula.realize_iff_of_rank_step (BijPebbleWins L) BijPebbleWins.partialIsoOn
+  realize_iff_of_rank_step (BijPebbleWins L) BijPebbleWins.partialIsoOn
     (fun q i _ _ hstep ih =>
       let ⟨f, hf⟩ := hstep.move i
       CountingQuant.eval_iff_of_equiv q f fun c => ih (hf c))
@@ -1160,7 +1021,7 @@ theorem IsBijPebbleBackAndForth.realize_infinitaryCountingFormula_iff
     {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} (hSab : I S a b)
     {φ : InfinitaryCountingFormula.{w, u, v} L k} (hS : φ.freeVars ⊆ S) :
     φ.Realize a ↔ φ.Realize b :=
-  InfinitaryGenFormula.realize_iff_of_invariant I hI.partialIsoOn
+  realize_iff_of_invariant I hI.partialIsoOn
     (fun q i _ _ hstep ih =>
       let ⟨f, hf⟩ := hI.move hstep i
       CountingQuant.eval_iff_of_equiv q f fun c => ih (hf c))
@@ -1282,12 +1143,12 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
     let Φ : InfinitaryCountingFormula.{w, u, v} L k :=
       .iInf fun idx : ULift.{w} (Fin (Fintype.card Bad)) => ψ (e.symm idx.down)
     have hΦr : Φ.QuantifierRankLE n :=
-      (InfinitaryCountingFormula.quantifierRankLE_iInf _ _).2 fun idx => hr _
+      (InfinitaryGenFormula.quantifierRankLE_iInf _ _).2 fun idx => hr _
     have hΦS : Φ.freeVars ⊆ insert i S := by
-      rw [InfinitaryCountingFormula.freeVars_iInf, Set.iUnion_subset_iff]
+      rw [InfinitaryGenFormula.freeVars_iInf, Set.iUnion_subset_iff]
       exact fun idx => hS' _
     have hΦx : evalSum x Φ := by
-      cases x <;> exact (InfinitaryCountingFormula.realize_iInf _ _).2 fun idx => hx_sat _
+      cases x <;> exact (InfinitaryGenFormula.realize_iInf _ _).2 fun idx => hx_sat _
     have hΦ_iff : ∀ z : M' ⊕ N', evalSum z Φ ↔ bijSumRel L n S a b i z x := by
       intro z
       constructor
@@ -1296,7 +1157,7 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
         have hnb' : ¬bijSumRel L n S a b i x z := fun hb => hnb (sX.symm hb)
         let y : Bad := ⟨z, hnb'⟩
         have hy : evalSum z (ψ (e.symm (e y))) := by
-          cases z <;> exact (InfinitaryCountingFormula.realize_iInf _ _).1 hΦz (ULift.up (e y))
+          cases z <;> exact (InfinitaryGenFormula.realize_iInf _ _).1 hΦz (ULift.up (e y))
         rw [e.symm_apply_apply] at hy
         exact hnot y hy
       · intro hb
@@ -1312,7 +1173,7 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
       simp only [Set.mem_ofPred_eq, qN, Quotient.eq]
       exact hΦ_iff (.inr d)
     let m := {c : M' | qM c = Quotient.mk sX x}.ncard
-    let Ψ : InfinitaryCountingFormula.{w, u, v} L k := .exactly m i Φ
+    let Ψ : InfinitaryCountingFormula.{w, u, v} L k := InfinitaryCountingFormula.exactly m i Φ
     have hΨr : Ψ.QuantifierRankLE (n + 1) := by
       simpa only [Ψ, InfinitaryCountingFormula.quantifierRankLE_exactly_succ] using hΦr
     have hΨS : Ψ.freeVars ⊆ S := by
@@ -1398,8 +1259,8 @@ theorem forall_realize_infinitaryFormula_iff_forall_realize [Finite (Σ l, L.Rel
   rw [pebbleWinsForever_iff_forall_realize_iff]
   intro φ hS
   have hInf := h (φ.toInfinitary : InfinitaryFormula.{w, u, v} L k)
-    (by rwa [Formula.freeVars_toInfinitary])
-  simpa only [Formula.realize_toInfinitary] using hInf
+    (by rwa [GenFormula.freeVars_toInfinitary])
+  simpa only [GenFormula.realize_toInfinitary] using hInf
 
 /-- **Finite-model collapse of `C^k_{∞ω}` equivalence to `C^k` equivalence.** Over a finite
 relational vocabulary and finite structures, two positions agree on all `C^k_{∞ω}` formulas (at any
@@ -1431,22 +1292,22 @@ theorem freeVars_walkFormula_subset (d : ℕ) :
     ↑(walkFormula d).freeVars ⊆ ({0, 1} : Set (Fin 3)) := by
   induction d with
   | zero =>
-    simp only [walkFormula, Formula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
+    simp only [walkFormula, GenFormula.freeVars_equal, Finset.coe_insert, Finset.coe_singleton,
       Set.Subset.rfl]
   | succ d _ =>
     intro i hi
     fin_cases i
     · exact Set.mem_insert 0 {1}
     · exact Set.mem_insert_of_mem 0 (Set.mem_singleton 1)
-    · simp only [walkFormula, Finset.mem_coe, Formula.freeVars_ex, Finset.mem_erase] at hi
+    · simp only [walkFormula, Finset.mem_coe, GenFormula.freeVars_ex, Finset.mem_erase] at hi
       exact absurd rfl hi.1
 
 theorem quantifierRank_walkFormula (d : ℕ) : (walkFormula d).quantifierRank = 2 * d := by
   induction d with
-  | zero => simp only [walkFormula, Formula.quantifierRank_equal, Nat.mul_zero]
+  | zero => simp only [walkFormula, GenFormula.quantifierRank_equal, Nat.mul_zero]
   | succ d ih =>
-    simp only [walkFormula, Formula.quantifierRank_ex, Formula.quantifierRank_inf,
-      Formula.quantifierRank_rel, Formula.quantifierRank_equal, ih]
+    simp only [walkFormula, GenFormula.quantifierRank_ex, GenFormula.quantifierRank_inf,
+      GenFormula.quantifierRank_rel, GenFormula.quantifierRank_equal, ih]
     omega
 
 /-- `walkFormula d` holds in `G` at `a` if and only if there is a walk of length `d` in `G` from
@@ -1461,7 +1322,7 @@ theorem realize_walkFormula {V : Type w₁} (G : SimpleGraph V) (d : ℕ) (a : F
   | zero =>
     intro u v a hu hv
     let := G.structure
-    simp only [walkFormula, Formula.realize_equal, hu, hv]
+    simp only [walkFormula, GenFormula.realize_equal, hu, hv]
     constructor
     · rintro rfl
       exact ⟨SimpleGraph.Walk.nil, rfl⟩
@@ -1473,8 +1334,8 @@ theorem realize_walkFormula {V : Type w₁} (G : SimpleGraph V) (d : ℕ) (a : F
         ∃ z : V, G.Adj u z ∧
           (letI := G.structure; (walkFormula d).Realize (Function.update a 0 z)) := by
       let := G.structure
-      simp only [walkFormula, Formula.realize_ex, Formula.realize_inf, Formula.realize_rel,
-        Formula.realize_equal]
+      simp only [walkFormula, GenFormula.realize_ex, GenFormula.realize_inf,
+        GenFormula.realize_rel, GenFormula.realize_equal]
       refine exists_congr fun z => ?_
       have hadj : RelMap adj (Function.update a 2 z ∘ ![0, 2]) ↔ G.Adj u z := by
         have hcomp : Function.update a 2 z ∘ ![0, 2] = ![u, z] := by
@@ -1531,9 +1392,9 @@ def reachableInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3 :=
 theorem freeVars_reachableInfinitary_subset :
     (reachableInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3).freeVars ⊆
       ({0, 1} : Set (Fin 3)) := by
-  rw [reachableInfinitary, InfinitaryFormula.freeVars_iSup, Set.iUnion_subset_iff]
+  rw [reachableInfinitary, InfinitaryGenFormula.freeVars_iSup, Set.iUnion_subset_iff]
   intro d
-  rw [Formula.freeVars_toInfinitary]
+  rw [GenFormula.freeVars_toInfinitary]
   exact freeVars_walkFormula_subset d.down
 
 /-- **Graph reachability is definable in `L^3_{∞ω}`** on all simple graphs (finite or infinite). -/
@@ -1545,8 +1406,8 @@ theorem freeVars_reachableInfinitary_subset :
       (reachableInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3).Realize a) ↔
       ∃ d : ℕ, (letI := G.structure; (walkFormula d).Realize a) := by
     let := G.structure
-    simp only [reachableInfinitary, InfinitaryFormula.realize_iSup, ULift.exists,
-      Formula.realize_toInfinitary]
+    simp only [reachableInfinitary, InfinitaryGenFormula.realize_iSup, ULift.exists,
+      GenFormula.realize_toInfinitary]
   rw [h1]
   simp only [realize_walkFormula, SimpleGraph.Reachable]
   exact ⟨fun ⟨_, p, _⟩ => ⟨p⟩, fun ⟨p⟩ => ⟨p.length, p, rfl⟩⟩
@@ -1560,7 +1421,7 @@ def connectedInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3 :=
     (connectedInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3).freeVars = ∅ := by
   rw [Set.eq_empty_iff_forall_notMem]
   intro i hi
-  rw [connectedInfinitary, InfinitaryFormula.freeVars_all, InfinitaryFormula.freeVars_all,
+  rw [connectedInfinitary, InfinitaryGenFormula.freeVars_all, InfinitaryGenFormula.freeVars_all,
     Set.mem_sdiff, Set.mem_sdiff, Set.mem_singleton_iff, Set.mem_singleton_iff] at hi
   rcases freeVars_reachableInfinitary_subset hi.1.1 with rfl | rfl
   · exact hi.2 rfl
@@ -1581,7 +1442,7 @@ theorem realize_connectedInfinitary_iff_preconnected {V : Type w₁} (G : Simple
           (reachableInfinitary : InfinitaryFormula.{w, 0, 0} Language.graph 3).Realize
             (Function.update (Function.update a 0 u) 1 v)) := by
     let := G.structure
-    simp only [connectedInfinitary, InfinitaryFormula.realize_all]
+    simp only [connectedInfinitary, InfinitaryGenFormula.realize_all]
   rw [h1]
   simp only [realize_reachableInfinitary,
     Function.update_of_ne (by decide : (0 : Fin 3) ≠ 1), Function.update_self]
@@ -1604,19 +1465,19 @@ section EvenCardinality
 /-- The closed `C^1_{∞ω}` formula (`freeVars = ∅`, quantifier rank `≤ 1`) expressing that a finite
 structure has an even number of elements: `⋁_{m ∈ ℕ} ∃^{= 2m} x₀ ⊤`. -/
 def evenCardInfinitary (L : Language.{u, v}) : InfinitaryCountingFormula.{w, u, v} L 1 :=
-  .iSup fun m : ULift.{w} ℕ => .exactly (2 * m.down) 0 ⊤
+  .iSup fun m : ULift.{w} ℕ => InfinitaryCountingFormula.exactly (2 * m.down) 0 ⊤
 
 @[simp] theorem freeVars_evenCardInfinitary (L : Language.{u, v}) :
     (evenCardInfinitary L : InfinitaryCountingFormula.{w, u, v} L 1).freeVars = ∅ := by
-  simp only [evenCardInfinitary, InfinitaryCountingFormula.freeVars_iSup,
-    InfinitaryCountingFormula.freeVars_exactly, InfinitaryCountingFormula.freeVars_top_inst,
+  simp only [evenCardInfinitary, InfinitaryGenFormula.freeVars_iSup,
+    InfinitaryCountingFormula.freeVars_exactly, InfinitaryGenFormula.freeVars_top_inst,
     Set.empty_sdiff, Set.iUnion_empty]
 
 theorem quantifierRankLE_evenCardInfinitary (L : Language.{u, v}) :
     (evenCardInfinitary L : InfinitaryCountingFormula.{w, u, v} L 1).QuantifierRankLE 1 := by
-  simp only [evenCardInfinitary, InfinitaryCountingFormula.quantifierRankLE_iSup,
+  simp only [evenCardInfinitary, InfinitaryGenFormula.quantifierRankLE_iSup,
     InfinitaryCountingFormula.quantifierRankLE_exactly_succ,
-    InfinitaryCountingFormula.quantifierRankLE_top_inst, implies_true]
+    InfinitaryGenFormula.quantifierRankLE_top_inst, implies_true]
 
 /-- **`EVEN` is definable in `C^1_{∞ω}` on finite structures.** -/
 @[simp] theorem realize_evenCardInfinitary {L : Language.{u, v}} {M : Type w₁} [L.Structure M]
@@ -1625,9 +1486,9 @@ theorem quantifierRankLE_evenCardInfinitary (L : Language.{u, v}) :
       Even (Nat.card M) := by
   have htop : {c : M | (⊤ : InfinitaryCountingFormula.{w, u, v} L 1).Realize
       (Function.update a 0 c)} = Set.univ :=
-    Set.ext fun c => by simp only [Set.mem_ofPred_eq, InfinitaryCountingFormula.realize_top_inst,
+    Set.ext fun c => by simp only [Set.mem_ofPred_eq, InfinitaryGenFormula.realize_top_inst,
       Set.mem_univ]
-  simp only [evenCardInfinitary, InfinitaryCountingFormula.realize_iSup, ULift.exists,
+  simp only [evenCardInfinitary, InfinitaryGenFormula.realize_iSup, ULift.exists,
     InfinitaryCountingFormula.realize_exactly_iff_ncard, htop, Set.ncard_univ]
   exact ⟨fun ⟨m, hm⟩ => ⟨m, by omega⟩, fun ⟨m, hm⟩ => ⟨m, by omega⟩⟩
 

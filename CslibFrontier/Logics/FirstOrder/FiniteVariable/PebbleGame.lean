@@ -25,7 +25,7 @@ A position is a set `S : Set (Fin k)` of placed pebble indices together with ass
 `a : Fin k → M` and `b : Fin k → N`; only the values on `S` matter (`pebbleWins_congr`). Moving
 pebble `i` to `c` and `d` gives the position `(insert i S, update a i c, update b i d)`. These are
 exactly the assignments of the `k`-variable formulas of
-`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifier `all i` updates
+`CslibFrontier.Logics.FirstOrder.FiniteVariable.Basic`, whose quantifiers `ex i` and `all i` update
 variable `i`.
 
 `PebbleWins L n S a b` says that Duplicator wins the `n`-round game from the position, and
@@ -439,11 +439,11 @@ theorem PebbleWins.realize_iff {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b 
     (h : PebbleWins L n S a b) {φ : FiniteVariable.Formula L k} (hr : φ.quantifierRank ≤ n)
     (hS : ↑φ.freeVars ⊆ S) : φ.Realize a ↔ φ.Realize b :=
   FiniteVariable.GenFormula.realize_iff_of_step (PebbleWins L) PebbleWins.partialIsoOn
-    (fun q i pM pN hstep ih => by
+    (fun q i _ _ hstep ih => by
       cases q
-      simp only [FiniteVariable.UniversalQuant.eval_all]
-      exact ⟨fun hA d => let ⟨c, hc⟩ := hstep.back i d; (ih hc).1 (hA c),
-        fun hB c => let ⟨d, hd⟩ := hstep.forth i c; (ih hd).2 (hB d)⟩)
+      simp only [FiniteVariable.ExistentialQuant.eval_ex]
+      exact ⟨fun ⟨c, hc⟩ => let ⟨d, hd⟩ := hstep.forth i c; ⟨d, (ih hd).1 hc⟩,
+        fun ⟨d, hd⟩ => let ⟨c, hc⟩ := hstep.back i d; ⟨c, (ih hc).2 hd⟩⟩)
     h hr hS
 
 /-- **Infinite pebble games, easy direction.** If Duplicator wins the infinite `k`-pebble game
