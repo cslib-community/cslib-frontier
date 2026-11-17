@@ -135,7 +135,7 @@ theorem not_canWin_iff {k : ℕ} {x : List M} : ¬ G.CanWin b k x ↔ G.CanWin (
         simp only [ih]
       · exact absurd (hturn.2 ht) ht'
 
-theorem Strategy.move_congr (σ : G.Strategy b) {x y : List M} (e : x = y) (hx hy) :
+private theorem Strategy.move_congr (σ : G.Strategy b) {x y : List M} (e : x = y) (hx hy) :
     σ.move x hx = σ.move y hy := by
   subst e
   rfl
