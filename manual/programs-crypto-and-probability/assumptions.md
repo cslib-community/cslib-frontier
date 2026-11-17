@@ -213,6 +213,7 @@ The assumption has two parts. The premise `polyTime`, deterministic polynomial-t
 | `IndexedSignatureScheme.IndexedEUFCMA` | standard | [BonehShoup2023] Definition 14.6, p. 597 | Differences listed in the module docstring. | — |
 | `IndexedSignatureScheme.CounterEUFCMA` | standard | [BonehShoup2023] Section 14.6.4, p. 602 | A counter as the nonce. | — |
 | `Protocols.ROMSignature.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530, in the random oracle version of Section 8.10.2, p. 328, as used in Section 13.3, p. 535 | One lazily sampled random function from words to `Digest n`; every word is a message. The scheme carries no efficiency or correctness requirement. | — |
+| `Protocols.ROMSignature.SUFCMA` | standard | [BonehShoup2023] Attack Game 13.2 and Definition 13.3, p. 530 | Specializes the source's fresh-pair condition to native uniform oracle-PPT word forgers and its shared classical random function (Section 8.10.2, pp. 327–329), implemented here lazily. Unlike Definition 13.1, pp. 528–529, public keys, messages, signatures and query points are arbitrary-length words, and the scheme components and digest encoding have no efficiency or correctness certificates. No QROM or concrete scheme-security claim. | Correctness is separate. Without it, an always-rejecting scheme satisfies this predicate vacuously. |
 
 ## Zero knowledge, commitments and protocols
 
