@@ -115,7 +115,7 @@ abbrev botEntries (d b_char : ℕ) : ℕ :=
 @[expose] def space (w c_tab d b_char M_out : ℕ) : ℕ :=
   1 + topWords w c_tab d b_char + botWords w d b_char M_out
 
-theorem space_pos (w c_tab d b_char M_out : ℕ) : 0 < space w c_tab d b_char M_out := by
+private theorem space_pos (w c_tab d b_char M_out : ℕ) : 0 < space w c_tab d b_char M_out := by
   unfold space
   omega
 
@@ -151,7 +151,7 @@ digits of the reduced key `rKey`, and the final character at index `c_tab` encod
   Fin.snoc (charDigits c_tab b_char rKey) ⟨s.val % 2 ^ b_char, Nat.mod_lt _ (Nat.two_pow_pos _)⟩
 
 /-- Injectivity of `saltedChars` when `s_max ≤ 2 ^ b_char` and `R' ≤ 2 ^ (c_tab * b_char)`. -/
-theorem saltedChars_injective {c_tab b_char R' s_max : ℕ}
+private theorem saltedChars_injective {c_tab b_char R' s_max : ℕ}
     (hs : s_max ≤ 2 ^ b_char) (hR' : R' ≤ 2 ^ (c_tab * b_char)) :
     Function.Injective (fun p : Fin s_max × Fin R' => saltedChars c_tab b_char p.1 p.2) := by
   rintro ⟨s₁, r₁⟩ ⟨s₂, r₂⟩ heq
@@ -206,7 +206,7 @@ theorem isKWiseIndependentHash_evalSalted_of_goodTop
 
 /-- Probability bound on `¬ IsKUnique k (simpleTabTuple T₁)` under `PMF.uniformOfFintype`, lifted
 from `Cslib.Probability.card_not_isKUnique_le`. -/
-theorem toOuterMeasure_not_isKUnique_le {c d b q k : ℕ} (hc : 1 ≤ c) (hq : 1 ≤ q)
+private theorem toOuterMeasure_not_isKUnique_le {c d b q k : ℕ} (hc : 1 ≤ c) (hq : 1 ≤ q)
     (hd : d = 2 * q * c) (hbound : 2 * doubleTabCodeBound c d q k ≤ 2 ^ ((q - 1) * b)) :
     (PMF.uniformOfFintype (DoubleTabTopSeed c d b)).toOuterMeasure
       {T₁ | ¬ IsKUnique k (simpleTabTuple T₁)} ≤
@@ -324,7 +324,7 @@ theorem mul_add_div_lt_packedWords {N k w idx j : ℕ} (hw : 0 < w) (hidx : idx 
 /-- Exact bit-level characterization of `readPacked`: for `0 < w`, `k ≤ w`, and `j < k`, bit `j` of
 `readPacked arrBase k w mem idx` equals bit `(idx * k + j) % w` of word
 `mem (arrBase + (idx * k + j) / w)`. -/
-theorem testBit_readPacked {arrBase k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) (mem : ℕ → ℕ)
+private theorem testBit_readPacked {arrBase k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) (mem : ℕ → ℕ)
     (idx : ℕ) {j : ℕ} (hj : j < k) :
     (readPacked arrBase k w mem idx).testBit j =
       (mem (arrBase + (idx * k + j) / w)).testBit ((idx * k + j) % w) := by
@@ -451,7 +451,8 @@ private theorem surjective_bitPackedProjHom {N k w : ℕ} (hw : 0 < w) :
     (bitPackedProjHom N k w hw
       ((Equiv.piCongrRight fun _ : Fin (packedWords N k w) => (BitString.equivFin w).symm) words))
 
-theorem extractPackedSlice_eq_packedSliceOfWords {arrBase N k w : ℕ} (hw : 0 < w) (hkw : k ≤ w)
+private theorem extractPackedSlice_eq_packedSliceOfWords {arrBase N k w : ℕ} (hw : 0 < w)
+    (hkw : k ≤ w)
     {mem : ℕ → ℕ} (hmem : ∀ q < packedWords N k w, mem (arrBase + q) < 2 ^ w) :
     extractPackedSlice arrBase N k w mem =
       packedSliceOfWords N k w hw (Tabulation.extractSlice arrBase w (packedWords N k w) mem) := by
@@ -509,7 +510,7 @@ theorem uniformOfFintype_map_packedSliceOfWords (N k w : ℕ) (hw : 0 < w) :
     readPacked (base + offBot w c_tab d b_char) M_out w mem (j.val * 2 ^ b_char + y.val) =
       (θ.bot j y).val)
 
-theorem seedRep_extractSeed {base w w₀ c_tab d b_char M_out : ℕ} {mem : ℕ → ℕ}
+private theorem seedRep_extractSeed {base w w₀ c_tab d b_char M_out : ℕ} {mem : ℕ → ℕ}
     (hα : mem base < 2 ^ (w₀ - 1)) :
     SeedRep base w w₀ c_tab d b_char M_out
       (extractSeed base w w₀ c_tab d b_char M_out mem) mem := by
@@ -553,7 +554,7 @@ theorem extractSeed_eq_of_seedRep {base w w₀ c_tab d b_char M_out : ℕ}
         dsimp only; ring]
       exact hT₂ j y
 
-theorem seedRep_congr_mem {base w w₀ c_tab d b_char M_out : ℕ}
+private theorem seedRep_congr_mem {base w w₀ c_tab d b_char M_out : ℕ}
     {θ : Seed w₀ c_tab d b_char M_out} {mem mem' : ℕ → ℕ} (hw : 0 < w)
     (hrep : SeedRep base w w₀ c_tab d b_char M_out θ mem)
     (heq : ∀ a, base ≤ a → a < base + space w c_tab d b_char M_out → mem' a = mem a) :
@@ -593,7 +594,7 @@ theorem SeedRep.congr_on {base w w₀ c_tab d b_char M_out : ℕ}
 
 /-- Combined additive homomorphism projecting `topWords + botWords` `w`-bit strings onto the pair of
 bit-packed slices `(Fin topEntries → BitString b_char) × (Fin botEntries → BitString M_out)`. -/
-@[expose] def bothPackedProjHom (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
+private def bothPackedProjHom (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
     (Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → BitString w) →+
       (Fin (topEntries c_tab d b_char) → BitString b_char) ×
         (Fin (botEntries d b_char) → BitString M_out) where
@@ -623,7 +624,7 @@ private theorem surjective_bothPackedProjHom {w c_tab d b_char M_out : ℕ} (hw 
     ((congrArg (bitPackedProjHom (botEntries d b_char) M_out w hw) hr).trans hw₂)
 
 /-- Extract `(T₁, T₂)` from a combined `(topWords + botWords)`-word slice of `< 2 ^ w` words. -/
-@[expose] def tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w)
+private def tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w)
     (words : Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → Fin (2 ^ w)) :
     DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out :=
   let pair := bothPackedProjHom w c_tab d b_char M_out hw
@@ -633,7 +634,7 @@ private theorem surjective_bothPackedProjHom {w c_tab d b_char M_out : ℕ} (hw 
     DoubleTabulation.botSliceEquiv d b_char M_out
       ((Equiv.piCongrRight fun _ => BitString.equivFin M_out) pair.2))
 
-theorem uniformOfFintype_map_tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
+private theorem uniformOfFintype_map_tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
     (PMF.uniformOfFintype
       (Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → Fin (2 ^ w))).map
         (tablesOfWords w c_tab d b_char M_out hw) =
@@ -1075,71 +1076,71 @@ instance : WordEncoding HashParams := ⟨16, Function.Embedding.refl (Fin 16 →
 /-- Dimension $d$ in the hash parameter vector. -/
 @[expose] def hpD (hp : HashParams) : ℕ := hp 15
 
-theorem mkHashParams_0 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_0 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 0 = w := rfl
-theorem mkHashParams_1 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_1 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 1 = w₀ - R := rfl
-theorem mkHashParams_2 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_2 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 2 = (w₀ - 1) / 2 := rfl
-theorem mkHashParams_3 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_3 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 3 = 2 * ((w₀ - 1) / 2) := rfl
-theorem mkHashParams_4 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_4 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 4 = 2 ^ (w₀ - 1) - 1 := rfl
-theorem mkHashParams_5 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_5 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 5 = 2 ^ ((w₀ - 1) / 2) - 1 := rfl
-theorem mkHashParams_6 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_6 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 6 = 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1 := rfl
-theorem mkHashParams_7 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_7 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 7 = 2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1 := rfl
-theorem mkHashParams_8 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_8 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 8 = b_char := rfl
-theorem mkHashParams_9 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_9 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 9 = 2 ^ b_char - 1 := rfl
-theorem mkHashParams_10 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_10 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 10 = 2 ^ b_char := rfl
-theorem mkHashParams_11 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_11 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 11 = M_out := rfl
-theorem mkHashParams_12 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_12 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 12 = offBot w c_tab d b_char := rfl
-theorem mkHashParams_13 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_13 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 13 = c_tab + 1 := rfl
-theorem mkHashParams_14 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_14 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 14 = c_tab := rfl
-theorem mkHashParams_15 (w w₀ R c_tab d b_char M_out : ℕ) :
+private theorem mkHashParams_15 (w w₀ R c_tab d b_char M_out : ℕ) :
     mkHashParams w w₀ R c_tab d b_char M_out 15 = d := rfl
 
-@[simp] theorem hpW_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpW_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpW (mkHashParams w w₀ R c_tab d b_char M_out) = w := rfl
-@[simp] theorem hpShiftR_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpShiftR_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpShiftR (mkHashParams w w₀ R c_tab d b_char M_out) = w₀ - R := rfl
-@[simp] theorem hpHalfM_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpHalfM_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpHalfM (mkHashParams w w₀ R c_tab d b_char M_out) = (w₀ - 1) / 2 := rfl
-@[simp] theorem hpTwoHalfM_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpTwoHalfM_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpTwoHalfM (mkHashParams w w₀ R c_tab d b_char M_out) = 2 * ((w₀ - 1) / 2) := rfl
 @[simp] theorem hpMaskM_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMaskM (mkHashParams w w₀ R c_tab d b_char M_out) = 2 ^ (w₀ - 1) - 1 := rfl
-@[simp] theorem hpMaskHalf_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpMaskHalf_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMaskHalf (mkHashParams w w₀ R c_tab d b_char M_out) = 2 ^ ((w₀ - 1) / 2) - 1 := rfl
-@[simp] theorem hpMaskRem_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpMaskRem_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMaskRem (mkHashParams w w₀ R c_tab d b_char M_out) = 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1 := rfl
-@[simp] theorem hpMaskTop_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpMaskTop_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMaskTop (mkHashParams w w₀ R c_tab d b_char M_out) =
       2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1 := rfl
-@[simp] theorem hpBChar_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpBChar_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpBChar (mkHashParams w w₀ R c_tab d b_char M_out) = b_char := rfl
-@[simp] theorem hpMaskB_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpMaskB_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMaskB (mkHashParams w w₀ R c_tab d b_char M_out) = 2 ^ b_char - 1 := rfl
 @[simp] theorem hpPowB_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpPowB (mkHashParams w w₀ R c_tab d b_char M_out) = 2 ^ b_char := rfl
-@[simp] theorem hpMOut_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpMOut_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpMOut (mkHashParams w w₀ R c_tab d b_char M_out) = M_out := rfl
-@[simp] theorem hpOffBot_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpOffBot_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpOffBot (mkHashParams w w₀ R c_tab d b_char M_out) = offBot w c_tab d b_char := rfl
-@[simp] theorem hpCPlusOne_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpCPlusOne_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpCPlusOne (mkHashParams w w₀ R c_tab d b_char M_out) = c_tab + 1 := rfl
 @[simp] theorem hpCTab_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpCTab (mkHashParams w w₀ R c_tab d b_char M_out) = c_tab := rfl
-@[simp] theorem hpD_mk (w w₀ R c_tab d b_char M_out : ℕ) :
+@[simp] private theorem hpD_mk (w w₀ R c_tab d b_char M_out : ℕ) :
     hpD (mkHashParams w w₀ R c_tab d b_char M_out) = d := rfl
 
 /-- Well-formedness envelope for `HashParams` at `base` on a `w`-bit machine. -/
@@ -1199,13 +1200,13 @@ theorem fits_mkHashParams {w base : ℕ} {hp : HashParams} (henv : HashEnv w hp 
     pure ((i_next, y_next), r_next)
 
 @[simp]
-theorem memoryCost_innerStepGenProg (p : (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ))
+private theorem memoryCost_innerStepGenProg (p : (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ))
     (s : Memory.State) :
     memoryCost (innerStepGenProg p) s = 2 := by
   rcases p with ⟨⟨hp, base, j⟩, ⟨i, y_acc⟩, r_cur⟩
   rfl
 
-theorem memoryCost_innerStepGenProg_pos (p : (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ))
+private theorem memoryCost_innerStepGenProg_pos (p : (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ))
     (s : Memory.State) :
     1 ≤ memoryCost (innerStepGenProg p) s := by
   rcases p with ⟨⟨hp, base, j⟩, ⟨i, y_acc⟩, r_cur⟩
@@ -1220,7 +1221,7 @@ theorem memoryCost_innerStepGenProg_pos (p : (HashParams × (ℕ × ℕ)) × ((�
     i < hpCTab hp ∧
     y_acc < hpPowB hp
 
-theorem realizes_innerStepGen :
+private theorem realizes_innerStepGen :
     Realizes .exact innerStepGenProg
       (WordEncoding.encode (α := (HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ)))
       (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
@@ -1284,7 +1285,7 @@ theorem realizes_innerStepGen :
     ((HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ)) × ℕ → Memory.Prog ((ℕ × ℕ) × ℕ)
   | ((ctx, st), n) => iterate innerStepGenProg ctx n st
 
-theorem realizes_innerLoopGen :
+private theorem realizes_innerLoopGen :
     Realizes .exact innerLoopGenProg
       (WordEncoding.encode (α := ((HashParams × (ℕ × ℕ)) × ((ℕ × ℕ) × ℕ)) × ℕ))
       (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
@@ -1318,7 +1319,7 @@ theorem realizes_innerLoopGen :
     let out_next ← pure (out_acc ^^^ z_j)
     pure (j_next, out_next)
 
-theorem memoryCost_outerStepGenProg_pos
+private theorem memoryCost_outerStepGenProg_pos
     (p : (HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)) (s : Memory.State) :
     1 ≤ memoryCost (outerStepGenProg p) s := by
   rcases p with ⟨⟨hp, base, s_val, rKey⟩, j, out_acc⟩
@@ -1376,7 +1377,7 @@ theorem innerLoop_invariant {w : ℕ} {hp : HashParams} {base j : ℕ} {s : Memo
       exact hy_m
 
 /-- Precondition for `outerStepGenProg`. -/
-@[expose] def OuterStepGenPre (w : ℕ) :
+private def OuterStepGenPre (w : ℕ) :
     (HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ) → Memory.State → Prop
   | ((hp, (base, (s_val, _rKey))), (j, out_acc)), _s =>
     HashEnv w hp base ∧
@@ -1392,7 +1393,7 @@ private theorem mul_add_xor_lt_botEntries {j d_par y t b_char : ℕ}
     _ = (j + 1) * 2 ^ b_char := by ring
     _ ≤ d_par * 2 ^ b_char := Nat.mul_le_mul_right _ hj
 
-theorem realizes_outerStepGen :
+private theorem realizes_outerStepGen :
     Realizes .exact outerStepGenProg
       (WordEncoding.encode (α := (HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)))
       (WordEncoding.encode (α := ℕ × ℕ))
@@ -1464,7 +1465,7 @@ theorem realizes_outerStepGen :
     ((HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)) × ℕ → Memory.Prog (ℕ × ℕ)
   | ((ctx, st), n) => iterate outerStepGenProg ctx n st
 
-theorem realizes_outerLoopGen :
+private theorem realizes_outerLoopGen :
     Realizes .exact outerLoopGenProg
       (WordEncoding.encode (α := ((HashParams × (ℕ × (ℕ × ℕ))) × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := ℕ × ℕ))
@@ -1476,7 +1477,8 @@ theorem realizes_outerLoopGen :
     realizes_outerStepGen
     memoryCost_outerStepGenProg_pos
 
-theorem outerLoop_invariant {w : ℕ} {hp : HashParams} {base s_val rKey : ℕ} {s : Memory.State}
+private theorem outerLoop_invariant {w : ℕ} {hp : HashParams} {base s_val rKey : ℕ}
+    {s : Memory.State}
     (henv : HashEnv w hp base) (hs_lt : s_val < hpPowB hp) :
     ∀ m j out, j + m ≤ hpD hp → out < 2 ^ hpMOut hp →
       iterationSafe outerStepGenProg OuterStepGenPre w (hp, (base, (s_val, rKey))) m (j, out) s ∧
@@ -2038,7 +2040,7 @@ private theorem validHistory_iterate_of_safe {δ σ : Type} {w : ℕ}
 
 /-- Memory history admissibility (`ValidHistory`) for `evalGenProg` under `EvalGenPre` and
 `base + space ≤ s.frontier`. -/
-theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val : ℕ}
+private theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val : ℕ}
     {s : Memory.State}
     (hpre : EvalGenPre w (hp, ((base, s_val), u_val)) s)
     (hfr : base + space w (hpCTab hp) (hpD hp) (hpBChar hp) (hpMOut hp) ≤ s.frontier) :
