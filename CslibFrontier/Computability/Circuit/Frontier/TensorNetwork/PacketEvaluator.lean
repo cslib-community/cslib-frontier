@@ -244,7 +244,7 @@ def twoValAux : ℕ → ℕ → ℕ
 /-- The `2`-adic valuation of an integer, by repeated halving: `padicValInt 2` (`twoVal_eq`). -/
 def twoVal (n : ℤ) : ℕ := twoValAux n.natAbs n.natAbs
 
-theorem twoValAux_eq : ∀ (k m : ℕ), m ≤ k → twoValAux k m = padicValNat 2 m
+theorem twoValAux_eq : ∀ (k m : ℕ), m ≤ k → twoValAux k m = multiplicity 2 m
   | 0, m, h => by rw [Nat.le_zero.mp h, twoValAux]; simp
   | k + 1, m, h => by
     rw [twoValAux]
@@ -252,10 +252,11 @@ theorem twoValAux_eq : ∀ (k m : ℕ), m ≤ k → twoValAux k m = padicValNat 
     · obtain ⟨hm0, hm2⟩ := hm
       have hm' : m = 2 * (m / 2) := by omega
       rw [twoValAux_eq k (m / 2) (by omega)]
-      conv_rhs => rw [hm', padicValNat.mul two_ne_zero (by omega), padicValNat_self, add_comm]
+      conv_rhs => rw [hm', Nat.multiplicity_mul two_ne_zero (by omega), Nat.Prime.multiplicity_self,
+        add_comm]
     · by_cases hm0 : m = 0
       · rw [hm0]; simp
-      · exact (padicValNat.eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
+      · exact (multiplicity_eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
 
 /-- **The valuation by halving is `padicValInt 2`.** -/
 @[simp] theorem twoVal_eq (n : ℤ) : twoVal n = padicValInt 2 n :=

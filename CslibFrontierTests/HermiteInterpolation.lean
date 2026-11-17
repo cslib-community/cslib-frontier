@@ -77,7 +77,7 @@ example : taylorJet ![(0 : ZMod 4), 2] 1 (C 2 * X) = 0 ∧ (C 2 * X : (ZMod 4)[X
       Pi.zero_apply]
     all_goals decide
   · intro h
-    have := congrArg (coeff · 1) h
+    have := congrArg (·.coeff 1) h
     simp only [coeff_C_mul_X, coeff_zero] at this
     exact absurd this (by decide)
 

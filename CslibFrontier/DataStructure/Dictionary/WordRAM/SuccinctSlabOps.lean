@@ -757,7 +757,7 @@ theorem realizes_pushBackTailWriteGen :
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1.1
     simpDictParamsWith [pushBackTailWriteGenPre_mk, pushBackSlotGenPre_mk,
       appendTailItemGenPre_mk, appendTailItemGenProg_mk]
-    try dsimp only [d, PushBackSlotPre] at *
+    dsimp only [d, PushBackSlotPre] at *
   )
   · exact ⟨h.1.1, h.1.2.1.multi_tail h.2, h.1.2.2.1,
       (h.1.2.1.multi_r_bounds h.2 d.1.1.2 h.1.2.2.1).1, h.2⟩
@@ -1139,7 +1139,7 @@ theorem realizes_pushBackSlotGen :
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [pushBackSlotGenPre_mk, pushBackTailWriteGenPre_mk,
       pushBackTailWriteGenProg_mk, promoteSlabGenPre_mk, promoteSlabGenProg_mk]
-    try dsimp only [d, PushBackSlotPre] at *
+    dsimp only [d, PushBackSlotPre] at *
   )
   · exact h.1
   · unfold globalMetaLen; omega
@@ -1260,7 +1260,7 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hq]
     by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q
     all_goals simp [hr0, hq0, memoryCost_pure]
-    all_goals omega
+    omega
 
 -- Keep the final state abstract while proving its invariant and resource bound.
 private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base b : ℕ}
