@@ -88,7 +88,7 @@ namespace ComputableInPolyTime
 /-- Frame the existing input encoding, charging every delimiter. -/
 @[fun_prop]
 theorem bitsFrame {α : Type} (enc : α ↪ List Bool) :
-    ComputableInPolyTime (fun a => frame (enc a)) enc encBits :=
+    ComputableInPolyTime (fun a => Turing.MultiTapeTM.frame (enc a)) enc encBits :=
   frame.comp (of_eq (f := enc) (encOut := encBits) fun _ => rfl)
 
 /-- Saturating binary decoding to unary is polynomial time on arbitrary input words. -/
@@ -122,7 +122,8 @@ theorem binary_to_unary_bounded {α : Type} {input : α ↪ List Bool} {value bo
     (hbound : ComputableInPolyTime bound input encUnary)
     (hle : ∀ a, value a ≤ bound a) :
     ComputableInPolyTime value input encUnary := by
-  have h := bitsBoundedBinaryValueWithInput hbound (bitsReverse.comp ((of_eq (f := encNat) (encOut := encBits) fun _ => rfl).comp hvalue))
+  have hbits := (of_eq (f := encNat) (encOut := encBits) fun _ => rfl).comp hvalue
+  have h := bitsBoundedBinaryValueWithInput hbound (bitsReverse.comp hbits)
   convert h using 1
   funext a
   simp only [Function.comp_apply, encNat_apply, Cslib.BitString.boundedBinaryValue_eq,
