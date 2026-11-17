@@ -193,7 +193,7 @@ theorem optSet_containmentFree {v w : ℕ} (hv : v < 2 ^ w) :
       by_contra hge
       have := Nat.testBit_lt_two_pow
         (hc_lt.trans_le (Nat.pow_le_pow_right two_pos (not_lt.mp hge)))
-      simp [this] at hj
+      exact Bool.false_ne_true (this.symm.trans hj)
     exact (mem_optSet_natAdd m' ⟨j, hjw⟩).1 (hsub ((mem_optSet_natAdd m ⟨j, hjw⟩).2 hj))
   omega
 

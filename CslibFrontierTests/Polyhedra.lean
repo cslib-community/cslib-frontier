@@ -116,8 +116,8 @@ example : IsHPolytope stdSimplex2 ∧ IsPolytope stdSimplex2 := by
       Set.Finite.insert _ (Set.Finite.insert _ (Set.finite_singleton _)), ?_⟩
     ext x
     simp only [stdSimplex2, Set.mem_ofPred_eq, Set.mem_insert_iff, Set.mem_singleton_iff,
-      forall_eq_or_imp, forall_eq, ℓ₀, ℓ₁, ℓ₂, coord2, AffineMap.coe_neg,
-      AffineMap.coe_sub, AffineMap.coe_add, AffineMap.coe_const, LinearMap.coe_toAffineMap,
+      forall_eq_or_imp, forall_eq, ℓ₀, ℓ₁, ℓ₂, coord2, FunLike.coe_neg,
+      FunLike.coe_sub, FunLike.coe_add, AffineMap.coe_const, LinearMap.coe_toAffineMap,
       LinearMap.proj_apply, Pi.neg_apply, Pi.sub_apply, Pi.add_apply, Function.const_apply,
       neg_nonpos, sub_nonpos]
   exact ⟨hH, isPolytope_iff_isHPolytope.2 hH⟩
@@ -440,7 +440,7 @@ example : IsPQOn unitInterval1 (fun x : Fin 1 → ℝ => tent1 x * tent1 x) ∧
     simp only [symSquare2, rect2, Set.mem_ofPred_eq, g, Fin.isValue, Matrix.cons_val_zero,
       Matrix.cons_val_one, Matrix.cons_val_fin_one]
     constructor <;> constructor <;> linarith
-  exact ⟨hsq, isPQOn_reluProd2.comp_isPLOn hg hmaps⟩
+  exact ⟨hsq, isPQOn_reluProd2.comp_isPLOn (f := g) hg hmaps⟩
 
 example : ¬IsQuadraticOn (fun x : Fin 1 → ℝ => (x 0) ^ 3) unitInterval1 := by
   rintro ⟨n, a, b, h⟩

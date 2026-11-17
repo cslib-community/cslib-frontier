@@ -85,7 +85,7 @@ theorem integerMap_injective : Function.Injective (integerMap p f) := by
   refine (injective_iff_map_eq_zero _).mpr fun x hx => ?_
   have hg := hf.map (Int.castRingHom (Rat.padicValuation p).integer)
   rw [integerMap, map_eq_zero_iff _ hg _ (map_subtype_map_integer p f).symm] at hx
-  have h0 : modByMonicHom hg x = 0 := Polynomial.ext fun i => Subtype.ext (by simpa using hx i)
+  have h0 : modByMonicHom hg x = 0 := by ext i : 2; exact Subtype.ext (by simpa using hx i)
   rw [← mk_leftInverse hg x, h0, map_zero]
 
 include hf in

@@ -125,7 +125,8 @@ theorem gaussianNoiseOp_congr_ae_of_abs_lt_one {ρ : ℝ} (hρ : |ρ| < 1) {f f'
     (h : f =ᵐ[Measure.pi fun _ : ι => gaussianReal 0 1] f') :
     gaussianNoiseOp ρ f = gaussianNoiseOp ρ f' := by
   funext z
-  refine integral_congr_ae (QuasiMeasurePreserving.ae_eq_comp ⟨by fun_prop, ?_⟩ h)
+  refine integral_congr_ae
+    (QuasiMeasurePreserving.ae_eq_comp ⟨Measurable.aemeasurable (by fun_prop), ?_⟩ h)
   rw [pi_gaussianReal_map_noisy hρ z]
   exact withDensity_absolutelyContinuous _ _
 
