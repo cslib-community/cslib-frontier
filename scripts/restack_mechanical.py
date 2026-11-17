@@ -117,9 +117,7 @@ def push_target(info: dict) -> str:
 def plain_merge(root: Path, head: str, main: str) -> tuple[str, set[str]]:
     """Merge with ordinary text rules as on GitHub. Return the tree and conflicting paths."""
     empty = out(root, "hash-object", "-t", "tree", os.devnull)
-    return cr.merge_tree(root, (f"--attr-source={empty}", "-c",
-                                f"core.attributesFile={os.devnull}", *cr.MERGE_CONFIG),
-                         head, main)
+    return cr.merge_tree(root, cr.replay_options(root, empty), head, main)
 
 
 def driver_merge(root: Path, head: str, main: str, scripts: Path) -> str:

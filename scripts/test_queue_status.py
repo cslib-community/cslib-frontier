@@ -73,6 +73,9 @@ class QueueStatusTests(unittest.TestCase):
                 self.assertEqual(qs.check_prefix(root, base, [(10, before)], candidate), 0)
                 self.assertEqual(qs.check_prefix(root, base, [(10, before), (11, overlap)], candidate), 1)
                 self.assertEqual(qs.check_prefix(root, base, [(11, overlap), (12, candidate)], before), 1)
+            git("config", "merge.text.driver", "false")
+            with self.assertRaisesRegex(qs.cr.GitError, "replace Git's built-in"):
+                qs.check_prefix(root, base, [(11, overlap)], candidate)
             self.assertIn("'rows' first conflicts at #11", output.getvalue())
             self.assertIn("prefix itself conflicts at #12", output.getvalue())
             self.assertEqual((git("show-ref"), git("rev-parse", "HEAD"), git("status", "--porcelain")),
