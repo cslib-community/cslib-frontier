@@ -6,6 +6,7 @@ Authors: Mayank Rathee
 
 module
 
+import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 import Mathlib.Data.Rat.Defs
 import Mathlib.Data.ZMod.Basic
@@ -13,9 +14,11 @@ import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.Tactic.ComputeDegree
 
 /-!
-# Tests: Guruswami–Sudan list decoding
+# Tests: Bivariate polynomial algebra and Guruswami–Sudan list decoding
 
-Exercises `CslibFrontier.Foundations.Data.Code.GuruswamiSudan` via an ordinary `module` import
+Exercises `CslibFrontier.Foundations.Algebra.Polynomial.Bivariate`,
+`CslibFrontier.Foundations.Data.Code.SudanInterpolant`, and
+`CslibFrontier.Foundations.Data.Code.GuruswamiSudan` via ordinary `module` imports
 (without `import all`) across concrete, nonvacuous instances:
 
 1. **Positive-characteristic multiplicity vanishing (`m ≥ char F`).** Over `ZMod 2` (`m = 2`) and
@@ -36,11 +39,14 @@ Exercises `CslibFrontier.Foundations.Data.Code.GuruswamiSudan` via an ordinary `
    five-point word.
 5. **Real Johnson-bound corollary.** Instantiates `exists_guruswamiSudan_of_eps` over `ZMod 7` with
    `k = 2`, `ε = 1 / 20`, proving nonvacuous recovery at distance `2 ≤ (1 - √(2 / 7) - 1 / 20) * 7`.
-6. **Per-point weighted multiplicities.** Exercises `exists_isWeightedInterpolant_min_natDegree` and
+6. **Per-point weighted multiplicities.** Exercises both `weightedInterpolant` (via
+   `isWeightedInterpolant_weightedInterpolant` and `natDegree_weightedInterpolant_le`) and
    `IsWeightedInterpolant.X_sub_C_dvd` on a non-constant multiplicity vector `![2, 2, 1, 1, 0]`.
-7. **Factor refinement, weighted degree, and `k = 1` boundary.** Checks `weightedDegree_mul`,
-   `eval_radical_primPart_eq_zero_iff`, `exists_eq_C_mul_prod_irreducible`,
-   `sum_weightedDegree_le_of_eq_C_mul_prod`, `IsInterpolant.rootMultiplicity_le_of_min`, and
+7. **Factor refinement, weighted degree, and shared-API edge cases.** Checks `weightedDegree_mul`,
+   `exists_eq_pow_mul_eval_ne_zero`, `eval_radical_primPart_eq_zero_iff`,
+   `exists_eq_C_mul_prod_irreducible`, `sum_weightedDegree_le_of_eq_C_mul_prod`,
+   `Sudan.add_mul_add_one_le_of_mul` (including `S = 0`),
+   `IsInterpolant.rootMultiplicity_le_of_min`, zero handling of `weightedInterpolant`, and
    `card_guruswamiSudan_le` at `k = 1`.
 -/
 
@@ -48,7 +54,8 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.Foundations.Data.Code.GuruswamiSudan
 
-open Cslib Cslib.Code Cslib.Code.GuruswamiSudan Finset Polynomial UniqueFactorizationMonoid
+open Cslib Cslib.Code Cslib.Code.GuruswamiSudan Finset Polynomial Polynomial.Bivariate
+  UniqueFactorizationMonoid
 open scoped Polynomial.Bivariate
 
 instance : Fact (Nat.Prime 2) := ⟨by decide⟩
@@ -392,21 +399,23 @@ private def points5of7 : Fin 5 → ZMod 7 := fun i => (i : ℕ)
 private theorem points5of7_injective : Function.Injective points5of7 := by
   decide
 
-/-- Non-constant multiplicity profile `![2, 2, 1, 1, 0]` with `∑ m_i (m_i + 1) / 2 = 8 < 10`,
-recovering `P = X` from agreement on just `{0, 1}` (weighted sum `2 + 2 = 4 > 3`). -/
+/-- Non-constant multiplicity profile `![2, 2, 1, 1, 0]` with `∑ m_i (m_i + 1) / 2 = 8 < 10`:
+the explicit elimination interpolant `weightedInterpolant` has least `Y`-degree and recovers `P = X`
+from agreement on just `{0, 1}` (weighted sum `2 + 2 = 4 > 3`). -/
 example :
     let mult : Fin 5 → ℕ := ![2, 2, 1, 1, 0]
     let w : Fin 5 → ZMod 7 := ![0, 1, 0, 0, 0]
-    ∃ Q : (ZMod 7)[X][Y],
-      IsWeightedInterpolant points5of7 w mult 1 3 Q ∧
-      (∀ Q', IsWeightedInterpolant points5of7 w mult 1 3 Q' → Q.natDegree ≤ Q'.natDegree) ∧
-      Y - C (X : (ZMod 7)[X]) ∣ Q := by
-  intro mult w
+    let Q := weightedInterpolant points5of7 w mult 1 3
+    IsWeightedInterpolant points5of7 w mult 1 3 Q ∧
+    (∀ Q', IsWeightedInterpolant points5of7 w mult 1 3 Q' → Q.natDegree ≤ Q'.natDegree) ∧
+    Y - C (X : (ZMod 7)[X]) ∣ Q := by
+  intro mult w Q
   have hsum : ∑ i : Fin 5, mult i * (mult i + 1) / 2 < #(Sudan.monomials 1 3) := by
     decide
-  obtain ⟨Q, hQ, hmin⟩ :=
-    exists_isWeightedInterpolant_min_natDegree (α := points5of7) (w := w) (mult := mult)
-      (d := 1) (D := 3) hsum
+  have hQ : IsWeightedInterpolant points5of7 w mult 1 3 Q :=
+    isWeightedInterpolant_weightedInterpolant points5of7 w (by omega) hsum
+  have hmin : ∀ Q', IsWeightedInterpolant points5of7 w mult 1 3 Q' → Q.natDegree ≤ Q'.natDegree :=
+    fun _ hQ' => natDegree_weightedInterpolant_le points5of7 w (by omega) hQ'
   have hagree : 3 < ∑ i ∈ {i | (X : (ZMod 7)[X]).eval (points5of7 i) = w i}, mult i := by
     have hfilt : ({i | (X : (ZMod 7)[X]).eval (points5of7 i) = w i} : Finset (Fin 5)) = {0, 1} := by
       ext i
@@ -415,17 +424,19 @@ example :
       decide
     rw [hfilt]
     decide
-  exact ⟨Q, hQ, hmin, hQ.X_sub_C_dvd points5of7_injective (by simp) hagree⟩
+  exact ⟨hQ, hmin, hQ.X_sub_C_dvd points5of7_injective (by simp) hagree⟩
 
-/-! ### 7. Factor refinement, weighted-degree additivity, and `k = 1` boundary -/
+/-! ### 7. Factor refinement, weighted-degree additivity, and shared-API edge cases -/
 
 /-- Concrete factor refinement on `Q = C (X + 1) * (Y - C X) ^ 2 * (Y - C 1)` over `ZMod 5`:
-weighted degree is `4` (`1 + 2 + 1`), `radical Q.primPart` is primitive, square-free, vanishes at
-`X` and `1` and not at `C 2`, and `exists_eq_C_mul_prod_irreducible` yields primitive irreducible
+weighted degree is `4` (`1 + 2 + 1`), `exists_eq_pow_mul_eval_ne_zero` extracts exact multiplicity
+`r ≥ 1` with `S.eval X ≠ 0`, `radical Q.primPart` is primitive and square-free, vanishing at `X`
+and `1` and not at `C 2`, and `exists_eq_C_mul_prod_irreducible` yields primitive irreducible
 factors whose `Y`-degrees sum to `3`. -/
 example :
     let Q : (ZMod 5)[X][Y] := C (X + 1) * (Y - C X) ^ 2 * (Y - C 1)
     weightedDegree 1 Q = 4 ∧
+    (∃ (r : ℕ) (S : (ZMod 5)[X][Y]), 1 ≤ r ∧ Q = (Y - C X) ^ r * S ∧ S.eval X ≠ 0) ∧
     (radical Q.primPart).IsPrimitive ∧
     Squarefree (radical Q.primPart) ∧
     (radical Q.primPart).eval X = 0 ∧
@@ -464,8 +475,8 @@ example :
       weightedDegree_mul hCX1_ne hsq_ne, hwC,
       weightedDegree_X_sub_C_pow (by simp) 2,
       weightedDegree_X_sub_C (by simp)]
-  have hQwd : Sudan.WeightedDegreeLE 1 4 Q :=
-    weightedDegree_le_iff_weightedDegreeLE.1 hwQ.le
+  have hex_pow : ∃ (r : ℕ) (S : (ZMod 5)[X][Y]), 1 ≤ r ∧ Q = (Y - C X) ^ r * S ∧ S.eval X ≠ 0 :=
+    exists_eq_pow_mul_eval_ne_zero hQ0 (by simp [Q])
   have hevalX : (radical Q.primPart).eval X = 0 := by
     rw [eval_radical_primPart_eq_zero_iff hQ0]
     simp [Q]
@@ -480,7 +491,7 @@ example :
     exact absurd hval (by decide)
   obtain ⟨c, fs, hc0, hfs, hQeq, hdeg_sum⟩ := exists_eq_C_mul_prod_irreducible hQ0
   have hfs_ne : ∀ R ∈ fs, R ≠ 0 := fun R hR => (hfs R hR).1.ne_zero
-  have hwd_fs := (sum_weightedDegree_le_of_eq_C_mul_prod hQwd hc0 hfs_ne hQeq).2
+  have hwd_fs := (sum_weightedDegree_le_of_eq_C_mul_prod (d := 1) hc0 hfs_ne hQeq).2
   have hdegQ : Q.natDegree = 3 := by
     have hmon1 : ((Y - C (X : (ZMod 5)[X])) ^ 2).Monic := (monic_X_sub_C X).pow 2
     have hmon2 : (Y - C (1 : (ZMod 5)[X])).Monic := monic_X_sub_C 1
@@ -489,20 +500,54 @@ example :
         natDegree_X_sub_C]
     have hQassoc : Q = C (X + 1) * ((Y - C X) ^ 2 * (Y - C 1)) := by simp [Q, mul_assoc]
     rw [hQassoc, natDegree_C_mul hX1_ne, hdeg_prod]
-  refine ⟨hwQ, isPrimitive_radical_primPart Q, squarefree_radical_primPart Q,
+  refine ⟨hwQ, hex_pow, isPrimitive_radical_primPart Q, squarefree_radical_primPart Q,
     hevalX, heval1, heval2, c, fs, hc0, fun R hR => ?_, hQeq, hdeg_sum.trans hdegQ⟩
-  exact ⟨(hfs R hR).1, (hfs R hR).2.1, (hfs R hR).2.2, hwd_fs R hR⟩
+  exact ⟨(hfs R hR).1, (hfs R hR).2.1, (hfs R hR).2.2,
+    Sudan.weightedDegree_le_iff_weightedDegreeLE.1 ((hwd_fs R hR).trans hwQ.le)⟩
 
-/-- Least-`Y`-degree root multiplicity bound (`≤ m`) on an elimination interpolant and non-vacuous
-`k = 1` list-size bound `≤ D`. -/
+/-- Least-`Y`-degree root multiplicity bound (`≤ m`) on an elimination interpolant, non-vacuous
+`k = 1` list-size bound `≤ D`, `Sudan.add_mul_add_one_le_of_mul` (retaining `S = 0`), and zero
+handling of `interpolant` when no nonzero solution exists (`D = 0`). -/
 example :
     (interpolant points7 word7 5 2 19).rootMultiplicity 0 ≤ 5 ∧
-    #(guruswamiSudan points7 word7 2 1 5) ≤ 5 := by
+    #(guruswamiSudan points7 word7 2 1 5) ≤ 5 ∧
+    (∀ a b, ((0 : (ZMod 5)[X][Y]).coeff b).coeff a ≠ 0 → a + 1 * (b + 1) ≤ 0) ∧
+    VanishesToOrder 1 (points7 0) (word7 0) (interpolant points7 word7 1 1 0) ∧
+    interpolant points7 word7 1 1 0 = 0 := by
   have hcard5 : Fintype.card (Fin 7) * (5 * (5 + 1) / 2) < #(Sudan.monomials 2 19) := by decide
   have hQ := isInterpolant_interpolant points7 word7 (by omega) hcard5
   have hmin : ∀ Q', IsInterpolant points7 word7 5 2 19 Q' →
       (interpolant points7 word7 5 2 19).natDegree ≤ Q'.natDegree :=
-    fun _ hQ' => natDegree_interpolant_le points7 word7 (by omega) hcard5 hQ'
-  exact ⟨hQ.rootMultiplicity_le_of_min hmin 0, card_guruswamiSudan_le⟩
+    fun _ hQ' => natDegree_weightedInterpolant_le points7 word7 (by omega) hQ'
+  have hS0 : ∀ a b, ((0 : (ZMod 5)[X][Y]).coeff b).coeff a ≠ 0 → a + 1 * (b + 1) ≤ 0 :=
+    Sudan.add_mul_add_one_le_of_mul (P := (X : (ZMod 5)[X])) (by simp)
+      (by simp)
+  have hvan0 : VanishesToOrder 1 (points7 0) (word7 0) (interpolant points7 word7 1 1 0) :=
+    vanishesToOrder_weightedInterpolant points7 word7 (fun _ => 1) 1 0 0
+  have hzero0 : interpolant points7 word7 1 1 0 = 0 := by
+    have hdeg0 : (interpolant points7 word7 1 1 0).natDegree = 0 :=
+      Nat.eq_zero_of_le_zero (natDegree_weightedInterpolant_le_bound _ _ _ _ _)
+    have hwd0 : Sudan.WeightedDegreeLE 1 0 (interpolant points7 word7 1 1 0) :=
+      weightedDegreeLE_weightedInterpolant _ _ _ _ _
+    ext b a
+    rw [coeff_zero, coeff_zero]
+    by_cases hba : a = 0 ∧ b = 0
+    · obtain ⟨rfl, rfl⟩ := hba
+      have h00 := hvan0 0 0 (by omega)
+      rw [coeff_coeff_shift_zero] at h00
+      have ha0 : ((interpolant points7 word7 1 1 0).coeff 0).natDegree = 0 := by
+        refine Nat.eq_zero_of_le_zero (natDegree_le_iff_coeff_eq_zero.2 fun k hk => ?_)
+        by_contra hne
+        have := hwd0 k 0 hne
+        omega
+      have hconst : (interpolant points7 word7 1 1 0).evalEval (points7 0) (word7 0) =
+          ((interpolant points7 word7 1 1 0).coeff 0).coeff 0 := by
+        conv_lhs =>
+          rw [eq_C_of_natDegree_eq_zero hdeg0, evalEval_C, eq_C_of_natDegree_eq_zero ha0, eval_C]
+      exact hconst.symm.trans h00
+    · by_contra hne
+      have := hwd0 a b hne
+      omega
+  exact ⟨hQ.rootMultiplicity_le_of_min hmin 0, card_guruswamiSudan_le, hS0, hvan0, hzero0⟩
 
 end CslibFrontierTests.Foundations.Data.Code.GuruswamiSudan
