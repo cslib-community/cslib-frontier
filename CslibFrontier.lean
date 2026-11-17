@@ -2550,6 +2550,7 @@ public import CslibFrontier.Computability.Complexity.Problems.ExactThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackArcSet
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackVertexSet
 public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming
+public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming.Coordinate
 public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming.Hardness
 public import CslibFrontier.Computability.Complexity.Problems.GeneralizedGeography
 public import CslibFrontier.Computability.Complexity.Problems.Graph
@@ -2727,6 +2728,7 @@ public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Memb
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Oracle
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
+public import CslibFrontier.Computability.Complexity.Problems.RationalIntegerProgramming
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Declared
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.Drawing
@@ -6427,6 +6429,7 @@ public import CslibFrontier.Foundations.Data.Polynomial.TruncatedAlgebra
 public import CslibFrontier.Foundations.Data.Polynomial.TruncatedJetBridge
 public import CslibFrontier.Foundations.Data.Rat.Approximation
 public import CslibFrontier.Foundations.Data.Rat.Basic
+public import CslibFrontier.Foundations.Data.Rat.ClearDenom
 public import CslibFrontier.Foundations.Data.Rat.Reconstruction
 public import CslibFrontier.Foundations.Data.Seq.Computation
 public import CslibFrontier.Foundations.Data.Set.Card
