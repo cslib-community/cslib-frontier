@@ -199,16 +199,9 @@ theorem RatTable.toMatrix_apply (M : RatTable) (i : Fin M.numRows) (j : Fin M.nu
 def rowMultiplier (M : RatTable) (i : Fin M.numRows) : ℕ :=
   rowDenomProd (normalizedRatRow M i.val)
 
-private theorem foldl_mul_den_eq (r : List ℚ) (acc : ℕ) :
-    r.foldl (fun a q => a * q.den) acc = acc * (r.map Rat.den).prod := by
-  induction r generalizing acc with
-  | nil => simp only [List.foldl_nil, List.map_nil, List.prod_nil, mul_one]
-  | cons q qs ih =>
-    simp only [List.foldl_cons, List.map_cons, List.prod_cons, ih, mul_assoc]
-
 private theorem rowDenomProd_eq_prod (r : List ℚ) :
     rowDenomProd r = (r.map Rat.den).prod := by
-  simpa only [rowDenomProd, one_mul] using foldl_mul_den_eq r 1
+  rw [rowDenomProd, List.prod_eq_foldl, List.foldl_map]
 
 theorem rowDenomProd_pos (r : List ℚ) : 0 < rowDenomProd r := by
   rw [rowDenomProd_eq_prod]
@@ -266,13 +259,11 @@ theorem clearDenoms_toMatrix_apply (M : RatTable) (i : Fin M.numRows) (j : Fin M
 theorem rowDenomProd_le_pow {r : List ℚ} {b : ℕ} (hb : ∀ q ∈ r, q.den ≤ 2 ^ b) :
     rowDenomProd r ≤ 2 ^ (r.length * b) := by
   rw [rowDenomProd_eq_prod]
-  induction r with
-  | nil => simp only [List.map_nil, List.prod_nil, List.length_nil, zero_mul, pow_zero, le_refl]
-  | cons q qs ih =>
-    rw [List.map_cons, List.prod_cons, List.length_cons, Nat.add_mul, Nat.one_mul, Nat.pow_add,
-      mul_comm (2 ^ (qs.length * b))]
-    exact Nat.mul_le_mul (hb q List.mem_cons_self)
-      (ih fun x hx => hb x (List.mem_cons_of_mem q hx))
+  refine (List.prod_le_pow_length (r.map Rat.den) (2 ^ b) ?_).trans_eq ?_
+  · intro d hd
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hd
+    exact hb q hq
+  · rw [List.length_map, ← pow_mul, Nat.mul_comm]
 
 theorem clearDenoms_abs_le (M : RatTable) {b : ℕ}
     (hb : ∀ i : Fin M.numRows, ∀ j : Fin M.numCols,
@@ -938,10 +929,8 @@ private theorem bareissInv_find?_pivot_eq {T : IntTable} {colLimit m n n' : ℕ}
     exact hNonPiv hnc
 
 private theorem nodup_length_le_of_lt {l : List ℕ} {m : ℕ} (hnodup : l.Nodup)
-    (hlt : ∀ x ∈ l, x < m) : l.length ≤ m := by
-  simpa only [Fintype.card_fin] using Fintype.card_le_of_injective
-    (fun a : Fin l.length => (⟨l[a.val], hlt _ (List.getElem_mem _)⟩ : Fin m))
-    fun a₁ a₂ h => List.nodup_iff_injective_getElem.mp hnodup (congrArg Fin.val h)
+    (hlt : ∀ x ∈ l, x < m) : l.length ≤ m :=
+  (hnodup.subperm fun x hx => List.mem_range.mpr (hlt x hx)).length_le.trans_eq List.length_range
 
 theorem rationalElim_wellFormed (M : RatTable) : (rationalElim M).rref.WellFormed := by
   refine ⟨?_, ?_⟩
@@ -1449,12 +1438,11 @@ private theorem find?_zip_divInt_bounds {T : IntTable} {colLimit : ℕ} {st : Ba
       |st.pivotDet| ≤ (M : ℤ))
     {c : ℕ} {j : Fin T.numCols} (sgn : ℤ) (hsgn : |sgn| = 1) {d : ℚ}
     (hd : d.num.natAbs ≤ M ∧ d.den ≤ M) :
-    (match (st.pivotRows.zip st.pivotCols).find? (fun pc : ℕ × ℕ => pc.2 == c) with
+    let q : ℚ := match (st.pivotRows.zip st.pivotCols).find? (fun pc : ℕ × ℕ => pc.2 == c) with
       | some (p, _) => Rat.divInt (sgn * st.table.entry p j.val) st.pivotDet
-      | none => d).num.natAbs ≤ M ∧
-    (match (st.pivotRows.zip st.pivotCols).find? (fun pc : ℕ × ℕ => pc.2 == c) with
-      | some (p, _) => Rat.divInt (sgn * st.table.entry p j.val) st.pivotDet
-      | none => d).den ≤ M := by
+      | none => d
+    q.num.natAbs ≤ M ∧ q.den ≤ M := by
+  dsimp only
   rcases hmatch : (st.pivotRows.zip st.pivotCols).find? (fun pc : ℕ × ℕ => pc.2 == c) with
     _ | ⟨p, y⟩
   · exact hd
