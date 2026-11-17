@@ -57,7 +57,7 @@ follows with `p = 3`.
   printed pp. 324–325 and 371).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto
 
