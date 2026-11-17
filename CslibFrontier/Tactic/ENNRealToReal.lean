@@ -32,9 +32,9 @@ statement that is already real it only pushes `toReal`.
 
 * `ennreal_to_real`, `ennreal_to_real at h₁ h₂ ⊢`: the transfer, at the goal or at hypotheses.
 * `ennreal_to_real using e`: transfers the goal and the fact `e`, and closes the goal with it.
-* `ennreal_toReal` (declared in `CslibFrontier.Tactic.ENNRealToReal.Init`): the simp set, tagged
-  here. Tag a lemma `(f x).toReal = …` with it to teach the tactic a new operation, and register
-  `f x ≠ ∞` as a `finiteness` rule to teach it a new finite quantity.
+* `ennreal_toReal`: the simp set, declared in `CslibFrontier.Tactic.ENNRealToReal.Init` and
+  tagged here. Tag a lemma `(f x).toReal = …` with it to teach the tactic a new operation, and
+  register `f x ≠ ∞` as a `finiteness` rule to teach it a new finite quantity.
 
 ## Implementation notes
 
