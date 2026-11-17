@@ -27,6 +27,8 @@ Controlling only high-order parities gives the min-entropy variant, Lemma 2.6 of
 
 * `Cslib.BitString.bias_bind_map_eq`: bias of an independent two-source output law.
 * `Cslib.BitString.abs_mul_mass_sub_one_le_of_bias_le`: pointwise multiplicative error.
+* `Cslib.BitString.IsSmallBias.abs_mul_mass_sub_one_le`: the same for `ε`-biased distributions
+  ([Goldreich2007DraftR4], Exercise 8.34).
 * `Cslib.BitString.le_minEntropy_of_high_order_bias_le`: the min-entropy variant.
 * `Cslib.BitString.mem_support_of_sum_abs_bias_lt_one`: full support from a bias-sum bound.
 -/
@@ -77,6 +79,15 @@ theorem abs_mul_mass_sub_one_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι →
   calc
     _ ≤ ∑ S with S.Nonempty, |bias p S * chi ℝ S z| := abs_sum_le_sum_abs _ _
     _ = _ := by simp only [abs_mul, abs_chi, mul_one]
+
+/-- **Small bias gives pointwise closeness to uniform** ([Goldreich2007DraftR4], Exercise 8.34):
+every atom of an `ε`-biased distribution on `n` bits has normalized mass within `(2 ^ n - 1) ε` of
+one, that is, probability within `(1 - 2⁻ⁿ) ε` of `2⁻ⁿ`. -/
+theorem IsSmallBias.abs_mul_mass_sub_one_le {ε : ℝ} {p : PMF (ι → Bool)} (hp : IsSmallBias ε p)
+    (z : ι → Bool) : |2 ^ Fintype.card ι * (p z).toReal - 1| ≤ (2 ^ Fintype.card ι - 1) * ε := by
+  refine (abs_mul_mass_sub_one_le_sum_abs_bias p z).trans ?_
+  rw [← card_filter_nonempty, ← nsmul_eq_mul, ← sum_const]
+  exact sum_le_sum fun S hS => hp S (mem_filter.1 hS).2
 
 /-- A normalized atom is at most the sum of all absolute parity biases. -/
 theorem mul_mass_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι → Bool) :

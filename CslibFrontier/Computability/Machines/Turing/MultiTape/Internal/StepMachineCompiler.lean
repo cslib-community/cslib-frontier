@@ -19,6 +19,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OnWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Basic
 public import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -285,15 +286,16 @@ private theorem Internal.compileStepMachine {σ γ ω : Type} {encS : σ ↪ Lis
   have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
   have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
   have hVM : V ≠ Mv := by simp [V, Mv, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := M + 5) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := M + 5) (by omega) (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 5) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 5) (by omega)
+    (Fin.natAdd kE (0 : Fin 2)) V
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eM, heM, heM'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eM, heM, heM'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kM + 1) (0 : Fin 2)) (o := (Fin.last kM).castAdd 2)
     (by simp [Fin.ext_iff]) hVM
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := M + 5) (by omega)
+  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := M + 5) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
   have hI := transformsTapes_outputToWord htmI heI

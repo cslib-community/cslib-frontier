@@ -225,7 +225,7 @@ example (setup : ℕ → PMF schnorrGroups.Desc) (hDDH : schnorrGroups.DDH setup
       Game.advantage
         (schnorrGroups.elGamalGroupCPAGameOn twoElements setup groupWordAdversary false n)
         (schnorrGroups.elGamalGroupCPAGameOn twoElements setup groupWordAdversary true n) :=
-  hDDH.negligible_elGamalGroupCPAGameOn computableInPolyTime_twoElements
+  hDDH.negligible_elGamalGroupCPAGameOn_ideal computableInPolyTime_twoElements
     admitsGroupElements_twoElements groupWordAdversary_isPPT
 
 /-- `groupWordAdversary`'s challenge pair is admissible under `twoElements` at every public key. -/
@@ -256,14 +256,15 @@ theorem secureKDF_nil (setup : ℕ → PMF schnorrGroups.Desc) :
       BitString.uniformList_zero, PMF.monad_bind_eq_bind, PMF.pure_bind, PMF.bind_const]
   simpa only [heq, Game.advantage_self] using negligible_zero
 
-/-- Degenerate `msgLen = 0` smoke-test instantiation of `DDH.negligible_hashedElGamalCPAGame` using
-`secureKDF_nil`. -/
+/-- Degenerate `msgLen = 0` smoke-test instantiation of `DDH.negligible_hashedElGamalCPAGame_ideal`
+using `secureKDF_nil`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDDH : schnorrGroups.DDH setup) :
     Negligible fun n =>
       Game.advantage
         (schnorrGroups.hashedElGamalCPAGame setup (fun _ => []) hashedWordAdversary false n)
         (schnorrGroups.hashedElGamalCPAGame setup (fun _ => []) hashedWordAdversary true n) :=
-  hDDH.negligible_hashedElGamalCPAGame (secureKDF_nil setup) (by fun_prop) hashedWordAdversary_isPPT
+  hDDH.negligible_hashedElGamalCPAGame_ideal (secureKDF_nil setup) (by fun_prop)
+    hashedWordAdversary_isPPT
 
 /-- Concrete quantitative single-invocation bound `advantage_ddhRealGame_le_ddhWorstCaseGame` on
 `d23` at `n = 4` with non-zero exponents `(α, β) = (3, 5)` and `(α', β', γ') = (3, 5, 7)` in
@@ -324,7 +325,7 @@ example (setup : ℕ → PMF schnorrGroups.Desc) (hDDH : schnorrGroups.DDH setup
     Negligible fun n =>
       Game.advantage (schnorrGroups.elGamalCPAGame setup trivialAdversary false n)
         (schnorrGroups.elGamalCPAGame setup trivialAdversary true n) :=
-  hDDH.elGamalINDCPA trivialAdversary trivialAdversary_isPPT
+  hDDH.elGamalIdealINDCPA trivialAdversary trivialAdversary_isPPT
 
 /-- Under DDH random self-reducibility on the concrete group `d23`, re-randomizing any real DDH
 tuple with secret exponents `(α, β) = (3, 5)` yields the uniform real DDH tuple distribution. -/
