@@ -122,7 +122,7 @@ is finite. `finiteness` is left with
 Add the missing fact as a hypothesis, or register it as a `finiteness` rule.
 -/
 #guard_msgs in
-example (x : ℝ≥0∞) (p : PMF α) (a : α) : x * p a + 1 ≠ 0 := by
+example (x : ℝ≥0∞) (p : PMF α) (a : α) : x * p a + 1 ≤ 3 := by
   ennreal_to_real
 
 -- With the missing fact as a hypothesis, the same call succeeds.
