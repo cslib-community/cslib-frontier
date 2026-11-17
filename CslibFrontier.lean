@@ -1922,6 +1922,7 @@ public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Advice
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Collapse
+public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Games
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Games.PolyRounds
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Games.Repetition
