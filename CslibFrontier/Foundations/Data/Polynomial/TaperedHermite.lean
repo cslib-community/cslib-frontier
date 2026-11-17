@@ -95,7 +95,7 @@ private theorem le_padicValInt_two {x : ℤ} {n : ℕ} (hx : x ≠ 0) (h : (2 : 
 /-- A nonzero integer of absolute value less than `2 ^ n` has 2-adic valuation less than `n`. -/
 private theorem padicValInt_two_lt {x : ℤ} {n : ℕ} (hx : x ≠ 0) (h : x.natAbs < 2 ^ n) :
     padicValInt 2 x < n :=
-  (padicValNat_le_nat_log _).trans_lt (Nat.log_lt_of_lt_pow (Int.natAbs_ne_zero.mpr hx) h)
+  (multiplicity_le_nat_log _).trans_lt (Nat.log_lt_of_lt_pow (Int.natAbs_ne_zero.mpr hx) h)
 
 /-- Adding a multiple of `2 ^ n` to a nonzero integer of absolute value less than `2 ^ n` keeps
 its 2-adic valuation. -/

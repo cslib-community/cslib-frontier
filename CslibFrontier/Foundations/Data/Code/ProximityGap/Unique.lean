@@ -119,11 +119,11 @@ private lemma coeff_swap (p : F[X][Y]) (a b : ℕ) :
     | add f g hf hg =>
       rw [map_add (monomial n), map_add, coeff_add, coeff_add, coeff_add, coeff_add, hf, hg]
     | monomial m r =>
-      rw [Bivariate.swap_monomial_monomial, coeff_monomial, coeff_monomial]
+      rw [Bivariate.swap_monomial_monomial, coeff_monomial_apply, coeff_monomial_apply]
       split_ifs with ha hb hb'
-      · simp only [coeff_monomial, ha, hb, ↓reduceIte]
-      · simp only [coeff_monomial, hb, ↓reduceIte, coeff_zero]
-      · simp only [coeff_monomial, ha, ↓reduceIte, coeff_zero]
+      · simp only [coeff_monomial_apply, ha, hb, ↓reduceIte]
+      · simp only [coeff_monomial_apply, hb, ↓reduceIte, coeff_zero]
+      · simp only [coeff_monomial_apply, ha, ↓reduceIte, coeff_zero]
       · simp only [coeff_zero]
 
 private lemma eval_C_eq_map_swap (p : F[X][Y]) (x : F) :
@@ -265,14 +265,13 @@ private lemma C_X_sub_C_dvd_of_map_evalRingHom_eq_zero {H : F[X][Y]} {w : F}
     simpa only [coeff_map, coeff_zero, coe_evalRingHom] using ht
   choose q hq using hdvd
   refine ⟨∑ t ∈ H.support, monomial t (q t), ?_⟩
-  apply Polynomial.ext
-  intro t
+  ext t
   rw [coeff_C_mul, finsetSum_coeff]
   by_cases ht : t ∈ H.support
   · rw [Finset.sum_eq_single t]
     · rw [coeff_monomial_same, hq t]
     · intro b _ hbt
-      simp only [coeff_monomial, hbt, ↓reduceIte]
+      exact coeff_monomial_of_ne _ hbt.symm
     · intro hnt
       exact absurd ht hnt
   · have hct : H.coeff t = 0 := notMem_support_iff.1 ht
@@ -280,7 +279,7 @@ private lemma C_X_sub_C_dvd_of_map_evalRingHom_eq_zero {H : F[X][Y]} {w : F}
     · rw [mul_zero, hct]
     · intro b hb
       have hbt : b ≠ t := fun h => ht (h ▸ hb)
-      simp only [coeff_monomial, hbt, ↓reduceIte]
+      exact coeff_monomial_of_ne _ hbt.symm
 
 private lemma X_sub_C_pow_dvd_resultant_of_map_eq_mul {f g : F[X][Y]} {M : ℕ} {w : F} {p : F[X]}
     (hpM : p.natDegree + g.natDegree ≤ M)
@@ -897,7 +896,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
   let Braw : F[X][Y] := ∑ t : Fin (e + 1), monomial (t : ℕ) (x (Sum.inr t))
   have hAraw_coeff : ∀ t, Araw.coeff t = if h : t < k + e then x (Sum.inl ⟨t, h⟩) else 0 := by
     intro t
-    simp only [Araw, finsetSum_coeff, coeff_monomial]
+    simp only [Araw, finsetSum_coeff, coeff_monomial_apply]
     by_cases ht : t < k + e
     · simp only [ht, ↓reduceDIte]
       rw [Finset.sum_eq_single ⟨t, ht⟩]
@@ -912,7 +911,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
       simp only [hne, ↓reduceIte]
   have hBraw_coeff : ∀ t, Braw.coeff t = if h : t < e + 1 then x (Sum.inr ⟨t, h⟩) else 0 := by
     intro t
-    simp only [Braw, finsetSum_coeff, coeff_monomial]
+    simp only [Braw, finsetSum_coeff, coeff_monomial_apply]
     by_cases ht : t < e + 1
     · simp only [ht, ↓reduceDIte]
       rw [Finset.sum_eq_single ⟨t, ht⟩]
