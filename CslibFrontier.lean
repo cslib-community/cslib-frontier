@@ -2717,6 +2717,7 @@ public import CslibFrontier.Computability.Complexity.Problems.PlanarThreeSATThre
 public import CslibFrontier.Computability.Complexity.Problems.Primes
 public import CslibFrontier.Computability.Complexity.Problems.Primes.MillerRabin
 public import CslibFrontier.Computability.Complexity.Problems.QUADEQ
+public import CslibFrontier.Computability.Complexity.Problems.QUADEQ.Gap
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Evaluation

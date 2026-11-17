@@ -58,6 +58,8 @@ an `ε`-biased distribution is read as a `k`-wise `ε`-biased one
 * `Cslib.BitString.four_mul_dist_uniform_sq_le_sum_bias_sq`,
   `Cslib.BitString.dist_uniform_le_sqrt_sum_bias_sq`: Vazirani's XOR lemma.
 * `Cslib.BitString.IsSmallBias.dist_uniform_le`: `ε`-biased distributions are close to uniform.
+* `Cslib.BitString.IsSmallBias.le_card_filter_parityOn`: a uniform `ε`-biased sample space has
+  odd parity on a nonempty set at at least a `(1 - ε) / 2` fraction of its points.
 * `Cslib.BitString.IsKWiseSmallBias.dist_map_restrict_le`: `k`-wise `ε`-biased distributions are
   almost `k`-wise independent.
 * `Cslib.BitString.IsSmallBias.isKWiseSmallBias_map_dotProduct`: `k`-wise independent parities
@@ -239,6 +241,28 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
       _ = Real.sqrt (2 ^ Fintype.card ι - 1) * ε := by
           rw [sum_const, nsmul_eq_mul, hcount, Real.sqrt_mul' _ (sq_nonneg ε),
             Real.sqrt_sq hε]
+
+/-- **Small-bias sample spaces hit every nonzero parity often**: if the uniform distribution on
+the `d` sample points `s j` is `ε`-biased, then for every nonempty `S` at least a
+`(1 - ε) / 2` fraction of the points have odd parity on `S`. -/
+theorem le_card_filter_parityOn {d : ℕ} [NeZero d] {s : Fin d → ι → Bool}
+    (hs : IsSmallBias ε ((PMF.uniformOfFintype (Fin d)).map s)) {S : Finset ι}
+    (hS : S.Nonempty) : (1 - ε) / 2 * d ≤ #{j | parityOn S (s j) = true} := by
+  have h := (le_abs_self _).trans (hs S hS)
+  rw [bias_uniformOfFintype_map, Fintype.expect_eq_sum_div_card, Fintype.card_fin] at h
+  have hsum : ∑ j, chi ℝ S (s j) = d - 2 * #{j | parityOn S (s j) = true} := by
+    simp only [chi_eq_signVal_parityOn, signVal, Finset.sum_ite, sum_const, nsmul_eq_mul,
+      mul_neg, mul_one]
+    have := card_filter_add_card_filter_not (s := univ) (fun j => parityOn S (s j) = true)
+    simp only [card_univ, Fintype.card_fin, Bool.not_eq_true] at this
+    simp only [Bool.not_eq_true]
+    have h' : ((#{j | parityOn S (s j) = true} : ℕ) : ℝ) + #{j | parityOn S (s j) = false} =
+        d := by
+      exact_mod_cast this
+    linarith
+  have hd : (0 : ℝ) < d := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne d)
+  rw [hsum, div_le_iff₀ hd] at h
+  linarith
 
 end IsSmallBias
 
