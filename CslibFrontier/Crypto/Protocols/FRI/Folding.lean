@@ -14,6 +14,7 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Algebra.Polynomial.Degree.Operations
+import Mathlib.Algebra.Polynomial.Expand
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Data.Nat.ModEq
 
@@ -248,29 +249,6 @@ theorem eval_reconstructPoly (a : ℕ) (ps : Fin a → F[X]) (x : F) :
     (reconstructPoly a ps).eval x = ∑ r : Fin a, x ^ r.val * (ps r).eval (x ^ a) := by
   simp only [reconstructPoly, eval_finsetSum, eval_mul, eval_pow, eval_X, eval_comp]
 
-private theorem coeff_comp_X_pow (a : ℕ) (ha : 0 < a) (q : F[X]) (m : ℕ) :
-    (q.comp (X ^ a)).coeff m = if a ∣ m then q.coeff (m / a) else 0 := by
-  induction q using Polynomial.induction_on' with
-  | add p₁ p₂ ih₁ ih₂ =>
-    rw [add_comp, coeff_add, coeff_add, ih₁, ih₂]
-    split_ifs <;> simp
-  | monomial n c =>
-    conv_lhs => rw [← C_mul_X_pow_eq_monomial]
-    rw [mul_comp, C_comp, pow_comp, X_comp, ← pow_mul, mul_comm a n,
-      C_mul_X_pow_eq_monomial, coeff_monomial, coeff_monomial]
-    by_cases h1 : n * a = m
-    · subst h1
-      have hdvd : a ∣ n * a := ⟨n, mul_comm _ _⟩
-      have hdiv : n * a / a = n := Nat.mul_div_cancel n ha
-      simp only [Finsupp.single_apply, hdvd, hdiv, ↓reduceIte]
-    · by_cases hdvd : a ∣ m
-      · have hne : n ≠ m / a := by
-          intro heq
-          apply h1
-          rw [heq, Nat.div_mul_cancel hdvd]
-        simp only [Finsupp.single_apply, h1, hdvd, hne, ↓reduceIte]
-      · simp only [Finsupp.single_apply, h1, hdvd, ↓reduceIte]
-
 /-- Exact decomposition identity: `p = ∑ r : Fin a, X ^ r * (polyComp a p r).comp (X ^ a)`. -/
 theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
     reconstructPoly a (polyComp a p) = p := by
@@ -292,11 +270,11 @@ theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
           have := Nat.div_add_mod n a
           omega
         rw [h1, Nat.mul_div_cancel_left _ ha]
-      simp only [hle, ↓reduceIte, coeff_comp_X_pow a ha, hdvd, hdiv, coeff_polyComp ha,
-        Nat.div_add_mod]
+      simp only [hle, ↓reduceIte, ← expand_eq_comp_X_pow, coeff_expand ha, hdvd, hdiv,
+        coeff_polyComp ha, Nat.div_add_mod]
     · simp only [hr, ↓reduceIte]
       split_ifs with hle
-      · rw [coeff_comp_X_pow a ha]
+      · rw [← expand_eq_comp_X_pow, coeff_expand ha]
         split_ifs with hdvd
         · exfalso
           obtain ⟨q, hq⟩ := hdvd
@@ -325,7 +303,7 @@ theorem degree_reconstructPoly_lt {a k : ℕ} (ha : 0 < a) {ps : Fin a → F[X]}
   refine Finset.sum_eq_zero fun r _ => ?_
   rw [coeff_X_pow_mul']
   split_ifs with hle
-  · rw [coeff_comp_X_pow a ha]
+  · rw [← expand_eq_comp_X_pow, coeff_expand ha]
     split_ifs with hdvd
     · refine coeff_eq_zero_of_degree_lt (lt_of_lt_of_le (hps r) ?_)
       obtain ⟨q, hq⟩ := hdvd

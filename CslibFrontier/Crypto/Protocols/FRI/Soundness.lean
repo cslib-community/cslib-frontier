@@ -33,11 +33,16 @@ For an input word `stmt : OracleTable params.d F` and any partial verifier trans
 * `friTargetWord params stmt pref i hi : Fin (2 ^ (d - i)) → F` is the expected round-`i` word:
   `stmt` at `i = 0`, and the 2-to-1 coset folding of the `(i - 1)`-th prover oracle `π_{i-1}` at
   the `(i - 1)`-th folding scalar `z_{i-1}` for `i ≥ 1`.
-* `friPreWeight params stmt pref i hi : Fin (2 ^ (d - i)) → ℕ` tracks the exact number of initial
-  query starting points `s : Fin (2 ^ d)` in the fiber above `j : Fin (2 ^ (d - i))` that pass
-  round-0 binding `π_0(s) = stmt(s)` and all folding checks `0, ..., i - 1`. It satisfies
-  `friPreWeight ... j ≤ 2 ^ i` and `∑ j, friPreWeight ... j ≤ 2 ^ d` unconditionally for arbitrary
-  malicious oracles.
+* `friPreWeight params stmt pref i hi : Fin (2 ^ (d - i)) → ℕ` is the pre-filter integer fiber
+  weight before applying the round-`i` oracle check `π_i(j) = friTargetWord ... i j`: identically
+  `1` at `i = 0`, and for `i ≥ 1` the fiberwise sum of the previous round's filtered weight
+  `friOracleFilterWeight` (counting initial starting points above `j` satisfying
+  `friPrefixPasses ... (i - 1)`, i.e., round-0 binding and folding checks `k < i - 1`, before
+  enforcing round `i`). It satisfies `friPreWeight ... j ≤ 2 ^ i` and
+  `∑ j, friPreWeight ... j ≤ 2 ^ d` unconditionally for arbitrary malicious oracles, while applying
+  the round-`i` oracle check yields `friOracleFilterWeight`, which counts the exact number of
+  initial starting points above `j` satisfying `friPrefixPasses ... i`
+  (`card_filter_friPrefixPasses_eq`).
 * A transcript prefix of length `i ≤ m` is **doomed** (`friDoomed params B stmt pref`) if every
   codeword `c ∈ params.rsCode i` has `friPreWeight`-weighted agreement at most `B` with
   `friTargetWord`. A complete transcript of length `m + 1` is doomed if at least one of the `q`
@@ -177,8 +182,10 @@ coset folding of `prefOracle pref i` at `prefFoldScalar pref i` for round `i + 1
       (prefFoldScalar pref i)
 
 /-- Pre-filter integer fiber weight `W̃_i : Fin (2 ^ (d - i)) → ℕ` along a transcript prefix `pref`,
-counting initial query positions above each coordinate that pass round-0 binding and folding checks
-`0, ..., i - 1`. -/
+prior to applying the round-`i` oracle consistency check `π_i = friTargetWord ... i`: identically
+`1` at `i = 0`, and for `i ≥ 1` the fiber sum of the round-`(i - 1)` filtered weight
+`friOracleFilterWeight` (which itself carries the complete `friPrefixPasses` count via
+`card_filter_friPrefixPasses_eq`). -/
 @[expose] def friPreWeight [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
@@ -1201,28 +1208,6 @@ end RoundByRoundSoundness
 section UniqueDecodingUpgrade
 
 variable {F : Type} [Field F]
-
-/-- Uniqueness of Reed–Solomon decoding inside the unique-decoding radius `2 * e + k ≤ n`. -/
-theorem eq_of_hammingDist_le_reedSolomon {ι : Type*} [Fintype ι] [DecidableEq F]
-    {α : ι → F} (hα : Function.Injective α) {k e : ℕ} (huniq : 2 * e + k ≤ Fintype.card ι)
-    {f c₁ c₂ : ι → F} (hc₁ : c₁ ∈ reedSolomon α k) (hc₂ : c₂ ∈ reedSolomon α k)
-    (hd₁ : hammingDist f c₁ ≤ e) (hd₂ : hammingDist f c₂ ≤ e) :
-    c₁ = c₂ := by
-  by_contra hne
-  have hsub_mem : c₁ - c₂ ∈ reedSolomon α k := (reedSolomon α k).sub_mem hc₁ hc₂
-  have hsub_ne : c₁ - c₂ ≠ 0 := sub_ne_zero.mpr hne
-  have hmin : Fintype.card ι - k + 1 ≤ hammingNorm (c₁ - c₂) :=
-    le_hammingNorm_of_mem_reedSolomon hα hsub_mem hsub_ne
-  have hnorm_eq : hammingNorm (c₁ - c₂) = hammingDist c₁ c₂ := by
-    simp only [hammingNorm, hammingDist, Pi.sub_apply, sub_ne_zero]
-  have htri : hammingNorm (c₁ - c₂) ≤ 2 * e := by
-    rw [hnorm_eq]
-    calc hammingDist c₁ c₂
-        ≤ hammingDist c₁ f + hammingDist f c₂ := hammingDist_triangle c₁ f c₂
-      _ = hammingDist f c₁ + hammingDist f c₂ := by rw [hammingDist_comm]
-      _ ≤ e + e := Nat.add_le_add hd₁ hd₂
-      _ = 2 * e := by omega
-  omega
 
 /-- Unweighted line proximity-gap hypothesis across all `m` FRI folding rounds at unique-decoding
 radii `e / 2 ^ (i + 1)` (matching [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 4.1). -/
