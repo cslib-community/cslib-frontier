@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.PackProgram
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Execution of the native wanted-output digit loop
@@ -64,17 +65,7 @@ structure PackProgress (L M R C : ℕ) (x : Data 16) : Prop where
 private theorem parameters_after_body {L : ℕ} {x y : Data 16}
     (hx : PackParameters L x) {w c : ℕ} (he : ExecWithin w packBody x y c) :
     PackParameters L y := by
-  have hf (i : Fin 16) (hi : i ∈ ({depth, one, two, three, ten, nine} : Finset _)) :
-      y.regs i = x.regs i := by
-    apply he.regs_eq
-    have h : ∀ i ∈ ({depth, one, two, three, ten, nine} : Finset (Fin 16)),
-        packBody.Preserves i := by
-      simp only [packBody, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact h i hi
-  exact ⟨(hf _ (by decide)).trans hx.depth, (hf _ (by decide)).trans hx.one,
-    (hf _ (by decide)).trans hx.two, (hf _ (by decide)).trans hx.three,
-    (hf _ (by decide)).trans hx.ten, (hf _ (by decide)).trans hx.nine⟩
+  regs_frame
 
 /-- One coordinate's actual test, arithmetic and register updates. The numeric budget is
 derived from original inputs, rather than an assumed bound on intermediate states. -/

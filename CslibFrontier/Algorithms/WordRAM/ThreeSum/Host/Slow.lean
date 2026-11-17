@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Callee
 import Batteries.Data.Fin.Lemmas
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # A finite exhaustive native Exact Triangle callee
@@ -184,16 +185,7 @@ private theorem Control.congr {t abp bcp acp : ℕ} {x y : Data 24}
     (h : Control t abp bcp acp x)
     (heq : ∀ i : Fin 24, i.val < 12 → i ≠ current → i ≠ out → y.regs i = x.regs i) :
     Control t abp bcp acp y := by
-  constructor
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.side
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.ab
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.bc
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.ac
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.area
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.stop
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.one
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.two
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.zero
+  regs_frame
 
 private theorem load_preserves : ∀ i : Fin 24, i.val < 12 → loadTriple.Preserves i := by decide
 
@@ -339,7 +331,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
     simpa only [decode_encode, za, zb, zc, triangleAt] using
       (zero_iff (encode za) (encode zb) (encode zc)).symm
   obtain ⟨y, hy, hyq, hyo, hym⟩ := exec_finish d hpd.one
-    ((hkeep current (by decide)).trans hq) (hfit.of_le (by have := q.isLt; omega))
+    (by regs_frame) (hfit.of_le (by have := q.isLt; omega))
   refine ⟨y, (ha.seq (hb.seq (hc.seq (hd.seq hy)))).mono (by decide),
     hpd.congr (fun i hi hq ho => hy.regs_eq (finish_preserves i hi hq ho)), hyq, ?_, ?_, ?_⟩
   · rw [hyo, hkeep out (by decide)]

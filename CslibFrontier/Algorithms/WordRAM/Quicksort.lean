@@ -19,6 +19,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Data.List.Sort
 import Mathlib.Data.Rat.BigOperators
 import Mathlib.Data.Rat.Cast.Order
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # In-place randomized quicksort on the word RAM
@@ -1142,13 +1143,10 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
       omega)
   -- 4. `pushIfNonTrivial gt hi` (`≤ 8` steps)
   have hgt₇ : x₇.regs gt = vgt := e_push₁.regs_eq (by decide)
-  have hhi₇ : x₇.regs hi = vhi := (e_push₁.regs_eq (by decide)).trans hPart₆.hi_eq
+  have hhi₇ : x₇.regs hi = vhi := by regs_frame
   obtain ⟨y, e_push₂, hread_y, hmod_y⟩ := pushIfNonTrivial_spec (w := w) (n := n)
     (a := gt) (b := hi) (x := x₇) (by decide) (by decide)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_one)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_two)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_sLo)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_sHi) hfit_all
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hfit_all
     ⟨by rw [hgt₇]; have := hPart₆.gt_le_hi; omega, by rw [hhi₇]; omega⟩
     (fun hge => by
       rw [hgt₇, hhi₇] at hge
@@ -1200,9 +1198,7 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
       hmod₀ a (by simp [Finset.mem_Ico]; omega)]
   refine ⟨y, t, he_all, ht_le, ?_, hread_final⟩
   refine ⟨hw,
-    (he_all.regs_eq (by decide)).trans hzero,
-    (he_all.regs_eq (by decide)).trans hone,
-    (he_all.regs_eq (by decide)).trans htwo,
+    by regs_frame, by regs_frame, by regs_frame,
     (he_all.regs_eq (by decide)).trans hlen,
     (he_all.regs_eq (by decide)).trans hsLo,
     (he_all.regs_eq (by decide)).trans hsHi,

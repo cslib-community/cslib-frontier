@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Control
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Sparse initialization of requested accumulators
@@ -188,12 +189,12 @@ theorem exec_clearValues {w N capacity : ℕ} (x : Data registers) (input : ℕ 
     exec_clearRequested x input hN hinput hcode hsep h0 h1 hw
   have hframe := hregs frame (by decide)
   obtain ⟨y, hy, hterm, hmode, hmem', hregs'⟩ := exec_clearValuesFinish z
-    ((hregs one (by decide)).trans h1) ((hregs frameWidth (by decide)).trans h4)
+    (by regs_frame) (by regs_frame)
     (by simpa only [hframe] using hf)
   have he : ExecWithin w clearValues x y (7 * N + 8) := (hz.seq hy).mono (by omega)
   have hm : y.mem = Function.update z.mem (x.regs frame + 3) 0 := by
     simpa only [hframe] using hmem'
-  refine ⟨y, he, (hregs' index (by decide)).trans hindex, hterm, hmode,
+  refine ⟨y, he, by regs_frame, hterm, hmode,
     by rw [hm, hmem], ?_, fun i hi => he.regs_eq (clearValues_preserves i hi)⟩
   intro i hi
   have hne : x.regs listBase + i ≠ x.regs frame + 3 := by

@@ -4481,6 +4481,7 @@ public import CslibFrontier.Computability.WordRAM.Subroutine
 public import CslibFrontier.Computability.WordRAM.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+public import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.WordRAM.Trace

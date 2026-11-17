@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanMemory
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Weight
 public import CslibFrontier.Computability.WordRAM.Heap
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Memory and register invariants for actual controller nodes
@@ -81,38 +82,12 @@ def nodeWrites (L f d : ℕ) : Finset ℕ :=
 private theorem KernelRegs.of_leafStep {L f a b : ℕ} {x y : Data registers}
     (h : KernelRegs L f a b x)
     (hy : ∀ i, ¬LeafStepLocal i → y.regs i = x.regs i) : KernelRegs L f a b y := by
-  constructor
-  · exact (hy inputDepth (by decide)).trans h.depth_eq
-  · exact (hy span (by decide)).trans h.span_eq
-  · exact (hy arrayA (by decide)).trans h.left_eq
-  · exact (hy arrayB (by decide)).trans h.right_eq
-  · exact (hy frames (by decide)).trans h.frames_eq
-  · exact (hy lists (by decide)).trans h.lists_eq
-  · exact (hy values (by decide)).trans h.values_eq
-  · exact (hy stamps (by decide)).trans h.stamps_eq
-  · exact (hy nil (by decide)).trans h.nil_eq
-  · exact (hy one (by decide)).trans h.one_eq
-  · exact (hy ten (by decide)).trans h.ten_eq
-  · exact (hy nine (by decide)).trans h.nine_eq
-  · exact (hy frameWidth (by decide)).trans h.frameWidth_eq
+  regs_frame
 
 /-- Every branch of the actual controller preserves the fixed caller parameters. -/
 theorem KernelRegs.of_step {w T L f a b : ℕ} {x y : Data registers}
     (h : KernelRegs L f a b x) (he : ExecWithin w step x y T) : KernelRegs L f a b y := by
-  constructor
-  · exact (he.regs_eq (by decide : step.Preserves inputDepth)).trans h.depth_eq
-  · exact (he.regs_eq (by decide : step.Preserves span)).trans h.span_eq
-  · exact (he.regs_eq (by decide : step.Preserves arrayA)).trans h.left_eq
-  · exact (he.regs_eq (by decide : step.Preserves arrayB)).trans h.right_eq
-  · exact (he.regs_eq (by decide : step.Preserves frames)).trans h.frames_eq
-  · exact (he.regs_eq (by decide : step.Preserves lists)).trans h.lists_eq
-  · exact (he.regs_eq (by decide : step.Preserves values)).trans h.values_eq
-  · exact (he.regs_eq (by decide : step.Preserves stamps)).trans h.stamps_eq
-  · exact (he.regs_eq (by decide : step.Preserves nil)).trans h.nil_eq
-  · exact (he.regs_eq (by decide : step.Preserves one)).trans h.one_eq
-  · exact (he.regs_eq (by decide : step.Preserves ten)).trans h.ten_eq
-  · exact (he.regs_eq (by decide : step.Preserves nine)).trans h.nine_eq
-  · exact (he.regs_eq (by decide : step.Preserves frameWidth)).trans h.frameWidth_eq
+  regs_frame
 
 /-- `exec_loadFrame` for a controller state at depth `d ≤ L`: the loaded frame words and the
 computed row pointers, written in the fixed workspace layout of `KernelRegs`. -/
@@ -186,7 +161,7 @@ theorem exec_node_zero {w L f a0 b0 p E : ℕ} {a b : ℤ}
   · simpa only [hd] using hyl
   · simpa only [hd] using hym
   · simpa only [hd] using hya
-  · exact (hreg epoch (by decide)).trans hE
+  · regs_frame
   · intro q hq
     rw [hm']
     split_ifs
@@ -269,10 +244,8 @@ theorem exec_node_enter {w L f a0 b0 d N : ℕ} (x : Data registers)
   refine ⟨y, he, hregs.of_step he, ?_, hym, ?_, ?_, hmem, ?_, ?_⟩
   · exact ((hy.regs_eq (by decide : clearValues.Preserves level)).trans
       (fixed level (by decide))).trans hd
-  · exact (hy.regs_eq (by decide : clearValues.Preserves epoch)).trans
-      (fixed epoch (by decide))
-  · exact (hy.regs_eq (by decide : clearValues.Preserves active)).trans
-      (fixed active (by decide))
+  · regs_frame
+  · regs_frame
   · simpa only [hul'] using hyread
   · intro c hc'
     have hf : ¬(Block.mk (f + 4 * d) (4 * (L + 1 - d))).Owns c := by

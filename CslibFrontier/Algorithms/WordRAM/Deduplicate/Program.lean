@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Count
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native adjacent deduplication and multiplicity arrays
@@ -176,7 +177,7 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     have hzmem : z.mem = Function.update
         (Function.update y.mem (base + rs.length) xs[y.regs idx]) (base + n + rs.length) c := by
       simpa only [huk, hucb, huout, hukey, huc', hum, y₀, Data.set_mem] using hzm
-    have hzi : z.regs idx = y.regs idx + c := (hz.regs_eq (by decide)).trans hui
+    have hzi : z.regs idx = y.regs idx + c := by regs_frame
     have hzf : Modifies (Block.mk base (2 * n)).footprint y.mem z.mem := by
       intro a hnot
       have ha : ¬(base ≤ a ∧ a < base + 2 * n) := by
@@ -220,9 +221,8 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     refine ⟨z, 8 * c + 19, ?_, ?_, ?_⟩
     · have hall := hinit.seq (hu.seq hz)
       exact hall.mono (by omega)
-    · refine ⟨(hz.regs_eq (by decide)).trans hun, (hz.regs_eq (by decide)).trans hus,
-        (hz.regs_eq (by decide)).trans huk, (hz.regs_eq (by decide)).trans hucb,
-        (hz.regs_eq (by decide)).trans huo, by omega, ?_, ?_,
+    · refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        by regs_frame, by omega, ?_, ?_,
         rs ++ [(xs[y.regs idx], c)], by simpa only [hzi] using hrs', ?_, hkeyrep, hcountrep, ?_⟩
       · ram_keep hym using hzf
       · intro a ha

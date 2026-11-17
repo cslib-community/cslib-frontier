@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Emit
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanSet
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged native suffix selection
@@ -187,20 +188,14 @@ theorem exec_scanStep {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
   have hload : ExecWithin w scanLoad x z 3 := by
     ram_eval [scanLoad, z, hq, h10, hread, hmod, address, listBase, index, query, digit, ten,
       Fin.mk.injEq]
-  have hreg (i : Fin registers) (ha : i ≠ address) (hq' : i ≠ query) (hd : i ≠ digit) :
-      z.regs i = x.regs i := by simp [z, ha, hq', hd]
   obtain ⟨u, hu, hc, hm, hf⟩ := exec_scanDispatch child z q
     (by simp [z, query, digit]) (by simp [z])
-    ((hreg one (by decide) (by decide) (by decide)).trans h1)
-    ((hreg ten (by decide) (by decide) (by decide)).trans h10)
-    ((hreg nine (by decide) (by decide) (by decide)).trans h9)
+    (by regs_frame) (by regs_frame) (by regs_frame)
     (by simpa [z, stamps, address, query, digit] using hs)
     (by simpa [z, childList, childCount, address, query, digit] using hl)
     (by simpa [z, childCount, address, query, digit] using hn)
-  have hui : u.regs index = x.regs index :=
-    (hf index (by decide)).trans (hreg index (by decide) (by decide) (by decide))
-  have huo : u.regs one = 1 :=
-    (hf one (by decide)).trans ((hreg one (by decide) (by decide) (by decide)).trans h1)
+  have hui : u.regs index = x.regs index := by regs_frame
+  have huo : u.regs one = 1 := by regs_frame
   let y := u.set index (x.regs index + 1)
   have hinc : ExecWithin w (ram[ index ← index + one ]) u y 1 := by
     ram_eval [y, hui, huo, hi]

@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real coordinate delivery, verifier calls and witness returns
@@ -88,14 +89,14 @@ theorem exec_scan {w U n first length out queries count a b : ℕ}
   obtain ⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩ := sa
   refine ⟨y, he, ?_, sm, sa', sb', ?_, ?_, ?_, frame⟩
   · exact
-      { output := (frame _ (by decide)).trans hx.output
-        queries := (frame _ (by decide)).trans hx.queries
-        count := (frame _ (by decide)).trans hx.count
-        size := (frame _ (by decide)).trans hx.size
-        first := (frame _ (by decide)).trans hx.first
-        length := (frame _ (by decide)).trans hx.length
-        one := (frame _ (by decide)).trans hx.one
-        zero := (frame _ (by decide)).trans hx.zero
+      { output := by regs_frame
+        queries := by regs_frame
+        count := by regs_frame
+        size := by regs_frame
+        first := by regs_frame
+        length := by regs_frame
+        one := by regs_frame
+        zero := by regs_frame
         ab := sab
         bc := sbc
         ac := sac
@@ -138,7 +139,7 @@ theorem exec_deliverPair {W n first length out queries count i scans a b : ℕ} 
   · rfl
   · rfl
   · rfl
-  · exact (he.regs_eq (by decide)).trans hi
+  · regs_frame
   · exact he.regs_eq (by decide)
 
 /-- Copy back only a genuinely reported verifier success and its actual original coordinates.

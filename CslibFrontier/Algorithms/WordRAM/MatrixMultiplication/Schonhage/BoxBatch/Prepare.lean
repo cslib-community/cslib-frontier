@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.InputLayout
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Shared native construction before a query batch
@@ -155,11 +156,9 @@ theorem exec_prepare {w L m t N A B : ℕ} (hmL : m ≤ L) (x : Data registers)
     (hu.seq (hv.seq (hz.seq hy))).mono (by
       unfold preparationTime BoxQuery.preparationTime
       omega)
-  refine ⟨y, he, (hy.regs_eq (by decide)).trans zL,
-    (hy.regs_eq (by decide)).trans zt, (hy.regs_eq (by decide)).trans zT,
-    (hy.regs_eq (by decide)).trans zA, (hy.regs_eq (by decide)).trans zB,
-    (hy.regs_eq (by decide)).trans zD, (hy.regs_eq (by decide)).trans zV',
-    (hy.regs_eq (by decide)).trans zK, yQ, yN, yO, ?_, ?_⟩
+  refine ⟨y, he, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, yQ, yN, yO, ?_, ?_⟩
   · constructor
     · intro i
       rw [yμ, zframe _ (by unfold directoryBase queryBase; have := i.isLt; omega)]
