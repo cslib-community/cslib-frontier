@@ -17,7 +17,7 @@ public import Cslib.Foundations.Data.Polynomial.Monotone
 This module defines the statistical, call-bounded execution experiment of the
 universal-composability (UC) framework of [Canetti2020] (in this library's novel call-bounded port
 model, bounding
-oracle call counts only with unbounded local computation; computational polynomial-time ITM
+oracle call counts only with unbounded local computation; computational polynomial-time machine
 execution is open in #6043) for `n`-party protocols with a fixed set of statically corrupted
 parties, in the package style of `CslibFrontier.Crypto.Protocols.UC.Machine`:
 
@@ -293,14 +293,14 @@ variable {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
 
 /-- Polynomial oracle-call-count bound on protocol activations (bounding oracle call counts only
 and leaving local computation unbounded, this library's novel call-bounded port model; computational
-polynomial-time ITM execution is open in #6043): every
+polynomial-time machine execution is open in #6043): every
 activation of the protocol at security parameter `κ` makes at most `p.eval κ` calls. -/
 @[expose] def Protocol.PolyBounded (π : Protocol n In Out NetQ NetR) (p : Polynomial ℕ) : Prop :=
   ∀ κ C, (π κ C).IsBounded (p.eval κ)
 
 /-- Polynomial oracle-call-count bound on adversary activations (bounding oracle call counts only
 and leaving local computation unbounded, this library's novel call-bounded port model; computational
-polynomial-time ITM execution is open in #6043): every
+polynomial-time machine execution is open in #6043): every
 activation of the adversary at security parameter `κ` makes at most `p.eval κ` calls. -/
 @[expose] def Adversary.PolyBounded (A : Adversary n AdvQ AdvR NetQ NetR) (p : Polynomial ℕ) :
     Prop :=
@@ -308,7 +308,7 @@ activation of the adversary at security parameter `κ` makes at most `p.eval κ`
 
 /-- Polynomial oracle-call-count bound on an environment (bounding oracle call counts only and
 leaving local computation unbounded, this library's novel call-bounded port model; computational
-polynomial-time ITM execution is open in #6043): at
+polynomial-time machine execution is open in #6043): at
 security parameter `κ`, the environment makes at most `p.eval κ` calls in total, counting its
 private samples, whatever its auxiliary input. -/
 @[expose] def Environment.PolyBounded (Z : Environment n In Out AdvQ AdvR) (p : Polynomial ℕ) :
