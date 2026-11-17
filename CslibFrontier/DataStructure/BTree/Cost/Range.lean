@@ -54,6 +54,8 @@ open Cslib.Algorithms.Lean.TimeM (tick)
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section NodeVisits
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
