@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
@@ -61,6 +62,8 @@ Issue #4323; the full `O(log N)` dimension construction of [X. Li][Li2023] remai
 -/
 
 public section
+
+open Cslib.BinaryField
 
 namespace Cslib.AffineDisperser.Li
 

@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
@@ -78,6 +79,8 @@ further from `O(N ^ (4 / 5))` to `O(log N)` [Li2023] remains open.
 -/
 
 public section
+
+open Cslib.BinaryField
 
 namespace Cslib.AffineDisperser.Li
 

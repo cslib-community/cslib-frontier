@@ -3969,7 +3969,9 @@ public import CslibFrontier.Computability.PointerMachine.Embedding
 public import CslibFrontier.Computability.PointerMachine.Renaming
 public import CslibFrontier.Computability.PointerMachine.Simulation
 public import CslibFrontier.Computability.PointerMachine.Symbols
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.PolyTime.BitString.InitialTestsSearch
+public import CslibFrontier.Computability.PolyTime.BitString.SmallBias
 public import CslibFrontier.Computability.PolyTime.BitString.TannerSearch
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceCounter
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceExactness
@@ -6442,7 +6444,9 @@ public import CslibFrontier.Foundations.Data.ZMod.SquareModulus
 public import CslibFrontier.Foundations.Data.ZMod.ValMinAbs
 public import CslibFrontier.Foundations.FieldTheory.Finite.Basic
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Foundations.FieldTheory.Finite.LinearizedPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.ReducedMonomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
