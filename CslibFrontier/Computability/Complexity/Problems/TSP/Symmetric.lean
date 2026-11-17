@@ -18,7 +18,7 @@ import Mathlib.Data.List.Rotate
 import Mathlib.Tactic.IntervalCases
 
 /-!
-# The traveling salesman problem with symmetric distances
+# The traveling salesperson problem with symmetric distances
 
 [Arora and Barak, Example 2.2][AroraBarak07] (printed p. 40 / PDF p. 56) gives TSP instances as
 "a set of `n` nodes, `n choose 2` numbers `d_{i,j}` denoting the distances between all pairs of
@@ -67,7 +67,7 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
-/-- An instance of the traveling salesman problem with symmetric distances, in the format of
+/-- An instance of the traveling salesperson problem with symmetric distances, in the format of
 [Arora and Barak, Example 2.2][AroraBarak07]: the lower triangle `dist` of the distance matrix, by
 rows, and a closed-tour budget `bound`. Row `i` lists the distances from city `i` to the cities
 `0, …, i - 1`. -/
@@ -101,7 +101,7 @@ theorem dist_comm (D : List (List ℕ)) (i j : ℕ) : dist D i j = dist D j i :=
 
 end SymTSP
 
-/-- The traveling salesman problem with symmetric distances
+/-- The traveling salesperson problem with symmetric distances
 [Arora and Barak, Example 2.2][AroraBarak07]: the instances `x` such that some closed tour visiting
 each city `0, …, x.dist.length - 1` exactly once has length at most `x.bound`. -/
 @[expose] def SymTSP : Set SymTSPInstance :=
@@ -295,7 +295,7 @@ theorem polyTimeReducible_HamCycle_SymTSP : PolyTimeReducible encGraph encSymTSP
 theorem SymTSP_npHard : NPHard encSymTSP SymTSP :=
   HamCycle_npHard.trans polyTimeReducible_HamCycle_SymTSP
 
-/-- **The traveling salesman problem of Arora–Barak, Example 2.2 is NP-complete**
+/-- **The traveling salesperson problem of Arora–Barak, Example 2.2 is NP-complete**
 [Arora and Barak, Chapter 2, Exercise 17][AroraBarak07]: instances are `n` cities with the
 `n choose 2` symmetric binary distances between them, as a lower triangle (`encSymTSP`), and a
 binary budget. -/

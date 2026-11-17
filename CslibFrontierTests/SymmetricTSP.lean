@@ -10,7 +10,7 @@ module
 import CslibFrontier.Computability.Complexity.Problems.TSP.Symmetric
 import Mathlib.Tactic.IntervalCases
 
-/-! Checked instances of the symmetric traveling salesman problem of Arora–Barak, Example 2.2
+/-! Checked instances of the symmetric traveling salesperson problem of Arora–Barak, Example 2.2
 (`Cslib.Complexity.SymTSP`): a three-city triangle with distances `1, 2, 3` (the lower triangle
 `[[], [1], [2, 3]]`) has a tour of length `6` and none shorter, so it is a yes-instance with budget
 `6` and a no-instance with budget `5`; and the full matrix written by `SymTSP.toTSP` is symmetric
