@@ -32,10 +32,9 @@ The members are:
 * `StateT.run` over what these leave: `StateT.run_pure`, `StateT.run_bind`, `StateT.run_map`,
   `StateT.run_lift`.
 
-## Main results
-
-* `Cslib.ProbComp.interpret_unifOracle`: answering each uniform draw of a closed program by its
-  distribution gives `ProbComp.eval` of the program.
+All are existing declarations except `ProbComp.interpret_unifOracle`, stated here for the set: it
+is `OracleComp.evalWith_eq_interpret` at `ProbComp.unifOracle`, oriented so that the interpreter
+is rewritten to `ProbComp.eval`.
 -/
 
 public section
