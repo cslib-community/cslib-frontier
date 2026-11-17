@@ -326,8 +326,13 @@ isolates dependency `.git` directories and
 or `index`, and dereferences any package symlink whose target is absolute or escapes the package
 directory. Pass `--copy-cslib` or `--copy-packages` when package sources must change.
 
-When the primary checkout's outputs are changing or use different pins, create a worktree without
-copying its initial `.lake` contents:
+Before copying, the helper compares both checkouts’ toolchains and manifests and verifies the
+primary dependency checkouts against the requested Git revisions. When the inputs differ or a
+locked dependency cannot be verified, Lake bootstraps the destination directly. With matching
+inputs, APFS and GNU `cp` use copy-on-write clones of build outputs where supported and copy
+bytes on other filesystems. Each worker can rewrite its own outputs independently.
+
+When the primary checkout's outputs are changing, create a worktree without copying them:
 
 ```bash
 scripts/worktree.sh create feature/example example origin/main --source-only
@@ -341,7 +346,7 @@ unless `COMPLEXITYLIB_WORKTREE_SKIP_CACHE_BOOTSTRAP=1` or the usual cache opt-ou
 populate the new checkout with independently materialized dependencies and restored outputs.
 Lake can reuse its immutable artifact cache, but expect dependency downloads and disk use for
 independent package checkouts, and compilation when outputs are unavailable. This option cannot
-be combined with `--copy-cslib` or `--copy-packages`; the default seeded behavior is unchanged.
+be combined with `--copy-cslib` or `--copy-packages`.
 
 ## Trust and privacy
 

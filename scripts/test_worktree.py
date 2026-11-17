@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import shutil
@@ -44,7 +45,7 @@ class WorktreeCreateTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.tmp = pathlib.Path(tmp.name)
+        self.tmp = pathlib.Path(tmp.name).resolve()
         self.origin = self.tmp / "origin.git"
         subprocess.run(
             ["git", "init", "--quiet", "--bare", "-b", "main", str(self.origin)],
@@ -220,6 +221,27 @@ class WorktreeCreateTests(unittest.TestCase):
         self.assertNotEqual(git(package, "rev-parse", "--absolute-git-dir"),
                             git(copied_package, "rev-parse", "--absolute-git-dir"))
         self.assertFalse((self.work / ".lake/build/bootstrap-artifact").exists())
+
+    def test_seed_checks_destination_pins_and_actual_package_heads(self) -> None:
+        pkg = self.primary_caches()
+        pin = git(pkg, "rev-parse", "HEAD")
+        manifest = self.work / "lake-manifest.json"
+        manifest.write_text(json.dumps({"packages": [{"name": "cslib", "type": "git", "rev": pin}]}))
+        (self.work / "lean-toolchain").write_text("pinned-toolchain\n")
+        git(self.work, "add", "lake-manifest.json", "lean-toolchain")
+        git(self.work, "commit", "-qm", "record pins")
+        env = self.bootstrap_probe()
+        for name, base, expected in (("same", "HEAD", "seeded"), ("old", "HEAD^", "empty"),
+                                     ("stale", "HEAD", "empty")):
+            if name == "stale":
+                git(pkg, "commit", "--allow-empty", "-qm", "different dependency revision")
+            result = self.create(f"test/{name}", name, base, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            wt = self.work / ".worktrees" / name
+            self.assertEqual((wt / ".bootstrap-entry").read_text(), expected)
+            self.assertEqual((wt / ".lake/build/root-output").is_file(), expected == "seeded")
+            self.assertEqual((wt / ".lake/packages/cslib/.lake").exists(), expected == "seeded")
+            self.assertTrue((wt / ".lake/build/bootstrap-artifact").is_file())
 
     def test_source_only_respects_explicit_bootstrap_opt_out(self) -> None:
         self.primary_caches()

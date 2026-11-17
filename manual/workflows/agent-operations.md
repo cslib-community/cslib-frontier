@@ -66,7 +66,10 @@ During ordinary edits, use MCP diagnostics or targeted
 `scripts/build.sh <modules and representative clients> --wfail --iofail`. Use
 `scripts/check.sh --quick --no-full-fallback` at local validation checkpoints. Status 3 means
 the change needs focused checks plus hosted full validation; do not automatically retry with a
-local full check. Run full `scripts/check.sh` only when explicitly requested or hosted coverage
+local full check. On a checkout where importing the entire library is expensive,
+`scripts/check.sh --focused` defers the unchanged global smoke and axiom tests if no library
+or test client imports them. It reports each omitted target and also returns 3 for unsupported
+changes. Run full `scripts/check.sh` only when explicitly requested or hosted coverage
 is unavailable, and do not duplicate successful CI covering the final revision. The local
 [restored-source audit](troubleshooting.md#diagnose-warnings-that-only-ci-reports) recovers
 warning/info logs and streams its count, worker mode, current source and elapsed time. It can repeat

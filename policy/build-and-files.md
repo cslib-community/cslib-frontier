@@ -58,7 +58,10 @@ builds changed Lean modules and their transitive importing clients, checks impor
 runs the source-only lints. It compares with the merge base of local `origin/main` and does not
 fetch. It is not full validation. Exit status 3 means the change is outside what quick mode
 supports: run focused checks for the changed files and representative clients, and leave the full
-run to hosted CI. Documentation-only checks need not invoke quick mode.
+run to hosted CI. `scripts/check.sh --focused` applies the same guard and can defer the unchanged
+global smoke and axiom test leaves to full CI. It lists the deferred tests. Both modes can plan
+a library edit alongside ordinary prose or additions to the bibliography. Documentation-only
+checks need not invoke quick mode.
 
 `lake exe mk_all` regenerates `CslibFrontier.lean` after adding a file. New test files go in
 `CslibFrontierTests/`; the test library is built from a Lake glob, so there is no aggregator to update.

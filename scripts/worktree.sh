@@ -20,6 +20,7 @@
 #     tracking, so a plain `git push` cannot target the base branch.
 #
 # Cache seeding note:
+#   Only seed when the destination toolchain/manifest match the primary and its checked-out pins.
 #   Package sources are hard-linked (`cp -al`) by default. Root build/config caches and every
 #   package's `.lake` cache are copied with independent inodes, preserving modes and mtimes.
 #   Cache symlinks and any package symlinks whose targets are absolute or escape the package
@@ -204,6 +205,58 @@ walk_dir(pathlib.Path("."))
 PY
 }
 
+# Both native clone options fall back to copying bytes on filesystems without reflinks.
+# Select once per worktree, preserving the existing link-dereferencing copy on other platforms.
+cache_copy=(cp -aL)
+if cp --version 2>/dev/null | grep -q 'GNU coreutils'; then
+  cache_copy=(cp -aL --reflink=auto)
+elif [ "$(uname -s)" = Darwin ]; then
+  cache_copy=(/bin/cp -acL)
+fi
+
+# A manifest can already have changed under an unrefreshed primary .lake. Verify its
+# materialized packages before copying builds made against the old dependencies. Lake can
+# fetch missing packages normally; existing unpinned seed directories retain their old behavior.
+compatible_seed() {
+  python3 - "$ROOT" "$1" <<'PYTHON'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+primary, target = map(Path, sys.argv[1:])
+
+def incompatible(reason):
+    print(f"Skipping initial cache copies: {reason}.")
+    sys.exit(1)
+
+try:
+    for name in ("lean-toolchain", "lake-manifest.json"):
+        source, dest = primary / name, target / name
+        if not source.exists() and not dest.exists():
+            continue
+        if not source.is_file() or not dest.is_file() or source.read_bytes() != dest.read_bytes():
+            incompatible(f"{name} differs")
+    manifest = target / "lake-manifest.json"
+    if manifest.is_file():
+        for entry in json.loads(manifest.read_text())["packages"]:
+            if entry["type"] != "git":
+                incompatible(f"cannot verify a {entry['type']} dependency")
+            name = entry["name"]
+            if not name or name in {".", ".."} or Path(name).name != name:
+                incompatible("unsupported dependency name")
+            pkg = primary / ".lake/packages" / name
+            if not (pkg / ".git").exists():
+                incompatible(f"{name} is missing its pinned checkout")
+            rev = subprocess.run(["git", "-C", str(pkg), "rev-parse", "--verify", "HEAD"],
+                                 capture_output=True, text=True, check=True).stdout.strip()
+            if rev != entry["rev"]:
+                incompatible(f"{name} checkout differs from its pin")
+except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+    incompatible(f"could not verify the seed inputs ({error})")
+PYTHON
+}
+
 # seed_package <source> <destination> <copy_sources>. Copy caches without first hard-linking them.
 seed_package() (
   local source="$1" destination="$2" copy_sources="$3" entry base
@@ -212,7 +265,7 @@ seed_package() (
   for entry in "$source"/*; do
     base="$(basename "$entry")"
     if [ "$base" = ".lake" ]; then
-      cp -aL "$entry" "$destination/.lake"
+      "${cache_copy[@]}" "$entry" "$destination/.lake"
     elif [ "$base" = ".git" ]; then
       isolate_git_dir "$entry" "$destination/.git"
     elif [ "$copy_sources" = "true" ]; then
@@ -353,6 +406,10 @@ prepare_lake() {
     bootstrap_worktree_cache "$wt_path"
     return 0
   fi
+  if ! compatible_seed "$wt_path"; then
+    bootstrap_worktree_cache "$wt_path"
+    return 0
+  fi
   mkdir -p "$wt_path/.lake"
   if [ -d "$ROOT/.lake/packages" ] && [ ! -d "$wt_path/.lake/packages" ]; then
     mkdir -p "$wt_path/.lake/packages"
@@ -368,10 +425,10 @@ prepare_lake() {
     done
   fi
   if [ -d "$ROOT/.lake/config" ] && [ ! -d "$wt_path/.lake/config" ]; then
-    cp -aL "$ROOT/.lake/config" "$wt_path/.lake/config"
+    "${cache_copy[@]}" "$ROOT/.lake/config" "$wt_path/.lake/config"
   fi
   if [ -d "$ROOT/.lake/build" ] && [ ! -d "$wt_path/.lake/build" ]; then
-    cp -aL "$ROOT/.lake/build" "$wt_path/.lake/build"
+    "${cache_copy[@]}" "$ROOT/.lake/build" "$wt_path/.lake/build"
   fi
   bootstrap_worktree_cache "$wt_path"
 }
@@ -482,7 +539,7 @@ case "$cmd" in
       fi
     done
     prepare_lake "$wt_path" "$copy_mode"
-    echo "Seeded .lake cache in $wt_path"
+    echo "Cache preparation finished for $wt_path"
     ;;
   list)
     git worktree list
