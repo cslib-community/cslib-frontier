@@ -82,7 +82,7 @@ example {α : Type} {enc : α ↪ List Bool} {R : α → List Bool → Prop} (hR
   exact ⟨r, hr, fun b => Nat.card_congr (hequiv b).some⟩
 
 example : ∃ R : List (List Bool) → List Bool → Prop, R ∈ FPSearch encBoolTable ∧
-    SharpPMetricComplete encBoolTable (searchCount R) :=
+    IsTotalSearch R ∧ SharpPMetricComplete encBoolTable (searchCount R) :=
   exists_mem_FPSearch_sharpPMetricComplete
 
 example {α : Type} {enc : α ↪ List Bool} (R : NPRelation enc) :

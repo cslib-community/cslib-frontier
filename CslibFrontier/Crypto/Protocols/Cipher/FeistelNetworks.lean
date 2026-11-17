@@ -11,15 +11,13 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Foundations.Data.BitString.HalfSplit
 public import CslibFrontier.Languages.Probabilistic.RandomPermutation.ExtPermsCard
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
+import Mathlib.Data.Nat.Factorial.Cast
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
@@ -470,57 +468,46 @@ section Distinguishers
 
 variable {α : Type} [Fintype α] [DecidableEq α]
 
-private theorem card_filter_perm_two_mul_le {x y : α} (hxy : x ≠ y) (a b : α) :
-    ((Finset.univ.filter fun π : Equiv.Perm α => π x = a ∧ π y = b).card : ℝ) *
-      ((Fintype.card α : ℝ) * ((Fintype.card α : ℝ) - 1)) ≤ (Fintype.card α).factorial := by
-  have hinj : Function.Injective ![x, y] := by
-    intro i j h; fin_cases i <;> fin_cases j <;> simp_all [eq_comm]
-  let xs : Fin 2 ↪ α := ⟨![x, y], hinj⟩
-  have h := RandomPermutation.card_extPerms_ofFn_mul_descFactorial_le xs ![a, b]
-  have he : RandomPermutation.extPerms (List.ofFn fun i : Fin 2 => (xs i, ![a, b] i)) =
-      Finset.univ.filter fun π : Equiv.Perm α => π x = a ∧ π y = b := by
-    rw [RandomPermutation.extPerms_ofFn_eq]; ext π; simp [xs, Fin.forall_fin_two]
-  have h1 : 0 < Fintype.card α := Fintype.card_pos_iff.mpr ⟨x⟩
-  rw [he, Nat.descFactorial_succ, Nat.descFactorial_one] at h
-  have hsub : ((Fintype.card α - 1 : ℕ) : ℝ) = (Fintype.card α : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega)]; simp
-  rw [← hsub]
-  have hcast := (Nat.cast_le (α := ℝ)).mpr h
-  push_cast at hcast ⊢
-  linarith
+omit [Fintype α] [DecidableEq α] in
+private theorem injective_pair {x y : α} (hxy : x ≠ y) : Function.Injective ![x, y] := by
+  intro i j h; fin_cases i <;> fin_cases j <;> simp_all [eq_comm]
 
-private theorem card_filter_perm_three_mul_le {x y z : α}
-    (hxy : x ≠ y) (hxz : x ≠ z) (hyz : y ≠ z) (a b c : α) (hM : 2 ≤ Fintype.card α) :
-    ((Finset.univ.filter fun π : Equiv.Perm α => π x = a ∧ π y = b ∧ π z = c).card : ℝ) *
-      ((Fintype.card α : ℝ) * ((Fintype.card α : ℝ) - 1) * ((Fintype.card α : ℝ) - 2)) ≤
-        (Fintype.card α).factorial := by
-  have hinj : Function.Injective ![x, y, z] := by
-    intro i j h; fin_cases i <;> fin_cases j <;> simp_all [eq_comm]
-  let xs : Fin 3 ↪ α := ⟨![x, y, z], hinj⟩
-  have h := RandomPermutation.card_extPerms_ofFn_mul_descFactorial_le xs ![a, b, c]
-  have he : RandomPermutation.extPerms (List.ofFn fun i : Fin 3 => (xs i, ![a, b, c] i)) =
-      Finset.univ.filter fun π : Equiv.Perm α => π x = a ∧ π y = b ∧ π z = c := by
-    rw [RandomPermutation.extPerms_ofFn_eq]; ext π; simp [xs, Fin.forall_fin_succ]
-  rw [he, Nat.descFactorial_succ, Nat.descFactorial_succ, Nat.descFactorial_one] at h
-  have e1 : ((Fintype.card α - 1 : ℕ) : ℝ) = (Fintype.card α : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega)]; simp
-  have e2 : ((Fintype.card α - 2 : ℕ) : ℝ) = (Fintype.card α : ℝ) - 2 := by
-    rw [Nat.cast_sub (by omega)]; simp
-  rw [← e1, ← e2]
-  have hcast := (Nat.cast_le (α := ℝ)).mpr h
-  push_cast at hcast ⊢
-  linarith
+omit [Fintype α] [DecidableEq α] in
+private theorem injective_triple {x y z : α} (hxy : x ≠ y) (hxz : x ≠ z) (hyz : y ≠ z) :
+    Function.Injective ![x, y, z] := by
+  intro i j h; fin_cases i <;> fin_cases j <;> simp_all [eq_comm]
 
-private theorem card_le_of_biUnion_cover {β γ : Type*} [DecidableEq γ]
-    (E : Finset γ) (S : Finset β) (F : β → Finset γ) (c : ℝ)
-    (hE : E ⊆ S.biUnion F) (hF : ∀ i ∈ S, ((F i).card : ℝ) ≤ c) :
-    (E.card : ℝ) ≤ S.card * c := by
-  have h1 : (E.card : ℝ) ≤ (S.biUnion F).card := by exact_mod_cast Finset.card_le_card hE
-  have h2 : ((S.biUnion F).card : ℝ) ≤ ∑ i ∈ S, ((F i).card : ℝ) := by
-    exact_mod_cast Finset.card_biUnion_le
-  have h3 : ∑ i ∈ S, ((F i).card : ℝ) ≤ ∑ _i ∈ S, c := Finset.sum_le_sum hF
-  simp only [Finset.sum_const, nsmul_eq_mul] at h3
-  linarith
+private theorem cast_descFactorial_three {n : ℕ} (hn : 2 ≤ n) :
+    ((n.descFactorial 3 : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) * ((n : ℝ) - 2) := by
+  rw [Nat.descFactorial_succ, Nat.descFactorial_succ, Nat.descFactorial_one]
+  push_cast [Nat.cast_sub (by omega : 1 ≤ n), Nat.cast_sub hn]
+  ring
+
+private theorem card_filter_perm_div_factorial_le {k : ℕ}
+    (xs : Fin k → α) (hxs : Function.Injective xs) (ys : Fin k → α) :
+    ((Finset.univ.filter fun π : Equiv.Perm α => ∀ i, π (xs i) = ys i).card : ℝ) /
+      (Fintype.card α).factorial ≤ ((Fintype.card α).descFactorial k : ℝ)⁻¹ := by
+  have hk : k ≤ Fintype.card α := by simpa using Fintype.card_le_of_injective xs hxs
+  have hdesc : (0 : ℝ) < (Fintype.card α).descFactorial k :=
+    Nat.cast_pos.mpr (Nat.descFactorial_pos.mpr hk)
+  have hfac : (0 : ℝ) < (Fintype.card α).factorial := Nat.cast_pos.mpr (Nat.factorial_pos _)
+  rw [div_le_iff₀ hfac, inv_mul_eq_div, le_div_iff₀ hdesc, ← RandomPermutation.extPerms_ofFn_eq]
+  exact_mod_cast RandomPermutation.card_extPerms_ofFn_mul_descFactorial_le ⟨xs, hxs⟩ ys
+
+private abbrev permBiUnion {β : Type*} (S : Finset β) {k : ℕ}
+    (xs : β → Fin k → α) (ys : β → Fin k → α) : Finset (Equiv.Perm α) :=
+  S.biUnion fun i => Finset.univ.filter fun π : Equiv.Perm α => ∀ j, π (xs i j) = ys i j
+
+private theorem card_biUnion_perm_div_le {β : Type*} (S : Finset β) {k : ℕ}
+    (xs : β → Fin k → α) (hxs : ∀ i ∈ S, Function.Injective (xs i)) (ys : β → Fin k → α) :
+    ((permBiUnion S xs ys).card : ℝ) / (Fintype.card α).factorial ≤
+      (S.card : ℝ) / ((Fintype.card α).descFactorial k : ℝ) := by
+  refine (div_le_div_of_nonneg_right (Nat.cast_le.mpr Finset.card_biUnion_le)
+    (Nat.cast_nonneg _)).trans ?_
+  rw [Nat.cast_sum, Finset.sum_div]
+  refine (Finset.sum_le_sum fun i hi =>
+    card_filter_perm_div_factorial_le (xs i) (hxs i hi) (ys i)).trans_eq ?_
+  simp [div_eq_mul_inv]
 
 private theorem card_erase_erase {x y : α} (hxy : x ≠ y) :
     (((Finset.univ.erase x).erase y).card : ℝ) = (Fintype.card α : ℝ) - 2 := by
@@ -532,15 +519,51 @@ private theorem card_erase_erase {x y : α} (hxy : x ≠ y) :
   rw [Nat.cast_sub (by omega), Nat.cast_sub (by omega)]
   push_cast; ring
 
-private theorem uniformOfFintype_perm_filter_toReal (P : Equiv.Perm α → Bool) :
-    (((PMF.uniformOfFintype (Equiv.Perm α)).bind fun π => PMF.pure (P π)) true).toReal =
-      ((Finset.univ.filter fun π => P π = true).card : ℝ) / (Fintype.card α).factorial := by
-  have : DecidablePred (· ∈ P ⁻¹' ({true} : Set Bool)) :=
-    fun π => inferInstanceAs (Decidable (P π = true))
-  change (((PMF.uniformOfFintype (Equiv.Perm α)).map P) true).toReal = _
-  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
+private theorem perm_decide_toReal_le_of_subset {P : Equiv.Perm α → Prop} [DecidablePred P]
+    {E : Finset (Equiv.Perm α)} (hcover : ∀ π, P π → π ∈ E) {b : ℝ}
+    (hb : (E.card : ℝ) / (Fintype.card α).factorial ≤ b) :
+    (((PMF.uniformOfFintype (Equiv.Perm α)).bind fun π => PMF.pure (decide (P π))) true).toReal ≤
+      b := by
+  rw [Cslib.Probability.PMF.bind_pure_decide_apply_true,
     Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, Fintype.card_perm]
-  simp only [Set.mem_preimage, Set.mem_singleton_iff]
+  refine le_trans ?_ hb
+  gcongr
+  intro π hπ
+  rw [Finset.mem_filter] at hπ
+  exact hcover π hπ.2
+
+private theorem perm_decide_toReal_le_biUnion {β : Type*} {P : Equiv.Perm α → Prop}
+    [DecidablePred P] (S : Finset β) {k : ℕ}
+    (xs : β → Fin k → α) (hxs : ∀ i ∈ S, Function.Injective (xs i)) (ys : β → Fin k → α)
+    (hcover : ∀ π, P π → ∃ i ∈ S, ∀ j, π (xs i j) = ys i j) :
+    (((PMF.uniformOfFintype (Equiv.Perm α)).bind fun π => PMF.pure (decide (P π))) true).toReal ≤
+      (S.card : ℝ) / ((Fintype.card α).descFactorial k : ℝ) :=
+  perm_decide_toReal_le_of_subset
+    (fun π hπ => by
+      simpa only [permBiUnion, Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ,
+        true_and] using hcover π hπ)
+    (card_biUnion_perm_div_le S xs hxs ys)
+
+private theorem perm_decide_toReal_le_biUnion_union {β γ : Type*}
+    {P : Equiv.Perm α → Prop} [DecidablePred P]
+    (S₁ : Finset β) {k₁ : ℕ} (xs₁ : β → Fin k₁ → α)
+    (hxs₁ : ∀ i ∈ S₁, Function.Injective (xs₁ i)) (ys₁ : β → Fin k₁ → α)
+    (S₂ : Finset γ) {k₂ : ℕ} (xs₂ : γ → Fin k₂ → α)
+    (hxs₂ : ∀ i ∈ S₂, Function.Injective (xs₂ i)) (ys₂ : γ → Fin k₂ → α)
+    (hcover : ∀ π, P π →
+      (∃ i ∈ S₁, ∀ j, π (xs₁ i j) = ys₁ i j) ∨ (∃ i ∈ S₂, ∀ j, π (xs₂ i j) = ys₂ i j)) :
+    (((PMF.uniformOfFintype (Equiv.Perm α)).bind fun π => PMF.pure (decide (P π))) true).toReal ≤
+      (S₁.card : ℝ) / ((Fintype.card α).descFactorial k₁ : ℝ) +
+        (S₂.card : ℝ) / ((Fintype.card α).descFactorial k₂ : ℝ) := by
+  refine perm_decide_toReal_le_of_subset (E := permBiUnion S₁ xs₁ ys₁ ∪ permBiUnion S₂ xs₂ ys₂)
+    (fun π hπ => by
+      simpa only [permBiUnion, Finset.mem_union, Finset.mem_biUnion, Finset.mem_filter,
+        Finset.mem_univ, true_and] using hcover π hπ) ?_
+  refine (div_le_div_of_nonneg_right (Nat.cast_le.mpr (Finset.card_union_le _ _))
+    (Nat.cast_nonneg _)).trans ?_
+  rw [Nat.cast_add, add_div]
+  exact add_le_add (card_biUnion_perm_div_le S₁ xs₁ hxs₁ ys₁)
+    (card_biUnion_perm_div_le S₂ xs₂ hxs₂ ys₂)
 
 variable {G : Type} [AddGroup G] [Fintype G] [DecidableEq G]
 
@@ -574,13 +597,6 @@ omit [AddGroup G] in
 (original bound). -/
 theorem randomFunctionGame_feistel1CPAAttack_true [Nonempty G] (l₀ r₀ : G) :
     randomFunctionGame (feistel1CPAAttack l₀ r₀) true = (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  have heval :
-      (PMF.uniformOfFintype (G × G → G × G)).map (fun table => table (l₀, r₀)) =
-        PMF.uniformOfFintype (G × G) := by
-    rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
-  have hfst :
-      (PMF.uniformOfFintype (G × G)).map Prod.fst = PMF.uniformOfFintype G :=
-    Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
   have hgame :
       randomFunctionGame (feistel1CPAAttack l₀ r₀) =
         (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by
@@ -588,7 +604,9 @@ theorem randomFunctionGame_feistel1CPAAttack_true [Nonempty G] (l₀ r₀ : G) :
         = (((PMF.uniformOfFintype (G × G → G × G)).map (fun table => table (l₀, r₀))).map
             Prod.fst).map (fun v => decide (v = r₀)) := by
           simp [randomFunctionGame, feistel1CPAAttack, PMF.map_comp, Function.comp_def]; rfl
-      _ = (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by rw [heval, hfst]
+      _ = (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by
+          rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval,
+            Cslib.Probability.PMF.uniformOfFintype_prod_map_fst]
   rw [hgame, Cslib.Probability.PMF.map_decide_eq_apply_true, PMF.uniformOfFintype_apply]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from
@@ -612,30 +630,14 @@ theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
         (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
           PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
     simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame, uniformOfFintype_perm_filter_toReal]
-  set M := Fintype.card (G × G)
-  set P : ℝ := (M.factorial : ℝ)
-  have hP : 0 < P := Nat.cast_pos.mpr (Nat.factorial_pos _)
-  have hN : (0 : ℝ) < Fintype.card G := Nat.cast_pos.mpr Fintype.card_pos
-  have hMr : (M : ℝ) = (Fintype.card G : ℝ) * (Fintype.card G : ℝ) := by simp [M, Fintype.card_prod]
-  have hMpos : (0 : ℝ) < M := by rw [hMr]; positivity
-  have hcover :
-      (Finset.univ.filter fun π : Equiv.Perm (G × G) => decide ((π (l₀, r₀)).1 = r₀) = true) ⊆
-        (Finset.univ : Finset G).biUnion fun w =>
-          Finset.univ.filter fun π : Equiv.Perm (G × G) => π (l₀, r₀) = (r₀, w) := by
-    intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hπ
-    simp only [Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter, true_and]
-    exact ⟨(π (l₀, r₀)).2, Prod.ext hπ rfl⟩
-  have hE := card_le_of_biUnion_cover _ Finset.univ
-    (fun w => Finset.univ.filter fun π : Equiv.Perm (G × G) => π (l₀, r₀) = (r₀, w))
-    (P / M) hcover
-    (fun w _ => by
-      rw [le_div_iff₀ hMpos, ← Nat.cast_mul]
-      exact Nat.cast_le.mpr (RandomPermutation.card_filter_apply_eq_mul_card_le (l₀, r₀) (r₀, w)))
-  rw [Finset.card_univ] at hE
-  rw [div_le_iff₀ hP]
-  exact hE.trans_eq (by rw [hMr]; field_simp)
+  rw [hgame]
+  refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
+    (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
+    (fun w => ![(r₀, w)])
+    fun π hπ => ⟨(π (l₀, r₀)).2, Finset.mem_univ _,
+      Fin.forall_fin_one.mpr (Prod.ext hπ rfl)⟩).trans_eq ?_
+  have hN : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+  simp [Finset.card_univ, Fintype.card_prod]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from
 `idealPermGame` with advantage at least `1 - |G|⁻¹` (original bound). -/
@@ -691,41 +693,18 @@ theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r�
         (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
           PMF.pure (decide ((π (l₀, r₀)).1 - (π (l₁, r₀)).1 = l₀ - l₁)) := by
     simp [idealPermGame, feistel2CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame, uniformOfFintype_perm_filter_toReal]
   have hxy : ((l₀, r₀) : G × G) ≠ (l₁, r₀) := fun h => h01 (congrArg Prod.fst h)
-  set M := Fintype.card (G × G)
-  set P : ℝ := (M.factorial : ℝ)
-  have hP : 0 < P := Nat.cast_pos.mpr (Nat.factorial_pos _)
+  rw [hgame]
+  refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset ((G × G) × G)) (k := 2)
+    (fun _ => ![(l₀, r₀), (l₁, r₀)]) (fun _ _ => injective_pair hxy)
+    (fun aw => ![aw.1, (-(l₀ - l₁) + aw.1.1, aw.2)]) fun π hπ =>
+      ⟨(π (l₀, r₀), (π (l₁, r₀)).2), Finset.mem_univ _, Fin.forall_fin_two.mpr
+        ⟨rfl, Prod.ext (by dsimp; rw [← hπ, neg_sub, sub_add_cancel]) rfl⟩⟩).trans_eq ?_
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  have hMr : (M : ℝ) = (Fintype.card G : ℝ) ^ 2 := by simp [M, Fintype.card_prod, sq]
-  have hM1 : (1 : ℝ) < M := by rw [hMr]; nlinarith
-  have hcover :
-      (Finset.univ.filter fun π : Equiv.Perm (G × G) =>
-        decide ((π (l₀, r₀)).1 - (π (l₁, r₀)).1 = l₀ - l₁) = true) ⊆
-      (Finset.univ : Finset ((G × G) × G)).biUnion fun aw =>
-        Finset.univ.filter fun π : Equiv.Perm (G × G) =>
-          π (l₀, r₀) = aw.1 ∧ π (l₁, r₀) = (-(l₀ - l₁) + aw.1.1, aw.2) := by
-    intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hπ
-    simp only [Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter, true_and]
-    have hv₁ : (π (l₁, r₀)).1 = -(l₀ - l₁) + (π (l₀, r₀)).1 := by
-      rw [← hπ, neg_sub, sub_add_cancel]
-    exact ⟨(π (l₀, r₀), (π (l₁, r₀)).2), rfl, Prod.ext hv₁ rfl⟩
-  have hE := card_le_of_biUnion_cover _ Finset.univ
-    (fun aw : (G × G) × G =>
-      Finset.univ.filter fun π : Equiv.Perm (G × G) =>
-        π (l₀, r₀) = aw.1 ∧ π (l₁, r₀) = (-(l₀ - l₁) + aw.1.1, aw.2))
-    (P / (M * (M - 1))) hcover
-    (fun aw _ => by
-      rw [le_div_iff₀ (by nlinarith)]
-      exact card_filter_perm_two_mul_le hxy aw.1 (-(l₀ - l₁) + aw.1.1, aw.2))
-  simp only [Finset.card_univ, Fintype.card_prod] at hE
-  push_cast at hE
-  rw [div_le_iff₀ hP]
-  refine hE.trans_eq ?_
-  rw [hMr]
-  have hsq_ne : (Fintype.card G : ℝ) ^ 2 ≠ 0 := by positivity
-  have hsq1_ne : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _]
+  simp only [Fintype.card_prod, Nat.cast_mul]
+  have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+  have hsq1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
   field_simp
 
 /-- When `l₀ ≠ l₁` and `2 ≤ Fintype.card G`, `feistel2CPAAttack l₀ l₁ r₀` distinguishes any
@@ -791,54 +770,30 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
         (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
           PMF.pure (decide (π (π (x, x)).swap = (x, x))) := by
     simp [idealPermGame, feistel3RepeatedKeyCPAAttack, Prod.swap, PMF.monad_bind_eq_bind]
-  rw [hgame, uniformOfFintype_perm_filter_toReal]
+  rw [hgame]
   set p₀ : G × G := (x, x)
-  set M := Fintype.card (G × G)
-  set P : ℝ := (M.factorial : ℝ)
-  have hP : 0 < P := Nat.cast_pos.mpr (Nat.factorial_pos _)
+  refine (perm_decide_toReal_le_biUnion_union
+    ({()} : Finset Unit) (k₁ := 1)
+    (fun _ => ![p₀]) (fun _ _ => Function.injective_of_subsingleton _) (fun _ => ![p₀])
+    (Finset.univ.erase p₀) (k₂ := 2)
+    (fun a => ![p₀, a.swap])
+    (fun a ha => injective_pair fun h => (Finset.mem_erase.mp ha).1 (Prod.swap_injective h.symm))
+    (fun a => ![a, p₀])
+    fun π hπ => by
+      by_cases h : π p₀ = p₀
+      · exact Or.inl ⟨(), Finset.mem_singleton_self _, Fin.forall_fin_one.mpr h⟩
+      · exact Or.inr ⟨π p₀, Finset.mem_erase.mpr ⟨h, Finset.mem_univ _⟩,
+          Fin.forall_fin_two.mpr ⟨rfl, hπ⟩⟩).trans_eq ?_
+  have hM1 : 1 ≤ Fintype.card (G × G) := Fintype.card_pos
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  have hMr : (M : ℝ) = (Fintype.card G : ℝ) ^ 2 := by simp [M, Fintype.card_prod, sq]
-  have hM1 : (4 : ℝ) ≤ M := by rw [hMr]; nlinarith
-  have hcover :
-      (Finset.univ.filter fun π : Equiv.Perm (G × G) => decide (π (π p₀).swap = p₀) = true) ⊆
-        (Finset.univ.filter fun π : Equiv.Perm (G × G) => π p₀ = p₀) ∪
-          ((Finset.univ.erase p₀).biUnion fun a =>
-            Finset.univ.filter fun π : Equiv.Perm (G × G) => π p₀ = a ∧ π a.swap = p₀) := by
-    intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hπ
-    simp only [Finset.mem_union, Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter,
-      true_and, Finset.mem_erase, and_true]
-    by_cases h : π p₀ = p₀
-    · exact Or.inl h
-    · exact Or.inr ⟨π p₀, h, rfl, hπ⟩
-  have hA : ((Finset.univ.filter fun π : Equiv.Perm (G × G) => π p₀ = p₀).card : ℝ) ≤ P / M := by
-    rw [le_div_iff₀ (by linarith), ← Nat.cast_mul]
-    exact Nat.cast_le.mpr (RandomPermutation.card_filter_apply_eq_mul_card_le p₀ p₀)
-  have hB := card_le_of_biUnion_cover _ (Finset.univ.erase p₀)
-    (fun a => Finset.univ.filter fun π : Equiv.Perm (G × G) => π p₀ = a ∧ π a.swap = p₀)
-    (P / (M * (M - 1))) (Finset.Subset.refl _)
-    (fun a ha => by
-      rw [le_div_iff₀ (by nlinarith)]
-      refine card_filter_perm_two_mul_le ?_ a p₀
-      intro h
-      rw [Finset.mem_erase] at ha
-      exact ha.1 (Prod.swap_injective (h.symm.trans rfl)))
-  have hcard : ((Finset.univ.erase p₀).card : ℝ) = (M : ℝ) - 1 := by
-    rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
-      Nat.cast_sub (Fintype.card_pos_iff.mpr ⟨p₀⟩)]
-    simp [M]
-  rw [hcard] at hB
-  have h3 := (Nat.cast_le (α := ℝ)).mpr
-    ((Finset.card_le_card hcover).trans (Finset.card_union_le _ _))
-  push_cast at h3
-  have hEq : P / (M : ℝ) + ((M : ℝ) - 1) * (P / ((M : ℝ) * ((M : ℝ) - 1))) =
-      2 / (Fintype.card G : ℝ) ^ 2 * P := by
-    rw [hMr]
-    have hsq_ne : (Fintype.card G : ℝ) ^ 2 ≠ 0 := by positivity
-    have hsq1_ne : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
-    field_simp; ring
-  rw [div_le_iff₀ hP]
-  linarith
+  rw [Finset.card_singleton, Nat.descFactorial_one,
+    Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
+    Nat.cast_descFactorial_two ℝ _, Nat.cast_sub hM1]
+  simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]
+  have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+  have hM1r : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  field_simp
+  ring
 
 /-- Over any group of exponent two (`∀ a : G, -a = a`) with `2 ≤ Fintype.card G`,
 `feistel3RepeatedKeyCPAAttack x` distinguishes any repeated-key 3-round Feistel network
@@ -873,7 +828,7 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
           let lr₂ := π.symm (vw₀.1, (l₁ - l₀) + vw₀.2)
           PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) := by
     simp [idealStrongGame, feistel3CCAAttack, feistelStrongOracle, PMF.monad_bind_eq_bind]
-  rw [hgame, uniformOfFintype_perm_filter_toReal]
+  rw [hgame]
   set x : G × G := (l₀, r₀)
   set y : G × G := (l₁, r₀)
   have hxy : x ≠ y := fun h => h01 (congrArg Prod.fst h)
@@ -882,66 +837,44 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
     have h2 := congrArg Prod.snd h
     dsimp [q] at h2
     exact h01 (sub_eq_zero.mp (add_right_cancel (h2.trans (zero_add a.2).symm))).symm
-  set M := Fintype.card (G × G)
-  set P : ℝ := (M.factorial : ℝ)
-  have hP : 0 < P := Nat.cast_pos.mpr (Nat.factorial_pos _)
-  have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  have hMr : (M : ℝ) = (Fintype.card G : ℝ) ^ 2 := by simp [M, Fintype.card_prod, sq]
-  have hM1 : (4 : ℝ) ≤ M := by rw [hMr]; nlinarith
-  have hM2 : 2 ≤ M := by exact_mod_cast (show (2 : ℝ) ≤ M by linarith)
-  let A : Finset (Equiv.Perm (G × G)) :=
-    Finset.univ.biUnion fun a =>
-      Finset.univ.filter fun π : Equiv.Perm (G × G) => π x = a ∧ π y = q a
-  let F : (G × G) × ((G × G) × G) → Finset (Equiv.Perm (G × G)) :=
-    fun t => Finset.univ.filter fun π : Equiv.Perm (G × G) =>
-      π x = t.2.1 ∧ π t.1 = q t.2.1 ∧ π y = (r₀ - (-t.2.1.1 + t.1.2), t.2.2)
   let S : Finset ((G × G) × ((G × G) × G)) :=
     ((Finset.univ.erase x).erase y) ×ˢ (Finset.univ ×ˢ Finset.univ)
-  have hcover :
-      (Finset.univ.filter fun π : Equiv.Perm (G × G) =>
-        decide (-(π x).1 + (π.symm (q (π x))).2 = -(π y).1 + r₀) = true) ⊆
-        A ∪ S.biUnion F := by
-    intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hπ
-    set c := π.symm (q (π x)) with hc
-    have hπc : π c = q (π x) := by simp [c]
-    simp only [Finset.mem_union, Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter,
-      true_and, A, S, F, Finset.mem_product, Finset.mem_erase, and_true]
-    by_cases hcy : c = y
-    · exact Or.inl ⟨π x, rfl, by rw [← hcy, hπc]⟩
-    · refine Or.inr ⟨(c, π x, (π y).2), ⟨hcy, fun h : c = x => hq (π x) (by rw [← hπc, h])⟩,
-        rfl, hπc, Prod.ext ?_ rfl⟩
-      have h1 : -(π y).1 = (-(π x).1 + c.2) - r₀ := eq_sub_of_add_eq hπ.symm
-      simpa [neg_sub] using congrArg Neg.neg h1
-  have hA := card_le_of_biUnion_cover A Finset.univ
-    (fun a => Finset.univ.filter fun π : Equiv.Perm (G × G) => π x = a ∧ π y = q a)
-    (P / (M * (M - 1))) (Finset.Subset.refl _)
-    (fun a _ => by rw [le_div_iff₀ (by nlinarith)]; exact card_filter_perm_two_mul_le hxy a (q a))
-  have hB := card_le_of_biUnion_cover (S.biUnion F) S F
-    (P / (M * (M - 1) * (M - 2))) (Finset.Subset.refl _)
+  refine (perm_decide_toReal_le_biUnion_union
+    (Finset.univ : Finset (G × G)) (k₁ := 2)
+    (fun _ => ![x, y]) (fun _ _ => injective_pair hxy) (fun a => ![a, q a])
+    S (k₂ := 3)
+    (fun t => ![x, t.1, y])
     (fun t ht => by
       simp only [S, Finset.mem_product, Finset.mem_erase] at ht
-      rw [le_div_iff₀ (mul_pos (mul_pos (by linarith) (by linarith)) (by linarith))]
-      exact card_filter_perm_three_mul_le (Ne.symm ht.1.2.1) hxy ht.1.1 _ _ _ hM2)
-  have hSc : (S.card : ℝ) = ((M : ℝ) - 2) * ((M : ℝ) * (Fintype.card G : ℝ)) := by
-    simp only [S, Finset.card_product, Finset.card_univ]; push_cast; rw [card_erase_erase hxy]
-  rw [hSc] at hB
-  rw [Finset.card_univ] at hA
-  have h3 := (Nat.cast_le (α := ℝ)).mpr
-    ((Finset.card_le_card hcover).trans (Finset.card_union_le _ _))
-  push_cast at h3
-  have hEq : (M : ℝ) * (P / ((M : ℝ) * ((M : ℝ) - 1))) +
-      ((M : ℝ) - 2) * ((M : ℝ) * (Fintype.card G : ℝ)) *
-        (P / ((M : ℝ) * ((M : ℝ) - 1) * ((M : ℝ) - 2))) =
-      ((Fintype.card G : ℝ) - 1)⁻¹ * P := by
-    rw [hMr]
-    have hsq_ne : (Fintype.card G : ℝ) ^ 2 ≠ 0 := by positivity
-    have hsq1_ne : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
-    have hsq2_ne : (Fintype.card G : ℝ) ^ 2 - 2 ≠ 0 := by nlinarith
-    have hN1_ne : (Fintype.card G : ℝ) - 1 ≠ 0 := by linarith
-    field_simp; ring
-  rw [div_le_iff₀ hP]
-  linarith
+      exact injective_triple (Ne.symm ht.1.2.1) hxy ht.1.1)
+    (fun t => ![t.2.1, q t.2.1, (r₀ - (-t.2.1.1 + t.1.2), t.2.2)])
+    fun π hπ => by
+      set c := π.symm (q (π x))
+      have hπc : π c = q (π x) := by simp [c]
+      by_cases hcy : c = y
+      · exact Or.inl ⟨π x, Finset.mem_univ _,
+          Fin.forall_fin_two.mpr ⟨rfl, hcy ▸ hπc⟩⟩
+      · refine Or.inr ⟨(c, π x, (π y).2), ?_, ?_⟩
+        · simp only [S, Finset.mem_product, Finset.mem_erase, Finset.mem_univ, and_true]
+          exact ⟨hcy, fun h : c = x => hq (π x) (by rw [← hπc, h])⟩
+        · have h1 : -(π y).1 = (-(π x).1 + c.2) - r₀ := eq_sub_of_add_eq hπ.symm
+          have hy1 : (π y).1 = r₀ - (-(π x).1 + c.2) := by
+            simpa [neg_sub] using congrArg Neg.neg h1
+          exact Fin.forall_fin_succ.mpr
+            ⟨rfl, Fin.forall_fin_two.mpr ⟨hπc, Prod.ext hy1 rfl⟩⟩).trans_eq ?_
+  have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
+  have hM2 : 2 ≤ Fintype.card (G × G) := by
+    rw [Fintype.card_prod]; nlinarith
+  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _,
+    cast_descFactorial_three hM2]
+  simp only [S, Finset.card_product, Finset.card_univ, Nat.cast_mul, card_erase_erase hxy,
+    Fintype.card_prod]
+  have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+  have hN1 : (Fintype.card G : ℝ) - 1 ≠ 0 := by linarith
+  have hM1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  have hM2r : (Fintype.card G : ℝ) ^ 2 - 2 ≠ 0 := by nlinarith
+  field_simp
+  ring
 
 /-- **Sharper chosen-ciphertext advantage lower bound for `feistel3CCAAttack`** (attack from
 [KatzLindell2020], Exercise 8.17; original bound): when `l₀ ≠ l₁` and `2 ≤ Fintype.card G`,
