@@ -151,6 +151,19 @@ theorem sum_bias_sq (X : PMF (ι → Bool)) :
           collisionProbability_eq_sum, mul_sum]
         exact sum_congr rfl fun x _ => by ring
 
+omit [DecidableEq ι] in
+/-- The cube on `n` coordinates has `2 ^ n - 1` nonempty sets of coordinates, the sets that carry
+a bias constraint in `IsSmallBias`. -/
+theorem card_filter_nonempty :
+    (#({S : Finset ι | S.Nonempty} : Finset (Finset ι)) : ℝ) = 2 ^ Fintype.card ι - 1 := by
+  have h := card_filter_add_card_filter_not (s := (univ : Finset (Finset ι))) (·.Nonempty)
+  have hne : #({S : Finset ι | ¬S.Nonempty} : Finset (Finset ι)) = 1 := by
+    rw [card_eq_one]
+    exact ⟨∅, by ext S; simp [not_nonempty_iff_eq_empty]⟩
+  rw [hne, card_univ, Fintype.card_finset] at h
+  rw [eq_sub_iff_add_eq]
+  exact_mod_cast h
+
 /-- **Vazirani's XOR lemma**, squared form: four times the squared statistical distance of `X`
 from uniform is at most the sum of the squared biases of `X` at the nonempty sets. -/
 theorem four_mul_dist_uniform_sq_le_sum_bias_sq (X : PMF (ι → Bool)) :
@@ -213,15 +226,6 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
     dist X (PMF.uniformOfFintype (ι → Bool)) ≤
       Real.sqrt (2 ^ Fintype.card ι - 1) * ε / 2 := by
   refine (dist_uniform_le_sqrt_sum_bias_sq X).trans ?_
-  have hcount : (#({S : Finset ι | S.Nonempty} : Finset (Finset ι)) : ℝ) =
-      2 ^ Fintype.card ι - 1 := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (Finset ι))) (·.Nonempty)
-    have hne : #({S : Finset ι | ¬S.Nonempty} : Finset (Finset ι)) = 1 := by
-      rw [card_eq_one]
-      exact ⟨∅, by ext S; simp [not_nonempty_iff_eq_empty]⟩
-    rw [hne, card_univ, Fintype.card_finset] at h
-    rw [eq_sub_iff_add_eq]
-    exact_mod_cast h
   rcases isEmpty_or_nonempty ι with hι | hι
   · have : ({S : Finset ι | S.Nonempty} : Finset (Finset ι)) = ∅ := by
       ext S
@@ -237,7 +241,7 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
           exact sq_le_sq' (abs_le.1 (hX S (mem_filter.1 hS).2)).1
             (abs_le.1 (hX S (mem_filter.1 hS).2)).2
       _ = Real.sqrt (2 ^ Fintype.card ι - 1) * ε := by
-          rw [sum_const, nsmul_eq_mul, hcount, Real.sqrt_mul' _ (sq_nonneg ε),
+          rw [sum_const, nsmul_eq_mul, card_filter_nonempty, Real.sqrt_mul' _ (sq_nonneg ε),
             Real.sqrt_sq hε]
 
 end IsSmallBias
