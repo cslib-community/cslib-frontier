@@ -56,9 +56,8 @@ example {ι κ n : Type} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq
 tests with no error in every state, so the bound gives exact average linearity. -/
 example {n : Type} [Fintype n] [DecidableEq n] (φ : AlgState (Matrix (n → Bool) (n → Bool) ℂ)) :
     1 ≤ 𝔼 a, 𝔼 b, (φ (pauliZPow a * pauliZPow b * pauliZPow (a + b))).re := by
-  have hZ : ∀ a, pauliZPow a ∈ unitary (Matrix (n → Bool) (n → Bool) ℂ) := fun a => by
-    rw [Unitary.mem_iff, star_eq_conjTranspose, (pauliZPow_isHermitian a).eq]
-    exact ⟨pauliZPow_mul_self a, pauliZPow_mul_self a⟩
+  have hZ : ∀ a, pauliZPow a ∈ unitary (Matrix (n → Bool) (n → Bool) ℂ) :=
+    pauliZPow_mem_unitaryGroup
   have hcomm : ∀ a b, Commute (pauliZPow (ι := n) a) (pauliZPow b) := fun a b => by
     rw [Commute, SemiconjBy, pauliZPow_mul, pauliZPow_mul, add_comm]
   have h := one_sub_le_expect_re_apply_mul_mul (ε := 0) (η₁ := 0) (η₂ := 0) φ pauliZPow

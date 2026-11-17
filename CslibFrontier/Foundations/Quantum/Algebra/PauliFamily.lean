@@ -144,40 +144,35 @@ theorem norm_mul_mul_mul_sub_le (φ : AlgState A) (X Z ZB : (ι → Bool) → A)
         φ.norm (X a * X a' - X (a + a')) + φ.norm (Z b * Z b' - Z (b + b')) := by
   set s : ℂ := (signVal (a' ⬝ᵥ b) : ℂ)
   have hs : ‖s‖ = 1 := by simp [s]
-  have hu : ∀ {u v : A}, u ∈ unitary A → v ∈ unitary A → u * v ∈ unitary A := fun hu hv =>
-    mul_mem hu hv
-  have c1 : ∀ c, Z c ≈[φ; φ.norm (Z c - ZB c)] ZB c := fun c => le_rfl
+  have c1 : ∀ c, Z c ≈[φ; φ.norm (Z c - ZB c)] ZB c := fun c => φ.approx_norm_sub _ _
   have c2 : ∀ c, ZB c ≈[φ; φ.norm (Z c - ZB c)] Z c := fun c => (c1 c).symm
-  have hα : Z b * X a' ≈[φ; φ.norm (Z b * X a' - s • (X a' * Z b))] s • (X a' * Z b) := le_rfl
-  have hℓX : X a * X a' ≈[φ; φ.norm (X a * X a' - X (a + a'))] X (a + a') := le_rfl
-  have hℓZ : Z b * Z b' ≈[φ; φ.norm (Z b * Z b' - Z (b + b'))] Z (b + b') := le_rfl
   have chain := calc
       X a * Z b * X a' * Z b' ≈[φ; φ.norm (Z b' - ZB b')] X a * Z b * X a' * ZB b' :=
-        (c1 b').mul_left_unitary (hu (hu (hX a) (hZ b)) (hX a'))
+        (c1 b').mul_left_unitary (by unitary_mem)
     _ = ZB b' * X a * (Z b * X a') := by
         rw [(((hXB a b').mul_left (hZZB b b')).mul_left (hXB a' b')).eq]
         simp only [mul_assoc]
     _ ≈[φ; φ.norm (Z b * X a' - s • (X a' * Z b))] ZB b' * X a * (s • (X a' * Z b)) :=
-        hα.mul_left_unitary (hu (hZB b') (hX a))
+        (φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)
     _ = s • (ZB b' * (X a * X a') * Z b) := by
         rw [mul_smul_comm]; simp only [mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (ZB b' * (X a * X a') * ZB b) :=
-        ((c1 b).mul_left_unitary (hu (hZB b') (hu (hX a) (hX a')))).smul s
+        ((c1 b).mul_left_unitary (by unitary_mem)).smul s
     _ = s • (ZB b' * ZB b * (X a * X a')) := by
         rw [mul_assoc, ((hXB a b).mul_left (hXB a' b)).eq, ← mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (X a * X a' - X (a + a'))] s • (ZB b' * ZB b * X (a + a')) :=
-        (hℓX.mul_left_unitary (hu (hZB b') (hZB b))).smul s
+        ((φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)).smul s
     _ = s • (X (a + a') * ZB b' * ZB b) := by
         rw [← (show Commute (X (a + a')) (ZB b' * ZB b) from
           (hXB _ b').mul_right (hXB _ b)).eq, mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (X (a + a') * ZB b' * Z b) :=
-        ((c2 b).mul_left_unitary (hu (hX _) (hZB b'))).smul s
+        ((c2 b).mul_left_unitary (by unitary_mem)).smul s
     _ = s • (X (a + a') * Z b * ZB b') := by
         rw [mul_assoc, ← (hZZB b b').eq, ← mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (Z b' - ZB b')] s • (X (a + a') * Z b * Z b') :=
-        ((c2 b').mul_left_unitary (hu (hX _) (hZ b))).smul s
+        ((c2 b').mul_left_unitary (by unitary_mem)).smul s
     _ ≈[φ; ‖s‖ * φ.norm (Z b * Z b' - Z (b + b'))] s • (X (a + a') * Z (b + b')) := by
-        rw [mul_assoc]; exact (hℓZ.mul_left_unitary (hX _)).smul s
+        rw [mul_assoc]; exact ((φ.approx_norm_sub _ _).mul_left_unitary (hX _)).smul s
   rw [approx_iff] at chain
   simp only [hs, one_mul] at chain
   linarith

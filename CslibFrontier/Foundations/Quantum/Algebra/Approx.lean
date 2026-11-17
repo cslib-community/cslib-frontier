@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
 public import CslibFrontier.Foundations.Analysis.Normed.Close
 public import CslibFrontier.Foundations.Algebra.Order.Star.Pi
 public import CslibFrontier.Probability.PMF
@@ -148,6 +149,11 @@ theorem Approx.mul_left (h : a ≈[φ; δ] b) {u : A} (hu : star u * u ≤ 1) :
     u * a ≈[φ; δ] u * b := by
   rw [approx_iff, ← mul_sub]
   exact (φ.norm_mul_le_of_star_mul_self_le_one hu _).trans h
+
+/-- Every pair is close up to its own distance: `a ≈[φ; ‖a - b‖_φ] b`. Names a step of a
+closeness chain whose error is left symbolic. -/
+theorem approx_norm_sub (φ : AlgState A) (a b : A) : a ≈[φ; φ.norm (a - b)] b :=
+  approx_iff.mpr le_rfl
 
 /-- Left multiplication by a unitary preserves closeness. -/
 theorem Approx.mul_left_unitary (h : a ≈[φ; δ] b) {u : A} (hu : u ∈ unitary A) :

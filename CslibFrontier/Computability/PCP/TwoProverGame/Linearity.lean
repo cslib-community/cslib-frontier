@@ -128,39 +128,6 @@ section CStar
 
 variable [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜]
 
-private theorem observable_mem_unitary {M : Measurement Bool 𝒜} (hM : M.IsProjective) :
-    M.observable ∈ unitary 𝒜 := by
-  rw [Unitary.mem_iff, M.isSelfAdjoint_observable.star_eq]
-  exact ⟨Measurement.observable_mul_self hM, Measurement.observable_mul_self hM⟩
-
-private theorem commute_observable {X Y B : Type*} [Fintype B]
-    (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool) (x : X) (y : Y) :
-    Commute (((S.bob y).map g).observable) ((S.alice x).observable) := by
-  classical
-  simp only [Measurement.observable, Measurement.map_effect]
-  refine (Commute.sub_left ?_ ?_) <;> refine Commute.sum_left _ _ _ fun r _ => ?_ <;>
-    exact ((S.commute x y false r).sub_left (S.commute x y true r)).symm
-
-private theorem norm_sub_sq_eq (φ : AlgState 𝒜) {U V : 𝒜} (hU : IsSelfAdjoint U)
-    (hV : IsSelfAdjoint V) (hU2 : U * U = 1) (hV2 : V * V = 1) (hc : Commute V U) :
-    φ.norm (U - V) ^ 2 = 2 - 2 * (φ (U * V)).re := by
-  have e : (U - V) * (U - V) = (1 + 1) - (U * V + U * V) := by
-    rw [sub_mul, mul_sub, mul_sub, hU2, hV2, hc.eq]; abel
-  rw [φ.norm_sq, star_sub, hU.star_eq, hV.star_eq, e, map_sub, map_add, map_add, φ.map_one,
-    Complex.sub_re, Complex.add_re, Complex.add_re, Complex.one_re]
-  ring
-
-/-- The product of the observables of two bits of a projective measurement is the observable of
-their parity. -/
-private theorem observable_map_fst_mul_snd {M : Measurement (Bool × Bool) 𝒜}
-    (hM : M.IsProjective) :
-    (M.map Prod.fst).observable * (M.map Prod.snd).observable =
-      (M.map fun r => r.1 ^^ r.2).observable := by
-  rw [Measurement.observable_map, Measurement.observable_map, Measurement.observable_map,
-    hM.sum_smul_mul_sum_smul]
-  refine sum_congr rfl fun r _ => ?_
-  rw [BitString.signVal_xor, Complex.ofReal_mul]
-
 /-- **Passing the linearity test makes the point player's observables linear.** A
 commuting-operator strategy with projective measurements that the linearity-test verifier accepts
 with probability at least `1 - ε` has `E_{a,b} Re φ(A(a) A(b) A(a + b)) ≥ 1 - 6ε - 2√(12ε)` for
@@ -179,8 +146,8 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     ((S.bob (a, b)).map (linearityCheck k)).observable
   let C : Fin 3 → (n → Bool) → (n → Bool) → ℝ := fun k a b =>
     (φ (A (linearityQuery k a b) * N k a b)).re
-  have hAu : ∀ c, A c ∈ unitary 𝒜 := fun c => observable_mem_unitary (hA c)
-  have hNu : ∀ k a b, N k a b ∈ unitary 𝒜 := fun k a b => observable_mem_unitary ((hB _).map _)
+  have hAu : ∀ c, A c ∈ unitary 𝒜 := fun c => (hA c).observable_mem_unitary
+  have hNu : ∀ k a b, N k a b ∈ unitary 𝒜 := fun k a b => ((hB _).map _).observable_mem_unitary
   have hC1 : ∀ k a b, C k a b ≤ 1 := fun k a b =>
     (Complex.re_le_norm _).trans ((φ.norm_apply_le_norm _).trans (φ.norm_le_one
       (Unitary.star_mul_self_of_mem (mul_mem (hAu _) (hNu k a b))).le))
@@ -196,22 +163,22 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     calc 𝔼 a, 𝔼 b, C k a b ≤ 𝔼 _a : n → Bool, 𝔼 _b : n → Bool, (1 : ℝ) :=
           expect_le_expect fun a _ => expect_le_expect fun b _ => hC1 k a b
       _ = 1 := by simp only [Fintype.expect_const]
-  have hc : ∀ k a b c, Commute (N k a b) (A c) := fun k a b c => commute_observable S _ _ _
+  have hc : ∀ k a b c, Commute (N k a b) (A c) := fun k a b c => S.commute_observable_map _ _ _
   have hNsa : ∀ k a b, IsSelfAdjoint (N k a b) := fun k a b =>
     Measurement.isSelfAdjoint_observable _
   have hN2 : ∀ k a b, N k a b * N k a b = 1 := fun k a b =>
     Measurement.observable_mul_self ((hB _).map _)
   have hdist : ∀ k a b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 = 2 - 2 * C k a b :=
-    fun k a b => norm_sub_sq_eq φ (S.alice _).isSelfAdjoint_observable (hNsa k a b)
-      (Measurement.observable_mul_self (hA _)) (hN2 k a b) (hc k a b _)
+    fun k a b => φ.norm_sub_sq_eq_of_mul_self (S.alice _).isSelfAdjoint_observable (hNsa k a b)
+      (Measurement.observable_mul_self (hA _)) (hN2 k a b)
   have hdistE : ∀ k, 𝔼 a, 𝔼 b, φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 =
       2 - 2 * 𝔼 a, 𝔼 b, C k a b := fun k => by
     simp only [hdist, expect_sub_distrib, ← mul_expect, Fintype.expect_const]
   have hL : 1 - 6 * ε ≤ 𝔼 a, 𝔼 b, (φ (N 0 a b * N 1 a b * A (a + b))).re := by
     have e : ∀ a b, (φ (N 0 a b * N 1 a b * A (a + b))).re = C 2 a b := fun a b => by
       simp only [C, N, linearityCheck, linearityQuery, Fin.reduceEq, ite_true, ite_false,
-        observable_map_fst_mul_snd (hB (a, b))]
-      rw [(commute_observable S _ (a + b) (a, b)).eq]
+        (hB (a, b)).observable_map_mul_observable_map Prod.fst Prod.snd]
+      rw [(S.commute_observable_map _ (a + b) (a, b)).eq]
     simp only [e]
     linarith [hE 0, hE 1, hE 2]
   have h₁ : 𝔼 a, 𝔼 b, φ.norm (A a - N 0 a b) ^ 2 ≤ 12 * ε := by

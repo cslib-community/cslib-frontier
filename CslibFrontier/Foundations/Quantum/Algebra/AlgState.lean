@@ -45,6 +45,8 @@ need no C⋆-norm.
   real and nonnegative on nonnegative elements.
 * `Cslib.Quantum.AlgState.norm_apply_star_mul_le`: Cauchy–Schwarz for states.
 * `Cslib.Quantum.AlgState.norm_le_one`: a contraction, `a⋆a ≤ 1`, has state norm at most `1`.
+* `Cslib.Quantum.AlgState.norm_sub_sq_eq_of_mul_self`: for self-adjoint involutions,
+  `‖U - V‖²_φ = 2 - 2 Re φ(U V)`.
 * `Cslib.Quantum.AlgState.comap`, `Cslib.Quantum.AlgState.norm_comap`: pulling a state back along
   a monotone star-algebra homomorphism, `‖a‖_{φ ∘ f} = ‖f a‖_φ`.
 -/
@@ -199,6 +201,19 @@ theorem norm_sq_le_of_star_mul_le (φ : AlgState A) {x y : A} (h : star x * x �
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]
   exact φ.re_apply_le_one h
+
+/-- For self-adjoint involutions `U`, `V` the squared distance is linear in the correlation:
+`‖U - V‖²_φ = 2 - 2 Re φ(U V)`. -/
+theorem norm_sub_sq_eq_of_mul_self (φ : AlgState A) {U V : A} (hU : IsSelfAdjoint U)
+    (hV : IsSelfAdjoint V) (hU2 : U * U = 1) (hV2 : V * V = 1) :
+    φ.norm (U - V) ^ 2 = 2 - 2 * (φ (U * V)).re := by
+  have h1 : ∀ {W : A}, IsSelfAdjoint W → W * W = 1 → ‖φ.toPreGNS W‖ ^ 2 = 1 := fun hW hW2 => by
+    change φ.norm _ ^ 2 = 1
+    rw [φ.norm_sq, hW.star_eq, hW2, φ.map_one, Complex.one_re]
+  change ‖φ.toPreGNS (U - V)‖ ^ 2 = _
+  rw [map_sub, norm_sub_sq (𝕜 := ℂ), h1 hU hU2, h1 hV hV2, inner_toPreGNS, hU.star_eq,
+    RCLike.re_to_complex]
+  ring
 
 omit [StarModule ℂ A] [SelfAdjointDecompose A] in
 /-- The **pullback** `φ ∘ f` of a state along a monotone star-algebra homomorphism `f`. -/

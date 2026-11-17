@@ -65,26 +65,18 @@ theorem re_apply_mul_mul_ge (φ : AlgState R) {A₁ A₂ A₃ N₁ N₂ : R} (h�
     (h₃ : A₃ ∈ unitary R) (hN₁ : N₁ ∈ unitary R) (hc₁₂ : Commute N₁ A₂) (hc₁₃ : Commute N₁ A₃)
     (hc₂₃ : Commute N₂ A₃) :
     (φ (N₁ * N₂ * A₃)).re - φ.norm (A₁ - N₁) - φ.norm (A₂ - N₂) ≤ (φ (A₃ * A₂ * A₁)).re := by
-  have c₁ : A₁ ≈[φ; φ.norm (A₁ - N₁)] N₁ := AlgState.approx_iff.mpr le_rfl
-  have c₂ : A₂ ≈[φ; φ.norm (A₂ - N₂)] N₂ := AlgState.approx_iff.mpr le_rfl
   have chain := calc
-      A₃ * A₂ * A₁ ≈[φ; φ.norm (A₁ - N₁)] A₃ * A₂ * N₁ := c₁.mul_left_unitary (mul_mem h₃ h₂)
+      A₃ * A₂ * A₁ ≈[φ; φ.norm (A₁ - N₁)] A₃ * A₂ * N₁ :=
+        (φ.approx_norm_sub A₁ N₁).mul_left_unitary (by unitary_mem)
     _ = N₁ * A₃ * A₂ := by rw [← (hc₁₃.mul_right hc₁₂).eq, mul_assoc]
     _ ≈[φ; φ.norm (A₂ - N₂)] N₁ * A₃ * N₂ :=
-        c₂.mul_left_unitary (mul_mem hN₁ h₃)
+        (φ.approx_norm_sub A₂ N₂).mul_left_unitary (by unitary_mem)
     _ = N₁ * N₂ * A₃ := by rw [mul_assoc, ← hc₂₃.eq, ← mul_assoc]
   have h := (Complex.re_le_norm _).trans chain.symm.norm_apply_sub_le
   rw [Complex.sub_re] at h
   linarith
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
-
-private theorem expect_expect_le_sqrt {f : (ι → Bool) → (ι → Bool) → ℝ} {η : ℝ}
-    (h : 𝔼 a, 𝔼 b, f a b ^ 2 ≤ η) : 𝔼 a, 𝔼 b, f a b ≤ √η := by
-  refine Real.le_sqrt_of_sq_le ?_
-  calc (𝔼 a, 𝔼 b, f a b) ^ 2 ≤ 𝔼 a, (𝔼 b, f a b) ^ 2 := sq_expect_le_expect_sq _ _
-    _ ≤ 𝔼 a, 𝔼 b, f a b ^ 2 := expect_le_expect fun a _ => sq_expect_le_expect_sq _ _
-    _ ≤ η := h
 
 /-- **Linearity from consistency.** Let `A(a)` be unitaries, and `N₁(a, b)`, `N₂(a, b)` operators
 commuting with every `A(c)`, with `N₁(a, b)` unitary. If
@@ -102,8 +94,8 @@ theorem one_sub_le_expect_re_apply_mul_mul (φ : AlgState R) (A : (ι → Bool) 
       φ.norm (A b - N₂ a b) ≤ (φ (A (a + b) * A b * A a)).re := fun a b =>
     re_apply_mul_mul_ge φ (hA b) (hA (a + b)) (hN₁ a b) (hc₁ a b b) (hc₁ a b (a + b))
       (hc₂ a b (a + b))
-  have hd₁ := expect_expect_le_sqrt hC₁
-  have hd₂ := expect_expect_le_sqrt hC₂
+  have hd₁ := Real.expect_expect_le_sqrt_of_expect_expect_sq_le _ _ hC₁
+  have hd₂ := Real.expect_expect_le_sqrt_of_expect_expect_sq_le _ _ hC₂
   have hsum : 𝔼 a, 𝔼 b, ((φ (N₁ a b * N₂ a b * A (a + b))).re - φ.norm (A a - N₁ a b) -
       φ.norm (A b - N₂ a b)) ≤ 𝔼 a, 𝔼 b, (φ (A (a + b) * A b * A a)).re :=
     expect_le_expect fun a _ => expect_le_expect fun b _ => hpt a b

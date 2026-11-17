@@ -5706,6 +5706,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolati
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalRatPoly
 public import CslibFrontier.Foundations.Algebra.Quaternion.BpInfinity
 public import CslibFrontier.Foundations.Algebra.Shear
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
 public import CslibFrontier.Foundations.Algebra.Tropical
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Decidable
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Edwards

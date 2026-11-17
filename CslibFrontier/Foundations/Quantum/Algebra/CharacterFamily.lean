@@ -47,6 +47,8 @@ tracked in [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149
 
 * `Cslib.Quantum.sum_signVal_mul_signVal`: orthogonality of the characters, over `ℂ`.
 * `Cslib.Quantum.expect_norm_walshSum_sq`: Parseval in a state.
+* `Cslib.Quantum.Measurement.charObs_eq_observable_map`: `χ_M(a)` is the observable of the
+  parity `a · x` of the outcome.
 * `Cslib.Quantum.Measurement.IsProjective.charObs_mul`: exact linearity for projective
   measurements.
 * `Cslib.Quantum.Measurement.IsProjective.charObs_mem_unitary`: unitarity.
@@ -153,28 +155,34 @@ omit [StarOrderedRing A] in
 theorem charObs_zero : M.charObs 0 = 1 := by
   rw [charObs, walshSum_zero, M.sum_effect]
 
+/-- The character observable `χ_M(a)` is the `±1` observable of the parity `a · x` of the
+outcome. -/
+theorem charObs_eq_observable_map (a : ι → Bool) :
+    M.charObs a = (M.map (a ⬝ᵥ ·)).observable := by
+  rw [observable_map]
+  rfl
+
 theorem isSelfAdjoint_charObs (a : ι → Bool) : IsSelfAdjoint (M.charObs a) := by
-  refine isSelfAdjoint_sum _ fun x _ => ?_
-  exact (show IsSelfAdjoint ((signVal (a ⬝ᵥ x) : ℂ)) from Complex.conj_ofReal _).smul
-    (M.nonneg x).isSelfAdjoint
+  rw [charObs_eq_observable_map]
+  exact isSelfAdjoint_observable _
 
 variable {M}
 
 /-- The character observables of a **projective** measurement are exactly linear. -/
 theorem IsProjective.charObs_mul (hM : M.IsProjective) (a a' : ι → Bool) :
     M.charObs a * M.charObs a' = M.charObs (a + a') := by
-  rw [charObs, charObs, charObs, walshSum, walshSum, hM.sum_smul_mul_sum_smul, walshSum]
-  refine sum_congr rfl fun x _ => ?_
-  rw [add_dotProduct, show (a ⬝ᵥ x + a' ⬝ᵥ x) = (a ⬝ᵥ x ^^ a' ⬝ᵥ x) from rfl, signVal_xor]
-  push_cast; rfl
+  rw [charObs_eq_observable_map, charObs_eq_observable_map, charObs_eq_observable_map,
+    hM.observable_map_mul_observable_map]
+  congr 2
+  funext x
+  rw [add_dotProduct]
+  rfl
 
 /-- The character observables of a projective measurement are unitary. -/
 theorem IsProjective.charObs_mem_unitary (hM : M.IsProjective) (a : ι → Bool) :
     M.charObs a ∈ unitary A := by
-  have hsq : M.charObs a * M.charObs a = 1 := by
-    rw [hM.charObs_mul, BitString.add_self, charObs_zero]
-  rw [Unitary.mem_iff, (M.isSelfAdjoint_charObs a).star_eq]
-  exact ⟨hsq, hsq⟩
+  rw [charObs_eq_observable_map]
+  exact (hM.map _).observable_mem_unitary
 
 end Measurement
 

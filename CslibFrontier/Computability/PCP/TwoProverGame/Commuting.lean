@@ -148,6 +148,15 @@ theorem correlation_eq (S : CommutingStrategy X Y Bool Bool 𝒜) (x : X) (y : Y
   ring
 
 variable [StarOrderedRing 𝒜] {B : Type*} [Fintype B] in
+/-- The first player's observable commutes with every post-processed observable of the second. -/
+theorem commute_observable_map (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool) (x : X)
+    (y : Y) : Commute (((S.bob y).map g).observable) ((S.alice x).observable) := by
+  classical
+  simp only [Measurement.observable, Measurement.map_effect]
+  refine (Commute.sub_left ?_ ?_) <;> refine Commute.sum_left _ _ _ fun r _ => ?_ <;>
+    exact ((S.commute x y false r).sub_left (S.commute x y true r)).symm
+
+variable [StarOrderedRing 𝒜] {B : Type*} [Fintype B] in
 /-- The probability that the bit `γ` of the first player equals `g(r)` for the answer `r` of the
 second is the correlation of their observables: `(1 + Re φ(A_x G_y)) / 2`, where `G_y` is the
 observable of the second player's measurement post-processed by `g`. -/

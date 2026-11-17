@@ -68,9 +68,7 @@ theorem exists_isProjective_charObs_of_linearityTest (φ : AlgState (Matrix (ι 
       (∀ a, P.charObs a ∈ unitary (Matrix ι ι ℂ)) ∧
       (∀ a a', P.charObs a * P.charObs a' = P.charObs (a + a')) ∧
       𝔼 a, φ.norm ((A a - P.charObs a) ⊗ₖ 1) ^ 2 ≤ 40 * (ε + √η₁ + √η₂) := by
-  have hAu : ∀ a, A a ∈ unitary (Matrix ι ι ℂ) := fun a => by
-    rw [Unitary.mem_iff, (hA a).star_eq]
-    exact ⟨hA2 a, hA2 a⟩
+  have hAu : ∀ a, A a ∈ unitary (Matrix ι ι ℂ) := fun a => (hA a).mem_unitary_of_mul_self (hA2 a)
   have hlin := one_sub_le_expect_re_apply_mul_mul φ (fun c => kroneckerOne (κ := κ) (A c))
     (fun a b => oneKronecker (ι := ι) (N₁ a b)) (fun a b => oneKronecker (ι := ι) (N₂ a b))
     (fun a => Unitary.map_mem _ (hAu a)) (fun a b => Unitary.map_mem _ (hN₁ a b))

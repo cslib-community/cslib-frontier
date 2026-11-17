@@ -123,6 +123,15 @@ theorem IsProjective.map {β : Type*} [Fintype β] [DecidableEq β] (hM : M.IsPr
   rw [sum_eq_single a (fun c _ hc => hM.mul_eq_zero (Ne.symm hc)) (fun ha' => ha'.elim
     ‹a ∈ _›), hM a]
 
+/-- The observables of two bits `g`, `h` of the outcome of a projective measurement multiply to
+the observable of their parity. -/
+theorem IsProjective.observable_map_mul_observable_map
+    (hM : M.IsProjective) (g h : α → Bool) :
+    (M.map g).observable * (M.map h).observable = (M.map fun r => g r ^^ h r).observable := by
+  rw [observable_map, observable_map, observable_map, hM.sum_smul_mul_sum_smul]
+  refine sum_congr rfl fun r _ => ?_
+  rw [BitString.signVal_xor, Complex.ofReal_mul]
+
 end Measurement
 
 end Cslib.Quantum

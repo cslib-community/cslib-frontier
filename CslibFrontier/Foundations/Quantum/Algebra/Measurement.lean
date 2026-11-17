@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.POVM
 public import CslibFrontier.Foundations.Data.BitString.Sign
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
 /-!
@@ -220,6 +221,12 @@ theorem star_observable_mul_self_le_one (M : Measurement Bool A) :
   exact add_nonneg (add_nonneg (add_nonneg hc hc) hc) hc
 
 end Observable
+
+/-- The observable of a projective two-outcome measurement is unitary. -/
+theorem IsProjective.observable_mem_unitary {A : Type*} [Ring A] [StarRing A] [PartialOrder A]
+    [StarOrderedRing A] {M : Measurement Bool A} (hM : M.IsProjective) :
+    M.observable ∈ unitary A :=
+  M.isSelfAdjoint_observable.mem_unitary_of_mul_self (observable_mul_self hM)
 
 /-- The observable of a post-processed measurement: `∑_r (-1)^{g(r)} M_r`. -/
 theorem observable_map {α A : Type*} [Fintype α] [Ring A] [StarRing A] [PartialOrder A]
