@@ -26,15 +26,20 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 Arora and Barak's Lemma 16.4 [Arora and Barak, Lemma 16.4][AroraBarak07] (draft of 2007-01-08,
 printed page 284, PDF page 300) and Goldreich's Proposition 8.15
 [Goldreich, Proposition 8.15][Goldreich2007DraftR4] (draft r4, printed page 339, PDF page 75)
-derandomize `BPTIME(t)` for general `t` by enumerating the seeds of a generator. Both proofs have
-a constant-factor gap. A machine running in time `O(t(n))`, as `Cslib.Complexity.BPTIME` and the
-books' own definitions allow, may toss `c t(n)` coins for a constant `c` of its own, while the
-proofs stretch the seeds to exactly `t(n)` bits; and the circuit with the instance hardwired has
-`O((n + t(n)) ^ 2)` gates with a machine-dependent constant, while the proofs take it to have at
-most `t(n) ^ 2` (Goldreich) or `O(t(n)) ^ 2` (Arora and Barak) gates. Seeds longer by a constant
-factor repair both gaps when the stretch grows by at least any constant factor on seeds longer by a
-constant factor, which holds in every regime the books use (polynomial, `2 ^ (ℓ ^ ε)` and
-`2 ^ (ε ℓ)`), and when the time bound is at least the input length.
+derandomize `BPTIME(t)` for general `t` by enumerating the seeds of a generator. Under this
+library's conventions their printed proofs leave a constant-factor gap. A machine in
+`Cslib.Complexity.BPTIME`, which is up to constant factors, may toss `c t(n)` coins for a constant
+`c` of its own, while the proofs stretch the seeds to exactly `t(n)` bits. The circuit with the
+instance hardwired has `O((n + t(n)) ^ 2)` gates with a machine-dependent constant, while the
+proofs take it to have at most `t(n) ^ 2` (Goldreich) or `O(t(n)) ^ 2` (Arora and Barak) gates.
+This does not show the cited results false: under the sources' own conventions (exact time bounds,
+an explicit coin budget) the gap may not arise, and that question is open. Neither cited result is
+proved here.
+
+This file proves the general step and conditional results. Seeds longer by a constant factor close
+the gap when the stretch grows by at least any constant factor on seeds longer by a constant
+factor (true for polynomial, `2 ^ (ℓ ^ ε)` and `2 ^ (ε ℓ)` stretch) and the time bound is at least
+the input length.
 
 * *The seed-length step.* For a canonical derandomizer `G` of stretch `ℓ` and a problem in
   `BPTIME(t)`, there is a constant `c` such that seeds of `k(n)` bits suffice whenever
@@ -44,10 +49,11 @@ constant factor, which holds in every regime the books use (polynomial, `2 ^ (�
   verifier that replays the machine's coins on the first `⌊ℓ(k) / E⌋` bits of each generated
   string, for a constant `E` making that verifier's circuit, with `O((n + ℓ(k) / E) ^ 2)` gates,
   smaller than `ℓ(k) ^ 2` (`Cslib.Circuits.Boolean.exists_complexity_slice_le_of_computableInTime`).
-* *Goldreich's Proposition 8.15, corrected*
-  (`Cslib.Complexity.BPTIME_subset_DTIME_of_canonicalDerandomizer`).
-* *Arora and Barak's Lemma 16.4, corrected*
-  (`Cslib.Complexity.BPTIME_subset_DTIME_of_exponentialTimePRG`).
+* *Conditional forms of Goldreich's Proposition 8.15 and Arora and Barak's Lemma 16.4*, under the
+  growth hypothesis and a polynomial-time seed schedule
+  (`Cslib.Complexity.BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth`,
+  `Cslib.Complexity.BPTIME_subset_DTIME_of_exponentialTimePRG_of_growth`). These are not the
+  cited results.
 * *Arora and Barak's Corollary 16.6 (2) and (3)*
   (`Cslib.Complexity.BPP_subset_quasiPoly_of_exponentialTimePRG`,
   `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_exponentialTimePRG`). For `BPP` the time bound
@@ -58,10 +64,10 @@ constant factor, which holds in every regime the books use (polynomial, `2 ^ (�
 ## Main results
 
 * `Cslib.Complexity.CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME`: the seed-length step.
-* `Cslib.Complexity.BPTIME_subset_DTIME_of_canonicalDerandomizer`: Goldreich's Proposition 8.15,
-  corrected, for seed lengths computable in polynomial time.
-* `Cslib.Complexity.BPTIME_subset_DTIME_of_exponentialTimePRG`: Arora and Barak's Lemma 16.4,
-  corrected.
+* `Cslib.Complexity.BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth`: not Goldreich's
+  Proposition 8.15; its conclusion under a growth hypothesis and a polynomial-time seed schedule.
+* `Cslib.Complexity.BPTIME_subset_DTIME_of_exponentialTimePRG_of_growth`: not Arora and Barak's
+  Lemma 16.4; its conclusion under a growth hypothesis.
 * `Cslib.Complexity.BPP_subset_quasiPoly_of_exponentialTimePRG`: Arora and Barak's
   Corollary 16.6 (2).
 * `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_exponentialTimePRG`: Arora and Barak's
@@ -220,25 +226,24 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
   rw [hAeq]
   exact DTIME_mono_of_le_mul_add (C := C) (fun n => by rw [mul_assoc]; omega) hmem
 
-/-- **Goldreich, Proposition 8.15, corrected** [Goldreich, Proposition 8.15][Goldreich2007DraftR4]
-(draft r4, printed page 339, PDF page 75): *let `G` be a canonical derandomizer of stretch `ℓ`;
-then `BPtime(t) ⊆ Dtime(T)` with `T(n) = poly(2 ^ ℓ⁻¹(t(n)) t(n))`*, where `ℓ⁻¹(t(n))` is the
-least `k` with `ℓ(k) ≥ t(n)`. Here `k(n)` is any seed length with `ℓ(k(n)) ≥ t(n)`, in particular
-`ℓ⁻¹(t(n))`, and the conclusion is `BPTIME(t) ⊆ ⋃ D, DTIME((2 ^ k(n) (t(n) + 1)) ^ D)`.
+/-- **Not Goldreich's Proposition 8.15: a conditional result under a growth hypothesis and a
+polynomial-time seed schedule.** [Goldreich, Proposition 8.15][Goldreich2007DraftR4] (draft r4,
+printed page 339, PDF page 75) states: *let `G` be a canonical derandomizer of stretch `ℓ`; then
+for every time-constructible `t`, `BPtime(t) ⊆ Dtime(T)` with `T(n) = poly(2 ^ ℓ⁻¹(t(n)) t(n))`*,
+where `ℓ⁻¹(t(n))` is the least `k` with `ℓ(k) ≥ t(n)`. This theorem proves
+`BPTIME(t) ⊆ ⋃ D, DTIME((2 ^ k(n) (t(n) + 1)) ^ D)` for every seed length `k` with
+`t(n) ≤ ℓ(k(n))`, in particular `ℓ⁻¹ ∘ t`, under three hypotheses the source does not make:
+* *growth*: for every `c` there is `d` with `c ℓ(j) ≤ ℓ(d (j + 1))` for all `j`, so that
+  `ℓ⁻¹(c t) ≤ d (ℓ⁻¹(t) + 1)`; it holds for polynomial and `2 ^ (ε k)` stretch;
+* `n ≤ t(n)`;
+* the seed length `k` is computable from `n` in unary in polynomial time, in place of `t` being
+  time-constructible.
 
-The source's proof sketch has a constant-factor gap (recorded on #4781): a machine running in time
-`O(t(n))` may toss more than `t(n)` coins, and the circuit `C_x(r) = A(x, r)` has
-`O((n + t(n)) ^ 2)` gates with a machine-dependent constant, not at most `|r| ^ 2`. The correction
-adds two hypotheses, which hold in the polynomial and `2 ^ (ε k)` regimes the book uses:
-* *growth*: for every `c` there is `d` with `c ℓ(j) ≤ ℓ(d (j + 1))` for all `j`; equivalently,
-  `ℓ⁻¹(c t) ≤ d (ℓ⁻¹(t) + 1)`, so `ℓ⁻¹(c t) = O(ℓ⁻¹(t))`;
-* `t(n) ≥ n`, part of the usual reading of a time-constructible bound.
-
-Deviation: the source assumes `t` time-constructible. Here the seed length `k(n)` must instead be
-computable from `n` in unary in polynomial time. For polynomial `t` and `ℓ(k) = 2 ^ (ε k)`,
-`k(n) = O(log n)` is such a seed length; in general computing `ℓ⁻¹(t(n))` needs `t(n)` and `ℓ`,
-which may take longer than `poly(n)`. -/
-theorem BPTIME_subset_DTIME_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : ℕ → ℕ}
+They let longer seeds absorb the constant factors of `Cslib.Complexity.BPTIME`, which the printed
+proof sketch fixes at one (`|C_x| ≤ |r| ^ 2`). Whether the proposition holds as printed under the
+source's own conventions is open; the cited objective is tracked on #5452. -/
+theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool → List Bool}
+    {ℓ : ℕ → ℕ}
     (hG : CanonicalDerandomizer G ℓ) (hgrowth : ∀ c : ℕ, ∃ d : ℕ, ∀ j, c * ℓ j ≤ ℓ (d * (j + 1)))
     {t k : ℕ → ℕ} (ht : ∀ n, n ≤ t n) (hk : ComputableInPolyTime k encUnary encUnary)
     (hkt : ∀ n, t n ≤ ℓ (k n)) {α : Type} (enc : α ↪ List Bool) :
@@ -277,30 +282,29 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer {G : List Bool → List Boo
     _ = 2 ^ (D * d + D * e) * P ^ (D * d + D) := by rw [pow_add P]
     _ ≤ _ := Nat.le_add_right _ _
 
-/-- **Arora and Barak, Lemma 16.4, corrected** [Arora and Barak, Lemma 16.4][AroraBarak07] (draft
-of 2007-01-08, printed page 284, PDF page 300): *if there exists an `S(ℓ)`-pseudorandom generator,
-then for every polynomial-time computable `ℓ : ℕ → ℕ`,
-`BPTIME(S(ℓ(n))) ⊆ DTIME(2 ^ (c ℓ(n)))` for some constant `c`*, for every encoding `enc` of
-instances.
-
-The source's proof has a constant-factor gap (recorded on #4771): it takes a machine running in
-time `c S(ℓ(n))` to toss at most `S(ℓ(n))` coins, and the circuit with the instance hardwired to
-have `O(S(ℓ(n)) ^ 2)` gates, which needs `S(ℓ(n)) ≥ n`. The correction adds two hypotheses, which
-hold in the polynomial, `2 ^ (ℓ ^ ε)` and `2 ^ (ε ℓ)` regimes the book uses:
+/-- **Not Arora and Barak's Lemma 16.4: a conditional result under a growth hypothesis.**
+[Arora and Barak, Lemma 16.4][AroraBarak07] (draft of 2007-01-08, printed page 284, PDF page 300)
+states: *if there exists an `S(ℓ)`-pseudorandom generator, then for every polynomial-time
+computable `ℓ : ℕ → ℕ`, `BPTIME(S(ℓ(n))) ⊆ DTIME(2 ^ (c ℓ(n)))` for some constant `c`*. This
+theorem proves `BPTIME(S(ℓ(n))) ⊆ ⋃ c, DTIME(2 ^ (c ℓ(n)))`, for every encoding of instances,
+under two hypotheses the source does not make:
 * *growth*, `S(O(ℓ)) ≥ c S(ℓ)`: for every `c` there is `d` with `c S(m) ≤ S(d (m + 1))` for all
-  `m` (implied by `S(ℓ + O(1)) ≥ c S(ℓ)`, which fails for polynomial `S`);
-* `n ≤ S(ℓ(n))`: the time bound is at least the input length.
+  `m`; it holds for polynomial, `2 ^ (ℓ ^ ε)` and `2 ^ (ε ℓ)` stretch, and is implied by
+  `S(ℓ + O(1)) ≥ c S(ℓ)`, which fails for polynomial `S`;
+* `n ≤ S(ℓ(n))`.
 
-The constant `c` depends on the problem, as in `BPTIME(S(ℓ(n))) ⊆ DTIME(2 ^ O(ℓ(n)))`: a machine
-may toss `c' S(ℓ(n))` coins for any constant `c'`, and seeds longer by a factor depending on `c'`
-are needed. Also, `ℓ` is computed from `n` in unary to unary, so `ℓ(n) ≤ poly(n)`. -/
-theorem BPTIME_subset_DTIME_of_exponentialTimePRG {G : List Bool → List Bool} {S : ℕ → ℕ}
+They let longer seeds absorb the constant factors of `Cslib.Complexity.BPTIME`: a machine of time
+`c' S(ℓ(n))` may toss more coins than the generator outputs, which the printed proof does not
+allow for. The constant `c` depends on the problem. The seed schedule `ℓ` is computed from `n` in
+unary to unary, so `ℓ(n) ≤ poly(n)`. Whether the lemma holds as printed under the source's own
+conventions is open; the cited objective is tracked on #5452. -/
+theorem BPTIME_subset_DTIME_of_exponentialTimePRG_of_growth {G : List Bool → List Bool} {S : ℕ → ℕ}
     (hG : ExponentialTimePRG G S) (hgrowth : ∀ c : ℕ, ∃ d : ℕ, ∀ m, c * S m ≤ S (d * (m + 1)))
     {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) (hS : ∀ n, n ≤ S (ℓ n))
     {α : Type} (enc : α ↪ List Bool) :
     BPTIME enc (fun n => S (ℓ n)) ⊆ ⋃ c : ℕ, DTIME enc fun n => 2 ^ (c * ℓ n) := by
   have hC := hG.canonicalDerandomizer
-  refine (BPTIME_subset_DTIME_of_canonicalDerandomizer hC hgrowth hS hℓ (fun _ => le_rfl)
+  refine (BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth hC hgrowth hS hℓ (fun _ => le_rfl)
     enc).trans (Set.iUnion_subset fun D => ?_)
   refine Set.subset_iUnion_of_subset (2 * D) (DTIME_mono_of_le_mul_add (C := 4 ^ D) fun n => ?_)
   have hS2 := hC.le_two_pow (ℓ n)

@@ -13,9 +13,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Fun
 
 /-! Checked instances of the generator records of Goldreich's Definition 8.14 and Arora and
 Barak's Definition 16.2: the identity map on seeds satisfies both records (it has no stretch, and
-its output is exactly uniform), so neither record is vacuous. The growth condition of the
-corrected Lemma 16.4 and Proposition 8.15 holds for the stretches `m` and `2 ^ m`, and the
-corrected Lemma 16.4 applies to the identity map. -/
+its output is exactly uniform), so neither record is vacuous. The growth hypothesis of the
+conditional forms of Lemma 16.4 and Proposition 8.15 holds for the stretches `m` and `2 ^ m`, and
+the conditional form of Lemma 16.4 applies to the identity map. -/
 
 set_option linter.privateModule false
 
@@ -79,11 +79,11 @@ example : ∀ c : ℕ, ∃ d : ℕ, ∀ m, c * 2 ^ m ≤ 2 ^ (d * (m + 1)) := fu
     _ = 2 ^ (c + m) := (pow_add 2 c m).symm
     _ ≤ 2 ^ ((c + 1) * (m + 1)) := Nat.pow_le_pow_right two_pos (by nlinarith)⟩
 
-/-- The corrected Lemma 16.4 applies to the identity map with `S(m) = m` and seeds of `ℓ(n) = n`
-bits: `BPTIME(n) ⊆ DTIME(2 ^ O(n))`. -/
+/-- The conditional form of Lemma 16.4 applies to the identity map with `S(m) = m` and seeds of
+`ℓ(n) = n` bits: `BPTIME(n) ⊆ DTIME(2 ^ O(n))`. -/
 example {α : Type} (enc : α ↪ List Bool) :
     BPTIME enc (fun n => n) ⊆ ⋃ c : ℕ, DTIME enc fun n => 2 ^ (c * n) :=
-  BPTIME_subset_DTIME_of_exponentialTimePRG (ℓ := fun n => n) exponentialTimePRG_id
+  BPTIME_subset_DTIME_of_exponentialTimePRG_of_growth (ℓ := fun n => n) exponentialTimePRG_id
     (fun c => ⟨c, fun m => Nat.mul_le_mul_left c (Nat.le_succ m)⟩) (by fun_prop) (fun _ => le_rfl)
     enc
 

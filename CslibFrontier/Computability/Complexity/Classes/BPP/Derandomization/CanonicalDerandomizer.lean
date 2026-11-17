@@ -47,7 +47,8 @@ polynomial-time generators (`Cslib.Complexity.seedDecider`).
   (`Cslib.Complexity.P_eq_BPP_of_exponentialTimePRG`).
 
 Goldreich's Proposition 8.15 and Arora and Barak's Lemma 16.4, for `BPTIME(t)` with general `t`,
-need corrected statements, because their proofs fix a constant factor at one; they are in
+are not proved: under this library's constant-factor conventions their printed proofs leave a
+gap. Conditional forms under a growth hypothesis are in
 `CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime`. In the
 polynomial regime of Theorem 8.16, the constant factors are absorbed by a longer seed of
 `O(log n)` bits.
