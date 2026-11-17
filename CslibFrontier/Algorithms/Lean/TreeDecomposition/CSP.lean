@@ -258,7 +258,7 @@ theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m :
 
 theorem size_tableLoopM {β : Type} (n : ℕ) (f : ℕ → TimeM ℕ β) :
     (tableLoopM n f).ret.size = n := by
-  time_spec tableLoopM
+  time_spec tableLoopM [Array.size_push]
 
 theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs : s < n) (z : β) :
     (tableLoopM n f).ret.getD s z = (f s).ret := by

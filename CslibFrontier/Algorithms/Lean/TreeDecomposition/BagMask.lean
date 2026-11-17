@@ -303,7 +303,7 @@ theorem ret_zerosM (c : ℕ) : (zerosM c).ret = Array.replicate c 0 := rfl
 
 @[time_simps]
 theorem ret_memM (x : V) (L : List V) : (memM x L).ret = decide (x ∈ L) := by
-  time_spec memM
+  time_spec memM [List.mem_cons]
 
 @[time_simps]
 theorem ret_selMemM (x : V) (L : List V) (m : ℕ) :

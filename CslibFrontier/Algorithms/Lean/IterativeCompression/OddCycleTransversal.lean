@@ -160,7 +160,7 @@ theorem prefixGraph_of_le (G : SimpleGraph (Fin n)) {m : ℕ} (h : n ≤ m) : pr
 @[simp, time_simps]
 theorem ret_findSomeM {α β : Type*} (f : α → TimeM ℕ (Option β)) (l : List α) :
     (findSomeM f l).ret = l.findSome? fun a => (f a).ret := by
-  time_spec findSomeM
+  time_spec findSomeM [List.findSome?_cons]
 
 theorem time_findSomeM_le {α β : Type*} (f : α → TimeM ℕ (Option β)) (l : List α) {C : ℕ}
     (hf : ∀ a ∈ l, (f a).time ≤ C) : (findSomeM f l).time ≤ l.length * C := by

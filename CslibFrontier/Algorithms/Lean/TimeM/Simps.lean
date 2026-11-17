@@ -77,9 +77,10 @@ It runs three steps.
    goal, repeat step 2 and close every case by `rfl` or `omega`. If that fails too, try `grind` on
    the goal.
 
-`grind` is the last resort. When the goal is arithmetic that `omega` does not do, pass the fact in
-the list and `omega` closes it: `time_spec p [Nat.succ_mul]` for `(k + 1) * c = k * c + c`,
-`time_spec p [List.length_finRange]` for a loop over `List.finRange n`.
+`grind` is the last resort. When the goal needs a fact that `rfl` and `omega` do not know, pass it
+in the list: `time_spec p [Nat.succ_mul]` for `(k + 1) * c = k * c + c`,
+`time_spec p [List.length_finRange]` for a loop over `List.finRange n`,
+`time_spec p [Array.size_push]` for the size of an array that `p` builds by `push`.
 
 The proof may depend on the axioms `propext`, `Quot.sound` and `Classical.choice`. `grind` proves by
 contradiction, so it brings `Classical.choice`. A rewrite with a tagged specification brings the

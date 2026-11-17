@@ -277,7 +277,7 @@ theorem getD_childPassM_eq_forget (w : V → ℕ) {LB LP : List V} (hLB : LB.Nod
 
 theorem size_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPassM LB LP old best c).ret.size = c := by
-  time_spec parentPassM
+  time_spec parentPassM [Array.size_push]
 
 theorem getD_parentPassM (LB : List V) {LP : List V} (hLP : LP.Nodup) (old best : Array ℕ)
     {c s : ℕ} (hs : s < c) :

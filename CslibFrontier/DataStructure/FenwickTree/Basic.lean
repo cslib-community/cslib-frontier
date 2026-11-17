@@ -394,7 +394,7 @@ theorem addM_time_le_log {α : Type*} [AddCommMonoid α]
 private theorem addLoopM_size {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).ret.size = tree.size := by
-  time_spec addLoopM
+  time_spec addLoopM [Array.size_modify]
 
 private theorem addLoopM_getElem {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α)

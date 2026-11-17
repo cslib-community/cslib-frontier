@@ -641,7 +641,7 @@ theorem fget_fset_ne {α : Type*} {n : ℕ} (mat : Vector (Vector α n) n) {a b 
 @[simp, time_simps]
 theorem replicateM_ret {α : Type*} (m : ℕ) (a : α) :
     (replicateM m a).ret = Vector.replicate m a := by
-  time_spec replicateM
+  time_spec replicateM [Vector.replicate_succ]
 
 @[simp, time_simps]
 theorem replicateM_time {α : Type*} (m : ℕ) (a : α) :
