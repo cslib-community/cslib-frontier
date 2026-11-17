@@ -22,12 +22,15 @@ coordinates (`BitString.card_agree_parityOn_univ_le`) [Smolensky1987]. This is t
 ## Main results
 
 * `Cslib.BitString.exists_agree_of_parity`: if `Q` of degree `D` agrees with the full character on
-  `G`, every function on `G` agrees with one of degree at most `|ι| / 2 + D`.
+  `G`, every function on `G` agrees with one of degree at most `|ι| / 2 + D` (Arora and Barak,
+  Lemma 13.6).
 * `Cslib.BitString.card_agree_parityOn_univ_le`, `Cslib.BitString.card_agree_parity_le`: parity
   is far from low-degree functions.
 
 ## References
 
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft dated 2007-01-08,
+  Section 13.2][AroraBarak07]
 * [R. Smolensky, *Algebraic methods in the theory of lower bounds for Boolean circuit
   complexity*][Smolensky1987]
 -/
@@ -40,8 +43,11 @@ open Finset
 
 variable {F : Type*} [Field F] {ι : Type*} [Fintype ι]
 
-/-- If `Q` has degree at most `D` and agrees with the character of all coordinates on `G`, every
-function agrees on `G` with a function of degree at most `|ι| / 2 + D`. -/
+/-- **Arora–Barak Lemma 13.6** [Arora and Barak, Lemma 13.6, printed p. 241 / PDF
+p. 257][AroraBarak07], [Smolensky1987]: if `Q` has degree at most `D` and agrees with the
+character of all coordinates on `G`, every function agrees on `G` with a function of degree at most
+`|ι| / 2 + D`. By `lowDegree_eq_signSpan`, such a function is a sum of `±1` monomials
+`a_S ∏ i ∈ S, (-1) ^ xᵢ` with `#S ≤ |ι| / 2 + D`; the source takes `F = GF(3)` and `D = √n`. -/
 theorem exists_agree_of_parity [Invertible (2 : F)] {D : ℕ} {Q : (ι → Bool) → F}
     (hQ : Q ∈ lowDegree F ι D) (G : Finset (ι → Bool))
     (hG : ∀ x ∈ G, Q x = chi F univ x) (f : (ι → Bool) → F) :
