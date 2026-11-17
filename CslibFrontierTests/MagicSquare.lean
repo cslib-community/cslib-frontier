@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 
 /-! # The magic square game
@@ -13,6 +16,8 @@ answers, the classical bound, the Mermin–Peres square as an operator solution 
 observable, row and column products), the transpose trick on two EPR pairs, the perfect strategy
 in any commuting-operator model, and the separation of the classical and entangled values.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.MagicSquare
 
@@ -57,8 +62,8 @@ example {𝒜 : Type} [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing �
 example : magicSquare.quantumWinProb magicSquareStrategy = 1 :=
   quantumWinProb_magicSquareStrategy
 
-example : magicSquare.value ≤ 8 / 9 ∧ magicSquare.quantumValue = 1 :=
-  ⟨value_magicSquare_le, quantumValue_magicSquare⟩
+example : magicSquare.value = 8 / 9 ∧ magicSquare.quantumValue = 1 :=
+  ⟨value_magicSquare, quantumValue_magicSquare⟩
 
 example : magicSquare.value < magicSquare.quantumValue :=
   value_magicSquare_lt_quantumValue

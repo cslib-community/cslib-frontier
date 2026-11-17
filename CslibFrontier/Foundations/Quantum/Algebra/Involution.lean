@@ -9,12 +9,13 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Data.BitString.Sign
 
 /-!
 # Involutions, their projections and joint measurements
 
 A *`±1` observable* is a self-adjoint involution `O`: `O⋆ = O` and `O² = 1`. Its eigenspace
-projections are `P_b(O) = (1 + σ_b O)/2` with the sign `σ_false = 1`, `σ_true = -1`
+projections are `P_b(O) = (1 + σ_b O)/2` with the sign `σ_b = Cslib.BitString.signVal b`
 (`Cslib.Quantum.signProj`): self-adjoint idempotents with `P_false + P_true = 1`, `P_b P_{!b} = 0`
 and `O P_b = σ_b P_b`. Measuring `O` gives the outcome `b` with effect `P_b`
 (`Cslib.Quantum.Measurement.ofInvolution`). Three pairwise commuting involutions are measured
@@ -47,50 +48,39 @@ how the operators of one prover are transferred to the other.
 namespace Cslib.Quantum
 
 open Finset
+open BitString (signVal)
 
 section Sign
 
 variable {A : Type*} [Ring A] [Algebra ℂ A]
 
-/-- The sign `σ_b`: `1` for `false` and `-1` for `true`. -/
-def boolSign (b : Bool) : ℂ :=
-  if b then -1 else 1
-
-@[simp] theorem boolSign_false : boolSign false = 1 := rfl
-
-@[simp] theorem boolSign_true : boolSign true = -1 := rfl
-
-theorem boolSign_mul_self (b : Bool) : boolSign b * boolSign b = 1 := by
-  cases b <;> simp
-
-theorem boolSign_not (b : Bool) : boolSign (!b) = -boolSign b := by
-  cases b <;> simp
+private theorem ofReal_signVal_mul_self (b : Bool) :
+    (signVal b : ℂ) * signVal b = 1 := by
+  rw [← Complex.ofReal_mul, BitString.signVal_mul_self, Complex.ofReal_one]
 
 /-- The eigenspace projection `(1 + σ_b O)/2` of the `±1` observable `O`. -/
 noncomputable def signProj (O : A) (b : Bool) : A :=
-  (2⁻¹ : ℂ) • (1 + boolSign b • O)
+  (2⁻¹ : ℂ) • (1 + (signVal b : ℂ) • O)
 
 /-- Star-algebra homomorphisms carry projections to projections. -/
 theorem map_signProj {B F : Type*} [Ring B] [Algebra ℂ B] [FunLike F A B] [AlgHomClass F ℂ A B]
     (f : F) (O : A) (b : Bool) : f (signProj O b) = signProj (f O) b := by
-  simp [signProj, map_smul, map_add, map_one]
+  simp only [signProj, map_smul, map_add, map_one]
 
 variable {O O' : A}
 
 theorem signProj_add_signProj_not (O : A) (b : Bool) : signProj O b + signProj O (!b) = 1 := by
-  simp only [signProj, boolSign_not, neg_smul, ← smul_add]
-  rw [show (1 + boolSign b • O + (1 + -(boolSign b • O)) : A) = (2 : ℂ) • 1 by
+  simp only [signProj, BitString.signVal_not, Complex.ofReal_neg, neg_smul, ← smul_add]
+  rw [show (1 + (signVal b : ℂ) • O + (1 + -((signVal b : ℂ) • O)) : A) = (2 : ℂ) • 1 by
     rw [two_smul]; abel, smul_smul]
   norm_num
 
-theorem signProj_false_add_signProj_true (O : A) : signProj O false + signProj O true = 1 :=
-  signProj_add_signProj_not O false
-
 theorem sum_signProj (O : A) : ∑ b, signProj O b = 1 := by
-  simp [add_comm (signProj O true), signProj_false_add_signProj_true]
+  rw [Fintype.sum_bool, add_comm]
+  exact signProj_add_signProj_not O false
 
 theorem signProj_sub_signProj (O O' : A) (b : Bool) :
-    signProj O b - signProj O' b = ((2⁻¹ : ℂ) * boolSign b) • (O - O') := by
+    signProj O b - signProj O' b = ((2⁻¹ : ℂ) * (signVal b : ℂ)) • (O - O') := by
   simp only [signProj, smul_add, smul_sub, mul_smul]
   abel
 
@@ -98,17 +88,18 @@ variable (hO : O * O = 1)
 include hO
 
 /-- `O P_b = σ_b P_b`. -/
-theorem mul_signProj (b : Bool) : O * signProj O b = boolSign b • signProj O b := by
+theorem mul_signProj (b : Bool) : O * signProj O b = (signVal b : ℂ) • signProj O b := by
   simp only [signProj, mul_smul_comm, mul_add, mul_one, smul_add, smul_smul, hO]
-  rw [show boolSign b * (2⁻¹ * boolSign b) = 2⁻¹ by
-    rw [mul_left_comm, boolSign_mul_self, mul_one], add_comm, mul_comm]
+  rw [show (signVal b : ℂ) * (2⁻¹ * (signVal b : ℂ)) = 2⁻¹ by
+    rw [mul_left_comm, ofReal_signVal_mul_self, mul_one], add_comm, mul_comm]
 
 theorem signProj_mul_self (b : Bool) : signProj O b * signProj O b = signProj O b := by
   have h := mul_signProj hO b
-  calc signProj O b * signProj O b = (2⁻¹ : ℂ) • (signProj O b + boolSign b • (O * signProj O b))
+  calc signProj O b * signProj O b =
+        (2⁻¹ : ℂ) • (signProj O b + (signVal b : ℂ) • (O * signProj O b))
         := by simp only [signProj, smul_mul_assoc, add_mul, one_mul, smul_add]
     _ = signProj O b := by
-      rw [h, smul_smul, boolSign_mul_self, one_smul, ← two_smul ℂ, smul_smul]; norm_num
+      rw [h, smul_smul, ofReal_signVal_mul_self, one_smul, ← two_smul ℂ, smul_smul]; norm_num
 
 theorem signProj_mul_signProj_not (b : Bool) : signProj O b * signProj O (!b) = 0 := by
   have h := congrArg (signProj O b * ·) (signProj_add_signProj_not O b)
@@ -125,7 +116,7 @@ end Sign
 /-- The projections of commuting observables commute. -/
 theorem _root_.Commute.signProj {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
     (h : Commute O O') (b c : Bool) : Commute (signProj O b) (signProj O' c) := by
-  have h₁ : Commute (1 + boolSign b • O) (1 + boolSign c • O') :=
+  have h₁ : Commute (1 + (signVal b : ℂ) • O) (1 + (signVal c : ℂ) • O') :=
     (Commute.one_left _).add_left
       ((Commute.one_right _).add_right ((h.smul_left _).smul_right _))
   exact (h₁.smul_left _).smul_right _
@@ -139,7 +130,7 @@ omit [PartialOrder A] [StarOrderedRing A] in
 theorem isSelfAdjoint_signProj {O : A} (hO : IsSelfAdjoint O) (b : Bool) :
     IsSelfAdjoint (signProj O b) := by
   have h2 : IsSelfAdjoint (2⁻¹ : ℂ) := by simp [IsSelfAdjoint]
-  have hs : IsSelfAdjoint (boolSign b) := by cases b <;> simp [IsSelfAdjoint]
+  have hs : IsSelfAdjoint (signVal b : ℂ) := by cases b <;> simp [IsSelfAdjoint]
   exact IsSelfAdjoint.smul h2 ((IsSelfAdjoint.one A).add (IsSelfAdjoint.smul hs hO))
 
 omit [Algebra ℂ A] [StarModule ℂ A] in

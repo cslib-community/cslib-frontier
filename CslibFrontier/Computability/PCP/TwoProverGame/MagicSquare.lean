@@ -16,16 +16,20 @@ import CslibFrontier.Probability.PMF.Event
 /-!
 # The magic square game
 
-The **Mermin–Peres magic square game** [Mermin][Mermin1990], [Peres][Peres1990],
-[Aravind][Aravind2004]: the referee picks a row `r` and a column `c` of a `3 × 3` grid uniformly.
-Alice fills row `r` with three bits of even parity, Bob fills column `c` with three bits of odd
-parity, and they win when they agree on the shared cell `(r, c)`
-(`Cslib.PCP.TwoProverGame.magicSquare`).
+The **magic square game** in the row–column form of
+[Brassard, Broadbent and Tapp, §5.1–5.3][BrassardBroadbentTapp2005] (arXiv:quant-ph/0407221v3,
+PDF pp. 21–23): the referee picks a row `r` and a column `c` of a `3 × 3` grid uniformly. Alice
+fills row `r` with three bits of even parity, Bob fills column `c` with three bits of odd parity,
+and they win when they agree on the shared cell `(r, c)` (`Cslib.PCP.TwoProverGame.magicSquare`).
+The square of two-qubit Pauli observables behind it is due to [Mermin][Mermin1990] and
+[Peres][Peres1990], who used it for the contextuality of a single system;
+[Aravind, §2–3][Aravind2004] made it a game for two observers who are each asked one of all six
+lines.
 
 No classical strategy wins with certainty: a grid whose rows have even parity has an even total,
 and one whose columns have odd parity has an odd total, so every deterministic strategy loses on
-some question and wins with probability at most `8/9`
-(`Cslib.PCP.TwoProverGame.value_magicSquare_le`).
+some question. The classical value is exactly `8/9`
+(`Cslib.PCP.TwoProverGame.value_magicSquare`).
 
 Entangled provers win with certainty. An *operator solution* replaces the bits by `±1`
 observables: self-adjoint involutions `X_{rc}` that commute along each row and each column, whose
@@ -33,8 +37,10 @@ rows multiply to `1` and whose columns multiply to `-1`. If Bob holds observable
 commute with Alice's and agree with them perfectly in the shared state, `X_{rc} ≈ Y_{rc}` with error
 `0`, then measuring the rows and columns jointly wins with probability `1`
 (`Cslib.PCP.TwoProverGame.MagicSquareSolution.commutingWinProb_strategy`). This holds in every
-commuting-operator model; it is the direction "operator solution ⇒ perfect strategy" of the
-characterization of linear-constraint-system games [Cleve and Mittal][CleveMittal2014]. The
+commuting-operator model. It is an algebraic formulation, for this row–column game, of the
+direction "operator solution ⇒ perfect strategy" that
+[Cleve and Mittal, §2][CleveMittal2014] (arXiv:1209.2729v1, pp. 2–3) prove for
+constraint–variable games with the finite-dimensional maximally entangled transpose strategy. The
 two-qubit Pauli square of Mermin and Peres is an operator solution, and two EPR pairs make the
 agreement perfect, so the entangled value of the magic square is `1`
 (`Cslib.PCP.TwoProverGame.quantumValue_magicSquare`).
@@ -48,7 +54,7 @@ agreement perfect, so the entangled value of the magic square is `1`
 
 ## Main results
 
-* `Cslib.PCP.TwoProverGame.value_magicSquare_le`: the classical value is at most `8/9`.
+* `Cslib.PCP.TwoProverGame.value_magicSquare`: the classical value is `8/9`.
 * `Cslib.PCP.TwoProverGame.MagicSquareSolution.commutingWinProb_strategy`: operator solutions
   with perfect agreement win with certainty.
 * `Cslib.PCP.TwoProverGame.quantumValue_magicSquare`: the entangled value is `1`.
@@ -56,6 +62,7 @@ agreement perfect, so the entangled value of the magic square is `1`
 
 ## References
 
+* [G. Brassard, A. Broadbent and A. Tapp, *Quantum pseudo-telepathy*][BrassardBroadbentTapp2005]
 * [N. D. Mermin, *Simple unified form for the major no-hidden-variables theorems*][Mermin1990]
 * [A. Peres, *Incompatible results of quantum measurements*][Peres1990]
 * [P. K. Aravind, *Quantum mysteries revisited again*][Aravind2004]
@@ -67,6 +74,8 @@ agreement perfect, so the entangled value of the magic square is `1`
 
 namespace Cslib.PCP
 
+namespace TwoProverGame
+
 /-- The parity `a₀ ⊕ a₁ ⊕ a₂` of three bits. -/
 def xor₃ : Bool × Bool × Bool → Bool
   | (a₀, a₁, a₂) => (a₀ ^^ a₁) ^^ a₂
@@ -74,8 +83,6 @@ def xor₃ : Bool × Bool × Bool → Bool
 /-- The entry `i` of three bits. -/
 def entry₃ : Bool × Bool × Bool → Fin 3 → Bool
   | (a₀, a₁, a₂) => ![a₀, a₁, a₂]
-
-namespace TwoProverGame
 
 /-- The **magic square game**: uniform row `r` and column `c`; Alice answers a row of even parity
 and Bob a column of odd parity, and they win when they agree on the cell `(r, c)`. -/
@@ -92,7 +99,7 @@ theorem magicSquare_questions_apply (r c : Fin 3) :
   simp [magicSquare, Cslib.Probability.PMF.uniformOfFintype_apply]
 
 /-- Nine bits cannot have rows of even parity and columns of odd parity. -/
-theorem not_magic_grid : ∀ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁ a₂₂ : Bool,
+private theorem not_magic_grid : ∀ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁ a₂₂ : Bool,
     ((a₀₀ ^^ a₀₁) ^^ a₀₂) = false → ((a₁₀ ^^ a₁₁) ^^ a₁₂) = false →
     ((a₂₀ ^^ a₂₁) ^^ a₂₂) = false → ((a₀₀ ^^ a₁₀) ^^ a₂₀) = true →
     ((a₀₁ ^^ a₁₁) ^^ a₂₁) = true → ((a₀₂ ^^ a₁₂) ^^ a₂₂) = true → False := by
@@ -155,9 +162,22 @@ theorem winProb_magicSquare_le (ha hb : Fin 3 → Bool × Bool × Bool) :
       rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ]
       norm_num
 
+/-- A deterministic strategy that loses only on the cell `(2, 2)`. -/
+theorem winProb_magicSquare_eq :
+    magicSquare.winProb (fun r => if r = 2 then (true, true, false) else (false, false, false))
+      (fun _ => (false, false, true)) = 8 / 9 := by
+  rw [TwoProverGame.winProb, Cslib.Probability.PMF.toOuterMeasure_apply_toReal]
+  simp [magicSquare, Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.sum_prod_type,
+    Fin.sum_univ_three, xor₃, entry₃]
+  norm_num
+
 /-- The classical value of the magic square is at most `8/9`. -/
 theorem value_magicSquare_le : magicSquare.value ≤ 8 / 9 :=
   ciSup_le fun ha => ciSup_le fun hb => winProb_magicSquare_le ha hb
+
+/-- The classical value of the magic square is `8/9`. -/
+theorem value_magicSquare : magicSquare.value = 8 / 9 :=
+  le_antisymm value_magicSquare_le (winProb_magicSquare_eq ▸ magicSquare.winProb_le_value _ _)
 
 end TwoProverGame
 
@@ -165,27 +185,25 @@ end TwoProverGame
 
 section Operator
 
-open Quantum
+open Quantum TwoProverGame
+open BitString (signVal)
 
-theorem boolSign_xor (a b : Bool) : boolSign (a ^^ b) = boolSign a * boolSign b := by
-  cases a <;> cases b <;> simp
-
-theorem boolSign_injective : Function.Injective boolSign := by
-  intro a b h
-  cases a <;> cases b
-  · rfl
-  · norm_num [boolSign] at h
-  · norm_num [boolSign] at h
-  · rfl
-
-theorem boolSign_xor₃ (a : Bool × Bool × Bool) :
-    boolSign (xor₃ a) = boolSign (entry₃ a 0) * boolSign (entry₃ a 1) * boolSign (entry₃ a 2) := by
+private theorem signVal_xor₃ (a : Bool × Bool × Bool) :
+    (signVal (xor₃ a) : ℂ) =
+      signVal (entry₃ a 0) * signVal (entry₃ a 1) * signVal (entry₃ a 2) := by
   obtain ⟨a₀, a₁, a₂⟩ := a
-  simp [xor₃, entry₃, boolSign_xor, mul_assoc]
+  simp only [xor₃, entry₃, BitString.signVal_xor]
+  push_cast
+  simp [mul_assoc]
+
+private theorem signVal_ne {t x : Bool} (h : t ≠ x) : (signVal t : ℂ) ≠ signVal x := by
+  intro he
+  apply h
+  cases t <;> cases x <;> first | rfl | norm_num at he
 
 variable {𝒜 : Type*} [Ring 𝒜] [Algebra ℂ 𝒜]
 
-theorem signProj₃_eq (O₀ O₁ O₂ : 𝒜) (a : Bool × Bool × Bool) :
+private theorem signProj₃_eq (O₀ O₁ O₂ : 𝒜) (a : Bool × Bool × Bool) :
     signProj₃ O₀ O₁ O₂ a = signProj O₀ (entry₃ a 0) * signProj O₁ (entry₃ a 1) *
       signProj O₂ (entry₃ a 2) := by
   obtain ⟨a₀, a₁, a₂⟩ := a
@@ -198,7 +216,8 @@ theorem _root_.Commute.signProj_left {O O' : 𝒜} (h : Commute O O') (b : Bool)
 
 omit [Algebra ℂ 𝒜] in
 /-- A product of three pairwise commuting factors ends with any of them. -/
-theorem exists_mul₃_eq_mul_right (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P i) (P j)) (i : Fin 3) :
+private theorem exists_mul₃_eq_mul_right (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P i) (P j))
+    (i : Fin 3) :
     ∃ M, P 0 * P 1 * P 2 = M * P i := by
   fin_cases i
   · exact ⟨P 1 * P 2, by
@@ -211,7 +230,8 @@ theorem exists_mul₃_eq_mul_right (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P
 
 omit [Algebra ℂ 𝒜] in
 /-- A product of three pairwise commuting factors starts with any of them. -/
-theorem exists_mul₃_eq_mul_left (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P i) (P j)) (i : Fin 3) :
+private theorem exists_mul₃_eq_mul_left (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P i) (P j))
+    (i : Fin 3) :
     ∃ M, P 0 * P 1 * P 2 = P i * M := by
   fin_cases i
   · exact ⟨P 1 * P 2, mul_assoc _ _ _⟩
@@ -226,26 +246,26 @@ theorem exists_mul₃_eq_mul_left (P : Fin 3 → 𝒜) (h : ∀ i j, Commute (P 
 involutions vanishes: if `O₀O₁O₂ = σ_t`, then `P_{a₀}P_{a₁}P_{a₂} = 0` unless `a₀ ⊕ a₁ ⊕ a₂ = t`. -/
 theorem signProj₃_eq_zero {O₀ O₁ O₂ : 𝒜} (h₀ : O₀ * O₀ = 1) (h₁ : O₁ * O₁ = 1)
     (h₂ : O₂ * O₂ = 1) (c₀₁ : Commute O₀ O₁) (c₀₂ : Commute O₀ O₂) (c₁₂ : Commute O₁ O₂)
-    {t : Bool} (hprod : O₀ * O₁ * O₂ = boolSign t • 1) {a : Bool × Bool × Bool}
+    {t : Bool} (hprod : O₀ * O₁ * O₂ = (signVal t : ℂ) • 1) {a : Bool × Bool × Bool}
     (ha : xor₃ a ≠ t) : signProj₃ O₀ O₁ O₂ a = 0 := by
   rw [signProj₃_eq]
   set P₀ := signProj O₀ (entry₃ a 0)
   set P₁ := signProj O₁ (entry₃ a 1)
   set P₂ := signProj O₂ (entry₃ a 2)
-  have key : O₀ * O₁ * O₂ * (P₀ * P₁ * P₂) = boolSign (xor₃ a) • (P₀ * P₁ * P₂) := by
+  have key : O₀ * O₁ * O₂ * (P₀ * P₁ * P₂) = (signVal (xor₃ a) : ℂ) • (P₀ * P₁ * P₂) := by
     have d₂₀ : O₂ * P₀ = P₀ * O₂ := (c₀₂.signProj_left _).eq.symm
     have d₂₁ : O₂ * P₁ = P₁ * O₂ := (c₁₂.signProj_left _).eq.symm
     have d₁₀ : O₁ * P₀ = P₀ * O₁ := (c₀₁.signProj_left _).eq.symm
     calc O₀ * O₁ * O₂ * (P₀ * P₁ * P₂) = O₀ * O₁ * (O₂ * P₀) * P₁ * P₂ := by noncomm_ring
       _ = O₀ * (O₁ * P₀) * (O₂ * P₁) * P₂ := by rw [d₂₀]; noncomm_ring
       _ = (O₀ * P₀) * (O₁ * P₁) * (O₂ * P₂) := by rw [d₁₀, d₂₁]; noncomm_ring
-      _ = boolSign (xor₃ a) • (P₀ * P₁ * P₂) := by
-        rw [mul_signProj h₀, mul_signProj h₁, mul_signProj h₂, boolSign_xor₃, smul_mul_smul_comm,
+      _ = (signVal (xor₃ a) : ℂ) • (P₀ * P₁ * P₂) := by
+        rw [mul_signProj h₀, mul_signProj h₁, mul_signProj h₂, signVal_xor₃, smul_mul_smul_comm,
           smul_mul_smul_comm]
   rw [hprod, smul_mul_assoc, one_mul] at key
-  have hne : boolSign t - boolSign (xor₃ a) ≠ 0 :=
-    sub_ne_zero.mpr fun h => ha (boolSign_injective h).symm
-  have hz : (boolSign t - boolSign (xor₃ a)) • (P₀ * P₁ * P₂) = 0 := by
+  have hne : (signVal t : ℂ) - (signVal (xor₃ a) : ℂ) ≠ 0 :=
+    sub_ne_zero.mpr (signVal_ne (Ne.symm ha))
+  have hz : ((signVal t : ℂ) - (signVal (xor₃ a) : ℂ)) • (P₀ * P₁ * P₂) = 0 := by
     rw [sub_smul, key, sub_self]
   rw [← one_smul ℂ (P₀ * P₁ * P₂), ← inv_mul_cancel₀ hne, mul_smul, hz, smul_zero]
 
@@ -296,14 +316,16 @@ theorem colMeasurement_effect (c : Fin 3) (b : Bool × Bool × Bool) :
 theorem rowMeasurement_effect_eq_zero {r : Fin 3} {a : Bool × Bool × Bool}
     (ha : xor₃ a ≠ false) : (X.rowMeasurement r).effect a = 0 :=
   signProj₃_eq_zero (X.mul_self r 0) (X.mul_self r 1) (X.mul_self r 2) (X.commute_row r 0 1)
-    (X.commute_row r 0 2) (X.commute_row r 1 2) (by rw [X.row_mul, boolSign_false, one_smul]) ha
+    (X.commute_row r 0 2) (X.commute_row r 1 2)
+    (by rw [X.row_mul, BitString.signVal_false, Complex.ofReal_one, one_smul]) ha
 
 /-- A column is measured with odd parity: the other outcomes have effect `0`. -/
 theorem colMeasurement_effect_eq_zero {c : Fin 3} {b : Bool × Bool × Bool}
     (hb : xor₃ b ≠ true) : (X.colMeasurement c).effect b = 0 :=
   signProj₃_eq_zero (X.mul_self 0 c) (X.mul_self 1 c) (X.mul_self 2 c) (X.commute_col 0 1 c)
     (X.commute_col 0 2 c) (X.commute_col 1 2 c)
-    (by rw [X.col_mul, boolSign_true, neg_one_smul]) hb
+    (by rw [X.col_mul, BitString.signVal_true, Complex.ofReal_neg, Complex.ofReal_one,
+      neg_one_smul]) hb
 
 omit [StarRing 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜] [Algebra ℂ 𝒜] [StarModule ℂ 𝒜] in
 private theorem commute_mul₃ {P Q : Fin 3 → 𝒜} (h : ∀ i j, Commute (P i) (Q j)) :
@@ -389,7 +411,8 @@ variable [TopologicalSpace 𝒜] [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAd
 /-- **Operator solutions win the magic square with certainty**: if Alice measures the rows of an
 operator solution `X` and Bob the columns of an operator solution `Y`, with Alice's observables
 commuting with Bob's and agreeing with them perfectly in the shared state, they win with
-probability `1` [Cleve and Mittal][CleveMittal2014]. -/
+probability `1`. This generalizes the transpose strategy of [Cleve and Mittal, §2][CleveMittal2014]
+from finite dimensions to any commuting-operator model. -/
 theorem commutingWinProb_strategy (Y : MagicSquareSolution 𝒜) (φ : AlgState 𝒜)
     (hXY : ∀ r c r' c', Commute (X.op r c) (Y.op r' c'))
     (hagree : ∀ r c, X.op r c ≈[φ; 0] Y.op r c) :
