@@ -85,11 +85,14 @@ def candidate_revisions(root, limit=MAX_REVISIONS, stalled_limit=STALLED_FALLBAC
     ordered = []
     stalled = []
     stalled_seen = set()
+    remaining_wave = []
+    next_wave = []
     while wave and len(ordered) < limit:
         next_wave = []
-        for rev in wave:
+        for idx, rev in enumerate(wave):
             ordered.append(rev)
             if len(ordered) >= limit:
+                remaining_wave = wave[idx + 1:]
                 break
             for parent in parents[rev]:
                 if parent not in indegree:
@@ -100,24 +103,34 @@ def candidate_revisions(root, limit=MAX_REVISIONS, stalled_limit=STALLED_FALLBAC
                 elif parent not in stalled_seen:
                     stalled_seen.add(parent)
                     stalled.append(parent)
+        else:
+            next_wave.sort(key=lambda rev: timestamps[rev], reverse=True)
+            wave = next_wave
+            remaining_wave = []
+            continue
         next_wave.sort(key=lambda rev: timestamps[rev], reverse=True)
-        wave = next_wave
+        break
 
     if len(ordered) == limit and stalled_limit > 0:
         seen = set(ordered)
-        roots = sorted((rev for rev in stalled if rev not in seen),
-                       key=lambda rev: timestamps[rev], reverse=True)
-        fallback = deque(roots)
-        seen.update(roots)
-        added = 0
-        while fallback and added < stalled_limit:
-            rev = fallback.popleft()
-            ordered.append(rev)
-            added += 1
-            for parent in parents[rev]:
-                if parent in parents and parent not in seen:
-                    seen.add(parent)
-                    fallback.append(parent)
+        stalled_roots = sorted((rev for rev in stalled if rev not in seen),
+                               key=lambda rev: timestamps[rev], reverse=True)
+        if stalled_roots:
+            seeds = []
+            for rev in (*remaining_wave, *next_wave, *stalled_roots):
+                if rev not in seen:
+                    seen.add(rev)
+                    seeds.append(rev)
+            fallback = deque(seeds)
+            added = 0
+            while fallback and added < stalled_limit:
+                rev = fallback.popleft()
+                ordered.append(rev)
+                added += 1
+                for parent in parents[rev]:
+                    if parent in parents and parent not in seen:
+                        seen.add(parent)
+                        fallback.append(parent)
     return ordered
 
 
@@ -148,8 +161,10 @@ def one_origin(root, origin, work, missing):
         if result.returncode == 0:
             found = (back, revision)
             break
-        # Only HTTP 404 means this revision is absent; 403/5xx/timeouts fail the origin.
-        if result.stdout.strip() != "404":
+        # Both 404 and 403 can mean a revision is unpublished: GCS with
+        # roles/storage.legacyObjectReader (read without list) answers missing
+        # objects with 403. Fail fast only on transport errors, timeouts, or 5xx/other errors.
+        if result.stdout.strip() not in ("403", "404"):
             break
     if found is None:
         detail = (f"last lookup HTTP {result.stdout.strip() or 'unknown'}, "

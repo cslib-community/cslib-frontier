@@ -57,9 +57,11 @@ across all parents of `HEAD` (with a small fallback for stalled merge bases). Af
 merges `main`, newer published ancestors on the merged parent are tried strictly before the
 branch's older base regardless of commit timestamps or side-branch length. Mapping lookups have
 five-second connection and twenty-second request limits within that origin's overall budget,
-advancing to the next candidate only on HTTP 404 so denied (403), server-error or stalled origins
-fall back promptly to the next configured origin. The fetched mapping is then passed directly to
-`lake cache get` for syntax verification and artifact downloads.
+advancing to the next candidate on HTTP 404 or HTTP 403 (since GCS with
+`roles/storage.legacyObjectReader` answers missing objects without list permission with 403) and
+failing fast to the next configured origin on transport errors, timeouts or 5xx responses. The
+fetched mapping is then passed directly to `lake cache get` for syntax verification and artifact
+downloads.
 
 Each origin reports its elapsed time and whether the request completed, failed or timed out.
 Completion means that request succeeded, not that the checkout is fully built or that all

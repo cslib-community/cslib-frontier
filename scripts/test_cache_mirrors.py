@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,13 @@ try:
 except Exception:
     sys.exit(1)
 '''
+
+
+def run_git(root, env, *args, timestamp=None):
+    if timestamp is not None:
+        env = {**env, "GIT_AUTHOR_DATE": f"@{timestamp} +0000",
+               "GIT_COMMITTER_DATE": f"@{timestamp} +0000"}
+    return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
 
 
 @unittest.skipUnless(os.name == "posix" and shutil.which("curl") and shutil.which("git"),
@@ -108,12 +116,15 @@ class MirrorTests(unittest.TestCase):
                 if "/forbidden/" in self.path:
                     self.send_error(403)
                     return
+                if "/server-error/" in self.path:
+                    self.send_error(501)
+                    return
                 if self.path.endswith(".jsonl"):
-                    if "/by-rev/" in self.path:
+                    if "/by-rev/" in self.path or "/by-rev-403/" in self.path:
                         rev = self.path.rsplit("/", 1)[-1].removesuffix(".jsonl")
                         data = fixture.revision_mappings.get(rev)
                         if data is None:
-                            self.send_error(404)
+                            self.send_error(403 if "/by-rev-403/" in self.path else 404)
                             return
                     else:
                         data = b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n["0000000000000002","0000000000000002.ltar"]\n'
@@ -153,11 +164,7 @@ class MirrorTests(unittest.TestCase):
         self.server.server_close()
 
     def git(self, *args, timestamp=None):
-        env = self.env
-        if timestamp is not None:
-            env = {**self.env, "GIT_AUTHOR_DATE": f"@{timestamp} +0000",
-                   "GIT_COMMITTER_DATE": f"@{timestamp} +0000"}
-        return subprocess.check_output(["git", *args], cwd=self.root, env=env, text=True).strip()
+        return run_git(self.root, self.env, *args, timestamp=timestamp)
 
     def events(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
@@ -283,8 +290,47 @@ class MirrorTests(unittest.TestCase):
         self.fetch("/malformed-current", "/fallback", missing=True)
         self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
 
-    def test_403_origin_fails_fast_without_probing_every_ancestor(self):
-        for i in range(4):
+    def test_403_on_unpublished_revisions_continues_to_published_ancestor(self):
+        # GCS with roles/storage.legacyObjectReader (read without list) answers missing objects
+        # with HTTP 403 rather than 404. Unpublished branch/merge tips must not cause restore.py
+        # to abandon the origin before reaching a published ancestor.
+        self.git("checkout", "-qb", "main")
+        (self.root / "base.txt").write_text("base\n")
+        self.git("add", "base.txt")
+        self.git("commit", "-qm", "old base B", timestamp=1_700_001_000)
+        old_base = self.git("rev-parse", "HEAD")
+
+        self.git("checkout", "-qb", "feature")
+        (self.root / "feat.txt").write_text("feat\n")
+        self.git("add", "feat.txt")
+        self.git("commit", "-qm", "feature", timestamp=1_700_003_000)
+
+        self.git("checkout", "-q", "main")
+        (self.root / "main.txt").write_text("main\n")
+        self.git("add", "main.txt")
+        self.git("commit", "-qm", "published main", timestamp=1_700_002_000)
+        new_main = self.git("rev-parse", "HEAD")
+
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge main", "main", timestamp=1_700_004_000)
+
+        self.revision_mappings = {
+            old_base: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n',
+            new_main: b'"2026-03-17"\n["0000000000000002","0000000000000002.ltar"]\n',
+        }
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/by-rev-403", "/fallback", missing=missing)
+                self.assertIn(f"Remote cache: {new_main}", result.stdout)
+                self.assertFalse(any("/fallback/" in req for req in self.requests))
+                self.assertEqual(sorted(p.name for p in self.artifacts.iterdir()),
+                                 ["0000000000000002.art"])
+
+    def test_all_403_origin_exhausts_candidates_and_falls_back_to_secondary(self):
+        for i in range(2):
             (self.root / f"step{i}").write_text(str(i))
             self.git("add", f"step{i}")
             self.git("commit", "-qm", f"step {i}", timestamp=1_700_000_100 + i)
@@ -295,9 +341,44 @@ class MirrorTests(unittest.TestCase):
                 shutil.rmtree(self.artifacts, ignore_errors=True)
                 result = self.fetch("/forbidden", "/fallback", missing=missing)
                 forbidden_lookups = [r for r in self.requests if "/forbidden/r0/" in r]
-                self.assertEqual(len(forbidden_lookups), 1)
-                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
+                self.assertEqual(len(forbidden_lookups), 3)
+                self.assertIn("No usable cached mapping among 3 revisions", result.stdout)
                 self.assertIn("last lookup HTTP 403", result.stdout)
+                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+
+    def test_5xx_and_transport_errors_fail_fast_without_probing_every_ancestor(self):
+        for i in range(4):
+            (self.root / f"step{i}").write_text(str(i))
+            self.git("add", f"step{i}")
+            self.git("commit", "-qm", f"step {i}", timestamp=1_700_000_100 + i)
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            closed_origin = f"http://127.0.0.1:{sock.getsockname()[1]}"
+        for missing in (False, True):
+            with self.subTest(kind="5xx", missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/server-error", "/fallback", missing=missing)
+                error_lookups = [r for r in self.requests if "/server-error/r0/" in r]
+                self.assertEqual(len(error_lookups), 1)
+                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
+                self.assertIn("last lookup HTTP 501", result.stdout)
+                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+            with self.subTest(kind="transport", missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                env = {**self.env,
+                       "COMPLEXITYLIB_CACHE_URLS": f"{closed_origin} {self.base}/fallback"}
+                args = [sys.executable, "-B", str(REPO / "scripts/cache/restore.py"),
+                        "--checkout", str(self.root)]
+                if missing:
+                    args.append("--missing")
+                result = subprocess.run(args, cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
                 self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
 
     def test_merge_of_main_and_post_merge_commits_restore_merged_main_over_old_base(self):
@@ -373,11 +454,7 @@ class CandidateRevisionsTests(unittest.TestCase):
         self.git("init", "-q", "-b", "main")
 
     def git(self, *args, timestamp=None):
-        env = self.env
-        if timestamp is not None:
-            env = {**self.env, "GIT_AUTHOR_DATE": f"@{timestamp} +0000",
-                   "GIT_COMMITTER_DATE": f"@{timestamp} +0000"}
-        return subprocess.check_output(["git", *args], cwd=self.root, env=env, text=True).strip()
+        return run_git(self.root, self.env, *args, timestamp=timestamp)
 
     def commit(self, path, content, message, timestamp):
         (self.root / path).write_text(content)
@@ -450,6 +527,29 @@ class CandidateRevisionsTests(unittest.TestCase):
         self.git("merge", "-q", "--no-ff", "-m", "merge M2", "main", timestamp=1_700_005_000)
         revs = restore.candidate_revisions(self.root)
         self.assertIn(first_main, revs)
+
+    def test_stalled_fallback_seeds_remaining_wave_and_next_wave_before_stalled_base(self):
+        base = self.commit("base", "0", "B", timestamp=1_700_001_000)
+        self.git("checkout", "-qb", "left")
+        self.commit("left", "1", "L1", timestamp=1_700_002_000)
+        self.commit("left", "2", "L2", timestamp=1_700_002_100)
+        self.git("checkout", "-qb", "extra", base)
+        extra1 = self.commit("extra", "1", "X1", timestamp=1_700_002_400)
+        self.commit("extra", "2", "X2", timestamp=1_700_002_500)
+        self.git("checkout", "-qb", "mid", base)
+        self.commit("mid", "1", "M1", timestamp=1_700_001_500)
+        mid2 = self.commit("mid", "2", "M2", timestamp=1_700_001_600)
+        self.git("checkout", "-qb", "right", base)
+        self.commit("right", "1", "R1", timestamp=1_700_003_000)
+        self.git("checkout", "-q", "left")
+        self.git("merge", "-q", "--no-ff", "-m", "octopus", "extra", "mid", "right",
+                 timestamp=1_700_004_000)
+        # Wave 0: octopus (1).
+        # Wave 1: [R1 (3000), X2 (2500), L2 (2100), M2 (1600)].
+        # R1 stalls B, X2 queues X1 into next_wave, limit=4 stops on L2 leaving M2 in remaining_wave.
+        revs = restore.candidate_revisions(self.root, limit=4, stalled_limit=5)
+        self.assertLess(revs.index(mid2), revs.index(extra1))
+        self.assertLess(revs.index(extra1), revs.index(base))
 
 
 @unittest.skipUnless(os.name == "posix", "owned process-group shutdown requires POSIX")
