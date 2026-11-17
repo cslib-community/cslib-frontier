@@ -271,11 +271,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
   -- the verifier with its instance hardwired is a circuit of polynomial size
   obtain ⟨c₁, a₁, hB⟩ := exists_complexity_verifierTest_le p hV
   -- seeds of `⌊n ^ (1 / d)⌋ + K` bits, with `1 / e ≤ ε` and `d = 2 e`
-  set e := ⌈ε⁻¹⌉₊ + 1 with he_def
-  have he : 0 < e := Nat.succ_pos _
-  have hεe : 1 / (e : ℝ) ≤ ε := by
-    rw [one_div, inv_le_comm₀ (by positivity) hε]
-    exact (Nat.le_ceil _).trans (by rw [he_def]; push_cast; linarith)
+  obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
+  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
   set d := 2 * e with hd_def
   have hd : 1 ≤ d := by omega
   -- the generator for circuits of size `k ^ c`
