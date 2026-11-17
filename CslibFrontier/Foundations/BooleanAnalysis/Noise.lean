@@ -43,10 +43,10 @@ The noised string is `x + P`, the coordinatewise exclusive or of `x` with a rand
 `Bool`. The coordinates of the mask are independent:
 the average of a product of functions of the separate coordinates factorizes
 (`BitString.bernoulliAverage_prod`), so the character of `S` averages to `(1 - 2 p) ^ |S|`
-over a mask of rate `p` (`BitString.bernoulliAverage_chi`). In particular the parity of `k`
+over a mask of rate `p` (`BitString.bernoulliAverage_chi`). In particular, for `0 ≤ δ ≤ 1` the parity of `k`
 independent bits that are `1` with probability `1 - δ` is `1` with probability
 `1/2 - (2δ - 1)^k / 2` (`BitString.bernoulliAverage_parityOn`, Arora–Barak, Exercise 17.1,
-corrected).
+corrected). For other real `δ` the same formula holds as an identity of signed-weight averages.
 
 ## Main definitions
 
@@ -112,7 +112,9 @@ theorem bernoulliAverage_chi (p : ℝ) (S : Finset ι) :
 
 /-- **Arora–Barak, Exercise 17.1, corrected** (web draft 2007-01-08, p. 348/364). If the bits
 `X_i` are independent with `Pr[X_i = 1] = 1 - δ`, the parity `X` of the bits in `S` has
-`Pr[X = 1] = 1/2 - (2δ - 1)^|S| / 2`. The draft prints `1/2 + (1 - 2δ)^k`, which is false (at
+`Pr[X = 1] = 1/2 - (2δ - 1)^|S| / 2`. The statement is an identity of `bernoulliAverage`, a
+finite signed-weight average, for every real `δ`; it is a probability when `0 ≤ δ ≤ 1`. The draft
+prints `1/2 + (1 - 2δ)^k`, which is false (at
 `k = 1` it gives `3/2 - 2δ` for `Pr[X_1 = 1] = 1 - δ`). The bound the text uses (p. 322/338) is
 `parityOn_bernoulliAverage_le`. -/
 theorem bernoulliAverage_parityOn (δ : ℝ) (S : Finset ι) :
@@ -127,8 +129,9 @@ theorem bernoulliAverage_parityOn (δ : ℝ) (S : Finset ι) :
     bernoulliAverage_chi]
   ring
 
-/-- The parity of `|S|` independent bits that are `1` with probability `1 - δ` is `1` with
-probability at most `1/2 + (1 - 2δ)^|S| / 2`, for every `δ`. For `δ ≤ 1/2` this gives the bound
+/-- For `0 ≤ δ ≤ 1`, the parity of `|S|` independent bits that are `1` with probability `1 - δ`
+is `1` with probability at most `1/2 + (1 - 2δ)^|S| / 2`. The inequality between the
+signed-weight averages holds for every real `δ`. For `0 ≤ δ ≤ 1/2` this gives the bound
 `1/2 + (1 - 2δ)^k` that Arora–Barak cite Exercise 17.1 for (web draft 2007-01-08, p. 322/338). -/
 theorem parityOn_bernoulliAverage_le (δ : ℝ) (S : Finset ι) :
     bernoulliAverage (1 - δ) (fun x => if parityOn S x then 1 else 0) ≤
