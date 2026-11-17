@@ -2891,6 +2891,9 @@ public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Membership
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Routines
+public import CslibFrontier.Computability.Complexity.Problems.UCONN
+public import CslibFrontier.Computability.Complexity.Problems.UGraph
+public import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
 public import CslibFrontier.Computability.Complexity.Problems.USAT
 public import CslibFrontier.Computability.Complexity.Problems.USTCON
 public import CslibFrontier.Computability.Complexity.Problems.VertexCover
@@ -5905,6 +5908,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
+public import CslibFrontier.Foundations.BooleanAnalysis.Majority
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
