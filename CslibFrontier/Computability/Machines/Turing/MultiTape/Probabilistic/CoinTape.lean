@@ -30,6 +30,7 @@ machine implementing replay from an encoded input and coin tape needs a separate
 ## Main results
 
 * `Turing.MultiTapePTM.runConfigFromCoins_append`: pause and resume at a tape boundary.
+* `Turing.MultiTapePTM.replay_append`: concatenating closed coin replays runs them consecutively.
 * `Turing.MultiTapePTM.run_interpret_runConfigFrom_eq_coins`: average fixed-coin runs, retaining
   the complete configuration and private state.
 * `Turing.MultiTapePTM.runClosedCoins_ofDeterministic`: replaying a deterministic machine runs it
@@ -183,6 +184,14 @@ def runClosedConfigFromCoins (machine : MultiTapePTM k Symbol State)
     (coins : List Bool) (cfg : Config k Symbol State Empty input) :
     Config k Symbol State Empty input :=
   coins.foldl (fun cfg bit => (machine.withCoin bit).step cfg) cfg
+
+/-- Running a sequential concatenation of coin sequences is equivalent to
+running them consecutively. -/
+theorem replay_append (machine : MultiTapePTM k Symbol State)
+    (before after : List Bool) (cfg : Config k Symbol State Empty input) :
+    machine.runClosedConfigFromCoins (before ++ after) cfg =
+      machine.runClosedConfigFromCoins after (machine.runClosedConfigFromCoins before cfg) :=
+  List.foldl_append
 
 /-- A closed one-step program with a fixed coin is a pure deterministic transition. -/
 theorem runConfigFrom_pure_coin (machine : MultiTapePTM k Symbol State) (bit : Bool)

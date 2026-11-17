@@ -171,18 +171,11 @@ theorem tapes_runClosedConfigFromCoins_of_halted (coins : List Bool)
   rw [tapes_runClosedConfigFromCoins]
   exact machine.stepCoins_of_halted h coins
 
-/-- Replaying concatenated coins pauses and resumes. -/
-theorem runClosedConfigFromCoins_append (coins more : List Bool)
-    (cfg : Config k Symbol State Empty input) :
-    machine.runClosedConfigFromCoins (coins ++ more) cfg =
-      machine.runClosedConfigFromCoins more (machine.runClosedConfigFromCoins coins cfg) :=
-  List.foldl_append
-
 /-- **Outputs only grow**: replaying more coins extends the output of a replay. -/
 theorem output_isPrefix_append (coins more : List Bool) (cfg : Config k Symbol State Empty input) :
     (machine.runClosedConfigFromCoins coins cfg).tapes.output <+:
       (machine.runClosedConfigFromCoins (coins ++ more) cfg).tapes.output := by
-  rw [runClosedConfigFromCoins_append, tapes_runClosedConfigFromCoins (machine := machine) more]
+  rw [replay_append, tapes_runClosedConfigFromCoins (machine := machine) more]
   generalize (machine.runClosedConfigFromCoins coins cfg).tapes = c
   induction more generalizing c with
   | nil => exact List.prefix_refl _
