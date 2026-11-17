@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Bitwise
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Checked operations on multiword register banks
@@ -225,7 +226,7 @@ theorem exec_input {w z : ℕ} (hw : 2 ≤ w) (hz : Fits w z) (d : Fin n) :
   refine ⟨y, ?_, encodes_update hu d z hyb hyv ?_, hyf.1, ?_⟩
   · exact he.seq hey
   · intro i hi hid
-    exact hyp i (by dsimp [IsDigit]; omega) hid
+    exact hyp i (by layout_omega) hid
   · exact (hyp inputReg (by dsimp [IsDigit, inputReg]; omega) hnot).trans huz
 
 end Cslib.WordRAM.Multiword.Bank

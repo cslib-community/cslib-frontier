@@ -344,8 +344,8 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         ((hcs r_fin).2.leafCount_le_card_nodeSet).1 childIdx (cs r_fin).rootIdx_mem_nodeSet
       have hchild_ne_idx : childIdx ≠ idx := fun heq =>
         hnot r_fin (heq ▸ (cs r_fin).rootIdx_mem_nodeSet)
-      have hidx_ne_r : idx ≠ rightIdx := by dsimp [rightIdx]; omega
-      have hlr_ne : childIdx ≠ rightIdx := by dsimp [rightIdx]; omega
+      have hidx_ne_r : idx ≠ rightIdx := by omega
+      have hlr_ne : childIdx ≠ rightIdx := by omega
       have hl_nd :
           nodes3 childIdx = (splitFullNode fpBits W_val tMin (sl.nodes childIdx)).left := by
         dsimp only [nodes3, nodes2, nodes1]
@@ -360,7 +360,7 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         intro v hv_er
         obtain ⟨hv_ne_c, hv_mem⟩ := mem_erase.mp hv_er
         have hv_lt : v < sl.alloc := ((hcs r_fin).2.leafCount_le_card_nodeSet).1 v hv_mem
-        have hv_ne_r : v ≠ rightIdx := by dsimp [rightIdx]; omega
+        have hv_ne_r : v ≠ rightIdx := by omega
         have hv_ne_idx : v ≠ idx := fun heq => hnot r_fin (heq ▸ hv_mem)
         refine ⟨?_, hv_ne_c, hv_ne_r⟩
         dsimp only [nodes3, nodes2, nodes1]
@@ -410,8 +410,8 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
         exact min_eq_left (by omega)
       have hsep_lt_W : sep < 2 ^ W_key :=
         ((hsep_chi.trans_le hchi_le).trans hhi).trans
-          (Nat.pow_lt_pow_right (by decide) (by dsimp [W_key]; omega))
-      have hright_lt_val : rightIdx < 2 ^ W_val := by dsimp [rightIdx]; omega
+          (Nat.pow_lt_pow_right (by decide) (by omega))
+      have hright_lt_val : rightIdx < 2 ^ W_val := by omega
       have hht_mid : ∀ i : Fin (cnt + 1 + 1),
           (cs_mid i).height = (cs_mid ⟨0, Nat.succ_pos _⟩).height := by
         have hval0_mid :
@@ -536,7 +536,7 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
             have h1 := hsubR_c hvR
             rw [mem_insert] at h1
             rcases h1 with rfl | hm
-            · dsimp only [rightIdx] at hv_lt; omega
+            · omega
             · exact Finset.disjoint_left.mp (hdisj k r_fin hkne) hvk hm
           intro i j hij
           have hij_val : i.val ≠ j.val := Fin.val_ne_of_ne hij
@@ -578,7 +578,7 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
               ∀ v ∈ (cs k).nodeSet, sl_mid.nodes v = sl.nodes v := fun k hkne v hvk => by
             have hv_lt : v < sl.alloc := ((hcs k).2.leafCount_le_card_nodeSet).1 v hvk
             have hv_ne_idx : v ≠ idx := fun heq => hnot k (heq ▸ hvk)
-            have hv_ne_r : v ≠ rightIdx := by dsimp [rightIdx]; omega
+            have hv_ne_r : v ≠ rightIdx := by omega
             have hv_ne_c : v ≠ childIdx := fun heq =>
               Finset.disjoint_left.mp (hdisj k r_fin hkne) hvk
                 (heq ▸ (cs r_fin).rootIdx_mem_nodeSet)
@@ -829,10 +829,10 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           intro hvm
           rcases hsub_Tmid v hvm with h1 | rfl
           · exact hv_not h1
-          · dsimp only [rightIdx] at hv_lt; omega
+          · omega
         have h1 := hfr_mid v (by dsimp [sl_mid]; omega) hv_not_mid
         have hv_ne_idx : v ≠ idx := fun heq => hv_not (by subst heq; simp [BTreeTree.nodeSet])
-        have hv_ne_r : v ≠ rightIdx := by dsimp [rightIdx]; omega
+        have hv_ne_r : v ≠ rightIdx := by omega
         have hv_ne_c : v ≠ childIdx := fun heq => hv_not (by
           subst heq
           exact mem_insert_of_mem

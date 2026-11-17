@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Copy
 public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.DataStructure.StateTransition.Amortized
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Doubling arrays on the word RAM
@@ -205,9 +206,9 @@ theorem grow_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1)
   refine ⟨?_, ?_, ?_, fun i hi => ?_, fun b hb => ?_⟩
   all_goals wram_simp [hzf, hzm]
   · rw [← had, ← has, ArrayCopy.copyPrefix_read (by omega), ham]
-    exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+    exact clear_of_not_owns (by layout_omega)
   · rw [ArrayCopy.copyPrefix_outside (by omega), ham]
-    exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+    exact clear_of_not_owns (by layout_omega)
 
 /-- Appending a word preserves the doubling-array invariant, modifies only cells in
 `[x.regs ptr, y.regs frontier)` (hence only within `[0, y.regs frontier)`), and satisfies the

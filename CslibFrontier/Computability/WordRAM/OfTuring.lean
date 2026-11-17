@@ -16,6 +16,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Na
 public import CslibFrontier.Foundations.Data.BitString.Counter
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+public import CslibFrontier.Tactic.LayoutOmega.Init
+import CslibFrontier.Tactic.LayoutOmega
 /-!
 # Word RAMs simulate multi-tape Turing machines
 
@@ -102,12 +104,12 @@ def magOf (z : ℤ) : ℕ := if z < 0 then (-z - 1).toNat else z.toNat
 
 /-- The memory address of cell `z` of work tape `i` of a machine with `k` work tapes, on an input
 of length `n`: the half-tapes of all tapes are interleaved past the input. -/
+@[layout]
 def tapeAddr (k n : ℕ) (i : Fin k) (z : ℤ) : ℕ := n + 1 + 2 * k * magOf z + 2 * i + sgnOf z
 
 theorem sgnOf_le_one (z : ℤ) : sgnOf z ≤ 1 := by unfold sgnOf; split <;> omega
 
-theorem lt_tapeAddr (k n : ℕ) (i : Fin k) (z : ℤ) : n < tapeAddr k n i z := by
-  unfold tapeAddr; omega
+theorem lt_tapeAddr (k n : ℕ) (i : Fin k) (z : ℤ) : n < tapeAddr k n i z := by layout_omega
 
 private theorem two_mul_add_sgnOf_lt (i : Fin k) (z : ℤ) : 2 * (i : ℕ) + sgnOf z < 2 * k := by
   have := sgnOf_le_one z; omega
@@ -387,6 +389,7 @@ def simProgram (δ : Q → Option Bool → (Fin k → Option Bool) → Action k 
   (simCode δ q₀ e).program rVal
 
 /-- An upper bound on the instructions of one simulated step. -/
+@[layout]
 def stepCost (k m : ℕ) : ℕ := 3 * m + 13 * k + 14
 
 /-- An upper bound on the instructions of a simulated run of `t` steps, the final `halt`
@@ -395,6 +398,7 @@ def simTime (k m t : ℕ) : ℕ := 2 * k + 13 + t * (stepCost k m + 2)
 
 /-- Words of the simulator of a run of `t` steps on an input of length `n` stay below this bound,
 except for the output. -/
+@[layout]
 def simBound (k m n t : ℕ) : ℕ := n + 1 + 2 * k * (t + 1) + m + 2
 
 /-! ## The invariant -/
@@ -503,7 +507,7 @@ private theorem dispatch_spec {reg : Fin (regs k)} (hreg : reg ≠ rTmp)
       ExecWithin w (dispatch reg body N) x y (T + 3 * N)
   | 0, _, _, hvN, _, _ => absurd hvN (Nat.not_lt_zero v)
   | N + 1, x, hv, hvN, hN, hbody => by
-    have hfit : Fits w N := by unfold Fits; omega
+    have hfit : Fits w N := by layout_omega
     by_cases h : v = N
     · subst h
       refine ((execWithin_const hfit).seq (ExecWithin.branch_pos ?_ hbody)).mono (by omega)
@@ -770,7 +774,7 @@ private theorem actionCode_spec (act : Action k Bool Q) {inp : List Bool} {c : C
     (hfit : ∀ i, Fits w (tapeAddr k inp.length i ((act.apply c).workTapePos i)))
     (hbound : inp.length + 2 * k + m + 2 < 2 ^ w) (hout : (act.apply c).output.length < w) :
     ∃ y, ExecWithin w (actionCode e act) x y (8 * k + 7) ∧ Sim e y (act.apply c) := by
-  have h2 : Fits w 2 := by unfold Fits; omega
+  have h2 : Fits w 2 := by layout_omega
   obtain ⟨y₁, h₁, hT₁, hr₁, hm₁⟩ := tapesCode_spec (n := inp.length) act (List.finRange k)
     (List.nodup_finRange k) hx.tapes hx.consts h2 (fun i _ => hfit i)
   simp only [List.mem_finRange, ite_true] at hT₁
@@ -783,7 +787,7 @@ private theorem actionCode_spec (act : Action k Bool Q) {inp : List Bool} {c : C
     (by rw [hr₂ _ (by reg_ne), hr₁ _ (by simp) (by reg_ne)]; exact hx.pow) act.output hout
   have hc₃ : Consts inp.length m y₃ := hc₂.of_eq fun d _ _ _ _ _ hv hp => hr₃ d hv hp
   have hst : Fits w (stateCode e act.state) := by
-    have := stateCode_le e act.state; unfold Fits; omega
+    have := stateCode_le e act.state; layout_omega
   refine ⟨y₃.set rState (stateCode e act.state),
     (h₁.seq (h₂.seq (h₃.seq (execWithin_const hst)))).mono
       (by simp only [List.length_finRange]; omega),
@@ -924,7 +928,7 @@ theorem stepCode_spec (δ : Q → Option Bool → (Fin k → Option Bool) → Ac
   · have : m < 2 ^ w := by omega
     omega
   · simp only [hlt, ↓reduceDIte, he]; exact hy
-  · unfold stepCost; omega
+  · layout_omega
 
 /-- Placing the heads of the work tapes in a list without repetitions. -/
 private theorem setupTapes_spec : ∀ (L : List (Fin k)), L.Nodup → ∀ {x : Data (regs k)},
@@ -936,7 +940,7 @@ private theorem setupTapes_spec : ∀ (L : List (Fin k)), L.Nodup → ∀ {x : D
   | i :: L, hL, x, hx, hb => by
     obtain ⟨hiL, hL⟩ := List.nodup_cons.1 hL
     have hi := i.isLt
-    have h₁ : Fits w (2 * i) := by unfold Fits; omega
+    have h₁ : Fits w (2 * i) := by layout_omega
     have h₂ : Fits w ((x.set rTmp (2 * i)).regs rEnd + (x.set rTmp (2 * i)).regs rTmp) := by
       unfold Fits; wram_simp; omega
     obtain ⟨y, hy, ha, hr, hm⟩ := setupTapes_spec L hL
@@ -1080,14 +1084,14 @@ theorem executes_simProgram (hδ : ∀ q a s, tm.tr q a s = δ q a s) (e : Q ≃
   have hsame : tm.runFrom (tm.initCfg inp) t = tm.runFrom (tm.initCfg inp) t₀ :=
     hhalts.runFrom_eq ht₀
   have hk : 2 * k ≤ 2 * k * (t + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by unfold simBound at hw; omega
+  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by layout_omega [hw]
   have hfit : ∀ j ≤ t₀, ∀ i,
       Fits w (tapeAddr k inp.length i ((tm.runFrom (tm.initCfg inp) j).workTapePos i)) := by
     intro j hj i
     have habs := abs_le.1 (MultiTapeTM.abs_workTapePos_runFrom_le (tm := tm) inp j i)
     have h1 := tapeAddr_lt (n := inp.length) i
       (z := (tm.runFrom (tm.initCfg inp) j).workTapePos i) (d := t) (by omega)
-    unfold Fits; unfold simBound at hw; omega
+    layout_omega [hw]
   have hout' : ∀ j ≤ t₀, (tm.runFrom (tm.initCfg inp) j).output.length < w :=
     fun j hj => lt_of_le_of_lt (length_output_runFrom_mono _ (hj.trans ht₀)) hout
   obtain ⟨x, hx₁, hsx⟩ := setupCode_spec (e := e) (w := w) tm.q₀ inp hbound
@@ -1158,7 +1162,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.exists_wordRAM {f : α �
     have hb : simBound K (Fintype.card Q) (encIn a).length (t (encIn a).length) < 2 ^ w :=
       Nat.lt_two_pow_self.trans_le' (by omega)
     obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
-      (by unfold simBound at hw; omega)
+      (by layout_omega [hw])
     rw [hout] at hex
     exact ⟨n, hex, hn⟩
 

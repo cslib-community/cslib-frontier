@@ -13,6 +13,8 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.LayoutOmega.Init
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Most-significant-bit arithmetic for fusion trees
@@ -191,6 +193,7 @@ def clusterMarkers (s x : ℕ) : ℕ :=
   h ||| (clusterMask s ^^^ ((clusterMask s - r) &&& clusterMask s))
 
 /-- Shifts moving diagonal marker products to positions `s² + i`. -/
+@[layout]
 def compressionShift (s j : ℕ) : ℕ := s * s - (s - 1) - j * s + j
 
 /-- Precomputed multiplier for the cluster markers. -/
@@ -218,8 +221,7 @@ private theorem compressionShift_add {s : ℕ} (_hs : 0 < s) (i j : Fin s) :
     have := Nat.mul_le_mul_right s (show j.val + 1 ≤ s from j.isLt)
     have : s - 1 ≤ s := Nat.sub_le _ _
     nlinarith
-  unfold compressionShift
-  omega
+  layout_omega
 
 private theorem compression_diagonal {s : ℕ} (hs : 0 < s) (i : Fin s) :
     (s - 1 + i.val * s) + compressionShift s i.val = s * s + i.val := by

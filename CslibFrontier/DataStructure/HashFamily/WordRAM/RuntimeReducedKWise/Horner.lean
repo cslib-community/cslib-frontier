@@ -642,16 +642,16 @@ private theorem hornerStep_spec {w w₀ b b' k hashBase scratchBase rVal accVal 
   have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
   obtain ⟨hsafe_z, hv_z, hcost_z, hfr_z, hz_mem, hout_z⟩ :=
     zeroWordsLoop_spec (w := w) (baseAddr := prodBase) (n := 2 * rLimbs w₀ b b') (s₀ := s₀)
-      (by change prodBase + 2 * rLimbs w₀ b b' ≤ s.frontier; dsimp only [prodBase]; omega)
+      (by change prodBase + 2 * rLimbs w₀ b b' ≤ s.frontier; omega)
   have hs₁_out : ∀ a, (a < scratchBase ∨ scratchBase + scratchWords ≤ a) → s₁.mem a = s.mem a :=
-    fun a ha => (hout_z a (by dsimp only [prodBase]; omega)).trans
-      (Function.update_of_ne (by dsimp only [prodBase]; omega) _ _)
+    fun a ha => (hout_z a (by omega)).trans
+      (Function.update_of_ne (by omega) _ _)
   have htab₁ : ReducedKWise.TableRep hashBase w w₀ b b' k s₁.mem :=
     tableRep_congr htab fun a h1 h2 => (hs₁_out a (by omega)).symm
   have hacc₁ :
       ∀ m < rLimbs w₀ b b', s₁.mem (scratchBase + m) = getLimb (rChunk w₀ b b') accVal m :=
-    fun m hm => (hout_z _ (Or.inl (by dsimp only [prodBase]; omega))).trans
-      ((Function.update_of_ne (by dsimp only [prodBase]; omega) _ _).trans (hacc m hm))
+    fun m hm => (hout_z _ (Or.inl (by omega))).trans
+      ((Function.update_of_ne (by omega) _ _).trans (hacc m hm))
   obtain ⟨hsafe_o, hv_o, hcost_o, hfr_o, hprod₂, hout_o⟩ :=
     outerClmulLoop_spec hc_lt (by rw [hfr_z]; exact hfr_h) (by rw [hfr_z]; exact hfr_s)
       hdisj htab₁ hr_fit hr_lt hacc_lt hacc₁ hz_mem
@@ -683,7 +683,7 @@ private theorem hornerStep_spec {w w₀ b b' k hashBase scratchBase rVal accVal 
   refine ⟨hsafe_z, hsafe_o, hsafe_r, ?_, ?_, ?_, hs'_eq ▸ (hfr_r.trans (hfr_o.trans hfr_z)),
     hs'_eq ▸ hacc_r, fun a ha => hs'_eq ▸ (hout_r a (by omega)).trans (hs₂_out a ha)⟩
   · rw [hstep_eq, validHistory_bind', validHistory_bind', validHistory_bind', validHistory_bind']
-    exact ⟨⟨⟨by dsimp only [prodBase]; omega, Nat.two_pow_pos w⟩, trivial⟩, hv_z, hv_o, hv_r,
+    exact ⟨⟨⟨by omega, Nat.two_pow_pos w⟩, trivial⟩, hv_z, hv_o, hv_r,
       trivial⟩
   · rw [hstep_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind', memoryCost_bind',
       memoryCost_pure, Nat.add_zero]

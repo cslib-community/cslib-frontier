@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Compile
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Signed arithmetic implemented by unsigned word-RAM instructions
@@ -260,8 +261,7 @@ private theorem arithmetic_fits {w m : ℕ} (hw : 0 < w) (hm : m ≤ 2 * 2 ^ (w 
     rw [he, pow_add]
     omega
   have := Nat.two_pow_pos (w - 1)
-  unfold Fits
-  omega
+  layout_omega
 
 /-- Memory and registers outside the output and six scratch registers are unchanged. -/
 def Frame (x y : Data (r + 9)) : Prop :=

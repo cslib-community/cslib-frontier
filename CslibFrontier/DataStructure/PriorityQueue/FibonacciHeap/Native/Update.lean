@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Memory
 import CslibFrontier.DataStructure.Memory.RecordLink
 import CslibFrontier.Computability.WordRAM.Realization.Reindex
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Native updates of the indexed Fibonacci heap
@@ -95,8 +96,7 @@ private theorem realizes_addRoot_history : Realizes .exact
       StateTransitionSpec.stepFn, Memory.step_read, Memory.step_write, Memory.valid]
   all_goals
     have hfront := hmem.frontier_fits
-    simp only [Fits] at hv hfront ⊢
-    omega
+    layout_omega [hv, hfront]
 
 /-- The original root-list insertion, retaining the certificate's intrinsic admissible-history
 contract. Capacity, base and handle are runtime words, and the local work is absorbed. -/
@@ -216,8 +216,7 @@ private theorem realizes_unlink_history : Realizes .exact
       Memory.write, Memory.step_read, Memory.step_write, Memory.valid, ite_false]
   all_goals
     have hfront := hmem.frontier_fits
-    simp only [Fits] at hv hfront ⊢
-    omega
+    layout_omega [hv, hfront]
 
 /-- Unlink a child using runtime `[capacity, base, child, parent]`. Exact subtraction uses
 the existing positive-parent-degree premise; this certificate does not assert a valid cut
@@ -272,8 +271,7 @@ private theorem realizes_setKey_history : Realizes .exact
     Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
     Function.update_of_ne haddr]
   have hfront := hmem.frontier_fits
-  simp only [Fits] at hv hfront ⊢
-  omega
+  layout_omega [hv, hfront]
 
 /-- Store the runtime key and perform the original minimum-root priority comparison. The
 positive minimum pointer makes exact subtraction defined; heap correctness supplies this

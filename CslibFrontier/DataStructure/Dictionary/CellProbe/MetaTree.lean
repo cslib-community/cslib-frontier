@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.CellProbe.Defs
 public import CslibFrontier.Foundations.Data.Nat.IterLog
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Tactic.Zify
+public import CslibFrontier.Tactic.LayoutOmega.Init
+import CslibFrontier.Tactic.LayoutOmega
 
 /-!
 # Divisibility-Free Meta-Operation Tree, LCA Probe Attribution, and Mixed-State Replay
@@ -146,7 +148,7 @@ def blockSize (T : MetaTree) (ℓ : ℕ) : ℕ :=
 
 /-- Number of disjoint full level-`ℓ` nodes `q_ℓ = horizon / blockSize ℓ` packed into
 `[0, horizon)`. -/
-@[expose] def nodeCount (T : MetaTree) (ℓ : ℕ) : ℕ :=
+@[expose, layout] def nodeCount (T : MetaTree) (ℓ : ℕ) : ℕ :=
   T.horizon / T.blockSize ℓ
 
 /-- Starting meta-operation index `b * blockSize ℓ` of node `(ℓ, b)`. -/
@@ -254,8 +256,7 @@ theorem horizon_le_two_mul_nodeCount_mul_blockSize (T : MetaTree) {ℓ : ℕ}
     simpa using Nat.mul_le_mul_right (T.blockSize ℓ) hdiv_pos
   have hmod := Nat.div_add_mod T.horizon (T.blockSize ℓ)
   rw [mul_comm] at hmod
-  simp only [nodeCount]
-  omega
+  layout_omega
 
 theorem horizon_div_two_mul_blockSize_le_nodeCount (T : MetaTree) {ℓ : ℕ}
     (h : T.blockSize ℓ ≤ T.horizon) :

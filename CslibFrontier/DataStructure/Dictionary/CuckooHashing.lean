@@ -1505,7 +1505,7 @@ private theorem IsRawWalkTrace.hasBicyclicPrefix_of_two_revisits {U m N : ℕ} {
       unfold stepTable bicyclicFreshStep
       split_ifs with hmt₁
       · simp
-      · have hmod : (T₁ + (m - t₁)) % 2 = (m - t₁ + 1) % 2 := by dsimp only [T₁]; omega
+      · have hmod : (T₁ + (m - t₁)) % 2 = (m - t₁ + 1) % 2 := by omega
         simp [hmod]
     have hy_cur : y ⟨m + 1, by omega⟩ = (es (bicyclicFreshStep t₁ T₁ m + 1)).key := by
       dsimp only [y]
@@ -1560,7 +1560,7 @@ private theorem IsRawWalkTrace.hasBicyclicPrefix_of_two_revisits {U m N : ℕ} {
       rw [hpar_st]
     exact (stepSlot_eq_iff h₁ h₂ t₁ (es t₁).key (es s₀).key).mp hrev_eq
   rcases hrev₂ with ⟨k₀, hk₀_lt, hk₀_eq⟩
-  have hT₁_odd : T₁ % 2 = 1 := by dsimp only [T₁]; omega
+  have hT₁_odd : T₁ % 2 = 1 := by omega
   have hk' : ∃ j : Fin (L + 1),
       (if t₁ = L then 1 ≤ j.val ∧ j.val < L else j.val < L) ∧
       stepSlot h₁ h₂ t₂ (y endIdx) = stepSlot h₁ h₂ t₂ (y j) := by
@@ -1569,13 +1569,12 @@ private theorem IsRawWalkTrace.hasBicyclicPrefix_of_two_revisits {U m N : ℕ} {
       by_cases hpL : t₁ = L
       · rw [ite_eq_left hpL]
         have h2 : bicyclicKeyStep t₁ T₁ 0 = 0 := by unfold bicyclicKeyStep; simp
-        have h3 : t₂ = T₁ := by dsimp only [L] at hpL; omega
+        have h3 : t₂ = T₁ := by omega
         rw [h2, h3, hu0, hT₁_key]
       · rw [ite_eq_right hpL]
         have h2 : bicyclicKeyStep t₁ T₁ L = t₂ := by
           unfold bicyclicKeyStep
-          rw [ite_eq_right (by dsimp only [L] at hpL ⊢; omega)]
-          dsimp only [L, T₁]
+          rw [ite_eq_right (by omega)]
           omega
         rw [h2]
     by_cases hk_lt : k₀ < t₁
@@ -1648,7 +1647,7 @@ private theorem IsRawWalkTrace.hasBicyclicPrefix_of_two_revisits {U m N : ℕ} {
     refine equationChain_prependToTable h₁ h₂ ((L - t₁ + 1) % 2 == 1) (y endIdx, y j_fin) _ ?_
       hc1_chains
     have hpar_t₂ : ((L - t₁ + 1) % 2 == 1) = (t₂ % 2 == 1) := by
-      have hmod : (L - t₁ + 1) % 2 = t₂ % 2 := by dsimp only [L, T₁]; omega
+      have hmod : (L - t₁ + 1) % 2 = t₂ % 2 := by omega
       rw [hmod]
     rw [hpar_t₂]
     exact (stepSlot_eq_iff h₁ h₂ t₂ (y endIdx) (y j_fin)).mp hj_slot
@@ -1701,7 +1700,7 @@ private theorem IsRawWalkTrace.dichotomy {U m N : ℕ} {h₁ h₂ : Fin U → Fi
         intro d hd k hk
         simp only [Nat.zero_add] at hk ⊢
         exact hfresh₁ d (by omega) k hk
-      · have hT₁_bound : T₁ + ℓ ≤ N := by dsimp only [T₁, ℓ] at hℓ_le ⊢; omega
+      · have hT₁_bound : T₁ + ℓ ≤ N := by omega
         have hT₁_key : (es T₁).key = u := by
           have hbt := htr.backtrack_at_first_revisit hs₀_lt hfresh₁ hs₀_eq s₀ le_rfl (by omega)
           have hsub : s₀ - s₀ = 0 := Nat.sub_self s₀
@@ -2209,7 +2208,6 @@ private theorem two_mul_walkBadAt_maxLoop_le {Θ₁ Θ₂ : Type*} [Fintype Θ�
       exact Nat.le_of_lt (Nat.lt_two_pow_self)
     have hexp_le : Nat.clog 2 (max n_max 2) + MaxLoop + 3 ≤ 5 * ℓ := by
       have hdef : 6 * (Nat.clog 2 (max n_max 2) + 2) ≤ MaxLoop := hloop_ge
-      dsimp only [ℓ]
       omega
     have hpow_le : 8 * (max n_max 1 * max MaxLoop 1) ≤ 32 ^ ℓ := by
       calc 8 * (max n_max 1 * max MaxLoop 1)
