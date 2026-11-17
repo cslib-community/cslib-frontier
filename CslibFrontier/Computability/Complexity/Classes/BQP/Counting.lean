@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.BQP
 public import CslibFrontier.Computability.Circuit.Quantum.PathSum
 public import CslibFrontier.Computability.Complexity.Classes.AWPP
+public import CslibFrontier.Computability.Complexity.Classes.Space
+import CslibFrontier.Computability.Complexity.Classes.Counting.Space
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Aggregation
 import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -27,7 +29,9 @@ are computed classically. The path simulation `Cslib.Quantum.pathStep` runs in p
 polynomially long paths, of a polynomial-time integer, which is a `GapP` function; the number `h`
 of Hadamard gates is computed in unary. Fenner's characterization of AWPP
 (`Cslib.Complexity.AWPP`) then gives `BQP ⊆ AWPP` (`Cslib.Complexity.BQP_subset_AWPP`), and
-`AWPP ⊆ PP` gives `BQP ⊆ PP` (`Cslib.Complexity.BQP_subset_PP`).
+`AWPP ⊆ PP` gives `BQP ⊆ PP` (`Cslib.Complexity.BQP_subset_PP`). With `PP ⊆ PSPACE`
+(`Cslib.Complexity.PP_subset_PSPACE`) this gives `BQP ⊆ PSPACE`
+(`Cslib.Complexity.BQP_subset_PSPACE`).
 
 `BQP ⊆ PP` is due to Adleman, DeMarrais and Huang
 [Adleman, DeMarrais, Huang][AdlemanDeMarraisHuang1997]. `BQP ⊆ AWPP` is Theorem 3.1 of
@@ -45,11 +49,14 @@ uniform circuit families of `Cslib.Complexity.BQP`.
 * `Cslib.Complexity.onesPairGap_zero_mem_GapP`: acceptance overlaps of polynomial-time gate codes
   and registers are `GapP`.
 * `Cslib.Complexity.acceptGap_mem_GapP`: the acceptance gap of a uniform family is `GapP`.
-* `Cslib.Complexity.BQP_subset_AWPP`, `Cslib.Complexity.BQP_subset_PP`.
+* `Cslib.Complexity.BQP_subset_AWPP`, `Cslib.Complexity.BQP_subset_PP`,
+  `Cslib.Complexity.BQP_subset_PSPACE`.
 
 ## References
 
 * [L. Adleman, J. DeMarrais, M.-D. Huang, *Quantum computability*][AdlemanDeMarraisHuang1997]
+* [E. Bernstein, U. Vazirani, *Quantum complexity theory*][BernsteinVazirani1997]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, 2007 web draft][AroraBarak07]
 * [L. Fortnow, J. Rogers, *Complexity limitations on quantum computation*][FortnowRogers1999]
 * [S. Fenner, *PP-Lowness and a Simple Definition of AWPP*][Fenner2003]
 -/
@@ -189,5 +196,12 @@ theorem BQP_subset_AWPP : BQP enc ⊆ AWPP enc := by
 /-- **`BQP ⊆ PP`** [Adleman, DeMarrais, Huang][AdlemanDeMarraisHuang1997]. -/
 theorem BQP_subset_PP : BQP enc ⊆ PP enc :=
   fun _ hA => AWPP_subset_PP (BQP_subset_AWPP hA)
+
+/-- **`BQP ⊆ PSPACE`** [Bernstein, Vazirani][BernsteinVazirani1997], through `BQP ⊆ PP ⊆ PSPACE`.
+[Arora and Barak, Theorem 20.25][AroraBarak07]. This is the library's `BQP`, over the fixed gate
+set of `Cslib.Complexity.BQP`; the draft allows arbitrary elementary gates, whose equivalence with
+this gate set is not formalized. -/
+theorem BQP_subset_PSPACE : BQP enc ⊆ PSPACE enc :=
+  fun _ hA => PP_subset_PSPACE (BQP_subset_PP hA)
 
 end Cslib.Complexity

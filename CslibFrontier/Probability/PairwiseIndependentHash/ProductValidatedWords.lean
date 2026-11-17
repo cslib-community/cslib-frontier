@@ -310,7 +310,7 @@ theorem walk_pow_componentMove_eq_iterate [∀ j, Fact (P j).Prime] {L : Fin J �
   | succ t ih =>
     have hfun : (G.walk ^ t) (fun B ↦ f (componentSliceVal B)) =
         fun B ↦ (componentValidatedStep L y)^[t] f (componentSliceVal B) := funext ih
-    rw [pow_succ', Module.End.mul_apply, hfun, Function.iterate_succ_apply',
+    rw [pow_succ', mul_apply_eq_comp, hfun, Function.iterate_succ_apply',
       RotationMap.walk_apply, componentValidatedStep]
     exact expect_congr rfl fun e _ ↦
       (sum_ite_isValidComponentStep hL e ((componentValidatedStep L y)^[t] f) A).symm
