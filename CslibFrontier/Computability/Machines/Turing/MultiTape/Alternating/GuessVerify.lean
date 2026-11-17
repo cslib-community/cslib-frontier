@@ -355,7 +355,7 @@ variable {k : ℕ} {S₁ S₂ : Type} (B : Fin k) (prep : MultiTapeTM k Bool S�
 
 /-- Rewind tape `B`, then run `verify`. -/
 noncomputable def rewindVerify : MultiTapeTM k Bool (RewindWorkState ⊕ S₂) :=
-  ((rewindWork Bool).extendTapes (tapeEmb B)).seq verify
+  ((MultiTapeTM.rewindWork Bool).extendTapes (tapeEmb B)).seq verify
 
 /-- The deterministic machine of the move `b`: run `prep`, guess with the move `b`, rewind tape
 `B` and run `verify`. -/
@@ -498,13 +498,14 @@ theorem state_mapState_inr_mapState_inr_ne (c : Cfg k Bool (RewindWorkState ⊕ 
 
 /-- Rewinding tape `B` from `pos` takes `pos + 2` steps. -/
 theorem runFrom_rewindWork_cfg {w : List Bool} {pos : ℕ} (hpos : pos ≤ w.length) :
-    ((rewindWork Bool).extendTapes (tapeEmb B)).runFrom
-      (cfg (input := input) B (some (rewindWork Bool).q₀) w pos) (pos + 2) =
+    ((MultiTapeTM.rewindWork Bool).extendTapes (tapeEmb B)).runFrom
+      (cfg (input := input) B (some (MultiTapeTM.rewindWork Bool).q₀) w pos) (pos + 2) =
       cfg B none w 0 := by
   rw [runFrom_tapeEmb, show oneTapeCfg B (cfg (input := input) B
-      (some (rewindWork Bool).q₀) w pos) = ⟨some (rewindWork Bool).q₀, 1,
+      (some (MultiTapeTM.rewindWork Bool).q₀) w pos) =
+        ⟨some (MultiTapeTM.rewindWork Bool).q₀, 1,
         fun _ => tapeOfList w, fun _ => (pos : ℤ), []⟩ by simp [oneTapeCfg, cfg],
-    runFrom_rewindWork_none _ _ _ rfl hpos, embed_tapeEmb]
+    MultiTapeTM.runFrom_rewindWork_none _ _ _ rfl hpos, embed_tapeEmb]
   refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> by_cases hi : i = B <;> simp [cfg, hi]
 
 /-- After the guessing phase, the machine rewinds tape `B` and runs `verify`. -/
@@ -521,7 +522,8 @@ theorem runFrom_lift_none {w : List Bool} {pos t : ℕ} (hpos : pos ≤ w.length
   congr 2
   have hstart : (cfg (input := input) (State := GuessState) B none w pos).withState
       (some (rewindVerify B verify).q₀) =
-        (cfg B (some (rewindWork Bool).q₀) w pos).mapState (handOver verify.q₀) :=
+        (cfg B (some (MultiTapeTM.rewindWork Bool).q₀) w pos).mapState
+          (handOver verify.q₀) :=
     rfl
   rw [hstart, rewindVerify, runFrom_seq (runFrom_rewindWork_cfg hpos) rfl _ hfin]
   rw [← cfg_zero]

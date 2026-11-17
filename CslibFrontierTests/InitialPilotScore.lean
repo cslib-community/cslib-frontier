@@ -849,7 +849,7 @@ private theorem averagedPrep_false : averagedPrep false () () = 1 / 2 := by
     (fun _ _ => RotationMap.complete FullSlice) (fun _ _ => 1) varyingPrep () ()
     (⟨false, by simp [fullMask]⟩ : FullSlice)
   change averagedPrep false () () = _ at hh
-  rw [show 2 * (1:ℕ) = 2 by norm_num, pow_two, Module.End.mul_apply, hw] at hh
+  rw [show 2 * (1:ℕ) = 2 by norm_num, pow_two, mul_apply_eq_comp, hw] at hh
   simp only [hw, Fintype.expect_const] at hh
   have he := expect_retainedPairSlice fullMask fullMask () ()
     (fun σ => varyingPrep σ () ())

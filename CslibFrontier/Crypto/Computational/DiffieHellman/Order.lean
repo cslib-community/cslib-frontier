@@ -16,27 +16,37 @@ import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PPT
 
 /-!
-# The expected inverse group order is negligible under DDH
+# The expected inverse group order is negligible under CDH and DDH
 
-If a prime-order group family satisfies `DDH` for a setup distribution, then the expected inverse
-group order `n ↦ ∑' d, setup n d * (F.order d)⁻¹` is negligible, with no separate lower-bound
-hypothesis on the group orders. The distinguisher tests whether the candidate shared element is the
-identity: it succeeds with probability `1 / q + (q - 1) / q²` on real triples and `1 / q` on
-random ones, so the expected inverse order is at most twice its advantage.
+If a prime-order group family satisfies `CDH` or `DDH` for a setup distribution, then the expected
+inverse group order `n ↦ ∑' d, setup n d * (F.order d)⁻¹` is negligible, with no separate
+lower-bound hypothesis on the group orders. Under `CDH`, the adversary always outputs the identity
+element `0` and succeeds whenever `a = 0` or `b = 0` (so at least when `a = 0`, which occurs with
+probability `1 / q`). Under `DDH`, the distinguisher tests whether the candidate shared element is
+the identity: it succeeds with probability `1 / q + (q - 1) / q²` on real triples and `1 / q` on
+random ones, so the expected inverse order is at most twice its advantage. The DDH bound is not
+derived from the CDH bound, because `DDH.cdh`, which turns DDH into CDH, itself needs a negligible
+inverse-order bound as a hypothesis.
 
-DDH clients can use this bound without importing Naor–Reingold.
+Clients can use these bounds without importing Naor–Reingold or ElGamal.
 
 ## Main results
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_expected_inv_order`: `F.DDH setup` implies
   that the expected inverse group order is negligible.
+* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_expected_inv_order`: `F.CDH setup` implies
+  that the expected inverse group order is negligible.
+* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_inv_order`: deterministic-schedule corollary
+  in the `(F.order (d n) : ℝ≥0)⁻¹` form.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_le_expected_inv_order`: averaging a pointwise
   `(F.order d)⁻¹` advantage bound over `setup` yields advantage at most the expected inverse group
   order.
 
 ## References
 
-* [BonehShoup2023], Attack Game 10.6 (the DDH experiment). The bound itself is original.
+* [BonehShoup2023], Attack Game 10.5 (`CDH`), Attack Game 10.6 (`DDH`), and Section 12.6.2,
+  p. 500 (`1 / q` negligible under `CDH`). The expected-order bounds over arbitrary setup laws are
+  original.
 -/
 
 public section
@@ -194,6 +204,59 @@ theorem DDH.negligible_expected_inv_order {F : PrimeOrderGroupFamily} {setup : �
   negligible_of_le
     ((hDDH (ddhZeroDistinguisher F) (isPPT_ddhZeroDistinguisher F)).const_mul 2)
     (expected_inv_order_le_two_mul_advantage_ddh F setup)
+
+/-- Constant-identity CDH adversary that always outputs `0 : F.Carrier d` (original). -/
+private def cdhZeroAdversary (F : PrimeOrderGroupFamily) : F.CDHAdversary :=
+  fun _ _ _ _ => pure 0
+
+private theorem isPPT_cdhZeroAdversary (F : PrimeOrderGroupFamily) :
+    (cdhZeroAdversary F).IsPPT := by
+  refine (ComputableInPolyTime.isPPTOn (f := fun x : F.CDHInput =>
+    F.encode x.groupParameters 0) (by fun_prop)).congr fun x => ?_
+  simp [cdhZeroAdversary]
+
+/-- For any setup distribution `setup`, the expected inverse group order
+`∑' d, setup n d * (F.order d)⁻¹` is at most the CDH success probability of `cdhZeroAdversary`
+(original). -/
+private theorem expected_inv_order_le_succProbability_cdhZeroAdversary
+    (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (n : ℕ) :
+    (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal ≤
+      Game.succProbability (F.cdhGame setup (cdhZeroAdversary F) n) := by
+  have hcdh (d : F.Desc) :
+      (F.order d : ℝ≥0∞)⁻¹ ≤
+        (ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
+          (cdhZeroAdversary F n d))) true := by
+    simp only [cdhExperiment, cdhZeroAdversary, ProbComp.eval_bind, ProbComp.eval_uniform,
+      ProbComp.eval_pure]
+    rw [PMF.bind_apply]
+    refine le_trans ?_ (le_tsum _ (0 : ZMod (F.order d)))
+    simp [PMF.bind_const, PMF.uniformOfFintype_apply, PMF.pure_apply, ZMod.card]
+  have hsum :
+      ∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹ ≤
+        (F.cdhGame setup (cdhZeroAdversary F) n) true := by
+    simp only [cdhGame, Game.withSetup, PMF.bind_apply]
+    exact tsum_le_tsum fun d => mul_le_mul_of_nonneg_left (hcdh d) zero_le
+  exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hsum
+
+/-- **Expected inverse group order is negligible under `CDH`** (original): if `F.CDH setup` holds,
+then `n ↦ (∑' d, setup n d * (F.order d)⁻¹).toNNReal` is negligible. -/
+theorem CDH.negligible_expected_inv_order {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+    (hCDH : F.CDH setup) :
+    Negligible fun n => (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal :=
+  negligible_of_le (hCDH (cdhZeroAdversary F) (isPPT_cdhZeroAdversary F))
+    (expected_inv_order_le_succProbability_cdhZeroAdversary F setup)
+
+/-- Along a deterministic group-parameter schedule `d : ℕ → F.Desc`, `F.CDH` at
+`fun n => PMF.pure (d n)` implies that `(F.order (d n) : ℝ≥0)⁻¹` is negligible
+([BonehShoup2023], §12.6.2, p. 500). -/
+theorem CDH.negligible_inv_order {F : PrimeOrderGroupFamily} {d : ℕ → F.Desc}
+    (hCDH : F.CDH (fun n => PMF.pure (d n))) :
+    Negligible fun n => (F.order (d n) : ℝ≥0)⁻¹ := by
+  refine hCDH.negligible_expected_inv_order.congr' (Filter.Eventually.of_forall fun n => ?_)
+  dsimp only
+  have h : (∑' d', PMF.pure (d n) d' * (F.order d' : ℝ≥0∞)⁻¹) = (F.order (d n) : ℝ≥0∞)⁻¹ := by
+    simp [PMF.pure_apply]
+  rw [h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
 /-- If `Game.advantage (f d) (g d) ≤ (F.order d)⁻¹` for every group description `d`, then
 averaging over `setup` yields advantage at most `(∑' d, setup d * (F.order d)⁻¹).toNNReal`. -/

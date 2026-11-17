@@ -77,7 +77,7 @@ public lemma inCfg_wordsCfg (mark : Symbol) {w : List Symbol} (q : Option State)
   | right i => match i with | 0 | 1 => simp [inCfg, wordsCfg]
 
 /-- Updating the flag tape of an appended family of tapes only changes the flag entry. -/
-private lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
+public lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
     Function.update (Fin.append ws₀ ![a, b]) (Fin.natAdd k 1) c = Fin.append ws₀ ![a, c] := by
   rw [← Fin.append_update_right]
   congr 1
@@ -182,9 +182,9 @@ public theorem transformsTapes_inputFromWord (mark : Symbol)
   have hl₁ : p₁.last = inCfg mark (wordsCfg w none ws₁ e) outer := by simp [p₁, hl]
   have hs₁ : p₁.space ≤ pM.space + 2 * (w.length + 2) := space_map_inCfgHom_le M mark outer pM
   obtain ⟨p₂, hh₂, hl₂, ht₂, hs₂⟩ := exists_runPath_eraseFlag (State := State) mark ws₁ w e outer
-  obtain ⟨p₁₂, hh₁₂, hl₁₂, ht₁₂, hs₁₂⟩ := exists_runPath_seq_space_le (p₀ := p₁) (p₁ := p₂)
+  obtain ⟨p₁₂, hh₁₂, hl₁₂, ht₁₂, hs₁₂, -⟩ := exists_runPath_seq (p₀ := p₁) (p₁ := p₂)
     (by rw [hl₁]; rfl) (by rw [hh₂, hl₁])
-  obtain ⟨p, hph, hpl, hpt, hps⟩ := exists_runPath_seq_space_le (p₀ := p₀) (p₁ := p₁₂)
+  obtain ⟨p, hph, hpl, hpt, hps, -⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁₂)
     (by rw [hl₀]; rfl) (by simp [hh₁₂, p₁, hh, hl₀]; rfl)
   refine ⟨_, e, ⟨rfl, rfl⟩, p, by rw [hph, hh₀]; rfl, by simp [hpl, hl₁₂, hl₂], ?_, ?_⟩
   · simp only [MultiTapeNTM.RunPath.time] at ht ht₀ ht₂ ⊢

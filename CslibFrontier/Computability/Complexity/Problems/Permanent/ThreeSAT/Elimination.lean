@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Gadget
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Tracks
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The permanent of the 3CNF matrix
@@ -67,8 +68,7 @@ def stageMatrix (φ : CNF ℕ) (k : ℕ) : Matrix (Fin (size φ)) (Fin (size φ)
 
 /-- The vertices of the gadget of clause `k`. -/
 def gadgetEmb (φ : CNF ℕ) (k : ℕ) (hk : k < φ.length) : Fin 8 ↪ Fin (size φ) :=
-  ⟨fun a => ⟨numAux φ + 8 * k + a, by unfold size; omega⟩, fun a b h => by
-    simp only [Fin.mk.injEq] at h; exact Fin.ext (by omega)⟩
+  ⟨fun a => ⟨numAux φ + 8 * k + a, by unfold size; omega⟩, fun a b h => by fin_index⟩
 
 /-- The rows after eliminating the gadgets before `k`, keeping the exits of `P`. -/
 def stageRows (φ : CNF ℕ) (k : ℕ) (P : Finset ℕ) : Finset (Fin (size φ)) :=
@@ -207,7 +207,7 @@ theorem mem_gadget (u : Fin (size φ)) :
     rw [gadgetEmb_val]
     omega
   · intro h
-    exact ⟨⟨(u.val - numAux φ) % 8, by omega⟩, Fin.ext (by rw [gadgetEmb_val]; simp only; omega)⟩
+    exact ⟨⟨(u.val - numAux φ) % 8, by omega⟩, by fin_index [gadgetEmb_val]⟩
 
 theorem mem_gadgetExits (Q : Finset (Fin 3)) (u : Fin (size φ)) :
     u ∈ (Q.map exitE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = exitIdx φ (3 * k + p.val) := by
@@ -406,7 +406,7 @@ theorem permanent_fullMatrix_stage {k : ℕ} (hk : k ≤ φ.length) :
           constructor
           · rintro (h | ⟨q, hq, he⟩)
             · have := mem_range.1 (hP h); omega
-            · rwa [Fin.ext (by omega : q.val = p.val)] at hq
+            · rwa [(by omega : q = p)] at hq
           · intro h; exact Or.inr ⟨p, h, rfl⟩
       obtain ⟨e₁, f₁⟩ := hsplit P₁ Q₁ h₁.1.1
       obtain ⟨e₂, f₂⟩ := hsplit P₂ Q₂ h₂.1.1

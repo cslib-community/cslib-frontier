@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Crypto.Primitives.HQC.SupportDensity
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Algebra.Order.Ring.Pow
 
 /-!
@@ -60,8 +61,8 @@ theorem sampleSupport2_closeTo {width n count : ℕ} (h : count ≤ n) :
         (powersetCard_nonempty.mpr (by simpa only [card_range] using h)))
       (ENNReal.ofReal (1 - (supportLowerDensity width n 0 count).toReal)) := by
   have hle := supportLowerDensity_le_one width n 0 count
-  have hreal : (supportLowerDensity width n 0 count).toReal ≤ 1 :=
-    (ENNReal.toReal_mono (by simp) hle).trans_eq (by simp)
+  have hreal : (supportLowerDensity width n 0 count).toReal ≤ 1 := by
+    ennreal_to_real using hle
   apply CloseTo.of_le_apply (sub_nonneg.mpr hreal)
   intro S
   rw [sub_sub_cancel, ENNReal.ofReal_toReal (ne_top_of_le_ne_top (by simp) hle)]

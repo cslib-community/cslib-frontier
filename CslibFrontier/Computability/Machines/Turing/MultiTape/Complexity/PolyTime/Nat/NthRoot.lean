@@ -1,0 +1,152 @@
+/-
+Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Christian Reitwiessner
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+public import CslibFrontier.Tactic.PolyTime.Init
+public import Mathlib.Data.Nat.NthRoot.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
+import CslibFrontier.Tactic.EncLen
+import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
+import Mathlib.Data.Nat.Size
+
+/-!
+# Polynomial-time integer `k`-th roots on binary naturals
+
+`Nat.nthRoot k m` (`⌊m ^ (1 / k)⌋`) is computable in polynomial time, with `k` in unary and `m`
+in binary, by a most-significant-bit-first fold over the `m.size` bit positions: at position
+`i`, the candidate bit `2 ^ i` is added to the running root `acc` whenever `(acc + 2 ^ i) ^ k ≤ m`
+and `acc + 2 ^ i ≤ m`. The second test is implied by the first when `k ≠ 0`, and keeps every
+intermediate root at most `m` also for `k = 0`.
+
+The square root `Turing.MultiTapeTM.ComputableInPolyTime.binary_sqrt` is the case `k = 2`.
+
+## Main results
+
+* `Turing.MultiTapeTM.ComputableInPolyTime.binary_nthRoot`, `.binary_nthRoot'`: plain
+  polynomial-time integer `k`-th root `Nat.nthRoot` with unary `k` and binary radicand.
+-/
+
+@[expose] public section
+
+namespace Turing.MultiTapeTM
+
+section Internal
+
+private abbrev nthRootStep (p : ℕ × ℕ) (acc i : ℕ) : ℕ :=
+  if decide ((acc + 2 ^ i) ^ p.1 ≤ p.2) && decide (acc + 2 ^ i ≤ p.2) then acc + 2 ^ i else acc
+
+private theorem foldl_nthRootStep_le (p : ℕ × ℕ) :
+    ∀ (l : List ℕ) {acc : ℕ}, acc ≤ p.2 → l.foldl (nthRootStep p) acc ≤ p.2
+  | [], _, h => h
+  | i :: l, acc, h => by
+    refine foldl_nthRootStep_le p l ?_
+    unfold nthRootStep
+    split_ifs with hc
+    · simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+      exact hc.2
+    · exact h
+
+private theorem foldl_nthRootStep_bounds {k m : ℕ} (hk : k ≠ 0) :
+    ∀ (j acc : ℕ), acc ^ k ≤ m → m < (acc + 2 ^ j) ^ k →
+      let r := (List.range j).reverse.foldl (nthRootStep (k, m)) acc
+      r ^ k ≤ m ∧ m < (r + 1) ^ k
+  | 0, acc, hle, hlt => by
+    simpa only [List.range_zero, List.reverse_nil, List.foldl_nil, pow_zero] using ⟨hle, hlt⟩
+  | j + 1, acc, hle, hlt => by
+    rw [List.range_succ, List.reverse_append, List.reverse_singleton, List.singleton_append,
+      List.foldl_cons]
+    have hpow : 2 ^ (j + 1) = 2 ^ j + 2 ^ j := by ring
+    unfold nthRootStep
+    dsimp only
+    by_cases hcand : (acc + 2 ^ j) ^ k ≤ m
+    · have hcm : acc + 2 ^ j ≤ m :=
+        (Nat.le_self_pow hk _).trans hcand
+      simp only [hcand, hcm, decide_true, Bool.and_self, ↓reduceIte]
+      refine foldl_nthRootStep_bounds hk j (acc + 2 ^ j) hcand ?_
+      rw [Nat.add_assoc, ← hpow]
+      exact hlt
+    · simp only [hcand, decide_false, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+      exact foldl_nthRootStep_bounds hk j acc hle (Nat.lt_of_not_ge hcand)
+
+private theorem foldl_nthRootStep_eq_nthRoot {k : ℕ} (hk : k ≠ 0) (m : ℕ) :
+    (List.range m.size).reverse.foldl (nthRootStep (k, m)) 0 = Nat.nthRoot k m := by
+  have hlt : m < (0 + 2 ^ m.size) ^ k := by
+    rw [zero_add]
+    exact (Nat.lt_size_self m).trans_le (Nat.le_self_pow hk _)
+  obtain ⟨hle, hlt⟩ := foldl_nthRootStep_bounds hk m.size 0 (by simp [zero_pow hk]) hlt
+  exact (Nat.nthRoot_eq_of_le_of_lt hle hlt).symm
+
+end Internal
+
+namespace ComputableInPolyTime
+
+/-- Integer `k`-th root `Nat.nthRoot k m` is polynomial-time, with `k` in unary and `m` in
+binary. -/
+theorem binary_nthRoot :
+    ComputableInPolyTime (fun p : ℕ × ℕ => Nat.nthRoot p.1 p.2) (encPair encUnary encNat)
+      encNat := by
+  have hlist : ComputableInPolyTime (fun p : ℕ × ℕ => (List.range p.2.size).reverse)
+      (encPair encUnary encNat) (encList encUnary) :=
+    listReverseWithInput (range.comp (binary_size.comp (snd _ _)))
+  have hstep : ComputableInPolyTime
+      (fun p : ((ℕ × ℕ) × ℕ) × ℕ => nthRootStep p.1.1 p.1.2 p.2)
+      (encPair (encPair (encPair encUnary encNat) encNat) encUnary) encNat := by
+    have hcand : ComputableInPolyTime (fun p : ((ℕ × ℕ) × ℕ) × ℕ => p.1.2 + 2 ^ p.2)
+        (encPair (encPair (encPair encUnary encNat) encNat) encUnary) encNat :=
+      binary_add' ((snd _ _).comp (fst _ _)) (binary_pow' (const 2) (snd _ _))
+    have hm : ComputableInPolyTime (fun p : ((ℕ × ℕ) × ℕ) × ℕ => p.1.1.2)
+        (encPair (encPair (encPair encUnary encNat) encNat) encUnary) encNat :=
+      (snd _ _).comp ((fst _ _).comp (fst _ _))
+    have hk : ComputableInPolyTime (fun p : ((ℕ × ℕ) × ℕ) × ℕ => p.1.1.1)
+        (encPair (encPair (encPair encUnary encNat) encNat) encUnary) encUnary :=
+      (fst _ _).comp ((fst _ _).comp (fst _ _))
+    exact (bool_and' (binary_le' (binary_pow' hcand hk) hm) (binary_le' hcand hm)).ite'
+      hcand ((snd _ _).comp (fst _ _))
+  have hfold := foldlWith (encP := encPair encUnary encNat) (encA := encUnary)
+    (encL := encList encUnary) (encB := encNat) (par := id)
+    (list := fun p : ℕ × ℕ => (List.range p.2.size).reverse)
+    (init := fun _ => 0) (step := nthRootStep) id' hlist (const 0) hstep
+    (B := fun p => (encPair encUnary encNat p).length) .self
+    fun p j _ => by
+      have hm : (encNat p.2).length ≤ (encPair encUnary encNat p).length := by enc_len
+      refine le_trans ?_ hm
+      have hacc := foldl_nthRootStep_le p ((List.range p.2.size).reverse.take j)
+        (Nat.zero_le p.2)
+      change (Nat.bits _).length ≤ p.2.bits.length
+      simpa only [← Nat.size_eq_bits_len, id] using Nat.size_le_size hacc
+  have hzero : ComputableInPolyTime
+      (fun p : ℕ × ℕ => if decide (p.1 ≤ 0) then 1 else
+        (List.range p.2.size).reverse.foldl (nthRootStep p) 0)
+      (encPair encUnary encNat) encNat :=
+    (unary_le' (fst _ _) (const 0)).ite' (const 1) hfold
+  refine hzero.of_enc_eq fun p => congrArg encNat ?_
+  rcases Nat.eq_zero_or_pos p.1 with h | h
+  · simp [h]
+  · rw [ite_eq_right (by simp; omega)]
+    obtain ⟨k, m⟩ := p
+    exact (foldl_nthRootStep_eq_nthRoot h.ne' m).symm
+
+/-- Integer `k`-th root of a computed binary natural, with a computed unary `k`. -/
+@[fun_prop]
+theorem binary_nthRoot' {α : Type} {input : α ↪ List Bool} {k m : α → ℕ}
+    (hk : ComputableInPolyTime k input encUnary) (hm : ComputableInPolyTime m input encNat) :
+    ComputableInPolyTime (fun a => Nat.nthRoot (k a) (m a)) input encNat :=
+  binary_nthRoot.comp (hk.prod hm)
+
+end ComputableInPolyTime
+
+end Turing.MultiTapeTM

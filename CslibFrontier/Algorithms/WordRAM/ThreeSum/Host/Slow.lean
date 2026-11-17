@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Callee
 import Batteries.Data.Fin.Lemmas
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # A finite exhaustive native Exact Triangle callee
@@ -184,16 +185,7 @@ private theorem Control.congr {t abp bcp acp : ℕ} {x y : Data 24}
     (h : Control t abp bcp acp x)
     (heq : ∀ i : Fin 24, i.val < 12 → i ≠ current → i ≠ out → y.regs i = x.regs i) :
     Control t abp bcp acp y := by
-  constructor
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.side
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.ab
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.bc
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.ac
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.area
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.stop
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.one
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.two
-  · exact (heq _ (by decide) (by decide) (by decide)).trans h.zero
+  regs_frame
 
 private theorem load_preserves : ∀ i : Fin 24, i.val < 12 → loadTriple.Preserves i := by decide
 
@@ -307,8 +299,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
   have hbnF : b.regs negative ≤ F := by
     rw [hbn, han, Nat.zero_add]
     exact (parts_le _).2.trans hva
-  have hb₁ : b.regs (word 1) = encode zb :=
-    (hb.regs_eq (accumulate_preserves 0 _ (by decide))).trans ha₁
+  have hb₁ : b.regs (word 1) = encode zb := by regs_frame
   obtain ⟨c, hc, hcp, hcn, hcm⟩ := exec_accumulate 1 b hb₁ hpb.two hpb.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpc : Control t abp bcp acp c :=
@@ -321,9 +312,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
     rw [hcn]
     have := (parts_le (encode zb)).2
     omega
-  have hc₂ : c.regs (word 2) = encode zc :=
-    (hc.regs_eq (accumulate_preserves 1 _ (by decide))).trans
-      ((hb.regs_eq (accumulate_preserves 0 _ (by decide))).trans ha₂)
+  have hc₂ : c.regs (word 2) = encode zc := by regs_frame
   obtain ⟨d, hd, hdp, hdn, hdm⟩ := exec_accumulate 2 c hc₂ hpc.two hpc.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpd : Control t abp bcp acp d :=
@@ -339,7 +328,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
     simpa only [decode_encode, za, zb, zc, triangleAt] using
       (zero_iff (encode za) (encode zb) (encode zc)).symm
   obtain ⟨y, hy, hyq, hyo, hym⟩ := exec_finish d hpd.one
-    ((hkeep current (by decide)).trans hq) (hfit.of_le (by have := q.isLt; omega))
+    (by regs_frame) (hfit.of_le (by have := q.isLt; omega))
   refine ⟨y, (ha.seq (hb.seq (hc.seq (hd.seq hy)))).mono (by decide),
     hpd.congr (fun i hi hq ho => hy.regs_eq (finish_preserves i hi hq ho)), hyq, ?_, ?_, ?_⟩
   · rw [hyo, hkeep out (by decide)]

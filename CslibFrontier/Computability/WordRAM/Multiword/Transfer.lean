@@ -216,7 +216,7 @@ private theorem exec_accumulate {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)
   | cons a as ih =>
     have hβ : 1 ≤ radix w := by have := one_lt_radix hw; omega
     have hv : value (radix w) x as ≤ value (radix w) x (a :: as) := by
-      change _ ≤ x.regs a + radix w * value (radix w) x as
+      rw [value_cons]
       nlinarith
     obtain ⟨z, hez, hzv, hzm, hzp⟩ := ih (fun i hi => hin i (by simp [hi])) x
       hbase (hfit.of_le hv)
@@ -226,12 +226,11 @@ private theorem exec_accumulate {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)
     have hp : Fits w (z.regs total * z.regs base) := by
       rw [hzv, hzb]
       apply hfit.of_le
-      change _ ≤ x.regs a + radix w * value (radix w) x as
+      rw [value_cons]
       nlinarith
     have hs : Fits w (z.regs total * z.regs base + z.regs a) := by
-      rw [hzv, hzb, hza]
-      simpa only [value, List.map_cons, Nat.ofDigits_cons, Nat.mul_comm,
-        Nat.add_comm] using hfit
+      rw [hzv, hzb, hza, Nat.add_comm, Nat.mul_comm, ← value_cons]
+      exact hfit
     let y := (z.set total (z.regs total * z.regs base)).set total
       (z.regs total * z.regs base + z.regs a)
     have hey : Exec w (ram[ total ← total * base; total ← total + a ]) z y 2 := by
@@ -240,7 +239,7 @@ private theorem exec_accumulate {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)
     · simpa only [accumulate, List.length_cons, Nat.mul_add, Nat.mul_one,
         Nat.add_assoc] using hez.seq hey
     · simp only [y, Data.set_regs, Function.update_self, hzv, hzb, hza]
-      change _ = x.regs a + radix w * value (radix w) x as
+      rw [value_cons]
       ring
     · intro i hi
       simpa only [y, Data.set_regs, Function.update_of_ne hi] using hzp i hi
@@ -349,9 +348,7 @@ private theorem exec_extract {w : ℕ} (hw : 2 ≤ w) (ds : List (Fin (r + 4)))
       · rw [hyd]
         exact Nat.mod_lt _ (by have := one_lt_radix hw; omega)
       · exact hyb i hi
-    · change y.regs d + radix w * value (radix w) y ds +
-        radix w ^ (ds.length + 1) * y.regs total = x.regs total
-      rw [hyd, pow_succ]
+    · rw [value_cons, hyd, List.length_cons, pow_succ]
       rw [hzq] at hyv
       have hmod := Nat.mod_add_div (x.regs total) (radix w)
       nlinarith [congrArg (radix w * ·) hyv]

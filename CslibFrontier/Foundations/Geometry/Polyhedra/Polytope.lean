@@ -197,6 +197,30 @@ theorem convex_setOf_forall_le (L : Set (E →ᵃ[ℝ] ℝ)) :
   rw [heq]
   exact convex_iInter fun ℓ => convex_iInter fun _ => (convex_Iic (0 : ℝ)).affine_preimage ℓ
 
+/-- The intersection of two affine half-space systems is cut out by their union. -/
+theorem setOf_forall_le_inter (L₁ L₂ : Set (E →ᵃ[ℝ] ℝ)) :
+    {x : E | ∀ ℓ ∈ L₁, ℓ x ≤ 0} ∩ {x : E | ∀ ℓ ∈ L₂, ℓ x ≤ 0} =
+      {x : E | ∀ ℓ ∈ L₁ ∪ L₂, ℓ x ≤ 0} := by
+  ext x
+  simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union, or_imp, forall_and]
+
+private lemma preimage_setOf_forall_le (L : Set (F →ᵃ[ℝ] ℝ)) (f : E →ᵃ[ℝ] F) :
+    f ⁻¹' {y : F | ∀ m ∈ L, m y ≤ 0} =
+      {x : E | ∀ ℓ ∈ (fun m : F →ᵃ[ℝ] ℝ => m.comp f) '' L, ℓ x ≤ 0} := by
+  ext x
+  simp only [Set.mem_preimage, mem_ofPred_eq, Set.mem_image]
+  exact ⟨fun h _ ⟨m, hm, hmeq⟩ => hmeq ▸ h m hm, fun h m hm => h (m.comp f) ⟨m, hm, rfl⟩⟩
+
+private lemma prod_setOf_forall_le (L₁ : Set (E →ᵃ[ℝ] ℝ)) (L₂ : Set (F →ᵃ[ℝ] ℝ)) :
+    {x : E | ∀ a ∈ L₁, a x ≤ 0} ×ˢ {y : F | ∀ b ∈ L₂, b y ≤ 0} =
+      {p : E × F | ∀ ℓ ∈ (fun a : E →ᵃ[ℝ] ℝ => a.comp AffineMap.fst) '' L₁ ∪
+        (fun b : F →ᵃ[ℝ] ℝ => b.comp AffineMap.snd) '' L₂, ℓ p ≤ 0} := by
+  rw [show {x : E | ∀ a ∈ L₁, a x ≤ 0} ×ˢ {y : F | ∀ b ∈ L₂, b y ≤ 0} =
+      (AffineMap.fst : E × F →ᵃ[ℝ] E) ⁻¹' {x | ∀ a ∈ L₁, a x ≤ 0} ∩
+        (AffineMap.snd : E × F →ᵃ[ℝ] F) ⁻¹' {y | ∀ b ∈ L₂, b y ≤ 0} from rfl,
+    preimage_setOf_forall_le L₁ (AffineMap.fst : E × F →ᵃ[ℝ] E),
+    preimage_setOf_forall_le L₂ (AffineMap.snd : E × F →ᵃ[ℝ] F), setOf_forall_le_inter]
+
 theorem IsHPolytope.convex {P : Set E} (hP : IsHPolytope P) : Convex ℝ P := by
   rcases hP with ⟨_, L, _, rfl⟩
   exact convex_setOf_forall_le L
@@ -205,44 +229,23 @@ theorem IsHPolytope.inter {P Q : Set E} (hP : IsHPolytope P) (hQ : IsHPolytope Q
     IsHPolytope (P ∩ Q) := by
   rcases hP with ⟨hbP, LP, hLP, rfl⟩
   rcases hQ with ⟨_, LQ, hLQ, rfl⟩
-  refine ⟨hbP.subset inter_subset_left, LP ∪ LQ, hLP.union hLQ, ?_⟩
-  ext x
-  simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-  exact ⟨fun ⟨h1, h2⟩ ℓ h => h.elim (h1 ℓ) (h2 ℓ),
-    fun h => ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun ℓ hℓ => h ℓ (.inr hℓ)⟩⟩
+  exact ⟨hbP.subset inter_subset_left, LP ∪ LQ, hLP.union hLQ, setOf_forall_le_inter LP LQ⟩
 
 theorem IsHPolytope.preimage_inter {P : Set E} {Q : Set F} (hP : IsHPolytope P)
     (hQ : IsHPolytope Q) (f : E →ᵃ[ℝ] F) : IsHPolytope (P ∩ f ⁻¹' Q) := by
   rcases hP with ⟨hbP, LP, hLP, rfl⟩
   rcases hQ with ⟨_, LQ, hLQ, rfl⟩
-  refine ⟨hbP.subset inter_subset_left, LP ∪ (fun m : F →ᵃ[ℝ] ℝ => m.comp f) '' LQ,
-    hLP.union (hLQ.image _), ?_⟩
-  ext x
-  simp only [mem_inter_iff, Set.mem_preimage, mem_ofPred_eq, Set.mem_union, Set.mem_image]
-  constructor
-  · rintro ⟨hxP, hxQ⟩ ℓ (hℓ | ⟨m, hm, rfl⟩)
-    · exact hxP ℓ hℓ
-    · exact hxQ m hm
-  · intro h
-    refine ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun m hm => h (m.comp f) (.inr ⟨m, hm, rfl⟩)⟩
+  exact ⟨hbP.subset inter_subset_left, LP ∪ (fun m : F →ᵃ[ℝ] ℝ => m.comp f) '' LQ,
+    hLP.union (hLQ.image _), by rw [preimage_setOf_forall_le, setOf_forall_le_inter]⟩
 
 theorem IsHPolytope.prod {P : Set E} {Q : Set F} (hP : IsHPolytope P) (hQ : IsHPolytope Q) :
     IsHPolytope (P ×ˢ Q) := by
   rcases hP with ⟨hbP, LP, hLP, rfl⟩
   rcases hQ with ⟨hbQ, LQ, hLQ, rfl⟩
-  refine ⟨hbP.prod hbQ,
+  exact ⟨hbP.prod hbQ,
     (fun ℓ : E →ᵃ[ℝ] ℝ => ℓ.comp AffineMap.fst) '' LP ∪
       (fun m : F →ᵃ[ℝ] ℝ => m.comp AffineMap.snd) '' LQ,
-    (hLP.image _).union (hLQ.image _), ?_⟩
-  ext ⟨x, y⟩
-  simp only [mem_prod, mem_ofPred_eq, Set.mem_union, Set.mem_image]
-  constructor
-  · rintro ⟨hx, hy⟩ ℓ (⟨a, ha, rfl⟩ | ⟨b, hb, rfl⟩)
-    · exact hx a ha
-    · exact hy b hb
-  · intro h
-    refine ⟨fun a ha => h (a.comp AffineMap.fst) (.inl ⟨a, ha, rfl⟩),
-      fun b hb => h (b.comp AffineMap.snd) (.inr ⟨b, hb, rfl⟩)⟩
+    (hLP.image _).union (hLQ.image _), prod_setOf_forall_le LP LQ⟩
 
 /-! ### Basic properties of faces -/
 
@@ -482,62 +485,21 @@ theorem IsVPolytope.isHPolytope {P : Set E} (hP : IsVPolytope P) : IsHPolytope P
         (A *ᵥ w + B *ᵥ eE x ≤ rhs) ↔
           ((∀ j, 0 ≤ w j) ∧ ∑ j, w j = 1 ∧ ∀ k, ∑ j, w j * V j k = eE x k) := by
       intro x w
+      have hcomm : ∀ k, ∑ j, V j k * w j = ∑ j, w j * V j k :=
+        fun k => Finset.sum_congr rfl fun j _ => mul_comm _ _
+      simp only [ι, Pi.le_def, Sum.forall, Unique.forall_iff, Pi.add_apply, Matrix.mulVec,
+        dotProduct, A, B, rhs, Matrix.of_apply, ite_mul, neg_mul, one_mul, zero_mul,
+        Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte, Finset.sum_const_zero, add_zero,
+        Finset.sum_neg_distrib, neg_nonpos, neg_le_neg_iff]
       constructor
-      · intro h
-        refine ⟨fun j => ?_, le_antisymm ?_ ?_, fun k => le_antisymm ?_ ?_⟩
-        · have := h (.inr (.inr j))
-          simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte,
-            Finset.sum_const_zero, add_zero, neg_nonpos] at this
-          exact this
-        · have := h (.inr (.inl (.inl ())))
-          simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            one_mul, zero_mul, Finset.sum_const_zero, add_zero] at this
-          exact this
-        · have := h (.inr (.inl (.inr ())))
-          simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            neg_mul, one_mul, zero_mul, Finset.sum_const_zero, add_zero, Finset.sum_neg_distrib,
-            neg_le_neg_iff] at this
-          exact this
-        · have := h (.inl (.inr k))
-          simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ,
-            ↓reduceIte] at this
-          have h' : ∑ j, w j * V j k = ∑ j, V j k * w j :=
-            Finset.sum_congr rfl fun j _ => mul_comm _ _
-          linarith
-        · have := h (.inl (.inl k))
-          simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ,
-            ↓reduceIte] at this
-          have hneg : ∑ j, -(V j k * w j) = -∑ j, w j * V j k := by
-            rw [← Finset.sum_neg_distrib]
-            exact Finset.sum_congr rfl fun j _ => by rw [mul_comm]
-          linarith
-      · rintro ⟨hw₀, hw₁, hVk⟩ r
-        rcases r with (k | k) | ((⟨⟩ | ⟨⟩) | j₀)
-        · simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte, neg_mul]
-          have hneg : ∑ j, -(V j k * w j) = -∑ j, w j * V j k := by
-            rw [← Finset.sum_neg_distrib]
-            exact Finset.sum_congr rfl fun j _ => by rw [mul_comm]
-          linarith [hVk k]
-        · simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-          have h' : ∑ j, V j k * w j = ∑ j, w j * V j k :=
-            Finset.sum_congr rfl fun j _ => mul_comm _ _
-          linarith [hVk k]
-        · simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            one_mul, zero_mul, Finset.sum_const_zero, add_zero]
-          exact hw₁.le
-        · simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            neg_mul, one_mul, zero_mul, Finset.sum_const_zero, add_zero, Finset.sum_neg_distrib,
-            neg_le_neg_iff]
-          exact hw₁.ge
-        · simp only [Pi.add_apply, Matrix.mulVec, dotProduct, A, B, rhs, Matrix.of_apply,
-            ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte,
-            Finset.sum_const_zero, add_zero, neg_nonpos]
-          exact hw₀ j₀
+      · rintro ⟨⟨h1, h2⟩, ⟨h3, h4⟩, h5⟩
+        refine ⟨h5, le_antisymm h3 h4, fun k => le_antisymm ?_ ?_⟩
+        · linarith [h2 k, hcomm k]
+        · linarith [h1 k, hcomm k]
+      · rintro ⟨hw₀, hw₁, hVk⟩
+        refine ⟨⟨fun k => ?_, fun k => ?_⟩, ⟨hw₁.le, hw₁.ge⟩, hw₀⟩
+        · linarith [hVk k, hcomm k]
+        · linarith [hVk k, hcomm k]
     obtain ⟨ρ, _, T, _, _, hproj⟩ := Matrix.FourierMotzkin.exists_projection A B rhs
     let ℓlin : ρ → E →ₗ[ℝ] ℝ := fun r =>
       { toFun := fun x => ((T * B) *ᵥ eE x) r
@@ -597,13 +559,9 @@ theorem IsPolytope.preimage_inter {P : Set E} {Q : Set F} (hP : IsPolytope P)
 theorem IsPolytope.inter_setOf_le {P : Set E} (hP : IsPolytope P) {L : Set (E →ᵃ[ℝ] ℝ)}
     (hL : L.Finite) : IsPolytope (P ∩ {x | ∀ ℓ ∈ L, ℓ x ≤ 0}) := by
   obtain ⟨_, LP, hLP, hPeq⟩ := isPolytope_iff_isHPolytope.1 hP
-  refine IsHPolytope.isVPolytope
-    ⟨hP.isBounded.subset inter_subset_left, LP ∪ L, hLP.union hL, ?_⟩
-  ext x
-  simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-  rw [hPeq]
-  exact ⟨fun ⟨h1, h2⟩ ℓ h => h.elim (h1 ℓ) (h2 ℓ),
-    fun h => ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun ℓ hℓ => h ℓ (.inr hℓ)⟩⟩
+  exact IsHPolytope.isVPolytope
+    ⟨hP.isBounded.subset inter_subset_left, LP ∪ L, hLP.union hL,
+      by rw [hPeq, setOf_forall_le_inter]⟩
 
 /-! ### Faces and vertex centroids of polytopes -/
 
@@ -786,26 +744,15 @@ theorem IsPolytopeFace.inter_affineSpan_eq {P F : Set E} (hP : IsPolytope P)
   obtain ⟨s', w', hw'1, rfl⟩ := hxaffV
   let w : E → ℝ := fun v => if hv : v ∈ V then if ⟨v, hv⟩ ∈ s' then w' ⟨v, hv⟩ else 0 else 0
   have hw1 : ∑ v ∈ V, w v = 1 := by
-    rw [← Finset.sum_coe_sort V w]
-    have hsplit : ∑ v : V, w v.1 = ∑ v ∈ s', w' v := by
-      rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun v : V => v ∈ s')]
-      have h1 : Finset.univ.filter (fun v : V => v ∈ s') = s' := by ext; simp
-      have h2 : ∑ v ∈ Finset.univ.filter (fun v : V => v ∉ s'), w v.1 = 0 :=
-        Finset.sum_eq_zero fun v hv => by
-          have hns : v ∉ s' := (Finset.mem_filter.1 hv).2
-          simp only [w, v.2, hns, ↓reduceDIte, ↓reduceIte]
-      rw [h1, h2, add_zero]
-      exact Finset.sum_congr rfl fun v hv => by simp only [w, v.2, hv, ↓reduceDIte, ↓reduceIte]
-    exact hsplit.trans hw'1
+    rw [← Finset.sum_coe_sort V w,
+      ← Finset.sum_subset (Finset.subset_univ s') fun v _ hns => by
+        simp only [w, v.2, hns, ↓reduceDIte, ↓reduceIte]]
+    exact (Finset.sum_congr rfl fun v hv => by
+      simp only [w, v.2, hv, ↓reduceDIte, ↓reduceIte]).trans hw'1
   have hwx : s'.affineCombination ℝ ((↑) : V → E) w' = ∑ v ∈ V, w v • v := by
     rw [Finset.affineCombination_eq_linear_combination _ _ _ hw'1, ← Finset.sum_coe_sort V,
-      ← Finset.sum_filter_add_sum_filter_not Finset.univ (fun v : V => v ∈ s')]
-    have h1 : Finset.univ.filter (fun v : V => v ∈ s') = s' := by ext; simp
-    have h2 : ∑ v ∈ Finset.univ.filter (fun v : V => v ∉ s'), w v.1 • v.1 = 0 :=
-      Finset.sum_eq_zero fun v hv => by
-        have hns : v ∉ s' := (Finset.mem_filter.1 hv).2
-        simp only [w, v.2, hns, ↓reduceDIte, ↓reduceIte, zero_smul]
-    rw [h1, h2, add_zero]
+      ← Finset.sum_subset (Finset.subset_univ s') fun v _ hns => by
+        simp only [w, v.2, hns, ↓reduceDIte, ↓reduceIte, zero_smul]]
     exact Finset.sum_congr rfl fun v hv => by simp only [w, v.2, hv, ↓reduceDIte, ↓reduceIte]
   let n : ℝ := (V.card : ℝ)
   have hn : 0 < n := Nat.cast_pos.2 (Finset.card_pos.2 hVne)
@@ -917,37 +864,30 @@ private lemma isExposed_of_eq_zero {R : Set E} {LR : Set (E →ᵃ[ℝ] ℝ)} (h
   set L₀f : Finset (E →ᵃ[ℝ] ℝ) := (hLR.subset hL₀).toFinset
   let gLin : E →ₗ[ℝ] ℝ := ∑ ℓ ∈ L₀f, ℓ.linear
   let g : StrongDual ℝ E := ⟨gLin, gLin.continuous_of_finiteDimensional⟩
+  have hdiff : ∀ u v : E, g u - g v = ∑ ℓ ∈ L₀f, (ℓ u - ℓ v) := fun u v => by
+    simp only [g, gLin, ContinuousLinearMap.coe_mk', LinearMap.coe_sum, Finset.sum_apply,
+      ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun ℓ _ => by
+      rw [← map_sub, ← vsub_eq_sub, ℓ.linear_apply_vsub, vsub_eq_sub]
   intro hne
   refine ⟨g, Subset.antisymm (fun x hx => ⟨hx.1, fun y hy => ?_⟩) ?_⟩
   · have hx0 : ∀ ℓ ∈ L₀f, ℓ x = 0 := fun ℓ hℓ =>
       hx.2 ℓ ((hLR.subset hL₀).mem_toFinset.1 hℓ)
     have hy_le : ∀ ℓ ∈ L₀f, ℓ y ≤ 0 := fun ℓ hℓ =>
       (hReq ▸ hy) ℓ (hL₀ ((hLR.subset hL₀).mem_toFinset.1 hℓ))
-    have hdiff : g y - g x = ∑ ℓ ∈ L₀f, (ℓ y - ℓ x) := by
-      simp only [g, gLin, ContinuousLinearMap.coe_mk', LinearMap.coe_sum, Finset.sum_apply,
-        ← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun ℓ _ => ?_
-      have hv := ℓ.linear_apply_vsub y x
-      simpa [vsub_eq_sub] using hv
     have hnonpos : g y - g x ≤ 0 := by
-      rw [hdiff]
+      rw [hdiff y x]
       exact Finset.sum_nonpos fun ℓ hℓ => by rw [hx0 ℓ hℓ, sub_zero]; exact hy_le ℓ hℓ
     linarith
   · rintro x ⟨hxR, hxmax⟩
     obtain ⟨y₀, hy₀⟩ := hne
     refine ⟨hxR, fun ℓ hℓ => ?_⟩
     have hxy : g y₀ - g x ≤ 0 := sub_nonpos.2 (hxmax y₀ hy₀.1)
-    have hdiff : g y₀ - g x = ∑ m ∈ L₀f, (m y₀ - m x) := by
-      simp only [g, gLin, ContinuousLinearMap.coe_mk', LinearMap.coe_sum, Finset.sum_apply,
-        ← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun m _ => ?_
-      have hv := m.linear_apply_vsub y₀ x
-      simpa [vsub_eq_sub] using hv
     have hsum : ∑ m ∈ L₀f, (-m x) ≤ 0 := by
-      have : ∑ m ∈ L₀f, (m y₀ - m x) = ∑ m ∈ L₀f, (-m x) :=
-        Finset.sum_congr rfl fun m hm => by
-          rw [hy₀.2 m ((hLR.subset hL₀).mem_toFinset.1 hm), zero_sub]
-      linarith [hdiff]
+      have hsub : g y₀ - g x = ∑ m ∈ L₀f, (-m x) := (hdiff y₀ x).trans
+        (Finset.sum_congr rfl fun m hm => by
+          rw [hy₀.2 m ((hLR.subset hL₀).mem_toFinset.1 hm), zero_sub])
+      linarith
     have hnonneg : ∀ m ∈ L₀f, 0 ≤ -m x := fun m hm =>
       neg_nonneg.2 ((hReq ▸ hxR) m (hL₀ ((hLR.subset hL₀).mem_toFinset.1 hm)))
     have h0 : -ℓ x = 0 :=
@@ -1064,11 +1004,7 @@ theorem exists_isPolytopeFace_inter_setOf_le_eq_zero {P R F : Set E} (hP : IsPol
     ∃ P' L₀, IsPolytopeFace P P' ∧ L₀ ⊆ LR ∧ F = P' ∩ {x ∈ R | ∀ m ∈ L₀, m x = 0} := by
   obtain ⟨_, LP, hLP, hPeq⟩ := isPolytope_iff_isHPolytope.1 hP
   have hPR_eq : P ∩ R = {x | ∀ ℓ ∈ LP ∪ LR, ℓ x ≤ 0} := by
-    ext x
-    simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-    rw [hPeq, hR]
-    exact ⟨fun ⟨h1, h2⟩ ℓ h => h.elim (h1 ℓ) (h2 ℓ),
-      fun h => ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun ℓ hℓ => h ℓ (.inr hℓ)⟩⟩
+    rw [hPeq, hR, setOf_forall_le_inter]
   have hPR : IsPolytope (P ∩ R) :=
     IsHPolytope.isVPolytope ⟨hP.isBounded.subset inter_subset_left, LP ∪ LR, hLP.union hLR, hPR_eq⟩
   obtain ⟨K₀, hK₀, hFeq⟩ := hF.exists_eq_zero_of_isHPolytope (hLP.union hLR) hPR_eq hPR hne
@@ -1114,21 +1050,8 @@ theorem exists_isPolytopeFace_preimage_inter_eq {P : Set E} {Q : Set F} (f : E �
   obtain ⟨_, LP, hLP, hPeq⟩ := isPolytope_iff_isHPolytope.1 hP
   let Lf : Set (E →ᵃ[ℝ] ℝ) := (fun m : F →ᵃ[ℝ] ℝ => m.comp f) '' LQ
   have hLf : Lf.Finite := hLQ.image _
-  have hpre : f ⁻¹' Q = {x | ∀ k ∈ Lf, k x ≤ 0} := by
-    ext x
-    simp only [Set.mem_preimage, mem_ofPred_eq, Lf, Set.mem_image]
-    rw [hQeq]
-    constructor
-    · rintro hx _ ⟨m, hm, rfl⟩
-      exact hx m hm
-    · intro hx m hm
-      exact hx (m.comp f) ⟨m, hm, rfl⟩
   have hPR_eq : P ∩ f ⁻¹' Q = {x | ∀ ℓ ∈ LP ∪ Lf, ℓ x ≤ 0} := by
-    ext x
-    simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-    rw [hPeq, hpre]
-    exact ⟨fun ⟨h1, h2⟩ ℓ h => h.elim (h1 ℓ) (h2 ℓ),
-      fun h => ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun ℓ hℓ => h ℓ (.inr hℓ)⟩⟩
+    rw [hPeq, hQeq, preimage_setOf_forall_le, setOf_forall_le_inter]
   have hPR : IsPolytope (P ∩ f ⁻¹' Q) := hP.preimage_inter hQ f
   obtain ⟨K₀, hK₀, hGeq⟩ := hG.exists_eq_zero_of_isHPolytope (hLP.union hLf) hPR_eq hPR hne
   let P' := {x ∈ P | ∀ ℓ ∈ K₀ ∩ LP, ℓ x = 0}
@@ -1166,28 +1089,28 @@ theorem exists_isPolytopeFace_ssubset_of_ne_vertexCentroid {P : Set E} (hP : IsP
   have hb_strict : ∀ ℓ ∈ Lstrict, ℓ b < 0 := fun ℓ ⟨hℓL, z, hzP, hzlt⟩ =>
     hP.apply_vertexCentroid_lt ⟨x, hx⟩ (fun w hw => (hPL ▸ hw) ℓ hℓL) hzP hzlt
   set Linc : Finset (E →ᵃ[ℝ] ℝ) := hL.toFinset.filter (fun ℓ => ℓ ∈ Lstrict ∧ ℓ b < ℓ x)
+  have hline : ∀ {t : ℝ}, 0 ≤ t →
+      (∀ ℓ ∈ Linc, t * (ℓ x - ℓ b) ≤ -ℓ b) → AffineMap.lineMap b x t ∈ P := by
+    intro t ht hbound
+    rw [hPL]
+    intro ℓ hℓ
+    rw [affineMap_lineMap]
+    by_cases hℓs : ℓ ∈ Lstrict
+    · have hb0 : ℓ b < 0 := hb_strict ℓ hℓs
+      by_cases hinc : ℓ b < ℓ x
+      · have hle := hbound ℓ (Finset.mem_filter.2 ⟨hL.mem_toFinset.2 hℓ, hℓs, hinc⟩)
+        linarith
+      · have hmul : t * (ℓ x - ℓ b) ≤ 0 :=
+          mul_nonpos_of_nonneg_of_nonpos ht (sub_nonpos.2 (not_lt.1 hinc))
+        linarith
+    · have h0b : ℓ b = 0 := le_antisymm ((hPL ▸ hbP) ℓ hℓ) (not_lt.1 fun h => hℓs ⟨hℓ, b, hbP, h⟩)
+      have h0x : ℓ x = 0 := le_antisymm ((hPL ▸ hx) ℓ hℓ) (not_lt.1 fun h => hℓs ⟨hℓ, x, hx, h⟩)
+      rw [h0b, h0x, sub_zero, mul_zero, add_zero]
   have hLinc_ne : Linc.Nonempty := by
     by_contra hmt
     rw [Finset.not_nonempty_iff_eq_empty] at hmt
-    have hray : ∀ t : ℝ, 1 ≤ t → AffineMap.lineMap b x t ∈ P := by
-      intro t ht
-      rw [hPL]
-      intro ℓ hℓ
-      rw [affineMap_lineMap]
-      by_cases hℓs : ℓ ∈ Lstrict
-      · have hn : ℓ ∉ Linc := by simp [hmt]
-        simp only [Linc, Finset.mem_filter, hL.mem_toFinset.2 hℓ, hℓs, true_and, not_lt] at hn
-        have hb0 : ℓ b < 0 := hb_strict ℓ hℓs
-        have hdiff : ℓ x - ℓ b ≤ 0 := sub_nonpos.2 hn
-        have hmul : t * (ℓ x - ℓ b) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos (by linarith) hdiff
-        linarith
-      · have h0b : ℓ b = 0 := by
-          by_contra hne
-          exact hℓs ⟨hℓ, b, hbP, ((hPL ▸ hbP) ℓ hℓ).lt_of_ne hne⟩
-        have h0x : ℓ x = 0 := by
-          by_contra hne
-          exact hℓs ⟨hℓ, x, hx, ((hPL ▸ hx) ℓ hℓ).lt_of_ne hne⟩
-        rw [h0b, h0x, sub_zero, mul_zero, add_zero]
+    have hray : ∀ t : ℝ, 1 ≤ t → AffineMap.lineMap b x t ∈ P := fun t ht =>
+      hline (by linarith) fun ℓ hℓ => by simp [hmt] at hℓ
     obtain ⟨C, hC⟩ := hbnd.subset_closedBall b
     have hxd_pos : 0 < ‖x - b‖ := norm_sub_pos_iff.2 hxne
     set t : ℝ := max 1 ((C + 1) / ‖x - b‖)
@@ -1210,28 +1133,8 @@ theorem exists_isPolytopeFace_ssubset_of_ne_vertexCentroid {P : Set E} (hP : IsP
   have ht1 : 1 ≤ t := (one_le_div hℓ₀_diff).2 (by linarith)
   have ht_pos : 0 < t := by linarith
   let y := AffineMap.lineMap b x t
-  have hyP : y ∈ P := by
-    rw [hPL]
-    intro ℓ hℓ
-    rw [affineMap_lineMap]
-    by_cases hℓs : ℓ ∈ Lstrict
-    · have hb0 : ℓ b < 0 := hb_strict ℓ hℓs
-      by_cases hinc : ℓ b < ℓ x
-      · have hmem : ℓ ∈ Linc := Finset.mem_filter.2 ⟨hL.mem_toFinset.2 hℓ, hℓs, hinc⟩
-        have hle := hmin ℓ hmem
-        have hdiff : 0 < ℓ x - ℓ b := sub_pos.2 hinc
-        have hmul : t * (ℓ x - ℓ b) ≤ -ℓ b := (le_div_iff₀ hdiff).1 hle
-        linarith
-      · have hdiff : ℓ x - ℓ b ≤ 0 := sub_nonpos.2 (not_lt.1 hinc)
-        have hmul : t * (ℓ x - ℓ b) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos ht_pos.le hdiff
-        linarith
-    · have h0b : ℓ b = 0 := by
-        by_contra hne
-        exact hℓs ⟨hℓ, b, hbP, ((hPL ▸ hbP) ℓ hℓ).lt_of_ne hne⟩
-      have h0x : ℓ x = 0 := by
-        by_contra hne
-        exact hℓs ⟨hℓ, x, hx, ((hPL ▸ hx) ℓ hℓ).lt_of_ne hne⟩
-      rw [h0b, h0x, sub_zero, mul_zero, add_zero]
+  have hyP : y ∈ P := hline ht_pos.le fun ℓ hmem =>
+    (le_div_iff₀ (sub_pos.2 (Finset.mem_filter.1 hmem).2.2)).1 (hmin ℓ hmem)
   have hy0 : ℓ₀ y = 0 := by
     simp only [y, affineMap_lineMap, t]
     rw [div_mul_cancel₀ _ hℓ₀_diff.ne']
@@ -1351,16 +1254,7 @@ theorem exists_isPolytopeFace_prod_eq {P : Set E} {Q : Set F} (hP : IsPolytope P
   let L₁ : Set (E × F →ᵃ[ℝ] ℝ) := (fun a : E →ᵃ[ℝ] ℝ => a.comp AffineMap.fst) '' LP
   let L₂ : Set (E × F →ᵃ[ℝ] ℝ) := (fun b : F →ᵃ[ℝ] ℝ => b.comp AffineMap.snd) '' LQ
   have hPReq : P ×ˢ Q = {p : E × F | ∀ ℓ ∈ L₁ ∪ L₂, ℓ p ≤ 0} := by
-    ext ⟨x, y⟩
-    simp only [mem_prod, mem_ofPred_eq, Set.mem_union, Set.mem_image, L₁, L₂]
-    rw [hPeq, hQeq]
-    constructor
-    · rintro ⟨hx, hy⟩ _ (⟨a, ha, rfl⟩ | ⟨b, hb, rfl⟩)
-      · exact hx a ha
-      · exact hy b hb
-    · intro h
-      exact ⟨fun a ha => h (a.comp AffineMap.fst) (.inl ⟨a, ha, rfl⟩),
-        fun b hb => h (b.comp AffineMap.snd) (.inr ⟨b, hb, rfl⟩)⟩
+    rw [hPeq, hQeq, prod_setOf_forall_le]
   obtain ⟨K₀, hK₀, hGeq⟩ := hG.exists_eq_zero_of_isHPolytope
     ((hLP.image _).union (hLQ.image _)) hPReq (hP.prod hQ) hne
   let P' := {x ∈ P | ∀ a ∈ {a ∈ LP | a.comp AffineMap.fst ∈ K₀}, a x = 0}

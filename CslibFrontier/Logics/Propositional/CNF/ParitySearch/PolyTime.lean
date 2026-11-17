@@ -37,8 +37,6 @@ step reads the input formula. Every candidate is a sublist of the distinct varia
 ## Main results
 
 * `Cslib.Logic.PL.computableInPolyTime_paritySample`: a sample bit.
-* `Cslib.Logic.PL.computableInPolyTime_countUnsat_mem`: counting the clauses falsified by the
-  assignment setting the listed variables to `true`.
 * `Cslib.Logic.PL.computableInPolyTime_parityCandidates`: the points of the sample space.
 * `Cslib.Logic.PL.computableInPolyTime_paritySearch`: the search.
 
@@ -61,14 +59,6 @@ theorem computableInPolyTime_paritySample :
     ComputableInPolyTime (fun p : (List V × List Bool) × V => paritySample p.1.1 p.1.2 p.2)
       (encPair (encPair (encList enc) encBits) enc) encBool := by
   unfold paritySample
-  fun_prop
-
-/-- Counting the clauses falsified by the assignment setting the listed variables to `true` is
-polynomial-time. -/
-theorem computableInPolyTime_countUnsat_mem :
-    ComputableInPolyTime (fun p : CNF V × List V => p.1.countUnsat fun v => decide (v ∈ p.2))
-      (encPair (encCNFOver enc) (encList enc)) encUnary := by
-  unfold CNF.countUnsat
   fun_prop
 
 /-- One step of the search, reading the formula, is polynomial-time. -/

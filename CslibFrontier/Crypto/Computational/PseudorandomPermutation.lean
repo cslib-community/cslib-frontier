@@ -557,7 +557,8 @@ theorem indistinguishable_prpIdealGame_prfIdealGame {blockLen : ℕ → ℕ}
     NNReal.coe_pow, NNReal.coe_ofNat] using
     advantage_prpIdealGame_prfIdealGame_le blockLen adversary n Q hQ
 
-private theorem eval_prpRealGame_eq_eval_prfRealGame {E : BlockCipher} (hkey : E.keyLen = id)
+/-- When `E.keyLen = id`, `E.prpRealGame` agrees in distribution with the PRF real game of `E`. -/
+theorem eval_prpRealGame_eq_eval_prfRealGame {E : BlockCipher} (hkey : E.keyLen = id)
     (adversary : OracleDistinguisher) (n : ℕ) :
     ProbComp.eval (E.prpRealGame adversary n) =
       ProbComp.eval

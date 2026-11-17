@@ -158,42 +158,7 @@ theorem compl_mem_IndependentSet_iff (G : Graph) (m : ℕ) :
 @[fun_prop]
 theorem computableInPolyTime_compl :
     ComputableInPolyTime compl encGraph encGraph := by
-  have hne : ComputableInPolyTime
-      (fun x : (Graph × ℕ) × ℕ => decide (x.1.2 ≠ x.2))
-      (encPair (encPair encGraph encNat) encNat)
-      encBool := by
-    simpa only [ne_eq, decide_not, Function.comp_def] using
-      ComputableInPolyTime.bool_not.comp
-        (ComputableInPolyTime.decide_eq' (by fun_prop) (by fun_prop))
-  have h1 : ComputableInPolyTime
-      (fun x : (Graph × ℕ) × ℕ => decide ((x.1.2, x.2) ∉ x.1.1.edges))
-      (encPair (encPair encGraph encNat) encNat)
-      encBool := by fun_prop
-  have h2 : ComputableInPolyTime
-      (fun x : (Graph × ℕ) × ℕ => decide ((x.2, x.1.2) ∉ x.1.1.edges))
-      (encPair (encPair encGraph encNat) encNat)
-      encBool := by fun_prop
-  have hpred : ComputableInPolyTime
-      (fun x : (Graph × ℕ) × ℕ =>
-        decide (x.1.2 ≠ x.2 ∧ (x.1.2, x.2) ∉ x.1.1.edges ∧ (x.2, x.1.2) ∉ x.1.1.edges))
-      (encPair (encPair encGraph encNat) encNat)
-      encBool := by
-    simpa only [Bool.decide_and, Function.comp_def] using
-      ComputableInPolyTime.bool_and.comp
-        (hne.prod (ComputableInPolyTime.bool_and.comp (h1.prod h2)))
-  have hV : ComputableInPolyTime (fun G : Graph => G.vertices) encGraph (encList encNat) := by
-    fun_prop
-  have hE : ComputableInPolyTime
-      (fun G : Graph => G.vertices.flatMap fun u =>
-        (G.vertices.filter fun v =>
-          decide (u ≠ v ∧ (u, v) ∉ G.edges ∧ (v, u) ∉ G.edges)).map fun v => (u, v))
-      encGraph (encList (encPair encNat encNat)) := by
-    exact ComputableInPolyTime.flatMapWithInput (by fun_prop)
-      (ComputableInPolyTime.mapWithInput
-        (ComputableInPolyTime.filterWithInput (by fun_prop) hpred)
-        (by fun_prop))
-  unfold compl
-  fun_prop
+  fun_prop [compl]
 
 end Graph
 
@@ -221,12 +186,7 @@ theorem isVerifier :
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier
       (encPair encCliqueInstance encBits) encBool := by
-  have h1 : ComputableInPolyTime
-      (fun p : CliqueInstance × List Bool => ((p.1.graph, p.1.m), p.2))
-      (encPair encCliqueInstance encBits)
-      (encPair (encPair encGraph encNat) encBits) := by
-    fun_prop
-  exact (Graph.computableInPolyTime_verifySubset Graph.computableInPolyTime_adjBool).comp h1
+  fun_prop [verifier]
 
 /-- `Clique` belongs to `NP`. -/
 theorem mem_NP : Clique ∈ NP encCliqueInstance :=

@@ -96,9 +96,7 @@ theorem run_reencode (w : List Bool) :
     (hd : ComputableInPolyTime d enc eDesc) (hx : ComputableInPolyTime x enc encBits)
     (hc : ComputableInPolyTime c enc encBits) :
     ComputableInPolyTime (fun a => mk (d a) (x a) (c a)) enc encBits := by
-  have hd' := hd.encoding_comp
-  unfold mk
-  fun_prop
+  fun_prop [mk]
 
 /-- Cap the numerical binary clock at the supplied unary bound before universal simulation. -/
 noncomputable def cappedRun (p : List Bool × ℕ) : List ℕ × Bool :=

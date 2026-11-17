@@ -31,7 +31,7 @@ noncomputable def noisy : Measure (ℕ × Bool) :=
 
 instance : IsProbabilityMeasure noisy := by
   constructor
-  simp only [noisy, Measure.add_apply, Measure.smul_apply, measure_univ, smul_eq_mul, mul_one,
+  simp only [noisy, add_apply, smul_apply, measure_univ, smul_eq_mul, mul_one,
     ENNReal.inv_two_add_inv_two]
 
 /-- The error of a hypothesis under `noisy` from its values at `0` and `1`. -/

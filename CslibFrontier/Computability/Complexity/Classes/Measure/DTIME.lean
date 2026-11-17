@@ -189,23 +189,7 @@ theorem isMartingale (k : ℕ) : IsMartingale (martingale k) where
 /-- The approximation is polynomial-time. -/
 theorem computableInPolyTime_approx (k : ℕ) :
     ComputableInPolyTime (approx k) (encPair encUnary encBits) encNat := by
-  have hpred : ComputableInPolyTime (fun p : ℕ × ℕ => predicts k p.1 p.2)
-      (encPair encUnary encUnary) encBool := by
-    unfold predicts
-    fun_prop
-  have hagree : ComputableInPolyTime (fun p : List Bool × ℕ => agrees k p.1 p.2)
-      (encPair encBits encUnary) encBool := by
-    unfold agrees
-    fun_prop
-  have hterm : ComputableInPolyTime (fun p : List Bool × ℕ => term k p.1 p.2)
-      (encPair encBits encUnary) encNat := by
-    unfold term
-    fun_prop
-  have hnum : ComputableInPolyTime (num k) encBits encNat := by
-    unfold num
-    fun_prop
-  unfold approx
-  fun_prop
+  fun_prop [predicts, agrees, term, num, approx]
 
 /-- The approximation is within `2 ^ (-r)`. -/
 theorem abs_approx_sub_le (k r : ℕ) (w : List Bool) :

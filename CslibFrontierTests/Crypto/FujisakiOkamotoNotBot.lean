@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
 public import CslibFrontierTests.Crypto.FujisakiOkamoto
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -123,11 +124,9 @@ theorem eval_simFilterHit_probeZeroKeyAdv
     (cStar : Fin 16 × Fin 16) :
     ProbComp.eval (pairCoinScheme.simFilterHit d probeZeroKeyAdv pk m₁ cStar) =
       PMF.pure (decide (m₁ = 0)) := by
-  simp only [Scheme.simFilterHit, probeZeroKeyAdv,
-    Scheme.simFilterHandler, Scheme.simFilterDispatch,
-    Scheme.simHashH, OracleComp.interpret_bind, OracleComp.interpret_query,
-    OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure, ProbComp.eval_bind,
-    ProbComp.eval_pure, ROQuery.dispatch]
+  simp only [Scheme.simFilterHit, probeZeroKeyAdv, Scheme.simFilterHandler,
+    Scheme.simFilterDispatch, Scheme.simHashH, interp_norm, ProbComp.eval_bind, ProbComp.eval_pure,
+    ROQuery.dispatch]
   refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure (decide (m₁ = 0)))
     fun kStar _ => ?_).trans (PMF.bind_const _ _)
   simp only [PMF.bind_bind]

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Stack
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native computation of query-prefix children
@@ -186,20 +187,14 @@ theorem exec_indexedChildren {w F n k c u e p cp : ℕ} (ds : List (Fin 9))
   | cons d ds ih =>
     obtain ⟨a, ha, ac, au, ae, am, af⟩ := exec_indexedSetup d x hc hu he hp h1
       (hfit.of_le (by omega))
-    have afr (i : Fin registers) (hi : ¬ChildSetupLocal i) : a.regs i = x.regs i := af i hi
     obtain ⟨b, hb, bn, bm, bf⟩ := exec_push a
-      ((afr _ (by decide)).trans hF) ((afr _ (by decide)).trans hn)
-      ((afr _ (by decide)).trans hk) ac au ae
-      ((afr _ (by decide)).trans hcp) ((afr _ (by decide)).trans h5)
-      ((afr _ (by decide)).trans h1) (hfit.of_le (by simp only [List.length_cons] at *; omega))
-    have bfr (i : Fin registers) (hi : ¬IndexedPushLocal i) : b.regs i = x.regs i :=
-      (bf i (fun h => hi (Or.inr h))).trans (af i (fun h => hi (Or.inl h)))
+      (by regs_frame) (by regs_frame) (by regs_frame) ac au ae
+      (by regs_frame) (by regs_frame)
+      (by regs_frame) (hfit.of_le (by simp only [List.length_cons] at *; omega))
     obtain ⟨y, hy, yn, ym, _⟩ := ih b
-      ((bfr _ (by decide)).trans hF) bn
-      ((bfr _ (by decide)).trans hk) ((bfr _ (by decide)).trans hc)
-      ((bfr _ (by decide)).trans hu) ((bfr _ (by decide)).trans he)
-      ((bfr _ (by decide)).trans hp) ((bfr _ (by decide)).trans hcp)
-      ((bfr _ (by decide)).trans h5) ((bfr _ (by decide)).trans h1)
+      (by regs_frame) bn
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       (hfit.of_le (by simp only [List.length_cons]; omega))
     have hex : ExecWithin w (indexedChildren (d :: ds)) x y
         (17 * (d :: ds).length + 1) := (ha.seq hb |>.seq hy).mono (by simp; omega)
@@ -279,10 +274,8 @@ theorem exec_p0Child {w F n k c u e p cp : ℕ} (x : Data registers)
   obtain ⟨a, ha, ac, au, ae, am, af⟩ := exec_p0Setup x hc hu he hp h1 h9 h0
     (hfit.of_le (by omega))
   obtain ⟨y, hy, yn, ym, _⟩ := exec_push a
-    ((af _ (by decide)).trans hF) ((af _ (by decide)).trans hn)
-    ((af _ (by decide)).trans hk) ac au ae
-    ((af _ (by decide)).trans hcp) ((af _ (by decide)).trans h5)
-    ((af _ (by decide)).trans h1) (hfit.of_le (by omega))
+    (by regs_frame) (by regs_frame) (by regs_frame) ac au ae
+    (by regs_frame) (by regs_frame) (by regs_frame) (hfit.of_le (by omega))
   have hex : ExecWithin w p0Child x y 18 := ha.seq hy
   refine ⟨y, hex, yn, ?_, ?_⟩
   · simpa only [am] using ym
@@ -306,10 +299,8 @@ theorem exec_privateChild {w F n k c u e p cp d : ℕ} (x : Data registers) (hd 
   obtain ⟨a, ha, ac, au, ae, am, af⟩ := exec_privateSetup x hd hc hu he hp hdigit
     (hfit.of_le (by omega))
   obtain ⟨y, hy, yn, ym, _⟩ := exec_push a
-    ((af _ (by decide)).trans hF) ((af _ (by decide)).trans hn)
-    ((af _ (by decide)).trans hk) ac au ae
-    ((af _ (by decide)).trans hcp) ((af _ (by decide)).trans h5)
-    ((af _ (by decide)).trans h1) (hfit.of_le (by omega))
+    (by regs_frame) (by regs_frame) (by regs_frame) ac au ae
+    (by regs_frame) (by regs_frame) (by regs_frame) (hfit.of_le (by omega))
   have hex : ExecWithin w privateChild x y 16 := ha.seq hy
   refine ⟨y, hex, yn, ?_, ?_⟩
   · simpa only [am] using ym

@@ -98,7 +98,7 @@ private theorem realizes_extractBody : Realizes .exact extractBody (.refl _)
     ext d
     simp only [extractBody, ← nine]
   realize
-  all_goals try simp only [nine] at *
+  all_goals simp only [nine] at *
   all_goals try have hdom := h.2 (by assumption)
   all_goals try simp (disch := omega) only [Function.update_of_ne] at *
   all_goals first

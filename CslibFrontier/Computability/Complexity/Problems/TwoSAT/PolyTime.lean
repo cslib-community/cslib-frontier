@@ -497,25 +497,7 @@ theorem computableInPolyTime_reach {α : Type} {encIn : α ↪ List Bool}
 theorem computableInPolyTime_chooseStep :
     ComputableInPolyTime (fun p : (CNF ℕ × Clause ℕ) × ℕ => chooseStep p.1.1 p.1.2 p.2)
       (encPair (encPair encCNF (encClause encNat)) encNat) (encClause encNat) := by
-  have hcond :
-      ComputableInPolyTime
-        (fun p : (CNF ℕ × Clause ℕ) × ℕ =>
-          p.1.2.contains (p.2, true) || p.1.2.contains (p.2, false))
-        (encPair (encPair encCNF (encClause encNat)) encNat) encBool := by
-    simp only [List.contains_eq_mem]
-    fun_prop
-  have helse :
-      ComputableInPolyTime
-        (fun p : (CNF ℕ × Clause ℕ) × ℕ =>
-          let ℓ : Literal ℕ := (p.2, !(reach p.1.1 (p.2, true)).contains (p.2, false))
-          (lits p.1.1).filter fun m => p.1.2.contains m || (reach p.1.1 ℓ).contains m)
-        (encPair (encPair encCNF (encClause encNat)) encNat) (encClause encNat) := by
-    simp only [List.contains_eq_mem]
-    fun_prop
-  exact ComputableInPolyTime.ite hcond
-    ((ComputableInPolyTime.snd encCNF (encClause encNat)).comp
-      (.fst (encPair encCNF (encClause encNat)) encNat))
-    helse
+  fun_prop [chooseStep]
 
 /-- Building the consistent implication-closed literal list is polynomial-time. -/
 @[fun_prop]
@@ -543,12 +525,7 @@ theorem computableInPolyTime_assignment :
 @[fun_prop]
 theorem computableInPolyTime_solve :
     ComputableInPolyTime (solve (V := ℕ)) encCNF encBool := by
-  have hw :
-      ComputableInPolyTime (fun c : Clause ℕ => decide (c.length ≤ 2))
-        (encClause encNat) encBool :=
-    ComputableInPolyTime.unary_le' (Clause.computableInPolyTime_length .id') (.const 2)
-  unfold solve
-  fun_prop
+  fun_prop [solve]
 
 /-- **`TwoSAT` is in `P`** under the binary CNF encoding `encCNF`. -/
 theorem mem_P : TwoSAT ∈ P encCNF :=

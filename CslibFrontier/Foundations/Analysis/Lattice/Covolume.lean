@@ -47,7 +47,7 @@ private theorem map_basis_symm :
   let e := (b.ofZLatticeBasis ℝ).equivFun.symm.toContinuousLinearEquiv
   have he : Measurable (b.ofZLatticeBasis ℝ).equivFun.symm := e.continuous.measurable
   ext s hs
-  rw [Measure.map_apply he hs, Measure.smul_apply, smul_eq_mul]
+  rw [Measure.map_apply he hs, smul_apply, smul_eq_mul]
   rw [← LinearEquiv.image_eq_preimage_symm]
   rw [volume_image_eq_volume_div_covolume' L b hs.nullMeasurableSet, div_eq_mul_inv,
     mul_comm]

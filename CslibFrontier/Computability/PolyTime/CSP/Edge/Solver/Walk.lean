@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Contraction
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Augmenting
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Prefix
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Walk.Subpath
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -105,17 +106,6 @@ theorem computableInPolyTime_mk : ComputableInPolyTime
 attribute [local fun_prop] computableInPolyTime_portWith computableInPolyTime_start
   computableInPolyTime_steps computableInPolyTime_mk
   EdgeAugmenting.poly_zipIdx
-
-/-- A predicate's first matching position is a unary, list-funded scan. The Boolean map
-and existing `idxOf` machine implement `findIdx` exactly, including its length default. -/
-theorem computableInPolyTime_findIdxWith {α β : Type} {e : α ↪ List Bool}
-    {eb : β ↪ List Bool} {xs : α → List β} {pred : α → β → Bool}
-    (hx : ComputableInPolyTime xs e (encList eb))
-    (hp : ComputableInPolyTime (fun p : α × β => pred p.1 p.2) (encPair e eb) encBool) :
-    ComputableInPolyTime (fun a => (xs a).findIdx (pred a)) e encUnary := by
-  have h := EdgeAugmenting.poly_idxOf
-    (ComputableInPolyTime.mapWithInput hx hp) (ComputableInPolyTime.const true)
-  simpa [List.idxOf, List.findIdx_map, Function.comp_def] using h
 
 /-- Binary-position flips scan the actual buffer, including on huge malformed indices. -/
 theorem computableInPolyTime_flip : ComputableInPolyTime

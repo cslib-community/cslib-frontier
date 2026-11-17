@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Log
 import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
 
@@ -113,6 +114,11 @@ variable {α : Type*}
 theorem rejectProb_le_one (spec : BlockRejectionSpec α) : spec.rejectProb ≤ 1 :=
   PMF.coe_le_one _ _
 
+/-- The rejection probability is finite, as a `finiteness` rule. -/
+@[aesop (rule_sets := [finiteness]) safe apply]
+theorem rejectProb_ne_top (spec : BlockRejectionSpec α) : spec.rejectProb ≠ ⊤ :=
+  PMF.apply_ne_top _ _
+
 theorem acceptProb_add_rejectProb (spec : BlockRejectionSpec α) :
     spec.acceptProb + spec.rejectProb = 1 :=
   tsub_add_cancel_of_le spec.rejectProb_le_one
@@ -124,6 +130,12 @@ theorem one_sub_rejectProb (spec : BlockRejectionSpec α) :
 theorem rejectProb_lt_one_iff (spec : BlockRejectionSpec α) :
     spec.rejectProb < 1 ↔ spec.acceptProb ≠ 0 := by
   rw [acceptProb, ne_eq, tsub_eq_zero_iff_le, not_le]
+
+private theorem acceptProb_eq_tsum_some (spec : BlockRejectionSpec α) :
+    spec.acceptProb = ∑' a, spec.singleLaw (some a) := by
+  have h := spec.singleLaw.tsum_coe
+  rw [tsum_option_eq, add_comm] at h
+  exact (ENNReal.eq_sub_of_add_eq spec.rejectProb_ne_top h).symm
 
 /-- Decode at most `trials` consecutive `width`-bit blocks from `bits`, returning the first
 accepted value or `none`. -/
@@ -351,22 +363,13 @@ theorem dist_runCapped_eq [Fintype α] {spec : BlockRejectionSpec α} {target : 
     dist (spec.runCapped fallback t) target =
       (spec.rejectProb ^ t).toReal * (1 - (target fallback).toReal) := by
   classical
-  set r := spec.rejectProb ^ t
+  set r := spec.rejectProb ^ t with hr
+  -- `ennreal_to_real` splits `(1 - r).toReal` with `hr1`.
   have hr1 : r ≤ 1 := pow_le_one₀ zero_le spec.rejectProb_le_one
-  have hr_top : r ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hr1
-  have h1r_top : 1 - r ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top tsub_le_self
-  have h1r_toReal : (1 - r).toReal = 1 - r.toReal := by
-    rw [ENNReal.toReal_sub_of_le hr1 ENNReal.one_ne_top, ENNReal.toReal_one]
   have hval (a : α) : (spec.runCapped fallback t a).toReal =
       (1 - r.toReal) * (target a).toReal + if a = fallback then r.toReal else 0 := by
-    rw [runCapped_apply h fallback t a]
-    by_cases haf : a = fallback
-    · subst haf
-      simp only [↓reduceIte]
-      rw [ENNReal.toReal_add (ENNReal.mul_ne_top h1r_top (PMF.apply_ne_top _ _)) hr_top,
-        ENNReal.toReal_mul, h1r_toReal]
-    · simp only [haf, ↓reduceIte, add_zero]
-      rw [ENNReal.toReal_mul, h1r_toReal]
+    rw [runCapped_apply h fallback t a, ← hr]
+    split_ifs <;> ennreal_to_real
   rw [PMF.dist_eq, ← Finset.add_sum_erase _ _ (Finset.mem_univ fallback)]
   have hrest : ∑ b ∈ Finset.univ.erase fallback,
       |(spec.runCapped fallback t b).toReal - (target b).toReal| =
@@ -503,7 +506,23 @@ theorem expectedFlips_toDDGTree_le_two_mul {spec : BlockRejectionSpec α}
       mul_le_mul_right hinv _
     _ = 2 * (spec.width : ℝ≥0∞) := mul_comm _ _
 
+private theorem runTrials_none_le_of_one_half_le {spec : BlockRejectionSpec α}
+    (hacc : (1 / 2 : ℝ≥0∞) ≤ spec.acceptProb) (t : ℕ) :
+    spec.runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t := by
+  rw [spec.runTrials_none]
+  refine pow_le_pow_left' ?_ t
+  calc
+    spec.rejectProb = 1 - spec.acceptProb :=
+      (ENNReal.sub_sub_cancel ENNReal.one_ne_top spec.rejectProb_le_one).symm
+    _ ≤ 1 - 1 / 2 := tsub_le_tsub_left hacc 1
+    _ = 1 / 2 := by rw [one_div, ENNReal.one_sub_inv_two]
+
 end BlockRejectionSpec
+
+private theorem div_div_natCast {w c d : ℕ} (hc : c ≠ 0) :
+    (w : ℝ≥0∞) / ((c : ℝ≥0∞) / (d : ℝ≥0∞)) = (w : ℝ≥0∞) * (d : ℝ≥0∞) / c := by
+  rw [← ENNReal.div_mul _ (Or.inl (Nat.cast_ne_zero.mpr hc)) (Or.inr (ENNReal.natCast_ne_top _)),
+    div_eq_mul_inv, div_eq_mul_inv, mul_right_comm]
 
 /-! ### Bounded integers (`Fin n`) -/
 
@@ -554,23 +573,20 @@ private theorem singleLaw_finCutoffSpec_some {n k : ℕ} (hnk : n ≤ 2 ^ k) (i 
 
 private theorem acceptProb_finCutoffSpec {n k : ℕ} (hnk : n ≤ 2 ^ k) :
     (finCutoffSpec n k).acceptProb = (n : ℝ≥0∞) / ((2 ^ k : ℕ) : ℝ≥0∞) := by
-  have htotal := (finCutoffSpec n k).singleLaw.tsum_coe
-  rw [tsum_option_eq, tsum_fintype] at htotal
-  have hsum : ∑ i : Fin n, (finCutoffSpec n k).singleLaw (some i) =
-      (n : ℝ≥0∞) / ((2 ^ k : ℕ) : ℝ≥0∞) := by
-    simp_rw [singleLaw_finCutoffSpec_some hnk]
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, div_eq_mul_inv]
-  rw [hsum] at htotal
-  have hnone : (finCutoffSpec n k).rejectProb =
-      1 - (n : ℝ≥0∞) / ((2 ^ k : ℕ) : ℝ≥0∞) :=
-    ENNReal.eq_sub_of_add_eq
-      (ENNReal.div_ne_top (ENNReal.natCast_ne_top n) (by positivity)) htotal
-  have hle : (n : ℝ≥0∞) / ((2 ^ k : ℕ) : ℝ≥0∞) ≤ 1 := by
-    rw [ENNReal.div_le_iff_le_mul (Or.inl (by positivity)) (Or.inl (ENNReal.natCast_ne_top _)),
-      one_mul]
-    exact_mod_cast hnk
-  rw [BlockRejectionSpec.acceptProb, hnone]
-  exact ENNReal.sub_sub_cancel ENNReal.one_ne_top hle
+  rw [BlockRejectionSpec.acceptProb_eq_tsum_some, tsum_fintype]
+  simp_rw [singleLaw_finCutoffSpec_some hnk]
+  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, div_eq_mul_inv]
+
+private theorem one_half_le_acceptProb_finCutoffSpec {n k : ℕ} (hnk : n ≤ 2 ^ k)
+    (hpow : 2 ^ k ≤ 2 * n) :
+    (1 / 2 : ℝ≥0∞) ≤ (finCutoffSpec n k).acceptProb := by
+  rw [acceptProb_finCutoffSpec hnk,
+    ENNReal.le_div_iff_mul_le (Or.inl (by positivity)) (Or.inl (ENNReal.natCast_ne_top _))]
+  calc
+    (1 / 2 : ℝ≥0∞) * ((2 ^ k : ℕ) : ℝ≥0∞) ≤ (1 / 2 : ℝ≥0∞) * ((2 * n : ℕ) : ℝ≥0∞) := by gcongr
+    _ = (n : ℝ≥0∞) := by
+      rw [Nat.cast_mul, Nat.cast_ofNat, ← mul_assoc, one_div,
+        ENNReal.inv_mul_cancel (by norm_num) (by norm_num), one_mul]
 
 private theorem singleLaw_finCutoffSpec_eq_mul {n k : ℕ} [NeZero n] (hnk : n ≤ 2 ^ k) (i : Fin n) :
     (finCutoffSpec n k).singleLaw (some i) =
@@ -592,54 +608,35 @@ theorem singleLaw_uniformFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) 
 
 theorem one_half_le_acceptProb_uniformFinRejectionSpec (n : ℕ) [NeZero n] :
     (1 / 2 : ℝ≥0∞) ≤ (uniformFinRejectionSpec n).acceptProb := by
-  rw [acceptProb_uniformFinRejectionSpec]
-  have hpow : 2 ^ Nat.clog 2 n ≤ 2 * n := by
-    by_cases hn1 : n ≤ 1
-    · have : n = 1 := by have := NeZero.pos n; omega
-      subst this
-      simp
-    · have hne : n - 1 ≠ 0 := by omega
-      have hclog : Nat.clog 2 n ≤ Nat.log 2 (n - 1) + 1 := by
-        rw [Nat.clog_le_iff_le_pow Nat.one_lt_two]
-        have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1)
-        omega
-      have hle1 : 2 ^ Nat.clog 2 n ≤ 2 ^ (Nat.log 2 (n - 1) + 1) :=
-        Nat.pow_le_pow_right (by decide) hclog
-      have hle2 : 2 ^ Nat.log 2 (n - 1) ≤ n - 1 := Nat.pow_log_le_self 2 hne
-      rw [pow_succ] at hle1
+  refine one_half_le_acceptProb_finCutoffSpec (Nat.le_pow_clog Nat.one_lt_two n) ?_
+  by_cases hn1 : n ≤ 1
+  · obtain rfl : n = 1 := by have := NeZero.pos n; omega
+    simp
+  · have hclog : Nat.clog 2 n ≤ Nat.log 2 (n - 1) + 1 := by
+      rw [Nat.clog_le_iff_le_pow Nat.one_lt_two]
+      have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1)
       omega
-  rw [ENNReal.le_div_iff_mul_le (Or.inl (by positivity)) (Or.inl (ENNReal.natCast_ne_top _))]
-  calc
-    (1 / 2 : ℝ≥0∞) * ((2 ^ Nat.clog 2 n : ℕ) : ℝ≥0∞) ≤
-        (1 / 2 : ℝ≥0∞) * ((2 * n : ℕ) : ℝ≥0∞) := by
-      gcongr
-    _ = (n : ℝ≥0∞) := by
-      rw [Nat.cast_mul, Nat.cast_ofNat, ← mul_assoc, one_div,
-        ENNReal.inv_mul_cancel (by norm_num) (by norm_num), one_mul]
+    have hle1 : 2 ^ Nat.clog 2 n ≤ 2 ^ (Nat.log 2 (n - 1) + 1) :=
+      Nat.pow_le_pow_right (by decide) hclog
+    have hle2 : 2 ^ Nat.log 2 (n - 1) ≤ n - 1 := Nat.pow_log_le_self 2 (by omega)
+    rw [pow_succ] at hle1
+    omega
 
 /-- After `t` trials of `uniformFinRejectionSpec n` (`n ≥ 1`), rejection probability is at most
 `(1 / 2) ^ t`. -/
 theorem runTrials_uniformFinRejectionSpec_none_le (n : ℕ) [NeZero n] (t : ℕ) :
-    (uniformFinRejectionSpec n).runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t := by
-  rw [BlockRejectionSpec.runTrials_none]
-  refine pow_le_pow_left' ?_ t
-  have h1 := (uniformFinRejectionSpec n).acceptProb_add_rejectProb
-  have h2 := one_half_le_acceptProb_uniformFinRejectionSpec n
-  have hhalf : (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 := by
-    apply ENNReal.sub_eq_of_eq_add (by norm_num)
-    rw [one_div, ENNReal.inv_two_add_inv_two]
-  calc
-    (uniformFinRejectionSpec n).rejectProb =
-        1 - (uniformFinRejectionSpec n).acceptProb :=
-      ENNReal.eq_sub_of_add_eq (ne_top_of_le_ne_top ENNReal.one_ne_top (by
-        rw [← h1]; exact le_self_add)) ((add_comm _ _).trans h1)
-    _ ≤ 1 - 1 / 2 := tsub_le_tsub_left h2 1
-    _ = 1 / 2 := hhalf
+    (uniformFinRejectionSpec n).runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t :=
+  BlockRejectionSpec.runTrials_none_le_of_one_half_le
+    (one_half_le_acceptProb_uniformFinRejectionSpec n) t
 
 /-- Root-leaf `DDGTree` outputting `0 : Fin n` without flipping any fair bits. -/
 @[expose] def constZeroFinTree (n : ℕ) [NeZero n] : DDGTree (Fin n) where
   output _ := some ⟨0, NeZero.pos n⟩
   output_append_singleton _ _ _ h := h
+
+private theorem expectedFlips_constZeroFinTree (n : ℕ) [NeZero n] :
+    (constZeroFinTree n).expectedFlips = 0 := by
+  simp [DDGTree.expectedFlips, DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree n) rfl]
 
 /-- Exact `DDGTree` generating the uniform distribution on `Fin n`: `0` flips at `n = 1` and
 `Nat.clog 2 n`-bit block rejection for `n ≥ 2`. -/
@@ -652,37 +649,25 @@ theorem uniformFinTree_generates (n : ℕ) [NeZero n] :
   split_ifs with hn1
   · subst hn1
     intro i
-    have hi : i = ⟨0, NeZero.pos 1⟩ := Subsingleton.elim _ _
-    subst hi
-    have hrun : ∀ m, (constZeroFinTree 1).run m (some ⟨0, NeZero.pos 1⟩) = 1 := fun m => by
-      rw [DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl m]
-      simp
-    rw [DDGTree.outputProb]
-    simp_rw [hrun]
-    simp [PMF.uniformOfFintype_apply]
+    obtain rfl : i = ⟨0, NeZero.pos 1⟩ := Subsingleton.elim _ _
+    simp [DDGTree.outputProb, DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl,
+      PMF.uniformOfFintype_apply]
   · have hn_gt : 1 < n := by have := NeZero.pos n; omega
     have hw : 0 < (uniformFinRejectionSpec n).width :=
       Nat.clog_pos Nat.one_lt_two hn_gt
-    have hacc : (uniformFinRejectionSpec n).acceptProb ≠ 0 := by
-      have hle := one_half_le_acceptProb_uniformFinRejectionSpec n
-      exact ne_of_gt (lt_of_lt_of_le (by norm_num) hle)
+    have hacc : (uniformFinRejectionSpec n).acceptProb ≠ 0 :=
+      ne_of_gt (lt_of_lt_of_le (by norm_num) (one_half_le_acceptProb_uniformFinRejectionSpec n))
     exact BlockRejectionSpec.toDDGTree_generates hw hacc
       (singleLaw_uniformFinRejectionSpec_some n)
 
 theorem expectedFlips_uniformFinTree_of_two_le {n : ℕ} [NeZero n] (hn : 2 ≤ n) :
     (uniformFinTree n).expectedFlips =
       (Nat.clog 2 n : ℝ≥0∞) * ((2 ^ Nat.clog 2 n : ℕ) : ℝ≥0∞) / n := by
-  have hn1 : n ≠ 1 := by omega
   unfold uniformFinTree
-  rw [ite_eq_right hn1]
-  have hw : 0 < (uniformFinRejectionSpec n).width :=
-    Nat.clog_pos Nat.one_lt_two (by omega : 1 < n)
-  rw [BlockRejectionSpec.expectedFlips_toDDGTree _ hw, acceptProb_uniformFinRejectionSpec]
-  have hn0 : (n : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
-  change (Nat.clog 2 n : ℝ≥0∞) / ((n : ℝ≥0∞) / ((2 ^ Nat.clog 2 n : ℕ) : ℝ≥0∞)) = _
-  rw [div_eq_mul_inv, div_eq_mul_inv,
-    ENNReal.mul_inv (Or.inl hn0) (Or.inl (ENNReal.natCast_ne_top _)), inv_inv,
-    mul_comm (n : ℝ≥0∞)⁻¹, ← mul_assoc, ← div_eq_mul_inv]
+  rw [ite_eq_right (by omega), BlockRejectionSpec.expectedFlips_toDDGTree _
+      (Nat.clog_pos Nat.one_lt_two (by omega : 1 < n)),
+    acceptProb_uniformFinRejectionSpec]
+  exact div_div_natCast (by omega)
 
 /-- At any power of two `2 ^ k`, `uniformFinTree (2 ^ k)` reads `k` fair bits in expectation,
 attaining the Knuth–Yao entropy lower bound. -/
@@ -691,12 +676,8 @@ theorem expectedFlips_uniformFinTree_two_pow (k : ℕ) :
   cases k with
   | zero =>
     unfold uniformFinTree
-    rw [ite_eq_left (by simp : 2 ^ 0 = 1), Nat.cast_zero, DDGTree.expectedFlips]
-    have hrun : ∀ m, (constZeroFinTree (2 ^ 0)).run m none = 0 := fun m => by
-      rw [DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree (2 ^ 0)) rfl m]
-      simp
-    simp_rw [hrun]
-    exact tsum_zero
+    rw [ite_eq_left (by simp : 2 ^ 0 = 1), Nat.cast_zero]
+    exact expectedFlips_constZeroFinTree _
   | succ k =>
     have h2 : 2 ≤ 2 ^ (k + 1) := by
       rw [pow_succ]
@@ -711,18 +692,11 @@ theorem expectedFlips_uniformFinTree_le (n : ℕ) [NeZero n] :
     (uniformFinTree n).expectedFlips ≤ 2 * (Nat.clog 2 n : ℝ≥0∞) := by
   unfold uniformFinTree
   split_ifs with hn1
-  · subst hn1
-    have hrun : ∀ m, (constZeroFinTree 1).run m none = 0 := fun m => by
-      rw [DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl m]
-      simp
-    rw [DDGTree.expectedFlips]
-    simp_rw [hrun]
-    rw [tsum_zero]
+  · rw [expectedFlips_constZeroFinTree]
     exact zero_le
   · have hn_gt : 1 < n := by have := NeZero.pos n; omega
-    have hw : 0 < (uniformFinRejectionSpec n).width := Nat.clog_pos Nat.one_lt_two hn_gt
-    exact BlockRejectionSpec.expectedFlips_toDDGTree_le_two_mul hw
-      (one_half_le_acceptProb_uniformFinRejectionSpec n)
+    exact BlockRejectionSpec.expectedFlips_toDDGTree_le_two_mul
+      (Nat.clog_pos Nat.one_lt_two hn_gt) (one_half_le_acceptProb_uniformFinRejectionSpec n)
 
 theorem singleLaw_dyadicFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) :
     (dyadicFinRejectionSpec n).singleLaw (some i) =
@@ -731,48 +705,19 @@ theorem singleLaw_dyadicFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) :
 
 theorem dyadicFinRejectionSpec_generates (n : ℕ) [NeZero n] :
     (dyadicFinRejectionSpec n).toDDGTree.Generates (PMF.uniformOfFintype (Fin n)) := by
-  have hacc_eq : (dyadicFinRejectionSpec n).acceptProb =
-      (n : ℝ≥0∞) / ((2 ^ (Nat.log 2 n + 1) : ℕ) : ℝ≥0∞) :=
-    acceptProb_finCutoffSpec (lt_dyadicSize n).le
   have hacc : (dyadicFinRejectionSpec n).acceptProb ≠ 0 := by
-    rw [hacc_eq]
+    rw [dyadicFinRejectionSpec, acceptProb_finCutoffSpec (lt_dyadicSize n).le]
     exact ENNReal.div_ne_zero.mpr ⟨Nat.cast_ne_zero.mpr (NeZero.ne n), ENNReal.natCast_ne_top _⟩
-  have hw : 0 < (dyadicFinRejectionSpec n).width := Nat.succ_pos (Nat.log 2 n)
-  exact BlockRejectionSpec.toDDGTree_generates hw hacc
+  exact BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 n)) hacc
     (singleLaw_dyadicFinRejectionSpec_some n)
 
 theorem runTrials_dyadicFinRejectionSpec_none_le (n : ℕ) [NeZero n] (t : ℕ) :
     (dyadicFinRejectionSpec n).runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t := by
-  have hacc_eq : (dyadicFinRejectionSpec n).acceptProb =
-      (n : ℝ≥0∞) / ((2 ^ (Nat.log 2 n + 1) : ℕ) : ℝ≥0∞) :=
-    acceptProb_finCutoffSpec (lt_dyadicSize n).le
-  have hpow : 2 ^ (Nat.log 2 n + 1) ≤ 2 * n := by
-    have h1 := Nat.pow_log_le_self 2 (NeZero.ne n)
-    rw [pow_succ]
-    omega
-  rw [BlockRejectionSpec.runTrials_none]
-  refine pow_le_pow_left' ?_ t
-  have h1 := (dyadicFinRejectionSpec n).acceptProb_add_rejectProb
-  have h2 : (1 / 2 : ℝ≥0∞) ≤ (dyadicFinRejectionSpec n).acceptProb := by
-    rw [hacc_eq, ENNReal.le_div_iff_mul_le (Or.inl (by positivity))
-      (Or.inl (ENNReal.natCast_ne_top _))]
-    calc
-      (1 / 2 : ℝ≥0∞) * ((2 ^ (Nat.log 2 n + 1) : ℕ) : ℝ≥0∞) ≤
-          (1 / 2 : ℝ≥0∞) * ((2 * n : ℕ) : ℝ≥0∞) := by
-        gcongr
-      _ = (n : ℝ≥0∞) := by
-        rw [Nat.cast_mul, Nat.cast_ofNat, ← mul_assoc, one_div,
-          ENNReal.inv_mul_cancel (by norm_num) (by norm_num), one_mul]
-  have hhalf : (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 := by
-    apply ENNReal.sub_eq_of_eq_add (by norm_num)
-    rw [one_div, ENNReal.inv_two_add_inv_two]
-  calc
-    (dyadicFinRejectionSpec n).rejectProb =
-        1 - (dyadicFinRejectionSpec n).acceptProb :=
-      ENNReal.eq_sub_of_add_eq (ne_top_of_le_ne_top ENNReal.one_ne_top (by
-        rw [← h1]; exact le_self_add)) ((add_comm _ _).trans h1)
-    _ ≤ 1 - 1 / 2 := tsub_le_tsub_left h2 1
-    _ = 1 / 2 := hhalf
+  refine BlockRejectionSpec.runTrials_none_le_of_one_half_le
+    (one_half_le_acceptProb_finCutoffSpec (lt_dyadicSize n).le ?_) t
+  have h1 := Nat.pow_log_le_self 2 (NeZero.ne n)
+  rw [pow_succ]
+  omega
 
 /-! ### Subset rejection sampling -/
 
@@ -845,32 +790,10 @@ theorem acceptProb_subsetDyadicSpec {α : Type*} [DecidableEq α] {m : ℕ} {enu
     (hcov : ∀ a ∈ S, ∃ i : Fin m, enum i = a) :
     (subsetDyadicSpec m enum S).acceptProb =
       (S.card : ℝ≥0∞) / ((dyadicSize m : ℕ) : ℝ≥0∞) := by
-  have hmk : m ≤ dyadicSize m := (lt_dyadicSize m).le
-  have htotal := (subsetDyadicSpec m enum S).singleLaw.tsum_coe
-  rw [tsum_option_eq] at htotal
-  have hsum_some : ∑' a : α, (subsetDyadicSpec m enum S).singleLaw (some a) =
-      (S.card : ℝ≥0∞) / ((dyadicSize m : ℕ) : ℝ≥0∞) := by
-    simp_rw [singleLaw_subsetDyadicSpec_some hinj hcov]
-    rw [tsum_eq_sum (s := S) fun a ha => by simp [ha], Finset.sum_ite_mem, Finset.inter_self,
-      Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
-  rw [hsum_some] at htotal
-  have hS_le_m : S.card ≤ m := by
-    classical
-    have hsub : S ⊆ Finset.univ.image enum := fun a ha => by
-      obtain ⟨i, rfl⟩ := hcov a ha
-      exact Finset.mem_image_of_mem enum (Finset.mem_univ i)
-    exact (Finset.card_le_card hsub).trans (Finset.card_image_le.trans (by simp))
-  have hKpos : 0 < dyadicSize m := dyadicSize_pos m
-  have hle1 : (S.card : ℝ≥0∞) / ((dyadicSize m : ℕ) : ℝ≥0∞) ≤ 1 := by
-    rw [ENNReal.div_le_iff_le_mul (Or.inl (Nat.cast_ne_zero.mpr hKpos.ne'))
-      (Or.inl (ENNReal.natCast_ne_top _)), one_mul]
-    exact_mod_cast hS_le_m.trans hmk
-  have hnone : (subsetDyadicSpec m enum S).rejectProb =
-      1 - (S.card : ℝ≥0∞) / ((dyadicSize m : ℕ) : ℝ≥0∞) :=
-    ENNReal.eq_sub_of_add_eq
-      (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (Nat.cast_ne_zero.mpr hKpos.ne')) htotal
-  rw [BlockRejectionSpec.acceptProb, hnone]
-  exact ENNReal.sub_sub_cancel ENNReal.one_ne_top hle1
+  rw [BlockRejectionSpec.acceptProb_eq_tsum_some]
+  simp_rw [singleLaw_subsetDyadicSpec_some hinj hcov]
+  rw [tsum_eq_sum (s := S) fun a ha => by simp [ha], Finset.sum_ite_mem, Finset.inter_self,
+    Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
 
 theorem subsetDyadicSpec_generates {α : Type*} [DecidableEq α] {m : ℕ} {enum : Fin m → α}
     (hinj : Function.Injective enum) {S : Finset α} (hS : S.Nonempty)
@@ -881,8 +804,7 @@ theorem subsetDyadicSpec_generates {α : Type*} [DecidableEq α] {m : ℕ} {enum
     rw [hacc_eq]
     exact ENNReal.div_ne_zero.mpr
       ⟨Nat.cast_ne_zero.mpr hS.card_ne_zero, ENNReal.natCast_ne_top _⟩
-  have hw : 0 < (subsetDyadicSpec m enum S).width := Nat.succ_pos (Nat.log 2 m)
-  refine BlockRejectionSpec.toDDGTree_generates hw hacc fun a => ?_
+  refine BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 m)) hacc fun a => ?_
   rw [singleLaw_subsetDyadicSpec_some hinj hcov a, hacc_eq, PMF.uniformOfFinset_apply]
   split_ifs with haS
   · rw [div_eq_mul_inv, mul_right_comm,
@@ -895,14 +817,8 @@ theorem expectedFlips_subsetDyadicSpec {α : Type*} [DecidableEq α] {m : ℕ} {
     (hcov : ∀ a ∈ S, ∃ i : Fin m, enum i = a) :
     (subsetDyadicSpec m enum S).toDDGTree.expectedFlips =
       ((Nat.log 2 m + 1 : ℕ) : ℝ≥0∞) * ((dyadicSize m : ℕ) : ℝ≥0∞) / S.card := by
-  have hw : 0 < (subsetDyadicSpec m enum S).width := Nat.succ_pos (Nat.log 2 m)
-  rw [BlockRejectionSpec.expectedFlips_toDDGTree _ hw,
+  rw [BlockRejectionSpec.expectedFlips_toDDGTree _ (Nat.succ_pos (Nat.log 2 m)),
     acceptProb_subsetDyadicSpec hinj hcov]
-  have hS0 : (S.card : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hS.card_ne_zero
-  change ((Nat.log 2 m + 1 : ℕ) : ℝ≥0∞) /
-    ((S.card : ℝ≥0∞) / ((dyadicSize m : ℕ) : ℝ≥0∞)) = _
-  rw [div_eq_mul_inv, div_eq_mul_inv,
-    ENNReal.mul_inv (Or.inl hS0) (Or.inl (ENNReal.natCast_ne_top _)), inv_inv,
-    mul_comm (S.card : ℝ≥0∞)⁻¹, ← mul_assoc, ← div_eq_mul_inv]
+  exact div_div_natCast hS.card_ne_zero
 
 end Cslib.Probability

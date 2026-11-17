@@ -230,9 +230,10 @@ theorem composeMulti_orOuter_realizes :
 theorem composeMulti_orOuter_emulatesDummyWithin :
     EmulatesDummyWithin (composeMulti orOuter faultyRelay)
       (composeMulti orOuter idealRelay.toProtocol) (Polynomial.C 2 * 1 + 1) (fun pZ κ =>
-        2 • ((((sessionHopPoly 2 pZ 2 1 1 1).eval κ : ℕ) : ℝ≥0) / 2 ^ (κ + 1))) :=
-  EmulatesDummyWithin.composeMulti orOuter_polyBounded faultyRelay_polyBounded
+        2 • ((((sessionHopPoly 2 pZ 2 1 1 1).eval κ : ℕ) : ℝ≥0) / 2 ^ (κ + 1))) := by
+  have h := EmulatesDummyWithin.composeMulti orOuter_polyBounded faultyRelay_polyBounded
     idealRelay_polyBounded faultyRelay_emulatesDummyWithin
+  exact h
 
 /-- Non-vacuity witness at `κ = 0`, `C = ∅`, and `C = {0}`: `3 / 4 > 1 / 2` and `≤ 2 • (1 / 2)`. -/
 theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p ∉ C) :

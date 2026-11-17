@@ -78,7 +78,7 @@ theorem map_eq_zero_iff [Nontrivial S] (hg : g.Monic) {q : S[X]} (h : q ∣ g.ma
     have h0 : P.map φ ≠ 0 := fun h0 => hne (by rw [← coeff_map, h0, coeff_zero])
     exact (hg.map φ).not_dvd_of_degree_lt h0 hdeg hdvd
   · intro h
-    have : P.map φ = 0 := Polynomial.ext fun i => by rw [coeff_map, h, coeff_zero]
+    have : P.map φ = 0 := by ext i; rw [coeff_map, h, coeff_zero]
     rw [this]
     exact dvd_zero _
 
