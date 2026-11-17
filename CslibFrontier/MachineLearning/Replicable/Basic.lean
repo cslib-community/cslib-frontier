@@ -194,11 +194,8 @@ theorem disagreeProb_deterministic_eq_tsum_seed (seed : PMF Ω) (f : (Fin m → 
         (((Probability.PMF.iid D m).bind fun S₁ =>
           (Probability.PMF.iid D m).map fun S₂ => (f S₁ r, f S₂ r)).toOuterMeasure
           {p : α × α | p.1 ≠ p.2}).toReal := by
-  rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply,
-    ENNReal.tsum_toReal_eq (fun r => ENNReal.mul_ne_top (seed.apply_ne_top r)
-      (Probability.PMF.toOuterMeasure_ne_top _ _))]
-  refine tsum_congr fun r => ?_
-  rw [ENNReal.toReal_mul]
+  rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply]
+  ennreal_to_real
 
 /-- Disagreement probability of a deterministic-given-seed algorithm expressed by drawing the two
 independent samples first, then the shared seed. -/

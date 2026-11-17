@@ -349,10 +349,11 @@ bridge lemma, its finiteness facts and a chain of `toReal` rewrites), import
 `ennreal_to_real` instead: on a goal or, with `at h`, a hypothesis `a R b` in `ℝ≥0∞` it proves the
 sides finite, replaces the statement by `a.toReal R b.toReal` and pushes `toReal` through the
 arithmetic, and `ennreal_to_real using h` closes a real goal from the `ℝ≥0∞` fact `h`. Each call
-runs `finiteness` once per transferred side and once per side condition of a rewrite, measured at
-up to about 0.2 s per call, so for a single side condition keep the in-place `by finiteness` or
-the explicit term. Its [checked examples](../../CslibFrontierTests/ENNRealToReal.lean) cover the
-three forms, the subterms it leaves in place and its failure messages. To compare success
+runs `finiteness` once per transferred side and once per side condition of a rewrite, up to a few
+tenths of a second of CPU per call, so for a single side condition keep the in-place
+`by finiteness` or the explicit term. Its
+[checked examples](../../CslibFrontierTests/ENNRealToReal.lean) cover the three forms, the
+subterms it leaves in place and its failure messages. To compare success
 probabilities, import
 [Game/Order.lean](../../CslibFrontier/Crypto/Game/Order.lean):
 `apply Game.succProbability_mono` leaves the goal `g₁ true ≤ g₂ true`, without unfolding

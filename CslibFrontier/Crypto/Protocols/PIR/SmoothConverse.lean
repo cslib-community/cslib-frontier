@@ -469,8 +469,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hm_pos : (0 : ℝ) < Fintype.card (SmoothPos P i₀) := by
     have hne : Nonempty (SmoothPos P i₀) := ⟨⟨(s₀, q₀), idx₀⟩⟩
     exact_mod_cast Fintype.card_pos
-  have hexp_real := hexp
-  ennreal_to_real at hexp_real
+  ennreal_to_real at hexp
   have hk_val (k : Fin (Fintype.card S)) :
       (((ProbComp.eval (smoothCoins P i₀ i)).map (fun st => st.slots k))
         (some ⟨(s₀, q₀), idx₀⟩)).toReal =
@@ -496,7 +495,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
         intro h
         exact hk ((Equiv.eq_symm_apply eS).mp (Prod.mk.inj h).1).symm
       simp [hne]
-  simp only [hk_val, Fintype.sum_ite_eq'] at hexp_real
+  simp only [hk_val, Fintype.sum_ite_eq'] at hexp
   set p₀ : ℝ := (ProbComp.eval (P.serverQuery s₀ i₀) q₀).toReal
   set pᵢ : ℝ := (ProbComp.eval (P.serverQuery s₀ i) q₀).toReal
   have hn₀_pos : (0 : ℝ) < smoothCopies P i₀ (s₀, q₀) := by
@@ -524,7 +523,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hstep2 : (1 : ℝ) / l ≤ (Fintype.card S + 1 : ℝ) / Fintype.card (SmoothPos P i₀) := by
     rw [div_le_div_iff₀ hl_pos hm_pos, one_mul]
     exact hm_le
-  exact hexp_real.trans (hstep1.trans hstep2)
+  exact hexp.trans (hstep1.trans hstep2)
 
 private theorem decodeLaw_smoothDecoder_branch (P : Scheme ι S R Q A) [Fintype S]
     [Fintype Q] [DecidableEq Q] (i₀ : ι) (x : ι → Bool) (i : ι) (r : R) (g : Bool)
@@ -781,8 +780,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
       ← tsum_fintype (L := SummationFilter.unconditional _)]
     exact ENNReal.toReal_le_of_le_ofReal hδ (closeTo_iff_tsum_tsub_le.mp (hpriv s i))
   -- Convert `hpir_ennreal` to `ℝ`:
-  have hreal := hpir_ennreal
-  ennreal_to_real at hreal
+  ennreal_to_real at hpir_ennreal
   have hsum_le :
       (∑ k : Fin (Fintype.card S),
         (((ProbComp.eval (P.serverQuery (eS.symm k) i)).bind

@@ -1125,19 +1125,9 @@ theorem advantage_feistel3HashIdealGame_randomFunctionGame_le
     (Game.advantage (feistel3HashIdealGame seed₁ h₁ program)
       (randomFunctionGame program) : ℝ) ≤
       (Q.choose 2 : ℝ) * ε.toReal + (Q.choose 2 : ℝ) * (Fintype.card G : ℝ)⁻¹ := by
-  have hcard : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hinv_top : (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hcard
-  have hB1 : (Q.choose 2 : ℝ≥0∞) * ε ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hε
-  have hB2 : (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hinv_top
-  have hB : (Q.choose 2 : ℝ≥0∞) * ε + (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hB1, hB2⟩
-  have h := Game.advantage_le_of_apply_le hB
+  ennreal_to_real using Game.advantage_le_of_apply_le (by finiteness)
     (feistel3HashIdealGame_apply_le hh₁ hQ true)
     (randomFunctionGame_apply_le_feistel3HashIdealGame hh₁ hQ true)
-  simpa only [ENNReal.toReal_add hB1 hB2, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-    ENNReal.toReal_inv] using h
 
 /-- **Classical 3-round Luby–Rackoff theorem** ([BonehShoup2023], Section 4.5, Theorem 4.9;
 [LubyRackoff1988]):
@@ -2499,24 +2489,11 @@ theorem advantage_feistel4StrongRandomRoundsGame_idealStrongGame_le
       (idealStrongGame program) : ℝ) ≤
       2 * (Q.choose 2 : ℝ) * (Fintype.card G : ℝ)⁻¹ +
         2 * (Q.choose 2 : ℝ) * ((Fintype.card G : ℝ)⁻¹) ^ 2 := by
-  have hcardG : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hcardGG : (Fintype.card (G × G) : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hB1 : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
-      (ENNReal.inv_ne_top.mpr hcardG)
-  have hB2 : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
-      (ENNReal.inv_ne_top.mpr hcardGG)
-  have hB : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ +
-      2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hB1, hB2⟩
-  have h := Game.advantage_le_of_apply_le hB
+  have h := Game.advantage_le_of_apply_le (by finiteness)
     (feistel4StrongRandomRoundsGame_apply_le hQ true)
     (idealStrongGame_apply_le_feistel4StrongRandomRoundsGame hQ true)
-  rw [ENNReal.toReal_add hB1 hB2, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_natCast,
-    ENNReal.toReal_inv, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
+  ennreal_to_real at h
+  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
   exact h
 
 /-- Concrete instantiation of the 4-round strong Luby–Rackoff theorem on `BitString n`
