@@ -321,21 +321,17 @@ theorem decode_eq_of_reflTransGen {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c
     (hx : c * hammingDist x w < (2 * α - c) * k) {pick : (ι → Bool) → Option ι}
     (hpick : IsFlipRule G pick) (n : ℕ) :
     ∀ y, Relation.ReflTransGen (FlipStep G) x y → #(unsat G y) ≤ n → decode pick n y = w := by
-  induction n with
-  | zero =>
-    intro y hy hn
-    rw [decode]
+  intro y hy hn
+  fun_induction decode pick n y with
+  | case1 y =>
     refine eq_of_flip_stuck hG hE hα hw hx hy fun i hi => ?_
     have := card_unsat_flipOn_lt hi
     omega
-  | succ n ih =>
-    intro y hy hn
-    rw [decode]
-    rcases hp : pick y with _ | i
-    · exact eq_of_flip_stuck hG hE hα hw hx hy ((hpick y).2 hp)
-    · have hi := (hpick y).1 i hp
-      have hstep : FlipStep G y (flipOn {i} y) := ⟨i, hi, rfl⟩
-      exact ih _ (hy.tail hstep) (by have := card_unsat_flipOn_lt hi; omega)
+  | case2 n y hp => exact eq_of_flip_stuck hG hE hα hw hx hy ((hpick y).2 hp)
+  | case3 n y i hp ih =>
+    have hi := (hpick y).1 i hp
+    have hstep : FlipStep G y (flipOn {i} y) := ⟨i, hi, rfl⟩
+    exact ih (hy.tail hstep) (by have := card_unsat_flipOn_lt hi; omega)
 
 /-- **Flip decoding** [SipserSpielman1996] [GuruswamiSharma2010, §1.1]. If left degrees are at
 most `c`, sets of at most `k` variables expand by `α` with `3 c < 4 α`, `w` is a codeword and

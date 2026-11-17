@@ -59,10 +59,6 @@ open Workspace
 
 variable {r : ℕ}
 
-private theorem value_cons (β : ℕ) (x : Data (r + 4)) (d : Fin (r + 4))
-    (ds : List (Fin (r + 4))) :
-    value β x (d :: ds) = x.regs d + β * value β x ds := rfl
-
 private theorem value_eq_of_frame {β : ℕ} {x y : Data (r + 4)}
     {ds es : List (Fin (r + 4))}
     (hf : Frame x y ds) (he : ∀ i ∈ es, i ∉ ds ∧ i ≠ total ∧ i ≠ carry) :

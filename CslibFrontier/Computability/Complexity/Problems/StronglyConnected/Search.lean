@@ -481,46 +481,39 @@ local macro (name := searchHead) "search_head" b:term : tactic => `(tactic| (
   refine Branches.head (by simp [CounterProgram.halted, instr, searchProgram, Instr.halts]) $b ?_;
   search_step))
 
-private theorem branches_count_n : ∀ j ≤ G.n, ∀ c, Branches (P := searchProgram) (w := G.encode)
-    (0, [c, j, 0, 0, 0, 0]) (2, [0, G.n, 0, 0, 0, 0]) := by
-  intro j hj
-  induction h : G.n - j generalizing j with
-  | zero =>
-    intro c
-    have : j = G.n := by omega
-    subst this
-    search_head false
-    rw [G.getElem?_encode_n le_rfl]
-    simp only [lt_irrefl, decide_false]
-    exact Branches.refl _
-  | succ k ih =>
-    intro c
-    search_head false
-    rw [G.getElem?_encode_n hj]
-    simp only [show j < G.n by omega, decide_true]
-    search_head false
-    exact ih (j + 1) (by omega) (by omega) 0
+private theorem branches_count_n :
+    Branches (P := searchProgram) (w := G.encode) searchProgram.init (2, [0, G.n, 0, 0, 0, 0]) :=
+  Nat.decreasingInduction (motive := fun j _ => Branches (P := searchProgram) (w := G.encode)
+      (0, [0, j, 0, 0, 0, 0]) (2, [0, G.n, 0, 0, 0, 0]))
+    (fun j hj ih => .trans (by
+      search_head false
+      rw [G.getElem?_encode_n hj.le]
+      simp only [hj, decide_true]
+      search_head false
+      exact Branches.refl _) ih)
+    (by
+      search_head false
+      rw [G.getElem?_encode_n le_rfl]
+      simp only [lt_irrefl, decide_false]
+      exact Branches.refl _) (Nat.zero_le _)
 
 /-- The guess of the vertex `target`: the choices are `true` until the counter reaches it. -/
 private theorem branches_guess (p cur steps target : ℕ) (ht : target < G.n) :
     ∀ j ≤ target, Branches (P := searchProgram) (w := G.encode)
       (9, [(decide (j < target)).toNat, G.n, p, cur, steps, j])
-      (12, [0, G.n, p, cur, steps, target]) := by
-  intro j hj
-  induction h : target - j generalizing j with
-  | zero =>
-    have : j = target := by omega
-    subst this
-    search_head false
-    simp only [lt_irrefl, decide_false, Bool.toNat_false, Nat.lt_one_iff, ↓reduceIte]
-    exact Branches.refl _
-  | succ k ih =>
-    search_head false
-    simp only [show j < target by omega, decide_true, Bool.toNat_true, lt_irrefl, ↓reduceIte]
-    search_head false
-    search_head (decide (j + 1 < target))
-    simp only [show j + 1 < G.n by omega, ↓reduceIte]
-    exact ih (j + 1) (by omega) (by omega)
+      (12, [0, G.n, p, cur, steps, target]) := fun _ hj =>
+  Nat.decreasingInduction
+    (fun j hj ih => .trans (by
+      search_head false
+      simp only [hj, decide_true, Bool.toNat_true, lt_irrefl, ↓reduceIte]
+      search_head false
+      search_head (decide (j + 1 < target))
+      simp only [show j + 1 < G.n by omega, ↓reduceIte]
+      exact Branches.refl _) ih)
+    (by
+      search_head false
+      simp only [lt_irrefl, decide_false, Bool.toNat_false, Nat.lt_one_iff, ↓reduceIte]
+      exact Branches.refl _) hj
 
 /-- Passing to the next pair from label `5` when the current vertex is the second vertex of the
 pair. -/
@@ -610,7 +603,7 @@ theorem accepts_of_mem (h : G ∈ StronglyConnected) :
       searchProgram.init (2, [0, G.n, p, x, y, z]) := by
     intro p
     induction p with
-    | zero => exact fun _ => ⟨0, 0, 0, branches_count_n G 0 (Nat.zero_le _) 0⟩
+    | zero => exact fun _ => ⟨0, 0, 0, branches_count_n G⟩
     | succ p ih =>
       intro hp
       obtain ⟨x, y, z, hb⟩ := ih (by omega)
