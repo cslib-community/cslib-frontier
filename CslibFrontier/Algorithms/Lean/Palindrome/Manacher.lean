@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Palindrome.Basic
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Manacher's Algorithm: All Maximal Palindromes in Linear Time
@@ -107,33 +108,12 @@ def extendM (w : Array α) : ℕ → ℕ → TimeM ℕ ℕ
 /-- An extension phase makes at most one comparison more than its number of extensions. -/
 theorem extendM_time_le (w : Array α) (l r : ℕ) :
     (extendM w l r).time ≤ (extendM w l r).ret + 1 := by
-  induction l generalizing r with
-  | zero => simp only [extendM, TimeM.time_pure, TimeM.ret_pure]; omega
-  | succ l ih =>
-    simp only [extendM]
-    split_ifs with h hEq
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      have := ih (r + 1)
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure]
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure]; omega
+  time_spec extendM
 
 /-- An extension phase never moves the right end past the end of `w`. -/
 theorem add_extendM_le (w : Array α) (l : ℕ) {r : ℕ} (hr : r ≤ w.size) :
     r + (extendM w l r).ret ≤ w.size := by
-  induction l generalizing r with
-  | zero => simp only [extendM, TimeM.ret_pure]; omega
-  | succ l ih =>
-    simp only [extendM]
-    split_ifs with h hEq
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
-      have := ih (r := r + 1) (by omega)
-      omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]; omega
-    · simp only [TimeM.ret_pure]; omega
+  time_spec extendM
 
 /-- From any palindromic radius `k ≤ radius w c`, the extension phase reaches exactly the maximal
 radius about `c`. -/
@@ -313,8 +293,7 @@ palindromic factor of `w` (`length_le_longestPalindrome`). -/
 theorem extract_longestPalindromeM (w : Array α) :
     w.toList.extract (longestPalindromeM w).ret.1 (longestPalindromeM w).ret.2 =
       longestPalindrome w.toList := by
-  simp only [longestPalindromeM, TimeM.ret_bind, TimeM.ret_pure, ret_manacherM, getD_manacher,
-    size_manacher, longestPalindrome, maxPalindrome, bestCenter, Array.length_toList]
+  time_spec longestPalindromeM [ret_manacherM, getD_manacher, size_manacher]
 
 theorem longestPalindromeM_time_le (w : Array α) : (longestPalindromeM w).time ≤ 3 * w.size := by
   simp only [longestPalindromeM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero]

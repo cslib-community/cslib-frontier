@@ -15,6 +15,7 @@ public import Mathlib.Algebra.BigOperators.Group.List.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.List.GetD
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Fenwick Trees (Binary Indexed Trees)
@@ -362,10 +363,7 @@ bounds. -/
 theorem addM_time_eq_upChain {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time = if pos < t.size then (upChain t.size (pos + 1)).length else 0 := by
-  unfold addM size
-  split_ifs with hpos
-  · simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero, addLoopM_time_eq]
-  · simp only [TimeM.time_pure]
+  time_spec addM [addLoopM_time_eq, size]
 
 /-- `addM t pos δ` updates at most `⌈log₂ (t.size + 1)⌉` Fenwick nodes (`0` when `t.size = 0`). -/
 theorem addM_time_le_clog {α : Type*} [AddCommMonoid α]
@@ -391,16 +389,7 @@ theorem addM_time_le_log {α : Type*} [AddCommMonoid α]
 private theorem addLoopM_size {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).ret.size = tree.size := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing m tree with
-  | ind rem ih =>
-    rw [addLoopM]
-    split_ifs with hm
-    · simp only [TimeM.ret_bind]
-      have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
-      rw [@ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
-        (tree.modify (m - 1) (· + δ)) rfl, Array.size_modify]
-    · simp only [TimeM.ret_pure]
+  time_spec addLoopM
 
 private theorem addLoopM_getElem {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α)
@@ -540,22 +529,7 @@ def ofListM {α : Type*} [AddCommMonoid α] (s : List α) : TimeM ℕ (FenwickTr
 private theorem buildLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) {tree : Array α} (hsz : tree.size = n) (hm1 : 1 ≤ m) (hmn : m ≤ n + 1) :
     (buildLoopM n m tree).time = n + 1 - m := by
-  generalize hrem : n + 1 - m = rem
-  induction rem generalizing m tree with
-  | zero =>
-    rw [buildLoopM]
-    have hnot : ¬ (1 ≤ m ∧ m ≤ n ∧ tree.size = n) := by omega
-    simp only [hnot, ↓reduceDIte, TimeM.time_pure]
-  | succ rem ih =>
-    have hms : m ≤ n := by omega
-    rw [buildLoopM]
-    simp only [hm1, hms, hsz, and_self, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick]
-    set p := m + lowbit m
-    set tree' :=
-      if p ≤ n then tree.modify (p - 1) (· + tree[m - 1]'(by omega)) else tree
-    have hsz' : tree'.size = n := by grind
-    have hsub := ih (m + 1) hsz' (by omega) (by omega) (by omega)
-    omega
+  time_spec buildLoopM
 
 /-- `ofArrayM a` performs exactly `a.size` parent-propagation steps (`0` on `#[]`). -/
 theorem ofArrayM_time_eq {α : Type*} [AddCommMonoid α] (a : Array α) :
@@ -567,8 +541,7 @@ theorem ofArrayM_time_eq {α : Type*} [AddCommMonoid α] (a : Array α) :
 
 theorem ofListM_time_eq {α : Type*} [AddCommMonoid α] (s : List α) :
     (ofListM s).time = s.length := by
-  unfold ofListM
-  rw [ofArrayM_time_eq, List.size_toArray]
+  time_spec ofListM [ofArrayM_time_eq]
 
 private structure BuildInv {α : Type*} [AddCommMonoid α]
     (s : List α) (m : ℕ) (tree : Array α) : Prop where

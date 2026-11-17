@@ -842,8 +842,7 @@ private theorem hgExtendM_used (s : HgState n) (j₁ i₀ : Fin n) :
 
 private theorem hgExtendM_time (s : HgState n) (j₁ i₀ : Fin n) :
     (hgExtendM c s j₁ i₀).time = 2 * n + 1 := by
-  simp only [hgExtendM, TimeM.time_bind, TimeM.time_tick, hgRelaxM_time]
-  omega
+  time_spec hgExtendM [hgRelaxM_time]
 
 /-! #### Counting tree columns -/
 

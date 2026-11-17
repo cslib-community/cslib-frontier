@@ -371,9 +371,21 @@ theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.len
         pure ([], u')
 
 @[simp]
-theorem divModAuxM_ret : ∀ (n : ℕ) (u v : List ℚ), (divModAuxM n u v).ret = divModAux n u v := by
-  time_spec divModAuxM [divModAux, trimM_ret, lengthM_ret, getLast?M_ret, shiftZeroM_ret,
-    scaleListM_ret, subListM_ret, addListM_ret]
+theorem divModAuxM_ret : ∀ (n : ℕ) (u v : List ℚ), (divModAuxM n u v).ret = divModAux n u v
+  | 0, u, v => by simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, TimeM.ret_pure]
+  | n + 1, u, v => by
+    simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, lengthM_ret]
+    split_ifs with hlt
+    · simp only [TimeM.ret_pure]
+    · simp only [TimeM.ret_bind, getLast?M_ret]
+      cases v.getLast? with
+      | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
+      | some lc =>
+        cases (trim u).getLast? with
+        | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
+        | some lu =>
+          simp only [TimeM.ret_bind, shiftZeroM_ret, scaleListM_ret, subListM_ret, trimM_ret,
+            divModAuxM_ret n, addListM_ret, TimeM.ret_pure]
 
 private theorem divModAux_snd_length_le :
     ∀ (n : ℕ) (u v : List ℚ), (divModAux n u v).2.length ≤ u.length

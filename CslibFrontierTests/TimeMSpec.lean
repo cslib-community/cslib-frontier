@@ -39,8 +39,8 @@ def sumM : List ℕ → TimeM ℕ ℕ
 example : ∀ l : List ℕ, (sumM l).time = l.length := by
   time_spec sumM
 
-/-! A program that is not recursive is unfolded. The specifications of the programs it calls come
-from the simp set; the definition of the pure function it computes is passed. -/
+/-! A program that is not recursive is opened by `fun_cases`. The specifications of the programs it
+calls come from the simp set; the definition of the pure function it computes is passed. -/
 
 /-- Compare the sums of two lists. -/
 def leM (l₁ l₂ : List ℕ) : TimeM ℕ Bool := do
@@ -120,11 +120,10 @@ ih1✝ : (findM f l✝).time ≤ l✝.length
 example {α : Type} (f : α → TimeM ℕ Bool) (l : List α) : (findM f l).time ≤ l.length := by
   time_spec findM
 
-/-! The tactic fails only when the program cannot be opened. -/
+/-! The tactic fails only when the program cannot be opened: here the goal has no call of `sumM`. -/
 
 /--
-error: Tactic `unfold` failed to unfold `sumM` in
-  (leM l₁ l₂).time = l₁.length + l₂.length + 1
+error: Could not find suitable call of `sumM` in the goal
 -/
 #guard_msgs in
 example (l₁ l₂ : List ℕ) : (leM l₁ l₂).time = l₁.length + l₂.length + 1 := by

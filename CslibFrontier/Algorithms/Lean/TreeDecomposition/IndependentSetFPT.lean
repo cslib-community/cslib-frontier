@@ -13,6 +13,7 @@ public import CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSet
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # An executable FPT program for maximum-weight independent set
@@ -207,13 +208,7 @@ variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 
 theorem size_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).ret.size = init.size := by
-  induction c with
-  | zero => rfl
-  | succ c ih =>
-    simp only [childPassM, TimeM.ret_bind, TimeM.ret_pure]
-    split_ifs
-    · rw [Array.size_setIfInBounds, ih]
-    · exact ih
+  time_spec childPassM
 
 /-- After the child masks `t < c`, the entry of `best` at a parent mask `k` is the best value over
 the independent child subsets with parent mask `k`. -/
@@ -277,9 +272,7 @@ theorem getD_childPassM_eq_forget (w : V → ℕ) {LB LP : List V} (hLB : LB.Nod
 
 theorem size_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPassM LB LP old best c).ret.size = c := by
-  induction c with
-  | zero => rfl
-  | succ c ih => simp [parentPassM, ih]
+  time_spec parentPassM
 
 theorem getD_parentPassM (LB : List V) {LP : List V} (hLP : LP.Nodup) (old best : Array ℕ)
     {c s : ℕ} (hs : s < c) :
@@ -399,50 +392,29 @@ variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 theorem time_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).time = c * (indepCost LB.length +
       LP.length * (LB.length + 1) + LB.length * (LP.length + 1) + 4) := by
-  induction c with
-  | zero => simp [childPassM]
-  | succ c ih =>
-    simp only [childPassM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_indepM,
-      time_keyM, time_forgetWeightM]
-    ring
+  time_spec childPassM [time_indepM, time_keyM, time_forgetWeightM]
 
 omit [DecidableRel G.Adj] in
 theorem time_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPassM LB LP old best c).time = c * (LP.length * (LB.length + 1) + 3) := by
-  induction c with
-  | zero => simp [parentPassM]
-  | succ c ih =>
-    simp only [parentPassM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih,
-      time_restrictM]
-    ring
+  time_spec parentPassM [time_restrictM]
 
 theorem time_rootPassM (w : V → ℕ) (L : List V) (tbl : Array ℕ) (c : ℕ) :
     (rootPassM G w L tbl c).time = c * (indepCost L.length + L.length + 3) := by
-  induction c with
-  | zero => simp [rootPassM]
-  | succ c ih =>
-    simp only [rootPassM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_indepM,
-      time_forgetWeightM, List.length_nil]
-    ring
+  time_spec rootPassM [time_indepM, time_forgetWeightM]
 
 variable {G} {n : ℕ}
 
 theorem time_processM (R : G.RootedTreeDecomposition n) (w : V → ℕ) (L : Fin (n + 1) → List V)
     (st : Vector (Array ℕ) (n + 1)) (j : Fin (n + 1)) :
     (processM R w L st j).time = processTime (L j).length (L (R.parent j)).length := by
-  simp only [processM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_zerosM,
-    time_childPassM, time_parentPassM, processTime]
-  ring
+  time_spec processM [time_zerosM, time_childPassM, time_parentPassM, processTime]
 
 theorem time_tablesFPT (R : G.RootedTreeDecomposition n) (w : V → ℕ) (L : Fin (n + 1) → List V)
     (t : ℕ) : (tablesFPT R w L t).time = (n + 1) + ∑ s ∈ Finset.range t,
       processTime (L (Fin.ofNat (n + 1) (n - s))).length
         (L (R.parent (Fin.ofNat (n + 1) (n - s)))).length := by
-  induction t with
-  | zero => simp [tablesFPT]
-  | succ t ih =>
-    simp only [tablesFPT, TimeM.time_bind, ih, time_processM, Finset.sum_range_succ]
-    ring
+  time_spec tablesFPT [time_processM, Finset.sum_range_succ]
 
 private theorem sum_range_ofNat_sub (g : Fin (n + 1) → ℕ) :
     ∑ s ∈ Finset.range n, g (Fin.ofNat (n + 1) (n - s)) = ∑ i : Fin n, g i.succ := by

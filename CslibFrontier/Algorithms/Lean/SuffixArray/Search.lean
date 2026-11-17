@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Basic
 public import Cslib.Algorithms.Lean.TimeM
 import CslibFrontier.Foundations.Data.List.Lex
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Pattern search in a suffix array
@@ -97,17 +98,7 @@ def cmpSuffixM (w : Array α) : List α → ℕ → TimeM ℕ Ordering
 /-- `cmpSuffixM w p i` makes at most `|p|` character comparisons. -/
 theorem cmpSuffixM_time_le (w : Array α) (p : List α) (i : ℕ) :
     (cmpSuffixM w p i).time ≤ p.length := by
-  induction p generalizing i with
-  | nil => simp only [cmpSuffixM, TimeM.time_pure, List.length_nil, le_refl]
-  | cons a p ih =>
-    rw [cmpSuffixM]
-    split_ifs with hi
-    · simp only [TimeM.time_bind, TimeM.time_tick, List.length_cons]
-      split
-      · simp only [TimeM.time_pure]; omega
-      · simp only [TimeM.time_pure]; omega
-      · have := ih (i + 1); omega
-    · simp only [TimeM.time_pure, Nat.zero_le]
+  time_spec cmpSuffixM
 
 /-- `cmpSuffixM w p i` compares `p` with the window `(w.drop i).take |p|` of the same length as
 `p` (shorter if the suffix is shorter). -/

@@ -119,8 +119,7 @@ private theorem time_initAdjTableM (n : ℕ) (adj : Fin n → Fin n → Bool) :
 
 private theorem ret_initAdjTableM (n : ℕ) (adj : Fin n → Fin n → Bool) (u w : Fin n) :
     (initAdjTableM n adj).ret[u.1][w.1] = adj u w := by
-  unfold initAdjTableM
-  simp [ret_vectorOfFnM]
+  time_spec initAdjTableM
 
 private theorem time_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin n → β) :
     (initCostTableM n cost).time = n ^ 2 := by
@@ -129,8 +128,7 @@ private theorem time_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin
 
 private theorem ret_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin n → β) (u w : Fin n) :
     (initCostTableM n cost).ret[u.1][w.1] = cost u w := by
-  unfold initCostTableM
-  simp [ret_vectorOfFnM]
+  time_spec initCostTableM
 
 /-- Scan `List.finRange n` for the first minimizer of `val` satisfying `pred`, charging one tick
 per scanned index (`n` ticks total). -/
@@ -142,8 +140,7 @@ per scanned index (`n` ticks total). -/
 
 private theorem time_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) : (argMinFinM n pred val).time = n := by
-  unfold argMinFinM
-  rw [time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp), List.length_finRange, mul_one]
+  time_spec argMinFinM
 
 private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [DecidableRel r]
     (pred : α → Bool) (l : List α) (acc : Option α) :
@@ -265,9 +262,7 @@ structure CycleSearchState (n : ℕ) where
 
 private theorem time_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).time = n := by
-  unfold hasCycleFromM
-  simp only [time_bind, time_pure, add_zero]
-  rw [time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp), List.length_range, mul_one]
+  time_spec hasCycleFromM
 
 private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).ret =
@@ -417,13 +412,7 @@ structure CycleMaskState (n : ℕ) where
 
 private theorem time_cycleMaskM (f : ParentTable n) (x0 : Fin n) :
     (cycleMaskM f x0).time = 2 * n := by
-  unfold cycleMaskM
-  simp only [time_bind, time_pure, add_zero]
-  rw [time_vectorOfFnM, time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp),
-    List.length_range]
-  simp only [time_bind, time_tick, time_pure, add_zero, Finset.sum_const, Finset.card_fin,
-    smul_eq_mul, mul_one]
-  omega
+  time_spec cycleMaskM [Finset.sum_const, Finset.card_fin]
 
 private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
     ∀ (m : ℕ) (init : Vector Bool n),
@@ -492,8 +481,7 @@ private theorem ret_bestEntryTableM (a : AdjTable n) (c : CostTable β n)
     (bestEntryTableM a c inCycle).ret[u.1] =
       ((List.finRange n).filter fun y => inCycle[y.1] && a[u.1][y.1]).argmin
         (fun y => c[u.1][y.1]) := by
-  unfold bestEntryTableM
-  rw [ret_vectorOfFnM, Vector.getElem_ofFn, ret_argMinFinM]
+  time_spec bestEntryTableM [ret_argMinFinM]
 
 section AddMonoidLevel
 
@@ -576,8 +564,7 @@ private theorem ret_bestExitTableM (a : AdjTable n) (c : CostTable β n)
     (bestExitTableM a c inCycle otherCycleCost).ret[w.1] =
       ((List.finRange n).filter fun x => inCycle[x.1] && a[x.1][w.1]).argmin
         (fun x => c[x.1][w.1] + otherCycleCost[x.1]) := by
-  unfold bestExitTableM
-  rw [ret_vectorOfFnM, Vector.getElem_ofFn, ret_argMinFinM]
+  time_spec bestExitTableM [ret_argMinFinM]
 
 end AddMonoidLevel
 
@@ -661,8 +648,7 @@ private theorem ret_contractCostTableM [AddCommMonoid β] (c : CostTable β n)
           | some y => c[u.1][y.1]
           | none => c[u.1][w.1]
         else c[u.1][w.1] := by
-  unfold contractCostTableM
-  simp [ret_vectorOfFnM]
+  time_spec contractCostTableM
 
 /-- Expand a contracted parent vector `q` using the precomputed level tables (`n` ticks). -/
 @[expose] def expandParentTableM (f : ParentTable n) (inCycle : Vector Bool n)
@@ -694,8 +680,7 @@ private theorem ret_expandParentTableM (f : ParentTable n) (inCycle : Vector Boo
         | none => f[v.1]
       else if q[v.1] == x0 then (bestEntry[v.1]).getD v
       else q[v.1] := by
-  unfold expandParentTableM
-  simp [ret_vectorOfFnM]
+  time_spec expandParentTableM
 
 end Level
 

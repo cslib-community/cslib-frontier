@@ -16,6 +16,7 @@ public import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Dynamic programming for CSPs on bounded treewidth
@@ -143,20 +144,11 @@ variable {Rel V : Type*} [DecidableEq V]
 
 theorem ret_subsetListM (xs LB : List V) :
     (subsetListM xs LB).ret = decide (xs.toFinset ⊆ LB.toFinset) := by
-  induction xs with
-  | nil => simp [subsetListM]
-  | cons x xs ih =>
-    simp only [subsetListM, TimeM.ret_bind, TimeM.ret_pure, ret_memM, ih, List.toFinset_cons,
-      Finset.insert_subset_iff, List.mem_toFinset, Bool.decide_and]
+  time_spec subsetListM [List.toFinset_cons, Finset.insert_subset_iff, List.mem_toFinset]
 
 theorem time_subsetListM (xs LB : List V) :
     (subsetListM xs LB).time = xs.length * (LB.length + 1) := by
-  induction xs with
-  | nil => simp [subsetListM]
-  | cons x xs ih =>
-    simp only [subsetListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_memM, ih,
-      List.length_cons]
-    ring
+  time_spec subsetListM
 
 /-- Evaluate all zero-arity constraints of `F` on a constant `Fin q` assignment. -/
 @[expose] def checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) :
@@ -174,23 +166,12 @@ omit [DecidableEq V] in
 theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).ret =
       F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkNilScopeM, TimeM.ret_bind, TimeM.ret_pure, ih, List.all_cons]
-    cases hc : c.scope with
-    | nil => simp [Constraint.eval, hc]
-    | cons _ _ => simp
+  time_spec checkNilScopeM [Constraint.eval]
 
 omit [DecidableEq V] in
 theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).time = F.length := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkNilScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih,
-      List.length_cons]
-    omega
+  time_spec checkNilScopeM
 
 /-- Check all constraints in `F` whose scopes lie in `LB` and include `v`, under `ofRadixFin`. -/
 @[expose] def checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
@@ -210,23 +191,13 @@ theorem ret_checkIntroScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) 
       F.all fun c =>
         !(decide (c.scope.toFinset ⊆ LB.toFinset) && decide (v ∈ c.scope)) ||
           c.eval sem (ofRadixFin q hq LB m) := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkIntroScopeM, TimeM.ret_bind, TimeM.ret_pure, ret_subsetListM, ret_memM,
-      ret_evalScopeM, ih, List.all_cons, Constraint.eval]
+  time_spec checkIntroScopeM [ret_subsetListM, ret_evalScopeM]
 
 theorem time_checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
     (checkIntroScopeM q hq sem v LB m F).time =
       F.length + F.vars.length * (2 * LB.length + 3) := by
-  induction F with
-  | nil => simp [checkIntroScopeM, CSP.vars]
-  | cons c F ih =>
-    simp only [checkIntroScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-      time_subsetListM, time_memM, time_evalScopeM, ih, List.length_cons, CSP.vars,
-      List.flatMap_cons, List.length_append]
-    ring
+  time_spec checkIntroScopeM [CSP.vars, time_subsetListM, time_evalScopeM]
 
 /-- Encode `Function.update (ofRadix q LB m) v d` along `LP`. -/
 @[expose] def projectUpdateM (q : ℕ) (v : V) (d : ℕ) (LB : List V) (m : ℕ) :
@@ -251,16 +222,7 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [projectUpdateM]
-  | cons u LP ih =>
-    by_cases huv : u = v
-    · simp only [projectUpdateM, huv, ite_true, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        List.length_cons]
-      nlinarith
-    · simp only [projectUpdateM, huv, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_lookupM, List.length_cons]
-      nlinarith
+  time_spec projectUpdateM [time_lookupM]
 
 /-- Build a length-`n` array table entry by entry in `TimeM ℕ`. -/
 @[expose] def tableLoopM {β : Type} : ℕ → (ℕ → TimeM ℕ β) → TimeM ℕ (Array β)
@@ -273,9 +235,7 @@ theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m :
 
 theorem size_tableLoopM {β : Type} (n : ℕ) (f : ℕ → TimeM ℕ β) :
     (tableLoopM n f).ret.size = n := by
-  induction n with
-  | zero => rfl
-  | succ n ih => simp [tableLoopM, ih]
+  time_spec tableLoopM
 
 theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs : s < n) (z : β) :
     (tableLoopM n f).ret.getD s z = (f s).ret := by
@@ -291,13 +251,7 @@ theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs :
 
 theorem time_tableLoopM_le {β : Type} {n B : ℕ} {f : ℕ → TimeM ℕ β}
     (hB : ∀ s < n, (f s).time ≤ B) : (tableLoopM n f).time ≤ n * (B + 1) := by
-  induction n with
-  | zero => simp [tableLoopM]
-  | succ n ih =>
-    simp only [tableLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    have h1 := ih fun s hs => hB s (Nat.lt_succ_of_lt hs)
-    have h2 := hB n (Nat.lt_succ_self n)
-    nlinarith
+  time_spec tableLoopM
 
 /-- Aggregate `f 0, ..., f (k - 1)` using `add` and identity `z` in `TimeM ℕ`. -/
 @[expose] def sumLoopM {β : Type} (z : β) (add : β → β → β) :
@@ -312,13 +266,7 @@ theorem time_tableLoopM_le {β : Type} {n B : ℕ} {f : ℕ → TimeM ℕ β}
 private theorem time_sumLoopM_le {β : Type} (z : β) (add : β → β → β) {k B : ℕ}
     {f : ℕ → TimeM ℕ β} (hB : ∀ d < k, (f d).time ≤ B) :
     (sumLoopM z add k f).time ≤ k * (B + 1) := by
-  induction k with
-  | zero => simp [sumLoopM]
-  | succ k ih =>
-    simp only [sumLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    have h1 := ih fun d hd => hB d (Nat.lt_succ_of_lt hd)
-    have h2 := hB k (Nat.lt_succ_self k)
-    nlinarith
+  time_spec sumLoopM
 
 end Helpers
 
@@ -391,9 +339,7 @@ private theorem dpAlgFold_congr {β : Type} {z : β} {add : β → β → β} {k
 private theorem ret_sumLoopM_eq_dpAlgFold {β : Type} (z : β) (add : β → β → β) (k : ℕ)
     (f : ℕ → TimeM ℕ β) :
     (sumLoopM z add k f).ret = dpAlgFold z add k (fun d => (f d).ret) := by
-  induction k with
-  | zero => rfl
-  | succ k ih => simp only [sumLoopM, TimeM.ret_bind, TimeM.ret_pure, dpAlgFold, ih]
+  time_spec sumLoopM
 
 private theorem dpAlgFold_nat (k : ℕ) (g : ℕ → ℕ) :
     dpAlgFold 0 (· + ·) k g = ∑ d ∈ Finset.range k, g d := by

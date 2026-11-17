@@ -211,8 +211,9 @@ private theorem vget_ret_side (v : Fin n) :
 
 private theorem mem_sep_iff {v : Fin n} : v ∈ (minSeparatorM G Z A B).ret.sep ↔
     vget Z v = false ∧ SplitNode.inV v ∈ minCut G Z A B ∧ SplitNode.outV v ∉ minCut G Z A B := by
-  time_spec minSeparatorM [List.mem_filter, List.mem_finRange, Bool.and_eq_true, Bool.not_eq_true',
-    decide_eq_true_eq, decide_eq_false_iff_not, and_assoc]
+  rw [ret_sep, List.mem_filter]
+  simp only [List.mem_finRange, true_and, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq,
+    decide_eq_false_iff_not, and_assoc]
 
 private theorem reindex_s_ne_t :
     ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).s ≠

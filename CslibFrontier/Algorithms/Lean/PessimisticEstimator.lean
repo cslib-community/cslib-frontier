@@ -112,8 +112,7 @@ theorem ret_stepM [LE M] [DecidableRel (α := M) (· ≤ ·)] (s : S) (r : R) :
 @[simp]
 theorem ret_runM [LE M] [DecidableRel (α := M) (· ≤ ·)] (rounds : List R) (s : S) :
     (C.runM rounds s).ret = greedy C.branch C.estimate rounds s := by
-  rw [runM, TimeM.ret_foldlM]
-  rfl
+  time_spec runM
 
 theorem time_stepM [LE M] [DecidableRel (α := M) (· ≤ ·)] (s : S) (r : R) :
     (C.stepM s r).time =

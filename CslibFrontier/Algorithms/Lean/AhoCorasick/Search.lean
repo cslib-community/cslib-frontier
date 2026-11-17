@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.AhoCorasick.Basic
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Aho–Corasick Multi-Pattern String Matching
@@ -157,21 +158,7 @@ theorem ret_stepM {P : List (List α)} {f : List α → List α} {u : List α} (
 theorem time_stepM_le (P : List (List α)) (f : List α → List α) (u : List α) (a : α) :
     (stepM P f u a).time + (stepM P f u a).ret.length ≤ u.length + 2 ∧
       (stepM P f u a).time ≤ u.length + 1 := by
-  induction h : u.length using Nat.strongRecOn generalizing u with
-  | ind n ih =>
-    rw [stepM]
-    split_ifs with hnode hnil hlt
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure, List.length_append, List.length_singleton]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure, List.length_nil]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind]
-      have := ih _ (h ▸ hlt) _ rfl
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure, List.length_nil]
-      omega
+  time_spec stepM
 
 /-! ## Algorithm 1: the scan -/
 
@@ -270,10 +257,7 @@ theorem time_scanM_eq (P : List (List α)) (M : Machine α) (t : List α) :
 
 private theorem ret_scanLoopM_silent (P : List (List α)) (f : List α → List α) (t : List α)
     (i : ℕ) (u : List α) : (scanLoopM P ⟨f, fun _ => []⟩ t i u).ret = [] := by
-  induction t generalizing i u with
-  | nil => rfl
-  | cons a t ih =>
-    simp only [scanLoopM, TimeM.ret_bind, TimeM.ret_pure, List.map_nil, List.nil_append, ih]
+  time_spec scanLoopM
 
 /-- `[AhoCorasick1975]`, Theorem 2: on a nonempty text of length `n`, Algorithm 1 makes fewer than
 `2n` goto and failure transitions. This holds for any failure table, because the failure loop of

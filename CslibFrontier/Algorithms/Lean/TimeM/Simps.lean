@@ -60,29 +60,31 @@ attribute [time_simps] ret_pure ret_bind ret_map ret_mapConst ret_seqRight ret_s
 end Cslib.Algorithms.Lean.TimeM
 
 /--
-`time_spec p` proves a specification of the program `p` in `Cslib.Algorithms.Lean.TimeM`: an
-equation or a bound for `(p x).ret` or `(p x).time`. `time_spec p [h₁, h₂]` also rewrites with the
-simp lemmas `h₁`, `h₂`.
+`time_spec p` proves a specification of the program `p` in `Cslib.Algorithms.Lean.TimeM`: a
+statement about `(p x).ret` or `(p x).time`, usually an equation or a bound. `time_spec p [h₁, h₂]`
+also rewrites with the simp lemmas `h₁`, `h₂`.
 
 It runs three steps.
 
-1. Introduce the variables of a statement `∀ x, …`, then open `p` by the first of
-   `fun_induction p`, `fun_cases p` and `unfold p` that applies. A recursive program gives one goal
-   for each branch, with the induction hypotheses for its recursive calls. Write
-   `time_spec (p x y)` to choose among several calls of `p` in the goal.
-2. On each goal, `simp only [time_simps, h₁, h₂, *]`, with `true_and`, `and_true` and `and_self`
-   for a statement that is a conjunction. The `*` supplies the induction hypotheses and the
-   conditions of the branch; it also uses the hypotheses of the theorem.
-3. Close what remains by the first of `rfl`, `omega` and `grind` that succeeds. If none
-   does, `split` the first `if` or `match` in the goal, repeat step 2 and try to close each case;
-   this is done at most twice.
+1. Introduce the variables of a statement `∀ x, …`, then open `p` by `fun_induction p` or, when
+   that does not apply, by `fun_cases p`. A recursive program gives one goal for each branch, with
+   the induction hypotheses for its recursive calls. Write `time_spec (p x y)` to choose among
+   several calls of `p` in the goal.
+2. On each goal, `simp only [time_simps, h₁, h₂]`, with `true_and`, `and_true` and `and_self` for
+   a statement that is a conjunction. After `fun_induction` the hypotheses are rewrite rules too
+   (`simp only [time_simps, h₁, h₂, *]`): this is how an induction hypothesis that is an equation
+   is used. The `*` also takes the hypotheses of the theorem; after `fun_cases` there is no `*`.
+3. Close each goal by the first of `rfl`, `omega` and `grind` that succeeds. If none does, `split`
+   the first `if` or `match` in the goal, repeat step 2 and close every case in the same way.
 
-A goal that step 3 cannot close is left as step 2 produced it, without any split, so `time_spec p`
+A goal that step 3 cannot close is left as step 2 produced it, without the split, so `time_spec p`
 followed by more tactics is a proof by normalization: for a bound that needs the bounds of the
 programs `p` calls, state those with `have` and finish with `omega`. The tactic fails only when
-step 1 does.
+neither `fun_induction p` nor `fun_cases p` applies, for instance when the goal has no call of `p`
+or `p` is applied to terms that are not variables.
 
-The specifications of the programs that `p` calls must be in `time_simps` or among `h₁`, `h₂`.
+The specifications of the programs that `p` calls must be in `time_simps` or among `h₁`, `h₂`, and
+so must the definition of a pure function that the statement compares `p` with.
 -/
 syntax (name := timeSpec) "time_spec" (ppSpace colGt term:max)
   (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
@@ -94,19 +96,20 @@ macro_rules
       extra.map (·.getElems) |>.getD #[]
     -- An unhygienic reference: the simp set is found by its name.
     let set := mkIdent `time_simps
-    let simpStep ← if lemmas.isEmpty then
+    let simpCases ← if lemmas.isEmpty then
+        `(tactic| try simp only [$set:ident, true_and, and_true, and_self])
+      else
+        `(tactic| try simp only [$set:ident, true_and, and_true, and_self, $lemmas,*])
+    -- With the hypotheses: the induction hypotheses are among them.
+    let simpInd ← if lemmas.isEmpty then
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, *])
       else
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, $lemmas,*, *])
     let close ← `(tactic| first | rfl | omega | grind)
-    let finish ← `(tactic| first
-      | $close:tactic
-      | (split <;> ($simpStep:tactic) <;> $close:tactic)
-      | (split <;> ($simpStep:tactic) <;>
-          first | $close:tactic | (split <;> ($simpStep:tactic) <;> $close:tactic))
-      | skip)
-    let start ← if f.raw.isIdent then
-        `(tactic| first | fun_induction $f | fun_cases $f | unfold $(⟨f.raw⟩):ident)
-      else
-        `(tactic| first | fun_induction $f | fun_cases $f)
-    `(tactic| intros; ($start:tactic) <;> ($simpStep:tactic) <;> $finish:tactic)
+    let finish (simpStep : TSyntax `tactic) : MacroM (TSyntax `tactic) :=
+      `(tactic| first | $close:tactic | (split <;> ($simpStep:tactic) <;> $close:tactic) | skip)
+    let finishInd ← finish simpInd
+    let finishCases ← finish simpCases
+    `(tactic| intros; first
+      | (fun_induction $f <;> ($simpInd:tactic) <;> $finishInd:tactic)
+      | (fun_cases $f <;> ($simpCases:tactic) <;> $finishCases:tactic))

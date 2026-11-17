@@ -338,8 +338,7 @@ restricted vector–adjacency multiplication, and accumulates the signed sum in 
 @[simp] theorem time_stepCellM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
     (u : Fin n) :
     (stepCellM adj k dp u).time = n := by
-  rw [stepCellM, time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => rfl), List.length_finRange,
-    Nat.mul_one]
+  time_spec stepCellM
 
 @[simp] theorem ret_stepVecM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
     (stepVecM adj k dp).ret =
@@ -381,23 +380,15 @@ theorem ret_roundsM (adj : Fin n → Fin n → Bool) (k r : ℕ) :
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 
 @[simp] theorem time_sumVecM (dp : Vector ℕ n) : (sumVecM dp).time = n := by
-  rw [sumVecM, time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => rfl), List.length_finRange,
-    Nat.mul_one]
+  time_spec sumVecM
 
 @[simp] theorem ret_subsetWalksM (adj : Fin n → Fin n → Bool) (k : ℕ) :
     (subsetWalksM adj k).ret = totalWalkCount adj (maskSet n k) := by
-  cases n with
-  | zero => rfl
-  | succ m =>
-    simp only [subsetWalksM, ret_bind, ret_roundsM, ret_sumVecM, Vector.getElem_ofFn,
-      totalWalkCount]
+  time_spec subsetWalksM [ret_roundsM, ret_sumVecM, totalWalkCount]
 
 theorem time_subsetWalksM (adj : Fin n → Fin n → Bool) (k : ℕ) :
     (subsetWalksM adj k).time = (n - 1) * n ^ 2 + n := by
-  cases n with
-  | zero => rfl
-  | succ m =>
-    simp only [subsetWalksM, time_bind, time_roundsM, time_sumVecM, Nat.add_sub_cancel]
+  time_spec subsetWalksM [time_roundsM, time_sumVecM]
 
 /-- **Correctness of `countHamPathsM`** [Karp1982] [Bax1993]: `(countHamPathsM adj).ret` equals the
 number of Hamiltonian paths of `adj`. -/
@@ -423,11 +414,7 @@ theorem card_hamPaths_eq_toNat_ret_countHamPathsM (adj : Fin n → Fin n → Boo
 /-- Exact tick count of `countHamPathsM`: `2 ^ n * ((n - 1) * n ^ 2 + n + 1)`. -/
 theorem time_countHamPathsM (adj : Fin n → Fin n → Bool) :
     (countHamPathsM adj).time = 2 ^ n * ((n - 1) * n ^ 2 + n + 1) := by
-  rw [countHamPathsM, Fin.foldlM_eq_foldlM_finRange,
-    time_foldlM_of_time_eq _ _ _ (c := (n - 1) * n ^ 2 + n + 1)]
-  · rw [List.length_finRange]
-  · intro acc k
-    simp only [time_bind, time_subsetWalksM, time_tick, time_pure, add_zero]
+  time_spec countHamPathsM [Fin.foldlM_eq_foldlM_finRange, time_subsetWalksM]
 
 /-- **Running-time bound of `countHamPathsM`**: at most `2 ^ n * (n ^ 3 + 1)` ticks for all `n`. -/
 theorem time_countHamPathsM_le (adj : Fin n → Fin n → Bool) :
@@ -454,8 +441,7 @@ theorem time_countHamPathsM_le_of_two_le (adj : Fin n → Fin n → Bool) (hn : 
 /-- **Decision corollary**: `decideHamPathM adj` returns `true` iff `adj` has a Hamiltonian path. -/
 theorem ret_decideHamPathM_eq_true_iff (adj : Fin n → Fin n → Bool) :
     (decideHamPathM adj).ret = true ↔ (hamPaths adj).Nonempty := by
-  simp only [decideHamPathM, ret_bind, ret_countHamPathsM, ret_pure, decide_eq_true_eq,
-    Nat.cast_pos, Finset.card_pos]
+  time_spec decideHamPathM [ret_countHamPathsM, Nat.cast_pos]
 
 @[simp] theorem time_decideHamPathM (adj : Fin n → Fin n → Bool) :
     (decideHamPathM adj).time = (countHamPathsM adj).time := by
