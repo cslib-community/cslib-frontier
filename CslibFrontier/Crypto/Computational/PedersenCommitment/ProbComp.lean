@@ -48,7 +48,7 @@ continuation by at most `1 / 2 ^ n`. Combining this with the exact hiding and bi
 * as an ideal-sampling step, `pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)`, which
   samples the key with `sampleExp` but still draws the commitment randomness exactly uniformly at
   the `PMF` level through `pedersenScheme.commitDist`, because `CommitmentScheme.commitDist` takes
-  no security parameter.
+  no security parameter (#6133).
 
 ## Main definitions
 
@@ -530,7 +530,8 @@ theorem advantage_pedersenHidingGame_pedersenKeyDistProb_le (setup : ℕ → PMF
 when every supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is
 negligible, every (even computationally unbounded) `Encryption.WordAdversary` has negligible
 advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)`, which samples the key
-with `sampleExp` but draws the commitment randomness exactly uniformly at the `PMF` level. -/
+with `sampleExp` but draws the commitment randomness exactly uniformly at the `PMF` level. The
+native `CommitmentScheme` form is blocked on #6133. -/
 theorem negligible_advantage_pedersenHidingGame_ideal_pedersenKeyDistProb
     (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary)
@@ -546,7 +547,7 @@ theorem negligible_advantage_pedersenHidingGame_ideal_pedersenKeyDistProb
 `pedersenScheme` is statistically hiding (`CommitmentScheme.StatisticalHiding`) under the key law
 `pedersenKeyDistProb setup`, which samples the key with `sampleExp`, while
 `pedersenScheme.commitDist` still draws the commitment randomness exactly uniformly at the `PMF`
-level. -/
+level, because `CommitmentScheme.commitDist` takes no security parameter (#6133). -/
 theorem pedersenScheme_statisticalHiding_ideal_pedersenKeyDistProb (setup : ℕ → PMF F.Desc)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
