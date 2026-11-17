@@ -93,6 +93,13 @@ theorem mem_Icc_of_mem_two {f : Bool → ℝ} (hf : f ∈ two) (z : Bool) : f z 
 private theorem sqrt_le_of_le_sq {x y : ℝ} (hy : 0 ≤ y) (h : x ≤ y ^ 2) : √x ≤ y :=
   (Real.sqrt_le_sqrt h).trans_eq (Real.sqrt_sq hy)
 
+/-- An event `∃ f, p f ∧ a f < b f` grows when `a` decreases. The functions `a` and `b` are
+variables, so that the strict inequality between sample means is never a hypothesis in the tests
+below. -/
+private theorem exists_lt_of_le {α : Type*} {p : α → Prop} {a a' b : α → ℝ}
+    (h : ∀ f, p f → a' f ≤ a f) : (∃ f, p f ∧ a f < b f) → ∃ f, p f ∧ a' f < b f :=
+  fun ⟨f, hf, hlt⟩ => ⟨f, hf, (h f hf).trans_lt hlt⟩
+
 /-- With `100` samples, the probability that some function of `two` has population mean more than
 `0.61` above its empirical mean is at most `1 / 20`. The range of the functions is `1`, so the
 guarantee is nontrivial. -/
@@ -112,11 +119,10 @@ example (D : PMF Bool) :
     refine sqrt_le_of_le_sq (by norm_num) ?_
     push_cast
     nlinarith
-  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
+  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ fun S => ?_)
     (rademacher_generalization_bound_of_finset D (by norm_num) (fun f hf => mem_Icc_of_mem_two hf)
       (by norm_num : (0 : ℝ) < 1 / 20))
-  rintro S ⟨f, hf, hlt⟩
-  exact ⟨f, hf, by linarith⟩
+  exact exists_lt_of_le fun f _ => by linarith
 
 /-- The data-dependent bound [MohriRostamizadehTalwalkar2018, Theorem 3.3, (3.4)] with `10000`
 samples: the probability that some function of `two` has population mean more than `0.2` above its
@@ -141,12 +147,11 @@ example (D : PMF Bool) :
     refine sqrt_le_of_le_sq (by norm_num) ?_
     push_cast
     nlinarith
-  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
+  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ fun S => ?_)
     (empiricalRademacherComplexity_generalization_bound D (by norm_num) zero_lt_one
       (F := (two : Set (Bool → ℝ))) (fun f hf => mem_Icc_of_mem_two hf)
       (by norm_num : (0 : ℝ) < 1 / 20))
-  rintro S ⟨f, hf, hlt⟩
-  refine ⟨f, hf, ?_⟩
+  refine exists_lt_of_le fun f _ => ?_
   rw [sub_zero, one_mul]
   linarith [hR S]
 

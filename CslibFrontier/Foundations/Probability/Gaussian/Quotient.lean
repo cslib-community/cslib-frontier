@@ -143,8 +143,8 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
       (measure_univ (μ := U.withDensity f))
   have hfi : Integrable f U := by
     refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_enorm]
-    simpa only [enorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+    rw [hasFiniteIntegral_iff_eNorm]
+    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
   have hbound (y : E ⧸ L.toAddSubgroup) : |1 - (f y).toReal| ≤
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
     induction y using Quotient.inductionOn with | _ x

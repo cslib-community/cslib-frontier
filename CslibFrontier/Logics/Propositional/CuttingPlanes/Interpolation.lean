@@ -348,7 +348,7 @@ coordinate where it is one for Alice and zero for Bob. -/
 private theorem exceedsAt_of_mul_toInt_lt {a : ℤ} (ha : 0 ≤ a) {u v : Fin n → Bool} {i : Fin n}
     (h : a * (v i).toInt < a * (u i).toInt) : ExceedsAt u v i := by
   cases hu : u i <;> cases hv : v i <;> simp_all [ExceedsAt]
-  all_goals omega
+  omega
 
 end Communication
 
