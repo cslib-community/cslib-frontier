@@ -45,3 +45,11 @@ runs:
         for package in verso subverso MD4Lean illuminate; do
           rm -rf -- ".lake/packages/$package/.lake/build"
         done
+    - name: Recover evicted Guide dependencies from nightly docs
+      if: github.event_name == 'pull_request' && steps.restore.outputs.cache-hit != 'true' && vars.DISABLE_GUIDE_ARTIFACT != 'true' && vars.DISABLE_GUIDE_ARTIFACT != '1'
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GUIDE_KEY: ${{ steps.key.outputs.key }}
+      run: python3 "$GITHUB_ACTION_PATH/artifact.py" restore "$GUIDE_KEY"

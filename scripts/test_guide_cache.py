@@ -9,9 +9,12 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tarfile
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +44,46 @@ class GuideCacheTests(unittest.TestCase):
             target.write_bytes((ROOT / name).read_bytes())
         self.env = {"RUNNER_OS": "Linux", "RUNNER_ARCH": "X64", "ImageOS": "ubuntu24",
                     "ImageVersion": "20261111.370.1", "GUIDE_CACHE_GENERATION": "0"}
+
+    def artifact_helper(self):
+        spec = importlib.util.spec_from_file_location("guide_backup", ACTION / "artifact.py")
+        artifact = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {"key": cache}):
+            spec.loader.exec_module(artifact)
+        return artifact
+
+    def test_backup_restores_only_initialized_package_build_outputs(self):
+        artifact = self.artifact_helper()
+        source = self.root / "writer"
+        for path in cache.PATHS:
+            (source / path).mkdir(parents=True)
+            (source / path / "compiled").write_bytes(path.encode())
+        (self.root / ".lake").mkdir()
+        archive = self.root / "builds.tar.gz"
+        artifact.pack(source, archive)
+        artifact.install(self.root, archive)
+        for path in cache.PATHS:
+            self.assertEqual((self.root / path / "compiled").read_bytes(), path.encode())
+        (source / cache.PATHS[0] / "escape").symlink_to(archive)
+        with self.assertRaises(ValueError):
+            artifact.pack(source, self.root / "bad.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.addfile(tarfile.TarInfo(cache.PATHS[0] + "/../outside"))
+        with self.assertRaises(ValueError):
+            artifact.install(self.root, archive)
+
+    def test_backup_requires_successful_scheduled_docs_producer_on_same_repo(self):
+        artifact = self.artifact_helper()
+        repo = "owner/project"
+        entry = {"name": "key", "expired": False, "workflow_run": {"id": 15}}
+        run = {"id": 15, "event": "schedule", "head_branch": "main", "conclusion": "success",
+               "path": ".github/workflows/docs.yml", "head_repository": {"full_name": repo}}
+        for change in ({}, {"id": 16}, {"event": "pull_request"}, {"head_branch": "topic"},
+                       {"path": ".github/workflows/guide.yml"}, {"conclusion": "cancelled"},
+                       {"head_repository": {"full_name": "fork/project"}}):
+            with self.subTest(change=change), patch.object(artifact, "api", side_effect=[
+                    {"artifacts": [entry]}, {"workflow_runs": [run | change]}]):
+                self.assertEqual(artifact.producer(repo, "key"), None if change else 15)
 
     def test_every_compatibility_input_invalidates(self):
         original = cache.cache_key(self.root, self.env)

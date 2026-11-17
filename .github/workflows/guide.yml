@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
