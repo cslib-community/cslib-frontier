@@ -98,7 +98,8 @@ def regularRep (y : G) : Matrix (ι × G) (ι × G) ℂ :=
 omit [Fintype G] [Fintype ι] in
 theorem regularRep_apply (y : G) (p q : ι × G) :
     regularRep y p q = if q = (p.1, p.2 * y) then 1 else 0 := by
-  simp [regularRep, regularPerm, PEquiv.toMatrix_apply, eq_comm]
+  simp only [regularRep, regularPerm, Equiv.Perm.permMatrix, PEquiv.toMatrix_apply,
+    Equiv.toPEquiv_apply, Option.mem_def, Option.some.injEq, eq_comm]
   rfl
 
 private theorem regularRep_mul_apply {n : Type*} (y : G) (M : Matrix (ι × G) n ℂ) (i : ι)
