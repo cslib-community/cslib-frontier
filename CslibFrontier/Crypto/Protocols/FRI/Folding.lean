@@ -215,7 +215,7 @@ variable {F : Type*} [Field F]
 theorem coeff_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) (r : Fin a) (t : ℕ) :
     (polyComp a p r).coeff t = p.coeff (a * t + r.val) := by
   classical
-  simp only [polyComp, finsetSum_coeff, coeff_monomial]
+  simp only [polyComp, finsetSum_coeff, coeff_monomial, Finsupp.single_apply]
   rw [Finset.sum_ite_eq' (Finset.range (p.natDegree / a + 1)) t]
   split_ifs with ht
   · rfl
@@ -262,14 +262,14 @@ private theorem coeff_comp_X_pow (a : ℕ) (ha : 0 < a) (q : F[X]) (m : ℕ) :
     · subst h1
       have hdvd : a ∣ n * a := ⟨n, mul_comm _ _⟩
       have hdiv : n * a / a = n := Nat.mul_div_cancel n ha
-      simp only [hdvd, hdiv, ↓reduceIte]
+      simp only [Finsupp.single_apply, hdvd, hdiv, ↓reduceIte]
     · by_cases hdvd : a ∣ m
       · have hne : n ≠ m / a := by
           intro heq
           apply h1
           rw [heq, Nat.div_mul_cancel hdvd]
-        simp only [h1, hdvd, hne, ↓reduceIte]
-      · simp only [h1, hdvd, ↓reduceIte]
+        simp only [Finsupp.single_apply, h1, hdvd, hne, ↓reduceIte]
+      · simp only [Finsupp.single_apply, h1, hdvd, ↓reduceIte]
 
 /-- Exact decomposition identity: `p = ∑ r : Fin a, X ^ r * (polyComp a p r).comp (X ^ a)`. -/
 theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
@@ -811,7 +811,7 @@ theorem weighted_agree_of_curve_many {a : ℕ} (ha : 1 ≤ a) (W : ι → ℕ)
       obtain ⟨r, hr⟩ := hex
       intro h0
       have hcoeff : P.coeff r.val = 0 := by rw [h0, coeff_zero]
-      simp only [P, finsetSum_coeff, coeff_monomial] at hcoeff
+      simp only [P, finsetSum_coeff, coeff_monomial, Finsupp.single_apply] at hcoeff
       have hsum : (∑ s : Fin a, if s.val = r.val then u s i - v s i else 0) = u r i - v r i := by
         have h1 : ∀ s : Fin a, (if s.val = r.val then u s i - v s i else 0) =
             if s = r then u s i - v s i else 0 := fun s => by
