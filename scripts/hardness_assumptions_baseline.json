@@ -20,5 +20,11 @@
   "Cslib.Crypto.WeakOneWay": "#5578: LiuPass2020 is not checked at the source.",
   "Cslib.Crypto.WeakOneWayAt": "#5578: LiuPass2020 is not checked at the source."
  },
- "headlines": {}
+ "headlines": {
+  "Cslib.Crypto.Protocols.UC.Emulates.compose": "#6043: rests on a UC notion that is novel (statistical, call-bounded, fixed n parties), while the docstring presents Canetti's computational composition theorem; the fix for #6043 states that model in the opening sentence and removes this entry.",
+  "Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.compose": "#6043: rests on a UC notion that is novel (statistical, call-bounded, fixed n parties), while the docstring presents Canetti's computational composition theorem; the fix for #6043 states that model in the opening sentence and removes this entry.",
+  "Cslib.Crypto.Protocols.UC.EmulatesWithin.compose": "#6043: rests on a UC notion that is novel (statistical, call-bounded, fixed n parties), while the docstring presents Canetti's computational composition theorem; the fix for #6043 states that model in the opening sentence and removes this entry.",
+  "Cslib.Crypto.Protocols.UC.Realizes.compose": "#6043: rests on a UC notion that is novel (statistical, call-bounded, fixed n parties), while the docstring presents Canetti's computational composition theorem; the fix for #6043 states that model in the opening sentence and removes this entry.",
+  "Cslib.Crypto.Protocols.UC.Realizes.compose_trans": "#6043: rests on a UC notion that is novel (statistical, call-bounded, fixed n parties), while the docstring presents Canetti's computational composition theorem; the fix for #6043 states that model in the opening sentence and removes this entry."
+ }
 }

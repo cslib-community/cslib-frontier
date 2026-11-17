@@ -94,7 +94,21 @@ have unbounded complexity. It differs from the source as follows.
   the simulator, as with the non-adaptive corruptions of Section 7.1.1, p. 74.
 * Environments are not identity-bounded (Canetti's `ξ = {0,1}*`), and the bound holds at every `κ`
   and for auxiliary inputs `z` of every length, where Definition 15 asks for it at large enough `k`
-  and for inputs of length `pE(k)`. -/
+  and for inputs of length `pE(k)`.
+* A protocol has a fixed set of `n` parties: it is one closed machine per security parameter and
+  corrupted set, with a party port and a network port (`UC.Protocol`), where the source's machine
+  instances, with their identities, are created during the execution (Section 3.1, p. 21).
+  Corruption reroutes the corrupted parties' ports to the adversary (`UC.corruptRouter`); any
+  further corruption behaviour is the protocol's own dependence on the corrupted set.
+
+*Status.* This notion is novel to this library. Compared with Definition 15 for polynomial-time
+participants, it admits more adversaries and environments, and also more simulators, in a narrower
+model, so it neither implies nor follows from Definition 15. It is plausible as a statistical,
+call-bounded notion of emulation: it is reflexive and transitive (`EmulatesWithin.refl`,
+`EmulatesWithin.trans`) and closed under composition (`EmulatesWithin.compose`). It is not
+trivial: by `not_realizesWithin_fcom`, a plain commitment scheme with one commitment and one
+opening message whose honest acceptance probabilities are large enough does not realize `fcom`
+under it. -/
 @[expose] def EmulatesWithin (π : Protocol n In Out NetQ₁ NetR₁) (φ : Protocol n In Out NetQ₂ NetR₂)
     (g : Polynomial ℕ) (ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0) : Prop :=
   ∀ (AdvQ AdvR : Type) (A : ExecAdversary n In Out NetQ₁ NetR₁ AdvQ AdvR)
@@ -161,10 +175,18 @@ every environment's output with `(φ, S)` is indistinguishable from its output w
 read in the statistical setting of Section 4.4, p. 50, and differs from the source as
 `EmulatesWithin` does: participants are bounded by their calls per activation rather than by
 polynomial running time and are otherwise computationally unbounded, the simulator included;
-corruptions are static; environments are not identity-bounded; and one negligible function bounds
-every environment with budget `pZ`, at every `κ` and for every auxiliary input. It is therefore
+corruptions are static; environments are not identity-bounded; protocols have a fixed set of `n`
+parties, with corruption rerouting their ports; and one negligible function bounds every
+environment with budget `pZ`, at every `κ` and for every auxiliary input. It is therefore
 incomparable with Definition 9: it admits more adversaries and environments, and also more
-simulators. -/
+simulators.
+
+*Status.* This notion is novel to this library, and neither implies nor follows from Definition 9.
+It follows from `EmulatesWithin` with negligible errors (`EmulatesWithin.emulates`). It is
+plausible as a statistical, call-bounded notion of emulation: it is reflexive and transitive
+(`Emulates.refl`, `Emulates.trans`) and closed under composition (`Emulates.compose`), and by
+`not_realizes_fcom` no plain one-message commitment scheme with nontrivial completeness realizes
+`fcom` under it. -/
 @[expose] def Emulates (π : Protocol n In Out NetQ₁ NetR₁) (φ : Protocol n In Out NetQ₂ NetR₂) :
     Prop :=
   ∀ (AdvQ AdvR : Type) (A : ExecAdversary n In Out NetQ₁ NetR₁ AdvQ AdvR)
@@ -178,7 +200,9 @@ simulators. -/
 /-- UC realization with negligible error: protocol `π` emulates the ideal protocol of `F`. This is
 UC realization of [Canetti2020] (ePrint revision of February 11, 2020), Definition 20, p. 58, with
 `Emulates` in place of Definition 9's UC emulation (see `Emulates` for the differences), and
-without Definition 20's further requirement that `π` be subroutine-respecting. -/
+without Definition 20's further requirement that `π` be subroutine-respecting. Like `Emulates`, it
+is novel to this library and neither implies nor follows from the source's notion; it is plausible
+for the same reasons (`Realizes.compose`, `not_realizes_fcom`). -/
 abbrev Realizes (π : Protocol n In Out NetQ NetR) (F : IdealFunctionality n In Out BackQ BackR) :
     Prop :=
   Emulates π F.toProtocol
