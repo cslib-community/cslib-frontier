@@ -195,8 +195,8 @@ noncomputable def leakNonNScheme (S : SignatureScheme) : WordSignatureScheme whe
       have hqKeys := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
       have hfst := (hqN.prod hqKeys.fst').trans henc
       exact (hfst.prod hqKeys.snd').of_enc_eq fun _ => rfl
-    exact S.keyGen_ppt.map_with
-      (f := fun n keys => (encPair encUnary encBits (n, keys.1), keys.2)) hpost
+    exact S.keyGen_ppt.map_with (f := fun n (keys : List Bool × List Bool) =>
+      (encPair encUnary encBits (n, keys.1), keys.2)) hpost
   sign_ppt := S.sign_ppt
   verify_polyTime := by
     let VIn := List Bool × List Bool × List Bool

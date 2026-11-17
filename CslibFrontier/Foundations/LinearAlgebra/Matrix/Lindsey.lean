@@ -43,6 +43,8 @@ The proof is Cauchy–Schwarz over `p`, character orthogonality
 * `Matrix.sum_neg_one_pow_val_dotProduct`: character orthogonality.
 * `Matrix.card_ker_mul_two_pow_rank`: the kernel of a matrix over `𝔽₂` has `2^{|β| - rank}`
   elements.
+* `Matrix.card_filter_forall_mulVec_eq_zero`: the `m`-row matrices killing a set of vectors are
+  the `m`-tuples of rows orthogonal to it.
 * `Matrix.sq_sum_bilinear_mul_two_pow_rank_le`: Lindsey's lemma.
 
 ## References
@@ -50,7 +52,7 @@ The proof is Cauchy–Schwarz over `p`, character orthogonality
 * [S. Jukna, *Extremal Combinatorics*, Ch. 14][Jukna2011]
 -/
 
-@[expose] public section
+public section
 
 /-- The sign of a sum in `𝔽₂` is the product of the signs. -/
 theorem ZMod.neg_one_pow_val_add {R : Type*} [Ring R] (a b : ZMod 2) :
@@ -117,6 +119,25 @@ theorem card_ker_mul_two_pow_rank [Fintype α] [Fintype β] [DecidableEq β]
   have hrn := LinearMap.finrank_range_add_finrank_ker B.mulVecLin
   rw [Module.finrank_fintype_fun_eq_card] at hrn
   rw [hker, hcard, ZMod.card, rank, ← pow_add, ← hrn, add_comm]
+
+/-- The matrices with `m` rows that kill every vector of `S` are the tuples of rows orthogonal
+to `S`. -/
+theorem card_filter_forall_mulVec_eq_zero [Fintype β] [DecidableEq β] (S : Finset (β → ZMod 2))
+    (m : ℕ) :
+    #{M : Matrix (Fin m) β (ZMod 2) | ∀ x ∈ S, M *ᵥ x = 0} =
+      #{r : β → ZMod 2 | ∀ x ∈ S, r ⬝ᵥ x = 0} ^ m := by
+  classical
+  rw [← Fintype.card_piFinset_const]
+  congr 1
+  ext M
+  simp only [mem_filter, mem_univ, true_and]
+  constructor
+  · intro h
+    exact Fintype.mem_piFinset.2 fun i =>
+      mem_filter.2 ⟨mem_univ _, fun x hx => congr_fun (h x hx) i⟩
+  · intro h x hx
+    ext i
+    exact (mem_filter.1 (Fintype.mem_piFinset.1 h i)).2 x hx
 
 /-- Cauchy–Schwarz bound for a subset `P` when `|g p| ≤ 1`. -/
 private theorem sq_sum_mul_le_card_mul_sum_sq [Fintype α] (P : Finset α) (g H : α → ℝ)

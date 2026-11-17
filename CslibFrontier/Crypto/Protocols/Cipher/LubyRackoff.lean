@@ -536,103 +536,77 @@ private theorem lookup_true_cons_false (u v : G) (y₂ : G) (cache : List ((Bool
 /-- The real and ideal round handlers agree until a `U`-collision or `V`-collision occurs. -/
 private theorem identicalUntilBad_roundHandler (f₁ : G → G) :
     OracleComp.IdenticalUntilBad (realRoundHandler f₁) (idealRoundHandler f₁)
-      fun st => st.2 = true where
-  agree p st hst ans st' hst' := by
-    rcases st with ⟨cache, bad⟩
-    rcases st' with ⟨cache', bad'⟩
-    have hbad : bad = false := Bool.eq_false_iff.mpr hst
-    have hbad' : bad' = false := Bool.eq_false_iff.mpr hst'
-    subst hbad hbad'
-    cases hu : cache.lookup (false, p.1 + f₁ p.2) with
-    | some y₂₀ =>
-      have hreal0 : realRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        simp only [realRoundHandler, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-          PMF.mem_support_pure_iff] at hmem
-        obtain ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, heq⟩ := hmem
-        have h1 := congrArg (fun x => x.2.2) heq
-        simp [hu] at h1
-      have hideal0 : idealRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        simp only [idealRoundHandler, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-          PMF.mem_support_pure_iff] at hmem
-        obtain ⟨vw, -, heq⟩ := hmem
-        have h1 := congrArg (fun x => x.2.2) heq
-        simp [hu] at h1
-      rw [hreal0, hideal0]
-    | none =>
-      have hreal :
-          realRoundHandler f₁ p (cache, false) =
-            (PMF.uniformOfFintype G).bind fun v =>
-              (memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
-                (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
-                  PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, (cache.lookup (true, v)).isSome)) := by
-        simp only [pmf_norm, realRoundHandler, memoize_of_none _ _ _ hu, hu, Option.isSome_none,
-          Bool.false_or]
-        conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left p.2]
-        simp only [neg_add_cancel_left]
-      have hideal :
-          idealRoundHandler f₁ p (cache, false) =
-            (PMF.uniformOfFintype G).bind fun v =>
-              (PMF.uniformOfFintype G).bind fun w =>
-                PMF.pure ((v, w),
-                  (((true, v), -(p.1 + f₁ p.2) + w) ::
-                    ((false, p.1 + f₁ p.2), -p.2 + v) :: cache,
-                    (cache.lookup (true, v)).isSome)) := by
-        simp only [pmf_norm, idealRoundHandler, hu, Option.isSome_none, Bool.false_or,
-          ← Probability.PMF.uniformOfFintype_prod]
-      rw [hreal, hideal, PMF.bind_apply, PMF.bind_apply]
-      refine tsum_congr fun v => congrArg (_ * ·) ?_
-      cases hv : cache.lookup (true, v) with
-      | some y₃₀ =>
-        simp only [Option.isSome_some]
-        have h1 :
-            ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
+      fun st => st.2 = true := by
+  refine OracleComp.IdenticalUntilBad.of_flag (fun p cache x hx => ?_) (fun p cache x hx => ?_)
+    fun p cache ans cache' => ?_
+  · supp_cases hx [realRoundHandler] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
+    simp
+  · supp_cases hx [idealRoundHandler] with ⟨vw, rfl⟩
+    simp
+  cases hu : cache.lookup (false, p.1 + f₁ p.2) with
+  | some y₂₀ =>
+    have hreal0 : realRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [realRoundHandler, hu]
+    have hideal0 : idealRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [idealRoundHandler, hu]
+    rw [hreal0, hideal0]
+  | none =>
+    have hreal :
+        realRoundHandler f₁ p (cache, false) =
+          (PMF.uniformOfFintype G).bind fun v =>
+            (memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
               (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
-                PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, true)))
-              (ans, (cache', false)) = 0 := by
-          refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-          supp_cases hmem
-        have h2 :
-            ((PMF.uniformOfFintype G).bind fun w =>
+                PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, (cache.lookup (true, v)).isSome)) := by
+      simp only [pmf_norm, realRoundHandler, memoize_of_none _ _ _ hu, hu, Option.isSome_none,
+        Bool.false_or]
+      conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left p.2]
+      simp only [neg_add_cancel_left]
+    have hideal :
+        idealRoundHandler f₁ p (cache, false) =
+          (PMF.uniformOfFintype G).bind fun v =>
+            (PMF.uniformOfFintype G).bind fun w =>
               PMF.pure ((v, w),
                 (((true, v), -(p.1 + f₁ p.2) + w) ::
-                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, true)))
-              (ans, (cache', false)) = 0 := by
-          refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-          supp_cases hmem
-        rw [h1, h2]
-      | none =>
-        simp only [Option.isSome_none]
-        have hv' : (((false, p.1 + f₁ p.2), -p.2 + v) :: cache).lookup (true, v) = none := by
-          rw [lookup_true_cons_false, hv]
-        rw [memoize_of_none _ _ _ hv']
-        simp only [pmf_norm]
-        have heq_w :
-            (PMF.uniformOfFintype G).bind (fun y₃ =>
-              PMF.pure ((v, p.1 + f₁ p.2 + y₃),
-                (((true, v), y₃) :: ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) =
-            (PMF.uniformOfFintype G).bind (fun w =>
-              PMF.pure ((v, w),
-                (((true, v), -(p.1 + f₁ p.2) + w) ::
-                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) := by
-          conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left (p.1 + f₁ p.2)]
-          simp only [neg_add_cancel_left]
-        exact DFunLike.congr_fun heq_w (ans, (cache', false))
-  absorb_first p st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    supp_cases hx [realRoundHandler] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
-    simp
-  absorb_second p st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    supp_cases hx [idealRoundHandler] with ⟨vw, rfl⟩
-    simp
+                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache,
+                  (cache.lookup (true, v)).isSome)) := by
+      simp only [pmf_norm, idealRoundHandler, hu, Option.isSome_none, Bool.false_or,
+        ← Probability.PMF.uniformOfFintype_prod]
+    rw [hreal, hideal, PMF.bind_apply, PMF.bind_apply]
+    refine tsum_congr fun v => congrArg (_ * ·) ?_
+    cases hv : cache.lookup (true, v) with
+    | some y₃₀ =>
+      simp only [Option.isSome_some]
+      have h1 :
+          ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
+            (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
+              PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, true)))
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
+      have h2 :
+          ((PMF.uniformOfFintype G).bind fun w =>
+            PMF.pure ((v, w),
+              (((true, v), -(p.1 + f₁ p.2) + w) ::
+                ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, true)))
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
+      rw [h1, h2]
+    | none =>
+      simp only [Option.isSome_none]
+      have hv' : (((false, p.1 + f₁ p.2), -p.2 + v) :: cache).lookup (true, v) = none := by
+        rw [lookup_true_cons_false, hv]
+      rw [memoize_of_none _ _ _ hv']
+      simp only [pmf_norm]
+      have heq_w :
+          (PMF.uniformOfFintype G).bind (fun y₃ =>
+            PMF.pure ((v, p.1 + f₁ p.2 + y₃),
+              (((true, v), y₃) :: ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) =
+          (PMF.uniformOfFintype G).bind (fun w =>
+            PMF.pure ((v, w),
+              (((true, v), -(p.1 + f₁ p.2) + w) ::
+                ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) := by
+        conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left (p.1 + f₁ p.2)]
+        simp only [neg_add_cancel_left]
+      exact DFunLike.congr_fun heq_w (ans, (cache', false))
 
 /-- Reconstruct the round-function cache of `idealRoundHandler f₁` from the query cache. -/
 private def representCache (f₁ : G → G) :
@@ -1959,23 +1933,11 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
   cases hv : cache.lookup (true, wz.2 - f₄ wz.1) with
   | some y₃₀ =>
     have hreal0 :
-        realRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 := by
-      refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hmem
-      obtain ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, heq⟩ := hmem
-      have h1 := congrArg (fun x => x.2.2) heq
-      simp [hv] at h1
+        realRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [realRoundHandler4, hv]
     have hideal0 :
-        idealRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 := by
-      refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hmem
-      obtain ⟨p, -, heq⟩ := hmem
-      have h1 := congrArg (fun x => x.2.2) heq
-      simp [hv] at h1
+        idealRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [idealRoundHandler4, hv]
     rw [hreal0, hideal0]
   | none =>
     rw [realRoundHandler4_inverse_of_none f₁ f₄ wz cache hv,
@@ -1988,23 +1950,15 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
           ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (false, u)
             (((true, wz.2 - f₄ wz.1), -u + wz.1) :: cache)).bind fun x =>
               PMF.pure ((u - f₁ (wz.2 - f₄ wz.1 - x.1), wz.2 - f₄ wz.1 - x.1), (x.2, true)))
-            (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        rw [PMF.mem_support_bind_iff] at hmem
-        obtain ⟨⟨y₂, c₂⟩, -, hmem'⟩ := hmem
-        rw [PMF.mem_support_pure_iff] at hmem'
-        exact Bool.noConfusion (congrArg (fun x => x.2.2) hmem')
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
       have h2 :
           ((PMF.uniformOfFintype G).bind fun r =>
             PMF.pure ((u - f₁ r, r),
               (((false, u), -r + (wz.2 - f₄ wz.1)) ::
                 ((true, wz.2 - f₄ wz.1), -u + wz.1) :: cache, true)))
-            (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        rw [PMF.mem_support_bind_iff] at hmem
-        obtain ⟨r, -, hmem'⟩ := hmem
-        rw [PMF.mem_support_pure_iff] at hmem'
-        exact Bool.noConfusion (congrArg (fun x => x.2.2) hmem')
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
       rw [h1, h2]
     | none =>
       simp only [Option.isSome_none]
@@ -2030,50 +1984,26 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
 input collision occurs. -/
 private theorem identicalUntilBad_roundHandler4 (f₁ f₄ : G → G) :
     OracleComp.IdenticalUntilBad (realRoundHandler4 f₁ f₄) (idealRoundHandler4 f₁ f₄)
-      fun st => st.2 = true where
-  agree q st hst ans st' hst' := by
-    rcases st with ⟨cache, bad⟩
-    rcases st' with ⟨cache', bad'⟩
-    have hbad : bad = false := Bool.eq_false_iff.mpr hst
-    have hbad' : bad' = false := Bool.eq_false_iff.mpr hst'
-    subst hbad hbad'
-    cases q with
-    | forward p => exact agree_roundHandler4_forward f₁ f₄ p cache cache' ans
-    | inverse wz => exact agree_roundHandler4_inverse f₁ f₄ wz cache cache' ans
-  absorb_first q st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    cases q with
+      fun st => st.2 = true := by
+  refine OracleComp.IdenticalUntilBad.of_flag (fun q cache x hx => ?_) (fun q cache x hx => ?_)
+    fun q cache ans cache' => ?_
+  · cases q with
     | forward p =>
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩ := hx
+      supp_cases hx [realRoundHandler4] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
       simp
     | inverse wz =>
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, rfl⟩ := hx
+      supp_cases hx [realRoundHandler4] with ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, rfl⟩
       simp
-  absorb_second q st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    cases q with
+  · cases q with
     | forward p =>
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨wz, -, rfl⟩ := hx
+      supp_cases hx [idealRoundHandler4] with ⟨wz, -, rfl⟩
       simp
     | inverse wz =>
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨p, -, rfl⟩ := hx
+      supp_cases hx [idealRoundHandler4] with ⟨p, -, rfl⟩
       simp
+  cases q with
+  | forward p => exact agree_roundHandler4_forward f₁ f₄ p cache cache' ans
+  | inverse wz => exact agree_roundHandler4_inverse f₁ f₄ wz cache cache' ans
 
 /-- Swap each `(p, wz)` entry in a permutation cache to `(wz.swap, p)` so Round-4 collisions
 become Round-1 `hasUCollision` under `w ↦ -f₄ w`. -/

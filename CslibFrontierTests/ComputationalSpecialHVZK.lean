@@ -496,7 +496,7 @@ theorem computationalSpecialHVZK_prgWitnessSigma
       have hchoose : IsPPTOn encD encW fun p =>
           (fun out => ((encBool out.1.1, encUnit out.1.2), out.2)) <$>
             (adversary p.1 p.1).choose () :=
-        hadv.choose.preprocess (hn.prod hn)
+        (hadv.choose.preprocess (hn.prod hn) :)
       have hlen' : ComputableInPolyTime
           (fun q : (ℕ × List Bool) × (List Bool × List Bool) × σ => length q.1.1) encT encUnary :=
         hlen.comp (by fun_prop)
@@ -505,9 +505,9 @@ theorem computationalSpecialHVZK_prgWitnessSigma
       have hguess : IsPPTOn (encPair (encPair encT encBits) encBool) encBool
           (fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
             (adversary q.1.1.1.1 q.1.1.1.1).guess q.1.1.2.2 (q.1.2, q.2, ())) := by
-        refine hadv.guess.preprocess (prepare :=
+        refine (hadv.guess.preprocess (prepare :=
           fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
-            ⟨q.1.1.1.1, q.1.1.2.2, q.1.1.1.1, q.1.2, q.2, ()⟩) ?_
+            ⟨q.1.1.1.1, q.1.1.2.2, q.1.1.1.1, q.1.2, q.2, ()⟩) ?_ :)
         exact encCHVZKGuessInput_mk_polyTime _ _ (by fun_prop) (by fun_prop) (by fun_prop)
           (by simpa only [prgWitnessEncoding] using (by fun_prop : ComputableInPolyTime
             (fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
@@ -793,11 +793,11 @@ example (guess : ℕ → List Bool → List Bool × List Bool × List Bool → P
         enc.challenge g.index g.challenge, enc.response g.index g.response) := by
   have hg : ComputableInPolyTime (fun g : CHVZKGuessInput I T C Z (List Bool) => g)
       (encCHVZKGuessInput enc encBits) (encCHVZKGuessInput enc encBits) := ComputableInPolyTime.id'
-  exact hguess.preprocess ((encCHVZKGuessInput_secParam_polyTime _ _ hg).prod
+  exact (hguess.preprocess ((encCHVZKGuessInput_secParam_polyTime _ _ hg).prod
     ((encCHVZKGuessInput_state_polyTime _ _ hg).prod
       ((encCHVZKGuessInput_commitment_polyTime _ _ hg).prod
         ((encCHVZKGuessInput_challenge_polyTime _ _ hg).prod
-          (encCHVZKGuessInput_response_polyTime _ _ hg)))))
+          (encCHVZKGuessInput_response_polyTime _ _ hg))))) :)
 
 end WordLevel
 
