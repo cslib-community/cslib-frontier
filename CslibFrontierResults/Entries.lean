@@ -139,6 +139,7 @@ import CslibFrontier.Computability.Complexity.Problems.Primes
 import CslibFrontier.Computability.Complexity.Problems.TMSAT
 import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne
+import CslibFrontier.Computability.Complexity.Problems.Permanent.Nonnegative
 import CslibFrontier.Computability.Kolmogorov.Incompleteness
 import CslibFrontier.Computability.Kolmogorov.MINKT
 import CslibFrontier.Computability.Kolmogorov.MINKTStar.Hardness
@@ -2081,6 +2082,20 @@ register_result "goldreich-sharp-three-sat-to-integer-permanent" where
     φ; formulas with an empty or over-long clause map to the 1×1 zero matrix. Not the 0/1 \
     permanent endpoint (Proposition 6.22) nor Theorem 6.20."
 
+
+register_result "goldreich-nonnegative-permanent-reduction" where
+  title := "Proposition 6.21 needs negative entries unless P = NP"
+  topic := "counting complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.25",
+      locator := "February 2007 draft r3.pdf, PDF p. 58; printed p. 260" }
+  ]
+  theorems := [Cslib.Complexity.exercise_6_25]
+  scope := "Under P ≠ NP (any encoding): no non-zero integer c, set I of non-negative integers \
+    (finite or not) and polynomial-time map from formulas (encCNF) to dense integer tables \
+    (encIntTable) with entries in I and permanent c^m * #3SAT on every formula with clauses of \
+    at most three literals. Negates more than the source requires (c need not be even or \
+    positive). Outside-fleet source check: PR #6261, pullrequestreview-5947014802."
 register_result "gap-p-spp-lowness" where
   title := "GapP and SPP lowness characterize SPP"
   topic := "counting classes"
