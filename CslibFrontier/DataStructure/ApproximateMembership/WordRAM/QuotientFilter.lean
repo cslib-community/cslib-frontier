@@ -10,10 +10,13 @@ module
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Probability
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
 public import CslibFrontier.DataStructure.WordRAM.Randomized.ObliviousSequence
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.Fits
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Word-RAM Implementation of the Two-Stage Quotient Filter
@@ -98,9 +101,10 @@ theorem two_mul_reducedChunkBits_lt_of_fits_space {base w w₀ n k : ℕ}
   have hb_lt := quotBits_lt_w_of_fits_space hw₀ hw hfit
   have hc_le :=
     two_mul_reducedChunkBits_le (b := quotBits w₀ n) (by omega : w₀ ≤ w) hb_lt.le (by omega)
-  have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5) :=
-    hfit.of_le (by dsimp only [space]; omega)
-  exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space hc_le hfit_kwise
+  have hsp_le : ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5 ≤ space w w₀ n k := by
+    dsimp only [space]; omega
+  exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space (base := base) (k := 5) hc_le
+    (by fits [hsp_le])
 
 /-- `ReducedKWise.TableRep` depends only on memory below `base + ReducedKWise.space`. -/
 theorem tableRep_congr {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
@@ -257,8 +261,7 @@ theorem contract_map_simTranscript {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (hU : U
   refine ⟨?_, ?_⟩
   · intro tr htr
     change tr ∈ ((filterSeedLaw w₀ n).map fun p => simTranscript U w₀ n k p ∅ ops).support at htr
-    rw [PMF.mem_support_map_iff] at htr
-    obtain ⟨p, _, rfl⟩ := htr
+    supp_cases htr with ⟨p, -, rfl⟩
     exact ⟨transcriptMatches_simTranscript U w₀ n k p ∅ ops,
       noFalseNegatives_simTranscript U w₀ n k p ops⟩
   · intro idx _ u hq hnotMem
@@ -294,22 +297,9 @@ theorem allocSpan_execWithin {base w w₀ n k : ℕ}
       x₁.mem = x.mem ∧
       x₁.regs (qfReg 0) = base ∧
       x₁.regs (qfReg 240) = base + space w w₀ n k := by
-  have hfit_sp : Fits w (space w w₀ n k) := hfit_space.of_le (Nat.le_add_left _ _)
-  set s1 := x.set (qfReg 0) (x.regs (qfReg 240))
-  have e1 : Exec w (.op (.copy (qfReg 0) (qfReg 240)) : Code .exact rQF) x s1 1 := Exec.copy
-  set s2 := s1.set (qfReg 30) (space w w₀ n k)
-  have e2 : Exec w (.op (.const (qfReg 30) (space w w₀ n k)) : Code .exact rQF) s1 s2 1 :=
-    Exec.const hfit_sp
-  set s3 := s2.set (qfReg 240) (base + space w w₀ n k)
-  have e3 : Exec w (.op (.exactBin .add (qfReg 240) (qfReg 0) (qfReg 30)) : Code .exact rQF)
-      s2 s3 1 := by
-    have hs2_0 : s2.regs (qfReg 0) = base := by simp +decide [s2, s1, hfr]
-    have hs2_30 : s2.regs (qfReg 30) = space w w₀ n k := by simp +decide [s2]
-    apply Exec.op
-    rw [Op.eval_exactBin, hs2_0, hs2_30]
-    exact Data.put_of_fits hfit_space
-  exact ⟨s3, (e1.seq (e2.seq e3)).within, rfl, by simp +decide [s3, s2, s1, hfr],
-    by simp +decide [s3]⟩
+  unfold allocSpan
+  wram_exec [hfr]
+  exact ⟨rfl, by wram_simp, by wram_simp⟩
 
 /-- Initialize the Four-Russians carryless multiplication table, sample the two-stage quotient seed,
 and sample the multiply-shift remainder seed. -/
@@ -397,10 +387,7 @@ theorem map_extractFilterSeed_eval_sampleSeedsComp (base w w₀ n : ℕ) (x₂ :
           ((fun γ => (ReducedKWise.extractSeed base w₀ b b 5 z1.1.mem, γ)) ∘
             fun z2 : Data rQF × ℕ => extractRemSeed base w w₀ n z2.1.mem) := by
       refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
-      rw [ProbComp.support_eval] at hz2
-      dsimp only [remInitComp] at hz2
-      obtain ⟨γ, -, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hz2
-      cases OracleComp.eq_of_mem_supportWith_pure hpure
+      supp_cases hz2 [remInitComp] with ⟨γ, rfl⟩
       dsimp only [Function.comp_apply, extractFilterSeed]
       rw [extractSeed_remInitData]
       rfl
@@ -451,8 +438,9 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
   let b := quotBits w₀ n
   have hw₀_le : w₀ ≤ w := by omega
   have hc_lt := two_mul_reducedChunkBits_lt_of_fits_space hw₀_pos hw hfit_space
-  have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) :=
-    hfit_space.of_le (by dsimp only [space, b]; omega)
+  have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) := by
+    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by dsimp only [space, b]; omega
+    fits [this]
   obtain ⟨y_tab, he_tab_inner, hy_tab_0, htab, hframe_tab⟩ :=
     ReducedKWise.initTableCode_exec (k := 5) (x := x₁.comap kwiseMap)
       hb hc_lt.le hfit_kwise
@@ -475,7 +463,7 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
     have hseq := ExecRand.seq
       (m₂ := fun x₃ : Data rQF => remInitComp base w w₀ n x₃)
       he_res (fun x₃ hx₃ => by
-        obtain ⟨z1, hz1, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx₃
+        supp_cases hx₃ with ⟨z1, hz1, rfl⟩
         obtain ⟨hz1_0, _, _, _, _⟩ :=
           ReducedKWise.mem_support_resampleComp (x := x₂.comap kwiseMap) hx₂_0 htab hz1
         have hx₃_0 : (z1.1.extend kwiseMap x₂).regs (qfReg 0) = base := by
@@ -493,32 +481,18 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
       z.2 ≤ ReducedKWise.resampleSteps w₀ b b 5 + 5 := by
     intro z hz
     have hbdd_z : z.1.Bounded w := he_seeds.bounded hx₂_bdd hz
-    dsimp only [sampleSeedsComp] at hz
-    obtain ⟨z1, hz1, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    obtain ⟨z2, hz2, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-    cases OracleComp.eq_of_mem_supportWith_pure hpure
+    supp_cases hz [sampleSeedsComp, remInitComp] with ⟨z1, hz1, _, ⟨γ, rfl⟩, rfl⟩
     obtain ⟨hz1_0, htab1, hseed1, hframe1, hsteps1⟩ :=
       ReducedKWise.mem_support_resampleComp (x := x₂.comap kwiseMap) hx₂_0 htab hz1
     set x₃ := z1.1.extend kwiseMap x₂
-    dsimp only [remInitComp] at hz2
-    obtain ⟨γ, -, hpure2⟩ := OracleComp.mem_supportWith_bind_iff.mp hz2
-    cases OracleComp.eq_of_mem_supportWith_pure hpure2
     set y := remInitData base w w₀ n x₃ γ.val
     have hy_0 : y.regs (qfReg 0) = base := by
-      dsimp only [y, remInitData, Data.write, Data.set]
-      rw [Function.update_of_ne (by decide : qfReg 0 ≠ qfReg 32),
-        Function.update_of_ne (by decide : qfReg 0 ≠ qfReg 31),
-        Function.update_of_ne (by decide : qfReg 0 ≠ qfReg 30),
-        Function.update_of_ne (by decide : qfReg 0 ≠ qfReg 30)]
+      wram_simp [y, remInitData]
       change (x₃.comap kwiseMap).regs 0 = base
       rw [Data.comap_extend injective_kwiseMap]
       exact hz1_0
     have hy_fr : y.regs (qfReg 240) = base + space w w₀ n k := by
-      dsimp only [y, remInitData, Data.write, Data.set]
-      rw [Function.update_of_ne (by decide : qfReg 240 ≠ qfReg 32),
-        Function.update_of_ne (by decide : qfReg 240 ≠ qfReg 31),
-        Function.update_of_ne (by decide : qfReg 240 ≠ qfReg 30),
-        Function.update_of_ne (by decide : qfReg 240 ≠ qfReg 30)]
+      wram_simp [y, remInitData]
       rw [extend_kwiseMap_regs (by decide : 240 ≤ (qfReg 240).val)]
       exact hx₂_fr
     have hmem_below : ∀ a < base + ReducedKWise.space w w₀ b b 5, y.mem a = z1.1.mem a := by
@@ -626,16 +600,10 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
     exact map_extractFilterSeed_eval_sampleSeedsComp base w w₀ n x₂
   refine ⟨ν₀, he_setup, ⟨hlat, ?_⟩, ?_⟩
   · intro t ht
-    dsimp only [ν₀] at ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨z, hz, rfl⟩ := ht
-    rw [ProbComp.support_eval] at hz
+    supp_cases ht [ν₀, ProbComp.support_eval] with ⟨z, hz, rfl⟩
     exact (hsupp_seeds z hz).2.2.1
   · intro t ht
-    dsimp only [ν₀] at ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨z, hz, rfl⟩ := ht
-    rw [ProbComp.support_eval] at hz
+    supp_cases ht [ν₀, ProbComp.support_eval] with ⟨z, hz, rfl⟩
     obtain ⟨hbdd_z, hfr_z, _, hmod_z, _⟩ := hsupp_seeds z hz
     exact ⟨hbdd_z, hfr_z, hmod_z⟩
 
@@ -711,8 +679,9 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
   have hw₀_le : w₀ ≤ w := by omega
   have hb_lt := quotBits_lt_w_of_fits_space hw₀_pos hw hfit_space
   have hc_lt := two_mul_reducedChunkBits_lt_of_fits_space hw₀_pos hw hfit_space
-  have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) :=
-    hfit_space.of_le (by dsimp only [space, b]; omega)
+  have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) := by
+    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by dsimp only [space, b]; omega
+    fits [this]
   have hS_lt : #S < 2 ^ b := card_lt_two_pow_quotBits hU hS
   set s1 := x.set (qfReg 246) (x.regs (qfReg 1))
   have e1 : Exec w (.op (.copy (qfReg 246) (qfReg 1)) : Code .exact rQF) x s1 1 := Exec.copy
@@ -812,66 +781,49 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
   have he_all : ExecWithin w (opCode w w₀ n k) x y
       (opStepBound (seedClusterBound U w₀ n S u p.1)) :=
     he_raw.mono hstep_le
+  have finish_slot_update {S' : Finset (Fin U)} {s' : Memory.State}
+      (hy_fr_s' : y.regs (qfReg 240) = s'.frontier)
+      (hy_mem_s' : y.mem = s'.mem)
+      (hframe_y : SlotFrame base w w₀ n k s₀ s')
+      (hinv_y : FilterInv n S' (quotHash U w₀ n p.1) (remHash U w₀ k p.2)
+        (extractFilterState base w w₀ n k y.mem)) :
+      Rep U w base w₀ n k p S' y ∧
+      Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
+    have hy_fr' : y.regs (qfReg 240) = base + space w w₀ n k := by
+      rw [hy_fr_s', hframe_y.1]
+    have hmem_below : ∀ addr < base + ReducedKWise.space w w₀ b b 5,
+        y.mem addr = x.mem addr := fun addr haddr => by
+      rw [hy_mem_s']
+      exact hframe_y.2 addr (Or.inl (by dsimp only [fullBase, remSeedAddr, b] at *; omega))
+    have hrem_y : y.mem (remSeedAddr base w w₀ n) = p.2.val := by
+      rw [hy_mem_s', hframe_y.2 _ (Or.inl (by dsimp only [fullBase]; omega))]
+      exact hrem_seed
+    have hmod_y : Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
+      intro addr haddr
+      rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at haddr
+      rw [hy_mem_s']
+      apply hframe_y.2 addr
+      rcases haddr with hlt | hge
+      · exact Or.inl (by dsimp only [fullBase, remSeedAddr] at *; omega)
+      · exact Or.inr hge
+    exact ⟨⟨hy_bdd, hy_0, hy_fr', (tableRep_congr hmem_below).mpr htab,
+      (seedRep_congr p.1 hmem_below).mpr hseed, hrem_y, hinv_y⟩, hmod_y⟩
   cases o with
   | insert u' =>
     dsimp only [u, opKey, opTag] at hy_fr hy_1 hy_mem ho ⊢
-    obtain ⟨_, hst_y, hframe_y⟩ :=
-      clusterOpProg_mk_insert base w w₀ n k u' s₀ hinv hS_lt
-    have hy_fr' : y.regs (qfReg 240) = base + space w w₀ n k := by
-      rw [hy_fr, hframe_y.1]
-    have hmem_below : ∀ addr < base + ReducedKWise.space w w₀ b b 5,
-        y.mem addr = x.mem addr := fun addr haddr => by
-      rw [hy_mem]
-      exact hframe_y.2 addr (Or.inl (by dsimp only [fullBase, remSeedAddr, b] at *; omega))
-    have hrem_y : y.mem (remSeedAddr base w w₀ n) = p.2.val := by
-      rw [hy_mem, hframe_y.2 _ (Or.inl (by dsimp only [fullBase]; omega))]
-      exact hrem_seed
-    have hinv_y : FilterInv n (insert u' S) (quotHash U w₀ n p.1) (remHash U w₀ k p.2)
-        (extractFilterState base w w₀ n k y.mem) := by
+    obtain ⟨_, hst_y, hframe_y⟩ := clusterOpProg_mk_insert base w w₀ n k u' s₀ hinv hS_lt
+    have hcap' : #(insert u' S) ≤ n := card_stepSet_le hS ho
+    obtain ⟨hrep_y, hmod_y⟩ := finish_slot_update hy_fr hy_mem hframe_y (by
       rw [hy_mem, hst_y]
-      have hcap' : #(insert u' S) ≤ n := card_stepSet_le hS ho
-      exact hinv.insertState_filterInv ho.1 hcap' (card_lt_two_pow_quotBits hU hcap')
-    have hmod_y : Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
-      intro addr haddr
-      rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at haddr
-      rw [hy_mem]
-      apply hframe_y.2 addr
-      rcases haddr with hlt | hge
-      · exact Or.inl (by dsimp only [fullBase, remSeedAddr] at *; omega)
-      · exact Or.inr hge
-    exact ⟨y, he_all,
-      ⟨hy_bdd, hy_0, hy_fr', (tableRep_congr hmem_below).mpr htab,
-        (seedRep_congr p.1 hmem_below).mpr hseed, hrem_y, hinv_y⟩,
-      rfl, hmod_y⟩
+      exact hinv.insertState_filterInv ho.1 hcap' (card_lt_two_pow_quotBits hU hcap'))
+    exact ⟨y, he_all, hrep_y, rfl, hmod_y⟩
   | delete u' =>
     dsimp only [u, opKey, opTag] at hy_fr hy_1 hy_mem ho ⊢
-    obtain ⟨_, hst_y, hframe_y⟩ :=
-      clusterOpProg_mk_delete base w w₀ n k ho s₀ hinv hS_lt
-    have hy_fr' : y.regs (qfReg 240) = base + space w w₀ n k := by
-      rw [hy_fr, hframe_y.1]
-    have hmem_below : ∀ addr < base + ReducedKWise.space w w₀ b b 5,
-        y.mem addr = x.mem addr := fun addr haddr => by
-      rw [hy_mem]
-      exact hframe_y.2 addr (Or.inl (by dsimp only [fullBase, remSeedAddr, b] at *; omega))
-    have hrem_y : y.mem (remSeedAddr base w w₀ n) = p.2.val := by
-      rw [hy_mem, hframe_y.2 _ (Or.inl (by dsimp only [fullBase]; omega))]
-      exact hrem_seed
-    have hinv_y : FilterInv n (S.erase u') (quotHash U w₀ n p.1) (remHash U w₀ k p.2)
-        (extractFilterState base w w₀ n k y.mem) := by
+    obtain ⟨_, hst_y, hframe_y⟩ := clusterOpProg_mk_delete base w w₀ n k ho s₀ hinv hS_lt
+    obtain ⟨hrep_y, hmod_y⟩ := finish_slot_update hy_fr hy_mem hframe_y (by
       rw [hy_mem, hst_y]
-      exact hinv.deleteState_filterInv ho hS_lt
-    have hmod_y : Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
-      intro addr haddr
-      rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at haddr
-      rw [hy_mem]
-      apply hframe_y.2 addr
-      rcases haddr with hlt | hge
-      · exact Or.inl (by dsimp only [fullBase, remSeedAddr] at *; omega)
-      · exact Or.inr hge
-    exact ⟨y, he_all,
-      ⟨hy_bdd, hy_0, hy_fr', (tableRep_congr hmem_below).mpr htab,
-        (seedRep_congr p.1 hmem_below).mpr hseed, hrem_y, hinv_y⟩,
-      rfl, hmod_y⟩
+      exact hinv.deleteState_filterInv ho hS_lt)
+    exact ⟨y, he_all, hrep_y, rfl, hmod_y⟩
   | query u' =>
     dsimp only [u, opKey, opTag] at hy_fr hy_1 hy_mem ho ⊢
     obtain ⟨hres_y, hstate_y⟩ :=
@@ -915,6 +867,15 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
   input := inputReg
   output := qfReg 1
 
+private theorem encode_fits {U w w₀ : ℕ} (hw₀_pos : 0 < w₀) (hw : 2 * w₀ ≤ w) (hU : U ≤ 2 ^ w₀)
+    (o : Op U) (i : Fin rQF) : Fits w (encode o i) := by
+  unfold encode
+  split_ifs
+  · fits [(opKey o).isLt.trans_le hU, Nat.pow_le_pow_right two_pos (by omega : w₀ ≤ w)]
+  · fits [show opTag o ≤ 2 by cases o <;> simp [opTag],
+      Nat.pow_le_pow_right two_pos (by omega : 2 ≤ w)]
+  · exact fits_zero w
+
 theorem prepare_rep {U base w w₀ n k : ℕ}
     (hw₀_pos : 0 < w₀) (hw : 2 * w₀ ≤ w) (hU : U ≤ 2 ^ w₀)
     {p : FilterSeed w₀ n} {S : Finset (Fin U)} (o : Op U) {x : Data rQF}
@@ -925,21 +886,8 @@ theorem prepare_rep {U base w w₀ n k : ℕ}
     x_prep.regs (qfReg 247) = opTag o ∧
     (∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i)) := by
   intro x_prep
-  have hfit_args : ∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i) := by
-    intro i hi
-    change decide (i = qfReg 1 ∨ i = qfReg 247) = true at hi
-    rcases of_decide_eq_true hi with rfl | rfl
-    · dsimp only [encode, ite_true]
-      have hlt : (opKey o).val < 2 ^ w₀ := (opKey o).isLt.trans_le hU
-      exact hlt.trans_le (Nat.pow_le_pow_right two_pos (by omega))
-    · have h247 : encode o (qfReg 247) = opTag o := by simp +decide [encode]
-      rw [h247]
-      have htag : opTag o ≤ 2 := by cases o <;> simp [opTag]
-      have hpow : 4 ≤ 2 ^ w := by
-        calc 4 = 2 ^ 2 := by decide
-          _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-      change opTag o < 2 ^ w
-      omega
+  have hfit_args : ∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i) :=
+    fun i _ => encode_fits hw₀_pos hw hU o i
   have hbdd_prep : x_prep.Bounded w :=
     (subroutineCode w w₀ n k).prepare_bounded encode hrep.1 hfit_args
   have h0_prep : x_prep.regs (qfReg 0) = base := by
@@ -1070,13 +1018,7 @@ private theorem steps_exec_aux {U base w w₀ n k : ℕ}
         q_seq.transcript = simTranscript U w₀ n k q_seq.latent ∅ (prefOps ++ [o]) ∧
         Rep U w base w₀ n k q_seq.latent (activeSet (prefOps ++ [o])) q_seq.data := by
       intro q_seq hq_seq
-      dsimp only [ν₁, μ_step] at hq_seq
-      rw [PMF.mem_support_bind_iff] at hq_seq
-      obtain ⟨t, ht, hq_map⟩ := hq_seq
-      rw [PMF.mem_support_map_iff] at hq_map
-      obtain ⟨q, hq, rfl⟩ := hq_map
-      rw [PMF.mem_support_pure_iff] at hq
-      subst hq
+      supp_cases hq_seq [ν₁, μ_step] with ⟨t, ht, rfl⟩
       obtain ⟨htr_t, _⟩ := hsupp t ht
       have hspec := Classical.choose_spec (hstep_ex t ht)
       have hnd : nextData t = Classical.choose (hstep_ex t ht) :=
@@ -1109,9 +1051,7 @@ private theorem steps_exec_aux {U base w w₀ n k : ℕ}
       · rw [hmap_data, hnd]
         exact ExecCodeDist.of_execWithin hspec.1
       · intro q hq
-        dsimp only [μ_step] at hq
-        rw [PMF.mem_support_pure_iff] at hq
-        subst hq
+        supp_cases hq [μ_step]
         dsimp only
         rw [hnd]
         exact ⟨hspec.2.1.1, hspec.2.2.1, hspec.2.2.2⟩
@@ -1151,20 +1091,7 @@ private theorem steps_exec_aux {U base w w₀ n k : ℕ}
   encode := encode
   decode := decode
   bounded hinv t ht := (hinv.2 t ht).1
-  arguments_fit o _ i hi := by
-    change decide (i = qfReg 1 ∨ i = qfReg 247) = true at hi
-    rcases of_decide_eq_true hi with rfl | rfl
-    · dsimp only [encode, ite_true]
-      have hlt : (opKey o).val < 2 ^ w₀ := (opKey o).isLt.trans_le hU
-      exact hlt.trans_le (Nat.pow_le_pow_right two_pos (by omega))
-    · have h247 : encode o (qfReg 247) = opTag o := by simp +decide [encode]
-      rw [h247]
-      have htag : opTag o ≤ 2 := by cases o <;> simp [opTag]
-      have hpow : 4 ≤ 2 ^ w := by
-        calc 4 = 2 ^ 2 := by decide
-          _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-      change opTag o < 2 ^ w
-      omega
+  arguments_fit o _ i _ := by exact encode_fits hw₀_pos hw hU o i
   clear_nodup := by simp +decide [subroutineCode]
   params_not_clear j := Fin.elim0 j
   incCur_eval {x} h1 hfit := by
@@ -1187,9 +1114,7 @@ private theorem steps_exec_aux {U base w w₀ n k : ℕ}
         t.transcript = simTranscript U w₀ n k t.latent ∅ [] ∧
         Rep U w base w₀ n k t.latent (activeSet []) t.data := by
       intro t ht
-      dsimp only [ν_seq] at ht
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨u, hu, rfl⟩ := ht
+      supp_cases ht [ν_seq] with ⟨u, hu, rfl⟩
       exact ⟨rfl, hinv.2 u hu⟩
     obtain ⟨ν_final, T_ops, hex, hseed_final, hsupp_final, hcost⟩ :=
       steps_exec_aux hw₀_pos hw hU hfit_space [] ops ν_seq (by simp) hv hseed_seq hsupp_seq
