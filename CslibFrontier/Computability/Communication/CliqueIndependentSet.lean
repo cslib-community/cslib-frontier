@@ -12,6 +12,7 @@ public import Mathlib.Combinatorics.SimpleGraph.Clique
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Computability.Communication.Announce
 import CslibFrontier.Computability.Communication.Operations
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepNum
 
 /-!
 # Clique versus independent set: Yannakakis' `O(log² n)` protocol
@@ -24,16 +25,16 @@ both adjacent and non-adjacent. This module proves that `O(log² n)` bits suffic
 The players keep a set `W` of vertices that contains `C ∩ I`. In each phase, Alice names a vertex
 `v ∈ C ∩ W` with at most `|W| / 2` neighbours in `W`, if there is one, and Bob says whether
 `v ∈ I`. If not, every common vertex lies in the clique `C` and differs from `v`, so it is a
-neighbour of `v`, and `W` shrinks to the neighbours of `v` in `W`. Otherwise Bob names a vertex
-`u ∈ I ∩ W` with at most `|W| / 2` non-neighbours in `W \ {u}`, and Alice says whether `u ∈ C`. If
-not, every common vertex is a non-neighbour of `u`. If neither player can name a vertex, then
-`C ∩ I ∩ W` is empty. A common vertex `w` has at most `|W| - 1` neighbours and non-neighbours in
-`W \ {w}` together, so one of the two counts is at most `|W| / 2` and `w` would have been
-eligible. Each phase halves `W`, so `⌊log₂ n⌋ + 1` phases of `2 ⌈log₂ (n + 1)⌉ + 1` bits suffice.
+neighbour of `v`, and `W` shrinks to the neighbours of `v` in `W`. If Alice has no eligible vertex,
+Bob announces a vertex `u ∈ I ∩ W` with at most `|W| / 2` non-neighbours in `W \ {u}`, if there is
+one, and Alice says whether `u ∈ C`. If not, every common vertex is a non-neighbour of `u`. If
+neither player can announce a vertex, then `C ∩ I ∩ W` is empty: the neighbours and the
+non-neighbours of a common vertex `w` in `W` are disjoint subsets of `W`, so one of the two counts
+is at most `|W| / 2` and `w` would have been eligible. Each phase halves `W`, so `⌊log₂ n⌋ + 1`
+phases of `2 ⌈log₂ (n + 1)⌉ + 1` bits suffice.
 
 ## Main results
 
-* `Cslib.Communication.card_inter_le_one_of_isClique_of_isIndepSet`: `|C ∩ I| ≤ 1`.
 * `Cslib.Communication.ecomplexity_clique_indepSet_le`: the communication complexity of
   computing `|C ∩ I|` on cliques × independent sets is at most `3 (⌊log₂ n⌋ + 1)²`.
 
@@ -50,13 +51,6 @@ namespace Cslib.Communication
 open Finset
 
 variable {V : Type*} {G : SimpleGraph V}
-
-/-- A clique and an independent set share at most one vertex. -/
-theorem card_inter_le_one_of_isClique_of_isIndepSet [DecidableEq V] {C I : Finset V}
-    (hC : G.IsClique (C : Set V)) (hI : G.IsIndepSet (I : Set V)) : #(C ∩ I) ≤ 1 := by
-  refine card_le_one.mpr fun v hv w hw => by_contra fun hne => ?_
-  rw [mem_inter] at hv hw
-  exact hI hv.2 hw.2 hne (hC hv.1 hw.1 hne)
 
 /-- `r` phases of the halving protocol, each of `2 ⌈log₂ (n + 1)⌉ + 1` bits, compute `|C ∩ I|`
 when `C ∩ I` lies in a known set `W` of fewer than `2 ^ r` vertices. -/
@@ -112,7 +106,7 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
     -- A named vertex in both sets is their unique common vertex.
     have hone : ∀ v ∈ C, v ∈ I → 1 = #(C ∩ I) := fun v hvC hvI =>
       le_antisymm (card_pos.mpr ⟨v, mem_inter.mpr ⟨hvC, hvI⟩⟩)
-        (card_inter_le_one_of_isClique_of_isIndepSet hC hI)
+        (G.card_inter_le_one_of_isClique_of_isIndepSet hC hI)
     rw [Protocol.run_bind, hqa_run]
     by_cases hA : ∃ v, goodA C v
     · obtain ⟨hvC, -, hv⟩ := hA.choose_spec
@@ -137,7 +131,7 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       have hw' := mem_inter.mp hw
       have hne : w ≠ u := fun h => huC (h ▸ hw'.1)
       exact mem_filter.mpr ⟨hsub hw, hne, hI huI hw'.2 hne.symm⟩
-    -- Neither player can name a vertex: no vertex is common.
+    -- Neither player can announce a vertex: no vertex is common.
     simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
       dite_eq_right hB, afterB, Protocol.run_output]
     refine (card_eq_zero.mpr (eq_empty_of_forall_notMem fun w hw => ?_)).symm
@@ -147,12 +141,9 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
     have hB' : ¬ 2 * #(nonNbr w) ≤ #W := fun h => hB ⟨w, hw'.2, hwW, h⟩
     have hdisj : Disjoint (nbr w) (nonNbr w) :=
       disjoint_filter.mpr fun _ _ hadj hnon => hnon.2 hadj
-    have hsub' : nbr w ∪ nonNbr w ⊆ W.erase w := fun x hx => by
-      rcases mem_union.mp hx with hx | hx
-      · exact mem_erase.mpr ⟨(G.ne_of_adj (mem_filter.mp hx).2).symm, (mem_filter.mp hx).1⟩
-      · exact mem_erase.mpr ⟨(mem_filter.mp hx).2.1, (mem_filter.mp hx).1⟩
-    have := card_le_card hsub'
-    rw [card_union_of_disjoint hdisj, card_erase_of_mem hwW] at this
+    have := card_le_card (union_subset (filter_subset _ W) (filter_subset _ W) :
+      nbr w ∪ nonNbr w ⊆ W)
+    rw [card_union_of_disjoint hdisj] at this
     omega
 
 /-- **Clique versus independent set** (Yannakakis; [AroraBarak07], Chapter 12, Exercise 8):
