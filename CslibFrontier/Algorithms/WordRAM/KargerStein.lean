@@ -226,30 +226,6 @@ private theorem caller_regs_eq {w T : ℕ} {c : Code .standard 24} {x y : Data 2
   have hj' : j = ⟨16 + (j.val - 16), by omega⟩ := Fin.ext (by dsimp; omega)
   exact hj' ▸ he.regs_eq (hc ⟨j.val - 16, by omega⟩)
 
-/-- Prepend a right-associated chain of deterministic steps onto an `ExecRandLaw` continuation. -/
-private theorem execRandLaw_of_foldr_seq_det {r w T₁ T₂ R : ℕ} {α : Type}
-    (cs : List (Code .standard r)) {last c : Code .standard r}
-    {x y : Data r} {Q : Data r → Prop} {f : Data r → α} {μ : PMF α}
-    (hpre : ExecWithin w (cs.foldr Code.seq last) x y T₁)
-    (htail : ExecRandLaw w c y Q T₂ R f μ) :
-    ExecRandLaw w (cs.foldr Code.seq (.seq last c)) x Q (T₁ + T₂) R f μ := by
-  induction cs generalizing x T₁ with
-  | nil => exact ExecRandLaw.seq_det hpre htail
-  | cons hd tl ih =>
-    obtain ⟨_, hn, he⟩ := hpre
-    cases he with
-    | seq ha hb =>
-      exact (ExecRandLaw.seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
-
-/-- `workspaceFootprint wb db k k` lies inside `[a, b)` whenever `a ≤ wb`, `wb + k * k ≤ db`,
-and `db + k ≤ b`. -/
-private theorem workspaceFootprint_subset_Ico {a b wb db k : ℕ}
-    (haw : a ≤ wb) (hwd : wb + k * k ≤ db) (hdb : db + k ≤ b) :
-    workspaceFootprint wb db k k ⊆ Finset.Ico a b := by
-  intro x hx
-  simp only [workspaceFootprint, Finset.mem_union, Finset.mem_Ico] at hx ⊢
-  omega
-
 section Subroutines
 
 open KSReg
@@ -577,7 +553,8 @@ theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t �
       rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt_u | heq_u
       · exact hqdone i j (Or.inl hlt_u)
       · exact hqdone i j (Or.inr ⟨Fin.ext heq_u, hqv_eq ▸ j.isLt⟩)
-    exact ⟨z, (hq₀_exec.seq (hex_inner.seq hex_post)).mono (by simp [q₀]; omega), hz_inv, hz_dec⟩
+    exact ⟨z, (hq₀_exec.seq (hex_inner.seq hex_post)).mono (by wram_simp [q₀]; omega), hz_inv,
+      hz_dec⟩
   obtain ⟨x₀, hx₀_exec, hx₀_inv, hu0⟩ : ∃ x₀, ExecWithin w copySubPre x x₀ 3 ∧
       OuterI x₀ ∧ x₀.regs uReg = 0 := by
     unfold copySubPre
@@ -945,7 +922,7 @@ theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n �
       have hv : z.mem (wb + 1) = _ := hst_c.mem_add_one hW'
       exact (ExecRandLaw.of_execWithin (f := fun y => y.regs retVal) e_p
         ⟨hm_p ▸ hmod_z, hz0, hzfp, hzsp⟩).congr_law (by rw [hv_p, hv])
-  refine ((execRandLaw_of_foldr_seq_det [basePre, ksCopyCode] e_pre hrun).congr_law ?_).mono
+  refine ((ExecRandLaw.foldr_seq_det [basePre, ksCopyCode] e_pre hrun).congr_law ?_).mono
     (fun _ h => h) ?_ le_rfl
   · rw [Lean.Karger.answerLaw_eq]
     exact PMF.bind_pure_comp _ _
@@ -1212,7 +1189,7 @@ theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n →
         ⟨hmod_y, hz0, hzfp, hzsp, hm_cfp, hm_cfp1, hm_cfp_stg, W', part₁, heq ▸ hC₁,
           hmat_y⟩).congr_law (congrArg PMF.pure ((frameGraph_eq_iff.mpr hmat_y).trans
             hst_c.heldGraph_eq.symm))
-  refine ((execRandLaw_of_foldr_seq_det [thresholdCode, branchSetup, ksCopyCode] e_pre
+  refine ((ExecRandLaw.foldr_seq_det [thresholdCode, branchSetup, ksCopyCode] e_pre
     hrun).congr_law (PMF.bind_pure _)).mono (fun _ h => h) ?_ (by omega)
   have hbound := branch_step_bound hk7 htk.le le_rfl le_rfl le_rfl le_rfl le_rfl
   omega
@@ -1297,7 +1274,8 @@ theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → �
     stepHeader_exec (by omega : 2 ≤ k) hfp hmem_k hmem_stg (hfit.of_le (by omega))
   have hfp_h : y_h.regs fpReg = fp := (hhi_h fpReg (by decide)).trans hfp
   have hsp_h : y_h.regs spReg = b + 1 := (hhi_h spReg (by decide)).trans hsp
-  have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by simp [Cond.holds_lt, hk_h, hv1_h]; omega
+  have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by
+    simp only [Cond.holds_lt, hk_h, hv1_h]; omega
   have hc_eq0 : (Cond.eq val2 zero).Holds y_h := by simp [Cond.holds_eq, hv2_h, h0_h]
   let y_s := y_h.write (fp + 2 + k * k) 1
   have hex_s0 : Exec (B := .standard) w stageZeroSet y_h y_s 1 := by
@@ -1371,7 +1349,8 @@ theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n →
   have hfp_h : y_h.regs fpReg = fp := (hhi_h fpReg (by decide)).trans hfp
   have hsp_h : y_h.regs spReg = b + 1 := (hhi_h spReg (by decide)).trans hsp
   have hret_h : y_h.regs retVal = v1 := (hhi_h retVal (by decide)).trans hret
-  have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by simp [Cond.holds_lt, hk_h, hv1_h]; omega
+  have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by
+    simp only [Cond.holds_lt, hk_h, hv1_h]; omega
   have hnc_eq0 : ¬(Cond.eq val2 zero).Holds y_h := by simp [Cond.holds_eq, hv2_h, h0_h]
   have hc_eq1 : (Cond.eq val2 one).Holds y_h := by simp [Cond.holds_eq, hv2_h, h1_h]
   obtain ⟨y_s, hex_s1, hys_mem, hk_s, hfp_s, hsp_s⟩ : ∃ y_s,
@@ -1848,7 +1827,7 @@ theorem fastCutTree_law {n w sb : ℕ} {W : Fin n → Fin n → ℕ} {x : Data 2
       (isContractionOf_id hW) hfit_scr
       (by simpa only [Nat.zero_add, Nat.add_comm 1] using hsp_fit)).finish
       fun _ ⟨_, hz0, _, hzsp⟩ => by simp [Cond.holds_lt, hz0, hzsp]
-  have htree := ((((execRandLaw_of_foldr_seq_det [fastCutRootSetup, ksCopyCode] e_pre hloop
+  have htree := ((((ExecRandLaw.foldr_seq_det [fastCutRootSetup, ksCopyCode] e_pre hloop
     |>.withPreserves (i := srcBase) (by decide))
     |>.withPreserves (i := nOrig) (by decide))
     |>.withPreserves (i := numTrials) (by decide))
