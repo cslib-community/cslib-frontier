@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordGame
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
@@ -419,12 +418,12 @@ private theorem isHQuery_encHQuery (n : ℕ) (x : Bool × BitString (P.msgLen n)
 private theorem withRO_queryG (n : ℕ) (m : List Bool) :
     P.withRO keyLen n (P.queryG n m) =
       List.take (P.coinLen n) <$> P.roWordOracle keyLen n (.G, m) := by
-  simp only [withRO, queryG, interp_norm]
+  simp only [withRO, queryG, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
 private theorem withRO_queryH (n : ℕ) (x : Bool × List Bool × List Bool) :
     P.withRO keyLen n (queryH keyLen n x) =
       List.take (keyLen n) <$> P.roWordOracle keyLen n (.H, encHQuery x) := by
-  simp only [withRO, queryH, interp_norm]
+  simp only [withRO, queryH, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
 private theorem represents_withRO_queryG (n : ℕ) (m : BitString (P.msgLen n)) :
     Represents (cacheRep P keyLen n) List.ofFn
@@ -511,8 +510,8 @@ private theorem represents_ccaWordOracle {n : ℕ}
     simp only [typedQuery, ccaWordOracle, roWordOracle_G]
     by_cases hw : w.length = P.msgLen n
     · obtain ⟨m, rfl⟩ : ∃ m', w = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hw).symm⟩
-      simp only [List.length_ofFn, ↓reduceIte, interp_norm, Scheme.roHandler, ROQuery.dispatch,
-        BitString.ofList_ofFn]
+      simp only [List.length_ofFn, ↓reduceIte, OracleComp.interpret_map,
+        OracleComp.interpret_query, Scheme.roHandler, ROQuery.dispatch, BitString.ofList_ofFn]
       exact Represents.map_left (represents_roHashG n m)
     · simp only [hw, ↓reduceIte, OracleComp.interpret_pure]
       exact Represents.pure []
@@ -520,7 +519,8 @@ private theorem represents_ccaWordOracle {n : ℕ}
     simp only [typedQuery, ccaWordOracle, roWordOracle_H]
     by_cases hq : P.isHQuery n w = true
     · obtain ⟨x, hx, hxw⟩ := typedHQuery_of_isHQuery hq
-      simp only [hx, hq, ↓reduceIte, interp_norm, Scheme.roHandler, ROQuery.dispatch, ← hxw]
+      simp only [hx, hq, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
+        Scheme.roHandler, ROQuery.dispatch, ← hxw]
       exact Represents.map_left (represents_roHashH n x)
     · simp only [typedHQuery_of_not_isHQuery hq, hq, Bool.false_eq_true, ↓reduceIte,
         OracleComp.interpret_pure]
@@ -528,7 +528,8 @@ private theorem represents_ccaWordOracle {n : ℕ}
   | decaps =>
     simp only [typedQuery, ccaWordOracle]
     by_cases hw : w.length ≤ P.ctLen n
-    · simp only [hw, ↓reduceIte, interp_norm, Scheme.roHandler, ROQuery.dispatch]
+    · simp only [hw, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
+        Scheme.roHandler, ROQuery.dispatch]
       by_cases hc : w = cStar.val
       · have hc' : P.toCiphertext n w = cStar := Subtype.ext (by rw [toCiphertext_val hw, hc])
         simp only [hc', ↓reduceIte]
@@ -647,8 +648,9 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
     simp only [typedQuery, simFilterWordHandler_G]
     by_cases hw : w.length = P.msgLen n
     · obtain ⟨m, rfl⟩ : ∃ m', w = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hw).symm⟩
-      simp only [List.length_ofFn, ↓reduceIte, interp_norm, Scheme.simFilterHandler,
-        Scheme.simFilterDispatch, ROQuery.dispatch, BitString.ofList_ofFn]
+      simp only [List.length_ofFn, ↓reduceIte, OracleComp.interpret_map,
+        OracleComp.interpret_query, Scheme.simFilterHandler, Scheme.simFilterDispatch,
+        ROQuery.dispatch, BitString.ofList_ofFn]
       exact Represents.map_left (represents_simHashG n m)
     · simp only [hw, ↓reduceIte, OracleComp.interpret_pure]
       exact Represents.pure []
@@ -656,8 +658,8 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
     simp only [typedQuery, simFilterWordHandler_H]
     by_cases hq : P.isHQuery n w = true
     · obtain ⟨x, hx, hxw⟩ := typedHQuery_of_isHQuery hq
-      simp only [hx, hq, ↓reduceIte, interp_norm, Scheme.simFilterHandler, Scheme.simFilterDispatch,
-        ROQuery.dispatch, ← hxw]
+      simp only [hx, hq, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
+        Scheme.simFilterHandler, Scheme.simFilterDispatch, ROQuery.dispatch, ← hxw]
       refine Represents.map_left ?_
       obtain ⟨b, m, c⟩ := x
       cases b with
@@ -680,8 +682,8 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
   | decaps =>
     simp only [typedQuery, simFilterWordHandler_decaps]
     by_cases hw : w.length ≤ P.ctLen n
-    · simp only [hw, ↓reduceIte, interp_norm, Scheme.simFilterHandler, Scheme.simFilterDispatch,
-        ROQuery.dispatch, filterDecaps_true]
+    · simp only [hw, ↓reduceIte, OracleComp.interpret_map, OracleComp.interpret_query,
+        Scheme.simFilterHandler, Scheme.simFilterDispatch, ROQuery.dispatch, filterDecaps_true]
       by_cases hc : w = cStar.val
       · have hc' : P.toCiphertext n w = cStar := Subtype.ext (by rw [toCiphertext_val hw, hc])
         simp only [hc', ↓reduceIte]
