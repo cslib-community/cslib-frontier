@@ -121,14 +121,35 @@ example (hu : PolyBounded size u) (hv : PolyBounded size v) :
     PolyBounded size (fun a => u a + v a * Nat.factorial (u a)) := by
   growth_poly
 
--- Failure is decided by the syntax of the bound, within a small budget.
+-- Failure is decided by bounded syntax-directed decomposition, within a small budget.
+/--
+error: growth_poly: no rule or local fact bounds
+  (size a).factorial
+by a polynomial in
+  size a
+Add a `PolyBounded` fact or a certificate for it to the context, or pass one as `growth_poly [h]`.
+-/
+#guard_msgs in
 set_option maxHeartbeats 2000 in
--- A small budget: the unbounded factorial and unbounded `min` must be rejected without search.
-example (_hu : PolyBounded size u) : True := by
-  let w := fun a => (u a + 1) ^ 4 * (2 * u a + 3) + (u a + size a) * (u a + 7)
-  fail_if_success have : PolyBounded size (fun a => w a + Nat.factorial (size a)) := by growth_poly
-  fail_if_success have : PolyBounded id (fun n : ℕ => min (2 ^ n) n.factorial) := by growth_poly
-  trivial
+-- A small budget: the unbounded factorial must be rejected with `growth_poly`'s diagnostic.
+example (hu : PolyBounded size u) :
+    let w := fun a => (u a + 1) ^ 4 * (2 * u a + 3) + (u a + size a) * (u a + 7)
+    PolyBounded size (fun a => w a + Nat.factorial (size a)) := by
+  intro w
+  growth_poly
+
+/--
+error: growth_poly: no rule or local fact bounds
+  a.factorial
+by a polynomial in
+  id a
+Add a `PolyBounded` fact or a certificate for it to the context, or pass one as `growth_poly [h]`.
+-/
+#guard_msgs in
+set_option maxHeartbeats 2000 in
+-- A small budget: an unbounded `min` must try both sides once and report `growth_poly`'s error.
+example : PolyBounded id (fun n : ℕ => min (2 ^ n) n.factorial) := by
+  growth_poly
 
 end
 

@@ -49,12 +49,13 @@ the last one to `CslibFrontier.Computability`):
 When a certificate in the context gives no leaf because its lemma is not imported, the failure
 message names the module to import.
 
-Local `let` values, and definitions whose bodies are arithmetic, are unfolded. The tactic proves
-polynomial growth only. Word admission, exact time bounds and signed overflow conditions remain
-separate obligations, and it does not guess an intermediate size measure: a substitution needs
-the outer bound as a fact. Each step follows the syntax of the bound—trying the first argument
-of `min` and falling back to the second—so a goal outside these rules fails in linear time and
-names the term it could not bound.
+Local `let` values, and definitions whose bodies are arithmetic, are unfolded without memoization;
+leaf checks may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The tactic proves polynomial
+growth only. Word admission, exact time bounds and signed overflow conditions remain separate
+obligations, and it does not guess an intermediate size measure: a substitution needs the outer
+bound as a fact. The search is bounded and syntax-directed—trying `min_left` then `min_right` once
+at each `min` node without backtracking across surrounding operations—so an unsupported goal fails
+directly and names the term it could not bound.
 
 ## Main declarations
 
@@ -159,10 +160,11 @@ docstring lists them, for example `MultiTape.Internal.PolyTimePrimitives` for th
 of `ComputableInPolyTime`. When a certificate in the context gives no leaf for this reason, the
 failure names the module to import.
 
-Local `let` values and arithmetic definitions are unfolded. The search follows the syntax of the
-bound—trying the first argument of `min` and falling back to the second—so a goal outside these
-rules fails in linear time and names the term it could not bound. `Cslib.PolynomiallyBounded`
-goals go to `fun_prop`. -/
+Local `let` values and arithmetic definitions are unfolded without memoization, and leaf checks
+may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The search is bounded and
+syntax-directed—trying `min_left` then `min_right` once at each `min` node without backtracking
+across surrounding operations—so an unsupported goal fails directly and names the term it could not
+bound. `Cslib.PolynomiallyBounded` goals go to `fun_prop`. -/
 syntax (name := growthPoly) "growth_poly" (" [" term,* "]")? : tactic
 
 public meta section
