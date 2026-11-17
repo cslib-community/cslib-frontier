@@ -14,7 +14,7 @@ public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 
 This module proves statistical, call-bounded single-subroutine static-corruption UC composition
 (where environments, adversaries, and simulators are only query-bounded with unbounded local
-computation as in [Canetti2020], Section 4.4, pages 48–50, rather than computational
+computation in this library's novel call-bounded port model, rather than computational
 polynomial-time ITM composition of Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043). A
 *hybrid protocol* `ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
 protocol whose machines also call the party port of a subroutine with inputs `SubIn` and outputs
@@ -707,7 +707,7 @@ variable {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
 
 /-- Statistical, call-bounded single-subroutine static-corruption UC composition for
 dummy-adversary simulators (where environments, adversaries, and simulators are only query-bounded
-with unbounded local computation as in [Canetti2020], Section 4.4, pages 48–50, rather than
+with unbounded local computation in this library's novel call-bounded port model, rather than
 computational polynomial-time ITM composition of Section 2.3, Theorem 3 and Corollaries (a)–(b);
 #6043): if `S` simulates the dummy adversary of `π` in `φ` with call budget `pD` and error `ε`,
 then `hybridSim S` simulates the dummy adversary of `ρ^π` in `ρ^φ` with call budget `pD + 1` and
@@ -722,7 +722,7 @@ theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial �
 
 /-- Concrete statistical, call-bounded single-subroutine static-corruption UC composition (where
 environments, adversaries, and simulators are only query-bounded with unbounded local computation
-as in [Canetti2020], Section 4.4, pages 48–50, rather than computational polynomial-time ITM
+in this library's novel call-bounded port model, rather than computational polynomial-time ITM
 composition of Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043): if `π` emulates `φ` with
 simulator call-budget overhead `g` and error `ε`, then `ρ^π` emulates `ρ^φ` with the overhead
 below and error `ε 1` evaluated at the environment call budget that absorbs both the adversary and
@@ -745,7 +745,7 @@ theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
 
 /-- Statistical, call-bounded single-subroutine static-corruption UC composition (where
 environments, adversaries, and simulators are only query-bounded with unbounded local computation
-as in [Canetti2020], Section 4.4, pages 48–50, rather than computational polynomial-time ITM
+in this library's novel call-bounded port model, rather than computational polynomial-time ITM
 composition of Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043): if `π` UC-emulates `φ`,
 then `ρ^π` UC-emulates `ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. -/
 theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : Emulates π φ) :
@@ -760,7 +760,7 @@ theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : 
 
 /-- Statistical, call-bounded single-subroutine static-corruption UC ideal-functionality
 replacement (where environments, adversaries, and simulators are only query-bounded with unbounded
-local computation as in [Canetti2020], Section 4.4, pages 48–50, rather than computational
+local computation in this library's novel call-bounded port model, rather than computational
 polynomial-time ITM composition of Section 2.3, Theorem 3, Corollary (a); #6043): if `π`
 UC-realizes `F`, then `ρ^π` UC-emulates the `F`-hybrid protocol `ρ^F`. -/
 theorem Realizes.compose {BackQ BackR : Type} {π : Protocol n SubIn SubOut NQ NR}
@@ -771,7 +771,7 @@ theorem Realizes.compose {BackQ BackR : Type} {π : Protocol n SubIn SubOut NQ N
 
 /-- Statistical, call-bounded single-subroutine static-corruption modular UC protocol composition
 (where environments, adversaries, and simulators are only query-bounded with unbounded local
-computation as in [Canetti2020], Section 4.4, pages 48–50, rather than computational
+computation in this library's novel call-bounded port model, rather than computational
 polynomial-time ITM composition of Section 2.3, Theorem 3, Corollary (b); #6043): if `ρ^F`
 UC-realizes `G` in the `F`-hybrid model and `π` UC-realizes `F`, then `ρ^π` UC-realizes `G`. -/
 theorem Realizes.compose_trans {BackQ BackR GQ GR : Type} {π : Protocol n SubIn SubOut NQ NR}
