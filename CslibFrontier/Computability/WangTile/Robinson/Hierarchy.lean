@@ -226,13 +226,100 @@ private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
   rw [congrFun (congrFun patch i) j]
   exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
 
+private def isPhaseA (p : Index) : Bool :=
+  p.val < 4 || (32 ≤ p.val && p.val < 56) || 80 ≤ p.val
+
+private theorem childBlock_four_zero : childBlock 4 0 0 = 0 := rfl
+
+private theorem childBlock_zero_zero : childBlock 0 0 0 = 0 := rfl
+
+private theorem phaseA_to_four_ok :
+    ((List.finRange 104).all fun p =>
+      if isPhaseA p then childBlock p 1 1 == 4
+      else isPhaseA (childBlock p 0 0)) = true := by
+  decide +kernel
+
+private theorem childBlock_ne_four_of_phaseA {p : Index} (hp : isPhaseA p = true) :
+    childBlock p 1 1 = 4 := by
+  have h := List.all_eq_true.mp phaseA_to_four_ok p (List.mem_finRange p)
+  simpa only [hp, ↓reduceIte, beq_iff_eq] using h
+
 private theorem zero_descends :
     ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
+  intro p
+  cases hp : isPhaseA p with
+  | true =>
+    refine ⟨4, 4, ?_⟩
+    change childBlock (childBlock (childBlock p 1 1) 0 0) 0 0 = 0
+    rw [childBlock_ne_four_of_phaseA hp, childBlock_four_zero, childBlock_zero_zero]
+  | false =>
+    have h := List.all_eq_true.mp phaseA_to_four_ok p (List.mem_finRange p)
+    simp only [hp, Bool.false_eq_true, ↓reduceIte] at h
+    refine ⟨2, 2, ?_⟩
+    change childBlock (childBlock (childBlock p 0 0) 1 1) 0 0 = 0
+    rw [childBlock_ne_four_of_phaseA h, childBlock_four_zero]
+
+/-- One-step predecessor in a breadth-first spanning tree rooted at tile `0`. -/
+private def fromZeroParent (p : Index) : Index :=
+  if p.val == 0 then 0
+  else if h1 : p.val < 4 then ⟨p.val + 4, by omega⟩
+  else if h2 : p.val < 32 then
+    match p.val with
+    | 4 => 0 | 5 => 22 | 6 => 57 | 7 => 4
+    | 8 => 18 | 9 => 14 | 10 => 19 | 11 => 15
+    | 12 => 57 | 13 => 70 | 14 => 60 | 15 => 61
+    | 16 => 5 | 17 => 4 | 18 => 7 | 19 => 6
+    | 20 => 1 | 21 => 81 | 22 => 0 | 23 => 94
+    | 24 => 3 | 25 => 84 | 26 => 2 | 27 => 85
+    | 28 => 16 | 29 => 12 | 30 => 22 | _ => 13
+  else if h3 : p.val < 56 then ⟨p.val - 24, by omega⟩
+  else if h4 : p.val < 80 then
+    match p.val with
+    | 56 => 36 | 57 => 0 | 58 => 12 | 59 => 58
+    | 60 => 57 | 61 => 4 | 62 => 41 | 63 => 1
+    | 64 => 17 | 65 => 64 | 66 => 67 | 67 => 5
+    | 68 => 46 | 69 => 2 | 70 => 22 | 71 => 70
+    | 72 => 73 | 73 => 6 | 74 => 54 | 75 => 3
+    | 76 => 30 | 77 => 76 | 78 => 79 | _ => 7
+  else ⟨p.val - 24, by omega⟩
+
+private def fromZeroDx (p : Index) : Fin 2 :=
+  if 4 ≤ p.val && p.val < 32 then 1 else 0
+
+private def fromZeroDy (p : Index) : Fin 2 :=
+  if (4 ≤ p.val && p.val < 8) || (56 ≤ p.val && p.val < 80) then 1 else 0
+
+private theorem fromZero_ok :
+    ((List.finRange 104).all fun p =>
+      (childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) == p) &&
+      (fromZeroParent^[5] p == 0)) = true := by
   decide +kernel
+
+private theorem fromZero_child (p : Index) :
+    childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) = p := by
+  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
+  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).1
+
+private theorem fromZero_root (p : Index) : fromZeroParent^[5] p = 0 := by
+  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
+  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).2
+
+private theorem descends_step (n : ℕ) (p : Index) :
+    ∃ i j : Fin (2 ^ n), iterateRefine n (fun _ _ => fromZeroParent^[n] p) i j = p := by
+  induction n generalizing p with
+  | zero => exact ⟨0, 0, rfl⟩
+  | succ n ih =>
+    obtain ⟨i, j, hij⟩ := ih (fromZeroParent p)
+    refine ⟨⟨2 * i.val + (fromZeroDx p).val, by rw [pow_succ]; omega⟩,
+      ⟨2 * j.val + (fromZeroDy p).val, by rw [pow_succ]; omega⟩, ?_⟩
+    simpa only [Function.iterate_succ_apply, iterateRefine, refineIndexGrid_child, hij] using
+      fromZero_child p
 
 private theorem descends_zero :
     ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := by
-  decide +kernel
+  intro p
+  obtain ⟨i, j, hij⟩ := descends_step 5 p
+  exact ⟨⟨i.val, i.isLt⟩, ⟨j.val, j.isLt⟩, by simpa only [fromZero_root p] using hij⟩
 
 /-- Every corrected tile type occurs at every level of every parent tower. -/
 theorem Tower.every_tile {base : IndexPlane} (t : Tower base) (level : ℕ) (target : Index) :
