@@ -166,81 +166,78 @@ private abbrev eRunTail : RunTail ↪ List Bool := eRunParameters
 private def loopFields (state : LoopState) : Desc × LoopTail1 :=
   (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
 
-private noncomputable def loopFieldsCompiler :
-    NativeCompiler loopFields eLoopState (encPair eDesc eLoopTail1) :=
-  (NativeCompiler.identity (encPair eDesc eLoopTail1)).ofInputEq
-    (encIn := eLoopState) loopFields fun _ => rfl
-
 private def runFields (input : RunInput) : Desc × RunTail :=
   (input.desc, input.fuel, input.input, input.replyBits)
 
-private noncomputable def runFieldsCompiler :
-    NativeCompiler runFields eRunInput (encPair eDesc eRunTail) :=
-  (NativeCompiler.identity (encPair eDesc eRunTail)).ofInputEq
-    (encIn := eRunInput) runFields fun _ => rfl
-
 /-- Retained loop-state description projection. -/
 private noncomputable def descCompiler : NativeCompiler LoopState.desc eLoopState eDesc :=
-  ((NativeCompiler.first eDesc eLoopTail1).comp loopFieldsCompiler).ofOutputEq fun _ => rfl
+  ((NativeCompiler.first eDesc eLoopTail1).ofInputEq
+    (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained loop-state source-input projection. -/
 private noncomputable def inputCompiler :
     NativeCompiler LoopState.input eLoopState (encList encUnary) :=
-  ((NativeCompiler.first (encList encUnary) eLoopTail2).comp
-    ((NativeCompiler.second eDesc eLoopTail1).comp loopFieldsCompiler)).ofOutputEq fun _ => rfl
+  (((NativeCompiler.first (encList encUnary) eLoopTail2).comp
+    (NativeCompiler.second eDesc eLoopTail1)).ofInputEq
+      (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained original-fuel projection. -/
 private noncomputable def fuelCompiler : NativeCompiler LoopState.fuel eLoopState encUnary :=
-  ((NativeCompiler.first encUnary eLoopTail3).comp
+  (((NativeCompiler.first encUnary eLoopTail3).comp
     ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-      ((NativeCompiler.second eDesc eLoopTail1).comp loopFieldsCompiler))).ofOutputEq fun _ => rfl
+      (NativeCompiler.second eDesc eLoopTail1))).ofInputEq
+        (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained reply-prefix budget projection. -/
 private noncomputable def replyBitsCompiler :
     NativeCompiler LoopState.replyBits eLoopState encUnary :=
-  ((NativeCompiler.first encUnary eLoopTail4).comp
+  (((NativeCompiler.first encUnary eLoopTail4).comp
     ((NativeCompiler.second encUnary eLoopTail3).comp
       ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-        ((NativeCompiler.second eDesc eLoopTail1).comp
-          loopFieldsCompiler)))).ofOutputEq fun _ => rfl
+        (NativeCompiler.second eDesc eLoopTail1)))).ofInputEq
+          (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained remaining-round projection. -/
 private noncomputable def remainingCompiler :
     NativeCompiler LoopState.remaining eLoopState encUnary :=
-  ((NativeCompiler.first encUnary eICfg).comp
+  (((NativeCompiler.first encUnary eICfg).comp
     ((NativeCompiler.second encUnary eLoopTail4).comp
       ((NativeCompiler.second encUnary eLoopTail3).comp
         ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-          ((NativeCompiler.second eDesc eLoopTail1).comp
-            loopFieldsCompiler))))).ofOutputEq fun _ => rfl
+          (NativeCompiler.second eDesc eLoopTail1))))).ofInputEq
+            (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 /-- Retained first-order configuration projection. -/
 private noncomputable def cfgCompiler : NativeCompiler LoopState.cfg eLoopState eICfg :=
-  ((NativeCompiler.second encUnary eICfg).comp
+  (((NativeCompiler.second encUnary eICfg).comp
     ((NativeCompiler.second encUnary eLoopTail4).comp
       ((NativeCompiler.second encUnary eLoopTail3).comp
         ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-          ((NativeCompiler.second eDesc eLoopTail1).comp
-            loopFieldsCompiler))))).ofOutputEq fun _ => rfl
+          (NativeCompiler.second eDesc eLoopTail1))))).ofInputEq
+            (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 private noncomputable def runDescCompiler : NativeCompiler RunInput.desc eRunInput eDesc :=
-  ((NativeCompiler.first eDesc eRunTail).comp runFieldsCompiler).ofOutputEq fun _ => rfl
+  ((NativeCompiler.first eDesc eRunTail).ofInputEq
+    (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 private noncomputable def runFuelCompiler : NativeCompiler RunInput.fuel eRunInput encUnary :=
-  ((NativeCompiler.first encUnary (encPair (encList encUnary) encUnary)).comp
-    ((NativeCompiler.second eDesc eRunTail).comp runFieldsCompiler)).ofOutputEq fun _ => rfl
+  (((NativeCompiler.first encUnary (encPair (encList encUnary) encUnary)).comp
+    (NativeCompiler.second eDesc eRunTail)).ofInputEq
+      (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 private noncomputable def runInputCompiler :
     NativeCompiler RunInput.input eRunInput (encList encUnary) :=
-  ((NativeCompiler.first (encList encUnary) encUnary).comp
+  (((NativeCompiler.first (encList encUnary) encUnary).comp
     ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
-      ((NativeCompiler.second eDesc eRunTail).comp runFieldsCompiler))).ofOutputEq fun _ => rfl
+      (NativeCompiler.second eDesc eRunTail))).ofInputEq
+        (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 private noncomputable def runReplyBitsCompiler :
     NativeCompiler RunInput.replyBits eRunInput encUnary :=
-  ((NativeCompiler.second (encList encUnary) encUnary).comp
+  (((NativeCompiler.second (encList encUnary) encUnary).comp
     ((NativeCompiler.second encUnary (encPair (encList encUnary) encUnary)).comp
-      ((NativeCompiler.second eDesc eRunTail).comp runFieldsCompiler))).ofOutputEq fun _ => rfl
+      (NativeCompiler.second eDesc eRunTail))).ofInputEq
+        (encIn := eRunInput) runFields fun _ => rfl).ofOutputEq fun _ => rfl
 
 private def initializedState (input : RunInput) : LoopState where
   desc := input.desc
