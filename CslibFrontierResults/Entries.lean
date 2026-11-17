@@ -10344,25 +10344,33 @@ register_result "plaisted-greenbaum-correctness" where
     2 · A.size + 1 clauses and the non-uniqueness of the extension are separate results and \
     are not part of this entry. Outside check: PR #6181, review 5948254834."
 
-register_result "abstract-dpll-learning-termination" where
-  title := "Abstract DPLL with learning terminates"
+register_result "abstract-dpll-termination" where
+  title := "Abstract Basic DPLL terminates"
   topic := "SAT algorithms"
   sources := [
-    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorems 2.10 and 2.11",
-      locator := "authors' manuscript, printed pp. 14–15" }
+    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorem 2.10",
+      locator := "authors' manuscript, printed p. 14" }
   ]
-  theorems := [
-    Cslib.Algorithms.Lean.CDCL.wellFounded_basicStep,
-    Cslib.Algorithms.Lean.CDCL.wellFounded_learn_basicStep
-  ]
+  theorems := [Cslib.Algorithms.Lean.CDCL.wellFounded_basicStep]
   scope := "Propositional list CNFs over ℕ, from the initial state with the empty trail. Basic \
-    DPLL is UnitPropagate, Decide, Fail and Backjump (Definition 2.4); learning adds the Learn \
-    rule (Definition 2.5) but not Forget, and restarts are not modelled. Decisions range over \
-    the variables of the input formula, which by Lemma 2.7(1) are those of the current \
-    database. Theorem 2.10 is stated as well-foundedness of the converse Basic DPLL step \
-    relation on reachable states, and Theorem 2.11 as well-foundedness of finitely many Learn \
-    steps followed by a Basic DPLL step. The proof uses a single natural-number measure in \
-    place of the source's lexicographic order."
+    DPLL is UnitPropagate, Decide, Fail and Backjump with the side conditions of Definition 2.4. \
+    Stated as well-foundedness of the converse Basic DPLL step relation on states reachable by \
+    DPLL with learning, which includes every state reachable by Basic DPLL. The proof uses a \
+    single natural-number measure in place of the source's lexicographic order."
+
+register_result "abstract-dpll-learning-termination" where
+  title := "Abstract DPLL with learning terminates without infinite Learn/Forget stretches"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorem 2.11",
+      locator := "authors' manuscript, printed p. 15" }
+  ]
+  theorems := [Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep]
+  scope := "DPLL with learning is Basic DPLL with Learn and Forget (Definition 2.5); clause sets \
+    are lists, so Learn prepends a clause and Forget removes one occurrence. A derivation with no \
+    infinite subderivation of Learn and Forget steps is a sequence of moves, each finitely many \
+    Learn and Forget steps followed by a Basic DPLL step; the theorem is the well-foundedness of \
+    these moves from the initial state."
 
 register_result "abstract-dpll-learning-correctness" where
   title := "Final states of abstract DPLL with learning decide satisfiability"
@@ -10373,6 +10381,6 @@ register_result "abstract-dpll-learning-correctness" where
   ]
   theorems := [Cslib.Algorithms.Lean.CDCL.final_of_reachable]
   scope := "For a propositional list CNF φ over ℕ and a state reachable from the initial state \
-    by DPLL with learning without Forget, if no Basic DPLL step applies then the state is fail \
-    exactly when φ is unsatisfiable, and otherwise the total assignment that makes the trail's \
-    literals true is a model of φ."
+    by DPLL with learning (Basic DPLL, Learn and Forget), if no Basic DPLL step applies then the \
+    state is fail exactly when φ is unsatisfiable, and otherwise the total assignment that makes \
+    the trail's literals true, and the others false, is a model of φ."

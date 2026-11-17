@@ -16,56 +16,60 @@ Nieuwenhuis, Oliveras and Tinelli [NieuwenhuisOliverasTinelli2006, §2] describe
 driven clause learning as transition systems. A state (`Cslib.Algorithms.Lean.CDCL.State`) is
 either the distinguished `fail` state or a trail `M` with a clause database `F`. The trail
 (`Cslib.Algorithms.Lean.CDCL.Trail`) is the sequence of assigned literals, kept here newest first,
-each marked as a decision or not (`Cslib.Algorithms.Lean.CDCL.Entry`). The rules over the variables
-`V` are:
+each marked as a decision or not (`Cslib.Algorithms.Lean.CDCL.Entry`). The rules are:
 
 * the *Basic DPLL* rules (`Cslib.Algorithms.Lean.CDCL.BasicStep`, their Definition 2.4):
   * **UnitPropagate**: if a clause of `F` has every literal but `l` false and `l` is undefined,
     add `l`;
-  * **Decide**: add an undefined literal over a variable of `V` as a decision;
+  * **Decide**: add an undefined literal over a variable occurring in `F` as a decision;
   * **Fail**: if a clause of `F` is false and `M` has no decision, go to `fail`;
   * **Backjump**: if a clause of `F` is false, `M = N ++ dᵈ :: M₀`, and a clause `C` entailed by
-    `F` has every literal but `l` false in `M₀`, with `l` undefined in `M₀`, go to `l :: M₀`;
-* **Learn** (`Cslib.Algorithms.Lean.CDCL.Learn`, their Definition 2.5): add a clause entailed by `F`
-  over variables of `V`.
+    `F` has every literal but `l` false in `M₀`, with `l` undefined in `M₀` and occurring in `F`
+    or `M`, go to `l :: M₀`;
+* **Learn** (`Cslib.Algorithms.Lean.CDCL.Learn`, their Definition 2.5): add a clause entailed by
+  `F` whose variables occur in `F` or `M`;
+* **Forget** (`Cslib.Algorithms.Lean.CDCL.Forget`, their Definition 2.5): remove a clause entailed
+  by the rest of `F`.
 
-The invariant `Cslib.Algorithms.Lean.CDCL.Inv` is their Lemma 2.7: the database has the models of
-`φ`, the trail assigns each variable of `V` at most once, and every implied literal holds in every
-model of `φ` satisfying the older literals; in `fail`, `φ` is unsatisfiable. Every step keeps it
-(`Cslib.Algorithms.Lean.CDCL.Step.inv`). Their results then hold:
+DPLL with learning (`Cslib.Algorithms.Lean.CDCL.Step`) is the union of the three. The invariant
+`Cslib.Algorithms.Lean.CDCL.Inv` is their Lemma 2.7, over a list `V` of variables containing those
+of the input formula `φ`: the database has the models of `φ` and uses variables of `V`, the trail
+assigns each variable of `V` at most once, and every implied literal holds in every model of `φ`
+satisfying the older literals; in `fail`, `φ` is unsatisfiable. Every step keeps it
+(`Cslib.Algorithms.Lean.CDCL.Step.inv`). Their results then hold, from the initial state with the
+empty trail and `F = φ`, taking `V` to be the variables of `φ`:
 
-* **Lemma 2.8**: in a state with a false clause, Fail or Backjump applies, the latter with the
-  negation of the decisions (`Cslib.Algorithms.Lean.CDCL.RunInv.exists_basicStep`).
-* **Theorem 2.10**: there is no infinite run of Basic DPLL steps from the initial state
+* **Lemma 2.8**: in a state with a false clause, Fail applies if there is no decision, and
+  otherwise Backjump applies (`Cslib.Algorithms.Lean.CDCL.RunInv.fail_or_backjump`).
+* **Theorem 2.10**: there is no infinite run of Basic DPLL steps
   (`Cslib.Algorithms.Lean.CDCL.wellFounded_basicStep`). With `N` variables, a literal at level `k`
   weighs `(N + 1) ^ (N - k)`, and every step increases the weight of the trail, which is at most
   `N * (N + 1) ^ N` (`Cslib.Algorithms.Lean.CDCL.Trail.measure`); this replaces their
   lexicographic order on the numbers of literals per level with a single number.
-* **Theorem 2.11**: every run with Learn is finite if it has no infinite stretch of Learn steps,
-  stated as the well-foundedness of "Learn steps, then a Basic DPLL step"
-  (`Cslib.Algorithms.Lean.CDCL.wellFounded_learn_basicStep`).
+* **Theorem 2.11**: every run of DPLL with learning without an infinite stretch of Learn and Forget
+  steps is finite, stated as the well-foundedness of "Learn and Forget steps, then a Basic DPLL
+  step" (`Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep`).
 * **Theorem 2.12**: a reachable state that is final for Basic DPLL is `fail` exactly when `φ` is
   unsatisfiable, and otherwise its trail is a model of `φ`
   (`Cslib.Algorithms.Lean.CDCL.final_of_reachable`).
 
-**Adaptations.** The Forget rule and restarts are not included. The variables are a list `V`
-containing those of `φ`, rather than the atoms occurring in the current database; the headline
-statements take `V = φ.vars`. A literal is decided over a variable of `V`, where the source asks
-that it occur in the database; their Lemma 2.7(1) makes these the same variables. Locators refer to
-the authors' manuscript, printed pp. 5–15.
+**Representations.** Clause sets are lists, so Learn prepends a clause and Forget removes one
+occurrence. The trail is kept newest first. Locators refer to the authors' manuscript, printed
+pp. 5–16.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.BasicStep`, `Cslib.Algorithms.Lean.CDCL.Learn`,
-  `Cslib.Algorithms.Lean.CDCL.Step`: the transition systems.
+  `Cslib.Algorithms.Lean.CDCL.Forget`, `Cslib.Algorithms.Lean.CDCL.Step`: the transition systems.
 * `Cslib.Algorithms.Lean.CDCL.Inv`: the invariant.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.CDCL.Step.inv`: steps keep the invariant (Lemma 2.7).
-* `Cslib.Algorithms.Lean.CDCL.RunInv.exists_basicStep`: progress (Lemma 2.8).
+* `Cslib.Algorithms.Lean.CDCL.RunInv.fail_or_backjump`: Fail or Backjump applies (Lemma 2.8).
 * `Cslib.Algorithms.Lean.CDCL.wellFounded_basicStep`,
-  `Cslib.Algorithms.Lean.CDCL.wellFounded_learn_basicStep`: termination (Theorems 2.10, 2.11).
+  `Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep`: termination (Theorems 2.10,
+  2.11).
 * `Cslib.Algorithms.Lean.CDCL.final_of_reachable`: final states decide satisfiability
   (Theorem 2.12).
 
@@ -137,36 +141,44 @@ inductive State
   /-- A trail and a clause database. -/
   | run (trail : Trail) (db : CNF ℕ)
 
-/-- **The Basic DPLL rules** over the variables `V` [NieuwenhuisOliverasTinelli2006, Definition
-2.4]. -/
-inductive BasicStep (V : List ℕ) : State → State → Prop
+/-- **The Basic DPLL rules** [NieuwenhuisOliverasTinelli2006, Definition 2.4]. -/
+inductive BasicStep : State → State → Prop
   /-- UnitPropagate: a clause with every literal but `l` false makes `l` implied. -/
   | unitPropagate {M : Trail} {F : CNF ℕ} {c : Clause ℕ} {l : Literal ℕ} (hc : c ∈ F) (hl : l ∈ c)
-      (hfalse : ∀ l' ∈ c, l' ≠ l → l'.negate ∈ Trail.lits M) (hundef : l.1 ∉ Trail.vars M)
-      (hv : l.1 ∈ V) : BasicStep V (.run M F) (.run (⟨l, false⟩ :: M) F)
-  /-- Decide: an undefined literal over a variable of `V` becomes a decision. -/
-  | decide {M : Trail} {F : CNF ℕ} {l : Literal ℕ} (hundef : l.1 ∉ Trail.vars M) (hv : l.1 ∈ V) :
-      BasicStep V (.run M F) (.run (⟨l, true⟩ :: M) F)
+      (hfalse : ∀ l' ∈ c, l' ≠ l → l'.negate ∈ Trail.lits M) (hundef : l.1 ∉ Trail.vars M) :
+      BasicStep (.run M F) (.run (⟨l, false⟩ :: M) F)
+  /-- Decide: an undefined literal over a variable occurring in the database becomes a
+  decision. -/
+  | decide {M : Trail} {F : CNF ℕ} {l : Literal ℕ} (hundef : l.1 ∉ Trail.vars M)
+      (hv : l.1 ∈ F.vars) : BasicStep (.run M F) (.run (⟨l, true⟩ :: M) F)
   /-- Fail: a false clause and no decision. -/
   | fail {M : Trail} {F : CNF ℕ} {c : Clause ℕ} (hc : c ∈ F) (hconf : Trail.Falsifies M c)
-      (hnodec : ∀ e ∈ M, e.decision = false) : BasicStep V (.run M F) .fail
+      (hnodec : ∀ e ∈ M, e.decision = false) : BasicStep (.run M F) .fail
   /-- Backjump: going back below a decision and adding the literal that an entailed clause `C`
   implies there. -/
   | backjump {N M₀ : Trail} {F : CNF ℕ} {d : Literal ℕ} {c C : Clause ℕ} {l : Literal ℕ}
       (hc : c ∈ F) (hconf : Trail.Falsifies (N ++ ⟨d, true⟩ :: M₀) c)
       (hC : ∀ σ, F.eval σ = true → C.eval σ = true) (hl : l ∈ C)
       (hfalse : ∀ l' ∈ C, l' ≠ l → l'.negate ∈ Trail.lits M₀) (hundef : l.1 ∉ Trail.vars M₀)
-      (hCV : ∀ l' ∈ C, l'.1 ∈ V) :
-      BasicStep V (.run (N ++ ⟨d, true⟩ :: M₀) F) (.run (⟨l, false⟩ :: M₀) F)
+      (hocc : l.1 ∈ F.vars ∨ l.1 ∈ Trail.vars (N ++ ⟨d, true⟩ :: M₀)) :
+      BasicStep (.run (N ++ ⟨d, true⟩ :: M₀) F) (.run (⟨l, false⟩ :: M₀) F)
 
 /-- **Learn** [NieuwenhuisOliverasTinelli2006, Definition 2.5]: adding a clause entailed by the
-database, over variables of `V`. -/
-inductive Learn (V : List ℕ) : State → State → Prop
+database, whose variables occur in the database or the trail. -/
+inductive Learn : State → State → Prop
   | learn {M : Trail} {F : CNF ℕ} {C : Clause ℕ} (hC : ∀ σ, F.eval σ = true → C.eval σ = true)
-      (hCV : ∀ l ∈ C, l.1 ∈ V) : Learn V (.run M F) (.run M (C :: F))
+      (hCV : ∀ l ∈ C, l.1 ∈ F.vars ∨ l.1 ∈ Trail.vars M) : Learn (.run M F) (.run M (C :: F))
 
-/-- **DPLL with learning**: a Basic DPLL step or a Learn step. -/
-def Step (V : List ℕ) (S S' : State) : Prop := BasicStep V S S' ∨ Learn V S S'
+/-- **Forget** [NieuwenhuisOliverasTinelli2006, Definition 2.5]: removing a clause entailed by the
+rest of the database. -/
+inductive Forget : State → State → Prop
+  | forget {M : Trail} {F₁ F₂ : CNF ℕ} {C : Clause ℕ}
+      (hC : ∀ σ, (F₁ ++ F₂).eval σ = true → C.eval σ = true) :
+      Forget (.run M (F₁ ++ C :: F₂)) (.run M (F₁ ++ F₂))
+
+/-- **DPLL with learning** [NieuwenhuisOliverasTinelli2006, Definition 2.5]: a Basic DPLL step, a
+Learn step or a Forget step. -/
+def Step (S S' : State) : Prop := BasicStep S S' ∨ Learn S S' ∨ Forget S S'
 
 /-- The invariant of a running state [NieuwenhuisOliverasTinelli2006, Lemma 2.7]. -/
 structure RunInv (φ : CNF ℕ) (V : List ℕ) (M : Trail) (F : CNF ℕ) : Prop where
@@ -271,17 +283,18 @@ theorem RunInv.push {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h :
     · exact h.subset x hx
 
 /-- **Steps keep the invariant** [NieuwenhuisOliverasTinelli2006, Lemma 2.7]. -/
-theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step V S S') (h : Inv φ V S) :
+theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S') (h : Inv φ V S) :
     Inv φ V S' := by
-  rcases hstep with hstep | hstep
+  rcases hstep with hstep | hstep | hstep
   · cases hstep with
-    | @unitPropagate M F c l hc hl hfalse hundef hv =>
-      obtain ⟨hnd, hsub⟩ := RunInv.push h false hundef hv
+    | @unitPropagate M F c l hc hl hfalse hundef =>
+      obtain ⟨hnd, hsub⟩ := RunInv.push h false hundef (h.db_vars c hc l hl)
       refine ⟨h.models, hnd, hsub, h.db_vars, .implied l h.entailed fun σ hσ hM => ?_⟩
       exact Trail.eval_of_forall_ne
         ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc) hM hfalse
     | @decide M F l hundef hv =>
-      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef hv
+      obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hv
+      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.db_vars c hc (_, b) hb)
       exact ⟨h.models, hnd, hsub, h.db_vars, .decision l h.entailed⟩
     | @fail M F c hc hconf hnodec =>
       rintro ⟨σ, hσ⟩
@@ -291,7 +304,7 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step V S 
       have := hM _ (hconf l hl)
       rw [Literal.eval_negate] at this
       simp [Literal.eval, hlσ] at this
-    | @backjump N M₀ F d c C l hc hconf hC hl hfalse hundef hCV =>
+    | @backjump N M₀ F d c C l hc hconf hC hl hfalse hundef hocc =>
       have hnodup : (Trail.vars M₀).Nodup := by
         have := h.nodup
         simp only [Trail.vars, List.map_append, List.map_cons] at this
@@ -302,7 +315,10 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step V S 
       · intro x hx
         simp only [Trail.vars, List.map_cons, List.mem_cons] at hx
         rcases hx with rfl | hx
-        · exact hCV l hl
+        · rcases hocc with hocc | hocc
+          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
+            exact h.db_vars c' hc' (_, b) hb
+          · exact h.subset _ hocc
         · exact h.subset x (by simp [Trail.vars] at hx ⊢; tauto)
       · refine .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
           (by simpa using h.entailed)) fun σ hσ hM => ?_
@@ -316,14 +332,25 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step V S 
         · simp [hC σ hF]
       · intro c hc l hl
         rcases List.mem_cons.1 hc with rfl | hc
-        · exact hCV l hl
+        · rcases hCV l hl with hocc | hocc
+          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
+            exact h.db_vars c' hc' (_, b) hb
+          · exact h.subset _ hocc
         · exact h.db_vars c hc l hl
+  · cases hstep with
+    | @forget M F₁ F₂ C hC =>
+      refine ⟨fun σ => ?_, h.nodup, h.subset, fun c hc => h.db_vars c (by simp at hc ⊢; tauto),
+        h.entailed⟩
+      rw [← h.models]
+      have := hC σ
+      simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
+      cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
 
 /-! ### Final states -/
 
 /-- A running state with no false clause that assigns every variable gives a model. -/
 theorem RunInv.eval_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
-    (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c) (htotal : ∀ x ∈ V, x ∈ Trail.vars M) :
+    (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c) (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) :
     φ.eval (Trail.assignment M) = true := by
   rw [← h.models, CNF.eval_eq_true_iff]
   intro c hc
@@ -333,7 +360,7 @@ theorem RunInv.eval_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ
     exact hnoconf c hc hne
   obtain ⟨l, hl, hopen⟩ := this
   -- `l` is assigned, and not falsely, so the trail contains it
-  obtain ⟨e, hmem, hl'⟩ := List.mem_map.1 (htotal l.1 (h.db_vars c hc l hl))
+  obtain ⟨e, hmem, hl'⟩ := List.mem_map.1 (htotal l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩))
   have helits : e.lit ∈ Trail.lits M := List.mem_map.2 ⟨e, hmem, rfl⟩
   have hel : e.lit = l := by
     obtain ⟨⟨v', s'⟩, b⟩ := e
@@ -359,63 +386,76 @@ theorem Trail.exists_split {M : Trail} (h : ∃ e ∈ M, e.decision = true) :
       exact ⟨⟨l', false⟩ :: N, d, M₀, rfl, by simpa using hN⟩
     · exact ⟨[], l', M, rfl, by simp⟩
 
-/-- **Progress** [NieuwenhuisOliverasTinelli2006, Lemma 2.8, and the Decide case of Lemma 2.9]:
-in a running state with a false clause, Fail applies if the trail has no decision and Backjump with
-the negation of the decisions otherwise; with no false clause, Decide applies if a variable of `V`
-is unassigned. -/
+/-- Backjump with the negation of the decisions: below the newest decision `d`, a false clause
+lets Backjump add the negation of `d`. -/
+theorem RunInv.backjump_decisions {φ : CNF ℕ} {V : List ℕ} {N M₀ : Trail} {F : CNF ℕ}
+    {d : Literal ℕ} (h : RunInv φ V (N ++ ⟨d, true⟩ :: M₀) F)
+    (hN : ∀ e ∈ N, e.decision = false) {c : Clause ℕ} (hc : c ∈ F)
+    (hcM : Trail.Falsifies (N ++ ⟨d, true⟩ :: M₀) c) :
+    BasicStep (.run (N ++ ⟨d, true⟩ :: M₀) F) (.run (⟨d.negate, false⟩ :: M₀) F) := by
+  have hnodup := h.nodup
+  simp only [Trail.vars, List.map_append, List.map_cons] at hnodup
+  obtain ⟨-, hdM₀, -⟩ := List.nodup_append.1 hnodup
+  refine BasicStep.backjump (C := d.negate :: Trail.decisionClause M₀) (l := d.negate)
+    hc hcM ?_ List.mem_cons_self ?_ ?_ (.inr (by simp [Trail.vars, Std.Sat.Literal.negate]))
+  · -- the decisions cannot all hold in a model
+    intro σ hFσ
+    have hσ : φ.eval σ = true := by rw [← h.models]; exact hFσ
+    by_contra hfalse
+    simp only [Bool.not_eq_true, Clause.eval, List.any_eq_false, List.mem_cons,
+      forall_eq_or_imp] at hfalse
+    have hsat := Trail.sat_of_entailed h.entailed hσ (σ := σ) fun l hl => by
+      simp only [List.mem_append, List.mem_cons] at hl
+      rcases hl with hl | hl | hl
+      · exact absurd (hN _ hl) (by simp)
+      · cases hl
+        have := hfalse.1
+        rw [Literal.eval_negate] at this
+        simpa using this
+      · have := hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
+        rw [Literal.eval_negate] at this
+        simpa using this
+    obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1
+      ((CNF.eval_eq_true_iff σ F).1 hFσ c hc)
+    have := hsat _ (hcM l' hl')
+    rw [Literal.eval_negate] at this
+    simp [Literal.eval, hl'σ] at this
+  · intro l' hl' hne
+    rcases List.mem_cons.1 hl' with rfl | hl'
+    · exact absurd rfl hne
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.1 hl'
+      simp only [Std.Sat.Literal.negate, Bool.not_not]
+      exact List.mem_map.2 ⟨e, (List.mem_filter.1 he).1, rfl⟩
+  · exact (List.nodup_cons.1 hdM₀).1
+
+/-- **Fail or Backjump applies** [NieuwenhuisOliverasTinelli2006, Lemma 2.8]: in a running state
+with a false clause, Fail applies if the trail has no decision, and otherwise Backjump applies,
+going below the newest decision `d` and adding its negation. -/
+theorem RunInv.fail_or_backjump {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ}
+    (h : RunInv φ V M F) {c : Clause ℕ} (hc : c ∈ F) (hcM : Trail.Falsifies M c) :
+    BasicStep (.run M F) .fail ∨ ∃ N d M₀, M = N ++ ⟨d, true⟩ :: M₀ ∧
+      BasicStep (.run M F) (.run (⟨d.negate, false⟩ :: M₀) F) := by
+  by_cases hdec : ∃ e ∈ M, e.decision = true
+  · obtain ⟨N, d, M₀, rfl, hN⟩ := Trail.exists_split hdec
+    exact .inr ⟨N, d, M₀, rfl, h.backjump_decisions hN hc hcM⟩
+  · push Not at hdec
+    exact .inl (BasicStep.fail hc hcM fun e he => by simpa using hdec e he)
+
+/-- **Progress**: a running state from which no Basic DPLL step applies has no false clause and
+assigns every variable occurring in the database (the first two parts of
+[NieuwenhuisOliverasTinelli2006, Lemma 2.9]): otherwise Fail or Backjump applies by
+`Cslib.Algorithms.Lean.CDCL.RunInv.fail_or_backjump`, or Decide applies. -/
 theorem RunInv.exists_basicStep {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ}
     (h : RunInv φ V M F)
-    (hfinal : ¬ ((∀ c ∈ F, ¬ Trail.Falsifies M c) ∧ ∀ x ∈ V, x ∈ Trail.vars M)) :
-    ∃ S', BasicStep V (.run M F) S' := by
+    (hfinal : ¬ ((∀ c ∈ F, ¬ Trail.Falsifies M c) ∧ ∀ x ∈ F.vars, x ∈ Trail.vars M)) :
+    ∃ S', BasicStep (.run M F) S' := by
   by_cases hconf : ∃ c ∈ F, Trail.Falsifies M c
   · obtain ⟨c, hc, hcM⟩ := hconf
-    by_cases hdec : ∃ e ∈ M, e.decision = true
-    · obtain ⟨N, d, M₀, rfl, hN⟩ := Trail.exists_split hdec
-      have hnodup := h.nodup
-      simp only [Trail.vars, List.map_append, List.map_cons] at hnodup
-      obtain ⟨-, hdM₀, -⟩ := List.nodup_append.1 hnodup
-      refine ⟨_, BasicStep.backjump (C := d.negate :: Trail.decisionClause M₀) (l := d.negate)
-        hc hcM ?_ List.mem_cons_self ?_ ?_ ?_⟩
-      · -- the decisions cannot all hold in a model
-        intro σ hFσ
-        have hσ : φ.eval σ = true := by rw [← h.models]; exact hFσ
-        by_contra hfalse
-        simp only [Bool.not_eq_true, Clause.eval, List.any_eq_false, List.mem_cons,
-          forall_eq_or_imp] at hfalse
-        have hsat := Trail.sat_of_entailed h.entailed hσ (σ := σ) fun l hl => by
-          simp only [List.mem_append, List.mem_cons] at hl
-          rcases hl with hl | hl | hl
-          · exact absurd (hN _ hl) (by simp)
-          · cases hl
-            have := hfalse.1
-            rw [Literal.eval_negate] at this
-            simpa using this
-          · have := hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
-            rw [Literal.eval_negate] at this
-            simpa using this
-        obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1
-          ((CNF.eval_eq_true_iff σ F).1 hFσ c hc)
-        have := hsat _ (hcM l' hl')
-        rw [Literal.eval_negate] at this
-        simp [Literal.eval, hl'σ] at this
-      · intro l' hl' hne
-        rcases List.mem_cons.1 hl' with rfl | hl'
-        · exact absurd rfl hne
-        · obtain ⟨e, he, rfl⟩ := List.mem_map.1 hl'
-          simp only [Std.Sat.Literal.negate, Bool.not_not]
-          exact List.mem_map.2 ⟨e, (List.mem_filter.1 he).1, rfl⟩
-      · exact (List.nodup_cons.1 hdM₀).1
-      · intro l' hl'
-        rcases List.mem_cons.1 hl' with rfl | hl'
-        · exact h.subset _ (by simp [Trail.vars, Std.Sat.Literal.negate])
-        · obtain ⟨e, he, rfl⟩ := List.mem_map.1 hl'
-          exact h.subset _ (by simp only [Trail.vars, List.map_append, List.map_cons,
-            List.mem_append, List.mem_cons]; exact .inr (.inr (List.mem_map.2
-              ⟨e, (List.mem_filter.1 he).1, rfl⟩)))
-    · push Not at hdec
-      exact ⟨_, BasicStep.fail hc hcM fun e he => by simpa using hdec e he⟩
+    rcases h.fail_or_backjump hc hcM with hfail | ⟨N, d, M₀, -, hbj⟩
+    · exact ⟨_, hfail⟩
+    · exact ⟨_, hbj⟩
   · push Not at hconf
-    have : ∃ x ∈ V, x ∉ Trail.vars M := by
+    have : ∃ x ∈ F.vars, x ∉ Trail.vars M := by
       by_contra hne
       push Not at hne
       exact hfinal ⟨hconf, hne⟩
@@ -425,7 +465,7 @@ theorem RunInv.exists_basicStep {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : C
 /-- A state that satisfies the invariant and is final for Basic DPLL is `fail` exactly when `φ` is
 unsatisfiable, and otherwise its trail is a model of `φ`. -/
 theorem Inv.final {φ : CNF ℕ} {V : List ℕ} {S : State} (h : Inv φ V S)
-    (hfinal : ∀ S', ¬ BasicStep V S S') :
+    (hfinal : ∀ S', ¬ BasicStep S S') :
     (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F → φ.eval (Trail.assignment M) = true := by
   cases S with
   | fail => exact ⟨⟨fun _ => h, fun _ => rfl⟩, fun _ _ h => absurd h (by simp)⟩
@@ -442,7 +482,7 @@ theorem Inv.final {φ : CNF ℕ} {V : List ℕ} {S : State} (h : Inv φ V S)
 
 /-- The states reachable from the initial state satisfy the invariant. -/
 theorem inv_of_reachable {φ : CNF ℕ} {S : State}
-    (h : Relation.ReflTransGen (Step φ.vars) (.run [] φ) S) : Inv φ φ.vars S := by
+    (h : Relation.ReflTransGen Step (.run [] φ) S) : Inv φ φ.vars S := by
   induction h with
   | refl => exact Inv.init fun c hc l hl => CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩
   | tail _ hstep ih => exact hstep.inv ih
@@ -451,8 +491,8 @@ theorem inv_of_reachable {φ : CNF ℕ} {S : State}
 reachable from the initial state by DPLL with learning and final for Basic DPLL is `fail` exactly
 when `φ` is unsatisfiable, and otherwise its trail is a model of `φ`. -/
 theorem final_of_reachable {φ : CNF ℕ} {S : State}
-    (h : Relation.ReflTransGen (Step φ.vars) (.run [] φ) S)
-    (hfinal : ∀ S', ¬ BasicStep φ.vars S S') :
+    (h : Relation.ReflTransGen Step (.run [] φ) S)
+    (hfinal : ∀ S', ¬ BasicStep S S') :
     (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F → φ.eval (Trail.assignment M) = true :=
   (inv_of_reachable h).final hfinal
 
@@ -516,7 +556,7 @@ def rank (V : List ℕ) : State → ℕ
     V.dedup.length * (V.dedup.length + 1) ^ V.dedup.length + 1 - Trail.measure V.dedup.length M
 
 /-- **Every Basic DPLL step lowers the rank.** -/
-theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : BasicStep V S S')
+theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : BasicStep S S')
     (h : Inv φ V S) : rank V S' < rank V S := by
   have h' := Step.inv (.inl hstep) h
   cases hstep with
@@ -524,7 +564,7 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
     have := RunInv.measure_le (show RunInv _ _ _ _ from h)
     simp only [rank]
     omega
-  | @unitPropagate M F c l _ _ _ _ _ =>
+  | @unitPropagate M F c l _ _ _ _ =>
     have hle := RunInv.measure_le (show RunInv _ _ _ _ from h')
     have := Trail.measure_lt_cons V.dedup.length ⟨l, false⟩ M
     simp only [rank]
@@ -566,33 +606,39 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
 infinite run of Basic DPLL steps from the initial state. -/
 theorem wellFounded_basicStep (φ : CNF ℕ) :
     WellFounded fun S' S =>
-      Relation.ReflTransGen (Step φ.vars) (.run [] φ) S ∧ BasicStep φ.vars S S' :=
+      Relation.ReflTransGen Step (.run [] φ) S ∧ BasicStep S S' :=
   Subrelation.wf (r := InvImage (· < ·) (rank φ.vars))
     (fun ⟨hreach, hstep⟩ => hstep.rank_lt (inv_of_reachable hreach)) (InvImage.wf _ wellFounded_lt)
 
-/-- Learn steps keep the trail, hence the rank. -/
-theorem Learn.rank_eq {V : List ℕ} {S S' : State} (h : Learn V S S') : rank V S' = rank V S := by
-  cases h
-  rfl
+/-- A Learn or Forget step. -/
+def LearnOrForget (S S' : State) : Prop := Learn S S' ∨ Forget S S'
 
-/-- Learn steps from a reachable state reach states of the same rank. -/
-theorem reachable_rank_of_learn {φ : CNF ℕ} {S S₁ : State}
-    (hreach : Relation.ReflTransGen (Step φ.vars) (.run [] φ) S)
-    (hl : Relation.ReflTransGen (Learn φ.vars) S S₁) :
-    Relation.ReflTransGen (Step φ.vars) (.run [] φ) S₁ ∧ rank φ.vars S₁ = rank φ.vars S := by
+/-- Learn and Forget steps keep the trail, hence the rank. -/
+theorem LearnOrForget.rank_eq {V : List ℕ} {S S' : State} (h : LearnOrForget S S') :
+    rank V S' = rank V S := by
+  rcases h with h | h <;> cases h <;> rfl
+
+/-- Learn and Forget steps from a reachable state reach states of the same rank. -/
+theorem reachable_rank_of_learnOrForget {φ : CNF ℕ} {S S₁ : State}
+    (hreach : Relation.ReflTransGen Step (.run [] φ) S)
+    (hl : Relation.ReflTransGen LearnOrForget S S₁) :
+    Relation.ReflTransGen Step (.run [] φ) S₁ ∧ rank φ.vars S₁ = rank φ.vars S := by
   induction hl with
   | refl => exact ⟨hreach, rfl⟩
-  | tail _ hl ih => exact ⟨ih.1.tail (.inr hl), hl.rank_eq.trans ih.2⟩
+  | tail _ hl ih =>
+    exact ⟨ih.1.tail (hl.elim (fun h => .inr (.inl h)) fun h => .inr (.inr h)),
+      hl.rank_eq.trans ih.2⟩
 
-/-- **Termination of DPLL with learning** [NieuwenhuisOliverasTinelli2006, Theorem 2.11]: a run in
-which no stretch of Learn steps is infinite is finite. Equivalently, there is no infinite sequence
-of moves from the initial state, each a finite run of Learn steps followed by a Basic DPLL step. -/
-theorem wellFounded_learn_basicStep (φ : CNF ℕ) :
-    WellFounded fun S' S => Relation.ReflTransGen (Step φ.vars) (.run [] φ) S ∧
-      ∃ S₁, Relation.ReflTransGen (Learn φ.vars) S S₁ ∧ BasicStep φ.vars S₁ S' := by
+/-- **Termination of DPLL with learning** [NieuwenhuisOliverasTinelli2006, Theorem 2.11]: a run
+from the initial state in which no stretch of Learn and Forget steps is infinite is finite. It is
+stated as: there is no infinite sequence of moves from the initial state, each a finite run of
+Learn and Forget steps followed by a Basic DPLL step. -/
+theorem wellFounded_learnOrForget_basicStep (φ : CNF ℕ) :
+    WellFounded fun S' S => Relation.ReflTransGen Step (.run [] φ) S ∧
+      ∃ S₁, Relation.ReflTransGen LearnOrForget S S₁ ∧ BasicStep S₁ S' := by
   refine Subrelation.wf (r := InvImage (· < ·) (rank φ.vars)) ?_ (InvImage.wf _ wellFounded_lt)
   rintro S' S ⟨hreach, S₁, hlearn, hstep⟩
-  obtain ⟨hreach₁, hrank⟩ := reachable_rank_of_learn hreach hlearn
+  obtain ⟨hreach₁, hrank⟩ := reachable_rank_of_learnOrForget hreach hlearn
   have := hstep.rank_lt (inv_of_reachable hreach₁)
   simp only [InvImage]
   omega
