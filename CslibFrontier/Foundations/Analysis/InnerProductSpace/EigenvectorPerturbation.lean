@@ -22,7 +22,9 @@ import Mathlib.Tactic.Ring
 The spectral theorem turns a small residual at a candidate eigenvalue into proximity to an
 isolated eigenline. The error is controlled by the distance to all other eigenvalues. A second
 estimate bounds the third ordered eigenvalue from a quadratic-form bound on the common
-orthogonal complement of two vectors. These are deterministic ingredients of spectral recovery.
+orthogonal complement of two vectors. For a small perturbation of two nearly orthogonal
+rank-one signals, the second eigenvalue is isolated around the weaker signal strength and
+its eigenvector approximates that signal. These are deterministic ingredients of spectral recovery.
 -/
 
 public section
@@ -145,16 +147,17 @@ theorem third_eigenvalue_le_of_orthogonal_complement (hnthree : 3 ≤ n) (p q : 
     nlinarith only [h₀, h₁]
   exact (mul_le_mul_iff_left₀ hxpos).mp (hlow.trans hb)
 
-/-- The second ordered eigenvector of a small perturbation of two nearly orthogonal rank-one
-signals approximates the weaker signal. The constants are deliberately conservative. -/
-theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
+private theorem rank_two_spectral_data
     (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
     {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
     (hinner : |inner ℝ w u| ≤ 1 / 64)
     (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
       b / 128 * ‖y‖) :
-    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
-      ‖hT.eigenvectorBasis hn ⟨1, by omega⟩ - s • u‖ ^ 2 ≤ 49 / 2048 := by
+    let x := u - inner ℝ w u • w
+    let v := hT.eigenvectorBasis hn ⟨1, by omega⟩
+    let c := (hT.eigenvectorBasis hn).repr x ⟨1, by omega⟩
+    (∀ i, i ≠ ⟨1, by omega⟩ → b / 2 ≤ |hT.eigenvalues hn i - b|) ∧
+      ‖T x - b • x‖ ≤ 3 * b / 64 ∧ ‖u - c • v‖ ≤ 7 / 64 := by
   let t := inner ℝ w u
   let x := u - t • w
   let R (y : E) := T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)
@@ -249,6 +252,61 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
       ‖u - c • v‖ ≤ ‖u - x‖ + ‖x - c • v‖ := norm_sub_le_norm_sub_add_norm_sub _ _ _
       _ = |t| + ‖x - c • v‖ := by simp [x, norm_smul, hw, Real.norm_eq_abs]
       _ ≤ 7 / 64 := by linarith
+  exact ⟨hsep, hres, hnear⟩
+
+/-- A small perturbation of two nearly orthogonal rank-one signals isolates the second
+ordered eigenvalue around the weaker signal strength. The other eigenvalues stay at least
+`b / 2` from that center, while the second stays within `b / 4`. -/
+theorem second_eigenvalue_bounds_of_rank_two
+    (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
+    {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
+    (hinner : |inner ℝ w u| ≤ 1 / 64)
+    (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
+      b / 128 * ‖y‖) :
+    |hT.eigenvalues hn ⟨1, by omega⟩ - b| ≤ b / 4 ∧
+      ∀ i, i ≠ ⟨1, by omega⟩ → b / 2 ≤ |hT.eigenvalues hn i - b| := by
+  let j : Fin n := ⟨1, by omega⟩
+  let x := u - inner ℝ w u • w
+  let v := hT.eigenvectorBasis hn j
+  let c := (hT.eigenvectorBasis hn).repr x j
+  obtain ⟨hsep, hres, hnear⟩ :=
+    hT.rank_two_spectral_data hn hnthree hw hu hb hab hinner herror
+  refine ⟨?_, hsep⟩
+  have hv : ‖v‖ = 1 := (hT.eigenvectorBasis hn).norm_eq_one _
+  have hnear' : ‖u - c • v‖ ≤ 7 / 64 := hnear
+  have hnorm := norm_sub_norm_le u (c • v)
+  rw [hu, norm_smul, hv, Real.norm_eq_abs, mul_one] at hnorm
+  have hc : 1 / 2 ≤ |c| := by linarith
+  have hcoord : |(hT.eigenvectorBasis hn).repr (T x - b • x) j| ≤ 3 * b / 64 := by
+    rw [OrthonormalBasis.repr_apply_apply]
+    have hi := abs_real_inner_le_norm v (T x - b • x)
+    rw [hv, one_mul] at hi
+    exact hi.trans hres
+  have heq : (hT.eigenvectorBasis hn).repr (T x - b • x) j =
+      (hT.eigenvalues hn j - b) * c := by
+    simp only [map_sub, map_smul, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+    rw [hT.eigenvectorBasis_apply_self_apply hn x j]
+    change hT.eigenvalues hn j * c - b * c = _
+    ring
+  rw [heq, abs_mul] at hcoord
+  have hcprod := mul_le_mul_of_nonneg_left hc (abs_nonneg (hT.eigenvalues hn j - b))
+  change |hT.eigenvalues hn j - b| ≤ b / 4
+  nlinarith
+
+/-- The second ordered eigenvector of a small perturbation of two nearly orthogonal rank-one
+signals approximates the weaker signal. The constants are deliberately conservative. -/
+theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
+    (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
+    {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
+    (hinner : |inner ℝ w u| ≤ 1 / 64)
+    (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
+      b / 128 * ‖y‖) :
+    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
+      ‖hT.eigenvectorBasis hn ⟨1, by omega⟩ - s • u‖ ^ 2 ≤ 49 / 2048 := by
+  let v := hT.eigenvectorBasis hn ⟨1, by omega⟩
+  let c := (hT.eigenvectorBasis hn).repr (u - inner ℝ w u • w) ⟨1, by omega⟩
+  have hnear : ‖u - c • v‖ ≤ 7 / 64 :=
+    (hT.rank_two_spectral_data hn hnthree hw hu hb hab hinner herror).2.2
   have hv : ‖v‖ = 1 := (hT.eigenvectorBasis hn).norm_eq_one _
   obtain ⟨s, hs, hsign⟩ := exists_sign_norm_sub_sq_le hu hv c
   refine ⟨s, hs, ?_⟩

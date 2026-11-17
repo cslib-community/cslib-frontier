@@ -26,7 +26,8 @@ No eigenvector alignment or spectral separation assumption remains in the probab
 The result is also stated for the generic distributional search experiment and any prior on
 hidden `k`-sets. The solver sees the graph alone (with the target size fixed as a parameter).
 The exact spectral choice in `Eigenvector` is noncomputable; these are semantic correctness
-statements. A native finite-precision realization is tracked in
+statements. `EigenvectorPolyTime` proves the same finite bound for a native finite-precision
+realization. Sharper spectral constants remain tracked in
 [#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 -/
 
@@ -64,8 +65,8 @@ theorem prob_recoverEigenvector_ne_le (S : Finset (Fin n)) (hn : 1 ≤ n) (hk : 
 open scoped Classical in
 /-- The exact second-eigenvector solver satisfies the generic distributional search guarantee
 for any independent prior on hidden sets of the target size. This is a semantic guarantee;
-the finite-precision realization and its native runtime certificate are tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238). -/
+`EigenvectorPolyTime` separately connects its finite rational implementation and native
+runtime certificate to the same experiment. -/
 theorem searchProblem_recoverEigenvector_failure_le {k : ℕ}
     (prior : PMF {S : Finset (Fin n) // S.card = k})
     (hn : 1 ≤ n) (hk : 6 ≤ k) (hsparse : 4096 * k ≤ n)

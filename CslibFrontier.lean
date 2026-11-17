@@ -16,6 +16,7 @@ public import CslibFrontier.Algorithms.ExactTriangle.PieceBounds
 public import CslibFrontier.Algorithms.ExactTriangle.Splitting
 public import CslibFrontier.Algorithms.ExactTriangle.Weights
 public import CslibFrontier.Algorithms.ExactTriangle.Witnesses
+public import CslibFrontier.Algorithms.IntegerVector.Normalize
 public import CslibFrontier.Algorithms.Karger.FastCut
 public import CslibFrontier.Algorithms.Karger.Graph
 public import CslibFrontier.Algorithms.LatticeReduction.Babai
@@ -296,7 +297,10 @@ public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborProgram
 public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborRecovery
 public import CslibFrontier.Algorithms.PlantedClique.Correctness
 public import CslibFrontier.Algorithms.PlantedClique.Eigenvector
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorApproximation
 public import CslibFrontier.Algorithms.PlantedClique.EigenvectorFinal
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorPolyTime
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorProgram
 public import CslibFrontier.Algorithms.PlantedClique.Encoding
 public import CslibFrontier.Algorithms.PlantedClique.Final
 public import CslibFrontier.Algorithms.PlantedClique.Indicator
@@ -5763,6 +5767,7 @@ public import CslibFrontier.Foundations.Analysis.InnerProductSpace.GramSchmidtOr
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.MetricProjection
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.NearlyOrthogonal
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
+public import CslibFrontier.Foundations.Analysis.InnerProductSpace.PowerIteration
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.RankOnePerturbation
 public import CslibFrontier.Foundations.Analysis.Lattice.Covolume
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
@@ -6040,6 +6045,7 @@ public import CslibFrontier.Foundations.Combinatorics.SetPartition.JoinMatrix
 public import CslibFrontier.Foundations.Combinatorics.SharedSummaries
 public import CslibFrontier.Foundations.Combinatorics.ShiftColoring
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Acyclic
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.AdjMatrix
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Berge
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI

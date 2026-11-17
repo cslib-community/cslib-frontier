@@ -5,10 +5,11 @@ polynomial-time program recovers a planted clique with probability tending to on
 $k(n)\ge c\sqrt n$ eventually. It also gives a separate correctness proof for the ordinary
 adjacency matrix's second-eigenvector algorithm using Mathlib.
 
-The program with the native complexity certificate uses an exact integer matrix-power
-algorithm inside a common-neighbor search. The literal second-eigenvector specification has
-a finite probability bound and a numerical approximation tolerance; its finite-precision
-implementation and native runtime certificate remain open in
+The every-$c$ program uses an exact integer matrix-power algorithm inside a common-neighbor
+search. A second certified program computes a rational approximation to the ordinary adjacency
+matrix's actual second eigenvector, then selects coordinates and performs degree cleanup. Its
+finite recovery theorem has the same size assumptions and error bound as the exact eigenvector
+specification. Sharpening those constants toward the paper's threshold remains open in
 [#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ## 1. Paper and formalized theorems
@@ -24,15 +25,17 @@ author manuscript's printed pages, not the journal pagination.
 | Source location | Corresponding part of this development |
 |---|---|
 | Main result, introduction and Section 2, pp. 2–3 | Recovery with high probability for every fixed positive coefficient of $\sqrt n$. |
-| Algorithm A, Section 2.1, p. 3 | `secondEigenvector`, `eigenvectorApproximateSet` and `recoverEigenvector` in [Eigenvector.lean](Eigenvector.lean). |
+| Algorithm A, Section 2.1, p. 3 | The exact specification in [Eigenvector.lean](Eigenvector.lean), and its rational approximation and native recovery program in [EigenvectorPolyTime.lean](EigenvectorPolyTime.lean). |
 | Section 2.2, pp. 4–7; Proposition 2.1, Proposition 2.3 and Lemma 2.4 | Ordered spectral separation, a centered-indicator residual, eigenvector alignment, coordinate selection and degree cleanup. |
 | Algorithm B, Section 2.3, pp. 7–8 | The executable common-neighbor wrapper in [CommonNeighborProgram.lean](CommonNeighborProgram.lean), with the integer-power algorithm as its certified base solver. |
 
 The formalization uses conservative explicit constants and finite error bounds. The integer
 base algorithm is a variant developed for this formalization. The literal Algorithm A
-specification is analyzed separately. The paper's constant $10$ is not established for that
-literal specification, and no native finite-precision eigensolver is implemented here; both
-are tracked in [#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
+specification is analyzed separately. The polynomial filter, iteration count and rational
+normalization below are implementation choices of this formalization, not numerical routines
+specified by the paper. The paper's constant $10$ is not established here. That remaining
+analysis, including the source's preceding reduction to $k=O(\sqrt{n\log n})$, is tracked in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ### The random problem and what counts as success
 
@@ -122,10 +125,32 @@ theorem searchProblem_recoverEigenvector_failure_le {k : ℕ}
 ```
 
 All spectral, independence and alignment estimates are proved inside this result. Its remaining
-premises are numerical size conditions. The exact eigenvector definition is noncomputable:
-this is a mathematical recovery guarantee. A native eigensolver certificate is tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238). A checked client uses
-$n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
+premises are numerical size conditions. The exact eigenvector definition is noncomputable and
+serves as the mathematical specification.
+
+[EigenvectorPolyTime.lean](EigenvectorPolyTime.lean) proves the corresponding bound for the
+actual finite-integer-arithmetic recovery program:
+
+```lean
+theorem searchProblem_recoverApproximateEigenvectorInput_failure_le {n k : ℕ}
+    (prior : PMF {S : Finset (Fin n) // S.card = k})
+    (hn : 1 ≤ n) (hk : 6 ≤ k) (hsparse : 4096 * k ≤ n)
+    (hsize : 8192 * Real.sqrt n ≤ (k : ℝ)) :
+    ((searchProblem prior).experiment
+      (fun G => PMF.pure (vertexSet n
+        (recoverApproximateEigenvectorInput (RecoveryInput.ofGraph G k)))) false).toReal ≤
+      2 * Real.exp (-(n : ℝ)) + n * Real.exp (-(k : ℝ) / 32)
+```
+
+`computableInPolyTime_recoverApproximateEigenvectorInput` certifies this same function on all
+encoded inputs, without a size or spectral promise. The model-parametric endpoint
+`searchProblem_eigenvector_hasPPTSolver` combines that certificate with the recovery experiment.
+Its all-parameter budget is the displayed exponential expression in the proved regime and $1$
+elsewhere. The machine receives the graph and public $k$; no eigenvector, successful starting
+column or approximation witness is supplied to it.
+
+Checked clients use $n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
+These clients apply the theorem symbolically; they do not execute the very large iteration count.
 
 ## 2. Algorithm and proof, with the Lean correspondence
 
@@ -227,10 +252,116 @@ $$
 
 Under the deterministic noise and degree conditions, selecting coordinates of $v$ and
 performing the same cleanup still returns $S$. Exact normalization of $v$ is unnecessary.
-This specifies the accuracy required of the finite-precision implementation tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
+The finite-precision implementation proves this tolerance for its actual output.
 
-### C. The exact integer algorithm with a native runtime certificate
+### C. Computing the second eigenvector with finite arithmetic
+
+The implementation approximates the ordered second eigenvector of the same raw adjacency
+matrix $A$. It has four steps.
+
+**1. Isolate the eigenvalue with a polynomial filter.** Under the deterministic rank-two
+noise and sparsity conditions, `adjMatrix_eigenvalues_bounds` proves
+
+$$
+|\lambda_2-k/2|\le k/8,\qquad
+i\ne2\ \Longrightarrow\ |\lambda_i-k/2|\ge k/4.
+$$
+
+The general proof, `second_eigenvalue_bounds_of_rank_two`, reuses the ordered-spectrum,
+residual and projection estimates from the alignment argument. The additional radius bound
+`SimpleGraph.abs_adjMatrix_eigenvalues_le` in the general
+[adjacency-spectrum module](../../Foundations/Combinatorics/SimpleGraph/AdjMatrix.lean)
+gives $|\lambda_i|\le n$ for any graph. Define
+
+$$
+K=16(n+k+1)^2,\qquad F=KI-(2A-kI)^2.
+$$
+
+[EigenvectorProgram.lean](EigenvectorProgram.lean) defines this integer matrix as
+`secondEigenvectorFilter` and implements its row table as `RecoveryInput.eigenvectorFilterRows`.
+Because $F$ is a polynomial in $A$, the same ordered eigenbasis diagonalizes both. For the
+second eigenvector its eigenvalue is $\alpha=K-(2\lambda_2-k)^2>0$; every other filtered
+eigenvalue is nonnegative and at most $\beta=K-k^2/4$. The proved bounds imply
+
+$$
+0\le\frac\beta\alpha\le1-\frac{1}{768n^2}.
+$$
+
+This turns the required second eigenline into the dominant eigenline of an exactly
+represented integer matrix, without changing the eigenvectors.
+
+**2. Find a useful column without a guessed starting vector.** Set
+
+$$
+t(n)=1048576\,n^3=2^{20}n^3.
+$$
+
+`eigenvectorPowerColumn` computes every $F^{t(n)}e_j$, compares exact integer squared norms,
+and selects a maximum with stable tie breaking. `eigenvectorPowerColumn_spec` proves both
+that the returned list is an actual power column and that its squared norm is maximal.
+
+The reusable theorem
+`OrthonormalBasis.exists_sign_normalize_pow_column_sub_sq_le` in
+[PowerIteration.lean](../../Foundations/Analysis/InnerProductSpace/PowerIteration.lean)
+shows that the selected column $z$ is nonzero and that, for one sign $\sigma$,
+
+$$
+\left\|\frac z{\|z\|}-\sigma v_2\right\|^2
+\le2n\left(\frac\beta\alpha\right)^{2t(n)}.
+$$
+
+It works with an arbitrary orthonormal eigenbasis and an arbitrary orthonormal seed basis.
+Summing the second-eigenvector projections over the seed basis supplies a lower bound for
+the maximum column norm; an eigenbasis expansion bounds the perpendicular error. Thus the
+proof establishes a suitable starting column for the actual exhaustive selection procedure.
+[EigenvectorApproximation.lean](EigenvectorApproximation.lean) combines this theorem with
+the filter bounds and an elementary inverse-Bernoulli estimate to obtain distance at most
+$1/128$ from $z/\|z\|$ to the second eigenvector, up to sign.
+
+**3. Return a rational vector with a proved normalization error.** Exact real normalization
+is only a proof device. For an integer vector $z$ and positive integer precision scale $p$,
+[IntegerVector/Normalize.lean](../IntegerVector/Normalize.lean) stores
+
+$$
+Q=\sum_i z_i^2,\qquad
+d=\left\lfloor\sqrt{p^2Q}\right\rfloor+1,\qquad
+\widehat v_i=\frac{p z_i}{d}.
+$$
+
+`RationalVector` contains a signed-binary numerator list and one binary natural denominator;
+the fractions need not be reduced. `normalize` computes these finite data, and
+`normalize_close` proves, for nonzero integer $z$,
+
+$$
+\left\|\widehat v-\frac z{\|z\|}\right\|\le\frac1p.
+$$
+
+The proof uses the defining inequalities for integer square root and the fact that a nonzero
+integer vector has norm at least one. `approximateSecondEigenvectorInput` uses $p=128$.
+The triangle inequality therefore gives the required total error $1/64$;
+`approximateSecondEigenvectorInput_close` proves it for the computed rational output.
+
+**4. Select coordinates and clean up.** The rational output has a common positive scale
+factor multiplying $z$. Comparing its absolute coordinates is therefore exactly equivalent
+to comparing the integer magnitudes of $z$, including all ties. The recovery program can
+reuse `largestIndices` on $z$ and then `RecoveryInput.cleanup`. Its proof connects those
+comparisons to the existing `recoverFromApproximateSecondEigenvector_eq` tolerance theorem.
+The common noise/degree failure lemma then gives the probability theorem for this same program.
+
+Both the rational-output program and the complete recovery program have native
+`ComputableInPolyTime` certificates. They reuse the integer matrix-power certificate, which
+charges growing coordinate bit lengths, and the binary integer-square-root certificate.
+The polynomial iteration count is computed from unary $n$. Construction of the filter,
+enumeration of all columns, exact norm comparisons, sorting, normalization and output writing
+are charged. The large fixed iteration bound is chosen for a simple verified polynomial
+bound; no claim of practical numerical performance is made.
+
+Every input record is handled. Missing adjacency bits decode as absent edges, the decoded
+graph is symmetric and loop-free, and zero-dimensional input produces an empty column and
+rational output with denominator $1$. Outside the spectral regime the program still runs
+with its unconditional runtime certificate; the failure budget is $1$.
+
+### D. The exact integer algorithm with a native runtime certificate
 
 The executable base algorithm uses
 
@@ -282,7 +413,7 @@ and testing columns, sorting coordinates, performing degree cleanup, and writing
 The decoder gives every input record a total graph interpretation, so the runtime certificate
 requires no planted-graph, spectral, or input-well-formedness hypothesis.
 
-### D. Common neighbors give every fixed positive threshold
+### E. Common neighbors give every fixed positive threshold
 
 Fix a seed size $s$. The wrapper enumerates lists of $s$ distinct vertices. For each seed
 set $T$, form
@@ -390,6 +521,8 @@ The following are pre-existing APIs used directly by the proof or runtime certif
 | [Native PPT](../../Computability/Probabilistic/PPT.lean): `IsPPTOn` and `ComputableInPolyTime.isPPTOn` | Turn the deterministic machine certificate into one strict PPT program for the entire input family. |
 | [Structure encodings](../../Computability/Machines/Turing/MultiTape/Encodings/Structure.lean): `enc_structure` | Generate the concrete record encoding and constructor/projection certificates for `RecoveryInput`. |
 | [Integer tables](../../Computability/PolyTime/Int/Table.lean), [dot products](../../Computability/PolyTime/Int/DotProduct.lean), binary arithmetic and native list/iteration rules | Certify the matrix construction, exact arithmetic, list traversal and bounded iteration. Existing `ComputableInPolyTime.listsUpTo` supplies the fixed-seed enumeration certificate. |
+| [Binary square root](../../Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Sqrt.lean): `ComputableInPolyTime.binary_sqrt` | Compute the common rational denominator while charging the bit cost of the squared norm and precision. |
+| [Inverse Bernoulli inequality](../../Foundations/Analysis/BernoulliInequality.lean): `Real.one_sub_pow_le_one_div_one_add_mul` | Convert the filter's contraction ratio into an explicit finite iteration bound. |
 | [TracePower.lean](../../Foundations/LinearAlgebra/TracePower.lean): `LinearMap.IsPositive.pow_le_re_trace_pow` and `LinearMap.IsSymmetric.re_inner_apply_eq_sum` | Prove the existence of a growing power column and expand spectral quadratic forms in the eigenbasis. |
 | [Rademacher.lean](../../Probability/BitString/Rademacher.lean): `expect_exp_mul_sum_mul_signVal_le` | Supply the moment-generating-function estimate from which the new scalar tail bounds, degree bounds and random-matrix estimate are derived. |
 | [Uniform PMFs](../../Probability/PMF/Uniform.lean): `uniformOfFintype_pi_map_comp_embedding` and `uniformOfFintype_bind_bind_fst_equiv` | Transport uniform coin laws through injective coordinate maps and justify exposure/resampling. |
@@ -437,7 +570,9 @@ bound in its numerical regime and the trivial budget $1$ elsewhere.
 The additional shared mathematics includes coordinate selection and its error bound,
 deterministic clique cleanup and uniqueness, finite-seed common neighborhoods, uniform
 fixed-pattern probabilities, spectral perturbation lemmas, finite nets, Rademacher tails,
-and the native integer-power and sorting certificates. These are contributions of this
+and the native integer-power and sorting certificates. The finite-precision implementation
+adds a general maximum-column power-iteration estimate and certified rational normalization
+of integer vectors. These are contributions of this
 development, rather than pre-existing planted-clique machinery.
 
 One reuse improvement is an extraction: the stable merge-sort/insertion-sort bridge formerly
@@ -447,8 +582,9 @@ The existing matroid client and the new selection/runtime proof use that shared 
 The circuit-testing layer also gains `isCircuitTest_iff_exists_circuit`, relating its existing
 semantic test class to explicit De Morgan circuits.
 
-The remaining algorithmic work, tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238), is a native
-finite-precision implementation of the raw second-eigenvector specification and sharper
-constants. The every-$c$ native recovery theorem above is already proved using the integer
-solver and common-neighbor wrapper.
+The remaining analysis in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238) is to sharpen the
+second-eigenvector constants toward Algorithm A's $10\sqrt n$ threshold, including the
+paper's preliminary size reduction. The every-$c$ native recovery theorem above uses the
+integer solver and common-neighbor wrapper; the separate finite-precision second-eigenvector
+program is certified in the explicit finite regime stated above.
