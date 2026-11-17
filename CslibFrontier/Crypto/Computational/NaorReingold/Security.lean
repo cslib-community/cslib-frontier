@@ -27,6 +27,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
@@ -1628,27 +1629,14 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
   have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
   have hcap_poly : PolynomiallyBounded (fun n => dyadicSize (inLen n)) :=
     dyadicSize_polynomiallyBounded.comp hinLen_poly
-  have hnum_poly : PolynomiallyBounded
-      (fun n => inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ) := by
-    fun_prop
-  have hε_neg : Negligible ε :=
-    (negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hnum_poly
+  have hε_neg : Negligible ε := by negligible
   have hddh_neg : Negligible fun n =>
       Game.advantage
         (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
         (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) :=
     hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
   have hinv_neg := hDDH.negligible_expected_inv_order
-  have hsum_neg : Negligible fun n =>
-      Game.advantage
-        (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
-        (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) +
-        2 * ε n +
-        (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal :=
-    (hddh_neg.add (hε_neg.const_mul 2)).add hinv_neg
-  have htot_neg := hsum_neg.polynomiallyBounded_mul hcap_poly
-  refine negligible_of_le htot_neg fun n => ?_
-  simpa only [mul_comm (dyadicSize (inLen n) : ℝ≥0)] using
+  negligible using fun n =>
     advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (hQ_supp n) (hε_supp n)
 
 /-- **Asymptotic DDH security of the Naor–Reingold group-PRF (`naorReingoldWordRealGame`)**
@@ -1676,12 +1664,7 @@ theorem DDH.negligible_naorReingoldWordGame {F : PrimeOrderGroupFamily}
 private theorem negligible_add_one_div_two_pow {inLen : ℕ → ℕ}
     (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
     Negligible fun n => ((inLen n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
-  have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
-  have hp : PolynomiallyBounded (fun n => inLen n + 1) := by fun_prop
-  refine negligible_of_le
-    ((negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hp)
-    fun n => ?_
-  rw [div_eq_mul_inv, ← inv_pow]
+  negligible
 
 /-- **Asymptotic DDH security of the executable Naor–Reingold group-PRF
 (`naorReingoldProbRealGame`)** ([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1):
@@ -2375,13 +2358,7 @@ theorem DDH.negligible_naorReingoldHashedGame {F : PrimeOrderGroupFamily}
     exists_queryBound_hashedAdvGroup houtLen hbound_poly hdesc_poly hdesc hadversary
   have hstep2_neg : Negligible fun n =>
       (Q n : ℝ≥0) * (NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2) := by
-    have hsqrt : Negligible fun n =>
-        NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2 := by
-      have h1 : Negligible fun n =>
-          (2⁻¹ : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) :=
-        (Negligible.sqrt hneg).const_mul (2⁻¹ : ℝ≥0)
-      simpa only [div_eq_inv_mul] using h1
-    exact hsqrt.polynomiallyBounded_mul hQ_poly
+    negligible
   exact negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
     hadversary hstep2_neg fun n =>
       F.advantage_naorReingoldHashedIdeal_le setup inLen outLen bound adversary n (Q n)
@@ -2450,14 +2427,7 @@ theorem DDH.negligible_naorReingoldHashedGame_const {F : PrimeOrderGroupFamily}
   have hε_neg : Negligible ε := hDDH.negligible_expected_inv_order
   let lhlBound : ℕ → ℝ≥0 := fun n =>
     (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) + NNReal.sqrt (ε n)
-  have hlhl_neg : Negligible lhlBound := by
-    have h1 : Negligible fun n => (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) :=
-      (hε_neg.sqrt.sqrt).const_mul ((2 : ℝ≥0) ^ c)
-    have h2 : Negligible fun n =>
-        (Q n : ℝ≥0) * ((2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))) :=
-      h1.polynomiallyBounded_mul hQ_poly
-    exact (by simpa only [mul_assoc] using h2 : Negligible fun n =>
-      (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))).add hε_neg.sqrt
+  have hlhl_neg : Negligible lhlBound := by negligible
   refine negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
     hadversary hlhl_neg fun n => ?_
   have hexp_top : (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹) ≠ ⊤ := by

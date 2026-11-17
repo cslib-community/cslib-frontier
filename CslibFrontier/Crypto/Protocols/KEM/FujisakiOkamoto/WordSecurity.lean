@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordBridge
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
 import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # ROM IND-CCA security of the word-level `FO-notbot` family from IND-CPA
@@ -86,37 +87,15 @@ theorem INDCPA.romINDCCA {P : WordPKE} {keyLen : ℕ → ℕ} (hcpa : P.INDCPA)
     P.ROMINDCCA keyLen := by
   intro A hA
   obtain ⟨B, q, hq, hqueries, hbridge⟩ := hP.exists_typedAdversary hkeyLen hA
-  let cpa : ℕ → ℝ≥0 := Encryption.advantage
-    (Encryption.gameOn P.IsMessagePair P.keyGen P.encrypt (P.romCpaReductionWord keyLen A))
-  have hcpa' : Negligible cpa :=
-    hcpa (P.romCpaReductionWord keyLen A) (hP.isPPT_romCpaReductionWord hkeyLen hA)
-  have hbound (n : ℕ) : Game.advantage (ProbComp.eval (P.romIndCcaGameWord keyLen A false n))
-      (ProbComp.eval (P.romIndCcaGameWord keyLen A true n)) ≤
-      2 * cpa n + ((6 * q n : ℕ) : ℝ≥0) * ((2 : ℝ≥0) ^ P.msgLen n)⁻¹ +
-        ((2 * (2 * q n + 1) : ℕ) : ℝ≥0) * δ n := by
+  have hcpa' := hcpa (P.romCpaReductionWord keyLen A)
+    (hP.isPPT_romCpaReductionWord hkeyLen hA)
+  negligible using fun n => by
     obtain ⟨hgame, hadv⟩ := hbridge hfit n
-    have hle := (P.finiteScheme keyLen n).indCcaRomAdvantage_le (B n) (hqueries n)
+    simpa only [Scheme.indCcaRomAdvantage, Experiment.advantage, ← hgame, finiteScheme_pke,
+      ← hadv, Fintype.card_pi, Fintype.card_bool, Finset.prod_const, Finset.card_univ,
+      Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using
+      (P.finiteScheme keyLen n).indCcaRomAdvantage_le (B n) (hqueries n)
       (by simp [ProbComp.eval_uniform]) (hδ n)
-    have hword : Game.advantage (ProbComp.eval (P.romIndCcaGameWord keyLen A false n))
-        (ProbComp.eval (P.romIndCcaGameWord keyLen A true n)) =
-        (P.finiteScheme keyLen n).indCcaRomAdvantage (B n) := by
-      simp only [Scheme.indCcaRomAdvantage, Experiment.advantage, hgame]
-    rw [← NNReal.coe_le_coe, hword]
-    refine hle.trans (le_of_eq ?_)
-    simp only [finiteScheme_pke] at hadv ⊢
-    rw [← hadv]
-    simp only [cpa, coe_nndist, Fintype.card_pi, Fintype.card_bool, Finset.prod_const,
-      Finset.card_univ, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_add, Nat.cast_one,
-      Nat.cast_mul, NNReal.coe_add, NNReal.coe_mul, NNReal.coe_ofNat, NNReal.coe_natCast,
-      NNReal.coe_inv, NNReal.coe_pow, NNReal.coe_one]
-    ring
-  refine negligible_of_le ?_ hbound
-  have h₁ : Negligible fun n => 2 * cpa n := hcpa'.const_mul 2
-  have h₂ : Negligible fun n => ((6 * q n : ℕ) : ℝ≥0) * ((2 : ℝ≥0) ^ P.msgLen n)⁻¹ :=
-    hmsg.polynomiallyBounded_mul (by fun_prop)
-  have h₃ : Negligible fun n => ((2 * (2 * q n + 1) : ℕ) : ℝ≥0) * δ n :=
-    hδneg.polynomiallyBounded_mul (by fun_prop)
-  exact (h₁.add_fun h₂).add_fun h₃
 
 end WordPKE
 
