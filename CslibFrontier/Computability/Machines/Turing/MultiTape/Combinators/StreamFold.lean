@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ReadInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileInput
-public import CslibFrontier.Foundations.Data.Fin.Tuple
+public import CslibFrontier.Foundations.Data.Fin.Embedding
 import CslibFrontier.Foundations.Data.List.Flatten
 import Mathlib.Tactic.FinCases
 
@@ -33,6 +33,8 @@ time and space in the size of the state and the token only.
 * `Turing.MultiTapeTM.transformsTapes_frozenRound`: the specification of `frozenRound`.
 * `Turing.MultiTapeTM.transformsTapesAt_streamLoop_after`: the loop of rounds, started just past an
   input prefix; `transformsTapesAt_streamLoop` is its empty-prefix case.
+* `Turing.MultiTapeTM.transformsTapesAt_streamLoop_after_of_round`: the same loop induction for
+  any machine satisfying the exact one-round specification.
 * `Turing.MultiTapeTM.computesTidily_streamTM_after`: the tidy assembly of `streamTM` from an
   initializer that may move the input head past a prefix; `computesTidily_streamTM` is the case of
   an initializer that leaves the input head at the start.
@@ -42,21 +44,6 @@ namespace Turing.MultiTapeTM
 
 variable {m K : ℕ} {Symbol S : Type*}
 
-/-! ### Specifications on selected tapes -/
-
-/-- An embedding of `Fin m` into a larger `Fin K` sending `i` to `a`. -/
-public theorem exists_embedding_eq (h : m ≤ K) (i : Fin m) (a : Fin K) :
-    ∃ e : Fin m ↪ Fin K, e i = a :=
-  ⟨(Fin.castLEEmb h).trans (Equiv.swap (Fin.castLE h i) a).toEmbedding, by simp⟩
-
-/-- An embedding of `Fin m` into a larger `Fin K` sending `i` to `a` and `o` to `b`. -/
-public theorem exists_embedding_eq₂ (h : m ≤ K) {i o : Fin m} (hio : i ≠ o) {a b : Fin K}
-    (hab : a ≠ b) : ∃ e : Fin m ↪ Fin K, e i = a ∧ e o = b := by
-  obtain ⟨e, he⟩ := exists_embedding_eq h i a
-  refine ⟨e.trans (Equiv.swap (e o) b).toEmbedding, ?_, by simp⟩
-  have hoa : e o ≠ a := fun h => hio (e.injective (h.trans he.symm)).symm
-  simp [he, Equiv.swap_apply_of_ne_of_ne hoa.symm hab]
-
 /-! ### The part of a round that does not use the input -/
 
 section Frozen
@@ -65,7 +52,7 @@ variable {SE SN : Type*} {E : MultiTapeTM K Bool SE} {Nm : MultiTapeTM K Bool SN
   {V N F : Fin K}
 
 /-- The three tapes `V`, `N`, `F` of `copyWord`: target, source and flag. -/
-public def threeTapes (V N F : Fin K) (hVN : V ≠ N) (hVF : V ≠ F) (hNF : N ≠ F) :
+@[expose] public def threeTapes (V N F : Fin K) (hVN : V ≠ N) (hVF : V ≠ F) (hNF : N ≠ F) :
     Fin (0 + 1 + 2) ↪ Fin K :=
   ⟨![V, N, F], by intro a b h; fin_cases a <;> fin_cases b <;> simp_all [eq_comm]⟩
 
@@ -204,13 +191,37 @@ public lemma streamPos_lt (toks : List (List Bool)) (j : ℕ) :
       3 * ((vs (j + 1)).length + 1)))))
 
 -- upstream: candidate
-/-- **The streaming loop after an input prefix.** The input is a prefix `pre` followed by the
+/-- **The streaming loop after an input prefix, from an exact round specification.** The input is
+a prefix `pre` followed by the
 concatenation of the non-empty tokens `toks`, from each of which the reader `r` reads the content
 `cont j`. If for every token `j` the machine `E` emits `es j` and `Nm` computes the next state
 `vs (j + 1)` from the state `vs j` followed by `cont j`, then the loop of rounds, started on the
 state `vs 0` just past the prefix, leaves the final state on tape `V`, emits the words `es j` and
 stops at the end of the input. The prefix is neither read nor copied. -/
-public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F) (hNF : N ≠ F)
+public theorem transformsTapesAt_streamLoop_after_of_round {SR : Type*}
+    (round : MultiTapeTM K Bool SR)
+    (roundSpec : ∀ (x : List Bool) (p₀ : Fin (x.length + 2)) (hp₀ : p₀.val ≠ 0)
+      (v : List Bool) {emit next : List Bool} {tE sE tN sN : ℕ},
+      TransformsTapes E
+        (fun _ ws => ws = Function.update (fun _ => []) V
+          (v ++ (r.read r.q₀ (x.drop (p₀.val - 1))).1))
+        (fun _ ws ws' em => ws' = ws ∧ em = emit) tE sE →
+      TransformsTapes Nm
+        (fun _ ws => ws = Function.update (fun _ => []) V
+          (v ++ (r.read r.q₀ (x.drop (p₀.val - 1))).1))
+        (fun _ ws ws' em => ws' = Function.update ws N next ∧ em = []) tN sN →
+      let rd := r.read r.q₀ (x.drop (p₀.val - 1))
+      TransformsTapesAt round
+        (fun input p ws => input = x ∧ p.val = p₀.val ∧
+          ws = Function.update (fun _ => []) V v)
+        (fun _ _ _ p' ws' em => p'.val = p₀.val + rd.2 ∧
+          ws' = Function.update (fun _ => []) V next ∧ em = emit)
+        (v.length + 1 + ((rd.2 + 1) + ((v ++ rd.1).length + 2)) +
+          (tE + (tN + (3 * ((v ++ rd.1).length + 1) + ((3 * next.length + 10) +
+            3 * (next.length + 1))))))
+        ((v ++ rd.1).length + 2 + (K - 1) +
+          (sE + (sN + (((v ++ rd.1).length + 1 + K) + ((4 * next.length + K + 15) +
+            (next.length + 1 + K)))))))
     (pre : List Bool) (toks : List (List Bool)) (htoks : ∀ t ∈ toks, t ≠ [])
     (cont vs es : ℕ → List Bool) {sR : ℕ} {tE sE tN sN : ℕ → ℕ}
     (hread : ∀ j (hj : j < toks.length),
@@ -224,7 +235,7 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
     (hsR : ∀ j < toks.length, (vs j ++ cont j).length + 2 + (K - 1) +
         (sE j + (sN j + (((vs j ++ cont j).length + 1 + K) + ((4 * (vs (j + 1)).length + K + 15) +
           ((vs (j + 1)).length + 1 + K))))) ≤ sR) :
-    TransformsTapesAt (whileInput (streamRound r E Nm V N F hVN hVF hNF))
+    TransformsTapesAt (whileInput round)
       (fun input p ws => input = pre ++ toks.flatten ∧ p.val = 1 + pre.length ∧
         ws = Function.update (fun _ => []) V (vs 0))
       (fun input _ _ p' ws' em => input = pre ++ toks.flatten ∧
@@ -243,7 +254,7 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
       (em : List Bool) : Prop :=
     input = x ∧ p.val = 1 + L n ∧ ws = Function.update (fun _ => []) V (vs n) ∧
       em = ((List.range n).map es).flatten
-  have hround : ∀ n < toks.length, ∀ acc, TransformsTapesAt (streamRound r E Nm V N F hVN hVF hNF)
+  have hround : ∀ n < toks.length, ∀ acc, TransformsTapesAt round
       (fun input p ws => P n input p ws acc)
       (fun input _ _ p' ws' e => P (n + 1) input p' ws' (acc ++ e))
       (streamRoundTime toks cont vs tE tN n) sR := by
@@ -255,8 +266,8 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
         rw [← List.drop_drop, List.drop_left]
       rw [hdrop]
       exact hread n hn
-    have h := transformsTapesAt_streamRound (r := r) hVN hVF hNF x p₀ (by simp [p₀]) (vs n)
-      (hE := by rw [hrd]; exact hE n hn) (hN := by rw [hrd]; exact hN n hn)
+    have h := roundSpec x p₀ (by simp [p₀]) (vs n)
+      (by rw [hrd]; exact hE n hn) (by rw [hrd]; exact hN n hn)
     simp only [hrd] at h
     refine h.imp (fun _ _ _ ⟨hin, hp, hws, _⟩ => ⟨hin, hp, hws⟩) ?_ ?_ ?_
     · rintro _ _ _ p' ws' em ⟨rfl, -, -, rfl⟩ ⟨hp', hws', rfl⟩
@@ -291,6 +302,40 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
       simp [inputSymbolAt, hp, hL], h⟩)).imp
     (fun _ _ _ ⟨hin, hp, hws⟩ => ⟨hin, by simp [hp, L], hws, rfl⟩)
     (fun _ _ _ _ _ _ _ ⟨hin, hp, hws, he⟩ => ⟨hin, hp.trans (by rw [hL]), hws, he⟩) le_rfl le_rfl
+
+/-- **The streaming loop after an input prefix.** The input is a prefix `pre` followed by the
+concatenation of the non-empty tokens `toks`, from each of which the reader `r` reads the content
+`cont j`. If for every token `j` the machine `E` emits `es j` and `Nm` computes the next state
+`vs (j + 1)` from the state `vs j` followed by `cont j`, then the loop of rounds, started on the
+state `vs 0` just past the prefix, leaves the final state on tape `V`, emits the words `es j` and
+stops at the end of the input. The prefix is neither read nor copied. -/
+public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F) (hNF : N ≠ F)
+    (pre : List Bool) (toks : List (List Bool)) (htoks : ∀ t ∈ toks, t ≠ [])
+    (cont vs es : ℕ → List Bool) {sR : ℕ} {tE sE tN sN : ℕ → ℕ}
+    (hread : ∀ j (hj : j < toks.length),
+      r.read r.q₀ (toks.flatten.drop ((toks.take j).flatten).length) = (cont j, toks[j].length))
+    (hE : ∀ j < toks.length, TransformsTapes E
+      (fun _ ws => ws = Function.update (fun _ => []) V (vs j ++ cont j))
+      (fun _ ws ws' em => ws' = ws ∧ em = es j) (tE j) (sE j))
+    (hN : ∀ j < toks.length, TransformsTapes Nm
+      (fun _ ws => ws = Function.update (fun _ => []) V (vs j ++ cont j))
+      (fun _ ws ws' em => ws' = Function.update ws N (vs (j + 1)) ∧ em = []) (tN j) (sN j))
+    (hsR : ∀ j < toks.length, (vs j ++ cont j).length + 2 + (K - 1) +
+        (sE j + (sN j + (((vs j ++ cont j).length + 1 + K) + ((4 * (vs (j + 1)).length + K + 15) +
+          ((vs (j + 1)).length + 1 + K))))) ≤ sR) :
+    TransformsTapesAt (whileInput (streamRound r E Nm V N F hVN hVF hNF))
+      (fun input p ws => input = pre ++ toks.flatten ∧ p.val = 1 + pre.length ∧
+        ws = Function.update (fun _ => []) V (vs 0))
+      (fun input _ _ p' ws' em => input = pre ++ toks.flatten ∧
+        p'.val = 1 + (pre ++ toks.flatten).length ∧
+        ws' = Function.update (fun _ => []) V (vs toks.length) ∧
+        em = ((List.range toks.length).map es).flatten)
+      (∑ j ∈ Finset.range toks.length, (streamRoundTime toks cont vs tE tN j + 1) + 1)
+      (2 * K * sR + K) :=
+  transformsTapesAt_streamLoop_after_of_round
+    (round := streamRound r E Nm V N F hVN hVF hNF)
+    (roundSpec := transformsTapesAt_streamRound (r := r) hVN hVF hNF)
+    pre toks htoks cont vs es hread hE hN hsR
 
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 -- vendored: derived from `transformsTapesAt_streamLoop_after` with the empty prefix, so the

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.CarrySave.Reduce
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Shifted partial products of unsigned words
@@ -83,7 +84,7 @@ theorem val_eval_partialProduct (i : Fin w) (a b : BitString w) :
 
 /-- Exactly one gate per output bit, including the false low positions. -/
 @[simp] theorem size_partialProduct (i : Fin w) : (partialProduct w i).size = w := by
-  simp only [partialProduct, Circuit.size_pi, Formula.size_toCircuit]
+  simp only [circuit_simps, partialProduct]
   have h (j : Fin w) : (partialProductBit w i j).size = 1 := by
     unfold partialProductBit
     split_ifs <;> simp
@@ -91,10 +92,6 @@ theorem val_eval_partialProduct (i : Fin w) (a b : BitString w) :
 
 /-- All product digits are produced in parallel at depth one. -/
 theorem depth_partialProduct_le (i : Fin w) : (partialProduct w i).depth ≤ 1 := by
-  apply Circuit.depth_pi_le
-  intro j
-  apply (Formula.depth_toCircuit_le _).trans
-  unfold partialProductBit
-  split_ifs <;> simp
+  circuit_bound [partialProduct, partialProductBit]
 
 end Cslib.Circuits.Boolean.Modular

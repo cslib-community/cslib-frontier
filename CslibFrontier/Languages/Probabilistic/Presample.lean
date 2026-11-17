@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -83,13 +84,12 @@ theorem IsQueryBounded.run_interpret_presample {program : ProbOracleComp spec α
         (fun q state => source.bind fun value => oracle value q state)) program).run s := by
   induction h generalizing s with
   | pure a n =>
-    simp only [run_interpret_pure, PMF.monad_pure_eq_pure, PMF.pure_map, PMF.bind_const]
+    simp only [interp_norm, pmf_norm, PMF.bind_const]
   | liftBind q cont n _ ih =>
     cases q with
     | inl k =>
-      simp only [Sum.elim_inl, Nat.add_zero, run_interpret_bind, run_interpret_query, sumHandler,
-        StateT.lift, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-        PMF.pure_bind, PMF.map_bind]
+      simp only [Sum.elim_inl, Nat.add_zero, interp_norm, PMF.monad_bind_eq_bind,
+        PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind]
       pmf_swap with a
       exact ih a s
     | inr q =>

@@ -42,9 +42,10 @@ writes the experiment's law as an event of the logged run.
   the success probability. In particular a forger succeeds at least as often in the strong
   experiment as in the existential one (`succProbability_forgeExperiment_freshMessage_le`), so
   strong unforgeability implies existential unforgeability.
-* `Cslib.Crypto.forgeExperiment_freshPair_eq_freshMessage`: when every signature the policy
-  produces verifies and each message has at most one valid signature, strong and existential
-  forgery are the same experiment.
+* `Cslib.Crypto.forgeExperiment_freshPair_eq_freshMessage_of_unique`,
+  `Cslib.Crypto.forgeExperiment_freshPair_eq_freshMessage`: when every valid pair `(m, σ)` agrees
+  with every answer the policy can produce on `m` (in particular, when every policy signature
+  verifies and valid signatures are unique), strong and existential forgery are the same experiment.
 
 ## References
 
@@ -166,6 +167,35 @@ theorem succProbability_forgeExperiment_freshMessage_le [DecidableEq M] [Decidab
       Experiment.succProbability (forgeExperiment keyGen signer verify freshPair A) :=
   succProbability_forgeExperiment_mono (fun _ _ _ => freshPair_of_freshMessage) A
 
+/-- **Unique oracle answers on valid messages**: when every valid pair `(m, σ)` under a supported
+key pair agrees with every answer `σ'` that `signer` can produce on `m`, strong and existential
+forgery are the same experiment (even when `signer` also answers queries outside the domain of
+`verify`). -/
+theorem forgeExperiment_freshPair_eq_freshMessage_of_unique [DecidableEq M] [DecidableEq Sig]
+    (hunique : ∀ keys ∈ (ProbComp.eval keyGen).support, ∀ m σ,
+      verify keys.1 keys.2 m σ = true →
+      ∀ log program, signer keys.2 log m = some program →
+      ∀ σ' ∈ (ProbComp.eval program).support, σ' = σ)
+    (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) :
+    ProbComp.eval (forgeExperiment keyGen signer verify freshPair A) =
+      ProbComp.eval (forgeExperiment keyGen signer verify freshMessage A) := by
+  simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ hout => ?_
+  have hlog := ProbOracleComp.forall_mem_runLogWith
+    (P := fun p => ∀ τ, verify pk sk p.1 τ = true → p.2 = τ)
+    (fun log q program h r hr τ hv => hunique _ hkeys q τ hv log program h r hr) (A pk) hout
+  dsimp only
+  cases hv : verify pk sk m σ
+  · rfl
+  · simp only [Bool.true_and, freshPair, freshMessage]
+    congr 1
+    refine decide_eq_decide.mpr ⟨?_, fun hmsg hpair => hmsg (List.mem_map_of_mem hpair)⟩
+    intro hpair hmsg
+    obtain ⟨⟨m', σ'⟩, hmem, rfl⟩ := List.mem_map.mp hmsg
+    rw [← hlog _ hmem σ hv] at hpair
+    exact hpair hmem
+
 /-- **Unique signatures**: when every signature that the policy produces verifies and each
 message has at most one valid signature, a strong forgery is an existential one, so the two
 experiments coincide. -/
@@ -177,23 +207,10 @@ theorem forgeExperiment_freshPair_eq_freshMessage [DecidableEq M] [DecidableEq S
       verify keys.1 keys.2 m σ = true → verify keys.1 keys.2 m σ' = true → σ = σ')
     (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) :
     ProbComp.eval (forgeExperiment keyGen signer verify freshPair A) =
-      ProbComp.eval (forgeExperiment keyGen signer verify freshMessage A) := by
-  simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ hout => ?_
-  have hlog := ProbOracleComp.forall_mem_runLogWith
-    (P := fun p => verify pk sk p.1 p.2 = true)
-    (fun log q program h r hr => hsign _ hkeys log q program h r hr) (A pk) hout
-  dsimp only
-  cases hv : verify pk sk m σ
-  · rfl
-  · simp only [Bool.true_and, freshPair, freshMessage]
-    congr 1
-    refine decide_eq_decide.mpr ⟨?_, ?_⟩
-    · intro hpair hmsg
-      obtain ⟨⟨m', σ'⟩, hmem, rfl⟩ := List.mem_map.mp hmsg
-      exact hpair (hunique _ hkeys _ _ _ hv (hlog _ hmem) ▸ hmem)
-    · exact fun hmsg hpair => hmsg (List.mem_map_of_mem hpair)
+      ProbComp.eval (forgeExperiment keyGen signer verify freshMessage A) :=
+  forgeExperiment_freshPair_eq_freshMessage_of_unique
+    (fun keys hkeys m _ hv log program hprog _ hσ' =>
+      hunique keys hkeys m _ _ (hsign keys hkeys log m program hprog _ hσ') hv) A
 
 end Crypto
 

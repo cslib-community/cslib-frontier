@@ -47,13 +47,11 @@ polynomial-time generators (`Cslib.Complexity.seedDecider`).
   (`Cslib.Complexity.P_eq_BPP_of_exponentialTimePRG`).
 
 Goldreich's Proposition 8.15 and Arora and Barak's Lemma 16.4, for `BPTIME(t)` with general `t`,
-are not proved here. Both proofs stretch seeds to exactly the number of coins and fool the
-verifier's circuit at exactly the advertised size. In the `O(t)` convention of
-`Cslib.Complexity.BPTIME`, a machine may toss a constant factor more coins than the generator's
-output length (Arora and Barak take `m ≤ S(ℓ(n))` for a machine of time `c S(ℓ(n))`). The circuit
-simulation of `Cslib.Circuits.Boolean.MachineSimulation` has a machine-dependent constant factor,
-whereas Goldreich takes `|C_x| ≤ |r| ^ 2`. In the polynomial regime of Theorem 8.16, both factors
-are absorbed by a longer seed of `O(log n)` bits.
+are not proved: under this library's constant-factor conventions their printed proofs leave a
+gap. Conditional forms under a growth hypothesis are in
+`CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime`. In the
+polynomial regime of Theorem 8.16, the constant factors are absorbed by a longer seed of
+`O(log n)` bits.
 
 ## Main definitions
 
@@ -305,7 +303,8 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
     have hcirc : IsCircuitTest (ℓ (seed x) ^ 2) fun y : BitString (ℓ (seed x)) =>
         PMF.pure (V (x, (List.ofFn y).take (p.eval (enc x).length))) :=
       ⟨_, (hcB _ hmℓ).trans (hBℓ.trans (Nat.le_self_pow two_ne_zero _)), rfl⟩
-    refine (seedDecider_eq_true_iff_of_advantage_lt hA hG.length_eq gen seed (fun z => ?_) hmℓ
+    refine (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
+      (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun z => ?_) hmℓ
       (hG.fools _ _ hcirc)).symm
     simp only [gen, List.take_of_length_le (le_of_eq (List.length_ofFn (f := z)))]
 

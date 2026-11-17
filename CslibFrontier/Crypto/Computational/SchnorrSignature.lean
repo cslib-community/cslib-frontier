@@ -164,13 +164,7 @@ theorem computableInPolyTime_schnorrSigVerifyBits :
       (encPair F.encDesc
         (encPair encBits (encPair encBits (encPair (encPair encBits encBits) encBits))))
       encBool := by
-  change ComputableInPolyTime
-    (fun p : F.Desc × List Bool × List Bool × (List Bool × List Bool) × List Bool =>
-      F.encodeSchnorrVerify p.1 p.2.1 p.2.2.2.1.1 p.2.2.2.2 p.2.2.2.1.2)
-    (encPair F.encDesc
-      (encPair encBits (encPair encBits (encPair (encPair encBits encBits) encBits))))
-    encBool
-  fun_prop
+  fun_prop [PrimeOrderGroupFamily.schnorrSigVerifyBits]
 
 /-- `schnorrSigVerifyBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrSigVerifyBits :

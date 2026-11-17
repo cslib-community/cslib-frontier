@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.PackProgram
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Execution of the native wanted-output digit loop
@@ -61,21 +62,6 @@ structure PackProgress (L M R C : ℕ) (x : Data 16) : Prop where
   value : x.regs code + x.regs power *
     pack (L - x.regs level) (x.regs mask) (x.regs row) (x.regs col) = pack L M R C
 
-private theorem parameters_after_body {L : ℕ} {x y : Data 16}
-    (hx : PackParameters L x) {w c : ℕ} (he : ExecWithin w packBody x y c) :
-    PackParameters L y := by
-  have hf (i : Fin 16) (hi : i ∈ ({depth, one, two, three, ten, nine} : Finset _)) :
-      y.regs i = x.regs i := by
-    apply he.regs_eq
-    have h : ∀ i ∈ ({depth, one, two, three, ten, nine} : Finset (Fin 16)),
-        packBody.Preserves i := by
-      simp only [packBody, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact h i hi
-  exact ⟨(hf _ (by decide)).trans hx.depth, (hf _ (by decide)).trans hx.one,
-    (hf _ (by decide)).trans hx.two, (hf _ (by decide)).trans hx.three,
-    (hf _ (by decide)).trans hx.ten, (hf _ (by decide)).trans hx.nine⟩
-
 /-- One coordinate's actual test, arithmetic and register updates. The numeric budget is
 derived from original inputs, rather than an assumed bound on intermediate states. -/
 theorem exec_packBody {w L M R C : ℕ} (x : Data 16) (hx : PackProgress L M R C x)
@@ -124,8 +110,7 @@ theorem exec_packBody {w L M R C : ℕ} (x : Data 16) (hx : PackProgress L M R C
         hrq, hcq, hmul, hadd, Nat.lt_one_iff,
         mask, bit, row, col, digit, temporary, code, power, level, two, three, one, ten,
         Fin.mk.injEq]
-    refine ⟨y, he, ⟨parameters_after_body hx.fixed he, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-      rfl, ?_⟩
+    refine ⟨y, he, ⟨by regs_frame, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl, ?_⟩
     · simp only [y, Data.set_regs, Function.update_self]; omega
     · simpa [y, mask, bit, digit, row, col, temporary, code, power, level] using
         (Nat.div_le_self (x.regs mask) 2).trans hx.mask_le
@@ -163,8 +148,7 @@ theorem exec_packBody {w L M R C : ℕ} (x : Data 16) (hx : PackProgress L M R C
         hb, hmfit, hbit, hpfit, hjfit, h9, hmul, hadd, Nat.lt_one_iff,
         mask, bit, row, col, digit, temporary, code, power, level, two, three, one, ten, nine,
         Fin.mk.injEq]
-    refine ⟨y, he, ⟨parameters_after_body hx.fixed he, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-      rfl, ?_⟩
+    refine ⟨y, he, ⟨by regs_frame, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl, ?_⟩
     · simp only [y, Data.set_regs, Function.update_self]; omega
     · simpa [y, mask, bit, digit, row, col, temporary, code, power, level] using
         (Nat.div_le_self (x.regs mask) 2).trans hx.mask_le

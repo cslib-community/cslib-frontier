@@ -80,6 +80,18 @@ private theorem tuple_eq (x : Fin 3 → Bool) : x = ![x 0, x 1, x 2] := by
   ext i
   fin_cases i <;> rfl
 
+/-- The triangle's ternary symbol reads the canonical tuple in its original order. -/
+theorem triangleSem_relation (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 3 → Bool) : triangleSem R .relation (List.ofFn x) = true ↔ x ∈ R := by
+  rw [tuple_eq x]
+  simp [triangleSem, List.ofFn_succ]
+
+/-- The triangle's binary symbol has exactly NAND semantics at its canonical ordered tuple. -/
+theorem triangleSem_nand (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 2 → Bool) : triangleSem R .nand (List.ofFn x) = true ↔ x ∈ nand := by
+  cases h₀ : x 0 <;> cases h₁ : x 1 <;>
+    simp [triangleSem, List.ofFn_succ, nand, h₀, h₁]
+
 /-- NAND on all three adjacent pairs leaves precisely the three units or zero. -/
 theorem triangleBody_eval_iff (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
     (x : Fin 3 → Bool) (b : Fin 0 → Bool) :

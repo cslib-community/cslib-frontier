@@ -23,10 +23,6 @@ constructive encoding, and every constant in the kernel conditional theorem.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.ite`: direct conditional composition of three named
   compilers.
 
-## Main results
-
-* `Turing.MultiTapeTM.Internal.NativeCompiler.machine_ite`: the retained machine is definitionally
-  `Turing.MultiTapeTM.iteTM` applied to the three supplied machines.
 -/
 
 public section
@@ -35,7 +31,7 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 /-- Direct conditional composition of a named condition and two named branches. The condition
 emits `encTest`; no semantic Boolean callback is hidden behind the assembled machine. -/
-@[expose] noncomputable def ite {Alpha Beta : Type*} {condition : Alpha → Bool}
+@[expose] def ite {Alpha Beta : Type*} {condition : Alpha → Bool}
     {ifTrue ifFalse : Alpha → Beta} {encIn : Alpha ↪ List Bool}
     {encOut : Beta ↪ List Bool}
     (conditionCompiler : NativeCompiler condition encIn encTest)
@@ -54,7 +50,7 @@ emits `encTest`; no semantic Boolean callback is hidden behind the assembled mac
     tapeCount := max conditionCompiler.tapeCount
       (max trueCompiler.tapeCount falseCompiler.tapeCount) + 1
     State := CompilerState
-    machine := iteTM conditionCompiler.machine trueCompiler.machine falseCompiler.machine
+    table := MultiTapeMachine.ite conditionCompiler.table trueCompiler.table falseCompiler.table
     stateEncoding := sumStateEncoding
       (sumStateEncoding conditionCompiler.stateEncoding rewindWorkStateEncoding)
       (sumStateEncoding
@@ -72,37 +68,28 @@ emits `encTest`; no semantic Boolean callback is hidden behind the assembled mac
     computes := fun input => by
       cases hcondition : condition input with
       | false =>
-          have h := (conditionCompiler.computes input).ite
-            (tm₁ := trueCompiler.machine) (tm₂ := falseCompiler.machine)
-            (y := encOut (ifFalse input))
-            (t₁ := trueCompiler.time input) (s₁ := trueCompiler.workspace input)
-            (t₂ := falseCompiler.time input) (s₂ := falseCompiler.workspace input)
+          have h := MultiTapeMachine.computesTidilyInTimeAndSpace_ite
+            (condition := conditionCompiler.table) (ifTrue := trueCompiler.table)
+            (ifFalse := falseCompiler.table) (output := encOut (ifFalse input))
+            (trueTime := trueCompiler.time input) (trueSpace := trueCompiler.workspace input)
+            (falseTime := falseCompiler.time input) (falseSpace := falseCompiler.workspace input)
+            (conditionCompiler.computes input)
             (fun hne => (hne (by simp only [hcondition, encTest_false])).elim)
             (fun _ => falseCompiler.computes input)
           simpa only [hcondition, Bool.false_eq_true, ↓reduceIte, encTest_false,
             List.length_nil, Nat.mul_zero, Nat.add_zero] using h
       | true =>
-          have h := (conditionCompiler.computes input).ite
-            (tm₁ := trueCompiler.machine) (tm₂ := falseCompiler.machine)
-            (y := encOut (ifTrue input))
-            (t₁ := trueCompiler.time input) (s₁ := trueCompiler.workspace input)
-            (t₂ := falseCompiler.time input) (s₂ := falseCompiler.workspace input)
+          have h := MultiTapeMachine.computesTidilyInTimeAndSpace_ite
+            (condition := conditionCompiler.table) (ifTrue := trueCompiler.table)
+            (ifFalse := falseCompiler.table) (output := encOut (ifTrue input))
+            (trueTime := trueCompiler.time input) (trueSpace := trueCompiler.workspace input)
+            (falseTime := falseCompiler.time input) (falseSpace := falseCompiler.workspace input)
+            (conditionCompiler.computes input)
             (fun _ => trueCompiler.computes input)
             (fun heq => by
               simp only [hcondition, encTest_true, List.cons_ne_nil] at heq)
           simpa only [hcondition, ↓reduceIte, encTest_true, List.cons_ne_nil,
             List.length_singleton] using h
   }
-
-/-- Conditional composition retains the actual kernel conditional. -/
-theorem machine_ite {Alpha Beta : Type*} {condition : Alpha → Bool}
-    {ifTrue ifFalse : Alpha → Beta} {encIn : Alpha ↪ List Bool}
-    {encOut : Beta ↪ List Bool}
-    (conditionCompiler : NativeCompiler condition encIn encTest)
-    (trueCompiler : NativeCompiler ifTrue encIn encOut)
-    (falseCompiler : NativeCompiler ifFalse encIn encOut) :
-    (ite conditionCompiler trueCompiler falseCompiler).machine =
-      iteTM conditionCompiler.machine trueCompiler.machine falseCompiler.machine :=
-  rfl
 
 end Turing.MultiTapeTM.Internal.NativeCompiler
