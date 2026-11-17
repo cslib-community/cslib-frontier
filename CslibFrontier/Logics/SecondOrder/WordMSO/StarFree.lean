@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Languages.StarFree
 public import CslibFrontier.Logics.SecondOrder.WordMSO.FirstOrder
 import CslibFrontier.Logics.SecondOrder.WordMSO.Separation
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Star-free languages are first-order definable
@@ -234,15 +235,13 @@ private theorem extract_eq_singleton (u : List α) (a : α) {i j : ℕ} (hj : j 
       rw [List.take_one_drop_eq_of_lt_length hi]
       rfl
     rw [h1, List.singleton_inj] at h
-    exact ⟨⟨i, hi⟩, ⟨le_rfl, Nat.lt_succ_self i⟩, h, fun q hq => Fin.ext (by simp only; omega)⟩
+    exact ⟨⟨i, hi⟩, ⟨le_rfl, Nat.lt_succ_self i⟩, h, fun q hq => by fin_index⟩
   · rintro ⟨⟨p, hp⟩, ⟨hip, hpj⟩, hpa, huniq⟩
     have hji : j = i + 1 := by
       by_contra hne
       have h1 := huniq ⟨i, by omega⟩ ⟨le_rfl, by simp only; omega⟩
       have h2 := huniq ⟨i + 1, by omega⟩ ⟨by simp only; omega, by simp only; omega⟩
-      have := congrArg Fin.val (h1.trans h2.symm)
-      simp only at this
-      omega
+      fin_index
     subst hji
     obtain rfl : p = i := by simp only at hip hpj; omega
     simp only [List.extract_eq_take_drop, Nat.add_sub_cancel_left]

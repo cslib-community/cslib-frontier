@@ -624,12 +624,9 @@ theorem Reduction.EfficientHVZK.exists_computationalHVZK_zero
     (h : Reduction.EfficientHVZK R rel enc Sim (fun _ => 0) (fun _ => 0)) :
     ∃ program, Reduction.ComputationalHVZK R rel enc program := by
   obtain ⟨program, hppt, hreal⟩ := h.realized
-  refine ⟨program, hppt, fun idx x w _ _ _ _ hrel _ _ => ?_⟩
-  refine negligible_of_le negligible_zero fun n => ?_
-  have hclose : CloseTo (((R (idx n)).honestTranscript (x n) (w n)).map (enc.transcript (idx n)))
-      (ProbComp.eval (program (idx n, enc.statement (idx n) (x n)))) (0 : ℝ≥0) := by
-    simpa using hreal.closeTo_run h.hvzk (hrel n)
-  exact Game.advantage_bind_le_of_closeTo hclose _
+  refine ⟨program, hppt, fun idx x w _ _ _ _ hrel _ _ =>
+    negligible_of_le negligible_zero fun n => Game.advantage_bind_le_of_closeTo ?_ _⟩
+  simpa using hreal.closeTo_run h.hvzk (hrel n)
 
 end Indexed
 
@@ -811,9 +808,8 @@ theorem Reduction.Complete.liftFirst
   rw [Reduction.plainLaw_run_liftFirst, PMF.toOuterMeasure_map_apply]
   refine le_of_eq_of_le (congrArg _ ?_) hl
   ext r
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Reduction.liftFirst, Verifier.outputOn_liftFirst,
-    relProd, hx₂, and_true]
-  cases R₁.verifier.outputOn x₁ r.1 <;> simp
+  cases h : R₁.verifier.outputOn x₁ r.1 <;>
+    simp [Reduction.liftFirst, Verifier.outputOn_liftFirst, h, relProd, hx₂]
 
 /-- `R₂.liftSecond` preserves completeness with the same error. -/
 theorem Reduction.Complete.liftSecond
@@ -828,9 +824,8 @@ theorem Reduction.Complete.liftSecond
   rw [Reduction.plainLaw_run_liftSecond, PMF.toOuterMeasure_map_apply]
   refine le_of_eq_of_le (congrArg _ ?_) hl
   ext r
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Reduction.liftSecond,
-    Verifier.outputOn_liftSecond, relProd, hy₁, true_and]
-  cases R₂.verifier.outputOn x₂ r.1 <;> simp
+  cases h : R₂.verifier.outputOn x₂ r.1 <;>
+    simp [Reduction.liftSecond, Verifier.outputOn_liftSecond, h, relProd, hy₁]
 
 /-- **Completeness of product composition (`Reduction.seqProd`)**: completeness errors add up. -/
 theorem Reduction.Complete.seqProd
@@ -877,17 +872,10 @@ theorem Verifier.Sound.seqProd
           {r | ∃ x' ∈ L₁', r.2.1 = some x'})ᶜ _ 0 fun r₁ _ hr₁ => ?_)
       (by simpa only [compl_compl, add_zero] using hl₁.trans (le_max_left ε₁ ε₂))
     rw [PMF.toOuterMeasure_map_apply]
-    have hempty : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-        ((fun r : Transcript (s₁ ++ s₂) × α =>
-          (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
-            {r | ∃ y ∈ L₁' ×ˢ L₂', r.2.1 = some y}) = ∅ := by
-      ext r₂
-      simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false,
-        not_exists, not_and]
-      rintro ⟨y₁, y₂⟩ ⟨hy₁, _⟩ hout
-      rw [Verifier.outputOn_seqProd_eq_some_iff, Spec.Transcript.split_append] at hout
-      exact hr₁ ⟨y₁, hy₁, hout.1⟩
-    rw [hempty, MeasureTheory.measure_empty]
+    refine (MeasureTheory.measure_mono_null ?_ MeasureTheory.measure_empty).le
+    rintro r₂ ⟨⟨y₁, y₂⟩, ⟨hy₁, _⟩, hout⟩
+    rw [Verifier.outputOn_seqProd_eq_some_iff, Spec.Transcript.split_append] at hout
+    exact hr₁ ⟨y₁, hy₁, hout.1⟩
   · refine le_trans (Probability.PMF.toOuterMeasure_bind_le _ _ _ fun r₁ => ?_) (le_max_right ε₁ ε₂)
     rw [PMF.toOuterMeasure_map_apply]
     have hl₂ := h₂ x₂ hx₂ α (pure r₁.2)
@@ -1012,13 +1000,6 @@ def auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
   let τ₂ ← Sim₂ x.2 z
   return Transcript.append s₁ s₂ τ₁ τ₂
 
-@[simp] theorem eval_simSeqProd (Sim₁ : S₁ → ProbComp (Transcript s₁))
-    (Sim₂ : S₂ → ProbComp (Transcript s₂)) (x : S₁ × S₂) :
-    ProbComp.eval (simSeqProd Sim₁ Sim₂ x) =
-      (ProbComp.eval (Sim₁ x.1)).bind fun τ₁ =>
-        (ProbComp.eval (Sim₂ x.2)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ := by
-  simp [simSeqProd, ProbComp.eval_bind]
-
 @[simp] theorem eval_auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
     (Sim₂ : S₂ → Aux → ProbComp (Transcript s₂)) (x : S₁ × S₂) (z : Aux) :
     ProbComp.eval (auxSimSeqProd Sim₁ Sim₂ x z) =
@@ -1026,32 +1007,12 @@ def auxSimSeqProd (Sim₁ : S₁ → Aux → ProbComp (Transcript s₁))
         (ProbComp.eval (Sim₂ x.2 z)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ := by
   simp [auxSimSeqProd, ProbComp.eval_bind]
 
-/-- **HVZK of product composition (`Reduction.seqProd`)**: independent transcript simulation
-preserves `HVZK` with the sum of the statistical errors. -/
-theorem Reduction.HVZK.seqProd
-    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
-    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
-    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
-    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
-    {ε₁ ε₂ : ℝ≥0∞}
-    (h₁ : R₁.HVZK relIn₁ Sim₁ ε₁) (h₂ : R₂.HVZK relIn₂ Sim₂ ε₂) :
-    (R₁.seqProd R₂).HVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) (ε₁ + ε₂) := by
-  rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ ⟨hx₁, hx₂⟩
-  change CloseTo ((R₁.seqProd R₂).honestTranscript (x₁, x₂) (w₁, w₂))
-    (ProbComp.eval (simSeqProd Sim₁ Sim₂ (x₁, x₂))) (ε₁ + ε₂)
-  rw [Reduction.honestTranscript_seqProd, eval_simSeqProd]
-  exact CloseTo.bind (h₁ x₁ w₁ hx₁) fun τ₁ _ => (h₂ x₂ w₂ hx₂).map (Transcript.append s₁ s₂ τ₁)
-
-/-- **Perfect HVZK of product composition (`Reduction.seqProd`)**. -/
-theorem Reduction.PerfectHVZK.seqProd
-    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
-    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
-    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
-    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
-    (h₁ : R₁.PerfectHVZK relIn₁ Sim₁) (h₂ : R₂.PerfectHVZK relIn₂ Sim₂) :
-    (R₁.seqProd R₂).PerfectHVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) := by
-  rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ ⟨hx₁, hx₂⟩
-  rw [Reduction.honestTranscript_seqProd, eval_simSeqProd, h₁ x₁ w₁ hx₁, h₂ x₂ w₂ hx₂]
+@[simp] theorem eval_simSeqProd (Sim₁ : S₁ → ProbComp (Transcript s₁))
+    (Sim₂ : S₂ → ProbComp (Transcript s₂)) (x : S₁ × S₂) :
+    ProbComp.eval (simSeqProd Sim₁ Sim₂ x) =
+      (ProbComp.eval (Sim₁ x.1)).bind fun τ₁ =>
+        (ProbComp.eval (Sim₂ x.2)).map fun τ₂ => Transcript.append s₁ s₂ τ₁ τ₂ :=
+  eval_auxSimSeqProd (fun x₁ (_ : Unit) => Sim₁ x₁) (fun x₂ (_ : Unit) => Sim₂ x₂) x ()
 
 /-- **Auxiliary-input HVZK of product composition (`Reduction.seqProd`)**: independent
 auxiliary-input simulation preserves `AuxHVZK` with error `ε₁ x.1 z + ε₂ x.2 z`. -/
@@ -1079,5 +1040,27 @@ theorem Reduction.PerfectAuxHVZK.seqProd
     (R₁.seqProd R₂).PerfectAuxHVZK (relProd relIn₁ relIn₂) (auxSimSeqProd Sim₁ Sim₂) := by
   rintro ⟨x₁, x₂⟩ ⟨w₁, w₂⟩ z ⟨hx₁, hx₂⟩
   rw [Reduction.honestTranscript_seqProd, eval_auxSimSeqProd, h₁ x₁ w₁ z hx₁, h₂ x₂ w₂ z hx₂]
+
+/-- **HVZK of product composition (`Reduction.seqProd`)**: independent transcript simulation
+preserves `HVZK` with the sum of the statistical errors. -/
+theorem Reduction.HVZK.seqProd
+    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
+    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
+    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
+    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
+    {ε₁ ε₂ : ℝ≥0∞}
+    (h₁ : R₁.HVZK relIn₁ Sim₁ ε₁) (h₂ : R₂.HVZK relIn₂ Sim₂ ε₂) :
+    (R₁.seqProd R₂).HVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) (ε₁ + ε₂) :=
+  ((h₁.auxHVZK (Aux := Unit)).seqProd h₂.auxHVZK).hvzk () fun _ => le_rfl
+
+/-- **Perfect HVZK of product composition (`Reduction.seqProd`)**. -/
+theorem Reduction.PerfectHVZK.seqProd
+    {R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁'}
+    {R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₂' W₂'}
+    {relIn₁ : S₁ → W₁ → Prop} {relIn₂ : S₂ → W₂ → Prop}
+    {Sim₁ : S₁ → ProbComp (Transcript s₁)} {Sim₂ : S₂ → ProbComp (Transcript s₂)}
+    (h₁ : R₁.PerfectHVZK relIn₁ Sim₁) (h₂ : R₂.PerfectHVZK relIn₂ Sim₂) :
+    (R₁.seqProd R₂).PerfectHVZK (relProd relIn₁ relIn₂) (simSeqProd Sim₁ Sim₂) :=
+  ((h₁.perfectAuxHVZK (Aux := Unit)).seqProd h₂.perfectAuxHVZK).perfectHVZK ()
 
 end Cslib.Interactive

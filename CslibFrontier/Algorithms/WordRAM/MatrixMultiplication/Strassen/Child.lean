@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Push
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computed Strassen child buffers
@@ -44,13 +45,7 @@ structure ChildBuffers (p k scratch : ℕ) (x : Data 64) : Prop where
 theorem ChildBuffers.of_regs_eq {p k scratch : ℕ} {x y : Data 64}
     (h : ChildBuffers p k scratch x)
     (hr : ∀ i, 50 ≤ i.val → i.val < 56 → y.regs i = x.regs i) :
-    ChildBuffers p k scratch y :=
-  ⟨(hr _ (by decide) (by decide)).trans h.quarter_eq,
-    (hr _ (by decide) (by decide)).trans h.formA_eq,
-    (hr _ (by decide) (by decide)).trans h.formB_eq,
-    (hr _ (by decide) (by decide)).trans h.product_eq,
-    (hr _ (by decide) (by decide)).trans h.scratch_eq,
-    (hr _ (by decide) (by decide)).trans h.depth_eq⟩
+    ChildBuffers p k scratch y := by regs_frame
 
 /-- The native block derives all child buffer words and preserves the parent header/phase,
 using only the original node address envelope for every arithmetic fit. -/

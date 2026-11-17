@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WangTile.Robinson.Shading.Geometry
 public import CslibFrontier.Computability.WangTile.Robinson.Signals
 import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.Order.Monoid.Unbundled.Pow
 import Mathlib.Algebra.Ring.Parity
 import Mathlib.Data.Finset.Sort
@@ -135,8 +136,7 @@ private theorem select_lines {n lo hi : ℕ} {p : ℕ → Prop}
     have upper : j < Fin.castLE card i.succ := by
       apply (s.orderEmbOfFin rfl).lt_iff_lt.mp
       exact hj.trans_lt hu
-    simp only [Fin.lt_def, Fin.val_castLE, Fin.val_castSucc, Fin.val_succ] at lower upper
-    omega
+    fin_index
 
 /-- Fill all gaps in sparse free lines without moving their marked southwest crossing. -/
 private theorem MarkedFreeGrid.ofSparse

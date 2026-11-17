@@ -111,28 +111,7 @@ private theorem computableInPolyTime_selectedLiteral (enc : V ↪ List Bool) (k 
     ComputableInPolyTime (fun p : ℕ × Clause V => selectedLiteral p.1 k p.2)
       (encPair encUnary (encList (encPair enc encBool)))
       (encPair (encVariable enc) encBool) := by
-  have hm : ComputableInPolyTime (fun p : ℕ × Clause V => p.2.map lift)
-      (encPair encUnary (encList (encPair enc encBool)))
-      (encList (encPair (encVariable enc) encBool)) := by
-    unfold lift encVariable
-    fun_prop
-  have hl : ComputableInPolyTime (fun p : ℕ × Clause V => p.2.length)
-      (encPair encUnary (encList (encPair enc encBool))) encUnary := by fun_prop
-  have hg : ComputableInPolyTime
-      (fun p : ℕ × Clause V => (p.2.map lift).getD k (padding 0 0))
-      (encPair encUnary (encList (encPair enc encBool)))
-      (encPair (encVariable enc) encBool) :=
-    (ComputableInPolyTime.listGetD (encA := encPair (encVariable enc) encBool)
-      (encL := encList (encPair (encVariable enc) encBool)) (padding 0 0)).comp
-      (hm.prod (ComputableInPolyTime.const k))
-  have hp : ComputableInPolyTime (fun p : ℕ × Clause V => padding p.1 k)
-      (encPair encUnary (encList (encPair enc encBool)))
-      (encPair (encVariable enc) encBool) := by
-    unfold padding aux encVariable
-    fun_prop
-  unfold selectedLiteral
-  exact ComputableInPolyTime.ite_decide
-    (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.const k) hl) hg hp
+  fun_prop [lift, padding, aux, selectedLiteral]
 
 @[local fun_prop]
 private theorem computableInPolyTime_core (enc : V ↪ List Bool) :

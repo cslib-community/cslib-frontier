@@ -13,7 +13,9 @@ import Mathlib.Tactic.NormNum.Prime
 
 Correctness of Construction 12.19 on the Schnorr group of order `11` in `(ZMod 23)ˣ`, the
 answers of the DDH oracle and of the decapsulation oracle, the behaviour of the reduction on
-public key `0`, and an instantiation of Theorem 12.22 with uniform `4`-bit keys.
+public key `0`, and an instantiation of the concrete per-group step of Theorem 12.22 with
+uniform `4`-bit keys (the asymptotic theorem is tested in
+`CslibFrontierTests.Crypto.GapCDHDecodable`).
 -/
 
 noncomputable section
@@ -61,7 +63,8 @@ example (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) (c : F.Carri
     F.dhKEMToGapCDH d sampleKey adversary (c, 0) = pure 0 := by
   simp [dhKEMToGapCDH]
 
-/-- Theorem 12.22 for uniform `4`-bit keys and any CCA adversary. -/
+/-- Concrete per-group step of Theorem 12.22 for uniform `4`-bit keys and any CCA adversary
+(asymptotic theorem: `DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`). -/
 example [Fintype (F.Carrier d)] (adversary : F.DHKEMAdversary d (Fin 4 → Bool)) :
     Game.advantage (F.dhKEMCCAGame d (ProbComp.uniform (Fin 4 → Bool)) adversary true)
         (F.dhKEMCCAGame d (ProbComp.uniform (Fin 4 → Bool)) adversary false) ≤

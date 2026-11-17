@@ -41,12 +41,7 @@ open MultiTapeTM ComputableInPolyTime
 @[fun_prop]
 theorem computableInPolyTime_windowList :
     ComputableInPolyTime windowList encUnary (encList encIntUnary) := by
-  unfold windowList
-  have hf : ComputableInPolyTime (fun p : ℕ × ℕ => (p.2 : ℤ) - p.1)
-      (encPair encUnary encUnary) encIntUnary :=
-    ComputableInPolyTime.int_natCast_sub.comp
-      ((snd encUnary encUnary).prod (fst encUnary encUnary))
-  exact mapWithInput (by fun_prop) hf
+  fun_prop [windowList]
 
 /-- Move and clamp a unary input-head position, including positions outside the input boundary. -/
 @[fun_prop]

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PairedCrossoverLayoutData
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Separation
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
 import Mathlib.Data.List.Zip
@@ -737,9 +738,7 @@ private theorem rows_checked (i : Fin 162) : rowCheck (routeAt i) = true := by
   let q : Fin 27 := ⟨i.val / 6, by omega⟩
   let r : Fin 6 := ⟨i.val % 6, by omega⟩
   have heq : blockIndex q r = i := by
-    apply Fin.ext
-    simp only [blockIndex, q, r]
-    omega
+    fin_index [blockIndex, q, r]
   have h := blocks_checked q r
   rwa [heq] at h
 

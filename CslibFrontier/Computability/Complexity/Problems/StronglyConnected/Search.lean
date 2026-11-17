@@ -481,21 +481,12 @@ local macro (name := searchHead) "search_head" b:term : tactic => `(tactic| (
   refine Branches.head (by simp [CounterProgram.halted, instr, searchProgram, Instr.halts]) $b ?_;
   search_step))
 
+/-- Reading the unary vertex count `G.n` at the start of the input. -/
 private theorem branches_count_n :
     Branches (P := searchProgram) (w := G.encode) searchProgram.init (2, [0, G.n, 0, 0, 0, 0]) :=
-  Nat.decreasingInduction (motive := fun j _ => Branches (P := searchProgram) (w := G.encode)
-      (0, [0, j, 0, 0, 0, 0]) (2, [0, G.n, 0, 0, 0, 0]))
-    (fun j hj ih => .trans (by
-      search_head false
-      rw [G.getElem?_encode_n hj.le]
-      simp only [hj, decide_true]
-      search_head false
-      exact Branches.refl _) ih)
-    (by
-      search_head false
-      rw [G.getElem?_encode_n le_rfl]
-      simp only [lt_irrefl, decide_false]
-      exact Branches.refl _) (Nat.zero_le _)
+  Branches.count (fun j => [0, j, 0, 0, 0, 0])
+    (fun _ hj => by search_head false; rw [G.getElem?_encode_n hj]; exact Branches.refl _)
+    (fun _ _ => by search_head false; exact Branches.refl _)
 
 /-- The guess of the vertex `target`: the choices are `true` until the counter reaches it. -/
 private theorem branches_guess (p cur steps target : ℕ) (ht : target < G.n) :
