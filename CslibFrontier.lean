@@ -4037,6 +4037,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Size
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Spec
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.WhiteChains
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.WhiteFaces
+public import CslibFrontier.Computability.PolyTime.CSP.DistinctVars
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Augmenting
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Buffer
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.Agreement
