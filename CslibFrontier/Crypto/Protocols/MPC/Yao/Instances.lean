@@ -14,23 +14,26 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 
 /-!
-# Yao's protocol over point-and-permute and half-gates garbling
+# Steps for Yao's protocol in the ideal OT hybrid model over concrete garbling schemes
 
-`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`, for the library's two garbling schemes whose
-`prv.sim` simulator `simWord` serves every adversary:
+This module instantiates `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` as steps in the ideal
+`batchOTWorld` oblivious-transfer hybrid model (#6045), rather than plain-model Theorem 7 of
+[LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest 1-out-of-2
+oblivious-transfer protocol), for the library's two garbling schemes whose `prv.sim` simulator
+`simWord` serves every adversary:
 
-* `PseudorandomFunction.yaoSemiHonestSecure_pointPermute`: point-and-permute garbling
+* `PseudorandomFunction.yaoHybridSemiHonestSecure_pointPermute`: point-and-permute garbling
   `PointPermute.scheme family` of valid conventional circuits, with the topology as side
   information, for every pseudorandom function `family`;
-* `CircularCorrelationRobust.yaoSemiHonestSecure_halfGates`: half-gates garbling
+* `CircularCorrelationRobust.yaoHybridSemiHonestSecure_halfGates`: half-gates garbling
   `HalfGates.scheme hash` of XOR–AND circuits, with the circuit as side information, for every
   circular correlation robust hash family `hash`.
 
 Each rests only on its named assumption, `PseudorandomFunction` or `CircularCorrelationRobust`,
 both standard, with the public parameters drawn by a PPT sampler: the novel
-`Scheme.PrvSimSecureUniversal` is proved here for the scheme, not assumed. Both
-are steps towards Theorem 7 of [LindellPinkas2009] in the oblivious-transfer hybrid model, with the
-differences that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` lists. Neither scheme is the
+`Scheme.PrvSimSecureUniversal` is proved here for the scheme, not assumed. Both are steps in the
+ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), with the other deviations that
+`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` lists. Neither scheme is the
 double-encryption construction of [LindellPinkas2009] (§4.1, p. 12): point-and-permute garbling is
 this library's variant of `Garble1` of [BellareHoangRogaway2012], and half-gates garbling is the
 scheme of [ZahurRosulekEvans2015] with the differences that
@@ -38,8 +41,8 @@ scheme of [ZahurRosulekEvans2015] with the differences that
 
 ## Main results
 
-* `Cslib.Crypto.PseudorandomFunction.yaoSemiHonestSecure_pointPermute`
-* `Cslib.Crypto.CircularCorrelationRobust.yaoSemiHonestSecure_halfGates`
+* `Cslib.Crypto.PseudorandomFunction.yaoHybridSemiHonestSecure_pointPermute`
+* `Cslib.Crypto.CircularCorrelationRobust.yaoHybridSemiHonestSecure_halfGates`
 
 ## References
 
@@ -56,14 +59,16 @@ namespace Cslib.Crypto
 
 open Garbling Protocols.MPC Probability Turing.MultiTapeTM
 
-/-- **Yao's protocol over point-and-permute garbling is semi-honest secure** in the
-oblivious-transfer hybrid model, against the corruption of either party, for every pseudorandom
-function `family` and every PPT sampler of the public parameters: a step towards Theorem 7 of
-[LindellPinkas2009], with the differences that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`
-lists. The garbling simulator is `PointPermute.simWord family`, which serves every adversary
+/-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), not plain-model
+Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest
+1-out-of-2 oblivious-transfer protocol): Yao's protocol over point-and-permute garbling is
+semi-honest secure in the `batchOTWorld` hybrid against the corruption of either party, for every
+pseudorandom function `family` and every PPT sampler of the public parameters, with the other
+deviations that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` lists. The garbling simulator is
+`PointPermute.simWord family`, which serves every adversary
 (`PseudorandomFunction.negligible_prvSimAdvantage_simWord`), with the topology as side
 information. -/
-theorem PseudorandomFunction.yaoSemiHonestSecure_pointPermute
+theorem PseudorandomFunction.yaoHybridSemiHonestSecure_pointPermute
     {family : List Bool → List Bool → List Bool} (h : PseudorandomFunction family)
     {samp : ℕ → ProbComp (Yao.Params (PointPermute.scheme family))}
     (hsamp : IsPPTOn encUnary (Yao.encParams encValidCircuit) samp) (i : Fin 2) :
@@ -75,14 +80,16 @@ theorem PseudorandomFunction.yaoSemiHonestSecure_pointPermute
     (PointPermute.scheme_isEfficient h.polyTime) rfl (PointPermute.scheme_isValid family).correct
     phiTopo_polyTime hsamp i
 
-/-- **Yao's protocol over half-gates garbling is semi-honest secure** in the oblivious-transfer
-hybrid model, against the corruption of either party, for every circular correlation robust hash
-family `hash` and every PPT sampler of the public parameters: a step towards Theorem 7 of
-[LindellPinkas2009], with the differences that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`
-lists. The garbling simulator is `HalfGates.simWord hash`, which serves every adversary
+/-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), not plain-model
+Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest
+1-out-of-2 oblivious-transfer protocol): Yao's protocol over half-gates garbling is semi-honest
+secure in the `batchOTWorld` hybrid against the corruption of either party, for every circular
+correlation robust hash family `hash` and every PPT sampler of the public parameters, with the
+other deviations that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` lists. The garbling
+simulator is `HalfGates.simWord hash`, which serves every adversary
 (`CircularCorrelationRobust.negligible_prvSimAdvantage_simWord`), with the circuit as side
 information. -/
-theorem CircularCorrelationRobust.yaoSemiHonestSecure_halfGates
+theorem CircularCorrelationRobust.yaoHybridSemiHonestSecure_halfGates
     {hash : List Bool → List Bool → List Bool} (h : CircularCorrelationRobust hash)
     {samp : ℕ → ProbComp (Yao.Params (HalfGates.scheme hash))}
     (hsamp : IsPPTOn encUnary (Yao.encParams encXorAndCircuit) samp) (i : Fin 2) :
