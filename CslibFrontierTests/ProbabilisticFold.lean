@@ -40,7 +40,7 @@ theorem oracle_fold_isPPT : IsOraclePPTOn (Operation := Unit) (encList encBool) 
   · have hquery : IsOraclePPTOn (Operation := Unit) (encPair encBits encBool) encBits
         (fun p => List.take 1 <$> ProbOracleComp.query ((), [p.2])) :=
       .query_take' () (by fun_prop) (by fun_prop)
-    exact hquery.map_with' (f := fun p reply => reply ++ p.1) (by fun_prop)
+    exact hquery.map_with' (f := fun (p : List Bool × Bool) reply => reply ++ p.1) (by fun_prop)
   · intro acc bit next hnext
     simp only [queryStep, bind_pure_comp, OracleComp.support,
       OracleComp.mem_supportWith_map_iff] at hnext
@@ -76,7 +76,7 @@ theorem adaptive_oracle_fold_isPPT : IsOraclePPTOn (Operation := Unit) (encList 
   · have hquery : IsOraclePPTOn (Operation := Unit) (encPair encBits encBool) encBits
         (fun p => List.take 1 <$> ProbOracleComp.query ((), [p.1.headD false ^^ p.2])) :=
       .query_take' () (by fun_prop) (by fun_prop)
-    exact hquery.map_with' (f := fun p reply => reply ++ p.1) (by fun_prop)
+    exact hquery.map_with' (f := fun (p : List Bool × Bool) reply => reply ++ p.1) (by fun_prop)
   · intro acc bit next hnext
     simp only [adaptiveQueryStep, queryStep, bind_pure_comp, OracleComp.support,
       OracleComp.mem_supportWith_map_iff] at hnext

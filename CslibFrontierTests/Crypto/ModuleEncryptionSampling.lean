@@ -73,7 +73,7 @@ example : IsPPTOn encUnary (encList (encList encIntBin))
       (OracleComp.replicate 2 (sampleCenteredBinomial 1))) := by
   have hinput : ComputableInPolyTime (fun k : ℕ => ((k + 1, 2), 1)) encUnary
       (encPair (encPair encUnary encUnary) encUnary) := by fun_prop
-  exact isPPTOn_moduleLWECenteredBinomialRows.preprocess hinput
+  exact (isPPTOn_moduleLWECenteredBinomialRows.preprocess hinput :)
 
 /-- A uniform scalar is exactly the uniform rank-one, degree-one secret used below. -/
 example : (PMF.uniformOfFintype (ZMod 16)).map (fun z => (![![z]] : Fin 1 → Fin 1 → ZMod 16)) =

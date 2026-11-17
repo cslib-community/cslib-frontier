@@ -32,7 +32,7 @@ private abbrev S := State (Symbols.model Name) layout
 private def initial : S :=
   State.empty.setData 0 (Symbols.Value.symbol Name.oak)
 
-private def code : List (Instr (Symbols.model Name) layout) :=
+private def prog : List (Instr (Symbols.model Name) layout) :=
   [.op (.const 3) 1 1 1, .create 0, .create 1, .storePtr 0 0 1,   -- record 0 links to record 1
    .storeData 0 1 0,                        -- record 1 holds the symbol
    .op .add 1 1 1, .storeData 1 1 1,        -- and the integer 3 + 3
@@ -43,14 +43,14 @@ private def code : List (Instr (Symbols.model Name) layout) :=
 /-- The state after `n` steps. -/
 private def state : ℕ → S
   | 0 => initial
-  | n + 1 => (step code (state n)).getD (state n)
+  | n + 1 => (step prog (state n)).getD (state n)
 
-private theorem transition (n : Fin 12) : step code (state n) = some (state (n + 1)) := by
+private theorem transition (n : Fin 12) : step prog (state n) = some (state (n + 1)) := by
   fin_cases n <;> rfl
 
-private theorem execution : Executes code initial (state 12) 13 := by
+private theorem execution : Executes prog initial (state 12) 13 := by
   refine ⟨12, ?_, by rfl, rfl⟩
-  have run (n : ℕ) (hn : n ≤ 12) : Runs code initial (state n) n := by
+  have run (n : ℕ) (hn : n ≤ 12) : Runs prog initial (state n) n := by
     induction n with
     | zero => exact .refl _
     | succ n ih => exact .tail _ _ _ _ (ih (by omega)) (transition ⟨n, by omega⟩)
@@ -64,7 +64,7 @@ example : (state 12).ptr 0 = some 0 ∧ (state 12).ptr 1 = none ∧ (state 12).p
 example : (state 12).heap.length = 2 := by rfl
 
 -- The same program and cost work after swapping the two names; integers are fixed.
-example : Executes code
+example : Executes prog
     (initial.rename (Symbols.symbolRenaming (Equiv.swap Name.oak Name.ash)))
     ((state 12).rename (Symbols.symbolRenaming (Equiv.swap Name.oak Name.ash))) 13 :=
   (Executes.rename_iff _).2 execution
