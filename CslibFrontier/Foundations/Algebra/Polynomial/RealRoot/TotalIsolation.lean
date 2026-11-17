@@ -946,7 +946,7 @@ private theorem isolateRootsTotal_eq_separateTouching (cs : List ℚ) :
   by_cases he : (trim cs).isEmpty = true
   · simp only [he, ↓reduceIte, time_simps, separateTouchingM]
   · simp only [he, Bool.false_eq_true, ↓reduceIte, time_simps, sturmSeqListM_ret,
-    mignotteBisectionDepthM_ret, isolateIocTotalM_ret]
+      mignotteBisectionDepthM_ret, isolateIocTotalM_ret]
 
 /-- `isolateRootsTotal cs` has the exact same length as `isolateRoots cs`. -/
 theorem isolateRootsTotal_length_eq (cs : List ℚ) :

@@ -219,7 +219,7 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
     by_cases huv : u = v
     · simp only [projectUpdateM, huv, ite_true, time_simps, ih, toRadix_cons, Function.update_self]
     · simp only [projectUpdateM, huv, ite_false, time_simps, ret_lookupM, ih, toRadix_cons,
-      Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
+        Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
