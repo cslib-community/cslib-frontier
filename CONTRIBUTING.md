@@ -637,8 +637,10 @@ not a decision.
   Algolean register models, and with the merged [#401](https://github.com/leanprover/cslib/pull/401).
 * **PAC learning.** `PACLearning/Realizable` is an unchanged copy of
   [#858](https://github.com/leanprover/cslib/pull/858).
-  [#966](https://github.com/leanprover/cslib/pull/966) would make `sampleComplexity` and `vcDim`
-  `ℕ∞`-valued; if it lands, restate the bounds in `FiniteClass`, `VCUpperBound`,
+  `PACLearning/VCDimension` uses the extended VC dimension `evcDim` from
+  [#966](https://github.com/leanprover/cslib/pull/966). When the pin adopts it, remove the local
+  definition and order lemmas, use the upstream finite-dimension bridge, and migrate the natural
+  sample-complexity and dimension arguments in `FiniteClass`, `VCUpperBound`,
   `AgnosticFiniteClass`, `AgnosticVC` and `GrowthFunction`. `PACLearning/SampleComplexityLower*`
   vendors the EHKV `Ω(d/ε)` lower bound from
   [`feat/pac-learning-ehkv-headline`](https://github.com/SamuelSchlesinger/cslib/tree/feat/pac-learning-ehkv-headline);
