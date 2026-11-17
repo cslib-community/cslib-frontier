@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.CatalogueWrite
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native shared-catalogue scan
@@ -57,13 +58,7 @@ private def parameterRegisters : Finset (Fin registers) :=
 private theorem CatalogueParameters.of_eq {L H D R : ℕ} {x y : Data registers}
     (hx : CatalogueParameters L H D R x)
     (h : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) :
-    CatalogueParameters L H D R y :=
-  ⟨(h _ (by decide)).trans hx.levels, (h _ (by decide)).trans hx.height,
-    (h _ (by decide)).trans hx.span, (h _ (by decide)).trans hx.directory,
-    (h _ (by decide)).trans hx.records, (h _ (by decide)).trans hx.slots,
-    (h _ (by decide)).trans hx.one, (h _ (by decide)).trans hx.ten,
-    (h _ (by decide)).trans hx.nine, (h _ (by decide)).trans hx.three,
-    (h _ (by decide)).trans hx.nil⟩
+    CatalogueParameters L H D R y := by regs_frame
 
 /-- Scalar registers changed by a complete catalogue iteration. -/
 @[expose] def CatalogueLocal (i : Fin registers) : Prop := InspectLocal i ∨ WriteLocal i
@@ -95,13 +90,10 @@ theorem exec_catalogueStep {w L H D R s : ℕ} (x : Data registers)
         ((Nat.le_add_right _ (10 ^ L)).trans (Nat.le_add_right _ L))) 12)
   obtain ⟨u, hu, he, hcode, hpop, hstride, hmem, hframe⟩ :=
     exec_inspect x hx.levels hx.span hs hx.one hx.ten hx.nine hscan
-  have hf (i : Fin registers) (hi : ¬InspectLocal i) : u.regs i = x.regs i := hframe i hi
   obtain ⟨y, hy, hym, hys, hyc, _⟩ := exec_writeSlot u
-    ((hf _ (by decide)).trans hx.directory) ((hf _ (by decide)).trans hx.records)
-    ((hf _ (by decide)).trans hs) ((hf _ (by decide)).trans hx.height)
-    ((hf _ (by decide)).trans hc) hcode he hpop hstride
-    ((hf _ (by decide)).trans hx.one) ((hf _ (by decide)).trans hx.three)
-    ((hf _ (by decide)).trans hx.nil) hwrite
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) hcode he hpop hstride
+    (by regs_frame) (by regs_frame) (by regs_frame) hwrite
   have hwhole : ExecWithin w catalogueStep x y (11 * L + 26) :=
     (hu.seq hy).mono (by omega)
   have hregs (i : Fin registers) (hi : ¬CatalogueLocal i) : y.regs i = x.regs i :=

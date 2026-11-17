@@ -50,15 +50,24 @@ enable publication. GCS remains the preferred origin. MIT fallback is enabled so
 shutdown does not force an otherwise cacheable build to compile from source.
 
 `COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT` bounds each Complexitylib origin attempt (default 180
-seconds; accepted range 0.1–600). Mapping lookups made by the missing-only helper also have
-five-second connection and twenty-second request limits, within that origin's overall budget.
-These limits cover lookup and transfer work together, including a stalled server.
+seconds; accepted range 0.1–600). Both `scripts/cache/get.sh` and `scripts/cache/get-missing.sh`
+resolve candidate ancestors through `scripts/cache/restore.py`, deepening shallow clones up to
+100 commits when possible and searching up to 100 commits in topological breadth-first order
+across all parents of `HEAD` (with a small fallback for stalled merge bases). After a branch
+merges `main`, newer published ancestors on the merged parent are tried strictly before the
+branch's older base regardless of commit timestamps or side-branch length. Mapping lookups have
+five-second connection and twenty-second request limits within that origin's overall budget,
+advancing to the next candidate on HTTP 404 or HTTP 403 (since GCS with
+`roles/storage.legacyObjectReader` answers missing objects without list permission with 403) and
+failing fast to the next configured origin on transport errors, timeouts or 5xx responses. The
+fetched mapping is then passed directly to `lake cache get` for syntax verification and artifact
+downloads.
 
-Each origin reports its elapsed time and whether the native request completed, failed or timed
-out. Completion means that request succeeded, not that the checkout is fully built or that all
-artifacts were downloaded anew. Missing-only lookups retain the revision/module counts and
-report the final HTTP/curl status when no usable mapping was found; a denied lookup is not
-evidence that no uploaded artifacts exist.
+Each origin reports its elapsed time and whether the request completed, failed or timed out.
+Completion means that request succeeded, not that the checkout is fully built or that all
+artifacts were downloaded anew. Both helpers print the matched revision and module counts
+(plus uncached module count for `get-missing.sh`) and report the final HTTP/curl status when no
+usable mapping was found; a denied lookup is not evidence that no uploaded artifacts exist.
 
 CI reads the cache too. After restoring `.lake` from the GitHub Actions cache, Lean CI runs
 `scripts/cache/get-missing.sh`, which downloads the same outputs except those of modules whose

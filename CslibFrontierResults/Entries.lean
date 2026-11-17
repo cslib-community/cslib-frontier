@@ -9,10 +9,12 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
+import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
+import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
@@ -56,6 +58,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
+import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
 import CslibFrontier.Computability.Circuit.Boolean.ParityNC1
 import CslibFrontier.Computability.Circuit.Boolean.Braverman.Fooling
 import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
@@ -170,6 +173,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
+import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
@@ -194,6 +198,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
 import CslibFrontier.DataStructure.Paging.Marking
@@ -565,12 +570,37 @@ register_result "reingold" where
     encoded instance of length L within c·(⌊log₂ L⌋ + 1) work cells; malformed inputs are \
     unconstrained. The reduction-defined SL = L corollary is not part of this entry."
 
+register_result "bipartite-in-logspace" where
+  title := "Non-bipartiteness is log-space many-one equivalent to undirected connectivity; \
+    bipartiteness is in L"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.16",
+      locator := "January 2007 r2.pdf, printed p. 196; PDF p. 80" }
+  ]
+  theorems := [
+    Cslib.Complexity.Bipartite.compl_logSpaceReducible_USTCON,
+    Cslib.Complexity.Bipartite.logSpaceReducible_compl_USTCON,
+    Cslib.Complexity.Bipartite.USTCON_logSpaceReducible_compl,
+    Cslib.Complexity.Bipartite.mem_L
+  ]
+  scope := "Undirected graphs as symmetric loopless adjacency matrices on Fin n, encoded by \
+    encUGraph (a unary header 1^n 0 and the row-major matrix); bipartite means Mathlib's \
+    SimpleGraph.IsBipartite. The equivalence is under native visited-cell logspace many-one \
+    reductions, in the form non-bipartiteness ≤ USTCON (n disjoint copies of the guideline's \
+    double cover, one USTCON query) and USTCON ≤ non-bipartiteness, the latter the trivial \
+    reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
+    ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
+
+
 register_result "strongly-connected-nl-complete" where
   title := "Strongly connected digraphs are NL-complete"
   topic := "space complexity"
   sources := [
     { paper := AroraBarak07, theorem := "Chapter 4, Exercise 4",
-      locator := "Web draft 2007-01-08, printed p. 89; PDF p. 105" }
+      locator := "Web draft 2007-01-08, printed p. 89; PDF p. 105" },
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.23",
+      locator := "January 2007 r2.pdf, printed p. 198; PDF p. 82" }
   ]
   theorems := [Cslib.Complexity.StronglyConnected.logSpaceComplete]
   scope := "Digraphs on Fin n with loops allowed, encoded by encDigraph: a unary header 1^n 0 \
@@ -1298,6 +1328,19 @@ register_result "goldreich-levin-hard-core" where
     to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
+
+register_result "goldreich-circuit-agreement-limit" where
+  title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.10",
+      locator := "March 2007 draft r4.pdf, PDF p. 42; printed p. 306" }
+  ]
+  theorems := [Cslib.Circuits.Boolean.exists_complexity_le_and_add_le_card_agree]
+  scope := "Circuit complexity as in Cslib.Circuits.complexity, every gate counted; for every \
+    f : {0,1}^n → {0,1} and every t with 2 t ≤ 2 ^ n, some function of complexity at most \
+    t (2 n + 3) + 1 agrees with f on at least a 1/2 + t/2^n fraction of the inputs. For t = 1 \
+    and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -5243,44 +5286,48 @@ register_result "quantum-general-adversaries" where
     general composition theorems are not formalized here."
 
 register_result "fujisaki-okamoto-bot-ind-cca" where
-  title := "ROM IND-CCA security of the explicit-rejection Fujisaki–Okamoto transform FO^⊥"
+  title := "ROM IND-CCA security of the word-level explicit-rejection FO^⊥ KEM from IND-CPA of the \
+    PKE family"
   topic := "cryptography"
   sources := [
     { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.3",
-      locator := "§3.1 (Theorem 3.2, p. 12), §3.2.1 (Theorem 3.3, p. 14), the query-count \
-        convention of §2.1 (p. 9) and the FO^⊥ row of the §3.3 bounds table (p. 22) (IACR ePrint \
-        2017/604, full version of 2 November 2021)" }
+      locator := "§3.1 (Theorem 3.2, p. 12), §3.2.1 (Theorem 3.3, p. 14), §3.3 (p. 21; Fig. 18, \
+        the FO^⊥ row of the bounds table and \"Concrete parameters\", p. 22), the §1.1.2 table \
+        (p. 6) and the query-count convention of §2.1 (p. 9) (IACR ePrint 2017/604, version of \
+        2 November 2021)" }
   ]
   theorems := [
-    Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le
+    Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.INDCPA.romINDCCABot
   ]
-  scope := "Not HHK17's bound: the proof follows the game hops of Theorems 3.2 and 3.3 but \
-    composes them directly, and the result differs from their composition in every term. \
-    Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
-    messages, a δ-correct and γ-spread PKE, and a randomized adversary with explicit coins each \
-    of whose coin values makes at most qG queries to G, qH queries to H, and qD queries to \
-    decapsulation (FullQueryBounds A qG qH qD), the ROM IND-CCA advantage is at most \
-    2·Adv^{IND-CPA}(romBotCpaReduction A) + 2(qG + qH)/|M| + 2(qG + qH + 1)δ + \
-    2(qG + qH + qD)2^{-γ}, against two-stage IND-CPA (HHK17 Def. 2.2) and one reduction that \
-    draws its own challenge messages. Concrete bound only: no security parameter and no \
-    running-time certificate for the reduction. Necessity of the qD·2^{-γ} ciphertext-validity \
-    spreadness term is proved in FujisakiOkamoto.SpreadNecessity \
-    (advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv). \
-    Composes the T and U^⊥ hops directly instead of through standalone OW-PCVA; \
-    roIndCcaBotGame and eagerIndCcaBotGame draw both real (H) replies and the independent ideal \
-    challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
-    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4). \
-    Comparison with the source: halved to HHK17's hidden-bit advantages, the bound is \
-    2·Adv^{IND-CPA} + (qG + qH)/|M| + (qG + qH + 1)δ + (qG + qH + qD)2^{-γ}; Theorems 3.2 and \
-    3.3 as stated, with the qH plaintext-checking and qH validity queries that Theorem 3.3 gives \
-    its OW-PCVA adversary, compose to 3·Adv^{IND-CPA}(A') + (2qG + 1)/|M| + (qG + qH)δ + \
-    qH·2^{-γ} for some IND-CPA adversary A', which the §3.3 table simplifies to \
-    q_RO(δ + 2^{-γ}) + 3q_RO/|M| + 3·Adv^{IND-CPA}(A') with q_RO = qG + qH. Neither bound \
-    implies the other: this one has the smaller IND-CPA coefficient, and the smaller \
-    message-space term when qH ≤ qG + 1, but a correctness term larger by δ and a spreadness \
-    term that grows with qG and qD. HHK17 also counts every evaluation of G and H in the \
-    experiment, the experiment's own included (§2.1), where FullQueryBounds counts only the \
-    adversary's explicit queries."
+  scope := "Asymptotic, random oracle model; explicit-rejection FO^⊥ = U^⊥ ∘ T (HHK17 §3.3, \
+    Fig. 18). Let P be a word-level PKE family (at parameter n: messages of length msgLen n, \
+    uniform coins of length coinLen n, ciphertext space the words of length at most ctLen n) \
+    that is efficient (uniform strict PPT key generation; polynomial-time encryption, decryption \
+    and lengths), whose ciphertexts lie in its ciphertext space (CiphertextFits), that is \
+    δ-correct (HHK17 §2.1, p. 7) with δ negligible and γ-spread (p. 8) with 2^{-γ(n)} negligible, \
+    and with 2^{-msgLen n} negligible; let keyLen be polynomial-time. γ-spreadness is a \
+    requirement of the source for FO^⊥ (§1.1.2 table, p. 6; Theorem 3.2), and the premises on \
+    δ, γ and msgLen are the asymptotic form of its \"Concrete parameters\" (δ ≤ 2^{-κ}, γ ≥ κ, \
+    |M| ≥ 2^κ; p. 22). If P is IND-CPA secure against uniform strict PPT adversaries \
+    (single-challenge two-stage game of HHK17 Def. 2.2, both challenge messages of length \
+    msgLen n), its FO^⊥ KEM with keys of length keyLen n is IND-CCA secure (HHK17 Def. 2.4 / \
+    Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and decapsulation; \
+    no premise bounds the number of queries. Encapsulation draws m uniformly from words of \
+    length msgLen n, as in Fig. 18. G and H are lazily sampled random oracles on word domains, \
+    and a request outside a domain gets the empty word. The key is the domain-separated \
+    H(false, m, c) in place of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
+    rejects words longer than ctLen n with ⊥, and treats decryption results of the wrong length \
+    as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice HHK17's \
+    |Pr[b' = b] - 1/2|. HHK17 state a concrete bound (the FO^⊥ row of the §3.3 table, p. 22: \
+    q_RO(δ + 2^{-γ}) + 3q_RO/|M| + 3·Adv^{IND-CPA}(A')), counting every evaluation of G and H \
+    in the experiment (§2.1, p. 9); this theorem states none. Its proof applies IND-CPA to the \
+    explicit reduction romBotCpaReductionWord, certified uniform strict PPT \
+    (IsEfficient.isPPT_romBotCpaReductionWord), through the per-parameter step \
+    Scheme.indCcaBotAdvantage_le, whose bound 2·Adv^{IND-CPA} + 2(qG + qH)/|M| + \
+    2(qG + qH + 1)δ + 2(qG + qH + qD)2^{-γ} counts the adversary's explicit queries and differs \
+    from HHK17's in every term (neither implies the other); every term is negligible under the \
+    premises. The proof composes the T and U^⊥ hops directly instead of through standalone \
+    OW-PCVA, and gives no concrete runtime map."
 
 register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
   title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
@@ -5315,8 +5362,7 @@ register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
     OW-PCA form (remark closing its proof, p. 13). The proof composes the T and U-notbot hops \
     directly instead of through standalone OW-PCA, and applies IND-CPA to the explicit reduction \
     romCpaReductionWord, certified uniform strict PPT (IsEfficient.isPPT_romCpaReductionWord); \
-    it gives no concrete runtime map. FO^⊥ has no word-level theorem; its fixed-scheme concrete \
-    bound is fujisaki-okamoto-bot-ind-cca."
+    it gives no concrete runtime map. FO^⊥ is fujisaki-okamoto-bot-ind-cca."
 
 register_result "cgks-pir-coalition-lower-bound" where
   title := "Chor–Goldreich–Kushilevitz–Sudan: coalition t-privacy and full-coalition \
@@ -5549,24 +5595,30 @@ register_result "prp-prf-switching" where
     charged and no asymptotic form is stated."
 
 register_result "ajtai-collision-sis" where
-  title := "Finding collisions in Ajtai's hash function is no easier than SIS"
+  title := "Ajtai's hash family is collision resistant under SIS"
   topic := "cryptography"
   sources := [
-    { paper := Ajtai1996, theorem := unverified, locator := unverified }
+    { paper := GoldreichGoldwasserHalevi1996, theorem := "Theorem 2",
+      locator := "Section 3, p. 4" }
   ]
   theorems := [
-    Cslib.Crypto.IsAjtaiCollision.isSolution_sub,
-    Cslib.Crypto.isSolution_sub_of_abs_le,
-    Cslib.Crypto.ajtaiAdvantage_le_sisAdvantage
+    Cslib.Crypto.SIS.collisionResistantForOn_ajtaiWordHash
   ]
-  scope := "Ajtai's hash x ↦ A x mod q on integer vectors, for every nonzero modulus q (the two \
-    collision lemmas need no assumption on q), dimensions n × m and bound β, with no primality \
-    or compression assumption. Distinct inputs in [0, β]^m (or [-β, β]^m) with equal hashes \
-    differ by a nonzero solution with ∞-norm at most β (or 2β), and the collision-finding \
-    success probability of any finder against a uniform A ∈ ℤ_q^{n×m} is at most the SIS \
-    success probability of collisionToSIS, which subtracts the two inputs. Ajtai's \
-    worst-case-to-average-case reduction for lattice problems is not formalized; no running \
-    time is charged."
+  scope := "Goldreich–Goldwasser–Halevi, ECCC TR96-042, Theorem 2 (Section 3, p. 4): Ajtai's \
+    hash family h_A(s) = A s mod q on the words s of length m (the source's {0,1}^m), keyed by \
+    a uniform A ∈ ℤ_q^{n×m}. Under SIS P (at P.β = 1, the source's Problem (A2)), every \
+    uniform strict PPT finder given κ and the key ⟨κ, A⟩ finds two distinct words with equal \
+    hashes only with negligible probability (CollisionResistantForOn, Boneh–Shoup \
+    Definition 8.2). The reduction subtracts the two words read as 0/1 vectors and is \
+    certified PPT from the finder's certificate. Deviations: (1) any SIS parameter family P \
+    is allowed; the source's relations n log q < m ≤ q/(2n⁴) and q = O(n^c) are not \
+    required; (2) the bound P.β must be at least 1 (hβ), since SIS P holds vacuously at \
+    bound 0; (3) the column count P.m must be computable in polynomial time (hm), so that \
+    the reduction can write a length-m answer for malformed words; (4) finders and solvers \
+    are uniform strict PPT with negligible success, where the source's Theorem 2 is stated \
+    for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
+    hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
+    Ajtai) is not formalized."
 
 register_result "mldsa-key-only-forgery" where
   title := "ML-DSA key-only unforgeability from Module-LWE and self-target MSIS"
@@ -5963,6 +6015,50 @@ register_result "goldreich-expander-varying-density-hitting" where
     retained, with explicit transport to lambda/d and the constant-set real half-length power. \
     No machine uniformity, runtime or Exercise 8.44 concentration claim."
 
+register_result "goldreich-small-bias-stretch-limits" where
+  title := "Small-bias generators: stretch limits for low-degree and linear generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.37",
+      locator := "March 2007 draft, printed pp. 379–380 / PDF pp. 115–116" }
+  ]
+  theorems := [
+    Cslib.BitString.le_sum_choose_of_isSmallBias,
+    Cslib.BitString.card_lt_card_of_isSmallBias,
+    Cslib.BitString.not_exists_linearMap_of_isSmallBias
+  ]
+  scope := "Uniform seeds; IsSmallBias ε of the output distribution with ε < 1. If every output \
+    bit of G : {0,1}^k → {0,1}^ℓ is a GF(2) polynomial of total degree at most d in the seed \
+    bits, then ℓ ≤ ∑_{i=1}^d C(k,i). Corollaries: fewer output bits than seeds for any finite \
+    seed space (so ℓ < 2^k), and no GF(2)-linear G with ℓ > k."
+
+register_result "goldreich-read-once-prg-small-bias" where
+  title := "Space-bounded pseudorandom generators are 2ε-bias generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.38 (corrected: 2ε-bias)",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.isSmallBias]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε is a 2ε-bias generator. The printed conclusion ε-bias is false: \
+    exists_secure_not_isSmallBias gives σ ↦ σσ on one seed bit, which fools every test with \
+    error 1/2 but has bias 1. Under the source's Eq. (8.18) bias is twice the parity \
+    automaton's distinguishing gap."
+
+register_result "goldreich-read-once-prg-stretch" where
+  title := "Space-bounded pseudorandom generators with error below 1/2 have ℓ < 2^k"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.25(2) (corrected: ε < 1/2)",
+      locator := "March 2007 draft, printed p. 376 / PDF p. 112" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.lt_two_pow]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
+    printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
+    (exists_secure_not_isSmallBias)."
+
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"
   topic := "property testing"
@@ -6047,3 +6143,36 @@ register_result "tally-np-exp-nexp" where
   scope := "(∀ L ∈ TALLY, L ∈ NP encBits → L ∈ P encBits) → EXP enc = NEXP enc and E enc = NE enc \
     for every encoding enc; TALLY is the set of bit-languages of all-true words. Only this \
     direction of Hartmanis–Immerman–Sewelson is proved."
+
+register_result "uniform-probing-expected-probes" where
+  title :=
+    "Expected probe count for unsuccessful search and fresh-key insertion under uniform probing"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "Theorem 11.6 and Corollary 11.7",
+      locator := "Section 11.4, pp. 274–276" }
+  ]
+  theorems := [
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_unsuccessfulProbes_le_two,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le,
+    Cslib.DataStructure.Dictionary.UniformProbing.expect_probeCount_of_eq_none_le_two
+  ]
+  scope := "Uniform full-cycle probing over m slots: expect_unsuccessfulProbes_le and \
+    expect_unsuccessfulProbes_le_two sample a single uniform permutation σ : Equiv.Perm (Fin m) \
+    via PMF.uniformOfFintype against any occupied slot set O : Finset (Fin m) with O.card < m \
+    (or 0 < m and 2 * O.card ≤ m). expect_probeCount_of_eq_none_le and \
+    expect_probeCount_of_eq_none_le_two sample independent per-key permutations \
+    π : Fin U → Equiv.Perm (Fin m) via PMF.uniformOfFintype (lazy-sampling equivalence proved \
+    separately in uniform_interpret_eq_lazy_perm) and run any non-adaptive admissible history \
+    ops of the insert-only bounded-capacity dictionary specification Dictionary.spec U V n_max \
+    (ValidHistory, empty, run, dom, with n_max ≤ m) on Table U m := Fin m → Option (Fin U × ℕ) \
+    via runTable and TableRep. Probe counts unsuccessfulProbes O σ := 1 + missedProbes O σ and \
+    probeCount T u (π u) := unsuccessfulProbes (otherOccupiedSlots T u) (π u) count all \
+    inspected slots along the probe sequence up to and including the first slot outside O \
+    (< m). Proves ℝ≥0∞ expected probe bounds ≤ m / (m - n) for any absent key s u = none with \
+    (Dictionary.dom s).card = n < m, and ≤ 2 under 2 * n_max ≤ m. Abstract uniform-hashing table \
+    model only: no concrete hash construction or Word-RAM runtime claim, and excludes the \
+    uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
+    per-key intermediate step)."
+

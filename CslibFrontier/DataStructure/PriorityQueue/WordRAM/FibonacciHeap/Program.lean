@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Basic
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Forest
 public import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fibonacci Heap: Static-Array Word-RAM Program and State Representation
@@ -756,17 +757,7 @@ theorem BaseRegs.set_iff {n base : ℕ} {x : Data rFib} {d : Fin rFib} (hd : 13 
   refine ⟨fun h => ?_, fun h => h.set_non_base hd v⟩
   have key (r : Fin rFib) (hr : r.val < 13) : x.regs r = (x.set d v).regs r :=
     (Data.set_regs_of_ne (fun e => by subst e; omega) v).symm
-  exact ⟨(key nReg (by decide)).trans h.regs_nReg,
-    (key frontierReg (by decide)).trans h.regs_frontierReg,
-    (key baseReg (by decide)).trans h.regs_baseReg,
-    (key parBase (by decide)).trans h.regs_parBase,
-    (key childBase (by decide)).trans h.regs_childBase,
-    (key leftBase (by decide)).trans h.regs_leftBase,
-    (key rightBase (by decide)).trans h.regs_rightBase,
-    (key degBase (by decide)).trans h.regs_degBase,
-    (key markBase (by decide)).trans h.regs_markBase,
-    (key inBase (by decide)).trans h.regs_inBase, (key consBase (by decide)).trans h.regs_consBase,
-    (key zeroP (by decide)).trans h.regs_zeroP, (key oneP (by decide)).trans h.regs_oneP⟩
+  regs_frame
 
 /-- Writing memory keeps `BaseRegs`. -/
 theorem BaseRegs.write_iff {n base : ℕ} {x : Data rFib} (a v : ℕ) :
@@ -911,19 +902,7 @@ theorem FibInv.supported {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x x'
     FibInv n K_max w base s x' := by
   obtain ⟨_, hbr, hraw⟩ := h
   refine ⟨hb', ?_, ?_⟩
-  · exact ⟨(hreg nReg (by decide)).trans hbr.regs_nReg,
-      (hreg frontierReg (by decide)).trans hbr.regs_frontierReg,
-      (hreg baseReg (by decide)).trans hbr.regs_baseReg,
-      (hreg parBase (by decide)).trans hbr.regs_parBase,
-      (hreg childBase (by decide)).trans hbr.regs_childBase,
-      (hreg leftBase (by decide)).trans hbr.regs_leftBase,
-      (hreg rightBase (by decide)).trans hbr.regs_rightBase,
-      (hreg degBase (by decide)).trans hbr.regs_degBase,
-      (hreg markBase (by decide)).trans hbr.regs_markBase,
-      (hreg inBase (by decide)).trans hbr.regs_inBase,
-      (hreg consBase (by decide)).trans hbr.regs_consBase,
-      (hreg zeroP (by decide)).trans hbr.regs_zeroP,
-      (hreg oneP (by decide)).trans hbr.regs_oneP⟩
+  · regs_frame
   · rw [ofData_supported hreg hmem]
     exact hraw
 

@@ -99,13 +99,7 @@ theorem computableInPolyTime_sampleIntBoxListCoins :
     ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × List Bool => sampleIntBoxListCoins p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encNat (encPair encUnary (encPair encUnary encBits))) (encList encIntBin) := by
-  unfold sampleIntBoxListCoins
-  apply ComputableInPolyTime.mapWithInput
-    (list := fun p : ℕ × ℕ × ℕ × List Bool => BitString.listRows p.2.1 p.2.2.1 p.2.2.2)
-    (f := fun (p : ℕ × ℕ × ℕ × List Bool) row => sampleIntBoxCoins p.1 row)
-  · exact ComputableInPolyTime.bitsRowsWithInput (by fun_prop) (by fun_prop) (by fun_prop)
-  · exact computableInPolyTime_sampleIntBoxCoins.comp
-      (g := fun q : (ℕ × ℕ × ℕ × List Bool) × List Bool => (q.1.1, q.2)) (by fun_prop)
+  fun_prop [sampleIntBoxListCoins]
 
 /-- `sampleIntBoxList` is uniformly strict PPT when `B` is in binary and `m, width` are in unary. -/
 theorem isPPTOn_sampleIntBoxList {α : Type} {input : α ↪ List Bool} {B m width : α → ℕ}

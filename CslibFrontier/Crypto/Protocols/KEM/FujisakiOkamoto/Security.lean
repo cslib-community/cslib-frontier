@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEM
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Languages.Probabilistic.Simulation
@@ -790,8 +791,7 @@ theorem roHandler_eq_romHandler (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK 
     (cStar : CT) : S.roHandler dk cStar = S.romHandler (S.notBotDecaps dk) cStar := by
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
-  simp only [roHandler, notBotDecaps, OracleComp.interpret_map, interpret_decapsNotBotM,
-    OracleComp.interpret_query]
+  simp only [roHandler, notBotDecaps, interp_norm, interpret_decapsNotBotM]
 
 omit [DecidableEq M] in
 /-- `eagerHandler` is the eager handler of `romProgram` with `FO-notbot` decapsulation. -/
@@ -801,8 +801,7 @@ theorem eagerHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R
   have hd (c : CT) : PMF.pure (some (S.decapsNotBot G H dk c)) = OracleComp.interpret
       (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
       (S.notBotDecaps dk c) := by
-    simp only [notBotDecaps, OracleComp.interpret_map, interpret_decapsNotBotM,
-      OracleComp.interpret_query]
+    simp only [notBotDecaps, interp_norm, interpret_decapsNotBotM]
     change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ H) dk c
     rw [decapsNotBotM_pure, map_pure]
     rfl
