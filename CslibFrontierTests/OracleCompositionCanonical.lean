@@ -27,11 +27,11 @@ namespace CslibFrontierTests.OracleCompositionCanonical
 open Cslib Cslib.Probability Turing Turing.MultiTapeTM
 
 -- No transitional callback spelling is part of this ordinary-module facade.
-#check_failure IsOraclePPTOn.query_take'
-#check_failure IsOraclePPTOn.map_with'
-#check_failure IsOraclePPTOn.iterateWith_spec'
-#check_failure Cslib.Probability.IsTidyOraclePPTOn
-#check_failure Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn
+assert_not_exists Cslib.Probability.IsOraclePPTOn.query_take'
+assert_not_exists Cslib.Probability.IsOraclePPTOn.map_with'
+assert_not_exists Cslib.Probability.IsOraclePPTOn.iterateWith_spec'
+assert_not_exists Cslib.Probability.IsTidyOraclePPTOn
+assert_not_exists Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn
 
 /-- A computed callback retains the entire caller beside the sampled bit. -/
 noncomputable def retainedBit (word : List Bool) : WordOracleComp Unit (List Bool × Bool) :=
