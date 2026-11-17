@@ -348,10 +348,7 @@ private theorem val_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
 /-- The cap's retained differences are distinct. -/
 theorem capDifferencePort_injective {n : ℕ} :
     Function.Injective (@capDifferencePort n) := by
-  intro i j h
-  have hv := congrArg Fin.val h
-  simp only [val_capDifferencePort] at hv
-  split_ifs at hv <;> apply Fin.ext <;> omega
+  fin_index [val_capDifferencePort]
 
 /-- The cap preserves the distinguished zero coordinate and sends no other coordinate to it. -/
 @[simp] theorem capDifferencePort_eq_zero_iff {n : ℕ} (j : Fin (n + 2)) :
@@ -369,10 +366,7 @@ theorem three_le_val_capDifferencePort {n : ℕ} {j : Fin (n + 2)} (hj : j ≠ 0
 /-- The first hidden difference is not in the cap's retained coordinates. -/
 @[simp] theorem capDifferencePort_ne_one {n : ℕ} (j : Fin (n + 2)) :
     capDifferencePort j ≠ 1 := by
-  intro he
-  have hv := congrArg Fin.val he
-  simp only [val_capDifferencePort, Fin.val_one] at hv
-  split_ifs at hv; omega
+  fin_index [val_capDifferencePort]
 
 /-- The second hidden difference is not in the cap's retained coordinates. -/
 @[simp] theorem capDifferencePort_ne_two {n : ℕ} (j : Fin (n + 2)) :

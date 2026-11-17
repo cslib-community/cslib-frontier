@@ -299,9 +299,9 @@ private theorem step_walk_eq_none_of_cod_mem {α : Type} {f g : α → Option α
   let emb : Fin (k + 1) ↪ H :=
     ⟨fun i => ⟨walk f (i.val + 1) c,
       hH _ _ (step_walk_eq_some_of_le (Nat.le_of_lt_succ i.isLt) hne)⟩,
-      fun i j h => Fin.ext (by
+      fun i j h => by
         have := hinj (i.val + 1) (j.val + 1) (by omega) (by omega) (Subtype.ext_iff.mp h)
-        omega)⟩
+        omega⟩
   have hcard := Fintype.card_le_of_embedding emb
   simp only [Fintype.card_fin, Fintype.card_coe] at hcard
   omega

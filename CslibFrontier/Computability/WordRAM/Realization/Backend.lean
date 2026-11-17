@@ -273,8 +273,7 @@ private theorem layout (i : ι) :
     Function.Injective (tmp C i) ∧ (∀ a b, src C i a ≠ tmp C i b) ∧
       (∀ b, tmp C i b ≠ frontier C) ∧ ∀ a, src C i a ≠ frontier C := by
   have hk := Finset.le_sup (f := fun i => (C i).k) (Finset.mem_univ i)
-  refine ⟨fun a b h => Fin.ext ?_, fun a b h => ?_, fun b h => ?_, fun a h => ?_⟩ <;>
-    have := congrArg Fin.val h <;> simp only [src, tmp, frontier, argWords] at * <;> omega
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> fin_index [src, tmp, frontier, argWords]
 
 /-- Install arguments `d` of tag `i` in its argument registers. Installation is uncharged and
 leaves memory and the frontier unchanged. -/

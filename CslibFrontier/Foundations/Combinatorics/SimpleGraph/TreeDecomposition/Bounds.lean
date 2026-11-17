@@ -196,7 +196,7 @@ private theorem mem_cycleGraphBag {n : ℕ} {i : Fin (n + 1)} {v : Fin (n + 3)} 
 `{0, i + 1, i + 2}`. -/
 private def cycleGraphDecomposition (n : ℕ) : (cycleGraph (n + 3)).RootedTreeDecomposition n where
   parent i := ⟨i.val - 1, by omega⟩
-  parent_zero := Fin.ext (by simp)
+  parent_zero := by fin_index
   parent_lt i hi := by
     have : i.val ≠ 0 := fun h => hi (Fin.ext h)
     fin_index

@@ -178,12 +178,12 @@ def rightHalf (n : ℕ) (b : Fin (n / 2)) : Fin n :=
   ⟨n / 2 + b, by omega⟩
 
 /-- The embedding `leftHalf n` of the first `⌊n/2⌋` coordinates into `Fin n` is injective. -/
-theorem leftHalf_injective (n : ℕ) : Function.Injective (leftHalf n) :=
-  fun a b h => Fin.ext (by simpa [leftHalf] using congrArg Fin.val h)
+theorem leftHalf_injective (n : ℕ) : Function.Injective (leftHalf n) := by
+  fin_index [leftHalf]
 
 /-- The embedding `rightHalf n` of the second `⌊n/2⌋` coordinates into `Fin n` is injective. -/
-theorem rightHalf_injective (n : ℕ) : Function.Injective (rightHalf n) :=
-  fun a b h => Fin.ext (by simpa [rightHalf] using congrArg Fin.val h)
+theorem rightHalf_injective (n : ℕ) : Function.Injective (rightHalf n) := by
+  fin_index [rightHalf]
 
 /-- The two halves are disjoint. -/
 private theorem disjoint_range_leftHalf_rightHalf (n : ℕ) :

@@ -29,6 +29,14 @@ namespace FinIndexTest
 /-- A definition that branches on its index. -/
 @[expose] def skip (i : Fin 5) : Fin 9 := if i.val = 0 then ⟨7, by omega⟩ else ⟨i.val, by omega⟩
 
+/-- A size that is the bound of a `Fin` type. -/
+@[expose] def width (n : ℕ) : ℕ := 3 * n + 1
+
+/-- A general operation on indices, with a value lemma. -/
+def twice {n : ℕ} (i : Fin n) : Fin (2 * n) := ⟨2 * i.val, by omega⟩
+
+theorem val_twice {n : ℕ} (i : Fin n) : (twice i).val = 2 * i.val := by rw [twice]
+
 /-! Constructors and casts need no list. -/
 
 example (a b : ℕ) (ha : a < 9) (hb : b < 9) (h : a ≠ b) : (⟨a, ha⟩ : Fin 9) ≠ ⟨b, hb⟩ := by
@@ -75,11 +83,27 @@ example {a b : ℕ} : Function.Injective (right : Fin b → Fin (a + b + 1)) := 
 example {a b : ℕ} (i j : Fin b) (h : i < j) : right (a := a) i < right j := by
   fin_index [right]
 
+/-! The definition may also be the bound of the `Fin` type. -/
+
+example (n : ℕ) (k : Fin (width n)) (h : k.val = 3 * n) :
+    k = ⟨3 * n, by simp only [width]; omega⟩ := by
+  fin_index [width]
+
 /-! A fact about values can stand in for the definition. -/
 
 example {r : ℕ} {f : Fin r → Fin 16} (hf : ∀ i, (f i).val = i.val + 7) :
     Function.Injective f := by
   fin_index [hf]
+
+/-! The value lemma of a general operation can join the simp set instead. -/
+
+section
+attribute [local fin_index_simps] val_twice
+
+example {n : ℕ} : Function.Injective (twice : Fin n → Fin (2 * n)) := by
+  fin_index
+
+end
 
 /-! Facts in context are used in the form they have. -/
 
@@ -89,10 +113,11 @@ example {a b : ℕ} (i j : Fin b) (h : right (a := a) i = right j) (hne : i ≠ 
 example (n : ℕ) (i j : Fin n) (h : ¬ i ≤ j) : j < i := by
   fin_index
 
-/-! A hypothesis that a term depends on is used too: here `hk` under `k.pred hk`. -/
+/-! A hypothesis that another one depends on is used too: here `h1`, inside the bound proof of
+`h2`. `simp … at *` alone leaves `h1` as it is. -/
 
-example (n : ℕ) (k : Fin (n + 2)) (hk : k ≠ 0) (j : Fin (n + 1)) (h : j = k.pred hk) :
-    j.castSucc < k := by
+example (n i p : ℕ) (hp : p < n) (hi : i < n) (h1 : (⟨i, hi⟩ : Fin n) = ⟨p, hp⟩) (j : Fin n)
+    (h2 : j = ⟨p, Fin.mk.inj h1 ▸ hi⟩) : j.val = i := by
   fin_index
 
 example (q q' : Fin 27) (r r' : Fin 6) : slot q r = slot q' r' → q = q' ∧ r = r' := by

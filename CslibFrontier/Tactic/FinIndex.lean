@@ -8,11 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Tactic.FailureNote
-public import Mathlib.Data.Fin.Basic
+public import CslibFrontier.Tactic.FinIndex.Init
+public import Mathlib.Logic.Function.Defs
 public import Mathlib.Tactic.SplitIfs
 public meta import Lean.Elab.Command
-public meta import Lean.Elab.Tactic.Omega
 public meta import Lean.Elab.Tactic.Simp
 public meta import Lean.Linter.Util
 
@@ -30,13 +29,15 @@ constructors and casts, and calls `omega`.
 `omega`. It does not look inside `Fin.val ⟨e, h⟩`, `Fin.val (Fin.castAdd m i)` or
 `Fin.val (f i)` for a definition `f`: each is an unknown number to it. Mathlib's `fin_omega`
 rewrites comparisons and `Fin` arithmetic to values but leaves the same terms opaque. `fin_index`
-is the step in between: a fixed set of `Fin` lemmas for the constructors and casts, and the
-definitions to unfold given at the call, as in `fin_index [stageLeft, stageRight]`.
+is the step in between: the simp set `fin_index_simps` of `Fin` lemmas for the constructors and
+casts, and the definitions to unfold given at the call, as in
+`fin_index [stageLeft, stageRight]`.
 
 The rewriting is `simp only … at *`, so facts in context are used in whatever form they have:
-`h : f i = f j`, `hne : i ≠ j` and `h : ¬ i < j` all become facts about values, also when a term
-such as `i.pred hne` depends on the hypothesis. A goal `Function.Injective f` is introduced
-first.
+`h : f i = f j`, `hne : i ≠ j` and `h : ¬ i < j` all become facts about values. `simp` skips a
+hypothesis that the goal or another hypothesis depends on, and the dependency can be invisible:
+the proof in an index `⟨e, by omega⟩` built after `h` may mention `h`. `fin_index` rewrites a
+copy of each such hypothesis. A goal `Function.Injective f` is introduced first.
 
 When a definition branches on an `if` with numeric branches, `omega` cannot use it; `fin_index`
 then splits every `if` in the goal and the context and calls `omega` on each case. This second
@@ -56,9 +57,24 @@ goal; keep it that way.
 
 * `fin_index`: prove an equality, disequality or order fact between `Fin` values from the
   numbers.
+* `fin_index_simps`: the simp set that `fin_index` rewrites with, declared in
+  `CslibFrontier.Tactic.FinIndex.Init` and filled here. Tag the value lemma of a further general
+  operation on `Fin`; definitions of one development go in the list of the call.
 -/
 
 public section
+
+/- The members of `fin_index_simps`. Each one is needed: without it a call in the library fails.
+`Fin.val ⟨a, h⟩` needs no lemma, since `simp` reduces the projection. `Fin.ite_val` is the lemma
+for a dependent `if` and `Fin.dite_val` the one for a plain `if`. -/
+attribute [fin_index_simps] ne_eq Fin.val_castAdd Fin.val_natAdd Fin.val_castSucc Fin.val_succ
+  Fin.val_last Fin.val_cast Fin.val_castLE Fin.val_rev Fin.val_zero Fin.val_one Fin.ite_val
+  Fin.dite_val
+
+/- A comparison is rewritten before its sides are (`↓`). A definition in the list of a call may
+be the bound of the `Fin` type, as in `k : Fin (chainLen p v)`; once it is unfolded there, these
+lemmas no longer apply to `k = ⟨_, _⟩`. -/
+attribute [fin_index_simps ↓] Fin.ext_iff Fin.lt_def Fin.le_def
 
 namespace Cslib.Tactic.FinIndex
 
@@ -70,8 +86,8 @@ hypothesis.
 
 It introduces the hypotheses of the goal, rewrites every comparison of `Fin` values in the goal
 and the context to a comparison of numbers, moves `Fin.val` through `⟨_, _⟩`, `Fin.castAdd`,
-`Fin.natAdd`, `Fin.castSucc`, `Fin.succ`, `Fin.last`, `Fin.cast`, `Fin.castLE`, `Fin.castLT`,
-`Fin.addNat`, `Fin.subNat`, `Fin.pred`, `Fin.rev` and `if`, and calls `omega`.
+`Fin.natAdd`, `Fin.castSucc`, `Fin.succ`, `Fin.last`, `Fin.cast`, `Fin.castLE`, `Fin.rev`, the
+numerals `0` and `1`, and `if` (the simp set `fin_index_simps`), and calls `omega`.
 
 * `fin_index [f, g, h]` also unfolds the definitions `f` and `g` and rewrites with the fact `h`.
   The list is a `simp only` list: definitions, local `let` variables, lemmas such as
@@ -137,7 +153,8 @@ elab_rules : tactic
       let (_, g) ← g.introNP 3
       replaceMainGoal [g]
     -- `simp … at *` skips a hypothesis that the goal or another hypothesis depends on, such as
-    -- `h : i ≠ 0` under `i.pred h`. Give each of these a copy that can be rewritten.
+    -- `h` when the proof in a later `⟨e, by omega⟩` mentions it. Give each of these a copy that
+    -- can be rewritten.
     let g ← getMainGoal
     let free ← g.getNondepPropHyps
     let copies ← g.withContext do
@@ -148,21 +165,19 @@ elab_rules : tactic
     let (_, g) ← g.assertHypotheses copies
     replaceMainGoal [g]
     let seen := (← getInfoState).trees.size
-    withoutRecover <| evalTactic (← `(tactic| simp -failIfUnchanged only [ne_eq, Fin.ext_iff,
-      Fin.lt_def, Fin.le_def, Fin.val_mk, Fin.val_castAdd, Fin.val_natAdd, Fin.val_castSucc,
-      Fin.val_succ, Fin.val_last, Fin.val_cast, Fin.val_castLE, Fin.val_castLT, Fin.val_addNat,
-      Fin.val_subNat, Fin.val_pred, Fin.val_rev, Fin.val_zero, Fin.val_one, apply_ite Fin.val,
-      apply_dite Fin.val, $args,*] at *))
+    withoutRecover <| evalTactic
+      (← `(tactic| simp -failIfUnchanged only [fin_index_simps, $args,*] at *))
     -- The entries of the list are the last arguments of that `simp` call.
     if let some mask := ((← getInfoState).trees.toArray.extract seen).findSome? simpArgsMask? then
       pushInfoLeaf <| .ofCustomInfo
         { stx := ← getRef, value := .mk (ListUse.mk (mask.extract (mask.size - args.size))) }
     if (← getUnsolvedGoals).isEmpty then return
     let goal ← getMainGoal
-    withFailureNote m!"fin_index rewrote the goal and the hypotheses to comparisons of numbers, \
-        and `omega` could not close the result, also not after splitting each `if`:\
+    -- Keep the error of `omega` and append what `fin_index` did and what it needs.
+    mapError (f := (· ++ .note m!"fin_index rewrote the goal and the hypotheses to comparisons \
+        of numbers, and `omega` could not close the result, also not after splitting each `if`:\
         {indentD goal}\nA term in the `where` list of `omega`, such as `↑(f i)`, names a \
-        definition to unfold: `fin_index [f]`." do
+        definition to unfold: `fin_index [f]`.")) do
       try
         evalTactic (← `(tactic| omega))
       catch ex =>

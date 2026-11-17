@@ -223,8 +223,8 @@ theorem bodySlot_injective {n : ℕ} : Function.Injective (bodySlot (l := l) (n 
 
 /-- The loop's state words lie outside its body bank. -/
 theorem stateSlot_ne_bodySlot {n : ℕ} (i : Fin l) (j : Fin (l + n + 1)) :
-    stateSlot (n := n) i ≠ bodySlot j :=
-  Fin.ne_of_val_ne (by simp only [stateSlot, bodySlot]; omega)
+    stateSlot (n := n) i ≠ bodySlot j := by
+  fin_index [stateSlot, bodySlot]
 
 /-- Entering the native loop of `loopEmit`: copy the state words into the bank, install the
 counter and clear the zero register. Memory, the frontier and every register outside the scratch
@@ -251,7 +251,7 @@ theorem loopEmit_entry (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  have hct : ctr ≠ zero := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
+  have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
   have henv (i : Fin k) : x.regs (env i) = input d i := by
     have hh : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
       simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
@@ -320,14 +320,14 @@ theorem loopBody_tail {n : ℕ} (frontier : Fin r) (tmp : Fin (l + (l + n + 3) +
   let ctr := tmp (counterSlot l n)
   let zero := tmp (zeroSlot l n)
   let one := tmp (oneSlot l n)
-  have hco : ctr ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, oneSlot]))
-  have hzc : zero ≠ ctr := hi.ne (Fin.ne_of_val_ne (by simp [counterSlot, zeroSlot]))
-  have hzo : zero ≠ one := hi.ne (Fin.ne_of_val_ne (by simp [zeroSlot, oneSlot]))
+  have hco : ctr ≠ one := hi.ne (by fin_index [counterSlot, oneSlot])
+  have hzc : zero ≠ ctr := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have hzo : zero ≠ one := hi.ne (by fin_index [zeroSlot, oneSlot])
   have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
       ∀ j, tmp (bodySlot j) ≠ tmp a :=
-    fun j => hi.ne (Fin.ne_of_val_ne (by simp only [bodySlot]; omega))
+    fun j => hi.ne (by fin_index [bodySlot])
   have hregst (a : Fin (l + (l + n + 3) + 1)) (ha : l ≤ a.val) : ∀ i, st i ≠ tmp a :=
-    fun i => hi.ne (Fin.ne_of_val_ne (by simp only [stateSlot]; omega))
+    fun i => hi.ne (by fin_index [stateSlot])
   obtain ⟨v, hv, hvm, hvs, hvf⟩ := copyBank_exec
     (fun i : Fin l => tmp (bodySlot (Fin.castAdd (n + 1) i))) st zero
     (fun i j h => Fin.ext (congrArg Fin.val (hi h) :))
@@ -569,12 +569,9 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
     intro i j hij
     have := hi hij
     fin_index [bodySlot, stateSlot]
-  have hct : ctr ≠ zero := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, zeroSlot] at this
-  have hco : ctr ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [counterSlot, oneSlot] at this
-  have hzo : zero ≠ one := fun hij => by
-    have := congrArg Fin.val (hi hij); simp [zeroSlot, oneSlot] at this
+  have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
+  have hco : ctr ≠ one := hi.ne (by fin_index [counterSlot, oneSlot])
+  have hzo : zero ≠ one := hi.ne (by fin_index [zeroSlot, oneSlot])
   have hregbt (a : Fin (l + (l + n + 3) + 1)) (ha : a.val < l + 3) :
       ∀ j, bt j ≠ tmp a := by
     intro j hij

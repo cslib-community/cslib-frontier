@@ -785,7 +785,7 @@ private theorem injOn_inEdges (i : Fin q) :
     cases he₁
     simp only [Sum.inl.injEq, Fin.mk.injEq] at he₂
     congr 1
-    exact Fin.ext (by omega)
+    omega
   · simp at heq
   · simp at heq
   · simp only [Option.some.injEq, Prod.mk.injEq, Sum.elim_inr] at heq
@@ -813,7 +813,7 @@ private theorem injOn_inEdges (i : Fin q) :
     subst hi
     have hd : d₁ = d₂ := by
       simp only [portBlock] at hj
-      exact Fin.ext (by omega)
+      omega
     rw [hd]
 
 omit [NeZero b] in

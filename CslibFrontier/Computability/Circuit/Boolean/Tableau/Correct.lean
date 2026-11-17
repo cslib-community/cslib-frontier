@@ -440,7 +440,7 @@ private theorem val_sit (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (j : Fin (nu
       fun h => ⟨fun i' hi' => h i' (by omega), h i (by omega)⟩⟩
     rcases Nat.lt_or_ge i'.val i.val with h | h
     · exact h₁ i' h
-    · obtain rfl : i' = i := Fin.ext (by omega)
+    · obtain rfl : i' = i := by omega
       exact h₂
 
 /-- A situation holds exactly when its gate is true. -/
@@ -481,7 +481,7 @@ private theorem val_attr (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (v : Attr k
       · rintro ⟨j', hj', h⟩
         rcases Nat.lt_or_ge j'.val j.val with h' | h'
         · exact Or.inl ⟨j', h', h⟩
-        · obtain rfl : j' = j := Fin.ext (by omega)
+        · obtain rfl : j' = j := by omega
           exact Or.inr h.1
     · rw [val_resolve_fls]
       simp only [Bool.false_eq_true, or_false, Fin.val_castSucc, Fin.val_succ]
@@ -491,7 +491,7 @@ private theorem val_attr (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (v : Attr k
       · rintro ⟨j', hj', h⟩
         rcases Nat.lt_or_ge j'.val j.val with h' | h'
         · exact ⟨j', h', h⟩
-        · obtain rfl : j' = j := Fin.ext (by omega)
+        · obtain rfl : j' = j := by omega
           exact absurd h.2 hv
 
 /-- **The attributes of the action** of the step. -/

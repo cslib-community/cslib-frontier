@@ -72,13 +72,9 @@ theorem bindShared_layout {r k m l n₁ n₂ : ℕ} {frontier : Fin r} {src : Fi
     exact Fin.ext h
   have hright : Function.Injective (tmp ∘ bindSharedRight) := by
     intro a b hab
-    apply Fin.ext
-    have h := congrArg Fin.val (hi hab)
+    have h := hi hab
     have hm₁ := Nat.le_max_left n₁ n₂
-    have ha := a.isLt
-    have hb := b.isLt
-    dsimp only [Function.comp_apply, bindSharedRight] at h
-    split_ifs at h <;> dsimp only at h <;> omega
+    fin_index [bindSharedRight]
   -- The predecessor's live answer sits in the tail, above every slot of the continuation.
   have hdisjoint (a : Fin l) (b : Fin (m + n₂ + 1)) :
       tmp (bindSharedRight (Fin.castAdd (n₁ + 1) a)) ≠ tmp (bindSharedLeft b) := by
