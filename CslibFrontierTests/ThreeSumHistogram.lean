@@ -98,8 +98,6 @@ private def countInput : Data 28 :=
     ThreeSum.ChanHe.Count.scratch 10).set ThreeSum.ChanHe.Count.len 4).set
     ThreeSum.ChanHe.Count.modulus (encode 3)).set ThreeSum.ChanHe.Count.dst 20
 
--- Evaluating the three renamed loops unfolds over 150 native instructions and their register maps.
-set_option maxRecDepth 4096 in
 /-- Execute the composed signed-input program and check its unsigned count and both arrays. -/
 example : (Code.eval 8 4 ThreeSum.ChanHe.Count.program countInput).map
     (fun yn => [yn.1.mem 1, yn.1.mem 10, yn.1.mem 13, yn.1.mem 20, yn.1.mem 21,
@@ -129,8 +127,6 @@ example : ∃ y, ExecWithin 8 ThreeSum.ChanHe.Count.program countInput y 169 ∧
   · rw [hm]; decide
   · rw [hm]; decide
 
--- The three complete program evaluations unfold the renamed loops and register maps.
-set_option maxRecDepth 4096 in
 /-- The composed program handles lengths zero, one and two, including an unused modulus block. -/
 example : ((Code.eval 8 3 ThreeSum.ChanHe.Count.program
       (countInput.set ThreeSum.ChanHe.Count.len 0)).map
