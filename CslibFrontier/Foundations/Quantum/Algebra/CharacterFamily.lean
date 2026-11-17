@@ -45,6 +45,7 @@ tracked in [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149
 
 ## Main results
 
+* `Cslib.Quantum.sum_signVal_mul_signVal`: orthogonality of the characters, over `ℂ`.
 * `Cslib.Quantum.expect_norm_walshSum_sq`: Parseval in a state.
 * `Cslib.Quantum.Measurement.IsProjective.charObs_mul`: exact linearity for projective
   measurements.
@@ -64,6 +65,16 @@ open scoped BigOperators
 namespace Cslib.Quantum
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+/-- **Orthogonality of the characters**, over `ℂ`:
+`∑_u (-1)^{u·x} (-1)^{u·y} = 2ⁿ [x = y]`. -/
+theorem sum_signVal_mul_signVal (x y : ι → Bool) :
+    ∑ u : ι → Bool, ((signVal (u ⬝ᵥ x) * signVal (u ⬝ᵥ y) : ℝ) : ℂ) =
+      if x = y then (2 : ℂ) ^ Fintype.card ι else 0 := by
+  have h := sum_signVal_dotProduct_mul_signVal_dotProduct x y
+  simp only [dotProduct_comm x, dotProduct_comm y] at h
+  rw [← Complex.ofReal_sum, h]
+  split_ifs <;> push_cast <;> rfl
 
 section Ring
 
@@ -101,13 +112,6 @@ theorem sum_norm_walshSum_sq (φ : AlgState A) (D : (ι → Bool) → A) :
     rw [star_smul, Complex.star_def, Complex.conj_ofReal, smul_mul_smul_comm, map_smul,
       smul_eq_mul]
     push_cast; ring
-  have horth : ∀ x y : ι → Bool,
-      ∑ a : ι → Bool, ((signVal (a ⬝ᵥ x) * signVal (a ⬝ᵥ y) : ℝ) : ℂ) =
-        if x = y then (2 : ℂ) ^ Fintype.card ι else 0 := fun x y => by
-    have h := sum_signVal_dotProduct_mul_signVal_dotProduct x y
-    simp only [dotProduct_comm x, dotProduct_comm y] at h
-    rw [← Complex.ofReal_sum, h]
-    split_ifs <;> push_cast <;> rfl
   apply Complex.ofReal_injective
   rw [Complex.ofReal_sum]
   simp only [key]
@@ -115,7 +119,8 @@ theorem sum_norm_walshSum_sq (φ : AlgState A) (D : (ι → Bool) → A) :
   have hx : ∀ x, ∑ a : ι → Bool, ∑ y, ((signVal (a ⬝ᵥ x) * signVal (a ⬝ᵥ y) : ℝ) : ℂ) *
       φ (star (D x) * D y) = (2 : ℂ) ^ Fintype.card ι * φ (star (D x) * D x) := fun x => by
     rw [sum_comm]
-    simp only [← sum_mul, horth, ite_mul, zero_mul, sum_ite_eq, mem_univ, ite_true]
+    simp only [← sum_mul, sum_signVal_mul_signVal, ite_mul, zero_mul, sum_ite_eq, mem_univ,
+      ite_true]
   rw [sum_congr rfl fun x _ => hx x, Complex.ofReal_mul, Complex.ofReal_sum, mul_sum]
   refine sum_congr rfl fun x _ => ?_
   rw [AlgState.ofReal_norm_sq]
