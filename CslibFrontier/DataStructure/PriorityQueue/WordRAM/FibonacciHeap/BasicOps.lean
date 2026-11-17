@@ -261,9 +261,9 @@ theorem initSetup_exec {n K_max w base : ℕ} {x₁ : Data rFib}
   intro hby
   refine ⟨by omega, by wram_simp [hfr₁], ⟨hby, ?_, ?_⟩, by wram_simp [potential]; omega,
     Modifies.refl _ _⟩
-  · refine ⟨by wram_simp [hn], by wram_simp [hfr₁], by wram_simp [hb₁],
-      ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      (wram_simp; try omega)
+  · (refine ⟨by wram_simp [hn], by wram_simp [hfr₁], by wram_simp [hb₁],
+        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      wram_simp) <;> omega
   · apply FibRawInv.empty
     · intro v
       exact hz _ (Block.mem_footprint.mpr (owns_arr_addr (by decide) v.isLt))
