@@ -167,9 +167,7 @@ end ZKProof
 /-! ### The single-session system -/
 
 /-- Single-session masked-3SAT `ZKProof` builder for the language of an NP relation `R` with
-uniform `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)` families
-generated from `1^n` in deterministic polynomial time, #6044, rather than auxiliary-input GMW zero
-knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10) and soundness `1 / 3`,
+uniform `GenerableZeroKnowledge` only (#6044; see `GenerableZeroKnowledge`) and soundness `1 / 3`,
 from a pseudorandom generator with stretch at least `3 * k + 1` and a Levin reduction `r` of `R`
 to `ThreeSAT.npRelation`. Built as `PseudorandomGenerator.singleZKProofOfReduction` for the
 instance map of `r` with witnesses changed by `ZKProof.withRelationWitness`: the honest prover maps
