@@ -501,6 +501,14 @@ theorem advantage_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect :
     idealGame_evaluator_eq samp Z Φ S n, Game.advantage_comm]
   rfl
 
+end Cslib.Crypto.Protocols.MPC.Yao
+
+namespace Cslib.Crypto.Garbling
+
+open Protocols.MPC Probability Turing.MultiTapeTM
+
+variable {Fn Λ : Type} {G : Scheme Fn}
+
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) under the novel
 assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (ePrint
 2004/175, §4.2, p. 15), not plain-model Theorem 7 or its Case 2 (pp. 18–19), which compose with a
@@ -511,34 +519,26 @@ security of `G`. When `G` is `prv.sim` secure with one simulator `S` for every a
 (`Scheme.PrvSimSecureUniversal`) for side information `Φ` computed in polynomial time, `G` is
 correct, its encoding is `projectiveEncode`, and it reads input lengths and evaluates `ev` in
 polynomial time, then for public parameters drawn by any PPT sampler the PPT simulator family
-`evaluatorSim G Φ S` makes the real and ideal games indistinguishable for every PPT environment:
-from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the certified reduction
-`evaluatorToPrvSim` (`advantage_evaluator_eq`, `isPPT_evaluatorToPrvSim`). The other deviations
-are those of the module documentation. -/
-theorem
-    _root_.Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator
+`Yao.evaluatorSim G Φ S` makes the real and ideal games indistinguishable for every PPT
+environment: from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the
+certified reduction `Yao.evaluatorToPrvSim` (`Yao.advantage_evaluator_eq`,
+`Yao.isPPT_evaluatorToPrvSim`). The other deviations are those of the module documentation. -/
+theorem Scheme.PrvSimSecureUniversal.yaoHybridSemiHonestSecure_evaluator
     {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
     {Φ : SideInfo Fn Λ} (hG : G.PrvSimSecureUniversal Φ encFn encΛ)
     (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
     (hev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits)
     (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
-    (hΦ : ComputableInPolyTime Φ.phi encFn encΛ) {samp : ℕ → ProbComp (Params G)}
-    (hsamp : IsPPTOn encUnary (encParams encFn) samp) :
-    (family G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) {1} (encoding G encFn) := by
+    (hΦ : ComputableInPolyTime Φ.phi encFn encΛ) {samp : ℕ → ProbComp (Yao.Params G)}
+    (hsamp : IsPPTOn encUnary (Yao.encParams encFn) samp) :
+    (Yao.family G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) {1}
+      (Yao.encoding G encFn) := by
   obtain ⟨S, hS, hsec⟩ := hG
-  refine ⟨evaluatorSim G Φ S, isPPT_evaluatorSim hinLen hΦ hS, fun Z hZ => ?_⟩
-  refine negligible_of_eventually_le
-    (hsec _ (encReductionState (G := G) encFn) _ (isPPT_evaluatorToPrvSim hinLen hev hsamp hZ)) ?_
+  refine ⟨Yao.evaluatorSim G Φ S, Yao.isPPT_evaluatorSim hinLen hΦ hS, fun Z hZ => ?_⟩
+  refine negligible_of_eventually_le (hsec _ (Yao.encReductionState (G := G) encFn) _
+    (Yao.isPPT_evaluatorToPrvSim hinLen hev hsamp hZ)) ?_
   filter_upwards [Filter.eventually_gt_atTop 0] with n hn
-  rw [advantage_evaluator_eq hproj hcorrect hn samp Z Φ S]
-
-end Cslib.Crypto.Protocols.MPC.Yao
-
-namespace Cslib.Crypto.Garbling
-
-open Protocols.MPC Probability Turing.MultiTapeTM
-
-variable {Fn Λ : Type} {G : Scheme Fn}
+  rw [Yao.advantage_evaluator_eq hproj hcorrect hn samp Z Φ S]
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) under the novel
 assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (ePrint
