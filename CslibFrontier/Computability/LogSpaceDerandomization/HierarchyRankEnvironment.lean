@@ -243,6 +243,7 @@ theorem grid_retains (D : ZMod P) (role : Fin J) (k : ℕ)
     semanticSide_grid, retains]
 
 /-- Every finite grid rate is positive. -/
+@[positivity_lemma]
 theorem rate_pos (k : ℕ) : 0 < rate k := by unfold rate; positivity
 
 /-- Increasing the exponent narrows the grid rate. -/

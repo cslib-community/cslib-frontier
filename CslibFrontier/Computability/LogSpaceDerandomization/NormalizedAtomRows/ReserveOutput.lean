@@ -115,8 +115,7 @@ theorem actualEstimatedResidual_output_from_cost_reserves
   intro hreserve
   have hHPK : 0 < HP.K := by
     have hg := HP.gate
-    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η :=
-      div_nonneg (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) HP.η_pos.le
+    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
     have hk : (0 : ℝ) < HP.K := by linarith
     exact_mod_cast hk
   have htol : 0 < (ctx.tolerance ε) := by dsimp only [ReserveOutputContext.tolerance]; positivity
@@ -181,7 +180,7 @@ theorem actualEstimatedResidual_output_from_cost_reserves
     ctx.residual hG (fun x => (HP.toHierarchyParams.residual_sum_le_one _ _ (rate_pos
       ctx.midpointExponent) ctx.kernel_row_mass x).trans
       (by have := Nat.cast_nonneg (α := ℝ) HP.k; linarith)) P (rate ctx.sourceExponent) ε
-    (mul_nonneg (Nat.cast_nonneg P) (rate_pos ctx.sourceExponent).le) hε.le ctx.prefixLength
+    (by positivity) hε.le ctx.prefixLength
       ctx.prefixLength_pos (ctx.increment children ζ ε) (fun _ _ _ _ => 0) B
     (commonMeanEnvelope_nonneg ctx.roles ctx.direction ctx.sourceSuffix ctx.terminalSuffix
       ctx.sourceExponent ctx.terminalExponent ctx.usageExponent ctx.prefixLength

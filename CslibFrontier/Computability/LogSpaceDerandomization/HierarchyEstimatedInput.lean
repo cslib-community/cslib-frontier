@@ -135,7 +135,7 @@ theorem estimatedPositiveSample_abs_le
   let req := HierarchyTask.rawRequests (k := HP.k) l bin .residual source mid terminal (rate kb)
   let child := incomingChildren HP D id Kc cutoff raw prep maximum
   let CA := 2 * HP.Q HP.toHierarchyParams.atomCap
-  have hCA : 0 ≤ CA := mul_nonneg (by norm_num) (HP.Q_nonneg _)
+  have hCA : 0 ≤ CA := by positivity
   have hleft : ∀ a b, child req.left σ a b = correctionRequest D id req.left
       (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff
       HP.γ HP.K Kc (raw req.left) (prep req.left) (maximum req.left) σ a b := by

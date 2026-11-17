@@ -150,7 +150,6 @@ theorem spectralExpansion_zigzagTower_le {c : ℝ}
       _ ≤ H.spectralExpansion ^ 2 := H.spectralExpansion_pow_le 2
       _ ≤ c := by linarith [sq_nonneg c]
   | succ n ih =>
-    have hG := (zigzagTower H e n).spectralExpansion_nonneg
     refine ((((zigzagTower H e n).pow 2).relabel e.symm).spectralExpansion_zigzag_le H).trans ?_
     rw [spectralExpansion_relabel]
     have := (zigzagTower H e n).spectralExpansion_pow_le 2

@@ -105,7 +105,7 @@ theorem actualEstimatedResidual_common_envelope_payment
     exact_mod_cast hk
   apply commonMeanEnvelope_moment_le_cost R D ss st ks kt ku m husage hLh hLρ ζ input F G
     (HP.toHierarchyParams.residual_nonneg (rate_pos km) hC) cost ?_
-    (mul_nonneg (Nat.cast_nonneg P) (rate_pos ks).le) hc ?_ ν
+    (by positivity) hc ?_ ν
   · intro j _ x y
     have he := estimated_residual_bins_mean_error HP D id hD Function.injective_id
       H R l ks km kt n ksH hms ss sm st kb hbH C hC hC1 hCf χ hχ h ρ K hkh
