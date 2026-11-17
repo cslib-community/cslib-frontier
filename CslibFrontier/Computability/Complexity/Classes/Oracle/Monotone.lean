@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Monotonicity of the oracle classes under reductions
@@ -62,7 +61,7 @@ theorem ComputableInPolyTimeWithOracle.of_polyTimeReducible {A B : Set (List Boo
     exact hcert.interpret_bitQueries hg
   · rw [OracleComp.interpret_interpret, ← hprogram a]
     congr 1 with q : 1
-    simp only [G, interp_norm, languageOracle_apply]
+    simp only [G, OracleComp.interpret_map, OracleComp.interpret_query, languageOracle_apply]
     rw [show decide (g q.2 ∈ B) = decide (q.2 ∈ A) from decide_eq_decide.mpr (hgAB q.2).symm]
     rfl
 

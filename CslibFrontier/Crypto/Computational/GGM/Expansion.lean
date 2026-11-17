@@ -10,7 +10,6 @@ module
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -268,7 +267,8 @@ private theorem prefix_eager (n depth width : ℕ) (hdepth : depth ≤ n)
     by_cases hquery : query.length = n
     · have hprefix : List.ofFn (BitString.ofList depth (query.take depth)) = query.take depth :=
         BitString.ofFn_ofList (by simp [List.length_take, hquery, Nat.min_eq_left hdepth])
-      simp only [adapter, hquery, ↓reduceIte, interp_norm, hprefix]
+      simp only [adapter, hquery, ↓reduceIte, OracleComp.interpret_map,
+        ProbOracleComp.interpret_query, hprefix]
       rfl
     · simp only [adapter, hquery, ↓reduceIte, OracleComp.interpret_pure]
       rfl

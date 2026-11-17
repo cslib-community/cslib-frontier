@@ -12,7 +12,6 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.Oracle
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Probability.Product
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Languages.Probabilistic.UntilBad
@@ -477,7 +476,8 @@ private theorem lowerHandler_step (x : ZMod (F.order d)) (hx : x ≠ 0) (sampleK
       simp only [routeQuery, ↓reduceIte]
       rfl
     · rw [F.lowerHandler_decaps_of_ne d x sampleKey challenge c hc, PMF.map_comp]
-      simp only [routeQuery, hc, ↓reduceIte, interp_norm]
+      simp only [routeQuery, hc, ↓reduceIte, OracleComp.interpret_map,
+        OracleComp.interpret_query]
       rw [show (Option.some <$> RandomOracle.answer (fun _ => ProbComp.eval sampleKey) (x • c))
           (F.tableCache d x table) =
           ((RandomOracle.answer (fun _ => ProbComp.eval sampleKey) (x • c))

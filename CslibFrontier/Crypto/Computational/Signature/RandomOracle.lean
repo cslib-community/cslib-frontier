@@ -147,9 +147,9 @@ private theorem runWith_runLoggedForger_toROM (S : Scheme PK SK M Sig) (A : Forg
     congr 1 with q : 1
     cases q with
     | inl k =>
-      simp [interp_norm, ProbOracleComp.sample, ProbComp.unifFin]
+      simp [sumHandler, ProbOracleComp.sample, ProbComp.unifFin]
     | inr m =>
-      simp [interp_norm, ProbOracleComp.query]
+      simp [sumHandler, ProbOracleComp.query]
   rw [hcomp, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
   exact ProbOracleComp.runWith_map_state _
     (fun m log => ProbComp.eval (ProbOracleComp.logOracle (Signer.ofSign S.sign sk) m log))

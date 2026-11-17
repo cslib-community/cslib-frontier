@@ -4,7 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-! Reply and state transport with noninjective representations and adaptive private sampling. -/
@@ -42,7 +41,7 @@ example :
 
 -- The final state remains correlated with both returned replies, rather than being discarded.
 example : (OracleComp.interpret target adaptive).run false = PMF.pure ((false, true), false) := by
-  simp [adaptive, interp_norm, run_target]
+  simp [adaptive, run_target]
 
 private noncomputable def randomized : ProbOracleComp (fun _ : Bool => Bool)
     (Bool × Bool × Bool) := do

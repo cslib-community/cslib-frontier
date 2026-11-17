@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Bit
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # PP and counting oracles have the same polynomial-time power
@@ -84,7 +83,8 @@ theorem PWithPPOracle_subset_PWithSharpPOracle :
   have hhandler : (fun q => OracleComp.interpret (m := Id) (languageOracle A) (handler q)) =
       languageOracle B' := by
     funext q
-    simp only [handler, interp_norm, languageOracle_apply, B', Set.mem_preimage]
+    simp only [handler, OracleComp.interpret_map, OracleComp.interpret_query,
+      languageOracle_apply, B', Set.mem_preimage]
     rfl
   dsimp only
   rw [hL B' hB' a, OracleComp.interpret_interpret, hhandler]

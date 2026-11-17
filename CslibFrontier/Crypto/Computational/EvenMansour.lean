@@ -15,7 +15,6 @@ public import CslibFrontier.Crypto.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
@@ -1128,7 +1127,8 @@ private theorem evalProbTwoPerms_evenMansourWordAdapter {α : Type} (n : ℕ)
           (fun request => PMF.pure (evenMansourTwoPermWordOracle n E π request)))
         program := by
   simp only [evalProbTwoPerms, evenMansourWordAdapter, OracleComp.interpret_interpret,
-    OracleComp.interpret_sumHandler, interp_norm, ProbComp.unifFin]
+    OracleComp.interpret_sumHandler, ProbOracleComp.interpret_sample, ProbComp.unifFin,
+    OracleComp.interpret_query]
   congr 1
   refine congrArg (OracleComp.sumHandler ProbComp.unifOracle) ?_
   funext ⟨⟨isPerm, inverse⟩, query⟩

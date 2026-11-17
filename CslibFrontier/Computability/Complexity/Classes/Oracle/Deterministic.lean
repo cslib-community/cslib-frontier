@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Deterministic
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Deterministic machines behind polynomial time relative to an oracle
@@ -129,8 +128,9 @@ theorem exists_run_pure_false {program : α → WordQueryComp Operation β}
       ()) ∈ ((OracleComp.interpret (OracleComp.sumHandler
         (fun n => StateT.lift (ProbComp.unifOracle n)) (fun q s => PMF.pure (answer q, s)))
         (machine.runOracle (c * ((input a).length + 1) ^ d) (input a))).run ()).support := by
-    simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom, interp_norm,
-      PMF.monad_map_eq_map, PMF.mem_support_map_iff]
+    simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
+      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
+      PMF.mem_support_map_iff]
     exact ⟨_, hmem, rfl⟩
   rw [← hcert, PMF.mem_support_pure_iff] at hmem'
   exact (Prod.mk.inj hmem').1

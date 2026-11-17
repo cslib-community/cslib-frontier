@@ -242,9 +242,8 @@ theorem run_interpret_runConfigFrom_withClock_add (cfg : Config k Bool State Ora
     Probability.PMF.monad_bind_eq_bind,
     run_interpret_runConfigFrom_withClock machine choose hchoose query oracle hpure cfg tape
       position budget s hbudget hstop, PMF.bind_map]
-  simp only [Function.comp_def, runConfigFrom_halted _ _ _ _ _
-    (AuxiliaryTape.stopped_state ..),
-    OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure]
+  simp only [interp_norm, pmf_norm,
+    runConfigFrom_halted _ _ _ _ _ (AuxiliaryTape.stopped_state ..)]
   rfl
 
 /-- In particular, the output and final private state agree with the original clocked run. -/
@@ -259,7 +258,7 @@ theorem run_interpret_runFrom_withClock (cfg : Config k Bool State Oracle input)
   have h := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2)))
     (run_interpret_runConfigFrom_withClock_add machine choose hchoose query oracle hpure cfg tape
       position budget padding s hbudget hstop)
-  simpa [runFrom, interp_norm, pmf_norm] using h
+  simpa [runFrom, PMF.map_comp, Function.comp_def] using h
 
 /-- Every supported final configuration is halted when the prepared budget expires. -/
 theorem withClock_halted (cfg : Config k Bool State Oracle input) (tape : ℤ → Option Bool)

@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.SingleOracle
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Routing a single-channel oracle program
@@ -60,7 +59,7 @@ theorem WordOracleComp.run_interpret_singleOracle {State : Type} (i₀ : ι)
   rw [WordOracleComp.singleOracle, ProbOracleComp.runWith_eq_run_interpret,
     ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret]
   congr 2 with q : 1
-  cases q <;> simp only [interp_norm, ProbOracleComp.query]
+  cases q <;> simp only [OracleComp.sumHandler, ProbOracleComp.query, OracleComp.interpret_query]
 
 /-- Routing a strict oracle-PPT single-channel program to channel `i₀ : ι` preserves
 `IsOraclePPTOn`. -/

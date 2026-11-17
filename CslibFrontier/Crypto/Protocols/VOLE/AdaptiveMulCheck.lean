@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Computability.Interactive.StrategyEffect
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Tactic.PMFSwap
 
@@ -214,8 +213,8 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
   dsimp only [voleWorld]
   simp only [pmf_norm]
   congr 1 with c : 1
-  simp [interp_norm, interpret_liftVerifier, receiverLaw, maskedMulCheck, liftProver,
-    ProbOracleComp.query, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
+  simp [interpret_liftVerifier, receiverLaw, maskedMulCheck, liftProver, ProbOracleComp.query,
+    OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
     maskedMulCheckSpec, threeMoveSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
 
 omit [DecidableEq F] [DecidableEq ι] in

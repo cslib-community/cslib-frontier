@@ -115,8 +115,8 @@ theorem run_interpret_runConfigFrom_one {OracleState : Type}
       (PMF.uniformOfFintype Bool).bind (fun bit =>
         (OracleComp.interpret oracle (machine.runConfigFrom (pure bit) query 1 cfg)).run s) := by
   cases hs : cfg.tapes.state <;>
-    simp [runConfigFrom, MultiTapeMachine.runConfigFrom, hs, bind_map_left, interp_norm, pmf_norm,
-      hcoin]
+    simp [runConfigFrom, MultiTapeMachine.runConfigFrom, hs, bind_map_left, hcoin, PMF.bind_map,
+      Function.comp_def]
 
 /-- Sampling the entire private coin tape in advance preserves the joint configuration and
 private oracle state, including randomized query handlers sharing that state. -/

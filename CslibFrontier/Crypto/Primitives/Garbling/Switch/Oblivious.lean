@@ -357,9 +357,9 @@ private theorem interpret_reduceGates_real [DecidableEq R] (H : L → ℕ → L)
   | i, g :: gs, D, K, A, hA, ⟨hg, hgs⟩, hσ => by
     obtain ⟨A', hstep, hA'⟩ :=
       interpret_reduceGate_real H col hΔ i K A hA hg (hσ g List.mem_cons_self)
-    simp only [reduceGates, garbleGates, OracleComp.interpret_bind, hstep, pure_bind,
+    simp only [reduceGates, garbleGates, interp_norm, hstep, pure_bind,
       interpret_reduceGates_real H col hΔ (i + 1) gs (g.define D) _ A' hA' hgs
-        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg')), OracleComp.interpret_pure]
+        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg'))]
 
 /-- With the keyed oracle the reduction runs `D` on the real view. -/
 private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem n m N R}

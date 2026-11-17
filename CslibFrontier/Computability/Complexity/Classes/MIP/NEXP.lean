@@ -289,13 +289,13 @@ theorem aliveStep_sound (t : ℕ) (D : Fin p → DetProver)
   rcases hs : cfg.tapes.state with _ | c
   · simp only [hs] at hlive ⊢
     refine ⟨s, hvalid, ?_⟩
-    simp [taggedStep, interp_norm, Probability.PMF.monad_pure_eq_pure]
+    simp [taggedStep, Probability.PMF.monad_pure_eq_pure]
   · simp only [hs, Option.map_some, map_pure, pure_bind] at hlive ⊢
     rcases htr : M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       ⟨action, symbol, move⟩ | ⟨op, next⟩
     · simp only [htr] at hlive ⊢
       refine ⟨s, hvalid, ?_⟩
-      simp [taggedStep, interp_norm, Probability.PMF.monad_pure_eq_pure]
+      simp [taggedStep, Probability.PMF.monad_pure_eq_pure]
     · simp only [htr, taggedStep, answerFromHistory, matchTaggedOp] at hlive ⊢
       cases th with
       | nil => simp at hlive
@@ -340,7 +340,7 @@ theorem foldl_aliveStep_sound (t : ℕ) (D : Fin p → DetProver) (l : List Bool
         PMF.pure ((l.foldl (aliveStep M t) (cfg, th, true)).1, s') := by
   induction l generalizing cfg th s with
   | nil =>
-    exact ⟨s, hvalid, by simp [interp_norm, Probability.PMF.monad_pure_eq_pure]⟩
+    exact ⟨s, hvalid, by simp [Probability.PMF.monad_pure_eq_pure]⟩
   | cons b l ih =>
     simp only [List.foldl_cons] at hlive ⊢
     have hstep_live : (aliveStep M t (cfg, th, true) b).2.2 = true := by
@@ -442,7 +442,7 @@ theorem foldl_aliveStep_canonicalTrace (t : ℕ) (D : Fin p → DetProver)
         (l.foldlM (coinStep M t) cfg)).run s) = PMF.pure (cfg', s') := by
   induction l generalizing cfg s with
   | nil =>
-    exact ⟨cfg, s, rfl, by simp [interp_norm, Probability.PMF.monad_pure_eq_pure]⟩
+    exact ⟨cfg, s, rfl, by simp [Probability.PMF.monad_pure_eq_pure]⟩
   | cons b l ih =>
     rcases hs : cfg.tapes.state with _ | c
     · simp only [canonicalTrace, List.foldl_cons, List.foldlM_cons, aliveStep,

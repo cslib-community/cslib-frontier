@@ -13,7 +13,6 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 
@@ -135,7 +134,8 @@ theorem runStatelessOracle_query_inl {α : Type} (o : List Bool → List Bool)
     runStatelessOracle o (OracleComp.query (Sum.inl m) >>= k) next =
       (PMF.uniformOfFintype (Fin (m + 1))).bind
         (fun x => runStatelessOracle o (k x) next) := by
-  simp [runStatelessOracle, ProbOracleComp.runState, interp_norm, pmf_norm]
+  simp [runStatelessOracle, ProbOracleComp.runState, OracleComp.sumHandler, StateT.run_bind,
+    ProbComp.eval_bind, PMF.bind_bind]
 
 theorem runStatelessOracle_query_inr {α : Type} (o : List Bool → List Bool)
     (req : Unit × List Bool)
@@ -315,7 +315,8 @@ theorem runFinderOracle_query_inl {α : Type} (o₂ : List Bool → List Bool)
     runFinderOracle o₂ isBad extract (OracleComp.query (Sum.inl m) >>= k) s isGood =
       (PMF.uniformOfFintype (Fin (m + 1))).bind
         (fun x => runFinderOracle o₂ isBad extract (k x) s isGood) := by
-  simp [runFinderOracle, ProbOracleComp.runState, interp_norm, pmf_norm]
+  simp [runFinderOracle, ProbOracleComp.runState, OracleComp.sumHandler, StateT.run_bind,
+    ProbComp.eval_bind, PMF.bind_bind]
 
 theorem runFinderOracle_query_inr {α : Type} (o₂ : List Bool → List Bool)
     (isBad : List Bool → Bool) (extract : List Bool → List Bool)

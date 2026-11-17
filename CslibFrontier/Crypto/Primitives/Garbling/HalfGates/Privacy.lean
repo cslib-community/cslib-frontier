@@ -13,7 +13,6 @@ public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Languages.Probabilistic.Oracle.Tabulate
 import CslibFrontier.Computability.Circuit.Program
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Uniform
 
 /-!
@@ -335,7 +334,8 @@ theorem run_tableRun (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → 
   induction k with
   | zero => rfl
   | succ k ih =>
-    simp only [tableRun, gateStep, interp_norm, ih, pure_bind, ProbOracleComp.interpret_tabulate]
+    simp only [tableRun, gateStep, OracleComp.interpret_bind, ih, pure_bind,
+      ProbOracleComp.interpret_tabulate, OracleComp.interpret_pure]
     congr 1
     funext s
     by_cases h : (s.gate : ℕ) = k <;> simp [detRun, entry, h]

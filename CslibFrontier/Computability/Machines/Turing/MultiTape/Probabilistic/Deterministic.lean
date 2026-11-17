@@ -87,7 +87,7 @@ theorem run_interpret_ofDeterministic [DecidableEq Oracle]
     (fuel : ℕ) (cfg : Config k Symbol State Oracle input) (s : OracleState) :
     (OracleComp.interpret oracle ((ofDeterministic machine).runFrom coin query fuel cfg)).run s =
       PMF.pure ((machine.runFrom cfg.tapes fuel).output, s) := by
-  simp [runFrom, interp_norm,
+  simp [runFrom,
     run_interpret_runConfigFrom_ofDeterministic machine coin query oracle coinLaw hcoin]
 
 /-- Closed fair-coin execution of a deterministic embedding has a point-mass output distribution. -/
