@@ -101,22 +101,31 @@ rule 4).
 
 ## A stated limitation is tracked
 
-A docstring that says what is not proved, what is assumed, or what is left to the caller is
-welcome, and it is not a resolution. It makes the gap a known one; it does not make the theorem
-say what its name says.
+A docstring that says what is not proved or what stands in for the real thing is welcome, and it
+is not a resolution. It makes the gap a known one; it does not make the theorem say what its name
+says ([Faithful headlines](../AGENTS.md#faithful-headlines), rule 2: listing a gap under
+"Limitations" does not meet the rule).
 
-- Every such sentence cites an issue number, or the declaration has an entry in the baseline of
-  the check that covers it ([reduction witnesses and security premises](../CONTRIBUTING.md)).
-  A limitation with neither is found again only by someone rereading the prose.
-- The name and the first sentence carry the limitation: an ideal-sampling result has `ideal` in
-  its name, a bound for a stand-in scheme names the stand-in, and a helper whose hypothesis
-  assumes the substance of the cited result does not open with that result in bold.
-- A theorem whose hypothesis supplies the reduction, its efficiency, or the bound being proved is
-  discharged by a theorem in the library, or it is deleted. If nothing can discharge it yet, it
-  waits on a branch.
-- A superseded version is removed when its replacement lands
-  ([Replace, do not accumulate](#replace-do-not-accumulate)); a comment saying which theorem is
-  the faithful one is not a substitute.
+This section is about unresolved gaps: a cited result not yet reached, a stand-in or step landed
+under rule 2, a missing efficiency certificate, a hypothesis that stands for unfinished work, a
+superseded version not yet removed. It is not about a source's own hypothesis, a named standard
+assumption, or a deliberate boundary of the model, such as a query-count theorem that says it
+makes no claim about running time. Those are documented and need no issue.
+
+- A sentence that states an unresolved gap cites the issue that tracks it, or its declaration has
+  an entry in the baseline of the check that covers it
+  ([reduction witnesses and security premises](../CONTRIBUTING.md)). Rule 2 already requires that
+  the cited objective stay open; the issue number is where it stays open. A gap with neither is
+  found again only by someone rereading the prose.
+- The name and the first sentence carry the gap, as rule 2 requires of a step: an ideal-sampling
+  result has `ideal` in its name, a bound for a stand-in scheme names the stand-in, and a helper
+  whose hypothesis assumes the substance of the cited result does not open with that result in
+  bold.
+- A step that nothing in the library consumes, and that no open issue plans to consume, has no
+  caller ([A declaration has a caller](#a-declaration-has-a-caller)) and is removed.
+- A superseded version goes when its replacement lands (rule 4;
+  [Replace, do not accumulate](#replace-do-not-accumulate)); a comment saying which theorem is the
+  faithful one is not a substitute.
 
 ## Small facts are shared
 
