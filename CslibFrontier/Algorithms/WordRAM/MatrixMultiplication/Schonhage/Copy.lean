@@ -42,7 +42,7 @@ theorem exec_copyOut {w : ℕ} (x : Data 32) (h1 : Fits w 1)
   intro i hc ha hv ho
   apply he.regs_eq
   have hp : ∀ i : Fin 32, i ≠ cell → i ≠ address → i ≠ accumulator → i ≠ one →
-      copyOut.Preserves i := by decide
+      copyOut.Preserves i := by decide +kernel
   exact hp i hc ha hv ho
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
