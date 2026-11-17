@@ -566,8 +566,27 @@ register_result "reingold" where
     encoded instance of length L within c·(⌊log₂ L⌋ + 1) work cells; malformed inputs are \
     unconstrained. The reduction-defined SL = L corollary is not part of this entry."
 
--- Bipartite.mem_L remains proved; registry admission awaits a human maintainer source check
--- (PR #5440, issuecomment-6877385426).
+register_result "bipartite-in-logspace" where
+  title := "Bipartiteness is log-space equivalent to undirected connectivity, and is in L"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.16",
+      locator := "January 2007 r2.pdf, printed p. 196; PDF p. 80" }
+  ]
+  theorems := [
+    Cslib.Complexity.Bipartite.compl_logSpaceReducible_USTCON,
+    Cslib.Complexity.Bipartite.logSpaceReducible_compl_USTCON,
+    Cslib.Complexity.Bipartite.USTCON_logSpaceReducible_compl,
+    Cslib.Complexity.Bipartite.mem_L
+  ]
+  scope := "Undirected graphs as symmetric loopless adjacency matrices on Fin n, encoded by \
+    encUGraph (a unary header 1^n 0 and the row-major matrix); bipartite means Mathlib's \
+    SimpleGraph.IsBipartite. The equivalence is under native visited-cell logspace many-one \
+    reductions, in the form non-bipartiteness ≤ USTCON (n disjoint copies of the guideline's \
+    double cover, one USTCON query) and USTCON ≤ non-bipartiteness, the latter the trivial \
+    reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
+    ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
+
 
 register_result "strongly-connected-nl-complete" where
   title := "Strongly connected digraphs are NL-complete"
