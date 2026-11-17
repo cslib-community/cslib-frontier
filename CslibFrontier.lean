@@ -4602,6 +4602,7 @@ public import CslibFrontier.Crypto.Computational.Falcon.BerExp
 public import CslibFrontier.Crypto.Computational.Falcon.BerExpLazy
 public import CslibFrontier.Crypto.Computational.Falcon.Verification
 public import CslibFrontier.Crypto.Computational.Falcon.VerificationFrontend
+public import CslibFrontier.Crypto.Computational.FarIndistinguishable
 public import CslibFrontier.Crypto.Computational.FlipHeadBit
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Basic
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract
