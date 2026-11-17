@@ -173,6 +173,7 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
+import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
@@ -5914,6 +5915,42 @@ register_result "elgamal-ddh-ind-cpa" where
     without requiring equal lengths; an inadmissible pair makes both experiments output false. \
     Decryption correctness on the same programs is elGamalDecryptDet_elGamalEncryptProb. \
     Asymptotic; the exercise's concrete bound 2ε is not stated."
+
+register_result "hashed-elgamal-ddh-kdf-cpa" where
+  title := "Hashed ElGamal (the variant E′_EG) is semantically secure under DDH and a secure KDF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 11.5 (for the variant E′_EG of Remark 11.1)",
+      locator := "Section 11.5.2, Theorem 11.5, pp. 449–451; Section 11.5, Remark 11.1, p. 446" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.wordINDCPA_hybrid_hashedElGamal,
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOn_hybrid_hashedElGamal,
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOf_hybrid_hashedElGamal
+  ]
+  scope := "Asymptotic, standard model. The scheme is the variant E′_EG of Remark 11.1: \
+    encapsulation (hashedElGamalEncapsProb) sends v = b • g and derives the key H(d, w) from \
+    w = b • u alone, where Theorem 11.5's E_EG hashes (v, w). Remark 11.1 states that the \
+    security results of Chapter 11 hold for E′_EG as well as for E_EG. The group comes from a \
+    PrimeOrderGroupFamily through a deterministic group schedule d : ℕ → F.Desc computable in \
+    polynomial time from unary n: the system parameterization P(λ) of Section 10.5.2 (p. 413) \
+    taken deterministic, so randomized parameter generation is not covered. Key generation and \
+    encapsulation draw exponents with the fair-coin sampler sampleExp, within statistical \
+    distance 1/2^n of uniform, and are uniform strict PPT; H is polynomial-time and the \
+    symmetric cipher is uniform strict PPT with uniform keyLen n-bit keys. Hypotheses: DDH for \
+    the setup PMF.pure (d n) (Attack Game 10.6); SecureKDF for H, which is Attack Game 11.3 for \
+    the hash of one group element, with two independent uniform group elements public and keys \
+    uniform keyLen n-bit words; and one-time semantic security of the cipher (Attack Game 2.1). \
+    Conclusion: single-challenge IND-CPA (Attack Game 11.1, two-experiment advantage) of the \
+    KEM–DEM hybrid against uniform strict PPT two-stage adversaries. \
+    wordINDCPA_hybrid_hashedElGamal holds the cipher and the scheme to the source's equal-length \
+    rule on bit-word messages; indcpaOn_hybrid_hashedElGamal takes for both any polynomial-time \
+    admissibility predicate that ignores the public key; indcpaOf_hybrid_hashedElGamal admits \
+    every pair for both, the source's notion when all messages have one length. The proof \
+    applies DDH and SecureKDF to certified uniform strict PPT reductions to obtain KEM security \
+    of E′_EG (DDH.kemINDCPA_hashedElGamalEncapsProb, Games 0–2 of the proof of Theorem 11.5), \
+    then the KEM–DEM composition of Exercise 11.9(b) (p. 461). No concrete bound in the form \
+    of (11.14) is stated for the encryption scheme."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"

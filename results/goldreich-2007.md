@@ -552,7 +552,7 @@ collisions rather than the auxiliary graph in the guideline. This adds no encodi
 claim and does not change the historical numbered-result table.
 
 For zero knowledge, use the nonuniform OWF endpoint, not just
-`OneWay.exists_zkProof_of_npRelation`: the latter's generable-family guarantee
+`OneWay.exists_generableZKProof_of_npRelation`: the latter's generable-family guarantee
 is narrower. The full endpoint has a separate security parameter and polynomially bounded
 families; the instance/auxiliary-input clock bridges are part of its interpretation.
 Neither a witness-preserving honest prover nor soundness against arbitrary provers constitutes
