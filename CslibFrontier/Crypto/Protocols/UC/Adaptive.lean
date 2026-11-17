@@ -325,50 +325,14 @@ variable {n : ℕ} {In Out Q R NetQ NetR View AdvQ AdvR : Type}
 
 /-- Mirror of `UC.liftNet` for the adaptive left port `adaptivePartySpec n In Out` (which extends
 `partySpec n In Out` with `.status`, so `UC.liftNet` does not apply directly). -/
-@[expose] def liftAdaptiveNet {α : Type} (program : ProbOracleComp (netSpec Q R) α) :
+abbrev liftAdaptiveNet {α : Type} (program : ProbOracleComp (netSpec Q R) α) :
     ProbOracleComp (adaptivePartySpec n In Out ⊕ₒ netSpec Q R) α :=
-  OracleComp.interpret
-    (sumHandler (fun k => OracleComp.query (.inl k)) fun q => ProbOracleComp.query (.inr q))
-    program
-
-@[simp] theorem liftAdaptiveNet_pure {α : Type} (a : α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out)
-      (pure a : ProbOracleComp (netSpec Q R) α) = pure a := rfl
-
-@[simp] theorem liftAdaptiveNet_bind {α β : Type} (program : ProbOracleComp (netSpec Q R) α)
-    (next : α → ProbOracleComp (netSpec Q R) β) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (program >>= next) =
-      liftAdaptiveNet program >>= fun a => liftAdaptiveNet (next a) :=
-  OracleComp.interpret_bind _ _ _
-
-@[simp] theorem liftAdaptiveNet_map {α β : Type} (f : α → β)
-    (program : ProbOracleComp (netSpec Q R) α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (f <$> program) =
-      f <$> liftAdaptiveNet program := OracleComp.interpret_map _ _ _
-
-/-- A network query becomes a query on the protocol's adaptive network port. -/
-@[simp] theorem liftAdaptiveNet_query (q : Q) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (ProbOracleComp.query q) =
-      ProbOracleComp.query (spec := adaptivePartySpec n In Out ⊕ₒ netSpec Q R) (.inr q) :=
-  OracleComp.interpret_query _ _
-
-/-- Private samples are unchanged. -/
-@[simp] theorem liftAdaptiveNet_sample {α : Type} (program : ProbComp α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out)
-        (ProbOracleComp.sample (spec := netSpec Q R) program) =
-      ProbOracleComp.sample program := by
-  simp only [liftAdaptiveNet, ProbOracleComp.interpret_sample]
-  exact (OracleComp.substitute_eq_interpret _ _).symm
+  Machine.liftRightProgram (adaptivePartySpec n In Out) program
 
 /-- Mirror of `UC.liftAdversary` for `adaptivePartySpec n In Out`. -/
-@[expose] def liftAdaptiveAdversary (A : Machine (netSpec Q R) (netSpec AdvQ AdvR)) :
-    Machine (adaptivePartySpec n In Out ⊕ₒ netSpec Q R) (adaptiveExecSpec n In Out AdvQ AdvR) where
-  State := A.State
-  init := A.init
-  handle
-    | .inl p => StateT.lift (ProbOracleComp.query
-        (spec := adaptivePartySpec n In Out ⊕ₒ netSpec Q R) (.inl p))
-    | .inr q => fun s => liftAdaptiveNet ((A.handle q).run s)
+abbrev liftAdaptiveAdversary (A : Machine (netSpec Q R) (netSpec AdvQ AdvR)) :
+    Machine (adaptivePartySpec n In Out ⊕ₒ netSpec Q R) (adaptiveExecSpec n In Out AdvQ AdvR) :=
+  Machine.liftRight (adaptivePartySpec n In Out) A
 
 /-- The closed machine of an adaptive execution: `A` placed in front of `adaptiveRouter`. -/
 @[expose] def adaptiveExecMachine (mode : CorruptionMode)
@@ -890,7 +854,8 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     ((adaptiveRouter .static P κ C₀).runFrom
         (liftAdaptiveNet (liftStaticNetProgram (View := View) netProg)) rs >>= f) =
       ((corruptRouter C₀ (P.toStatic κ C₀)).runFrom (liftNet netProg) rs.inner >>= g) := by
-  rw [liftAdaptiveNet, liftStaticNetProgram, liftNet,
+  dsimp only [liftAdaptiveNet, liftNet]
+  rw [Machine.liftRightProgram, liftStaticNetProgram,
     OracleComp.interpret_interpret, OracleComp.interpret_sumHandler]
   let qLift : (q : RoutedNetQ n In NetQ) →
       ProbOracleComp (adaptiveProtocolSpec n In Out NetQ NetR View)
