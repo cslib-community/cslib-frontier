@@ -451,7 +451,6 @@ structure Sim (e : Q ≃ Fin m) {inp : List Bool} (x : Data (regs k))
 
 /-! ## Correctness of the pieces -/
 
-
 section Pieces
 
 variable {n w : ℕ} {e : Q ≃ Fin m}
