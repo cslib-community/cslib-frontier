@@ -16,7 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 /-!
 # The assignment graph of a 3CNF formula
 
-Arora and Barak [Lemma 18.16][AroraBarak09] turn a 3CNF formula `φ` with `m` clauses into a
+Arora and Barak [Lemma 18.16][AroraBarak07] turn a 3CNF formula `φ` with `m` clauses into a
 graph on `n = 7 m` vertices whose largest independent set has `val(φ) m = val(φ) n / 7` vertices,
 where `val(φ)` is the largest proportion of the clauses an assignment satisfies. Each clause gets a
 cluster of seven vertices, one for each assignment to its three variables that satisfies it; two
@@ -51,7 +51,7 @@ clauses) maps to the empty graph, as the lemma requires.
 
 ## References
 
-* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak07]
 -/
 
 @[expose] public section
@@ -119,7 +119,7 @@ def recordConflict (r r' : AssignmentRecord) : Bool :=
   (r.clause == r'.clause && !(r.pos == r'.pos)) || r.lits.isEmpty || r'.lits.isEmpty ||
     !consistentLits r.label r'.label
 
-/-- The **assignment graph** of a formula [Arora and Barak, Lemma 18.16][AroraBarak09]: seven
+/-- The **assignment graph** of a formula [Arora and Barak, Lemma 18.16][AroraBarak07]: seven
 vertices per clause, labelled by its local satisfying assignments, joined inside clusters and
 across inconsistent labels. A formula all of whose clauses are empty gives the empty graph. -/
 def assignmentGraph (φ : CNF ℕ) : Graph :=
@@ -173,16 +173,21 @@ private theorem consistentLits_and_exists_of_mem_clauseAssignments {c : Clause �
   obtain ⟨bs, -, hcons, hsat, rfl⟩ := mem_clauseAssignments.1 h
   exact ⟨hcons, hsat⟩
 
+/-- Restrictions of one assignment are consistent. -/
+private theorem consistentLits_map_map (σ : ℕ → Bool) (c c' : Clause ℕ) :
+    consistentLits (c.map fun l => (l.1, σ l.1)) (c'.map fun l => (l.1, σ l.1)) = true := by
+  rw [consistentLits_eq_true_iff]
+  simp only [List.mem_map]
+  rintro _ ⟨l, -, rfl⟩ _ ⟨l', -, rfl⟩ (he : l.1 = l'.1)
+  simp [he]
+
 /-- The restriction of an assignment satisfying a clause of at most three literals is a local
 satisfying assignment. -/
 theorem map_mem_clauseAssignments {c : Clause ℕ} (hc : c.length ≤ 3) {σ : ℕ → Bool}
     (hσ : c.eval σ = true) : (c.map fun l => (l.1, σ l.1)) ∈ clauseAssignments c := by
   refine mem_clauseAssignments.2 ⟨c.map (fun l => σ l.1) ++ List.replicate (3 - c.length) false,
     by simp; omega, ?_, ?_, assignLits_map_append ..⟩ <;> rw [assignLits_map_append]
-  · rw [consistentLits_eq_true_iff]
-    simp only [List.mem_map]
-    rintro _ ⟨l, -, rfl⟩ _ ⟨l', -, rfl⟩ (he : l.1 = l'.1)
-    simp [he]
+  · exact consistentLits_map_map σ c c
   · obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 hσ
     refine ⟨l, hl, List.mem_map.2 ⟨l, hl, ?_⟩⟩
     simp [hσl]
@@ -321,14 +326,6 @@ private theorem card_filter_eval_eq (φ : CNF ℕ) (σ : ℕ → Bool) :
     (fun j : Fin φ.length => φ[j].eval σ = true)
   simp only [Finset.card_univ, Fintype.card_fin, Bool.not_eq_true] at this
   omega
-
-/-- Restrictions of one assignment are consistent. -/
-private theorem consistentLits_map_map (σ : ℕ → Bool) (c c' : Clause ℕ) :
-    consistentLits (c.map fun l => (l.1, σ l.1)) (c'.map fun l => (l.1, σ l.1)) = true := by
-  rw [consistentLits_eq_true_iff]
-  simp only [List.mem_map]
-  rintro _ ⟨l, -, rfl⟩ _ ⟨l', -, rfl⟩ (he : l.1 = l'.1)
-  simp [he]
 
 /-- **An assignment gives an independent set with a vertex for each clause it satisfies**: the
 vertex of the clause labelled by the restriction of the assignment. -/
@@ -566,17 +563,27 @@ theorem computableInPolyTime_assignmentGraph :
 
 /-! ### Arora–Barak Lemma 18.16 -/
 
-/-- **Arora–Barak Lemma 18.16** [Arora and Barak, Lemma 18.16][AroraBarak09]. There is a
-polynomial-time transformation `f` of formulas into graphs such that, for every 3CNF formula `φ`,
-`f φ` is a graph on `n` vertices whose largest independent set has `val(φ) n / 7` vertices. Here
-the 3CNF formulas are those with at most three literals per clause, `val(φ) = 1 - unsatVal φ` is
-the largest proportion of the clauses, counted with multiplicity, that an assignment satisfies,
-and `n` is the number of distinct declared vertices. The transformation is
-`Cslib.Complexity.SAT.assignmentGraph`. -/
+/-- **Arora–Barak Lemma 18.16** [Arora and Barak, Lemma 18.16][AroraBarak07]. There is a
+polynomial-time transformation `f` of formulas into graphs such that, for every 3CNF formula `φ`
+with `m` clauses, `f φ` is a graph on `n` vertices whose largest independent set has
+`val(φ) n / 7` vertices, and `n = 7 m` as in the draft's construction. Here the 3CNF formulas are
+those with at most three literals per clause, `val(φ) = 1 - unsatVal φ` is the largest proportion
+of the clauses, counted with multiplicity, that an assignment satisfies, and `n` is the number of
+distinct declared vertices. The vertex count `7 m` holds when some clause is nonempty; a formula
+all of whose clauses are empty (including the formula without clauses), which the draft's proof
+does not treat, gives the graph without vertices, as the value equation then requires. The
+transformation is `Cslib.Complexity.SAT.assignmentGraph`. -/
 theorem exists_computableInPolyTime_indepNum_eq :
     ∃ f : CNF ℕ → Graph, ComputableInPolyTime f encCNF encGraph ∧
       ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-        ((f φ).indepNum : ℝ) = (1 - φ.unsatVal) * (f φ).vertices.toFinset.card / 7 :=
-  ⟨assignmentGraph, computableInPolyTime_assignmentGraph, fun _ h3 => indepNum_assignmentGraph h3⟩
+        ((∃ c ∈ φ, c ≠ []) → (f φ).vertices.toFinset.card = 7 * φ.length) ∧
+        ((∀ c ∈ φ, c = []) → (f φ).vertices = []) ∧
+        ((f φ).indepNum : ℝ) = (1 - φ.unsatVal) * (f φ).vertices.toFinset.card / 7 := by
+  refine ⟨assignmentGraph, computableInPolyTime_assignmentGraph, fun φ h3 =>
+    ⟨fun hne => card_toFinset_vertices_assignmentGraph ?_, fun hall => ?_,
+      indepNum_assignmentGraph h3⟩⟩
+  · simpa [List.all_eq_true, List.isEmpty_iff] using hne
+  · have h : φ.all List.isEmpty = true := by simpa [List.all_eq_true, List.isEmpty_iff] using hall
+    simp [assignmentGraph, h]
 
 end Cslib.Complexity.SAT
