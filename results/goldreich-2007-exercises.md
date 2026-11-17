@@ -64,7 +64,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 | 2 | 36 | 23 | 14 | 0 | — |
 | 5 | 30 | 29 | 4 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
 | 6 | 39 | 32 | 13 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
-| 7 | 24 | 23 | 3 | 1 | — |
+| 7 | 24 | 22 | 4 | 1 | — |
 | 8 | 44 | 31 | 12 | 1 | — |
 | 9 | 29 | 23 | 7 | 1 | — |
 | 10 | 29 | 26 | 1 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
@@ -74,6 +74,9 @@ covers 6.22 and both parts of 6.36 (part (a) with the padded SAT relation of 6.3
 now C; 10.6 is unchanged. Chapter 6 totals are recounted from its current rows.
 
 The 2026-11-17 integer-programming update moves 2.23 from T to C.
+
+The 2026-11-17 pairwise-independent hitting bound moves 7.23 from T to C; the Chapter 7 totals
+are recounted from its rows.
 
 The 2026-11-17 vertex-cover gap update ([#6088](https://github.com/cslib-community/cslib-frontier/issues/6088))
 moves 10.4 from T to C; the Chapter 10 totals are recounted from its rows.
@@ -278,7 +281,7 @@ Source: `r4.pdf` (March 2007), PDF pp. 41–46 / printed pp. 305–310 (printed 
 | 7.21(3) | 309 / 45 | **T** | The Hadamard code allows implicit decoding under the modified definition (agreement 1/2+α, oracle circuit of size p((log N)/α) that may depend on x), but not under the original one. Positive direction is per-target Goldreich–Levin. Partial: `GoldreichLevin.decode_failure_le_half` / `exists_card_candidate_eq` plus `complexity_candidate_apply_le` supply the decoder and its size. Remaining: the implicit-decoding definition (Definition 7.17 and its modified form) and the negative statement for the original definition. |
 | 7.21 (concat.) | 309 / 45 | **T** | If Γ : {0,1}^N → [q(N)]^{ℓ(N)} allows implicit decoding (modified definition), then encoding each symbol by the Hadamard code gives a binary code {0,1}^N → {0,1}^{ℓ(N)·2^{⌈log₂ q(N)⌉}} that allows implicit decoding. Efficient encoding is preserved iff q(N) ≤ poly(N). Not located. The concatenated Reed–Muller∘Hadamard reconstruction in [WorstCase](../CslibFrontier/Computability/Circuit/Boolean/HardnessAmplification/WorstCase.lean) is a concrete instance, not this generic compiler. |
 | 7.22 | 310 / 46 | **C** | Endpoint: Theorem 7.19, proved by combining Proposition 7.16 with Theorem 7.8. Covered as stated: the audit's Theorem 7.19 row (`Cslib.HardnessEncoding.eventually_isAverageCaseHard_encodedSlice` in [Schedule](../CslibFrontier/Computability/Circuit/Boolean/HardnessAmplification/Schedule.lean) with `encodedLanguage_mem_E`). That row carries the agreement-versus-correlation qualification. The route through Proposition 7.16 (Partial) is not separately formalized. |
-| 7.23 | 310 / 46 | **T** | Let G : {0,1}^{2n} → ({0,1}ⁿ)ⁿ be pairwise independent with uniform marginals (as in Lemma 7.22), S ⊆ {0,1}ⁿ and α = \|S\|/2ⁿ. Then Pr[some output of G(U_{2n}) lies in S] ≥ min(n·α,1)/2, and ≥ 0.75·n·α when α ≤ 1/(2n). Checked: inclusion–exclusion gives nα − C(n,2)α², which yields both bounds. Used in the proof of Lemma 7.22. Not located. Pairwise-independence tools: `PMF.uniformOfFintype_map_sum_pair`, `Cslib.Probability.IsTwoUniversal`. |
+| 7.23 | 310 / 46 | **C** | Let G : {0,1}^{2n} → ({0,1}ⁿ)ⁿ be pairwise independent with uniform marginals (as in Lemma 7.22), S ⊆ {0,1}ⁿ and α = \|S\|/2ⁿ. Then Pr[some output of G(U_{2n}) lies in S] ≥ min(n·α,1)/2, and ≥ 0.75·n·α when α ≤ 1/(2n). Used in the proof of Lemma 7.22. Covered: `Cslib.Probability.IsPairwiseIndependentHash.min_mul_div_two_le_dens_filter_exists_apply_mem` and `IsPairwiseIndependentHash.three_quarters_mul_le_dens_filter_exists_apply_mem` in [PairwiseIndependentHash/Retention](../CslibFrontier/Probability/PairwiseIndependentHash/Retention.lean), via the inclusion–exclusion bound `sub_le_dens_filter_exists_apply_mem` (#S·p − #S(#S−1)p²/2) on the existing retention moments. Qualifications: the generator is any `IsPairwiseIndependentHash h` (uniform seed in a finite `ι`, each `h i x` uniform on `Y`, values at distinct points independent); the exercise is the case ι = {0,1}^{2n}, X = Fin n, S = univ, Y = {0,1}ⁿ. The book's target set S is the library's `B`, and its n points are any finite `S ⊆ X`; the sparse case assumes `2 #S · dens B ≤ 1`. The guideline's restriction to the first 1/α outputs is the subset of min(#S, ⌈1/α⌉) points. Statement and guideline rechecked in the `r4.pdf` text, PDF p. 46 (SHA-256 as in #4772). [Checked client](../CslibFrontierTests/PairwiseIndependentHitting.lean). |
 | 7.24 | 310 / 46 | **T** | A non-uniformly hard one-way function (Definition 7.3) implies an exponential-time computable predicate that is T-inapproximable for every polynomial T. Guideline: h(z,i,σ) = [the i-th bit of the lexicographically first preimage equals σ], then Theorem 7.10. Cited after Definition 7.9. Not located. It depends on Theorem 7.10 (Partial) and Definition 7.3 (see 7.2). |
 
 Source issue (S):
