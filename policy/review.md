@@ -91,9 +91,9 @@ it names" asks of every headline, and records the check in a comment that says w
 was read, which deviations were accepted and what was not checked. The comment answers each point
 listed under
 [The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
-and the check is redone when the statement or a definition it names changes. A theorem whose
-docstring presents a cited result is registered after this check, or its first sentence says that
-it is a step or helper. An agent's check says that it is an agent's and is never presented as a
+and the affected points are checked again, as a delta, when the statement or a definition it names
+changes in meaning. A headline for a cited result is registered after this check, or is presented
+as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
 human one. The check is a step of its own, separate from the ordinary independent review, which
 is still required. A maintainer may require a human check for entries from their own fleet by
 saying so on the entry's PR or tracking issue; that requirement then holds for those entries.

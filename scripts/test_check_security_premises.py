@@ -175,7 +175,9 @@ class MainTests(unittest.TestCase):
         self.assertIn(f"{HELPER_PATH}:20: {HELPER}", err)
 
     def test_advisory_mode_prints_a_new_premise_and_succeeds(self) -> None:
-        code, out, err = self.run_main({}, "--advisory")
+        # Outside GitHub Actions there is no workflow notice, whatever the caller's environment.
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "false"}):
+            code, out, err = self.run_main({}, "--advisory")
         self.assertEqual((code, err), (0, ""))
         self.assertIn("prompt to open the statement, not a failure", out)
         self.assertIn(f"{SCHNORR_PATH}:10: {SCHNORR}", out)

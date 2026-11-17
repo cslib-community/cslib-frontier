@@ -207,7 +207,7 @@ A non-authoring agent may review work from the same coordinator or account, in a
 review context, reaching its own verdict. Anyone who took part in the implementation or its
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. A theorem presented as a cited result opens as a step or is
+never presented as human review. A headline for a cited result is presented as a step or is
 registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
 outside the authoring fleet checks its statement against the source, opens the definitions it
 names and records the check ([policy/review.md](policy/review.md#review-cycle)).

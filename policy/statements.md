@@ -77,15 +77,18 @@ Quality is judged one cited result at a time, by whether the theorem that carrie
 name says what the source says. Counts of declarations, certificates and baseline entries are not
 that judgement, because they can change while no theorem does.
 
-A theorem whose docstring presents a cited result, that is, opens with the result's name or a
-source citation as what is being proved, is in one of two states.
+A theorem that is a headline for a cited result, in the sense of
+[Faithful headlines](#faithful-headlines) (presented as that result by its name, its docstring, its
+module documentation, a manual page or a PR title), is in one of two states. Where in the
+docstring the citation appears does not matter. Original mathematics and useful named steps are
+not cited results, and nothing here asks them to invent a cited endpoint.
 
 - **Registered.** A `register_result` entry in
   [`CslibFrontierResults/Entries.lean`](../CslibFrontierResults/Entries.lean), the collection
   behind the [results inventory](../results/README.md), names the source theorem and lists this
   theorem as stating it.
-- **A step.** Its first sentence says that it is a step or helper and not the cited result, and it
-  meets the other conditions of [Faithful headlines](#faithful-headlines) rule 2.
+- **A step.** It is presented as an intermediate step under
+  [Faithful headlines](#faithful-headlines) rule 2, and meets every condition of that rule.
 
 Registration requires the independent check of the statement against the source, by a reviewer
 from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
@@ -103,8 +106,12 @@ assumptions) and records in its comment:
 6. every accepted deviation.
 
 For a result with no adversary or game, the comment answers the first three points for the
-machines, inputs and objects the result is about, or says that a point does not apply. The check
-is redone when the theorem's statement or a definition that it names changes.
+machines, inputs and objects the result is about, or says that a point does not apply. The six
+points are questions about the mathematics for the reviewer to answer in prose, not fields to
+fill in. When the theorem's statement or a definition that it names changes in meaning, the
+affected points are checked again under the delta rule of the
+[Review cycle](review.md#review-cycle); identified earlier evidence is reused for what did not
+change, and an edit that changes no meaning needs no new source check.
 
 Lean already does part of this job. A hardness assumption stated for a fixed efficient adversary
 class cannot be applied to a reduction without a proof that the reduction is in that class, so a
