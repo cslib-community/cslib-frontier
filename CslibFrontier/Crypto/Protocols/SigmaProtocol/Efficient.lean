@@ -865,7 +865,7 @@ theorem computableInPolyTime_parallelExtractWord
             (frames input.2.2.2.2.2.1).getD 0 [], (frames input.2.2.2.2.2.2).getD 0 []))
       encIn encBits := by
     apply ComputableInPolyTime.of_tidy
-    simpa only [beq_iff_eq] using hcond.cond hdefault hbody0'
+    simpa only [beq_iff_eq, Function.comp_def] using hcond.cond hdefault hbody0'
   unfold parallelExtractWord Encoding.parallelRepetition
   exact hfind.optionElimWithInput hfallback hbody
 
