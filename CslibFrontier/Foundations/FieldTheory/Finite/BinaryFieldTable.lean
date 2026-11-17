@@ -19,10 +19,13 @@ table of the power basis, shared by hardness encodings and the powering small-bi
 
 ## Main definitions
 
+* `Cslib.BinaryField.powerMulTable`: the power-basis multiplication table for a supplied modulus.
 * `Cslib.BinaryField.fieldTable`: the multiplication table in degree `w`.
 
 ## Main results
 
+* `Cslib.BinaryField.isMulTable_powerMulTable`: correctness for any power basis and monic modulus
+  vanishing at its generator.
 * `Cslib.BinaryField.isMulTable_fieldTable`: correctness of the table for every nonzero degree.
 -/
 
@@ -37,6 +40,24 @@ list `g`: entry `(u, v)` lists the coefficients of the remainder of `X ^ (u + v)
 def powerMulTable (g : List Bool) : List (List (List Bool)) :=
   (List.range (g.length - 1)).map fun u => (List.range (g.length - 1)).map fun v =>
     (powerTable g).getD (u + v) []
+
+/-- Remainders of powers give a multiplication table for any power basis whose generator
+is a root of the supplied monic binary polynomial. -/
+theorem isMulTable_powerMulTable {F : Type*} [Field F] [Algebra (ZMod 2) F]
+    {l : List Bool} {q : ℕ} (hlen : l.length = q) (α : F)
+    (hα : (polyOfBits (l ++ [true])).aeval α = 0)
+    (b : Module.Basis (Fin q) (ZMod 2) F) (hb : ∀ i : Fin q, b i = α ^ i.1) :
+    IsMulTable b (powerMulTable (l ++ [true])) := by
+  have hglen : (l ++ [true]).length - 1 = q := by simp [hlen]
+  refine ⟨by simp [powerMulTable, hlen], fun u v => ?_⟩
+  have hentry : tableEntry (powerMulTable (l ++ [true])) u v =
+      (powerTable (l ++ [true])).getD (u + v) [] := by
+    simp only [tableEntry, powerMulTable, hglen]
+    rw [List.getD_map_range _ [] u.2, List.getD_map_range _ [] v.2]
+  have huv : (u : ℕ) + v < 2 * l.length := by omega
+  rw [hb u, hb v, ← pow_add, pow_eq_sum_powerTable l hα huv,
+    fieldOfBits, ofBits, hentry, hlen, Finset.sum_range]
+  exact Finset.sum_congr rfl fun i _ => by rw [hb i]
 
 /-- The coefficient list of the modulus of the explicit binary field of degree `w`. -/
 def modulusBits (w : ℕ) : List Bool := (leastIrreducibleCode (2 ^ (w + 1)) w).bits
@@ -71,20 +92,11 @@ explicit binary field of degree `w`. -/
 theorem isMulTable_fieldTable {w : ℕ} (hw : w ≠ 0) : IsMulTable (𝔅 hw) (fieldTable w) := by
   obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
   subst hlen
-  have hglen : (modulusBits l.length).length - 1 = l.length := by simp [hl]
-  refine ⟨by simp [fieldTable, powerMulTable, hglen], fun u v => ?_⟩
-  set α := AdjoinRoot.root (leastIrreducible l.length)
-  have hα : aeval α (polyOfBits (l ++ [true])) = 0 := by
+  have hα : aeval (AdjoinRoot.root (leastIrreducible l.length))
+      (polyOfBits (l ++ [true])) = 0 := by
     rw [← hl, polyOfBits_modulusBits hw, AdjoinRoot.aeval_eq, AdjoinRoot.mk_self]
-  have huv : (u : ℕ) + v < 2 * l.length := by omega
-  have hentry : tableEntry (fieldTable l.length) u v =
-      (powerTable (l ++ [true])).getD (u + v) [] := by
-    simp only [tableEntry, fieldTable, powerMulTable, hglen, ← hl]
-    rw [List.getD_map_range _ [] u.2, List.getD_map_range _ [] v.2]
-  rw [BinaryField.basis_apply, BinaryField.basis_apply, ← pow_add,
-    pow_eq_sum_powerTable l hα huv, fieldOfBits, ofBits, hentry, Finset.sum_range]
-  refine Finset.sum_congr rfl fun d _ => ?_
-  rw [BinaryField.basis_apply]
+  rw [fieldTable, hl]
+  exact isMulTable_powerMulTable rfl _ hα (𝔅 hw) (BinaryField.basis_apply hw)
 
 variable {w : ℕ}
 
