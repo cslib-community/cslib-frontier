@@ -44,6 +44,9 @@ of answered pairs, oldest first, and the two agree up to that representation.
 
 ## Main results
 
+* `Cslib.Crypto.Forger.eval_runLogWith_rename_state`: running a word forger with renamed requests
+  against a logging signer and mapping the log by `represent` agrees with running it against a word
+  oracle whose state is `represent log`.
 * `Cslib.Crypto.Forger.eval_eufCmaExperiment_toTyped`,
   `Cslib.Crypto.Forger.eval_eufCmaExperiment_restrict_toTyped`: the EUF-CMA experiment of any typed
   scheme on words, restricted or not, played by a word forger, is the word-level game against the
@@ -114,6 +117,41 @@ noncomputable def Forger.toCounter (adversary : Forger) (cap n : ℕ) :
         (Forger.counterRelay cap))
       (adversary n pk)).run 0
 
+/-- Running a word forger with renamed requests against a logging signer, and mapping the log by
+`represent`, is running it against the word oracle whose state is `represent log` whenever each
+oracle call agrees under `represent`. -/
+theorem Forger.eval_runLogWith_rename_state {Q σ α : Type} (program : WordOracleComp Unit α)
+    (decode : List Bool → Q) (signer : List (Q × List Bool) → Q → Option (ProbComp (List Bool)))
+    (oracle : Unit × List Bool → StateT σ ProbComp (List Bool))
+    (represent : List (Q × List Bool) → σ)
+    (step : ∀ (request : Unit × List Bool) (log : List (Q × List Bool)),
+      (ProbComp.eval (ProbOracleComp.logOracle signer (decode request.2) log)).map
+          (fun (a, log') => (a, represent log')) =
+        ProbComp.eval (oracle request (represent log))) :
+    (ProbComp.eval (ProbOracleComp.runLogWith (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : Q => List Bool)
+          (.inl k)) (fun request => ProbOracleComp.query (decode request.2)))
+        program) signer)).map
+        (fun (a, log) => (a, represent log)) =
+      ProbComp.eval ((OracleComp.interpret
+        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run
+        (represent [])) := by
+  have hhandler : (fun q => OracleComp.interpret
+      (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) (ProbOracleComp.logOracle signer))
+      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : Q => List Bool)
+          (.inl k)) (fun request : Unit × List Bool => ProbOracleComp.query (decode request.2))
+        q)) =
+      sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+        (fun request : Unit × List Bool => ProbOracleComp.logOracle signer (decode request.2)) := by
+    funext q
+    cases q <;> simp [ProbOracleComp.query]
+  rw [ProbOracleComp.runLogWith, ProbOracleComp.runState, OracleComp.interpret_interpret,
+    hhandler, ProbOracleComp.eval_run_interpret, ProbOracleComp.eval_run_interpret]
+  exact ProbOracleComp.run_interpret_map_state
+    (fun request log => ProbComp.eval (ProbOracleComp.logOracle signer (decode request.2) log))
+    (fun request s => ProbComp.eval (oracle request s))
+    represent step program []
+
 /-- Running a word forger with renamed requests against a logging signer, and keeping only the
 queries of the log, newest first, is running it against the word oracle whose state is the list of
 queries, whenever each oracle call agrees under that representation. -/
@@ -130,22 +168,9 @@ private theorem eval_runLogWith_rename {Q α : Type} (program : WordOracleComp U
         program) signer)).map
         (fun (a, log) => (a, (log.map Prod.fst).reverse)) =
       ProbComp.eval ((OracleComp.interpret
-        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) := by
-  have hhandler : (fun q => OracleComp.interpret
-      (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) (ProbOracleComp.logOracle signer))
-      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : Q => List Bool)
-          (.inl k)) (fun request : Unit × List Bool => ProbOracleComp.query (decode request.2))
-        q)) =
-      sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-        (fun request : Unit × List Bool => ProbOracleComp.logOracle signer (decode request.2)) := by
-    funext q
-    cases q <;> simp [ProbOracleComp.query]
-  rw [ProbOracleComp.runLogWith, ProbOracleComp.runState, OracleComp.interpret_interpret,
-    hhandler, ProbOracleComp.eval_run_interpret, ProbOracleComp.eval_run_interpret]
-  exact ProbOracleComp.run_interpret_map_state
-    (fun request log => ProbComp.eval (ProbOracleComp.logOracle signer (decode request.2) log))
-    (fun request queried => ProbComp.eval (oracle request queried))
-    (fun log => (log.map Prod.fst).reverse) step program []
+        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) :=
+  Forger.eval_runLogWith_rename_state program decode signer oracle
+    (fun log => (log.map Prod.fst).reverse) step
 
 /-- The EUF-CMA experiment of a typed scheme on words, played by `adversary.toTyped n`, is the
 word-level game: run the word forger against the signing oracle that records the queried messages,
