@@ -321,7 +321,6 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   have hh := side_div_pow_four_le H hk
   apply hp.trans
   rw [div_le_iff₀ hq0]
-  have hr := rate_pos k
   have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
   nlinarith [mul_le_mul_of_nonneg_right hh hπ,
     mul_le_mul_of_nonneg_left hq (show 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 by positivity)]
