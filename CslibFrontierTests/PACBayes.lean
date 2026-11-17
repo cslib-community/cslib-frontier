@@ -33,7 +33,7 @@ noncomputable def prior : Measure Bool :=
 
 instance : IsProbabilityMeasure prior := by
   constructor
-  simp only [prior, Measure.add_apply, Measure.smul_apply, measure_univ, smul_eq_mul, mul_one]
+  simp only [prior, add_apply, smul_apply, measure_univ, smul_eq_mul, mul_one]
   exact ENNReal.inv_two_add_inv_two
 
 theorem prior_singleton (b : Bool) : prior {b} = 2⁻¹ := by
@@ -64,14 +64,20 @@ private theorem log_two_le_one : Real.log 2 ≤ 1 := by
   have := Real.log_le_sub_one_of_pos (x := 2) (by norm_num)
   linarith
 
+/-- If some `a i` is below `c`, and `c + e i ≤ t i` for every `i`, then some `a i + e i` is below
+`t i`. The function `a` is a variable, so that the strict inequality for the empirical risk on
+`1024` examples is never a hypothesis in the test below. -/
+private theorem exists_add_lt {ι : Type*} {p : ι → Prop} {a e t : ι → ℝ} {c : ℝ}
+    (hp : ∀ i, p i) (h : ∀ i, c + e i ≤ t i) : (∃ i, a i < c) → ∃ i, p i ∧ a i + e i < t i :=
+  fun ⟨i, hi⟩ => ⟨i, hp i, by linarith [h i]⟩
+
 /-- **The Occam corollary at `m = 1024`, `δ = 1 / 16`**: with probability at least `15 / 16`,
 both constants have empirical risk at least `2 / 5` under `noisy`, whose true risks are `1 / 2`. -/
 example : Measure.pi (fun _ : Fin 1024 => noisy)
     {S | ∃ b, empiricalRisk zeroOne S b < 2 / 5} ≤ ENNReal.ofReal (1 / 16) := by
-  refine (measure_mono fun S hS => ?_).trans (measure_pi_exists_risk_gt (D := noisy)
+  refine (measure_mono fun S => ?_).trans (measure_pi_exists_risk_gt (D := noisy)
     measurable_zeroOne zeroOne_mem_Icc (by norm_num) prior (by norm_num : (0 : ℝ) < 1 / 16))
-  obtain ⟨b, hb⟩ := hS
-  refine ⟨b, by rw [prior_singleton]; norm_num, ?_⟩
+  refine exists_add_lt (fun b => by rw [prior_singleton]; norm_num) fun b => ?_
   have hreal : prior.real {b} = 1 / 2 := by
     rw [measureReal_def, prior_singleton]; norm_num
   have hlog : Real.log (1 / prior.real {b}) + Real.log ((1024 : ℕ) / (1 / 16)) ≤ 15 := by
