@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 public import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 public import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # A charged native integer `k`-th root
@@ -235,18 +236,15 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
         (by
           rw [hcn, hcm, hy₁m, hy₁ n (by decide), hyn]
           exact hfit.of_le ((Nat.mul_le_mul_left N hmdN).trans (by omega)))
-    have hpres (j : Fin 10) (hj : ∀ a, capMap a ≠ j) : y₂.regs j = y₁.regs j :=
-      hrun₂.regs_eq (Code.preserves_rename_of_forall_ne _ _ _ hj)
     rw [hcp, hcn, hcm, hck, hy₁m, hy₁ n (by decide), hy₁ k (by decide), hyn, hyk] at hple
     rw [hck, hy₁ k (by decide), hyk] at hy₂k
     rw [hcn, hy₁ n (by decide), hyn] at hy₂n
     rw [hco] at hy₂o
     rw [hcm, hy₁m] at hy₂m
     rw [hck, hy₁ k (by decide), hyk] at hrun₂
-    have hy₂lo : y₂.regs lo = l := (hpres lo (by decide)).trans ((hy₁ lo (by decide)).trans hl)
-    have hy₂hi : y₂.regs hi = h := (hpres hi (by decide)).trans ((hy₁ hi (by decide)).trans hh)
-    have hy₂two : y₂.regs two = 2 :=
-      (hpres two (by decide)).trans ((hy₁ two (by decide)).trans hyt2)
+    have hy₂lo : y₂.regs lo = l := by regs_frame
+    have hy₂hi : y₂.regs hi = h := by regs_frame
+    have hy₂two : y₂.regs two = 2 := by regs_frame
     have hy₂mid : y₂.regs mid = (l + h) / 2 := hy₂m
     by_cases hover : N < y₂.regs p
     · -- The probe is too large: `hi ← mid`.

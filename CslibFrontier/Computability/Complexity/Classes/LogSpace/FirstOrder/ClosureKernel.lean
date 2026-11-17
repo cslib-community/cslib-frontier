@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Ordered
 public import CslibFrontier.Logics.FirstOrder.Operator.TransitiveClosure
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Register-machine kernel of the closure loops
@@ -83,7 +84,7 @@ theorem lt_eval_testExpr {base k n : ℕ} {z : Fin k → Expr} {regs : List ℕ}
   constructor
   · intro h
     funext i
-    exact Fin.ext (by have := h i; omega)
+    have := h i; omega
   · rintro rfl i
     omega
 
@@ -158,8 +159,7 @@ private theorem pair_apply_lt {A : Type*} {k : ℕ} (xs ys : Fin k → A) (i : F
 
 private theorem pair_apply_ge {A : Type*} {k : ℕ} (xs ys : Fin k → A) (i : Fin (2 * k))
     (h : k ≤ (i : ℕ)) : TC.pair xs ys i = ys ⟨i - k, by have := i.isLt; omega⟩ := by
-  have : Fin.cast (Nat.two_mul k) i = Fin.natAdd k ⟨i - k, by have := i.isLt; omega⟩ :=
-    Fin.ext (by simp; omega)
+  have : Fin.cast (Nat.two_mul k) i = Fin.natAdd k ⟨i - k, by have := i.isLt; omega⟩ := by fin_index
   simp only [TC.pair, this, Fin.append_right]
 
 /-- The pair of a tuple in registers `base + i` and a tuple in registers `base + k + i` is in

@@ -205,9 +205,7 @@ theorem mem_entries_cnfToPermanentTable (φ : CNF ℕ) :
     decide
 
 theorem computableInPolyTime_size : ComputableInPolyTime size encCNF encUnary := by
-  have := computableInPolyTime_numAux
-  unfold size encCNF
-  fun_prop
+  fun_prop [size]
 
 theorem computableInPolyTime_wellFormed :
     ComputableInPolyTime (fun φ => decide (WellFormed φ)) encCNF encBool := by

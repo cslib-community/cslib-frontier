@@ -20,15 +20,25 @@ import Mathlib.Tactic.Ring
 A fixed tuple of bounded words stores an initial segment of a bit stream. Reading a field
 constrains its entire value, including all bits outside the specified width.
 
+`Cslib.BitString.readPackedBitImpl` computes `readPackedBit` directly by division and remainder,
+and the `@[csimp]` theorem `Cslib.BitString.readPackedBit_eq_readPackedBitImpl` replaces
+`readPackedBit` with it in compiled code (`#eval`, `#guard`, and downstream compiled callers such
+as `readPackedField`). The logical definition `readPackedBit`, its lemmas, and kernel reduction
+are unchanged. This module does not certify a runtime bound.
+
 ## Main definitions
 
 * `Cslib.BitString.packRadix`: bounded fields in a common radix.
 * `Cslib.BitString.packWords`: split a bit stream into a fixed tuple of words.
 * `Cslib.BitString.readPackedBit`: read one bit of a fixed tuple of words by its address.
+* `Cslib.BitString.readPackedBitImpl`: direct division/remainder compiler implementation of
+  `readPackedBit`.
 * `Cslib.BitString.readPackedField`: read a bounded-width field across word boundaries.
 
 ## Main results
 
+* `Cslib.BitString.readPackedBit_eq_readPackedBitImpl`: proved compiler replacement of
+  `readPackedBit` by `readPackedBitImpl`.
 * `Cslib.BitString.packRadix_field`: exact radix-field decoding.
 * `Cslib.BitString.packWords_congr`: packed words depend only on their in-range input bits.
 * `Cslib.BitString.readPackedField_packWords`: exact field decoding.
@@ -94,6 +104,34 @@ theorem readPackedBit_eq_word {B h a : ℕ} (hh : 0 < h) (w : Fin B → ℕ) (ha
     refine ⟨⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩,
       ⟨a % h, Nat.mod_lt _ hh⟩, ?_, hbit⟩
     simpa only [Nat.mul_comm] using Nat.div_add_mod a h
+
+/-- Direct division/remainder compiler implementation of `readPackedBit`. -/
+def readPackedBitImpl {B : ℕ} (h : ℕ) (w : Fin B → ℕ) (a : ℕ) : Bool :=
+  if 0 < h then
+    let q := a / h
+    if hr : q < B then
+      (w ⟨q, hr⟩).testBit (a % h)
+    else
+      false
+  else
+    false
+
+/-- Proved compiler replacement of `readPackedBit` by `readPackedBitImpl`. -/
+@[csimp]
+theorem readPackedBit_eq_readPackedBitImpl : @readPackedBit = @readPackedBitImpl := by
+  funext B h w a
+  unfold readPackedBitImpl
+  dsimp only
+  split_ifs with hh hr
+  · exact readPackedBit_eq_word hh w ((Nat.div_lt_iff_lt_mul hh).mp hr)
+  · simp only [readPackedBit, decide_eq_false_iff_not, not_exists, not_and]
+    intro r b heq _
+    have hdiv : a / h = r.val := by
+      rw [← heq, Nat.mul_comm r.val h, Nat.mul_add_div hh, Nat.div_eq_of_lt b.isLt, Nat.add_zero]
+    exact hr (hdiv ▸ r.isLt)
+  · simp only [readPackedBit, decide_eq_false_iff_not, not_exists, not_and]
+    intro _ b
+    omega
 
 /-- Decode exactly `s` bits starting at address `a`, with every higher bit zero. -/
 def readPackedField {B : ℕ} (h : ℕ) (w : Fin B → ℕ) (a s : ℕ) : ℕ :=

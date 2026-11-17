@@ -213,12 +213,7 @@ theorem computableInPolyTime_schedule {inputCount depth : α → ℕ}
     ComputableInPolyTime
       (fun a => schedule (inputCount a) (gates a) (depths a) (depth a))
       input (encList (encList encNode)) := by
-  apply flatMapWithInput (range.comp hdepth)
-  apply cons'
-  · apply computableInPolyTime_prepareLayer <;> fun_prop
-  · apply cons'
-    · apply computableInPolyTime_finishLayer <;> fun_prop
-    · exact const []
+  fun_prop [schedule]
 
 /-- Compile arbitrary raw code in native polynomial time. The input count is unary; all source
 references and output selectors are binary. Depth computation and the entire emitted schedule

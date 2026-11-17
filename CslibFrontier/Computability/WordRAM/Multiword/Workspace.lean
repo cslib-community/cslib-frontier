@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Digits
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Shared workspace for multiword operations
@@ -56,9 +57,7 @@ def IsDigit (i : Fin (r + 4)) : Prop := 4 ≤ i.val
 /-- Digit registers are disjoint from the four reserved workspace registers. -/
 theorem digit_ne {i : Fin (r + 4)} (hi : IsDigit i) :
     i ≠ total ∧ i ≠ carry ∧ i ≠ base ∧ i ≠ zero := by
-  dsimp [IsDigit] at hi
-  simp only [ne_eq, Fin.ext_iff, total, carry, base, zero]
-  omega
+  fin_index [IsDigit]
 
 /-- A routine changes only its destination digits and the total and carry workspace. -/
 def Frame (x y : Data (r + 4)) (ds : List (Fin (r + 4))) : Prop :=

@@ -107,9 +107,7 @@ private theorem canonical_canonicalize (φ : CNF ℕ) (w : List Bool) :
 private theorem computableInPolyTime_canonicalize :
     ComputableInPolyTime (fun x : CNF ℕ × List Bool => canonicalize x.1 x.2 ++ [false])
       (encPair encCNF encBits) encBits := by
-  unfold canonicalize
-  refine bitsAppend (mapToBitsWithInput (by fun_prop) ?_) (by fun_prop)
-  fun_prop
+  fun_prop [canonicalize]
 
 /-- The Levin reduction of the standard witness relation of `SAT` to the padded relation: keep
 the formula, canonicalize the certificate and append a `false` bit; drop the last bit back. -/

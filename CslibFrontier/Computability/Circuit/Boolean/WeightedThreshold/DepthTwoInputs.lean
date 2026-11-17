@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.DepthTwo
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Depth-two threshold circuits whose top gate also reads the inputs
@@ -143,9 +144,7 @@ theorem eval_depthTwoInputs (bottom : Fin G → Op) (args : ∀ j, Fin (bottom j
       decide (θ ≤ (∑ j, u j * (interpretation (bottom j) fun a => x (args j a)).toNat) +
         ∑ i, v i * (x i).toNat) := by
   rw [depthTwoInputs, Circuit.eval_comp, Circuit.eval_oneGate]
-  simp only [interpretation, depthTwoInputsTop, Fin.sum_univ_add, Fin.append_left,
-    Fin.append_right, Circuit.eval_append, Circuit.eval_pi, Circuit.eval_oneGate,
-    Circuit.eval_wiring, id_eq, Function.comp_apply]
+  simp only [circuit_simps, interpretation, Fin.sum_univ_add, id_eq]
 
 /-- The evaluation of `depthTwoInputs` with every bottom gate written as the linear threshold
 function of its aggregated weights. -/
@@ -170,14 +169,7 @@ threshold circuits of depth at most `2` apply to it. -/
 theorem depth_depthTwoInputs_le (bottom : Fin G → Op) (args : ∀ j, Fin (bottom j).arity → Fin n)
     (u : Fin G → ℝ) (v : Fin n → ℝ) (θ : ℝ) :
     (depthTwoInputs bottom args u v θ).depth ≤ 2 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have hpi := Circuit.depth_pi_le (D := 1)
-    (fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)) fun _ => by simp
-  have happ := Circuit.depth_append_le
-    (Circuit.pi fun j => Circuit.oneGate (σ := signature) (bottom j) (args j))
-    (Circuit.wiring signature (id : Fin n → Fin n))
-  simp only [Circuit.depth_oneGate, Circuit.depth_wiring] at happ ⊢
-  omega
+  circuit_bound [depthTwoInputs]
 
 /-- `depthTwo top bottom args` computes the same function as `depthTwoInputs` with the top
 weights of `top` on the bottom gates and zero weights on the inputs. -/
