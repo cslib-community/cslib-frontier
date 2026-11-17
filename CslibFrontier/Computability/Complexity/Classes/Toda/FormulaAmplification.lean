@@ -77,9 +77,9 @@ open Finset Cslib.Logic.PL Turing.MultiTapeTM
 all `false`, followed by a word of the counting test with sizes up to `K`, no random string, and
 rows of `|distinctFreeVars ψ|` bits holding assignments of `ψ`. -/
 @[expose] def amplifyVerifier : (QBF ℕ × ℕ) × List Bool → Bool :=
-  andVerifier (fun a => a.2 + 1) (fun y => !allFalseVerifier y) fun y =>
-    countingTest (fun _ z => SharpFormula.verifier (y.1.1, z)) (y.1.2 + 1) 0
-      y.1.1.distinctFreeVars.length y.2
+  andVerifier (fun a => a.2 + 1) (fun y => !allFalseVerifier y) <| Function.uncurry fun a w =>
+    countingTest (fun _ z => SharpFormula.verifier (a.1, z)) (a.2 + 1) 0
+      a.1.distinctFreeVars.length w
 
 /-- The length of the words of `amplifyVerifier`. -/
 @[expose] def amplifyLength (a : QBF ℕ × ℕ) : ℕ :=
@@ -96,9 +96,9 @@ theorem cast_acceptCount_amplifyVerifier {ψ : QBF ℕ} (hψ : ψ.QuantifierFree
     rw [acceptCount_allFalseVerifier] at this
     omega
   -- the counting test
-  have hcount : (acceptCount (fun y : (QBF ℕ × ℕ) × List Bool =>
-      countingTest (fun _ z => SharpFormula.verifier (y.1.1, z)) (y.1.2 + 1) 0
-        y.1.1.distinctFreeVars.length y.2) (ψ, m)
+  have hcount : (acceptCount (Function.uncurry fun (a : QBF ℕ × ℕ) w =>
+      countingTest (fun _ z => SharpFormula.verifier (a.1, z)) (a.2 + 1) 0
+        a.1.distinctFreeVars.length w) (ψ, m)
         ((m + 1) + ((m + 1) + (0 + (m + 1) * ψ.distinctFreeVars.length))) :
           ZMod (2 ^ (m + 1))) = if Odd ψ.modelCount then 1 else 0 := by
     have h := cast_card_filter_countingTest (fun _ z => SharpFormula.verifier (ψ, z)) (m + 1) 0
