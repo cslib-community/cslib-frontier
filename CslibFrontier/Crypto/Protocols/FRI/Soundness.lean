@@ -1087,9 +1087,7 @@ theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
     let W_filt : Fin (2 * 2 ^ (params.d - (i + 1))) → ℕ :=
       fun idx => friOracleFilterWeight params stmt pref i hle π (reindexDouble hjd idx)
     obtain ⟨c, hc_rs, hc_sum⟩ := exists_mem_reedSolomon_weighted_agree_lift_two
-      (pow_ne_zero _ params.hg) params.h2 (Nat.pow_pos (by omega)) hωi f hv₀' hv₁' S
-      (fun j hj => (Finset.mem_filter.mp hj).2.1)
-      (fun j hj => (Finset.mem_filter.mp hj).2.2) W_filt
+      (pow_ne_zero _ params.hg) params.h2 (Nat.pow_pos (by omega)) hωi f hv₀' hv₁' W_filt
     let c' : Fin (2 ^ (params.d - i)) → F := fun y => c ((reindexDoubleEquiv hjd).symm y)
     have hc'_rs : c' ∈ params.rsCode i := by
       obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp hc_rs

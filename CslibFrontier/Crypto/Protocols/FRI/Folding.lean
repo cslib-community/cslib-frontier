@@ -591,19 +591,22 @@ theorem pushWeight_le {a N M : ℕ} {W : Fin (a * N) → ℕ} (hW : ∀ i, W i �
       ≤ ∑ _t : Fin a, M := Finset.sum_le_sum fun t _ => hW (fiberIdx j t)
     _ = a * M := by simp
 
-/-- **Weighted correlated-agreement lifting across `a`-to-1 folding**: if the `a` component words
-`foldComp g ω f r` simultaneously agree with codewords `v r ∈ reedSolomon (cosetPoint (g^a) (ω^a) N)
-k` on `S ⊆ Fin N`, then there exists a codeword `c ∈ reedSolomon (cosetPoint g ω (a * N)) (a * k)`
-agreeing with `f` on every fiber over `S`, preserving all pushed-forward weights. -/
+/-- **Weighted correlated-agreement lifting across `a`-to-1 folding**: for any word `f` and
+component codewords `v r ∈ reedSolomon (cosetPoint (g^a) (ω^a) N) k`, there exists a codeword
+`c ∈ reedSolomon (cosetPoint g ω (a * N)) (a * k)` agreeing with `f` on every fiber over the
+simultaneous agreement set `{j | ∀ r, foldComp g ω f r j = v r j}`, preserving all pushed-forward
+weights. -/
 theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [DecidableEq F]
     (hg : g ≠ 0) (ha : (a : F) ≠ 0) (hN : 0 < N) (hω : IsPrimitiveRoot ω (a * N))
     (f : Fin (a * N) → F) (v : Fin a → Fin N → F)
     (hv : ∀ r, v r ∈ reedSolomon (cosetPoint (g ^ a) (ω ^ a) N) k)
-    (S : Finset (Fin N)) (hagree : ∀ r, ∀ j ∈ S, foldComp g ω f r j = v r j)
     (W : Fin (a * N) → ℕ) :
     ∃ c ∈ reedSolomon (cosetPoint g ω (a * N)) (a * k),
-      (∀ j ∈ S, ∀ t : Fin a, f (fiberIdx j t) = c (fiberIdx j t)) ∧
-      (∑ j ∈ S, pushWeight W j) ≤ ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i := by
+      (∀ j : Fin N, (∀ r : Fin a, foldComp g ω f r j = v r j) →
+        ∀ t : Fin a, f (fiberIdx j t) = c (fiberIdx j t)) ∧
+      (∑ j ∈ Finset.univ.filter (fun j : Fin N => ∀ r : Fin a, foldComp g ω f r j = v r j),
+          pushWeight W j) ≤
+        ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i := by
   have ha_pos : 0 < a := by
     by_contra h
     push Not at h
@@ -616,7 +619,8 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
   let c : Fin (a * N) → F := fun i => P.eval (cosetPoint g ω (a * N) i)
   have hc_mem : c ∈ reedSolomon (cosetPoint g ω (a * N)) (a * k) :=
     eval_mem_reedSolomon _ hP_deg
-  have hc_agree : ∀ j ∈ S, ∀ t : Fin a, f (fiberIdx j t) = c (fiberIdx j t) := by
+  have hc_agree : ∀ j : Fin N, (∀ r : Fin a, foldComp g ω f r j = v r j) →
+      ∀ t : Fin a, f (fiberIdx j t) = c (fiberIdx j t) := by
     intro j hj t
     rw [← reconstruct_foldComp hg ha hN hω f j t]
     simp only [c, P, eval_reconstructPoly]
@@ -626,8 +630,10 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
       congr 1
       apply Fin.ext
       simp only [fiberIdx, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt j.isLt]
-    rw [hpow, hagree r j hj, ← hps_eval r]
+    rw [hpow, hj r, ← hps_eval r]
   refine ⟨c, hc_mem, hc_agree, ?_⟩
+  let S : Finset (Fin N) :=
+    Finset.univ.filter fun j : Fin N => ∀ r : Fin a, foldComp g ω f r j = v r j
   let lifted : Finset (Fin (a * N)) :=
     (S ×ˢ (Finset.univ : Finset (Fin a))).image fun p => fiberIdx p.1 p.2
   have hinj : Function.Injective (fun p : Fin N × Fin a => fiberIdx p.1 p.2) := by
@@ -645,7 +651,7 @@ theorem exists_mem_reedSolomon_weighted_agree_lift {g ω : F} {a N k : ℕ} [Dec
     intro i hi
     rcases Finset.mem_image.mp hi with ⟨⟨j, t⟩, hjt, rfl⟩
     have hj : j ∈ S := (Finset.mem_product.mp hjt).1
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc_agree j hj t⟩
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hc_agree j (Finset.mem_filter.mp hj).2 t⟩
   calc ∑ j ∈ S, pushWeight W j
       = ∑ p ∈ S ×ˢ (Finset.univ : Finset (Fin a)), W (fiberIdx p.1 p.2) := by
         rw [Finset.sum_product]
@@ -737,20 +743,18 @@ theorem fold2_mem_reedSolomon {g ω : F} {N k : ℕ} (hg : g ≠ 0) (h2 : (2 : F
   rw [fold2_eq_foldWord hN hω]
   exact foldWord_mem_reedSolomon hg (by simpa using h2) hN hω hf z
 
-/-- **2-to-1 weighted correlated-agreement lifting**: if `(fold2Even f, fold2Odd g ω f)` agrees with
-`(v₀, v₁) ∈ RS(L², k)²` on `S ⊆ Fin N`, then `f` agrees with some codeword `c ∈ RS(L, 2 * k)` on
-the lifted fibers over `S`, preserving all pushed-forward weights. -/
+/-- **2-to-1 weighted correlated-agreement lifting**: for any word `f` and codewords
+`(v₀, v₁) ∈ RS(L², k)²`, there exists `c ∈ RS(L, 2 * k)` whose `W`-weighted agreement with `f` is
+at least the pushed-forward weight of `{j | fold2Even f j = v₀ j ∧ fold2Odd g ω f j = v₁ j}`. -/
 theorem exists_mem_reedSolomon_weighted_agree_lift_two {g ω : F} {N k : ℕ} [DecidableEq F]
     (hg : g ≠ 0) (h2 : (2 : F) ≠ 0) (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
     (f : Fin (2 * N) → F) {v₀ v₁ : Fin N → F}
     (hv₀ : v₀ ∈ reedSolomon (cosetPoint (g ^ 2) (ω ^ 2) N) k)
     (hv₁ : v₁ ∈ reedSolomon (cosetPoint (g ^ 2) (ω ^ 2) N) k)
-    (S : Finset (Fin N))
-    (hagree₀ : ∀ j ∈ S, fold2Even f j = v₀ j)
-    (hagree₁ : ∀ j ∈ S, fold2Odd g ω f j = v₁ j)
     (W : Fin (2 * N) → ℕ) :
     ∃ c ∈ reedSolomon (cosetPoint g ω (2 * N)) (2 * k),
-      (∑ j ∈ S, (W ⟨j.val, by omega⟩ + W ⟨j.val + N, by omega⟩)) ≤
+      (∑ j ∈ Finset.univ.filter (fun j : Fin N => fold2Even f j = v₀ j ∧ fold2Odd g ω f j = v₁ j),
+          (W ⟨j.val, by omega⟩ + W ⟨j.val + N, by omega⟩)) ≤
         ∑ i ∈ Finset.univ.filter (fun i => f i = c i), W i := by
   let v : Fin 2 → Fin N → F := ![v₀, v₁]
   have hv : ∀ r : Fin 2, v r ∈ reedSolomon (cosetPoint (g ^ 2) (ω ^ 2) N) k := by
@@ -758,16 +762,18 @@ theorem exists_mem_reedSolomon_weighted_agree_lift_two {g ω : F} {N k : ℕ} [D
     fin_cases r
     · exact hv₀
     · exact hv₁
-  have hagree : ∀ r : Fin 2, ∀ j ∈ S, foldComp g ω f r j = v r j := by
-    intro r j hj
-    fin_cases r
-    · rw [← fold2Even_eq_foldComp]
-      exact hagree₀ j hj
-    · rw [← fold2Odd_eq_foldComp hN hω]
-      exact hagree₁ j hj
   obtain ⟨c, hc_mem, -, hsum⟩ :=
-    exists_mem_reedSolomon_weighted_agree_lift hg (by simpa using h2) hN hω f v hv S hagree W
+    exists_mem_reedSolomon_weighted_agree_lift hg (by simpa using h2) hN hω f v hv W
+  have hfilt :
+      Finset.univ.filter (fun j : Fin N => ∀ r : Fin 2, foldComp g ω f r j = v r j) =
+        Finset.univ.filter (fun j : Fin N => fold2Even f j = v₀ j ∧ fold2Odd g ω f j = v₁ j) := by
+    ext j
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.forall_fin_two, v,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one,
+      fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f]
+    rfl
   refine ⟨c, hc_mem, ?_⟩
+  rw [hfilt] at hsum
   simpa only [pushWeight, Fin.sum_univ_two, fiberIdx, Fin.val_zero, Fin.val_one, zero_mul, add_zero,
     one_mul] using hsum
 
