@@ -67,12 +67,7 @@ theorem Witness.nonempty_appendOfFn {F H : CSP Rel V} {m n : ℕ}
   change verifyRotationCertificate ((B ++ C) ++ [Constraint.mk none (List.ofFn (Fin.addCases y x))])
     certificate = true at ht
   have hscope : List.ofFn (Fin.addCases y x) = List.ofFn y ++ List.ofFn x := by
-    rw [List.ofFn_add]
-    change List.ofFn (fun i : Fin (n + 1) =>
-      (Fin.addCases y x (Fin.castAdd (m + 1) i) : V)) ++
-      List.ofFn (fun i : Fin (m + 1) =>
-        (Fin.addCases y x (Fin.natAdd (n + 1) i) : V)) = _
-    simp only [Fin.addCases_left, Fin.addCases_right]
+    exact List.ofFn_fin_append y x
   have htarget : ((B ++ C) ++ [Constraint.mk none (List.ofFn (Fin.addCases y x))]) =
       probeBody (F ++ H) (List.ofFn p ++ List.ofFn q) := by
     simp only [probeBody, List.map_append, List.reverse_append, List.reverse_ofFn, B, C,
