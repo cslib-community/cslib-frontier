@@ -2898,27 +2898,13 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   -- Extract a `k`-element subset `J ⊆ Istar` and interpolate `P_j ∈ F[X]` on `J`.
   have hcard_Istar : k ≤ #Istar := hk_le_t.trans (ceil_div_le_card_of_sum_le hM hW_le hW_Istar)
   obtain ⟨J, hJ_sub, hJ_card⟩ := Finset.exists_subset_card_eq hcard_Istar
-  let Pj : Fin (r + 1) → F[X] := fun j => ∑ i ∈ J, C (u j i) * Lagrange.basis J α i
+  let Pj : Fin (r + 1) → F[X] := fun j => Lagrange.interpolate J α (u j)
   let v : Fin (r + 1) → (ι → F) := fun j i => (Pj j).eval (α i)
-  have hPj_deg : ∀ j, (Pj j).degree < k := by
-    intro j
-    refine (degree_sum_le _ _).trans_lt ?_
-    rw [Finset.sup_lt_iff (WithBot.bot_lt_coe _)]
-    intro i hi
-    refine (degree_mul_le _ _).trans_lt ?_
-    refine (add_le_add degree_C_le le_rfl).trans_lt ?_
-    rw [zero_add, Lagrange.degree_basis (hα.injOn) hi, hJ_card]
-    exact Nat.cast_lt.2 (by omega)
+  have hPj_deg : ∀ j, (Pj j).degree < k := fun j =>
+    hJ_card ▸ Lagrange.degree_interpolate_lt _ hα.injOn
   have hv_rs : ∀ j, v j ∈ reedSolomon α k := fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩
-  have hPj_eval_J : ∀ j, ∀ i ∈ J, (Pj j).eval (α i) = u j i := by
-    intro j i hi
-    simp only [Pj, eval_finsetSum, eval_mul, eval_C]
-    rw [Finset.sum_eq_single i]
-    · rw [Lagrange.eval_basis_self (hα.injOn) hi, mul_one]
-    · intro i' _ hne
-      rw [Lagrange.eval_basis_of_ne (v := α) hne hi, mul_zero]
-    · intro h
-      exact absurd hi h
+  have hPj_eval_J : ∀ j, ∀ i ∈ J, (Pj j).eval (α i) = u j i := fun j _ hi =>
+    Lagrange.eval_interpolate_at_node _ hα.injOn hi
   -- Assemble `P_FZ ∈ F[Z][X]` and compare with `Pstar ∈ L[X]` on `J`.
   let P_FZ : F[X][X] := ∑ j : Fin (r + 1), (Pj j).map C * C (X ^ (j : ℕ))
   let P_L : L[X] := P_FZ.map j_L
