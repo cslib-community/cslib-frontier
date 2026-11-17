@@ -80,9 +80,7 @@ from a single known value by Newton iteration (`Cslib.Code.henselValue_eq`).
 ## Main results
 
 * `Cslib.Code.Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials`: counting the monomials.
-* `Cslib.Code.Sudan.weightedDegree_le_iff_weightedDegreeLE`,
-  `Cslib.Code.Sudan.WeightedDegreeLE.of_dvd`: bridge to `Polynomial.Bivariate.weightedDegree` and
-  divisibility monotonicity.
+* `Cslib.Code.Sudan.WeightedDegreeLE.of_dvd`: divisibility monotonicity for weighted degree.
 * `Cslib.Code.Sudan.WeightedDegreeLE.natDegree_mul_le`,
   `Cslib.Code.Sudan.IsInterpolant.natDegree_mul_le`: the `Y`-degree under a weighted-degree bound.
 * `Cslib.Code.Sudan.WeightedDegreeLE.natDegree_eval_le`: the degree of `Q(X, P(X))`.
@@ -187,18 +185,13 @@ theorem WeightedDegreeLE.mono {d D D' : ℕ} {Q : F[X][Y]} (hQ : WeightedDegreeL
     (hD : D ≤ D') : WeightedDegreeLE d D' Q :=
   fun a b hab => (hQ a b hab).trans hD
 
-/-- Bridge between `Polynomial.Bivariate.weightedDegree d Q ≤ D` and `WeightedDegreeLE d D Q`. -/
-theorem weightedDegree_le_iff_weightedDegreeLE {d D : ℕ} {Q : F[X][Y]} :
-    Polynomial.Bivariate.weightedDegree d Q ≤ D ↔ WeightedDegreeLE d D Q :=
-  Polynomial.Bivariate.weightedDegree_le_iff
-
 /-- If `Q ≠ 0` has `(1, d)`-weighted degree at most `D` and `S ∣ Q`, then `S` also has
 `(1, d)`-weighted degree at most `D`. -/
 theorem WeightedDegreeLE.of_dvd {d D : ℕ} {Q S : F[X][Y]} (hQ0 : Q ≠ 0)
     (hQ : WeightedDegreeLE d D Q) (hdvd : S ∣ Q) : WeightedDegreeLE d D S :=
-  weightedDegree_le_iff_weightedDegreeLE.1
+  Polynomial.Bivariate.weightedDegree_le_iff.1
     ((Polynomial.Bivariate.weightedDegree_le_of_dvd hQ0 hdvd).trans
-      (weightedDegree_le_iff_weightedDegreeLE.2 hQ))
+      (Polynomial.Bivariate.weightedDegree_le_iff.2 hQ))
 
 /-- If `Q` has `(1, d)`-weighted degree at most `D`, its `Y`-degree satisfies
 `deg_Y Q * d ≤ D`. -/
@@ -686,7 +679,7 @@ theorem add_mul_add_one_le_of_mul {d D : ℕ} {P : F[X]} (hP : P.natDegree ≤ d
   intro a b hab
   have hS0 : S ≠ 0 := fun h0 => hab (by rw [h0, coeff_zero, coeff_zero])
   have hmul : Polynomial.Bivariate.weightedDegree d ((Y - C P) * S) ≤ D :=
-    weightedDegree_le_iff_weightedDegreeLE.2 h
+    Polynomial.Bivariate.weightedDegree_le_iff.2 h
   rw [Polynomial.Bivariate.weightedDegree_mul (X_sub_C_ne_zero P) hS0,
     Polynomial.Bivariate.weightedDegree_X_sub_C hP] at hmul
   have hab' : a + d * b ≤ Polynomial.Bivariate.weightedDegree d S :=
