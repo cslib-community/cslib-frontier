@@ -61,7 +61,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 
 | Chapter | Exercises | T rows | C rows | S items | Owned or claimed T work |
 |---|---|---|---|---|---|
-| 2 | 36 | 23 | 14 | 0 | — |
+| 2 | 36 | 22 | 15 | 0 | — |
 | 5 | 30 | 29 | 4 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
 | 6 | 39 | 32 | 13 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
 | 7 | 24 | 23 | 3 | 1 | — |
@@ -74,6 +74,9 @@ covers 6.22 and both parts of 6.36 (part (a) with the padded SAT relation of 6.3
 now C; 10.6 is unchanged. Chapter 6 totals are recounted from its current rows.
 
 The 2026-11-17 integer-programming update moves 2.23 from T to C.
+
+The 2026-11-17 xSAT update moves 2.36(1) from T to C; the Chapter 2 totals are recounted from its
+rows.
 
 The 2026-11-17 vertex-cover gap update ([#6088](https://github.com/cslib-community/cslib-frontier/issues/6088))
 moves 10.4 from T to C; the Chapter 10 totals are recounted from its rows.
@@ -140,7 +143,7 @@ carries a forward witness map). Names are in `Cslib.Complexity` unless qualified
 | 2.33(2) | 113 / 138 | **C** | If NP ≠ coNP, some set in NP \ P is not Karp-reducible to its complement. Covered by `CookLevin.SAT_npComplete`, `NPComplete.mem_P_iff`, complement closure of P, and `NPComplete.NP_eq_coNP_of_reducible_compl`. The [checked existential client](../CslibFrontierTests/BookExerciseBridges.lean) witnesses both nonmembership and nonreducibility by SAT. Class (in)equalities quantify over all explicit encodings. |
 | 2.34 | 113 / 138 | **T** | In Goldreich's proof of Theorem 2.28 (delayed diagonalization), the stage function $f$ is unbounded. Proof-internal; theorem endpoint is PR #4777 row 2.28 (**Partial**, `Ladner.exists_NP_not_P_not_npComplete`, many-one only). The library proof uses the Arora–Barak padding language `Ladner.SATH` with `Ladner.tendsto_H_of_notMem_P` in [Ladner.lean](../CslibFrontier/Computability/Complexity/Classes/Ladner.lean), not this $f$. Only useful together with a Cook-nonhardness version of 2.28. |
 | 2.35 | 113 / 138 | **C** | If promise problem $\Pi$ is Cook-reducible to a promise problem solvable in polynomial time (oracle queries off the promise answered arbitrarily), then $\Pi$ is solvable in polynomial time. Covered: `Cslib.Complexity.PromiseProblem.PolyTimeTuringReducible.mem_PromiseP` in [Promise/Oracle](../CslibFrontier/Computability/Complexity/Classes/Promise/Oracle.lean), using one strict polynomial-time adaptive oracle program correct against every completion. `PolyTimeOracleProgram.exists_computableInPolyTime_of_mem_PromiseP` shares the efficient-completion argument with `RPWithPromiseOracle_eq_RP`. Qualification: typed oracle encodings require a total polynomial-time decoder; words use `Decoder.bits`. `PromiseP` already uses total solvers, corresponding to clocking the source's potentially nonhalting off-promise solver. [Checked clients](../CslibFrontierTests/PromiseCook.lean). |
-| 2.36(1) | 114 / 139 | **T** | xSAT (yes: $\phi_1\in SAT,\phi_2\notin SAT$; no: $\phi_1\notin SAT,\phi_2\in SAT$) is in PromiseNP ∩ PromisecoNP. Not located (`SATUNSAT` in [SATUNSAT.lean](../CslibFrontier/Computability/Complexity/Problems/SATUNSAT.lean) is the DP set, a different problem). |
+| 2.36(1) | 114 / 139 | **C** | xSAT (yes: $\phi_1\in SAT,\phi_2\notin SAT$; no: $\phi_1\notin SAT,\phi_2\in SAT$) is in PromiseNP ∩ PromisecoNP. Covered: `Cslib.Complexity.xSAT` and `Cslib.Complexity.xSAT_mem_PromiseNP_inter_promiseClass_coNP` in [XSAT](../CslibFrontier/Computability/Complexity/Problems/XSAT.lean), for the pair encoding `encPair encCNF encCNF`. Promise-coNP is the lift `promiseClass (coNP enc)`, the same lift that defines `PromiseNP`; the separators are $\{(\phi_1,\phi_2):\phi_1\in SAT\}\in NP$ and $\{(\phi_1,\phi_2):\phi_2\in UNSAT\}\in coNP$. The [checked client](../CslibFrontierTests/XSAT.lean) also derives the complement form ($xSAT^c\in$ `PromiseNP`). Inventory registration is deferred to outside-fleet source review. |
 | 2.36(2) | 114 / 139 | **T** | Every promise problem in PromiseNP is Cook-reducible to xSAT (every oracle consistent with xSAT on its promise works), via SAT-search with queries $(\phi'_1,\phi'_0)$. Not located; the promise Cook reduction of 2.35 is now defined in [Promise/Oracle](../CslibFrontier/Computability/Complexity/Classes/Promise/Oracle.lean), but this reduction is not proved. Main text relies on it (printed 101–102). |
 
 Routine (R): 2.2 (padding an NP verifier), 2.3 (example proof systems for composites; the substantive hardness half is 2.16), 2.7 (empty set vs $\{0,1\}^*$; the "dubious" companion is `polyTimeReducible_of_mem_P` in [Nontrivial.lean](../CslibFrontier/Computability/Complexity/Reduction/Nontrivial.lean)), 2.8 (Boolean $f$ makes search an optimization problem; definitional), 2.9 (binary search with $\ell$ queries; elementary, used inside the proof of Theorem 2.13), 2.36(3) (pinpoint failure of Theorem 2.35's proof; expository).
