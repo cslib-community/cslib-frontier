@@ -363,13 +363,11 @@ private theorem prefixSum_zero {k : ℕ} (f : Fin k → ℕ) : prefixSum f 0 = 0
 /-- `prefixSum` splits off its `j`-th term when `j < k`. -/
 private theorem prefixSum_succ {k j : ℕ} (hj : j < k) (f : Fin k → ℕ) :
     prefixSum f (j + 1) = prefixSum f j + f ⟨j, hj⟩ := by
-  unfold prefixSum
-  have hsplit : (Finset.univ.filter fun b : Fin k => b.val < j + 1) =
-      insert ⟨j, hj⟩ (Finset.univ.filter fun b : Fin k => b.val < j) := by
-    ext b
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert, Fin.ext_iff]
-    omega
-  rw [hsplit, Finset.sum_insert (by simp), add_comm]
+  have hlt : Finset.univ.filter (fun b : Fin k => b.val < j) = Finset.Iio ⟨j, hj⟩ := by
+    simpa [Fin.lt_def] using Finset.filter_gt_eq_Iio (a := (⟨j, hj⟩ : Fin k))
+  have hle : Finset.univ.filter (fun b : Fin k => b.val ≤ j) = Finset.Iic ⟨j, hj⟩ := by
+    simpa [Fin.le_def] using Finset.filter_ge_eq_Iic (a := (⟨j, hj⟩ : Fin k))
+  simp_rw [prefixSum, Nat.lt_succ_iff, hle, hlt, ← Finset.sum_Iio_add_eq_sum_Iic]
 
 /-- `prefixSum` up to `k` is the full `Finset.univ` sum. -/
 private theorem prefixSum_full {k : ℕ} (f : Fin k → ℕ) :
