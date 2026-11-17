@@ -84,6 +84,18 @@ example (w : ℕ) (x y z : Data 4) (n : ℕ) (hx : x.regs a = n) (he : ExecWithi
     (he' : Exec w bump y z 1) : z.regs a = n := by
   regs_frame
 
+/-- The last execution is no frame of `b`, which its code writes: it is tried and rejected, and
+the frame of the whole run gives the value. -/
+theorem rejected_execution (w : ℕ) (x y z : Data 4) (n : ℕ) (hx : x.regs b = n)
+    (zf : ∀ i, i ≠ a → z.regs i = x.regs i) (_he : ExecWithin w bump y z 2) : z.regs b = n := by
+  regs_frame
+
+/-- The same with the hypotheses in the other order, so that one of the two tries the execution
+first whichever frame of a state `regs_frame` starts with. -/
+theorem rejected_execution' (w : ℕ) (x y z : Data 4) (n : ℕ) (hx : x.regs b = n)
+    (_he : ExecWithin w bump y z 2) (zf : ∀ i, i ≠ a → z.regs i = x.regs i) : z.regs b = n := by
+  regs_frame
+
 /-! ## Bundles -/
 
 /-- The registers a callee reads. -/
@@ -161,5 +173,19 @@ No hypothesis gives `x.regs d` or a frame of its state. -/
 example (x y : Data 4) (n m : ℕ) (hx : x.regs a = n)
     (yf : ∀ i, i ≠ b → y.regs i = x.regs i) : y.regs a = n ∧ y.regs d = m := by
   regs_frame
+
+/-! ## Nothing is left behind
+
+Whether a code preserves a register is decided by the kernel, on a lemma added for the purpose.
+When the kernel rejects the lemma, as for `rejected_execution` above, Lean keeps its statement in
+the environment as an axiom unless the state is restored. No declaration of this file is an
+axiom. -/
+
+open Lean Elab Command in
+run_cmd do
+  let leftover := (← getEnv).checked.get.constants.map₂.foldl (init := #[]) fun acc name info =>
+    if info matches .axiomInfo _ then acc.push name else acc
+  unless leftover.isEmpty do
+    throwError "regs_frame left axioms in the environment: {leftover}"
 
 end CslibFrontierTests.WordRAMRegsFrame

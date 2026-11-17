@@ -145,15 +145,21 @@ private meta def scan : MetaM Facts := do
   return F
 
 /-- A proof of the closed proposition `p` by evaluating its `Decidable` instance in the kernel, as
-`decide +kernel` does. -/
+`decide +kernel` does: the kernel checks a lemma that states `p`.
+
+When the kernel rejects the lemma, `addDecl` keeps its statement in the environment as an axiom,
+so that later declarations still elaborate. A proposition that is false must leave no such axiom
+behind, so a failure restores the state. -/
 private meta def decideKernel? (p : Expr) : MetaM (Option Expr) := do
   if p.hasFVar || p.hasMVar || p.hasLevelParam then return none
   let some inst ← synthInstance? (mkApp (mkConst ``Decidable) p) | return none
   let pf := mkApp3 (mkConst ``of_decide_eq_true) p inst
     (mkApp2 (mkConst ``Eq.refl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true))
+  let saved ← saveState
   try
     return some (mkConst (← withOptions (Elab.async.set · false) <| mkAuxLemma [] p pf))
   catch _ =>
+    saved.restore
     return none
 
 /-- Prove the premise `p` of a frame: by evaluation if it has no free variables, in the kernel for
@@ -258,7 +264,7 @@ private meta partial def components (g : MVarId) : MetaM (Array MVarId) := g.wit
   unless c != ``Iff && isStructure env c && !isClass env c do return #[g]
   let some info := env.find? c | return #[g]
   unless info.type.getForallBody.isProp do return #[g]
-  let gs ← try g.constructor catch _ => return #[g]
+  let some gs ← observing? g.constructor | return #[g]
   return (← gs.toArray.mapM components).flatten
 
 /-- Prove the equation `g` along the frames `F`, or return what is left of it. -/
