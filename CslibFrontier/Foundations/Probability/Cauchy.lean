@@ -48,7 +48,7 @@ namespace ProbabilityTheory
 /-- Rescaling the argument of `cauchyPDFReal` transforms location and scale linearly. -/
 private theorem cauchyPDFReal_inv_mul {x₀ : ℝ} {γ : ℝ≥0} {c : ℝ} (hc : c ≠ 0) (x : ℝ) :
     |c⁻¹| * cauchyPDFReal x₀ γ (c⁻¹ * x) = cauchyPDFReal (c * x₀) (‖c‖₊ * γ) x := by
-  simp only [cauchyPDFReal_def, NNReal.coe_mul, coe_nnnorm]
+  simp only [cauchyPDFReal_def, NNReal.coe_mul, coe_nnNorm]
   have hc0 : 0 < |c| := abs_pos.2 hc
   rw [abs_inv]
   have hsq : (c⁻¹ * x - x₀) ^ 2 + (γ : ℝ) ^ 2 = ((x - c * x₀) ^ 2 + (|c| * γ) ^ 2) / c ^ 2 := by
@@ -69,7 +69,7 @@ theorem cauchyMeasure_map_const_mul (x₀ : ℝ) (γ : ℝ≥0) (c : ℝ) :
   · rw [hγ, cauchyMeasure_zero_scale, mul_zero, cauchyMeasure_zero_scale,
       Measure.map_dirac' (by fun_prop)]
   by_cases hc : c = 0
-  · simp only [hc, zero_mul, nnnorm_zero, cauchyMeasure_zero_scale]
+  · simp only [hc, zero_mul, nnNorm_zero, cauchyMeasure_zero_scale]
     rw [Measure.map_const, measure_univ, one_smul]
   let e : ℝ ≃ᵐ ℝ := (Homeomorph.mulLeft₀ c hc).symm.toMeasurableEquiv
   have he' : ∀ x, HasDerivAt e c⁻¹ x := fun x => by
@@ -77,7 +77,7 @@ theorem cauchyMeasure_map_const_mul (x₀ : ℝ) (γ : ℝ≥0) (c : ℝ) :
       simpa only [mul_one, e, Homeomorph.toMeasurableEquiv_coe,
         Homeomorph.mulLeft₀_symm_apply] using this
     exact HasDerivAt.const_mul c⁻¹ (hasDerivAt_id x)
-  have hγ' : ‖c‖₊ * γ ≠ 0 := mul_ne_zero (nnnorm_ne_zero_iff.2 hc) hγ
+  have hγ' : ‖c‖₊ * γ ≠ 0 := mul_ne_zero (nnNorm_ne_zero_iff.2 hc) hγ
   change (cauchyMeasure x₀ γ).map e.symm = cauchyMeasure (c * x₀) (‖c‖₊ * γ)
   ext s hs
   rw [cauchyMeasure_of_scale_ne_zero _ hγ, cauchyMeasure_of_scale_ne_zero _ hγ']

@@ -138,7 +138,7 @@ theorem integral_untopD_eq_tsum_real_lt {Ω : Type*} [MeasurableSpace Ω] (P : M
     fun s _ => (Set.to_countable _).measurableSet
   have hm_real : Measurable (fun ω => (((τ ω).untopD 0 : ℕ) : ℝ)) := hmu.comp hτ
   have hle_enn (ω : Ω) : ‖(((τ ω).untopD 0 : ℕ) : ℝ)‖ₑ ≤ withTopToENNReal (τ ω) := by
-    rw [Real.enorm_eq_ofReal_abs, abs_of_nonneg (Nat.cast_nonneg _)]
+    rw [Real.eNorm_eq_ofReal_abs, abs_of_nonneg (Nat.cast_nonneg _)]
     cases hω : τ ω with
     | top => simp
     | coe k =>
