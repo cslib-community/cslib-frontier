@@ -20,8 +20,8 @@ at the origin and their round degrees; the variables and the size of a formula; 
 completeness on a true formula and a concrete soundness bound below `1` on a false one over
 `ZMod 101`, against every prover; the decision of closedness and the parameters of the machine
 verifier on concrete formulas; the encoded words of the records of the machine, unchanged from the
-tuples they replaced; `TQBF ∈ IP`, `IP = PSPACE` and its corollaries; and the axioms of
-the headline theorems.
+tuples they replaced; `TQBF ∈ IP`, `IP = PSPACE` and its corollaries, including `#SAT_D ∈ IP`; and
+the axioms of the headline theorems.
 -/
 
 namespace CslibFrontierTests.QBFProtocol
@@ -167,6 +167,11 @@ example {α : Type} (enc : α ↪ List Bool) {A : Set α} (hA : A ∈ coNP enc) 
 
 example {α : Type} (enc : α ↪ List Bool) (k : ℕ) : SigmaP k enc ⊆ PSPACE enc :=
   IP_eq_PSPACE enc ▸ (SigmaP_subset_PH k).trans (PH_subset_IP enc)
+
+-- `#SAT_D ∈ IP`, and hence its complement, the pairs whose count is wrong, also has interactive
+-- proofs.
+example : SharpSATExactᶜ ∈ IP encSharpSATTarget :=
+  IP_eq_PSPACE _ ▸ compl_mem_PSPACE (IP_eq_PSPACE _ ▸ SharpSATExact_mem_IP)
 
 /-- Every language in `IP` has a strict oracle-PPT verifier with completeness `1` and soundness
 error `1 / 3` (Exercise 8 §1(d)), and one with completeness `1 - 2 ^ (-|enc a|)` and soundness
