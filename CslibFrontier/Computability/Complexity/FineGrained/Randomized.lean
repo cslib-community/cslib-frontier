@@ -1267,7 +1267,7 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
       rw [acceptCount]
       refine Finset.card_equiv BitString.blocksEquiv fun x => ?_
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, V_maj,
-        collectVotesConst_ofFn, List.countP_ofFn, Finset.card_filter, id_eq,
+        collectVotesConst_ofFn, List.countP_ofFn, id_eq,
         Bool.not_eq_true', decide_eq_false_iff_not, not_lt, BitString.blocksEquiv_apply, G]
     rw [hbad_eq]
     exact hmaj a G hG
@@ -1287,7 +1287,7 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
       refine Finset.card_le_card fun ω hω => ?_
       obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hω
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, V_maj,
-        collectVotesConst_ofFn, List.countP_ofFn, ← Finset.card_filter, id_eq,
+        collectVotesConst_ofFn, List.countP_ofFn, id_eq,
         decide_eq_true_eq] at hx
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
       have hpart := Finset.card_filter_add_card_filter_not

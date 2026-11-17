@@ -110,7 +110,7 @@ theorem card_filter_sum_pow_eq_zero_le [DecidableEq F] {S : Finset (Fin n)}
   have hP : P ≠ 0 := by
     obtain ⟨i₀, hi₀⟩ := hS
     intro h
-    have hcoeff := congrArg (Polynomial.coeff · (i₀ : ℕ)) h
+    have hcoeff := congrArg (·.coeff (i₀ : ℕ)) h
     simp only [P, Polynomial.finsetSum_coeff, Polynomial.coeff_X_pow, Fin.val_inj,
       Polynomial.coeff_zero] at hcoeff
     rw [sum_ite_eq, ite_eq_left hi₀] at hcoeff
