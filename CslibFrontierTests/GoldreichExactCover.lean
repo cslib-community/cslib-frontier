@@ -10,8 +10,10 @@ module
 import CslibFrontier.Computability.Complexity.Problems.ThreeExactCover
 
 /-! Checked clients of Goldreich's Proposition 2.25 (3-Exact Cover is NP-complete, draft `r1.pdf`
-of 30 December 2006), `Cslib.Complexity.ThreeExactCover_npComplete`: a concrete yes-instance, and
-the collapse `P = NP` that a polynomial-time algorithm for 3XC would give. -/
+of 30 December 2006), `Cslib.Complexity.ThreeExactCover_npComplete`: a concrete yes-instance, the
+rejection of a cover not drawn from the instance, the reduction on a formula with two variables of
+identical occurrences (read back through the least of them), and the collapse `P = NP` that a
+polynomial-time algorithm for 3XC would give. -/
 
 set_option linter.privateModule false
 
@@ -48,5 +50,10 @@ example : twins.OneSatisfiable := by
     ⟨by decide, _, isExactCover_reduce_twins⟩
   exact ((PositiveOneInExactThreeSATThree.mem_iff_syntaxCheck twins).mp
     ((ThreeExactCover.reduce_mem_iff twins).mp h)).2
+
+/-- A polynomial-time algorithm for 3XC would give `P = NP`. -/
+example (h : ThreeExactCover ∈ P encNatSetList) {α : Type} (enc : α ↪ List Bool) :
+    P enc = NP enc :=
+  ThreeExactCover_npComplete.P_eq_NP_of_mem_P h enc
 
 end CslibFrontierTests.GoldreichExactCover

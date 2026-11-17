@@ -35,10 +35,13 @@ variables per clause and at most three occurrences per variable
 clauses, the clauses are the elements `0, …, m - 1`, and `2m` dummy elements `m, …, 3m - 1` are
 added. A variable `v` occurring in the clauses `O_v` (one to three of them) contributes the sets
 `O_v ∪ W` for every window `W` of `3 - |O_v|` consecutive dummy elements, and every window of three
-consecutive dummy elements is a set. There are at most `2m + 1` windows of each width, so the
-instance has `O(m)` sets. This is the padding of the last step of Goldreich's proof (the reduction
-from 3XC′, with `K = m`), applied directly to the occurrence sets; the draft pads with arbitrary
-dummy elements, but consecutive windows suffice.
+consecutive dummy elements is a set. There are at most `2m + 1` windows of each width, and the
+gadget is emitted once for each of the `3m` variable occurrences, so the instance has `O(m²)` sets.
+This is attained: `m ≥ 1` clauses on `3m` distinct variables give `3m (2m - 1)` variable sets and
+`2m - 2` dummy triples. Enumerating all dummy triples instead would give `Θ(m³)` sets. This is the
+padding of the last step of Goldreich's proof (the reduction from 3XC′, with `K = m`), applied
+directly to the occurrence sets; the draft pads with arbitrary dummy elements, but consecutive
+windows suffice.
 
 * An exact-one assignment makes the occurrence sets of its true variables a partition of the
   clauses. There are at most `m` of them, so they need `3k - m ≤ 2m` dummy elements for `k` true
@@ -93,18 +96,20 @@ def ThreeExactCover : Set (List (List ℕ)) :=
 namespace ThreeExactCover
 
 /-- A set of three distinct elements. -/
-def isTriple (S : List ℕ) : Bool :=
+private def isTriple (S : List ℕ) : Bool :=
   (S.length == 3) && (S.getD 0 0 != S.getD 1 0) && (S.getD 0 0 != S.getD 2 0) &&
     (S.getD 1 0 != S.getD 2 0)
 
 /-- `isTriple` checks for three distinct elements. -/
-theorem isTriple_iff (S : List ℕ) : isTriple S = true ↔ S.length = 3 ∧ S.Nodup := by
+private theorem isTriple_iff (S : List ℕ) : isTriple S = true ↔ S.length = 3 ∧ S.Nodup := by
   rcases S with _ | ⟨a, _ | ⟨b, _ | ⟨d, _ | ⟨e, t⟩⟩⟩⟩
   all_goals simp [isTriple, List.getD, List.nodup_cons, and_assoc, and_left_comm, and_comm]
 
 /-- The verifier's check of a selection `x.2` of sets of the instance `x.1`: every set of the
-instance has three elements, and every element of their union lies in exactly one selected set. -/
-def check (x : List (List ℕ) × List (List ℕ)) : Bool :=
+instance has three elements, and every element of their union lies in exactly one selected set.
+It does not check that the selected sets belong to the instance; the subset verifier of
+`ThreeExactCover_mem_NP` selects them from the instance. -/
+private def check (x : List (List ℕ) × List (List ℕ)) : Bool :=
   x.1.all isTriple && x.1.flatten.all fun u => (x.2.filter fun S => decide (u ∈ S)).length == 1
 
 /-- The windows `[m + i, …, m + i + k - 1]` of `k` consecutive dummy elements among the dummy
@@ -168,7 +173,7 @@ private theorem computableInPolyTime_isTriple :
 attribute [local fun_prop] computableInPolyTime_isTriple
 
 /-- The verifier's check is computable in polynomial time. -/
-theorem computableInPolyTime_check :
+private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encNatSetList encNatSetList) encBool := by
   unfold check
   fun_prop
