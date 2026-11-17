@@ -2700,6 +2700,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.MatchingParity
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.Search
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Construction
