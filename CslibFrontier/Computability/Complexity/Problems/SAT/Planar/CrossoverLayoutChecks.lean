@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayoutData
-public import CslibFrontier.Foundations.Geometry.Orthogonal.Separation
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Geometry
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
 import Mathlib.Data.List.Zip
@@ -45,7 +45,7 @@ The finite orthogonal certificates are original.
 
 namespace Cslib.Logic.PL.CNF.Crossover
 
-open Orthogonal
+open Orthogonal Cslib.Complexity.SAT
 
 /-- The clause position at an index. All indices in `incidenceRoutes` are certified in range. -/
 def clausePosition (i : ℕ) : Point := clausePositions.getD i (0, 0)
@@ -90,12 +90,63 @@ def commonEndpoints (e f : ℕ × SplitVariable × Route) : List Point :=
   (if e.1 = f.1 then [clausePosition e.1] else []) ++
     (if e.2.1 = f.2.1 then [variablePosition e.2.1] else [])
 
+/-- The same drawing indexed by the explicit variable list. Only vertex labels change;
+routes, clause order and the 20-unit margin are unchanged. -/
+def geometry : LocalGeometry where
+  size := 240
+  variablePositions := splitVariables.map variablePosition
+  clausePositions := clausePositions
+  incidenceRoutes := incidenceRoutes.map fun (clause, var, route) =>
+    (clause, splitVariables.idxOf var, route)
+  terminalVariables := (List.finRange 4).map fun i => splitVariables.idxOf (splitTerminal i)
+  boundaryPorts := (List.finRange 4).map fun i => boundaryPort i
+  accessRoutes := (List.finRange 4).map fun i => accessRoute i
+
+private def indexed (e : ℕ × SplitVariable × Route) : LocalIncidence :=
+  (e.1, splitVariables.idxOf e.2.1, e.2.2)
+
+private theorem position_indexed : ∀ v : SplitVariable,
+    geometry.variablePosition (splitVariables.idxOf v) = variablePosition v := by decide +kernel
+
+private theorem index_lt : ∀ v : SplitVariable,
+    splitVariables.idxOf v < geometry.variablePositions.length := by decide +kernel
+
+private theorem index_injective :
+    Function.Injective (fun v : SplitVariable => splitVariables.idxOf v) := by
+  intro v w h
+  change splitVariables.idxOf v = _ at h
+  apply variablePosition_injective
+  rw [← position_indexed v, ← position_indexed w, h]
+
+private theorem indexed_injective : Function.Injective indexed := by
+  rintro ⟨i, v, r⟩ ⟨j, w, t⟩ h
+  have hi : i = j := congrArg (fun e : LocalIncidence => e.clauseIndex) h
+  have hv : v = w := index_injective (congrArg (fun e : LocalIncidence => e.variableIndex) h)
+  have hr : r = t := congrArg (fun e : LocalIncidence => e.route) h
+  cases hi; cases hv; cases hr
+  rfl
+
+private theorem indexed_mem (e : ℕ × SplitVariable × Route) (he : e ∈ incidenceRoutes) :
+    indexed e ∈ geometry.incidenceRoutes :=
+  List.mem_map_of_mem (f := indexed) he
+
+private theorem commonEndpoints_indexed (e f : ℕ × SplitVariable × Route) :
+    geometry.commonEndpoints (indexed e) (indexed f) = commonEndpoints e f := by
+  simp only [LocalGeometry.commonEndpoints, LocalIncidence.clauseIndex,
+    LocalIncidence.variableIndex, indexed, commonEndpoints,
+    index_injective.eq_iff, position_indexed]
+  rfl
+
+private theorem index_surjective : ∀ i : Fin geometry.variablePositions.length,
+    ∃ v : SplitVariable, splitVariables.idxOf v = i.val := by decide +kernel
+
+-- Reduce arithmetic on native labels; transport the decoded facts only once.
 private def LocalSpec (e : ℕ × SplitVariable × Route) : Prop :=
   (e.1 < 74 ∧ e.2.2.head? = some (clausePosition e.1) ∧
     e.2.2.getLast? = some (variablePosition e.2.1)) ∧
   IsOrthogonal e.2.2 ∧
   (∀ p ∈ e.2.2, 20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220) ∧
-  e.2.2.Nodup ∧
+  LocalGeometry.SimpleCheck e.2.2 ∧
   ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
     segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true
 
@@ -104,12 +155,56 @@ private instance (e : ℕ × SplitVariable × Route) : Decidable (LocalSpec e) :
 
 private def rowCheck (e : ℕ × SplitVariable × Route) : Bool :=
   decide (LocalSpec e) &&
-  ((incidenceRoutes.all fun f => e == f ||
-      routeContactCheck (commonEndpoints e f) e.2.2 f.2.2) &&
-   ((splitVariables.all fun v => v == e.2.1 ||
-      routeContactCheck [] e.2.2 [variablePosition v]) &&
-    ((List.finRange 74).all fun i => i.val == e.1 ||
-      routeContactCheck [] e.2.2 [clausePosition i])))
+    (incidenceRoutes.all (fun f =>
+      e == f || routeContactCheck (commonEndpoints e f) e.2.2 f.2.2) &&
+    (splitVariables.all (fun v =>
+      v == e.2.1 || routeContactCheck [] e.2.2 [variablePosition v]) &&
+    (List.finRange 74).all (fun i =>
+      i.val == e.1 || routeContactCheck [] e.2.2 [clausePosition i])))
+
+private def rowSpec (e : ℕ × SplitVariable × Route) : Prop :=
+  LocalGeometry.RowCheck geometry (indexed e) ∧
+  ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
+    segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true
+
+private theorem rowSpec_of_check (e : ℕ × SplitVariable × Route)
+    (h : rowCheck e = true) : rowSpec e := by
+  simp only [rowCheck, Bool.and_eq_true, List.all_eq_true] at h
+  obtain ⟨hl, hr, hv, hc⟩ := h
+  have hl : LocalSpec e := of_decide_eq_true hl
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, hl.2.2.2.2⟩
+  · refine ⟨hl.1.1, index_lt e.2.1, hl.1.2.1, ?_, hl.2.1, hl.2.2.2.1, hl.2.2.1⟩
+    change e.2.2.getLast? = some (geometry.variablePosition (splitVariables.idxOf e.2.1))
+    rw [position_indexed]
+    exact hl.1.2.2
+  · intro f hf hne
+    change f ∈ incidenceRoutes.map indexed at hf
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hf
+    have hne' : e ≠ a := fun h => hne (congrArg indexed h)
+    have hcontact := hr a ha
+    simp only [Bool.or_eq_true, beq_iff_eq] at hcontact
+    change routeContactCheck (geometry.commonEndpoints (indexed e) (indexed a))
+      e.2.2 a.2.2 = true
+    rw [commonEndpoints_indexed]
+    exact hcontact.resolve_left hne'
+  · intro v hne
+    obtain ⟨w, hw⟩ := index_surjective v
+    have hwne : w ≠ e.2.1 := by
+      intro heq
+      subst w
+      exact hne hw.symm
+    have hav := hv w (mem_splitVariables w)
+    simp only [Bool.or_eq_true, beq_iff_eq] at hav
+    change routeContactCheck [] e.2.2 [geometry.variablePosition v] = true
+    have hp := position_indexed w
+    rw [hw] at hp
+    rw [hp]
+    exact hav.resolve_left hwne
+  · intro i hne
+    have hav := hc ⟨i.val, by simpa only [geometry, drawing_sizes.1] using i.isLt⟩
+      (List.mem_finRange _)
+    simp only [Bool.or_eq_true, beq_iff_eq] at hav
+    exact hav.resolve_left hne
 
 private def routeAt (i : Fin 154) : ℕ × SplitVariable × Route :=
   incidenceRoutes.getD i (0, .center, [])
@@ -445,35 +540,47 @@ private theorem rows_checked (i : Fin 154) : rowCheck (routeAt i) = true := by
   · exact row_153
 
 private theorem row_checked (e : ℕ × SplitVariable × Route) (he : e ∈ incidenceRoutes) :
-    rowCheck e = true := by
+    rowSpec e := by
   obtain ⟨i, rfl⟩ := List.mem_iff_get.mp he
   have hi : i.val < 154 := by simpa only [drawing_sizes.2] using i.isLt
   have h := rows_checked ⟨i.val, hi⟩
   have heq : routeAt ⟨i.val, hi⟩ = incidenceRoutes.get i :=
-    List.getD_eq_get incidenceRoutes (0, .center, []) i
+    List.getD_eq_getElem incidenceRoutes (0, .center, []) i.isLt
+  apply rowSpec_of_check
   rwa [heq] at h
 
-private theorem local_checked (e : ℕ × SplitVariable × Route) (he : e ∈ incidenceRoutes) :
-    LocalSpec e := by
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true, decide_eq_true_eq] at h
-  exact h.1
+/-- Complete local certificate, assembled without a whole-table kernel computation. -/
+theorem geometry_check : LocalGeometry.Check geometry := by
+  apply LocalGeometry.check_of_rows
+  · decide +kernel
+  · decide +kernel
+  · rfl
+  · rfl
+  · intro e he
+    change e ∈ incidenceRoutes.map indexed at he
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
+    exact (row_checked a ha).1
+  · decide +kernel
 
 /-- Every route starts at its clause and ends at its variable, with a valid clause index. -/
 theorem incidence_endpoints : ∀ e ∈ incidenceRoutes,
     e.1 < 74 ∧ e.2.2.head? = some (clausePosition e.1) ∧
-      e.2.2.getLast? = some (variablePosition e.2.1) :=
-  fun e he => (local_checked e he).1
+      e.2.2.getLast? = some (variablePosition e.2.1) := by
+  intro e he
+  have h := LocalGeometry.incidence_endpoints geometry_check (indexed_mem e he)
+  exact ⟨h.1, h.2.2.1, by
+    simpa only [indexed, LocalIncidence.route, LocalIncidence.variableIndex, position_indexed]
+      using h.2.2.2⟩
 
 /-- All incidence routes have proper axis-aligned segments. -/
 theorem incidence_orthogonal :
     ∀ e ∈ incidenceRoutes, IsOrthogonal e.2.2 :=
-  fun e he => (local_checked e he).2.1
+  fun e he => LocalGeometry.incidence_orthogonal geometry_check (indexed_mem e he)
 
 /-- All listed core points are inside the smaller rectangle `[20,220]²`. -/
 theorem core_bounds : ∀ e ∈ incidenceRoutes, ∀ p ∈ e.2.2,
     20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220 :=
-  fun e he => (local_checked e he).2.2.1
+  fun e he => (row_checked e he).1.1.2.2.2.2.2.2
 
 /-- Exactly 410 proper segments and 2116 units of total Manhattan wire length. -/
 theorem route_sizes :
@@ -482,40 +589,38 @@ theorem route_sizes :
 
 /-- Every incidence route lists each bend only once. -/
 theorem incidence_points_nodup : ∀ e ∈ incidenceRoutes, e.2.2.Nodup :=
-  fun e he => (local_checked e he).2.2.2.1
+  fun e he => (row_checked e he).1.1.2.2.2.2.2.1.1
 
 /-- Finite simplicity certificate: distinct segments are disjoint except at a shared next bend. -/
 theorem incidence_simple_check : ∀ e ∈ incidenceRoutes,
     ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
       segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true :=
-  fun e he => (local_checked e he).2.2.2.2
+  fun e he => (row_checked e he).2
 
 /-- Exhaustive finite contact certificate for the fixed route table. -/
 theorem routes_contact_check : ∀ e ∈ incidenceRoutes, ∀ f ∈ incidenceRoutes,
     e ≠ f → routeContactCheck (commonEndpoints e f) e.2.2 f.2.2 = true := by
   intro e he f hf hne
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hf' := List.all_eq_true.mp h.2.1 f hf
-  simpa only [Bool.or_eq_true, beq_iff_eq, hne, false_or] using hf'
+  have h := (row_checked e he).1.2.1 (indexed f) (indexed_mem f hf)
+    (fun h => hne (indexed_injective h))
+  change routeContactCheck (geometry.commonEndpoints (indexed e) (indexed f))
+    e.2.2 f.2.2 = true at h
+  rwa [commonEndpoints_indexed] at h
 
 /-- No route visits a nonincident variable vertex. -/
 theorem variable_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ v,
     v ≠ e.2.1 → routeContactCheck [] e.2.2 [variablePosition v] = true := by
   intro e he v hv
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hv' := List.all_eq_true.mp h.2.2.1 v (mem_splitVariables v)
-  simpa only [Bool.or_eq_true, beq_iff_eq, hv, false_or] using hv'
+  have hi := index_lt v
+  have h := (row_checked e he).1.2.2.1 ⟨splitVariables.idxOf v, hi⟩
+    (fun h => hv (index_injective h))
+  simpa only [indexed, LocalIncidence.route, position_indexed] using h
 
 /-- No route visits a nonincident clause vertex. -/
 theorem clause_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ i : Fin 74,
     i.val ≠ e.1 → routeContactCheck [] e.2.2 [clausePosition i] = true := by
   intro e he i hi
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hi' := List.all_eq_true.mp h.2.2.2 i (List.mem_finRange i)
-  simpa only [Bool.or_eq_true, beq_iff_eq, hi, false_or] using hi'
+  exact (row_checked e he).1.2.2.2 i hi
 
 /-- Four orthogonal access routes, each with its prescribed endpoints. -/
 theorem access_endpoints : ∀ i, IsOrthogonal (accessRoute i) ∧

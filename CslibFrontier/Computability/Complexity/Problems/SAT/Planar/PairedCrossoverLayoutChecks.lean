@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PairedCrossoverLayoutData
-public import CslibFrontier.Foundations.Geometry.Orthogonal.Separation
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Geometry
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
 import Mathlib.Data.List.Zip
@@ -45,7 +45,7 @@ The paired modification and its finite orthogonal certificates are original.
 
 namespace Cslib.Logic.PL.CNF.PairedCrossover
 
-open Orthogonal
+open Orthogonal Cslib.Complexity.SAT
 
 /-- The clause position at an index. All indices in `incidenceRoutes` are certified in range. -/
 def clausePosition (i : ℕ) : Point := clausePositions.getD i (0, 0)
@@ -86,12 +86,67 @@ def commonEndpoints (e f : ℕ × Variable × Route) : List Point :=
   (if e.1 = f.1 then [clausePosition e.1] else []) ++
     (if e.2.1 = f.2.1 then [variablePosition e.2.1] else [])
 
+/-- The same drawing indexed by the explicit variable list. Only vertex labels change;
+routes, clause order and the 20-unit margin are unchanged. -/
+def geometry : LocalGeometry where
+  size := 240
+  variablePositions := variableList.map variablePosition
+  clausePositions := clausePositions
+  incidenceRoutes := incidenceRoutes.map fun (clause, var, route) =>
+    (clause, variableList.idxOf var, route)
+  terminalVariables :=
+    ((List.finRange 4).flatMap (fun s => (List.finRange 2).map (s, ·))).map fun i =>
+      variableList.idxOf (Variable.port i.1 i.2)
+  boundaryPorts := ((List.finRange 4).flatMap (fun s => (List.finRange 2).map (s, ·))).map fun i =>
+     boundaryPort i.1 i.2
+  accessRoutes := ((List.finRange 4).flatMap (fun s => (List.finRange 2).map (s, ·))).map fun i =>
+     accessRoute i.1 i.2
+
+private def indexed (e : ℕ × Variable × Route) : LocalIncidence :=
+  (e.1, variableList.idxOf e.2.1, e.2.2)
+
+private theorem position_indexed : ∀ v : Variable,
+    geometry.variablePosition (variableList.idxOf v) = variablePosition v := by decide +kernel
+
+private theorem index_lt : ∀ v : Variable,
+    variableList.idxOf v < geometry.variablePositions.length := by decide +kernel
+
+private theorem index_injective :
+    Function.Injective (fun v : Variable => variableList.idxOf v) := by
+  intro v w h
+  change variableList.idxOf v = _ at h
+  apply variablePosition_injective
+  rw [← position_indexed v, ← position_indexed w, h]
+
+private theorem indexed_injective : Function.Injective indexed := by
+  rintro ⟨i, v, r⟩ ⟨j, w, t⟩ h
+  have hi : i = j := congrArg (fun e : LocalIncidence => e.clauseIndex) h
+  have hv : v = w := index_injective (congrArg (fun e : LocalIncidence => e.variableIndex) h)
+  have hr : r = t := congrArg (fun e : LocalIncidence => e.route) h
+  cases hi; cases hv; cases hr
+  rfl
+
+private theorem indexed_mem (e : ℕ × Variable × Route) (he : e ∈ incidenceRoutes) :
+    indexed e ∈ geometry.incidenceRoutes :=
+  List.mem_map_of_mem (f := indexed) he
+
+private theorem commonEndpoints_indexed (e f : ℕ × Variable × Route) :
+    geometry.commonEndpoints (indexed e) (indexed f) = commonEndpoints e f := by
+  simp only [LocalGeometry.commonEndpoints, LocalIncidence.clauseIndex,
+    LocalIncidence.variableIndex, indexed, commonEndpoints,
+    index_injective.eq_iff, position_indexed]
+  rfl
+
+private theorem index_surjective : ∀ i : Fin geometry.variablePositions.length,
+    ∃ v : Variable, variableList.idxOf v = i.val := by decide +kernel
+
+-- Reduce arithmetic on native labels; transport the decoded facts only once.
 private def LocalSpec (e : ℕ × Variable × Route) : Prop :=
   (e.1 < 78 ∧ e.2.2.head? = some (clausePosition e.1) ∧
     e.2.2.getLast? = some (variablePosition e.2.1)) ∧
   IsOrthogonal e.2.2 ∧
   (∀ p ∈ e.2.2, 20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220) ∧
-  e.2.2.Nodup ∧
+  LocalGeometry.SimpleCheck e.2.2 ∧
   ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
     segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true
 
@@ -100,12 +155,56 @@ private instance (e : ℕ × Variable × Route) : Decidable (LocalSpec e) :=
 
 private def rowCheck (e : ℕ × Variable × Route) : Bool :=
   decide (LocalSpec e) &&
-  ((incidenceRoutes.all fun f => e == f ||
-      routeContactCheck (commonEndpoints e f) e.2.2 f.2.2) &&
-   ((variableList.all fun v => v == e.2.1 ||
-      routeContactCheck [] e.2.2 [variablePosition v]) &&
-    ((List.finRange 78).all fun i => i.val == e.1 ||
-      routeContactCheck [] e.2.2 [clausePosition i])))
+    (incidenceRoutes.all (fun f =>
+      e == f || routeContactCheck (commonEndpoints e f) e.2.2 f.2.2) &&
+    (variableList.all (fun v =>
+      v == e.2.1 || routeContactCheck [] e.2.2 [variablePosition v]) &&
+    (List.finRange 78).all (fun i =>
+      i.val == e.1 || routeContactCheck [] e.2.2 [clausePosition i])))
+
+private def rowSpec (e : ℕ × Variable × Route) : Prop :=
+  LocalGeometry.RowCheck geometry (indexed e) ∧
+  ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
+    segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true
+
+private theorem rowSpec_of_check (e : ℕ × Variable × Route)
+    (h : rowCheck e = true) : rowSpec e := by
+  simp only [rowCheck, Bool.and_eq_true, List.all_eq_true] at h
+  obtain ⟨hl, hr, hv, hc⟩ := h
+  have hl : LocalSpec e := of_decide_eq_true hl
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, hl.2.2.2.2⟩
+  · refine ⟨hl.1.1, index_lt e.2.1, hl.1.2.1, ?_, hl.2.1, hl.2.2.2.1, hl.2.2.1⟩
+    change e.2.2.getLast? = some (geometry.variablePosition (variableList.idxOf e.2.1))
+    rw [position_indexed]
+    exact hl.1.2.2
+  · intro f hf hne
+    change f ∈ incidenceRoutes.map indexed at hf
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hf
+    have hne' : e ≠ a := fun h => hne (congrArg indexed h)
+    have hcontact := hr a ha
+    simp only [Bool.or_eq_true, beq_iff_eq] at hcontact
+    change routeContactCheck (geometry.commonEndpoints (indexed e) (indexed a))
+      e.2.2 a.2.2 = true
+    rw [commonEndpoints_indexed]
+    exact hcontact.resolve_left hne'
+  · intro v hne
+    obtain ⟨w, hw⟩ := index_surjective v
+    have hwne : w ≠ e.2.1 := by
+      intro heq
+      subst w
+      exact hne hw.symm
+    have hav := hv w (mem_variableList w)
+    simp only [Bool.or_eq_true, beq_iff_eq] at hav
+    change routeContactCheck [] e.2.2 [geometry.variablePosition v] = true
+    have hp := position_indexed w
+    rw [hw] at hp
+    rw [hp]
+    exact hav.resolve_left hwne
+  · intro i hne
+    have hav := hc ⟨i.val, by simpa only [geometry, drawing_sizes.1] using i.isLt⟩
+      (List.mem_finRange _)
+    simp only [Bool.or_eq_true, beq_iff_eq] at hav
+    exact hav.resolve_left hne
 
 private def routeAt (i : Fin 162) : ℕ × Variable × Route :=
   incidenceRoutes.getD i (0, .center, [])
@@ -299,407 +398,407 @@ private def blockIndex (q : Fin 27) (r : Fin 6) : Fin 162 :=
 
 private theorem block_0 (r : Fin 6) : rowCheck (routeAt (blockIndex 0 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (0 : Fin 162)
+  · change rowCheck (routeAt (0 : Fin 162)) = true
     exact row_0
-  · conv_lhs => arg 1; arg 1; change (1 : Fin 162)
+  · change rowCheck (routeAt (1 : Fin 162)) = true
     exact row_1
-  · conv_lhs => arg 1; arg 1; change (2 : Fin 162)
+  · change rowCheck (routeAt (2 : Fin 162)) = true
     exact row_2
-  · conv_lhs => arg 1; arg 1; change (3 : Fin 162)
+  · change rowCheck (routeAt (3 : Fin 162)) = true
     exact row_3
-  · conv_lhs => arg 1; arg 1; change (4 : Fin 162)
+  · change rowCheck (routeAt (4 : Fin 162)) = true
     exact row_4
-  · conv_lhs => arg 1; arg 1; change (5 : Fin 162)
+  · change rowCheck (routeAt (5 : Fin 162)) = true
     exact row_5
 
 private theorem block_1 (r : Fin 6) : rowCheck (routeAt (blockIndex 1 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (6 : Fin 162)
+  · change rowCheck (routeAt (6 : Fin 162)) = true
     exact row_6
-  · conv_lhs => arg 1; arg 1; change (7 : Fin 162)
+  · change rowCheck (routeAt (7 : Fin 162)) = true
     exact row_7
-  · conv_lhs => arg 1; arg 1; change (8 : Fin 162)
+  · change rowCheck (routeAt (8 : Fin 162)) = true
     exact row_8
-  · conv_lhs => arg 1; arg 1; change (9 : Fin 162)
+  · change rowCheck (routeAt (9 : Fin 162)) = true
     exact row_9
-  · conv_lhs => arg 1; arg 1; change (10 : Fin 162)
+  · change rowCheck (routeAt (10 : Fin 162)) = true
     exact row_10
-  · conv_lhs => arg 1; arg 1; change (11 : Fin 162)
+  · change rowCheck (routeAt (11 : Fin 162)) = true
     exact row_11
 
 private theorem block_2 (r : Fin 6) : rowCheck (routeAt (blockIndex 2 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (12 : Fin 162)
+  · change rowCheck (routeAt (12 : Fin 162)) = true
     exact row_12
-  · conv_lhs => arg 1; arg 1; change (13 : Fin 162)
+  · change rowCheck (routeAt (13 : Fin 162)) = true
     exact row_13
-  · conv_lhs => arg 1; arg 1; change (14 : Fin 162)
+  · change rowCheck (routeAt (14 : Fin 162)) = true
     exact row_14
-  · conv_lhs => arg 1; arg 1; change (15 : Fin 162)
+  · change rowCheck (routeAt (15 : Fin 162)) = true
     exact row_15
-  · conv_lhs => arg 1; arg 1; change (16 : Fin 162)
+  · change rowCheck (routeAt (16 : Fin 162)) = true
     exact row_16
-  · conv_lhs => arg 1; arg 1; change (17 : Fin 162)
+  · change rowCheck (routeAt (17 : Fin 162)) = true
     exact row_17
 
 private theorem block_3 (r : Fin 6) : rowCheck (routeAt (blockIndex 3 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (18 : Fin 162)
+  · change rowCheck (routeAt (18 : Fin 162)) = true
     exact row_18
-  · conv_lhs => arg 1; arg 1; change (19 : Fin 162)
+  · change rowCheck (routeAt (19 : Fin 162)) = true
     exact row_19
-  · conv_lhs => arg 1; arg 1; change (20 : Fin 162)
+  · change rowCheck (routeAt (20 : Fin 162)) = true
     exact row_20
-  · conv_lhs => arg 1; arg 1; change (21 : Fin 162)
+  · change rowCheck (routeAt (21 : Fin 162)) = true
     exact row_21
-  · conv_lhs => arg 1; arg 1; change (22 : Fin 162)
+  · change rowCheck (routeAt (22 : Fin 162)) = true
     exact row_22
-  · conv_lhs => arg 1; arg 1; change (23 : Fin 162)
+  · change rowCheck (routeAt (23 : Fin 162)) = true
     exact row_23
 
 private theorem block_4 (r : Fin 6) : rowCheck (routeAt (blockIndex 4 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (24 : Fin 162)
+  · change rowCheck (routeAt (24 : Fin 162)) = true
     exact row_24
-  · conv_lhs => arg 1; arg 1; change (25 : Fin 162)
+  · change rowCheck (routeAt (25 : Fin 162)) = true
     exact row_25
-  · conv_lhs => arg 1; arg 1; change (26 : Fin 162)
+  · change rowCheck (routeAt (26 : Fin 162)) = true
     exact row_26
-  · conv_lhs => arg 1; arg 1; change (27 : Fin 162)
+  · change rowCheck (routeAt (27 : Fin 162)) = true
     exact row_27
-  · conv_lhs => arg 1; arg 1; change (28 : Fin 162)
+  · change rowCheck (routeAt (28 : Fin 162)) = true
     exact row_28
-  · conv_lhs => arg 1; arg 1; change (29 : Fin 162)
+  · change rowCheck (routeAt (29 : Fin 162)) = true
     exact row_29
 
 private theorem block_5 (r : Fin 6) : rowCheck (routeAt (blockIndex 5 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (30 : Fin 162)
+  · change rowCheck (routeAt (30 : Fin 162)) = true
     exact row_30
-  · conv_lhs => arg 1; arg 1; change (31 : Fin 162)
+  · change rowCheck (routeAt (31 : Fin 162)) = true
     exact row_31
-  · conv_lhs => arg 1; arg 1; change (32 : Fin 162)
+  · change rowCheck (routeAt (32 : Fin 162)) = true
     exact row_32
-  · conv_lhs => arg 1; arg 1; change (33 : Fin 162)
+  · change rowCheck (routeAt (33 : Fin 162)) = true
     exact row_33
-  · conv_lhs => arg 1; arg 1; change (34 : Fin 162)
+  · change rowCheck (routeAt (34 : Fin 162)) = true
     exact row_34
-  · conv_lhs => arg 1; arg 1; change (35 : Fin 162)
+  · change rowCheck (routeAt (35 : Fin 162)) = true
     exact row_35
 
 private theorem block_6 (r : Fin 6) : rowCheck (routeAt (blockIndex 6 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (36 : Fin 162)
+  · change rowCheck (routeAt (36 : Fin 162)) = true
     exact row_36
-  · conv_lhs => arg 1; arg 1; change (37 : Fin 162)
+  · change rowCheck (routeAt (37 : Fin 162)) = true
     exact row_37
-  · conv_lhs => arg 1; arg 1; change (38 : Fin 162)
+  · change rowCheck (routeAt (38 : Fin 162)) = true
     exact row_38
-  · conv_lhs => arg 1; arg 1; change (39 : Fin 162)
+  · change rowCheck (routeAt (39 : Fin 162)) = true
     exact row_39
-  · conv_lhs => arg 1; arg 1; change (40 : Fin 162)
+  · change rowCheck (routeAt (40 : Fin 162)) = true
     exact row_40
-  · conv_lhs => arg 1; arg 1; change (41 : Fin 162)
+  · change rowCheck (routeAt (41 : Fin 162)) = true
     exact row_41
 
 private theorem block_7 (r : Fin 6) : rowCheck (routeAt (blockIndex 7 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (42 : Fin 162)
+  · change rowCheck (routeAt (42 : Fin 162)) = true
     exact row_42
-  · conv_lhs => arg 1; arg 1; change (43 : Fin 162)
+  · change rowCheck (routeAt (43 : Fin 162)) = true
     exact row_43
-  · conv_lhs => arg 1; arg 1; change (44 : Fin 162)
+  · change rowCheck (routeAt (44 : Fin 162)) = true
     exact row_44
-  · conv_lhs => arg 1; arg 1; change (45 : Fin 162)
+  · change rowCheck (routeAt (45 : Fin 162)) = true
     exact row_45
-  · conv_lhs => arg 1; arg 1; change (46 : Fin 162)
+  · change rowCheck (routeAt (46 : Fin 162)) = true
     exact row_46
-  · conv_lhs => arg 1; arg 1; change (47 : Fin 162)
+  · change rowCheck (routeAt (47 : Fin 162)) = true
     exact row_47
 
 private theorem block_8 (r : Fin 6) : rowCheck (routeAt (blockIndex 8 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (48 : Fin 162)
+  · change rowCheck (routeAt (48 : Fin 162)) = true
     exact row_48
-  · conv_lhs => arg 1; arg 1; change (49 : Fin 162)
+  · change rowCheck (routeAt (49 : Fin 162)) = true
     exact row_49
-  · conv_lhs => arg 1; arg 1; change (50 : Fin 162)
+  · change rowCheck (routeAt (50 : Fin 162)) = true
     exact row_50
-  · conv_lhs => arg 1; arg 1; change (51 : Fin 162)
+  · change rowCheck (routeAt (51 : Fin 162)) = true
     exact row_51
-  · conv_lhs => arg 1; arg 1; change (52 : Fin 162)
+  · change rowCheck (routeAt (52 : Fin 162)) = true
     exact row_52
-  · conv_lhs => arg 1; arg 1; change (53 : Fin 162)
+  · change rowCheck (routeAt (53 : Fin 162)) = true
     exact row_53
 
 private theorem block_9 (r : Fin 6) : rowCheck (routeAt (blockIndex 9 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (54 : Fin 162)
+  · change rowCheck (routeAt (54 : Fin 162)) = true
     exact row_54
-  · conv_lhs => arg 1; arg 1; change (55 : Fin 162)
+  · change rowCheck (routeAt (55 : Fin 162)) = true
     exact row_55
-  · conv_lhs => arg 1; arg 1; change (56 : Fin 162)
+  · change rowCheck (routeAt (56 : Fin 162)) = true
     exact row_56
-  · conv_lhs => arg 1; arg 1; change (57 : Fin 162)
+  · change rowCheck (routeAt (57 : Fin 162)) = true
     exact row_57
-  · conv_lhs => arg 1; arg 1; change (58 : Fin 162)
+  · change rowCheck (routeAt (58 : Fin 162)) = true
     exact row_58
-  · conv_lhs => arg 1; arg 1; change (59 : Fin 162)
+  · change rowCheck (routeAt (59 : Fin 162)) = true
     exact row_59
 
 private theorem block_10 (r : Fin 6) : rowCheck (routeAt (blockIndex 10 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (60 : Fin 162)
+  · change rowCheck (routeAt (60 : Fin 162)) = true
     exact row_60
-  · conv_lhs => arg 1; arg 1; change (61 : Fin 162)
+  · change rowCheck (routeAt (61 : Fin 162)) = true
     exact row_61
-  · conv_lhs => arg 1; arg 1; change (62 : Fin 162)
+  · change rowCheck (routeAt (62 : Fin 162)) = true
     exact row_62
-  · conv_lhs => arg 1; arg 1; change (63 : Fin 162)
+  · change rowCheck (routeAt (63 : Fin 162)) = true
     exact row_63
-  · conv_lhs => arg 1; arg 1; change (64 : Fin 162)
+  · change rowCheck (routeAt (64 : Fin 162)) = true
     exact row_64
-  · conv_lhs => arg 1; arg 1; change (65 : Fin 162)
+  · change rowCheck (routeAt (65 : Fin 162)) = true
     exact row_65
 
 private theorem block_11 (r : Fin 6) : rowCheck (routeAt (blockIndex 11 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (66 : Fin 162)
+  · change rowCheck (routeAt (66 : Fin 162)) = true
     exact row_66
-  · conv_lhs => arg 1; arg 1; change (67 : Fin 162)
+  · change rowCheck (routeAt (67 : Fin 162)) = true
     exact row_67
-  · conv_lhs => arg 1; arg 1; change (68 : Fin 162)
+  · change rowCheck (routeAt (68 : Fin 162)) = true
     exact row_68
-  · conv_lhs => arg 1; arg 1; change (69 : Fin 162)
+  · change rowCheck (routeAt (69 : Fin 162)) = true
     exact row_69
-  · conv_lhs => arg 1; arg 1; change (70 : Fin 162)
+  · change rowCheck (routeAt (70 : Fin 162)) = true
     exact row_70
-  · conv_lhs => arg 1; arg 1; change (71 : Fin 162)
+  · change rowCheck (routeAt (71 : Fin 162)) = true
     exact row_71
 
 private theorem block_12 (r : Fin 6) : rowCheck (routeAt (blockIndex 12 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (72 : Fin 162)
+  · change rowCheck (routeAt (72 : Fin 162)) = true
     exact row_72
-  · conv_lhs => arg 1; arg 1; change (73 : Fin 162)
+  · change rowCheck (routeAt (73 : Fin 162)) = true
     exact row_73
-  · conv_lhs => arg 1; arg 1; change (74 : Fin 162)
+  · change rowCheck (routeAt (74 : Fin 162)) = true
     exact row_74
-  · conv_lhs => arg 1; arg 1; change (75 : Fin 162)
+  · change rowCheck (routeAt (75 : Fin 162)) = true
     exact row_75
-  · conv_lhs => arg 1; arg 1; change (76 : Fin 162)
+  · change rowCheck (routeAt (76 : Fin 162)) = true
     exact row_76
-  · conv_lhs => arg 1; arg 1; change (77 : Fin 162)
+  · change rowCheck (routeAt (77 : Fin 162)) = true
     exact row_77
 
 private theorem block_13 (r : Fin 6) : rowCheck (routeAt (blockIndex 13 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (78 : Fin 162)
+  · change rowCheck (routeAt (78 : Fin 162)) = true
     exact row_78
-  · conv_lhs => arg 1; arg 1; change (79 : Fin 162)
+  · change rowCheck (routeAt (79 : Fin 162)) = true
     exact row_79
-  · conv_lhs => arg 1; arg 1; change (80 : Fin 162)
+  · change rowCheck (routeAt (80 : Fin 162)) = true
     exact row_80
-  · conv_lhs => arg 1; arg 1; change (81 : Fin 162)
+  · change rowCheck (routeAt (81 : Fin 162)) = true
     exact row_81
-  · conv_lhs => arg 1; arg 1; change (82 : Fin 162)
+  · change rowCheck (routeAt (82 : Fin 162)) = true
     exact row_82
-  · conv_lhs => arg 1; arg 1; change (83 : Fin 162)
+  · change rowCheck (routeAt (83 : Fin 162)) = true
     exact row_83
 
 private theorem block_14 (r : Fin 6) : rowCheck (routeAt (blockIndex 14 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (84 : Fin 162)
+  · change rowCheck (routeAt (84 : Fin 162)) = true
     exact row_84
-  · conv_lhs => arg 1; arg 1; change (85 : Fin 162)
+  · change rowCheck (routeAt (85 : Fin 162)) = true
     exact row_85
-  · conv_lhs => arg 1; arg 1; change (86 : Fin 162)
+  · change rowCheck (routeAt (86 : Fin 162)) = true
     exact row_86
-  · conv_lhs => arg 1; arg 1; change (87 : Fin 162)
+  · change rowCheck (routeAt (87 : Fin 162)) = true
     exact row_87
-  · conv_lhs => arg 1; arg 1; change (88 : Fin 162)
+  · change rowCheck (routeAt (88 : Fin 162)) = true
     exact row_88
-  · conv_lhs => arg 1; arg 1; change (89 : Fin 162)
+  · change rowCheck (routeAt (89 : Fin 162)) = true
     exact row_89
 
 private theorem block_15 (r : Fin 6) : rowCheck (routeAt (blockIndex 15 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (90 : Fin 162)
+  · change rowCheck (routeAt (90 : Fin 162)) = true
     exact row_90
-  · conv_lhs => arg 1; arg 1; change (91 : Fin 162)
+  · change rowCheck (routeAt (91 : Fin 162)) = true
     exact row_91
-  · conv_lhs => arg 1; arg 1; change (92 : Fin 162)
+  · change rowCheck (routeAt (92 : Fin 162)) = true
     exact row_92
-  · conv_lhs => arg 1; arg 1; change (93 : Fin 162)
+  · change rowCheck (routeAt (93 : Fin 162)) = true
     exact row_93
-  · conv_lhs => arg 1; arg 1; change (94 : Fin 162)
+  · change rowCheck (routeAt (94 : Fin 162)) = true
     exact row_94
-  · conv_lhs => arg 1; arg 1; change (95 : Fin 162)
+  · change rowCheck (routeAt (95 : Fin 162)) = true
     exact row_95
 
 private theorem block_16 (r : Fin 6) : rowCheck (routeAt (blockIndex 16 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (96 : Fin 162)
+  · change rowCheck (routeAt (96 : Fin 162)) = true
     exact row_96
-  · conv_lhs => arg 1; arg 1; change (97 : Fin 162)
+  · change rowCheck (routeAt (97 : Fin 162)) = true
     exact row_97
-  · conv_lhs => arg 1; arg 1; change (98 : Fin 162)
+  · change rowCheck (routeAt (98 : Fin 162)) = true
     exact row_98
-  · conv_lhs => arg 1; arg 1; change (99 : Fin 162)
+  · change rowCheck (routeAt (99 : Fin 162)) = true
     exact row_99
-  · conv_lhs => arg 1; arg 1; change (100 : Fin 162)
+  · change rowCheck (routeAt (100 : Fin 162)) = true
     exact row_100
-  · conv_lhs => arg 1; arg 1; change (101 : Fin 162)
+  · change rowCheck (routeAt (101 : Fin 162)) = true
     exact row_101
 
 private theorem block_17 (r : Fin 6) : rowCheck (routeAt (blockIndex 17 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (102 : Fin 162)
+  · change rowCheck (routeAt (102 : Fin 162)) = true
     exact row_102
-  · conv_lhs => arg 1; arg 1; change (103 : Fin 162)
+  · change rowCheck (routeAt (103 : Fin 162)) = true
     exact row_103
-  · conv_lhs => arg 1; arg 1; change (104 : Fin 162)
+  · change rowCheck (routeAt (104 : Fin 162)) = true
     exact row_104
-  · conv_lhs => arg 1; arg 1; change (105 : Fin 162)
+  · change rowCheck (routeAt (105 : Fin 162)) = true
     exact row_105
-  · conv_lhs => arg 1; arg 1; change (106 : Fin 162)
+  · change rowCheck (routeAt (106 : Fin 162)) = true
     exact row_106
-  · conv_lhs => arg 1; arg 1; change (107 : Fin 162)
+  · change rowCheck (routeAt (107 : Fin 162)) = true
     exact row_107
 
 private theorem block_18 (r : Fin 6) : rowCheck (routeAt (blockIndex 18 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (108 : Fin 162)
+  · change rowCheck (routeAt (108 : Fin 162)) = true
     exact row_108
-  · conv_lhs => arg 1; arg 1; change (109 : Fin 162)
+  · change rowCheck (routeAt (109 : Fin 162)) = true
     exact row_109
-  · conv_lhs => arg 1; arg 1; change (110 : Fin 162)
+  · change rowCheck (routeAt (110 : Fin 162)) = true
     exact row_110
-  · conv_lhs => arg 1; arg 1; change (111 : Fin 162)
+  · change rowCheck (routeAt (111 : Fin 162)) = true
     exact row_111
-  · conv_lhs => arg 1; arg 1; change (112 : Fin 162)
+  · change rowCheck (routeAt (112 : Fin 162)) = true
     exact row_112
-  · conv_lhs => arg 1; arg 1; change (113 : Fin 162)
+  · change rowCheck (routeAt (113 : Fin 162)) = true
     exact row_113
 
 private theorem block_19 (r : Fin 6) : rowCheck (routeAt (blockIndex 19 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (114 : Fin 162)
+  · change rowCheck (routeAt (114 : Fin 162)) = true
     exact row_114
-  · conv_lhs => arg 1; arg 1; change (115 : Fin 162)
+  · change rowCheck (routeAt (115 : Fin 162)) = true
     exact row_115
-  · conv_lhs => arg 1; arg 1; change (116 : Fin 162)
+  · change rowCheck (routeAt (116 : Fin 162)) = true
     exact row_116
-  · conv_lhs => arg 1; arg 1; change (117 : Fin 162)
+  · change rowCheck (routeAt (117 : Fin 162)) = true
     exact row_117
-  · conv_lhs => arg 1; arg 1; change (118 : Fin 162)
+  · change rowCheck (routeAt (118 : Fin 162)) = true
     exact row_118
-  · conv_lhs => arg 1; arg 1; change (119 : Fin 162)
+  · change rowCheck (routeAt (119 : Fin 162)) = true
     exact row_119
 
 private theorem block_20 (r : Fin 6) : rowCheck (routeAt (blockIndex 20 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (120 : Fin 162)
+  · change rowCheck (routeAt (120 : Fin 162)) = true
     exact row_120
-  · conv_lhs => arg 1; arg 1; change (121 : Fin 162)
+  · change rowCheck (routeAt (121 : Fin 162)) = true
     exact row_121
-  · conv_lhs => arg 1; arg 1; change (122 : Fin 162)
+  · change rowCheck (routeAt (122 : Fin 162)) = true
     exact row_122
-  · conv_lhs => arg 1; arg 1; change (123 : Fin 162)
+  · change rowCheck (routeAt (123 : Fin 162)) = true
     exact row_123
-  · conv_lhs => arg 1; arg 1; change (124 : Fin 162)
+  · change rowCheck (routeAt (124 : Fin 162)) = true
     exact row_124
-  · conv_lhs => arg 1; arg 1; change (125 : Fin 162)
+  · change rowCheck (routeAt (125 : Fin 162)) = true
     exact row_125
 
 private theorem block_21 (r : Fin 6) : rowCheck (routeAt (blockIndex 21 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (126 : Fin 162)
+  · change rowCheck (routeAt (126 : Fin 162)) = true
     exact row_126
-  · conv_lhs => arg 1; arg 1; change (127 : Fin 162)
+  · change rowCheck (routeAt (127 : Fin 162)) = true
     exact row_127
-  · conv_lhs => arg 1; arg 1; change (128 : Fin 162)
+  · change rowCheck (routeAt (128 : Fin 162)) = true
     exact row_128
-  · conv_lhs => arg 1; arg 1; change (129 : Fin 162)
+  · change rowCheck (routeAt (129 : Fin 162)) = true
     exact row_129
-  · conv_lhs => arg 1; arg 1; change (130 : Fin 162)
+  · change rowCheck (routeAt (130 : Fin 162)) = true
     exact row_130
-  · conv_lhs => arg 1; arg 1; change (131 : Fin 162)
+  · change rowCheck (routeAt (131 : Fin 162)) = true
     exact row_131
 
 private theorem block_22 (r : Fin 6) : rowCheck (routeAt (blockIndex 22 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (132 : Fin 162)
+  · change rowCheck (routeAt (132 : Fin 162)) = true
     exact row_132
-  · conv_lhs => arg 1; arg 1; change (133 : Fin 162)
+  · change rowCheck (routeAt (133 : Fin 162)) = true
     exact row_133
-  · conv_lhs => arg 1; arg 1; change (134 : Fin 162)
+  · change rowCheck (routeAt (134 : Fin 162)) = true
     exact row_134
-  · conv_lhs => arg 1; arg 1; change (135 : Fin 162)
+  · change rowCheck (routeAt (135 : Fin 162)) = true
     exact row_135
-  · conv_lhs => arg 1; arg 1; change (136 : Fin 162)
+  · change rowCheck (routeAt (136 : Fin 162)) = true
     exact row_136
-  · conv_lhs => arg 1; arg 1; change (137 : Fin 162)
+  · change rowCheck (routeAt (137 : Fin 162)) = true
     exact row_137
 
 private theorem block_23 (r : Fin 6) : rowCheck (routeAt (blockIndex 23 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (138 : Fin 162)
+  · change rowCheck (routeAt (138 : Fin 162)) = true
     exact row_138
-  · conv_lhs => arg 1; arg 1; change (139 : Fin 162)
+  · change rowCheck (routeAt (139 : Fin 162)) = true
     exact row_139
-  · conv_lhs => arg 1; arg 1; change (140 : Fin 162)
+  · change rowCheck (routeAt (140 : Fin 162)) = true
     exact row_140
-  · conv_lhs => arg 1; arg 1; change (141 : Fin 162)
+  · change rowCheck (routeAt (141 : Fin 162)) = true
     exact row_141
-  · conv_lhs => arg 1; arg 1; change (142 : Fin 162)
+  · change rowCheck (routeAt (142 : Fin 162)) = true
     exact row_142
-  · conv_lhs => arg 1; arg 1; change (143 : Fin 162)
+  · change rowCheck (routeAt (143 : Fin 162)) = true
     exact row_143
 
 private theorem block_24 (r : Fin 6) : rowCheck (routeAt (blockIndex 24 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (144 : Fin 162)
+  · change rowCheck (routeAt (144 : Fin 162)) = true
     exact row_144
-  · conv_lhs => arg 1; arg 1; change (145 : Fin 162)
+  · change rowCheck (routeAt (145 : Fin 162)) = true
     exact row_145
-  · conv_lhs => arg 1; arg 1; change (146 : Fin 162)
+  · change rowCheck (routeAt (146 : Fin 162)) = true
     exact row_146
-  · conv_lhs => arg 1; arg 1; change (147 : Fin 162)
+  · change rowCheck (routeAt (147 : Fin 162)) = true
     exact row_147
-  · conv_lhs => arg 1; arg 1; change (148 : Fin 162)
+  · change rowCheck (routeAt (148 : Fin 162)) = true
     exact row_148
-  · conv_lhs => arg 1; arg 1; change (149 : Fin 162)
+  · change rowCheck (routeAt (149 : Fin 162)) = true
     exact row_149
 
 private theorem block_25 (r : Fin 6) : rowCheck (routeAt (blockIndex 25 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (150 : Fin 162)
+  · change rowCheck (routeAt (150 : Fin 162)) = true
     exact row_150
-  · conv_lhs => arg 1; arg 1; change (151 : Fin 162)
+  · change rowCheck (routeAt (151 : Fin 162)) = true
     exact row_151
-  · conv_lhs => arg 1; arg 1; change (152 : Fin 162)
+  · change rowCheck (routeAt (152 : Fin 162)) = true
     exact row_152
-  · conv_lhs => arg 1; arg 1; change (153 : Fin 162)
+  · change rowCheck (routeAt (153 : Fin 162)) = true
     exact row_153
-  · conv_lhs => arg 1; arg 1; change (154 : Fin 162)
+  · change rowCheck (routeAt (154 : Fin 162)) = true
     exact row_154
-  · conv_lhs => arg 1; arg 1; change (155 : Fin 162)
+  · change rowCheck (routeAt (155 : Fin 162)) = true
     exact row_155
 
 private theorem block_26 (r : Fin 6) : rowCheck (routeAt (blockIndex 26 r)) = true := by
   fin_cases r
-  · conv_lhs => arg 1; arg 1; change (156 : Fin 162)
+  · change rowCheck (routeAt (156 : Fin 162)) = true
     exact row_156
-  · conv_lhs => arg 1; arg 1; change (157 : Fin 162)
+  · change rowCheck (routeAt (157 : Fin 162)) = true
     exact row_157
-  · conv_lhs => arg 1; arg 1; change (158 : Fin 162)
+  · change rowCheck (routeAt (158 : Fin 162)) = true
     exact row_158
-  · conv_lhs => arg 1; arg 1; change (159 : Fin 162)
+  · change rowCheck (routeAt (159 : Fin 162)) = true
     exact row_159
-  · conv_lhs => arg 1; arg 1; change (160 : Fin 162)
+  · change rowCheck (routeAt (160 : Fin 162)) = true
     exact row_160
-  · conv_lhs => arg 1; arg 1; change (161 : Fin 162)
+  · change rowCheck (routeAt (161 : Fin 162)) = true
     exact row_161
 
 private theorem blocks_checked (q : Fin 27) (r : Fin 6) :
@@ -744,35 +843,47 @@ private theorem rows_checked (i : Fin 162) : rowCheck (routeAt i) = true := by
   rwa [heq] at h
 
 private theorem row_checked (e : ℕ × Variable × Route) (he : e ∈ incidenceRoutes) :
-    rowCheck e = true := by
+    rowSpec e := by
   obtain ⟨i, rfl⟩ := List.mem_iff_get.mp he
   have hi : i.val < 162 := by simpa only [drawing_sizes.2] using i.isLt
   have h := rows_checked ⟨i.val, hi⟩
   have heq : routeAt ⟨i.val, hi⟩ = incidenceRoutes.get i :=
-    List.getD_eq_get incidenceRoutes (0, .center, []) i
+    List.getD_eq_getElem incidenceRoutes (0, .center, []) i.isLt
+  apply rowSpec_of_check
   rwa [heq] at h
 
-private theorem local_checked (e : ℕ × Variable × Route) (he : e ∈ incidenceRoutes) :
-    LocalSpec e := by
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true, decide_eq_true_eq] at h
-  exact h.1
+/-- Complete local certificate, assembled without a whole-table kernel computation. -/
+theorem geometry_check : LocalGeometry.Check geometry := by
+  apply LocalGeometry.check_of_rows
+  · decide +kernel
+  · decide +kernel
+  · rfl
+  · rfl
+  · intro e he
+    change e ∈ incidenceRoutes.map indexed at he
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
+    exact (row_checked a ha).1
+  · decide +kernel
 
 /-- Every route starts at its clause and ends at its variable, with a valid clause index. -/
 theorem incidence_endpoints : ∀ e ∈ incidenceRoutes,
     e.1 < 78 ∧ e.2.2.head? = some (clausePosition e.1) ∧
-      e.2.2.getLast? = some (variablePosition e.2.1) :=
-  fun e he => (local_checked e he).1
+      e.2.2.getLast? = some (variablePosition e.2.1) := by
+  intro e he
+  have h := LocalGeometry.incidence_endpoints geometry_check (indexed_mem e he)
+  exact ⟨h.1, h.2.2.1, by
+    simpa only [indexed, LocalIncidence.route, LocalIncidence.variableIndex, position_indexed]
+      using h.2.2.2⟩
 
 /-- All incidence routes have proper axis-aligned segments. -/
 theorem incidence_orthogonal :
     ∀ e ∈ incidenceRoutes, IsOrthogonal e.2.2 :=
-  fun e he => (local_checked e he).2.1
+  fun e he => LocalGeometry.incidence_orthogonal geometry_check (indexed_mem e he)
 
 /-- All listed core points are inside the smaller rectangle `[20,220]²`. -/
 theorem core_bounds : ∀ e ∈ incidenceRoutes, ∀ p ∈ e.2.2,
     20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220 :=
-  fun e he => (local_checked e he).2.2.1
+  fun e he => (row_checked e he).1.1.2.2.2.2.2.2
 
 /-- Exactly 407 proper segments and 2192 units of total Manhattan wire length. -/
 theorem route_sizes :
@@ -781,40 +892,38 @@ theorem route_sizes :
 
 /-- Every incidence route lists each bend only once. -/
 theorem incidence_points_nodup : ∀ e ∈ incidenceRoutes, e.2.2.Nodup :=
-  fun e he => (local_checked e he).2.2.2.1
+  fun e he => (row_checked e he).1.1.2.2.2.2.2.1.1
 
 /-- Finite simplicity certificate: distinct segments are disjoint except at a shared next bend. -/
 theorem incidence_simple_check : ∀ e ∈ incidenceRoutes,
     ∀ a ∈ e.2.2.consecutivePairs, ∀ b ∈ e.2.2.consecutivePairs, a ≠ b →
       segmentContactCheck (consecutiveContact a b) a.1 a.2 b.1 b.2 = true :=
-  fun e he => (local_checked e he).2.2.2.2
+  fun e he => (row_checked e he).2
 
 /-- Exhaustive finite contact certificate for the fixed route table. -/
 theorem routes_contact_check : ∀ e ∈ incidenceRoutes, ∀ f ∈ incidenceRoutes,
     e ≠ f → routeContactCheck (commonEndpoints e f) e.2.2 f.2.2 = true := by
   intro e he f hf hne
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hf' := List.all_eq_true.mp h.2.1 f hf
-  simpa only [Bool.or_eq_true, beq_iff_eq, hne, false_or] using hf'
+  have h := (row_checked e he).1.2.1 (indexed f) (indexed_mem f hf)
+    (fun h => hne (indexed_injective h))
+  change routeContactCheck (geometry.commonEndpoints (indexed e) (indexed f))
+    e.2.2 f.2.2 = true at h
+  rwa [commonEndpoints_indexed] at h
 
 /-- No route visits a nonincident variable vertex. -/
 theorem variable_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ v,
     v ≠ e.2.1 → routeContactCheck [] e.2.2 [variablePosition v] = true := by
   intro e he v hv
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hv' := List.all_eq_true.mp h.2.2.1 v (mem_variableList v)
-  simpa only [Bool.or_eq_true, beq_iff_eq, hv, false_or] using hv'
+  have hi := index_lt v
+  have h := (row_checked e he).1.2.2.1 ⟨variableList.idxOf v, hi⟩
+    (fun h => hv (index_injective h))
+  simpa only [indexed, LocalIncidence.route, position_indexed] using h
 
 /-- No route visits a nonincident clause vertex. -/
 theorem clause_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ i : Fin 78,
     i.val ≠ e.1 → routeContactCheck [] e.2.2 [clausePosition i] = true := by
   intro e he i hi
-  have h := row_checked e he
-  simp only [rowCheck, Bool.and_eq_true] at h
-  have hi' := List.all_eq_true.mp h.2.2.2 i (List.mem_finRange i)
-  simpa only [Bool.or_eq_true, beq_iff_eq, hi, false_or] using hi'
+  exact (row_checked e he).1.2.2.2 i hi
 
 /-- All eight access routes have their prescribed endpoints and proper orthogonal segments. -/
 theorem access_endpoints : ∀ s l, IsOrthogonal (accessRoute s l) ∧

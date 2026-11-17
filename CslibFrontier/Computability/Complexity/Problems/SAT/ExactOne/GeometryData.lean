@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Geometry.Orthogonal
+public import CslibFrontier.Computability.Complexity.Problems.SAT.GeometryData
 
 /-!
 # Local orthogonal drawings for parsimonious exact-one gadgets
@@ -20,9 +20,6 @@ The unsigned incidence signatures deliberately leave clause semantics to the log
 
 ## Main definitions
 
-* `LocalIncidence`: an incidence record, read through `clauseIndex`, `variableIndex` and
-  `route`.
-* `LocalGeometry`: finite vertex, incidence, and access data for a local replacement.
 * `disjunctionGeometry`: the four-clause parsimonious disjunction replacement.
 * `falseGeometry`: the three-clause positive gadget with a forced-false exterior terminal.
 * `complementGeometry`: a positive two-terminal gadget forcing opposite values.
@@ -38,57 +35,6 @@ Figures 3.4–3.5 and Lemma 3.6]. The orthogonal coordinates and routes are orig
 namespace Cslib.Complexity.SAT.ExactOne
 
 open Orthogonal
-
-/-- An incidence records its clause index, variable index, and clause-to-variable route. -/
-abbrev LocalIncidence := ℕ × ℕ × Route
-
-namespace LocalIncidence
-
-/-- The local index of the incident clause. -/
-abbrev clauseIndex (e : LocalIncidence) : ℕ := e.1
-
-/-- The local index of the incident variable. -/
-abbrev variableIndex (e : LocalIncidence) : ℕ := e.2.1
-
-/-- The route from the clause position to the variable position. -/
-abbrev route (e : LocalIncidence) : Route := e.2.2
-
-end LocalIncidence
-
-/-- Finite local replacement data. Variables and clauses have separate zero-based indices.
-`terminalVariables`, `boundaryPorts`, and `accessRoutes` have corresponding orders. -/
-structure LocalGeometry where
-  /-- Common square side length; the elementary templates use 180. -/
-  size : ℕ := 180
-  /-- Positions in variable-index order. -/
-  variablePositions : List Point
-  /-- Positions in clause-index order. -/
-  clausePositions : List Point
-  /-- Routes with their incident clause and variable indices. -/
-  incidenceRoutes : List LocalIncidence
-  /-- Variables exposed to the exterior. -/
-  terminalVariables : List ℕ
-  /-- Exterior endpoints of the access routes. -/
-  boundaryPorts : List Point
-  /-- Boundary-to-terminal routes. -/
-  accessRoutes : List Route
-
-namespace LocalGeometry
-
-/-- Indexed variable position; valid incidence indices are certified separately. -/
-def variablePosition (g : LocalGeometry) (v : ℕ) : Point :=
-  g.variablePositions.getD v (0, 0)
-
-/-- Indexed clause position; valid incidence indices are certified separately. -/
-def clausePosition (g : LocalGeometry) (i : ℕ) : Point :=
-  g.clausePositions.getD i (0, 0)
-
-/-- Permitted contacts of two incidence routes: their shared graph endpoints. -/
-def commonEndpoints (g : LocalGeometry) (e f : LocalIncidence) : List Point :=
-  (if e.clauseIndex = f.clauseIndex then [g.clausePosition e.clauseIndex] else []) ++
-    (if e.variableIndex = f.variableIndex then [g.variablePosition e.variableIndex] else [])
-
-end LocalGeometry
 
 /-- The four-clause disjunction gadget. Variables are `p,q,r,u,v,w,t,x` in that order;
 the incidence signature is `[[p,u,v],[q,u,w],[v,w,t],[r,v,x]]`.

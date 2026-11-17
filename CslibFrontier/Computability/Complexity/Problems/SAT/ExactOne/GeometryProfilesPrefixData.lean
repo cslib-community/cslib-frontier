@@ -31,6 +31,7 @@ The composed geometric data are original.
 namespace Cslib.Complexity.SAT.ExactOne
 
 /-- The actual positive profile with its source ends extended to the cell boundary. -/
-def profilePrefixGeometry (p : ClauseProfile) : LocalGeometry := (profileGeometry p).toPrefix
+def profilePrefixGeometry (p : ClauseProfile) : LocalGeometry :=
+  LocalGeometry.toPrefix (profileGeometry p)
 
 end Cslib.Complexity.SAT.ExactOne

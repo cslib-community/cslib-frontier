@@ -48,7 +48,7 @@ public section
 
 namespace Cslib.Logic.PL.CNF.Crossover
 
-open Orthogonal
+open Orthogonal Cslib.Complexity.SAT
 
 /-- Every real point of the core drawing is strictly inside the outer 240-by-240 box. -/
 theorem core_support_interior {e : ℕ × SplitVariable × Route} (he : e ∈ incidenceRoutes)
@@ -70,7 +70,8 @@ theorem incidence_simple {e : ℕ × SplitVariable × Route} (he : e ∈ inciden
 /-- Every incidence route is simple in the shared continuous polygonal-route semantics. -/
 theorem incidence_isSimple {e : ℕ × SplitVariable × Route} (he : e ∈ incidenceRoutes) :
     IsSimple e.2.2 :=
-  isSimple_of_segmentContactCheck (incidence_points_nodup e he) (incidence_simple_check e he)
+  LocalGeometry.incidence_isSimple geometry_check
+    (List.mem_map_of_mem (f := fun e => (e.1, splitVariables.idxOf e.2.1, e.2.2)) he)
 
 /-- Every continuous intersection of distinct incidence routes is a shared graph endpoint. -/
 theorem routes_contact {e f : ℕ × SplitVariable × Route}

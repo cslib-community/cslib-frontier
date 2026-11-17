@@ -92,7 +92,8 @@ def PrefixCheck (g : LocalGeometry) : Prop :=
     e.clauseIndex < g.clausePositions.length ∧ e.variableIndex < g.variablePositions.length ∧
       e.route.head? = some (g.clausePosition e.clauseIndex) ∧
       e.route.getLast? = some (g.variablePosition e.variableIndex) ∧
-      IsOrthogonal e.route ∧ SimpleCheck e.route ∧ 2 ≤ e.route.length ∧
+      IsOrthogonal e.route ∧ Cslib.Complexity.SAT.LocalGeometry.SimpleCheck e.route ∧
+      2 ≤ e.route.length ∧
       (∀ p ∈ e.route, 0 ≤ p.1 ∧ p.1 ≤ g.size ∧ 0 ≤ p.2 ∧ p.2 ≤ g.size) ∧
       ∀ p ∈ e.route.dropLast, 0 < p.1 ∧ p.1 < g.size ∧ 0 < p.2 ∧ p.2 < g.size) ∧
   (∀ e ∈ g.incidenceRoutes, ∀ f ∈ g.incidenceRoutes, e ≠ f →
@@ -102,7 +103,7 @@ def PrefixCheck (g : LocalGeometry) : Prop :=
   (∀ e ∈ g.incidenceRoutes, ∀ i : Fin g.clausePositions.length, i.val ≠ e.clauseIndex →
     routeContactCheck [] e.route [g.clausePosition i] = true) ∧
   ∀ e ∈ g.incidenceRoutes,
-    segmentRouteContactCheck [g.variablePosition e.variableIndex] e.route g.boundaryRoute = true
+    segmentRouteContactCheck [g.variablePosition e.variableIndex] e.route (boundaryRoute g) = true
 
 instance (g : LocalGeometry) : Decidable (PrefixCheck g) := by
   unfold PrefixCheck
@@ -126,7 +127,7 @@ theorem prefix_incidence_orthogonal {g : LocalGeometry} (h : PrefixCheck g)
 /-- Every checked prefix is simple on its full continuous support. -/
 theorem prefix_incidence_isSimple {g : LocalGeometry} (h : PrefixCheck g)
     {e : LocalIncidence} (he : e ∈ g.incidenceRoutes) : IsSimple e.route :=
-  isSimple_of_check ((h.2.2.1 e he).2.2.2.2.2.1)
+  Cslib.Complexity.SAT.LocalGeometry.isSimple_of_check ((h.2.2.1 e he).2.2.2.2.2.1)
 
 /-- Every point listed in a checked prefix lies in its closed cell. -/
 theorem prefix_incidence_bounds {g : LocalGeometry} (h : PrefixCheck g)
@@ -164,7 +165,7 @@ theorem prefix_clause_not_mem_support {g : LocalGeometry} (h : PrefixCheck g)
 /-- The variable endpoint is the only permitted contact with the full cell boundary. -/
 theorem prefix_boundary_contact {g : LocalGeometry} (h : PrefixCheck g)
     {e : LocalIncidence} (he : e ∈ g.incidenceRoutes)
-    {p : ℝ × ℝ} (hp : p ∈ support e.route) (hq : p ∈ support g.boundaryRoute) :
+    {p : ℝ × ℝ} (hp : p ∈ support e.route) (hq : p ∈ support (boundaryRoute g)) :
     p = realPoint (g.variablePosition e.variableIndex) := by
   obtain ⟨q, hq, hpq⟩ := segmentRouteContactCheck_sound (prefix_incidence_length h he)
     (by simp [boundaryRoute]) (h.2.2.2.2.2.2 e he) hp hq

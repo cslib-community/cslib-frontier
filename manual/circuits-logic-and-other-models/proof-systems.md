@@ -1796,6 +1796,21 @@ macro expansion, normalization/Figure-1 and expanded original-language
 endpoints, native whole-instance target acceptance, geometry/source comparison and recognition
 remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
+The ordinary CNF layout certificates in `SAT.Planar.CrossoverLayoutChecks`,
+`PairedCrossoverLayoutChecks` and `OrdinaryRing` expose `geometry` and `geometry_check`.
+These use the same `SAT.LocalGeometry.Check` as the exact-one gadgets. Variables are
+indexed in the explicit local variable-list order; coordinates, incidence order, access routes
+and the 20-unit core margin are preserved. Use the shared continuous consequences, such as
+`LocalGeometry.incidence_isSimple`, when reasoning about these indexed drawings. The planar
+consecutive-bend certificates also remain available for segment-level reasoning.
+For larger fixed tables, `LocalGeometry.check_of_rows` assembles the complete certificate
+from separate `RowCheck` proofs. Each crossover still has one kernel certificate per incidence
+row; accesses and vertex distinctness are separate obligations. The crossovers compute
+Boolean rows on their original variable labels using `List.all` and decode them with
+`List.all_eq_true` and `Bool.and_eq_true` before transporting to the indexed `RowCheck`.
+The indexed drawing is used for shared soundness, rather than for each closed row reduction. This is a certificate refactor,
+not a new planar reduction or a change to its variable or wire-length counts.
+
 ## Finite crossover gadget semantics
 
 Import `CslibFrontier.Logics.Propositional.CSP.Planar.Crossover` for Dvořák–Kupec, ICALP 2015,

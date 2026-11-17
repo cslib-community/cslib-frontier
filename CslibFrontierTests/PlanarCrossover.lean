@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine, Samuel Schlesinger
 -/
 import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayout
+import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PairedCrossoverLayout
+import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.OrdinaryRing
 import CslibFrontier.Logics.Propositional.CNF.ImplicationCycle
 import CslibFrontier.Logics.Propositional.CSP.Planar.Crossover
 
@@ -114,3 +116,22 @@ example : sem cross .disequality [false, true, false] = false := by decide
 example : nearSem () [false, false, false] = false := by decide
 example : nearSem () [false, false, false, false, false] = false := by decide
 example : validArity arity [⟨Symbol.relation, ([0, 1, 2] : List ℕ)⟩] = false := by decide
+
+-- Indexing preserves all variables and the exact route lists, not just their lengths.
+example : Crossover.geometry.variablePositions.length = 53 ∧
+    PairedCrossover.geometry.variablePositions.length = 57 ∧
+    Cslib.Complexity.SAT.OrdinaryRing.geometry.variablePositions.length = 8 := by decide +kernel
+
+example : Crossover.geometry.incidenceRoutes.map (fun e => e.route) =
+    Crossover.incidenceRoutes.map (fun e => e.2.2) := by
+  simp [Crossover.geometry, List.map_map]
+
+example : PairedCrossover.geometry.incidenceRoutes.map (fun e => e.route) =
+    PairedCrossover.incidenceRoutes.map (fun e => e.2.2) := by
+  simp [PairedCrossover.geometry, List.map_map]
+
+-- A concrete client gets continuous simplicity directly from the common certificate.
+example : Cslib.Orthogonal.IsSimple
+    (Crossover.geometry.incidenceRoutes.getD 0 (0, 0, [])).route :=
+  Cslib.Complexity.SAT.LocalGeometry.incidence_isSimple Crossover.geometry_check
+    (by decide +kernel)

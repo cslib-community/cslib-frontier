@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.PairedPorts
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Geometry
 public import CslibFrontier.Logics.Propositional.CNF.ImplicationCycle
+import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -41,7 +43,7 @@ This fixed template is original and reuses `CNF.implicationCycle`.
 
 namespace Cslib.Complexity.SAT.OrdinaryRing
 
-open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal
+open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal Cslib.Complexity.SAT
 
 /-- One variable for each side and lane of the common paired-port interface. -/
 abbrev Variable := PairedPorts.Port
@@ -138,38 +140,156 @@ theorem variablePosition_not_mem_clauses :
 theorem incidenceEndpoints_nodup :
     (incidenceRoutes.map fun e => (e.1, e.2.1)).Nodup := by decide +kernel
 
+/-- The unchanged eight-port ring with numeric local vertex indices in cyclic order. -/
+def geometry : LocalGeometry where
+  size := 240
+  variablePositions := cyclicOrder.map variablePosition
+  clausePositions := clausePositions
+  incidenceRoutes := incidenceRoutes.map fun (clause, var, route) =>
+    (clause, cyclicOrder.idxOf var, route)
+  terminalVariables := cyclicOrder.map cyclicOrder.idxOf
+  boundaryPorts := cyclicOrder.map fun v => PairedPorts.boundaryPort v.1 v.2
+  accessRoutes := cyclicOrder.map fun v => PairedPorts.accessRoute v.1 v.2
+
+private theorem position_indexed : ∀ v : Variable,
+    geometry.variablePosition (cyclicOrder.idxOf v) = variablePosition v := by decide +kernel
+
+-- Keep the ring's rows independent too.
+private theorem row_0 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 0 (0, 0, [])) := by decide +kernel
+
+private theorem row_1 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 1 (0, 0, [])) := by decide +kernel
+
+private theorem row_2 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 2 (0, 0, [])) := by decide +kernel
+
+private theorem row_3 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 3 (0, 0, [])) := by decide +kernel
+
+private theorem row_4 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 4 (0, 0, [])) := by decide +kernel
+
+private theorem row_5 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 5 (0, 0, [])) := by decide +kernel
+
+private theorem row_6 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 6 (0, 0, [])) := by decide +kernel
+
+private theorem row_7 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 7 (0, 0, [])) := by decide +kernel
+
+private theorem row_8 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 8 (0, 0, [])) := by decide +kernel
+
+private theorem row_9 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 9 (0, 0, [])) := by decide +kernel
+
+private theorem row_10 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 10 (0, 0, [])) := by decide +kernel
+
+private theorem row_11 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 11 (0, 0, [])) := by decide +kernel
+
+private theorem row_12 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 12 (0, 0, [])) := by decide +kernel
+
+private theorem row_13 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 13 (0, 0, [])) := by decide +kernel
+
+private theorem row_14 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 14 (0, 0, [])) := by decide +kernel
+
+private theorem row_15 : LocalGeometry.RowCheck geometry
+    (geometry.incidenceRoutes.getD 15 (0, 0, [])) := by decide +kernel
+
+/-- Complete finite certificate for the ordinary ring and all eight accesses. -/
+theorem geometry_check : LocalGeometry.Check geometry := by
+  apply LocalGeometry.check_of_rows
+  · decide +kernel
+  · decide +kernel
+  · rfl
+  · rfl
+  · intro e he
+    obtain ⟨i, rfl⟩ := List.mem_iff_get.mp he
+    have hi : i.val < 16 := i.isLt
+    have h : ∀ i : Fin 16, LocalGeometry.RowCheck geometry
+        (geometry.incidenceRoutes.getD i (0, 0, [])) := by
+      intro i
+      fin_cases i
+      · exact row_0
+      · exact row_1
+      · exact row_2
+      · exact row_3
+      · exact row_4
+      · exact row_5
+      · exact row_6
+      · exact row_7
+      · exact row_8
+      · exact row_9
+      · exact row_10
+      · exact row_11
+      · exact row_12
+      · exact row_13
+      · exact row_14
+      · exact row_15
+    have h' := h ⟨i.val, hi⟩
+    simpa only [List.getD_eq_getElem _ _ i.isLt, List.get_eq_getElem] using h'
+  · decide +kernel
+
+private theorem indexed_mem (e : ℕ × Variable × Route) (he : e ∈ incidenceRoutes) :
+    (e.1, cyclicOrder.idxOf e.2.1, e.2.2) ∈ geometry.incidenceRoutes :=
+  List.mem_map_of_mem (f := fun e => (e.1, cyclicOrder.idxOf e.2.1, e.2.2)) he
+
+private theorem index_injective : Function.Injective (fun v : Variable => cyclicOrder.idxOf v) := by
+  intro v w h
+  change cyclicOrder.idxOf v = _ at h
+  apply variablePosition_injective
+  rw [← position_indexed v, ← position_indexed w, h]
+
+private theorem index_lt : ∀ v : Variable,
+    cyclicOrder.idxOf v < geometry.variablePositions.length := by decide +kernel
+
+private theorem commonEndpoints_indexed (e f : ℕ × Variable × Route) :
+    geometry.commonEndpoints (e.1, cyclicOrder.idxOf e.2.1, e.2.2)
+      (f.1, cyclicOrder.idxOf f.2.1, f.2.2) = commonEndpoints e f := by
+  simp only [LocalGeometry.commonEndpoints, LocalIncidence.clauseIndex,
+    LocalIncidence.variableIndex, commonEndpoints, index_injective.eq_iff, position_indexed]
+  rfl
+
 /-- Every incidence has its prescribed clause and variable endpoints. -/
 theorem incidence_endpoints : ∀ e ∈ incidenceRoutes,
     e.1 < 8 ∧ e.2.2.head? = some (clausePosition e.1) ∧
-      e.2.2.getLast? = some (variablePosition e.2.1) := by decide +kernel
+      e.2.2.getLast? = some (variablePosition e.2.1) := by
+  intro e he
+  have h := LocalGeometry.incidence_endpoints geometry_check (indexed_mem e he)
+  exact ⟨h.1, h.2.2.1, by
+    simpa only [LocalIncidence.route, LocalIncidence.variableIndex, position_indexed]
+      using h.2.2.2⟩
 
 /-- All sixteen incidence routes are straight segments. -/
 theorem incidence_pair : ∀ e ∈ incidenceRoutes,
     e.2.2 = [clausePosition e.1, variablePosition e.2.1] := by decide +kernel
 
 /-- Every incidence is properly orthogonal. -/
-theorem incidence_orthogonal : ∀ e ∈ incidenceRoutes, IsOrthogonal e.2.2 := by decide +kernel
+theorem incidence_orthogonal : ∀ e ∈ incidenceRoutes, IsOrthogonal e.2.2 := by
+  intro e he
+  exact LocalGeometry.incidence_orthogonal geometry_check (indexed_mem e he)
 
 /-- Listed incidence vertices are distinct within each route. -/
-theorem incidence_points_nodup : ∀ e ∈ incidenceRoutes, e.2.2.Nodup := by decide +kernel
+theorem incidence_points_nodup : ∀ e ∈ incidenceRoutes, e.2.2.Nodup := by
+  intro e he
+  exact (LocalGeometry.incidence_isSimple geometry_check (indexed_mem e he)).1
 
 /-- Every incidence is continuously simple. -/
 theorem incidence_isSimple {e : ℕ × Variable × Route} (he : e ∈ incidenceRoutes) :
-    IsSimple e.2.2 := by
-  refine ⟨incidence_points_nodup e he, ?_⟩
-  intro a ha b hb hne
-  rw [incidence_pair e he] at ha hb
-  have ha' : a = (clausePosition e.1, variablePosition e.2.1) := by
-    simpa only [List.consecutivePairs, List.tail_cons, List.tail_nil, List.zip_cons_cons,
-      List.zip_nil_right, List.mem_singleton] using ha
-  have hb' : b = (clausePosition e.1, variablePosition e.2.1) := by
-    simpa only [List.consecutivePairs, List.tail_cons, List.tail_nil, List.zip_cons_cons,
-      List.zip_nil_right, List.mem_singleton] using hb
-  exact False.elim (hne (ha'.trans hb'.symm))
+    IsSimple e.2.2 := LocalGeometry.incidence_isSimple geometry_check (indexed_mem e he)
 
 /-- All listed core points lie in `[20,220]²`. -/
 theorem core_bounds : ∀ e ∈ incidenceRoutes, ∀ p ∈ e.2.2,
-    20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220 := by decide +kernel
+    20 ≤ p.1 ∧ p.1 ≤ 220 ∧ 20 ≤ p.2 ∧ p.2 ≤ 220 := by
+  intro e he
+  exact (geometry_check.2.2.2.2.1 _ (indexed_mem e he)).2.2.2.2.2.2
 
 /-- Every variable lies in the inner core square. -/
 theorem variable_bounds : ∀ v : Variable,
@@ -196,7 +316,17 @@ theorem core_support_interior {e : ℕ × Variable × Route} (he : e ∈ inciden
 
 /-- Finite certificate of all permitted contacts between distinct incidences. -/
 theorem routes_contact_check : ∀ e ∈ incidenceRoutes, ∀ f ∈ incidenceRoutes, e ≠ f →
-    routeContactCheck (commonEndpoints e f) e.2.2 f.2.2 = true := by decide +kernel
+    routeContactCheck (commonEndpoints e f) e.2.2 f.2.2 = true := by
+  intro e he f hf hne
+  have hne' : (e.1, cyclicOrder.idxOf e.2.1, e.2.2) ≠
+      (f.1, cyclicOrder.idxOf f.2.1, f.2.2) := by
+    intro h
+    apply hne
+    exact Prod.ext (congrArg (fun e : LocalIncidence => e.clauseIndex) h)
+      (Prod.ext (index_injective (congrArg (fun e : LocalIncidence => e.variableIndex) h))
+        (congrArg (fun e : LocalIncidence => e.route) h))
+  have h := geometry_check.2.2.2.2.2.1 _ (indexed_mem e he) _ (indexed_mem f hf) hne'
+  simpa only [commonEndpoints_indexed, LocalIncidence.route] using h
 
 /-- Continuous contacts between distinct incidences are shared graph endpoints. -/
 theorem routes_contact {e f : ℕ × Variable × Route}
@@ -207,11 +337,17 @@ theorem routes_contact {e f : ℕ × Variable × Route}
 
 /-- Finite certificate excluding nonincident variable vertices. -/
 theorem variable_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ v : Variable, v ≠ e.2.1 →
-    routeContactCheck [] e.2.2 [variablePosition v] = true := by decide +kernel
+    routeContactCheck [] e.2.2 [variablePosition v] = true := by
+  intro e he v hv
+  have h := geometry_check.2.2.2.2.2.2.1 _ (indexed_mem e he)
+    ⟨cyclicOrder.idxOf v, index_lt v⟩ (fun h => hv (index_injective h))
+  simpa only [position_indexed, LocalIncidence.route] using h
 
 /-- Finite certificate excluding nonincident clause vertices. -/
 theorem clause_avoidance_check : ∀ e ∈ incidenceRoutes, ∀ i : Fin 8, i.val ≠ e.1 →
-    routeContactCheck [] e.2.2 [clausePosition i] = true := by decide +kernel
+    routeContactCheck [] e.2.2 [clausePosition i] = true := by
+  intro e he i hi
+  exact geometry_check.2.2.2.2.2.2.2.1 _ (indexed_mem e he) i hi
 
 /-- Incidences avoid every nonincident variable over their full real support. -/
 theorem variable_not_mem_support {e : ℕ × Variable × Route} (he : e ∈ incidenceRoutes)
