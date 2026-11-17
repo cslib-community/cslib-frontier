@@ -54,7 +54,7 @@ linked issue bodies read; a mention only in an older body may be missed.
 | 10 | 9 | 5 | 3 | 0 | — |
 | 11 | 4 | 0 | 4 | 0 | — |
 | 12 | 12 | 2 | 6 | 2 | — |
-| 13 | 9 | 2 | 7 | 1 | — |
+| 13 | 9 | 1 | 8 | 1 | — |
 | 15 | 6 | 3 | 0 | 1 | §3 (corrected) listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
 | 16 | 16 | 7 | 7 | 4 | — |
 | 17 | 10 | 2 | 5 | 6 | — |
