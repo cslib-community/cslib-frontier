@@ -80,4 +80,14 @@ theorem blockMove_lt {before moved after i : ℕ} (hi : i < before + moved + aft
     have h := (finAddFlip j).isLt
     omega
 
+/-- Moving an empty block fixes every raw index. -/
+theorem blockMove_zero_moved (a b i : ℕ) : Nat.blockMove a 0 b i = i := by
+  simp only [Nat.blockMove]
+  split_ifs <;> omega
+
+/-- Moving a block past an empty block fixes every raw index. -/
+theorem blockMove_zero_after (a b i : ℕ) : Nat.blockMove a b 0 i = i := by
+  simp only [Nat.blockMove]
+  split_ifs <;> omega
+
 end Nat

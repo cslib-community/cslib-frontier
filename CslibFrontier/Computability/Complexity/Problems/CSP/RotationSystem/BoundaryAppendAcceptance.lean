@@ -328,21 +328,13 @@ private theorem verify_appendRawCertificate_ofFn (F H : CSP Rel V) (r : Rel) {m 
     appendRawCertificate_eq_scopeJoin F H r x y hd]
   exact verifyRotationCertificate_scopeJoinRotation F H r x y hd _ _ hg hqg ho hqo
 
-private theorem blockMove_zero_moved (a b i : ℕ) : Nat.blockMove a 0 b i = i := by
-  simp only [Nat.blockMove]
-  split_ifs <;> omega
-
-private theorem blockMove_zero_after (a b i : ℕ) : Nat.blockMove a b 0 i = i := by
-  simp only [Nat.blockMove]
-  split_ifs <;> omega
-
 private theorem appendRawCertificate_zero_left (M N Q : ℕ)
     (c d : RotationCertificate)
     (hc : c.successor.length = 2 * M) (hd : d.successor.length = 2 * (N + Q)) :
     appendRawCertificate M 0 N Q c d =
       ⟨c.successor ++ d.successor.map (2 * M + ·)⟩ := by
   simp only [appendRawCertificate, Nat.add_zero, Nat.mul_zero, true_or, ite_true,
-    RotationCertificate.reindex, blockMove_zero_moved, blockMove_zero_after]
+    RotationCertificate.reindex, Nat.blockMove_zero_moved, Nat.blockMove_zero_after]
   apply congrArg RotationCertificate.mk
   have hlen : (c.successor ++ d.successor.map (2 * M + ·)).length =
       2 * (M + N + Q) := by
