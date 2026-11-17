@@ -759,6 +759,17 @@ theorem Verifier.outputOn_seqProd_eq_some_iff (V₁ : Verifier OracleSpec.empty 
     cases h₂ : V₂.outputOn x.2 (Transcript.split s₁ s₂ τ).2 <;>
     simp [Prod.ext_iff]
 
+private theorem Verifier.plainLaw_run_seqProd
+    (V₁ : Verifier OracleSpec.empty s₁ S₁ S₁') (V₂ : Verifier OracleSpec.empty s₂ S₂ S₂')
+    {α : Type}
+    (P : ProbOracleComp OracleSpec.empty
+      (ProverStrategy (ProbOracleComp OracleSpec.empty) (s₁ ++ s₂) α)) :
+    plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
+      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
+        fun (τ₁, st) => (plainLaw (runStrategy s₂ V₂.samplers st)).map
+          fun (τ₂, a) => (Transcript.append s₁ s₂ τ₁ τ₂, a) :=
+  (V₁.liftFirst (S₂ := S₂)).plainLaw_run_append (V₂.liftSecond (S₁' := S₁')) P
+
 /-- Plain-model execution law of `R₁.liftFirst`. -/
 theorem Reduction.plainLaw_run_liftFirst
     (R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁')
@@ -857,43 +868,26 @@ theorem Verifier.Sound.seqProd
       (max ε₁ ε₂) := by
   rintro ⟨x₁, x₂⟩ hx α P
   rw [Set.mem_prod, not_and_or] at hx
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
-  have hsplit : plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
-      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-        fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [Verifier.seqProd, Verifier.append, Verifier.liftFirst, Verifier.liftSecond,
-      plainLaw_bind, plainLaw_map, PMF.bind_map, PMF.bind_bind]
-    congr 1
-    funext st
-    exact plainLaw_run_split s₁ s₂ V₁.samplers V₂.samplers st
-  rw [hsplit]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   rcases hx with hx₁ | hx₂
   · have hl₁ := h₁ x₁ hx₁ _ ((ProverStrategy.split s₁ s₂ ·) <$> P)
     rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁
-    refine le_trans ?_ (hl₁.trans (le_max_left ε₁ ε₂))
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun r₁ => ?_
-    by_cases hr₁ : ∃ y₁ ∈ L₁', V₁.outputOn x₁ r₁.1 = some y₁
-    · have hmem : r₁ ∈ (fun r : Transcript s₁ × _ => (r.1, V₁.outputOn x₁ r.1, r.2)) ⁻¹'
-          {r | ∃ x' ∈ L₁', r.2.1 = some x'} := hr₁
-      rw [Set.indicator_of_mem hmem]
-      exact (mul_le_mul_of_nonneg_left
-        (Probability.PMF.toOuterMeasure_le_one _ _) zero_le).trans (mul_one _).le
-    · rw [PMF.toOuterMeasure_map_apply]
-      have hempty : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-          ((fun r : Transcript (s₁ ++ s₂) × α =>
-            (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
-              {r | ∃ y ∈ L₁' ×ˢ L₂', r.2.1 = some y}) = ∅ := by
-        ext r₂
-        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false,
-          not_exists, not_and]
-        rintro ⟨y₁, y₂⟩ ⟨hy₁, _⟩ hout
-        rw [Verifier.outputOn_seqProd_eq_some_iff] at hout
-        rw [Spec.Transcript.split_append] at hout
-        exact hr₁ ⟨y₁, hy₁, hout.1⟩
-      rw [hempty, MeasureTheory.measure_empty, mul_zero]
-      exact zero_le
+    refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _
+        ((fun r : Transcript s₁ × _ => (r.1, V₁.outputOn x₁ r.1, r.2)) ⁻¹'
+          {r | ∃ x' ∈ L₁', r.2.1 = some x'})ᶜ _ 0 fun r₁ _ hr₁ => ?_)
+      (by simpa only [compl_compl, add_zero] using hl₁.trans (le_max_left ε₁ ε₂))
+    rw [PMF.toOuterMeasure_map_apply]
+    have hempty : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
+        ((fun r : Transcript (s₁ ++ s₂) × α =>
+          (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
+            {r | ∃ y ∈ L₁' ×ˢ L₂', r.2.1 = some y}) = ∅ := by
+      ext r₂
+      simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false,
+        not_exists, not_and]
+      rintro ⟨y₁, y₂⟩ ⟨hy₁, _⟩ hout
+      rw [Verifier.outputOn_seqProd_eq_some_iff, Spec.Transcript.split_append] at hout
+      exact hr₁ ⟨y₁, hy₁, hout.1⟩
+    rw [hempty, MeasureTheory.measure_empty]
   · refine le_trans (Probability.PMF.toOuterMeasure_bind_le _ _ _ fun r₁ => ?_) (le_max_right ε₁ ε₂)
     rw [PMF.toOuterMeasure_map_apply]
     have hl₂ := h₂ x₂ hx₂ α (pure r₁.2)
@@ -926,17 +920,7 @@ theorem Verifier.KnowledgeSound.seqProd
     (V₁.seqProd V₂).KnowledgeSound (relProd relIn₁ relIn₂) (relProd relOut₁ relOut₂)
       (Verifier.extractSeqProd E₁ E₂) (κ₁ + κ₂) := by
   rintro ⟨x₁, x₂⟩ P
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
-  have hsplit : plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
-      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
-        fun r₁ => (plainLaw (runStrategy s₂ V₂.samplers r₁.2)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [Verifier.seqProd, Verifier.append, Verifier.liftFirst, Verifier.liftSecond,
-      plainLaw_bind, plainLaw_map, PMF.bind_map, PMF.bind_bind]
-    congr 1
-    funext st
-    exact plainLaw_run_split s₁ s₂ V₁.samplers V₂.samplers st
-  rw [hsplit]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   let T₁ : Set (Transcript (s₁ ++ s₂) × (W₁' × W₂')) := {r |
     (∃ y₁, V₁.outputOn x₁ (Transcript.split s₁ s₂ r.1).1 = some y₁ ∧ relOut₁ y₁ r.2.1) ∧
       ¬ relIn₁ x₁ (E₁ x₁ (Transcript.split s₁ s₂ r.1).1 r.2.1)}
@@ -1004,27 +988,10 @@ theorem Reduction.honestTranscript_seqProd
         (R₂.honestTranscript x.2 w.2).map fun τ₂ =>
           Transcript.append s₁ s₂ τ₁ τ₂ := by
   rw [Reduction.honestTranscript_eq_plainLaw, Reduction.honestTranscript_eq_plainLaw,
-    Reduction.honestTranscript_eq_plainLaw]
-  simp only [Reduction.seqProd, Reduction.append, Verifier.append, bind_assoc]
-  have hrun : plainLaw ((R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).prover x w >>= fun st =>
-        ProverStrategy.append s₁ s₂ st
-          (fun xw => (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).prover xw.1 xw.2) >>=
-        runStrategy (s₁ ++ s₂)
-          (PerChallenge.append s₁ s₂ (R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).verifier.samplers
-            (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).verifier.samplers)) =
-      (plainLaw ((R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).prover x w >>=
-          runStrategy s₁ (R₁.liftFirst (S₂ := S₂) (W₂ := W₂)).verifier.samplers)).bind fun r₁ =>
-        (plainLaw ((R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).prover r₁.2.1 r₁.2.2 >>=
-          runStrategy s₂ (R₂.liftSecond (S₁' := S₁') (W₁' := W₁')).verifier.samplers)).map
-            fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
-    simp only [plainLaw_bind, PMF.bind_bind]
-    congr 1
-    funext st
-    rw [← plainLaw_bind, plainLaw_run_append]
-    simp only [plainLaw_bind]
-  rw [hrun, Reduction.plainLaw_run_liftFirst, PMF.bind_map, PMF.map_bind, PMF.bind_map]
+    Reduction.honestTranscript_eq_plainLaw, Reduction.seqProd, Reduction.plainLaw_run_append,
+    Reduction.plainLaw_run_liftFirst, PMF.bind_map, PMF.map_bind, PMF.bind_map]
   congr 1
-  funext r₁
+  funext ⟨τ, y₁, w₁⟩
   simp only [Function.comp_def, Reduction.plainLaw_run_liftSecond, PMF.map_comp]
 
 /-- Product simulator for `Reduction.seqProd`: run `Sim₁` on `x.1` and `Sim₂` on `x.2`, and
