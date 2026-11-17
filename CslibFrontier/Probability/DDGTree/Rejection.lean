@@ -515,25 +515,18 @@ private theorem runTrials_none_le_of_one_half_le {spec : BlockRejectionSpec α}
     spec.runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t := by
   rw [spec.runTrials_none]
   refine pow_le_pow_left' ?_ t
-  have h1 := spec.acceptProb_add_rejectProb
-  have hhalf : (1 : ℝ≥0∞) - 1 / 2 = 1 / 2 := by
-    apply ENNReal.sub_eq_of_eq_add (by norm_num)
-    rw [one_div, ENNReal.inv_two_add_inv_two]
   calc
     spec.rejectProb = 1 - spec.acceptProb :=
-      ENNReal.eq_sub_of_add_eq (ne_top_of_le_ne_top ENNReal.one_ne_top (by
-        rw [← h1]; exact le_self_add)) ((add_comm _ _).trans h1)
+      (ENNReal.sub_sub_cancel ENNReal.one_ne_top spec.rejectProb_le_one).symm
     _ ≤ 1 - 1 / 2 := tsub_le_tsub_left hacc 1
-    _ = 1 / 2 := hhalf
+    _ = 1 / 2 := by rw [one_div, ENNReal.one_sub_inv_two]
 
 end BlockRejectionSpec
 
 private theorem div_div_natCast {w c d : ℕ} (hc : c ≠ 0) :
     (w : ℝ≥0∞) / ((c : ℝ≥0∞) / (d : ℝ≥0∞)) = (w : ℝ≥0∞) * (d : ℝ≥0∞) / c := by
-  have hc0 : (c : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hc
-  rw [div_eq_mul_inv, div_eq_mul_inv,
-    ENNReal.mul_inv (Or.inl hc0) (Or.inl (ENNReal.natCast_ne_top _)), inv_inv,
-    mul_comm (c : ℝ≥0∞)⁻¹, ← mul_assoc, ← div_eq_mul_inv]
+  rw [← ENNReal.div_mul _ (Or.inl (Nat.cast_ne_zero.mpr hc)) (Or.inr (ENNReal.natCast_ne_top _)),
+    div_eq_mul_inv, div_eq_mul_inv, mul_right_comm]
 
 /-! ### Bounded integers (`Fin n`) -/
 
