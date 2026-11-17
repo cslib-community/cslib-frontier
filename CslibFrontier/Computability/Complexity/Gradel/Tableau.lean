@@ -372,6 +372,62 @@ private theorem goalClause_head_none [Fintype State] {C : TClause L m State}
   simp only [goalClauses, List.mem_append, List.mem_map] at hC
   rcases hC with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ <;> rfl
 
+private def targetRow (tm : MultiTapeTM m Bool State) (input : List Bool) (t : Fin B) :
+    Row m State B :=
+  row (tm.runFrom (tm.initCfg input) t.val)
+
+private def targetModel (B : ℕ) (tm : MultiTapeTM m Bool State) (input : List Bool) :
+    Model m State B
+  | .tag q => {v : Fin 2 → Fin B | targetRow tm input (v 0) q (v 1)}
+  | .read i s => {v : Fin 2 → Fin B | ImmermanVardi.Tableau.read (targetRow tm input (v 0)) i s}
+  | .sit y => {v : Fin 2 → Fin B | situation input (targetRow tm input (v 0)) y (v 1)}
+  | .elsewhere i sign => {v : Fin 2 → Fin B | elsewhere (targetRow tm input (v 0)) i sign (v 1)}
+  | .inPrev d => {v : Fin 2 → Fin B | inputPrev input (targetRow tm input (v 0)) d (v 1)}
+  | .headPrev i sign d =>
+    {v : Fin 2 → Fin B | headPrev (targetRow tm input (v 0)) i sign d (v 1)}
+
+private theorem holds_tagAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (q : Tag m State) (t a : Fin w) (v : Fin w → Fin B) :
+    (tagAtom q t a).Holds (targetModel B tm input) v ↔
+      targetRow tm input (v t) q (v a) := by
+  rw [holds_tagAtom]
+  rfl
+
+private theorem holds_readAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (i : Fin m) (s : Option Bool) (t : Fin w) (v : Fin w → Fin B) :
+    (readAtom (State := State) i s t).Holds (targetModel B tm input) v ↔
+      ImmermanVardi.Tableau.read (targetRow tm input (v t)) i s := by
+  rw [holds_readAtom]
+  rfl
+
+private theorem holds_sitAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (y : Situation m State) (t a : Fin w) (v : Fin w → Fin B) :
+    (sitAtom y t a).Holds (targetModel B tm input) v ↔
+      situation input (targetRow tm input (v t)) y (v a) := by
+  rw [holds_sitAtom]
+  rfl
+
+private theorem holds_elsewhereAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (i : Fin m) (sign : Bool) (t a : Fin w) (v : Fin w → Fin B) :
+    (elsewhereAtom (State := State) i sign t a).Holds (targetModel B tm input) v ↔
+      elsewhere (targetRow tm input (v t)) i sign (v a) := by
+  rw [holds_elsewhereAtom]
+  rfl
+
+private theorem holds_inPrevAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (d : SignType) (t a : Fin w) (v : Fin w → Fin B) :
+    (inPrevAtom (m := m) (State := State) d t a).Holds (targetModel B tm input) v ↔
+      inputPrev input (targetRow tm input (v t)) d (v a) := by
+  rw [holds_inPrevAtom]
+  rfl
+
+private theorem holds_headPrevAtom_target (tm : MultiTapeTM m Bool State) (input : List Bool)
+    {w : ℕ} (i : Fin m) (sign : Bool) (d : SignType) (t a : Fin w) (v : Fin w → Fin B) :
+    (headPrevAtom (State := State) i sign d t a).Holds (targetModel B tm input) v ↔
+      headPrev (targetRow tm input (v t)) i sign d (v a) := by
+  rw [holds_headPrevAtom]
+  rfl
+
 variable [L.Structure (Fin B)] [Fact (2 ≤ B)]
 
 private def maxFin (B : ℕ) [Fact (2 ≤ B)] : Fin B :=
@@ -410,20 +466,6 @@ private theorem realize_inputGuard
   rw [hv]
   exact hinput s (v a)
 
-private def targetRow (tm : MultiTapeTM m Bool State) (input : List Bool) (t : Fin B) :
-    Row m State B :=
-  row (tm.runFrom (tm.initCfg input) t.val)
-
-private def targetModel (B : ℕ) (tm : MultiTapeTM m Bool State) (input : List Bool) :
-    Model m State B
-  | .tag q => {v : Fin 2 → Fin B | targetRow tm input (v 0) q (v 1)}
-  | .read i s => {v : Fin 2 → Fin B | ImmermanVardi.Tableau.read (targetRow tm input (v 0)) i s}
-  | .sit y => {v : Fin 2 → Fin B | situation input (targetRow tm input (v 0)) y (v 1)}
-  | .elsewhere i sign => {v : Fin 2 → Fin B | elsewhere (targetRow tm input (v 0)) i sign (v 1)}
-  | .inPrev d => {v : Fin 2 → Fin B | inputPrev input (targetRow tm input (v 0)) d (v 1)}
-  | .headPrev i sign d =>
-    {v : Fin 2 → Fin B | headPrev (targetRow tm input (v 0)) i sign d (v 1)}
-
 /-! #### Soundness: `targetModel` is closed under all definite clauses -/
 
 private theorem holds_readClausesFor_target (tm : MultiTapeTM m Bool State) (input : List Bool)
@@ -433,12 +475,12 @@ private theorem holds_readClausesFor_target (tm : MultiTapeTM m Bool State) (inp
   simp only [readClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
   rcases hC with rfl | rfl <;>
   · intro v _ hb
-    have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-    have h2 := (holds_tagAtom _ _ _ _ _).mp
+    have h1 := (holds_tagAtom_target tm input _ 0 1 v).mp (hb _ (List.mem_cons_self ..))
+    have h2 := (holds_tagAtom_target tm input _ 0 1 v).mp
       (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-    simp only [Option.elim_some, holds_readAtom, targetModel, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one] at h1 h2 ⊢
-    first | exact ⟨v 1, Or.inl ⟨h1, h2⟩⟩ | exact ⟨v 1, Or.inr ⟨h1, h2⟩⟩
+    first
+    | exact (holds_readAtom_target tm input i s 0 v).mpr ⟨v 1, Or.inl ⟨h1, h2⟩⟩
+    | exact (holds_readAtom_target tm input i s 0 v).mpr ⟨v 1, Or.inr ⟨h1, h2⟩⟩
 
 private theorem holds_sitClauseFor_target (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -448,21 +490,15 @@ private theorem holds_sitClauseFor_target (tm : MultiTapeTM m Bool State)
   rcases y with ⟨qy, inSym, workSyms⟩
   intro v hg hb
   have hin : inputAt input (v 2).val = inSym := (realize_inputGuard hinput inSym 2 v).mp hg
-  have hst := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-  have hpos := (holds_tagAtom _ _ _ _ _).mp
+  have hst := (holds_tagAtom_target tm input _ 0 1 v).mp (hb _ (List.mem_cons_self ..))
+  have hpos := (holds_tagAtom_target tm input _ 0 2 v).mp
     (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
   have hread : ∀ i : Fin m,
-      ImmermanVardi.Tableau.read (targetRow tm input (v 0)) i (workSyms i) := by
-    intro i
-    have hm : readAtom (State := State) i (workSyms i) 0 ∈
-        (sitClauseFor L inputFormula ⟨qy, inSym, workSyms⟩).body :=
-      List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-        (List.mem_map_of_mem (List.mem_finRange i)))
-    have hr := (holds_readAtom _ _ _ _ _).mp (hb _ hm)
-    simpa only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero] using hr
-  simp only [sitClauseFor, Option.elim_some, holds_sitAtom, targetModel, Set.mem_ofPred_eq,
-    Matrix.cons_val_zero, Matrix.cons_val_one] at hst hpos ⊢
-  exact ⟨hst, ⟨v 2, hpos, hin⟩, hread⟩
+      ImmermanVardi.Tableau.read (targetRow tm input (v 0)) i (workSyms i) := fun i =>
+    (holds_readAtom_target tm input i (workSyms i) 0 v).mp <| hb _ <|
+      List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_map_of_mem (List.mem_finRange i)))
+  exact (holds_sitAtom_target tm input ⟨qy, inSym, workSyms⟩ 0 1 v).mpr
+    ⟨hst, ⟨v 2, hpos, hin⟩, hread⟩
 
 private theorem holds_elsewhereClausesFor_target (tm : MultiTapeTM m Bool State)
     (input : List Bool) (i : Fin m) (sign : Bool) :
@@ -472,16 +508,12 @@ private theorem holds_elsewhereClausesFor_target (tm : MultiTapeTM m Bool State)
   rcases hC with rfl | rfl
   · intro v hg hb
     rw [Formula.realize_not, Formula.realize_equal, Term.realize_var, Term.realize_var] at hg
-    have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-    simp only [Option.elim_some, holds_elsewhereAtom, targetModel, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-    exact ⟨v 2, Or.inl ⟨hh, hg⟩⟩
+    have hh := (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))
+    exact (holds_elsewhereAtom_target tm input i sign 0 1 v).mpr ⟨v 2, Or.inl ⟨hh, hg⟩⟩
   · intro v hg hb
     rw [Formula.realize_not, Formula.realize_inf, realize_zeroGuard, realize_zeroGuard] at hg
-    have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-    simp only [Option.elim_some, holds_elsewhereAtom, targetModel, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-    exact ⟨v 2, Or.inr ⟨hh, hg⟩⟩
+    have hh := (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))
+    exact (holds_elsewhereAtom_target tm input i sign 0 1 v).mpr ⟨v 2, Or.inr ⟨hh, hg⟩⟩
 
 private theorem holds_inPrevClausesFor_target (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -495,24 +527,19 @@ private theorem holds_inPrevClausesFor_target (tm : MultiTapeTM m Bool State)
     simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
     subst hC
     intro v _ hb
-    have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-    simpa only [Option.elim_some, holds_inPrevAtom, targetModel, inputPrev, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one] using hh
+    have hh := (holds_tagAtom_target tm input .inPos 0 1 v).mp (hb _ (List.mem_cons_self ..))
+    exact (holds_inPrevAtom_target tm input .zero 0 1 v).mpr hh
   | neg =>
     simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
     rcases hC with rfl | rfl
     · intro v hg hb
       rw [realize_zeroGuard] at hg
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_inPrevAtom, targetModel, inputPrev, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact Or.inl ⟨hg, hh⟩
+      have hh := (holds_tagAtom_target tm input .inPos 0 1 v).mp (hb _ (List.mem_cons_self ..))
+      exact (holds_inPrevAtom_target tm input .neg 0 1 v).mpr (Or.inl ⟨hg, hh⟩)
     · intro v hg hb
       rw [realize_succGuard] at hg
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_inPrevAtom, targetModel, inputPrev, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact Or.inr ⟨v 2, hg, hh⟩
+      have hh := (holds_tagAtom_target tm input .inPos 0 2 v).mp (hb _ (List.mem_cons_self ..))
+      exact (holds_inPrevAtom_target tm input .neg 0 1 v).mpr (Or.inr ⟨v 2, hg, hh⟩)
   | pos =>
     simp only [inPrevClausesFor, List.mem_cons, List.not_mem_nil, or_false] at hC
     rcases hC with rfl | rfl
@@ -520,18 +547,14 @@ private theorem holds_inPrevClausesFor_target (tm : MultiTapeTM m Bool State)
       rw [Formula.realize_inf, Formula.realize_not, realize_zeroGuard,
         realize_inputGuard hinput] at hg
       obtain ⟨hne, hnone⟩ := hg
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_inPrevAtom, targetModel, inputPrev, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact Or.inl ⟨hne, hnone, hh⟩
+      have hh := (holds_tagAtom_target tm input .inPos 0 1 v).mp (hb _ (List.mem_cons_self ..))
+      exact (holds_inPrevAtom_target tm input .pos 0 1 v).mpr (Or.inl ⟨hne, hnone, hh⟩)
     · intro v hg hb
       rw [Formula.realize_inf, realize_succGuard, Formula.realize_sup, realize_zeroGuard,
         Formula.realize_not, realize_inputGuard hinput] at hg
       obtain ⟨hs, hor⟩ := hg
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_inPrevAtom, targetModel, inputPrev, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact Or.inr ⟨v 2, hs, hh, hor⟩
+      have hh := (holds_tagAtom_target tm input .inPos 0 2 v).mp (hb _ (List.mem_cons_self ..))
+      exact (holds_inPrevAtom_target tm input .pos 0 1 v).mpr (Or.inr ⟨v 2, hs, hh, hor⟩)
 
 private theorem holds_headPrevClausesFor_target (tm : MultiTapeTM m Bool State)
     (input : List Bool) (i : Fin m) (sign : Bool) (d : SignType) :
@@ -545,31 +568,27 @@ private theorem holds_headPrevClausesFor_target (tm : MultiTapeTM m Bool State)
       simp only [hdir, List.mem_cons, List.not_mem_nil, or_false] at hC
     · subst hC
       intro v _ hb
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_headPrevAtom, targetModel, headPrev, hdir,
-        Set.mem_ofPred_eq, Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact hh
+      exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+        rw [headPrev, hdir]
+        exact (holds_tagAtom_target tm input _ 0 1 v).mp (hb _ (List.mem_cons_self ..))
     · subst hC
       intro v hg hb
-      rw [realize_succGuard] at hg
-      have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [Option.elim_some, holds_headPrevAtom, targetModel, headPrev, hdir,
-        Set.mem_ofPred_eq, Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-      exact ⟨v 2, hg, hh⟩
+      exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+        rw [headPrev, hdir]
+        exact ⟨v 2, (realize_succGuard 1 2 v).mp hg,
+          (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
     · rcases hC with rfl | rfl
       · intro v hg hb
         rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard] at hg
-        obtain ⟨hz, ho⟩ := hg
-        have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-        simp only [Option.elim_some, holds_headPrevAtom, targetModel, headPrev, hdir,
-          Set.mem_ofPred_eq, Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-        exact Or.inl ⟨hz, v 2, ho, hh⟩
+        exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+          rw [headPrev, hdir]
+          exact Or.inl ⟨hg.1, v 2, hg.2,
+            (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
       · intro v hg hb
-        rw [realize_succGuard] at hg
-        have hh := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-        simp only [Option.elim_some, holds_headPrevAtom, targetModel, headPrev, hdir,
-          Set.mem_ofPred_eq, Matrix.cons_val_zero, Matrix.cons_val_one] at hh ⊢
-        exact Or.inr ⟨v 2, hg, hh⟩
+        exact (holds_headPrevAtom_target tm input i sign d 0 1 v).mpr <| by
+          rw [headPrev, hdir]
+          exact Or.inr ⟨v 2, (realize_succGuard 2 1 v).mp hg,
+            (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
   exact hbody
 
 private theorem holds_initClausesFor_target [DecidableEq State]
@@ -581,53 +600,28 @@ private theorem holds_initClausesFor_target [DecidableEq State]
       targetRow tm input t q a := by
     simpa only [targetRow, ht, runFrom, Function.iterate_zero_apply] using
       (initial_iff tm input q a).mp hi
+  have hpair (g : (Ordered.language L).Formula (Fin 2))
+      (hg : ∀ v : Fin 2 → Fin B, g.Realize v → (v 0).val = 0 ∧ initial tm q (v 1))
+      (h : C ∈ [⟨2, g, [], some (tagAtom q 0 1)⟩]) :
+      C.Holds (targetModel B tm input) := by
+    obtain rfl := List.mem_singleton.mp h
+    intro v hgv _
+    exact (holds_tagAtom_target tm input q 0 1 v).mpr
+      (hinit_row (v 0) (v 1) (hg v hgv).1 (hg v hgv).2)
+  have hzero (P : Prop) [Decidable P] (hP : ∀ a : Fin B, P → initial tm q a)
+      (h : C ∈ if P then [⟨2, zeroGuard L 0, [], some (tagAtom q 0 1)⟩] else []) :
+      C.Holds (targetModel B tm input) := by
+    split_ifs at h with hp
+    · exact hpair (zeroGuard L 0) (fun v hv => ⟨(realize_zeroGuard 0 v).mp hv, hP (v 1) hp⟩) h
+    · cases h
   cases q with
-  | state q' =>
-    simp only [initClausesFor] at hC
-    split_ifs at hC with hq
-    · obtain rfl := List.mem_singleton.mp hC
-      intro v hg _
-      rw [realize_zeroGuard] at hg
-      simp only [Option.elim_some, holds_tagAtom, targetModel, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one]
-      exact hinit_row (v 0) (v 1) hg hq
-    · cases hC
-  | out o =>
-    simp only [initClausesFor] at hC
-    split_ifs at hC with ho
-    · obtain rfl := List.mem_singleton.mp hC
-      intro v hg _
-      rw [realize_zeroGuard] at hg
-      simp only [Option.elim_some, holds_tagAtom, targetModel, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one]
-      exact hinit_row (v 0) (v 1) hg ho
-    · cases hC
-  | inPos =>
-    obtain rfl := List.mem_singleton.mp hC
-    intro v hg _
-    rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard] at hg
-    obtain ⟨ht, ha⟩ := hg
-    simp only [Option.elim_some, holds_tagAtom, targetModel, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one]
-    exact hinit_row (v 0) (v 1) ht ha
-  | head i sign =>
-    obtain rfl := List.mem_singleton.mp hC
-    intro v hg _
-    rw [Formula.realize_inf, realize_zeroGuard, realize_zeroGuard] at hg
-    obtain ⟨ht, ha⟩ := hg
-    simp only [Option.elim_some, holds_tagAtom, targetModel, Set.mem_ofPred_eq,
-      Matrix.cons_val_zero, Matrix.cons_val_one]
-    exact hinit_row (v 0) (v 1) ht ha
-  | cell i sign s =>
-    simp only [initClausesFor] at hC
-    split_ifs at hC with hs
-    · obtain rfl := List.mem_singleton.mp hC
-      intro v hg _
-      rw [realize_zeroGuard] at hg
-      simp only [Option.elim_some, holds_tagAtom, targetModel, Set.mem_ofPred_eq,
-        Matrix.cons_val_zero, Matrix.cons_val_one]
-      exact hinit_row (v 0) (v 1) hg hs
-    · cases hC
+  | state q' => exact hzero (q' = some tm.q₀) (fun _ h => h) hC
+  | out o => exact hzero (o = .empty) (fun _ h => h) hC
+  | inPos => exact hpair (zeroGuard L 0 ⊓ oneGuard L 1) (fun v hv => by
+      rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard] at hv; exact hv) hC
+  | head i sign => exact hpair (zeroGuard L 0 ⊓ zeroGuard L 1) (fun v hv => by
+      rw [Formula.realize_inf, realize_zeroGuard, realize_zeroGuard] at hv; exact hv) hC
+  | cell i sign s => exact hzero (s = none) (fun _ h => h) hC
 
 variable [Fintype State] [DecidableEq State]
 
@@ -686,91 +680,70 @@ private theorem stepBodies_sound (tm : MultiTapeTM m Bool State) (input : List B
     rcases hbody with hhalt | ⟨y, ⟨_, hy⟩, rfl⟩
     · split_ifs at hhalt with hq
       · obtain rfl := List.mem_singleton.mp hhalt
-        have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-        simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-          Matrix.cons_val_one] at h1
+        have h1 := (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))
         exact Or.inl ⟨h1, hq⟩
       · cases hhalt
-    · have h1 := (holds_sitAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1
+    · have h1 := (holds_sitAtom_target tm input y 0 2 v).mp (hb _ (List.mem_cons_self ..))
       exact Or.inr ⟨y, hy, h1⟩
   | out o =>
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
     rcases hbody with rfl | ⟨⟨y, o'⟩, ⟨_, ho'⟩, rfl⟩
-    · have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inl ⟨h1, h2⟩
-    · have h1 := (holds_sitAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inr ⟨y, o', ho', h1, h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
+        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inr ⟨y, o', ho', (holds_sitAtom_target tm input y 0 2 v).mp h1,
+        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
   | inPos =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
     rcases hbody with rfl | ⟨y, _, rfl⟩
-    · have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inl ⟨h1, h2⟩
-    · have h1 := (holds_sitAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_inPrevAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inr ⟨y, h1, h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
+        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1,
+        (holds_inPrevAtom_target tm input _ 0 2 v).mp h2⟩
   | head i sign =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
     rcases hbody with rfl | ⟨y, _, rfl⟩
-    · have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inl ⟨h1, h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
+        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hb
-      have h1 := (holds_sitAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_headPrevAtom _ _ _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      refine Or.inr ⟨y, h1, ?_⟩
-      simpa only [hw] using h2
+      obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      refine Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1, ?_⟩
+      rw [hw]
+      exact (holds_headPrevAtom_target tm input i sign dir 0 2 v).mp h2
   | cell i sign s =>
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
     rcases hbody with rfl | rfl | ⟨⟨y, s'⟩, ⟨_, hs'⟩, rfl⟩
-    · have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inl ⟨h1, Or.inl h2⟩
-    · have h1 := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_elsewhereAtom _ _ _ _ _ _).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2
-      exact Or.inl ⟨h1, Or.inr h2⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
+        Or.inl ((holds_tagAtom_target tm input _ 0 2 v).mp h2)⟩
+    · obtain ⟨h1, h2⟩ := List.forall_mem_cons.mp hb
+      rw [List.forall_mem_singleton] at h2
+      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
+        Or.inr ((holds_elsewhereAtom_target tm input i sign 0 2 v).mp h2)⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hs'
-      have h1 := (holds_sitAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom _ _ _ _ _).mp
+      have h1 := (holds_sitAtom_target tm input y 0 2 v).mp (hb _ (List.mem_cons_self ..))
+      have h2 := (holds_tagAtom_target tm input _ 0 2 v).mp
         (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      have h3 := (holds_tagAtom _ _ _ _ _).mp
+      have h3 := (holds_tagAtom_target tm input _ 0 2 v).mp
         (hb _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))))
-      simp only [targetModel, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-        Matrix.cons_val_one] at h1 h2 h3
       refine Or.inr ⟨y, s', ?_, h1, h2, h3⟩
-      simpa only [hw] using hs'
+      rw [hw]
+      exact hs'
 
 private theorem holds_stepClausesFor_target (tm : MultiTapeTM m Bool State)
     {input : List Bool} (hn : input.length + 1 < B) (q : Tag m State) :
@@ -786,9 +759,9 @@ private theorem holds_stepClausesFor_target (tm : MultiTapeTM m Bool State)
     have := (v 1).isLt
     omega
   have hnext := (rowStep_row tm hn hb_pos q (v 2)).mp hstep
-  simp only [Option.elim_some, holds_tagAtom, targetModel, targetRow, Set.mem_ofPred_eq,
-    Matrix.cons_val_zero, Matrix.cons_val_one]
-  rwa [← hg, runFrom_succ]
+  refine (holds_tagAtom_target tm input q 1 2 v).mpr ?_
+  rw [targetRow, ← hg, runFrom_succ]
+  exact hnext
 
 private theorem closed_targetModel (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -830,36 +803,36 @@ private theorem holds_definiteClause_leastModel (tm : MultiTapeTM m Bool State)
   (tableauSentence L tm inputFormula).closed_leastModel C
     (List.mem_append_left _ hC) (definiteClause_isSome hC)
 
+private theorem leastModel_read_of_mem (tm : MultiTapeTM m Bool State)
+    (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
+    {i : Fin m} {s : Option Bool} {sign : Bool}
+    (hC : (⟨2, ⊤, [tagAtom (.head i sign) 0 1, tagAtom (.cell i sign s) 0 1],
+        some (readAtom i s 0)⟩ : TClause L m State) ∈ readClausesFor (State := State) L i s)
+    (t a : Fin B)
+    (hh : leastRow tm inputFormula t (.head i sign) a)
+    (hc : leastRow tm inputFormula t (.cell i sign s) a) :
+    ![t, t] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.read i s) := by
+  let C : TClause L m State :=
+    ⟨2, ⊤, [tagAtom (.head i sign) 0 1, tagAtom (.cell i sign s) 0 1], some (readAtom i s 0)⟩
+  have hdef : C ∈ definiteClauses L tm inputFormula := by
+    simp only [definiteClauses, List.mem_append]
+    left; left; left; left; left; left
+    exact List.mem_flatMap.mpr ⟨(i, s), mem_univList _, hC⟩
+  exact (holds_readAtom i s 0 _ ![t, a]).mp <|
+    holds_definiteClause_leastModel tm inputFormula hdef ![t, a]
+      (Formula.realize_top.mpr trivial) <|
+      List.forall_mem_cons.mpr ⟨(holds_tagAtom (.head i sign) 0 1 _ ![t, a]).mpr hh,
+        List.forall_mem_singleton.mpr ((holds_tagAtom (.cell i sign s) 0 1 _ ![t, a]).mpr hc)⟩
+
 private theorem leastModel_read (tm : MultiTapeTM m Bool State)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
     (t : Fin B) (i : Fin m) (s : Option Bool)
     (hr : ImmermanVardi.Tableau.read (leastRow tm inputFormula t) i s) :
     ![t, t] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.read i s) := by
-  have hmem_pair : (i, s) ∈ univList (Fin m × Option Bool) := mem_univList (i, s)
-  have hsign (sign : Bool) (a : Fin B)
-      (hh : leastRow tm inputFormula t (.head i sign) a)
-      (hc : leastRow tm inputFormula t (.cell i sign s) a) :
-      ![t, t] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.read i s) := by
-    let C : TClause L m State :=
-      ⟨2, ⊤, [tagAtom (.head i sign) 0 1, tagAtom (.cell i sign s) 0 1], some (readAtom i s 0)⟩
-    have hC : C ∈ definiteClauses L tm inputFormula := by
-      simp only [definiteClauses, List.mem_append]
-      left; left; left; left; left; left
-      refine List.mem_flatMap.mpr ⟨(i, s), hmem_pair, ?_⟩
-      cases sign
-      · exact List.mem_cons_of_mem _ (List.mem_cons_self ..)
-      · exact List.mem_cons_self ..
-    have hH := holds_definiteClause_leastModel tm inputFormula hC ![t, a]
-      (Formula.realize_top.mpr trivial)
-    have hres := hH fun b hb => by
-      simp only [C, List.mem_cons, List.not_mem_nil, or_false] at hb
-      rcases hb with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one] using hh
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one] using hc
-    simpa only [C, Option.elim_some, holds_readAtom, Matrix.cons_val_zero] using hres
   rcases hr with ⟨a, ⟨hh, hc⟩ | ⟨hh, hc⟩⟩
-  · exact hsign true a hh hc
-  · exact hsign false a hh hc
+  · exact leastModel_read_of_mem tm inputFormula (List.mem_cons_self ..) t a hh hc
+  · exact leastModel_read_of_mem tm inputFormula
+      (List.mem_cons_of_mem _ (List.mem_cons_self ..)) t a hh hc
 
 private theorem leastModel_sit (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -869,26 +842,38 @@ private theorem leastModel_sit (tm : MultiTapeTM m Bool State)
     ![t, a] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.sit y) := by
   rcases y with ⟨qy, inSym, workSyms⟩
   rcases hs with ⟨hst, ⟨j, hpos, hin⟩, hread⟩
-  let C : TClause L m State := sitClauseFor (State := State) L inputFormula ⟨qy, inSym, workSyms⟩
-  have hC : C ∈ definiteClauses L tm inputFormula := by
+  have hC : sitClauseFor (State := State) L inputFormula ⟨qy, inSym, workSyms⟩ ∈
+      definiteClauses L tm inputFormula := by
     simp only [definiteClauses, List.mem_append]
     left; left; left; left; left; right
     exact List.mem_map_of_mem (mem_univList _)
-  have hg : C.guard.Realize ![t, a, j] :=
-    (realize_inputGuard hinput inSym 2 ![t, a, j]).mpr hin
+  have hg := (realize_inputGuard hinput inSym 2 ![t, a, j]).mpr hin
   have hres := holds_definiteClause_leastModel tm inputFormula hC ![t, a, j] hg fun b hb => by
-    dsimp only [C, sitClauseFor] at hb
     rcases List.mem_cons.mp hb with rfl | hb
-    · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one]
-        using hst
+    · exact (holds_tagAtom _ 0 1 _ ![t, a, j]).mpr hst
     · rcases List.mem_cons.mp hb with rfl | hb
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hpos
+      · exact (holds_tagAtom .inPos 0 2 _ ![t, a, j]).mpr hpos
       · obtain ⟨i, _, rfl⟩ := List.mem_map.mp hb
-        simpa only [holds_readAtom, Matrix.cons_val_zero] using
-          leastModel_read tm inputFormula t i (workSyms i) (hread i)
-  simpa only [C, sitClauseFor, Option.elim_some, holds_sitAtom, Matrix.cons_val_zero,
-    Matrix.cons_val_one] using hres
+        exact (holds_readAtom i (workSyms i) 0 _ ![t, a, j]).mpr
+          (leastModel_read tm inputFormula t i (workSyms i) (hread i))
+  exact (holds_sitAtom ⟨qy, inSym, workSyms⟩ 0 1 _ ![t, a, j]).mp hres
+
+private theorem leastModel_elsewhere_of_mem (tm : MultiTapeTM m Bool State)
+    (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
+    {i : Fin m} {sign : Bool} {g : (Ordered.language L).Formula (Fin 3)} {q : Tag m State}
+    (hC : (⟨3, g, [tagAtom q 0 2], some (elsewhereAtom i sign 0 1)⟩ : TClause L m State) ∈
+      elsewhereClausesFor (State := State) L i sign)
+    (t a b : Fin B) (hg : g.Realize ![t, a, b])
+    (htag : leastRow tm inputFormula t q b) :
+    ![t, a] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.elsewhere i sign) := by
+  let C : TClause L m State := ⟨3, g, [tagAtom q 0 2], some (elsewhereAtom i sign 0 1)⟩
+  have hdef : C ∈ definiteClauses L tm inputFormula := by
+    simp only [definiteClauses, List.mem_append]
+    left; left; left; left; right
+    exact List.mem_flatMap.mpr ⟨(i, sign), mem_univList _, hC⟩
+  exact (holds_elsewhereAtom i sign 0 1 _ ![t, a, b]).mp <|
+    holds_definiteClause_leastModel tm inputFormula hdef ![t, a, b] hg <|
+      List.forall_mem_singleton.mpr ((holds_tagAtom q 0 2 _ ![t, a, b]).mpr htag)
 
 private theorem leastModel_elsewhere (tm : MultiTapeTM m Bool State)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
@@ -897,39 +882,30 @@ private theorem leastModel_elsewhere (tm : MultiTapeTM m Bool State)
     ![t, a] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B)
       (.elsewhere i sign) := by
   rcases he with ⟨b, ⟨hh, hne⟩ | ⟨hh, hnz⟩⟩
-  · let C : TClause L m State :=
-      ⟨3, ∼(Term.equal (.var 2) (.var 1)), [tagAtom (.head i sign) 0 2],
-        some (elsewhereAtom i sign 0 1)⟩
-    have hC : C ∈ definiteClauses L tm inputFormula := by
-      simp only [definiteClauses, List.mem_append]
-      left; left; left; left; right
-      exact List.mem_flatMap.mpr ⟨(i, sign), mem_univList _, List.mem_cons_self ..⟩
-    have hg : C.guard.Realize ![t, a, b] := by
+  · exact leastModel_elsewhere_of_mem tm inputFormula (List.mem_cons_self ..) t a b (by
       rw [Formula.realize_not, Formula.realize_equal, Term.realize_var, Term.realize_var]
-      exact hne
-    have hres := holds_definiteClause_leastModel tm inputFormula hC ![t, a, b] hg fun x hx => by
-      obtain rfl := List.mem_singleton.mp hx
-      simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-        Matrix.head_cons] using hh
-    simpa only [C, Option.elim_some, holds_elsewhereAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
-  · let C : TClause L m State :=
-      ⟨3, ∼(zeroGuard L 2 ⊓ zeroGuard L 1), [tagAtom (.head i (!sign)) 0 2],
-        some (elsewhereAtom i sign 0 1)⟩
-    have hC : C ∈ definiteClauses L tm inputFormula := by
-      simp only [definiteClauses, List.mem_append]
-      left; left; left; left; right
-      exact List.mem_flatMap.mpr ⟨(i, sign), mem_univList _,
-        List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩
-    have hg : C.guard.Realize ![t, a, b] := by
+      exact hne) hh
+  · exact leastModel_elsewhere_of_mem tm inputFormula
+      (List.mem_cons_of_mem _ (List.mem_cons_self ..)) t a b (by
       rw [Formula.realize_not, Formula.realize_inf, realize_zeroGuard, realize_zeroGuard]
-      exact hnz
-    have hres := holds_definiteClause_leastModel tm inputFormula hC ![t, a, b] hg fun x hx => by
-      obtain rfl := List.mem_singleton.mp hx
-      simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-        Matrix.head_cons] using hh
-    simpa only [C, Option.elim_some, holds_elsewhereAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+      exact hnz) hh
+
+private theorem leastModel_inPrev_of_mem (tm : MultiTapeTM m Bool State)
+    (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
+    {d : SignType} {n : ℕ} {g : (Ordered.language L).Formula (Fin (n + 2))} {idx : Fin (n + 2)}
+    (hC : (⟨n + 2, g, [tagAtom .inPos 0 idx], some (inPrevAtom d 0 1)⟩ : TClause L m State) ∈
+      inPrevClausesFor (m := m) (State := State) L inputFormula d)
+    (v : Fin (n + 2) → Fin B) (hg : g.Realize v)
+    (htag : leastRow tm inputFormula (v 0) .inPos (v idx)) :
+    ![v 0, v 1] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.inPrev d) := by
+  let C : TClause L m State := ⟨n + 2, g, [tagAtom .inPos 0 idx], some (inPrevAtom d 0 1)⟩
+  have hdef : C ∈ definiteClauses L tm inputFormula := by
+    simp only [definiteClauses, List.mem_append]
+    left; left; left; right
+    exact List.mem_flatMap.mpr ⟨d, mem_signs d, hC⟩
+  exact (holds_inPrevAtom d 0 1 _ v).mp <|
+    holds_definiteClause_leastModel tm inputFormula hdef v hg <|
+      List.forall_mem_singleton.mpr ((holds_tagAtom .inPos 0 idx _ v).mpr htag)
 
 private theorem leastModel_inPrev (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -937,78 +913,49 @@ private theorem leastModel_inPrev (tm : MultiTapeTM m Bool State)
     (t a : Fin B) (d : SignType)
     (hp : inputPrev input (leastRow tm inputFormula t) d a) :
     ![t, a] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.inPrev d) := by
-  have hmem_inPrev {C : TClause L m State}
-      (hC : C ∈ inPrevClausesFor (m := m) (State := State) L inputFormula d) :
-      C ∈ definiteClauses L tm inputFormula := by
-    simp only [definiteClauses, List.mem_append]
-    left; left; left; right
-    exact List.mem_flatMap.mpr ⟨d, mem_signs d, hC⟩
   cases d with
   | zero =>
     dsimp only [inputPrev] at hp
-    let C : TClause L m State := ⟨2, ⊤, [tagAtom .inPos 0 1], some (inPrevAtom .zero 0 1)⟩
-    have hres := holds_definiteClause_leastModel tm inputFormula
-      (hmem_inPrev (List.mem_cons_self ..)) ![t, a] (Formula.realize_top.mpr trivial)
-      fun x hx => by
-        obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one]
-          using hp
-    simpa only [C, Option.elim_some, holds_inPrevAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    exact leastModel_inPrev_of_mem tm inputFormula (n := 0) (idx := 1)
+      (List.mem_cons_self ..) ![t, a] (Formula.realize_top.mpr trivial) hp
   | neg =>
     rcases hp with ⟨ha, hh⟩ | ⟨b, hb, hh⟩
-    · let C : TClause L m State :=
-        ⟨2, zeroGuard L 1, [tagAtom .inPos 0 1], some (inPrevAtom .neg 0 1)⟩
-      have hg : C.guard.Realize ![t, a] := (realize_zeroGuard 1 ![t, a]).mpr ha
-      have hres := holds_definiteClause_leastModel tm inputFormula
-        (hmem_inPrev (List.mem_cons_self ..)) ![t, a] hg fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one]
-            using hh
-      simpa only [C, Option.elim_some, holds_inPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
-    · let C : TClause L m State :=
-        ⟨3, succGuard L 1 2, [tagAtom .inPos 0 2], some (inPrevAtom .neg 0 1)⟩
-      have hg : C.guard.Realize ![t, a, b] := (realize_succGuard 1 2 ![t, a, b]).mpr hb
-      have hres := holds_definiteClause_leastModel tm inputFormula
-        (hmem_inPrev (List.mem_cons_of_mem _ (List.mem_cons_self ..))) ![t, a, b] hg
-        fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hh
-      simpa only [C, Option.elim_some, holds_inPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
+    · exact leastModel_inPrev_of_mem tm inputFormula (n := 0) (idx := 1)
+        (List.mem_cons_self ..) ![t, a] ((realize_zeroGuard 1 ![t, a]).mpr ha) hh
+    · exact leastModel_inPrev_of_mem tm inputFormula (n := 1) (idx := 2)
+        (List.mem_cons_of_mem _ (List.mem_cons_self ..)) ![t, a, b]
+        ((realize_succGuard 1 2 ![t, a, b]).mpr hb) hh
   | pos =>
     rcases hp with ⟨hne, hnone, hh⟩ | ⟨b, hb, hh, hor⟩
-    · let C : TClause L m State :=
-        ⟨2, ∼(zeroGuard L 1) ⊓ inputGuard inputFormula none 1,
-          [tagAtom .inPos 0 1], some (inPrevAtom .pos 0 1)⟩
-      have hg : C.guard.Realize ![t, a] := by
-        rw [Formula.realize_inf, Formula.realize_not, realize_zeroGuard,
-          realize_inputGuard hinput]
-        exact ⟨hne, hnone⟩
-      have hres := holds_definiteClause_leastModel tm inputFormula
-        (hmem_inPrev (List.mem_cons_self ..)) ![t, a] hg fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one]
-            using hh
-      simpa only [C, Option.elim_some, holds_inPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
-    · let C : TClause L m State :=
-        ⟨3, succGuard L 2 1 ⊓ (zeroGuard L 2 ⊔ ∼(inputGuard inputFormula none 2)),
-          [tagAtom .inPos 0 2], some (inPrevAtom .pos 0 1)⟩
-      have hg : C.guard.Realize ![t, a, b] := by
-        rw [Formula.realize_inf, realize_succGuard, Formula.realize_sup, realize_zeroGuard,
-          Formula.realize_not, realize_inputGuard hinput]
-        exact ⟨hb, hor⟩
-      have hres := holds_definiteClause_leastModel tm inputFormula
-        (hmem_inPrev (List.mem_cons_of_mem _ (List.mem_cons_self ..))) ![t, a, b] hg
-        fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hh
-      simpa only [C, Option.elim_some, holds_inPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
+    · refine leastModel_inPrev_of_mem tm inputFormula (n := 0) (idx := 1)
+        (List.mem_cons_self ..) ![t, a] ?_ hh
+      rw [Formula.realize_inf, Formula.realize_not, realize_zeroGuard, realize_inputGuard hinput]
+      exact ⟨hne, hnone⟩
+    · refine leastModel_inPrev_of_mem tm inputFormula (n := 1) (idx := 2)
+        (List.mem_cons_of_mem _ (List.mem_cons_self ..)) ![t, a, b] ?_ hh
+      rw [Formula.realize_inf, realize_succGuard, Formula.realize_sup, realize_zeroGuard,
+        Formula.realize_not, realize_inputGuard hinput]
+      exact ⟨hb, hor⟩
+
+private theorem leastModel_headPrev_of_mem (tm : MultiTapeTM m Bool State)
+    (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
+    {i : Fin m} {sign : Bool} {d : SignType}
+    {n : ℕ} {g : (Ordered.language L).Formula (Fin (n + 2))} {q : Tag m State}
+    {idx : Fin (n + 2)}
+    (hC : (⟨n + 2, g, [tagAtom q 0 idx], some (headPrevAtom i sign d 0 1)⟩ : TClause L m State) ∈
+      headPrevClausesFor (State := State) L i sign d)
+    (v : Fin (n + 2) → Fin B) (hg : g.Realize v)
+    (htag : leastRow tm inputFormula (v 0) q (v idx)) :
+    ![v 0, v 1] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B) (.headPrev i sign d) := by
+  let C : TClause L m State := ⟨n + 2, g, [tagAtom q 0 idx], some (headPrevAtom i sign d 0 1)⟩
+  have hdef : C ∈ definiteClauses L tm inputFormula := by
+    simp only [definiteClauses, List.mem_append]
+    left; left; right
+    exact List.mem_flatMap.mpr ⟨(i, sign), mem_univList _,
+      List.mem_flatMap.mpr ⟨d, mem_signs d, hC⟩⟩
+  exact (holds_headPrevAtom i sign d 0 1 _ v).mp <|
+    holds_definiteClause_leastModel tm inputFormula hdef v hg <|
+      List.forall_mem_singleton.mpr ((holds_tagAtom q 0 idx _ v).mpr htag)
 
 private theorem leastModel_headPrev (tm : MultiTapeTM m Bool State)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
@@ -1016,133 +963,67 @@ private theorem leastModel_headPrev (tm : MultiTapeTM m Bool State)
     (hp : headPrev (leastRow tm inputFormula t) i sign d a) :
     ![t, a] ∈ (tableauSentence L tm inputFormula).leastModel (Fin B)
       (.headPrev i sign d) := by
-  have hmem_hp {C : TClause L m State}
-      (hC : C ∈ headPrevClausesFor (State := State) L i sign d) :
-      C ∈ definiteClauses L tm inputFormula := by
-    simp only [definiteClauses, List.mem_append]
-    left; left; right
-    exact List.mem_flatMap.mpr ⟨(i, sign), mem_univList _,
-      List.mem_flatMap.mpr ⟨d, mem_signs d, hC⟩⟩
   unfold headPrev at hp
   cases hdir : (if sign then d else -d) <;> simp only [hdir] at hp
-  · let C : TClause L m State :=
-      ⟨2, ⊤, [tagAtom (.head i sign) 0 1], some (headPrevAtom i sign d 0 1)⟩
-    have hC : C ∈ headPrevClausesFor (State := State) L i sign d := by
-      simp only [C, headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false]
-    have hres := holds_definiteClause_leastModel tm inputFormula (hmem_hp hC) ![t, a]
-      (Formula.realize_top.mpr trivial) fun x hx => by
-        obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one]
-          using hp
-    simpa only [C, Option.elim_some, holds_headPrevAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+  · refine leastModel_headPrev_of_mem tm inputFormula (n := 0) (idx := 1) ?_ ![t, a]
+      (Formula.realize_top.mpr trivial) hp
+    simp only [headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false]
   · rcases hp with ⟨b, hb, hh⟩
-    let C : TClause L m State :=
-      ⟨3, succGuard L 1 2, [tagAtom (.head i sign) 0 2], some (headPrevAtom i sign d 0 1)⟩
-    have hC : C ∈ headPrevClausesFor (State := State) L i sign d := by
-      simp only [C, headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false]
-    have hg : C.guard.Realize ![t, a, b] := (realize_succGuard 1 2 ![t, a, b]).mpr hb
-    have hres := holds_definiteClause_leastModel tm inputFormula (hmem_hp hC) ![t, a, b] hg
-      fun x hx => by
-        obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hh
-    simpa only [C, Option.elim_some, holds_headPrevAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_headPrev_of_mem tm inputFormula (n := 1) (idx := 2) ?_ ![t, a, b]
+      ((realize_succGuard 1 2 ![t, a, b]).mpr hb) hh
+    simp only [headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false]
   · rcases hp with ⟨ha, b, hb, hh⟩ | ⟨b, hb, hh⟩
-    · let C : TClause L m State :=
-        ⟨3, zeroGuard L 1 ⊓ oneGuard L 2, [tagAtom (.head i (!sign)) 0 2],
-          some (headPrevAtom i sign d 0 1)⟩
-      have hC : C ∈ headPrevClausesFor (State := State) L i sign d := by
-        simp only [C, headPrevClausesFor, hdir, List.mem_cons, true_or]
-      have hg : C.guard.Realize ![t, a, b] := by
-        rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard]
-        exact ⟨ha, hb⟩
-      have hres := holds_definiteClause_leastModel tm inputFormula (hmem_hp hC) ![t, a, b] hg
-        fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hh
-      simpa only [C, Option.elim_some, holds_headPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
-    · let C : TClause L m State :=
-        ⟨3, succGuard L 2 1, [tagAtom (.head i sign) 0 2], some (headPrevAtom i sign d 0 1)⟩
-      have hC : C ∈ headPrevClausesFor (State := State) L i sign d := by
-        simp only [C, headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false, or_true]
-      have hg : C.guard.Realize ![t, a, b] := (realize_succGuard 2 1 ![t, a, b]).mpr hb
-      have hres := holds_definiteClause_leastModel tm inputFormula (hmem_hp hC) ![t, a, b] hg
-        fun x hx => by
-          obtain rfl := List.mem_singleton.mp hx
-          simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hh
-      simpa only [C, Option.elim_some, holds_headPrevAtom, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using hres
+    · refine leastModel_headPrev_of_mem tm inputFormula (n := 1) (idx := 2) ?_ ![t, a, b]
+        (Formula.realize_inf.mpr
+          ⟨(realize_zeroGuard 1 ![t, a, b]).mpr ha, (realize_oneGuard 2 ![t, a, b]).mpr hb⟩)
+        hh
+      simp only [headPrevClausesFor, hdir, List.mem_cons, true_or]
+    · refine leastModel_headPrev_of_mem tm inputFormula (n := 1) (idx := 2) ?_ ![t, a, b]
+        ((realize_succGuard 2 1 ![t, a, b]).mpr hb) hh
+      simp only [headPrevClausesFor, hdir, List.mem_cons, List.not_mem_nil, or_false, or_true]
+
+private theorem leastModel_init_of_mem (tm : MultiTapeTM m Bool State)
+    (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
+    {q : Tag m State} {g : (Ordered.language L).Formula (Fin 2)}
+    (hC : (⟨2, g, [], some (tagAtom q 0 1)⟩ : TClause L m State) ∈ initClausesFor L tm q)
+    (t a : Fin B) (hg : g.Realize ![t, a]) :
+    leastRow tm inputFormula t q a := by
+  let C : TClause L m State := ⟨2, g, [], some (tagAtom q 0 1)⟩
+  have hdef : C ∈ definiteClauses L tm inputFormula := by
+    simp only [definiteClauses, List.mem_append]
+    left; right
+    exact List.mem_flatMap.mpr ⟨q, mem_univList q, hC⟩
+  exact (holds_tagAtom q 0 1 _ ![t, a]).mp <|
+    holds_definiteClause_leastModel tm inputFormula hdef ![t, a] hg fun _ hx => nomatch hx
 
 private theorem leastModel_init (tm : MultiTapeTM m Bool State)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
     (t a : Fin B) (ht : t.val = 0) (q : Tag m State) (hi : initial tm q a) :
     leastRow tm inputFormula t q a := by
-  have hmem_init {C : TClause L m State} (hC : C ∈ initClausesFor L tm q) :
-      C ∈ definiteClauses L tm inputFormula := by
-    simp only [definiteClauses, List.mem_append]
-    left; right
-    exact List.mem_flatMap.mpr ⟨q, mem_univList q, hC⟩
   cases q with
   | state q' =>
     have hq : q' = some tm.q₀ := hi
     subst hq
-    let C : TClause L m State :=
-      ⟨2, zeroGuard L 0, [], some (tagAtom (.state (some tm.q₀)) 0 1)⟩
-    have hC : C ∈ initClausesFor L tm (.state (some tm.q₀)) := by
-      simp only [C, initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
-    have hg : C.guard.Realize ![t, a] := (realize_zeroGuard 0 ![t, a]).mpr ht
-    have hres := holds_definiteClause_leastModel tm inputFormula (hmem_init hC) ![t, a] hg
-      fun _ hx => nomatch hx
-    simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_init_of_mem tm inputFormula ?_ t a ((realize_zeroGuard 0 ![t, a]).mpr ht)
+    simp only [initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
   | out o =>
     have ho : o = .empty := hi
     subst ho
-    let C : TClause L m State := ⟨2, zeroGuard L 0, [], some (tagAtom (.out .empty) 0 1)⟩
-    have hC : C ∈ initClausesFor L tm (.out .empty) := by
-      simp only [C, initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
-    have hg : C.guard.Realize ![t, a] := (realize_zeroGuard 0 ![t, a]).mpr ht
-    have hres := holds_definiteClause_leastModel tm inputFormula (hmem_init hC) ![t, a] hg
-      fun _ hx => nomatch hx
-    simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_init_of_mem tm inputFormula ?_ t a ((realize_zeroGuard 0 ![t, a]).mpr ht)
+    simp only [initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
   | inPos =>
-    let C : TClause L m State :=
-      ⟨2, zeroGuard L 0 ⊓ oneGuard L 1, [], some (tagAtom .inPos 0 1)⟩
-    have hg : C.guard.Realize ![t, a] := by
-      rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard]
-      exact ⟨ht, hi⟩
-    have hres := holds_definiteClause_leastModel tm inputFormula
-      (hmem_init (List.mem_cons_self ..)) ![t, a] hg fun _ hx => nomatch hx
-    simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_init_of_mem tm inputFormula (List.mem_cons_self ..) t a ?_
+    rw [Formula.realize_inf, realize_zeroGuard, realize_oneGuard]
+    exact ⟨ht, hi⟩
   | head i sign =>
-    let C : TClause L m State :=
-      ⟨2, zeroGuard L 0 ⊓ zeroGuard L 1, [], some (tagAtom (.head i sign) 0 1)⟩
-    have hg : C.guard.Realize ![t, a] := by
-      rw [Formula.realize_inf, realize_zeroGuard, realize_zeroGuard]
-      exact ⟨ht, hi⟩
-    have hres := holds_definiteClause_leastModel tm inputFormula
-      (hmem_init (List.mem_cons_self ..)) ![t, a] hg fun _ hx => nomatch hx
-    simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_init_of_mem tm inputFormula (List.mem_cons_self ..) t a ?_
+    rw [Formula.realize_inf, realize_zeroGuard, realize_zeroGuard]
+    exact ⟨ht, hi⟩
   | cell i sign s =>
     have hs : s = none := hi
     subst hs
-    let C : TClause L m State :=
-      ⟨2, zeroGuard L 0, [], some (tagAtom (.cell i sign none) 0 1)⟩
-    have hC : C ∈ initClausesFor L tm (.cell i sign none) := by
-      simp only [C, initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
-    have hg : C.guard.Realize ![t, a] := (realize_zeroGuard 0 ![t, a]).mpr ht
-    have hres := holds_definiteClause_leastModel tm inputFormula (hmem_init hC) ![t, a] hg
-      fun _ hx => nomatch hx
-    simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hres
+    refine leastModel_init_of_mem tm inputFormula ?_ t a ((realize_zeroGuard 0 ![t, a]).mpr ht)
+    simp only [initClausesFor, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false]
 
 private theorem stepBodies_complete (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -1155,112 +1036,78 @@ private theorem stepBodies_complete (tm : MultiTapeTM m Bool State)
   cases q with
   | state q' =>
     rcases hs with ⟨hhalt, hq⟩ | ⟨y, hy, hsit⟩
-    · refine ⟨[tagAtom (.state none) 0 2], ?_, fun x hx => ?_⟩
-      · simp only [stepBodies, hq, ↓reduceIte, List.mem_append, List.mem_cons, true_or]
-      · obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhalt
-    · refine ⟨[sitAtom y 0 2], ?_, fun x hx => ?_⟩
-      · simp only [stepBodies, List.mem_append]
-        right
-        exact List.mem_map_of_mem (List.mem_filter.mpr ⟨mem_univList y, decide_eq_true hy⟩)
-      · obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_sitAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using leastModel_sit tm hinput t a y hsit
+    · refine ⟨[tagAtom (.state none) 0 2], ?_,
+        List.forall_mem_singleton.mpr ((holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt)⟩
+      simp only [stepBodies, hq, ↓reduceIte, List.mem_append, List.mem_cons, true_or]
+    · refine ⟨[sitAtom y 0 2], ?_, List.forall_mem_singleton.mpr
+        ((holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit))⟩
+      simp only [stepBodies, List.mem_append]
+      right
+      exact List.mem_map_of_mem (List.mem_filter.mpr ⟨mem_univList y, decide_eq_true hy⟩)
   | out o =>
     rcases hs with ⟨hhalt, hout⟩ | ⟨y, o', ho', hsit, hout⟩
-    · refine ⟨[tagAtom (.state none) 0 2, tagAtom (.out o) 0 2], List.mem_cons_self ..,
-        fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhalt
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hout
-    · refine ⟨[sitAtom y 0 2, tagAtom (.out o') 0 2], ?_, fun x hx => ?_⟩
-      · exact List.mem_cons_of_mem _ (List.mem_map.mpr
-          ⟨(y, o'), List.mem_filter.mpr ⟨mem_univList (y, o'), decide_eq_true ho'⟩, rfl⟩)
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-        rcases hx with rfl | rfl
-        · simpa only [holds_sitAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using leastModel_sit tm hinput t a y hsit
-        · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hout
+    · exact ⟨[tagAtom (.state none) 0 2, tagAtom (.out o) 0 2], List.mem_cons_self ..,
+        List.forall_mem_cons.mpr
+          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
+           List.forall_mem_singleton.mpr ((holds_tagAtom (.out o) 0 2 _ ![t, t', a]).mpr hout)⟩⟩
+    · refine ⟨[sitAtom y 0 2, tagAtom (.out o') 0 2], ?_, List.forall_mem_cons.mpr
+        ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
+         List.forall_mem_singleton.mpr ((holds_tagAtom (.out o') 0 2 _ ![t, t', a]).mpr hout)⟩⟩
+      exact List.mem_cons_of_mem _ (List.mem_map.mpr
+        ⟨(y, o'), List.mem_filter.mpr ⟨mem_univList (y, o'), decide_eq_true ho'⟩, rfl⟩)
   | inPos =>
     rcases hs with ⟨hhalt, hpos⟩ | ⟨y, hsit, hprev⟩
-    · refine ⟨[tagAtom (.state none) 0 2, tagAtom .inPos 0 2], List.mem_cons_self ..,
-        fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhalt
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hpos
-    · refine ⟨[sitAtom y 0 2, inPrevAtom (tm.actionOf y).inputTape 0 2],
-        List.mem_cons_of_mem _ (List.mem_map_of_mem (mem_univList y)), fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_sitAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using leastModel_sit tm hinput t a y hsit
-      · simpa only [holds_inPrevAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using leastModel_inPrev tm hinput t a _ hprev
+    · exact ⟨[tagAtom (.state none) 0 2, tagAtom .inPos 0 2], List.mem_cons_self ..,
+        List.forall_mem_cons.mpr
+          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
+           List.forall_mem_singleton.mpr ((holds_tagAtom .inPos 0 2 _ ![t, t', a]).mpr hpos)⟩⟩
+    · exact ⟨[sitAtom y 0 2, inPrevAtom (tm.actionOf y).inputTape 0 2],
+        List.mem_cons_of_mem _ (List.mem_map_of_mem (mem_univList y)),
+        List.forall_mem_cons.mpr
+          ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
+           List.forall_mem_singleton.mpr ((holds_inPrevAtom _ 0 2 _ ![t, t', a]).mpr
+             (leastModel_inPrev tm hinput t a _ hprev))⟩⟩
   | head i sign =>
     rcases hs with ⟨hhalt, hhead⟩ | ⟨y, hsit, hprev⟩
-    · refine ⟨[tagAtom (.state none) 0 2, tagAtom (.head i sign) 0 2], List.mem_cons_self ..,
-        fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhalt
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhead
+    · exact ⟨[tagAtom (.state none) 0 2, tagAtom (.head i sign) 0 2], List.mem_cons_self ..,
+        List.forall_mem_cons.mpr
+          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
+           List.forall_mem_singleton.mpr
+             ((holds_tagAtom (.head i sign) 0 2 _ ![t, t', a]).mpr hhead)⟩⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hprev
-      refine ⟨[sitAtom y 0 2, headPrevAtom i sign dir 0 2], ?_, fun x hx => ?_⟩
-      · refine List.mem_cons_of_mem _ (List.mem_map.mpr ⟨y, mem_univList y, ?_⟩)
-        simp only [hw]
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-        rcases hx with rfl | rfl
-        · simpa only [holds_sitAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using leastModel_sit tm hinput t a y hsit
-        · simpa only [holds_headPrevAtom, Matrix.cons_val_zero, Matrix.cons_val_two,
-            Matrix.tail_cons, Matrix.head_cons] using
-            leastModel_headPrev tm inputFormula t a i sign dir hprev
+      refine ⟨[sitAtom y 0 2, headPrevAtom i sign dir 0 2], ?_, List.forall_mem_cons.mpr
+        ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
+         List.forall_mem_singleton.mpr ((holds_headPrevAtom i sign dir 0 2 _ ![t, t', a]).mpr
+           (leastModel_headPrev tm inputFormula t a i sign dir hprev))⟩⟩
+      refine List.mem_cons_of_mem _ (List.mem_map.mpr ⟨y, mem_univList y, ?_⟩)
+      simp only [hw]
   | cell i sign s =>
     rcases hs with ⟨hcell, hhalt | helse⟩ | ⟨y, s', hs', hsit, hhead, hcell⟩
-    · refine ⟨[tagAtom (.cell i sign s) 0 2, tagAtom (.state none) 0 2], List.mem_cons_self ..,
-        fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hcell
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hhalt
-    · refine ⟨[tagAtom (.cell i sign s) 0 2, elsewhereAtom i sign 0 2],
-        List.mem_cons_of_mem _ (List.mem_cons_self ..), fun x hx => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-          Matrix.head_cons] using hcell
-      · simpa only [holds_elsewhereAtom, Matrix.cons_val_zero, Matrix.cons_val_two,
-          Matrix.tail_cons, Matrix.head_cons] using
-          leastModel_elsewhere tm inputFormula t a i sign helse
+    · exact ⟨[tagAtom (.cell i sign s) 0 2, tagAtom (.state none) 0 2], List.mem_cons_self ..,
+        List.forall_mem_cons.mpr
+          ⟨(holds_tagAtom (.cell i sign s) 0 2 _ ![t, t', a]).mpr hcell,
+           List.forall_mem_singleton.mpr
+             ((holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt)⟩⟩
+    · exact ⟨[tagAtom (.cell i sign s) 0 2, elsewhereAtom i sign 0 2],
+        List.mem_cons_of_mem _ (List.mem_cons_self ..),
+        List.forall_mem_cons.mpr
+          ⟨(holds_tagAtom (.cell i sign s) 0 2 _ ![t, t', a]).mpr hcell,
+           List.forall_mem_singleton.mpr ((holds_elsewhereAtom i sign 0 2 _ ![t, t', a]).mpr
+             (leastModel_elsewhere tm inputFormula t a i sign helse))⟩⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hs'
-      refine ⟨[sitAtom y 0 2, tagAtom (.head i sign) 0 2, tagAtom (.cell i sign s') 0 2],
-        ?_, fun x hx => ?_⟩
-      · refine List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (List.mem_map.mpr ⟨(y, s'), List.mem_filter.mpr ⟨mem_univList (y, s'), ?_⟩, rfl⟩))
-        simp only [hw, decide_eq_true_eq]
-        exact hs'
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-        rcases hx with rfl | rfl | rfl
-        · simpa only [holds_sitAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using leastModel_sit tm hinput t a y hsit
-        · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hhead
-        · simpa only [holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons,
-            Matrix.head_cons] using hcell
+      refine ⟨[sitAtom y 0 2, tagAtom (.head i sign) 0 2, tagAtom (.cell i sign s') 0 2], ?_,
+        List.forall_mem_cons.mpr
+          ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
+           List.forall_mem_cons.mpr
+             ⟨(holds_tagAtom (.head i sign) 0 2 _ ![t, t', a]).mpr hhead,
+              List.forall_mem_singleton.mpr
+                ((holds_tagAtom (.cell i sign s') 0 2 _ ![t, t', a]).mpr hcell)⟩⟩⟩
+      refine List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (List.mem_map.mpr ⟨(y, s'), List.mem_filter.mpr ⟨mem_univList (y, s'), ?_⟩, rfl⟩))
+      simp only [hw, decide_eq_true_eq]
+      exact hs'
 
 private theorem leastModel_step (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -1269,15 +1116,14 @@ private theorem leastModel_step (tm : MultiTapeTM m Bool State)
     (hs : rowStep tm input (leastRow tm inputFormula t) q a) :
     leastRow tm inputFormula t' q a := by
   obtain ⟨body, hbody, hholds⟩ := stepBodies_complete tm hinput t t' a q hs
-  let C : TClause L m State := ⟨3, succGuard L 0 1, body, some (tagAtom q 1 2)⟩
-  have hC : C ∈ definiteClauses L tm inputFormula := by
+  have hC : (⟨3, succGuard L 0 1, body, some (tagAtom q 1 2)⟩ : TClause L m State) ∈
+      definiteClauses L tm inputFormula := by
     simp only [definiteClauses, List.mem_append]
     right
     exact List.mem_flatMap.mpr ⟨q, mem_univList q, List.mem_map_of_mem hbody⟩
-  have hg : C.guard.Realize ![t, t', a] := (realize_succGuard 0 1 ![t, t', a]).mpr htt'
-  have hres := holds_definiteClause_leastModel tm inputFormula hC ![t, t', a] hg hholds
-  simpa only [C, Option.elim_some, holds_tagAtom, Matrix.cons_val_zero, Matrix.cons_val_one,
-    Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons] using hres
+  exact (holds_tagAtom q 1 2 _ ![t, t', a]).mp <|
+    holds_definiteClause_leastModel tm inputFormula hC ![t, t', a]
+      ((realize_succGuard 0 1 ![t, t', a]).mpr htt') hholds
 
 private theorem targetRow_le_leastRow (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -1318,10 +1164,8 @@ private theorem mem_leastModel_tag_acceptanceHornSentence
       row (tm.runFrom (tm.initCfg input) t.val) q a := by
   constructor
   · intro hmem
-    have hle := (tableauSentence L tm inputFormula).leastModel_le
+    exact (tableauSentence L tm inputFormula).leastModel_le
       (closed_targetModel tm hinput hn) (.tag q) hmem
-    simpa only [targetModel, targetRow, Set.mem_ofPred_eq, Matrix.cons_val_zero,
-      Matrix.cons_val_one] using hle
   · intro hrow
     exact targetRow_le_leastRow tm hinput hn t.val t rfl q a hrow
 
@@ -1366,11 +1210,10 @@ theorem realize_acceptanceHornSentence
         have hrow : row cfgMax (.state (some s)) (maxFin B) := hst
         have hmem := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
           (.state (some s)) (maxFin B) (maxFin B)).mpr (by simpa only [hmax_val] using hrow)
-        have hfalse := hs s (mem_univList s) ![maxFin B]
-          ((realize_maxGuard 0 ![maxFin B]).mpr rfl) fun x hx => by
-            obtain rfl := List.mem_singleton.mp hx
-            simpa only [holds_tagAtom, Matrix.cons_val_zero] using hmem
-        exact False.elim hfalse
+        exact False.elim (hs s (mem_univList s) ![maxFin B]
+          ((realize_maxGuard 0 ![maxFin B]).mpr rfl)
+          (List.forall_mem_singleton.mpr
+            ((holds_tagAtom (.state (some s)) 0 0 _ ![maxFin B]).mpr hmem)))
     · intro hhalt s _ v hg hb
       have hv0 : v 0 = maxFin B := (realize_maxGuard 0 v).mp hg
       have hmem := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
@@ -1394,9 +1237,9 @@ theorem realize_acceptanceHornSentence
       have hmem := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
         (.out (OutView.ofList cfgMax.output)) (maxFin B) (maxFin B)).mpr
         (by simpa only [hmax_val] using hrow)
-      exact ho _ hrej ![maxFin B] ((realize_maxGuard 0 ![maxFin B]).mpr rfl) fun x hx => by
-        obtain rfl := List.mem_singleton.mp hx
-        simpa only [holds_tagAtom, Matrix.cons_val_zero] using hmem
+      exact ho _ hrej ![maxFin B] ((realize_maxGuard 0 ![maxFin B]).mpr rfl)
+        (List.forall_mem_singleton.mpr
+          ((holds_tagAtom (.out (OutView.ofList cfgMax.output)) 0 0 _ ![maxFin B]).mpr hmem))
     · intro heq o ho v hg hb
       have hv0 : v 0 = maxFin B := (realize_maxGuard 0 v).mp hg
       have hmem := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))

@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.QueryScan
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native residue-class query lists
@@ -182,22 +183,12 @@ theorem exec {w : ℕ} (x : Data 20) (R : ℕ → ℕ) (h1 : Fits w 1)
     have hvreg (i : Fin 20) (hi : 12 ≤ i.val) : v'.regs i = y.regs i :=
       (hv'.regs_eq (scan_preserves i hi)).trans (ha i (by
         constructor <;> intro heq <;> subst i <;> simp_all [dst, residue]))
-    have hvsrc : v'.regs src = y.regs src := by
-      change v'.regs (scanReg QueryScan.src) = _
-      have h := hvr QueryScan.src (by decide)
-      change v'.regs src = a.regs src at h
-      exact h.trans (ha src (by decide))
-    have hvsize : v'.regs size = y.regs size := by
-      change v'.regs (scanReg QueryScan.size) = _
-      have h := hvr QueryScan.size (by decide)
-      change v'.regs size = a.regs size at h
-      exact h.trans (ha size (by decide))
     have hvcount : v'.regs count = C j (n * n) := by
       change v'.regs (scanReg QueryScan.count) = _
       exact hvc
     have hvj : v'.regs cursor = j := hvreg cursor (by decide)
-    have hvone : v'.regs one = 1 := (hvreg one (by decide)).trans hyo
-    have hvb : v'.regs counts = b := (hvreg counts (by decide)).trans hyb
+    have hvone : v'.regs one = 1 := by regs_frame
+    have hvb : v'.regs counts = b := by regs_frame
     have haddr : Fits w (b + j) := hcount.of_le (by dsimp [b, p] at *; omega)
     have hj : Fits w (j + 1) := hcount.of_le (by dsimp [p] at *; omega)
     let z := v'.set addr (b + j) |>.write (b + j) (C j (n * n)) |>.set cursor (j + 1)

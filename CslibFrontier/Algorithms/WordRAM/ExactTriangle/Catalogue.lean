@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ChunkCatalogue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Parameters
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.ResidueClasses
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computing an ExactTriangle instance catalogue
@@ -277,8 +278,6 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   rw [hd18] at hyheap
   rw [hd17, hd19, hd18, hd15, hd16] at hycells
   rw [hd18] at hyframe
-  have hymeta' (i : Fin 32) (hi : 14 ≤ i.val) (hi' : i.val < 20) :
-      y.regs i = d.regs i := hymeta i hi hi'
   have hlen : y.regs pieceLength = pieceSize D g := by
     rw [hy.regs_eq (chunks_preserves pieceLength (by decide))]
     simp +decide [d, pieceLength, pieces]
@@ -287,12 +286,8 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
     simp +decide [d, pieces]
   have hyold (a' : ℕ) (ha' : a' < out) : y.mem a' = a.mem a' :=
     (hyframe a' (by omega)).trans (congrFun hdmem a')
-  refine ⟨y, ?_, (hymeta' _ (by decide) (by decide)).trans hd16,
-    (hymeta' _ (by decide) (by decide)).trans hd17,
-    (hymeta' _ (by decide) (by decide)).trans hd14,
-    (hymeta' _ (by decide) (by decide)).trans hd15,
-    (hymeta' _ (by decide) (by decide)).trans hd18,
-    (hymeta' _ (by decide) (by decide)).trans hd19,
+  refine ⟨y, ?_, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hlen, hpieces, hycount, hyheap, ?_, ?_, ?_, hycells, ?_⟩
   · convert ha.seq (hb.seq (hc.seq (hd.seq hy))) using 1
     · rfl

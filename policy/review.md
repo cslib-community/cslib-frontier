@@ -82,6 +82,14 @@ output is close to the real view) and whether this PR proves it. Unfoldings, `rf
 listed under "Main results". If the property is missing, request it, or have the PR title, body
 and module documentation say plainly that the change provides definitions only.
 
+**Read the statement before the prose, and open what it names.** For each headline, first read the
+Lean statement without its docstring and say what it proves; open the games, schemes and
+predicates it mentions, since a clean list of hypotheses can sit on a game that samples ideally or
+a scheme that is a stand-in. Then read the docstring. An unresolved gap the docstring admits is
+still a finding: it is tracked by an issue or a baseline entry and shows in the name
+([taste.md](taste.md#a-stated-limitation-is-tracked)), or the review asks for that. A source's own
+hypothesis or a deliberate model boundary is not a gap.
+
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
 checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the

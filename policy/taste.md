@@ -60,6 +60,15 @@ do not license surface that nothing consumes: land it with its first consumer, o
 until then. Efficiency certificates follow the same rule: a certificate for an experiment that no
 theorem consumes is not needed.
 
+Public is a decision, not the default. A declaration is public when another module uses it, when
+the module documentation names it as something the file offers, when it is a cited result, or when
+it is part of the interface of a public definition that a user of that definition would expect
+(its characterizations, bounds and `simp` equations:
+[What stays public](../CONTRIBUTING.md#public-surface-under-the-module-system)). A proof step or sub-program that only its
+own file uses is `private`. A test is not a caller, so a result that only its test names is listed
+in the module documentation. Reference counts are evidence, not the criterion: the aim is that a
+reader can take a file's public names as the things it offers.
+
 ## Replace, do not accumulate
 
 When a change introduces a better notion, it migrates the old one's clients and deletes it,
@@ -89,6 +98,34 @@ rule 4).
 - A sentence about the source's theorem is not placed where it reads as a claim about the Lean
   one.
 - A locator names the line, page or section you looked at in the pinned source.
+
+## A stated limitation is tracked
+
+A docstring that says what is not proved or what stands in for the real thing is welcome, and it
+is not a resolution. It makes the gap a known one; it does not make the theorem say what its name
+says ([Faithful headlines](../AGENTS.md#faithful-headlines), rule 2: listing a gap under
+"Limitations" does not meet the rule).
+
+This section is about unresolved gaps: a cited result not yet reached, a stand-in or step landed
+under rule 2, a missing efficiency certificate, a hypothesis that stands for unfinished work, a
+superseded version not yet removed. It is not about a source's own hypothesis, a named standard
+assumption, or a deliberate boundary of the model, such as a query-count theorem that says it
+makes no claim about running time. Those are documented and need no issue.
+
+- A sentence that states an unresolved gap cites the issue that tracks it, or its declaration has
+  an entry in the baseline of the check that covers it
+  ([reduction witnesses and security premises](../CONTRIBUTING.md)). Rule 2 already requires that
+  the cited objective stay open; the issue number is where it stays open. A gap with neither is
+  found again only by someone rereading the prose.
+- The name and the first sentence carry the gap, as rule 2 requires of a step: an ideal-sampling
+  result has `ideal` in its name, a bound for a stand-in scheme names the stand-in, and a helper
+  whose hypothesis assumes the substance of the cited result does not open with that result in
+  bold.
+- A step that nothing in the library consumes, and that no open issue plans to consume, has no
+  caller ([A declaration has a caller](#a-declaration-has-a-caller)) and is removed.
+- A superseded version goes when its replacement lands (rule 4;
+  [Replace, do not accumulate](#replace-do-not-accumulate)); a comment saying which theorem is the
+  faithful one is not a substitute.
 
 ## Small facts are shared
 

@@ -602,9 +602,7 @@ theorem computableInPolyTime_formulaGraph {xs : γ → List ℕ} {ψ : γ → CN
     (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hψ : ComputableInPolyTime ψ encIn encCNF) :
     ComputableInPolyTime (fun x => formulaGraph (xs x) (ψ x)) encIn encGraph := by
-  unfold formulaGraph formulaArcs encGraph
-  unfold encCNF at hψ
-  fun_prop
+  fun_prop [formulaGraph, formulaArcs]
 
 /-- **The reduction is polynomial-time.** -/
 theorem computableInPolyTime_reduce :

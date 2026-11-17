@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Automata.NA.Map
 public import Cslib.Computability.Languages.RegularLanguage
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Further closure properties of regular languages
@@ -100,7 +101,7 @@ private theorem exists_lt_iff_mem_mul (p q : Symbol → Prop) (w : List Symbol) 
     obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hxa
     obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.1 hyb
     refine ⟨⟨i, by simp; omega⟩, ⟨a.length + j, by simp; omega⟩, ?_, ?_, ?_⟩
-    · rw [Fin.mk_lt_mk]; omega
+    · fin_index
     · simpa [List.getElem_append_left hi] using hx
     · simpa [List.getElem_append_right] using hy
 
