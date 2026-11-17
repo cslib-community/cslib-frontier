@@ -49,7 +49,7 @@ noncomputable def uniformBool : Measure Bool := (2 : ℝ≥0∞)⁻¹ • Measur
 
 instance : IsProbabilityMeasure uniformBool :=
   ⟨by
-    rw [uniformBool, Measure.smul_apply, Measure.count_univ, ENat.card_eq_coe_fintype_card,
+    rw [uniformBool, smul_apply, Measure.count_univ, ENat.card_eq_coe_fintype_card,
       Fintype.card_bool, smul_eq_mul]
     exact ENNReal.inv_mul_cancel (by norm_num) (by norm_num)⟩
 
@@ -58,7 +58,7 @@ noncomputable def bitLoss (w : ℝ) (z : Bool) : ℝ := (w - if z then 1 else 0)
 
 theorem trueRisk_bitLoss (w : ℝ) : trueRisk bitLoss uniformBool w = (w ^ 2 + (w - 1) ^ 2) / 2 := by
   rw [trueRisk_def, integral_fintype Integrable.of_finite]
-  simp only [uniformBool, measureReal_def, Measure.smul_apply, Measure.count_singleton,
+  simp only [uniformBool, measureReal_def, smul_apply, Measure.count_singleton,
     smul_eq_mul, mul_one, Fintype.sum_bool, bitLoss, ENNReal.toReal_inv, ENNReal.toReal_ofNat]
   norm_num
   ring

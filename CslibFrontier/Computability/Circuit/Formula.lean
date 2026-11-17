@@ -38,9 +38,10 @@ The *leaf size* `Formula.leafSize` counts the input leaves, the measure of formu
 [Jukna, Chapter 6][Jukna2012]. Nullary operations, such as constants, are not counted: constants
 can be eliminated from a formula for a nonconstant function, so this changes no lower bound, and
 it gives constant functions leaf size zero. `Formula.size` counts the operation nodes, constants
-included. A formula of depth `d` with operations of arity at most `r` has at most `r ^ d` leaves
-(`Formula.leafSize_le_pow_depth`) and, for `r ≥ 2`, fewer than `r ^ d` operation nodes
-(`Formula.size_lt_pow_depth`); with `s` operation nodes it has at most `(r - 1) s + 1` leaves
+included. A formula of depth `d` whose operation nodes have arity at most `r`
+(`Formula.FanInAtMost`) has at most `r ^ d` leaves (`Formula.leafSize_le_pow_depth`) and, for
+`r ≥ 2`, fewer than `r ^ d` operation nodes (`Formula.size_lt_pow_depth`); with operations of
+arity at most `r` and `s` operation nodes it has at most `(r - 1) s + 1` leaves
 (`Formula.leafSize_le`). The least depth of a formula computing a function, with given costs of the
 operations, is `Formula.minDepthWith`; it is `⊤` when no formula computes the function, as happens
 for monotone formulas. A formula is a circuit with one gate for each operation node and at most
@@ -59,6 +60,7 @@ depth `⌈log₂ k⌉` above them, the usual way to replace a gate of unbounded 
   `Cslib.Circuits.Formula.depth`: the number of input leaves, the number of operation nodes, and
   the depth.
 * `Cslib.Circuits.Formula.leafSizeIn`: the number of input leaves in a set of inputs.
+* `Cslib.Circuits.Formula.FanInAtMost`: every operation node has arity at most `r`.
 * `Cslib.Circuits.Formula.cost`: the sum of operation weights, with input leaves free.
 * `Cslib.Circuits.Formula.depthWith`: the depth when each operation costs a given number of levels.
 * `Cslib.Circuits.Formula.minDepthWith`: the least depth with costs of a formula computing a
@@ -225,41 +227,54 @@ def depth : Formula σ n → ℕ
     (gate op args).depth = (Finset.univ.sup fun j => (args j).depth) + 1 :=
   rfl
 
+/-- Every operation node of the formula has arity at most `r`. -/
+def FanInAtMost (r : ℕ) : Formula σ n → Prop
+  | input _ => True
+  | gate op args => σ.Arity op ≤ r ∧ ∀ j, (args j).FanInAtMost r
+
+/-- Over a basis of fan-in at most `r`, every formula has fan-in at most `r`. -/
+theorem fanInAtMost_of_arity_le {r : ℕ} (hr : ∀ op, σ.Arity op ≤ r) :
+    ∀ F : Formula σ n, F.FanInAtMost r
+  | input _ => trivial
+  | gate op args => ⟨hr op, fun j => fanInAtMost_of_arity_le hr (args j)⟩
+
 /-- With operations of arity at most `r`, a formula of depth `d` has at most `r ^ d` leaves. -/
-theorem leafSize_le_pow_depth {r : ℕ} (hr : ∀ op, σ.Arity op ≤ r) (F : Formula σ n) :
+theorem leafSize_le_pow_depth {r : ℕ} {F : Formula σ n} (hF : F.FanInAtMost r) :
     F.leafSize ≤ r ^ F.depth := by
   induction F with
   | input i => simp
   | gate op args ih =>
+    obtain ⟨hop, hargs⟩ := hF
     set d := Finset.univ.sup fun j => (args j).depth
     rw [leafSize_gate, depth_gate, pow_succ]
-    calc ∑ j, (args j).leafSize ≤ ∑ j, r ^ (args j).depth := Finset.sum_le_sum fun j _ => ih j
+    calc ∑ j, (args j).leafSize ≤ ∑ j, r ^ (args j).depth :=
+          Finset.sum_le_sum fun j _ => ih j (hargs j)
       _ ≤ Fintype.card (Fin (σ.Arity op)) • r ^ d :=
           Finset.sum_le_card_nsmul _ _ _ fun j _ => Nat.pow_le_pow_right
-            (Nat.pos_of_ne_zero fun h => absurd (j.isLt.trans_le (hr op)) (by omega))
+            (Nat.pos_of_ne_zero fun h => absurd (j.isLt.trans_le hop) (by omega))
             (Finset.le_sup (f := fun j => (args j).depth) (Finset.mem_univ j))
       _ ≤ r ^ d * r := by
           rw [Fintype.card_fin, smul_eq_mul, mul_comm]
-          exact Nat.mul_le_mul_left _ (hr op)
+          exact Nat.mul_le_mul_left _ hop
 
 /-- With operations of arity at most `r`, where `2 ≤ r`, a formula of depth `d` has fewer than
 `r ^ d` operation nodes. -/
-theorem size_lt_pow_depth {r : ℕ} (hr : ∀ op, σ.Arity op ≤ r) (hr₂ : 2 ≤ r) (F : Formula σ n) :
+theorem size_lt_pow_depth {r : ℕ} {F : Formula σ n} (hF : F.FanInAtMost r) (hr₂ : 2 ≤ r) :
     F.size < r ^ F.depth := by
   induction F with
   | input i => simp
   | gate op args ih =>
+    obtain ⟨hk, hargs⟩ := hF
     set d := Finset.univ.sup fun j => (args j).depth
     have hd : 1 ≤ r ^ d := Nat.one_le_pow _ _ (by omega)
     have hsum : ∑ j, ((args j).size + 1) ≤ σ.Arity op * r ^ d := by
       calc ∑ j, ((args j).size + 1) ≤ ∑ _j : Fin (σ.Arity op), r ^ d :=
-            Finset.sum_le_sum fun j _ => (ih j).trans_le (Nat.pow_le_pow_right (by omega)
-              (Finset.le_sup (f := fun j => (args j).depth) (Finset.mem_univ j)))
+            Finset.sum_le_sum fun j _ => (ih j (hargs j)).trans_le (Nat.pow_le_pow_right
+              (by omega) (Finset.le_sup (f := fun j => (args j).depth) (Finset.mem_univ j)))
         _ = σ.Arity op * r ^ d := by simp
     rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
       smul_eq_mul, mul_one] at hsum
     rw [size_gate, depth_gate, pow_succ, mul_comm]
-    have hk := hr op
     rcases Nat.lt_or_ge (σ.Arity op) 2 with hk₂ | hk₂
     · calc (∑ j, (args j).size) + 1 ≤ r ^ d := by
             obtain h | h : σ.Arity op = 0 ∨ σ.Arity op = 1 := by omega

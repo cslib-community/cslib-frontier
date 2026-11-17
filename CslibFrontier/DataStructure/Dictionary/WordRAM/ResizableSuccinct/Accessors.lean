@@ -187,9 +187,8 @@ private theorem realizesBounded_maskOfWidth :
   all_goals try omega
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact hpow_lt)
-  all_goals (
-    rw [two_pow_pred_add_sub_one hc]
-    exact (Nat.sub_lt (Nat.two_pow_pos d) one_pos).trans_le (Nat.pow_le_pow_right two_pos hk))
+  rw [two_pow_pred_add_sub_one hc]
+  exact (Nat.sub_lt (Nat.two_pow_pos d) one_pos).trans_le (Nat.pow_le_pow_right two_pos hk)
 
 /-- Read a `k`-bit slice starting at `(base + wOff, bOff)` in `Memory.Prog`. -/
 def readBitSliceGenProg : (ℕ × (ℕ × ℕ)) × (ℕ × ℕ) → Memory.Prog ℕ
@@ -240,7 +239,7 @@ theorem realizesBounded_readBitSliceGen :
     rcases d with ⟨⟨base, ⟨wOff, bOff⟩⟩, ⟨k, wVal⟩⟩
     obtain ⟨hw, hwVal, hkw, hbOff, hfr⟩ := h
     subst hwVal
-    try simp only [StateTransitionSpec.clientState, clientResult_minWidthProg,
+    simp only [StateTransitionSpec.clientState, clientResult_minWidthProg,
       runClient_state_minWidthProg, clientResult_maskOfWidthProg,
       runClient_state_maskOfWidthProg] at *
     have hk0_le : min k (w - bOff) ≤ k := Nat.min_le_left _ _
@@ -267,8 +266,7 @@ theorem realizesBounded_readBitSliceGen :
             Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (Nat.two_pow_pos _)) (Nat.two_pow_pos _)
         _ = 2 ^ k := by rw [← Nat.pow_add, Nat.sub_add_cancel hk0_le]
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hkw
-    try exact hhigh_lt
-    try exact Nat.xor_lt_two_pow hlow_lt hhigh_lt)
+    first | exact hhigh_lt | exact Nat.xor_lt_two_pow hlow_lt hhigh_lt)
 
 /-- Write the low `k₀`-bit portion of `val` into `base + wOff` at bit offset `bOff`. -/
 private def writeBitSliceLowProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
@@ -303,8 +301,7 @@ private theorem realizesBounded_writeBitSliceLow :
       calc _ < 2 ^ k₀ * 2 ^ bOff := Nat.mul_lt_mul_of_pos_right hδ_lt (Nat.two_pow_pos _)
         _ = 2 ^ (k₀ + bOff) := (Nat.pow_add 2 k₀ bOff).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-    try exact hsh_lt
-    try exact Nat.xor_lt_two_pow (hmem.2 _) hsh_lt)
+    first | exact hsh_lt | exact Nat.xor_lt_two_pow (hmem.2 _) hsh_lt)
 
 /-- Write the high `k₁`-bit portion of `val >>> k₀` into `base + wOff + 1` at bit offset `0`. -/
 private def writeBitSliceHighProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
@@ -337,8 +334,7 @@ private theorem realizesBounded_writeBitSliceHigh :
       rw [Nat.shiftLeft_eq, one_mul]
       refine (Nat.xor_lt_two_pow ?_ ?_).trans_le (Nat.pow_le_pow_right two_pos hk1.le) <;>
         (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
-    try exact hδ_lt
-    try exact Nat.xor_lt_two_pow (hmem.2 _) hδ_lt)
+    first | exact hδ_lt | exact Nat.xor_lt_two_pow (hmem.2 _) hδ_lt)
 
 /-- Write `val` into the `k`-bit slice starting at `(base + wOff, bOff)` in `Memory.Prog`. -/
 def writeBitSliceGenProg : ((ℕ × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
@@ -391,7 +387,7 @@ theorem realizesBounded_writeBitSliceGen :
     rcases d with ⟨⟨⟨base, ⟨wOff, bOff⟩⟩, ⟨k, wVal⟩⟩, val⟩
     obtain ⟨hw, hwVal, hkw, hbOff, hfr⟩ := h
     subst hwVal
-    try simp only [StateTransitionSpec.clientState, clientResult_minWidthProg,
+    simp only [StateTransitionSpec.clientState, clientResult_minWidthProg,
       runClient_state_minWidthProg, clientResult_maskOfWidthProg,
       runClient_state_maskOfWidthProg, writeBitSliceLowProg,
       prog_runClient_state_bind, prog_runClient_state_read, prog_runClient_state_write] at *
@@ -451,7 +447,7 @@ private theorem realizesBounded_packedOffset :
     have hwo_def : (idx / w) * k + ((idx % w) * k) / w < s.frontier := hwo)
   all_goals try exact hw.ne'
   all_goals try exact mod_mul_lt_two_pow hw hkw idx
-  all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  refine lt_of_le_of_lt ?_ hmem.1; omega
 
 /-- Read `readPacked (base + offset) k w s.mem idx` in `Memory.Prog` with `RealizesBounded`. -/
 def readPackedCompGenProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog ℕ
@@ -500,12 +496,12 @@ theorem realizesBounded_readPackedCompGen :
     rcases d with ⟨⟨⟨base, offset⟩, ⟨k, wVal⟩⟩, idx⟩
     obtain ⟨len, hw, hwVal, hkw, hidx, hfr⟩ := h
     subst hwVal
-    try simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
+    simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
   all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
   all_goals try exact ⟨hw, rfl, hkw, by omega⟩
-  all_goals exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
+  exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-- Write `writePacked (base + offset) k w s.mem idx val` in `Memory.Prog` with
 `RealizesBounded`. -/
@@ -559,12 +555,12 @@ theorem realizesBounded_writePackedCompGen :
     rcases d with ⟨⟨⟨⟨base, offset⟩, ⟨k, wVal⟩⟩, idx⟩, val⟩
     obtain ⟨len, hw, hwVal, hkw, hidx, hfr⟩ := h
     subst hwVal
-    try simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
+    simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
   all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
   all_goals try exact ⟨hw, rfl, hkw, by omega⟩
-  all_goals exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
+  exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-! ## Section 3: Dense `(quotient, value)` Pair-Stream `Memory.Prog` Primitives -/
 
@@ -638,7 +634,7 @@ private theorem realizesBounded_compQOffset :
   · unfold PackedOffsetPre; exact ⟨hw, rfl, hv, by omega⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
-  all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  refine lt_of_le_of_lt ?_ hmem.1; omega
 
 /-- Compute `(wOffV q_bits v_bits wVal d, bOffV q_bits v_bits wVal d)` overflow-free. -/
 private def compVOffsetProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
@@ -694,7 +690,7 @@ private theorem realizesBounded_compVOffset :
   · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, by omega⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
-  all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  refine lt_of_le_of_lt ?_ hmem.1; omega
 
 /-- Entry precondition for dense `(quotient, value)` stream operations at `itemBase`. -/
 @[expose] def CompItemEnv (w : ℕ) (cp : CompParams) (itemBase m_items : ℕ)
@@ -750,13 +746,13 @@ theorem realizesBounded_readCompQuotGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, idx⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
+    simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
       clientResult_compQOffsetProg, runClient_state_compQOffsetProg] at *
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
   all_goals try exact ⟨hw, rfl, hq, hv, by omega⟩
-  all_goals exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
+  exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Write `q` into `compQuotAt` at dense index `d` in `Memory.Prog`. -/
 def writeCompQuotGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -801,13 +797,13 @@ theorem realizesBounded_writeCompQuotGen :
   all_goals (
     rcases d with ⟨⟨⟨cp, itemBase⟩, idx⟩, q⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
+    simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
       clientResult_compQOffsetProg, runClient_state_compQOffsetProg] at *
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
   all_goals try exact ⟨hw, rfl, hq, hv, by omega⟩
-  all_goals exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
+  exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Read `compValAt itemBase U V w N m_items s.mem d` in `Memory.Prog`. -/
 def readCompValGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -850,13 +846,13 @@ theorem realizesBounded_readCompValGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, idx⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
+    simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
       clientResult_compVOffsetProg, runClient_state_compVOffsetProg] at *
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffV_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
   all_goals try exact ⟨hw, rfl, hq, hv, by omega⟩
-  all_goals exact ⟨hw, rfl, hv, bOffV_lt hw, by omega⟩
+  exact ⟨hw, rfl, hv, bOffV_lt hw, by omega⟩
 
 /-- Write `v` into `compValAt` at dense index `d` in `Memory.Prog`. -/
 def writeCompValGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -901,12 +897,12 @@ theorem realizesBounded_writeCompValGen :
   all_goals (
     rcases d with ⟨⟨⟨cp, itemBase⟩, idx⟩, v⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
+    simp only [cpQuotBits_mk, cpValBits_mk, cpW_mk, StateTransitionSpec.clientState,
       clientResult_compVOffsetProg, runClient_state_compVOffsetProg] at *
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffV_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
   all_goals try (dsimp only [CompVOffsetPre]; exact ⟨hw, rfl, hq, hv, by omega⟩)
-  all_goals (dsimp only [WriteBitSlicePre]; exact ⟨hw, rfl, hv, bOffV_lt hw, by omega⟩)
+  dsimp only [WriteBitSlicePre]; exact ⟨hw, rfl, hv, bOffV_lt hw, by omega⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

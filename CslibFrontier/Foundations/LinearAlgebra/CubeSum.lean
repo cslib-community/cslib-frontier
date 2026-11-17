@@ -198,7 +198,7 @@ theorem prod_sub_mul_eq_sum {R : Type*} [CommRing R] {n : ℕ} (f g : Fin n → 
         cases w i <;> simp
       _ = _ := by
         rw [Finset.prod_mul_distrib, Finset.prod_ite]
-        simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, Finset.card_filter, id_eq]
+        simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, id_eq]
   simp_rw [← h]
   rw [← Fintype.prod_sum (fun (i : Fin n) (b : Bool) => if b then -(c * g i) else f i)]
   simp [sub_eq_add_neg, add_comm]

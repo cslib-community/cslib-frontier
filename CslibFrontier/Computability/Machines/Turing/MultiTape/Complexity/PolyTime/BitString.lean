@@ -51,6 +51,8 @@ polynomial bound on the complete encoded output. The operations are total on emp
 * `Turing.MultiTapeTM.ComputableInPolyTime.bitsNonpositiveMarginWithInput`: compare the
   correct-vote count with the word length.
 * `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList`: output-bounded enumeration.
+* `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList_of_polyBounded`: enumeration of the words
+  of a computed length `ℓ` when `2 ^ ℓ` is polynomially bounded.
 * `Turing.MultiTapeTM.ComputableInPolyTime.bitsBoundedBinaryValue`: capped binary decoding
   to unary, with every intermediate accumulator bounded by the supplied cap.
 * `Turing.MultiTapeTM.ComputableInPolyTime.bitsReplicate`: repeat a fixed bit.
@@ -435,6 +437,25 @@ theorem bitsNonpositiveMarginWithInput
       input encBool := by
   unfold Cslib.BitString.listNonpositiveMargin
   fun_prop
+
+/-- Enumerate the words of a computed length `count x` when `2 ^ count x` is polynomially
+bounded. -/
+theorem bitsEnumList_of_polyBounded {count : α → ℕ}
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hbudget : PolyBounded (fun x => (input x).length) fun x => 2 ^ count x) :
+    ComputableInPolyTime (fun x => Cslib.BitString.enumList (count x)) input
+      (encList encBits) := by
+  obtain ⟨c, d, h⟩ := hbudget.exists_le
+  refine bitsEnumList hcount
+    (size := fun n => 3 * (c * (n + 1) ^ d) ^ 2) (by fun_prop) fun x => ?_
+  have h₁ : 2 * count x + 1 ≤ 3 * 2 ^ count x := by
+    have := Nat.lt_two_pow_self (n := count x)
+    omega
+  calc 2 ^ count x * (2 * count x + 1) ≤ 2 ^ count x * (3 * 2 ^ count x) :=
+        Nat.mul_le_mul_left _ h₁
+    _ = 3 * (2 ^ count x) ^ 2 := by ring
+    _ ≤ 3 * (c * ((input x).length + 1) ^ d) ^ 2 :=
+        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (h x) 2)
 
 end ComputableInPolyTime
 

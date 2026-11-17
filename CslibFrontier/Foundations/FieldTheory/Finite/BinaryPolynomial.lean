@@ -111,7 +111,7 @@ theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ 
     rw [polyOfBits_cons, List.forall_mem_cons, ← ih]
     constructor
     · intro h
-      have h0 := congrArg (coeff · 0) h
+      have h0 := congrArg (·.coeff 0) h
       simp only [coeff_add, coeff_C_zero, coeff_X_mul_zero, add_zero, coeff_zero] at h0
       have hb : b = false := by revert h0; cases b <;> decide
       subst hb

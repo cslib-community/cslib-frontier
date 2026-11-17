@@ -524,7 +524,7 @@ lemma fBranch_inO : ComputableInO (fun s : CSt =>
       simp only [length_encPair, h1]
     dsimp only [eCSt] at *
     rw [hp] at *
-    try simp only [h1] at *
+    simp only [h1] at *
     split_ifs <;> omega
 
 /-- A step of the composition at the end of a pass. -/
