@@ -81,13 +81,7 @@ theorem numberCopy_injective : Function.Injective numberCopy := by
 @[fun_prop]
 theorem computableInPolyTime_numberCopy :
     ComputableInPolyTime numberCopy (encPair encNat (encPair encUnary encUnary)) encNat := by
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.pair p.1 p.2)
-      (encPair encUnary encUnary) encNat :=
-    ComputableInPolyTime.binary_pair.comp
-      ((ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)))
-  exact ComputableInPolyTime.binary_pair.comp
-    ((ComputableInPolyTime.fst _ _).prod (hi.comp (ComputableInPolyTime.snd _ _)))
+  fun_prop [numberCopy]
 
 /-- Check clause widths, literal-occurrence bounds, and a satisfying assignment. -/
 def verifier (x : CNF ℕ × List Bool) : Bool :=
@@ -116,9 +110,7 @@ theorem isVerifier : IsVerifier encCNF Polynomial.X verifier ThreeSATThree := by
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  unfold verifier
-  simp only [List.count_eq_countP]
-  fun_prop
+  fun_prop [verifier]
 
 /-- 3SAT-3 belongs to NP under the ordinary binary CNF encoding. -/
 theorem mem_NP : ThreeSATThree ∈ NP encCNF :=
@@ -156,11 +148,7 @@ theorem modelCount_toThreeSATThree (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length 
 @[fun_prop]
 theorem computableInPolyTime_toThreeSATThree :
     ComputableInPolyTime toThreeSATThree encCNF encCNF := by
-  have hr := CNF.computableInPolyTime_relabel ThreeSATThree.computableInPolyTime_numberCopy
-  have hs := CNF.computableInPolyTime_toThreeOccurrence encNat
-  have hc := hr.comp hs
-  unfold toThreeSATThree
-  fun_prop
+  fun_prop [toThreeSATThree]
 
 /-- Correctness holds for all CNF inputs, including those outside the width-three restriction. -/
 theorem mem_ThreeSATThree_toThreeSATThree_iff (φ : CNF ℕ) :

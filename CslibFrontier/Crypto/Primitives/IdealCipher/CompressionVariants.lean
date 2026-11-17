@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Primitives.IdealCipher.Compression
 import CslibFrontier.Languages.Probabilistic.Notation
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Explicit Collisions for Insecure Block-Cipher Compression Variants
@@ -82,7 +83,7 @@ theorem keyMaskedAdversary_wins [DecidableEq Block] [Fintype Block] [AddGroup Bl
     {k1 k2 : Block} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (keyMasked (B := Block)) (keyMaskedAdversary k1 k2 y) = PMF.pure true := by
   unfold collisionGame keyMaskedAdversary lazyEvalPerm
-  simp only [IdealCipher.complete_nil, interpret_bind, interpret_query, interpret_pure]
+  simp only [IdealCipher.complete_nil, interp_norm]
   simp [bind, StateT.bind, pure, StateT.pure, evalPerm, collides, keyMasked_symm, hk]
 
 /-- Existential summary for `keyMasked` (`h₄` with its two arguments swapped) over any nontrivial
@@ -120,7 +121,7 @@ theorem keyMaskedInputAdversary_wins [DecidableEq Block] [Fintype Block] [AddGro
     collisionGame (keyMaskedInput (B := Block)) (keyMaskedInputAdversary k1 k2 y) =
       PMF.pure true := by
   unfold collisionGame keyMaskedInputAdversary lazyEvalPerm
-  simp only [IdealCipher.complete_nil, interpret_bind, interpret_query, interpret_pure]
+  simp only [IdealCipher.complete_nil, interp_norm]
   simp [bind, StateT.bind, pure, StateT.pure, evalPerm, collides, keyMaskedInput_symm, hk]
 
 /-- Existential summary for `keyMaskedInput` (`h₅`) over any nontrivial finite additive group:

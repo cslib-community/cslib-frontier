@@ -161,11 +161,7 @@ theorem computableInPolyTime_evalAdvice {γ : Type} {encIn : γ ↪ List Bool}
     (hx : ComputableInPolyTime x encIn encBits) :
     ComputableInPolyTime (fun a => evalAdvice (s a) (width a) (w a) (x a)) encIn
       encBool := by
-  have hm : ComputableInPolyTime (fun a => (x a).length) encIn encUnary :=
-    length_bits.comp hx
-  have hc := computableInPolyTime_readCertificate hm hs
-    (hw.bitsDropWithInput (unary_mul.comp (hm.prod hwidth)))
-  exact computableInPolyTime_evalOutput hx hc.fst' hc.snd'
+  fun_prop [evalAdvice]
 
 /-- Evaluation from advice is polynomial-time with `S.eval n` gates in blocks of `W.eval n` bits,
 for polynomials `S` and `W` of a length `n` in unary, the bounds of `PPoly.exists_evalAdvice`. -/

@@ -276,21 +276,7 @@ theorem computableInPolyTime_linearHashKDF {keyLen bound : F.Desc → ℕ}
     (hbound : ComputableInPolyTime bound F.encDesc encUnary) :
     ComputableInPolyTime (F.linearHashKDF keyLen bound)
       (encPair F.withSeed.encDesc encBits) encBits := by
-  let EIn := encPair (encPair F.encDesc encBits) encBits
-  have hd : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => input.1.1) EIn F.encDesc := by fun_prop
-  have hkeyIn : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => keyLen input.1.1) EIn encUnary :=
-    hkey.comp hd
-  have hboundIn : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => bound input.1.1) EIn encUnary :=
-    hbound.comp hd
-  change ComputableInPolyTime
-    (fun input : (F.Desc × List Bool) × List Bool =>
-      Cslib.BitString.LinearHash.wordHash (keyLen input.1.1) input.1.2
-        (Cslib.BitString.padWord (bound input.1.1) input.2))
-    EIn encBits
-  fun_prop
+  fun_prop [PrimeOrderGroupFamily.linearHashKDF]
 
 /-- The matrix seed length required by `linearHashKDF` for output length `msgLen n` and encoding
 length bound `bound d`: `msgLen n * (2 * bound d + 1)` bits. -/
@@ -304,12 +290,7 @@ theorem computableInPolyTime_linearHashSeedLen {msgLen : ℕ → ℕ} {bound : F
     (hbound : ComputableInPolyTime bound F.encDesc encUnary) :
     ComputableInPolyTime (fun p : ℕ × F.Desc => F.linearHashSeedLen msgLen bound p.1 p.2)
       (encPair encUnary F.encDesc) encUnary := by
-  have hmsgIn : ComputableInPolyTime (fun p : ℕ × F.Desc => msgLen p.1)
-      (encPair encUnary F.encDesc) encUnary := hmsg.comp (by fun_prop)
-  have hboundIn : ComputableInPolyTime (fun p : ℕ × F.Desc => bound p.2)
-      (encPair encUnary F.encDesc) encUnary := hbound.comp (by fun_prop)
-  unfold linearHashSeedLen
-  fun_prop
+  fun_prop [linearHashSeedLen]
 
 /-- Self-delimiting padded bit-string encoding of `γ • g` in `BitString (2 * bound d + 1)`. -/
 def paddedGeneratorMultiple (bound : F.Desc → ℕ) (d : F.Desc)

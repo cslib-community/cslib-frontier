@@ -210,18 +210,7 @@ private theorem computableInPolyTime_lookupCount [Finite State] :
     ComputableInPolyTime (fun p : List (FiniteCfg k Bool State × ℕ) × FiniteCfg k Bool State =>
       lookupCount p.1 p.2) (encPair (encList (encPair encFiniteCfg encNat)) encFiniteCfg)
       encNat := by
-  unfold lookupCount
-  have hfilter := ComputableInPolyTime.filterWithInput
-    (encA := encPair encFiniteCfg encNat)
-    (encIn := encPair (encList (encPair encFiniteCfg encNat)) encFiniteCfg)
-    (test := fun (p : List (FiniteCfg k Bool State × ℕ) × FiniteCfg k Bool State)
-      (entry : FiniteCfg k Bool State × ℕ) => decide (entry.1 = p.2))
-    (ComputableInPolyTime.fst _ _)
-    (ComputableInPolyTime.decide_eq' ((ComputableInPolyTime.fst _ _).comp
-      (ComputableInPolyTime.snd _ _)) ((ComputableInPolyTime.snd _ _).comp
-      (ComputableInPolyTime.fst _ _)))
-  exact (ComputableInPolyTime.headD (encA := encNat) 0).comp
-    ((ComputableInPolyTime.map (ComputableInPolyTime.snd encFiniteCfg encNat)).comp hfilter)
+  fun_prop [lookupCount]
 
 /-- A round of evaluation is polynomial-time. -/
 private theorem computableInPolyTime_countRound [Finite State] (M : MultiTapePTM k Bool State) :

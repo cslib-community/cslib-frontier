@@ -1278,9 +1278,7 @@ unary `(Q, A₀, R)` and binary `(r, u_idx, y_idx)`. -/
     ComputableInPolyTime
       (fun a => auxReplacementRowCoeffsIdx (Q a) (r a) (A₀ a) (R a) (u_idx a) (y_idx a))
       input (encList encIntBin) := by
-  exact computableInPolyTime_auxReplacementRowCoeffsDigits hQ hA₀ hR
-    (computableInPolyTime_decodeAuxDigits hQ hr hu)
-    (computableInPolyTime_decodeAuxDigits hQ hr hy)
+  fun_prop [auxReplacementRowCoeffsIdx]
 
 /-- The `D_len × D_len × max R 1` auxiliary replacement table (`auxReplacementTableBounded`,
 with `D_len = min D_cap (r ^ (2 * Q))`, giving the full `D × D` table when `r ^ (2 * Q) ≤ D_cap`)
