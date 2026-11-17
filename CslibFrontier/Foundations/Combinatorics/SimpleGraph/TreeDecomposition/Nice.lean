@@ -369,18 +369,30 @@ variable {α : Type*} {β : Type*}
   | .join left right => .join (map f left) (map f right)
 
 @[simp] theorem sizePred_map (f : α → β) (T : NiceTree α) : (T.map f).sizePred = T.sizePred := by
-  fun_induction T.map f <;> simp_all [sizePred]
+  induction T with
+  | leaf => rfl
+  | introduce _ _ ih => simp [map, sizePred, ih]
+  | forget _ _ ih => simp [map, sizePred, ih]
+  | join _ _ ihL ihR => simp [map, sizePred, ihL, ihR]
 
 @[simp] theorem size_map (f : α → β) (T : NiceTree α) : (T.map f).size = T.size := by
   simp [size]
 
 theorem bag_map {f : α → β} (hf : Function.Injective f) (T : NiceTree α)
     [DecidableEq α] [DecidableEq β] : (T.map f).bag = T.bag.image f := by
-  fun_induction T.map f <;> simp_all [bag]
+  induction T with
+  | leaf => simp [map, bag]
+  | introduce v child ih => simp [map, bag, ih, Finset.image_insert]
+  | forget v child ih => simp [map, bag, ih, Finset.image_erase hf]
+  | join left _ ihL _ => simp [map, bag, ihL]
 
 theorem subtreeVerts_map (f : α → β) (T : NiceTree α) [DecidableEq α] [DecidableEq β] :
     (T.map f).subtreeVerts = T.subtreeVerts.image f := by
-  fun_induction T.map f <;> simp_all [subtreeVerts, Finset.image_union]
+  induction T with
+  | leaf => simp [map, subtreeVerts]
+  | introduce v child ih => simp [map, subtreeVerts, ih, Finset.image_insert]
+  | forget _ child ih => simp [map, subtreeVerts, ih]
+  | join left right ihL ihR => simp [map, subtreeVerts, ihL, ihR, Finset.image_union]
 
 theorem localValid_map {f : α → β} (hf : Function.Injective f) {T : NiceTree α}
     [DecidableEq α] [DecidableEq β] (h : T.LocalValid) : (T.map f).LocalValid := by
