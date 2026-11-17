@@ -23,8 +23,6 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime
 open Cslib.WordRAM
 open FixedPrime (recordBank)
 
--- The finite setup writes only the five existing controller registers.
-set_option maxRecDepth 4096 in
 private theorem setup_preserves : ∀ i : Fin 416, i.val < 400 → setup.Preserves i := by
   decide +kernel
 
