@@ -510,7 +510,7 @@ theorem uniformOfFintype_map_packedSliceOfWords (N k w : ℕ) (hw : 0 < w) :
     readPacked (base + offBot w c_tab d b_char) M_out w mem (j.val * 2 ^ b_char + y.val) =
       (θ.bot j y).val)
 
-private theorem seedRep_extractSeed {base w w₀ c_tab d b_char M_out : ℕ} {mem : ℕ → ℕ}
+theorem seedRep_extractSeed {base w w₀ c_tab d b_char M_out : ℕ} {mem : ℕ → ℕ}
     (hα : mem base < 2 ^ (w₀ - 1)) :
     SeedRep base w w₀ c_tab d b_char M_out
       (extractSeed base w w₀ c_tab d b_char M_out mem) mem := by
