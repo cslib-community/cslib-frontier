@@ -406,10 +406,10 @@ the common public matrix `A : Matrix (Fin m) (Fin (k + l)) (ZMod q)`:
 /-- A step after [AponChoEldefrawyKatz2017] Section 3.3 (p. 9) establishing `δ`-error Hamming
 setup correctness of `commonMatrixFuzzyExtractor` over a uniform common matrix `A` relative to a
 caller-supplied decoder (`hdec : DecoderCorrectWithError decode t δ`), not the unconditional
-correctness claim of [AponChoEldefrawyKatz2017] Section 3.3 / [FullerMengReyzin2020] Theorem 4.11
-(p. 17), because no non-toy `DecoderCorrectWithError` instance (such as the random-subset LWE
-decoder of [FullerMengReyzin2020] Construction 4.9 / Lemma 4.10, pp. 15–16) is formalized yet
-(#6040). -/
+correctness inherited from [FullerMengReyzin2020] Theorem 4.11 (p. 17) that
+[AponChoEldefrawyKatz2017] Theorem 1 (p. 9) presupposes, because no non-toy
+`DecoderCorrectWithError` instance (such as the random-subset LWE decoder of
+[FullerMengReyzin2020] Construction 4.9 / Lemma 4.10, pp. 15–16) is formalized yet (#6040). -/
 theorem setupCorrect_commonMatrixFuzzyExtractor_of_decoderCorrectWithError
     {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q))}
