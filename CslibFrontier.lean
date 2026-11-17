@@ -2704,6 +2704,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.MatchingParity
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.Search
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Construction
@@ -4328,12 +4329,15 @@ public import CslibFrontier.Computability.WangTile.Basic
 public import CslibFrontier.Computability.WangTile.Compactness
 public import CslibFrontier.Computability.WangTile.OfTM0
 public import CslibFrontier.Computability.WangTile.Pointed
+public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Certificates
+public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 public import CslibFrontier.Computability.WangTile.Robinson.Hierarchy
 public import CslibFrontier.Computability.WangTile.Robinson.Recognizability
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Geometry
+public import CslibFrontier.Computability.WangTile.Robinson.Signals
 public import CslibFrontier.Computability.WangTile.Robinson.Tiles
 public import CslibFrontier.Computability.WangTile.Routing
 public import CslibFrontier.Computability.WangTile.SeededUndecidable
@@ -5105,6 +5109,9 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+public import CslibFrontier.Crypto.Protocols.FRI.Folding
+public import CslibFrontier.Crypto.Protocols.FRI.Protocol
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
@@ -6749,6 +6756,8 @@ public import CslibFrontier.Foundations.Relation.Acyclic
 public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
 public import CslibFrontier.Foundations.Relation.Transport
+public import CslibFrontier.Foundations.RelationAlgebra.AtomicNetwork
+public import CslibFrontier.Foundations.RelationAlgebra.Game
 public import CslibFrontier.Foundations.RingTheory.AdjoinRoot
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients

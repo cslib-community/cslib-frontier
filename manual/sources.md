@@ -159,10 +159,20 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2`, the `PublicCoinIOP` `friIOP`, perfect completeness, and exact query accounting—`kFinal + q * (3 * m + 2)` committed-proof-oracle openings (`FRIParams.proofOracleQueries`, via `PublicCoinIOP.queries`) plus `q` direct input-word reads (`FRIParams.inputWordReads`, via `friInputQueries`), for `kFinal + q * (3 * m + 3)` total word queries (`FRIParams.totalWordQueries`, matching the paper's counting of both input-word and prover-table queries on pp. 14:3–14:4)—are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean) and [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean). In [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean), the round-by-round soundness invariant (`friIOP_rbrSound`) and query-round escape bound (`friQueryRound_escape_le`) are unconditional, whereas the generic commit-round escape, uniform round-by-round escape, and two-channel BCS random-oracle soundness bounds (`friCommitRound_escape_le_of_weightedLineGap`, `friRBREscape_of_weightedLineGap`, `friBCS_romSoundness_bound_of_*`, paired with [bcs16](#bcs16) and [bciks20](#bciks20)) are conditional steps assuming a line proximity-gap theorem (`WeightedLineGapBound` or `UniqueLineGapHypothesis`); only the fixed `params257` client in [CslibFrontierTests/Crypto/FRI.lean](../CslibFrontierTests/Crypto/FRI.lean) discharges that hypothesis unconditionally here, so these modules do not yet establish the general unconditional source soundness endpoint.
+
 <a id="bcgl92"></a>
 ## bcgl92
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
+
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section/theorem locators follow ePrint 2020/654 (Section 8). Batched FRI coset folding and the unconditional FRI IOP round-by-round invariant and query-round escape bound are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean) and [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean); the generic commit-phase escape, unique-decoding weighted upgrade, and two-channel BCS random-oracle composition bounds in [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) are conditional steps assuming a line proximity-gap hypothesis (`WeightedLineGapBound` or `UniqueLineGapHypothesis`) rather than the general unconditional soundness endpoint of Section 8, with only the fixed `params257` client in [CslibFrontierTests/Crypto/FRI.lean](../CslibFrontierTests/Crypto/FRI.lean) discharging that hypothesis unconditionally here.
 
 <a id="bcs16"></a>
 ## bcs16
@@ -1059,6 +1069,18 @@ verified erratum to the printed figures; historical correction: locator not veri
 Full agreement with those figures is not checked in Lean. The formalized endpoint is matching
 substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
 it does not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The routing worker additionally read §3.3, pp. 26–29, on 2026-11-16: light/dark separation,
+obstruction signals, free-grid transmission and the two directions of seed removal.
+Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
+consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
+and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
+Canonical patches assign nearest-border obstruction signals to matching decorated
+substitutions and establish that the resulting finite scaffold tiles the plane.
+The concrete forcing/realization obligations and Theorem 10 remain outstanding.
 The red-path and shading modules are after §3.3, Figures 17–18, manuscript
 pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
 emit signals on their exterior borders. The exact opposite-shade crossing rule (also
