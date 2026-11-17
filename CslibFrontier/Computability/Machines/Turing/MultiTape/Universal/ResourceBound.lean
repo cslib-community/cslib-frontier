@@ -19,6 +19,9 @@ bounds in the encoded description length, encoded input length, clock length, an
 simulated steps. These estimates are shared by unary-clock polynomial-time simulation and the
 time-hierarchy construction.
 
+The generic implementation expressions are also shared by specialization and encoded-interpreter
+resource accounting; both clients use the same time and workspace formulas.
+
 ## Main results
 
 * `Turing.MultiTapeTM.Universal.computableInO_universal`: a plain native machine certificate
@@ -33,6 +36,22 @@ time-hierarchy construction.
 public section
 
 namespace Turing.MultiTapeTM.Universal
+
+/-- The resource expression used by the native universal-machine implementation before its
+constant-factor machine compilation. -/
+@[expose] def universalImplementationTime (i : Desc × List ℕ × ℕ) : ℕ :=
+  let (description, input, clock) := i
+  (clock + 1) *
+      (stepBound (descLen description) (encList encUnary input).length clock +
+        runBound (descLen description) (encList encUnary input).length clock +
+          ((encNat clock).length + 1) ^ 2) +
+    ((eIn i).length + 1) ^ 2
+
+/-- The workspace expression used by the native universal-machine implementation before its
+constant-factor machine compilation. -/
+@[expose] def universalImplementationSpace (i : Desc × List ℕ × ℕ) : ℕ :=
+  let (description, input, clock) := i
+  runBound (descLen description) (encList encUnary input).length clock + (eIn i).length
 
 /-- The universal simulator's space bound grows with the number of simulated steps. -/
 theorem runBound_mono {D N t t' : ℕ} (h : t ≤ t') : runBound D N t ≤ runBound D N t' := by
