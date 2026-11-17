@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
-public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Crypto.Computational.WordSignature
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -39,8 +39,9 @@ of answered pairs, oldest first, and the two agree up to that representation.
 * `Cslib.Crypto.SignatureScheme.toScheme`, `Cslib.Crypto.WordSignatureScheme.toScheme`,
   `Cslib.Crypto.IndexedSignatureScheme.toScheme`: the typed scheme of a word-level scheme at
   parameter `n`.
-* `Cslib.Crypto.Forger.toTyped`, `Cslib.Crypto.IndexedForger.toTyped`,
-  `Cslib.Crypto.Forger.toCounter`: the typed forger of a word-level forger at parameter `n`.
+* `Cslib.Crypto.IndexedForger.toTyped`, `Cslib.Crypto.Forger.toCounter`: the typed indexed and
+  counter forgers of a word-level forger at parameter `n` (alongside `Cslib.Crypto.Forger.toTyped`
+  from `ForgerBridge`).
 
 ## Main results
 
@@ -65,15 +66,6 @@ namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
 open OracleComp (sumHandler)
-
-/-- The typed forger played by the word forger `adversary` at parameter `n` on the public key
-`pk`: each signing request `((), m)` becomes the query `m`, and private sampling is unchanged. -/
-def Forger.toTyped (adversary : Forger) (n : ℕ) : Signature.Forger (List Bool) (List Bool)
-    (List Bool) := fun pk =>
-  OracleComp.interpret
-    (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : List Bool => List Bool)
-      (.inl k)) (fun request => ProbOracleComp.query request.2))
-    (adversary n pk)
 
 /-- The typed indexed forger played by the word forger `adversary` at parameter `n`: each request
 word is decoded to the pair `(u, m)` that the word oracle reads from it, and the candidate
@@ -130,22 +122,9 @@ private theorem eval_runLogWith_rename {Q α : Type} (program : WordOracleComp U
         program) signer)).map
         (fun (a, log) => (a, (log.map Prod.fst).reverse)) =
       ProbComp.eval ((OracleComp.interpret
-        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) := by
-  have hhandler : (fun q => OracleComp.interpret
-      (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) (ProbOracleComp.logOracle signer))
-      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : Q => List Bool)
-          (.inl k)) (fun request : Unit × List Bool => ProbOracleComp.query (decode request.2))
-        q)) =
-      sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-        (fun request : Unit × List Bool => ProbOracleComp.logOracle signer (decode request.2)) := by
-    funext q
-    cases q <;> simp [ProbOracleComp.query]
-  rw [ProbOracleComp.runLogWith, ProbOracleComp.runState, OracleComp.interpret_interpret,
-    hhandler, ProbOracleComp.eval_run_interpret, ProbOracleComp.eval_run_interpret]
-  exact ProbOracleComp.run_interpret_map_state
-    (fun request log => ProbComp.eval (ProbOracleComp.logOracle signer (decode request.2) log))
-    (fun request queried => ProbComp.eval (oracle request queried))
-    (fun log => (log.map Prod.fst).reverse) step program []
+        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) :=
+  Forger.eval_runLogWith_rename_state program decode signer oracle
+    (fun log => (log.map Prod.fst).reverse) step
 
 /-- The EUF-CMA experiment of a typed scheme on words, played by `adversary.toTyped n`, is the
 word-level game: run the word forger against the signing oracle that records the queried messages,
