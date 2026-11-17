@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Code.ReedMuller
+import CslibFrontier.Foundations.Data.MvPolynomial.Shift
 import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.LinearAlgebra.Lagrange
 
@@ -78,40 +79,6 @@ theorem lowDegreeExtension_apply_embed (h : H ↪ F) (f : (Fin m → H) → F) (
     rw [prod_eq_zero (mem_univ i) (Lagrange.eval_basis_of_ne hi (mem_univ _)), mul_zero]
   · exact fun h' => absurd (mem_univ u) h'
 
-/-- **The low-degree extension is a Reed–Muller codeword** of degree `m * (|H| - 1)`. -/
-theorem lowDegreeExtension_mem_reedMuller (h : H ↪ F) (f : (Fin m → H) → F) :
-    lowDegreeExtension h f ∈ reedMuller F m (m * (Fintype.card H - 1)) := by
-  classical
-  let L : H → Polynomial F := fun a => Lagrange.basis univ h a
-  have hL : ∀ a, (L a).natDegree = Fintype.card H - 1 := fun a => by
-    rw [Lagrange.natDegree_basis h.injective.injOn (mem_univ a), card_univ]
-  -- a univariate polynomial in the variable `i` has total degree at most its degree
-  have hdeg : ∀ (i : Fin m) (p : Polynomial F), (p.toMvPolynomial i).totalDegree ≤ p.natDegree := by
-    intro i p
-    conv_lhs => rw [p.as_sum_range_C_mul_X_pow]
-    rw [map_sum]
-    refine MvPolynomial.totalDegree_finsetSum_le fun k hk => ?_
-    rw [map_mul, map_pow, Polynomial.toMvPolynomial_C, Polynomial.toMvPolynomial_X]
-    calc (MvPolynomial.C (p.coeff k) * MvPolynomial.X i ^ k : MvPolynomial (Fin m) F).totalDegree
-        ≤ (MvPolynomial.C (p.coeff k) : MvPolynomial (Fin m) F).totalDegree +
-            (MvPolynomial.X i ^ k : MvPolynomial (Fin m) F).totalDegree :=
-          MvPolynomial.totalDegree_mul _ _
-      _ = k := by rw [MvPolynomial.totalDegree_C, MvPolynomial.totalDegree_X_pow, zero_add]
-      _ ≤ p.natDegree := Nat.lt_succ_iff.1 (mem_range.1 hk)
-  let P : MvPolynomial (Fin m) F := ∑ u : Fin m → H,
-    MvPolynomial.C (f u) * ∏ i, (L (u i)).toMvPolynomial i
-  refine mem_reedMuller.2 ⟨P, ?_, ?_⟩
-  · refine MvPolynomial.totalDegree_finsetSum_le fun u _ => ?_
-    refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-    rw [MvPolynomial.totalDegree_C (σ := Fin m) (f u), zero_add]
-    refine (MvPolynomial.totalDegree_finsetProd _ _).trans ?_
-    calc ∑ i, ((L (u i)).toMvPolynomial i).totalDegree ≤ ∑ _i : Fin m, (Fintype.card H - 1) :=
-          sum_le_sum fun i _ => (hdeg i _).trans (hL _).le
-      _ = m * (Fintype.card H - 1) := by rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
-  · funext x
-    simp only [P, lowDegreeExtension, map_sum, map_mul, MvPolynomial.eval_C, map_prod,
-      MvPolynomial.eval_toMvPolynomial, L]
-
 /-- A univariate polynomial placed in the variable `i` has degree at most its degree in `i` and
 degree zero in every other variable. -/
 private theorem degreeOf_toMvPolynomial_le (p : Polynomial F) (i j : Fin m) :
@@ -155,5 +122,14 @@ theorem exists_degreeOf_le_eval_eq_lowDegreeExtension (h : H ↪ F) (f : (Fin m 
       ≤ ∑ i, if j = i then Fintype.card H - 1 else 0 :=
         sum_le_sum fun i _ => (degreeOf_toMvPolynomial_le _ i j).trans <| by rw [hL]
     _ = Fintype.card H - 1 := by simp
+
+/-- **The low-degree extension is a Reed–Muller codeword** of degree `m * (|H| - 1)`: its
+polynomial has degree at most `|H| - 1` in each of the `m` variables. -/
+theorem lowDegreeExtension_mem_reedMuller (h : H ↪ F) (f : (Fin m → H) → F) :
+    lowDegreeExtension h f ∈ reedMuller F m (m * (Fintype.card H - 1)) := by
+  obtain ⟨P, hdeg, heval, -⟩ := exists_degreeOf_le_eval_eq_lowDegreeExtension h f
+  exact mem_reedMuller.2 ⟨P,
+    (MvPolynomial.totalDegree_le_card_mul_of_degreeOf_le hdeg).trans_eq (by rw [Fintype.card_fin]),
+    funext heval⟩
 
 end Cslib.Code
