@@ -149,29 +149,6 @@ private theorem iid_bad_coord_le {γ : Type*} (q_marg : PMF γ) (bad : γ → Bo
         rw [← PMF.toOuterMeasure_map_apply, (Probability.PMF.iid_map q_marg bad (2 * t)).symm]
     _ ≤ (4 * β₀ * (1 - β₀)) ^ t := Probability.PMF.iid_card_ge_le hq hβ₀ t
 
-private theorem iid_bind_piFin_block {X : Type u} {β : Type*} (D : PMF X) (k n : ℕ)
-    (f : Fin k → (Fin n → X) → PMF β) :
-    ((Probability.PMF.iid D (k * n)).bind fun S =>
-      PMF.piFin fun j => f j (BitString.block (m := k) (k := n) S j)) =
-      PMF.piFin fun j => (Probability.PMF.iid D n).bind (f j) := by
-  have hm := (PMF.bind_map (Probability.PMF.iid D (k * n))
-    (BitString.block (α := X) (m := k) (k := n))
-    (fun B => PMF.piFin fun j => f j (B j))).symm
-  dsimp only [Function.comp_def] at hm
-  rw [hm, iid_map_block, ← PMF.piFin_const, PMF.piFin_bind]
-
-private theorem iid_bind_splitSample {X : Type u} {β : Type*} (D : PMF X) (m₁ m₂ : ℕ)
-    (f : (Fin m₁ → X) → (Fin m₂ → X) → PMF β) :
-    ((Probability.PMF.iid D (m₁ + m₂)).bind fun S =>
-      f (splitSample m₁ m₂ S).1 (splitSample m₁ m₂ S).2) =
-      (Probability.PMF.iid D m₁).bind fun S₁ =>
-        (Probability.PMF.iid D m₂).bind fun S₂ => f S₁ S₂ := by
-  have hm := (PMF.bind_map (Probability.PMF.iid D (m₁ + m₂)) (splitSample m₁ m₂)
-    (fun p => f p.1 p.2)).symm
-  dsimp only [Function.comp_def] at hm
-  rw [hm, iid_map_splitSample]
-  simp only [pmf_norm]
-
 private theorem thresholdRound_union_disagree_le {ι : Type*} [Fintype ι] {a b δ : ℝ}
     (hab : a < b) (N : ℕ) [NeZero N] {x₁ x₂ μ : ι → ℝ}
     (hx₁ : ∀ j, |x₁ j - μ j| ≤ δ) (hx₂ : ∀ j, |x₂ j - μ j| ≤ δ)

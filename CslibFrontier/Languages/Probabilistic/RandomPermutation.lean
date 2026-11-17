@@ -1281,7 +1281,9 @@ private theorem run_interpret_forgetfulWithBad_map_fst {β : Type}
   OracleComp.run_interpret_map_state forgetfulWithBad forgetfulAnswer Prod.fst
     forgetfulWithBad_map_fst program (cache, bad)
 
-private theorem mem_support_forgetfulWithBad {q : PermQuery α} {c c' : Cache α}
+/-- A supported `forgetfulWithBad` step either answers from `c` without modifying `(c, b)`, or
+misses, prepends the fresh answer entry, and updates `b` with whether `a ∉ freshAnswers c q`. -/
+theorem mem_support_forgetfulWithBad {q : PermQuery α} {c c' : Cache α}
     {b b' : Bool} {a : α} (h : (a, (c', b')) ∈ (forgetfulWithBad q (c, b)).support) :
     (cachedAnswer c q = some a ∧ c' = c ∧ b' = b) ∨
       (cachedAnswer c q = none ∧ c' = PermQuery.toCacheEntry ⟨q, a⟩ :: c ∧
@@ -1290,7 +1292,10 @@ private theorem mem_support_forgetfulWithBad {q : PermQuery α} {c c' : Cache α
   · exact Or.inr ⟨rfl, rfl, rfl⟩
   · exact Or.inl ⟨rfl, rfl, rfl⟩
 
-private theorem mem_support_exactWithBad {q : PermQuery α} {c c' : Cache α}
+/-- A supported `exactWithBad` step either answers from `c` without modifying `(c, b)`, draws a
+fresh answer in `freshAnswers c q` and prepends it while keeping `b`, or resamples via `answer`
+and sets `b' = true`. -/
+theorem mem_support_exactWithBad {q : PermQuery α} {c c' : Cache α}
     {b b' : Bool} {a : α} (h : (a, (c', b')) ∈ (exactWithBad q (c, b)).support) :
     (cachedAnswer c q = some a ∧ c' = c ∧ b' = b) ∨
       (cachedAnswer c q = none ∧ a ∈ freshAnswers c q ∧
