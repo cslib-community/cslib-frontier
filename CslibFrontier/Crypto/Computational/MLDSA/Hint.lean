@@ -100,69 +100,129 @@ theorem useHint_mul_eq_add_hintResidual (q γ₂ : ℕ) (h : Bool) (r : ZMod q) 
 variable {q γ₂ : ℕ}
 
 private theorem bucketCount_pos (hγ : 0 < γ₂) (hq : 4 * γ₂ < q) :
-    0 < (q - 1) / (2 * γ₂) := by
-  exact Nat.div_pos (by omega) (by omega)
+    0 < (q - 1) / (2 * γ₂) :=
+  Nat.div_pos (by omega) (by omega)
 
 private theorem eq_bucketCount_mul_add_one (hq : 0 < q) (hdvd : 2 * γ₂ ∣ q - 1) :
     q = (q - 1) / (2 * γ₂) * (2 * γ₂) + 1 := by
   rw [Nat.div_mul_cancel hdvd]
   omega
 
+private theorem intCast_eq_bucketCount_mul_add_one (hq : 0 < q) (hdvd : 2 * γ₂ ∣ q - 1) :
+    (q : ℤ) = (((q - 1) / (2 * γ₂) : ℕ) : ℤ) * (2 * γ₂ : ℕ) + 1 := by
+  exact_mod_cast eq_bucketCount_mul_add_one hq hdvd
+
 private theorem two_le_bucketCount (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     (hq : 4 * γ₂ < q) : 2 ≤ (q - 1) / (2 * γ₂) := by
-  set m : ℕ := (q - 1) / (2 * γ₂)
-  have hqeq : q = m * (2 * γ₂) + 1 := by
-    simpa only [m] using eq_bucketCount_mul_add_one (by omega) hdvd
+  have hqeq := eq_bucketCount_mul_add_one (by omega) hdvd
   nlinarith
 
 private theorem neg_one_emod_natCast {m : ℕ} (hm : 0 < m) :
     (-1 : ℤ) % (m : ℤ) = (m : ℤ) - 1 := by
   simpa using (Int.negSucc_emod 0 (b := (m : ℤ)) (by omega))
 
+/-- Express `useHint` uniformly as `(highBits + s) % m` with `s ∈ {-1, 0, 1}`. -/
+private theorem useHint_eq_add_emod (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 * γ₂ < q)
+    (h : Bool) (r : ZMod q) :
+    useHint q γ₂ h r =
+      (highBits q γ₂ r + cond h (if 0 < lowBits q γ₂ r then (1 : ℤ) else -1) 0) %
+        (((q - 1) / (2 * γ₂) : ℕ) : ℤ) := by
+  cases h
+  · have hr₁₀ := highBits_nonneg (q := q) hγ r
+    have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
+    simp only [useHint_false, Bool.cond_false, add_zero]
+    exact (Int.emod_eq_of_lt hr₁₀ hr₁m).symm
+  · simp only [useHint, Bool.cond_true]
+    split_ifs <;> simp only [sub_eq_add_neg]
+
+/-- Shifted bucket index modulo `m` equals `a + s - w * m` for `w ∈ {-1, 0, 1}`. -/
+private theorem add_emod_natCast_eq_sub_wrap {m : ℕ} (hm : 0 < m) {a s : ℤ}
+    (ha₀ : 0 ≤ a) (ha : a < m) (hs₁ : -1 ≤ s) (hs₂ : s ≤ 1) :
+    (a + s) % (m : ℤ) =
+      a + s - (if a + s < 0 then (-1 : ℤ) else if (m : ℤ) ≤ a + s then 1 else 0) * m := by
+  split_ifs with hlt hge
+  · have hneg : a + s = -1 := by omega
+    rw [hneg, neg_one_emod_natCast hm]
+    ring
+  · have htop : a + s = m := by omega
+    rw [htop, Int.emod_self]
+    ring
+  · rw [Int.emod_eq_of_lt (by omega) (by omega)]
+    ring
+
+/-- The `ZMod q` product of the shifted bucket index `useHint q γ₂ h r` and `2 γ₂`, recording the
+wrap-around correction `w ∈ {-1, 0, 1}` coming from `m * (2 γ₂) ≡ -1 (mod q)`. -/
+private theorem useHint_mul_eq_zmod (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 * γ₂ < q)
+    (h : Bool) (r : ZMod q) :
+    let m : ℕ := (q - 1) / (2 * γ₂)
+    let s : ℤ := cond h (if 0 < lowBits q γ₂ r then 1 else -1) 0
+    let w : ℤ := if highBits q γ₂ r + s < 0 then -1
+      else if (m : ℤ) ≤ highBits q γ₂ r + s then 1 else 0
+    ((useHint q γ₂ h r * (2 * γ₂ : ℕ) : ℤ) : ZMod q) =
+      ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w : ℤ) : ZMod q) := by
+  have : NeZero q := ⟨by omega⟩
+  have hm := bucketCount_pos hγ hq
+  have hr₁₀ := highBits_nonneg (q := q) hγ r
+  have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
+  intro m s w
+  have hqeq : (q : ℤ) = (m : ℤ) * (2 * γ₂ : ℕ) + 1 :=
+    intCast_eq_bucketCount_mul_add_one (by omega) hdvd
+  have hs₁ : -1 ≤ s := by
+    cases h
+    · simp only [s, Bool.cond_false]; omega
+    · simp only [s, Bool.cond_true]; split_ifs <;> omega
+  have hs₂ : s ≤ 1 := by
+    cases h
+    · simp only [s, Bool.cond_false]; omega
+    · simp only [s, Bool.cond_true]; split_ifs <;> omega
+  have hmod := add_emod_natCast_eq_sub_wrap hm hr₁₀ hr₁m hs₁ hs₂
+  rw [useHint_eq_add_emod hγ hdvd hq, hmod]
+  calc
+    (((highBits q γ₂ r + s - w * m) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) =
+        ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w - w * q : ℤ) : ZMod q) := by
+      congr 1
+      rw [hqeq]
+      ring
+    _ = ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w : ℤ) : ZMod q) := by
+      simp only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, ZMod.natCast_self, mul_zero,
+        sub_zero]
+
 /-- The exceptional negative representatives next to zero are precisely the wrap-around bucket. -/
 private theorem highBits_intCast_eq_zero_of_neg (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     (hq : 4 * γ₂ < q) {c : ℤ} (hc₁ : -(γ₂ : ℤ) ≤ c) (hc₂ : c < 0) :
     highBits q γ₂ (c : ZMod q) = 0 := by
   have : NeZero q := ⟨by omega⟩
-  set m : ℕ := (q - 1) / (2 * γ₂)
-  have hm : 0 < m := by simpa only [m] using bucketCount_pos hγ hq
-  have hqeq : (q : ℤ) = (m : ℤ) * (2 * γ₂ : ℕ) + 1 := by
-    exact_mod_cast (show q = m * (2 * γ₂) + 1 by
-      simpa only [m] using eq_bucketCount_mul_add_one (by omega) hdvd)
-  have hv₀ := abs_lowBits_le (q := q) hγ (c : ZMod q)
-  rw [abs_le] at hv₀
+  have hqeq := intCast_eq_bucketCount_mul_add_one (by omega) hdvd
+  have hv₀ := abs_le.mp (abs_lowBits_le (q := q) hγ (c : ZMod q))
   have hv₁₀ := highBits_nonneg (q := q) hγ (c : ZMod q)
   have hv₁m := highBits_lt (q := q) hγ hdvd (by omega) (c : ZMod q)
-  change highBits q γ₂ (c : ZMod q) < (m : ℤ) at hv₁m
-  have hcast :
-      ((highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) +
-        lowBits q γ₂ (c : ZMod q) : ℤ) : ZMod q) = (c : ZMod q) :=
-    intCast_highBits_mul_add_lowBits (c : ZMod q)
-  have hdiv : (q : ℤ) ∣
-      highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) +
-        lowBits q γ₂ (c : ZMod q) - c :=
-    (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp hcast.symm
-  obtain ⟨k, hk⟩ := hdiv
+  obtain ⟨k, hk⟩ := (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp
+    (intCast_highBits_mul_add_lowBits (γ₂ := γ₂) (c : ZMod q)).symm
   have hlo : -(q : ℤ) <
-      highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) +
-        lowBits q γ₂ (c : ZMod q) - c := by
-    push_cast
-    nlinarith
+      highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) + lowBits q γ₂ (c : ZMod q) - c := by
+    push_cast; nlinarith
   have hhi :
-      highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) +
-          lowBits q γ₂ (c : ZMod q) - c < q := by
-    push_cast at hqeq hv₁m ⊢
-    nlinarith
-  rw [hk] at hlo hhi
-  have hk0 : k = 0 := by nlinarith
-  have heq : highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) +
-      lowBits q γ₂ (c : ZMod q) = c := by
-    rw [hk0, mul_zero] at hk
-    linarith
+      highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) + lowBits q γ₂ (c : ZMod q) - c < q := by
+    push_cast at hqeq hv₁m ⊢; nlinarith
+  have hk0 : k = 0 := by rw [hk] at hlo hhi; nlinarith
+  have heq : highBits q γ₂ (c : ZMod q) * (2 * γ₂ : ℕ) + lowBits q γ₂ (c : ZMod q) = c := by
+    rw [hk0, mul_zero] at hk; linarith
   by_contra hne
   have hv₁ : (1 : ℤ) ≤ highBits q γ₂ (c : ZMod q) := by omega
-  push_cast at heq
-  nlinarith
+  push_cast at heq; nlinarith
+
+/-- Extending `highBits_intCast_mul_add` to the boundary `b = -γ₂` when `a = 0`. -/
+private theorem highBits_intCast_mul_add_of_le (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
+    (hq : 4 * γ₂ < q) {a b : ℤ} (ha₀ : 0 ≤ a) (ha : a < ((q - 1) / (2 * γ₂) : ℕ))
+    (hb₁ : -(γ₂ : ℤ) ≤ b) (hb₂ : b ≤ γ₂) (hwrap : b = -(γ₂ : ℤ) → a = 0) :
+    highBits q γ₂ ((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q) = a := by
+  have : NeZero q := ⟨by omega⟩
+  by_cases hlt : -(γ₂ : ℤ) < b
+  · exact highBits_intCast_mul_add hγ hdvd ha₀ ha hlt hb₂
+  · have hb : b = -(γ₂ : ℤ) := by omega
+    have ha0 : a = 0 := hwrap hb
+    rw [ha0, zero_mul, zero_add]
+    exact highBits_intCast_eq_zero_of_neg hγ hdvd hq hb₁ (by omega)
 
 /-- `UseHint` always returns a nonnegative bucket index under the source parameter hypotheses. -/
 theorem useHint_nonneg (hγ : 0 < γ₂) (hq : 4 * γ₂ < q) (h : Bool) (r : ZMod q) :
@@ -189,25 +249,20 @@ Lemma 1(3) of the Dilithium v3.1 specification. -/
 theorem useHint_true_ne_highBits (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     (hq : 4 * γ₂ < q) (r : ZMod q) : useHint q γ₂ true r ≠ highBits q γ₂ r := by
   set m : ℕ := (q - 1) / (2 * γ₂)
-  have hm : 2 ≤ m := by simpa only [m] using two_le_bucketCount hγ hdvd hq
-  have hr₀ := highBits_nonneg (q := q) hγ r
-  have hrm := highBits_lt (q := q) hγ hdvd (by omega) r
-  change highBits q γ₂ r < (m : ℤ) at hrm
-  simp only [useHint]
-  split
-  · by_cases hnext : highBits q γ₂ r + 1 < (m : ℤ)
-    · rw [Int.emod_eq_of_lt (by omega) hnext]
-      omega
-    · have hnext : highBits q γ₂ r + 1 = (m : ℤ) := by omega
-      rw [hnext, Int.emod_self]
-      omega
-  · by_cases hrpos : 0 < highBits q γ₂ r
-    · rw [Int.emod_eq_of_lt (by omega) (by omega)]
-      omega
-    · have hrzero : highBits q γ₂ r = 0 := by omega
-      have hmod := neg_one_emod_natCast (m := m) (by omega)
-      rw [hrzero, zero_sub, hmod]
-      omega
+  have hm : 2 ≤ m := two_le_bucketCount hγ hdvd hq
+  rw [useHint_eq_add_emod hγ hdvd hq]
+  simp only [Bool.cond_true]
+  set s : ℤ := if 0 < lowBits q γ₂ r then 1 else -1
+  intro heq
+  have hdiv := Int.mul_ediv_add_emod (highBits q γ₂ r + s) (m : ℤ)
+  change (m : ℤ) * ((highBits q γ₂ r + s) / (m : ℤ)) +
+    (highBits q γ₂ r + s) % (m : ℤ) = highBits q γ₂ r + s at hdiv
+  rw [heq] at hdiv
+  have hs_eq : (m : ℤ) * ((highBits q γ₂ r + s) / (m : ℤ)) = s := by linarith
+  have hs_abs : s = 1 ∨ s = -1 := by simp only [s]; split_ifs <;> omega
+  set k : ℤ := (highBits q γ₂ r + s) / (m : ℤ)
+  have hk : k ≤ -1 ∨ k = 0 ∨ 1 ≤ k := by omega
+  rcases hk with hk | hk | hk <;> rcases hs_abs with hs | hs <;> nlinarith
 
 /-- **Hint injectivity.** For a fixed coefficient, equal `UseHint` outputs imply equal hint bits.
 This is the scalar form of Lemma 1(3) in the Dilithium v3.1 specification. -/
@@ -230,145 +285,40 @@ theorem abs_hintResidual_valMinAbs_le (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q 
     (hq : 4 * γ₂ < q) (h : Bool) (r : ZMod q) :
     |(hintResidual q γ₂ h r).valMinAbs| ≤ 2 * γ₂ + 1 := by
   have : NeZero q := ⟨by omega⟩
-  set m : ℕ := (q - 1) / (2 * γ₂)
-  have hm : 0 < m := by simpa only [m] using bucketCount_pos hγ hq
-  have hqeq : (q : ℤ) = (m : ℤ) * (2 * γ₂ : ℕ) + 1 := by
-    exact_mod_cast (show q = m * (2 * γ₂) + 1 by
-      simpa only [m] using eq_bucketCount_mul_add_one (by omega) hdvd)
-  have hr₀ := abs_lowBits_le (q := q) hγ r
-  rw [abs_le] at hr₀
+  have hr₀ := abs_le.mp (abs_lowBits_le (q := q) hγ r)
   have hr₁₀ := highBits_nonneg (q := q) hγ r
   have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
-  change highBits q γ₂ r < (m : ℤ) at hr₁m
-  have hrec := intCast_highBits_mul_add_lowBits (γ₂ := γ₂) r
-  have hqzero :
-      (((m : ℤ) * (2 * γ₂ : ℕ) + 1 : ℤ) : ZMod q) = 0 := by
-    rw [← hqeq]
-    simp
-  have hmα : (m : ZMod q) * (2 * (γ₂ : ZMod q)) = -1 := by
-    have hqzero' := hqzero
-    push_cast at hqzero'
+  set s : ℤ := cond h (if 0 < lowBits q γ₂ r then 1 else -1) 0
+  set m : ℕ := (q - 1) / (2 * γ₂)
+  set w : ℤ := if highBits q γ₂ r + s < 0 then -1
+    else if (m : ℤ) ≤ highBits q γ₂ r + s then 1 else 0
+  have hmul := useHint_mul_eq_zmod hγ hdvd hq h r
+  have hres : hintResidual q γ₂ h r =
+      ((s * (2 * γ₂ : ℕ) + w - lowBits q γ₂ r : ℤ) : ZMod q) := by
+    rw [hintResidual, hmul]
     calc
-      (m : ZMod q) * (2 * (γ₂ : ZMod q)) =
-          (m : ZMod q) * (2 * (γ₂ : ZMod q)) + 1 - 1 := by ring
-      _ = 0 - 1 := by rw [hqzero']
-      _ = -1 := by ring
+      ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w : ℤ) : ZMod q) - r =
+          ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w : ℤ) : ZMod q) -
+            ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) : ZMod q) := by
+          rw [intCast_highBits_mul_add_lowBits]
+      _ = ((s * (2 * γ₂ : ℕ) + w - lowBits q γ₂ r : ℤ) : ZMod q) := by
+          push_cast; ring
+  rw [hres]
+  refine (ZMod.abs_valMinAbs_intCast_le _).trans (abs_le.mpr ?_)
   cases h
-  · have heq : hintResidual q γ₂ false r = ((-lowBits q γ₂ r : ℤ) : ZMod q) := by
-      simp only [hintResidual, useHint_false]
-      calc
-        ((highBits q γ₂ r * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-            ((highBits q γ₂ r * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-              ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) :
-                ZMod q) := by rw [hrec]
-        _ = ((-lowBits q γ₂ r : ℤ) : ZMod q) := by
-          push_cast
-          ring
-    rw [heq]
-    exact (ZMod.abs_valMinAbs_intCast_le _).trans (by
-      rw [abs_neg, abs_le]
-      constructor <;> omega)
-  · change
-      abs ((((if 0 < lowBits q γ₂ r then
-          (highBits q γ₂ r + 1) % (m : ℤ)
-        else (highBits q γ₂ r - 1) % (m : ℤ)) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-        r).valMinAbs ≤ 2 * γ₂ + 1
-    split
-    · rename_i hrpos
-      by_cases hnext : highBits q γ₂ r + 1 < (m : ℤ)
-      · rw [Int.emod_eq_of_lt (by omega) hnext]
-        have heq :
-            (((highBits q γ₂ r + 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-              (((2 * γ₂ : ℕ) - lowBits q γ₂ r : ℤ) : ZMod q) := by
-          calc
-            (((highBits q γ₂ r + 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-                (((highBits q γ₂ r + 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-                  ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) :
-                    ZMod q) := by rw [hrec]
-            _ = (((2 * γ₂ : ℕ) - lowBits q γ₂ r : ℤ) : ZMod q) := by
-              push_cast
-              ring
-        rw [heq]
-        exact (ZMod.abs_valMinAbs_intCast_le _).trans (by
-          rw [abs_of_nonneg (by push_cast; omega)]
-          push_cast
-          omega)
-      · have hnext : highBits q γ₂ r + 1 = (m : ℤ) := by omega
-        rw [hnext, Int.emod_self]
-        have hnextZ := congrArg (fun z : ℤ => (z : ZMod q)) hnext
-        push_cast at hnextZ
-        have hr₁eq : (highBits q γ₂ r : ZMod q) = (m : ZMod q) - 1 := by
-          calc
-            (highBits q γ₂ r : ZMod q) = (highBits q γ₂ r : ZMod q) + 1 - 1 := by ring
-            _ = (m : ZMod q) - 1 := by rw [hnextZ]
-        have heq :
-            (((0 : ℤ) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-              (((2 * γ₂ : ℕ) + 1 - lowBits q γ₂ r : ℤ) : ZMod q) := by
-          push_cast at hnextZ hqzero
-          calc
-            (((0 : ℤ) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-                (((0 : ℤ) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-                  ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) :
-                    ZMod q) := by rw [hrec]
-            _ = (((2 * γ₂ : ℕ) + 1 - lowBits q γ₂ r : ℤ) : ZMod q) := by
-              push_cast
-              rw [hr₁eq]
-              calc
-                0 * (2 * (γ₂ : ZMod q)) -
-                    (((m : ZMod q) - 1) * (2 * (γ₂ : ZMod q)) + lowBits q γ₂ r) =
-                    -((m : ZMod q) * (2 * (γ₂ : ZMod q))) +
-                      2 * (γ₂ : ZMod q) - lowBits q γ₂ r := by ring
-                _ = 2 * (γ₂ : ZMod q) + 1 - lowBits q γ₂ r := by rw [hmα]; ring
-        rw [heq]
-        exact (ZMod.abs_valMinAbs_intCast_le _).trans (by
-          rw [abs_of_nonneg (by push_cast; omega)]
-          push_cast
-          omega)
-    · rename_i hrpos
-      have hrnonpos : lowBits q γ₂ r ≤ 0 := le_of_not_gt hrpos
-      by_cases hr₁pos : 0 < highBits q γ₂ r
-      · rw [Int.emod_eq_of_lt (by omega) (by omega)]
-        have heq :
-            (((highBits q γ₂ r - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-              ((-(2 * γ₂ : ℕ) - lowBits q γ₂ r : ℤ) : ZMod q) := by
-          calc
-            (((highBits q γ₂ r - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-                (((highBits q γ₂ r - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-                  ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) :
-                    ZMod q) := by rw [hrec]
-            _ = ((-(2 * γ₂ : ℕ) - lowBits q γ₂ r : ℤ) : ZMod q) := by
-              push_cast
-              ring
-        rw [heq]
-        exact (ZMod.abs_valMinAbs_intCast_le _).trans (by
-          rw [abs_of_nonpos (by push_cast; omega)]
-          push_cast
-          omega)
-      · have hr₁zero : highBits q γ₂ r = 0 := by omega
-        have hmod := neg_one_emod_natCast (m := m) (by omega)
-        rw [hr₁zero, zero_sub, hmod]
-        have heq :
-            ((((m : ℤ) - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-              ((-(2 * γ₂ : ℕ) - 1 - lowBits q γ₂ r : ℤ) : ZMod q) := by
-          calc
-            ((((m : ℤ) - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) - r =
-                ((((m : ℤ) - 1) * (2 * γ₂ : ℕ) : ℤ) : ZMod q) -
-                  ((highBits q γ₂ r * (2 * γ₂ : ℕ) + lowBits q γ₂ r : ℤ) :
-                    ZMod q) := by rw [hrec]
-            _ = ((-(2 * γ₂ : ℕ) - 1 - lowBits q γ₂ r : ℤ) : ZMod q) := by
-              push_cast
-              rw [hr₁zero]
-              simp only [Int.cast_zero, zero_mul, zero_add]
-              calc
-                ((m : ZMod q) - 1) * (2 * (γ₂ : ZMod q)) - lowBits q γ₂ r =
-                    (m : ZMod q) * (2 * (γ₂ : ZMod q)) -
-                      2 * (γ₂ : ZMod q) - lowBits q γ₂ r := by ring
-                _ = -(2 * (γ₂ : ZMod q)) - 1 - lowBits q γ₂ r := by rw [hmα]; ring
-        rw [heq]
-        exact (ZMod.abs_valMinAbs_intCast_le _).trans (by
-          rw [abs_of_nonpos (by push_cast; omega)]
-          push_cast
-          omega)
+  · have hs0 : s = 0 := rfl
+    have hw0 : w = 0 := by simp only [w, hs0, add_zero]; split_ifs <;> omega
+    rw [hs0, hw0, zero_mul, zero_add, zero_sub]
+    constructor <;> omega
+  · by_cases hrpos : 0 < lowBits q γ₂ r
+    · have hs1 : s = 1 := by simp only [s, Bool.cond_true, hrpos, ↓reduceIte]
+      have hw : 0 ≤ w ∧ w ≤ 1 := by simp only [w, hs1]; split_ifs <;> omega
+      rw [hs1, one_mul]
+      constructor <;> push_cast <;> omega
+    · have hs1 : s = -1 := by simp only [s, Bool.cond_true, hrpos, ↓reduceIte]
+      have hw : -1 ≤ w ∧ w ≤ 0 := by simp only [w, hs1]; split_ifs <;> omega
+      rw [hs1, neg_one_mul]
+      constructor <;> push_cast <;> omega
 
 /-- **Hint recovery.** If `|z| ≤ γ₂`, using the hint made from `z` and `r` recovers the high bits
 of `r + z`. This is the scalar form of Lemma 1(1) in the Dilithium v3.1 specification, with its
@@ -377,117 +327,73 @@ theorem useHint_makeHint (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 
     {z r : ZMod q} (hz : |z.valMinAbs| ≤ γ₂) :
     useHint q γ₂ (makeHint q γ₂ z r) r = highBits q γ₂ (r + z) := by
   have : NeZero q := ⟨by omega⟩
-  set m : ℕ := (q - 1) / (2 * γ₂)
-  have hm : 0 < m := by simpa only [m] using bucketCount_pos hγ hq
-  have hqeq : (q : ℤ) = (m : ℤ) * (2 * γ₂ : ℕ) + 1 := by
-    exact_mod_cast (show q = m * (2 * γ₂) + 1 by
-      simpa only [m] using eq_bucketCount_mul_add_one (by omega) hdvd)
-  have hr₀ := abs_lowBits_le (q := q) hγ r
-  rw [abs_le] at hr₀
-  have hz₀ := hz
-  rw [abs_le] at hz₀
-  have hr₁₀ := highBits_nonneg (q := q) hγ r
-  have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
-  change highBits q γ₂ r < (m : ℤ) at hr₁m
-  have hsum : r + z =
-      ((highBits q γ₂ r * (2 * γ₂ : ℕ) +
-        (lowBits q γ₂ r + z.valMinAbs) : ℤ) : ZMod q) := by
-    rw [← add_assoc, Int.cast_add, intCast_highBits_mul_add_lowBits, ZMod.coe_valMinAbs]
   by_cases heq : highBits q γ₂ r = highBits q γ₂ (r + z)
-  · rw [makeHint_eq_false_iff.mpr heq, useHint_false]
-    exact heq
+  · rw [makeHint_eq_false_iff.mpr heq, useHint_false, heq]
   · rw [makeHint_eq_true_iff.mpr heq]
-    simp only [useHint]
-    split
-    · rename_i hrpos
-      have hbig : (γ₂ : ℤ) < lowBits q γ₂ r + z.valMinAbs := by
-        by_contra hle
-        have hv : highBits q γ₂ (r + z) = highBits q γ₂ r := by
-          rw [hsum]
-          exact highBits_intCast_mul_add hγ hdvd hr₁₀ hr₁m (by linarith) (by linarith)
-        exact heq hv.symm
-      by_cases hnext : highBits q γ₂ r + 1 < (m : ℤ)
-      · have hsum' : r + z =
-            (((highBits q γ₂ r + 1) * (2 * γ₂ : ℕ) +
-              (lowBits q γ₂ r + z.valMinAbs - (2 * γ₂ : ℕ)) : ℤ) : ZMod q) := by
-          rw [hsum]
-          congr 1
-          ring
-        have hv : highBits q γ₂ (r + z) = highBits q γ₂ r + 1 := by
-          rw [hsum']
-          exact highBits_intCast_mul_add hγ hdvd (by omega) hnext (by push_cast; linarith)
-            (by push_cast; linarith)
-        rw [hv, Int.emod_eq_of_lt (by omega) hnext]
-      · have hnext : highBits q γ₂ r + 1 = (m : ℤ) := by omega
-        have hsum' : r + z =
-            ((lowBits q γ₂ r + z.valMinAbs - (2 * γ₂ : ℕ) - 1 : ℤ) : ZMod q) := by
-          calc
-            r + z = ((highBits q γ₂ r * (2 * γ₂ : ℕ) +
-                (lowBits q γ₂ r + z.valMinAbs) : ℤ) : ZMod q) := hsum
-            _ = (((q : ℤ) +
-                (lowBits q γ₂ r + z.valMinAbs - (2 * γ₂ : ℕ) - 1) : ℤ) :
-                  ZMod q) := by
-              congr 1
-              push_cast at hqeq ⊢
-              nlinarith
-            _ = ((lowBits q γ₂ r + z.valMinAbs - (2 * γ₂ : ℕ) - 1 : ℤ) :
-                  ZMod q) := by
-              push_cast
-              simp
-        have hv : highBits q γ₂ (r + z) = 0 := by
-          rw [hsum']
-          exact highBits_intCast_eq_zero_of_neg hγ hdvd hq (by push_cast; linarith)
-            (by push_cast; linarith)
-        rw [hnext, hv, Int.emod_self]
-    · rename_i hrpos
-      have hrnonpos : lowBits q γ₂ r ≤ 0 := le_of_not_gt hrpos
-      have hsmall : lowBits q γ₂ r + z.valMinAbs ≤ -(γ₂ : ℤ) := by
-        by_contra hlt
-        have hv : highBits q γ₂ (r + z) = highBits q γ₂ r := by
-          rw [hsum]
-          exact highBits_intCast_mul_add hγ hdvd hr₁₀ hr₁m (by linarith) (by linarith)
-        exact heq hv.symm
-      by_cases hrone : 0 < highBits q γ₂ r
-      · have hsum' : r + z =
-            (((highBits q γ₂ r - 1) * (2 * γ₂ : ℕ) +
-              (lowBits q γ₂ r + z.valMinAbs + (2 * γ₂ : ℕ)) : ℤ) : ZMod q) := by
-          rw [hsum]
-          congr 1
-          ring
-        have hv : highBits q γ₂ (r + z) = highBits q γ₂ r - 1 := by
-          rw [hsum']
-          exact highBits_intCast_mul_add hγ hdvd (by omega) (by omega)
-            (by push_cast; linarith) (by push_cast; linarith)
-        rw [hv, Int.emod_eq_of_lt (by omega) (by omega)]
-      · have hrzero : highBits q γ₂ r = 0 := by omega
-        have hstrict : lowBits q γ₂ r + z.valMinAbs < -(γ₂ : ℤ) := by
-          by_contra hlt
-          have hb : lowBits q γ₂ r + z.valMinAbs = -(γ₂ : ℤ) := by omega
+    have hr₀ := abs_le.mp (abs_lowBits_le (q := q) hγ r)
+    have hz₀ := abs_le.mp hz
+    have hr₁₀ := highBits_nonneg (q := q) hγ r
+    have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
+    have hsum : r + z =
+        ((highBits q γ₂ r * (2 * γ₂ : ℕ) +
+          (lowBits q γ₂ r + z.valMinAbs) : ℤ) : ZMod q) := by
+      rw [← add_assoc, Int.cast_add, intCast_highBits_mul_add_lowBits, ZMod.coe_valMinAbs]
+    have hnot : ¬ (-(γ₂ : ℤ) < lowBits q γ₂ r + z.valMinAbs ∧
+        lowBits q γ₂ r + z.valMinAbs ≤ γ₂) := by
+      intro ⟨hlo, hhi⟩
+      apply heq
+      rw [hsum]
+      exact (highBits_intCast_mul_add hγ hdvd hr₁₀ hr₁m hlo hhi).symm
+    set m : ℕ := (q - 1) / (2 * γ₂)
+    set s : ℤ := if 0 < lowBits q γ₂ r then 1 else -1
+    set w : ℤ := if highBits q γ₂ r + s < 0 then -1
+      else if (m : ℤ) ≤ highBits q γ₂ r + s then 1 else 0
+    have huse := useHint_mul_eq_zmod hγ hdvd hq true r
+    dsimp only [Bool.cond_true] at huse
+    set a' : ℤ := useHint q γ₂ true r
+    set b' : ℤ := lowBits q γ₂ r + z.valMinAbs - s * (2 * γ₂ : ℕ) - w
+    have hsum' : r + z = ((a' * (2 * γ₂ : ℕ) + b' : ℤ) : ZMod q) := by
+      dsimp only [b']
+      rw [hsum]
+      simp only [Int.cast_add, Int.cast_sub]
+      rw [show ((a' * (2 * γ₂ : ℕ) : ℤ) : ZMod q) =
+          ((highBits q γ₂ r * (2 * γ₂ : ℕ) + s * (2 * γ₂ : ℕ) + w : ℤ) : ZMod q) from huse]
+      simp only [Int.cast_add]
+      ring
+    have ha₀ : 0 ≤ a' := useHint_nonneg hγ hq true r
+    have ha : a' < (m : ℤ) := useHint_lt hγ hdvd hq true r
+    have hb : -(γ₂ : ℤ) ≤ b' ∧ b' ≤ γ₂ ∧ (b' = -(γ₂ : ℤ) → a' = 0) := by
+      by_cases hrpos : 0 < lowBits q γ₂ r
+      · have hs1 : s = 1 := by simp only [s, hrpos, ↓reduceIte]
+        have hw : 0 ≤ w ∧ w ≤ 1 := by simp only [w, hs1]; split_ifs <;> omega
+        have hb'_eq : b' = lowBits q γ₂ r + z.valMinAbs - 2 * γ₂ - w := by
+          dsimp only [b']; rw [hs1, one_mul]; push_cast; ring
+        refine ⟨by omega, by omega, fun hbeq => ?_⟩
+        have hw1 : w = 1 := by omega
+        have htop : highBits q γ₂ r + 1 = m := by
+          simp only [w, hs1] at hw1; split_ifs at hw1 <;> omega
+        simp only [a', useHint, hrpos, ↓reduceIte]
+        change (highBits q γ₂ r + 1) % (m : ℤ) = 0
+        rw [htop, Int.emod_self]
+      · have hs1 : s = -1 := by simp only [s, hrpos, ↓reduceIte]
+        have hw : -1 ≤ w ∧ w ≤ 0 := by simp only [w, hs1]; split_ifs <;> omega
+        have hb'_eq : b' = lowBits q γ₂ r + z.valMinAbs + 2 * γ₂ - w := by
+          dsimp only [b']; rw [hs1, neg_one_mul]; push_cast; ring
+        have hlt : lowBits q γ₂ r + z.valMinAbs < -(γ₂ : ℤ) ∨ 0 ≤ w := by
+          by_contra hbad
+          push Not at hbad
+          have hrzero : highBits q γ₂ r = 0 := by
+            simp only [w, hs1] at hbad; split_ifs at hbad <;> omega
+          have hbz : lowBits q γ₂ r + z.valMinAbs = -(γ₂ : ℤ) := by omega
           have hv : highBits q γ₂ (r + z) = 0 := by
-            rw [hsum, hrzero, zero_mul, zero_add, hb]
+            rw [hsum, hrzero, zero_mul, zero_add, hbz]
             exact highBits_intCast_eq_zero_of_neg hγ hdvd hq (by omega) (by omega)
           exact heq (by rw [hrzero, hv])
-        have hsum' : r + z =
-            ((((m : ℤ) - 1) * (2 * γ₂ : ℕ) +
-              (lowBits q γ₂ r + z.valMinAbs + (2 * γ₂ : ℕ) + 1) : ℤ) : ZMod q) := by
-          calc
-            r + z = ((lowBits q γ₂ r + z.valMinAbs : ℤ) : ZMod q) := by
-              rw [hsum, hrzero, zero_mul, zero_add]
-            _ = (((q : ℤ) + lowBits q γ₂ r + z.valMinAbs : ℤ) : ZMod q) := by
-              push_cast
-              simp
-            _ = ((((m : ℤ) - 1) * (2 * γ₂ : ℕ) +
-                (lowBits q γ₂ r + z.valMinAbs + (2 * γ₂ : ℕ) + 1) : ℤ) :
-                  ZMod q) := by
-              congr 1
-              push_cast at hqeq ⊢
-              nlinarith
-        have hv : highBits q γ₂ (r + z) = (m : ℤ) - 1 := by
-          rw [hsum']
-          exact highBits_intCast_mul_add hγ hdvd (by omega) (by omega)
-            (by push_cast; linarith) (by push_cast; linarith)
-        have hmod := neg_one_emod_natCast (m := m) (by omega)
-        rw [hrzero, zero_sub, hmod, hv]
+        refine ⟨by omega, by omega, fun hbeq => ?_⟩
+        exfalso
+        omega
+    rw [hsum']
+    exact (highBits_intCast_mul_add_of_le hγ hdvd hq ha₀ ha hb.1 hb.2.1 hb.2.2).symm
 
 /-- Apply `MakeHint` coefficientwise. -/
 def makeHintVec {ι : Type*} (q γ₂ : ℕ) (z r : ι → ZMod q) : ι → Bool :=
