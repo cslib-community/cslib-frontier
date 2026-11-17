@@ -720,8 +720,7 @@ private theorem shiftClipVal_inv64_scaled (r : ℕ) {c : ℝ}
 /-- `FixedRecipe` computing the `r`-th clamped dyadic reciprocal term `(1 / 2) * (1 / 2 ^ (r + 1)) /
 max (1 / 4) (min 1 (w / 2 ^ (r + 1)))` for `w = 2 ^ (m + 1) * max 0 (W.targetVal val sEnv)`. -/
 noncomputable def invScaledNormFixed {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (_hr : r ≤ m) :
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
     FixedRecipe W.slack W.slack_pos W.ValidEnv
       (fun val sEnv =>
         let w := (2 : ℝ) ^ (m + 1) * Max.max 0 (W.targetVal val sEnv)
@@ -782,9 +781,8 @@ private noncomputable def invScaledCoeffs (κ : ℕ) (w : RecipeCoeffs) : Recipe
   (shiftClipPrimCoeffs 4).comp (recip64PrimCoeffs.comp clamped)
 
 private theorem coeffs_invScaledNormFixed {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (_hr : r ≤ m) :
-    (invScaledNormFixed m κ W hm r _hr).inner.coeffs = invScaledCoeffs κ W.coeffs := by
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
+    (invScaledNormFixed m κ W hm r).inner.coeffs = invScaledCoeffs κ W.coeffs := by
   unfold invScaledNormFixed invScaledCoeffs
   dsimp only [FixedRecipe.congrVal]
   rw [FixedRecipe.coeffs_shiftClip, FixedRecipe.coeffs_recip64]
@@ -793,11 +791,11 @@ private theorem coeffs_invScaledNormFixed {Op : Type u} {Struct : Type v}
   · exact fun _ => quarter_clamped_mem_Icc _
 
 /-- Leaf reciprocal factor `(1 / 2) * (1 / 2 ^ (r + 1)) * (1 / max (1 / 4) (min 1 (w / 2 ^ (r+1))))`
-for scale `r ≤ m` in the smooth dyadic reciprocal decomposition. -/
+for scale `r` in the smooth dyadic reciprocal decomposition. -/
 @[expose] noncomputable def invScaledNormRecipe {Op : Type u} {Struct : Type v}
-    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack)
-    (r : ℕ) (hr : r ≤ m) : UniformStreamRecipe Op Struct :=
-  (invScaledNormFixed m κ W hm r hr).toRecipe
+    (m κ : ℕ) (W : UniformStreamRecipe Op Struct) (hm : m ≤ κ * W.slack) (r : ℕ) :
+    UniformStreamRecipe Op Struct :=
+  (invScaledNormFixed m κ W hm r).toRecipe
 
 private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
     {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
@@ -883,7 +881,7 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
   let swC := dyadicSwitchCoeffs κ wNormR.coeffs
   let oneSubC := oneSubSwitchCoeffs κ wNormR.coeffs
   let diffSwC := diffSwitchCoeffs κ wNormR.coeffs
-  let invTpl := invScaledNormFixed 0 κ wNormR (Nat.zero_le _) 0 le_rfl
+  let invTpl := invScaledNormFixed 0 κ wNormR (Nat.zero_le _) 0
   let invTplR := invTpl.toRecipe
   let wgtMaxA := max swC.coeffA (max oneSubC.coeffA diffSwC.coeffA)
   let wgtMaxB := max swC.coeffB (max oneSubC.coeffB diffSwC.coeffB)
@@ -913,7 +911,7 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
   let children : Fin (2 ^ (m + 1)) → UniformStreamRecipe Op Struct := fun i =>
     if hi : i.val ≤ m then
       ((dyadicWeightNormFixed m κ wNormR hmW i.val).mul
-        (invScaledNormFixed m κ wNormR hmW i.val hi)).toRecipe
+        (invScaledNormFixed m κ wNormR hmW i.val)).toRecipe
     else
       (FixedRecipe.const d hd V 0 (by norm_num)).toRecipe
   have hChildBounds : ∀ i : Fin (2 ^ (m + 1)),
