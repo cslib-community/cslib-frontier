@@ -695,10 +695,10 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_le [Fintype M] [Nonempty M] [Fin
     _ = ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := add_comm _ _
 
 /-- **ROM IND-CCA security of `FO^⊥ = U^⊥ ∘ T` from two-stage IND-CPA**
-([HofheinzHoevelmannsKiltz2017], Theorems 3.2 and 3.3, composed directly). Let the messages be
-uniform, the PKE `δ`-correct and `γ`-spread, and let every coin value of the randomized adversary
-`A` make at most `qG` queries to `G`, `qH` queries to `H` and `qD` queries to `decaps`. Then the
-single IND-CPA reduction `romBotCpaReduction A` satisfies
+(after [HofheinzHoevelmannsKiltz2017], Theorems 3.2 and 3.3, whose bound it does not reproduce).
+Let the messages be uniform, the PKE `δ`-correct and `γ`-spread, and let every coin value of the
+randomized adversary `A` make at most `qG` queries to `G`, `qH` queries to `H` and `qD` queries to
+`decaps`. Then the single IND-CPA reduction `romBotCpaReduction A` satisfies
 `Adv^{IND-CCA}_{FO^⊥}(A) ≤ 2 · Adv^{IND-CPA}(romBotCpaReduction A)
   + 2 (qG + qH) / |M| + 2 (qG + qH + 1) δ + 2 (qG + qH + qD) 2^{-γ}`.
 Both advantages are two-world differences, twice HHK17's hidden-bit advantages. Both real `H`
@@ -706,7 +706,25 @@ replies and the independent ideal challenge key in `roIndCcaBotGame` and `eagerI
 drawn from the arbitrary key sampler `S.sampleKey : ProbComp K`; taking `S.sampleKey` uniform on
 `K` recovers the standard uniform-ideal-key experiment of [HofheinzHoevelmannsKiltz2017], §2.2,
 Def. 2.4 / Fig. 4. This is a concrete bound for one fixed scheme; it says nothing about the running
-time of the reduction. -/
+time of the reduction.
+
+*Relation to the source* (IACR ePrint 2017/604, version of 2 November 2021). The proof follows the
+game hops of Theorem 3.2 (`T`, p. 12) and Theorem 3.3 (`U^⊥`, p. 14) but composes them directly,
+without the intermediate OW-PCVA game, and its bound differs from theirs in every term. In HHK17's
+hidden-bit convention (halving both sides) it reads
+`Adv(A) ≤ 2 · Adv^{IND-CPA}(romBotCpaReduction A) + (qG + qH) / |M| + (qG + qH + 1) δ
+  + (qG + qH + qD) 2^{-γ}`,
+while composing the two theorems as stated, with the at most `qH` plaintext-checking and `qH`
+validity queries that Theorem 3.3 gives its OW-PCVA adversary, yields, for some IND-CPA adversary
+`A'`,
+`Adv(A) ≤ 3 · Adv^{IND-CPA}(A') + (2 qG + 1) / |M| + (qG + qH) δ + qH 2^{-γ}`,
+which the `FO^⊥` row of the §3.3 table (p. 22) simplifies to
+`q_RO (δ + 2^{-γ}) + 3 q_RO / |M| + 3 · Adv^{IND-CPA}(A')` with `q_RO = qG + qH`. Neither bound
+implies the other: this one has the smaller IND-CPA coefficient, and the smaller message-space term
+when `qH ≤ qG + 1`, but a correctness term larger by `δ` and a spreadness term that grows with `qG`
+and `qD`. The query counts are not the same either: HHK17 counts every evaluation of `G` and `H` in
+the experiment, the experiment's own included (§2.1, p. 9), while `FullQueryBounds` counts only
+the adversary's explicit queries. -/
 theorem indCcaBotAdvantage_le [Fintype M] [Nonempty M] [Finite R] [Finite CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : RandomizedROAdversary PK M R CT K) {qG qH qD : ℕ}
     (hq : A.FullQueryBounds qG qH qD)

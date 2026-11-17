@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.Collision
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Small-bias distributions and the XOR lemma
@@ -58,6 +59,8 @@ an `ε`-biased distribution is read as a `k`-wise `ε`-biased one
 * `Cslib.BitString.four_mul_dist_uniform_sq_le_sum_bias_sq`,
   `Cslib.BitString.dist_uniform_le_sqrt_sum_bias_sq`: Vazirani's XOR lemma.
 * `Cslib.BitString.IsSmallBias.dist_uniform_le`: `ε`-biased distributions are close to uniform.
+* `Cslib.BitString.IsSmallBias.le_card_filter_parityOn`: a uniform `ε`-biased sample space has
+  odd parity on a nonempty set at at least a `(1 - ε) / 2` fraction of its points.
 * `Cslib.BitString.IsKWiseSmallBias.dist_map_restrict_le`: `k`-wise `ε`-biased distributions are
   almost `k`-wise independent.
 * `Cslib.BitString.IsSmallBias.isKWiseSmallBias_map_dotProduct`: `k`-wise independent parities
@@ -243,6 +246,21 @@ theorem dist_uniform_le (hX : IsSmallBias ε X) :
       _ = Real.sqrt (2 ^ Fintype.card ι - 1) * ε := by
           rw [sum_const, nsmul_eq_mul, card_filter_nonempty, Real.sqrt_mul' _ (sq_nonneg ε),
             Real.sqrt_sq hε]
+
+/-- **Small-bias sample spaces hit every nonzero parity often**: if the uniform distribution on
+the `d` sample points `s j` is `ε`-biased, then for every nonempty `S` at least a
+`(1 - ε) / 2` fraction of the points have odd parity on `S`. -/
+theorem le_card_filter_parityOn {d : ℕ} [NeZero d] {s : Fin d → ι → Bool}
+    (hs : IsSmallBias ε ((PMF.uniformOfFintype (Fin d)).map s)) {S : Finset ι}
+    (hS : S.Nonempty) : (1 - ε) / 2 * d ≤ #{j | parityOn S (s j) = true} := by
+  classical
+  have h := (le_abs_self _).trans (hs S hS)
+  rw [bias_eq_one_sub_two_mul, PMF.toOuterMeasure_map_apply,
+    toOuterMeasure_uniformOfFintype_toReal] at h
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Fintype.card_fin] at h
+  have hd : (0 : ℝ) < d := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne d)
+  apply (le_div_iff₀ hd).1
+  linarith
 
 end IsSmallBias
 
