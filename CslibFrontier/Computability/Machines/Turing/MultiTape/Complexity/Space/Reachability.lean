@@ -212,10 +212,7 @@ attribute [local fun_prop] ComputableInDegree.increment
     ComputableInDegree (fun b : Bool => !b) encBool encBool 1 0 :=
   of_finite _
 
-/-- The predecessor in unary. -/
-@[local fun_prop] private lemma pred_deg :
-    ComputableInDegree (fun n : ℕ => n - 1) encUnary encUnary 1 1 :=
-  unary_pred
+attribute [local fun_prop] ComputableInDegree.unary_pred
 
 /-- Whether a call is pending. -/
 @[local fun_prop] private lemma isSome_deg :
