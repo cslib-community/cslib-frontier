@@ -1418,6 +1418,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Encoding
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Kleene
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Restriction
+public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Twin
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activation
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activity
@@ -2351,6 +2352,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Toda.Counting
 public import CslibFrontier.Computability.Complexity.Classes.Toda.FormulaAmplification
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Hierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Isolation
+public import CslibFrontier.Computability.Complexity.Classes.Toda.RandomParitySAT
 public import CslibFrontier.Computability.Complexity.Classes.Toda.SharpSAT
 public import CslibFrontier.Computability.Complexity.Classes.TruncatedVerifier
 public import CslibFrontier.Computability.Complexity.Classes.UP
@@ -6667,6 +6669,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexOrientation
 public import CslibFrontier.Foundations.LinearAlgebra.MultivariateQuadratic
 public import CslibFrontier.Foundations.LinearAlgebra.PivotSpace
 public import CslibFrontier.Foundations.LinearAlgebra.PlaneRotation
+public import CslibFrontier.Foundations.LinearAlgebra.RandomOrthogonal
 public import CslibFrontier.Foundations.LinearAlgebra.Rank
 public import CslibFrontier.Foundations.LinearAlgebra.ReplacementDesign
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Amplify
