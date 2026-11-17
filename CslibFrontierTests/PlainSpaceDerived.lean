@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Re
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import Lean
 
 open Turing.MultiTapeTM
@@ -18,8 +19,8 @@ open Turing.MultiTapeTM
 -- Zero is a valid charged-space envelope, even with unbounded input and nonempty output.
 example : ComputableInSpace (fun _ : List Bool => [true, false]) encBits encBits
     (fun _ => 0) := by
-  exact (ComputableInSpace.constZero [true]).append (ComputableInSpace.constZero [false])
-    (fun _ => rfl)
+  exact (ComputableInSpace.constZero (encIn := encBits) (encB := encBits) [true]).append
+    (ComputableInSpace.constZero (encIn := encBits) (encB := encBits) [false]) (fun _ => rfl)
 
 -- The counter's plain degree witness serves an ordinary space client.
 example : ComputableInSpace Cslib.BitString.increment encBits encBits
