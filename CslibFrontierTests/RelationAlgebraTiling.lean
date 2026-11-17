@@ -8,12 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.RelationAlgebra.Tiling.Reduction
+import CslibFrontier.Computability.RelationAlgebra.Undecidable
 
 /-! # The relation algebra of a tile list: checked instances
 
 The frame and the table of `RA(τ)` on small lists of tiles: the rules that make tile edges match,
-the agreement of the arithmetic on atom numbers with the frame, and lists of tiles that are
-instances of the reduction. -/
+the agreement of the arithmetic on atom numbers with the frame, lists of tiles that are
+instances of the reduction, and the undecidability theorem applied to a Boolean decision
+procedure. -/
 
 @[expose] public section
 
@@ -124,5 +126,13 @@ example : ¬EveryTileOccurs [⟨0, 1, 0, 0⟩] ∧ ¬(tilingTable [⟨0, 1, 0, 0
     simp [Fin.fin_one_eq_zero] at this
   exact ⟨fun h' => h (everyTileOccurs_iff_everyIndexOccurs.mp h'),
     fun h' => h (everyIndexOccurs_of_hasWinningStrategy (isRepresentable_tilingTable_iff.mp h'))⟩
+
+/-- No computable Boolean function decides the representation problem, with the predicate named
+by `AtomTable.IsRepresentable` rather than written out as in the theorem. -/
+example (f : AtomTable → Bool) (hf : Computable f) : ¬∀ t, f t = true ↔ t.IsRepresentable := by
+  intro decides
+  apply AtomTable.not_computablePred_representable_complexAlgebra
+  have hp : ComputablePred fun t => f t = true := ⟨inferInstance, hf.of_eq fun _ => by simp⟩
+  exact hp.of_eq decides
 
 end Cslib.Tests.RelationAlgebraTiling
