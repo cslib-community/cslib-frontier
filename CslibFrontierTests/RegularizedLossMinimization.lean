@@ -28,7 +28,7 @@ noncomputable def memorize (S : Fin 1 → Bool) : ℝ := if S 0 then 1 else 0
 theorem trueRisk_bitAbsLoss_memorize (S : Fin 1 → Bool) :
     trueRisk bitAbsLoss uniformBool (memorize S) = 1 / 2 := by
   rw [trueRisk_def, integral_fintype Integrable.of_finite]
-  simp only [uniformBool, measureReal_def, Measure.smul_apply, Measure.count_singleton,
+  simp only [uniformBool, measureReal_def, smul_apply, Measure.count_singleton,
     smul_eq_mul, mul_one, Fintype.sum_bool, bitAbsLoss, memorize, ENNReal.toReal_inv,
     ENNReal.toReal_ofNat]
   cases S 0 <;> norm_num

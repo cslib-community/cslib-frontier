@@ -161,7 +161,7 @@ theorem eq_zero_of_scale_X_pow_vanishing {σ F : Type*} [DecidableEq σ] [Field 
     exact ⟨by_contra fun h => hb (ite_eq_right h), fun h => hb (by rw [h, ite_self])⟩
   let v : H0.support → MvPolynomial σ F := fun b => ∑ i, (ρ i).coeff (ν - s b) • p i
   have hvc : ∀ b m, (v b).coeff m = (H.coeff m).coeff (ν - s b) := fun b m => by
-    simp [v, hH, Polynomial.finsetSum_coeff, coeff_map, Polynomial.coeff_mul_C]
+    simp [v, hH, coeff_map, Polynomial.coeff_mul_C]
   have hsupp : ∀ m t, (H.coeff m).coeff t ≠ 0 → m ∈ H.support := fun m t h =>
     mem_support_iff.2 fun h0 => h (by rw [h0, Polynomial.coeff_zero])
   have hli : LinearIndependent F v :=
