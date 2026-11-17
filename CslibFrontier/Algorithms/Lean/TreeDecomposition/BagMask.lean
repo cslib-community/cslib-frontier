@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
-public import Cslib.Algorithms.Lean.TimeM
+public import CslibFrontier.Algorithms.Lean.TimeM.Simps
 public import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -299,21 +299,17 @@ variable {V : Type*} [DecidableEq V]
 
 theorem ret_zerosM (c : ℕ) : (zerosM c).ret = Array.replicate c 0 := rfl
 
+@[time_simps]
 theorem ret_memM (x : V) (L : List V) : (memM x L).ret = decide (x ∈ L) := by
-  induction L with
-  | nil => simp [memM]
-  | cons u L ih => simp [memM, ih]
+  time_spec memM
 
+@[time_simps]
 theorem ret_selMemM (x : V) (L : List V) (m : ℕ) :
     (selMemM x L m).ret = decide (x ∈ ofMask L m) := by
-  induction L generalizing m with
-  | nil => simp [selMemM, ofMask]
-  | cons u L ih => simp [selMemM, ih, mem_ofMask_cons]
+  time_spec selMemM [ofMask, mem_ofMask_cons]
 
 theorem ret_keyM (LB LP : List V) (t : ℕ) : (keyM LB LP t).ret = toMask LP (ofMask LB t) := by
-  induction LP with
-  | nil => rfl
-  | cons u LP ih => simp [keyM, toMask, ih, ret_selMemM]
+  time_spec keyM [toMask]
 
 theorem ret_restrictM (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
     (restrictM LB LP s).ret = toMask LP (ofMask LP s ∩ LB.toFinset) := by
@@ -409,55 +405,31 @@ variable {V : Type*} [DecidableEq V]
 theorem time_zerosM (c : ℕ) : (zerosM c).time = c := by
   simp [zerosM]
 
+@[time_simps]
 theorem time_memM (x : V) (L : List V) : (memM x L).time = L.length := by
-  induction L with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [memM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec memM
 
+@[time_simps]
 theorem time_selMemM (x : V) (L : List V) (m : ℕ) : (selMemM x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [selMemM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec selMemM
 
 theorem time_keyM (LB LP : List V) (t : ℕ) :
     (keyM LB LP t).time = LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [keyM]
-  | cons u LP ih =>
-    simp only [keyM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_selMemM,
-      List.length_cons]
-    ring
+  time_spec keyM
 
 theorem time_restrictM (LB LP : List V) (s : ℕ) :
     (restrictM LB LP s).time = LP.length * (LB.length + 1) := by
-  induction LP generalizing s with
-  | nil => simp [restrictM]
-  | cons u LP ih =>
-    simp only [restrictM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
+  time_spec restrictM
 
 theorem time_forgetWeightM (w : V → ℕ) (LP LB : List V) (t : ℕ) :
     (forgetWeightM w LP LB t).time = LB.length * (LP.length + 1) := by
-  induction LB generalizing t with
-  | nil => simp [forgetWeightM]
-  | cons u LB ih =>
-    simp only [forgetWeightM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_memM,
-      List.length_cons]
-    ring
+  time_spec forgetWeightM
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem time_noAdjM (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V) (m : ℕ) :
     (noAdjM G x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [noAdjM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec noAdjM
 
 theorem indepCost_succ (b : ℕ) : indepCost (b + 1) = indepCost b + (b + 1) := by
   unfold indepCost
@@ -473,12 +445,7 @@ theorem indepCost_le (b : ℕ) : indepCost b ≤ b * b :=
 omit [DecidableEq V] in
 theorem time_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     (indepM G L m).time = indepCost L.length := by
-  induction L generalizing m with
-  | nil => simp [indepM, indepCost]
-  | cons u L ih =>
-    simp only [indepM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_noAdjM,
-      List.length_cons, indepCost_succ]
-    omega
+  time_spec indepM [indepCost_succ]
 
 end TimeLoops
 

@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Prod
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Card
@@ -637,7 +638,7 @@ theorem fget_fset_ne {α : Type*} {n : ℕ} (mat : Vector (Vector α n) n) {a b 
     let rest ← replicateM m a
     pure (rest.push a)
 
-@[simp]
+@[simp, time_simps]
 theorem replicateM_ret {α : Type*} (m : ℕ) (a : α) :
     (replicateM m a).ret = Vector.replicate m a := by
   induction m with
@@ -653,14 +654,10 @@ theorem replicateM_ret {α : Type*} (m : ℕ) (a : α) :
       subst heq
       simp
 
-@[simp]
+@[simp, time_simps]
 theorem replicateM_time {α : Type*} (m : ℕ) (a : α) :
     (replicateM m a).time = m := by
-  induction m with
-  | zero => rfl
-  | succ m ih =>
-    simp only [replicateM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih]
-    omega
+  time_spec replicateM
 
 /-- Filter `vs` into a `Finset`, charging `1` tick per inspected element. -/
 @[expose] def filterFinsetM {α : Type*} [DecidableEq α] (p : α → Bool) :

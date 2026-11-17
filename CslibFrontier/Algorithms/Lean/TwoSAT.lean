@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT
 import CslibFrontier.Algorithms.Lean.TimeM.Loops
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import CslibFrontier.Foundations.Data.List.Fold
 
 /-!
@@ -149,21 +150,11 @@ theorem nodup_literalList {vs : List V} (hnd : vs.Nodup) : (literalList vs).Nodu
       and_false, false_or, mem_literalList_iff]
     exact ⟨hnd.1, hnd.1, ih hnd.2⟩
 
-private theorem literalListM_spec :
-    ∀ (vs : List V),
-      (literalListM vs).ret = literalList vs ∧ (literalListM vs).time = vs.length
-  | [] => by simp [literalListM, literalList]
-  | v :: vs => by
-    obtain ⟨hr, ht⟩ := literalListM_spec vs
-    simp only [literalListM, literalList, TimeM.ret_bind, TimeM.time_bind, TimeM.time_tick,
-      TimeM.ret_pure, TimeM.time_pure, List.length_cons, hr, ht, true_and]
-    omega
+theorem ret_literalListM (vs : List V) : (literalListM vs).ret = literalList vs := by
+  time_spec literalListM [literalList]
 
-theorem ret_literalListM (vs : List V) : (literalListM vs).ret = literalList vs :=
-  (literalListM_spec vs).1
-
-theorem time_literalListM (vs : List V) : (literalListM vs).time = vs.length :=
-  (literalListM_spec vs).2
+theorem time_literalListM (vs : List V) : (literalListM vs).time = vs.length := by
+  time_spec literalListM
 
 /-! ### Implication-graph adjacency lists -/
 

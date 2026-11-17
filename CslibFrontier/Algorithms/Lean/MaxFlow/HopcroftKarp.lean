@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.AugmentingPath
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -114,21 +115,15 @@ open scoped TimeM
     ✓
     foldlTickM step xs (step b x)
 
-@[simp]
+@[simp, time_simps]
 theorem foldlTickM_ret {α β : Type*} (step : β → α → β) (xs : List α) (b : β) :
     (foldlTickM step xs b).ret = xs.foldl step b := by
-  induction xs generalizing b with
-  | nil => rfl
-  | cons x xs ih => simp [foldlTickM, ih]
+  time_spec foldlTickM
 
-@[simp]
+@[simp, time_simps]
 theorem foldlTickM_time {α β : Type*} (step : β → α → β) (xs : List α) (b : β) :
     (foldlTickM step xs b).time = xs.length := by
-  induction xs generalizing b with
-  | nil => rfl
-  | cons x xs ih =>
-    simp only [foldlTickM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec foldlTickM
 
 variable {m r : ℕ}
 
@@ -1809,8 +1804,7 @@ theorem hopcroftKarpM_time_le (hadj : BipAdjValid G adj) :
     simp [hopcroftKarpM, replicateM_ret]
   rw [hphase] at hph
   generalize (hopcroftKarpM G adj).ret.matching.card = ν at hph ⊢
-  simp only [hopcroftKarpM, TimeM.time_bind, replicateM_time, replicateM_ret, foldlTickM_time,
-    List.length_finRange, TimeM.time_pure]
+  simp only [hopcroftKarpM, time_simps, List.length_finRange]
   have := Nat.mul_le_mul_right (7 * m + 3 * r + 1 + 4 * bipAdjSteps adj)
     (show (hkLoopM G adj (m + 1) 0 (Vector.replicate r none)).ret.phases - 0 + 1 ≤
       2 * Nat.sqrt ν + 1 by omega)

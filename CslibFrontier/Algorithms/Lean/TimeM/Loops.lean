@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
+public import CslibFrontier.Algorithms.Lean.TimeM.Simps
 public import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -33,7 +33,7 @@ public section
 namespace Cslib.Algorithms.Lean.TimeM
 
 /-- The vector filled by `Vector.ofFnM` in the time monad is the vector of the return values. -/
-@[simp] theorem ret_vectorOfFnM {α : Type*} : ∀ {n : ℕ} (f : Fin n → TimeM ℕ α),
+@[simp, time_simps] theorem ret_vectorOfFnM {α : Type*} : ∀ {n : ℕ} (f : Fin n → TimeM ℕ α),
     (Vector.ofFnM f).ret = Vector.ofFn fun i => (f i).ret
   | 0, f => by
     rw [Vector.ofFnM_zero]
@@ -53,7 +53,7 @@ namespace Cslib.Algorithms.Lean.TimeM
       rfl
 
 /-- Filling a vector by `Vector.ofFnM` costs the sum of the costs of its cells. -/
-@[simp] theorem time_vectorOfFnM {α : Type*} : ∀ {n : ℕ} (f : Fin n → TimeM ℕ α),
+@[simp, time_simps] theorem time_vectorOfFnM {α : Type*} : ∀ {n : ℕ} (f : Fin n → TimeM ℕ α),
     (Vector.ofFnM f).time = ∑ i, (f i).time
   | 0, f => by
     rw [Vector.ofFnM_zero]
@@ -64,14 +64,14 @@ namespace Cslib.Algorithms.Lean.TimeM
     rw [time_vectorOfFnM, Fin.sum_univ_castSucc]
 
 /-- A map over a list in the time monad returns the list of the return values. -/
-@[simp] theorem ret_listMapM {α β : Type*} (f : α → TimeM ℕ β) (l : List α) :
+@[simp, time_simps] theorem ret_listMapM {α β : Type*} (f : α → TimeM ℕ β) (l : List α) :
     (l.mapM f).ret = l.map fun a => (f a).ret := by
   induction l with
   | nil => rfl
   | cons a l ih => simp only [List.mapM_cons, ret_bind, ret_pure, ih, List.map_cons]
 
 /-- A map over a list in the time monad costs the sum of the costs of its elements. -/
-@[simp] theorem time_listMapM {α β : Type*} (f : α → TimeM ℕ β) (l : List α) :
+@[simp, time_simps] theorem time_listMapM {α β : Type*} (f : α → TimeM ℕ β) (l : List α) :
     (l.mapM f).time = (l.map fun a => (f a).time).sum := by
   induction l with
   | nil => rfl
@@ -79,7 +79,7 @@ namespace Cslib.Algorithms.Lean.TimeM
     simp only [List.mapM_cons, time_bind, time_pure, ih, List.map_cons, List.sum_cons, add_zero]
 
 /-- A fold in the time monad returns the pure fold of the return values. -/
-@[simp] theorem ret_foldlM {α β : Type*} (f : β → α → TimeM ℕ β) (l : List α) (b : β) :
+@[simp, time_simps] theorem ret_foldlM {α β : Type*} (f : β → α → TimeM ℕ β) (l : List α) (b : β) :
     (l.foldlM f b).ret = l.foldl (fun acc a => (f acc a).ret) b := by
   induction l generalizing b with
   | nil => rfl
@@ -103,5 +103,12 @@ theorem time_foldlM_eq_sum {α β : Type*} (f : β → α → TimeM ℕ β) (c :
   induction l generalizing b with
   | nil => rfl
   | cons a l ih => rw [List.foldlM_cons, time_bind, ih, hf, List.map_cons, List.sum_cons]
+
+/-- `time_foldlM_eq_sum` in a form `simp` can apply: the hypothesis says that the step cost ignores
+the accumulator, and names no cost function. -/
+@[time_simps] theorem time_foldlM_eq_sum_map {α β : Type*} (f : β → α → TimeM ℕ β) (l : List α)
+    (b : β) (hf : ∀ acc acc' a, (f acc a).time = (f acc' a).time) :
+    (l.foldlM f b).time = (l.map fun a => (f b a).time).sum :=
+  time_foldlM_eq_sum f _ (fun acc a => hf acc b a) l b
 
 end Cslib.Algorithms.Lean.TimeM
