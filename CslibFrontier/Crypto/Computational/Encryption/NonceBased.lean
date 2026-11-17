@@ -19,12 +19,12 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 # Nonce-based symmetric encryption and chosen-plaintext security
 
 A nonce-based cipher ([BonehShoup2023], Section 5.5, printed pp. 201–202) consists of deterministic
-encryption `c = E(k, m, N)` and deterministic decryption `D(k, c, N)` taking an explicit
-adversary-chosen nonce `N` alongside the message `m`, with correctness requiring
-`D(k, E(k, m, N), N) = m` (printed p. 202). Section 9.5 (printed p. 378) extends both algorithms
-with an associated-data input `d`, writing `c = E(k, m, d, N)` and `D(k, c, d, N)`.
-`NonceCipher K M D C N` represents this general syntax; plain nonce-based encryption without
-associated data is the specialization `D = Unit`.
+encryption `c = E(k, m, N)` and deterministic decryption `m = D(k, c, N)` taking an explicit nonce
+`N` alongside the message `m`, with correctness requiring `D(k, E(k, m, N), N) = m` (printed
+p. 202). Section 9.5 (printed p. 378) extends both algorithms with an associated-data input `d`,
+writing `c = E(k, m, d, N)` and `D(k, c, d, N)` (which outputs a message or `reject`).
+`NonceCipher K M D C N` represents this general syntax with `Option M` decryption; plain
+nonce-based encryption without associated data is the specialization `D = Unit`.
 
 Unlike `symmetricCPAGameOn` / `SymmetricINDCPAOn` (`SymmetricCPA.lean`) and
 `SymmetricCipher.cpaGame` / `SymmetricCipher.INDCPA` (`Authenticated.lean`), which model randomized
@@ -33,9 +33,12 @@ encryption without nonces (where multi-query CPA security requires ciphertext ex
 on nonce uniqueness across encryption queries to achieve CPA security with zero ciphertext
 expansion.
 
-In the typed left-or-right CPA experiment `NonceCipher.cpaExperiment` ([BonehShoup2023],
-Section 5.5, Attack Game 5.3, printed p. 202; Section 9.5, Definition 9.7, printed p. 378), the
-challenger maintains `(ok, seen) : Bool × List N`, starting from `(true, [])`:
+Attack Game 5.3 ([BonehShoup2023], Section 5.5, printed p. 202) and its associated-data extension
+(Section 9.5, Definition 9.7, printed p. 378) restrict encryption queries to equal-length message
+pairs in `M` and pairwise distinct nonces `N_i ∈ N \ {N_1, …, N_{i-1}}`. To totalize this game for
+arbitrary adversaries without partial oracles or `[Inhabited C]`, the typed left-or-right CPA
+experiment `NonceCipher.cpaExperiment` maintains `(ok, seen) : Bool × List N`, starting from
+`(true, [])`:
 * While `ok = true`, on a query `(pair, d, nonce)` whose message pair satisfies
   `valid pair.msg₀ pair.msg₁ = true` and whose nonce satisfies `validNonce nonce = true` and
   `nonce ∉ seen`, the challenger records `nonce :: seen` and returns
@@ -114,9 +117,9 @@ the plaintext. -/
 def Correct (E : NonceCipher K M D C N) : Prop :=
   ∀ k m d nonce, E.decrypt k (E.encrypt k m d nonce) d nonce = some m
 
-/-- Stateful left-or-right challenge oracle for `NonceCipher.cpaExperiment`
-([BonehShoup2023], Section 5.5, Attack Game 5.3, printed p. 202; Section 9.5, Definition 9.7,
-printed p. 378). On state `(ok, seen)`:
+/-- Stateful left-or-right challenge oracle for `NonceCipher.cpaExperiment`, totalizing the
+equal-length and unique-nonce query rules of [BonehShoup2023], Section 5.5, Attack Game 5.3
+(printed p. 202) and Section 9.5, Definition 9.7 (printed p. 378). On state `(ok, seen)`:
 * if `ok`, `valid pair.msg₀ pair.msg₁`, `validNonce nonce`, and `decide (nonce ∉ seen)` hold,
   record `nonce :: seen` and return `some (E.encrypt k (pair.select b) d nonce)`;
 * otherwise set `ok := false` and return `none` without invoking `E.encrypt`. -/
@@ -131,9 +134,9 @@ def cpaOracle [DecidableEq N] (E : NonceCipher K M D C N)
     else
       pure (none, (false, seen))
 
-/-- Typed left-or-right chosen-plaintext experiment for a nonce-based cipher
-([BonehShoup2023], Section 5.5, Attack Game 5.3, printed p. 202; Section 9.5, Definition 9.7,
-printed p. 378). Sample `k ← sampleKey`, run `adversary` from initial state `(true, [])` against
+/-- Typed left-or-right chosen-plaintext experiment for a nonce-based cipher, totalizing
+[BonehShoup2023], Section 5.5, Attack Game 5.3 (printed p. 202) and Section 9.5, Definition 9.7
+(printed p. 378). Sample `k ← sampleKey`, run `adversary` from initial state `(true, [])` against
 `E.cpaOracle valid validNonce k b`, and output `ok && guess` from the final `(guess, ok, seen)`.
 
 For admissible, nonce-respecting executions, `ok` remains `true` and every query returns

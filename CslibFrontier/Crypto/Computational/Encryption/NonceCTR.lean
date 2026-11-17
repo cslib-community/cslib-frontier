@@ -38,64 +38,81 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Nonce-based counter mode and Theorem 5.6
 
-Nonce-based counter mode ([BonehShoup2023], Section 5.5.2, printed pp. 203–204) encrypts a sequence
-of `n`-bit blocks `m[0], …, m[v - 1]` under an `n`-bit PRF key `k` and a unique nonce `N` with zero
-ciphertext expansion. As noted on printed p. 203 ("A first attempt"), setting the initial counter
-directly to `x = N` fails for multi-block messages: queries at nonces `N = 0` and `N = 1` both
-evaluate `F(k, 1)`. Instead, when `ℓ = 2 ^ (n - s)` divides `2 ^ n` (`s ≤ n`), the nonce space has
-size `2 ^ n / ℓ = 2 ^ s` (`s`-bit nonces), and block offset `j < 2 ^ (n - s)` uses counter input
-`x = N · ℓ + j`, represented in little-endian binary by `nonceCTRCounter n s nonce j`
-(`BitString.lowBits (n - s) j ++ nonce`, see `lsbValue_nonceCTRCounter`).
+Nonce-based counter mode ([BonehShoup2023], Section 5.5.2, printed pp. 203–204) recasts the
+randomized counter-mode cipher of Section 5.4.2 (`ctrWordKeystream` in
+`CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform`) to encrypt a sequence of `n`-bit
+blocks `m[0], …, m[v - 1]` under an `n`-bit PRF key `k` and a unique nonce `N` with zero ciphertext
+expansion. Both variants below share the deterministic constructor `nonceStreamCipher family n toIV`
+and differ only in the nonce-to-initial-counter map `toIV`:
+* As [BonehShoup2023] observes on printed p. 203, using the nonce directly as the initial counter
+  `x := N` (`unscaledNonceCTRCipher`, `nonce ↦ nonce`) fails for multi-block messages because two
+  distinct nonces can yield overlapping counter intervals `{x₁, …, x₁ + ℓ - 1}` and
+  `{x₂, …, x₂ + ℓ - 1}` and reuse keystream bits (for instance, in our concrete attack below,
+  nonces `0` and `1` on 2-block messages both evaluate `F(k, 1)`).
+* Instead, when `ℓ = 2 ^ (n - s)` divides `2 ^ n` (`s ≤ n`), the nonce space has size
+  `2 ^ n / ℓ = 2 ^ s` (`s`-bit nonces) and `nonceCTRCipher` translates `nonce` to the scaled
+  initial counter `nonceCTRCounter n s nonce 0` (`BitString.lowBits (n - s) 0 ++ nonce`,
+  representing `x := N · ℓ`). At block offset `j < 2 ^ (n - s)`, `ctrWordCounter` from that initial
+  value equals `nonceCTRCounter n s nonce j` (`ctrWordCounter_nonceCTRCounter_zero`), whose
+  little-endian value is `N · ℓ + j` (`lsbValue_nonceCTRCounter`).
 
 1. **Construction, correctness, and polynomial-time algorithms (`nonceCTRCounter`,
-   `nonceCTRKeystream`, `nonceCTRCipher`, `nonceCTRValid`, `nonceCTRValidNonce`)**:
-   `nonceCTRCipher family n s` XORs messages with the keystream at block offsets
-   `0, …, (m.length + n - 1) / n - 1`, preserving plaintext length and satisfying
-   `NonceCipher.Correct` unconditionally (`correct_nonceCTRCipher`). Both encryption and decryption
-   are computable in deterministic polynomial time whenever `family` and `nonceLen` are
-   (`computableInPolyTime_encrypt_nonceCTRCipher`, `computableInPolyTime_decrypt_nonceCTRCipher`).
+   `nonceStreamCipher`, `nonceCTRCipher`, `nonceCTRValid`, `nonceCTRValidNonce`)**:
+   `nonceStreamCipher family n toIV` XORs messages with `ctrWordKeystream` from `toIV nonce` and
+   satisfies `NonceCipher.Correct` unconditionally (`correct_nonceStreamCipher`). Both encryption
+   and decryption of `nonceCTRCipher` are computable in deterministic polynomial time whenever
+   `family` and `nonceLen` are (`computableInPolyTime_encrypt_nonceCTRCipher`,
+   `computableInPolyTime_decrypt_nonceCTRCipher`).
 2. **Exact reduction and CPA security (`nonceCTRToPRF`, `isOraclePPT_nonceCTRToPRF`,
    `advantage_cpaExperiment_nonceCTRCipher_eq_two_mul`, `PseudorandomFunction.indcpa_nonceCTR`)**
-   ([BonehShoup2023], Theorem 5.6, printed pp. 203–204, and equation (5.32), printed p. 204):
+   ([BonehShoup2023], Theorem 5.6, printed pp. 203–204, and inequality `(5.32)`, printed p. 204):
+   [BonehShoup2023] leaves the proof of Theorem 5.6 as an exercise (p. 204), noting that it adapts
+   the proof of Theorem 5.3 (p. 203) with `B` an elementary wrapper around `A` (p. 204). Here
    `nonceCTRToPRF nonceLen A` samples a uniform hidden bit `b`, simulates the stateful CPA word
-   challenger for `A` using its external function oracle, and outputs whether `ok && guess` matches
-   `b`. Against a uniform random function, distinct nonces and `blocks ≤ 2 ^ (n - nonceLen n)` make
-   every counter query fresh, so `ok && guess` is independent of `b` and the distinguisher outputs
-   `true` with probability `1 / 2`. Using the library's two-world CPA advantage (twice the textbook
-   bit-guessing advantage `(5.30)`, printed p. 202), this yields the exact identity
+   challenger for `A` via `ctrKeystreamQueries` against its external function oracle, and outputs
+   whether `ok && guess` matches `b`. Against a uniform random function, distinct nonces and
+   `blocks ≤ 2 ^ (n - nonceLen n)` make every counter query fresh, so `ok && guess` is independent
+   of `b` and the distinguisher outputs `true` with probability `1 / 2`. Because Attack Game 5.3's
+   two-world CPA advantage (`2 · nCPAadv*` by `(5.30)`, printed p. 202) agrees with
+   `Game.advantage`, this yields the exact identity
    $$\mathrm{Adv}_{\mathrm{nCPA}}(A, \mathcal{E}) = 2 \cdot \mathrm{Adv}_{\mathrm{PRF}}(B_A, F),$$
    whose `.le` direction is `(5.32)` (printed p. 204), and hence `NonceCipher.INDCPA` for every
    uniform `PseudorandomFunction`.
-3. **Counter-overlap attack on unscaled nonces (`unscaledNonceCTRCipher`,
+3. **Counter-overlap separation for unscaled nonces (`unscaledNonceCTRCipher`,
    `unscaledNonceCTRAdversary`, `isOraclePPT_unscaledNonceCTRAdversary`,
-   `advantage_cpaExperiment_unscaledNonceCTRAdversary`, `not_indcpa_unscaledNonceCTRCipher`)**
-   ([BonehShoup2023], Section 5.5.2, printed p. 203): using `n`-bit nonces directly as initial
-   counters without scaling (`ctrWordKeystream`) is broken with CPA advantage `1` for every `n ≥ 1`
-   by a 2-query uniform strict `IsOraclePPT` adversary querying nonces `0` and `1` on 2-block
-   messages. This also witnesses that `NonceCipher.INDCPA` separates secure and insecure schemes.
+   `advantage_cpaExperiment_unscaledNonceCTRAdversary`, `not_indcpa_unscaledNonceCTRCipher`)**:
+   instantiating the overlapping-interval failure noted in [BonehShoup2023], Section 5.5.2 (printed
+   p. 203), our concrete 2-query uniform strict `IsOraclePPT` distinguisher
+   `unscaledNonceCTRAdversary` queries nonces `0` and `1` on 2-block messages (under
+   `blockPairValid` with no block cap) to achieve CPA advantage `1` for every `n ≥ 1`, refuting
+   `NonceCipher.INDCPA` for `unscaledNonceCTRCipher`.
 
 ## Main definitions
 
-* `Cslib.Crypto.nonceCTRCounter`, `Cslib.Crypto.nonceCTRKeystream`, `Cslib.Crypto.nonceCTRCipher`:
-  counter inputs, keystream, and deterministic nonce-based counter-mode cipher.
+* `Cslib.Crypto.nonceCTRCounter`: little-endian block counter `N · 2 ^ (n - s) + j`.
+* `Cslib.Crypto.nonceStreamCipher`, `Cslib.Crypto.nonceCTRCipher`,
+  `Cslib.Crypto.unscaledNonceCTRCipher`: deterministic counter-mode stream cipher parameterized by
+  the nonce-to-counter map, and its scaled (`x := N · ℓ`) and unscaled (`x := N`) specializations.
 * `Cslib.Crypto.nonceCTRValid`, `Cslib.Crypto.nonceCTRValidNonce`: whole-block message-pair
   predicate (`blocks ≤ 2 ^ (n - nonceLen n)`) and `nonceLen n`-bit nonce predicate.
-* `Cslib.Crypto.nonceCTRToPRF`: single-distinguisher PRF reduction for Theorem 5.6.
-* `Cslib.Crypto.unscaledNonceCTRCipher`, `Cslib.Crypto.unscaledNonceCTRAdversary`: unscaled
-  nonce-CTR construction and 2-query counter-overlap distinguisher.
+* `Cslib.Crypto.nonceCTRToPRF`: single-distinguisher PRF wrapper adapting the Theorem 5.3 reduction
+  to Theorem 5.6.
+* `Cslib.Crypto.unscaledNonceCTRAdversary`: concrete 2-query counter-overlap distinguisher.
 
 ## Main results
 
-* `Cslib.Crypto.lsbValue_nonceCTRCounter`: little-endian value `lsbValue nonce * 2 ^ (n - s) + j`
-  matching `N · ℓ + j`.
-* `Cslib.Crypto.correct_nonceCTRCipher`: decryption inverts encryption.
+* `Cslib.Crypto.lsbValue_nonceCTRCounter`, `Cslib.Crypto.ctrWordCounter_nonceCTRCounter_zero`:
+  little-endian value `lsbValue nonce * 2 ^ (n - s) + j` and agreement of `ctrWordCounter` from the
+  scaled initial counter with `nonceCTRCounter` below `2 ^ (n - s)`.
+* `Cslib.Crypto.correct_nonceStreamCipher`: decryption inverts encryption for every
+  nonce-to-counter map.
 * `Cslib.Crypto.computableInPolyTime_encrypt_nonceCTRCipher`,
   `Cslib.Crypto.computableInPolyTime_decrypt_nonceCTRCipher`: polynomial-time efficiency of
   encryption and decryption.
 * `Cslib.Crypto.isOraclePPT_nonceCTRToPRF`: uniform strict oracle-PPT certificate for the PRF
   reduction.
-* `Cslib.Crypto.advantage_cpaExperiment_nonceCTRCipher_eq_two_mul`: exact textbook advantage
-  relation `(5.32)`.
+* `Cslib.Crypto.advantage_cpaExperiment_nonceCTRCipher_eq_two_mul`: exact CPA-to-PRF advantage
+  identity whose `.le` direction is `(5.32)` (printed p. 204).
 * `Cslib.Crypto.PseudorandomFunction.indcpa_nonceCTR`: nonce-based counter mode satisfies
   `NonceCipher.INDCPA` for every `PseudorandomFunction` (Theorem 5.6).
 * `Cslib.Crypto.isOraclePPT_unscaledNonceCTRAdversary`,
@@ -106,9 +123,9 @@ size `2 ^ n / ℓ = 2 ^ s` (`s`-bit nonces), and block offset `j < 2 ^ (n - s)` 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-  Section 5.5 (Attack Game 5.3, Definition 5.3, and `(5.30)`, printed p. 202) and Section 5.5.2
-  (nonce-based counter mode, counter-overlap attack, Theorem 5.6, and `(5.32)`, printed
-  pp. 203–204).
+  Section 5.4.2 and Theorem 5.3 (printed pp. 189, 191–192), Section 5.5 (Attack Game 5.3,
+  Definition 5.3, and `(5.30)`, printed p. 202), and Section 5.5.2 (nonce-based counter mode,
+  counter-overlap failure of unscaled nonces, Theorem 5.6, and `(5.32)`, printed pp. 203–204).
 -/
 
 public section
@@ -144,28 +161,16 @@ theorem lsbValue_nonceCTRCounter {n s : ℕ} (nonce : List Bool) {j : ℕ} (hj :
     BitString.lsbValue_lowBits hj]
   ring
 
-/-- Keystream of `blocks` blocks under `family k` from `nonce` at block width `n` and nonce width
-`s`: the concatenated outputs at offsets `0, …, blocks - 1`. -/
-@[expose]
-def nonceCTRKeystream (family : List Bool → List Bool → List Bool) (n s : ℕ)
-    (k nonce : List Bool) (blocks : ℕ) : List Bool :=
-  (List.range blocks).flatMap fun j => family k (nonceCTRCounter n s nonce j)
-
-/-- Under an `n`-bit key and an `s`-bit nonce (`s ≤ n`), a length-preserving family produces a
-keystream of `blocks * n` bits. -/
-theorem length_nonceCTRKeystream {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    {n s : ℕ} (hs : s ≤ n) {k nonce : List Bool} (hk : k.length = n) (hnonce : nonce.length = s)
-    (blocks : ℕ) :
-    (nonceCTRKeystream family n s k nonce blocks).length = blocks * n := by
-  induction blocks with
-  | zero => simp [nonceCTRKeystream]
-  | succ blocks ih =>
-    have hblock : (family k (nonceCTRCounter n s nonce blocks)).length = n := by
-      rw [hlen k _ (by rw [length_nonceCTRCounter hs hnonce, hk]), hk]
-    rw [nonceCTRKeystream, List.range_succ, List.flatMap_append, List.length_append,
-      ← nonceCTRKeystream, ih]
-    simp [hblock, Nat.succ_mul]
+/-- For an `s`-bit nonce (`s ≤ n`) and block offset `j < 2 ^ (n - s)`, advancing
+`ctrWordCounter n` from the scaled initial counter `nonceCTRCounter n s nonce 0` (`x = N · ℓ`)
+produces `nonceCTRCounter n s nonce j` (`N · ℓ + j`). -/
+theorem ctrWordCounter_nonceCTRCounter_zero {n s : ℕ} (hs : s ≤ n) {nonce : List Bool}
+    (hnonce : nonce.length = s) {j : ℕ} (hj : j < 2 ^ (n - s)) :
+    ctrWordCounter n (nonceCTRCounter n s nonce 0) j = nonceCTRCounter n s nonce j := by
+  rw [ctrWordCounter, lsbValue_nonceCTRCounter nonce (Nat.two_pow_pos (n - s)), add_zero,
+    ← lsbValue_nonceCTRCounter nonce hj]
+  simpa only [length_nonceCTRCounter hs hnonce j] using
+    BitString.lowBits_lsbValue (nonceCTRCounter n s nonce j)
 
 /-- XOR `msg` with `stream` truncated or zero-padded to `msg.length`, preserving `msg.length` for
 all inputs. -/
@@ -202,38 +207,49 @@ private theorem div_ceil_eq_div_of_mod_eq_zero {m n : ℕ} (h : m % n = 0) :
     rw [heq, Nat.add_mul_div_left _ _ hn, Nat.mul_div_right _ hn,
       Nat.div_eq_zero_iff.mpr (Or.inr (by omega)), zero_add]
 
-/-- Deterministic nonce-based counter-mode cipher ([BonehShoup2023], Section 5.5.2, printed p. 203)
-at block width `n` and nonce width `s`: XOR the plaintext (or ciphertext) with `(len + n - 1) / n`
-blocks of `nonceCTRKeystream` truncated or zero-padded to the input length. -/
+/-- Deterministic nonce-based counter-mode stream cipher at block width `n` under
+nonce-to-initial-counter map `toIV`: encrypt (or decrypt) a word of length `len` by XORing it with
+`(len + n - 1) / n` blocks of `ctrWordKeystream family n k (toIV nonce)`, truncated or zero-padded
+to `len` bits. -/
 @[expose]
-def nonceCTRCipher (family : List Bool → List Bool → List Bool) (n s : ℕ) :
-    NonceCipher (List Bool) (List Bool) Unit (List Bool) (List Bool) where
-  encrypt k m _ nonce :=
-    let stream := nonceCTRKeystream family n s k nonce ((m.length + n - 1) / n)
-    List.zipWith Bool.xor m
-      (stream.take m.length ++ List.replicate (m.length - stream.length) false)
-  decrypt k c _ nonce :=
-    let stream := nonceCTRKeystream family n s k nonce ((c.length + n - 1) / n)
-    some (List.zipWith Bool.xor c
-      (stream.take c.length ++ List.replicate (c.length - stream.length) false))
+def nonceStreamCipher (family : List Bool → List Bool → List Bool) (n : ℕ)
+    (toIV : List Bool → List Bool) :
+    NonceCipher (List Bool) (List Bool) Unit (List Bool) (List Bool) :=
+  let mask (k w nonce : List Bool) : List Bool :=
+    let stream := ctrWordKeystream family n k (toIV nonce) ((w.length + n - 1) / n)
+    List.zipWith Bool.xor w
+      (stream.take w.length ++ List.replicate (w.length - stream.length) false)
+  { encrypt := fun k m _ nonce => mask k m nonce
+    decrypt := fun k c _ nonce => some (mask k c nonce) }
 
-private theorem nonceCTRCipher_encrypt_eq (family : List Bool → List Bool → List Bool)
-    (n s : ℕ) (k m nonce : List Bool) :
-    (nonceCTRCipher family n s).encrypt k m () nonce =
-      xorWithStream m (nonceCTRKeystream family n s k nonce ((m.length + n - 1) / n)) := rfl
+private theorem nonceStreamCipher_encrypt_eq (family : List Bool → List Bool → List Bool)
+    (n : ℕ) (toIV : List Bool → List Bool) (k m nonce : List Bool) :
+    (nonceStreamCipher family n toIV).encrypt k m () nonce =
+      xorWithStream m
+        (ctrWordKeystream family n k (toIV nonce) ((m.length + n - 1) / n)) := rfl
 
-private theorem nonceCTRCipher_decrypt_eq (family : List Bool → List Bool → List Bool)
-    (n s : ℕ) (k c nonce : List Bool) :
-    (nonceCTRCipher family n s).decrypt k c () nonce =
-      some (xorWithStream c (nonceCTRKeystream family n s k nonce ((c.length + n - 1) / n))) := rfl
+private theorem nonceStreamCipher_decrypt_eq (family : List Bool → List Bool → List Bool)
+    (n : ℕ) (toIV : List Bool → List Bool) (k c nonce : List Bool) :
+    (nonceStreamCipher family n toIV).decrypt k c () nonce =
+      some (xorWithStream c
+        (ctrWordKeystream family n k (toIV nonce) ((c.length + n - 1) / n))) := rfl
 
-/-- Decryption inverts encryption for `nonceCTRCipher` on all keys, messages, and nonces. -/
-theorem correct_nonceCTRCipher (family : List Bool → List Bool → List Bool) (n s : ℕ) :
-    (nonceCTRCipher family n s).Correct := by
+/-- Decryption inverts encryption for `nonceStreamCipher` on all keys, messages, and nonces. -/
+theorem correct_nonceStreamCipher (family : List Bool → List Bool → List Bool) (n : ℕ)
+    (toIV : List Bool → List Bool) :
+    (nonceStreamCipher family n toIV).Correct := by
   intro k m d nonce
   cases d
-  rw [nonceCTRCipher_encrypt_eq, nonceCTRCipher_decrypt_eq, length_xorWithStream,
+  rw [nonceStreamCipher_encrypt_eq, nonceStreamCipher_decrypt_eq, length_xorWithStream,
     xorWithStream_self]
+
+/-- Deterministic nonce-based counter-mode cipher ([BonehShoup2023], Section 5.5.2, printed p. 203)
+at block width `n` and nonce width `s`: `nonceStreamCipher` under the scaled nonce translation
+`nonce ↦ nonceCTRCounter n s nonce 0` (`x := N · ℓ` with `ℓ = 2 ^ (n - s)`). -/
+@[expose]
+def nonceCTRCipher (family : List Bool → List Bool → List Bool) (n s : ℕ) :
+    NonceCipher (List Bool) (List Bool) Unit (List Bool) (List Bool) :=
+  nonceStreamCipher family n (fun nonce => nonceCTRCounter n s nonce 0)
 
 /-- Admissible challenge-pair predicate for nonce-based counter mode with nonce-length schedule
 `nonceLen` ([BonehShoup2023], Section 5.5.2, printed p. 203): equal-length messages of whole `n`-bit
@@ -249,40 +265,16 @@ def nonceCTRValidNonce (nonceLen : ℕ → ℕ) (n : ℕ) (nonce : List Bool) : 
 
 /-! ### Efficiency of the honest algorithms -/
 
-private theorem computableInPolyTime_nonceCTRCounter {α : Type} {input : α ↪ List Bool}
-    {n s j : α → ℕ} {nonce : α → List Bool}
+private theorem computableInPolyTime_nonceCTRCounter_zero {α : Type} {input : α ↪ List Bool}
+    {n s : α → ℕ} {nonce : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
     (hs : ComputableInPolyTime s input encUnary)
-    (hnonce : ComputableInPolyTime nonce input encBits)
-    (hj : ComputableInPolyTime j input encUnary) :
-    ComputableInPolyTime (fun a => nonceCTRCounter (n a) (s a) (nonce a) (j a)) input encBits := by
+    (hnonce : ComputableInPolyTime nonce input encBits) :
+    ComputableInPolyTime (fun a => nonceCTRCounter (n a) (s a) (nonce a) 0) input encBits := by
   unfold nonceCTRCounter
-  have hlow : ComputableInPolyTime (fun a => BitString.lowBits (n a - s a) (j a)) input encBits :=
-    ComputableInPolyTime.bitsLow (by polytime)
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp hj)
+  have hlow : ComputableInPolyTime (fun a => BitString.lowBits (n a - s a) 0) input encBits :=
+    ComputableInPolyTime.bitsLow (by polytime) (ComputableInPolyTime.const 0)
   polytime
-
-private theorem computableInPolyTime_nonceCTRKeystream {family : List Bool → List Bool → List Bool}
-    (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
-      (encPair encBits encBits) encBits)
-    {α : Type} {input : α ↪ List Bool} {n s blocks : α → ℕ} {k nonce : α → List Bool}
-    (hn : ComputableInPolyTime n input encUnary)
-    (hs : ComputableInPolyTime s input encUnary)
-    (hk : ComputableInPolyTime k input encBits)
-    (hnonce : ComputableInPolyTime nonce input encBits)
-    (hblocks : ComputableInPolyTime blocks input encUnary) :
-    ComputableInPolyTime
-      (fun a => nonceCTRKeystream family (n a) (s a) (k a) (nonce a) (blocks a))
-      input encBits := by
-  unfold nonceCTRKeystream
-  refine ComputableInPolyTime.flatMapToBitsWithInput (enc := encUnary)
-    (ComputableInPolyTime.range.comp hblocks) ?_
-  exact hpoly.comp ((hk.comp (ComputableInPolyTime.fst _ _)).prod
-    (computableInPolyTime_nonceCTRCounter
-      (hn.comp (ComputableInPolyTime.fst _ _))
-      (hs.comp (ComputableInPolyTime.fst _ _))
-      (hnonce.comp (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)))
 
 private theorem computableInPolyTime_xorWithStream {α : Type} {input : α ↪ List Bool}
     {msg stream : α → List Bool}
@@ -302,10 +294,11 @@ theorem computableInPolyTime_encrypt_nonceCTRCipher {family : List Bool → List
       (fun ((n, k, msg, nonce) : ℕ × List Bool × List Bool × List Bool) =>
         (nonceCTRCipher family n (nonceLen n)).encrypt k msg () nonce)
       (encKeyedInput (encPair encBits encBits)) encBits := by
-  simp only [nonceCTRCipher_encrypt_eq]
+  simp only [nonceCTRCipher, nonceStreamCipher_encrypt_eq]
   refine computableInPolyTime_xorWithStream (by polytime) ?_
-  exact computableInPolyTime_nonceCTRKeystream hpoly
-    (by polytime) (by polytime) (by polytime) (by polytime) (by polytime)
+  exact computableInPolyTime_ctrWordKeystream hpoly (by polytime) (by polytime)
+    (computableInPolyTime_nonceCTRCounter_zero (by polytime) (by polytime) (by polytime))
+    (by polytime)
 
 /-- Nonce-based counter-mode decryption is computable in polynomial time on `(n, k, ct, nonce)`. -/
 theorem computableInPolyTime_decrypt_nonceCTRCipher {family : List Bool → List Bool → List Bool}
@@ -337,16 +330,7 @@ private theorem computableInPolyTime_nonceCTRValid {nonceLen : ℕ → ℕ}
     (ComputableInPolyTime.unary_clog_const 2).comp (by polytime)
   polytime [blockPairValid]
 
-/-! ### The Theorem 5.6 reduction to the PRF game -/
-
-private def nonceCTRKeystreamStep (n s : ℕ) (nonce : List Bool) (state : ℕ × List Bool) :
-    WordOracleComp Unit (ℕ × List Bool) :=
-  (fun block => (state.1 + 1, state.2 ++ block)) <$>
-    (List.take n <$> ProbOracleComp.query ((), nonceCTRCounter n s nonce state.1))
-
-private def nonceCTRKeystreamQueries (n s : ℕ) (nonce : List Bool) (blocks : ℕ) :
-    WordOracleComp Unit (List Bool) :=
-  Prod.snd <$> OracleComp.iterate blocks (nonceCTRKeystreamStep n s nonce) (0, [])
+/-! ### The PRF reduction for Theorem 5.6 -/
 
 private def nonceCTRHandler (nonceLen : ℕ → ℕ) (n : ℕ) (b : Bool)
     (request : Unit × List Bool) :
@@ -359,7 +343,7 @@ private def nonceCTRHandler (nonceLen : ℕ → ℕ) (n : ℕ) (b : Bool)
           nonceCTRValidNonce nonceLen n nonce && decide (nonce ∉ seen) then
         (fun stream =>
           (true :: xorWithStream (pair.select b) stream, (true, nonce :: seen))) <$>
-          nonceCTRKeystreamQueries n (nonceLen n) nonce (pair.msg₀.length / n)
+          ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0) (pair.msg₀.length / n)
       else
         pure ([], (false, seen))
 
@@ -374,57 +358,17 @@ private noncomputable def nonceCTRSimView (nonceLen : ℕ → ℕ) (adversary : 
         (adversary n [])).run (true, [])
     return (ok && guess)
 
-/-- Single-distinguisher PRF reduction for nonce-based counter mode ([BonehShoup2023], proof of
-Theorem 5.6, printed pp. 203–204): sample a uniform hidden bit `b`, simulate the stateful CPA word
-challenger for `adversary` using the external function oracle, and output whether `ok && guess`
-equals `b`. -/
+/-- Single-distinguisher PRF wrapper for nonce-based counter mode, adapting the bit-guessing
+reduction of [BonehShoup2023], Theorem 5.3 (printed pp. 191–192) to Theorem 5.6 (whose proof
+[BonehShoup2023], Section 5.5.2, printed pp. 203–204 leaves as an exercise, describing `B` as an
+elementary wrapper around `A`): sample a uniform hidden bit `b`, simulate the stateful CPA word
+challenger for `adversary` via `ctrKeystreamQueries` against the external function oracle, and
+output whether `ok && guess` equals `b`. -/
 noncomputable def nonceCTRToPRF (nonceLen : ℕ → ℕ) (adversary : OracleDistinguisher) :
     OracleDistinguisher :=
   fun n aux => do
     let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
     (· == b) <$> nonceCTRSimView nonceLen adversary b n aux
-
-private theorem isOraclePPTOn_nonceCTRKeystreamQueries {α : Type} {input : α ↪ List Bool}
-    {n s blocks : α → ℕ} {nonce : α → List Bool}
-    (hn : ComputableInPolyTime n input encUnary)
-    (hs : ComputableInPolyTime s input encUnary)
-    (hnonce : ComputableInPolyTime nonce input encBits)
-    (hblocks : ComputableInPolyTime blocks input encUnary) :
-    IsOraclePPTOn (Operation := Unit) input encBits
-      (fun a => nonceCTRKeystreamQueries (n a) (s a) (nonce a) (blocks a)) := by
-  let EStep := encPair input (encPair encUnary encBits)
-  have hnStep : ComputableInPolyTime (fun pair : α × (ℕ × List Bool) => n pair.1) EStep encUnary :=
-    hn.comp (ComputableInPolyTime.fst _ _)
-  have hquery : IsOraclePPTOn (Operation := Unit) EStep encBits
-      (fun pair : α × (ℕ × List Bool) => List.take (n pair.1) <$>
-        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-          ((), nonceCTRCounter (n pair.1) (s pair.1) (nonce pair.1) pair.2.1)) :=
-    IsOraclePPTOn.query_take' ()
-      (computableInPolyTime_nonceCTRCounter hnStep (hs.comp (ComputableInPolyTime.fst _ _))
-        (hnonce.comp (ComputableInPolyTime.fst _ _)) (by dsimp only [EStep]; fun_prop))
-      hnStep
-  have hstep : IsOraclePPTOn EStep (encPair encUnary encBits)
-      (fun pair : α × (ℕ × List Bool) =>
-        nonceCTRKeystreamStep (n pair.1) (s pair.1) (nonce pair.1) pair.2) :=
-    hquery.map_with' (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
-      (by dsimp only [EStep]; fun_prop)
-  have hnBound : PolyBounded (fun a => (input a).length) n := by
-    simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
-  have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=
-    hnBound.add (PolyBounded.const 2)
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
-    (stateEncoding := encPair encUnary encBits)
-    (initial := fun _ => ((0 : ℕ), ([] : List Bool))) (count := blocks)
-    (step := fun a state => nonceCTRKeystreamStep (n a) (s a) (nonce a) state)
-    hblocks (ComputableInPolyTime.const _) hstep (growth := fun a => n a + 2) hgrowthPoly
-    (fun a state next hnext => by
-      obtain ⟨block, hblock, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-      obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hblock
-      have htake := List.length_take_le (n a) reply
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
-        List.length_append]
-      omega)
-  exact hloop.map' (ComputableInPolyTime.snd _ _)
 
 private theorem nonceCTRHandler_eq_ite (nonceLen : ℕ → ℕ) (n : ℕ) (b : Bool)
     (request : Unit × List Bool) (state : Bool × List (List Bool)) :
@@ -439,7 +383,7 @@ private theorem nonceCTRHandler_eq_ite (nonceLen : ℕ → ℕ) (n : ℕ) (b : B
           (fun stream =>
             (true :: xorWithStream ((MessagePair.mk m₀ m₁).select b) stream,
               (true, nonce :: state.2))) <$>
-            nonceCTRKeystreamQueries n (nonceLen n) nonce (m₀.length / n)
+            ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0) (m₀.length / n)
         else
           pure ([], (false, state.2))
       else
@@ -558,9 +502,11 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
     ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hm₀) hnCall
   have hks : IsOraclePPTOn encHandlerCallNonceCTR encBits
       (fun x : HandlerCall =>
-        nonceCTRKeystreamQueries x.1.1.1 (nonceLen x.1.1.1)
-          (dropFrame (dropFrame x.2.1.2)) ((unframe x.2.1.2).length / x.1.1.1)) :=
-    isOraclePPTOn_nonceCTRKeystreamQueries hnCall hsCall hnonce hblocks
+        ctrKeystreamQueries x.1.1.1
+          (nonceCTRCounter x.1.1.1 (nonceLen x.1.1.1) (dropFrame (dropFrame x.2.1.2)) 0)
+          ((unframe x.2.1.2).length / x.1.1.1)) :=
+    isOraclePPTOn_ctrKeystreamQueries hnCall
+      (computableInPolyTime_nonceCTRCounter_zero hnCall hsCall hnonce) hblocks
   have hyesInner : IsOraclePPTOn encHandlerCallNonceCTR
       (encPair encBits (encPair encBool (encList encBits)))
       (fun x : HandlerCall =>
@@ -569,8 +515,9 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
             ((MessagePair.mk (unframe x.2.1.2) (unframe (dropFrame x.2.1.2))).select x.1.2)
             stream,
             (true, dropFrame (dropFrame x.2.1.2) :: x.2.2.2))) <$>
-          nonceCTRKeystreamQueries x.1.1.1 (nonceLen x.1.1.1)
-            (dropFrame (dropFrame x.2.1.2)) ((unframe x.2.1.2).length / x.1.1.1)) := by
+          ctrKeystreamQueries x.1.1.1
+            (nonceCTRCounter x.1.1.1 (nonceLen x.1.1.1) (dropFrame (dropFrame x.2.1.2)) 0)
+            ((unframe x.2.1.2).length / x.1.1.1)) := by
     refine hks.map_with' ?_
     let fstP := ComputableInPolyTime.fst encHandlerCallNonceCTR encBits
     let sndP := ComputableInPolyTime.snd encHandlerCallNonceCTR encBits
@@ -628,8 +575,9 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
                 ((MessagePair.mk (unframe x.2.1.2) (unframe (dropFrame x.2.1.2))).select x.1.2)
                 stream,
                 (true, dropFrame (dropFrame x.2.1.2) :: x.2.2.2))) <$>
-              nonceCTRKeystreamQueries x.1.1.1 (nonceLen x.1.1.1)
-                (dropFrame (dropFrame x.2.1.2)) ((unframe x.2.1.2).length / x.1.1.1)
+              ctrKeystreamQueries x.1.1.1
+                (nonceCTRCounter x.1.1.1 (nonceLen x.1.1.1) (dropFrame (dropFrame x.2.1.2)) 0)
+                ((unframe x.2.1.2).length / x.1.1.1)
           else
             pure ([], (false, x.2.2.2))
         else
@@ -697,32 +645,9 @@ theorem isOraclePPT_nonceCTRToPRF {nonceLen : ℕ → ℕ} {adversary : OracleDi
 
 /-! ### Real and ideal PRF worlds and Theorem 5.6 -/
 
-private theorem run_nonceCTRKeystreamQueries_prfOracle {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    {n s : ℕ} (hs : s ≤ n) {k nonce : List Bool} (hk : k.length = n) (hnonce : nonce.length = s)
-    (blocks : ℕ) :
-    (nonceCTRKeystreamQueries n s nonce blocks).run
-        (fun request => pure (prfOracle family n k request.2)) =
-      pure (nonceCTRKeystream family n s k nonce blocks) := by
-  have hloop :
-      ProbOracleComp.run (OracleComp.iterate blocks (nonceCTRKeystreamStep n s nonce) (0, []))
-        (fun request => pure (prfOracle family n k request.2)) =
-        pure (blocks, nonceCTRKeystream family n s k nonce blocks) := by
-    induction blocks with
-    | zero => simp [nonceCTRKeystream]
-    | succ blocks ih =>
-      have hqlen : (nonceCTRCounter n s nonce blocks).length = n :=
-        length_nonceCTRCounter hs hnonce blocks
-      have hblock : (family k (nonceCTRCounter n s nonce blocks)).length = n := by
-        rw [hlen k _ (by rw [hqlen, hk]), hk]
-      rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih, pure_bind, nonceCTRKeystreamStep]
-      simp [prfOracle, hqlen, List.take_of_length_le hblock.le, nonceCTRKeystream, List.range_succ]
-  rw [nonceCTRKeystreamQueries, ProbOracleComp.run_map, hloop, map_pure]
-
 private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    {nonceLen : ℕ → ℕ} {n : ℕ} (hs : nonceLen n ≤ n)
-    (adversary : OracleDistinguisher) (b : Bool) :
+    {nonceLen : ℕ → ℕ} {n : ℕ} (adversary : OracleDistinguisher) (b : Bool) :
     ProbComp.eval (prfRealGame id family (nonceCTRSimView nonceLen adversary b) n) =
       ProbComp.eval ((nonceCTRCipher family n (nonceLen n)).cpaExperiment
         (BitString.sampleList n) (nonceCTRValid nonceLen n) (nonceCTRValidNonce nonceLen n)
@@ -792,19 +717,18 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
         · have hcond' := hcond
           simp only [Bool.and_eq_true, nonceCTRValid, blockPairValid, nonceCTRValidNonce,
             beq_iff_eq] at hcond
-          rcases hcond with ⟨⟨⟨_, ⟨hlenPair, hmod⟩, _⟩, hnonceLen⟩, _⟩
+          rcases hcond with ⟨⟨⟨_, ⟨hlenPair, hmod⟩, _⟩, _⟩, _⟩
           have hselMod : (pair.select b).length % n = 0 := by
             cases b <;> simp [MessagePair.select, ← hlenPair, hmod]
           have hselDiv : ((pair.select b).length + n - 1) / n = pair.msg₀.length / n := by
             rw [div_ceil_eq_div_of_mod_eq_zero hselMod]
             cases b <;> simp [MessagePair.select, hlenPair]
-          rw [ProbOracleComp.run_map,
-            run_nonceCTRKeystreamQueries_prfOracle hlen hs hkLen hnonceLen,
+          rw [ProbOracleComp.run_map, run_ctrKeystreamQueries hlen hkLen,
             map_pure, ProbComp.eval_pure]
           dsimp only [Functor.map, StateT.map]
           split_ifs with hcond2
           · rw [ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.pure_bind, PMF.monad_pure_eq_pure,
-              nonceCTRCipher_encrypt_eq, hselDiv]
+              nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
             rfl
           · exfalso
             apply hcond2
@@ -873,20 +797,21 @@ private theorem lazyRandomFunctionOracle_of_none {n : ℕ} {query : List Bool} (
     RandomOracle.answer_of_none _ _ _ hnone, PMF.map_comp]
   rfl
 
-private theorem runWith_nonceCTRKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
+private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
     {nonce : List Bool} (hnonce : nonce.length = s) {seen : List (List Bool)}
     (hfresh : nonce ∉ seen) {blocks : ℕ} (hblocks : blocks ≤ 2 ^ (n - s))
     {cache : RandomOracle.Cache (fun _ : BitString n => BitString n)}
     (hcache : ∀ x : BitString n, cache x ≠ none → (List.ofFn x).drop (n - s) ∈ seen) :
     let run := ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-      (nonceCTRKeystreamQueries n s nonce blocks) cache
+      (ctrKeystreamQueries n (nonceCTRCounter n s nonce 0) blocks) cache
     (∀ res ∈ run.support,
       ∀ x : BitString n, res.2 x ≠ none → (List.ofFn x).drop (n - s) ∈ nonce :: seen) ∧
       run.map Prod.fst = BitString.uniformList (blocks * n) := by
   classical
+  let iv := nonceCTRCounter n s nonce 0
   have hloop : ∀ k ≤ blocks,
       let runK := ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-        (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache
+        (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache
       (∀ res ∈ runK.support, res.1.1 = k ∧ res.1.2.length = k * n ∧
         ∀ x : BitString n, res.2 x ≠ none →
           (List.ofFn x).drop (n - s) ∈ seen ∨
@@ -920,9 +845,9 @@ private theorem runWith_nonceCTRKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
         rw [List.take_left' (BitString.length_lowBits (n - s) k), BitString.lsbValue_lowBits hkPow]
       have hstep_of_supp : ∀ mid ∈ (ProbOracleComp.runWith
           (fun req => lazyRandomFunctionOracle n n req.2)
-          (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache).support,
+          (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).support,
           ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-            (nonceCTRKeystreamStep n s nonce mid.1) mid.2 =
+            (ctrKeystreamStep n iv mid.1) mid.2 =
           (PMF.uniformOfFintype (BitString n)).map fun y =>
             ((k + 1, mid.1.2 ++ List.ofFn y), Function.update mid.2 xk (some y)) := by
         intro mid hmid
@@ -936,7 +861,8 @@ private theorem runWith_nonceCTRKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
         rcases mid with ⟨⟨idx, stream⟩, cacheMid⟩
         dsimp only at hidx hnone ⊢
         subst idx
-        simp only [nonceCTRKeystreamStep, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
+        simp only [ctrKeystreamStep, iv, ctrWordCounter_nonceCTRCounter_zero hs hnonce hkPow,
+          ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
         have hlro : lazyRandomFunctionOracle n n (nonceCTRCounter n s nonce k) cacheMid =
             (PMF.uniformOfFintype (BitString n)).map fun y =>
               (List.ofFn y, Function.update cacheMid xk (some y)) :=
@@ -964,28 +890,28 @@ private theorem runWith_nonceCTRKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
           · exact Or.inr ⟨hd, Nat.lt_succ_of_lt hlt⟩
       · rw [PMF.map_bind]
         have hcongr : (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-            (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache).bind
+            (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).bind
               (fun mid => (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-                (nonceCTRKeystreamStep n s nonce mid.1) mid.2).map (fun res => res.1.2)) =
+                (ctrKeystreamStep n iv mid.1) mid.2).map (fun res => res.1.2)) =
             (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache).bind
+              (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).bind
               (fun mid => (BitString.uniformList n).map (mid.1.2 ++ ·)) := by
           refine PMF.bind_congr_on_support _ _ _ fun mid hmid => ?_
           rw [hstep_of_supp mid hmid]
           simp [BitString.uniformList, PMF.map_comp, Function.comp_def]
         have hfactor :
             ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache).map
+              (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).map
                 (fun mid : (ℕ × List Bool) × _ => mid.1.2)).bind
                   (fun stream => (BitString.uniformList n).map (stream ++ ·)) =
             (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (OracleComp.iterate k (nonceCTRKeystreamStep n s nonce) (0, [])) cache).bind
+              (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).bind
                 (fun mid => (BitString.uniformList n).map (mid.1.2 ++ ·)) :=
           PMF.bind_map _ (fun mid : (ℕ × List Bool) × _ => mid.1.2)
             (fun stream => (BitString.uniformList n).map (stream ++ ·))
         rw [hcongr, ← hfactor, hlaw, ← BitString.uniformList_add, Nat.succ_mul]
   obtain ⟨hsupp, hlaw⟩ := hloop blocks le_rfl
-  dsimp only [nonceCTRKeystreamQueries]
+  dsimp only [ctrKeystreamQueries, iv]
   rw [ProbOracleComp.runWith_map]
   refine ⟨?_, ?_⟩
   · intro res hres
@@ -1043,7 +969,7 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
           beq_iff_eq, decide_eq_true_eq] at hcond
         rcases hcond with ⟨⟨⟨_, ⟨hlenPair, hmod⟩, hblocks⟩, hnonceLen⟩, hfresh⟩
         obtain ⟨hsuppKs, hlawKs⟩ :=
-          runWith_nonceCTRKeystreamQueries_lazy hs hnonceLen hfresh hblocks hinv
+          runWith_ctrKeystreamQueries_lazy hs hnonceLen hfresh hblocks hinv
         have hselLen : (pair.select b).length = pair.msg₀.length := by
           cases b <;> simp [MessagePair.select, hlenPair]
         have hmulBlocks : pair.msg₀.length / n * n = pair.msg₀.length :=
@@ -1057,11 +983,13 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
           exact hsuppKs ksRes hksRes
         · have hmapXor :
               (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-                (nonceCTRKeystreamQueries n (nonceLen n) nonce (pair.msg₀.length / n)) cache).map
+                (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
+                  (pair.msg₀.length / n)) cache).map
                   (fun ksRes =>
                     (true :: xorWithStream (pair.select b) ksRes.1, (true, nonce :: seen))) =
               ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-                (nonceCTRKeystreamQueries n (nonceLen n) nonce (pair.msg₀.length / n)) cache).map
+                (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
+                  (pair.msg₀.length / n)) cache).map
                   Prod.fst).map
                 (fun stream =>
                   (true :: xorWithStream (pair.select b) stream, (true, nonce :: seen))) := by
@@ -1109,13 +1037,14 @@ private theorem eval_prfGame_nonceCTRToPRF_eq_bind {nonceLen : ℕ → ℕ}
   refine congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)
   rw [PMF.map_bind]
 
-/-- **Exact textbook advantage relation `(5.32)`** ([BonehShoup2023], Theorem 5.6, printed p. 204):
-for any length-preserving `family`, parameter `n` with `nonceLen n ≤ n`, and distinguisher
-`adversary`, the two-world CPA advantage of `unitCPACodec.adapt (adversary n [])` against
+/-- **Exact CPA-to-PRF advantage identity for nonce-based counter mode** (strengthening inequality
+`(5.32)` of [BonehShoup2023], Theorem 5.6, printed p. 204, to an equality): for any
+length-preserving `family`, parameter `n` with `nonceLen n ≤ n`, and distinguisher `adversary`, the
+two-world CPA advantage of `unitCPACodec.adapt (adversary n [])` against
 `nonceCTRCipher family n (nonceLen n)` equals twice the PRF advantage of
-`nonceCTRToPRF nonceLen adversary`. Applying `.le` gives inequality `(5.32)` directly (in the
-library's two-world CPA normalization, twice the bit-guessing advantage `(5.30)`, printed
-p. 202). -/
+`nonceCTRToPRF nonceLen adversary`. Applying `.le` gives `(5.32)` directly (Attack Game 5.3's
+two-world advantage, printed p. 202, equals `Game.advantage` and is twice the bit-guessing
+advantage `(5.30)`). -/
 theorem advantage_cpaExperiment_nonceCTRCipher_eq_two_mul
     {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
@@ -1138,7 +1067,7 @@ theorem advantage_cpaExperiment_nonceCTRCipher_eq_two_mul
     unfold prfRealGame
     rw [eval_prfGame_nonceCTRToPRF_eq_bind]
     refine congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)
-    rw [← eval_prfRealGame_nonceCTRSimView hlen hs adversary b]
+    rw [← eval_prfRealGame_nonceCTRSimView hlen adversary b]
     rfl
   have hideal : ProbComp.eval (prfIdealGame id id (nonceCTRToPRF nonceLen adversary) n) =
       PMF.uniformOfFintype Bool := by
@@ -1163,10 +1092,12 @@ theorem advantage_cpaExperiment_nonceCTRCipher_eq_two_mul
       (NonceCipher.unitCPACodec.adapt (adversary n [])) b)
 
 /-- **Nonce-based counter mode is CPA-secure for a pseudorandom function** ([BonehShoup2023],
-Section 5.5.2, Theorem 5.6, printed pp. 203–204): if `family` is a `PseudorandomFunction` and
-`nonceLen` is computable in polynomial time in unary with `nonceLen n ≤ n`, then
-`nonceCTRCipher family n (nonceLen n)` satisfies `NonceCipher.INDCPA` on whole-block message pairs
-of at most `2 ^ (n - nonceLen n)` blocks under `nonceLen n`-bit nonces. -/
+Section 5.5.2, Theorem 5.6, printed pp. 203–204): in the standard model against uniform strict
+oracle-PPT adversaries, if `family` is a `PseudorandomFunction` (`n`-bit keys and `n`-bit inputs to
+`n`-bit outputs) and `nonceLen` is computable in polynomial time in unary with `nonceLen n ≤ n`,
+then `nonceCTRCipher family n (nonceLen n)` satisfies `NonceCipher.INDCPA` on whole-block message
+pairs of at most `ℓ = 2 ^ (n - nonceLen n)` blocks under `nonceLen n`-bit nonces (the power-of-two
+case `ℓ ∣ 2 ^ n` noted on printed p. 203). -/
 theorem PseudorandomFunction.indcpa_nonceCTR {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family) {nonceLen : ℕ → ℕ}
     (hnonceLen : ComputableInPolyTime nonceLen encUnary encUnary)
@@ -1181,41 +1112,18 @@ theorem PseudorandomFunction.indcpa_nonceCTR {family : List Bool → List Bool �
 
 /-! ### Counter-overlap attack on unscaled nonce-based counter mode -/
 
-/-- The unscaled "first attempt" at nonce-based counter mode ([BonehShoup2023], Section 5.5.2,
-printed p. 203): use the `n`-bit nonce directly as the initial counter of `ctrWordKeystream`
-without multiplying by the maximum block count `ℓ`. -/
+/-- The unscaled first attempt at nonce-based counter mode ([BonehShoup2023], Section 5.5.2,
+printed p. 203): `nonceStreamCipher` under the identity nonce translation `nonce ↦ nonce`
+(`x := N`), using the `n`-bit nonce directly as the initial counter of `ctrWordKeystream` without
+multiplying by the maximum block count `ℓ`. -/
 @[expose]
 def unscaledNonceCTRCipher (family : List Bool → List Bool → List Bool) (n : ℕ) :
-    NonceCipher (List Bool) (List Bool) Unit (List Bool) (List Bool) where
-  encrypt k m _ nonce :=
-    let stream := ctrWordKeystream family n k nonce ((m.length + n - 1) / n)
-    List.zipWith Bool.xor m
-      (stream.take m.length ++ List.replicate (m.length - stream.length) false)
-  decrypt k c _ nonce :=
-    let stream := ctrWordKeystream family n k nonce ((c.length + n - 1) / n)
-    some (List.zipWith Bool.xor c
-      (stream.take c.length ++ List.replicate (c.length - stream.length) false))
+    NonceCipher (List Bool) (List Bool) Unit (List Bool) (List Bool) :=
+  nonceStreamCipher family n (fun nonce => nonce)
 
-private theorem unscaledNonceCTRCipher_encrypt_eq (family : List Bool → List Bool → List Bool)
-    (n : ℕ) (k m nonce : List Bool) :
-    (unscaledNonceCTRCipher family n).encrypt k m () nonce =
-      xorWithStream m (ctrWordKeystream family n k nonce ((m.length + n - 1) / n)) := rfl
-
-private theorem unscaledNonceCTRCipher_decrypt_eq (family : List Bool → List Bool → List Bool)
-    (n : ℕ) (k c nonce : List Bool) :
-    (unscaledNonceCTRCipher family n).decrypt k c () nonce =
-      some (xorWithStream c (ctrWordKeystream family n k nonce ((c.length + n - 1) / n))) := rfl
-
-/-- Decryption inverts encryption for `unscaledNonceCTRCipher` on all inputs. -/
-theorem correct_unscaledNonceCTRCipher (family : List Bool → List Bool → List Bool) (n : ℕ) :
-    (unscaledNonceCTRCipher family n).Correct := by
-  intro k m d nonce
-  cases d
-  rw [unscaledNonceCTRCipher_encrypt_eq, unscaledNonceCTRCipher_decrypt_eq, length_xorWithStream,
-    xorWithStream_self]
-
-/-- Two-query counter-overlap CPA distinguisher against `unscaledNonceCTRCipher`
-([BonehShoup2023], Section 5.5.2, printed p. 203):
+/-- Concrete two-query counter-overlap CPA distinguisher against `unscaledNonceCTRCipher`,
+instantiating the overlapping-interval observation of [BonehShoup2023], Section 5.5.2, printed
+p. 203:
 1. Query `(0^(2n), 0^(2n))` under nonce `lowBits n 0` to observe `F(k, 1)` as the second `n`-bit
    ciphertext block.
 2. Query `(0^(2n), 1^n ++ 0^n)` under distinct nonce `lowBits n 1`, whose first counter block is
@@ -1261,8 +1169,8 @@ private theorem zipWith_xor_replicate_true_ne :
     cases b <;> simp at hb
 
 /-- At every parameter `n ≥ 1`, `unscaledNonceCTRAdversary` achieves CPA advantage `1` against
-`unscaledNonceCTRCipher family n` for any length-preserving `family` ([BonehShoup2023],
-Section 5.5.2, printed p. 203). -/
+`unscaledNonceCTRCipher family n` for any length-preserving `family` on whole-block message
+pairs. -/
 theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
     {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
@@ -1322,7 +1230,7 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           y₀ ++ y₁ := by
         have hlenKs0 : (y₀ ++ y₁).length = 2 * n := by
           simp [y₀, y₁, hyLen, Nat.two_mul]
-        rw [unscaledNonceCTRCipher_encrypt_eq]
+        rw [unscaledNonceCTRCipher, nonceStreamCipher_encrypt_eq]
         simp only [z2, List.length_replicate, hdiv2, hks0]
         rw [xorWithStream_eq_zipWith (by simp [hlenKs0]), ← hlenKs0]
         exact zipWith_xor_replicate_false (y₀ ++ y₁)
@@ -1372,7 +1280,7 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
               y₁ ++ y₂ := by
           have hlenKs1 : (y₁ ++ y₂).length = 2 * n := by
             simp [y₁, y₂, hyLen, Nat.two_mul]
-          rw [unscaledNonceCTRCipher_encrypt_eq]
+          rw [unscaledNonceCTRCipher, nonceStreamCipher_encrypt_eq]
           simp only [z2, List.length_replicate, hdiv2, hks1]
           rw [xorWithStream_eq_zipWith (by simp [hlenKs1]), ← hlenKs1]
           exact zipWith_xor_replicate_false (y₁ ++ y₂)
@@ -1388,7 +1296,7 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           have hlenKs1 : (y₁ ++ y₂).length = m1.length := by
             simp [m1, y₁, y₂, hyLen]
           have hm1Len : m1.length = 2 * n := by simp [m1, Nat.two_mul]
-          rw [unscaledNonceCTRCipher_encrypt_eq, hm1Len, hdiv2, hks1,
+          rw [unscaledNonceCTRCipher, nonceStreamCipher_encrypt_eq, hm1Len, hdiv2, hks1,
             xorWithStream_eq_zipWith hlenKs1]
           dsimp only [m1]
           rw [List.zipWith_append (by simp [y₁, hyLen]), ← hyLen 2,
@@ -1419,7 +1327,8 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
 
 /-- **Unscaled nonce-based counter mode is not CPA-secure** ([BonehShoup2023], Section 5.5.2,
 printed p. 203): for every length-preserving family `family`, using `n`-bit nonces directly as
-initial counters without scaling fails `NonceCipher.INDCPA` on whole-block message pairs. -/
+initial counters without scaling fails `NonceCipher.INDCPA` on whole-block message pairs (with no
+block cap; `unscaledNonceCTRAdversary` uses 2-block queries). -/
 theorem not_indcpa_unscaledNonceCTRCipher {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length) :
     ¬ NonceCipher.INDCPA (fun n => unscaledNonceCTRCipher family n)

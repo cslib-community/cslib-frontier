@@ -46,6 +46,11 @@ example :
   decide
 
 example :
+    ctrWordCounter 4 (nonceCTRCounter 4 2 [true, false] 0) 3 =
+      nonceCTRCounter 4 2 [true, false] 3 := by
+  decide
+
+example :
     let q : MessagePair (List Bool) × Unit × List Bool :=
       (⟨[true, false], [false, true]⟩, (), [true, true])
     NonceCipher.unitCPACodec.decodeQuery (NonceCipher.unitCPACodec.encodeQuery q) = some q :=
@@ -71,7 +76,7 @@ def toyADCipher : NonceCipher (List Bool) (List Bool) (List Bool) (List Bool) (L
 theorem correct_toyADCipher : toyADCipher.Correct := by
   intro k m d nonce
   simp only [toyADCipher, List.take_left, beq_self_eq_true, ↓reduceIte, List.drop_left]
-  exact correct_nonceCTRCipher xorFamily 4 2 k m () nonce
+  exact correct_nonceStreamCipher xorFamily 4 _ k m () nonce
 
 example :
     toyADCipher.decrypt [true, false, true, true]
