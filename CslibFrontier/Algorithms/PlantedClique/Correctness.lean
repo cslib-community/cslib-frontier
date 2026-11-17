@@ -115,8 +115,9 @@ theorem recover_eq_of_opNorm_le (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (hdegree : ∀ v ∉ S, 8 * (S.filter (G.Adj v)).card ≤ 5 * S.card) :
     recover G S.card = S := by
   have hS : S.Nonempty := Finset.card_pos.mp (by omega)
+  have hmiss := approximateSet_overlap _ S hS (isHermitian_signedAdjacency G) hnoise
   exact G.recoverCliqueByDegree_eq_of_overlap rfl
     (card_approximateSet _ (by simpa only [Fintype.card_fin] using Finset.card_le_univ S)) hclique
-    (approximateSet_overlap _ S hS (isHermitian_signedAdjacency G) hnoise) hdegree hk
+    (by omega) (fun v hv => by have := hdegree v hv; omega)
 
 end Cslib.Algorithms.PlantedClique

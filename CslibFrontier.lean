@@ -296,11 +296,15 @@ public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborPolyTime
 public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborProgram
 public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborRecovery
 public import CslibFrontier.Algorithms.PlantedClique.Correctness
+public import CslibFrontier.Algorithms.PlantedClique.Directional
 public import CslibFrontier.Algorithms.PlantedClique.Eigenvector
 public import CslibFrontier.Algorithms.PlantedClique.EigenvectorApproximation
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorBounds
 public import CslibFrontier.Algorithms.PlantedClique.EigenvectorFinal
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorHybrid
 public import CslibFrontier.Algorithms.PlantedClique.EigenvectorPolyTime
 public import CslibFrontier.Algorithms.PlantedClique.EigenvectorProgram
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorSharp
 public import CslibFrontier.Algorithms.PlantedClique.Encoding
 public import CslibFrontier.Algorithms.PlantedClique.Final
 public import CslibFrontier.Algorithms.PlantedClique.Indicator
@@ -7810,6 +7814,7 @@ public import CslibFrontier.Probability.Pinsker
 public import CslibFrontier.Probability.PlantedClique.CommonNeighborSize
 public import CslibFrontier.Probability.PlantedClique.CommonNeighbors
 public import CslibFrontier.Probability.PlantedClique.Degree
+public import CslibFrontier.Probability.PlantedClique.Directional
 public import CslibFrontier.Probability.PlantedClique.Model
 public import CslibFrontier.Probability.PlantedClique.Problem
 public import CslibFrontier.Probability.PlantedClique.RandomMatrix

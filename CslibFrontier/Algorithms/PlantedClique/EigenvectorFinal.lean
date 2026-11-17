@@ -27,8 +27,9 @@ The result is also stated for the generic distributional search experiment and a
 hidden `k`-sets. The solver sees the graph alone (with the target size fixed as a parameter).
 The exact spectral choice in `Eigenvector` is noncomputable; these are semantic correctness
 statements. `EigenvectorPolyTime` proves the same finite bound for a native finite-precision
-realization. Sharper spectral constants remain tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
+realization. `EigenvectorSharp` gives the stronger threshold `(51 / 7) √n` for that native
+program under an explicit large-dimension and sparsity condition. `EigenvectorHybrid`
+supplies the corresponding full-size-range native solver.
 -/
 
 public section

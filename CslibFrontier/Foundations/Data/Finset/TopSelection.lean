@@ -115,23 +115,4 @@ theorem card_sdiff_mul_sq_le_sum_sq (S T : Finset ι) (x : ι → ℝ) {a : ℝ}
         e.sum_comp (fun j : B => error j), Finset.sum_coe_sort, Finset.sum_coe_sort]
     _ ≤ 2 * ∑ i, error i := mul_le_mul_of_nonneg_left hsum (by norm_num)
 
-/-- A squared error of at most `1 / 32` from a normalized indicator suffices for the
-one-sixteenth overlap bound used in clique recovery. The normalization equation separates
-this finite rounding argument from the construction of a unit indicator vector. -/
-theorem sixteen_mul_card_sdiff_le_of_sum_sq_le (S T : Finset ι) (x : ι → ℝ)
-    {a : ℝ} {k : ℕ} (ha : 0 ≤ a) (hscale : (k : ℝ) * a ^ 2 = 1)
-    (hcard : S.card = T.card) (horder : ∀ i ∉ T, ∀ j ∈ T, x i ≤ x j)
-    (herror : ∑ i, (x i - if i ∈ S then a else 0) ^ 2 ≤ 1 / 32) :
-    16 * (S \ T).card ≤ k := by
-  have hround := card_sdiff_mul_sq_le_sum_sq S T x ha hcard horder
-  have hbound : ((S \ T).card : ℝ) * a ^ 2 ≤ 1 / 16 := by linarith
-  have hscaled : ((S \ T).card : ℝ) ≤ (k : ℝ) * (1 / 16) := by
-    calc
-      ((S \ T).card : ℝ) = (k : ℝ) * (((S \ T).card : ℝ) * a ^ 2) := by
-        rw [mul_left_comm, hscale, mul_one]
-      _ ≤ (k : ℝ) * (1 / 16) :=
-        mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg k)
-  have hreal : (16 : ℝ) * (S \ T).card ≤ k := by linarith
-  exact_mod_cast hreal
-
 end Finset

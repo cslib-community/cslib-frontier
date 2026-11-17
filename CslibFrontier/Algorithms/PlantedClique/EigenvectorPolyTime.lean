@@ -17,6 +17,7 @@ public import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.NNRat.BigOperators
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-!
 # A native finite-precision second-eigenvector solver
@@ -31,8 +32,10 @@ of one orientation of Mathlib's ordered unit second eigenvector.
 The recovery program selects the largest absolute coordinates of the integer column and applies
 the existing degree cleanup. Rational normalization multiplies every coordinate by the same
 positive factor, so the selected indices, including ties, are exactly those of the actual
-rational approximation. Correctness therefore uses `recoverFromApproximateSecondEigenvector_eq`
-without another rounding argument.
+rational approximation. The separated-spectrum guarantee scales this vector to compare it
+with the hidden unit indicator, bounds the missed fraction by twice the squared distance,
+and applies the exact degree cleanup inequalities. The original rank-two signal guarantee
+also remains available through `recoverFromApproximateSecondEigenvector_eq`.
 
 The fixed-set and arbitrary-prior probability theorems discharge the noise, spectral, and
 approximation conditions. In the explicit regime `1 ≤ n`, `6 ≤ k`, `4096 k ≤ n`, and
@@ -40,6 +43,11 @@ approximation conditions. In the explicit regime `1 ≤ n`, `6 ≤ k`, `4096 k �
 outside this regime, so one fixed native program supplies a strict PPT solver for the complete
 family. Its input contains only the graph and the public target size; the hidden set and prior
 are used only in the specification and probability argument.
+
+`EigenvectorSharp` combines the separated-spectrum and scaled-alignment interface with
+stronger concentration estimates to prove the threshold `(51 / 7) √n` for this same program,
+when `n ≥ 2 ^ 64` and `4096 k ≤ n`. `EigenvectorHybrid` removes that upper-size restriction
+by branching to the existing certified integer solver for large cliques.
 
 Runtime uses the existing dense-input encoding: unary `n` and `k`, raw adjacency bits, and
 binary integer arithmetic for filter entries and vector coordinates. The polynomial iteration
@@ -66,19 +74,21 @@ for every encoded input; it requires no spectral or planted-clique promise. -/
   unfold approximateSecondEigenvectorInput
   fun_prop
 
-/-- On the rank-two signal promise, the computed rational output approximates one orientation
-of the ordered unit second eigenvector to the tolerance needed by degree cleanup. -/
+/-- On the separated spectral promise, the computed rational output approximates one
+orientation of the ordered unit second eigenvector to the tolerance needed by degree cleanup. -/
 theorem approximateSecondEigenvectorInput_close (x : RecoveryInput)
-    (S : Finset (Fin x.vertexCount)) (hcard : S.card = x.cliqueSize) (hS : S.Nonempty)
-    (hsparse : 4096 * S.card ≤ x.vertexCount)
-    (hnoise : ‖Matrix.toEuclideanCLM (n := Fin x.vertexCount) (𝕜 := ℝ)
-      (x.graph.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S))‖ ≤
-        (S.card : ℝ) / 256) :
+    (htwo : 1 < x.vertexCount) (hk : 1 ≤ x.cliqueSize) (hkn : x.cliqueSize ≤ x.vertexCount)
+    (hspectrum :
+      let hT := Matrix.isSymmetric_toEuclideanLin_iff.mpr (x.graph.isHermitian_adjMatrix ℝ)
+      let d := finrank_euclideanSpace_fin (𝕜 := ℝ) (n := x.vertexCount)
+      |hT.eigenvalues d ⟨1, htwo⟩ - (x.cliqueSize : ℝ) / 2| ≤ x.cliqueSize / 8 ∧
+        ∀ i, i ≠ ⟨1, htwo⟩ → (x.cliqueSize : ℝ) / 6 ≤
+          |hT.eigenvalues d i - (x.cliqueSize : ℝ) / 2|) :
     ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
       ‖(approximateSecondEigenvectorInput x).toEuclidean x.vertexCount -
         s • secondEigenvector x.graph‖ ≤ 1 / 64 := by
   obtain ⟨z, hstored, hz, s, hs, hclose⟩ :=
-    eigenvectorPowerColumn_approximation x S hcard hS hsparse hnoise
+    eigenvectorPowerColumn_approximation x htwo hk hkn hspectrum
   have hnormalize := normalize_close 128 (by norm_num) z hz
   refine ⟨s, hs, ?_⟩
   rw [approximateSecondEigenvectorInput, hstored]
@@ -126,24 +136,14 @@ private theorem toFinset_largestIndices_normalize {n : ℕ} (p : ℕ) (hp : 0 < 
       (Nat.cast_le (α := ℝ) (m := (z j).natAbs) (n := (z i).natAbs)).symm
   simp only [List.selectLargest, hcompare]
 
-/-- Deterministic correctness for the actual integer-arithmetic recovery program. The proof
-uses its computed rational approximation, exact ordering agreement, and the existing tolerance
-theorem for Algorithm A. -/
-theorem recoverApproximateEigenvectorInput_eq (x : RecoveryInput)
-    (S : Finset (Fin x.vertexCount)) (hcard : S.card = x.cliqueSize)
-    (hk : 6 ≤ S.card) (hsparse : 4096 * S.card ≤ x.vertexCount)
-    (hclique : x.graph.IsClique (S : Set (Fin x.vertexCount)))
-    (hnoise : ‖Matrix.toEuclideanCLM (n := Fin x.vertexCount) (𝕜 := ℝ)
-      (x.graph.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S))‖ ≤
-        (S.card : ℝ) / 256)
-    (hdegree : ∀ v ∉ S, 8 * (S.filter (x.graph.Adj v)).card ≤ 5 * S.card) :
-    vertexSet x.vertexCount (recoverApproximateEigenvectorInput x) = S := by
+private theorem vertexSet_recoverApproximateEigenvectorInput (x : RecoveryInput)
+    (hn : 0 < x.vertexCount) :
+    vertexSet x.vertexCount (recoverApproximateEigenvectorInput x) =
+      x.graph.recoverCliqueByDegree x.cliqueSize
+        (List.selectLargest
+          (fun j => |(approximateSecondEigenvectorInput x).toEuclidean x.vertexCount j|)
+          x.cliqueSize (List.finRange x.vertexCount)) := by
   classical
-  have hS : S.Nonempty := Finset.card_pos.mp (by omega)
-  have hn : 0 < x.vertexCount := by
-    have hcard_le := Finset.card_le_univ S
-    simp only [Fintype.card_fin] at hcard_le
-    omega
   obtain ⟨i, hstored, -⟩ :=
     eigenvectorPowerColumn_spec x (eigenvectorIterations x.vertexCount) hn
   let z := fun j =>
@@ -158,10 +158,126 @@ theorem recoverApproximateEigenvectorInput_eq (x : RecoveryInput)
     exact toFinset_largestIndices_normalize 128 (by norm_num) x.cliqueSize z
   apply vertexSet_eq_of_toFinset_eq_image
   unfold recoverApproximateEigenvectorInput recoverEigenvectorPowerInput
-  rw [RecoveryInput.toFinset_cleanup x _ _ hselection (nodup_largestIndices _ _), ← hcard]
-  rw [recoverFromApproximateSecondEigenvector_eq x.graph S hk hsparse hclique hnoise hdegree
-    ((approximateSecondEigenvectorInput x).toEuclidean x.vertexCount)
-    (approximateSecondEigenvectorInput_close x S hcard hS hsparse hnoise)]
+  exact RecoveryInput.toFinset_cleanup x _ _ hselection (nodup_largestIndices _ _)
+
+private theorem recoverCliqueByDegree_eq_of_scaled_approximation {n : ℕ}
+    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (S : Finset (Fin n))
+    (hk : 200 ≤ S.card) (hclique : G.IsClique (S : Set (Fin n)))
+    (halignment : ∃ c : ℝ, |c| ≤ 1 ∧
+      ‖c • secondEigenvector G - unitIndicator S‖ ≤ 107 / 320)
+    (hdegree : ∀ v ∉ S, ((S.filter (G.Adj v)).card : ℝ) ≤ 129 / 256 * S.card)
+    (v : EuclideanSpace ℝ (Fin n))
+    (happrox : ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
+      ‖v - s • secondEigenvector G‖ ≤ 1 / 64) :
+    G.recoverCliqueByDegree S.card
+      (List.selectLargest (fun i => |v i|) S.card (List.finRange n)) = S := by
+  classical
+  have hS : S.Nonempty := Finset.card_pos.mp (by omega)
+  have hkR : (200 : ℝ) ≤ S.card := by exact_mod_cast hk
+  obtain ⟨c, hc, halignment⟩ := halignment
+  obtain ⟨s, hs, happrox⟩ := happrox
+  let w := (c * s) • v
+  let T := List.selectLargest (fun i => |v i|) S.card (List.finRange n)
+  have hsabs : |s| = 1 := by rcases hs with rfl | rfl <;> norm_num
+  have hs2 : s * s = 1 := by rcases hs with rfl | rfl <;> norm_num
+  have hscaled : w - c • secondEigenvector G = (c * s) • (v - s • secondEigenvector G) := by
+    dsimp only [w]
+    rw [smul_sub, smul_smul, mul_assoc, hs2, mul_one]
+  have herror : ‖w - c • secondEigenvector G‖ ≤ 1 / 64 := by
+    rw [hscaled, norm_smul, Real.norm_eq_abs, abs_mul, hsabs, mul_one]
+    exact (mul_le_mul_of_nonneg_left happrox (abs_nonneg c)).trans (by linarith)
+  have hnear : ‖w - unitIndicator S‖ ≤ 7 / 20 := by
+    have ht := norm_sub_le_norm_sub_add_norm_sub w (c • secondEigenvector G) (unitIndicator S)
+    linarith
+  have hsq : ‖w - unitIndicator S‖ ^ 2 ≤ 49 / 400 := by
+    nlinarith [norm_nonneg (w - unitIndicator S)]
+  have hT : T.card = S.card := by
+    dsimp only [T]
+    rw [List.card_selectLargest _ _ (List.nodup_finRange n), List.length_finRange,
+      min_eq_left (by simpa only [Fintype.card_fin] using Finset.card_le_univ S)]
+  have horder : ∀ i ∉ T, ∀ j ∈ T, |w i| ≤ |w j| := by
+    intro i hi j hj
+    change |(c * s) * v i| ≤ |(c * s) * v j|
+    rw [abs_mul (c * s) (v i), abs_mul (c * s) (v j)]
+    exact mul_le_mul_of_nonneg_left
+      (List.weight_le_of_notMem_selectLargest (fun i => |v i|) S.card
+        (List.finRange n) (List.mem_finRange i) hi hj) (abs_nonneg _)
+  have hround := card_sdiff_le_signed_norm_sub_sq hS hT.symm
+    (Or.inl rfl : (1 : ℝ) = 1 ∨ (1 : ℝ) = -1) horder
+  simp only [one_smul] at hround
+  have hmiss : ((S \ T).card : ℝ) ≤ 49 / 200 * S.card := by
+    calc
+      _ ≤ 2 * S.card * ‖w - unitIndicator S‖ ^ 2 := hround
+      _ ≤ 2 * S.card * (49 / 400) := mul_le_mul_of_nonneg_left hsq (by positivity)
+      _ = _ := by ring
+  apply G.recoverCliqueByDegree_eq_of_overlap rfl hT hclique
+  · have h : (4 : ℝ) * (((S \ T).card : ℝ) + 1) ≤ S.card := by linarith
+    exact_mod_cast h
+  · intro u hu
+    have hdegree' := hdegree u hu
+    have h : (4 : ℝ) * ((S.filter (G.Adj u)).card + (S \ T).card) < 3 * S.card := by
+      linarith
+    exact_mod_cast h
+
+/-- Deterministic correctness for the actual integer-arithmetic recovery program. The proof
+uses its computed rational approximation, exact ordering agreement, and the existing tolerance
+theorem for Algorithm A. -/
+theorem recoverApproximateEigenvectorInput_eq (x : RecoveryInput)
+    (S : Finset (Fin x.vertexCount)) (hcard : S.card = x.cliqueSize)
+    (hk : 6 ≤ S.card) (hsparse : 4096 * S.card ≤ x.vertexCount)
+    (hclique : x.graph.IsClique (S : Set (Fin x.vertexCount)))
+    (hnoise : ‖Matrix.toEuclideanCLM (n := Fin x.vertexCount) (𝕜 := ℝ)
+      (x.graph.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S))‖ ≤
+        (S.card : ℝ) / 256)
+    (hdegree : ∀ v ∉ S, 8 * (S.filter (x.graph.Adj v)).card ≤ 5 * S.card) :
+    vertexSet x.vertexCount (recoverApproximateEigenvectorInput x) = S := by
+  classical
+  have hS : S.Nonempty := Finset.card_pos.mp (by omega)
+  have htwo : 1 < x.vertexCount := by omega
+  have hclose := approximateSecondEigenvectorInput_close x htwo (by omega) (by omega)
+    (by
+      obtain ⟨hcenter, hsep⟩ := adjMatrix_eigenvalues_bounds x.graph S hS hsparse hnoise
+      rw [hcard] at hcenter hsep
+      refine ⟨hcenter, fun i hi => ?_⟩
+      exact le_trans (by linarith [show (0 : ℝ) ≤ x.cliqueSize by positivity] :
+        (x.cliqueSize : ℝ) / 6 ≤ x.cliqueSize / 4) (hsep i hi))
+  rw [vertexSet_recoverApproximateEigenvectorInput x (by omega), ← hcard]
+  exact recoverFromApproximateSecondEigenvector_eq x.graph S hk hsparse hclique hnoise hdegree
+    ((approximateSecondEigenvectorInput x).toEuclidean x.vertexCount) hclose
+
+/-- The actual native recovery program succeeds from a separated second eigenvalue and a
+scaled second eigenvector close to the hidden indicator. The proof keeps the program's exact
+selected indices, including ties, while scaling only the vector used to certify their overlap. -/
+theorem recoverApproximateEigenvectorInput_eq_of_spectral_bounds (x : RecoveryInput)
+    (S : Finset (Fin x.vertexCount)) (hcard : S.card = x.cliqueSize)
+    (htwo : 1 < x.vertexCount) (hk : 200 ≤ S.card)
+    (hspectrum :
+      let hT := Matrix.isSymmetric_toEuclideanLin_iff.mpr (x.graph.isHermitian_adjMatrix ℝ)
+      let d := finrank_euclideanSpace_fin (𝕜 := ℝ) (n := x.vertexCount)
+      |hT.eigenvalues d ⟨1, htwo⟩ - (x.cliqueSize : ℝ) / 2| ≤ x.cliqueSize / 8 ∧
+        ∀ i, i ≠ ⟨1, htwo⟩ → (x.cliqueSize : ℝ) / 6 ≤
+          |hT.eigenvalues d i - (x.cliqueSize : ℝ) / 2|)
+    (hclique : x.graph.IsClique (S : Set (Fin x.vertexCount)))
+    (halignment : ∃ c : ℝ, |c| ≤ 1 ∧
+      ‖c • secondEigenvector x.graph - unitIndicator S‖ ≤ 107 / 320)
+    (hdegree : ∀ v ∉ S, ((S.filter (x.graph.Adj v)).card : ℝ) ≤ 129 / 256 * S.card) :
+    vertexSet x.vertexCount (recoverApproximateEigenvectorInput x) = S := by
+  have hkn : x.cliqueSize ≤ x.vertexCount := by
+    rw [← hcard]
+    simpa only [Fintype.card_fin] using Finset.card_le_univ S
+  have hclose := approximateSecondEigenvectorInput_close x htwo (by omega) hkn hspectrum
+  rw [vertexSet_recoverApproximateEigenvectorInput x (by omega), ← hcard]
+  exact recoverCliqueByDegree_eq_of_scaled_approximation x.graph S hk hclique halignment hdegree
+    ((approximateSecondEigenvectorInput x).toEuclidean x.vertexCount) hclose
+
+private theorem adjMatrix_graph_ofGraph {n : ℕ}
+    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
+    (RecoveryInput.graph ⟨n, k, (RecoveryInput.ofGraph G k).adjacencyBits⟩).adjMatrix ℝ =
+      G.adjMatrix ℝ := by
+  have hgraph : RecoveryInput.graph ⟨n, k, (RecoveryInput.ofGraph G k).adjacencyBits⟩ = G :=
+    RecoveryInput.graph_ofGraph G k
+  ext i j
+  by_cases hAdj : G.Adj i j <;> simp [SimpleGraph.adjMatrix, hgraph, hAdj]
 
 /-- Presenting a graph by its canonical dense encoding preserves the deterministic guarantee
 for the actual recovery program. This bridge also hides the representation's adjacency decider. -/
@@ -177,13 +293,36 @@ theorem recoverApproximateEigenvectorInput_ofGraph_eq {n : ℕ}
   classical
   let x : RecoveryInput := ⟨n, S.card, (RecoveryInput.ofGraph G S.card).adjacencyBits⟩
   have hgraph : x.graph = G := RecoveryInput.graph_ofGraph G S.card
-  have hA : x.graph.adjMatrix ℝ = G.adjMatrix ℝ := by
-    ext i j
-    by_cases hAdj : G.Adj i j <;> simp [SimpleGraph.adjMatrix, hgraph, hAdj]
+  have hA : x.graph.adjMatrix ℝ = G.adjMatrix ℝ := adjMatrix_graph_ofGraph G S.card
   have h := recoverApproximateEigenvectorInput_eq x S rfl hk hsparse
   simp only [hA, hgraph] at h
   change vertexSet n (recoverApproximateEigenvectorInput x) = S
   exact h hclique hnoise hdegree
+
+/-- Canonical dense graph encoding preserves the separated-spectrum recovery guarantee.
+The computed program receives only the graph and its target clique size. -/
+theorem recoverApproximateEigenvectorInput_ofGraph_eq_of_spectral_bounds {n : ℕ}
+    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (S : Finset (Fin n))
+    (htwo : 1 < n) (hk : 200 ≤ S.card)
+    (hspectrum :
+      let hT := Matrix.isSymmetric_toEuclideanLin_iff.mpr (G.isHermitian_adjMatrix ℝ)
+      let d := finrank_euclideanSpace_fin (𝕜 := ℝ) (n := n)
+      |hT.eigenvalues d ⟨1, htwo⟩ - (S.card : ℝ) / 2| ≤ S.card / 8 ∧
+        ∀ i, i ≠ ⟨1, htwo⟩ → (S.card : ℝ) / 6 ≤
+          |hT.eigenvalues d i - (S.card : ℝ) / 2|)
+    (hclique : G.IsClique (S : Set (Fin n)))
+    (halignment : ∃ c : ℝ, |c| ≤ 1 ∧
+      ‖c • secondEigenvector G - unitIndicator S‖ ≤ 107 / 320)
+    (hdegree : ∀ v ∉ S, ((S.filter (G.Adj v)).card : ℝ) ≤ 129 / 256 * S.card) :
+    vertexSet n (recoverApproximateEigenvectorInput (RecoveryInput.ofGraph G S.card)) = S := by
+  classical
+  let x : RecoveryInput := ⟨n, S.card, (RecoveryInput.ofGraph G S.card).adjacencyBits⟩
+  have hgraph : x.graph = G := RecoveryInput.graph_ofGraph G S.card
+  have hA : x.graph.adjMatrix ℝ = G.adjMatrix ℝ := adjMatrix_graph_ofGraph G S.card
+  have h := recoverApproximateEigenvectorInput_eq_of_spectral_bounds x S rfl htwo hk
+  simp only [hA, hgraph] at h
+  change vertexSet n (recoverApproximateEigenvectorInput x) = S
+  exact h hspectrum hclique halignment hdegree
 
 /-- On the good noise and degree events, the fixed executable program returns the planted
 set from its canonical graph representation. No approximation premise remains. -/

@@ -42,7 +42,7 @@ theorem dens_recover_ne_le_of_noise_degree {n : ℕ} (S : Finset (Fin n)) (hS : 
     (dens ({ω : Coins n | recover ω ≠ S} : Finset _) : ℝ) ≤
       2 * exp (-(n : ℝ)) + n * exp (-(S.card : ℝ) / 32) := by
   classical
-  let N : Finset (Coins n) := {ω | 36 * sqrt n <
+  let N : Finset (Coins n) := {ω | 5 * sqrt n <
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖}
   let D : Finset (Coins n) := {ω | ∃ v, v ∉ S ∧
     5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card}
@@ -53,7 +53,7 @@ theorem dens_recover_ne_le_of_noise_degree {n : ℕ} (S : Finset (Fin n)) (hS : 
     · exact mem_union_left D hN
     by_cases hD : ω ∈ D
     · exact mem_union_right N hD
-    have hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖ ≤ 36 * sqrt n := by
+    have hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖ ≤ 5 * sqrt n := by
       simpa only [N, mem_filter, mem_univ, true_and, not_lt] using hN
     have hdegree : ∀ v ∉ S, 8 * (S.filter ((sample S ω).Adj v)).card ≤ 5 * S.card := by
       intro v hv
@@ -62,7 +62,7 @@ theorem dens_recover_ne_le_of_noise_degree {n : ℕ} (S : Finset (Fin n)) (hS : 
       apply hD
       simp only [D, mem_filter, mem_univ, true_and]
       exact ⟨v, hv, h⟩
-    exact (hω (hrecover ω hnoise hdegree)).elim
+    exact (hω (hrecover ω (hnoise.trans (by nlinarith [sqrt_nonneg (n : ℝ)])) hdegree)).elim
   calc
     _ ≤ (dens (N ∪ D) : ℝ) := by exact_mod_cast dens_le_dens hsub
     _ ≤ (dens N : ℝ) + (dens D : ℝ) := by exact_mod_cast dens_union_le N D

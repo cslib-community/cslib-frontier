@@ -54,15 +54,15 @@ private theorem filter_spectrum_bounds {ι : Type*} (μ : ι → ℝ) (j : ι)
     {n k : ℕ} (hn : 1 ≤ n) (hk : 1 ≤ k) (hkn : k ≤ n)
     (hrad : ∀ i, |μ i| ≤ (n : ℝ))
     (hcenter : |μ j - (k : ℝ) / 2| ≤ (k : ℝ) / 8)
-    (hsep : ∀ i, i ≠ j → (k : ℝ) / 4 ≤ |μ i - (k : ℝ) / 2|) :
+    (hsep : ∀ i, i ≠ j → (k : ℝ) / 6 ≤ |μ i - (k : ℝ) / 2|) :
     let K : ℝ := 16 * ((n : ℝ) + k + 1) ^ 2
     let f : ι → ℝ := fun i => K - (2 * μ i - k) ^ 2
-    0 < f j ∧ 0 ≤ K - (k : ℝ) ^ 2 / 4 ∧
-      (∀ i, i ≠ j → |f i| ≤ K - (k : ℝ) ^ 2 / 4) ∧
-      (K - (k : ℝ) ^ 2 / 4) / f j ≤ 1 - 1 / (768 * (n : ℝ) ^ 2) := by
+    0 < f j ∧ 0 ≤ K - (k : ℝ) ^ 2 / 9 ∧
+      (∀ i, i ≠ j → |f i| ≤ K - (k : ℝ) ^ 2 / 9) ∧
+      (K - (k : ℝ) ^ 2 / 9) / f j ≤ 1 - 1 / (3072 * (n : ℝ) ^ 2) := by
   let K : ℝ := 16 * ((n : ℝ) + k + 1) ^ 2
   let f : ι → ℝ := fun i => K - (2 * μ i - k) ^ 2
-  change 0 < f j ∧ 0 ≤ K - (k : ℝ) ^ 2 / 4 ∧ _ ∧ _
+  change 0 < f j ∧ 0 ≤ K - (k : ℝ) ^ 2 / 9 ∧ _ ∧ _
   have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hkR : (1 : ℝ) ≤ k := by exact_mod_cast hk
   have hknR : (k : ℝ) ≤ n := by exact_mod_cast hkn
@@ -87,7 +87,7 @@ private theorem filter_spectrum_bounds {ι : Type*} (μ : ι → ℝ) (j : ι)
   have hpositive : 0 < f j := by
     dsimp only [f]
     nlinarith [sq_nonneg ((k : ℝ) - 1)]
-  have hbeta : 0 ≤ K - (k : ℝ) ^ 2 / 4 := by
+  have hbeta : 0 ≤ K - (k : ℝ) ^ 2 / 9 := by
     nlinarith [sq_nonneg (k : ℝ)]
   have hnonneg (i : ι) : 0 ≤ f i := by
     have hd : |2 * μ i - k| ≤ 2 * (n : ℝ) + k := by
@@ -104,8 +104,8 @@ private theorem filter_spectrum_bounds {ι : Type*} (μ : ι → ℝ) (j : ι)
         (show 2 * (n : ℝ) + k ≤ 4 * ((n : ℝ) + k + 1) by linarith)
     dsimp only [f, K]
     nlinarith only [hsq, hlarge]
-  have hother (i : ι) (hij : i ≠ j) : |f i| ≤ K - (k : ℝ) ^ 2 / 4 := by
-    have hsq := (sq_le_sq₀ (by positivity : (0 : ℝ) ≤ (k : ℝ) / 4)
+  have hother (i : ι) (hij : i ≠ j) : |f i| ≤ K - (k : ℝ) ^ 2 / 9 := by
+    have hsq := (sq_le_sq₀ (by positivity : (0 : ℝ) ≤ (k : ℝ) / 6)
       (abs_nonneg (μ i - (k : ℝ) / 2))).mpr (hsep i hij)
     rw [sq_abs] at hsq
     rw [abs_of_nonneg (hnonneg i)]
@@ -115,19 +115,19 @@ private theorem filter_spectrum_bounds {ι : Type*} (μ : ι → ℝ) (j : ι)
   apply (div_le_iff₀ hpositive).mpr
   have halphaup : f j ≤ 144 * (n : ℝ) ^ 2 :=
     (sub_le_self K (sq_nonneg _)).trans hKup
-  have hfrac : f j / (768 * (n : ℝ) ^ 2) ≤ 3 / 16 := by
-    apply (div_le_iff₀ (by positivity : 0 < 768 * (n : ℝ) ^ 2)).mpr
+  have hfrac : f j / (3072 * (n : ℝ) ^ 2) ≤ 3 / 64 := by
+    apply (div_le_iff₀ (by positivity : 0 < 3072 * (n : ℝ) ^ 2)).mpr
     nlinarith only [halphaup]
-  have hgap : K - (k : ℝ) ^ 2 / 4 ≤ f j - 3 / 16 := by
+  have hgap : K - (k : ℝ) ^ 2 / 9 ≤ f j - 3 / 64 := by
     dsimp only [f]
     nlinarith [sq_nonneg ((k : ℝ) - 1)]
   calc
-    K - (k : ℝ) ^ 2 / 4 ≤ f j - 3 / 16 := hgap
-    _ ≤ f j - f j / (768 * (n : ℝ) ^ 2) := sub_le_sub_left hfrac _
+    K - (k : ℝ) ^ 2 / 9 ≤ f j - 3 / 64 := hgap
+    _ ≤ f j - f j / (3072 * (n : ℝ) ^ 2) := sub_le_sub_left hfrac _
     _ = _ := by ring
 
 private theorem power_error_le {n : ℕ} (hn : 1 ≤ n) {q : ℝ} (hq : 0 ≤ q)
-    (hcontract : q ≤ 1 - 1 / (768 * (n : ℝ) ^ 2)) :
+    (hcontract : q ≤ 1 - 1 / (3072 * (n : ℝ) ^ 2)) :
     2 * (n : ℝ) * q ^ (2 * eigenvectorIterations n) ≤ (1 / 128 : ℝ) ^ 2 := by
   have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hnpos : (0 : ℝ) < n := by linarith
@@ -135,10 +135,10 @@ private theorem power_error_le {n : ℕ} (hn : 1 ≤ n) {q : ℝ} (hq : 0 ≤ q)
     (Real.one_sub_pow_le_one_div_one_add_mul (by positivity) (by linarith)
       (eigenvectorIterations n))
   have hscale : 256 * (n : ℝ) ≤
-      1 + (eigenvectorIterations n : ℝ) * (1 / (768 * (n : ℝ) ^ 2)) := by
+      1 + (eigenvectorIterations n : ℝ) * (1 / (3072 * (n : ℝ) ^ 2)) := by
     simp only [eigenvectorIterations, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-    have heq : (1048576 : ℝ) * (n : ℝ) ^ 3 * (1 / (768 * (n : ℝ) ^ 2)) =
-        (4096 / 3 : ℝ) * n := by field_simp; ring
+    have heq : (1048576 : ℝ) * (n : ℝ) ^ 3 * (1 / (3072 * (n : ℝ) ^ 2)) =
+        (1024 / 3 : ℝ) * n := by field_simp; ring
     rw [heq]
     linarith
   have hpow : q ^ eigenvectorIterations n ≤ 1 / (256 * (n : ℝ)) :=
@@ -192,24 +192,23 @@ private theorem secondEigenvectorFilter_apply {n : ℕ} (G : SimpleGraph (Fin n)
   rw [hBsq, sub_smul]
 
 /-- The actual integer column computed by the native program is nonzero, and its normalized
-direction approximates the raw adjacency matrix's second eigenvector up to sign. The hidden
-planted set occurs only in correctness hypotheses; the program receives only `x`. -/
+direction approximates the raw adjacency matrix's second eigenvector up to sign. The spectral
+promise centers that eigenvalue within `k / 8` of `k / 2` and separates every other eigenvalue
+from the filter's center by at least `k / 6`. No planted set is needed for this numerical result. -/
 theorem eigenvectorPowerColumn_approximation (x : RecoveryInput)
-    (S : Finset (Fin x.vertexCount)) (hcard : S.card = x.cliqueSize) (hS : S.Nonempty)
-    (hsparse : 4096 * S.card ≤ x.vertexCount)
-    (hnoise : ‖Matrix.toEuclideanCLM (n := Fin x.vertexCount) (𝕜 := ℝ)
-      (x.graph.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S))‖ ≤
-        (S.card : ℝ) / 256) :
+    (htwo : 1 < x.vertexCount) (hk : 1 ≤ x.cliqueSize) (hkn : x.cliqueSize ≤ x.vertexCount)
+    (hspectrum :
+      let hT := Matrix.isSymmetric_toEuclideanLin_iff.mpr (x.graph.isHermitian_adjMatrix ℝ)
+      let d := finrank_euclideanSpace_fin (𝕜 := ℝ) (n := x.vertexCount)
+      |hT.eigenvalues d ⟨1, htwo⟩ - (x.cliqueSize : ℝ) / 2| ≤ x.cliqueSize / 8 ∧
+        ∀ i, i ≠ ⟨1, htwo⟩ → (x.cliqueSize : ℝ) / 6 ≤
+          |hT.eigenvalues d i - (x.cliqueSize : ℝ) / 2|) :
     ∃ z : Fin x.vertexCount → ℤ,
       eigenvectorPowerColumn x (eigenvectorIterations x.vertexCount) = List.ofFn z ∧
       (WithLp.toLp 2 (fun i => (z i : ℝ)) : EuclideanSpace ℝ (Fin x.vertexCount)) ≠ 0 ∧
       ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
         ‖‖WithLp.toLp 2 (fun i => (z i : ℝ))‖⁻¹ • WithLp.toLp 2 (fun i => (z i : ℝ)) -
           s • secondEigenvector x.graph‖ ≤ 1 / 128 := by
-  have hkpos := hS.card_pos
-  have htwo : 1 < x.vertexCount := by omega
-  have hk : 1 ≤ x.cliqueSize := by omega
-  have hkn : x.cliqueSize ≤ x.vertexCount := by omega
   let hT := Matrix.isSymmetric_toEuclideanLin_iff.mpr (x.graph.isHermitian_adjMatrix ℝ)
   let hn := finrank_euclideanSpace_fin (𝕜 := ℝ) (n := x.vertexCount)
   let b := hT.eigenvectorBasis hn
@@ -217,19 +216,16 @@ theorem eigenvectorPowerColumn_approximation (x : RecoveryInput)
   let j : Fin x.vertexCount := ⟨1, htwo⟩
   let K : ℝ := 16 * ((x.vertexCount : ℝ) + x.cliqueSize + 1) ^ 2
   let f : Fin x.vertexCount → ℝ := fun i => K - (2 * μ i - x.cliqueSize) ^ 2
-  let β : ℝ := K - (x.cliqueSize : ℝ) ^ 2 / 4
+  let β : ℝ := K - (x.cliqueSize : ℝ) ^ 2 / 9
   let M := secondEigenvectorFilter x.graph x.cliqueSize
   let T := (Matrix.toEuclideanCLM (𝕜 := ℝ) (M.map (Int.castRingHom ℝ))).toLinearMap
-  obtain ⟨hcenter, hsep⟩ := adjMatrix_eigenvalues_bounds x.graph S hS hsparse hnoise
-  change |μ j - (S.card : ℝ) / 2| ≤ (S.card : ℝ) / 8 at hcenter
-  change ∀ i, i ≠ j → (S.card : ℝ) / 4 ≤ |μ i - (S.card : ℝ) / 2| at hsep
-  rw [hcard] at hcenter hsep
+  obtain ⟨hcenter, hsep⟩ := hspectrum
   obtain ⟨hα, hβ, hother, hratio⟩ := filter_spectrum_bounds μ j (by omega) hk hkn
     x.graph.abs_adjMatrix_eigenvalues_le hcenter hsep
   change 0 < f j at hα
   change 0 ≤ β at hβ
   change ∀ i, i ≠ j → |f i| ≤ β at hother
-  change β / f j ≤ 1 - 1 / (768 * (x.vertexCount : ℝ) ^ 2) at hratio
+  change β / f j ≤ 1 - 1 / (3072 * (x.vertexCount : ℝ) ^ 2) at hratio
   have heigen (i : Fin x.vertexCount) : T (b i) = f i • b i :=
     secondEigenvectorFilter_apply x.graph x.cliqueSize (hT.apply_eigenvectorBasis hn i)
   obtain ⟨seed, hout, hmax⟩ := eigenvectorPowerColumn_spec x

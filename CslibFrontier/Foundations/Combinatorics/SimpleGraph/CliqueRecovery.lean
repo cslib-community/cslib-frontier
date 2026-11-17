@@ -16,11 +16,12 @@ import Mathlib.Data.Finset.Card
 
 `SimpleGraph.recoverCliqueByDegree G k T` retains the vertices with at least `3 k / 4`
 neighbors in `T`, expressed without truncated division. If `T` has the same size as a clique
-`S`, misses at most a sixteenth of `S`, and vertices outside `S` have at most `5 k / 8`
-neighbors in `S`, this operation recovers `S` exactly.
+`S`, the missing vertices reduce each inside degree by at most their count plus one and
+increase each outside degree by at most their count. The recovery theorem states exactly
+the two inequalities needed to separate these degrees.
 
 The recovery theorem is a deterministic step used by the planted-clique algorithm; its degree
-and overlap assumptions are explicit. The constants are chosen for a simple rounding argument.
+and overlap assumptions are explicit.
 -/
 
 public section
@@ -34,14 +35,14 @@ variable (G : SimpleGraph V) [DecidableRel G.Adj]
 @[expose] def recoverCliqueByDegree (k : ℕ) (T : Finset V) : Finset V :=
   Finset.univ.filter fun v => 3 * k ≤ 4 * (T.filter (G.Adj v)).card
 
-/-- The deterministic cleanup step of clique recovery. A candidate set of size `k` missing at
-most `k / 16` clique vertices is corrected by the degree threshold, provided every outside
-vertex has at most `5 k / 8` neighbors in the clique. -/
+/-- Degree cleanup recovers a clique when the candidate misses few enough vertices to keep
+every inside degree above the threshold and every outside degree strictly below it. The
+extra one in the inside inequality accounts for the missing self-loop. -/
 theorem recoverCliqueByDegree_eq_of_overlap {S T : Finset V} {k : ℕ}
     (hS : S.card = k) (hT : T.card = k) (hclique : G.IsClique (S : Set V))
-    (hmiss : 16 * (S \ T).card ≤ k)
-    (hout : ∀ v ∉ S, 8 * (S.filter (G.Adj v)).card ≤ 5 * k)
-    (hk : 6 ≤ k) : G.recoverCliqueByDegree k T = S := by
+    (hmiss : 4 * ((S \ T).card + 1) ≤ k)
+    (hout : ∀ v ∉ S, 4 * ((S.filter (G.Adj v)).card + (S \ T).card) < 3 * k) :
+    G.recoverCliqueByDegree k T = S := by
   have hdiff : (S \ T).card = (T \ S).card :=
     Finset.card_sdiff_comm (hS.trans hT.symm)
   ext v

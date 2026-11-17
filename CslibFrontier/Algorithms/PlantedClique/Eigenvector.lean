@@ -30,9 +30,12 @@ gives an approximate eigenvector at eigenvalue `k / 2`. The first and third orde
 are separated from that value, so a small residual implies proximity to the second eigenline.
 The existing coordinate-rounding and degree-cleanup theorems finish the argument.
 
-The explicit constants here are conservative: `4096 k ≤ n`, `8192 √n ≤ k`, and the existing
-noise event of norm at most `36 √n`. Matching the paper's constant `10` remains tracked in
-[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
+The original correctness interface here uses `4096 k ≤ n`, `8192 √n ≤ k`, and a noise event
+of norm at most `36 √n`. `EigenvectorBounds` sharpens the deterministic analysis using a
+separate directional residual estimate. `EigenvectorSharp` proves recovery by the native
+implementation at `k ≥ (51 / 7) √n` for `n ≥ 2 ^ 64` and `4096 k ≤ n`; `EigenvectorHybrid`
+covers all larger clique sizes by combining that program with the certified integer solver.
+Those explicit constants are derived here, rather than asserted as the paper's constants.
 Mathlib's exact eigenvector choice is noncomputable. This file proves mathematical correctness;
 the theorem `recoverFromApproximateSecondEigenvector_eq` gives an explicit `1 / 64` Euclidean
 accuracy tolerance. `EigenvectorPolyTime` supplies a finite rational implementation with a
@@ -107,28 +110,33 @@ private theorem abs_inner_unitIndicator_univ_le (S : Finset (Fin n))
   have hk : (0 : ℝ) < S.card := Nat.cast_pos.mpr hS.card_pos
   have hkpos := hS.card_pos
   have hn : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
-  have huniv : (univ : Finset (Fin n)).Nonempty := ⟨⟨0, by omega⟩, mem_univ _⟩
-  have hrootk : 0 < Real.sqrt (S.card : ℝ) := Real.sqrt_pos.mpr hk
   have hrootn : 0 < Real.sqrt (n : ℝ) := Real.sqrt_pos.mpr hn
-  have hinter : inner ℝ (indicator (univ : Finset (Fin n))) (indicator S) = S.card := by
-    simp [EuclideanSpace.inner_eq_star_dotProduct, dotProduct, indicator]
   have heq : inner ℝ (unitIndicator (univ : Finset (Fin n))) (unitIndicator S) =
       Real.sqrt (S.card : ℝ) / Real.sqrt (n : ℝ) := by
-    rw [indicator_eq_sqrt_smul_unitIndicator huniv, indicator_eq_sqrt_smul_unitIndicator hS,
-      real_inner_smul_left, real_inner_smul_right] at hinter
-    simp only [card_univ, Fintype.card_fin] at hinter
-    apply (eq_div_iff hrootn.ne').mpr
-    have hcancel : Real.sqrt (S.card : ℝ) *
-        (inner ℝ (unitIndicator (univ : Finset (Fin n))) (unitIndicator S) *
-          Real.sqrt (n : ℝ) - Real.sqrt (S.card : ℝ)) = 0 := by
-      nlinarith only [hinter, Real.sq_sqrt hk.le]
-    exact sub_eq_zero.mp ((mul_eq_zero.mp hcancel).resolve_left hrootk.ne')
+    simpa only [Fintype.card_fin] using inner_unitIndicator_univ S
   rw [heq, abs_of_nonneg (by positivity)]
   apply (div_le_iff₀ hrootn).mpr
   have hsparse' : (4096 : ℝ) * S.card ≤ n := by exact_mod_cast hsparse
   have hroot : 64 * Real.sqrt (S.card : ℝ) ≤ Real.sqrt (n : ℝ) := by
     nlinarith [Real.sq_sqrt hk.le, Real.sq_sqrt hn.le]
   linarith
+
+/-- The raw-adjacency residual is the error from the two rank-one signal operators. -/
+theorem adjMatrix_rank_two_residual_eq (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
+    (S : Finset (Fin n)) (hS : S.Nonempty) (y : EuclideanSpace ℝ (Fin n)) :
+    (G.adjMatrix ℝ).toEuclideanLin y -
+      (((n : ℝ) / 2 * inner ℝ (unitIndicator univ) y) • unitIndicator univ +
+        ((S.card : ℝ) / 2 * inner ℝ (unitIndicator S) y) • unitIndicator S) =
+      Matrix.toEuclideanCLM (n := Fin n) (𝕜 := ℝ)
+        (G.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S)) y := by
+  let T := (G.adjMatrix ℝ).toEuclideanLin
+  have huniv : (univ : Finset (Fin n)).Nonempty := hS.mono (subset_univ S)
+  simp only [map_sub, map_smul, map_add, sub_apply, smul_apply, add_apply]
+  change T y - _ = T y - (1 / 2 : ℝ) •
+    ((cliqueSignal univ).toEuclideanLin y + (cliqueSignal S).toEuclideanLin y)
+  rw [cliqueSignal_apply huniv, cliqueSignal_apply hS]
+  simp only [card_univ, Fintype.card_fin]
+  module
 
 private theorem adjMatrix_rank_two_error (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (S : Finset (Fin n)) (hS : S.Nonempty)
@@ -139,20 +147,7 @@ private theorem adjMatrix_rank_two_error (G : SimpleGraph (Fin n)) [DecidableRel
       (((n : ℝ) / 2 * inner ℝ (unitIndicator univ) y) • unitIndicator univ +
         ((S.card : ℝ) / 2 * inner ℝ (unitIndicator S) y) • unitIndicator S)‖ ≤
           ((S.card : ℝ) / 2) / 128 * ‖y‖ := by
-  let T := (G.adjMatrix ℝ).toEuclideanLin
-  have huniv : (univ : Finset (Fin n)).Nonempty := hS.mono (subset_univ S)
-  have heq : T y - (((n : ℝ) / 2 * inner ℝ (unitIndicator univ) y) • unitIndicator univ +
-      ((S.card : ℝ) / 2 * inner ℝ (unitIndicator S) y) • unitIndicator S) =
-    Matrix.toEuclideanCLM (n := Fin n) (𝕜 := ℝ)
-      (G.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S)) y := by
-    simp only [map_sub, map_smul, map_add, sub_apply,
-      smul_apply, add_apply]
-    change T y - _ = T y - (1 / 2 : ℝ) •
-      ((cliqueSignal univ).toEuclideanLin y + (cliqueSignal S).toEuclideanLin y)
-    rw [cliqueSignal_apply huniv, cliqueSignal_apply hS]
-    simp only [card_univ, Fintype.card_fin]
-    module
-  rw [heq]
+  rw [adjMatrix_rank_two_residual_eq G S hS]
   have hb := (ContinuousLinearMap.le_opNorm _ y).trans
     (mul_le_mul_of_nonneg_right hnoise (norm_nonneg y))
   convert hb using 1
@@ -240,10 +235,11 @@ theorem recoverEigenvector_eq_of_opNorm_le (G : SimpleGraph (Fin n)) [DecidableR
     (hdegree : ∀ v ∉ S, 8 * (S.filter (G.Adj v)).card ≤ 5 * S.card) :
     recoverEigenvector G S.card = S := by
   have hS : S.Nonempty := Finset.card_pos.mp (by omega)
+  have hmiss := eigenvectorApproximateSet_overlap G S hS hsparse hnoise
   exact G.recoverCliqueByDegree_eq_of_overlap rfl
     (card_eigenvectorApproximateSet G
       (by simpa only [Fintype.card_fin] using Finset.card_le_univ S)) hclique
-    (eigenvectorApproximateSet_overlap G S hS hsparse hnoise) hdegree hk
+    (by omega) (fun v hv => by have := hdegree v hv; omega)
 
 /-- The exact spectral bound leaves an explicit numerical tolerance: a vector within
 `1 / 64` of either orientation of the chosen unit second eigenvector supports exact rounding and
@@ -286,20 +282,9 @@ theorem recoverFromApproximateSecondEigenvector_eq
     intro i hi j hj
     exact List.weight_le_of_notMem_selectLargest (fun i => |v i|) S.card
       (List.finRange n) (List.mem_finRange i) hi hj
-  exact G.recoverCliqueByDegree_eq_of_overlap rfl hcard hclique hoverlap hdegree hk
+  exact G.recoverCliqueByDegree_eq_of_overlap rfl hcard hclique
+    (by omega) (fun v hv => by have := hdegree v hv; omega)
 
-private theorem adjMatrix_sub_rank_two (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
-    (S : Finset (Fin n)) :
-    G.adjMatrix ℝ - (1 / 2 : ℝ) • (cliqueSignal univ + cliqueSignal S) =
-      (1 / 2 : ℝ) • ((signedAdjacency G).map (Int.castRingHom ℝ) - cliqueSignal S -
-        Matrix.diagonal (indicator univ)) := by
-  ext i j
-  by_cases hij : i = j
-  · subst j
-    by_cases hi : i ∈ S <;>
-      norm_num [signedAdjacency, cliqueSignal, indicator, Matrix.vecMulVec_apply, hi]
-  · by_cases hadj : G.Adj i j <;> by_cases hi : i ∈ S <;> by_cases hj : j ∈ S <;>
-      norm_num [signedAdjacency, cliqueSignal, indicator, Matrix.vecMulVec_apply, hij, hadj, hi, hj]
 
 open Cslib.Probability.PlantedClique
 
@@ -315,15 +300,8 @@ theorem opNorm_raw_residual_le_card_div_256 (S : Finset (Fin n)) (ω : Coins n)
   have hnreal : (1 : ℝ) ≤ n := by exact_mod_cast hn
   have hsqrt : (1 : ℝ) ≤ Real.sqrt n := by
     simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt hnreal
-  have hr := opNorm_signedAdjacency_sample_sub_cliqueSignal_le S ω
-  have hd := opNorm_diagonal_indicator_le_one (univ : Finset (Fin n))
-  rw [adjMatrix_sub_rank_two, map_smul, map_sub, norm_smul,
-    Real.norm_eq_abs, abs_of_pos (by norm_num : (0 : ℝ) < 1 / 2)]
-  have ht := norm_sub_le
-    (Matrix.toEuclideanCLM (n := Fin n) (𝕜 := ℝ)
-      ((signedAdjacency (sample S ω)).map (Int.castRingHom ℝ) - cliqueSignal S))
-    (Matrix.toEuclideanCLM (n := Fin n) (𝕜 := ℝ) (Matrix.diagonal (indicator univ)))
-  nlinarith only [ht, hr, hd, hnoise, hsqrt, hsize]
+  have hr := opNorm_raw_residual_le S ω
+  linarith only [hr, hnoise, hsqrt, hsize]
 
 /-- On the good noise and outside-degree events, Algorithm A recovers every planted set in
 the explicit conservative size regime. All spectral assumptions are discharged here. -/
