@@ -19,7 +19,7 @@ import CslibFrontier.Probability.PMF.Bind
 /-!
 # Signatures in the random-oracle model
 
-A signature scheme in the random-oracle model ([BonehShoup2023], Section 13.2.1) signs and
+A signature scheme in the random-oracle model ([BonehShoup2023], Section 8.10.2) signs and
 verifies with oracle access to a function `H : Query → Digest`, which the security experiment
 draws uniformly at random. Signing draws its coins and then runs an `OracleComp` program against
 `H`; verification is a deterministic `OracleComp` program. The oracle is sampled lazily: each new
@@ -106,7 +106,7 @@ its forgery experiments are instances of `worldGame`.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 13.1 and 13.2.1.
+  Version 0.6][BonehShoup2023], Section 8.10.2, Attack Games 13.1–13.2 and Definitions 13.2–13.3.
 -/
 
 @[expose] public section
@@ -203,6 +203,22 @@ variable (Digest) in
 /-- The random oracle: a uniform digest for each new point, remembered thereafter. -/
 noncomputable def oracle (q : Query) : StateT (List (Query × Digest)) PMF Digest :=
   memoize (fun _ => PMF.uniformOfFintype Digest) q
+
+/-- A query at a point absent from the cache draws a uniform digest and records it. -/
+theorem run_oracle_of_lookup_eq_none {q : Query} {cache : List (Query × Digest)}
+    (h : cache.lookup q = none) :
+    (oracle Digest q).run cache =
+      (PMF.uniformOfFintype Digest).bind fun c => PMF.pure (c, (q, c) :: cache) := by
+  change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
+  rw [memoize_of_none _ _ _ h]
+  rfl
+
+/-- A query at a cached point returns the cached digest and leaves the cache unchanged. -/
+theorem run_oracle_of_lookup_eq_some {q : Query} {cache : List (Query × Digest)} {c : Digest}
+    (h : cache.lookup q = some c) : (oracle Digest q).run cache = PMF.pure (c, cache) := by
+  change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
+  rw [memoize_of_some _ _ _ _ h]
+  rfl
 
 /-- A table entry produced by a call of `oracle` is found at its queried point. -/
 theorem lookup_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)}
@@ -342,7 +358,7 @@ theorem runWith_world_liftVerify (scheme : Scheme PK SK M Sig Query Digest) (sk 
     (cache : List (Query × Digest)) :
     ProbOracleComp.runWith (world scheme sk).impl (liftVerify (M := M) (Sig := Sig) prog) cache =
     (interpret (oracle Digest) prog).run cache := by
-  rw [liftVerify, ProbOracleComp.runWith_interpret, OracleComp.runWith]
+  rw [liftVerify, ProbOracleComp.runWith_interpret, OracleComp.runWith_eq_run_interpret]
   congr 2 with x s : 2
   simp [world, sumHandler]
 
@@ -359,6 +375,7 @@ theorem runWith_world_runLoggedForger_liftOracleForger
     (interpret (handler scheme sk) prog).run (cache, []) := by
   rw [runLoggedForger, ProbOracleComp.runWith_run_interpret, PMF.map_comp, liftOracleForger,
     ProbOracleComp.runWith_interpret]
+  rw [OracleComp.runWith_eq_run_interpret]
   refine OracleComp.run_interpret_map_state (oracle' := handler scheme sk)
     (represent := fun (state : List (M × Sig) × List (Query × Digest)) =>
       (state.2, state.1.map Prod.fst)) (step := fun q ⟨pairs, curCache⟩ => ?_) (program := prog)

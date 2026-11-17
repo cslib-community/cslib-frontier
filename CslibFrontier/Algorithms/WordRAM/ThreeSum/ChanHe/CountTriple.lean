@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.CountCall
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native collision counts for the three Chan–He sets
@@ -78,7 +79,7 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
       hr _ (by dsimp [P, CountCall.source]; omega)
     have hws : y.regs CountCall.scratch = x.regs CountCall.scratch := hr _ (by decide)
     have hwh : y.regs CountCall.histogram = x.regs CountCall.histogram := hr _ (by decide)
-    have hwm : y.regs CountCall.modulus = encode (M : ℤ) := (hr _ (by decide)).trans hmodreg
+    have hwm : y.regs CountCall.modulus = encode (M : ℤ) := by regs_frame
     obtain ⟨z, he, hzm, hzv, hzr⟩ := CountCall.exec j y (values j) hM hmod hwm
       (by simpa only [hl] using hfit j) (by simpa only [hb, hl] using hs j)
       (by simpa only [hws, hl] using hk j) (by simpa only [hwh] using hd)
@@ -113,10 +114,6 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
   obtain ⟨c, hc, hRc, hvc, hfc⟩ := hcall 2 b hRb
   refine ⟨c, (ha.seq (hb.seq hc)).mono (by omega), ?_, hRc⟩
   intro j
-  fin_cases j
-  · exact (hfc (CountCall.result 0) (by decide) (by decide)).trans
-      ((hfb (CountCall.result 0) (by decide) (by decide)).trans hva)
-  · exact (hfc (CountCall.result 1) (by decide) (by decide)).trans hvb
-  · exact hvc
+  fin_cases j <;> regs_frame
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.CountTriple

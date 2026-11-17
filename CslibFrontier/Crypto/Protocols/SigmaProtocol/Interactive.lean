@@ -51,14 +51,6 @@ This module proves that the Sigma-protocol security notions transfer across the 
   is doomed unless two distinct challenges have accepting responses; by 2-special soundness, no
   false statement can reach a non-doomed commitment, and from a doomed commitment at most one
   challenge in `C` has an accepting response.
-* **Straight-line knowledge soundness from a supplied extractor**
-  (`SpecialSoundness.knowledgeSound_of_extractor`): for a 2-special sound `P`, any straight-line
-  extractor that returns a valid witness on every accepting transcript of a true statement makes
-  `P.toInteractiveVerifier` knowledge sound with error `1 / |C|`. That property of the extractor
-  is a hypothesis, and special soundness is used only to obtain plain soundness on false
-  statements. Such an extractor reads a witness off one transcript, which a special HVZK protocol
-  for a hard relation cannot allow efficiently, so this lemma is not the proof-of-knowledge
-  property of Sigma protocols: that property comes from rewinding the prover.
 * **Honest-verifier zero knowledge** (`SpecialHVZK.hvzk`, `SpecialHVZK.hvzk_zero`,
   `EfficientSpecialHVZK.efficientHVZK`): `P.SpecialHVZK R simulate` and a `ProbComp` simulator
   `simComp` within `ε` of `simulate` give `(P.toInteractiveReduction sampleCommit).HVZK
@@ -67,6 +59,11 @@ This module proves that the Sigma-protocol security notions transfer across the 
   `Reduction.EfficientHVZK`.
 * **Protocol instances**: commitment and simulator realizations for `SigmaProtocol.linear`,
   `SigmaProtocol.schnorr`, `SigmaProtocol.andProof` and `SigmaProtocol.orProof`.
+
+No knowledge-soundness statement is made here: `Interactive.Verifier.KnowledgeSound` asks for a
+straight-line extractor, while the proof-of-knowledge property of Sigma protocols comes from a
+rewinding extractor, built for indexed families in
+`CslibFrontier.Crypto.Protocols.SigmaProtocol.ProofOfKnowledge`.
 
 ## Main definitions
 
@@ -94,9 +91,6 @@ This module proves that the Sigma-protocol security notions transfer across the 
 * `SigmaProtocol.Complete.toInteractiveReduction`: completeness transfer.
 * `SigmaProtocol.SpecialSoundness.rbrSound`, `SigmaProtocol.SpecialSoundness.sound`:
   round-by-round soundness and plain-model soundness with error `1 / |C|`.
-* `SigmaProtocol.SpecialSoundness.knowledgeSound_of_extractor`: from 2-special soundness,
-  straight-line knowledge soundness with error `1 / |C|` for an extractor that is assumed to return
-  a valid witness on every accepting transcript of a true statement.
 * `SigmaProtocol.SpecialHVZK.hvzk`, `SigmaProtocol.SpecialHVZK.hvzk_zero`,
   `SigmaProtocol.EfficientSpecialHVZK.efficientHVZK`: HVZK and efficient HVZK transfer.
 -/
@@ -354,35 +348,6 @@ theorem SpecialSoundness.sound {W : Type} {R : W → Y → Prop}
       (1 / (Fintype.card C : ℝ≥0∞)) := by
   simpa only [PerChallenge.sum, interactiveSpec, threeMoveSpec, add_zero] using
     (SpecialSoundness.rbrSound h langOut).sound
-
-/-! ### Knowledge soundness from a supplied extractor -/
-
-/-- For a 2-special sound `P`, any straight-line extractor `E` that recovers a valid witness from
-every accepting transcript on statements in `language (Function.swap R)` makes
-`P.toInteractiveVerifier` knowledge sound with error `1 / |C|`. Special soundness is used only for
-plain soundness on statements outside that language. The extractor's correctness `hE` is a
-hypothesis about one transcript; this is not the rewinding proof of knowledge of Sigma protocols. -/
-theorem SpecialSoundness.knowledgeSound_of_extractor {W : Type} {R : W → Y → Prop}
-    {extract : Y → T → C → Z → C → Z → W}
-    (h : P.SpecialSoundness R extract)
-    (E : Y → Transcript P.interactiveSpec → Unit → W)
-    (hE : ∀ y τ, y ∈ language (Function.swap R) →
-      P.Accepts y (P.commitOfTranscript τ) (P.challengeOfTranscript τ)
-        (P.responseOfTranscript τ) →
-      R (E y τ ()) y) :
-    P.toInteractiveVerifier.KnowledgeSound (Function.swap R) Accept E
-      (1 / (Fintype.card C : ℝ≥0∞)) := by
-  intro y strat
-  by_cases hy : y ∈ language (Function.swap R)
-  · refine le_of_eq_of_le ?_ zero_le
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
-      PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    rintro ⟨τ, ⟨⟩⟩ _ ⟨⟨⟨⟩, hacc, -⟩, hnot⟩
-    have hacc' := (P.toInteractiveVerifier_outputOn_eq_some_iff y τ ()).mp hacc
-    exact hnot (hE y τ hy hacc')
-  · refine (MeasureTheory.measure_mono ?_).trans (SpecialSoundness.sound h Set.univ y hy Unit strat)
-    rintro r ⟨⟨x', hx', -⟩, -⟩
-    exact ⟨x', Set.mem_univ x', hx'⟩
 
 /-! ### Honest-verifier zero knowledge transfer -/
 

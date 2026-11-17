@@ -10,10 +10,12 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 public import CslibFrontier.Foundations.Data.BitString.PartialAssignment
+public import CslibFrontier.Computability.Languages.Slice
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.BitString.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Substituting variables and constants for inputs
@@ -35,6 +37,11 @@ function of its first `n` inputs on a `δ` fraction of all inputs, then for some
 inputs the resulting function, two gates larger, agrees with it on a `δ` fraction of the inputs
 (`Cslib.Circuits.Boolean.exists_complexity_le_of_agree_prefix`).
 
+Fixing a prefix `u` of the input of a language `L`, and reading only the first `P` of `Q` new
+inputs, gives a function `r ↦ [u ++ (first P bits of r) ∈ L]` at most two gates larger than the
+slice of `L` at length `|u| + P` (`Cslib.Circuits.Boolean.complexity_le_of_append_take`). This is
+the circuit of a verifier with its instance hardwired, used in derandomization.
+
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.substitute`, `Cslib.Circuits.Boolean.appendInputs`,
@@ -46,6 +53,7 @@ inputs the resulting function, two gates larger, agrees with it on a `δ` fracti
 
 * `Cslib.Circuits.Boolean.complexity_substitute_le`: a substitution costs at most two gates.
 * `Cslib.Circuits.Boolean.exists_complexity_le_of_agree_prefix`: fixing ignored inputs.
+* `Cslib.Circuits.Boolean.complexity_le_of_append_take`: hardwiring a prefix of a language's input.
 -/
 
 @[expose] public section
@@ -103,15 +111,10 @@ theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Boo
 
 
 /-- The shared-constant substitution circuit has depth at most one. -/
+@[circuit_bound]
 theorem depth_substituteCircuit_le {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
     (substituteCircuit ρ).depth ≤ 1 := by
-  unfold substituteCircuit
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, Nat.zero_add]
-  refine (Circuit.depth_append_le _ _).trans (max_le ?_ ?_)
-  · simp [Circuit.id]
-  · exact Circuit.depth_pi_le _ fun i =>
-      (Formula.depth_toCircuit_le _).trans (by simp [Formula.const])
+  circuit_bound [substituteCircuit]
 
 /-- A substitution costs at most two gates, one for each constant. -/
 theorem complexity_substitute_le_two (ρ : Fin N → Fin n ⊕ Bool) :
@@ -147,6 +150,37 @@ def prependInputs {p : ℕ} (r : Fin p → Bool) : Fin (p + n) → Fin n ⊕ Boo
     substitute (prependInputs r) x = Fin.append r x := by
   funext j
   refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;> simp [substitute, prependInputs]
+
+/-- The substitution feeding a function of `u.length + P` variables with `u` followed by the first
+`P` of `Q ≥ P` variables. -/
+private def prefixWiring (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q) (j : Fin (u.length + P)) :
+    Fin Q ⊕ Bool :=
+  if h : (j : ℕ) < u.length then .inr u[j] else .inl ⟨j - u.length, by omega⟩
+
+private theorem ofFn_substitute_prefixWiring (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q)
+    (r : Fin Q → Bool) :
+    List.ofFn (substitute (prefixWiring u hPQ) r) = u ++ (List.ofFn r).take P := by
+  refine List.ext_getElem (by simp; omega) fun j h₁ h₂ => ?_
+  simp only [List.length_ofFn] at h₁
+  rw [List.getElem_ofFn]
+  by_cases hj : j < u.length
+  · rw [List.getElem_append_left hj]
+    simp [substitute, prefixWiring, hj]
+  · rw [List.getElem_append_right (by omega)]
+    simp [substitute, prefixWiring, hj]
+
+/-- **Hardwiring a prefix.** Let `f` on `Q` inputs test whether `u` followed by the first `P ≤ Q`
+bits of its input lies in `L`. Then `f` costs at most two gates more than the slice of `L` at
+length `u.length + P`. -/
+theorem complexity_le_of_append_take (L : Language Bool) (u : List Bool) {P Q : ℕ} (hPQ : P ≤ Q)
+    {f : BooleanFunction Q} (hf : ∀ r, f r = true ↔ u ++ (List.ofFn r).take P ∈ L) :
+    complexity interpretation (single f) ≤
+      complexity interpretation (single (L.slice (u.length + P))) + 2 := by
+  have h : f = fun r => L.slice (u.length + P) (substitute (prefixWiring u hPQ) r) := by
+    funext r
+    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, ofFn_substitute_prefixWiring, hf]
+  rw [h]
+  exact complexity_substitute_le _ _
 
 open Finset in
 /-- **Fixing ignored inputs.** If `g` on `N` inputs agrees with a function `E` of its first `n`

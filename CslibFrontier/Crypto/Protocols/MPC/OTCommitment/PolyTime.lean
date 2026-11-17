@@ -62,9 +62,7 @@ theorem extractPairs_ofFn {k : ℕ} (ts : Fin k → Fin 4 → Bool) :
 ordinary encoded input size and provides independent polynomial time and space bounds. -/
 theorem extractPairs_polyTime :
     ComputableInPolyTime extractPairs (encList (encPair encBool encBool)) encBool := by
-  exact ComputableInPolyTime.bitsStrictMajority.comp
-    (.mapToBitsWithInput (enc := encPair encBool encBool) .id'
-      (ComputableInPolyTime.bool_xor.comp (.snd _ _)))
+  fun_prop [extractPairs]
 
 /-- Apply the existing equivocation operation to a list of full OT indices and received bits.
 Each list element produces one pair; no lookup oracle or padded fixed-dimension carrier is used. -/

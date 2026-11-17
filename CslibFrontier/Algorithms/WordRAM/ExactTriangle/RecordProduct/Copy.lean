@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Header
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Three charged original-input copies
@@ -44,21 +45,12 @@ theorem exec_copyInputs {W b A Q s t q : ℕ} (x : Data 320)
   have hl : ExecWithin W deliverLeft x l 4 := by
     ram_eval [deliverLeft, l, hs, hb, hA, Reg.source, Reg.left, Reg.address,
       Reg.destination, Reg.base, Reg.length, Reg.area]
-  have lmeta (i : Fin 320) (hi : i.val < 96) (hne : i ≠ Reg.address) :
-      l.regs i = x.regs i := by
-    have hsource : i ≠ Reg.source := by intro h; subst i; simp [Reg.source] at hi
-    have hdest : i ≠ Reg.destination := by intro h; subst i; simp [Reg.destination] at hi
-    have hlen : i ≠ Reg.length := by intro h; subst i; simp [Reg.length] at hi
-    simp only [l, Data.set_regs, Function.update_of_ne hsource, Function.update_of_ne hdest,
-      Function.update_of_ne hlen, Function.update_of_ne hne]
   obtain ⟨a, ha, am, asrc, adst, alen, ar⟩ := exec_copy l
     (by simp +decide [l, Reg.source, Reg.address, Reg.destination, Reg.length])
     (by simp +decide [l, Reg.destination, Reg.length]) (by simp [l])
     (by omega : s + A ≤ b + 5) (hfit.of_le (by omega))
-  have aA : a.regs Reg.area = A :=
-    (ar _ (by decide)).trans ((lmeta _ (by decide) (by decide)).trans hA)
-  have aRight : a.regs Reg.right = t :=
-    (ar _ (by decide)).trans ((lmeta _ (by decide) (by decide)).trans ht)
+  have aA : a.regs Reg.area = A := by regs_frame
+  have aRight : a.regs Reg.right = t := by regs_frame
   let r := a.set Reg.source t |>.set Reg.destination (b + 5 + A)
   have hr : ExecWithin W deliverRight a r 2 := by
     ram_eval [deliverRight, r, aRight, adst, aA, Reg.source, Reg.right,
@@ -68,18 +60,9 @@ theorem exec_copyInputs {W b A Q s t q : ℕ} (x : Data 320)
     (by simpa +decide [r, Reg.length, Reg.source, Reg.destination] using alen)
     (by omega : t + A ≤ b + 5 + A)
     (hfit.of_le (by omega))
-  have rmeta (i : Fin 320) (hi : i.val < 96) : r.regs i = a.regs i := by
-    have hsource : i ≠ Reg.source := by intro h; subst i; simp [Reg.source] at hi
-    have hdest : i ≠ Reg.destination := by intro h; subst i; simp [Reg.destination] at hi
-    simp only [r, Data.set_regs, Function.update_of_ne hsource, Function.update_of_ne hdest]
-  have cA : c.regs Reg.area = A :=
-    (cr _ (by decide)).trans ((rmeta _ (by decide)).trans aA)
-  have cq : c.regs Reg.queries = q := (cr _ (by decide)).trans
-    ((rmeta _ (by decide)).trans
-      ((ar _ (by decide)).trans ((lmeta _ (by decide) (by decide)).trans hq)))
-  have cQ : c.regs Reg.count = Q := (cr _ (by decide)).trans
-    ((rmeta _ (by decide)).trans
-      ((ar _ (by decide)).trans ((lmeta _ (by decide) (by decide)).trans hQ)))
+  have cA : c.regs Reg.area = A := by regs_frame
+  have cq : c.regs Reg.queries = q := by regs_frame
+  have cQ : c.regs Reg.count = Q := by regs_frame
   let z := c.set Reg.source q |>.set Reg.destination (b + 5 + A + A)
     |>.set Reg.length (Q + Q)
   have hz : ExecWithin W deliverQueries c z 3 := by

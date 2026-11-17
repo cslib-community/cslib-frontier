@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineCollapse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.BinaryWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -820,17 +821,6 @@ section Computability
 
 variable {enc : α ↪ List Bool}
 
-private theorem binaryWord_pt {β : Type} {input : β ↪ List Bool} {w v : β → ℕ}
-    (hw : ComputableInPolyTime w input encUnary)
-    (hv : ComputableInPolyTime v input encNat) :
-    ComputableInPolyTime (fun b => binaryWord (w b) (v b)) input encBits := by
-  have hbits : ComputableInPolyTime (fun b => (v b).bits) input encBits :=
-    (of_eq (encIn := encNat) (encOut := encBits) fun _ => rfl).comp hv
-  unfold binaryWord
-  exact bitsAppend
-    ((bitsReplicate false).comp (unary_sub' hw (length_bits.comp hbits)))
-    (bitsReverse.comp hbits)
-
 private theorem binary_two_pow_pt {β : Type} {input : β ↪ List Bool} {k : β → ℕ}
     (hk : ComputableInPolyTime k input encUnary) :
     ComputableInPolyTime (fun b => 2 ^ k b) input encNat :=
@@ -869,7 +859,7 @@ private theorem hasIn_pt {β : Type} {input : β ↪ List Bool}
   (computableInPolyTime_hasIn hn hP hS).comp (hfa.prod hfu)
 
 attribute [local fun_prop] ComputableInPolyTime.bool_and' ComputableInPolyTime.bool_or'
-  binary_add' binary_sub' binaryWord_pt binary_two_pow_pt binary_le_pt binary_eq_pt
+  binary_add' binary_sub' binaryWord_polyTime binary_two_pow_pt binary_le_pt binary_eq_pt
   hasOut_pt hasIn_pt
 
 theorem computableInPolyTime_plsPpadsSucc
@@ -904,10 +894,7 @@ theorem computableInPolyTime_plsPpadsPotential
     (hn₂ : ComputableInPolyTime n₂ enc encUnary)
     (hB : ComputableInPolyTime B enc encNat) :
     ComputableInPolyTime (plsPpadsPotential n₁ C₁ n₂ B) (encPair enc encBits) encNat := by
-  change ComputableInPolyTime (fun p => plsPpadsPotential n₁ C₁ n₂ B p)
-    (encPair enc encBits) encNat
-  dsimp only [plsPpadsPotential]
-  fun_prop
+  fun_prop [plsPpadsPotential]
 
 end Computability
 
@@ -917,7 +904,7 @@ section Collapse
 
 variable {enc : α ↪ List Bool} {R : α → List Bool → Prop}
 
-attribute [local fun_prop] ComputableInPolyTime.bool_and' binaryWord_pt binary_le_pt
+attribute [local fun_prop] ComputableInPolyTime.bool_and' binaryWord_polyTime binary_le_pt
 
 /-- A problem in `FNP` whose solutions can be read back, on the same instance, from the local
 optima of a uniform polynomial-time local-search family and from the sinks of a uniform

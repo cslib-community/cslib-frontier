@@ -44,28 +44,19 @@ protocol over a `PrimeOrderGroupFamily` `F`:
      `computableInPolyTime_schnorrRecoverCommitBits`), with exact completeness on honest signatures
      (`schnorrSigVerifyBits_schnorrSignCoins`).
 
-2. **Typed ROM scheme instantiation and Pointcheval–Stern / Bellare–Neven security bound**:
-   * `schnorrFamilyROMScheme` instantiates the Fiat–Shamir ROM signature scheme over `F.Carrier d`
-     with `m`-bit challenges `BitString m` embedded into `ZMod (F.order d)` whenever
-     `2 ^ m ≤ F.order d` (`challengeEmbedding`, `schnorrBitSigma`), alongside the full-scalar
-     scheme `schnorrScalarROMScheme`.
-   * `succProbability_eufCmaGame_schnorrFamilyROMScheme_le` and
-     `succProbability_eufCmaGame_schnorrScalarROMScheme_le` specialize
-     `schnorr_succProbability_eufCmaGame_le` ([BonehShoup2023], Theorem 19.7 with Equation 19.21;
-     [PointchevalStern2000]; [BellareNeven2006]) to `F.Carrier d`, bounding any `(Qs, Qro)`-bounded
-     forger's EUF-CMA success probability by
-     `Qs · (Qs + Qro) / q + (Qro + 1) / 2 ^ m + √((Qro + 1) · ε')`, where `ε'` is the
-     discrete-logarithm success probability of the forking reduction
-     (`oneWayGame_schnorrKeyGen_eq`).
+2. **The discrete-logarithm game in one group**: in `F.Carrier d`, the one-way game of the typed key
+   generator `schnorrKeyGen (F.generator d)` is the exact discrete-logarithm experiment
+   (`oneWayGame_schnorrKeyGen_eq`).
 
-**Scope.** These bounds are concrete inequalities for a typed scheme with ideal uniform `ZMod q`
-key and nonce laws, against forgers that are only call-bounded, not PPT. The forking reduction
-`schnorrFamilyROMSchemeReduction` is a distribution-level program with no efficiency certificate,
-so `F.DiscreteLog` cannot be applied to it directly. EUF-CMA security of the native scheme under
-`F.DiscreteLog`, for every oracle-PPT forger, is `DiscreteLog.eufCma_schnorrNativeROMScheme` in
+**Scope.** This module provides the algorithms and their certificates. EUF-CMA security of the
+native scheme under `F.DiscreteLog`, for every oracle-PPT forger, is
+`DiscreteLog.eufCma_schnorrNativeROMScheme` in
 `CslibFrontier.Crypto.Computational.SchnorrSignature.Security`, through a certified native forking
-reduction. Strict-PPT identification and eavesdropping security under `F.DiscreteLog` are provided
-by `SchnorrIdentification` and `SchnorrEavesdrop`.
+reduction; that proof uses `oneWayGame_schnorrKeyGen_eq`. The concrete typed bound for any group,
+challenge set and call-bounded forger is `schnorr_succProbability_eufCmaGame_le` in
+`CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature`. Strict-PPT identification and
+eavesdropping security under `F.DiscreteLog` are provided by `SchnorrIdentification` and
+`SchnorrEavesdrop`.
 
 ## Main definitions
 
@@ -73,9 +64,6 @@ by `SchnorrIdentification` and `SchnorrEavesdrop`.
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSigVerifyBits`: bit-encoded Schnorr signature
   signing and verification (built on `schnorrSigKeyGen`, `schnorrCommitBits`, `schnorrRespondBits`,
   `schnorrRecoverCommitBits`, and `encodeSchnorrVerify` from `SchnorrProtocol`).
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrFamilyROMScheme`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrScalarROMScheme`: Fiat–Shamir ROM Schnorr signature
-  schemes over `F` with `m`-bit and scalar challenges.
 
 ## Main results
 
@@ -87,20 +75,13 @@ by `SchnorrIdentification` and `SchnorrEavesdrop`.
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSigVerifyBits_commitment_mem_range`: acceptance under
   a canonical public key forces the exact recovered encoding, for arbitrary response and challenge
   words.
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrFamilyROMScheme_correct`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_eufCmaGame_schnorrFamilyROMScheme_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_eufCmaGame_schnorrScalarROMScheme_le`: ROM
-  correctness and concrete Pointcheval–Stern / Bellare–Neven EUF-CMA bounds in terms of the
-  forking reduction's discrete-logarithm success.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 19.2–19.3 (Theorems 19.7 and 19.16).
+  Version 0.6][BonehShoup2023], Sections 19.2–19.3.
 * [D. Pointcheval, J. Stern, *Security Arguments for Digital Signatures and Blind
   Signatures*][PointchevalStern2000].
-* [M. Bellare, G. Neven, *Multi-Signatures in the Plain Public-Key Model and a General Forking
-  Lemma*][BellareNeven2006], Lemma 1.
 * [C.-P. Schnorr, *Efficient Signature Generation by Smart Cards*][Schnorr1991].
 -/
 
@@ -183,13 +164,7 @@ theorem computableInPolyTime_schnorrSigVerifyBits :
       (encPair F.encDesc
         (encPair encBits (encPair encBits (encPair (encPair encBits encBits) encBits))))
       encBool := by
-  change ComputableInPolyTime
-    (fun p : F.Desc × List Bool × List Bool × (List Bool × List Bool) × List Bool =>
-      F.encodeSchnorrVerify p.1 p.2.1 p.2.2.2.1.1 p.2.2.2.2 p.2.2.2.1.2)
-    (encPair F.encDesc
-      (encPair encBits (encPair encBits (encPair (encPair encBits encBits) encBits))))
-    encBool
-  fun_prop
+  fun_prop [PrimeOrderGroupFamily.schnorrSigVerifyBits]
 
 /-- `schnorrSigVerifyBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrSigVerifyBits :
@@ -247,60 +222,7 @@ theorem schnorrSigVerifyBits_commitment_mem_range (d : F.Desc) (u : F.Carrier d)
     t ∈ Set.range (F.encode d) := by
   exact ⟨_, ((F.schnorrSigVerifyBits_eq_true_iff d u msg t z roOut).mp h).symm⟩
 
-/-! ### 2. Typed ROM scheme instantiation and Pointcheval–Stern / Bellare–Neven security bound -/
-
-/-- **Schnorr's Fiat–Shamir ROM signature scheme with `m`-bit challenges** over `F.Carrier d`
-([BonehShoup2023], Sections 19.2–19.3; [Schnorr1991]; [PointchevalStern2000]). -/
-noncomputable def schnorrFamilyROMScheme {M : Type} (d : F.Desc) {m : ℕ}
-    (hm : 2 ^ m ≤ F.order d) :
-    ROMSignature.Scheme (F.Carrier d) (ZMod (F.order d) × F.Carrier d) M
-      (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d) (BitString m) :=
-  fiatShamir (Function.Embedding.refl _) (F.schnorrBitSigma d hm) (schnorrKeyGen (F.generator d))
-
-/-- **Schnorr's Fiat–Shamir ROM signature scheme with full scalar challenges** `ZMod (F.order d)`
-over `F.Carrier d`. -/
-noncomputable def schnorrScalarROMScheme {M : Type} (d : F.Desc) :
-    ROMSignature.Scheme (F.Carrier d) (ZMod (F.order d) × F.Carrier d) M
-      (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d) (ZMod (F.order d)) :=
-  fiatShamir (Function.Embedding.refl _) (schnorr (Function.Embedding.refl _) (F.generator d))
-    (schnorrKeyGen (F.generator d))
-
-/-- **Correctness of `schnorrFamilyROMScheme`**: every honest signature verifies. -/
-theorem schnorrFamilyROMScheme_correct {M : Type} [DecidableEq M] (d : F.Desc) {m : ℕ}
-    (hm : 2 ^ m ≤ F.order d) :
-    (F.schnorrFamilyROMScheme (M := M) d hm).Correct :=
-  fiatShamir_correct (Function.Embedding.refl _) schnorr_complete fun _ h =>
-    mem_support_schnorrKeyGen h
-
-/-- **Correctness of `schnorrScalarROMScheme`**: every honest signature verifies. -/
-theorem schnorrScalarROMScheme_correct {M : Type} [DecidableEq M] (d : F.Desc) :
-    (F.schnorrScalarROMScheme (M := M) d).Correct :=
-  fiatShamir_correct (Function.Embedding.refl _) schnorr_complete fun _ h =>
-    mem_support_schnorrKeyGen h
-
-/-- The Fiat–Shamir / Bellare–Neven forking discrete-logarithm reduction for
-`schnorrFamilyROMScheme`, returning zero on a failed fork. This is a distribution-level program
-over the typed group, with no efficiency certificate. -/
-noncomputable def schnorrFamilyROMSchemeReduction {M : Type} [DecidableEq M] (d : F.Desc) {m : ℕ}
-    (hm : 2 ^ m ≤ F.order d)
-    (A : Forger (F.Carrier d) M (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d) (BitString m))
-    (Qs Qro : ℕ) : F.Carrier d → PMF (ZMod (F.order d)) :=
-  FiatShamir.reduction (Function.Embedding.refl _) (F.schnorrBitSigma d hm)
-    (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order d))
-      (F.Carrier d) (F.generator d)) id (F.challengeEmbedding d hm))
-    (linearExtract (F.challengeEmbedding d hm)) 0 A Qs Qro
-
-/-- The Fiat–Shamir / Bellare–Neven forking discrete-logarithm reduction for
-`schnorrScalarROMScheme`, returning zero on a failed fork. -/
-noncomputable def schnorrScalarROMSchemeReduction {M : Type} [DecidableEq M] (d : F.Desc)
-    (A : Forger (F.Carrier d) M (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d)
-      (ZMod (F.order d)))
-    (Qs Qro : ℕ) : F.Carrier d → PMF (ZMod (F.order d)) :=
-  FiatShamir.reduction (Function.Embedding.refl _) (schnorr (Function.Embedding.refl _)
-    (F.generator d))
-    (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order d))
-      (F.Carrier d) (F.generator d)) id (Function.Embedding.refl _))
-    (linearExtract (Function.Embedding.refl _)) 0 A Qs Qro
+/-! ### 2. The discrete-logarithm game in one group -/
 
 /-- In `F.Carrier d`, the one-way game for `schnorrKeyGen (F.generator d)` is the exact
 discrete-logarithm experiment: draw `α ← PMF.uniformOfFintype (ZMod (F.order d))`, run `B (α • g)`,
@@ -312,44 +234,5 @@ theorem oneWayGame_schnorrKeyGen_eq (d : F.Desc) (B : F.Carrier d → PMF (ZMod 
   simp only [oneWayGame, schnorrKeyGen, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.bind_map, Function.comp_def, (F.smul_generator_injective d).eq_iff]
   rfl
-
-/-- **Pointcheval–Stern / Bellare–Neven EUF-CMA security bound for `schnorrFamilyROMScheme`**
-([BonehShoup2023], Theorem 19.7 with Equation 19.21; [PointchevalStern2000]; [BellareNeven2006]):
-at any group description `d` with `2 ^ m ≤ F.order d`, a forger making at most `Qs` signing queries
-and `Qro` random-oracle queries succeeds in `eufCmaGame` with probability at most
-`Qs · (Qs + Qro) / F.order d + (Qro + 1) / 2 ^ m + √((Qro + 1) · ε')`, where `ε'` is the
-discrete-logarithm success probability of `schnorrFamilyROMSchemeReduction`. The scheme uses ideal
-uniform `ZMod q` key and nonce laws, and the reduction has no efficiency certificate. -/
-theorem succProbability_eufCmaGame_schnorrFamilyROMScheme_le {M : Type} [DecidableEq M]
-    (d : F.Desc) {m : ℕ} (hm : 2 ^ m ≤ F.order d)
-    (A : Forger (F.Carrier d) M (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d) (BitString m))
-    {Qs Qro : ℕ} (hA : A.CallBounded Qs Qro) :
-    (Game.succProbability (eufCmaGame (F.schnorrFamilyROMScheme d hm) A) : ℝ) ≤
-      Qs * (Qs + Qro) / F.order d + (Qro + 1) / 2 ^ m +
-        √((Qro + 1) * Game.succProbability (oneWayGame (schnorrKeyGen (F.generator d))
-          (fun α u => α • F.generator d = u)
-          (F.schnorrFamilyROMSchemeReduction d hm A Qs Qro))) := by
-  have h := schnorr_succProbability_eufCmaGame_le (ι := F.challengeEmbedding d hm)
-    (F.generator_ne_zero d) A hA
-  simpa only [schnorrFamilyROMScheme, schnorrBitSigma, schnorrFamilyROMSchemeReduction,
-    Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using h
-
-/-- **Pointcheval–Stern / Bellare–Neven EUF-CMA security bound for `schnorrScalarROMScheme`**
-([BonehShoup2023], Theorem 19.7 with Equation 19.21): with challenges in `ZMod (F.order d)`, a
-forger making at most `Qs` signing queries and `Qro` random-oracle queries succeeds with probability
-at most `Qs · (Qs + Qro) / F.order d + (Qro + 1) / F.order d + √((Qro + 1) · ε')`. -/
-theorem succProbability_eufCmaGame_schnorrScalarROMScheme_le {M : Type} [DecidableEq M]
-    (d : F.Desc)
-    (A : Forger (F.Carrier d) M (F.Carrier d × ZMod (F.order d)) (M × F.Carrier d)
-      (ZMod (F.order d)))
-    {Qs Qro : ℕ} (hA : A.CallBounded Qs Qro) :
-    (Game.succProbability (eufCmaGame (F.schnorrScalarROMScheme d) A) : ℝ) ≤
-      Qs * (Qs + Qro) / F.order d + (Qro + 1) / F.order d +
-        √((Qro + 1) * Game.succProbability (oneWayGame (schnorrKeyGen (F.generator d))
-          (fun α u => α • F.generator d = u)
-          (F.schnorrScalarROMSchemeReduction d A Qs Qro))) := by
-  have h := schnorr_succProbability_eufCmaGame_le (ι := Function.Embedding.refl (ZMod (F.order d)))
-    (F.generator_ne_zero d) A hA
-  simpa only [schnorrScalarROMScheme, schnorrScalarROMSchemeReduction, ZMod.card] using h
 
 end Cslib.Crypto.PrimeOrderGroupFamily

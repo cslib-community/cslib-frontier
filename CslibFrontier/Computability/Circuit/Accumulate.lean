@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.CompositionDepth
 public import CslibFrontier.Computability.Circuit.FanIn
 public import CslibFrontier.Computability.Circuit.Simulation
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # Accumulating circuits
@@ -73,8 +74,7 @@ theorem cost_program_accumulate (cost : σ.Op → ℕ) (R : ℕ) :
   induction R with
   | zero => rfl
   | succ R ih =>
-    rw [accumulate, cost_program_comp, cost_program_comp, ih, Finset.sum_range_succ,
-      cost_program_wiring, Nat.add_zero]
+    simp only [circuit_simps, accumulate, ih, Finset.sum_range_succ, Nat.add_zero]
 
 /-- Rounds of weighted depth at most `D` accumulate to weighted depth at most `R * D`. -/
 theorem depthWith_accumulate_le (cost : σ.Op → ℕ) {D R : ℕ}
@@ -117,7 +117,7 @@ theorem eval_accumulate_prefix (hstep : ∀ r y, (step r).eval I y = Fin.append 
   | base => rfl
   | succ R hrR ih =>
     have hiR : i < K₀ + w * R := hi.trans_le (by gcongr)
-    rw [accumulate, eval_comp, eval_comp, eval_wiring, hstep, Function.comp_apply]
+    simp only [circuit_simps, accumulate, hstep]
     exact (Fin.append_left _ _ ⟨i, hiR⟩).trans ih
 
 /-- In an accumulation of rounds that keep their inputs, the output keeps the input. -/

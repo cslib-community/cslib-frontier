@@ -99,9 +99,47 @@ cslib-frontier deliberately has both output-uncharged and output-charged APIs:
 
 The definitions and the documented reason for the output charge are in [ResourceBounds.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/ResourceBounds.lean#L88). The charge supports composition when returned values must subsequently occupy work tapes. It matters below linear space: copying an arbitrary input is a logarithmic-workspace transduction but cannot satisfy `ComputableInSpace` with a logarithmic output charge. For decision problems, one output bit makes the distinction asymptotically immaterial. The intended public direction uses plain computability; tidy cleanup and head rewinding remain in machine-level construction proofs and some transitional interfaces at this snapshot.
 
+The public [word-codec entry point](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Basic.lean)
+uses `ComputableInDegree … 1 1` for linear time, linear workspace and linear output length.
+`ComputableInDegree.one_one_iff` recovers a single realizing machine with a common bound
+`c * (inputLength + 1)` for time and workspace. Framing, unframing, dropping a frame, marker
+insertion, head, tail and emptiness use their existing finite transducers; composing them does not
+weaken the result to polynomial time. The [ordinary-module packet client](../../CslibFrontierTests/LinearCodecs.lean)
+repairs a framed prefix, preserves valid payloads and suffixes, and checks empty and incomplete
+frames. Native stream compilers request a normalized realizing witness only inside the machine
+proof, without changing callback contracts or charging emitted output to workspace.
+
 [Degree.BitString](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString.lean) certifies linear conversion between raw words (`encBits`) and the existing framed Boolean-list encoding (`encList encBool`). Its [Cut module](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString/Cut.lean) composes those streaming conversions with the existing unary list cutters. `ComputableInDegree.bitsTake` and `bitsDrop` charge the complete raw word and unary count, including empty words and counts beyond their length. Existing plain polynomial wrappers now reuse these stronger certificates. The [adaptive-game tape client](../../CslibFrontierTests/Crypto/LeveledTapePartition.lean) certifies its actual choose/encrypt/guess partition in time and output-charged workspace `O(tape.length + chooseCoins + encCoins + 1)`; callback execution and the complete reduction clock remain separate obligations.
 
 `FTIME` is the corresponding function-time class with explicit input and output encodings and affine time `c₁ t(n) + c₂`; its workspace has an arbitrary length-dependent bound. It adds no output charge beyond the time required to write the output. [FTIME](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/FunctionTime.lean#L46) `DTIME`, `NTIME`, `BPTIME`, `DSPACE` and `NSPACE` attach affine bounds to the relevant machine predicates; `P`, `NP`, `BPP`, `L`, `NL`, `PSPACE`, `NPSPACE`, `E`, `NE`, `EXP` and `NEXP` derive familiar bound families.
+
+The [quantitative rules](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Quantitative.lean)
+provide plain `ComputableInDegree.bitsReverse` and `bitsDropLast` at cost/output degrees
+`1/1`, and `bitsGetLast?ToList` and `bitsGetLast?` at `1/0`. These replace the four tidy
+degree rules and their automation leaves; use plain callback certificates when composing them.
+`ComputableInO.lengthUnary` retains linear time and output-charged linear space.
+The [composition regression](../../CslibFrontierTests/Quantitative.lean) checks the independent
+output degrees, including a high-degree consumer of a constant-size last-bit result.
+
+The [streaming fold API](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean)
+accepts plain `ComputableInTimeAndSpace` callbacks in `foldl_bits_stream_sum`, its uniform,
+invariant and paired variants, and `iterate_unary_stream_sum`. Supply the original exact callback
+costs: normalization is absorbed into the input-independent existential constant. Cumulative
+round costs still charge both adjacent encoded states and control; workspace depends on peak
+callback workspace and retained state, independently of time and emitted output. Prefix-state
+bounds include the initial and final state. The unary variant charges the final callback
+separately. `ComputableInO.unary_halvings` uses this interface and retains the geometric sum bound.
+
+The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
+registers `ComputableInTimeAndSpace` for `fun_prop` directly, without a mixed streaming import.
+It provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
+`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
+machines; the transducer witness includes input rewind. Workspace excludes emitted output:
+map and reverse therefore need a separate linear output bound for output-charged space,
+while last-bit extraction has constant output size. The
+[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
+and the obstruction to charging arbitrary map output to constant space.
 
 For prefixes and suffixes of computed framed lists, import
 [`PolyTime.Captured`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Captured.lean)
@@ -145,6 +183,12 @@ and [approximation reduction](../../CslibFrontier/Computability/PCP/Approximatio
 compose this plain certificate directly with their weight-list certificates.
 [TruncatedSum](../../CslibFrontier/Computability/Complexity/Classes/CountingSimulation/TruncatedSum.lean)
 uses the same certificate for separate time and space envelopes.
+
+For products, import
+[`PolyTime.Nat.ListProd`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/ListProd.lean):
+`ComputableInPolyTime.binary_prod` certifies the product of a list on `encList encNat`; for
+`(l.map H).prod` with `H` polynomial-time with binary values, compose it with
+`ComputableInPolyTime.map`, as in `binary_prod.comp (.map hH)`.
 
 For a polynomial-time map on pairs, import
 [`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Families`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Families.lean).

@@ -30,6 +30,7 @@ import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformBound
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.OfFn
 
@@ -1325,6 +1326,36 @@ private noncomputable def bcsStickyMemoize (r d : ℕ) {Stmt Sym Chal : Type}
     (bcsMemoize σ q st).map fun (ans, st') =>
       (ans, (st', badFlag || decide (BCSStepBad r d S doomed decSym defaultSym st st')))
 
+open Classical in
+private theorem bcsStickyMemoize_inl (r d : ℕ) {Stmt Sym Chal : Type}
+    [BEq Stmt] [BEq Chal] [Fintype Chal] [Nonempty Chal]
+    (S : Set Stmt) (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
+    (decSym : List Bool → Sym) (defaultSym : Sym) (σ : ℕ)
+    (msg : List Bool) (tr_MT : List (List Bool × List Bool))
+    (tr_FS : List (BCSFSQuery Stmt Chal × Chal)) (flag : Bool) :
+    bcsStickyMemoize r d S doomed decSym defaultSym σ (.inl msg) ((tr_MT, tr_FS), flag) =
+      (memoize (fun _ => BitString.uniformList σ) msg tr_MT).map fun (ans, tr_MT') =>
+        (ans, ((tr_MT', tr_FS),
+          flag || decide (BCSStepBad r d S doomed decSym defaultSym
+            (tr_MT, tr_FS) (tr_MT', tr_FS)))) := by
+  simp only [bcsStickyMemoize, bcsMemoize, RandomOracle.memoizeSum_inl, PMF.map_comp,
+    Function.comp_def]
+
+open Classical in
+private theorem bcsStickyMemoize_inr (r d : ℕ) {Stmt Sym Chal : Type}
+    [BEq Stmt] [BEq Chal] [Fintype Chal] [Nonempty Chal]
+    (S : Set Stmt) (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
+    (decSym : List Bool → Sym) (defaultSym : Sym) (σ : ℕ)
+    (fsq : BCSFSQuery Stmt Chal) (tr_MT : List (List Bool × List Bool))
+    (tr_FS : List (BCSFSQuery Stmt Chal × Chal)) (flag : Bool) :
+    bcsStickyMemoize r d S doomed decSym defaultSym σ (.inr fsq) ((tr_MT, tr_FS), flag) =
+      (memoize (fun _ => PMF.uniformOfFintype Chal) fsq tr_FS).map fun (c, tr_FS') =>
+        (c, ((tr_MT, tr_FS'),
+          flag || decide (BCSStepBad r d S doomed decSym defaultSym
+            (tr_MT, tr_FS) (tr_MT, tr_FS')))) := by
+  simp only [bcsStickyMemoize, bcsMemoize, RandomOracle.memoizeSum_inr, PMF.map_comp,
+    Function.comp_def]
+
 private def BCSStickyBad (r d : ℕ) {Stmt Sym Chal : Type} (S : Set Stmt)
     (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
     (decSym : List Bool → Sym) (defaultSym : Sym)
@@ -1463,8 +1494,7 @@ private theorem toOuterMeasure_run_bcsStickyMemoize_bad_le {γ : Type}
       rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
       cases q with
       | inl msg =>
-        obtain ⟨⟨ans, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_MT', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inl] with ⟨⟨_, tr_MT'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ msg tr_MT hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul, add_zero]
         calc ((3 * tr_MT'.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)
@@ -1475,8 +1505,7 @@ private theorem toOuterMeasure_run_bcsStickyMemoize_bad_le {γ : Type}
               push_cast
               ring
       | inr fsq =>
-        obtain ⟨⟨c, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_FS', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inr] with ⟨⟨_, tr_FS'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ fsq tr_FS hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, add_zero]
         calc ((3 * tr_MT.length + r * tr_FS'.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)
@@ -1490,12 +1519,10 @@ private theorem toOuterMeasure_run_bcsStickyMemoize_bad_le {γ : Type}
       rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
       cases q with
       | inl msg =>
-        obtain ⟨⟨ans, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_MT', -, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inl]
         simp [bcsMTCost, bcsFSCost]
       | inr fsq =>
-        obtain ⟨⟨c, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_FS', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inr] with ⟨⟨_, tr_FS'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ fsq tr_FS hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, add_zero]
         calc ε_rbr + (tr_FS'.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)
@@ -1734,18 +1761,11 @@ private theorem validFSChain_of_mem_support_bcsChallengesAuxProg
           (bcsChallengesAuxProg x roots m hm)).run tr_FS).support →
       ValidFSChain tr_FS' x ((List.ofFn roots).take m) (List.ofFn chals)
   | 0, _, tr_FS, tr_FS', chals, _, _, hmem => by
-    simp only [bcsChallengesAuxProg, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [bcsChallengesAuxProg, run_interpret_pure]
     exact ⟨by simp, fun _ hi => by simp at hi⟩
   | m + 1, hm, tr_FS, tr_FS', chals, hnodup, hsupp, hmem => by
-    simp only [bcsChallengesAuxProg, run_interpret_bind, run_interpret_query, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hmem
-    rcases hmem with ⟨⟨prev, tr_FS₁⟩, hprev, ⟨c, tr_FS₂⟩, hc, hpair⟩
-    dsimp only at hpair
-    rw [Prod.mk.injEq] at hpair
-    rcases hpair with ⟨rfl, rfl⟩
+    supp_cases hmem [bcsChallengesAuxProg, run_interpret_bind, run_interpret_query,
+      run_interpret_pure] with ⟨⟨prev, tr_FS₁⟩, hprev, ⟨c, tr_FS₂⟩, hc, rfl, rfl⟩
     obtain ⟨-, hnodup₁, hsupp₁, -⟩ :=
       mem_support_run_memoize_invariant
         (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
@@ -1831,25 +1851,17 @@ private theorem exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM
     ∃ chals : Fin r → Chal,
       ValidFSChain tr_FS₂ x (List.ofFn prf.roots) (List.ofFn chals) ∧
       iopVerify iop x chals (bcsExtractOracles decSym defaultSym tr_MT₃ d prf.roots) = true := by
-  simp only [bcsVerifyROM, run_interpret_bind, PMF.monad_bind_eq_bind,
-    PMF.mem_support_bind_iff] at hmem
-  rcases hmem with ⟨⟨chals, st₂⟩, hFS_call, hMT_call⟩
-  rw [RandomOracle.run_interpret_memoizeSum_liftRight, PMF.mem_support_map_iff] at hFS_call
-  obtain ⟨⟨chals', tr_FS₂'⟩, hch_mem, hpair⟩ := hFS_call
-  dsimp only at hpair
-  rw [Prod.mk.injEq] at hpair
-  rcases hpair with ⟨rfl, rfl⟩
+  supp_cases hmem [bcsVerifyROM, run_interpret_bind,
+    RandomOracle.run_interpret_memoizeSum_liftRight] with
+    ⟨_, ⟨⟨chals', tr_FS₂'⟩, hch_mem, rfl⟩, hMT_call⟩
+  supp_cases hMT_call [RandomOracle.run_interpret_memoizeSum_liftLeft] with
+    ⟨⟨_, tr_MT₃'⟩, hmt_mem, rfl, rfl, rfl⟩
   obtain ⟨-, hnodup_FS₂, -, heval_FS⟩ :=
     mem_support_run_memoize_invariant
       (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
       (bcsChallengesProg x prf.roots) hnodup_FS₁ hsupp_FS₁ hch_mem
   have hchain : ValidFSChain tr_FS₂' x (List.ofFn prf.roots) (List.ofFn chals') :=
     validFSChain_of_mem_support_bcsChallengesProg x prf.roots hnodup_FS₁ hsupp_FS₁ hch_mem
-  rw [RandomOracle.run_interpret_memoizeSum_liftLeft, PMF.mem_support_map_iff] at hMT_call
-  obtain ⟨⟨ok', tr_MT₃'⟩, hmt_mem, hpair'⟩ := hMT_call
-  dsimp only at hpair'
-  rw [Prod.mk.injEq, Prod.mk.injEq] at hpair'
-  rcases hpair' with ⟨rfl, rfl, rfl⟩
   obtain ⟨-, hnodup_MT₃, -, heval_MT⟩ :=
     mem_support_run_memoize_invariant (fun _ : List Bool => BitString.uniformList σ)
       (bcsVerifyOpeningsProg iop encSym x prf chals') hnodup_MT₁ hsupp_MT₁ hmt_mem
@@ -1863,11 +1875,9 @@ private theorem exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM
   have hchals_eq : chals' = bcsChallenge (chainedFS f) x prf.roots := by
     simpa only [evalPure_bcsChallengesProg] using heval_FS f hcons_FS
   have hpaths : BCSOpeningsQueriedInTrace (fun _ => hTree) [] iop encSym tr_MT₃' x chals' prf := by
-    simp only [bcsVerifyOpeningsProg, run_interpret_bind, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hmt_mem
-    rcases hmt_mem with ⟨⟨checks, tr_MT_mid⟩, hchecks, hpair_mid⟩
-    obtain ⟨_, rfl⟩ := Prod.mk.inj hpair_mid
+    have hmt_open := hmt_mem
+    supp_cases hmt_open [bcsVerifyOpeningsProg, run_interpret_bind, run_interpret_pure] with
+      ⟨⟨_, _⟩, hchecks, -, rfl⟩
     intro j idx val path hq
     exact pathQueriedInTrace_of_mem_support_mapM_merkleVerifyProg hnodup_MT₁ hsupp_MT₁ hchecks d
       (fun ((j, _), _) => prf.roots j) (fun ((_, idx), _) => idx.val)
@@ -2009,15 +2019,9 @@ private theorem not_bcsGoodState_of_mem_support_bcsSoundnessProg
       ((OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run
         ([], [])).support) :
     ¬ BCSGoodState r d langᶜ doomed decSym defaultSym st' := by
-  simp only [bcsSoundnessProg, run_interpret_bind, run_interpret_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-  rcases hmem with ⟨⟨⟨x, prf⟩, ⟨tr_MT₁, tr_FS₁⟩⟩, hP, ⟨ok, ⟨tr_MT₃, tr_FS₂⟩⟩, hV, hwin⟩
-  dsimp only at hwin
-  rw [Prod.mk.injEq] at hwin
-  rcases hwin with ⟨hwin, rfl⟩
-  symm at hwin
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
-  obtain ⟨hx_not_lang, rfl⟩ := hwin
+  supp_cases hmem [bcsSoundnessProg, run_interpret_bind, run_interpret_pure,
+    eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] with
+    ⟨⟨⟨x, prf⟩, st₁⟩, hP, ⟨_, st₃⟩, hV, ⟨hx_not_lang, rfl⟩, rfl⟩
   intro hgood
   obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
     exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV hgood
@@ -2055,19 +2059,13 @@ theorem bcsROMSoundness_bound [DecidableEq Stmt] [DecidableEq Chal] [Fintype Cha
     PMF.toOuterMeasure_map_apply]
   set run := (OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc run.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ BCSGoodState r d langᶜ doomed decSym defaultSym out.2} := by
-        refine run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_
-        simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
-        subst hres
-        exact not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P hmem
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
-        toOuterMeasure_run_bcsMemoize_not_goodState_le
-          hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
-          (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS)
+  refine (run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_).trans
+    (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := langᶜ)
+      hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
+      (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS))
+  simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
+  subst hres
+  exact not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P hmem
 
 /-- **Adaptive two-channel BCS ROM soundness (separate prover/verifier Merkle budgets on
 `P.support`)**: if `P` makes at most `t_MT` Merkle hash queries and `t_FS` Fiat–Shamir queries, and
@@ -2173,10 +2171,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_bind [BEq Stmt] [BEq Chal]
         ((OracleComp.interpret (bcsMemoize σ) (bcsVerifyROM iop encSym x prf)).run
           (tr_P, tr_FS)).map fun (ok, _) => ok && decide (¬ rel x w) := by
   simp only [bcsKnowledgeSoundnessGame, StateT.run'_eq, StateT.run_bind, StateT.run_get,
-    StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.monad_map_eq_map,
-    PMF.map_bind, PMF.pure_bind]
-  refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, ⟨tr_P, tr_FS⟩⟩ => ?_)
-  simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+    StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.map]
 
 /-- **Straight-line extraction failure** on an output `(((x, prf), ok), (tr_MT, tr_FS))` of
 `bcsExecROM` under `bcsMemoize σ`: the verifier accepts (`ok = true`), but the witness
@@ -2217,32 +2212,20 @@ theorem bcsROMKnowledgeSoundness_trace_bound [DecidableEq Stmt] [DecidableEq Cha
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   set run := (OracleComp.interpret (bcsMemoize σ) (bcsExecROM iop encSym P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc run.toOuterMeasure
-        ({out | BCSExtractionFails rel iopExtract decSym defaultSym out} ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ BCSGoodState r d Set.univ doomed decSym defaultSym out.2} := by
-        refine run.toOuterMeasure.mono
-          fun ⟨⟨⟨x, prf⟩, ok⟩, ⟨tr_MT₃, tr_FS₂⟩⟩ ⟨hfails, hmem⟩ => ?_
-        obtain ⟨hok, hnot_rel⟩ := hfails
-        subst hok
-        simp only [run, bcsExecROM, run_interpret_bind, run_interpret_pure, PMF.monad_bind_eq_bind,
-          PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-        rcases hmem with ⟨⟨⟨x₁, prf₁⟩, ⟨tr_MT₁, tr_FS₁⟩⟩, hP, ⟨ok₁, st₃⟩, hV, hpair⟩
-        dsimp only at hpair
-        rw [Prod.mk.injEq, Prod.mk.injEq, Prod.mk.injEq] at hpair
-        rcases hpair with ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩
-        intro hgood
-        obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
-          exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV
-            hgood (Set.mem_univ x)
-        exact hnot_rel (hks.extract_of_doomed x _ chals hdoomed hiop_acc)
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
-        toOuterMeasure_run_bcsMemoize_not_goodState_le
-          (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
-          (fun x _ => hescape x) decSym defaultSym σ hMT
-          (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS)
+  refine (run.toOuterMeasure.mono
+    fun ⟨⟨⟨x, prf⟩, ok⟩, st₃⟩ ⟨⟨hok, hnot_rel⟩, hmem⟩ => ?_).trans
+    (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := Set.univ)
+      (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
+      (fun x _ => hescape x) decSym defaultSym σ hMT
+      (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS))
+  subst hok
+  supp_cases hmem [run, bcsExecROM, run_interpret_bind, run_interpret_pure] with
+    ⟨⟨⟨x, prf⟩, st₁⟩, hP, ⟨_, _⟩, hV, ⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩
+  intro hgood
+  obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
+    exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV
+      hgood (Set.mem_univ x)
+  exact hnot_rel (hks.extract_of_doomed x _ chals hdoomed hiop_acc)
 
 /-- Along a `liftRight` program run under `bcsStickyMemoize`, the Merkle trace `tr_MT` is unchanged.
 -/
@@ -2258,18 +2241,15 @@ private theorem fst_eq_of_mem_support_bcsStickyMemoize_liftRight {γ : Type}
     p'.1.1 = p.1.1 := by
   induction prog using OracleComp.induction generalizing p with
   | pure a =>
-    simp only [liftRight_pure, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [liftRight_pure, run_interpret_pure]
     rfl
   | query_bind q cont ih =>
-    simp only [liftRight_bind, liftRight_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
-    rcases hmem with ⟨⟨c, p₁⟩, hc, hcont⟩
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
-    obtain ⟨⟨c₂, st⟩, hc, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
-    obtain ⟨tr_FS₁, -, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hc
-    rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    supp_cases hmem [liftRight_freeMBind, liftRight_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, bcsStickyMemoize_inr] with
+      ⟨_, ⟨⟨c₂, tr_FS₁⟩, -, rfl⟩, hcont⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
     exact (ih c₂ hcont :)
 
 /-- Along a `liftLeft` program run under `bcsStickyMemoize`, if the final sticky flag `p'.2` is
@@ -2291,31 +2271,24 @@ private theorem extractTable_eq_of_mem_support_bcsStickyMemoize_liftLeft {γ : T
           bcsExtractTable decSym defaultSym p.1.1 d rt := by
   induction prog using OracleComp.induction generalizing p with
   | pure a =>
-    simp only [liftLeft_pure, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [liftLeft_pure, run_interpret_pure]
     exact ⟨hflag', rfl, fun _ _ => rfl⟩
   | query_bind msg cont ih =>
-    simp only [liftLeft_bind, liftLeft_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
-    rcases hmem with ⟨⟨ans, p₁⟩, hans, hcont⟩
-    obtain ⟨hflag₁, hfs_eq, hextract_tail⟩ := ih ans hcont
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
-    obtain ⟨⟨ans₂, st⟩, hans, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hans
-    obtain ⟨tr_MT₁, hmt, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hans
-    rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    supp_cases hmem [liftLeft_freeMBind, liftLeft_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, bcsStickyMemoize_inl] with
+      ⟨_, ⟨⟨ans₂, tr_MT₁⟩, hmt, rfl⟩, hcont⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
+    obtain ⟨hflag₁, hfs_eq, hextract_tail⟩ := ih ans₂ hcont
     dsimp only at hflag₁ hfs_eq hextract_tail
     simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not] at hflag₁
     obtain ⟨rfl, hnot_step⟩ := hflag₁
     refine ⟨rfl, hfs_eq, fun rt hrt => ?_⟩
     rw [hextract_tail rt hrt]
-    rcases (RandomOracle.mem_support_memoize_iff _ msg tr_MT (ans₂, tr_MT₁)).mp hmt with
-      ⟨_, htr_eq⟩ | ⟨_, _, htr_eq⟩
-    · change tr_MT₁ = tr_MT at htr_eq
-      rw [htr_eq]
-    · change tr_MT₁ = (msg, ans₂) :: tr_MT at htr_eq
-      subst htr_eq
-      have hnot_forb : ans₂ ∉ bcsForbiddenDigests r (tr_MT, tr_FS) := by
+    supp_cases hmt [RandomOracle.mem_support_memoize_iff]
+    · rfl
+    · have hnot_forb : ans₂ ∉ bcsForbiddenDigests r (tr_MT, tr_FS) := by
         intro hforb
         exact hnot_step (Or.inr ⟨msg, ans₂, rfl, hforb⟩)
       simp only [bcsForbiddenDigests, List.mem_append, List.mem_map, not_or, not_exists,
@@ -2395,10 +2368,8 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
             (ok && decide (¬ rel x
               (bcsExtractWitness iopExtract decSym defaultSym p₁.1.1 x prf.roots)), p₃)).map
         Prod.fst := by
-    rw [bcsKnowledgeSoundnessGame_eq_sticky iop rel iopExtract doomed encSym decSym defaultSym P σ,
-      PMF.map_bind]
-    refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, p₁⟩ => ?_)
-    simp only [handler, PMF.map_comp, Function.comp_def]
+    simp only [bcsKnowledgeSoundnessGame_eq_sticky iop rel iopExtract doomed encSym decSym
+      defaultSym P σ, handler, pmf_norm, PMF.map]
   set combined : PMF (Bool × (BCSTraceState Stmt Chal × Bool)) :=
     ((OracleComp.interpret handler P).run (([], []), false)).bind fun ((x, prf), p₁) =>
       ((OracleComp.interpret handler (bcsVerifyROM iop encSym x prf)).run p₁).map
@@ -2408,10 +2379,7 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
   have hrun_snd : combined.map Prod.snd =
       ((OracleComp.interpret handler (bcsExecROM iop encSym P)).run (([], []), false)).map
         Prod.snd := by
-    simp only [combined, bcsExecROM, run_interpret_bind, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind]
-    refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, p₁⟩ => ?_)
-    simp only [Function.comp_def, PMF.map, PMF.bind_bind, PMF.pure_bind]
+    simp only [combined, bcsExecROM, run_interpret_bind, run_interpret_pure, pmf_norm, PMF.map]
   rw [hgame_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     ← PMF.toOuterMeasure_apply_inter_support]
   calc combined.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ combined.support)
@@ -2420,13 +2388,8 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
         refine combined.toOuterMeasure.mono fun ⟨win, p₃⟩ ⟨hwin, hmem⟩ => ?_
         simp only [Set.mem_preimage, Set.mem_singleton_iff] at hwin
         subst hwin
-        simp only [combined, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-        rcases hmem with ⟨⟨⟨x, prf⟩, p₁⟩, hP_sticky, ⟨ok, p₃'⟩, hV_sticky, hpair⟩
-        rw [Prod.mk.injEq] at hpair
-        rcases hpair with ⟨hwin_eq, rfl⟩
-        dsimp only at hwin_eq
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin_eq
-        obtain ⟨rfl, hnot_rel_P⟩ := hwin_eq
+        supp_cases hmem [combined, eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] with
+          ⟨⟨⟨x, prf⟩, p₁⟩, hP_sticky, ⟨_, p₃'⟩, hV_sticky, ⟨rfl, hnot_rel_P⟩, rfl⟩
         by_contra hnot_bad
         change ¬ BCSStickyBad r d Set.univ doomed decSym defaultSym p₃' at hnot_bad
         unfold BCSStickyBad at hnot_bad
@@ -2435,9 +2398,8 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
         have hflag₃ : p₃'.2 = false := Bool.eq_false_iff.mpr hflag₃_ne
         -- Extract intermediate state between `bcsChallengesProg` and `bcsVerifyOpeningsProg`.
         have hV_split := hV_sticky
-        simp only [bcsVerifyROM, run_interpret_bind, PMF.monad_bind_eq_bind,
-          PMF.mem_support_bind_iff] at hV_split
-        rcases hV_split with ⟨⟨chals_mid, p₂⟩, hchal_sticky, hopen_sticky⟩
+        supp_cases hV_split [bcsVerifyROM, run_interpret_bind] with
+          ⟨⟨chals_mid, p₂⟩, hchal_sticky, hopen_sticky⟩
         have htr_P_eq : p₂.1.1 = p₁.1.1 :=
           fst_eq_of_mem_support_bcsStickyMemoize_liftRight Set.univ doomed decSym defaultSym σ
             (bcsChallengesProg x prf.roots) hchal_sticky
@@ -2446,17 +2408,16 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
             defaultSym σ (bcsVerifyOpeningsProg iop encSym x prf chals_mid) hopen_sticky hflag₃
         -- Project sticky support memberships to `bcsMemoize` for `ValidFSChain` & `iopVerify`.
         have hP_mem : ((x, prf), p₁.1) ∈
-            ((OracleComp.interpret (bcsMemoize σ) P).run ([], [])).support := by
-          rw [← run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ P
-            ([], []) false, PMF.mem_support_map_iff]
-          exact ⟨((x, prf), p₁), hP_sticky, rfl⟩
+            ((OracleComp.interpret (bcsMemoize σ) P).run ([], [])).support :=
+          run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ P ([], []) false ▸
+            (PMF.mem_support_map_iff _ _ _).mpr ⟨((x, prf), p₁), hP_sticky, rfl⟩
         have hV_mem : (true, p₃'.1) ∈
             ((OracleComp.interpret (bcsMemoize σ) (bcsVerifyROM iop encSym x prf)).run
               p₁.1).support := by
           rcases hp₁ : p₁ with ⟨st₁, flag₁⟩
-          rw [← run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ
-            (bcsVerifyROM iop encSym x prf) st₁ flag₁, PMF.mem_support_map_iff]
-          exact ⟨(true, p₃'), hp₁ ▸ hV_sticky, rfl⟩
+          exact run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ
+              (bcsVerifyROM iop encSym x prf) st₁ flag₁ ▸
+            (PMF.mem_support_map_iff _ _ _).mpr ⟨(true, p₃'), hp₁ ▸ hV_sticky, rfl⟩
         obtain ⟨chals, hchain, hdoomed, hiop_acc⟩ :=
           exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP_mem
             hV_mem hgood₃ (Set.mem_univ x)
@@ -2493,10 +2454,7 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
             {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p}).symm
         rw [h1, hrun_snd, PMF.toOuterMeasure_map_apply]
         rfl
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
+    _ ≤ _ :=
         toOuterMeasure_run_bcsStickyMemoize_bad_le
           (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
           (fun x _ => hescape x) decSym defaultSym σ hMT
@@ -2624,52 +2582,18 @@ theorem computableInPolyTime_bcsFindTraceConflict
     ComputableInPolyTime
       (fun a => bcsFindTraceConflict iop encSym hFS (tr_MT a) (x a) (prf a))
       encIn
-      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) := by
-  have hroots : ComputableInPolyTime (fun a => (prf a).roots) encIn (encFinFn r encBits) :=
-    encBCSProof_roots_polyTime r Sym encSym hprf
-  have hopenings : ComputableInPolyTime (fun a => (prf a).openings) encIn
-      (encList (encMerkleOpeningOf Sym encSym)) :=
-    encBCSProof_openings_polyTime r Sym encSym hprf
-  have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
-  have hqs := hqueries.comp (hx.prod hchals)
-  have hzip := (ComputableInPolyTime.zip
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
-  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
-  have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hj := (ComputableInPolyTime.fst
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidxVal := ComputableInPolyTime.finVal hidx
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have hrtJ := ComputableInPolyTime.finFn_apply' (hroots.comp hfst) hj
-  have hextract := computableInPolyTime_extractLeafFromTrace d (htr.comp hfst) hrtJ hidxVal
-  have htest : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
-        extractLeafFromTrace (tr_MT p.1) d ((prf p.1).roots p.2.1.1) p.2.1.2.val !=
-          some (encSym p.2.2.leaf))
-      (encPair encIn encElem) encBool := by
-    convert hextract.optionElimWithInput
-      (body := fun (p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym)) bits =>
-        !(bits == encSym p.2.2.leaf))
-      (ComputableInPolyTime.const true)
-      (ComputableInPolyTime.bool_not.comp
-        (ComputableInPolyTime.beq
-          (ComputableInPolyTime.snd (encPair encIn encElem) encBits)
-          (hval.comp (ComputableInPolyTime.fst (encPair encIn encElem) encBits)))) using 1
-    funext p
-    dsimp only [Function.comp_def]
-    cases extractLeafFromTrace (tr_MT p.1) d ((prf p.1).roots p.2.1.1) p.2.1.2.val <;> rfl
-  exact ComputableInPolyTime.findWithInput hzip htest
+      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
+  ComputableInPolyTime.findWithInput
+    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
+      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
+        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
+        (encBCSProof_openings_polyTime r Sym encSym hprf)))
+    (ComputableInPolyTime.bne (encB := encOption encBits)
+      (computableInPolyTime_extractLeafFromTrace d (htr.comp (.fst _ _))
+        (ComputableInPolyTime.finFn_apply'
+          ((encBCSProof_roots_polyTime r Sym encSym hprf).comp (.fst _ _)) (by fun_prop))
+        (by fun_prop))
+      (by fun_prop))
 
 /-- Deterministic trace collision extraction for the BCS transform (`bcsExtractTraceCollision`)
 runs in polynomial time. -/
@@ -2695,25 +2619,16 @@ theorem computableInPolyTime_bcsExtractTraceCollision
     ComputableInPolyTime
       (fun a => bcsExtractTraceCollision iop H (k a) encSym hFS (tr_MT a) (x a) (prf a))
       encIn (encPair encBits encBits) := by
-  have hfind := computableInPolyTime_bcsFindTraceConflict hqueries hhFS htr hx hprf
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
     encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfind := computableInPolyTime_bcsFindTraceConflict hqueries hhFS htr hx hprf
   have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidxVal := ComputableInPolyTime.finVal hidx
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have hpath := encMerkleOpeningOf_path_polyTime Sym encSym ho
-  have hcol := computableInPolyTime_extractTraceCollision hH hlen
-    (hk.comp hfst) (htr.comp hfst) hidxVal hval hpath
+  have hcol : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
+        extractTraceCollision H (k p.1) (tr_MT p.1) p.2.1.2.val (encSym p.2.2.leaf) p.2.2.path)
+      (encPair encIn encElem) (encPair encBits encBits) :=
+    computableInPolyTime_extractTraceCollision hH hlen
+      (hk.comp hfst) (htr.comp hfst) (by fun_prop) (by fun_prop) (by fun_prop)
   convert hfind.optionElimWithInput
     (body := fun a (e : (Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
       extractTraceCollision H (k a) (tr_MT a) e.1.2.val (encSym e.2.leaf) e.2.path)
@@ -2867,29 +2782,16 @@ theorem succProbability_bcsTraceKnowledgeGame_le {iop : PublicCoinIOP r d Stmt W
   intro k _
   apply PMF.bind_apply_mono_on_support
   intro out _
-  by_cases hwin :
-      (decide (TraceConsistentWith (H k) out.trace) &&
-        decide (BCSOpeningsQueriedInTrace H k iop encSym out.trace out.stmt
-          (bcsChallenge hFS out.stmt out.proof.roots) out.proof) &&
-        bcsVerify iop H k encSym hFS out.stmt out.proof &&
-        decide (¬ rel out.stmt
-          (bcsExtractWitness iopExtract decSym defaultSym out.trace out.stmt out.proof.roots))) =
-        true
-  · rw [hwin]
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
-    obtain ⟨⟨⟨hcons, hpaths⟩, hver⟩, hnot_rel⟩ := hwin
-    have hrej : iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots)
-        (bcsExtractOracles decSym defaultSym out.trace d out.proof.roots) = false := by
-      cases hiop : iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots)
-        (bcsExtractOracles decSym defaultSym out.trace d out.proof.roots)
-      · rfl
-      · exact False.elim (hnot_rel (hks out.stmt _ _ hiop))
-    have hbreak : bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out = true := by
-      simp [bcsBreaksTraceBinding, hcons, hpaths, hver, hrej]
-    rw [hbreak]
-  · rw [Bool.not_eq_true] at hwin
-    rw [hwin]
-    simp
+  by_cases hrel : rel out.stmt
+      (bcsExtractWitness iopExtract decSym defaultSym out.trace out.stmt out.proof.roots)
+  · simp [hrel]
+  · unfold bcsBreaksTraceBinding
+    cases decide (TraceConsistentWith (H k) out.trace) <;>
+      cases decide (BCSOpeningsQueriedInTrace H k iop encSym out.trace out.stmt
+        (bcsChallenge hFS out.stmt out.proof.roots) out.proof) <;>
+      cases hver : bcsVerify iop H k encSym hFS out.stmt out.proof <;>
+      simp [hrel,
+        Bool.eq_false_iff.mpr fun hiop => hrel (hks out.stmt _ _ hiop)]
 
 /-- **Efficiency of `bcsTraceCollisionFinder`**: for a polynomial-time hash `H` with `k.length`-bit
 digests, polynomial-time `iop.queries`, and polynomial-time `hFS`, the collision finder of any
@@ -2907,19 +2809,10 @@ theorem isPPT_bcsTraceCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
       (encFSTranscript encStmt) encChal)
     {adversary : BCSTraceAdversary r Stmt Sym}
     (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
-    IsPPT (encPair encBits encBits) (bcsTraceCollisionFinder iop H encSym hFS adversary) := by
-  let encOut := encBCSTraceOutput r Stmt Sym encStmt encSym
-  have hfst := ComputableInPolyTime.fst (encPair encUnary encBits) encOut
-  have hsnd := ComputableInPolyTime.snd (encPair encUnary encBits) encOut
-  have hk := (ComputableInPolyTime.snd encUnary encBits).comp hfst
-  have htr := encBCSTraceOutput_trace_polyTime r Stmt Sym encStmt encSym hsnd
-  have hstmt := encBCSTraceOutput_stmt_polyTime r Stmt Sym encStmt encSym hsnd
-  have hprf := encBCSTraceOutput_proof_polyTime r Stmt Sym encStmt encSym hsnd
-  have hpost := (computableInPolyTime_bcsExtractTraceCollision hH hlen hqueries hhFS
-    hk htr hstmt hprf).tidy
-  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
-    (fun p => bcsTraceCollisionFinder iop H encSym hFS adversary p.1 p.2)
-  exact hadversary.bind_with hpost.isPPTOn
+    IsPPT (encPair encBits encBits) (bcsTraceCollisionFinder iop H encSym hFS adversary) :=
+  IsPPTOn.bind_with hadversary
+    (computableInPolyTime_bcsExtractTraceCollision hH hlen hqueries hhFS
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- **Standard-model trace-extraction BCS binding from collision resistance**: if `H` is
 collision-resistant (`CollisionResistant H`), every uniform strict PPT trace-recording BCS adversary

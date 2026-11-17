@@ -232,9 +232,7 @@ theorem interpret_mcspDistinguisher (d : ℕ) (oracle : List Bool → List Bool)
 @[fun_prop]
 theorem computableInPolyTime_tableArity (d : ℕ) :
     ComputableInPolyTime (tableArity d) encUnary encUnary := by
-  unfold tableArity
-  have := ComputableInPolyTime.unary_clog_const 2
-  fun_prop
+  fun_prop [tableArity]
 
 /-- The table size `2 ^ m` is computed in unary from the unary parameter. -/
 theorem computableInPolyTime_two_pow_tableArity (d : ℕ) :
@@ -310,23 +308,23 @@ theorem isOraclePPT_mcspDistinguisher (d : ℕ)
 uniform key. -/
 theorem eval_prfRealGame_mcspDistinguisher (family : List Bool → List Bool → List Bool)
     {d n : ℕ} (hm : tableArity d n ≤ n) :
-    ProbComp.eval (prfRealGame family (mcspDistinguisher p V d) n) =
+    ProbComp.eval (prfRealGame id family (mcspDistinguisher p V d) n) =
       (BitString.uniformList n).bind fun key => ProbComp.eval (mcspRun p V
         ⟨tableArity d n, MCSP.truthTable (tableArity d n)
           (restriction (family key) n (tableArity d n)),
           2 ^ tableArity d n / (5 * tableArity d n)⟩) := by
-  simp only [prfRealGame, ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList,
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList,
     interpret_mcspDistinguisher, restriction_prfOracle hm]
 
 /-- In the ideal game, the decider runs on the truth table of the restriction of a uniformly
 random function. -/
 theorem eval_prfIdealGame_mcspDistinguisher {d n : ℕ} (hn : 0 < n) (hm : tableArity d n ≤ n) :
-    ProbComp.eval (prfIdealGame (mcspDistinguisher p V d) n) =
+    ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V d) n) =
       (PMF.uniformOfFintype (BitString n → BitString n)).bind fun table =>
         ProbComp.eval (mcspRun p V ⟨tableArity d n, MCSP.truthTable (tableArity d n)
           (restrictTable n (tableArity d n) hn table),
           2 ^ tableArity d n / (5 * tableArity d n)⟩) := by
-  simp only [prfIdealGame, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
+  simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
     interpret_mcspDistinguisher, restriction_randomFunctionOracle hn hm]
 
 /-- For large `n`, the arity `m = d ⌈log₂ n⌉` with `d = c + 2` satisfies `16 ≤ m ≤ n`, and the
@@ -387,7 +385,7 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
   set m := tableArity (c + 2) n
   -- The decider accepts the pseudorandom truth table with probability at least `2 / 3`.
   have hreal : 2 / 3 ≤
-      (ProbComp.eval (prfRealGame family (mcspDistinguisher p V (c + 2)) n) true).toReal := by
+      (ProbComp.eval (prfRealGame id family (mcspDistinguisher p V (c + 2)) n) true).toReal := by
     rw [eval_prfRealGame_mcspDistinguisher family hmn, BitString.uniformList, PMF.bind_map,
       PMF.toReal_uniformOfFintype_bind_apply]
     refine Finset.le_expect Finset.univ_nonempty fun key _ => ?_
@@ -397,7 +395,7 @@ theorem not_pseudorandomFunction_of_MCSP_mem_BPP (h : MCSP ∈ BPP MCSP.encInsta
     exact this.trans hsize
   -- It accepts a random truth table with probability at most `1 / 3 + 1 / 12`.
   have hideal :
-      (ProbComp.eval (prfIdealGame (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
+      (ProbComp.eval (prfIdealGame id id (mcspDistinguisher p V (c + 2)) n) true).toReal ≤
         1 / 3 + 1 / 12 := by
     rw [eval_prfIdealGame_mcspDistinguisher hn hmn, PMF.toReal_uniformOfFintype_bind_apply]
     set g : (BitString n → BitString n) → Bool := fun table =>

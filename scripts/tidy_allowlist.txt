@@ -23,11 +23,15 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelComp.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelFacts.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelIte.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelNormalForm.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelReverse.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelTransducer.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelZeroSpace.lean
 # Named finite-control construction data with exact composition bounds; internal kernel milestone
 # #5442 (https://github.com/cslib-community/cslib-frontier/issues/5442).
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeCompiler.lean
+# Effect-free explicit-table counterpart of KernelOnWords and Combinators/StreamFold;
+# raw machine assembly and exact operational endpoint laws only (#862, #5912).
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelStreamTable.lean
 # Existing loop/wrapper laws and supplied-machine fold compiler, exact #862 disposition:
 # https://github.com/cslib-community/cslib-frontier/issues/862#issuecomment-6408754101
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/FoldCompiler.lean
@@ -36,6 +40,10 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelOnWords.lea
 # Bare machine-witness normalization only; Internal kernel boundary approved in #862:
 # https://github.com/cslib-community/cslib-frontier/issues/862#issuecomment-6400704445
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NormalForm.lean
+# Total-machine normalization and the unchanged description-dispatch run laws (#862):
+# https://github.com/cslib-community/cslib-frontier/issues/862#issuecomment-6885462544
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/TotalComputability.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/RiceDispatch.lean
 # Charged-space machine witness normalization for native multi-pass routines (#862).
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/SpaceNormalForm.lean
 # Three unchanged fixed-machine tape lemmas; kernel classification approved in #862:
@@ -51,3 +59,10 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/RunsWords.le
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Tidy.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Tidy/Redirect.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/IterateWhile.lean
+
+# Internal oracle phase compiler moved from the public probabilistic calculus (#862).
+# These exact modules construct/compose/normalize raw machines; public numerical facades
+# import them for proofs only, and OraclePhaseFacade checks the ordinary import boundary.
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Phase.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Iteration.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Normalization.lean

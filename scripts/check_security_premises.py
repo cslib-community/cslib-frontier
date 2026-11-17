@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Keep security theorems from assuming what they should prove (#5293).
+"""Point a reviewer at security theorems that assume something about an object they construct
+(#5293).
 
 Usage: python3 scripts/check_security_premises.py [--base REF | --all | --report | --list [PREFIX]]
-           [--update-baseline] [--no-build-check] [--baseline FILE]
+           [--advisory] [--update-baseline] [--no-build-check] [--baseline FILE]
 
-This checks the rule "Security theorems" in AGENTS.md. A security theorem may assume named
+This is an advisory search for the rule "Security theorems" in AGENTS.md: on a pull request it
+prints what it finds in the changed modules and does not fail. A security theorem may assume named
 hardness assumptions, stated relative to the setup sampler or component they concern, that the
 adversary is in the admitted class, and properties of components that the cited result takes as
 given. It must not assume anything about an object that its proof constructs, whether from the
@@ -29,35 +31,44 @@ to another variable (`hreal : eval (prfRealGame family D n) = … nonceFnDisting
 n)`, from the Carter–Wegman theorems that #5347 deleted), so that the theorem takes the reduction
 from the caller. The Lean file's docstring gives the exact rules and the known gaps.
 
-`scripts/security_premises_baseline.json` records the flagged theorems that are allowed, one per
-line, as `{theorem: {"module": source path, "premises": [binder names], "why": justification}}`.
+`scripts/security_premises_baseline.json` records the flagged theorems that are known, one per
+line, as `{theorem: {"module": source path, "premises": [binder names], "why": note}}`.
 The conclusion counts as the premise `⊢`, and a premise without an accessible name, such as one
 written with an arrow, as `#i` for the theorem's `i`-th binder. An entry is a deliberately
 conditional lemma, named and documented as such (an *algebraic helper*, such as a concrete bound
 in terms of `Adv(B_A)` that an asymptotic theorem consumes together with `B_A`'s efficiency proof),
 a premise that the rule allows but the checker cannot tell apart (a named assumption about a
 component the scheme uses, such as circular security or collision resistance of its hash, or the
-hypothesis of a cited generic theorem), or a misformalization being fixed under #5293. Every entry
-needs a one-line justification.
+hypothesis of a cited generic theorem), or a misformalization tracked under #5293. Its `why` says
+which. An entry is a note that the item is known, so that the report does not repeat it. It is not
+a clearance, and the number of entries does not measure progress.
 
-In a module that the change touches (adds, modifies or deletes, against the merge base of
-`--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
-computes it), a flagged premise without an entry fails, and so does an entry that no longer
-matches a flagged premise, until the baseline drops it in the same change: the baseline only
-shrinks unless a change adds an entry on purpose. A change that adds or modifies the checker or
-the baseline enforces every module. Differences in other modules are printed as a notice but do
-not fail: a change can cause them without touching those modules, for example by changing a
-definition that a flagged premise unfolds. Pull requests run this mode. `--all` enforces every
-module. `--report` prints every difference and always succeeds; merge groups and pushes to `main`
-run it, so that a queued pull request is never ejected by a change elsewhere. `--list [PREFIX]`
-ignores the baseline and prints every flagged theorem in the modules under the path PREFIX.
-`--update-baseline` adds entries with an empty justification for the unrecorded flagged premises
-of the enforced modules and removes their stale entries; fill in each `why`, or the check fails.
+The modules that a change touches are those it adds, modifies or deletes, against the merge base
+of `--base` (default `origin/main`) and the working tree, as `scripts/check_changed_files.py`
+computes them. A change that adds or modifies the checker or the baseline covers every module.
+
+Pull requests run `--base REF --advisory`. It prints the differences from the baseline in the
+touched modules (a flagged premise without an entry, an entry that no longer matches a flagged
+premise, an entry without a `why`), emits a GitHub `::notice` when running in Actions, and
+succeeds. A flagged premise is a prompt for the reviewer to open the statement, not a failure. The
+scan still fails when it cannot run or the baseline is malformed, because that is a broken tool
+and not a finding. `--report` prints every difference in every module and always succeeds; merge
+groups and pushes to `main` run it.
+
+Without `--advisory`, `--base` and `--all` enforce, which CI no longer does and which remains for
+local use: a difference in a touched module (`--all`: in any module) fails, and differences in
+other modules are printed but do not fail, since a change can cause them without touching those
+modules, for example by changing a definition that a flagged premise unfolds.
+
+`--list [PREFIX]` ignores the baseline and prints every flagged theorem in the modules under the
+path PREFIX. `--update-baseline` adds entries with an empty `why` for the unrecorded flagged
+premises of the touched modules and removes their stale entries; fill in each `why`, which the
+checker's unit tests require of the committed baseline.
 
 This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
 ones unless `--no-build-check` is given.
 
-The check supplements review: a clean run is not evidence that a security theorem is right. It
+The scan supplements review: a clean run is not evidence that a security theorem is right. It
 does not judge vacuous or misdefined notions, games and assumptions; a wrong or nonstandard
 assumption (such as an MLWE variant without the short secrets that ML-KEM's security needs);
 anything outside `Cslib.Crypto`; or names and docstrings that overclaim. Its rules are syntactic
@@ -84,7 +95,7 @@ import lean_outputs as lo  # noqa: E402
 
 BASELINE = ROOT / "scripts/security_premises_baseline.json"
 TOOL = "scripts/SecurityPremises.lean"
-# A change to the checker or its baseline enforces every module, so that its own CI run sees
+# A change to the checker or its baseline covers every module, so that its own CI run shows
 # whether the whole library still matches.
 CHECKER_FILES = frozenset({TOOL, "scripts/check_security_premises.py",
                            "scripts/security_premises_baseline.json"})
@@ -227,10 +238,17 @@ def describe(hit: Hit, binders: list[str]) -> list[str]:
     return out
 
 
-def report(problems: Problems) -> str:
+def report(problems: Problems, advisory: bool = False) -> str:
+    """The differences as text: as failures to fix, or with `advisory` as prompts for a reviewer."""
     out = []
     if problems.new:
-        out += ["Security theorems may not assume anything about an object that their proof "
+        out += ["Premises about an object that the theorem's proof constructs, which the baseline "
+                f"does not record ({RULE}). Each is a prompt to open the statement, not a "
+                "failure. A theorem presented as a cited result must not assume its reduction's "
+                "advantage, class membership or efficiency; a deliberately conditional lemma (an "
+                "algebraic helper, such as a bound in terms of `Adv(B_A)`) says so in its name "
+                f"and docstring. `{UPDATE}` records an item as known." if advisory else
+                "Security theorems may not assume anything about an object that their proof "
                 f"constructs, from the adversary or not ({RULE}). Prove the premise instead: "
                 "certify the "
                 "reduction with an efficiency witness (`isPPT_…`, `isOraclePPT_…` or a "
@@ -242,6 +260,8 @@ def report(problems: Problems) -> str:
             out += describe(hit, binders)
     if problems.stale:
         out += ([""] if out else []) + [
+            f"Baseline entries that no longer match a flagged premise (`{UPDATE}` drops them):"
+            if advisory else
             "Baseline entries that no longer match a flagged premise; remove or update them in "
             f"the same change (`{UPDATE}`):"]
         for name, entry, gone in problems.stale:
@@ -281,22 +301,26 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument("--base", default="origin/main",
-                       help="enforce in the modules changed since the merge base with this "
-                            "revision (default origin/main)")
-    scope.add_argument("--all", action="store_true", help="enforce in every module")
+                       help="check the modules changed since the merge base with this revision "
+                            "(default origin/main)")
+    scope.add_argument("--all", action="store_true", help="check every module")
     scope.add_argument("--report", action="store_true",
                        help="report every difference from the baseline and succeed")
     scope.add_argument("--list", nargs="?", const="", metavar="PREFIX",
                        help="ignore the baseline and list every flagged theorem in the modules "
                             "under the path PREFIX; always succeeds")
+    parser.add_argument("--advisory", action="store_true",
+                        help="print the differences in the checked modules as prompts for a "
+                             "reviewer and succeed, instead of failing on them; pull requests "
+                             "run `--base REF --advisory`")
     parser.add_argument("--update-baseline", action="store_true",
-                        help="record the flagged premises of the enforced modules")
+                        help="record the flagged premises of the checked modules")
     parser.add_argument("--no-build-check", action="store_true",
                         help="do not check that the build outputs are current")
     parser.add_argument("--baseline", type=Path, default=BASELINE)
     args = parser.parse_args(argv)
-    if (args.report or args.list is not None) and args.update_baseline:
-        parser.error("--report and --list do not combine with --update-baseline")
+    if (args.report or args.advisory or args.list is not None) and args.update_baseline:
+        parser.error("--report, --advisory and --list do not combine with --update-baseline")
     if not args.no_build_check and not lo.lake_outputs_current(("CslibFrontier",)):
         sys.exit("build outputs are missing or stale; run `lake build CslibFrontier` "
                  "(or pass --no-build-check)")
@@ -309,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     if not whole and checker_changed(ROOT, args.base):
         whole = True
         print("This change edits the security-premise checker or its baseline, so every module "
-              "is enforced.")
+              f"is {'reported' if args.advisory else 'enforced'}.")
     paths = None if whole else cer.touched_modules(ROOT, args.base)
     scope_text = "every module" if whole else f"{len(paths)} changed module(s)"
     if args.update_baseline:
@@ -324,10 +348,24 @@ def main(argv: list[str] | None = None) -> int:
               f"checking {scope_text}")
     if args.report:
         if problems:
-            print(report(problems) + "\n")
+            print(report(problems, advisory=True) + "\n")
         print(f"{status}; report only, nothing is enforced.")
         return 0
     elsewhere = outside(compare(hits, baseline, None), problems) if paths is not None else None
+    if args.advisory:
+        if problems:
+            print(report(problems, advisory=True) + "\n")
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                count = len(problems.new) + len(problems.stale) + len(problems.unjustified)
+                print(f"::notice title=Security premises (advisory)::{count} difference(s) from "
+                      "the baseline in the modules this change touches, for the reviewer to "
+                      "open; see the step log. Nothing is enforced.")
+        more = (len(elsewhere.new) + len(elsewhere.stale) + len(elsewhere.unjustified)
+                if elsewhere else 0)
+        print(f"{status}; advisory, nothing is enforced."
+              + (f" {more} more difference(s) in modules this change does not touch; `--report` "
+                 "lists them." if more else ""))
+        return 0
     if elsewhere:
         print("Not enforced: differences from the baseline in modules this change does not touch. "
               "They fail the next change to those modules. A change can cause them without "

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ModGates
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 import CslibFrontier.Foundations.Data.Fin.Append
 import Mathlib.Data.Fintype.Fin
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Modular counting and parity reduce to majority in constant depth
@@ -87,10 +88,8 @@ variable {φ} {M : Circuit σ (n + (n + 2)) 1}
   simp [padCircuit]
 
 /-- Padding has depth at most one. -/
-theorem depth_padCircuit_le (a : ℕ) : (padCircuit φ n a).depth ≤ 1 :=
-  (Circuit.depth_append_le _ _).trans (max_le (by simp) ((Circuit.depth_comp_le _ _).trans (by
-    simpa using (Circuit.depth_append_le _ _).trans
-      (max_le (depth_constCircuit_le true) (depth_constCircuit_le false)))))
+theorem depth_padCircuit_le (a : ℕ) : (padCircuit φ n a).depth ≤ 1 := by
+  circuit_bound [padCircuit]
 
 /-- A threshold costs the padding and the majority circuit. -/
 theorem size_thresholdCircuitOfMajority (k : ℕ) :
@@ -98,6 +97,7 @@ theorem size_thresholdCircuitOfMajority (k : ℕ) :
   rw [thresholdCircuitOfMajority, Circuit.size_comp, size_padCircuit]
 
 /-- A threshold is one deeper than the majority circuit. -/
+@[circuit_bound]
 theorem depth_thresholdCircuitOfMajority_le (k : ℕ) :
     (thresholdCircuitOfMajority φ M k).depth ≤ M.depth + 1 :=
   (Circuit.depth_comp_le _ _).trans (Nat.add_le_add_left (depth_padCircuit_le _) _)
@@ -110,13 +110,10 @@ theorem size_exactlyCircuitOfMajority (k : ℕ) :
   ring
 
 /-- "Exactly `k`" is three deeper than the majority circuit. -/
+@[circuit_bound]
 theorem depth_exactlyCircuitOfMajority_le (k : ℕ) :
-    (exactlyCircuitOfMajority φ M k).depth ≤ M.depth + 3 :=
-  (depth_binCircuit_le _ _ _ _).trans (by
-    have := depth_thresholdCircuitOfMajority_le (φ := φ) (M := M) k
-    have := (depth_notCircuit_le (φ := φ) _).trans
-      (Nat.add_le_add_right (depth_thresholdCircuitOfMajority_le (φ := φ) (M := M) (k + 1)) 1)
-    omega)
+    (exactlyCircuitOfMajority φ M k).depth ≤ M.depth + 3 := by
+  circuit_bound [exactlyCircuitOfMajority]
 
 /-- `MOD_q` costs `n + 1` circuits for "exactly `k`" and one disjunction. -/
 theorem size_modCircuitOfMajority_le (q : ℕ) :
@@ -131,17 +128,10 @@ theorem size_modCircuitOfMajority_le (q : ℕ) :
     omega
 
 /-- `MOD_q` is four deeper than the majority circuit. -/
+@[circuit_bound]
 theorem depth_modCircuitOfMajority_le (q : ℕ) :
-    (modCircuitOfMajority φ q M).depth ≤ M.depth + 4 :=
-  (Circuit.depth_comp_le _ _).trans (by
-    have := Circuit.depth_pi_le (fun k : Fin (n + 1) =>
-      if k.val % q ≠ 0 then exactlyCircuitOfMajority φ M k else constCircuit φ false)
-      (D := M.depth + 3) fun k => by
-        split_ifs
-        · exact depth_exactlyCircuitOfMajority_le _
-        · exact (depth_constCircuit_le _).trans (by omega)
-    rw [Circuit.depth_mapOp, Circuit.depth_oneGate]
-    omega)
+    (modCircuitOfMajority φ q M).depth ≤ M.depth + 4 := by
+  circuit_bound [modCircuitOfMajority]
 
 section Eval
 
@@ -154,8 +144,7 @@ omit hM in
 `n + 2 - a` copies of `false` to the input `x`. -/
 theorem eval_padCircuit (a : ℕ) (x : BitString n) :
     (padCircuit φ n a).eval I x = Fin.append x fun j => decide (j.val < a) := by
-  simp only [padCircuit, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring,
-    Function.comp_id]
+  simp only [circuit_simps, padCircuit]
   congr 1 with j : 1
   rw [Function.comp_apply]
   split_ifs with h
@@ -193,8 +182,8 @@ theorem computes_modCircuitOfMajority (q : ℕ) :
     (modCircuitOfMajority φ q M).Computes I (single (modGate q n)) := by
   intro x
   funext j
-  rw [modCircuitOfMajority, Circuit.eval_comp,
-    Circuit.eval_mapOp (I := Unbounded.interpretation), Circuit.eval_oneGate, Circuit.eval_pi]
+  simp only [circuit_simps, modCircuitOfMajority,
+    Circuit.eval_mapOp (I := Unbounded.interpretation)]
   simp only [single, interpretation_or, id]
   set c := BitString.weight x
   have hc : c ≤ n := BitString.weight_le_length x

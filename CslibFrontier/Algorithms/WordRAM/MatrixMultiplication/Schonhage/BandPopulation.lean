@@ -102,7 +102,7 @@ theorem exec_population {w : ℕ} (L a : ℕ) (x : Data 96)
   · intro i hr hp hc hd
     apply hwhole.regs_eq
     have hframe : ∀ i : Fin 96, i ≠ residue → i ≠ population → i ≠ counter → i ≠ digit →
-        populationCode.Preserves i := by decide
+        populationCode.Preserves i := by decide +kernel
     exact hframe i hr hp hc hd
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

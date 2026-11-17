@@ -117,18 +117,20 @@ theorem exists_run_pure_false {program : α → WordQueryComp Operation β}
   obtain ⟨-, k, Control, hfinite, machine, c, d, h⟩ := h
   refine ⟨k, Control, hfinite, machine, c, d, fun a answer => ?_⟩
   have hcert := h a Unit (fun q s => PMF.pure (answer q, s)) ()
-  unfold ProbOracleComp.runWith OracleComp.runWith at hcert
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret] at hcert
   rw [OracleComp.interpret_map, StateT.run_map, run_interpret_interpret_query,
     PMF.monad_map_eq_map, PMF.pure_map] at hcert
   have hmem := MultiTapePTM.mem_support_runConfigFrom_pure machine false answer ()
     (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a))
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hmem
   have hmem' : (OracleComp.interpret (m := Id) answer (machine.run (pure false)
       (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d) (input a)),
       ()) ∈ ((OracleComp.interpret (OracleComp.sumHandler
         (fun n => StateT.lift (ProbComp.unifOracle n)) (fun q s => PMF.pure (answer q, s)))
         (machine.runOracle (c * ((input a).length + 1) ^ d) (input a))).run ()).support := by
     simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
-      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.mem_support_map_iff]
+      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
+      PMF.mem_support_map_iff]
     exact ⟨_, hmem, rfl⟩
   rw [← hcert, PMF.mem_support_pure_iff] at hmem'
   exact (Prod.mk.inj hmem').1
@@ -153,3 +155,24 @@ theorem exists_fin_run_pure_false {program : α → WordQueryComp Operation β}
   exact h a answer
 
 end Cslib.Probability.IsOraclePPTOn
+
+namespace Cslib.Complexity
+
+open Probability Turing.MultiTapeTM
+
+/-- A deterministic polynomial-time oracle computation has polynomially bounded encoded output
+length. The bound follows from its strict machine certificate, not from an extra promise. -/
+theorem ComputableInPolyTimeWithOracle.polyBounded_length {α β : Type}
+    {A : Set (List Bool)} {f : α → β} {input : α ↪ List Bool} {output : β ↪ List Bool}
+    (hf : ComputableInPolyTimeWithOracle A f input output) :
+    PolyBounded (fun a => (input a).length) (fun a => (output (f a)).length) := by
+  obtain ⟨program, hcert, hprogram⟩ := hf
+  obtain ⟨c, d, hbound⟩ := hcert.length_le
+  refine PolyBounded.of_forall_le c d fun a => ?_
+  have h := hbound a Unit (fun q s => PMF.pure (languageOracle A q, s)) () ()
+    (OracleComp.interpret (m := Id) (languageOracle A) (program a))
+  rw [ProbOracleComp.runWith_eq_run_interpret,
+    Probability.IsOraclePPTOn.run_interpret_interpret_query] at h
+  simpa only [hprogram a] using h (by simp)
+
+end Cslib.Complexity

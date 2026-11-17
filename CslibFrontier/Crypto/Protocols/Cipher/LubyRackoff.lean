@@ -17,6 +17,7 @@ public import CslibFrontier.Probability.HashFamily.Uniform
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
@@ -30,6 +31,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
@@ -474,8 +476,7 @@ private theorem realRoundHandler_map_fst (f₁ : G → G) (p : G × G)
     (st : List ((Bool × G) × G) × Bool) :
     (realRoundHandler f₁ p st).map (fun (ans, st') => (ans, st'.1)) =
       lazyRoundHandler f₁ p st.1 := by
-  simp only [pmf_norm, realRoundHandler, lazyRoundHandler, feistel3Query, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, realRoundHandler, lazyRoundHandler, feistel3Query]
   rfl
 
 private theorem feistel3FixedGame_eq_realRoundHandler (f₁ : G → G)
@@ -536,103 +537,77 @@ private theorem lookup_true_cons_false (u v : G) (y₂ : G) (cache : List ((Bool
 /-- The real and ideal round handlers agree until a `U`-collision or `V`-collision occurs. -/
 private theorem identicalUntilBad_roundHandler (f₁ : G → G) :
     OracleComp.IdenticalUntilBad (realRoundHandler f₁) (idealRoundHandler f₁)
-      fun st => st.2 = true where
-  agree p st hst ans st' hst' := by
-    rcases st with ⟨cache, bad⟩
-    rcases st' with ⟨cache', bad'⟩
-    have hbad : bad = false := Bool.eq_false_iff.mpr hst
-    have hbad' : bad' = false := Bool.eq_false_iff.mpr hst'
-    subst hbad hbad'
-    cases hu : cache.lookup (false, p.1 + f₁ p.2) with
-    | some y₂₀ =>
-      have hreal0 : realRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        simp only [realRoundHandler, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-          PMF.mem_support_pure_iff] at hmem
-        obtain ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, heq⟩ := hmem
-        have h1 := congrArg (fun x => x.2.2) heq
-        simp [hu] at h1
-      have hideal0 : idealRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        simp only [idealRoundHandler, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-          PMF.mem_support_pure_iff] at hmem
-        obtain ⟨vw, -, heq⟩ := hmem
-        have h1 := congrArg (fun x => x.2.2) heq
-        simp [hu] at h1
-      rw [hreal0, hideal0]
-    | none =>
-      have hreal :
-          realRoundHandler f₁ p (cache, false) =
-            (PMF.uniformOfFintype G).bind fun v =>
-              (memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
-                (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
-                  PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, (cache.lookup (true, v)).isSome)) := by
-        simp only [pmf_norm, realRoundHandler, memoize_of_none _ _ _ hu, hu, Option.isSome_none,
-          Bool.false_or]
-        conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left p.2]
-        simp only [neg_add_cancel_left]
-      have hideal :
-          idealRoundHandler f₁ p (cache, false) =
-            (PMF.uniformOfFintype G).bind fun v =>
-              (PMF.uniformOfFintype G).bind fun w =>
-                PMF.pure ((v, w),
-                  (((true, v), -(p.1 + f₁ p.2) + w) ::
-                    ((false, p.1 + f₁ p.2), -p.2 + v) :: cache,
-                    (cache.lookup (true, v)).isSome)) := by
-        simp only [pmf_norm, idealRoundHandler, hu, Option.isSome_none, Bool.false_or,
-          ← Probability.PMF.uniformOfFintype_prod]
-      rw [hreal, hideal, PMF.bind_apply, PMF.bind_apply]
-      refine tsum_congr fun v => congrArg (_ * ·) ?_
-      cases hv : cache.lookup (true, v) with
-      | some y₃₀ =>
-        simp only [Option.isSome_some]
-        have h1 :
-            ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
+      fun st => st.2 = true := by
+  refine OracleComp.IdenticalUntilBad.of_flag (fun p cache x hx => ?_) (fun p cache x hx => ?_)
+    fun p cache ans cache' => ?_
+  · supp_cases hx [realRoundHandler] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
+    simp
+  · supp_cases hx [idealRoundHandler] with ⟨vw, rfl⟩
+    simp
+  cases hu : cache.lookup (false, p.1 + f₁ p.2) with
+  | some y₂₀ =>
+    have hreal0 : realRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [realRoundHandler, hu]
+    have hideal0 : idealRoundHandler f₁ p (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [idealRoundHandler, hu]
+    rw [hreal0, hideal0]
+  | none =>
+    have hreal :
+        realRoundHandler f₁ p (cache, false) =
+          (PMF.uniformOfFintype G).bind fun v =>
+            (memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
               (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
-                PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, true)))
-              (ans, (cache', false)) = 0 := by
-          refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-          supp_cases hmem
-        have h2 :
-            ((PMF.uniformOfFintype G).bind fun w =>
+                PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, (cache.lookup (true, v)).isSome)) := by
+      simp only [pmf_norm, realRoundHandler, memoize_of_none _ _ _ hu, hu, Option.isSome_none,
+        Bool.false_or]
+      conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left p.2]
+      simp only [neg_add_cancel_left]
+    have hideal :
+        idealRoundHandler f₁ p (cache, false) =
+          (PMF.uniformOfFintype G).bind fun v =>
+            (PMF.uniformOfFintype G).bind fun w =>
               PMF.pure ((v, w),
                 (((true, v), -(p.1 + f₁ p.2) + w) ::
-                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, true)))
-              (ans, (cache', false)) = 0 := by
-          refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-          supp_cases hmem
-        rw [h1, h2]
-      | none =>
-        simp only [Option.isSome_none]
-        have hv' : (((false, p.1 + f₁ p.2), -p.2 + v) :: cache).lookup (true, v) = none := by
-          rw [lookup_true_cons_false, hv]
-        rw [memoize_of_none _ _ _ hv']
-        simp only [pmf_norm]
-        have heq_w :
-            (PMF.uniformOfFintype G).bind (fun y₃ =>
-              PMF.pure ((v, p.1 + f₁ p.2 + y₃),
-                (((true, v), y₃) :: ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) =
-            (PMF.uniformOfFintype G).bind (fun w =>
-              PMF.pure ((v, w),
-                (((true, v), -(p.1 + f₁ p.2) + w) ::
-                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) := by
-          conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left (p.1 + f₁ p.2)]
-          simp only [neg_add_cancel_left]
-        exact DFunLike.congr_fun heq_w (ans, (cache', false))
-  absorb_first p st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    supp_cases hx [realRoundHandler] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
-    simp
-  absorb_second p st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    supp_cases hx [idealRoundHandler] with ⟨vw, rfl⟩
-    simp
+                  ((false, p.1 + f₁ p.2), -p.2 + v) :: cache,
+                  (cache.lookup (true, v)).isSome)) := by
+      simp only [pmf_norm, idealRoundHandler, hu, Option.isSome_none, Bool.false_or,
+        ← Probability.PMF.uniformOfFintype_prod]
+    rw [hreal, hideal, PMF.bind_apply, PMF.bind_apply]
+    refine tsum_congr fun v => congrArg (_ * ·) ?_
+    cases hv : cache.lookup (true, v) with
+    | some y₃₀ =>
+      simp only [Option.isSome_some]
+      have h1 :
+          ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (true, v)
+            (((false, p.1 + f₁ p.2), -p.2 + v) :: cache)).bind fun x =>
+              PMF.pure ((v, p.1 + f₁ p.2 + x.1), (x.2, true)))
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
+      have h2 :
+          ((PMF.uniformOfFintype G).bind fun w =>
+            PMF.pure ((v, w),
+              (((true, v), -(p.1 + f₁ p.2) + w) ::
+                ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, true)))
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
+      rw [h1, h2]
+    | none =>
+      simp only [Option.isSome_none]
+      have hv' : (((false, p.1 + f₁ p.2), -p.2 + v) :: cache).lookup (true, v) = none := by
+        rw [lookup_true_cons_false, hv]
+      rw [memoize_of_none _ _ _ hv']
+      simp only [pmf_norm]
+      have heq_w :
+          (PMF.uniformOfFintype G).bind (fun y₃ =>
+            PMF.pure ((v, p.1 + f₁ p.2 + y₃),
+              (((true, v), y₃) :: ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) =
+          (PMF.uniformOfFintype G).bind (fun w =>
+            PMF.pure ((v, w),
+              (((true, v), -(p.1 + f₁ p.2) + w) ::
+                ((false, p.1 + f₁ p.2), -p.2 + v) :: cache, false))) := by
+        conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_add_left (p.1 + f₁ p.2)]
+        simp only [neg_add_cancel_left]
+      exact DFunLike.congr_fun heq_w (ans, (cache', false))
 
 /-- Reconstruct the round-function cache of `idealRoundHandler f₁` from the query cache. -/
 private def representCache (f₁ : G → G) :
@@ -668,7 +643,7 @@ private theorem run_idealRoundHandler_memoize {α : Type} (f₁ : G → G)
         (representCache f₁ qc, hasCollision f₁ qc)) =
       ((OracleComp.interpret (memoize (fun _ : G × G => PMF.uniformOfFintype (G × G)))
         (OracleComp.query p >>= cont)).run qc).map _
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     change (((OracleComp.interpret (idealRoundHandler f₁) (memoize OracleComp.query p qc)).run
         (representCache f₁ qc, hasCollision f₁ qc)).bind fun p_1 =>
       (OracleComp.interpret (idealRoundHandler f₁)
@@ -680,13 +655,11 @@ private theorem run_idealRoundHandler_memoize {α : Type} (f₁ : G → G)
     cases h : qc.lookup p with
     | some r =>
       rw [memoize_of_some _ _ _ _ h, memoize_of_some _ _ _ _ h]
-      simp only [OracleComp.interpret_pure, StateT.run_pure,
-        Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+      simp only [interp_norm, pmf_norm]
       exact ih r qc
     | none =>
       rw [memoize_of_none _ _ _ h, memoize_of_none _ _ _ h]
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+      simp only [interp_norm, pmf_norm]
       simp only [pmf_norm, StateT.run, idealRoundHandler]
       refine congrArg (PMF.bind _) (funext fun vw => ?_)
       exact ih vw ((p, vw) :: qc)
@@ -1150,19 +1123,9 @@ theorem advantage_feistel3HashIdealGame_randomFunctionGame_le
     (Game.advantage (feistel3HashIdealGame seed₁ h₁ program)
       (randomFunctionGame program) : ℝ) ≤
       (Q.choose 2 : ℝ) * ε.toReal + (Q.choose 2 : ℝ) * (Fintype.card G : ℝ)⁻¹ := by
-  have hcard : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hinv_top : (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hcard
-  have hB1 : (Q.choose 2 : ℝ≥0∞) * ε ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hε
-  have hB2 : (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hinv_top
-  have hB : (Q.choose 2 : ℝ≥0∞) * ε + (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hB1, hB2⟩
-  have h := Game.advantage_le_of_apply_le hB
+  ennreal_to_real using Game.advantage_le_of_apply_le (by finiteness)
     (feistel3HashIdealGame_apply_le hh₁ hQ true)
     (randomFunctionGame_apply_le_feistel3HashIdealGame hh₁ hQ true)
-  simpa only [ENNReal.toReal_add hB1 hB2, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-    ENNReal.toReal_inv] using h
 
 /-- **Classical 3-round Luby–Rackoff theorem** ([BonehShoup2023], Section 4.5, Theorem 4.9;
 [LubyRackoff1988]):
@@ -1301,8 +1264,8 @@ and any `l₀, l₁, r₀ : G`. -/
 theorem eval_feistel3_feistel3CCAAttack (f₁ f₂ f₃ : G → G) (l₀ l₁ r₀ : G) :
     OracleComp.interpret (feistelStrongOracle (feistel3 f₁ f₂ f₃))
       (feistel3CCAAttack l₀ l₁ r₀) = PMF.pure true := by
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, feistel3_apply, feistel3_symm_apply,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, feistel3_apply,
+    feistel3_symm_apply]
   have h1 :
       (l₁ - l₀ + (l₀ + f₁ r₀ + f₃ (r₀ + f₂ (l₀ + f₁ r₀)))) - f₃ (r₀ + f₂ (l₀ + f₁ r₀)) =
         l₁ + f₁ r₀ := by
@@ -1321,9 +1284,8 @@ ciphertext, so *every* bidirectional permutation `π : G × G ≃ G × G` is acc
 theorem eval_feistelStrongOracle_feistel3CCAAttack_self (π : G × G ≃ G × G) (l₀ r₀ : G) :
     OracleComp.interpret (feistelStrongOracle π) (feistel3CCAAttack l₀ l₀ r₀) =
       PMF.pure true := by
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, sub_self, zero_add, Prod.mk.eta,
-    Equiv.symm_apply_apply, decide_true, OracleComp.interpret_bind, OracleComp.interpret_query,
-    OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, sub_self, zero_add,
+    Prod.mk.eta, Equiv.symm_apply_apply, decide_true]
 
 /-- At `l₀ = l₁`, the permutation-ideal game `idealStrongGame` accepts `feistel3CCAAttack l₀ l₀ r₀`
 with probability `1`. -/
@@ -1358,8 +1320,7 @@ theorem eval_feistelStrongOracle_swap_feistel3CCAAttack_eq_false {l₀ l₁ l₂
   have hB2 : (l₁, r₀) ≠ (l₂, r₀) := fun h => h12 (congrArg Prod.fst h)
   have hne : -l₀ + r₀ ≠ -l₁ + r₀ := fun h =>
     h01 (neg_inj.mp (add_right_cancel h))
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, Equiv.symm_swap,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, Equiv.symm_swap,
     Equiv.swap_apply_of_ne_of_ne hA1 hA2, Equiv.swap_apply_of_ne_of_ne hB1 hB2,
     Equiv.swap_apply_left, decide_eq_false hne]
 
@@ -1395,9 +1356,8 @@ theorem le_advantage_feistel3CCAAttack_idealStrongGame (f₁ f₂ f₃ : G → G
           (feistel3CCAAttack l₀ l₁ r₀))
         (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)) : ℝ) := by
   set g := idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)
-  have hfail := ENNReal.toReal_mono (PMF.apply_ne_top g false)
-    (le_idealStrongGame_feistel3CCAAttack_false h01 h02 h12)
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hfail
+  have hfail := le_idealStrongGame_feistel3CCAAttack_false (r₀ := r₀) h01 h02 h12
+  ennreal_to_real at hfail
   rwa [eval_feistel3_feistel3CCAAttack, Game.advantage_pure_true_left, Game.coe_failProbability]
 
 /-- When `l₀, l₁, l₂ : G` are pairwise distinct (`|G| ≥ 3`), `feistel3CCAAttack l₀ l₁ r₀` has
@@ -1435,8 +1395,7 @@ theorem eval_independentTableStrongGame_feistel3CCAAttack (l₀ l₁ r₀ : G) :
             let lr₂ := decTable (vw₀.1, (l₁ - l₀) + vw₀.2)
             PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) := by
     rw [independentTableStrongGame, Probability.PMF.monad_bind_eq_bind, hprod]
-    simp only [pmf_norm, feistel3CCAAttack, splitBoolTable, Equiv.coe_fn_symm_mk,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
+    simp only [interp_norm, pmf_norm, feistel3CCAAttack, splitBoolTable, Equiv.coe_fn_symm_mk,
       Bool.cond_false, Bool.cond_true]
   rw [hsplit]
   have hinner (encTable : G × G → G × G) :
@@ -1537,9 +1496,7 @@ theorem idealStrongGame_feistel3CCAAttack_true_le {l₀ l₁ : G} (r₀ : G) (h0
                 [((l₁, r₀), vw₁), ((l₀, r₀), vw₀)]).map
                 (fun x => decide (-vw₀.1 + x.1.2 = -vw₁.1 + r₀)) := by
       simp only [feistel3CCAAttack, RandomPermutation.liftBoolProd,
-        RandomPermutation.PermQuery.ofBoolProd,
-        OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-        StateT.run_bind, StateT.run_pure]
+        RandomPermutation.PermQuery.ofBoolProd, interp_norm]
       dsimp only [StateT.run, RandomPermutation.forgetfulAnswer]
       simp only [pmf_norm, List.lookup, beq_eq_false_iff_ne.mpr hp10]
       rfl
@@ -1631,16 +1588,9 @@ theorem le_advantage_feistel3CCAAttack_idealStrongGame_of_ne (f₁ f₂ f₃ : G
         (OracleComp.interpret (feistelStrongOracle (feistel3 f₁ f₂ f₃))
           (feistel3CCAAttack l₀ l₁ r₀))
         (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)) : ℝ) := by
-  have hcardG : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hcardGG : (Fintype.card (G × G) : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have h1_top : (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hcardG
-  have h2_top : 4 * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.inv_ne_top.mpr hcardGG)
-  have htrue := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨h1_top, h2_top⟩)
-    (idealStrongGame_feistel3CCAAttack_true_le r₀ h01)
-  rw [ENNReal.toReal_add h1_top h2_top, ENNReal.toReal_mul, ENNReal.toReal_ofNat,
-    ENNReal.toReal_inv, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at htrue
+  have htrue := idealStrongGame_feistel3CCAAttack_true_le r₀ h01
+  ennreal_to_real at htrue
+  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at htrue
   rw [Game.coe_advantage, eval_feistel3_feistel3CCAAttack]
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, PMF.pure_apply_self,
     ENNReal.toReal_one]
@@ -1751,12 +1701,10 @@ private theorem realRoundHandler4_map_fst (f₁ f₄ : G → G)
   rcases st with ⟨cache, bad⟩
   cases q with
   | forward p =>
-    simp only [pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+    simp only [interp_norm, pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query]
     rfl
   | inverse wz =>
-    simp only [pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+    simp only [interp_norm, pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query]
     rfl
 
 private theorem feistel4StrongFixedGame_eq_realRoundHandler4 (f₁ f₄ : G → G)
@@ -1959,23 +1907,11 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
   cases hv : cache.lookup (true, wz.2 - f₄ wz.1) with
   | some y₃₀ =>
     have hreal0 :
-        realRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 := by
-      refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hmem
-      obtain ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, heq⟩ := hmem
-      have h1 := congrArg (fun x => x.2.2) heq
-      simp [hv] at h1
+        realRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [realRoundHandler4, hv]
     have hideal0 :
-        idealRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 := by
-      refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hmem
-      obtain ⟨p, -, heq⟩ := hmem
-      have h1 := congrArg (fun x => x.2.2) heq
-      simp [hv] at h1
+        idealRoundHandler4 f₁ f₄ (.inverse wz) (cache, false) (ans, (cache', false)) = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem [idealRoundHandler4, hv]
     rw [hreal0, hideal0]
   | none =>
     rw [realRoundHandler4_inverse_of_none f₁ f₄ wz cache hv,
@@ -1988,23 +1924,15 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
           ((memoize (fun _ : Bool × G => PMF.uniformOfFintype G) (false, u)
             (((true, wz.2 - f₄ wz.1), -u + wz.1) :: cache)).bind fun x =>
               PMF.pure ((u - f₁ (wz.2 - f₄ wz.1 - x.1), wz.2 - f₄ wz.1 - x.1), (x.2, true)))
-            (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        rw [PMF.mem_support_bind_iff] at hmem
-        obtain ⟨⟨y₂, c₂⟩, -, hmem'⟩ := hmem
-        rw [PMF.mem_support_pure_iff] at hmem'
-        exact Bool.noConfusion (congrArg (fun x => x.2.2) hmem')
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
       have h2 :
           ((PMF.uniformOfFintype G).bind fun r =>
             PMF.pure ((u - f₁ r, r),
               (((false, u), -r + (wz.2 - f₄ wz.1)) ::
                 ((true, wz.2 - f₄ wz.1), -u + wz.1) :: cache, true)))
-            (ans, (cache', false)) = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
-        rw [PMF.mem_support_bind_iff] at hmem
-        obtain ⟨r, -, hmem'⟩ := hmem
-        rw [PMF.mem_support_pure_iff] at hmem'
-        exact Bool.noConfusion (congrArg (fun x => x.2.2) hmem')
+            (ans, (cache', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem => by supp_cases hmem
       rw [h1, h2]
     | none =>
       simp only [Option.isSome_none]
@@ -2030,50 +1958,26 @@ private theorem agree_roundHandler4_inverse (f₁ f₄ : G → G) (wz : G × G)
 input collision occurs. -/
 private theorem identicalUntilBad_roundHandler4 (f₁ f₄ : G → G) :
     OracleComp.IdenticalUntilBad (realRoundHandler4 f₁ f₄) (idealRoundHandler4 f₁ f₄)
-      fun st => st.2 = true where
-  agree q st hst ans st' hst' := by
-    rcases st with ⟨cache, bad⟩
-    rcases st' with ⟨cache', bad'⟩
-    have hbad : bad = false := Bool.eq_false_iff.mpr hst
-    have hbad' : bad' = false := Bool.eq_false_iff.mpr hst'
-    subst hbad hbad'
-    cases q with
-    | forward p => exact agree_roundHandler4_forward f₁ f₄ p cache cache' ans
-    | inverse wz => exact agree_roundHandler4_inverse f₁ f₄ wz cache cache' ans
-  absorb_first q st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    cases q with
+      fun st => st.2 = true := by
+  refine OracleComp.IdenticalUntilBad.of_flag (fun q cache x hx => ?_) (fun q cache x hx => ?_)
+    fun q cache ans cache' => ?_
+  · cases q with
     | forward p =>
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩ := hx
+      supp_cases hx [realRoundHandler4] with ⟨⟨y₂, c₁⟩, -, ⟨y₃, c₂⟩, -, rfl⟩
       simp
     | inverse wz =>
-      simp only [realRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, rfl⟩ := hx
+      supp_cases hx [realRoundHandler4] with ⟨⟨y₃, c₁⟩, -, ⟨y₂, c₂⟩, -, rfl⟩
       simp
-  absorb_second q st hst x hx := by
-    rcases st with ⟨cache, bad⟩
-    simp only at hst
-    subst hst
-    cases q with
+  · cases q with
     | forward p =>
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨wz, -, rfl⟩ := hx
+      supp_cases hx [idealRoundHandler4] with ⟨wz, -, rfl⟩
       simp
     | inverse wz =>
-      simp only [idealRoundHandler4, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hx
-      obtain ⟨p, -, rfl⟩ := hx
+      supp_cases hx [idealRoundHandler4] with ⟨p, -, rfl⟩
       simp
+  cases q with
+  | forward p => exact agree_roundHandler4_forward f₁ f₄ p cache cache' ans
+  | inverse wz => exact agree_roundHandler4_inverse f₁ f₄ wz cache cache' ans
 
 /-- Swap each `(p, wz)` entry in a permutation cache to `(wz.swap, p)` so Round-4 collisions
 become Round-1 `hasUCollision` under `w ↦ -f₄ w`. -/
@@ -2204,7 +2108,7 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
   | pure a =>
     simp [PMF.pure_map, hst.bad_eq]
   | query_bind q cont ih =>
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm]
     change ((((OracleComp.interpret (idealRoundHandler4 f₁ f₄)
       (RandomPermutation.bidirDedupStep q qc)).run st).bind
       fun p_1 =>
@@ -2221,14 +2125,12 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
       | some wz =>
         rw [RandomPermutation.bidirDedupStep_forward_of_some h,
           RandomPermutation.forgetfulAnswer_forward_of_some h]
-        simp only [OracleComp.interpret_pure, StateT.run_pure,
-          Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+        simp only [interp_norm, pmf_norm]
         exact ih wz hst
       | none =>
         rw [RandomPermutation.bidirDedupStep_forward_of_none h,
           RandomPermutation.forgetfulAnswer_forward_of_none h]
-        simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-          OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+        simp only [interp_norm, pmf_norm]
         simp only [pmf_norm, StateT.run, idealRoundHandler4]
         exact congrArg (PMF.bind _) (funext fun wz => ih wz (hst.forward p wz))
     | inverse wz =>
@@ -2236,14 +2138,12 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
       | some p =>
         rw [RandomPermutation.bidirDedupStep_inverse_of_some h,
           RandomPermutation.forgetfulAnswer_inverse_of_some h]
-        simp only [OracleComp.interpret_pure, StateT.run_pure,
-          Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+        simp only [interp_norm, pmf_norm]
         exact ih p hst
       | none =>
         rw [RandomPermutation.bidirDedupStep_inverse_of_none h,
           RandomPermutation.forgetfulAnswer_inverse_of_none h]
-        simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-          OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+        simp only [interp_norm, pmf_norm]
         simp only [pmf_norm, StateT.run, idealRoundHandler4]
         exact congrArg (PMF.bind _) (funext fun p => ih p (hst.inverse p wz))
 
@@ -2575,24 +2475,11 @@ theorem advantage_feistel4StrongRandomRoundsGame_idealStrongGame_le
       (idealStrongGame program) : ℝ) ≤
       2 * (Q.choose 2 : ℝ) * (Fintype.card G : ℝ)⁻¹ +
         2 * (Q.choose 2 : ℝ) * ((Fintype.card G : ℝ)⁻¹) ^ 2 := by
-  have hcardG : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hcardGG : (Fintype.card (G × G) : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hB1 : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
-      (ENNReal.inv_ne_top.mpr hcardG)
-  have hB2 : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _))
-      (ENNReal.inv_ne_top.mpr hcardGG)
-  have hB : 2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹ +
-      2 * (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hB1, hB2⟩
-  have h := Game.advantage_le_of_apply_le hB
+  have h := Game.advantage_le_of_apply_le (by finiteness)
     (feistel4StrongRandomRoundsGame_apply_le hQ true)
     (idealStrongGame_apply_le_feistel4StrongRandomRoundsGame hQ true)
-  rw [ENNReal.toReal_add hB1 hB2, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_natCast,
-    ENNReal.toReal_inv, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
+  ennreal_to_real at h
+  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
   exact h
 
 /-- Concrete instantiation of the 4-round strong Luby–Rackoff theorem on `BitString n`
@@ -2681,6 +2568,14 @@ theorem isQueryBounded_feistel3Reduction [Fintype K] [Nonempty K] [DecidableEq G
 
 variable [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G]
 
+omit [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G] in
+/-- The adapter's channel queries compute the three-round network. -/
+theorem run_feistel3ChannelQuery (f : Fin 3 → G → G) (p : G × G) :
+    (feistel3ChannelQuery p).run (fun request => pure (f request.1 request.2)) =
+      pure (feistel3 (f 0) (f 1) (f 2) p) := by
+  obtain ⟨l, r⟩ := p
+  simp [feistel3ChannelQuery, feistel3_apply]
+
 omit [Fintype G] [DecidableEq G] in
 /-- With keyed channels, the adapter plays the real chosen-plaintext experiment of the three-round
 cipher. -/
@@ -2701,11 +2596,8 @@ theorem eval_multiKeyIdealExperiment_feistel3MultiKeyAdversary
         OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
           (fun p => PMF.pure (feistel3 (tables 0) (tables 1) (tables 2) p))) A := by
   simp only [PRF.multiKeyIdealExperiment, feistel3MultiKeyAdversary, ProbOracleComp.run_simulate,
-    ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run]
-  congr 1 with tables : 1
-  congr 2 with p : 1
-  obtain ⟨l, r⟩ := p
-  simp [feistel3ChannelQuery, feistel3_apply]
+    run_feistel3ChannelQuery, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
+    ProbComp.eval_pure]
 
 /-- **Three random rounds against a random function**, for adversaries with private coins
 ([BonehShoup2023], proof of Theorem 4.9): with independent uniform random round functions, a
@@ -2878,7 +2770,7 @@ variable [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G]
 
 omit [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G] in
 /-- The adapter's channel queries compute the four-round network in both directions. -/
-private theorem run_feistel4StrongChannelQuery (f : Fin 4 → G → G) (q : PermQuery (G × G)) :
+theorem run_feistel4StrongChannelQuery (f : Fin 4 → G → G) (q : PermQuery (G × G)) :
     (feistel4StrongChannelQuery q).run (fun request => pure (f request.1 request.2)) =
       pure (evalPerm (feistel4 (f 0) (f 1) (f 2) (f 3)) q) := by
   rcases q with ⟨l, r⟩ | ⟨w, z⟩

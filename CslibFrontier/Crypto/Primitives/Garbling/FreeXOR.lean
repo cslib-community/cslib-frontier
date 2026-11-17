@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Basic
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Languages.Probabilistic.Oracle.Tabulate
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Uniform
 
 /-!
@@ -712,8 +713,7 @@ private theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
         ProbComp.eval (D (reductionView C.topology H tw (C.eval I x)
           (propagate C.topology free base)
           fun p => f (reductionQuery C I tw x (propagate C.topology free base) p))) := by
-  simp only [ProbOracleComp.run, reduction, OracleComp.interpret_bind,
-    ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin, ProbOracleComp.interpret_tabulate,
+  simp only [ProbOracleComp.run, reduction, interp_norm, ProbOracleComp.interpret_tabulate,
     pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, Finset.mem_toList, Finset.mem_univ,
     ite_true]
 

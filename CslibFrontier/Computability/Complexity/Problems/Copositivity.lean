@@ -37,6 +37,7 @@ import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 
 /-!
 # CoNP-Completeness of Matrix Copositivity
@@ -245,7 +246,7 @@ private theorem SymRatMatrix.intMatrix_mul_eq (M : SymRatMatrix)
     (i j : Fin M.rows.length) :
     (M.commonDenomNat : ℚ) * M.toMatrix i j = (M.intMatrix i j : ℚ) := by
   rw [M.intMatrix_eq i j]
-  exact Matrix.rat_clearDenom_entry M.den_dvd_commonDenomNat
+  exact Rat.clearDenom_entry M.den_dvd_commonDenomNat
 
 private theorem SymRatMatrix.dotProduct_check_eq (M : SymRatMatrix) {p : List ℕ}
     (hlen : p.length = M.rows.length) :
@@ -958,130 +959,9 @@ theorem cliqueToSymRatMatrix_mem_iff (gk : CliqueInstance) :
         rw [hclique_iff, hnc_iff]
         exact (SimpleGraph.exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff H hk2).symm
 
-private theorem computableInPolyTime_distinctVertices_gk :
-    ComputableInPolyTime (fun gk : CliqueInstance => gk.graph.distinctVertices)
-      encCliqueInstance (encList encNat) :=
-  Graph.computableInPolyTime_distinctVertices.comp (by fun_prop)
-
 private theorem computableInPolyTime_toRows :
     ComputableInPolyTime cliqueToRows encCliqueInstance encRatMatrixRows := by
-  have hk0 :
-      ComputableInPolyTime (fun gk : CliqueInstance => decide (gk.m = 0))
-        encCliqueInstance encBool :=
-    (ComputableInDegree.eq encNat).computableInPolyTime.comp
-      (ComputableInPolyTime.prod (by fun_prop) (ComputableInPolyTime.const 0))
-  have hk1 :
-      ComputableInPolyTime (fun gk : CliqueInstance => decide (gk.m = 1))
-        encCliqueInstance encBool :=
-    (ComputableInDegree.eq encNat).computableInPolyTime.comp
-      (ComputableInPolyTime.prod (by fun_prop) (ComputableInPolyTime.const 1))
-  have hemp :
-      ComputableInPolyTime (fun gk : CliqueInstance => gk.graph.distinctVertices.isEmpty)
-        encCliqueInstance encBool := by
-    have hlen :
-        ComputableInPolyTime (fun gk : CliqueInstance => gk.graph.distinctVertices.length)
-          encCliqueInstance encUnary :=
-      (ComputableInPolyTime.length_list encNat).comp
-        computableInPolyTime_distinctVertices_gk
-    have hdec :
-        ComputableInPolyTime
-          (fun gk : CliqueInstance => decide (gk.graph.distinctVertices.length = 0))
-          encCliqueInstance encBool :=
-      (ComputableInDegree.eq encUnary).computableInPolyTime.comp
-        (ComputableInPolyTime.prod hlen (ComputableInPolyTime.const 0))
-    exact hdec.of_enc_eq fun gk => by
-      simp only [encBool_apply]
-      cases gk.graph.distinctVertices <;> rfl
-  have hk2Rat :
-      ComputableInPolyTime (fun gk : CliqueInstance => (((gk.m : ℤ) - 2 : ℤ) : ℚ))
-        encCliqueInstance encRat :=
-    ComputableInPolyTime.rat_intCast.comp
-      (by fun_prop :
-        ComputableInPolyTime (fun gk : CliqueInstance => (gk.m : ℤ) - 2)
-          encCliqueInstance encIntBin)
-  have hentry :
-      ComputableInPolyTime
-        (fun x : (CliqueInstance × ℕ) × ℕ => cliqueEntry x.1.1.graph x.1.1.m x.1.2 x.2)
-        (encPair (encPair encCliqueInstance encNat) encNat) encRat := by
-    have heq_uv :
-        ComputableInPolyTime (fun x : (CliqueInstance × ℕ) × ℕ => decide (x.1.2 = x.2))
-          (encPair (encPair encCliqueInstance encNat) encNat) encBool :=
-      (ComputableInDegree.eq encNat).computableInPolyTime.comp
-        (ComputableInPolyTime.prod
-          ((ComputableInPolyTime.snd encCliqueInstance encNat).comp (ComputableInPolyTime.fst _ _))
-          (ComputableInPolyTime.snd _ _))
-    have hadj :
-        ComputableInPolyTime
-          (fun x : (CliqueInstance × ℕ) × ℕ => x.1.1.graph.adjBool x.1.2 x.2)
-          (encPair (encPair encCliqueInstance encNat) encNat) encBool :=
-      Graph.computableInPolyTime_adjBool_comp
-        ((by fun_prop :
-            ComputableInPolyTime (fun c : CliqueInstance => c.graph)
-              encCliqueInstance encGraph).comp
-          ((ComputableInPolyTime.fst encCliqueInstance encNat).comp (ComputableInPolyTime.fst _ _)))
-        ((ComputableInPolyTime.snd encCliqueInstance encNat).comp (ComputableInPolyTime.fst _ _))
-        (ComputableInPolyTime.snd _ _)
-    have hk2' :
-        ComputableInPolyTime (fun x : (CliqueInstance × ℕ) × ℕ => (((x.1.1.m : ℤ) - 2 : ℤ) : ℚ))
-          (encPair (encPair encCliqueInstance encNat) encNat) encRat :=
-      hk2Rat.comp
-        ((ComputableInPolyTime.fst encCliqueInstance encNat).comp (ComputableInPolyTime.fst _ _))
-    have hinner :
-        ComputableInPolyTime
-          (fun x : (CliqueInstance × ℕ) × ℕ =>
-            if x.1.1.graph.adjBool x.1.2 x.2 then (-1 : ℚ)
-            else (((x.1.1.m : ℤ) - 2 : ℤ) : ℚ))
-          (encPair (encPair encCliqueInstance encNat) encNat) encRat :=
-      ComputableInPolyTime.ite' hadj (ComputableInPolyTime.const (-1)) hk2'
-    have hfull :
-        ComputableInPolyTime
-          (fun x : (CliqueInstance × ℕ) × ℕ =>
-            if decide (x.1.2 = x.2) then (((x.1.1.m : ℤ) - 2 : ℤ) : ℚ)
-            else if x.1.1.graph.adjBool x.1.2 x.2 then (-1 : ℚ)
-            else (((x.1.1.m : ℤ) - 2 : ℤ) : ℚ))
-          (encPair (encPair encCliqueInstance encNat) encNat) encRat :=
-      ComputableInPolyTime.ite' heq_uv hk2' hinner
-    exact (hfull.of_enc_eq fun x => by
-      simp only [cliqueEntry, decide_eq_true_eq])
-  have hrow :
-      ComputableInPolyTime
-        (fun p : CliqueInstance × ℕ =>
-          p.1.graph.distinctVertices.map fun v => cliqueEntry p.1.graph p.1.m p.2 v)
-        (encPair encCliqueInstance encNat) (encList encRat) :=
-    ComputableInPolyTime.mapWithInput
-      (computableInPolyTime_distinctVertices_gk.comp
-        (ComputableInPolyTime.fst encCliqueInstance encNat))
-      hentry
-  have hmat :
-      ComputableInPolyTime
-        (fun gk : CliqueInstance =>
-          gk.graph.distinctVertices.map fun u =>
-            gk.graph.distinctVertices.map fun v => cliqueEntry gk.graph gk.m u v)
-        encCliqueInstance encRatMatrixRows :=
-    ComputableInPolyTime.mapWithInput computableInPolyTime_distinctVertices_gk hrow
-  have hb1 :
-      ComputableInPolyTime
-        (fun gk : CliqueInstance =>
-          if decide (gk.m = 1) then [[(-1 : ℚ)]]
-          else
-            gk.graph.distinctVertices.map fun u =>
-              gk.graph.distinctVertices.map fun v => cliqueEntry gk.graph gk.m u v)
-        encCliqueInstance encRatMatrixRows :=
-    ComputableInPolyTime.ite' hk1 (ComputableInPolyTime.const [[(-1 : ℚ)]]) hmat
-  have hb2 :
-      ComputableInPolyTime
-        (fun gk : CliqueInstance =>
-          if gk.graph.distinctVertices.isEmpty then [[(1 : ℚ)]]
-          else if decide (gk.m = 1) then [[(-1 : ℚ)]]
-          else
-            gk.graph.distinctVertices.map fun u =>
-              gk.graph.distinctVertices.map fun v => cliqueEntry gk.graph gk.m u v)
-        encCliqueInstance encRatMatrixRows :=
-    ComputableInPolyTime.ite' hemp (ComputableInPolyTime.const [[(1 : ℚ)]]) hb1
-  exact (ComputableInPolyTime.ite' hk0 (ComputableInPolyTime.const [[(-1 : ℚ)]]) hb2).of_enc_eq
-    fun gk => by
-      rcases gk with ⟨G, k⟩
-      simp only [cliqueToRows, decide_eq_true_eq]
+  fun_prop [cliqueEntry, cliqueToRows]
 
 theorem computableInPolyTime_cliqueToSymRatMatrix :
     ComputableInPolyTime cliqueToSymRatMatrix encCliqueInstance encSymRatMatrix :=

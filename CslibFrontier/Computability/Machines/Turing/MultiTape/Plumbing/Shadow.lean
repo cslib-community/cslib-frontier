@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Mathlib.Data.Fin.Tuple.Basic
 import Mathlib.Algebra.BigOperators.Fin
@@ -31,12 +32,15 @@ by step (`Shadow.runFrom_cfg`), and if `tm` first halts at step `u` it has halte
 
 * `Turing.MultiTapeTM.shadowTape`: the marks of a set of cells.
 * `Turing.MultiTapeTM.shadow`: the shadowing machine.
+* `Turing.MultiTapeMachine.shadow`: its choice-free explicit transition table.
 
 ## Main results
 
 * `Turing.MultiTapeTM.runFrom_shadow`: the configuration of `shadow m₀ m₁ tm` when `tm` has
   halted.
 * `Turing.MultiTapeTM.space_shadow`: `shadow m₀ m₁ tm` uses twice the space of `tm`.
+* `Turing.MultiTapeMachine.toTM_shadow`: forgetting the explicit table recovers the legacy
+  shadowing machine.
 -/
 
 @[expose] public section
@@ -287,3 +291,38 @@ theorem space_shadow {tm : MultiTapeTM k Symbol State} {u : ℕ}
   simp only [pairIdx_castAdd, pairIdx_natAdd, two_mul]
 
 end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeMachine
+
+variable {k : ℕ} {Symbol State : Type*}
+
+/-- Run an explicit transition table on the first half of doubled work tapes while the second
+half records every visited cell. This is the choice-free table underlying the legacy shadow
+machine. -/
+def shadow (m₀ m₁ : Symbol) (machine : MultiTapeMachine k Symbol State Empty Id) :
+    MultiTapeMachine (k + k) Symbol (Option State) Empty Id :=
+  ofTr none fun state input work =>
+    match state with
+    | none =>
+      ⟨0, Fin.append (fun _ => (none, 0)) fun _ => (some (some m₀), 0), none,
+        some (some machine.initial)⟩
+    | some state =>
+      let action := Action.emptyOracleEquiv
+        (machine.tr state input (fun i => work (Fin.castAdd k i)) Empty.elim)
+      ⟨action.inputTape, Fin.append action.workTapes fun i =>
+          (if (work (Fin.natAdd k i)).isNone then some (some m₁) else none,
+            (action.workTapes i).2),
+        action.output, action.state.map some⟩
+
+/-- Forgetting the explicit shadow table recovers the legacy deterministic shadow machine. -/
+theorem toTM_shadow (m₀ m₁ : Symbol)
+    (machine : MultiTapeMachine k Symbol State Empty Id) :
+    (machine.shadow m₀ m₁).toTM = MultiTapeTM.shadow m₀ m₁ machine.toTM := by
+  simp only [shadow, toTM_ofTr, MultiTapeTM.shadow]
+  congr 1 with state input work : 3
+  cases state with
+  | none => rfl
+  | some state =>
+      simp only [toTM, MultiTapeTM.tr_ofTr]
+
+end Turing.MultiTapeMachine

@@ -60,12 +60,28 @@ adversary-dependent quantifier):
    simultaneously satisfy Claim 4.8 and exclude `gFin x*` from `rompelLightImages c`, yielding a
    gap of at least `(c * Nat.log 2 n + 1) / (64 * (n + 1))` (recovering `1 / (64 * (n + 1))` at
    `c = 0`).
-4. **Theorem 4.5** (`OneWay.rompelBase_logGap`, `OneWay.exists_rompelBase_logGap`,
-   `OneWay.exists_inaccessibleEntropyFamily_logGap`, `OneWay.exists_inaccessibleEntropyFamily`,
-   p. 21): one fixed uniform polynomial-time function family `rompelBaseEvalWord g outLen` achieves
-   an eventual `d * Real.logb 2 n / n` entropy gap for every constant `d > 0`, and for each `d > 0`
-   packages into an `InaccessibleEntropyFamily` with integer denominator
+4. **Theorem 4.5** (`OneWay.rompelBase_logGap`, p. 21): for a `OneWay` function `g` with fixed
+   output length `m(n)`, the single uniform polynomial-time function family
+   `rompelBaseEvalWord g outLen` achieves an eventual `d * Real.logb 2 n / n` entropy gap for every
+   constant `d > 0`. `OneWay.rompelFamily` packages each threshold exponent `c` as an
+   `InaccessibleEntropyFamily` with integer denominator
    `rompelGapDenom c n = 64 * (n + 1) / (c * Nat.log 2 n + 1) + 1`.
+   `OneWay.exists_rompelBase_logGap` and `OneWay.exists_inaccessibleEntropyFamily` apply this to an
+   arbitrary `OneWay` function, after normalizing its output length.
+
+`F₀` differs from the source's $F(x, g, i) = (g(f(x))_{1, \dots, i}, g, i)$ on
+$\{0,1\}^n \times G \times [n]$ in three ways:
+
+* **The hash family.** `affineHash` from `m(n)` to `n` bits is one of the constructible `3`-wise
+  independent families that Theorem 4.5 allows, but its seed has `n * m(n) + n` bits. The input
+  width is `rompelBaseInLen n m = n + (n * m + n) + (Nat.log 2 n + 1)`, which is `Θ(n * m(n))` and
+  so `Θ(n ^ 2)` even for length-preserving `g`. The source's `O(n)` width, which its Theorem 5.2
+  (p. 26) uses, needs a `3`-wise independent family with `O(n)`-bit descriptions.
+* **The prefix length.** It is `min r n` for a uniform `(Nat.log 2 n + 1)`-bit number `r`, so it
+  ranges over `{0, …, n}` with extra mass at `n`, instead of being uniform on `[n]`.
+* **The one-way function.** The source takes a length-preserving `f`. Here `g` has any fixed
+  output length `m(n)`, and `OneWay.exists_fixedOutputLength` pads an arbitrary `OneWay` function to
+  such a `g`.
 
 ## Main definitions
 
@@ -92,12 +108,12 @@ adversary-dependent quantifier):
 * `Cslib.Crypto.rompelBase_heavy_sibling_prob_ge`: Claim 4.8 (`[HHRVW2020]`, p. 23).
 * `Cslib.Crypto.rompelBase_accessible_le_conditionalEntropy_sub`: Claim 4.7
   (`[HHRVW2020]`, pp. 21, 23–25).
-* `Cslib.Crypto.OneWay.rompelBase_logGap`, `Cslib.Crypto.OneWay.exists_rompelBase_logGap`: Theorem
-  4.5 (`[HHRVW2020]`, p. 21), one fixed
-  base family achieving eventual gap `d * Real.logb 2 n / n` for every `d > 0`.
-* `Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily_logGap`,
-  `Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily`: `InaccessibleEntropyFamily` witnesses with
-  `O(n / log n)` gap denominator.
+* `Cslib.Crypto.OneWay.rompelBase_logGap`: Theorem 4.5 (`[HHRVW2020]`, p. 21) for `F₀`, with the
+  deviations above: one fixed base family achieving eventual gap `d * Real.logb 2 n / n` for every
+  `d > 0`.
+* `Cslib.Crypto.OneWay.exists_rompelBase_logGap`,
+  `Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily`: the same family from an arbitrary
+  `OneWay` function, and an `InaccessibleEntropyFamily` from it.
 
 ## References
 
@@ -1818,12 +1834,21 @@ def OneWay.rompelFamily {g : List Bool → List Bool} {outLen : ℕ → ℕ}
     refine negligible_of_le hinv_neg fun n => ?_
     exact_mod_cast rompelBase_escape_le_mul_inversion c g outLen A n (fun w hw => hw ▸ hlen w)
 
-/-- **`[HHRVW2020]`, Section 4.2, Theorem 4.5 (p. 21)** on the concrete family
-`rompelBaseEvalWord g outLen`: for any fixed-output-length uniform `OneWay` function `g` and every
-constant `d > 0`, choosing polynomial light-image threshold exponent `c = Nat.ceil (256 * d) + 1`
-gives an accessible-set family `rompelAccessibleSet c g outLen` whose average max-entropy is
-eventually at most `conditionalEntropy - d * Real.logb 2 n / n` while remaining negligibly
-escapable against all uniform strict-PPT adversaries. -/
+/-- **`[HHRVW2020]`, Section 4.2, Theorem 4.5 (p. 21)** for the concrete family
+`rompelBaseEvalWord g outLen`. Take a uniform `OneWay` function `g` with output length
+`outLen n` on `n`-bit inputs, a constant `d > 0`, and the light-image threshold exponent
+`c = Nat.ceil (256 * d) + 1`. The accessible-set family `rompelAccessibleSet c g outLen` then has
+average max-entropy eventually at most `conditionalEntropy - d * Real.logb 2 n / n`, and every
+uniform strict-PPT adversary escapes it with negligible probability.
+
+The function differs from the source's $F(x, g, i) = (g(f(x))_{1, \dots, i}, g, i)$ in three
+ways:
+* The hash is the affine family `affineHash` with an `n * outLen n + n`-bit seed, so the input
+  width is `rompelBaseInLen n (outLen n) = n + (n * outLen n + n) + (Nat.log 2 n + 1)`. The source
+  instead gets an `O(n)` width, using a family with `O(n)`-bit descriptions (Theorem 5.2, p. 26).
+* The prefix length is `min r n` for a uniform `(Nat.log 2 n + 1)`-bit `r`, instead of uniform
+  `i ∈ [n]`.
+* `g` has a fixed output length `outLen n` rather than being length-preserving. -/
 theorem OneWay.rompelBase_logGap {g : List Bool → List Bool} {outLen : ℕ → ℕ}
     (hg : OneWay g) (hlen : ∀ w : List Bool, (g w).length = outLen w.length)
     (houtLen : ComputableInPolyTime outLen encUnary encUnary) {d : ℝ} (hd : 0 < d) :
@@ -1857,10 +1882,17 @@ theorem OneWay.rompelBase_logGap {g : List Bool → List Bool} {outLen : ℕ →
     mul_log_le_self_of_four_mul_sq_le c n (le_trans (le_max_right _ _) hn_r)
   exact (hN₀ n hn_N₀).trans (sub_le_sub_left (logGap_le_inv_rompelGapDenom hd hc hn2 ht) _)
 
-/-- **`[HHRVW2020]`, Section 4.2, Theorem 4.5 (p. 21)**: every uniform `OneWay` function yields a
-single uniform polynomial-time fixed-width function family `(inLen, outLen, evalWord)` such that
-for every constant `d > 0`, there is a family of fiber-contained accessible preimage sets achieving
-an eventual `d * Real.logb 2 n / n` entropy gap against all uniform strict-PPT adversaries. -/
+/-- `OneWay.rompelBase_logGap` applied to an arbitrary uniform `OneWay` function `f`, after
+`OneWay.exists_fixedOutputLength` normalizes its output length. The result is a single uniform
+polynomial-time fixed-width function family `(inLen, outLen, evalWord)`. For every constant
+`d > 0`, it has a family of fiber-contained accessible preimage sets with an eventual
+`d * Real.logb 2 n / n` entropy gap against all uniform strict-PPT adversaries.
+
+The conclusion does not bound the input width `inLen n`, so its gap, stated in the security
+parameter `n`, is not the quantitative content of Theorem 4.5. That content is
+`OneWay.rompelBase_logGap`, whose statement names the width
+`n + (n * m(n) + n) + (Nat.log 2 n + 1)` for the normalized output length `m(n)`. That length is
+internal to `OneWay.exists_fixedOutputLength`, so this statement cannot name the width. -/
 theorem OneWay.exists_rompelBase_logGap {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ (inLen outLen : ℕ → ℕ) (evalWord : ℕ → List Bool → List Bool),
       ComputableInPolyTime inLen encUnary encUnary ∧
@@ -1894,31 +1926,11 @@ theorem OneWay.exists_rompelBase_logGap {f : List Bool → List Bool} (hf : OneW
   exact ⟨rompelAccessibleSet c g outLen, self_mem_rompelAccessibleSet c g outLen,
     rompelAccessibleSet_subset_fiber c g outLen, hgap, hesc⟩
 
-/-- **`[HHRVW2020]`, Section 4.2, Theorem 4.5 (p. 21)** packaged as an `InaccessibleEntropyFamily`:
-for every uniform `OneWay` function and every constant `d > 0`, there is an
-`InaccessibleEntropyFamily` whose integer gap denominator `denom` satisfies
-`d * Real.logb 2 n / n ≤ 1 / (denom n : ℝ)` eventually (`rompelGapDenom c = Θ(n / log n)`). -/
-theorem OneWay.exists_inaccessibleEntropyFamily_logGap {f : List Bool → List Bool}
-    (hf : OneWay f) {d : ℝ} (hd : 0 < d) :
-    ∃ F : InaccessibleEntropyFamily,
-      ∀ᶠ n : ℕ in Filter.atTop, d * Real.logb 2 n / n ≤ 1 / (F.denom n : ℝ) := by
-  obtain ⟨g, outLen, hg, hlen, houtLen⟩ := hf.exists_fixedOutputLength
-  let c := Nat.ceil (256 * d) + 1
-  refine ⟨hg.rompelFamily c hlen houtLen, ?_⟩
-  have hc : 256 * d ≤ (c : ℝ) := by
-    calc
-      256 * d ≤ (Nat.ceil (256 * d) : ℝ) := Nat.le_ceil _
-      _ ≤ (c : ℝ) := by dsimp only [c]; push_cast; linarith
-  filter_upwards [Filter.eventually_ge_atTop (max 2 (4 * c * c))] with n hn
-  exact logGap_le_inv_rompelGapDenom hd hc (le_trans (le_max_left _ _) hn)
-    (mul_log_le_self_of_four_mul_sq_le c n (le_trans (le_max_right _ _) hn))
-
-/-- Every uniform `OneWay` function yields a uniform polynomial-time `InaccessibleEntropyFamily`
-with `O(n / log n)` gap denominator (`OneWay.exists_inaccessibleEntropyFamily_logGap` at
-`d = 1`). -/
+/-- Every uniform `OneWay` function yields a uniform polynomial-time `InaccessibleEntropyFamily`:
+`OneWay.rompelFamily` for its fixed-output-length normalization. -/
 theorem OneWay.exists_inaccessibleEntropyFamily {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty InaccessibleEntropyFamily :=
-  let ⟨F, _⟩ := hf.exists_inaccessibleEntropyFamily_logGap one_pos
-  ⟨F⟩
+  let ⟨_, _, hg, hlen, houtLen⟩ := hf.exists_fixedOutputLength
+  ⟨hg.rompelFamily 0 hlen houtLen⟩
 
 end Cslib.Crypto

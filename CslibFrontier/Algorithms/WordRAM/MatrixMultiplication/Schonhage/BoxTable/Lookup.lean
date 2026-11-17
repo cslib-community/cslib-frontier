@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.LookupLoop
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Values
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native lookup in the computed compact box table
@@ -91,12 +92,10 @@ theorem exec_lookup {w L m t C D V : ℕ} (x : Data registers) (π : Cube L)
     exec_lookupLoop u π hπ hup (by simpa only [hum] using hread)
       hul hupow huc hus huf huv hui (hfit.of_le (by omega))
   have hmem : z.mem = x.mem := hzm.trans hum
-  have hpres (i : Fin registers) (hi : ¬LookupWholeLocal i) : z.regs i = x.regs i :=
-    (hframez i (fun h => hi (Or.inl h))).trans (hframeu i hi)
-  have zH : z.regs Reg.height = m - t := (hpres _ (by decide)).trans hH
-  have zT : z.regs Reg.span = 10 ^ L := (hpres _ (by decide)).trans hT
-  have zD : z.regs Reg.directory = D := (hpres _ (by decide)).trans hD
-  have zV : z.regs Reg.values = V := (hpres _ (by decide)).trans hV
+  have zH : z.regs Reg.height = m - t := by regs_frame
+  have zT : z.regs Reg.span = 10 ^ L := by regs_frame
+  have zD : z.regs Reg.directory = D := by regs_frame
+  have zV : z.regs Reg.values = V := by regs_frame
   let s := cubeSlot π
   let r := Nat.count (Eligible L (m - t)) s
   have hs : s < (m - t + 1) * 10 ^ L := cubeSlot_lt hπ

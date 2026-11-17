@@ -744,6 +744,7 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
     intro n pk state lastReply out hout
     obtain ⟨State, oracle, s, s', hmem⟩ :=
       (ProbOracleComp.mem_support_iff_exists (hne := fun _ => ⟨[]⟩)).mp hout
+    rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
     have hbound := hlen (n, pk) State oracle s s' out hmem
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤ 2 * (n + pk.length + 2) := by
       enc_len
@@ -1095,7 +1096,7 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (multiPhase2FilterHandler (decBound (nOf a)) (ctsOf a)))
           (prog a)).run ()) := by
-    apply hprog.run_interpret_preprocess_open'
+    apply hprog.run_interpret_preprocess_open
       (prepare := id)
       (initial := fun _ => ())
       (resources := fun a req => decBound (nOf a) req)
@@ -1124,6 +1125,7 @@ private theorem mem_support_of_mem_support_run_interpret {α : Type}
   rw [ProbOracleComp.run_interpret_run_interpret, PMF.mem_support_map_iff] at hrun
   obtain ⟨⟨r, u, s''⟩, hmem, heq⟩ := hrun
   obtain rfl : r = result := (Prod.mk.inj (Prod.mk.inj heq).1).1
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
   exact ProbOracleComp.mem_support_of_mem _ hmem
 
 /-- `interleavedInnerRound` is uniformly strict oracle PPT on `((n, pk), st)`. -/

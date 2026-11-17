@@ -52,6 +52,9 @@ At higher levels, `SigmaPHard k`, `SigmaPComplete k`, `PiPHard k`, `PiPComplete 
   language to its complement collapses `PH` to `NP`.
 * `Cslib.Complexity.NPComplete.NP_eq_coNP_iff_reducible`: `NP = coNP` through NP-complete and
   coNP-complete languages.
+* `Cslib.Complexity.NPComplete.coNP_subset_NP_of_compl_mem_NP`,
+  `Cslib.Complexity.NPComplete.compl_notMem_NP`: the complement of an NP-complete language is not
+  in `NP` unless `NP = coNP` [Goldreich, Proposition 2.34][Goldreich2008].
 * `Cslib.Complexity.PHHard.PH_eq_SigmaP_of_mem_SigmaP`,
   `Cslib.Complexity.PHHard.PH_eq_P_of_mem_P`,
   `Cslib.Complexity.PHComplete.exists_forall_PH_eq_SigmaP`,
@@ -67,6 +70,8 @@ At higher levels, `SigmaPHard k`, `SigmaPComplete k`, `PiPHard k`, `PiPComplete 
 ## References
 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft 2007][AroraBarak07]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*][Goldreich2008]; numbering of
+  the author's online draft of 30 December 2006.
 -/
 
 public section
@@ -88,6 +93,24 @@ theorem NPComplete.coNP_subset_NP_of_reducible_compl (hB : NPComplete encB B)
   have hBB : PolyTimeReducible encB encB Bᶜ B := by
     simpa only [compl_compl] using h.compl
   exact (hAB.trans hBB).mem_NP hB.1
+
+/-- If the complement of an NP-complete language is in `NP`, every coNP language is in `NP`: its
+complement reduces to the NP-complete language, so it reduces to the complement. -/
+theorem NPComplete.coNP_subset_NP_of_compl_mem_NP (hB : NPComplete encB B) (h : Bᶜ ∈ NP encB) :
+    coNP enc ⊆ NP enc := fun A hA => by
+  simpa only [compl_compl] using (hB.2 enc Aᶜ hA).compl.mem_NP h
+
+/-- **The complement of an NP-complete set is not in `NP` unless `NP = coNP`**
+[Goldreich, Proposition 2.34][Goldreich2008] (draft `r1.pdf` of 30 December 2006, PDF p. 126,
+printed p. 101). NP-completeness is under Karp reductions, as in the source; `NP ≠ coNP` is
+assumed for one encoding `enc`, for instance `encBits` as in the source, and the NP-complete
+language may have any encoding. -/
+theorem NPComplete.compl_notMem_NP (hB : NPComplete encB B) (h : NP enc ≠ coNP enc) :
+    Bᶜ ∉ NP encB := fun hc => by
+  have hsub := hB.coNP_subset_NP_of_compl_mem_NP (enc := enc) hc
+  refine h (Set.Subset.antisymm (fun A hA => ?_) hsub)
+  rw [mem_coNP]
+  exact hsub (by rwa [mem_coNP, compl_compl])
 
 /-- An NP-complete language reducing to its complement implies NP = coNP at every encoding. -/
 theorem NPComplete.NP_eq_coNP_of_reducible_compl (hB : NPComplete encB B)
