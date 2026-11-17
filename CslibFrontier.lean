@@ -2290,6 +2290,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGe
 public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography.Membership
 public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.Space.Image
+public import CslibFrontier.Computability.Complexity.Classes.Space.Nonblank
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
@@ -3633,6 +3634,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Spec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SpecializeInterpreter
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HeadCounters
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.HeadCounters.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.InputAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.InputPrefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryAddition
