@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.IID
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Events of independent draws
@@ -106,9 +107,7 @@ theorem toOuterMeasure_piFin_exists_le {k : ℕ} (p : Fin k → PMF α) (E : Fin
 theorem toOuterMeasure_toReal_piFin_exists_le {k : ℕ} (p : Fin k → PMF α) (E : Fin k → Set α) :
     ((piFin p).toOuterMeasure {v | ∃ i, v i ∈ E i}).toReal ≤
       ∑ i, ((p i).toOuterMeasure (E i)).toReal := by
-  rw [← ENNReal.toReal_sum fun i _ => toOuterMeasure_ne_top _ _]
-  exact ENNReal.toReal_mono (ENNReal.sum_ne_top.2 fun i _ => toOuterMeasure_ne_top _ _)
-    (toOuterMeasure_piFin_exists_le p E)
+  ennreal_to_real using toOuterMeasure_piFin_exists_le p E
 
 /-- The `j`-th of `k` independent draws from `μ` lands in `E` with probability `μ(E)`. -/
 theorem toOuterMeasure_iid_eval (μ : PMF α) {k : ℕ} (j : Fin k) (E : Set α) :
