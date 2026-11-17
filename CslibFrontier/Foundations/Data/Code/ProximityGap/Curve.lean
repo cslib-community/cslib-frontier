@@ -615,6 +615,19 @@ theorem exists_ratWeighted_correlatedAgreement_unique
   exact ⟨by simpa only [u, Matrix.cons_val_zero] using hagree i hi 0,
     by simpa only [u, Matrix.cons_val_one, Matrix.cons_val_fin_one] using hagree i hi 1⟩
 
+/-- Integer-to-rational weight threshold: with `t = ⌈B / M⌉ = (B + M - 1) / M`, the
+unique-decoding agreement count `n - (n - t)` satisfies `n - (n - t) - 1 < B / M`. -/
+private theorem card_sub_sub_ceilDiv_sub_one_lt {n B M : ℕ} (hM : 0 < M) :
+    ((n - (n - (B + M - 1) / M) : ℕ) : ℚ) - 1 < (B : ℚ) / (M : ℚ) := by
+  have hdiv : M * ((B + M - 1) / M) ≤ B + M - 1 := Nat.mul_div_le (B + M - 1) M
+  generalize (B + M - 1) / M = t at hdiv ⊢
+  have hMq : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
+  have ht_lt : M * (n - (n - t)) < B + M :=
+    (Nat.mul_le_mul_left M (by omega : n - (n - t) ≤ t)).trans_lt (by omega)
+  have hq_lt : (M : ℚ) * ((n - (n - t) : ℕ) : ℚ) < (B : ℚ) + (M : ℚ) := by exact_mod_cast ht_lt
+  rw [lt_div_iff₀ hMq]
+  linarith
+
 /-- **Integer-weighted correlated agreement on parameterized curves in the unique-decoding regime**
 (unique-decoding specialization of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.1 & Section 7],
 where source Theorem 7.1 treats weighted curves, Version I, in the `α > √ρ` range):
@@ -643,21 +656,8 @@ theorem exists_weighted_correlatedAgreement_curve_unique
   have hμ_le : ∀ i, μ i ≤ 1 := by
     intro i
     exact (div_le_one hMq).2 (Nat.cast_le.2 (hW i))
-  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ := by
-    set t := (B + M - 1) / M
-    have hsub_le : Fintype.card ι - (Fintype.card ι - t) ≤ t := by omega
-    have ht_lt : M * t < B + M := by
-      have hdiv : M * t ≤ B + M - 1 := Nat.mul_div_le (B + M - 1) M
-      omega
-    have hq_lt : (M : ℚ) * ((Fintype.card ι - (Fintype.card ι - t) : ℕ) : ℚ) <
-        (B : ℚ) + (M : ℚ) := by
-      have h1 : M * (Fintype.card ι - (Fintype.card ι - t)) < B + M :=
-        (Nat.mul_le_mul_left M hsub_le).trans_lt ht_lt
-      exact_mod_cast h1
-    have h2 : ((Fintype.card ι - (Fintype.card ι - t) : ℕ) : ℚ) - 1 < (B : ℚ) / (M : ℚ) := by
-      rw [lt_div_iff₀ hMq]
-      linarith
-    exact h2
+  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ :=
+    card_sub_sub_ceilDiv_sub_one_lt hM
   have hclose' : ∀ z ∈ S, ∃ c ∈ reedSolomon α k,
       θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
         (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i = c i), μ i := by
@@ -1192,6 +1192,32 @@ private theorem card_zero_affine_le
       _ = (Fintype.card F) ^ (ℓ - 1) := by
           rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, hcard_sub]
 
+/-- Private helper: the parameters `z` at which some disagreeing coordinate `i ∈ badI` of two
+affine spaces collides lie in a union of nonzero affine zero sets, so there are at most
+`|ι| · |F| ^ (ℓ - 1)` of them. -/
+private theorem card_biUnion_zero_affine_le
+    {ι F : Type*} [Fintype ι] [Field F] [Fintype F] [DecidableEq F] {ℓ : ℕ}
+    (u₀ v₀ : ι → F) (u v : Fin ℓ → ι → F) (badI : Finset ι)
+    (hbad : ∀ i ∈ badI, ¬ (u₀ i = v₀ i ∧ ∀ j : Fin ℓ, u j i = v j i)) :
+    (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
+        (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card ≤
+      Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) := by
+  calc _ ≤ ∑ i ∈ badI, (Finset.univ.filter fun z : Fin ℓ → F =>
+          (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
+        Finset.card_biUnion_le
+    _ ≤ ∑ _i ∈ badI, (Fintype.card F) ^ (ℓ - 1) := by
+        refine Finset.sum_le_sum fun i hi => card_zero_affine_le _ _ ?_
+        by_cases h0 : u₀ i = v₀ i
+        · right
+          have hnotj : ¬ ∀ j : Fin ℓ, u j i = v j i := fun hj => hbad i hi ⟨h0, hj⟩
+          push Not at hnotj
+          obtain ⟨j, hj⟩ := hnotj
+          exact ⟨j, sub_ne_zero.2 hj⟩
+        · exact Or.inl (sub_ne_zero.2 h0)
+    _ = badI.card * (Fintype.card F) ^ (ℓ - 1) := by simp only [Finset.sum_const, smul_eq_mul]
+    _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
+        Nat.mul_le_mul_right _ (Finset.card_le_univ badI)
+
 /-- Private helper: if `1 ≤ ℓ` and `K * (|F| ^ ℓ - 1) < (|F| - 1) * #T` for `T ⊆ (Fin ℓ → F)`,
 then `K < |F|`. -/
 private theorem lt_card_field_of_affine_threshold
@@ -1471,22 +1497,8 @@ theorem exists_correlatedAgreement_affine_unique_sharp
         _ ≤ (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
               (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
             Finset.card_le_card huniv_sub
-        _ ≤ ∑ i ∈ badI, (Finset.univ.filter fun z : Fin ℓ → F =>
-              (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
-            Finset.card_biUnion_le
-        _ ≤ ∑ _i ∈ badI, (Fintype.card F) ^ (ℓ - 1) := by
-            refine Finset.sum_le_sum fun i hi => card_zero_affine_le _ _ ?_
-            have hnot := (mem_filter.1 hi).2
-            by_cases h0 : u₀ i = v₀ i
-            · right
-              have hnotj : ¬ ∀ j : Fin ℓ, u j i = v j i := fun hj => hnot ⟨h0, hj⟩
-              push Not at hnotj
-              obtain ⟨j, hj⟩ := hnotj
-              exact ⟨j, sub_ne_zero.2 hj⟩
-            · exact Or.inl (sub_ne_zero.2 h0)
-        _ = badI.card * (Fintype.card F) ^ (ℓ - 1) := by simp only [Finset.sum_const, smul_eq_mul]
         _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
-            Nat.mul_le_mul_right _ (Finset.card_le_univ badI)
+            card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
     have hpow_eq : (Fintype.card F) ^ ℓ = Fintype.card F * (Fintype.card F) ^ (ℓ - 1) := by
       conv_lhs => rw [← Nat.sub_add_cancel hℓ, pow_succ', Nat.mul_comm]
       rw [Nat.mul_comm]
@@ -1618,22 +1630,8 @@ theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
           ≤ (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
               (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
             Finset.card_le_card hT_sub
-        _ ≤ ∑ i ∈ badI, (Finset.univ.filter fun z : Fin ℓ → F =>
-              (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
-            Finset.card_biUnion_le
-        _ ≤ ∑ _i ∈ badI, (Fintype.card F) ^ (ℓ - 1) := by
-            refine Finset.sum_le_sum fun i hi => card_zero_affine_le _ _ ?_
-            have hnot := (mem_filter.1 hi).2
-            by_cases h0 : u₀ i = v₀ i
-            · right
-              have hnotj : ¬ ∀ j : Fin ℓ, u j i = v j i := fun hj => hnot ⟨h0, hj⟩
-              push Not at hnotj
-              obtain ⟨j, hj⟩ := hnotj
-              exact ⟨j, sub_ne_zero.2 hj⟩
-            · exact Or.inl (sub_ne_zero.2 h0)
-        _ = badI.card * (Fintype.card F) ^ (ℓ - 1) := by simp only [Finset.sum_const, smul_eq_mul]
         _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
-            Nat.mul_le_mul_right _ (Finset.card_le_univ badI)
+            card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
     have hcontra : (Fintype.card F - 1) * T.card ≤
         Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) := by
       have h1 : (Fintype.card F - 1) * T.card ≤
@@ -1679,19 +1677,8 @@ theorem exists_weighted_correlatedAgreement_affine_unique_sharp
   let θ : ℚ := (B : ℚ) / (M : ℚ)
   have hMq : (0 : ℚ) < (M : ℚ) := Nat.cast_pos.2 hM
   have hμ_le : ∀ i, μ i ≤ 1 := fun i => (div_le_one hMq).2 (Nat.cast_le.2 (hW i))
-  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ := by
-    set t := (B + M - 1) / M
-    have hsub_le : Fintype.card ι - (Fintype.card ι - t) ≤ t := by omega
-    have ht_lt : M * t < B + M := by
-      have hdiv : M * t ≤ B + M - 1 := Nat.mul_div_le (B + M - 1) M
-      omega
-    have hq_lt : (M : ℚ) * ((Fintype.card ι - (Fintype.card ι - t) : ℕ) : ℚ) <
-        (B : ℚ) + (M : ℚ) := by
-      have h1 : M * (Fintype.card ι - (Fintype.card ι - t)) < B + M :=
-        (Nat.mul_le_mul_left M hsub_le).trans_lt ht_lt
-      exact_mod_cast h1
-    rw [lt_div_iff₀ hMq]
-    linarith
+  have hθ : ((Fintype.card ι - (Fintype.card ι - (B + M - 1) / M) : ℕ) : ℚ) - 1 < θ :=
+    card_sub_sub_ceilDiv_sub_one_lt hM
   have hclose' : ∀ z ∈ T, ∃ c ∈ reedSolomon α k,
       θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
         (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i := by
@@ -2686,6 +2673,38 @@ theorem exists_ratWeighted_correlatedAgreement_line_johnson
   · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
   · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
 
+/-- Private helper: a threshold `θ ≤ n` converted to integer weights with denominator `M`
+(`B_W = ⌈θ * M⌉₊`, `t = ⌈B_W / M⌉`) gives a relative radius `(n - t) / n` no larger than any
+bound `R` on `1 - θ / n`. -/
+private theorem ceilDiv_radius_le {n M : ℕ} {θ : ℚ} {R : ℝ} (hM : 0 < M) (hn : 1 ≤ n)
+    (hθ_le_t : θ ≤ (((⌈θ * (M : ℚ)⌉₊ + M - 1) / M : ℕ) : ℚ))
+    (hθ_le_n : (θ : ℝ) ≤ (n : ℝ)) (hθ : 1 - (θ : ℝ) / (n : ℝ) ≤ R) :
+    ((n - (⌈θ * (M : ℚ)⌉₊ + M - 1) / M : ℕ) : ℝ) / (n : ℝ) ≤ R := by
+  set B_W : ℕ := ⌈θ * (M : ℚ)⌉₊
+  set t : ℕ := (B_W + M - 1) / M
+  have hnR : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.2 hn
+  have hθQ_le_n : θ ≤ (n : ℚ) := by exact_mod_cast hθ_le_n
+  have hBW_le_Mn : B_W ≤ M * n := by
+    refine Nat.ceil_le.2 ?_
+    have h1 : θ * (M : ℚ) ≤ (n : ℚ) * (M : ℚ) :=
+      mul_le_mul_of_nonneg_right hθQ_le_n (Nat.cast_nonneg M)
+    exact h1.trans_eq (by push_cast; ring)
+  have ht_le : t ≤ n := by
+    rw [Nat.div_le_iff_le_mul_add_pred hM]
+    omega
+  have hθR_le_tR : (θ : ℝ) ≤ (t : ℝ) := by exact_mod_cast hθ_le_t
+  rw [Nat.cast_sub ht_le, sub_div, div_self hnR.ne']
+  have hdiv : (θ : ℝ) / (n : ℝ) ≤ (t : ℝ) / (n : ℝ) :=
+    div_le_div_of_nonneg_right hθR_le_tR hnR.le
+  linarith
+
+/-- Private helper: weights bounded by `1` sum to at most `|ι|` over any finite subset. -/
+private theorem sum_le_card_of_le_one {ι : Type*} [Fintype ι] {μ : ι → ℚ}
+    (hμ_le : ∀ i, μ i ≤ 1) (S : Finset ι) : ∑ i ∈ S, μ i ≤ (Fintype.card ι : ℚ) :=
+  calc ∑ i ∈ S, μ i ≤ ∑ _i ∈ S, (1 : ℚ) := Finset.sum_le_sum fun i _ => hμ_le i
+    _ = (S.card : ℚ) := by rw [Finset.sum_const, nsmul_eq_mul, mul_one]
+    _ ≤ (Fintype.card ι : ℚ) := by exact_mod_cast Finset.card_le_univ _
+
 /-- **Original explicit-constant `ℚ`-weighted proximity-gap dichotomy on parameterized curves up to
 the Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 6.2 and 7.2], accepted
 JACM 2023 manuscript).
@@ -2728,24 +2747,10 @@ theorem ratWeighted_proximityGap_curve_johnson
   have hn : 1 ≤ n := hk.trans hkn
   have hnR : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.2 hn
   by_cases hθ_le_n : (θ : ℝ) ≤ (n : ℝ)
-  · have hθQ_le_n : θ ≤ (n : ℚ) := by exact_mod_cast hθ_le_n
-    have hM_nnQ : (0 : ℚ) ≤ (M : ℚ) := Nat.cast_nonneg M
-    have hBW_le_Mn : B_W ≤ M * n := by
-      refine Nat.ceil_le.2 ?_
-      have h1 : θ * (M : ℚ) ≤ (n : ℚ) * (M : ℚ) := mul_le_mul_of_nonneg_right hθQ_le_n hM_nnQ
-      have h2 : (n : ℚ) * (M : ℚ) = ((M * n : ℕ) : ℚ) := by push_cast; ring
-      exact h1.trans_eq h2
-    have ht_le : t ≤ n := by
-      rw [Nat.div_le_iff_le_mul_add_pred hM]
-      omega
-    have hθR_le_tR : (θ : ℝ) ≤ (t : ℝ) := by exact_mod_cast hθ_le_t
-    have hB : ((n - t : ℕ) : ℝ) / (n : ℝ) ≤
+  · have hB : ((n - t : ℕ) : ℝ) / (n : ℝ) ≤
         1 - Real.sqrt ((k : ℝ) / (n : ℝ)) -
-          Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) := by
-      rw [Nat.cast_sub ht_le, sub_div, div_self hnR.ne']
-      have hdiv : (θ : ℝ) / (n : ℝ) ≤ (t : ℝ) / (n : ℝ) :=
-        div_le_div_of_nonneg_right hθR_le_tR hnR.le
-      linarith
+          Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) :=
+      ceilDiv_radius_le hM hn hθ_le_t hθ_le_n hθ
     have hequiv : ∀ z : F,
         (∃ c ∈ reedSolomon α k, θ ≤ ∑ i ∈ Finset.univ.filter
           (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), μ i) ↔
@@ -2779,16 +2784,8 @@ theorem ratWeighted_proximityGap_curve_johnson
       simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false]
       rintro ⟨c, _, hcμ⟩
       have hle : ∑ i ∈ Finset.univ.filter
-          (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), μ i ≤ (n : ℚ) := by
-        calc ∑ i ∈ Finset.univ.filter
-              (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), μ i
-            ≤ ∑ _i ∈ Finset.univ.filter
-              (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), (1 : ℚ) :=
-              Finset.sum_le_sum fun i _ => hμ_le i
-          _ = ((Finset.univ.filter
-              (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i)).card : ℚ) := by
-              rw [Finset.sum_const, nsmul_eq_mul, mul_one]
-          _ ≤ (n : ℚ) := by exact_mod_cast Finset.card_le_univ _
+          (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), μ i ≤ (n : ℚ) :=
+        sum_le_card_of_le_one hμ_le _
       linarith
     rw [hemp, Finset.card_empty, Nat.cast_zero, zero_div]
     positivity
@@ -3387,24 +3384,10 @@ theorem ratWeighted_proximityGap_affine_johnson
     have : (2 : ℝ) ≤ (Fintype.card F : ℝ) := by exact_mod_cast (Fintype.one_lt_card (α := F))
     linarith
   by_cases hθ_le_n : (θ : ℝ) ≤ (n : ℝ)
-  · have hθQ_le_n : θ ≤ (n : ℚ) := by exact_mod_cast hθ_le_n
-    have hM_nnQ : (0 : ℚ) ≤ (M : ℚ) := Nat.cast_nonneg M
-    have hBW_le_Mn : B_W ≤ M * n := by
-      refine Nat.ceil_le.2 ?_
-      have h1 : θ * (M : ℚ) ≤ (n : ℚ) * (M : ℚ) := mul_le_mul_of_nonneg_right hθQ_le_n hM_nnQ
-      have h2 : (n : ℚ) * (M : ℚ) = ((M * n : ℕ) : ℚ) := by push_cast; ring
-      exact h1.trans_eq h2
-    have ht_le : t ≤ n := by
-      rw [Nat.div_le_iff_le_mul_add_pred hM]
-      omega
-    have hθR_le_tR : (θ : ℝ) ≤ (t : ℝ) := by exact_mod_cast hθ_le_t
-    have hB : ((n - t : ℕ) : ℝ) / (n : ℝ) ≤
+  · have hB : ((n - t : ℕ) : ℝ) / (n : ℝ) ≤
         1 - Real.sqrt ((k : ℝ) / (n : ℝ)) -
-          Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) := by
-      rw [Nat.cast_sub ht_le, sub_div, div_self hnR.ne']
-      have hdiv : (θ : ℝ) / (n : ℝ) ≤ (t : ℝ) / (n : ℝ) :=
-        div_le_div_of_nonneg_right hθR_le_tR hnR.le
-      linarith
+          Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) :=
+      ceilDiv_radius_le hM hn hθ_le_t hθ_le_n hθ
     have hequiv : ∀ z : Fin ℓ → F,
         (∃ c ∈ reedSolomon α k, θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
           (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) ↔
@@ -3438,16 +3421,8 @@ theorem ratWeighted_proximityGap_affine_johnson
       simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false]
       rintro ⟨c, _, hcμ⟩
       have hle : ∑ i ∈ Finset.univ.filter (fun i =>
-          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i ≤ (n : ℚ) := by
-        calc ∑ i ∈ Finset.univ.filter (fun i =>
-              (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i
-            ≤ ∑ _i ∈ Finset.univ.filter (fun i =>
-              (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), (1 : ℚ) :=
-              Finset.sum_le_sum fun i _ => hμ_le i
-          _ = ((Finset.univ.filter (fun i =>
-              (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i)).card : ℚ) := by
-              rw [Finset.sum_const, nsmul_eq_mul, mul_one]
-          _ ≤ (n : ℚ) := by exact_mod_cast Finset.card_le_univ _
+          (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i ≤ (n : ℚ) :=
+        sum_le_card_of_le_one hμ_le _
       linarith
     rw [hemp, Finset.card_empty, Nat.cast_zero, zero_div]
     positivity
