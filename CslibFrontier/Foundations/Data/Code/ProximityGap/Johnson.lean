@@ -440,13 +440,9 @@ private theorem card_filter_eval_eq_zero_le {R : Type*} [CommRing R] [IsDomain R
 private theorem exists_eval_ne_zero_of_natDegree_lt_card {R : Type*} [CommRing R] [IsDomain R]
     {p : R[X]} (hp : p ≠ 0) {T : Finset R} (hlt : p.natDegree < #T) :
     ∃ x ∈ T, p.eval x ≠ 0 := by
-  classical
   by_contra hall
   push Not at hall
-  have heq : T.filter (fun z => p.eval z = 0) = T := Finset.filter_true_of_mem hall
-  have hle := card_filter_eval_eq_zero_le hp T
-  rw [heq] at hle
-  omega
+  exact hp (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' p T hall hlt)
 
 private theorem resultant_ne_zero_of_isCoprime_map {R K : Type*} [CommRing R]
     [Field K] (φ : R →+* K) (hφ : Function.Injective φ) {f g : R[X]}
@@ -2220,14 +2216,12 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         exact hres.trans (calc Fstar.natDegree * ((2 * n - 1) * B_Z) + Nn.natDegree * B_Z
             ≤ 2 * D * D_Y * B_Z + 2 * D * D_Y * B_Z := Nat.add_le_add h1 h2
           _ = 4 * D * D_Y * B_Z := by ring)
-      have hRes_zero : Res_n = 0 := by
-        by_contra hne
-        have hlt : Res_n.natDegree < #T'' := by
-          have h1 : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
-          linarith
-        obtain ⟨z, hz, hz_ne⟩ := exists_eval_ne_zero_of_natDegree_lt_card hne hlt
-        exact hz_ne (hRes_van z hz)
+      have hlt : Res_n.natDegree < #T'' := by
+        have h1 : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
+          Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
+        linarith
+      have hRes_zero : Res_n = 0 :=
+        Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' Res_n T'' hRes_van hlt
       by_contra hndvd
       exact resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj
         (hF_K_irred.coprime_iff_not_dvd.2 hndvd) hRes_zero
