@@ -50,11 +50,12 @@ to `e - α • v`. This module formalizes parts (b) and (c) of Exercise 11.5:
    `advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le`), and within `5 / 2 ^ n` in the native
    `Encryption.gameOn` experiment (`advantage_ddhGame_le_gameOn`, adding `2 / 2 ^ n` in each world
    for `elGamalKeyGenProb` and `elGamalEncryptProb`). Through `ddh_iff_encoded`, semantic security
-   therefore implies `F.DDH` (`ddh_of_negligible_elGamalGroupCPAGameOn`,
-   `ddh_of_indcpaOn_elGamalGroupEncryptProb`), yielding the two-sided characterizations
-   `negligible_elGamalGroupCPAGame_iff_ddh` and `indcpaOn_elGamalGroupEncryptProb_iff_ddh` over a
-   `DecodablePrimeOrderGroupFamily`. Callers obtain the contrapositive `¬ DDH → ¬ INDCPAOn` via
-   `mt`, e.g. `mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh hd).mp`.
+   therefore implies `F.DDH` (`ddh_of_indcpaOn_elGamalGroupEncryptProb`), yielding the two-sided
+   characterization `indcpaOn_elGamalGroupEncryptProb_iff_ddh` over a
+   `DecodablePrimeOrderGroupFamily` (with setup-general ideal-sampling counterparts
+   `ddh_of_negligible_elGamalGroupCPAGameOn_ideal` and
+   `negligible_elGamalGroupCPAGame_ideal_iff_ddh`). Callers obtain the contrapositive
+   `¬ DDH → ¬ INDCPAOn` via `mt`, e.g. `mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh hd).mp`.
 
 ## Main definitions
 
@@ -76,18 +77,20 @@ to `e - α • v`. This module formalizes parts (b) and (c) of Exercise 11.5:
   word-level homomorphism, support closure on `elGamalEncryptProb`, and decryption correctness
   ([BonehShoup2023], Exercise 11.5(c), p. 459).
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhWordToElGamalAdversary`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddhRealGame_eq_elGamalGroupCPAGameOn_false`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhGame_le_elGamalGroupCPAGameOn`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhGame_le_gameOn`: uniform strict-PPT certificate
-  and concrete DDH advantage bounds for `ddhWordToElGamalAdversary`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_negligible_elGamalGroupCPAGameOn`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_indcpaOn_elGamalGroupEncryptProb`: group-element
-  ElGamal CPA security implies DDH ([BonehShoup2023], Exercise 11.5(b), p. 459).
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.negligible_elGamalGroupCPAGame_iff_ddh`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.indcpaOn_elGamalGroupEncryptProb_iff_ddh`:
-  equivalence between group-element ElGamal IND-CPA security and DDH ([BonehShoup2023],
-  Exercise 11.5(a)–(b), p. 459).
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhGame_le_gameOn`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_indcpaOn_elGamalGroupEncryptProb`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.indcpaOn_elGamalGroupEncryptProb_iff_ddh`: uniform
+  strict-PPT certificate, native `Encryption.gameOn` bound, and equivalence between native
+  `INDCPAOn` security and DDH ([BonehShoup2023], Exercise 11.5(a)–(b), p. 459).
+
+## Ideal-sampling step
+
+`elGamalGroupCPAGameOn` and `elGamalGroupCPAGame` draw exponents exactly uniformly at the `PMF`
+level, so the results on them are ideal-sampling steps for general setup laws, not the cited result:
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhGame_le_elGamalGroupCPAGameOn`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_negligible_elGamalGroupCPAGameOn_ideal`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.negligible_elGamalGroupCPAGame_ideal_iff_ddh`.
 
 ## References
 
@@ -282,7 +285,7 @@ theorem isPPT_ddhWordToElGamalAdversary {descOf : ℕ → List Bool → F.Desc}
 
 /-- In world `false` (`m₀ = 0`), `ddhWordToElGamalAdversary` ignores its sampled exponent `c` and
 passes `(α • g, β • g, (α * β) • g)` to `W`, matching `ddhRealGame` with zero sampling loss. -/
-theorem ddhRealGame_eq_elGamalGroupCPAGameOn_false
+private theorem ddhRealGame_eq_elGamalGroupCPAGameOn_false
     (valid : ℕ → List Bool → List Bool → List Bool → Bool) (setup : ℕ → PMF F.Desc)
     (descOf : ℕ → List Bool → F.Desc)
     (W : ℕ → F.Desc × List Bool × List Bool × List Bool → ProbComp Bool) (n : ℕ)
@@ -305,7 +308,7 @@ theorem ddhRealGame_eq_elGamalGroupCPAGameOn_false
 
 /-- In world `true` (`m₁ = c • g`), `ddhWordToElGamalAdversary` masks `(α * β) • g` by `c • g` for
 `c ← F.sampleExp n d`, matching `ddhRandomGame` within statistical distance `1 / 2 ^ n`. -/
-theorem advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le
+private theorem advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le
     (valid : ℕ → List Bool → List Bool → List Bool → Bool) (setup : ℕ → PMF F.Desc)
     (descOf : ℕ → List Bool → F.Desc)
     (W : ℕ → F.Desc × List Bool × List Bool × List Bool → ProbComp Bool) (n : ℕ)
@@ -339,9 +342,10 @@ theorem advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le
     (W n (d, F.encode d (α • F.generator d), F.encode d (β • F.generator d),
       F.encode d (γ • F.generator d + (α * β) • F.generator d)))
 
-/-- **Quantitative reduction from word-level DDH to `elGamalGroupCPAGameOn`**
-([BonehShoup2023], Exercise 11.5(b), p. 459): the DDH advantage of `W` is at most the CPA advantage
-of `ddhWordToElGamalAdversary descOf W` plus `1 / 2 ^ n`. -/
+/-- Ideal-exponent step toward [BonehShoup2023], Exercise 11.5(b) (p. 459): the DDH advantage of `W`
+is at most the ideal-exponent CPA advantage of `ddhWordToElGamalAdversary descOf W` in
+`elGamalGroupCPAGameOn` plus `1 / 2 ^ n` (see `advantage_ddhGame_le_gameOn` for the native
+`Encryption.gameOn` bound). -/
 theorem advantage_ddhGame_le_elGamalGroupCPAGameOn
     (valid : ℕ → List Bool → List Bool → List Bool → Bool) (setup : ℕ → PMF F.Desc)
     (descOf : ℕ → List Bool → F.Desc)
@@ -407,12 +411,13 @@ theorem advantage_ddhGame_le_gameOn
   have hcpa := Game.advantage_four_hop_le hhop₀ hhop₁
   exact hddh.trans ((add_le_add hcpa le_rfl).trans_eq (by ring))
 
-/-- **Group-element ElGamal CPA security in `elGamalGroupCPAGameOn` implies DDH**
-([BonehShoup2023], Exercise 11.5(b), p. 459): given a total polynomial-time decoder `decDesc` for
-`F.encDesc` and an admissibility predicate `valid` that admits all pairs of encoded group elements
-on `setup`, negligible advantage for every PPT `WordAdversary` implies `F.DDH setup`. The
-contrapositive `¬ F.DDH setup → ¬ (∀ adversary, …)` follows via `mt`. -/
-theorem ddh_of_negligible_elGamalGroupCPAGameOn {setup : ℕ → PMF F.Desc}
+/-- Ideal-exponent step toward [BonehShoup2023], Exercise 11.5(b) (p. 459), stated on the
+ideal-exponent experiment `elGamalGroupCPAGameOn` rather than the scheme's fair-coin samplers
+(see `ddh_of_indcpaOn_elGamalGroupEncryptProb` for the native `INDCPAOn` theorem): given a total
+polynomial-time decoder `decDesc` for `F.encDesc` and an admissibility predicate `valid` that admits
+all pairs of encoded group elements on `setup`, negligible advantage in `elGamalGroupCPAGameOn` for
+every PPT `WordAdversary` implies `F.DDH setup`. -/
+theorem ddh_of_negligible_elGamalGroupCPAGameOn_ideal {setup : ℕ → PMF F.Desc}
     {valid : ℕ → List Bool → List Bool → List Bool → Bool}
     (decDesc : Decoder F.encDesc)
     (hvalid : ∀ n, ∀ d ∈ (setup n).support, ∀ u m₀ m₁ : F.Carrier d,
@@ -471,18 +476,21 @@ namespace DecodablePrimeOrderGroupFamily
 
 variable (F : DecodablePrimeOrderGroupFamily)
 
-/-- **Group-element multiplicative ElGamal CPA security in `elGamalGroupCPAGame` is equivalent to
-DDH** ([BonehShoup2023], Exercise 11.5(a)–(b), p. 459) over a `DecodablePrimeOrderGroupFamily`
-equipped with a total polynomial-time decoder `decDesc : Decoder F.encDesc`, for any setup law
-`setup : ℕ → PMF F.Desc`. Callers obtain `¬ DDH → ¬ (…) ` via `mt … .mp`. -/
-theorem negligible_elGamalGroupCPAGame_iff_ddh (setup : ℕ → PMF F.Desc)
+/-- Ideal-exponent step toward [BonehShoup2023], Exercise 11.5(a)–(b) (p. 459), stated on the
+ideal-exponent experiment `elGamalGroupCPAGame` rather than the scheme's fair-coin samplers (see
+`indcpaOn_elGamalGroupEncryptProb_iff_ddh` for the native `INDCPAOn` equivalence): over a
+`DecodablePrimeOrderGroupFamily` equipped with a total polynomial-time decoder
+`decDesc : Decoder F.encDesc` and any setup law `setup : ℕ → PMF F.Desc`, negligible advantage in
+`elGamalGroupCPAGame` holds for every PPT `WordAdversary` iff `F.toPrimeOrderGroupFamily.DDH setup`
+holds. -/
+theorem negligible_elGamalGroupCPAGame_ideal_iff_ddh (setup : ℕ → PMF F.Desc)
     (decDesc : Decoder F.encDesc) :
     (∀ adversary : Encryption.WordAdversary, adversary.IsPPT →
       Negligible fun n =>
         Game.advantage (F.elGamalGroupCPAGame setup adversary false n)
           (F.elGamalGroupCPAGame setup adversary true n)) ↔
       F.toPrimeOrderGroupFamily.DDH setup := by
-  refine ⟨fun hcpa => ?_, fun hDDH _ hA => DDH.negligible_elGamalGroupCPAGame hDDH hA⟩
+  refine ⟨fun hcpa => ?_, fun hDDH _ hA => DDH.negligible_elGamalGroupCPAGame_ideal hDDH hA⟩
   have hgame (adversary : Encryption.WordAdversary) (bit : Bool) (n : ℕ) :
       F.toPrimeOrderGroupFamily.elGamalGroupCPAGameOn
         (fun _ pk m₀ m₁ =>
@@ -493,7 +501,7 @@ theorem negligible_elGamalGroupCPAGame_iff_ddh (setup : ℕ → PMF F.Desc)
     simp only [PrimeOrderGroupFamily.elGamalGroupCPAGameOn,
       PrimeOrderGroupFamily.elGamalMsgCPAGameOn, elGamalGroupCPAGame,
       PrimeOrderGroupFamily.elGamalMsgCPAGameWith, unframe_encPair, decDesc.decode_enc]
-  refine F.toPrimeOrderGroupFamily.ddh_of_negligible_elGamalGroupCPAGameOn decDesc
+  refine F.toPrimeOrderGroupFamily.ddh_of_negligible_elGamalGroupCPAGameOn_ideal decDesc
     (valid := fun _ pk m₀ m₁ =>
       F.isElem (decDesc.decode (unframe pk), m₀) &&
         F.isElem (decDesc.decode (unframe pk), m₁))
