@@ -29,7 +29,8 @@ geometric order certificate. Degree zero, one and two need no special convention
 
 These are local statements about the intentionally crossing reference drawing. They supply
 neither a global embedding nor generic position, frozen placement, move realization or a
-Hanani–Tutte/query-completeness theorem.
+Hanani–Tutte/query-completeness theorem. The remaining recognition objective is tracked in
+[issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Main definitions
 
