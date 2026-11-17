@@ -214,7 +214,7 @@ certificates and bounds. Rewriting alone does not supply a missing resource cert
 | Tactic/interface | Input contract and strategy | Boundary |
 |---|---|---|
 | [`logspace`](../../CslibFrontier/Tactic/LogSpace.lean) | Named certificates, recomputation-based composition, bounded output vectors and loop rules | Arbitrarily long intermediate output cannot simply be retained in logarithmic workspace |
-| [`ppt`](../../CslibFrontier/Tactic/PPT.lean) | Closed strict fair-coin (`IsPPTOn`, `IsPPT`) and strict oracle (`IsOraclePPTOn`, `IsOraclePPT`) certificates by Aesop search (`[PPT, PolyTime]` and `[OraclePPT, PPT, PolyTime]` with `simp` disabled on oracle goals), tuple routine-call preparation, plain conditional guards (`cond'`, `ite'`), charged reply prefixes (`query_take'`), sequencing, captured maps, closed sampling and bounded-growth `OracleComp.iterate` loops | Arbitrary ideal PMFs need realization theorems; uncharged raw `ProbOracleComp.query` calls are rejected; handler substitution (`run_interpret_preprocess'`) and general loop invariants (`iterate_spec'`, `iterateWith_spec'`) keep their explicit rules |
+| [`ppt`](../../CslibFrontier/Tactic/PPT.lean) | Closed strict fair-coin (`IsPPTOn`, `IsPPT`) and strict oracle (`IsOraclePPTOn`, `IsOraclePPT`) certificates by Aesop search (`[PPT, PolyTime]` and `[OraclePPT, PPT, PolyTime]` with `simp` disabled on oracle goals), tuple routine-call preparation, plain conditional guards (`cond'`, `ite'`), charged reply prefixes (`query_take'`), sequencing, captured maps, closed sampling and bounded-growth `OracleComp.iterate` loops | Arbitrary ideal PMFs need realization theorems; uncharged raw `ProbOracleComp.query` calls are rejected; handler substitution (`run_interpret_preprocess`) and general loop invariants (`iterate_spec'`, `iterateWith_spec'`) keep their explicit rules |
 
 This is a family of focused proof tools, not one universal automatic complexity analyzer. Their common interface makes reusable algorithms easier to recognize without conflating the predicates they prove.
 
@@ -497,6 +497,23 @@ when expansion of every hypothesis is useful. Each call handles its original goa
 closes it, unrelated sibling goals remain for the caller. The checked multi-goal client exercises
 that case without bullets or `<;>`.
 
+For component bounds that should retain their encoding layout, import
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds`.
+The opt-in `simp only [enc_component]` collection handles syntactic pair projections and
+finite-table entries (`encPi`); add a membership proof for an encoded list element.
+The [sparse CNF compiler](../../CslibFrontier/Computability/PolyTime/CNF/SparsePolyCompile.lean)
+uses this before composing component bounds with growth estimates. Keep the intermediate
+container explicit when a bound crosses both a list and a pair. For a concrete pair, simp may
+not match its reduced projection: use `length_le_encPair_left ea eb (a, b)` or the right-hand
+provider directly. List counts and suffixes omit the element encoding from the goal, so they
+are not collection rules: use `SizedListEncoding.length_le (encA := ea) (encL := el) xs` or
+`SizedListEncoding.length_drop_le (encA := ea) (encL := el) xs i`.
+The [regression examples](../../CslibFrontierTests/EncodingComponentBounds.lean) distinguish
+collection proofs from these explicit fallbacks. For a finite table,
+`length_le_encPi enc values i` bounds an entry directly; the
+[GMW configuration-space proof](../../CslibFrontier/Crypto/Computational/GMW/Sequential.lean)
+uses it without reconstructing the table’s list enumeration.
+
 Variable products remain atoms for `omega`. Supply a scaling fact, such as
 `Nat.mul_le_mul_left k h`, before the final call; expanding a product's factors does not prove
 its monotonicity. Prefer the selective location form when hypotheses already state bounds in
@@ -546,6 +563,26 @@ displays the normalized residual `Negligible` goal; supply the missing `Negligib
 `PolynomiallyBounded` fact in context, or bound an indexed sum first with
 `Negligible.sum_range_of_le`. The tactic discharges asymptotic decay from a proved quantitative
 bound; it does not perform game hops or probability rewrites itself.
+
+For inverse-polynomial characterizations, subexponential and logarithmic decay, and
+non-negligibility proofs ([bs23][bs23], §2.3.1, pp. 28–29), import
+`CslibFrontier.Crypto.Negligible.InversePolynomial` (the
+[module source](../../CslibFrontier/Crypto/Negligible/InversePolynomial.lean)). It registers `fun_prop`
+closure for `((2 : ℝ≥0) ^ g n)⁻¹` when `g` is a `Nat.sqrt`-composed `PolynomiallyLowerBounded`
+schedule (`PolynomiallyLowerBounded.sqrt`), `((2 : ℝ≥0) ^ Real.sqrt (n : ℝ))⁻¹`,
+`(2 : ℝ≥0) ^ (-Real.sqrt (n : ℝ))`, `((n : ℝ≥0) ^ Nat.log b n)⁻¹` for `1 < b`,
+`((n : ℝ≥0) ^ Real.log (n : ℝ))⁻¹`, `(n : ℝ≥0) ^ (-Real.log (n : ℝ))`, and
+`PolynomiallyBoundedNNReal` bounds on `Real.toNNReal (Real.log (p n : ℝ))` for natural-valued
+`PolynomiallyBounded p` (`PolynomiallyBoundedNNReal.toNNReal_log`). The main entry points are
+`negligible_iff_eventually_lt_inv_rpow`, `negligible_iff_tendsto_mul_rpow`, and
+`eventually_abs_lt_inv_rpow_iff_tendsto_mul_rpow` for real-exponent characterizations;
+`negligible_inv_rpow_of_tendsto_atTop` for `((n : ℝ≥0) ^ f n)⁻¹` with `f → atTop`;
+`PolynomiallyBounded.not_negligible_inv` and `PolynomiallyBoundedNNReal.not_negligible_inv` for
+reciprocals of frequently positive polynomially bounded functions (`negligible_inv_iff` under
+`(0 : ℝ≥0)⁻¹ = 0`); and `not_negligible_of_frequently_ge` (`c ≠ 0`) for constant lower bounds. The
+[checked clients](../../CslibFrontierTests/Crypto/NegligibleInversePolynomial.lean) cover these
+equivalences, `2 ^ (-√n)`, `n ^ (-log n)`, `1 / (1000 n ^ 4 + n ^ 2 log n)`, `1 / n ^ 100`, and
+Example 2.11; run `scripts/build.sh CslibFrontierTests.Crypto.NegligibleInversePolynomial`.
 
 ## Close word-size bounds
 
@@ -737,4 +774,5 @@ The project asks for nonterminal `simp only` where later steps depend on the res
 
 Readable `do` notation, named intermediate circuit values and named state fields are recurring client-facing priorities. Inspect representative source clients and before/after PRs to assess these benefits; a raw tactic count does not demonstrate usability. The historical study does not measure an automation success rate: such a rate would need a denominator of attempted goals, failures, manual repairs and timeouts.
 
+[bs23]: ../sources.md#bs23
 [complexitylib]: ../sources.md#complexitylib

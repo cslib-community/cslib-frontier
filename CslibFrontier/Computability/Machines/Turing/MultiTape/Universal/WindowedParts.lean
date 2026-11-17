@@ -218,14 +218,14 @@ private lemma run_halfT (start : Bool) (n : ℕ) :
 theorem firstHalf_inO :
     ComputableInO firstHalf encUnary encUnary (fun n => (encUnary n).length)
       (fun n => (encUnary n).length) :=
-  (ComputableTidilyInO.of_linear ((halfT false).computableTidilyInLinearTimeAndSpace fun n =>
+  (ComputableTidilyInO.of_linear (ComputableInDegree.of_transducer (halfT false) fun n =>
     (run_halfT false n).1.symm)).computableInO
 
 /-- Half a number of steps, rounded down, in unary, in linear time. -/
 theorem half_inO :
     ComputableInO (· / 2) encUnary encUnary (fun n => (encUnary n).length)
       (fun n => (encUnary n).length) :=
-  (ComputableTidilyInO.of_linear ((halfT true).computableTidilyInLinearTimeAndSpace fun n =>
+  (ComputableTidilyInO.of_linear (ComputableInDegree.of_transducer (halfT true) fun n =>
     (run_halfT true n).2.symm)).computableInO
 
 /-! ### A windowed step -/

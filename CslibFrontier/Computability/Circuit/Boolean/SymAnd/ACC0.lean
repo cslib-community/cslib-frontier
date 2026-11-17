@@ -59,7 +59,8 @@ their initial value `false` (`SymAnd.restrict`) gives a circuit over the inputs.
 
 Beigel and Tarui isolate a true argument of an OR gate by the Valiant–Vazirani lemma
 [BeigelTarui1994, Lemma 2.3]; the seeded OR test here instead uses the powering construction of
-Alon, Goldreich, Håstad and Peralta [AlonGoldreichHastadPeralta1992, Section 3]: a seed is one
+Alon, Goldreich, Håstad and Peralta [AlonGoldreichHastadPeralta1992,
+§5, Construction 3 and Proposition 3, June 14, 1992, p. 10]: a seed is one
 element of `𝔽_{2^κ}`, `κ = O(log (n + s))` bits, and every test has degree `κ`. The source handles
 `MOD_m` through stratified circuits with one modulus `m` per level [BeigelTarui1994, Section 2.2];
 here each `MOD_m` gate becomes `MOD_p` digit tests, so every layer of the tower has a prime modulus.

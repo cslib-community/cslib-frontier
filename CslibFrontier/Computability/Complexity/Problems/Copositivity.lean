@@ -37,6 +37,7 @@ import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 
 /-!
 # CoNP-Completeness of Matrix Copositivity
@@ -245,7 +246,7 @@ private theorem SymRatMatrix.intMatrix_mul_eq (M : SymRatMatrix)
     (i j : Fin M.rows.length) :
     (M.commonDenomNat : ℚ) * M.toMatrix i j = (M.intMatrix i j : ℚ) := by
   rw [M.intMatrix_eq i j]
-  exact Matrix.rat_clearDenom_entry M.den_dvd_commonDenomNat
+  exact Rat.clearDenom_entry M.den_dvd_commonDenomNat
 
 private theorem SymRatMatrix.dotProduct_check_eq (M : SymRatMatrix) {p : List ℕ}
     (hlen : p.length = M.rows.length) :

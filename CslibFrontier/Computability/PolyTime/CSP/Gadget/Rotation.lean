@@ -17,7 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.PolyTime.CSP.Vars
-import CslibFrontier.Computability.Complexity.FineGrained.CountingCSP
+import CslibFrontier.Computability.PolyTime.CSP.DistinctVars
 import Mathlib.Data.List.GetD
 
 /-!

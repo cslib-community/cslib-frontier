@@ -11,8 +11,8 @@ public import CslibFrontier.Crypto.Computational.DiscreteLog.Extract
 public import CslibFrontier.Probability.BitString
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import Cslib.Foundations.Data.BitString
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Identification
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Identification
 import CslibFrontier.Foundations.Data.BitString.Counter
 import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Probability.PMF
@@ -57,6 +57,8 @@ exactly, which matters for the honest prover and for simulation but not for this
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrDirectGame`: the direct impersonation attack.
 * `Cslib.Crypto.PrimeOrderGroupFamily.SchnorrImpersonator.rewind`: the rewinding
   discrete-logarithm adversary.
+* `Cslib.Crypto.PrimeOrderGroupFamily.SchnorrImpersonator.typed`: an impersonator's typed view,
+  which the exact bound runs through the generic Sigma-protocol results.
 * `Cslib.Crypto.PrimeOrderGroupFamily.challengeEmbedding`: `m`-bit challenges as scalars modulo
   the group order, injective when `2 ^ m ≤ q`.
 
@@ -173,8 +175,10 @@ private def wordExtract (F : PrimeOrderGroupFamily) (m : ℕ) (y : (d : F.Desc) 
     (_ : List Bool) (c : BitString m) (z : List Bool) (c' : BitString m) (z' : List Bool) : ℕ :=
   extractNat (F.order y.1) (ofBits (List.ofFn c)) (ofBits z) (ofBits (List.ofFn c')) (ofBits z')
 
-/-- An impersonator as a typed impersonator for `wordProtocol`. -/
-private noncomputable def SchnorrImpersonator.typed (A : F.SchnorrImpersonator) (n m : ℕ) :
+/-- The typed view of an impersonator at security parameter `n` with `m`-bit challenges: a
+`SigmaProtocol.Impersonator` whose statements pair a group description with a group element,
+which it sees encoded, and whose challenges are typed bit strings. -/
+noncomputable def SchnorrImpersonator.typed (A : F.SchnorrImpersonator) (n m : ℕ) :
     SigmaProtocol.Impersonator ((d : F.Desc) × F.Carrier d) (List Bool) (BitString m)
       (List Bool) where
   State := List Bool

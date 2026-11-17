@@ -128,12 +128,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -148,12 +148,12 @@ example (family : List Bool → List Bool → List Bool) :
       (OneTimeForger.ofProbComp sampleBitStringQuery sampleBitStringForge) true).toReal ≤
       (((Fintype.card (BitString 2) : ℝ≥0∞))⁻¹).toReal +
         (Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
                 (BitString.ofList 2 (List.ofFn r))) 2))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest (ProbComp.uniform (Fin 2 → BitString 2))
                 BitString.LinearHash.hash sampleBitStringQuery sampleBitStringForge
@@ -176,7 +176,7 @@ theorem prfPadDist_insecureZeroFamily (n : ℕ) :
 -- succeeds with probability `1` in `prfRealGame` against `insecureZeroFamily`.
 example :
     ProbComp.eval
-      (prfRealGame insecureZeroFamily
+      (prfRealGame id insecureZeroFamily
         (prfPadDistinguisher fun k (r : BitString k) =>
           pure (decide (r = BitString.ofList k (List.replicate k false)))) 2)
       true = 1 := by
@@ -206,18 +206,6 @@ example :
           (fun _ => pure [])
           (fun _ _ t => pure ([true], t)))) :=
   isOraclePPT_prfPadDistinguisher_wordProbPadTest (by ppt) (by polytime) (by ppt) (by ppt)
-
-/-- Two-slot `n`-bit nonce schedule: slot `0` has leading bit `false` and slot `1` has leading bit
-`true`, padded with `n - 1` `false` bits. For every `n ≥ 1`, both nonces have length `n` and are
-distinct on `{0, 1}`. -/
-def twoSlotNonce (n i : ℕ) : List Bool :=
-  decide (i = 1) :: List.replicate (n - 1) false
-
--- Concrete `IsOraclePPT` admissibility check for `prfMultiPadDistinguisher` with `twoSlotNonce`.
-example :
-    IsOraclePPT Turing.MultiTapeTM.encBool
-      (prfMultiPadDistinguisher (fun _ => 2) twoSlotNonce (fun _ _ => pure false)) :=
-  isOraclePPT_prfMultiPadDistinguisher (by polytime) (by unfold twoSlotNonce; polytime) (by ppt)
 
 -- Concrete `checkNonceSUF` and `checkRandomNonceSUF` checks over `ZMod 7`:
 -- issued nonce `0` with `m₀ = [2, 4]`, `t₀ = 5`, pad function `fun x => if x = 0 then 4 else 1`.
@@ -371,11 +359,11 @@ example {family : List Bool → List Bool → List Bool}
       ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfNonceToPrfDistinguisher id (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryNonceMACForger) n)) : ℝ) :=
   sufCmaGame_linearHashNonceMAC_toReal_le
@@ -507,12 +495,12 @@ example {family : List Bool → List Bool → List Bool}
       (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ((2 : ℝ) ^ n)⁻¹ +
         (Game.advantage
           (ProbComp.eval
-            (prfRealGame family
+            (prfRealGame id family
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n))
           (ProbComp.eval
-            (prfIdealGame
+            (prfIdealGame id id
               (prfRandomNonceToPrfDistinguisher id
                 (fun k => BitString.sampleList (k * id k))
                 BitString.LinearHash.wordHash twoQueryRandomMACForger) n)) : ℝ) :=

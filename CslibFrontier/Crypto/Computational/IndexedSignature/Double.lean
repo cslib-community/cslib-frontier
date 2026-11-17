@@ -7,22 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Doubling the capacity of an indexed signature scheme
@@ -687,7 +681,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (S.doubleHandler caller.1.2 caller.2.2 bound caller.1.1))
           (adversary caller.1.1 caller.2.1)).run []) := by
-    refine hadversary.run_interpret_preprocess_open'
+    refine hadversary.run_interpret_preprocess_open
       (prepare := fun caller : DoubleCaller => (caller.1.1, caller.2.1))
       (initial := fun _ => ([] : List (ℕ × List Bool)))
       (resources := resources)

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.EncodedROM
+public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 public import CslibFrontier.Crypto.Computational.Signature.WordRandomOracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Computability.Probabilistic.OracleSimulation
@@ -56,8 +57,8 @@ theorem are separate steps (#2568).
 * `schnorrForkRun`: the guarded replay run against `schnorrForkStep`.
 * `schnorrForkFinish`: the final check.
 * `schnorrForkPass`: one native pass.
-* `forkIndexCode`, `forkRunWords`, `transcriptWords`: the native code of a named fork index, the
-  words a pass returns for one typed run, and the native view of a typed transcript.
+* `forkIndexCode`, `forkRunWords`: the native code of a named fork index and the words a pass
+  returns for one typed run.
 
 ## Main results
 
@@ -374,10 +375,9 @@ theorem isPPTOn_schnorrForkRun {k : ℕ} {Control : Type} [Finite Control]
         (encPair encSchnorrForkBanks (encPair (encPair encBool encBits) encSchnorrForkState)) := by
       fun_prop
     exact (hstep.comp hprep).isPPTOn
-  have hprepare : ComputableTidilyInPolyTime
+  have hprepare : ComputableInPolyTime
       (fun caller : SchnorrForkPassInput => (caller.secParam, caller.publicKey, caller.tape))
       encSchnorrForkPassInput encReplayInput := by
-    apply ComputableInPolyTime.tidy
     fun_prop
   have hrun := (isOraclePPTOn_savedWordReplay machine c e keyC keyD).run_interpret_preprocess
     (input := encSchnorrForkPassInput) (operationEncoding := encBool)
@@ -388,7 +388,7 @@ theorem isPPTOn_schnorrForkRun {k : ℕ} {Control : Type} [Finite Control]
     (initial := fun _ => (⟨[], [], 0, 0⟩ : SchnorrForkState))
     (resources := fun caller word =>
       40 * ((encSchnorrForkPassInput caller).length + word.length + 1))
-    hprepare hhandler (ComputableTidilyInPolyTime.const _)
+    hprepare hhandler (ComputableInPolyTime.const _)
     (fun caller state => ForkInvariant caller.banks state) (fun _ _ => by simp)
     (by fun_prop) ?_
   · exact hrun
@@ -600,11 +600,6 @@ private abbrev TypedState (m : ℕ) :=
 private def positionTag : Option ℕ → ℕ
   | none => 0
   | some i => i + 1
-
-/-- The native view of a typed transcript. -/
-@[expose] def transcriptWords :
-    List Bool × BitString m × List Bool → List Bool × List Bool × List Bool
-  | (t, c, z) => (t, List.ofFn c, z)
 
 /-- The native view of a typed table entry. -/
 private def nativeEntry : List Bool × BitString m × Option ℕ → SchnorrForkEntry

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Program
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Tactic.SuppCases
 
 /-!

@@ -52,6 +52,8 @@ polynomial time with error at most `2 ^ (-q(n))` for every polynomial `q`
 * `Cslib.Complexity.errorExponentAt_true_iff`, `Cslib.Complexity.errorExponentAt_false_iff`:
   per-instance error-exponent bounds as bounds on `Cslib.Complexity.acceptCount`.
 * `Cslib.Complexity.ErrorExponentAt.congr`: extensionality for per-instance error-exponent bounds.
+* `Cslib.Complexity.card_filter_repeatMajority_eq_not_le`: a strict majority vote errs only when at
+  most half of the runs are right.
 * `Cslib.Complexity.BoundedErrorAt.repeatMajority`,
   `Cslib.Complexity.PromiseProblem.SolvesWithBoundedError.repeatMajority`: `12 q(n)` majority
   votes reduce the error to `2 ^ (-q(n))`.
@@ -113,6 +115,28 @@ theorem ErrorExponentAt.congr {enc : α ↪ List Bool} {q p : Polynomial ℕ}
     ErrorExponentAt enc q p W a b := by
   simpa only [ErrorExponentAt, hVW] using h
 
+/-- The strict majority of `2 r(n)` runs of `V` gives the wrong answer `!b` only on random strings
+on which at most `r(n)` runs give `b`. -/
+theorem card_filter_repeatMajority_eq_not_le {enc : α ↪ List Bool} {r p : Polynomial ℕ}
+    {V : α × List Bool → Bool} (a : α) (b : Bool) :
+    (univ.filter fun x : BitString (2 * r.eval (enc a).length * p.eval (enc a).length) =>
+        Complexity.repeatMajority enc r p V (a, List.ofFn x) = !b).card ≤
+      (univ.filter fun x : BitString (2 * r.eval (enc a).length * p.eval (enc a).length) =>
+        (univ.filter fun i => V (a, List.ofFn (BitString.block x i)) = b).card ≤
+          r.eval (enc a).length).card := by
+  refine card_le_card fun x hx => ?_
+  rw [mem_filter, repeatMajority_ofFn] at hx
+  cases b
+  · rw [Bool.not_false, decide_eq_true_iff] at hx
+    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 *
+      r.eval (enc a).length))))
+      fun i => V (a, List.ofFn (BitString.block x i)) = true
+    simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hsum
+    refine mem_filter.2 ⟨mem_univ _, ?_⟩
+    omega
+  · rw [Bool.not_true, decide_eq_false_iff_not, not_lt] at hx
+    exact mem_filter.2 ⟨mem_univ _, hx.2⟩
+
 /-- **Per-instance error reduction for bounded error**: the strict majority of `12 q(n)` runs of a
 verifier on independent blocks of random bits errs from `b` on at most a `2 ^ (-q(n))` fraction of
 the random strings whenever a single run produces `b` on at least two thirds of them. -/
@@ -127,20 +151,9 @@ theorem BoundedErrorAt.repeatMajority {enc : α ↪ List Bool} {p : Polynomial �
     ring
   have hR : (6 * q).eval (enc a).length = 6 * q.eval (enc a).length := by simp
   rw [hlen]
-  refine (Nat.mul_le_mul_left _ (card_le_card fun x hx => ?_)).trans
+  exact (Nat.mul_le_mul_left _ (card_filter_repeatMajority_eq_not_le a b)).trans
     (BitString.two_pow_mul_card_filter_card_filter_block_le hR
       (fun s => V (a, List.ofFn s) = b) h)
-  rw [mem_filter, repeatMajority_ofFn] at hx
-  cases b
-  · rw [Bool.not_false, decide_eq_true_iff] at hx
-    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 *
-      (6 * q).eval (enc a).length))))
-      fun i => V (a, List.ofFn (BitString.block x i)) = true
-    simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hsum
-    refine mem_filter.2 ⟨mem_univ _, ?_⟩
-    omega
-  · rw [Bool.not_true, decide_eq_false_iff_not, not_lt] at hx
-    exact mem_filter.2 ⟨mem_univ _, hx.2⟩
 
 /-- Error at most `2 ^ (-q(n)) ≤ 1 / 4` on an instance is bounded error on that instance. -/
 theorem ErrorExponentAt.boundedErrorAt {enc : α ↪ List Bool} {q p : Polynomial ℕ}

@@ -102,8 +102,9 @@ theorem advantage_le (h : ProbOracleComp.IdenticalUntilBad first second bad)
     (program : ProbOracleComp spec α) (s : State) (next : α × State → Game) :
     (Game.advantage ((ProbOracleComp.runWith first program s).bind next)
         ((ProbOracleComp.runWith second program s).bind next) : ℝ) ≤
-      ((ProbOracleComp.runWith first program s).toOuterMeasure {x | bad x.2}).toReal :=
-  OracleComp.IdenticalUntilBad.advantage_le h program s next
+      ((ProbOracleComp.runWith first program s).toOuterMeasure {x | bad x.2}).toReal := by
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
+  exact OracleComp.IdenticalUntilBad.advantage_le h program s next
 
 end Cslib.ProbOracleComp.IdenticalUntilBad
 
@@ -345,6 +346,7 @@ theorem runFinderOracle_true_of_good {α : Type} (o₂ : List Bool → List Bool
     intro s hs
     simp [hs]
   | query_bind q k ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with m | req
     · intro s hs
       rw [runFinderOracle_query_inl, PMF.bind_apply]
@@ -377,6 +379,7 @@ theorem runStatelessOracle_le_runFinderOracle {α : Type}
     simp only [runStatelessOracle_pure, runFinderOracle_pure]
     exact ⟨le_self_add, le_self_add⟩
   | query_bind q k ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with m | req
     · rw [runStatelessOracle_query_inl, runStatelessOracle_query_inl, runFinderOracle_query_inl]
       simp only [PMF.bind_apply]

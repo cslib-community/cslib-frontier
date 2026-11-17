@@ -11,8 +11,8 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sources
 public import CslibFrontier.Languages.Probabilistic.Sharing
-public import CslibFrontier.Probability.Uniform
 
 /-!
 # Additive All-of-n Secret Sharing as an Access-Structure Instance
@@ -23,9 +23,10 @@ This module instantiates `Cslib.Crypto.Protocols.SecretSharing.AccessScheme` for
 from `CslibFrontier/Languages/Probabilistic/Sharing.lean`:
 
 - `additiveShare`: delegates to `Cslib.ProbComp.completeShares (m + 1) secret r`.
-- `additiveAccessScheme`: universally correct over all keys and private over `additiveSources`. When
-  `G` is finite, `additiveSources = {uniformOfFintype}`; when `G` is infinite and `m ≥ 1`, no
-  translation-invariant `PMF` on `Fin m → G` exists (`additiveSources = ∅`), so privacy of
+- `additiveAccessScheme`: universally correct over all keys and private over
+  `SourceClass.translationInvariant (Fin m → G)`. When `G` is finite, this source class is
+  `{uniformOfFintype}`; when `G` is infinite and `m ≥ 1`, no translation-invariant `PMF` on
+  `Fin m → G` exists (`SourceClass.translationInvariant (Fin m → G) = ∅`), so privacy of
   `additiveAccessScheme` is vacuous over infinite groups (only correctness holds non-vacuously).
 - `additiveUniformAccessScheme`: canonical finite-group uniform instance, with
   `additiveUniform_viewDist_eq` derived directly from
@@ -42,10 +43,10 @@ from `CslibFrontier/Languages/Probabilistic/Sharing.lean`:
   structure on `Fin (m + 1)`.
 * `Cslib.Crypto.Protocols.SecretSharing.additiveShare`,
   `Cslib.Crypto.Protocols.SecretSharing.additiveReconstruct`: additive sharing and reconstruction.
-* `Cslib.Crypto.Protocols.SecretSharing.additiveSources`,
-  `Cslib.Crypto.Protocols.SecretSharing.additiveAccessScheme`,
+* `Cslib.Crypto.Protocols.SecretSharing.additiveAccessScheme`,
   `Cslib.Crypto.Protocols.SecretSharing.additiveUniformAccessScheme`: additive `AccessScheme`
-  instances (`additiveSources` is `{uniform}` for finite `G` and `∅` for infinite `G`, `m ≥ 1`).
+  instances over `SourceClass.translationInvariant (Fin m → G)` (`{uniform}` for finite `G` and
+  `∅` for infinite `G`, `m ≥ 1`).
 * `Cslib.Crypto.Protocols.SecretSharing.additivePaddedSources`,
   `Cslib.Crypto.Protocols.SecretSharing.additivePaddedAccessScheme`: auxiliary-key padding of
   additive sharing (ignores `Aux`).
@@ -116,18 +117,6 @@ theorem additiveReconstruct_share {m : ℕ} {G : Type*} [AddCommGroup G]
   split_ifs
   exact Cslib.ProbComp.sum_completeShares (m + 1) secret r
 
-/-- The class of translation-invariant distributions on `Fin m → G`. When `G` is finite, this is
-`{uniformOfFintype}`; when `G` is infinite and `m ≥ 1`, no translation-invariant `PMF` exists
-(`additiveSources m G = ∅`), making privacy vacuous over infinite groups. -/
-@[expose] def additiveSources (m : ℕ) (G : Type*) [AddCommGroup G] :
-    SourceClass (Fin m → G) :=
-  { P | ∀ δ : Fin m → G, P.map (· + δ) = P }
-
-theorem uniformOfFintype_mem_additiveSources (m : ℕ) (G : Type*)
-    [AddCommGroup G] [Fintype G] [Nonempty G] :
-    uniformOfFintype (Fin m → G) ∈ additiveSources m G := fun δ =>
-  uniformOfFintype_map_add_right δ
-
 private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddCommGroup G]
     {P : PMF (Fin m → G)} (hP : ∀ δ, P.map (· + δ) = P)
     {s : Finset (Fin (m + 1))} (hs : ¬ (additiveAccessStructure m).authorized s)
@@ -170,22 +159,16 @@ private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddComm
         have hcast : i.castSucc = Fin.castLE (Nat.sub_le (m + 1) 1) i := rfl
         simp only [additiveShare, hcast, Cslib.ProbComp.completeShares_castLE, Pi.add_apply, δ,
           Pi.single_eq_of_ne hi, add_zero]
-    have hcongr :
-        AccessStructure.viewDistOf P additiveShare s m₀ =
-          AccessStructure.viewDistOf (P.map (· + δ)) additiveShare s m₁ := by
-      simp only [AccessStructure.viewDistOf, PMF.map_comp]
-      congr 1
-      funext r
-      exact hshift r
-    rw [hcongr, hP δ]
+    exact AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) hshift
 
-/-- `(m + 1)`-out-of-`(m + 1)` additive secret sharing over `additiveSources`. For infinite `G`
-with `m ≥ 1`, `additiveSources m G = ∅` so privacy is vacuous (only correctness holds
+/-- `(m + 1)`-out-of-`(m + 1)` additive secret sharing over
+`SourceClass.translationInvariant (Fin m → G)`. For infinite `G` with `m ≥ 1`,
+`SourceClass.translationInvariant (Fin m → G) = ∅` so privacy is vacuous (only correctness holds
 nontrivially); use `additiveUniformAccessScheme` for finite groups. -/
 @[expose] noncomputable def additiveAccessScheme (m : ℕ) (G : Type*) [AddCommGroup G] :
     AccessScheme G (Fin m → G) (Fin (m + 1)) (fun _ => G) where
   access := additiveAccessStructure m
-  sources := additiveSources m G
+  sources := SourceClass.translationInvariant (Fin m → G)
   share := additiveShare
   reconstruct := additiveReconstruct
   correct r secret _ hs := by exact additiveReconstruct_share r secret hs
@@ -198,14 +181,14 @@ theorem additiveAccessScheme_access (m : ℕ) (G : Type*) [AddCommGroup G] :
 
 /-- Canonical finite-group `(m + 1)`-out-of-`(m + 1)` additive secret sharing with uniform pads. -/
 @[expose] noncomputable def additiveUniformAccessScheme (m : ℕ) (G : Type*)
-    [AddCommGroup G] [Fintype G] [Nonempty G] :
+    [AddCommGroup G] [Fintype G] :
     AccessScheme G (Fin m → G) (Fin (m + 1)) (fun _ => G) :=
   (additiveAccessScheme m G).monoSources
-    (Set.singleton_subset_iff.mpr (uniformOfFintype_mem_additiveSources m G))
+    (Set.singleton_subset_iff.mpr (SourceClass.uniformOfFintype_mem_translationInvariant _))
 
 @[simp]
 theorem additiveUniformAccessScheme_access (m : ℕ) (G : Type*)
-    [AddCommGroup G] [Fintype G] [Nonempty G] :
+    [AddCommGroup G] [Fintype G] :
     (additiveUniformAccessScheme m G).access = additiveAccessStructure m :=
   rfl
 
@@ -227,7 +210,7 @@ theorem additiveUniform_viewDist_eq (m : ℕ) (G : Type*)
 whose pad marginal is translation-invariant (uniform when `G` is finite), with unused `aux`. -/
 @[expose] noncomputable def additivePaddedSources (m : ℕ) (G Aux : Type*) [AddCommGroup G] :
     SourceClass ((Fin m → G) × Aux) :=
-  { P | P.map Prod.fst ∈ additiveSources m G }
+  { P | P.map Prod.fst ∈ SourceClass.translationInvariant (Fin m → G) }
 
 /-- Auxiliary-key padding of `additiveAccessScheme` onto `(Fin m → G) × Aux` via
 `comapKey Prod.fst` (ignores `Aux`; not an imperfect-randomness construction in [Aggarwal2026]'s

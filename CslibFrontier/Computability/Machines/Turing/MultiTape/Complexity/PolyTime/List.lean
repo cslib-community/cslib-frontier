@@ -131,7 +131,7 @@ theorem tail {encL : List α ↪ List Bool} [ListEncoding encA encL] :
 @[fun_prop]
 theorem listIsEmpty {encL : List α ↪ List Bool} [ListEncoding encA encL] :
     ComputableTidilyInPolyTime (List.isEmpty (α := α)) encL encBool :=
-  of_linear (Internal.NormalForm.linear (ListEncoding.isEmpty (enc₁ := encA) (enc := encL)))
+  of_linear (ListEncoding.isEmpty (enc₁ := encA) (enc := encL))
 
 /-- Test a framed list's emptiness, determining its element encoding for automation. -/
 @[fun_prop]
@@ -997,18 +997,6 @@ theorem zipIdx {α : Type} (enc : α ↪ List Bool) :
     fun_prop
 
 end Turing.MultiTapeTM.ComputableInPolyTime
-
-namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
-
-/-- Legacy tidy certificate for numbered entries; the implementation uses plain list rules.
-Retained for the recognition clients being migrated in #5470. -/
-@[fun_prop]
-theorem zipIdx {α : Type} (enc : α ↪ List Bool) :
-    ComputableTidilyInPolyTime (fun list : List α => list.zipIdx)
-      (encList enc) (encList (encPair enc encUnary)) :=
-  (ComputableInPolyTime.zipIdx enc).tidy
-
-end Turing.MultiTapeTM.ComputableTidilyInPolyTime
 
 namespace Turing.MultiTapeTM
 
