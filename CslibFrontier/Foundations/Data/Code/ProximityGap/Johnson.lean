@@ -30,9 +30,35 @@ import Mathlib.Tactic.Positivity
 /-!
 # Proximity gaps for Reed–Solomon codes up to the Johnson bound
 
-This file formalizes the Johnson-bound correlated agreement and proximity gap theorems for
-Reed–Solomon codes of Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
-[BenSassonCarmonIshaiKoppartySaraf2020] over arbitrary fields of arbitrary characteristic.
+This file formalizes explicit-parameter Johnson-bound correlated-agreement steps and original
+explicit-constant proximity-gap variants for Reed–Solomon codes over arbitrary fields of arbitrary
+characteristic, following Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
+[BenSassonCarmonIshaiKoppartySaraf2020]. All theorem and section locators below follow the
+accepted *Journal of the ACM* (2023) manuscript (where Theorem 1.4 states correlated agreement /
+proximity gaps over lines, Theorem 5.1 treats unweighted lines, Theorem 6.2 treats degree-`r`
+curves, and Theorem 7.2 treats weighted correlated agreement; by contrast, Theorem 7.2 of the
+July 2020 ePrint 2020/654 version concerns FRI soundness).
+
+## Scope and relationship to the source theorems
+
+* The four correlated-agreement theorems
+  (`Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`,
+  `Cslib.Code.exists_correlatedAgreement_curve_johnson`,
+  `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`,
+  `Cslib.Code.exists_correlatedAgreement_line_johnson`) are **explicit-parameter Guruswami–Sudan
+  steps** parameterized directly by `(m, D)` (and integer weights `W : ι → ℕ` with `M`, `W_tot`,
+  `B_W`) with explicit scalar threshold `Cslib.Code.ProximityGap.johnsonCurveBound`. Deriving the
+  paper's displayed finite thresholds directly from the source hypotheses, as well as
+  normalized/rational-valued weights and affine-space extensions, are left open outside this file.
+* `Cslib.Code.proximityGap_line_johnson` and `Cslib.Code.proximityGap_line_johnson_of_eta` are
+  **original explicit-constant variants** of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]
+  (accepted JACM 2023 manuscript) with exceptional fraction
+  `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` (respectively `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`).
+  While the exponents `(m + 1) ^ 6 / ρ` are asymptotically smaller in `m` and `1 / ρ` than the
+  paper's displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`, the bound is not uniformly smaller at
+  small finite `m` (e.g., at `m = 3`, `ρ = 1 / 4`, the coefficients are `29,491,200` vs.
+  approximately `17,157`), so these bounds do not imply the paper's displayed finite constant for
+  all finite `m`.
 
 ## Main definitions
 
@@ -54,19 +80,23 @@ Reed–Solomon codes of Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
   `Cslib.Code.ProximityGap.johnson_line_params_bound`: quantitative Guruswami–Sudan parameter
   packaging up to `1 - √ρ - √ρ / (2 * m)` yielding
   `johnsonCurveBound n (m + 1) (k - 1) D r n ≤ 1800 * r * (m + 1) ^ 6 * n ^ 2 / ρ`.
-* `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`: unified master theorem
-  establishing weighted correlated agreement on degree-`r` curves up to the Johnson bound over
-  arbitrary fields of arbitrary characteristic.
-* `Cslib.Code.exists_correlatedAgreement_line_johnson`: correlated agreement on lines up to the
-  Johnson bound over arbitrary fields ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1]).
-* `Cslib.Code.exists_correlatedAgreement_curve_johnson`: correlated agreement on degree-`r` curves
-  up to the Johnson bound over arbitrary fields ([BenSassonCarmonIshaiKoppartySaraf2020,
-  Theorem 6.2]).
-* `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`: weighted correlated agreement on
-  lines up to the Johnson bound over arbitrary fields.
+* `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`: explicit-parameter
+  integer-weighted correlated-agreement step on degree-`r` curves over arbitrary fields of
+  arbitrary characteristic (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2,
+  and 7.2], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_correlatedAgreement_line_johnson`: explicit-parameter unweighted
+  correlated-agreement step on lines over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_correlatedAgreement_curve_johnson`: explicit-parameter unweighted
+  correlated-agreement step on degree-`r` curves over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`: explicit-parameter
+  integer-weighted correlated-agreement step on lines over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2], accepted JACM 2023 manuscript).
 * `Cslib.Code.proximityGap_line_johnson`, `Cslib.Code.proximityGap_line_johnson_of_eta`:
-  finite-field proximity gap on affine lines up to the Johnson bound `1 - √ρ`
-  ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+  original explicit-constant finite-field proximity-gap variants on affine lines up to the
+  Johnson bound `1 - √ρ` (variants of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4],
+  accepted JACM 2023 manuscript).
 
 ## References
 
@@ -1436,20 +1466,8 @@ private theorem eval₂_add_eq_sum_hasseDeriv {R A : Type*} [CommRing R] [CommRi
   rw [taylor_coeff, hasseDeriv_map, Polynomial.eval_map]
 
 private theorem coeff_pow_eq_zero_of_lt_of_coeff_zero {R : Type*} [CommSemiring R] {p : R[X]}
-    (hp0 : p.coeff 0 = 0) : ∀ j k, k < j → (p ^ j).coeff k = 0 := by
-  intro j
-  induction j with
-  | zero =>
-    intro k hk
-    omega
-  | succ j ih =>
-    intro k hk
-    rw [pow_succ, coeff_mul]
-    refine Finset.sum_eq_zero fun x hx => ?_
-    have hsum : x.1 + x.2 = k := Finset.mem_antidiagonal.1 hx
-    by_cases hx2 : x.2 = 0
-    · rw [hx2, hp0, mul_zero]
-    · rw [ih x.1 (by omega), zero_mul]
+    (hp0 : p.coeff 0 = 0) : ∀ j k, k < j → (p ^ j).coeff k = 0 :=
+  fun j k hk => X_pow_dvd_iff.1 (pow_dvd_pow_of_dvd (X_dvd_iff.2 hp0) j) k hk
 
 private theorem coeff_pow_eq_of_coeff_eq_of_coeff_zero {R : Type*} [CommSemiring R] {p q : R[X]}
     (hp0 : p.coeff 0 = 0) (hq0 : q.coeff 0 = 0) {m : ℕ}
@@ -1862,22 +1880,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
       rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hW_comp : W.comp (C (g ^ 2) * X) = C (φ X) + C g * U_W := by
     ext k
-    have hlhs : (W.comp (C (g ^ 2) * X)).coeff k = W.coeff k * (g ^ 2) ^ k := by
-      rw [Polynomial.comp, Polynomial.eval₂_eq_sum_range, finsetSum_coeff]
-      by_cases hk : k < W.natDegree + 1
-      · rw [Finset.sum_eq_single k]
-        · rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ k)), ← mul_assoc, coeff_mul_C,
-            coeff_C_mul, coeff_X_pow_self, mul_one]
-        · intro i _ hik
-          rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ i)), ← mul_assoc, coeff_mul_C,
-            coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hik), mul_zero, zero_mul]
-        · intro h; exact absurd (mem_range.2 hk) h
-      · rw [coeff_eq_zero_of_natDegree_lt (by omega), zero_mul]
-        refine Finset.sum_eq_zero fun i hi => ?_
-        have hi' := mem_range.1 hi
-        rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ i)), ← mul_assoc, coeff_mul_C,
-          coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero, zero_mul]
-    rw [hlhs, coeff_add, coeff_C_mul]
+    rw [Polynomial.comp_C_mul_X_coeff, coeff_add, coeff_C_mul]
     cases k with
     | zero =>
       rw [pow_zero, mul_one, coeff_C_zero, hU_W_zero, mul_zero, add_zero, hW0]
@@ -2353,16 +2356,16 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
   have hs_le_DY : s ≤ D_Y := by
     have : 1 * s ≤ μ * s := Nat.mul_le_mul_right s hμ_pos
     omega
-  -- Helper: for any `z ∈ T''` and matching witness `P`, specialization uniqueness holds.
-  have hspec_z : ∀ (z : F) (P : F[X]), P.natDegree ≤ d →
+  -- Helper: for any `z : F` and witness `P : F[X]` with `S(z, X, P ^ μ) = 0` and
+  -- `γ(z, (P ^ μ)(x₀)) ≠ 0`, specialization uniqueness holds.
+  have hspec_z : ∀ (z : F) (P : F[X]),
       (evZ₂ z S).eval (P ^ μ) = 0 →
-      (Fstar.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 →
       (γ.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 →
       ∀ n, 1 ≤ n →
         ((γ.map (evZ z)).eval ((P ^ μ).eval x₀)) ^ (2 * n - 1) *
           (taylor x₀ (P ^ μ)).coeff n =
         ((recPoly S x₀ s n).map (evZ z)).eval ((P ^ μ).eval x₀) := by
-    intro z P _ hS_eval0 _ hγ_z_ne n hn1
+    intro z P hS_eval0 hγ_z_ne n hn1
     set yz : F := (P ^ μ).eval x₀
     let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) yz
     have hφz_eq : ∀ f : F[X][X], φz f = (f.map (evZ z)).eval yz := fun f => by
@@ -2405,7 +2408,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         intro z hz
         obtain ⟨P, hP_deg, hS_ev0, hF_ev0, hγ_ev_ne, _⟩ := hT''_mem z hz
         refine ⟨(P ^ μ).eval x₀, hF_ev0, ?_⟩
-        have hrec := hspec_z z P hP_deg hS_ev0 hF_ev0 hγ_ev_ne n hn1
+        have hrec := hspec_z z P hS_ev0 hγ_ev_ne n hn1
         have hW_coeff0 : (taylor x₀ (P ^ μ)).coeff n = 0 := by
           rcases hcond with hgt | hndiv
           · refine coeff_eq_zero_of_natDegree_lt ?_
@@ -2758,7 +2761,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
   have hWz_k : ∀ k ∈ Icc 1 (μ * d),
       (φz γ) ^ (2 * k - 1) * (taylor x₀ (P ^ μ)).coeff k = φz (recPoly S x₀ s k) := by
     intro k hk
-    have hrec := hspec_z z P hP_deg hS_ev0 hF_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
+    have hrec := hspec_z z P hS_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
     rw [hφz_eq, hφz_eq]
     exact hrec
   have hEi_z0 : (Ei.map (evZ z)).eval yz = 0 := by
@@ -3543,19 +3546,25 @@ end JohnsonHelpers
 
 public section
 
-/-- **Weighted correlated agreement on degree-`r` curves up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2, and 7.2]).
+/-- **Explicit-parameter integer-weighted correlated-agreement step on degree-`r` curves**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2, and 7.2] in the accepted
+*Journal of the ACM* 2023 manuscript; note that Theorem 7.2 of the July 2020 ePrint 2020/654
+version concerns FRI soundness).
 
 Let `α : ι → F` be distinct evaluation points over an arbitrary field `F` of any characteristic,
-let `W : ι → ℕ` be coordinate weights with `∀ i, W i ≤ M` (`0 < M`) and `∑ i, W i ≤ W_tot`, and
-let `m ≥ 1`, `D : ℕ` satisfy the Guruswami–Sudan interpolation and root-divisibility conditions for
-weight threshold `B_W` (with `k ≤ (B_W + M - 1) / M`). For any `r + 1` words
-`u : Fin (r + 1) → (ι → F)` and finite set `T : Finset F` with
+let `W : ι → ℕ` be integer coordinate weights with `∀ i, W i ≤ M` (`0 < M`) and
+`∑ i, W i ≤ W_tot`, and let `m ≥ 1`, `D : ℕ` satisfy the explicit Guruswami–Sudan interpolation
+and root-divisibility conditions for weight threshold `B_W` (with `k ≤ (B_W + M - 1) / M`). For
+any `r + 1` words `u : Fin (r + 1) → (ι → F)` and finite set `T : Finset F` with
 `johnsonCurveBound |ι| m (k - 1) D r W_tot < #T`, if for every `z ∈ T` the curve point
 `∑ j, z ^ j • u j` has `W`-weighted agreement at least `B_W` with some codeword in
 `reedSolomon α k`, then there exist a single shared coordinate subset `D' : Finset ι` with
 `B_W ≤ ∑ i ∈ D', W i` and codewords `v : Fin (r + 1) → (ι → F)` in `reedSolomon α k` agreeing
-with `u` on `D'`. -/
+with `u` on `D'`.
+
+This theorem is parameterized directly by `(m, D, M, W_tot, B_W)` and integer weights `W : ι → ℕ`;
+deriving the paper's displayed finite thresholds or normalized/rational-valued weight statements
+is left open as separate work. -/
 theorem exists_weighted_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k r m D M W_tot B_W : ℕ}
@@ -3611,11 +3620,12 @@ theorem exists_weighted_correlatedAgreement_curve_johnson {F ι : Type*} [Field 
   exact exists_correlatedAgreement_of_lifted_poly hα hk rfl hM hW_le hW_sum hk_le_t
     hT''_card hT''_mem' Pstar Istar hPstar_deg hIstar_agree hIstar_bad
 
-/-- **Correlated agreement on degree-`r` curves up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2]).
+/-- **Explicit-parameter unweighted correlated-agreement step on degree-`r` curves**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2], accepted JACM 2023 manuscript).
 
 Unweighted specialization of `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson` over
-an arbitrary field `F` of any characteristic. -/
+an arbitrary field `F` of any characteristic, parameterized explicitly by `(m, D)` and
+`Cslib.Code.ProximityGap.johnsonCurveBound`. -/
 theorem exists_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k r e m D : ℕ}
@@ -3648,11 +3658,13 @@ theorem exists_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Finty
   rw [Finset.sum_const, smul_eq_mul, mul_one] at hD'
   exact ⟨D', hD', v, hv_rs, hagree⟩
 
-/-- **Weighted correlated agreement on affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2]).
+/-- **Explicit-parameter integer-weighted correlated-agreement step on affine lines**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2] in the accepted JACM 2023
+manuscript; Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
 
 Line (`r = 1`) specialization of `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson` over
-an arbitrary field `F` of any characteristic. -/
+an arbitrary field `F` of any characteristic, with explicit `(m, D)` and integer weights
+`W : ι → ℕ` (normalized/rational-valued weights are outside this theorem's scope). -/
 theorem exists_weighted_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k m D M W_tot B_W : ℕ}
@@ -3680,12 +3692,13 @@ theorem exists_weighted_correlatedAgreement_line_johnson {F ι : Type*} [Field F
   · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
   · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
 
-/-- **Correlated agreement on affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1]).
+/-- **Explicit-parameter unweighted correlated-agreement step on affine lines**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1], accepted JACM 2023 manuscript).
 
 Line (`r = 1`), unweighted specialization of
 `Cslib.Code.exists_correlatedAgreement_curve_johnson` over an arbitrary field `F` of any
-characteristic. -/
+characteristic, parameterized explicitly by `(m, D)` and
+`Cslib.Code.ProximityGap.johnsonCurveBound`. -/
 theorem exists_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k e m D : ℕ}
@@ -3711,8 +3724,9 @@ theorem exists_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintyp
   · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
   · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
 
-/-- **Proximity gap for affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+/-- **Proximity gap for affine lines up to the Johnson bound (explicit-constant variant)**
+(original quantitative variant of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], accepted
+JACM 2023 manuscript).
 
 Let `α : ι → F` be distinct evaluation points over a finite field `F` with `n = |ι|` and code rate
 `ρ = k / n` (`1 ≤ k ≤ n`), and let `m ≥ 1` be the multiplicity parameter. For any proximity radius
@@ -3721,9 +3735,12 @@ every point `u₀ + z • u₁` on the affine line lies within Hamming distance 
 `reedSolomon α k`, or the fraction of scalars `z : F` that do is at most
 `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)`.
 
-This explicit bound is `O(m ^ 6 * n ^ 2 / (ρ * |F|))`, which is asymptotically tighter in both `m`
-and `ρ` than the `(m + 1/2) ^ 7 / (3 * ρ ^ (3 / 2)) * n ^ 2 / |F|` expression stated in
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]. -/
+Compared to the displayed finite-threshold bound `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2)) * n ^ 2 / |F|`
+of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], this variant has smaller asymptotic
+exponents in `m` and `1 / ρ` (`(m + 1) ^ 6 / ρ`) but is **not** uniformly smaller at small finite
+`m` (for example, at `m = 3` and `ρ = 1 / 4`, the coefficients are `29,491,200` versus
+approximately `17,157`). Thus it does not imply the paper's displayed finite constant for all
+finite `m`; matching that exact finite constant remains open. -/
 theorem proximityGap_line_johnson {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
     {α : ι → F} {e k m : ℕ}
     (hα : Function.Injective α) (hk : 1 ≤ k) (hkn : k ≤ Fintype.card ι) (hm : 1 ≤ m)
@@ -3763,11 +3780,12 @@ theorem proximityGap_line_johnson {F ι : Type*} [Field F] [Fintype F] [Fintype 
     rw [div_div] at hdiv
     exact hdiv
 
-/-- **Proximity gap for affine lines up to `1 - √ρ - η`**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+/-- **Proximity gap for affine lines up to `1 - √ρ - η` (explicit-constant variant)**
+(original `η`-parameterized corollary of `Cslib.Code.proximityGap_line_johnson` in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], accepted JACM 2023 manuscript).
 
-Closed-form corollary of `Cslib.Code.proximityGap_line_johnson` parameterized directly by any
-positive gap `η > 0` below the Johnson bound `1 - √ρ`, yielding an error fraction of at most
+For any positive gap `η > 0` below the Johnson bound `1 - √ρ`, either every point on the affine
+line lies within Hamming distance `e` of `reedSolomon α k`, or the exceptional fraction is at most
 `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`. -/
 theorem proximityGap_line_johnson_of_eta {F ι : Type*} [Field F] [Fintype F] [Fintype ι]
     [DecidableEq F] {α : ι → F} {e k : ℕ} {η : ℝ}
