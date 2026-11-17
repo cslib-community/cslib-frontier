@@ -2026,6 +2026,7 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP.Separation
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE.Separation
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.ExactSampler
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.FPRAS

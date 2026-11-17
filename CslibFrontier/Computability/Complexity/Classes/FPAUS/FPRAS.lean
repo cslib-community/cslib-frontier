@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Computability.Probabilistic.Adaptive
@@ -224,16 +225,18 @@ theorem isPPTOn_estimate
 
 /-- **An almost uniform sampler gives an approximate counter**: for a self-reducible witness
 family, a fully polynomial almost uniform sampler `S` yields a fully polynomial randomized
-approximation scheme `R.estimate S` for the number of witnesses. -/
+approximation scheme for the number of witnesses. The estimator uses bounded retries to handle
+explicit generator failures as in [JerrumValiantVazirani1986, Theorem 6.4]. -/
 theorem isFPRAS_of_isFPAUS (hS : IsFPAUS enc W S) :
-    IsFPRAS enc (fun x => (W x).card) (R.estimate S) :=
-  ⟨R.isPPTOn_estimate hS.1, fun x _ t hp => R.approxWithin_estimate hS.2 x hp t⟩
+    IsFPRAS enc (fun x => (W x).card) (R.estimate (retrySampler S)) :=
+  ⟨R.isPPTOn_estimate hS.isPPTOn_retrySampler,
+    fun x _ t hp => R.approxWithin_estimate hS.closeTo_retrySampler x hp t⟩
 
 include R in
 /-- **The class form**: a self-reducible witness family with a fully polynomial almost uniform
 sampler has a fully polynomial randomized approximation scheme for its witness counts. -/
 theorem mem_FPRAS_of_mem_FPAUS (hW : W ∈ FPAUS enc) : (fun x => (W x).card) ∈ FPRAS enc :=
   let ⟨S, hS⟩ := hW
-  ⟨R.estimate S, R.isFPRAS_of_isFPAUS hS⟩
+  ⟨R.estimate (retrySampler S), R.isFPRAS_of_isFPAUS hS⟩
 
 end Cslib.Complexity.SelfReducible
