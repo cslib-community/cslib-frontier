@@ -46,7 +46,6 @@ words of weight at most `e` form a Hamming ball of size `B(n, e) = ∑ j ∈ ran
   weight is the Hamming norm.
 * `Cslib.BitString.weight_le`, `Cslib.BitString.weight_le_length`: the weight is at most the number
   of coordinates.
-* `Cslib.BitString.count_true_ofFn`: `(List.ofFn x).count true = weight x`.
 * `Cslib.BitString.monotone_weight`: the weight is monotone.
 * `Cslib.BitString.card_weightLayer`: there are `n.choose k` strings of `n` bits of weight `k`.
 * `Cslib.BitString.card_filter_weight_le`, `Cslib.BitString.card_filter_weight_le_eq_ballSize`: the
@@ -127,14 +126,11 @@ theorem weight_cons_succ {q : ℕ} (z : Fin (q + 1) → Bool) :
     weight z = (z 0).toNat + weight (fun i : Fin q => z i.succ) := by
   simp only [weight_eq_sum_toNat, Fin.sum_univ_succ]
 
-/-- The number of `true` entries in `List.ofFn x` is the weight of `x`. -/
-@[simp] theorem count_true_ofFn {n : ℕ} (x : BitString n) :
-    (List.ofFn x).count true = weight x := by
-  induction n with
-  | zero => simp [weight]
-  | succ n ih =>
-    rw [List.ofFn_succ, List.count_cons, ih, weight_cons_succ]
-    cases x 0 <;> simp [Nat.add_comm]
+/-- The number of `true` entries in `List.ofFn x` is the weight of `x`. Use this for explicit
+rewrites; Mathlib's `List.count_ofFn` is the `simp` lemma for counts over `List.ofFn`. -/
+theorem count_true_ofFn {n : ℕ} (x : BitString n) :
+    (List.ofFn x).count true = weight x :=
+  List.count_ofFn x true
 
 /-- Setting a false coordinate to true adds one to the weight. -/
 theorem weight_update_true [DecidableEq ι] {x : ι → Bool} {i : ι} (hi : x i = false) :

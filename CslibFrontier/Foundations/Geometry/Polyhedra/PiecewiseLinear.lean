@@ -93,12 +93,12 @@ theorem IsAffineOn.add {f g : E → F} {S : Set E} (hf : IsAffineOn f S) (hg : I
     IsAffineOn (fun x => f x + g x) S := by
   rcases hf with ⟨a, ha⟩
   rcases hg with ⟨b, hb⟩
-  exact ⟨a + b, fun x hx => by simp only [AffineMap.coe_add, Pi.add_apply, ha hx, hb hx]⟩
+  exact ⟨a + b, fun x hx => by simp only [FunLike.coe_add, Pi.add_apply, ha hx, hb hx]⟩
 
 theorem IsAffineOn.neg {f : E → F} {S : Set E} (hf : IsAffineOn f S) :
     IsAffineOn (fun x => -f x) S := by
   rcases hf with ⟨a, ha⟩
-  exact ⟨-a, fun x hx => by simp only [AffineMap.coe_neg, Pi.neg_apply, ha hx]⟩
+  exact ⟨-a, fun x hx => by simp only [FunLike.coe_neg, Pi.neg_apply, ha hx]⟩
 
 theorem IsAffineOn.sub {f g : E → F} {S : Set E} (hf : IsAffineOn f S) (hg : IsAffineOn g S) :
     IsAffineOn (fun x => f x - g x) S :=
@@ -107,7 +107,7 @@ theorem IsAffineOn.sub {f g : E → F} {S : Set E} (hf : IsAffineOn f S) (hg : I
 theorem IsAffineOn.smul {f : E → F} {S : Set E} (c : ℝ) (hf : IsAffineOn f S) :
     IsAffineOn (fun x => c • f x) S := by
   rcases hf with ⟨a, ha⟩
-  exact ⟨c • a, fun x hx => by simp only [AffineMap.coe_smul, Pi.smul_apply, ha hx]⟩
+  exact ⟨c • a, fun x hx => by simp only [FunLike.coe_smul, Pi.smul_apply, ha hx]⟩
 
 theorem IsAffineOn.sum {ι : Type*} (s : Finset ι) {f : ι → E → F} {S : Set E}
     (hf : ∀ i ∈ s, IsAffineOn (f i) S) :
@@ -505,7 +505,7 @@ theorem IsPLOn.min {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn 
   have hcovQ : (⋃ t : Bool, if t then Q₁ else Q₂) = (Q : Set E) := by
     ext x
     simp only [Set.mem_iUnion, Bool.exists_bool, ↓reduceIte, Q₁, Q₂, mem_inter_iff,
-      Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, AffineMap.coe_sub, Pi.sub_apply,
+      Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub, Pi.sub_apply,
       sub_nonpos]
     constructor
     · rintro (⟨hx, _⟩ | ⟨hx, _⟩) <;> exact hx
@@ -516,11 +516,11 @@ theorem IsPLOn.min {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn 
   refine IsPLOn.of_finiteCover hcovQ fun t => ?_
   cases t
   · refine (IsPLOn.affineMap hQ₂.isPolyhedron b).congr fun x ⟨hxQ, hxle⟩ => ?_
-    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, AffineMap.coe_sub,
+    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub,
       Pi.sub_apply, sub_nonpos] at hxle
     rw [ha hxQ, hb hxQ, min_eq_right hxle]
   · refine (IsPLOn.affineMap hQ₁.isPolyhedron a).congr fun x ⟨hxQ, hxle⟩ => ?_
-    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, AffineMap.coe_sub,
+    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub,
       Pi.sub_apply, sub_nonpos] at hxle
     rw [ha hxQ, hb hxQ, min_eq_left hxle]
 
