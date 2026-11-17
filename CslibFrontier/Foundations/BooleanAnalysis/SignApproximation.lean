@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
-import Mathlib.Tactic.Linarith
+public import CslibFrontier.Foundations.Data.BitString.Sign.Rounding
 import Mathlib.Tactic.Positivity
 
 /-!
@@ -28,14 +28,9 @@ estimating the Fourier coefficients of `f` on a family carrying almost all of it
 rounding, approximates `f` (`BitString.hammingDist_signRound_sum_mul_chi_div_le`): the principle
 of the low-degree algorithm of Linial, Mansour and Nisan [LinialMansourNisan1993].
 
-## Main definitions
-
-* `Cslib.BitString.signRound`: a real function on the cube rounded to its sign.
-
 ## Main results
 
-* `Cslib.BitString.hammingDist_signRound_le_sum_sq_sub`,
-  `Cslib.BitString.hammingDist_signRound_div_le_expect_sq_sub`: rounding a mean-square
+* `Cslib.BitString.hammingDist_signRound_div_le_expect_sq_sub`: rounding a mean-square
   approximation of a Boolean function to its sign approximates the function.
 * `Cslib.BitString.expect_sq_sub_sum_mul_chi`: the mean-square distance to a combination of
   characters, by Parseval's identity.
@@ -49,48 +44,14 @@ of the low-degree algorithm of Linial, Mansour and Nisan [LinialMansourNisan1993
   learnability*][LinialMansourNisan1993]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.BitString
 
 open Finset
 open scoped BigOperators
 
-variable {ι : Type*}
-
-/-- A real function on the cube rounded to its sign: `true`, the sign `-1`, where it is negative,
-and `false`, the sign `1`, elsewhere. -/
-noncomputable def signRound (g : (ι → Bool) → ℝ) (x : ι → Bool) : Bool :=
-  decide (g x < 0)
-
-/-- The sign rounding of `g` at `x` is `true` exactly when `g x < 0`. -/
-@[simp] theorem signRound_apply (g : (ι → Bool) → ℝ) (x : ι → Bool) :
-    signRound g x = decide (g x < 0) :=
-  rfl
-
-/-- If the sign of `r` differs from the bit `b`, then `r` is at distance at least one from the
-sign of `b`. -/
-private theorem one_le_sq_signVal_sub_of_decide_ne {b : Bool} {r : ℝ} (h : decide (r < 0) ≠ b) :
-    1 ≤ (signVal b - r) ^ 2 := by
-  cases b
-  · have hr : r < 0 := by simpa using h
-    simp only [signVal_false]
-    nlinarith
-  · have hr : 0 ≤ r := by simpa using h
-    simp only [signVal_true]
-    nlinarith
-
-variable [Fintype ι] [DecidableEq ι]
-
-/-- **Rounding to the sign**: the rounding of `g` differs from `f` on at most
-`∑_x (f x - g x)²` points, reading `f` as signs. -/
-theorem hammingDist_signRound_le_sum_sq_sub (f : (ι → Bool) → Bool) (g : (ι → Bool) → ℝ) :
-    (hammingDist (signRound g) f : ℝ) ≤ ∑ x, (signVal (f x) - g x) ^ 2 := by
-  rw [hammingDist, card_filter, Nat.cast_sum]
-  refine sum_le_sum fun x _ => ?_
-  split_ifs with h
-  · exact_mod_cast one_le_sq_signVal_sub_of_decide_ne h
-  · simpa using sq_nonneg (signVal (f x) - g x)
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- **Rounding to the sign** [O'Donnell, Section 3.4][ODonnell2014]: the rounding of `g` differs
 from `f` on at most a fraction `𝔼_x (f x - g x)²` of the points, reading `f` as signs. -/

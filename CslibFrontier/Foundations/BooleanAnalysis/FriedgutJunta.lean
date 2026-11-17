@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.FourierRestriction
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 public import Mathlib.Logic.Function.DependsOn
 import CslibFrontier.Foundations.BooleanAnalysis.HammingFourier
+import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -72,24 +73,6 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-! ### Juntas from spectral concentration -/
 
-/-- Rounding a real number to a sign costs at most its square distance to a sign: if `b` is the
-bit of the sign of `t`, `(signVal a - signVal b) ^ 2 / 4 ≤ (signVal a - t) ^ 2`. -/
-private theorem sq_signVal_sub_signVal_decide_div_four_le (a : Bool) (t : ℝ) :
-    (signVal a - signVal (decide (t < 0))) ^ 2 / 4 ≤ (signVal a - t) ^ 2 := by
-  by_cases ht : t < 0
-  · simp only [ht, decide_true, signVal_true]
-    cases a
-    · simp only [signVal_false]
-      nlinarith
-    · simp only [signVal_true]
-      nlinarith [sq_nonneg (-1 - t)]
-  · simp only [ht, decide_false, signVal_false]
-    cases a
-    · simp only [signVal_false]
-      nlinarith [sq_nonneg (1 - t)]
-    · simp only [signVal_true]
-      nlinarith
-
 /-- **Spectral concentration gives a junta**: a Boolean function is at relative Hamming distance
 at most `∑_{S ⊄ J} F̂(S) ^ 2` from a Boolean function of the coordinates in `J`, the sign of its
 average over the other coordinates
@@ -104,12 +87,11 @@ theorem exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq (f : 
   · have : h x = h y := expect_congr rfl fun z _ => by
       rw [J.piecewise_congr (fun i hi => hxy i (mem_coe.2 hi)) fun _ _ => rfl]
     simp only [this]
-  · have hd := expect_sq_signVal_sub_signVal f fun x => decide (h x < 0)
-    rw [← expect_sub_expect_piecewise_sq,
-      show (hammingDist f fun x => decide (h x < 0) : ℝ) / 2 ^ Fintype.card ι =
-        (𝔼 x, (signVal (f x) - signVal (decide (h x < 0))) ^ 2) / 4 by rw [hd]; ring,
-      expect_div]
-    exact expect_le_expect fun x _ => sq_signVal_sub_signVal_decide_div_four_le _ _
+  · rw [← expect_sub_expect_piecewise_sq]
+    change (hammingDist f (signRound h) : ℝ) / 2 ^ Fintype.card ι ≤
+      𝔼 x, (signVal (f x) - h x) ^ 2
+    rw [hammingDist_comm]
+    exact hammingDist_signRound_div_le_expect_sq_sub f h
 
 /-- **Small variation outside `J` gives a `J`-junta**: a Boolean function is at relative Hamming
 distance at most twice the probability that resampling the coordinates outside `J` changes its

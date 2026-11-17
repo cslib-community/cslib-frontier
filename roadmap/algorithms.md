@@ -153,6 +153,16 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ### Constructive probabilistic methods
 
+- **Planted-clique recovery** ([#6238](https://github.com/cslib-community/cslib-frontier/issues/6238)):
+  lower the explicit finite cutoff in the certified `(51/7) √n` second-eigenvector theorem,
+  improve its constants further, and implement the paper's preliminary degree branch as an
+  alternative to the full-range native hybrid's integer-solver branch. See the
+  [proof and module guide](../CslibFrontier/Algorithms/PlantedClique/README.md).
+- **Community detection:** extend dense two-community recovery to sparse models, unknown edge
+  probabilities, and more than two communities. Certify a finite-precision eigensolver and
+  algorithms with varying encoded probability parameters. See the
+  [dense recovery guide](../CslibFrontier/Algorithms/CommunityDetection/README.md) for the native
+  integer-power theorem with fixed real probabilities.
 - **Moser–Tardos resampling** ([#3096](https://github.com/cslib-community/cslib-frontier/issues/3096)): extend the formalized variable-form, symmetric `e p (d + 1) ≤ 1`, Section 6 lopsided and constructive `k`-SAT resampling bounds with parallel and derandomized versions (Theorems 1.3–1.4) and native sampling and event-detection costs.
   Build the Kolmogorov form's decoder ([#3043](https://github.com/cslib-community/cslib-frontier/issues/3043)) as a multi-tape machine taking the formula, transferring it to `condPlain`.
 - **Conditional expectations and pessimistic estimators:** algorithmic alteration, and coloring, MAX-CUT or combinatorial-construction clients of the certified greedy choice rule for pessimistic estimators.
