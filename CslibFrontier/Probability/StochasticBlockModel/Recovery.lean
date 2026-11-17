@@ -20,9 +20,9 @@ import Mathlib.Tactic.Positivity
 # Recovery from the stochastic block model's noise and margin events
 
 The same two events support different recovery algorithms: the centered noise has operator
-norm at most `36 √n`, and every true-label row margin exceeds `gap * n / 2`. An event that is
+norm at most `(5/2) √n`, and every true-label row margin exceeds `gap * n / 2`. An event that is
 excluded whenever both conditions hold has probability at most
-`2 exp (-n) + 2 n exp (-gap² n / 8)`.
+`2 exp (-n) + 2 n exp (-gap² n / 2)`.
 
 For any family of graph-only solvers that succeeds on these events for all sufficiently large
 dimensions, the actual distributional-search failure tends to zero under every sequence of
@@ -45,14 +45,14 @@ finite bound. The estimate is uniform in the fixed hidden labeling. -/
 theorem coinLaw_failure_le_of_noise_margin (p q : I) (g : Fin n → Bool)
     (failure : Set (Coins n)) (hgap : 0 ≤ gap p q)
     (hcorrect : ∀ ω,
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ 36 * sqrt n →
+      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ (5 / 2) * sqrt n →
       (∀ i, gap p q * n / 2 <
         signVal (g i) * ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * signVal (g j)) →
       ω ∉ failure) :
     ((coinLaw p q g).toOuterMeasure failure).toReal ≤
-      2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 8) := by
+      2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 2) := by
   let N : Set (Coins n) := {ω |
-    36 * sqrt n < ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖}
+    (5 / 2) * sqrt n < ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖}
   let D : Set (Coins n) := {ω | ∃ i : Fin n,
     signVal (g i) * ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * signVal (g j) ≤
       gap p q * n / 2}
@@ -74,14 +74,14 @@ theorem coinLaw_failure_le_of_noise_margin (p q : I) (g : Fin n → Bool)
 
 private theorem tendsto_dense_error {d : ℝ} (hd : 0 < d) :
     Tendsto (fun n : ℕ => 2 * exp (-(n : ℝ)) +
-      2 * (n : ℝ) * exp (-d ^ 2 * n / 8)) atTop (𝓝 0) := by
+      2 * (n : ℝ) * exp (-d ^ 2 * n / 2)) atTop (𝓝 0) := by
   have hfirst : Tendsto (fun n : ℕ => 2 * exp (-(n : ℝ))) atTop (𝓝 0) := by
     simpa only [Function.comp_def, mul_zero] using
       (tendsto_exp_neg_atTop_nhds_zero.comp
         (tendsto_natCast_atTop_atTop (R := ℝ))).const_mul 2
-  have hsecond : Tendsto (fun n : ℕ => 2 * (n : ℝ) * exp (-d ^ 2 * n / 8))
+  have hsecond : Tendsto (fun n : ℕ => 2 * (n : ℝ) * exp (-d ^ 2 * n / 2))
       atTop (𝓝 0) := by
-    have h := ((tendsto_rpow_mul_exp_neg_mul_atTop_nhds_zero 1 (d ^ 2 / 8)
+    have h := ((tendsto_rpow_mul_exp_neg_mul_atTop_nhds_zero 1 (d ^ 2 / 2)
       (by positivity)).comp (tendsto_natCast_atTop_atTop (R := ℝ))).const_mul 2
     simpa only [Function.comp_def, rpow_one, mul_zero, ← mul_assoc,
       ← neg_div, div_mul_eq_mul_div] using h
@@ -94,7 +94,7 @@ theorem tendsto_searchProblem_failure_of_eventually_noise_margin (p q : I)
     (solve : ∀ n, SimpleGraph (Fin n) → Fin n → Bool)
     (prior : ∀ n, PMF (Fin n → Bool)) (hpq : (q : ℝ) < p)
     (hcorrect : ∀ᶠ n : ℕ in atTop, ∀ (g : Fin n → Bool) (ω : Coins n),
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ 36 * sqrt n →
+      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ (5 / 2) * sqrt n →
       (∀ i, gap p q * n / 2 <
         signVal (g i) * ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * signVal (g j)) →
       solve n (sample ω) = g ∨ solve n (sample ω) = fun i => !g i) :

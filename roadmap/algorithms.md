@@ -153,9 +153,10 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ### Constructive probabilistic methods
 
-- **Planted-clique recovery:** certify a finite-precision realization of the raw-adjacency
-  second-eigenvector algorithm in the native computation model, and sharpen its constants to
-  match Alon–Krivelevich–Sudakov. See the
+- **Planted-clique recovery** ([#6238](https://github.com/cslib-community/cslib-frontier/issues/6238)):
+  lower the explicit finite cutoff in the certified `(51/7) √n` second-eigenvector theorem,
+  improve its constants further, and implement the paper's preliminary degree branch as an
+  alternative to the full-range native hybrid's integer-solver branch. See the
   [proof and module guide](../CslibFrontier/Algorithms/PlantedClique/README.md).
 - **Community detection:** extend dense two-community recovery to sparse models, unknown edge
   probabilities, and more than two communities. Certify a finite-precision eigensolver and

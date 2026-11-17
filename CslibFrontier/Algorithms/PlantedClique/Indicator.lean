@@ -62,6 +62,25 @@ theorem unitIndicator_nonneg (S : Finset ι) (i : ι) : 0 ≤ unitIndicator S i 
   rw [unitIndicator_apply]
   split_ifs <;> positivity
 
+/-- The inner product of normalized indicators is their intersection size divided by the
+geometric mean of their sizes. This includes empty sets with the usual zero-division convention. -/
+theorem inner_unitIndicator (S T : Finset ι) :
+    inner ℝ (unitIndicator S) (unitIndicator T) =
+      ((S ∩ T).card : ℝ) / (Real.sqrt S.card * Real.sqrt T.card) := by
+  have hinner : inner ℝ (indicator S) (indicator T) = ((S ∩ T).card : ℝ) := by
+    simp [EuclideanSpace.inner_eq_star_dotProduct, dotProduct, indicator, ← ite_and,
+      ← Finset.mem_inter]
+  rw [unitIndicator, unitIndicator, real_inner_smul_left, real_inner_smul_right, hinner]
+  ring
+
+/-- The overlap of the all-ones direction with a normalized indicator is the square root
+of the support fraction. -/
+theorem inner_unitIndicator_univ (S : Finset ι) :
+    inner ℝ (unitIndicator (univ : Finset ι)) (unitIndicator S) =
+      Real.sqrt S.card / Real.sqrt (Fintype.card ι) := by
+  rw [inner_unitIndicator, univ_inter, card_univ, div_mul_eq_div_div, div_right_comm,
+    Real.div_sqrt]
+
 omit [Fintype ι] [DecidableEq ι] in
 /-- The normalization height has squared reciprocal equal to the cardinality. -/
 theorem card_mul_unitIndicator_height_sq {S : Finset ι} (hS : S.Nonempty) :
@@ -110,13 +129,12 @@ theorem cliqueSignal_unitIndicator {S : Finset ι} (hS : S.Nonempty) :
   rw [cliqueSignal_apply hS, real_inner_self_eq_norm_sq, norm_unitIndicator hS]
   simp
 
-/-- Rounding the largest absolute coordinates removes the sign ambiguity of a spectral
-approximation and loses at most a sixteenth of the target set when squared error is `1 / 32`. -/
-theorem sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le {S T : Finset ι}
+/-- Selecting the largest absolute coordinates bounds the missed fraction by twice the
+squared distance from either orientation of the normalized indicator. -/
+theorem card_sdiff_le_signed_norm_sub_sq {S T : Finset ι}
     (hS : S.Nonempty) (hcard : S.card = T.card) {x : EuclideanSpace ℝ ι} {s : ℝ}
-    (hs : s = 1 ∨ s = -1) (horder : ∀ i ∉ T, ∀ j ∈ T, |x i| ≤ |x j|)
-    (herror : ‖x - s • unitIndicator S‖ ^ 2 ≤ 1 / 32) :
-    16 * (S \ T).card ≤ S.card := by
+    (hs : s = 1 ∨ s = -1) (horder : ∀ i ∉ T, ∀ j ∈ T, |x i| ≤ |x j|) :
+    ((S \ T).card : ℝ) ≤ 2 * S.card * ‖x - s • unitIndicator S‖ ^ 2 := by
   have hsabs (i : ι) : |s * unitIndicator S i| = unitIndicator S i := by
     rcases hs with rfl | rfl <;> simp [abs_of_nonneg (unitIndicator_nonneg S i)]
   have henergy : (∑ i, (|x i| - if i ∈ S then 1 / Real.sqrt S.card else 0) ^ 2) ≤
@@ -126,9 +144,32 @@ theorem sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le {S T : Finset ι}
       (abs_abs_sub_abs_le_abs_sub (x i) (s * unitIndicator S i))
     rw [hsabs i] at hcontract
     simpa only [unitIndicator_apply] using hcontract
-  rw [EuclideanSpace.real_norm_sq_eq] at herror
-  simp only [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul] at herror
-  exact Finset.sixteen_mul_card_sdiff_le_of_sum_sq_le S T (fun i => |x i|)
-    (by positivity) (card_mul_unitIndicator_height_sq hS) hcard horder (henergy.trans herror)
+  have hround := Finset.card_sdiff_mul_sq_le_sum_sq S T (fun i => |x i|)
+    (by positivity : 0 ≤ 1 / Real.sqrt S.card) hcard horder
+  have hscale := card_mul_unitIndicator_height_sq hS
+  have hbound := mul_le_mul_of_nonneg_left
+    (hround.trans (mul_le_mul_of_nonneg_left henergy (by norm_num)))
+    (Nat.cast_nonneg S.card : (0 : ℝ) ≤ S.card)
+  rw [EuclideanSpace.real_norm_sq_eq]
+  simp only [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+  calc
+    ((S \ T).card : ℝ) = (S.card : ℝ) *
+        (((S \ T).card : ℝ) * (1 / Real.sqrt S.card) ^ 2) := by
+      rw [mul_left_comm, hscale, mul_one]
+    _ ≤ (S.card : ℝ) * (2 * ∑ i, (x i - s * unitIndicator S i) ^ 2) := hbound
+    _ = _ := by ring
+
+/-- Rounding the largest absolute coordinates removes the sign ambiguity of a spectral
+approximation and loses at most a sixteenth of the target set when squared error is `1 / 32`. -/
+theorem sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le {S T : Finset ι}
+    (hS : S.Nonempty) (hcard : S.card = T.card) {x : EuclideanSpace ℝ ι} {s : ℝ}
+    (hs : s = 1 ∨ s = -1) (horder : ∀ i ∉ T, ∀ j ∈ T, |x i| ≤ |x j|)
+    (herror : ‖x - s • unitIndicator S‖ ^ 2 ≤ 1 / 32) :
+    16 * (S \ T).card ≤ S.card := by
+  have hround := card_sdiff_le_signed_norm_sub_sq hS hcard hs horder
+  have hscaled := mul_le_mul_of_nonneg_left herror
+    (by positivity : (0 : ℝ) ≤ 2 * S.card)
+  have hreal : (16 : ℝ) * (S \ T).card ≤ S.card := by linarith
+  exact_mod_cast hreal
 
 end Cslib.Algorithms.PlantedClique

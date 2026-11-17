@@ -8,9 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.PlantedClique.Eigenvector
-public import CslibFrontier.Probability.PlantedClique.Degree
 public import CslibFrontier.Probability.PlantedClique.Problem
-public import CslibFrontier.Probability.PlantedClique.RandomMatrix
+public import CslibFrontier.Probability.PlantedClique.Recovery
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Data.Finset.Density
 import Mathlib.Data.NNRat.BigOperators
@@ -27,7 +26,10 @@ No eigenvector alignment or spectral separation assumption remains in the probab
 The result is also stated for the generic distributional search experiment and any prior on
 hidden `k`-sets. The solver sees the graph alone (with the target size fixed as a parameter).
 The exact spectral choice in `Eigenvector` is noncomputable; these are semantic correctness
-statements, not a machine complexity certificate.
+statements. `EigenvectorPolyTime` proves the same finite bound for a native finite-precision
+realization. `EigenvectorSharp` gives the stronger threshold `(51 / 7) √n` for that native
+program under an explicit large-dimension and sparsity condition. `EigenvectorHybrid`
+supplies the corresponding full-size-range native solver.
 -/
 
 public section
@@ -46,33 +48,9 @@ theorem dens_recoverEigenvector_ne_le (S : Finset (Fin n)) (hn : 1 ≤ n) (hk : 
     (dens ({ω : Coins n | recoverEigenvector (sample S ω) S.card ≠ S} : Finset _) : ℝ) ≤
       2 * exp (-(n : ℝ)) + n * exp (-(S.card : ℝ) / 32) := by
   classical
-  let N : Finset (Coins n) := {ω | 36 * Real.sqrt n <
-    ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖}
-  let D : Finset (Coins n) := {ω | ∃ v, v ∉ S ∧
-    5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card}
-  have hsub : ({ω : Coins n | recoverEigenvector (sample S ω) S.card ≠ S} : Finset _) ⊆
-      N ∪ D := by
-    intro ω hω
-    simp only [mem_filter, mem_univ, true_and] at hω
-    by_cases hN : ω ∈ N
-    · exact mem_union_left D hN
-    by_cases hD : ω ∈ D
-    · exact mem_union_right N hD
-    have hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise S ω)‖ ≤ 36 * Real.sqrt n := by
-      simpa only [N, mem_filter, mem_univ, true_and, not_lt] using hN
-    have hdegree : ∀ v ∉ S, 8 * (S.filter ((sample S ω).Adj v)).card ≤ 5 * S.card := by
-      intro v hv
-      apply le_of_not_gt
-      intro h
-      apply hD
-      simp only [D, mem_filter, mem_univ, true_and]
-      exact ⟨v, hv, h⟩
-    exact (hω (recoverEigenvector_sample_eq S ω hn hk hsparse hsize hnoise hdegree)).elim
-  calc
-    _ ≤ (dens (N ∪ D) : ℝ) := by exact_mod_cast dens_le_dens hsub
-    _ ≤ (dens N : ℝ) + (dens D : ℝ) := by exact_mod_cast dens_union_le N D
-    _ ≤ _ := add_le_add (dens_noise_opNorm_gt_le S)
-      (dens_exists_outside_degree_gt_le S (by omega))
+  exact dens_recover_ne_le_of_noise_degree S (by omega)
+    (fun ω => recoverEigenvector (sample S ω) S.card)
+    (fun ω => recoverEigenvector_sample_eq S ω hn hk hsparse hsize)
 
 /-- PMF form of the fixed-set failure bound. -/
 theorem prob_recoverEigenvector_ne_le (S : Finset (Fin n)) (hn : 1 ≤ n) (hk : 6 ≤ S.card)
@@ -88,7 +66,8 @@ theorem prob_recoverEigenvector_ne_le (S : Finset (Fin n)) (hn : 1 ≤ n) (hk : 
 open scoped Classical in
 /-- The exact second-eigenvector solver satisfies the generic distributional search guarantee
 for any independent prior on hidden sets of the target size. This is a semantic guarantee;
-no computation model or finite-precision realization is asserted. -/
+`EigenvectorPolyTime` separately connects its finite rational implementation and native
+runtime certificate to the same experiment. -/
 theorem searchProblem_recoverEigenvector_failure_le {k : ℕ}
     (prior : PMF {S : Finset (Fin n) // S.card = k})
     (hn : 1 ≤ n) (hk : 6 ≤ k) (hsparse : 4096 * k ≤ n)

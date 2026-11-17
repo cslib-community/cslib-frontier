@@ -5,6 +5,7 @@ Authors: Sam
 -/
 
 module
+-- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.PlantedClique.EigenvectorFinal
 import Mathlib.Tactic.NormNum

@@ -19,14 +19,17 @@ import Mathlib.Tactic.Linarith
 # Degrees into a planted clique
 
 Each vertex outside a fixed planted set has independent fair edges into that set. A weighted
-Rademacher bound and a union bound show that all such degrees are at most `5 |S| / 8`, except
-on a set of uniform seeds of density at most `n exp (-|S| / 32)`. Only degrees into the fixed
+Rademacher bound and a union bound show that all such degrees are at most
+`(1/2 + η) |S|`, except on a set of uniform seeds of density at most
+`n exp (-2 η² |S|)`. Taking `η = 1/8` gives the bound `5 |S| / 8`. Only degrees into the fixed
 planted set are treated as independent; no independence is asserted for a set chosen by an
 algorithm from the graph.
 
 ## Main results
 
-* `Cslib.Probability.PlantedClique.dens_exists_outside_degree_gt_le`: the simultaneous bound.
+* `Cslib.Probability.PlantedClique.dens_exists_outside_degree_gt_mean_add_le`: the
+  simultaneous bound with a chosen deviation from half the planted-set size.
+* `Cslib.Probability.PlantedClique.dens_exists_outside_degree_gt_le`: the five-eighths bound.
 -/
 
 public section
@@ -103,33 +106,62 @@ private theorem sum_degreeCoeff_signVal {n : ℕ} (S : Finset (Fin n)) (v : Fin 
       simp only [sum_const, nsmul_eq_mul, mul_one]
 
 private theorem dens_outside_degree_gt_le {n : ℕ} (S : Finset (Fin n))
-    (hS : 0 < S.card) (v : Fin n) (hv : v ∉ S) :
-    (dens ({ω : Coins n | 5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card} :
-      Finset _) : ℝ) ≤ exp (-(S.card : ℝ) / 32) := by
+    (hS : 0 < S.card) (v : Fin n) (hv : v ∉ S) {η : ℝ} (hη : 0 ≤ η) :
+    (dens ({ω : Coins n | (1 / 2 + η) * (S.card : ℝ) <
+      (S.filter ((sample S ω).Adj v)).card} : Finset _) : ℝ) ≤
+      exp (-2 * η ^ 2 * S.card) := by
   classical
   have hpos : (0 : ℝ) < S.card := by exact_mod_cast hS
-  have hsub : ({ω : Coins n | 5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card} :
-      Finset _) ⊆ ({ω : Coins n | (S.card : ℝ) / 4 ≤
+  have hsub : ({ω : Coins n | (1 / 2 + η) * (S.card : ℝ) <
+      (S.filter ((sample S ω).Adj v)).card} : Finset _) ⊆
+      ({ω : Coins n | 2 * η * (S.card : ℝ) ≤
         ∑ p, degreeCoeff S v p * BitString.signVal (ω p)} : Finset _) := by
     intro ω hω
     simp only [mem_filter, mem_univ, true_and] at hω ⊢
     rw [sum_degreeCoeff_signVal S v hv]
-    have hω' : 5 * (S.card : ℝ) < 8 * (S.filter ((sample S ω).Adj v)).card := by
-      exact_mod_cast hω
     linarith
   calc
-    (dens ({ω : Coins n | 5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card} :
-        Finset _) : ℝ) ≤
-        dens ({ω : Coins n | (S.card : ℝ) / 4 ≤
+    (dens ({ω : Coins n | (1 / 2 + η) * (S.card : ℝ) <
+        (S.filter ((sample S ω).Adj v)).card} : Finset _) : ℝ) ≤
+        dens ({ω : Coins n | 2 * η * (S.card : ℝ) ≤
           ∑ p, degreeCoeff S v p * BitString.signVal (ω p)} : Finset _) := by
       exact_mod_cast dens_le_dens hsub
-    _ ≤ exp (-(((S.card : ℝ) / 4) ^ 2) / (2 * (S.card : ℝ))) :=
+    _ ≤ exp (-((2 * η * (S.card : ℝ)) ^ 2) / (2 * (S.card : ℝ))) :=
       BitString.dens_sum_mul_signVal_ge_le (degreeCoeff S v) hpos
         (sum_degreeCoeff_sq S v).le (by positivity)
-    _ = exp (-(S.card : ℝ) / 32) := by
+    _ = exp (-2 * η ^ 2 * S.card) := by
       congr 1
       field_simp
-      ring
+
+/-- All outside degrees into the planted set are at most `(1/2 + η) |S|`, except
+with density at most `n exp (-2 η² |S|)`. The degree set is fixed before sampling. -/
+theorem dens_exists_outside_degree_gt_mean_add_le {n : ℕ} (S : Finset (Fin n))
+    (hS : 0 < S.card) {η : ℝ} (hη : 0 ≤ η) :
+    (dens ({ω : Coins n | ∃ v, v ∉ S ∧ (1 / 2 + η) * (S.card : ℝ) <
+      (S.filter ((sample S ω).Adj v)).card} : Finset _) : ℝ) ≤
+      n * exp (-2 * η ^ 2 * S.card) := by
+  classical
+  let D : Fin n → Finset (Coins n) := fun v =>
+    {ω | v ∉ S ∧ (1 / 2 + η) * (S.card : ℝ) <
+      (S.filter ((sample S ω).Adj v)).card}
+  have hD (v : Fin n) : (dens (D v) : ℝ) ≤ exp (-2 * η ^ 2 * S.card) := by
+    by_cases hv : v ∈ S
+    · simp only [D, hv, not_true_eq_false, false_and, filter_false, dens_empty,
+        NNRat.cast_zero]
+      exact (exp_pos _).le
+    · simpa only [D, hv, not_false_eq_true, true_and] using
+        dens_outside_degree_gt_le S hS v hv hη
+  have hset : ({ω : Coins n | ∃ v, v ∉ S ∧ (1 / 2 + η) * (S.card : ℝ) <
+      (S.filter ((sample S ω).Adj v)).card} : Finset _) = univ.biUnion D := by
+    ext ω
+    simp only [D, mem_filter, mem_univ, true_and, mem_biUnion]
+  rw [hset]
+  have h : (dens (univ.biUnion D) : ℝ) ≤ ∑ v, (dens (D v) : ℝ) := by
+    simpa only [NNRat.cast_sum] using
+      (NNRat.cast_le (K := ℝ)).2 (dens_biUnion_le (s := univ) (t := D))
+  calc
+    _ ≤ ∑ v : Fin n, exp (-2 * η ^ 2 * S.card) := h.trans (sum_le_sum fun v _ => hD v)
+    _ = _ := by simp
 
 /-- All outside degrees into the planted set are at most five eighths of its size, except
 with density at most `n exp (-|S| / 32)`. -/
@@ -138,25 +170,22 @@ theorem dens_exists_outside_degree_gt_le {n : ℕ} (S : Finset (Fin n)) (hS : 0 
       5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card} : Finset _) : ℝ) ≤
       n * exp (-(S.card : ℝ) / 32) := by
   classical
-  let D : Fin n → Finset (Coins n) := fun v =>
-    {ω | v ∉ S ∧ 5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card}
-  have hD (v : Fin n) : (dens (D v) : ℝ) ≤ exp (-(S.card : ℝ) / 32) := by
-    by_cases hv : v ∈ S
-    · simp only [D, hv, not_true_eq_false, false_and, filter_false, dens_empty,
-        NNRat.cast_zero]
-      exact (exp_pos _).le
-    · simpa only [D, hv, not_false_eq_true, true_and] using
-        dens_outside_degree_gt_le S hS v hv
-  have hset : ({ω : Coins n | ∃ v, v ∉ S ∧
-      5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card} : Finset _) = univ.biUnion D := by
-    ext ω
-    simp only [D, mem_filter, mem_univ, true_and, mem_biUnion]
-  rw [hset]
-  have h : (dens (univ.biUnion D) : ℝ) ≤ ∑ v, (dens (D v) : ℝ) := by
-    simpa only [NNRat.cast_sum] using
-      (NNRat.cast_le (K := ℝ)).2 (dens_biUnion_le (s := univ) (t := D))
-  calc
-    _ ≤ ∑ v : Fin n, exp (-(S.card : ℝ) / 32) := h.trans (sum_le_sum fun v _ => hD v)
-    _ = _ := by simp
+  have hpred (ω : Coins n) (v : Fin n) :
+      5 * S.card < 8 * (S.filter ((sample S ω).Adj v)).card ↔
+        (1 / 2 + (1 / 8 : ℝ)) * S.card < (S.filter ((sample S ω).Adj v)).card := by
+    constructor
+    · intro h
+      have hr : 5 * (S.card : ℝ) < 8 * (S.filter ((sample S ω).Adj v)).card := by
+        exact_mod_cast h
+      linarith
+    · intro h
+      have hr : 5 * (S.card : ℝ) < 8 * (S.filter ((sample S ω).Adj v)).card := by
+        linarith
+      exact_mod_cast hr
+  have h := dens_exists_outside_degree_gt_mean_add_le S hS (by norm_num : (0 : ℝ) ≤ 1 / 8)
+  simp only [← hpred] at h
+  convert h using 1
+  congr 2
+  ring
 
 end Cslib.Probability.PlantedClique

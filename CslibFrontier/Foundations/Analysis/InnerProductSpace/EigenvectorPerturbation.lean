@@ -22,7 +22,9 @@ import Mathlib.Tactic.Ring
 The spectral theorem turns a small residual at a candidate eigenvalue into proximity to an
 isolated eigenline. The error is controlled by the distance to all other eigenvalues. A second
 estimate bounds the third ordered eigenvalue from a quadratic-form bound on the common
-orthogonal complement of two vectors. These are deterministic ingredients of spectral recovery.
+orthogonal complement of two vectors. For a small perturbation of two nearly orthogonal
+rank-one signals, the second eigenvalue is isolated around the weaker signal strength and
+its eigenvector approximates that signal. These are deterministic ingredients of spectral recovery.
 
 For a positive rank-one signal, a direct Rayleigh-quotient argument bounds the leading
 eigenvector's squared error by eight times the squared relative perturbation. This estimate
@@ -33,6 +35,47 @@ public section
 
 open Finset Module
 open scoped RealInnerProductSpace
+
+namespace LinearMap
+
+variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
+
+/-- Removing the component of the weaker rank-one direction along the stronger one gives a
+small residual at the weaker signal strength. Only the errors in the two signal directions
+are needed; the bound for the weaker direction can be sharper than an operator-norm bound. -/
+theorem norm_sub_inner_smul_residual_le_of_rank_two {T : E →ₗ[ℝ] E}
+    {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1) {a b ε r : ℝ} (hb : 0 ≤ b)
+    (herrorw : ‖T w - (a • w + (b * inner ℝ w u) • u)‖ ≤ ε)
+    (herroru : ‖T u - ((a * inner ℝ w u) • w + b • u)‖ ≤ r) :
+    ‖T (u - inner ℝ w u • w) - b • (u - inner ℝ w u • w)‖ ≤
+      r + |inner ℝ w u| * ε + b * |inner ℝ w u| := by
+  let t := inner ℝ w u
+  let Rw := T w - (a • w + (b * t) • u)
+  let Ru := T u - ((a * t) • w + b • u)
+  have hwu : ‖w - t • u‖ ≤ 1 := by
+    simpa only [t, Submodule.starProjection_orthogonal_val,
+      Submodule.starProjection_unit_singleton ℝ hu, real_inner_comm u w, hw] using
+      (Submodule.norm_starProjection_apply_le (Submodule.span ℝ {u})ᗮ w)
+  have heq : T (u - t • w) - b • (u - t • w) =
+      Ru - t • Rw + (b * t) • (w - t • u) := by
+    simp only [Ru, Rw, map_sub, map_smul]
+    module
+  change ‖T (u - t • w) - b • (u - t • w)‖ ≤ r + |t| * ε + b * |t|
+  rw [heq]
+  calc
+    ‖Ru - t • Rw + (b * t) • (w - t • u)‖ ≤
+        ‖Ru‖ + ‖t • Rw‖ + ‖(b * t) • (w - t • u)‖ :=
+      (norm_add_le _ _).trans (add_le_add (norm_sub_le _ _) le_rfl)
+    _ = ‖Ru‖ + |t| * ‖Rw‖ + (b * |t|) * ‖w - t • u‖ := by
+      rw [norm_smul, norm_smul, Real.norm_eq_abs, Real.norm_eq_abs, abs_mul,
+        abs_of_nonneg hb]
+    _ ≤ r + |t| * ε + (b * |t|) * 1 :=
+      add_le_add
+        (add_le_add herroru (mul_le_mul_of_nonneg_left herrorw (abs_nonneg _)))
+        (mul_le_mul_of_nonneg_left hwu (mul_nonneg hb (abs_nonneg _)))
+    _ = _ := by ring
+
+end LinearMap
 
 namespace LinearMap.IsSymmetric
 
@@ -72,6 +115,25 @@ theorem gap_mul_sq_norm_sub_projection_le (j : Fin n) (x : E) (μ gap : ℝ)
     calc
       _ ≤ (hT.eigenvalues hn i - μ) ^ 2 * (b.repr x i) ^ 2 := hm
       _ = _ := by ring
+
+/-- A residual bounds the error in an eigenvalue, weighted by the component of the candidate
+vector in that eigendirection. Unlike a gap estimate, this does not require separation from
+the other eigenvalues. -/
+theorem abs_eigenvalue_sub_mul_abs_repr_le_norm_residual (j : Fin n) (x : E) (μ : ℝ) :
+    |hT.eigenvalues hn j - μ| * |(hT.eigenvectorBasis hn).repr x j| ≤
+      ‖T x - μ • x‖ := by
+  have hcoord : |(hT.eigenvectorBasis hn).repr (T x - μ • x) j| ≤ ‖T x - μ • x‖ := by
+    rw [OrthonormalBasis.repr_apply_apply]
+    simpa only [(hT.eigenvectorBasis hn).norm_eq_one, one_mul] using
+      abs_real_inner_le_norm (hT.eigenvectorBasis hn j) (T x - μ • x)
+  have heq : (hT.eigenvectorBasis hn).repr (T x - μ • x) j =
+      (hT.eigenvalues hn j - μ) * (hT.eigenvectorBasis hn).repr x j := by
+    simp only [map_sub, map_smul, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+    rw [hT.eigenvectorBasis_apply_self_apply hn x j]
+    change hT.eigenvalues hn j * (hT.eigenvectorBasis hn).repr x j -
+      μ * (hT.eigenvectorBasis hn).repr x j = _
+    ring
+  simpa only [heq, abs_mul] using hcoord
 
 /-- The largest ordered eigenvalue bounds the quadratic form in every direction. -/
 theorem inner_apply_le_first_eigenvalue_mul_sq (hnpos : 0 < n) (x : E) :
@@ -203,16 +265,64 @@ theorem third_eigenvalue_le_of_orthogonal_complement (hnthree : 3 ≤ n) (p q : 
     nlinarith only [h₀, h₁]
   exact (mul_le_mul_iff_left₀ hxpos).mp (hlow.trans hb)
 
-/-- The second ordered eigenvector of a small perturbation of two nearly orthogonal rank-one
-signals approximates the weaker signal. The constants are deliberately conservative. -/
-theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
+/-- An operator-norm perturbation of two rank-one signals separates every ordered
+eigenvalue other than the second from the weaker signal strength. The gap is any lower bound
+for both `a - ε - b` and `b - ε`, and the weaker signal strength is nonnegative.
+No orthogonality assumption on the signals is needed. -/
+theorem second_eigenvalue_separation_of_rank_two
+    (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) {a b ε gap : ℝ} (hb : 0 ≤ b)
+    (hfirst : gap ≤ a - ε - b) (hother : gap ≤ b - ε)
+    (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
+      ε * ‖y‖) :
+    ∀ i, i ≠ ⟨1, by omega⟩ → gap ≤ |hT.eigenvalues hn i - b| := by
+  let R (y : E) := T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)
+  have hww : inner ℝ w w = 1 := by rw [real_inner_self_eq_norm_sq, hw]; norm_num
+  have htop : a - ε ≤ hT.eigenvalues hn ⟨0, by omega⟩ := by
+    have hr : ‖R w‖ ≤ ε := by simpa only [hw, mul_one] using herror w
+    have hi := abs_real_inner_le_norm w (R w)
+    rw [hw, one_mul] at hi
+    have heq : inner ℝ w (R w) = inner ℝ w (T w) - a - b * inner ℝ w u ^ 2 := by
+      simp only [R, inner_sub_right, inner_add_right, real_inner_smul_right, hww,
+        real_inner_comm u w, mul_one]
+      ring
+    rw [heq] at hi
+    have hlow := (abs_le.mp (hi.trans hr)).1
+    have hquad := hT.inner_apply_le_first_eigenvalue_mul_sq hn (by omega) w
+    rw [hw] at hquad
+    nlinarith [mul_nonneg hb (sq_nonneg (inner ℝ w u))]
+  have hthird : hT.eigenvalues hn ⟨2, by omega⟩ ≤ ε := by
+    apply hT.third_eigenvalue_le_of_orthogonal_complement hn hnthree w u
+    intro y hwy huy
+    have hr := herror y
+    simp only [hwy, huy, mul_zero, zero_smul, add_zero, sub_zero] at hr
+    calc
+      inner ℝ y (T y) ≤ ‖y‖ * ‖T y‖ := real_inner_le_norm _ _
+      _ ≤ ‖y‖ * (ε * ‖y‖) := mul_le_mul_of_nonneg_left hr (norm_nonneg _)
+      _ = _ := by ring
+  intro i hi
+  by_cases hi₀ : i = ⟨0, by omega⟩
+  · subst i
+    exact (show gap ≤ hT.eigenvalues hn ⟨0, by omega⟩ - b by linarith).trans
+      (le_abs_self _)
+  · have hi₂ : (⟨2, by omega⟩ : Fin n) ≤ i := by
+      have : i.val ≠ 0 := fun h => hi₀ (Fin.ext h)
+      have : i.val ≠ 1 := fun h => hi (Fin.ext h)
+      change 2 ≤ i.val
+      omega
+    have hupp := (hT.eigenvalues_antitone hn hi₂).trans hthird
+    exact (show gap ≤ -(hT.eigenvalues hn i - b) by linarith).trans (neg_le_abs _)
+
+private theorem rank_two_spectral_data
     (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
     {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
     (hinner : |inner ℝ w u| ≤ 1 / 64)
     (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
       b / 128 * ‖y‖) :
-    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
-      ‖hT.eigenvectorBasis hn ⟨1, by omega⟩ - s • u‖ ^ 2 ≤ 49 / 2048 := by
+    let x := u - inner ℝ w u • w
+    let v := hT.eigenvectorBasis hn ⟨1, by omega⟩
+    let c := (hT.eigenvectorBasis hn).repr x ⟨1, by omega⟩
+    (∀ i, i ≠ ⟨1, by omega⟩ → b / 2 ≤ |hT.eigenvalues hn i - b|) ∧
+      ‖T x - b • x‖ ≤ 3 * b / 64 ∧ ‖u - c • v‖ ≤ 7 / 64 := by
   let t := inner ℝ w u
   let x := u - t • w
   let R (y : E) := T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)
@@ -221,74 +331,18 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
   have hww : inner ℝ w w = 1 := by rw [real_inner_self_eq_norm_sq, hw]; norm_num
   have huu : inner ℝ u u = 1 := by rw [real_inner_self_eq_norm_sq, hu]; norm_num
   have huw : inner ℝ u w = t := real_inner_comm _ _
-  have hfirst : a - b / 128 ≤ hT.eigenvalues hn ⟨0, by omega⟩ := by
-    have hr := hR w
-    rw [hw, mul_one] at hr
-    have hi := abs_real_inner_le_norm w (R w)
-    rw [hw, one_mul] at hi
-    have heq : inner ℝ w (R w) = inner ℝ w (T w) - a - b * t ^ 2 := by
-      simp only [R, inner_sub_right, inner_add_right, real_inner_smul_right, hww, huw,
-        mul_one]
-      change inner ℝ w (T w) - (a + b * t * t) = _
-      ring
-    rw [heq] at hi
-    have hlow := (abs_le.mp (hi.trans hr)).1
-    have htop := hT.inner_apply_le_first_eigenvalue_mul_sq hn (by omega) w
-    rw [hw] at htop
-    nlinarith [mul_nonneg hb.le (sq_nonneg t)]
-  have hthird : hT.eigenvalues hn ⟨2, by omega⟩ ≤ b / 128 := by
-    apply hT.third_eigenvalue_le_of_orthogonal_complement hn hnthree w u
-    intro y hwy huy
-    have hr := hR y
-    simp only [R, hwy, huy, mul_zero, zero_smul, add_zero, sub_zero] at hr
-    calc
-      inner ℝ y (T y) ≤ ‖y‖ * ‖T y‖ := real_inner_le_norm _ _
-      _ ≤ ‖y‖ * (b / 128 * ‖y‖) := mul_le_mul_of_nonneg_left hr (norm_nonneg _)
-      _ = _ := by ring
-  have hsep (i : Fin n) (hi : i ≠ ⟨1, by omega⟩) :
-      b / 2 ≤ |hT.eigenvalues hn i - b| := by
-    by_cases hi₀ : i = ⟨0, by omega⟩
-    · subst i
-      have hlow : b / 2 ≤ hT.eigenvalues hn ⟨0, by omega⟩ - b := by linarith
-      exact hlow.trans (le_abs_self _)
-    · have hi₂ : (⟨2, by omega⟩ : Fin n) ≤ i := by
-        have : i.val ≠ 0 := fun h => hi₀ (Fin.ext h)
-        have : i.val ≠ 1 := fun h => hi (Fin.ext h)
-        change 2 ≤ i.val
-        omega
-      have hupp := (hT.eigenvalues_antitone hn hi₂).trans hthird
-      have hlow : b / 2 ≤ -(hT.eigenvalues hn i - b) := by linarith
-      exact hlow.trans (neg_le_abs _)
-  have hx : ‖x‖ ≤ 2 := by
-    calc
-      ‖x‖ ≤ ‖u‖ + ‖t • w‖ := norm_sub_le _ _
-      _ = 1 + |t| := by rw [norm_smul, hw, hu, Real.norm_eq_abs, mul_one]
-      _ ≤ 2 := by linarith
-  have hwx : inner ℝ w x = 0 := by
-    simp only [x, inner_sub_right, real_inner_smul_right, hww, mul_one]
-    exact sub_self _
-  have hux : inner ℝ u x = 1 - t ^ 2 := by
-    simp only [x, inner_sub_right, real_inner_smul_right, huu, huw]
-    ring
-  have hres_eq : T x - b • x = R x + (b * t) • w - (b * t ^ 2) • u := by
-    simp only [R, hwx, hux, mul_zero, zero_smul, zero_add, x]
-    module
+  have hsep := hT.second_eigenvalue_separation_of_rank_two hn hnthree hw hb.le
+    (gap := b / 2) (by linarith) (by linarith) herror
+  have hRw : ‖T w - (a • w + (b * t) • u)‖ ≤ b / 128 := by
+    simpa only [R, hww, huw, mul_one, hw] using hR w
+  have hRu : ‖T u - ((a * t) • w + b • u)‖ ≤ b / 128 := by
+    simpa only [R, huu, mul_one, hu] using hR u
   have hres : ‖T x - b • x‖ ≤ 3 * b / 64 := by
-    rw [hres_eq]
-    have hRx : ‖R x‖ ≤ b / 64 := (hR x).trans (by nlinarith only [hx, hb])
-    have htab : t ^ 2 ≤ |t| := by
-      have ht₁ : |t| ≤ 1 := ht.trans (by norm_num)
-      nlinarith [sq_abs t, abs_nonneg t]
-    calc
-      ‖R x + (b * t) • w - (b * t ^ 2) • u‖ ≤
-          ‖R x‖ + ‖(b * t) • w‖ + ‖(b * t ^ 2) • u‖ :=
-        (norm_sub_le _ _).trans (add_le_add (norm_add_le _ _) le_rfl)
-      _ = ‖R x‖ + b * |t| + b * t ^ 2 := by
-        rw [norm_smul, norm_smul, hw, hu, mul_one, mul_one, Real.norm_eq_abs,
-          Real.norm_eq_abs, abs_mul, abs_of_pos hb, abs_mul, abs_of_pos hb,
-          abs_of_nonneg (sq_nonneg t)]
-      _ ≤ 3 * b / 64 := by nlinarith [mul_le_mul_of_nonneg_left ht hb.le,
-        mul_le_mul_of_nonneg_left htab hb.le]
+    have hr := LinearMap.norm_sub_inner_smul_residual_le_of_rank_two hw hu hb.le hRw hRu
+    change ‖T x - b • x‖ ≤ b / 128 + |t| * (b / 128) + b * |t| at hr
+    have h₁ := mul_le_mul_of_nonneg_left ht (by positivity : 0 ≤ b / 128)
+    have h₂ := mul_le_mul_of_nonneg_left ht hb.le
+    nlinarith only [hr, h₁, h₂, hb]
   let v := hT.eigenvectorBasis hn ⟨1, by omega⟩
   let c := (hT.eigenvectorBasis hn).repr x ⟨1, by omega⟩
   have hgap := hT.gap_mul_sq_norm_sub_projection_le hn ⟨1, by omega⟩ x b (b / 2)
@@ -307,6 +361,51 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
       ‖u - c • v‖ ≤ ‖u - x‖ + ‖x - c • v‖ := norm_sub_le_norm_sub_add_norm_sub _ _ _
       _ = |t| + ‖x - c • v‖ := by simp [x, norm_smul, hw, Real.norm_eq_abs]
       _ ≤ 7 / 64 := by linarith
+  exact ⟨hsep, hres, hnear⟩
+
+/-- A small perturbation of two nearly orthogonal rank-one signals isolates the second
+ordered eigenvalue around the weaker signal strength. The other eigenvalues stay at least
+`b / 2` from that center, while the second stays within `b / 4`. -/
+theorem second_eigenvalue_bounds_of_rank_two
+    (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
+    {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
+    (hinner : |inner ℝ w u| ≤ 1 / 64)
+    (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
+      b / 128 * ‖y‖) :
+    |hT.eigenvalues hn ⟨1, by omega⟩ - b| ≤ b / 4 ∧
+      ∀ i, i ≠ ⟨1, by omega⟩ → b / 2 ≤ |hT.eigenvalues hn i - b| := by
+  let j : Fin n := ⟨1, by omega⟩
+  let x := u - inner ℝ w u • w
+  let v := hT.eigenvectorBasis hn j
+  let c := (hT.eigenvectorBasis hn).repr x j
+  obtain ⟨hsep, hres, hnear⟩ :=
+    hT.rank_two_spectral_data hn hnthree hw hu hb hab hinner herror
+  refine ⟨?_, hsep⟩
+  have hv : ‖v‖ = 1 := (hT.eigenvectorBasis hn).norm_eq_one _
+  have hnear' : ‖u - c • v‖ ≤ 7 / 64 := hnear
+  have hnorm := norm_sub_norm_le u (c • v)
+  rw [hu, norm_smul, hv, Real.norm_eq_abs, mul_one] at hnorm
+  have hc : 1 / 2 ≤ |c| := by linarith
+  have hcoord := (hT.abs_eigenvalue_sub_mul_abs_repr_le_norm_residual hn j x b).trans hres
+  change |hT.eigenvalues hn j - b| * |c| ≤ 3 * b / 64 at hcoord
+  have hcprod := mul_le_mul_of_nonneg_left hc (abs_nonneg (hT.eigenvalues hn j - b))
+  change |hT.eigenvalues hn j - b| ≤ b / 4
+  nlinarith
+
+/-- The second ordered eigenvector of a small perturbation of two nearly orthogonal rank-one
+signals approximates the weaker signal. The constants are deliberately conservative. -/
+theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
+    (hnthree : 3 ≤ n) {w u : E} (hw : ‖w‖ = 1) (hu : ‖u‖ = 1)
+    {a b : ℝ} (hb : 0 < b) (hab : 2 * b ≤ a)
+    (hinner : |inner ℝ w u| ≤ 1 / 64)
+    (herror : ∀ y, ‖T y - ((a * inner ℝ w y) • w + (b * inner ℝ u y) • u)‖ ≤
+      b / 128 * ‖y‖) :
+    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
+      ‖hT.eigenvectorBasis hn ⟨1, by omega⟩ - s • u‖ ^ 2 ≤ 49 / 2048 := by
+  let v := hT.eigenvectorBasis hn ⟨1, by omega⟩
+  let c := (hT.eigenvectorBasis hn).repr (u - inner ℝ w u • w) ⟨1, by omega⟩
+  have hnear : ‖u - c • v‖ ≤ 7 / 64 :=
+    (hT.rank_two_spectral_data hn hnthree hw hu hb hab hinner herror).2.2
   have hv : ‖v‖ = 1 := (hT.eigenvectorBasis hn).norm_eq_one _
   obtain ⟨s, hs, hsign⟩ := exists_sign_norm_sub_sq_le hu hv c
   refine ⟨s, hs, ?_⟩

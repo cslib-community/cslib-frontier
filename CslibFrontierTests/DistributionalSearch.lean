@@ -5,6 +5,7 @@ Authors: Sam
 -/
 
 module
+-- upstream: local-only (tests)
 
 import CslibFrontier.Probability.Distributional.Search
 import CslibFrontier.Probability.PMF.Bool

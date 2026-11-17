@@ -49,8 +49,9 @@ at most `2 exp (-n) + n exp (-k / 32)`, under its explicit natural-number size h
 `CommonNeighborAsymptotics` extends this integer algorithm by seed enumeration to every fixed
 `c > 0`, with one native polynomial-time program whose actual recovery failure tends to zero.
 `Eigenvector` and `EigenvectorFinal` separately specify Algorithm A's literal raw-adjacency
-second eigenvector and prove its probability guarantee in an explicit conservative regime;
-that exact spectral choice has no native finite-precision implementation here.
+second eigenvector and prove its probability guarantee in an explicit conservative regime.
+`EigenvectorProgram`, `EigenvectorSharp`, and `EigenvectorHybrid` implement a finite-precision
+version and prove recovery for `k ≥ (51/7) √n` under their explicit finite size hypotheses.
 `Algorithms.IntegerPower.Basic` proves bounds on entry magnitudes and their binary sizes.
 `Program` supplies a uniform native multitape polynomial-time
 realization on dense graph inputs and proves exact agreement with `recover`. `PolyTime` connects

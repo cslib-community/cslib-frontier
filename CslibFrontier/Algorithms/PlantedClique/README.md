@@ -5,10 +5,13 @@ polynomial-time program recovers a planted clique with probability tending to on
 $k(n)\ge c\sqrt n$ eventually. It also gives a separate correctness proof for the ordinary
 adjacency matrix's second-eigenvector algorithm using Mathlib.
 
-The program with the native complexity certificate uses an exact integer matrix-power
-algorithm inside a common-neighbor search. The literal second-eigenvector specification has
-a finite probability bound and a numerical approximation tolerance; its finite-precision
-implementation and native runtime certificate remain open.
+The every-$c$ program uses an exact integer matrix-power algorithm inside a common-neighbor
+search. A second certified program computes a rational approximation to the ordinary adjacency
+matrix's actual second eigenvector, then selects coordinates and performs degree cleanup. Its
+strongest finite recovery theorem applies at $k\ge(51/7)\sqrt n$, for $n\ge2^{64}$ and
+$4096k\le n$. A certified hybrid removes the upper-size restriction by using the existing
+integer solver for large cliques. These explicit guarantees concern the actual native programs
+and their recovery experiments, for every prior on hidden sets of the prescribed size.
 
 ## 1. Paper and formalized theorems
 
@@ -23,14 +26,21 @@ author manuscript's printed pages, not the journal pagination.
 | Source location | Corresponding part of this development |
 |---|---|
 | Main result, introduction and Section 2, pp. 2–3 | Recovery with high probability for every fixed positive coefficient of $\sqrt n$. |
-| Algorithm A, Section 2.1, p. 3 | `secondEigenvector`, `eigenvectorApproximateSet` and `recoverEigenvector` in [Eigenvector.lean](Eigenvector.lean). |
+| Algorithm A, Section 2.1, p. 3 | The exact specification in [Eigenvector.lean](Eigenvector.lean), and its rational approximation and native recovery program in [EigenvectorPolyTime.lean](EigenvectorPolyTime.lean). |
 | Section 2.2, pp. 4–7; Proposition 2.1, Proposition 2.3 and Lemma 2.4 | Ordered spectral separation, a centered-indicator residual, eigenvector alignment, coordinate selection and degree cleanup. |
+| Lemma 2.4's outside-to-clique row sums, p. 6 | [Directional.lean](Directional.lean) obtains a finite exponential estimate by applying the library's Johnson–Lindenstrauss row-concentration theorem to the actual edge coins. |
 | Algorithm B, Section 2.3, pp. 7–8 | The executable common-neighbor wrapper in [CommonNeighborProgram.lean](CommonNeighborProgram.lean), with the integer-power algorithm as its certified base solver. |
 
 The formalization uses conservative explicit constants and finite error bounds. The integer
 base algorithm is a variant developed for this formalization. The literal Algorithm A
-specification is analyzed separately. The paper's constant $10$ is not established for that
-literal specification, and no native finite-precision eigensolver is implemented here.
+specification is analyzed separately. The polynomial filter, iteration count and rational
+normalization below are implementation choices of this formalization. The threshold $51/7$,
+the explicit cutoff and the exponential error budget are an original quantitative variant
+of the paper's proof; they are not asserted as the paper's constants or as optimal constants.
+In particular, the full-range hybrid uses the existing certified integer solver where the
+source uses a preliminary degree argument. The raw second-eigenvector theorem retains its
+explicit sparsity premise. This distinction is recorded in
+[#6238](https://github.com/cslib-community/cslib-frontier/issues/6238).
 
 ### The random problem and what counts as success
 
@@ -90,7 +100,7 @@ fixed $s$; the statement does not treat $s$ as a further runtime input.
 embedded using `pure`. The limit concerns the actual `ENNReal` failure probability, obtained
 by evaluating the Boolean success experiment at `false`.
 
-### Finite base theorem and literal eigenvector theorem
+### Original finite base and exact eigenvector interfaces
 
 The certified integer solver has the following probability theorem in [Final.lean](Final.lean).
 Here and in the next signature, `n : ℕ` is an implicit parameter of the enclosing section.
@@ -120,9 +130,93 @@ theorem searchProblem_recoverEigenvector_failure_le {k : ℕ}
 ```
 
 All spectral, independence and alignment estimates are proved inside this result. Its remaining
-premises are numerical size conditions. The exact eigenvector definition is noncomputable:
-this is a mathematical recovery guarantee, with no native eigensolver certificate. A checked
-client uses $n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
+premises are numerical size conditions. The exact eigenvector definition is noncomputable and
+serves as the mathematical specification.
+
+[EigenvectorPolyTime.lean](EigenvectorPolyTime.lean) proves the corresponding bound for the
+actual finite-integer-arithmetic recovery program:
+
+```lean
+theorem searchProblem_recoverApproximateEigenvectorInput_failure_le {n k : ℕ}
+    (prior : PMF {S : Finset (Fin n) // S.card = k})
+    (hn : 1 ≤ n) (hk : 6 ≤ k) (hsparse : 4096 * k ≤ n)
+    (hsize : 8192 * Real.sqrt n ≤ (k : ℝ)) :
+    ((searchProblem prior).experiment
+      (fun G => PMF.pure (vertexSet n
+        (recoverApproximateEigenvectorInput (RecoveryInput.ofGraph G k)))) false).toReal ≤
+      2 * Real.exp (-(n : ℝ)) + n * Real.exp (-(k : ℝ) / 32)
+```
+
+`computableInPolyTime_recoverApproximateEigenvectorInput` certifies this same function on all
+encoded inputs, without a size or spectral promise. The model-parametric endpoint
+`searchProblem_eigenvector_hasPPTSolver` combines that certificate with the recovery experiment.
+Its all-parameter budget is the displayed exponential expression in the proved regime and $1$
+elsewhere. The machine receives the graph and public $k$; no eigenvector, successful starting
+column or approximation witness is supplied to it.
+
+Checked clients use $n=2^{50}$ and $k=2^{38}$, so the finite hypotheses are jointly satisfiable.
+These clients apply the theorem symbolically; they do not execute the very large iteration count.
+
+### Sharper native theorem: coefficient $51/7$
+
+Define the explicit failure bound
+
+$$
+R(n,k)=2e^{-n/64}+e^{-n/2^{24}}+ne^{-k/2^{15}}.
+$$
+
+[EigenvectorSharp.lean](EigenvectorSharp.lean) proves the following statement for the same
+finite-precision second-eigenvector program. No global-noise, directional-noise, spectral,
+alignment or approximation condition remains as a hypothesis.
+
+```lean
+theorem searchProblem_recoverApproximateEigenvectorInput_failure_le_sharp {n k : ℕ}
+    (prior : PMF {S : Finset (Fin n) // S.card = k})
+    (hnlarge : 2 ^ 64 ≤ n) (hsparse : 4096 * k ≤ n)
+    (hsize : 51 / 7 * Real.sqrt n ≤ (k : ℝ)) :
+    ((searchProblem prior).experiment
+      (fun G => PMF.pure (vertexSet n
+        (recoverApproximateEigenvectorInput (RecoveryInput.ofGraph G k)))) false).toReal ≤
+      eigenvectorSharpError n k
+```
+
+[EigenvectorHybrid.lean](EigenvectorHybrid.lean) defines one further native program:
+
+```lean
+def recoverHybridEigenvectorInput (x : RecoveryInput) : List ℕ :=
+  if 1048576 * x.vertexCount ≤ x.cliqueSize ^ 2 then recoverInput x
+  else recoverApproximateEigenvectorInput x
+```
+
+The integer test is equivalent to $1024\sqrt n\le k$. On that branch the existing integer
+solver applies. When the test fails and $n\ge2^{64}$, arithmetic gives $4096k\le n$, so the
+sharper eigenvector theorem applies. Consequently the full-range endpoint is:
+
+```lean
+theorem searchProblem_recoverHybridEigenvectorInput_failure_le {n k : ℕ}
+    (prior : PMF {S : Finset (Fin n) // S.card = k})
+    (hnlarge : 2 ^ 64 ≤ n) (hsize : 51 / 7 * Real.sqrt n ≤ (k : ℝ)) :
+    ((searchProblem prior).experiment
+      (fun G => PMF.pure (vertexSet n
+        (recoverHybridEigenvectorInput (RecoveryInput.ofGraph G k)))) false).toReal ≤
+      eigenvectorSharpError n k
+```
+
+`computableInPolyTime_recoverHybridEigenvectorInput` charges the branch test and both possible
+computations. `searchProblem_hybridEigenvector_hasPPTSolver` packages one fixed strict PPT
+program for every dimension and every target schedule. Its error budget is $R(n,k)$ in the
+proved regime and $1$ elsewhere; the runtime certificate itself has no size promise.
+
+The cutoff $2^{64}$ is deliberately conservative: it absorbs the diagonal and centering terms
+using simple finite inequalities. It is not a practical input-size or running-time claim.
+The three displayed error terms tend to zero along $k\ge(51/7)\sqrt n$. The exported sharp
+endpoints above are finite probability inequalities; the every-$c$ limit theorem earlier in
+this guide is a separate formalized asymptotic endpoint.
+
+The checked sharp client uses $n=49\cdot2^{64}$ and $k=51\cdot2^{32}$, exactly attaining
+$k=(51/7)\sqrt n$, with the usual uniform planting law. A second client uses $k=n=2^{64}$
+to exercise the large-clique branch. These are symbolic theorem applications, not executions
+of the huge matrices or power counts.
 
 ## 2. Algorithm and proof, with the Lean correspondence
 
@@ -148,11 +242,11 @@ selection operation throughout the proof.
 The threshold is represented as the exact integer inequality
 $3k\le4|N(v)\cap W|$, avoiding truncated natural-number division.
 
-The deterministic cleanup lemma is shared by both spectral constructions. If $|W|=|S|=k$,
-at most $k/16$ planted vertices are missing from $W$, and every outside vertex has at most
-$5k/8$ neighbors in $S$, then the cleanup returns $S$. An outside vertex has at most
-$5k/8+k/16<3k/4$ neighbors in $W$. A planted vertex has at least $15k/16-1$; the hypothesis
-$k\ge6$ accounts for the absent self-loop. This is
+The deterministic cleanup lemma is shared by all constructions. Write $m=|S\setminus W|$
+and $d_S(v)=|N(v)\cap S|$. For $|W|=|S|=k$, a planted clique is recovered whenever
+$4(m+1)\le k$ and $4(d_S(v)+m)<3k$ for every outside vertex. The first inequality includes
+the absent self-loop. The original bounds $m\le k/16$, $d_S(v)\le5k/8$ and $k\ge6$ imply
+these conditions; the sharper proof below supplies a different pair of margins. This is
 `recoverCliqueByDegree_eq_of_overlap` in
 [CliqueRecovery.lean](../../Foundations/Combinatorics/SimpleGraph/CliqueRecovery.lean).
 
@@ -169,58 +263,226 @@ $$
 The rank-two term is the signal, not the exact expectation: the expectation also subtracts
 $(I+\operatorname{diag}(\mathbf1_S))/2$. The proof includes this diagonal correction in $E$.
 
-[RandomMatrix.lean](../../Probability/PlantedClique/RandomMatrix.lean) bounds the signed
-noise matrix $N$ by $36\sqrt n$, except with probability at most $2e^{-n}$. Consequently,
+The sharper argument uses separate estimates for the global operator norm and the particular
+direction $u$. A global norm bound is enough to separate eigenvalues, but using it again on
+$u$ would lose much of the improvement in the recovery threshold.
+
+**Global noise.** [RandomMatrix.lean](../../Probability/PlantedClique/RandomMatrix.lean)
+proves, for every $a\ge0$, the single-net estimate
 
 $$
-\|E\|_{\mathrm{op}}\le18\sqrt n+1\le k/256
+\Pr[\|N\|_{\mathrm{op}}>a\sqrt n]
+\le2\exp\!\left[\left(\frac72-\frac{49a^2}{256}\right)n\right].
 $$
 
-in the eigenvector theorem's regime. This is
-`opNorm_raw_residual_le_card_div_256`.
+For a unit vector, the independent-edge coefficients of $x^{\mathsf T}Nx$ have squared sum
+at most $2$. A $1/16$-net has at most $33^n$ points, and symmetry lets its quadratic forms
+control the operator norm with factor $8/7$. The finite-net lemma is generic; the coefficients
+and their independence come from the planted-graph sampler. Taking $a=30/7$ gives failure
+at most $2e^{-n/64}$, and [RandomGraph.lean](RandomGraph.lean) transports this to
 
-The new general lemmas in
+$$
+\|E\|_{\mathrm{op}}\le\frac{15}{7}\sqrt n+1.
+$$
+
+The same theorem strengthens the previous coarse noise estimate to $5\sqrt n$ with failure
+at most $2e^{-n}$; the older recovery interfaces continue to consume the weaker $36\sqrt n$
+event. There is one shared random-matrix proof.
+
+**Noise in the planted direction.** Inside $S$, the signed noise is zero. Outside $S$, the
+coordinates of $Nu$ are normalized sums of independent signs. Different outside vertices
+use disjoint edge coordinates. [Probability/PlantedClique/Directional.lean](../../Probability/PlantedClique/Directional.lean)
+reuses the injective edge-row map and the existing Johnson–Lindenstrauss concentration theorem
+for sums of squared Rademacher row sums. For $\epsilon\ge0$, it proves
+
+$$
+\Pr\!\left[\|Nu\|^2>(1+\epsilon)n\right]
+\le\exp\!\left[-\frac{n-k}{2}
+ \left(\frac{\epsilon^2}{2}-\frac{\epsilon^3}{3}\right)\right].
+$$
+
+The normalized-vector bridge is [Directional.lean](Directional.lean). Setting
+$\epsilon=1/1024$ and using sparsity bounds this failure by $e^{-n/2^{24}}$. Including the
+diagonal correction gives the convenient finite bound
+
+$$
+\|Eu\|\le\frac{1025}{2048}\sqrt n+1.
+$$
+
+This replaces the source's asymptotic moment calculation with an already formalized finite
+row-concentration inequality. It does not assume independence of entire symmetric-matrix rows.
+
+**Residual and eigenline.** The generic lemmas in
 [EigenvectorPerturbation.lean](../../Foundations/Analysis/InnerProductSpace/EigenvectorPerturbation.lean)
-carry out the spectral argument using Mathlib's orthonormal eigenbasis:
-
-1. A Rayleigh estimate bounds the first eigenvalue from below.
-2. The span of the first three eigenvectors contains a nonzero vector orthogonal to both
-   $w$ and $u$. On that vector only the perturbation contributes to the quadratic form.
-   This bounds the third eigenvalue, and ordering bounds every subsequent eigenvalue.
-3. Set $t=\langle w,u\rangle=\sqrt{k/n}$ and $x=u-tw$. The sparsity hypothesis gives
-   $|t|\le1/64$. The proof bounds the residual
-   $\|(A-\tfrac{k}{2}I)x\|$ by $3k/128$ and separates all eigenvalues except the second
-   from $k/2$ by at least $k/4$.
-4. Expand $x$ in the ordered eigenbasis. The residual identity bounds the sum of squared
-   coefficients away from the second eigenspace. After accounting for $tw$ and the possible
-   sign of the eigenvector, `secondEigenvector_alignment` gives
+use Mathlib's ordered orthonormal eigenbasis. A Rayleigh estimate places the first eigenvalue
+above the all-ones signal. A vector in the span of the first three eigenvectors orthogonal to
+both $w$ and $u$ bounds the third eigenvalue by the perturbation norm; ordering handles the
+rest. For $t=\langle w,u\rangle=\sqrt{k/n}$ and $x=u-tw$, the exact residual identity gives
 
 $$
-\exists \sigma\in\{-1,1\},\qquad
-\|v_2-\sigma u\|^2\le49/2048<1/32.
+\left\|(A-\tfrac{k}{2}I)x\right\|
+\le \|Eu\|+|t|\,\|E\|_{\mathrm{op}}+\frac{k}{2}|t|.
 $$
 
-Here $x=(n\mathbf1_S-k\mathbf1)/(n\sqrt k)$, relating the formalized residual argument to
-the centered indicator used in the source. The finite bounds above are the bounds proved
-by this development.
+Here $x=(n\mathbf1_S-k\mathbf1)/(n\sqrt k)$ is the source's centered indicator after
+rescaling. The eigenbasis expansion bounds the component of $x$ perpendicular to $v_2$
+by residual divided by spectral separation. The proof keeps its actual projection coefficient
+$c=\langle x,v_2\rangle$: coordinate selection is invariant under a common nonzero scale,
+and its ordering inequality also remains valid for zero scale. There is no need to normalize
+this projection to unit length and incur an extra alignment loss.
 
-The generic coordinate-error lemma then yields
-$16|S\setminus W|\le k$; `eigenvectorApproximateSet_overlap` is its application to $v_2$.
-The shared cleanup lemma finishes deterministic correctness. The outside-degree failure
-bound is at most $ne^{-k/32}$, and a union bound gives the finite probability theorem.
-
-The same proof also establishes a useful numerical interface:
-`recoverFromApproximateSecondEigenvector_eq` allows an arbitrary vector $v$ satisfying
+[EigenvectorBounds.lean](EigenvectorBounds.lean) combines these estimates and verifies the
+finite arithmetic at $k\ge(51/7)\sqrt n$, $n\ge2^{64}$, $4096k\le n$:
 
 $$
-\min_{\varepsilon\in\{-1,1\}}\|v-\varepsilon v_2\|\le1/64.
+|\lambda_2-k/2|\le k/8,\qquad
+|\lambda_i-k/2|\ge k/6\quad(i\ne2),\qquad
+\exists c,\ |c|\le1\ \land\ \|cv_2-u\|\le107/320.
 $$
 
-Under the deterministic noise and degree conditions, selecting coordinates of $v$ and
-performing the same cleanup still returns $S$. Exact normalization of $v$ is unnecessary.
-This specifies the accuracy a future finite-precision implementation must achieve.
+At the threshold, the leading spectral gap is
+$(51/14-15/7)\sqrt n=(3/2)\sqrt n$, while the fixed directional bound has leading size
+$(1025/2048)\sqrt n$. Their ratio is $1025/3072\approx0.333659$. The checked $107/320$
+bound also accounts for centering and both diagonal corrections. The large finite cutoff
+makes those additional terms small.
 
-### C. The exact integer algorithm with a native runtime certificate
+**Approximation, selection and cleanup.** The actual rational vector $\widehat v$ is within
+$1/64$ of one sign of $v_2$. Multiplying by the same $c$ and sign gives
+
+$$
+\|c\sigma\widehat v-u\|\le\frac{107}{320}+\frac1{64}=\frac7{20}.
+$$
+
+The generic coordinate-selection bound in [Indicator.lean](Indicator.lean) now yields
+
+$$
+|S\setminus W|\le2k(7/20)^2=\frac{49}{200}k.
+$$
+
+[Degree.lean](../../Probability/PlantedClique/Degree.lean) proves that every outside vertex
+has at most $(129/256)k$ neighbors in $S$, except with probability at most $ne^{-k/32768}$.
+The sum $129/256+49/200=3/4-7/6400$ leaves a strict outside-vertex cleanup margin. The
+inside-vertex inequality accounts for the absent self-loop using $k\ge200$, which follows
+from the size hypotheses. `recoverApproximateEigenvectorInput_eq_of_spectral_bounds`
+connects these inequalities to the actual program and its tie handling. Finally,
+[EigenvectorSharp.lean](EigenvectorSharp.lean) unions the three bad events and averages the
+fixed-set guarantee over any supplied prior to obtain $R(n,k)$.
+
+The older exact-eigenvector and integer-solver theorems still use the shared two-event
+composition in [Probability/PlantedClique/Recovery.lean](../../Probability/PlantedClique/Recovery.lean).
+Their public finite bounds are preserved, while their deterministic and probabilistic proofs
+consume the generalized helpers above.
+
+### C. Computing the second eigenvector with finite arithmetic
+
+The implementation approximates the ordered second eigenvector of the same raw adjacency
+matrix $A$. It has four steps.
+
+**1. Isolate the eigenvalue with a polynomial filter.** The implementation analysis accepts
+the separated-spectrum interface
+
+$$
+|\lambda_2-k/2|\le k/8,\qquad
+i\ne2\ \Longrightarrow\ |\lambda_i-k/2|\ge k/6.
+$$
+
+Both the older `adjMatrix_eigenvalues_bounds` theorem and the sharper
+`secondEigenvector_bounds_of_residual_le` theorem supply this interface. The additional radius bound
+`SimpleGraph.abs_adjMatrix_eigenvalues_le` in the general
+[adjacency-spectrum module](../../Foundations/Combinatorics/SimpleGraph/AdjMatrix.lean)
+gives $|\lambda_i|\le n$ for any graph. Define
+
+$$
+K=16(n+k+1)^2,\qquad F=KI-(2A-kI)^2.
+$$
+
+[EigenvectorProgram.lean](EigenvectorProgram.lean) defines this integer matrix as
+`secondEigenvectorFilter` and implements its row table as `RecoveryInput.eigenvectorFilterRows`.
+Because $F$ is a polynomial in $A$, the same ordered eigenbasis diagonalizes both. For the
+second eigenvector its eigenvalue is $\alpha=K-(2\lambda_2-k)^2>0$; every other filtered
+eigenvalue is nonnegative and at most $\beta=K-k^2/9$. The proved bounds imply
+
+$$
+0\le\frac\beta\alpha\le1-\frac{1}{3072n^2}.
+$$
+
+This turns the required second eigenline into the dominant eigenline of an exactly
+represented integer matrix, without changing the eigenvectors.
+
+**2. Find a useful column without a guessed starting vector.** Set
+
+$$
+t(n)=1048576\,n^3=2^{20}n^3.
+$$
+
+`eigenvectorPowerColumn` computes every $F^{t(n)}e_j$, compares exact integer squared norms,
+and selects a maximum with stable tie breaking. `eigenvectorPowerColumn_spec` proves both
+that the returned list is an actual power column and that its squared norm is maximal.
+
+The reusable theorem
+`OrthonormalBasis.exists_sign_normalize_pow_column_sub_sq_le` in
+[PowerIteration.lean](../../Foundations/Analysis/InnerProductSpace/PowerIteration.lean)
+shows that the selected column $z$ is nonzero and that, for one sign $\sigma$,
+
+$$
+\left\|\frac z{\|z\|}-\sigma v_2\right\|^2
+\le2n\left(\frac\beta\alpha\right)^{2t(n)}.
+$$
+
+It works with an arbitrary orthonormal eigenbasis and an arbitrary orthonormal seed basis.
+Summing the second-eigenvector projections over the seed basis supplies a lower bound for
+the maximum column norm; an eigenbasis expansion bounds the perpendicular error. Thus the
+proof establishes a suitable starting column for the actual exhaustive selection procedure.
+[EigenvectorApproximation.lean](EigenvectorApproximation.lean) combines this theorem with
+the filter bounds and an elementary inverse-Bernoulli estimate to obtain distance at most
+$1/128$ from $z/\|z\|$ to the second eigenvector, up to sign.
+
+**3. Return a rational vector with a proved normalization error.** Exact real normalization
+is only a proof device. For an integer vector $z$ and positive integer precision scale $p$,
+[IntegerVector/Normalize.lean](../IntegerVector/Normalize.lean) stores
+
+$$
+Q=\sum_i z_i^2,\qquad
+d=\left\lfloor\sqrt{p^2Q}\right\rfloor+1,\qquad
+\widehat v_i=\frac{p z_i}{d}.
+$$
+
+`RationalVector` contains a signed-binary numerator list and one binary natural denominator;
+the fractions need not be reduced. `normalize` computes these finite data, and
+`normalize_close` proves, for nonzero integer $z$,
+
+$$
+\left\|\widehat v-\frac z{\|z\|}\right\|\le\frac1p.
+$$
+
+The proof uses the defining inequalities for integer square root and the fact that a nonzero
+integer vector has norm at least one. `approximateSecondEigenvectorInput` uses $p=128$.
+The triangle inequality therefore gives the required total error $1/64$;
+`approximateSecondEigenvectorInput_close` proves it for the computed rational output.
+
+**4. Select coordinates and clean up.** The rational output has a common positive scale
+factor multiplying $z$. Comparing its absolute coordinates is therefore exactly equivalent
+to comparing the integer magnitudes of $z$, including all ties. The recovery program can
+reuse `largestIndices` on $z$ and then `RecoveryInput.cleanup`. Its proof connects those
+comparisons to the scaled-alignment cleanup theorem described above. The original
+`recoverFromApproximateSecondEigenvector_eq` tolerance interface also remains a client of
+the same approximation guarantee. The corresponding concentration estimates give the
+probability theorems for this same program.
+
+Both the rational-output program and the complete recovery program have native
+`ComputableInPolyTime` certificates. They reuse the integer matrix-power certificate, which
+charges growing coordinate bit lengths, and the binary integer-square-root certificate.
+The polynomial iteration count is computed from unary $n$. Construction of the filter,
+enumeration of all columns, exact norm comparisons, sorting, normalization and output writing
+are charged. The large fixed iteration bound is chosen for a simple verified polynomial
+bound; no claim of practical numerical performance is made.
+
+Every input record is handled. Missing adjacency bits decode as absent edges, the decoded
+graph is symmetric and loop-free, and zero-dimensional input produces an empty column and
+rational output with denominator $1$. Outside the spectral regime the program still runs
+with its unconditional runtime certificate; the failure budget is $1$.
+
+### D. The exact integer algorithm with a native runtime certificate
 
 The executable base algorithm uses
 
@@ -272,7 +534,7 @@ and testing columns, sorting coordinates, performing degree cleanup, and writing
 The decoder gives every input record a total graph interpretation, so the runtime certificate
 requires no planted-graph, spectral, or input-well-formedness hypothesis.
 
-### D. Common neighbors give every fixed positive threshold
+### E. Common neighbors give every fixed positive threshold
 
 Fix a seed size $s$. The wrapper enumerates lists of $s$ distinct vertices. For each seed
 set $T$, form
@@ -380,8 +642,11 @@ The following are pre-existing APIs used directly by the proof or runtime certif
 | [Native PPT](../../Computability/Probabilistic/PPT.lean): `IsPPTOn` and `ComputableInPolyTime.isPPTOn` | Turn the deterministic machine certificate into one strict PPT program for the entire input family. |
 | [Structure encodings](../../Computability/Machines/Turing/MultiTape/Encodings/Structure.lean): `enc_structure` | Generate the concrete record encoding and constructor/projection certificates for `RecoveryInput`. |
 | [Integer tables](../../Computability/PolyTime/Int/Table.lean), [dot products](../../Computability/PolyTime/Int/DotProduct.lean), binary arithmetic and native list/iteration rules | Certify the matrix construction, exact arithmetic, list traversal and bounded iteration. Existing `ComputableInPolyTime.listsUpTo` supplies the fixed-seed enumeration certificate. |
+| [Binary square root](../../Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Sqrt.lean): `ComputableInPolyTime.binary_sqrt` | Compute the common rational denominator while charging the bit cost of the squared norm and precision. |
+| [Inverse Bernoulli inequality](../../Foundations/Analysis/BernoulliInequality.lean): `Real.one_sub_pow_le_one_div_one_add_mul` | Convert the filter's contraction ratio into an explicit finite iteration bound. |
 | [TracePower.lean](../../Foundations/LinearAlgebra/TracePower.lean): `LinearMap.IsPositive.pow_le_re_trace_pow` and `LinearMap.IsSymmetric.re_inner_apply_eq_sum` | Prove the existence of a growing power column and expand spectral quadratic forms in the eigenbasis. |
 | [Rademacher.lean](../../Probability/BitString/Rademacher.lean): `expect_exp_mul_sum_mul_signVal_le` | Supply the moment-generating-function estimate from which the new scalar tail bounds, degree bounds and random-matrix estimate are derived. |
+| [JohnsonLindenstrauss.lean](../../Probability/JohnsonLindenstrauss.lean): `dens_mul_lt_sum_sq_sum_mul_signVal_le` | Bound the squared noise norm in the planted direction from independent outside-to-clique rows, without a new moment or concentration development. |
 | [Uniform PMFs](../../Probability/PMF/Uniform.lean): `uniformOfFintype_pi_map_comp_embedding` and `uniformOfFintype_bind_bind_fst_equiv` | Transport uniform coin laws through injective coordinate maps and justify exposure/resampling. |
 | [Concentration.lean](../../Probability/Concentration.lean): `PMF.pi_sum_ge_mean_add` | Bound the number of surviving outside vertices after row independence has been established. |
 | [EventBind.lean](../../Probability/PMF/EventBind.lean): `toOuterMeasure_bind_failure_toReal_le` | Combine sequential failure probabilities and average fixed-planted-set bounds over arbitrary priors. |
@@ -392,7 +657,9 @@ In particular, the literal second eigenvector uses the ordering of
 `LinearMap.IsSymmetric.eigenvectorBasis` and `eigenvalues_antitone`. The matrix-level
 eigenbasis has an arbitrary reindexing and is not used to identify the second eigenvalue.
 Mathlib's filters, exponential/logarithmic asymptotics and `ENNReal` continuity support the
-final limit argument.
+final limit argument. The sharper proof also uses Mathlib's orthogonal projections and
+their norm contraction, the self-adjoint Rayleigh characterization of the operator norm,
+and Haar-volume scaling for finite-net packing.
 
 ### Shared interfaces and lemmas added by this development
 
@@ -427,7 +694,11 @@ bound in its numerical regime and the trivial budget $1$ elsewhere.
 The additional shared mathematics includes coordinate selection and its error bound,
 deterministic clique cleanup and uniqueness, finite-seed common neighborhoods, uniform
 fixed-pattern probabilities, spectral perturbation lemmas, finite nets, Rademacher tails,
-and the native integer-power and sorting certificates. These are contributions of this
+and the native integer-power and sorting certificates. The finite-precision implementation
+adds a general maximum-column power-iteration estimate and certified rational normalization
+of integer vectors. The sharper analysis generalizes the net radius, quadratic-form net
+bound, rank-two residual and spectral-separation interfaces, and the degree margin; existing
+clients are migrated to those shared statements. These are contributions of this
 development, rather than pre-existing planted-clique machinery.
 
 One reuse improvement is an extraction: the stable merge-sort/insertion-sort bridge formerly
@@ -437,6 +708,8 @@ The existing matroid client and the new selection/runtime proof use that shared 
 The circuit-testing layer also gains `isCircuitTest_iff_exists_circuit`, relating its existing
 semantic test class to explicit De Morgan circuits.
 
-The remaining algorithmic work is a native finite-precision implementation of the raw
-second-eigenvector specification and sharper constants. The every-$c$ native recovery
-theorem above is already proved using the integer solver and common-neighbor wrapper.
+The coefficient $51/7$ is the best constant checked in this development, not a claimed
+optimum. Further work could reduce the finite cutoff, improve the residual and rounding
+losses, or implement the paper's preliminary degree branch. The full-range guarantee already
+uses the explicit native hybrid above. The every-$c$ native recovery theorem uses the integer
+solver and common-neighbor wrapper; these are distinct, fully specified programs.

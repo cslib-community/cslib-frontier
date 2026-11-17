@@ -20,14 +20,15 @@ import Mathlib.Tactic.Ring
 
 The centered leading-eigenvector algorithm with one weighted cleanup step recovers the hidden
 labels, up to global swap, with failure probability at most
-`2 exp (-n) + 2 n exp (-d² n / 8)` when `d = (p-q)/2 > 0` and `41472 < d³ n`.
+`2 exp (-n) + 2 n exp (-d² n / 2)` when `d = (p-q)/2 > 0` and `200 < d³ n`.
 The guarantee is uniform over labelings and hence over every prior on labels. Neither balance
 nor independence between the spectral estimate and the cleanup votes is assumed.
 
 These are complete probability guarantees for the exact mathematical eigenvector specification.
 They do not assert a native running-time certificate or a sharp sparse recovery threshold.
-The large finite constants arise from an elementary finite-net noise bound and a deterministic
-cleanup margin; optimizing them is not part of this result.
+The finite condition uses the shared symmetric quadratic-net bound `‖N‖ ≤ (5/2) √n`,
+followed by sign rounding and a deterministic cleanup margin. The constants are sufficient,
+not claimed optimal.
 -/
 
 public section
@@ -40,23 +41,23 @@ open scoped unitInterval
 variable {n : ℕ}
 
 private theorem dense_parameters {d : ℝ} (hd : 0 < d) (hd₁ : d ≤ 1)
-    (hsize : 41472 < d ^ 3 * (n : ℝ)) :
-    0 < n ∧ 2 * (36 * sqrt n) ≤ d * n ∧
-      16 * n * (36 * sqrt n / (d * n)) ^ 2 < d * n / 2 := by
+    (hsize : 200 < d ^ 3 * (n : ℝ)) :
+    0 < n ∧ 2 * ((5 / 2) * sqrt n) ≤ d * n ∧
+      16 * n * ((5 / 2) * sqrt n / (d * n)) ^ 2 < d * n / 2 := by
   have hn : 0 < n := by
     by_contra h
     have hz : n = 0 := Nat.eq_zero_of_not_pos h
     norm_num [hz] at hsize
   have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-  have hlarge : 5184 ≤ d ^ 2 * (n : ℝ) := by
+  have hlarge : 25 ≤ d ^ 2 * (n : ℝ) := by
     have hmono := mul_nonneg (sub_nonneg.mpr hd₁)
       (mul_nonneg (sq_nonneg d) hnR.le)
     nlinarith only [hsize, hmono]
-  have hsmall : 72 * sqrt n ≤ d * n := by
+  have hsmall : 5 * sqrt n ≤ d * n := by
     apply (sq_le_sq₀ (by positivity) (by positivity)).mp
     nlinarith only [mul_le_mul_of_nonneg_right hlarge hnR.le,
       Real.sq_sqrt (Nat.cast_nonneg n)]
-  have hbudget : 16 * n * (36 * sqrt n / (d * n)) ^ 2 = 20736 / d ^ 2 := by
+  have hbudget : 16 * n * ((5 / 2) * sqrt n / (d * n)) ^ 2 = 100 / d ^ 2 := by
     simp only [div_pow, mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]
     field_simp
     ring
@@ -68,8 +69,8 @@ private theorem dense_parameters {d : ℝ} (hd : 0 < d) (hd₁ : d ≤ 1)
 /-- On the high-probability noise and row-margin events, the explicit dense-size condition
 makes one spectral rounding step and one cleanup step recover the hidden labels up to swap. -/
 theorem recoverSpectral_sample_eq_or_not (p q : I) (g : Fin n → Bool) (ω : Coins n)
-    (hpq : (q : ℝ) < p) (hsize : 41472 < (gap p q) ^ 3 * (n : ℝ))
-    (hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ 36 * sqrt n)
+    (hpq : (q : ℝ) < p) (hsize : 200 < (gap p q) ^ 3 * (n : ℝ))
+    (hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ (5 / 2) * sqrt n)
     (hmargin : ∀ i, gap p q * n / 2 <
       signVal (g i) * ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * signVal (g j)) :
     recoverSpectral p q (sample ω) = g ∨
@@ -82,18 +83,18 @@ theorem recoverSpectral_sample_eq_or_not (p q : I) (g : Fin n → Bool) (ω : Co
     linarith
   obtain ⟨hn, hsmall, hbudget⟩ := dense_parameters hd hd₁ hsize
   apply recoverSpectral_eq_or_not_of_opNorm_le p q (sample ω) g hn hd
-    (show 0 ≤ 36 * sqrt n by positivity) hsmall
+    (show 0 ≤ (5 / 2) * sqrt n by positivity) hsmall
   · simpa only [shiftedCenteredAdjacency_sample p q g ω, add_sub_cancel_left] using hnoise
   · exact fun i => hbudget.trans (hmargin i)
 
 /-- The actual conditional SBM law satisfies the finite exact-recovery bound, uniformly over
 all hidden labelings. The output is compared with the labels modulo a global swap. -/
 theorem coinLaw_recoverSpectral_failure_le (p q : I) (g : Fin n → Bool)
-    (hpq : (q : ℝ) < p) (hsize : 41472 < (gap p q) ^ 3 * (n : ℝ)) :
+    (hpq : (q : ℝ) < p) (hsize : 200 < (gap p q) ^ 3 * (n : ℝ)) :
     ((coinLaw p q g).toOuterMeasure {ω |
       ¬ (recoverSpectral p q (sample ω) = g ∨
         recoverSpectral p q (sample ω) = fun i => !g i)}).toReal ≤
-      2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 8) := by
+      2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 2) := by
   apply coinLaw_failure_le_of_noise_margin p q g _ (by dsimp [gap]; linarith)
   intro ω hnoise hmargin hfail
   exact hfail (recoverSpectral_sample_eq_or_not p q g ω hpq hsize hnoise hmargin)
@@ -104,10 +105,10 @@ finite failure bound. Only the graph is observed; `p` and `q` are fixed public p
 This is a distributional-search probability guarantee, not a computational-model certificate. -/
 theorem searchProblem_recoverSpectral_failure_le (p q : I)
     (prior : PMF (Fin n → Bool)) (hpq : (q : ℝ) < p)
-    (hsize : 41472 < (gap p q) ^ 3 * (n : ℝ)) :
+    (hsize : 200 < (gap p q) ^ 3 * (n : ℝ)) :
     ((searchProblem p q prior).experiment (fun G => PMF.pure (recoverSpectral p q G))
       false).toReal ≤
-        2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 8) := by
+        2 * exp (-(n : ℝ)) + 2 * n * exp (-(gap p q) ^ 2 * n / 2) := by
   apply searchProblem_failure_le_of_fixedLabels p q prior
     (fun G => recoverSpectral p q G) (by positivity)
   intro g

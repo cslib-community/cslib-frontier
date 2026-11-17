@@ -24,7 +24,8 @@ import Mathlib.Tactic.Ring
 Each row of the shifted centered adjacency matrix has expected signed label margin `gap * n`.
 A weighted Hoeffding bound controls its centered sum of independent incident edges. A union
 bound shows that every row margin exceeds half its expectation except with probability at most
-`2 n exp (-gap² n / 8)`.
+`2 n exp (-gap² n / 2)`. The centered Bernoulli scores have oscillation one, independently
+of their success probabilities.
 
 These are margins against the fixed hidden labels. The argument makes no independence claim
 for labels estimated from the observed graph; deterministic robustness of cleanup handles those
@@ -113,7 +114,7 @@ private theorem coinLaw_low_margin_le (p q : I) (g : Fin n → Bool)
       BitString.signVal (g i) *
         ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * BitString.signVal (g j) ≤
           gap p q * n / 2}).toReal ≤
-      2 * Real.exp (-(gap p q) ^ 2 * n / 8) := by
+      2 * Real.exp (-(gap p q) ^ 2 * n / 2) := by
   have hn : (0 : ℝ) < n := by exact_mod_cast Nat.zero_lt_of_lt i.isLt
   let score (e : Fin n × Fin n) (b : Bool) : ℝ :=
     BitString.bitVal ℝ b - edgeProbability p q g e.1 e.2
@@ -121,12 +122,12 @@ private theorem coinLaw_low_margin_le (p q : I) (g : Fin n → Bool)
       ∑ b, (PMF.coin (edgeProbability p q g e.1 e.2) b).toReal * score e b = 0 := by
     simp [score, PMF.coin_apply_toReal]
     ring
-  have hosc (e : Fin n × Fin n) (a b : Bool) : |score e a - score e b| ≤ 2 := by
+  have hosc (e : Fin n × Fin n) (a b : Bool) : |score e a - score e b| ≤ 1 := by
     simp only [score, sub_sub_sub_cancel_right]
     cases a <;> cases b <;> norm_num
   have htail := PMF.pi_abs_sum_mul_ge_le_of_centered
     (fun e : Fin n × Fin n => PMF.coin (edgeProbability p q g e.1 e.2)) score
-    (rowCoeff g i) hmean hosc hn.le (sum_rowCoeff_sq_le g i)
+    (rowCoeff g i) hmean (by norm_num : (0 : ℝ) < 1) hosc hn.le (sum_rowCoeff_sq_le g i)
     (show 0 ≤ gap p q * n / 2 by positivity)
   have hsub : {ω : Coins n |
       BitString.signVal (g i) *
@@ -150,16 +151,15 @@ private theorem coinLaw_low_margin_le (p q : I) (g : Fin n → Bool)
   apply hprob.trans (htail.trans_eq ?_)
   congr 2
   field_simp
-  ring
 
 /-- Every true-label row margin is greater than half its mean, except with probability at most
-`2 n exp (-gap² n / 8)`. The hidden labeling is fixed before the independent edges are sampled. -/
+`2 n exp (-gap² n / 2)`. The hidden labeling is fixed before the independent edges are sampled. -/
 theorem coinLaw_exists_low_margin_le (p q : I) (g : Fin n → Bool) (hgap : 0 ≤ gap p q) :
     ((coinLaw p q g).toOuterMeasure {ω | ∃ i : Fin n,
       BitString.signVal (g i) *
         ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * BitString.signVal (g j) ≤
           gap p q * n / 2}).toReal ≤
-      2 * n * Real.exp (-(gap p q) ^ 2 * n / 8) := by
+      2 * n * Real.exp (-(gap p q) ^ 2 * n / 2) := by
   classical
   let bad (i : Fin n) : Set (Coins n) := {ω |
     BitString.signVal (g i) *
@@ -175,7 +175,7 @@ theorem coinLaw_exists_low_margin_le (p q : I) (g : Fin n → Bool) (hgap : 0 �
   rw [hset]
   calc
     _ ≤ ∑ i : Fin n, ((coinLaw p q g).toOuterMeasure (bad i)).toReal := h
-    _ ≤ ∑ _i : Fin n, 2 * Real.exp (-(gap p q) ^ 2 * n / 8) :=
+    _ ≤ ∑ _i : Fin n, 2 * Real.exp (-(gap p q) ^ 2 * n / 2) :=
       sum_le_sum fun i _ => coinLaw_low_margin_le p q g hgap i
     _ = _ := by simp; ring
 

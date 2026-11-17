@@ -23,10 +23,11 @@ matrix by `(D² m-c) J + (c-D² p) I`, where `m=(p+q)/2`. If `c` approximates `D
 and lies in `[0,D²]`, this additional perturbation has operator norm at most `n+D²`.
 The same quantity bounds the change in every true-label row margin.
 
-The shared integer power search therefore gives approximate labels whenever the total residual
-is small compared with its growth threshold `D n`. Weighted-vote cleanup then corrects the
-remaining labels. This is a deterministic step: the stochastic block model supplies the noise
-and row-margin bounds separately, without any independence requirement between the two stages.
+The shared integer power search therefore gives approximate labels whenever the squared total
+residual is at most `gap / 64` times the squared growth threshold `D n`. Its sign rounding then
+makes at most `gap * n / 8` errors, which weighted-vote cleanup corrects. This is a deterministic
+step: the stochastic block model supplies the noise and row-margin bounds separately, without
+any independence requirement between the two stages.
 -/
 
 public section
@@ -126,8 +127,9 @@ theorem recoverPower_sample_eq_or_not_of_bounds (params : PowerParameters) (p q 
     (r : ℝ) (hr : 0 ≤ r)
     (hnoise : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (noise p q g ω)‖ ≤ r)
     (hDgap : 2 ≤ (params.resolution : ℝ) * gap p q)
-    (hsize : (params.resolution : ℝ) ^ 2 * r + n + (params.resolution : ℝ) ^ 2 ≤
-      gap p q / 16 * ((params.resolution : ℝ) * n))
+    (hsize : 64 * ((params.resolution : ℝ) ^ 2 * r + n +
+      (params.resolution : ℝ) ^ 2) ^ 2 ≤
+        gap p q * ((params.resolution : ℝ) * n) ^ 2)
     (hmargin : ∀ i, gap p q * n / 2 <
       signVal (g i) * ∑ j, shiftedCenteredAdjacency p q (sample ω) i j * signVal (g j)) :
     recoverPower params (sample ω) = g ∨ recoverPower params (sample ω) = fun i => !g i := by
@@ -142,22 +144,24 @@ theorem recoverPower_sample_eq_or_not_of_bounds (params : PowerParameters) (p q 
   have hd : 0 < gap p q := by dsimp [gap]; linarith
   have hd1 : gap p q ≤ 1 := by dsimp [gap]; linarith [p.2.2, q.2.1]
   have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-  have hD1 : (1 : ℝ) ≤ D := by
-    dsimp only [D]
-    exact_mod_cast (show 1 ≤ params.resolution by omega)
   have hD0 : 0 < D := Nat.cast_pos.mpr hD
   have hS : 0 < S := sq_pos_of_pos hD0
-  have hDS : D ≤ S := by dsimp only [S]; nlinarith
   have hk : 0 < k := Nat.mul_pos hD hn
   have hkR : (k : ℝ) = D * n := Nat.cast_mul _ _
   have hk0 : (0 : ℝ) < k := Nat.cast_pos.mpr hk
   have hR : 0 ≤ R := by dsimp only [R]; positivity
   have ha : 0 ≤ a := by dsimp only [a]; positivity
-  have hbound : R ≤ gap p q / 16 * (k : ℝ) := by simpa only [hkR] using hsize
-  have hratio : R / k ≤ gap p q / 16 := (div_le_iff₀ hk0).mpr hbound
+  have hbound : 64 * R ^ 2 ≤ gap p q * (k : ℝ) ^ 2 := by
+    simpa only [hkR] using hsize
+  have hratio : (R / (k : ℝ)) ^ 2 ≤ gap p q / 64 := by
+    rw [div_pow]
+    apply (div_le_iff₀ (sq_pos_of_pos hk0)).mpr
+    nlinarith only [hbound]
+  have hReighth : R ≤ (k : ℝ) / 8 := by
+    apply (sq_le_sq₀ hR (by positivity : (0 : ℝ) ≤ (k : ℝ) / 8)).mp
+    nlinarith only [hbound, mul_le_mul_of_nonneg_right hd1 (sq_nonneg (k : ℝ))]
   have hRk : R ≤ (k : ℝ) := by
-    have hprod := mul_nonneg (show 0 ≤ 1 - gap p q / 16 by linarith) hk0.le
-    nlinarith only [hbound, hprod]
+    linarith only [hReighth, hk0]
   have hsignalSize : 2 * (k : ℝ) ≤ a := by
     calc
       2 * (k : ℝ) = 2 * (D * n) := by rw [hkR]
@@ -189,40 +193,33 @@ theorem recoverPower_sample_eq_or_not_of_bounds (params : PowerParameters) (p q 
     simp [M, integerMatrix, Matrix.map_apply, eq_comm, (sample ω).adj_comm]
   obtain ⟨s, hs, hclose⟩ := IntegerPower.recoveredVector_alignment M hk hM hv hR hgain hresidual
   let z := WithLp.toLp 2 (fun i => (IntegerPower.recoveredVector M k i : ℝ))
-  have hclose' : ‖NormedSpace.normalize z - s • v‖ ^ 2 ≤ (gap p q) ^ 2 / 32 := by
-    have hsq := (sq_le_sq₀ (div_nonneg hR hk0.le) (by positivity : 0 ≤ gap p q / 16)).mpr
-      hratio
-    nlinarith only [hclose, hsq]
+  have hclose' : ‖NormedSpace.normalize z - s • v‖ ^ 2 ≤ gap p q / 8 := by
+    nlinarith only [hclose, hratio]
   have hround (g' : Fin n → Bool)
       (hdist : ‖NormedSpace.normalize z - NormedSpace.normalize (signWord g')‖ ^ 2 ≤
-        (gap p q) ^ 2 / 32) :
-      (hammingDist (powerLabels params (sample ω)) g' : ℝ) ≤ (gap p q) ^ 2 * n / 32 := by
+        gap p q / 8) :
+      (hammingDist (powerLabels params (sample ω)) g' : ℝ) ≤ gap p q * n / 8 := by
     have h := hammingDist_signRound_le_card_mul_norm_sub_sq g' (NormedSpace.normalize z)
     rw [signRound_normalize] at h
     simp only [Fintype.card_fin] at h
     exact h.trans (by nlinarith only [mul_le_mul_of_nonneg_left hdist hnR.le])
   obtain ⟨g', hg', herr⟩ : ∃ g' : Fin n → Bool, (g' = g ∨ g' = fun i => !g i) ∧
-      (hammingDist (powerLabels params (sample ω)) g' : ℝ) ≤ (gap p q) ^ 2 * n / 32 := by
+      (hammingDist (powerLabels params (sample ω)) g' : ℝ) ≤ gap p q * n / 8 := by
     rcases hs with rfl | rfl
     · exact ⟨g, Or.inl rfl, hround g (by simpa only [one_smul, v] using hclose')⟩
     · exact ⟨fun i => !g i, Or.inr rfl, hround _ (by
         simpa only [neg_one_smul, signWord_not, NormedSpace.normalize_neg, v] using hclose')⟩
   have hcentering : (n : ℝ) + S ≤ S * gap p q * n / 16 := by
+    change (n : ℝ) + S ≤ a / 16
     calc
       (n : ℝ) + S ≤ R := by dsimp only [R]; nlinarith [mul_nonneg hS.le hr]
-      _ ≤ gap p q / 16 * (D * n) := hsize
-      _ ≤ gap p q / 16 * (S * n) := by gcongr
-      _ = _ := by ring
+      _ ≤ a / 16 := by linarith only [hReighth, hsignalSize]
   have hcost : 2 * S * (hammingDist (powerLabels params (sample ω)) g' : ℝ) ≤
-      S * gap p q * n / 16 := by
+      S * gap p q * n / 4 := by
     calc
       2 * S * (hammingDist (powerLabels params (sample ω)) g' : ℝ)
-          ≤ 2 * S * ((gap p q) ^ 2 * n / 32) :=
+          ≤ 2 * S * (gap p q * n / 8) :=
         mul_le_mul_of_nonneg_left herr (by positivity)
-      _ = S * n / 16 * (gap p q) ^ 2 := by ring
-      _ ≤ S * n / 16 * gap p q :=
-        mul_le_mul_of_nonneg_left (by nlinarith only [hd.le, hd1] : (gap p q) ^ 2 ≤ gap p q)
-          (by positivity)
       _ = _ := by ring
   have hm (i : Fin n) : 2 * S * (hammingDist (powerLabels params (sample ω)) g' : ℝ) <
       signVal (g i) * ∑ j, M.map (Int.castRingHom ℝ) i j * signVal (g j) := by
