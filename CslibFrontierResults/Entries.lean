@@ -5607,20 +5607,18 @@ register_result "prp-iff-prf" where
     { paper := BonehShoup2023, theorem := "Corollary 4.5", locator := "Section 4.4.3, p. 135" }
   ]
   theorems := [
-    Cslib.Crypto.BlockCipher.prp_iff_pseudorandomFunctionOver,
-    Cslib.Crypto.BlockCipher.PRP.pseudorandomFunction
+    Cslib.Crypto.BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame
   ]
-  scope := "Uniform block ciphers (BlockCipher: polynomial-time key and block lengths, and \
+  scope := "Every uniform block cipher (BlockCipher: polynomial-time key and block lengths, and \
     deterministic polynomial-time encryption and decryption, mutually inverse on blockLen n-bit \
-    blocks under keyLen n-bit keys) against uniform oracle-PPT distinguishers (IsOraclePPT) in \
-    the adaptive word-oracle forms of Attack Games 4.1 and 4.2, where a query of the wrong \
-    length is answered with the empty word in both games. The source's super-poly N is the \
-    hypothesis that (2 ^ blockLen n)⁻¹ is negligible. Restriction: keys are n-bit words \
-    (keyLen = id), because the word-level PRF notion PseudorandomFunctionOver samples n-bit keys; \
-    the source allows any key space. prp_iff_pseudorandomFunctionOver is the corollary's \
-    equivalence under these hypotheses; its PRF side includes the polynomial-time evaluation and \
-    length fields of PseudorandomFunctionOver. BlockCipher.PRP.pseudorandomFunction is its \
-    PRP-to-PRF direction for blockLen = id, where the super-poly hypothesis holds automatically."
+    blocks under keyLen n-bit keys), with any key length, against uniform oracle-PPT \
+    distinguishers (IsOraclePPT) in the adaptive word-oracle forms of Attack Games 4.1 and 4.2, \
+    where a query of the wrong length is answered with the empty word in both games. The \
+    source's super-poly N is the hypothesis that (2 ^ blockLen n)⁻¹ is negligible. The PRF side \
+    is stated as indistinguishability of E.prpRealGame, which is the real experiment of E viewed \
+    as a PRF over (K, X, X), from prfIdealGame blockLen blockLen; the library's named PRF notion \
+    PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
+    BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
 register_result "ajtai-collision-sis" where
   title := "Finding collisions in Ajtai's hash function is no easier than SIS"

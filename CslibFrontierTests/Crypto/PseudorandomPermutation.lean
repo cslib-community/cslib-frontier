@@ -158,10 +158,10 @@ example {Key D : Type} [Fintype Key] [Nonempty Key] [Fintype D] [DecidableEq D] 
   calc (Q.choose 2 : ℝ) / Fintype.card D ≤ ((Q : ℝ) ^ 2 / 2) / Fintype.card D := by gcongr
     _ = (Q : ℝ) ^ 2 / (2 * Fintype.card D) := by ring
 
--- Length-preserving Corollary 4.5 follows from `BlockCipher.prp_iff_pseudorandomFunctionOver`.
+-- For `n`-bit keys and blocks, a block cipher is a PRP iff it is a `PseudorandomFunction`.
 example {E : BlockCipher} (hkey : E.keyLen = id) (hblock : E.blockLen = id) :
     E.PRP ↔ PseudorandomFunction (fun key query => E.encrypt key.length key query) := by
-  have hiff := BlockCipher.prp_iff_pseudorandomFunctionOver hkey
+  have hiff := BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id hkey
     (by rw [hblock]; exact negligible_inv_two_pow)
   rw [hblock] at hiff
   exact hiff

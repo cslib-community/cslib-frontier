@@ -14,7 +14,8 @@ The toy family that masks the input with the key is length preserving and comput
 polynomial time, so it instantiates `lubyRackoffCipher`. Concrete encryptions follow the three
 Feistel rounds of Boneh–Shoup, decryption inverts them, and the oracle rejects blocks of the wrong
 length. The adapter's query program answers malformed blocks without querying. The Luby–Rackoff
-theorem applies to every pseudorandom function. The four-round cipher of the toy family adds one
+theorem applies to every pseudorandom function, and with Corollary 4.5 the cipher, whose keys have
+`3 * n` bits, is a secure PRF on its blocks. The four-round cipher of the toy family adds one
 round, its strong oracle decrypts its own ciphertexts, and the four-round theorem applies to every
 pseudorandom function.
 -/
@@ -68,6 +69,19 @@ example {family : List Bool → List Bool → List Bool} (hfamily : Pseudorandom
         adversary n))
       (ProbComp.eval (prpIdealGame (fun n => 2 * n) adversary n)) :=
   hfamily.prp_lubyRackoffCipher adversary hadversary
+
+-- Corollary 4.5 applies to the Luby–Rackoff cipher, whose keys have `3 * n` bits: it is a secure
+-- PRF on its `2 * n`-bit blocks, as the proof of Boneh–Shoup Theorem 4.9 uses.
+example {family : List Bool → List Bool → List Bool} (hfamily : PseudorandomFunction family) :
+    Game.Indistinguishable
+      (fun adversary n => ProbComp.eval
+        ((lubyRackoffCipher family hfamily.polyTime hfamily.length_eq).prpRealGame adversary n))
+      (fun adversary n =>
+        ProbComp.eval (prfIdealGame (fun n => 2 * n) (fun n => 2 * n) adversary n))
+      (Probability.IsOraclePPT encBool) :=
+  (BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame
+    (negligible_inv_two_pow_comp_of_le fun n => by dsimp only [lubyRackoffCipher]; omega)).mp
+    hfamily.prp_lubyRackoffCipher
 
 /-- The four-round Luby–Rackoff cipher of the toy family. -/
 abbrev toyCipher4 : BlockCipher := lubyRackoff4Cipher xorFamily xorFamily_polyTime length_xorFamily
