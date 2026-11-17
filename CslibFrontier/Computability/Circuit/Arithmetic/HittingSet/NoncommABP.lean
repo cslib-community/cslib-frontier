@@ -165,8 +165,8 @@ private theorem coeff_polynomial [NeZero W] (hW : ∀ k ≤ d, A.width k ≤ W) 
     change coeff (FreeMonoid.ofList (List.ofFn u)) _ =
       coeff (FreeMonoid.ofList ((List.ofFn u).take d)) _
     rw [ht]
-  · have hlen : (FreeMonoid.ofList ((List.ofFn u).take k)).length = k := by
-      simp [FreeMonoid.length, hk.le]
+  · have hlen : (FreeMonoid.ofList ((List.ofFn u).take k)).toList.length = k := by
+      simp [hk.le]
     rw [List.take_succ_eq_append_getElem (by simpa using hk), FreeMonoid.ofList_append,
       FreeMonoid.ofList_singleton, coeff_mul_mul_of_isHomogeneous _ _ _
         (by rw [hlen]; exact A.isHomogeneous_pre k i), coeff_ι]

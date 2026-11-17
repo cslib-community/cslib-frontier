@@ -121,7 +121,7 @@ private theorem emptyGeneratorCode_holds (q : EmptyGeneratorState) (input : Opti
         Option.map Universal.eBit ∘ (Fin.elim0 : Fin 0 → Option Bool) :=
       Subsingleton.elim _ _
     rw [hwork, MultiTapeTM.tr_map, emptyGenerator, MultiTapeTM.tr_ofTr]]
-  fin_cases q <;> all_goals
+  fin_cases q <;>
     cases input with
     | none =>
       simp [emptyGeneratorCode, emptyGeneratorKeys, encEmptyGeneratorState,

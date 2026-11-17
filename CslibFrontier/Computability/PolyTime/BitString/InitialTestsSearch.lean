@@ -560,7 +560,7 @@ theorem checkSmallBiasShifts_eq_true_iff {ell d maxBiasNum maxBiasDen : ℕ} [Ne
       (b : BitString ell) : shifts.countP (fun row => listDot row (List.ofFn b)) =
         #{j : Fin d | parityOn {i : Fin ell | b i = true} (s j) = true} := by
     nth_rw 1 [list_eq_ofFn_ofList hlen hrows]
-    rw [List.countP_ofFn, ← card_filter]; congr 1; ext j
+    rw [List.countP_ofFn]; congr 1; ext j
     simp only [mem_filter, mem_univ, true_and]; rw [listDot_ofFn, dotProduct_eq_parityOn]
   have hbias_iff (S : Finset (Fin ell)) :
       ((d - 2 * #{j : Fin d | parityOn S (s j) = true}) +
