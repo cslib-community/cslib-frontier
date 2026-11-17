@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bit-Packed Word-RAM `Memory.Prog` Subroutines and Realizations for `k`-Kick Tree Slots
@@ -260,8 +261,7 @@ private theorem fits_one_of_env {w' base : ℕ} {rp : KickRuntimeParams}
   exact fits_one_of_pos hw
 
 private theorem slot_lt_occLen {p : KickTreeParams} {slot : ℕ} (hs : slot < p.nMax) :
-    slot < occLen p := by
-  unfold occLen; omega
+    slot < occLen p := by wram_omega
 
 private theorem readPacked_quot_safe {w' base slot : ℕ} {rp : KickRuntimeParams}
     (henv : KickEnvGen w' rp base) (hslot : slot < rp.nMax) :
@@ -317,31 +317,31 @@ private theorem not_in_quot_of_outside {p : KickTreeParams} {base a : ℕ}
     (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
     ¬(base + offQuot p ≤ a ∧ a < base + offQuot p + quotWords p) := by
   have hle := quot_end_le_totalSpace p
-  unfold offQuot at hle ⊢; omega
+  wram_omega [hle]
 
 private theorem not_in_val_of_outside {p : KickTreeParams} {base a : ℕ}
     (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
     ¬(base + offVal p ≤ a ∧ a < base + offVal p + valWords p) := by
   have hle := val_end_le_totalSpace p
-  unfold offVal offQuot at hle ⊢; omega
+  wram_omega [hle]
 
 private theorem not_in_occ_of_outside {p : KickTreeParams} {base a : ℕ}
     (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
     ¬(base + offOcc p ≤ a ∧ a < base + offOcc p + occWords p) := by
   have hle := occ_end_le_totalSpace p
-  unfold offOcc offVal offQuot at hle ⊢; omega
+  wram_omega [hle]
 
 private theorem not_in_elev_of_outside {p : KickTreeParams} {base a : ℕ}
     (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
     ¬(base + offElev p ≤ a ∧ a < base + offElev p + elevWords p) := by
   have hle := elev_end_le_totalSpace p
-  unfold offElev offOcc offVal offQuot at hle ⊢; omega
+  wram_omega [hle]
 
 private theorem not_in_meta_of_outside {p : KickTreeParams} {base a : ℕ}
     (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
     ¬(base + offMeta p ≤ a ∧ a < base + offMeta p + metaWords p) := by
   have hle := meta_end_le_totalSpace p
-  unfold offMeta offElev offOcc offVal offQuot at hle ⊢; omega
+  wram_omega [hle]
 
 /-! ### 2. Zeroed Table Allocation Subroutine -/
 
@@ -639,7 +639,7 @@ theorem validHistory_readMetaProg {w base idx : ℕ} (p : KickTreeParams)
       ((Memory.spec w).clientHistory s (readMetaProg p base idx)) := by
   subst hw_eq
   have hM : base + offMeta p + packedWords (metaLen p) (metaBits p) p.w ≤ s.frontier := by
-    have := meta_end_le_totalSpace p; dsimp [metaWords] at this; omega
+    have := meta_end_le_totalSpace p; wram_omega [this]
   exact validHistory_readPackedProg hw hidx hM
 
 /-- Exact memory charge of `readMetaProg` (`2` word reads). -/
@@ -717,7 +717,7 @@ theorem validHistory_writeMetaProg {w base idx val : ℕ} (p : KickTreeParams)
       ((Memory.spec w).clientHistory s (writeMetaProg p base idx val)) := by
   obtain ⟨rfl, hw, _, _, hm, _⟩ := henv
   have hM : base + offMeta p + packedWords (metaLen p) (metaBits p) p.w ≤ s.frontier := by
-    have := meta_end_le_totalSpace p; dsimp [metaWords] at this; omega
+    have := meta_end_le_totalSpace p; wram_omega [this]
   exact validHistory_writePackedProg hw hm hidx hwf hM
 
 /-- Exact memory charge of `writeMetaProg` (`2` reads and `2` writes). -/

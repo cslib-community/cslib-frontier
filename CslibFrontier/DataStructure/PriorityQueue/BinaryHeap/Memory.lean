@@ -12,6 +12,8 @@ public import CslibFrontier.DataStructure.Memory.Triple
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Order
 public import CslibFrontier.DataStructure.StateTransition.Refinement
 public import Mathlib.Data.Nat.Log
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # An indexed binary heap over the memory oracle
@@ -273,6 +275,7 @@ structure Inv (s : Memory.State) : Prop where
   heap : HeapInv n L.base (s.mem L.size.base) s.mem
 
 /-- The memory cost of one operation on `n` handles: `10 ⌊log₂ n⌋ + 14` units. -/
+@[wram_arith]
 def opCost (n : ℕ) : ℕ := 10 * Nat.log 2 n + 14
 
 /-! ## Layout facts -/
@@ -281,21 +284,15 @@ variable {L}
 
 /-- A key cell is allocated. -/
 theorem key_lt {s : Memory.State} (hA : L.arrays.Allocated s) {v : ℕ} (hv : v < n) :
-    L.key.base + v < s.frontier := by
-  simp only [Block.Allocated, space] at hA ⊢
-  omega
+    L.key.base + v < s.frontier := by wram_omega [hA]
 
 /-- A heap cell is allocated. -/
 theorem heap_lt {s : Memory.State} (hA : L.arrays.Allocated s) {i : ℕ} (hi : i ≤ n) :
-    L.heap.base + i < s.frontier := by
-  simp only [Block.Allocated, space] at hA ⊢
-  omega
+    L.heap.base + i < s.frontier := by wram_omega [hA]
 
 /-- A position cell is allocated. -/
 theorem pos_lt {s : Memory.State} (hA : L.arrays.Allocated s) {v : ℕ} (hv : v < n) :
-    L.pos.base + v < s.frontier := by
-  simp only [Block.Allocated, space] at hA ⊢
-  omega
+    L.pos.base + v < s.frontier := by wram_omega [hA]
 
 /-! ## Rearranging the heap -/
 
@@ -731,11 +728,11 @@ theorem methods_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
     Triple w s (ops L o) (opCost n) (Post L s o) := by
   cases o with
-  | isEmpty => exact (isEmpty_triple hL hs).mono (by unfold opCost; omega) fun _ _ h => h
-  | getKey v => exact (getKey_triple hs v).mono (by unfold opCost; omega) fun _ _ h => h
-  | insert v k => exact (insert_triple hL hs hv).mono (by unfold opCost; omega) fun _ _ h => h
+  | isEmpty => exact (isEmpty_triple hL hs).mono (by wram_omega) fun _ _ h => h
+  | getKey v => exact (getKey_triple hs v).mono (by wram_omega) fun _ _ h => h
+  | insert v k => exact (insert_triple hL hs hv).mono (by wram_omega) fun _ _ h => h
   | decreaseKey v k =>
-    exact (decreaseKey_triple hL hs hv).mono (by unfold opCost; omega) fun _ _ h => h
+    exact (decreaseKey_triple hL hs hv).mono (by wram_omega) fun _ _ h => h
   | extractMin => exact extractMin_triple hL hs
 
 /-- The run of an operation, by `methods_triple`. -/
@@ -818,9 +815,7 @@ theorem amortized (hL : L.Valid w K) :
     exact Nat.add_le_add_right hc 0
 
 /-- The cost of one operation is `O(log n)`: at most `14 (⌊log₂ n⌋ + 1)`. -/
-theorem opCost_le (n : ℕ) : opCost n ≤ 14 * (Nat.log 2 n + 1) := by
-  unfold opCost
-  omega
+theorem opCost_le (n : ℕ) : opCost n ≤ 14 * (Nat.log 2 n + 1) := by wram_omega
 
 /-- Zero count and position cells suffice for the empty invariant; memory outside the layout
 can be arbitrary. This is a representation fact, not a zeroing program or an allocation charge. -/
@@ -845,9 +840,9 @@ theorem inv_compactLayout {base : ℕ} {s : Memory.State}
   · dsimp only [Block.Allocated, compactLayout, space] at hA ⊢
     omega
   · exact hA
-  · exact hz _ (by dsimp only [Block.Owns, space]; omega)
+  · exact hz _ (by wram_omega)
   · intro v hv
-    exact hz _ (by dsimp only [Block.Owns, space]; omega)
+    exact hz _ (by wram_omega)
 
 /-! ## Allocation -/
 
@@ -889,10 +884,8 @@ theorem inv_allocated {s : Memory.State} (hz : ZeroAbove s) :
     Inv (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ ∧
       abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n := by
   apply inv_empty
-  · simp only [Block.Allocated]
-    omega
-  · simp only [Block.Allocated]
-    omega
+  · wram_omega
+  · wram_omega
   · exact hz _ le_rfl
   · intro v _
     exact hz _ (by dsimp only [allocated]; omega)
