@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # HHK17 Fujisaki–Okamoto KEM Transform Tests
@@ -274,8 +275,7 @@ theorem identityScheme_simFilterHit (pk : Unit) (m c : Fin 4) :
     ProbComp.eval (identityScheme.simFilterHit (fun _ _ _ => true) queryCiphertextGAdv pk m c) =
       PMF.pure (decide (m = c)) := by
   simp [-bind_pure_comp, -_root_.PMF.bind_apply, Scheme.simFilterHit, queryCiphertextGAdv,
-    identityScheme, Scheme.simFilterHandler, Scheme.simFilterDispatch, simHashG,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
+    identityScheme, Scheme.simFilterHandler, Scheme.simFilterDispatch, simHashG, interp_norm,
     ROQuery.dispatch]
   by_cases hm : m = c
   · simp [-_root_.PMF.bind_apply, StateT.run, RandomOracle.zoomStateT, identityPKE,
@@ -324,10 +324,8 @@ theorem identityUnifKeyScheme_indCcaRomAdvantage_eq_half :
           let kReal ← ProbComp.unifFin 1
           let kRand ← ProbComp.unifFin 1
           return decide (kReal = if b then kRand else kReal)) := by
-    simp [-bind_pure_comp, Scheme.roIndCcaGame, Scheme.keyGenNotBot,
-      identityUnifKeyScheme, identityPKE, checkKeyHAdv, Scheme.roHandler, roHashH,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-      ROQuery.dispatch]
+    simp [-bind_pure_comp, Scheme.roIndCcaGame, Scheme.keyGenNotBot, identityUnifKeyScheme,
+      identityPKE, checkKeyHAdv, Scheme.roHandler, roHashH, interp_norm, ROQuery.dispatch]
     simp [StateT.run, RandomOracle.zoomStateT,
       memoize_of_some _ (false, (0 : Fin 4), (0 : Fin 4)) [((false, 0, 0), _)] _ rfl]
   rw [Scheme.indCcaRomAdvantage, RandomizedROAdversary.play_ofDeterministic,

@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PPT
 
 namespace CslibFrontierTests.PseudorandomFunction
@@ -42,9 +43,7 @@ example (n : ℕ) :
   have h : ProbComp.eval (prfIdealGame id id repeatQuery n) = PMF.uniformOfFintype Bool := by
     simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
       ProbOracleComp.eval_interpret]
-    simpa [repeatQuery, OracleComp.interpret_bind, ProbOracleComp.interpret_sample] using
-      (show OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform Bool) =
-        PMF.uniformOfFintype Bool from ProbComp.eval_uniform Bool)
+    simp [repeatQuery, interp_norm]
   exact ⟨h, (prfIdealGame_eq_cached repeatQuery n).symm.trans h⟩
 
 -- Malformed words neither sample an answer nor alter even a preassigned cache.

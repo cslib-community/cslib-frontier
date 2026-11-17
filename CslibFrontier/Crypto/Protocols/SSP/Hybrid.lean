@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # State-separating proofs: hybrid arguments over parallel sessions
@@ -331,8 +332,8 @@ theorem runFrom_par_id_liftInr (Q : Machine I E) (program : ProbOracleComp I α)
           (funext fun q => ?_)
         cases q with
         | inl n =>
-          simp only [OracleComp.interpret_query, Machine.handler, ProbOracleComp.sample,
-            ProbComp.unifFin, OracleComp.sumHandler, OracleComp.substitute_query]
+          simp only [interp_norm, Machine.handler, ProbOracleComp.sample, ProbComp.unifFin,
+            OracleComp.substitute_query]
         | inr i =>
           funext s'
           change (par Q (Machine.id I)).runFrom (ProbOracleComp.query (spec := E ⊕ₒ I) (.inr i))

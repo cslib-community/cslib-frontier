@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.IP.PerfectSoundness
 import CslibFrontier.Computability.Probabilistic.QueryBounds
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Deterministic interactive proofs: `dIP = NP`
@@ -117,7 +118,7 @@ def npQueryVerifier (enc : α ↪ List Bool) (p : Polynomial ℕ) (V : α × Lis
 
 theorem interpret_npQueryVerifier (p : Polynomial ℕ) (V : α × List Bool → Bool) (a : α) :
     OracleComp.interpret ProbOracleComp.query (npQueryVerifier enc p V a) = npVerifier enc p V a :=
-  by simp [npQueryVerifier, npVerifier, OracleComp.interpret_map, OracleComp.interpret_query]
+  by simp [npQueryVerifier, npVerifier, interp_norm]
 
 /-- **`NP ⊆ dIP`** [Arora and Barak, Theorem 8.3][AroraBarak07]: with one message, the prover
 sending a certificate. -/

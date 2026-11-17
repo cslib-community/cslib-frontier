@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.Oracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Oracle substitution preserving private randomness
@@ -96,8 +97,8 @@ theorem interpret_simulate {m : Type → Type v} [Monad m] [LawfulMonad m]
         (fun q => OracleComp.interpret (OracleComp.sumHandler random oracle) (handler q)))
         program := by
   rw [simulate, OracleComp.substitute_eq_interpret]
-  simp only [OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    interpret_sample, ProbComp.unifFin, OracleComp.interpret_query]
+  simp only [OracleComp.interpret_interpret, OracleComp.interpret_sumHandler, interp_norm,
+    ProbComp.unifFin]
 
 /-- Two successive substitutions compose at the external handler, preserving private samples. -/
 theorem simulate_simulate (handler : (q : Query) → ProbOracleComp spec' (spec q))

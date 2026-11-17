@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Semantics
 public import Mathlib.Data.List.OfFn
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.EventBind
@@ -110,7 +111,7 @@ theorem run_interpret_iterate {Hidden : Type v} {κ : Type w}
         (initial, hidden) := by
   induction count with
   | zero => simp
-  | succ count ih => simp only [iterate_succ, interpret_bind, StateT.run_bind, ih]
+  | succ count ih => simp only [iterate_succ, interp_norm, ih]
 
 /-- An invariant indexed by the number of completed steps holds for every possible result of a
 bounded loop when every possible step preserves it. -/

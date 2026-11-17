@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Program
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import Mathlib.Data.List.OfFn
 
 /-!
@@ -108,8 +109,8 @@ theorem interpret_runProgram_succ (machine : MultiTapeCTM k Symbol State)
   have ht : (MultiTapeMachine.Config.emptyOracleEquiv.symm cfg).tapes = cfg := rfl
   have ha : (MultiTapeMachine.Config.emptyOracleEquiv.symm cfg).answerSymbols = Empty.elim :=
     funext fun oracle => oracle.elim
-  simp only [runProgram, MultiTapeMachine.runConfigFrom, ht, h, ha, OracleComp.interpret_map,
-    OracleComp.interpret_bind, interpret_chooseOccurrence, actions, List.flatMap_map, map_bind]
+  simp only [runProgram, MultiTapeMachine.runConfigFrom, ht, h, ha, interp_norm,
+    interpret_chooseOccurrence, actions, List.flatMap_map, map_bind]
   change List.flatMap _ _ = List.flatMap _ _
   congr 1 with action : 1
   cases action with
