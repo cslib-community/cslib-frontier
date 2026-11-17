@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.BallVolume
 public import Mathlib.Data.Matrix.Mul
+import Mathlib.GroupTheory.Index
+import Mathlib.LinearAlgebra.Matrix.ToLin
 
 /-!
 # The distance of random linear codes
@@ -16,8 +18,9 @@ public import Mathlib.Data.Matrix.Mul
 A `k`-by-`n` generating matrix `G` over `𝔽₂` encodes `x ∈ 𝔽₂ᵏ` as the combination `x ᵥ* G` of
 its rows. For a fixed nonzero `x`, this combination is uniformly distributed when `G` is uniform:
 every word `y ∈ 𝔽₂ⁿ` is hit by a `2⁻ⁿ` fraction of the matrices
-(`Cslib.Code.card_filter_vecMul_eq_mul_two_pow`), since adding to `G` the matrix whose row `i` is
-`y` (for some `i` with `x i = 1`) moves the fiber over `0` onto the fiber over `y`. A union bound
+(`Cslib.Code.card_filter_vecMul_eq_mul_two_pow`), since `G ↦ x ᵥ* G` is additive and onto (the
+matrix whose row `i` is `y`, for some `i` with `x i = 1`, is sent to `y`), so its fibers have
+equal size (`AddMonoidHom.card_fiber_eq_of_mem_range`). A union bound
 over the `2ᵏ - 1` nonzero messages and the entropy bound on the volume of a Hamming ball then
 give Goldreich's Proposition E.1 (`Cslib.Code.one_sub_inv_two_pow_lt_card_filter_le_hammingDist`):
 if `2 d ≤ n` and `k + t ≤ n (1 - H₂(d / n))`, a uniformly random generating matrix yields a code
@@ -57,10 +60,9 @@ theorem card_filter_vecMul_eq_mul_two_pow {k n : ℕ} {x : Fin k → ZMod 2} (hx
     simp [vecMul, dotProduct, hi1]
   have hfiber (z : Fin n → ZMod 2) :
       #{G : Matrix (Fin k) (Fin n) (ZMod 2) | x ᵥ* G = z} =
-        #{G : Matrix (Fin k) (Fin n) (ZMod 2) | x ᵥ* G = 0} := by
-    refine card_equiv (Equiv.subRight (of fun r j => if r = i then z j else 0)) fun G => ?_
-    simp only [mem_filter, mem_univ, true_and, Equiv.subRight_apply, vecMul_sub, hrow,
-      sub_eq_zero]
+        #{G : Matrix (Fin k) (Fin n) (ZMod 2) | x ᵥ* G = 0} :=
+    AddMonoidHom.card_fiber_eq_of_mem_range (vecMulBilin (ZMod 2) (ZMod 2) x :
+      Matrix (Fin k) (Fin n) (ZMod 2) →ₗ[ZMod 2] _) ⟨_, hrow z⟩ ⟨_, hrow 0⟩
   have hsum := card_eq_sum_card_fiberwise (s := (univ : Finset (Matrix (Fin k) (Fin n) (ZMod 2))))
     (t := univ) (f := fun G => x ᵥ* G) fun _ _ => mem_univ _
   simp only [hfiber, sum_const, card_univ, smul_eq_mul] at hsum
