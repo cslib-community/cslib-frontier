@@ -33,7 +33,7 @@ namespace Cslib.Orthogonal
   Complex.equivRealProdCLM.symm (realPoint p)
 
 /-- The complex coordinate identification retains both real coordinates. -/
-@[simp] theorem equivRealProd_complexPoint (p : Point) :
+theorem equivRealProd_complexPoint (p : Point) :
     Complex.equivRealProdCLM (complexPoint p) = realPoint p :=
   Complex.equivRealProdCLM.apply_symm_apply _
 

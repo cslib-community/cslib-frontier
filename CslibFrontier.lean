@@ -2598,7 +2598,13 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.Matching.Pol
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Matching.Positions
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Matching.Subgraph
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.CardinalOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.Encoding
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.Polygonal
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.PolygonalGerms
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.RotationCertificate
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.RotationCorrectness
+public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing.Routes
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalLayout
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalPath
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PerfectMatching
@@ -4107,6 +4113,8 @@ public import CslibFrontier.Computability.PolyTime.GaloisRingArithmetic
 public import CslibFrontier.Computability.PolyTime.GaloisRingInterpolation
 public import CslibFrontier.Computability.PolyTime.GaloisRingSeries
 public import CslibFrontier.Computability.PolyTime.GaloisRingUnits
+public import CslibFrontier.Computability.PolyTime.Graph.OrthogonalRotation
+public import CslibFrontier.Computability.PolyTime.Graph.OrthogonalRoutes
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem.Recognition.Query
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem.Recognition.Recovery
@@ -6579,6 +6587,7 @@ public import CslibFrontier.Foundations.Geometry.Orthogonal.Neighborhood
 public import CslibFrontier.Foundations.Geometry.Orthogonal.PairedBoundary
 public import CslibFrontier.Foundations.Geometry.Orthogonal.PairedPorts
 public import CslibFrontier.Foundations.Geometry.Orthogonal.PairedSpokes
+public import CslibFrontier.Foundations.Geometry.Orthogonal.Polygonal
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Reverse
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Scale
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Separation
