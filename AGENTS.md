@@ -444,7 +444,7 @@ deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstre
 
 Every pin bump lists the upstream PRs labelled `cslib-frontier-adaptation` that merged in the
 range it crosses. These are design changes, such as new or more general definitions, that need
-more than repaired proofs: adapt to each in the bump or link an issue that tracks it
+more than repaired proofs: adapt to each in the bump, or defer it as the cleanup rule allows
 ([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
 
 ## Design commitments (do not re-litigate casually)

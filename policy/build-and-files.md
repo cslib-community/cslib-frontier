@@ -179,23 +179,39 @@ Every PR that moves the pin checks the range it crosses for labelled PRs. With `
 current `main` and `NEW` the proposed one:
 
 ```bash
-range=$(gh api "repos/leanprover/cslib/compare/OLD...NEW" --paginate --jq '.commits[].sha')
+gh api repos/leanprover/cslib/labels/cslib-frontier-adaptation --jq .name &&
+range=$(gh api "repos/leanprover/cslib/compare/OLD...NEW" --paginate --jq '.commits[].sha') &&
+echo "$(grep -c . <<<"$range") commits in range" &&
 gh pr list -R leanprover/cslib --label cslib-frontier-adaptation --state merged --limit 200 \
-  --json number,title,mergeCommit --jq '.[] | "\(.mergeCommit.oid) #\(.number) \(.title)"' \
-  | grep -F "$range"
+  --json number,title,baseRefName,mergeCommit \
+  --jq '.[] | "\(.mergeCommit.oid) #\(.number) [\(.baseRefName)] \(.title)"' \
+  | grep -F "${range:-none}"
 ```
 
-No output means that no labelled PR merged in the range. Run the query when preparing the bump
-and again before queueing, since the label can be added after its PR has merged. For the same
-reason, drop the `grep` to see every labelled PR, and treat one that an earlier bump crossed
-without a record here as in scope.
+A run counts only when it prints the label's name and a nonzero commit count; a missing label or
+a failed range lookup prints an error and stops. After those two lines, no further output means
+that no labelled PR merged into upstream `main` in the range.
 
-For each PR found, read its description and diff, then search this library for what it affects:
-uses of the changed declarations, local definitions that it generalizes or supersedes, and
-`submitted`, `vendored` and `candidate` modules destined for the files it changes. Adapt in the
-bump PR by moving to the new definition, deleting the local parallel and restating results at
-the new generality. When the adaptation is too large for a focused dependency PR, fix only the
-breakage there and open a linked issue that names the upstream PR and the affected modules.
+The filter misses two cases, so also read the listing without the final `grep`:
+
+- **A PR merged into another branch.** The listing shows each PR's base in brackets. A PR whose
+  base is not `main` reaches `main` inside a later PR, and its own merge commit is never in the
+  range. Find the PR that carried it to `main`, and count the labelled PR as in the range when
+  that one is.
+- **A label added after the merge.** A labelled PR that `OLD` already contains
+  (`gh api repos/leanprover/cslib/compare/<merge commit>...OLD --jq .status` prints `ahead` or
+  `identical`) is in scope for this bump, unless a bump PR's description or an issue in this
+  repository already accounts for it; search both for `leanprover/cslib#N`. For the same reason,
+  rerun the query before queueing.
+
+For each PR in scope, read its description and diff, then search this library for what it
+affects: uses of the changed declarations, local definitions that it generalizes or supersedes,
+and `submitted`, `vendored` and `candidate` modules destined for the files it changes. Adapt in
+the bump PR by moving to the new definition, deleting the local parallel and restating results at
+the new generality. Leaving any of this for later is deferred cleanup under
+[Improving library ergonomics](workflow.md#improving-library-ergonomics): the reviewing
+coordinator accepts the reason, and the linked issue that rule requires also names the upstream
+PR.
 
 The bump PR's description lists each labelled PR with what was done or the issue that tracks it,
 or says that the query found none. Its reviewers rerun the query and check that list against the
