@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import Mathlib.Data.Nat.Log
-import Mathlib.Algebra.BigOperators.Group.List.Basic
+import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Tactic.Ring
 
 /-!
@@ -52,14 +52,9 @@ variable {α : Type*} {β : Type*} {t : ℕ} {tr : BPlusTree α β}
 theorem le_size_node {first : BPlusTree α β} {rest : List (Branch α β)} {n : ℕ}
     (h₁ : n ≤ first.size) (h₂ : ∀ e ∈ rest, n ≤ e.child.size) :
     (rest.length + 1) * n ≤ (node first rest).size := by
-  have hs : rest.length * n ≤ (rest.map fun e => e.child.size).sum := by
-    induction rest with
-    | nil => simp
-    | cons e rest ih =>
-      have := ih fun e he => h₂ e (List.mem_cons_of_mem _ he)
-      have := h₂ e List.mem_cons_self
-      simp only [List.length_cons, List.map_cons, List.sum_cons, Nat.add_mul, Nat.one_mul]
-      omega
+  have hs :=
+    (rest.map fun e => e.child.size).length_nsmul_le_sum n (List.forall_mem_map.2 h₂)
+  rw [List.length_map, Nat.nsmul_eq_mul] at hs
   rw [size_node, Nat.add_mul, Nat.one_mul]
   omega
 

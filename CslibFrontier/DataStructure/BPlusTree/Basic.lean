@@ -59,7 +59,6 @@ trees is checked by `decide`. The operations and checkers are `@[expose]`d so th
 ## Main results
 
 * `BPlusTree.induction`: induction over the nested type.
-* `BPlusTree.toList_eq_flatten_leaves`: the entries are the concatenation of the leaves.
 * `BPlusTree.toList_map`: mapping values maps the entries.
 * `BPlusTree.Separated.lt_of_lt`: the separator convention between two positions of a node.
 * `BPlusTree.IsWF.of_mem_children`: every subtree of a well-formed tree is well-formed.
@@ -295,9 +294,6 @@ theorem leavesRest_cons : leavesRest ((k, c) :: rest) = c.leaves ++ leavesRest r
     obtain ⟨k, c⟩ := e
     simp [leavesRest_cons, ih]
 
-/-- The entries are the concatenation of the leaves. -/
-theorem toList_eq_flatten_leaves (tr : BPlusTree α β) : tr.toList = tr.leaves.flatten := rfl
-
 /-- The entries of a leaf. -/
 @[simp] theorem toList_leaf : (leaf entries : BPlusTree α β).toList = entries := by
   simp [toList]
@@ -305,11 +301,8 @@ theorem toList_eq_flatten_leaves (tr : BPlusTree α β) : tr.toList = tr.leaves.
 /-- The entries of a node are those of its first child followed by those of the others. -/
 @[simp] theorem toList_node :
     (node first rest).toList = first.toList ++ rest.flatMap fun e => e.child.toList := by
-  simp only [toList, leaves_node, leavesRest_eq_flatMap, List.flatten_append]
-  congr 1
-  induction rest with
-  | nil => rfl
-  | cons e rest ih => simp [ih]
+  simp only [toList, leaves_node, leavesRest_eq_flatMap, List.flatten_append, List.flatMap_def,
+    List.flatten_flatten, List.map_map, Function.comp_def]
 
 /-- The size of a leaf is its number of entries. -/
 @[simp] theorem size_leaf : (leaf entries : BPlusTree α β).size = entries.length := by
@@ -411,17 +404,7 @@ attribute [induction_eliminator] induction
 /-- The size of a node is the sum of the sizes of its children. -/
 theorem size_node {first : BPlusTree α β} {rest : List (Branch α β)} :
     (node first rest).size = first.size + (rest.map fun e => e.child.size).sum := by
-  simp only [size, toList_node, List.length_append, Nat.add_left_cancel_iff]
-  induction rest with
-  | nil => rfl
-  | cons e rest ih => simp [ih]
-
-/-- `foldl` folds over `toList`. -/
-theorem foldl_def (f : γ → α × β → γ) (init : γ) : tr.foldl f init = tr.toList.foldl f init :=
-  rfl
-
-/-- `keys` are the first components of `toList`. -/
-theorem keys_def : tr.keys = tr.toList.map Prod.fst := rfl
+  simp only [size, toList_node, List.length_append, List.length_flatMap]
 
 /-- A key belongs to `keys` exactly when some entry of the tree has it. -/
 @[simp] theorem mem_keys {k : α} : k ∈ tr.keys ↔ ∃ v, (k, v) ∈ tr := by
@@ -485,17 +468,6 @@ theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries :=
         simpa [ih₂ e he] using this
     rw [map_node, height_node, height_node, ih₁, h]
 
-/-- The entries of a child among the branches form a sublist of those of all the branches. -/
-theorem toList_sublist_flatMap_of_mem {rest : List (Branch α β)} {e : Branch α β}
-    (he : e ∈ rest) : e.child.toList.Sublist (rest.flatMap fun e => e.child.toList) := by
-  induction rest with
-  | nil => simp at he
-  | cons a rest ih =>
-    rw [List.flatMap_cons]
-    rcases List.mem_cons.1 he with rfl | he
-    · exact List.sublist_append_left _ _
-    · exact (ih he).trans (List.sublist_append_right _ _)
-
 /-- The entries of a child form a sublist of those of the tree. -/
 theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :
     c.toList.Sublist tr.toList := by
@@ -506,7 +478,10 @@ theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.chil
     simp only [children_node, List.mem_cons, List.mem_map] at hc
     rcases hc with rfl | ⟨e, he, rfl⟩
     · exact List.sublist_append_left _ _
-    · exact (toList_sublist_flatMap_of_mem he).trans (List.sublist_append_right _ _)
+    · rw [List.flatMap_def]
+      exact (List.sublist_flatten_of_mem
+        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)).trans
+          (List.sublist_append_right _ _)
 
 /-- A child among the branches is lower than its node. -/
 theorem height_succ_le_of_mem_rest {first : BPlusTree α β} {rest : List (Branch α β)}
