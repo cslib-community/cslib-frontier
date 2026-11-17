@@ -74,6 +74,14 @@ class PrepareRunnerTests(unittest.TestCase):
                 else:
                     self.assertTrue(any(command.startswith("sudo ") for command in commands))
 
+    def test_operator_threshold_and_invalid_override(self):
+        for override, skip in (("75", True), ("", False), ("0", False), ("07", False),
+                               ("invalid", False)):
+            with self.subTest(override=override):
+                result, commands = self.run_cleanup(SDK_CLEANUP_MIN_GIB=override)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(any(cmd.startswith("sudo ") for cmd in commands), not skip)
+
     def test_unavailable_space_measurement_keeps_cleanup(self):
         for override in ({"CLEANUP_TEST_FREE_KIB": "unknown"},
                          {"CLEANUP_TEST_FREE_KIB": "242221056", "CLEANUP_TEST_DF_EXIT": "1"},

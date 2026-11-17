@@ -130,16 +130,26 @@ directories compressed to 98 MiB. This identifies the reusable work; the one-mac
 did not include a cross-job cache transfer. Shared/root native object compilation is separate
 and is not included in this cache.
 
+The nightly docs run also retains a seven-day Actions artifact of those exact four build
+directories. When the Actions cache evicts its entry, Guide PRs can recover it from a successful
+scheduled docs run on `main` with the same compatibility key. The runner reports the producer
+run ID. Set `DISABLE_GUIDE_ARTIFACT=1` to turn off this backup independently.
+
 ## Hosted-runner disk space
 
 Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk
 space. On GitHub-hosted Linux runners it removes the unused Android and .NET SDKs only when less
-than 100 GiB is available, or the free-space measurement is unavailable. This conservative
+than the configured threshold (100 GiB by default) is available, or the free-space measurement is unavailable. This conservative
 headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
 deletion on larger runners that already have ample space; it is not an exact build-size estimate.
 Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if
 it fails.
+
+Lean job summaries report initial space after setup, the lowest available space sampled every
+five seconds and the largest decrease. Compare warm PRs, cold pin builds, merge groups and main
+publication before setting the repository variable `SDK_CLEANUP_MIN_GIB`. Keep margin for short
+peaks between samples. Unset the variable to restore the default.
 
 ## Merge-queue handoff
 

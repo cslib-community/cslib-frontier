@@ -140,6 +140,8 @@ CI_ONLY = {
     "Named assumptions report": "main pushes only; reports and always succeeds",
     "Repeated-proof-block notice (advisory)":
         "advisory; never fails the job. Run `scripts/proof_copies.py --base REF` to see it",
+    "Sample runner disk use": "hosted-runner disk telemetry",
+    "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
     "Restore .lake from the Actions cache": "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore Mathlib cache with retries": "CI cache; check.sh runs scripts/cache/ensure.sh",

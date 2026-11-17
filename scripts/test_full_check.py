@@ -321,7 +321,7 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
 
     def test_no_later_step_runs_after_the_guard_fails(self):
         # A failed step skips every later step whose condition has no status function. Those that
-        # have one must also require the build, which the failed guard has skipped.
+        # have one must require a completed build or explicitly exclude the guard failure.
         build = next(step for step in self.steps if step.get("id") == "build")
         self.assertGreater(self.steps.index(build), self.index + 1)
         self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
@@ -329,7 +329,8 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
             condition = step.get("if", "")
             if re.search(r"always\(\)|cancelled\(\)|failure\(\)", condition):
                 with self.subTest(step=step.get("name")):
-                    self.assertIn("steps.build.outcome == 'success'", condition)
+                    if "steps.ancestor-handoff.outputs.exit-status != '125'" not in condition:
+                        self.assertIn("steps.build.outcome == 'success'", condition)
 
     def test_handoff_cli_reserves_125_for_unconfirmed_shutdown(self):
         sys.path.insert(0, str(REPO / "scripts"))
