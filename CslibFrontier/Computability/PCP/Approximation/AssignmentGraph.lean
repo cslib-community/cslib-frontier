@@ -68,7 +68,7 @@ def consistentLits (ρ ρ' : List (Literal ℕ)) : Bool :=
 /-- The partial assignment that gives the variables of the literals of `c` the values `bs`,
 position by position. -/
 def assignLits (c : Clause ℕ) (bs : List Bool) : List (Literal ℕ) :=
-  (c.zip bs).map fun p => (p.1.1, p.2)
+  (c.map Prod.fst).zip bs
 
 /-- The **local satisfying assignments** of a clause: the values of the variables of its (at most
 three) literals, as consistent partial assignments that satisfy the clause. The values are drawn
@@ -83,19 +83,41 @@ satisfying assignment, repeating the first one when there are fewer. -/
 def clusterLabel (c : Clause ℕ) (k : ℕ) : List (Literal ℕ) :=
   ((clauseAssignments c).drop k ++ clauseAssignments c).headD []
 
-/-- The vertex records of the assignment graph: a clause index `i`, a position `k < 7` in its
-cluster, the clause and the partial assignment of the vertex. -/
-def assignmentRecords (φ : CNF ℕ) : List (ℕ × ℕ × Clause ℕ × List (Literal ℕ)) :=
-  φ.zipIdx.flatMap fun p => (List.range 7).map fun k => (p.2, k, p.1, clusterLabel p.1 k)
+/-- A vertex record of the assignment graph: the vertex at position `pos` of the cluster of the
+clause `lits` with index `clause`, labelled by the partial assignment `label`. -/
+@[ext]
+structure AssignmentRecord where
+  /-- The index of the clause. -/
+  clause : ℕ
+  /-- The position of the vertex in the cluster of the clause. -/
+  pos : ℕ
+  /-- The clause. -/
+  lits : Clause ℕ
+  /-- The partial assignment of the vertex. -/
+  label : List (Literal ℕ)
+  deriving DecidableEq, Inhabited, Repr
+
+/-- Unary indices, then the clause and the label as lists of binary literals. -/
+enc_structure encAssignmentRecord : AssignmentRecord where
+  clause : encUnary, pos : encUnary, lits : (encList (encPair encNat encBool)),
+  label : (encList (encPair encNat encBool))
+
+attribute [fun_prop] encAssignmentRecord_clause_polyTime encAssignmentRecord_pos_polyTime
+  encAssignmentRecord_lits_polyTime encAssignmentRecord_label_polyTime
+  encAssignmentRecord_mk_polyTime
+
+/-- The vertex records of the assignment graph: seven per clause. -/
+def assignmentRecords (φ : CNF ℕ) : List AssignmentRecord :=
+  φ.zipIdx.flatMap fun p => (List.range 7).map fun k => ⟨p.2, k, p.1, clusterLabel p.1 k⟩
 
 /-- The vertex of a record. -/
-def recordVertex (r : ℕ × ℕ × Clause ℕ × List (Literal ℕ)) : ℕ := Nat.pair r.1 r.2.1
+def recordVertex (r : AssignmentRecord) : ℕ := Nat.pair r.clause r.pos
 
 /-- Two records are joined in the assignment graph when they lie in the same cluster, when one of
 them belongs to an empty clause, or when their partial assignments are inconsistent. -/
-def recordConflict (r r' : ℕ × ℕ × Clause ℕ × List (Literal ℕ)) : Bool :=
-  (r.1 == r'.1 && !(r.2.1 == r'.2.1)) || r.2.2.1.isEmpty || r'.2.2.1.isEmpty ||
-    !consistentLits r.2.2.2 r'.2.2.2
+def recordConflict (r r' : AssignmentRecord) : Bool :=
+  (r.clause == r'.clause && !(r.pos == r'.pos)) || r.lits.isEmpty || r'.lits.isEmpty ||
+    !consistentLits r.label r'.label
 
 /-- The **assignment graph** of a formula [Arora and Barak, Lemma 18.16][AroraBarak09]: seven
 vertices per clause, labelled by its local satisfying assignments, joined inside clusters and
@@ -214,9 +236,9 @@ private theorem clusterLabel_eq_getElem {c : Clause ℕ} {k : ℕ}
 
 /-- The records of the assignment graph: a clause index, a position below seven, the clause and
 the label. -/
-theorem mem_assignmentRecords {φ : CNF ℕ} {r : ℕ × ℕ × Clause ℕ × List (Literal ℕ)} :
+theorem mem_assignmentRecords {φ : CNF ℕ} {r : AssignmentRecord} :
     r ∈ assignmentRecords φ ↔
-      ∃ (i : ℕ) (hi : i < φ.length), ∃ k < 7, r = (i, k, φ[i], clusterLabel φ[i] k) := by
+      ∃ (i : ℕ) (hi : i < φ.length), ∃ k < 7, r = ⟨i, k, φ[i], clusterLabel φ[i] k⟩ := by
   simp only [assignmentRecords, List.mem_flatMap, List.mem_map, List.mem_range]
   constructor
   · rintro ⟨⟨c, i⟩, hci, k, hk, rfl⟩
@@ -228,7 +250,7 @@ theorem mem_assignmentRecords {φ : CNF ℕ} {r : ℕ × ℕ × Clause ℕ × Li
   · rintro ⟨i, hi, k, hk, rfl⟩
     exact ⟨(φ[i], i), List.mem_zipIdx_iff_getElem?.2 (by simp [hi]), k, hk, rfl⟩
 
-private theorem eq_of_recordVertex_eq {φ : CNF ℕ} {r r' : ℕ × ℕ × Clause ℕ × List (Literal ℕ)}
+private theorem eq_of_recordVertex_eq {φ : CNF ℕ} {r r' : AssignmentRecord}
     (hr : r ∈ assignmentRecords φ) (hr' : r' ∈ assignmentRecords φ)
     (h : recordVertex r = recordVertex r') : r = r' := by
   obtain ⟨i, hi, k, -, rfl⟩ := mem_assignmentRecords.1 hr
@@ -236,11 +258,11 @@ private theorem eq_of_recordVertex_eq {φ : CNF ℕ} {r r' : ℕ × ℕ × Claus
   obtain ⟨rfl, rfl⟩ := Nat.pair_eq_pair.1 h
   rfl
 
-private theorem recordConflict_comm (r r' : ℕ × ℕ × Clause ℕ × List (Literal ℕ)) :
+private theorem recordConflict_comm (r r' : AssignmentRecord) :
     recordConflict r r' = recordConflict r' r := by
   unfold recordConflict
-  rw [consistentLits_comm, Bool.beq_comm (a := r.1), Bool.beq_comm (a := r.2.1)]
-  cases r.2.2.1.isEmpty <;> cases r'.2.2.1.isEmpty <;> simp
+  rw [consistentLits_comm, Bool.beq_comm (a := r.clause), Bool.beq_comm (a := r.pos)]
+  cases r.lits.isEmpty <;> cases r'.lits.isEmpty <;> simp
 
 private theorem assignmentGraph_of_not_all {φ : CNF ℕ} (hφ : ¬φ.all List.isEmpty = true) :
     assignmentGraph φ = ⟨(assignmentRecords φ).map recordVertex,
@@ -252,7 +274,7 @@ private theorem assignmentGraph_of_not_all {φ : CNF ℕ} (hφ : ¬φ.all List.i
 /-- Two vertices of the assignment graph are adjacent exactly when their records are distinct
 and conflict. -/
 theorem adj_assignmentGraph_iff {φ : CNF ℕ} (hφ : ¬φ.all List.isEmpty = true)
-    {r r' : ℕ × ℕ × Clause ℕ × List (Literal ℕ)} (hr : r ∈ assignmentRecords φ)
+    {r r' : AssignmentRecord} (hr : r ∈ assignmentRecords φ)
     (hr' : r' ∈ assignmentRecords φ) :
     (assignmentGraph φ).toSimpleGraph.Adj (recordVertex r) (recordVertex r') ↔
       r ≠ r' ∧ recordConflict r r' = true := by
@@ -324,8 +346,8 @@ theorem length_sub_countUnsat_le_indepNum_assignmentGraph {φ : CNF ℕ}
         fun _ => (clusterLabel_eq_getElem hkl).trans hk⟩
     · exact ⟨0, by norm_num, fun h => absurd h hs⟩
   choose K hK7 hK using hk
-  let r : Fin φ.length → ℕ × ℕ × Clause ℕ × List (Literal ℕ) :=
-    fun i => ((i : ℕ), K i, φ[i], clusterLabel φ[i] (K i))
+  let r : Fin φ.length → AssignmentRecord :=
+    fun i => ⟨i, K i, φ[i], clusterLabel φ[i] (K i)⟩
   have hr : ∀ i, r i ∈ assignmentRecords φ :=
     fun i => mem_assignmentRecords.2 ⟨i, i.2, K i, hK7 i, rfl⟩
   have hinj : Function.Injective fun i => recordVertex (r i) :=
@@ -372,7 +394,7 @@ theorem exists_card_add_countUnsat_le_of_assignmentGraph {φ : CNF ℕ}
     have := hS (Finset.mem_coe.2 hu) (Finset.mem_coe.2 hv) huv
     rw [← hRv u hu, ← hRv v hv, adj_assignmentGraph_iff hφ (hR u hu) (hR v hv)] at this
     simpa [hne] using this
-  by_cases hE : ∃ v ∈ S, (R v).2.2.1 = []
+  by_cases hE : ∃ v ∈ S, (R v).lits = []
   · -- A vertex of an empty clause is adjacent to every other vertex.
     obtain ⟨v, hv, hvE⟩ := hE
     have hall : ∀ w ∈ S, w = v := by
@@ -394,16 +416,16 @@ theorem exists_card_add_countUnsat_le_of_assignmentGraph {φ : CNF ℕ}
   push Not at hE
   -- The records of the chosen vertices.
   have hRm : ∀ v ∈ S, ∃ (i : ℕ) (hi : i < φ.length), ∃ k < 7,
-      R v = (i, k, φ[i], clusterLabel φ[i] k) := fun v hv => mem_assignmentRecords.1 (hR v hv)
+      R v = ⟨i, k, φ[i], clusterLabel φ[i] k⟩ := fun v hv => mem_assignmentRecords.1 (hR v hv)
   choose! I hI K hK hRe using hRm
-  have hlab : ∀ v (hv : v ∈ S), (R v).2.2.2 ∈ clauseAssignments (φ[I v]'(hI v hv)) := by
+  have hlab : ∀ v (hv : v ∈ S), (R v).label ∈ clauseAssignments (φ[I v]'(hI v hv)) := by
     intro v hv
     have hne := hE v hv
     rw [hRe v hv] at hne ⊢
     exact clusterLabel_mem (clauseAssignments_ne_nil (h3 _ (List.getElem_mem _)) hne) _
-  let σ : ℕ → Bool := fun x => decide (∃ v ∈ S, (x, true) ∈ (R v).2.2.2)
+  let σ : ℕ → Bool := fun x => decide (∃ v ∈ S, (x, true) ∈ (R v).label)
   -- Every chosen label agrees with `σ`.
-  have hagree : ∀ v ∈ S, ∀ l ∈ (R v).2.2.2, σ l.1 = l.2 := by
+  have hagree : ∀ v ∈ S, ∀ l ∈ (R v).label, σ l.1 = l.2 := by
     intro v hv l hl
     obtain ⟨x, b⟩ := l
     cases b
@@ -520,8 +542,7 @@ private theorem computableInPolyTime_clusterLabel (k : ℕ) :
 
 private theorem computableInPolyTime_assignmentRecords :
     ComputableInPolyTime assignmentRecords encCNF
-      (encList (encPair encUnary (encPair encUnary
-        (encPair (encList encLit) (encList encLit))))) := by
+      (encList encAssignmentRecord) := by
   have := computableInPolyTime_clusterLabel
   unfold assignmentRecords
   fun_prop
@@ -529,7 +550,7 @@ private theorem computableInPolyTime_assignmentRecords :
 @[fun_prop]
 private theorem computableInPolyTime_recordVertex :
     ComputableInPolyTime recordVertex
-      (encPair encUnary (encPair encUnary (encPair (encList encLit) (encList encLit)))) encNat := by
+      encAssignmentRecord encNat := by
   unfold recordVertex
   exact unary_to_binary.comp (by fun_prop)
 
