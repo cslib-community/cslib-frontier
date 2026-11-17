@@ -77,7 +77,7 @@ def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → 
     match db.find? (·.1 == h) with
     | none => false
     | some e =>
-      match e.2.filter (fun l => !trail.contains (l.1, !l.2)) with
+      match e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | [] => true
       | l :: ls => if ls.all (· == l) then propagateHints db (l :: trail) hs else false
 
@@ -86,7 +86,7 @@ def CNF.checkLRATAux : List (ℕ × Clause ℕ) → List LRAT.IntAction → Bool
   | _, [] => false
   | db, .addEmpty _ hints :: _ => propagateHints db [] hints.toList
   | db, .addRup id c hints :: rest =>
-    propagateHints db ((Clause.ofDIMACS c.toList).map fun l => (l.1, !l.2)) hints.toList &&
+    propagateHints db ((Clause.ofDIMACS c.toList).map Std.Sat.Literal.negate) hints.toList &&
       checkLRATAux ((id, Clause.ofDIMACS c.toList) :: db) rest
   | _, .addRat .. :: _ => false
   | db, .del ids :: rest => checkLRATAux (db.filter fun e => !ids.toList.contains e.1) rest
@@ -114,12 +114,13 @@ theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ �
       have hc := hdb e (List.mem_of_find?_eq_some he)
       obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ e.2).1 hc
       -- a literal of the clause that holds is not falsified by the trail
-      have hkeep : l' ∈ e.2.filter (fun l => !trail.contains (l.1, !l.2)) := by
+      have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
+      have hkeep : l' ∈ e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
         refine List.mem_filter.2 ⟨hl', ?_⟩
-        cases hm : trail.contains (l'.1, !l'.2)
+        cases hm : trail.contains (Std.Sat.Literal.negate l')
         · rfl
         · have := htrail _ (by simpa using hm)
-          simp [Literal.eval, hl'σ] at this
+          simp [hl'e] at this
       split at h
       · rename_i hnil
         rw [hnil] at hkeep
@@ -137,7 +138,7 @@ theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ �
           refine ih (trail := l' :: trail) ?_ h
           intro l hl
           rcases List.mem_cons.1 hl with rfl | hl
-          · simp [Literal.eval, hl'σ]
+          · exact hl'e
           · exact htrail l hl
         · simp at h
 
@@ -163,9 +164,8 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
         obtain ⟨l₀, hl₀, rfl⟩ := List.mem_map.1 hl
         have := (Clause.eval_eq_true_iff σ _).not.1 hne
         simp only [not_exists, not_and] at this
-        have h₀ := this l₀ hl₀
-        simp only [Literal.eval, beq_iff_eq] at h₀ ⊢
-        cases hσ : σ l₀.1 <;> cases hb : l₀.2 <;> simp_all
+        rw [Literal.eval_negate]
+        simpa [Literal.eval] using this l₀ hl₀
       · exact hdb e he
     | addRat id c pivot rupHints ratHints => simp [checkLRATAux] at h
     | del ids =>
@@ -179,6 +179,7 @@ theorem CNF.not_satisfiable_of_checkLRAT {φ : CNF ℕ} {cert : Array LRAT.IntAc
   refine false_of_checkLRATAux (σ := σ) ?_ h
   intro e he
   obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
-  exact (CNF.eval_eq_true_iff σ φ).1 hσ _ (List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp))
+  exact (CNF.eval_eq_true_iff σ φ).1 hσ _
+    (List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp))
 
 end Cslib.Logic.PL
