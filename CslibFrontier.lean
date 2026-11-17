@@ -5178,10 +5178,12 @@ public import CslibFrontier.Crypto.Primitives.HQC.SupportProbability
 public import CslibFrontier.Crypto.Primitives.HQC.SupportSampling
 public import CslibFrontier.Crypto.Primitives.HQC.Syndrome
 public import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
+public import CslibFrontier.Crypto.Primitives.Hash.HMAC
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Circuit
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Efficient
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
+public import CslibFrontier.Crypto.Primitives.Hash.MGF1
 public import CslibFrontier.Crypto.Primitives.Hash.SHA2
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Crypto.Primitives.IdealCipher.Compression

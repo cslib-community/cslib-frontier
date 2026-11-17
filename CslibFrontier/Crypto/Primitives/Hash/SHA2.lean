@@ -22,6 +22,9 @@ and the output types record the 32-byte or 64-byte digest length.
 The public input predicates record the source domains `ℓ < 2^64` for SHA-256 and `ℓ < 2^128`
 for SHA-512, specialized to byte-aligned messages. The hash functions are total executable
 extensions; callers that specify standard-domain inputs can use those predicates separately.
+The `sha256Bytes` and `sha512Bytes` list views evaluate the compression state before enumerating
+the digest bytes. The existing `FixedBytes` functions remain the typed mathematical interface;
+their function-valued results do not promise runtime caching between index applications.
 This module does not prove functional correctness against an independent FIPS model and is not a
 constant-time or machine-costed implementation, a security proof, or a claim of NIST validation.
 
@@ -31,6 +34,7 @@ constant-time or machine-costed implementation, a security proof, or a claim of 
 * `Cslib.Crypto.SHA2.sha256Pad`, `sha512Pad`: byte-aligned Section 5.1 padding.
 * `Cslib.Crypto.SHA2.sha256Compress`, `sha512Compress`: one-block compression functions.
 * `Cslib.Crypto.SHA2.sha256`, `sha512`: typed 32-byte and 64-byte digests.
+* `Cslib.Crypto.SHA2.sha256Bytes`, `sha512Bytes`: materialized list views of those digests.
 
 ## Main results
 
@@ -279,5 +283,21 @@ def sha256 (input : List Byte) : FixedBytes 32 :=
 input domain separately. -/
 def sha512 (input : List Byte) : FixedBytes 64 :=
   sha512StateBytes (sha512State input)
+
+/-- Materialize the 32 SHA-256 digest bytes after computing the compression state once. -/
+def sha256Bytes (input : List Byte) : List Byte :=
+  (sha256StateBytes (sha256State input)).toList
+
+/-- Materialize the 64 SHA-512 digest bytes after computing the compression state once. -/
+def sha512Bytes (input : List Byte) : List Byte :=
+  (sha512StateBytes (sha512State input)).toList
+
+/-- The materialized SHA-256 digest is byte-for-byte the existing typed digest. -/
+theorem sha256Bytes_eq_toList (input : List Byte) : sha256Bytes input = (sha256 input).toList :=
+  (rfl)
+
+/-- The materialized SHA-512 digest is byte-for-byte the existing typed digest. -/
+theorem sha512Bytes_eq_toList (input : List Byte) : sha512Bytes input = (sha512 input).toList :=
+  (rfl)
 
 end Cslib.Crypto.SHA2
