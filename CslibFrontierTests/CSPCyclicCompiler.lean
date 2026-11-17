@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine, OpenAI
 -/
 
-import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Size
+module
+
+-- The stored-declaration axiom audit below also inspects private compiler declarations.
+import all CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Size
+-- Kernel equality computations below unfold the table's derived `DecidableEq` instance.
+import all CslibFrontier.Logics.Propositional.CSP.Table
 import Mathlib.Data.Fin.VecNotation
 import Lean.Util.CollectAxioms
 
@@ -14,7 +19,13 @@ import Lean.Util.CollectAxioms
 Kernel computations execute the actual compiler. Supplied rotations include long white faces,
 repeated arguments/records, disconnected components, nullaries, huge binary names and malformed
 indices. Semantic clients apply the combined theorem to both satisfiable and unsatisfiable inputs.
+
+The concrete language fixtures stay private. Ordinary module clients reuse their checked
+hypotheses with a test-only `import all`, without granting private access to the tested endpoint.
 -/
+
+-- This regression module intentionally exports only private, shared test fixtures.
+set_option linter.privateModule false
 
 open Cslib Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Logic.PL.CSP.Table Cslib.BitString
 open Cslib.Complexity Cslib.Complexity.CSP Cslib.Complexity.CSP.CyclicCompiler
