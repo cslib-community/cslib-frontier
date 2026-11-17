@@ -24,7 +24,7 @@ import Mathlib.Tactic.Ring
 Formalizes the Cipher Block Chaining Message Authentication Code (CBC-MAC) over `BitString n`, its
 prefix-free smoothness ([KatzLindell2020], Section 4.4, Construction 4.9 and Claim 4.13), the
 information-theoretic uniform-random-function step toward [KatzLindell2020], Section 4.4,
-Theorem 4.12 (page 124) bounding `cbcMacFinite g` for a uniform random function
+Theorem 4.12 bounding `cbcMacFinite g` for a uniform random function
 `g : BitString n → BitString n` rather than a keyed computational PRF (#6046), and explicit
 forgery counterexamples for each of the six relaxations in [KatzLindell2020], Exercises
 4.13–4.16.
@@ -54,7 +54,7 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   2^n)`-smoothness of prefix-free CBC-MAC ([KatzLindell2020], Claim 4.13).
 * `abs_cbcRealSuccess_sub_cbcIdealSuccess_le`: information-theoretic uniform-random-function step
   `|cbcRealSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` toward [KatzLindell2020], Section 4.4,
-  Theorem 4.12 (page 124), bounding `cbcMacFinite g` for a uniform random function
+  Theorem 4.12, bounding `cbcMacFinite g` for a uniform random function
   `g : BitString n → BitString n` rather than a keyed computational PRF (#6046).
 * `cbcTwoToFourAttack_valid`, `cbcToThreeAttack_valid`, `cbcLeakedTagsAttack_valid`,
   `cbcRandomIVAttack_valid`, `cbcLengthSuffixAttack_valid_any_encoding`,
@@ -835,7 +835,7 @@ private theorem uniformOfFintype_bind_comm {ℓ : ℕ} {G : Type} [Fintype G] [N
       D.bind (fun T => (PMF.uniformOfFintype G).map (fun g => h g T)) :=
   PMF.bind_comm _ D fun g T => PMF.pure (h g T)
 /-- Information-theoretic uniform-random-function step toward [KatzLindell2020], Section 4.4,
-  Theorem 4.12 (page 124), bounding `cbcMacFinite g` for a uniform random function
+  Theorem 4.12, bounding `cbcMacFinite g` for a uniform random function
   `g : BitString n → BitString n` rather than a keyed computational PRF (#6046): for every block
   width `n`, query budget `q`, maximum block length `ℓ`, and distribution `D` over `q`-admissible
   adaptive oracle programs, the distinguishing advantage between `cbcMacFinite g` and a uniform
