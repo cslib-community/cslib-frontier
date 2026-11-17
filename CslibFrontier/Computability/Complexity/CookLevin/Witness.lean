@@ -131,7 +131,8 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
   have hrun : ComputableInPolyTime
       (fun p : ((List Bool × List Bool) × ℕ) × ℕ => trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2))
       (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
-    (computableInPolyTime_trackedRun tm).comp (by fun_prop)
+    (computableInPolyTime_trackedRun tm).comp
+      ((bitsAppend (((fst _ _).fst').fst') (((fst _ _).fst').snd')).prod (snd _ _))
   have hfeatures := computableInPolyTime_trueFeatures.comp
     (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
   have hholds : ComputableInPolyTime

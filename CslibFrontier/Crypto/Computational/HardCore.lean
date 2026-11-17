@@ -129,8 +129,13 @@ def hardCorePredictor (adversary : Distinguisher) (trial : Bool) : Distinguisher
 theorem isPPT_hardCorePredictor {adversary : Distinguisher}
     (ha : IsPPT encBool adversary) (trial : Bool) :
     IsPPT encBool (hardCorePredictor adversary trial) := by
-  unfold hardCorePredictor
-  ppt
+  apply IsPPTOn.isPPT
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBool)
+  have hbit := ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const [])
+  have hword := ComputableInPolyTime.bitsAppend hp.fst'.snd' hbit
+  exact isPPTOn_trialPredictor
+    (ha.preprocess hp.fst'.fst' hword) (ComputableInPolyTime.const trial)
 
 /-- The ideal hybrid replaces the hidden predicate by an independent fair bit. -/
 noncomputable def hardCoreIdeal (f : List Bool → List Bool) (n : ℕ) : PMF (List Bool) := do

@@ -81,7 +81,21 @@ theorem isPPTOn_parityPredictionGame {f : List Bool → List Bool} {adversary : 
     (hf : ComputableInPolyTime f encBits encBits) (ha : IsPPT encBool adversary) :
     IsPPTOn encUnary encBool (parityPredictionGame f adversary) := by
   unfold parityPredictionGame
-  ppt
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.id' (encIn := encUnary))).bind_with
+  apply (ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.fst encUnary encBits)).bind_with
+  have hprepare : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) × List Bool => f q.1.2 ++ q.2)
+      (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
+  have hcall := ha.preprocess
+    (ComputableInPolyTime.fst encUnary encBits |>.comp
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)) hprepare
+  have hresult : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × List Bool) × Bool =>
+        q.2 == listDot q.1.1.2 q.1.2)
+      (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool := by fun_prop
+  simpa only [bind_pure_comp] using hcall.map_with hresult
 
 /-- Sample one sign, one predictor seed and independent masks, then decode and check candidates. -/
 noncomputable def wordInverter (f : List Bool → List Bool)
@@ -108,9 +122,23 @@ theorem isPPT_wordInverter {f : List Bool → List Bool}
           degree p.1.1.1.1 p.1.1.1.2 p.2)
       (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
       encBits := by
-    apply polyTime_wordDecode degree hf <;> fun_prop
-  unfold wordInverter coinBudget
-  ppt
+    have hprepare : ComputableInPolyTime
+        (fun q : ((((ℕ × List Bool) × Bool) × List Bool) × List Bool) × List Bool =>
+          ((q.1.1.1.1.1, q.1.1.1.1.2 ++ q.2), q.1.1.2))
+        (encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits)
+          encBits) encBits) (encPair (encPair encUnary encBits) encBits) := by fun_prop
+    have hpredict := hevaluate.comp hprepare
+    apply polyTime_wordDecode degree hf
+    · fun_prop
+    · fun_prop
+    · fun_prop
+    · exact ComputableInPolyTime.snd _ _
+  unfold wordInverter
+  apply IsPPTOn.isPPT
+  apply (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
+  refine (ComputableInPolyTime.sampleList (by unfold coinBudget; fun_prop)).bind_with ?_
+  simpa only [bind_pure_comp] using
+    (ComputableInPolyTime.sampleList (by fun_prop)).map_with hdecode
 
 /-- At every image length, the program realizes exactly the finite seeded inverter. -/
 theorem wordInverter_eval (f : List Bool → List Bool)

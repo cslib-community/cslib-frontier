@@ -298,10 +298,15 @@ private theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ Li
       (computableInPolyTime_ctrWordCounter hnStep (hiv.comp (ComputableInPolyTime.fst _ _))
         (by dsimp only [EStep]; fun_prop))
       hnStep
+  have hcallbackInput := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
+  have hcounter := ComputableInPolyTime.unary_add' hcallbackInput.fst'.snd'.fst'
+    (ComputableInPolyTime.const 1)
+  have houtput := ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd'
+    hcallbackInput.snd'
   have hstep : IsOraclePPTOn EStep (encPair encUnary encBits)
       (fun pair : α × (ℕ × List Bool) => ctrKeystreamStep (n pair.1) (iv pair.1) pair.2) :=
     hquery.map_with (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
-      (by dsimp only [EStep]; fun_prop)
+      (hcounter.prod houtput)
   have hnBound : PolyBounded (fun a => (input a).length) n := by
     simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
   have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=

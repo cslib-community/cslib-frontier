@@ -150,8 +150,21 @@ theorem isPPTOn_save {Param : Type} {input : Param ↪ List Bool}
     (hwidth : ComputableInPolyTime width input encUnary)
     (htrial : ComputableInPolyTime trial input encBool) :
     IsPPTOn input encBits (fun a => save c d (width a) (trial a) (front a) (back a)) := by
-  simp only [save, coinBudget, Description.encoding, Function.Embedding.coeFn_mk]
-  ppt
+  have hbudget : ComputableInPolyTime
+      (fun a => coinBudget c d (width a) (front a) (back a)) input encUnary := by
+    unfold coinBudget
+    fun_prop
+  have hresult : ComputableInPolyTime
+      (fun p : Param × List Bool =>
+        Description.encoding ⟨true, trial p.1, front p.1, back p.1, p.2⟩)
+      (encPair input encBits) encBits := by
+    have ht := htrial.comp (ComputableInPolyTime.fst input encBits)
+    have hf := hfront.comp (ComputableInPolyTime.fst input encBits)
+    have hb := hback.comp (ComputableInPolyTime.fst input encBits)
+    unfold Description.encoding
+    exact ComputableInPolyTime.encoding_comp (by fun_prop)
+  simpa only [save, bind_pure_comp] using
+    (ComputableInPolyTime.sampleList hbudget).map_with hresult
 
 attribute [program_certificate] isPPTOn_save
 

@@ -169,7 +169,13 @@ theorem computableInPolyTime_condUniversalTMProgram :
     funext ⟨p, y⟩
     simp [condUniversalTMProgram, encPair_apply]
   rw [heq]
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.frame.comp
+      (ComputableInPolyTime.unframe.comp (ComputableInPolyTime.fst encBits encBits)))
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.frame.comp
+        (ComputableInPolyTime.dropFrame.comp (ComputableInPolyTime.fst encBits encBits)))
+      (ComputableInPolyTime.snd encBits encBits))
 
 /-- Evaluating `condUniversalTMRunFor` on `(p, (y, t))` is computable in polynomial time when `t` is
 given in unary. -/
@@ -179,7 +185,10 @@ theorem computableInPolyTime_condUniversalTMRunFor :
       (fun pyt : List Bool × (List Bool × ℕ) => condUniversalTMRunFor pyt.1 pyt.2.1 pyt.2.2)
       (encPair encBits (encPair encBits encUnary)) (encOption encBits) := by
   unfold condUniversalTMRunFor
-  fun_prop
+  exact computableInPolyTime_universalTMRunFor.comp
+    ((computableInPolyTime_condUniversalTMProgram.comp
+      ((ComputableInPolyTime.fst _ _).prod ((ComputableInPolyTime.snd _ _).fst'))).prod
+      ((ComputableInPolyTime.snd _ _).snd'))
 
 /-! ### Clock-preserving conditional simulation of every binary `MultiTapeTM` -/
 

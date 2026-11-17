@@ -254,9 +254,15 @@ theorem computableInO_diagonal :
   have hdesc := (hdec.comp hu).inO
   have hsym := Universal.computableInO_map_eBit
   have hclock := (ComputableInDegree.two_pow_length encBits).inO_one
-  have hpre := hdesc.prod (hsym.prod hclock)
-  have hU := computableInO_universal.comp hpre
-  have h := computableInO_verdict.comp hU
+  have hpre : ComputableInO
+      (fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length))
+      encBits eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal.comp
+    (f := universal)
+    (g := fun x : List Bool => (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hpre
+  have h := computableInO_verdict.comp
+    (f := verdict)
+    (g := fun x : List Bool => universal (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)) hU
   -- the sizes of the decoded description and of the result
   obtain ⟨cD, hcD⟩ := hdesc.length_le
   obtain ⟨cO, hcO⟩ := hU.length_le

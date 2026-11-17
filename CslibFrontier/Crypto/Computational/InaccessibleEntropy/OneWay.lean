@@ -435,7 +435,24 @@ theorem computableInPolyTime_rompelBaseEvalWord {g : List Bool → List Bool} {o
     (houtLen : ComputableInPolyTime outLen encUnary encUnary) :
     ComputableInPolyTime (fun p : ℕ × List Bool => rompelBaseEvalWord g outLen p.1 p.2)
       (encPair encUnary encBits) encBits := by
-  simp only [rompelBaseEvalWord, rompelSeedWidth]
+  have hn := ComputableInPolyTime.fst encUnary encBits
+  have hz := ComputableInPolyTime.snd encUnary encBits
+  have hm := houtLen.comp hn
+  have hs : ComputableInPolyTime (fun p : ℕ × List Bool => rompelSeedWidth p.1 (outLen p.1))
+      (encPair encUnary encBits) encUnary := by unfold rompelSeedWidth; fun_prop
+  have hx : ComputableInPolyTime
+      (fun p : ℕ × List Bool => BitString.listRow p.1 0 (p.2.take p.1))
+      (encPair encUnary encBits) encBits := by fun_prop
+  have hgx := hg.comp hx
+  have hseed : ComputableInPolyTime
+      (fun p : ℕ × List Bool => BitString.listRow (rompelSeedWidth p.1 (outLen p.1)) 0
+        ((p.2.drop p.1).take (rompelSeedWidth p.1 (outLen p.1))))
+      (encPair encUnary encBits) encBits := by fun_prop
+  have hrBits : ComputableInPolyTime
+      (fun p : ℕ × List Bool => BitString.listRow (rompelTruncWidth p.1) 0
+        ((p.2.drop p.1).drop (rompelSeedWidth p.1 (outLen p.1))))
+      (encPair encUnary encBits) encBits := by fun_prop
+  simp only [rompelBaseEvalWord]
   fun_prop
 
 /-! ### Accessible preimage sets $L_{0, c}$ and the OWF inverter reduction (Claim 4.6) -/
@@ -527,8 +544,14 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by unfold rompelSeedWidth; fun_prop)).bind_with ?_
-  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
-    (ComputableInPolyTime.isPPTOn (by fun_prop))
+  have hparameter : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool => q.1.1.1.1)
+      (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encUnary := by fun_prop
+  have hprepare : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool =>
+      q.1.1.2 ++ wordAdjustAffineSeed q.1.1.1.1 (outLen q.1.1.1.1) (Cslib.BitString.boundedBinaryValue q.1.1.1.1 q.1.2) q.1.1.1.2 (g q.1.1.2) q.2 ++ q.1.2) (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits := by fun_prop
+  have hresult : ComputableInPolyTime (fun q : ((((ℕ × List Bool) × List Bool) × List Bool) × List Bool) × List Bool => q.2.take (q.1.1.1.1.1))
+      (encPair (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits) encBits := by fun_prop
+  simpa only [bind_pure_comp] using
+    (hA.preprocess hparameter hprepare).map_with hresult
 
 private def rompelTupleEquiv (n m : ℕ) :
     (BitString n × ((Fin n → BitString m) × BitString n) × BitString (rompelTruncWidth n)) ≃

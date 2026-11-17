@@ -174,18 +174,17 @@ private def collisionScanFoldStep (par : ScanParameters) (acc : Code) (j : ℕ) 
 private theorem computableInPolyTime_collisionScanFoldStep :
     ComputableInPolyTime
       (fun p : (ScanParameters × Code) × ℕ => collisionScanFoldStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat) encCode := by
-  have hb : ComputableInPolyTime
-      (fun p : (ScanParameters × Code) × ℕ => p.1.1.1)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
-  have hc : ComputableInPolyTime
-      (fun p : (ScanParameters × Code) × ℕ => p.1.1.2.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
-      encUnary := by fun_prop
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat) encCode := by
+  have hp := ComputableInPolyTime.id' (encIn :=
+    encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+  have hb := hp.fst'.fst'.fst'
+  have ho := hp.fst'.fst'.snd'.fst'
+  have hc := hp.fst'.fst'.snd'.snd'
+  have hN := ComputableInPolyTime.unary_add' hb
+    (ComputableInPolyTime.unary_mul' hc hb)
   unfold collisionScanFoldStep
-  exact computableInPolyTime_compCode (unary_to_binary.comp (by fun_prop)) (by fun_prop)
-    (computableInPolyTime_headCollisionCode hb (by fun_prop) hc (by fun_prop))
+  exact computableInPolyTime_compCode (unary_to_binary.comp hN) hp.fst'.snd'
+    (computableInPolyTime_headCollisionCode hb ho hc hp.snd')
 
 private def collisionScanCodeBound (bits count : ℕ) : ℕ :=
   let N := bits + count * bits

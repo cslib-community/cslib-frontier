@@ -468,7 +468,8 @@ theorem computableInTimeAndSpace_stretch
   have hcountCharged := hcount.mono (fun _ => le_rfl)
     (fun n => Nat.le_add_right (sCount n) (count n))
   obtain ⟨a, _, hcountClean⟩ := Internal.NormalForm.exactBounds hcountCharged
-  obtain ⟨c₁, hcnt_seed⟩ := hcountClean.comp ComputableTidilyInTimeAndSpace.length_bits
+  obtain ⟨c₁, hcnt_seed⟩ := ComputableTidilyInTimeAndSpace.comp hcountClean
+    ComputableTidilyInTimeAndSpace.length_bits
   obtain ⟨c₂, hpair⟩ := Internal.NormalForm.bigO
     (PairEncoding.pair_mono (enc := encPair encBits encUnary)
       (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace
@@ -481,7 +482,7 @@ theorem computableInTimeAndSpace_stretch
   have hiterCharged := hiter.mono (fun _ => le_rfl)
     (fun p => Nat.mul_le_mul_right _ (Nat.le_add_right c₃ 1))
   obtain ⟨b, _, hiterClean⟩ := Internal.NormalForm.exactBounds hiterCharged
-  obtain ⟨c₄, hcomp⟩ := hiterClean.comp hpair
+  obtain ⟨c₄, hcomp⟩ := ComputableTidilyInTimeAndSpace.comp hiterClean hpair
   have heq : ((fun p : List Bool × ℕ => iterate generator p.1.length p.2 p.1) ∘
       fun seed : List Bool => (id seed, (count ∘ List.length) seed)) =
       stretch generator count := rfl
@@ -609,20 +610,20 @@ theorem polyTime_stretch_of_length_eq {generator : List Bool → List Bool} {cou
     ComputableInPolyTime (stretch generator count) encBits encBits := by
   obtain ⟨clG, dlG, hclG⟩ := (hgenerator).polyBounded_length.exists_le
   obtain ⟨tG, sG, htG, hsG, hgen_ts⟩ := hgenerator
-  obtain ⟨ctG, dtG, hctG⟩ := htG.exists_le
-  obtain ⟨csG, dsG, hcsG⟩ := hsG.exists_le
+  obtain ⟨ctG, dtG, hctG⟩ := Cslib.polynomiallyBounded_iff_le.mp htG
+  obtain ⟨csG, dsG, hcsG⟩ := Cslib.polynomiallyBounded_iff_le.mp hsG
   obtain ⟨clC, dlC, hclC⟩ := (hcount).polyBounded_length.exists_le
   obtain ⟨tC, sC, htC, hsC, hcount_ts⟩ := hcount
-  obtain ⟨ctC, dtC, hctC⟩ := htC.exists_le
-  obtain ⟨csC, dsC, hcsC⟩ := hsC.exists_le
+  obtain ⟨ctC, dtC, hctC⟩ := Cslib.polynomiallyBounded_iff_le.mp htC
+  obtain ⟨csC, dsC, hcsC⟩ := Cslib.polynomiallyBounded_iff_le.mp hsC
   have hgen_deg : ComputableInDegree generator encBits encBits (max dtG dsG) dlG :=
     ⟨⟨tG, sG, DegreeBounded.mono_deg ⟨ctG, hctG⟩ (le_max_left _ _),
       DegreeBounded.mono_deg ⟨csG, hcsG⟩ (le_max_right _ _),
-      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hgen_ts)⟩, ⟨clG, hclG⟩⟩
+      hgen_ts⟩, ⟨clG, hclG⟩⟩
   have hcount_deg : ComputableInDegree count encUnary encUnary (max dtC dsC) dlC :=
     ⟨⟨tC, sC, DegreeBounded.mono_deg ⟨ctC, hctC⟩ (le_max_left _ _),
       DegreeBounded.mono_deg ⟨csC, hcsC⟩ (le_max_right _ _),
-      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hcount_ts)⟩, ⟨clC, hclC⟩⟩
+      hcount_ts⟩, ⟨clC, hclC⟩⟩
   exact (computableInDegree_stretch hlen hgen_deg hcount_deg).computableInPolyTime
 
 /-- **Quantitative streaming certificate for `forwardIterate` with a captured parameter.** On input

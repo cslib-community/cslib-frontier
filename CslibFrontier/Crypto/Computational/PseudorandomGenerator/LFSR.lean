@@ -157,12 +157,20 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
     (htaps : ComputableInPolyTime taps encUnary encBits)
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
     ComputableInPolyTime (wordGenerator taps ℓ) encBits encBits := by
+  have hstep : ComputableInPolyTime
+      (fun p : List Bool × (List Bool × List Bool) => clock p.1 p.2)
+      (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
+    have hfeedback : ComputableInPolyTime
+        (fun p : List Bool × (List Bool × List Bool) => listDot p.1 p.2.2)
+        (encPair encBits (encPair encBits encBits)) encBool := by fun_prop
+    unfold clock step
+    fun_prop
   have hloop : ComputableInPolyTime
       (fun seed : List Bool => (clock (taps seed.length))^[ℓ seed.length] ([], seed))
       encBits (encPair encBits encBits) :=
     ComputableInPolyTime.iterateWith_of_bounded_growth (par := fun seed => taps seed.length)
       (count := fun seed => ℓ seed.length) (init := fun seed => ([], seed)) (step := clock)
-      (by fun_prop) (by fun_prop) (by fun_prop) (by unfold clock step; fun_prop)
+      (by fun_prop) (by fun_prop) (by fun_prop) hstep
       (growth := fun _ => 2) (.const 2) (fun seed state => by
         simp only [clock, step, encPair_apply, encBits_apply, List.length_append, length_frame,
           List.length_cons, List.length_nil, zero_add, List.length_tail, add_tsub_cancel_right]

@@ -749,7 +749,8 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
     have hb := hp.fst'.snd'
     have hvk := hp.fst'.fst'.snd'
     have hopk := hp.snd'.fst'
-    have hplant := hb.ite' (hopk.prod hvk).encoded (hvk.prod hopk).encoded
+    have hplant := hb.ite' (ComputableInPolyTime.encoding_comp (hopk.prod hvk))
+      (ComputableInPolyTime.encoding_comp (hvk.prod hopk))
     have hotherClosed : IsPPTOn (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>

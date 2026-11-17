@@ -591,10 +591,8 @@ theorem validCompressionInput_eq_true_iff {n : ℕ} {x : List Bool} :
     validCompressionInput n x = true ↔ x.length = 2 * n :=
   beq_iff_eq
 
-@[local fun_prop]
-
 /-- Testing whether an input has length `2 * n` is computable in plain polynomial time. -/
-@[program_certificate]
+@[local fun_prop, program_certificate]
 theorem computableInPolyTime_validCompressionInput :
     ComputableInPolyTime
       (fun p : ℕ × List Bool => validCompressionInput p.1 p.2)

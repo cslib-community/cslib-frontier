@@ -582,6 +582,17 @@ theorem computableInPolyTime_inputHashEvalWord {α : Type} {encode : α ↪ List
     ComputableInPolyTime
       (fun a => inputHashEvalWord (n₁ a) (m₁ a) (evalWord₁ (n a)) (j a) (u a))
       encode encBits := by
+  have hz : ComputableInPolyTime
+      (fun a => Cslib.BitString.listRow (n₁ a) 0 ((u a).take (n₁ a))) encode encBits := by
+    fun_prop
+  have heval := heval₁.comp (hn.prod hz)
+  have hseed : ComputableInPolyTime
+      (fun a => Cslib.BitString.listRow (n₁ a * n₁ a) 0
+        (((u a).drop (n₁ a)).take (n₁ a * n₁ a))) encode encBits := by fun_prop
+  have hbase : ComputableInPolyTime
+      (fun a => Cslib.BitString.listRow (m₁ a) 0
+        (evalWord₁ (n a) (Cslib.BitString.listRow (n₁ a) 0 ((u a).take (n₁ a)))))
+      encode encBits := by fun_prop
   simp only [inputHashEvalWord]
   fun_prop
 
@@ -689,8 +700,14 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ : ℕ → ℕ}
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList
     (by unfold outHashLen inputHashOutLen inputHashInLen; fun_prop)).bind_with ?_
-  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
-    (ComputableInPolyTime.isPPTOn (by fun_prop))
+  have hparameter : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × List Bool => q.1.1.1)
+      (encPair (encPair (encPair encUnary encBits) encBits) encBits) encUnary := by fun_prop
+  have hprepare : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
+      Cslib.BitString.listRow (n₁ q.1.1.1) 0 q.1.1.2 ++ q.1.2 ++ q.2) (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits := by fun_prop
+  have hresult : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool => q.2.take (n₁ q.1.1.1.1))
+      (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits := by fun_prop
+  simpa only [bind_pure_comp] using
+    (hA.preprocess hparameter hprepare).map_with hresult
 
 private def shrunkTupleEquiv (n₁ m₁ : ℕ) :
     (BitString n₁ × (Fin n₁ → BitString n₁) ×
