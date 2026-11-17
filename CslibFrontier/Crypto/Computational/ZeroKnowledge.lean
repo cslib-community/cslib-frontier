@@ -23,7 +23,7 @@ This module defines computational zero-knowledge interactive proofs (`ZKProof en
 bundling uniform `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)`
 families generated from `1^n` in deterministic polynomial time, #6044, rather than Goldreich's
 auxiliary-input GMW zero knowledge of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11, proved under nonuniform one-way functions in
+Theorem 4.4.10, proved under nonuniform one-way functions in
 `NonuniformOneWay.exists_zkProof_of_mem_NP`), alongside the separate general predicate
 `AuxiliaryInputZeroKnowledge` over arbitrary polynomially bounded valid families. Goldreich,
 Micali, and Wigderson [GoldreichMicaliWigderson1991] introduced zero-knowledge interactive proofs
@@ -476,7 +476,7 @@ end ZKProof
 /-- Single-session masked-3SAT `ZKProof` builder with uniform `GenerableZeroKnowledge` only (zero
 knowledge restricted to `(instance, witness)` families generated from `1^n` in deterministic
 polynomial time, #6044, rather than auxiliary-input GMW zero knowledge of [Goldreich1998Fragments],
-Definition 4.3.8 and Theorem 4.4.11) and soundness `1 / 3` for any language `A` Karp-reducible via
+Definition 4.3.8 and Theorem 4.4.10) and soundness `1 / 3` for any language `A` Karp-reducible via
 `f : α → CNF ℕ` to `ThreeSAT`, from a pseudorandom generator with stretch at least `3 * k + 1`.
 The bundled witness check `isWitness a w` is `ThreeSAT.verifier (f a, w)` on the reduced formula
 `f a`. -/
@@ -541,7 +541,7 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofOfReducti
 /-- Single-session masked-3SAT `ZKProof` builder for `ThreeSAT` with uniform
 `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)` families
 generated from `1^n` in deterministic polynomial time, #6044, rather than auxiliary-input GMW zero
-knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.11) and soundness `1 / 3`,
+knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10) and soundness `1 / 3`,
 from any pseudorandom generator with stretch at least `3 * k + 1`. -/
 noncomputable def PseudorandomGenerator.singleZKProofThreeSAT
     {generator : List Bool → List Bool} {length : ℕ → ℕ}

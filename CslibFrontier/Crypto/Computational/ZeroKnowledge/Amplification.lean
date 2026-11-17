@@ -28,7 +28,7 @@ This module packages the `k n`-fold sequential repetition of the masked-3SAT pro
 error `(1 / 3) ^ (k n)` and uniform `GenerableZeroKnowledge` only (zero knowledge restricted to
 `(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044, rather
 than Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11, proved under nonuniform one-way functions in
+Theorem 4.4.10, proved under nonuniform one-way functions in
 `Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP` and
 `Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_npRelation`):
 
@@ -80,7 +80,7 @@ open scoped NNReal ENNReal
 /-- Sequentially amplified masked-3SAT `ZKProof` builder via a Karp reduction to `ThreeSAT`, giving
 uniform `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)` families
 generated from `1^n` in deterministic polynomial time, #6044, rather than auxiliary-input GMW zero
-knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.11) and soundness
+knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10) and soundness
 `(1 / 3) ^ (k n)`. Given a pseudorandom generator with stretch at least `3 * m + 1`, a
 polynomial-time reduction `f : α → CNF ℕ` from `A` to `ThreeSAT`, and a polynomial-time repetition
 schedule `k : ℕ → ℕ`, this runs `k n` sequential sessions of the 3-copy masked-3SAT protocol. -/
@@ -152,7 +152,7 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction_of_
 `k n := n + 1`, giving uniform `GenerableZeroKnowledge` only (zero knowledge restricted to
 `(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044, rather
 than auxiliary-input GMW zero knowledge of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11) and soundness bound `(1 / 3) ^ (n + 1)`. -/
+Theorem 4.4.10) and soundness bound `(1 / 3) ^ (n + 1)`. -/
 noncomputable def PseudorandomGenerator.zkProofThreeSAT
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -186,7 +186,7 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT_of_adv
 /-- Sequentially amplified masked-3SAT `ZKProof` builder for an NP relation `R` with uniform
 `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)` families
 generated from `1^n` in deterministic polynomial time, #6044, rather than auxiliary-input GMW zero
-knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.11) and soundness
+knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10) and soundness
 `(1 / 3) ^ (k n)`. Given a pseudorandom generator with stretch at least `3 * m + 1`, a Levin
 reduction `r` from `R` to `ThreeSAT.npRelation`, and a polynomial-time repetition schedule
 `k : ℕ → ℕ`, this is `zkProofOfReduction` for the instance map of `r` with witnesses changed by
@@ -249,7 +249,7 @@ theorem PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof_of_advice
 /-- Existence of a `ZKProof` with uniform `GenerableZeroKnowledge` only (zero knowledge restricted
 to `(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044,
 not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11, proved under nonuniform one-way functions in
+Theorem 4.4.10, proved under nonuniform one-way functions in
 `NonuniformOneWay.exists_zkProof_of_mem_NP`) and negligible soundness `(1 / 3) ^ (n + 1)` against
 unbounded provers for every language `A ∈ NP enc`, from any uniform pseudorandom generator with
 stretch at least `3 * m + 1`. -/
@@ -291,7 +291,7 @@ theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP_of_advicePR
 /-- Existence of a `ZKProof` for any NP relation `R` with uniform `GenerableZeroKnowledge` only
 (zero knowledge restricted to `(instance, witness)` families generated from `1^n` in deterministic
 polynomial time, #6044, not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments],
-Definition 4.3.8 and Theorem 4.4.11, proved under nonuniform one-way functions in
+Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way functions in
 `NonuniformOneWay.exists_zkProof_of_npRelation`), negligible soundness `(1 / 3) ^ (n + 1)`, and
 honest prover using `R`'s own witnesses, from any uniform pseudorandom generator with stretch at
 least `3 * m + 1`. -/
@@ -335,7 +335,7 @@ theorem PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation_of_advi
 /-- Existence of a `ZKProof` with uniform `GenerableZeroKnowledge` only (zero knowledge restricted
 to `(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044,
 not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11, proved under nonuniform one-way functions in
+Theorem 4.4.10, proved under nonuniform one-way functions in
 `NonuniformOneWay.exists_zkProof_of_mem_NP`) and negligible soundness `(1 / 3) ^ (n + 1)` against
 unbounded provers for every language `A ∈ NP enc`, from any uniform one-way function. -/
 theorem OneWay.exists_zkProof_of_mem_NP
@@ -349,7 +349,7 @@ theorem OneWay.exists_zkProof_of_mem_NP
 /-- Existence of a `ZKProof` for any NP relation `R` with uniform `GenerableZeroKnowledge` only
 (zero knowledge restricted to `(instance, witness)` families generated from `1^n` in deterministic
 polynomial time, #6044, not Goldreich's auxiliary-input GMW theorem of [Goldreich1998Fragments],
-Definition 4.3.8 and Theorem 4.4.11, proved under nonuniform one-way functions in
+Definition 4.3.8 and Theorem 4.4.10, proved under nonuniform one-way functions in
 `NonuniformOneWay.exists_zkProof_of_npRelation`), negligible soundness `(1 / 3) ^ (n + 1)`, and
 honest prover using `R`'s own witnesses, from any uniform one-way function. -/
 theorem OneWay.exists_zkProof_of_npRelation

@@ -23,7 +23,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 `ZKProof` with uniform `GenerableZeroKnowledge` only (zero knowledge restricted to
 `(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044, rather
 than auxiliary-input GMW zero knowledge of [Goldreich1998Fragments], Definition 4.3.8 and
-Theorem 4.4.11) for the language of an NP relation `R`, given a Levin reduction `r` of `R` to the
+Theorem 4.4.10) for the language of an NP relation `R`, given a Levin reduction `r` of `R` to the
 NP relation of 3SAT. Its bundled witness check is `R`'s
 own (`decide (R.IsWitness a w)`): the honest prover receives a witness of `R` and maps it through
 the forward witness map of `r` to a 3SAT witness for the reduced formula `r.toFun a`, on which it
@@ -169,7 +169,7 @@ end ZKProof
 /-- Single-session masked-3SAT `ZKProof` builder for the language of an NP relation `R` with
 uniform `GenerableZeroKnowledge` only (zero knowledge restricted to `(instance, witness)` families
 generated from `1^n` in deterministic polynomial time, #6044, rather than auxiliary-input GMW zero
-knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.11) and soundness `1 / 3`,
+knowledge of [Goldreich1998Fragments], Definition 4.3.8 and Theorem 4.4.10) and soundness `1 / 3`,
 from a pseudorandom generator with stretch at least `3 * k + 1` and a Levin reduction `r` of `R`
 to `ThreeSAT.npRelation`. Built as `PseudorandomGenerator.singleZKProofOfReduction` for the
 instance map of `r` with witnesses changed by `ZKProof.withRelationWitness`: the honest prover maps
