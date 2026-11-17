@@ -4,8 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemPerfect
+import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
+import CslibFrontier.Foundations.Quantum.Naimark
 
 /-! # Naimark dilation
 
@@ -16,9 +21,12 @@ strategies for linear constraint system games give operator solutions in the sta
 assumption on their measurements.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Naimark
 
 open Matrix Cslib Cslib.Quantum Cslib.PCP Cslib.PCP.TwoProverGame
+open BitString (signVal)
 open scoped Real MatrixOrder ComplexOrder
 
 /-- An isometry extends to a unitary. -/
@@ -53,10 +61,10 @@ open scoped Matrix.Norms.L2Operator in
 Bob's observables multiply to `(-1)^{parity}` over each equation. -/
 example {V E ι κ : Type} [Fintype V] [DecidableEq V] [Finite E] [Fintype ι] [DecidableEq ι]
     [Fintype κ] [DecidableEq κ] (L : LinearSystem V E) {μ : PMF (E × V)}
-    (S : QuantumStrategy E V (V → Bool) Bool ι κ) (hμ : ∀ q, μ q ≠ 0)
-    (h : (L.game μ).quantumWinProb S = 1) (e : E) :
-    ((L.support e).toList.map (S.stateSolution L hμ h).op).prod
-      ≈[(S.dilate (fun _ => false) false).toCommuting.state; 0] boolSign (L.parity e) • 1 :=
-  (S.stateSolution L hμ h).prod_eq e
+    (S : QuantumStrategy E V (V → Bool) Bool ι κ) (hne : ∀ e, ∃ v, μ (e, v) ≠ 0)
+    (hμ : ∀ e, ∀ v ∈ L.support e, μ (e, v) ≠ 0) (h : (L.game μ).quantumWinProb S = 1) (e : E) :
+    ((L.support e).toList.map (S.stateSolution L hne hμ h).op).prod
+      ≈[(S.dilate (fun _ => false) false).toCommuting.state; 0] (signVal (L.parity e) : ℂ) • 1 :=
+  (S.stateSolution L hne hμ h).prod_eq e _ (List.Perm.refl _)
 
 end CslibFrontierTests.Naimark

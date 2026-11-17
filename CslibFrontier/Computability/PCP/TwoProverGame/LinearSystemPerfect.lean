@@ -68,14 +68,16 @@ variable {V E : Type*} [Fintype V] [DecidableEq V] [Finite E] (L : LinearSystem 
   {μ : PMF (E × V)}
 
 open scoped Matrix.Norms.L2Operator in
-/-- **Perfect strategies give operator solutions in the state** [Cleve and Mittal][CleveMittal2014]:
-a finite-dimensional strategy winning the game of a linear constraint system with certainty, for
-a question distribution of full support, gives a state-dependent operator solution: the `±1`
-observables of Bob's Naimark-dilated measurements, in the dilated shared state. -/
-noncomputable def stateSolution (S : QuantumStrategy E V (V → Bool) Bool ι κ) (hμ : ∀ q, μ q ≠ 0)
+/-- **Perfect strategies give operator solutions in the state**
+[Cleve and Mittal, §4, Theorem 1][CleveMittal2014]: a finite-dimensional strategy winning the game
+of a linear constraint system with certainty, for a question distribution asking every equation
+and every variable of it with positive probability, gives a state-dependent operator solution: the
+`±1` observables of Bob's Naimark-dilated measurements, in the dilated shared state. -/
+noncomputable def stateSolution (S : QuantumStrategy E V (V → Bool) Bool ι κ)
+    (hne : ∀ e, ∃ v, μ (e, v) ≠ 0) (hμ : ∀ e, ∀ v ∈ L.support e, μ (e, v) ≠ 0)
     (h : (L.game μ).quantumWinProb S = 1) :
     L.StateSolution (S.dilate (fun _ => false) false).toCommuting.state :=
-  CommutingStrategy.stateSolution L (S.dilate (fun _ => false) false).toCommuting hμ
+  CommutingStrategy.stateSolution L (S.dilate (fun _ => false) false).toCommuting hne hμ
     (fun e => isProjective_toCommuting_alice _ e (S.isProjective_alice_dilate _ _ e))
     (fun v => isProjective_toCommuting_bob _ v (S.isProjective_bob_dilate _ _ v))
     (by rw [TwoProverGame.commutingWinProb_toCommuting, TwoProverGame.quantumWinProb_dilate, h])
