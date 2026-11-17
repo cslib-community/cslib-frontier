@@ -38,6 +38,9 @@ otherwise the run would keep running on a set of coin sequences of positive prob
   decreases.
 * `Turing.MultiTapePTM.toOuterMeasure_halted_monotone`: the probability of having halted in a set
   of halted configurations increases.
+* `Turing.MultiTapePTM.toOuterMeasure_compl_antitone`,
+  `Turing.MultiTapePTM.expectedTime_le_tsum_toOuterMeasure_compl`: the probability of not yet
+  being in such a set decreases, and these probabilities bound the expected running time.
 * `Turing.MultiTapePTM.mul_toOuterMeasure_running_le_expectedTime`: Markov's inequality.
 * `Turing.MultiTapePTM.expectedTime_le_of_halted`: halting within `T` steps bounds the expectation
   by `T`.
@@ -116,6 +119,28 @@ theorem toOuterMeasure_halted_monotone (cfg : Config k Symbol State Empty input)
       PMF.toOuterMeasure_pure_apply, ite_eq_left hmid, mul_one]
   · rw [Set.indicator_of_notMem hmid]
     exact zero_le
+
+/-- **The miss probability decreases** with the clock: the probability of not yet being in a set of
+halted configurations is the complement of an increasing probability. -/
+theorem toOuterMeasure_compl_antitone (cfg : Config k Symbol State Empty input)
+    {good : Set (Config k Symbol State Empty input)} (hgood : ∀ c ∈ good, c.tapes.state = none) :
+    Antitone fun t => (ProbComp.eval (machine.runClosedConfigFrom t cfg)).toOuterMeasure goodᶜ := by
+  intro t t' htt'
+  have hcompl (s : ℕ) : (ProbComp.eval (machine.runClosedConfigFrom s cfg)).toOuterMeasure goodᶜ =
+      1 - (ProbComp.eval (machine.runClosedConfigFrom s cfg)).toOuterMeasure good :=
+    ENNReal.eq_sub_of_add_eq (PMF.toOuterMeasure_ne_top _ _)
+      ((add_comm _ _).trans (PMF.toOuterMeasure_add_compl_ennreal _ good))
+  simp only [hcompl]
+  exact tsub_le_tsub_left (machine.toOuterMeasure_halted_monotone cfg hgood htt') 1
+
+/-- **The expected running time is at most the sum of the miss probabilities** of any set of
+halted configurations. -/
+theorem expectedTime_le_tsum_toOuterMeasure_compl
+    {good : Set (Config k Symbol State Empty input)} (hgood : ∀ c ∈ good, c.tapes.state = none) :
+    machine.expectedTime input ≤ ∑' t, (ProbComp.eval (machine.runClosedConfigFrom t
+      (machine.initialConfig input))).toOuterMeasure goodᶜ :=
+  tsum_le_tsum fun _ => PMF.toOuterMeasure_mono _ fun c ⟨hc, _⟩ hgc => by
+    simp [hgood c hgc] at hc
 
 /-- **Markov's inequality** for the running time: the run is still going after `t` steps with
 probability at most `E[T] / (t + 1)`. -/

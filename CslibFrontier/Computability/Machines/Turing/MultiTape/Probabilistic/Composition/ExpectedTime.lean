@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF.Map
 
 /-!
 # Tail bounds for sequenced and composed fair-coin machines
@@ -20,10 +19,10 @@ import CslibFrontier.Probability.PMF.Map
 The halting lemmas for `Turing.MultiTapePTM.seq` and `Turing.MultiTapePTM.comp` assume that each
 phase halts within a fixed clock. Machines with an expected running time have no such clock, so
 this file bounds the probability that a run has not yet reached a set `good` of halted
-configurations (its *miss probability*) instead. Halted configurations stay where they are, so the
-miss probability decreases with the clock (`Turing.MultiTapePTM.toOuterMeasure_compl_antitone`),
-and the expected running time is at most the sum of the miss probabilities
-(`Turing.MultiTapePTM.expectedTime_le_tsum_toOuterMeasure_compl`).
+configurations (its *miss probability*) instead. That probability decreases with the clock and
+bounds the expected running time (`Turing.MultiTapePTM.toOuterMeasure_compl_antitone` and
+`Turing.MultiTapePTM.expectedTime_le_tsum_toOuterMeasure_compl`, next to the definition of the
+expected running time).
 
 A machine that mirrors another one step at a time, through a map of configurations, misses at
 time `fuel + rest` at most as often as the mirrored machine's configuration at time `fuel` followed
@@ -42,8 +41,9 @@ sequencing and composition this gives:
 
 ## Main results
 
-* `Turing.MultiTapePTM.toOuterMeasure_compl_antitone`, `Turing.MultiTapePTM.tsum_le_add_of_shift`,
-  `Turing.MultiTapePTM.expectedTime_le_tsum_toOuterMeasure_compl`.
+* `Turing.MultiTapePTM.tsum_le_add_of_shift`: shifted tails.
+* `Turing.MultiTapePTM.eval_runClosedConfigFrom_one_of_step`: a fixed-coin mirror is a one-step
+  mirror of distributions.
 * `Turing.MultiTapePTM.toOuterMeasure_compl_add_le_bind`.
 * `Turing.MultiTapePTM.toOuterMeasure_compl_seq_le`,
   `Turing.MultiTapePTM.toOuterMeasure_compl_comp_le`,
@@ -70,33 +70,6 @@ private theorem toOuterMeasure_bind_mono {β γ : Type} (p : PMF β) {f g : β �
   · exact mul_le_mul_of_nonneg_left (h b hb) zero_le
   · rw [(PMF.apply_eq_zero_iff p b).mpr hb, zero_mul, zero_mul]
 
-/-- **The miss probability decreases** with the clock: configurations in a set of halted
-configurations stay there. -/
-theorem toOuterMeasure_compl_antitone (machine : MultiTapePTM k Symbol State)
-    (cfg : Config k Symbol State Empty input) {good : Set (Config k Symbol State Empty input)}
-    (hgood : ∀ c ∈ good, c.tapes.state = none) :
-    Antitone fun t => (ProbComp.eval (machine.runClosedConfigFrom t cfg)).toOuterMeasure goodᶜ := by
-  intro t t' htt'
-  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le htt'
-  dsimp only
-  rw [eval_runClosedConfigFrom_add, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
-  refine tsum_le_tsum fun mid => ?_
-  by_cases hmid : mid ∈ good
-  · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.mpr hmid),
-      eval_runClosedConfigFrom_of_halted machine m mid (hgood mid hmid),
-      PMF.toOuterMeasure_pure_apply, ite_eq_right (Set.notMem_compl_iff.mpr hmid), mul_zero]
-  · rw [Set.indicator_of_mem (Set.mem_compl hmid)]
-    exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
-
-/-- **The expected running time is at most the sum of the miss probabilities** of any set of
-halted configurations. -/
-theorem expectedTime_le_tsum_toOuterMeasure_compl (machine : MultiTapePTM k Symbol State)
-    {good : Set (Config k Symbol State Empty input)} (hgood : ∀ c ∈ good, c.tapes.state = none) :
-    machine.expectedTime input ≤ ∑' t, (ProbComp.eval (machine.runClosedConfigFrom t
-      (machine.initialConfig input))).toOuterMeasure goodᶜ :=
-  tsum_le_tsum fun _ => PMF.toOuterMeasure_mono _ fun c ⟨hc, _⟩ hgc => by
-    simp [hgood c hgc] at hc
-
 /-- **Shifted tails**: if a sequence of probabilities is bounded after a shift by `D` by another
 sequence, its sum exceeds the other sum by at most `D`. -/
 theorem tsum_le_add_of_shift {f g : ℕ → ℝ≥0∞} (D : ℕ) (hf : ∀ t, f t ≤ 1)
@@ -115,12 +88,8 @@ theorem eval_runClosedConfigFrom_one_of_step {N : MultiTapePTM k Symbol State'}
     (h : ∀ bit, (machine.withCoin bit).step (φ c) = φ ((N.withCoin bit).step c)) :
     ProbComp.eval (machine.runClosedConfigFrom 1 (φ c)) =
       (ProbComp.eval (N.runClosedConfigFrom 1 c)).map φ := by
-  rw [eval_runClosedConfigFrom_eq_map_coins, eval_runClosedConfigFrom_eq_map_coins, PMF.map_comp]
-  refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun coins hcoins => ?_
-  obtain ⟨bit, rfl⟩ : ∃ bit, coins = [bit] := by
-    match coins, BitString.mem_support_uniformList_iff.mp hcoins with
-    | [bit], _ => exact ⟨bit, rfl⟩
-  exact h bit
+  rw [eval_runClosedConfigFrom_one, eval_runClosedConfigFrom_one, PMF.map_comp]
+  exact congrArg (PMF.map · _) (funext h)
 
 /-- **Mirrored runs.** If `machine` mirrors `N` one step at a time through `φ` while `N` runs, then
 after `fuel + rest` steps from `φ c` it misses `good` at most as often as `N` run for `fuel` steps

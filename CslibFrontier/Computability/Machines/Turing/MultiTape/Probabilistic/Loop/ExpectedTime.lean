@@ -90,12 +90,8 @@ theorem eval_runClosedConfigFrom_one_of_step_eq {Symbol : Type} {input : List Sy
     (machine : MultiTapePTM k Symbol State) (c c' : Config k Symbol State Empty input)
     (h : ∀ bit, (machine.withCoin bit).step c = c') :
     ProbComp.eval (machine.runClosedConfigFrom 1 c) = PMF.pure c' := by
-  rw [eval_runClosedConfigFrom_eq_map_coins, ← PMF.map_const (BitString.uniformList 1) c']
-  refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun coins hcoins => ?_
-  obtain ⟨bit, rfl⟩ : ∃ bit, coins = [bit] := by
-    match coins, BitString.mem_support_uniformList_iff.mp hcoins with
-    | [bit], _ => exact ⟨bit, rfl⟩
-  exact h bit
+  rw [eval_runClosedConfigFrom_one, funext h]
+  exact PMF.map_const _ c'
 
 namespace RepeatUntilBlank
 
