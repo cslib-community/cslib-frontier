@@ -43,7 +43,8 @@ For Lean, dependency or build changes, all of these must pass on the final sourc
 integration. A successful hosted run covering that revision supplies full validation; do not
 repeat it locally merely to satisfy a second reporting requirement. Run local full validation
 (`scripts/check.sh`) only when explicitly requested or hosted coverage is unavailable; changes
-to validation machinery also need direct checks of the changed behavior. The required `ci-checks` always checks source validation. A PR confined to allowlisted prose
+to validation machinery also need direct checks of the changed behavior. The required `ci-checks` always
+checks source validation. A PR confined to allowlisted prose
 can skip the Lean job. Merge groups still run it. The HTTP origin suite runs on main and on
 PR or queue changes outside the known Lean, bibliography and prose paths. Set the repository
 variable `FORCE_FULL_CI=1` to schedule both jobs on every event.

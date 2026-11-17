@@ -139,8 +139,8 @@ run ID. Set `DISABLE_GUIDE_ARTIFACT=1` to turn off this backup independently.
 
 Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk
 space. On GitHub-hosted Linux runners it removes the unused Android and .NET SDKs only when less
-than the configured threshold (100 GiB by default) is available, or the free-space measurement is unavailable. This conservative
-headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
+than the configured threshold (100 GiB by default) is available, or the free-space measurement is
+unavailable. This conservative headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
 deletion on larger runners that already have ample space; it is not an exact build-size estimate.
 Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if

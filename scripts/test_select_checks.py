@@ -1,10 +1,10 @@
 """Regressions for scheduling expensive CI on the exact validation diff."""
 
+from contextlib import chdir
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 
 from scripts.ci import select_checks
 
@@ -46,11 +46,16 @@ class SelectionTests(unittest.TestCase):
             git("switch", "main")
             git("merge", "--no-ff", "topic", "-m", "test merge")
             merge = git("rev-parse", "HEAD")
-            checkout = lambda *args: subprocess.check_output(["git", "-C", tmp, *args])
             payload = {"pull_request": {"head": {"sha": head}, "base": {"sha": head}}}
-            with patch.object(select_checks, "git", side_effect=checkout):
+            with chdir(tmp):
                 self.assertCountEqual(select_checks.event_paths("pull_request", payload, merge),
                                       ["README.md", "tool.py"])
                 payload["pull_request"]["head"]["sha"] = base
                 with self.assertRaises(ValueError):
                     select_checks.event_paths("pull_request", payload, merge)
+                group = {"merge_group": {"head_sha": merge, "base_sha": base}}
+                self.assertCountEqual(select_checks.event_paths("merge_group", group, merge),
+                                      ["README.md", "tool.py"])
+                group["merge_group"]["head_sha"] = head
+                with self.assertRaises(ValueError):
+                    select_checks.event_paths("merge_group", group, merge)
