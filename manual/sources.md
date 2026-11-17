@@ -164,6 +164,11 @@ Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Probl
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
 
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section/theorem locators follow ePrint 2020/654 (Sections 1, 4 and 6). Unique-decoding correlated agreement and proximity gaps for affine lines and degree-`d` parameterized curves (Theorems 1.2, 4.1 and 6.1) are formalized in [Unique.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Unique.lean).
+
 <a id="bcs16"></a>
 ## bcs16
 

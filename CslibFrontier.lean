@@ -6156,6 +6156,7 @@ public import CslibFrontier.Foundations.Data.Code.OddCircuitFourier
 public import CslibFrontier.Foundations.Data.Code.ParityCheck
 public import CslibFrontier.Foundations.Data.Code.Plotkin
 public import CslibFrontier.Foundations.Data.Code.Plotkin.Asymptotic
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 public import CslibFrontier.Foundations.Data.Code.PuncturedBallFourier
 public import CslibFrontier.Foundations.Data.Code.RadialDecoding
 public import CslibFrontier.Foundations.Data.Code.ReedMuller
