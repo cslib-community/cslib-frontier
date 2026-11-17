@@ -15,12 +15,13 @@ import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Data.ZMod.Basic
 import Mathlib.LinearAlgebra.Matrix.GeneralLinearGroup.Card
 import Mathlib.LinearAlgebra.Matrix.ToLin
+import Mathlib.LinearAlgebra.BilinearForm.Orthogonal
+import Mathlib.LinearAlgebra.Matrix.DotProduct
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.FieldTheory.Finiteness
 import Mathlib.LinearAlgebra.Dimension.DivisionRing
 import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -37,12 +38,14 @@ text uses for Simon's algorithm (p. 422/438). The exercise asks for probability 
 vectors always have a nonzero common orthogonal string when `n ≥ 1`. So the statement assumes
 `a ≠ 0`.
 
-**Proof.** The strings orthogonal to `a` form a subspace `a^⊥` of dimension `n - 1`. By the count of
-linearly independent families over a finite field (`card_linearIndependent`), exactly
-`∏_{i < n - 1} (2^{n-1} - 2^i)` of the `2^{(n-1)^2}` tuples are linearly independent. Independent
-tuples span `a^⊥`, so every string `w` orthogonal to all of them is orthogonal to `a^⊥`. Taking a
-coordinate `i` with `a_i = 1`, the strings `e_j + a_j e_i` lie in `a^⊥`, which gives
-`w_j = a_j w_i` for every `j`, so `w ∈ {0, a}`. Finally
+**Proof.** The dot product is a nondegenerate reflexive bilinear form on `GF(2)^n`, so Mathlib's
+orthogonality API applies (`LinearMap.BilinForm.orthogonal`). The strings orthogonal to `a` form
+the orthogonal complement `a^⊥` of `span {a}`, of dimension `n - 1`
+(`LinearMap.BilinForm.finrank_orthogonal`). By the count of linearly independent families over a
+finite field (`card_linearIndependent`), exactly `∏_{i < n - 1} (2^{n-1} - 2^i)` of the
+`2^{(n-1)^2}` tuples are linearly independent. Independent tuples span `a^⊥`, so every string `w`
+orthogonal to all of them lies in `(a^⊥)^⊥ = span {a} = {0, a}`
+(`LinearMap.BilinForm.orthogonal_orthogonal`). Finally
 `∏_{i < n - 1} (1 - 2^{i - (n-1)}) = ∏_{j = 1}^{n - 1} (1 - 2^{-j}) ≥ 1 / 4`.
 
 ## Main results
@@ -103,45 +106,44 @@ private theorem one_div_four_le_prod_one_sub (m : ℕ) :
 
 variable {n : ℕ}
 
-/-- The strings orthogonal to `a`. -/
+/-- The dot product on `GF(2)^n` as a bilinear form. -/
+private abbrev dotForm (n : ℕ) : LinearMap.BilinForm (ZMod 2) (Fin n → ZMod 2) :=
+  dotProductBilin (ZMod 2) (ZMod 2)
+
+/-- The dot product is nondegenerate (`dotProduct_eq_zero`), unlike `a ⬝ᵥ a ≠ 0`, which fails for
+nonzero strings of even weight in characteristic `2`. -/
+private theorem nondegenerate_dotForm : (dotForm n).Nondegenerate :=
+  ⟨fun x hx => dotProduct_eq_zero x hx,
+    fun y hy => dotProduct_eq_zero y fun x => by rw [dotProduct_comm]; exact hy x⟩
+
+private theorem isRefl_dotForm : (dotForm n).IsRefl := fun x y h => by
+  simpa [dotProduct_comm] using h
+
+/-- The strings orthogonal to `a`: the orthogonal complement of `span {a}`. -/
 private abbrev orth (a : Fin n → ZMod 2) : Submodule (ZMod 2) (Fin n → ZMod 2) :=
-  LinearMap.ker ((dotProductBilin (ZMod 2) (ZMod 2)).flip a)
+  (dotForm n).orthogonal (ZMod 2 ∙ a)
 
 private theorem mem_orth {a y : Fin n → ZMod 2} : y ∈ orth a ↔ y ⬝ᵥ a = 0 := by
-  simp [orth]
+  rw [orth, LinearMap.BilinForm.orthogonal_span_singleton_eq_toLin_ker, LinearMap.mem_ker,
+    dotProduct_comm]
+  rfl
 
 /-- For nonzero `a`, the strings orthogonal to `a` form a subspace of dimension `n - 1`. -/
 private theorem finrank_orth {a : Fin n → ZMod 2} (ha : a ≠ 0) :
     finrank (ZMod 2) (orth a) = n - 1 := by
-  obtain ⟨i, hi⟩ : ∃ i, a i ≠ 0 := Function.ne_iff.1 ha
-  set f := (dotProductBilin (ZMod 2) (ZMod 2)).flip a
-  have hsurj : LinearMap.range f = ⊤ := by
-    refine LinearMap.range_eq_top.2 fun c => ⟨c • (a i)⁻¹ • Pi.single i 1, ?_⟩
-    simp [f, single_dotProduct, inv_mul_cancel₀ (G₀ := ZMod 2) hi]
-  have h := LinearMap.finrank_range_add_finrank_ker f
-  rw [hsurj, finrank_top, finrank_self, finrank_fin_fun] at h
-  change finrank (ZMod 2) (LinearMap.ker f) = n - 1
-  omega
+  rw [orth, LinearMap.BilinForm.finrank_orthogonal nondegenerate_dotForm, finrank_fin_fun,
+    finrank_span_singleton ha]
 
-/-- A string orthogonal to every string orthogonal to a nonzero `a` is `0` or `a`. -/
-private theorem eq_zero_or_eq_of_forall_mem_orth {a w : Fin n → ZMod 2} (ha : a ≠ 0)
+/-- A string orthogonal to every string orthogonal to a nonzero `a` lies in `span {a} = {0, a}`. -/
+private theorem eq_zero_or_eq_of_forall_mem_orth {a w : Fin n → ZMod 2}
     (hw : ∀ v ∈ orth a, v ⬝ᵥ w = 0) : w = 0 ∨ w = a := by
-  obtain ⟨i, hi⟩ : ∃ i, a i ≠ 0 := Function.ne_iff.1 ha
-  have hai : a i = 1 := by
-    revert hi; generalize a i = x; revert x; decide
-  have hwj : ∀ j, w j = a j * w i := by
-    intro j
-    have hv := hw (Pi.single j 1 + a j • Pi.single i 1) (mem_orth.2 (by
-      simp only [add_dotProduct, smul_dotProduct, single_dotProduct, one_mul, hai, smul_eq_mul,
-        mul_one]
-      generalize a j = x; revert x; decide))
-    simp only [add_dotProduct, smul_dotProduct, single_dotProduct, one_mul, smul_eq_mul] at hv
-    revert hv; generalize w j = x; generalize a j = y; generalize w i = z
-    revert x y z; decide
-  have hw' : w = w i • a := funext fun j => by simp [hwj j, mul_comm]
-  rcases (by decide : ∀ c : ZMod 2, c = 0 ∨ c = 1) (w i) with h | h
-  · left; rw [hw', h, zero_smul]
-  · right; rw [hw', h, one_smul]
+  have hw' : w ∈ (dotForm n).orthogonal (orth a) := LinearMap.BilinForm.mem_orthogonal_iff.2 hw
+  rw [orth, LinearMap.BilinForm.orthogonal_orthogonal nondegenerate_dotForm isRefl_dotForm,
+    Submodule.mem_span_singleton] at hw'
+  obtain ⟨c, rfl⟩ := hw'
+  rcases (by decide : ∀ c : ZMod 2, c = 0 ∨ c = 1) c with h | h
+  · left; rw [h, zero_smul]
+  · right; rw [h, one_smul]
 
 /-- **Arora–Barak, Exercise 20.5** (web draft 2007-01-08, p. 431/447), with the hypothesis
 `a ≠ 0` it needs. For nonzero `a ∈ GF(2)^n`, if `y_1, …, y_{n-1}` are drawn uniformly at random
@@ -162,7 +164,9 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
     have h1 : #{y : Fin (n - 1) → Fin n → ZMod 2 | ∀ i, y i ⬝ᵥ a = 0} =
         Fintype.card (Fin (n - 1) → K) := by
       rw [← Fintype.card_coe, Fintype.card_congr ((Equiv.subtypeEquivRight fun y => by
-        simp [K]).trans (Equiv.subtypePiEquivPi (p := fun _ v => v ∈ K)))]
+        simp only [mem_filter, mem_univ, true_and]
+        exact forall_congr' fun i => (mem_orth (a := a) (y := y i)).symm).trans
+          (Equiv.subtypePiEquivPi (p := fun _ v => v ∈ K)))]
     rw [h1, Fintype.card_fun, Fintype.card_fin, card_eq_pow_finrank (K := ZMod 2) (V := K), hK,
       ZMod.card]
   -- the linearly independent tuples determine `a`
@@ -174,7 +178,7 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
     rw [← hli, Nat.card_eq_fintype_card, ← Fintype.card_coe]
     refine Fintype.card_le_of_injective (fun s => ⟨fun i => (s.1 i : Fin n → ZMod 2), ?_⟩) ?_
     · refine mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.1 i).2, fun w hw => ?_⟩
-      refine eq_zero_or_eq_of_forall_mem_orth ha fun v hv => ?_
+      refine eq_zero_or_eq_of_forall_mem_orth fun v hv => ?_
       have hspan := s.2.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK])
       have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.1), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
         intro x hx
