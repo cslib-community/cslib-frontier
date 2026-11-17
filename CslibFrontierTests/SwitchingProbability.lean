@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.DecisionTree.SwitchingProbability
+import CslibFrontier.Foundations.Data.Nat.Choose.Ratio
 import Mathlib.Tactic.NormNum
 
 /-! # Checked clients for Arora–Barak, Lemma 13.2 (for `k ≠ 1`) and Exercise 13.3(a)

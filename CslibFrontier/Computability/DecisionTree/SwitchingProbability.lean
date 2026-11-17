@@ -29,10 +29,15 @@ The draft leaves "verifying the exact bound" from its counting to Exercise 3 of 
 This file derives that bound for every `k ≠ 1` from the counting form of the switching lemma
 (`DNF.card_switching_le`): at most `#R(ℓ - s) (4k)^s` restrictions leaving `ℓ = n - t` variables
 free leave decision tree complexity at least `s`, and a decision tree of depth below `s` gives an
-`s`-CNF (`DecisionTree.toCNF`). The ratio `#R(ℓ - s) / #R(ℓ)` is bounded with the binomial
-inequality of Exercise 13.3(a) in its corrected form (`Nat.choose_add_le_choose_mul_div_pow`).
-The result is `Pr ≤ (8 k (n - t) / (t + 1)) ^ s`, which is at most the draft's bound when
-`(n - t) k ^ 10 < n` and `k ≥ 2`; otherwise the draft's bound is at least `1`.
+`s`-CNF (`DecisionTree.toCNF`). The random restriction is a uniform element of
+`PartialAssignment.withFree (Fin n) (n - t)`, which leaves `n - t` (truncated subtraction)
+variables free and so fixes `min t n` of them: exactly `t` when `t ≤ n`, the draft's setting, and
+all `n` when `t > n` (for example, `n = 1` and `t = 2` fix one bit). The theorem is stated for
+every `t`. The ratio `#R(ℓ - s) / #R(ℓ)` is bounded directly with `Nat.choose_sub_mul_pow_le`,
+which gives `C(n, ℓ - s) / C(n, ℓ) ≤ (ℓ / (n - ℓ + 1)) ^ s`; this is a stronger form of the
+corrected Exercise 13.3(a) (`Nat.choose_add_le_choose_mul_div_pow`, which this file does not
+use). The result is `Pr ≤ (8 k (n - t) / (t + 1)) ^ s` for `t ≤ n`, which is at most the draft's
+bound when `(n - t) k ^ 10 < n` and `k ≥ 2`; otherwise the draft's bound is at least `1`.
 
 **What is not covered.** For `k = 1` the counting bound has the factor `8 ^ s`, which `k ^ 10 = 1`
 does not absorb, and the draft's proof (an encoding into `{0, 1, ⋆}^{2ks}`) does not give the
@@ -43,52 +48,18 @@ formalized here. So `card_filter_not_cnf_div_card_le` is Lemma 13.2 only for `k 
 
 ## Main results
 
-* `Nat.choose_add_le_choose_mul_div_pow`: Arora–Barak, Exercise 13.3(a), corrected.
 * `Cslib.Logic.PL.DNF.card_filter_not_cnf_div_card_le`: Arora–Barak, Lemma 13.2, for `k ≠ 1`.
 
 ## References
 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft 2007-01-08,
-  Lemma 13.2 and Exercise 13.3][AroraBarak07]
+  Lemma 13.2][AroraBarak07]
 * [J. Håstad, *Almost optimal lower bounds for small depth circuits*][Hastad1986]
 -/
 
 public section
 
 open Finset
-
-/-- **Arora–Barak, Exercise 13.3(a), corrected** (web draft 2007-01-08, p. 252/268). The draft
-prints `C(n, t + k) ≤ C(n, t) (n / (n - t)) ^ k` for `t > n / 2`, which is true but too weak for
-the proof of Lemma 13.2. The bound that proof needs is, for `t > n / 2`,
-`C(n, t + k) ≤ C(n, t) ((n - t) / t) ^ k ≤ C(n, t) (2 (n - t) / n) ^ k`. -/
-theorem Nat.choose_add_le_choose_mul_div_pow {n t k : ℕ} (ht : n < 2 * t) :
-    (n.choose (t + k) : ℝ) ≤ n.choose t * (((n - t : ℕ) : ℝ) / t) ^ k ∧
-      (n.choose t : ℝ) * (((n - t : ℕ) : ℝ) / t) ^ k ≤
-        n.choose t * (2 * ((n - t : ℕ) : ℝ) / n) ^ k := by
-  have htpos : (0 : ℝ) < t := by exact_mod_cast (show 0 < t by omega)
-  refine ⟨?_, ?_⟩
-  · rcases le_or_gt (t + k) n with htk | htk
-    · -- `C(n, n - t - k) (t + 1) ^ k ≤ C(n, n - t) (n - t) ^ k`
-      have h := Nat.choose_sub_mul_pow_le (m := n) (ℓ := n - t) (s := k) (by omega) (by omega)
-      rw [show n - t - k = n - (t + k) by omega, Nat.choose_symm htk,
-        Nat.choose_symm (by omega : t ≤ n), show n - (n - t) + 1 = t + 1 by omega] at h
-      have h' : (n.choose (t + k) : ℝ) * (t : ℝ) ^ k ≤ n.choose t * ((n - t : ℕ) : ℝ) ^ k := by
-        have : (n.choose (t + k) : ℝ) * ((t + 1 : ℕ) : ℝ) ^ k ≤
-            n.choose t * ((n - t : ℕ) : ℝ) ^ k := by exact_mod_cast h
-        refine le_trans (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ htpos.le ?_ k)
-          (by positivity)) this
-        push_cast; linarith
-      rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
-      exact h'
-    · rw [Nat.choose_eq_zero_of_lt htk, Nat.cast_zero]
-      positivity
-  · rcases Nat.eq_zero_or_pos n with rfl | hn
-    · simp [Nat.choose_eq_zero_of_lt (show 0 < t by omega)]
-    have hnpos : (0 : ℝ) < n := by exact_mod_cast hn
-    refine mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) ?_ k) (by positivity)
-    rw [div_le_div_iff₀ htpos hnpos]
-    have : (n : ℝ) ≤ 2 * t := by exact_mod_cast ht.le
-    nlinarith [show (0 : ℝ) ≤ ((n - t : ℕ) : ℝ) by positivity]
 
 namespace Cslib.Logic.PL
 
@@ -147,11 +118,12 @@ open Classical in
 /-- **Arora–Barak, Lemma 13.2, for `k ≠ 1`** (Håstad's switching lemma; web draft 2007-01-08,
 p. 236/252). This is not the cited result: the draft states it for every `k`, and the case
 `k = 1` is not covered here (see the module docstring). Let `f` be expressible as a `k`-DNF on
-`n` variables and let `ρ` be a uniformly random restriction fixing `t` variables, i.e. a uniform
-element of `PartialAssignment.withFree (Fin n) (n - t)`: a uniform set of `t` positions with
-uniform values. Then the probability that the restricted function `x ↦ f (ρ.fill x)` is not
-computed by a CNF with clauses of at most `s` literals is at most
-`((n - t) k ^ 10 / n) ^ (s / 2)`. The draft assumes `s ≥ 2`; the bound holds for every `s`. -/
+`n` variables and let `ρ` be a uniform element of `PartialAssignment.withFree (Fin n) (n - t)`:
+a uniform set of `min t n` fixed positions with uniform values. For `t ≤ n`, the draft's setting,
+this fixes exactly `t` variables; for `t > n` it fixes all `n`. Then the probability that the
+restricted function `x ↦ f (ρ.fill x)` is not computed by a CNF with clauses of at most `s`
+literals is at most `((n - t) k ^ 10 / n) ^ (s / 2)`. The draft assumes `s ≥ 2`; the bound holds
+for every `s`. -/
 theorem card_filter_not_cnf_div_card_le {n k s t : ℕ} (hk : k ≠ 1) {f : (Fin n → Bool) → Bool}
     (hf : ∃ F : DNF (Fin n), (∀ T ∈ F, T.length ≤ k) ∧ ∀ x, DNF.eval x F = f x) :
     (#{ρ ∈ PartialAssignment.withFree (Fin n) (n - t) |
