@@ -5352,6 +5352,10 @@ public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.Quotient
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import CslibFrontier.DataStructure.BPlusTree.Height
+public import CslibFrontier.DataStructure.BPlusTree.Lookup
+public import CslibFrontier.DataStructure.BPlusTree.MinMax
+public import CslibFrontier.DataStructure.BPlusTree.PredSucc
+public import CslibFrontier.DataStructure.BPlusTree.Rank
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
