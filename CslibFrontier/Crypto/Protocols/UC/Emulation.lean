@@ -39,9 +39,9 @@ the corrupted parties and the auxiliary input. `UC.EmulatesWithin π φ g ε` im
 every error `ε pA pZ` is negligible (`UC.EmulatesWithin.emulates`). It is reflexive and transitive,
 and its transitivity needs no monotonicity, because the negligible bound for the second step is
 chosen after the intermediate simulator. Since all participants are only call-bounded, these are
-notions of security against interaction-bounded, computationally unbounded participants, and they
-are incomparable with UC security against polynomial-time machines, which restricts the simulator
-as well as the adversary and the environment.
+notions of security against interaction-bounded, computationally unbounded participants. They are
+not UC security against polynomial-time machines, which restricts the simulator as well as the
+adversary and the environment, and no implication to or from that notion is established here.
 
 ## Main definitions
 
@@ -102,8 +102,9 @@ have unbounded complexity. It differs from the source as follows.
   further corruption behaviour is the protocol's own dependence on the corrupted set.
 
 *Status.* This notion is novel to this library. Compared with Definition 15 for polynomial-time
-participants, it admits more adversaries and environments, and also more simulators, in a narrower
-model, so it neither implies nor follows from Definition 15. It is plausible as a statistical,
+participants, it admits more adversaries and environments, and also more simulators, in a different
+execution model. It is not source-identical, and no implication to or from Definition 15 is
+established here. It is plausible as a statistical,
 call-bounded notion of emulation: it is reflexive and transitive (`EmulatesWithin.refl`,
 `EmulatesWithin.trans`) and closed under composition (`EmulatesWithin.compose`). It is not
 trivial: by `not_realizesWithin_fcom`, a plain commitment scheme with one commitment and one
@@ -177,11 +178,11 @@ read in the statistical setting of Section 4.4, p. 50, and differs from the sour
 polynomial running time and are otherwise computationally unbounded, the simulator included;
 corruptions are static; environments are not identity-bounded; protocols have a fixed set of `n`
 parties, with corruption rerouting their ports; and one negligible function bounds every
-environment with budget `pZ`, at every `κ` and for every auxiliary input. It is therefore
-incomparable with Definition 9: it admits more adversaries and environments, and also more
-simulators.
+environment with budget `pZ`, at every `κ` and for every auxiliary input. It therefore admits
+more adversaries and environments than Definition 9, and also more simulators.
 
-*Status.* This notion is novel to this library, and neither implies nor follows from Definition 9.
+*Status.* This notion is novel to this library. It is not source-identical, and no implication to
+or from Definition 9 is established here.
 It follows from `EmulatesWithin` with negligible errors (`EmulatesWithin.emulates`). It is
 plausible as a statistical, call-bounded notion of emulation: it is reflexive and transitive
 (`Emulates.refl`, `Emulates.trans`) and closed under composition (`Emulates.compose`), and by
@@ -201,8 +202,9 @@ plausible as a statistical, call-bounded notion of emulation: it is reflexive an
 UC realization of [Canetti2020] (ePrint revision of February 11, 2020), Definition 20, p. 58, with
 `Emulates` in place of Definition 9's UC emulation (see `Emulates` for the differences), and
 without Definition 20's further requirement that `π` be subroutine-respecting. Like `Emulates`, it
-is novel to this library and neither implies nor follows from the source's notion; it is plausible
-for the same reasons (`Realizes.compose`, `not_realizes_fcom`). -/
+is novel to this library: it is not source-identical, and no implication to or from Definition 20
+is established here. It is plausible for the same reasons (`Realizes.compose`,
+`not_realizes_fcom`). -/
 abbrev Realizes (π : Protocol n In Out NetQ NetR) (F : IdealFunctionality n In Out BackQ BackR) :
     Prop :=
   Emulates π F.toProtocol

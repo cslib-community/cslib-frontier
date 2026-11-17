@@ -358,8 +358,9 @@ an explicit simulator budget `pD` and error `ε` as in Definition 15, p. 51. It 
 source as `EmulatesWithin` does: call budgets in place of running time, with otherwise unbounded
 computation (the statistical setting of Section 4.4, p. 50); static corruptions; no identity bound
 on environments; a fixed set of `n` parties; and a bound at every `κ` and for every auxiliary
-input. Like `EmulatesWithin`, it is novel to this library and neither implies nor follows from the
-source's notion. It is equivalent to `EmulatesWithin` up to budgets and errors
+input. Like `EmulatesWithin`, it is novel to this library: it is not source-identical, and no
+implication to or from the source's notion is established here. It is equivalent to
+`EmulatesWithin` up to budgets and errors
 (`EmulatesDummyWithin.emulatesWithin`, `EmulatesWithin.emulatesDummyWithin`), as Claim 11 is for
 the source's notions, so it is plausible for the same reasons; `not_emulatesDummyWithin_fcom`
 gives plain commitment schemes that fail it. -/
@@ -386,8 +387,9 @@ stated with an explicit budget `pD` and error `ε`, as in Definition 15, p. 51, 
 source as `EmulatesWithin` does: call budgets in place of running time, with otherwise unbounded
 computation (the statistical setting of Section 4.4, p. 50); static corruptions; no identity bound
 on environments; a fixed set of `n` parties; and a bound at every `κ` and for every auxiliary
-input. Like `EmulatesWithin`, it is novel to this library and neither implies nor follows from the
-source's notion. It is equivalent to `EmulatesDummyWithin` up to budgets and errors
+input. Like `EmulatesWithin`, it is novel to this library: it is not source-identical, and no
+implication to or from the source's notion is established here. It is equivalent to
+`EmulatesDummyWithin` up to budgets and errors
 (`EmulatesDummyWithin.emulatesBlackBoxWithin`, `EmulatesBlackBoxWithin.emulatesDummyWithin`), as
 Claim 13 is for the source's notions, and implies `EmulatesWithin`
 (`EmulatesBlackBoxWithin.emulatesWithin`), so it is plausible for the same reasons. -/
