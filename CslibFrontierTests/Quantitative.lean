@@ -130,9 +130,13 @@ example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool →
     ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [f b]) []) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
-  refine ⟨by fun_prop, by fun_prop, by fun_prop, by fun_prop, ?_⟩
-  simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
-    ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
+  refine ⟨?_, ?_, ?_, by fun_prop, ?_⟩
+  · exact ComputableInO.foldl_bits_finite encBool (· ^^ ·) false
+  · exact ComputableInO.foldl_bits_finite
+      (encFramed encBool) (fun state bit => state ^^ bit) false
+  · exact ComputableInO.foldl_bits_finite enc step init
+  · simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
+      ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
 
 -- The numerical loop contract also handles a genuinely growing stored accumulator.
 -- Its invariant is one stored bit per consumed input bit. The cost at index i uses i, not the

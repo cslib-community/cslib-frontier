@@ -21,11 +21,11 @@ example {α β γ : Type} {i : α ↪ List Bool} {m : β ↪ List Bool}
     {o : γ ↪ List Bool} {f : β → γ} {g : α → β}
     (hf : ComputableInDegree f m o 0 0) (hg : ComputableInDegree g i m 0 0) :
     ComputableInDegree (fun a => f (g a)) i o 0 0 := by
-  simpa only [Nat.mul_zero, max_self] using hf.comp hg
+  simpa only [Function.comp_def, Nat.mul_zero, max_self] using hf.comp hg
 
 -- A genuine fold client has constant output, independently of its linear resource bound.
 example : ComputableInDegree (fun _ : List Bool => false) encBits encBool 1 0 := by
-  have h := ComputableInDegree.foldl' (encA := encBool) (encL := encBits)
+  have h := ComputableInDegree.foldl' (encIn := encBits) (encA := encBool) (encL := encBits)
     (list := fun _ : List Bool => []) (init := fun _ => false) (step := fun b _ => b)
     (ComputableInDegree.const []) (ComputableInDegree.const false)
     (ComputableInDegree.fst encBool encBool) (b := 0) (B := fun _ => 1)
@@ -35,14 +35,14 @@ example : ComputableInDegree (fun _ : List Bool => false) encBits encBool 1 0 :=
 -- The list client composes a migrated operation with an existing projection provider.
 example : ComputableInDegree (fun p : (ℕ × Bool) × Bool => List.replicate p.1.1 p.1.2)
     (encPair (encPair encUnary encBool) encBool) (encList encBool) 3 2 := by
-  simpa using (ComputableInDegree.replicate encBool).comp
+  simpa [Function.comp_def] using (ComputableInDegree.replicate encBool).comp
     (ComputableInDegree.fst (encPair encUnary encBool) encBool)
 
 -- A nonempty left fold records the last bit. Reversing traversal changes this result.
 example : ComputableInDegree
     (fun _ : List Bool => ([true, false] : List Bool).foldl (fun _ b => b) true)
     encBits encBool 1 0 := by
-  have h := ComputableInDegree.foldl' (encA := encBool) (encL := encBits)
+  have h := ComputableInDegree.foldl' (encIn := encBits) (encA := encBool) (encL := encBits)
     (list := fun _ : List Bool => [true, false]) (init := fun _ => true)
     (step := fun _ b => b)
     (ComputableInDegree.const [true, false]) (ComputableInDegree.const true)
@@ -70,7 +70,7 @@ example : ComputableInDegree
     (fun l : List Bool => l.map fun b => b) (encList encBool) (encList encBool) 3 2 := by
   simpa using ComputableInDegree.mapWith
     (ComputableInDegree.snd encBool encBool)
-    ((ComputableInDegree.const false).mono (e' := 1))
+    ((ComputableInDegree.const false).mono (d' := 1) (e' := 1) (by omega) (by omega))
     (ComputableInDegree.of_eq (encIn := encList encBool) fun _ => rfl)
 
 example : ([false, true, false] : List Bool).find? (fun _ => true) = some false := rfl
