@@ -2899,6 +2899,7 @@ public import CslibFrontier.Computability.Complexity.Problems.XORSAT
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
 public import CslibFrontier.Computability.Complexity.Problems.XSAT
 public import CslibFrontier.Computability.Complexity.ProofSystem
+public import CslibFrontier.Computability.Complexity.ProofSystem.Exhaustive
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction.Autoreducibility
 public import CslibFrontier.Computability.Complexity.Reduction.BoundedOracle
