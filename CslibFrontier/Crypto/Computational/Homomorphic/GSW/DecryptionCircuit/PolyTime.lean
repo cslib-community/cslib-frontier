@@ -18,6 +18,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.Circuit.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Native generation of complete GSW decryption circuits
@@ -245,9 +246,7 @@ theorem computableInPolyTime_layeredAugment :
         (augmentNand (circuit p.1 p.2)).code)
       (encPair encUnary encUnary) Layered.encCompiled := by
   have ha := computableInPolyTime_augmentNand.comp native_circuit
-  have hview : ComputableInPolyTime
-      (fun D : Σ m, Circuit signature m 1 => (D.1, D.2.code))
-      (encCircuit 1) (encPair encUnary encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hv := hview.comp ha
   exact Layered.computableInPolyTime_compile hv.fst' hv.snd'
 

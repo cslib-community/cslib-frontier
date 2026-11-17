@@ -19,7 +19,7 @@ example :
 example :
     encOption encUnary (inputSymbol [0, 17, 0] 2) = true :: List.replicate 17 true ∧
       encOption encUnary (inputSymbol [0, 17, 0] 3) = [true] ∧
-      encOption encUnary (inputSymbol [0, 17, 0] 4) = [] := by decide
+      encOption encUnary (inputSymbol [0, 17, 0] 4) = [false] := by decide
 
 example : inputSymbol [] 0 = none ∧ inputSymbol [] 4096 = none := by decide
 

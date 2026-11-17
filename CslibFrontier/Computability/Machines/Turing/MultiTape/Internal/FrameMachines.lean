@@ -50,13 +50,13 @@ lemma readFrameT_run_done (keep : Bool) (v : List Bool) :
 
 lemma readFrameT_run_true : ∀ v, (readFrameT true).run .marker v = unframe v
   | [] | [true] => rfl
-  | false :: v => by simp [unframe, readFrameT_run_done]
-  | true :: b :: v => by simp [unframe, readFrameT_run_true v]
+  | false :: v => by simp [readFrameT_run_done]
+  | true :: b :: v => by simp [readFrameT_run_true v]
 
 lemma readFrameT_run_false : ∀ v, (readFrameT false).run .marker v = dropFrame v
   | [] | [true] => rfl
-  | false :: v => by simp [dropFrame, readFrameT_run_done]
-  | true :: b :: v => by simp [dropFrame, readFrameT_run_false v]
+  | false :: v => by simp [readFrameT_run_done]
+  | true :: b :: v => by simp [readFrameT_run_false v]
 
 end Turing.MultiTapeTM.Internal.FrameMachines
 

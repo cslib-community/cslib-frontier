@@ -84,8 +84,8 @@ theorem ofBits_reverse (w : List Bool) : ofBits w.reverse = Cslib.BitString.bina
 theorem length_encList_enumList (count : ℕ) :
     (encList encBits (Cslib.BitString.enumList count)).length =
       2 ^ count * (2 * count + 1) := by
-  simp [encList, Cslib.BitString.enumList, List.length_flatMap, List.map_map,
-    Function.comp_def]
+  simp [encList, Cslib.BitString.enumList, List.map_map,
+    Function.comp_def] ; ring
 
 namespace ComputableTidilyInPolyTime
 
@@ -151,7 +151,7 @@ theorem bitsGetElem? {α : Type} {input : α ↪ List Bool}
     (hlist : ComputableTidilyInPolyTime list input encBits)
     (hindex : ComputableTidilyInPolyTime index input encUnary) :
     ComputableTidilyInPolyTime (fun x => (list x)[index x]?) input (encOption encBool) :=
-  getElem? hlist hindex
+  getElem? (encA := encBool) hlist hindex
 
 /-- Remove the framing from a list of bits. -/
 @[fun_prop]
@@ -402,6 +402,12 @@ theorem bitsXorWithInput {α : Type} {input : α ↪ List Bool}
     (hwords : ComputableTidilyInPolyTime words input (encList encBits)) :
     ComputableTidilyInPolyTime (fun a => Cslib.BitString.listXor (width a) (words a))
       input encBits := by
+  have hlookup {β : Type} {encIn : β ↪ List Bool}
+      {word : β → List Bool} {bit : β → ℕ}
+      (hw : ComputableTidilyInPolyTime word encIn encBits)
+      (hb : ComputableTidilyInPolyTime bit encIn encUnary) :
+      ComputableTidilyInPolyTime (fun x => (word x)[bit x]?.getD false) encIn encBool :=
+    optionGetDWithInput (encO := encOption encBool) (bitsGetElem? hw hb) (const false)
   unfold Cslib.BitString.listXor
   fun_prop
 

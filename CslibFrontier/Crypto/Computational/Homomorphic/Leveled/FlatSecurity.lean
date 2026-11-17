@@ -101,7 +101,10 @@ theorem isPPT_flatLeveledAdversary {E : Scheme}
     dsimp only [flatLeveledAdversary]
     apply (isPPTOn_sampleUniformInterval (by fun_prop)
       (hattempts.comp (by fun_prop))).bind_with
-    apply IsPPTOn.ite (by fun_prop)
+    apply IsPPTOn.ite (by
+      have h := ComputableTidilyInPolyTime.optionIsSome (encB := encUnary)
+        (ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encOption encUnary))
+      simpa only [Bool.decide_eq_true] using h)
     · dsimp only [flatLeveledChoice]
       apply IsPPTOn.ite (by polytime)
       · apply IsPPTOn.map _ (htag false false)

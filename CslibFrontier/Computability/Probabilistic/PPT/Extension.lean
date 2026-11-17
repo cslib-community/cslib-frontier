@@ -58,11 +58,13 @@ theorem IsPPTOn.exists_extension {program : α → ProbComp β} (h : IsPPTOn inp
   have hrun : IsPPTOn encBits encBits
       (fun word => machine.runClosed (c * (word.length + 1) ^ d) word) :=
     ⟨k, State, hfinite, machine, c, d, fun word => by
-      simp only [encBits, Function.Embedding.coe_refl, PMF.map_id, id]⟩
+      simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, PMF.map_id,
+        id]⟩
   refine ⟨fun word => decode <$> machine.runClosed (c * (word.length + 1) ^ d) word,
     hrun.map hdecode, fun a => ?_⟩
   have hencoded := hmachine a
-  simp only [encBits, Function.Embedding.coe_refl, PMF.map_id] at hencoded
+  simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, PMF.map_id]
+    at hencoded
   rw [ProbComp.eval_map, ← hencoded, ProbComp.eval_map, PMF.map_comp]
   conv_rhs => rw [← PMF.map_id (ProbComp.eval (program a))]
   congr 1 with b : 1

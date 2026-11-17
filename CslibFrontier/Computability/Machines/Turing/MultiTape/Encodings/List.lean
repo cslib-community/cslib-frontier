@@ -7,7 +7,10 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
+public import CslibFrontier.Computability.Encoding.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
+
+-- vendored: layout-preserving aliases of Cslib.Encoding; machine certificates remain local.
 
 /-!
 # Encodings of lists
@@ -30,14 +33,8 @@ universe u
 variable {α : Type u}
 
 /-- Lists encoded as the concatenation of their framed elements. -/
-@[expose] public def encList (enc : α ↪ List Bool) : List α ↪ List Bool :=
-  ⟨fun l => l.flatMap (frame ∘ enc), fun l l' h => by
-    induction l generalizing l' with
-    | nil => cases l' <;> simp_all
-    | cons a l ih =>
-      cases l' with
-      | nil => simp at h
-      | cons a' l' => rw [enc.injective (frame_append_inj h).1, ih _ (frame_append_inj h).2]⟩
+public abbrev encList (enc : α ↪ List Bool) : List α ↪ List Bool :=
+  Cslib.Encoding.encList enc
 
 variable {enc : α ↪ List Bool}
 
@@ -51,17 +48,17 @@ public lemma encList_cons (a : α) (l : List α) :
 /-- Concatenation of lists is concatenation of their framed encodings. -/
 @[simp]
 public lemma encList_append {α : Type*} (enc : α ↪ List Bool) (l₁ l₂ : List α) :
-    encList enc (l₁ ++ l₂) = encList enc l₁ ++ encList enc l₂ := by
-  induction l₁ <;> simp [*]
+    encList enc (l₁ ++ l₂) = encList enc l₁ ++ encList enc l₂ :=
+  Cslib.Encoding.encList_append enc l₁ l₂
 
 public instance : ListEncoding enc (encList enc) where
   headD d := .of_isEmpty_ite d (fun l hl => by cases l <;> simp_all)
     (.of_unframe fun ⟨l, hl⟩ => by cases l <;> simp at hl ⊢)
-  tail := .of_dropFrame fun l => by cases l <;> simp [dropFrame]
+  tail := .of_dropFrame fun l => by cases l <;> simp
   isEmpty := .of_isEmpty fun l => by cases l <;> simp
 
 /-- Lists of Booleans encoded as themselves. -/
-@[expose] public def encBits : List Bool ↪ List Bool := Function.Embedding.refl _
+public abbrev encBits : List Bool ↪ List Bool := Cslib.Encoding.encBits
 
 @[simp]
 public lemma encBits_apply (l : List Bool) : encBits l = l := rfl

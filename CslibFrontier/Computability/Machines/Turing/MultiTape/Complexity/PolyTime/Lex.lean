@@ -69,13 +69,15 @@ theorem ComputableInPolyTime.bits_lex_le :
       ((ComputableInPolyTime.bitsToList.comp (.fst _ _)).prod
         (ComputableInPolyTime.bitsToList.comp (.snd _ _)))
   have hfind := ComputableInPolyTime.findWithInput
+    (encO := encOption (encPair encBool encBool))
     (test := fun (_ : List Bool × List Bool) (q : Bool × Bool) => q.1 != q.2) hzip
     ((ComputableInPolyTime.of_finite fun q : Bool × Bool => q.1 != q.2).comp (.snd _ _))
   have hlen : ComputableInPolyTime
       (fun p : List Bool × List Bool => decide (p.1.length ≤ p.2.length))
       (encPair encBits encBits) encBool := by
     fun_prop
-  have h := ComputableInPolyTime.optionElimWithInput (body := fun _ q => !q.1) hfind hlen
+  have h := ComputableInPolyTime.optionElimWithInput (encB := encPair encBool encBool) (body :=
+    fun _ q => !q.1) hfind hlen
     ((ComputableInPolyTime.of_finite fun q : Bool × Bool => !q.1).comp (.snd _ _))
   convert h using 2 with p
   rw [← lexLe_eq_decide, lexLe]

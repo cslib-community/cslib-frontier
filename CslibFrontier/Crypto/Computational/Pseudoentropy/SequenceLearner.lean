@@ -278,7 +278,7 @@ theorem exists_evaluator {Param : Type} {input : Param ↪ List Bool}
   refine ⟨c, d, evaluate, hefficient.tidy, ?_⟩
   intro a α source observe truth count width params state observation hwidth
   simpa only [candidates, maskedSequencePredictor, maskedSample, bind_map_left, Functor.map_map,
-    Function.comp_def, encBits, Function.Embedding.refl_apply] using
+    Function.comp_def, encBits_apply] using
       hrealize a (maskedSample ((fun x => (observe x, truth x)) <$> source) Prod.fst Prod.snd
         (mask (signedPredict evaluate) params state)) ((fun x => (observe x, truth x)) <$> source)
           count width observation hwidth

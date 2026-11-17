@@ -24,7 +24,7 @@ public theorem ComputableTidilyInTimeAndSpace.foldl {γ α β : Type u} {encIn :
     {encBA : β × α ↪ List Bool} {encS : List α × β ↪ List Bool}
     {encO : Option (List α × β) ↪ List Bool}
     [hLE : ListEncoding encA encL] [hBA : PairEncoding encB encA encBA]
-    [hSE : PairEncoding encL encB encS] [hOE : OptionEncoding encS encO]
+    [hSE : PairEncoding encL encB encS] [hOE : HaltOptionEncoding encS encO]
     {list : γ → List α} {init : γ → β} {step : β → α → β}
     {t s : γ → ℕ} {tStep sStep : β × α → ℕ} {tMax sMax lMax : γ → ℕ}
     (hlist : ComputableTidilyInTimeAndSpace list encIn encL t s)

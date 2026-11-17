@@ -76,11 +76,11 @@ noncomputable def hybridKEMCCAHandler (E : SymmetricCipher)
     WordOracleComp Unit (List Bool) :=
   if encPair encBits encBits (unframe request.2, dropFrame request.2) == request.2 then
     if unframe request.2 == ctK then
-      pure (encOption encBits (E.decrypt n key (dropFrame request.2)))
+      pure (encSilentOption encBits (E.decrypt n key (dropFrame request.2)))
     else do
       let reply ← List.take (decBound n (unframe request.2)) <$>
         ProbOracleComp.query ((), unframe request.2)
-      return encOption encBits (((Decoder.option Decoder.bits).decode reply).elim none
+      return encSilentOption encBits (((Decoder.silentOption Decoder.bits).decode reply).elim none
         (fun k => E.decrypt n (F n k) (dropFrame request.2)))
   else pure []
 
@@ -116,13 +116,13 @@ theorem run_hybridKEMCCAHandler (E : SymmetricCipher)
     (F : ℕ → List Bool → List Bool)
     (decaps : ℕ → List Bool → List Bool → Option (List Bool))
     (decBound : ℕ → List Bool → ℕ) (n : ℕ) (sk key ctK : List Bool)
-    (hbound : ∀ ct, (encOption encBits (decaps n sk ct)).length ≤ decBound n ct)
+    (hbound : ∀ ct, (encSilentOption encBits (decaps n sk ct)).length ≤ decBound n ct)
     (request : Unit × List Bool) :
     (OracleComp.interpret
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
         (cca2Phase2Oracle encBits decaps n sk ctK))
       (hybridKEMCCAHandler E F decBound n key ctK request)).run () =
-      pure (encOption encBits (hybridDecrypt
+      pure (encSilentOption encBits (hybridDecrypt
         (fun n sk ct => if ct == ctK then some key else (decaps n sk ct).map (F n))
         E.decrypt n sk request.2), ()) := by
   simp only [hybridKEMCCAHandler, hybridDecrypt]
@@ -162,7 +162,7 @@ private theorem run_hybridKEMCCAContinuation (E : SymmetricCipher)
     (decaps : ℕ → List Bool → List Bool → Option (List Bool))
     (decBound : ℕ → List Bool → ℕ) (adversary : WordCCA2Adversary)
     (bit : Bool) (n : ℕ) (pk sk key ctK : List Bool)
-    (hbound : ∀ ct, (encOption encBits (decaps n sk ct)).length ≤ decBound n ct) :
+    (hbound : ∀ ct, (encSilentOption encBits (decaps n sk ct)).length ≤ decBound n ct) :
     (do
       let result ← (OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
@@ -180,7 +180,7 @@ private theorem run_hybridKEMCCAContinuation (E : SymmetricCipher)
   have hchoose := interpret_substituted_unit
     (cca2Phase2Oracle encBits decaps n sk ctK)
     (hybridKEMCCAHandler E F decBound n key ctK)
-    (fun request => encOption encBits (decrypt n sk request.2))
+    (fun request => encSilentOption encBits (decrypt n sk request.2))
     (run_hybridKEMCCAHandler E F decaps decBound n sk key ctK hbound)
     (adversary.choose n pk)
   simp only [hybridKEMCCAContinuation, cca2GameOn, pure_bind, OracleComp.interpret_bind,
@@ -199,7 +199,7 @@ private theorem run_hybridKEMCCAContinuation (E : SymmetricCipher)
       (fun request => if request.2 == encPair encBits encBits (ctK, ctD) then pure []
         else hybridKEMCCAHandler E F decBound n key ctK request)
       (fun request => if request.2 == encPair encBits encBits (ctK, ctD) then []
-        else encOption encBits (decrypt n sk request.2))
+        else encSilentOption encBits (decrypt n sk request.2))
       (fun request => by
         split_ifs
         · rfl
@@ -229,7 +229,7 @@ theorem eval_kemCCAIdealGame_hybridToKEMCCA (E : SymmetricCipher)
     (bit : Bool) (n : ℕ)
     (hlaw : (BitString.uniformList (keyLen n)).map (F n) = ProbComp.eval (E.keyGen n))
     (hbound : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
-      ∀ ct, (encOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
+      ∀ ct, (encSilentOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
     ProbComp.eval (kemCCAIdealGame keyLen keyGen encaps decaps
       (hybridToKEMCCA E F decBound adversary bit) n) =
       ProbComp.eval (hybridDEMGame E keyGen
@@ -258,7 +258,7 @@ theorem eval_kemCCARealGame_hybridToKEMCCA (E : SymmetricCipher)
     (hcorrect : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ kc ∈ (ProbComp.eval (encaps n keys.1)).support, decaps n keys.2 kc.2 = some kc.1)
     (hbound : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
-      ∀ ct, (encOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
+      ∀ ct, (encSilentOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
     ProbComp.eval (kemCCARealGame keyGen encaps decaps
       (hybridToKEMCCA E F decBound adversary bit) n) =
       ProbComp.eval (cca2GameOn
@@ -330,8 +330,8 @@ private theorem computableInPolyTime_hybridKEMReply (E : SymmetricCipher)
     (hF : ComputableInPolyTime (fun p : ℕ × List Bool => F p.1 p.2)
       (encPair encUnary encBits) encBits) :
     ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool => encOption encBits
-        (((Decoder.option Decoder.bits).decode p.2.2).elim none
+      (fun p : ℕ × List Bool × List Bool => encSilentOption encBits
+        (((Decoder.silentOption Decoder.bits).decode p.2.2).elim none
           (fun k => E.decrypt p.1 (F p.1 k) p.2.1)))
       (encPair encUnary (encPair encBits encBits)) encBits := by
   let I := encPair encUnary (encPair encBits encBits)
@@ -339,7 +339,7 @@ private theorem computableInPolyTime_hybridKEMReply (E : SymmetricCipher)
   have ht := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
   have hp := ComputableInPolyTime.fst I encBits
   have hk := ComputableInPolyTime.snd I encBits
-  have hdecode := (Decoder.option Decoder.bits).computableInPolyTime.comp ht.snd'
+  have hdecode := (Decoder.silentOption Decoder.bits).computableInPolyTime.comp ht.snd'
   have hbody := E.decrypt_polyTime.comp
     ((hn.comp hp).prod ((hF.comp ((hn.comp hp).prod hk)).prod (ht.fst'.comp hp)))
   exact (hdecode.optionElimWithInput (ComputableInPolyTime.const none) hbody).encoding_comp
@@ -409,7 +409,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
   obtain ⟨c, d, hsize⟩ :=
     (computableInPolyTime_hybridKEMReply E hF).tidy.polyBounded_length.exists_le
   let resources := fun (a : α) (ct : List Bool) =>
-    (encOption encBits (E.decrypt (n a) (key a) (dropFrame ct))).length +
+    (encSilentOption encBits (E.decrypt (n a) (key a) (dropFrame ct))).length +
       c * (2 * n a + 2 * (dropFrame ct).length + decBound (n a) (unframe ct) + 5) ^ d
   have hres : ComputableInPolyTime (fun p : α × List Bool => resources p.1 p.2)
       (encPair input encBits) encUnary := by
@@ -634,7 +634,7 @@ theorem advantage_hybridCCA_le_two_mul (E : SymmetricCipher)
     (hcorrect : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ kc ∈ (ProbComp.eval (encaps n keys.1)).support, decaps n keys.2 kc.2 = some kc.1)
     (hbound : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
-      ∀ ct, (encOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
+      ∀ ct, (encSilentOption encBits (decaps n keys.2 ct)).length ≤ decBound n ct) :
     let encaps' := fun n pk => (fun kc => (F n kc.1, kc.2)) <$> encaps n pk
     let decaps' := fun n sk ct => (decaps n sk ct).map (F n)
     Game.advantage
@@ -684,10 +684,21 @@ private theorem computableInPolyTime_postprocessed_decaps
       (encPair encUnary encBits) encBits)
     {decaps : ℕ → List Bool → List Bool → Option (List Bool)}
     (hdecaps : ComputableInPolyTime (fun ⟨n, sk, ct⟩ => decaps n sk ct)
-      (encPair encUnary (encPair encBits encBits)) (encOption encBits)) :
+      (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits)) :
     ComputableInPolyTime (fun ⟨n, sk, ct⟩ => (decaps n sk ct).map (F n))
-      (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
-  fun_prop
+      (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits) := by
+  have hargs : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × List Bool) × List Bool => (p.1.1, p.2))
+      (encPair (encPair encUnary (encPair encBits encBits)) encBits)
+      (encPair encUnary encBits) := by fun_prop
+  have hcallback : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × List Bool) × List Bool => F p.1.1 p.2)
+      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBits :=
+    hF.comp hargs
+  exact ComputableInPolyTime.optionMapWithInput
+    (encB := encBits) (encC := encBits) (encO := encSilentOption encBits)
+    (f := fun (x : ℕ × List Bool × List Bool) key => F x.1 key)
+    hdecaps hcallback
 
 /-- **Adaptive CCA security of KEM–DEM encryption**, for the source symmetric cipher's
 `n`-bit message model ([BonehShoup2023], Exercise 12.5(a)). The same native postprocessor is
@@ -710,7 +721,7 @@ theorem hybrid_indcca2On (E : SymmetricCipher)
     (hencaps : IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
       (fun p => encaps p.1 p.2))
     (hdecaps : ComputableInPolyTime (fun ⟨n, sk, ct⟩ => decaps n sk ct)
-      (encKeyedInput encBits) (encOption encBits))
+      (encKeyedInput encBits) (encSilentOption encBits))
     (hF : ComputableInPolyTime (fun p : ℕ × List Bool => F p.1 p.2)
       (encPair encUnary encBits) encBits)
     (hlaw : ∀ n, (BitString.uniformList (keyLen n)).map (F n) = ProbComp.eval (E.keyGen n))
@@ -777,7 +788,7 @@ theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     (hencaps : IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
       (fun p => encaps p.1 p.2))
     (hdecaps : ComputableInPolyTime (fun ⟨n, sk, ct⟩ => decaps n sk ct)
-      (encKeyedInput encBits) (encOption encBits))
+      (encKeyedInput encBits) (encSilentOption encBits))
     (hF : ComputableInPolyTime (fun p : ℕ × List Bool => F p.1 p.2)
       (encPair encUnary encBits) encBits)
     (hlaw : ∀ n, (BitString.uniformList (keyLen n)).map (F n) = ProbComp.eval (E.keyGen n))
@@ -815,7 +826,7 @@ theorem isPPTOn_hybridCCAGame (E : SymmetricCipher)
     (hencaps : IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
       (fun p => encaps p.1 p.2))
     (hdecaps : ComputableInPolyTime (fun ⟨n, sk, ct⟩ => decaps n sk ct)
-      (encKeyedInput encBits) (encOption encBits))
+      (encKeyedInput encBits) (encSilentOption encBits))
     (hF : ComputableInPolyTime (fun p : ℕ × List Bool => F p.1 p.2)
       (encPair encUnary encBits) encBits)
     {adversary : WordCCA2Adversary} (hA : adversary.IsPPT) (bit : Bool) :

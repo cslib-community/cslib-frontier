@@ -81,7 +81,7 @@ explicitly accept that constructor. -/
 @[expose] noncomputable def intUnaryPayloadCompiler :
     NativeCompiler intUnaryPayload encIntUnary encUnary :=
   (tailDecoder.ofInputEq (fun value => encIntUnary value) fun _ => rfl).ofOutputEq
-    fun value => by cases value <;> simp [intUnaryPayload, encBits_apply, encUnary_apply]
+    fun value => by cases value <;> simp [intUnaryPayload, encUnary_apply]
 
 /-- Retained nonnegative signed-unary constructor test. -/
 @[expose] noncomputable def intUnaryNonnegativeTest :

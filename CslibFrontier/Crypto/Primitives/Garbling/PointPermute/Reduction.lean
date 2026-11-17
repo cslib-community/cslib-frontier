@@ -825,6 +825,8 @@ private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q 
     (hslot : ComputableInPolyTime slot encIn encUnary) :
     ComputableInPolyTime (fun x => maskWord (family := family) (k x) (n x) (q x) (j x) (ws x)
       (kc x) (rs x) (v x) (c x) (g x) (i x) (slot x)) encIn encBits := by
+  have hlookup := ComputableInPolyTime.listGetD (encA := encBits)
+    (encL := encList encBits) []
   unfold maskWord
   polytime
 
@@ -963,7 +965,7 @@ private theorem length_le_of_mem_support_replyStep {k : ℕ} {rs next : List (Li
   omega
 
 variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary ValidCircuit σ}
-  (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
+  (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encSilentOption encPrvView)
     encBool encσ B)
 
 /-- The state after `B`'s choice: the caller's input `(k, aux)` and the query and state. -/
@@ -1028,7 +1030,7 @@ private theorem isOraclePPTOn_prvSimGuess :
     ((encQuery_input_polyTime _ _ hquery').prod ((hj.comp hfst).prod ((hkc.comp hfst).prod
       ((hsc.comp hfst).prod (ComputableInPolyTime.snd E (encList encBits))))))))
   have hprep := hk'.prod ((hstate.comp hfst).prod
-    ((ComputableInPolyTime.optionSome encPrvView).comp hview))
+    ((ComputableInPolyTime.optionSome encPrvView (encO := encSilentOption encPrvView)).comp hview))
   exact hrs.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
 
 include hf hB in
@@ -1070,7 +1072,8 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
     (ComputableTidilyInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx).tidy
       hn.tidy).computableInPolyTime
   have hnone := (hB.guess.preprocess (hk.prod (hstate.prod
-    (ComputableInPolyTime.const (encIn := E) (encOut := encOption encPrvView) none)))).isOraclePPTOn
+    (ComputableInPolyTime.const (encIn := E) (encOut := encSilentOption encPrvView)
+      none)))).isOraclePPTOn
     (Operation := Unit)
   have hj := (isPPTOn_sampleDyadicIndex (hP.comp hk)).isOraclePPTOn (Operation := Unit)
   have hlen : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ =>

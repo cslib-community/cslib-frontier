@@ -150,14 +150,14 @@ theorem advance_polyTime : ComputableInPolyTime
   have hr := remaining_polyTime
   have hc := nextCandidate_polyTime
   unfold advance
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encList encNat)
     (ComputableInPolyTime.snd _ _) (ComputableInPolyTime.const none)
   apply ComputableInPolyTime.ite' (encC := encBool)
   · exact (ComputableInPolyTime.listIsEmpty (encA := encNat)).comp (hr.comp
       (g := fun p : ((FixedRotationInput × ℕ) × Option (List ℕ)) × List ℕ =>
         (p.1.1, p.2)) (by simp only [encBlockInput, encWordInput]; fun_prop))
   · fun_prop
-  · apply ComputableInPolyTime.optionElimWithInput
+  · apply ComputableInPolyTime.optionElimWithInput (encB := encNat)
       (hc.comp (g := fun p : ((FixedRotationInput × ℕ) × Option (List ℕ)) × List ℕ =>
         (p.1.1, p.2)) (by simp only [encBlockInput, encWordInput]; fun_prop))
       (ComputableInPolyTime.const none)
@@ -232,14 +232,14 @@ theorem completeVertex_polyTime : ComputableInPolyTime
     (encPair (encOption encFixedRotationInput) encNat) (encOption encFixedRotationInput) := by
   have ho := encFixedRotationInput_orders_deg.computableInPolyTime
   unfold completeVertex
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encFixedRotationInput)
     (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.const none)
   apply ComputableInPolyTime.ite' (encC := encBool)
   · exact (ComputableInPolyTime.listGetD_binary (encA := encOption (encList encNat)) none
       (ho.comp (ComputableInPolyTime.snd _ _))
-      (by fun_prop)).optionIsSome
+      (by fun_prop)).optionIsSome (encB := encList encNat)
   · fun_prop
-  · apply ComputableInPolyTime.optionElimWithInput
+  · apply ComputableInPolyTime.optionElimWithInput (encB := encList encNat)
       (recoverWord_polyTime.comp
         (g := fun p : (Option FixedRotationInput × ℕ) × FixedRotationInput => (p.2, p.1.2))
         (by unfold encWordInput; fun_prop)) (ComputableInPolyTime.const none)
@@ -278,8 +278,8 @@ theorem recoverOrders_polyTime : ComputableInPolyTime recoverOrders
   intro I i hi
   rcases completeVertex_fold I ((List.range I.graph.vertices.length).take i) with
     hn | ⟨J, hj, _, _, hb⟩
-  · rw [hn, encOption_none, List.length_nil]
-    exact Nat.zero_le _
+  · rw [hn, encOption_none, List.length_cons, List.length_nil]
+    omega
   · rw [hj, encOption_some, List.length_cons]
     have hlen : ((List.range I.graph.vertices.length).take i).length ≤
         I.graph.vertices.length := by simp
@@ -323,7 +323,7 @@ theorem certificate_polyTime : ComputableInPolyTime certificate
       (fun p : FixedRotationInput × ℕ =>
         (p.1.orders.getD (p.1.graph.incidenceVertices.getD p.2 0) none).getD [])
       encWordInput (encList encNat) := by
-    apply ComputableInPolyTime.optionGetDWithInput
+    apply ComputableInPolyTime.optionGetDWithInput (encO := encOption (encList encNat))
     · exact ComputableInPolyTime.listGetD_binary (encA := encOption (encList encNat)) none
         (ho.comp (ComputableInPolyTime.fst _ _))
         (ComputableInPolyTime.listGetD_binary 0
@@ -351,7 +351,7 @@ theorem verifyFixed_polyTime : ComputableInPolyTime
   unfold verifyFixed
   apply ComputableInPolyTime.allWithInput
     (ho.comp (ComputableInPolyTime.fst _ _))
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encList encNat)
     (ComputableInPolyTime.snd _ _) (ComputableInPolyTime.const true)
   apply ComputableInPolyTime.allWithInput
     ((ComputableInPolyTime.zipIdx encNat).comp (ComputableInPolyTime.snd _ _))
@@ -369,7 +369,8 @@ theorem recover_polyTime : ComputableInPolyTime recover encFixedRotationInput
   have hg := encFixedRotationInput_graph_deg.computableInPolyTime
   unfold recover
   apply ComputableInPolyTime.ite' (encC := encBool) query_polyTime
-  · apply ComputableInPolyTime.optionElimWithInput recoverOrders_polyTime
+  · apply ComputableInPolyTime.optionElimWithInput (encB := encFixedRotationInput)
+      recoverOrders_polyTime
       (ComputableInPolyTime.const none)
     have hc := certificate_polyTime.comp
       (ComputableInPolyTime.snd encFixedRotationInput encFixedRotationInput)
@@ -431,7 +432,7 @@ theorem recoverCSP_polyTime {Rel V : Type} [DecidableEq V]
     ComputableInPolyTime (recoverCSP (Rel := Rel) (V := V))
       (encCSP encRel encV) (encOption encRotationCertificate) := by
   unfold recoverCSP
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encRotationCertificate)
     (recover_polyTime.comp (ofCSP_polyTime encRel encV))
     (ComputableInPolyTime.const none)
   apply ComputableInPolyTime.ite' (encC := encBool)

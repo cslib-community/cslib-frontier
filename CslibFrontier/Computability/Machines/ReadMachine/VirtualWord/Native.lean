@@ -152,12 +152,12 @@ theorem components_inSpace (d : Desc) :
     refine (budget_finite (encC := encBool) Bool.not hempty).of_enc_eq ?_
     intro n
     cases n <;> simp [outputBit, encUnary_apply]
-  have hemit := budget_ite (budget_optionIsSome hstep.snd')
+  have hemit := budget_ite (budget_optionIsSome (encB := encUnary) hstep.snd')
     (budget_finite (encC := encBits) (fun b : Bool => [b])
       (budget_comp_linear hbit (budget_optionGetD 0 hstep.snd')))
     (budget_const [] (.refl _))
   have hhalt := budget_finite (encC := encBool) Bool.not
-    (budget_optionIsSome fields_inSpace.fst')
+    (budget_optionIsSome (encB := encUnary) fields_inSpace.fst')
   refine ⟨budget_natPred hpos, hstep.fst', hemit.of_enc_eq ?_,
     hhalt.of_enc_eq ?_, budget_const [] (.refl _)⟩
   · intro p

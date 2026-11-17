@@ -111,7 +111,7 @@ private theorem intBin_code : ComputableInPolyTime encIntBin encIntBin encBits :
 
 /-- The binary digits of a binary natural, as a raw bit string. -/
 private theorem natBits : ComputableInPolyTime Nat.bits encNat encBits :=
-  of_eq fun _ => rfl
+  of_eq fun _ => by simp only [encBits_apply, encNat_apply]
 
 /-- Whether a binary integer is negative: the sign bit of its code. -/
 @[fun_prop]

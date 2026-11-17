@@ -118,10 +118,10 @@ theorem exists_unaryLengthLanguage_notMem_PWithOracle :
   obtain ⟨n, hn⟩ := hB ⟨k, m, machine, c, d⟩
   apply hn
   have hlength : (encBits (List.replicate n true)).length = n := by
-    simp [encBits]
+    simp
   have hverdict := hrun (List.replicate n true) (languageOracle B)
   rw [hprogram, encBool_apply, hlength] at hverdict
-  simp only [encBits, Function.Embedding.refl_apply] at hverdict
+  simp only [encBits_apply] at hverdict
   have heq : OracleComp.interpret (m := Id) (languageOracle B)
       (Candidate.verdict ⟨k, m, machine, c, d⟩ n) = f (List.replicate n true) := by
     simp only [Candidate.verdict, Candidate.clock, OracleComp.interpret_map]
@@ -153,8 +153,8 @@ theorem unaryLengthLanguage_mem_NPWithOracle (B : Set (List Bool)) :
       (.snd encBits encBits)).map_with
       (g := fun (xu : List Bool × List Bool) b => xu.1.all id && b)
       BakerGillSolovay.computableInPolyTime_all_and, fun x => ?_⟩
-  · simp only [unaryLengthLanguage, Set.mem_ofPred_eq, Polynomial.eval_X, encBits,
-      Function.Embedding.refl_apply, Bool.and_eq_true, List.all_eq_true, id, decide_eq_true_eq]
+  · simp only [unaryLengthLanguage, Set.mem_ofPred_eq, Polynomial.eval_X, encBits_apply,
+    Bool.and_eq_true, List.all_eq_true, id, decide_eq_true_eq]
     constructor
     · rintro ⟨hall, w, hw, hlength⟩
       exact ⟨w, hlength, hall, hw⟩

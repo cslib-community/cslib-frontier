@@ -45,13 +45,13 @@ theorem natTestBit :
       fun q => 8 * ((encPair encNat encNat q).length + 1) := .of_le fun _ => by omega
   have hbits : ComputableInSpace (fun q : ℕ × ℕ => q.1.bits) (encPair encNat encNat) encBits
       fun q => 8 * ((encPair encNat encNat q).length + 1) :=
-    ((fst encNat encNat).weaken hl).of_enc_eq fun _ => rfl
+    ((fst encNat encNat).weaken hl).of_enc_eq fun _ => by simp only [encBits_apply, encNat_apply]
   have htail : ComputableInSpace List.tail encBits encBits fun l => (encBits l).length :=
     of_inO (.of_linear (ListEncoding.tail encBool))
   have hlen (q : ℕ × ℕ) (i : ℕ) :
       (encBits (List.tail^[i] q.1.bits)).length ≤ (encNat q.1).length := by
     induction i with
-    | zero => rfl
+    | zero => simp only [Function.iterate_zero_apply, encBits_apply, encNat_apply, le_refl]
     | succ i ih =>
       rw [Function.iterate_succ_apply']
       simp only [encBits_apply, List.length_tail] at ih ⊢

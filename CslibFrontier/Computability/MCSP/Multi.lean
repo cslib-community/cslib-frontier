@@ -176,7 +176,7 @@ table bits. -/
 theorem length_encInstance (x : Instance) :
     (encInstance x).length =
       2 * x.arity + 2 * x.outputs + 2 * x.threshold + 3 + x.outputs * 2 ^ x.arity := by
-  enc_len [encInstance_apply, encBits, Function.Embedding.refl_apply, Instance.length_tableBits]
+  enc_len [encInstance_apply, encBits_apply, Instance.length_tableBits]
 
 end MultiMCSP
 

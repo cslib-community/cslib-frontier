@@ -29,7 +29,7 @@ equivalent to adaptive chosen-ciphertext security together with ciphertext integ
 The adversary is a `CCAAdversary`: it queries one oracle with an encryption channel (`false`) and a
 decryption channel (`true`). In the real world, an encryption query on an `n`-bit message returns a
 fresh encryption of that message, and a decryption query returns the encoded decryption
-`encOption encBits (E.decrypt n k ct)`. In the ideal world, an encryption query on an `n`-bit
+`encSilentOption encBits (E.decrypt n k ct)`. In the ideal world, an encryption query on an `n`-bit
 message returns an encryption of the all-zero message, and every decryption query returns `[]`, the
 encoding of rejection. A cipher satisfies `RealIdealAE` when no oracle-PPT adversary tells the two
 worlds apart with non-negligible advantage.
@@ -94,7 +94,7 @@ returned so far.
 * On an encryption query `(false, msg)` with `msg.length = n`, encrypt `msg` under `k`, record the
   ciphertext and return it; on other lengths return `[]`.
 * On a decryption query `(true, ct)`, return `[]` if `ct` was returned by an earlier encryption
-  query, and `encOption encBits (E.decrypt n k ct)` otherwise. -/
+  query, and `encSilentOption encBits (E.decrypt n k ct)` otherwise. -/
 @[expose]
 noncomputable def aeRealOracle (E : SymmetricCipher) (n : ℕ) (k : List Bool)
     (request : Bool × List Bool) : StateT (List (List Bool)) ProbComp (List Bool) :=
@@ -103,7 +103,7 @@ noncomputable def aeRealOracle (E : SymmetricCipher) (n : ℕ) (k : List Bool)
       if queriedCiphertexts.contains request.2 then
         return ([], queriedCiphertexts)
       else
-        return (encOption encBits (E.decrypt n k request.2), queriedCiphertexts)
+        return (encSilentOption encBits (E.decrypt n k request.2), queriedCiphertexts)
     else
       if request.2.length == n then do
         let ct ← E.encrypt n k request.2
@@ -620,7 +620,7 @@ private theorem map_aeRealOracle_eq_runWith_aeToCCAHandler (E : SymmetricCipher)
     (ctBound : ℕ → ℕ) (decBound : ℕ → List Bool → ℕ) (n : ℕ) (k : List Bool)
     (hctBound : ∀ msg, msg.length = n →
       ∀ ct ∈ (ProbComp.eval (E.encrypt n k msg)).support, ct.length ≤ ctBound n)
-    (hdecBound : ∀ ct, (encOption encBits (E.decrypt n k ct)).length ≤ decBound n ct)
+    (hdecBound : ∀ ct, (encSilentOption encBits (E.decrypt n k ct)).length ≤ decBound n ct)
     (request : Bool × List Bool) (queried : List (List Bool)) :
     (ProbComp.eval (E.aeRealOracle n k request queried)).map (fun x => (x.1, (), x.2)) =
       (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaOracle n k false q s))
@@ -654,7 +654,7 @@ theorem eval_ccaGame_aeToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ → �
     (decBound : ℕ → List Bool → ℕ) (adversary : CCAAdversary) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n))
     (hdecBound : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct, (encOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
+      ∀ ct, (encSilentOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
     ProbComp.eval (E.ccaGame (aeToCCAAdversary ctBound decBound adversary) false n) =
       ProbComp.eval (E.aeRealGame adversary n) := by
   simp only [ccaGame, aeRealGame, aeToCCAAdversary, runWith_norm, pmf_norm]
@@ -735,7 +735,7 @@ theorem advantage_aeRealGame_aeIdealGame_le (E : SymmetricCipher) (ctBound Qd : 
     (hq : IsDecryptionQueryBounded (aeToCCAAdversary ctBound decBound adversary n []) (Qd n))
     (hctBound : E.CiphertextLengthLE n (ctBound n))
     (hdecBound : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct, (encOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
+      ∀ ct, (encSilentOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
     (Game.advantage (ProbComp.eval (E.aeRealGame adversary n))
         (ProbComp.eval (E.aeIdealGame adversary n)) : ℝ) ≤
       (Game.advantage

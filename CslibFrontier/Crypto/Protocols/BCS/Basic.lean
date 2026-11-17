@@ -763,7 +763,8 @@ abbrev encIOPTranscript (r : ℕ) {Stmt Chal : Type}
 theorem encList_oracleLeaves {Sym : Type} (encSym : Sym ↪ List Bool) (d : ℕ)
     (π : OracleTable d Sym) :
     encList encBits (oracleLeaves encSym d π) = encOracleTable d encSym π := by
-  simp [oracleLeaves, encOracleTable, encFinFn, encList, List.ofFn_eq_map, List.flatMap_map,
+  simp [oracleLeaves, encOracleTable, encFinFn, encList, Cslib.Encoding.encList,
+    List.ofFn_eq_map, List.flatMap_map,
     Function.comp_def]
 
 /-- Encoding an oracle table into its Merkle leaf list `oracleLeaves` takes polynomial time. -/
@@ -849,15 +850,40 @@ theorem computableInPolyTime_bcsFindConflict {r d : ℕ} {Stmt Wit Sym Chal γ :
     ComputableInPolyTime
       (fun a => bcsFindConflict iop encSym hFS (x a) (oracles a) (prf a))
       encIn
-      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
-  ComputableInPolyTime.findWithInput
-    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
-      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
-        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
-        (encBCSProof_openings_polyTime r Sym encSym hprf)))
-    (ComputableInPolyTime.bne (encB := encBits) (by fun_prop)
-      (computableInPolyTime_encode_oracles_apply
-        (horacles.comp (.fst _ _)) (by fun_prop) (by fun_prop)))
+      (encSilentOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) := by
+  have hroots : ComputableInPolyTime (fun a => (prf a).roots) encIn (encFinFn r encBits) :=
+    encBCSProof_roots_polyTime r Sym encSym hprf
+  have hopenings : ComputableInPolyTime (fun a => (prf a).openings) encIn
+      (encList (encMerkleOpeningOf Sym encSym)) :=
+    encBCSProof_openings_polyTime r Sym encSym hprf
+  have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
+  have hqs := hqueries.comp (hx.prod hchals)
+  have hzip := (ComputableInPolyTime.zip
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
+  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfst := ComputableInPolyTime.fst encIn encElem
+  have hsnd := ComputableInPolyTime.snd encIn encElem
+  have hqpair := (ComputableInPolyTime.fst
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
+  have ho := (ComputableInPolyTime.snd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
+  have hj := (ComputableInPolyTime.fst
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
+  have hidx := (ComputableInPolyTime.snd
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
+  have hval : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
+      (encPair encIn encElem) encBits :=
+    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
+  have htableVal := computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx
+  have htest : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
+        encSym p.2.2.leaf != encSym (oracles p.1 p.2.1.1 p.2.1.2))
+      (encPair encIn encElem) encBool :=
+    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq hval htableVal)).of_enc_eq
+      fun _ => rfl
+  exact ComputableInPolyTime.findWithInput hzip htest
 
 /-- Deterministic Merkle collision extraction for the BCS transform (`bcsExtractTableCollision`)
 runs in polynomial time. -/

@@ -106,7 +106,14 @@ private theorem poly_restore : ComputableInPolyTime
     ComputableInPolyTime.unary_to_binary.comp
       (EdgeAugmenting.poly_idxOf (by fun_prop) (by fun_prop))
   simp only [List.contains_eq_mem]
-  fun_prop
+  apply ComputableInPolyTime.optionGetDWithInput (encO := encOption encNat)
+  · apply ComputableInPolyTime.optionMapWithInput (encB := encRecord) (encC := encNat)
+      (encO := encOption encRecord) (encOC := encOption encNat)
+    · apply ComputableInPolyTime.findWithInput (encA := encRecord)
+      · fun_prop
+      · fun_prop
+    · exact hindex
+  · fun_prop
 
 private theorem poly_restoreWith {α : Type} {e : α ↪ List Bool}
     {input : α → EdgeForest.Input} {vs : α → List ℕ} {fallback index : α → ℕ}
@@ -192,13 +199,15 @@ private theorem poly_firstExit : ComputableInPolyTime
       encPrefixArgs encWalkCode from by fun_prop) hn
   have hhead : ComputableInPolyTime
       (fun p : EdgeForest.Input × WalkCode × WalkCode => (exitsAt p.1 p.2.1 p.2.2 (n p)).head?)
-      encPrefixArgs (encOption (encPair encNat encNat)) := by fun_prop
+      encPrefixArgs (encOption (encPair encNat encNat)) :=
+    (ComputableInPolyTime.head? (encPair encNat encNat)).comp hx
   have hm := encExitCode_mk_deg.computableInPolyTime
   have hbody : ComputableInPolyTime
       (fun p : (EdgeForest.Input × WalkCode × WalkCode) × (ℕ × ℕ) =>
         ExitCode.mk (n p.1) p.2.1 p.2.2)
       (encPair encPrefixArgs (encPair encNat encNat)) encExitCode := by fun_prop
-  have hyes := ComputableInPolyTime.optionMapWithInput
+  have hyes := ComputableInPolyTime.optionMapWithInput (encB := encPair encNat encNat)
+    (encC := encExitCode) (encOC := encOption encExitCode)
     (f := fun p pair => ExitCode.mk (n p) pair.1 pair.2) hhead hbody
   simpa only [firstExit, n, decide_eq_true_eq] using
     hg.ite' hyes (ComputableInPolyTime.const none)
@@ -244,7 +253,9 @@ private theorem poly_attachment : ComputableInPolyTime
   unfold attachment
   have hb := EdgeForest.encInput_body_deg.computableInPolyTime
   have hl := EdgeForest.encInput_labels_deg.computableInPolyTime
-  fun_prop
+  apply ComputableInPolyTime.findWithInput (encA := encWalkCode)
+  · fun_prop
+  · fun_prop
 
 private theorem poly_attachmentWith {α : Type} {e : α ↪ List Bool}
     {input : α → EdgeForest.Input} {w : α → WalkCode} {outside : α → ℕ}
@@ -303,10 +314,11 @@ theorem computableInPolyTime_liftWalk : ComputableInPolyTime
   unfold liftWalk
   have hb := EdgeForest.encInput_body_deg.computableInPolyTime
   have hl := EdgeForest.encInput_labels_deg.computableInPolyTime
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encPair encNat encNat)
     (show ComputableInPolyTime
       (fun p : EdgeForest.Input × WalkCode × WalkCode => p.2.1.steps.head?)
-      encPrefixArgs (encOption (encPair encNat encNat)) from by fun_prop)
+      encPrefixArgs (encOption (encPair encNat encNat)) from
+        (ComputableInPolyTime.head? (encPair encNat encNat)).comp (by fun_prop))
     (ComputableInPolyTime.const none)
   simp only [List.contains_eq_mem]
   fun_prop

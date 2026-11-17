@@ -233,7 +233,13 @@ theorem computableInPolyTime_collisionOf
   change ComputableInPolyTime (fun p : List Bool × ((List Bool × List Bool) × List (List Bool)) =>
       collisionOf H p.1 ((p.2.1.1, p.2.1.2), p.2.2)) _ _
   simp only [collisionOf]
-  polytime
+  apply ComputableInPolyTime.prod
+  · fun_prop
+  · apply ComputableInPolyTime.optionGetDWithInput (encB := encBits)
+      (encO := encOption encBits)
+    · apply ComputableInPolyTime.findWithInput (by fun_prop)
+      fun_prop
+    · exact ComputableInPolyTime.const []
 
 /-- Whenever `m* ∉ queried` and `queried.find? (fun m => H s m == H s m*)` succeeds, `collisionOf`
 produces a genuine collision for `H` under key `s`. -/

@@ -54,9 +54,9 @@ theorem sumElimSnd {α β γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ Lis
     simpa only [Function.comp_def] using hr.comp
       (show ComputableInPolyTime (fun p : (γ × (α ⊕ β)) × β => (p.1.1, p.2))
         (encPair (encPair eg (encSum ea eb)) eb) (encPair eg eb) from by fun_prop)
-  have h := ComputableInPolyTime.optionElimWithInput
+  have h := ComputableInPolyTime.optionElimWithInput (encB := ea)
     (body := fun p a => left p.1 a) hleft
-    (ComputableInPolyTime.optionElimWithInput (body := fun p b => right p.1 b)
+    (ComputableInPolyTime.optionElimWithInput (encB := eb) (body := fun p b => right p.1 b)
       hright (ComputableInPolyTime.const fallback) hr') hl'
   apply h.of_enc_eq
   rintro ⟨p, a | b⟩ <;> rfl

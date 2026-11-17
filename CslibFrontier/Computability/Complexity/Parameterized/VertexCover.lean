@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import Mathlib.Data.Nat.Bitwise
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Encoding.NatBits
 
 /-!
 # Fixed-parameter tractability of vertex cover
@@ -306,7 +307,7 @@ private theorem computableInPolyTime_branchBits :
       fun s => (List.range s.1.2).map fun j => (encNat s.2).getD j false := by
     funext s
     congr 1 with j : 1
-    rw [Nat.testBit_eq_inth]
+    rw [Nat.testBit_eq_inth, Cslib.Encoding.encNat_eq_bits]
     rfl
   rw [heq]
   exact mapWithInput (range.comp ((snd _ _).comp (fst _ _)))

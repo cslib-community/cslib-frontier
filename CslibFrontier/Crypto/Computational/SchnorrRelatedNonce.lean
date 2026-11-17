@@ -92,7 +92,7 @@ theorem computableInPolyTime_schnorrRelatedNonceExtractWord :
   have hz₁ := hword (k := fun p => p.2.2.2.2.2.2) (by fun_prop)
   have hext := computableInPolyTime_extractNat hd (.binary_mul' ha hc₀)
     (.binary_add' (.binary_mul' ha hz₀) hb) hc₁ hz₁
-  exact hext.encoding_comp
+  exact hext.of_enc_eq fun _ => (Cslib.Encoding.encNat_eq_bits _).symm
 
 /-- `schnorrRelatedNonceExtractWord` computes `relatedNonceExtract` on binary numbers, whenever
 `a * c₀ ≠ c₁` modulo the group order. -/

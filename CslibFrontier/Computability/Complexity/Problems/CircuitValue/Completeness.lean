@@ -273,8 +273,8 @@ theorem computableInPolyTime_tableauCode :
     (computableInLogSpace_frame encBits).computableInPolyTime
   refine (hcode.comp (hframe.comp (ComputableInPolyTime.bitsReplicate false))).of_enc_eq
     fun n => ?_
-  simp [tableauCode, tableauInstance, encCircuitValue_apply, encPair_apply,
-    unframe_frame_append, dropFrame_frame_append, Tableau.code_circuit, List.length_replicate]
+  simp [tableauCode, tableauInstance, encCircuitValue_apply,
+    Tableau.code_circuit, List.length_replicate]
 
 /-- **Correctness of the tableau.** If `tm` decides `f` within time `t ≤ C (n + 1) ^ d` on inputs
 of length `n`, the tableau circuit for `timeBound C d |enc a|` steps evaluates to `f a` on the

@@ -36,6 +36,14 @@ namespace CslibFrontierTests.Crypto.AuthenticatedKeyExchange
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.AKE Turing.MultiTapeTM
 open scoped NNReal
 
+-- Delivery replies retain the former silent key suffix, even for a present empty key.
+example (r : DeliverReply) : encDeliverReply r =
+    encPair encBits (encPair (encFinEnum Phase) (encPair encBits (encSilentOption encBits)))
+      (r.message, r.phase, r.partner, r.key) := rfl
+
+example : encDeliverReply ⟨[], .finished, [], some []⟩ =
+    encDeliverReply ⟨[], .finished, [], none⟩ ++ [true] := rfl
+
 /-! ### Test helpers -/
 
 /-- Build a protocol with a trivial trusted third party from `keyLength`, a `step` that keeps no

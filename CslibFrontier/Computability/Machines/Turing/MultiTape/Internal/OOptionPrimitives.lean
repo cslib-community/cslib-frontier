@@ -41,9 +41,10 @@ namespace Turing.MultiTapeTM.ComputableInO
 computations even on the `none` branch; it charges only the selected handler. -/
 theorem optionElimWithInput {α β γ : Type}
     {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
+    {encO : Option β ↪ List Bool} [OptionEncoding encB encO]
     {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
     {Tv Sv Tnone Snone : α → ℕ} {Tbody Sbody : α × β → ℕ}
-    (hvalue : ComputableInO value encA (encOption encB) Tv Sv)
+    (hvalue : ComputableInO value encA encO Tv Sv)
     (hfallback : ComputableInO fallback encA encC Tnone Snone)
     (hbody : ComputableInO (fun p : α × β => body p.1 p.2)
       (encPair encA encB) encC Tbody Sbody) :

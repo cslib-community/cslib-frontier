@@ -245,7 +245,7 @@ private theorem computableInPolyTime_mixedDigit_degreePrimes :
     fun_prop
   have hprod := computableInPolyTime_prod_of_le htake
     (fun q p hp => (prime_of_mem_degreePrimes (List.mem_of_mem_take hp)).2.2.pos)
-    (B := fun q => q.1.1 + 1) (.of_forall_le 1 1 fun q => by simp [encPair_apply]; omega)
+    (B := fun q => q.1.1 + 1) (.of_forall_le 1 1 fun q => by simp; omega)
     (fun q => by
       refine le_trans ?_ (prod_degreePrimes_le q.1.1)
       rw [← List.prod_take_mul_prod_drop (degreePrimes q.1.1) q.2]

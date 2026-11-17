@@ -146,7 +146,7 @@ theorem computableInPolyTime_gatePorts {c i : α → ℕ} (hc : ComputableInPoly
       (base (gs p.1) (i p.1))) (encPair inp encUnary) (encOption encUnary) :=
     computableInPolyTime_lastOcc (computableInPolyTime_occurrences (hgs.comp (fst _ _)))
       (snd _ _) (hb.comp (fst _ _))
-  exact mapWithInput (filterWithInput hq (optionIsSome hl))
+  exact mapWithInput (filterWithInput hq (optionIsSome (encB := encUnary) hl))
     (unary_add' (unary_mul' (const 2) (unary_add' (unary_mul' (hc.comp (fst _ _))
       (hN.comp (fst _ _))) (optionGetDWithInput hl (const 0)))) (const 1))
 

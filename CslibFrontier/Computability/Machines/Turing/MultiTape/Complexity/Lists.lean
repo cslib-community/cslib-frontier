@@ -45,8 +45,8 @@ public lemma length_le_encList_of_mem (enc : α ↪ List Bool) {l : List α} {a 
 -- vendored: universe-polymorphic `α`, as this library's users need (crei's file has `α : Type`).
 /-- The number of elements is at most the length of the encoded list. -/
 public lemma length_le_length_encList {α : Type*} (enc : α ↪ List Bool) (l : List α) :
-    l.length ≤ (encList enc l).length := by
-  induction l <;> grind [encList_cons, length_frame]
+    l.length ≤ (encList enc l).length :=
+  Cslib.Encoding.length_le_length_encList enc l
 
 /-- The element found in a list is no longer than the encoded list. -/
 public lemma length_encOption_find?_le (enc : α ↪ List Bool) (p : α → Bool) (l : List α) :
@@ -104,9 +104,10 @@ public theorem findWith {t : π × α → Bool} {par : γ → π} {list : γ →
   -- the step, as a function of `((p, acc), a)`
   have hq := fst (encPair encP (encOption enc)) enc
   have hel := snd (encPair encP (encOption enc)) enc
-  have hisSome := (of_finite (encIn := encBool) (encMid := encBool) (fun b : Bool => !b)).comp
-    ((of_linear (ComputableInDegree.of_isEmpty (encIn := encOption enc)
-      (f := fun o : Option α => o.isNone) fun o => by cases o <;> simp)).comp hq.snd')
+  have hsome := ComputableInDegree.isSome enc (encO := encOption enc)
+  have htest : ComputableTidilyInDegree (fun o : Option α => o.isSome)
+      (encOption enc) encBool 1 0 := ⟨(of_linear hsome).1, hsome.2⟩
+  have hisSome := htest.comp hq.snd'
   have h := hisSome.ite (hq.snd'.restrict _) ((ht.comp (hq.fst'.prod hel)).ite
     (((optionSome (enc₁ := enc)).comp hel).restrict _) ((const none).restrict _) |>.restrict _)
   simp only [max_self, Nat.one_mul, Nat.mul_one] at h
@@ -115,7 +116,6 @@ public theorem findWith {t : π × α → Bool} {par : γ → π} {list : γ →
     convert h.mono (d' := max 1 dt) (e' := 1) using 1
     funext ⟨⟨p, acc⟩, a⟩
     simp only [findStep, Function.comp_apply]
-    cases acc <;> simp
   have hfold := foldlWith (encL := encList enc) (encB := encOption enc) hpar hlist
     (const none) hstep (B := fun x => (encList enc (list x)).length + 1) (hlist.2.add_const 1)
     (fun x i hi => ?_)
@@ -290,12 +290,9 @@ public theorem int_neg :
 
 /-- Whether an option holds a value. -/
 public theorem isSome (enc : α ↪ List Bool) :
-    ComputableTidilyInDegree (fun o : Option α => o.isSome) (encOption enc) encBool 1 0 := by
-  convert ((of_finite (encIn := encBool) (encMid := encBool) (fun b : Bool => !b)).comp
-    (of_linear (.of_isEmpty (encIn := encOption enc) (f := fun o : Option α => o.isNone)
-      fun o => by cases o <;> simp))).mono (d' := 1) (e' := 0) using 1
-  funext o
-  cases o <;> rfl
+    ComputableTidilyInDegree (fun o : Option α => o.isSome) (encOption enc) encBool 1 0 :=
+  let h := ComputableInDegree.isSome enc (encO := encOption enc)
+  ⟨(of_linear h).1, h.2⟩
 
 /-- A list of `n` copies of an element. -/
 public theorem replicate (enc : α ↪ List Bool) :

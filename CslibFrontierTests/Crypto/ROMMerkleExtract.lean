@@ -207,7 +207,7 @@ example (d : ℕ) :
     ComputableInPolyTime
       (fun p : (List (List Bool × List Bool) × List Bool) × ℕ =>
         extractLeafFromTrace p.1.1 d p.1.2 p.2)
-      (encPair (encPair encMerkleTrace encBits) encUnary) (encOption encBits) := by
+      (encPair (encPair encMerkleTrace encBits) encUnary) (encSilentOption encBits) := by
   fun_prop
 
 example (d : ℕ) :

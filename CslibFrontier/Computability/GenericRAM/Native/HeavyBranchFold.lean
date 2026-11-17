@@ -787,9 +787,9 @@ theorem computableInPolyTime_prepareBranch :
   have hc1 := ComputableInPolyTime.decide_mem hnonZero (ComputableInPolyTime.const [[]])
   have hc2 := (by fun_prop : ComputableInPolyTime (List.isEmpty (α := List (List ℕ))) encSys
     encBool).comp hnonZero
-  have hb1 := (ComputableInPolyTime.optionSome encInner).comp
+  have hb1 := (ComputableInPolyTime.optionSome encInner (encO := encOut)).comp
     (hn'.prod (ComputableInPolyTime.const (encOut := encOptSys) none))
-  have hb2 := (ComputableInPolyTime.optionSome encInner).comp
+  have hb2 := (ComputableInPolyTime.optionSome encInner (encO := encOut)).comp
     (hn'.prod ((ComputableInPolyTime.optionSome encSys).comp hrelMap))
   have hopt :=
     hc1.ite' (ComputableInPolyTime.const (encOut := encOut) none) (hc2.ite' hb1 hb2)

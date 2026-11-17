@@ -70,7 +70,7 @@ theorem foldl [ListEncoding encA encL] [hS : SizedListEncoding encA encL]
   obtain ⟨c, k, State, hfinite, tm, h⟩ := Internal.FoldCompiler.foldl
     (encA := encA) (encL := encL)
     (encBA := encPair encB encA) (encS := encPair encL encB)
-    (encO := encOption (encPair encL encB))
+    (encO := encHaltOption (encPair encL encB))
     (fun x => (hl x).mono (t' := cl * (Tl x + 1) + ci * (Ti x + 1))
       (s' := cl * (Sl x + 1) + ci * (Si x + 1))
       (Nat.le_add_right _ _) (Nat.le_add_right _ _))

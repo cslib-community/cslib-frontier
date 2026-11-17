@@ -475,6 +475,8 @@ theorem closeTo_simulateConversation_schnorrSampledSimulate (n : ℕ) (d : F.Des
     (F.encode d (z • F.generator d - (ofBits (List.ofFn c) : ZMod (F.order d)) • u), z.val.bits)
   simp only [schnorrWordSimulate, linearSimulate, schnorrSampledSimulate, PMF.map_comp,
     Function.comp_def] at h ⊢
+  simp only [encScalar, Cslib.Encoding.encNat_eq_bits, Prod.map_apply, id_eq,
+    LinearMap.toSpanSingleton_apply] at h ⊢
   exact h
 
 /-- Replacing the perfect simulator by the strict-PPT simulator's law in the typed forking

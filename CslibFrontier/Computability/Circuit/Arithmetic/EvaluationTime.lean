@@ -61,7 +61,8 @@ private theorem polyTime_step :
   have hargs (i : ℕ) : ComputableInPolyTime (fun p : List F × (ArithOp F × List ℕ) =>
       p.2.2[i]?.elim 0 (p.1.getD · 0))
       (encPair (encList eF) (Circuit.encGate (ArithOp.encoding eF))) eF :=
-    optionElimWithInput (getElem? (snd _ _).snd' (const i)) (const 0)
+    optionElimWithInput (encO := encOption encNat) (getElem? (encA := encNat)
+      (snd _ _).snd' (const i)) (const 0)
       (listGetD_binary 0 (fst _ _).fst' (snd _ _))
   have hvalue := (of_finite (encIn := encPair (ArithOp.encoding eF) (encPair eF eF))
     (encOut := eF) value).comp

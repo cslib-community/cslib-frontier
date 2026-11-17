@@ -30,7 +30,8 @@ theorem intBin_subNatNat : ComputableInPolyTime (fun p : ℕ × ℕ => Int.subNa
     (encPair encNat encNat) encIntBin := by
   have hr := binary_sub.comp ((snd encNat encNat).prod (fst encNat encNat))
   have hm := binary_add.comp (binary_sub.prod hr)
-  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
+  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => by
+    simp only [encBits_apply, encNat_apply]
   have h := bitsCons binary_lt (hbits.comp hm)
   apply h.of_enc_eq
   intro p

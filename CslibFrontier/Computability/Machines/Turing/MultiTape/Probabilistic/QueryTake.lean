@@ -351,7 +351,7 @@ theorem run_frame (x : List Bool)
         · simp [Config.step, config, ch', heq]
     have h2 : 2 * (b :: rem).length + 2 = (2 * rem.length + 2) + 1 + 1 := by simp; lia
     have hsplit : pre ++ frame (b :: rem) ++ suf = (pre ++ [true, b]) ++ frame rem ++ suf := by
-      simp [frame_cons, List.append_assoc]
+      simp [List.append_assoc]
     rw [h2,
       run_interpret_runOracleConfigFrom_succ_step (queryTakeCore op) oracle
         ((2 * rem.length + 2) + 1)
@@ -389,7 +389,7 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
       (List.take limit <$> ProbOracleComp.query (op, q)) := by
   let x := encPair encBits encUnary (q, limit)
   have hx : x = frame q ++ List.replicate limit true := by
-    simp [x, encPair_apply, encBits_apply, encUnary_apply]
+    simp [x, encUnary_apply]
   have hxlen : x.length = 2 * q.length + 1 + limit := by simp [hx]
   let t₁ := 2 * q.length + 2
   let t₂ := limit + 1

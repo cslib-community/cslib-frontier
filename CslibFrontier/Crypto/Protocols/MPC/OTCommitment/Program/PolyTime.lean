@@ -145,7 +145,7 @@ theorem receiverClosedProgram_isPPT {Later Output : Type}
       (encPair (encList (encPair (encFinEnum (Fin 4)) encBool))
         (encPair stateEncoding (encPair laterEncoding
           (encPair (encFinite Phased.Observation)
-            (encOption (encList (encPair encBool encBool)))))))
+            (encSilentOption (encList (encPair encBool encBool)))))))
       outputEncoding (fun p => finish p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2))
     (chooseGrowth receiveGrowth : ℕ)
     (hchooseGrowth : ∀ k st j next, (j, next) ∈ (ProbComp.eval (choose k st)).support →

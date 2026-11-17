@@ -483,7 +483,7 @@ theorem exists_mem_BH_encBits_and_polyTimeReducible {r : ℕ} {A : Set α} (hA :
       fun a => encPair encBits encBits (encCNF (f₀ a), f₁ a),
       (hf₀.encoding_comp.prod hf₁).encoding_comp,
       fun a => ?_⟩
-    simp [B₀, unframe_frame_append, dropFrame_frame_append, cnfDecoder.decode_enc, hiff₀ a,
+    simp [B₀, cnfDecoder.decode_enc, hiff₀ a,
       hiff₁ a]
 
 /-- Collapse of the canonical bit-string Boolean hierarchy `coBH encBits k ⊆ BH encBits k`

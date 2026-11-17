@@ -136,7 +136,10 @@ theorem isPolyTime_sampleEdge {Input : Type} {input : Input ↪ List Bool} {enc 
     ComputableInPolyTime (fun x => (graph x).sampleEdge (random x))
       input (encOption (Edge.encoding enc)) := by
   unfold sampleEdge
-  fun_prop
+  apply ComputableInPolyTime.getElem? (encA := Edge.encoding enc) (encL := encList (Edge.encoding
+    enc))
+  · fun_prop
+  · apply ComputableInPolyTime.bitsBoundedBinaryValueWithInput <;> fun_prop
 
 /-- A local verifier with accepting padding; all numeric indices are computed under the edge cap. -/
 def edgeVerifier (width : ℕ) (decode : (Fin width → Bool) → α) (eval : C → α → α → Bool) :

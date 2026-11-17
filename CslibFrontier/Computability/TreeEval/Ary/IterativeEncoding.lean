@@ -53,7 +53,8 @@ variable {K : Type} {d r b H : ℕ}
 
 @[simp] theorem length_encIndex (n : ℕ) (i : Fin n) :
     (encIndex n i).length = i.val.size := by
-  change i.val.bits.length = i.val.size
+  change (encNat i.val).length = i.val.size
+  rw [encNat_apply]
   exact Nat.size_eq_bits_len _
 
 /-- Flatten the two register indices before storing the bank, avoiding nested list framing. -/

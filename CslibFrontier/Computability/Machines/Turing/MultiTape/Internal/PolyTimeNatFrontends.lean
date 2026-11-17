@@ -101,7 +101,8 @@ theorem binary_testBit {α : Type} {input : α ↪ List Bool} {n i : α → ℕ}
     (hn : ComputableInPolyTime n input encNat)
     (hi : ComputableInPolyTime i input encUnary) :
     ComputableInPolyTime (fun a => (n a).testBit (i a)) input encBool := by
-  have hbits := (of_eq (encIn := encNat) (encOut := encBits) (f := Nat.bits) fun _ => rfl).comp hn
+  have hbits := (of_eq (encIn := encNat) (encOut := encBits) (f := Nat.bits) fun _ => by
+    simp only [encBits_apply, encNat_apply]).comp hn
   refine ((bitsGetD false).comp (hbits.prod hi)).of_enc_eq fun a => ?_
   simp only [Function.comp_apply, Nat.testBit_eq_inth, ← List.getD_default_eq_getI]
   rfl

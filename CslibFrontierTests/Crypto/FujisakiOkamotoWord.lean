@@ -70,7 +70,7 @@ theorem identityPKE_isEfficient : identityPKE.IsEfficient where
 
 /-- With keys of length `n`, native `FO-notbot` decapsulation of the identity scheme is uniform
 strict oracle PPT. -/
-example : IsOraclePPTOn encDecapsNotBotInput (encOption encBits)
+example : IsOraclePPTOn encDecapsNotBotInput (encSilentOption encBits)
     (fun (n, dk, c) => identityPKE.decapsNotBot (fun n => n) n dk c) :=
   identityPKE_isEfficient.isOraclePPTOn_decapsNotBot
     (by fun_prop : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary)
@@ -143,7 +143,7 @@ example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ 
     Scheme.simFilterDispatch, stateT_pure_apply, pmf_norm]
 
 /-- Any other ciphertext within the bound is answered from the ciphertext table `H_q`: with empty
-keys the reply is `encOption encBits (some []) = [true]`, and `([true], [])` is recorded. -/
+keys the reply is `encSilentOption encBits (some []) = [true]`, and `([true], [])` is recorded. -/
 example : ProbComp.eval (identityPKE.simFilterWordHandler (fun _ => 0) (fun _ _ _ => true) 1 []
       [false] (.decaps, [true]) {}) =
     PMF.pure ([true], { hqCache := [([true], [])] }) := by

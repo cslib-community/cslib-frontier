@@ -621,7 +621,7 @@ theorem length_encPartialSchedules_le {n m Q r : ℕ}
     have hle : ∀ x ∈ L.map (fun o => 2 * (encOption (encList encNat) o).length + 1),
         x ≤ 2 * Q * (2 * (encNat r).length + 1) + 3 := by
       intro x hx; obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hx; cases o with
-      | none => simp only [encOption_none, List.length_nil]; omega
+      | none => simp only [encOption_none, List.length_cons, List.length_nil]; omega
       | some w =>
         obtain ⟨hlw, hmw⟩ := hw (some w) ho w rfl
         have hwl := (length_encList_word_le hlw hmw).trans_eq
@@ -775,9 +775,11 @@ theorem length_encOuterState_run_le (p : ScheduleParams) {s : ℕ}
   have hlt1 := ComputableInPolyTime.binary_lt' hsBin (ComputableInPolyTime.unary_to_binary.comp' hn)
   have hlt2 :=
     ComputableInPolyTime.binary_lt' hsBin (ComputableInPolyTime.unary_to_binary.comp' hnm)
-  have hb1 := (ComputableInPolyTime.optionSome (encPair encBool encUnary)).comp'
+  have hb1 := (ComputableInPolyTime.optionSome (encPair encBool encUnary)
+    (encO := encOption (encPair encBool encUnary))).comp'
     ((ComputableInPolyTime.const (encOut := encBool) false).prod hsCap)
-  have hb2 := (ComputableInPolyTime.optionSome (encPair encBool encUnary)).comp'
+  have hb2 := (ComputableInPolyTime.optionSome (encPair encBool encUnary)
+    (encO := encOption (encPair encBool encUnary))).comp'
     ((ComputableInPolyTime.const (encOut := encBool) true).prod
       (ComputableInPolyTime.unary_sub.comp' (hsCap.prod hn)))
   refine (hlt1.ite' hb1 (hlt2.ite' hb2 (.const none))).of_enc_eq fun p => ?_
@@ -806,6 +808,7 @@ private theorem computableInPolyTime_pendingSlotOfState :
   have hq2 := ComputableInPolyTime.snd encOuterSt (encPair encBool encUnary)
   have his :=
     (computableInPolyTime_readSlotSchedule.comp' (hq2.prod (hacc.snd'.comp' hq1))).optionIsSome
+      (encB := encList encNat)
   exact ComputableInPolyTime.optionElimWithInput hsl (.const none)
     (his.ite' (.const none)
       ((ComputableInPolyTime.optionSome (encPair encBool encUnary)).comp' hq2))

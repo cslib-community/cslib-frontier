@@ -270,7 +270,11 @@ private theorem step_polyTime : ComputableInPolyTime step encSystem encSystem :=
   have hp : ComputableInPolyTime
       (fun F : System => (F.find? fun e => e.coeffs.headD false).getD ⟨[], false⟩)
       encSystem encRow := by
-    fun_prop
+    apply ComputableInPolyTime.optionGetDWithInput (encB := encRow)
+      (encO := encOption encRow)
+    · apply ComputableInPolyTime.findWithInput (encA := encRow) .id'
+      fun_prop
+    · exact .const _
   exact ComputableInPolyTime.mapWithInput .id'
     (clear_polyTime.comp
       ((hp.comp (ComputableInPolyTime.fst encSystem encRow)).prod

@@ -150,7 +150,7 @@ theorem computableInPolyTime_unpad : ComputableInPolyTime unpad encCNF encBits :
     unfold encCNF
     fun_prop
   have hbits : ComputableInPolyTime (fun φ : CNF ℕ => ((φ.headD []).headD (0, false)).1.bits)
-      encCNF encBits := hv.of_enc_eq fun _ => rfl
+      encCNF encBits := hv.of_enc_eq fun _ => by simp only [encBits_apply, encNat_apply]
   refine (ComputableInPolyTime.bitsTakeWithInput hbits
     (ComputableInPolyTime.unary_sub' (ComputableInPolyTime.length_bits.comp hbits)
       (ComputableInPolyTime.const 1))).of_enc_eq fun φ => ?_

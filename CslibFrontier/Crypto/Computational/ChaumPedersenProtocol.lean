@@ -174,8 +174,8 @@ theorem eval_chaumPedersenSimulateWord (i : ℕ × F.Desc)
   rw [← PMF.bind_pure_comp]
   congr 1 with a : 1
   simp only [Function.comp_apply, Prod.map, chaumPedersenEncoding, encodeEmbedding, encScalar,
-    Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast, encPair_apply, encBits,
-    Function.Embedding.refl_apply]
+    Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast, encPair_apply,
+    encBits_apply]
 
 /-- `chaumPedersenSimulateWord` is uniform strict PPT in the security parameter, the description
 and the encoded statement and challenge. -/
@@ -217,7 +217,8 @@ theorem isPPTOn_chaumPedersenSimulateWord :
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
+    (ComputableInPolyTime.binary_mod' hs hq).of_enc_eq
+      fun _ => (Cslib.Encoding.encNat_eq_bits _).symm
   exact ((ht₁.prod ht₂).encoding_comp.prod hz).isPPTOn
 
 /-- `chaumPedersenSimulator` is uniform strict PPT, certified by `chaumPedersenSimulateWord`. -/

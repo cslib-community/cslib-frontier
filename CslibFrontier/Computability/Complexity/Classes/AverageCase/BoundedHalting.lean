@@ -257,7 +257,7 @@ theorem encode_mem_BH_iff {c z : List Bool} {t : ℕ} : encode c z t ∈ BH ↔ 
 /-- `lenWord` is computable in polynomial time from a unary argument. -/
 theorem lenWord_polyTime : ComputableInPolyTime lenWord encUnary encBits := by
   have hbits : ComputableInPolyTime Nat.bits encNat encBits :=
-    ComputableInPolyTime.of_eq fun _ => rfl
+    ComputableInPolyTime.of_eq fun _ => by simp only [encBits_apply, encNat_apply]
   unfold lenWord
   exact ComputableInPolyTime.bitsReverse.comp (hbits.comp ComputableInPolyTime.unary_to_binary)
 
@@ -345,7 +345,7 @@ theorem BH_mem_NP : BH ∈ NP encBits := by
     exact hy
   · rintro y ⟨c, z, t, rfl, v, hv, hrun⟩
     refine ⟨frame v, ?_, fun k => ?_⟩
-    · simp only [length_frame, encBits, Function.Embedding.coe_refl, id_eq, length_encode,
+    · simp only [length_frame, encBits_apply, length_encode,
         Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat, Polynomial.eval_X,
         Polynomial.eval_one]
       omega

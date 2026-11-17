@@ -23,7 +23,7 @@ and
    `CslibFrontierTests.Crypto.Encryption` violates both `INDCCA2` and `INDCCA2Multi`.
 3. **Concrete `cca2Phase2Oracle`, `cca2MultiPhase2Oracle`, `CCA2AdversaryOf.IsPPT`, and
    `MultiCCA2AdversaryOf.IsPPT` checks**: `cca2Phase2Oracle` and `cca2MultiPhase2Oracle` reject
-   challenge ciphertexts with `[]` and return `encOption encBool (decrypt …)` otherwise, and
+   challenge ciphertexts with `[]` and return `encSilentOption encBool (decrypt …)` otherwise, and
    `CCA2AdversaryOf.isPPT_ofCPA`, `CCA2AdversaryOf.isPPT_toMulti`, and `.restrict` construct
    concrete strict oracle PPT 1CCA and multi-challenge CCA adversaries.
 4. **Live Phase-2 decryption-oracle tests**: for a scheme whose decryption ignores trailing bits
@@ -199,13 +199,13 @@ example : (CCA2Adversary.ofCPA CslibFrontierTests.Crypto.Encryption.adversary).I
 def headDecrypt (_ : ℕ) (_ : List Bool) (ct : List Bool) : Option Bool := ct.head?
 
 /-- `cca2Phase2Oracle` rejects the challenge ciphertext `[true]` with `[]` and decrypts `[false]`
-to `encOption encBool (some false) = [true, false]`. -/
+to `encSilentOption encBool (some false) = [true, false]`. -/
 example :
     ProbComp.eval (cca2Phase2Oracle encBool headDecrypt 4 [] [true] ((), [true]) ()) =
       PMF.pure ([], ()) ∧
     ProbComp.eval (cca2Phase2Oracle encBool headDecrypt 4 [] [true] ((), [false]) ()) =
       PMF.pure ([true, false], ()) := by
-  constructor <;> simp [cca2Phase2Oracle, headDecrypt, encOption, encBool_apply]
+  constructor <;> simp [cca2Phase2Oracle, headDecrypt, encSilentOption, encBool_apply]
 
 /-- `cca2MultiPhase2Oracle` rejects every challenge ciphertext in `cts = [[true], [false, true]]`
 with `[]` and decrypts `[false]` to `[true, false]`. -/
@@ -220,14 +220,14 @@ example :
     ProbComp.eval
       (cca2MultiPhase2Oracle encBool headDecrypt 4 [] [[true], [false, true]] ((), [false]) ()) =
       PMF.pure ([true, false], ()) := by
-  refine ⟨?_, ?_, ?_⟩ <;> simp [cca2MultiPhase2Oracle, headDecrypt, encOption, encBool_apply]
+  refine ⟨?_, ?_, ?_⟩ <;> simp [cca2MultiPhase2Oracle, headDecrypt, encSilentOption, encBool_apply]
 
 /-- Malleable encryption scheme: `encrypt` outputs `[b]`, while `headDecrypt` ignores trailing
 bits so `ct ++ [true]` decrypts to `some b`. -/
 def malleableEncrypt (_ : ℕ) (_ : List Bool) (b : Bool) : ProbComp (List Bool) := pure [b]
 
 /-- A Phase-2 adversary that queries the decryption oracle on `ct ++ [true]` (which is distinct
-from `ct = [b]`) and reads the decoded plaintext bit from the `encOption encBool` response
+from `ct = [b]`) and reads the decoded plaintext bit from the `encSilentOption encBool` response
 `[true, b]`. -/
 def phase2Mallory : CCA2Adversary where
   choose _ _ := pure ((false, true), [])
@@ -245,7 +245,7 @@ theorem eval_cca2Game_phase2Mallory (bit : Bool) (n : ℕ) :
   cases bit <;>
     · simp [cca2Game, cca2GameOn, constKeyGen, malleableEncrypt, phase2Mallory,
         StateT.run_pure, StateT.run_map]
-      simp [StateT.run, cca2Phase2Oracle, headDecrypt, encOption, encBool_apply]
+      simp [StateT.run, cca2Phase2Oracle, headDecrypt, encSilentOption, encBool_apply]
 
 /-- Embedded into `cca2MultiGame` via `CCA2Adversary.toMulti`, `phase2Mallory` also recovers the
 challenge bit with probability `1`. -/
@@ -283,7 +283,7 @@ theorem eval_cca2MultiGame_twoChallengeMallory (bit : Bool) (n : ℕ) :
   cases bit <;>
     · simp [cca2MultiGame, cca2MultiGameOn, constKeyGen, malleableEncrypt, twoChallengeMallory,
         StateT.run_pure, StateT.run_bind, StateT.run_map]
-      simp [StateT.run, cca2MultiPhase2Oracle, headDecrypt, encOption, encBool_apply]
+      simp [StateT.run, cca2MultiPhase2Oracle, headDecrypt, encSilentOption, encBool_apply]
 
 /-! ### 4. Refutable `CollisionResistantFor` instance over `ZMod 11` -/
 

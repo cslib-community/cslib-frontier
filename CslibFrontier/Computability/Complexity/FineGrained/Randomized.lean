@@ -640,7 +640,7 @@ theorem SolvesWithErrorInExpTime.of_promiseReduction {X : PromiseProblem α} {Y 
   have hpair_len : ((encPair enc encBits (a, w)).length : ℝ) =
       2 * (enc a).length + 1 + ℓ (r a) := by
     dsimp only [Function.comp_apply] at hw
-    simp only [length_encPair, encBits, Function.Embedding.refl_apply, hw]
+    simp only [length_encPair, encBits_apply, hw]
     push_cast
     ring
   have hPU : P ≤ U * (X * P ^ (e + 1)) := hP_le.trans (le_mul_of_one_le_left (by positivity) hU1)
@@ -887,7 +887,7 @@ theorem exists_solvesWithErrorInTimeO_poly_iff {Q : PromiseProblem α} {E : Erro
         omega
       have h2 : cp * (L + 1) ^ dp ≤ cp * (L + 1) ^ (dp + 1) :=
         Nat.mul_le_mul_left cp (Nat.pow_le_pow_right hL1 (Nat.le_succ dp))
-      simp only [length_encPair, encBits, Function.Embedding.refl_apply,
+      simp only [length_encPair, encBits_apply,
         Nat.add_mul, Nat.mul_assoc]
       dsimp only [L] at *
       omega
@@ -1140,7 +1140,7 @@ private theorem computableInO_collectVotesConst (K : ℕ) {ℓ : α → ℕ}
     have hplen : ((encPair enc encBits (a, w)).length : ℝ) ≤ (4 + (K + 1) * cℓ : ℕ) * Z := by
       have hp_eq : ((encPair enc encBits (a, w)).length : ℝ) =
           2 * (enc a).length + 1 + w.length := by
-        simp only [length_encPair, encBits, Function.Embedding.refl_apply]
+        simp only [length_encPair, encBits_apply]
         push_cast
         ring
       rw [hp_eq]
@@ -1230,7 +1230,7 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
     have hvlen : ((collectVotesConst (2 * r) ℓ V (a, w)).length + 1) ^ dmaj =
         (2 * r + 1) ^ dmaj := by
       rw [length_collectVotesConst]
-    simp only [encBits, Function.Embedding.refl_apply, C_total]
+    simp only [encBits_apply, C_total]
     rw [hTℓ'_eq a, hvlen]
     have hTa := hT a
     have h1 : ((enc a).length : ℝ) + ((enc a).length + 2 * (r : ℝ) * Tℓ a) ≤
@@ -1344,7 +1344,7 @@ theorem SolvesWithErrorInTimeO.amplify_oneSidedRP {Q : PromiseProblem α} {T : �
     have htv := hTvotes a w hw.le
     have hvlen : ((collectVotesConst m ℓ V (a, w)).length + 1) ^ dany = (m + 1) ^ dany := by
       rw [length_collectVotesConst]
-    simp only [encBits, Function.Embedding.refl_apply, C_total]
+    simp only [encBits_apply, C_total]
     rw [hTℓ'_eq a, hvlen]
     have hTa := hT a
     have h1 : ((enc a).length : ℝ) + ((enc a).length + (m : ℝ) * Tℓ a) ≤

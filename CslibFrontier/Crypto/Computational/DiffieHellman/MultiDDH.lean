@@ -532,7 +532,10 @@ theorem encList_encCarrierPair (d : F.Desc) (pairs : List (F.Carrier d × F.Carr
     encList (F.encCarrierPair d) pairs =
       encList (encPair encBits encBits)
         (pairs.map fun p => (F.encode d p.1, F.encode d p.2)) := by
-  simp [encList, encCarrierPair, List.flatMap_map, Function.comp_def]
+  induction pairs with
+  | nil => simp only [encList_nil, List.map_nil]
+  | cons p pairs ih =>
+    simp only [encList_cons, List.map_cons, ih, encCarrierPair_apply]
 
 /-- The input of a single-secret ($n = 1$) Multi-DDH (I) distinguisher ([BonehShoup2023],
 Section 10.11, Exercise 10.11, p. 426): the security parameter, public group parameters `d`, the
@@ -1129,7 +1132,12 @@ theorem encList_encMultiDDHBlock (d : F.Desc)
       encList (encPair encBits (encList (encPair encBits encBits)))
         (blocks.map fun b =>
           (F.encode d b.1, b.2.map fun p => (F.encode d p.1, F.encode d p.2))) := by
-  simp [encList, encMultiDDHBlock, List.flatMap_map, Function.comp_def]
+  induction blocks with
+  | nil => simp only [encList_nil, List.map_nil]
+  | cons b blocks ih =>
+    simp only [encList_cons, List.map_cons, ih]
+    congr 1
+    simp only [encMultiDDHBlock_apply, encList_encCarrierPair, encPair_apply, encBits_apply]
 
 /-- The input of a two-parameter $(n, m)$ Multi-DDH (I) distinguisher ([BonehShoup2023],
 Section 10.11, Exercise 10.11, p. 426): the security parameter, public group parameters `d`, and a

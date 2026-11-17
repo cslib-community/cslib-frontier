@@ -37,7 +37,7 @@ Adapts Computability/Probabilistic/Memoize.lean on the cslib `crypto` branch at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8` to oracle computations.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.ProbOracleComp
 
@@ -116,7 +116,11 @@ theorem IsOraclePPTOn.memoize {Operation α Key Value : Type} [DecidableEq Opera
       (fun a => memoize (compute a) (query a) (cache a)) := by
   let found (a : α) := (cache a).find? (fun entry => query a == entry.1)
   have hfound : ComputableInPolyTime found input
-      (encOption (encPair keyEncoding valueEncoding)) := by fun_prop
+      (encOption (encPair keyEncoding valueEncoding)) := by
+    have htest : ComputableInPolyTime
+        (fun p : α × (Key × Value) => query p.1 == p.2.1)
+        (encPair input (encPair keyEncoding valueEncoding)) encBool := by fun_prop
+    exact ComputableInPolyTime.findWithInput hcache htest
   have hhit : ComputableInPolyTime
       (fun a => (((found a).getD (query a, Classical.arbitrary Value)).2, cache a)) input
       (encPair valueEncoding (encList (encPair keyEncoding valueEncoding))) := by fun_prop

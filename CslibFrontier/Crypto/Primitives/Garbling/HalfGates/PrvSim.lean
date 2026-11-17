@@ -71,8 +71,8 @@ is negligible. -/
 theorem CircularCorrelationRobust.negligible_prvSimAdvantage_simWord
     (h : CircularCorrelationRobust hash) {σ : Type} {encσ : σ ↪ List Bool}
     {B : ℕ → PrvSimAdversary XorAndCircuit σ}
-    (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit) (encOption encPrvView)
-      encBool encσ B) :
+    (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit)
+      (encSilentOption encPrvView) encBool encσ B) :
     Negligible fun k => prvSimAdvantage (HalfGates.scheme hash)
       (SideInfo.circ (HalfGates.scheme hash)) k (simWord hash k) (B k) := by
   obtain ⟨c, d, hlen⟩ := hB.choose.length_le

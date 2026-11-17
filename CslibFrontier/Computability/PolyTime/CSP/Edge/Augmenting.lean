@@ -181,7 +181,7 @@ private theorem poly_repairPair :
     ComputableInPolyTime (fun p : CSP Table ℕ × List Bool × List Bool =>
       repairPair p.1 p.2.1 p.2.2) encRepairArgs (encOption (encPair encRecord encRecord)) := by
   unfold repairPair
-  apply ComputableInPolyTime.findWithInput
+  apply ComputableInPolyTime.findWithInput (encA := encPair encRecord encRecord)
   · exact (poly_product encRecord encRecord).comp
       ((poly_records.comp (by fun_prop)).prod (poly_records.comp (by fun_prop)))
   · fun_prop
@@ -210,7 +210,7 @@ private theorem poly_repair :
   rcases state with ⟨g, k⟩
   unfold repairStep
   cases repairPair input.body input.labels g <;>
-    simp [length_encList, length_flip, encUnary_apply]; omega
+    simp [length_flip, encUnary_apply]; omega
 
 attribute [local fun_prop] poly_repair
 
@@ -243,7 +243,8 @@ private theorem poly_finish :
       (encPair encInput encWalkCodeWork) encNat := by
   unfold finish
   apply ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
-  · fun_prop
+    (encO := encOption (encPair encUnary encUnary))
+  · exact (ComputableInPolyTime.head? (encPair encUnary encUnary)).comp (by fun_prop)
   · fun_prop
   · fun_prop
 
@@ -256,7 +257,7 @@ private theorem poly_walkPair :
       walkPair p.1.1 p.1.2 p.2) encWalkArgs (encOption (encPair encRecord encRecord)) := by
   unfold walkPair
   dsimp only
-  apply ComputableInPolyTime.findWithInput
+  apply ComputableInPolyTime.findWithInput (encA := encPair encRecord encRecord)
   · exact (poly_product encRecord encRecord).comp
       ((poly_records.comp (by fun_prop)).prod (poly_records.comp (by fun_prop)))
   · fun_prop
@@ -282,6 +283,7 @@ private theorem poly_walkStep :
   unfold walkStep
   apply ComputableInPolyTime.ite (by fun_prop) (by fun_prop)
   apply ComputableInPolyTime.optionElimWithInput (encB := encPair encRecord encRecord)
+    (encO := encOption (encPair encRecord encRecord))
   · fun_prop
   · fun_prop
   · fun_prop
@@ -365,6 +367,7 @@ by list scans and occurrence clocks. -/
     unfold run
     apply ComputableInPolyTime.ite_decide (by fun_prop) _ (by fun_prop)
     apply ComputableInPolyTime.optionElimWithInput (encB := encRecord)
+      (encO := encOption encRecord)
     · fun_prop
     · fun_prop
     · fun_prop

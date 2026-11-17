@@ -108,11 +108,11 @@ oracle on `incrementCiphertext pk ct`, and output whether the reply is `some (2 
 happens exactly when the challenge encrypts `1`. -/
 def incrementAdversary : CCA2AdversaryOf ℕ :=
   maulAdversary (fun _ _ => 0) (fun _ _ => 1) (fun _ pk ct => incrementCiphertext pk ct)
-    (fun _ pk => encOption encBits (some (encNat (2 % ofBits pk))))
+    (fun _ pk => encSilentOption encBits (some (encNat (2 % ofBits pk))))
 
 /-- The target reply `some (2 mod N)` of `incrementAdversary` is polynomial-time. -/
 private theorem computableInPolyTime_incrementTarget :
-    ComputableInPolyTime (fun ⟨_, pk⟩ => encOption encBits (some (encNat (2 % ofBits pk))))
+    ComputableInPolyTime (fun ⟨_, pk⟩ => encSilentOption encBits (some (encNat (2 % ofBits pk))))
       (encPair encUnary encBits) encBits := by
   have hN := ComputableInPolyTime.bitsToNat.comp (ComputableInPolyTime.snd encUnary encBits)
   have h2 := (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.const 2) hN).encoding_comp
@@ -139,8 +139,8 @@ private theorem increment_conditions {gen : ℕ → ProbComp Desc} {n : ℕ} (bi
     {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 (if bit then 1 else 0))).support) :
     decryptOpt n keys.2 (incrementCiphertext keys.1 ct) ≠ decryptOpt n keys.2 ct ∧
-      (encOption encBits (decryptOpt n keys.2 (incrementCiphertext keys.1 ct)) =
-        encOption encBits (some (encNat (2 % ofBits keys.1))) ↔ bit = true) := by
+      (encSilentOption encBits (decryptOpt n keys.2 (incrementCiphertext keys.1 ct)) =
+        encSilentOption encBits (some (encNat (2 % ofBits keys.1))) ↔ bit = true) := by
   obtain ⟨d, hkeq⟩ := exists_of_mem_support_keyGen hkeys
   have hN := d.one_lt_modulus
   have hm : (if bit then 1 else 0) < ofBits keys.1 := by
@@ -182,7 +182,7 @@ theorem not_indcca2On_paillier (gen : ℕ → ProbComp Desc) :
     ¬ INDCCA2On validMessages encNat encBits (keyGen gen) encrypt decryptOpt :=
   not_indcca2On_of_maulAdversary (msg₀ := fun _ _ => 0) (msg₁ := fun _ _ => 1)
     (maul := fun _ pk ct => incrementCiphertext pk ct)
-    (target := fun _ pk => encOption encBits (some (encNat (2 % ofBits pk))))
+    (target := fun _ pk => encSilentOption encBits (some (encNat (2 % ofBits pk))))
     (.const 0) (.const 1) (computableInPolyTime_incrementCiphertext.comp (by fun_prop))
     computableInPolyTime_incrementTarget (fun _ _ hkeys => validMessages_keyGen hkeys)
     fun _ bit _ hkeys _ hct =>

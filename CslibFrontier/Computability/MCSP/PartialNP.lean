@@ -122,7 +122,7 @@ private theorem two_pow_le_length_encList_table (x : Instance) :
     2 ^ x.arity ≤ (encTable (List.ofFn x.table)).length := by
   have h := SizedListEncoding.length_le (encA := encOption encBool)
     (encL := encTable) (List.ofFn x.table)
-  simpa using h
+  simp
 
 private theorem two_pow_le_length_enc_of_encT (encT : ℕ ↪ List Bool) (x : Instance) :
     2 ^ x.arity ≤ (encPair encTable encT (toRaw x)).length := by

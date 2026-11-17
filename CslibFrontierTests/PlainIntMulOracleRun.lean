@@ -47,5 +47,5 @@ example {k : ℕ} {Control Operation : Type} [Finite Control] [Finite Operation]
       ComputableInO (fun word => OracleComp.interpret (m := Id) (fun q => [g q.2])
         (machine.run (pure false) (fun op word => OracleComp.query (op, word))
           0 word)) encBits encBits T S := by
-  simpa [encBits] using
+  simpa [encBits_apply] using
     machine.exists_computableInO_run (input := encBits) hg hSg 0 0

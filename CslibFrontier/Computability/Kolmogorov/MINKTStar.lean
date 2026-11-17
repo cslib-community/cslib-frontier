@@ -280,7 +280,7 @@ theorem computableInPolyTime_ofTotal : ComputableInPolyTime ofTotal MINKT.enc en
   have hlist := (bits_encList_polyTime encBool).1.comp hstr
   have hmap : ComputableInPolyTime (fun i : MINKT.Instance => i.string.map some) MINKT.enc
       (encList (encOption encBool)) :=
-    (map (optionSome encBool)).comp hlist
+    (ComputableInPolyTime.map (optionSome encBool (encO := encOption encBool))).comp hlist
   exact enc_mk_polyTime hmap MINKT.Instance.computableInPolyTime_time
     MINKT.Instance.computableInPolyTime_size
 

@@ -62,11 +62,11 @@ open Cslib.Turing
 /-- The bits of a cell: whether it is occupied, then its symbol, `false` when it is blank. -/
 def cellBits (cell : Option Bool) : List Bool := [cell.isSome, cell.getD false]
 
-/-- The bits of a framed cell, from a summary of its framed word: blank while the word is empty,
-otherwise occupied, with the second bit of the word as its symbol. -/
+/-- The bits of a framed cell: zero or one bit is blank; a two-bit cell carries its symbol
+in the second bit. In particular the canonical absent cell `[false]` is blank. -/
 def contentBits : Option (Option Bool) → List Bool
   | none => [false, false]
-  | some none => [true, false]
+  | some none => [false, false]
   | some (some symbol) => [true, symbol]
 
 @[simp]
@@ -156,16 +156,16 @@ theorem length_stackStep_le (state : Option Bool × StackTape Bool) (bit : Bool)
     (encPair (encOption encBool) (encStackTape encBool) (stackStep state bit)).length ≤
       (encPair (encOption encBool) (encStackTape encBool) state).length + 4 := by
   rcases state with ⟨_ | symbol, tape⟩
-  · simp [stackStep, encOption_some, encBool_apply]
+  · simp [stackStep]
   · simp only [stackStep, length_encPair, encStackTape_apply, StackTape.cons_toList]
     split_ifs <;> cases bit <;>
-      simp [encOption_some, encBool_apply, encList_cons] <;> omega
+      simp <;> omega
 
 /-! ### Two-sided tapes and configurations -/
 
 /-- Decode a cell encoded by `encOption encBool`. -/
 def decodeCell (word : List Bool) : Option Bool :=
-  if word.isEmpty then none else some (word.tail.headD false)
+  if word.headD false then some (word.tail.headD false) else none
 
 /-- Decoding inverts the encoding of cells. -/
 @[simp]
@@ -312,8 +312,9 @@ theorem decodeStackTape :
 private theorem decodeCell :
     ComputableInPolyTime MultiTapeTM.decodeCell encBits (encOption encBool) := by
   unfold Turing.MultiTapeTM.decodeCell
-  exact ite' (listIsEmpty (encA := encBool)) (const none)
-    ((optionSome encBool).comp ((headD false).comp (tail (encA := encBool))))
+  exact ite' (headD (encA := encBool) false)
+    ((optionSome encBool).comp ((headD (encA := encBool) false).comp (tail (encA :=
+      encBool)))) (const none)
 
 /-- **Decoding a two-sided tape is polynomial-time.** -/
 theorem decodeBiTape :

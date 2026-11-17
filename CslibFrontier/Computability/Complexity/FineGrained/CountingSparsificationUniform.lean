@@ -176,6 +176,11 @@ private theorem computableInPolyTime_finish {NOf : P → ℕ}
     fun_prop
   simpa only [Nat.shiftLeft_eq] using hmul
 
+section EncodingOpacity
+
+-- Keep proof search from unfolding the shared binary representation.
+attribute [local irreducible] Cslib.Encoding.encNat ComputableInPolyTime
+
 /-- Normalize one total declared-count leaf implementation. The intermediate declared count is
 charged explicitly in both resource bounds; semantic correctness still requires the support and
 counting promises of `Cslib.Logic.PL.CNF.normalizeDeclaredLeaf_eq_modelCount`. -/
@@ -223,6 +228,8 @@ theorem exists_computableInO_normalizeDeclaredLeaf {NOf : P → ℕ}
     (fun x => (hbound s x).trans (Nat.mul_le_mul_left _ (by omega)))).of_enc_eq ?_⟩
   intro x
   rfl
+
+end EncodingOpacity
 
 private def stepCost (encP : P ↪ List Bool) (MOf : P → ℕ) (K d : ℕ)
     (g v : P × CNF ℕ → ℕ) (x : P × State) : ℕ :=

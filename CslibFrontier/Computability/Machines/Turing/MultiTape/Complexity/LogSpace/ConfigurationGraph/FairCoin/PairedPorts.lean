@@ -305,7 +305,7 @@ theorem getElem?_getD_zero_budget (fuel : ℕ) {l : α → List ℕ} {q : α →
     (hq : ComputableInSpace q enc encNat S)
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => ((l a)[q a]?).getD 0) enc encNat S :=
-  budget_optionGetD 0 (getElem?_budget fuel hlen hl hq hin)
+  budget_optionGetD (encB := encNat) 0 (getElem?_budget fuel hlen hl hq hin)
 
 private theorem idxOfFuel_budget (fuel : ℕ) {l : α → List ℕ} {u : α → ℕ}
     (hl : ComputableInSpace l enc (encList encNat) S)
@@ -337,17 +337,18 @@ private theorem pairSortedTargets_budget {a b : α → Option ℕ}
     (hb : ComputableInSpace b enc (encOption encNat) S)
     (hin : (fun x => (enc x).length) ≼ S) :
     ComputableInSpace (fun x => pairSortedTargets (a x) (b x)) enc (encList encNat) S := by
-  have hva := budget_optionGetD 0 ha
-  have hvb := budget_optionGetD 0 hb
+  have hva := budget_optionGetD (encB := encNat) 0 ha
+  have hvb := budget_optionGetD (encB := encNat) 0 hb
   have hnil : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encNat) S :=
     budget_const [] hin
   have hboth :=
     budget_ite (budget_natLt hva hvb) (budget_cons hva (budget_cons hvb hnil))
       (budget_ite (budget_natLt hvb hva) (budget_cons hvb (budget_cons hva hnil))
         (budget_cons hva hnil))
-  refine (budget_ite (budget_optionIsSome ha)
-    (budget_ite (budget_optionIsSome hb) hboth (budget_cons hva hnil))
-    (budget_ite (budget_optionIsSome hb) (budget_cons hvb hnil) hnil)).of_enc_eq fun x => ?_
+  refine (budget_ite (budget_optionIsSome (encB := encNat) ha)
+    (budget_ite (budget_optionIsSome (encB := encNat) hb) hboth (budget_cons hva hnil))
+    (budget_ite (budget_optionIsSome (encB := encNat) hb) (budget_cons hvb hnil) hnil)).of_enc_eq
+      fun x => ?_
   rcases a x with _ | v₀ <;> rcases b x with _ | v₁ <;>
     simp [pairSortedTargets, decide_eq_true_eq]
 
@@ -1316,8 +1317,10 @@ theorem clockedOutCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
   have hu := budget_natMod ha hN
   have houtList := coinOutTargetsWithSymbol_budget machine hB hn hu hsym hin
   have hvOpt := getElem?_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp hin
-  have hcnt := coinCountWithSymbol_budget machine hB hn hu (budget_optionGetD 0 hvOpt) hsym hin
-  refine (budget_ite hcond (budget_ite (budget_optionIsSome hvOpt) hcnt (budget_const 0 hin))
+  have hcnt := coinCountWithSymbol_budget machine hB hn hu (budget_optionGetD (encB :=
+    encNat) 0 hvOpt) hsym hin
+  refine (budget_ite hcond (budget_ite (budget_optionIsSome (encB := encNat) hvOpt) hcnt
+    (budget_const 0 hin))
     (budget_const 0 hin)).of_enc_eq fun x => ?_
   clear * -
   simp only [clockedOutCountWithSymbol, Bool.and_eq_true, decide_eq_true_eq]
@@ -1348,14 +1351,14 @@ theorem clockedOutPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
   have hu := budget_natMod ha hN
   have houtList := coinOutTargetsWithSymbol_budget machine hB hn hu hsymOut hin
   have hvOpt := getElem?_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp hin
-  have hvVal := budget_optionGetD 0 hvOpt
+  have hvVal := budget_optionGetD (encB := encNat) 0 hvOpt
   have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hvVal hinSym hin
   have hqIdx := idxOf_budget (inPortBound machine) (fun _ => length_coinInSourcesWithSymbols_le ..)
     hinList hu hin
   have hbVal := budget_natAdd (budget_natMul (budget_natSucc (budget_natDiv ha hN)) hN) hvVal
   have hnone : ComputableInSpace (fun _ : α => (none : Option (ℕ × ℕ)))
       enc (encOption (encPair encNat encNat)) S := budget_const none hin
-  refine (budget_ite hcond (budget_ite (budget_optionIsSome hvOpt)
+  refine (budget_ite hcond (budget_ite (budget_optionIsSome (encB := encNat) hvOpt)
     (budget_optionSome (budget_prod hbVal hqIdx)) hnone) hnone).of_enc_eq fun x => ?_
   clear * -
   simp only [clockedOutPortWithSymbols, Bool.and_eq_true, decide_eq_true_eq]
@@ -1388,13 +1391,13 @@ theorem clockedInPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
   have hinList := coinInSourcesWithSymbols_ofFn_budget machine inSymAt hB hn hv hinSym hin
   have huOpt := getElem?_budget (inPortBound machine)
     (fun _ => length_coinInSourcesWithSymbols_le ..) hinList hq hin
-  have huVal := budget_optionGetD 0 huOpt
+  have huVal := budget_optionGetD (encB := encNat) 0 huOpt
   have houtList := coinOutTargetsWithSymbol_budget machine hB hn huVal hsymPred hin
   have hpIdx := idxOf_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hv hin
   have haVal := budget_natAdd (budget_natMul (budget_natPred (budget_natDiv hb hN)) hN) huVal
   have hnone : ComputableInSpace (fun _ : α => (none : Option (ℕ × ℕ)))
       enc (encOption (encPair encNat encNat)) S := budget_const none hin
-  refine (budget_ite hcond (budget_ite (budget_optionIsSome huOpt)
+  refine (budget_ite hcond (budget_ite (budget_optionIsSome (encB := encNat) huOpt)
     (budget_optionSome (budget_prod haVal hpIdx)) hnone) hnone).of_enc_eq fun x => ?_
   clear * -
   simp only [clockedInPortWithSymbols, Bool.and_eq_true, decide_eq_true_eq]

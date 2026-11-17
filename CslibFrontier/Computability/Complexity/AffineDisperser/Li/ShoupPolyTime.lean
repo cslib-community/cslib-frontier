@@ -752,7 +752,7 @@ private theorem polyTime_kernelBasisBits :
   obtain ⟨hlen, hrows⟩ := length_kernelBasisBits p.1 (p.2.take i)
   unfold kernelBasisBits at hlen hrows
   refine (length_encList_le encBits _ (b := p.1)
-    (fun v hv => by simp [encBits_apply, hrows v hv])).trans ?_
+    (fun v hv => by simp [hrows v hv])).trans ?_
   rw [hlen]
 
 /-- `kernelVecBits` is computable in polynomial time. -/
@@ -768,7 +768,7 @@ theorem computableInPolyTime_kernelVecBits :
       ComputableInPolyTime.id'
       (ComputableInPolyTime.snd encBits encBool)).comp
       (ComputableInPolyTime.snd (encPair encUnary (encList encBits)) encBits)
-  have hfind := ComputableInPolyTime.findWithInput
+  have hfind := ComputableInPolyTime.findWithInput (encO := encOption encBits)
     (test := fun (_ : ℕ × List (List Bool)) (v : List Bool) => v.any id)
     polyTime_kernelBasisBits hany
   exact ComputableInPolyTime.optionGetDWithInput hfind
@@ -1278,7 +1278,7 @@ private theorem polyTime_shoupLFrobQBounded :
       exact ⟨by omega, fun v hv => (hrows v hv).trans (Nat.le_add_right _ _)⟩)
     (ComputableInPolyTime.polyBounded hsizeFn) fun p _ x _ hx => by
       refine (length_encList_le encBits x (b := p.1.2.length + (encList encBits p.2).length)
-        (fun v hv => by simp [encBits_apply, hx.2 v hv])).trans ?_
+        (fun v hv => hx.2 v hv)).trans ?_
       exact Nat.mul_le_mul_right _ hx.1).1
   exact hiter
 
@@ -1436,9 +1436,9 @@ private theorem polyTime_shoupBetaBounded :
     (fun p _ st _ hinv => by
       rw [length_encPair]
       have hl1 := length_encList_le encBits st.1 (b := p.2.length + 1)
-        (fun v hv => by simp [encBits_apply, hinv.2.2.1 v hv])
+        (fun v hv => by simp [hinv.2.2.1 v hv])
       have hl2 := length_encList_le encBits st.2 (b := p.2.length + 1)
-        (fun v hv => by simp [encBits_apply, hinv.2.2.2 v hv])
+        (fun v hv => by simp [hinv.2.2.2 v hv])
       have hm1 := hl1.trans (Nat.mul_le_mul_right _ hinv.1)
       have hm2 := hl2.trans (Nat.mul_le_mul_right _ hinv.2.1)
       omega)).1
@@ -1593,13 +1593,13 @@ private theorem polyTime_shoupPowersBounded :
         intro u hu
         have hu' := hinv.2.2.1 u hu
         exact (length_encList_le encBits u (b := p.1.2.length + 1)
-          (fun v hv => by simp [encBits_apply, hu'.2 v hv])).trans
+          (fun v hv => by simp [hu'.2 v hv])).trans
           (Nat.mul_le_mul_right _ hu'.1)
       have hl1 := (length_encList_le (encList encBits) st.1
         (b := p.1.1 * (2 * (p.1.2.length + 1) + 1)) hel_bound).trans
         (Nat.mul_le_mul_right _ hk_len)
       have hl2 := (length_encList_le encBits st.2 (b := p.1.2.length + 1)
-        (fun v hv => by simp [encBits_apply, hinv.2.2.2 v hv])).trans
+        (fun v hv => by simp [hinv.2.2.2 v hv])).trans
         (Nat.mul_le_mul_right _ hinv.2.1)
       rw [length_encPair]
       dsimp only

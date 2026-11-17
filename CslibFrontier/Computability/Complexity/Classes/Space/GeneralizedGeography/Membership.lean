@@ -590,7 +590,7 @@ theorem computableInPolyTime_verifier :
     have hsome : ComputableInPolyTime
         (fun p : (((GeneralizedGeographyInstance × List Bool) × Play) × List Bool) =>
           p.1.2.1.isSome)
-        encStep encBool := optionIsSome ((fst _ _).comp hst)
+        encStep encBool := optionIsSome (encB := encBool) ((fst _ _).comp hst)
     unfold step
     exact ite' hsome hst hnext
   have hfold := foldlWithInput_of_bounded_growth (encA := encBits) (encL := encList encBits)

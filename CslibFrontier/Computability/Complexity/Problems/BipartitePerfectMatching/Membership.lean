@@ -170,6 +170,21 @@ private abbrev encRound : List Bool × ℕ × List (ℕ × ℕ) ↪ List Bool :=
 private theorem computableInPolyTime_labelStep : ComputableInPolyTime
     (fun p : (List Bool × ℕ × List (ℕ × ℕ)) × Labelling => labelStep p.1.1 p.1.2.1 p.1.2.2 p.2)
     (encPair encRound encLabelling) encLabelling := by
+  have hlookup : ComputableInPolyTime
+      (fun p : Labelling × ℕ => p.1.getD p.2 none)
+      (encPair encLabelling encUnary) (encOption (encList encEdge)) :=
+    ComputableInPolyTime.listGetD (encA := encOption (encList encEdge)) none
+  have hsome : ComputableInPolyTime
+      (fun p : Labelling × ℕ => (p.1.getD p.2 none).isSome)
+      (encPair encLabelling encUnary) encBool :=
+    ComputableInPolyTime.optionIsSome (encB := encList encEdge) hlookup
+  have hpath : ComputableInPolyTime
+      (fun p : Labelling × ℕ => (p.1.getD p.2 none).getD [])
+      (encPair encLabelling encUnary) (encList encEdge) :=
+    ComputableInPolyTime.optionGetDWithInput (encB := encList encEdge) hlookup
+      (ComputableInPolyTime.const [])
+  have hhead := ComputableInPolyTime.head? (encList encEdge)
+    (encL := encList (encList encEdge)) (encO := encOption (encList encEdge))
   simp only [labelStep, labelCandidates, adj]
   fun_prop
 

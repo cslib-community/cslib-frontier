@@ -203,7 +203,7 @@ theorem mem_PP_iff_exists_mem_PPTIME {α : Type} {enc : α ↪ List Bool} {A : S
         (fun a => ⟨hhalt (enc a), ?_⟩) fun a => Nat.mul_add_one_pow_le_two_pow c d _⟩
     -- the encoded output `[true]` has the probability of `true`
     have htrue (μ : PMF Bool) : μ.map encBool [true] = μ true := by
-      simp [PMF.map_apply, encBool_apply]
+      simp [PMF.map_apply]
     rw [← heval a, htrue, ProbComp.eval_map, BitString.eval_sampleList,
       MultiTapePTM.half_lt_uniformList_map_iff]
     exact hA a

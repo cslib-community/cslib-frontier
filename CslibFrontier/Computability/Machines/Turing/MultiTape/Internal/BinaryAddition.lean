@@ -113,12 +113,13 @@ private lemma run_orZip (m n : ℕ) : orZip.run () m.bits n.bits = (m ||| n).bit
 public theorem computableInTimeAndSpace_natOr :
     ComputableInTimeAndSpace (fun p : ℕ × ℕ => p.1 ||| p.2) (encPair encNat encNat) encNat
       (fun p => 3 * (encPair encNat encNat p).length + 1) (fun p => (encNat p.1).length + 2) :=
-  orZip.computableInTimeAndSpace fun p => (run_orZip p.1 p.2).symm
+  orZip.computableInTimeAndSpace fun p => by
+    simpa only [encNat_apply] using (run_orZip p.1 p.2).symm
 
 /-- Bitwise disjunction in linear time and work space, from `computableInTimeAndSpace_natOr`. -/
 public theorem ComputableInDegree.natOr :
     ComputableInDegree (fun p : ℕ × ℕ => p.1 ||| p.2) (encPair encNat encNat) encNat 1 1 :=
-  orZip.computableInDegree fun p => (run_orZip p.1 p.2).symm
+  orZip.computableInDegree fun p => by simpa only [encNat_apply] using (run_orZip p.1 p.2).symm
 
 end Turing.MultiTapeTM
 
@@ -159,7 +160,7 @@ theorem natMul :
       (fun p => ((encPair encNat encNat p).length + 1) ^ 3)
       (fun p => (encPair encNat encNat p).length + 1) := by
   have hbits : ComputableInO Nat.bits encNat encBits (fun n => (encNat n).length)
-      (fun n => (encNat n).length) := of_eq fun _ => rfl
+      (fun n => (encNat n).length) := of_eq fun _ => by simp only [encBits_apply, encNat_apply]
   have hstate (p : ℕ × ℕ) (i : ℕ) :
       (encMul ((p.1.bits.take i).foldl NatMul.mulStep (0, p.2))).length ≤
         3 * (encPair encNat encNat p).length + 1 := by

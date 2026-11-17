@@ -833,13 +833,14 @@ theorem computableInPolyTime_finishSelectBestStep :
   have hrest := (ComputableInPolyTime.snd (encPair encUnary encUnary) encRest).comp' hacc
   have hrows := (ComputableInPolyTime.fst (encList encBits) (encOption eBest)).comp' hrest
   have hbestOpt := (ComputableInPolyTime.snd (encList encBits) (encOption eBest)).comp' hrest
-  have hsomeCand := (ComputableInPolyTime.optionSome eBest).comp' ((hcand0.comp' hs).prod hval)
+  have hsomeCand := (ComputableInPolyTime.optionSome eBest (encO := encOption eBest)).comp'
+    ((hcand0.comp' hs).prod hval)
   have hq_in := ComputableInPolyTime.fst encIn eBest
   have hq_best := ComputableInPolyTime.snd encIn eBest
   have hlt := ComputableInPolyTime.binary_lt' (hval.comp' hq_in)
     ((ComputableInPolyTime.snd encBits encNat).comp' hq_best)
   have hsome_q := hsomeCand.comp' hq_in
-  have hbest_q := (ComputableInPolyTime.optionSome eBest).comp' hq_best
+  have hbest_q := (ComputableInPolyTime.optionSome eBest (encO := encOption eBest)).comp' hq_best
   exact hmP.prod (hrows.prod
     (ComputableInPolyTime.optionElimWithInput hbestOpt hsomeCand (hlt.ite hsome_q hbest_q)))
 

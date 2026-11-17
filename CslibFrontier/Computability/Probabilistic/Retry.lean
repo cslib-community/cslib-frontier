@@ -138,7 +138,7 @@ theorem IsPPTOn.retry {program : α → ProbComp β} {good : β → Bool} {fuel 
       omega)
     (fun a i o _ ho => by
       cases o with
-      | none => simp [encOption_none]
+      | none => simp
       | some b =>
         rw [encOption_some, List.length_cons]
         exact Nat.succ_le_succ (hlen a b (ho b rfl)))

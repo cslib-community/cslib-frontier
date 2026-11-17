@@ -7,10 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import
-  CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayProviders
-public import
-  CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeChecked
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayProviders
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeChecked
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
@@ -85,15 +83,17 @@ theorem combine_inSpace (e : Q ≃ Fin s) :
       (budget_prod hb (budget_comp_linear
         (of_inO (ComputableInO.pi_apply encBits d))
         (budget_comp_linear (of_inO (ComputableInO.pi_apply (encPi encBits) h)) hproviderWords)))
-  have hpreviousRaw := budget_optionGetD empty hprevious
+  have hpreviousRaw := budget_optionGetD (encB := encRawResult (k := k) (Q := Q)) empty hprevious
   have hproviderRaw := pi_linear (Index := Fin k) fun h =>
-    pi_linear (Index := Fin 3) fun d => budget_optionGetD empty (hprovider h d)
+    pi_linear (Index := Fin 3) fun d => budget_optionGetD (encB := encRawResult (k := k) (Q :=
+      Q)) empty (hprovider h d)
   have hflags := pi_linear (Index := Fin k) fun h =>
-    pi_linear (Index := Fin 3) fun d => budget_optionIsSome (hprovider h d)
+    pi_linear (Index := Fin 3) fun d =>
+      budget_optionIsSome (encB := encRawResult (k := k) (Q := Q)) (hprovider h d)
   have hall := budget_finite (encC := encBool)
     (fun flags : Fin k → Fin 3 → Bool => decide (∀ h d, flags h d = true)) hflags
   have hguard := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod (budget_optionIsSome hprevious) hall)
+    (budget_prod (budget_optionIsSome (encB := encRawResult (k := k) (Q := Q)) hprevious) hall)
   have hargs := budget_prod hb (budget_prod hports (budget_prod hpreviousRaw hproviderRaw))
   have hcombined := budget_comp_linear (Providers.combine_inSpace (k := k) (Q := Q)) hargs
   have hsome := budget_comp_linear

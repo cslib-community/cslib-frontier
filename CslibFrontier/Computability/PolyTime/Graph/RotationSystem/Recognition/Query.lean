@@ -79,7 +79,7 @@ attribute [local fun_prop] vertexCount_polyTime binaryVertexCount_polyTime
 private theorem word_polyTime : ComputableInPolyTime
     (fun p : FixedRotationInput × ℕ => (p.1.orders.getD p.2 none).getD [])
     (encPair encFixedRotationInput encNat) (encList encNat) := by
-  apply ComputableInPolyTime.optionGetDWithInput
+  apply ComputableInPolyTime.optionGetDWithInput (encO := encOption (encList encNat))
   · exact read_polyTime none (orders_polyTime.comp (ComputableInPolyTime.fst _ _))
       (ComputableInPolyTime.snd _ _)
   · exact ComputableInPolyTime.const []
@@ -134,7 +134,7 @@ theorem validate_polyTime : ComputableInPolyTime validate encFixedRotationInput 
     · fun_prop
   · apply ComputableInPolyTime.allWithInput
       ((ComputableInPolyTime.zipIdx (encOption (encList encNat))).comp orders_polyTime)
-    apply ComputableInPolyTime.optionElimWithInput (by fun_prop)
+    apply ComputableInPolyTime.optionElimWithInput (encB := encList encNat) (by fun_prop)
       (ComputableInPolyTime.const true)
     have hg : ComputableInPolyTime
         (fun p : (FixedRotationInput × (Option (List ℕ) × ℕ)) × List ℕ => p.1.1.graph)
@@ -178,11 +178,12 @@ theorem subdivide_polyTime :
       (encList (encOption (encList encNat))) :=
     orders_polyTime.comp (ComputableInPolyTime.fst _ _)
   exact ComputableInPolyTime.cons'
-    ((he.fst'.prod ha).prod (read_polyTime none ht he.fst').optionIsSome)
+    ((he.fst'.prod ha).prod ((read_polyTime none ht he.fst').optionIsSome (encB := encList encNat)))
     (ComputableInPolyTime.cons'
       ((ha.prod hb).prod (ComputableInPolyTime.const false))
       (ComputableInPolyTime.cons'
-        ((hb.prod he.snd').prod (read_polyTime none ht he.snd').optionIsSome)
+        ((hb.prod he.snd').prod ((read_polyTime none ht he.snd').optionIsSome
+          (encB := encList encNat)))
         (ComputableInPolyTime.const [])))
 
 /-- The full reference order is built from bounded list scans, including malformed words. -/

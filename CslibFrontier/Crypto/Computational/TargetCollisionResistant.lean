@@ -1377,7 +1377,7 @@ theorem KeyedCompressionFamily.targetCollisionResistant_treeHash
   have hchoice_le {choice} (hchoice : choice ∈ (ProbComp.eval (adversary.choose n)).support) :
       choice.1.length ≤ maxBlocks n ∧ choice.2.length ≤ maxBlocks n := by
     have henc := hlen₁ n choice hchoice
-    enc_len [encBits, Function.Embedding.refl_apply, maxBlocks] at henc ⊢
+    enc_len [encBits_apply, maxBlocks] at henc ⊢
   unfold KeyedCompressionFamily.treeHash KeyedCompressionFamily.validInput
   dsimp only [redAdversary]
   refine succProbability_targetCollisionGame_uowhfTreeHash_le
@@ -1389,7 +1389,7 @@ theorem KeyedCompressionFamily.targetCollisionResistant_treeHash
   have hst_le := (hchoice_le hchoice).2
   have hK_len : K.length = (n + 1) * C.keyLen n := BitString.length_of_mem_support_uniformList hK
   have henc₂ := hlen₂ (n, choice.2, K) m₁ hm₁
-  simp only [length_encPair, encBits, Function.Embedding.refl_apply, encUnary_apply,
+  simp only [length_encPair, encBits_apply, encUnary_apply,
     List.length_replicate, hK_len] at henc₂
   have hinput_le :
       2 * n + 1 + (2 * choice.2.length + 1 + (n + 1) * C.keyLen n) + 1 ≤

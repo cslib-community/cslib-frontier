@@ -122,7 +122,7 @@ example : Probability.IsPPTOn encUnary encBool fun n => Option.isSome <$> random
 
 /-- A client of the modulus generator that publishes only the modulus `N = p q`, as the public
 part of an RSA key does, is strict PPT. -/
-example : Probability.IsPPTOn encUnary (encOption encNat) fun n =>
+example : Probability.IsPPTOn encUnary (encSilentOption encNat) fun n =>
     (fun out : Option (ℕ × ℕ × ℕ) => out.elim none fun t => some t.1) <$> genModulus n :=
   isPPTOn_genModulus.map (by fun_prop)
 

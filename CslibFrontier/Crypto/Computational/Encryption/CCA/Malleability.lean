@@ -127,7 +127,7 @@ theorem eval_cca2GameOn_maulAdversary {Msg Out : Type} {valid : ℕ → List Boo
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
         maul n keys.1 ct ≠ ct ∧
-          (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
+          (encSilentOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt
       (maulAdversary msg₀ msg₁ maul target) bit n) = PMF.pure bit := by
@@ -159,7 +159,7 @@ theorem advantage_cca2GameOn_maulAdversary {Msg Out : Type}
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
         maul n keys.1 ct ≠ ct ∧
-          (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
+          (encSilentOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     Game.advantage
       (ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt
@@ -192,7 +192,7 @@ theorem not_indcca2On_of_maulAdversary {Msg Out : Type}
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
         maul n keys.1 ct ≠ ct ∧
-          (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
+          (encSilentOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     ¬ INDCCA2On valid encMsg encOut keyGen encrypt decrypt := by
   intro hcca

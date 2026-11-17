@@ -62,7 +62,7 @@ private theorem isPPTOn_runClosed_accepts {k : ℕ} {State : Type} [Finite State
       M.runClosed (polyClock d (enc a).length) (enc a) := by
   have hrun : IsPPTOn enc encBits fun a => M.runClosed (polyClock d (enc a).length) (enc a) :=
     ⟨k, State, inferInstance, M, 2 * 2 ^ d, d, fun a => by
-      simp only [encBits, Function.Embedding.coe_refl, PMF.map_id]
+      simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, PMF.map_id]
       rw [polyClock, mul_pow, ← mul_assoc]⟩
   exact hrun.map (ComputableInPolyTime.beq ComputableInPolyTime.id'
     (ComputableInPolyTime.const [true]))

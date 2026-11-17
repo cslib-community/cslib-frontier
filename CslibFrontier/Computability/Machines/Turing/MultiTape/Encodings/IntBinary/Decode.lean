@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.In
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
+import CslibFrontier.Computability.Encoding.NatBits
 
 /-!
 # Total decoding of binary signed integers
@@ -43,6 +44,7 @@ def decodeIntBin (word : List Bool) : ℤ :=
 /-- Every canonical signed binary word decodes to its original integer. -/
 theorem decodeIntBin_encIntBin (z : ℤ) : decodeIntBin (encIntBin z) = z := by
   simp only [decodeIntBin, encIntBin_apply, List.tail_cons, List.headD_cons]
+  rw [← Cslib.Encoding.encNat_eq_bits]
   change (if decide (z < 0) then -((Decoder.nat.decode (encNat z.natAbs) : ℕ) : ℤ)
     else ((Decoder.nat.decode (encNat z.natAbs) : ℕ) : ℤ)) = z
   rw [Decoder.nat.decode_enc]
@@ -61,7 +63,8 @@ theorem computableInPolyTime_decodeIntBin :
       (encPair encBool encNat) encIntBin := by
     have hbits : ComputableInPolyTime (fun p : Bool × ℕ => p.2.bits)
         (encPair encBool encNat) encBits :=
-      (ComputableInPolyTime.snd encBool encNat).of_enc_eq fun _ => rfl
+      (ComputableInPolyTime.snd encBool encNat).of_enc_eq fun _ => by
+        simp only [encBits_apply, encNat_apply]
     have htag := ComputableInPolyTime.bool_and.comp
       ((ComputableInPolyTime.fst encBool encNat).prod
         (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.bitsIsEmpty.comp hbits)))

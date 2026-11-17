@@ -370,7 +370,7 @@ theorem resume_memoryState (H : QuantumOracleDecapsulation.Hash) (key memory : B
   rw [nextSignature_oracle]
   simp only [nextFamily, nextDescription, Nat.zero_add, Nat.mul_zero,
     Nat.sub_self, Nat.reduceAdd, List.nil_append, List.ofFn_succ, List.ofFn_zero,
-    List.cons_append, encPair, encUnary, encBits]
+    List.cons_append, encPair, encUnary, encBits_apply]
   change Circuit.eval
     (OracleCircuit.toCircuit 8 H [.gate (false, true, 7, []), .query,
       .gate (false, false, 1, [4])])

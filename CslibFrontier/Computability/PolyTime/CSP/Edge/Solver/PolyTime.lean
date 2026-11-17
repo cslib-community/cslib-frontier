@@ -62,7 +62,7 @@ private theorem checkedStep_growth (F : CSP Table ℕ) (state : OptimizeState) :
   | false =>
     cases hi : safeImprove ⟨F, bits⟩ with
     | none =>
-      simp [checkedStep, hi, encOptimizeState, encBool_apply]
+      simp [checkedStep, hi, encOptimizeState]
     | some out =>
       have hw := safeImprove_width ⟨F, bits⟩ hi
       have ho : (CSP.occurrences F).length = (incidenceList F).length := by
@@ -70,7 +70,8 @@ private theorem checkedStep_growth (F : CSP Table ℕ) (state : OptimizeState) :
       simp only [checkedStep, Bool.false_eq_true, ↓reduceIte, hi, Option.elim_some]
       simp only [encOptimizeState, length_encPair]
       have hlen : (encList encBool out).length = 3 * out.length := by
-        simp [length_encList, encBool_apply, Nat.mul_comm]
+        simp
+        omega
       simp only [hlen, encBool_apply, List.length_cons, List.length_nil]
       dsimp only at hw
       omega
@@ -159,7 +160,8 @@ theorem computableInPolyTime_optimize : ComputableInPolyTime optimize
     simpa only [encUnary_apply, List.length_replicate] using hg.polyBounded_length
   have hguard := computableInPolyTime_checkModel
   have hresult := hguard.ite'
-    ((ComputableInPolyTime.optionSome (encList encBool)).comp hloop.fst')
+    ((ComputableInPolyTime.optionSome (encList encBool)
+      (encO := encOption (encList encBool))).comp hloop.fst')
     (ComputableInPolyTime.const none)
   apply hresult.of_enc_eq
   intro F
@@ -183,7 +185,7 @@ theorem computableInPolyTime_decideSAT : ComputableInPolyTime decideSAT
   have hbody : ComputableInPolyTime
       (fun p : CSP Table ℕ × List Bool => !p.1.vars.any (EdgeAugmenting.inconsistent p.1 p.2))
       (encPair (encCSP encTable encNat) (encList encBool)) encBool := by fun_prop
-  have h := ComputableInPolyTime.optionElimWithInput
+  have h := ComputableInPolyTime.optionElimWithInput (encB := encList encBool)
     (body := fun F bits => !F.vars.any (EdgeAugmenting.inconsistent F bits))
     ho (ComputableInPolyTime.const false) hbody
   apply h.of_enc_eq

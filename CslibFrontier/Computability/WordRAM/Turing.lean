@@ -314,7 +314,7 @@ theorem length_resultEncoding_run_le {p : GenericRAM.Program B.genericModel r}
       stateBound r (labelBound p) w ((SparseMemory.entries s.memory).length + n) := by
   obtain ⟨hinl, hinr⟩ := h.run hpc n
   cases hrun : FiniteState.run w p n s with
-  | none => simp [resultEncoding, encOption_none]
+  | none => simp [resultEncoding, stateBound]
   | some u =>
     cases u with
     | inr v =>

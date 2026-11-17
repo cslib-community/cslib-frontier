@@ -392,7 +392,11 @@ theorem computableInPolyTime_cursorStep :
       else none) e (encOption encState) := by fun_prop
   have hbody : ComputableInPolyTime (fun p : StepInput × List ℕ =>
       some ((p.1.2.1, p.1.2.2.1, p.2, 0) : State)) (encPair e (encList encNat))
-      (encOption encState) := by fun_prop
+      (encOption encState) := by
+    exact (ComputableInPolyTime.optionSome encState
+      (encO := encOption encState)).comp (by
+        unfold encState
+        fun_prop)
   have helim := ComputableInPolyTime.optionElimWithInput
     (body := fun x β => some ((x.2.1, x.2.2.1, β, 0) : State)) hbudget hfallback hbody
   have h := ComputableInPolyTime.ite' (ComputableInPolyTime.unary_lt' (hsucc hg) hr)

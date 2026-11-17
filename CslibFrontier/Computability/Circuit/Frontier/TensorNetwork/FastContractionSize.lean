@@ -265,7 +265,7 @@ theorem length_encFrame_le {o : Option ChildCursor.State} {acc : ChildCursor.Acc
     · obtain ⟨h1, h2, h3, h4, h5⟩ := hst s rfl
       have hβ := (length_encList_le encNat _ (b := B) fun b hb => length_encNat_le (h4 b hb)).trans
         (Nat.mul_le_mul_right _ h3)
-      simp only [encOption, Function.Embedding.coeFn_mk, Option.elim_some, List.length_cons,
+      simp only [encOption_some, List.length_cons,
         ChildCursor.encState, length_encPair, encUnary_apply, List.length_replicate]
       linarith
   have hstored := (length_encList_le (encList encNat) _ (b := B * (2 * B + 1)) fun y hy =>

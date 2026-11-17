@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingCSP
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
@@ -126,18 +127,14 @@ private abbrev RawCode (σ : Signature) := ℕ × (List (σ.Op × List ℕ) × L
 private abbrev encRaw (encOp : σ.Op ↪ List Bool) : RawCode σ ↪ List Bool :=
   encPair encUnary (Circuit.encCode encOp)
 
-private theorem computableInPolyTime_toRaw (encOp : σ.Op ↪ List Bool) (m : ℕ) :
-    ComputableInPolyTime (fun c : Σ n, Circuit σ n m => (c.1, c.2.code))
-      (Circuit.encCircuit encOp m) (encRaw encOp) :=
-  of_eq fun _ => rfl
-
 private theorem computableInPolyTime_fanInCheck (encOp : σ.Op ↪ List Bool) (m k : ℕ) :
     ComputableInPolyTime (fanInCheck (σ := σ) (m := m) k)
       (Circuit.encCircuit encOp m) encBool := by
   have hgates : ComputableInPolyTime (fun c : Σ n, Circuit σ n m => c.2.code.1)
       (Circuit.encCircuit encOp m) (encList (Circuit.encGate encOp)) :=
     (fst (encList (Circuit.encGate encOp)) (encList encNat)).comp
-      ((snd encUnary (Circuit.encCode encOp)).comp (computableInPolyTime_toRaw encOp m))
+      ((snd encUnary (Circuit.encCode encOp)).comp
+        (Circuit.computableInPolyTime_arity_code encOp m))
   have htest : ComputableInPolyTime
       (fun p : (Σ n, Circuit σ n m) × (σ.Op × List ℕ) => decide (p.2.2.length ≤ k))
       (encPair (Circuit.encCircuit encOp m) (Circuit.encGate encOp)) encBool := by fun_prop
@@ -146,7 +143,7 @@ private theorem computableInPolyTime_fanInCheck (encOp : σ.Op ↪ List Bool) (m
 private theorem computableInPolyTime_linearSizeCheck (encOp : σ.Op ↪ List Bool) (m C : ℕ) :
     ComputableInPolyTime (linearSizeCheck (σ := σ) (m := m) C)
       (Circuit.encCircuit encOp m) encBool := by
-  have hraw := computableInPolyTime_toRaw encOp m
+  have hraw := Circuit.computableInPolyTime_arity_code encOp m
   have hn : ComputableInPolyTime (fun c : Σ n, Circuit σ n m => c.1)
       (Circuit.encCircuit encOp m) encUnary :=
     (fst encUnary (Circuit.encCode encOp)).comp hraw
@@ -256,7 +253,7 @@ polynomial time. -/
 public theorem computableInPolyTime_toCSP (encOp : σ.Op ↪ List Bool) (m : ℕ) :
     ComputableInPolyTime (fun c : Σ n, Circuit σ n m => Compiler.toCSP c.2)
       (Circuit.encCircuit encOp m) (encCSP (encCircuitRel encOp m) encNat) :=
-  (computableInPolyTime_toCSPRaw encOp m).comp (computableInPolyTime_toRaw encOp m)
+  (computableInPolyTime_toCSPRaw encOp m).comp (Circuit.computableInPolyTime_arity_code encOp m)
 
 /-- Compiling a circuit over a finite Boolean signature to its exact-multiplicity frontier CNF
 formula `Compiler.toCNF c.2 I acc` takes polynomial time, obtained by composing
@@ -286,7 +283,7 @@ public theorem computableInPolyTime_freeShift [Finite σ.Op] (encOp : σ.Op ↪ 
     (I : Interpretation σ Bool) {m : ℕ} (acc : Fin m → Bool → Bool) :
     ComputableInPolyTime (fun c : Σ n, Circuit σ n m => Compiler.freeShift c.2 I acc)
       (Circuit.encCircuit encOp m) encUnary := by
-  have hraw := computableInPolyTime_toRaw encOp m
+  have hraw := Circuit.computableInPolyTime_arity_code encOp m
   have hn : ComputableInPolyTime (fun c : Σ n, Circuit σ n m => c.1)
       (Circuit.encCircuit encOp m) encUnary :=
     (fst encUnary (Circuit.encCode encOp)).comp hraw

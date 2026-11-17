@@ -81,13 +81,13 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
           cases hb : v[u.length] <;>
             cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, hb]
         · have : v.drop u.length ≠ [] := by simp [List.drop_eq_nil_iff, hv.not_ge]
-          simp [List.drop_length, this, equalityProgram, instr, Instr.reject, encBool_apply]
+          simp [List.drop_length, this, equalityProgram, instr, Instr.reject]
       · refine ⟨(8, [u.length, u.length]), ?_, ?_, hregs⟩
         · cp_step [getElem?_frame_append_length]
           cp_step [getElem?_frame_append_boundary,
             List.getElem?_eq_none (by omega : v.length ≤ u.length)]
         · simp [List.drop_eq_nil_iff.mpr (by omega : v.length ≤ u.length), equalityProgram,
-            instr, Instr.accept, encBool_apply]
+            instr, Instr.accept]
     | succ n ih =>
       have hiu : i < u.length := by omega
       have hregs := bounded (B := B) (a := u.length) (b := i) (by omega) (by omega)
@@ -118,7 +118,7 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
               rw [← List.cons_getElem_drop_succ (l := u) (n := i) (h := hiu),
                 ← List.cons_getElem_drop_succ (l := v) (n := i) (h := hv)]
               exact fun hdrop => heq (List.cons.inj hdrop).1
-            simp [hd, equalityProgram, instr, Instr.reject, encBool_apply]
+            simp [hd, equalityProgram, instr, Instr.reject]
       · refine ⟨(9, [u.length, i]), hstep.trans ?_, ?_, hregs⟩
         · cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
             cp_step [getElem?_frame_append_boundary,
@@ -126,7 +126,7 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
         · have hd : u.drop i ≠ v.drop i := by
             rw [List.drop_eq_nil_iff.mpr (by omega : v.length ≤ i)]
             simp [List.drop_eq_nil_iff, hiu.not_ge]
-          simp [hd, equalityProgram, instr, Instr.reject, encBool_apply]
+          simp [hd, equalityProgram, instr, Instr.reject]
   obtain ⟨s, hs, hout, hb⟩ := loop 0 (Nat.zero_le _)
   exact ⟨s, (scan 0 (Nat.zero_le _)).trans hs, by simpa using hout, hb⟩
 

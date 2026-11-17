@@ -15,7 +15,7 @@ example {α : Type} {a : α ↪ List Bool} (D : Decoder a) (w : List Bool) :
     ComputableInPolyTime (Decoder.option D).decode encBits (encOption a) ∧
     (Decoder.option Decoder.bool).decode (true :: w) = some (Decoder.bool.decode w) ∧
     (Decoder.option Decoder.bool).decode [] = none ∧
-    (Decoder.option Decoder.bool).decode [false] = some false ∧
+    (Decoder.option Decoder.bool).decode [false] = none ∧
     ComputableInPolyTime (Decoder.option Decoder.nat).decode encBits (encOption encNat) :=
   ⟨by fun_prop, rfl, rfl, rfl, by fun_prop⟩
 

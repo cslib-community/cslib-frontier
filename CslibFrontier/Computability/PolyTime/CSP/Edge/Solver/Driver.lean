@@ -74,7 +74,7 @@ private theorem poly_output : ComputableInPolyTime output encState
   unfold output
   have hf := encState_frames_deg.computableInPolyTime
   have hs := encState_status_deg.computableInPolyTime
-  have hj := ComputableInPolyTime.optionElimWithInput
+  have hj := ComputableInPolyTime.optionElimWithInput (encB := encOption (encList encBool))
     (body := fun (_ : State) (bits : Option (List Bool)) => bits) hs
     (ComputableInPolyTime.const none)
     (ComputableInPolyTime.snd encState (encOption (encList encBool)))

@@ -778,7 +778,8 @@ theorem exists_computableInO_measPayload :
     have hro := snd eWC (encList (encOption encBits))
     have hctx := hwc.snd'
     unfold encMeasStepCtx at hctx
-    have hreps := bi_mapWithId (optionGetDWithInput (snd eWR (encOption encBits)) (const [])) hro
+    have hreps := bi_mapWithId (optionGetDWithInput (encB := encBits) (snd eWR (encOption
+      encBits)) (const [])) hro
     have hb := computableInPolyTime_buildBaseAssignment hctx.fst'.fst'
       hctx.fst'.snd'.fst' hctx.snd'.snd'.snd'.fst'.fst' hreps
     exact hwc.prod hb

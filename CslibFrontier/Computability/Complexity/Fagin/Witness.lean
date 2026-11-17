@@ -155,7 +155,8 @@ theorem decode_witnessInput [K.IsRelational] (a : EncodedStructure) (w : List Bo
 theorem length_encStructure_witnessInput (a : EncodedStructure) (w : List Bool) :
     (encStructure (ℓ.witnessInput e (a, w))).length = (encStructure a).length +
       ∑ j : Fin m, (2 * a.1 ^ Φ.arity (e j) + 1) := by
-  simp [witnessInput, encStructure, length_encList, List.sum_ofFn, Nat.add_assoc]
+  simp [witnessInput, encStructure, List.sum_ofFn, Nat.add_assoc, Finset.sum_add_distrib,
+    Finset.mul_sum]
 
 /-- A uniform polynomial bound in the original encoded input length, independent of witness
 contents and length. The sentence and layout determine the constants and degree. -/

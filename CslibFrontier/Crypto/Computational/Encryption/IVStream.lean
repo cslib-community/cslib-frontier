@@ -159,7 +159,7 @@ theorem computableInPolyTime_ivStreamDecrypt
       (encPair encUnary (encPair encBits (encPair encBits encUnary))) encBits) :
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) => ivStreamDecrypt keystream n k ct)
-      (encKeyedInput encBits) (encOption encBits) := by
+      (encKeyedInput encBits) (encSilentOption encBits) := by
   let EIn := encKeyedInput encBits
   have hcond : ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool =>

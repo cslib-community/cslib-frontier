@@ -194,7 +194,8 @@ theorem computableInPolyTime_choiceWith {P : Type} {encP : P ↪ List Bool} {θ 
       (encPair encP encF) (encList (encPair encUnary encC)) :=
     flatMapWithInput (const (encOut := encList encUnary) _)
       (filterWithInput (hc.comp (fst _ _)) ((hr.comp (snd _ _)).beq (fst _ _).snd'))
-  exact optionGetDWithInput ((head? (encPair encUnary encC)
+  exact optionGetDWithInput ((head? (encO := encOption (encPair encUnary encC))
+    (encPair encUnary encC)
     (encL := encList (encPair encUnary encC))).comp hb) (const (0, []))
 
 /-- The computed choice is polynomial-time. -/

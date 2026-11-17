@@ -37,20 +37,25 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
       (encOption enc) encBits :=
   tailDecoder.ofInputEq (fun value => encOption enc value) fun _ => rfl
 
-/-- Extract an optional payload, using the explicit default on `none`. -/
-@[expose] noncomputable def optionGetD {Alpha : Type*} (default : Alpha)
-    (enc : Alpha ↪ List Bool) :
-    NativeCompiler (fun value : Option Alpha => value.getD default) (encOption enc) enc := by
-  let fallback := const (encOption enc) encBits (enc default)
-  exact (ite (optionIsSomeTest enc) (optionPayload enc) fallback).ofOutputEq
-    fun value => by cases value <;> rfl
+/-- Convert the empty-emission/halt protocol to canonical tagged options. The retained
+conditional charges its emptiness test, copy and fixed `[false]` fallback. -/
+@[expose] noncomputable def optionFromHalt {Alpha : Type*} (enc : Alpha ↪ List Bool) :
+    NativeCompiler (id : Option Alpha → Option Alpha) (encHaltOption enc) (encOption enc) := by
+  let empty : NativeCompiler (fun o : Option Alpha => (encHaltOption enc o).isEmpty)
+      (encHaltOption enc) encTest := boolToTest.comp
+    (isEmpty.ofInputEq (fun value => encHaltOption enc value) fun _ => rfl)
+  let absent := const (encHaltOption enc) encBits [false]
+  let word : NativeCompiler (fun o : Option Alpha => encHaltOption enc o)
+      (encHaltOption enc) encBits := (identity encBits).ofInputEq (fun value => encHaltOption
+        enc value) fun _ => rfl
+  exact (ite empty absent word).ofOutputEq fun value => by cases value <;> rfl
 
 /-- Test whether a standard encoded list is empty. -/
 @[expose] noncomputable def listIsEmpty {Alpha : Type*} (enc : Alpha ↪ List Bool) :
     NativeCompiler List.isEmpty (encList enc) encTest :=
   (boolToTest.comp
     (isEmpty.ofInputEq (fun list => encList enc list) fun _ => rfl)).ofOutputEq fun list => by
-      cases list <;> simp [encList_cons]
+      cases list <;> simp
 
 /-- Emit the first framed list element as a raw payload word. On the empty list this emits the
 frame parser's total empty-word result, which is replaced by `listHeadD`. -/
@@ -65,7 +70,7 @@ frame parser's total empty-word result, which is replaced by `listHeadD`. -/
     NativeCompiler (fun list : List Alpha => list.headD default) (encList enc) enc := by
   let fallback := const (encList enc) encBits (enc default)
   exact (ite (listIsEmpty enc) fallback (listHeadPayload enc)).ofOutputEq fun list => by
-    cases list <;> simp [encList_cons, unframe_frame_append]
+    cases list <;> simp
 
 /-- Unary-indexed list access, including the direct suffix scan and total head default. -/
 @[expose] noncomputable def listGetDUnary {Alpha : Type*} (default : Alpha)
@@ -94,5 +99,14 @@ frame parser's total empty-word result, which is replaced by `listHeadD`. -/
   let payload := sumPayload encLeft encRight
   let fallback := const (encSum encLeft encRight) encBits (encRight default)
   exact (ite tag payload fallback).ofOutputEq fun value => by cases value <;> rfl
+
+/-- Extract an optional payload through the identical `Unit ⊕ Alpha` representation.
+Input/output retyping retains the sum destructor's machine, clock and workspace maps. -/
+@[expose] noncomputable def optionGetD {Alpha : Type*} (default : Alpha)
+    (enc : Alpha ↪ List Bool) :
+    NativeCompiler (fun value : Option Alpha => value.getD default) (encOption enc) enc :=
+  ((sumRightD default (Cslib.Encoding.encSubsingleton Unit) enc).ofInputEq
+    ((Equiv.optionEquivSumPUnit.{0} Alpha).trans (Equiv.sumComm Alpha Unit))
+    (fun _ => rfl)).ofOutputEq fun value => by cases value <;> rfl
 
 end Turing.MultiTapeTM.Internal.NativeCompiler

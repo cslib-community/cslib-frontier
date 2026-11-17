@@ -575,6 +575,7 @@ private theorem computableInPolyTime_kilianBindingOutput (hV : V.PolyTime enc)
   have htest := ComputableInPolyTime.bool_and.comp ((ComputableInPolyTime.beq hpos₁ hpos₂).prod
     (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq hb₁ hb₂)))
   have hconflict := ComputableInPolyTime.findWithInput
+    (encO := encOption (encPair encAddressed encAddressed))
     (test := fun (g : (α × List Bool) × List AddressedOpening × List AddressedOpening)
       (q : AddressedOpening × AddressedOpening) =>
         kilianPosition V g.1.1 q.1.1 == kilianPosition V g.1.1 q.2.1 && q.1.2.leaf != q.2.2.leaf)

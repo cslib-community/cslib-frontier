@@ -59,7 +59,7 @@ example : lyubashevskySignAttempt 1 1 1 2 4 1 hashZero !![1] (!![1], !![1]) () n
 example : IsPPTOn
     (encPair encUnary
       (encPair (encList (encList encIntBin)) (encPair (encList (encList encIntBin)) encBits)))
-    (encOption (encPair encBits encBits))
+    (encSilentOption (encPair encBits encBits))
     (fun input : ℕ × List (List ℤ) × List (List ℤ) × List Bool =>
       let (security, secret, matrix, msg) := input
       lyubashevskySignBoundedNative (fun _ => [true])

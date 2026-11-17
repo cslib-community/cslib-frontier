@@ -45,11 +45,11 @@ def count (p : ℕ × ℕ) : ℕ := (2 * p.2 + 1) ^ p.1
 private theorem radix_polyTime :
     ComputableInPolyTime (fun D : ℕ => 2 * D + 1) encNat encNat := by
   have hbits : ComputableInPolyTime Nat.bits encNat encBits :=
-    ComputableInPolyTime.of_eq fun _ => rfl
+    ComputableInPolyTime.of_eq fun _ => by simp only [encBits_apply, encNat_apply]
   have h := ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true) hbits
   apply h.of_enc_eq
   intro D
-  change (2 * D + 1).bits = true :: D.bits
+  simp only [encNat_apply, encBits_apply]
   exact Nat.bit1_bits D
 
 /-- Prepare the visit count in binary, charging the unary dimension and binary radius. -/
@@ -69,6 +69,7 @@ theorem clock_isPolynomial : clock.IsPolynomial :=
 /-- The binary count has polynomial bit length, rather than polynomial numeric value. -/
 theorem length_count_le (c D : ℕ) :
     (encNat (count (c, D))).length ≤ c * (D.size + 1) + 1 := by
+  rw [encNat_apply]
   change ((2 * D + 1) ^ c).bits.length ≤ _
   rw [Nat.size_eq_bits_len]
   have hb := Nat.size_bit (b := true) (n := D) (by simp [Nat.bit])

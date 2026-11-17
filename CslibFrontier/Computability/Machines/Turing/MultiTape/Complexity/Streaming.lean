@@ -282,7 +282,7 @@ theorem ComputableTidilyInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
     (encIn := encPair enc encBits) (encOut := enc)
     reader (fun b => [b]) (fun _ => List.cons_ne_nil _ _)
     (fun a rest => by simp [reader, InputReader.read])
-    Prod.fst Prod.snd (fun p => by simp [encPair_apply])
+    Prod.fst Prod.snd (fun p => by simp)
     hstep he.computableTidilyInTimeAndSpace computableTidilyInTimeAndSpace_id
     (fun p => by simp [streamState])
     (roundCost := fun p i => (2 * ce + 4) * R p i) (sMax := Q)
@@ -393,7 +393,7 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
     (encIn := encPair enc encUnary) (encOut := encBits)
     reader (fun b => [b]) (fun _ => List.cons_ne_nil _ _)
     (fun a rest => by simp [reader, InputReader.read])
-    Prod.fst (fun x => List.replicate x.2 true) (fun x => by simp [encPair_apply, encUnary_apply])
+    Prod.fst (fun x => List.replicate x.2 true) (fun x => by simp [encUnary_apply])
     hN hE hfinish
     (fun x => by
       rw [streamEmit_eq, List.length_replicate, hst x x.2 le_rfl]

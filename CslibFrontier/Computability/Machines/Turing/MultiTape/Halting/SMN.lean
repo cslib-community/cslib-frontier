@@ -136,6 +136,8 @@ theorem redirectEntry_hardwire (e : Key × Act) :
 
 /-! ### The transitions of `hardwire d p` -/
 
+attribute [local irreducible] eDesc eKey eAct
+
 theorem computableInPolyTime_writeEntries :
     ComputableInPolyTime (fun dp : Desc × List Bool => writeEntries dp.2 dp.1.tapes)
       (encPair eDesc encBits) eTable := by
@@ -156,14 +158,55 @@ theorem computableInPolyTime_writeEntries :
         (⟨2 * bi.2 + 6, r, none :: List.replicate dp.1.tapes none⟩,
           (⟨.zero, [(some (some (eBit bi.1)), .pos)], none, some (2 * bi.2 + 4)⟩ : Act)))
       (encPair eDesc encBits) eTable := by
-    fun_prop
+    refine flatMapWithInput (encIn := encPair eDesc encBits)
+      (encA := encPair encBool encUnary) (encB := encPair eKey eAct) hz ?_
+    apply mapConst
+    intro r hr
+    have htapes : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) => p.1.1.tapes)
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) encUnary := by
+      fun_prop
+    have hindex : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) => p.2.2)
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) encUnary := by
+      fun_prop
+    have hkey : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) =>
+          (⟨2 * p.2.2 + 6, r, none :: List.replicate p.1.1.tapes none⟩ : Key))
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) eKey :=
+      eKey_mk_polyTime (unary_add' (unary_mul' (const 2) hindex) (const 6))
+        (const r) (by fun_prop)
+    have hbit : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) => eBit p.2.1)
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) encUnary := by
+      fun_prop
+    have hsymbol := (optionSome eSym (encO := encOption eSym)).comp
+      ((optionSome encUnary (encO := eSym)).comp hbit)
+    have htape : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) =>
+          [(some (some (eBit p.2.1)), SignType.pos)])
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) (encList eTA) := by
+      fun_prop
+    have hstate := (optionSome encUnary (encO := eSym)).comp
+      (unary_add' (unary_mul' (const 2) hindex) (const 4))
+    have hact : ComputableInPolyTime
+        (fun p : (Desc × List Bool) × (Bool × ℕ) =>
+          (⟨.zero, [(some (some (eBit p.2.1)), .pos)], none,
+            some (2 * p.2.2 + 4)⟩ : Act))
+        (encPair (encPair eDesc encBits) (encPair encBool encUnary)) eAct :=
+      eAct_mk_polyTime (const SignType.zero) htape (const none) hstate
+    exact hkey.prod hact
   exact listAppend' h1 h2
 
 theorem computableInPolyTime_redirect :
     ComputableInPolyTime (fun d : Desc => redirect (fun q => 2 * q + 1) none [] 0 id d.table)
       eDesc eTable := by
   simp only [redirect, redirectEntry_hardwire, vlift_eq_elim, vmove]
-  fun_prop
+  refine flatMapWithInput (encA := encPair eKey eAct) (encB := encPair eKey eAct)
+    computableInPolyTime_desc_table ?_
+  refine mapWithInput (encA := encOption encUnary) (encB := encPair eKey eAct) ?_ ?_
+  · fun_prop
+  · fun_prop
 
 end Hardwire
 

@@ -80,13 +80,14 @@ theorem computableInPolyTime_modBits :
         omega
       · exact h.2)
     (size := fun p => 3 * p.1.length + 1) (.of_forall_le 3 1 fun p => by simp; omega)
-    (fun p consumed state _ h => by simp [encPair_apply]; omega)).1
+    (fun p consumed state _ h => by simp; omega)).1
   exact (snd encBits encBits).comp h
 
 /-- The binary digits of a unary natural. -/
 theorem computableInPolyTime_bits_unary :
     ComputableInPolyTime Nat.bits encUnary encBits :=
-  (of_eq (f := Nat.bits) (encIn := encNat) (encOut := encBits) fun _ => rfl).comp
+  (of_eq (f := Nat.bits) (encIn := encNat) (encOut := encBits) fun _ => by
+    simp only [encBits_apply, encNat_apply]).comp
     unary_to_binary
 
 /-- The irreducibility test by trial division, on a unary code. -/
@@ -103,7 +104,9 @@ theorem computableInPolyTime_leastIrreducibleCode :
     ComputableInPolyTime (fun q : ℕ × ℕ => leastIrreducibleCode q.1 q.2)
       (encPair encUnary encUnary) encUnary := by
   unfold leastIrreducibleCode
-  fun_prop
+  apply optionGetDWithInput (encB := encUnary) (encO := encOption encUnary)
+  · apply findWithInput (encA := encUnary) <;> fun_prop
+  · exact const 0
 
 /-- The remainders of the powers of `X`. -/
 @[fun_prop]

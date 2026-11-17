@@ -116,11 +116,11 @@ open scoped ENNReal _root_.Matrix
 variable {I : Type} {X Y T C Z : I → Type}
 
 /-- Output of a word program that may abort, such as a non-abort simulator or a signing attempt:
-`some (t, z)`, a commitment and a response as bit words, or `none` on an abort. `encOption`
+`some (t, z)`, a commitment and a response as bit words, or `none` on an abort. `encSilentOption`
 encodes `none` as the empty word and `some` by a `true` tag bit before the pair, whose commitment
 is framed. -/
 abbrev encCommitResponseOrAbort : Option (List Bool × List Bool) ↪ List Bool :=
-  encOption (encPair encBits encBits)
+  encSilentOption (encPair encBits encBits)
 
 variable (I Y T C Z) in
 /-- A family of non-abort special HVZK simulators: at index `i`, a probabilistic program from a
@@ -206,10 +206,11 @@ attribute [fun_prop] encLyubashevskyParams_n_polyTime encLyubashevskyParams_m_po
   encLyubashevskyParams_q_polyTime encLyubashevskyParams_γ_polyTime
   encLyubashevskyParams_β_polyTime encLyubashevskyParams_mk_polyTime
 
-/-- Encode an optional integer response `Option (Fin m → ℤ)` via `encOption (encList encIntBin)`. -/
+/-- Encode an optional integer response `Option (Fin m → ℤ)` via
+`encSilentOption (encList encIntBin)`. -/
 def encIntVecOption (m : ℕ) : Option (Fin m → ℤ) ↪ List Bool :=
-  ⟨fun oz => encOption (encList encIntBin) (oz.map List.ofFn),
-    (encOption (encList encIntBin)).injective.comp
+  ⟨fun oz => encSilentOption (encList encIntBin) (oz.map List.ofFn),
+    (encSilentOption (encList encIntBin)).injective.comp
       (Option.map_injective List.ofFn_injective)⟩
 
 /-- Encode an extracted SIS witness `Fin m ⊕ Fin k → ℤ` as a framed list of `m + k` binary
@@ -331,8 +332,8 @@ def intMatrixDecoder : Decoder (encList (encList encIntBin)) :=
   Decoder.list intListDecoder
 
 /-- Total polynomial-time decoder for optional framed integer lists. -/
-def responseListDecoder : Decoder (encOption (encList encIntBin)) :=
-  Decoder.option intListDecoder
+def responseListDecoder : Decoder (encSilentOption (encList encIntBin)) :=
+  Decoder.silentOption intListDecoder
 
 @[local fun_prop]
 private theorem computableInPolyTime_decodeIntList :
@@ -346,7 +347,7 @@ private theorem computableInPolyTime_decodeIntMatrix :
 
 @[local fun_prop]
 private theorem computableInPolyTime_decodeResponseList :
-    ComputableInPolyTime responseListDecoder.decode encBits (encOption (encList encIntBin)) :=
+    ComputableInPolyTime responseListDecoder.decode encBits (encSilentOption (encList encIntBin)) :=
   responseListDecoder.computableInPolyTime
 
 /-- Reduce an integer `a` to its canonical `ZMod q` representative `ZMod.cast (a : ZMod q)`, for any
@@ -433,8 +434,35 @@ theorem computableInPolyTime_lyubashevskyVerifyWord :
     ComputableInPolyTime lyubashevskyVerifyWord
       (encPair encLyubashevskyParams (encPair encBits (encPair encBits (encPair encBits encBits))))
       encBool := by
-  unfold lyubashevskyVerifyWord lyubashevskyVerifyList inBoxList lyubashevskyVerifyEqList
-  fun_prop
+  -- The response decoder emits a silent option, so case on it once rather than through the
+  -- tagged-option inference rules.
+  have hdec : ComputableInPolyTime
+      (fun inp : LyubashevskyParams × List Bool × List Bool × List Bool × List Bool =>
+        responseListDecoder.decode inp.2.2.2.2)
+      (encPair encLyubashevskyParams (encPair encBits (encPair encBits (encPair encBits encBits))))
+      (encSilentOption (encList encIntBin)) :=
+    computableInPolyTime_decodeResponseList.comp (by fun_prop)
+  have hbody : ComputableInPolyTime
+      (fun q : (LyubashevskyParams × List Bool × List Bool × List Bool × List Bool) × List ℤ =>
+        inBoxList q.1.1.m (q.1.1.γ - q.1.1.β) q.2 &&
+          lyubashevskyVerifyEqList q.1.1.n q.1.1.m q.1.1.k q.1.1.q
+            (intMatrixDecoder.decode (unframe q.1.2.1))
+            (intMatrixDecoder.decode (dropFrame q.1.2.1))
+            (intListDecoder.decode q.1.2.2.1) q.2 q.1.2.2.2.1)
+      (encPair (encPair encLyubashevskyParams
+        (encPair encBits (encPair encBits (encPair encBits encBits)))) (encList encIntBin))
+      encBool := by
+    unfold inBoxList lyubashevskyVerifyEqList
+    fun_prop
+  convert ComputableInPolyTime.optionElimWithInput (encB := encList encIntBin) hdec
+    (body := fun inp z => inBoxList inp.1.m (inp.1.γ - inp.1.β) z &&
+      lyubashevskyVerifyEqList inp.1.n inp.1.m inp.1.k inp.1.q
+        (intMatrixDecoder.decode (unframe inp.2.1)) (intMatrixDecoder.decode (dropFrame inp.2.1))
+        (intListDecoder.decode inp.2.2.1) z inp.2.2.2.1)
+    (ComputableInPolyTime.const false) hbody using 1
+  funext ⟨p, yw, ww, cw, zw⟩
+  simp only [lyubashevskyVerifyWord, lyubashevskyVerifyList]
+  cases responseListDecoder.decode zw <;> simp
 
 theorem challengeIntList_ofFn {k : ℕ} (c : BitString k) :
     challengeIntList k (List.ofFn c) = List.ofFn (lyubashevskyChallenge c) := by
@@ -571,7 +599,7 @@ def lyubashevskySimulatePostprocess
           (intMatrixDecoder.decode (unframe yw))
           (intMatrixDecoder.decode (dropFrame yw))
           z cw),
-      encOption (encList encIntBin) (some z))
+      encSilentOption (encList encIntBin) (some z))
   else
     none
 
@@ -611,7 +639,7 @@ theorem computableInPolyTime_lyubashevskySimulatePostprocess :
     hw_list.encoding_comp
   have hz : ComputableInPolyTime
       (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        encOption (encList encIntBin) (some inp.2))
+        encSilentOption (encList encIntBin) (some inp.2))
       encIn encBits :=
     ((ComputableInPolyTime.optionSome (encList encIntBin)).comp
       (ComputableInPolyTime.snd _ _)).encoding_comp
@@ -624,8 +652,8 @@ theorem computableInPolyTime_lyubashevskySimulatePostprocess :
               (intMatrixDecoder.decode (unframe yw))
               (intMatrixDecoder.decode (dropFrame yw))
               z cw),
-          encOption (encList encIntBin) (some z)))
-      encIn (encOption (encPair encBits encBits)) :=
+          encSilentOption (encList encIntBin) (some z)))
+      encIn (encSilentOption (encPair encBits encBits)) :=
     (ComputableInPolyTime.optionSome (encPair encBits encBits)).comp (hw.prod hz)
   exact hcond.ite' hsome (ComputableInPolyTime.const none)
 

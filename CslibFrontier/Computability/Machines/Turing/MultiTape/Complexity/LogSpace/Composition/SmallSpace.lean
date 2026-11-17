@@ -501,8 +501,12 @@ lemma fBranch_inO : ComputableTidilyInO (fun s : CSt =>
     (hk.prod hcur)
   refine ((((hc.fst'.fst').prod (hc.fst'.snd'.fst'.prod stepF_inO.fst')).prod hnew).of_enc_eq
     fun s => ?_).mono 100 (fun s => ?_) fun s => ?_
-  · simp only [Function.comp_apply, emitScan_eq]
-    split_ifs <;> simp_all
+  · apply congrArg eCtl
+    simp only [Function.comp_apply, emitScan_eq]
+    by_cases hsome : (stepWith s.1.1.2.1 s.1.1.2.2 (xSym s)).2.isSome = true <;>
+      by_cases hk : s.1.2.1 = 1 <;>
+        simp only [hsome, hk, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte]
+    exact Prod.ext rfl (Prod.ext hk rfl)
   all_goals
     have hkL : (encNat s.1.2.1).length ≤ (eCSt s).length := by
       simp only [length_encPair]

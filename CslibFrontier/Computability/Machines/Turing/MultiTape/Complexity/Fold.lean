@@ -86,7 +86,7 @@ public theorem ComputableTidilyInDegree.foldl' {γ α β : Type} {encIn : γ ↪
   have haD : a ≤ D := Nat.le_mul_of_pos_left _ (lt_of_lt_of_le Nat.one_pos (le_max_left _ _))
   obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.foldl (encA := encA) (encL := encL)
     (encBA := encPair encB encA) (encS := encPair encL encB)
-    (encO := encOption (encPair encL encB))
+    (encO := encHaltOption (encPair encL encB))
     (h₁.mono (t' := fun x => t₁ x + t₂ x) (s' := fun x => s₁ x + s₂ x)
       (fun _ => Nat.le_add_right _ _) (fun _ => Nat.le_add_right _ _))
     (h₂.mono (fun _ => Nat.le_add_left _ _) (fun _ => Nat.le_add_left _ _)) hS'

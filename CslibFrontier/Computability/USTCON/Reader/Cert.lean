@@ -424,7 +424,7 @@ def stateBudget (q : State) : ℕ :=
 
 private theorem stepBudget_bool (x : Tuple) (b : Bool) : stepBudget (x, b) = stepBudget
     (x, false) := by
-  cases b <;> simp [stepBudget, encBool_apply]
+  cases b <;> simp [stepBudget]
 
 /-- The halting test of `machine` is computable within the space budget of the state. -/
 theorem halt_inSpace : ComputableInSpace machine.halt encState encBool stateBudget :=

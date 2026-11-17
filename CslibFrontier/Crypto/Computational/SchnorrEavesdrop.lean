@@ -599,7 +599,7 @@ theorem isPPTOn_schnorrRealTranscript {γ : Type} {encIn : γ ↪ List Bool}
       encMid encBits :=
     (ComputableInPolyTime.binary_mod'
       (.binary_add' hr (.binary_mul' hc_nat (.binary_mod' hα' hq))) hq).of_enc_eq
-        fun _ => rfl
+        fun _ => (Cslib.Encoding.encNat_eq_bits _).symm
   exact (ht.prod (hc.prod hz)).isPPTOn
 
 /-- `schnorrSimulatedTranscript` is uniform strict PPT when the security parameter, group

@@ -131,7 +131,7 @@ theorem exists_m_le (R : DistReduction L L') : ∃ c d : ℕ, ∀ n, R.m n ≤ c
   have hlen := ComputableInTimeAndSpace.length_le hcomp x
   rw [← L'.ens.length_eq _ _ (R.mem_support hx)]
   have hxn := L.ens.length_eq n x hx
-  simp only [encBits, Function.Embedding.coe_refl, id_eq] at hlen
+  simp only [encBits_apply] at hlen
   rw [← hxn]
   exact hlen.trans (hle _)
 

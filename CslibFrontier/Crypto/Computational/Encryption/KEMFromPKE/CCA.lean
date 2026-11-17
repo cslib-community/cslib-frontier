@@ -183,7 +183,7 @@ theorem isPPTOn_kemCCAGames_encryptKeyEncaps {keyLen : ℕ → ℕ}
     (hencrypt : IsPPTOn (encPair encUnary (encPair encBits encBits)) encBits
       (fun p => encrypt p.1 p.2.1 p.2.2))
     (hdecrypt : ComputableInPolyTime (fun p => decrypt p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) (encOption encBits))
+      (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits))
     (hdist : IsOraclePPT encBool distinguisher) :
     IsPPTOn encUnary encBool
       (kemCCARealGame keyGen (encryptKeyEncaps keyLen encrypt) decrypt distinguisher) ∧

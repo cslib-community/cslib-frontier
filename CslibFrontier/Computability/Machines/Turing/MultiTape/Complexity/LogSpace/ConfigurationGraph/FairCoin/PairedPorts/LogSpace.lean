@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -209,7 +210,7 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
     (hB : 2 * w.length + 1 + i.bits.length + 1 ≤ B) :
     ∃ s, bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
       bitsGetElemProgram.init s ∧
-      bitsGetElemProgram.instr s.1 = .halt (encOption encBool w[i]?) ∧
+      bitsGetElemProgram.instr s.1 = .halt (encSilentOption encBool w[i]?) ∧
       ∀ r ∈ s.2, r ≤ B := by
   have scan : ∀ j ≤ w.length,
       bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
@@ -239,7 +240,7 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
       valBits (i.bits.take j) ≤ 2 * w.length →
       ∃ s, bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
         (3, [w.length, j, 2 ^ j, valBits (i.bits.take j)]) s ∧
-        bitsGetElemProgram.instr s.1 = .halt (encOption encBool w[i]?) ∧
+        bitsGetElemProgram.instr s.1 = .halt (encSilentOption encBool w[i]?) ∧
         ∀ r ∈ s.2, r ≤ B := by
     intro j hj
     induction h : i.bits.length - j generalizing j with
@@ -350,10 +351,24 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
 /-- Looking up an optional bit of `w` at a binary index `i` is computable in logarithmic space. -/
 theorem computableInLogSpace_bitsGetElem? :
     ComputableInLogSpace (fun (w, i) => w[i]?) (encPair encBits encNat) (encOption encBool) := by
-  refine bitsGetElemProgram.computableInLogSpace_of_reaches 1 fun ⟨w, i⟩ => ?_
-  rw [pow_one, encPair_apply, encBits_apply, encNat_apply]
-  refine bitsGetElem_run w i ?_
-  rw [List.length_append, length_frame]
+  have hread : ComputableInLogSpace (fun (w, i) => w[i]?)
+      (encPair encBits encNat) (encSilentOption encBool) := by
+    refine bitsGetElemProgram.computableInLogSpace_of_reaches 1 fun ⟨w, i⟩ => ?_
+    rw [pow_one, encPair_apply, encBits_apply, encNat_apply]
+    refine bitsGetElem_run w i ?_
+    rw [List.length_append, length_frame]
+  -- The counter program retains its silent end marker; charge the tagged conversion.
+  have hlen : ∃ C, ∀ x : List Bool × ℕ,
+      (encSilentOption encBool x.1[x.2]?).length ≤
+        C * (Nat.log2 ((encPair encBits encNat) x).length + 1) := by
+    refine ⟨2, fun x => ?_⟩
+    cases x.1[x.2]? <;>
+      simp only [encSilentOption_none, encSilentOption_some, encBool_apply,
+        List.length_nil, List.length_cons] <;> omega
+  exact (comp_logSpace_of_length_log hread hlen
+    (of_inO (ComputableInDegree.optionTranslate encBool
+      (source := encSilentOption encBool) (target := encOption encBool)).inO_one)).congr_fun
+        fun _ => rfl
 
 end BitsGetElem
 

@@ -814,7 +814,7 @@ polynomial-time. -/
 theorem ProverCodec.IsPolyTime.of_decode {M : Type} {encM : M ↪ List Bool} {c : ProverCodec M}
     (hdec : ComputableInPolyTime c.decode encBits (encOption encM)) :
     c.IsPolyTime encM := by
-  exact ⟨hdec.optionIsSome, hdec.optionGetDWithInput (.const c.default)⟩
+  exact ⟨hdec.optionIsSome (encB := encM), hdec.optionGetDWithInput (.const c.default)⟩
 
 /-- A `ProverCodec.ofTotal` is polynomial-time whenever its total decoder is polynomial-time. -/
 theorem ProverCodec.isPolyTime_ofTotal {M : Type} {encM : M ↪ List Bool}

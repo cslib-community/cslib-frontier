@@ -286,7 +286,13 @@ theorem vertexLength_polyTime : ComputableInPolyTime vertexLength encCongestion 
 /-- The local-search neighbor map is computable in polynomial time. -/
 theorem step_polyTime : ComputableInPolyTime (fun x : CongestionCode × List Bool => x.1.step x.2)
     (encPair encCongestion encBits) encBits := by
-  unfold step; fun_prop
+  unfold step
+  apply ComputableInPolyTime.optionElimWithInput
+    (encB := encPair encUnary encUnary)
+    (encO := encOption (encPair encUnary encUnary))
+  · apply ComputableInPolyTime.findWithInput (encA := encPair encUnary encUnary) <;> fun_prop
+  · fun_prop
+  · fun_prop
 
 /-- The potential of a profile string is computable in polynomial time. -/
 theorem potential_decodeList_polyTime :

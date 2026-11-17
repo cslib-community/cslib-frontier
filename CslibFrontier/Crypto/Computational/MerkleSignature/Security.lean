@@ -609,8 +609,10 @@ private theorem computableInPolyTime_collisionOf :
         (hH.comp ((hk.comp hq).prod he.snd'))
         (hH.comp ((hk.comp hq).prod (hm.comp hq))))
   have hfind := ComputableInPolyTime.findWithInput
+    (encO := encOption (encPair encUnary encBits))
     (test := fun q e => e.1 == q.2.1.1 && H q.1.1.2 e.2 == H q.1.1.2 q.2.1.2.1) hlog htest
-  have hprev := ComputableInPolyTime.optionElimWithInput (body := fun _ e => e.2) hfind
+  have hprev := ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encBits)
+    (body := fun _ e => e.2) hfind
     (ComputableInPolyTime.const []) (ComputableInPolyTime.snd _ _).snd'
   have hpath := (computableInPolyTime_merklePath hH hlen).comp (hk.prod (hvks.prod hu))
   have hextract := (computableInPolyTime_extractMerkleCollision hH hlen).comp

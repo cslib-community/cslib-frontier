@@ -147,7 +147,7 @@ theorem word_inSpace : ComputableInSpace (fun q : ℕ × ℕ => word q.1 q.2)
     change i ≤ b.size at hi
     rw [← length_encNat_eq_size b] at hi
     have hout : (encList encBool ((List.range i).map (fun j => n.testBit j))).length = 3 * i := by
-      simp [length_encList, List.map_map, Function.comp_def, encBool_apply, Nat.mul_comm]
+      simp [List.map_map, Function.comp_def, Nat.mul_comm]; omega
     simp only [encWordState, length_encPair, Nat.zero_add, List.nil_append]
     rw [hout]
     omega
@@ -207,7 +207,7 @@ theorem windowWord_inSpace : ComputableInSpace windowWord (encList encNat) (encL
     have hl := length_le_length_encList encNat cells
     have hw := length_windowWord (cells.take i)
     have hbool (l : List Bool) : (encList encBool l).length = 3 * l.length := by
-      simp [length_encList, encBool_apply, Nat.mul_comm]
+      simp [Nat.mul_comm]; omega
     rw [hbool, hw]
     nlinarith [List.length_take_le i cells]
   have hspace (cells : List ℕ) (i : ℕ) (hi : i < cells.length) :
@@ -283,14 +283,14 @@ theorem serialize_inSpace (e : Q ≃ Fin s) :
     refine .of_le_linear (32 * (c + 1)) (32 * (c + 1)) fun a => ?_
     have hm : (encList encBool ((payload e a.1 a.2.2).map (fun bit => a.2.1 && bit))).length =
         (encList encBool (payload e a.1 a.2.2)).length := by
-      simp [length_encList, List.map_map, Function.comp_def, encBool_apply]
+      simp [List.map_map, Function.comp_def]
     have htaglen : (encBool a.2.1).length = 1 := rfl
     simp only [hm, htaglen]
     have hmax : listMax (fun p : Bool => (encPair encBool encBool (a.2.1, p)).length)
         (payload e a.1 a.2.2) ≤ 4 := by
       apply listMax_le
       intro bit hbit
-      simp [encBool_apply]
+      simp
     have hc' := hc a
     dsimp only [encArgs] at ⊢
     nlinarith

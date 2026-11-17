@@ -27,7 +27,7 @@ abbrev Output := Bool × Phased.Observation × Option (List (Bool × Bool))
 def stateEncoding : State ↪ List Bool := encPair encBool encBits
 noncomputable def outputEncoding : Output ↪ List Bool :=
   encPair encBool (encPair (encFinite Phased.Observation)
-    (encOption (encList (encPair encBool encBool))))
+    (encSilentOption (encList (encPair encBool encBool))))
 
 -- The fresh private coin picks the duplicated slot; the previous selected answer picks parity.
 noncomputable def choose (_ : ℕ) (st : State) : ProbComp (Fin 4 × State) := do

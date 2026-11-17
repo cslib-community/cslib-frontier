@@ -67,7 +67,7 @@ structure LyubashevskyExtractRow where
 
 /-- The framed raw challenge bits, then the optional list of framed binary signed integers. -/
 enc_structure encLyubashevskyExtractRow : LyubashevskyExtractRow where
-  challenge : encBits, response : (encOption (encList encIntBin))
+  challenge : encBits, response : (encSilentOption (encList encIntBin))
 
 /-- The extractor input: runtime dimensions and two challenge/optional-response rows. -/
 structure LyubashevskyExtractInput where
@@ -96,7 +96,7 @@ def decodeLyubashevskyExtractInput (word : List Bool) : LyubashevskyExtractInput
 
 private theorem extractInput_decoder :
     ∃ D : Decoder encLyubashevskyExtractInput, D.decode = decodeLyubashevskyExtractInput := by
-  let row := Decoder.pair Decoder.bits (Decoder.option (Decoder.list Decoder.intBin))
+  let row := Decoder.pair Decoder.bits (Decoder.silentOption (Decoder.list Decoder.intBin))
   let decoder := Decoder.pair (Decoder.pair Decoder.unary Decoder.unary) (Decoder.pair row row)
   exact ⟨decoder.map (fun p => ⟨⟨p.1.1, p.1.2⟩, ⟨p.2.1.1, p.2.1.2⟩, ⟨p.2.2.1, p.2.2.2⟩⟩)
     (fun r => ((r.dims.m, r.dims.k), ((r.first.challenge, r.first.response),
@@ -131,6 +131,7 @@ def lyubashevskyExtractList (input : LyubashevskyExtractInput) : List ℤ :=
     (lyubashevskyExtractList input).length = input.dims.m + input.dims.k := by
   simp [lyubashevskyExtractList]
 
+attribute [local irreducible] ComputableInPolyTime in
 /-- One native extractor handles runtime dimensions and all binary integer magnitudes. -/
 @[fun_prop]
 theorem computableInPolyTime_lyubashevskyExtractList :
@@ -141,19 +142,43 @@ theorem computableInPolyTime_lyubashevskyExtractList :
       (fun p : (ℕ × ℕ) × ((List Bool × Option (List ℤ)) × (List Bool × Option (List ℤ))) =>
         lyubashevskyExtractList ⟨⟨p.1.1, p.1.2⟩, ⟨p.2.1.1, p.2.1.2⟩, ⟨p.2.2.1, p.2.2.2⟩⟩)
       (encPair (encPair encUnary encUnary)
-        (encPair (encPair encBits (encOption (encList encIntBin)))
-          (encPair encBits (encOption (encList encIntBin)))))
+        (encPair (encPair encBits (encSilentOption (encList encIntBin)))
+          (encPair encBits (encSilentOption (encList encIntBin)))))
       (encList encIntBin) := by
     unfold lyubashevskyExtractList
     dsimp only
-    fun_prop
+    have hget := ComputableInPolyTime.optionGetD (encList encIntBin)
+      (encO := encSilentOption (encList encIntBin))
+    have hcoord := ComputableInPolyTime.listGetD (encA := encIntBin)
+      (encL := encList encIntBin) (0 : ℤ)
+    have hbit := ComputableInPolyTime.listGetD (encA := encBool) (encL := encBits) false
+    apply ComputableInPolyTime.listAppend'
+    · apply ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp (by fun_prop))
+      let encA := encPair (encPair encUnary encUnary)
+        (encPair (encPair encBits (encSilentOption (encList encIntBin)))
+          (encPair encBits (encSilentOption (encList encIntBin))))
+      have hindex := ComputableInPolyTime.snd encA encUnary
+      have hresponse {response :
+          ((ℕ × ℕ) × ((List Bool × Option (List ℤ)) ×
+            (List Bool × Option (List ℤ)))) × ℕ → Option (List ℤ)}
+          (hr : ComputableInPolyTime response (encPair encA encUnary)
+            (encSilentOption (encList encIntBin))) :
+          ComputableInPolyTime (fun p => ((response p).getD []).getD p.2 0)
+            (encPair encA encUnary) encIntBin :=
+        hcoord.comp ((hget.comp (hr.prod (.const []))).prod hindex)
+      have hleft := hresponse (response := fun p => p.1.2.1.2) (by fun_prop)
+      have hright := hresponse (response := fun p => p.1.2.2.2) (by fun_prop)
+      exact (ComputableInPolyTime.intBin_sub.comp (hleft.prod hright) :)
+    · apply ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp (by fun_prop))
+      have hlookup := hbit
+      fun_prop
   have hfields : ComputableInPolyTime
       (fun r : LyubashevskyExtractInput => ((r.dims.m, r.dims.k),
         ((r.first.challenge, r.first.response), (r.second.challenge, r.second.response))))
       encLyubashevskyExtractInput
       (encPair (encPair encUnary encUnary)
-        (encPair (encPair encBits (encOption (encList encIntBin)))
-          (encPair encBits (encOption (encList encIntBin))))) :=
+        (encPair (encPair encBits (encSilentOption (encList encIntBin)))
+          (encPair encBits (encSilentOption (encList encIntBin))))) :=
     (.of_eq fun _ => rfl)
   -- Elaborating the composite first avoids a costly higher-order unification with the goal.
   exact (htuple.comp hfields :)

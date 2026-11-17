@@ -1221,7 +1221,7 @@ theorem length_encCNF_applyPartial_le (answers : List (Literal ℕ)) (φ : CNF �
       · simp only [List.filter_cons_of_pos hp, encList_cons, List.length_append]
         exact Nat.add_le_add_left ih _
       · simp only [List.filter_cons_of_neg hp]
-        exact ih.trans (by simp [encList_cons])
+        exact ih.trans (by simp )
   induction φ with
   | nil => simp [applyPartial, encCNF]
   | cons c cs ih =>
@@ -1621,7 +1621,7 @@ theorem isOraclePPTOn_recoverProgram :
       exact h1.of_enc_eq fun ⟨⟨_, v⟩, ⟨u, _⟩⟩ => by
         dsimp only [Function.comp]
         exact congrArg encBool (Bool.eq_iff_iff.mpr (by simp))
-    have hfnd := findWithInput
+    have hfnd := findWithInput (encO := encOption (encPair encNat encBool))
       (test := fun (x : (MaxSATQuery × List (Literal ℕ)) × ℕ) (l : Literal ℕ) => l.1 == x.2)
       (list := fun x : (MaxSATQuery × List (Literal ℕ)) × ℕ => x.1.2)
       ((snd _ _).comp (fst _ _)) heq_var

@@ -215,7 +215,7 @@ open Turing.MultiTapeTM in
 /-- The adversary is uniform strict PPT, with its saved bit encoded by `encBool`; its guess reads
 the decoding information of the encoded view. -/
 theorem isPPT_andAdversary : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit)
-    (encOption encPrvView) encBool encBool andAdversary where
+    (encSilentOption encPrvView) encBool encBool andAdversary where
   choose := ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
   guess := ComputableInPolyTime.isPPTOn
     (f := fun ((_, state, view) : ℕ × Bool × Option PrvView) => andGuess state view)

@@ -672,9 +672,9 @@ open ComputableInPolyTime
         encP encRow := by
       refine mapWithInput (range.comp (fst encUnary encTab)) ?_
       have hq_prev := hprev.comp (fst encP encUnary); have hq_s := snd encP encUnary
-      have hleft := (listGetD (encA := encNat) 0).comp
+      have hleft := (ComputableInPolyTime.listGetD (encA := encNat) 0).comp
         (hq_prev.prod (unary_sub.comp (hq_s.prod (const 1))))
-      have hright := (listGetD (encA := encNat) 0).comp (hq_prev.prod hq_s)
+      have hright := (ComputableInPolyTime.listGetD (encA := encNat) 0).comp (hq_prev.prod hq_s)
       have hadd := binary_add.comp (hleft.prod hright)
       exact (hq_s.beq (const 0)).ite (const 1) hadd
     exact listAppend' (snd encUnary encTab) (hmap.cons' (const []))
@@ -701,7 +701,7 @@ open ComputableInPolyTime
 @[fun_prop, program_certificate] theorem subsetPairCount_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ => subsetPairCount p.1 p.2) encParams encNat := by
   have hfst := fst encUnary encUnary; have hsnd := snd encUnary encUnary
-  have hrow := (listGetD (encA := encList encNat) []).comp
+  have hrow := (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
     ((pascalTable_polyTime.comp hfst).prod hfst)
   have humin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
       (encPair encUnary encUnary) encUnary := by fun_prop
@@ -709,7 +709,8 @@ open ComputableInPolyTime
   have hbsum : ComputableInPolyTime List.sum (encList encNat) encNat := by fun_prop
   refine hbsum.comp (mapWithInput (range.comp hcnt) ?_); have hq_s := snd encParams encUnary
   have hpow := binary_two_pow.comp hq_s
-  have hget := (listGetD (encA := encNat) 0).comp ((hrow.comp (fst encParams encUnary)).prod hq_s)
+  have hget := (ComputableInPolyTime.listGetD (encA := encNat) 0).comp
+    ((hrow.comp (fst encParams encUnary)).prod hq_s)
   exact binary_mul' hpow hget
 
 private theorem length_bucketState_le (rowN : List ℕ) (n j i L : ℕ)
@@ -730,7 +731,7 @@ private theorem length_bucketState_le (rowN : List ℕ) (n j i L : ℕ)
       simpa [Nat.size_eq_bits_len] using
         Nat.size_le_size (Nat.sub_le j (∑ s ∈ Finset.range i, 2 ^ s * rowN.getD s 0))
     have hsub_len := hsub_le.trans hj_le
-    rw [hspec]; simp only [length_encPair, encOption_none, List.length_nil]; omega
+    rw [hspec]; simp only [length_encPair, encOption_none, List.length_cons, List.length_nil]; omega
 
 private theorem computableInPolyTime_bucketStep :
     ComputableInPolyTime
@@ -744,8 +745,9 @@ private theorem computableInPolyTime_bucketStep :
   have hst := (fst (encPair (encList encNat) encSt) encUnary).snd'
   have hs := snd (encPair (encList encNat) encSt) encUnary; have hrem := hst.fst'
   have hcap := binary_mul' (binary_two_pow.comp hs)
-    ((listGetD (encA := encNat) 0).comp (hrow.prod hs))
-  have hsome := hrem.prod ((optionSome (encPair encUnary encNat)).comp (hs.prod hrem))
+    ((ComputableInPolyTime.listGetD (encA := encNat) 0).comp (hrow.prod hs))
+  have hsome := hrem.prod ((optionSome (encO := encOpt) (encPair encUnary encNat)).comp
+    (hs.prod hrem))
   have hnone := (binary_sub' hrem hcap).prod
     (const (encIn := encQ) (encOut := encOpt) (none : Option (ℕ × ℕ)))
   have hinner : ComputableInPolyTime
@@ -755,7 +757,7 @@ private theorem computableInPolyTime_bucketStep :
       encQ encSt := by
     dsimp only [encQ, encSt, encOpt]
     simpa only [Function.comp_def, decide_eq_true_eq] using (binary_lt' hrem hcap).ite hsome hnone
-  exact hst.snd'.optionIsSome.ite hst hinner
+  exact (hst.snd'.optionIsSome (encB := encPair encUnary encNat)).ite hst hinner
 
 private theorem computableInPolyTime_findBucket :
     ComputableInPolyTime
@@ -766,7 +768,7 @@ private theorem computableInPolyTime_findBucket :
   let encSt := encPair encNat (encOption (encPair encUnary encNat))
   have hp1 := fst (encPair encParams encNat) encTab
   have hn := hp1.fst'.fst'; have hq := hp1.fst'.snd'
-  have hpar := (listGetD (encA := encList encNat) []).comp
+  have hpar := (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
     ((snd (encPair encParams encNat) encTab).prod hn)
   have humin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
       (encPair encUnary encUnary) encUnary := by fun_prop
@@ -809,8 +811,8 @@ the table. -/
     have hst := (fst (encPair encTab encSt) encUnary).snd'
     have hm := snd (encPair encTab encSt) encUnary
     have hk := hst.fst'.fst'; have hr := hst.fst'.snd'; have hbits := hst.snd'
-    have hc := (listGetD (encA := encNat) 0).comp
-      (((listGetD (encA := encList encNat) []).comp (htab.prod hm)).prod hk)
+    have hc := (ComputableInPolyTime.listGetD (encA := encNat) 0).comp
+      (((ComputableInPolyTime.listGetD (encA := encList encNat) []).comp (htab.prod hm)).prod hk)
     dsimp only [encSt]
     simpa only [Internal.unrankCombStep, Function.comp_def, decide_eq_true_eq] using
       (binary_lt' hr hc).ite ((hk.prod hr).prod (bitsAppend hbits (const [false])))

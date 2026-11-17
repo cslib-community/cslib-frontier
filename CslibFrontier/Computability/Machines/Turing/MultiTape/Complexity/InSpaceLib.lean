@@ -623,19 +623,25 @@ theorem budget_finMod {w : ℕ} (hw : 0 < w) {m : α → ℕ}
   (budget_natMod hm (budget_const (encB := encNat) w hin)).of_enc_eq fun _ => rfl
 
 /-- `some` of a value, within the budget. -/
-theorem budget_optionSome {a : α → β} (ha : ComputableInSpace a encIn encB Bs) :
-    ComputableInSpace (fun x => some (a x)) encIn (encOption encB) Bs :=
+theorem budget_optionSome {encO : Option β ↪ List Bool}
+    [OptionEncoding encB encO]
+    {a : α → β} (ha : ComputableInSpace a encIn encB Bs) :
+    ComputableInSpace (fun x => some (a x)) encIn encO Bs :=
   budget_comp_linear (of_inO (ComputableInDegree.optionSome (enc₁ := encB)).inO_one) ha
 
 /-- The value of an option with a fixed default, within the budget. -/
-theorem budget_optionGetD {o : α → Option β} (d : β)
-    (ho : ComputableInSpace o encIn (encOption encB) Bs) :
+theorem budget_optionGetD {encO : Option β ↪ List Bool}
+    [OptionEncoding encB encO]
+    {o : α → Option β} (d : β)
+    (ho : ComputableInSpace o encIn encO Bs) :
     ComputableInSpace (fun x => (o x).getD d) encIn encB Bs :=
   budget_comp_linear (of_inO (ComputableInDegree.getD (enc₁ := encB) d).inO_one) ho
 
 /-- Whether an option holds a value, within the budget. -/
-theorem budget_optionIsSome {o : α → Option β}
-    (ho : ComputableInSpace o encIn (encOption encB) Bs) :
+theorem budget_optionIsSome {encO : Option β ↪ List Bool}
+    [OptionEncoding encB encO]
+    {o : α → Option β}
+    (ho : ComputableInSpace o encIn encO Bs) :
     ComputableInSpace (fun x => (o x).isSome) encIn encBool Bs :=
   budget_comp_linear (of_inO (ComputableInDegree.isSome encB).inO_one) ho
 

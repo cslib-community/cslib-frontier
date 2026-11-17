@@ -69,7 +69,7 @@ theorem foldl' {γ α β : Type} {encIn : γ ↪ List Bool} {encA : α ↪ List 
   have hP : PolynomiallyBounded P := by dsimp [P, A, D]; fun_prop
   apply ComputableInPolyTime.foldl (encA := encA) (encB := encB) (encL := encL)
     (list := list) (init := init) (step := step) (encBA := encPair encB encA)
-    (encS := encPair encL encB) (encO := encOption (encPair encL encB))
+    (encS := encPair encL encB) (encO := encHaltOption (encPair encL encB))
     hlist hinit hstep hP
   · intro x
     exact (hS.length_le _).trans ((hL x).trans (by dsimp [P, A, D]; omega))

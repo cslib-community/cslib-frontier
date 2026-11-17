@@ -450,7 +450,7 @@ private theorem contains_take_eq_of_forall_length {msgs : List (List Bool)} {n :
 private theorem decCheck_eq (E : SymmetricCipher) (n : ℕ) (k : List Bool)
     (ct : List Bool) (rs : List (List Bool)) (hr : ∀ r ∈ rs, r.length = n)
     (queried : List (List Bool)) :
-    (let reply := if queried.contains ct then [] else encOption encBits (E.decrypt n k ct)
+    (let reply := if queried.contains ct then [] else encSilentOption encBits (E.decrypt n k ct)
      let dec := reply.take (n + 2)
      (dec.take 1 == [true]) && !rs.contains (dec.drop 1)) =
       (!queried.contains ct &&
@@ -461,9 +461,10 @@ private theorem decCheck_eq (E : SymmetricCipher) (n : ℕ) (k : List Bool)
   · simp only [hq, decide_false, Bool.not_false, Bool.true_and]
     cases hdec : E.decrypt n k ct with
     | none =>
-      simp [encOption]
+      simp [encSilentOption]
     | some pt =>
-      simp only [encOption, encBits_apply, Option.isSome_some, Option.getD_some, Bool.true_and]
+      simp only [encSilentOption_some, encBits_apply, Option.isSome_some, Option.getD_some,
+        Bool.true_and]
       have hc := contains_take_eq_of_forall_length hr pt
       simp only [List.contains_eq_mem, decide_eq_decide] at hc
       simp [List.take_succ_cons, List.drop_succ_cons, hc]

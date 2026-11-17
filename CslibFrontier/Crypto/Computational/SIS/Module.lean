@@ -438,7 +438,7 @@ def encInput : M.Input ↪ List Bool :=
 /-- The Module-SIS input layout. -/
 theorem encInput_apply (x : M.Input) :
     M.encInput x = frame (encUnary x.secParam) ++ ModuleSIS.encodeMatrix x.matrix := by
-  simp [encInput, Input.words, encPair, encBits]
+  simp [encInput, Input.words, encPair]
 
 /-- A Module-SIS solver for the family `M`: given the security parameter `κ` and a module matrix
 of the shape, degree and modulus of `M` at `κ`, it returns an integer polynomial vector.

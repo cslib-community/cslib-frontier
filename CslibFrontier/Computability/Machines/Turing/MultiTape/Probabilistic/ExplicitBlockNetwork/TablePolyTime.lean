@@ -175,7 +175,7 @@ theorem computableInPolyTime_lastBeforeNum {σ c i δ : α → ℕ}
   unfold lastBeforeNum
   have hi1 : ComputableInPolyTime (fun p : α × ℕ => i p.1 - 1 - p.2) (encPair inp encUnary)
       encUnary := unary_sub' (unary_sub' (hi.comp (fst _ _)) (const 1)) (snd _ _)
-  refine optionMapWithInput (findWithInput (range.comp hi) ?_) hi1
+  refine optionMapWithInput (findWithInput (encO := encOption encUnary) (range.comp hi) ?_) hi1
   exact computableInPolyTime_inWindowNum (hσ.comp (fst _ _)) (hc.comp (fst _ _))
     (hi.comp (fst _ _)) (hδ.comp (fst _ _)) hi1
 
@@ -229,7 +229,8 @@ theorem computableInPolyTime_inCellsNum (h : ℕ) {i : α → ℕ}
   have hcb : ComputableInPolyTime (fun p : α × ℕ => p.2 / b p.1) (encPair inp encUnary)
       encUnary := unary_div.comp ((snd _ _).prod (hb.comp (fst _ _)))
   refine mapWithInput (range.comp (unary_mul' (const 3) hb))
-    (optionElimWithInput (computableInPolyTime_lastBeforeNum (hσ.comp (fst _ _)) (const _)
+    (optionElimWithInput (encB := encUnary) (computableInPolyTime_lastBeforeNum (hσ.comp
+      (fst _ _)) (const _)
       (hi.comp (fst _ _)) hcb) (const none) ?_)
   have ha : ComputableInPolyTime (fun r : (α × ℕ) × ℕ => r.1.1)
       (encPair (encPair inp encUnary) encUnary) inp := (fst _ _).comp (fst _ _)

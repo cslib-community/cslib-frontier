@@ -101,17 +101,20 @@ private theorem length_redirectEntry_le (e : Key × Act) (s : Option ℕ)
     (encPair eKey eAct (redirectEntry (fun q => 2 * q + 1) none [] 0 id e s)).length ≤
       50 * ((encPair eKey eAct e).length + 1) := by
   rcases e with ⟨⟨q, i, work⟩, ⟨move, actions, output, next⟩⟩
-  have hs_le : (eSym s).length ≤ (eSym i).length + 3 := by
-    rcases i with _ | b
-    · rcases (by simpa [vlift] using hs : s = some marker ∨ s = none) with rfl | rfl <;> decide
-    · by_cases hb : b = marker
-      · simp [vlift, hb] at hs
-      · obtain rfl : s = some b := by simpa [vlift, hb] using hs
-        omega
-  have hvm := length_encSign_le (vmove s move)
-  have hnext : (eSym (next.map fun q => 2 * q + 1)).length ≤ 2 * (eSym next).length := by
-    cases next <;> enc_len [Option.map_none, Option.map_some]
-  enc_len [redirectEntry_hardwire, eKey_apply, eAct_apply, show encSign .zero = [] from rfl]
+  rcases i with _ | i
+  · have hs' : s = some marker ∨ s = none := by simpa [vlift] using hs
+    rcases hs' with rfl | rfl <;> rcases output with _ | output <;>
+      rcases next with _ | next <;> rcases move with _ | _ | _ <;>
+      simp_all [redirectEntry, eKey_apply, eAct_apply, eTA,
+        encUnary_apply, encSign, encOption, vmove, marker] <;> omega
+  · by_cases hi : i = marker
+    · simp [vlift, hi] at hs
+    · have : s = some i := by simpa [vlift, hi] using hs
+      subst s
+      rcases output with _ | output <;> rcases next with _ | next <;>
+        rcases move with _ | _ | _ <;>
+        simp_all [redirectEntry, eKey_apply, eAct_apply, eTA,
+          encUnary_apply, encSign, encOption, vmove, marker] <;> omega
 
 private theorem length_encList_redirect_le (d : Desc) :
     (encList (encPair eKey eAct)
@@ -128,43 +131,41 @@ private theorem length_encList_redirect_le (d : Desc) :
       (Nat.mul_le_mul_left 50 (Nat.add_le_add_right (hentry.trans htable) 1))
   · exact Nat.mul_le_mul_right _ (length_redirect_le d.table)
 
-private theorem length_eSym_of_mem_bitSyms {s : Option ℕ} (hs : s ∈ bitSyms) :
-    (eSym s).length ≤ 2 := by
-  simp only [bitSyms, List.mem_cons, List.not_mem_nil, or_false] at hs
-  rcases hs with rfl | rfl | rfl <;> decide
-
-private theorem length_prepEntry_of_bounds {q k next : ℕ} {r s : Option ℕ} {mv : SignType}
-    {acts : List TapeAct} {B : ℕ} (hq : q ≤ 2 * B + 4) (hk : k ≤ B) (hnext : next ≤ 2 * B + 4)
-    (hr : (eSym r).length ≤ 2) (hs : (eSym s).length ≤ 3)
-    (hacts : (encList eTA acts).length ≤ 21) :
-    (encPair eKey eAct (⟨q, r, s :: List.replicate k none⟩,
-      ⟨mv, acts, none, some next⟩)).length ≤ 100 * (B + 1) := by
-  have hmv := length_encSign_le mv
-  have hrep : (encList eSym (List.replicate k none)).length = k := by simp [length_encList]
-  enc_len [eKey_apply, eAct_apply, hrep]
-
 private theorem length_prepEntry_le {d : Desc} {p : List Bool} {e : Key × Act}
     (he : e ∈ prep d p) :
     (encPair eKey eAct e).length ≤ 100 * (descLen d + p.length + 1) := by
   have htapes := tapes_le d
   have hq₀ := q₀_le d
-  simp only [prep, writeEntries, copyEntries, rewindEntries, List.mem_append,
+  simp only [prep, writeEntries, copyEntries, rewindEntries, bitSyms, List.mem_append,
     List.mem_map, List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false] at he
-  rcases he with ((⟨r, hr, rfl⟩ | ⟨⟨b, i⟩, hbi, r, hr, rfl⟩) | he) | (⟨s, hs, rfl⟩ | rfl)
-  · exact length_prepEntry_of_bounds (by omega) (by omega) (by omega)
-      (length_eSym_of_mem_bitSyms hr) (by decide) (by decide)
+  rcases he with ((⟨r, hr, rfl⟩ | ⟨⟨b, i⟩, hbi, r, hr, rfl⟩) | (rfl | rfl | rfl)) |
+    (⟨s, hs, rfl⟩ | rfl)
+  · rcases hr with rfl | rfl | rfl <;>
+      simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+        encOption, marker] <;> omega
   · rw [List.mem_zipIdx_iff_getElem?] at hbi
     have hi : i < p.length := by
       simpa only [List.length_reverse] using (List.getElem?_eq_some_iff.mp hbi).1
-    exact length_prepEntry_of_bounds (by omega) (by omega) (by omega)
-      (length_eSym_of_mem_bitSyms hr) (by decide) (by cases b <;> dsimp <;> decide)
-  · rcases he with rfl | rfl | rfl <;>
-      exact length_prepEntry_of_bounds (by omega) (by omega) (by omega)
-        (by decide) (by decide) (by decide)
-  · exact length_prepEntry_of_bounds (by omega) (by omega) (by omega)
-      (by decide) ((length_eSym_of_mem_bitSyms hs).trans (by decide)) (by decide)
-  · exact length_prepEntry_of_bounds (by omega) (by omega) (by omega)
-      (by decide) (by decide) (by decide)
+    have hbit : eBit b ≤ 1 := by cases b <;> decide
+    rcases hr with rfl | rfl | rfl <;>
+      simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+        encOption] <;> omega
+  · simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+      encOption]
+    omega
+  · simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+      encOption]
+    omega
+  · simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+      encOption]
+    omega
+  · rcases hs with rfl | rfl | rfl <;>
+      simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+        encOption]
+    all_goals omega
+  · simp [eKey_apply, eAct_apply, eTA, encUnary_apply, encSign,
+      encOption, marker]
+    omega
 
 private theorem length_prep (d : Desc) (p : List Bool) :
     (prep d p).length = 3 * p.length + 10 := by

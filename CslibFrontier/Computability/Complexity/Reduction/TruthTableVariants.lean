@@ -182,7 +182,9 @@ private theorem computableInPolyTime_ttCompQuery {r : α → ℕ} {q : α × ℕ
     (hM : ComputableInPolyTime M encA encUnary) :
     ComputableInPolyTime (ttCompQuery r q q' M) (encPair encA encUnary) encC := by
   unfold ttCompQuery ttCompQueries
-  fun_prop
+  apply ComputableInPolyTime.optionGetDWithInput (encB := encC) (encO := encOption encC)
+  · apply ComputableInPolyTime.getElem? (encA := encC) (encL := encList encC) <;> fun_prop
+  · fun_prop
 
 private theorem computableInPolyTime_truthTableCompCombiner {r : α → ℕ} {q : α × ℕ → β}
     {d : α × List Bool → Bool} {r' : β → ℕ} {d' : β × List Bool → Bool} {M : α → ℕ}
@@ -303,7 +305,10 @@ theorem PolyTimeDTTReducible.trans
     (List.range (r' (q (a, i)))).map fun j => q' (q (a, i), j)
   have hQ : ComputableInPolyTime Q encA (encList encC) := by fun_prop
   refine ⟨fun a => (Q a).length, fun x => (Q x.1)[x.2]?.getD (q' (q (x.1, 0), 0)),
-    ⟨by fun_prop, by fun_prop⟩, fun a => ?_⟩
+    ⟨by fun_prop, by
+      apply ComputableInPolyTime.optionGetDWithInput (encB := encC) (encO := encOption encC)
+      · apply ComputableInPolyTime.getElem? (encA := encC) (encL := encList encC) <;> fun_prop
+      · fun_prop⟩, fun a => ?_⟩
   have hmem : (∃ c ∈ Q a, c ∈ C) ↔ ∃ t < (Q a).length, (Q a)[t]?.getD (q' (q (a, 0), 0)) ∈ C := by
     constructor
     · rintro ⟨c, hc, hcC⟩

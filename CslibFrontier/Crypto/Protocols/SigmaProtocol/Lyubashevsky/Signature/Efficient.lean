@@ -296,8 +296,8 @@ theorem isPPTOn_lyubashevskySignBoundedNative
   apply (hattempt.replicate (ComputableInPolyTime.snd _ _)).map
   have hfind : ComputableInPolyTime
       (fun attempts : List (Option (List Bool × List Bool)) => attempts.find? Option.isSome)
-      (encList (encOption (encPair encBits encBits)))
-      (encOption (encOption (encPair encBits encBits))) := by
+      (encList (encSilentOption (encPair encBits encBits)))
+      (encSilentOption (encSilentOption (encPair encBits encBits))) := by
     fun_prop
   exact hfind.optionGetDWithInput (ComputableInPolyTime.const none)
 

@@ -50,7 +50,7 @@ open Cslib Cslib.Probability MultiTapeTM
   obtain ⟨k', Control', hfinite, target, c, ht⟩ := machine.exists_oracleReplay
   refine ⟨inferInstance, k', Control', hfinite, target, c, 1, ?_⟩
   intro p Store oracle s
-  simp only [encBits, Function.Embedding.coe_refl, id_map, pow_one]
+  simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map, pow_one]
   rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
   exact (ht p.1 p.2 _ _ _ (ProbOracleComp.sample (ProbComp.uniform Bool))
     (fun op word => ProbOracleComp.query (op, word))

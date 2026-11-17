@@ -167,7 +167,7 @@ theorem computableInPolyTime_condUniversalTMProgram :
   have heq : (fun py : List Bool × List Bool => condUniversalTMProgram py.1 py.2) =
       fun py => frame (unframe py.1) ++ (frame (dropFrame py.1) ++ py.2) := by
     funext ⟨p, y⟩
-    simp [condUniversalTMProgram, encPair_apply]
+    simp [condUniversalTMProgram]
   rw [heq]
   fun_prop
 

@@ -215,7 +215,7 @@ theorem computableInPolyTime_check :
   have hp := snd enc encBits
   have hlen := (encoding_length encBits).comp hp
   have hrun := computableInPolyTime_condUniversalTMRunFor.comp (hp.prod (hcond.prod htime))
-  have hsome := (optionSome encBits).comp hstr
+  have hsome := (optionSome encBits (encO := encOption encBits)).comp hstr
   have hle : ComputableInPolyTime
       (fun ip : Instance × List Bool => decide (ip.2.length ≤ ip.1.size))
       (encPair enc encBits) encBool :=

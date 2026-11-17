@@ -162,7 +162,7 @@ theorem foldl {γ α β : Type u} {encIn : γ ↪ List Bool}
     {encBA : β × α ↪ List Bool} {encS : List α × β ↪ List Bool}
     {encO : Option (List α × β) ↪ List Bool}
     [ListEncoding encA encL] [PairEncoding encB encA encBA] [PairEncoding encL encB encS]
-    [OptionEncoding encS encO] {list : γ → List α} {init : γ → β} {step : β → α → β}
+    [HaltOptionEncoding encS encO] {list : γ → List α} {init : γ → β} {step : β → α → β}
     (hlist : ComputableInPolyTime list encIn encL) (hinit : ComputableInPolyTime init encIn encB)
     (hstep : ComputableInPolyTime (fun p : β × α => step p.1 p.2) encBA encB)
     {L : ℕ → ℕ} (hL : PolynomiallyBounded L)

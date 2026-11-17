@@ -60,7 +60,8 @@ theorem isPPTOn_uniform_bool {α : Type} (input : α ↪ List Bool) :
 theorem isPPTOn_sampleList :
     IsPPTOn Turing.MultiTapeTM.encUnary Turing.MultiTapeTM.encBits BitString.sampleList := by
   refine ⟨0, Unit, inferInstance, Turing.MultiTapePTM.uniformListMachine, 1, 1, fun n => ?_⟩
-  simpa only [BitString.eval_sampleList, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl,
+  simpa only [BitString.eval_sampleList, show (Turing.MultiTapeTM.encBits : List Bool → List Bool) =
+    id from funext Turing.MultiTapeTM.encBits_apply,
     Turing.MultiTapeTM.encUnary_apply, List.length_replicate, pow_one, one_mul, PMF.map_id] using
     (Turing.MultiTapePTM.eval_uniformListMachine (Turing.MultiTapeTM.encUnary n)).symm
 

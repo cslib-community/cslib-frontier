@@ -32,6 +32,8 @@ namespace Turing.MultiTapeTM
 @[simp] theorem ofBits_bits (n : ℕ) : ofBits n.bits = n := Nat.foldr_bit_bits n
 
 /-- Reading back an encoded number recovers it. -/
-theorem ofBits_encNat (n : ℕ) : ofBits (encNat n) = n := ofBits_bits n
+theorem ofBits_encNat (n : ℕ) : ofBits (encNat n) = n := by
+  rw [encNat_apply]
+  exact ofBits_bits n
 
 end Turing.MultiTapeTM

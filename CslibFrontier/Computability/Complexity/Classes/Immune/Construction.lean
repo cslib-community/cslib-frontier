@@ -253,7 +253,13 @@ private theorem computableInPolyTime_actStep :
     ComputableInPolyTime actStep (encList encUnary) encUnary := by
   have h := computableInPolyTime_accepts
   unfold actStep
-  fun_prop
+  apply ComputableInPolyTime.optionElimWithInput (encB := encUnary)
+    (encO := encOption encUnary)
+  · apply ComputableInPolyTime.findWithInput (encA := encUnary)
+    · fun_prop
+    · fun_prop
+  · exact ComputableInPolyTime.const 0
+  · fun_prop
 
 /-- **The tables of actions are polynomial-time** in their length, in unary. -/
 theorem computableInPolyTime_table : ComputableInPolyTime table encUnary (encList encUnary) :=

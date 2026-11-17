@@ -248,7 +248,7 @@ private noncomputable def Channel.readCompiler :
       · have hnot : ¬ answer.length ≤ position := Nat.not_le.mpr h
         simp [Channel.read, NativeCompiler.intUnaryPayload, h, hnot,
           List.headD_eq_head?_getD, List.head?_drop,
-          Turing.MultiTapeTM.Universal.eSym, encOption_some, encUnary_apply]
+          Turing.MultiTapeTM.Universal.eSym, encUnary_apply]
       · have hle : answer.length ≤ position := Nat.le_of_not_gt h
         simp [Channel.read, NativeCompiler.intUnaryPayload, h, hle,
           Turing.MultiTapeTM.Universal.eSym]

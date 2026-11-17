@@ -81,7 +81,8 @@ theorem of_machine [Finite Operation] {k : ℕ} {Control : Type} [Finite Control
       (fun a => machine.runOracle (c * ((input a).length + 1) ^ d) (input a)) := by
   refine ⟨inferInstance, k, Control, inferInstance, machine, c, d, ?_⟩
   intro a State oracle s
-  simp only [Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl, id_map]
+  simp only [show (Turing.MultiTapeTM.encBits : List Bool → List Bool) = id from funext
+    Turing.MultiTapeTM.encBits_apply, id_map]
 
 /-- Finiteness of the operation names is part of the certificate. -/
 theorem finite_operations {program : α → WordOracleComp Operation β}
@@ -102,7 +103,8 @@ theorem congr {program program' : α → WordOracleComp Operation β}
 theorem iff_encoded {program : α → WordOracleComp Operation β} :
     IsOraclePPTOn input output program ↔
       IsOraclePPTOn input Turing.MultiTapeTM.encBits (fun a => output <$> program a) := by
-  simp only [IsOraclePPTOn, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl, id_map]
+  simp only [IsOraclePPTOn, show (Turing.MultiTapeTM.encBits : List Bool → List Bool) = id from
+    funext Turing.MultiTapeTM.encBits_apply, id_map]
 
 /-- Every supported encoded output has polynomial length, independently of all oracle replies. -/
 theorem length_le {program : α → WordOracleComp Operation β}

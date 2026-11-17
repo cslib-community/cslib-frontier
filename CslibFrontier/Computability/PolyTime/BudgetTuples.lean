@@ -184,7 +184,7 @@ theorem computableInPolyTime_budgetNext :
     have hbl : (encOption (encList encNat) best).length ≤
         (encList encNat β).length + ws.length + 3 := by
       cases best with
-      | none => simp [encOption_none]
+      | none => simp
       | some l => simp only [encOption_some, List.length_cons]; have := hbest l rfl; omega
     have hlen : ws.length ≤ (encList encNat ws).length := by
       clear hpre hrest hbest hbl

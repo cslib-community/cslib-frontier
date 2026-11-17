@@ -307,7 +307,10 @@ end SizeBounds
 
 section PolyTimeImpl
 
-attribute [local irreducible] encRat encIntBin encNat IntTable.enc RatTable.enc
+-- Keep proof search from unfolding the shared binary representation.
+attribute [local irreducible] Cslib.Encoding.encNat ComputableInPolyTime
+
+attribute [local irreducible] encRat encIntBin IntTable.enc RatTable.enc
   BareissState.enc RationalElimResult.enc LinearSystemInput.enc LinearSolveResult.enc
 
 @[local fun_prop]
@@ -449,7 +452,7 @@ private theorem bareissStep_base :
     unfold bareissStep IntTable.entry
     cases findPivotRow p.1 p.2 <;> rfl
   rw [heq]
-  exact ComputableInPolyTime.optionElimWithInput findPivotRow_base
+  exact ComputableInPolyTime.optionElimWithInput (encB := encUnary) findPivotRow_base
     (fst BareissState.enc encUnary) (by fun_prop)
 
 private theorem bareissStep_poly {α : Type} {encIn : α ↪ List Bool}
@@ -689,7 +692,8 @@ private theorem buildKernelVec_poly {α : Type} {encIn : α ↪ List Bool}
       cases (p.1.pivotRows.zip p.1.pivotCols).find? fun pc => pc.2 == c <;> rfl
     rw [heq]
     refine mapWithInput (unary_range' (by fun_prop)) ?_
-    exact ComputableInPolyTime.optionElimWithInput
+    exact ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
+        (encO := encOption (encPair encUnary encUnary))
       (findWithInput (by fun_prop) (by fun_prop)) (by fun_prop) (by fun_prop)
   exact hbase.comp (hst.prod hj)
 
@@ -794,7 +798,8 @@ theorem ratSolve_computableInPolyTime :
     allWithInput (unary_range' (by fun_prop)) (by fun_prop)
   have hsol : ComputableInPolyTime solOf LinearSystemInput.enc (encList encRat) :=
     mapWithInput (unary_range' (by fun_prop))
-      (ComputableInPolyTime.optionElimWithInput
+      (ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
+        (encO := encOption (encPair encUnary encUnary))
         (findWithInput (by fun_prop) (by fun_prop)) (by fun_prop) (by fun_prop))
   have hyes : ComputableInPolyTime
       (fun sys => LinearSolveResult.mk (some (solOf sys))

@@ -69,16 +69,17 @@ private theorem iterate_untilStep (step : β → β) (done : β → Bool) (b : �
 private theorem untilStep_inSpace {step : β → β} {done : β → Bool} {Ss Sd : β → ℕ}
     (hstep : ComputableInSpace step encB encB Ss)
     (hdone : ComputableInSpace done encB encBool Sd) :
-    ComputableInSpace (untilStep step done) (encOption encB) (encOption encB)
-      fun o => (encOption encB o).length + Ss (o.getD default) + Sd (o.getD default) := by
-  have hl : (fun o => (encOption encB o).length) ≼
-      fun o => (encOption encB o).length + Ss (o.getD default) + Sd (o.getD default) :=
+    ComputableInSpace (untilStep step done) (encHaltOption encB) (encHaltOption encB)
+      fun o => (encHaltOption encB o).length + Ss (o.getD default) + Sd (o.getD default) := by
+  have hl : (fun o => (encHaltOption encB o).length) ≼
+      fun o => (encHaltOption encB o).length + Ss (o.getD default) + Sd (o.getD default) :=
     .of_le fun _ => by omega
-  have hget := budget_optionGetD default (budget_id hl)
+  have hget := budget_optionGetD (encB := encB) default (budget_id hl)
   have hd := budget_comp hdone hget (.of_le fun _ => by omega)
-  have hs := budget_optionSome (budget_comp hstep hget (.of_le fun _ => by omega))
+  have hs := budget_optionSome (encO := encHaltOption encB) (budget_comp hstep hget (.of_le fun _
+    => by omega))
   have hc := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && !p.2)
-    (budget_prod (budget_optionIsSome (budget_id hl)) hd)
+    (budget_prod (budget_optionIsSome (encB := encB) (budget_id hl)) hd)
   exact budget_ite hc hs (budget_const none hl)
 
 end Round
@@ -94,13 +95,13 @@ private theorem of_tidy_space {γ δ : Type} {encC : γ ↪ List Bool} {encD : �
 /-- **Iterating a round on options until it returns `none`**, within the space of the start, of
 the rounds and of the states. The number of rounds `r x` need not be computable. -/
 theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
-    (hf : ComputableInSpace f (encOption encB) (encOption encB) Sf) (hnone : f none = none)
+    (hf : ComputableInSpace f (encHaltOption encB) (encHaltOption encB) Sf) (hnone : f none = none)
     {start : α → Option β} {Si : α → ℕ}
-    (hstart : ComputableInSpace start encIn (encOption encB) Si) {r Q B : α → ℕ}
+    (hstart : ComputableInSpace start encIn (encHaltOption encB) Si) {r Q B : α → ℕ}
     (hr : ∀ x, f^[r x + 1] (start x) = none) (hlt : ∀ x, ∀ j ≤ r x, f^[j] (start x) ≠ none)
     (hspace : ∀ x, ∀ j ≤ r x, Sf (f^[j] (start x)) ≤ Q x)
-    (hstate : ∀ x, ∀ j ≤ r x, (encOption encB (f^[j] (start x))).length ≤ B x) :
-    ComputableInSpace (fun x => f^[r x] (start x)) encIn (encOption encB)
+    (hstate : ∀ x, ∀ j ≤ r x, (encHaltOption encB (f^[j] (start x))).length ≤ B x) :
+    ComputableInSpace (fun x => f^[r x] (start x)) encIn (encHaltOption encB)
       fun x => Si x + Q x + B x := by
   classical
   obtain ⟨T, c, ⟨k, St, hSt, tm, htm⟩, -⟩ := hf.tidy
@@ -109,7 +110,7 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
     obtain ⟨m, hm⟩ := h
     refine ⟨m, ?_⟩
     rw [← Function.iterate_succ_apply, Function.iterate_succ_apply', hm, hnone]
-  let encP : {o // P o} ↪ List Bool := (Function.Embedding.subtype P).trans (encOption encB)
+  let encP : {o // P o} ↪ List Bool := (Function.Embedding.subtype P).trans (encHaltOption encB)
   let F : {o // P o} → {o // P o} := fun d => ⟨f d.1, hP d.2⟩
   have hF : ComputableTidilyInTimeAndSpace F encP encP (fun d => c * (T d.1 + 1))
       fun d => c * (Sf d.1 + 1) := ⟨k, St, hSt, tm, fun d => htm d.1⟩
@@ -124,12 +125,12 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
   let rd : {o // P o} → ℕ := fun d => Nat.find (hex d)
   have hrd (d : {o // P o}) : IsLeast {n | encP (F^[n + 1] d) = []} (rd d) := by
     refine ⟨?_, fun n hn => Nat.find_min' (hex d) ?_⟩
-    · change encOption encB (F^[rd d + 1] d).1 = []
+    · change encHaltOption encB (F^[rd d + 1] d).1 = []
       rw [hFit, Nat.find_spec (hex d)]
       rfl
-    · change encOption encB (F^[n + 1] d).1 = [] at hn
+    · change encHaltOption encB (F^[n + 1] d).1 = [] at hn
       rw [hFit] at hn
-      exact (encOption encB).injective (hn.trans rfl)
+      exact (encHaltOption encB).injective (hn.trans rfl)
   obtain ⟨d₀, hW⟩ := ComputableTidilyInTimeAndSpace.iterateWhile hF hrd
   have hloop := of_tidy_space hW (fun d => (Finset.Iic (rd d)).sup fun n => (encP (F^[n] d)).length)
     fun d => Finset.le_sup (f := fun n => (encP (F^[n] d)).length) (Finset.mem_Iic.mpr le_rfl)
@@ -140,9 +141,9 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
     refine le_antisymm (Nat.find_min' _ (hr x)) ?_
     by_contra hlt'
     exact hlt x (rd ⟨start x, hPs x⟩ + 1) (by omega) (Nat.find_spec (hex ⟨start x, hPs x⟩))
-  refine ((hloop.comp hstart').of_enc_eq (encC := encOption encB)
+  refine ((hloop.comp hstart').of_enc_eq (encC := encHaltOption encB)
     (g := fun x => f^[r x] (start x)) fun x => ?_).weaken ?_
-  · change _ = encOption encB (F^[_] _).1
+  · change _ = encHaltOption encB (F^[_] _).1
     rw [hFit, hrx]
   refine ⟨d₀ * (c + 1) + 1, fun x => ?_⟩
   dsimp only
@@ -154,7 +155,7 @@ theorem iterateWhileSome {f : Option β → Option β} {Sf : Option β → ℕ}
       exact Nat.mul_le_mul_left c (Nat.add_le_add_right (hspace x n (Finset.mem_Iic.mp hn)) 1)
   have h₂ : ((Finset.Iic (r x)).sup fun n => (encP (F^[n] ⟨start x, hPs x⟩)).length) ≤ B x :=
     Finset.sup_le fun n hn => by
-      change (encOption encB (F^[n] ⟨start x, hPs x⟩).1).length ≤ B x
+      change (encHaltOption encB (F^[n] ⟨start x, hPs x⟩).1).length ≤ B x
       rw [hFit]
       exact hstate x n (Finset.mem_Iic.mp hn)
   have h₃ : d₀ * (c * (Q x + 1) + B x + 1) ≤ d₀ * (c + 1) * (Si x + Q x + B x + 1) := by
@@ -191,14 +192,14 @@ theorem iterateUntil {init : α → β} {step : β → β} {done : β → Bool} 
       rw [hit x hj]
       have := hspace x j hj
       have := hstate x j hj
-      simp only [encOption_some, List.length_cons, Option.getD_some]
+      simp only [encHaltOption_some, List.length_cons, Option.getD_some]
       omega)
     (fun x j hj => by
       rw [hit x hj]
       have := hstate x j hj
-      simp only [encOption_some, List.length_cons]
+      simp only [encHaltOption_some, List.length_cons]
       omega)
-  refine ((budget_optionGetD default h).of_enc_eq (g := fun x => step^[n x] (init x))
+  refine ((budget_optionGetD (encB := encB) default h).of_enc_eq (g := fun x => step^[n x] (init x))
     fun x => ?_).weaken ⟨2, fun x => ?_⟩
   · rw [hit x le_rfl]; rfl
   · dsimp only; omega

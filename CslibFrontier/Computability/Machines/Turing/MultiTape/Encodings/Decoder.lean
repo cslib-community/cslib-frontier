@@ -54,20 +54,20 @@ namespace Turing.MultiTapeTM
 
 /-- Dropping a frame does not lengthen a word. -/
 theorem length_dropFrame_le : ∀ w : List Bool, (dropFrame w).length ≤ w.length
-  | [] | [true] => by simp [dropFrame]
-  | false :: w => by simp [dropFrame]
+  | [] | [true] => by simp
+  | false :: w => by simp
   | true :: b :: w => by
-    have := length_dropFrame_le w
-    simp only [dropFrame, List.length_cons]
+    have hlen : (Cslib.Encoding.dropDelimited w).length ≤ w.length := length_dropFrame_le w
+    simp only [Cslib.Encoding.dropDelimited_true_cons_cons, List.length_cons]
     omega
 
 /-- Dropping a frame shortens a nonempty word. -/
 theorem length_dropFrame_lt : ∀ {w : List Bool}, w ≠ [] → (dropFrame w).length < w.length
-  | [true], _ => by simp [dropFrame]
-  | false :: w, _ => by simp [dropFrame]
+  | [true], _ => by simp
+  | false :: w, _ => by simp
   | true :: b :: w, _ => by
-    have := length_dropFrame_le w
-    simp only [dropFrame, List.length_cons]
+    have hlen : (Cslib.Encoding.dropDelimited w).length ≤ w.length := length_dropFrame_le w
+    simp only [Cslib.Encoding.dropDelimited_true_cons_cons, List.length_cons]
     omega
 
 /-- The words framed one after another in `w`. A final incomplete frame is closed. -/
@@ -87,7 +87,8 @@ theorem frames_of_ne_nil {w : List Bool} (h : w ≠ []) :
 
 /-- A framed word followed by another word. -/
 theorem frames_frame_append (u v : List Bool) : frames (frame u ++ v) = u :: frames v := by
-  rw [frames_of_ne_nil (by simp [frame]), unframe_frame_append, dropFrame_frame_append]
+  rw [frames_of_ne_nil (by simp), unframe_frame_append,
+    dropFrame_frame_append]
 
 /-- **The framed words of an encoded list are its encoded elements.** -/
 theorem frames_encList {α : Type*} (enc : α ↪ List Bool) (l : List α) :
@@ -130,9 +131,10 @@ theorem framesT_run_symbol : ∀ v : List Bool, framesT.run .symbol v =
     frame (unframe v) ++ framesT.run .between (dropFrame v)
   | [] => rfl
   | [true] => rfl
-  | false :: v => by simp [unframe, dropFrame, frame]
+  | false :: v => by simp
   | true :: b :: v => by
-    simp only [Transducer.run_cons, framesT_step, List.nil_append, unframe, dropFrame,
+    simp only [Transducer.run_cons, framesT_step, List.nil_append,
+      Cslib.Encoding.undelimit_true_cons_cons, Cslib.Encoding.dropDelimited_true_cons_cons,
       frame_cons, List.cons_append, framesT_run_symbol v]
 
 /-- **The transducer emits the encoded list of framed words.** -/
@@ -144,25 +146,26 @@ theorem framesT_run (w : List Bool) :
     rw [frames_of_ne_nil h, encList_cons, ← ih]
     rcases w with _ | ⟨_ | _, v⟩
     · exact absurd rfl h
-    · simp [unframe, dropFrame, frame]
+    · simp
     · rcases v with _ | ⟨b, v⟩
       · rfl
       · simp only [Transducer.run_cons, framesT_step, List.nil_append, framesT_run_symbol v,
-          unframe, dropFrame, frame_cons, List.cons_append, encBits, Function.Embedding.refl_apply]
+          Cslib.Encoding.undelimit_true_cons_cons,
+          Cslib.Encoding.dropDelimited_true_cons_cons, frame_cons, List.cons_append,
+          encBits_apply]
 
 /-- **Splitting a word into framed words is linear.** -/
 theorem computableInDegree_frames :
     ComputableInDegree frames encBits (encList encBits) 1 1 := by
   have htm (w : List Bool) := framesT.computesInTimeAndSpace_toTM w
   refine ⟨⟨fun w => 2 * w.length + 3, fun _ => 0,
-    ⟨3, fun _ => by simp only [pow_one, encBits, Function.Embedding.refl_apply]; omega⟩,
+    ⟨3, fun _ => by simp only [pow_one, encBits_apply]; omega⟩,
     DegreeBounded.const 0, 0, _, inferInstance, framesT.toTM, fun w => ?_⟩,
     ⟨3, fun w => ?_⟩⟩
-  · simpa only [show framesT.q₀ = .between from rfl, framesT_run, encBits,
-      Function.Embedding.refl_apply] using htm w
+  · simpa only [show framesT.q₀ = .between from rfl, framesT_run, encBits_apply] using htm w
   · have hlen := (htm w).length_output_le
-    simpa only [show framesT.q₀ = .between from rfl, framesT_run, encBits,
-      Function.Embedding.refl_apply, pow_one] using hlen.trans
+    simpa only [show framesT.q₀ = .between from rfl, framesT_run, encBits_apply, pow_one] using
+      hlen.trans
         (by omega : 2 * w.length + 3 ≤ 3 * (w.length + 1))
 
 /-! ### Decoders -/

@@ -342,7 +342,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
     ht hlist hinit hstep
     (fun x _ st => 6 * st.rem.length + (Interaction.encHistory st.hist).length ≤
       6 * (p x).length + 1)
-    (fun x => by simp [Interaction.encHistory, encList_nil])
+    (fun x => by simp [Interaction.encHistory])
     (fun x _ st _ _ hs => by
       rcases st with ⟨rem, hist, ok⟩
       dsimp only at hs

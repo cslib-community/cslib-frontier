@@ -37,4 +37,17 @@ example :
       (listGetDUnary 9 encUnary).outputBits ([3, 4], 2) = 9 := by
   decide
 
+/-- The option boundary retains both independent resource maps of the generic destructor,
+including absent and present empty payloads. No equivalence machine is composed. -/
+example (value : Option Unit) :
+    (optionGetD () (Cslib.Encoding.encSubsingleton Unit)).time value =
+      (sumRightD () (Cslib.Encoding.encSubsingleton Unit)
+        (Cslib.Encoding.encSubsingleton Unit)).time
+        (((Equiv.optionEquivSumPUnit.{0} Unit).trans (Equiv.sumComm Unit Unit)) value) ∧
+    (optionGetD () (Cslib.Encoding.encSubsingleton Unit)).workspace value =
+      (sumRightD () (Cslib.Encoding.encSubsingleton Unit)
+        (Cslib.Encoding.encSubsingleton Unit)).workspace
+        (((Equiv.optionEquivSumPUnit.{0} Unit).trans (Equiv.sumComm Unit Unit)) value) :=
+  ⟨rfl, rfl⟩
+
 end CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerSum

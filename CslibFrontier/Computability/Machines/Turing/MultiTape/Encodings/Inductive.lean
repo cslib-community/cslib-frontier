@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sigma
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
@@ -55,6 +56,19 @@ certificates are relative to those encodings. A recursive field is accepted only
 encoding is supplied, for example `encUnary` for the field of `Nat.succ`. Fields that are
 propositions, indices or implicit arguments are not supported.
 
+## Fields whose type depends on an earlier field
+
+A field whose type depends on an earlier field, as `x` in `| mk (n : ℕ) (x : BitString n)`, is
+encoded by a term that may name the earlier fields of its constructor, as in
+`| mk : encUnary, (encBitString n)`. The payload of such a constructor is a dependent pair
+(`encSigma`), binding each field on which a later field's type depends; the remaining fields are
+paired as before, so the layout is that of `encPair`. Such a constructor has no rules `eT_c_inO`,
+`eT_c_inSpace` and `eT_c_polyTime`: its dependent field is encoded by an encoding that varies with
+the input. A constructor rule can be proved through `encSigma_eq_encPair` when the family of
+encodings is uniform. A dependent field has no projection `eT_c_fieldJ?`; the matcher, the payload
+projection and the projections of the other fields are generated as usual. Case analysis `eT_elim`
+and its rules pass the dependent pair to the case.
+
 Before declaring anything, the command checks that `T` is an inductive type without parameters or
 indices, that every constructor is listed once in declaration order, and that each has no
 implicit field and one encoding per field, of the field's type. A wrong type or constructor list
@@ -79,9 +93,10 @@ private def app (base : Name) (suffix : String) : Ident :=
 
 /-- Check the constructor list of `enc_inductive` against the inductive type `T` before anything
 is declared: every constructor once, in declaration order, with one encoding of the right type
-per explicit field. -/
+per explicit field. For each constructor, return for each field its name if the type of a later
+field depends on it, and `none` otherwise, and whether its own type depends on an earlier field. -/
 private def checkConstructors (T : Ident) (cs : Array Ident) (encss : Array (Array Term)) :
-    CommandElabM Unit := do
+    CommandElabM (Array (Array (Option Ident)) × Array (Array Bool)) := do
   let ty ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo T
   let tyName := MessageData.ofConstName ty
   let .inductInfo info ← getConstInfo ty |
@@ -92,16 +107,28 @@ private def checkConstructors (T : Ident) (cs : Array Ident) (encss : Array (Arr
   unless cs.toList.map (·.getId) == expected do
     throwErrorAt T "enc_inductive: list every constructor of `{tyName}` once, in declaration \
       order:{indentD (" ".intercalate (expected.map fun c => s!"| {c}"))}"
+  let mut binderss := #[]
+  let mut dependss := #[]
   for c in cs, ctor in info.ctors, encs in encss do
     let ctorName := MessageData.ofConstName ctor
-    -- the explicit fields' types, `none` for a type that depends on an earlier field
-    let fields ← liftTermElabM <| forallTelescopeReducing (← getConstInfo ctor).type fun xs _ => do
+    -- the explicit fields' types, `none` for a type that depends on an earlier field, and the
+    -- name of each field on which a later field's type depends
+    let (fields, binders) ← liftTermElabM <|
+        forallTelescopeReducing (← getConstInfo ctor).type fun xs _ => do
       unless ← xs.allM fun x => return (← x.fvarId!.getBinderInfo).isExplicit do
         throwErrorAt c "enc_inductive: `{ctorName}` has an implicit or instance field, which is \
           not supported"
-      xs.mapM fun x => do
-        let τ ← inferType x
-        return if τ.hasFVar then none else some τ
+      let tys ← xs.mapM fun x => inferType x
+      let binders ← xs.mapIdxM fun j x => do
+        unless (tys.extract (j + 1)).any (·.containsFVar x.fvarId!) do return none
+        let name ← x.fvarId!.getUserName
+        if name.hasMacroScopes then
+          throwErrorAt c "enc_inductive: a later field of `{ctorName}` depends on its field \
+            {j + 1}, which must then be named"
+        return some (mkIdent name)
+      return (tys.map fun τ => if τ.hasFVar then none else some τ, binders)
+    binderss := binderss.push binders
+    dependss := dependss.push (fields.map Option.isNone)
     unless fields.size == encs.size do
       throwErrorAt c "enc_inductive: `{ctorName}` has {fields.size} explicit field(s), but \
         {encs.size} encoding(s) are listed; give one encoding per field, in order"
@@ -112,21 +139,27 @@ private def checkConstructors (T : Ident) (cs : Array Ident) (encss : Array (Arr
         let embedding ← mkAppM ``Function.Embedding #[τ, ← mkAppM ``List #[mkConst ``Bool]]
         discard <| Term.withoutErrToSorry <| Term.elabTermEnsuringType enc embedding
       Term.synthesizeSyntheticMVarsNoPostponing
+  return (binderss, dependss)
 
-/-- The right-nested tuple of `ts`, or `()` for none. -/
-private def tuple (ts : Array Term) : MacroM Term := do
+/-- The right-nested tuple of `ts`, or `()` for none: a dependent pair `⟨t, …⟩` where a later
+component depends on `t` (`binders`), a pair `(t, …)` otherwise. -/
+private def tuple (ts : Array Term) (binders : Array (Option Ident)) : MacroM Term := do
   if ts.isEmpty then return ← `(())
   let mut r := ts.back!
-  for t in ts.pop.reverse do
-    r ← `(($t, $r))
+  for t in ts.pop.reverse, b in binders.pop.reverse do
+    r ← if b.isSome then `(⟨$t, $r⟩) else `(($t, $r))
   return r
 
-/-- The right-nested `encPair` of `es`, or `encUnit` for none. -/
-private def tupleEnc (es : Array Term) : MacroM Term := do
+/-- The right-nested encoding of the tuple of fields encoded by `es`, or `encUnit` for none:
+`encSigma` binding the field where a later encoding depends on it (`binders`), `encPair`
+otherwise. -/
+private def tupleEnc (es : Array Term) (binders : Array (Option Ident)) : MacroM Term := do
   if es.isEmpty then return ← `(encUnit)
   let mut r := es.back!
-  for e in es.pop.reverse do
-    r ← `(encPair $e $r)
+  for e in es.pop.reverse, b in binders.pop.reverse do
+    r ← match b with
+      | some x => `(encSigma $e fun $x => $r)
+      | none => `(encPair $e $r)
   return r
 
 /-- Inject `t` as summand `i` of a right-nested sum of `n` summands. -/
@@ -168,8 +201,8 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
   let name := eT.getId
   let n := cs.size
   let encss : Array (Array Term) := ess.map fun o => (o.map (·.getElems)).getD #[]
-  checkConstructors T cs encss
-  let payloads ← liftMacroM <| encss.mapM tupleEnc
+  let (binderss, dependss) ← checkConstructors T cs encss
+  let payloads ← liftMacroM <| (encss.zip binderss).mapM fun (es, bs) => tupleEnc es bs
   -- the encoding of the sum of the payloads
   let mut sumEnc : Term := payloads.back!
   for p in payloads.pop.reverse do
@@ -195,12 +228,13 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
   let alts ← liftMacroM <| (Array.range n).mapM fun i => do
     let xs := (Array.range encss[i]!.size).map fun j => mkIdent (Name.mkSimple s!"x{j}")
     let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[i]!.getId)) xs
-    let rhs ← inject (← tuple xs) i n
+    let rhs ← inject (← tuple xs binderss[i]!) i n
     `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs)
   elabCommand (← `(/-- The constructor payloads of a value, as a summand. -/
     @[expose] public def $toSum:ident : $T → $sumTy := fun x => match x with $alts:matchAlt*))
   elabCommand (← `($[$doc:docComment]? @[expose] public def $eT:ident : $T ↪ List Bool :=
-    (⟨$toSum, fun x y h => by cases x <;> cases y <;> simp_all [$toSum:ident]⟩ :
+    (⟨$toSum, fun x y h => by
+      cases x <;> cases y <;> dsimp only [$toSum:ident] at h <;> cases h <;> rfl⟩ :
       $T ↪ $sumTy).trans $payloadName))
   elabCommand (← `(@[simp] public theorem $(app name "_apply") (x : $T) :
     $eT x = $payloadName ($toSum x) := rfl))
@@ -231,6 +265,8 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         ComputableInPolyTime (fun _ : $γ => $ctor) $encIn $eT :=
           ($rule).computableInPolyTime PolyBounded.self PolyBounded.self))
       continue
+    -- A dependent field is encoded by an encoding chosen by earlier fields: no rule.
+    if binderss[i]!.any (·.isSome) then continue
     let xN (j : Nat) := mkIdent (Name.mkSimple s!"x{j}")
     let hN (j : Nat) := mkIdent (Name.mkSimple s!"h{j}")
     let TN (j : Nat) := mkIdent (Name.mkSimple s!"T{j}")
@@ -336,11 +372,13 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
     elabCommand (← `(@[scoped fun_prop] public theorem
       $(app matcher.getId "_deg"):ident : ComputableInDegree $matcher $eT encBool 1 0 :=
       (($test).mono (d' := 1) (e' := 0)).of_enc_eq (fun v => by
-        cases v <;> simp [$matcher:ident, $applyName:ident, $toSum:ident, encBits,
+        cases v <;> simp [$matcher:ident, $applyName:ident, $toSum:ident, encBits_apply,
           encBool, List.headD])))
     linearViews matcher eT (← `(encBool)) matcher.getId
     -- Include the complete payload and every individual field, without default inhabitants.
     for field in [0:encss[i]!.size + 1] do
+      -- A field whose type depends on an earlier field has no projection of its own.
+      if field > 0 && (dependss[i]!)[field - 1]! then continue
       let projection := app name (if field == 0 then s!"_{cs[i]!.getId}_payload?"
         else s!"_{cs[i]!.getId}_field{field - 1}?")
       let out : Term := if field == 0 then payloads[i]! else (encss[i]!)[field - 1]!
@@ -354,7 +392,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
       for j in [0:n] do
         let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
         let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[j]!.getId)) xs
-        let value ← if field == 0 then liftMacroM (tuple xs) else
+        let value ← if field == 0 then liftMacroM (tuple xs binderss[j]!) else
           pure (xs[field - 1]?.getD (mkIdent `unused) : Term)
         let rhs ← if i == j then `(some $value) else `(none)
         pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
@@ -379,7 +417,13 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
             args := args.push rest
         let reconstructed := Syntax.mkApp ctor args
         let valueIff := app projection.getId "_eq_some_iff"
-        let valueProof ← if encss[i]!.size > 1 then
+        -- A dependent payload is destructured, so that its equations can be substituted.
+        let ys := (Array.range encss[i]!.size).map fun k => mkIdent (Name.mkSimple s!"y{k}")
+        let valueProof ← if binderss[i]!.any (·.isSome) then
+          `(tactic| (obtain ⟨$ys,*⟩ := $a:ident
+                     cases v <;> simp only [$projection:ident] <;>
+                       constructor <;> intro h <;> cases h <;> rfl))
+        else if encss[i]!.size > 1 then
           `(tactic| cases v <;> simp [$projection:ident, Prod.ext_iff])
         else
           `(tactic| cases v <;> simp [$projection:ident])
@@ -417,14 +461,14 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         elabCommand (← `(@[scoped fun_prop] public theorem
           $(app projection.getId "_deg"):ident :
           ComputableInDegree $projection $eT (encOption $out) 1 1 := by
-          have hn : ComputableInDegree (fun _ : $T => ([] : List Bool)) $eT encBits 1 1 :=
-            (ComputableInDegree.const (encMid := encBits) []).mono
+          have hn : ComputableInDegree (fun _ : $T => ([false] : List Bool)) $eT encBits 1 1 :=
+            (ComputableInDegree.const (encMid := encBits) [false]).mono
           exact ((($(app matcher.getId "_deg")).ite
             (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
               (fun v => by
                 cases v <;>
                   simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
-                    encBits, unframe_frame_append, dropFrame_frame_append]
+                    encBits_apply, unframe_frame_append, dropFrame_frame_append]
                 all_goals rfl)))
       linearViews projection eT (← `(encOption $out)) projection.getId
   -- case analysis on the payloads
@@ -476,7 +520,8 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
     · rintro ⟨q, v⟩
       cases v <;>
       simp only [Function.comp_apply, $elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
-        Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] <;>
+        Sum.elim_inr, length_encPair, Cslib.Encoding.length_encSigma, encSum_inl, encSum_inr,
+        List.length_cons] <;>
       omega))
   -- The case space contract charges precisely the selected branch's workspace. Its time
   -- function is existential, independently for every branch.

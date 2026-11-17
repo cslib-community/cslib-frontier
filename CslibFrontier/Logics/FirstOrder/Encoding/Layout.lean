@@ -55,7 +55,7 @@ open Turing.MultiTapeTM
 /-- The encoding of an input: its framed cardinality in unary, then its framed tables. -/
 theorem encStructure_eq (a : EncodedStructure) :
     encStructure a = frame (List.replicate a.1 true) ++ a.2.flatMap frame := by
-  simp only [encStructure, encList, encPair_apply, encUnary_apply, encBits]
+  simp only [encStructure, encPair_apply, encUnary_apply]
   rfl
 
 /-- The position of the `i`-th truth table in the encoding of an input; past the last table, the
@@ -68,7 +68,7 @@ theorem drop_tableStart (a : EncodedStructure) (i : ℕ) :
     (encStructure a).drop (tableStart a i) = (a.2.drop i).flatMap frame := by
   have h : a.2.flatMap frame = (a.2.take i).flatMap frame ++ (a.2.drop i).flatMap frame := by
     rw [← List.flatMap_append, List.take_append_drop]
-  rw [encStructure_eq, tableStart, ← List.drop_drop, List.drop_left' (by simp [length_frame]), h]
+  rw [encStructure_eq, tableStart, ← List.drop_drop, List.drop_left' (by simp), h]
   exact List.drop_left' (length_flatMap_frame _)
 
 /-- Indexing `encStructure a` at `tableStart a i + q` reads position `q` in the framed tables
@@ -130,7 +130,7 @@ theorem getElem?_encStructure_two_mul {a : EncodedStructure} {k : ℕ} (hk : k <
 /-- The terminator of the cardinality. -/
 theorem getElem?_encStructure_two_mul_card (a : EncodedStructure) :
     (encStructure a)[2 * a.1]? = some false := by
-  rw [encStructure_eq, List.getElem?_append_left (by simp [length_frame])]
+  rw [encStructure_eq, List.getElem?_append_left (by simp)]
   simpa using getElem?_frame_two_mul_length (List.replicate a.1 true)
 
 private theorem flatMap_frame_drop {a : EncodedStructure} {i : ℕ} (hi : i < a.2.length) :
@@ -157,7 +157,7 @@ theorem getElem?_encStructure_tableStart_two_mul_length {a : EncodedStructure} {
     (hi : i < a.2.length) :
     (encStructure a)[tableStart a i + 2 * a.2[i].length]? = some false := by
   rw [getElem?_encStructure_tableStart_add, flatMap_frame_drop hi,
-    List.getElem?_append_left (by simp [length_frame]), getElem?_frame_two_mul_length]
+    List.getElem?_append_left (by simp), getElem?_frame_two_mul_length]
 
 /-- Nothing follows the last table. -/
 theorem getElem?_encStructure_tableStart_length_add (a : EncodedStructure) (q : ℕ) :
@@ -171,8 +171,8 @@ theorem getElem?_encStructure_tableStart_isSome {a : EncodedStructure} {i : ℕ}
     (hi : i < a.2.length) : ((encStructure a)[tableStart a i]?).isSome := by
   have h := getElem?_encStructure_tableStart_add a i 0
   rw [Nat.add_zero] at h
-  rw [h, flatMap_frame_drop hi, List.getElem?_append_left (by simp [length_frame])]
-  simp [length_frame]
+  rw [h, flatMap_frame_drop hi, List.getElem?_append_left (by simp)]
+  simp
 
 /-! ### Prefixes through the first tables -/
 

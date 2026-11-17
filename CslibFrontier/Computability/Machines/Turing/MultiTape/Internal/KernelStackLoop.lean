@@ -497,7 +497,7 @@ noncomputable def popM := popFrame.extendTapes (pairEmb (kk := kk) 5 3 (by decid
 
 private lemma runs_pop_nil (c f p : List Bool) (oc os : ℤ) (out : List Bool) :
     RunsBetween (popM (kk := kk)) (cfgS input c f [] p [] oc os 0 0 out)
-      (cfgS input c f [false] p [] oc os 1 0 out) 1 (2 * (1 + 1) + (kk + 6 - 2)) :=
+      (cfgS input c f [true, false, false] p [] oc os 3 0 out) 3 (2 * (3 + 1) + (kk + 6 - 2)) :=
   runs_pair 5 3 _ (by simpa using runsBetween_popFrame_nil (input := input) os 0 out)
     (fun j h5 h3 => by fin_cases j <;> simp_all)
 
@@ -630,7 +630,7 @@ private lemma runs_pop_stack (ea : List Bool) (stk : List γ) :
   cases stk with
   | nil =>
     have := runs_pop_nil (input := input) (kk := kk) ea [] [] 0 0 []
-    simpa [encOption_none, frame_nil] using this
+    simpa using this
   | cons g t =>
     have := runs_pop_frame (input := input) (kk := kk) ea [] [] (encG g) (encList encG t) 0
       (-((encList encG (g :: t)).length : ℤ)) []
@@ -640,8 +640,8 @@ private lemma runs_pop_stack (ea : List Bool) (stk : List γ) :
       ring
     rw [ho] at this
     refine (by simpa [encOption_some] using this : RunsBetween _ _ _ _ _).mono ?_ ?_
-    · simp [length_frame]
-    · simp [length_frame]
+    · simp
+    · simp
 
 end Stack
 

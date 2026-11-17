@@ -156,7 +156,7 @@ theorem length_encStructure_encodedMap (ha : v.WellFormed a) (hn : 2 ≤ a.1) :
       2 * I.card (decoded v a hn) + 1 +
         ∑ j : Fin v'.count, (2 * I.card (decoded v a hn) ^ v'.arity j + 1) := by
   rw [I.encodedMap_of_admissible v v' ha hn, encStructure_eq]
-  simp [Vocabulary.encode, Vocabulary.length_relTable, Turing.MultiTapeTM.length_frame,
+  simp [Vocabulary.encode, Vocabulary.length_relTable,
     Vocabulary.arity, List.sum_ofFn]
 
 /-- For an admissible interpretation, the encoded image is the canonical encoding of the image. -/

@@ -44,7 +44,8 @@ is `IsOraclePPT encBool A`.
 **The simulator.** `WordPKE.simFilterWordHandler d` answers the adversary without the secret key.
 A request in the domain is answered by the typed keyless simulator `Scheme.simFilterHandler` of
 the bundle `WordPKE.scheme P keyLen n`, on the same state `SimState`; a decapsulation answer is
-encoded with `encOption encBits`. The domain is: messages of length `msgLen n` for `G`; for `H`,
+encoded with `encSilentOption encBits`. The domain is: messages of length `msgLen n` for `G`;
+  for `H`,
 the canonical encodings `encHQuery (b, m, c)` of a message `m` of length `msgLen n` and a
 ciphertext `c` of length at most `ctLen n` (`WordPKE.isHQuery`); and ciphertexts of length at most
 `ctLen n` for decapsulation. Any other request gets the empty reply and leaves the state
@@ -156,7 +157,8 @@ def isHQuery (n : ℕ) (w : List Bool) : Bool :=
 /-- The native keyless simulator with decapsulation filter `d` at parameter `n`, for public key
 `pk` and challenge ciphertext `cStar`. A request in the domain is answered by the typed simulator
 `Scheme.simFilterHandler` of the bundle `scheme P keyLen n`, on the same state; a decapsulation
-answer is encoded with `encOption encBits`. A request outside the domain gets the empty reply and
+answer is encoded with `encSilentOption encBits`. A request outside the domain gets the empty
+  reply and
 leaves the state unchanged: a `G` request that is not a message of length `msgLen n`, an `H`
 request that fails `isHQuery`, and a decapsulation request longer than `ctLen n`. -/
 noncomputable def simFilterWordHandler
@@ -173,7 +175,7 @@ noncomputable def simFilterWordHandler
     else pure ([], st)
   | (.decaps, c) =>
     if c.length ≤ P.ctLen n then
-      (fun (k, st') => (encOption encBits k, st')) <$>
+      (fun (k, st') => (encSilentOption encBits k, st')) <$>
         (P.scheme keyLen n).simFilterHandler (d pk) pk cStar (.decaps c) st
     else pure ([], st)
 
@@ -336,12 +338,12 @@ private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
     else pure ([], x.2.2)
   else
     if x.2.1.2.length ≤ P.ctLen x.1.1 then
-      if x.2.1.2 = x.1.2.2 then pure (encOption encBits none, x.2.2)
+      if x.2.1.2 = x.1.2.2 then pure (encSilentOption encBits none, x.2.2)
       else if d x.1.2.1 x.2.2.gCache x.2.1.2 then
-        (fun p => (encOption encBits (some p.1), p.2)) <$>
+        (fun p => (encSilentOption encBits (some p.1), p.2)) <$>
           simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
             x.2.1.2 x.2.2
-      else pure (encOption encBits none, x.2.2)
+      else pure (encSilentOption encBits none, x.2.2)
     else pure ([], x.2.2)
 
 private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ → ℕ)
@@ -466,12 +468,12 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
   -- decapsulation requests
   have hnone : IsPPTOn encSimCall (encPair encBits encSimState)
       (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-        pure (encOption encBits none, x.2.2)) :=
-    ((ComputableInPolyTime.const (encOption encBits none)).prod hst).isPPTOn
+        pure (encSilentOption encBits none, x.2.2)) :=
+    ((ComputableInPolyTime.const (encSilentOption encBits none)).prod hst).isPPTOn
   have hsome : ComputableInPolyTime (fun p : List Bool × WState => some p.1)
-      (encPair encBits encSimState) (encOption encBits) := by fun_prop
+      (encPair encBits encSimState) (encSilentOption encBits) := by fun_prop
   have hkey := (isPPTOn_simHashHq (hkeyLen.comp hn) hw hst).map
-    (f := fun p => (encOption encBits (some p.1), p.2))
+    (f := fun p => (encSilentOption encBits (some p.1), p.2))
     (hsome.encoding_comp.prod (ComputableInPolyTime.snd _ _))
   have hD := IsPPTOn.ite'
     (condition := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
@@ -637,7 +639,7 @@ private theorem simCallExplicit_support (P : WordPKE) (keyLen : ℕ → ℕ)
       obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
       obtain ⟨h₁, h₂, h₃⟩ := stepHq w st hinv r hr
       refine ⟨h₁, ?_, by lia⟩
-      simp only [encOption_some, List.length_cons, encBits_apply]
+      simp only [encSilentOption_some, List.length_cons, encBits_apply]
       lia
     · exact hpure _ (by simp) hresult
     · exact hpure [] (by simp) hresult

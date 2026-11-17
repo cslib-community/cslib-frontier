@@ -49,8 +49,8 @@ example :
 example (input : LyubashevskyExtractInput) :
     encLyubashevskyExtractInput input =
       encPair (encPair encUnary encUnary)
-        (encPair (encPair encBits (encOption (encList encIntBin)))
-          (encPair encBits (encOption (encList encIntBin))))
+        (encPair (encPair encBits (encSilentOption (encList encIntBin)))
+          (encPair encBits (encSilentOption (encList encIntBin))))
         ((input.dims.m, input.dims.k), ((input.first.challenge, input.first.response),
           (input.second.challenge, input.second.response))) := rfl
 

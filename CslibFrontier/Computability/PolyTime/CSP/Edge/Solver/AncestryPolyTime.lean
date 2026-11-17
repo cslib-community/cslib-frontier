@@ -97,7 +97,13 @@ private theorem poly_traceStep : ComputableInPolyTime
       traceStep p.1.1.1 p.1.2 p.2)
     (encPair (encPair encTraceArgs encTraceCode) encTimedExpansion) encTraceCode := by
   unfold traceStep
-  fun_prop
+  apply ComputableInPolyTime.optionElimWithInput (encB := encNat)
+    (encO := encOption encNat)
+  · apply ComputableInPolyTime.findWithInput (encA := encNat)
+    · fun_prop
+    · fun_prop
+  · fun_prop
+  · fun_prop
 
 private theorem traceStep_growth (F : CSP Table ℕ) (es : List ExpansionCode)
     (s : TraceCode) (e : TimedExpansion) (he : e ∈ timed es) :
@@ -243,7 +249,9 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
     dsimp only [k]
     exact ComputableInPolyTime.unary_div_const 2 |>.comp (by fun_prop)
   have hh : ComputableInPolyTime (fun p => (shared p).reverse.head?) encMeetingArgs
-      (encOption encNodeCode) := by fun_prop
+      (encOption encNodeCode) := by
+    exact (ComputableInPolyTime.head? encNodeCode).comp
+      (ComputableInPolyTime.listReverseWithInput hs)
   have hm := encBlossomCode_mk_deg.computableInPolyTime
   let lb (p : CSP Table ℕ × MeetingCode) (base : ℕ) : Option BlossomCode :=
     let a : WalkCode := ⟨base, (left p).steps.drop (k p)⟩
@@ -263,26 +271,31 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
               (NativeWalk.reverse p.1 b)) other.2 pair.2⟩
   have hlb : ComputableInPolyTime (fun p : (CSP Table ℕ × MeetingCode) × ℕ => lb p.1 p.2)
       (encPair encMeetingArgs encNat) (encOption encBlossomCode) := by
+    clear_value left right shared k
     dsimp only [lb]
     fun_prop
   have hgetL : ComputableInPolyTime (fun p => (left p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hl).tidy hk.tidy)
+    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (encA := encPair encNat encNat)
+      (poly_steps.comp hl).tidy hk.tidy)
   have hgetR : ComputableInPolyTime (fun p => (right p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hr).tidy hk.tidy)
+    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (encA := encPair encNat encNat)
+      (poly_steps.comp hr).tidy hk.tidy)
   have hrb : ComputableInPolyTime (fun p : (CSP Table ℕ × MeetingCode) × (ℕ × ℕ) => rb p.1 p.2)
       (encPair encMeetingArgs (encPair encUnary encUnary)) (encOption encBlossomCode) := by
+    clear_value left right shared k
     dsimp only [rb]
-    apply ComputableInPolyTime.optionElimWithInput
+    apply ComputableInPolyTime.optionElimWithInput (encB := encPair encNat encNat)
       (hgetL.comp (ComputableInPolyTime.fst encMeetingArgs (encPair encUnary encUnary)))
       (ComputableInPolyTime.const none)
-    apply ComputableInPolyTime.optionMapWithInput
+    apply ComputableInPolyTime.optionMapWithInput (encB := encPair encNat encNat)
+      (encC := encBlossomCode)
       (hgetR.comp ((ComputableInPolyTime.fst
         (encPair encMeetingArgs (encPair encUnary encUnary)) (encPair encNat encNat)).fst'))
     fun_prop
   have hcase := NativeCases.sumElimSnd (left := lb) (right := rb) none hlb hrb
-  have h := ComputableInPolyTime.optionElimWithInput
+  have h := ComputableInPolyTime.optionElimWithInput (encB := encNodeCode)
     (body := fun p a => a.elim (lb p) (rb p)) hh (ComputableInPolyTime.const none) hcase
   apply h.of_enc_eq
   intro p

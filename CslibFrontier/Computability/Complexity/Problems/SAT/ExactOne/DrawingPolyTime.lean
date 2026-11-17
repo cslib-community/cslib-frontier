@@ -110,8 +110,8 @@ theorem sourceRoute :
   have hr : ComputableInPolyTime
       (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ => p.1.2.2.getD p.2 [])
       encSourceIndex encRoute := by fun_prop
-  have hhead := (ComputableInPolyTime.head? encPoint).comp hr
-  have hsome := (ComputableInPolyTime.optionSome encPoint).comp hs
+  have hhead := (ComputableInPolyTime.head? encPoint (encO := encOption encPoint)).comp hr
+  have hsome := (ComputableInPolyTime.optionSome encPoint (encO := encOption encPoint)).comp hs
   exact ((hhead.decide_eq' hsome).ite_decide hr
     (ComputableInPolyTime.listReverseWithInput hr))
 

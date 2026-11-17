@@ -106,7 +106,7 @@ theorem tagEncrypt_ppt : IsPPTOn (encPair encUnary (encPair encBits encBits)) en
 
 theorem tagDecrypt_polytime : ComputableInPolyTime
     (fun p => tagDecrypt p.1 p.2.1 p.2.2)
-    (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
+    (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits) := by
   unfold tagDecrypt
   fun_prop
 
@@ -141,7 +141,7 @@ example (n : ℕ) :
     cca2Phase2Oracle encBits tagDecrypt n [] [false] ((), [false]) () = pure ([], ()) ∧
     cca2Phase2Oracle encBits tagDecrypt n [] [false] ((), []) () = pure ([], ()) ∧
     cca2Phase2Oracle encBits tagDecrypt n [] [false] ((), [true]) () = pure ([true], ()) := by
-  simp [cca2Phase2Oracle, tagDecrypt, encOption, encBits_apply]
+  simp [cca2Phase2Oracle, tagDecrypt, encSilentOption, encBits_apply]
 
 /-- At zero width the actual correct encrypted-key fixture has identical real and ideal
 oracle games for every adversary, including arbitrary adaptive query sequences. -/
@@ -170,7 +170,7 @@ private theorem eval_tagContinuation (n : ℕ) (k shown : List Bool)
   simp only [ProbComp.eval_bind, ProbComp.eval_pure,
     OracleComp.interpret_bind, OracleComp.interpret_pure, OracleComp.interpret_map,
     ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_pure, StateT.run_map]
-  simp [StateT.run, cca2Phase2Oracle, tagDecrypt, encOption, ← hlen, Bool.beq_eq_decide_eq, eq_comm]
+  simp [StateT.run, cca2Phase2Oracle, tagDecrypt, encSilentOption, ← hlen, Bool.beq_eq_decide_eq, eq_comm]
 
 /-- The flipped-tag query recovers the real key with certainty. -/
 theorem eval_tagReal (keyLen : ℕ → ℕ) (n : ℕ) :

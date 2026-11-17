@@ -395,6 +395,7 @@ private noncomputable def guessWords (k : ℕ) (st : ReductionState G) (V : Opti
         st.params.evaluatorLen) (V.getD ⟨[], [], []⟩),
     encPi encBits fun _ : Fin 2 => st.output)
 
+attribute [local irreducible] ComputableInPolyTime in
 /-- **The reduction is PPT** whenever the environment `Z` is PPT for `encoding G encFn`, the public
 parameters are drawn by a PPT sampler `samp`, and `G` reads input lengths (`hinLen`) and evaluates
 `ev` (`hev`) in polynomial time. -/
@@ -402,7 +403,7 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
     {Z : Environment (family G) {1}} (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
     (hev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits)
     (hsamp : IsPPTOn encUnary (encParams encFn) samp) (hZ : Z.IsPPT (encoding G encFn)) :
-    TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool
+    TwoStage.IsPPT encUnit (encQuery Fn encFn) (encSilentOption encPrvView) encBool
       (encReductionState (G := G) encFn) (evaluatorToPrvSim samp Z) where
   choose := by
     let E₁ := encPair (encPair encUnary encUnit) (encParams (G := G) encFn)
@@ -446,13 +447,14 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
     rfl
   guess := by
     obtain ⟨W, hW, hWeq⟩ := hZ.guess.exists_bool_factor (encGuessInput_apply (encoding G encFn))
-    let E := encPair encUnary (encPair (encReductionState (G := G) encFn) (encOption encPrvView))
+    let E := encPair encUnary (encPair (encReductionState (G := G) encFn) (encSilentOption
+      encPrvView))
     have hk : ComputableInPolyTime (fun p : ℕ × ReductionState G × Option PrvView => p.1) E
         encUnary := .fst _ _
     have hst : ComputableInPolyTime (fun p : ℕ × ReductionState G × Option PrvView => p.2.1) E
         (encReductionState (G := G) encFn) := (ComputableInPolyTime.fst _ _).comp (.snd _ _)
     have hV : ComputableInPolyTime (fun p : ℕ × ReductionState G × Option PrvView => p.2.2) E
-        (encOption encPrvView) := (ComputableInPolyTime.snd _ _).comp (.snd _ _)
+        (encSilentOption encPrvView) := (ComputableInPolyTime.snd _ _).comp (.snd _ _)
     have hc := encReductionState_params_polyTime encFn hst
     have hfn := encParams_fn_polyTime hc
     have hN := hinLen.comp hfn
@@ -465,8 +467,9 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
       simp only [Params.evaluatorLen]
       fun_prop
     have hview : ComputableInPolyTime (fun p : ℕ × ReductionState G × Option PrvView =>
-        p.2.2.getD ⟨[], [], []⟩) E encPrvView := by
-      fun_prop
+        p.2.2.getD ⟨[], [], []⟩) E encPrvView :=
+      ComputableInPolyTime.optionGetDWithInput (encB := encPrvView)
+        (encO := encSilentOption encPrvView) (by fun_prop) (.const _)
     have hwords : ComputableInPolyTime (fun p : ℕ × ReductionState G × Option PrvView =>
         guessWords p.1 p.2.1 p.2.2) E (encGuessInputFields (encoding G encFn)) :=
       hk.prod (hc.prod ((encReductionState_envState_polyTime encFn hst).prod

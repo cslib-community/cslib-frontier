@@ -45,7 +45,9 @@ def encIntBin : ℤ ↪ List Bool :=
     lia⟩
 
 @[simp]
-theorem encIntBin_apply (z : ℤ) : encIntBin z = decide (z < 0) :: z.natAbs.bits := rfl
+theorem encIntBin_apply (z : ℤ) : encIntBin z = decide (z < 0) :: z.natAbs.bits := by
+  change decide (z < 0) :: encNat z.natAbs = _
+  rw [encNat_apply]
 
 /-- The code of an integer has one sign bit and the binary length of its magnitude. -/
 theorem length_encIntBin (z : ℤ) : (encIntBin z).length = z.natAbs.size + 1 := by

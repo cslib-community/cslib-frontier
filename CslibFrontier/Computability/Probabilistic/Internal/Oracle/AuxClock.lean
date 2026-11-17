@@ -54,7 +54,7 @@ theorem IsOraclePPTWithAux.isOraclePPTOn {program : α → List Bool → WordOra
       (ComputableInPolyTime.of_eq (encOut := encBits)
         (f := encPair input encBits) fun _ => rfl)).congr fun (a, z) State oracle s => ?_
     have hunframe : clock (encPair input encBits (a, z)) = c * ((input a).length + 1) ^ d := by
-      simp [clock, encPair_apply, unframe_frame_append]
+      simp [clock]
     rw [hunframe, ← h a z State oracle s]
   exact IsOraclePPTOn.iff_encoded.mpr htidy.isOraclePPTOn
 
@@ -143,7 +143,7 @@ private theorem runFrom_unframePrefixCore (x : List Bool) (rem : List Bool) :
         (unframePrefixCfg x (some false) pre.length (by subst h; simp) out)
         (2 * rem.length + 1) =
       unframePrefixCfg x none (pre.length + 2 * rem.length)
-        (by subst h; simp [length_frame]; lia) (out ++ rem) := by
+        (by subst h; simp; lia) (out ++ rem) := by
   induction rem with
   | nil =>
     intro pre suf h out
@@ -209,7 +209,7 @@ private theorem runFrom_unframePrefixCore (x : List Bool) (rem : List Bool) :
       simp [c₁, unframePrefixCfg]
     have hsplit : x = (pre ++ [true, b]) ++ frame rem ++ suf := by
       rw [h]
-      simp [frame_cons, List.append_assoc]
+      simp [List.append_assoc]
     have h2 : unframePrefixCore.runFrom c₀ 2 = c₂ := by
       rw [MultiTapeTM.runFrom_succ, runFrom_one, hstep₁, hstep₂]
     have htot : 2 * (b :: rem).length + 1 = 2 + (2 * rem.length + 1) := by simp; lia
@@ -685,7 +685,7 @@ theorem IsPPTWithAux.exists_eval_take {program : α → List Bool → ProbComp �
   obtain ⟨k, State, hfinite, machine, c, d, h⟩ := h
   refine ⟨c, d, fun a z {m} hm => PMF.map_injective output.injective ?_⟩
   rw [h a (z.take m), h a z]
-  simp only [encPair_apply, encBits, Function.Embedding.coe_refl, id]
+  simp only [encPair_apply, encBits_apply]
   rw [machine.runClosed_append_take_of_le hm]
 
 /-- **Prefix truncation for `IsOraclePPTWithAux`.** An oracle program clocked in `a` produces the
@@ -706,7 +706,7 @@ theorem IsOraclePPTWithAux.exists_run_interpret_take
   have h₂ := h a z State oracle s
   simp only [ProbOracleComp.runWith_map] at h₁ h₂
   rw [h₁, h₂]
-  simp only [encPair_apply, encBits, Function.Embedding.coe_refl, id]
+  simp only [encPair_apply, encBits_apply]
   rw [machine.runOracle_append_take_of_le hm]
 
 /-- Polynomial-time deterministic preprocessing of the primary input preserves `IsPPTWithAux`. -/

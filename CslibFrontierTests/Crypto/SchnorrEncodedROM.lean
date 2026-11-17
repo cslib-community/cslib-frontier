@@ -38,7 +38,7 @@ example : (Decoder.bits.pair Decoder.bits).decode [true, true] = ([true], []) :=
 
 example : ¬ ∃ p, encPair encBits encBits p = [true, true] := by
   rintro ⟨p, hp⟩
-  have hfalse : false ∈ encPair encBits encBits p := by simp [encPair_apply, frame]
+  have hfalse : false ∈ encPair encBits encBits p := by simp [encPair_apply, Cslib.Encoding.delimit]
   rw [hp] at hfalse
   simp at hfalse
 

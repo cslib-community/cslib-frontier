@@ -501,8 +501,8 @@ private theorem computableInPolyTime_pathCheck {r : Graph → ℕ → ℕ → Bo
   have hp : ComputableInPolyTime (fun q : PathInstance × List ℕ => q.2)
       (encPair encPathInstance (encList encNat)) (encList encNat) :=
     snd _ _
-  have hhead? : ComputableInPolyTime (@List.head? ℕ) (encList encNat) (encOption encNat) := by
-    fun_prop
+  have hhead? : ComputableInPolyTime (@List.head? ℕ) (encList encNat) (encOption encNat) :=
+    head? encNat
   have hrev : ComputableInPolyTime (@List.reverse ℕ) (encList encNat) (encList encNat) := by
     fun_prop
   have hsome : ComputableInPolyTime (@Option.some ℕ) encNat (encOption encNat) := by

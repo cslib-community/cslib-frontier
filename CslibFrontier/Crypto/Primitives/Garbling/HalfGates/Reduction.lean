@@ -1038,7 +1038,16 @@ private theorem ctRow_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     (hisAnd : ComputableInPolyTime isAnd encIn encBool)
     (hg : ComputableInPolyTime g encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => ctRow (blocks x) (isAnd x) (g x) (i x)) encIn encBits := by
-  polytime [ctRow]
+  have hlookup := ComputableInPolyTime.listGetDWithInput hblocks hg []
+  have htag : ComputableInPolyTime (fun x => [isAnd x]) encIn encBits := by fun_prop
+  unfold ctRow
+  apply ComputableInPolyTime.ite_decide
+  · fun_prop
+  · exact htag
+  · apply ComputableInPolyTime.ite_decide
+    · fun_prop
+    · exact hlookup
+    · exact .const []
 
 /-- The reduction's view is computed in polynomial time from the parameter, the data of the
 circuit, the wire values, the coins and the state of the gate loop. -/
@@ -1074,7 +1083,12 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
         p.2.2.2.2.getD (p.2.2.1 + o) false)
       (encPair encUnary (encPair encUnary (encPair encUnary (encPair (encList encBits) encBits))))
       encBits := by
-    polytime [colourWord]
+    have hblock := ComputableInPolyTime.listGetD (encA := encBits)
+      (encL := encList encBits) []
+    have hbit := ComputableInPolyTime.listGetD (encA := encBool) (encL := encBits) false
+    -- Keep lookup certificates explicit; avoid the simplifying `polytime` search here.
+    unfold colourWord
+    fun_prop
   have hs : ComputableInPolyTime (fun x => (f x).n + (f x).gateList.length - (f x).m) encIn
       encUnary :=
     ComputableInPolyTime.unary_sub.comp ((ComputableInPolyTime.unary_add' hn hq).prod hm)
@@ -1082,7 +1096,8 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
     (hk.prod (hm.prod (hs.prod ((encGateLoopState_labels_polyTime hst).prod hws)))))
 
 variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary XorAndCircuit σ}
-  (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit) (encOption encPrvView)
+  (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit) (encSilentOption
+    encPrvView)
     encBool encσ B)
 
 /-- The state after `B`'s choice: the caller's input `(k, aux)` and the query and state. -/
@@ -1151,7 +1166,8 @@ private theorem isOraclePPTOn_prvSimGuess :
   have hview := reductionView_polyTime (f := fun p => p.1.1.2.1.fn.circuit) (hk.comp hfst)
     (hd.comp hfst) (hws.comp hfst) (hcoins.comp hfst) (ComputableInPolyTime.snd E encGateLoopState)
   have hprep := (hk.comp hfst).prod ((hstate.comp hfst).prod
-    ((ComputableInPolyTime.optionSome encPrvView).comp hview))
+    ((ComputableInPolyTime.optionSome encPrvView
+      (encO := encSilentOption encPrvView)).comp hview))
   exact hloop.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
 
 include hf hB in
@@ -1195,7 +1211,8 @@ private theorem isOraclePPTOn_prvSimBranch :
         (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hq)))
         (ComputableInPolyTime.binary_two_pow.comp hk))
   have hnone := (hB.guess.preprocess (hk.prod (hstate.prod
-    (ComputableInPolyTime.const (encIn := E) (encOut := encOption encPrvView) none)))).isOraclePPTOn
+    (ComputableInPolyTime.const (encIn := E) (encOut := encSilentOption encPrvView)
+      none)))).isOraclePPTOn
     (Operation := Unit)
   have hlen : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query XorAndCircuit × σ) =>
       p.2.1.fn.circuit.n * (p.1.1 + 2)) E encUnary := by polytime

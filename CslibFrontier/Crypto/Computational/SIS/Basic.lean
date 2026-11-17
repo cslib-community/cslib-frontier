@@ -237,7 +237,7 @@ def encInput : P.Input ↪ List Bool :=
 /-- The SIS input layout. -/
 theorem encInput_apply (x : P.Input) :
     P.encInput x = frame (encUnary x.secParam) ++ SIS.encodeMatrix x.matrix := by
-  simp [encInput, Input.words, encPair, encBits]
+  simp [encInput, Input.words, encPair]
 
 /-- A SIS solver for the family `P`: given the security parameter `κ` and a matrix of the
 dimensions and modulus of `P` at `κ`, it returns an integer vector. `Solver.IsPPT` states its

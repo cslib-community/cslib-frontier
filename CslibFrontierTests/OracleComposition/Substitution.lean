@@ -158,7 +158,7 @@ example : IsOraclePPTOn encUnary encBits repeatHead := by
     (by fun_prop) (.const []) (by fun_prop) (growth := 1) ?_
   intro _ next hnext
   obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-  simp only [encBits, Function.Embedding.coe_refl, id_eq]
+  simp only [encBits_apply]
   exact (List.length_take_le _ _).trans (Nat.le_add_left _ _)
 
 -- Substituting the doubling handler into the repeated client is not strict oracle PPT: no

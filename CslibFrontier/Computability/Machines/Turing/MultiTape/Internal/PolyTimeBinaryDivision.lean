@@ -66,7 +66,8 @@ private theorem divModStep_polyTime :
 The zero-divisor branch is retained; both outputs stay binary. -/
 theorem binary_divMod : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
     (encPair encNat encNat) (encPair encNat encNat) := by
-  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
+  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => by
+    simp only [encBits_apply, encNat_apply]
   have hlist := bitsReverse.comp (hbits.comp (fst encNat encNat))
   have hfold := foldlWith (encP := encNat) (encA := encBool) (encL := encBits)
     (encB := encPair encNat encNat) (par := Prod.snd) (list := fun p : ℕ × ℕ => p.1.bits.reverse)

@@ -529,7 +529,8 @@ theorem sumScheme_polyTime (hops : ops.PolyTime encQ encY) :
           some ((1, (p.1.2.1, (lowBits p.1.2.1.2.numEdges p.2.1, 0))) : Node Q T) else none))
         (encPair (encNode encQ encT) (encAcc encY)) (encOption (encNode encQ encT)) :=
       (ComputableInPolyTime.ite (ComputableInPolyTime.binary_lt' hc (twoPow hm))
-        ((ComputableInPolyTime.optionSome (encNode encQ encT)).comp
+        ((ComputableInPolyTime.optionSome (encNode encQ encT)
+          (encO := encOption (encNode encQ encT))).comp
           ((ComputableInPolyTime.const (encOut := encUnary) 1).prod
           (hq.prod ((BooleanFold.decoder_polyTime.comp (hm.prod hc)).prod
             (ComputableInPolyTime.const (encOut := encUnary) 0)))))
@@ -542,7 +543,8 @@ theorem sumScheme_polyTime (hops : ops.PolyTime encQ encY) :
         (encPair (encNode encQ encT) (encAcc encY)) (encOption (encNode encQ encT)) :=
       (ComputableInPolyTime.ite (ComputableInPolyTime.binary_lt' hc
           (ComputableInPolyTime.unary_to_binary.comp hlen))
-        ((ComputableInPolyTime.optionSome (encNode encQ encT)).comp
+        ((ComputableInPolyTime.optionSome (encNode encQ encT)
+          (encO := encOption (encNode encQ encT))).comp
           ((ComputableInPolyTime.const (encOut := encUnary) 2).prod
           (hq.prod ((word_polyTime.comp hx).prod
             (ComputableInPolyTime.binary_min_unary' hlen hc)))))
@@ -594,7 +596,8 @@ theorem query_polyTime :
 noncomputable def vertexCertificate :
     NativeCertificate (fun x : Node Q T => x.2.1.2.vertices[x.2.2.2]?) (encNode encQ encT)
       (encOption (encVertex encT)) :=
-  NativeCertificate.ofPolyTime (ComputableInPolyTime.getElem?
+  NativeCertificate.ofPolyTime (ComputableInPolyTime.getElem? (encA := encVertex encT)
+    (encL := encList (encVertex encT))
     (vertices_polyTime.comp network_polyTime) index_polyTime)
 
 /-- The query to the evaluator: the descriptor and the bits on the ports. -/
@@ -764,7 +767,9 @@ theorem contractionCertificate_le [Inhabited Y] (hops : ops.PolyTime encQ encY)
     (sumScheme_polyTime (ops := ops) (eval := eval) (encT := encT) hops)
     (leafCertificate eval hops ev)
   have hV : (vertexCertificate (encQ := encQ) (encT := encT)).IsPolynomial :=
-    NativeCertificate.ofPolyTime_isPolynomial _
+    by
+      unfold vertexCertificate
+      exact NativeCertificate.ofPolyTime_isPolynomial _
   have hQ : (queryCertificate (encQ := encQ) (encT := encT)).IsPolynomial :=
     NativeCertificate.ofPolyTime_isPolynomial _
   have hZ : (zeroCertificate (encT := encT) hops).IsPolynomial :=

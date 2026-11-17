@@ -83,7 +83,7 @@ theorem exists_observationBound (pair : SamplablePair) :
     obtain ⟨result, hresult, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hobservation
     simp only [pmf_norm, pair.eval_sample]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨result, hresult, rfl⟩
-  simpa only [encBits, Function.Embedding.refl_apply, encUnary_apply, List.length_replicate] using
+  simpa only [encBits_apply, encUnary_apply, List.length_replicate] using
     hbound n (pair.encode n observation) hsupported
 
 /-- A plain polynomial-time evaluator from a uniform seed, with all input bits counted. -/

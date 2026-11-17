@@ -425,7 +425,8 @@ theorem computableInPolyTime_labelStep :
   have hread : ComputableInPolyTime
       (fun q : (LabelParams × PartialWords) × (Bool × ℕ) => (readSlotSchedule q.2 q.1.2).isSome)
       encStepIn encBool :=
-    ComputableInPolyTime.optionIsSome (computableInPolyTime_readSlotSchedule.comp
+    ComputableInPolyTime.optionIsSome (encB := encList encNat)
+      (computableInPolyTime_readSlotSchedule.comp
       (show ComputableInPolyTime (fun q : (LabelParams × PartialWords) × (Bool × ℕ) => (q.2, q.1.2))
         encStepIn _ by fun_prop))
   have hupd := computableInPolyTime_updateSlotSchedules.comp

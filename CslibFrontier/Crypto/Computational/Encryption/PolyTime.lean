@@ -105,7 +105,8 @@ theorem AdversaryOf.IsPPT.restrict {Msg : Type} {encMsg : Msg ↪ List Bool}
     ppt
   guess := by
     have hguess := hadversary.guess
-    unfold AdversaryOf.restrict
+    have hhead := ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false
+    dsimp only [AdversaryOf.restrict]
     ppt
 
 /-- Unrestricted IND-CPA implies IND-CPA under every polynomial-time admissibility predicate. -/

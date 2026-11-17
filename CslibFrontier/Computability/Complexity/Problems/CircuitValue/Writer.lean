@@ -73,6 +73,12 @@ private theorem writerAddr_inSpace :
     ComputableInSpace writerAddr encNat3 (encOption encNat) wBudget := by
   have hin : (fun s => (encNat3 s).length) ≼ wBudget := .of_le fun _ => by
     simp only [wBudget]; omega
+  have hcount : ComputableInSpace (fun s : ℕ × ℕ × ℕ => some (2 * s.2.2))
+      encNat3 (encOption encNat) wBudget :=
+    budget_optionSome (encB := encNat) (by space)
+  have hcopy : ComputableInSpace (fun s : ℕ × ℕ × ℕ => some (2 * s.2.2 + 1))
+      encNat3 (encOption encNat) wBudget :=
+    budget_optionSome (encB := encNat) (by space)
   space [writerAddr]
 
 /-- The states of the writer on an input of length `n`, with `N` gates. -/

@@ -58,7 +58,7 @@ private theorem getD_frame (x : List Bool) (k : ℕ) :
     (frame x).getD k false =
       if k < 2 * x.length then (if k % 2 = 0 then true else x.getD (k / 2) false) else false := by
   induction x generalizing k with
-  | nil => cases k <;> simp [frame_nil]
+  | nil => cases k <;> simp
   | cons b x ih =>
     rw [frame_cons]
     match k with
@@ -183,11 +183,11 @@ theorem readBit_classicalRun_frameCodes (h : o + 2 * n + 1 + p ≤ M) (ho : n + 
       else if k = 2 * n then false
       else (List.ofFn z).getD (k - (2 * n + 1)) false := by
     by_cases hk : k < 2 * n + 1
-    · rw [List.getD_append _ _ _ _ (by simp [length_frame]; omega), getD_frame, hx]
+    · rw [List.getD_append _ _ _ _ (by simp; omega), getD_frame, hx]
       by_cases hk' : k < 2 * n
       · simp [hk']
       · simp [show k = 2 * n by omega]
-    · rw [List.getD_append_right _ _ _ _ (by simp [length_frame]; omega), length_frame, hx,
+    · rw [List.getD_append_right _ _ _ _ (by simp; omega), length_frame, hx,
         ite_eq_right (by omega), ite_eq_right (by omega)]
   rw [hfr]
   by_cases hk : k < 2 * n

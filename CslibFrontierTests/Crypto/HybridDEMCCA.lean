@@ -36,7 +36,7 @@ theorem fixedEncaps_ppt : IsPPTOn (encPair encUnary encBits) (encPair encBits en
 
 theorem identityDecaps_polyTime : ComputableInPolyTime
     (fun p : ℕ × List Bool × List Bool => identityDecaps p.1 p.2.1 p.2.2)
-    (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
+    (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits) := by
   unfold identityDecaps
   fun_prop
 
@@ -170,7 +170,7 @@ example (bit : Bool) : ProbComp.eval (echoCipher.ccaOneTimeGame
   · intro k hk msg hmsg ct hct
     exact (echoCipher_ctLen 0 k hk msg hmsg ct hct).le
   · intro k _ ct
-    simp [echoCipher, encOption_some, encBits_apply]
+    simp [echoCipher, encSilentOption_some, encBits_apply]
 
 /-- Reject a noncanonical alias with a nonempty KEM projection before making an external call. -/
 example : hybridDEMHandler echoCipher identityDecaps (fun _ ct => ct.length + 1)
@@ -190,7 +190,7 @@ theorem eval_prfKeyGen_zero {family : List Bool → List Bool → List Bool}
     let ke ← BitString.sampleList 0
     let km ← BitString.sampleList 0
     return encPair encBits encBits (ke, km)) = _
-  simp [BitString.sampleList, encPair_apply, encBits_apply, frame]
+  simp [BitString.sampleList, encPair_apply, encBits_apply, Cslib.Encoding.delimit]
 
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     [true] ∈ (ProbComp.eval (BitString.sampleList 1)).support ∧

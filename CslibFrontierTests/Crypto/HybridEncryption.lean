@@ -74,7 +74,7 @@ theorem leakingEncaps_ppt :
 theorem leakingDecaps_polyTime :
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool => leakingDecaps p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
+      (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits) := by
   unfold leakingDecaps
   fun_prop
 
@@ -166,7 +166,7 @@ example : IsPPTOn (encPair encUnary (encPair encBits encBool)) encBits
 example : ComputableInPolyTime
     (fun p : ℕ × List Bool × List Bool =>
       hybridDecrypt leakingDecaps (fun n k ct => some (otpDecrypt n k ct)) p.1 p.2.1 p.2.2)
-    (encPair encUnary (encPair encBits encBits)) (encOption encBool) :=
+    (encPair encUnary (encPair encBits encBits)) (encSilentOption encBool) :=
   computableInPolyTime_hybridDecrypt leakingDecaps_polyTime
     ((ComputableInPolyTime.optionSome encBool).comp computableInPolyTime_otpDecrypt)
 

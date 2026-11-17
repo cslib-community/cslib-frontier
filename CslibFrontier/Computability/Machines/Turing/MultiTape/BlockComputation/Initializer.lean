@@ -120,7 +120,7 @@ theorem step_inSpace (k : ℕ) : ComputableInSpace (step k) encState encState
   rintro ⟨⟨args, m, r, alphabet, p⟩, cursor, bank, limit⟩
   by_cases ht : cursor < (k * 3 + 1 + 1) * r <;>
     by_cases hc : cursor < (k * 3 + 1) * r <;>
-      simp [step, ht, hc, encState, encPair_apply]
+      simp [step, ht, hc, encState]
 
 /-- Extract the actual evaluator header, padded bank and initial call mode natively. -/
 theorem result_inSpace (k : ℕ) : ComputableInSpace (result k) encState

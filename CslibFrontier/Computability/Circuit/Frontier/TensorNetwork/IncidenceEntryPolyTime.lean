@@ -98,7 +98,7 @@ theorem length_indexStep_le (st : List Bool × List ℕ) (b : Block) :
     (encPair encBits (encList encNat) (indexStep st b)).length ≤
       (encPair encBits (encList encNat) st).length + 2 * b.1.length + 1 := by
   have hval : (encNat (lsbValue (st.1.take (blockWires b)))).length ≤ b.1.length := by
-    change (lsbValue _).bits.length ≤ _
+    rw [encNat_apply]
     rw [Nat.size_eq_bits_len]
     refine (Nat.size_le.mpr ((lsbValue_lt _).trans_le
       (Nat.pow_le_pow_right (by norm_num) ?_))).trans le_rfl

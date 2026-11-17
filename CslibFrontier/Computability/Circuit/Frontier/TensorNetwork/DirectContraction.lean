@@ -30,6 +30,7 @@ import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Computability.Encoding.NatBits
 
 /-!
 # Contracting an explicit tensor network by direct summation
@@ -225,6 +226,11 @@ private theorem vertices_polyTime :
   (ComputableInPolyTime.snd encUnary encVertices).comp
     (ComputableInPolyTime.of_eq (f := DescribedNetwork.equivProd) fun _ => rfl)
 
+section EncodingOpacity
+
+-- Keep proof search from unfolding the shared binary representation.
+attribute [local irreducible] Cslib.Encoding.encNat ComputableInPolyTime
+
 /-- The weight of the current word modulo `2 ^ P` is computable in polynomial time. -/
 theorem weightMod_polyTime :
     ComputableInPolyTime (fun q : (ℕ × ExplicitTensorNetwork ℕ) × List Bool =>
@@ -280,9 +286,14 @@ theorem weightMod_polyTime :
         ((ComputableInPolyTime.binary_mul' hacc hentry).prod hstepMod))
     refine ComputableInPolyTime.of_enc_eq h fun p => ?_
     simp only [Function.comp_def, entry, lsbValue_eq_binaryValue_reverse]
-  have hfold := ComputableInPolyTime.foldlWithInput_of_bounded_growth
+  -- Fix the fold's external certificate before elaborating its nested callback arguments.
+  have hfold : ComputableInPolyTime
+      (fun q : (ℕ × ExplicitTensorNetwork ℕ) × List Bool => weightMod q.1.1 q.1.2 q.2)
+      encWeightInput encNat := ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encPair (encList encNat) (encList encNat)) (encL := encVertices)
-    (step := fun q acc v => acc * entry v.2 (v.1.map fun i => q.2.getD i false) % 2 ^ q.1.1)
+    (step := fun (q : (ℕ × ExplicitTensorNetwork ℕ) × List Bool) (acc : ℕ)
+      (v : List ℕ × List ℕ) =>
+        acc * entry v.2 (v.1.map fun i => q.2.getD i false) % 2 ^ q.1.1)
     hinit ⟨hverts, hstep, inferInstance, inferInstance⟩
     (growth := fun q => q.1.1)
     ⟨PolyBounded.of_forall_le 1 1 fun q => by
@@ -290,6 +301,8 @@ theorem weightMod_polyTime :
       fun q acc v _ => (length_encNat_le_of_lt_two_pow (Nat.mod_lt _ (Nat.two_pow_pos _))).trans
         (Nat.le_add_left _ _)⟩
   exact hfold
+
+end EncodingOpacity
 
 /-- The encoding of the live state `((P, d), acc)` of direct summation: the precision `P` in unary
 (framed) paired with the network `d` (`encExplicitNetwork`), that pair framed, followed by the
@@ -453,7 +466,7 @@ private theorem sum_lt_two_pow_length (t : List ℕ) : t.sum < 2 ^ (encList encN
   | nil => simp
   | cons e t ih =>
     have he : e < 2 ^ (encNat e).length := by
-      change e < 2 ^ e.bits.length
+      rw [Cslib.Encoding.encNat_eq_bits]
       rw [Nat.size_eq_bits_len]
       exact Nat.lt_size_self e
     have h1 : 2 ^ (encNat e).length ≤ 2 ^ (2 * (encNat e).length + (encList encNat t).length) :=

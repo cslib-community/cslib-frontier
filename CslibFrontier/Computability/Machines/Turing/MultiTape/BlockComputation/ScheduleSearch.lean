@@ -186,7 +186,7 @@ theorem resume_inSpace : ComputableInSpace (fun a : CallerState × E.State => re
   have hσ' := budget_ite hisSome hσ (budget_natSucc hσ)
   refine (budget_prod ha (budget_prod hσ' hout)).of_enc_eq ?_
   rintro ⟨⟨args, σ, result⟩, returned⟩
-  cases ho : E.outcome (args, returned) <;> simp [resume, ho, encCaller, encPair_apply]
+  cases ho : E.outcome (args, returned) <;> simp [resume, ho, encCaller]
 
 /-- Extract the stored caller decision without constructing an output word. -/
 theorem answer_inSpace : ComputableInSpace (answer (E := E)) (encState E)

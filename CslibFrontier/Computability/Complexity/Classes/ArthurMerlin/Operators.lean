@@ -64,7 +64,7 @@ theorem BPOp_NP : BPOp enc (NP (encPair enc encBits)) = AM enc := by
         arthurMerlinSlice enc q V (a, List.ofFn r) = decide ((a, List.ofFn r) ∈ B) := by
       have hlen : s.eval ((encPair enc encBits) (a, List.ofFn r)).length =
           q.eval (enc a).length := by
-        simp [q, encBits_apply, Polynomial.eval_comp]
+        simp [q, Polynomial.eval_comp]
       have hv (y : Fin (q.eval (enc a).length) → Bool) :
           V (a, List.ofFn r ++ List.ofFn y) = W ((a, List.ofFn r), List.ofFn y) := by
         simp [V]

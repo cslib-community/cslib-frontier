@@ -51,7 +51,8 @@ theorem InputGood.encoded_le {F : CSP Table ℕ} {D : ℕ} {input : EdgeForest.I
   have hw := chain.width_le hF
   have hlen : (encList encBool input.labels).length = 3 * (incidenceList input.body).length := by
     rw [hbits]
-    simp [length_encList, encBool_apply, List.map_map, Function.comp_def, Nat.mul_comm]
+    simp [List.map_map, Function.comp_def]
+    omega
   enc_len [EdgeForest.encInput_apply, EdgeForest.encInputFields, hlen, inputBudget]
 
 private theorem cycle_budget {F G : CSP Table ℕ} {D : ℕ} (f : OccurrenceLabeling G Bool)
@@ -117,8 +118,8 @@ theorem StateGood.encoded_le {F : CSP Table ℕ} {D : ℕ} {state : State}
         simp only [encOption_some, List.length_cons]
         have hl : (encList encBool (buffer g)).length =
             3 * (incidenceList state.current.body).length := by
-          simp [buffer, length_encList, encBool_apply, List.map_map, Function.comp_def,
-            Nat.mul_comm]
+          simp [buffer, List.map_map, Function.comp_def]
+          omega
         rw [hl]
         omega
   enc_len [encState_apply, encStateFields, stateBudget]

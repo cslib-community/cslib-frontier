@@ -584,11 +584,12 @@ theorem isPPTOn_runTwoRound_prover {α β Caller : Type} {enc : α ↪ List Bool
 theorem computableInPolyTime_firstSuccess {α β : Type} {input : α ↪ List Bool}
     {enc : β ↪ List Bool} {d : α → β} {attempts : α → List (Option β)}
     (hd : ComputableInPolyTime d input enc)
-    (ha : ComputableInPolyTime attempts input (encList (encOption enc))) :
+    (ha : ComputableInPolyTime attempts input (encList (encSilentOption enc))) :
     ComputableInPolyTime (fun a => firstSuccess (d a) (attempts a)) input enc :=
-  let hfilt := (ComputableInPolyTime.headD (encA := encOption enc) none).comp'
+  let hfilt := (ComputableInPolyTime.headD (encA := encSilentOption enc) none).comp'
     (ha.filterWithInput
-      (ComputableTidilyInPolyTime.snd input (encOption enc)).optionIsSome.computableInPolyTime)
+      (ComputableTidilyInPolyTime.optionIsSome (encB := enc)
+        (ComputableTidilyInPolyTime.snd input (encSilentOption enc))).computableInPolyTime)
   (hfilt.tidy.optionGetDWithInput hd.tidy).computableInPolyTime
 
 @[fun_prop]
@@ -596,7 +597,8 @@ theorem computableInPolyTime_acceptGuess {α β : Type} {input : α ↪ List Boo
     {encB : β ↪ List Bool} {ch_guess : α → List Bool} {result : α → β × TwoRoundState}
     (hch : ComputableInPolyTime ch_guess input encBits)
     (hres : ComputableInPolyTime result input (encPair encB encTwoRoundState)) :
-    ComputableInPolyTime (fun a => acceptGuess (ch_guess a) (result a)) input (encOption encB) := by
+    ComputableInPolyTime (fun a => acceptGuess (ch_guess a) (result a)) input (encSilentOption
+      encB) := by
   unfold acceptGuess
   exact ((encTwoRoundState_challenge_polyTime hres.snd').beq hch).ite'
     ((ComputableInPolyTime.optionSome encB).comp hres.fst') (.const none)
@@ -683,7 +685,7 @@ theorem isPPTOn_gmwSimWithPads {α β : Type} {enc : α ↪ List Bool} {encB : �
     (hg : ComputableInPolyTime generator encBits encBits)
     (hlen : ∀ s, (generator s).length = length s.length) (hf : ComputableInPolyTime f enc encCNF)
     (hV : IsOraclePPTOn (encInstanceAuxInput enc) encB (fun (n, a, z) => Vstar n a z)) :
-    IsPPTOn (encPair (encInstanceAuxInput enc) (encList encBits)) (encOption encB)
+    IsPPTOn (encPair (encInstanceAuxInput enc) (encList encBits)) (encSilentOption encB)
       (fun p : (ℕ × α × List Bool) × List (List Bool) =>
         gmwSimWithPads generator (p.1.1 + 7) (length (p.1.1 + 7))
           (f p.1.2.1) (Vstar p.1.1 p.1.2.1 p.1.2.2) p.2) := by
@@ -717,7 +719,7 @@ theorem isPPTOn_gmwSimAttempt {α β : Type} {enc : α ↪ List Bool} {encB : β
     (hg : ComputableInPolyTime generator encBits encBits)
     (hlen : ∀ s, (generator s).length = length s.length) (hf : ComputableInPolyTime f enc encCNF)
     (hV : IsOraclePPTOn (encInstanceAuxInput enc) encB (fun (n, a, z) => Vstar n a z)) :
-    IsPPTOn (encInstanceAuxInput enc) (encOption encB)
+    IsPPTOn (encInstanceAuxInput enc) (encSilentOption encB)
       (fun p : ℕ × α × List Bool =>
         gmwSimAttempt generator (p.1 + 7) (length (p.1 + 7))
           (f p.2.1) (Vstar p.1 p.2.1 p.2.2)) := by

@@ -273,7 +273,7 @@ private theorem computableInPolyTime_advance {s : β → WalkState α} {e₀ e�
   have hyes := hchild.prod (hest.prod (hacc.prod (const (encOut := encBool) true)))
   have hno := hs.fst'.prod (hs.snd'.fst'.prod (hs.snd'.snd'.fst'.prod
     (const (encOut := encBool) false)))
-  exact ite (optionIsSome ho) hyes hno
+  exact ite (optionIsSome (encB := encBool) ho) hyes hno
 
 /-- One loop step is strict PPT on a captured input and the walk state, when the counter
 parameters, the damping and the coin precision are computed from the captured input in unary. -/
@@ -538,7 +538,8 @@ theorem isPPTOn_sampler
       (ComputableInPolyTime.fst (encPair enc encUnary) (encPair encNat encNat)).snd'
   have hgood : ComputableInPolyTime (fun o : Option (List Bool) => o.isSome) (encOption encBits)
       encBool :=
-    ComputableInPolyTime.optionIsSome (ComputableInPolyTime.id' (encIn := encOption encBits))
+    ComputableInPolyTime.optionIsSome (encB := encBits)
+      (ComputableInPolyTime.id' (encIn := encOption encBits))
   have hretry := (R.isPPTOn_trial A hA).retry hgood hfuel
   have hjoin : ComputableInPolyTime (fun o : Option (Option (List Bool)) => o.join)
       (encOption (encOption encBits)) (encOption encBits) := by

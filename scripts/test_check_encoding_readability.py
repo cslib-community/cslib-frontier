@@ -191,7 +191,7 @@ class RuleTests(unittest.TestCase):
         source = "\n".join(p.read_text() for p in root.rglob("*.lean"))
         for name, arity in c.COMBINATORS.items():
             with self.subTest(name=name):
-                definition = re.search(rf"\bdef {name}\b((?:\s*(?:\{{[^}}]*\}}|\([^)]*\)))*)",
+                definition = re.search(rf"\b(?:def|abbrev) {name}\b((?:\s*(?:\{{[^}}]*\}}|\([^)]*\)))*)",
                                        source)
                 self.assertIsNotNone(definition)
                 self.assertEqual(definition[1].count("("), arity)

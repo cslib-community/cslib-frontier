@@ -65,7 +65,7 @@ theorem ComputableInO.exists_bits {C : Type} {encC : C ↪ List Bool}
   let B := fun p : C × ℕ => 2 * (encC p.1).length + 3 * p.2 + 1
   have hlen (p : C × ℕ) (w : List Bool) (hw : w.length = p.2) :
       (encPair encC (encList encBool) (p.1, w)).length ≤ B p := by
-    simp [length_encList, encBool_apply, hw, B]
+    simp [hw, B]
     omega
   obtain ⟨a, b, ht⟩ := hTc.exists_le
   obtain ⟨c, d, hs⟩ := hSc.exists_le

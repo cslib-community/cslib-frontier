@@ -193,7 +193,7 @@ private theorem eval_poly {Γ : List ℕ} {α : Type w}
       apply iterateWithInput_of_bounded_growth hcount (const []) hstep
       refine ⟨hcount.polyBounded, ?_⟩
       intro x state
-      simp [tableStep, encBits]
+      simp [tableStep]
     exact bitsGetDWithInput hiter
       (valuesIndex_poly ha.fst' (fun j => termValue_poly (ts j) ha.fst' hσ)) false
 

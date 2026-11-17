@@ -170,7 +170,7 @@ def elGamalMaulAdversary {Msg : Type} (encodeMsg : F.Desc → Msg → List Bool)
     (d : ℕ → F.Desc) (msg₀ msg₁ : ℕ → Msg) : CCA2AdversaryOf Msg :=
   maulAdversary (fun n _ => msg₀ n) (fun n _ => msg₁ n)
     (fun n _ ct => F.elGamalMaulCiphertext (d n) ct)
-    (fun n _ => encOption encBits
+    (fun n _ => encSilentOption encBits
       (some (F.add (d n, encodeMsg (d n) (msg₁ n), F.encode (d n) (F.generator (d n))))))
 
 /-- The target word of `elGamalMaulAdversary` is computable in polynomial time. -/
@@ -181,7 +181,8 @@ private theorem computableInPolyTime_elGamalMaulTarget {Msg : Type} {encMsg : Ms
     (hd : ComputableInPolyTime d encUnary F.encDesc)
     (hmsg₁ : ComputableInPolyTime msg₁ encUnary encMsg) :
     ComputableInPolyTime
-      (fun p : ℕ × List Bool => encOption encBits (some (F.add (d p.1, encodeMsg (d p.1) (msg₁ p.1),
+      (fun p : ℕ × List Bool => encSilentOption encBits (some (F.add (d p.1, encodeMsg (d p.1)
+        (msg₁ p.1),
         F.encode (d p.1) (F.generator (d p.1))))))
       (encPair encUnary encBits) encBits := by
   have hn := ComputableInPolyTime.fst encUnary encBits
@@ -246,8 +247,8 @@ private theorem elGamalMaul_conditions {Msg : Type} {encodeMsg : F.Desc → Msg 
       (F.elGamalEncryptProb encodeMsg d n keys.1 (if bit then msg₁ n else msg₀ n))).support) :
     F.elGamalDecryptOpt d n keys.2 (F.elGamalMaulCiphertext (d n) ct) ≠
         F.elGamalDecryptOpt d n keys.2 ct ∧
-      (encOption encBits (F.elGamalDecryptOpt d n keys.2 (F.elGamalMaulCiphertext (d n) ct)) =
-          encOption encBits (some (F.add (d n, encodeMsg (d n) (msg₁ n),
+      (encSilentOption encBits (F.elGamalDecryptOpt d n keys.2 (F.elGamalMaulCiphertext (d n) ct)) =
+          encSilentOption encBits (some (F.add (d n, encodeMsg (d n) (msg₁ n),
             F.encode (d n) (F.generator (d n))))) ↔ bit = true) := by
   obtain ⟨xb, hxb, hiff⟩ : ∃ xb, encodeMsg (d n) (if bit then msg₁ n else msg₀ n) =
       F.encode (d n) xb ∧ (xb = x₁ ↔ bit = true) := by
@@ -329,7 +330,7 @@ theorem not_indcca2On_elGamalEncryptProb {Msg : Type} {encMsg : Msg ↪ List Boo
       (F.elGamalDecryptOpt d) :=
   not_indcca2On_of_maulAdversary (msg₀ := fun n _ => msg₀ n) (msg₁ := fun n _ => msg₁ n)
     (maul := fun n _ ct => F.elGamalMaulCiphertext (d n) ct)
-    (target := fun n _ => encOption encBits
+    (target := fun n _ => encSilentOption encBits
       (some (F.add (d n, encodeMsg (d n) (msg₁ n), F.encode (d n) (F.generator (d n))))))
     (hmsg₀.comp (.fst encUnary encBits)) (hmsg₁.comp (.fst encUnary encBits))
     (F.computableInPolyTime_elGamalMaul hd)

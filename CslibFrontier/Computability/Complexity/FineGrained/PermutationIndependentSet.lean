@@ -814,7 +814,7 @@ private theorem computableInPolyTime_bool_toUnary :
 @[local fun_prop]
 private theorem computableInPolyTime_nat_bits :
     ComputableInPolyTime Nat.bits encNat encBits :=
-  of_eq fun _ => rfl
+  of_eq fun _ => by simp only [encBits_apply, encNat_apply]
 
 @[local fun_prop]
 private theorem computableInPolyTime_blockSize :

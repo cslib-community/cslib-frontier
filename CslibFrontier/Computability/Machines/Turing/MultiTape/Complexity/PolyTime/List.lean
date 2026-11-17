@@ -212,25 +212,29 @@ theorem listReverseWithInput {list : γ → List α}
 
 /-- Find the first element passing a polynomial-time test with a fixed parameter.
 The list may have any polynomial encoded length. -/
-theorem findWith {test : π × α → Bool} {par : γ → π} {list : γ → List α}
+theorem findWith {encO : Option α ↪ List Bool} [OptionEncoding encA encO]
+    {test : π × α → Bool} {par : γ → π} {list : γ → List α}
     (htest : ComputableTidilyInPolyTime test (encPair encP encA) encBool)
     (hpar : ComputableTidilyInPolyTime par encIn encP)
     (hlist : ComputableTidilyInPolyTime list encIn (encList encA)) :
     ComputableTidilyInPolyTime (fun x => (list x).find? fun a => test (par x, a))
-      encIn (encOption encA) := by
+      encIn encO := by
   obtain ⟨d, e, htest⟩ := htest.exists_degree
-  exact (ComputableTidilyInDegree.findWith htest
+  have h := (ComputableTidilyInDegree.findWith htest
     (ComputableTidilyInDegree.fst encP (encList encA))
     (ComputableTidilyInDegree.snd encP (encList encA))).computableTidilyInPolyTime.comp
       (hpar.prod hlist)
+  exact ((ComputableInDegree.optionTranslate encA).computableInPolyTime.tidy.comp h).of_enc_eq
+    fun _ => rfl
 
 /-- Search with a predicate that captures the original input. -/
 @[fun_prop]
-theorem findWithInput {test : γ → α → Bool} {list : γ → List α}
+theorem findWithInput {encO : Option α ↪ List Bool} [OptionEncoding encA encO]
+    {test : γ → α → Bool} {list : γ → List α}
     (hlist : ComputableTidilyInPolyTime list encIn (encList encA))
     (htest : ComputableTidilyInPolyTime (fun p : γ × α => test p.1 p.2)
       (encPair encIn encA) encBool) :
-    ComputableTidilyInPolyTime (fun x => (list x).find? (test x)) encIn (encOption encA) :=
+    ComputableTidilyInPolyTime (fun x => (list x).find? (test x)) encIn encO :=
   findWith htest id' hlist
 
 /-- Keep the elements passing a polynomial-time test with a fixed parameter.
@@ -295,8 +299,9 @@ theorem map {f : α → β} (hf : ComputableTidilyInPolyTime f encA encB) :
 
 /-- Read an optional head in any list encoding, without an inhabitant of the element type. -/
 @[fun_prop]
-theorem head? (enc : α ↪ List Bool) {encL : List α ↪ List Bool} [ListEncoding enc encL] :
-    ComputableTidilyInPolyTime (List.head? (α := α)) encL (encOption enc) :=
+theorem head? (enc : α ↪ List Bool) {encL : List α ↪ List Bool} [ListEncoding enc encL]
+    {encO : Option α ↪ List Bool} [OptionEncoding enc encO] :
+    ComputableTidilyInPolyTime (List.head? (α := α)) encL encO :=
   (ComputableInPolyTime.head? enc).tidy
 
 /-- Map an input-dependent function over a fixed list. Only its members need certificates;
@@ -611,11 +616,12 @@ theorem listTakeWithInput {list : γ → List α} {count : γ → ℕ}
 /-- Look up a computed unary index, returning `none` outside a computed list. The list certificate
 determines its encoding before proof search checks the corresponding operation and size rules. -/
 @[fun_prop]
-theorem getElem? {encL : List α ↪ List Bool} {list : γ → List α} {index : γ → ℕ}
+theorem getElem? {encO : Option α ↪ List Bool} [OptionEncoding encA encO]
+    {encL : List α ↪ List Bool} {list : γ → List α} {index : γ → ℕ}
     (hlist : ComputableTidilyInPolyTime list encIn encL)
     (hindex : ComputableTidilyInPolyTime index encIn encUnary)
     [ListEncoding encA encL] [SizedListEncoding encA encL] :
-    ComputableTidilyInPolyTime (fun x => (list x)[index x]?) encIn (encOption encA) := by
+    ComputableTidilyInPolyTime (fun x => (list x)[index x]?) encIn encO := by
   simpa only [Function.comp_def, List.head?_drop] using
     (head? encA).comp ((dropUnary (encA := encA)).comp (hlist.prod hindex))
 
@@ -710,8 +716,17 @@ theorem zip {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
     have hright : i < p.2.length := (Nat.lt_min.mp (by simpa using hi)).2
     simp only [List.getElem_zip, List.getElem_map, List.getElem_range,
       List.getD_eq_getElem _ _ hleft, List.getD_eq_getElem _ _ hright]
-  simp_rw [heq, List.getD_eq_getElem?_getD]
-  fun_prop
+  simp_rw [heq]
+  have hleft := fst (encList encA) (encList encB)
+  have hright := snd (encList encA) (encList encB)
+  have hlengthLeft := (length_list (enc := encA)).comp hleft
+  have hlengthRight := (length_list (enc := encB)).comp hright
+  apply mapWithInput (encA := encUnary)
+  · fun_prop
+  · exact ((listGetD (encA := encA) (encL := encList encA) a).comp
+      ((hleft.comp (fst _ encUnary)).prod (snd _ encUnary))).prod
+      ((listGetD (encA := encB) (encL := encList encB) b).comp
+        ((hright.comp (fst _ encUnary)).prod (snd _ encUnary)))
 
 
 end Turing.MultiTapeTM.ComputableTidilyInPolyTime
@@ -938,10 +953,11 @@ theorem length_bits_comp {α : Type} {input : α ↪ List Bool} {word : α → L
 /-- Find the first list element passing a test that captures the original input. -/
 @[fun_prop]
 theorem findWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
+    {encO : Option α ↪ List Bool} [OptionEncoding encA encO]
     {test : γ → α → Bool} {list : γ → List α}
     (hlist : ComputableInPolyTime list encIn (encList encA))
     (htest : ComputableInPolyTime (fun p : γ × α => test p.1 p.2) (encPair encIn encA) encBool) :
-    ComputableInPolyTime (fun x => (list x).find? (test x)) encIn (encOption encA) :=
+    ComputableInPolyTime (fun x => (list x).find? (test x)) encIn encO :=
   .of_tidy (ComputableTidilyInPolyTime.findWithInput hlist.tidy htest.tidy)
 
 /-- Count the list elements passing a test with a parameter, in unary. -/
@@ -993,8 +1009,13 @@ theorem zipIdx {α : Type} (enc : α ↪ List Bool) :
       simp only [List.length_zipIdx] at hi
       simp only [List.getElem_zipIdx, List.getElem_map, List.getElem_range,
         List.getD_eq_getElem _ _ hi, Nat.zero_add]
-    simp_rw [heq, List.getD_eq_getElem?_getD]
-    fun_prop
+    simp_rw [heq]
+    apply of_tidy
+    apply ComputableTidilyInPolyTime.mapWithInput (encA := encUnary)
+    · fun_prop
+    · exact ((ComputableTidilyInPolyTime.listGetD (encA := enc)
+        (encL := encList enc) fallback).prod
+          (ComputableTidilyInPolyTime.snd (encList enc) encUnary))
 
 end Turing.MultiTapeTM.ComputableInPolyTime
 

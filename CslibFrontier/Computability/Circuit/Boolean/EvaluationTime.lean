@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Evaluating De Morgan circuits in polynomial time
@@ -93,7 +94,8 @@ private theorem computableInPolyTime_step :
   rw [heq]
   have hargs (i : ℕ) : ComputableInPolyTime (fun p : List Bool × (Op × List ℕ) =>
       p.2.2[i]?.elim false (p.1.getD · false)) (encPair encBits encGate) encBool :=
-    optionElimWithInput (getElem? (snd _ _).snd' (const i)) (const false)
+    optionElimWithInput (encO := encOption encNat)
+      (getElem? (encA := encNat) (snd _ _).snd' (const i)) (const false)
       (listGetD_binary false (fst _ _).fst' (snd _ _))
   have hvalue : ComputableInPolyTime (fun p : List Bool × (Op × List ℕ) =>
       p.2.1.value (p.2.2[0]?.elim false (p.1.getD · false))
@@ -159,9 +161,7 @@ are ignored. The certificate charges circuit generation, input padding and all e
     ComputableInPolyTime
       (fun a => (c a).2.eval interpretation (BitString.ofList (c a).1 (x a)) 0)
       encIn encBool := by
-  have hview : ComputableInPolyTime
-      (fun C : Σ n, Circuit signature n 1 => (C.1, C.2.code))
-      (encCircuit 1) (encPair encUnary encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hparts := hview.comp hc
   have hn := hparts.fst'
   have hpad := bitsTakeWithInput (hx.bitsAppend ((bitsReplicate false).comp hn)) hn

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.PublicOperations
 public import CslibFrontier.Crypto.Computational.DiffieHellman
+import CslibFrontier.Computability.Encoding.NatBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Game.FourHop
@@ -121,7 +122,9 @@ theorem isPPTOn_pedersenCommitProb :
   have hr : ComputableInPolyTime
       (fun p : (ℕ × F.PedersenKey × List Bool) × ℕ => p.2.bits)
       (encPair E encNat) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp (ComputableInPolyTime.snd E encNat)
+    (show ComputableInPolyTime (fun n : ℕ => n.bits) encNat encBits from
+      .of_eq fun n => (Cslib.Encoding.encNat_eq_bits n).symm).comp
+        (ComputableInPolyTime.snd E encNat)
   have heval := F.pedersenPublicOperations.computableInPolyTime_commit
     (hk.comp hinput) (hm.comp hinput) hr
   unfold pedersenCommitProb

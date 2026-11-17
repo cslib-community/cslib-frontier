@@ -298,7 +298,7 @@ private theorem card_samples_le_length_encList (x : Instance) :
     x.samples.card ≤ (encList (encPair encBits encBool) (rawSamples x)).length := by
   have h := SizedListEncoding.length_le (encA := encPair encBits encBool)
     (encL := encList (encPair encBits encBool)) (rawSamples x)
-  simpa using h
+  simp
 
 private theorem arity_and_card_le_length_enc_of_encT (encT : ℕ ↪ List Bool) (x : Instance) :
     x.arity ≤

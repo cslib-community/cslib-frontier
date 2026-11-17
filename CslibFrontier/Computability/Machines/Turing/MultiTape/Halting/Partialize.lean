@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Basic
+public import CslibFrontier.Computability.Encoding.Basic
 
 /-!
 # Machines that diverge on a verdict
@@ -155,8 +156,8 @@ theorem runFrom_partialize (tm : MultiTapeTM k Bool State) (input : List Bool) (
 /-- Partial results as words: the divergence `none` as `[true]`, the output `some o` as
 `false :: o`. -/
 def encPartial : Option (List Bool) ↪ List Bool :=
-  ⟨fun | none => [true] | some o => false :: o, by
-    rintro (_ | o) (_ | o') h <;> simp_all⟩
+  (Equiv.optionEquivSumPUnit.{0} (List Bool)).toEmbedding.trans
+    (Cslib.Encoding.encSum Cslib.Encoding.encBits (Cslib.Encoding.encSubsingleton Unit))
 
 @[simp] theorem encPartial_none : encPartial none = [true] := rfl
 

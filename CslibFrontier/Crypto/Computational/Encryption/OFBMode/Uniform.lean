@@ -217,7 +217,7 @@ theorem computableInPolyTime_ofbWordDecrypt {family : List Bool → List Bool �
       (encPair encBits encBits) encBits) :
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) => ofbWordDecrypt family n k ct)
-      (encKeyedInput encBits) (encOption encBits) :=
+      (encKeyedInput encBits) (encSilentOption encBits) :=
   computableInPolyTime_ivStreamDecrypt (computableInPolyTime_ofbWordKeystream_tuple hpoly)
 
 /-! ### The reduction to the PRF game -/

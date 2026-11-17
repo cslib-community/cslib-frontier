@@ -213,9 +213,13 @@ structure DeliverReply where
   key : Option (List Bool)
   deriving DecidableEq, Repr
 
-/-- Encoding of `DeliverReply` via `enc_structure`. -/
+/-- Delivery reply wire format: framed message, phase and partner, followed by the
+silent optional key (`none` emits no suffix; `some key` emits `true :: key`). This preserves
+the protocol's pre-adoption words: an error reply is the prefix of a successful reply, as used
+by the adversary's reply-prefix tests. Canonical tagged options are not used at this boundary.
+`enc_structure` generates the constructor and projection certificates for this same format. -/
 enc_structure encDeliverReply : DeliverReply where
-  message : encBits, phase : (encFinEnum Phase), partner : encBits, key : (encOption encBits)
+  message : encBits, phase : (encFinEnum Phase), partner : encBits, key : (encSilentOption encBits)
 
 /-- Oracle query tags exposed to an active AKE adversary ([BonehShoup2023], §21.9, pp. 886–887). -/
 inductive Op where
@@ -312,7 +316,7 @@ noncomputable def challenger (P : Protocol) (n : ℕ) (ideal : Option Idealizati
 theorem encDeliverReply_some (message : List Bool) (phase : Phase) (partner key : List Bool) :
     encDeliverReply ⟨message, phase, partner, some key⟩ =
       encDeliverReply ⟨message, phase, partner, none⟩ ++ true :: key := by
-  simp [encDeliverReply_apply, encPair_apply]
+  simp [encDeliverReply_apply]
 
 /-- Query equation for `.registerHonest`. -/
 theorem challenger_registerHonest (P : Protocol) (n : ℕ) (ideal : Option Idealization)

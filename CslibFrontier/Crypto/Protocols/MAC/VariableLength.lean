@@ -627,6 +627,7 @@ theorem computableInPolyTime_freshBlockPair {E : Encoder} (hE : IsPolyTimeEncode
   unfold freshBlockPair
   simp only [List.contains_eq_mem]
   exact ComputableInPolyTime.optionGetDWithInput
+    (encO := encOption (encPair encBits encBits))
     (ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop))
     (by fun_prop)
 

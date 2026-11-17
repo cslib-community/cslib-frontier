@@ -28,7 +28,9 @@ namespace Decoder
 def nat : Decoder encNat where
   decode := ofBits
   -- A tactic proof keeps the foundational binary-digit lemma a proof-only dependency.
-  decode_enc n := by exact Nat.foldr_bit_bits n
+  decode_enc n := by
+    rw [encNat_apply]
+    exact Nat.foldr_bit_bits n
   computable :=
     (ComputableInO.bitsToNat.computableInPolyTime
       (PolyBounded.of_forall_le 1 1 (fun _ => by simp))

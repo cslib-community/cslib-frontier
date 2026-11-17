@@ -150,7 +150,16 @@ theorem computableInPolyTime_inputClauses {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime
       (fun a => inputClauses (k := k) (State := State) (u a) (L a) (t a) (j a))
       enc (encCNFOver encVar) := by
-  fun_prop [inputClauses]
+  -- Fix the optional-symbol certificate before traversing the nested clause branches.
+  -- This keeps proof search from repeatedly unfolding the feature and variable encodings.
+  have hsymbol : ComputableInPolyTime (fun a => (u a)[j a - 1]?)
+      enc (encOption encBool) :=
+    getElem? (encA := encBool) hu (by fun_prop)
+  unfold inputClauses
+  apply ite_decide
+  · fun_prop
+  · fun_prop
+  · apply ite_decide <;> fun_prop
 
 /-- Enumerate work-tape and input-symbol clauses, charging the complete input-dependent lists. -/
 @[fun_prop]

@@ -635,7 +635,7 @@ theorem parseRun_frame_snd (i k : ℕ) (v : List Bool) (rest : List Bool) :
     parseRun f g ((((true, false), false), i), k) (frame v ++ rest) =
       bitsOut (f k) i v ++ g true k ++ parseRun f g ((((true, false), false), 0), k + 1) rest := by
   induction v generalizing i with
-  | nil => simp [frame_nil, parseRun, parseEmit, parseStep, bitsOut]
+  | nil => simp [parseRun, parseEmit, parseStep, bitsOut]
   | cons b v ih =>
     simp only [frame_cons, List.cons_append, parseRun, parseEmit, parseStep, bitsOut]
     simp [ih, List.append_assoc]
@@ -683,7 +683,7 @@ theorem parseRun_encOV (p : List (List Bool) × List (List Bool)) :
   have hl (l : List (List Bool)) : encList encBits l = l.flatMap frame := rfl
   have e : encOV p = (p.1.flatMap frame).flatMap (fun b => [true, b]) ++
       (false :: p.2.flatMap frame ++ []) := by
-    simp only [encOV, encPair_apply, frame, hl, List.append_nil, List.append_assoc,
+    simp only [encOV, encPair_apply, Cslib.Encoding.delimit, hl, List.append_nil, List.append_assoc,
       List.singleton_append]
   have h₁ : parseStep (((((false, false), false), 0), 0 + p.1.length), false) =
       ((((true, false), false), 0), p.1.length) := by simp [parseStep]

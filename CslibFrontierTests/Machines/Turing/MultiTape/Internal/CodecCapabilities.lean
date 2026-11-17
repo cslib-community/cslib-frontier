@@ -40,7 +40,7 @@ variable {α β γ : Type u} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
   {encP : α × β ↪ List Bool}
 
 -- Arbitrary element types/encodings; no finite-domain or inhabited-type assumption.
-example [ListEncoding encA encL] [OptionEncoding encA encO] [PairEncoding encA encB encP]
+example [ListEncoding encA encL] [HaltOptionEncoding encA encO] [PairEncoding encA encB encP]
     (d : α) {f : γ → α} {g : γ → β} {t₁ s₁ t₂ s₂ : γ → ℕ}
     (hf : ComputableInTimeAndSpace f encIn encA t₁ s₁)
     (hg : ComputableInTimeAndSpace g encIn encB t₂ s₂)
@@ -58,7 +58,7 @@ example [ListEncoding encA encL] [OptionEncoding encA encO] [PairEncoding encA e
   exact ⟨(ListEncoding.headD d).comp (ListEncoding.tail (enc₁ := encA)),
     (ListEncoding.isEmpty (enc₁ := encA)).comp (ListEncoding.tail (enc₁ := encA)),
     (OptionEncoding.getD (enc := encO) d).comp OptionEncoding.some,
-    OptionEncoding.none_eq encA,
+    HaltOptionEncoding.none_eq encA,
     PairEncoding.pair_mono hf hg⟩
 
 example : True := by
@@ -75,7 +75,7 @@ example (w xs d : List Bool) (enc : Empty ↪ List Bool) :
       (encPair encBits encBits) (fun w => c * (w.length + 2))
       (fun w => c * ((encPair encBits encBits (w, w)).length + 1))) ∧
     encOption encBits (some w) = true :: w ∧
-    encOption encBits none = [] ∧
+    encOption encBits none = [false] ∧
     encPair encBits encBits (xs, []) = frame xs ++ [] ∧
     encList encBits [] = [] ∧
     unframe [true] = [] ∧

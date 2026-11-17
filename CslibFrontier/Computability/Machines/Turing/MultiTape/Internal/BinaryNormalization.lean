@@ -42,7 +42,7 @@ private theorem drop_linear :
       (fun w => 2 * w.length + 3) (fun _ => 0) := by
     refine ⟨0, _, inferInstance, dropFalsesT.toTM, fun w => ?_⟩
     simpa only [show dropFalsesT.q₀ = false from rfl, dropFalsesT_run,
-      encBits, Function.Embedding.refl_apply] using dropFalsesT.computesInTimeAndSpace_toTM w
+      encBits_apply] using dropFalsesT.computesInTimeAndSpace_toTM w
   exact ComputableInO.of_bounds h 3 (fun _ => by omega) (fun _ => by omega)
     (fun w => by simpa only [encBits_apply] using
       (List.length_dropWhile_le (!·) w).trans (by omega))

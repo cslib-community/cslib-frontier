@@ -207,7 +207,7 @@ public theorem natSub :
   let clock (p : ℕ × ℕ) := p.2.bits ++ p.1.bits
   let init (p : ℕ × ℕ) := ((p.2.bits, p.1.bits), (false, ([] : List Bool)))
   have hbits : ComputableInO Nat.bits encNat encBits (fun n => (encNat n).length)
-      (fun n => (encNat n).length) := of_eq fun _ => rfl
+      (fun n => (encNat n).length) := of_eq fun _ => by simp only [encBits_apply, encNat_apply]
   have hl := hbits.comp_linear (snd encNat encNat)
   have hr := hbits.comp_linear (fst encNat encNat)
   have hclock := hl.append hr (encOut := encBits) (g := clock) fun _ => rfl

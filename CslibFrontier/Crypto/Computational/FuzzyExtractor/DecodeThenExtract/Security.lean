@@ -286,6 +286,7 @@ private theorem computableInPolyTime_keyWordOf {k w : α → ℕ} {keyCoins : α
   exact (listGetD (encA := encNat) 0).comp
     ((hcoins.comp (fst input encUnary)).prod (snd input encUnary))
 
+attribute [local irreducible] ComputableInPolyTime in
 private theorem computableInPolyTime_helperWordOf {m k l w : α → ℕ} {lweWord : α → List Bool}
     {a : α → List (List ℕ)} {b : α → List ℕ}
     (hm : ComputableInPolyTime m input encUnary) (hk : ComputableInPolyTime k input encUnary)

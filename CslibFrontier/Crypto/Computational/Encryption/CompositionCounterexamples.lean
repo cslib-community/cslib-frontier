@@ -148,7 +148,7 @@ noncomputable def tailFallback (E : SymmetricCipher) : SymmetricCipher where
     have hdec2 := E.computableInPolyTime_decrypt_comp hn hk hctTail
     have hisSome : ComputableInPolyTime
         (fun p : ℕ × List Bool × List Bool => (E.decrypt p.1 p.2.1 p.2.2).isSome) EIn encBool :=
-      hdec1.optionIsSome
+      hdec1.optionIsSome (encB := encBits)
     have hisEmpty : ComputableInPolyTime
         (fun p : ℕ × List Bool × List Bool => p.2.2.isEmpty) EIn encBool := by
       dsimp only [EIn]; fun_prop
@@ -369,7 +369,7 @@ def tailFallbackCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
       ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
     let reply ← List.take (n + 1) <$>
       ProbOracleComp.query (true, false :: ct)
-    return (reply == encOption encBits (some m1))
+    return (reply == encSilentOption encBits (some m1))
 
 /-- `tailFallbackCCAAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
@@ -394,7 +394,7 @@ theorem isOraclePPT_tailFallbackCCAAdversary {ctBound : ℕ → ℕ}
     dsimp only [E1, E0]; fun_prop
   have hout : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × List Bool =>
-        p.2 == encOption encBits (some (List.replicate p.1.1.1 true)))
+        p.2 == encSilentOption encBits (some (List.replicate p.1.1.1 true)))
       E2 encBool := by
     dsimp only [E2, E1, E0]; fun_prop
   unfold tailFallbackCCAAdversary
@@ -423,8 +423,8 @@ private theorem eval_ccaOneTimeGame_tailFallback_tailFallbackCCAAdversary (E : S
         (ProbComp.eval (E.encrypt n k (List.replicate n bit))).map fun ct => (k, ct)).bind
           (fun p => PMF.pure
             (List.take (n + 1)
-              (encOption encBits (E.tailFallback.decrypt n p.1 (false :: p.2))) ==
-                encOption encBits (some (List.replicate n true)))) := by
+              (encSilentOption encBits (E.tailFallback.decrypt n p.1 (false :: p.2))) ==
+                encSilentOption encBits (some (List.replicate n true)))) := by
   have hbit : (if bit then List.replicate n true else List.replicate n false) =
       List.replicate n bit := by
     cases bit <;> rfl
@@ -443,18 +443,18 @@ private theorem replicate_false_ne_replicate_true {n : ℕ} (hn : 1 ≤ n) :
   | zero => contradiction
   | succ m => simp
 
-private theorem take_encOption_some_replicate (n : ℕ) (b : Bool) :
-    List.take (n + 1) (encOption encBits (some (List.replicate n b))) =
-      encOption encBits (some (List.replicate n b)) := by
+private theorem take_encSilentOption_some_replicate (n : ℕ) (b : Bool) :
+    List.take (n + 1) (encSilentOption encBits (some (List.replicate n b))) =
+      encSilentOption encBits (some (List.replicate n b)) := by
   apply List.take_of_length_le
-  simp [encOption_some, encBits_apply]
+  simp
 
-private theorem encOption_some_replicate_false_beq_true {n : ℕ} (hn : 1 ≤ n) :
-    (encOption encBits (some (List.replicate n false)) ==
-      encOption encBits (some (List.replicate n true))) = false := by
+private theorem encSilentOption_some_replicate_false_beq_true {n : ℕ} (hn : 1 ≤ n) :
+    (encSilentOption encBits (some (List.replicate n false)) ==
+      encSilentOption encBits (some (List.replicate n true))) = false := by
   rw [Bool.eq_false_iff]
   intro h
-  have heq := (encOption encBits).injective (beq_iff_eq.mp h)
+  have heq := (encSilentOption encBits).injective (beq_iff_eq.mp h)
   exact replicate_false_ne_replicate_true hn (Option.some.inj heq)
 
 private theorem one_le_succProbability_ccaOneTimeGame_tailFallback_true (E : SymmetricCipher)
@@ -485,14 +485,14 @@ private theorem one_le_succProbability_ccaOneTimeGame_tailFallback_true (E : Sym
     left
     have hfb : E.tailFallback.decrypt n k (false :: ct) = some (List.replicate n true) := by
       simp [tailFallback, hdec, hdecCt]
-    rw [hfb, take_encOption_some_replicate, beq_self_eq_true]
+    rw [hfb, take_encSilentOption_some_replicate, beq_self_eq_true]
   | some msg =>
     by_cases hmsg : msg = List.replicate n true
     · left
       subst hmsg
       have hfb : E.tailFallback.decrypt n k (false :: ct) = some (List.replicate n true) := by
         simp [tailFallback, hdec]
-      rw [hfb, take_encOption_some_replicate, beq_self_eq_true]
+      rw [hfb, take_encSilentOption_some_replicate, beq_self_eq_true]
     · right
       simp [hmsg]
 
@@ -519,8 +519,8 @@ private theorem succProbability_ccaOneTimeGame_tailFallback_false_le (E : Symmet
   | none =>
     have hfb : E.tailFallback.decrypt n k (false :: ct) = some (List.replicate n false) := by
       simp [tailFallback, hdec, hdecCt]
-    rw [hfb, take_encOption_some_replicate,
-      encOption_some_replicate_false_beq_true hn] at hwin
+    rw [hfb, take_encSilentOption_some_replicate,
+      encSilentOption_some_replicate_false_beq_true hn] at hwin
     contradiction
   | some msg =>
     have hfb : E.tailFallback.decrypt n k (false :: ct) = some msg := by
@@ -528,8 +528,8 @@ private theorem succProbability_ccaOneTimeGame_tailFallback_false_le (E : Symmet
     rw [hfb] at hwin
     have hmsgNe : msg ≠ List.replicate n false := by
       rintro rfl
-      rw [take_encOption_some_replicate,
-        encOption_some_replicate_false_beq_true hn] at hwin
+      rw [take_encSilentOption_some_replicate,
+        encSilentOption_some_replicate_false_beq_true hn] at hwin
       contradiction
     simp [hmsgNe]
 
@@ -964,7 +964,7 @@ def etmRedundantCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
       ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
     let reply ← List.take (n + 1) <$>
       ProbOracleComp.query (true, encPair encBits encBits (unframe ct, false :: dropFrame ct))
-    return (reply == encOption encBits (some m1))
+    return (reply == encSilentOption encBits (some m1))
 
 /-- `etmRedundantCCAAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
@@ -991,7 +991,7 @@ theorem isOraclePPT_etmRedundantCCAAdversary {ctBound : ℕ → ℕ}
     dsimp only [E1, E0]; fun_prop
   have hout : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × List Bool =>
-        p.2 == encOption encBits (some (List.replicate p.1.1.1 true)))
+        p.2 == encSilentOption encBits (some (List.replicate p.1.1.1 true)))
       E2 encBool := by
     dsimp only [E2, E1, E0]; fun_prop
   unfold etmRedundantCCAAdversary
@@ -1000,7 +1000,7 @@ theorem isOraclePPT_etmRedundantCCAAdversary {ctBound : ℕ → ℕ}
 
 /-- In `ccaOneTimeGame` against `encryptThenMAC E M.redundantTag hctLen` at challenge bit `bit`,
 `etmRedundantCCAAdversary ctBound` outputs `true` iff `some (List.replicate n bit)` encodes to
-`encOption encBits (some (List.replicate n true))`. -/
+`encSilentOption encBits (some (List.replicate n true))`. -/
 theorem eval_ccaOneTimeGame_encryptThenMAC_redundantTag_etmRedundantCCAAdversary
     (E : SymmetricCipher) (M : MACScheme)
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n))
@@ -1010,8 +1010,8 @@ theorem eval_ccaOneTimeGame_encryptThenMAC_redundantTag_etmRedundantCCAAdversary
       ((encryptThenMAC E M.redundantTag hctLen).ccaOneTimeGame
         (etmRedundantCCAAdversary ctBound) bit n) =
       PMF.pure
-        (List.take (n + 1) (encOption encBits (some (List.replicate n bit))) ==
-          encOption encBits (some (List.replicate n true))) := by
+        (List.take (n + 1) (encSilentOption encBits (some (List.replicate n bit))) ==
+          encSilentOption encBits (some (List.replicate n true))) := by
   have hbit : (if bit then List.replicate n true else List.replicate n false) =
       List.replicate n bit := by
     cases bit <;> rfl
@@ -1046,9 +1046,9 @@ theorem not_oneTimeINDCCA_encryptThenMAC_redundantTag
       E M hctLen false ctBound n (hctBound n)
     have h1 := eval_ccaOneTimeGame_encryptThenMAC_redundantTag_etmRedundantCCAAdversary
       E M hctLen true ctBound n (hctBound n)
-    rw [SymmetricCipher.take_encOption_some_replicate n false,
-      SymmetricCipher.encOption_some_replicate_false_beq_true hn] at h0
-    rw [SymmetricCipher.take_encOption_some_replicate n true, beq_self_eq_true] at h1
+    rw [SymmetricCipher.take_encSilentOption_some_replicate n false,
+      SymmetricCipher.encSilentOption_some_replicate_false_beq_true hn] at h0
+    rw [SymmetricCipher.take_encSilentOption_some_replicate n true, beq_self_eq_true] at h1
     rw [h0, h1, Game.advantage_comm, Game.advantage_pure_false]
     simp [Game.succProbability]
   exact not_negligible_const one_ne_zero (by negligible eventually hle)

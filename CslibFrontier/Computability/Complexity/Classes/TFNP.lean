@@ -273,7 +273,7 @@ theorem mem_NP_iff_exists_FNP {A : Set α} : A ∈ NP enc ↔ ∃ R ∈ FNP enc,
 /-- **Domains of `FPSearch` relations are in `P`**: test whether the solver finds a solution. -/
 theorem searchDomain_mem_P (hR : R ∈ FPSearch enc) : searchDomain R ∈ P enc :=
   let ⟨_, f, hf, hsolve⟩ := hR
-  ⟨fun a => (f a).isSome, (optionIsSome hf), fun _ => hsolve.isSome_iff.symm⟩
+  ⟨fun a => (f a).isSome, (optionIsSome (encB := encBits) hf), fun _ => hsolve.isSome_iff.symm⟩
 
 /-- **If every `FNP` relation is in `FPSearch`, then `NP ⊆ P`** for the encoding `enc`. -/
 theorem NP_subset_P_of_FNP_subset_FPSearch (h : FNP enc ⊆ FPSearch enc) : NP enc ⊆ P enc :=

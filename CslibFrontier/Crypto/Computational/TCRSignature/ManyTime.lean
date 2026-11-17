@@ -525,7 +525,7 @@ private theorem computableInPolyTime_queryOf_comp {k : ℕ} {Control α : Type} 
     (hcfg : ComputableInPolyTime cfg input encFiniteConfig)
     (hcoin : ComputableInPolyTime coin input encBool) :
     ComputableInPolyTime (fun a => queryOf machine (cfg a) (coin a))
-      input (encOption encBits) :=
+      input (encSilentOption encBits) :=
   (computableInPolyTime_finiteConfig_cases machine hcfg hcoin (.const none)
     (fun _ _ _ => .const none)
     (fun _ =>
@@ -583,7 +583,7 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
         input encTraceStep := by
       fun_prop
     exact (htrace.listAppend' (hitem.cons' (.const []))).isPPTOn
-  have hmsg := hqOpt.optionGetDWithInput (.const [])
+  have hmsg := hqOpt.optionGetDWithInput (encB := encBits) (.const [])
   have hM := computableInPolyTime_otsMsg_eval_comp H hn hhashKey hmsg
   have hsign := S.isPPTOn_sign_comp (hotsk.of_enc_eq fun _ => rfl)
     (hM.of_enc_eq fun _ => rfl)
@@ -602,7 +602,7 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
       (fun a => decide ((queryOf machine
         (replayCfg machine (limit a) (word a) (trace a)) (b a)).isSome = true))
       input encBool :=
-    hqOpt.optionIsSome.of_enc_eq fun _ => rfl
+    (hqOpt.optionIsSome (encB := encBits)).of_enc_eq fun _ => rfl
   refine (IsPPTOn.ite' hcond hsome hnone).congr fun a => ?_
   dsimp only [appendTraceStep]
   cases queryOf machine (replayCfg machine (limit a) (word a) (trace a)) (b a) with
@@ -862,7 +862,7 @@ private theorem isPPTOn_tcrMultiAdversary_choose {k : ℕ} {Control : Type} [Fin
     have huFuel := huSIn.trans hsFuel
     have huCfg := computableInPolyTime_replayCfg_comp machine huFuel huWord huTr
     have huQOpt := computableInPolyTime_queryOf_comp machine huCfg huB
-    have huTarget := huQOpt.optionGetDWithInput (.const [])
+    have huTarget := huQOpt.optionGetDWithInput (encB := encBits) (.const [])
     have huRem : ComputableInPolyTime
         (fun u : U => simFuelOf c d u.1.1.1.1 u.1.1.1.2.1 - 1 - u.1.1.2) encU encUnary :=
       ComputableInPolyTime.unary_sub.comp

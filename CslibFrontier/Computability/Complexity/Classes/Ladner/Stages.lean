@@ -61,7 +61,10 @@ theorem setOf_index_mem_E_of_computableInPolyTime {sel : ℕ → Bool}
     {y : List Bool | sel (index y) = true} ∈ E encBits := by
   have hS : ComputableInPolyTime (stageSearch sel) (encPair encBits encUnary) encBool := by
     unfold stageSearch
-    fun_prop
+    apply ComputableInPolyTime.optionElimWithInput (encB := encUnary) (encO := encOption encUnary)
+    · apply ComputableInPolyTime.findWithInput (encA := encUnary) <;> fun_prop
+    · fun_prop
+    · fun_prop
   convert setOf_mem_E_of_computableInPolyTime_pad hS using 1
   ext y
   have hy : index y < 2 * 2 ^ y.length := by

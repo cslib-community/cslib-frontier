@@ -47,15 +47,15 @@ private theorem length_iterate_reverse (j : ℕ) (w : List Bool) :
 
 private theorem count_polynomial : countCertificate.IsPolynomial := by
   constructor
-  · exact PolyBounded.of_forall_le 1 1 fun _ => by simp [countCertificate, encBits]
-  · exact PolyBounded.of_forall_le 1 1 fun _ => by simp [countCertificate, encBits]
+  · exact PolyBounded.of_forall_le 1 1 fun _ => by simp [countCertificate, encBits_apply]
+  · exact PolyBounded.of_forall_le 1 1 fun _ => by simp [countCertificate, encBits_apply]
 
 private theorem copy_polynomial : copyCertificate.IsPolynomial := by
   constructor
   · exact PolyBounded.of_forall_le 1 1 fun _ => by
-      simp [copyCertificate, NativeCertificate.ofTimeAndSpace, encBits]
+      simp [copyCertificate, NativeCertificate.ofTimeAndSpace, encBits_apply]
   · exact PolyBounded.of_forall_le 1 1 fun _ => by
-      simp [copyCertificate, NativeCertificate.ofTimeAndSpace, encBits]
+      simp [copyCertificate, NativeCertificate.ofTimeAndSpace, encBits_apply]
 
 private theorem iteration_bound :
     (NativeCertificate.iterate countCertificate copyCertificate roundCertificate).ExpTimePolySpace

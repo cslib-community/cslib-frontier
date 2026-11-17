@@ -80,7 +80,12 @@ private theorem poly_parentConstraint : ComputableInPolyTime
     (fun p : WorkLog × ℕ => parentConstraint p.1 p.2)
     (encPair encWorkLog encNat) (encOption encUnary) := by
   unfold parentConstraint
-  fun_prop
+  apply ComputableInPolyTime.optionMapWithInput (encB := encRecord) (encC := encUnary)
+    (encO := encOption encRecord)
+  · apply ComputableInPolyTime.findWithInput (encA := encRecord)
+    · fun_prop
+    · fun_prop
+  · fun_prop
 
 private theorem poly_parentWith {α : Type} {e : α ↪ List Bool}
     {es : α → WorkLog} {v : α → ℕ}
@@ -105,7 +110,15 @@ private theorem poly_root : ComputableInPolyTime (fun p : WorkLog × ℕ => root
       (fun p : ((WorkLog × ℕ) × ℕ) × WorkExpansion =>
         if (p.2.2.find? (fun o => o.2.2 == p.1.2)).isSome then p.2.1.2.2 else p.1.2)
       (encPair (encPair (encPair encWorkLog encNat) encNat) encWorkExpansion) encNat
-      from by fun_prop).tidy
+      from by
+        apply ComputableInPolyTime.ite
+        · apply ComputableInPolyTime.optionIsSome (encB := encRecord)
+            (encO := encOption encRecord)
+          apply ComputableInPolyTime.findWithInput (encA := encRecord)
+          · fun_prop
+          · fun_prop
+        · fun_prop
+        · fun_prop).tidy
   · refine ⟨(ComputableInPolyTime.fst encWorkLog encNat).polyBounded_length, ?_⟩
     intro p v e he
     rcases e with ⟨⟨constraint, port, parentVariable⟩, outputs⟩
@@ -159,12 +172,10 @@ private theorem scanStep_size (rs : List ℕ) (es : WorkLog) (a b : Record) (s :
   split
   · omega
   · split
-    · simp [encScanState, encList_append, encList_cons, length_frame]
-      omega
+    · simp_all [encScanState]; omega
     · split
       · omega
-      · simp [encScanState]
-        omega
+      · simp_all [encScanState]; omega
 
 private theorem poly_scanInit : ComputableInPolyTime
     (fun p : ScanArgs × List Record × List Record => (p.2.1, none))
@@ -216,7 +227,38 @@ attribute [local fun_prop] poly_scanWith
 private theorem poly_step : ComputableInPolyTime (fun p : Input × State => step p.1 p.2)
     (encPair encInput encState) encState := by
   unfold step
-  fun_prop
+  dsimp only
+  apply ComputableInPolyTime.ite
+  · exact ComputableInPolyTime.optionIsSome (encB := encOption encEvent)
+      (encO := encOption (encOption encEvent)) (by fun_prop)
+  · fun_prop
+  · apply ComputableInPolyTime.optionElimWithInput (encB := encRecord)
+      (encO := encOption encRecord)
+    · apply ComputableInPolyTime.findWithInput (encA := encRecord)
+      · fun_prop
+      · fun_prop
+    · fun_prop
+    · apply ComputableInPolyTime.ite_decide
+      · fun_prop
+      · apply ComputableInPolyTime.optionElimWithInput (encB := encRecord)
+          (encO := encOption encRecord) (encC := encState)
+        · fun_prop
+        · apply ComputableInPolyTime.prod
+          · fun_prop
+          · exact ComputableInPolyTime.prod (by fun_prop)
+              (ComputableInPolyTime.const (encOut := encOption (encOption encEvent)) none)
+        · apply ComputableInPolyTime.prod
+          · fun_prop
+          · apply ComputableInPolyTime.prod
+            · fun_prop
+            · apply (ComputableInPolyTime.optionSome (encOption encEvent)).comp
+              apply (ComputableInPolyTime.optionSome encEvent).comp
+              apply ComputableInPolyTime.prod
+              · fun_prop
+              · apply ComputableInPolyTime.prod
+                · fun_prop
+                · fun_prop
+      · fun_prop
 
 
 private theorem scan_size (rs : List ℕ) (es : WorkLog) (a : Record)
@@ -255,7 +297,7 @@ private theorem step_size (input : Input) (s : State) :
         rcases out with ⟨os, event⟩
         have hos : (encList encRecord os).length ≤ B + 1 := by
           simp only [encScanState, length_encPair] at hs
-          simp only [encList_nil, List.length_nil, encOption_none] at hs
+          simp only [encList_nil, List.length_nil, encOption_none, List.length_singleton] at hs
           omega
         cases event with
         | none =>
@@ -265,20 +307,24 @@ private theorem step_size (input : Input) (s : State) :
           calc
             _ = 2 * (encWorkLog log).length + 4 * (encWorkExpansion (a, os)).length +
                 2 * (encList encRecord (remaining.filter
-                  (fun b => decide (b ∉ used ((a, os) :: log))))).length + 4 := by
+                  (fun b => decide (b ∉ used ((a, os) :: log))))).length + 5 := by
               simp only [encState, length_encPair, encWorkLog, encList_cons,
-                List.length_append, length_frame, encOption_none, List.length_nil]
+                List.length_append, length_frame, encOption_none, List.length_cons, List.length_nil]
               ring
             _ ≤ 2 * (encWorkLog log).length + 4 * (encWorkExpansion (a, os)).length +
-                2 * (encList encRecord remaining).length + 4 :=
+                2 * (encList encRecord remaining).length + 5 :=
               Nat.add_le_add_right
-                (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hf) _) 4
+                (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hf) _) 5
             _ ≤ (encState (log, remaining, status)).length + 32 * B + 32 := by
-              enc_len [encState, encWorkExpansion]
+              simp only [encState, encWorkExpansion, length_encPair]
+              omega
         | some b =>
           have hb : (encRecord b).length ≤ 2 * B + 2 := by
-            enc_len [encScanState] at hs
-          simp [encState, encEvent]
+            simp only [encScanState, length_encPair, encOption_some, List.length_cons,
+              encList_nil, List.length_nil, encOption_none] at hs
+            omega
+          simp only [Option.elim_some, encState, encEvent, length_encPair, encOption_some,
+            List.length_cons]
           omega
       next => simp [encState]; omega
 
@@ -331,7 +377,26 @@ attribute [local fun_prop] poly_finishExpansionWith
 private theorem poly_finish : ComputableInPolyTime (fun p : Input × State => finish p.1 p.2)
     (encPair encInput encState) (encOption encResultCode) := by
   unfold finish
-  fun_prop
+  dsimp only
+  apply ComputableInPolyTime.optionElimWithInput (encB := encOption encEvent)
+    (encO := encOption (encOption encEvent))
+  · fun_prop
+  · fun_prop
+  · apply ComputableInPolyTime.optionElimWithInput (encB := encEvent)
+      (encO := encOption encEvent)
+    · fun_prop
+    · exact (ComputableInPolyTime.optionSome encResultCode).comp
+        ((ComputableInPolyTime.sumInl (encList encExpansionCode)
+          (encSum encMeetingCode encMeetingCode)).comp (by fun_prop))
+    · apply (ComputableInPolyTime.optionSome encResultCode).comp
+      apply ComputableInPolyTime.ite_decide
+      · fun_prop
+      · exact ((ComputableInPolyTime.sumInr (encList encExpansionCode)
+          (encSum encMeetingCode encMeetingCode)).comp
+          (ComputableInPolyTime.sumInr encMeetingCode encMeetingCode)).comp (by fun_prop)
+      · exact ((ComputableInPolyTime.sumInr (encList encExpansionCode)
+          (encSum encMeetingCode encMeetingCode)).comp
+          (ComputableInPolyTime.sumInl encMeetingCode encMeetingCode)).comp (by fun_prop)
 
 attribute [local fun_prop] poly_finish
 

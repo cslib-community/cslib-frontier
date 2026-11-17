@@ -32,7 +32,8 @@ theorem binaryWord_polyTime {α : Type} {input : α ↪ List Bool} {w a : α →
     (hw : ComputableInPolyTime w input encUnary) (ha : ComputableInPolyTime a input encNat) :
     ComputableInPolyTime (fun x => BitString.binaryWord (w x) (a x)) input encBits := by
   have hbits := (ComputableInPolyTime.of_eq (f := Nat.bits)
-    (encIn := encNat) (encOut := encBits) fun _ => rfl).comp ha
+    (encIn := encNat) (encOut := encBits) fun _ => by
+      simp only [encBits_apply, encNat_apply]).comp ha
   have hpadding := ComputableInPolyTime.unary_sub.comp
     (hw.prod (ComputableInPolyTime.length_bits.comp hbits))
   have hplain := ComputableInPolyTime.bitsAppend

@@ -341,7 +341,9 @@ private theorem computableInPolyTime_hstepB :
       (encPair (encList encUnary) encUnary) encBool := by
     fun_prop
   unfold hstepB
-  fun_prop
+  apply optionGetDWithInput (encB := encUnary) (encO := encOption encUnary)
+  · apply findWithInput (encA := encUnary) <;> fun_prop
+  · fun_prop
 
 /-! ### The exponent function -/
 

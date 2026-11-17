@@ -49,7 +49,8 @@ theorem DTIME_eq_const_of_isLittleO {p : ℕ → ℕ}
       (fun x => a * p x.length + b) (fun x => s x.length) at hL
     obtain ⟨C, hC⟩ := ComputableInTimeAndSpace.exists_const_time_of_isLittleO hL hp'
     refine ⟨0, C, s, ?_⟩
-    simpa only [DecidableInTimeAndSpace, encBits_apply, encBool, Nat.zero_mul, Nat.zero_add]
+    simpa only [DecidableInTimeAndSpace, encBits_apply, encBool, Cslib.Encoding.encBool,
+      Nat.zero_mul, Nat.zero_add]
       using hC
   · exact DTIME_mono_of_le_mul_add (C := 1) fun _ => by omega
 

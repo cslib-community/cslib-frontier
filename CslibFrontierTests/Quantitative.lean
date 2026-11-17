@@ -98,7 +98,7 @@ example {α : Type} (enc : α ↪ List Bool) (fallback : α) :
 -- A costly producer with linear output still gives degree three after testing and projecting.
 example (f : List Bool → ℕ × Option ℕ × Bool)
     (hf : ComputableTidilyInDegree f encBits
-      (encPair encUnary (encPair (encOption encUnary) encBool)) 3 1) :
+      (encPair encUnary (encPair (encSilentOption encUnary) encBool)) 3 1) :
     ComputableTidilyInDegree (fun x =>
       if (f x).2.1.isSome then (f x).2.1.getD 0 else (f x).1) encBits encUnary 3 1 := by
   fail_if_success
@@ -278,7 +278,7 @@ example (f g : List Bool → List Bool)
 
 -- The Option encoding retains output degree zero independently of cost degree.
 example : ComputableInDegree (List.getLast? (α := Bool)) encBits
-    (encOption encBool) 1 0 := by
+    (encSilentOption encBool) 1 0 := by
   fun_prop (disch := lia)
 
 -- Second quantitative client of `streamFold_pair_sum` (via `foldl_bits_pair_stream_sum_spec`):

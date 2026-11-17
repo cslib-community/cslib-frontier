@@ -82,6 +82,15 @@ theorem Clause.isPolyTime_splitAux {input : Input ↪ List Bool} {enc : W ↪ Li
   have hdrop : ComputableInPolyTime (fun x => (rest x).drop ((rest x).length - 2))
       input (encList (encPair enc encBool)) :=
     (dropUnary (encA := encPair enc encBool)).comp (hrest.prod (by fun_prop))
+  have hlookup {α : Type} {encIn : α ↪ List Bool}
+      {list : α → Clause W} {i : α → ℕ} {fallback : α → Literal W}
+      (hl : ComputableInPolyTime list encIn (encClause enc))
+      (hi : ComputableInPolyTime i encIn encUnary)
+      (hf : ComputableInPolyTime fallback encIn (encPair enc encBool)) :
+      ComputableInPolyTime (fun x => (list x)[i x]?.getD (fallback x))
+        encIn (encPair enc encBool) :=
+    optionGetDWithInput (encO := encOption (encPair enc encBool))
+      (getElem? (encA := encPair enc encBool) hl hi) hf
   simp_rw [splitAux_eq_map, List.getD_eq_getElem?_getD]
   fun_prop
 
@@ -99,7 +108,9 @@ theorem Clause.isPolyTime_split3 {input : Input ↪ List Bool} {enc : W ↪ List
       c.head?.elim [[]] (fun carry => Clause.splitAux f j carry c.tail) := by
     cases c <;> rfl
   simp_rw [heq]
-  apply optionElimWithInput (encB := encPair enc encBool) (by fun_prop) (by fun_prop)
+  apply optionElimWithInput (encB := encPair enc encBool)
+    (encO := encOption (encPair enc encBool))
+    ((head? (encPair enc encBool)).comp hclause) (by fun_prop)
   exact Clause.isPolyTime_splitAux (input := encPair input (encPair enc encBool))
     (fresh := fun p => fresh p.1) (index := fun p => index p.1) (carry := fun p => p.2)
     (rest := fun p => (clause p.1).tail) (by fun_prop) (by fun_prop)

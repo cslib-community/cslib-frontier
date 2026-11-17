@@ -126,7 +126,7 @@ private theorem exists_uniformOutputBits {α : Type} {enc : α ↪ List Bool}
     let r := bitPrefix enc m a j
     let u := List.ofFn x
     have hin : encPair enc (encPair encBits encBits) (a, (selector (m a) j, u)) = r ++ u := by
-      simp [encPair_apply, encBits_apply, r, bitPrefix, List.append_assoc]
+      simp [r, bitPrefix, List.append_assoc]
     have hw : List.ofFn (Fin.append (fun i : Fin r.length => r[i.val]) x) = r ++ u := by
       rw [List.ofFn_fin_append, List.ofFn_getElem]
     change (prefixCircuit r (circuits (r.length + n a))).eval interpretation x 0 = _

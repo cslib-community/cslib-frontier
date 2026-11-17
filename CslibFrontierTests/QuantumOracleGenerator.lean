@@ -308,7 +308,7 @@ private theorem enc_emptyDescription (input : OracleInputSize) :
   rcases input with ⟨n, ℓ⟩
   simp only [emptyDescription, encOracleCircuitDescription_apply,
     encOracleCircuitDescriptionFields, encOracleInputSize_apply, encOracleInputSizeFields,
-    encPair_apply, encUnary_apply, encList_nil, frame, flatMap_replicate_true,
+    encPair_apply, encUnary_apply, encList_nil, Cslib.Encoding.delimit, flatMap_replicate_true,
     List.append_nil, List.length_append, List.length_replicate]
   simp only [List.length_singleton, Nat.mul_zero, List.replicate_zero, List.nil_append,
     List.append_assoc, List.reduceReplicate, List.singleton_append]

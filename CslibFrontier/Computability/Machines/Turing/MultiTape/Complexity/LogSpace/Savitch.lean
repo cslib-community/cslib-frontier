@@ -31,6 +31,8 @@ import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
+import CslibFrontier.Computability.Encoding.NatBits
+
 /-!
 # Savitch's theorem for general space bounds
 
@@ -826,14 +828,14 @@ theorem budget_reg {st : α → Savitch.State} (h : ComputableInSpace st enc enc
 theorem budget_callSource {st : α → Savitch.State} (h : ComputableInSpace st enc encState S) :
     ComputableInSpace (fun a => ofBits (callSource (st a))) enc encNat S := by
   exact budget_comp_linear (of_inO ComputableInO.bitsToNat)
-    (budget_optionGetD (0, [], []) (budget_reg h).fst').snd'.fst'
+    (budget_optionGetD (encB := encCall) (0, [], []) (budget_reg h).fst').snd'.fst'
 
 /-- Whether the recursion has returned, within a budget. -/
 theorem budget_returned {st : α → Savitch.State} (h : ComputableInSpace st enc encState S) :
     ComputableInSpace (fun a => returned (st a)) enc encBool S :=
   (budget_finite (fun p : Bool × Bool => p.1 && !p.2)
     (budget_prod (budget_isEmpty (budget_stack h))
-      (budget_optionIsSome (budget_reg h).fst'))).of_enc_eq fun _ => rfl
+      (budget_optionIsSome (encB := encCall) (budget_reg h).fst'))).of_enc_eq fun _ => rfl
 
 attribute [local fun_prop] budget_stack budget_reg budget_callSource budget_returned
   queryIndex_budget
@@ -933,11 +935,12 @@ theorem initRound_budget {mode : α → Bool} {B n : α → ℕ}
   have hpow := budget_comp_linear hpow₀ hW
   have hbits : ComputableInSpace
       (fun a => (startID ntm (B a) + 2 ^ vertexWidth k (B a)).bits) enc encBits S :=
-    (budget_natAdd hstart hpow).of_enc_eq fun _ => rfl
+    (budget_natAdd hstart hpow).of_enc_eq fun _ => (Cslib.Encoding.encNat_eq_bits _).symm
   have hsrc := budget_comp_linear (of_inO ComputableInDegree.bitsDropLast.inO_one) hbits
   have hsink : ComputableInSpace (fun a => List.replicate (vertexWidth k (B a)) true) enc
       encBits S := hW.of_enc_eq fun _ => rfl
-  have hcall := budget_optionSome (budget_prod hW (budget_prod hsrc hsink))
+  have hcall := budget_optionSome (encO := encOption encCall) (budget_prod hW (budget_prod
+    hsrc hsink))
   have hstate : ComputableInSpace (fun a => (initRound ntm (mode a) (B a) (n a)).2) enc encState
       S :=
     (budget_prod (budget_const (encB := encList encFrame) [] hin)

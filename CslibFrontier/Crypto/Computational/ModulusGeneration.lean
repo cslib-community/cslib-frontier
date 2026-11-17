@@ -481,37 +481,39 @@ theorem isPPTOn_primeAttempt :
   rfl
 
 /-- **The generator is a strict PPT program** in `n`, given in unary. -/
-theorem isPPTOn_randomPrime : Probability.IsPPTOn encUnary (encOption encNat) randomPrime := by
+theorem isPPTOn_randomPrime : Probability.IsPPTOn encUnary (encSilentOption encNat) randomPrime
+  := by
   have hfst : ComputableInPolyTime (fun found : Option (ℕ × Bool) => found.map Prod.fst)
-      (encOption (encPair encNat encBool)) (encOption encNat) := by
-    have heq : (fun found : Option (ℕ × Bool) => found.map Prod.fst) =
-        fun found => found.elim none fun a => some a.1 := by
-      funext found
-      cases found <;> rfl
-    rw [heq]
-    fun_prop
+      (encOption (encPair encNat encBool)) (encSilentOption encNat) :=
+    ComputableInPolyTime.optionMapWithInput (encB := encPair encNat encBool)
+      (encC := encNat) (encOC := encSilentOption encNat)
+      ComputableInPolyTime.id'
+      ((ComputableInPolyTime.fst encNat encBool).comp (ComputableInPolyTime.snd _ _))
   refine ((isPPTOn_primeAttempt.retry (good := fun a => a.2) (fuel := fun n => 3 * n ^ 2)
     (by fun_prop) (by fun_prop)).map hfst).congr fun n => ?_
   simp only [randomPrime, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure]
   rfl
 
+attribute [local irreducible] ComputableInPolyTime in
 /-- Combining two optional primes into an optional modulus takes polynomial time. -/
 private theorem computableInPolyTime_combine :
     ComputableInPolyTime
       (fun x : Option ℕ × Option ℕ => x.1.bind fun p => x.2.map fun q => (p * q, p, q))
-      (encPair (encOption encNat) (encOption encNat))
-      (encOption (encPair encNat (encPair encNat encNat))) := by
+      (encPair (encSilentOption encNat) (encSilentOption encNat))
+      (encSilentOption (encPair encNat (encPair encNat encNat))) := by
   have htriple : ComputableInPolyTime (fun pq : ℕ × ℕ => some (pq.1 * pq.2, pq.1, pq.2))
-      (encPair encNat encNat) (encOption (encPair encNat (encPair encNat encNat))) :=
-    (ComputableInPolyTime.optionSome _).comp
+      (encPair encNat encNat) (encSilentOption (encPair encNat (encPair encNat encNat))) :=
+    (ComputableInPolyTime.optionSome _
+      (encO := encSilentOption (encPair encNat (encPair encNat encNat)))).comp
       ((ComputableInPolyTime.binary_mul' (ComputableInPolyTime.fst encNat encNat)
         (ComputableInPolyTime.snd encNat encNat)).prod
         ((ComputableInPolyTime.fst encNat encNat).prod (ComputableInPolyTime.snd encNat encNat)))
   have hinner : ComputableInPolyTime
       (fun r : (Option ℕ × Option ℕ) × ℕ => r.1.2.elim none fun q => some (r.2 * q, r.2, q))
-      (encPair (encPair (encOption encNat) (encOption encNat)) encNat)
-      (encOption (encPair encNat (encPair encNat encNat))) := by
-    refine ComputableInPolyTime.optionElimWithInput (encB := encNat) ?_
+      (encPair (encPair (encSilentOption encNat) (encSilentOption encNat)) encNat)
+      (encSilentOption (encPair encNat (encPair encNat encNat))) := by
+    refine ComputableInPolyTime.optionElimWithInput (encB := encNat)
+      (encO := encSilentOption encNat) ?_
       (ComputableInPolyTime.const _) ?_
     · exact ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)
     · exact htriple.comp ((ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)).prod
@@ -519,9 +521,10 @@ private theorem computableInPolyTime_combine :
   have hcombine : ComputableInPolyTime
       (fun x : Option ℕ × Option ℕ =>
         x.1.elim none fun p => x.2.elim none fun q => some (p * q, p, q))
-      (encPair (encOption encNat) (encOption encNat))
-      (encOption (encPair encNat (encPair encNat encNat))) := by
-    refine ComputableInPolyTime.optionElimWithInput (encB := encNat) ?_
+      (encPair (encSilentOption encNat) (encSilentOption encNat))
+      (encSilentOption (encPair encNat (encPair encNat encNat))) := by
+    refine ComputableInPolyTime.optionElimWithInput (encB := encNat)
+      (encO := encSilentOption encNat) ?_
       (ComputableInPolyTime.const _) hinner
     exact ComputableInPolyTime.fst _ _
   have heq : (fun x : Option ℕ × Option ℕ => x.1.bind fun p => x.2.map fun q => (p * q, p, q)) =
@@ -533,17 +536,17 @@ private theorem computableInPolyTime_combine :
 
 /-- **The modulus generator is a strict PPT program** in `n`, given in unary. -/
 theorem isPPTOn_genModulus :
-    Probability.IsPPTOn encUnary (encOption (encPair encNat (encPair encNat encNat)))
+    Probability.IsPPTOn encUnary (encSilentOption (encPair encNat (encPair encNat encNat)))
       genModulus := by
   have hcombine : ComputableInPolyTime
       (fun x : (ℕ × Option ℕ) × Option ℕ => x.1.2.bind fun p => x.2.map fun q => (p * q, p, q))
-      (encPair (encPair encUnary (encOption encNat)) (encOption encNat))
-      (encOption (encPair encNat (encPair encNat encNat))) :=
+      (encPair (encPair encUnary (encSilentOption encNat)) (encSilentOption encNat))
+      (encSilentOption (encPair encNat (encPair encNat encNat))) :=
     computableInPolyTime_combine.comp
       ((ComputableInPolyTime.snd' (ComputableInPolyTime.fst _ _)).prod
         (ComputableInPolyTime.snd _ _))
-  have hsecond : Probability.IsPPTOn (encPair encUnary (encOption encNat))
-      (encOption (encPair encNat (encPair encNat encNat))) fun x : ℕ × Option ℕ =>
+  have hsecond : Probability.IsPPTOn (encPair encUnary (encSilentOption encNat))
+      (encSilentOption (encPair encNat (encPair encNat encNat))) fun x : ℕ × Option ℕ =>
         (fun second => x.2.bind fun p => second.map fun q => (p * q, p, q)) <$> randomPrime x.1 :=
     (isPPTOn_randomPrime.preprocess (prepare := fun x : ℕ × Option ℕ => x.1)
       (by fun_prop)).map_with

@@ -2582,18 +2582,52 @@ theorem computableInPolyTime_bcsFindTraceConflict
     ComputableInPolyTime
       (fun a => bcsFindTraceConflict iop encSym hFS (tr_MT a) (x a) (prf a))
       encIn
-      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
-  ComputableInPolyTime.findWithInput
-    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
-      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
-        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
-        (encBCSProof_openings_polyTime r Sym encSym hprf)))
-    (ComputableInPolyTime.bne (encB := encOption encBits)
-      (computableInPolyTime_extractLeafFromTrace d (htr.comp (.fst _ _))
-        (ComputableInPolyTime.finFn_apply'
-          ((encBCSProof_roots_polyTime r Sym encSym hprf).comp (.fst _ _)) (by fun_prop))
-        (by fun_prop))
-      (by fun_prop))
+      (encSilentOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) := by
+  have hroots : ComputableInPolyTime (fun a => (prf a).roots) encIn (encFinFn r encBits) :=
+    encBCSProof_roots_polyTime r Sym encSym hprf
+  have hopenings : ComputableInPolyTime (fun a => (prf a).openings) encIn
+      (encList (encMerkleOpeningOf Sym encSym)) :=
+    encBCSProof_openings_polyTime r Sym encSym hprf
+  have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
+  have hqs := hqueries.comp (hx.prod hchals)
+  have hzip := (ComputableInPolyTime.zip
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
+  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfst := ComputableInPolyTime.fst encIn encElem
+  have hsnd := ComputableInPolyTime.snd encIn encElem
+  have hqpair := (ComputableInPolyTime.fst
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
+  have ho := (ComputableInPolyTime.snd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
+  have hj := (ComputableInPolyTime.fst
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
+  have hidx := (ComputableInPolyTime.snd
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
+  have hidxVal := ComputableInPolyTime.finVal hidx
+  have hval : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
+      (encPair encIn encElem) encBits :=
+    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
+  have hrtJ := ComputableInPolyTime.finFn_apply' (hroots.comp hfst) hj
+  have hextract := computableInPolyTime_extractLeafFromTrace d (htr.comp hfst) hrtJ hidxVal
+  have htest : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
+        extractLeafFromTrace (tr_MT p.1) d ((prf p.1).roots p.2.1.1) p.2.1.2.val !=
+          some (encSym p.2.2.leaf))
+      (encPair encIn encElem) encBool := by
+    convert hextract.optionElimWithInput
+      (body := fun (p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym)) bits =>
+        !(bits == encSym p.2.2.leaf))
+      (ComputableInPolyTime.const true)
+      (ComputableInPolyTime.bool_not.comp
+        (ComputableInPolyTime.beq
+          (ComputableInPolyTime.snd (encPair encIn encElem) encBits)
+          (hval.comp (ComputableInPolyTime.fst (encPair encIn encElem) encBits)))) using 1
+    funext p
+    dsimp only [Function.comp_def]
+    cases extractLeafFromTrace (tr_MT p.1) d ((prf p.1).roots p.2.1.1) p.2.1.2.val <;> rfl
+  exact ComputableInPolyTime.findWithInput hzip htest
 
 /-- Deterministic trace collision extraction for the BCS transform (`bcsExtractTraceCollision`)
 runs in polynomial time. -/

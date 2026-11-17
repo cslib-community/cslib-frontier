@@ -721,10 +721,11 @@ theorem IsComputable.computable_option {α β : Type*} [Primcodable α] [Primcod
     (hOut : Computable decOut) (hdec : ∀ b, decOut (encOut b) = b) :
     Computable f := by
   have hdecOpt : Computable (fun w : List Bool =>
-      bif decide (w = []) then none else some (decOut w.tail)) :=
-    Computable.cond (Primrec.eq.comp Primrec.id (Primrec.const [])).decide.to_comp
-      (Computable.const none)
+      bif w.head?.getD false then some (decOut w.tail) else none) :=
+    Computable.cond
+      (Primrec.option_getD.comp Primrec.list_head? (Primrec.const false)).to_comp
       (Primrec.option_some.to_comp.comp (hOut.comp Primrec.list_tail.to_comp))
+      (Computable.const none)
   exact hf.computable hIn hdecOpt fun b => by cases b <;> simp [hdec]
 
 /-- Any `Option (List Bool)`-valued function `f : α → Option (List Bool)` that is

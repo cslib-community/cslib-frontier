@@ -149,12 +149,12 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         EDecIn encBits := by dsimp only [EDecIn]; fun_prop
     have hdec : ComputableTidilyInPolyTime
         (fun a : ℕ × List Bool × List Bool => E.decrypt (ptLen a.1) (unframe a.2.1) a.2.2)
-        EDecIn (encOption encBits) :=
+        EDecIn (encSilentOption encBits) :=
       E.decrypt_polyTime.tidy.comp
         ((hptLenPoly.tidy.comp hn).prod ((ComputableTidilyInPolyTime.unframe.comp hk).prod hct))
     have hnone : ComputableTidilyInPolyTime
         (fun _ : ℕ × List Bool × List Bool => (none : Option (List Bool)))
-        EDecIn (encOption encBits) := ComputableTidilyInPolyTime.const none
+        EDecIn (encSilentOption encBits) := ComputableTidilyInPolyTime.const none
     have q_n : ComputableTidilyInPolyTime
         (fun q : (ℕ × List Bool × List Bool) × List Bool => q.1.1)
         EBIn encUnary := hn.comp (ComputableTidilyInPolyTime.fst _ _)
@@ -196,7 +196,7 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
             some msg
           else
             none)
-        EBIn (encOption encBits) :=
+        EBIn (encSilentOption encBits) :=
       ((hframeEq.bool_and' hmsgLenPoly).bool_and' hverPoly).cond
         ((ComputableTidilyInPolyTime.optionSome encBits).comp q_msg)
         (ComputableTidilyInPolyTime.const none)
@@ -708,9 +708,9 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
       have htake : (List.take (ctBound caller.1) raw).length ≤ ctBound caller.1 :=
         List.length_take_le _ _
       exact ⟨trivial, by simp only [List.length_append, List.length_singleton]; lia,
-        by simp [encBool_apply]⟩
+        by simp⟩
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
-      exact ⟨trivial, by simp, by simp [encBool_apply]⟩
+      exact ⟨trivial, by simp, by simp⟩
   unfold extendOneTimeCPAAdversary
   simpa only [bind_pure_comp] using
     (hrun.map' (ComputableInPolyTime.fst encBool encBool)).isOraclePPT
@@ -970,7 +970,7 @@ def macThenEncryptExtendCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
       ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
     let ct' := ct.take (ct.length - 1) ++ [true]
     let dec ← List.take (n + 1) <$> ProbOracleComp.query (true, ct')
-    return (dec == encOption encBits (some m1))
+    return (dec == encSilentOption encBits (some m1))
 
 /-- `macThenEncryptExtendCCAAdversary` is uniformly strict oracle-PPT. -/
 theorem isOraclePPT_macThenEncryptExtendCCAAdversary {ctBound : ℕ → ℕ}

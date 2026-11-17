@@ -494,7 +494,8 @@ theorem scheme_polyTime : S.scheme.PolyTime (encNode encC encRw) encAcc (encList
         (contrib_polyTime hS (hx.comp h1) (ComputableInPolyTime.snd E encRw) (hγ.comp h1)
           (hc.comp h1) (hy.comp h1))
     exact (ComputableInPolyTime.binary_add.comp (hc.prod (ComputableInPolyTime.const 1))).prod
-      (ComputableInPolyTime.optionElimWithInput ((ComputableInPolyTime.head? encRw).comp hrows)
+      (ComputableInPolyTime.optionElimWithInput ((ComputableInPolyTime.head? encRw (encO :=
+        encOption encRw)).comp hrows)
         hs hbody)
   finish := (ComputableInPolyTime.snd encNat (encList encNat)).comp (ComputableInPolyTime.snd _ _)
 
@@ -577,7 +578,7 @@ theorem length_encNode_le {x₀ : C} {rows₀ : List Rw} {γ₀ : List ℕ} {x :
   have h2 : (encList encNat γ).length ≤ (encList encNat γ₀).length := by
     simp only [length_encList]
     exact sum_map_le_of_getD_le (fun a b hab => by
-      change 2 * a.bits.length + 1 ≤ 2 * b.bits.length + 1
+      simp only [encNat_apply]
       rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
       exact Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.size_le_size hab)) 1) γ γ₀ hl hγ
   enc_len

@@ -485,7 +485,7 @@ private theorem length_encOption_unary_le {o : Option ℕ} {n : ℕ}
   | none => simp
   | some x =>
     have hx := ho x rfl
-    simp [encOption_some, encUnary_apply]
+    simp [encUnary_apply]
     omega
 
 private theorem foldl_argMinStep_lt (pred : ℕ → Bool) (key : ℕ → ℤ) (n : ℕ) :
@@ -881,7 +881,7 @@ private theorem computableInPolyTime_contractStep :
     have helse1 : ComputableInPolyTime
         (fun s : ContractState => ContractState.mk s.adj s.cost s.root true none s.stack)
         encContractState encContractState := by fun_prop
-    refine optionElimWithInput hsel helse1 ?_
+    refine optionElimWithInput (encB := encList encUnary) hsel helse1 ?_
     have hfcargs : ComputableInPolyTime
         (fun q : ContractState × List ℕ => ((q.1.adj.length, q.1.root), q.2))
         (encPair encContractState (encList encUnary))
@@ -895,7 +895,7 @@ private theorem computableInPolyTime_contractStep :
           ContractState.mk q.1.adj q.1.cost q.1.root true (some q.2) q.1.stack)
         (encPair encContractState (encList encUnary)) encContractState := by fun_prop
     have hcfrom := computableInPolyTime_contractFromParent
-    refine optionElimWithInput hcyc helse2 ?_
+    refine optionElimWithInput (encB := encUnary) hcyc helse2 ?_
     exact hcfrom
   exact hstep.of_enc_eq fun s => by unfold contractStep; rfl
 
@@ -923,7 +923,7 @@ private theorem computableInPolyTime_expandLevelList :
     have hfb : ComputableInPolyTime
         (fun q : (List ℕ × ContractLevel) × ℕ => q.1.2.parent.getD q.2 0)
         (encPair E encUnary) encUnary := by fun_prop
-    refine optionElimWithInput (hbx.comp (fst _ _)) hfb ?_
+    refine optionElimWithInput (encB := encUnary) (hbx.comp (fst _ _)) hfb ?_
     have hbeq : ComputableInPolyTime
         (fun r : ((List ℕ × ContractLevel) × ℕ) × ℕ => r.1.2 == r.2)
         (encPair (encPair E encUnary) encUnary) encBool := by fun_prop
@@ -1100,7 +1100,7 @@ private theorem encListBool_table_le (a : List (List Bool)) (n : ℕ)
     (h1 : a.length ≤ n) (h2 : ∀ r ∈ a, r.length ≤ n) :
     (encList (encList encBool) a).length ≤ n * (6 * n + 1) := by
   have hle := length_encList_le (encList encBool) a (b := 3 * n) fun r hr => by
-    have hr1 := length_encList_le encBool r (b := 1) fun b _ => by simp [encBool_apply]
+    have hr1 := length_encList_le encBool r (b := 1) fun b _ => by simp
     have hr2 := h2 r hr
     nlinarith
   nlinarith
@@ -1334,7 +1334,7 @@ theorem computableInPolyTime_edmondsTableAuxList :
         exact hc_rows.trans (Nat.le_add_left _ _)
     have hroot_code : (encUnary s.root).length ≤ L := by
       simpa [encUnary_apply, hinv.root_eq] using hroot
-    have hdone_code : (encBool s.done).length = 1 := by simp [encBool_apply]
+    have hdone_code : (encBool s.done).length = 1 := by simp
     have hres_code : (encOption (encList encUnary) s.result).length ≤ 1 + L * (2 * L + 1) := by
       cases hr : s.result with
       | none => simp
@@ -1357,7 +1357,7 @@ theorem computableInPolyTime_edmondsTableAuxList :
         (hp2 v hv).trans (max_le hroot hn)
       have c2 : (encList encBool lvl.inCycle).length ≤ 3 * L := by
         refine (length_encList_le encBool lvl.inCycle (b := 1) fun _ _ =>
-          by simp [encBool_apply]).trans ?_
+          by simp).trans ?_
         have := hic.trans hn
         omega
       have c3 := encListOptUnary_le lvl.bestEntry L L (hbe1.trans hn) fun o ho v hv =>
@@ -1378,7 +1378,7 @@ theorem computableInPolyTime_edmondsTableAuxList :
         let final := contractStep^[x.fuel] ⟨x.adj, x.cost, x.root, false, none, []⟩
         final.result.map fun base => final.stack.foldl (fun q lvl => expandLevelList lvl q) base)
       encTableAuxInput (encOption (encList encUnary)) := by
-    refine optionMapWithInput (by polytime) ?_
+    refine optionMapWithInput (encB := encList encUnary) (encC := encList encUnary) (by polytime) ?_
     have hfold : ComputableInPolyTime
         (fun p : TableAuxInput × List ℕ =>
           let final := contractStep^[p.1.fuel] ⟨p.1.adj, p.1.cost, p.1.root, false, none, []⟩
@@ -1601,7 +1601,7 @@ theorem computableInPolyTime_minArborescenceDecide :
       encArborescenceDecInstance encUnary :=
     computableInPolyTime_clampedRoot.comp (by fun_prop)
   unfold minArborescenceDecide
-  refine optionElimWithInput hed (const false) ?_
+  refine optionElimWithInput (encB := encList encUnary) hed (const false) ?_
   exact intBin_le' (intBin_sum.comp
     (mapWithInput (computableInPolyTime_nonRootFilter hcr) (by fun_prop))) (by fun_prop)
 
@@ -1614,7 +1614,7 @@ theorem computableInPolyTime_minOutArborescenceDecide :
       encArborescenceDecInstance encUnary :=
     computableInPolyTime_clampedRoot.comp (by fun_prop)
   unfold minOutArborescenceDecide
-  refine optionElimWithInput hed (const false) ?_
+  refine optionElimWithInput (encB := encList encUnary) hed (const false) ?_
   exact intBin_le' (intBin_sum.comp
     (mapWithInput (computableInPolyTime_nonRootFilter hcr) (by fun_prop))) (by fun_prop)
 
@@ -1655,7 +1655,7 @@ theorem computableInPolyTime_optimumBranchingList :
       encBranchingInstance encTableAuxInput := by fun_prop
   have hrun := computableInPolyTime_edmondsTableAuxList.comp hin
   unfold optimumBranchingList
-  refine optionElimWithInput hrun (const []) ?_
+  refine optionElimWithInput (encB := encList encUnary) hrun (const []) ?_
   refine mapWithInput (range.comp (by fun_prop)) ?_
   have hcond : ComputableInPolyTime
       (fun r : (BranchingInstance × List ℕ) × ℕ =>

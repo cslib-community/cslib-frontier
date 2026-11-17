@@ -42,8 +42,9 @@ and the value. -/
 @[fun_prop]
 theorem optionElim_one {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool}
     {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
+    {encO : Option β ↪ List Bool} [OptionEncoding encB encO]
     {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
-    (hv : ComputableInDegree value encA (encOption encB) 1 1)
+    (hv : ComputableInDegree value encA encO 1 1)
     (hn : ComputableInDegree fallback encA encC 1 1)
     (hb : ComputableInDegree (fun p : α × β => body p.1 p.2) (encPair encA encB) encC 1 1) :
     ComputableInDegree (fun a => (value a).elim (fallback a) (body a)) encA encC 1 1 := by
@@ -57,10 +58,23 @@ theorem optionElim_one {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool
   exact ite_le ((isSome encB).comp hv) ((hb.comp (id'.prod hg)).mono (d' := 1) (e' := 1)) hn
     (by simp) (by simp)
 
+/-- Tagged-option search rule fixing the intermediate format before checking the handler.
+The generic capability theorem supplies the implementation. -/
+@[fun_prop]
+theorem optionElim_oneTagged {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool}
+    {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
+    {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
+    (hv : ComputableInDegree value encA (encOption encB) 1 1)
+    (hn : ComputableInDegree fallback encA encC 1 1)
+    (hb : ComputableInDegree (fun p : α × β => body p.1 p.2) (encPair encA encB) encC 1 1) :
+    ComputableInDegree (fun a => (value a).elim (fallback a) (body a)) encA encC 1 1 :=
+  optionElim_one (encB := encB) (encO := encOption encB) hv hn hb
+
 /-- **The head of a framed list**, as an option, in linear time and space. -/
 @[fun_prop]
-theorem head?_one {β : Type} [Inhabited β] {enc : β ↪ List Bool} :
-    ComputableInDegree (fun l : List β => l.head?) (encList enc) (encOption enc) 1 1 := by
+theorem head?_one {β : Type} [Inhabited β] {enc : β ↪ List Bool}
+    {encO : Option β ↪ List Bool} [OptionEncoding enc encO] :
+    ComputableInDegree (fun l : List β => l.head?) (encList enc) encO 1 1 := by
   have h : (fun l : List β => l.head?) =
       fun l => if l.isEmpty then none else some (l.headD default) := by
     funext l

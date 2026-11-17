@@ -100,7 +100,8 @@ theorem isPPTOn_iff_encoded : IsPPTOn input output program ↔
   have hmap (a : α) : ProbComp.eval (output <$> program a) =
       (ProbComp.eval (program a)).map output := by
     rw [ProbComp.eval_map]
-  simp only [IsPPTOn, hmap, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl, PMF.map_id]
+  simp only [IsPPTOn, hmap, show (Turing.MultiTapeTM.encBits : List Bool → List Bool) = id from
+    funext Turing.MultiTapeTM.encBits_apply, PMF.map_id]
 
 end Cslib.Probability
 

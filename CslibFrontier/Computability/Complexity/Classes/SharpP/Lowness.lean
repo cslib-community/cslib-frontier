@@ -222,7 +222,7 @@ theorem SharpPWithOracle_eq_SharpP_of_mem_UP_of_mem_coUP
     convert SharpP.encoded_comp_mem_of_computableInPolyTimeWithOracle hA_up hA_coup hV hF_ind
       using 1
     funext x
-    simp [encBool_apply]
+    simp
   have hr : ComputableInPolyTime (fun a : α => p.eval (enc a).length) enc encUnary := by
     fun_prop
   have hsum := SharpP.sum_bits_mem hV_sharp hr

@@ -57,7 +57,8 @@ example :
 -- Composition exposes the intermediate-dependent bounds and remains polynomial.
 private noncomputable def present : NativeCertificate
     (fun x : Option ℕ => x.isSome) (encOption encNat) encBool :=
-  .ofPolyTime (ComputableInPolyTime.optionIsSome (ComputableInPolyTime.of_eq fun _ => rfl))
+  .ofPolyTime (ComputableInPolyTime.optionIsSome (encB := encNat) (encO := encOption encNat)
+      (ComputableInPolyTime.of_eq fun _ => rfl))
 
 private noncomputable def addressAccepted := present.comp nativePrimitives.address
 
@@ -70,7 +71,8 @@ example (p : ℕ × ℕ) :
   ⟨rfl,
    present.comp_isPolynomial nativePrimitives.address
      (NativeCertificate.ofPolyTime_isPolynomial
-       (ComputableInPolyTime.optionIsSome (ComputableInPolyTime.of_eq fun _ => rfl)))
+       (ComputableInPolyTime.optionIsSome (encB := encNat) (encO := encOption encNat)
+         (ComputableInPolyTime.of_eq fun _ => rfl)))
      nativePrimitives_isPolynomial.address,
    addressAccepted.isComputable⟩
 

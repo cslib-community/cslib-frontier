@@ -127,12 +127,12 @@ def clock : NativeCertificate (fun n : ℕ => 2 ^ n) encUnary encNat where
     apply ComputableInO.of_linear
     apply ComputableInDegree.of_transducer clockTransducer
     intro n
-    change (2 ^ n).bits = clockTransducer.run () (List.replicate n true)
-    rw [bits_power, clockRun]
+    rw [encNat_apply, encUnary_apply]
+    exact (bits_power n).trans (clockRun n).symm
 
 /-- The binary visit count has exactly one more bit than the dimension. -/
 theorem length_clock (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := by
-  change (2 ^ n).bits.length = n + 1
+  rw [encNat_apply]
   simp [bits_power]
 
 variable {β : Type}

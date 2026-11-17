@@ -99,7 +99,7 @@ def prfCipherCCAAdversary : CCAAdversary :=
     let ct ← List.take (2 * n) <$>
       ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
     let dec ← List.take (n + 1) <$> ProbOracleComp.query (true, ivStreamXorBody n m1 ct)
-    return (dec == encOption encBits (some m0))
+    return (dec == encSilentOption encBits (some m0))
 
 /-- `prfCipherCCAAdversary` is an efficient oracle adversary. -/
 theorem isOraclePPT_prfCipherCCAAdversary : IsOraclePPT encBool prfCipherCCAAdversary := by

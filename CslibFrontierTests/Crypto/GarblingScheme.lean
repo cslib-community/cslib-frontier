@@ -196,7 +196,7 @@ noncomputable def bitGuesser : ℕ → PrvSimAdversary ℕ (List Bool) := fun _ 
     guess := fun w V => pure ((V.getD ⟨[], [], []⟩).input.getD 0 false == w.getD 0 false) }
 
 theorem isPPT_bitGuesser :
-    TwoStage.IsPPT encUnit (encQuery ℕ encUnary) (encOption encPrvView) encBool encBits
+    TwoStage.IsPPT encUnit (encQuery ℕ encUnary) (encSilentOption encPrvView) encBool encBits
       bitGuesser where
   choose := by
     have h : ComputableInPolyTime (fun p : (ℕ × Unit) × List Bool => ((⟨1, p.2⟩ : Query ℕ), p.2))
@@ -208,10 +208,10 @@ theorem isPPT_bitGuesser :
   guess := by
     have hX : ComputableInPolyTime (fun p : ℕ × List Bool × Option PrvView =>
         (p.2.2.getD ⟨[], [], []⟩).input.getD 0 false)
-        (encPair encUnary (encPair encBits (encOption encPrvView))) encBool := by
+        (encPair encUnary (encPair encBits (encSilentOption encPrvView))) encBool := by
       fun_prop
     have hw : ComputableInPolyTime (fun p : ℕ × List Bool × Option PrvView => p.2.1.getD 0 false)
-        (encPair encUnary (encPair encBits (encOption encPrvView))) encBool := by
+        (encPair encUnary (encPair encBits (encSilentOption encPrvView))) encBool := by
       fun_prop
     exact ((ComputableInPolyTime.of_finite fun q : Bool × Bool => q.1 == q.2).comp
       (hX.prod hw)).isPPTOn.congr fun ⟨_, _, _⟩ => rfl

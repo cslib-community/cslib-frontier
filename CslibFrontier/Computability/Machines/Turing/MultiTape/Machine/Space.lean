@@ -446,8 +446,8 @@ theorem length_encFiniteCfg_le {s : ℕ} (hs : ntm.RunsInSpace input s)
       finite.workTapes).length ≤ 200 * k * (input.length + s + 1) := by nlinarith
   have hc : 2 * (MultiTapeTM.encFinite (Option State) finite.state).length + 2 ≤
       2 * Nat.card (Option State) * (input.length + s + 1) := by nlinarith
-  simp only [MultiTapeTM.encFiniteCfg_apply, MultiTapeTM.length_encPair, MultiTapeTM.encBits,
-    Function.Embedding.refl_apply, MultiTapeTM.encUnary_apply, List.length_replicate]
+  simp only [MultiTapeTM.encFiniteCfg_apply, MultiTapeTM.length_encPair, MultiTapeTM.encBits_apply,
+    MultiTapeTM.encUnary_apply, List.length_replicate]
   nlinarith
 
 end Size

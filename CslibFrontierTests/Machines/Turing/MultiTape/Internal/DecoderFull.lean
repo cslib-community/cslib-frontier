@@ -30,7 +30,8 @@ example {α : Type} {a : α ↪ List Bool} (D : Decoder a) (l : List α)
     (∃ d e, ComputableInDegree frames encBits (encList encBits) d e) := by
   refine ⟨rfl, Decoder.nat.decode_enc 6, rfl, rfl, Decoder.bool.decode_enc true, rfl,
     (Decoder.list D).decode_enc l, by simp [Decoder.list],
-    by simp [Decoder.list, frames_of_ne_nil, unframe, dropFrame, Decoder.bool],
+    by simp [Decoder.list, frames_of_ne_nil, Cslib.Encoding.undelimit, Cslib.Encoding.dropDelimited,
+      Decoder.bool],
     ?_, (Decoder.list D).computableInPolyTime,
     (Decoder.list (Decoder.pair Decoder.nat (Decoder.option Decoder.bool))).decode_enc lPair,
     ⟨1, 1, computableInDegree_frames⟩⟩

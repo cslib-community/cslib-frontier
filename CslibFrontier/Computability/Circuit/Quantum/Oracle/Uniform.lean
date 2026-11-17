@@ -73,7 +73,7 @@ including unary target/control indices. Instruction lists use `encList encOracle
       right_inv := fun g => by cases g <;> rfl }
     (encOption encPhaseGateCode)
 
-@[simp] theorem encOracleGateCode_query : encOracleGateCode .query = [] := rfl
+@[simp] theorem encOracleGateCode_query : encOracleGateCode .query = [false] := rfl
 
 @[simp] theorem encOracleGateCode_gate (g : PhaseGateCode) :
     encOracleGateCode (.gate g) = true :: encPhaseGateCode g := rfl
@@ -83,7 +83,8 @@ including unary target/control indices. Instruction lists use `encList encOracle
     {enc : α ↪ List Bool} {g : α → PhaseGateCode}
     (hg : ComputableInPolyTime g enc encPhaseGateCode) :
     ComputableInPolyTime (fun x => OracleGateCode.gate (g x)) enc encOracleGateCode :=
-  ((ComputableInPolyTime.optionSome encPhaseGateCode).comp hg).of_enc_eq fun _ => rfl
+  ((ComputableInPolyTime.optionSome encPhaseGateCode
+    (encO := encOption encPhaseGateCode)).comp hg).of_enc_eq fun _ => rfl
 
 /-- Inputs to the uniform circuit generator. The security parameter and classical input length
 are separate: distinct pairs with the same sum may generate different circuits. -/

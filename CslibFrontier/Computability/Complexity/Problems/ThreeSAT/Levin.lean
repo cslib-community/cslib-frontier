@@ -141,8 +141,9 @@ private theorem computableInPolyTime_to3CNFAssignment :
   have hleft := (ComputableInO.getLeft?_deg encNat (encPair encUnary encUnary)).computableInPolyTime
   have hright :=
     (ComputableInO.getRight?_deg encNat (encPair encUnary encUnary)).computableInPolyTime
-  refine ComputableInPolyTime.optionElimWithInput (hleft.comp (.snd _ _))
-    (ComputableInPolyTime.optionElimWithInput (hright.comp (.snd _ _)) (.const false) ?_) ?_
+  refine ComputableInPolyTime.optionElimWithInput (encB := encNat) (hleft.comp (.snd _ _))
+    (ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
+      (hright.comp (.snd _ _)) (.const false) ?_) ?_
   · have hclause : ComputableInPolyTime
         (fun p : ((CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ))) × (ℕ × ℕ) =>
           (p.1.1.1.getD p.2.1 []).drop (p.2.2 + 2))

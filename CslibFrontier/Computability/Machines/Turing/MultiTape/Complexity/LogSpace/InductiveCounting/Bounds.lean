@@ -231,8 +231,8 @@ theorem length_runtime_le {J₀ : ℕ} (hJ₀ : Closed ntm (roundRadix State inp
   · obtain ⟨hl, rfl, rfl⟩ := h
     change (encPair encNat (encPair encNat (encPair encBool (encOption encState)))
       (l, 0, false, none)).length ≤ _
-    simp only [length_encPair, encOption_none, List.length_nil, encBool_apply,
-      List.length_singleton]
+    simp only [length_encPair, encOption_none, List.length_cons, List.length_nil, encBool_apply,
+      ]
     have := hlen l hl
     simp only [storageBound]
     have : (encNat 0).length = 0 := rfl

@@ -325,7 +325,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
       (fun final => encode (0, final))
   have hprep_tidy (a : α) :
       prepM.ComputesTidily (input a) (tp a) (ProbOracleComp.sample (pure (start a))) := by
-    simpa only [encBits, Function.Embedding.coe_refl, id_eq, map_pure, Function.comp_apply,
+    simpa only [encBits_apply, map_pure, Function.comp_apply,
       ProbOracleComp.sample_pure] using hprepM a
   have hstart_len (a : α) : (start a).length ≤ bound a :=
     (hencode_le (count a) (count a) (initial a) le_rfl).trans
@@ -345,7 +345,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
       have hs := hbound a n state hn.le hstate
       refine ((hbodyM (count a - n, state)).mono ?_).congr fun State oracle s => ?_
       · exact Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (by dsimp only [bound]; omega) dB)
-      · simp only [encBits, Function.Embedding.coe_refl, id_map]
+      · simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map]
     have hpreserve' : ∀ n < count a, ∀ w, inv n w → ∀ (OracleState : Type) (oracle : _)
         (s s' : OracleState) (w' : List Bool),
         (w', s') ∈ (ProbOracleComp.runWith oracle (wordStep w) s).support →
@@ -359,7 +359,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
       have hsupp : final ∈ (ProbComp.eval (step state)).support :=
         (ProbOracleComp.support_sample (step state)).subset hfinal
       refine ⟨⟨final, by rw [Nat.sub_sub], hpreserve a n state hn hstate final hsupp⟩, ?_⟩
-      simp only [encode, encPair_apply, frame, ne_eq]
+      simp only [encode, encPair_apply, Cslib.Encoding.delimit, ne_eq]
       cases encNat (count a - (n + 1)) <;> simp
     have hlast : ∀ w, inv (count a) w → bodyM.ComputesTidily w (roundTime a) (pure []) := by
       rintro word ⟨state, rfl, hstate⟩
@@ -367,7 +367,8 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
       have hs := hbound a (count a) state le_rfl hstate
       refine ((hbodyM (count a - count a, state)).mono ?_).congr fun State oracle s => ?_
       · exact Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (by dsimp only [bound]; omega) dB)
-      · simp only [body, Nat.sub_self, ↓reduceIte, encBits, Function.Embedding.coe_refl, id_map]
+      · simp only [body, Nat.sub_self, ↓reduceIte, show (encBits : List Bool → List Bool) = id from
+        funext encBits_apply, id_map]
     have hlength : ∀ n ≤ count a, ∀ w, inv n w → w.length ≤ bound a := by
       rintro n hn word ⟨state, rfl, hstate⟩
       have hlen := hencode_le (count a - n) (count a) state (Nat.sub_le _ _)
@@ -426,7 +427,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
     have h0 : extM.ComputesTidily (encode (0, final))
         (ce * ((encode (0, final)).length + 1) ^ de)
         (ProbOracleComp.sample (pure (stateEncoding final))) := by
-      simpa only [encBits, Function.Embedding.coe_refl, id_eq, map_pure, Function.comp_apply,
+      simpa only [encBits_apply, map_pure, Function.comp_apply,
         ProbOracleComp.sample_pure] using hextM (0, final)
     exact h0.mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) de))
   let decodeOut : List Bool → List Bool :=
@@ -595,7 +596,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterateWith_binary {initial : α → σ} {co
     have h0 : extM.ComputesTidily (packedEnc (a, final))
         (ce * ((packedEnc (a, final)).length + 1) ^ de)
         (ProbOracleComp.sample (pure (stateEncoding final))) := by
-      simpa only [encBits, Function.Embedding.coe_refl, id_eq, map_pure, Function.comp_apply,
+      simpa only [encBits_apply, map_pure, Function.comp_apply,
         ProbOracleComp.sample_pure] using hextM (a, final)
     exact h0.mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) de))
   let decodePacked : List Bool → List Bool :=

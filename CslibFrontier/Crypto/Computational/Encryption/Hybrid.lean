@@ -617,13 +617,13 @@ theorem computableInPolyTime_hybridDecrypt {Msg : Type} {encMsg : Msg ↪ List B
     {decryptSym : ℕ → List Bool → List Bool → Option Msg}
     (hdecaps : ComputableInPolyTime
       (fun ⟨n, sk, ctKem⟩ => decaps n sk ctKem)
-      (encKeyedInput encBits) (encOption encBits))
+      (encKeyedInput encBits) (encSilentOption encBits))
     (hdecryptSym : ComputableInPolyTime
       (fun ⟨n, k, ctDem⟩ => decryptSym n k ctDem)
-      (encKeyedInput encBits) (encOption encMsg)) :
+      (encKeyedInput encBits) (encSilentOption encMsg)) :
     ComputableInPolyTime
       (fun ⟨n, sk, ct⟩ => hybridDecrypt decaps decryptSym n sk ct)
-      (encKeyedInput encBits) (encOption encMsg) := by
+      (encKeyedInput encBits) (encSilentOption encMsg) := by
   let I := encPair encUnary (encPair encBits encBits)
   have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
   have hrest := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
@@ -640,11 +640,11 @@ theorem computableInPolyTime_hybridDecrypt {Msg : Type} {encMsg : Msg ↪ List B
     ((hn.comp hinput).prod (hvalue.prod (hdem.comp hinput)))
   have hrun := hkey.optionElimWithInput
     (body := fun (p : ℕ × List Bool × List Bool) k => decryptSym p.1 k (dropFrame p.2.2))
-    (encC := encOption encMsg) (ComputableInPolyTime.const none) hbody
+    (encC := encSilentOption encMsg) (ComputableInPolyTime.const none) hbody
   have hbind : ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool => do
         let k ← decaps p.1 p.2.1 (unframe p.2.2)
-        decryptSym p.1 k (dropFrame p.2.2)) I (encOption encMsg) := by
+        decryptSym p.1 k (dropFrame p.2.2)) I (encSilentOption encMsg) := by
     convert hrun using 1
     funext p
     dsimp only [Function.comp_def]
@@ -669,7 +669,7 @@ theorem hybridDecrypt_encPair {Msg : Type}
     hybridDecrypt decaps decryptSym n sk (encPair encBits encBits (ctKem, ctDem)) = (do
       let k ← decaps n sk ctKem
       decryptSym n k ctDem) := by
-  simp [hybridDecrypt, encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append]
+  simp [hybridDecrypt]
 
 /-- **Hybrid decryption correctness**: supported encapsulations decapsulate to `some k`, and
 supported symmetric ciphertexts decrypt to `some msg`. Then every supported hybrid ciphertext

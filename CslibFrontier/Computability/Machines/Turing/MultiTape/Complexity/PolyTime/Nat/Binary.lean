@@ -156,7 +156,8 @@ theorem bitsToNat : ComputableTidilyInPolyTime ofBits encBits encNat := by
 
 /-- The binary digits of a natural number, as a raw bit string. -/
 @[fun_prop]
-theorem natBits : ComputableTidilyInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
+theorem natBits : ComputableTidilyInPolyTime Nat.bits encNat encBits := of_eq fun _ => by
+  simp only [encBits_apply, encNat_apply]
 
 /-- Addition of binary naturals. -/
 @[fun_prop]
@@ -443,7 +444,8 @@ theorem binary_xor' {α : Type} {input : α ↪ List Bool} {left right : α → 
 /-- The bit-length `Nat.size n` of a binary natural, returned in unary. -/
 @[fun_prop, program_certificate]
 theorem binary_size : ComputableInPolyTime Nat.size encNat encUnary := by
-  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
+  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => by
+    simp only [encBits_apply, encNat_apply]
   convert Internal.DecoderWords.unary_degree.computableInPolyTime.comp hbits using 1
   funext n
   exact (Nat.size_eq_bits_len n).symm

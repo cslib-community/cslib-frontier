@@ -72,40 +72,68 @@ def bool : Decoder encBool where
   computable := ⟨1, 1, Internal.DecoderWords.bool_degree⟩
 
 private theorem option_decode_degree {decode : List Bool → α} {d e : ℕ}
+    {encO : Option α ↪ List Bool} [OptionEncoding enc encO] {present : List Bool → Bool}
+    (hc : ComputableInDegree present encBits encBool 1 0)
     (h : ComputableInDegree decode encBits enc d e) :
-    ComputableInDegree (fun w => if w.isEmpty then none else some (decode w.tail))
-      encBits (encOption enc) (max 1 (max d e)) e := by
+    ComputableInDegree (fun w => if present w then some (decode w.tail) else none)
+      encBits encO (max 1 (max d e)) e := by
   have hsome : ComputableInDegree (fun w => some (decode w.tail))
-      encBits (encOption enc) (max 1 (max d e)) e :=
-    ((ComputableInDegree.optionSome (enc₁ := enc) (enc := encOption enc)).comp
+      encBits encO (max 1 (max d e)) e :=
+    ((ComputableInDegree.optionSome (enc₁ := enc) (enc := encO)).comp
       (h.comp Internal.DecoderWords.tail_degree)).mono (by omega) (by omega)
-  exact (ComputableInDegree.ite (f := fun _ => none)
-    (g := fun w => some (decode w.tail)) Internal.DecoderWords.empty_degree
-    (ComputableInDegree.const none)
-    (ComputableInDegree.of_encIn_eq Subtype.val (fun _ => rfl) hsome)).mono
+  exact (ComputableInDegree.ite hc
+    (ComputableInDegree.of_encIn_eq Subtype.val (fun _ => rfl) hsome)
+    (ComputableInDegree.const none)).mono
       (d' := max 1 (max d e)) (e' := e) (by omega) (by omega)
 
+private theorem silent_option_decode_degree {decode : List Bool → α} {d e : ℕ}
+    (h : ComputableInDegree decode encBits enc d e) :
+    ComputableInDegree (fun w => if w.isEmpty then none else some (decode w.tail))
+      encBits (encSilentOption enc) (max 1 (max d e)) e := by
+  have hc := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool) Bool.not).comp
+    Internal.DecoderWords.empty_degree
+  exact (option_decode_degree (encO := encSilentOption enc) hc h).of_enc_eq fun w => by
+    dsimp only [Function.comp_apply]
+    cases w <;> rfl
+
 /-- Options are decoded as `none` from the empty word, and otherwise from the tail. -/
-def option (D : Decoder enc) : Decoder (encOption enc) where
+def silentOption (D : Decoder enc) : Decoder (encSilentOption enc) where
   decode w := if w.isEmpty then none else some (D.decode w.tail)
-  decode_enc o := by cases o <;> simp [encOption, D.decode_enc]
+  decode_enc o := by cases o <;> simp [D.decode_enc]
   computable := by
     obtain ⟨d, e, hD⟩ := D.computable
-    exact ⟨max 1 (max d e), e, option_decode_degree hD⟩
+    exact ⟨max 1 (max d e), e, silent_option_decode_degree hD⟩
+
+/-- Option decoding preserves any supplied encoded-output degree, including zero. Its cost
+accounts for reading the input, running the decoder, and emitting the tagged decoded output. -/
+theorem silentOption_computableInDegree (D : Decoder enc) {d e : ℕ}
+    (hD : ComputableInDegree D.decode encBits enc d e) :
+    ComputableInDegree (silentOption D).decode encBits (encSilentOption enc) (max 1 (max d e)) e :=
+  silent_option_decode_degree hD
+
+/-- Options are decoded from the constructor bit, with empty and false-headed inputs absent. -/
+def option (D : Decoder enc) : Decoder (encOption enc) where
+  decode w := if w.headD false then some (D.decode w.tail) else none
+  decode_enc o := by cases o <;> simp [D.decode_enc]
+  computable := by
+    obtain ⟨d, e, hD⟩ := D.computable
+    exact ⟨max 1 (max d e), e, option_decode_degree
+      ⟨Internal.DecoderWords.bool_degree.1, ⟨1, fun _ => by simp⟩⟩ hD⟩
 
 /-- Option decoding preserves any supplied encoded-output degree, including zero. Its cost
 accounts for reading the input, running the decoder, and emitting the tagged decoded output. -/
 theorem option_computableInDegree (D : Decoder enc) {d e : ℕ}
     (hD : ComputableInDegree D.decode encBits enc d e) :
     ComputableInDegree (option D).decode encBits (encOption enc) (max 1 (max d e)) e :=
-  option_decode_degree hD
+  option_decode_degree
+    ⟨Internal.DecoderWords.bool_degree.1, ⟨1, fun _ => by simp⟩⟩ hD
 
 /-- Pairs are decoded from the framed first component and what follows it. -/
 def pair {β₁ β₂ : Type} {enc₁ : β₁ ↪ List Bool} {enc₂ : β₂ ↪ List Bool} (D₁ : Decoder enc₁)
     (D₂ : Decoder enc₂) : Decoder (encPair enc₁ enc₂) where
   decode w := (D₁.decode (unframe w), D₂.decode (dropFrame w))
   decode_enc p := by
-    simp [unframe_frame_append, dropFrame_frame_append, D₁.decode_enc, D₂.decode_enc]
+    simp [D₁.decode_enc, D₂.decode_enc]
   computable := by
     obtain ⟨d₁, e₁, h₁⟩ := D₁.computable
     obtain ⟨d₂, e₂, h₂⟩ := D₂.computable

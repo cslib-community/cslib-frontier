@@ -14,7 +14,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Q
 # Degree-one bounds for tagged sum constructors
 
 Prepending the fixed Boolean tag bit to the payload encoding has a direct degree-one certificate,
-without any finite-domain or inhabitance assumption on either summand.
+without any finite-domain or inhabitance assumption on either summand. The right-injection
+certificate lives in the lower sum encoding module so canonical options can reuse it.
 
 ## Main results
 
@@ -39,12 +40,5 @@ theorem inl (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInDegree (Sum.inl (α := α) (β := β)) left (encSum left right) 1 1 := by
   have hid : ComputableInDegree (fun a : α => a) left left 1 1 := .id'
   exact ((const (encMid := encBool) false).append hid (fun _ => rfl)).mono
-
-/-- A right sum tag has a direct degree-one implementation. -/
-@[fun_prop]
-theorem inr (left : α ↪ List Bool) (right : β ↪ List Bool) :
-    ComputableInDegree (Sum.inr (α := α) (β := β)) right (encSum left right) 1 1 := by
-  have hid : ComputableInDegree (fun a : β => a) right right 1 1 := .id'
-  exact ((const (encMid := encBool) true).append hid (fun _ => rfl)).mono
 
 end Turing.MultiTapeTM.ComputableInDegree

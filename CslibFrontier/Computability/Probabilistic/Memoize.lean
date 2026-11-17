@@ -81,7 +81,11 @@ theorem IsPPTOn.memoize {α Key Value : Type} [BEq Key] [LawfulBEq Key] {input :
       (fun a => memoize (compute a) (query a) (cache a)) := by
   let found (a : α) := (cache a).find? (fun entry => query a == entry.1)
   have hfound : ComputableInPolyTime found input
-      (encOption (encPair keyEncoding valueEncoding)) := by fun_prop
+      (encOption (encPair keyEncoding valueEncoding)) := by
+    have htest : ComputableInPolyTime
+        (fun p : α × (Key × Value) => query p.1 == p.2.1)
+        (encPair input (encPair keyEncoding valueEncoding)) encBool := by fun_prop
+    exact ComputableInPolyTime.findWithInput hcache htest
   let finish (a : α) (value : Value) :=
     if (found a).isSome then ((found a).getD (query a, value) |>.2, cache a)
     else (value, (query a, value) :: cache a)

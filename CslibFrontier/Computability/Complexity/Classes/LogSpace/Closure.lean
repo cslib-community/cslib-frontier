@@ -69,7 +69,7 @@ private theorem budget_inSpace (K : ℕ) :
   have hlen : ComputableInLogSpace (fun a => (enc a).length) enc encUnary :=
     ComputableInLogSpace.bitsLength.comp
       (ComputableInLogSpace.of_eq (f := fun a => enc a) (encMid := encBits) fun _ => by
-        simp [encBits_apply])
+        simp )
   obtain ⟨t, c, h⟩ := ComputableInLogSpace.unaryMulConst K
     (ComputableInLogSpace.unaryAdd (ComputableInLogSpace.unaryLog2 hlen)
       (ComputableInLogSpace.const 1))

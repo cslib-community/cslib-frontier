@@ -43,14 +43,24 @@ public class PairEncoding (enc₁ : α ↪ List Bool) (enc₂ : β ↪ List Bool
   /-- The second projection is computable in linear time and space. -/
   snd : ComputableInDegree Prod.snd enc enc₂ 1 1
 
-/-- `enc` encodes options compatibly with `enc₁`: `none` is encoded by the empty word. -/
-public class OptionEncoding (enc₁ : α ↪ List Bool) (enc : Option α ↪ List Bool) : Prop where
-  /-- `none` is encoded by the empty word. -/
-  none_eq : enc none = []
+/-- Construction and default elimination for an explicitly supplied option encoding.
+The payload encoding may be inferred from the supplied option encoding; this does not choose
+an option encoding from a payload type or encoding. -/
+public class OptionEncoding (enc₁ : semiOutParam (α ↪ List Bool)) (enc : Option α ↪ List
+  Bool) : Prop where
+  /-- Constructor classification has linear resource degree and constant output degree. -/
+  isSome : ComputableInDegree Option.isSome enc encBool 1 0
   /-- `some` is computable in linear time and space. -/
   some : ComputableInDegree some enc₁ enc 1 1
   /-- `Option.getD` is computable in linear time and space. -/
   getD (d : α) : ComputableInDegree (fun o => o.getD d) enc enc₁ 1 1
+
+/-- Option capabilities for the empty-word halt protocol of the iteration kernel.
+Canonical tagged options do not satisfy this protocol. -/
+public class HaltOptionEncoding (enc₁ : α ↪ List Bool) (enc : Option α ↪ List Bool)
+    : Prop extends OptionEncoding enc₁ enc where
+  /-- The kernel stops on the empty word. -/
+  none_eq : enc none = []
 
 /-- `enc` encodes lists compatibly with `enc₁`. -/
 public class ListEncoding (enc₁ : α ↪ List Bool) (enc : List α ↪ List Bool) : Prop where

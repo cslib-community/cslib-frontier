@@ -234,7 +234,7 @@ theorem length_encTable {table : Cslib.Logic.PL.CSP.Table} (h : table.wellFormed
     (encTable table).length = 2 * (encNat table.arity).length + 1 +
       table.rows.length * (6 * table.arity + 1) := by
   have hbits (row : List Bool) : (encList encBool row).length = 3 * row.length := by
-    simp [length_encList, Nat.mul_comm]
+    simp [Nat.mul_comm]; omega
   have hrows : (encList (encList encBool) table.rows).length =
       table.rows.length * (6 * table.arity + 1) := by
     rw [length_encList]

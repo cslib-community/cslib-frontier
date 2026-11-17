@@ -759,7 +759,7 @@ theorem isPPTOn_gmwRealWithPads {α β Param : Type} {enc : α ↪ List Bool}
     (hw : ComputableInPolyTime w input encBits)
     (hφ : ComputableInPolyTime φ input encCNF)
     (hpads : ComputableInPolyTime pads input (encList encBits)) :
-    IsPPTOn input (encOption encB) (fun p =>
+    IsPPTOn input (encSilentOption encB) (fun p =>
       gmwRealWithPads generator (s p) (m p) (φ p) (w p) (Vstar (n p) (a p) (z p)) (pads p)) := by
   have hvars := SAT.computableInPolyTime_vars_length hφ
   have htotal := computableInPolyTime_totalLen hφ
@@ -825,27 +825,27 @@ private theorem isPPTOn_gmwViewReduction_aux {α γ : Type} {enc : α ↪ List B
   have hφ0 := hf.comp ha0
   have htotal0 := computableInPolyTime_totalLen hφ0
   have hp_in := ComputableInPolyTime.fst input (encList encBits)
-  have hpad : IsPPTOn (encPair input (encList encBits)) (encOption encBits)
+  have hpad : IsPPTOn (encPair input (encList encBits)) (encSilentOption encBits)
       (fun p : (ℕ × (α × (List Bool × γ))) × List (List Bool) =>
         gmwRealWithPads generator (p.1.1 + 7) (length (p.1.1 + 7)) (f p.1.2.1)
           p.1.2.2.1 (Vstar p.1.1 p.1.2.1 (z p.1.2.2.2)) p.2) :=
     isPPTOn_gmwRealWithPads hg hV (hn0.comp hp_in) (hs0.comp hp_in) (hm0.comp hp_in)
       (ha0.comp hp_in) (hz0.comp hp_in) (hw0.comp hp_in) (hφ0.comp hp_in)
       (.snd input (encList encBits))
-  have hzero : IsPPTOn input (encOption encBits)
+  have hzero : IsPPTOn input (encSilentOption encBits)
       (fun p : ℕ × (α × (List Bool × γ)) =>
         gmwRealPRGPads generator (p.1 + 7) (length (p.1 + 7)) (f p.2.1)
           p.2.2.1 (Vstar p.1 p.2.1 (z p.2.2.2))) :=
     ((hs0.sampleList.map hg).replicate htotal0).bind_with hpad
-  have hone : IsPPTOn input (encOption encBits)
+  have hone : IsPPTOn input (encSilentOption encBits)
       (fun p : ℕ × (α × (List Bool × γ)) =>
         gmwRealUniformPads generator (p.1 + 7) (length (p.1 + 7)) (f p.2.1)
           p.2.2.1 (Vstar p.1 p.2.1 (z p.2.2.2))) :=
     (hm0.sampleList.replicate htotal0).bind_with hpad
-  have hp_att := ComputableInPolyTime.fst input (encOption encBits)
-  have hp_attCtx := (ComputableInPolyTime.fst (encPair input (encOption encBits))
-    (encList (encOption encBits))).fst'
-  have houter : IsPPTOn (encPair input (encOption encBits)) encBool
+  have hp_att := ComputableInPolyTime.fst input (encSilentOption encBits)
+  have hp_attCtx := (ComputableInPolyTime.fst (encPair input (encSilentOption encBits))
+    (encList (encSilentOption encBits))).fst'
+  have houter : IsPPTOn (encPair input (encSilentOption encBits)) encBool
       (fun p : (ℕ × (α × (List Bool × γ))) × Option (List Bool) =>
         sequenceTest
           (gmwRealUniformPads generator (p.1.1 + 7) (length (p.1.1 + 7)) (f p.1.2.1)
@@ -855,15 +855,16 @@ private theorem isPPTOn_gmwViewReduction_aux {α γ : Type} {enc : α ↪ List B
           (p.1.1 + 1)
           (fun attempts =>
             adversary p.1.1 p.1.2.1 (z' p.1.2.2.2) (firstSuccess [] attempts)) p.2) :=
-    isPPTOn_sequenceTest (sample := encOption encBits) (hone.preprocess hp_att)
+    isPPTOn_sequenceTest (sample := encSilentOption encBits) (hone.preprocess hp_att)
       (hzero.preprocess hp_att) ((hn0.comp hp_att).unary_add' (.const 1))
       (hadv.preprocess
-        (input := encPair (encPair input (encOption encBits)) (encList (encOption encBits)))
+        (input := encPair (encPair input (encSilentOption encBits)) (encList (encSilentOption
+          encBits)))
         (prepare := fun p => ((p.1.1.1, p.1.1.2.1, z' p.1.1.2.2.2), firstSuccess [] p.2))
         (((hn0.comp hp_attCtx).prod ((ha0.comp hp_attCtx).prod (hz'0.comp hp_attCtx))).prod
           (computableInPolyTime_firstSuccess (.const [])
-            (.snd (encPair input (encOption encBits)) (encList (encOption encBits))))))
-      (.snd input (encOption encBits))
+            (.snd (encPair input (encSilentOption encBits)) (encList (encSilentOption encBits))))))
+      (.snd input (encSilentOption encBits))
   have hcontext : IsPPTOn (encPair input (encList encBits)) encBool
       (fun p : (ℕ × (α × (List Bool × γ))) × List (List Bool) => do
         let attempt ← gmwRealWithPads generator (p.1.1 + 7) (length (p.1.1 + 7))
@@ -877,10 +878,11 @@ private theorem isPPTOn_gmwViewReduction_aux {α γ : Type} {enc : α ↪ List B
           (fun attempts => adversary p.1.1 p.1.2.1 (z' p.1.2.2.2) (firstSuccess [] attempts))
           attempt) :=
     hpad.bind_with (houter.preprocess
-      (input := encPair (encPair input (encList encBits)) (encOption encBits))
+      (input := encPair (encPair input (encList encBits)) (encSilentOption encBits))
       (prepare := fun p => (p.1.1, p.2))
-      (((ComputableInPolyTime.fst (encPair input (encList encBits)) (encOption encBits)).fst').prod
-        (.snd (encPair input (encList encBits)) (encOption encBits))))
+      (((ComputableInPolyTime.fst (encPair input (encList encBits)) (encSilentOption
+        encBits)).fst').prod
+        (.snd (encPair input (encList encBits)) (encSilentOption encBits))))
   have hp_out := ComputableInPolyTime.fst input encBits
   have hp_ctx1 := (ComputableInPolyTime.fst (encPair input encBits) (encList encBits)).fst'
   exact isPPTOn_sequenceTest (sample := encBits)

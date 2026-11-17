@@ -8,7 +8,7 @@ Usage: python3 scripts/check_encoding_readability.py
 
 This checks rules 1 and 3 of "Encodings in statements" in AGENTS.md. A *compound encoding* is an
 application of one of the generic combinators `encPair`, `encList`, `encOption`, `encSum`,
-`encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them as an
+`encSigma`, `encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them as an
 argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
 neither is `encPair encNat (encCSP (encOption e) encNat)`, whose inner combinator is an argument of
 another function. A compound encoding
@@ -100,8 +100,8 @@ BASELINE = ROOT / "scripts/encoding_readability_baseline.json"
 UPDATE = "python3 scripts/check_encoding_readability.py --update-baseline"
 # The generic encoding combinators (`CslibFrontier/Computability/Machines/Turing/MultiTape/
 # Encodings/`) and their explicit arities.
-COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encFramed": 1,
-               "encPi": 1, "encDPi": 1}
+COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encSigma": 2,
+               "encFramed": 1, "encPi": 1, "encDPi": 1}
 # A compound term is repeated when at least this many public declarations of a module spell it out.
 MIN_DECLARATIONS = 3
 

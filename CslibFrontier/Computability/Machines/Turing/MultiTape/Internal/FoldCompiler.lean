@@ -53,7 +53,7 @@ lemma iterate_foldStep (l : List α) (b : β) {n : ℕ} (hn : n ≤ l.length) :
 def rounds (o : Option (List α × β)) : ℕ := o.elim 0 fun p => p.1.length
 
 lemma isLeast_rounds {enc₁ : List α × β ↪ List Bool} {enc : Option (List α × β) ↪ List Bool}
-    (h : OptionEncoding enc₁ enc) (o : Option (List α × β)) :
+    (h : HaltOptionEncoding enc₁ enc) (o : Option (List α × β)) :
     IsLeast {n | enc ((foldStep step a₀ b₀)^[n + 1] o) = []} (rounds o) := by
   have hnone (x : Option (List α × β)) : enc x = [] ↔ x = none := by
     rw [← h.none_eq, enc.injective.eq_iff]
@@ -81,7 +81,7 @@ variable {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encL : List α ↪
 
 /-- Assemble one existing fold round, with independent callback clocks and workspace. -/
 private theorem roundMachine [hLE : ListEncoding encA encL] [hBA : PairEncoding encB encA encBA]
-    [hSE : PairEncoding encL encB encS] [hOE : OptionEncoding encS encO]
+    [hSE : PairEncoding encL encB encS] [hOE : HaltOptionEncoding encS encO]
     {ts ss : β × α → ℕ} {ks : ℕ} {Qs : Type} [Finite Qs]
     {tms : MultiTapeTM ks Bool Qs}
     (hstep : ∀ p : β × α, tms.ComputesTidilyInTimeAndSpace (encBA p)
@@ -154,7 +154,7 @@ public theorem foldl {γ α β : Type u} {encIn : γ ↪ List Bool}
     {encBA : β × α ↪ List Bool} {encS : List α × β ↪ List Bool}
     {encO : Option (List α × β) ↪ List Bool}
     [hLE : ListEncoding encA encL] [hBA : PairEncoding encB encA encBA]
-    [hSE : PairEncoding encL encB encS] [hOE : OptionEncoding encS encO]
+    [hSE : PairEncoding encL encB encS] [hOE : HaltOptionEncoding encS encO]
     {list : γ → List α} {init : γ → β} {step : β → α → β}
     {t s : γ → ℕ} {tStep sStep : β × α → ℕ} {tMax sMax lMax : γ → ℕ}
     {kl ki ks : ℕ} {Ql Qi Qs : Type} [Finite Ql] [Finite Qi] [Finite Qs]

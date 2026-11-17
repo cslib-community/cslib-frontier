@@ -98,11 +98,11 @@ encoding-readability lint checks rule 1 against a per-module baseline that may o
 
 1. **Name repeated compound encodings.** A *compound encoding* is a term of type
    `α ↪ List Bool` in which one of the generic combinators `encPair`, `encList`, `encOption`,
-   `encSum`, `encFramed`, `encPi` or `encDPi` is applied to another application of one of them,
-   such as `encPair encS (encOption encBool)`. When the same compound encoding, up to the names of
-   local variables, occurs in the types of three or more public declarations of a module, give it
-   a named `abbrev` and write the name in those statements. Occurrences inside larger terms count,
-   including bounds that restate an input encoding, such as
+   `encSum`, `encSigma`, `encFramed`, `encPi` or `encDPi` is applied to another application of
+   one of them, such as `encPair encS (encOption encBool)`. When the same compound encoding, up to
+   the names of local variables, occurs in the types of three or more public declarations of a
+   module, give it a named `abbrev` and write the name in those statements. Occurrences inside
+   larger terms count, including bounds that restate an input encoding, such as
    `fun p => (encPair encS (encOption encBool) p).length`. The varying encodings become the
    `abbrev`'s parameters. Define it in that module, or in the lowest module its users share, and
    once a name exists, use it instead of restating its body.

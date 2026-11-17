@@ -662,13 +662,14 @@ example :
 /-- Incomplete framing and malformed words do not crash: raw bitstreams with irregular frame
 delimiters decode via total fallbacks and produce valid output lists of length `n`. -/
 example : (frames [true]).map decodeIntBin = [0] := by
-  simp [frames, unframe, dropFrame, decodeIntBin, Decoder.nat, ofBits]
+  simp [frames, decodeIntBin, Decoder.nat,
+    ofBits]
 
 example :
     decryptWords (((1, 2), 29), ([true], [true])) = [false, false] := by
   have hf : frames [true] = [[]] := by
     rw [frames_of_ne_nil (by decide)]
-    simp [unframe, dropFrame]
+    simp
   have hs : (Decoder.list Decoder.intBin).decode [true] = [0] := by
     simp [Decoder.list, Decoder.intBin, hf, decodeIntBin, Decoder.nat, ofBits]
   have hct : (Decoder.list (Decoder.list Decoder.nat)).decode [true] = [[]] := by

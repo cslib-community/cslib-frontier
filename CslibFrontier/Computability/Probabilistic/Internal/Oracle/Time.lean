@@ -448,7 +448,7 @@ theorem query_take_pair [Finite Operation] (op : Operation) :
           (op, request.1)) :=
   of_computesTidily (queryTakePTM op) fun request =>
     (computesTidily_queryTakePTM op request.1 request.2).congr fun _ _ _ => by
-      simp only [encBits, Function.Embedding.coe_refl, id_map]
+      simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map]
 
 /-- Sequence a closed halting probabilistic computation `ProbOracleComp.sample (first a)` before
 any halting oracle continuation `second`, in `2 * t₁ a + t₂' a + 4` steps. -/
@@ -750,7 +750,8 @@ theorem computesOracleInTimeOn_iff_encoded {Operation α β : Type} [DecidableEq
     {program : α → WordOracleComp Operation β} :
     ComputesOracleInTimeOn input output t program ↔
       ComputesOracleInTimeOn input encBits t (fun a => output <$> program a) := by
-  simp only [ComputesOracleInTimeOn, encBits, Function.Embedding.coe_refl, id_map]
+  simp only [ComputesOracleInTimeOn, show (encBits : List Bool → List Bool) = id from funext
+    encBits_apply, id_map]
 
 /-- Lift a closed halting realization to an open oracle realization via `ProbOracleComp.sample`,
 preserving the exact step schedule `t`. -/

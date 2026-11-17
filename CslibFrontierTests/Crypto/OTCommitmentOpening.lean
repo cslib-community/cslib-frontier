@@ -53,7 +53,7 @@ example : ComputableInPolyTime
     (fun input : List Bool × List Bool × Option (Bool × List (Bool × Bool)) =>
       openPairs input.1 input.2.1 input.2.2)
     (encPair encBits (encPair encBits
-      (encOption (encPair encBool (encList (encPair encBool encBool))))))
-    (encOption encBool) := openPairs_polyTime
+      (encSilentOption (encPair encBool (encList (encPair encBool encBool))))))
+    (encSilentOption encBool) := openPairs_polyTime
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment.Tests

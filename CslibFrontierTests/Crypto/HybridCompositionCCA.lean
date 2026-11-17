@@ -96,7 +96,7 @@ example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFun
     (hencrypt : IsPPTOn (encPair encUnary (encPair encBits encBits)) encBits
       (fun p => encrypt p.1 p.2.1 p.2.2))
     (hdecrypt : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
-      decrypt p.1 p.2.1 p.2.2) (encPair encUnary (encPair encBits encBits)) (encOption encBits))
+      decrypt p.1 p.2.1 p.2.2) (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits))
     (hcorrect : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support →
       ∀ m ct, ct ∈ (ProbComp.eval (encrypt n keys.1 m)).support → decrypt n keys.2 ct = some m) :
     let E := prfEncryptThenMAC family hprf.polyTime hprf.length_eq
@@ -120,7 +120,7 @@ example (E : SymmetricCipher) {keyLen : ℕ → ℕ} {F : ℕ → List Bool → 
     (hencaps : IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
       (fun p => encaps p.1 p.2))
     (hdecaps : ComputableInPolyTime (fun ⟨n, sk, ct⟩ => decaps n sk ct)
-      (encKeyedInput encBits) (encOption encBits))
+      (encKeyedInput encBits) (encSilentOption encBits))
     (hF : ComputableInPolyTime (fun p : ℕ × List Bool => F p.1 p.2)
       (encPair encUnary encBits) encBits)
     (hlaw : ∀ n, (BitString.uniformList (keyLen n)).map (F n) = ProbComp.eval (E.keyGen n))
@@ -292,6 +292,6 @@ example (n : ℕ) : Game.advantage
       (hybridDecrypt identityDecaps echoCipher.decrypt) headAdversary true (n + 1))) = 1 := by
   simp [cca2GameOn, fixedKeyGen, fixedEncaps, hybridEncrypt, echoCipher, headAdversary,
     ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state, encPair_apply, encBits_apply,
-    dropFrame, List.replicate_succ, Game.advantage, Game.succProbability]
+    Cslib.Encoding.dropDelimited, List.replicate_succ, Game.advantage, Game.succProbability]
 
 end CslibFrontierTests.Crypto.HybridCompositionCCA

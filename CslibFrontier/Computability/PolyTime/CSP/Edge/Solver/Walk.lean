@@ -128,10 +128,13 @@ theorem computableInPolyTime_finish : ComputableInPolyTime
     (fun p : CSP Table ℕ × WalkCode => EdgeAugmenting.finish ⟨p.1, [], [], 0⟩ p.2)
     (encPair (encCSP encTable encNat) encWalkCode) encNat := by
   unfold EdgeAugmenting.finish
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encPair encNat encNat)
     (show ComputableInPolyTime (fun p : CSP Table ℕ × WalkCode => p.2.steps.reverse.head?)
       (encPair (encCSP encTable encNat) encWalkCode)
-      (encOption (encPair encNat encNat)) from by fun_prop) (by fun_prop)
+      (encOption (encPair encNat encNat)) from
+        (show ComputableInPolyTime List.head?
+          (encList (encPair encNat encNat)) (encOption (encPair encNat encNat)) from
+          ComputableInPolyTime.head? (encPair encNat encNat)).comp (by fun_prop)) (by fun_prop)
   fun_prop
 
 attribute [local fun_prop] computableInPolyTime_finish computableInPolyTime_edges

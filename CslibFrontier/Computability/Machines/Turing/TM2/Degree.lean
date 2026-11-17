@@ -99,7 +99,7 @@ private theorem dpi_apply_computableInDegree (enc : ∀ i, Value i ↪ List Bool
   have h := (ComputableInDegree.headD (enc₁ := encBits) ([] : List Bool)).comp
     ((iterate_tail_computableInDegree (e i).val).comp hlist)
   refine h.mono.of_enc_eq fun values => ?_
-  simp only [Function.comp_apply, List.tail_iterate, encBits]
+  simp only [Function.comp_apply, List.tail_iterate, encBits_apply]
   rw [List.headD_eq_head?_getD, List.head?_drop, List.getElem?_ofFn]
   have hx : ∀ x, x = i → enc x (values x) = enc i (values i) := by rintro x rfl; rfl
   simpa using (hx _ (by simp [e])).symm

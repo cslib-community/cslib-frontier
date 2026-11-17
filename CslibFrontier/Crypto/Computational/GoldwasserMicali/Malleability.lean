@@ -83,6 +83,7 @@ rejects and returns `decrypt sk ct`. -/
 @[expose] def flipCiphertext (pk ct : List Bool) : List Bool :=
   mulCiphertexts pk ct (dropFrame pk)
 
+attribute [local irreducible] ComputableInPolyTime in
 /-- `flipCiphertext` is computable in polynomial time. -/
 theorem computableInPolyTime_flipCiphertext :
     ComputableInPolyTime (fun ⟨pk, ct⟩ => flipCiphertext pk ct) (encPair encBits encBits)
@@ -119,7 +120,7 @@ decryption oracle on `flipCiphertext pk ct`, and output whether the reply is `so
 happens exactly when the challenge encrypts `true`. -/
 def flipAdversary : CCA2Adversary :=
   maulAdversary (fun _ _ => false) (fun _ _ => true) (fun _ pk ct => flipCiphertext pk ct)
-    (fun _ _ => encOption encBool (some false))
+    (fun _ _ => encSilentOption encBool (some false))
 
 /-- `flipAdversary` is strict oracle PPT. -/
 theorem isPPT_flipAdversary : flipAdversary.IsPPT :=
@@ -133,9 +134,9 @@ private theorem KeyDesc.flip_conditions (k : KeyDesc) {n : ℕ} {m : Bool} {ct :
     decryptOpt n (encPair encNat encNat (k.p, k.q))
         (flipCiphertext (encPair encNat encNat (k.modulus, k.z)) ct) ≠
       decryptOpt n (encPair encNat encNat (k.p, k.q)) ct ∧
-    (encOption encBool (decryptOpt n (encPair encNat encNat (k.p, k.q))
+    (encSilentOption encBool (decryptOpt n (encPair encNat encNat (k.p, k.q))
         (flipCiphertext (encPair encNat encNat (k.modulus, k.z)) ct)) =
-      encOption encBool (some false) ↔ m = true) := by
+      encSilentOption encBool (some false) ↔ m = true) := by
   simp only [decryptOpt, k.decrypt_flipCiphertext hct, k.decrypt_encrypt m hct, ne_eq,
     Option.some.injEq, EmbeddingLike.apply_eq_iff_eq, Bool.not_eq_eq_eq_not, Bool.not_false]
   cases m <;> decide
@@ -146,8 +147,8 @@ private theorem flip_conditions_keyGen (gen : ℕ → ProbComp KeyDesc) (n : ℕ
     {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 (if bit then true else false))).support) :
     decryptOpt n keys.2 (flipCiphertext keys.1 ct) ≠ decryptOpt n keys.2 ct ∧
-      (encOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
-        encOption encBool (some false) ↔ bit = true) := by
+      (encSilentOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
+        encSilentOption encBool (some false) ↔ bit = true) := by
   obtain ⟨k, rfl⟩ := exists_of_mem_support_keyGen hkeys
   exact k.flip_conditions (by cases bit <;> simpa only [Bool.false_eq_true, ↓reduceIte] using hct)
 
@@ -159,8 +160,8 @@ private theorem flip_conditions_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} 
     {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 (if bit then true else false))).support) :
     decryptOpt n keys.2 (flipCiphertext keys.1 ct) ≠ decryptOpt n keys.2 ct ∧
-      (encOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
-        encOption encBool (some false) ↔ bit = true) := by
+      (encSilentOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
+        encSilentOption encBool (some false) ↔ bit = true) := by
   simp only [blumKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
     PMF.support_pure, Set.mem_singleton_iff] at hkeys
   obtain ⟨d, hd, rfl⟩ := hkeys
@@ -202,12 +203,12 @@ private theorem not_indcca2_of_flip_conditions {keyGen : ℕ → ProbComp (List 
     (h : ∀ n bit, ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval (encrypt n keys.1 (if bit then true else false))).support,
         decryptOpt n keys.2 (flipCiphertext keys.1 ct) ≠ decryptOpt n keys.2 ct ∧
-          (encOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
-            encOption encBool (some false) ↔ bit = true)) :
+          (encSilentOption encBool (decryptOpt n keys.2 (flipCiphertext keys.1 ct)) =
+            encSilentOption encBool (some false) ↔ bit = true)) :
     ¬ INDCCA2 keyGen encrypt decryptOpt :=
   not_indcca2On_of_maulAdversary (msg₀ := fun _ _ => false) (msg₁ := fun _ _ => true)
     (maul := fun _ pk ct => flipCiphertext pk ct)
-    (target := fun _ _ => encOption encBool (some false))
+    (target := fun _ _ => encSilentOption encBool (some false))
     (.const false) (.const true) (computableInPolyTime_flipCiphertext.comp (by fun_prop))
     (.const _) (fun _ _ _ => rfl) fun n bit _ hkeys _ hct =>
       (h n bit _ hkeys _ hct).imp_left (ne_of_apply_ne _)

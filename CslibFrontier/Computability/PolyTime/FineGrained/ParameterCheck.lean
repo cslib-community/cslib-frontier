@@ -653,7 +653,8 @@ theorem computableInPolyTime_chooseBeta :
     have hq1 := fst encIn encUnary
     have hpow := binary_pow' ((hq1.fst').fst') (snd encIn encUnary)
     exact bool_and' (binary_le' ((hq1.fst').snd') hpow) (binary_le' hq1.snd' hpow)
-  exact unary_to_binary.comp ((findWithInput hlist hpred).optionGetDWithInput (const 1))
+  exact unary_to_binary.comp ((findWithInput
+    (encO := encOption encUnary) hlist hpred).optionGetDWithInput (const 1))
 
 @[fun_prop, program_certificate]
 theorem computableInPolyTime_chooseBeta_apply {α : Type} {encIn : α ↪ List Bool}

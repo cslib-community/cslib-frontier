@@ -85,7 +85,7 @@ The proof combines deterministic instruction-indexed oracle replay
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
@@ -180,7 +180,7 @@ theorem PWithOracle_subset_NP (hA_np : A ∈ NP encBits) (hA_conp : A ∈ coNP e
   have hmem := hf.encoded_mem_NP hA_np hA_conp hP
   convert hmem using 1
   ext a
-  simp [hL a, encBool_apply]
+  simp [hL a]
 
 /-- **`P^(NP ∩ coNP) ⊆ coNP`**: `P^A` is closed under complement. -/
 theorem PWithOracle_subset_coNP (hA_np : A ∈ NP encBits) (hA_conp : A ∈ coNP encBits) :
@@ -369,7 +369,7 @@ theorem PWithOracle_subset_UP (hA_up : A ∈ UP encBits) (hA_coup : A ∈ coUP e
   have hmem := hf.encoded_mem_UP hA_up hA_coup hP
   convert hmem using 1
   ext a
-  simp [hL a, encBool_apply]
+  simp [hL a]
 
 /-- **`P^(UP ∩ coUP) ⊆ coUP`**: `P^A` is closed under complement. -/
 theorem PWithOracle_subset_coUP (hA_up : A ∈ UP encBits) (hA_coup : A ∈ coUP encBits) :

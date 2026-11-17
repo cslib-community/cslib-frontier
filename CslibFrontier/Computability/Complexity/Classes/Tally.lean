@@ -370,7 +370,10 @@ theorem PolyTimeCTTReducible.forall_mem {β : Type} {encB : β ↪ List Bool} {B
   obtain ⟨r, q, ⟨hr, hq⟩, hB⟩ := h
   let W : α → List ℕ := fun a => (Qs a).flatMap fun b => (List.range (r b)).map fun i => q (b, i)
   have hW : ComputableInPolyTime W encA (encList encUnary) := by fun_prop
-  refine ⟨fun a => (W a).length, fun p => (W p.1)[p.2]?.getD 0, ⟨by fun_prop, by fun_prop⟩,
+  refine ⟨fun a => (W a).length, fun p => (W p.1)[p.2]?.getD 0, ⟨by fun_prop, by
+      simpa only [List.getD_eq_getElem?_getD, Function.comp_def] using
+        (ComputableInPolyTime.listGetD (encA := encUnary) 0).comp
+          ((hW.comp (.fst _ _)).prod (.snd _ _))⟩,
     fun a => ?_⟩
   have hmem : (∀ b ∈ Qs a, b ∈ B) ↔ ∀ w ∈ W a, w ∈ A := by
     simp only [W, hB, List.mem_flatMap, List.mem_map, List.mem_range, forall_exists_index,

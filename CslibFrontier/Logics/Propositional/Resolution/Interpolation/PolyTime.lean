@@ -216,7 +216,9 @@ private theorem lineGatesOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
   have htest := decide_and (decide_mem hc₁ (hv.prod (const true)))
     (decide_and (decide_mem hc₂ (hv.prod (const false)))
       (decide_eq' (resolvent_polyTime.comp ((hc₁.prod hc₂).prod hv)) hp.fst'.snd'.snd'))
-  have hfind := findWithInput (test := fun q t => decide ((t.pivot, true) ∈ t.left ∧
+  have hfind := findWithInput (encO := encOption
+    (encStep (ℕ ⊕ Y ⊕ Z) (encSum encNat (encSum encY encZ)))) (test := fun q t => decide
+      ((t.pivot, true) ∈ t.left ∧
     (t.pivot, false) ∈ t.right ∧ t.left.resolvent t.right t.pivot = q.2.2))
     (candidates_polyTime.comp hE) htest
   have hfind_eq : (fun q : (ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z))) ×
@@ -324,8 +326,9 @@ private theorem resolventGates_polyTime :
   have hw₁ := hr.fst'.snd'.snd'.fst'
   have hw₂ := hr.fst'.snd'.snd'.snd'
   have hadd := (ComputableTidilyInPolyTime.binary_add).computableInPolyTime
-  refine optionElimWithInput ((getLeft? _ _).comp hv)
-    (ite (optionElimWithInput ((getRight? _ _).comp hv) (const false)
+  refine optionElimWithInput (encB := encNat) ((getLeft? encNat (encSum encY encZ)).comp hv)
+    (ite (optionElimWithInput (encB := encSum encY encZ)
+      ((getRight? encNat (encSum encY encZ)).comp hv) (const false)
       ((isLeft _ _).comp (snd _ _)))
       (replicate_snoc_binary 3 (Op.const false) Op.or hw₁ hw₂)
       (replicate_snoc_binary 3 (Op.const false) Op.and hw₁ hw₂)) ?_
@@ -422,8 +425,10 @@ private theorem resolventGates_polyTime :
   have hv := hr.snd'
   have hw₁ := hr.fst'.snd'.snd'.fst'
   have hw₂ := hr.fst'.snd'.snd'.snd'
-  refine optionElimWithInput ((Interpolant.getLeft? _ _).comp hv)
-    (ite (optionElimWithInput ((Interpolant.getRight? _ _).comp hv) (const false)
+  refine optionElimWithInput (encB := encNat)
+    ((Interpolant.getLeft? encNat (encSum encY encZ)).comp hv)
+    (ite (optionElimWithInput (encB := encSum encY encZ)
+      ((Interpolant.getRight? encNat (encSum encY encZ)).comp hv) (const false)
       ((Interpolant.isLeft _ _).comp (snd _ _)))
       (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.or hw₁ hw₂)
       (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.and hw₁ hw₂)) ?_

@@ -220,7 +220,11 @@ theorem polyTime_wordCheckCandidates {α : Type} {input : α ↪ List Bool}
     ComputableInPolyTime
       (fun a => wordCheckCandidates f (dimension a) (image a) (candidates a)) input encBits := by
   unfold wordCheckCandidates
-  fun_prop
+  apply ComputableInPolyTime.optionGetDWithInput (encB := encBits)
+    (encO := encOption encBits)
+  · apply ComputableInPolyTime.findWithInput hcandidates
+    fun_prop
+  · fun_prop
 
 /-- Searching the word representation preserves the finite decoder's first-match behavior. -/
 theorem wordCheckCandidates_eq_ofFn {n : ℕ} (f : List Bool → List Bool)

@@ -30,6 +30,7 @@ import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Encoding.NatBits
 
 /-!
 # Arithmetic modulo `2 ^ p` and a monic polynomial, on coefficient lists
@@ -533,7 +534,7 @@ theorem length_encList_le {p e : ℕ} {c : List ℕ} (hlen : c.length = e)
         List.sum_le_length_nsmul _ _ fun n hn => by
           obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hn
           have : (encNat x).length ≤ p := by
-            change x.bits.length ≤ p
+            rw [Cslib.Encoding.encNat_eq_bits]
             rw [Nat.size_eq_bits_len] at *
             exact (Nat.size_eq_bits_len x ▸ Nat.size_le.mpr (hlt x hx))
           omega

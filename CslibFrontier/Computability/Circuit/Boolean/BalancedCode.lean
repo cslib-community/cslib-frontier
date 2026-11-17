@@ -301,7 +301,8 @@ private theorem computedGetD {α β : Type} {encIn : α ↪ List Bool} {enc : β
     (hi : ComputableInPolyTime index encIn encUnary)
     (hf : ComputableInPolyTime fallback encIn enc) :
     ComputableInPolyTime (fun a => (values a).getD (index a) (fallback a)) encIn enc := by
-  have hhead := (head? enc).comp ((dropUnary (encA := enc)).comp (hv.prod hi))
+  have hhead := (head? (encO := encOption enc) enc).comp ((dropUnary (encA := enc)).comp
+    (hv.prod hi))
   simpa only [Function.comp_def, List.head?_drop, List.getD_eq_getElem?_getD] using
     optionGetDWithInput hhead hf
 

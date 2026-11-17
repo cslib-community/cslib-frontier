@@ -49,7 +49,9 @@ theorem flipHeadBit_ne_self (w : List Bool) : flipHeadBit w ≠ w := by
 @[fun_prop]
 theorem computableInPolyTime_flipHeadBit :
     ComputableInPolyTime flipHeadBit encBits encBits := by
-  unfold flipHeadBit
-  polytime
+  exact ComputableInPolyTime.bitsCons
+    (ComputableInPolyTime.bool_not.comp
+      (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false))
+    ComputableInPolyTime.bitsTail
 
 end Cslib.Crypto

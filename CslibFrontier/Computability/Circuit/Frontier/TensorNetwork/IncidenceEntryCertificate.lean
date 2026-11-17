@@ -281,12 +281,14 @@ theorem restEntry_polyTime :
     ComputableInPolyTime restEntry (encPair encDesc encBits) (encList encNat) := by
   have hright := (ComputableInO.getRight?_deg encRowDesc (encSum encColDesc (encList encNat))
     ).computableInPolyTime.comp (ComputableInPolyTime.fst encDesc encBits)
-  have hr := ComputableInPolyTime.optionGetDWithInput hright (ComputableInPolyTime.const (.inr []))
+  have hr := ComputableInPolyTime.optionGetDWithInput (encB := encSum encColDesc (encList encNat))
+    hright (ComputableInPolyTime.const (.inr []))
   have hleft :=
     (ComputableInO.getLeft?_deg encColDesc (encList encNat)).computableInPolyTime.comp hr
   have htab :=
     (ComputableInO.getRight?_deg encColDesc (encList encNat)).computableInPolyTime.comp hr
-  have htab' := ComputableInPolyTime.optionGetDWithInput htab (ComputableInPolyTime.const [])
+  have htab' := ComputableInPolyTime.optionGetDWithInput (encB := encList encNat) htab
+    (ComputableInPolyTime.const [])
   have hfallback := tableEntry_polyTime.comp (htab'.prod (ComputableInPolyTime.snd encDesc encBits))
   have hbody := colEntry_polyTime.comp ((ComputableInPolyTime.snd _ _).prod
     ((ComputableInPolyTime.snd encDesc encBits).comp (ComputableInPolyTime.fst _ _)))
@@ -307,6 +309,7 @@ theorem isRow_polyTime :
       (encPair encDesc encBits) encBool :=
   ((ComputableInO.getLeft?_deg encRowDesc (encSum encColDesc (encList encNat))
     ).computableInPolyTime.comp (ComputableInPolyTime.fst encDesc encBits)).optionIsSome
+      (encB := encRowDesc)
 
 /-- **The native certificate of the entry procedure of the incidence network.** -/
 noncomputable def incCertificate :

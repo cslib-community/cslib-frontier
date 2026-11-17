@@ -122,7 +122,7 @@ theorem ComputableInO.computableInPolyTime_take {γ β : Type} {encIn : γ ↪ L
   obtain ⟨T₁, S₁, hT₁, hS₁, h₁⟩ := htake.exists_computableInO
   have hfst : PolyBounded (fun p : γ × List Bool => (encPair encIn encBits p).length)
       fun p => T (cut p.1) :=
-    hbound.comp (PolyBounded.self.mono fun p => by simp [length_frame]; omega)
+    hbound.comp (PolyBounded.self.mono fun p => by simp; omega)
   have hTcut : PolyBounded (fun p : γ × List Bool => (encPair encIn encBits p).length)
       fun p => T (p.2.take (cut p.1)).length :=
     hfst.mono fun p => hT (List.length_take_le _ _)
@@ -186,7 +186,7 @@ theorem computableInPolyTime_greedyMasks {seed block overlap : γ → ℕ}
   have hw : w.length = seed x := Cslib.BitString.mem_enumList.1 hw
   simp only [greedyStep]
   split
-  · simp [length_encList, hw]
+  · simp [hw]
   · exact Nat.le_add_right _ _
 
 /-- **The generator on lists in polynomial time.** Let `g` be computable within time and space
@@ -205,7 +205,7 @@ theorem computableInPolyTime_listGenerator {g : List Bool → Bool} {T : ℕ →
       encBits := by
   have heval := ComputableInO.computableInPolyTime_take hT hg
     (hblock.comp (.fst encIn encBits)) (hbudget.comp (PolyBounded.self.mono fun p => by
-      simp [length_frame]; omega))
+      simp; omega))
   have hread : ComputableInPolyTime (fun p : γ × List Bool => restrictMask p.2 (seed p.1))
       (encPair encIn encBits) encBits :=
     computableInPolyTime_restrictMask.comp
@@ -246,7 +246,7 @@ theorem computableInPolyTime_listGenerator_greedyMasks {g : List Bool → Bool}
       (encPair enc encBits) encBits := by
   have hfst : ∀ {u : α → ℕ}, PolyBounded (fun x => (enc x).length) u →
       PolyBounded (fun p : α × List Bool => (encPair enc encBits p).length) fun p => u p.1 :=
-    fun hu => hu.comp (PolyBounded.self.mono fun p => by simp [length_frame]; omega)
+    fun hu => hu.comp (PolyBounded.self.mono fun p => by simp; omega)
   have hmasks : ComputableInPolyTime
       (fun p : α × List Bool => (greedyMasks (seed p.1) (block p.1) (overlap p.1)).take (out p.1))
       (encPair enc encBits) (encList encBits) := by

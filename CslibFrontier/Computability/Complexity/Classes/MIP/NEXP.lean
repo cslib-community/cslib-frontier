@@ -862,7 +862,7 @@ theorem MIP_subset_NEXP : MIP enc ⊆ NEXP enc := by
     ext a
     simp only [Set.mem_preimage, MIP.paddedMIP, Set.mem_ofPred_eq, MIP.checkPaddedCert,
       Bool.and_eq_true, decide_eq_true_eq]
-    have hunf : unframe (g a) = enc a := by simp [g, unframe_frame_append]
+    have hunf : unframe (g a) = enc a := by simp [g]
     rw [hunf]
     set x := enc a
     set t := c * (x.length + 1) ^ d

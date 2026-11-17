@@ -109,8 +109,8 @@ An encoding is part of what a statement claims, so statements show every encodin
 the reader parse the same nested one repeatedly. For new and changed statements:
 
 1. **Name repeated compound encodings.** A nested application of `encPair`, `encList`,
-   `encOption`, `encSum`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
-   more public declarations of a module gets a named `abbrev`, used everywhere.
+   `encOption`, `encSum`, `encSigma`, `encFramed`, `encPi` or `encDPi` that occurs in the types of
+   three or more public declarations of a module gets a named `abbrev`, used everywhere.
 2. **Document the layout** in the `abbrev`'s docstring: order of parts, framing, tag bits.
 3. **Keep it reducible:** `abbrev`, not `def`, and never a `local notation`.
 4. **Name domain encodings:** a formula, graph, circuit or instance is encoded by a named,

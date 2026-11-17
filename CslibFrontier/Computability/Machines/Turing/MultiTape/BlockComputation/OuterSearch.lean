@@ -128,7 +128,7 @@ theorem resume_inSpace : ComputableInSpace
   have hT' := budget_ite hisSome hT (budget_natSucc hT)
   refine (budget_prod hN (budget_prod hT' hout)).of_enc_eq ?_
   rintro ⟨⟨N, T, result⟩, returned⟩
-  cases ho : ScheduleSearch.answer returned <;> simp [resume, ho, encCaller, encPair_apply]
+  cases ho : ScheduleSearch.answer returned <;> simp [resume, ho, encCaller]
 
 private theorem caller_query_inSpace : ComputableInSpace caller.query encCaller encNat
     (fun a => (encCaller a).length) := budget_const 0 (.refl _)

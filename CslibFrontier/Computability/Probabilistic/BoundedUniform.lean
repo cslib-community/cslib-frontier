@@ -132,7 +132,8 @@ theorem isPPTOn_sampleIntegerBox {α : Type} {input : α ↪ List Bool}
   let e1 := encPair input (encOption encUnary)
   let e2 := encOption encIntUnary
   let hb := ((ComputableInPolyTime.const 2).unary_mul' hradius).unary_add' (.const 1)
-  let hcoord := ComputableInPolyTime.optionElimWithInput
+  let hcoord := ComputableInPolyTime.optionElimWithInput (encB := encUnary)
+    (encC := encOption encIntUnary)
     (body := fun (p : α × Option ℕ) (i : ℕ) => some ((i : ℤ) - radius p.1))
     (.snd input (encOption encUnary)) (.const none)
     (((ComputableInPolyTime.snd e1 encUnary).prod
@@ -140,7 +141,7 @@ theorem isPPTOn_sampleIntegerBox {α : Type} {input : α ↪ List Bool}
         hradius)).trans (ComputableInPolyTime.int_natCast_sub.trans (.optionSome encIntUnary)))
   let e3 := encList e2; let p2 := ComputableInPolyTime.snd e3 e2
   let hcollect : ComputableInPolyTime collectBox e3 (encOption (encList encIntUnary)) :=
-    (ComputableInPolyTime.allWithInput .id' p2.optionIsSome).ite
+    (ComputableInPolyTime.allWithInput .id' (p2.optionIsSome (encB := encIntUnary))).ite
       ((ComputableInPolyTime.mapWithInput .id' (p2.optionGetDWithInput (.const 0))).trans
         (.optionSome (encList encIntUnary))) (.const none)
   (((isPPTOn_sampleUniformInterval hb hattempts).map_with hcoord).replicate

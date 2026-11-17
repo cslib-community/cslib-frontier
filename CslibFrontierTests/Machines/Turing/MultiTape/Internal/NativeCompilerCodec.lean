@@ -120,7 +120,7 @@ example :
       unaryListDecoder.outputBits [true, false, true] = 3 := by
   have hframes : frames [true, false, true] = [[false]] := by
     rw [frames_of_ne_nil (by decide)]
-    simp only [unframe, dropFrame, frames_nil]
+    simp only [Cslib.Encoding.undelimit, Cslib.Encoding.dropDelimited, frames_nil]
   constructor
   · rw [hframes]
     rfl

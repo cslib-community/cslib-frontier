@@ -616,7 +616,8 @@ theorem next_polyTime
   have hbody : ComputableInPolyTime (fun r : (Call T × Frame) × State => some (child r.1.1 mk r.2))
       (encPair (encPair (encCall encT) encFrame) ChildCursor.encState)
         (encOption (encCall encT)) := by
-    have h := (ComputableInPolyTime.optionSome (encCall encT)).comp ((child_polyTime hmk).comp
+    have h := (ComputableInPolyTime.optionSome (encCall encT)
+      (encO := encOption (encCall encT))).comp ((child_polyTime hmk).comp
       (((ComputableInPolyTime.fst (encCall encT) encFrame).comp (ComputableInPolyTime.fst _ _)).prod
         (ComputableInPolyTime.snd _ _)))
     exact h
@@ -725,7 +726,8 @@ private theorem absorbAcc_polyTime :
     have hin' : ComputableInPolyTime (fun r : AbsorbIn T =>
         (weights r.1.1.1 r.2.1, nodePrec r.1.1.1 r.2.1, r.2.2.2.1)) (encAbsorbIn encT)
         BudgetTuples.encBudgetInput := hin
-    have h := ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.optionIsSome
+    have h := ComputableInPolyTime.bool_not.comp
+      (ComputableInPolyTime.optionIsSome (encB := encList encNat)
       (BudgetTuples.computableInPolyTime_budgetNext.comp hin'))
     refine h.of_enc_eq fun r => ?_
     simp only [Function.comp_apply]

@@ -51,7 +51,12 @@ private theorem unarySqrtSearch_eq (m : ℕ) : unarySqrtSearch m = m.sqrt := by
 theorem unary_sqrt : ComputableInPolyTime Nat.sqrt encUnary encUnary := by
   have h : ComputableInPolyTime unarySqrtSearch encUnary encUnary := by
     unfold unarySqrtSearch
-    fun_prop
+    have ht : ComputableInPolyTime
+        (fun p : ℕ × ℕ => decide (p.1 < (p.2 + 1) * (p.2 + 1)))
+        (encPair encUnary encUnary) encBool := by fun_prop
+    have hr : ComputableInPolyTime (fun m : ℕ => List.range (m + 1))
+        encUnary (encList encUnary) := by fun_prop
+    exact (findWithInput (encO := encOption encUnary) hr ht).optionGetDWithInput (const 0)
   simpa only [funext unarySqrtSearch_eq] using h
 
 /-- Mathlib's inverse pairing function `Nat.unpair`, with input and both components in unary. -/

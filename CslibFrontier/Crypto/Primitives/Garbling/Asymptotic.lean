@@ -78,7 +78,7 @@ differences from the source's formal setting. -/
 @[expose] def Scheme.PrvSimSecure (G : Scheme Fn) (Φ : SideInfo Fn Λ) (encFn : Fn ↪ List Bool)
     (encΛ : Λ ↪ List Bool) : Prop :=
   ∀ (σ : Type) (encσ : σ ↪ List Bool) (B : ℕ → PrvSimAdversary Fn σ),
-    TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B →
+    TwoStage.IsPPT encUnit (encQuery Fn encFn) (encSilentOption encPrvView) encBool encσ B →
       ∃ S : ℕ → PrvSimulator Λ,
         IsPPTOn (encPair encUnary (encPair encBits encΛ)) encPrvView
           (fun (k, y, φ) => S k y φ) ∧
@@ -108,7 +108,7 @@ garbled input is its input (`CslibFrontierTests.Crypto.GarblingScheme`). -/
   ∃ S : ℕ → PrvSimulator Λ,
     IsPPTOn (encPair encUnary (encPair encBits encΛ)) encPrvView (fun (k, y, φ) => S k y φ) ∧
       ∀ (σ : Type) (encσ : σ ↪ List Bool) (B : ℕ → PrvSimAdversary Fn σ),
-        TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B →
+        TwoStage.IsPPT encUnit (encQuery Fn encFn) (encSilentOption encPrvView) encBool encσ B →
           Negligible fun k => prvSimAdvantage G Φ k (S k) (B k)
 
 /-- One simulator for every adversary gives a simulator for each adversary:

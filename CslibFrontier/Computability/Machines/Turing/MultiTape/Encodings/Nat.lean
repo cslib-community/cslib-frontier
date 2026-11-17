@@ -167,7 +167,8 @@ public theorem computableInTimeAndSpace_succ :
     ComputableInTimeAndSpace (· + 1) encNat encNat (fun n => 2 * (encNat n).length + 3)
       (fun _ => 0) :=
   ⟨0, _, inferInstance, succTransducer.toTM, fun n => by
-    rw [encNat_apply, encNat_apply, bits_succ, ← run_succTransducer]
+    simp only [encNat_apply]
+    rw [bits_succ, ← run_succTransducer]
     exact succTransducer.computesInTimeAndSpace_toTM n.bits⟩
 
 /-- Binary successor in linear time and work space, from `computableInTimeAndSpace_succ`. -/
@@ -183,7 +184,8 @@ public theorem computableInTimeAndSpace_pred :
     ComputableInTimeAndSpace (· - 1) encNat encNat (fun n => 2 * (encNat n).length + 3)
       (fun _ => 0) :=
   ⟨0, _, inferInstance, predTransducer.toTM, fun n => by
-    rw [encNat_apply, encNat_apply, ← run_predTransducer]
+    simp only [encNat_apply]
+    rw [← run_predTransducer]
     exact predTransducer.computesInTimeAndSpace_toTM n.bits⟩
 
 /-- Binary predecessor in linear time and work space, from `computableInTimeAndSpace_pred`. -/

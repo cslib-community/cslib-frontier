@@ -62,7 +62,7 @@ theorem IsPPTWithAux.of_machine {k : ℕ} {State : Type} [Finite State]
       (fun a z =>
         machine.runClosed (c * ((input a).length + 1) ^ d) (encPair input encBits (a, z))) := by
   refine ⟨k, State, inferInstance, machine, c, d, fun a z => ?_⟩
-  simp only [encBits, Function.Embedding.coe_refl, PMF.map_id]
+  simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, PMF.map_id]
 
 /-- Distributional equality preserves `IsPPTWithAux`. -/
 theorem IsPPTWithAux.congr {program program' : α → List Bool → ProbComp β}
@@ -81,7 +81,7 @@ theorem IsOraclePPTWithAux.of_machine [Finite Operation] {k : ℕ} {Control : Ty
       (fun a z =>
         machine.runOracle (c * ((input a).length + 1) ^ d) (encPair input encBits (a, z))) := by
   refine ⟨inferInstance, k, Control, inferInstance, machine, c, d, fun a z State oracle s => ?_⟩
-  simp only [encBits, Function.Embedding.coe_refl, id_map]
+  simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map]
 
 /-- Equality of the complete stateful semantics preserves `IsOraclePPTWithAux`. -/
 theorem IsOraclePPTWithAux.congr {program program' : α → List Bool → WordOracleComp Operation β}

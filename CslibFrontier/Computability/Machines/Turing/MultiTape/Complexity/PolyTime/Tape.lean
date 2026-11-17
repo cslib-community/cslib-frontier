@@ -74,7 +74,7 @@ theorem stackTape_cons {symbol : α → Option Symbol} {tape : α → StackTape 
   have hcells := (stackTape_toList enc).comp htape
   have hcond : ComputableInPolyTime (fun a => (symbol a).isSome || !(tape a).toList.isEmpty)
       input encBool :=
-    bool_or.comp ((optionIsSome hsymbol).prod
+    bool_or.comp ((ComputableInPolyTime.optionIsSome (encB := enc) hsymbol).prod
       (bool_not.comp ((listIsEmpty (encA := encOption enc)).comp hcells)))
   have hlist : ComputableInPolyTime
       (fun a => if (symbol a).isSome || !(tape a).toList.isEmpty

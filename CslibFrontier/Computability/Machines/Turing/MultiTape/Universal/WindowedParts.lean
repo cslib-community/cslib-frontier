@@ -333,9 +333,9 @@ private lemma wFin_inO : ComputableInO wFin
 /-! #### Sizes -/
 
 private lemma length_read_headD_le (l : List Tape) :
-    (eSym (l.headD default).read).length ≤ (encList eTape l).length := by
+    (eSym (l.headD default).read).length ≤ (encList eTape l).length + 1 := by
   cases l with
-  | nil => exact le_of_eq rfl
+  | nil => change 1 ≤ 0 + 1; omega
   | cons t l =>
     have := length_eSym_read_le t
     simp only [List.headD_cons, encList_cons, List.length_append, length_frame]
@@ -414,9 +414,12 @@ private lemma wArgs_inO : ComputableInO
     generalize (eSym (x.2.2.headD default).read).length = C at *
     generalize wTime (wCtx x) = Wt at *
     generalize (eWCtx (wCtx x)).length = W at *
-    have : (C + 1) ^ 2 ≤ (N + 1) ^ 3 := by
-      calc (C + 1) ^ 2 ≤ (N + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-        _ ≤ (N + 1) ^ 3 := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
+    have : (C + 1) ^ 2 ≤ 4 * (N + 1) ^ 3 := by
+      have hc : C + 1 ≤ 2 * (N + 1) := by omega
+      have hp := Nat.pow_le_pow_left hc 2
+      have hn : (N + 1) ^ 2 ≤ (N + 1) ^ 3 :=
+        Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
+      nlinarith
     have : N + 1 ≤ (N + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
     omega
 

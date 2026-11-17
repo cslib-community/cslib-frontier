@@ -146,7 +146,7 @@ theorem Bounded.length_encoding_le {rounds codeBound : ℕ} {state : State}
       have := h.2.2 code hcode
       lia)
   simp only [List.length_map, smul_eq_mul] at hsum
-  simp only [length_encoding, length_encList, encBits, Function.Embedding.refl_apply]
+  simp only [length_encoding, length_encList, encBits_apply]
   have := Nat.mul_le_mul_right (2 * codeBound + 1) h.2.1
   nlinarith [h.1]
 

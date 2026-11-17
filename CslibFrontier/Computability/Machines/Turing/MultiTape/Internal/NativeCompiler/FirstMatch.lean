@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Comparison
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Conditional
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.StreamFold
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Sum
 
 /-!
 # Named native streaming first-match lookup
@@ -60,9 +61,9 @@ abbrev FirstMatchState (Key : Type u) := Key × Bool
 /-- A completed table scan emits the first match, unless a prior prefix had already matched. -/
 theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     ∀ (found : Bool) (table : List (Key × Value)),
-      streamEmit firstMatchNext (fun input => encOption encValue (firstMatchEmit input))
+      streamEmit firstMatchNext (fun input => encHaltOption encValue (firstMatchEmit input))
           (query, found) table =
-        if found then [] else encOption encValue (firstMatch (table, query)) := by
+        if found then [] else encHaltOption encValue (firstMatch (table, query)) := by
   intro found table
   induction table generalizing found with
   | nil => cases found <;> rfl
@@ -74,7 +75,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
         have hnext : firstMatchNext ((query, true), entry) = (query, true) := by
           simp [firstMatchNext]
         simp only [ite_true]
-        rw [streamEmit, hemit, encOption_none, List.nil_append, hnext]
+        rw [streamEmit, hemit, encHaltOption_none, List.nil_append, hnext]
         simpa using ih true
       · by_cases heq : entry.1 = query
         · have hfalse := Bool.of_not_eq_true hfound
@@ -98,7 +99,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
             simp [firstMatchNext, heq]
           have hfirst : firstMatch (entry :: table, query) = firstMatch (table, query) := by
             simp [firstMatch, heq]
-          rw [streamEmit, hemit, encOption_none, List.nil_append, hnext, hfirst]
+          rw [streamEmit, hemit, encHaltOption_none, List.nil_append, hnext, hfirst]
           simpa using ih false
 
 /-- Retained next-state callback for first-match scanning. -/
@@ -127,7 +128,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     (encValue : Value ↪ List Bool) :
     NativeCompiler firstMatchEmit
       (encPair (encPair encKey encBool) (encPair encKey encValue))
-      (encOption encValue) := by
+      (encHaltOption encValue) := by
   let encState := encPair encKey encBool
   let encEntry := encPair encKey encValue
   let state := first encState encEntry
@@ -139,8 +140,9 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
   let keys := entryKey.pair query
   let equalTest := (wordEqTest encKey).comp keys
   let foundTest := boolToTest.comp found
-  let emitValue := (optionSome encValue).comp value
-  let emitNone := const (encPair encState encEntry) (encOption encValue) none
+  let emitValue := ((optionSome encValue).ofOutputEq
+    (encOut := encHaltOption encValue) (g := some) fun _ => rfl).comp value
+  let emitNone := const (encPair encState encEntry) (encHaltOption encValue) none
   exact (ite foundTest emitNone (ite equalTest emitValue emitNone)).ofOutputEq fun input => by
     simp [firstMatchEmit]
 
@@ -148,8 +150,8 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
 @[expose] noncomputable def firstMatchFinishCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler (Function.const (FirstMatchState Key) (none : Option Value))
-      (encPair encKey encBool) (encOption encValue) :=
-  const (encPair encKey encBool) (encOption encValue) none
+      (encPair encKey encBool) (encHaltOption encValue) :=
+  const (encPair encKey encBool) (encHaltOption encValue) none
 
 /-- Explicit peak lifted-callback workspace over the actual scan rounds. -/
 @[expose] noncomputable def firstMatchSMax (encKey : Key ↪ List Bool)
@@ -185,7 +187,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
       (fun ((query, found), table) =>
         if found then none else firstMatch (table, query))
       (encPair (encPair encKey encBool) (encList (encPair encKey encValue)))
-      (encOption encValue) := by
+      (encHaltOption encValue) := by
   let nextCompiler := firstMatchNextCompiler encKey encValue
   let emitCompiler := firstMatchEmitCompiler encKey encValue
   let finishCompiler := firstMatchFinishCompiler encKey encValue
@@ -252,32 +254,37 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
   let isNew := const encInput encBool false
   exact (key.pair isNew).pair table
 
-/-- Retained first-match lookup, including the charged table/key marshalling pass. -/
-@[expose] noncomputable def firstMatchCompiler (encKey : Key ↪ List Bool)
+/-- The raw lookup before converting the silent no-match result to a canonical tag. -/
+@[expose] noncomputable def firstMatchHaltCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler firstMatch
-      (encPair (encList (encPair encKey encValue)) encKey) (encOption encValue) :=
+      (encPair (encList (encPair encKey encValue)) encKey) (encHaltOption encValue) :=
   ((firstMatchStreamCompiler encKey encValue).comp
     (firstMatchMarshalCompiler encKey encValue)).ofOutputEq fun input => by
       simp [firstMatch]
 
-/-- First-match retains the direct composition of streaming scan after input marshalling. -/
+/-- First-match lookup, including input marshalling and conversion of the silent result to
+canonical tagged options. -/
+@[expose] noncomputable def firstMatchCompiler (encKey : Key ↪ List Bool)
+    (encValue : Value ↪ List Bool) :
+    NativeCompiler firstMatch
+      (encPair (encList (encPair encKey encValue)) encKey) (encOption encValue) :=
+  ((optionFromHalt encValue).comp (firstMatchHaltCompiler encKey encValue)).ofOutputEq
+    fun _ => rfl
+
+/-- The canonical result conversion is part of the retained lookup machine. -/
 theorem machine_firstMatchCompiler (encKey : Key ↪ List Bool) (encValue : Value ↪ List Bool) :
     (firstMatchCompiler encKey encValue).machine =
-      (firstMatchStreamCompiler encKey encValue).machine.comp
-        (firstMatchMarshalCompiler encKey encValue).machine true :=
-  rfl
+      (optionFromHalt encValue).machine.comp
+        (firstMatchHaltCompiler encKey encValue).machine true := rfl
 
-/-- The first-match clock exposes marshalling, streaming, intermediate copying and composition
-overhead separately. -/
+/-- Lookup charges both the original stream and the canonical result conversion. -/
 theorem time_firstMatchCompiler (encKey : Key ↪ List Bool) (encValue : Value ↪ List Bool)
     (input : List (Key × Value) × Key) :
     (firstMatchCompiler encKey encValue).time input =
-      (firstMatchMarshalCompiler encKey encValue).time input +
-        (firstMatchStreamCompiler encKey encValue).time ((input.2, false), input.1) +
-        4 * ((encPair (encPair encKey encBool) (encList (encPair encKey encValue)))
-          ((input.2, false), input.1)).length + 9 :=
-  rfl
+      (firstMatchHaltCompiler encKey encValue).time input +
+        (optionFromHalt encValue).time (firstMatch input) +
+        4 * (encHaltOption encValue (firstMatch input)).length + 9 := rfl
 
 /-- The streaming scan clock includes every encoded table occurrence, independently of whether
 an earlier entry matched. -/
@@ -298,6 +305,12 @@ theorem tableBits_le_time_firstMatchCompiler (encKey : Key ↪ List Bool)
     (encList (encPair encKey encValue) input.1).length ≤
       (firstMatchCompiler encKey encValue).time input := by
   rw [time_firstMatchCompiler]
+  have hraw : (firstMatchHaltCompiler encKey encValue).time input =
+      (firstMatchMarshalCompiler encKey encValue).time input +
+      (firstMatchStreamCompiler encKey encValue).time ((input.2, false), input.1) +
+      4 * ((encPair (encPair encKey encBool) (encList (encPair encKey encValue)))
+        ((input.2, false), input.1)).length + 9 := rfl
+  rw [hraw]
   have h : (encList (encPair encKey encValue) input.1).length ≤
       (firstMatchStreamCompiler encKey encValue).time ((input.2, false), input.1) := by
     simpa only using tableBits_le_time_firstMatchStreamCompiler encKey encValue

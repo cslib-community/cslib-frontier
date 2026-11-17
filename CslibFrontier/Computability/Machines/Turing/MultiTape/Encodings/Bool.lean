@@ -7,10 +7,13 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
+public import CslibFrontier.Computability.Encoding.Basic
 public import CslibFrontier.Init
 public import Mathlib.Basic.Sign.Defs
 public import Mathlib.Data.List.Basic
 public import Mathlib.Logic.Embedding.Basic
+
+-- vendored: layout-preserving aliases of Cslib.Encoding; machine certificates remain local.
 
 /-!
 # Encodings of Booleans, signs and the unit type
@@ -23,8 +26,7 @@ word.
 namespace Turing.MultiTapeTM
 
 /-- The encoding `b ↦ [b]` of `Bool`. -/
-@[expose] public def encBool : Bool ↪ List Bool :=
-  ⟨fun b => [b], fun _ _ h => List.head_eq_of_cons_eq h⟩
+public abbrev encBool : Bool ↪ List Bool := Cslib.Encoding.encBool
 
 @[simp]
 public lemma encBool_apply (b : Bool) : encBool b = [b] := rfl
@@ -36,7 +38,7 @@ public lemma encBool_apply (b : Bool) : encBool b = [b] := rfl
     cases a <;> cases b <;> simp_all⟩
 
 /-- The unit type, encoded by the empty word. -/
-@[expose] public def encUnit : Unit ↪ List Bool := ⟨fun _ => [], fun _ _ _ => rfl⟩
+public abbrev encUnit : Unit ↪ List Bool := Cslib.Encoding.encSubsingleton Unit
 
 @[simp]
 public lemma encUnit_apply (u : Unit) : encUnit u = [] := rfl

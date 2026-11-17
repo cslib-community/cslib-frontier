@@ -252,7 +252,7 @@ private theorem assignment_eq (stack : List Frame) (v : ℕ) :
   have h : ComputableInPolyTime (fun p : State × Frame => Frame.binds p.1.head.2 p.2)
       (encPair encState encFrame) encBool :=
     binds_pt.comp (g := fun p : State × Frame => (p.1.head.2, p.2)) (by fun_prop)
-  exact optionIsSome (findWithInput stack_pt h)
+  exact optionIsSome (encB := encFrame) (findWithInput (encO := encOption encFrame) stack_pt h)
 
 /-- The value of the next variable, by a search of the stack. -/
 @[local fun_prop] private lemma assignment_pt :
@@ -261,7 +261,9 @@ private theorem assignment_eq (stack : List Frame) (v : ℕ) :
   have h : ComputableInPolyTime (fun p : State × Frame => Frame.binds p.1.head.2 p.2)
       (encPair encState encFrame) encBool :=
     binds_pt.comp (g := fun p : State × Frame => (p.1.head.2, p.2)) (by fun_prop)
-  exact optionElimWithInput (findWithInput stack_pt h) (const false) (by fun_prop)
+  exact optionElimWithInput (encB := encFrame)
+    (findWithInput (encO := encOption encFrame) stack_pt h)
+    (const false) (by fun_prop)
 
 /-- A step reading a token is polynomial-time. -/
 private lemma readStep_pt (k : QBF.Kind) :
@@ -276,8 +278,9 @@ private lemma retStep_pt (k : QBF.Kind) (second : Bool) :
 /-- **A step of the evaluator is polynomial-time** in the encoded state. -/
 theorem computableInPolyTime_step : ComputableInPolyTime step encState encState := by
   rw [show step = _ from funext step_eq]
-  refine ite (optionIsSome value_pt) (ite (by fun_prop) id' ?_)
-    (ite (by fun_prop) (by fun_prop) ?_)
+  refine ComputableInPolyTime.ite (optionIsSome (encB := encBool) value_pt)
+    (ComputableInPolyTime.ite (by fun_prop) id' ?_)
+    (ComputableInPolyTime.ite (by fun_prop) (by fun_prop) ?_)
   · refine finite_cases (tagEncoding := encPair encKind encBool)
       (tag := fun s => (s.top.token.1, s.top.first.isSome))
       (branch := fun t => retStep t.1 t.2) ?_ ?_

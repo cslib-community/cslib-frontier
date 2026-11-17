@@ -34,17 +34,18 @@ theorem openPairs_polyTime :
       (fun input : List Bool × List Bool × Option (Bool × List (Bool × Bool)) =>
         openPairs input.1 input.2.1 input.2.2)
       (encPair encBits (encPair encBits
-        (encOption (encPair encBool (encList (encPair encBool encBool))))))
-      (encOption encBool) := by
+        (encSilentOption (encPair encBool (encList (encPair encBool encBool))))))
+      (encSilentOption encBool) := by
   let encPairs := encList (encPair encBool encBool)
   let encSubmission := encPair encBool encPairs
-  let encInput := encPair encBits (encPair encBits (encOption encSubmission))
+  let encInput := encPair encBits (encPair encBits (encSilentOption encSubmission))
   have hinput := ComputableInPolyTime.fst encInput encSubmission
   have hvalue := ComputableInPolyTime.snd encInput encSubmission
   have hchoices := (ComputableInPolyTime.fst encBits
-    (encPair encBits (encOption encSubmission))).comp hinput
-  have hreceived := ((ComputableInPolyTime.fst encBits (encOption encSubmission)).comp
-    (ComputableInPolyTime.snd encBits (encPair encBits (encOption encSubmission)))).comp hinput
+    (encPair encBits (encSilentOption encSubmission))).comp hinput
+  have hreceived := ((ComputableInPolyTime.fst encBits (encSilentOption encSubmission)).comp
+    (ComputableInPolyTime.snd encBits (encPair encBits (encSilentOption encSubmission)))).comp
+      hinput
   have hbit := (ComputableInPolyTime.fst encBool encPairs).comp hvalue
   have hpairs := (ComputableInPolyTime.snd encBool encPairs).comp hvalue
   have hzip := (ComputableInPolyTime.zip encBool encBool).comp
@@ -64,11 +65,12 @@ theorem openPairs_polyTime :
     ((ComputableInPolyTime.length_bits.comp hchoices).beq
       ((ComputableInPolyTime.length_list (encPair encBool encBool)).comp hpairs))
   have hbody := (hlen.bool_and' hall).ite
-    ((ComputableInPolyTime.optionSome encBool).comp hbit) (ComputableInPolyTime.const none)
+    ((ComputableInPolyTime.optionSome encBool (encO := encSilentOption encBool)).comp hbit)
+    (ComputableInPolyTime.const none)
   unfold openPairs
   exact ComputableInPolyTime.optionElimWithInput
-    ((ComputableInPolyTime.snd encBits (encOption encSubmission)).comp
-      (ComputableInPolyTime.snd encBits (encPair encBits (encOption encSubmission))))
+    ((ComputableInPolyTime.snd encBits (encSilentOption encSubmission)).comp
+      (ComputableInPolyTime.snd encBits (encPair encBits (encSilentOption encSubmission))))
     (ComputableInPolyTime.const none) hbody
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

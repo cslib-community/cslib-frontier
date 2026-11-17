@@ -84,7 +84,7 @@ example (msg t : List Bool) : encPair encBits encBits (msg, t) ≠ [] := by
 
 example (msg t : List Bool) : encPair encBits encBits (msg, t) ≠ [true] := by
   cases msg with
-  | nil => simp [encPair_apply, encBits, frame]
+  | nil => simp [encPair_apply, encBits_apply, Cslib.Encoding.delimit]
   | cons b msg =>
     have h := length_encPair (enc₁ := encBits) (enc₂ := encBits) (b :: msg, t)
     intro he

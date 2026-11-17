@@ -62,7 +62,7 @@ example (adversary : Inverter) (h : IsPPT encBits adversary) :
 example : Game.succProbability (ProbComp.eval (inversionGame
     (OneWayNormalization.normalize (fun _ => []) id) (fun _ _ => pure []) 1)) = 0 := by
   simp [inversionGame, inversionExperiment, OneWayNormalization.normalize, BitString.sampleList,
-    BitString.padWord, Game.succProbability, frame]
+    BitString.padWord, Game.succProbability, Cslib.Encoding.delimit]
 
 example : Game.succProbability (ProbComp.eval (inversionGame
     (fun _ => []) (fun _ _ => pure []) 1)) = 1 := by

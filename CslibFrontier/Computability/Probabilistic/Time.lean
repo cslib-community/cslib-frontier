@@ -211,7 +211,8 @@ theorem computesInTimeOn_iff_encoded {α β : Type} {input : α ↪ List Bool}
     {output : β ↪ List Bool} {t : α → ℕ} {program : α → ProbComp β} :
     ComputesInTimeOn input output t program ↔
       ComputesInTimeOn input encBits t (fun a => output <$> program a) := by
-  simp only [ComputesInTimeOn, ProbComp.eval_map, encBits, Function.Embedding.coe_refl, PMF.map_id]
+  simp only [ComputesInTimeOn, ProbComp.eval_map, show (encBits : List Bool → List Bool) = id from
+    funext encBits_apply, PMF.map_id]
 
 end Cslib.Probability
 

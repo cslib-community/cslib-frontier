@@ -62,6 +62,6 @@ theorem findGreatest {α : Type} {input : α ↪ List Bool} {bound : α → ℕ}
       input encUnary := by
   simp only [findGreatest_eq_findD]
   have hlist := listReverseWithInput (range.comp (unary_add.comp (hbound.prod (const 1))))
-  exact (findWithInput hlist hpredicate).optionGetDWithInput (const 0)
+  exact (findWithInput (encO := encOption encUnary) hlist hpredicate).optionGetDWithInput (const 0)
 
 end Turing.MultiTapeTM.ComputableInPolyTime

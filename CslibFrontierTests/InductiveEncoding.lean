@@ -5,6 +5,8 @@ Authors: Christian Reitwiessner
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sigma
 
 /-! Tests of `enc_inductive`. -/
 
@@ -190,6 +192,73 @@ example (h : ComputableInDegree f encIn encOut d e) :
     ComputableInPolyTime f encIn encOut := by fun_prop
 
 end DegreeTransitionProbe
+/-! A field whose type depends on an earlier field: the payload binds that field in a dependent
+pair, and its encoding names it. -/
+
+/-- A word of a given width with a tag, or a flag. -/
+inductive Word where
+  | word (n : ℕ) (bits : Cslib.BitString n) (tag : Bool)
+  | flag (b : Bool)
+
+enc_inductive eWord : Word where
+  | word : encUnary, (encBitString n), encBool
+  | flag : encBool
+
+example (n : ℕ) (bits : Cslib.BitString n) (tag : Bool) :
+    eWord (.word n bits tag) =
+      false :: encSigma encUnary (fun n => encPair (encBitString n) encBool) ⟨n, (bits, tag)⟩ := by
+  simp [eWord_apply, eWord_toSum]
+example (n : ℕ) (bits : Cslib.BitString n) (tag : Bool) :
+    eWord (.word n bits tag) =
+      false :: (frame (encUnary n) ++ encPair (encBitString n) encBool (bits, tag)) := by
+  simp [eWord_apply, eWord_toSum]
+example {x y : Word} (h : eWord x = eWord y) : x = y := eWord.injective h
+
+/-! The constructor without a dependent field keeps its rule. -/
+
+example : ComputableInO (fun b : Bool => Word.flag b) encBool eWord
+    (fun b => 2 * ((encBool b).length + 1)) fun b => 2 * ((encBool b).length + 1) := by
+  refine .mono (by fun_prop) 4 (fun b => ?_) fun b => ?_ <;> omega
+
+/-! Case analysis passes the dependent pair to its case. -/
+
+/-- The width of a word, `0` for a flag. -/
+def width (w : Word) : ℕ := eWord_elim w (fun p => p.1) fun _ => 0
+
+example : width (.word 2 ![true, false] true) = 2 := rfl
+
+/-! The matcher, the payload and the fields without a dependent type have projections. -/
+
+example : eWord_word_payload? (.word 2 ![true, false] true) = some ⟨2, (![true, false], true)⟩ :=
+  rfl
+example : eWord_word_field0? (.word 2 ![true, false] true) = some 2 := rfl
+example : eWord_word_field2? (.flag true) = none := rfl
+example (v : Word) : eWord_word_matches v = true ↔
+    ∃ a : (n : ℕ) × (Cslib.BitString n × Bool), v = .word a.1 a.2.1 a.2.2 :=
+  eWord_word_matches_iff v
+example : ComputableInPolyTime eWord_word_payload? eWord
+    (encOption (encSigma encUnary fun n => encPair (encBitString n) encBool)) :=
+  eWord_word_payload?_polyTime
+example : ComputableInPolyTime eWord_word_field2? eWord (encOption encBool) :=
+  eWord_word_field2?_polyTime
+
+example : ComputableInO (fun p : Unit × Word => eWord_elim p.2 (fun q => q.1) fun _ => 0)
+    (encPair encUnit eWord) encUnary
+    (fun p => 2 * (encPair encUnit eWord p).length +
+      eWord_elim p.2
+        (fun q => (encPair encUnit
+          (encSigma encUnary fun n => encPair (encBitString n) encBool) (p.1, q)).length)
+        fun b => (encPair encUnit encBool (p.1, b)).length)
+    fun p => 2 * (encPair encUnit eWord p).length +
+      eWord_elim p.2
+        (fun q => (encPair encUnit
+          (encSigma encUnary fun n => encPair (encBitString n) encBool) (p.1, q)).length)
+        fun b => (encPair encUnit encBool (p.1, b)).length :=
+  eWord_elim_inO
+    ((ComputableInO.sigmaFst_deg encUnary _).comp
+      (ComputableInDegree.snd encUnit (encSigma encUnary fun n =>
+        encPair (encBitString n) encBool))).inO_one
+    (ComputableInO.const 0)
 
 /-! Mistakes in the constructor list are reported before anything is declared. -/
 

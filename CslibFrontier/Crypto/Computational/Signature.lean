@@ -639,11 +639,11 @@ theorem isOraclePPT_limitToOneQuery {bound : ℕ → ℕ → ℕ}
     split_ifs at hresult with hstate
     · have heq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst heq
-      simp [encBool_apply]
+      simp
     · obtain ⟨sig, hsig, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawSig, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
       refine ⟨trivial, (List.length_take_le _ _).trans (by lia), ?_⟩
-      simp [encBool_apply]
+      simp
   exact (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- Running an adaptive program filtered through `oneTimeFilterHandler` against

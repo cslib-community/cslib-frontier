@@ -55,7 +55,7 @@ theorem provider_inSpace (k : ℕ) (p : Fin (k * 3)) :
   have hsearch := budget_comp_linear (ScheduleRead.search_inSpace k (hd.1.val + 1))
     (budget_prod hs (budget_prod hn (budget_const (encB := encNat) hd.2.val (.refl _))))
   have hindex := budget_natSucc (budget_optionGetD 0 hsearch)
-  refine (budget_ite (budget_optionIsSome hsearch) hindex
+  refine (budget_ite (budget_optionIsSome (encB := encNat) hsearch) hindex
     (budget_const (encB := encNat) 0 (.refl _))).of_enc_eq ?_
   rintro ⟨σ, n⟩
   change encNat (((ScheduleRead.search k (hd.1.val + 1) (σ, n, hd.2.val)).map

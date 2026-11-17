@@ -32,19 +32,44 @@ theorem getD {enc : Option β ↪ List Bool} [OptionEncoding enc₁ enc] (d : β
     ComputableInDegree (fun o => o.getD d) enc enc₁ 1 1 := OptionEncoding.getD d
 
 /-- Whether a standard encoded option holds a value; the Boolean output has degree zero. -/
-theorem isSome (enc : β ↪ List Bool) :
-    ComputableInDegree (fun o : Option β => o.isSome) (encOption enc) encBool 1 0 :=
-  computableInDegree_of_nonemptyT fun o => by
+theorem isSome (enc : β ↪ List Bool) {encO : Option β ↪ List Bool}
+    [OptionEncoding enc encO] :
+    ComputableInDegree (fun o : Option β => o.isSome) encO encBool 1 0 :=
+  OptionEncoding.isSome enc
+
+/-- Translate between option representations using their native capabilities. This is a real
+classification and reconstruction machine, rather than a word-equality cast. -/
+theorem optionTranslate (enc : β ↪ List Bool) {source target : Option β ↪ List Bool}
+    [OptionEncoding enc source] [OptionEncoding enc target] :
+    ComputableInDegree (id : Option β → Option β) source target 1 1 := by
+  rcases isEmpty_or_nonempty β with h | h
+  · convert (const (encIn := source) (encMid := target) none).mono (d' := 1) (e' := 1) using 1
+    funext o
     cases o with
     | none => rfl
-    | some b =>
-      change [true] = [true] ++ nonemptyT.run true (enc b)
-      rw [nonemptyT_run_true, List.append_nil]
+    | some a => exact isEmptyElim a
+  · obtain ⟨d⟩ := h
+    have hs : ComputableInDegree (fun o : Option β => some (o.getD d)) source target 1 1 :=
+      (optionSome (enc₁ := enc)).comp (getD (enc₁ := enc) d) |>.mono
+    convert ite (isSome enc) (hs.restrict _) ((const none).restrict _) using 1
+    · funext o
+      cases o <;> rfl
+    all_goals decide
+
+/-- Convert the silent/halt representation to tagged options in linear resources. -/
+theorem optionFromHalt (enc : β ↪ List Bool) :
+    ComputableInDegree (id : Option β → Option β) (encHaltOption enc) (encOption enc) 1 1 :=
+  .of_isEmpty_ite none (fun o ho => by cases o <;> simp_all)
+    (.of_eq fun ⟨o, ho⟩ => by
+      cases o with
+      | none => simp only [encHaltOption_none, List.isEmpty_nil, Bool.true_eq_false] at ho
+      | some a => rfl)
 
 /-- The option encoding determines the encoding used for the payload and fallback. -/
 @[fun_prop]
-theorem optionGetD {α : Type*} (enc : α ↪ List Bool) (fallback : α) :
-    ComputableInDegree (fun o => o.getD fallback) (encOption enc) enc 1 1 :=
+theorem optionGetD {α : Type*} (enc : α ↪ List Bool) (fallback : α)
+    {encO : Option α ↪ List Bool} [OptionEncoding enc encO] :
+    ComputableInDegree (fun o => o.getD fallback) encO enc 1 1 :=
   getD (enc₁ := enc) fallback
 
 end Turing.MultiTapeTM.ComputableInDegree

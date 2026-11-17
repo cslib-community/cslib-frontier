@@ -283,7 +283,7 @@ private theorem tickOpt_budget {γ : Type} {encIn : γ ↪ List Bool} {Bs : γ �
       (budget_prod ho ((constZero (some 0)).mono_le fun _ => Nat.zero_le _)))).of_enc_eq
       fun _ => by simp
   have hone := budget_natEq hp.fst' ((constZero 1).mono_le fun _ => Nat.zero_le _)
-  refine (budget_ite (budget_optionIsSome ho)
+  refine (budget_ite (budget_optionIsSome (encB := encUnary) ho)
     (budget_prod (budget_natPred hp.fst') (budget_ite hone hzero hp.snd')) hp).of_enc_eq
     fun x => by rw [tickOpt_eq]
 
@@ -334,7 +334,7 @@ theorem recompute_next_inSpace : ComputableInSpace (recompute M d).next
   have hfound := eRecompute_found_budget σ encS hp
   have hans : ComputableInSpace (fun q : RecomputeState σ × Option Bool × Bool => q.1.answer)
       _ (encOption encBool) _ :=
-    (budget_ite (budget_natIsZero hcount) (budget_optionSome hfound)
+    (budget_ite (budget_natIsZero hcount) (budget_optionSome (encO := encOption encBool) hfound)
       ((constZero none).mono_le fun _ => Nat.zero_le _)).of_enc_eq fun _ => by
         simp only [RecomputeState.answer, decide_eq_true_eq]
   have hm := budget_comp_linear hnext (budget_prod hinner (budget_prod hans hq.snd'))
@@ -342,7 +342,7 @@ theorem recompute_next_inSpace : ComputableInSpace (recompute M d).next
   have hstep := budget_comp_linear (of_inO stepWith_inO)
     (budget_prod (budget_prod ((constZero d).mono_le fun _ => Nat.zero_le _) hcfg) hsym)
   have htick := tickOpt_budget (budget_prod hcount hfound) hstep.snd'
-  exact (budget_ite (budget_optionIsSome (eCfg_state_budget hcfg))
+  exact (budget_ite (budget_optionIsSome (encB := encUnary) (eCfg_state_budget hcfg))
     (eRecompute_mk_budget σ encS hinner hstep.fst' htick.fst' htick.snd')
     (recomputeStart_budget hquery hm)).of_enc_eq fun _ => rfl
 

@@ -461,7 +461,7 @@ theorem Encoding.toInteractiveEncoding_transcript_apply
             enc.response i ((PF i).responseOfTranscript τ))) := by
   simp only [toInteractiveEncoding, conversationOfTranscript, commitOfTranscript,
     challengeOfTranscript, responseOfTranscript, Function.Embedding.coeFn_mk, encPair_apply,
-    encBits, Function.Embedding.coe_refl, id_eq]
+    encBits_apply]
 
 /-- Combine a challenge sampler `sampleChallenge` with a word-level Sigma-protocol simulator
 `program` to sample encoded interactive transcripts `(t, (c, z))`: the sampled challenge is passed

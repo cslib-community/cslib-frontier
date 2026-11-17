@@ -213,7 +213,8 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.encDetWord {P : α → Pa
 theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.decWord {P : α → Params}
     {sk ct : α → List Bool} (hP : ComputableInPolyTime P input encParams)
     (hsk : ComputableInPolyTime sk input encBits) (hct : ComputableInPolyTime ct input encBits) :
-    ComputableInPolyTime (fun x => decWord (P x) (sk x) (ct x)) input (encOption encBits) := by
+    ComputableInPolyTime (fun x => decWord (P x) (sk x) (ct x)) input (encSilentOption encBits)
+      := by
   unfold Cslib.Crypto.MLKEM.decWord
   dsimp only
   have hc := ciphertextDecoder.computableInPolyTime.comp hct
@@ -450,7 +451,7 @@ theorem kpke_isEfficient {P : ℕ → Params} (hP : ComputableInPolyTime P encUn
     exact ComputableInPolyTime.encDetWord (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
   dec := by
     change ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => decWord (P x.1) x.2.1 x.2.2)
-      (encKeyedInput encBits) (encOption encBits)
+      (encKeyedInput encBits) (encSilentOption encBits)
     exact ComputableInPolyTime.decWord (by fun_prop) (by fun_prop) (by fun_prop)
 
 private theorem length_encList_encNat_le {n d : ℕ} {xs : List ℕ} (hlen : xs.length ≤ n)

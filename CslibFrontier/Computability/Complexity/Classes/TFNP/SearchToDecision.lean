@@ -204,7 +204,7 @@ private theorem computableInPolyTime_prefixSearchRun {V D : α × List Bool → 
   unfold prefixSearchRun
   refine foldlWithInput_of_bounded_growth (const []) ⟨(bitsReplicate false).comp hn, hstep,
     inferInstance, inferInstance⟩ (growth := fun _ => 1) ⟨.const 1, fun a u _ _ => ?_⟩
-  simp only [encBits, Function.Embedding.refl_apply, prefixSearchStep]
+  simp only [encBits_apply, prefixSearchStep]
   split_ifs <;> simp
 
 /-! ### `FPSearch = FNP` exactly when `P = NP` -/

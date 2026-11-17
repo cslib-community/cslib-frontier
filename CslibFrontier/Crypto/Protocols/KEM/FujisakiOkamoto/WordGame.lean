@@ -99,7 +99,8 @@ noncomputable def withRO (n : ℕ) {α : Type} (program : WordOracleComp RO α) 
 
 /-- The oracles of the adversary in the word ROM game: `G` and `H` are the game's random oracles,
 and decapsulation runs the native `decapsNotBot` with secret key `dk` against them, encoding its
-answer with `encOption encBits`. Decapsulation of the challenge ciphertext `cStar` is refused with
+answer with `encSilentOption encBits`. Decapsulation of the challenge ciphertext `cStar` is
+  refused with
 the empty word. -/
 noncomputable def ccaWordOracle (n : ℕ) (dk : ImplicitSK (List Bool) (List Bool) (List Bool))
     (cStar : List Bool) (request : CCAOp × List Bool) :
@@ -109,7 +110,7 @@ noncomputable def ccaWordOracle (n : ℕ) (dk : ImplicitSK (List Bool) (List Boo
   | (.H, w) => P.roWordOracle keyLen n (.H, w)
   | (.decaps, c) =>
     if c = cStar then pure []
-    else encOption encBits <$> P.withRO keyLen n (P.decapsNotBot keyLen n dk c)
+    else encSilentOption encBits <$> P.withRO keyLen n (P.decapsNotBot keyLen n dk c)
 
 /-- **The word ROM IND-CCA game** for `FO-notbot` at parameter `n` with challenge bit `b`
 ([HofheinzHoevelmannsKiltz2017], ePrint 2017/604 (2 Nov 2021), §2.2, Def. 2.4 / Fig. 4, with

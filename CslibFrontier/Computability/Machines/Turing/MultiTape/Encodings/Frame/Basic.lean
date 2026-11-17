@@ -7,13 +7,13 @@ Authors: Christian Reitwiessner
 module
 -- upstream: subset of crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
-public import Cslib.Init
+public import CslibFrontier.Computability.Encoding.Delimit
 public import Mathlib.Data.List.Basic
 
 /-! # Pure framed words
 
-The original framing definitions and laws are moved unchanged below encoding-machine
-capabilities so their machine implementations do not create an import cycle.
+Machine-facing names for the shared delimited-word API. These reducible aliases preserve
+encoded words and existing machine specifications; generic parsing proofs live in `Cslib.Encoding`.
 -/
 
 namespace Turing.MultiTapeTM
@@ -21,18 +21,16 @@ namespace Turing.MultiTapeTM
 /-! ### Framed words -/
 
 /-- Each symbol `b` of `w` as `[true, b]`, followed by `[false]`. -/
-@[expose] public def frame (w : List Bool) : List Bool := w.flatMap (fun b => [true, b]) ++ [false]
+public abbrev frame : List Bool → List Bool :=
+  Cslib.Encoding.delimit
 
-/-- The word framed at the start of `v`, see `Turing.MultiTapeTM.frame`. -/
-@[expose] public def unframe : List Bool → List Bool
-  | true :: b :: v => b :: unframe v
-  | _ => []
+/-- The word framed at the start of a bit word. -/
+public abbrev unframe : List Bool → List Bool :=
+  Cslib.Encoding.undelimit
 
-/-- What follows the frame at the start of `v`, see `Turing.MultiTapeTM.frame`. -/
-@[expose] public def dropFrame : List Bool → List Bool
-  | true :: _ :: v => dropFrame v
-  | false :: v => v
-  | _ => []
+/-- What follows the frame at the start of a bit word. -/
+public abbrev dropFrame : List Bool → List Bool :=
+  Cslib.Encoding.dropDelimited
 
 @[simp]
 public lemma frame_nil : frame [] = [false] := rfl
@@ -41,8 +39,8 @@ public lemma frame_nil : frame [] = [false] := rfl
 public lemma frame_cons (b : Bool) (w : List Bool) : frame (b :: w) = true :: b :: frame w := rfl
 
 @[simp]
-public lemma length_frame (w : List Bool) : (frame w).length = 2 * w.length + 1 := by
-  induction w <;> simp [*]; omega
+public lemma length_frame (w : List Bool) : (frame w).length = 2 * w.length + 1 :=
+  Cslib.Encoding.length_delimit w
 
 /-- Framing a unary block doubles its run of `true` bits before the delimiter. -/
 public lemma frame_replicate_true (n : ℕ) :
@@ -54,27 +52,28 @@ public lemma frame_replicate_true (n : ℕ) :
     rfl
 
 @[simp]
-public lemma unframe_frame_append (w u : List Bool) : unframe (frame w ++ u) = w := by
-  induction w <;> simp [unframe, *]
+public lemma unframe_frame_append (w u : List Bool) : unframe (frame w ++ u) = w :=
+  Cslib.Encoding.undelimit_delimit_append w u
 
 @[simp]
-public lemma unframe_frame (w : List Bool) : unframe (frame w) = w := by
-  simpa using unframe_frame_append w []
+public lemma unframe_frame (w : List Bool) : unframe (frame w) = w :=
+  Cslib.Encoding.undelimit_delimit w
 
 @[simp]
-public lemma dropFrame_frame_append (w u : List Bool) : dropFrame (frame w ++ u) = u := by
-  induction w <;> simp [dropFrame, *]
+public lemma dropFrame_frame_append (w u : List Bool) : dropFrame (frame w ++ u) = u :=
+  Cslib.Encoding.dropDelimited_delimit_append w u
 
 /-- A framed word followed by another word determines both. -/
 public theorem frame_append_inj {w w' u u' : List Bool} (h : frame w ++ u = frame w' ++ u') :
     w = w' ∧ u = u' :=
-  ⟨by simpa using congrArg unframe h, by simpa using congrArg dropFrame h⟩
+  Cslib.Encoding.delimit_append_inj h
 
 /-- Framing is injective. -/
-public theorem frame_injective : Function.Injective frame := fun _ _ h =>
-  (frame_append_inj (u := []) (u' := []) (by simpa using h)).1
+public theorem frame_injective : Function.Injective frame :=
+  Cslib.Encoding.delimit_injective
 
 @[simp]
-public lemma frame_ne_nil (w : List Bool) : frame w ≠ [] := by simp [frame]
+public lemma frame_ne_nil (w : List Bool) : frame w ≠ [] :=
+  Cslib.Encoding.delimit_ne_nil w
 
 end Turing.MultiTapeTM

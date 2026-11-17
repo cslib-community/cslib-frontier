@@ -79,7 +79,8 @@ private theorem firstLabel_replay (base : List Bool) (values : List (Bool × Boo
       (firstLabelRaw coins (encPair encBits (encList (encPair encBool encBool))
         (base, values))).headD false = (values.headD (false, false)).2 := by
     cases values <;>
-      simp [firstLabelRaw, encList_cons, hbase, unframe, dropFrame]
+      simp [firstLabelRaw, encList_cons, hbase, Cslib.Encoding.undelimit,
+        Cslib.Encoding.dropDelimited]
   simp only [firstLabel, ProbComp.eval_pure, hread]
   exact (PMF.map_const _ _).symm
 

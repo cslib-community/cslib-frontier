@@ -37,7 +37,7 @@ example (E : SymmetricCipher) (n : ℕ) (k ct : List Bool) :
   simp [SymmetricCipher.aeRealOracle]
 example (E : SymmetricCipher) (n : ℕ) (k ct : List Bool) :
     ProbComp.eval (E.aeRealOracle n k (true, ct) []) =
-      PMF.pure (encOption encBits (E.decrypt n k ct), []) := by
+      PMF.pure (encSilentOption encBits (E.decrypt n k ct), []) := by
   simp [SymmetricCipher.aeRealOracle]
 
 /-! ### Half-block encryption over the identity cipher -/

@@ -641,7 +641,15 @@ not a decision.
   [#1138](https://github.com/leanprover/cslib/pull/1138); the branch's `IterateWhile` supersedes
   [#1112](https://github.com/leanprover/cslib/pull/1112). Shared encodings are coordinated in
   [#611](https://github.com/leanprover/cslib/issues/611) and
-  [#590](https://github.com/leanprover/cslib/issues/590) (`TapeEncodable`). Markers at
+  [#590](https://github.com/leanprover/cslib/issues/590) (bundled `TapeEncodable`). The pure,
+  explicitly supplied embeddings from [#1213](https://github.com/leanprover/cslib/pull/1213)
+  are mirrored under `Computability/Encoding` at `9f9d02ffd929cd830e9b2d030975f8a75afd9542`;
+  canonical options now use the tagged sum representation, while explicitly named silent
+  protocol and halt formats retain their empty-word semantics. Circuit dependent pairs and
+  partial-result sums reuse the generic combinators. Machine capabilities remain separate, following
+  #611. The exact copied revision is recorded in the source markers; the dependency stays on
+  upstream main until adoption permits deprecated shims. This does not adopt the parked
+  [default registry proposal #1830](https://github.com/cslib-community/cslib-frontier/pull/1830). Markers at
   `@9cce4cc7` name an unpublished later revision of the branch, so `upstream_sync.py` reports them
   as moved until it is published.
 * **Complexity classes.** [#767](https://github.com/leanprover/cslib/pull/767) proposes

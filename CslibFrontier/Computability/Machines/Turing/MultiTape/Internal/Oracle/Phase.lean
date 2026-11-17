@@ -112,7 +112,8 @@ theorem congr {program program' : α → WordOracleComp Operation γ}
 theorem iff_encoded {program : α → WordOracleComp Operation γ} :
     IsTidyOraclePPTOn input output program ↔
       IsTidyOraclePPTOn input encBits (fun a => output <$> program a) := by
-  simp only [IsTidyOraclePPTOn, encBits, Function.Embedding.coe_refl, id_map]
+  simp only [IsTidyOraclePPTOn, show (encBits : List Bool → List Bool) = id from funext
+    encBits_apply, id_map]
 
 /-- Every supported encoded output has polynomial length, independently of all oracle replies. -/
 theorem length_le {program : α → WordOracleComp Operation γ}
@@ -134,12 +135,12 @@ theorem query_take [Finite Operation] (op : Operation) :
     fun request => ?_⟩
   have hlength : (encPair encBits encUnary request).length =
       2 * request.1.length + 1 + request.2 := by
-    simp [encPair_apply, encBits_apply, encUnary_apply]
+    simp [encUnary_apply]
   refine ((computesTidily_queryTakePTM op request.1 request.2).mono ?_).congr ?_
   · rw [hlength]
     lia
   · intro State oracle s
-    simp only [encBits, Function.Embedding.coe_refl, id_map]
+    simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map]
 
 /-- A fair private bit leaves every external oracle state unchanged. -/
 theorem uniform_bool [Finite Operation] (input : α ↪ List Bool) :
@@ -190,7 +191,7 @@ theorem pair {program : α → WordOracleComp Operation γ} {f : α → β}
     ((PolyBounded.of_forall_le cp dp fun _ => le_rfl).add
       (.of_forall_le c d fun _ => le_rfl)) fun a => ?_
   have h := (hprepare a).append fun _ _ _ _ _ _ => hsource a
-  simp only [encBits, Function.Embedding.coe_refl, id_eq, pure_bind] at h
+  simp only [encBits_apply, pure_bind] at h
   rw [Functor.map_map] at h ⊢
   exact h
 

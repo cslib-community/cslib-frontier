@@ -65,7 +65,7 @@ theorem computableInPolyTime_solve : ComputableInPolyTime solve
         if p.1.vars.any (EdgeAugmenting.inconsistent p.1 p.2) then none else some p.2)
       (encPair (encCSP encTable encNat) (encList encBool)) (encOption (encList encBool)) := by
     fun_prop
-  have h := ComputableInPolyTime.optionElimWithInput
+  have h := ComputableInPolyTime.optionElimWithInput (encB := encList encBool)
     (body := fun F bits =>
       if F.vars.any (EdgeAugmenting.inconsistent F bits) then none else some bits)
     ho (ComputableInPolyTime.const none) hbody
@@ -78,7 +78,7 @@ theorem computableInPolyTime_solve : ComputableInPolyTime solve
 theorem computableInPolyTime_decideSAT : ComputableInPolyTime decideSAT
     (encCSP encTable encNat) encBool := by
   unfold decideSAT
-  exact computableInPolyTime_solve.optionIsSome
+  exact computableInPolyTime_solve.optionIsSome (encB := encList encBool)
 
 /-- Every returned solver buffer is an actual valid optimal zero-defect labeling, of exact
 original occurrence width. The successful call supplies every model and consistency check. -/

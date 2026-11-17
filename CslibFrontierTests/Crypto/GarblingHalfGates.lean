@@ -157,14 +157,14 @@ open Turing.MultiTapeTM in
 /-- The adversary is uniform strict PPT: its choice is a constant, and its guess reads one bit of
 the encoded view. -/
 theorem adversary_isPPT : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit)
-    (encOption encPrvView) encBool encUnit adversary where
+    (encSilentOption encPrvView) encBool encUnit adversary where
   choose := (ComputableInPolyTime.const (encIn := encPair encUnary encUnit)
     (encOut := encPair (encQuery XorAndCircuit encXorAndCircuit) encUnit) (query, ())).isPPTOn
   guess := by
     have hview := (ComputableInPolyTime.optionGetD encPrvView).comp
-      ((ComputableInPolyTime.snd encUnary (encPair encUnit (encOption encPrvView))).snd'.prod
+      ((ComputableInPolyTime.snd encUnary (encPair encUnit (encSilentOption encPrvView))).snd'.prod
         (ComputableInPolyTime.const (encIn := encPair encUnary (encPair encUnit
-          (encOption encPrvView))) (encOut := encPrvView) ⟨[], [], []⟩))
+          (encSilentOption encPrvView))) (encOut := encPrvView) ⟨[], [], []⟩))
     exact (ComputableInPolyTime.bitsGetDWithInput (encPrvView_decInfo_polyTime hview)
       (ComputableInPolyTime.const 0) false).isPPTOn
 

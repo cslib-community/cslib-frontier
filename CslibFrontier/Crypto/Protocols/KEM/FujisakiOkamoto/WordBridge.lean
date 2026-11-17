@@ -180,7 +180,8 @@ def typedHQuery (n : ℕ) (w : List Bool) :
 /-- A request of a native adversary at parameter `n` as a query of the typed ROM IND-CCA
 interface of `finiteScheme n`, with the typed answer returned as a word: `G` on messages of length
 `msgLen n`, `H` on requests in the `H` domain, and decapsulation on words of length at most
-`ctLen n`, whose answer is encoded with `encOption encBits`. Every other request is answered with
+`ctLen n`, whose answer is encoded with `encSilentOption encBits`. Every other request is
+  answered with
 the empty word and makes no query. These are the answers of the word game `romIndCcaGameWord` and
 of the native simulator `simFilterWordHandler`. -/
 noncomputable def typedQuery (n : ℕ) : CCAOp → List Bool →
@@ -200,7 +201,7 @@ noncomputable def typedQuery (n : ℕ) : CCAOp → List Bool →
     | none => pure []
   | .decaps, w =>
     if w.length ≤ P.ctLen n then
-      (fun k => encOption encBits (Option.map List.ofFn k)) <$>
+      (fun k => encSilentOption encBits (Option.map List.ofFn k)) <$>
         OracleComp.query (spec := ROResp (M := BitString (P.msgLen n))
           (CT := P.Ciphertext n) (BitString (P.coinLen n)) (BitString (keyLen n)))
           (ROQuery.decaps (P.toCiphertext n w))
@@ -533,17 +534,17 @@ private theorem represents_ccaWordOracle {n : ℕ}
       by_cases hc : w = cStar.val
       · have hc' : P.toCiphertext n w = cStar := Subtype.ext (by rw [toCiphertext_val hw, hc])
         simp only [hc', ↓reduceIte]
-        simp only [hc, ↓reduceIte, map_pure, Option.map_none, encOption_none]
+        simp only [hc, ↓reduceIte, map_pure, Option.map_none, encSilentOption_none]
         exact Represents.pure []
       · have hc' : P.toCiphertext n w ≠ cStar := fun h => hc (by rw [← h, toCiphertext_val hw])
         simp only [hc', hc, ↓reduceIte, decapsNotBot, hw, withRO, OracleComp.interpret_map,
           Scheme.interpret_decapsNotBotM]
         have h := ((represents_decapsNotBotM (keyLen := keyLen) dk hfit hw).map_right
-          (g := some)).map_right (g := ⇑(encOption encBits))
+          (g := some)).map_right (g := ⇑(encSilentOption encBits))
         exact Represents.map_left (Represents.map_left (h.congr_fun fun _ => rfl))
     · have hc : w ≠ cStar.val := fun h => hw (h ▸ cStar.2)
       simp only [hw, hc, ↓reduceIte, decapsNotBot, withRO, OracleComp.interpret_pure, map_pure,
-        encOption_none]
+        encSilentOption_none]
       exact Represents.pure []
 
 /-! ### The native simulator, typed -/
@@ -621,14 +622,14 @@ private theorem simFilterWordHandler_H (n : ℕ) (pk cStar w : List Bool) :
 private theorem simFilterWordHandler_decaps (n : ℕ) (pk cStar w : List Bool) :
     P.simFilterWordHandler keyLen (fun _ _ _ => true) n pk cStar (.decaps, w) =
       if w.length ≤ P.ctLen n then
-        encOption encBits <$> (if w = cStar then pure none else
+        encSilentOption encBits <$> (if w = cStar then pure none else
           some <$> simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen n)) w)
       else pure [] := by
   funext st
   by_cases h : w.length ≤ P.ctLen n
   · simp only [simFilterWordHandler, h, ↓reduceIte, Scheme.simFilterHandler,
       Scheme.simFilterDispatch, ROQuery.dispatch, filterDecaps_true]
-    exact (StateT.run_map (m := ProbComp) (encOption encBits) _ st).symm
+    exact (StateT.run_map (m := ProbComp) (encSilentOption encBits) _ st).symm
   · simp only [simFilterWordHandler, h, ↓reduceIte]
     rfl
 
@@ -694,7 +695,7 @@ private theorem represents_simFilterWordHandler {n : ℕ} (pk : List Bool) (cSta
         have h := represents_simHashHq (keyLen := keyLen) n (P.toCiphertext n w)
         rw [toCiphertext_val hw] at h
         exact Represents.map_left (Represents.map_left
-          ((h.map_right (g := some)).map_right (g := ⇑(encOption encBits)) |>.congr_fun
+          ((h.map_right (g := some)).map_right (g := ⇑(encSilentOption encBits)) |>.congr_fun
             fun _ => rfl))
     · simp only [hw, ↓reduceIte, OracleComp.interpret_pure]
       exact Represents.pure []

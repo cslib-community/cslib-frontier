@@ -85,7 +85,8 @@ theorem computableInPolyTime_clauseOf {u : α → ℕ} (hu : ComputableInPolyTim
 theorem computableInPolyTime_prev {u : α → ℕ} (hu : ComputableInPolyTime u inp encUnary) :
     ComputableInPolyTime (fun a => prev (os a) (u a)) inp encUnary := by
   unfold prev
-  refine optionGetDWithInput (findWithInput (listReverseWithInput (range.comp hu)) ?_) hu
+  refine optionGetDWithInput (findWithInput (encO := encOption encUnary)
+    (listReverseWithInput (range.comp hu)) ?_) hu
   exact decide_eq' (computableInPolyTime_var (hos.comp (fst _ _)) (snd _ _))
     (computableInPolyTime_var (hos.comp (fst _ _)) (hu.comp (fst _ _)))
 

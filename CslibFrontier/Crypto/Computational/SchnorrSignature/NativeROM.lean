@@ -92,7 +92,9 @@ theorem isOraclePPTOn_schnorrROMSign :
   have hd' := hd.comp hinput
   have hr := ComputableInPolyTime.snd E encNat
   have hq := F.computableInPolyTime_order.comp hd'
-  have hnonce := (ComputableInPolyTime.binary_mod.comp (hr.prod hq)).encoding_comp
+  have hbits : ComputableInPolyTime (fun n : ℕ => n.bits) encNat encBits :=
+    .of_eq fun n => (Cslib.Encoding.encNat_eq_bits n).symm
+  have hnonce := hbits.comp (ComputableInPolyTime.binary_mod.comp (hr.prod hq))
   have ht := F.computableInPolyTime_schnorrCommitBits.comp (hd'.prod hnonce)
   have hm : ComputableInPolyTime
       (fun p : (ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ => p.1.2.2.1) EM encUnary := by
@@ -105,12 +107,19 @@ theorem isOraclePPTOn_schnorrROMSign :
     fun_prop
   have hquery := IsOraclePPTOn.query_take' () (hmsg.prod ht).encoding_comp hm
   simp only [bind_pure_comp]
-  apply hquery.map_with'
   have hfst := ComputableInPolyTime.fst EM encBits
   have hc := ComputableInPolyTime.snd EM encBits
   have hz := F.computableInPolyTime_schnorrRespondBits.comp
     ((hd'.comp hfst).prod ((hsk.comp hfst).prod ((hnonce.comp hfst).prod hc)))
-  exact ((ht.comp hfst).prod hz).encoding_comp
+  have hcallback : ComputableInPolyTime
+      (fun p : ((ℕ × F.Desc × ℕ × List Bool × List Bool) × ℕ) × List Bool =>
+        encPair encBits encBits
+          (F.schnorrCommitBits (p.1.1.2.1, (p.1.2 % F.order p.1.1.2.1).bits),
+            F.schnorrRespondBits (p.1.1.2.1, p.1.1.2.2.2.1,
+              (p.1.2 % F.order p.1.1.2.1).bits, p.2)))
+      (encPair EM encBits) encBits :=
+    ((ht.comp hfst).prod hz).encoding_comp
+  exact hquery.map_with' hcallback
 
 /-- The native verifier is uniformly strict oracle-PPT in the full description, unary challenge
 width, public key, message and signature word, for every external oracle reply. -/

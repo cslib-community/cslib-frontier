@@ -149,7 +149,7 @@ theorem dropFrame_dropFrame_unframe_encPair_encDesc (d : schnorrGroups.Desc) (u 
       schnorrGroups.encode d (schnorrGroups.generator d) := by
   change dropFrame (dropFrame (unframe
     (encPair (encPair encNat (encPair encNat encNat)) encBits (d.1, u)))) = _
-  rw [unframe_encPair, dropFrame_encPair, dropFrame_encPair]
+  rw [unframe_encPair, dropFrame_encPair, dropFrame_encPair, Cslib.Encoding.encNat_eq_bits]
   exact (SchnorrGroup.encode_generator d).symm
 
 /-- An admissibility predicate for group-element ElGamal over Schnorr groups: both challenge words
@@ -722,8 +722,9 @@ theorem schnorrGroups_encode_length_le (d : schnorrGroups.Desc) (x : schnorrGrou
     rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
     exact Nat.size_le_size h
   have : NeZero d.1.1 := ⟨d.2.prime_modulus.ne_zero⟩
-  have hsize : (schnorrGroups.encode d x).length ≤ (encNat d.1.1).length :=
-    hbits _ _ (le_of_lt (ZMod.val_lt _))
+  have hsize : (schnorrGroups.encode d x).length ≤ (encNat d.1.1).length := by
+    rw [Cslib.Encoding.encNat_eq_bits]
+    exact hbits _ _ (le_of_lt (ZMod.val_lt _))
   have hdesc : (encNat d.1.1).length ≤ (schnorrGroups.encDesc d).length := by
     change (encNat d.1.1).length ≤ (encPair encNat (encPair encNat encNat) d.1).length
     simp only [encPair_apply, List.length_append, length_frame]

@@ -74,7 +74,7 @@ private theorem int_eq_signMagnitude_self (z : ℤ) :
     z = if decide (z < 0) then -(z.natAbs : ℤ) else (z.natAbs : ℤ) := by
   split_ifs <;> lia
 
-attribute [local irreducible] encRat encIntBin encNat
+attribute [local irreducible] encRat encIntBin
 
 /-- Forming the normalized rational quotient `Rat.divInt p.1 p.2` from signed binary integers is
 computable in polynomial time under `encRat`. -/

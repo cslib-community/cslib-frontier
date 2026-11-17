@@ -25,7 +25,8 @@ example (l : List (List Bool)) :
     frames (encList encBits l) = l ∧
     (decodeDesc (unframe (frame (eDesc ⟨2, 3, []⟩) ++ [true, false]))).q₀ = 3 :=
   ⟨by rw [frames_frame_append, ← List.append_nil (frame []), frames_frame_append, frames_nil],
-   by rw [frames_of_ne_nil (by simp)]; simp [unframe, dropFrame],
+   by rw [frames_of_ne_nil (by simp)]; simp [Cslib.Encoding.undelimit,
+     Cslib.Encoding.dropDelimited],
    (frames_encList encBits l).trans (List.map_id l),
    by rw [decodeDesc_unframe_frame_append]⟩
 
@@ -37,7 +38,7 @@ example :
     decodeDesc [false, true, true] = ⟨0, 1, []⟩ := by
   refine ⟨?_, ?_, ?_⟩ <;>
     simp [decodeDesc, descDecoder, Decoder.map, Decoder.pair, Decoder.list, Decoder.unary,
-      unframe, dropFrame]
+      Cslib.Encoding.undelimit, Cslib.Encoding.dropDelimited]
 
 /-- Every word decodes to a description of polynomial encoded length. -/
 example : ∃ e c : ℕ, ∀ w : List Bool, (eDesc (decodeDesc w)).length ≤ c * (w.length + 1) ^ e := by

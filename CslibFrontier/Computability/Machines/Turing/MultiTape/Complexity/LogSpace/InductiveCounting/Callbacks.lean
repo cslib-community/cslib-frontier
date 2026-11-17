@@ -176,7 +176,7 @@ private theorem runtimeQuery_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S)
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => runtimeQuery k (s a)) enc encNat S := by
-  exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
+  exact (budget_ite (budget_optionIsSome (encB := encState) (runtimeCounting_budget hs))
     (controllerQuery_budget (k := k) (runtimeRadix_budget hs) (controller_budget hs) hin)
     (runtimeLength_budget hs)).of_enc_eq fun a => by
       cases h : (s a).counting <;> simp [runtimeQuery, h]
@@ -187,7 +187,7 @@ private theorem runtimeHalted_budget {s : α → Runtime}
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => runtimeHalted (s a)) enc encBool S := by
   have hc := controller_budget hs
-  exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
+  exact (budget_ite (budget_optionIsSome (encB := encState) (runtimeCounting_budget hs))
     (or_budget (phaseEq_budget hc .reject hin)
       (and_budget (runtimeChecked_budget hs) (phaseEq_budget hc .accept hin)))
     (budget_const false hin)).of_enc_eq fun a => by
@@ -199,7 +199,7 @@ private theorem runtimeAccept_budget {s : α → Runtime}
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => runtimeAccept (s a)) enc encBool S := by
   exact (and_budget (runtimeChecked_budget hs)
-    (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
+    (budget_ite (budget_optionIsSome (encB := encState) (runtimeCounting_budget hs))
       (accepting_budget (controller_budget hs) hin) (budget_const false hin))).of_enc_eq
     fun a => by cases h : (s a).counting <;> simp [runtimeAccept, h]
 
@@ -245,7 +245,8 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
     (runtime_budget (budget_natSucc hn) hB hchk (budget_const none hin))
     (runtime_budget hn hstart (budget_const false hin)
       (budget_optionSome (install_budget ntm hstart hin)))
-  exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs)) hcounting hscan).of_enc_eq
+  exact (budget_ite (budget_optionIsSome (encB := encState) (runtimeCounting_budget hs))
+    hcounting hscan).of_enc_eq
     fun a => by
       cases h : (s a).counting <;> simp [runtimeNext, h, vertexWidth, startRadix]
 

@@ -94,7 +94,7 @@ example : (· + 1)^[0] (0 : ℕ) = 0 ∧ (· + 1)^[17] (0 : ℕ) = 17 := by deci
 /-- A zero-workspace streaming copy cannot satisfy a constant charged-space certificate. -/
 example : ¬ComputableInSpace (id : List Bool → List Bool) encBits encBits (fun _ => 0) := by
   rintro ⟨_, c, _, hl⟩
-  simpa [encBits] using hl (List.replicate (c + 1) true)
+  simpa [encBits_apply] using hl (List.replicate (c + 1) true)
 
 /-- Budget composition uses both independent operands; no certificate can be inferred for an
 arbitrary second function. -/

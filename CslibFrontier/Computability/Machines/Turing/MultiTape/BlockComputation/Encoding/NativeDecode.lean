@@ -153,7 +153,7 @@ private theorem scan_length (q : Scan) (bit : Bool) :
     (encList encNat (scan q bit).2.2).length ≤ (encList encNat q.2.2).length + 5 := by
   rcases q with ⟨a, b, acc⟩
   cases a <;> cases b <;> cases bit <;>
-    simp [scan, cellCode, encList_cons, show Nat.bits 2 = [false, true] from rfl]
+    simp [scan, cellCode, show Nat.bits 2 = [false, true] from rfl]
 
 private theorem scan_fold_length (word : List Bool) (q : Scan) :
     (encList encNat (word.foldl scan q).2.2).length ≤

@@ -370,7 +370,7 @@ private theorem computableInPolyTime_extractChainCollision_comp
   have hfind : ComputableInPolyTime
       (fun a => ((chainTrace h (k a) (iv a) (bs₁ a)).2.zip
         (chainTrace h (k a) (iv a) (bs₂ a)).2).find? (fun p => p.1 != p.2))
-      encIn (encOption (encPair encBits encBits)) :=
+      encIn (encSilentOption (encPair encBits encBits)) :=
     ComputableInPolyTime.findWithInput (test := fun _ p => p.1 != p.2) hzip
       (ComputableInPolyTime.bool_not.comp (hp.fst'.beq hp.snd'))
   exact ComputableInPolyTime.optionGetDWithInput hfind (.const ([], []))

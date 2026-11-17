@@ -380,7 +380,7 @@ enc_structure encNestedRequest (encM : M ↪ List Bool) (n : ℕ) : NestedReques
 enc_structure encNestedChallenge (encK : K ↪ List Bool) (encM : M ↪ List Bool) (n : ℕ) :
     NestedChallenge K M n where
   ciphertext : encM,
-  revealedKeys : (encFinFn n (encOption encK))
+  revealedKeys : (encFinFn n (encSilentOption encK))
 
 /-- Computable encoding of `NestedReductionState K σ n`. -/
 enc_structure encNestedReductionState (encK : K ↪ List Bool) (encσ : σ ↪ List Bool) (n : ℕ) :
@@ -401,10 +401,10 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
     (hd : ComputableInPolyTime d encIn (encFinEnum (Fin n)))
     (hks : ComputableInPolyTime ks encIn (encFinFn n encK)) :
     ComputableInPolyTime (fun a => revealKeys (d a) (ks a)) encIn
-      (encFinFn n (encOption encK)) := by
+      (encFinFn n (encSilentOption encK)) := by
   refine ComputableInPolyTime.finFn fun i => ?_
   have h : ComputableInPolyTime (fun a => if i = d a then none else some (ks a i)) encIn
-      (encOption encK) := by
+      (encSilentOption encK) := by
     refine (ComputableTidilyInPolyTime.finite_cases hd.tidy
       (branch := fun d0 a => if i = d0 then none else some (ks a i))
       fun d0 => ?_).computableInPolyTime
@@ -645,7 +645,7 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
     have hrev : ComputableInPolyTime
         (fun p : (ℕ × (NestedReductionState K σ n × M)) × M =>
           revealKeys p.1.2.1.withheld p.1.2.1.keys)
-        (encPair eg encM) (encFinFn n (encOption encK)) :=
+        (encPair eg encM) (encFinFn n (encSilentOption encK)) :=
       computable_revealKeys
         (encNestedReductionState_withheld_polyTime encK encσ n
           (hg_st.comp (ComputableInPolyTime.fst _ _)))

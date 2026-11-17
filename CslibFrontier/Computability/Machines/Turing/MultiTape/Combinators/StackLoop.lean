@@ -270,7 +270,7 @@ private theorem ComputableTidilyInO.stackLoop {δ α γ : Type} {encIn : δ ↪ 
           Function.iterate_succ_apply', StackLoop.step]
         generalize L.step^[i] (init x, []) = st
         generalize L.round (st.2.head?, st.1) = rr
-        exact round_time_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
+        exact round_time_arith (by omega) (by simp) (length_encPair _) (by simp))
     have h0 := hH0 x
     have hn := hHn x
     exact total_time_arith (by omega) hsum (lI x) (by omega) (by omega)
@@ -290,7 +290,7 @@ private theorem ComputableTidilyInO.stackLoop {δ α γ : Type} {encIn : δ ↪ 
           Function.iterate_succ_apply', StackLoop.step]
         generalize L.step^[i] (init x, []) = st
         generalize L.round (st.2.head?, st.1) = rr
-        exact round_space_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
+        exact round_space_arith (by omega) (by simp) (length_encPair _) (by simp))
     have h0 := hH0 x
     have hn := hHn x
     exact total_space_arith (by omega) hsum (lI x) (by omega) (by omega)

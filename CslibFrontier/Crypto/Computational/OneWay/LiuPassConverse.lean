@@ -177,24 +177,24 @@ parse $x$ into a length $i := \mathrm{decodeLen}\ n\ x \le n + \mathrm{copyOverh
 $\Pi := \mathrm{decodeProg}\ n\ x$ of length at most $i$, run the universal multi-tape Turing
 machine on $\Pi$ for $t(n)$ steps, and output the framed pair `(i, universalTMRunFor Π (t n))`. -/
 noncomputable def liuPassCore (t : ℕ → ℕ) (n : ℕ) (x : List Bool) : List Bool :=
-  encPair encUnary (encOption encBits)
+  encPair encUnary (encSilentOption encBits)
     (decodeLen n x, DescriptionMethod.universalTMRunFor (decodeProg n x) (t n))
 
 /-- Framed target output corresponding to program length `i` and halting output `some y`. -/
 def targetImage (i : ℕ) (y : List Bool) : List Bool :=
-  encPair encUnary (encOption encBits) (i, some y)
+  encPair encUnary (encSilentOption encBits) (i, some y)
 
 @[simp]
 theorem targetImage_inj {i₁ i₂ : ℕ} {y₁ y₂ : List Bool} :
     targetImage i₁ y₁ = targetImage i₂ y₂ ↔ i₁ = i₂ ∧ y₁ = y₂ := by
-  rw [targetImage, targetImage, (encPair encUnary (encOption encBits)).injective.eq_iff,
+  rw [targetImage, targetImage, (encPair encUnary (encSilentOption encBits)).injective.eq_iff,
     Prod.mk.injEq, Option.some.injEq]
 
 theorem liuPassCore_eq_targetImage_iff {t : ℕ → ℕ} {n i : ℕ} {x y : List Bool} :
     liuPassCore t n x = targetImage i y ↔
       decodeLen n x = i ∧
         DescriptionMethod.universalTMRunFor (decodeProg n x) (t n) = some y := by
-  rw [liuPassCore, targetImage, (encPair encUnary (encOption encBits)).injective.eq_iff,
+  rw [liuPassCore, targetImage, (encPair encUnary (encSilentOption encBits)).injective.eq_iff,
     Prod.mk.injEq]
 
 /-! ### Polynomial-time computability of schedule and core -/
@@ -244,14 +244,22 @@ private theorem computableInPolyTime_liuPassCoreWithInput {α : Type} {input : �
     ComputableInPolyTime (fun a => liuPassCore t (n a) (x a)) input encBits := by
   have hrun := DescriptionMethod.computableInPolyTime_universalTMRunFor.comp
     ((computableInPolyTime_decodeProg hn hx).prod (ht.comp hn))
-  exact ((computableInPolyTime_decodeLen hn hx).prod hrun).of_enc_eq fun _ => rfl
+  have hsilent := ComputableInPolyTime.optionMapWithInput
+    (encB := encBits) (encC := encBits) (encO := encOption encBits)
+    (encOC := encSilentOption encBits) (f := fun _ b => b)
+    hrun (ComputableInPolyTime.snd input encBits)
+  exact ((computableInPolyTime_decodeLen hn hx).prod hsilent).of_enc_eq fun a => by
+    simp only [liuPassCore, Function.comp_def, encBits_apply]
+    congr 1
+    cases DescriptionMethod.universalTMRunFor (decodeProg (n a) (x a)) (t (n a)) <;> rfl
 
 private theorem computableInPolyTime_targetImage {α : Type} {input : α ↪ List Bool}
     {i : α → ℕ} {y : α → List Bool}
     (hi : ComputableInPolyTime i input encUnary)
     (hy : ComputableInPolyTime y input encBits) :
     ComputableInPolyTime (fun a => targetImage (i a) (y a)) input encBits :=
-  (hi.prod ((ComputableInPolyTime.optionSome encBits).comp hy)).of_enc_eq fun _ => rfl
+  (hi.prod ((ComputableInPolyTime.optionSome encBits
+    (encO := encSilentOption encBits)).comp hy)).of_enc_eq fun _ => rfl
 
 theorem computableInPolyTime_liuPassCore {t : ℕ → ℕ}
     (ht : ComputableInPolyTime t encUnary encUnary) :
@@ -417,7 +425,7 @@ private theorem le_coinBudget (cA dA : ℕ) {n i : ℕ} {y : List Bool}
     cA * ((encPair encUnary encBits (n, targetImage i y)).length + 1) ^ dA ≤
       coinBudget cA dA n := by
   rw [coinBudget, targetImage, length_encPair, encBits_apply, length_encPair]
-  simp only [encUnary_apply, List.length_replicate, encOption_some, List.length_cons,
+  simp only [encUnary_apply, List.length_replicate, encSilentOption_some, List.length_cons,
     encBits_apply, hy]
   exact Nat.mul_le_mul_left cA (Nat.pow_le_pow_left (by omega) dA)
 

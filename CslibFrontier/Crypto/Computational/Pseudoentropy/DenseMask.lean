@@ -103,7 +103,7 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
     have h := hsize n (pair.encode n value.1, value.2)
       (by simpa only [source, ProbComp.eval_map, pair.eval_latentSample] using
         (PMF.mem_support_map_iff _ _ _).mpr ⟨value, hvalue, rfl⟩)
-    simp only [length_encPair, encBits, Function.Embedding.refl_apply,
+    simp only [length_encPair, encBits_apply,
       encBool_apply, List.length_singleton,
       encUnary_apply, List.length_replicate] at h
     dsimp only [width]

@@ -115,6 +115,7 @@ theorem binary_sqrt : ComputableInPolyTime Nat.sqrt encNat encNat := by
         rcases Nat.eq_zero_or_pos acc with h0 | hpos
         · omega
         · nlinarith
+      simp only [encNat_apply]
       change acc.bits.length ≤ m.bits.length
       rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
       exact Nat.size_le_size hacc_le

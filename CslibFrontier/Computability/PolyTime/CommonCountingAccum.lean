@@ -22,6 +22,7 @@ import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Encoding.NatBits
 
 /-!
 # Streaming group-sum and outer Taylor-jet accumulators with Cramer recovery
@@ -1028,7 +1029,9 @@ theorem length_encJetRows_streamOuterJetAccumPrefix_le {J ℓ T_rounds j M_prod 
         j' u').natAbs ≤ M_prod) :
     (encIntTable (streamOuterJetAccumPrefix evalRound J ℓ j ctx)).length ≤
       J * (2 * (ℓ * (2 * ((encNat T_rounds).length + M_prod.size) + 3)) + 1) := by
-  have hsz : (encNat T_rounds).length = T_rounds.size := Nat.size_eq_bits_len T_rounds
+  have hsz : (encNat T_rounds).length = T_rounds.size := (congrArg List.length
+    (Cslib.Encoding.encNat_eq_bits T_rounds)).trans
+        (Nat.size_eq_bits_len T_rounds)
   rw [streamOuterJetAccumPrefix_eq_foldl, hsz]
   exact length_encJetRows_rangeAddJet_le hj fun idx hidx => hM idx (Nat.lt_of_lt_of_le hidx hj)
 

@@ -61,6 +61,7 @@ elab_rules : tactic
     try
       evalTactic (← `(tactic| simp only [length_encPair, length_frame, encUnary_apply,
         List.length_replicate, encBits_apply, encBool_apply, encOption_none, encOption_some,
+        encHaltOption_none, encHaltOption_some, encSilentOption_none, encSilentOption_some,
         encSum_inl, encSum_inr, encList_nil, encList_cons, List.length_nil, List.length_cons,
         List.length_append, $args,*] $[$loc]?))
     catch ex =>

@@ -98,7 +98,7 @@ theorem valid_inSpace (k : ℕ) :
 theorem lookupIndex_inSpace (k : ℕ) :
     ComputableInSpace (lookupIndex k) encWalkArgs (encOption encNat)
       (fun a => (encWalkArgs a).length) := by
-  have hsome := budget_optionSome (walk_inSpace k)
+  have hsome := budget_optionSome (encO := encOption encNat) (walk_inSpace k)
   exact (budget_ite (valid_inSpace k) hsome
     (budget_const (encB := encOption encNat) none (.refl _))).of_enc_eq fun _ => rfl
 

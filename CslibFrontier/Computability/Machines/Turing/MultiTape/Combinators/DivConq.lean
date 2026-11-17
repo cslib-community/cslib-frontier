@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StackLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -267,16 +268,16 @@ private lemma toList_inO {δ : Type} {enc : δ ↪ List Bool} :
   have hft : ComputableTidilyInO (fun w : List Bool => frame w.tail) encBits encBits
       (fun w => w.length) (fun w => w.length) :=
     (hframe.comp htail).mono 2 (fun w => by simp; omega) (fun w => by simp; omega)
-  have hw : ComputableTidilyInO (fun w : List Bool => if w.isEmpty then [] else frame w.tail)
-      encBits encBits (fun w => w.length) (fun w => w.length) :=
-    ((of_linear (.of_isEmpty (f := List.isEmpty) (encIn := encBits) fun _ => rfl)).ite
-      (const (encMid := encBits) []) hft).mono 2 (fun w => by split_ifs <;> simp <;>
-        omega) (fun w => by split_ifs <;> simp <;> omega)
-  refine (hw.comp (of_linear (.of_eq (f := fun o : Option δ => encOption enc o)
-    (encIn := encOption enc) (encMid := encBits) fun _ => rfl))).of_enc_eq (fun o => ?_) |>.mono
-      2 (fun o => ?_) (fun o => ?_)
-  · cases o <;> simp [encBits]
-  all_goals omega
+  have he : ComputableTidilyInO (fun o : Option δ => encOption enc o)
+      (encOption enc) encBits (fun o => (encOption enc o).length)
+      (fun o => (encOption enc o).length) :=
+    of_linear (.of_eq fun _ => rfl)
+  have hc := of_linear (ComputableInDegree.isSome enc (encO := encOption enc))
+  have hp := hft.comp_linear he
+  refine (hc.ite hp (const (encMid := encBits) [])).of_enc_eq (fun o => ?_) |>.mono
+    2 (fun o => ?_) (fun o => ?_)
+  · cases o <;> simp
+  all_goals split_ifs <;> omega
 
 /-- The sums of the costs of a run of `m + 1` rounds followed by a halting test, against a bound
 on the first `m` rounds. -/
@@ -290,7 +291,7 @@ private lemma sums_le {A B R : ℕ → ℕ} {m X : ℕ} (h : ∀ i < m, A i + B 
 
 private lemma length_encList_toList_le {δ : Type} (enc : δ ↪ List Bool) (o : Option δ) :
     (encList enc o.toList).length ≤ 2 * (encOption enc o).length := by
-  cases o <;> simp [length_frame]
+  cases o <;> simp
 
 variable (D : DivConq α β γ) {Tt St Tb Sb Tl Sl : α → ℕ} {Tm Sm : α × β → ℕ}
   {Tj Sj : γ × β → ℕ}
@@ -432,8 +433,8 @@ private lemma halt_inO : ComputableTidilyInO D.loop.halt (encVal encA encB) encB
     ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.prod
       ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.comp
         (of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
-          fun _ => rfl)))).mono 3 (fun w => by simp [encBits]; omega)
-      (fun w => by simp [encBits]; omega)
+          fun _ => rfl)))).mono 3 (fun w => by simp; omega)
+      (fun w => by simp; omega)
   refine (((ComputableTidilyInDegree.of_finite (encIn := encPair encBool encBool)
     (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).inO_one.comp hw).comp
     (of_linear (.of_eq (f := fun v : Val α β => encVal encA encB v) (encIn := encVal encA encB)
@@ -558,14 +559,14 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
       (ComputableInDegree.of_eq (f := fun v => encV v) (encIn := encV)
         (encMid := encBits) fun _ => rfl))).of_enc_eq (fun v => ?_) |>.mono 3 (fun v => ?_)
         (fun v => ?_)
-    · simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply]
+    · simp only [Function.comp_apply, encBits_apply]
       generalize encV v = w
       rcases w with _ | ⟨_, _ | ⟨_, _⟩⟩ <;> rfl
     all_goals simp; omega
   refine ((hdrop.comp hSL.tidy).of_enc_eq (g := F) fun x => ?_).computableInO.mono 4000
     (fun x => ?_) (fun x => ?_)
-  · simp only [Function.comp_apply, hfinal, hencV, encSum_inr, encBits,
-      Function.Embedding.refl_apply, List.drop_succ_cons, List.drop_zero]
+  · simp only [Function.comp_apply, hfinal, hencV, encSum_inr, encBits_apply, List.drop_succ_cons,
+    List.drop_zero]
   all_goals
     have hsx := hs x
     have hlx := hlen x

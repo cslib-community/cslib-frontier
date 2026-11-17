@@ -42,7 +42,7 @@ theorem choose_isPPT : IsPPTOn (encPair encUnary encBits)
   ppt
 
 theorem finish_isPPT : IsPPTOn (encPair encUnary encBits)
-    (encPair (encOption (encPair encBool (encList (encPair encBool encBool)))) encBool)
+    (encPair (encSilentOption (encPair encBool (encList (encPair encBool encBool)))) encBool)
     (fun p => finish p.1 p.2) := by
   have hpairs : ComputableInPolyTime
       (fun history : List Bool => history.reverse.map fun r => (r, r ^^ true))

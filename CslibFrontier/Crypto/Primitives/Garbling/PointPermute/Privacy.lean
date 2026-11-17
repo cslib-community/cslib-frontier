@@ -62,7 +62,8 @@ uniform strict PPT `prv.sim` adversary `B`, the `prv.sim` advantage of `B` again
 theorem PseudorandomFunction.negligible_prvSimAdvantage_simWord
     (h : PseudorandomFunction family) {σ : Type} {encσ : σ ↪ List Bool}
     {B : ℕ → PrvSimAdversary ValidCircuit σ}
-    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
+    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encSilentOption
+      encPrvView)
       encBool encσ B) :
     Negligible fun k =>
       prvSimAdvantage (PointPermute.scheme family) phiTopo k (simWord family k) (B k) := by

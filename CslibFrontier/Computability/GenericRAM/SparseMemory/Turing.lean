@@ -293,11 +293,17 @@ private theorem readResult_inO :
     funext ⟨o, d⟩
     cases o <;> rfl
   rw [heq]
-  refine .mono (by fun_prop) 8 (fun q => ?_) fun q => ?_
+  have hv := fst (encOption (encPair encA encV)) encV
+  have hd := snd (encOption (encPair encA encV)) encV
+  have hb := (snd encA encV).comp_linear
+    (snd (encPair (encOption (encPair encA encV)) encV) (encPair encA encV))
+  refine (optionElimWithInput (encB := encPair encA encV)
+    (value := Prod.fst) (fallback := Prod.snd) (body := fun _ e => e.2) hv hd hb).mono
+    8 (fun q => ?_) fun q => ?_
   all_goals
     rcases q with ⟨_ | e, d⟩ <;>
-      simp only [Option.elim_none, Option.elim_some, length_encPair, encOption_some,
-        List.length_cons] <;> omega
+      simp only [Option.elim_none, Option.elim_some, length_encPair,
+        encOption_none, encOption_some, List.length_cons] <;> omega
 
 /-- A read input supplies both the queried store and its default value. -/
 def readEncoding : ((Address × SparseMemory Address Value) × Value) ↪ List Bool :=

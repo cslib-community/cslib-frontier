@@ -87,7 +87,7 @@ private theorem map_head {α : Type} {input : α ↪ List Bool}
       (encDPi (fun k => encList (encFinite (Γ k)))))
     (k : K) (f : σ → Option (Γ k) → σ) :
     ComputableInPolyTime (fun a => f (state a) (store a k).head?) input (encFinite σ) := by
-  have hhead := (head? (encFinite (Γ k))).comp
+  have hhead := (head? (encO := encOption (encFinite (Γ k))) (encFinite (Γ k))).comp
     ((dpi_apply (fun k => encList (encFinite (Γ k))) k).comp hs)
   exact (of_finite (fun p : σ × Option (Γ k) => f p.1 p.2)).comp (hv.prod hhead)
 

@@ -153,7 +153,7 @@ private theorem computableInPolyTime_decodeRows {α β : Type} {input : α ↪ L
     have hw_le : (spec p.1).width ≤ cw * ((input p.1).length + 1) ^ dw := by
       simpa only [encUnary_apply, List.length_replicate] using hw p.1
     have ha_le := ha (p.1, row)
-    simp only [length_encPair, encBits, Function.Embedding.coe_refl, id_eq, hrow_len] at ha_le
+    simp only [length_encPair, encBits_apply, hrow_len] at ha_le
     have hbase : 2 * (input p.1).length + 1 + (spec p.1).width + 1 ≤
         2 * (input p.1).length + cw * ((input p.1).length + 1) ^ dw + 3 := by omega
     have hg : (encOption output ((spec p.1).attempt row)).length ≤ growth p :=
@@ -205,7 +205,7 @@ theorem isPPTOn_sampleBlockCapped {α β : Type} {input : α ↪ List Bool}
     IsPPTOn input output (fun a => sampleBlockCapped (spec a) (fallback a) (trials a)) := by
   have hget : ComputableInPolyTime (fun p : α × Option β => p.2.getD (fallback p.1))
       (encPair input (encOption output)) output :=
-    optionGetDWithInput (snd input (encOption output))
+    ComputableInPolyTime.optionGetDWithInput (snd input (encOption output))
       (hfallback.comp (fst input (encOption output)))
   have h := IsPPTOn.map_with (f := fun a (o : Option β) => o.getD (fallback a))
     (isPPTOn_sampleSeededTrials htrials hwidth hattempt) hget

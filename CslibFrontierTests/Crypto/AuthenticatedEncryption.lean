@@ -107,10 +107,10 @@ example :
       pure ([], [[true, false]]) := by
   rfl
 
--- In `ccaOracle`, querying decryption on a fresh ciphertext returns `encOption encBits (some msg)`.
+-- In `ccaOracle`, querying decryption on a fresh ciphertext returns `encSilentOption encBits (some msg)`.
 example :
     echoCipher.ccaOracle 2 [] false (true, [true, false]) [] =
-      pure (encOption encBits (some [true, false]), []) := by
+      pure (encSilentOption encBits (some [true, false]), []) := by
   rfl
 
 /-- `echoCipher` does not satisfy `CiphertextIntegrity`: a zero-query oracle-PPT adversary that
@@ -361,7 +361,7 @@ example :
     echoCipher.oneTimeCCAOracle 2 [] false (true, [true, false]) [[true, false]] =
       pure ([], [[true, false]]) ∧
     echoCipher.oneTimeCCAOracle 2 [] false (true, [false, true]) [[true, false]] =
-      pure (encOption encBits (some [false, true]), [[true, false]]) := by
+      pure (encSilentOption encBits (some [false, true]), [[true, false]]) := by
   exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- `echoCipher` also fails `OneTimeCiphertextIntegrity` and `OneTimeAuthenticatedEncryption`. -/

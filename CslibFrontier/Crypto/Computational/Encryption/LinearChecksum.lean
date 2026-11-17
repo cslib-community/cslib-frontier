@@ -89,7 +89,19 @@ noncomputable def prfChecksumCipher (family : List Bool → List Bool → List B
       if p.drop n == checksum (p.take n) then some (p.take n) else none
   keyGen_ppt := by ppt
   encrypt_ppt := by ppt
-  decrypt_polyTime := by polytime
+  decrypt_polyTime := by
+    refine ComputableInPolyTime.optionElimWithInput
+      (encB := encBits) (encO := encSilentOption encBits)
+      (value := fun x : ℕ × List Bool × List Bool =>
+        (prfCipher family hpoly hlen).decrypt (x.1 + csLen x.1) x.2.1 x.2.2)
+      (body := fun (x : ℕ × List Bool × List Bool) p => if p.drop x.1 == checksum (p.take x.1)
+        then some (p.take x.1) else none) ?_ (ComputableInPolyTime.const none) ?_
+    · have hargs : ComputableInPolyTime
+          (fun x : ℕ × List Bool × List Bool => (x.1 + csLen x.1, x.2.1, x.2.2))
+          (encPair encUnary (encPair encBits encBits))
+          (encPair encUnary (encPair encBits encBits)) := by fun_prop
+      exact (prfCipher family hpoly hlen).decrypt_polyTime.comp hargs
+    · polytime
   decrypt_encrypt := by
     intro n k hk msg hmsg ct hct
     have hmlen : (msg ++ checksum msg).length = n + csLen n := by

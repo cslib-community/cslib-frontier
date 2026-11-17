@@ -1114,8 +1114,7 @@ public theorem exists_localMapPreimageFinder_declared (k : ℕ) :
         (((encPreimageSearchState st).length + 1) ^ d_mk + S₀ (makePreimageQuery st))) :=
     (ComputableInO.of_eq (encIn := encPreimageSearchState) (encMid := encPreimageSearchState)
       fun _ => rfl).append hnext fun st => by
-        simp [preimageStepWith, encPreimageSearchState, encPair_apply, encBits_apply,
-          encBool_apply, List.append_assoc]
+        simp [preimageStepWith, encPreimageSearchState, List.append_assoc]
   -- Step 4: Trajectory bounds B, M, R, Q
   let B (q : LocalMap × List Bool) : ℕ :=
     2 * (encPair encUnary encCNF (toDeclaredCNF k q)).length + 1 + q.1.numVars

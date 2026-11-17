@@ -115,7 +115,7 @@ theorem ComputableInPolyTimeWithOracle.exists_computableInO {A : Set (List Bool)
   obtain ⟨program, hcert, hprogram⟩ := hf
   obtain ⟨k, m, machine, c, d, hrun⟩ := hcert.exists_fin_run_pure_false
   obtain ⟨T, S, hS, h⟩ := machine.exists_computableInO_run (input := enc) hg
-    (by simpa [encBits] using hSA) c d
+    (by simpa [encBits_apply] using hSA) c d
   refine ⟨T, S, hS, h.of_enc_eq fun a => ?_⟩
   rw [← hprogram a, ← hrun a (languageOracle A)]
   rfl

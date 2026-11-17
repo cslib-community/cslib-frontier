@@ -398,7 +398,7 @@ theorem mem_SigmaTwoTIME_of_virtualRun {π : Type} [Inhabited π] {eP : π ↪ L
         (length_encNat_mono hbT).trans
           (ComputableTidilyInO.length_encNat_add_le (T a) 1)
       rw [length_encNat_eq_size (T a)] at h₂
-      have h₅ : b.bits.length = (encNat b).length := rfl
+      have h₅ : b.bits.length = (encNat b).length := by rw [encNat_apply]
       have h₃ : (b.bits.length + 1) ^ 2 ≤ ((T a).size + 2) ^ 2 :=
         Nat.pow_le_pow_left (by omega) 2
       have h₄ : ((T a).size + 2) ^ 2 ≤ 4 * ((T a).size + 1) ^ 2 := by nlinarith

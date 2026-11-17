@@ -151,7 +151,7 @@ theorem iterate_spec {initial : α → σ} {count : α → ℕ}
         have hsize := hbound a n state hn.le hstate
         refine ((hmachine (count a - n, state)).mono ?_).congr fun State oracle s => ?_
         · exact Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (by dsimp only [bound]; lia) dB)
-        · simp only [encBits, Function.Embedding.coe_refl, id_map]
+        · simp only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map]
       · rintro n hn word ⟨state, rfl, hstate⟩ State oracle s s' next hnext
         rw [hwordStep] at hnext
         have hpositive : count a - n ≠ 0 := by lia
@@ -159,13 +159,14 @@ theorem iterate_spec {initial : α → σ} {count : α → ℕ}
         have hnext' := ProbOracleComp.mem_support_of_mem oracle hnext
         obtain ⟨final, hfinal, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext'
         refine ⟨⟨final, by rw [Nat.sub_sub], hpreserve a n state hn hstate final hfinal⟩, ?_⟩
-        simp [encode, encPair_apply, frame]
+        simp [encode, Cslib.Encoding.delimit]
       · rintro word ⟨state, rfl, hstate⟩
         have hlength := hencode (count a - count a, state)
         have hsize := hbound a (count a) state le_rfl hstate
         refine ((hmachine (count a - count a, state)).mono ?_).congr fun State oracle s => ?_
         · exact Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (by dsimp only [bound]; lia) dB)
-        · simp only [body, Nat.sub_self, ↓reduceIte, encBits, Function.Embedding.coe_refl,
+        · simp only [body, Nat.sub_self, ↓reduceIte, show (encBits : List Bool → List Bool) = id
+          from funext encBits_apply,
             id_map]
       · rintro n hn word ⟨state, rfl, hstate⟩
         rw [hencode]
@@ -173,7 +174,7 @@ theorem iterate_spec {initial : α → σ} {count : α → ℕ}
         dsimp only [bound]
         lia
     have hprepare' : prepare.ComputesTidily (input a) (tp a) (pure start) := by
-      simpa only [encBits, Function.Embedding.coe_refl, id_eq, map_pure, Function.comp_apply]
+      simpa only [encBits_apply, map_pure, Function.comp_apply]
         using hprepare a
     have hcomp := hprepare'.comp true
       (prog₂ := fun _ => OracleComp.iterate (count a) wordStep start)

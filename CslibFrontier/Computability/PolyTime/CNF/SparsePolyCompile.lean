@@ -1245,7 +1245,8 @@ theorem computableInPolyTime_findHeavyVar :
       (encPair (encPair (encPair encUnary encNat) eSys) encNat) encBool :=
     binary_lt' ((fst _ _).fst'.snd')
       (unary_to_binary.comp (hdeg.comp ((snd _ _).prod ((fst _ _).snd'))))
-  have hfind := findWithInput (test := fun x v => decide (x.1.2 < varDegree v x.2)) hrange hpred
+  have hfind := findWithInput (encO := encOption encNat) (test := fun x v => decide
+    (x.1.2 < varDegree v x.2)) hrange hpred
   refine hfind.of_enc_eq fun ⟨⟨_, _⟩, _⟩ => congrArg (encOption encNat) ?_
   rw [List.map_id']; rfl
 

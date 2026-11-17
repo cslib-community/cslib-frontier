@@ -169,7 +169,7 @@ theorem PWithOracle_subset_SigmaP_succ (hA : A ∈ SigmaP k encBits) :
       (encPair enc encBits) encBool := by fun_prop
   convert hf.encoded_mem_SigmaP_succ hA hP using 1
   ext a
-  simp [hL a, encBool_apply]
+  simp [hL a]
 
 /-- An oracle NP verifier uses an existential certificate, which merges with the first block
 of the transcript simulation. Thus `NP^A ⊆ Σₖ₊₁` for `A ∈ Σₖ`. -/

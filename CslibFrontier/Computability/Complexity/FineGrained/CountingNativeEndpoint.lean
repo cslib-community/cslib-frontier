@@ -151,7 +151,7 @@ private theorem computableInPolyTime_prepare :
 
 private theorem length_prepare (x : Input) :
     (encFullInput (prepare x)).length = inputSize x + 1 := by
-  simp [encFullInput, prepare, inputSize, encUnit_apply]
+  simp [encFullInput, prepare, inputSize]
 
 private theorem length_leaf_input (N : ℕ) (ψ : CNF ℕ) :
     (encPair encContext encCNF (((), N), ψ)).length = 2 * N + 3 + (encCNF ψ).length := by

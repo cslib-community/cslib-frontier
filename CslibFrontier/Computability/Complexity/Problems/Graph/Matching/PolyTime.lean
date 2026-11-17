@@ -142,6 +142,6 @@ theorem computableInPolyTime_perfectMatching :
 theorem computableInPolyTime_decidePerfectMatching :
     ComputableInPolyTime decidePerfectMatching encGraph encBool := by
   unfold decidePerfectMatching
-  exact computableInPolyTime_perfectMatching.optionIsSome
+  exact computableInPolyTime_perfectMatching.optionIsSome (encB := encMatching)
 
 end Cslib.Complexity.Graph

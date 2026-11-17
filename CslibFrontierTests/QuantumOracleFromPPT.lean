@@ -55,7 +55,7 @@ example :
   refine ⟨family, certificate, ?_, ?_, hresources, certificate.computes, ?_⟩
   · intro n x
     simpa using hlaw n x
-  · simpa [encPair_apply, frame, encUnary_apply] using hlaw 0 [true]
+  · simpa [encPair_apply, Cslib.Encoding.delimit, encUnary_apply] using hlaw 0 [true]
   · apply certificate.resources_isPolynomial
     simp only [encOracleInputSize_apply, encOracleInputSizeFields, length_encPair,
       encUnary_apply, List.length_replicate]

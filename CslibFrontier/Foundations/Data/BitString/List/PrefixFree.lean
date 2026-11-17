@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Encoding.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.InformationTheory.Coding.PrefixFree
 import CslibFrontier.Foundations.Data.Nat.Bits
@@ -211,24 +212,16 @@ theorem isPrefixFree_of_length_eq {ι : Type*} {S : Set (List ι)} {k : ℕ}
 
 /-- Fixed-width binary encoding of `i : Fin K` in `⌈log₂ K⌉` little-endian bits. -/
 @[expose] def finIdxBits (K : ℕ) (i : Fin K) : List Bool :=
-  lowBits (Nat.clog 2 K) i.val
+  Encoding.encFin K i
 
 @[simp]
 theorem length_finIdxBits (K : ℕ) (i : Fin K) :
     (finIdxBits K i).length = Nat.clog 2 K :=
-  length_lowBits (Nat.clog 2 K) i.val
-
-private theorem foldr_bit_finIdxBits (K : ℕ) (i : Fin K) :
-    (finIdxBits K i).foldr Nat.bit 0 = i.val := by
-  have hi_lt : i.val < 2 ^ Nat.clog 2 K :=
-    lt_of_lt_of_le i.isLt (Nat.le_pow_clog Nat.one_lt_two K)
-  exact Nat.foldr_bit_testBit (Nat.size_le.mpr hi_lt)
+  Encoding.length_encFin K i
 
 /-- `finIdxBits K` is injective on `Fin K`. -/
-theorem finIdxBits_injective (K : ℕ) : Function.Injective (finIdxBits K) := by
-  intro i₁ i₂ h
-  apply Fin.ext
-  rw [← foldr_bit_finIdxBits K i₁, ← foldr_bit_finIdxBits K i₂, h]
+theorem finIdxBits_injective (K : ℕ) : Function.Injective (finIdxBits K) :=
+  (Encoding.encFin K).injective
 
 /-- The codeword set of `finIdxBits K` has uniform length `⌈log₂ K⌉` and is prefix-free. -/
 theorem isPrefixFree_range_finIdxBits (K : ℕ) :

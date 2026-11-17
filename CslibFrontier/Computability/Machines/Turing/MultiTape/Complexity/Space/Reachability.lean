@@ -375,7 +375,9 @@ theorem length_encReg_call (i : ℕ) (u v : List Bool) :
   omega
 
 /-- The length of an encoded returned value. -/
-theorem length_encReg_ret (b : Bool) : (encReg (.ret b)).length = 2 := rfl
+theorem length_encReg_ret (b : Bool) : (encReg (.ret b)).length = 4 := by
+  change (encPair (encOption encCall) encBool (none, b)).length = _
+  simp only [length_encPair, encOption_none, encBool_apply, List.length_singleton]
 
 /-- The length of an encoded state. -/
 theorem length_encState (s : State) :

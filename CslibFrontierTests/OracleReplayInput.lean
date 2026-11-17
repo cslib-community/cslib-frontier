@@ -65,7 +65,8 @@ example : ∃ (fuel : ℕ) (replay : List Bool × List Bool → WordOracleComp B
   refine ⟨c, (fun p => native.runCoins (fun op word => ProbOracleComp.query (op, word)) p.1 p.2),
     hefficient, ?_⟩
   intro s
-  simpa only [encBits, Function.Embedding.coe_refl, id_map, id_eq, List.length_nil,
+  simpa only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map, id_eq,
+    List.length_nil,
     zero_add, one_pow,
     mul_one, observe] using heq [] ℕ handler s
 

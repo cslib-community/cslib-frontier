@@ -219,7 +219,8 @@ theorem computableInPolyTime_universalTMRunFor :
     fst (encList encUnary) encBool
   have hs : ComputableInPolyTime (fun r : List ℕ × Bool => r.2) eOut encBool :=
     snd (encList encUnary) encBool
-  have hout := (optionSome encBits).comp (computableInPolyTime_map_ne_zero.comp (hf.comp hsim))
+  have hout := (optionSome encBits (encO := encOption encBits)).comp
+    (computableInPolyTime_map_ne_zero.comp (hf.comp hsim))
   convert ite' (hs.comp hsim) hout (const (encOut := encOption encBits) none) using 1
   funext ⟨p, t⟩
   exact universalTMRunFor_eq_ite p t

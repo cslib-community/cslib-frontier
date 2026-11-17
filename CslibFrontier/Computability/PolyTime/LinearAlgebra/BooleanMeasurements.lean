@@ -227,7 +227,8 @@ private theorem optionBits_polyTime :
       (encOption (encList encBool)) (encOption encBits) := by
   have hi : ComputableInPolyTime (id : Option (List Bool) → Option (List Bool))
       (encOption (encList encBool)) (encOption (encList encBool)) := .id'
-  have h := hi.optionMapWithInput
+  have h := hi.optionMapWithInput (encB := encList encBool) (encC := encBits)
+    (encOC := encOption encBits)
     (f := fun _ y => y)
     (ComputableInPolyTime.listToBits.comp
       (ComputableInPolyTime.snd (encOption (encList encBool)) (encList encBool)))

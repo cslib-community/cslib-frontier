@@ -80,7 +80,7 @@ example : IsOraclePPTOn encUnary encBits
   intro bits next hnext
   obtain ⟨prefix_, hprefix, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
   obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hprefix
-  simp only [encBits, Function.Embedding.coe_refl, id_eq, List.length_append]
+  simp only [encBits_apply, List.length_append]
   exact Nat.add_le_add_left (List.length_take_le _ _) _
 
 /-! ### Failure boundaries -/
@@ -100,7 +100,7 @@ example : ¬ IsOraclePPTOn encUnary encBits (fun n => List.take (2 ^ n) <$>
     (List.replicate (2 ^ n) true) (by
       rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
       simp)
-  simp only [encBits, Function.Embedding.coe_refl, id_eq, List.length_replicate, encUnary_apply]
+  simp only [encBits_apply, List.length_replicate, encUnary_apply]
     at hlength
   lia
 
@@ -138,7 +138,7 @@ example : ¬ IsOraclePPTOn (Operation := Unit) encUnary encBits
       rw [OracleComp.iterate_succ, ih, pure_bind, pow_succ, Nat.mul_two, List.replicate_add]
   have hlength := hbound n Unit (fun _ s => PMF.pure ([], s)) () () (List.replicate (2 ^ n) true)
     (by rw [hiterate, ProbOracleComp.runWith_pure]; simp)
-  simp only [encBits, Function.Embedding.coe_refl, id_eq, List.length_replicate, encUnary_apply]
+  simp only [encBits_apply, List.length_replicate, encUnary_apply]
     at hlength
   lia
 

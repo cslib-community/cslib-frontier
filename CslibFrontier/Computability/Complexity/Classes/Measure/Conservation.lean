@@ -217,7 +217,7 @@ theorem computableInPolyTime_diagBits
     fun_prop
   exact ComputableInPolyTime.iterate_of_bounded_growth (count := fun n => n)
     (init := fun _ => z) (by fun_prop) (by fun_prop) hstep (growth := 1)
-    fun w => by simp [diagStep, encBits_apply]
+    fun w => by simp [diagStep]
 
 /-- Membership of `y`, read from the first `|z| + 2 * N` bits of the diagonal sequence. -/
 private def memDiag (dhat : ℕ × List Bool → ℕ) (z : List Bool) (p : List Bool × ℕ) : Bool :=
@@ -229,7 +229,10 @@ private theorem computableInPolyTime_memDiag
     ComputableInPolyTime (memDiag dhat z) (encPair encBits encUnary) encBool := by
   have h := computableInPolyTime_diagBits (z := z) hc
   unfold memDiag
-  fun_prop
+  apply ComputableInPolyTime.optionElimWithInput (encB := encUnary) (encO := encOption encUnary)
+  · apply ComputableInPolyTime.findWithInput (encA := encUnary) <;> fun_prop
+  · fun_prop
+  · fun_prop
 
 private theorem memDiag_iff {y : List Bool} {N : ℕ} (hN : stdIndex y < 2 * N) :
     memDiag dhat z (y, N) = true ↔ y ∈ diagLanguage dhat z := by

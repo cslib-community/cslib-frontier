@@ -54,7 +54,7 @@ variable {Value : Type u}
 @[expose] noncomputable def listTailCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler List.tail (encList encValue) (encList encValue) :=
   (dropFrameDecoder.ofInputEq (fun list => encList encValue list) fun _ => rfl).ofOutputEq
-    fun list => by cases list <;> simp [dropFrame, encList_cons, dropFrame_frame_append]
+    fun list => by cases list <;> simp
 
 /-- Retained standard-list constructor, framing the new head and appending the encoded tail. -/
 @[expose] noncomputable def listConsCompiler (encValue : Value ↪ List Bool) :
@@ -93,7 +93,7 @@ layer around either list. -/
   let singleton := (encodeFrame encBits).comp (optionPayload encValue)
   let empty := const (encOption encValue) encBits []
   exact (ite present singleton empty).ofOutputEq fun value => by
-    cases value <;> simp [encList_cons, encBits_apply]
+    cases value <;> simp
 
 /-- State for binary-indexed access: the remaining index and an optional prior selection. -/
 abbrev ListGetNatState (Value : Type u) := ℕ × Option Value
@@ -602,7 +602,7 @@ variable {Left : Type u} {Right : Type v} {Zipped : Type w}
     | nil => rfl
     | cons left lefts ih =>
         cases rights <;>
-          simp [streamEmit, listZipWithLeft, encFramed_apply, encList_cons, ih]
+          simp [streamEmit, listZipWithLeft, ih]
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)

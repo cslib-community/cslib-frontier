@@ -75,7 +75,8 @@ private theorem computableInPolyTime_depthStep :
       (encPair (encList encUnary) encGate) (encList encUnary) := by
   have hargs (i : ℕ) : ComputableInPolyTime (fun p : List ℕ × (Op × List ℕ) =>
       p.2.2[i]?.elim 0 (p.1.getD · 0)) (encPair (encList encUnary) encGate) encUnary :=
-    optionElimWithInput (getElem? (snd _ _).snd' (const i)) (const 0)
+    optionElimWithInput (encO := encOption encNat) (getElem? (encA := encNat)
+      (snd _ _).snd' (const i)) (const 0)
       (listGetD_binary 0 (fst _ _).fst' (snd _ _))
   have hvalue := computableInPolyTime_gateDepth.comp
     ((snd (encList encUnary) encGate).fst'.prod ((hargs 0).prod (hargs 1)))

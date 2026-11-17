@@ -8,8 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayLoad
-public import
-  CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeChecked
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeChecked
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 
@@ -60,13 +59,13 @@ theorem load_inSpace (e : Q ≃ Fin s) :
   have hword := hrest.snd'.snd'
   have hp := budget_comp_linear (Encoding.NativeChecked.parse_inSpace (k := k) e)
     (budget_prod hb hword)
-  have hraw := budget_optionGetD empty hp
+  have hraw := budget_optionGetD (encB := encRawResult (k := k) (Q := Q)) empty hp
   have hargs := budget_prod hN (budget_prod hb (budget_prod horigins hraw))
   have hload := budget_comp_linear (QueryReplay.Load.load_inSpace (k := k) (Q := Q)) hargs
   have hsome := budget_comp_linear
     (of_inO (ComputableInDegree.optionSome (enc₁ := (encConfig (k := k) (Q := Q)))
       (enc := encOption (encConfig (k := k) (Q := Q)))).inO_one) hload
-  refine (budget_ite (budget_optionIsSome hp) hsome
+  refine (budget_ite (budget_optionIsSome (encB := encRawResult (k := k) (Q := Q)) hp) hsome
     (budget_const (encB := encOption (encConfig (k := k) (Q := Q))) none (.refl _))).of_enc_eq ?_
   intro a
   rcases a with ⟨N, b, origins, word⟩

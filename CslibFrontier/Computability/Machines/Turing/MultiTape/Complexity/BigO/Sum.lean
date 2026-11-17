@@ -82,9 +82,9 @@ theorem getLeft?_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
       (encSum left right) encBits 1 1 :=
     ((ComputableInDegree.const (encMid := encBool) true).append htail
       (fun _ => rfl)).mono
-  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([] : List Bool))
+  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([false] : List Bool))
       (encSum left right) encBits 1 1 :=
-    (ComputableInDegree.const (encMid := encBits) []).mono
+    (ComputableInDegree.const (encMid := encBits) [false]).mono
   exact (((isLeft_deg left right).ite (hsome.restrict _) (hnone.restrict _)).mono
     (d' := 1) (e' := 1)).of_enc_eq fun s => by cases s <;> rfl
 
@@ -95,9 +95,9 @@ theorem getRight?_deg (left : α ↪ List Bool) (right : β ↪ List Bool) :
       (encSum left right) (encOption right) 1 1 := by
   have hraw : ComputableInDegree (fun s : α ⊕ β => encSum left right s)
       (encSum left right) encBits 1 1 := .of_eq fun _ => rfl
-  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([] : List Bool))
+  have hnone : ComputableInDegree (fun _ : α ⊕ β => ([false] : List Bool))
       (encSum left right) encBits 1 1 :=
-    (ComputableInDegree.const (encMid := encBits) []).mono
+    (ComputableInDegree.const (encMid := encBits) [false]).mono
   exact (((isRight_deg left right).ite (hraw.restrict _) (hnone.restrict _)).mono
     (d' := 1) (e' := 1)).of_enc_eq fun s => by cases s <;> rfl
 

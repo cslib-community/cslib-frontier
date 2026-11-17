@@ -401,7 +401,8 @@ theorem computableInPolyTime_lookupPt {pt : γ → List (ℕ × ℕ)} {w : γ �
   unfold lookupPt
   have htest : ComputableInPolyTime (fun q : γ × (ℕ × ℕ) => q.2.1 == w q.1)
       (encPair encIn (encPair encNat encUnary)) encBool := by fun_prop
-  exact optionElimWithInput (findWithInput hpt htest) (const 0) (by fun_prop)
+  exact optionElimWithInput (encB := encPair encNat encUnary)
+    (encO := encOption (encPair encNat encUnary)) (findWithInput hpt htest) (const 0) (by fun_prop)
 
 @[fun_prop]
 theorem computableInPolyTime_normPt {p : γ → ℕ} {xs : γ → List ℕ}

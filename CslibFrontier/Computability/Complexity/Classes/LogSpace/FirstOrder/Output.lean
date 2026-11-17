@@ -117,7 +117,8 @@ theorem tupleReg_ne {d m m' i i' : ℕ} (h : m ≠ m') (hi : i < d) (hi' : i' < 
 theorem flatMap_range_pair_append_false (N : ℕ) (f : Fin N → Bool) :
     ((List.range N).flatMap fun t => [true, if h : t < N then f ⟨t, h⟩ else false]) ++ [false] =
       MultiTapeTM.frame (List.ofFn f) := by
-  rw [MultiTapeTM.frame, ← List.map_coe_finRange_eq_range, List.flatMap_map, List.ofFn_eq_map,
+  rw [MultiTapeTM.frame, Encoding.delimit, ← List.map_coe_finRange_eq_range,
+    List.flatMap_map, List.ofFn_eq_map,
     List.flatMap_map]
   congr 1
   refine List.flatMap_congr fun i _ => ?_
@@ -164,10 +165,9 @@ theorem encStructure_reject :
     induction n with
     | zero => rfl
     | succ n ih => simp only [List.replicate_succ, List.flatMap_cons,
-        MultiTapeTM.frame, List.flatMap_nil, List.nil_append, List.singleton_append, ih]
+        MultiTapeTM.frame_nil, List.singleton_append, ih]
   rw [encStructure_eq, h]
-  simp only [List.replicate_zero, MultiTapeTM.frame, List.flatMap_nil, List.nil_append,
-    List.singleton_append]
+  simp only [List.replicate_zero, MultiTapeTM.frame_nil, List.singleton_append]
   rfl
 
 end Cslib.Logic.Vocabulary.ModelChecker.Writer

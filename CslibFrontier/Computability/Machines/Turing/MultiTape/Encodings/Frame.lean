@@ -191,10 +191,10 @@ theorem length_flatMap_frame (l : List (List Bool)) :
 theorem getD_frame_two_mul (w : List Bool) (i : ℕ) :
     (frame w).getD (2 * i) false = decide (i < w.length) := by
   induction w generalizing i with
-  | nil => rcases i with _ | i <;> simp [frame_nil, List.getD_eq_getElem?_getD]
+  | nil => rcases i with _ | i <;> simp [List.getD_eq_getElem?_getD]
   | cons b w ih =>
     rcases i with _ | i
-    · simp [frame_cons]
+    · simp
     · rw [frame_cons, show 2 * (i + 1) = 2 * i + 1 + 1 by omega, List.getD_cons_succ,
         List.getD_cons_succ, ih]
       simp
@@ -203,27 +203,27 @@ theorem getD_frame_two_mul (w : List Bool) (i : ℕ) :
 theorem getD_frame_two_mul_add_one (w : List Bool) (i : ℕ) :
     (frame w).getD (2 * i + 1) false = w.getD i false := by
   induction w generalizing i with
-  | nil => rcases i with _ | i <;> simp [frame_nil, List.getD_eq_getElem?_getD]
+  | nil => rcases i with _ | i <;> simp [List.getD_eq_getElem?_getD]
   | cons b w ih =>
     rcases i with _ | i
-    · simp [frame_cons]
+    · simp
     · rw [frame_cons, show 2 * (i + 1) + 1 = 2 * i + 1 + 1 + 1 by omega, List.getD_cons_succ,
         List.getD_cons_succ, ih, List.getD_cons_succ]
 
 /-- The word framed at the start of a word is no longer than the word. -/
 theorem length_unframe_le : ∀ w : List Bool, (unframe w).length ≤ w.length
   | true :: _ :: v => by
-    simp only [unframe, List.length_cons]
+    change (unframe v).length + 1 ≤ v.length + 1 + 1
     have := length_unframe_le v
     omega
-  | [] | [true] | false :: _ => by simp [unframe]
+  | [] | [true] | false :: _ => by simp
 
 /-! ### Frames followed by a word -/
 
 /-- A frame split at a symbol. -/
 theorem frame_append_cons (w v : List Bool) (c : Bool) :
     frame (w ++ c :: v) = (w.flatMap fun b => [true, b]) ++ true :: c :: frame v := by
-  simp [frame]
+  simp [Cslib.Encoding.delimit]
 
 /-- Each pair of a frame starts with the tag `true`. -/
 theorem getElem?_frame_append_cons (w v x : List Bool) (c : Bool) :

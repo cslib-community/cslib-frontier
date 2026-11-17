@@ -133,13 +133,14 @@ private theorem computableInPolyTime_decodePair :
 /-- Re-encoding `decodePair w` increases the word length by at most `1`. -/
 private theorem length_encPair_decodePair_le :
     ∀ w : List Bool, (encPair encBits encBits (decodePair w)).length ≤ w.length + 1
-  | [] => by simp [decodePair, unframe, dropFrame]
-  | [false] => by simp [decodePair, unframe, dropFrame]
-  | [true] => by simp [decodePair, unframe, dropFrame]
-  | false :: b :: v => by simp [decodePair, unframe, dropFrame]
+  | [] => by simp [decodePair]
+  | [false] => by simp [decodePair]
+  | [true] => by simp [decodePair]
+  | false :: b :: v => by simp [decodePair]
   | true :: b :: v => by
     have ih := length_encPair_decodePair_le v
-    enc_len [decodePair, unframe, dropFrame] at ih ⊢
+    simpa [decodePair, encPair_apply, Cslib.Encoding.undelimit,
+      Cslib.Encoding.dropDelimited] using ih
 
 /-- If `EXP encBits ⊆ PPolyOn encBits`, then `EXP` on paired bitstrings `encPair encBits encBits`
 also lies in `PPolyOn (encPair encBits encBits)`. -/

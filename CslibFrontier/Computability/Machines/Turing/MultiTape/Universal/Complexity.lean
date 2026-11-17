@@ -155,13 +155,13 @@ end Tape
 /-! ### Sizes -/
 
 lemma length_eSym_headD_le (l : List (Option ℕ)) :
-    (eSym (l.headD none)).length ≤ (encList eSym l).length := by
-  cases l <;> simp; omega
+    (eSym (l.headD none)).length ≤ (encList eSym l).length + 1 := by
+  cases l <;> simp [eSym]; omega
 
 lemma length_encList_eq_le (l : List (Option ℕ)) :
     2 * (eSym (l.headD none)).length + (encList eSym l.tail).length ≤
-      (encList eSym l).length := by
-  cases l <;> simp
+      (encList eSym l).length + 2 := by
+  cases l <;> simp [eSym]; omega
 
 /-- Applying an action at most doubles a work tape, up to the length of the action. -/
 lemma length_eTape_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
@@ -174,8 +174,9 @@ lemma length_eTape_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
   have := length_encIntUnary_sub_one_le h
   rcases w with _ | o <;> rcases m with _ | _ | _ <;>
     simp only [Tape.apply, Tape.move, Tape.write, Tape.read, Option.elim, eTape_apply,
-      length_encPair, encList_cons, List.length_append, length_frame, encOption_some,
-      List.length_cons, List.headD_cons, List.tail_cons] <;> omega
+      length_encPair, encList_cons, List.length_append, length_frame,
+      encOption_some, encOption_none,
+      List.length_nil, List.length_cons, List.headD_cons, List.tail_cons] <;> omega
 
 /-- An integer's unary encoding is nonempty. Its natural home is the `Primitives` module, next to
 `length_encIntUnary`; it is stated here, in that namespace, because `Primitives` has about 2,400
@@ -498,7 +499,11 @@ public theorem step_inO :
     (fun c => ?_) fun c => ?_).of_enc_eq fun c => by rw [step_eq_stepWith]; rfl
   all_goals
     have hsym : (eSym (inputSymbol c.input c.cfg.inputPos)).length ≤
-        (encList encUnary c.input).length + 1 := length_inputSymbol_le c.input c.cfg.inputPos
+        (encList encUnary c.input).length + 1 := by
+      have h := length_inputSymbol_le c.input c.cfg.inputPos
+      cases hs : inputSymbol c.input c.cfg.inputPos with
+      | none => simp [eSym]
+      | some n => simpa [eSym, hs] using h
     have hW := le_stepTime_ctx c
     have hcfg : (eCfg c.cfg).length ≤ (eCtx c).length := by ctx_len
     have hinput : (encPair (encList encUnary) encNat (c.input, c.cfg.inputPos)).length ≤

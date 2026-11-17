@@ -236,7 +236,7 @@ theorem computableInPolyTime_check :
   have htime := Instance.computableInPolyTime_time.comp hi
   have hstr := Instance.computableInPolyTime_string.comp hi
   have hrun := computableInPolyTime_universalTMRunFor.comp (hp.prod htime)
-  have hsome := (optionSome encBits).comp hstr
+  have hsome := (optionSome encBits (encO := encOption encBits)).comp hstr
   have hle : ComputableInPolyTime
       (fun ip : Instance × List Bool => decide (ip.2.length ≤ ip.1.size))
       (encPair enc encBits) encBool :=

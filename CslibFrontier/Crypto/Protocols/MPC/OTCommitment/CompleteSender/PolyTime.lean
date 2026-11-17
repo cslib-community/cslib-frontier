@@ -44,7 +44,7 @@ an optional framed pair of a bit and a bit word. The fixed table carrier and eve
 unbounded opening word are charged. -/
 enc_structure encSession : Session where
   tables : (encList (encFinEnum (Fin 4 → Bool))), sealed : encBool, stopped : encBool,
-  submission : (encOption (encPair encBool encBits))
+  submission : (encSilentOption (encPair encBool encBits))
 
 private theorem sessionAdvance_polyTime :
     ComputableInPolyTime
@@ -56,7 +56,19 @@ private theorem sessionAdvance_polyTime :
     (branch := fun op p => p.2.2.advance p.1 (op, p.2.1.2))
     (show ComputableInPolyTime _ _ (encFinite SenderOperation) by fun_prop) ?_
   intro op
-  cases op <;> unfold Session.advance <;> fun_prop
+  have hsome := ComputableInPolyTime.optionSome (encPair encBool encBits)
+    (encO := encSilentOption (encPair encBool encBits))
+  cases op with
+  | «open» bit =>
+    have hbit := ComputableInPolyTime.const
+      (encIn := encPair encUnary
+        (encPair (encPair (encFinite SenderOperation) encBits) encSession))
+      (encOut := encBool) bit
+    simp only [Session.advance]
+    fun_prop
+  | table values => simp only [Session.advance]; fun_prop
+  | «seal» => simp only [Session.advance]; fun_prop
+  | abort => simp only [Session.advance]; fun_prop
 
 private theorem sessionAdvance_length (k : ℕ) (request : SenderOperation × List Bool)
     (s : Session) :
@@ -69,7 +81,8 @@ private theorem sessionAdvance_length (k : ℕ) (request : SenderOperation × Li
     | omega
     | (try split) <;>
         simp only [encSession_apply, length_encPair,
-          encBool_apply, List.length_cons, List.length_nil, encOption_none, encOption_some,
+          encBool_apply, List.length_cons, List.length_nil, encSilentOption_none,
+            encSilentOption_some,
           encBits_apply,
           encList_append, encList_cons, encList_nil, List.length_append, length_frame]
   all_goals try omega
@@ -105,7 +118,7 @@ theorem sessionProgram_isPPT {Input Output : Type}
 private theorem sessionOpening_polyTime :
     ComputableInPolyTime (fun p : ℕ × Session => p.2.opening p.1)
       (encPair encUnary encSession)
-      (encOption (encPair encBool (encList (encPair encBool encBool)))) := by
+      (encSilentOption (encPair encBool (encList (encPair encBool encBool)))) := by
   let encInput := encPair encUnary encSession
   let encSubmission := encPair encBool encBits
   have hinput := ComputableInPolyTime.fst encInput encSubmission
@@ -121,7 +134,8 @@ private theorem sessionOpening_polyTime :
   have hlength := (ComputableInPolyTime.length_bits.comp hword).decide_eq'
     (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hcount))
   have hbody := hlength.ite_decide
-    ((ComputableInPolyTime.optionSome (encPair encBool (encList (encPair encBool encBool)))).comp
+    ((ComputableInPolyTime.optionSome (encPair encBool (encList (encPair encBool encBool)))
+      (encO := encSilentOption (encPair encBool (encList (encPair encBool encBool)))) ).comp
       (hbit.prod hpairs)) (ComputableInPolyTime.const none)
   unfold Session.opening
   convert ComputableInPolyTime.optionElimWithInput
@@ -171,7 +185,7 @@ private theorem sessionView_polyTime (ideal : Bool) :
         else if p.1 then .committed p.2.2.2 else .idle)
         else if p.2.1 then if p.1 then p.2.2.1.elim .aborted .opened else .aborted
         else if p.1 then .receipt else .idle)
-      (encPair encBool (encPair encBool (encPair (encOption encBool) encBool)))
+      (encPair encBool (encPair encBool (encPair (encSilentOption encBool) encBool)))
       (encFinite Phased.Observation) := .of_finite _
   exact (hreceipt.comp hsealed).prod
     (hterminal.comp (hsealed.prod (hstopped.prod (hresult.prod hextracted))))

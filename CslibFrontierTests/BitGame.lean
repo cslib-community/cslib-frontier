@@ -81,7 +81,7 @@ theorem lastBit_inSpace :
     (Q := fun n => 3 * (2 * (encNat n).length + 1 + n))
     (fun n u hu => by simp [leaf, hu]) fun n u hu => ?_).weaken
       ⟨8, fun n => by dsimp only; omega⟩
-  simp only [S, length_encPair, encBits, Function.Embedding.refl_apply] at hu ⊢
+  simp only [S, length_encPair, encBits_apply] at hu ⊢
   omega
 
 end CslibFrontierTests.BitGame

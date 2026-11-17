@@ -101,7 +101,7 @@ theorem unaryFrameExpand_seed (count : ℕ) :
       have hexpand :
           unaryFrameExpand ([true, false] ++ unaryFrameSeed count) =
             frame (encBool true) ++ unaryFrameExpand (unaryFrameSeed count) := by
-        simp [unaryFrameExpand, frame]
+        simp [unaryFrameExpand, Cslib.Encoding.delimit]
       rw [hseed, hexpand, ih, List.replicate_succ, encList_cons]
 
 /-- Retained conversion from unary count to a standard framed list of true tokens. -/

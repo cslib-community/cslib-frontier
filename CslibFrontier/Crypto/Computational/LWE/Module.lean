@@ -381,7 +381,7 @@ def encInput : Input m d n q ↪ List Bool :=
 theorem encInput_apply (x : Input m d n q) :
     encInput m d n q x =
       frame (encUnary x.secParam) ++ encodeSample (x.matrix, x.target) := by
-  simp [encInput, Input.words, encPair, encBits]
+  simp [encInput, Input.words, encPair]
 
 /-- A decision Module-LWE distinguisher: given the security parameter `κ`, a module matrix `A`
 and a vector `b` of the shape, degree and modulus at `κ`, it outputs a bit.

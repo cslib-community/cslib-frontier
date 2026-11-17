@@ -740,6 +740,7 @@ theorem computableInPolyTime_extractMerkleCollision
     ((computableInPolyTime_merkleInputs hH hlen hk hleaf₁ hi hpath₁).prod
       (computableInPolyTime_merkleInputs hH hlen hk hleaf₂ hi hpath₂))
   have hfind := ComputableInPolyTime.findWithInput
+    (encO := encOption (encPair encBits encBits))
     (test := fun _ p => p.1 != p.2) hzip (by polytime)
   exact ComputableInPolyTime.optionGetDWithInput hfind (.const ([], []))
 

@@ -972,7 +972,8 @@ private theorem computableInPolyTime_finishConditionalWalk (R : SelfReducible en
         (encConditionalWalkState enc) (encConditionalWalkState enc) := id'
     have hrev := (ComputableInPolyTime.bitsReverse).comp
       (encConditionalWalkState_revBits_polyTime hid)
-    fun_prop
+    exact (ComputableInPolyTime.optionSome encBits
+      (encO := encOption encBits)).comp hrev
   exact (ComputableInPolyTime.ite'
     (c := fun s : ConditionalWalkState α =>
       (s.active && decide (0 < s.countVal) && decide ([] ∈ W s.node)) = true)

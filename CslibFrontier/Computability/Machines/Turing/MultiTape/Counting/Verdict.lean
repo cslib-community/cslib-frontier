@@ -125,7 +125,7 @@ theorem branchCount_comp {k : ℕ} {State : Type} (source : MultiTapeCTM k Bool 
       have hrest := ih (fun final hf => hb final (List.mem_cons_of_mem _ hf))
       simp only [List.map_cons, List.sum_cons, hrest, List.length_cons, List.countP_cons]
       rw [hout, branchCount_eq]
-      cases sign <;> cases verdict <;> cases bit <;> simp [encBool_apply, Nat.add_comm]
+      cases sign <;> cases verdict <;> cases bit <;> simp [Nat.add_comm]
   change ((source.runList fuel (Cfg.init source.initial input)).map (fun result =>
     (verdictMachine sign).branchCount (fun out => (out == [true]) == verdict) 1
       (Cfg.init () result.output))).sum = _

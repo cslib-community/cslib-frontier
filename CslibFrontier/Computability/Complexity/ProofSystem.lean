@@ -270,7 +270,7 @@ theorem polynomiallyBounded_ofVerifier (D : Decoder enc)
     (ofVerifier D hV hVL ha₀).PolynomiallyBounded := by
   refine ⟨2 * .X + 1 + p, fun a ha => ?_⟩
   obtain ⟨w, hw, hVw⟩ := (hVL a).1 ha
-  exact ⟨_, ofVerifier_frame_append D hV hVL ha₀ hw hVw, by simp [length_frame, hw]⟩
+  exact ⟨_, ofVerifier_frame_append D hV hVL ha₀ hw hVw, by simp [hw]⟩
 
 end OfVerifier
 

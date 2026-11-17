@@ -141,7 +141,8 @@ theorem isPPT_listCDHToCDHAdversary {width Q : ℕ → ℕ}
   have hout : ComputableInPolyTime
       (fun p : (F.CDHInput × List (List Bool)) × ℕ => (p.1.2[p.2]?).getD
         (F.encode p.1.1.groupParameters (F.generator p.1.1.groupParameters))) E' encBits :=
-    ComputableInPolyTime.optionGetDWithInput (ComputableInPolyTime.getElem? hwords hi)
+    ComputableInPolyTime.optionGetDWithInput (ComputableInPolyTime.getElem?
+      (encA := encBits) (encO := encOption encBits) hwords hi)
       (computableInPolyTime_encode_generator hd')
   have hprog : IsPPTOn F.encCDHInput encBits (fun x : F.CDHInput => do
       let words ← List.map (F.encode x.groupParameters) <$>

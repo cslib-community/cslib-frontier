@@ -84,7 +84,7 @@ theorem NonuniformPRG.advicePRG {generator : List Bool → List Bool} {length : 
   have hz' := hz.comp hsub
   have hadvice : PolynomiallyBounded (fun m =>
       (encAdvice (a (m - 7), w (m - 7), z (m - 7))).length) := by
-    simp only [encAdvice, length_encPair, encBits, Function.Embedding.coe_refl, id]
+    simp only [encAdvice, length_encPair, encBits_apply]
     fun_prop
   have hneg := ((h.secure _ hadvice).negligible_encoded hshift).shift 7
   refine hneg.congr' (Filter.Eventually.of_forall fun n => ?_)

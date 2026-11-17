@@ -20,7 +20,7 @@ Adapt the client's contract to your types. A failed bridge usually means a missi
 
 ## Write the contract before the proof
 
-Record the input and output types; their encodings; the measured input size; the time, workspace, gate or query bound; and what is fixed before the input varies. Model domain objects, problem instances, certificates, configurations, and multi-field algorithm states or contexts as documented `structure`s with named fields rather than tuple `abbrev`s or bare product sets (`Set (A × B × C)`), keeping plain `Prod` (`×`) for generic binary combinators and uncurried multi-argument inputs such as `Instance × List Bool → Bool`. For native computation, an encoding has type `α ↪ List Bool`: injectivity is part of the data. Reuse `encBits`, `encBool`, binary `encNat`, unary `encUnary`, `encPair` and `encList` before defining another representation. A new embedding needs an injectivity proof and size lemmas suitable for the intended bound. [Encoding length lemmas](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Length.lean) and [pair lengths](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair.lean) show where framing overhead enters. To read a component back out of an `encPair` word in a proof, rewrite with `unframe_encPair` and `dropFrame_encPair`, or with their `encBits` forms `unframe_encPair_encBits` and `dropFrame_encPair_encBits` ([pair projections](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair/Projections.lean)), rather than proving the step inline.
+Record the input and output types; their encodings; the measured input size; the time, workspace, gate or query bound; and what is fixed before the input varies. Model domain objects, problem instances, certificates, configurations, and multi-field algorithm states or contexts as documented `structure`s with named fields rather than tuple `abbrev`s or bare product sets (`Set (A × B × C)`), keeping plain `Prod` (`×`) for generic binary combinators and uncurried multi-argument inputs such as `Instance × List Bool → Bool`. For native computation, an encoding has type `α ↪ List Bool`: injectivity is part of the data. Reuse `encBits`, `encBool`, binary `encNat`, unary `encUnary`, `encPair` and `encList` before defining another representation. Encode a dependent pair `Σ i, β i` with `encSigma encI enc`, the framed index followed by the second component under the encoding `enc i` that the index selects; when that family is uniform, `enc i = e ∘ code i`, `ComputableInPolyTime.sigmaView` reads the value as the plain pair `(i, code i b)` under `encPair encI e` ([dependent pairs](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Sigma.lean)). A new embedding needs an injectivity proof and size lemmas suitable for the intended bound. [Encoding length lemmas](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Length.lean) and [pair lengths](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair.lean) show where framing overhead enters. To read a component back out of an `encPair` word in a proof, rewrite with `unframe_encPair` and `dropFrame_encPair`, or with their `encBits` forms `unframe_encPair_encBits` and `dropFrame_encPair_encBits` ([pair projections](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair/Projections.lean)), rather than proving the step inline.
 
 For fixed finite tables, the plain `ComputableInPolyTime.ofFn`, `.pi`, `.pi_apply` and
 `.pi_update` certificates reuse the independent resource rules in
@@ -52,6 +52,93 @@ checks projections, option defaults, conditional branches and nonlinear composit
 and independent callback bounds. Both reject higher tidy predicates while permitting the
 machine-level normalization kernel.
 
+
+Generic encodings live in [Encoding.Basic](../../CslibFrontier/Computability/Encoding/Basic.lean),
+under `Cslib.Encoding`, independently of the machine calculus. The machine-facing `encPair`
+is a reducible name for `Cslib.Encoding.encProd`; `frame`, `unframe` and `dropFrame` name
+`delimit`, `undelimit` and `dropDelimited`. Boolean, bit-word, unit, list, option and sum
+encodings likewise reuse the shared definitions. The existing machine modules provide the
+capability instances and time and space certificates. Thus generic injectivity and parsing
+proofs need no machine imports, while machine clients retain their existing API and automation.
+The [shared encoding regressions](../../CslibFrontierTests/SharedEncoding.lean) exercise the pure
+combinators; the [machine client](../../CslibFrontierTests/SharedEncodingMachine.lean) checks
+that shared product encodings support generated field projections and binary successor.
+
+The mirrored upstream revision is `9f9d02ffd929cd830e9b2d030975f8a75afd9542` of
+[CSLib #1213](https://github.com/leanprover/cslib/pull/1213).
+Canonical `encOption e` uses the generic sum `Unit ⊕ α`: `none` is `[false]`,
+`some a` is `true :: e a`, and the lengths are respectively `1` and `1 + (e a).length`.
+Thus `some []` under `encBits` is `[true]`, while a nested `some none` is `[true, false]`.
+A list still frames every element: replacing a formerly empty absent element adds two bits
+inside its frame. Product framing can amplify changes in an earlier component; do not assume
+that a nested record's size changes by only one bit.
+For example, Savitch's return register frames the absent option before its Boolean result:
+its encoded length is four bits (three for `frame [false]`, then one for the result).
+The state-size certificate still fits its existing independent resource bounds.
+
+Use `encHaltOption` only for the iteration kernel's empty-word stop signal, and
+`encSilentOption` for protocols or streaming callbacks whose absent response emits no bits.
+Both retain `none = []` and the same `some` word as before; they are explicit formats,
+not synonyms for canonical options. `HaltOptionEncoding` adds the stop-word law to the
+constructor, classifier and default-elimination capabilities of `OptionEncoding`.
+`ComputableInDegree.optionTranslate` supplies native identity translations between supported
+formats; its classification and reconstruction are charged computations.
+For plain polynomial-time option composition, `fun_prop` has tagged rules for `isSome`,
+`getD`, `elim` and `map`. These recover the payload encoding from the value certificate;
+they do not select an encoding for its type. The generic rules still accept an explicit
+`encO` for other formats. When applying a generic rule directly and its intermediate format
+is absent from the goal, supply `(encO := encOption e)` (or the intended protocol format).
+Capability synthesis still needs a determined payload encoding: for a direct application,
+supply `(encB := e)` as well as `encO` when synthesis remains stuck. Likewise, supply
+`(encA := e)` to list lookup and search certificates. For optional heads, compose
+`ComputableInPolyTime.head? e` with the list certificate directly when automation cannot
+recover the element encoding. These arguments specify the intended encoding explicitly.
+Degree-one and arbitrary-resource option elimination also have tagged search rules; these
+reuse the generic machines and retain their separate time and space charges.
+The universal input scanner keeps empty-word halt emissions internally and charges
+`optionFromHalt` when returning a canonical symbol. A blank work-tape symbol occupies one bit,
+so selecting a default blank from an empty encoded list requires an additive size allowance.
+
+`Decoder.option` reads the canonical Boolean tag, whereas `Decoder.silentOption` retains the
+empty-word test required by existing protocol words, including its previous malformed-word behavior.
+Cryptographic response encodings and their associated efficiency/security statements use the
+silent format to preserve rejection responses and admitted machine classes.
+
+The [first-match native compiler](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeCompiler/FirstMatch.lean)
+keeps its silent streaming callbacks, then charges `optionFromHalt` at the canonical result
+boundary. `time_firstMatchCompiler` includes that conversion and its composition overhead;
+its time and workspace maps remain separate. The
+[stack pop machine](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Plumbing/WordMoves.lean)
+writes `[true, false, false]`, the frame of the canonical absent option, in three steps on an
+empty stack; its nonempty branch retains the former word and clock. Fold and counted iteration
+keep the empty halt format and their independent bounds.
+The [machine regressions](../../CslibFrontierTests/SharedEncodingMachine.lean) cover the distinct
+formats, classification, translations and first-match result boundary.
+
+Canonical option capabilities reuse the generic sum constructor, tag classifier and right-default
+extractor through the word-preserving `Option α ≃ Unit ⊕ α` equivalence. This retyping retains
+both independent degree bounds, including constant output growth for classification. The native
+`optionGetD` similarly retains `sumRightD`'s machine, clock and workspace maps; the equivalence
+adds no runtime conversion.
+
+The [circuit encoding](../../CslibFrontier/Computability/Circuit/Boolean/Encoding.lean) uses
+`encSigma encUnary` with the circuit-code embedding selected by its input arity.
+Generic dependent-pair injectivity replaces recovery of the arity by hand, while its old
+framed unary-count/code word and class-membership clients remain unchanged.
+The [partializer](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Halting/Partialize.lean)
+uses `encSum encBits (encSubsingleton Unit)`, preserving its intentional opposite verdict:
+`none = [true]` and `some w = false :: w`.
+The mirrored delimiter retains one documented `List.prefix_rfl` proof adaptation for pinned Lean;
+this changes no encoding or parsing API.
+
+Binary `encNat` agrees with `Nat.bits` by
+[`Cslib.Encoding.encNat_eq_bits`](../../CslibFrontier/Computability/Encoding/NatBits.lean).
+Use `encNat_apply` in arithmetic proofs rather than assuming the shared implementation unfolds
+to `Nat.bits`. This does not identify binary naturals with `encUnary`. Nor does upstream's
+fixed-width `encFin` or noncomputable `encFintype` replace the machine API's unary-rank
+`encFinEnum` and `encFinite`: the words and lengths differ. Only individual delimited words
+are prefix-free automatically; a list of delimited elements still needs outer framing before
+arbitrary data can follow it.
 
 To encode a structure as the tuple of its fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure` and, inside a namespace, write `enc_structure eS : S where f₁ : e₁, …, fₙ : eₙ`. List every field of `S` once, in declaration order, and parenthesize compound encodings such as `(encList encUnary)`. List a parent structure either as the single field `toParent`, as in `S`'s constructor, encoded as one word, or as its own fields in place of `toParent`, which flattens them into the tuple; listing both is an error. To make a flattened parent projection available to automation, declare its encoding before `where`: `enc_structure eChild : Child flattened toParent : eParent where …`. The command checks that `toParent` is a parent field and is actually flattened. The generated proof also requires `eParent` to have exactly the selected word layout, so the annotation cannot silently change the encoding. `S` must be a structure, not a class. The command checks the list before declaring anything: an unknown, repeated or misplaced field, or any missing ones, is an error that names them and lists the fields of `S` in declaration order. That order fixes the encoded words: the simp lemma `eS_apply` unfolds `eS a` to `eSFields (a.f₁, …, a.fₙ)`, where `eSFields` is the right-nested `encPair e₁ (encPair e₂ … eₙ)`, so every field but the last is framed.
 
@@ -108,16 +195,16 @@ charges both framing layers for the explicit cells without changing the runtime-
 
 The tactic does not infer loop invariants or a logarithmic bound in the original input, and it has two further limits. First, `fun_prop` does not see through a `match`, so a machine step defined by cases on its control state still needs a hand-written certificate, or a lemma that rewrites it as an `if`-chain. Second, `space` matches encodings without unfolding a primitive encoding such as `encPair`, `encList` or `encFinEnum`, so certificates must agree on encodings up to named aliases such as `encTuple := encPair …`. A component (`.1`, `.2`) of a value encoded as one finite value, such as `encFinEnum (A × B)`, therefore goes through `budget_finite` rather than the pair rule. A direct `fun_prop` call unfolds encodings and can stop at `maximum recursion depth` on the same goal.
 
-To encode an inductive type whose constructors take explicit, non-recursive fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive` and write `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …`, listing every constructor once in declaration order with the encodings of its fields; a constructor without fields has no `:`. The command checks the list before declaring anything. A type with parameters or a missing, repeated or misplaced constructor is reported at the type, with the expected constructor list; an implicit field or a wrong number of encodings is reported at the constructor, and an encoding of the wrong type at that encoding. A value is sent by `eT_toSum` to a right-nested sum with one summand per constructor, which `eTPayload` encodes with `encSum`. A summand is the framed tuple of the constructor's fields, as for `enc_structure`, the field encoding itself for one field, and `encUnit` for none. Constructor `i` of `n` is therefore tagged by `i` leading `true` bits, then a `false` bit unless it is the last, and `eT_apply` unfolds `eT x` to `eTPayload (eT_toSum x)`.
+To encode an inductive type whose constructors take explicit, non-recursive fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive` and write `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …`, listing every constructor once in declaration order with the encodings of its fields; a constructor without fields has no `:`. The command checks the list before declaring anything. A type with parameters or a missing, repeated or misplaced constructor is reported at the type, with the expected constructor list; an implicit field or a wrong number of encodings is reported at the constructor, and an encoding of the wrong type at that encoding. A value is sent by `eT_toSum` to a right-nested sum with one summand per constructor, which `eTPayload` encodes with `encSum`. A summand is the framed tuple of the constructor's fields, as for `enc_structure`, the field encoding itself for one field, and `encUnit` for none. Constructor `i` of `n` is therefore tagged by `i` leading `true` bits, then a `false` bit unless it is the last, and `eT_apply` unfolds `eT x` to `eTPayload (eT_toSum x)`. A field whose type depends on an earlier field, as `x` in `| mk (n : ℕ) (x : BitString n)`, is encoded by a parenthesized term that names the earlier fields, as in `| mk : encUnary, (encBitString n)`. The summand then binds each field on which a later field's type depends in a dependent pair, encoded by `encSigma` with the layout of `encPair`.
 
-The command also generates the linear map `eT_toSum_deg`, a constructor rule `eT_c_inO` for each constructor `c`, which adds up the bounds of its arguments, its lifts `eT_c_inSpace` and `eT_c_polyTime`, and case analysis `eT_elim` on the payloads with its rules `eT_elim_inO`, `eT_elim_inSpace` and `eT_elim_polyTime`. The space lifts retain independent branch or field workspace bounds and existentially quantify time. The polynomial constructor lift recovers explicit degree clocks and applies the original constructor rule; it does not rebuild its machine. The case rule takes the input paired with the value, as `ComputableInO.sumElimSnd` does, and charges only the case taken plus `n` times the encoded pair. The `toSum` and constructor rules are `scoped` `fun_prop` rules, active as described above. A `match` on the type is not yet rewritten to `eT_elim`, and there is no degree-level case rule. Polynomial elimination recovers independent branch clocks and bounds them in the full input size before lifting the original arbitrary-resource case certificate. For each constructor `c`, `eT_c_matches` tests its tag, `eT_c_payload?` extracts its complete payload, and `eT_c_fieldJ?` extracts zero-based field `J`; projections return `none` on other constructors and need no default inhabitant. Each has `_deg`, `_inO`, `_inSpace` and `_polyTime` rules. All three predicate views reuse the canonical degree certificate. Matchers preserve output degree zero, while payload and field projections have output degree one. For unknown inputs, `eT_c_matches_iff` states that a tag matches exactly when the value is
+The command also generates the linear map `eT_toSum_deg`, a constructor rule `eT_c_inO` for each constructor `c` without a dependent field, which adds up the bounds of its arguments, its lifts `eT_c_inSpace` and `eT_c_polyTime`, and case analysis `eT_elim` on the payloads with its rules `eT_elim_inO`, `eT_elim_inSpace` and `eT_elim_polyTime`. The space lifts retain independent branch or field workspace bounds and existentially quantify time. The polynomial constructor lift recovers explicit degree clocks and applies the original constructor rule; it does not rebuild its machine. The case rule takes the input paired with the value, as `ComputableInO.sumElimSnd` does, and charges only the case taken plus `n` times the encoded pair. The `toSum` and constructor rules are `scoped` `fun_prop` rules, active as described above. A `match` on the type is not yet rewritten to `eT_elim`, and there is no degree-level case rule. Polynomial elimination recovers independent branch clocks and bounds them in the full input size before lifting the original arbitrary-resource case certificate. For each constructor `c`, `eT_c_matches` tests its tag, `eT_c_payload?` extracts its complete payload, and `eT_c_fieldJ?` extracts zero-based field `J` unless its type depends on an earlier field; projections return `none` on other constructors and need no default inhabitant. Each has `_deg`, `_inO`, `_inSpace` and `_polyTime` rules. All three predicate views reuse the canonical degree certificate. Matchers preserve output degree zero, while payload and field projections have output degree one. For unknown inputs, `eT_c_matches_iff` states that a tag matches exactly when the value is
 that constructor applied to some complete payload. `eT_c_payload?_eq_some_iff` identifies
 `eT_c_payload? v = some a` with equality of `v` to the constructor reconstructed from `a`
 (the right-nested tuple of its fields, or `()` for no fields). `eT_c_payload?_range` relates
 payload existence to the matcher; `_isSome` remains available for every optional projection.
 The [import-side client](../../CslibFrontierTests/InductiveEncodingVisibilityClient.lean)
 uses these public facts without unfolding matches and checks scoped automation and all three
-fields of a constructor after importing a separate ordinary module. The [InductiveEncoding client](../../CslibFrontierTests/InductiveEncoding.lean) checks the encoded words, injectivity, a constructor composition, the case rule, an enumeration and each of these errors.
+fields of a constructor after importing a separate ordinary module. The [InductiveEncoding client](../../CslibFrontierTests/InductiveEncoding.lean) checks the encoded words, injectivity, a constructor composition, the case rule, an enumeration, a dependent field and each of these errors.
 
 The isolated [degree-transition experiment](../../CslibFrontierTests/DegreePolyTime.lean)
 compares named explicit lifts with a locally registered degree-to-polynomial `fun_prop`

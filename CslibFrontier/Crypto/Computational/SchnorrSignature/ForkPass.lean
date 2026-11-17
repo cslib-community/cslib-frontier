@@ -231,12 +231,14 @@ theorem computableInPolyTime_schnorrForkStep :
       (fun p : StepInput × SchnorrForkEntry => p.2.point == p.1.2.1.2)
       (encPair encStepInput encSchnorrForkEntry) encBool := by fun_prop
   have hfind := ComputableInPolyTime.findWithInput
+    (encO := encOption encSchnorrForkEntry)
     (test := fun x (entry : SchnorrForkEntry) => entry.point == x.2.1.2) htable htest
   have hanswers : ComputableInPolyTime (fun x : StepInput => x.1.answers) encStepInput
       (encList encBits) := by fun_prop
   have hcount : ComputableInPolyTime (fun x : StepInput => x.2.2.count)
       encStepInput encUnary := by fun_prop
-  have hanswer := ComputableTidilyInPolyTime.getElem? (encA := encBits) hanswers.tidy hcount.tidy
+  have hanswer := ComputableTidilyInPolyTime.getElem? (encA := encBits)
+    (encO := encOption encBits) hanswers.tidy hcount.tidy
   have hmiss := ComputableInPolyTime.optionElimWithInput hanswer.computableInPolyTime
     (hskip.comp (hid.prod (ComputableInPolyTime.const [])))
     (body := fun x c => forkFreshFrom (x, c)) hfresh
@@ -493,6 +495,7 @@ private theorem computableInPolyTime_schnorrForkFinish_proj :
     exact (show ComputableInPolyTime (fun p : FinishInput F × SchnorrForkEntry =>
       p.2.1) _ encBits by fun_prop).beq (hpoint.comp hfst)
   have hfind := ComputableInPolyTime.findWithInput
+    (encO := encOption encSchnorrForkEntry)
     (test := fun x (entry : SchnorrForkEntry) => entry.point ==
       encPair encBits encBits (x.2.1.1, ((Decoder.bits.pair Decoder.bits).decode x.2.1.2).1))
     htable htest

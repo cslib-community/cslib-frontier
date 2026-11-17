@@ -32,7 +32,8 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 /-- Return the binary digits of a binary natural as natural coefficients. -/
 @[fun_prop] theorem binary_digitCoeffs :
     ComputableInPolyTime (fun n : ℕ => n.bits.map Bool.toNat) encNat (encList encNat) := by
-  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
+  have hbits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => by
+    simp only [encBits_apply, encNat_apply]
   exact (map (of_finite (encIn := encBool) (encOut := encNat) Bool.toNat)).comp
     (bitsToList.comp hbits)
 

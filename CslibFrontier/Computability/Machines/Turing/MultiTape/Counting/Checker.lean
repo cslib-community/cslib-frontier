@@ -162,7 +162,9 @@ theorem computableInPolyTime_indexStep [Finite State]
         localActions machine (state, p.1.tapes.inputSymbol, p.1.tapes.workTapeSymbols))
         encIn (encList (encFinite (Turing.Action k Bool State))) :=
       (ComputableTidilyInPolyTime.of_finite (localActions machine)).comp hview
-    refine (hactions.getElem? (encA := encFinite (Turing.Action k Bool State)) hindex).finite_cases
+    refine (hactions.getElem?
+      (encO := encOption (encFinite (Turing.Action k Bool State))) (encA := encFinite
+        (Turing.Action k Bool State)) hindex).finite_cases
       (branch := fun selected p => selected.map
         (fun action => p.1.step action Empty.elim Empty.elim)) (fun selected => ?_)
     cases selected with
@@ -259,7 +261,8 @@ theorem computableInPolyTime_runBinary [Finite State]
     simp only [encBits_apply] at hinput hword
     cases hs : r.2 with
     | none =>
-      simp only [length_encPair, encBits_apply, hs, encOption_none, List.length_nil]
+      simp only [length_encPair, encBits_apply, hs, encOption_none, List.length_cons,
+        List.length_nil]
       nlinarith [hr.1]
     | some finite =>
       have hfinite := hstorage p.1.length i 0 finite (hr.2 finite hs)

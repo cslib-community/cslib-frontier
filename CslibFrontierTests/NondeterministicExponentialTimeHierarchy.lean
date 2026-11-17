@@ -43,9 +43,11 @@ example : ¬NE encBits ⊆ NTIME encBits fun n => 2 ^ (2 * n) := fun h =>
 /-- The empty input carries no short description, so the verifier rejects it with every
 certificate, and the empty input is not in the exponential lazy diagonal. -/
 example (k : ℕ) (v : List Bool) : ExpLazyDiagonal.verifier k ([], v) = false := by
-  simp [ExpLazyDiagonal.verifier, Diagonal.lazyVerifier, Diagonal.shortDesc, unframe]
+  simp [ExpLazyDiagonal.verifier, Diagonal.lazyVerifier, Diagonal.shortDesc,
+    Cslib.Encoding.undelimit]
 
 example (k : ℕ) : [] ∉ expLazyDiagonal k := by
-  simp [expLazyDiagonal, Diagonal.lazyLanguage, Diagonal.lazyVerifier, Diagonal.shortDesc, unframe]
+  simp [expLazyDiagonal, Diagonal.lazyLanguage, Diagonal.lazyVerifier, Diagonal.shortDesc,
+    Cslib.Encoding.undelimit]
 
 end CslibFrontierTests.NondeterministicExponentialTimeHierarchy

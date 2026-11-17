@@ -75,7 +75,8 @@ theorem computableInPolyTime_push : ComputableInPolyTime
   have hb := NativeForest.computableInPolyTime_blossom.comp
     (show ComputableInPolyTime (fun p : EdgeForest.Input × MeetingCode => (p.1.body, p.2))
       encEventArgs NativeForest.encMeetingArgs from by fun_prop)
-  apply ComputableInPolyTime.optionMapWithInput hb
+  apply ComputableInPolyTime.optionMapWithInput (encB := NativeForest.encBlossomCode)
+    (encC := encPair encFrame EdgeForest.encInput) hb
   fun_prop
 
 /-- Native construction and flip of the actual chronological augmenting walk. -/
@@ -187,18 +188,21 @@ private theorem poly_next : ComputableInPolyTime next encState encState := by
     unfold stopped
     fun_prop
   unfold next
-  apply ComputableInPolyTime.optionElimWithInput poly_status hrun
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encOption
+    (encList encBool)) poly_status hrun
+  apply ComputableInPolyTime.optionElimWithInput (encB := encList encBool)
     (ComputableInPolyTime.snd encState (encOption (encList encBool)))
     (show ComputableInPolyTime
       (fun p : State × Option (List Bool) => stopped p.1 p.1.budget)
       (encPair encState (encOption (encList encBool))) encState from by
         unfold stopped; fun_prop)
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := encFrame)
     (show ComputableInPolyTime
       (fun p : (State × Option (List Bool)) × List Bool => p.1.1.frames.head?)
       (encPair (encPair encState (encOption (encList encBool))) (encList encBool))
-      (encOption encFrame) from by fun_prop)
+      (encOption encFrame) from
+        (ComputableInPolyTime.head? encFrame (encL := encList encFrame)
+          (encO := encOption encFrame)).comp (by fun_prop))
     (by fun_prop)
   fun_prop
 

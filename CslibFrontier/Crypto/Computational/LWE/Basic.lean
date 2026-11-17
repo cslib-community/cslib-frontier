@@ -315,7 +315,7 @@ def encInput : Input n m w ↪ List Bool :=
 theorem encInput_apply (x : Input n m w) :
     encInput n m w x =
       frame (encUnary x.secParam) ++ Matrix.toBinary (augmentedMatrix x.matrix x.target) := by
-  simp [encInput, Input.words, encPair, encBits]
+  simp [encInput, Input.words, encPair]
 
 variable {n m w} in
 /-- The security parameter of a decision-LWE input is computable in polynomial time from its

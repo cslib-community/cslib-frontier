@@ -55,7 +55,7 @@ example : lyubashevskySignPostprocess (fun _ => []) (input, [1]) =
 
 /-- The actual bounded algorithm carries its efficiency certificate for this concrete hash. -/
 example : IsPPTOn (encPair encLyubashevskySignInput encUnary)
-    (encOption (encPair encBits encBits)) (lyubashevskySignBoundedNative hashTrue) :=
+    (encSilentOption (encPair encBits encBits)) (lyubashevskySignBoundedNative hashTrue) :=
   isPPTOn_lyubashevskySignBoundedNative (ComputableInPolyTime.const [true])
 
 /-- No attempt produces an explicit abort with probability one. -/

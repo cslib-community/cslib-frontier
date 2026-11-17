@@ -46,7 +46,7 @@ private theorem copyRel_mem_FNP : copyRel ∈ FNP encBits :=
   mem_FNP_iff_exists_bounded.2 ⟨Polynomial.X, fun x => x.1.headD false && decide (x.2 = x.1),
     by fun_prop, fun a w => by
       simp only [copyRel, Polynomial.eval_X, Bool.and_eq_true, decide_eq_true_eq]
-      exact ⟨fun ⟨h, hw⟩ => ⟨by simp [hw, encBits], h, hw⟩, fun ⟨_, h, hw⟩ => ⟨h, hw⟩⟩⟩
+      exact ⟨fun ⟨h, hw⟩ => ⟨by simp [hw, encBits_apply], h, hw⟩, fun ⟨_, h, hw⟩ => ⟨h, hw⟩⟩⟩
 
 /-- `copyRel` is not total. -/
 example : ¬IsTotalSearch copyRel := fun h => by

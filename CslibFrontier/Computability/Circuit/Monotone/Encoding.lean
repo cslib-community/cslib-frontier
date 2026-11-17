@@ -63,7 +63,7 @@ abbrev encCircuit (m : ℕ) : (Σ n, Circuit signature n m) ↪ List Bool :=
 De Morgan images of its operations. -/
 theorem encCode_apply (code : List (Op × List ℕ) × List ℕ) :
     encCode code = Boolean.encCode (code.1.map fun g => (toDeMorgan g.1, g.2), code.2) := by
-  simp [encList, encPair, encOp, Function.comp_def, List.flatMap_map]
+  simp [encList, Encoding.encList, List.flatMap_map, Function.comp_def, encOp]
 
 /-- A monotone circuit is encoded as its De Morgan reading. -/
 theorem encCircuit_apply {m : ℕ} (c : Σ n, Circuit signature n m) :

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrimitives
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -67,12 +69,12 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
     | succ k ih =>
       refine (((of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
         fun _ => rfl)).comp ih).of_enc_eq (g := fun s => (dropFrame (encS s)).drop (k + 1))
-        fun s => by simp [encBits]).mono 2 (fun s => ?_) (fun s => ?_) <;>
+        fun s => by simp [List.tail_drop]).mono 2 (fun s => ?_) (fun s => ?_) <;>
       · have : ((dropFrame (encS s)).drop k).length ≤ (encS s).length := by
           obtain ⟨u, hs, -⟩ := hh s
           rw [hs, dropFrame_frame_append, List.length_drop, List.length_append]
           omega
-        simp only [encBits, Function.Embedding.refl_apply]
+        simp only [encBits_apply]
         omega
   have h₂ : ComputableTidilyInO (fun s => (h s).2) encS encA (fun s => (encS s).length)
       (fun s => (encS s).length) :=
@@ -205,21 +207,9 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
   -- the test
   have htest : ComputableTidilyInO (fun p : π × Option α => p.2.isSome) enc encBool
       (fun p => (enc p).length) (fun p => (enc p).length) := by
-    have he : ComputableTidilyInO (fun p : π × Option α => p.2.isNone) enc encBool
-        (fun p => (enc p).length) (fun p => (enc p).length) := by
-      have hd : ComputableTidilyInO (fun p : π × Option α => dropFrame (enc p)) enc encBits
-          (fun p => (enc p).length) (fun p => (enc p).length) :=
-        of_linear (.of_dropFrame fun p => rfl)
-      refine ((of_linear (.of_isEmpty (f := List.isEmpty) (encIn := encBits) fun _ => rfl)).comp
-        hd).of_enc_eq (fun p => ?_) |>.mono 2 (fun p => ?_) (fun p => ?_)
-      · obtain ⟨x, _ | a⟩ := p <;> simp [enc, dropFrame_frame_append]
-      all_goals
-        enc_len [enc, encPair_apply, dropFrame_frame_append, encBits, Function.Embedding.refl_apply]
-    refine ((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-      Bool.not).inO_one.comp
-      he).of_enc_eq (fun p => ?_) |>.mono 2 (fun p => ?_) (fun p => ?_)
-    · obtain ⟨x, _ | a⟩ := p <;> rfl
-    all_goals simp only [encBool_apply, List.length_singleton]; omega
+    have hc := of_linear (ComputableInDegree.isSome encA (encO := encOption encA))
+    have hs := of_linear (ComputableInDegree.snd encP (encOption encA))
+    exact hc.comp_linear hs
   -- the two branches, on their cases
   let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.1.1
   let S : {p : π × Option α // p.2.isSome = true} → π × α :=
@@ -227,7 +217,7 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
   have hN : ComputableTidilyInO N ((Function.Embedding.subtype _).trans enc) encP
       (fun s => ((Function.Embedding.subtype _).trans enc s).length)
       (fun s => ((Function.Embedding.subtype _).trans enc s).length) :=
-    of_linear (.of_unframe fun ⟨⟨x, o⟩, _⟩ => by simp [enc, N, unframe_frame_append])
+    of_linear (.of_unframe fun ⟨⟨x, o⟩, _⟩ => by simp [enc, N])
   have hS := keepFrame_drop (encP := encP) (encA := encA)
     (encS := (Function.Embedding.subtype _).trans enc) (h := S) 1
     fun ⟨⟨x, o⟩, ho⟩ => by

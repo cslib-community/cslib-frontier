@@ -186,6 +186,10 @@ private theorem length_subElem_le (p c v a : ℕ) :
 private theorem subElem_inSpace :
     ComputableInSpace (fun q : (ℕ × ℕ) × ℕ × Option ℕ => some (subElem q.1 q.2.1 q.2.2)) encSubArg
       (encOption encNat) fun q => (encSubArg q).length := by
+  have hget : ComputableInSpace (fun q : (ℕ × ℕ) × ℕ × Option ℕ => q.2.2.getD 0)
+      encSubArg encNat (fun q => (encSubArg q).length) :=
+    budget_optionGetD (encB := encNat) 0 ((snd _ _).snd')
+  apply budget_optionSome (encB := encNat) (encO := encOption encNat)
   space [subElem, addMod, negMod, mulMod]
 
 private theorem length_encList_mapIdx_le (l : List ℕ) (f : ℕ → ℕ → ℕ) (P : ℕ)
@@ -248,7 +252,7 @@ theorem mapEqOne_inSpace :
       (budget_const (encB := encNat) 1 hl))
     have h := ComputableInSpace.append ((fst encBits encNat).weaken hl) he
       (g := fun q : List Bool × ℕ => q.1 ++ [q.2 == 1]) (encD := encBits) fun q => by
-        cases hq : q.2 == 1 <;> simp_all [encBits_apply, encBool_apply]
+        cases hq : q.2 == 1 <;> simp_all
     exact h.weaken (.of_le fun _ => by omega)
   have hlen (l : List ℕ) (i : ℕ) (hi : i ≤ l.length) :
       (encBits ((l.take i).foldl (fun acc v => acc ++ [v == 1]) [])).length ≤

@@ -271,13 +271,13 @@ theorem computableInO_diagonal :
       rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
     have hN := length_encList_map_eBit_le x
     have hE := hcO x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at hE
+    simp only [Function.comp_apply, encBits_apply] at hE
     exact bounds_aux
       (I := (eIn (decodeDesc (unframe x), x.map eBit, 2 ^ x.length)).length) Nat.one_le_two_pow
       (hcD x) hN hL (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
   refine h.mono (K * C) (fun x => ?_) fun x => ?_
   · obtain ⟨h₁, -⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₁ ⊢
+    simp only [Function.comp_apply, encBits_apply] at h₁ ⊢
     have hJ4 : 2 ^ (4 * x.length) = 2 ^ x.length * (2 ^ x.length) ^ 3 := by
       ring
     have := hC x.length
@@ -285,7 +285,7 @@ theorem computableInO_diagonal :
       _ ≤ K * (C * 2 ^ x.length * (2 ^ x.length) ^ 3) := by gcongr
       _ ≤ K * C * (2 ^ (4 * x.length) + 1) := by rw [hJ4]; nlinarith
   · obtain ⟨-, h₂⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₂ ⊢
+    simp only [Function.comp_apply, encBits_apply] at h₂ ⊢
     have hJ2 : 2 ^ (2 * x.length) = 2 ^ x.length * 2 ^ x.length := by rw [two_mul, pow_add]
     have := hC x.length
     calc _ ≤ K * (_ ^ 5 * 2 ^ x.length) := h₂

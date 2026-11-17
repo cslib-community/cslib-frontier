@@ -89,7 +89,7 @@ theorem computableInPolyTime_firstOcc :
   have := computableInPolyTime_litAt
   have := computableInPolyTime_numOcc
   unfold firstOcc
-  fun_prop
+  apply ComputableInPolyTime.findWithInput (encA := encUnary) <;> fun_prop
 
 theorem computableInPolyTime_nextOcc :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => nextOcc p.1 p.2)
@@ -97,7 +97,7 @@ theorem computableInPolyTime_nextOcc :
   have := computableInPolyTime_litAt
   have := computableInPolyTime_numOcc
   unfold nextOcc
-  fun_prop
+  apply ComputableInPolyTime.findWithInput (encA := encUnary) <;> fun_prop
 
 theorem computableInPolyTime_entryIdx :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => entryIdx p.1 p.2)

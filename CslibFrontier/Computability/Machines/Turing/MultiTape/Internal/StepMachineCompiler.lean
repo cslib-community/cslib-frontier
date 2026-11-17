@@ -19,6 +19,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OnWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Basic
 public import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -139,8 +140,9 @@ public lemma peek_snd : ComputableInO Prod.snd (encPeek enc) enc
 /-- The recorded symbol. -/
 public lemma peek_fst : ComputableInO Prod.fst (encPeek enc) (encOption encBool)
     (fun p => (encPeek enc p).length) fun p => (encPeek enc p).length :=
-  of_linear (ComputableInDegree.of_transducer peekSymT fun p => by
-    obtain ⟨_ | b, t⟩ := p <;> simp [peekWord, peekSymT_run_three])
+  of_linear ((ComputableInDegree.optionFromHalt encBool).comp
+    (ComputableInDegree.of_transducer peekSymT (encMid := encHaltOption encBool) fun p => by
+      obtain ⟨_ | b, t⟩ := p <;> simp [peekWord, peekSymT_run_three]))
 
 /-- No symbol recorded in front of a value. -/
 public lemma peek_none : ComputableInO (fun t => ((none : Option Bool), t)) enc (encPeek enc)

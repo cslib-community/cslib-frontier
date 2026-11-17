@@ -1177,7 +1177,8 @@ theorem computableInPolyTime_mergeMerlin {γ : Type} {encIn : γ ↪ List Bool}
     have hmBranch : ComputableInPolyTime
         (fun q : (Bool × MergeState) × (AMMove × ℕ) =>
           mergeStep q.1.2 (.merlin, q.2.2)) encMe encSt := by
-      have hcur := ComputableInPolyTime.optionGetDWithInput hopt (ComputableInPolyTime.const 0)
+      have hcur := ComputableInPolyTime.optionGetDWithInput (encB := encUnary) hopt
+        (ComputableInPolyTime.const 0)
       have hsum := ComputableInPolyTime.unary_add' hcur hn
       exact (encMergeState_mk_polyTime ((
         ComputableInPolyTime.optionSome encUnary).comp hsum) hacc).of_enc_eq

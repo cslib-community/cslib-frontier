@@ -102,7 +102,7 @@ structure IsEfficient (G : Scheme Fn) (encFn : Fn ↪ List Bool) : Prop where
     encBits
   /-- Decoding is polynomial-time on `(d, Y)`. -/
   decode : ComputableInPolyTime (fun (d, Y) => G.decode d Y) (encPair encBits encBits)
-    (encOption encBits)
+    (encSilentOption encBits)
   /-- The semantics is polynomial-time on `(f, x)`. -/
   ev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits
 

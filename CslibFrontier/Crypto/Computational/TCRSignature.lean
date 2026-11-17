@@ -11,7 +11,8 @@ public import CslibFrontier.Crypto.Computational.IndexedSignature.Double
 public import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 public import CslibFrontier.Crypto.Computational.OneWayToSignature
 public import CslibFrontier.Crypto.Computational.TreeSignature.Security
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
+public import
+  CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
@@ -561,11 +562,11 @@ private theorem computableInPolyTime_simStep {k : ℕ} {Control : Type} [Finite 
       (fun q : (List Bool × (FiniteConfig k Bool Control Unit × Option (List Bool))) × Bool =>
         simStep machine q.1.1 q.1.2 q.2)
       (encPair
-        (encPair encBits (encPair encFiniteConfig (encOption encBits)))
+        (encPair encBits (encPair encFiniteConfig (encSilentOption encBits)))
         encBool)
-      (encPair encFiniteConfig (encOption encBits)) := by
+      (encPair encFiniteConfig (encSilentOption encBits)) := by
   let Acc := FiniteConfig k Bool Control Unit × Option (List Bool)
-  let encAcc : Acc ↪ List Bool := encPair encFiniteConfig (encOption encBits)
+  let encAcc : Acc ↪ List Bool := encPair encFiniteConfig (encSilentOption encBits)
   let Q := (List Bool × Acc) × Bool
   let encQ : Q ↪ List Bool := encPair (encPair encBits encAcc) encBool
   have hreply : ComputableInPolyTime (fun q : Q => q.1.1) encQ encBits :=
@@ -574,7 +575,7 @@ private theorem computableInPolyTime_simStep {k : ℕ} {Control : Type} [Finite 
     (ComputableInPolyTime.fst _ _).snd'
   have hcfg : ComputableInPolyTime (fun q : Q => q.1.2.1) encQ encFiniteConfig :=
     hacc.fst'
-  have hqOpt : ComputableInPolyTime (fun q : Q => q.1.2.2) encQ (encOption encBits) :=
+  have hqOpt : ComputableInPolyTime (fun q : Q => q.1.2.2) encQ (encSilentOption encBits) :=
     hacc.snd'
   have hcoin : ComputableInPolyTime (fun q : Q => q.2) encQ encBool :=
     ComputableInPolyTime.snd _ _
@@ -582,8 +583,9 @@ private theorem computableInPolyTime_simStep {k : ℕ} {Control : Type} [Finite 
     (computableInPolyTime_finiteConfig_reqWord hcfg)
   have hrZero := ComputableInPolyTime.unary_beq' hr.fst' (.const 0)
   have hisNone : ComputableInPolyTime (fun q : Q => q.1.2.2.isNone) encQ encBool :=
-    (hqOpt.optionIsSome.trans ComputableInPolyTime.bool_not).of_enc_eq fun q => by
-      cases q.1.2.2 <;> rfl
+    ((hqOpt.optionIsSome (encB := encBits)).trans ComputableInPolyTime.bool_not).of_enc_eq
+      fun q => by
+        cases q.1.2.2 <;> rfl
   have hcond := hrZero.bool_and' hisNone
   exact (computableInPolyTime_finiteConfig_cases machine hcfg hcoin hacc
     (fun action symbol move =>
@@ -600,11 +602,11 @@ private theorem computableInPolyTime_simRun_raw {k : ℕ} {Control : Type} [Fini
     ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool => simRun machine p.1 p.2.1 p.2.2)
       (encPair encBits (encPair encBits encBits))
-      (encPair encBits (encOption encBits)) := by
+      (encPair encBits (encSilentOption encBits)) := by
   let P := List Bool × List Bool × List Bool
   let encP : P ↪ List Bool := encPair encBits (encPair encBits encBits)
   let Acc := FiniteConfig k Bool Control Unit × Option (List Bool)
-  let encAcc : Acc ↪ List Bool := encPair encFiniteConfig (encOption encBits)
+  let encAcc : Acc ↪ List Bool := encPair encFiniteConfig (encSilentOption encBits)
   have hword : ComputableInPolyTime (fun p : P => p.1) encP encBits :=
     ComputableInPolyTime.fst _ _
   have hreply : ComputableInPolyTime (fun p : P => p.2.1) encP encBits :=
@@ -687,12 +689,12 @@ private theorem computableInPolyTime_simRun_raw {k : ℕ} {Control : Type} [Fini
           cCfg * (w.length + cs.length + r.length + 1) :=
         (hcCfg w.length consumed.length r.length cfg hinv.1).trans
           (Nat.mul_le_mul_left cCfg (by omega))
-      have hoptLen : (encOption encBits qOpt).length ≤ cs.length + 1 := by
+      have hoptLen : (encSilentOption encBits qOpt).length ≤ cs.length + 1 := by
         cases hq : qOpt with
         | none => simp
         | some m₀ =>
           have hm := (hinv.2 m₀ hq).trans hlenPre
-          simp only [encOption_some, List.length_cons, encBits_apply]
+          simp only [encSilentOption_some, List.length_cons, encBits_apply]
           omega
       have hcfgLen2 := Nat.mul_le_mul_left 2 hcfgLen
       rw [← Nat.mul_assoc] at hcfgLen2
@@ -701,13 +703,13 @@ private theorem computableInPolyTime_simRun_raw {k : ℕ} {Control : Type} [Fini
       dsimp only
       omega)).1
   have hout : ComputableInPolyTime (fun acc : Acc => (acc.1.tapes.output, acc.2))
-      encAcc (encPair encBits (encOption encBits)) := by
+      encAcc (encPair encBits (encSilentOption encBits)) := by
     have hbuilt :=
-      (((ComputableInPolyTime.fst encFiniteConfig (encOption encBits)).trans
+      (((ComputableInPolyTime.fst encFiniteConfig (encSilentOption encBits)).trans
         (ComputableInPolyTime.finiteConfig_tapes (k := k) (State := Control)
           (Oracle := Unit))).trans
         ComputableInPolyTime.finiteCfg_output).prod
-        (ComputableInPolyTime.snd encFiniteConfig (encOption encBits))
+        (ComputableInPolyTime.snd encFiniteConfig (encSilentOption encBits))
     exact hbuilt.of_enc_eq fun _ => rfl
   exact (hfold.trans hout).of_enc_eq fun _ => rfl
 
@@ -720,7 +722,7 @@ theorem computableInPolyTime_simRun_comp {k : ℕ} {Control α : Type} [Finite C
     (hreply : ComputableInPolyTime reply input encBits)
     (hcoins : ComputableInPolyTime coins input encBits) :
     ComputableInPolyTime (fun a => simRun machine (word a) (reply a) (coins a))
-      input (encPair encBits (encOption encBits)) :=
+      input (encPair encBits (encSilentOption encBits)) :=
   ((hword.prod (hreply.prod hcoins)).trans
     (computableInPolyTime_simRun_raw machine)).of_enc_eq fun _ => rfl
 
@@ -1147,7 +1149,7 @@ private theorem computableInPolyTime_simReplay_comp {k : ℕ} {Control α : Type
     ComputableInPolyTime
       (fun a => simRun machine (word a)
         ((encPair encBits encBits (hk a, ots a)).take (fuel a)) (coins a))
-      input (encPair encBits (encOption encBits)) := by
+      input (encPair encBits (encSilentOption encBits)) := by
   have henc : ComputableInPolyTime (encPair encBits encBits)
       (encPair encBits encBits) encBits := .of_eq fun _ => rfl
   have hreply := ComputableInPolyTime.bitsTakeWithInput ((hhk.prod hots).trans henc) hfuel
@@ -1207,7 +1209,7 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
         pure (otsForgeryOf H (otsParamInv H q.1.1.1) out.2.1 out.2.2)) :=
     ((computableInPolyTime_otsForgeryOf_comp H hmN hmOut0.snd'.fst' hmOut0.snd'.snd').of_enc_eq
       fun _ => rfl).isOraclePPTOn
-  have hmM0 := hmR0.snd'.optionGetDWithInput (.const [])
+  have hmM0 := hmR0.snd'.optionGetDWithInput (encB := encBits) (.const [])
   have hmOtsReq := computableInPolyTime_otsMsg_eval_comp H hmN hmK hmM0
   have hqueryOts : IsOraclePPTOn (Operation := Unit) encMid encBits
       (fun q : Mid => List.take (sigBound (otsParamInv H q.1.1.1)) <$>
@@ -1253,7 +1255,8 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
           let r1 := simRun machine word reply q.1.2
           let out := outDecoder.decode r1.1
           return otsForgeryOf H n out.2.1 out.2.2) := by
-    have hite := IsOraclePPTOn.cond' hmR0.snd'.optionIsSome hbranchSome hbranchNone
+    have hite := IsOraclePPTOn.cond' (hmR0.snd'.optionIsSome (encB := encBits))
+      hbranchSome hbranchNone
     refine hite.congr fun q State oracle s => ?_
     dsimp only
     cases hopt : (simRun machine (simWordOf (otsParamInv H q.1.1.1) q.1.1.2) [] q.1.2).2 with
@@ -1296,7 +1299,7 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
       have hqCoins := ComputableInPolyTime.snd encKIn encBits
       have hr0 := computableInPolyTime_simRun_comp machine
         (hqIn.trans hword) (.const []) hqCoins
-      have hm0 := hr0.snd'.optionGetDWithInput (.const [])
+      have hm0 := hr0.snd'.optionGetDWithInput (encB := encBits) (.const [])
       have hencState : ComputableInPolyTime (encPair (encPair encBits encBits) encBits)
           (encPair (encPair encBits encBits) encBits) encBits := .of_eq fun _ => rfl
       have hst := ((hqIn.trans hkeys).prod hqCoins).trans hencState
@@ -1317,14 +1320,14 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
     have hword := computableInPolyTime_wordOf hn hkeys.fst'
     have hfuel := computableInPolyTime_fuelOf c d hn hkeys.fst'
     have hr0 := computableInPolyTime_simRun_comp machine hword (.const []) hcoins
-    have hisSome := hr0.snd'.optionIsSome
+    have hisSome := hr0.snd'.optionIsSome (encB := encBits)
     have hbranchNone : IsPPTOn encFIn encBits
         (fun p : FIn =>
           let saved := stateDecoder.decode p.2.1
           let r0 := simRun machine (simWordOf p.1 saved.1.1) [] saved.2
           pure (outDecoder.decode r0.1).2.1) :=
       (((hr0.fst'.trans outDecoder.computableInPolyTime).snd'.fst').of_enc_eq fun _ => rfl).isPPTOn
-    have hm0 := hr0.snd'.optionGetDWithInput (.const [])
+    have hm0 := hr0.snd'.optionGetDWithInput (encB := encBits) (.const [])
     have hM0 := computableInPolyTime_otsMsg_eval_comp H hn hhashKey hm0
     have hsignOts := S.isPPTOn_sign_comp (hkeys.snd'.of_enc_eq fun _ => rfl)
       (hM0.of_enc_eq fun _ => rfl)

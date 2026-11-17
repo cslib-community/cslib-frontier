@@ -236,7 +236,9 @@ theorem guess_budget {s : α → State}
 theorem bits_budget {s : α → State}
     (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => (s a).bits) enc encNat S :=
-  (register_budget hs 9).of_enc_eq fun _ => rfl
+  (register_budget hs 9).of_enc_eq fun a => by
+    have hregister : ((registers (s a)).drop 9).headD 0 = (s a).bits := rfl
+    rw [hregister]
 
 private theorem iteProp_budget {c : α → Prop} [DecidablePred c] {β : Type}
     {encB : β ↪ List Bool} {f g : α → β}

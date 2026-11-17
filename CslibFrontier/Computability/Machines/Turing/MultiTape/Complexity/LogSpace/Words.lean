@@ -233,13 +233,24 @@ theorem optionSome :
 /-- Unwrapping an option with a default value `d` in logarithmic space. -/
 theorem optionGetD (d : β) :
     ComputableInLogSpace (fun o : Option β => o.getD d) (encOption encOut) encOut :=
-  of_isEmpty_ite d (fun o ho => by cases o <;> simp_all)
-    (of_tail fun ⟨o, ho⟩ => by cases o <;> simp at ho ⊢)
+  by
+    have tag : ComputableInLogSpace Option.isSome (encOption encOut) encBool :=
+      of_take_one fun o => by cases o <;> rfl
+    convert ite_subtype (f := fun o : Option β => o.getD d) (g := fun _ => d) tag
+      (of_tail (encIn := (Function.Embedding.subtype _).trans (encOption encOut))
+        (encOut := encOut) (f := fun o : {o : Option β // o.isSome = true} => o.val.getD d) fun
+          ⟨o, ho⟩
+        => by cases o with
+          | none => simp only [Option.isSome_none, Bool.false_eq_true] at ho
+          | some b => rfl)
+      ((const d).restrict _) using 1
+    funext o
+    cases o <;> rfl
 
 /-- Forming a singleton framed list in logarithmic space. -/
 theorem listSingleton :
     ComputableInLogSpace (fun b : β => [b]) encOut (encList encOut) :=
-  of_frame fun b => by simp [encList_cons, encList_nil]
+  of_frame fun b => by simp
 
 /-- Prepending a computed element to a computed framed list in logarithmic space. -/
 theorem listCons {f₁ : α → β} {f₂ : α → List β} (h₁ : ComputableInLogSpace f₁ encIn encOut)

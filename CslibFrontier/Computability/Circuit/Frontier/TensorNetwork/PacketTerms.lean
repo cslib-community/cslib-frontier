@@ -232,7 +232,7 @@ theorem twoVal_polyTime : ComputableInPolyTime twoVal encIntBin encUnary := by
     simp only [Function.comp_apply, twoVal_eq_foldl]
   · obtain ⟨m, v, b⟩ := s
     have hdiv : (encNat (m / 2)).length ≤ (encNat m).length := by
-      change (m / 2).bits.length ≤ m.bits.length
+      simp only [Turing.MultiTapeTM.encNat_apply]
       rw [Nat.size_eq_bits_len, Nat.size_eq_bits_len]
       exact Nat.size_le_size (Nat.div_le_self _ _)
     simp only [twoValStep]
@@ -1082,7 +1082,7 @@ theorem entryCertificate_le :
       simp only [length_encList]
       refine List.sum_le_sum fun k _ => ?_
       have : (encNat k).length ≤ k := by
-        change k.bits.length ≤ k
+        rw [Turing.MultiTapeTM.encNat_apply]
         rw [Nat.size_eq_bits_len]
         exact (Nat.size_le.mpr Nat.lt_two_pow_self).trans le_rfl
       enc_len

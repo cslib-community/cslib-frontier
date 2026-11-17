@@ -90,7 +90,7 @@ public theorem stream_frame_append (keep : Bool) (c : ℕ) (w rest : List Bool) 
     stream keep false c (frame w ++ rest) =
       (if emits keep c then frame w else []) ++ stream keep false (c - 1) rest := by
   induction w with
-  | nil => cases h : emits keep c <;> simp [frame_nil, stream, h]
+  | nil => cases h : emits keep c <;> simp [stream, h]
   | cons b w ih =>
     simp only [frame_cons, List.cons_append, stream, ↓reduceIte, ih]
     cases emits keep c <;> simp

@@ -109,7 +109,7 @@ appended bit of a sloppy ciphertext, and target the encoding of `some (msg₁ n 
 def sloppyAdversary {Msg : Type} (encMsg : Msg ↪ List Bool) (msg₀ msg₁ : ℕ → List Bool → Msg) :
     CCA2AdversaryOf Msg :=
   maulAdversary msg₀ msg₁ (fun _ _ ct => ct.dropLast ++ [true])
-    (fun n pk => encOption encMsg (some (msg₁ n pk)))
+    (fun n pk => encSilentOption encMsg (some (msg₁ n pk)))
 
 /-- Replacing the last bit of the ciphertext by `true` is computable in polynomial time. -/
 private theorem computableInPolyTime_setLastTrue :
@@ -145,8 +145,8 @@ private theorem sloppy_conditions {Msg : Type} {encMsg : Msg ↪ List Bool}
     (hct : ct ∈ (ProbComp.eval (sloppyEncrypt encrypt n keys.1
       (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support) :
     ct.dropLast ++ [true] ≠ ct ∧
-      (encOption encMsg (sloppyDecrypt decrypt n keys.2 (ct.dropLast ++ [true])) =
-        encOption encMsg (some (msg₁ n keys.1)) ↔ bit = true) := by
+      (encSilentOption encMsg (sloppyDecrypt decrypt n keys.2 (ct.dropLast ++ [true])) =
+        encSilentOption encMsg (some (msg₁ n keys.1)) ↔ bit = true) := by
   simp only [eval_sloppyEncrypt, PMF.support_map, Set.mem_image] at hct
   obtain ⟨c, hc, rfl⟩ := hct
   have hdec := hcorrect keys hkeys _ c hc
@@ -199,7 +199,7 @@ theorem not_indcca2On_sloppy {Msg : Type} {valid : ℕ → List Bool → Msg →
     (hne : ∀ n, ∀ keys ∈ (ProbComp.eval (keyGen n)).support, msg₀ n keys.1 ≠ msg₁ n keys.1) :
     ¬ INDCCA2On valid encMsg encMsg keyGen (sloppyEncrypt encrypt) (sloppyDecrypt decrypt) :=
   not_indcca2On_of_maulAdversary (maul := fun _ _ ct => ct.dropLast ++ [true])
-    (target := fun n pk => encOption encMsg (some (msg₁ n pk))) hmsg₀ hmsg₁
+    (target := fun n pk => encSilentOption encMsg (some (msg₁ n pk))) hmsg₀ hmsg₁
     computableInPolyTime_setLastTrue (by fun_prop) hvalid fun n bit _ hkeys _ hct =>
       sloppy_conditions (hcorrect n) (hne n) bit hkeys hct
 

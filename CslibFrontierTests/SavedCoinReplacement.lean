@@ -97,7 +97,8 @@ example : ∃ (budget : ℕ → ℕ)
       (coins.take (c * ((encPair encUnary encBits (n, pk)).length + 1) ^ d))
       (encPair encUnary encBits (n, pk)), polynomiallyBounded_savedCoinBudget c d keyC keyD, ?_⟩
   intro n keys hmem s
-  simpa only [encBits, Function.Embedding.coe_refl, id_map, observe] using
+  simpa only [show (encBits : List Bool → List Bool) = id from funext encBits_apply, id_map,
+    observe] using
     heq n keys.1 (hkeys n keys hmem) ℕ handler s
 
 private def fixedForger (bit : Bool) :

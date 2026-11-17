@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: subset of crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
-public import Mathlib.Data.Nat.Bits
+public import CslibFrontier.Computability.Encoding.NatBits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 import Mathlib.Data.Nat.Bitwise
@@ -37,12 +37,11 @@ public section
 namespace Turing.MultiTapeTM
 
 /-- Natural numbers encoded by their binary digits, least significant first. -/
-@[expose] public def encNat : ℕ ↪ List Bool :=
-  ⟨Nat.bits, fun m n h => Nat.eq_of_testBit_eq fun i => by simp [Nat.testBit_eq_inth, h]⟩
+public abbrev encNat : ℕ ↪ List Bool := Cslib.Encoding.encNat
 
 /-- `encNat n` is the little-endian binary digit list `n.bits`. -/
 @[simp]
-public lemma encNat_apply (n : ℕ) : encNat n = n.bits := rfl
+public lemma encNat_apply (n : ℕ) : encNat n = n.bits := Cslib.Encoding.encNat_eq_bits n
 
 namespace NatSucc
 

@@ -245,7 +245,7 @@ theorem _root_.Cslib.Complexity.TMSATInstance.exists_polyTime_accepts {α : Type
         (stepPoly (Polynomial.C k * p) c d).eval (enc a).length := by
       refine (ht _).trans_eq ?_
       rw [eval_stepPoly, length_encPair]
-      simp only [encBits, Function.Embedding.refl_apply, hw, Polynomial.eval_mul, Polynomial.eval_C]
+      simp only [encBits_apply, hw, Polynomial.eval_mul, Polynomial.eval_C]
       ring_nf
     obtain ⟨hhalt, hout⟩ := (htm (a, w)).runFrom_of_le hle
     change (tm.runFrom (tm.initCfg (encPair enc encBits (a, w))) _).output = [V (a, w)] at hout

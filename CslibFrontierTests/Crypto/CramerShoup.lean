@@ -231,7 +231,7 @@ example {H : schnorrGroups.Desc × List Bool → List Bool}
           List Bool × List Bool =>
         schnorrGroups.decodeCramerShoup H isElem p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair schnorrGroups.encDesc
-        (encPair encCramerShoupSK (encPair encBits encBits))) (encOption encBits) ∧
+        (encPair encCramerShoupSK (encPair encBits encBits))) (encSilentOption encBits) ∧
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool × List Bool =>
         schnorrGroups.cramerShoupValid isElem d p.1 p.2.1 p.2.2.1 p.2.2.2)
@@ -243,13 +243,13 @@ example {H : schnorrGroups.Desc × List Bool → List Bool}
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool × List Bool =>
         schnorrGroups.cramerShoupADDecryptOpt HK isElem d p.1 p.2.1 p.2.2.1 p.2.2.2)
-      (encPair encUnary (encPair encBits (encPair encBits encBits))) (encOption encBits) ∧
+      (encPair encUnary (encPair encBits (encPair encBits encBits))) (encSilentOption encBits) ∧
     IsPPTOn (encPair encUnary (encPair encBits encBits)) encBits
       (fun p => schnorrGroups.cramerShoupEncryptProb HK d p.1 p.2.1 p.2.2) ∧
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool =>
         schnorrGroups.cramerShoupDecryptOpt HK isElem d p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) (encOption encBits) :=
+      (encPair encUnary (encPair encBits encBits)) (encSilentOption encBits) :=
   ⟨schnorrGroups.computableInPolyTime_encodeCramerShoupPublicKey,
    schnorrGroups.computableInPolyTime_encodeCramerShoupEncrypt hH,
    schnorrGroups.computableInPolyTime_encodeCramerShoupChallenge hH,
@@ -330,7 +330,7 @@ example :
       (encPair encBits encBits (adCt, [true])) = [] ∧
     schnorrGroups.cramerShoupPhase2Reply true testHash isSchnorrElem d23
       ((2, 3), ((4, 5), (6, 7))) adCt [false]
-      (encPair encBits encBits (adCt, [true])) = encOption encBits (some m) := by
+      (encPair encBits encBits (adCt, [true])) = encSilentOption encBits (some m) := by
   decide
 
 /-- Concrete `cramerShoupPhase2Reply` decryption when the queried ciphertext is a distinct valid
@@ -343,7 +343,7 @@ example :
     let m := schnorrGroups.encode d23 ((5 : ℕ) • schnorrGroups.generator d23)
     let ct := schnorrGroups.encodeCramerShoupEncrypt testHash d23 pkWords m [] 8
     schnorrGroups.cramerShoupPhase2Reply false testHash isSchnorrElem d23
-      ((2, 3), ((4, 5), (6, 7))) [true] [] ct = encOption encBits (some m) := by
+      ((2, 3), ((4, 5), (6, 7))) [true] [] ct = encSilentOption encBits (some m) := by
   decide
 
 /-- Uniform strict-PPT certificates for `cramerShoupADToDDHDistinguisher`,

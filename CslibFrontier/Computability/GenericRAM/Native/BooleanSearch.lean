@@ -154,7 +154,7 @@ variable {encC : C ↪ List Bool}
 
 private theorem length_enc_words (word : List Bool) :
     (encList encBool word).length = 3 * word.length := by
-  simp [length_encList, Nat.mul_comm]
+  simp [Nat.mul_comm]; omega
 
 /-- A prefix stores at most one width-sized result, including the option tag and list framing. -/
 theorem length_prefix_result_le (test : C × List Bool → Bool) (p : C × ℕ) (j : ℕ) :

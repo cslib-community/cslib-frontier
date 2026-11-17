@@ -186,6 +186,7 @@ example (bit : Bool) (n : ℕ) :
       (FixedKey.zeroAdversary forgetful stateful) bit n) = PMF.pure false := by
   rw [FixedKey.eval_zeroAdversary forgetful stateful bit n 1 (secret_width n)]
   simp [Encryption.circularPublicKey, FixedKey.publicKeyGame, forgetful, keyGen, stateful,
-    FixedKey.encPublicKey, Encryption.encCircularPublicKey, encPair, encBits, encList, frame]
+    FixedKey.encPublicKey, Encryption.encCircularPublicKey, encPair, encBits_apply, encList,
+      Cslib.Encoding.delimit]
 
 end CslibFrontierTests.Crypto.FixedKeySecurity

@@ -140,7 +140,8 @@ theorem senderClosedProgram_isPPT {Output : Type}
       (encPair (encFinEnum (Fin 4 → Bool)) stateEncoding) (fun p => choose p.1 p.2))
     (hreceive : ComputableInPolyTime (fun st => receive st ()) stateEncoding stateEncoding)
     (hfinish : IsPPTOn (encPair encUnary stateEncoding)
-      (encPair (encOption (encPair encBool (encList (encPair encBool encBool)))) outputEncoding)
+      (encPair (encSilentOption (encPair encBool (encList (encPair encBool encBool))))
+        outputEncoding)
       (fun p => finish p.1 p.2))
     (growth : ℕ)
     (hgrowth : ∀ k st t middle, (t, middle) ∈ (ProbComp.eval (choose k st)).support →
@@ -164,7 +165,7 @@ theorem senderClosedProgram_isPPT {Output : Type}
   have hobserve : ComputableInPolyTime
       (fun p : Option Bool × Bool =>
         if p.1 == some p.2 then Phased.Observation.opened p.2 else .aborted)
-      (encPair (encOption encBool) encBool) (encFinite Phased.Observation) := .of_finite _
+      (encPair (encSilentOption encBool) encBool) (encFinite Phased.Observation) := .of_finite _
   simp only [senderClosedProgram_eq]
   apply hview.bind_with
   apply IsPPTOn.bind_with (left := encBits)
@@ -175,7 +176,7 @@ theorem senderClosedProgram_isPPT {Output : Type}
         (p.1.1.1, p.1.2.2)) (by fun_prop)
   apply ComputableInPolyTime.isPPTOn
   let encTables := encList (encFinEnum (Fin 4 → Bool))
-  let encSubmission := encOption (encPair encBool (encList (encPair encBool encBool)))
+  let encSubmission := encSilentOption (encPair encBool (encList (encPair encBool encBool)))
   let encContext := encPair
     (encPair (encPair encUnary stateEncoding) (encPair encTables stateEncoding)) encBits
   have hcontext := ComputableInPolyTime.fst encContext (encPair encSubmission outputEncoding)

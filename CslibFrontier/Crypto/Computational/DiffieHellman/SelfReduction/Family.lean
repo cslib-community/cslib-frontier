@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiffieHellman
+import CslibFrontier.Computability.Encoding.NatBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -233,7 +234,8 @@ theorem isPPTOn_dlSelfReduceAdversary
     exact (show ComputableInPolyTime (fun p : (ℕ × F.Desc × List Bool) × ℕ => p.1.1)
         (encPair F.encDiscreteLogInput encNat) encUnary by fun_prop).prod
       (hd.prod hadd)
-  · have hbits : ComputableInPolyTime Nat.bits encNat encBits := .of_eq fun _ => rfl
+  · have hbits : ComputableInPolyTime Nat.bits encNat encBits := .of_eq fun _ => by
+      simp only [encBits_apply, Cslib.Encoding.encNat_eq_bits]
     have hq := F.computableInPolyTime_order.comp
       (show ComputableInPolyTime
         (fun pair : ((ℕ × F.Desc × List Bool) × ℕ) × List Bool => pair.1.1.2.1)

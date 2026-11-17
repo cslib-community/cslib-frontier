@@ -7,9 +7,12 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
+public import CslibFrontier.Computability.Encoding.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 import Mathlib.Tactic.Linarith
+
+-- vendored: layout-preserving aliases of Cslib.Encoding; machine certificates remain local.
 
 /-!
 # The framed encoding of pairs
@@ -30,14 +33,12 @@ universe u v
 variable {α : Type u} {β : Type v}
 
 /-- `enc` with every encoded value framed. -/
-@[expose] public def encFramed (enc : α ↪ List Bool) : α ↪ List Bool :=
-  ⟨fun a => frame (enc a), fun _ _ h => enc.injective (frame_injective h)⟩
+public abbrev encFramed (enc : α ↪ List Bool) : α ↪ List Bool :=
+  Cslib.Encoding.encDelimited enc
 
 /-- Pairs encoded as the framed first component followed by the second component. -/
-@[expose] public def encPair (enc₁ : α ↪ List Bool) (enc₂ : β ↪ List Bool) :
-    α × β ↪ List Bool :=
-  ⟨fun p => frame (enc₁ p.1) ++ enc₂ p.2, fun _ _ h =>
-    Prod.ext (enc₁.injective (frame_append_inj h).1) (enc₂.injective (frame_append_inj h).2)⟩
+public abbrev encPair (enc₁ : α ↪ List Bool) (enc₂ : β ↪ List Bool) :
+    α × β ↪ List Bool := Cslib.Encoding.encProd enc₁ enc₂
 
 @[simp]
 public lemma encFramed_apply (enc : α ↪ List Bool) (a : α) : encFramed enc a = frame (enc a) :=
@@ -50,8 +51,8 @@ public lemma encPair_apply (p : α × β) : encPair enc₁ enc₂ p = frame (enc
   rfl
 
 public lemma length_encPair (p : α × β) :
-    (encPair enc₁ enc₂ p).length = 2 * (enc₁ p.1).length + 1 + (enc₂ p.2).length := by
-  simp
+    (encPair enc₁ enc₂ p).length = 2 * (enc₁ p.1).length + 1 + (enc₂ p.2).length :=
+  Cslib.Encoding.length_encProd enc₁ enc₂ p
 
 public lemma length_le_encPair_left (enc₁ : α ↪ List Bool) (enc₂ : β ↪ List Bool) (p : α × β) :
     (enc₁ p.1).length ≤ (encPair enc₁ enc₂ p).length := by

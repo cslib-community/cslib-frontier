@@ -114,7 +114,7 @@ private theorem polyTime_verifier {r k : α → ℕ} {V W : α × List Bool → 
     (ComputableInPolyTime.const (true, false)) hstep
     (growth := fun _ => 0) (PolyBounded.const 0) (by
       intro x s row _
-      simp [encS, encBool_apply])
+      simp [encS])
   cases b
   · exact (ComputableInPolyTime.fst encBool encBool).comp hfold
   · exact (ComputableInPolyTime.snd encBool encBool).comp hfold

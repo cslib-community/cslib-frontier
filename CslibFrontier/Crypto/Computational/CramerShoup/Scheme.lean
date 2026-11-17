@@ -420,18 +420,19 @@ theorem CCA2AdversaryOf.IsQueryBounded.toADUnit {Msg : Type} {adversary : CCA2Ad
 /-- Phase 1 decryption oracle with associated data ([BonehShoup2023], Section 12.7,
 Definition 12.7, printed pp. 501–502): unpack `request.2` into ciphertext `unframe request.2` and
 associated data `dropFrame request.2`, and reply with
-`encOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2))`. -/
+`encSilentOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2))`. -/
 def cca2ADPhase1Oracle {Out : Type} (encOut : Out ↪ List Bool)
     (decrypt : ℕ → List Bool → List Bool → List Bool → Option Out)
     (n : ℕ) (sk : List Bool) (request : Unit × List Bool) :
     StateT Unit ProbComp (List Bool) :=
-  fun s => pure (encOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2)), s)
+  fun s => pure (encSilentOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2)), s)
 
 /-- Phase 2 decryption oracle with associated data ([BonehShoup2023], Section 12.7,
 Definition 12.7, printed pp. 501–502): unpack `request.2` into `(unframe request.2,
-dropFrame request.2)`, reject the challenge pair `(ct, ad)` with `[]` (`encOption encOut none`),
+dropFrame request.2)`, reject the challenge pair `(ct, ad)` with `[]` (`encSilentOption encOut
+  none`),
 and answer all other queries with
-`encOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2))`. -/
+`encSilentOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2))`. -/
 def cca2ADPhase2Oracle {Out : Type} (encOut : Out ↪ List Bool)
     (decrypt : ℕ → List Bool → List Bool → List Bool → Option Out)
     (n : ℕ) (sk ct ad : List Bool) (request : Unit × List Bool) :
@@ -440,7 +441,7 @@ def cca2ADPhase2Oracle {Out : Type} (encOut : Out ↪ List Bool)
     if (unframe request.2 == ct) && (dropFrame request.2 == ad) then
       pure ([], s)
     else
-      pure (encOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2)), s)
+      pure (encSilentOption encOut (decrypt n sk (unframe request.2) (dropFrame request.2)), s)
 
 /-- Single-challenge 1CCA experiment with associated data ([BonehShoup2023], Section 12.7,
 Definition 12.7, printed pp. 501–502) and challenge-pair admissibility predicate
@@ -1016,7 +1017,7 @@ theorem computableInPolyTime_decodeCramerShoup
     ComputableInPolyTime
       (fun ⟨d, sk, ct, ad⟩ => F.decodeCramerShoup H isElem d sk ct ad)
       (encPair F.encDesc (encPair encCramerShoupSK (encPair encBits encBits)))
-      (encOption encBits) :=
+      (encSilentOption encBits) :=
   let Erest := encPair encCramerShoupSK (encPair encBits encBits)
   let hd := ComputableInPolyTime.fst F.encDesc Erest
   let h1 := ComputableInPolyTime.snd F.encDesc Erest
@@ -1075,7 +1076,7 @@ def cramerShoupPhase1Reply
     (hasAD : Bool) (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
     (d : F.Desc) (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) (req : List Bool) : List Bool :=
   let q := splitCramerShoupQuery hasAD req
-  encOption encBits (F.decodeCramerShoup H isElem d sk q.1 q.2)
+  encSilentOption encBits (F.decodeCramerShoup H isElem d sk q.1 q.2)
 
 /-- Stateless Phase 2 decryption reply that rejects the challenge `(ct, ad)` and any query
 `(ct_q, ad_q)` colliding with `(ct, ad)` under `cramerShoupHashMod H d`. -/
@@ -1086,7 +1087,7 @@ def cramerShoupCollisionPhase2Reply
   if ((q.1 == ct) && (q.2 == ad)) || F.isCramerShoupCollision H d q.1 q.2 ct ad then
     []
   else
-    encOption encBits (F.decodeCramerShoup H isElem d sk q.1 q.2)
+    encSilentOption encBits (F.decodeCramerShoup H isElem d sk q.1 q.2)
 
 /-! ### Canonical secret-key conversion and hybrid Games 3–5 -/
 
@@ -1147,7 +1148,7 @@ def cramerShoupDHPhase1Reply
     (hasAD : Bool) (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
     (d : F.Desc) (α δ δ₁ δ₂ : ZMod (F.order d)) (req : List Bool) : List Bool :=
   let q := splitCramerShoupQuery hasAD req
-  encOption encBits (F.decodeCramerShoupDH H isElem d α δ δ₁ δ₂ q.1 q.2)
+  encSilentOption encBits (F.decodeCramerShoupDH H isElem d α δ δ₁ δ₂ q.1 q.2)
 
 /-- Stateless Phase 2 decryption reply for Game 4, rejecting `(ct, ad)`, `H'`-collisions with
 `(ct, ad)`, and non-DH queries. -/
@@ -1158,7 +1159,7 @@ def cramerShoupDHPhase2Reply
   if ((q.1 == ct) && (q.2 == ad)) || F.isCramerShoupCollision H d q.1 q.2 ct ad then
     []
   else
-    encOption encBits (F.decodeCramerShoupDH H isElem d α δ δ₁ δ₂ q.1 q.2)
+    encSilentOption encBits (F.decodeCramerShoupDH H isElem d α δ δ₁ δ₂ q.1 q.2)
 
 /-- Bad-event predicate for `cramerShoupGame3` $\to$ `cramerShoupGame4` (Games 4 $\to$ 5 of
 [BonehShoup2023], Section 12.5.3, equations (12.26)–(12.27), printed pp. 492–493):

@@ -45,7 +45,7 @@ theorem computableInO_two_pow_length :
     have h₃ : (x.length + 1) * 2 ^ x.length ≤ 2 ^ (2 * x.length) := by
       rw [two_mul, pow_add]
       exact Nat.mul_le_mul_right _ h₁
-    simp only [encBits, Function.Embedding.coe_refl, id_eq]
+    simp only [encBits_apply]
     omega
 
 /-- **Exponentially long requests.** Relative to any `A`, exponential time decides whether the

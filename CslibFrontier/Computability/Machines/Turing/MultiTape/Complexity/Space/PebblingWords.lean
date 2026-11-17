@@ -188,6 +188,9 @@ theorem diffIndex_inSpace :
     omega
   · rw [foldl_diffStep, zero_add]
 
+-- Keep certificate composition from unfolding the linear-time scan.
+attribute [local irreducible] diffIndex
+
 variable {α π : Type} {encIn : α ↪ List Bool} {encP : π ↪ List Bool} {Bs : α → ℕ} {d : ℕ}
 
 /-- The first difference of two words computed within a budget, within the budget. -/
@@ -473,7 +476,8 @@ theorem lookup_inSpace :
   obtain ⟨_, hi⟩ := (snd encTable encNat).exists_inO
   obtain ⟨_, hl⟩ := (fst encTable encNat).exists_inO
   have hfind := of_inO (ComputableInO.findWith ht hi hl)
-  refine (snd' (budget_optionGetD (0, []) hfind)).weaken (.of_le_linear 8 8 scan_le)
+  refine (snd' (budget_optionGetD (encB := encPair encNat encBits) (0, []) hfind)).weaken
+    (.of_le_linear 8 8 scan_le)
     |>.of_enc_eq fun q => ?_
   exact congrArg encBits (lookup_eq_find? q.1 q.2)
 

@@ -71,8 +71,8 @@ private theorem input_state (p : ℕ) (x : List ℕ) (j : ℕ) :
   exact hfold _ _
 
 private theorem input_emission (p : ℕ) (x : List ℕ) :
-    streamEmit inputNext (fun q => encOption encUnary (inputEmit q)) p x =
-      encOption encUnary (inputSymbol x p) := by
+    streamEmit inputNext (fun q => encHaltOption encUnary (inputEmit q)) p x =
+      encHaltOption encUnary (inputSymbol x p) := by
   induction x generalizing p with
   | nil => simp [streamEmit, inputSymbol]
   | cons a x ih =>
@@ -90,14 +90,14 @@ private theorem inputNext_inO :
   · enc_len
 
 private theorem inputEmit_inO :
-    ComputableInO inputEmit (encPair encNat encUnary) (encOption encUnary)
+    ComputableInO inputEmit (encPair encNat encUnary) (encHaltOption encUnary)
       (fun q => (encPair encNat encUnary q).length)
       (fun q => (encPair encNat encUnary q).length) := by
   have hc := (ComputableInO.eq encNat).comp
     ((ComputableInO.const (encIn := encPair encNat encUnary) (encMid := encNat) 1).prod
       (ComputableInO.fst encNat encUnary))
   have hs := (ComputableInO.of_linear
-    (OptionEncoding.some (enc₁ := encUnary) (enc := encOption encUnary))).comp_linear
+    (OptionEncoding.some (enc₁ := encUnary) (enc := encHaltOption encUnary))).comp_linear
       (ComputableInO.snd encNat encUnary)
   refine ((hc.ite hs (ComputableInO.const none)).mono 16 (fun q => ?_) (fun q => ?_)).of_enc_eq
     (fun q => by simp [inputEmit, Function.comp_apply, eq_comm])
@@ -107,7 +107,7 @@ private theorem inputEmit_inO :
 
 /-- A lookup returns at most one input symbol, with one additional bit for the option tag. -/
 public theorem length_inputSymbol_le (x : List ℕ) (p : ℕ) :
-    (encOption encUnary (inputSymbol x p)).length ≤ (encList encUnary x).length + 1 := by
+    (encHaltOption encUnary (inputSymbol x p)).length ≤ (encList encUnary x).length + 1 := by
   unfold inputSymbol
   split_ifs
   · enc_len
@@ -119,13 +119,13 @@ public theorem length_inputSymbol_le (x : List ℕ) (p : ℕ) :
 
 private theorem inputSymbol_pair_inO :
     ComputableInO (fun q : ℕ × List ℕ => inputSymbol q.2 q.1)
-      (encPair encNat (encList encUnary)) (encOption encUnary)
+      (encPair encNat (encList encUnary)) (encHaltOption encUnary)
       (fun q => ((encList encUnary q.2).length + 1) * ((encNat q.1).length + 1) ^ 2)
       (fun q => (encPair encNat (encList encUnary) q).length) := by
   obtain ⟨cN, hN, -⟩ := inputNext_inO.tidy
   obtain ⟨cE, hE, -⟩ := inputEmit_inO.tidy
   obtain ⟨cF, hF, -⟩ := (ComputableInO.const (encIn := encNat)
-    (encMid := encOption encUnary) none).tidy
+    (encMid := encHaltOption encUnary) none).tidy
   let B (q : ℕ × List ℕ) := (encNat q.1).length
   let N (q : ℕ × List ℕ) := (encList encUnary q.2).length
   let K := 3 * cN + 3 * cE + 3
@@ -134,16 +134,22 @@ private theorem inputSymbol_pair_inO :
   have hW (x : List ℕ) (j : ℕ) (hj : j < x.length) : W x j = 2 * x[j] + 1 := by
     simp [W, hj, encUnary_apply]
   have hsum (x : List ℕ) : ∑ j ∈ Finset.range x.length, W x j = (encList encUnary x).length := by
-    simpa [W, List.flatMap_def, encList, Function.comp_def] using
+    have hmul : (x.map (fun a => 2 * a)).sum = 2 * x.sum := by
+      have h := List.sum_map_mul_left x (fun a => a) 2
+      change (x.map (fun a => 2 * a)).sum = 2 * (x.map id).sum at h
+      rw [List.map_id] at h
+      exact h
+    simpa [W, List.flatMap_def, encList, Function.comp_def, hmul] using
       sum_length_getD (x.map fun a => frame (encUnary a))
   have hstate (q : ℕ × List ℕ) (j : ℕ) :
       (encNat (streamState q.1 inputNext q.2 j)).length ≤ B q := by
     rw [input_state]
     exact length_encNat_mono (Nat.sub_le _ _)
   have helem (q : ℕ × List ℕ) (j : ℕ) (hj : j < q.2.length) : q.2[j] ≤ N q := by
-    simpa [encUnary_apply] using length_le_encList_of_mem encUnary (List.getElem_mem hj)
+    simpa only [encUnary_apply, List.length_replicate, N] using
+      length_le_encList_of_mem encUnary (List.getElem_mem hj)
   have hstream := ComputableTidilyInTimeAndSpace.streamFold_pair_sum
-    (encIn := encPair encNat (encList encUnary)) (encOut := encOption encUnary)
+    (encIn := encPair encNat (encList encUnary)) (encOut := encHaltOption encUnary)
     symbolReader (fun a => frame (encUnary a)) (fun a => frame_ne_nil _)
     (fun a rest => read_symbolReader _ _) Prod.fst Prod.snd (fun _ => rfl)
     hN hE hF
@@ -267,7 +273,8 @@ public theorem inputSymbol_stream_inO :
       (fun q => (encPair (encList encUnary) encNat q).length) := by
   have hswap := (ComputableInO.snd (encList encUnary) encNat).prod
     (ComputableInO.fst (encList encUnary) encNat)
-  refine ((inputSymbol_pair_inO.comp hswap).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq
+  refine (((ComputableInDegree.optionFromHalt encUnary).inO_one.comp_linear
+    (inputSymbol_pair_inO.comp hswap)).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq
     (fun _ => rfl)
   · simp only [length_encPair]
     have hb : (encNat q.2).length + 1 ≤ ((encNat q.2).length + 1) ^ 2 :=

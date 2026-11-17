@@ -63,12 +63,14 @@ example : ∃ run : (((ℕ × ℕ) × ℕ) × List Bool × List Bool × List Boo
     decide
 
 /-- The reused total framing/number parsers do not assert canonical-input rejection. -/
-example : frames [true] = [[]] := by simp [frames, unframe, dropFrame]
+example : frames [true] = [[]] := by simp [frames, Cslib.Encoding.undelimit,
+  Cslib.Encoding.dropDelimited]
 example : decodeIntBin [true, false, false] = 0 := by decide
 example : (Decoder.list Decoder.nat).decode [true, true] = [1] := by
   change (frames [true, true]).map Decoder.nat.decode = [1]
   rw [frames_of_ne_nil (by decide)]
-  simp only [unframe, dropFrame, frames_nil, List.map_cons, List.map_nil]
+  simp only [Cslib.Encoding.undelimit, Cslib.Encoding.dropDelimited, frames_nil, List.map_cons,
+    List.map_nil]
   rfl
 
 end CslibFrontierTests.Crypto.ModuleKeyGenNative

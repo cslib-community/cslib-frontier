@@ -306,7 +306,7 @@ theorem runsBetween_eraseFrame (w rest : List Bool) (o : ℤ) {input : List Bool
         (fun _ => o + (frame w).length) out)
       (2 * w.length + 1) (2 * w.length + 1 + 1) :=
   (RunsBetween.of_runFrom (runFrom_eraseFrame (input := input) w rest _ o _ rfl
-    (by simp [length_frame]) out)).mono le_rfl (by omega)
+    (by simp) out)).mono le_rfl (by omega)
 
 /-! ### Popping a framed word -/
 
@@ -316,15 +316,20 @@ inductive PopFrameState
   | start
   /-- Writing the second `true` of the prefix. -/
   | pre
+  /-- Writing the absent option bit. -/
+  | absentBit
+  /-- Closing the absent option frame. -/
+  | absentEnd
   /-- At the start of a pair, or at the final `false`. -/
   | loop
   /-- At the second cell of a pair. -/
   | bit
   deriving DecidableEq
 
-instance : Fintype PopFrameState := ⟨{.start, .pre, .loop, .bit}, fun q => by cases q <;> simp⟩
+instance : Fintype PopFrameState :=
+  ⟨{.start, .pre, .absentBit, .absentEnd, .loop, .bit}, fun q => by cases q <;> simp⟩
 
-/-- If tape `0` is blank under its head, writes `false` at the head of tape `1`. Otherwise writes
+/-- If tape `0` is blank under its head, writes `frame [false]` to tape `1`. Otherwise writes
 `[true, true]` and then moves the framed word at the head of tape `0` there, erasing it. Both
 heads move right as they go. The specifications below start with a blank tape `1`; the loop
 `Turing.MultiTapeTM.runFrom_popFrame_loop` appends to any word ending before the head. -/
@@ -332,6 +337,12 @@ noncomputable def popFrame : MultiTapeTM 2 Bool PopFrameState :=
   ofTr .start fun q _ work =>
     match q, work 0 with
     | .start, none =>
+      { inputTape := 0, workTapes := ![(none, 0), (some (some true), 1)], output := none,
+        state := some .absentBit }
+    | .absentBit, _ =>
+      { inputTape := 0, workTapes := ![(none, 0), (some (some false), 1)], output := none,
+        state := some .absentEnd }
+    | .absentEnd, _ =>
       { inputTape := 0, workTapes := ![(none, 0), (some (some false), 1)], output := none,
         state := none }
     | .start, some _ =>
@@ -399,24 +410,39 @@ theorem runFrom_popFrame_loop (w rest u acc acc' : List Bool) (oS oS' oR hR' : �
           · dsimp only [Fin.mk_one, Matrix.cons_val_one, Matrix.cons_val_zero]
             exact update_shifted_append _ _ _)
         (fun i => by fin_cases i <;> simp; omega)]
-    exact ih _ _ (oS + 1 + 1) rfl (by simp [hacc, frame_cons]) (by simp [hS]; omega)
+    exact ih _ _ (oS + 1 + 1) rfl (by simp [hacc]) (by simp [hS]; omega)
 
-/-- On a blank tape `0`, `popFrame` writes `[false]`. -/
+/-- On a blank stack, `popFrame` writes the framed canonical absent option in three steps. -/
 theorem runsBetween_popFrame_nil (oS oR : ℤ) {input : List Bool} (out : List Bool) :
     RunsBetween popFrame (tapesCfg input ![[], []] ![oS, oR] ![oS, oR] out)
-      (tapesCfg input ![[], [false]] ![oS, oR] ![oS, oR + 1] out) 1 (2 * (1 + 1)) := by
+      (tapesCfg input ![[], [true, false, false]] ![oS, oR] ![oS, oR + 3] out)
+      3 (2 * (3 + 1)) := by
   refine RunsBetween.of_runFrom ?_
-  rw [runFrom_one]
-  refine step_tapesCfg (a := ⟨0, ![(none, 0), (some (some false), 1)], none, none⟩) ?_ rfl rfl ?_
-    ?_
-  · have : tapeOfList ([] : List Bool) (oS - oS) = none := by rw [tapeOfList_nil]
-    simp only [popFrame, tr_ofTr, q₀_ofTr, Matrix.cons_val_zero, this]
+  rw [show 3 = 1 + 1 + 1 from rfl, runFrom_succ_eq_step, runFrom_succ_eq_step,
+    step_tapesCfg (a := ⟨0, ![(none, 0), (some (some true), 1)], none, some .absentBit⟩)
+      (ws' := ![[], [true]]) (o' := ![oS, oR]) (h' := ![oS, oR + 1])
+      (by simp only [popFrame, tr_ofTr, q₀_ofTr, Matrix.cons_val_zero, tapeOfList_nil]) rfl rfl
+      (fun i => by
+        fin_cases i
+        · rfl
+        · simpa using update_shifted_append ([] : List Bool) true oR)
+      (fun i => by fin_cases i <;> simp),
+    step_tapesCfg (a := ⟨0, ![(none, 0), (some (some false), 1)], none, some .absentEnd⟩)
+      (ws' := ![[], [true, false]]) (o' := ![oS, oR]) (h' := ![oS, oR + 2])
+      (by simp only [popFrame, tr_ofTr]) rfl rfl
+      (fun i => by
+        fin_cases i
+        · rfl
+        · simpa using update_shifted_append ([true] : List Bool) false oR)
+      (fun i => by fin_cases i <;> simp; omega), runFrom_one]
+  refine step_tapesCfg (a := ⟨0, ![(none, 0), (some (some false), 1)], none, none⟩)
+    (by simp only [popFrame, tr_ofTr]) rfl rfl ?_ ?_
   · intro i
     fin_cases i
     · rfl
-    · simpa using update_shifted_append ([] : List Bool) false oR
+    · simpa using update_shifted_append ([true, false] : List Bool) false oR
   · intro i
-    fin_cases i <;> simp
+    fin_cases i <;> simp; omega
 
 /-- On a framed word `frame w` at the head of tape `0`, `popFrame` moves it to tape `1` as
 `frame (true :: w)`. -/
@@ -450,8 +476,8 @@ theorem runsBetween_popFrame_frame (w rest : List Bool) (oS oR : ℤ) {input : L
         · rfl
         · simpa using update_shifted_append ([true] : List Bool) true oR)
       (fun i => by fin_cases i <;> simp; omega)]
-  exact runFrom_popFrame_loop w rest _ [true, true] _ oS _ oR _ rfl (by simp [frame_cons])
-    (by simp [length_frame]) (by simp [length_frame]) out
+  exact runFrom_popFrame_loop w rest _ [true, true] _ oS _ oR _ rfl (by simp)
+    (by simp) (by simp) out
 
 end MultiTapeTM
 

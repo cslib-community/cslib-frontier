@@ -35,7 +35,7 @@ open Cslib Cslib.Complexity Turing Turing.MultiTapeTM
 /-- The copy machine streams arbitrarily long words with zero workspace. -/
 private theorem copy_uncharged :
     ComputableInBigO (id : List Bool → List Bool) encBits encBits (·.length) (fun _ => 0) :=
-  ⟨1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits])
+  ⟨1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits_apply])
     (fun _ => Nat.zero_le _)⟩
 
 /-- Unbounded streamed output does not satisfy a constant output-growth bound. -/
@@ -43,7 +43,7 @@ private theorem copy_output_not_constant :
     ¬BigOLe (fun w : List Bool => (encBits (id w)).length) (fun _ => 0) := by
   rintro ⟨c, hc⟩
   have h := hc (List.replicate (c + 1) true)
-  simp [encBits] at h
+  simp [encBits_apply] at h
 
 /-- Forgetting output growth admits streaming; it cannot reconstruct a constant charged bound.
 Materializing the intermediate word explicitly pays its length in workspace. -/
@@ -115,10 +115,10 @@ example {α : Type u} {β : Type v} (encIn : α ↪ List Bool) (encOut : β ↪ 
   refine ⟨(constant_degree encIn encOut b).computableInPolyTime, id_degree.mono, ?_, ?_⟩
   · rintro ⟨_, c, hl⟩
     have h := hl (List.replicate (c + 1) true)
-    simp [encBits] at h
+    simp [encBits_apply] at h
   · have h : ComputableInDegree (id : List Bool → List Bool) encBits encBits 3 2 := by
       apply degree_of_streaming_bounds (c := 1)
-      · exact computableInTimeAndSpace_id.mono (fun w => by simp [encBits]; omega)
+      · exact computableInTimeAndSpace_id.mono (fun w => by simp [encBits_apply]; omega)
           (fun _ => Nat.zero_le _)
       · intro w
         exact Nat.le_add_right _ _
@@ -134,21 +134,21 @@ example {α : Type u} {β : Type v} (encIn : α ↪ List Bool) (encOut : β ↪ 
 linear time and space. -/
 theorem id_computableInO :
     ComputableInO (id : List Bool → List Bool) encBits encBits (·.length) (·.length) :=
-  ⟨1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits]) fun _ => Nat.zero_le _,
-    fun w => by simp [encBits]⟩
+  ⟨1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits_apply]) fun _ => Nat.zero_le _,
+    fun w => by simp [encBits_apply]⟩
 
 /-- The copy machine computes the identity within linear space, in some time. -/
 theorem id_computableInSpace :
     ComputableInSpace (id : List Bool → List Bool) encBits encBits (·.length) :=
   ⟨_, 1, computableInTimeAndSpace_id.mono (fun _ => le_rfl) fun _ => Nat.zero_le _,
-    fun w => by simp [encBits]⟩
+    fun w => by simp [encBits_apply]⟩
 
 /-- The copy machine computes the identity within polynomial space. -/
 theorem id_computableInPolySpace :
     ComputableInPolySpace (id : List Bool → List Bool) encBits encBits :=
   ⟨_, fun n => n, by fun_prop,
     computableInTimeAndSpace_id.mono (fun _ => le_rfl) fun _ => Nat.zero_le _,
-    fun w => by simp [encBits]⟩
+    fun w => by simp [encBits_apply]⟩
 
 /-- Tidy normal forms keep the bounds up to constants, while the value condition separates
 `ComputableInSpace` from `ComputableInLogSpace`. -/
@@ -166,7 +166,7 @@ example {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β �
     ⟨_, 0, computableInTimeAndSpace_id.mono (fun _ => le_rfl) fun _ => Nat.zero_le _⟩,
     ?_, (let ⟨t, c, hc, _⟩ := hlog; ⟨t, c, hc⟩), id_computableInPolySpace⟩
   · rintro ⟨t, c, -, hl⟩
-    simpa [encBits] using hl (List.replicate (c + 1) true)
+    simpa [encBits_apply] using hl (List.replicate (c + 1) true)
   · rintro ⟨t, c, -, hl⟩
     have key (n : ℕ) : n * (n + 3) < 2 ^ (n + 2) := by
       induction n with
@@ -177,7 +177,7 @@ example {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β �
         · norm_num
         · rw [pow_succ]; nlinarith
     have h := hl (List.replicate (2 ^ (c + 2)) true)
-    simp only [encBits, id, Function.Embedding.refl_apply, List.length_replicate,
+    simp only [encBits_apply, id, List.length_replicate,
       Nat.log2_two_pow] at h
     nlinarith [key c]
 
@@ -186,7 +186,7 @@ example {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β �
 /-- The copy machine computes the identity in fpt time, for every parameter. -/
 theorem id_computableInFPTTime (κ : List Bool → ℕ) :
     ComputableInFPTTime (id : List Bool → List Bool) encBits encBits κ :=
-  ⟨fun _ => 1, 1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits])
+  ⟨fun _ => 1, 1, computableInTimeAndSpace_id.mono (fun w => by simp [encBits_apply])
     fun _ => Nat.zero_le _⟩
 
 /-- Compose, pair, and branch functions mixing plain space and plain time
@@ -207,7 +207,7 @@ example {α β γ : Type} (enc : α ↪ List Bool) {encA : α ↪ List Bool} {en
   exact ⟨by fun_prop, by fun_prop, by fun_prop,
     ComputableInTimeAndSpace.computableInFPTTime (F := fun _ => 1) (c := 1)
       (s := fun w => 2 ^ w.length)
-      (computableInTimeAndSpace_id.mono (fun w => by simp [encBits]) fun _ => Nat.zero_le _)⟩
+      (computableInTimeAndSpace_id.mono (fun w => by simp [encBits_apply]) fun _ => Nat.zero_le _)⟩
 
 /-! ### Classes through plain deciders -/
 

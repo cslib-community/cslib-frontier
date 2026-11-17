@@ -42,7 +42,7 @@ example (M : MACScheme) : ComputableInPolyTime
 -- This existing irreducible routine and certificate come from another ordinary module import.
 -- The eager contract prevents fun_prop alone from hiding an inert named-certificate path.
 example (B : Cslib.WordRAM.Basis) (c : ℕ) : ComputableInPolyTime
-    (PlainDriverTests.checkedNamedConstant B c c) encUnary (encOption encNat) := by
+    (PlainDriverTests.checkedNamedConstant B c c) encUnary (encSilentOption encNat) := by
   fail_if_success fun_prop
   polytime
 
