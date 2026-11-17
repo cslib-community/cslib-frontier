@@ -137,6 +137,7 @@ import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
 import CslibFrontier.Computability.Complexity.Problems.TMSAT
+import CslibFrontier.Computability.Complexity.Problems.ThreeExactCover
 import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne
 import CslibFrontier.Computability.Kolmogorov.Incompleteness
@@ -385,6 +386,24 @@ register_result "quadeq-np-complete" where
     their values. Membership by a polynomial-time verifier with first-occurrence certificates; \
     hardness by a polynomial-time reduction from SAT (the exercise's hint), composed with \
     Cook–Levin."
+
+register_result "goldreich-three-exact-cover" where
+  title := "3-Exact Cover is NP-complete"
+  topic := "NP-completeness"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Proposition 2.25",
+      locator := "December 2006 r1.pdf, printed p. 85; PDF p. 110" }
+  ]
+  theorems := [Cslib.Complexity.ThreeExactCover_npComplete]
+  scope := "Instances are lists of sets, each a list of three distinct natural numbers, under \
+    the Set Cover encoding encNatSetList with binary labels. The universe is the union of the \
+    sets, and a yes-instance has a sub-collection drawn from the instance covering every \
+    element exactly once, with no bound on the number of chosen sets. Native NP and native \
+    polynomial-time Karp reductions. Hardness reduces positive exact-three exact-one SAT with \
+    at most three occurrences per variable, padding occurrence sets by windows of consecutive \
+    dummy elements, instead of the draft's chain through 3SC and 3XC'. The remark on Exact \
+    Cover with arbitrary set sizes is not covered. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6302#pullrequestreview-5947915507"
 
 register_result "pcp" where
   title := "The PCP theorem"

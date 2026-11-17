@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+public import CslibFrontier.Computability.Complexity.Problems.SetCover
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -23,21 +25,25 @@ An instance of *3-Exact Cover* (3XC) is a sequence `C` of sets of exactly three 
 yes-instance when some sub-collection of `C` covers every element of the union of `C` exactly once
 (`Cslib.Complexity.ThreeExactCover`). Goldreich's Proposition 2.25 says that 3XC is NP-complete
 [Goldreich, Section 2.3.3][Goldreich2006DraftR1]. Sets are lists of three distinct natural numbers,
-and instances are encoded by `encThreeExactCover`, with binary element labels.
+and instances are encoded by the set-list encoding `encNatSetList` of Set Cover, with binary
+element labels.
 
 Membership in NP selects the sets of the cover (`Cslib.Complexity.ThreeExactCover_mem_NP`).
 Hardness is a reduction from positive exact-one satisfiability with exactly three distinct
 variables per clause and at most three occurrences per variable
 (`Cslib.Complexity.PositiveOneInExactThreeSATThree`), which is NP-complete. For a formula with `m`
 clauses, the clauses are the elements `0, …, m - 1`, and `2m` dummy elements `m, …, 3m - 1` are
-added. A variable `v` occurring in the clauses `O_v` (one to three of them) contributes every set
-`O_v ∪ P` with `P` a set of `3 - |O_v|` dummy elements, and every triple of dummy elements is a set.
-This is the padding of the last step of Goldreich's proof (the reduction from 3XC′, with `K = m`),
-applied directly to the occurrence sets.
+added. A variable `v` occurring in the clauses `O_v` (one to three of them) contributes the sets
+`O_v ∪ W` for every window `W` of `3 - |O_v|` consecutive dummy elements, and every window of three
+consecutive dummy elements is a set. There are at most `2m + 1` windows of each width, so the
+instance has `O(m)` sets. This is the padding of the last step of Goldreich's proof (the reduction
+from 3XC′, with `K = m`), applied directly to the occurrence sets; the draft pads with arbitrary
+dummy elements, but consecutive windows suffice.
 
 * An exact-one assignment makes the occurrence sets of its true variables a partition of the
   clauses. There are at most `m` of them, so they need `3k - m ≤ 2m` dummy elements for `k` true
-  variables; the remaining `3(m - k)` dummy elements are covered by triples
+  variables, taken as consecutive windows; the remaining `3(m - k)` dummy elements are covered by
+  consecutive triples
   (`Cslib.Complexity.ThreeExactCover.mem_of_oneSatisfiable`).
 * Conversely, a set of an exact cover containing a clause consists of the occurrences of some
   variable and of dummy elements. Several variables may occur in exactly the same clauses; the
@@ -50,9 +56,8 @@ library, and uses only the last of these steps.
 
 ## Main definitions
 
-* `Cslib.Complexity.IsExactCover`: a sub-collection covers the union exactly once.
-* `Cslib.Complexity.ThreeExactCover`, `Cslib.Complexity.encThreeExactCover`: the problem and its
-  encoding.
+* `Cslib.Complexity.IsExactCover`: a sub-collection of the sets covers their union exactly once.
+* `Cslib.Complexity.ThreeExactCover`: the problem.
 * `Cslib.Complexity.ThreeExactCover.reduce`: the reduction.
 
 ## Main results
@@ -74,20 +79,16 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
-/-- The sub-collection `D` of sets exactly covers the union of the sets `C`: every element of a set
-of `C` belongs to exactly one set of `D`. -/
+/-- `D` is an exact cover drawn from the sets `C`: every set of `D` is a set of `C`, and every
+element of a set of `C` belongs to exactly one set of `D`. -/
 def IsExactCover (C : List (List ℕ)) (D : Finset (List ℕ)) : Prop :=
-  ∀ u ∈ C.flatten, (D.filter (u ∈ ·)).card = 1
+  (∀ S ∈ D, S ∈ C) ∧ ∀ u ∈ C.flatten, (D.filter (u ∈ ·)).card = 1
 
 /-- **Exact Cover by 3-sets** (3XC): a sequence `C` of sets of exactly three elements each, some
 sub-collection of which covers every element of their union exactly once. Sets are lists of three
 distinct natural numbers. -/
 def ThreeExactCover : Set (List (List ℕ)) :=
-  {C | (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧ ∃ D : Finset (List ℕ), (∀ S ∈ D, S ∈ C) ∧
-    IsExactCover C D}
-
-/-- The binary encoding of 3XC instances: a list of lists of binary natural numbers. -/
-abbrev encThreeExactCover : List (List ℕ) ↪ List Bool := encList (encList encNat)
+  {C | (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧ ∃ D : Finset (List ℕ), IsExactCover C D}
 
 namespace ThreeExactCover
 
@@ -106,48 +107,31 @@ instance has three elements, and every element of their union lies in exactly on
 def check (x : List (List ℕ) × List (List ℕ)) : Bool :=
   x.1.all isTriple && x.1.flatten.all fun u => (x.2.filter fun S => decide (u ∈ S)).length == 1
 
-/-- The dummy elements `m, …, 3m - 1`. -/
-def pool (m : ℕ) : List ℕ := (List.range (2 * m)).map (m + ·)
-
-/-- The pairs `[a, b]` of dummy elements with `a < b`. -/
-def pairs (m : ℕ) : List (List ℕ) :=
-  (pool m).flatMap fun a => ((pool m).filter (a < ·)).map fun b => [a, b]
-
-/-- The triples `[a, b, c]` of dummy elements with `a < b < c`. -/
-def triples (m : ℕ) : List (List ℕ) :=
-  (pool m).flatMap fun a => ((pool m).filter (a < ·)).flatMap fun b =>
-    ((pool m).filter (b < ·)).map fun c => [a, b, c]
+/-- The windows `[m + i, …, m + i + k - 1]` of `k` consecutive dummy elements among the dummy
+elements `m, …, 3m - 1`. -/
+def windows (m k : ℕ) : List (List ℕ) :=
+  (List.range (2 * m + 1 - k)).map fun i => (List.range k).map (m + i + ·)
 
 /-- The indices of the clauses of `φ` in which the variable `v` occurs. -/
 def occ (φ : CNF ℕ) (v : ℕ) : List ℕ :=
   (List.range φ.length).filter fun j => decide (v ∈ (φ.getD j []).map Prod.fst)
 
-/-- The sets of a variable occurring in the clauses `O`, padded to three elements by dummy
-elements in every possible way. -/
+/-- The sets of a variable occurring in the clauses `O`, padded to three elements by every
+window of consecutive dummy elements. -/
 def gadget (m : ℕ) (O : List ℕ) : List (List ℕ) :=
   if O.length == 3 then [O]
-  else if O.length == 2 then (pool m).map fun d => O ++ [d]
-  else if O.length == 1 then (pairs m).map fun p => O ++ p
+  else if O.length == 1 || O.length == 2 then (windows m (3 - O.length)).map (O ++ ·)
   else []
 
 open ComputableInPolyTime
 
-private theorem computableInPolyTime_pool :
-    ComputableInPolyTime pool encUnary (encList encNat) := by
-  unfold pool
+private theorem computableInPolyTime_windows :
+    ComputableInPolyTime (fun p : ℕ × ℕ => windows p.1 p.2) (encPair encUnary encUnary)
+      (encList (encList encNat)) := by
+  unfold windows
   fun_prop
 
-attribute [local fun_prop] computableInPolyTime_pool
-
-private theorem computableInPolyTime_pairs :
-    ComputableInPolyTime pairs encUnary (encList (encList encNat)) := by
-  unfold pairs
-  fun_prop
-
-private theorem computableInPolyTime_triples :
-    ComputableInPolyTime triples encUnary (encList (encList encNat)) := by
-  unfold triples
-  fun_prop
+attribute [local fun_prop] computableInPolyTime_windows
 
 private theorem computableInPolyTime_occ_unary :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
@@ -168,8 +152,6 @@ private theorem computableInPolyTime_occ :
     ComputableInPolyTime.unary_to_binary).comp computableInPolyTime_occ_unary
   simpa using h
 
-attribute [local fun_prop] computableInPolyTime_pairs
-
 private theorem computableInPolyTime_gadget :
     ComputableInPolyTime (fun p : ℕ × List ℕ => gadget p.1 p.2) (encPair encUnary (encList encNat))
       (encList (encList encNat)) := by
@@ -177,7 +159,6 @@ private theorem computableInPolyTime_gadget :
   fun_prop
 
 attribute [local fun_prop] computableInPolyTime_gadget computableInPolyTime_occ
-  computableInPolyTime_triples
 
 private theorem computableInPolyTime_isTriple :
     ComputableInPolyTime isTriple (encList encNat) encBool := by
@@ -188,7 +169,7 @@ attribute [local fun_prop] computableInPolyTime_isTriple
 
 /-- The verifier's check is computable in polynomial time. -/
 theorem computableInPolyTime_check :
-    ComputableInPolyTime check (encPair encThreeExactCover (encList (encList encNat))) encBool := by
+    ComputableInPolyTime check (encPair encNatSetList encNatSetList) encBool := by
   unfold check
   fun_prop
 
@@ -199,19 +180,20 @@ def noInstance : List (List ℕ) := [[0, 1, 2], [0, 1, 3]]
 variable. -/
 def reduce (φ : CNF ℕ) : List (List ℕ) :=
   if PositiveOneInExactThreeSATThree.syntaxCheck φ then
-    φ.vars.flatMap (fun v => gadget φ.length (occ φ v)) ++ triples φ.length
+    φ.vars.flatMap (fun v => gadget φ.length (occ φ v)) ++ windows φ.length 3
   else noInstance
 
 /-- The reduction is computable in polynomial time. -/
-theorem computableInPolyTime_reduce : ComputableInPolyTime reduce encCNF encThreeExactCover := by
+theorem computableInPolyTime_reduce : ComputableInPolyTime reduce encCNF encNatSetList := by
   unfold reduce CNF.vars
   fun_prop
 
 /-! ### Membership in NP -/
 
 private theorem check_iff (C l : List (List ℕ)) (hl : l.Nodup) :
-    check (C, l) = true ↔ (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧ IsExactCover C l.toFinset := by
-  simp only [check, Bool.and_eq_true, List.all_eq_true, isTriple_iff, beq_iff_eq, IsExactCover]
+    check (C, l) = true ↔ (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧
+      ∀ u ∈ C.flatten, (l.toFinset.filter (u ∈ ·)).card = 1 := by
+  simp only [check, Bool.and_eq_true, List.all_eq_true, isTriple_iff, beq_iff_eq]
   refine and_congr Iff.rfl (forall₂_congr fun u _ => ?_)
   have h := List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S))
   rw [List.toFinset_filter] at h
@@ -220,32 +202,19 @@ private theorem check_iff (C l : List (List ℕ)) (hl : l.Nodup) :
 
 /-! ### The shape of the reduced instance -/
 
-private theorem mem_pool {m d : ℕ} : d ∈ pool m ↔ m ≤ d ∧ d < 3 * m := by
-  simp only [pool, List.mem_map, List.mem_range]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    omega
-  · rintro ⟨h₁, h₂⟩
-    exact ⟨d - m, by omega, by omega⟩
+private theorem mem_windows {m k : ℕ} {W : List ℕ} :
+    W ∈ windows m k ↔ ∃ i, i + k ≤ 2 * m ∧ W = (List.range k).map (m + i + ·) := by
+  simp only [windows, List.mem_map, List.mem_range]
+  exact ⟨fun ⟨i, hi, h⟩ => ⟨i, by omega, h.symm⟩, fun ⟨i, hi, h⟩ => ⟨i, by omega, h.symm⟩⟩
 
-private theorem mem_pairs {m : ℕ} {p : List ℕ} :
-    p ∈ pairs m ↔ ∃ a b, p = [a, b] ∧ a < b ∧ m ≤ a ∧ b < 3 * m := by
-  simp only [pairs, List.mem_flatMap, List.mem_map, List.mem_filter, mem_pool, decide_eq_true_eq]
-  constructor
-  · rintro ⟨a, ⟨ha, -⟩, b, ⟨⟨-, hb⟩, hab⟩, rfl⟩
-    exact ⟨a, b, rfl, hab, ha, hb⟩
-  · rintro ⟨a, b, rfl, hab, ha, hb⟩
-    exact ⟨a, ⟨ha, by omega⟩, b, ⟨⟨by omega, hb⟩, hab⟩, rfl⟩
-
-private theorem mem_triples {m : ℕ} {p : List ℕ} :
-    p ∈ triples m ↔ ∃ a b c, p = [a, b, c] ∧ a < b ∧ b < c ∧ m ≤ a ∧ c < 3 * m := by
-  simp only [triples, List.mem_flatMap, List.mem_map, List.mem_filter, mem_pool,
-    decide_eq_true_eq]
-  constructor
-  · rintro ⟨a, ⟨ha, -⟩, b, ⟨⟨-, -⟩, hab⟩, c, ⟨⟨-, hc⟩, hbc⟩, rfl⟩
-    exact ⟨a, b, c, rfl, hab, hbc, ha, hc⟩
-  · rintro ⟨a, b, c, rfl, hab, hbc, ha, hc⟩
-    exact ⟨a, ⟨ha, by omega⟩, b, ⟨⟨by omega, by omega⟩, hab⟩, c, ⟨⟨by omega, hc⟩, hbc⟩, rfl⟩
+/-- A window has its width, distinct elements, and only dummy elements. -/
+private theorem window_props {m k i : ℕ} (h : i + k ≤ 2 * m) :
+    ((List.range k).map (m + i + ·)).length = k ∧ ((List.range k).map (m + i + ·)).Nodup ∧
+      ∀ d ∈ (List.range k).map (m + i + ·), m ≤ d ∧ d < 3 * m := by
+  refine ⟨by simp, List.nodup_range.map fun a b hab => by simpa using hab, fun d hd => ?_⟩
+  obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hd
+  have := List.mem_range.mp ha
+  omega
 
 private theorem mem_occ {φ : CNF ℕ} {v j : ℕ} :
     j ∈ occ φ v ↔ j < φ.length ∧ v ∈ (φ.getD j []).map Prod.fst := by
@@ -258,16 +227,16 @@ private theorem nodup_occ (φ : CNF ℕ) (v : ℕ) : (occ φ v).Nodup :=
 private theorem exists_pad_of_mem_gadget {m : ℕ} {O S : List ℕ} (h : S ∈ gadget m O) :
     ∃ P, S = O ++ P ∧ O.length + P.length = 3 ∧ (∀ d ∈ P, m ≤ d ∧ d < 3 * m) ∧ P.Nodup := by
   unfold gadget at h
-  split_ifs at h with h₃ h₂ h₁
+  split_ifs at h with h₃ h₁₂
   · rw [List.mem_singleton] at h
     exact ⟨[], by simp [h], by simpa using h₃, by simp, List.nodup_nil⟩
-  · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp h
-    exact ⟨[d], rfl, by simpa using h₂, by simpa using mem_pool.mp hd, List.nodup_singleton d⟩
-  · obtain ⟨p, hp, rfl⟩ := List.mem_map.mp h
-    obtain ⟨a, b, rfl, hab, ha, hb⟩ := mem_pairs.mp hp
-    refine ⟨[a, b], rfl, by simpa using h₁, ?_, by simp; omega⟩
-    simp only [List.mem_cons, List.not_mem_nil, or_false]
-    rintro d (rfl | rfl) <;> omega
+  · obtain ⟨W, hW, rfl⟩ := List.mem_map.mp h
+    obtain ⟨i, hi, rfl⟩ := mem_windows.mp hW
+    obtain ⟨hlen, hnd, hd⟩ := window_props hi
+    refine ⟨_, rfl, ?_, hd, hnd⟩
+    rw [hlen]
+    simp only [Bool.or_eq_true, beq_iff_eq] at h₁₂
+    omega
   · simp at h
 
 /-- Padding `O` by consecutive dummy elements gives a set of its gadget. -/
@@ -275,16 +244,16 @@ private theorem append_range_mem_gadget {m off : ℕ} {O : List ℕ} (h₁ : 1 �
     (h₃ : O.length ≤ 3) (hoff : ∀ i < 3 - O.length, m + off + i < 3 * m) :
     O ++ (List.range (3 - O.length)).map (m + off + ·) ∈ gadget m O := by
   unfold gadget
-  obtain h | h | h : O.length = 3 ∨ O.length = 2 ∨ O.length = 1 := by omega
+  by_cases h : O.length = 3
   · simp [h]
-  · simp only [h, beq_self_eq_true, ite_true, show (2 : ℕ) ≠ 3 by decide, beq_iff_eq, ite_false]
-    exact List.mem_map.mpr ⟨m + off, mem_pool.mpr ⟨by omega, by simpa using hoff 0 (by omega)⟩,
-      by simp⟩
-  · simp only [h, beq_self_eq_true, ite_true, show (1 : ℕ) ≠ 3 by decide,
-      show (1 : ℕ) ≠ 2 by decide, beq_iff_eq, ite_false]
-    refine List.mem_map.mpr ⟨[m + off, m + off + 1], mem_pairs.mpr ⟨_, _, rfl, by omega,
-      by omega, hoff 1 (by omega)⟩, ?_⟩
-    simp [List.range_succ]
+  · have h₁₂ : (O.length == 1 || O.length == 2) = true := by
+      simp only [Bool.or_eq_true, beq_iff_eq]
+      omega
+    have h3 : (O.length == 3) = false := by simpa using h
+    simp only [h3, h₁₂, Bool.false_eq_true, ↓reduceIte]
+    refine List.mem_map.mpr ⟨_, mem_windows.mpr ⟨off, ?_, rfl⟩, rfl⟩
+    have := hoff (3 - O.length - 1) (by omega)
+    omega
 
 /-! ### Occurrences under the syntax guard -/
 
@@ -317,13 +286,10 @@ private theorem length_occ_le_count (φ : CNF ℕ) (v : ℕ) : (occ φ v).length
       omega
     · omega
 
-private theorem getD_eq_getElem' {φ : CNF ℕ} {j : ℕ} (hj : j < φ.length) : φ.getD j [] = φ[j] :=
-  List.getD_eq_getElem _ _ hj
-
 private theorem mem_occ_of_mem {φ : CNF ℕ} {v j : ℕ} (hj : j < φ.length)
     (hv : v ∈ φ[j].map Prod.fst) :
     j ∈ occ φ v :=
-  mem_occ.mpr ⟨hj, by rwa [getD_eq_getElem' hj]⟩
+  mem_occ.mpr ⟨hj, by rwa [List.getD_eq_getElem _ _ hj]⟩
 
 private theorem one_le_length_occ {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) : 1 ≤ (occ φ v).length := by
   obtain ⟨c, hc, hvc⟩ := mem_vars.mp hv
@@ -332,7 +298,7 @@ private theorem one_le_length_occ {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) 
 
 private theorem reduce_of_syntaxCheck {φ : CNF ℕ}
     (hs : PositiveOneInExactThreeSATThree.syntaxCheck φ = true) :
-    reduce φ = φ.vars.flatMap (fun v => gadget φ.length (occ φ v)) ++ triples φ.length := by
+    reduce φ = φ.vars.flatMap (fun v => gadget φ.length (occ φ v)) ++ windows φ.length 3 := by
   simp [reduce, hs]
 
 private theorem lt_of_mem_reduce {φ : CNF ℕ}
@@ -345,9 +311,8 @@ private theorem lt_of_mem_reduce {φ : CNF ℕ}
     · have := (mem_occ.mp hx).1
       omega
     · exact (hP x hx).2
-  · obtain ⟨a, b, c, rfl, hab, hbc, -, hc⟩ := mem_triples.mp hS
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-    omega
+  · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
+    exact ((window_props hi).2.2 x hx).2
 
 /-- Every set of a reduced instance has exactly three elements. -/
 private theorem isTriple_of_mem_reduce (φ : CNF ℕ) {S : List ℕ} (hS : S ∈ reduce φ) :
@@ -361,10 +326,8 @@ private theorem isTriple_of_mem_reduce (φ : CNF ℕ) {S : List ℕ} (hS : S ∈
       have := (mem_occ.mp ha).1
       have := (hP b hb).1
       omega
-    · obtain ⟨a, b, c, rfl, hab, hbc, -, -⟩ := mem_triples.mp hS
-      simp only [List.length_cons, List.length_nil, List.nodup_cons, List.mem_cons,
-        List.not_mem_nil, or_false, List.nodup_nil, not_false_eq_true, and_true, true_and]
-      omega
+    · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
+      exact ⟨(window_props hi).1, (window_props hi).2.1⟩
   · simp only [reduce, hs, Bool.false_eq_true, ite_false, noInstance, List.mem_cons,
       List.not_mem_nil, or_false] at hS
     rcases hS with rfl | rfl <;> decide
@@ -385,18 +348,6 @@ private theorem countP_eq_one_of_unique {l : List ℕ} {p : ℕ → Bool} {a : �
   refine Finset.card_eq_one.mpr ⟨a, Finset.ext fun b => ?_⟩
   simp only [List.mem_toFinset, List.mem_filter, Finset.mem_singleton]
   exact ⟨fun ⟨hb, hpb⟩ => huniq b hb hpb, fun h => h ▸ ⟨ha, hpa⟩⟩
-
-private theorem eq_of_countP_eq_one {l : List ℕ} {p : ℕ → Bool} (h : l.countP p = 1) {a b : ℕ}
-    (ha : a ∈ l) (hpa : p a = true) (hb : b ∈ l) (hpb : p b = true) : a = b := by
-  classical
-  by_contra hab
-  have hsub : ({a, b} : Finset ℕ) ⊆ (l.filter p).toFinset := by
-    intro x hx
-    simp only [Finset.mem_insert, Finset.mem_singleton] at hx
-    rcases hx with rfl | rfl <;> simp [*]
-  have := (Finset.card_le_card hsub).trans (List.toFinset_card_le _)
-  rw [Finset.card_pair hab, ← List.countP_eq_length_filter, h] at this
-  omega
 
 /-- If the sets of `L` have no common element, each element of a set of `L` lies in exactly one
 of them. -/
@@ -426,8 +377,8 @@ private theorem exists_occ_of_mem_reduce {φ : CNF ℕ}
     rw [List.filter_append, List.filter_eq_self.mpr fun a ha => by
         simpa using (mem_occ.mp ha).1,
       List.filter_eq_nil_iff.mpr fun a ha => by simpa using (hP a ha).1, List.append_nil]
-  · obtain ⟨a, b, c, rfl, hab, hbc, ha, -⟩ := mem_triples.mp hS
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hjS
+  · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
+    have := ((window_props hi).2.2 j hjS).1
     omega
 
 /-- **Exact covers give exact-one assignments.** A variable is set true when a set of the cover
@@ -475,7 +426,7 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
     exact List.mem_filter.mpr ⟨hjS₀, by simpa using hj⟩
   have hvj : Nat.find hP ∈ φ[j].map Prod.fst := by
     have := (mem_occ.mp hjocc).2
-    rwa [getD_eq_getElem' hj] at this
+    rwa [List.getD_eq_getElem _ _ hj] at this
   refine countP_eq_one_of_unique (hcl _ hc).2 hvj ?_ fun v hv hσv => ?_
   · refine decide_eq_true ⟨S₀, hS₀D, hS₀occ.trans hvocc.symm, fun u hu hocc => ?_⟩
     exact Nat.find_min' hP ⟨hu, hocc.trans hvocc⟩
@@ -581,7 +532,7 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
     exact ⟨one_le_length_occ ((hT v).mp hv).1, (length_occ_le_count φ v).trans (hcount v)⟩
   have hmemj : ∀ {v j}, j ∈ occ φ v → ∃ hj : j < m, v ∈ φ[j].map Prod.fst := fun {v j} h => by
     obtain ⟨hj, hv⟩ := mem_occ.mp h
-    exact ⟨hj, by rwa [getD_eq_getElem' hj] at hv⟩
+    exact ⟨hj, by rwa [List.getD_eq_getElem _ _ hj] at hv⟩
   have hOs_nodup : Os.flatten.Nodup := by
     refine List.nodup_flatten.mpr ⟨by simp [Os, nodup_occ], ?_⟩
     refine List.pairwise_map.mpr
@@ -589,7 +540,8 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
     refine List.disjoint_left.mpr fun {j} hju hjv => huv ?_
     obtain ⟨hj, hu'⟩ := hmemj hju
     obtain ⟨_, hv'⟩ := hmemj hjv
-    exact eq_of_countP_eq_one (hone j hj) hu' ((hT u).mp hu).2 hv' ((hT v).mp hv).2
+    exact (List.existsUnique_mem_of_countP_eq_one (hone j hj)).unique ⟨hu', ((hT u).mp hu).2⟩
+      ⟨hv', ((hT v).mp hv).2⟩
   have hOs_mem : ∀ j, j ∈ Os.flatten ↔ j < m := fun j => by
     constructor
     · intro h
@@ -635,8 +587,11 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
       refine append_range_mem_gadget (hOsle _ hO).1 (hOsle _ hO).2 fun i hi => ?_
       exact hLlt _ hS _ (List.mem_append_right _ (List.mem_map.mpr ⟨i, List.mem_range.mpr hi, rfl⟩))
     · obtain ⟨t, -, rfl⟩ := List.mem_map.mp hS'
-      refine List.mem_append_right _ (mem_triples.mpr ⟨_, _, _, rfl, by omega, by omega, by omega,
-        hLlt _ hS _ (by simp)⟩)
+      have hlt := hLlt _ hS (m + deficit Os + 3 * t + 2) (by simp)
+      refine List.mem_append_right _ (mem_windows.mpr ⟨deficit Os + 3 * t, by omega, ?_⟩)
+      simp only [List.range_succ, List.range_zero, List.nil_append, List.map_cons, List.map_nil,
+        List.cons_append, List.cons.injEq, and_true]
+      omega
   refine ⟨fun S hS => isTriple_of_mem_reduce φ hS, L.toFinset,
     fun S hS => hLC S (List.mem_toFinset.mp hS),
     fun u hu => card_filter_toFinset_eq_one hLnodup ?_⟩
@@ -670,30 +625,31 @@ end ThreeExactCover
 
 open ThreeExactCover in
 /-- 3XC is in NP: a certificate selects the sets of the exact cover. -/
-theorem ThreeExactCover_mem_NP : ThreeExactCover ∈ NP encThreeExactCover := by
-  have h := mem_NP_of_subsetWitness (enc := encThreeExactCover) (encγ := encList encNat)
+theorem ThreeExactCover_mem_NP : ThreeExactCover ∈ NP encNatSetList := by
+  have h := mem_NP_of_subsetWitness (enc := encNatSetList) (encγ := encList encNat)
     (vs := fun C => C) (check := check)
-    (P := fun C D => (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧ IsExactCover C D)
+    (P := fun C D => (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧
+      ∀ u ∈ C.flatten, (D.filter (u ∈ ·)).card = 1)
     (by fun_prop) computableInPolyTime_check fun C l hl _ => check_iff C l hl
   convert h using 1
   ext C
-  simp only [ThreeExactCover, Set.mem_ofPred_eq]
+  simp only [ThreeExactCover, IsExactCover, Set.mem_ofPred_eq]
   tauto
 
 open ThreeExactCover in
 /-- Positive exact-three exact-one SAT with at most three occurrences per variable reduces to
 3XC. -/
 theorem polyTimeReducible_PositiveOneInExactThreeSATThree_ThreeExactCover :
-    PolyTimeReducible encCNF encThreeExactCover PositiveOneInExactThreeSATThree ThreeExactCover :=
+    PolyTimeReducible encCNF encNatSetList PositiveOneInExactThreeSATThree ThreeExactCover :=
   ⟨reduce, computableInPolyTime_reduce, fun φ => (reduce_mem_iff φ).symm⟩
 
 /-- 3XC is NP-hard. -/
-theorem ThreeExactCover_npHard : NPHard encThreeExactCover ThreeExactCover :=
+theorem ThreeExactCover_npHard : NPHard encNatSetList ThreeExactCover :=
   PositiveOneInExactThreeSATThree_npHard.trans
     polyTimeReducible_PositiveOneInExactThreeSATThree_ThreeExactCover
 
 /-- **3-Exact Cover is NP-complete** [Goldreich, Proposition 2.25][Goldreich2006DraftR1]. -/
-theorem ThreeExactCover_npComplete : NPComplete encThreeExactCover ThreeExactCover :=
+theorem ThreeExactCover_npComplete : NPComplete encNatSetList ThreeExactCover :=
   ⟨ThreeExactCover_mem_NP, ThreeExactCover_npHard⟩
 
 end Cslib.Complexity
