@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.HaltedReplay
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Expected running time of fair-coin machines
@@ -68,12 +69,6 @@ noncomputable def expectedTime (input : List Symbol) : ℝ≥0∞ :=
   ∑' t, (ProbComp.eval (machine.runClosedConfigFrom t (machine.initialConfig input))).toOuterMeasure
     {final | final.tapes.state.isSome}
 
-/-- Every event has probability at most one. -/
-private theorem toOuterMeasure_le_one {β : Type} (p : PMF β) (s : Set β) :
-    p.toOuterMeasure s ≤ 1 :=
-  (p.toOuterMeasure_apply s).trans_le
-    ((tsum_le_tsum fun x => Set.indicator_le_self s p x).trans_eq p.tsum_coe)
-
 /-- Running `t + m` steps runs `t` steps and then `m` more. -/
 private theorem eval_runClosedConfigFrom_add (t m : ℕ) (cfg : Config k Symbol State Empty input) :
     ProbComp.eval (machine.runClosedConfigFrom (t + m) cfg) =
@@ -101,7 +96,7 @@ theorem toOuterMeasure_running_antitone (cfg : Config k Symbol State Empty input
   by_cases hmid : mid.tapes.state.isSome
   · rw [Set.indicator_of_mem (show mid ∈ {final : Config k Symbol State Empty input |
       final.tapes.state.isSome} from hmid)]
-    exact mul_le_of_le_one_right' (toOuterMeasure_le_one _ _)
+    exact mul_le_of_le_one_right' (Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
   · have hhalt : mid.tapes.state = none := by simpa using hmid
     rw [eval_runClosedConfigFrom_of_halted machine m mid hhalt, PMF.toOuterMeasure_pure_apply]
     simp [hhalt]
@@ -151,7 +146,8 @@ theorem expectedTime_le_of_halted {T : ℕ}
   rw [expectedTime, tsum_eq_sum (s := Finset.range T) fun t ht =>
     hzero t (by simpa using ht)]
   calc _ ≤ ∑ _t ∈ Finset.range T, (1 : ℝ≥0∞) :=
-        Finset.sum_le_sum fun t _ => toOuterMeasure_le_one _ _
+        Finset.sum_le_sum fun t _ =>
+          Cslib.Probability.PMF.toOuterMeasure_le_one _ _
     _ = T := by simp
 
 /-- **The probability of still running as a count**: the fraction of the `2 ^ t` coin strings of
@@ -199,10 +195,10 @@ theorem output_isPrefix_append (coins more : List Bool) (cfg : Config k Symbol S
       rw [MultiTapeTM.step_of_state h, Action.apply_output]
       exact List.prefix_append _ _
 
-/-- **Finite expected running time implies almost sure halting**: every coin prefix extends to a
-coin string on which the replay has halted. Otherwise every run extending the prefix would keep
-running, with probability at least that of the prefix at every clock, and the tail sum would be
-infinite. -/
+/-- **With finite expected running time, every coin prefix extends to a halting run**: some
+extension of the prefix is a coin string on which the replay has halted. Otherwise every run
+extending the prefix would keep running, with probability at least that of the prefix at every
+clock, and the tail sum would be infinite. -/
 theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime input ≠ ⊤)
     (coins : List Bool) : ∃ more : List Bool,
       (machine.runClosedConfigFromCoins (coins ++ more) (machine.initialConfig input)).tapes.state =
