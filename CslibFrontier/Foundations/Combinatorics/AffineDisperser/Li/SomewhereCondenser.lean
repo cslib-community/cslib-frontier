@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineSource
 import CslibFrontier.Foundations.Data.BitString.AffineSubspace
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.LinearAlgebra.Dimension.Finrank
@@ -86,12 +87,12 @@ equivalence. -/
     split_ifs with h
     · rfl
     · congr 1
-      exact Fin.ext (by dsimp only; omega)
+      fin_index
   right_inv p := by
     ext i <;> dsimp only
     · rw [dite_eq_left i.2]
     · rw [dite_eq_right (by omega)]
-      exact congrArg p.2 (Fin.ext (by dsimp only; omega))
+      exact congrArg p.2 (by fin_index)
   map_add' x y := by
     ext i <;> rfl
   map_smul' c x := by
@@ -179,7 +180,7 @@ private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Boo
         T ⟨((2 + 2 * i.1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).1) =
     projLeft m x + T i (projRight m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_left (by omega)]
-  exact congrArg (fun k => projLeft m x + T k (projRight m x)) (Fin.ext (by dsimp only; omega))
+  exact congrArg (fun k => projLeft m x + T k (projRight m x)) (by fin_index)
 
 private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
@@ -194,7 +195,7 @@ private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool
         T ⟨((2 + 2 * i.1 + 1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).1) =
     projRight m x + T i (projLeft m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_right (by omega)]
-  exact congrArg (fun k => projRight m x + T k (projLeft m x)) (Fin.ext (by dsimp only; omega))
+  exact congrArg (fun k => projRight m x + T k (projLeft m x)) (by fin_index)
 
 private def basicCondAt {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (idx : Fin (2 * d + 2)) : BitString (m + m) →ₗ[Bool] BitString m :=

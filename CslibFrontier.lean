@@ -241,6 +241,8 @@ public import CslibFrontier.Algorithms.Lean.TSP.PerfectMatching
 public import CslibFrontier.Algorithms.Lean.TSP.Shortcut
 public import CslibFrontier.Algorithms.Lean.TSP.Walk
 public import CslibFrontier.Algorithms.Lean.TimeM.Loops
+public import CslibFrontier.Algorithms.Lean.TimeM.Simps
+public import CslibFrontier.Algorithms.Lean.TimeM.Simps.Init
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagAssignment
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagMask
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
@@ -2338,6 +2340,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Tally
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import CslibFrontier.Computability.Complexity.Classes.Time.AcceptCount
 public import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
+public import CslibFrontier.Computability.Complexity.Classes.Time.LasVegas
 public import CslibFrontier.Computability.Complexity.Classes.Time.Polynomial
 public import CslibFrontier.Computability.Complexity.Classes.Time.SampleVerify
 public import CslibFrontier.Computability.Complexity.Classes.Time.SigmaTwo
@@ -3790,6 +3793,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition.ExpectedTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExpectedTime
@@ -3807,6 +3811,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IterateWhile
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop.ExpectedTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.OrElse
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Oracle
@@ -7867,6 +7872,8 @@ public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator
 public import CslibFrontier.Tactic.FOOperator.Init
 public import CslibFrontier.Tactic.FailureNote
+public import CslibFrontier.Tactic.FinIndex
+public import CslibFrontier.Tactic.FinIndex.Init
 public import CslibFrontier.Tactic.FirstOrder
 public import CslibFrontier.Tactic.FirstOrder.Init
 public import CslibFrontier.Tactic.FirstOrder.Simp

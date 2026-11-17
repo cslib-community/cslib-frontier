@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Algebra.Order.Field.GeomSum
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Depth-two threshold gate and wire lower bounds for Andreev's function
@@ -64,9 +65,8 @@ theorem univ_image_andreevLiveVar_eq_blockLiveSet (b m : ℕ) (σ : Fin b → Fi
 
 /-- Every truth-table coordinate is distinct from every block coordinate. -/
 theorem andreevTableIndex_ne_andreevBlockVar (b m : ℕ) (idx : Fin (2 ^ b))
-    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := fun h => by
-  have hval := congrArg Fin.val h
-  simp only [andreevTableIndex, andreevBlockVar, Fin.val_castAdd, Fin.val_natAdd] at hval; omega
+    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := by
+  fin_index [andreevTableIndex, andreevBlockVar]
 
 /-- No truth-table coordinate belongs to `univ.image (andreevLiveVar b m σ)`. -/
 theorem andreevTableIndex_notMem_image_andreevLiveVar (b m : ℕ) (σ : Fin b → Fin m)

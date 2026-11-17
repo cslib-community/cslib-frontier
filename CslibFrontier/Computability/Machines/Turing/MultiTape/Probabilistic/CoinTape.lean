@@ -33,6 +33,8 @@ machine implementing replay from an encoded input and coin tape needs a separate
 * `Turing.MultiTapePTM.replay_append`: concatenating closed coin replays runs them consecutively.
 * `Turing.MultiTapePTM.run_interpret_runConfigFrom_eq_coins`: average fixed-coin runs, retaining
   the complete configuration and private state.
+* `Turing.MultiTapePTM.eval_runClosedConfigFrom_one`: one closed step averages the two
+  fixed-coin steps.
 * `Turing.MultiTapePTM.runClosedCoins_ofDeterministic`: replaying a deterministic machine runs it
   for as many steps as there are coins.
 
@@ -236,6 +238,16 @@ theorem eval_runClosedConfigFrom_eq_map_coins (machine : MultiTapePTM k Symbol S
   rw [runClosedConfigFrom, ProbComp.eval, OracleComp.evalWith_eq_interpret,
     interpret_runConfigFrom_eq_coins machine _ _ _ hcoin]
   simp [runConfigFromCoins_closed, PMF.map, Function.comp_def]
+
+/-- One closed step draws a fair coin and takes the step selected by it. -/
+theorem eval_runClosedConfigFrom_one (machine : MultiTapePTM k Symbol State)
+    (cfg : Config k Symbol State Empty input) :
+    ProbComp.eval (machine.runClosedConfigFrom 1 cfg) =
+      (PMF.uniformOfFintype Bool).map fun bit => (machine.withCoin bit).step cfg := by
+  rw [eval_runClosedConfigFrom_eq_map_coins, BitString.uniformList_succ,
+    BitString.uniformList_zero, PMF.map_bind]
+  simp only [PMF.pure_map]
+  exact PMF.bind_pure_comp _ _
 
 /-- A closed fair-coin run is a deterministic function of a uniform tape of clock length. -/
 theorem eval_runClosed_eq_map_coins (machine : MultiTapePTM k Symbol State)

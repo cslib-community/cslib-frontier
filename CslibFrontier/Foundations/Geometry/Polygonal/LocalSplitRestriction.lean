@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Germs
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Cutting the two ends of a finite polygonal route
@@ -67,10 +68,7 @@ private theorem point_cutEnds_succ (p : Route) (s t : ℝ) (i : Fin p.segments) 
   have hzero : ¬i.val + 1 = 0 := by omega
   by_cases hi : i.val + 1 = p.segments
   · have hi' : i = Fin.last p.bends := by
-      apply Fin.ext
-      change i.val = p.bends
-      dsimp [segments] at hi
-      omega
+      fin_index [segments]
     subst i
     simp [cutEnds, cutUpper, segments]
   · change (if i.val + 1 = 0 then p.eval 0 s else
