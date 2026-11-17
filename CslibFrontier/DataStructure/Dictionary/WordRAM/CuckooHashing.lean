@@ -169,7 +169,7 @@ private theorem valsBase_add_eq (base c_exp n_max : ℕ) :
   dsimp only [valsBase, keysBase, t2Base, t1Base, hashBase, space]
   omega
 
-private theorem le_space (c_exp n_max : ℕ) :
+theorem le_space (c_exp n_max : ℕ) :
     77 ≤ space c_exp n_max := by
   have h1 := le_hashPairSpace c_exp n_max
   have h2 := four_le_tableSize n_max
@@ -352,7 +352,7 @@ def RepWithKeys (w base c_exp n_max U V : ℕ) (ks : List (Fin U))
 def Rep (w base c_exp n_max U V : ℕ) (s : Dictionary.State U) (x : Data 19) : Prop :=
   ∃ ks : List (Fin U), RepWithKeys w base c_exp n_max U V ks s x
 
-private theorem RepWithKeys.toRep {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+theorem RepWithKeys.toRep {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {x : Data 19}
     (hrep : RepWithKeys w base c_exp n_max U V ks s x) :
     Rep w base c_exp n_max U V s x :=
@@ -388,7 +388,7 @@ private theorem extractSeed_congr_of_block_footprint {base c_exp n_max U : ℕ} 
   extractSeed_congr_of_footprint fun a ha1 ha2 =>
     hmem a (by simp only [Block.mem_footprint, Block.Owns, hashBase, space] at *; omega)
 
-private theorem RepWithKeys.supported {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
+theorem RepWithKeys.supported {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {x x' : Data 19}
     (hreg0 : x'.regs 0 = x.regs 0)
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, x'.mem a = x.mem a)
@@ -1101,7 +1101,7 @@ def decodeOptionNat : ℕ → Option ℕ
   | v + 1 => some v
 
 @[simp]
-private theorem decodeOptionNat_encodeOptionNat (o : Option ℕ) :
+theorem decodeOptionNat_encodeOptionNat (o : Option ℕ) :
     decodeOptionNat (encodeOptionNat o) = o := by
   cases o <;> rfl
 
@@ -3999,7 +3999,7 @@ private theorem rehashDetTail_execWithin {w base c_exp n_max U V : ℕ}
     exact hiff.mpr
       (mem_survivingSeeds_of_goodForSet hnodup (fun u hu => (hdom_iff u).mp hu) hgood)
 
-private theorem half_le_toOuterMeasure_of_compl_le_half {α : Type*} (p : PMF α) (S : Set α)
+theorem half_le_toOuterMeasure_of_compl_le_half {α : Type*} (p : PMF α) (S : Set α)
     (hc : p.toOuterMeasure {x | x ∉ S} ≤ 1 / 2) :
     (1 : ℝ≥0∞) / 2 ≤ p.toOuterMeasure S := by
   have hsum : p.toOuterMeasure S + p.toOuterMeasure {x | x ∉ S} = 1 :=
@@ -5906,12 +5906,12 @@ private theorem tableBits_le_clog (c_exp n_max : ℕ) :
     Nat.mul_le_mul_right _ (le_max_right c_exp 1)
   omega
 
-private theorem evalHashSteps_tableBits_le {c_exp n_max U : ℕ}
+theorem evalHashSteps_tableBits_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     evalHashSteps c_exp n_max U (tableBits n_max) ≤ evalHashBound c_exp :=
   evalHashSteps_le hU (tableBits_le_clog c_exp n_max)
 
-private theorem querySteps_le {c_exp n_max U : ℕ}
+theorem querySteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     querySteps c_exp n_max U ≤ queryStepsBound c_exp := by
   have hev := evalHashSteps_tableBits_le hU
@@ -5926,7 +5926,7 @@ private theorem evictIterSteps_le {c_exp n_max U : ℕ}
     evalHashAtBaseSteps]
   omega
 
-private theorem insertBaseSteps_le {c_exp n_max U : ℕ}
+theorem insertBaseSteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
     insertBaseSteps c_exp n_max U ≤ insertBaseBound c_exp := by
   have hev := evalHashSteps_tableBits_le hU

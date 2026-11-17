@@ -183,7 +183,7 @@ def space (c_exp n_max : ℕ) : ℕ :=
 def spaceFactor (c_exp : ℕ) : ℕ :=
   32 * (numChars c_exp + 1) * tupleLen c_exp + 768
 
-private theorem seven_le_bucketBits (n_max : ℕ) : 7 ≤ bucketBits n_max := by
+theorem seven_le_bucketBits (n_max : ℕ) : 7 ≤ bucketBits n_max := by
   dsimp only [bucketBits]
   calc
     7 = Nat.clog 2 (2 ^ 7) := (Nat.clog_pow 2 7 (by decide)).symm
@@ -192,18 +192,18 @@ private theorem seven_le_bucketBits (n_max : ℕ) : 7 ≤ bucketBits n_max := by
 theorem two_le_bucketBits (n_max : ℕ) : 2 ≤ bucketBits n_max :=
   le_trans (by decide : 2 ≤ 7) (seven_le_bucketBits n_max)
 
-private theorem bucketBits_pos (n_max : ℕ) : 0 < bucketBits n_max :=
+theorem bucketBits_pos (n_max : ℕ) : 0 < bucketBits n_max :=
   lt_of_lt_of_le (by decide : 0 < 7) (seven_le_bucketBits n_max)
 
-private theorem thirtyTwo_mul_max_le_numBuckets (n_max : ℕ) :
+theorem thirtyTwo_mul_max_le_numBuckets (n_max : ℕ) :
     32 * max n_max 4 ≤ numBuckets n_max :=
   Nat.le_pow_clog (by decide) (32 * max n_max 4)
 
-private theorem four_le_numBuckets (n_max : ℕ) : 4 ≤ numBuckets n_max := by
+theorem four_le_numBuckets (n_max : ℕ) : 4 ≤ numBuckets n_max := by
   have := thirtyTwo_mul_max_le_numBuckets n_max
   omega
 
-private theorem four_mul_le_numBuckets (n_max : ℕ) : 4 * n_max ≤ numBuckets n_max := by
+theorem four_mul_le_numBuckets (n_max : ℕ) : 4 * n_max ≤ numBuckets n_max := by
   have := thirtyTwo_mul_max_le_numBuckets n_max
   omega
 
@@ -211,7 +211,7 @@ theorem two_mul_le_numBuckets (n_max : ℕ) : 2 * n_max ≤ numBuckets n_max := 
   have := four_mul_le_numBuckets n_max
   omega
 
-private theorem lt_numBuckets (n_max : ℕ) : n_max < numBuckets n_max := by
+theorem lt_numBuckets (n_max : ℕ) : n_max < numBuckets n_max := by
   have h4 := four_le_numBuckets n_max
   have h4n := four_mul_le_numBuckets n_max
   omega
@@ -222,7 +222,7 @@ theorem numBuckets_pos (n_max : ℕ) : 0 < numBuckets n_max :=
 instance instNonemptyFinNumBuckets (n_max : ℕ) : Nonempty (Fin (numBuckets n_max)) :=
   ⟨⟨0, numBuckets_pos n_max⟩⟩
 
-private theorem numBuckets_le_mul_add_one (n_max : ℕ) :
+theorem numBuckets_le_mul_add_one (n_max : ℕ) :
     numBuckets n_max ≤ 256 * (n_max + 1) := by
   have hlt := Nat.lt_pow_succ_log_self (by decide : 1 < 2) (32 * max n_max 4)
   have hclog_le : bucketBits n_max ≤ Nat.log 2 (32 * max n_max 4) + 1 :=
@@ -299,7 +299,7 @@ def strideHash {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
   ⟨2 * (rawStrideHash θ u).val + 1, two_mul_rawStrideHash_add_one_lt θ u⟩
 
 @[simp]
-private theorem val_strideHash {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
+theorem val_strideHash {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
     (strideHash θ u).val = 2 * (rawStrideHash θ u).val + 1 :=
   rfl
 
@@ -311,7 +311,7 @@ noncomputable def probePerm {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : F
   DoubleHashing.doubleHashOddStridePerm c_exp n_max U (bucketBits n_max) θ u
 
 @[simp]
-private theorem val_probePerm {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U)
+theorem val_probePerm {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U)
     (i : Fin (numBuckets n_max)) :
     (probePerm θ u i).val =
       ((primaryHash θ u).val + i.val * (strideHash θ u).val) % numBuckets n_max := by
@@ -364,7 +364,7 @@ def extractSlots (base c_exp U n_max : ℕ) (mem : ℕ → ℕ) :
       some (⟨mem (sBase + m + j.val), h⟩, mem (sBase + 2 * m + j.val))
     else none
 
-private theorem extractSlots_eq_none_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
+theorem extractSlots_eq_none_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (j : Fin (numBuckets n_max)) :
     extractSlots base c_exp U n_max mem j = none ↔
       mem (base + slotOffset c_exp n_max + j.val) = 0 := by
@@ -373,7 +373,7 @@ private theorem extractSlots_eq_none_iff {base c_exp U n_max : ℕ} {mem : ℕ �
   · have hlt : mem (base + slotOffset c_exp n_max + numBuckets n_max + j.val) < U := hkey h1
     simp [extractSlots, h1, hlt]
 
-private theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
+theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (j : Fin (numBuckets n_max))
     (u : Fin U) (v : ℕ) :
     extractSlots base c_exp U n_max mem j = some (u, v) ↔
@@ -385,7 +385,7 @@ private theorem extractSlots_eq_some_iff {base c_exp U n_max : ℕ} {mem : ℕ �
   · have hlt : mem (base + slotOffset c_exp n_max + numBuckets n_max + j.val) < U := hkey h1
     simp [extractSlots, h1, hlt, Fin.ext_iff]
 
-private theorem mem_otherOccupiedSlots_extractSlots_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
+theorem mem_otherOccupiedSlots_extractSlots_iff {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (u : Fin U) (j : Fin (numBuckets n_max)) :
     j ∈ otherOccupiedSlots (extractSlots base c_exp U n_max mem) u ↔
       mem (base + slotOffset c_exp n_max + j.val) = 1 ∧
@@ -454,7 +454,7 @@ private theorem mem_footprint_of_lt_space {base c_exp n_max a : ℕ}
   rw [Block.mem_footprint]
   exact ⟨hlo, hhi⟩
 
-private theorem SlotArrayWF.congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
+theorem SlotArrayWF.congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a)
     (hwf : SlotArrayWF base c_exp U n_max mem) :
     SlotArrayWF base c_exp U n_max mem' := by
@@ -471,7 +471,7 @@ private theorem SlotArrayWF.congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ
   rw [h0, h1]
   exact hwf j
 
-private theorem extractSlots_congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
+theorem extractSlots_congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a) :
     extractSlots base c_exp U n_max mem' = extractSlots base c_exp U n_max mem := by
   funext j
@@ -1803,7 +1803,7 @@ def probeBound (c_exp n_max : ℕ) : ℕ :=
 def charge (c_exp n_max : ℕ) : ℕ :=
   13 * probeBound c_exp n_max + hashEvalSteps c_exp + 8
 
-private theorem probeBound_le_doubleTabThreshold (c_exp n_max : ℕ) :
+theorem probeBound_le_doubleTabThreshold (c_exp n_max : ℕ) :
     probeBound c_exp n_max ≤ doubleTabThreshold c_exp := by
   have h4 := four_le_doubleTabThreshold c_exp
   dsimp only [probeBound]

@@ -70,66 +70,66 @@ instance : WordEncoding ClusterInput := ⟨15, .refl (Fin 15 → ℕ)⟩
     fullBase base w w₀ n, occBase base w w₀ n, runBase base w w₀ n, remBase base w w₀ n,
     pBit, 2 ^ pBit - 1, pRem, 2 ^ pRem - 1, f, 2 ^ f - 1]
 
-@[simp] private theorem mkClusterInput_0 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_0 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 0 = q.val := rfl
 
-@[simp] private theorem mkClusterInput_1 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_1 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 1 = r.val := rfl
 
-@[simp] private theorem mkClusterInput_2 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_2 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 2 = opTag := rfl
 
-@[simp] private theorem mkClusterInput_3 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_3 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 3 = 2 ^ quotBits w₀ n := rfl
 
-@[simp] private theorem mkClusterInput_4 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_4 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 4 = 2 ^ quotBits w₀ n - 1 := rfl
 
-@[simp] private theorem mkClusterInput_5 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_5 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 5 = fullBase base w w₀ n := rfl
 
-@[simp] private theorem mkClusterInput_6 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_6 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 6 = occBase base w w₀ n := rfl
 
-@[simp] private theorem mkClusterInput_7 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_7 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 7 = runBase base w w₀ n := rfl
 
-@[simp] private theorem mkClusterInput_8 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_8 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 8 = remBase base w w₀ n := rfl
 
-@[simp] private theorem mkClusterInput_9 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_9 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 9 = slotPackShift (quotBits w₀ n) 1 w := rfl
 
-@[simp] private theorem mkClusterInput_10 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_10 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 10 =
       2 ^ slotPackShift (quotBits w₀ n) 1 w - 1 := rfl
 
-@[simp] private theorem mkClusterInput_11 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_11 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 11 =
       slotPackShift (quotBits w₀ n) (remBits w₀ k) w := rfl
 
-@[simp] private theorem mkClusterInput_12 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_12 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 12 =
       2 ^ slotPackShift (quotBits w₀ n) (remBits w₀ k) w - 1 := rfl
 
-@[simp] private theorem mkClusterInput_13 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_13 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 13 = remBits w₀ k := rfl
 
-@[simp] private theorem mkClusterInput_14 (base w w₀ n k : ℕ)
+@[simp] theorem mkClusterInput_14 (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ) :
     mkClusterInput base w w₀ n k q r opTag 14 = 2 ^ remBits w₀ k - 1 := rfl
 
@@ -290,10 +290,10 @@ private theorem encode_mkClusterInput_lt {base w w₀ n k : ℕ}
 
 /-! ## Section 2: Comparison and bit-packed accessor programs -/
 
-@[simp] private theorem clientResult_pure {α : Type} (s : Memory.State) (a : α) :
+@[simp] theorem clientResult_pure {α : Type} (s : Memory.State) (a : α) :
     (Memory.spec 0).clientResult s (pure a) = a := rfl
 
-private theorem clientState_pure {α : Type} (s : Memory.State) (a : α) :
+theorem clientState_pure {α : Type} (s : Memory.State) (a : α) :
     (Memory.spec 0).clientState s (pure a) = s := rfl
 
 /-- `<` test returning `(a < b).toNat`. -/
@@ -609,7 +609,7 @@ private theorem clientState_readRem (s : Memory.State) (x : ClusterInput × ℕ)
 
 /-! ## Section 3: Backward and forward cluster-extent discovery (`findClusterProg`) -/
 
-private theorem boundedWhile_invariant {δ σ : Type}
+theorem boundedWhile_invariant {δ σ : Type}
     (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
     (body : δ × σ → Memory.Prog σ) (d : δ)
     (I : σ → Memory.State → Prop)
@@ -631,7 +631,7 @@ private theorem boundedWhile_invariant {δ σ : Type}
         StateTransitionSpec.clientState, StateTransitionSpec.runClient_pure']
       exact hi
 
-private theorem iterationSafe_of_invariant {δ σ : Type}
+theorem iterationSafe_of_invariant {δ σ : Type}
     (body : δ × σ → Memory.Prog σ)
     (safe : ℕ → (δ × σ) → Memory.State → Prop) (w : ℕ) (d : δ)
     (I : ℕ → σ → Memory.State → Prop)
@@ -647,7 +647,7 @@ private theorem iterationSafe_of_invariant {δ σ : Type}
     obtain ⟨hs, hi'⟩ := hstep n a s hi
     exact ⟨hs, ih hi'⟩
 
-private theorem iterate_invariant {δ σ : Type}
+theorem iterate_invariant {δ σ : Type}
     (body : δ × σ → Memory.Prog σ) (d : δ)
     (I : ℕ → σ → Memory.State → Prop)
     (hstep : ∀ j a s, I (j + 1) a s →
@@ -1773,16 +1773,15 @@ private theorem clusterMemSafe_mkClusterInput {base w w₀ n k : ℕ} {s : Memor
   · rw [mkClusterInput_8, mkClusterInput_4, mkClusterInput_11]
     dsimp only [remBase, runBase, occBase]; omega
 
-@[simp] private theorem pure_bind_prog {α β : Type} (a : α) (f : α → Memory.Prog β) :
+@[simp] theorem pure_bind_prog {α β : Type} (a : α) (f : α → Memory.Prog β) :
     (Pure.pure a : Memory.Prog α) >>= f = f a := rfl
 
-private theorem frontier_le_clientState {α : Type} (s : Memory.State) (p : Memory.Prog α) :
+theorem frontier_le_clientState {α : Type} (s : Memory.State) (p : Memory.Prog α) :
     s.frontier ≤ ((Memory.spec 0).clientState s p).frontier := by
   have h := Memory.frontier_le_run (w := 0) s ((Memory.spec 0).clientHistory s p)
   rwa [StateTransitionSpec.run_runClient] at h
 
-private theorem wellFormed_clientState {α : Type} {w : ℕ} {s : Memory.State}
-    (hwf : Memory.WellFormed w s)
+theorem wellFormed_clientState {α : Type} {w : ℕ} {s : Memory.State} (hwf : Memory.WellFormed w s)
     {p : Memory.Prog α} (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p)) :
     Memory.WellFormed w ((Memory.spec 0).clientState s p) := by
   rw [← clientState_width w p s]
@@ -2090,7 +2089,7 @@ private theorem validHistory_clusterOp {w : ℕ} {d : ClusterInput} {s : Memory.
     memoryCost (selectPosProg x) s = 0 := by
   dsimp only [selectPosProg]; split_ifs <;> rfl
 
-@[simp] private theorem memoryCost_scanStepTarget (x : ScanStepCtx)
+@[simp] theorem memoryCost_scanStepTarget (x : ScanStepCtx)
     (s : Memory.State) :
     memoryCost (scanStepTargetProg x) s = 0 := by
   unfold scanStepTargetProg; split_ifs <;> rfl
@@ -2129,7 +2128,7 @@ private theorem validHistory_clusterOp {w : ℕ} {d : ClusterInput} {s : Memory.
 @[simp] private theorem memoryCost_writeRem (x : ClusterInput × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (writeRemProg x) s = 2 := rfl
 
-private theorem memoryCost_iterate_le {δ σ : Type} (body : δ × σ → Memory.Prog σ) (c : ℕ)
+theorem memoryCost_iterate_le {δ σ : Type} (body : δ × σ → Memory.Prog σ) (c : ℕ)
     (hstep : ∀ d a s, memoryCost (body (d, a)) s ≤ c)
     (d : δ) (n : ℕ) (a : σ) (s : Memory.State) :
     memoryCost (iterate body d n a) s ≤ c * n := by
@@ -2384,11 +2383,11 @@ only within the four packed slot arrays `[fullBase base w w₀ n, base + space w
   s₂.frontier = s₁.frontier ∧
   ∀ a, (a < fullBase base w w₀ n ∨ base + space w w₀ n k ≤ a) → s₂.mem a = s₁.mem a
 
-private theorem SlotFrame.refl (base w w₀ n k : ℕ) (s : Memory.State) :
+theorem SlotFrame.refl (base w w₀ n k : ℕ) (s : Memory.State) :
     SlotFrame base w w₀ n k s s :=
   ⟨rfl, fun _ _ => rfl⟩
 
-private theorem SlotFrame.trans {base w w₀ n k : ℕ} {s₁ s₂ s₃ : Memory.State}
+theorem SlotFrame.trans {base w w₀ n k : ℕ} {s₁ s₂ s₃ : Memory.State}
     (h₁₂ : SlotFrame base w w₀ n k s₁ s₂) (h₂₃ : SlotFrame base w w₀ n k s₂ s₃) :
     SlotFrame base w w₀ n k s₁ s₃ :=
   ⟨h₂₃.1.trans h₁₂.1, fun a ha => (h₂₃.2 a ha).trans (h₁₂.2 a ha)⟩
@@ -2731,21 +2730,21 @@ private theorem clientResult_findCluster_mk {U : ℕ} {S : Finset (Fin U)} (base
     add_sub_and_eq_backSlot_val q ha_le]
   rfl
 
-private theorem calcRunStart_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ) :
+theorem calcRunStart_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ) :
     calcRunStart st o a 0 = 0 := rfl
 
-private theorem calcRunStart_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ) :
+theorem calcRunStart_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ) :
     calcRunStart st o a (m + 1) =
       calcRunStart st o a m + (decide (runsBefore st o (m + 1) ≤ occBefore st o a)).toNat := by
   simp only [calcRunStart, List.range_succ, List.filter_append, List.length_append,
     List.filter_cons, List.filter_nil]
   cases decide (runsBefore st o (m + 1) ≤ occBefore st o a) <;> rfl
 
-private theorem calcTargetSlot_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ)
+theorem calcTargetSlot_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ)
     (r : Fin (2 ^ f)) :
     calcTargetSlot st o a 0 r = 0 := rfl
 
-private theorem calcTargetSlot_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ)
+theorem calcTargetSlot_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ)
     (r : Fin (2 ^ f)) :
     calcTargetSlot st o a (m + 1) r =
       calcTargetSlot st o a m r +
@@ -2758,11 +2757,10 @@ private theorem calcTargetSlot_succ {b f : ℕ} (st : FilterState b f) (o : Fin 
     (decide (runsBefore st o (m + 1) ≤ occBefore st o (a + 1)) &&
       decide (st.remAt (probeSlot b o m) < r))) <;> rfl
 
-private theorem calcDeleteStopPrefix_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
-    (a ℓ : ℕ) :
+theorem calcDeleteStopPrefix_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a ℓ : ℕ) :
     calcDeleteStopPrefix st o a ℓ 0 = ℓ := rfl
 
-private theorem calcDeleteStopPrefix_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
+theorem calcDeleteStopPrefix_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b))
     (a ℓ : ℕ) {m : ℕ} (hm : m < ℓ) :
     let e := calcDeleteStopPrefix st o a ℓ m
     let cond :=
@@ -2789,11 +2787,11 @@ private theorem calcDeleteStopPrefix_succ {b f : ℕ} (st : FilterState b f) (o 
     have hne : ¬(x = ℓ) := by omega
     simp [hne]
 
-private theorem queryAnyPrefix_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ)
+theorem queryAnyPrefix_zero {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a : ℕ)
     (r : Fin (2 ^ f)) :
     queryAnyPrefix st o a 0 r = false := rfl
 
-private theorem queryAnyPrefix_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ)
+theorem queryAnyPrefix_succ {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (a m : ℕ)
     (r : Fin (2 ^ f)) :
     queryAnyPrefix st o a (m + 1) r =
       (queryAnyPrefix st o a m r ||
@@ -3566,15 +3564,15 @@ theorem le_rQF : 248 ≤ rQF := by
 @[expose] noncomputable def qfReg : Fin 248 → Fin rQF :=
   Fin.castLE le_rQF
 
-private theorem injective_qfReg : Function.Injective qfReg :=
+theorem injective_qfReg : Function.Injective qfReg :=
   Fin.castLE_injective le_rQF
 
 @[simp]
-private theorem qfReg_inj {i j : Fin 248} : qfReg i = qfReg j ↔ i = j :=
+theorem qfReg_inj {i j : Fin 248} : qfReg i = qfReg j ↔ i = j :=
   injective_qfReg.eq_iff
 
 @[simp]
-private theorem val_qfReg (i : Fin 248) : (qfReg i).val = i.val := rfl
+theorem val_qfReg (i : Fin 248) : (qfReg i).val = i.val := rfl
 
 /-- Embedding `Fin 240 → Fin rQF` for `ReducedKWise` subroutines. -/
 @[expose] noncomputable def kwiseMap : Fin 240 → Fin rQF :=

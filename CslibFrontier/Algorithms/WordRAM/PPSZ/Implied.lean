@@ -158,7 +158,7 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
   {C Tb s Db : ℕ}
 
 /-- The frame survives a change that keeps its registers and the memory below `Db`. -/
-private theorem ImpFrame.congr {y z : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y)
+theorem ImpFrame.congr {y z : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y)
     (hr : ∀ i ∈ ({zero, one, xReg, bReg, cBeg, cEnd, tBase, sReg, dBase, eBase} :
       Finset (Fin 32)), z.regs i = y.regs i)
     (hm : ∀ a < Db, z.mem a = y.mem a) : ImpFrame w φ τ x b C Tb s Db z where
@@ -192,7 +192,7 @@ theorem ImpFrame.of_exec {c : Code .standard 32} {y z : Data 32} {T : ℕ}
     exact he.regs_eq ‹_›
 
 /-- The frame after setting a register outside it. -/
-private theorem ImpFrame.set {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {i : Fin 32}
+theorem ImpFrame.set {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {i : Fin 32}
     (hi : i ∉ ({zero, one, xReg, bReg, cBeg, cEnd, tBase, sReg, dBase, eBase} :
       Finset (Fin 32))) (v : ℕ) : ImpFrame w φ τ x b C Tb s Db (y.set i v) :=
   h.congr (fun j hj => by
@@ -201,8 +201,7 @@ private theorem ImpFrame.set {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y
     exact hi hj) fun _ _ => rfl
 
 /-- The frame after a store at or above `Db`. -/
-private theorem ImpFrame.write {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {a : ℕ}
-    (ha : Db ≤ a)
+theorem ImpFrame.write {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {a : ℕ} (ha : Db ≤ a)
     (v : ℕ) : ImpFrame w φ τ x b C Tb s Db (y.write a v) :=
   h.congr (fun _ _ => rfl) fun a' ha' => by
     rw [Data.write_mem, Function.update_of_ne (by omega)]
@@ -258,7 +257,7 @@ private theorem odometer_step_spec {base hi k : ℕ} {loop : Code .standard 32} 
 end Frame
 
 /-- A represented list with a first entry. -/
-private theorem holdsList_cons_iff {base a : ℕ} {l : List ℕ} {mem : ℕ → ℕ} :
+theorem holdsList_cons_iff {base a : ℕ} {l : List ℕ} {mem : ℕ → ℕ} :
     HoldsList base (a :: l) mem ↔ mem base = a ∧ HoldsList (base + 1) l mem := by
   rw [show a :: l = [a] ++ l from rfl, holdsList_append_iff]
   constructor
@@ -743,7 +742,7 @@ compatible with the partial assignment with `x` set to `!b`. -/
 def goodTest : Code .standard 32 := ram[ sat ← one; jR ← zero; ⟪goodLoop⟫ ]
 
 /-- The code of the complementary literal stays below `2 n`. -/
-private theorem xor_one_lt {c m : ℕ} (h : c < 2 * m) : c ^^^ 1 < 2 * m := by
+theorem xor_one_lt {c m : ℕ} (h : c < 2 * m) : c ^^^ 1 < 2 * m := by
   rcases Nat.even_or_odd c with he | ho
   · rw [Nat.xor_one_of_even he]
     obtain ⟨k, rfl⟩ := he
@@ -947,8 +946,7 @@ end Good
 /-! ### Sections: shape and size -/
 
 /-- With an empty list among `L`, there is no section. -/
-private theorem sections_eq_nil_of_nil_mem {α : Type*} :
-    ∀ {L : List (List α)}, [] ∈ L → L.sections = []
+theorem sections_eq_nil_of_nil_mem {α : Type*} : ∀ {L : List (List α)}, [] ∈ L → L.sections = []
   | [], h => by simp at h
   | l :: L, h => by
     rcases List.mem_cons.mp h with rfl | h
@@ -956,7 +954,7 @@ private theorem sections_eq_nil_of_nil_mem {α : Type*} :
     · simp [sections_eq_nil_of_nil_mem h]
 
 /-- Without an empty list among `L`, the first section picks the first entry of every list. -/
-private theorem sections_eq_cons_headD {α : Type*} (d : α) : ∀ {L : List (List α)},
+theorem sections_eq_cons_headD {α : Type*} (d : α) : ∀ {L : List (List α)},
     (∀ l ∈ L, l ≠ []) → ∃ xs, L.sections = L.map (·.headD d) :: xs
   | [], _ => ⟨[], rfl⟩
   | l :: L, h => by
@@ -968,7 +966,7 @@ private theorem sections_eq_cons_headD {α : Type*} (d : α) : ∀ {L : List (Li
       List.headD_cons]
 
 /-- The number of sections of lists of length at most `m`. -/
-private theorem length_sections_le {α : Type*} {m : ℕ} : ∀ {L : List (List α)},
+theorem length_sections_le {α : Type*} {m : ℕ} : ∀ {L : List (List α)},
     (∀ l ∈ L, l.length ≤ m) → L.sections.length ≤ m ^ L.length
   | [], _ => by simp
   | l :: L, h => by
@@ -979,8 +977,7 @@ private theorem length_sections_le {α : Type*} {m : ℕ} : ∀ {L : List (List 
     calc L.sections.length * l.length ≤ m ^ L.length * m := Nat.mul_le_mul ih this
 
 /-- `List.all` depends only on the values of the test on the list. -/
-private theorem all_congr_of_mem {α : Type*} {l : List α} {f g : α → Bool}
-    (h : ∀ a ∈ l, f a = g a) :
+theorem all_congr_of_mem {α : Type*} {l : List α} {f g : α → Bool} (h : ∀ a ∈ l, f a = g a) :
     l.all f = l.all g := by
   induction l with
   | nil => rfl
@@ -1033,7 +1030,7 @@ private theorem length_litAddrs_le {C : ℕ} {φ : CNF (Fin n)} {a : ℕ} (ha : 
   omega
 
 /-- There are at most as many clauses as the encoding has words. -/
-private theorem length_clauseAddrs_le : ∀ (a : ℕ) (φ : CNF (Fin n)),
+theorem length_clauseAddrs_le : ∀ (a : ℕ) (φ : CNF (Fin n)),
     (clauseAddrs a φ).length ≤ (encodeClauses φ).length
   | _, [] => by simp [clauseAddrs]
   | a, c :: φ => by
@@ -1578,7 +1575,7 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
   {C Tb s Db : ℕ}
 
 /-- The frame with another polarity. -/
-private theorem ImpFrame.setB {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) (b' : Bool) :
+theorem ImpFrame.setB {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) (b' : Bool) :
     ImpFrame w φ τ x b' C Tb s Db (y.set bReg b'.toNat) :=
   { (h.set (i := sat) (by decide) 0) with
     zero_eq := by simp +decide [h.zero_eq]

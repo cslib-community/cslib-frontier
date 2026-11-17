@@ -237,7 +237,7 @@ private theorem ksCopyRegMap_injective : Function.Injective ksCopyRegMap := by
 def ksCopyCode : Code .standard 24 :=
   ArrayCopy.program.rename ksCopyRegMap
 
-private theorem holdsMatrix_of_copyPrefix {mem : ℕ → ℕ} {sb db k : ℕ} {W : Fin k → Fin k → ℕ}
+theorem holdsMatrix_of_copyPrefix {mem : ℕ → ℕ} {sb db k : ℕ} {W : Fin k → Fin k → ℕ}
     (hsrc : HoldsMatrix mem sb k W) :
     HoldsMatrix (ArrayCopy.copyPrefix mem sb db (k * k)) db k W := by
   intro i j
@@ -828,7 +828,7 @@ private theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t →
     exact hpres _ (by decide)
 
 /-- Contracting a multigraph never increases `totalDoubledWeight`. -/
-private theorem totalDoubledWeight_le_of_isContractionOf {n k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+theorem totalDoubledWeight_le_of_isContractionOf {n k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {part : Fin n → Fin k} {W : Fin k → Fin k → ℕ} (hC : IsContractionOf W₀ part W) :
     totalDoubledWeight W ≤ totalDoubledWeight W₀ := by
   unfold totalDoubledWeight
@@ -1482,7 +1482,7 @@ theorem baseCaseAndPop_spec {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n 
     rw [← hlaw, ProbComp.eval_map, PMF.toOuterMeasure_map_apply] at hprob
     exact (base_survival_ge hk2 hk6).trans hprob
 
-private theorem frameSize_le_fastCutScratch (m : ℕ) :
+theorem frameSize_le_fastCutScratch (m : ℕ) :
     frameSize m ≤ fastCutScratch m := by
   by_cases hm : 7 ≤ m
   · rw [fastCutScratch_of_ge_seven hm]
