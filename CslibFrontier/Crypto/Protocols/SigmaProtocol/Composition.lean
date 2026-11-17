@@ -33,6 +33,12 @@ parameters of `orProof`. In `k`-fold parallel repetition (`parallelRepetition`),
 `k` independent commitments, answers each coordinate challenge `c j` independently, and extraction
 uses the first coordinate `j : Fin k` where the two challenge tuples differ.
 
+This module supplies the transcript identities and structural preservation laws. The
+polynomial-time extractor and strict-PPT simulator preservation results are in
+`CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient`: those are the efficient counterparts
+of Theorems 19.18–19.19 and Exercise 19.6(b–c). Exact special HVZK corresponds to their
+zero-error specializations.
+
 ## Main definitions
 
 * `SigmaProtocol.andProof`, `SigmaProtocol.andExtract`, `SigmaProtocol.andSimulate`.
@@ -44,9 +50,9 @@ uses the first coordinate `j : Fin k` where the two challenge tuples differ.
 ## Main results
 
 * `SigmaProtocol.andProof_complete`, `SigmaProtocol.andProof_specialSoundness`,
-  `SigmaProtocol.andProof_specialHVZK`: Theorem 19.18.
+  `SigmaProtocol.andProof_specialHVZK`: structural AND preservation.
 * `SigmaProtocol.orProof_complete`, `SigmaProtocol.orProof_specialSoundness`,
-  `SigmaProtocol.orProof_specialHVZK`: Theorem 19.19.
+  `SigmaProtocol.orProof_specialHVZK`: structural OR preservation.
 * `SigmaProtocol.parallelRepetition_complete`, `SigmaProtocol.parallelRepetition_specialSoundness`,
   `SigmaProtocol.parallelRepetition_specialHVZK`: parallel repetition preserves completeness,
   special soundness, and special HVZK.
@@ -118,7 +124,7 @@ theorem andProof_transcript (x : X₀ × X₁) (y : Y₀ × Y₁) (c : C) :
       return ((a.1, b.1), (a.2, b.2)) := by
   simp only [pmf_norm, transcript, andProof]
 
-/-- Theorem 19.18 of [BonehShoup2023]: completeness. -/
+/-- Completeness of the AND construction. -/
 theorem andProof_complete (h₀ : P₀.Complete R₀) (h₁ : P₁.Complete R₁) :
     (P₀.andProof P₁).Complete fun x y => R₀ x.1 y.1 ∧ R₁ x.2 y.2 := by
   rintro x y ⟨hx₀, hx₁⟩ c tz htz
@@ -127,7 +133,8 @@ theorem andProof_complete (h₀ : P₀.Complete R₀) (h₁ : P₁.Complete R₁
   obtain ⟨a, ha, b, hb, rfl⟩ := htz
   exact andProof_accepts_iff.mpr ⟨h₀ _ _ hx₀ c a ha, h₁ _ _ hx₁ c b hb⟩
 
-/-- Theorem 19.18 of [BonehShoup2023]: special soundness. -/
+/-- Structural special soundness of the AND construction. Polynomial-time extraction is
+preserved by `EfficientSpecialSoundness.andProof` in the efficient API. -/
 theorem andProof_specialSoundness {W₀ W₁ : Type u} {R₀' : W₀ → Y₀ → Prop} {R₁' : W₁ → Y₁ → Prop}
     {extract₀ : Y₀ → T₀ → C → Z₀ → C → Z₀ → W₀}
     {extract₁ : Y₁ → T₁ → C → Z₁ → C → Z₁ → W₁} (h₀ : P₀.SpecialSoundness R₀' extract₀)
@@ -138,7 +145,8 @@ theorem andProof_specialSoundness {W₀ W₁ : Type u} {R₀' : W₀ → Y₀ �
   rw [andProof_accepts_iff] at hz hz'
   exact ⟨h₀ _ _ _ _ _ _ hc hz.1 hz'.1, h₁ _ _ _ _ _ _ hc hz.2 hz'.2⟩
 
-/-- Theorem 19.18 of [BonehShoup2023]: special honest-verifier zero knowledge. -/
+/-- Exact transcript simulation for the AND construction. Strict-PPT simulation is preserved
+by `EfficientSpecialHVZK.andProof` in the efficient API. -/
 theorem andProof_specialHVZK {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)}
     {simulate₁ : Y₁ → C → PMF (T₁ × Z₁)} (h₀ : P₀.SpecialHVZK R₀ simulate₀)
     (h₁ : P₁.SpecialHVZK R₁ simulate₁) :
@@ -242,8 +250,8 @@ theorem orProof_transcript_inr (x : X₁) (y : Y₀ × Y₁) (c : C) :
       return ((a.1, b.1), c₀, a.2, b.2) := by
   simp only [pmf_norm, transcript, orProof]
 
-/-- Theorem 19.19 of [BonehShoup2023]: completeness. It uses that both simulators output
-accepting conversations. -/
+/-- Completeness of the OR construction, using that both simulators output accepting
+conversations. -/
 theorem orProof_complete (h₀ : P₀.Complete R₀) (h₁ : P₁.Complete R₁)
     (hs₀ : P₀.SpecialHVZK R₀ simulate₀) (hs₁ : P₁.SpecialHVZK R₁ simulate₁) :
     (orProof P₀ P₁ simulate₀ simulate₁).Complete (orRelation R₀ R₁) := by
@@ -258,8 +266,9 @@ theorem orProof_complete (h₀ : P₀.Complete R₀) (h₁ : P₁.Complete R₁)
     obtain ⟨c₀, -, a, ha, b, hb, rfl⟩ := htz
     exact orProof_accepts_iff.mpr ⟨hs₀.accepts y.1 c₀ a ha, h₁ x y.2 hxy (c - c₀) b hb⟩
 
-/-- Theorem 19.19 of [BonehShoup2023]: special soundness. Distinct challenges differ on the
-first side's challenge or on the second side's. -/
+/-- Structural special soundness of the OR construction: distinct challenges differ on the
+first side or the second. `EfficientSpecialSoundness.orProof` certifies the constructed
+extractor. -/
 theorem orProof_specialSoundness [DecidableEq C] {W₀ W₁ : Type u}
     {R₀' : W₀ → Y₀ → Prop} {R₁' : W₁ → Y₁ → Prop}
     {extract₀ : Y₀ → T₀ → C → Z₀ → C → Z₀ → W₀}
@@ -276,9 +285,8 @@ theorem orProof_specialSoundness [DecidableEq C] {W₀ W₁ : Type u}
   · rw [orExtract, ite_eq_right h]
     exact h₀ _ _ _ _ _ _ h hz.1 hz'.1
 
-/-- Theorem 19.19 of [BonehShoup2023]: special honest-verifier zero knowledge. The honest
-prover's own-side challenge `c - c'` is uniform, and its own-side transcript is replaced by a
-simulation. -/
+/-- Exact transcript simulation for the OR construction: the honest prover's own-side challenge
+`c - c'` is uniform. `EfficientSpecialHVZK.orProof` certifies the constructed simulator. -/
 theorem orProof_specialHVZK (hs₀ : P₀.SpecialHVZK R₀ simulate₀)
     (hs₁ : P₁.SpecialHVZK R₁ simulate₁) :
     (orProof P₀ P₁ simulate₀ simulate₁).SpecialHVZK (orRelation R₀ R₁)
@@ -318,13 +326,17 @@ noncomputable def parallelRepetition (P : SigmaProtocol X Y T C Z) (k : ℕ) :
   verify y t c z := (List.finRange k).all fun j => P.verify y (t j) (c j) (z j)
 
 /-- The parallel-repetition extractor finds the first coordinate `j : Fin k` where the two
-challenge tuples differ and runs `extract` on that coordinate's conversations. -/
+challenge tuples differ and runs `extract` on that coordinate's conversations. On equal
+challenge tuples it uses coordinate zero when `k > 0`, and `default` only when `k = 0`. -/
 def parallelExtract [DecidableEq C] {W : Type u} [Inhabited W]
     (extract : Y → T → C → Z → C → Z → W) (k : ℕ) (y : Y) (t : Fin k → T) (c : Fin k → C)
     (z : Fin k → Z) (c' : Fin k → C) (z' : Fin k → Z) : W :=
   match (List.finRange k).find? (fun j => c j != c' j) with
   | some j => extract y (t j) (c j) (z j) (c' j) (z' j)
-  | none => default
+  | none =>
+    if hk : 0 < k then
+      extract y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
+    else default
 
 /-- The parallel-repetition simulator runs `simulate` independently at each coordinate challenge
 `c j`. -/

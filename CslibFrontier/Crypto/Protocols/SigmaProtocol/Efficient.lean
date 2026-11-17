@@ -115,13 +115,16 @@ negligible function, `EfficientSpecialHVZK.exists_computationalSpecialHVZK` deri
 * `SigmaProtocol.EfficientSpecialSoundness.orProof`,
   `SigmaProtocol.EfficientSpecialHVZK.orProof`: efficiency transfer through `orProof`.
 * `SigmaProtocol.EfficientSpecialSoundness.parallelRepetition`,
-  `SigmaProtocol.EfficientSpecialHVZK.parallelRepetition`: efficiency transfer through `k`-fold
-  parallel repetition.
+  `SigmaProtocol.EfficientSpecialHVZK.parallelRepetition`: efficiency transfer through positive
+  parallel repetition, and through arbitrary repetition for simulation.
+* `SigmaProtocol.EfficientSpecialSoundness.parallelRepetition_of_default`: the zero-fold
+  extraction extension with a certified default-witness encoding.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Definitions 2.8, 2.9, 19.4, 19.5 and 20.6.
+  Version 0.6][BonehShoup2023], Definitions 2.8, 2.9, 19.4, 19.5 and 20.6,
+  Theorems 19.18–19.19 and Exercise 19.6.
 -/
 
 @[expose] public section
@@ -785,7 +788,8 @@ def Encoding.parallelRepetition (enc : Encoding I Y T C Z) (k : I → ℕ) :
 
 /-- Word-level extractor for `parallelRepetition`: split the tuple words into their framed
 coordinate words, find the first index where the two challenge words differ, and run `f` on that
-coordinate's words (falling back to `defaultWord i` when all coordinate challenge words agree). -/
+coordinate's words. Equal challenge tuples use coordinate zero when nonempty, and `defaultWord i`
+only for the empty tuple. -/
 def parallelExtractWord
     (defaultWord : I → List Bool)
     (f : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool → List Bool)
@@ -798,7 +802,8 @@ def parallelExtractWord
   let cs' := frames c'
   let zs' := frames z'
   ((List.range cs.length).find? (fun idx => cs.getD idx [] != cs'.getD idx [])).elim
-    (defaultWord i)
+    (if cs.length = 0 then defaultWord i else
+      f (i, y, ts.getD 0 [], cs.getD 0 [], zs.getD 0 [], cs'.getD 0 [], zs'.getD 0 []))
     (fun idx =>
       f (i, y, ts.getD idx [], cs.getD idx [], zs.getD idx [], cs'.getD idx [], zs'.getD idx []))
 
@@ -832,11 +837,6 @@ theorem computableInPolyTime_parallelExtractWord
     simp only [bne]
     exact ComputableInPolyTime.of_tidy
       (ComputableTidilyInPolyTime.findWithInput (by fun_prop) (by fun_prop))
-  have hfallback : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        defaultWord input.1)
-      encIn encBits :=
-    ComputableInPolyTime.of_tidy (by fun_prop)
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],
@@ -844,6 +844,18 @@ theorem computableInPolyTime_parallelExtractWord
           (frames p.1.2.2.2.2.2.2).getD p.2 []))
       (encPair encIn encUnary) encBits :=
     ComputableInPolyTime.of_tidy (by fun_prop)
+  have hbody0' := hbody.tidy.comp (show ComputableTidilyInPolyTime
+      (fun input :
+          I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
+        (input, 0)) encIn (encPair encIn encUnary) from by fun_prop)
+  have hfallback : ComputableInPolyTime
+      (fun input :
+          I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
+        if (frames input.2.2.2.1).length = 0 then defaultWord input.1 else
+          f (input.1, input.2.1, (frames input.2.2.1).getD 0 [],
+            (frames input.2.2.2.1).getD 0 [], (frames input.2.2.2.2.1).getD 0 [],
+            (frames input.2.2.2.2.2.1).getD 0 [], (frames input.2.2.2.2.2.2).getD 0 []))
+      encIn encBits := ComputableInPolyTime.of_tidy (by fun_prop)
   unfold parallelExtractWord Encoding.parallelRepetition
   exact hfind.optionElimWithInput hfallback hbody
 
@@ -852,7 +864,7 @@ theorem extractorRealizedBy_parallelExtractWord
     [∀ i, DecidableEq (C i)] [∀ i, Inhabited (W i)]
     {enc : Encoding I Y T C Z} {encW : ∀ i, W i ↪ List Bool}
     {k : I → ℕ} {defaultWord : I → List Bool}
-    (hdef_eq : ∀ i, defaultWord i = encW i default)
+    (hdef_eq : ∀ i, k i = 0 → defaultWord i = encW i default)
     {extract : ∀ i, Y i → T i → C i → Z i → C i → Z i → W i}
     {f : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool → List Bool}
     (hf : ExtractorRealizedBy enc encW extract f) :
@@ -873,14 +885,24 @@ theorem extractorRealizedBy_parallelExtractWord
   rw [hpred]
   unfold parallelExtract
   cases hfind : (List.finRange (k i)).find? (fun j => c j != c' j) with
-  | none => exact hdef_eq i
+  | none =>
+    simp only [Option.map_none, Option.elim_none]
+    by_cases hk : 0 < k i
+    · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte]
+      simp only [List.map_ofFn, List.getD_ofFn_of_lt _ hk]
+      exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
+    · have hk0 : k i = 0 := Nat.eq_zero_of_not_pos hk
+      simp only [hk0, ↓reduceIte, hk, ↓reduceDIte]
+      exact hdef_eq i hk0
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
       Function.comp_apply]
     exact hf i y (t j) (c j) (z j) (c' j) (z' j)
 
-/-- **Efficient special soundness of `parallelRepetition`.** -/
-theorem EfficientSpecialSoundness.parallelRepetition
+/-- Polynomial-time extraction for arbitrary repetition counts, including zero, when the encoded
+default witness is polynomial-time computable. Positive repetition uses
+`EfficientSpecialSoundness.parallelRepetition` without this default-witness premise. -/
+theorem EfficientSpecialSoundness.parallelRepetition_of_default
     [∀ i, DecidableEq (C i)] [∀ i, Inhabited (W i)]
     {P : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
     {R : ∀ i, W i → Y i → Prop}
@@ -896,7 +918,27 @@ theorem EfficientSpecialSoundness.parallelRepetition
     obtain ⟨f, hf, hreal⟩ := h.polyTime
     exact ⟨parallelExtractWord (fun i => encW i default) f,
       computableInPolyTime_parallelExtractWord hdefault hf,
-      extractorRealizedBy_parallelExtractWord (fun _ => rfl) hreal⟩
+      extractorRealizedBy_parallelExtractWord (fun _ _ => rfl) hreal⟩
+
+/-- Polynomial-time special-soundness extraction is preserved by positive parallel repetition
+([BonehShoup2023], Exercise 19.6(b), pp. 810–811). On equal challenge tuples the extractor runs
+the component extractor at coordinate zero, so no efficient default witness is assumed. -/
+theorem EfficientSpecialSoundness.parallelRepetition
+    [∀ i, DecidableEq (C i)] [∀ i, Inhabited (W i)]
+    {P : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    {R : ∀ i, W i → Y i → Prop}
+    {enc : Encoding I Y T C Z} {encW : ∀ i, W i ↪ List Bool}
+    {extract : ∀ i, Y i → T i → C i → Z i → C i → Z i → W i}
+    {k : I → ℕ} (hk : ∀ i, 0 < k i)
+    (h : EfficientSpecialSoundness P R enc encW extract) :
+    EfficientSpecialSoundness (fun i => (P i).parallelRepetition (k i)) R
+      (enc.parallelRepetition k) encW (fun i => parallelExtract (extract i) (k i)) where
+  specialSoundness i := parallelRepetition_specialSoundness (h.specialSoundness i)
+  polyTime := by
+    obtain ⟨f, hf, hreal⟩ := h.polyTime
+    exact ⟨parallelExtractWord (fun _ => []) f,
+      computableInPolyTime_parallelExtractWord (ComputableInPolyTime.const []) hf,
+      extractorRealizedBy_parallelExtractWord (fun i hi => (Nat.ne_of_gt (hk i) hi).elim) hreal⟩
 
 /-- Typed simulator for `parallelRepetition`: run `sim i y (c j)` independently at each coordinate
 `j : Fin (k i)` and unzip the resulting commitments and responses. -/

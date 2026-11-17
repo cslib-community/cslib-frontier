@@ -401,7 +401,8 @@ theorem efficientSpecialSoundness_parallelRepetition_schnorr (k : ℕ × F.Desc 
       (F.schnorrEncoding.parallelRepetition k)
       (fun i => F.encScalar i.2)
       (fun i => parallelExtract (F.schnorrExtract i) (k i)) := by
-  refine EfficientSpecialSoundness.parallelRepetition ?_ F.efficientSpecialSoundness_schnorr
+  refine EfficientSpecialSoundness.parallelRepetition_of_default ?_
+    F.efficientSpecialSoundness_schnorr
   have hdef : (fun i : ℕ × F.Desc => F.encScalar i.2 default) = fun _ => encNat 0 := by
     funext i
     change F.encScalar i.2 0 = encNat 0

@@ -98,6 +98,53 @@ theorem xorExtractorRealizedBy :
       xorExtractWord :=
   fun _ _ _ _ _ _ _ => rfl
 
+private def xorSimulator : Simulator Unit (fun _ => Bool) (fun _ => Unit)
+    (fun _ => Bool) (fun _ => Bool) :=
+  fun _ y c => pure ((), xor c y)
+
+private theorem xorSimulator_isPPT : Simulator.IsPPT xorEncoding xorSimulator := by
+  refine Simulator.IsPPT.of_word
+    (program := fun input => pure ([], List.zipWith xor input.2.2 input.2.1)) ?_ ?_
+  · exact (ComputableInPolyTime.tidy (by fun_prop :
+      ComputableInPolyTime
+        (fun input : Unit × List Bool × List Bool => ([], List.zipWith xor input.2.2 input.2.1))
+        (encSimulatorWordInput encUnit) (encPair encBits encBits))).isPPTOn
+  · intro i y c
+    rfl
+
+private def xorEfficientHVZK :
+    EfficientSpecialHVZK (fun _ => xorProtocol) (fun _ x y => x = y) xorEncoding
+      (fun _ y c => PMF.pure ((), xor c y)) (fun _ => 0) where
+  specialHVZK _ := {
+    accepts := by
+      intro y c tz htz
+      simp only [PMF.mem_support_pure_iff] at htz
+      subst tz
+      simp [SigmaProtocol.Accepts, xorProtocol]
+    transcript_eq := by
+      intro x y hxy c
+      subst y
+      simp [SigmaProtocol.transcript, xorProtocol] }
+  realized := ⟨xorSimulator, xorSimulator_isPPT, fun _ y c => by
+    simpa [xorSimulator] using (CloseTo.refl (PMF.pure ((), xor c y)))⟩
+
+/-- The exact, zero-error specialization has a concrete efficient component and preserves its
+actual transcript law: two challenges produce the two XOR responses. -/
+example :
+    Nonempty (EfficientSpecialHVZK
+      (fun _ : Unit => xorProtocol.parallelRepetition 2) (fun _ x y => x = y)
+      (xorEncoding.parallelRepetition (fun _ => 2))
+      (fun _ => parallelSimulate (fun y c => PMF.pure ((), xor c y)) 2) (fun _ => 0)) ∧
+    ProbComp.eval (parallelSimulator xorSimulator (fun _ => 2) () true ![true, false]) =
+      PMF.pure ((fun _ : Fin 2 => ()), ![false, true]) := by
+  constructor
+  · exact ⟨by simpa using
+      (EfficientSpecialHVZK.parallelRepetition (fun _ : Unit => 2) xorEfficientHVZK)⟩
+  · simp only [parallelSimulator, xorSimulator, ProbComp.eval_map, ProbComp.eval_pi_pure,
+      PMF.pure_map]
+    congr 1
+    ext j <;> fin_cases j <;> rfl
+
 /-- The honest prover of `xorProtocol` on words. The witness is the statement bit `y`, so it
 commits to the empty word, keeps the statement word as its state, and answers the challenge word
 `c` with `c xor y`. -/
@@ -293,8 +340,30 @@ example :
        (xorEncoding.parallelRepetition (fun _ => 2)).response () ![false, true]) =
       encBool true := by
   have hpar := extractorRealizedBy_parallelExtractWord (enc := xorEncoding) (k := fun _ => 2)
-    (defaultWord := fun _ => [false]) (fun _ => rfl) xorExtractorRealizedBy
+    (defaultWord := fun _ => [false]) (fun _ _ => rfl) xorExtractorRealizedBy
   rw [hpar () true (fun _ => ()) ![false, true] ![false, false] ![false, false] ![false, true]]
   decide
+
+/-- Equal challenge tuples still run the component extractor at coordinate zero. The supplied
+default is false, so returning it here would fail this regression. -/
+example :
+    Nonempty (EfficientSpecialSoundness
+      (fun _ : Unit => xorProtocol.parallelRepetition 2) (fun _ x y => x = y)
+      (xorEncoding.parallelRepetition (fun _ => 2)) (fun _ => encBool)
+      (fun _ => parallelExtract (fun _ _ c z _ _ => xor c z) 2)) ∧
+    parallelExtractWord (I := Unit) (fun _ => [false]) xorExtractWord
+      ((), (xorEncoding.parallelRepetition (fun _ => 2)).statement () true,
+       (xorEncoding.parallelRepetition (fun _ => 2)).commitment () (fun _ => ()),
+       (xorEncoding.parallelRepetition (fun _ => 2)).challenge () ![true, false],
+       (xorEncoding.parallelRepetition (fun _ => 2)).response () ![false, true],
+       (xorEncoding.parallelRepetition (fun _ => 2)).challenge () ![true, false],
+       (xorEncoding.parallelRepetition (fun _ => 2)).response () ![false, true]) =
+      encBool true := by
+  have h : EfficientSpecialSoundness (fun _ : Unit => xorProtocol) (fun _ x y => x = y)
+      xorEncoding (fun _ => encBool) (fun _ _ _ c z _ _ => xor c z) := {
+    specialSoundness _ := xorProtocol_specialSoundness
+    polyTime := ⟨xorExtractWord, by unfold xorExtractWord xorEncoding; fun_prop,
+      xorExtractorRealizedBy⟩ }
+  exact ⟨⟨EfficientSpecialSoundness.parallelRepetition (fun _ => by decide) h⟩, by decide⟩
 
 end CslibFrontierTests.SigmaProofOfKnowledge

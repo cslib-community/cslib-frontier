@@ -192,6 +192,7 @@ import CslibFrontier.Crypto.Protocols.PIR.Interactive
 import CslibFrontier.Crypto.Protocols.PIR.MultiInteractive
 import CslibFrontier.Crypto.Protocols.PIR.Shamir
 import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
+import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
@@ -5572,6 +5573,58 @@ register_result "cgks-pir-multi-interactive-lower-bound" where
     Compiling to two-party InteractiveScheme preserves worst-case tree depth and transfers the \
     |ι|-bit and |ι| * |κ|-bit lower bounds whenever all servers may collude (|S| ≤ t). \
     Multi-round lower bounds below full collusion (t < |S|) are not proved."
+
+register_result "sigma-composition-efficient-extraction" where
+  title := "Polynomial-time special-soundness extraction under Sigma-protocol composition"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 19.18 (special soundness)",
+      locator := "Version 0.6, Section 19.7.1, pp. 787–788" },
+    { paper := BonehShoup2023, theorem := "Theorem 19.19 (special soundness)",
+      locator := "Version 0.6, Section 19.7.2, p. 789" },
+    { paper := BonehShoup2023, theorem := "Exercise 19.6(b)",
+      locator := "Version 0.6, pp. 810–811" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialSoundness.andProof,
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialSoundness.orProof,
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialSoundness.parallelRepetition
+  ]
+  scope := "Preservation of polynomial-time extraction for AND, OR and positive k-fold parallel \
+    repetition, from the component extractors' correctness and efficiency certificates. The \
+    composed extractors are constructed and certified; no efficiency of a constructed extractor \
+    is assumed. Relations and encodings are explicit, witness types may differ, and OR uses a \
+    finite additive group with polynomial-time encoded challenge subtraction, generalizing the \
+    source's bit-string XOR group. Equal parallel challenge tuples use the component extractor \
+    at coordinate zero, with no efficient-default premise. The separate zero-fold extension is \
+    not this source result. These entries concern extraction preservation; honest-prover and \
+    verifier efficiency are separate properties."
+
+register_result "sigma-composition-exact-efficient-simulation" where
+  title := "Exact strict-PPT special-HVZK simulation under Sigma-protocol composition"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 19.18 (special HVZK)",
+      locator := "Version 0.6, Section 19.7.1, pp. 787–788" },
+    { paper := BonehShoup2023, theorem := "Theorem 19.19 (special HVZK)",
+      locator := "Version 0.6, Section 19.7.2, p. 789" },
+    { paper := BonehShoup2023, theorem := "Exercise 19.6(c)",
+      locator := "Version 0.6, pp. 810–811" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.andProof,
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.orProof,
+    Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.parallelRepetition
+  ]
+  scope := "The cited exact simulation preservation results are the zero-error specializations \
+    of these quantitative theorems: component errors and the OR challenge-sampling error are \
+    all zero, so the constructed simulator's error is zero. Simulator programs and uniform \
+    strict-PPT certificates are constructed from the components' certificates, with the same \
+    composed protocols used in their exact transcript laws. OR uses a finite additive group \
+    with certified challenge subtraction and an exact strict-PPT uniform sampler, including \
+    the source's XOR challenge space. General nonzero-error bounds remain quantitative API, \
+    not claims of exact special HVZK. Source repetition has k ≥ 1; the library also permits \
+    k = 0. Honest-prover and verifier efficiency are separate properties."
 
 register_result "prp-prf-switching" where
   title := "PRP/PRF switching lemma: a pseudorandom permutation is a pseudorandom function"
