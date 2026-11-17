@@ -6811,6 +6811,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
+public import CslibFrontier.Foundations.Quantum.Algebra.PauliFamily
 public import CslibFrontier.Foundations.Quantum.Algebra.Tsirelson
 public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Bipartite

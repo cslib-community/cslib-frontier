@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Involution
 public import CslibFrontier.Foundations.Quantum.PauliGroup
+public import CslibFrontier.Foundations.Quantum.Algebra.PauliFamily
 public import CslibFrontier.Foundations.Quantum.PauliStoneVonNeumann
 public import CslibFrontier.Foundations.Quantum.RegularCompression
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
@@ -29,12 +30,13 @@ where `f(s, a, b) = (-1)^s X(a) Z(b)` is the **Pauli family** on the Pauli group
 (`Cslib.Quantum.pauliFamily`), and the right side is its multiplicative defect
 (`Cslib.Quantum.exists_isometry_compress_pauliFamily`). The bound does not depend on `n`.
 
-Two steps toward Theorem 14 are not formalized here: bounding the defect of the Pauli family by
-the consistency, linearity and anticommutation conditions, and passing from the products to the
-individual generators. Both are tracked in
-[#6149](https://github.com/cslib-community/cslib-frontier/issues/6149) (milestone M3). The bound
-alone does not certify the generators: `X(a) = -X^a`, `Z(b) = -Z^b` give the Pauli strings as
-products, with defect `0`, but `X(0) = Z(0) = -1`.
+The defect of the Pauli family is bounded by the consistency, linearity and anticommutation
+conditions of the strategy in `CslibFrontier/Foundations/Quantum/Algebra/PauliFamily.lean`, and
+the two compose (`Cslib.Quantum.exists_isometry_compress_of_consistent`). One step toward
+Theorem 14 is not formalized here: passing from the products to the individual generators,
+tracked in [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149) (milestone
+M3). The bound alone does not certify the generators: `X(a) = -X^a`, `Z(b) = -Z^b` give the
+Pauli strings as products, with defect `0`, but `X(0) = Z(0) = -1`.
 
 The proof composes three steps:
 
@@ -52,7 +54,6 @@ The proof composes three steps:
 
 ## Main definitions
 
-* `Cslib.Quantum.pauliFamily`: `(s, a, b) ↦ (-1)^s X(a) Z(b)`.
 * `Cslib.Quantum.codeRep`: the compressed regular representation, satisfying the Pauli relations.
 
 ## Main results
@@ -60,6 +61,8 @@ The proof composes three steps:
 * `Cslib.Quantum.pauliFamily_pauliXPow_mul`: the Pauli strings are an exact representation.
 * `Cslib.Quantum.regularRep_negOne_mul_regularIsometry`: `g(-1) V = -V`.
 * `Cslib.Quantum.exists_isometry_compress_pauliFamily`: the compression bound for the Pauli family.
+* `Cslib.Quantum.exists_isometry_compress_of_consistent`: the same bound from consistency,
+  anticommutation and linearity.
 
 ## References
 
@@ -153,19 +156,7 @@ noncomputable def codeRep (hEE : Eᴴ * E = 1) (hEP : E * Eᴴ = signProj (reg n
     · simp
     · simp [compress_negOne_mul hEE hEP]
 
-/-- The **Pauli family** `(s, a, b) ↦ (-1)^s X(a) Z(b)` of observables `X`, `Z`. -/
-noncomputable def pauliFamily (X Z : (ι → Bool) → Matrix κ κ ℂ) (p : PauliGroup ι) :
-    Matrix κ κ ℂ :=
-  (signVal p.sign : ℂ) • (X p.x * Z p.z)
-
 variable (X Z : (ι → Bool) → Matrix κ κ ℂ)
-
-omit [DecidableEq ι] [DecidableEq κ] in
-theorem pauliFamily_negOne_mul (p : PauliGroup ι) :
-    pauliFamily X Z (negOne * p) = -pauliFamily X Z p := by
-  rw [negOne_mul, pauliFamily, pauliFamily, signVal_not]
-  push_cast
-  rw [neg_smul]
 
 omit [Fintype ι] [DecidableEq ι] in
 theorem conjTranspose_pauliFamily_mul (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1)
@@ -228,15 +219,6 @@ universe u v
 
 variable {ι : Type u} [Fintype ι] [DecidableEq ι] {κ : Type v} [Fintype κ] [DecidableEq κ]
 
-omit [Fintype κ] [DecidableEq κ] in
-/-- Averaging over the Pauli group averages over the two bit strings; the sign does not matter. -/
-private theorem expect_pauliGroup (F : (ι → Bool) → (ι → Bool) → ℝ) :
-    𝔼 p : PauliGroup ι, F p.x p.z = 𝔼 a, 𝔼 b, F a b := by
-  rw [Fintype.expect_equiv equivProd (fun p => F p.x p.z) (fun t => F t.2.1 t.2.2) (fun _ => rfl),
-    ← Finset.univ_product_univ, Finset.expect_product]
-  dsimp only
-  rw [Finset.expect_const Finset.univ_nonempty, ← Finset.univ_product_univ, Finset.expect_product]
-
 /-- **Compression of the Pauli family**, a step toward robust Pauli rigidity
 [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017]: for unitaries `X(a)`, `Z(b)` on
 `ℂ^κ` there is one isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` under which, in **every** state `φ`, the
@@ -297,6 +279,35 @@ theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ 
   refine Finset.expect_congr rfl fun p _ => ?_
   rw [key, show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub,
     AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
+
+/-- **Compression from consistency, anticommutation and linearity**, a step toward robust Pauli
+rigidity [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017], for unitary families (see
+`CslibFrontier/Foundations/Quantum/Algebra/PauliFamily.lean` for how these conditions relate to
+the source's): for unitaries `X(a)`,
+`Z(b)` (Alice) and `Zᴮ(b)` (Bob, commuting with Alice's) on `ℂ^κ`, there is one isometry
+`W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` such that in every state `φ`
+`E_{a,b} ‖X(a) Z(b) - Wᴴ (X^a Z^b ⊗ 1) W‖²_φ ≤ 5 (8 ε_c + ε_a + ε_X + ε_Z)`, with the
+consistency, anticommutation and linearity defects of
+`Cslib.Quantum.expect_norm_pauliFamily_sub_sq_le`. -/
+theorem exists_isometry_compress_of_consistent (X Z ZB : (ι → Bool) → Matrix κ κ ℂ)
+    (hX : ∀ a, X a ∈ unitary (Matrix κ κ ℂ)) (hZ : ∀ b, Z b ∈ unitary (Matrix κ κ ℂ))
+    (hZB : ∀ b, ZB b ∈ unitary (Matrix κ κ ℂ)) (hXB : ∀ a b, Commute (X a) (ZB b))
+    (hZZB : ∀ b b', Commute (Z b) (ZB b')) :
+    ∃ (J : Type (max u v)) (_ : Fintype J) (_ : DecidableEq J)
+      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧ ∀ φ : AlgState (Matrix κ κ ℂ),
+      𝔼 a, 𝔼 b, φ.norm (X a * Z b -
+          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2 ≤
+        5 * (8 * 𝔼 b, φ.norm (Z b - ZB b) ^ 2 +
+          𝔼 a, 𝔼 b, φ.norm (Z b * X a - (signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)) ^ 2 +
+          𝔼 a, 𝔼 a', φ.norm (X a * X a' - X (a + a')) ^ 2 +
+          𝔼 b, 𝔼 b', φ.norm (Z b * Z b' - Z (b + b')) ^ 2) := by
+  have hX' : ∀ a, (X a)ᴴ * X a = 1 := fun a => by
+    rw [← star_eq_conjTranspose]; exact Unitary.star_mul_self_of_mem (hX a)
+  have hZ' : ∀ b, (Z b)ᴴ * Z b = 1 := fun b => by
+    rw [← star_eq_conjTranspose]; exact Unitary.star_mul_self_of_mem (hZ b)
+  obtain ⟨J, _, _, W, hW, h⟩ := exists_isometry_compress_pauliFamily X Z hX' hZ'
+  exact ⟨J, inferInstance, inferInstance, W, hW, fun φ =>
+    (h φ).trans (expect_norm_pauliFamily_sub_sq_le φ X Z ZB hX hZ hZB hXB hZZB)⟩
 
 end Robust
 

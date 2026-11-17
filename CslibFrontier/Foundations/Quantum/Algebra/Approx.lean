@@ -149,6 +149,11 @@ theorem Approx.mul_left (h : a ≈[φ; δ] b) {u : A} (hu : star u * u ≤ 1) :
   rw [approx_iff, ← mul_sub]
   exact (φ.norm_mul_le_of_star_mul_self_le_one hu _).trans h
 
+/-- Left multiplication by a unitary preserves closeness. -/
+theorem Approx.mul_left_unitary (h : a ≈[φ; δ] b) {u : A} (hu : u ∈ unitary A) :
+    u * a ≈[φ; δ] u * b :=
+  h.mul_left (by rw [Unitary.star_mul_self_of_mem hu])
+
 /-- Left multiplication by an operator that stretches the state norm by at most `k` turns
 `δ`-closeness into `kδ`-closeness. -/
 theorem Approx.mul_left_of_norm_mul_le (h : a ≈[φ; δ] b) {u : A} {k : ℝ} (hk : 0 ≤ k)
