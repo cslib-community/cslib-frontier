@@ -15,6 +15,7 @@ public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Expected running time for randomized word RAMs
@@ -743,14 +744,6 @@ private theorem expectedStepsWithin_le_of_step {w : ℕ} {p : Program B r} {s s'
   refine (expectedStepsWithin_running_le w p N s).trans ?_
   rw [hstep, ProbComp.expect_pure]
 
-private theorem pmf_tsum_mul_mono_on_support {α : Type*} {μ : PMF α} {f g : α → ℝ≥0∞}
-    (h : ∀ a ∈ μ.support, f a ≤ g a) :
-    (∑' a, μ a * f a) ≤ ∑' a, μ a * g a := by
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ μ.support
-  · exact mul_le_mul_right (h a ha) _
-  · rw [(PMF.apply_eq_zero_iff _ _).mpr ha, zero_mul, zero_mul]
-
 private theorem tsum_expectedStepsWithin_le_of_step (w : ℕ) {p : Program B r}
     {pc_from pc_to : ℕ}
     (hstep : ∀ y, stepRand w p (.running ⟨pc_from, y⟩) = pure (.running ⟨pc_to, y⟩))
@@ -760,7 +753,7 @@ private theorem tsum_expectedStepsWithin_le_of_step (w : ℕ) {p : Program B r}
   calc
     (∑' y, μ y * expectedStepsWithin w p N (.running ⟨pc_from, y⟩))
       ≤ ∑' y, μ y * (1 + expectedStepsWithin w p N (.running ⟨pc_to, y⟩)) :=
-        pmf_tsum_mul_mono_on_support fun y _ => expectedStepsWithin_le_of_step (hstep y) N
+        tsum_le_tsum fun y => mul_le_mul_right (expectedStepsWithin_le_of_step (hstep y) N) _
     _ = 1 + ∑' y, μ y * expectedStepsWithin w p N (.running ⟨pc_to, y⟩) := by
         simp_rw [mul_add, tsum_add, mul_one, μ.tsum_coe]
 
@@ -957,7 +950,8 @@ private theorem loopActiveSteps_le {cond : Cond r} {I Q : Data r → Prop}
     · simp only [hcx, ↓reduceIte]
       rw [loopActiveSteps_succ_of_holds hcx]
       exact (add_le_add le_rfl
-        (pmf_tsum_mul_mono_on_support fun z hz => ih (hinv x hIx hcx z hz))).trans
+        (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body x) fun z hz =>
+          ih (hinv x hIx hcx z hz))).trans
         (pmf_step_drift_bound (μ_body x) cond hp_pos hp_top (hp_exit x hIx hcx))
     · simp [loopActiveSteps_of_not_holds hcx, hcx]
 
@@ -1084,13 +1078,10 @@ theorem loopExitPMF_of_holds {cond : Cond r} {I Q : Data r → Prop}
     (f := fun K z => μ_body x z *
       Set.indicator {w' | ¬cond.Holds w'} (loopIterPMF cond μ_body K z) y)
     (fun z _ _ hK => mul_le_mul_right (loopIterPMF_indicator_mono cond μ_body z y hK) _)]
-  refine tsum_congr fun z => ?_
-  by_cases hz : z ∈ (μ_body x).support
-  · rw [← ENNReal.mul_iSup,
-      loopExitPMF_apply_of_hasSum
-        (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit (hinv x hIx hcx z hz))]
-  · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul]
-    simp
+  simp_rw [← ENNReal.mul_iSup]
+  exact Cslib.Probability.PMF.tsum_mul_congr_support (μ_body x) fun z hz =>
+    (loopExitPMF_apply_of_hasSum
+      (hasSum_loopExitDensity hp_pos hp_top hinv hp_exit (hinv x hIx hcx z hz)) y).symm
 
 theorem mem_support_loopExitPMF {cond : Cond r} {I Q : Data r → Prop}
     {μ_body : Data r → PMF (Data r)} {p_exit : ℝ≥0∞}
@@ -1206,8 +1197,7 @@ theorem seq_const {μ₂ : Data r → PMF (Data r)} {T₂ : Data r → ℝ≥0�
     (hB₂ : ∀ y ∈ μ₁.support, T₂ y ≤ B₂) :
     ExecCodeDist w (.seq c₁ c₂) x (μ₁.bind μ₂) (T₁ + B₂) := by
   refine (h₁.seq h₂).mono (add_le_add le_rfl ?_)
-  exact (pmf_tsum_mul_mono_on_support hB₂).trans_eq
-    (by rw [ENNReal.tsum_mul_right, μ₁.tsum_coe, one_mul])
+  exact Cslib.Probability.PMF.tsum_mul_le_of_support μ₁ hB₂
 
 /-- Sequencing after a deterministic first stage (`PMF.pure y`). -/
 theorem seq_pure (h₁ : ExecCodeDist w c₁ x (PMF.pure y) T₁)
@@ -1644,7 +1634,8 @@ theorem expectedStepsWithin_assemble (h : ExecCodeDist w c x μ T) {p : Program 
         ≤ T₁ + ∑' y, μ₁ y * (T₂ y +
             ∑' z, (μ₂ y) z *
               expectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩)) :=
-          add_le_add le_rfl (pmf_tsum_mul_mono_on_support fun y hy => ih₂ y hy hc₂ N)
+          add_le_add le_rfl
+            (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y hy => ih₂ y hy hc₂ N)
       _ = (T₁ + ∑' y, μ₁ y * T₂ y) +
             ∑' y, μ₁ y * ∑' z, (μ₂ y) z *
               expectedStepsWithin w p N (.running ⟨pc + c₁.size + c₂.size, z⟩) := by
@@ -1681,7 +1672,7 @@ theorem expectedStepsWithin_assemble (h : ExecCodeDist w c x μ T) {p : Program 
     simpa [PMF.pure_apply] using expectedStepsWithin_loop_exit hp hc N
   · intro cond body x μb μl Tb Tl hc ihb ihl pc hp N
     have hjump := (tsum_expectedStepsWithin_le_of_step w (stepRand_loop_back hp) μb N).trans
-      (add_le_add le_rfl (pmf_tsum_mul_mono_on_support fun y hy => ihl y hy hp N))
+      (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_mono_support μb fun y hy => ihl y hy hp N))
     calc
       expectedStepsWithin w p N (.running ⟨pc, x⟩)
         ≤ 1 + (Tb + (1 + ∑' y, μb y * (Tl y +
@@ -1727,7 +1718,7 @@ theorem expectedStepsWithin_assemble (h : ExecCodeDist w c x μ T) {p : Program 
               (∑' u, μ_body z u * expectedStepsWithin w p n (.running ⟨pc, u⟩))
                 ≤ ∑' u, μ_body z u * ((if cond.Holds u then M else 0) + 2 +
                     ∑' y, loopExitPMF cond μ_body u y * K_cont y) :=
-                  pmf_tsum_mul_mono_on_support fun u hu =>
+                  Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
                     ihn (Nat.le_of_succ_le hn) u (hinv z hIz hcz u hu)
               _ = (∑' u, μ_body z u * (if cond.Holds u then M else 0)) + 2 +
                     ∑' u, μ_body z u * ∑' y, loopExitPMF cond μ_body u y * K_cont y := by
@@ -1780,7 +1771,7 @@ theorem expectedStepsFrom_le (h : ExecCodeDist w c x μ T) {p : Program B r} {pc
     (hk : ∀ y ∈ μ.support, expectedStepsFrom w p (.running ⟨pc + c.size, y⟩) ≤ k y) :
     expectedStepsFrom w p (.running ⟨pc, x⟩) ≤ T + ∑' y, μ y * k y :=
   (h.expectedStepsFrom_assemble hp).trans
-    (add_le_add le_rfl (pmf_tsum_mul_mono_on_support hk))
+    (add_le_add le_rfl (Cslib.Probability.PMF.tsum_mul_mono_support μ hk))
 
 private theorem evalRand_faulted_loop_exit {p : Program B r} {pc T_hor : ℕ}
     (hp : p.Contains pc ((Code.loop cond body).assemble pc))
@@ -1942,7 +1933,8 @@ theorem le_iSup_evalRand_halted (h : ExecCodeDist w c x μ T) {p : Program B r} 
       simpa [Code.length_assemble] using hp.append_right
     rw [Cslib.Probability.PMF.tsum_bind_mul]
     simp_rw [Code.size, ← Nat.add_assoc]
-    exact (pmf_tsum_mul_mono_on_support fun y₁ hy₁ => ih₂ y₁ hy₁ hc₂).trans (ih₁ hp.append_left)
+    exact (Cslib.Probability.PMF.tsum_mul_mono_support μ₁ fun y₁ hy₁ => ih₂ y₁ hy₁ hc₂).trans
+      (ih₁ hp.append_left)
   · intro cond pos neg x μ _ hc ih pc hp
     refine (le_of_eq ?_).trans
       ((ih (contains_branch_pos hp)).trans
@@ -1959,7 +1951,7 @@ theorem le_iSup_evalRand_halted (h : ExecCodeDist w c x μ T) {p : Program B r} 
     simpa [PMF.pure_apply] using iSup_evalRand_halted_loop_exit hp hc v d
   · intro cond body x μb μl _ _ hc ihb ihl pc hp
     rw [Cslib.Probability.PMF.tsum_bind_mul]
-    exact (pmf_tsum_mul_mono_on_support fun y hy => ihl y hy hp).trans
+    exact (Cslib.Probability.PMF.tsum_mul_mono_support μb fun y hy => ihl y hy hp).trans
       (iSup_evalRand_halted_loop_step hp hc v d (ihb (contains_loop_body hp)))
   · intro cond body I Q μ_body T_body B_body p_exit x
       hp_pos hp_top ih_body _ hinv hp_exit hx_inv pc hp
@@ -1977,7 +1969,8 @@ theorem le_iSup_evalRand_halted (h : ExecCodeDist w c x μ T) {p : Program B r} 
         intro z hz_inv
         rcases hz_inv with ⟨hcz, hIz⟩ | ⟨hcz, _⟩
         · rw [loopIterPMF_succ, loopStepPMF_of_holds hcz, Cslib.Probability.PMF.tsum_bind_mul]
-          exact (pmf_tsum_mul_mono_on_support fun u hu => ihK u (hinv z hIz hcz u hu)).trans
+          exact (Cslib.Probability.PMF.tsum_mul_mono_support (μ_body z) fun u hu =>
+            ihK u (hinv z hIz hcz u hu)).trans
             (iSup_evalRand_halted_loop_step hp hcz v d
               (ih_body z hIz hcz (contains_loop_body hp)))
         · simp [loopIterPMF_of_not_holds hcz]
