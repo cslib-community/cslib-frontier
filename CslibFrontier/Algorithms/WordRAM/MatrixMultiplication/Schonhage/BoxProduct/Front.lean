@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.FrontProgram
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.MatrixInput
 import CslibFrontier.Computability.WordRAM.Sequence
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 
 /-!
@@ -110,7 +111,7 @@ theorem exec_snapshot {w L m t N : ℕ} (hm : m ≤ L) (bits : Bool)
   obtain ⟨y, hy, yp, ys, yf⟩ := QueriedProduct.exec_prepareSnapshot hm u
     (by rw [um]; exact hL) (by rw [um]; exact hm') (by rw [um]; exact hN)
     (by rw [um]; exact hQ) (old_fits hfit)
-  exact ⟨y, hu.seq hy, yp, (hy.regs_eq (by decide)).trans ut,
+  exact ⟨y, hu.seq hy, yp, by regs_frame,
     by simpa only [um] using ys, by simpa only [um] using yf⟩
 
 /-- Continue routing and raw-matrix encoding from an actually populated snapshot. -/
@@ -176,7 +177,7 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
   obtain ⟨r, old, hr, rp, rg, rv, ro, rs, rf⟩ :=
     QueriedProduct.exec_routingFromSnapshot hm qs x xp original
       hsnapshot hL hm' hN hQ hqueries (BoxProduct.old_fits hfit)
-  have rt : r.regs BoxProduct.Reg.threshold = t := (hr.regs_eq (by decide)).trans xt
+  have rt : r.regs BoxProduct.Reg.threshold = t := by regs_frame
   have hs := QueriedProduct.producers_le_snapshot L m N qs.length
   have hsnapshot : QueriedProduct.snapshotBase L m N qs.length +
       QueriedProduct.inputEnd m N qs.length ≤ QueriedProduct.groupedBase L m N qs.length := by
@@ -206,7 +207,7 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
     (by rw [cf 2 (Or.inl (by decide)), rf 2 (Or.inl (by decide))]; exact hm')
     (by rw [cf 3 (Or.inl (by decide)), rf 3 (Or.inl (by decide))]; exact hN)
     cm hX hY (old_magnitude hmag) (old_fits hfit)
-  have yt : y.regs BoxProduct.Reg.threshold = t := (hy.regs_eq (by decide)).trans ct
+  have yt : y.regs BoxProduct.Reg.threshold = t := by regs_frame
   have yg : QueriedProduct.SavedGroups L m N qs.length old y.mem :=
     cg.reframe (fun a ha _ => yf a (Or.inr (by unfold QueriedProduct.offsetBase at ha; omega)))
   refine ⟨y, old, ?_, yp, yt, yg, ⟨yl, yr⟩, rv, ro, ?_, ?_⟩

@@ -169,7 +169,6 @@ theorem expect_walk_pow_add_pow_four_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) (
     calc m ^ 2 ≤ (G.spectralExpansion ^ (2 * s) * 𝔼 v, f v ^ 2) ^ 2 := by gcongr
       _ = G.spectralExpansion ^ (4 * s) * (𝔼 v, f v ^ 2) ^ 2 := by ring
       _ ≤ G.spectralExpansion ^ (4 * s) * 𝔼 v, f v ^ 4 := by
-          have := G.spectralExpansion_nonneg
           gcongr
           exact sq_expect_sq_le_expect_pow_four f
   rw [hsplit]

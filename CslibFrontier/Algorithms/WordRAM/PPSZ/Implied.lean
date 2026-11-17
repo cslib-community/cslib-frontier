@@ -247,20 +247,6 @@ local macro "imp_frame " hf:term : tactic => `(tactic| (
   simp only [Finset.mem_insert, Finset.mem_singleton] at hi
   rcases hi with h | h | h | h | h | h | h | h | h | h <;> (subst h; try wram_simp)))
 
-/-- A represented list with a first entry. -/
-theorem holdsList_cons_iff {base a : ℕ} {l : List ℕ} {mem : ℕ → ℕ} :
-    HoldsList base (a :: l) mem ↔ mem base = a ∧ HoldsList (base + 1) l mem := by
-  rw [show a :: l = [a] ++ l from rfl, holdsList_append_iff]
-  constructor
-  · rintro ⟨h1, h2⟩
-    exact ⟨by simpa using h1.get 0 (by simp), by simpa using h2⟩
-  · rintro ⟨h1, h2⟩
-    refine ⟨fun i => ?_, by simpa using h2⟩
-    obtain ⟨i, hi⟩ := i
-    have hi' : i = 0 := by dsimp only at hi; simp at hi; omega
-    subst hi'
-    simpa [Block.read] using h1
-
 /-! ### The clause odometer -/
 
 /-- Set `D[j]` to the first clause address. -/

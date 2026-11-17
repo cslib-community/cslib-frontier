@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Linear-size population counting and thresholds
@@ -85,7 +86,7 @@ theorem val_eval_tree (h : ℕ) (x : BitString (2 ^ h)) :
     rw [val_equivFin_eq_sum, weight_eq_sum_toNat]
     simp
   | succ h ih =>
-    simp only [tree, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring]
+    simp only [circuit_simps, tree]
     change (BitString.equivFin (h + 1 + 1)
       ((carryLookahead (h + 1)).eval interpretation
         (Fin.append
@@ -125,8 +126,7 @@ theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
 @[simp] theorem eval_pad (n m : ℕ) (x : BitString n) :
     (pad n m).eval interpretation x = zeroExtend x := by
   funext i
-  simp only [pad, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_append,
-    Function.comp_apply, zeroExtend]
+  simp only [circuit_simps, pad, zeroExtend]
   split_ifs with hi
   · change Fin.append x (fun _ => false) (Fin.castAdd 1 ⟨i.val, hi⟩) = _
     exact Fin.append_left _ _ _
@@ -206,6 +206,7 @@ theorem size_populationCountCircuit_le (n : ℕ) :
   · simp only [Circuit.eval_oneGate, interpretation, threshold_eq_false_of_lt (not_le.mp hq)]
 
 /-- Linear population counting followed by comparison remains linear in the input count. -/
+@[circuit_bound]
 theorem size_linearThresholdCircuit_le (n q : ℕ) :
     (linearThresholdCircuit n q).size ≤ 476 * (n + 1) := by
   simp only [linearThresholdCircuit]
