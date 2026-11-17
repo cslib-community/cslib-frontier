@@ -30,7 +30,9 @@ the ambient group is an additive `ZMod q`-module with an arbitrary base `g` and 
 `1 - 1 / |C|` assumes `m₀ ≠ m₁` (needed because equal messages with `a = 1`, `b = 0` repeat the
 random-oracle query and force `a * ι c₀ = ι c₁`). Only the exact-security typed ROM experiment is
 defined here; polynomial-time word extraction is separate in
-`CslibFrontier.Crypto.Computational.SchnorrRelatedNonce`, with no word-level game.
+`CslibFrontier.Crypto.Computational.SchnorrRelatedNonce`, and the `a = 0` leaked-nonce word
+game and PPT adversary are in `CslibFrontier.Crypto.Computational.SchnorrLeakedNonce` (general
+`(a, b)` word-level games remain open).
 
 ## Main definitions
 

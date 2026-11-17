@@ -71,23 +71,26 @@ lake exe checkInitImports
 
 This split overlaps work rather than removing it. It adds another checkout and runner plus the aggregator's scheduling time, and saves only source-check time that would otherwise extend the slower Lean path. Treat measured wall-time improvements as run-specific rather than a fixed reduction.
 
-## Update and review both manuals
+## Update procedure pages and registries
 
-Before handoff, identify the reader tasks affected in both manuals. Update the relevant
-workflows, model descriptions, assumptions, commands and examples in the same PR. If the
-manual remains accurate, record a specific reason for it in the PR’s manual-impact assessment.
-A proof-only edit preserving statements, imports and automation may need no prose change;
-a changed encoding or resource bound normally does. An edit that changes the number of lines
-in a file still moves the declarations below it, so repoint any manual links such as
-`File.lean#L120` to them (for `[Ns.name](File.lean#Ln)` links,
-`python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous declaration
-headers automatically). The checker below reports a link that no longer starts a
-declaration, or whose text names a declaration of the linked file that it does not start.
+Explain a change in its docstrings and PR description. Edit the manual only in two cases: a
+change to a command, procedure or role updates the workflow or other procedure page that
+describes it, and a change to a fact recorded in the
+[assumptions inventory](../programs-crypto-and-probability/assumptions.md), the
+[bibliography](../sources.md) or the [results inventory](../../results/README.md) updates that
+registry. The reference chapters are frozen; do not update them
+([policy](../../CONTRIBUTING.md#maintaining-the-manuals)).
+
+An edit that changes the number of lines in a Lean file moves the declarations below it. When a
+procedure page or registry links one of them as `File.lean#L120`, repoint the link (for
+`[Ns.name](File.lean#Ln)` links, `python3 scripts/check_operator_manual.py --fix-anchors`
+repoints unambiguous declaration headers automatically). The checker reports such a link that
+no longer starts a declaration, or whose text names a declaration of the linked file that it
+does not start. It does not check or repoint the frozen chapters' source links.
 
 Run `python3 scripts/check_operator_manual.py` from the repository root, and check changed
-complete Lean clients as above. The coordinator must review both assessments and ensure independent review of affected
-reader paths against the final revision. Changes to agent roles, direction, permissions or
-intervention also require checking the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
+complete Lean clients as above. Changes to agent roles, direction, permissions or
+intervention update the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
 sets out the human acceptance test and distinguishes live checks from dated history.
 
 ## Check the statement readers will see
@@ -125,7 +128,7 @@ Link its task issue and source references, preserve contributor credit, and disc
 
 After fixes, request review of the affected delta. Changed reasoning, statement semantics and uncertain conflict resolutions require fresh review; a clean rebase may sometimes preserve existing approval. Integration requires maintainer authority as well as validation and review. State what is complete and what remains. When only a milestone is delivered, keep the broader objective visible and open or explicitly disposed of.
 
-Keep a source approval conditional while notices, rendered pages or other source questions still
+Keep a source approval conditional while notices or other source questions still
 need review. When releasing that hold, link the earlier proof/API/caller assessment and record
 which remaining questions were resolved; reuse unchanged evidence. The queue helper's `--wait`
 option queues automatically when CI passes, so finish any review of newly produced material

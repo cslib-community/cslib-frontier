@@ -17,6 +17,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
+import CslibFrontier.Foundations.Data.List.Countdown
 import Mathlib.Basic.Countable.Defs
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.GCongr
@@ -94,36 +95,15 @@ public lemma bitTr_events (w : List Bool) : bitTr.events w = w := by
 @[expose] public def bitScan (p : ℕ × ℕ) (b : Bool) : ℕ × ℕ :=
   (p.1 - 1, if p.1 = 1 then eBit b else p.2)
 
-lemma bitScan_zero (l : List Bool) (cur : ℕ) : l.foldl bitScan (0, cur) = (0, cur) := by
-  induction l with
-  | nil => rfl
-  | cons c l ih => simpa [bitScan] using ih
-
-lemma bitScan_all (l : List Bool) (k cur : ℕ) (hk : 1 ≤ k) :
-    l.foldl bitScan (k, cur) =
-      (k - l.length, if k ≤ l.length then eBit (l.getD (k - 1) false) else cur) := by
-  induction l generalizing k cur with
-  | nil => simp; omega
-  | cons b l ih =>
-    rcases Nat.eq_or_lt_of_le hk with rfl | hk'
-    · simp [bitScan, bitScan_zero]
-    · rw [List.foldl_cons, bitScan]
-      simp only [show k ≠ 1 by omega, ↓reduceIte]
-      rw [ih _ _ (by omega)]
-      refine Prod.ext (by simp only [List.length_cons]; omega) ?_
-      simp only [List.length_cons]
-      split_ifs <;> try omega
-      obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
-      simp
-
 /-- **The countdown over bits finds the symbol under the input head.** -/
 public lemma inputSymbol_bitScan (w : List Bool) (p : ℕ) :
     inputSymbol (w.map eBit) p =
       if p = 0 ∨ (w.foldl bitScan (p, 0)).1 ≠ 0 then none else some (w.foldl bitScan (p, 0)).2 := by
   rcases Nat.eq_zero_or_pos p with rfl | hp
   · simp [inputSymbol]
-  rw [bitScan_all w p 0 hp]
-  simp only [inputSymbol, hp.ne', false_or, ne_eq]
+  unfold bitScan
+  rw [List.foldl_countdown eBit w p 0 false]
+  simp only [hp, true_and, inputSymbol, hp.ne', false_or, ne_eq]
   rcases Nat.lt_or_ge (p - 1) w.length with h | h
   · simp [Nat.sub_eq_zero_iff_le.mpr (by omega : p ≤ w.length), List.head?_drop, h]
     omega
@@ -543,7 +523,7 @@ lemma fBranch_inO : ComputableTidilyInO (fun s : CSt =>
       simp only [length_encPair, h1]
     dsimp only [eCSt] at *
     rw [hp] at *
-    try simp only [h1] at *
+    simp only [h1] at *
     split_ifs <;> omega
 
 /-- A step of the composition at the end of a pass. -/
@@ -639,7 +619,7 @@ machines, and the positions of their input heads in binary. -/
     (2 * descLen df + 1 + cfgSpace df x uf)) + 1 + (2 * (encNat (y.length + 1)).length + 1 + 1)) +
       1 + (2 * (encNat (x.length + 1)).length + 1 + 1)
 
-lemma length_eCfg_le_cfgSpace (d : Desc) (x : List ℕ) {j t : ℕ} (h : j ≤ t) :
+public lemma length_eCfg_le_cfgSpace (d : Desc) (x : List ℕ) {j t : ℕ} (h : j ≤ t) :
     (eCfg (run d x j)).length ≤ cfgSpace d x t :=
   (length_eCfg_le_space d x j).trans (by
     have := simSpace_mono d x h
@@ -818,7 +798,8 @@ section Machines
 variable {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S)
 
 /-- The simulation of a machine has halted exactly from the halting time of the machine on. -/
-lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u) (r : ℕ) :
+public lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u)
+    (r : ℕ) :
     (run (desc eS eBit tm) (x.map eBit) r).state = none ↔ u ≤ r := by
   have h := congrArg Prod.snd (simulate_desc eS eBit tm x r)
   change (run (desc eS eBit tm) (x.map eBit) r).state.isNone = _ at h
@@ -826,13 +807,13 @@ lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) 
   exact ⟨hh.le_of_halted, fun hr => (hh.runFrom_eq hr).symm ▸ hh.halted⟩
 
 /-- The simulation of a machine emits its output by its halting time. -/
-lemma simulate_desc_output (x : List Bool) {out : List Bool} (hc : tm.Computes x out) {u : ℕ}
-    (hh : tm.HaltsAt (tm.initCfg x) u) :
+public lemma simulate_desc_output (x : List Bool) {out : List Bool} (hc : tm.Computes x out)
+    {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u) :
     (simulate (desc eS eBit tm) (x.map eBit) u).1 = out.map eBit := by
   rw [simulate_desc, output_haltsAt hc hh]
 
 /-- The space of the simulation of a machine within its space bound. -/
-lemma cfgSpace_desc_le (x : List Bool) {s : ℕ} (hs : tm.RunsInSpace x s) (t : ℕ) :
+public lemma cfgSpace_desc_le (x : List Bool) {s : ℕ} (hs : tm.RunsInSpace x s) (t : ℕ) :
     cfgSpace (desc eS eBit tm) (x.map eBit) t ≤ (12 * descLen (desc eS eBit tm) + 40) *
       (s + (encNat (x.length + 1)).length + 1) := by
   have hS : simSpace (desc eS eBit tm) (x.map eBit) t ≤ s :=

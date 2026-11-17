@@ -340,7 +340,7 @@ private theorem realizesBounded_initTableClear :
   all_goals (
     rcases d with ⟨⟨hp, hashBase⟩, idx⟩
     obtain ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, _⟩ := h
-    try (dsimp only [hpSeedWords_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk] at *)
+    dsimp only [hpSeedWords_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk] at *
     have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
     have hpack_le : 2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') ≤ w :=
       two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
@@ -356,7 +356,7 @@ private theorem realizesBounded_initTableClear :
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hsh_lt)
   all_goals try exact hmem.1.of_le (by omega)
-  all_goals exact hsh_lt.trans Nat.lt_two_pow_self
+  exact hsh_lt.trans Nat.lt_two_pow_self
 
 private theorem realizesBounded_initTableWrite :
     RealizesBounded .exact initTableWriteProg
@@ -438,8 +438,8 @@ private theorem realizesBounded_initTableWrite :
   all_goals try exact hsh_lt.trans Nat.lt_two_pow_self
   all_goals try exact hpSh_lt.trans Nat.lt_two_pow_self
   all_goals try (rw [hlimb, clmul_eq_bit_mul_xor]; exact hnew_lt)
-  all_goals try (rw [hlimb, clmul_eq_bit_mul_xor]
-                 exact (hval_sh_lt.trans_le hpow_sub1_le).trans_le hpow_pack_le)
+  rw [hlimb, clmul_eq_bit_mul_xor]
+  exact (hval_sh_lt.trans_le hpow_sub1_le).trans_le hpow_pack_le
 
 private theorem realizesBounded_initTableStepGen :
     RealizesBounded .exact initTableStepGenProg
@@ -640,12 +640,10 @@ theorem realizesBounded_initTableGen :
       InitTableGenPre (fun _ _ => 0) := by
   have hstep := realizesBounded_initTableStepGen
   realize
-  all_goals (
-    rcases d with ⟨hp, hashBase⟩
-    obtain ⟨w₀, b, b', k, hc_lt, rfl, hfr, hfit⟩ := h
-    try (dsimp only [hpPow2C_mk] at *)
-    )
-  all_goals exact (initTableGenProg_aux hc_lt hfr hfit).2.1
+  rcases d with ⟨hp, hashBase⟩
+  obtain ⟨w₀, b, b', k, hc_lt, rfl, hfr, hfit⟩ := h
+  dsimp only [hpPow2C_mk] at *
+  exact (initTableGenProg_aux hc_lt hfr hfit).2.1
 
 
 /-! ## Section 3: Key reduction and word-zeroing helpers -/
@@ -799,13 +797,12 @@ theorem realizesBounded_reduceKeyGen :
     and_two_pow_sub_one_lt _ (w₀ - 1)⟩
   all_goals try exact h2_fit.of_le (by omega)
   all_goals try exact lt_of_lt_of_le (by omega) hpow2m
-  all_goals (
-    have hm1 := and_two_pow_sub_one_lt ((uVal >>> 1) +
-      (Memory.spec 0).clientResult s
-        (karatsubaHalfProg (mkHashParams w w₀ b b' k, s.mem hashBase,
-          uVal &&& (2 ^ (w₀ - 1) - 1)))) (w₀ - 1)
-    rw [Nat.shiftLeft_eq, pow_one]
-    exact lt_of_lt_of_le (by omega) hpow2m)
+  have hm1 := and_two_pow_sub_one_lt ((uVal >>> 1) +
+    (Memory.spec 0).clientResult s
+      (karatsubaHalfProg (mkHashParams w w₀ b b' k, s.mem hashBase,
+        uVal &&& (2 ^ (w₀ - 1) - 1)))) (w₀ - 1)
+  rw [Nat.shiftLeft_eq, pow_one]
+  exact lt_of_lt_of_le (by omega) hpow2m
 
 /-- Single word zeroing step subroutine. -/
 @[expose] def zeroWordsStepProg : ℕ × ℕ → Memory.Prog ℕ

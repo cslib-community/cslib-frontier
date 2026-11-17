@@ -78,14 +78,14 @@ example {M : Type} [Fintype M] [DecidableEq M] {W : Matrix (Fin 2) (Fin 2) ℤ}
 
 /-- One edge from row `0` to column `1`, with tensor `(1, 2)` at the row and `(1, 1)` at the
 column. -/
-def net₁ : TensorNetwork ℤ₍₂₎ Bool (Fin 2) (Fin 1) where
+noncomputable def net₁ : TensorNetwork ℤ₍₂₎ Bool (Fin 2) (Fin 1) where
   src _ := 0
   tgt _ := 1
   tensor v x := if v = 0 ∧ x 0 then 2 else 1
   tensor_congr v x y h := by rw [h 0 (by fin_cases v <;> simp)]
 
 /-- The interpolation points `0, 1`, whose difference is a unit. -/
-def ζ (k : Fin 2) : ℤ₍₂₎ := k.val
+noncomputable def ζ (k : Fin 2) : ℤ₍₂₎ := k.val
 
 theorem hζ : Pairwise fun k l => IsUnit (ζ k - ζ l) := by
   intro k l hkl

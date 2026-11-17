@@ -426,7 +426,7 @@ theorem exists_subfield_card_le [Finite F] {n k : ℕ} (hn : finrank (ZMod 2) F 
       let f : W → K := fun y => ⟨y / y₀, (hmem _).2 (by
         rw [div_pow, h y y.2, h y₀ hy₀W, mul_div_mul_left _ _ hc])⟩
       exact Nat.card_le_card_of_injective f fun y y' hyy' =>
-        Subtype.ext ((div_left_inj' hy₀).1 (congrArg Subtype.val hyy'))
+        Subtype.ext ((div_left_inj₀ hy₀).1 (congrArg Subtype.val hyy'))
     · push Not at hW
       have : Nat.card W = 1 := Nat.card_eq_one_iff_unique.2
         ⟨⟨fun y y' => Subtype.ext (by rw [hW y y.2, hW y' y'.2])⟩, ⟨0⟩⟩
