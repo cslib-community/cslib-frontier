@@ -10,25 +10,31 @@ module
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Foundations.Quantum.Algebra.CStar
+import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Probability.PMF
 
 /-!
 # Perfect strategies give operator solutions in the state
 
-The converse direction of the characterization of linear constraint system games
-[Cleve and Mittal][CleveMittal2014]: a perfect strategy yields an operator solution. Here it is
-proved in the form that holds in every commuting-operator model, *in the shared state*: if a
-projective commuting-operator strategy in a C⋆-algebra wins the game of a linear constraint system
-with certainty, for a question distribution of full support, then Bob's `±1` observables
-`B_v = F_v(0) - F_v(1)` form a **state-dependent operator solution**
-(`Cslib.PCP.LinearSystem.StateSolution`): they are self-adjoint involutions, the observables of each
-equation commute in the state, `B_u B_w ≈ B_w B_u` with error `0`, and their product over each
-equation `e` is `(-1)^{parity e}` in the state
-(`Cslib.PCP.CommutingStrategy.stateSolution`). Passing from relations
-in the state to relations in an algebra (the GNS representation restricted to the cyclic subspace)
-is not formalized here.
+The converse direction of the characterization of linear constraint system games, perfect
+strategy ⇒ operator solution, in the form that holds in every commuting-operator model and *in the
+shared state*. For tensor-product strategies, including non-projective ones, the converse is
+[Cleve and Mittal, §4, Theorem 1][CleveMittal2014] (arXiv:1209.2729v1, pp. 4–8); for
+commuting-operator strategies it is [Cleve, Liu and Slofstra, §3][CleveLiuSlofstra2017]
+(arXiv:1606.02278v1, Proposition 7 and Lemma 8, pp. 5–7), whose argument this file follows.
 
-The proof follows the paper:
+What is proved here is the state-vector step, for projective strategies: if a projective
+commuting-operator strategy in a C⋆-algebra wins the game of a linear constraint system with
+certainty, for a question distribution that asks every variable of every equation with positive
+probability, then Bob's `±1` observables `B_v = F_v(0) - F_v(1)` form a **state-dependent
+operator solution** (`Cslib.PCP.LinearSystem.StateSolution`). They are self-adjoint involutions,
+the observables of each equation commute in the state, `B_u B_w ≈ B_w B_u` with error `0`, and
+their product over each equation `e`, in any order, is `(-1)^{parity e}` in the state
+(`Cslib.PCP.CommutingStrategy.stateSolution`). Restricting to the cyclic subspace to obtain an
+operator solution in an algebra (Lemma 8 of Cleve, Liu and Slofstra) is not formalized here; the
+projectivity hypothesis is removed for finite-dimensional strategies by Naimark dilation.
+
+The proof:
 
 * a perfect strategy wins every question with certainty, so every rejected answer has probability
   `0` (`Cslib.PCP.TwoProverGame.commutingProb_eq_zero_of_not_accepts`);
@@ -55,6 +61,8 @@ The proof follows the paper:
 
 * [R. Cleve and R. Mittal, *Characterization of binary constraint system
   games*][CleveMittal2014]
+* [R. Cleve, L. Liu and W. Slofstra, *Perfect commuting-operator strategies for linear system
+  games*][CleveLiuSlofstra2017]
 -/
 
 @[expose] public section
@@ -62,6 +70,7 @@ The proof follows the paper:
 namespace Cslib.PCP
 
 open Finset Quantum
+open BitString (signVal)
 
 /-! ### Perfect strategies -/
 
@@ -129,8 +138,8 @@ namespace LinearSystem
 variable {V E : Type*} (L : LinearSystem V E)
 
 /-- A **state-dependent operator solution** of a linear constraint system: `±1` observables whose
-observables in each equation commute in the state `φ`, and whose product over each equation `e`
-is `(-1)^{parity e}` in the state. -/
+observables in each equation commute in the state `φ`, and whose product over each equation `e`,
+in any order, is `(-1)^{parity e}` in the state. -/
 structure StateSolution {𝒜 : Type*} [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜]
     (φ : AlgState 𝒜) where
   /-- The observable of the variable `v`. -/
@@ -138,7 +147,14 @@ structure StateSolution {𝒜 : Type*} [CStarAlgebra 𝒜] [PartialOrder 𝒜] [
   isSelfAdjoint : ∀ v, IsSelfAdjoint (op v)
   mul_self : ∀ v, op v * op v = 1
   commute : ∀ e, ∀ u ∈ L.support e, ∀ w ∈ L.support e, op u * op w ≈[φ; 0] op w * op u
-  prod_eq : ∀ e, ((L.support e).toList.map op).prod ≈[φ; 0] boolSign (L.parity e) • 1
+  prod_eq : ∀ e (l : List V), l.Perm (L.support e).toList →
+    (l.map op).prod ≈[φ; 0] (signVal (L.parity e) : ℂ) • 1
+
+/-- Alice's measurements in the strategy of an operator solution are projective. -/
+theorem OperatorSolution.isProjective_eqMeasurement [Fintype V] [DecidableEq V] {𝒜 : Type*}
+    [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜] (X : L.OperatorSolution 𝒜) (e : E) :
+    (X.eqMeasurement e).IsProjective :=
+  (Measurement.isProjective_ofCommuting _ _ _ _).map _
 
 end LinearSystem
 
@@ -187,7 +203,7 @@ variable [Fintype V] [DecidableEq V] {S : CommutingStrategy E V (V → Bool) Boo
 `e`. -/
 noncomputable def marginalObservable (S : CommutingStrategy E V (V → Bool) Bool 𝒜) (e : E)
     (v : V) : 𝒜 :=
-  ∑ a, boolSign (a v) • (S.alice e).effect a
+  ∑ a, (signVal (a v) : ℂ) • (S.alice e).effect a
 
 theorem marginalObservable_eq (S : CommutingStrategy E V (V → Bool) Bool 𝒜) (e : E) (v : V) :
     S.marginalObservable e v = ((S.alice e).map fun a => a v).observable := by
@@ -195,16 +211,17 @@ theorem marginalObservable_eq (S : CommutingStrategy E V (V → Bool) Bool 𝒜)
   rw [← sum_filter_add_sum_filter_not univ fun a => a v = false]
   rw [sub_eq_add_neg, ← sum_neg_distrib]
   congr 1
-  · refine sum_congr ?_ fun a ha => by rw [(mem_filter.mp ha).2, boolSign_false, one_smul]
-    ext a; simp
+  · refine sum_congr ?_ fun a ha => ?_
+    · ext a; simp
+    · rw [(mem_filter.mp ha).2, BitString.signVal_false, Complex.ofReal_one, one_smul]
   · refine sum_congr ?_ fun a ha => ?_
     · ext a; simp
     · have : a v = true := by simpa using (mem_filter.mp ha).2
-      rw [this, boolSign_true, neg_one_smul]
+      rw [this, BitString.signVal_true, Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul]
 
 /-- Products of marginal observables of a projective measurement multiply pointwise. -/
 theorem list_prod_marginalObservable (e : E) (hA : (S.alice e).IsProjective) (l : List V) :
-    (l.map (S.marginalObservable e)).prod = ∑ a, (l.map fun v => boolSign (a v)).prod •
+    (l.map (S.marginalObservable e)).prod = ∑ a, (l.map fun v => (signVal (a v) : ℂ)).prod •
       (S.alice e).effect a := by
   induction l with
   | nil => simp [(S.alice e).sum_effect]
@@ -216,12 +233,11 @@ theorem list_prod_marginalObservable (e : E) (hA : (S.alice e).IsProjective) (l 
 variable [Finite E] in
 /-- In a perfect strategy, Alice never answers an assignment violating her equation. -/
 theorem effect_approx_zero_of_not_satisfies (L : LinearSystem V E) {μ : PMF (E × V)}
-    (hμ : ∀ q, μ q ≠ 0) (h : (L.game μ).commutingWinProb S = 1) {e : E} {a : V → Bool}
-    (ha : ¬ L.Satisfies e a) : (S.alice e).effect a ≈[S.state; 0] 0 := by
-  obtain ⟨q, -⟩ := μ.support_nonempty
-  set v := q.2
+    (hne : ∀ e, ∃ v, μ (e, v) ≠ 0) (h : (L.game μ).commutingWinProb S = 1) {e : E}
+    {a : V → Bool} (ha : ¬ L.Satisfies e a) : (S.alice e).effect a ≈[S.state; 0] 0 := by
+  obtain ⟨v, hv⟩ := hne e
   have hprob : ∀ b, S.prob e v a b = 0 := fun b =>
-    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h (hμ (e, v))
+    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h hv
       (fun hacc => ha hacc.1)
   have hre : (S.state ((S.alice e).effect a)).re = 0 := by
     rw [← mul_one ((S.alice e).effect a), ← (S.bob v).sum_effect, mul_sum, map_sum,
@@ -235,7 +251,8 @@ theorem effect_approx_zero_of_not_satisfies (L : LinearSystem V E) {μ : PMF (E 
 variable [Finite E] in
 /-- In a perfect strategy, Alice's marginal observable of a variable of her equation agrees
 perfectly with Bob's observable. -/
-theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)} (hμ : ∀ q, μ q ≠ 0)
+theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)}
+    (hμ : ∀ e, ∀ v ∈ L.support e, μ (e, v) ≠ 0)
     (h : (L.game μ).commutingWinProb S = 1) {e : E} {v : V} (hv : v ∈ L.support e) :
     S.marginalObservable e v ≈[S.state; 0] (S.bob v).observable := by
   set M := (S.alice e).map fun a => a v
@@ -243,7 +260,7 @@ theorem marginalObservable_approx (L : LinearSystem V E) {μ : PMF (E × V)} (h�
   have hcomm : ∀ b, Commute (M.effect b) (F.effect b) := fun b =>
     Commute.sum_left _ _ _ fun a _ => S.commute e v a b
   have hzero : ∀ a b, a v ≠ b → S.prob e v a b = 0 := fun a b hab =>
-    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h (hμ (e, v))
+    TwoProverGame.commutingProb_eq_zero_of_not_accepts (L.game μ) h (hμ e v hv)
       (fun hacc => hab (hacc.2 hv))
   have hagr : Measurement.agreement S.state M F = 1 := by
     have hM : Measurement.agreement S.state M F =
@@ -274,12 +291,14 @@ theorem commute_observable_marginalObservable (e : E) (u w : V) :
 
 variable [Finite E] (L : LinearSystem V E) {μ : PMF (E × V)}
 
-/-- **Perfect strategies give operator solutions in the state** [Cleve and Mittal][CleveMittal2014]:
-if a projective commuting-operator strategy wins the game of a linear constraint system with
-certainty, for a question distribution of full support, then Bob's `±1` observables form an
-operator solution in the shared state. -/
+/-- **Perfect strategies give operator solutions in the state**
+[Cleve, Liu and Slofstra, §3, Proposition 7][CleveLiuSlofstra2017]: if a projective
+commuting-operator strategy wins the game of a linear constraint system with certainty, for a
+question distribution asking every equation and every variable of it with positive probability,
+then Bob's `±1` observables form an operator solution in the shared state. -/
 noncomputable def stateSolution
-    (S : CommutingStrategy E V (V → Bool) Bool 𝒜) (hμ : ∀ q, μ q ≠ 0)
+    (S : CommutingStrategy E V (V → Bool) Bool 𝒜) (hne : ∀ e, ∃ v, μ (e, v) ≠ 0)
+    (hμ : ∀ e, ∀ v ∈ L.support e, μ (e, v) ≠ 0)
     (hA : ∀ e, (S.alice e).IsProjective) (hB : ∀ v, (S.bob v).IsProjective)
     (h : (L.game μ).commutingWinProb S = 1) : L.StateSolution S.state where
   op v := (S.bob v).observable
@@ -307,30 +326,33 @@ noncomputable def stateSolution
       simp only [marginalObservable, (hA e).sum_smul_mul_sum_smul, mul_comm]
     rw [hcommA] at t₁
     exact (t₁.trans t₂.symm).mono (by norm_num)
-  prod_eq e := by
-    set l := (L.support e).toList
+  prod_eq e l hl := by
     have ag : ∀ v ∈ l, (S.bob v).observable ≈[S.state; 0] S.marginalObservable e v :=
-      fun v hv => (S.marginalObservable_approx L hμ h (Finset.mem_toList.mp hv)).symm
+      fun v hv => (S.marginalObservable_approx L hμ h
+        (Finset.mem_toList.mp (hl.mem_iff.mp hv))).symm
     have t := list_prod_approx (fun v => (S.bob v).observable) (S.marginalObservable e) l ag
       (fun x _ y _ => S.commute_observable_marginalObservable e x y)
-    have hsign : ∀ a : V → Bool, (l.reverse.map fun v => boolSign (a v)).prod =
-        boolSign (setParity (L.support e) a) := fun a => by
-      rw [List.map_reverse, List.prod_reverse, Finset.prod_map_toList, prod_boolSign_eq]
+    have hsign : ∀ a : V → Bool, (l.reverse.map fun v => (signVal (a v) : ℂ)).prod =
+        (signVal (parityOn (L.support e) a) : ℂ) := fun a => by
+      rw [List.map_reverse, List.prod_reverse, (hl.map _).prod_eq, Finset.prod_map_toList,
+        parityOn_eq_sum, BitString.signVal_sum]
+      push_cast
+      rfl
     have hprod : (l.reverse.map (S.marginalObservable e)).prod =
-        ∑ a, boolSign (setParity (L.support e) a) • (S.alice e).effect a := by
+        ∑ a, (signVal (parityOn (L.support e) a) : ℂ) • (S.alice e).effect a := by
       rw [list_prod_marginalObservable e (hA e)]
       simp only [hsign]
-    have hsol : ∑ a, boolSign (setParity (L.support e) a) • (S.alice e).effect a ≈[S.state; 0]
-        boolSign (L.parity e) • (1 : 𝒜) := by
+    have hsol : ∑ a, (signVal (parityOn (L.support e) a) : ℂ) • (S.alice e).effect a
+        ≈[S.state; 0] (signVal (L.parity e) : ℂ) • (1 : 𝒜) := by
       have hsum := sum_approx_zero (φ := S.state) univ (fun a =>
-          (boolSign (setParity (L.support e) a) - boolSign (L.parity e)) • (S.alice e).effect a)
+          ((signVal (parityOn (L.support e) a) : ℂ) - signVal (L.parity e)) • (S.alice e).effect a)
         fun a _ => by
           by_cases hs : L.Satisfies e a
           · rw [LinearSystem.Satisfies] at hs
             rw [hs, sub_self, zero_smul]
             exact AlgState.approx_self _ _
-          · simpa using (S.effect_approx_zero_of_not_satisfies L hμ h hs).smul
-              (boolSign (setParity (L.support e) a) - boolSign (L.parity e))
+          · simpa using (S.effect_approx_zero_of_not_satisfies L hne h hs).smul
+              ((signVal (parityOn (L.support e) a) : ℂ) - signVal (L.parity e))
       rw [AlgState.Approx] at hsum ⊢
       convert hsum using 2
       rw [sub_zero, ← (S.alice e).sum_effect, smul_sum, ← sum_sub_distrib]

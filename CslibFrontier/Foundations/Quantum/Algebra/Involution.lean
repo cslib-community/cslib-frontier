@@ -154,6 +154,10 @@ noncomputable def Measurement.ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' :
     (signProj_mul_self hO' b)
   sum_effect := sum_signProj O
 
+theorem Measurement.isProjective_ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' : O * O = 1) :
+    (Measurement.ofInvolution hO hO').IsProjective :=
+  signProj_mul_self hO'
+
 /-- The product `P_{a₀}(O₀) P_{a₁}(O₁) P_{a₂}(O₂)` of the projections of three observables. -/
 noncomputable def signProj₃ (O₀ O₁ O₂ : A) : Bool × Bool × Bool → A
   | (a₀, a₁, a₂) => signProj O₀ a₀ * signProj O₁ a₁ * signProj O₂ a₂

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
+public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import Mathlib.Analysis.CStarAlgebra.ContinuousFunctionalCalculus.Order
 
@@ -71,17 +72,9 @@ theorem Approx.mul_left_zero (h : a ≈[φ; 0] b) (c : A) : c * a ≈[φ; 0] c *
 /-- An effect with expectation `0` is `0`-close to `0`. -/
 theorem approx_zero_of_apply_eq_zero {E : A} (h0 : 0 ≤ E) (h1 : E ≤ 1) (hE : φ E = 0) :
     E ≈[φ; 0] 0 := by
-  have hsq : E * E ≤ E := by
-    have := Commute.mul_nonneg h0 (sub_nonneg.mpr h1)
-      ((Commute.one_right _).sub_right (Commute.refl _))
-    rwa [mul_sub, mul_one, sub_nonneg] at this
-  rw [Approx, sub_zero]
-  refine le_of_eq ?_
-  rw [norm_eq_sqrt, h0.isSelfAdjoint.star_eq]
-  have := φ.re_apply_mono hsq
+  have := φ.re_apply_mono (mul_self_le_self_of_nonneg_of_le_one h0 h1)
   rw [hE, Complex.zero_re] at this
-  rw [Real.sqrt_eq_zero', ]
-  exact this
+  rw [Approx, sub_zero, norm_eq_sqrt, h0.isSelfAdjoint.star_eq, Real.sqrt_eq_zero'.mpr this]
 
 end AlgState
 
@@ -120,6 +113,15 @@ theorem IsProjective.sum_smul_mul_sum_smul (hM : M.IsProjective) (f g : α → �
   rw [mul_sum, sum_eq_single a (fun b _ hb => by
     rw [smul_mul_smul_comm, hM.mul_eq_zero (Ne.symm hb), smul_zero]) (by simp),
     smul_mul_smul_comm, hM a]
+
+/-- Coarse-graining a projective measurement keeps it projective. -/
+theorem IsProjective.map {β : Type*} [Fintype β] [DecidableEq β] (hM : M.IsProjective)
+    (f : α → β) : (M.map f).IsProjective := fun b => by
+  classical
+  simp only [map_effect, sum_mul_sum]
+  refine sum_congr rfl fun a _ => ?_
+  rw [sum_eq_single a (fun c _ hc => hM.mul_eq_zero (Ne.symm hc)) (fun ha' => ha'.elim
+    ‹a ∈ _›), hM a]
 
 end Measurement
 

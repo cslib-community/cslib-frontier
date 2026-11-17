@@ -246,6 +246,11 @@ theorem Measurement.ofCommuting_effect (hsa : ∀ j, IsSelfAdjoint (O j))
     (Measurement.ofCommuting O hO hsa hO').effect a = jointProj O hO a :=
   rfl
 
+/-- The joint measurement of commuting `±1` observables is projective. -/
+theorem Measurement.isProjective_ofCommuting (hsa : ∀ j, IsSelfAdjoint (O j))
+    (hO' : ∀ j, O j * O j = 1) : (Measurement.ofCommuting O hO hsa hO').IsProjective :=
+  jointProj_mul_self O hO hO'
+
 end Order
 
 end Cslib.Quantum
