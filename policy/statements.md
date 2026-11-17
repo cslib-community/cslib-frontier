@@ -89,7 +89,8 @@ source citation as what is being proved, is in one of two states.
 
 Registration requires the independent check of the statement against the source, by a reviewer
 from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
-presents a cited result therefore lands with its entry, and the check is made on its pull request.
+presents a cited result therefore lands with its entry, with the check made on its pull request,
+or lands as a step and is registered by a later change once the check has been made.
 The check opens the definitions that the statement names (its games, schemes, predicates and
 assumptions) and records in its comment:
 
