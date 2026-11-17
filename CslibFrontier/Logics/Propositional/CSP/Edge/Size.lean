@@ -55,7 +55,7 @@ theorem card_occurrences_var (F : CSP Rel V) (v : V) :
     have he : (List.ofFn fun j : Fin scope.length => scope[j.val]) = scope := by
       simp
     have hc := List.countP_ofFn (fun j : Fin scope.length => scope[j.val]) (fun w => w == v)
-    simpa only [he, List.count_eq_countP, beq_iff_eq] using hc.symm
+    simpa only [he, List.count_eq_countP, beq_iff_eq, card_filter] using hc.symm
   calc
     _ = ∑ o : Occurrence F, if o.var = v then 1 else 0 := by simp
     _ = ∑ i : Fin F.length, ∑ j : Fin F[i.val].scope.length,

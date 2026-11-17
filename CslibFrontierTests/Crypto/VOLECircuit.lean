@@ -34,7 +34,7 @@ private theorem f4_error : (Fintype.card F : ℝ≥0∞)⁻¹ +
   norm_num only [Nat.cast_ofNat]
   apply (ENNReal.toReal_eq_toReal_iff _ _).mp ?_ |>.resolve_right ?_
   · rw [ENNReal.toReal_add, ENNReal.toReal_mul, ENNReal.toReal_sub_of_le]
-    all_goals try norm_num [ENNReal.inv_le_one, ENNReal.toReal_inv, ENNReal.toReal_div]
+    all_goals norm_num [ENNReal.inv_le_one, ENNReal.toReal_inv, ENNReal.toReal_div]
     exact ENNReal.mul_ne_top (ne_of_lt (lt_of_le_of_lt tsub_le_self ENNReal.one_lt_top))
       (ENNReal.div_ne_top (by norm_num) (by norm_num))
   · simp

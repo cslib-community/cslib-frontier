@@ -87,7 +87,7 @@ private theorem coeff_sum_testRoundPoly (u : Fin 2) :
     (3 : ℤ) • ((testRoundPoly 0 0 * testRoundPoly 0 1).coeff u) +
       (-3 : ℤ) • ((testRoundPoly 1 0 * testRoundPoly 1 1).coeff u) := by
   simp only [Finset.sum_range_succ, Finset.range_zero, Finset.sum_empty, zero_add,
-    Fin.prod_univ_two, ↓reduceIte, Nat.one_ne_zero, coeff_add, coeff_smul]
+    Fin.prod_univ_two, ↓reduceIte, Nat.one_ne_zero, coeff_add, AddMonoidAlgebra.coeff_smul_apply]
 
 theorem recover_outer_stream_mod4 : recoverOuterJetSumModPowTwo [1, 2] 2 2 ((2 : ℤ) ^ 2)
     (List.ofFn fun i : Fin ([1, 2] : List ℤ).length =>
