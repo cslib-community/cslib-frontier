@@ -654,11 +654,13 @@ theorem ddhRandomGame_elGamalMsgToDDHDistinguisher_false_eq_true {Msg : Type}
   F.ddhRandomGame_elGamalMsgToDDHDistinguisherWith_false_eq_true _ encodeMsg setup adversary n
     (fun d _ u m₀ m₁ hv => hsound n d u m₀ m₁ hv)
 
-/-- **Quantitative reduction of typed-message ElGamal IND-CPA to DDH** ([BonehShoup2023],
-Exercise 11.5(a), p. 459): when `valid` admits only group elements under `encodeMsg`, the IND-CPA
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 11.5(a), p. 459, not the cited result:
+in `elGamalMsgCPAGameOn`, whose key and challenge exponents are drawn exactly uniformly at the
+`PMF` level, when `valid` admits only group elements under `encodeMsg`, the IND-CPA
 distinguishing advantage of `adversary` is bounded by the sum of the DDH advantages of
 `elGamalMsgToDDHDistinguisher valid encodeMsg adversary false` and
-`elGamalMsgToDDHDistinguisher valid encodeMsg adversary true`. -/
+`elGamalMsgToDDHDistinguisher valid encodeMsg adversary true`. The cited result for the strict-PPT
+scheme is `DDH.indcpaOn_elGamalEncryptProb`. -/
 theorem advantage_elGamalMsgCPAGameOn_le {Msg : Type}
     (valid : ℕ → List Bool → Msg → Msg → Bool) (encodeMsg : F.Desc → Msg → List Bool)
     (setup : ℕ → PMF F.Desc) (adversary : Encryption.AdversaryOf Msg) (n : ℕ)
@@ -829,10 +831,12 @@ theorem ddhRandomGame_elGamalToDDHDistinguisher_false_eq_true (setup : ℕ → P
   F.ddhRandomGame_elGamalMsgToDDHDistinguisher_false_eq_true _ F.encodeBit setup adversary n
     F.admitsGroupElements_encodeBit
 
-/-- **Quantitative reduction of ElGamal IND-CPA to DDH** ([BonehShoup2023], Exercise 11.5(a),
-p. 459): the IND-CPA distinguishing advantage of `adversary` is bounded by the sum of the DDH
-advantages of `elGamalToDDHDistinguisher adversary false` and
-`elGamalToDDHDistinguisher adversary true`. -/
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 11.5(a), p. 459, not the cited result:
+in the bit game `elGamalCPAGame`, whose key and challenge exponents are drawn exactly uniformly at
+the `PMF` level, the IND-CPA distinguishing advantage of `adversary` is bounded by the sum of the
+DDH advantages of `elGamalToDDHDistinguisher adversary false` and
+`elGamalToDDHDistinguisher adversary true`. The cited result for the strict-PPT bit scheme is
+`DDH.indcpa_elGamalBitEncryptProb`. -/
 theorem advantage_elGamalCPAGame_le (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.Adversary) (n : ℕ) :
     Game.advantage (F.elGamalCPAGame setup adversary false n)
@@ -880,11 +884,13 @@ abbrev elGamalGroupToDDHDistinguisher (valid : ℕ → List Bool → List Bool �
     (adversary : Encryption.WordAdversary) (bit : Bool) : F.DDHDistinguisher :=
   F.elGamalMsgToDDHDistinguisher valid (fun _ m => m) adversary bit
 
-/-- **Quantitative reduction of group-element ElGamal IND-CPA to DDH** ([BonehShoup2023],
-Exercise 11.5(a), p. 459): when `valid` admits only encoded group elements, the IND-CPA
-distinguishing advantage of `adversary` is bounded by the sum of the DDH advantages of
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 11.5(a), p. 459, not the cited result:
+in `elGamalGroupCPAGameOn valid`, whose key and challenge exponents are drawn exactly uniformly at
+the `PMF` level, when `valid` admits only encoded group elements, the IND-CPA distinguishing
+advantage of `adversary` is bounded by the sum of the DDH advantages of
 `elGamalGroupToDDHDistinguisher valid adversary false` and
-`elGamalGroupToDDHDistinguisher valid adversary true`. -/
+`elGamalGroupToDDHDistinguisher valid adversary true`. The cited result for the strict-PPT scheme
+is `DDH.indcpaOn_elGamalEncryptProb` at the identity message encoding. -/
 theorem advantage_elGamalGroupCPAGameOn_le
     (valid : ℕ → List Bool → List Bool → List Bool → Bool) (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary) (n : ℕ)
@@ -1275,13 +1281,17 @@ theorem kdfIdealGame_hashedElGamalToKDFDistinguisher_false_eq_true (setup : ℕ 
     simpa only [PMF.bind_map, Function.comp_def] using hmap
   exact (hpad choice.1.1).trans (hpad choice.1.2).symm
 
-/-- **Quantitative reduction of Hashed ElGamal IND-CPA to DDH and `SecureKDF`**
-([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451): the IND-CPA distinguishing
+/-- Ideal-sampling step toward [BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451, not
+the cited result: in the one-time-pad Hashed ElGamal game `hashedElGamalCPAGame`, whose key and
+challenge exponents are drawn exactly uniformly at the `PMF` level, the IND-CPA distinguishing
 advantage of `adversary` is bounded by the sum of the two DDH advantages of
 `hashedElGamalToDDHDistinguisher` and the two KDF advantages of
 `hashedElGamalToKDFDistinguisher`. The hybrids of the proof are the random DDH game, which is the
 real KDF game (`ddhRandomGame_kdfToDDHDistinguisher`), and the ideal KDF game, where the uniform
-pad hides the challenge bit. -/
+pad hides the challenge bit. The cited result, for the strict-PPT scheme with a one-time
+semantically secure cipher, is `DDH.indcpaOf_hybrid_hashedElGamal` (also
+`DDH.indcpaOn_hybrid_hashedElGamal` and `DDH.wordINDCPA_hybrid_hashedElGamal`), which rests on the
+strict-PPT KEM bound `advantage_kemGame_hashedElGamalEncapsProb_le`. -/
 theorem advantage_hashedElGamalCPAGame_le (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ)
     (adversary : Encryption.WordAdversary) (n : ℕ) :
