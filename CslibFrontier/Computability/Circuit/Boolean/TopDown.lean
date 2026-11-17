@@ -138,13 +138,13 @@ decreasing_by
 /-- When gate `k` evaluates to `b` on an input iff one of its arguments evaluates to `b`, the
 player whose input makes gate `k` evaluate to `b` (`y` if `s != b`, `x` otherwise) selects via
 `argWith p k b` an argument wire that evaluates to `s` on `x` and `!s` on `y`. -/
-private theorem exists_wire_of_trace_iff {p : Program signature n g} {k : Fin g} {b s : Bool}
+private theorem exists_argWith_witness {p : Program signature n g} {k : Fin g} {b s : Bool}
     (hiff : ∀ u, p.trace interpretation u (.gate k) = b ↔
       ∃ a, p.trace interpretation u ((p.lines k).wires a) = b)
     {x y : BitString n}
     (hx : p.trace interpretation x (.gate k) = s)
     (hy : p.trace interpretation y (.gate k) = !s) :
-    ∃ a, argWith p k b (if (s != b) = true then y else x) = (p.lines k).wires a ∧
+    ∃ a, argWith p k b (if s != b then y else x) = (p.lines k).wires a ∧
       p.trace interpretation x ((p.lines k).wires a) = s ∧
       p.trace interpretation y ((p.lines k).wires a) = !s := by
   have hstep {z z' : BitString n} (hz : p.trace interpretation z (.gate k) = b)
@@ -153,18 +153,12 @@ private theorem exists_wire_of_trace_iff {p : Program signature n g} {k : Fin g}
         p.trace interpretation z ((p.lines k).wires a) = b ∧
         p.trace interpretation z' ((p.lines k).wires a) = !b := by
     obtain ⟨a, ha, hza⟩ := argWith_spec ((hiff z).mp hz)
-    have hne : p.trace interpretation z' ((p.lines k).wires a) ≠ b := fun h => by
-      have := (hiff z').mpr ⟨a, h⟩
-      cases b <;> simp_all
-    exact ⟨a, ha, hza,
-      by cases hq : p.trace interpretation z' ((p.lines k).wires a) <;> cases b <;> simp_all⟩
-  cases b <;> cases s
-  · exact hstep hx hy
-  · obtain ⟨a, ha, hya, hxa⟩ := hstep hy (by simpa using hx)
-    exact ⟨a, ha, by simpa using hxa, hya⟩
-  · obtain ⟨a, ha, hya, hxa⟩ := hstep (by simpa using hy) (by simpa using hx)
-    exact ⟨a, ha, hxa, by simpa using hya⟩
-  · exact hstep hx hy
+    refine ⟨a, ha, hza, Bool.eq_not_iff.mpr fun h => ?_⟩
+    simp [(hiff z').mpr ⟨a, h⟩] at hz'
+  obtain rfl | rfl : s = b ∨ s = !b := by cases s <;> cases b <;> simp
+  · simpa using hstep hx hy
+  · obtain ⟨a, ha, hya, hxa⟩ := hstep (by simpa using hy) hx
+    exact ⟨a, by simpa using ha, hxa, by simpa using hya⟩
 
 /-- **The protocol of a wire solves its game**: if the wire `w` has AND/OR depth at most `d`,
 Alice's input makes it `s` and Bob's makes it `!s`, the two inputs differ at the named
@@ -207,7 +201,7 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
       split
       · omega
       rename_i d
-      obtain ⟨a, ha, hxa, hya⟩ := exists_wire_of_trace_iff (b := false)
+      obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
         (fun u => by simp [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop]) hx hy
       simp only [Bool.bne_false] at ha
       rw [RoundProtocol.run_speak, ha]
@@ -217,7 +211,7 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
       split
       · omega
       rename_i d
-      obtain ⟨a, ha, hxa, hya⟩ := exists_wire_of_trace_iff (b := true)
+      obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)
         (fun u => by rw [hval, interpretation_of_op_eq_or hop]) hx hy
       simp only [Bool.bne_true] at ha
       rw [RoundProtocol.run_speak, ha]
