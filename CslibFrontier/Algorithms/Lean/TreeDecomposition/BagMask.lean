@@ -9,10 +9,11 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
-public import CslibFrontier.Algorithms.Lean.TimeM.Simps
+public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Sort
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Subsets of a bag as bit masks
