@@ -127,6 +127,76 @@ private theorem CompatibleOn.refine {grid : Nat → Nat → Node} {width height 
     Nat → Nat → ShadeState := fun x y =>
   ((supertileNodeGrid level root (x / 2) (y / 2)).block).at (x % 2) (y % 2)
 
+/-- The canonical index grid is the two-substitutions-per-level refinement of its root. -/
+theorem supertileIndexGrid_eq_iterateRefine (level : ℕ) (root : Node) :
+    supertileIndexGrid level root = iterateRefine (2 * level) (coarseGrid root.parent) := by
+  funext x y
+  induction level generalizing x y with
+  | zero => rfl
+  | succ level ih =>
+      have hx : (childPosition x y).val % 4 = x % 4 := by
+        dsimp only [childPosition, blockPosition]
+        omega
+      have hy : (childPosition x y).val / 4 = y % 4 := by
+        dsimp only [childPosition, blockPosition]
+        omega
+      rw [show 2 * (level + 1) = 2 + 2 * level by omega, ← iterateRefine_add,
+        iterateRefine_two_local]
+      change ((supertileNodeGrid level root (x / 4) (y / 4)).child
+        (childPosition x y)).parent = _
+      rw [Node.child_parent, hx, hy]
+      exact congrArg (fun parent => fineGrid parent (x % 4) (y % 4)) (ih (x / 4) (y / 4))
+
+/-- Inside the root block, canonical indices agree with any grid with the same root tile. -/
+theorem supertileIndexGrid_eq_of_root_eq (level : ℕ) (root : Node) (coarse : ℕ → ℕ → Index)
+    (rootEq : coarse 0 0 = root.parent) {x y : ℕ} (hx : x < 4 ^ level)
+    (hy : y < 4 ^ level) :
+    supertileIndexGrid level root x y = iterateRefine (2 * level) coarse x y := by
+  rw [supertileIndexGrid_eq_iterateRefine]
+  apply iterateRefine_eq_of_root_eq rootEq.symm
+  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hx
+  · simpa only [pow_mul, show (2 : ℕ) ^ 2 = 4 by decide] using hy
+
+/-- A four-by-four tile block in a supertile is the child block of its coarser node. -/
+theorem supertileNodeGrid_block (level : ℕ) (root : Node)
+    (bx by₀ x y : ℕ) (hx : x < 4) (hy : y < 4) :
+    supertileNodeGrid (level + 1) root (4 * bx + x) (4 * by₀ + y) =
+      (supertileNodeGrid level root bx by₀).child (childPosition x y) := by
+  have hxd : (4 * bx + x) / 4 = bx := by omega
+  have hyd : (4 * by₀ + y) / 4 = by₀ := by omega
+  have hxm : (4 * bx + x) % 4 = x % 4 := by omega
+  have hym : (4 * by₀ + y) % 4 = y % 4 := by omega
+  simp only [supertileNodeGrid, hxd, hyd, childPosition, hxm, hym]
+
+/-- The inherited sparse quarters keep the shade of their parent quarters. -/
+theorem supertileShadeGrid_sparse (level : ℕ) (root : Node) (x y : ℕ) :
+    supertileShadeGrid (level + 1) root (sparseCoordinate x) (sparseCoordinate y) =
+      supertileShadeGrid level root x y := by
+  have coords (z : ℕ) : sparseCoordinate z / 2 = 4 * (z / 2) ∧
+      sparseCoordinate z % 2 = z % 2 := by dsimp only [sparseCoordinate]; omega
+  obtain ⟨hxd, hxm⟩ := coords x
+  obtain ⟨hyd, hym⟩ := coords y
+  have position : childPosition (4 * (x / 2)) (4 * (y / 2)) = 0 := by
+    apply Fin.ext
+    simp [childPosition, blockPosition]
+  have hx4 : 4 * (x / 2) / 4 = x / 2 := by omega
+  have hy4 : 4 * (y / 2) / 4 = y / 2 := by omega
+  simp only [supertileShadeGrid, hxd, hyd, hxm, hym, supertileNodeGrid,
+    position, Node.child_zero_block, hx4, hy4]
+
+/-- Each eight-by-eight quarter block is the first supertile of its coarser node. -/
+theorem supertileShadeGrid_block (level : ℕ) (root : Node)
+    (bx by₀ x y : ℕ) (hx : x < 8) (hy : y < 8) :
+    supertileShadeGrid (level + 1) root (8 * bx + x) (8 * by₀ + y) =
+      supertileShadeGrid 1 (supertileNodeGrid level root bx by₀) x y := by
+  have hxm : (8 * bx + x) % 2 = x % 2 := by omega
+  have hym : (8 * by₀ + y) % 2 = y % 2 := by omega
+  dsimp only [supertileShadeGrid]
+  rw [show (8 * bx + x) / 2 = 4 * bx + x / 2 by omega,
+    show (8 * by₀ + y) / 2 = 4 * by₀ + y / 2 by omega,
+    supertileNodeGrid_block level root bx by₀ (x / 2) (y / 2) (by omega) (by omega), hxm, hym]
+  rfl
+
 private theorem supertileNodeGrid_compatible (level : Nat) (root : Node) :
     CompatibleOn (supertileNodeGrid level root) (4 ^ level) (4 ^ level) := by
   induction level with
@@ -463,16 +533,19 @@ shade/signal allowance proved from the closed decorated substitution. -/
       ⟨quarter_vmatch level root i.val j.val i.isLt hj,
         (supertile_validShadeRectangle level root).vmatch i.val j.val i.isLt hj, rfl⟩
 
+/-- Canonical patch sides grow beyond their substitution level. -/
+theorem lt_side (level : ℕ) : level < side level := by
+  have := (Nat.lt_two_pow_self : level < 2 ^ level)
+  have := Nat.pow_le_pow_left (show 2 ≤ 4 by decide) level
+  dsimp [side]
+  omega
+
 /-- The concrete decorated Robinson scaffold has a plane tiling, by compactness of its
 canonical finite squares. This proves scaffold nonemptiness, not payload realization. -/
 theorem scaffold_tilesPlane : TilesPlane scaffold.tiles := by
   apply (tilesPlane_iff_squares _).mpr
   intro n
-  have growth : n + 1 ≤ side (n + 1) := by
-    have := (Nat.lt_two_pow_self : n + 1 < 2 ^ (n + 1))
-    have := Nat.pow_le_pow_left (show 2 ≤ 4 by decide) (n + 1)
-    dsimp [side]
-    omega
+  have growth := (lt_side (n + 1)).le
   exact ⟨(canonicalPatch (n + 1) seedNode).crop growth growth⟩
 
 end Cslib.WangTile.Robinson.Canonical

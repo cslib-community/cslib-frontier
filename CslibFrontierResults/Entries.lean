@@ -166,8 +166,8 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
-import CslibFrontier.Crypto.Computational.Encryption.CTRMode
-import CslibFrontier.Crypto.Computational.Encryption.OFBMode
+import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
@@ -1282,8 +1282,8 @@ register_result "goldreich-levin-hard-core" where
   topic := "cryptography"
   sources := [
     { paper := GoldreichLevin1989, theorem := unverified, locator := unverified },
-    { paper := Goldreich2007Draft, theorem := "Theorem 7.7",
-      locator := "March 2007 draft r4.pdf, PDF p. 12; printed p. 276" }
+    { paper := Goldreich2007DraftR4, theorem := "Theorem 7.7 and Proposition 8.9",
+      locator := "March 2007 draft r4.pdf, PDF pp. 12 and 66; printed pp. 276 and 330" }
   ]
   theorems := [
     Cslib.Crypto.GoldreichLevin.padded_hardCore,
@@ -1294,8 +1294,10 @@ register_result "goldreich-levin-hard-core" where
     spare bit s so that every seed length is covered, against uniform strict PPT predictors \
     with negligible bias. This is not a hard-core predicate for f itself. For a length-preserving \
     one-way permutation, appending that bit gives a deterministic polynomial-time generator with \
-    one-bit stretch, secure against uniform strict PPT distinguishers. Asymptotic security; the \
-    source's explicit runtime and advantage trade-off is not stated."
+    one-bit stretch, secure against uniform strict PPT distinguishers: Proposition 8.9 applied \
+    to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
+    predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
+    stated."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -1316,22 +1318,25 @@ register_result "naor-yung-uowhf" where
     the domain. Asymptotic security; no compact key-length bound."
 
 register_result "inaccessible-entropy-from-owf" where
-  title := "Inaccessible average max-entropy from any one-way function"
+  title := "Inaccessible average max-entropy from one-way functions"
   topic := "cryptography"
   sources := [
     { paper := HHRVW2020, theorem := "Theorem 4.5", locator := "Section 4.2, p. 21" }
   ]
   theorems := [
-    Cslib.Crypto.OneWay.rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily_logGap
+    Cslib.Crypto.OneWay.rompelBase_logGap
   ]
-  scope := "Every uniform one-way function on bit strings yields a single uniform polynomial-time \
-    fixed-width function family whose accessible average max-entropy against uniform strict PPT \
-    adversaries is eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, \
-    witnessed at each d > 0 by an adversary-independent accessible preimage set family with \
-    polynomial light-image threshold and packaged as an InaccessibleEntropyFamily with \
-    Θ(n / log n) gap denominator."
+  scope := "For a uniform one-way function g with fixed output length m(n), the uniform \
+    polynomial-time function F₀(x, A, b, r) = (A, b, r, first min(r, n) bits of A g(x) + b, \
+    zero-padded) has accessible average max-entropy against uniform strict PPT adversaries \
+    eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, witnessed at each d \
+    by an adversary-independent accessible preimage set family. The construction deviates from \
+    the source's F(x, g, i) = (g(f(x))₁..ᵢ, g, i) in three ways. The hash is the Boolean affine \
+    family, whose n·m(n) + n-bit seed makes the input width n + (n·m(n) + n) + (⌊log₂ n⌋ + 1) = \
+    Θ(n·m(n)), instead of the O(n) the source gets from O(n)-bit hash descriptions (its Theorem \
+    5.2). The prefix length is min(r, n) for a uniform (⌊log₂ n⌋ + 1)-bit r, not uniform on [n]. \
+    And g has a fixed output length rather than being length-preserving; an arbitrary one-way \
+    function is first padded to such a g."
 
 register_result "rompel-uowhf" where
   title := "Rompel: one-way functions yield universal one-way hash functions"
@@ -2357,8 +2362,10 @@ register_result "gmw-zero-knowledge" where
   sources := [
     { paper := GoldreichMicaliWigderson1991, theorem := unverified,
       locator := unverified },
-    { paper := Goldreich2001, theorem := unverified,
-      locator := "Sections 4.3.3 and 4.4" }
+    { paper := Goldreich1998Fragments, theorem := "Theorem 4.4.10, with Definition 4.3.8",
+      locator := "Section 4.3.3 (Definition 4.3.8, pp. 151–152) and Section 4.4.3 \
+        (Theorem 4.4.10 and the remark after it, pp. 175–176) of the posted draft of \
+        February 27, 1998" }
   ]
   theorems := [
     Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP,
@@ -2368,7 +2375,13 @@ register_result "gmw-zero-knowledge" where
     NPRelation R admits a sequentially amplified ZKProof system (adapted masked-3SAT \
     protocol) with soundness (1/3)^(n+1), NegligibleSoundness, and auxiliary-input zero \
     knowledge in family-indexed, unbounded-auxiliary-input, and Goldreich instance-indexed \
-    forms; the relation version preserves R's native witnesses via a Levin reduction."
+    forms; the relation version preserves R's native witnesses via a Levin reduction. \
+    Theorem 4.4.10 assumes a commitment scheme with nonuniform secrecy, which the remark after \
+    it obtains from nonuniformly one-way functions. Of the three forms, only the instance-indexed \
+    one, InstanceAuxiliaryInputZeroKnowledge, follows the indexing and clocks of Definition \
+    4.3.8; it ranges over valid witnesses of polynomially bounded length in place of every \
+    prover input that meets the completeness condition. The other two are novel to this \
+    library and imply it."
 
 register_result "gkst-pir-to-smooth-code" where
   title := "Smooth codes from private information retrieval schemes"
@@ -5234,13 +5247,16 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
   topic := "cryptography"
   sources := [
     { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.3",
-      locator := "§3.1, §3.2.1 and the §3.3 bounds table (IACR ePrint 2017/604, full version of \
-        2 November 2021)" }
+      locator := "§3.1 (Theorem 3.2, p. 12), §3.2.1 (Theorem 3.3, p. 14), the query-count \
+        convention of §2.1 (p. 9) and the FO^⊥ row of the §3.3 bounds table (p. 22) (IACR ePrint \
+        2017/604, full version of 2 November 2021)" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le
   ]
-  scope := "Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
+  scope := "Not HHK17's bound: the proof follows the game hops of Theorems 3.2 and 3.3 but \
+    composes them directly, and the result differs from their composition in every term. \
+    Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
     messages, a δ-correct and γ-spread PKE, and a randomized adversary with explicit coins each \
     of whose coin values makes at most qG queries to G, qH queries to H, and qD queries to \
     decapsulation (FullQueryBounds A qG qH qD), the ROM IND-CCA advantage is at most \
@@ -5253,7 +5269,18 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
     Composes the T and U^⊥ hops directly instead of through standalone OW-PCVA; \
     roIndCcaBotGame and eagerIndCcaBotGame draw both real (H) replies and the independent ideal \
     challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
-    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4)."
+    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4). \
+    Comparison with the source: halved to HHK17's hidden-bit advantages, the bound is \
+    2·Adv^{IND-CPA} + (qG + qH)/|M| + (qG + qH + 1)δ + (qG + qH + qD)2^{-γ}; Theorems 3.2 and \
+    3.3 as stated, with the qH plaintext-checking and qH validity queries that Theorem 3.3 gives \
+    its OW-PCVA adversary, compose to 3·Adv^{IND-CPA}(A') + (2qG + 1)/|M| + (qG + qH)δ + \
+    qH·2^{-γ} for some IND-CPA adversary A', which the §3.3 table simplifies to \
+    q_RO(δ + 2^{-γ}) + 3q_RO/|M| + 3·Adv^{IND-CPA}(A') with q_RO = qG + qH. Neither bound \
+    implies the other: this one has the smaller IND-CPA coefficient, and the smaller \
+    message-space term when qH ≤ qG + 1, but a correctness term larger by δ and a spreadness \
+    term that grows with qG and qD. HHK17 also counts every evaluation of G and H in the \
+    experiment, the experiment's own included (§2.1), where FullQueryBounds counts only the \
+    adversary's explicit queries."
 
 register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
   title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
@@ -5576,36 +5603,52 @@ register_result "ctr-mode-cpa" where
   title := "CTR mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "Theorem 3.33", locator := "Section 3.6.3, p. 93" }
+    { paper := BonehShoup2023, theorem := "Theorem 5.3", locator := "Section 5.4.2, p. 191" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ctrCpaGame_le,
-    Cslib.Crypto.advantage_ctrCpaGame_ctrModCounter_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ctrWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for CTR mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query. For \
-    any counter schedule that is distinct within a query and injective in the IV at each \
-    offset, and in particular for the modular counter iv + i mod 2^n when ℓ ≤ 2^n, the \
-    advantage is at most the PRF advantages of the two explicit reductions plus 2 K² / 2^n. \
-    Concrete bound; no running time is charged and no asymptotic form is stated."
+  scope := "Randomized counter mode (ctrWordEncrypt: a uniform n-bit initial value x, then \
+    counter blocks x + j mod 2^n) from a PseudorandomFunction with n-bit keys, inputs and \
+    outputs, where the security parameter n is the block length and the key is a uniform n-bit \
+    word: the source's PRF over (K, X, Y) with X = {0, ..., N - 1} and Y = {0,1}^n, taken with \
+    N = 2^n. The notion is many-query left-or-right CPA security (SymmetricINDCPAOn, Attack \
+    Game 5.2 and Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard \
+    model, on equal-length pairs of whole n-bit blocks. The source caps the number of blocks at a \
+    poly-bounded ℓ; here any number is admitted, which implies the capped statement. The PRF \
+    reductions ctrToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ctrWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L)² / 2^n for Q requests of at most L ≤ 2^n bits, \
+    a cruder collision term than the source's (5.14). advantage_ctrCpaGame_le and \
+    advantage_ctrCpaGame_ctrModCounter_le, in CTRMode.lean, give the typed bound of two PRF \
+    advantages plus 2 K² / 2^n for block-mode adversaries asking at most K blocks, over a finite \
+    key set, for any counter schedule that is distinct within a query and injective in the IV; \
+    they charge no running time."
 
 register_result "ofb-mode-cpa" where
   title := "OFB mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "unnumbered statement that OFB mode is CPA-secure",
-      locator := "Section 3.6.3, p. 92" }
+    { paper := BonehShoup2023, theorem := "Exercise 5.15(b)", locator := "Section 5.8, p. 212" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ofbCpaGame_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ofbWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for OFB mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query: the \
-    advantage is at most the PRF advantages of the two explicit reductions plus \
-    2 K (K + ℓ) / 2^n. The source states OFB security without a numbered theorem or proof; the \
-    proof follows its Theorem 3.33 template. Concrete bound; no running time is charged."
+  scope := "OFB mode (ofbWordEncrypt: a uniform n-bit initial value x₀, chain values \
+    xᵢ = F(k, xᵢ₋₁) truncated to n bits, and the ciphertext x₀ followed by the blocks mᵢ ⊕ xᵢ) \
+    from a PseudorandomFunction with n-bit keys, inputs and outputs, where the security \
+    parameter n is the block length and the key is a uniform n-bit word. The notion is \
+    many-query left-or-right CPA security (SymmetricINDCPAOn, Attack Game 5.2 and \
+    Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard model, on \
+    equal-length pairs of whole n-bit blocks. The exercise fixes a poly-bounded number ℓ of \
+    blocks; here any number is admitted, which implies the statement for every ℓ. The PRF \
+    reductions ofbToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ofbWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L) (Q L + L) / 2^n for Q requests of at most L \
+    bits; the exercise states no bound. advantage_ofbCpaGame_le, in OFBMode.lean, gives the \
+    typed bound of two PRF advantages plus 2 K (K + ℓ) / 2^n for block-mode adversaries asking \
+    at most K blocks in total and at most ℓ per query, over a finite key set; it charges no \
+    running time."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"

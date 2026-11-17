@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Raw.Primrec
 public import Mathlib.Computability.RE
 import CslibFrontier.Foundations.Computability.ComputablePred
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.Primrec
 import Mathlib.Data.List.Sublists
 import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.SetTheory.Cardinal.NatCard
@@ -322,19 +323,8 @@ private theorem primrec_groundAtoms : Primrec₂ groundAtoms :=
     (list_map (primrec_tuples.comp (succ.comp (fst.comp fst)) (snd.comp snd))
       (Primrec.pair (fst.comp (snd.comp fst)) snd).to₂).to₂
 
-private theorem primrec_sublists {β : Type*} [Primcodable β] :
-    Primrec (List.sublists : List β → List (List β)) :=
-  (list_foldr Primrec.id (const [[]])
-    (list_flatMap (snd.comp snd)
-      (list_cons.comp snd (list_cons.comp (list_cons.comp (fst.comp (snd.comp fst)) snd)
-        (const []))).to₂).to₂).of_eq fun l => by
-    dsimp only [id]
-    induction l with
-    | nil => rfl
-    | cons a l ih => rw [List.sublists_cons, List.bind_eq_flatMap, List.foldr_cons, ih]
-
 private theorem primrec_satOnFinWitnesses : Primrec₂ satOnFinWitnesses :=
-  list_flatMap (primrec_sublists.comp primrec_groundAtoms)
+  list_flatMap (list_sublists.comp primrec_groundAtoms)
     (primrec_satList.comp
       (Primrec.pair (fst.comp fst) (Primrec.pair snd (primrec_varBound.comp (snd.comp fst))))
       (snd.comp fst)).to₂

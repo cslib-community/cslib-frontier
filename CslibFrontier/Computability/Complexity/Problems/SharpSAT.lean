@@ -96,7 +96,8 @@ def canonical (φ : CNF ℕ) (w : List Bool) : Bool :=
 read at the first occurrences of the variables. -/
 def verifier (x : CNF ℕ × List Bool) : Bool := SAT.verifier x && canonical x.1 x.2
 
-private theorem isFirst_idxOf {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
+/-- The first occurrence of an occurring variable in `φ.vars` is a first-occurrence position. -/
+theorem isFirst_idxOf {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
     isFirst φ (φ.vars.idxOf v) = true := by
   have hlt := List.idxOf_lt_length_iff.2 hv
   simp [isFirst, hlt]

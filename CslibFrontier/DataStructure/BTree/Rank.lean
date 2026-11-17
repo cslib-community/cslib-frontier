@@ -39,6 +39,8 @@ universe w
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section Polymorphic
 
 variable {α β : Type} {m : Type → Type w} [Monad m]
