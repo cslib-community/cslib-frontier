@@ -1318,22 +1318,25 @@ register_result "naor-yung-uowhf" where
     the domain. Asymptotic security; no compact key-length bound."
 
 register_result "inaccessible-entropy-from-owf" where
-  title := "Inaccessible average max-entropy from any one-way function"
+  title := "Inaccessible average max-entropy from one-way functions"
   topic := "cryptography"
   sources := [
     { paper := HHRVW2020, theorem := "Theorem 4.5", locator := "Section 4.2, p. 21" }
   ]
   theorems := [
-    Cslib.Crypto.OneWay.rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_rompelBase_logGap,
-    Cslib.Crypto.OneWay.exists_inaccessibleEntropyFamily_logGap
+    Cslib.Crypto.OneWay.rompelBase_logGap
   ]
-  scope := "Every uniform one-way function on bit strings yields a single uniform polynomial-time \
-    fixed-width function family whose accessible average max-entropy against uniform strict PPT \
-    adversaries is eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, \
-    witnessed at each d > 0 by an adversary-independent accessible preimage set family with \
-    polynomial light-image threshold and packaged as an InaccessibleEntropyFamily with \
-    Θ(n / log n) gap denominator."
+  scope := "For a uniform one-way function g with fixed output length m(n), the uniform \
+    polynomial-time function F₀(x, A, b, r) = (A, b, r, first min(r, n) bits of A g(x) + b, \
+    zero-padded) has accessible average max-entropy against uniform strict PPT adversaries \
+    eventually at most H(Z | F₀(Z)) - d log₂ n / n for every constant d > 0, witnessed at each d \
+    by an adversary-independent accessible preimage set family. The construction deviates from \
+    the source's F(x, g, i) = (g(f(x))₁..ᵢ, g, i) in three ways. The hash is the Boolean affine \
+    family, whose n·m(n) + n-bit seed makes the input width n + (n·m(n) + n) + (⌊log₂ n⌋ + 1) = \
+    Θ(n·m(n)), instead of the O(n) the source gets from O(n)-bit hash descriptions (its Theorem \
+    5.2). The prefix length is min(r, n) for a uniform (⌊log₂ n⌋ + 1)-bit r, not uniform on [n]. \
+    And g has a fixed output length rather than being length-preserving; an arbitrary one-way \
+    function is first padded to such a g."
 
 register_result "rompel-uowhf" where
   title := "Rompel: one-way functions yield universal one-way hash functions"
