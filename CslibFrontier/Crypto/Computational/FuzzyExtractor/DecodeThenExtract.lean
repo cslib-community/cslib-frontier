@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Computational.LWE.Basic
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # LWE decode-then-extract computational fuzzy extractor
@@ -230,17 +231,13 @@ theorem failProbability_reproduceGame_decodeThenExtract_le {m n q : ℕ} [NeZero
     (hδ : ∀ s : Fin n → ZMod q, Game.failProbability (decodeGame decode s (w - w')) ≤ δ) :
     Game.failProbability ((decodeThenExtract m n q decode ext).reproduceGame w w') ≤ δ := by
   rw [← ENNReal.coe_le_coe]
-  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
-  simp only [FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, decodeThenExtract,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.bind_bind, PMF.pure_bind]
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
-    (PMF.uniformOfFintype (Fin n → ZMod q))]
+  simp only [pmf_norm, Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
+    FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, decodeThenExtract,
+    ProbComp.eval_uniform, add_sub_assoc]
+  pmf_hoist (PMF.uniformOfFintype (Fin n → ZMod q))
   refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
-    (PMF.uniformOfFintype Seed)]
+  pmf_hoist (PMF.uniformOfFintype Seed)
   refine PMF.bind_apply_le_on_support _ fun x _ => ?_
-  simp only [add_sub_assoc]
   exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode s (w - w') _
     (fun A => by simp) (hδ s)
 
@@ -273,10 +270,7 @@ private theorem uniform_bind_offset {m n q : ℕ} [NeZero q] {α : Type}
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).bind fun A =>
         (PMF.uniformOfFintype (Fin n → ZMod q)).bind fun s =>
           (PMF.uniformOfFintype (Fin m → ZMod q)).bind fun u => G A s u := by
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin m → ZMod q))]
-  congr 1 with A : 1
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin m → ZMod q))]
-  congr 1 with s : 1
+  pmf_swap with A s
   exact Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft (A.mulVec s)) (G A s)
 
 /-- Sanity check for a uniform source: with `W` uniform on `Fin m → ZMod q` and the additive key
@@ -289,21 +283,16 @@ theorem realDistribution_decodeThenExtract_add_uniform (m n q : ℕ) [NeZero q]
         (PMF.uniformOfFintype (Fin m → ZMod q)) =
       (decodeThenExtract m n q decode fun (s x : Fin n → ZMod q) => s + x).idealDistribution
         (PMF.uniformOfFintype (Fin m → ZMod q)) := by
-  simp only [realDistribution, idealDistribution, decodeThenExtract, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbComp.eval_uniform, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm, realDistribution, idealDistribution, decodeThenExtract,
+    ProbComp.eval_uniform]
   refine (uniform_bind_offset fun A s c => (PMF.uniformOfFintype (Fin n → ZMod q)).bind fun x =>
     PMF.pure (s + x, DecodeHelper.mk A c x)).trans (Eq.trans ?_
       (uniform_bind_offset fun A _ c => (PMF.uniformOfFintype (Fin n → ZMod q)).bind fun x =>
         (PMF.uniformOfFintype (Fin n → ZMod q)).bind fun u =>
           PMF.pure (u, DecodeHelper.mk A c x)).symm)
-  congr 1 with A : 1
-  conv_rhs => rw [PMF.bind_const]
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin n → ZMod q))
-    (PMF.uniformOfFintype (Fin m → ZMod q))]
-  congr 1 with c : 1
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin n → ZMod q))
-    (PMF.uniformOfFintype (Fin n → ZMod q))]
+  conv_rhs => enter [2, A]; rw [PMF.bind_const]
+  pmf_swap with A c
+  pmf_hoist (occ := 2) (PMF.uniformOfFintype (Fin n → ZMod q))
   congr 1 with x : 1
   exact Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addRight x)
     (fun u => PMF.pure (u, DecodeHelper.mk A c x))
@@ -398,22 +387,14 @@ private theorem realGame_embed (W : PMF (Fin m → ZMod q))
         (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q))).bind fun A =>
           (PMF.uniformOfFintype (Fin (k + l) → ZMod q)).bind fun x =>
             F (fun i => x (Fin.castAdd l i)) A (A.mulVec x + w) := by
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q)) W]
-  congr 1 with w : 1
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
-  conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv joinColsEquiv,
-    PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin k) (ZMod q)))]
-  congr 1 with A₂ : 1
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
-  congr 1 with A₁ : 1
-  conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv k l)]
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
-  congr 1 with x₁ : 1
-  congr 1 with x₂ : 1
-  change F x₁ _ _ = F (fun i => Fin.append x₁ x₂ (Fin.castAdd l i)) (joinCols A₁ A₂)
-    ((joinCols A₁ A₂).mulVec (Fin.append x₁ x₂) + w)
-  rw [joinCols_mulVec_append, add_assoc]
-  simp
+  conv_rhs =>
+    enter [2, w]
+    rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv joinColsEquiv]
+    enter [2, A₁, 2, A₂]
+    rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv k l)]
+  simp only [joinColsEquiv, Fin.appendEquiv, Equiv.coe_fn_mk, Fin.append_left,
+    joinCols_mulVec_append, add_assoc]
+  pmf_swap
 
 /-- The LWE real game of `hardcoreKeyReduction D` (uniform secret, error law `W`) is the real
 fuzzy-extractor game of `lweFuzzyExtractor`. -/
@@ -425,12 +406,11 @@ private theorem realGame_hardcoreKeyReduction
     LWE.realGame (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreKeyReduction D) =
       (lweFuzzyExtractor m k l q decode).realGame W D := by
   have h := realGame_embed (k := k) W fun x₁ A c => ProbComp.eval (D x₁ ⟨A, c, ()⟩)
-  simp only [LWE.realGame, LWE.eval_realExperiment, hardcoreKeyReduction, ProbComp.eval_bind,
-    ProbComp.eval_uniform, PMF.monad_bind_eq_bind]
+  simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreKeyReduction,
+    ProbComp.eval_uniform]
   refine h.trans ?_
-  simp only [lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup, realExperiment,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup,
+    realExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
 
 /-- The LWE real game of `hardcoreUniformReduction D` (uniform secret, error law `W`) is the
 ideal fuzzy-extractor game of `lweFuzzyExtractor`. -/
@@ -443,12 +423,11 @@ private theorem realGame_hardcoreUniformReduction
       (lweFuzzyExtractor m k l q decode).idealGame W D := by
   have h := realGame_embed (k := k) W fun _ A c =>
     (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun r => ProbComp.eval (D r ⟨A, c, ()⟩)
-  simp only [LWE.realGame, LWE.eval_realExperiment, hardcoreUniformReduction,
-    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind]
+  simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreUniformReduction,
+    ProbComp.eval_uniform]
   refine h.trans ?_
-  simp only [lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup, idealExperiment,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup,
+    idealExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
 
 /-- On uniform dimension-`l` samples the two reductions agree: `A₁ x₁ + u` is uniform and
 independent of `x₁`, so the key `x₁` is distributed exactly like a fresh uniform key. -/
