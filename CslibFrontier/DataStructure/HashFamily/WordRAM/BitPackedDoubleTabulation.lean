@@ -2040,7 +2040,7 @@ private theorem validHistory_iterate_of_safe {δ σ : Type} {w : ℕ}
 
 /-- Memory history admissibility (`ValidHistory`) for `evalGenProg` under `EvalGenPre` and
 `base + space ≤ s.frontier`. -/
-private theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val : ℕ}
+theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val : ℕ}
     {s : Memory.State}
     (hpre : EvalGenPre w (hp, ((base, s_val), u_val)) s)
     (hfr : base + space w (hpCTab hp) (hpD hp) (hpBChar hp) (hpMOut hp) ≤ s.frontier) :

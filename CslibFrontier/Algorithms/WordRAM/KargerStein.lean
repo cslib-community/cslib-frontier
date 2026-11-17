@@ -2967,7 +2967,7 @@ private theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
   exact ⟨s₃, e1.seq (e2.seq e3), rfl, by simp [s₃], by simp +decide [s₃, s₂]⟩
 
 /-- The single-tree code observes the recursive answer law, including the charged input setup. -/
-private theorem fastCutCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
+theorem fastCutCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hW : IsMultigraph W)
     (hw : logWidth 4 n ≤ w) (htot : Fits w (totalDoubledWeight W)) :
     ExecRandLaw w fastCutCode (Data.init (n :: flattenMatrix W))
