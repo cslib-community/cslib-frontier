@@ -54,7 +54,7 @@ theorem actualClippedMean_first_eq {E : Type*} [Fintype E] [Nonempty E]
     G x y / rate k| / (1 + G x y / rate k)) = _
   rw [rowSliceMean_conditionalWalk, ← sub_div, abs_div, abs_of_pos (rate_pos k), div_div]
   congr 2
-  field_simp [(rate_pos k).ne']
+  field_simp
 
 /-- A matrix-unit absolute input mean bound gives the genuine first clipped mean
 bound after any completed raw walk. This direction needs no upper bound on G. -/
@@ -77,7 +77,7 @@ theorem actualClippedMean_first_le {E : Type*} [Fintype E] [Nonempty E]
       min 1 (error / (rate k + G x y)) := by
   dsimp only
   rw [actualClippedMean_first_eq]
-  exact min_le_min_left _ (div_le_div_of_nonneg_right he (add_nonneg (rate_pos k).le hG))
+  exact min_le_min_left _ (div_le_div_of_nonneg_right he (by positivity))
 
 set_option backward.isDefEq.respectTransparency false in
 /-- First deterministic envelope of the actual finite estimated residual, after its

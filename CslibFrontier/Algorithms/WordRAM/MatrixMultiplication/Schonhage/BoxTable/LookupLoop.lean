@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.LookupDigits
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native cube-digit lookup scan
@@ -93,10 +94,7 @@ theorem exec_lookupLoop {w L m t C : ℕ} (x : Data registers) (π : Cube L)
         (Nat.count_le _) (lookupCompletion_lt (fun i _ => rawCubeDigit_le_ten π i))
         hseenle horder hp.cube (by rw [hm]; exact hread _ hk) rfl hs hf hc hv hinv
         hpower hp.nil hp.one hp.nine hp.ten hfit
-    have hpz : LookupParameters L C z :=
-      ⟨(hframe _ (by decide)).trans hp.levels, (hframe _ (by decide)).trans hp.cube,
-        (hframe _ (by decide)).trans hp.nil, (hframe _ (by decide)).trans hp.one,
-        (hframe _ (by decide)).trans hp.nine, (hframe _ (by decide)).trans hp.ten⟩
+    have hpz : LookupParameters L C z := by regs_frame
     refine ⟨z, hz, ⟨hpz, hzm.trans hm, ?_, ?_, ?_, ?_, ?_, hzi⟩, hzl⟩
     · exact hzp
     · simpa only [lookupCompletion] using hzc

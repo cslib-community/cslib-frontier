@@ -571,8 +571,6 @@ end Correctness
 /-- `8 ^ p` in binary, from `p` in unary. -/
 @[local fun_prop]
 private theorem eight_pow : ComputableInPolyTime (fun p : ℕ => 8 ^ p) encUnary encNat := by
-  have h : (fun p : ℕ => 8 ^ p) = fun p => 2 ^ (3 * p) := funext fun p => by rw [pow_mul]; rfl
-  rw [h]
   fun_prop
 
 /-- Testing whether a clause contains a literal is polynomial-time. -/
@@ -581,12 +579,7 @@ theorem computableInPolyTime_covers :
     ComputableInPolyTime
       (fun p : ((CNF ℕ × ℕ) × Bool) × ℕ => covers p.1.1.1 p.1.1.2 p.1.2 p.2)
       (encPair (encPair (encPair encCNF encUnary) encBool) encUnary) encBool := by
-  unfold covers encCNF
-  apply anyWithInput (encA := encPair encNat encBool)
-  · exact (listGetD (encA := encList (encPair encNat encBool)) []).comp
-      (show ComputableInPolyTime (fun x : ((CNF ℕ × ℕ) × Bool) × ℕ => (x.1.1.1, x.2)) _
-        (encPair (encList (encList (encPair encNat encBool))) encUnary) by fun_prop)
-  · fun_prop
+  fun_prop [covers]
 
 /-- Listing the digit positions of a literal number is polynomial-time. -/
 @[fun_prop]

@@ -4040,6 +4040,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Size
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Spec
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.WhiteChains
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.WhiteFaces
+public import CslibFrontier.Computability.PolyTime.CSP.DistinctVars
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Augmenting
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Buffer
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.Agreement
@@ -4511,6 +4512,7 @@ public import CslibFrontier.Computability.WordRAM.Subroutine
 public import CslibFrontier.Computability.WordRAM.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+public import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.WordRAM.Trace
@@ -7874,6 +7876,7 @@ public import CslibFrontier.Tactic.PPT
 public import CslibFrontier.Tactic.PPT.Init
 public import CslibFrontier.Tactic.PolyTime
 public import CslibFrontier.Tactic.PolyTime.Init
+public import CslibFrontier.Tactic.PositivityLemma
 public import CslibFrontier.Tactic.Realize
 public import CslibFrontier.Tactic.Space
 public import CslibFrontier.Tactic.SuppCases

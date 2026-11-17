@@ -518,11 +518,7 @@ private theorem computableInPolyTime_consistentLits :
 private theorem computableInPolyTime_assignLits (bs : List Bool) :
     ComputableInPolyTime (fun c : Clause ℕ => assignLits c bs) (encList encLit)
       (encList encLit) := by
-  have hzip : ComputableInPolyTime (fun c : Clause ℕ => c.zip bs) (encList encLit)
-      (encList (encPair encLit encBool)) :=
-    (zip encLit encBool).comp (id'.prod (const bs))
-  unfold assignLits
-  fun_prop
+  fun_prop [assignLits]
 
 @[fun_prop]
 private theorem computableInPolyTime_clauseAssignments :
