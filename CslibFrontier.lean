@@ -2346,6 +2346,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Toda
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Counting
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Hierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Isolation
+public import CslibFrontier.Computability.Complexity.Classes.Toda.RandomParitySAT
 public import CslibFrontier.Computability.Complexity.Classes.TruncatedVerifier
 public import CslibFrontier.Computability.Complexity.Classes.UP
 public import CslibFrontier.Computability.Complexity.Classes.UP.Machine
