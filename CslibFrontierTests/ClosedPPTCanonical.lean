@@ -30,11 +30,11 @@ namespace CslibFrontierTests.ClosedPPTCanonical
 
 open Cslib Cslib.Probability Turing.MultiTapeTM
 
-#check_failure ComputableTidilyInPolyTime.isPPTOn
-#check_failure IsPPTOn.cond'
-#check_failure IsPPTOn.ite'
-#check_failure IsPPTOn.iterateWith_spec'
-#check_failure IsPPTOn.iterate_of_length_le'
+assert_not_exists Turing.MultiTapeTM.ComputableTidilyInPolyTime.isPPTOn
+assert_not_exists Cslib.Probability.IsPPTOn.cond'
+assert_not_exists Cslib.Probability.IsPPTOn.ite'
+assert_not_exists Cslib.Probability.IsPPTOn.iterateWith_spec'
+assert_not_exists Cslib.Probability.IsPPTOn.iterate_of_length_le'
 
 /-- A concrete word producer uses a plain deterministic certificate. -/
 def mark (word : List Bool) : List Bool := word ++ [true]
