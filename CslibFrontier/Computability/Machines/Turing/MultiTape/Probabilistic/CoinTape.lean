@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Closed
 public import CslibFrontier.Probability.BitString
 import Cslib.Foundations.Control.Monad.IsMonadHom.List
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Execution with saved coins
@@ -115,8 +114,8 @@ theorem run_interpret_runConfigFrom_one {OracleState : Type}
       (PMF.uniformOfFintype Bool).bind (fun bit =>
         (OracleComp.interpret oracle (machine.runConfigFrom (pure bit) query 1 cfg)).run s) := by
   cases hs : cfg.tapes.state <;>
-    simp [runConfigFrom, MultiTapeMachine.runConfigFrom, hs, bind_map_left, hcoin, PMF.bind_map,
-      Function.comp_def]
+    simp [runConfigFrom, MultiTapeMachine.runConfigFrom, hs, bind_map_left,
+      OracleComp.interpret_bind, StateT.run_bind, hcoin, PMF.bind_map, Function.comp_def]
 
 /-- Sampling the entire private coin tape in advance preserves the joint configuration and
 private oracle state, including randomized query handlers sharing that state. -/
@@ -137,8 +136,9 @@ theorem run_interpret_runConfigFrom_eq_coins {OracleState : Type}
       MultiTapeMachine.runConfigFrom_add]
     change (OracleComp.interpret oracle
       (machine.runConfigFrom coin query 1 cfg >>= machine.runConfigFrom coin query fuel)).run s = _
-    simp only [interp_norm, pmf_norm,
-      run_interpret_runConfigFrom_one machine coin query oracle hcoin, ih, runConfigFromCoins_cons]
+    simp only [OracleComp.interpret_bind, StateT.run_bind, PMF.monad_bind_eq_bind,
+      run_interpret_runConfigFrom_one machine coin query oracle hcoin, PMF.bind_bind, ih,
+      PMF.bind_map, Function.comp_def, runConfigFromCoins_cons]
     congr 1 with bit : 1
     exact PMF.bind_comm _ _ _
 
