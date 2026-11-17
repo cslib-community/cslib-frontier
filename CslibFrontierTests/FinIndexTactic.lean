@@ -97,6 +97,9 @@ example {a b : ℕ} : Function.Injective (right : Fin b → Fin (a + b + 1)) := 
 example {a b : ℕ} (i j : Fin b) (h : i < j) : right (a := a) i < right j := by
   fin_index [right]
 
+example {a b : ℕ} (i : Fin a) (j : Fin b) : left (b := b) i ≤ right j := by
+  fin_index [left, right]
+
 /-! The definition may also be the bound of the `Fin` type. -/
 
 example (n : ℕ) (k : Fin (width n)) (h : k.val = 3 * n) :
