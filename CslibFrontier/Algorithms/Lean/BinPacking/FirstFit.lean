@@ -69,15 +69,12 @@ room. -/
 
 /-- Inserting an item adds it to the bins' contents. -/
 theorem perm_flatten_firstFitInsert (C a : ℕ) :
-    ∀ bins : List (List ℕ), (firstFitInsert C a bins).flatten ~ bins.flatten ++ [a]
-  | [] => by simp [firstFitInsert]
-  | b :: bs => by
-    simp only [firstFitInsert]
-    split_ifs
-    · simp only [List.flatten_cons, List.append_assoc]
-      exact List.Perm.append_left b List.perm_append_comm
-    · simp only [List.flatten_cons, List.append_assoc]
-      exact List.Perm.append_left b (perm_flatten_firstFitInsert C a bs)
+    ∀ bins : List (List ℕ), (firstFitInsert C a bins).flatten ~ bins.flatten ++ [a] := by
+  intro bins
+  fun_induction firstFitInsert C a bins with
+  | case1 => simp
+  | case2 b bs _ => simpa using (List.perm_append_comm (l₁ := [a])).append_left b
+  | case3 b bs _ ih => simpa using ih.append_left b
 
 /-- A bin after inserting `a` is an old bin, an old bin with room for `a` extended by `a`, or the
 new bin `[a]`. -/

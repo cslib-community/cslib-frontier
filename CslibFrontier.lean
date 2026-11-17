@@ -2290,6 +2290,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGe
 public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography.Membership
 public import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.Space.Image
+public import CslibFrontier.Computability.Complexity.Classes.Space.Nonblank
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
@@ -2342,6 +2343,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 public import CslibFrontier.Computability.Complexity.Classes.Time.TwoPow
 public import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 public import CslibFrontier.Computability.Complexity.Classes.Time.WordRAM
+public import CslibFrontier.Computability.Complexity.Classes.Time.ZeroError
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Basic
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Slowdown
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Speedup
@@ -3633,6 +3635,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Spec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SpecializeInterpreter
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HeadCounters
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.HeadCounters.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.InputAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.InputPrefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryAddition
@@ -3786,6 +3789,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExpectedTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Graph
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.GraphPolyTime
@@ -3904,6 +3908,7 @@ public import CslibFrontier.Computability.PCP.Amplification.Family
 public import CslibFrontier.Computability.PCP.Amplifier
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Computability.PCP.Approximation.BinPacking
+public import CslibFrontier.Computability.PCP.Approximation.GapLin
 public import CslibFrontier.Computability.PCP.Approximation.Hastad
 public import CslibFrontier.Computability.PCP.Approximation.Hastad.LinearTest
 public import CslibFrontier.Computability.PCP.Approximation.IndependentSet
@@ -4789,6 +4794,7 @@ public import CslibFrontier.Crypto.Computational.IndexedSignature.Double
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Seeded
 public import CslibFrontier.Crypto.Computational.KeyDerivation
 public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle
+public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational
 public import CslibFrontier.Crypto.Computational.KeyExchange
 public import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 public import CslibFrontier.Crypto.Computational.Kilian
@@ -4935,6 +4941,8 @@ public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 public import CslibFrontier.Crypto.Computational.RabinFactoring
+public import CslibFrontier.Crypto.Computational.RainbowTable
+public import CslibFrontier.Crypto.Computational.RainbowTable.RunCost
 public import CslibFrontier.Crypto.Computational.Rompel
 public import CslibFrontier.Crypto.Computational.SIS.Ajtai
 public import CslibFrontier.Crypto.Computational.SIS.Basic
@@ -4996,6 +5004,8 @@ public import CslibFrontier.Crypto.Computational.StrongRSA
 public import CslibFrontier.Crypto.Computational.TCRSignature
 public import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 public import CslibFrontier.Crypto.Computational.TargetCollisionResistant
+public import CslibFrontier.Crypto.Computational.TrapdoorFunction
+public import CslibFrontier.Crypto.Computational.TrapdoorFunction.RSA
 public import CslibFrontier.Crypto.Computational.TreeSignature
 public import CslibFrontier.Crypto.Computational.TreeSignature.CoinHybrid
 public import CslibFrontier.Crypto.Computational.TreeSignature.Security
@@ -5983,6 +5993,7 @@ public import CslibFrontier.Foundations.Combinatorics.HybridPrediction
 public import CslibFrontier.Foundations.Combinatorics.Hypergeometric
 public import CslibFrontier.Foundations.Combinatorics.Hypergeometric.IntersectionTail
 public import CslibFrontier.Foundations.Combinatorics.Hypergeometric.Miss
+public import CslibFrontier.Foundations.Combinatorics.Hypergeometric.Superset
 public import CslibFrontier.Foundations.Combinatorics.HypergraphCut
 public import CslibFrontier.Foundations.Combinatorics.InclusionExclusion
 public import CslibFrontier.Foundations.Combinatorics.InclusionMatrix
@@ -6232,6 +6243,7 @@ public import CslibFrontier.Foundations.Data.Code.ParityCheck
 public import CslibFrontier.Foundations.Data.Code.Plotkin
 public import CslibFrontier.Foundations.Data.Code.Plotkin.Asymptotic
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Johnson
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 public import CslibFrontier.Foundations.Data.Code.PuncturedBallFourier
 public import CslibFrontier.Foundations.Data.Code.RadialDecoding
 public import CslibFrontier.Foundations.Data.Code.RandomLinear
@@ -7840,6 +7852,8 @@ public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
 public import CslibFrontier.Tactic.Degree
+public import CslibFrontier.Tactic.ENNRealToReal
+public import CslibFrontier.Tactic.ENNRealToReal.Init
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator
 public import CslibFrontier.Tactic.FOOperator.Init

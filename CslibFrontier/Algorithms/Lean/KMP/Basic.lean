@@ -193,48 +193,25 @@ theorem IsProperBorderLen.to_take {α : Type*} {w : List α} {j k : ℕ}
 
 theorem maxPrefixSuffixUpTo_le_bound {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     maxPrefixSuffixUpTo p t B ≤ B := by
-  induction B with
-  | zero => exact Nat.le_refl 0
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs
-    · exact Nat.le_refl (B + 1)
-    · exact Nat.le_succ_of_le ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> omega
 
 theorem maxPrefixSuffixUpTo_le_length {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     maxPrefixSuffixUpTo p t B ≤ p.length := by
-  induction B with
-  | zero => exact Nat.zero_le _
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact h.1
-    · exact ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> omega
 
 theorem take_maxPrefixSuffixUpTo_isSuffix {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     p.take (maxPrefixSuffixUpTo p t B) <:+ t := by
-  induction B with
-  | zero => exact List.nil_suffix
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact h.2
-    · exact ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> simp_all
 
 theorem le_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p t : List α} {B k : ℕ}
     (hkB : k ≤ B) (hkp : k ≤ p.length) (hsuf : p.take k <:+ t) :
     k ≤ maxPrefixSuffixUpTo p t B := by
-  induction B with
-  | zero => omega
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact hkB
-    · have hklt : k ≤ B := by
-        rcases Nat.eq_or_lt_of_le hkB with rfl | hlt
-        · exact False.elim (h ⟨hkp, hsuf⟩)
-        · omega
-      exact ih hklt
+  fun_induction maxPrefixSuffixUpTo p t B with
+  | case1 | case2 => exact hkB
+  | case3 B h ih =>
+    rcases Nat.eq_or_lt_of_le hkB with rfl | hlt
+    · exact absurd ⟨hkp, hsuf⟩ h
+    · exact ih (by omega)
 
 theorem eq_maxPrefixSuffixUpTo_iff {α : Type*} [DecidableEq α] {p t : List α} {B m : ℕ} :
     m = maxPrefixSuffixUpTo p t B ↔
@@ -384,63 +361,50 @@ decreasing_by
 theorem mem_borderChain_iff {α : Type*} [DecidableEq α] {p : List α} {q j : ℕ}
     (hq1 : 1 ≤ q) (hqp : q ≤ p.length) :
     j ∈ borderChain p q ↔ IsProperBorderLen (p.take q) j := by
-  induction q using Nat.strongRecOn with
-  | ind q ih =>
-    have hp : p ≠ [] := by grind
-    have hcond : ¬ (q = 0 ∨ p = []) := by grind
+  fun_induction borderChain p q with
+  | case1 => grind
+  | case2 q _ k hk0 =>
     have hlen : (p.take q).length = q := List.length_take_of_le hqp
-    have hb_proper : IsProperBorderLen (p.take q) (borderLen p q) :=
+    simp only [List.mem_singleton]
+    constructor
+    · rintro rfl
+      exact isProperBorderLen_zero (by rw [hlen]; omega)
+    · intro hj
+      have hle : j ≤ k := le_maxBorderLen_of_isProperBorderLen hj
+      omega
+  | case3 q hcond k hk0 ih =>
+    have hlen : (p.take q).length = q := List.length_take_of_le hqp
+    have hb_proper : IsProperBorderLen (p.take q) k :=
       isProperBorderLen_maxBorderLen (by rw [hlen]; omega)
-    rw [borderChain]
-    simp only [hcond, ↓reduceDIte]
-    split_ifs with hk0
-    · simp only [List.mem_singleton]
-      constructor
-      · rintro rfl
-        exact isProperBorderLen_zero (by rw [hlen]; omega)
-      · intro hj
-        have hle := le_maxBorderLen_of_isProperBorderLen hj
-        change j ≤ borderLen p q at hle
-        omega
-    · have hklt : borderLen p q < q := borderLen_lt (by omega) hp
-      have hk1 : 1 ≤ borderLen p q := by omega
-      have hkp : borderLen p q ≤ p.length := by omega
-      have htake_k : (p.take q).take (borderLen p q) = p.take (borderLen p q) := by
-        rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hklt)]
-      simp only [List.mem_cons, ih (borderLen p q) hklt hk1 hkp]
-      constructor
-      · rintro (rfl | hj)
-        · exact hb_proper
-        · exact (htake_k.symm ▸ hj).trans hb_proper
-      · intro hj
-        have hle : j ≤ borderLen p q := le_maxBorderLen_of_isProperBorderLen hj
-        rcases Nat.eq_or_lt_of_le hle with rfl | hjlt
-        · exact Or.inl rfl
-        · exact Or.inr (htake_k ▸ hj.to_take hb_proper hjlt)
+    have hklt : k < q := borderLen_lt (by omega) fun hp0 => hcond (Or.inr hp0)
+    have hkp : k ≤ p.length := by omega
+    have htake_k : (p.take q).take k = p.take k := by
+      rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hklt)]
+    simp only [List.mem_cons, ih (by omega) hkp]
+    constructor
+    · rintro (rfl | hj)
+      · exact hb_proper
+      · exact (htake_k.symm ▸ hj).trans hb_proper
+    · intro hj
+      have hle : j ≤ k := le_maxBorderLen_of_isProperBorderLen hj
+      rcases Nat.eq_or_lt_of_le hle with rfl | hjlt
+      · exact Or.inl rfl
+      · exact Or.inr (htake_k ▸ hj.to_take hb_proper hjlt)
 
 /-- `borderChain p q` lists proper border lengths in strictly decreasing order. -/
 theorem pairwise_gt_borderChain {α : Type*} [DecidableEq α] {p : List α} {q : ℕ}
     (hqp : q ≤ p.length) :
     (borderChain p q).Pairwise (· > ·) := by
-  induction q using Nat.strongRecOn with
-  | ind q ih =>
-    rw [borderChain]
-    split_ifs with hcond
-    · exact List.Pairwise.nil
-    · dsimp only
-      split_ifs with hk0
-      · exact List.pairwise_singleton _ _
-      · have hq0 : q ≠ 0 := fun hq0 => hcond (Or.inl hq0)
-        have hp : p ≠ [] := fun hp0 => hcond (Or.inr hp0)
-        have hq1 : 1 ≤ q := by omega
-        have hklt : borderLen p q < q := borderLen_lt (by omega) hp
-        have hk1 : 1 ≤ borderLen p q := by omega
-        have hkp : borderLen p q ≤ p.length := by omega
-        refine List.Pairwise.cons (fun j hj => ?_) (ih (borderLen p q) hklt hkp)
-        have hj_proper := (mem_borderChain_iff hk1 hkp).mp hj
-        have hjlen : j < (p.take (borderLen p q)).length := hj_proper.1
-        rw [List.length_take_of_le hkp] at hjlen
-        exact hjlen
+  fun_induction borderChain p q with
+  | case1 => exact List.Pairwise.nil
+  | case2 => exact List.pairwise_singleton _ _
+  | case3 q hcond k hk0 ih =>
+    have hklt : k < q := borderLen_lt (by omega) fun hp0 => hcond (Or.inr hp0)
+    have hkp : k ≤ p.length := by omega
+    refine List.Pairwise.cons (fun j hj => ?_) (ih hkp)
+    have hjlen : j < (p.take k).length := ((mem_borderChain_iff (by omega) hkp).mp hj).1
+    rw [List.length_take_of_le hkp] at hjlen
+    exact hjlen
 
 /-! ## Pure KMP automaton transition and master step theorem -/
 
@@ -460,29 +424,15 @@ decreasing_by
 
 theorem nextLen_le_succ {α : Type*} [DecidableEq α] (p : List α) (k : ℕ) (c : α) :
     nextLen p k c ≤ k + 1 := by
-  induction k using Nat.strongRecOn with
-  | ind k ih =>
-    rw [nextLen]
-    split_ifs with hk hmatch hk0
-    · exact Nat.le_refl (k + 1)
-    · exact Nat.zero_le _
-    · have hp : p ≠ [] := by rintro rfl; simp only [List.length_nil] at hk; omega
-      have hlt : borderLen p k < k := borderLen_lt (by omega) hp
-      have hsub := ih (borderLen p k) hlt
-      omega
-    · exact Nat.zero_le _
+  fun_induction nextLen p k c with
+  | case3 k hk _ hk0 ih =>
+    have hlt : borderLen p k < k := borderLen_lt (by omega) (List.ne_nil_of_length_pos (by omega))
+    omega
+  | _ => omega
 
 theorem nextLen_le_length {α : Type*} [DecidableEq α] (p : List α) (k : ℕ) (c : α) :
     nextLen p k c ≤ p.length := by
-  induction k using Nat.strongRecOn with
-  | ind k ih =>
-    rw [nextLen]
-    split_ifs with hk hmatch hk0
-    · omega
-    · exact Nat.zero_le _
-    · have hp : p ≠ [] := by rintro rfl; simp only [List.length_nil] at hk; omega
-      exact ih (borderLen p k) (borderLen_lt (by omega) hp)
-    · exact Nat.zero_le _
+  fun_induction nextLen p k c <;> omega
 
 /-- `maxPrefixSuffixUpTo p t B` depends only on which positive lengths `j + 1 ≤ p.length` are
 admissible, that is, at most the bound and naming a prefix of `p` that is a suffix of the word. -/

@@ -103,23 +103,20 @@ private theorem clog_two_lt_self {n : ℕ} (hn : 2 ≤ n) : clog 2 n < n := by
 
 private theorem logStarAux_le_iff :
     ∀ fuel n k, n ≤ fuel → (logStarAux fuel n ≤ k ↔ n ≤ twoTower k)
-  | 0, n, k, hn => by
-    have := twoTower_pos k
-    simp only [logStarAux, Nat.zero_le, true_iff]
-    omega
-  | fuel + 1, n, k, hn => by
-    by_cases h1 : n ≤ 1
-    · simp only [logStarAux, h1, ↓reduceIte, Nat.zero_le, true_iff]
-      exact h1.trans (twoTower_pos k)
-    · simp only [logStarAux, h1, ↓reduceIte]
+  | fuel, n, k, hn => by
+    fun_induction logStarAux fuel n generalizing k with
+    | case1 | case2 =>
+      have := twoTower_pos k
+      omega
+    | case3 fuel n h1 ih =>
       have hlt := clog_two_lt_self (n := n) (by omega)
       cases k with
       | zero =>
         simp only [twoTower_zero]
         omega
       | succ k =>
-        rw [Nat.add_le_add_iff_right, logStarAux_le_iff fuel (clog 2 n) k (by omega),
-          twoTower_succ, ← clog_le_iff_le_pow (by decide)]
+        rw [Nat.add_le_add_iff_right, ih k (by omega), twoTower_succ,
+          ← clog_le_iff_le_pow (by decide)]
 
 /-- `log* n ≤ k` exactly when `n ≤ 2 ↑↑ k`. -/
 theorem logStar_le_iff {n k : ℕ} : logStar n ≤ k ↔ n ≤ twoTower k :=
