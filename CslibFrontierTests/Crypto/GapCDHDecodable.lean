@@ -87,7 +87,7 @@ example (H : schnorrDecodableGroups.Carrier d23 → BitString 16)
     (x y : ZMod (schnorrDecodableGroups.order d23)) :
     let out := schnorrDecodableGroups.dhKEMEncapsWord d23 H
       (x • schnorrDecodableGroups.generator d23) y
-    schnorrDecodableGroups.dhKEMDecapsWord d23 H x out.1 = some out.2 ∧
+    schnorrDecodableGroups.dhKEMDecapsWord d23 H x out.ciphertext = some out.key ∧
     schnorrDecodableGroups.dhKEMDecapsWord d23 H x (5 : ℕ).bits = none ∧
     schnorrDecodableGroups.dhKEMDecapsWord d23 H x (24 : ℕ).bits = none := by
   refine ⟨schnorrDecodableGroups.dhKEMDecapsWord_encapsWord d23 H x y, ?_, ?_⟩

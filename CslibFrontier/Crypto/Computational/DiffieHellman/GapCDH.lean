@@ -32,7 +32,9 @@ CCA experiment ([KatzLindell2020], Definition 12.13, p. 425) gives the adversary
 the challenge ciphertext and either the real key or an independent key, together with the random
 oracle `H` and a decapsulation oracle that refuses the challenge ciphertext.
 
-We prove [KatzLindell2020], Theorem 12.22 (p. 435) as a concrete reduction: the distinguishing
+We prove the concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the
+asymptotic theorem is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA` in
+`CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Decodable`. The distinguishing
 advantage of every CCA adversary against the KEM is at most the success probability of an
 explicit gap-CDH adversary `dhKEMToGapCDH`. The reduction runs the KEM adversary, answering hash
 and decapsulation queries consistently from a table of past queries by asking the DDH oracle
@@ -47,7 +49,7 @@ point `z` with `z = x • c⋆` for the challenge ciphertext `c⋆`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMEncaps`,
   `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMDecaps`: Construction 12.19 for a fixed hash function.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMCCAGame`: the CCA experiment in the random-oracle model.
-* `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMToGapCDH`: the reduction of Theorem 12.22.
+* `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMToGapCDH`: the concrete per-group reduction step.
 
 ## Main results
 
@@ -245,12 +247,12 @@ theorem runDDH_bind (y : ZMod (F.order d)) (program : ProbOracleComp (F.DDHSpec 
     F.runDDH d y (program >>= next) = (F.runDDH d y program).bind fun a => F.runDDH d y (next a) :=
   OracleComp.interpret_bind _ _ _
 
-theorem runDDH_map (y : ZMod (F.order d)) (f : α → β)
+private theorem runDDH_map (y : ZMod (F.order d)) (f : α → β)
     (program : ProbOracleComp (F.DDHSpec d) α) :
     F.runDDH d y (f <$> program) = (F.runDDH d y program).map f :=
   OracleComp.interpret_map _ _ _
 
-theorem runDDH_query (y : ZMod (F.order d)) (q : F.Carrier d × F.Carrier d) :
+private theorem runDDH_query (y : ZMod (F.order d)) (q : F.Carrier d × F.Carrier d) :
     F.runDDH d y (ProbOracleComp.query q) = F.ddhOracle d y q :=
   ProbOracleComp.interpret_query _ _ q
 
@@ -886,9 +888,11 @@ private theorem ccaAt_bound (sampleKey : ProbComp K) (adversary : F.DHKEMAdversa
   have hbad := F.bad_le_extract d x hx sampleKey adversary y key
   exact ⟨h1.trans (add_le_add le_rfl hbad), h2.trans (add_le_add le_rfl hbad)⟩
 
-/-- **[KatzLindell2020], Theorem 12.22.** The CCA advantage of every adversary against the
-random-oracle Diffie–Hellman KEM (Construction 12.19) is at most the success probability of the
-gap-CDH adversary `dhKEMToGapCDH` built from it. -/
+/-- Concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the asymptotic theorem
+is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA` (`GapCDH/Decodable.lean`).
+The CCA advantage of every adversary against the random-oracle Diffie–Hellman KEM
+(Construction 12.19) is at most the success probability of the gap-CDH adversary `dhKEMToGapCDH`
+built from it. -/
 theorem advantage_dhKEMCCAGame_le (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
     Game.advantage (F.dhKEMCCAGame d sampleKey adversary true)
         (F.dhKEMCCAGame d sampleKey adversary false) ≤

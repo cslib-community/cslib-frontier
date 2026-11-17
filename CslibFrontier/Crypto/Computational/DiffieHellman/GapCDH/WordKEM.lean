@@ -133,7 +133,9 @@ enc_structure encDHKEMSimEntry : DHKEMSimEntry where
   isDecaps : encBool, elem : encBits, key : encBits
 
 /-- Scan a list of simulation entries in order, returning the first `some v` produced by `select`
-and short-circuiting all subsequent entries. -/
+and short-circuiting all subsequent entries. Uses a dedicated bounded-iteration wrapper instead of
+`IsOraclePPTOn.foldlM_of_bounded_growth`, because `foldlM_of_bounded_growth` requires constant
+step growth whereas the `Option (List Bool)` accumulator can grow by up to `keyLen n` bits. -/
 def findFirstWord (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))) :
     List DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))
   | [] => pure none
@@ -190,12 +192,20 @@ variable (F : DecodablePrimeOrderGroupFamily)
 noncomputable def fintypeCarrier (d : F.Desc) : Fintype (F.Carrier d) :=
   Fintype.ofBijective _ (F.toPrimeOrderGroupFamily.smul_generator_bijective d)
 
+/-- Output of word-level DH-KEM encapsulation: encoded group-element ciphertext and key word. -/
+structure DHKEMEncapsOutput where
+  /-- Encoded ciphertext `F.encode d (y • g)`. -/
+  ciphertext : List Bool
+  /-- Encapsulated symmetric key word `List.ofFn (H (y • h))`. -/
+  key : List Bool
+  deriving DecidableEq
+
 /-- Word-level encapsulation of [KatzLindell2020], Construction 12.19 (p. 431), for random oracle
 `H`, public key element `h`, and ephemeral exponent `y`: outputs the encoded ciphertext
 `F.encode d (y • g)` and the key word `List.ofFn (H (y • h))`. -/
 def dhKEMEncapsWord (d : F.Desc) {m : ℕ} (H : F.Carrier d → BitString m) (h : F.Carrier d)
-    (y : ZMod (F.order d)) : List Bool × List Bool :=
-  (F.encode d (y • F.generator d), List.ofFn (H (y • h)))
+    (y : ZMod (F.order d)) : DHKEMEncapsOutput :=
+  ⟨F.encode d (y • F.generator d), List.ofFn (H (y • h))⟩
 
 /-- Word-level decapsulation of [KatzLindell2020], Construction 12.19 (p. 431), with explicit group
 membership validation ([KatzLindell2020], Construction 12.23, pp. 435–436): decodes `ciphertext` via
@@ -209,8 +219,8 @@ def dhKEMDecapsWord (d : F.Desc) {m : ℕ} (H : F.Carrier d → BitString m) (x 
 symmetric key word. -/
 @[simp] theorem dhKEMDecapsWord_encapsWord (d : F.Desc) {m : ℕ} (H : F.Carrier d → BitString m)
     (x y : ZMod (F.order d)) :
-    F.dhKEMDecapsWord d H x (F.dhKEMEncapsWord d H (x • F.generator d) y).1 =
-      some (F.dhKEMEncapsWord d H (x • F.generator d) y).2 := by
+    F.dhKEMDecapsWord d H x (F.dhKEMEncapsWord d H (x • F.generator d) y).ciphertext =
+      some (F.dhKEMEncapsWord d H (x • F.generator d) y).key := by
   simp [dhKEMDecapsWord, dhKEMEncapsWord, F.decode_encode, smul_smul, mul_comm]
 
 /-- Decapsulation rejects any candidate ciphertext word outside `Set.range (F.encode d)`. -/
@@ -248,11 +258,11 @@ noncomputable def dhKEMCCAWordGameAt (keyLen : ℕ → ℕ)
     let H ← Probability.PMF.pi fun _ : F.Carrier d =>
       ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
     let random ← ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let enc := F.dhKEMEncapsWord d H (x • F.generator d) y
+    let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
     let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
-      ⟨d, F.encode d (x • F.generator d), enc.1, if bit then enc.2 else List.ofFn random⟩
+      ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
     ProbComp.eval ((adversary n challenge).run
-      fun req => pure (F.dhKEMCCAWordAnswer d H x enc.1 req))
+      fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
 
 /-- **Word-level ROM IND-CCA game** for Construction 12.19 ([KatzLindell2020], Definition 12.13,
 p. 425, and Construction 12.19, p. 431) over `setup` and symmetric key length `keyLen`. -/
@@ -262,7 +272,10 @@ noncomputable def dhKEMCCAWordGame (setup : ℕ → PMF F.Desc) (keyLen : ℕ �
 
 /-- **Random-oracle IND-CCA security** of the word-level DH-KEM (Construction 12.19) with key
 length `keyLen`: every uniform strict oracle-PPT adversary has negligible distinguishing advantage
-between the real-key (`bit = true`) and random-key (`bit = false`) worlds. -/
+between the real-key (`bit = true`) and random-key (`bit = false`) worlds.
+
+This notion is DH-KEM-specific and local to this module, pending the generic KEM records of the
+crypto readability program (#4817, I3 #4894). -/
 def DHKEMROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
     (fun A n => F.dhKEMCCAWordGame setup keyLen A true n)
@@ -291,7 +304,7 @@ noncomputable def simWordHandler (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc) (
     if !F.isElem (d, c) || c == cStar then
       pure ([], table)
     else
-      (fun r => (encOption encBits (some r.1), r.2)) <$>
+      (fun (key, nextTable) => (encOption encBits (some key), nextTable)) <$>
         simLookupWord (keyLen n) (decapsSelectWord c) true c table
 
 /-- Extract the first hash entry `z` in `table` satisfying `queryDDHWord cStar z`, falling back to
@@ -314,12 +327,12 @@ noncomputable def dhKEMToGapCDHWord (keyLen : ℕ → ℕ)
       let key ← ProbOracleComp.sample (BitString.sampleList (keyLen input.secParam))
       let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
         ⟨input.groupParameters, input.rightPublic, input.leftPublic, key⟩
-      let result ← (OracleComp.interpret
+      let (_, finalTable) ← (OracleComp.interpret
         (OracleComp.sumHandler
           (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
           (F.simWordHandler keyLen input.secParam input.groupParameters input.leftPublic))
         (adversary input.secParam challenge)).run []
-      F.extractDHWord input.groupParameters input.leftPublic result.2
+      F.extractDHWord input.groupParameters input.leftPublic finalTable
 
 /-! ### Uniform strict oracle-PPT certificate for `dhKEMToGapCDHWord` -/
 
@@ -577,8 +590,8 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
     | decaps =>
       exact IsOraclePPTOn.cond' (by polytime)
         (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime))
-        (hdecLookup.map' (f := fun r : List Bool × List DHKEMSimEntry =>
-          (encOption encBits (some r.1), r.2)) (by polytime))
+        (hdecLookup.map' (f := fun (key, nextTable) =>
+          (encOption encBits (some key), nextTable)) (by polytime))
   exact hsimCall.preprocess'
     (prepare := fun call : ReductionCaller F.toPrimeOrderGroupFamily ×
         (DHKEMOp × List Bool) × List DHKEMSimEntry =>
@@ -750,17 +763,17 @@ theorem isOraclePPTOn_dhKEMToGapCDHWord {keyLen : ℕ → ℕ}
   have hbody : IsOraclePPTOn (encGapCDHInput F.toPrimeOrderGroupFamily) encBits
       (fun input => do
         let key ← ProbOracleComp.sample (BitString.sampleList (keyLen input.secParam))
-        let result ← (OracleComp.interpret
+        let (_, finalTable) ← (OracleComp.interpret
           (OracleComp.sumHandler
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (F.simWordHandler keyLen input.secParam input.groupParameters input.leftPublic))
           (adversary input.secParam (encDHKEMChallenge F.toPrimeOrderGroupFamily
             ⟨input.groupParameters, input.rightPublic, input.leftPublic, key⟩))).run []
-        F.extractDHWord input.groupParameters input.leftPublic result.2) := by
+        F.extractDHWord input.groupParameters input.leftPublic finalTable) := by
     have hcaller := (hrun.bind_with
       (second := fun (c : ReductionCaller F.toPrimeOrderGroupFamily)
-          (res : Bool × List DHKEMSimEntry) =>
-        F.extractDHWord c.input.groupParameters c.input.leftPublic res.2)
+          ((_, finalTable) : Bool × List DHKEMSimEntry) =>
+        F.extractDHWord c.input.groupParameters c.input.leftPublic finalTable)
       F.isOraclePPTOn_extractDHWord).preprocess'
       (input := encPair (encGapCDHInput F.toPrimeOrderGroupFamily) encBits)
       (prepare := fun p : GapCDHInput F.toPrimeOrderGroupFamily × List Bool =>
