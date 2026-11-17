@@ -16,16 +16,23 @@ import CslibFrontier.Foundations.Analysis.InnerProductSpace.CHSH
 
 Tsirelson's inequality bounds the CHSH expression `A₀B₀ + A₀B₁ + A₁B₀ - A₁B₁` of self-adjoint
 contractions by `2√2` in every state (`Cslib.Quantum.AlgState.re_chsh_le`). Observables that nearly
-attain the bound are rigid [Summers and Werner][SummersWerner1987],
-[McKague, Yang and Scarani][McKagueYangScarani2012]: with `c = 1/√2`, Alice's observables are
-determined by Bob's, `A₀ ≈ c(B₀ + B₁)` and `A₁ ≈ c(B₀ - B₁)`, all four observables are nearly
-involutions, and Alice's observables nearly anticommute,
+attain the bound are rigid. For exact attainment this is
+[Summers and Werner, Theorem 2.1][SummersWerner1987]; the robust form is
+[McKague, Yang and Scarani, Theorem 2][McKagueYangScarani2012] (arXiv:1203.2976v1, equations (11)
+and (13)–(14), PDF p. 3, derived in the Supplementary Information, PDF pp. 5–6). With
+`c = 1/√2`, Alice's observables are determined by Bob's, `A₀ ≈ c(B₀ + B₁)` and
+`A₁ ≈ c(B₀ - B₁)`, all four observables are nearly involutions, and Alice's observables nearly
+anticommute,
 
 `‖A₀A₁ + A₁A₀‖_φ ≤ (4 + 2√2) √(√2 η)`
 
 when the CHSH expression is at least `2√2 - η` (`Cslib.Quantum.AlgState.chsh_anticomm`).
-Anticommuting `±1` observables are the Pauli `X` and `Z` of a qubit; this is the algebraic core of
-the self-test of the EPR pair.
+McKague, Yang and Scarani assume Hermitian unitary (`±1`-eigenvalue) observables on a bipartite
+state and obtain `‖{A₀, A₁} ψ‖ ≤ 4 √(√2 ε)`. The statement here holds for arbitrary self-adjoint
+contractions in any star-ordered algebra with a continuous functional calculus, so it covers
+non-projective measurements; the constant `(4 + 2√2) √(√2 η)` comes from the sum-of-squares
+derivation below rather than from the paper. Anticommuting `±1` observables are the Pauli `X`
+and `Z` of a qubit; this is the algebraic core of the self-test of the EPR pair.
 
 The proof is the sum-of-squares identity of the CHSH inequality (`chsh_sos`), read in the GNS
 pre-inner product space of the state (`Cslib.Quantum.AlgState.chsh_rigidity`), and then the

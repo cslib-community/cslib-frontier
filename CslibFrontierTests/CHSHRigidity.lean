@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
+import CslibFrontier.Foundations.Analysis.InnerProductSpace.CHSH
 
 /-! # Rigidity of CHSH
 
@@ -14,6 +18,8 @@ anticommutation of near-optimal observables in any C⋆-algebra, the strategy-le
 commuting-operator strategies and, through `toCommuting`, for tensor-product strategies, and the
 optimal EPR strategy, whose observables anticommute exactly in its state.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.CHSHRigidity
 

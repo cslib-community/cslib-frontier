@@ -22,10 +22,11 @@ shared state:
 
 (`Cslib.PCP.CommutingStrategy.anticomm_of_chsh`). The error is a polynomial error function
 (`Cslib.PCP.polyErr_chshRigidityError`), the `O(√ε)` of robust self-testing
-[McKague, Yang and Scarani][McKagueYangScarani2012]. The measurements are arbitrary, so the
-theorem covers every strategy of the finite-dimensional tensor-product model through
-`Cslib.PCP.QuantumStrategy.toCommuting`, and every C⋆-algebraic strategy. Bob's observables are
-rigid in the same way, by the symmetry of the game.
+[McKague, Yang and Scarani, Theorem 2][McKagueYangScarani2012] (arXiv:1203.2976v1), whose constant
+for projective `±1` observables differs from the one derived here. The measurements are
+arbitrary, so the theorem covers every strategy of the finite-dimensional tensor-product model
+through `Cslib.PCP.QuantumStrategy.toCommuting`, and every C⋆-algebraic strategy. Bob's
+observables are rigid in the same way, by the symmetry of the game.
 
 The statement is the operator-algebraic rigidity theorem `Cslib.Quantum.AlgState.chsh_anticomm`
 applied to the correlations: a winning probability of `cos²(π/8) - ε` is a CHSH expression of
