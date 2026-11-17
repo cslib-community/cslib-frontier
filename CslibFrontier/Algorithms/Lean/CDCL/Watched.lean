@@ -7,21 +7,22 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.CDCL.Naive
+public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 import Mathlib.Tactic.Linarith
 
-/-! # CDCL with two watched literals
+/-! # A CDCL solver with watched literals and LRAT certificates
 
-The naive solver (`CDCL.Naive`) scans every clause of the database for a conflict or a unit after
-each move. This solver finds them with two watched literals per clause instead, as MiniSat
-does. Each trail literal is queued when it is assigned; processing it visits the
-clauses watching its negation, which either find another watch, are satisfied by their other
-watch, become unit, or are false.
+An executable instance of abstract DPLL with learning, which returns a model or an LRAT certificate
+(`Cslib.Algorithms.Lean.CDCL.solve`). Its moves are those of `Cslib.Algorithms.Lean.CDCL.Exec`;
+this module finds conflicts and unit clauses with two watched literals per clause, as MiniSat
+does, instead of scanning the database. Each trail literal is queued when it is assigned;
+processing it visits the clauses watching its negation, which either find another watch, are
+satisfied by their other watch, become unit, or are false.
 
-The state `WExec` extends the naive solver's state `Exec` with the watch store, the queue, and the
-clauses with fewer than two different literals, which cannot be watched and are scanned when the
-queue is empty. Its invariant `WExec.Inv` adds to `Exec.Inv`:
+The state `WExec` extends `Exec` with the watch store, the queue, and the clauses with fewer than
+two different literals, which cannot be watched and are scanned when the queue is empty. Its
+invariant `WExec.Inv` adds to `Exec.Inv`:
 
 * the watch store's invariant `WatchStore.Inv`: every clause with two different literals is
   stored, and no stored clause has both watches falsified by *processed* literals (literals of the
@@ -36,11 +37,26 @@ scanning them. Choosing the next decision variable, or seeing that every variabl
 returning the model, still searches the variables of the database (`CNF.vars`), which can traverse
 every literal occurrence.
 
-Every move of the loop is a move of the naive solver, so the theorems of `CDCL.Naive` carry over:
-`solveWatched_sat`, `solveWatched_unsat` and `isSat_solveWatched_iff`. Termination uses the naive
-solver's rank, times the number of variables plus two, plus the length of the queue.
+**The loop** (`Cslib.Algorithms.Lean.CDCL.loop`). While the queue is not empty, it processes its
+first literal. A conflict with no decision on the trail ends with a certificate; otherwise it is
+analysed, followed by Backjump and Learn. With the queue empty, it checks the short clauses for a
+conflict or a unit, then decides the first unassigned variable of the database, `true` first, or
+returns the trail as a model. Every move lowers the measure: the rank of the abstract system, times
+the number of variables plus two, plus the length of the queue. Recursion is structural on a bound
+on the measure, which provably never runs out, so the kernel can run the solver.
 
-Blockers, which need an invariant over decision levels, are not part of this module.
+## Main definitions
+
+* `Cslib.Algorithms.Lean.CDCL.WExec`, `Cslib.Algorithms.Lean.CDCL.WExec.Inv`: the state and its
+  invariant.
+* `Cslib.Algorithms.Lean.CDCL.WExec.processList`: visiting a watch list.
+* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
+
+## Main results
+
+* `Cslib.Algorithms.Lean.CDCL.solve_sat`, `Cslib.Algorithms.Lean.CDCL.solve_unsat`: both answers are
+  correct.
+* `Cslib.Algorithms.Lean.CDCL.isSat_solve_iff`: the solver decides satisfiability.
 -/
 
 public section
@@ -464,7 +480,7 @@ theorem WExec.ProcInv.unit {S : WExec φ} {t l : Literal ℕ} {id k : ℕ} {L : 
     rcases hu with h₁ | h₂
     · rw [ho₁ h₁]; simp
     · rw [ho₂ h₂]; simp
-  have hspec := Exec.propagate_spec' h.exec hcdb hmemc (not_mem_vars_of_undef hl hln) hfalse
+  have hspec := Exec.propagate_spec h.exec hcdb hmemc (not_mem_vars_of_undef hl hln) hfalse
   have hM : (S.propagateUnit t (otherWatch u w₁ w₂) id k).M =
       ⟨otherWatch u w₁ w₂, false⟩ :: S.M := rfl
   have hlits : Trail.lits (S.propagateUnit t (otherWatch u w₁ w₂) id k).M =
@@ -769,12 +785,20 @@ theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   · exact (hq ▸ hS.store).not_falsifies he hlen
   · exact hshort e (hS.short_covers e he (by omega))
 
+/-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
+the checker. -/
+inductive Answer (φ : CNF ℕ) : Type
+  /-- A model. -/
+  | sat (σ : ℕ → Bool) (h : φ.eval σ = true)
+  /-- An accepted certificate. -/
+  | unsat (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) (h : φ.checkLRAT cert = true)
+
 /-- **The CDCL loop with watched literals.** While the queue is not empty, the watch list of the
 negation of its first literal is visited; a conflict is analysed, followed by Backjump and Learn,
 or ends with a certificate when there is no decision. With the queue empty, the short clauses are
 checked for a conflict or a unit, then the first unassigned variable of the database is decided,
 or the trail is returned as a model. -/
-@[expose] def wloop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
+@[expose] def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
     -- a conflict on a database clause
@@ -792,7 +816,7 @@ or the trail is returned as a model. -/
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)
         have hspec := WExec.afterConflict_spec hS he hconf hsp L
-        wloop φ fuel (S.afterConflict sp L) hspec.1 (by omega)
+        loop φ fuel (S.afterConflict sp L) hspec.1 (by omega)
     match hq : S.queue with
     | t :: _ =>
       have ht : t ∈ S.queue := hq ▸ List.mem_cons_self
@@ -800,7 +824,7 @@ or the trail is returned as a model. -/
           (WExec.start_procInv hS ht) with
       | .done S' h hm =>
         have hfin := WExec.finish_inv h
-        wloop φ fuel (S'.finish t) hfin.1 (by
+        loop φ fuel (S'.finish t) hfin.1 (by
           have : (S.start t).measure = S.measure := rfl
           omega)
       | .conflict S' h e he hconf hm =>
@@ -817,58 +841,58 @@ or the trail is returned as a model. -/
         match hu : findUnit S.M S.short with
         | some (e, l) =>
           have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hu
-          have hspec := Exec.propagate_spec' hS.exec (hS.short_mem e he) hl hundef hfalse
-          wloop φ fuel (S.propagateShort e l) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
+          have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
+          loop φ fuel (S.propagateShort e l) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
           match hx : S.exec.clauses.vars.find? (fun x => !(Trail.vars S.M).contains x) with
           | some x =>
             have hundef : x ∉ Trail.vars S.M := by simpa using List.find?_some hx
             have hspec := Exec.decide_spec hS.exec hnoconf (List.mem_of_find?_eq_some hx) hundef
-            wloop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
+            loop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
               (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
           | none =>
             .sat (Trail.assignment S.M) (hS.exec.run.eval_model hnoconf fun x hxV => by
               simpa using List.find?_eq_none.1 hx x hxV)
 
-/-- **CDCL with watched literals**: the loop from the initial state, with enough fuel. -/
-@[expose] def solveWatched (φ : CNF ℕ) : DPLL.Result :=
-  match wloop φ ((WExec.init φ).measure + 1) (WExec.init φ) (WExec.init_inv φ)
+/-- **The CDCL solver**: a model, or an LRAT certificate of unsatisfiability. -/
+@[expose] def solve (φ : CNF ℕ) : DPLL.Result :=
+  match loop φ ((WExec.init φ).measure + 1) (WExec.init φ) (WExec.init_inv φ)
       (Nat.lt_succ_self _) with
   | .sat σ _ => .sat σ
   | .unsat cert _ => .unsat cert
 
-/-- **The models returned by the watched solver are models.** -/
-theorem solveWatched_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveWatched φ = .sat σ) :
+/-- **The models returned by the solver are models.** -/
+theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) :
     φ.eval σ = true := by
-  unfold solveWatched at h
+  unfold solve at h
   split at h
   · rename_i hσ _
     cases h
     exact hσ
   · cases h
 
-/-- **The certificates returned by the watched solver are accepted by the LRAT checker.** -/
-theorem solveWatched_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
-    (h : solveWatched φ = .unsat cert) : φ.checkLRAT cert = true := by
-  unfold solveWatched at h
+/-- **The certificates returned by the solver are accepted by the LRAT checker.** -/
+theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
+    (h : solve φ = .unsat cert) : φ.checkLRAT cert = true := by
+  unfold solve at h
   split at h
   · cases h
   · rename_i hcert _
     cases h
     exact hcert
 
-/-- **The watched solver decides satisfiability.** -/
-theorem isSat_solveWatched_iff (φ : CNF ℕ) : (solveWatched φ).isSat = true ↔ φ.Satisfiable := by
+/-- **The solver decides satisfiability.** -/
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
   constructor
   · intro h
-    cases hs : solveWatched φ with
-    | sat σ => exact ⟨σ, solveWatched_sat hs⟩
+    cases hs : solve φ with
+    | sat σ => exact ⟨σ, solve_sat hs⟩
     | unsat cert => simp [hs, DPLL.Result.isSat] at h
   · intro h
-    cases hs : solveWatched φ with
+    cases hs : solve φ with
     | sat σ => rfl
     | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveWatched_unsat hs))
+      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solve_unsat hs))
 
 end Cslib.Algorithms.Lean.CDCL

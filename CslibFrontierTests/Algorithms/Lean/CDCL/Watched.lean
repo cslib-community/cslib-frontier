@@ -33,12 +33,12 @@ open Cslib.Logic.PL Cslib.Algorithms.Lean Std.Tactic.BVDecide
 private abbrev php : CNF ℕ := (CNF.pigeonhole 3 2).relabel fun x => 2 * x.1.val + x.2.val
 
 example : ¬ php.Satisfiable := by
-  rw [← CDCL.isSat_solveWatched_iff]
+  rw [← CDCL.isSat_solve_iff]
   decide +kernel
 
 /-- info: true -/
 #guard_msgs in
-#eval match CDCL.solveWatched php with
+#eval match CDCL.solve php with
   | .unsat cert => LRAT.check cert php.toStdSat
   | .sat _ => false
 
@@ -47,7 +47,7 @@ private abbrev small : CNF ℕ :=
   [[(0, true), (1, true)], [(0, false), (1, true)], [(0, true), (1, false)],
     [(1, false), (2, true)]]
 
-example : (match CDCL.solveWatched small with
+example : (match CDCL.solve small with
     | .sat σ => small.eval σ
     | .unsat _ => false) = true := by
   decide
@@ -57,19 +57,19 @@ private abbrev units : CNF ℕ :=
   [[(2, true)], [(0, false), (0, false)], [(0, true), (1, true), (2, false)],
     [(1, false), (3, true)]]
 
-example : (match CDCL.solveWatched units with
+example : (match CDCL.solve units with
     | .sat σ => units.eval σ
     | .unsat _ => false) = true := by
   decide
 
 /-- Contradictory unit clauses. -/
-example : (CDCL.solveWatched [[(0, true)], [(0, false)]]).isSat = false := by decide
+example : (CDCL.solve [[(0, true)], [(0, false)]]).isSat = false := by decide
 
 /-- The empty clause. -/
-example : (CDCL.solveWatched [[(0, true), (1, true)], []]).isSat = false := by decide
+example : (CDCL.solve [[(0, true), (1, true)], []]).isSat = false := by decide
 
 /-- The empty formula. -/
-example : (CDCL.solveWatched []).isSat = true := by decide
+example : (CDCL.solve []).isSat = true := by decide
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates.
 /-- info: (true, true) -/
@@ -77,7 +77,7 @@ example : (CDCL.solveWatched []).isSat = true := by decide
 #eval
   let check (n : ℕ) :=
     let φ := (CNF.pigeonhole (n + 1) n).relabel fun x => n * x.1.val + x.2.val
-    match CDCL.solveWatched φ with
+    match CDCL.solve φ with
     | .unsat cert => LRAT.check cert φ.toStdSat
     | .sat _ => false
   (check 4, check 5)
