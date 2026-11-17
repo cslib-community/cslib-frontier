@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
@@ -24,7 +25,7 @@ import Mathlib.Analysis.Asymptotics.Defs
 # Polynomial-Time Explicit Affine Disperser via Shoup's Irreducible Polynomials
 
 This module certifies polynomial-time computability (`Turing.MultiTapeTM.ComputableInPolyTime`
-and membership in `Cslib.Complexity.P`) for `primeMulTable`, `primeDisperserBits`, and
+and membership in `Cslib.Complexity.P`) for `primeDisperserBits` and
 `primeDisperser` from `CslibFrontier.Computability.Complexity.AffineDisperser.Li.ShoupIrreducible`.
 Together with `Cslib.Circuits.Boolean.AffineDisperser.seven_mul_le_two_mul_size_add`, this yields
 an unconditional explicit polynomial-time affine disperser in `P` for dimension `O(N ^ (4 / 5))`
@@ -40,8 +41,6 @@ Issue #4323; the full `O(log N)` dimension construction of [X. Li][Li2023] remai
 
 * `Cslib.AffineDisperser.Li.computableInPolyTime_primeSymDeg`: `primeSymDeg` is computable in
   polynomial time in unary.
-* `Cslib.AffineDisperser.Li.computableInPolyTime_primeMulTable`: `primeMulTable` is computable in
-  polynomial time.
 * `Cslib.AffineDisperser.Li.computableInPolyTime_primeDisperserBits`: `primeDisperserBits` is
   computable in polynomial time.
 * `Cslib.AffineDisperser.Li.computableInPolyTime_primeDisperser`: `fun x => primeDisperser
@@ -62,6 +61,8 @@ Issue #4323; the full `O(log N)` dimension construction of [X. Li][Li2023] remai
 
 public section
 
+open Cslib.BinaryField
+
 namespace Cslib.AffineDisperser.Li
 
 open Cslib.Circuits Filter Turing.MultiTapeTM ComputableInPolyTime
@@ -75,37 +76,6 @@ theorem computableInPolyTime_primeSymDeg :
   unfold primeSymDeg
   fun_prop
 
-/-- `primeMulTable` is computable in polynomial time. -/
-@[fun_prop]
-theorem computableInPolyTime_primeMulTable :
-    ComputableInPolyTime primeMulTable encBits encTable := by
-  have hcell : ComputableInPolyTime
-      (fun q : ((ℕ × List (List Bool)) × ℕ) × ℕ => q.1.1.2.getD (q.1.2 + q.2) [])
-      (encPair (encPair (encPair encUnary (encList encBits)) encUnary) encUnary) encBits := by
-    simpa only [Function.comp_def] using
-      (ComputableInPolyTime.listGetD (encA := encBits) (encL := encList encBits) []).comp
-        (by fun_prop : ComputableInPolyTime
-          (fun q : ((ℕ × List (List Bool)) × ℕ) × ℕ => (q.1.1.2, q.1.2 + q.2))
-          (encPair (encPair (encPair encUnary (encList encBits)) encUnary) encUnary)
-          (encPair (encList encBits) encUnary))
-  have hrow : ComputableInPolyTime
-      (fun p : (ℕ × List (List Bool)) × ℕ =>
-        (List.range p.1.1).map fun v => p.1.2.getD (p.2 + v) [])
-      (encPair (encPair encUnary (encList encBits)) encUnary) (encList encBits) :=
-    ComputableInPolyTime.mapWithInput (by fun_prop) hcell
-  have houter : ComputableInPolyTime
-      (fun p : ℕ × List (List Bool) =>
-        (List.range p.1).map fun u => (List.range p.1).map fun v => p.2.getD (u + v) [])
-      (encPair encUnary (encList encBits)) encTable :=
-    ComputableInPolyTime.mapWithInput (by fun_prop) hrow
-  have hpair : ComputableInPolyTime (fun g : List Bool => (g.length - 1, powerTable g))
-      encBits (encPair encUnary (encList encBits)) := by fun_prop
-  have heq : primeMulTable = fun g : List Bool =>
-      (List.range (g.length - 1)).map fun u =>
-        (List.range (g.length - 1)).map fun v => (powerTable g).getD (u + v) [] := rfl
-  rw [heq]
-  simpa only [Function.comp_def] using houter.comp hpair
-
 /-- `primeDisperserBits` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_primeDisperserBits :
@@ -113,7 +83,7 @@ theorem computableInPolyTime_primeDisperserBits :
       (encPair encUnary encBits) encBool := by
   simpa only [Function.comp_def, primeDisperserBits] using
     computableInPolyTime_traceSymCoords.comp
-      ((((computableInPolyTime_primeMulTable.comp
+      ((((computableInPolyTime_powerMulTable.comp
             (computableInPolyTime_shoupIrreducibleBits.comp
               (computableInPolyTime_primeDeg.comp (fst encUnary encBits)))).prod
           (by fun_prop)).prod

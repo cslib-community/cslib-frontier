@@ -1938,6 +1938,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Collapse
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
+public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CanonicalDerandomizer
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
@@ -2702,6 +2703,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.MatchingParity
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.Search
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Construction
@@ -3971,7 +3973,9 @@ public import CslibFrontier.Computability.PointerMachine.Embedding
 public import CslibFrontier.Computability.PointerMachine.Renaming
 public import CslibFrontier.Computability.PointerMachine.Simulation
 public import CslibFrontier.Computability.PointerMachine.Symbols
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.PolyTime.BitString.InitialTestsSearch
+public import CslibFrontier.Computability.PolyTime.BitString.SmallBias
 public import CslibFrontier.Computability.PolyTime.BitString.TannerSearch
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceCounter
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceExactness
@@ -5123,6 +5127,9 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+public import CslibFrontier.Crypto.Protocols.FRI.Folding
+public import CslibFrontier.Crypto.Protocols.FRI.Protocol
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
@@ -6465,7 +6472,9 @@ public import CslibFrontier.Foundations.Data.ZMod.SquareModulus
 public import CslibFrontier.Foundations.Data.ZMod.ValMinAbs
 public import CslibFrontier.Foundations.FieldTheory.Finite.Basic
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Foundations.FieldTheory.Finite.LinearizedPolynomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.ReducedMonomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
