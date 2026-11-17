@@ -13,6 +13,7 @@ import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -59,8 +60,11 @@ theorem computableInPolyTime_matchingInstance :
     ComputableInPolyTime matchingInstance encGraph (encCSP CSP.encTable encNat) := by
   have hvertices : ComputableInPolyTime (fun G : Graph => G.distinctVertices)
       encGraph (encList encNat) := by
-    unfold distinctVertices
-    fun_prop
+    have hv : ComputableInPolyTime Graph.vertices encGraph (encList encNat) := by
+      fun_prop
+    exact (computableInPolyTime_selectDistinct encNat).comp
+      (hv.prod ((ComputableInPolyTime.bitsReplicate true).comp
+        ((ComputableInPolyTime.length_list encNat).comp hv)))
   have hchoice : ComputableInPolyTime
       (fun p : Graph × ℕ => Constraint.mk
         (CSP.Table.exactlyOne (p.1.matchingScope p.2)) (p.1.matchingScope p.2))
