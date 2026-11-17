@@ -26,8 +26,8 @@ The four-by-four argument is the recognition step in [JeandelVanier2020], Propos
 (p. 24 of the authors' manuscript). We use the corrected 104-tile alphabet of the prior
 formalization [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3),
 the `Robinson.Closed104.LocalRecognizability` and `FiniteRecognizability` modules.
-Exact enumeration of matching central two-by-two blocks and their south and west neighbors
-proves completeness of the finite check.
+A kernel check enumerates every matching phase-`a` central two-by-two block; each one either is
+the child block of an explicit parent or has no matching south or west neighbour pair.
 -/
 
 public section
@@ -48,7 +48,10 @@ structure Neighborhood where
   /-- Thin phase at the southwest position of the central block. -/
   phase : (components (cell 1 1)).thin = .a
 
-/-- Tiles indexed by their west edge colour. -/
+/-- Tiles indexed by their west edge colour. An edge colour is `thin + 4 * thick + 16 * black`
+(`tile`), and the tables below split at `c < 16`, the black digit, only to keep each kernel `match`
+small. Soundness uses only that each tile lies in its own buckets (`edgeCert`), so a bucket may
+list extra tiles. -/
 private def leftTiles (c : ℕ) : List Index :=
   if c < 16 then
     match c with
@@ -180,12 +183,17 @@ private def topTiles (c : ℕ) : List Index :=
     | 30 => [74, 76, 77]
     | _ => []
 
-/-- Recover the unique candidate parent from the southwest and northeast children. -/
+/-- Recover the candidate parent from its southwest child `sw` and northeast child `ne`. A
+phase-`a` parent is its own southwest child and has northeast child `4`; otherwise the southwest
+child is `p - 4` (for `p < 8`) or `p + 24`, so the parent is `sw + 4` or `sw - 24`. -/
 private def parentOf (sw ne : Index) : Index :=
   if ne.val == 4 then sw
   else if h : sw.val < 4 then ⟨sw.val + 4, by omega⟩
   else ⟨sw.val - 24, by omega⟩
 
+/-- Every tile lies in its own colour bucket on all four sides, and `parentOf` recovers it from
+its southwest and northeast children. Only this direction is needed, so the buckets may list
+extra tiles. -/
 private def edgeCert : Bool :=
   (List.finRange 104).all fun i =>
     let t := tile (components i)
@@ -208,18 +216,25 @@ private theorem edgeCert_at (i : Index) :
   obtain ⟨⟨⟨⟨hl, hr⟩, hb⟩, ht⟩, hp⟩ := h
   exact ⟨hl, hr, hb, ht, hp⟩
 
+/-- There is a matching horizontal pair of tiles below the central row, whose top colours are
+`b1` and `b2`. -/
 private def hasSouth2 (b1 b2 : ℕ) : Bool :=
   let s2s := topTiles b2
   (topTiles b1).any fun s1 =>
     let l1 := leftTiles (tile (components s1)).right
     s2s.any fun s2 => l1.contains s2
 
+/-- There is a matching vertical pair of tiles west of the central column, whose right colours
+are `l1` and `lu1`. -/
 private def hasWest2 (l1 lu1 : ℕ) : Bool :=
   let u0s := rightTiles lu1
   (rightTiles l1).any fun x0 =>
     let b0 := bottomTiles (tile (components x0)).top
     u0s.any fun u0 => b0.contains u0
 
+/-- Every central two-by-two block with a phase-`a` southwest tile and four matching internal
+edges either is the child block of `parentOf x1 u2`, or has no matching south pair or no
+matching west pair. -/
 private def check2x2 : Bool :=
   (List.finRange 104).all fun x1 =>
     let c1 := components x1

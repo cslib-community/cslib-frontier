@@ -226,40 +226,18 @@ private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
   rw [congrFun (congrFun patch i) j]
   exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
 
-private def isPhaseA (p : Index) : Bool :=
-  p.val < 4 || (32 ≤ p.val && p.val < 56) || 80 ≤ p.val
-
-private theorem childBlock_four_zero : childBlock 4 0 0 = 0 := rfl
-
-private theorem childBlock_zero_zero : childBlock 0 0 0 = 0 := rfl
-
-private theorem phaseA_to_four_ok :
-    ((List.finRange 104).all fun p =>
-      if isPhaseA p then childBlock p 1 1 == 4
-      else isPhaseA (childBlock p 0 0)) = true := by
+/-- Every tile reaches tile `0` along the same path: its southwest child is a phase-`a` tile,
+whose northeast child is tile `4`, whose southwest child is tile `0`. -/
+private theorem zero_descends_cert :
+    ∀ p : Index, childBlock (childBlock (childBlock p 0 0) 1 1) 0 0 = 0 := by
   decide +kernel
 
-private theorem childBlock_ne_four_of_phaseA {p : Index} (hp : isPhaseA p = true) :
-    childBlock p 1 1 = 4 := by
-  have h := List.all_eq_true.mp phaseA_to_four_ok p (List.mem_finRange p)
-  simpa only [hp, ↓reduceIte, beq_iff_eq] using h
-
 private theorem zero_descends :
-    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
-  intro p
-  cases hp : isPhaseA p with
-  | true =>
-    refine ⟨4, 4, ?_⟩
-    change childBlock (childBlock (childBlock p 1 1) 0 0) 0 0 = 0
-    rw [childBlock_ne_four_of_phaseA hp, childBlock_four_zero, childBlock_zero_zero]
-  | false =>
-    have h := List.all_eq_true.mp phaseA_to_four_ok p (List.mem_finRange p)
-    simp only [hp, Bool.false_eq_true, ↓reduceIte] at h
-    refine ⟨2, 2, ?_⟩
-    change childBlock (childBlock (childBlock p 0 0) 1 1) 0 0 = 0
-    rw [childBlock_ne_four_of_phaseA h, childBlock_four_zero]
+    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 :=
+  fun p => ⟨2, 2, zero_descends_cert p⟩
 
-/-- One-step predecessor in a breadth-first spanning tree rooted at tile `0`. -/
+/-- The parent of `p` in a spanning tree of the child relation rooted at tile `0`; every tile
+reaches `0` within five steps (`fromZero_ok`). -/
 private def fromZeroParent (p : Index) : Index :=
   if p.val == 0 then 0
   else if h1 : p.val < 4 then ⟨p.val + 4, by omega⟩
@@ -283,9 +261,11 @@ private def fromZeroParent (p : Index) : Index :=
     | 76 => 30 | 77 => 76 | 78 => 79 | _ => 7
   else ⟨p.val - 24, by omega⟩
 
+/-- The column of `p` among the children of `fromZeroParent p`. -/
 private def fromZeroDx (p : Index) : Fin 2 :=
   if 4 ≤ p.val && p.val < 32 then 1 else 0
 
+/-- The row of `p` among the children of `fromZeroParent p`. -/
 private def fromZeroDy (p : Index) : Fin 2 :=
   if (4 ≤ p.val && p.val < 8) || (56 ≤ p.val && p.val < 80) then 1 else 0
 
