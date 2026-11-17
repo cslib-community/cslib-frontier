@@ -3041,6 +3041,7 @@ public import CslibFrontier.Computability.Kolmogorov.TimeBounded
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded.Counting
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Computability.Kolmogorov.Uncomputability
+public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
