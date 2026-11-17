@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
@@ -30,7 +31,9 @@ the ambient group is an additive `ZMod q`-module with an arbitrary base `g` and 
 `1 - 1 / |C|` assumes `m₀ ≠ m₁` (needed because equal messages with `a = 1`, `b = 0` repeat the
 random-oracle query and force `a * ι c₀ = ι c₁`). Only the exact-security typed ROM experiment is
 defined here; polynomial-time word extraction is separate in
-`CslibFrontier.Crypto.Computational.SchnorrRelatedNonce`, with no word-level game.
+`CslibFrontier.Crypto.Computational.SchnorrRelatedNonce`, and the `a = 0` leaked-nonce word
+game and PPT adversary are in `CslibFrontier.Crypto.Computational.SchnorrLeakedNonce` (general
+`(a, b)` word-level games remain open).
 
 ## Main definitions
 
@@ -162,10 +165,8 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
     (a b : ZMod q) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     1 - (Fintype.card C : ℝ≥0)⁻¹ ≤ Game.succProbability (relatedNonceGame ι g a b m₀ m₁) := by
   have hfail : relatedNonceGame ι g a b m₀ m₁ false ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
-    simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interpret_map,
-      interpret_query, interpret_bind, interpret_pure, StateT.run_map, StateT.run_bind,
-      StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.bind_bind, PMF.pure_bind,
-      PMF.map, Function.Embedding.refl_apply]
+    simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interp_norm,
+      pmf_norm, PMF.map, Function.Embedding.refl_apply]
     refine PMF.bind_apply_le_on_support _ fun key _ => ?_
     refine PMF.bind_apply_le_on_support _ fun r _ => ?_
     rw [run_oracle_of_lookup_eq_none (cache := []) rfl]

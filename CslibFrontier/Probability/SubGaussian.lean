@@ -156,7 +156,7 @@ theorem hasSubgaussianMGF_integral_sub_sum_div {Z : Type*} [MeasurableSpace Z] (
   have hc : (4 * m : ℝ≥0)⁻¹ =
       .mk ((1 / (m : ℝ)) ^ 2) (sq_nonneg _) * ∑ _i : Fin m, (‖(1 : ℝ) - 0‖₊ / 2) ^ 2 := by
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, sub_zero,
-      nnnorm_one]
+      nnNorm_one]
     ext1
     push_cast [NNReal.coe_mk]
     field_simp

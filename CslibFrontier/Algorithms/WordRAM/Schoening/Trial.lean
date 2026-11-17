@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
@@ -202,9 +203,7 @@ private theorem Frame.set {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x : 
     Frame φ C A M (x.set i v) := by
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi
   obtain ⟨h0, h1, h2, h3, h4⟩ := hi
-  exact h.congr (by simp [Function.update_of_ne (Ne.symm h0)])
-    (by simp [Function.update_of_ne (Ne.symm h1)]) (by simp [Function.update_of_ne (Ne.symm h2)])
-    (by simp [Function.update_of_ne (Ne.symm h3)]) (by simp [Function.update_of_ne (Ne.symm h4)])
+  exact h.congr (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     fun _ _ => rfl
 
 /-! ### The random initial assignment -/
@@ -250,10 +249,8 @@ private theorem initLoop_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
       (((x.set val k).set addr (A + j)).write (A + j) k).set cnt (j + 1)
     have hrest : ∀ k : Fin (x.regs one + 1),
         ExecWithin w (ram[ addr ← aBase + cnt; *addr ← val; cnt ← cnt + one ])
-          (x.set val k.val) (Y k.val) 3 := by
-      intro k
-      have hk1 : x.regs one = 1 := hx.one_eq
-      ram_eval [Y, hx.aBase_eq, hx.one_eq, hj, hf1, hf2]
+          (x.set val k.val) (Y k.val) 3 := fun _ =>
+      WP.execWithin (by wram_exec [hx.aBase_eq, hx.one_eq, hj]; rfl)
     have hbody := ExecRandLaw.rand_seq (w := w) (f := fun y => assignmentAt y.mem A n)
       (P := fun y => ∃ k ≤ 1, y = Y k) (y := fun k => Y k.val)
       (by rw [hx.one_eq]; exact hw.of_le (by omega)) hrest
@@ -262,13 +259,10 @@ private theorem initLoop_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
         (Probability.PMF.uniformOfFintype (Fin n → Bool)).map fun τ i =>
           if i.val < j + 1 then σ' i else τ i) hc hbody (fun y ⟨k, hk, hy⟩ => by
       subst hy
-      have hYc : (Y k).regs cnt = j + 1 := by simp [Y]
+      have hYc : (Y k).regs cnt = j + 1 := by wram_simp [Y]
       have h := initLoop_law hw hA d (Y k)
-        (hx.congr (by simp +decide [Y]) (by simp +decide [Y]) (by simp +decide [Y])
-          (by simp +decide [Y]) (by simp +decide [Y])
-          (fun a ha => by
-            simp only [Y, Data.set_mem, Data.write_mem]
-            exact Function.update_of_ne (by omega) _ _))
+        (hx.congr (by wram_simp [Y]) (by wram_simp [Y]) (by wram_simp [Y])
+          (by wram_simp [Y]) (by wram_simp [Y]) (fun a ha => by wram_simp [Y]))
         (by rw [hYc]; omega)
         (fun i hi => by
           rw [hYc] at hi
@@ -375,50 +369,40 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
     let F : ℕ → (Fin n → Bool) := fun k =>
       if hk : k < c.length then flipOn {(c.get ⟨k, hk⟩).1} σ else σ
     let x₂ := (x.set len c.length).set len ℓ
-    have hx₂len : x₂.regs len = ℓ := by simp [x₂]
-    have hsub : ExecWithin w (ram[ len ← len - one ]) (x.set len c.length) x₂ 1 := by
-      ram_eval [x₂, hx.one_eq, hℓ, hf0, Nat.add_sub_cancel]
+    have hx₂len : x₂.regs len = ℓ := by wram_simp [x₂]
+    have hsub : ExecWithin w (ram[ len ← len - one ]) (x.set len c.length) x₂ 1 :=
+      WP.execWithin (by wram_exec [hx.one_eq, hℓ, Nat.add_sub_cancel]; rfl)
     -- the deterministic rest after drawing `k`
     have hrest : ∀ k : Fin (x₂.regs len + 1), ∃ y, ExecWithin w flipRest (x₂.set var k.val) y 8 ∧
         (Frame φ C A M y ∧ ∀ i < n, y.mem (A + i) ≤ 1) ∧ assignmentAt y.mem A n = F k.val := by
       intro k
       have hk : k.val < c.length := by have := k.isLt; have := hx₂len; omega
       set l := c.get ⟨k.val, hk⟩ with hl
+      have hlv : l.1.val < n := l.1.isLt
       have hlit : x.mem (x.regs cPtr + 1 + k.val) = litCode l := by
         have h := hcl.get (k.val + 1) (by simp; omega)
         simp only [encodeClause, List.getElem_cons_succ, List.getElem_map] at h
         rw [show x.regs cPtr + 1 + k.val = x.regs cPtr + (k.val + 1) by omega, h, hl,
           List.get_eq_getElem]
-      have hv : x.mem (A + l.1.val) = (σ l.1).toNat := hσ l.1
-      have hf1 : Fits w (x.regs cPtr + 1) := hw.of_le (by omega)
-      have hf2 : Fits w (x.regs cPtr + 1 + k.val) := hw.of_le (by omega)
-      have hf3 : Fits w l.1.val := hw.of_le (by omega)
-      have hf4 : Fits w (A + l.1.val) := hw.of_le (by omega)
-      have hf5 : Fits w (1 - (σ l.1).toNat) := hw.of_le (by omega)
-      let Y := (((((((((x₂.set var k.val).set addr (x.regs cPtr + 1)).set addr
-        (x.regs cPtr + 1 + k.val)).set lit (litCode l)).set var l.1.val).set addr
-        (A + l.1.val)).set val (σ l.1).toNat).set val (1 - (σ l.1).toNat)).write
-        (A + l.1.val) (1 - (σ l.1).toNat))
-      have hYm : Y.mem = Function.update x.mem (A + l.1.val) (1 - (σ l.1).toNat) := rfl
-      refine ⟨Y, ?run, ⟨?frame, ?bits⟩, ?law⟩
-      case run =>
-        ram_eval [Y, flipRest, x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hv, hf1, hf2,
-          hf3, hf4, hf5]
-      case frame =>
-        refine hx.congr (by simp +decide [Y, x₂]) (by simp +decide [Y, x₂])
-          (by simp +decide [Y, x₂]) (by simp +decide [Y, x₂]) (by simp +decide [Y, x₂])
-          fun a ha => ?_
-        rw [hYm]
-        exact Function.update_of_ne (by omega) _ _
-      case bits =>
-        intro i hi
-        rw [hYm, Function.update_apply]
+      have : Fits w (x.regs cPtr + 1) := hw.of_le (by omega)
+      have : Fits w (x.regs cPtr + 1 + k.val) := hw.of_le (by omega)
+      have : Fits w l.1.val := hw.of_le (by omega)
+      have : Fits w (A + l.1.val) := hw.of_le (by omega)
+      have : Fits w (1 - (σ l.1).toNat) := hw.of_le (by omega)
+      refine WP.exists_execWithin ?_
+      unfold flipRest
+      wram_exec [x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
+      refine ⟨⟨hx.congr (by wram_simp [x₂]) (by wram_simp [x₂]) (by wram_simp [x₂])
+        (by wram_simp [x₂]) (by wram_simp [x₂]) (fun a ha => by wram_simp [x₂]), fun i hi => ?_⟩,
+        ?_⟩
+      · dsimp only [x₂]
+        simp only [Data.set_mem, Data.write_mem, Function.update_apply]
         split_ifs
         · omega
         · exact hbits i hi
-      case law =>
-        rw [hYm, assignmentAt_update_self x.mem A l.1, assignmentAt_eq hσ]
-        simp only [F, hk, ↓reduceDIte, ← hl]
+      · dsimp only [x₂]
+        simp only [Data.set_mem, Data.write_mem, assignmentAt_update_self x.mem A l.1,
+          assignmentAt_eq hσ, F, hk, ↓reduceDIte, ← hl]
         funext i
         rw [flipOn_apply, Function.update_apply]
         by_cases hi : i = l.1
@@ -490,10 +474,8 @@ theorem stepBody_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
   have hs₁ : y₁.regs steps = x.regs steps := hy₁.regs_eq (by decide)
   rw [hx.aBase_eq] at hr₁
   have hinc (z : Data 24) (hz1 : z.regs one = 1) (hzc : z.regs cnt = x.regs cnt) :
-      ExecWithin w (ram[ cnt ← cnt + one ]) z (z.set cnt (x.regs cnt + 1)) 1 := by
-    have := ExecWithin.bin (w := w) (f := .add) (d := cnt) (i := cnt) (j := one) (x := z)
-      (by simpa [hz1, hzc] using hcnt)
-    simpa [hz1, hzc] using this
+      ExecWithin w (ram[ cnt ← cnt + one ]) z (z.set cnt (x.regs cnt + 1)) 1 :=
+    WP.execWithin (by wram_exec [hz1, hzc]; rfl)
   unfold ScanResult at hr₁
   rcases hfu : firstUnsat φ σ with _ | c
   · -- no falsified clause: nothing to flip
@@ -585,13 +567,10 @@ theorem trialCore_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
     have hf3 : Fits w (n + n + n) := hw.of_le (by omega)
     let y₃ := ((y.set steps (n + n)).set steps (n + n + n)).set cnt 0
     have hpre : ExecWithin w (ram[ steps ← nReg + nReg; steps ← steps + nReg; cnt ← zero ]) y y₃
-        3 := by
-      ram_eval [y₃, hy.nReg_eq, hy.zero_eq, hf2, hf3]
+        3 := WP.execWithin (by wram_exec [hy.nReg_eq, hy.zero_eq]; rfl)
     have hy₃ : Frame φ C A M y₃ := ((hy.set (by decide) _).set (by decide) _).set (by decide) _
     have hwalk := walkLoop_law (φ := φ) hw hA (3 * n) y₃ hy₃ (by simpa [y₃] using hyb)
-      (by simp +decide only [y₃, Data.set_regs, Function.update_apply, ↓reduceIte, Nat.zero_add]
-          omega)
-      (by simp +decide only [y₃, Data.set_regs, Function.update_apply, ↓reduceIte]; exact hf3)
+      (by wram_simp [y₃]; omega) (by wram_simp [y₃]; exact hf3)
     have hpost : ∀ z, (Frame φ C A M z ∧ ∀ i < n, z.mem (A + i) ≤ 1) →
         ∃ z', ExecWithin w (ram[ ⟪scan⟫; out ← one - found ]) z z'
           (12 * (encodeClauses φ).length + 5) ∧
@@ -599,22 +578,18 @@ theorem trialCore_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
             z'.regs out = if φ.eval (assignmentAt z'.mem A n) then 1 else 0) ∧
           assignmentAt z'.mem A n = assignmentAt z.mem A n := by
       intro z ⟨hz, hzb⟩
-      have hσ := assignAt_assignmentAt hzb
       obtain ⟨z₁, hz₁, hm₁, hr₁⟩ := scan_spec (w := w) (assignmentAt z.mem A n) φ z hz.zero_eq
         hz.one_eq (by rw [hz.cBeg_eq]; exact hz.clauses)
-        (by rw [hz.cBeg_eq, hz.aBase_eq]; exact hz.span) (by rw [hz.aBase_eq]; exact hσ)
+        (by rw [hz.cBeg_eq, hz.aBase_eq]; exact hz.span)
+        (by rw [hz.aBase_eq]; exact assignAt_assignmentAt hzb)
         (by rw [hz.aBase_eq]; exact hw.of_le (by omega)) (by rw [hz.aBase_eq]; omega)
       have hzf₁ : Frame φ C A M z₁ := hz.of_execWithin (by decide) hz₁ fun a _ => by rw [hm₁]
-      have hfnd : z₁.regs found = if φ.eval (assignmentAt z.mem A n) then 0 else 1 := hr₁.found_eq
-      have hfo : Fits w (1 - z₁.regs found) := hw.of_le (by omega)
-      have hout := ExecWithin.bin (w := w) (f := .sub) (d := out) (i := one) (j := found)
-        (x := z₁) (by rw [hzf₁.one_eq]; exact hfo)
-      refine ⟨_, hz₁.seq hout, ⟨⟨hzf₁.set (by decide) _, ?_⟩, ?_⟩, ?_⟩
-      · simpa [hm₁] using hzb
-      · simp only [Data.set_regs, Function.update_self, BinOp.eval, Data.set_mem, hm₁,
-          hzf₁.one_eq, hfnd]
-        split_ifs <;> rfl
-      · simp [hm₁]
+      have : Fits w (1 - z₁.regs found) := hw.of_le (by omega)
+      refine WP.exists_execWithin (WP.seq (WP.of_execWithin hz₁ ?_))
+      wram_exec [hzf₁.one_eq, hr₁.found_eq]
+      refine ⟨⟨⟨hzf₁.set (by decide) _, by simpa [hm₁] using hzb⟩, ?_⟩, by simp [hm₁]⟩
+      wram_simp [hm₁]
+      split_ifs <;> rfl
     have hrest := ExecRandLaw.seq_det hpre (ExecRandLaw.seq_det_right hwalk hpost)
     simpa [y₃] using hrest
   have hR : n + 3 * n ≤ 4 * n := by omega
@@ -656,18 +631,18 @@ def setupData (φ : CNF (Fin n)) : Data 24 :=
 theorem trialSetup_exec (φ : CNF (Fin n)) {w : ℕ} (hw : Fits w ((encode φ).length + 3 * n + 1)) :
     ExecWithin w trialSetup (Data.init (encode φ)) (setupData φ) 5 ∧
       Frame φ 2 ((encode φ).length + 1) (setupData φ).mem (setupData φ) := by
-  have hf1 : Fits w 1 := hw.of_le (by omega)
-  have hf2 : Fits w ((encode φ).length + 1) := hw.of_le (by omega)
-  have hf3 : Fits w 2 := hw.of_le (by simp [encode]; omega)
+  have : Fits w 1 := hw.of_le (by omega)
+  have : Fits w ((encode φ).length + 1) := hw.of_le (by omega)
+  have : Fits w 2 := hw.of_le (by simp [encode]; omega)
   have hm0 : (Data.init (encode φ) : Data 24).mem 0 = (encode φ).length := rfl
   have hm1 : (Data.init (encode φ) : Data 24).mem 1 = n := rfl
-  refine ⟨?run, ?frame⟩
-  case run => ram_eval [trialSetup, setupData, Data.init_regs, hm0, hm1, hf1, hf2, hf3]
-  case frame =>
-    refine ⟨by simp +decide [setupData], by simp +decide [setupData], by simp +decide [setupData],
-      by simp +decide [setupData], by simp +decide [setupData],
-      holdsList_encodeClauses_init (r := 24) φ, ?_, fun _ _ => rfl⟩
-    simp [length_encode]; omega
+  refine ⟨WP.execWithin (by
+      unfold trialSetup setupData
+      wram_exec [Data.init_regs, hm0, hm1]
+      rfl), ?_⟩
+  refine ⟨by wram_simp [setupData, Data.init_regs], by wram_simp [setupData],
+    by wram_simp [setupData], by wram_simp [setupData], by wram_simp [setupData],
+    holdsList_encodeClauses_init (r := 24) φ, by simp [length_encode]; omega, fun _ _ => rfl⟩
 
 /-- **One trial of Schöning's algorithm on the randomized word RAM.** On the input `encode φ` of
 length `L`, at any word size `w` with `L + 3 n + 1 < 2 ^ w`, the program

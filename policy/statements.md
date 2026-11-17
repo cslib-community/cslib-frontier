@@ -63,13 +63,68 @@ its presentation claims, so this is the part of a change that review exists to c
    satisfying instance.
 4. **The faithful statement supersedes its stand-ins.** A change that proves the faithful
    statement deletes or demotes every stand-in it supersedes, together with their docstrings,
-   manual text, `ROADMAP.md` lines and inventory entries. Search for them by conclusion, by
-   `_of_…` names and in the milestone's issue, not only by name.
+   maintained manual text, `ROADMAP.md` lines and inventory entries. Search for them by
+   conclusion, by `_of_…` names and in the milestone's issue, not only by name.
 
 Stand-ins already on `main` are misformalizations to fix under these rules, not precedents to copy.
 Record them in an issue (#5293 for cryptography). Domain contracts, such as
 [Security theorems](#security-theorems) for cryptography, refine what counts as a named assumption
 and a generic component in their area.
+
+### The cited result is the unit of quality
+
+Quality is judged one cited result at a time, by whether the theorem that carries the result's
+name says what the source says. Counts of declarations, certificates and baseline entries are not
+that judgement, because they can change while no theorem does.
+
+A theorem that is a headline for a cited result, in the sense of
+[Faithful headlines](#faithful-headlines) (presented as that result by its name, its docstring, its
+module documentation, a manual page or a PR title), is in one of two states. Where in the
+docstring the citation appears does not matter. Original mathematics and useful named steps are
+not cited results, and nothing here asks them to invent a cited endpoint.
+
+- **Registered.** A `register_result` entry in
+  [`CslibFrontierResults/Entries.lean`](../CslibFrontierResults/Entries.lean), the collection
+  behind the [results inventory](../results/README.md), names the source theorem and lists this
+  theorem as stating it.
+- **A step.** It is presented as an intermediate step under
+  [Faithful headlines](#faithful-headlines) rule 2, and meets every condition of that rule.
+
+Registration requires the independent check of the statement against the source, by a reviewer
+from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
+presents a cited result therefore lands with its entry, with the check made on its pull request,
+or lands as a step and is registered by a later change once the check has been made.
+The check opens the definitions that the statement names (its games, schemes, predicates and
+assumptions) and records in its comment:
+
+1. the adversary class: which machines, with what resource bound;
+2. how randomness is sampled in the game: by the scheme's own samplers, or from an exact or ideal
+   distribution;
+3. whether the object proved secure is the object proved correct;
+4. the quantifiers and parameters, compared with the source's;
+5. the assumptions used, and that each is the source's or is implied by it;
+6. every accepted deviation.
+
+For a result with no adversary or game, the comment answers the first three points for the
+machines, inputs and objects the result is about, or says that a point does not apply. The six
+points are questions about the mathematics for the reviewer to answer in prose, not fields to
+fill in. When the theorem's statement or a definition that it names changes in meaning, the
+affected points are checked again under the delta rule of the
+[Review cycle](review.md#review-cycle); identified earlier evidence is reused for what did not
+change, and an edit that changes no meaning needs no new source check.
+
+Lean already does part of this job. A hardness assumption stated for a fixed efficient adversary
+class cannot be applied to a reduction without a proof that the reduction is in that class, so a
+headline resting on such an assumption cannot omit the efficiency proof. The remaining ways for a
+theorem to say less than its name are a hypothesis that assumes the substance (rule 2) and a
+definition that is weaker than its name, which only a reader who opens the definition sees. An
+assumption that takes the adversary class as a free parameter gives no such guarantee, so a
+headline does not use it with the class left open.
+
+This applies to every new theorem and to every theorem whose statement or docstring changes.
+Existing theorems are brought in headlines first, by area, starting with cryptography. An
+existing unregistered theorem that presents a cited result is registered, or reworded as a step,
+when it is next touched.
 
 ### Structures for domain objects and records
 
@@ -206,7 +261,7 @@ the library or cited. Resting it on any other assumption makes it a stand-in und
 Write each reduction as an explicit program with an efficiency witness proved from the
 adversary's certificate: an `isPPT_…` or `isOraclePPT_…` lemma, or the model's efficiency
 certificate (for example a circuit-size bound). Prove the asymptotic theorem by applying the
-assumption to the reduction through that witness, as `DDH.elGamalINDCPA` does
+assumption to the reduction through that witness, as `DDH.kemINDCPA_hashedElGamalEncapsProb` does
 ([pattern](../manual/programs-crypto-and-probability/security-games-and-primitives.md#security-theorems-and-efficiency-witnesses)).
 Asymptotic statements come first; concrete runtime maps are secondary (#4088). A concrete bound
 `Adv(A) ≤ f(Adv(B_A))` is a lemma, not a security theorem. A lemma that takes a bound on `B_A`'s
@@ -217,10 +272,15 @@ Names and docstrings state the model (standard, random-oracle, ideal, query-boun
 information-theoretic), the notion (single- or multi-challenge, one-time or many-time,
 honest-verifier or malicious zero knowledge, semi-honest, static), and any deviation from the
 cited source. When a change replaces a misformalized theorem, it deletes the old one, or demotes it
-to an honestly named and documented helper, and updates its ROADMAP, manual and
+to an honestly named and documented helper, and updates its ROADMAP, maintained manual page and
 [results inventory](../results/README.md) mentions ([Faithful headlines](#faithful-headlines); #5293).
-`scripts/check_security_premises.py` checks the premise rule after a build against a justified
-baseline, `scripts/check_reduction_witnesses.py` checks that each explicit reduction in an
-advantage bound has an efficiency witness or a justified baseline entry, and
+
 `scripts/check_hardness_assumptions.py` checks that named assumptions are listed in the inventory
-and documented ([details](../CONTRIBUTING.md#library-quality-standard)).
+and documented. `scripts/check_security_premises.py` and `scripts/check_reduction_witnesses.py`
+are advisory searches: after a build they point a reviewer at premises about a constructed object
+and at reductions with no efficiency certificate, and CI prints what they find in a pull request's
+changed modules without failing ([details](../CONTRIBUTING.md#library-quality-standard)). A
+flagged item is a prompt to open the statement, not a debt. An entry in either baseline is a note
+that the item is known, not a clearance, and the number of entries is not a measure of progress.
+Do not open a pull request whose purpose is to move entries between kinds; the work is on the
+cited result ([The cited result is the unit of quality](#the-cited-result-is-the-unit-of-quality)).

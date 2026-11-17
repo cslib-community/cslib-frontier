@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SortingTrace
 import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Batched routing with one sort and saved swaps
@@ -101,8 +102,8 @@ private theorem eval_routeValuesCircuit {h k : ℕ} (key : Fin k → Fin h) (tag
         (value ((broadcastCircuit key tag (BitonicSort.arity d) width).eval interpretation
           (flatten sorted))) := by
   dsimp only
-  rw [routeValuesCircuit, Circuit.eval_comp, Circuit.eval_comp, eval_bitonicSortTraceCircuit,
-    eval_parallel_pack, eval_bitonicUnsortCircuit, Circuit.eval_comp, eval_answerWiring]
+  simp only [circuit_simps, routeValuesCircuit, eval_bitonicSortTraceCircuit, eval_parallel_pack,
+    eval_bitonicUnsortCircuit, eval_answerWiring]
 
 /-- Exact weighted cost: one traced sort, shared broadcast, and reversal of the values only. -/
 theorem cost_program_routeValuesCircuit {h k : ℕ} (key : Fin k → Fin h) (tag : Fin h) (d width : ℕ)
@@ -111,9 +112,8 @@ theorem cost_program_routeValuesCircuit {h k : ℕ} (key : Fin k → Fin h) (tag
       (bitonicSortTraceCircuit (matchingSelector key tag width) d true).program.cost cost +
       (broadcastCircuit key tag (BitonicSort.arity d) width).program.cost cost +
       BitonicSort.sortTraceSize d * (2 * width * (2 * cost .and + cost .or)) := by
-  simp only [routeValuesCircuit, Circuit.cost_program_comp, Circuit.cost_program_parallel,
-    Circuit.id, answerWiring, Circuit.cost_program_wiring, Nat.zero_add, Nat.add_zero,
-    cost_program_bitonicUnsortCircuit]
+  simp only [circuit_simps, routeValuesCircuit, Circuit.cost_program_parallel, answerWiring,
+    Nat.zero_add, Nat.add_zero, cost_program_bitonicUnsortCircuit]
 
 /-- Each original destination receives the OR of matching original sources. Requests may repeat;
 no restoration keys, identifiers, rank calculations or source uniqueness are needed. -/

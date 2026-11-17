@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.Product
 
@@ -294,24 +295,22 @@ private theorem interpret_prfMultiReduction (family : List Bool → List Bool �
   simp only [prfMultiReduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
     OracleComp.interpret_map]
   rw [show OracleComp.interpret ProbComp.unifOracle (BitString.sampleList (t * n)) =
-    ProbComp.eval (BitString.sampleList (t * n)) from rfl, BitString.eval_sampleList,
+    ProbComp.eval (BitString.sampleList (t * n)) from
+      (OracleComp.evalWith_eq_interpret _ _).symm, BitString.eval_sampleList,
     Probability.PMF.monad_bind_eq_bind]
   congr 1 with key : 1
-  have hhom : IsMonadHom (ProbOracleComp (fun _ : Unit × List Bool => List Bool)) PMF
-      (OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        (fun request : Unit × List Bool => PMF.pure (external request.2)))) :=
-    OracleComp.isMonadHom_evalWith _
-  rw [OracleComp.map_run_interpret hhom, PMF.monad_map_eq_map]
+  rw [← OracleComp.evalWith_eq_interpret,
+    OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith _), PMF.monad_map_eq_map]
   congr 3 with q cache : 2
   rcases q with k | ⟨i, query⟩
-  · simp [StateT.lift, ProbOracleComp.interpret_sample, ProbComp.unifFin, PMF.map,
-      Function.comp_def]
+  · simp [StateT.lift, ProbOracleComp.evalWith_sumHandler_unifOracle_sample,
+      ProbComp.unifFin, ProbComp.eval, PMF.map, Function.comp_def]
   · simp only [OracleComp.sumHandler, prfMultiHandler, semanticHandler]
     split_ifs
-    · rw [ProbOracleComp.interpret_sample]
+    · rw [ProbOracleComp.evalWith_sumHandler_unifOracle_sample]
       exact (ProbComp.eval_memoize _ _ _).trans (by simp only [BitString.eval_sampleList])
     · simp
-    · simp [PMF.monad_map_eq_map]
+    · simp [ProbOracleComp.evalWith_sumHandler_query]
     · simp
 
 /-- The deterministic answers of the reduction when the random channels below `j` read eager tables

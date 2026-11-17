@@ -54,8 +54,8 @@ A distinguisher outputs a bit, so `DDH` is the same assumption as its word-level
 distinguishers that read the encoded tuple (`ddh_iff_encoded`). A CDH adversary must output a group
 element, whereas a word-level adversary may output any word. `CDH`, and hence the conclusion of
 `DDH.cdh`, is therefore the textbook assumption, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks restoring the
-word-level form for families with decodable encodings.
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` restores the word-level form and
+equivalence `CDH ↔ WordCDH` for `DecodablePrimeOrderGroupFamily` (`#4783`).
 
 We prove the implications `DDH ⇒ CDH ⇒ DiscreteLog` between the assumptions from the fixed-group
 bounds `Cslib.Crypto.dlAdvantage_le_cdhAdvantage_dlToCDH` and
@@ -180,13 +180,6 @@ enc_structure encDDHInput (F : PrimeOrderGroupFamily) : DDHInput F
   candidateShared : (F.encode groupParameters) using (F.encode_injective groupParameters)
 
 variable {F} in
-/-- The encoded generator of computed group parameters. -/
-@[fun_prop] theorem computableInPolyTime_encode_generator {α : Type} {enc : α ↪ List Bool}
-    {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
-    ComputableInPolyTime (fun a => F.encode (d a) (F.generator (d a))) enc encBits :=
-  F.computableInPolyTime_generator.comp hd
-
-variable {F} in
 /-- The encoded identity of computed group parameters, computed as `0 • g`. -/
 @[fun_prop] theorem computableInPolyTime_encode_zero {α : Type} {enc : α ↪ List Bool}
     {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
@@ -295,7 +288,7 @@ theorem isPPT_dlToCDHAdversary
       (by fun_prop)).map_with
     (f := fun x guess => F.smul (x.groupParameters, ofBits guess,
       F.encode x.groupParameters x.rightPublic))
-    (F.computableInPolyTime_smul.comp (by fun_prop))).congr fun x => ?_
+    (by fun_prop)).congr fun x => ?_
   simp [dlToCDHAdversary, dlToCDH, discreteLogAdversary, F.smul_encode]
 
 /-- **CDH implies the discrete-logarithm assumption**. -/
@@ -432,9 +425,9 @@ theorem isPPT_cdhToDDHDistinguisher {adversary : F.CDHAdversary} (hA : adversary
 
 /-- **DDH implies CDH** when every supported group at parameter `n` has order at least `m n > 0`
 and `1 / m n` is negligible. The conclusion is the textbook CDH assumption against adversaries that
-output group elements, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks the word-level
-form. -/
+output group elements, which is weaker than the word-level CDH assumption in general; see
+`DecodablePrimeOrderGroupFamily.DDH.wordCDH` in
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` for decodable families. -/
 theorem DDH.cdh {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) : F.CDH setup := by
@@ -575,7 +568,7 @@ noncomputable def sampleExp (n : ℕ) (d : F.Desc) : ProbComp ℕ :=
   ProbComp.sampleModNat (n + (encNat (F.order d)).length) (F.order d)
 
 /-- `sampleExp` is uniform strict PPT whenever `n` and `d` are computable in polynomial time. -/
-theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
+@[program_certificate] theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {d : γ → F.Desc}
     (hn : ComputableInPolyTime n encIn encUnary)
     (hd : ComputableInPolyTime d encIn F.encDesc) :

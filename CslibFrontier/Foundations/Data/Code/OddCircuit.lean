@@ -213,24 +213,6 @@ theorem exists_dotProduct_eq_one_of_even {K : Finset (ι → ZMod 2)}
   have := LinearMap.congr_fun hc (Pi.single ⟨x, hx⟩ 1)
   simpa [L, comb, ones, Fintype.linearCombination_apply_single, dotProduct] using this
 
-/-- The matrices with `m` rows that kill every vector of `S` are the tuples of rows orthogonal
-to `S`. -/
-theorem card_filter_forall_mulVec_eq_zero (S : Finset (ι → ZMod 2)) (m : ℕ) :
-    #{M : Matrix (Fin m) ι (ZMod 2) | ∀ x ∈ S, M *ᵥ x = 0} =
-      #{r : ι → ZMod 2 | ∀ x ∈ S, r ⬝ᵥ x = 0} ^ m := by
-  classical
-  rw [← Fintype.card_piFinset_const]
-  congr 1
-  ext M
-  simp only [mem_filter, mem_univ, true_and]
-  constructor
-  · intro h
-    exact Fintype.mem_piFinset.2 fun i =>
-      mem_filter.2 ⟨mem_univ _, fun x hx => congr_fun (h x hx) i⟩
-  · intro h x hx
-    ext i
-    exact (mem_filter.1 (Fintype.mem_piFinset.1 h i)).2 x hx
-
 /-- **Few matrices kill a circuit** [Saglam2027, Section 2]. At most a `2 ^ (-m (|S| - 1))`
 fraction of the matrices with `m` rows over `𝔽₂` kill every vector of a zero-sum circuit `S`. -/
 theorem card_filter_forall_mulVec_eq_zero_mul_le {S : Finset (ι → ZMod 2)} (hS : IsZeroSumCircuit S)

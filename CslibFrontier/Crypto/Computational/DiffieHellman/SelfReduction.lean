@@ -13,6 +13,7 @@ import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Exact success probability of the DL and CDH self-reductions in a fixed group
@@ -264,12 +265,8 @@ theorem eval_dlSelfReduce_smul_none_le_exp_mul [DecidableEq G] (A : G → ProbCo
       Real.exp (-(k * (dlAdvantage q g A : ℝ))) := by
   have h1 : dlAdvantage q g A ≤ 1 := Game.succProbability_le_one _
   calc (ProbComp.eval (dlSelfReduce q g A k (α • g)) none).toReal
-      ≤ ((1 - (dlAdvantage q g A : ℝ≥0∞)) ^ k).toReal :=
-        ENNReal.toReal_mono (ENNReal.pow_ne_top (ENNReal.sub_ne_top ENNReal.one_ne_top))
-          (eval_dlSelfReduce_smul_none_le q g A k α)
-    _ = (1 - (dlAdvantage q g A : ℝ)) ^ k := by
-        rw [ENNReal.toReal_pow, ENNReal.toReal_sub_of_le (by exact_mod_cast h1) ENNReal.one_ne_top,
-          ENNReal.toReal_one, ENNReal.coe_toReal]
+      ≤ (1 - (dlAdvantage q g A : ℝ)) ^ k := by
+        ennreal_to_real using eval_dlSelfReduce_smul_none_le q g A k α
     _ ≤ Real.exp (-(k * (dlAdvantage q g A : ℝ))) :=
         Real.one_sub_pow_le_exp (by exact_mod_cast h1) le_rfl
 

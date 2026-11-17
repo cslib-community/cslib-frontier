@@ -6,6 +6,8 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
+import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
+import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
 import CslibFrontier.Crypto.Computational.RabinFactoring
@@ -16,6 +18,7 @@ import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
+import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
 /-!
 # The group, encryption and pseudorandom-function assumptions are not vacuous
@@ -24,12 +27,13 @@ Each security definition below fails for an obviously insecure instance, so none
 for every candidate. The negative instances for one-way functions, symmetric IND-CPA,
 pseudorandom generators and hard-core predicates are elsewhere.
 
-* **Discrete logarithm, CDH and DDH.** For every prime-order group family `F` and every fixed
-  description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of `F.DiscreteLog`,
-  `F.CDH` and `F.DDH`. Guessing the exponent `0` solves the discrete logarithm with probability
-  `1 / q`. Testing whether the first and third elements are both the identity has advantage
-  `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with the
-  security parameter.
+* **Discrete logarithm, CDH, Gap-CDH and DDH.** For every prime-order group family `F` and every
+  fixed description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of
+  `F.DiscreteLog`, `F.CDH`, `F.WordCDH` and `F.DDH` (nor `F.GapCDH` when `F` is a
+  `DecodablePrimeOrderGroupFamily`). Guessing the exponent `0` solves the discrete logarithm with
+  probability `1 / q`. Testing whether the first and third elements are both the identity has
+  advantage `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with
+  the security parameter.
 * **IND-CPA and IND-CCA2.** Sending the plaintext bit as the ciphertext is neither `INDCPA` nor
   `INDCCA2`: copying the ciphertext guesses the challenge bit with advantage `1`.
 * **Pseudorandom functions.** The family answering every query with zeros of the declared width
@@ -52,31 +56,13 @@ pseudorandom generators and hard-core predicates are elsewhere.
 
 namespace CslibFrontierTests.Crypto.AssumptionNonvacuity
 
-open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Turing.MultiTapeTM
+open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily
+  CslibFrontierTests.Crypto.PrimeOrderGroupFixture Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
 variable (F : PrimeOrderGroupFamily) (d : F.Desc)
 
 /-! ### Discrete logarithm and CDH -/
-
-/-- Always guess the exponent `0`. -/
-noncomputable def guessZero : ℕ → F.Desc × List Bool → ProbComp (List Bool) :=
-  fun _ _ => pure []
-
-theorem guessZero_isPPT : IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
-    (fun input => guessZero F input.1 input.2) :=
-  (ComputableInPolyTime.const _).isPPTOn
-
-/-- Guessing `0` against a fixed group of order `q` succeeds with probability exactly `1 / q`. -/
-theorem succProbability_discreteLogGame_guessZero (n : ℕ) :
-    Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) (guessZero F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  have h := PMF.uniformOfFintype_bind_decide_eq_apply_true (0 : ZMod (F.order d))
-  rw [ZMod.card] at h
-  simp only [discreteLogGame, guessZero, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind] at h ⊢
-  simp only [ofBits, List.foldr_nil, Nat.cast_zero]
-  rw [Game.succProbability, h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
 /-- **The discrete-logarithm assumption fails for a fixed group.** -/
 theorem not_discreteLog_const : ¬ F.DiscreteLog fun _ => PMF.pure d := by
@@ -88,6 +74,15 @@ theorem not_discreteLog_const : ¬ F.DiscreteLog fun _ => PMF.pure d := by
 /-- **CDH fails for a fixed group**, since it implies the discrete-logarithm assumption. -/
 theorem not_cdh_const : ¬ F.CDH fun _ => PMF.pure d :=
   fun h => not_discreteLog_const F d h.discreteLog
+
+/-- **Word-level CDH fails for a fixed group**, since it implies CDH. -/
+theorem not_wordCDH_const : ¬ F.WordCDH fun _ => PMF.pure d :=
+  fun h => not_cdh_const F d h.cdh
+
+/-- **Gap-CDH fails for a fixed decodable group**, since it implies word-level CDH. -/
+theorem not_gapCDH_const (F : DecodablePrimeOrderGroupFamily) (d : F.Desc) :
+    ¬ F.GapCDH fun _ => PMF.pure d :=
+  fun h => not_wordCDH_const F.toPrimeOrderGroupFamily d h.wordCDH
 
 /-! ### DDH -/
 

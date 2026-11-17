@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Total probability with two cases
@@ -78,12 +79,6 @@ theorem toOuterMeasure_bind_toReal_le_mul_add_mul (p : PMF α) (kernel : α → 
       (hpre a hs ha))
     (fun a hs ha => (ENNReal.le_ofReal_iff_toReal_le (toOuterMeasure_ne_top _ _) h₂).mpr
       (hnot a hs ha))
-  have ht₁ : p.toOuterMeasure pre * ENNReal.ofReal a₁ ≠ ⊤ :=
-    ENNReal.mul_ne_top (toOuterMeasure_ne_top _ _) ENNReal.ofReal_ne_top
-  have ht₂ : p.toOuterMeasure preᶜ * ENNReal.ofReal a₂ ≠ ⊤ :=
-    ENNReal.mul_ne_top (toOuterMeasure_ne_top _ _) ENNReal.ofReal_ne_top
-  have h := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨ht₁, ht₂⟩) hle
-  rwa [ENNReal.toReal_add ht₁ ht₂, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal h₁, ENNReal.toReal_ofReal h₂] at h
+  ennreal_to_real using hle
 
 end Cslib.Probability.PMF

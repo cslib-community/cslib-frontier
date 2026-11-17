@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Computational.PedersenCommitment
+import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
 import Mathlib.Tactic.NormNum.Prime
@@ -97,9 +98,10 @@ example (A : schnorrGroups.Carrier d23 →
         (schnorrGroups.pedersenToDL A) :=
   schnorrGroups.succProbability_pedersen_bindingExperiment_le A
 
-/-- Unconditional hiding: for any (even computationally unbounded) `Encryption.WordAdversary` and
-any setup law over Schnorr groups of order at least `2 ^ n`, the hiding advantage in
-`schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)` is negligible. -/
+/-- Unconditional hiding of the ideal-sampling game: for any (even computationally unbounded)
+`Encryption.WordAdversary` and any setup law over Schnorr groups of order at least `2 ^ n`, the
+hiding advantage in `schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)`
+is negligible. -/
 example (setup : ℕ → PMF schnorrGroups.Desc)
     (adversary : Encryption.WordAdversary)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
@@ -109,7 +111,7 @@ example (setup : ℕ → PMF schnorrGroups.Desc)
           (schnorrGroups.pedersenKeyDist setup) adversary false n)
         (schnorrGroups.pedersenScheme.hidingGame
           (schnorrGroups.pedersenKeyDist setup) adversary true n) :=
-  schnorrGroups.negligible_advantage_pedersenHidingGame setup adversary
+  schnorrGroups.negligible_advantage_pedersenHidingGame_ideal setup adversary
     Nat.two_pow_pos hsize
     (by
       simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
@@ -130,26 +132,27 @@ theorem isPPTOn_trivialBindingAdversary :
   ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
 
 /-- Under the discrete-logarithm assumption for Schnorr groups, `trivialBindingAdversary` succeeds
-in `schnorrGroups.pedersenScheme.bindingGame (schnorrGroups.pedersenKeyDist setup)` with negligible
-probability. -/
+in `schnorrGroups.pedersenScheme.bindingGame (schnorrGroups.pedersenKeyDistProb setup)`, under the
+fair-coin key law, with negligible probability. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLog setup) :
     Negligible fun n =>
       Game.succProbability
         (schnorrGroups.pedersenScheme.bindingGame
-          (schnorrGroups.pedersenKeyDist setup) trivialBindingAdversary n) :=
-  hDL.pedersenBinding trivialBindingAdversary isPPTOn_trivialBindingAdversary
+          (schnorrGroups.pedersenKeyDistProb setup) trivialBindingAdversary n) :=
+  hDL.pedersenBinding_pedersenKeyDistProb trivialBindingAdversary isPPTOn_trivialBindingAdversary
 
-/-- Packaged `CommitmentScheme.StatisticalHiding` and `CommitmentScheme.Binding` for
-`schnorrGroups.pedersenScheme`. -/
+/-- Packaged `CommitmentScheme.StatisticalHiding` for `schnorrGroups.pedersenScheme` under the ideal
+key law `schnorrGroups.pedersenKeyDist setup`, and `CommitmentScheme.Binding` under the fair-coin
+key law `schnorrGroups.pedersenKeyDistProb setup`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLog setup)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
     schnorrGroups.pedersenScheme.StatisticalHiding (schnorrGroups.pedersenKeyDist setup) ∧
-      schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDist setup) :=
-  ⟨schnorrGroups.pedersenScheme_statisticalHiding setup Nat.two_pow_pos hsize
+      schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDistProb setup) :=
+  ⟨schnorrGroups.pedersenScheme_statisticalHiding_ideal setup Nat.two_pow_pos hsize
       (by
         simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
           negligible_geometric (ratio := 2⁻¹) (by norm_num)),
-    hDL.pedersenScheme_binding⟩
+    hDL.pedersenScheme_binding_pedersenKeyDistProb⟩
 
 /-- Regression witness (`openScheme`): a scheme with empty commitment string and opening equal to
 the message is perfectly hiding, and is rejected by `CommitmentScheme.Binding`. -/

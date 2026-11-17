@@ -116,7 +116,7 @@ section LiftNet
         (ProbOracleComp.sample (spec := netSpec NetQ NetR) program) =
       ProbOracleComp.sample program := by
   simp only [liftNet, ProbOracleComp.interpret_sample]
-  rfl
+  exact (OracleComp.substitute_eq_interpret _ _).symm
 
 /-- Lifting to the network port makes the same number of calls. -/
 theorem isQueryBounded_liftNet {program : ProbOracleComp (netSpec NetQ NetR) α} {m : ℕ}
@@ -136,6 +136,7 @@ theorem runFrom_liftAdversary_liftNet (S : Machine (netSpec NetQ NetR) (netSpec 
   induction program using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl k =>
       have h₁ : liftNet (n := n) (In := In) (Out := Out)
@@ -356,7 +357,13 @@ the same page shows it equivalent to UC emulation (here `emulates_iff_emulatesDu
 an explicit simulator budget `pD` and error `ε` as in Definition 15, p. 51. It differs from the
 source as `EmulatesWithin` does: call budgets in place of running time, with otherwise unbounded
 computation (the statistical setting of Section 4.4, p. 50); static corruptions; no identity bound
-on environments; and a bound at every `κ` and for every auxiliary input. -/
+on environments; a fixed set of `n` parties; and a bound at every `κ` and for every auxiliary
+input. Like `EmulatesWithin`, it is novel to this library: it is not source-identical, and no
+implication to or from the source's notion is established here. It is equivalent to
+`EmulatesWithin` up to budgets and errors
+(`EmulatesDummyWithin.emulatesWithin`, `EmulatesWithin.emulatesDummyWithin`), as Claim 11 is for
+the source's notions, so it is plausible for the same reasons; `not_emulatesDummyWithin_fcom`
+gives plain commitment schemes that fail it. -/
 @[expose] def EmulatesDummyWithin (π : Protocol n In Out NetQ₁ NetR₁)
     (φ : Protocol n In Out NetQ₂ NetR₂) (pD : Polynomial ℕ) (ε : Polynomial ℕ → ℕ → ℝ≥0) :
     Prop :=
@@ -379,7 +386,13 @@ Archive 2000/067, revision of February 11, 2020), Definition 12, p. 48: one blac
 stated with an explicit budget `pD` and error `ε`, as in Definition 15, p. 51, and differs from the
 source as `EmulatesWithin` does: call budgets in place of running time, with otherwise unbounded
 computation (the statistical setting of Section 4.4, p. 50); static corruptions; no identity bound
-on environments; and a bound at every `κ` and for every auxiliary input. -/
+on environments; a fixed set of `n` parties; and a bound at every `κ` and for every auxiliary
+input. Like `EmulatesWithin`, it is novel to this library: it is not source-identical, and no
+implication to or from the source's notion is established here. It is equivalent to
+`EmulatesDummyWithin` up to budgets and errors
+(`EmulatesDummyWithin.emulatesBlackBoxWithin`, `EmulatesBlackBoxWithin.emulatesDummyWithin`), as
+Claim 13 is for the source's notions, and implies `EmulatesWithin`
+(`EmulatesBlackBoxWithin.emulatesWithin`), so it is plausible for the same reasons. -/
 @[expose] def EmulatesBlackBoxWithin (π : Protocol n In Out NetQ₁ NetR₁)
     (φ : Protocol n In Out NetQ₂ NetR₂) (pD : Polynomial ℕ)
     (ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0) : Prop :=

@@ -89,7 +89,8 @@ private theorem runOracleConfigFrom_ofClosed {k : ℕ} {State Operation : Type}
     (embed cfg) = _
   rw [hsim]
   simp only [runClosedConfigFrom, MultiTapePTM.runConfigFrom, ProbOracleComp.sample,
-    OracleComp.interpret_map, MultiTapeMachine.interpret_runConfigFrom]
+    OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
+    MultiTapeMachine.interpret_runConfigFrom]
   congr 2 with oracle : 1
   exact oracle.elim
 
@@ -796,7 +797,8 @@ theorem ComputesOracleInTimeOn.computesInTimeOn {α β : Type}
         ProbOracleComp.sample
           (machine.runClosedConfigFrom (t a) (machine.initialConfig (input a))) := by
       simp only [runOracleConfigFrom, runClosedConfigFrom, MultiTapePTM.runConfigFrom,
-        ProbOracleComp.sample, MultiTapeMachine.interpret_runConfigFrom]
+        ProbOracleComp.sample, OracleComp.substitute_eq_interpret,
+        MultiTapeMachine.interpret_runConfigFrom]
       congr 1
       funext oracle
       exact oracle.elim

@@ -92,6 +92,8 @@ structure FourthRootHierarchyParams (q cπ Cπ Cpair Cvar : ℝ)
 
 namespace FourthRootHierarchyParams
 
+attribute [positivity_lemma] ρ_nonneg
+
 variable {q cπ Cπ Cpair Cvar : ℝ}
 
 /-- A concrete hierarchy witness with a rational ramp, polynomial cutoffs, the strict core

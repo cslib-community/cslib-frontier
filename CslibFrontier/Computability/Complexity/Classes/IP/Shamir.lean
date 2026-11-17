@@ -14,6 +14,10 @@ public import CslibFrontier.Computability.Complexity.Classes.IP.Repetition
 public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF
 public import CslibFrontier.Computability.Complexity.Classes.PH
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF
+public import CslibFrontier.Computability.Complexity.Problems.CountingSAT
+public import CslibFrontier.Computability.Complexity.Reduction.Turing
+import CslibFrontier.Computability.Complexity.Classes.Counting.Space
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Space
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 
 /-!
@@ -26,7 +30,9 @@ Every problem in `PSPACE` reduces to `TQBF` in polynomial time
 (`Cslib.Complexity.IP_subset_PSPACE`) this is the theorem of Shamir [Shamir][Shamir1992], with the
 simplification of Shen [Shen][Shen1992], following Lund, Fortnow, Karloff and Nisan
 [LundFortnowKarloffNisan1992]; see [Arora and Barak, Section 8.3][AroraBarak09]. Every class of
-the polynomial hierarchy, in particular `coNP`, has interactive proofs.
+the polynomial hierarchy, in particular `coNP`, has interactive proofs, and so does exact
+counting of satisfying assignments (`Cslib.Complexity.SharpSATExact_mem_IP`), which is in
+`C=P ⊆ PP ⊆ PSPACE`.
 
 Because `QBFProtocol.verifier` has perfect completeness (`QBFProtocol.isInteractiveProof_verifier`),
 reducing an arbitrary `IP` problem through `PSPACE` to `TQBF` gives an interactive proof with
@@ -48,6 +54,9 @@ the instances.
 
 * `Cslib.Complexity.PSPACE_subset_IP`, `Cslib.Complexity.IP_eq_PSPACE`.
 * `Cslib.Complexity.PH_subset_IP`, `Cslib.Complexity.coNP_subset_IP`.
+* `Cslib.Complexity.SharpSATExact_mem_IP`: `#SAT_D ∈ IP`.
+* `Cslib.Complexity.PolyTimeTuringReducible.mem_IP`: `IP` is closed under polynomial-time Turing
+  (Cook) reductions to bitstring languages.
 * `Cslib.Complexity.exists_isInteractiveProof_one_of_mem_IP`,
   `Cslib.Complexity.mem_IP_iff_exists_isInteractiveProof_one`,
   `Cslib.Complexity.IP_eq_setOf_isInteractiveProof_one`: perfect completeness for `IP`.
@@ -90,6 +99,30 @@ theorem PH_subset_IP : PH enc ⊆ IP enc :=
 /-- **`coNP ⊆ IP`** [Lund, Fortnow, Karloff and Nisan][LundFortnowKarloffNisan1992]. -/
 theorem coNP_subset_IP : coNP enc ⊆ IP enc :=
   coNP_subset_PH.trans (PH_subset_IP enc)
+
+/-- **`#SAT_D ∈ IP`** [Lund, Fortnow, Karloff and Nisan][LundFortnowKarloffNisan1992],
+[Arora and Barak, Theorem 8.18][AroraBarak07]: the pairs `(φ, K)` such that the CNF formula `φ`
+has exactly `K` satisfying assignments to its occurring variables have interactive proofs. The
+pair language is `C=P`-complete, and `C=P ⊆ PP ⊆ PSPACE = IP`.
+
+The draft's `#SAT_D` restricts `φ` to 3CNF formulas of `n` variables and counts assignments to
+those `n` variables. `SharpSATExact` accepts any CNF formula and counts assignments to the
+variables that occur in it. The two agree on 3CNF instances in which all `n` variables occur.
+This proof does not use the draft's sumcheck protocol. -/
+theorem SharpSATExact_mem_IP : SharpSATExact ∈ IP encSharpSATTarget :=
+  PSPACE_subset_IP _ (PP_subset_PSPACE (CeqP_subset_PP SharpSATExact_ceqPComplete.1))
+
+/-- **`IP` is closed under Cook reductions** [Goldreich2007DraftR5], Exercise 9.2, second part: a
+problem that is polynomial-time Turing reducible to a bitstring language in `IP` is in `IP`. The
+source also assumes that the complement of the oracle language is in `IP`; since `IP = PSPACE`
+and `P` relative to a `PSPACE` oracle is within `PSPACE`, that hypothesis is not needed. The source
+likely intends a direct protocol, built before `IP = PSPACE`; this proof goes through it.
+Goldreich's `IP` requires perfect completeness; the library class with completeness `2 / 3` is the
+same class (`IP_eq_setOf_isInteractiveProof_one`). -/
+theorem PolyTimeTuringReducible.mem_IP {encA : α ↪ List Bool} {A : Set α} {B : Set (List Bool)}
+    (hAB : PolyTimeTuringReducible encA encBits A B) (hB : B ∈ IP encBits) : A ∈ IP encA := by
+  rw [IP_eq_PSPACE] at hB ⊢
+  exact PWithOracle_subset_PSPACE hB (polyTimeTuringReducible_bits_iff_mem_PWithOracle.1 hAB)
 
 /-! ### Perfect completeness and exponential amplification for `IP` -/
 

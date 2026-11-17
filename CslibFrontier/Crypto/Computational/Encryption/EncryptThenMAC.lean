@@ -1814,7 +1814,7 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
     (oracle := fun q (state : Unit × List (List Bool × List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun req s => ProbComp.eval (cachedRandomFunctionOracle n req.2 s)))
+          (fun req s => ProbComp.eval (cachedRandomFunctionOracle n n req.2 s)))
         (cpaToPrfHandler n bit q state.1)).run state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (oracle' := fun q (cache : List (List Bool × List Bool)) =>
@@ -2147,15 +2147,19 @@ private theorem advantage_prfIdealGame_prfCipherOTPOracle_le (adversary : Oracle
       (Q : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   rw [eval_prfIdealGame_cpaToPrfDistinguisher,
     ← run_prfCipherForgetfulWithBadOracle_map_fst adversary bit n [] false]
+  rw [← ProbOracleComp.runWith_eq_run_interpret]
   have hiub := identicalUntilBad_prfCipherFaithful_forgetful n bit
   have hadv := hiub.advantage_le (adversary n []) ([], false) (fun out => PMF.pure out.1)
+  rw [hiub.bad_eq] at hadv
+  rw [← ProbOracleComp.runWith_eq_run_interpret,
+    ← ProbOracleComp.runWith_eq_run_interpret] at hadv
   change (Game.advantage
       ((ProbOracleComp.runWith (prfCipherFaithfulWithBadOracle n bit) (adversary n [])
           ([], false)).map Prod.fst)
       ((ProbOracleComp.runWith (prfCipherForgetfulWithBadOracle n bit) (adversary n [])
           ([], false)).map Prod.fst) : ℝ) ≤ _ at hadv
-  rw [hiub.bad_eq] at hadv
   have hbad := bad_prfCipherForgetfulWithBadOracle_le n bit hq []
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
   simp only [List.length_nil, zero_add] at hbad
   have htop : (Q : ℝ≥0∞) * (Q : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ n) ≠ ⊤ := by
     refine ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.natCast_ne_top Q)

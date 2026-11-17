@@ -354,16 +354,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.messageResidues {n q : α
     {m : α → List Bool} (hn : ComputableInPolyTime n input encUnary)
     (hq : ComputableInPolyTime q input encNat) (hm : ComputableInPolyTime m input encBits) :
     ComputableInPolyTime (fun x => messageResidues (n x) (q x) (m x)) input (encList encNat) := by
-  unfold Cslib.Crypto.MLKEM.messageResidues
-  have hfst := ComputableInPolyTime.fst input encUnary
-  have hbit := ComputableInPolyTime.bitsGetDWithInput (hm.comp hfst)
-    (ComputableInPolyTime.snd input encUnary) false
-  have hite := ComputableInPolyTime.ite' (encMid := encNat) hbit (ComputableInPolyTime.const 1)
-    (ComputableInPolyTime.const 0)
-  have hrange := ComputableInPolyTime.range.comp hn
-  simp only [Function.comp_def] at hite hrange
-  exact ComputableInPolyTime.decompressResidues hq (ComputableInPolyTime.const 1)
-    (ComputableInPolyTime.mapWithInput hrange hite)
+  fun_prop [Cslib.Crypto.MLKEM.messageResidues]
 
 /-- The centered-binomial value of a computed word, with a computed unary width. -/
 @[fun_prop]
@@ -390,15 +381,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.cbdResidues {n q η : α 
     (hbits : ComputableInPolyTime bits input encBits) :
     ComputableInPolyTime (fun x => cbdResidues (n x) (q x) (η x) (bits x)) input
       (encList encNat) := by
-  unfold Cslib.Crypto.MLKEM.cbdResidues
-  have hwidth := ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hη)
-  have hrows := ComputableInPolyTime.bitsRowsWithInput hn hwidth hbits
-  have hfst := ComputableInPolyTime.fst input encBits
-  have hentry := ComputableInPolyTime.intBin_emodNat'
-    (ComputableInPolyTime.cbdValue (hη.comp hfst) (ComputableInPolyTime.snd input encBits))
-    (hq.comp hfst)
-  simp only [Function.comp_def] at hrows hentry
-  exact ComputableInPolyTime.mapWithInput hrows hentry
+  fun_prop [Cslib.Crypto.MLKEM.cbdResidues]
 
 /-- Vectors of `SamplePolyCBD_η` polynomials on a computed word, with computed unary dimensions and
 width and binary modulus. -/
@@ -410,15 +393,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.cbdVecResidues {k n q η 
     (hbits : ComputableInPolyTime bits input encBits) :
     ComputableInPolyTime (fun x => cbdVecResidues (k x) (n x) (q x) (η x) (bits x)) input
       encPolyVecResidues := by
-  unfold Cslib.Crypto.MLKEM.cbdVecResidues
-  have hwidth := ComputableInPolyTime.unary_mul.comp (hn.prod
-    (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hη)))
-  have hrows := ComputableInPolyTime.bitsRowsWithInput hk hwidth hbits
-  have hfst := ComputableInPolyTime.fst input encBits
-  have hentry := ComputableInPolyTime.cbdResidues (hn.comp hfst) (hq.comp hfst) (hη.comp hfst)
-    (ComputableInPolyTime.snd input encBits)
-  simp only [Function.comp_def] at hrows hentry
-  exact ComputableInPolyTime.mapWithInput hrows hentry
+  fun_prop [Cslib.Crypto.MLKEM.cbdVecResidues]
 
 /-- Native encryption on residue lists, with computed parameters and inputs. -/
 theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.encryptResidues {P : α → Params}
@@ -432,48 +407,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.encryptResidues {P : α �
     (he₂ : ComputableInPolyTime e₂ input (encList encNat)) :
     ComputableInPolyTime (fun x => encryptResidues (P x) (A x) (b x) (m x) (r x) (e₁ x) (e₂ x))
       input encCiphertextResidues := by
-  unfold Cslib.Crypto.MLKEM.encryptResidues
-  dsimp only
-  have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
-  have hq : ComputableInPolyTime (fun x => (P x).q) input encNat := by fun_prop
-  have hk : ComputableInPolyTime (fun x => (P x).k) input encUnary := by fun_prop
-  have hdu : ComputableInPolyTime (fun x => (P x).du) input encUnary := by fun_prop
-  have hdv : ComputableInPolyTime (fun x => (P x).dv) input encUnary := by fun_prop
-  have hfst := ComputableInPolyTime.fst input encUnary
-  have hsnd := ComputableInPolyTime.snd input encUnary
-  have hcol := ComputableInPolyTime.mapWithInput
-    (f := fun (p : α × ℕ) (row : List (List ℕ)) => row.getD p.2 []) (hA.comp hfst)
-    ((ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-      ((ComputableInPolyTime.snd (encPair input encUnary) encPolyVecResidues).prod
-        (hsnd.comp (ComputableInPolyTime.fst (encPair input encUnary) encPolyVecResidues))))
-  have he₁i := (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-    ((he₁.comp hfst).prod hsnd)
-  simp only [Function.comp_def] at hcol he₁i
-  have hui := ComputableInPolyTime.addResidues (hq.comp hfst)
-    (ComputableInPolyTime.negacyclicInnerResidues (hn.comp hfst) (hq.comp hfst) hcol (hr.comp hfst))
-    he₁i
-  have hrange := ComputableInPolyTime.range.comp hk
-  simp only [Function.comp_def] at hui hrange
-  have hu : ComputableInPolyTime (fun x => (List.range (P x).k).map fun i =>
-      addResidues (P x).q (negacyclicInnerResidues (P x).n (P x).q
-        ((A x).map fun row => row.getD i []) (r x)) ((e₁ x).getD i []))
-      input encPolyVecResidues :=
-    ComputableInPolyTime.mapWithInput hrange hui
-  have hcu : ComputableInPolyTime (fun x => ((List.range (P x).k).map fun i =>
-      addResidues (P x).q (negacyclicInnerResidues (P x).n (P x).q
-        ((A x).map fun row => row.getD i []) (r x)) ((e₁ x).getD i [])).map
-          (compressResidues (P x).q (P x).du)) input encPolyVecResidues :=
-    ComputableInPolyTime.mapWithInput hu
-      (ComputableInPolyTime.compressResidues
-        (hq.comp (ComputableInPolyTime.fst input (encList encNat)))
-        (hdu.comp (ComputableInPolyTime.fst input (encList encNat)))
-        (ComputableInPolyTime.snd input (encList encNat)))
-  have hv := ComputableInPolyTime.compressResidues hq hdv
-    (ComputableInPolyTime.addResidues hq
-      (ComputableInPolyTime.addResidues hq
-        (ComputableInPolyTime.negacyclicInnerResidues hn hq hb hr) he₂)
-      (ComputableInPolyTime.messageResidues hn hq hm))
-  exact hcu.prod hv
+  fun_prop [Cslib.Crypto.MLKEM.encryptResidues]
 
 /-- Native decryption on residue lists, with computed parameters and inputs. -/
 theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.decryptResidues {P : α → Params}
@@ -482,23 +416,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.decryptResidues {P : α �
     (hc₁ : ComputableInPolyTime c₁ input encPolyVecResidues)
     (hc₂ : ComputableInPolyTime c₂ input (encList encNat)) :
     ComputableInPolyTime (fun x => decryptResidues (P x) (s x) (c₁ x) (c₂ x)) input encBits := by
-  unfold Cslib.Crypto.MLKEM.decryptResidues
-  have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
-  have hq : ComputableInPolyTime (fun x => (P x).q) input encNat := by fun_prop
-  have hdu : ComputableInPolyTime (fun x => (P x).du) input encUnary := by fun_prop
-  have hdv : ComputableInPolyTime (fun x => (P x).dv) input encUnary := by fun_prop
-  have hu := ComputableInPolyTime.mapWithInput
-    (f := fun (x : α) (c : List ℕ) => decompressResidues (P x).q (P x).du c) hc₁
-    (ComputableInPolyTime.decompressResidues
-      (hq.comp (ComputableInPolyTime.fst input (encList encNat)))
-      (hdu.comp (ComputableInPolyTime.fst input (encList encNat)))
-      (ComputableInPolyTime.snd input (encList encNat)))
-  have hw := ComputableInPolyTime.compressResidues hq (ComputableInPolyTime.const 1)
-    (ComputableInPolyTime.subResidues hq (ComputableInPolyTime.decompressResidues hq hdv hc₂)
-      (ComputableInPolyTime.negacyclicInnerResidues hn hq hu hs))
-  have hbit : ComputableInPolyTime (fun p : α × ℕ => p.2 == 1) (encPair input encNat) encBool := by
-    fun_prop
-  exact ComputableInPolyTime.mapToBitsWithInput (f := fun (_ : α) (y : ℕ) => y == 1) hw hbit
+  fun_prop [Cslib.Crypto.MLKEM.decryptResidues]
 
 /-- Native public-key computation on residue lists, with computed parameters and inputs. -/
 theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.publicKeyResidues {P : α → Params}
@@ -509,23 +427,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.publicKeyResidues {P : α
     (he : ComputableInPolyTime e input encPolyVecResidues) :
     ComputableInPolyTime (fun x => publicKeyResidues (P x) (A x) (s x) (e x)) input
       encPolyVecResidues := by
-  unfold Cslib.Crypto.MLKEM.publicKeyResidues
-  have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
-  have hq : ComputableInPolyTime (fun x => (P x).q) input encNat := by fun_prop
-  have hk : ComputableInPolyTime (fun x => (P x).k) input encUnary := by fun_prop
-  have hfst := ComputableInPolyTime.fst input encUnary
-  have hsnd := ComputableInPolyTime.snd input encUnary
-  have hAi := (ComputableInPolyTime.listGetD (encA := encPolyVecResidues) []).comp
-    ((hA.comp hfst).prod hsnd)
-  have hei := (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-    ((he.comp hfst).prod hsnd)
-  simp only [Function.comp_def] at hAi hei
-  have hbi := ComputableInPolyTime.addResidues (hq.comp hfst)
-    (ComputableInPolyTime.negacyclicInnerResidues (hn.comp hfst) (hq.comp hfst) hAi (hs.comp hfst))
-    hei
-  have hrange := ComputableInPolyTime.range.comp hk
-  simp only [Function.comp_def] at hbi hrange
-  exact ComputableInPolyTime.mapWithInput hrange hbi
+  fun_prop [Cslib.Crypto.MLKEM.publicKeyResidues]
 
 end PolyTime
 

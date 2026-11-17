@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Multiplicity
 import CslibFrontier.Computability.Circuit.Simulation
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # `MOD_q` gates from majority gates: ACⁱ[q] ⊆ TCⁱ
@@ -161,10 +162,7 @@ theorem size_modMultCircuit_le (q : ℕ) (op : MultOp) :
 theorem depth_modMultCircuit_le (q : ℕ) (op : MultOp) : (modMultCircuit q op).depth ≤ 5 := by
   cases op with
   | ac op => simp [modMultCircuit]
-  | gate N mult =>
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    rw [Circuit.depth_wiring, add_zero]
-    exact (depth_modCircuitOfMajority_le q).trans (by simp)
+  | gate N mult => circuit_bound [modMultCircuit]
 
 /-- **Majority gates simulate `MOD_q` gates** [Vollmer, Chapter 4][Vollmer1999]: a circuit with
 `MOD_q` gates of `n` inputs, `s` gates and depth `d` has an equivalent circuit with majority gates

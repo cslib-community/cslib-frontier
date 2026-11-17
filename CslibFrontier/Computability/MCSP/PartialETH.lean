@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # ETH Hardness of Partial-Function MCSP (`PartialMCSP`)
@@ -181,16 +182,10 @@ private theorem xVar_injective : Function.Injective (xVar (n := n)) := by
   exact Fin.mk.inj h
 
 private theorem yVar_injective : Function.Injective (yVar (n := n)) := by
-  intro i j h
-  ext
-  have := Fin.mk.inj h
-  omega
+  fin_index [yVar]
 
 private theorem zVar_injective : Function.Injective (zVar (n := n)) := by
-  intro i j h
-  ext
-  have := Fin.mk.inj h
-  omega
+  fin_index [zVar]
 
 @[simp] private theorem xVar_inj {i j : Fin (2 * n)} : xVar i = xVar j ↔ i = j :=
   xVar_injective.eq_iff
@@ -202,19 +197,13 @@ private theorem zVar_injective : Function.Injective (zVar (n := n)) := by
   zVar_injective.eq_iff
 
 private theorem xVar_ne_yVar (i j : Fin (2 * n)) : xVar i ≠ yVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [xVar, yVar]
 
 private theorem xVar_ne_zVar (i j : Fin (2 * n)) : xVar i ≠ zVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [xVar, zVar]
 
 private theorem yVar_ne_zVar (i j : Fin (2 * n)) : yVar i ≠ zVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [yVar, zVar]
 
 /-- Every coordinate in `Fin (6 * n)` belongs to the `x`, `y`, or `z` block. -/
 private theorem eq_xVar_or_yVar_or_zVar (v : Fin (6 * n)) :
@@ -824,7 +813,7 @@ private def NotZLeaf (S : PosFormula (6 * n)) : Prop :=
     zCount (.var (zVar i) : PosFormula (6 * n)) = 1 := by
   have : ({zVar i} ∩ zSet n : Finset (Fin (6 * n))) = {zVar i} :=
     Finset.inter_eq_left.mpr (Finset.singleton_subset_iff.mpr (zVar_mem_zSet i))
-  simp [zCount, this]
+  simp [zCount]
 
 private theorem zCount_var_of_notZLeaf {v : Fin (6 * n)}
     (h : NotZLeaf (.var v : PosFormula (6 * n))) :

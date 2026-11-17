@@ -40,6 +40,16 @@ example :
       mdLengthBlocks 4 (List.replicate 5 false) <:+ mdLengthBlocks 4 (List.replicate 13 false) := by
   decide
 
+/-- Boundary counterexample for `length_mdLengthPad` and `flatten_mdLengthBlocks` at `n = 4`:
+a ten-zero-bit message has block count `4 = 2 ^ (4 / 2)`, so replacing `<` with `≤` fails. -/
+example :
+    mdLengthBlockCount 4 (List.replicate 10 false) = 2 ^ (4 / 2) ∧
+      (mdLengthPad 4 (List.replicate 10 false)).length ≠
+        mdLengthBlockCount 4 (List.replicate 10 false) * 4 ∧
+      (mdLengthBlocks 4 (List.replicate 10 false)).flatten ≠
+        mdLengthPad 4 (List.replicate 10 false) := by
+  decide
+
 /-- Collision resistance on messages whose padded block count fits in the `(n / 2)`-bit field,
 obtained directly from `CompressionFamily.collisionResistantOn_merkleDamgardChain` and
 `mdLengthBlocks_suffix_iff` ([BonehShoup2023], §8.4, Theorem 8.3, p. 297). -/

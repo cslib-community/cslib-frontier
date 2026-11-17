@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.IP
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # The optimal prover against private coins
@@ -159,8 +160,7 @@ noncomputable def acceptFrom {Operation : Type} (P : Prover Operation) (s : P.St
 /-- A finished program accepts exactly when its result is `true`. -/
 theorem acceptFrom_pure {Operation : Type} (P : Prover Operation) (s : P.State) (b : Bool) :
     acceptFrom P s (some (pure b)) = if b then 1 else 0 := by
-  simp only [acceptFrom, OracleComp.interpret_pure, StateT.run_pure,
-    Probability.PMF.monad_pure_eq_pure, PMF.pure_map, PMF.pure_apply]
+  simp only [acceptFrom, interp_norm, pmf_norm, PMF.pure_apply]
   cases b <;> simp
 
 /-- A message is answered by the prover, and what remains continues from its new state. -/
@@ -169,8 +169,7 @@ theorem acceptFrom_query_bind (P : Prover Unit) (s : P.State) (m : List Bool)
     acceptFrom P s (some (OracleComp.query ((), m) >>= next)) =
       ∑' ys : List Bool × P.State, (P.respond ((), m)).run s ys * acceptFrom P ys.2
         (some (next ys.1)) := by
-  simp only [acceptFrom, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-    Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_apply]
+  simp only [acceptFrom, interp_norm, pmf_norm, PMF.bind_apply]
 
 /-! ### The value of a history -/
 

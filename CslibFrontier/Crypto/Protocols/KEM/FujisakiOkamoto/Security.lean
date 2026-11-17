@@ -11,10 +11,12 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEM
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Union
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -329,13 +331,7 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
     exact tsum_congr fun ω => mul_left_comm _ _ _
   have hle := Game.closeTo_iff_coe_advantage_le.mp hclose
   rw [hsum] at hle
-  have htop : ENNReal.ofReal e + 2 * ProbComp.eval (A.coins >>= fun ω => ow (A.run ω)) true ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨ENNReal.ofReal_ne_top,
-      ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)⟩
-  have hreal := ENNReal.toReal_mono htop hle
-  rwa [ENNReal.coe_toReal, ENNReal.toReal_add ENNReal.ofReal_ne_top
-    (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)), ENNReal.toReal_ofReal he,
-    ENNReal.toReal_mul, ENNReal.toReal_ofNat] at hreal
+  ennreal_to_real using hle
 
 end RandomizedROAdversary
 
@@ -795,8 +791,7 @@ theorem roHandler_eq_romHandler (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK 
     (cStar : CT) : S.roHandler dk cStar = S.romHandler (S.notBotDecaps dk) cStar := by
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
-  simp only [roHandler, notBotDecaps, OracleComp.interpret_map, interpret_decapsNotBotM,
-    OracleComp.interpret_query]
+  simp only [roHandler, notBotDecaps, interp_norm, interpret_decapsNotBotM]
 
 omit [DecidableEq M] in
 /-- `eagerHandler` is the eager handler of `romProgram` with `FO-notbot` decapsulation. -/
@@ -806,8 +801,7 @@ theorem eagerHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R
   have hd (c : CT) : PMF.pure (some (S.decapsNotBot G H dk c)) = OracleComp.interpret
       (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
       (S.notBotDecaps dk c) := by
-    simp only [notBotDecaps, OracleComp.interpret_map, interpret_decapsNotBotM,
-      OracleComp.interpret_query]
+    simp only [notBotDecaps, interp_norm, interpret_decapsNotBotM]
     change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ H) dk c
     rw [decapsNotBotM_pure, map_pure]
     rfl
