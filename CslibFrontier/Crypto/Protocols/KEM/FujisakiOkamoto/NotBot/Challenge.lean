@@ -19,6 +19,7 @@ import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -1074,13 +1075,9 @@ theorem advantage_simFilterGame_le (S : Scheme PK SK M R CT K)
     rw [two_mul]
     exact Game.closeTo_iff_coe_advantage_le.mp ((hclose false).trans (hclose true).symm)
   have hHtop : H ≠ ⊤ := PMF.apply_ne_top _ _
-  have hεtop : ε ≠ ⊤ := ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
-  have hreal := ENNReal.toReal_mono (ENNReal.mul_ne_top ENNReal.ofNat_ne_top
-    (ENNReal.add_ne_top.mpr ⟨hHtop, hεtop⟩)) hle
-  rw [ENNReal.coe_toReal, ENNReal.toReal_mul, ENNReal.toReal_ofNat,
-    ENNReal.toReal_add hHtop hεtop, hH, ← eval_simFilterOwExperiment, hε, ENNReal.toReal_mul,
-    ENNReal.toReal_natCast, ENNReal.toReal_ofReal (Real.rpow_nonneg (by norm_num) _)] at hreal
-  rw [Nat.cast_add] at hreal
+  rw [hε] at hle
+  ennreal_to_real at hle
+  rw [hH, ← eval_simFilterOwExperiment, Nat.cast_add] at hle
   linarith
 
 /-! ### The challenge hop with the decryption test
@@ -1325,16 +1322,10 @@ theorem advantage_coupledGame_le [Fintype M] [Nonempty M] (S : Scheme PK SK M R 
       _ ≤ (E + H + ((qG + qH : ℕ) : ℝ≥0∞) * E) + (E + H + ((qG + qH : ℕ) : ℝ≥0∞) * E) := by
           gcongr
       _ = 2 * H + 2 * (((qG + qH + 1 : ℕ) : ℝ≥0∞) * E) := by push_cast; ring
-  have hqEtop : ((qG + qH + 1 : ℕ) : ℝ≥0∞) * E ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hEtop
-  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr
-    ⟨ENNReal.mul_ne_top ENNReal.ofNat_ne_top hHtop,
-      ENNReal.mul_ne_top ENNReal.ofNat_ne_top hqEtop⟩) hle
   have hOW : H = ProbComp.eval (S.simFilterOwExperiment (fun _ _ _ => true) A) true := by
     rw [hH, eval_simFilterOwExperiment]
-  rw [ENNReal.coe_toReal, ENNReal.toReal_add (ENNReal.mul_ne_top ENNReal.ofNat_ne_top hHtop)
-      (ENNReal.mul_ne_top ENNReal.ofNat_ne_top hqEtop), ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_natCast, hOW] at hreal
+  ennreal_to_real at hle
+  rw [hOW] at hle
   have hEδ : E.toReal ≤ δ := hδ
   have hcast : (0 : ℝ) ≤ ((qG + qH + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
   nlinarith
