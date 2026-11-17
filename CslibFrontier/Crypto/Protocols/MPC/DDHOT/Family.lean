@@ -30,7 +30,8 @@ groups of a `PrimeOrderGroupFamily` `F` as the protocol family `ddhOTFamily`
 (`Cslib.Crypto.Protocols.MPC.ProtocolFamily`), with the encoding `ddhOTEncoding` for machines,
 and reduces a corrupted receiver to DDH.
 `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` gives PPT simulators and proves
-semi-honest security (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
+semi-honest security with exact uniform honest coins
+(`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTIdealCoinsSemiHonestSecure`).
 
 `ddhOTEncoding` writes group parameters with `F.encDesc` and group elements as `F.encode d` words.
 The sender's input is the pair of words of its two messages and the receiver's input is its choice

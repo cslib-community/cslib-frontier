@@ -100,7 +100,8 @@ noncomputable def prepareRound (mark : Bool) : MultiTapeTM (k + 1 + 2) Bool Prep
 variable (k) in
 /-- Finish the iteration: output the current word and clear its tape. -/
 noncomputable def finish (mark : Bool) : MultiTapeTM (k + 1 + 2) Bool FinishState :=
-  (emitWord (emitEmb k) mark).seq ((clearWork Bool).extendTapes (tapeEmb (curTape k)))
+  (emitWord (emitEmb k) mark).seq
+    ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (curTape k)))
 
 /-- Preparing a round moves the next word `v` to the current tape, replacing `vp`. -/
 theorem transformsTapes_prepareRound (mark : Bool) (vp v : List Bool) :
