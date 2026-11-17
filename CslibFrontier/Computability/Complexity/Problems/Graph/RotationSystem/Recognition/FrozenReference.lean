@@ -397,10 +397,7 @@ private theorem frozenIndex_covers {I : FixedRotationInput} (hI : Valid I)
 private theorem fixed_of_word {I : FixedRotationInput} (hI : Valid I) {v : ℕ} {word : List ℕ}
     (hw : I.orders.getD v none = some word) {d : Dart I.graph} (hd : d.index ∈ word) :
     (I.orders.getD d.vertex none).isSome = true := by
-  have hm : d.index ∈ fixedWord I v := by simpa only [fixedWord, hw, Option.getD_some] using hd
-  have hread := (mem_fiber.mp ((fixedWord_spec hI v).2 d.index hm)).2
-  have hv : d.vertex = v := (Dart.vertex_index d).symm.trans hread
-  rw [hv, hw]
+  rw [fixedWord_dart_vertex hI hw hd, hw]
   rfl
 
 /-- The actual retained indexed end selected by a literal complete stored word. Its source

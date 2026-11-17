@@ -45,6 +45,8 @@ objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontie
   and the fresh leaf named by the original binary dart index.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_subdivisionDart_germ`: the
   actual outgoing vector from that center to that leaf.
+* `Cslib.Complexity.Graph.RotationRecognition.fixedWord_dart_vertex`: membership in a
+  prescribed complete word determines the original center.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_arg_lt_iff`: actual
   arguments decrease in the literal prescribed word, including comparison with itself.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_directions_injective`:
@@ -270,7 +272,8 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     dsimp [k, i]
     omega
 
-private theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
+/-- A dart in a prescribed complete word has that word's center. -/
+theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
     {word : List ℕ} (hw : I.orders.getD v none = some word)
     {d : Dart I.graph} (hd : d.index ∈ word) : d.vertex = v := by
   have hf := (hI.2.2.2 v word hw).2 d.index |>.mp hd
