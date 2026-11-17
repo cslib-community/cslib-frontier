@@ -15,51 +15,22 @@ public import CslibFrontier.Languages.Probabilistic.Simulation
 /-!
 # Stepping the oracle interpreter through a concrete program
 
-Tags the lemmas of the simp set `interp_norm`. To compute
-`(OracleComp.interpret handler program).run s` for a `program` written out as a `do` block, a
-proof calls `simp only [interp_norm, pmf_norm]`, adding the definitions to unfold and the local
-facts to use, instead of listing the stepping lemmas:
+Tags the lemmas of the simp set `interp_norm`, with which `simp only [interp_norm, pmf_norm]`
+computes `(OracleComp.interpret handler program).run s` for a `program` written out as a `do`
+block. The docstring of the attribute, in
+`CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm.Init`, says what the set leaves, when to
+use it and how it differs from `runWith_norm`.
+
+The members are:
 
 * the interpreter over program syntax: `OracleComp.interpret_pure`, `OracleComp.interpret_bind`,
   `OracleComp.interpret_map`, `OracleComp.interpret_query`, `ProbOracleComp.interpret_query`;
-* the handler of a sum interface: `OracleComp.sumHandler` is unfolded, so that a query tagged
-  `Sum.inl` or `Sum.inr` reaches its own handler;
+* the handler of a sum interface: `OracleComp.sumHandler`, which is unfolded;
 * an embedded private sample and the handlers of uniform draws that answer it:
   `ProbOracleComp.interpret_sample`, `OracleComp.run_interpret_lift`,
   `ProbComp.interpret_unifFin`, `ProbComp.interpret_unifOracle`;
 * `StateT.run` over what these leave: `StateT.run_pure`, `StateT.run_bind`, `StateT.run_map`,
   `StateT.run_lift`.
-
-The result is made of the handler's calls at explicit states, written `(oracle q).run s`, or
-`StateT.run (fun s => …) s₀` when the handler is given by a `fun`, joined by the `pure`, `>>=` and
-`<$>` of the monad the handler lives in. The set holds no law of that monad. Over `PMF`, or under
-`ProbComp.eval`, the set `pmf_norm` rewrites these to `PMF.pure`, `PMF.bind` and `PMF.map` and
-normalizes them. A part of the program that is not concrete, such as an adversary, stays as
-`(OracleComp.interpret handler (adversary x)).run s`.
-
-## When to use it
-
-Use the set where a hand list would name interpreter lemmas: it stands for all of them, and for
-the single-step forms `OracleComp.run_interpret_pure`, `OracleComp.run_interpret_bind`,
-`OracleComp.run_interpret_map`, `OracleComp.run_interpret_query` and
-`ProbOracleComp.run_interpret_sample`, which a list using the set no longer names.
-
-Two kinds of list are clearer written out: `StateT.run` laws alone, for a `StateT` program with no
-interpreter in the goal, and a lone `OracleComp.sumHandler`, which unfolds one definition. A proof
-that takes one named step with `rw`, or whose next step depends on the exact shape a hand list
-leaves, also keeps its lemma names.
-
-## `interp_norm` and `runWith_norm`
-
-`interp_norm` keeps a run in `OracleComp.interpret` form. That is the form to use when the
-statement, a hypothesis or the lemma applied next speaks of `OracleComp.interpret`, and when the
-handler makes oracle calls itself, as a reduction's handler does, so that the run is not a `PMF`.
-
-`runWith_norm`, of `CslibFrontier.Languages.Probabilistic.Oracle.Norm`, folds a closed run into
-`ProbOracleComp.runWith` and steps that instead, so a proof that continues with the `runWith`
-lemmas uses it. It leaves out `OracleComp.interpret_bind` and `StateT.run_bind`, which would
-rewrite inside a run before it is folded. For that reason a `simp only` call takes one of the two
-sets, never both.
 
 ## Main results
 
