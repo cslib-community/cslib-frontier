@@ -870,7 +870,7 @@ theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List B
   induction bits₁ generalizing flags₁ seeds₁ pads₁ with
   | nil =>
     cases flags₁ <;> cases seeds₁ <;> cases pads₁ <;>
-      try simp only [List.length_nil, List.length_cons, Nat.succ_ne_zero] at hflags hseeds hpads
+      simp only [List.length_nil, List.length_cons, Nat.succ_ne_zero] at hflags hseeds hpads
     rfl
   | cons b bits₁ ih =>
     cases flags₁ with

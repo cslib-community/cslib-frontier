@@ -503,7 +503,7 @@ example :
   refine ⟨hwQ, hex_pow, isPrimitive_radical_primPart Q, squarefree_radical_primPart Q,
     hevalX, heval1, heval2, c, fs, hc0, fun R hR => ?_, hQeq, hdeg_sum.trans hdegQ⟩
   exact ⟨(hfs R hR).1, (hfs R hR).2.1, (hfs R hR).2.2,
-    Sudan.weightedDegree_le_iff_weightedDegreeLE.1 ((hwd_fs R hR).trans hwQ.le)⟩
+    Polynomial.Bivariate.weightedDegree_le_iff.1 ((hwd_fs R hR).trans hwQ.le)⟩
 
 /-- Least-`Y`-degree root multiplicity bound (`≤ m`) on an elimination interpolant, non-vacuous
 `k = 1` list-size bound `≤ D`, `Sudan.add_mul_add_one_le_of_mul` (retaining `S = 0`), and zero

@@ -185,7 +185,7 @@ private lemma span_finCons_eq_of_coeff_ne_zero {K : Type*} [Field K] {d h : ℕ}
     have hr : u - c • f ∈ V ⊓ LinearMap.ker (lcoeff K d) := by
       refine ⟨V.sub_mem hu (V.smul_mem c hfV), ?_⟩
       change (u - c • f).coeff d = 0
-      simp [c, coeff_sub, coeff_smul, div_mul_cancel₀ _ hfc]
+      simp [c, div_mul_cancel₀ _ hfc]
     have hsub : V ⊓ LinearMap.ker (lcoeff K d) ≤ Submodule.span K (Set.range (Fin.cons f g)) := by
       refine hgspan.ge.trans (Submodule.span_mono ?_)
       rw [Fin.range_cons]
@@ -313,7 +313,7 @@ lemma wronskian_linearCombination {K : Type*} [CommRing K] {h : ℕ}
     calc
       derivative^[r.val] (∑ i, A i j • f i) =
           ∑ i, derivative^[r.val] (A i j • f i) := by
-            simp only [← Module.End.pow_apply, map_sum]
+            simp only [← pow_apply_eq_iterate, map_sum]
       _ = _ := by
         simp only [iterate_derivative_smul]
         simp only [smul_eq_C_mul, mul_comm]
@@ -516,7 +516,7 @@ lemma low_coefficients_force_zero {K : Type*} [Field K] {h : ℕ}
     | ind m ih =>
       intro j hj hmr
       have hs : (∑ k, c k • f k).coeff m = c j * (f j).coeff m := by
-        simp only [finsetSum_coeff, coeff_smul, smul_eq_mul]
+        simp only [finsetSum_coeff, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul]
         apply Finset.sum_eq_single j
         · intro k _ hkj
           by_cases hk : (f k).natTrailingDegree < m

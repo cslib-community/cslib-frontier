@@ -30,9 +30,35 @@ import Mathlib.Tactic.Positivity
 /-!
 # Proximity gaps for Reed–Solomon codes up to the Johnson bound
 
-This file formalizes the Johnson-bound correlated agreement and proximity gap theorems for
-Reed–Solomon codes of Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
-[BenSassonCarmonIshaiKoppartySaraf2020] over arbitrary fields of arbitrary characteristic.
+This file formalizes explicit-parameter Johnson-bound correlated-agreement steps and original
+explicit-constant proximity-gap variants for Reed–Solomon codes over arbitrary fields of arbitrary
+characteristic, following Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
+[BenSassonCarmonIshaiKoppartySaraf2020]. All theorem and section locators below follow the
+accepted *Journal of the ACM* (2023) manuscript (where Theorem 1.4 states correlated agreement /
+proximity gaps over lines, Theorem 5.1 treats unweighted lines, Theorem 6.2 treats degree-`r`
+curves, and Theorem 7.2 treats weighted correlated agreement; by contrast, Theorem 7.2 of the
+July 2020 ePrint 2020/654 version concerns FRI soundness).
+
+## Scope and relationship to the source theorems
+
+* The four correlated-agreement theorems
+  (`Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`,
+  `Cslib.Code.exists_correlatedAgreement_curve_johnson`,
+  `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`,
+  `Cslib.Code.exists_correlatedAgreement_line_johnson`) are **explicit-parameter Guruswami–Sudan
+  steps** parameterized directly by `(m, D)` (and integer weights `W : ι → ℕ` with `M`, `W_tot`,
+  `B_W`) with explicit scalar threshold `Cslib.Code.ProximityGap.johnsonCurveBound`. Deriving the
+  paper's displayed finite thresholds directly from the source hypotheses, as well as
+  normalized/rational-valued weights and affine-space extensions, are left open outside this file.
+* `Cslib.Code.proximityGap_line_johnson` and `Cslib.Code.proximityGap_line_johnson_of_eta` are
+  **original explicit-constant variants** of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]
+  (accepted JACM 2023 manuscript) with exceptional fraction
+  `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` (respectively `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`).
+  While the exponents `(m + 1) ^ 6 / ρ` are asymptotically smaller in `m` and `1 / ρ` than the
+  paper's displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`, the bound is not uniformly smaller at
+  small finite `m` (e.g., at `m = 3`, `ρ = 1 / 4`, the coefficients are `29,491,200` vs.
+  approximately `17,157`), so these bounds do not imply the paper's displayed finite constant for
+  all finite `m`.
 
 ## Main definitions
 
@@ -54,19 +80,23 @@ Reed–Solomon codes of Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
   `Cslib.Code.ProximityGap.johnson_line_params_bound`: quantitative Guruswami–Sudan parameter
   packaging up to `1 - √ρ - √ρ / (2 * m)` yielding
   `johnsonCurveBound n (m + 1) (k - 1) D r n ≤ 1800 * r * (m + 1) ^ 6 * n ^ 2 / ρ`.
-* `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`: unified master theorem
-  establishing weighted correlated agreement on degree-`r` curves up to the Johnson bound over
-  arbitrary fields of arbitrary characteristic.
-* `Cslib.Code.exists_correlatedAgreement_line_johnson`: correlated agreement on lines up to the
-  Johnson bound over arbitrary fields ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1]).
-* `Cslib.Code.exists_correlatedAgreement_curve_johnson`: correlated agreement on degree-`r` curves
-  up to the Johnson bound over arbitrary fields ([BenSassonCarmonIshaiKoppartySaraf2020,
-  Theorem 6.2]).
-* `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`: weighted correlated agreement on
-  lines up to the Johnson bound over arbitrary fields.
+* `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`: explicit-parameter
+  integer-weighted correlated-agreement step on degree-`r` curves over arbitrary fields of
+  arbitrary characteristic (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2,
+  and 7.2], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_correlatedAgreement_line_johnson`: explicit-parameter unweighted
+  correlated-agreement step on lines over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_correlatedAgreement_curve_johnson`: explicit-parameter unweighted
+  correlated-agreement step on degree-`r` curves over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2], accepted JACM 2023 manuscript).
+* `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`: explicit-parameter
+  integer-weighted correlated-agreement step on lines over arbitrary fields (toward
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2], accepted JACM 2023 manuscript).
 * `Cslib.Code.proximityGap_line_johnson`, `Cslib.Code.proximityGap_line_johnson_of_eta`:
-  finite-field proximity gap on affine lines up to the Johnson bound `1 - √ρ`
-  ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+  original explicit-constant finite-field proximity-gap variants on affine lines up to the
+  Johnson bound `1 - √ρ` (variants of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4],
+  accepted JACM 2023 manuscript).
 
 ## References
 
@@ -103,54 +133,15 @@ end
 
 section SwapAndDegZ
 
-private theorem coeff_finset_sum {R ι : Type*} [Semiring R] (s : Finset ι) (f : ι → R[X])
-    (n : ℕ) : (∑ i ∈ s, f i).coeff n = ∑ i ∈ s, (f i).coeff n :=
-  map_sum (Polynomial.lcoeff R n) f s
-
-private theorem eval_finset_sum' {R ι : Type*} [CommSemiring R] (s : Finset ι) (f : ι → R[X])
-    (z : R) : (∑ i ∈ s, f i).eval z = ∑ i ∈ s, (f i).eval z :=
-  map_sum (Polynomial.evalRingHom z) f s
-
-/-- Ring homomorphism swapping the inner and outer indeterminates of `R[X][X]`. -/
-private noncomputable def swapPolyHom (R : Type*) [CommSemiring R] : R[X][X] →+* R[X][X] :=
-  Polynomial.eval₂RingHom (Polynomial.mapRingHom Polynomial.C) (Polynomial.C Polynomial.X)
-
-private theorem swapPolyHom_C (R : Type*) [CommSemiring R] (p : R[X]) :
-    swapPolyHom R (C p) = p.map C := by
-  simp [swapPolyHom]
-
-private theorem swapPolyHom_X (R : Type*) [CommSemiring R] :
-    swapPolyHom R X = C X := by
-  simp [swapPolyHom]
-
-private theorem swapPolyHom_comp_self (R : Type*) [CommSemiring R] :
-    (swapPolyHom R).comp (swapPolyHom R) = RingHom.id R[X][X] := by
-  apply Polynomial.ringHom_ext'
-  · apply Polynomial.ringHom_ext'
-    · ext r
-      simp [swapPolyHom]
-    · simp [swapPolyHom]
-  · simp [swapPolyHom]
-
-/-- Self-inverse ring equivalence swapping the two indeterminates of `R[X][X]`. -/
-private noncomputable def swapPolyRingEquiv (R : Type*) [CommSemiring R] : R[X][X] ≃+* R[X][X] :=
-  { swapPolyHom R with
-    invFun := swapPolyHom R
-    left_inv := fun p => RingHom.congr_fun (swapPolyHom_comp_self R) p
-    right_inv := fun p => RingHom.congr_fun (swapPolyHom_comp_self R) p }
-
-private theorem coeff_coeff_swapPolyRingEquiv {R : Type*} [CommSemiring R] (p : R[X][X])
+private theorem coeff_coeff_swap {R : Type*} [CommSemiring R] (p : R[X][X])
     (a b : ℕ) :
-    (((swapPolyRingEquiv R) p).coeff a).coeff b = (p.coeff b).coeff a := by
+    ((Bivariate.swap p).coeff a).coeff b = (p.coeff b).coeff a := by
   induction p using Polynomial.induction_on' with
   | add p q hp hq =>
-    simp [map_add, coeff_add, hp, hq]
+    simp [map_add, hp, hq]
   | monomial n c =>
-    change (((swapPolyHom R) (monomial n c)).coeff a).coeff b =
-      ((monomial n c).coeff b).coeff a
-    rw [← C_mul_X_pow_eq_monomial, map_mul, map_pow, swapPolyHom_C, swapPolyHom_X, ← C_pow,
-      mul_comm (c.map C), coeff_C_mul, coeff_map, mul_comm (X ^ n), coeff_C_mul, coeff_X_pow,
-      coeff_C_mul, coeff_X_pow]
+    rw [Bivariate.swap_monomial, mul_comm (c.map C), coeff_C_mul, coeff_map,
+      mul_comm (X ^ n), coeff_C_mul, coeff_X_pow, coeff_monomial]
     by_cases hbn : n = b
     · subst hbn
       simp
@@ -159,36 +150,20 @@ private theorem coeff_coeff_swapPolyRingEquiv {R : Type*} [CommSemiring R] (p : 
 /-- Ring equivalence moving the innermost variable `Z` of `R[Z][X][Y]` to the outermost position
 `(R[X][Y])[Z]`. -/
 private noncomputable def toOuterZ (R : Type*) [CommSemiring R] : R[X][X][X] ≃+* R[X][X][X] :=
-  let mapSwap : R[X][X][X] ≃+* R[X][X][X] :=
-    { Polynomial.mapRingHom (swapPolyRingEquiv R).toRingHom with
-      invFun := Polynomial.map (swapPolyRingEquiv R).toRingHom
-      left_inv := fun Q => by
-        change Polynomial.map (swapPolyRingEquiv R).toRingHom
-          (Polynomial.map (swapPolyRingEquiv R).toRingHom Q) = Q
-        rw [Polynomial.map_map]
-        have h : (swapPolyRingEquiv R).toRingHom.comp (swapPolyRingEquiv R).toRingHom =
-            RingHom.id R[X][X] := swapPolyHom_comp_self R
-        rw [h, Polynomial.map_id]
-      right_inv := fun Q => by
-        change Polynomial.map (swapPolyRingEquiv R).toRingHom
-          (Polynomial.map (swapPolyRingEquiv R).toRingHom Q) = Q
-        rw [Polynomial.map_map]
-        have h : (swapPolyRingEquiv R).toRingHom.comp (swapPolyRingEquiv R).toRingHom =
-            RingHom.id R[X][X] := swapPolyHom_comp_self R
-        rw [h, Polynomial.map_id] }
-  mapSwap.trans (swapPolyRingEquiv R[X])
+  (Polynomial.mapEquiv (Bivariate.swap (R := R)).toRingEquiv).trans
+    (Bivariate.swap (R := R[X])).toRingEquiv
 
 private theorem coeff_coeff_coeff_toOuterZ {R : Type*} [CommSemiring R] (Q : R[X][X][X])
     (t a b : ℕ) :
     ((((toOuterZ R Q).coeff t).coeff b).coeff a) = ((Q.coeff b).coeff a).coeff t := by
-  change ((((swapPolyRingEquiv R[X])
-    (Q.map (swapPolyRingEquiv R).toRingHom)).coeff t).coeff b).coeff a = _
-  rw [coeff_coeff_swapPolyRingEquiv, coeff_map]
-  exact coeff_coeff_swapPolyRingEquiv (Q.coeff b) t a
+  change (((Bivariate.swap (Q.map (Bivariate.swap (R := R)).toRingEquiv.toRingHom)).coeff t).coeff
+    b).coeff a = _
+  rw [coeff_coeff_swap, coeff_map]
+  exact coeff_coeff_swap (Q.coeff b) t a
 
 /-- `Z`-degree of `f ∈ R[Z][X]`. -/
 private noncomputable def degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) : ℕ :=
-  (swapPolyRingEquiv R f).natDegree
+  (Bivariate.swap f).natDegree
 
 private theorem degZ₂_zero {R : Type*} [CommSemiring R] : degZ₂ (0 : R[X][X]) = 0 := by
   simp [degZ₂]
@@ -198,18 +173,17 @@ private theorem degZ₂_neg {R : Type*} [CommRing R] (f : R[X][X]) : degZ₂ (-f
 
 private theorem degZ₂_add_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
     degZ₂ (f + g) ≤ max (degZ₂ f) (degZ₂ g) := by
-  simpa [degZ₂, map_add] using natDegree_add_le (swapPolyRingEquiv R f) (swapPolyRingEquiv R g)
+  simpa [degZ₂, map_add] using natDegree_add_le (Bivariate.swap f) (Bivariate.swap g)
 
 private theorem degZ₂_mul_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
     degZ₂ (f * g) ≤ degZ₂ f + degZ₂ g := by
-  simpa [degZ₂, map_mul] using natDegree_mul_le (p := swapPolyRingEquiv R f)
-    (q := swapPolyRingEquiv R g)
+  simpa [degZ₂, map_mul] using natDegree_mul_le (p := Bivariate.swap f) (q := Bivariate.swap g)
 
 private theorem degZ₂_mul {R : Type*} [CommRing R] [IsDomain R] {f g : R[X][X]}
     (hf : f ≠ 0) (hg : g ≠ 0) :
     degZ₂ (f * g) = degZ₂ f + degZ₂ g := by
-  rw [degZ₂, map_mul, natDegree_mul ((map_ne_zero_iff _ (swapPolyRingEquiv R).injective).2 hf)
-    ((map_ne_zero_iff _ (swapPolyRingEquiv R).injective).2 hg)]
+  rw [degZ₂, map_mul, natDegree_mul ((map_ne_zero_iff _ Bivariate.swap.injective).2 hf)
+    ((map_ne_zero_iff _ Bivariate.swap.injective).2 hg)]
   rfl
 
 private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : ℕ} :
@@ -221,10 +195,10 @@ private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : �
     intro t ht
     have ht0 := h t ht
     have hcoeff := congrArg (fun p : R[X] => p.coeff a) ht0
-    simpa [coeff_coeff_swapPolyRingEquiv] using hcoeff
+    simpa [coeff_coeff_swap] using hcoeff
   · intro h t ht
     ext a
-    rw [coeff_coeff_swapPolyRingEquiv, coeff_zero]
+    rw [coeff_coeff_swap, coeff_zero]
     exact coeff_eq_zero_of_natDegree_lt ((h a).trans_lt ht)
 
 private theorem degZ₂_C {R : Type*} [CommSemiring R] (p : R[X]) :
@@ -433,14 +407,14 @@ private theorem natDegree_curveWord_le {ι : Type*} {r : ℕ} (u : Fin (r + 1) �
 
 private theorem eval_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι) (z : F) :
     (curveWord u i).eval z = ∑ j : Fin (r + 1), z ^ (j : ℕ) * u j i := by
-  rw [curveWord, eval_finset_sum']
+  rw [curveWord, eval_finsetSum]
   refine Finset.sum_congr rfl fun j _ => ?_
   rw [eval_mul, eval_C, eval_pow, eval_X, mul_comm]
 
 private theorem coeff_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι)
     (j : Fin (r + 1)) :
     (curveWord u i).coeff (j : ℕ) = u j i := by
-  rw [curveWord, coeff_finset_sum, Finset.sum_eq_single j]
+  rw [curveWord, finsetSum_coeff, Finset.sum_eq_single j]
   · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
   · intro j' _ hne
     rw [coeff_C_mul, coeff_X_pow, ite_eq_right (fun h => absurd (Fin.ext h.symm) hne), mul_zero]
@@ -459,10 +433,10 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
       if h : (a, b) ∈ M then
         if ht : t < B + 1 then c (⟨(a, b), h⟩, ⟨t, ht⟩) else 0
       else 0 := by
-  rw [polyOfTable, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum]
+  rw [polyOfTable, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
   by_cases hab : (a, b) ∈ M
   · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩]
-    · simp only [coeff_C_mul, coeff_X_pow_self, mul_one, coeff_finset_sum]
+    · simp only [coeff_C_mul, coeff_X_pow_self, mul_one, finsetSum_coeff]
       by_cases ht : t < B + 1
       · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩]
         · rw [coeff_X_pow_self, mul_one]
@@ -557,7 +531,7 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
     (u v : ℕ) :
     (((shift (C x) w (polyOfTable (Sudan.monomials d D) B c)).coeff v).coeff u).natDegree ≤
       B + r * maxYDeg d D := by
-  rw [polyOfTable, map_sum, coeff_finset_sum, coeff_finset_sum]
+  rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff]
   refine (natDegree_sum_le _ _).trans (Finset.sup_le fun p _ => ?_)
   dsimp only [Function.comp_apply]
   set cz : F[X] := ∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)
@@ -623,7 +597,7 @@ private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι →
         eq.2.1.1.1).coeff (eq.2.2 : ℕ) := by
     intro c eq
     change ∑ pt : M × Fin (B + 1), c pt * entry pt eq = _
-    rw [polyOfTable, map_sum, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum,
+    rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff,
       Fintype.sum_prod_type]
     have hattach : ∀ f : M → F, ∑ p : M, f p = ∑ p ∈ M.attach, f p := fun _ => rfl
     rw [hattach]
@@ -635,7 +609,7 @@ private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι →
       rw [map_sum, Finset.sum_mul, map_sum, Finset.sum_mul]
       refine Finset.sum_congr rfl fun t _ => ?_
       simp only [map_mul, mul_assoc]
-    rw [hsplit, map_sum, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum]
+    rw [hsplit, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
     refine Finset.sum_congr rfl fun t _ => ?_
     have hshiftC : shift (C (α eq.1)) (curveWord u eq.1) (C (C (C (c (p, t))))) =
         C (C (C (c (p, t)))) := by
@@ -714,10 +688,7 @@ private theorem card_filter_evZ₂_eq_zero_le [DecidableEq F] {Q : F[X][X][X]} (
     by_contra hall
     push Not at hall
     apply hQ
-    apply Polynomial.ext
-    intro b
-    apply Polynomial.ext
-    intro a
+    ext b a : 4
     simpa using hall b a
   rcases hex with ⟨b, a, hab⟩
   set c₀ : F[X] := (Q.coeff b).coeff a
@@ -886,7 +857,7 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
     have hcard_P : t ≤ #(Finset.univ.filter fun i => P.eval (α i) = (curveWord u i).eval z) :=
       ceil_div_le_card_of_sum_le hM hW_le hW_P
     have hQz_interp : IsInterpolant α (fun i => (curveWord u i).eval z) m d D (evZ₂ z Q) := by
-      refine ⟨hQz_ne, Sudan.weightedDegree_le_iff_weightedDegreeLE.1
+      refine ⟨hQz_ne, Polynomial.Bivariate.weightedDegree_le_iff.1
         ((weightedDegree_evZ₂_le z Q).trans hQwd), fun i => ?_⟩
       have hmap := (hQvan i).map (evZ z)
       have hαi : evZ z (C (α i)) = α i := by simp [evZ]
@@ -1034,15 +1005,13 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     apply hι_E_inj
     rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hb]
   have hexp_S : Polynomial.expand (F[X][X]) μ S = R := by
-    apply Polynomial.ext
-    intro b
+    ext b : 2
     rw [Polynomial.coeff_expand hμ_pos]
     split_ifs with hdiv
     · rw [Polynomial.coeff_contract hμ_ne, Nat.div_mul_cancel hdiv]
     · exact (hR_coeff_zero b hdiv).symm
   have hS_map : S.map ι_E = S_E := by
-    apply Polynomial.ext
-    intro b
+    ext b
     rw [coeff_map, Polynomial.coeff_contract hμ_ne, ← coeff_map, ← hS_E_exp,
       Polynomial.coeff_expand_mul hμ_pos]
   have hdeg_mul : μ * S.natDegree = R.natDegree := by
@@ -1065,7 +1034,7 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     have hex : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
       by_contra hall
       push Not at hall
-      exact hlc (Polynomial.ext hall)
+      exact hlc (by ext a : 2; simpa using hall a)
     rcases hex with ⟨a, ha⟩
     have h1 := hS_wd a S.natDegree ha
     have h2 : μ * d * 1 ≤ μ * d * S.natDegree := Nat.mul_le_mul_left _ hS_deg
@@ -1215,18 +1184,18 @@ private theorem exists_good_shift_and_factor
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 hS0) hΔ_ne
   -- Pick `x₀ ∈ T_R` with `H.eval (C x₀) ≠ 0`.
   have hx₀ : ∃ x₀ ∈ T_R, H.eval (C x₀) ≠ 0 := by
-    have hswap_ne : swapPolyRingEquiv F H ≠ 0 :=
-      (map_ne_zero_iff _ (swapPolyRingEquiv F).injective).2 hH_ne
-    have hex_j : ∃ j, (swapPolyRingEquiv F H).coeff j ≠ 0 := by
+    have hswap_ne : Bivariate.swap H ≠ 0 :=
+      (map_ne_zero_iff _ Bivariate.swap.injective).2 hH_ne
+    have hex_j : ∃ j, (Bivariate.swap H).coeff j ≠ 0 := by
       by_contra hall
       push Not at hall
-      exact hswap_ne (Polynomial.ext hall)
+      exact hswap_ne (by ext j : 2; simpa using hall j)
     rcases hex_j with ⟨j, hj_ne⟩
-    set hj : F[X] := (swapPolyRingEquiv F H).coeff j
+    set hj : F[X] := (Bivariate.swap H).coeff j
     have hdeg_hj : hj.natDegree ≤ 2 * s * D := by
       rw [natDegree_le_iff_coeff_eq_zero]
       intro a ha
-      rw [coeff_coeff_swapPolyRingEquiv]
+      rw [coeff_coeff_swap]
       have hH0 : H.coeff a = 0 := coeff_eq_zero_of_natDegree_lt (hH_degX.trans_lt ha)
       rw [hH0, coeff_zero]
     have hroots_lt : #(hj.roots.toFinset) < #T_R := by
@@ -1240,16 +1209,16 @@ private theorem exists_good_shift_and_factor
     refine ⟨x₀, hx₀_TR, fun hH0 => hx₀_not ?_⟩
     rw [Multiset.mem_toFinset, mem_roots hj_ne, IsRoot]
     have hc := congrArg (fun p : F[X] => p.coeff j) hH0
-    rw [eval_eq_sum_range, coeff_finset_sum, coeff_zero] at hc
+    rw [eval_eq_sum_range, finsetSum_coeff, coeff_zero] at hc
     have hhj_le : hj.natDegree ≤ H.natDegree := by
       rw [natDegree_le_iff_coeff_eq_zero]
       intro a ha
-      rw [coeff_coeff_swapPolyRingEquiv, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
+      rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
     have heval_eq : hj.eval x₀ =
         ∑ a ∈ range (H.natDegree + 1), (H.coeff a * (C x₀) ^ a).coeff j := by
       rw [eval_eq_sum_range' (Nat.lt_succ_of_le hhj_le)]
       refine Finset.sum_congr rfl fun a _ => ?_
-      rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swapPolyRingEquiv, mul_comm]
+      rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
     rw [heval_eq, hc]
   obtain ⟨x₀, _, hHx₀_ne⟩ := hx₀
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := by
@@ -1496,27 +1465,9 @@ private theorem eval₂_add_eq_sum_hasseDeriv {R A : Type*} [CommRing R] [CommRi
   refine Finset.sum_congr rfl fun j _ => ?_
   rw [taylor_coeff, hasseDeriv_map, Polynomial.eval_map]
 
-private theorem natDegree_hasseDeriv_le {R : Type*} [CommSemiring R] (j : ℕ) (p : R[X]) :
-    (hasseDeriv j p).natDegree ≤ p.natDegree := by
-  rw [natDegree_le_iff_coeff_eq_zero]
-  intro k hk
-  rw [hasseDeriv_coeff, coeff_eq_zero_of_natDegree_lt (by omega), mul_zero]
-
 private theorem coeff_pow_eq_zero_of_lt_of_coeff_zero {R : Type*} [CommSemiring R] {p : R[X]}
-    (hp0 : p.coeff 0 = 0) : ∀ j k, k < j → (p ^ j).coeff k = 0 := by
-  intro j
-  induction j with
-  | zero =>
-    intro k hk
-    omega
-  | succ j ih =>
-    intro k hk
-    rw [pow_succ, coeff_mul]
-    refine Finset.sum_eq_zero fun x hx => ?_
-    have hsum : x.1 + x.2 = k := Finset.mem_antidiagonal.1 hx
-    by_cases hx2 : x.2 = 0
-    · rw [hx2, hp0, mul_zero]
-    · rw [ih x.1 (by omega), zero_mul]
+    (hp0 : p.coeff 0 = 0) : ∀ j k, k < j → (p ^ j).coeff k = 0 :=
+  fun j k hk => X_pow_dvd_iff.1 (pow_dvd_pow_of_dvd (X_dvd_iff.2 hp0) j) k hk
 
 private theorem coeff_pow_eq_of_coeff_eq_of_coeff_zero {R : Type*} [CommSemiring R] {p q : R[X]}
     (hp0 : p.coeff 0 = 0) (hq0 : q.coeff 0 = 0) {m : ℕ}
@@ -1546,17 +1497,16 @@ private theorem coeff_pow_eq_of_coeff_eq_of_coeff_zero {R : Type*} [CommSemiring
 
 /-- Coefficient `S̃_a(Z, Y) ∈ F[Z][Y]` of `(X - x₀)^a` in `S(Z, X + x₀, Y)`. -/
 private noncomputable def shiftedCoeff (S : F[X][X][X]) (x₀ : F) (a : ℕ) : F[X][X] :=
-  (swapPolyRingEquiv F[X] (S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom)).coeff a
+  (Bivariate.swap (S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom)).coeff a
 
 private theorem coeff_shiftedCoeff (S : F[X][X][X]) (x₀ : F) (a b : ℕ) :
     (shiftedCoeff S x₀ a).coeff b = (taylor (C x₀) (S.coeff b)).coeff a := by
-  rw [shiftedCoeff, coeff_coeff_swapPolyRingEquiv, coeff_map]
+  rw [shiftedCoeff, coeff_coeff_swap, coeff_map]
   rfl
 
 private theorem shiftedCoeff_zero (S : F[X][X][X]) (x₀ : F) :
     shiftedCoeff S x₀ 0 = S.map (Polynomial.evalRingHom (C x₀)) := by
-  apply Polynomial.ext
-  intro b
+  ext b : 2
   rw [coeff_shiftedCoeff, taylor_coeff_zero, coeff_map]
   rfl
 
@@ -1593,8 +1543,7 @@ private theorem shiftedCoeff_eq_zero_of_gt {S : F[X][X][X]} {x₀ : F} {w D : �
     (hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + w * b ≤ D)
     {a : ℕ} (ha : D < a) :
     shiftedCoeff S x₀ a = 0 := by
-  apply Polynomial.ext
-  intro b
+  ext b : 2
   rw [coeff_zero]
   by_contra hne
   have hle := shiftedCoeff_weighted_le hS_wd hne
@@ -1708,13 +1657,13 @@ private noncomputable def recU (S : F[X][X][X]) (x₀ : F) (s M : ℕ) : (F[X][X
 
 private theorem coeff_recU_zero (S : F[X][X][X]) (x₀ : F) (s M : ℕ) :
     (recU S x₀ s M).coeff 0 = 0 := by
-  rw [recU, coeff_finset_sum]
+  rw [recU, finsetSum_coeff]
   refine Finset.sum_eq_zero fun k _ => ?_
   rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
 
 private theorem coeff_recU (S : F[X][X][X]) (x₀ : F) (s M k : ℕ) :
     (recU S x₀ s M).coeff k = if 1 ≤ k ∧ k ≤ M then recPoly S x₀ s k else 0 := by
-  rw [recU, coeff_finset_sum]
+  rw [recU, finsetSum_coeff]
   by_cases hk : 1 ≤ k ∧ k ≤ M
   · rw [ite_eq_left hk, Finset.sum_eq_single ⟨k - 1, by omega⟩]
     · have hsub : k - 1 + 1 = k := by omega
@@ -1884,7 +1833,8 @@ private theorem natDegree_recPoly_le {S : F[X][X][X]} {x₀ : F} {s : ℕ}
   refine deg_recPoly_le Polynomial.natDegree natDegree_zero natDegree_one natDegree_neg
     natDegree_add_le (fun _ _ => natDegree_mul_le) (B := s) ?_ ?_
   · intro a j
-    exact (natDegree_hasseDeriv_le j _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg)
+    exact (Polynomial.natDegree_hasseDeriv_le _ j).trans
+      ((Nat.sub_le _ _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg))
   · refine (Polynomial.natDegree_derivative_le _).trans ?_
     have h1 : (S.map (Polynomial.evalRingHom (C x₀))).natDegree ≤ s :=
       Polynomial.natDegree_map_le.trans hS_deg
@@ -1911,12 +1861,12 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
   set U_W : A[X] := ∑ k : Fin W.natDegree, C (g ^ (2 * (k.1 + 1) - 1) * W.coeff (k.1 + 1)) *
     X ^ (k.1 + 1)
   have hU_W_zero : U_W.coeff 0 = 0 := by
-    rw [coeff_finset_sum]
+    rw [finsetSum_coeff]
     refine Finset.sum_eq_zero fun k _ => ?_
     rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hU_W_coeff : ∀ k, 1 ≤ k → U_W.coeff k = g ^ (2 * k - 1) * W.coeff k := by
     intro k hk1
-    rw [coeff_finset_sum]
+    rw [finsetSum_coeff]
     by_cases hk : k ≤ W.natDegree
     · rw [Finset.sum_eq_single ⟨k - 1, by omega⟩]
       · have hsub : k - 1 + 1 = k := by omega
@@ -1929,24 +1879,8 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
       refine Finset.sum_eq_zero fun j _ => ?_
       rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hW_comp : W.comp (C (g ^ 2) * X) = C (φ X) + C g * U_W := by
-    apply Polynomial.ext
-    intro k
-    have hlhs : (W.comp (C (g ^ 2) * X)).coeff k = W.coeff k * (g ^ 2) ^ k := by
-      rw [Polynomial.comp, Polynomial.eval₂_eq_sum_range, coeff_finset_sum]
-      by_cases hk : k < W.natDegree + 1
-      · rw [Finset.sum_eq_single k]
-        · rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ k)), ← mul_assoc, coeff_mul_C,
-            coeff_C_mul, coeff_X_pow_self, mul_one]
-        · intro i _ hik
-          rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ i)), ← mul_assoc, coeff_mul_C,
-            coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hik), mul_zero, zero_mul]
-        · intro h; exact absurd (mem_range.2 hk) h
-      · rw [coeff_eq_zero_of_natDegree_lt (by omega), zero_mul]
-        refine Finset.sum_eq_zero fun i hi => ?_
-        have hi' := mem_range.1 hi
-        rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ i)), ← mul_assoc, coeff_mul_C,
-          coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero, zero_mul]
-    rw [hlhs, coeff_add, coeff_C_mul]
+    ext k
+    rw [Polynomial.comp_C_mul_X_coeff, coeff_add, coeff_C_mul]
     cases k with
     | zero =>
       rw [pow_zero, mul_one, coeff_C_zero, hU_W_zero, mul_zero, add_zero, hW0]
@@ -1988,7 +1922,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
     | zero => omega
     | succ m =>
       have hc0 := congrArg (fun p : A[X] => p.coeff (m + 1)) hcomp0
-      rw [coeff_zero, coeff_finset_sum] at hc0
+      rw [coeff_zero, finsetSum_coeff] at hc0
       have hterm : ∀ a,
           (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
             (C (g ^ 2) * X) ^ a).coeff (m + 1) =
@@ -2003,7 +1937,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
         · have ha_deg : (shiftedCoeff S x₀ a).natDegree ≤ s :=
             (natDegree_shiftedCoeff_le S x₀ a).trans hS_deg
           rw [eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) (shiftedCoeff S x₀ a) ha_deg
-            (C (φ X)) (C g * U_W), Finset.sum_mul, coeff_finset_sum]
+            (C (φ X)) (C g * U_W), Finset.sum_mul, finsetSum_coeff]
           refine Finset.sum_congr rfl fun j _ => ?_
           have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
               C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
@@ -2197,7 +2131,7 @@ private theorem coeff_pow_prime_pow_eq_zero_of_not_dvd {R : Type*} [CommRing R] 
   | monomial k c =>
     rw [monomial_pow, coeff_monomial]
     have hne : k * p ^ e ≠ n := fun h => hndiv ⟨k, by rw [← h, mul_comm]⟩
-    rw [ite_eq_right hne]
+    exact Finsupp.single_eq_of_ne hne.symm
 
 /-- In a domain whose characteristic matches `μ`, `a ^ μ = b ^ μ → a = b`. -/
 private theorem eq_of_pow_eq_of_char_pow {A : Type*} [CommRing A] [IsDomain A] {μ : ℕ}
@@ -2422,16 +2356,16 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
   have hs_le_DY : s ≤ D_Y := by
     have : 1 * s ≤ μ * s := Nat.mul_le_mul_right s hμ_pos
     omega
-  -- Helper: for any `z ∈ T''` and matching witness `P`, specialization uniqueness holds.
-  have hspec_z : ∀ (z : F) (P : F[X]), P.natDegree ≤ d →
+  -- Helper: for any `z : F` and witness `P : F[X]` with `S(z, X, P ^ μ) = 0` and
+  -- `γ(z, (P ^ μ)(x₀)) ≠ 0`, specialization uniqueness holds.
+  have hspec_z : ∀ (z : F) (P : F[X]),
       (evZ₂ z S).eval (P ^ μ) = 0 →
-      (Fstar.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 →
       (γ.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 →
       ∀ n, 1 ≤ n →
         ((γ.map (evZ z)).eval ((P ^ μ).eval x₀)) ^ (2 * n - 1) *
           (taylor x₀ (P ^ μ)).coeff n =
         ((recPoly S x₀ s n).map (evZ z)).eval ((P ^ μ).eval x₀) := by
-    intro z P _ hS_eval0 _ hγ_z_ne n hn1
+    intro z P hS_eval0 hγ_z_ne n hn1
     set yz : F := (P ^ μ).eval x₀
     let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) yz
     have hφz_eq : ∀ f : F[X][X], φz f = (f.map (evZ z)).eval yz := fun f => by
@@ -2474,7 +2408,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         intro z hz
         obtain ⟨P, hP_deg, hS_ev0, hF_ev0, hγ_ev_ne, _⟩ := hT''_mem z hz
         refine ⟨(P ^ μ).eval x₀, hF_ev0, ?_⟩
-        have hrec := hspec_z z P hP_deg hS_ev0 hF_ev0 hγ_ev_ne n hn1
+        have hrec := hspec_z z P hS_ev0 hγ_ev_ne n hn1
         have hW_coeff0 : (taylor x₀ (P ^ μ)).coeff n = 0 := by
           rcases hcond with hgt | hndiv
           · refine coeff_eq_zero_of_natDegree_lt ?_
@@ -2606,7 +2540,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       rw [natDegree_C, zero_add, natDegree_X_pow]
       exact (mem_Icc.1 hk).2
   have hΨ_coeff0 : Ψ_trunc.coeff 0 = ystar := by
-    rw [coeff_add, coeff_C_zero, coeff_finset_sum]
+    rw [coeff_add, coeff_C_zero, finsetSum_coeff]
     have h0 : ∑ k ∈ Icc 1 (μ * d),
         (C (φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1)) * X ^ k).coeff 0 = 0 := by
       refine Finset.sum_eq_zero fun k hk => ?_
@@ -2617,7 +2551,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       Ψ_trunc.coeff k =
         if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
     intro k hk1
-    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, coeff_finset_sum]
+    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, finsetSum_coeff]
     by_cases hkle : k ≤ μ * d
     · rw [ite_eq_left hkle, Finset.sum_eq_single k]
       · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
@@ -2666,9 +2600,8 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
           simp only [iterateFrobenius_def] at hm
           exact hm
         rw [hsum_pow]
-        apply Polynomial.ext
-        intro k
-        rw [coeff_finset_sum]
+        ext k
+        rw [finsetSum_coeff]
         by_cases hdiv : μ ∣ k
         · rcases hdiv with ⟨m, rfl⟩
           by_cases hm : m < d + 1
@@ -2828,7 +2761,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
   have hWz_k : ∀ k ∈ Icc 1 (μ * d),
       (φz γ) ^ (2 * k - 1) * (taylor x₀ (P ^ μ)).coeff k = φz (recPoly S x₀ s k) := by
     intro k hk
-    have hrec := hspec_z z P hP_deg hS_ev0 hF_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
+    have hrec := hspec_z z P hS_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
     rw [hφz_eq, hφz_eq]
     exact hrec
   have hEi_z0 : (Ei.map (evZ z)).eval yz = 0 := by
@@ -2989,7 +2922,7 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   have hv_rs : ∀ j, v j ∈ reedSolomon α k := fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩
   have hPj_eval_J : ∀ j, ∀ i ∈ J, (Pj j).eval (α i) = u j i := by
     intro j i hi
-    simp only [Pj, eval_finset_sum', eval_mul, eval_C]
+    simp only [Pj, eval_finsetSum, eval_mul, eval_C]
     rw [Finset.sum_eq_single i]
     · rw [Lagrange.eval_basis_self (hα.injOn) hi, mul_one]
     · intro i' _ hne
@@ -3001,7 +2934,7 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   let P_L : L[X] := P_FZ.map j_L
   have hP_FZ_eval : ∀ i : ι, P_FZ.eval (C (α i)) = curveWord v i := by
     intro i
-    simp only [P_FZ, curveWord, eval_finset_sum', eval_mul, eval_C, v]
+    simp only [P_FZ, curveWord, eval_finsetSum, eval_mul, eval_C, v]
     refine Finset.sum_congr rfl fun j _ => ?_
     have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
     rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
@@ -3613,19 +3546,25 @@ end JohnsonHelpers
 
 public section
 
-/-- **Weighted correlated agreement on degree-`r` curves up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2, and 7.2]).
+/-- **Explicit-parameter integer-weighted correlated-agreement step on degree-`r` curves**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2, and 7.2] in the accepted
+*Journal of the ACM* 2023 manuscript; note that Theorem 7.2 of the July 2020 ePrint 2020/654
+version concerns FRI soundness).
 
 Let `α : ι → F` be distinct evaluation points over an arbitrary field `F` of any characteristic,
-let `W : ι → ℕ` be coordinate weights with `∀ i, W i ≤ M` (`0 < M`) and `∑ i, W i ≤ W_tot`, and
-let `m ≥ 1`, `D : ℕ` satisfy the Guruswami–Sudan interpolation and root-divisibility conditions for
-weight threshold `B_W` (with `k ≤ (B_W + M - 1) / M`). For any `r + 1` words
-`u : Fin (r + 1) → (ι → F)` and finite set `T : Finset F` with
+let `W : ι → ℕ` be integer coordinate weights with `∀ i, W i ≤ M` (`0 < M`) and
+`∑ i, W i ≤ W_tot`, and let `m ≥ 1`, `D : ℕ` satisfy the explicit Guruswami–Sudan interpolation
+and root-divisibility conditions for weight threshold `B_W` (with `k ≤ (B_W + M - 1) / M`). For
+any `r + 1` words `u : Fin (r + 1) → (ι → F)` and finite set `T : Finset F` with
 `johnsonCurveBound |ι| m (k - 1) D r W_tot < #T`, if for every `z ∈ T` the curve point
 `∑ j, z ^ j • u j` has `W`-weighted agreement at least `B_W` with some codeword in
 `reedSolomon α k`, then there exist a single shared coordinate subset `D' : Finset ι` with
 `B_W ≤ ∑ i ∈ D', W i` and codewords `v : Fin (r + 1) → (ι → F)` in `reedSolomon α k` agreeing
-with `u` on `D'`. -/
+with `u` on `D'`.
+
+This theorem is parameterized directly by `(m, D, M, W_tot, B_W)` and integer weights `W : ι → ℕ`;
+deriving the paper's displayed finite thresholds or normalized/rational-valued weight statements
+is left open as separate work. -/
 theorem exists_weighted_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k r m D M W_tot B_W : ℕ}
@@ -3681,11 +3620,12 @@ theorem exists_weighted_correlatedAgreement_curve_johnson {F ι : Type*} [Field 
   exact exists_correlatedAgreement_of_lifted_poly hα hk rfl hM hW_le hW_sum hk_le_t
     hT''_card hT''_mem' Pstar Istar hPstar_deg hIstar_agree hIstar_bad
 
-/-- **Correlated agreement on degree-`r` curves up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2]).
+/-- **Explicit-parameter unweighted correlated-agreement step on degree-`r` curves**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.2], accepted JACM 2023 manuscript).
 
 Unweighted specialization of `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson` over
-an arbitrary field `F` of any characteristic. -/
+an arbitrary field `F` of any characteristic, parameterized explicitly by `(m, D)` and
+`Cslib.Code.ProximityGap.johnsonCurveBound`. -/
 theorem exists_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k r e m D : ℕ}
@@ -3718,11 +3658,13 @@ theorem exists_correlatedAgreement_curve_johnson {F ι : Type*} [Field F] [Finty
   rw [Finset.sum_const, smul_eq_mul, mul_one] at hD'
   exact ⟨D', hD', v, hv_rs, hagree⟩
 
-/-- **Weighted correlated agreement on affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2]).
+/-- **Explicit-parameter integer-weighted correlated-agreement step on affine lines**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2] in the accepted JACM 2023
+manuscript; Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
 
 Line (`r = 1`) specialization of `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson` over
-an arbitrary field `F` of any characteristic. -/
+an arbitrary field `F` of any characteristic, with explicit `(m, D)` and integer weights
+`W : ι → ℕ` (normalized/rational-valued weights are outside this theorem's scope). -/
 theorem exists_weighted_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k m D M W_tot B_W : ℕ}
@@ -3750,12 +3692,13 @@ theorem exists_weighted_correlatedAgreement_line_johnson {F ι : Type*} [Field F
   · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
   · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
 
-/-- **Correlated agreement on affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1]).
+/-- **Explicit-parameter unweighted correlated-agreement step on affine lines**
+(step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1], accepted JACM 2023 manuscript).
 
 Line (`r = 1`), unweighted specialization of
 `Cslib.Code.exists_correlatedAgreement_curve_johnson` over an arbitrary field `F` of any
-characteristic. -/
+characteristic, parameterized explicitly by `(m, D)` and
+`Cslib.Code.ProximityGap.johnsonCurveBound`. -/
 theorem exists_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintype ι]
     [DecidableEq F] {α : ι → F} (hα : Function.Injective α)
     {k e m D : ℕ}
@@ -3781,8 +3724,9 @@ theorem exists_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintyp
   · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
   · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
 
-/-- **Proximity gap for affine lines up to the Johnson bound**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+/-- **Proximity gap for affine lines up to the Johnson bound (explicit-constant variant)**
+(original quantitative variant of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], accepted
+JACM 2023 manuscript).
 
 Let `α : ι → F` be distinct evaluation points over a finite field `F` with `n = |ι|` and code rate
 `ρ = k / n` (`1 ≤ k ≤ n`), and let `m ≥ 1` be the multiplicity parameter. For any proximity radius
@@ -3791,9 +3735,12 @@ every point `u₀ + z • u₁` on the affine line lies within Hamming distance 
 `reedSolomon α k`, or the fraction of scalars `z : F` that do is at most
 `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)`.
 
-This explicit bound is `O(m ^ 6 * n ^ 2 / (ρ * |F|))`, which is asymptotically tighter in both `m`
-and `ρ` than the `(m + 1/2) ^ 7 / (3 * ρ ^ (3 / 2)) * n ^ 2 / |F|` expression stated in
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]. -/
+Compared to the displayed finite-threshold bound `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2)) * n ^ 2 / |F|`
+of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], this variant has smaller asymptotic
+exponents in `m` and `1 / ρ` (`(m + 1) ^ 6 / ρ`) but is **not** uniformly smaller at small finite
+`m` (for example, at `m = 3` and `ρ = 1 / 4`, the coefficients are `29,491,200` versus
+approximately `17,157`). Thus it does not imply the paper's displayed finite constant for all
+finite `m`; matching that exact finite constant remains open. -/
 theorem proximityGap_line_johnson {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
     {α : ι → F} {e k m : ℕ}
     (hα : Function.Injective α) (hk : 1 ≤ k) (hkn : k ≤ Fintype.card ι) (hm : 1 ≤ m)
@@ -3833,11 +3780,12 @@ theorem proximityGap_line_johnson {F ι : Type*} [Field F] [Fintype F] [Fintype 
     rw [div_div] at hdiv
     exact hdiv
 
-/-- **Proximity gap for affine lines up to `1 - √ρ - η`**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]).
+/-- **Proximity gap for affine lines up to `1 - √ρ - η` (explicit-constant variant)**
+(original `η`-parameterized corollary of `Cslib.Code.proximityGap_line_johnson` in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], accepted JACM 2023 manuscript).
 
-Closed-form corollary of `Cslib.Code.proximityGap_line_johnson` parameterized directly by any
-positive gap `η > 0` below the Johnson bound `1 - √ρ`, yielding an error fraction of at most
+For any positive gap `η > 0` below the Johnson bound `1 - √ρ`, either every point on the affine
+line lies within Hamming distance `e` of `reedSolomon α k`, or the exceptional fraction is at most
 `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`. -/
 theorem proximityGap_line_johnson_of_eta {F ι : Type*} [Field F] [Fintype F] [Fintype ι]
     [DecidableEq F] {α : ι → F} {e k : ℕ} {η : ℝ}
