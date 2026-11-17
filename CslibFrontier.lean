@@ -5282,6 +5282,8 @@ public import CslibFrontier.Crypto.Protocols.VOLE.RingMAC
 public import CslibFrontier.Crypto.Protocols.VOLE.RingMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.ScalarMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.World
+public import CslibFrontier.Crypto.RainbowTable
+public import CslibFrontier.Crypto.RainbowTable.RunCost
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.AVLTree.Erase
 public import CslibFrontier.DataStructure.AVLTree.Impl
