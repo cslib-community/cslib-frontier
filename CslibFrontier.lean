@@ -1418,6 +1418,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Encoding
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Kleene
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Restriction
+public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Twin
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activation
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Activity
