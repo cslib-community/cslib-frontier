@@ -34,7 +34,6 @@ basis (`Cslib.Quantum.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩�
 ## Main results
 
 * `Cslib.Quantum.exists_unitary_extension`: an isometry extends to a unitary.
-* `Cslib.Quantum.norm_toLp_mulVec_of_conjTranspose_mul_self`: isometries preserve norms.
 * `Cslib.Quantum.POVM.isProjective_dilate`: the dilation is projective.
 * `Cslib.Quantum.POVM.compress_dilate`: the dilation compresses to the POVM.
 
@@ -82,18 +81,6 @@ theorem exists_unitary_extension {n ι : Type*} [Fintype n] [DecidableEq n] [Dec
   rw [Module.Basis.toMatrix_apply, OrthonormalBasis.coe_toBasis_repr_apply,
     EuclideanSpace.basisFun_repr, hb (j i) (Set.mem_range_self i), hvj]
 
-/-- An isometry preserves the norm of vectors. -/
-theorem norm_toLp_mulVec_of_conjTranspose_mul_self {m n : Type*} [Fintype m] [Fintype n]
-    [DecidableEq n] {K : Matrix m n ℂ} (hK : Kᴴ * K = 1) (ψ : EuclideanSpace ℂ n) :
-    ‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ = ‖ψ‖ := by
-  have h : ((‖(WithLp.toLp 2 (K *ᵥ ψ.ofLp) : EuclideanSpace ℂ m)‖ ^ 2 : ℝ) : ℂ) =
-      ((‖ψ‖ ^ 2 : ℝ) : ℂ) := by
-    push_cast
-    rw [← EuclideanSpace.star_dotProduct_self_eq_norm_sq,
-      ← EuclideanSpace.star_dotProduct_self_eq_norm_sq, WithLp.ofLp_toLp, star_mulVec,
-      ← dotProduct_mulVec, mulVec_mulVec, hK, one_mulVec]
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp (Complex.ofReal_injective h)
-
 variable {ι A : Type*} [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A]
 
 /-- The embedding `ψ ↦ ψ ⊗ |a₀⟩` into `ℂ^ι ⊗ ℂ^A`. -/
@@ -137,7 +124,7 @@ theorem sum_ancillaProj : ∑ a, ancillaProj (ι := ι) (A := A) a = 1 := by
     have hx : ¬ (x = c ∧ x = c') := fun ⟨h₁, h₂⟩ => h (h₁.symm.trans h₂)
     simp [hx]
 
-theorem ancillaProj_conjTranspose_mul_self (a : A) :
+private theorem ancillaProj_conjTranspose_mul_self (a : A) :
     (ancillaProj (ι := ι) a)ᴴ * ancillaProj a = ancillaProj a := by
   rw [(isHermitian_ancillaProj a).eq, ancillaProj_mul_self]
 
@@ -164,7 +151,7 @@ noncomputable def naimarkIsometry : Matrix (ι × A) ι ℂ :=
   fun p j => M.sqrtEffect p.2 p.1 j
 
 omit [DecidableEq A] in
-theorem sum_conj_sqrtEffect (a : A) (j j' : ι) :
+private theorem sum_conj_sqrtEffect (a : A) (j j' : ι) :
     ∑ i, star (M.sqrtEffect a i j) * M.sqrtEffect a i j' = M.effect a j j' := by
   rw [← M.sqrtEffect_mul_self a, Matrix.mul_apply]
   refine Finset.sum_congr rfl fun i _ => ?_
@@ -220,10 +207,12 @@ theorem naimarkUnitary_mul_ancillaEmbed :
     (by simp), ← (M.exists_naimarkUnitary a₀).choose_spec.2 p i]
   simp [ancillaEmbed, naimarkUnitary]
 
-theorem conjTranspose_naimarkUnitary_mul : (M.naimarkUnitary a₀)ᴴ * M.naimarkUnitary a₀ = 1 :=
+private theorem conjTranspose_naimarkUnitary_mul :
+    (M.naimarkUnitary a₀)ᴴ * M.naimarkUnitary a₀ = 1 :=
   mem_unitaryGroup_iff'.mp (M.naimarkUnitary_mem a₀)
 
-theorem naimarkUnitary_mul_conjTranspose : M.naimarkUnitary a₀ * (M.naimarkUnitary a₀)ᴴ = 1 :=
+private theorem naimarkUnitary_mul_conjTranspose :
+    M.naimarkUnitary a₀ * (M.naimarkUnitary a₀)ᴴ = 1 :=
   mem_unitaryGroup_iff.mp (M.naimarkUnitary_mem a₀)
 
 /-- The **Naimark dilation** of a POVM: the projective measurement `Uᴴ (1 ⊗ |a⟩⟨a|) U` on

@@ -67,4 +67,48 @@ example {V E ι κ : Type} [Fintype V] [DecidableEq V] [Finite E] [Fintype ι] [
       ≈[(S.dilate (fun _ => false) false).toCommuting.state; 0] (signVal (L.parity e) : ℂ) • 1 :=
   (S.stateSolution L hne hμ h).prod_eq e _ (List.Perm.refl _)
 
+/-- The one equation `x₀ ⊕ x₁ = 0` on two variables. -/
+def evenPair : LinearSystem (Fin 2) Unit where
+  support _ := Finset.univ
+  parity _ := false
+
+/-- The all-zero assignment satisfies `evenPair`. -/
+theorem evenPair_satisfies (e : Unit) : evenPair.Satisfies e (fun _ => false) := by
+  cases e
+  decide
+
+/-- The uniform question distribution on `evenPair`. -/
+noncomputable def evenPairQuestions : PMF (Unit × Fin 2) :=
+  Cslib.Probability.PMF.uniformOfFintype (Unit × Fin 2)
+
+theorem evenPairQuestions_ne_zero (q : Unit × Fin 2) : evenPairQuestions q ≠ 0 := by
+  simp [evenPairQuestions, Cslib.Probability.PMF.uniformOfFintype_apply]
+
+/-- The deterministic strategy playing the all-zero assignment is a perfect tensor-product
+strategy for `evenPair`. -/
+theorem quantumWinProb_evenPair :
+    (evenPair.game evenPairQuestions).quantumWinProb
+      (QuantumStrategy.ofDeterministic (fun _ : Unit => fun _ : Fin 2 => false)
+        (fun _ : Fin 2 => false)) = 1 := by
+  rw [TwoProverGame.quantumWinProb_ofDeterministic, TwoProverGame.winProb]
+  have h : (evenPair.game evenPairQuestions).questions.toOuterMeasure
+      {q | (evenPair.game evenPairQuestions).accepts q.1 q.2 (fun _ => false) false} = 1 := by
+    refine (PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr fun q _ => ?_
+    exact ⟨evenPair_satisfies q.1, fun _ => rfl⟩
+  rw [h, ENNReal.toReal_one]
+
+open scoped Matrix.Norms.L2Operator in
+/-- **Concrete client.** Naimark dilation turns the perfect deterministic strategy for `evenPair`
+into a state-dependent operator solution; the product of Bob's observables over the equation is
+`1` in the dilated state. -/
+example :
+    let S := QuantumStrategy.ofDeterministic (fun _ : Unit => fun _ : Fin 2 => false)
+      (fun _ : Fin 2 => false)
+    let Z := S.stateSolution evenPair (fun _ => ⟨0, evenPairQuestions_ne_zero _⟩)
+      (fun _ _ _ => evenPairQuestions_ne_zero _) quantumWinProb_evenPair
+    ((evenPair.support ()).toList.map Z.op).prod
+      ≈[(S.dilate (fun _ => false) false).toCommuting.state; 0] (1 : ℂ) • 1 := by
+  intro S Z
+  simpa [evenPair] using Z.prod_eq () _ (List.Perm.refl _)
+
 end CslibFrontierTests.Naimark

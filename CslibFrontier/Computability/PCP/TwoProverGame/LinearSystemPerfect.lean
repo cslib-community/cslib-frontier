@@ -14,13 +14,18 @@ public import Mathlib.Analysis.CStarAlgebra.Matrix
 /-!
 # Perfect tensor-product strategies for linear constraint system games
 
-Every perfect finite-dimensional strategy for the game of a linear constraint system gives an
-operator solution in the shared state, without any assumption on its measurements
-(`Cslib.PCP.QuantumStrategy.stateSolution`): its Naimark dilation
-(`Cslib.PCP.QuantumStrategy.dilate`) is projective and wins with the same probability, and its
-commuting-operator form in the C⋆-algebra of matrices (with the operator norm) satisfies the
-hypotheses of `Cslib.PCP.CommutingStrategy.stateSolution`
-[Cleve and Mittal][CleveMittal2014].
+This file is a step toward the converse of the characterization of linear constraint system
+games for tensor-product strategies, [Cleve and Mittal, §4, Theorem 1][CleveMittal2014]
+(arXiv:1209.2729v1, pp. 4–8), which produces an operator solution with exact relations on a
+Hilbert space. What is proved here is the relations *in the shared state*: every perfect
+finite-dimensional strategy gives a state-dependent operator solution, without any assumption on
+its measurements (`Cslib.PCP.QuantumStrategy.stateSolution`). This removes the projectivity
+hypothesis of [Cleve, Liu and Slofstra, §3, Proposition 7][CleveLiuSlofstra2017] by Naimark
+dilation: the dilated strategy (`Cslib.PCP.QuantumStrategy.dilate`) is projective and wins with
+the same probability, and its commuting-operator form in the C⋆-algebra of matrices (with the
+operator norm) satisfies the hypotheses of `Cslib.PCP.CommutingStrategy.stateSolution`. Passing
+from relations in the state to exact relations (restriction to the cyclic subspace,
+[Cleve, Liu and Slofstra, §3, Lemma 8][CleveLiuSlofstra2017]) is not formalized here.
 
 ## Main results
 
@@ -34,6 +39,8 @@ hypotheses of `Cslib.PCP.CommutingStrategy.stateSolution`
 
 * [R. Cleve and R. Mittal, *Characterization of binary constraint system
   games*][CleveMittal2014]
+* [R. Cleve, L. Liu and W. Slofstra, *Perfect commuting-operator strategies for linear system
+  games*][CleveLiuSlofstra2017]
 -/
 
 @[expose] public section
@@ -68,11 +75,13 @@ variable {V E : Type*} [Fintype V] [DecidableEq V] [Finite E] (L : LinearSystem 
   {μ : PMF (E × V)}
 
 open scoped Matrix.Norms.L2Operator in
-/-- **Perfect strategies give operator solutions in the state**
-[Cleve and Mittal, §4, Theorem 1][CleveMittal2014]: a finite-dimensional strategy winning the game
-of a linear constraint system with certainty, for a question distribution asking every equation
-and every variable of it with positive probability, gives a state-dependent operator solution: the
-`±1` observables of Bob's Naimark-dilated measurements, in the dilated shared state. -/
+/-- **Perfect strategies give operator solutions in the state**, a step toward
+[Cleve and Mittal, §4, Theorem 1][CleveMittal2014] (pp. 4–8) that removes the projectivity
+hypothesis of [Cleve, Liu and Slofstra, §3, Proposition 7][CleveLiuSlofstra2017] by Naimark
+dilation: a finite-dimensional strategy winning the game of a linear constraint system with
+certainty, for a question distribution asking every equation and every variable of it with
+positive probability, gives a state-dependent operator solution: the `±1` observables of Bob's
+Naimark-dilated measurements, in the dilated shared state. -/
 noncomputable def stateSolution (S : QuantumStrategy E V (V → Bool) Bool ι κ)
     (hne : ∀ e, ∃ v, μ (e, v) ≠ 0) (hμ : ∀ e, ∀ v ∈ L.support e, μ (e, v) ≠ 0)
     (h : (L.game μ).quantumWinProb S = 1) :

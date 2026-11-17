@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Foundations.Quantum.Naimark
+import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
 /-!
 # Projective strategies suffice
@@ -50,7 +51,7 @@ variable {X Y A B ι κ : Type*} [Fintype A] [DecidableEq A] [Fintype B] [Decida
 def dilateEmbed (a₀ : A) (b₀ : B) : Matrix ((ι × A) × (κ × B)) (ι × κ) ℂ :=
   ancillaEmbed a₀ ⊗ₖ ancillaEmbed b₀
 
-theorem conjTranspose_dilateEmbed_mul (a₀ : A) (b₀ : B) :
+private theorem conjTranspose_dilateEmbed_mul (a₀ : A) (b₀ : B) :
     (dilateEmbed (ι := ι) (κ := κ) a₀ b₀)ᴴ * dilateEmbed (ι := ι) (κ := κ) a₀ b₀ = 1 := by
   rw [dilateEmbed, conjTranspose_kronecker, ← mul_kronecker_mul, conjTranspose_ancillaEmbed_mul,
     conjTranspose_ancillaEmbed_mul, one_kronecker_one]
@@ -61,7 +62,7 @@ noncomputable def dilate (S : QuantumStrategy X Y A B ι κ) (a₀ : A) (b₀ : 
     QuantumStrategy X Y A B (ι × A) (κ × B) where
   state := WithLp.toLp 2 (dilateEmbed a₀ b₀ *ᵥ S.state.ofLp)
   norm_state := by
-    rw [Quantum.norm_toLp_mulVec_of_conjTranspose_mul_self
+    rw [Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self
       (conjTranspose_dilateEmbed_mul a₀ b₀),
       S.norm_state]
   alice x := (S.alice x).dilate a₀
