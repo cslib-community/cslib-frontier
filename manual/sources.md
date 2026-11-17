@@ -159,10 +159,20 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Formalized for multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2` as a `PublicCoinIOP` with completeness, query complexity `kFinal + q * (3 * m + 2)`, round-by-round soundness, and two-channel BCS random-oracle compilation in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean) and [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) (paired with [bcs16](#bcs16) and [bciks20](#bciks20)).
+
 <a id="bcgl92"></a>
 ## bcgl92
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
+
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section/theorem locators follow ePrint 2020/654 (Section 8). Batched FRI coset folding, commit-phase and query-phase round-by-round soundness, and two-channel BCS random-oracle composition are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean) and [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean).
 
 <a id="bcs16"></a>
 ## bcs16
