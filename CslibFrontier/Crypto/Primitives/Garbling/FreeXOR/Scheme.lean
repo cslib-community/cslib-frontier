@@ -20,8 +20,12 @@ import CslibFrontier.Foundations.Data.List.Flatten
 /-!
 # Free-XOR garbling as a garbling scheme
 
-Definitions and correctness only. Later parts of this series add efficiency certificates, a word
-simulator, and simulation privacy (`prv.sim`) under `CircularCorrelationRobust`.
+Definitions and correctness only. The efficiency certificates of the scheme
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient`), its word simulator
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator`) and its simulation privacy
+(`prv.sim`) under `CircularCorrelationRobust`, by a certified reduction
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction`,
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim`), build on it.
 
 The Free-XOR garbling of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR`, after Kolesnikov and
 Schneider [KolesnikovSchneider2008] and Choi, Katz, Kumaresan and Zhou
