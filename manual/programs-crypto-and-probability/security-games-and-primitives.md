@@ -2811,40 +2811,32 @@ native certificates (`WordPKE.IsEfficient.isPPTOn_keyGenNotBot`,
 `WordPKE.IsEfficient.isOraclePPTOn_decapsBot`) follow from `IsEfficient`.
 [`FujisakiOkamoto/WordReduction.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/WordReduction.lean)
 gives the IND-CPA reduction for this family as an `Encryption.AdversaryOf`
-(`WordPKE.romFilterCpaReductionWord`, with `WordPKE.romCpaReductionWord` for `FO-notbot` and
-`WordPKE.romBotCpaReductionWord`, filtered by `Scheme.simBotCheck`, for `FO^⊥`). It wraps a
+(`WordPKE.romFilterCpaReductionWord`, and `WordPKE.romCpaReductionWord` for `FO-notbot`). It wraps a
 word adversary `A : ℕ → List Bool → WordOracleComp CCAOp Bool` with oracles `G`, `H` and
 decapsulation. Its native keyless simulator `WordPKE.simFilterWordHandler` answers requests in the
 domain with the typed `Scheme.simFilterHandler` of the bundle, and answers any other request with
-the empty word without changing its state. `WordPKE.IsEfficient.isPPT_romCpaReductionWord` and
-`WordPKE.IsEfficient.isPPT_romBotCpaReductionWord` prove the reductions uniform strict PPT from
-`IsOraclePPT encBool A`, covering the lazy `G`/`H` simulation and the decapsulation filter. The security notion is in
+the empty word without changing its state. `WordPKE.IsEfficient.isPPT_romCpaReductionWord` proves
+the reduction uniform strict PPT from `IsOraclePPT encBool A`, covering the lazy `G`/`H`
+simulation. The security notion is in
 [`FujisakiOkamoto/WordGame.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/WordGame.lean):
-`WordPKE.romIndCcaExperimentWord` is the IND-CCA game of HHK17 Def. 2.4 / Fig. 4 with lazily
-sampled random oracles `G` and `H` (`WordPKE.roWordOracle`), the native encapsulation for the
-challenge, and a given native decapsulation for the decapsulation oracle (`WordPKE.ccaWordOracle`);
-`WordPKE.romIndCcaGameWord` and `WordPKE.romIndCcaBotGameWord` are its `FO-notbot` and `FO^⊥`
-instances. `WordPKE.ROMINDCCA` and `WordPKE.ROMINDCCABot` ask for negligible advantage against
-every `IsOraclePPT` adversary.
+`WordPKE.romIndCcaGameWord` is the IND-CCA game of HHK17 Def. 2.4 / Fig. 4 with lazily sampled
+random oracles `G` and `H` (`WordPKE.roWordOracle`), the native encapsulation for the challenge,
+and the native decapsulation for the decapsulation oracle (`WordPKE.ccaWordOracle`).
+`WordPKE.ROMINDCCA` asks for negligible advantage against every `IsOraclePPT` adversary.
 [`FujisakiOkamoto/WordBridge.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/WordBridge.lean)
 relates these word objects to the typed ones at each parameter. `WordPKE.finiteScheme P keyLen n` is
 the bundle over bit strings and the ciphertext space `WordPKE.Ciphertext P n`, and
-`WordPKE.DeltaCorrect` and `WordPKE.GammaSpread` are the correctness and spreadness of the family,
-stated for that bundle. `WordPKE.IsEfficient.exists_typedAdversary` turns each `IsOraclePPT`
+`WordPKE.DeltaCorrect` is the correctness of the family, stated for that bundle. `WordPKE.IsEfficient.exists_typedAdversary` turns each `IsOraclePPT`
 adversary into a typed adversary at each parameter (`WordPKE.savedCoinAdversary`, a replay of its
-saved coins) with polynomially many `G`, `H` and decapsulation queries; when the ciphertexts fit,
-the word games are its typed `Scheme.roIndCcaGame` and `Scheme.roIndCcaBotGame`, and the
-advantages of `romCpaReductionWord` and `romBotCpaReductionWord` are the typed `cpaAdvantage` of
-`Scheme.romCpaReduction` and `Scheme.romBotCpaReduction`.
+saved coins) with polynomially many `G` and `H` queries; when the ciphertexts fit, the word game is
+its typed `Scheme.roIndCcaGame`, and the advantage of `romCpaReductionWord` is the typed
+`cpaAdvantage` of `Scheme.romCpaReduction`.
 [`FujisakiOkamoto/WordSecurity.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/WordSecurity.lean)
 proves the asymptotic theorem `WordPKE.INDCPA.romINDCCA`: IND-CPA security of an efficient family
 whose ciphertexts fit, which is `δ`-correct with `δ` and `2^{-msgLen}` negligible, implies
 `ROMINDCCA`. As in HHK17, no `γ`-spreadness is assumed. Its proof applies `INDCPA` to
 `romCpaReductionWord A` through `isPPT_romCpaReductionWord` and bounds the rest with the concrete
-per-instance bound `Scheme.indCcaRomAdvantage_le`. The `FO^⊥` theorem `WordPKE.INDCPA.romINDCCABot`
-has the same premises together with `γ`-spreadness, with `2^{-γ}` negligible, which HHK17 require
-for `FO^⊥`; its proof applies `INDCPA` to `romBotCpaReductionWord A` through
-`isPPT_romBotCpaReductionWord` and bounds the rest with `Scheme.indCcaBotAdvantage_le`.
+per-instance bound `Scheme.indCcaRomAdvantage_le`. `FO^⊥` has no word-level theorem yet.
 
 ML-KEM ([fips203][fips203]) lives in
 [`MLKEM/KPKE.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/KPKE.lean),
