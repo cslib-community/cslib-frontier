@@ -2344,6 +2344,7 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.WilliamsSeparation
 public import CslibFrontier.Computability.Complexity.Classes.Toda
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Counting
+public import CslibFrontier.Computability.Complexity.Classes.Toda.FormulaAmplification
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Hierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Toda.Isolation
 public import CslibFrontier.Computability.Complexity.Classes.TruncatedVerifier
@@ -2807,6 +2808,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras.PolyTime
+public import CslibFrontier.Computability.Complexity.Problems.SharpFormula
 public import CslibFrontier.Computability.Complexity.Problems.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.SharpThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference
