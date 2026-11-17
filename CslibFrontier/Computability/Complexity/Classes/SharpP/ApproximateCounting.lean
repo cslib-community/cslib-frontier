@@ -829,39 +829,6 @@ private theorem levelLanguage_mem_P
   rw [← PH_eq_P_of_NP_subset_P h]
   exact SigmaP_subset_PH 2 ⟨_, _, rfl, SipserLautemann.verifier_polyTime hV, fun _ => Iff.rfl⟩
 
-/-- A level whose trials accept on at least two thirds of the random strings is answered yes. -/
-private theorem mem_levelLanguage {x : α × ℕ}
-    (hx : 2 * 2 ^ (trialSeedPoly R q).eval (encPair enc encUnary x).length ≤
-      3 * #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary x).length) |
-        levelTrial R q (x, List.ofFn s) = true}) :
-    x ∈ levelLanguage R q := by
-  obtain ⟨tests, hcover⟩ := SipserLautemann.exists_shifts_majorityAccepts hx
-  simp only [levelLanguage, Set.mem_ofPred_eq, List.map_cons, List.map_nil,
-    SipserLautemann.eval_witnessPoly, SipserLautemann.eval_seedPoly, alternation_true_cons,
-    alternation_false_cons, alternation_nil, List.append_nil]
-  refine ⟨SipserLautemann.shiftsToList tests, SipserLautemann.length_shiftsToList tests,
-    fun r _ => ?_⟩
-  rw [SipserLautemann.verifier_append_iff (SipserLautemann.length_shiftsToList tests),
-    SipserLautemann.listToShifts_shiftsToList]
-  exact hcover (SipserLautemann.listToSeed _ r)
-
-/-- A level whose trials reject on at least two thirds of the random strings is answered no. -/
-private theorem notMem_levelLanguage {x : α × ℕ}
-    (hx : 2 * 2 ^ (trialSeedPoly R q).eval (encPair enc encUnary x).length ≤
-      3 * #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary x).length) |
-        levelTrial R q (x, List.ofFn s) = false}) :
-    x ∉ levelLanguage R q := by
-  simp only [levelLanguage, Set.mem_ofPred_eq, List.map_cons, List.map_nil,
-    SipserLautemann.eval_witnessPoly, SipserLautemann.eval_seedPoly, alternation_true_cons,
-    alternation_false_cons, alternation_nil, List.append_nil]
-  rintro ⟨u, hu, hforall⟩
-  obtain ⟨ω, hω⟩ := SipserLautemann.exists_seed_not_majorityAccepts hx
-    (SipserLautemann.listToShifts _ u)
-  have hacc := hforall (SipserLautemann.seedToList ω) (SipserLautemann.length_seedToList ω)
-  rw [SipserLautemann.verifier_append_iff hu, SipserLautemann.listToSeed_seedToList] at hacc
-  obtain ⟨i, hi⟩ := hacc
-  exact hω i hi
-
 /-- **The deterministic answers are correct**: the levels `j ≤ M(n)` with `(a, j)` in the level
 language are correct answers for the `#R(a) ^ k` tuples of witnesses. -/
 private theorem answersCorrect_levelLanguage (a : α) :
@@ -892,7 +859,7 @@ private theorem answersCorrect_levelLanguage (a : α) :
     simp only [Bool.not_eq_true]
   -- many tuples: at most a quarter of the trials miss `0`
   have hyes : ∀ j, 4 * 2 ^ j ≤ #S → (a, j) ∈ levelLanguage R q := fun j hj => by
-    refine mem_levelLanguage R q ?_
+    refine SipserLautemann.alternation_verifier_of_accepts ?_
     have hb := (hh j).four_mul_card_filter_notMem_image_le (S := S)
       (by rwa [BitString.card]) 0
     rw [BitString.card] at hb
@@ -907,7 +874,7 @@ private theorem answersCorrect_levelLanguage (a : α) :
     omega
   -- few tuples: at most a quarter of the trials hit `0`
   have hno : ∀ j, 4 * #S ≤ 2 ^ j → (a, j) ∉ levelLanguage R q := fun j hj => by
-    refine notMem_levelLanguage R q ?_
+    refine SipserLautemann.not_alternation_verifier_of_rejects ?_
     have hb := (hh j).four_mul_card_filter_mem_image_le (S := S) (by rwa [BitString.card]) 0
     rw [BitString.card] at hb
     have he : #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, j)).length) |
@@ -924,7 +891,7 @@ private theorem answersCorrect_levelLanguage (a : α) :
   · by_contra hc
     exact hno 0 (by omega) h0
   · -- level `0`: every hash value is `0`, so every trial accepts
-    refine mem_levelLanguage R q ?_
+    refine SipserLautemann.alternation_verifier_of_accepts ?_
     obtain ⟨x, hx⟩ : S.Nonempty := card_pos.1 (hS ▸ hc)
     have hall : #{s : BitString ((trialSeedPoly R q).eval (encPair enc encUnary (a, 0)).length) |
         levelTrial R q ((a, 0), List.ofFn s) = true} =
