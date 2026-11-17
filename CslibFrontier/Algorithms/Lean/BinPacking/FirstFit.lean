@@ -80,9 +80,20 @@ theorem perm_flatten_firstFitInsert (C a : ℕ) :
 new bin `[a]`. -/
 theorem mem_firstFitInsert {C a : ℕ} :
     ∀ {bins : List (List ℕ)} {c : List ℕ}, c ∈ firstFitInsert C a bins →
-      c ∈ bins ∨ (∃ b ∈ bins, b.sum + a ≤ C ∧ c = b ++ [a]) ∨ c = [a] := by
-  intro bins c
-  fun_induction firstFitInsert C a bins <;> grind
+      c ∈ bins ∨ (∃ b ∈ bins, b.sum + a ≤ C ∧ c = b ++ [a]) ∨ c = [a]
+  | [], c, h => by simp_all [firstFitInsert]
+  | b :: bs, c, h => by
+    simp only [firstFitInsert] at h
+    split_ifs at h with hb
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact Or.inr (Or.inl ⟨b, List.mem_cons_self, hb, rfl⟩)
+      · exact Or.inl (List.mem_cons_of_mem _ h)
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact Or.inl List.mem_cons_self
+      · rcases mem_firstFitInsert h with h | ⟨b', hb', hfit, rfl⟩ | rfl
+        · exact Or.inl (List.mem_cons_of_mem _ h)
+        · exact Or.inr (Or.inl ⟨b', List.mem_cons_of_mem _ hb', hfit, rfl⟩)
+        · exact Or.inr (Or.inr rfl)
 
 private theorem pairwise_forall_lt_sum_add_firstFitInsert {C a : ℕ} :
     ∀ {bins : List (List ℕ)}, bins.Pairwise (fun b b' => ∀ c ∈ b', C < b.sum + c) →

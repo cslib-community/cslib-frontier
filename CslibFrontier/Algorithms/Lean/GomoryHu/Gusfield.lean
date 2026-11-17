@@ -114,7 +114,17 @@ private theorem mem_uncrossList_of_mem {X : Finset V} {a : ι → V} {A : ι →
 
 private theorem mem_uncrossList_of_forall_notMem {X : Finset V} {a : ι → V} {A : ι → Finset V}
     {ks : List ι} {z : V} (hz : ∀ k ∈ ks, z ∉ A k) : z ∈ uncrossList X a A ks ↔ z ∈ X := by
-  fun_induction uncrossList X a A ks <;> simp_all
+  induction ks with
+  | nil => rfl
+  | cons k ks ih =>
+    have hzk : z ∉ A k := hz k (by simp)
+    have ih' := ih fun j hj => hz j (by simp [hj])
+    unfold uncrossList
+    split_ifs
+    · rw [Finset.mem_union, ih']
+      simp [hzk]
+    · rw [Finset.mem_sdiff, ih']
+      simp [hzk]
 
 private theorem isMinCutBetween_uncrossList [Fintype V] [AddCommMonoid β] [LinearOrder β]
     [IsOrderedCancelAddMonoid β] {f : Finset V → β} (hsym : ∀ X, f Xᶜ = f X)

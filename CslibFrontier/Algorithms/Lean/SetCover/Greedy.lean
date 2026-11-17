@@ -190,7 +190,16 @@ private theorem forall_mem_greedyLoop {P : ι → Finset α → Prop}
     (hbest : ∀ {R i}, bestSet S w J R = some i → P i R)
     (hmono : ∀ {R R' i}, R' ⊆ R → P i R' → P i R) {k : ℕ} {R : Finset α} :
     ∀ i ∈ greedyLoop S w J k R, P i R := by
-  fun_induction greedyLoop S w J k R <;> grind
+  induction k generalizing R with
+  | zero => simp [greedyLoop]
+  | succ k ih =>
+    unfold greedyLoop
+    rcases h : bestSet S w J R with _ | i
+    · simp
+    · intro j hj
+      rcases List.mem_cons.1 hj with rfl | hj
+      · exact hbest h
+      · exact hmono Finset.sdiff_subset (ih j hj)
 
 /-- The greedy loop chooses only candidates. -/
 theorem greedyLoop_subset {k : ℕ} {R : Finset α} : ∀ i ∈ greedyLoop S w J k R, i ∈ J :=
@@ -255,7 +264,7 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
       (Rat.cast_nonneg.2 (harmonic_nonneg _))
   | case3 k R i h ih =>
     obtain ⟨hiJ, hne, hmin⟩ := bestSet_spec h
-    have ih' := ih fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
+    replace ih := ih fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
     rw [List.map_cons, List.sum_cons]
     set A := S i ∩ R with hA
     set ρ : 𝕜 := w i / A.card with hρ
@@ -325,7 +334,7 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
         _ ≤ x j * w j * ((harmonic a : 𝕜) - harmonic b) := by gcongr
     calc w i + ((greedyLoop S w J k (R \ S i)).map w).sum
         ≤ ∑ j ∈ C, x j * ρ * (S j ∩ A).card +
-            ∑ j ∈ C, x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) := add_le_add hwi ih'
+            ∑ j ∈ C, x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) := add_le_add hwi ih
       _ ≤ ∑ j ∈ C, (x j * w j * (harmonic (S j ∩ R).card : 𝕜) -
             x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜)) +
             ∑ j ∈ C, x j * w j * (harmonic (S j ∩ (R \ S i)).card : 𝕜) :=

@@ -72,7 +72,13 @@ def selectBelow : ℕ → List ℕ → List ℕ
 
 /-- The greedy choice is a sublist of `ps`. -/
 theorem selectBelow_sublist (T : ℕ) (ps : List ℕ) : (selectBelow T ps).Sublist ps := by
-  fun_induction selectBelow T ps <;> simp_all
+  induction ps generalizing T with
+  | nil => exact List.Sublist.slnil
+  | cons p ps ih =>
+    simp only [selectBelow]
+    split_ifs
+    · exact (ih _).cons_cons p
+    · exact (ih T).cons p
 
 /-- The greedy choice has product at most the budget `T ≥ 1`. -/
 theorem prod_selectBelow_le {T : ℕ} (hT : 1 ≤ T) (ps : List ℕ) : (selectBelow T ps).prod ≤ T := by

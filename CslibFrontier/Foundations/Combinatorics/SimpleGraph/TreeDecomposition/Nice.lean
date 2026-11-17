@@ -1459,12 +1459,16 @@ variable {V : Type uV} [DecidableEq V]
 omit [DecidableEq V] in
 private theorem size_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).size = vs.length + t.size := by
-  fun_induction introduceChain vs t <;> grind [size_introduce]
+  induction vs with
+  | nil => simp [introduceChain]
+  | cons v vs ih => simp only [introduceChain, size_introduce, ih, List.length_cons]; omega
 
 omit [DecidableEq V] in
 private theorem size_forgetChain (vs : List V) (t : NiceTree V) :
     (forgetChain vs t).size = vs.length + t.size := by
-  fun_induction forgetChain vs t <;> grind [size_forget]
+  induction vs with
+  | nil => simp [forgetChain]
+  | cons v vs ih => simp only [forgetChain, size_forget, ih, List.length_cons]; omega
 
 private theorem bag_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).bag = vs.toFinset ∪ t.bag := by
@@ -1576,7 +1580,11 @@ private theorem maxBagCard_joinTrees_le (t : NiceTree V) (ts : List (NiceTree V)
 omit [DecidableEq V] in
 private theorem size_joinTrees (t : NiceTree V) (ts : List (NiceTree V)) :
     (joinTrees t ts).size = t.size + ts.length + (ts.map size).sum := by
-  fun_induction joinTrees t ts <;> grind [size_join]
+  induction ts generalizing t with
+  | nil => simp [joinTrees]
+  | cons u us ih =>
+    simp only [joinTrees, size_join, ih u, List.length_cons, List.map_cons, List.sum_cons]
+    omega
 
 private theorem localValid_joinTrees {B : Finset V} :
     ∀ (t : NiceTree V) (ts : List (NiceTree V)),

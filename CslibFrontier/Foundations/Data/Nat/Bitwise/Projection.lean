@@ -189,7 +189,11 @@ theorem projectBits_lt {positions : List ℕ} {x y b : ℕ}
 /-- Every projection fits in the number of bits selected by its position list. -/
 theorem projectBits_lt_two_pow (positions : List ℕ) (x : ℕ) :
     projectBits positions x < 2 ^ positions.length := by
-  fun_induction projectBits positions x <;> simp_all
+  induction positions with
+  | nil => simp [projectBits]
+  | cons i positions ih =>
+    simp only [projectBits, List.length_cons, pow_succ]
+    cases x.testBit i <;> simp only [Nat.bit_false, Nat.bit_true] <;> omega
 
 /-- The perfect sketch packs the bits in a finite set in increasing significance order. -/
 def sketch (positions : Finset ℕ) (x : ℕ) : ℕ :=

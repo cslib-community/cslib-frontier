@@ -355,12 +355,18 @@ private def codebookBitLength {α : Type*} (ps : List (α × List Bool)) : ℕ :
 private theorem leftChildren_eq_filterMap {α : Type*} (ps : List (α × List Bool)) :
     leftChildren ps = ps.filterMap fun p =>
       p.2.casesOn none fun b bs => if b == false then some (p.1, bs) else none := by
-  fun_induction leftChildren ps <;> simp_all
+  induction ps with
+  | nil => rfl
+  | cons p ps ih =>
+    rcases p with ⟨a, _ | ⟨false | true, bs⟩⟩ <;> simp [leftChildren, ih]
 
 private theorem rightChildren_eq_filterMap {α : Type*} (ps : List (α × List Bool)) :
     rightChildren ps = ps.filterMap fun p =>
       p.2.casesOn none fun b bs => if b == true then some (p.1, bs) else none := by
-  fun_induction rightChildren ps <;> simp_all
+  induction ps with
+  | nil => rfl
+  | cons p ps ih =>
+    rcases p with ⟨a, _ | ⟨false | true, bs⟩⟩ <;> simp [rightChildren, ih]
 
 private theorem codebookBitLength_filterMap_add_le {α : Type*} (bit : Bool)
     (ps : List (α × List Bool)) :

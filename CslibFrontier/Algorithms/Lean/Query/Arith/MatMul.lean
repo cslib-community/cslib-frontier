@@ -63,9 +63,13 @@ variable {S : Type}
 
 theorem eval_schoolbookDot [AddCommMonoid S] [Mul S] (oracle : {ι : Type} → ArithQuery S ι → ι)
     (hadd : ∀ a b, oracle (.add a b) = a + b) (hmul : ∀ a b, oracle (.mul a b) = a * b) :
-    ∀ (n : ℕ) (a b : Fin n → S), (schoolbookDot n a b).eval oracle = ∑ k, a k * b k := by
-  intro n a b
-  fun_induction schoolbookDot n a b <;> simp_all [Fin.sum_univ_succ]
+    ∀ (n : ℕ) (a b : Fin n → S), (schoolbookDot n a b).eval oracle = ∑ k, a k * b k
+  | 0, a, b => by simp [schoolbookDot]
+  | 1, a, b => by simp [schoolbookDot, hmul]
+  | n + 2, a, b => by
+    rw [Fin.sum_univ_succ]
+    simp only [schoolbookDot, FreeM.eval_bind, FreeM.eval_lift, hmul, hadd,
+      eval_schoolbookDot oracle hadd hmul (n + 1)]
 
 theorem cost_schoolbookDot [Zero S] (oracle : {ι : Type} → ArithQuery S ι → ι) (cAdd cMul : ℕ) :
     ∀ (n : ℕ) (a b : Fin n → S),

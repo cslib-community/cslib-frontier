@@ -173,7 +173,10 @@ variable {α : Type} {β : Type} [DecidableEq α] [LinearOrder β]
     (indep : Finset α → Bool) (S : Finset α) (cs : List α) :
     filterIndepM (fun T => (pure (indep T) : m Bool)) S cs =
       pure (cs.filter fun c => indep (insert c S)) := by
-  fun_induction filterIndepM (fun T => (pure (indep T) : m Bool)) S cs <;> grind
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    simp only [filterIndepM, pure_bind, ih, List.filter_cons]
 
 @[simp] theorem submodularMatroidGreedyStepM_pure [LawfulMonad m]
     (f : Finset α → β) (indep : Finset α → Bool) (u : List α) (S : Finset α) :

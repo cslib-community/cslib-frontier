@@ -74,7 +74,11 @@ namespace Log
 
 /-- Every variable rank is at most twice the number of completed expansions. -/
 theorem birth_le (es : Log F) (v : V) : es.birth v ≤ 2 * es.length := by
-  fun_induction es.birth v <;> grind
+  induction es with
+  | nil => exact Nat.le_refl _
+  | cons e es ih =>
+    simp only [birth]
+    split <;> simp only [List.length_cons] <;> omega
 
 end Log
 

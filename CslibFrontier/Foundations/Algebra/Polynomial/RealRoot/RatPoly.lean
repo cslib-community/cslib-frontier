@@ -82,7 +82,15 @@ theorem isTrimmed_nil {R : Type*} [Zero R] : IsTrimmed ([] : List R) := by
 
 /-- `trim as` has length at most `as.length`. -/
 theorem trim_length_le (as : List ℚ) : (trim as).length ≤ as.length := by
-  fun_induction trim as <;> grind
+  induction as with
+  | nil => simp only [trim, List.length_nil, le_refl]
+  | cons a as ih =>
+    simp only [trim]
+    by_cases he : (trim as).isEmpty = true
+    · simp only [he, ↓reduceIte]
+      split_ifs <;> simp only [List.length_nil, List.length_cons] <;> omega
+    · simp only [he, Bool.false_eq_true, ↓reduceIte, List.length_cons]
+      omega
 
 /-- Trimming trailing zeros preserves the polynomial denoted by `ofCoeffList`. -/
 theorem ofCoeffList_trim (as : List ℚ) : ofCoeffList (trim as) = ofCoeffList as := by
@@ -96,7 +104,26 @@ theorem ofCoeffList_trim (as : List ℚ) : ofCoeffList (trim as) = ofCoeffList a
 
 /-- Every output of `trim` is trimmed (`IsTrimmed`). -/
 theorem isTrimmed_trim (as : List ℚ) : IsTrimmed (trim as) := by
-  fun_induction trim as <;> grind [IsTrimmed]
+  induction as with
+  | nil => exact isTrimmed_nil
+  | cons a as ih =>
+    simp only [trim]
+    by_cases he : (trim as).isEmpty = true
+    · simp only [he, ↓reduceIte]
+      by_cases ha : a = 0
+      · simp only [ha, ↓reduceIte]
+        exact isTrimmed_nil
+      · rw [ite_eq_right (fun h => absurd h ha)]
+        simp only [IsTrimmed, List.getLast?_singleton, ne_eq, Option.some.injEq]
+        exact ha
+    · have hne : trim as ≠ [] := fun hnil => he (List.isEmpty_iff.mpr hnil)
+      simp only [he, Bool.false_eq_true, ↓reduceIte]
+      have hlast : (a :: trim as).getLast? = (trim as).getLast? := by
+        cases h : trim as with
+        | nil => exact absurd h hne
+        | cons _ _ => rfl
+      rw [IsTrimmed, hlast]
+      exact ih
 
 /-- Any nonempty trimmed list has a nonzero last element. -/
 theorem IsTrimmed.getLast?_ne_zero {l : List ℚ} (ht : IsTrimmed l) (hl : l ≠ []) :

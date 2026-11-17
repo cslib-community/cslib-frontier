@@ -385,7 +385,11 @@ theorem decodePairs_encodePhrases (dict ws : List (List α)) (ht : IsTreeStructu
 /-- A tree-structured phrase sequence is encoded with one pair per phrase. -/
 theorem length_encodePhrases (dict ws : List (List α)) (ht : IsTreeStructured dict ws) :
     (encodePhrases dict ws).length = ws.length := by
-  fun_induction encodePhrases dict ws <;> simp_all
+  induction ws generalizing dict with
+  | nil => simp [encodePhrases]
+  | cons w ws ih =>
+    obtain ⟨⟨q, -, a, rfl⟩, ht⟩ := (isTreeStructured_cons _ _ _).1 ht
+    simp only [encodePhrases, List.getLast?_concat, List.length_cons, ih _ ht]
 
 /-- There is one pair per phrase. -/
 @[simp] theorem length_encode (x : List α) : (encode x).length = (parse x).length :=

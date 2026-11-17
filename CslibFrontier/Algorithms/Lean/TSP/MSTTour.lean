@@ -296,8 +296,8 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
   fun_induction growTour F k t with
   | case1 | case2 => exact ht
   | case3 k t e h ih =>
-    apply ih
-    intro _
+    refine ih fun _ => ?_
+    clear ih
     have heF := List.mem_of_find?_eq_some h
     obtain ⟨a, b, hab, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
     have hperm := insertAfter_perm b ha

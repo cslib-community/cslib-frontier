@@ -357,7 +357,13 @@ def walkFrom : ℕ → List (α × α) → α → List α × List (α × α)
 
 theorem length_walkFrom_snd_le (fuel : ℕ) (H : List (α × α)) (u : α) :
     (walkFrom fuel H u).2.length ≤ H.length := by
-  fun_induction walkFrom fuel H u <;> grind
+  induction fuel generalizing H u with
+  | zero => simp [walkFrom]
+  | succ fuel ih =>
+    simp only [walkFrom]
+    split
+    · exact le_rfl
+    · exact (ih _ _).trans (List.length_erase_le ..)
 
 /-- A greedy walk from a vertex with an unused edge uses at least one edge. -/
 theorem length_walkFrom_snd_lt {fuel : ℕ} (hfuel : 0 < fuel) {H : List (α × α)} {u : α}
