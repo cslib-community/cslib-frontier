@@ -31,6 +31,21 @@ that occurs only positively may be false while the subformula is true
 (`Proposition.not_forall_eq_of_eval_plaistedGreenbaumCNF`). In exchange there are at most
 two clauses for each node of `A` instead of three (`Proposition.length_plaistedGreenbaumCNF_le`).
 
+**Source and conventions.** Plaisted and Greenbaum [PlaistedGreenbaum1986, §1, pp. 293–296]
+define, for a first-order formula `A`, conjunctions `A⁺` and `A⁻` of one-directional definitions
+(p. 294): `(A ∧ B)⁺` contains `L_{A ∧ B} ⊃ L_A ∧ L_B`, `(A ∨ B)⁺` contains `L_{A ∨ B} ⊃ L_A ∨ L_B`,
+and `(A ⊃ B)⁺` contains `L_{A ⊃ B} ⊃ (L_A ⊃ L_B)` together with `A⁻` and `B⁺`, with the reverse
+implications in `A⁻`. An atom is its own literal, with `A⁺ = A⁻` empty (p. 295), and the clause
+set of `A` is the clauses of `A⁺` together with the unit clause `L_A`, asserted positively. Their
+Theorem 1 (p. 295) is the restriction of models
+(`Proposition.eval_of_eval_plaistedGreenbaumCNF`), their Lemma 1 (p. 296) the extension
+(`Proposition.eval_plaistedGreenbaumCNF_tseitinExtend`), and their Theorem 2 and Corollary
+(p. 296) equisatisfiability (`Proposition.satisfiable_plaistedGreenbaumCNF_iff`). Here the
+construction is specialised to propositions: there are no quantifiers or equivalences, and `⊥`,
+which the paper does not have, gets the clause `¬x` at positive polarity and nothing at negative
+polarity. As in the paper, which gives different subformulas different predicates, equal
+subformulas share a variable.
+
 ## Main definitions
 
 * `Cslib.Logic.PL.Proposition.plaistedGreenbaumDefs`: the definitional clauses needed at a
@@ -51,7 +66,7 @@ two clauses for each node of `A` instead of three (`Proposition.length_plaistedG
 ## References
 
 * [D. A. Plaisted and S. Greenbaum, *A structure-preserving clause form
-  translation*][PlaistedGreenbaum1986]
+  translation*][PlaistedGreenbaum1986], §1, pp. 293–296
 -/
 
 @[expose] public section

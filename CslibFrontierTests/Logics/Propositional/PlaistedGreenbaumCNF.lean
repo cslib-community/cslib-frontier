@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 import Mathlib.Data.Fintype.Pi
 
@@ -17,6 +20,8 @@ is not unique: in `(p ∧ q) ∨ p`, the variable of the positively occurring `p
 while `p` and `q` are true, which is a model of the Plaisted–Greenbaum transformation but not of
 the Tseitin transformation.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF
 
