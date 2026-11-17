@@ -94,8 +94,8 @@ private theorem realizes_gatherBody : Realizes .exact gatherBody (.refl _)
     ext d
     rw [← eight]
   realize
-  all_goals try simp only [eight] at *
-  all_goals try first
+  all_goals simp only [eight] at *
+  all_goals first
     | exact h.1.of_le (by have := h.2.1; omega)
     | exact h.2.2 (by assumption)
     | omega
