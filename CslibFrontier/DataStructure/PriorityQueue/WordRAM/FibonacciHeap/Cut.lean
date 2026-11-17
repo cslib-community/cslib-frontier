@@ -144,7 +144,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
     · wram_exec [hfit, hbr.regs_childBase, hbr.regs_zeroP, hp_reg, hdp1]
       intro hb2
       refine ⟨by omega, hb2, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
-        Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+        Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
         fun r h0 h1 h2 h3 h4 => by wram_simp, st.left, st.right, 0,
         Or.inl ⟨by omega, rfl, rfl, rfl⟩, ?_⟩
       wram_simp [ofData_write_child, ofData_write_deg, ofData_set_scratch, ← hst_def]
@@ -159,7 +159,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
         hbr.regs_oneP, hp_reg, hz_reg, hr_cur', hl_cur', hdp1]
       intro hb2
       refine ⟨by omega, hb2, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
-        Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+        Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
         fun r h0 h1 h2 h3 h4 => by wram_simp, _, _, _,
         Or.inr ⟨hge2, r_nb, l_nb, hr_cur, hl_cur, rfl, rfl, rfl⟩, ?_⟩
       wram_simp [ofData_write_child, ofData_write_left, ofData_write_right,
@@ -209,7 +209,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
   · by_cases hmk0 : st.mark cur = 0
     · wram_exec [hfit, hbr4.regs_zeroP, hmk0]
       refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr4],
-        Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+        Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
         fun r h0 h1 h2 h3 h4 _ => by wram_simp [hx4_reg r h0 h1 h2 h3 h4], ?_⟩
       wram_simp [ofData_write_mark, ofData_write_par, ofData_set_scratch, hp4, hmk4, hnm4, nm',
         hmk0]
@@ -223,7 +223,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
         hx4_reg numMarkedReg (by decide) (by decide) (by decide) (by decide) (by decide)
       wram_exec [hfit, hbr4.regs_zeroP, hbr4.regs_oneP, hx4_nm, hmk0]
       refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr4],
-        Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+        Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
         fun r h0 h1 h2 h3 h4 hnm => by wram_simp [hx4_reg r h0 h1 h2 h3 h4], ?_⟩
       wram_simp [ofData_set_numMarked, ofData_write_mark, ofData_write_par, ofData_set_scratch,
         hp4, hmk4, nm', hmk0]
@@ -375,7 +375,7 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
       intro hb3
       exact ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
         by wram_simp [hv_reg], by wram_simp [hk_reg],
-        Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+        Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
         by wram_simp [ofData_write_key, ofData_set_scratch, ← hst₀_def],
         by simp only [potential]; wram_simp⟩
     rintro x3 t3 ⟨ht3, hb3, hbr3, hx3_v, hx3_k, hmod3, hst3, hpot3⟩
@@ -430,7 +430,8 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
           rw [hx6]; wram_simp [ofData_write_key, ofData_set_scratch, ← hst₀_def]
         have hpot6 : potential x6 = potential x := by rw [hx6]; simp only [potential]; wram_simp
         have hmod6 : Modifies (Block.mk base (space n)).footprint x.mem x6.mem :=
-          Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; rw [hx6]; wram_simp
+          Modifies.block_iff.2 fun a ha => by
+            have := out_of_footprint n base ha; rw [hx6]; wram_simp
         have hx6_z : x6.regs zReg = v.val := by rw [hx6]; wram_simp [hv_reg]
         have hx6_p : x6.regs pReg = p₀.val := by rw [hx6]; wram_simp
         have hx6_v : x6.regs argV = v.val := by rw [hx6]; wram_simp [hv_reg]
@@ -688,7 +689,7 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
           refine ⟨hb_post, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr_lp],
             by wram_simp [hlp_v], by wram_simp [hlp_k],
             Modifies.block_iff.2 fun a ha => by
-              have := out_of_footprint ha
+              have := out_of_footprint n base ha
               rw [← Modifies.block_iff.1 hmod_lp a ha]
               unfold space at hcurf_mark
               wram_simp, ?_, ?_, ?_, ?_⟩
@@ -731,7 +732,7 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
         intro hb6
         exact ⟨by omega, hb6, by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
           by wram_simp [hv_reg], by wram_simp [hk_reg],
-          Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+          Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
           by wram_simp [ofData_write_key, ofData_set_scratch, ← hst₀_def],
           by simp only [potential]; wram_simp⟩
       rintro x6 t6 ⟨ht6, hb6, hbr6, hx6_v, hx6_k, hmod6, hst6, hpot6⟩

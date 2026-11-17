@@ -27,8 +27,6 @@ This file proves the exact-Word-RAM specifications for:
 
 ## Main results
 
-* `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.owns_arr_addr`, `owns_cons_addr`,
-  `out_of_footprint`: footprint membership and exterior bounds for `[base, base + space n)`.
 * `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.prioLTFlag_exec`,
   `insertIntoNonEmptyList_exec`, `addRootAndUpdateMin_exec`: shared list and priority primitives.
 * `Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.allocSpan_exec`, `initSetup_exec`,
@@ -65,11 +63,9 @@ theorem owns_cons_addr {n base d : ℕ} (hd : d ≤ n) :
 
 /-- An address outside the heap block `[base, base + space n)` lies below `base` or at least
 `base + 9 * n + 1`. -/
-theorem out_of_footprint {n base a : ℕ}
-    (ha : a < (Block.mk base (space n)).base ∨
-      (Block.mk base (space n)).base + (Block.mk base (space n)).length ≤ a) :
+theorem out_of_footprint (n base : ℕ) {a : ℕ} (ha : a < base ∨ base + space n ≤ a) :
     a < base ∨ base + 9 * n + 1 ≤ a := by
-  dsimp only [space] at ha
+  unfold space at ha
   omega
 
 /-! ## Shared primitives: `prioLTFlag`, `insertIntoNonEmptyList`, `addRootAndUpdateMin` -/
@@ -125,7 +121,7 @@ theorem insertIntoNonEmptyList_exec {n base w : ℕ} {x : Data rFib}
   unfold insertIntoNonEmptyList
   wram_exec [hfit, hbr.regs_leftBase, hbr.regs_rightBase, hh_val, hu_val, hr_mem]
   refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
-    Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp, ?_⟩
+    Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp, ?_⟩
   wram_simp [ofData_write_right, ofData_write_left, ofData_set_scratch]
 
 theorem addRootAndUpdateMin_preserves {r uReg : Fin rFib}
@@ -161,7 +157,6 @@ theorem addRootAndUpdateMin_exec {n base w : ℕ} {x : Data rFib}
       Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
       AddsRoot (RawState.ofData n base x) u (RawState.ofData n base y) := by
   set st := RawState.ofData n base x with hst_def
-  have hnr' : st.numRoots + 1 ≤ n := hnr
   have hfit := hbr.fits_of_le hb
   have hu_lt := u.isLt
   obtain ⟨hu0, hu1, hu2, hu3, hu4, hu5, hum, hunr⟩ := hu_sc
@@ -173,7 +168,7 @@ theorem addRootAndUpdateMin_exec {n base w : ℕ} {x : Data rFib}
     wram_exec [hfit, hbr.regs_leftBase, hbr.regs_rightBase, hbr.regs_zeroP, hbr.regs_oneP,
       hu_val, hmin_x, hnr_x]
     refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
-      Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp,
+      Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,
       Or.inl ⟨hmin0, ?_⟩⟩
     wram_simp [ofData_set_numRoots, ofData_set_minRoot, ofData_write_right, ofData_write_left,
       ofData_set_scratch, ← hst_def]
@@ -403,7 +398,7 @@ theorem insertCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x : D
     wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr]
   have hmod16 : Modifies (Block.mk base (space n)).footprint x.mem x6.mem := by
     subst hx6
-    exact Modifies.block_iff.2 fun a ha => by have := out_of_footprint ha; wram_simp
+    exact Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp
   have hst6 : RawState.ofData n base x6 = newNode st v k := by
     subst hx6
     wram_simp [newNode, ofData_write_inHeap, ofData_write_mark, ofData_write_deg,
