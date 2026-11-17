@@ -49,6 +49,8 @@ consequence of Tsirelson's inequality for states (`Cslib.Quantum.AlgState.re_chs
 ## Main results
 
 * `Cslib.PCP.TwoProverGame.commutingWinProb_toCommuting`: the tensor-product model is an instance.
+* `Cslib.PCP.CommutingStrategy.sum_ite_prob_eq`: the probability that the first player's bit
+  matches a function of the other answer, as a correlation.
 * `Cslib.PCP.TwoProverGame.commutingWinProb_chsh_le`: Tsirelson's bound for commuting-operator
   strategies.
 
@@ -143,6 +145,42 @@ theorem correlation_eq (S : CommutingStrategy X Y Bool Bool 𝒜) (x : X) (y : Y
       S.prob x y true false + S.prob x y true true := by
   simp only [correlation, prob, Measurement.observable, sub_mul, mul_sub, map_sub,
     Complex.sub_re]
+  ring
+
+variable [StarOrderedRing 𝒜] {B : Type*} [Fintype B] in
+/-- The probability that the bit `γ` of the first player equals `g(r)` for the answer `r` of the
+second is the correlation of their observables: `(1 + Re φ(A_x G_y)) / 2`, where `G_y` is the
+observable of the second player's measurement post-processed by `g`. -/
+theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool) (x : X) (y : Y) :
+    ∑ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
+      (1 + (S.state ((S.alice x).observable * ((S.bob y).map g).observable)).re) / 2 := by
+  classical
+  have h : ∀ γ, ∑ r, (if γ = g r then S.prob x y γ r else 0) =
+      (S.state ((S.alice x).effect γ * ((S.bob y).map g).effect γ)).re := by
+    intro γ
+    rw [Measurement.map_effect, mul_sum, map_sum, Complex.re_sum, sum_filter]
+    refine sum_congr rfl fun r _ => ?_
+    simp only [prob, eq_comm]
+  simp only [h, Fintype.sum_bool]
+  set s := (S.alice x).effect false
+  set t := (S.alice x).effect true
+  set u := ((S.bob y).map g).effect false
+  set v := ((S.bob y).map g).effect true
+  have hst : t = 1 - s := by
+    have := (S.alice x).sum_effect
+    rw [Fintype.sum_bool] at this
+    exact eq_sub_of_add_eq this
+  have huv : v = 1 - u := by
+    have := ((S.bob y).map g).sum_effect
+    rw [Fintype.sum_bool] at this
+    exact eq_sub_of_add_eq this
+  have key : 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) := by
+    rw [hst, huv]; noncomm_ring
+  rw [Measurement.observable, Measurement.observable, ← Complex.add_re, ← map_add]
+  change _ = (1 + (S.state ((s - t) * (u - v))).re) / 2
+  have h1 : (1 : ℝ) = (S.state 1).re := by rw [S.state.map_one, Complex.one_re]
+  rw [h1, ← Complex.add_re, ← map_add, key]
+  simp only [map_add, Complex.add_re]
   ring
 
 end Correlation
