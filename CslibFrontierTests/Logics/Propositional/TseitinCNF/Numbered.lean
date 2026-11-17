@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 import Mathlib.Data.Fintype.Pi
 
@@ -17,6 +20,8 @@ renaming sends to the same variable of the Tseitin transformation. The counted t
 negated contraposition takes one unit of time for each of its thirteen nodes, and the transformation
 is unsatisfiable.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.TseitinCNF.Numbered
 
