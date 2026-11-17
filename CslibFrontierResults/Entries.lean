@@ -143,6 +143,7 @@ import CslibFrontier.Computability.Kolmogorov.MINKT
 import CslibFrontier.Computability.Kolmogorov.MINKTStar.Hardness
 import CslibFrontier.Computability.Kolmogorov.MKtP
 import CslibFrontier.Computability.Kolmogorov.SymmetryOfInformation
+import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 import CslibFrontier.Computability.MCSP.AntiChecker
 import CslibFrontier.Computability.MCSP.AntiChecker.Efficient
 import CslibFrontier.Computability.MCSP.FormulaMagnification
@@ -4388,6 +4389,25 @@ register_result "chaitin-incompleteness" where
     is a hypothesis. The quantitative bound is C(encode e) + c for a code e semi-deciding the \
     collection. Prefix-free complexity, Chaitin's Omega and logic-level theories are not \
     formalized."
+
+register_result "goldreich-kolmogorov-universal" where
+  title := "Kolmogorov complexity with respect to a universal machine"
+  topic := "Kolmogorov complexity"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Theorem 1.10",
+      locator := "December 2006 r1.pdf, printed p. 34; PDF p. 59" }
+  ]
+  theorems := [Turing.MultiTapeTM.IsUniversal.exists_ecomplexity_le]
+  scope := "The compared machine M is a deterministic native multi-tape machine over Bool with \
+    finitely many states, run on arbitrary bit strings. The universal machine U is any \
+    deterministic native multi-tape machine over Bool, with any state type, satisfying \
+    IsUniversal (Definition 1.8): on encPair encBits encBits (eDesc (desc eS eBit M'), x) it \
+    halts with output o exactly when M' halts on x with o, for every finite-state binary M'; \
+    the finite-state case includes the source's machines. The pair encoding writes each \
+    description bit b as 1b, then 0, so the constant is 2|<M>| + 1. Complexities are extended \
+    naturals, top without a description. Universality is a hypothesis: an unclocked native \
+    universal machine (Theorem 1.9) is not constructed. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6289#pullrequestreview-5947845222"
 
 register_result "symmetry-of-information" where
   title := "Kolmogorov–Levin symmetry of information for plain complexity"

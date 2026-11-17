@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Kolmogorov.MultiTape
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Decode
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Complexity
 
 /-!
 # Kolmogorov complexity relative to a universal machine
@@ -42,8 +42,6 @@ Theorem 1.9, is not yet formalized.
 
 ## Main results
 
-* `Turing.MultiTapeTM.IsUniversal.computes_encPair`: a universal machine computes `M(x)` from
-  `(⟨M⟩, x)`.
 * `Turing.MultiTapeTM.IsUniversal.exists_ecomplexity_le`: **complexity with respect to a universal
   machine**: `K_U(s) ≤ K_M(s) + c` for every machine `M` and a constant `c` depending only on `M`.
 
@@ -75,12 +73,6 @@ namespace IsUniversal
 
 variable {k : ℕ} {S : Type*} {U : MultiTapeTM k Bool S}
 
-/-- A universal machine computes `M(x)` from the pair of a description of `M` and `x`. -/
-theorem computes_encPair (hU : U.IsUniversal) {k' : ℕ} {State : Type} [Fintype State]
-    (eS : State ↪ ℕ) {M : MultiTapeTM k' Bool State} {x o : List Bool} (h : M.Computes x o) :
-    U.Computes (encPair encBits encBits (eDesc (desc eS eBit M), x)) o :=
-  (hU eS M x o).mpr h
-
 /-- **Complexity with respect to a universal machine**
 [Goldreich, Theorem 1.10][Goldreich2006DraftR1]. For every machine `M` there is a constant `c`
 with `K_U(s) ≤ K_M(s) + c` for every string `s`. The constant is `2 |⟨M⟩| + 1` for the description
@@ -97,7 +89,7 @@ theorem exists_ecomplexity_le (hU : U.IsUniversal) {k' : ℕ} {State : Type} [Fi
     (fun p => encPair encBits encBits (w, p))
     (fun p => by rw [length_encPair]; simp [encBits]; omega)
     fun {p x} h => ofMultiTapeTM_produces_iff.mpr
-      (hU.computes_encPair eS (ofMultiTapeTM_produces_iff.mp h))
+      ((hU eS M _ _).mpr (ofMultiTapeTM_produces_iff.mp h))
   exact ⟨_, S.ecomplexity_le⟩
 
 end IsUniversal
