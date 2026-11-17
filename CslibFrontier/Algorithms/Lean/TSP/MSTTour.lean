@@ -118,14 +118,12 @@ variable [DecidableEq α]
 /-- Inserting after a vertex of the walk splits the walk at that vertex. -/
 theorem exists_eq_insertAfter {u : α} (v : α) {t : List α} (hu : u ∈ t) :
     ∃ A B, t = A ++ u :: B ∧ insertAfter u v t = A ++ u :: v :: B := by
-  induction t with
-  | nil => simp at hu
-  | cons x t ih =>
-    by_cases hx : x = u
-    · subst hx
-      exact ⟨[], t, rfl, by simp [insertAfter]⟩
-    · obtain ⟨A, B, rfl, h⟩ := ih ((List.mem_cons.1 hu).resolve_left (Ne.symm hx))
-      exact ⟨x :: A, B, rfl, by simp [insertAfter, hx, h]⟩
+  fun_induction insertAfter u v t with
+  | case1 => simp at hu
+  | case2 t => exact ⟨[], t, rfl, rfl⟩
+  | case3 x t hx ih =>
+    obtain ⟨A, B, rfl, h⟩ := ih ((List.mem_cons.1 hu).resolve_left (Ne.symm hx))
+    exact ⟨x :: A, B, rfl, by simp [h]⟩
 
 /-- Inserting after a vertex of the walk adds exactly the inserted vertex. -/
 theorem insertAfter_perm {u : α} (v : α) {t : List α} (hu : u ∈ t) :
@@ -193,16 +191,13 @@ theorem growStep_spec {W : Type} {t : List (Fin n)} {e : WeightedEdge n W}
 /-- Growing keeps the tour free of repetitions. -/
 theorem nodup_growTour {W : Type} (F : List (WeightedEdge n W)) (k : ℕ) {t : List (Fin n)}
     (ht : t.Nodup) : (growTour F k t).Nodup := by
-  induction k generalizing t with
-  | zero => exact ht
-  | succ k ih =>
-    cases h : F.find? (crosses t) with
-    | none => simpa only [growTour, h] using ht
-    | some e =>
-      simp only [growTour, h]
-      obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-      rw [heq]
-      exact ih ((insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
+  fun_induction growTour F k t with
+  | case1 | case2 => exact ht
+  | case3 k t e h ih =>
+    obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
+    refine ih ?_
+    rw [heq]
+    exact (insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩)
 
 /-- **Coverage.** If the edges of `F` connect all of `Fin n` and there is fuel for `n` vertices,
 growing a nonempty tour without repetitions reaches every vertex. -/

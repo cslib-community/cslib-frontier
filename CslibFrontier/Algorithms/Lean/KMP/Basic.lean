@@ -193,48 +193,25 @@ theorem IsProperBorderLen.to_take {α : Type*} {w : List α} {j k : ℕ}
 
 theorem maxPrefixSuffixUpTo_le_bound {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     maxPrefixSuffixUpTo p t B ≤ B := by
-  induction B with
-  | zero => exact Nat.le_refl 0
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs
-    · exact Nat.le_refl (B + 1)
-    · exact Nat.le_succ_of_le ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> omega
 
 theorem maxPrefixSuffixUpTo_le_length {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     maxPrefixSuffixUpTo p t B ≤ p.length := by
-  induction B with
-  | zero => exact Nat.zero_le _
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact h.1
-    · exact ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> omega
 
 theorem take_maxPrefixSuffixUpTo_isSuffix {α : Type*} [DecidableEq α] (p t : List α) (B : ℕ) :
     p.take (maxPrefixSuffixUpTo p t B) <:+ t := by
-  induction B with
-  | zero => exact List.nil_suffix
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact h.2
-    · exact ih
+  fun_induction maxPrefixSuffixUpTo p t B <;> simp_all
 
 theorem le_maxPrefixSuffixUpTo {α : Type*} [DecidableEq α] {p t : List α} {B k : ℕ}
     (hkB : k ≤ B) (hkp : k ≤ p.length) (hsuf : p.take k <:+ t) :
     k ≤ maxPrefixSuffixUpTo p t B := by
-  induction B with
-  | zero => omega
-  | succ B ih =>
-    simp only [maxPrefixSuffixUpTo]
-    split_ifs with h
-    · exact hkB
-    · have hklt : k ≤ B := by
-        rcases Nat.eq_or_lt_of_le hkB with rfl | hlt
-        · exact False.elim (h ⟨hkp, hsuf⟩)
-        · omega
-      exact ih hklt
+  fun_induction maxPrefixSuffixUpTo p t B with
+  | case1 | case2 => exact hkB
+  | case3 B h ih =>
+    rcases Nat.eq_or_lt_of_le hkB with rfl | hlt
+    · exact absurd ⟨hkp, hsuf⟩ h
+    · exact ih (by omega)
 
 theorem eq_maxPrefixSuffixUpTo_iff {α : Type*} [DecidableEq α] {p t : List α} {B m : ℕ} :
     m = maxPrefixSuffixUpTo p t B ↔

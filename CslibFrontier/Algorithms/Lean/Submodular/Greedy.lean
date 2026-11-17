@@ -262,37 +262,17 @@ theorem scanCandidates_snd_eq (f : Finset α → β) (S : Finset α)
     {best : α} {bestVal : β} (hval : bestVal = f (insert best S)) (cs : List α) :
     (scanCandidates f S best bestVal cs).2 =
       f (insert (scanCandidates f S best bestVal cs).1 S) := by
-  induction cs generalizing best bestVal with
-  | nil => exact hval
-  | cons c cs ih =>
-    simp only [scanCandidates]
-    split_ifs with hlt
-    · exact ih rfl
-    · exact ih hval
+  fun_induction scanCandidates f S best bestVal cs <;> grind
 
 theorem scanCandidates_fst_mem (f : Finset α → β) (S : Finset α)
     (best : α) (bestVal : β) (cs : List α) :
     (scanCandidates f S best bestVal cs).1 ∈ best :: cs := by
-  induction cs generalizing best bestVal with
-  | nil => simp [scanCandidates]
-  | cons c cs ih =>
-    simp only [scanCandidates]
-    split_ifs with hlt
-    · exact List.mem_cons_of_mem best (ih c (f (insert c S)))
-    · rcases List.mem_cons.mp (ih best bestVal) with h | h
-      · exact List.mem_cons.mpr (Or.inl h)
-      · exact List.mem_cons_of_mem best (List.mem_cons_of_mem c h)
+  fun_induction scanCandidates f S best bestVal cs <;> grind
 
 theorem le_scanCandidates_snd (f : Finset α → β) (S : Finset α)
     (best : α) (bestVal : β) (cs : List α) :
     bestVal ≤ (scanCandidates f S best bestVal cs).2 := by
-  induction cs generalizing best bestVal with
-  | nil => exact le_rfl
-  | cons c cs ih =>
-    simp only [scanCandidates]
-    split_ifs with hlt
-    · exact hlt.le.trans (ih c (f (insert c S)))
-    · exact ih best bestVal
+  fun_induction scanCandidates f S best bestVal cs <;> grind
 
 theorem forall_le_scanCandidates_snd (f : Finset α → β) (S : Finset α)
     (best : α) (bestVal : β) (cs : List α) :
@@ -314,12 +294,7 @@ theorem scanCandidates_eq_of_forall_le (f : Finset α → β) (S : Finset α)
     (best : α) (bestVal : β) {cs : List α}
     (h : ∀ c ∈ cs, f (insert c S) ≤ bestVal) :
     scanCandidates f S best bestVal cs = (best, bestVal) := by
-  induction cs with
-  | nil => rfl
-  | cons c cs ih =>
-    have hc : ¬ bestVal < f (insert c S) := not_lt.mpr (h c List.mem_cons_self)
-    simp only [scanCandidates, hc, ↓reduceIte]
-    exact ih fun y hy => h y (List.mem_cons_of_mem c hy)
+  fun_induction scanCandidates f S best bestVal cs <;> grind
 
 @[simp] theorem submodularGreedyLoop_zero (f : Finset α → β) (u : List α) (S : Finset α) :
     submodularGreedyLoop f u 0 S = S := rfl
@@ -327,11 +302,9 @@ theorem scanCandidates_eq_of_forall_le (f : Finset α → β) (S : Finset α)
 theorem submodularGreedyLoop_succ_right (f : Finset α → β) (u : List α) (m : ℕ) (S : Finset α) :
     submodularGreedyLoop f u (m + 1) S =
       submodularGreedyStep f u (submodularGreedyLoop f u m S) := by
-  induction m generalizing S with
-  | zero => rfl
-  | succ m ih =>
-    simp only [submodularGreedyLoop]
-    exact ih (submodularGreedyStep f u S)
+  fun_induction submodularGreedyLoop f u m S with
+  | case1 => rfl
+  | case2 => assumption
 
 @[simp] theorem submodularGreedy_zero (f : Finset α → β) (xs : List α) :
     submodularGreedy f xs 0 = ∅ := rfl

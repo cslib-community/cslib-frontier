@@ -85,9 +85,7 @@ def natOfBits (bs : List Bool) : ℕ :=
   bs.foldl (fun acc b => 2 * acc + cond b 1 0) 0
 
 @[simp] theorem length_bitsOfNat (k q : ℕ) : (bitsOfNat k q).length = k := by
-  induction k generalizing q with
-  | zero => rfl
-  | succ k ih => simp [bitsOfNat, ih]
+  fun_induction bitsOfNat k q <;> simp_all
 
 private theorem foldl_bitStep_eq (bs : List Bool) (acc : ℕ) :
     bs.foldl (fun a b => 2 * a + cond b 1 0) acc = acc * 2 ^ bs.length + natOfBits bs := by
@@ -163,9 +161,7 @@ def kraftAssign {α : Type*} (L : ℕ) (ℓ : α → ℕ) :
 
 @[simp] theorem map_fst_kraftAssign {α : Type*} (L : ℕ) (ℓ : α → ℕ) (offset : ℕ) (xs : List α) :
     (kraftAssign L ℓ offset xs).map Prod.fst = xs := by
-  induction xs generalizing offset with
-  | nil => rfl
-  | cons a xs ih => simp [kraftAssign, ih]
+  fun_induction kraftAssign L ℓ offset xs <;> simp_all
 
 theorem length_snd_of_mem_kraftAssign {α : Type*} {L : ℕ} {ℓ : α → ℕ} {offset : ℕ} {xs : List α}
     {p : α × List Bool} (hp : p ∈ kraftAssign L ℓ offset xs) :
@@ -359,18 +355,12 @@ private def codebookBitLength {α : Type*} (ps : List (α × List Bool)) : ℕ :
 private theorem leftChildren_eq_filterMap {α : Type*} (ps : List (α × List Bool)) :
     leftChildren ps = ps.filterMap fun p =>
       p.2.casesOn none fun b bs => if b == false then some (p.1, bs) else none := by
-  induction ps with
-  | nil => rfl
-  | cons p ps ih =>
-    rcases p with ⟨a, _ | ⟨false | true, bs⟩⟩ <;> simp [leftChildren, ih]
+  fun_induction leftChildren ps <;> simp_all
 
 private theorem rightChildren_eq_filterMap {α : Type*} (ps : List (α × List Bool)) :
     rightChildren ps = ps.filterMap fun p =>
       p.2.casesOn none fun b bs => if b == true then some (p.1, bs) else none := by
-  induction ps with
-  | nil => rfl
-  | cons p ps ih =>
-    rcases p with ⟨a, _ | ⟨false | true, bs⟩⟩ <;> simp [rightChildren, ih]
+  fun_induction rightChildren ps <;> simp_all
 
 private theorem codebookBitLength_filterMap_add_le {α : Type*} (bit : Bool)
     (ps : List (α × List Bool)) :

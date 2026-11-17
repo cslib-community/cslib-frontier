@@ -64,54 +64,25 @@ open scoped List
 
 theorem flatten_onlineInsert_perm (C a : ℕ) :
     ∀ (o : Option ℕ) (bins : List (List ℕ)), (onlineInsert C a o bins).flatten ~ a :: bins.flatten
-  | _, [] => by simp [onlineInsert]
-  | none, b :: bs => by
-    simp only [onlineInsert, List.flatten_cons]
-    exact ((flatten_onlineInsert_perm C a none bs).append_left b).trans List.perm_middle
-  | some 0, b :: bs => by
-    simp only [onlineInsert]
-    split_ifs
-    · simp only [List.flatten_cons, List.append_assoc, List.singleton_append]
-      exact List.perm_middle
-    · simp only [List.flatten_cons]
-      exact ((flatten_onlineInsert_perm C a none bs).append_left b).trans List.perm_middle
-  | some (i + 1), b :: bs => by
-    simp only [onlineInsert, List.flatten_cons]
-    exact ((flatten_onlineInsert_perm C a (some i) bs).append_left b).trans List.perm_middle
+  | o, bins => by
+    fun_induction onlineInsert C a o bins with
+    | case1 | case3 => simp
+    | case2 b bs ih | case4 b bs _ ih | case5 i b bs ih =>
+      simpa using (ih.append_left b).trans List.perm_middle
 
 theorem sum_le_of_mem_onlineInsert {C a : ℕ} (ha : a ≤ C) :
     ∀ {o : Option ℕ} {bins : List (List ℕ)}, (∀ b ∈ bins, b.sum ≤ C) →
-      ∀ b ∈ onlineInsert C a o bins, b.sum ≤ C
-  | _, [], _ => by simpa [onlineInsert] using ha
-  | none, b :: bs, h => by
-    simp only [onlineInsert, List.mem_cons, forall_eq_or_imp] at h ⊢
-    exact ⟨h.1, sum_le_of_mem_onlineInsert ha h.2⟩
-  | some 0, b :: bs, h => by
-    simp only [onlineInsert]
-    split_ifs with hb
-    · simp only [List.mem_cons, forall_eq_or_imp, List.sum_append, List.sum_singleton] at h ⊢
-      exact ⟨hb, h.2⟩
-    · simp only [List.mem_cons, forall_eq_or_imp] at h ⊢
-      exact ⟨h.1, sum_le_of_mem_onlineInsert ha h.2⟩
-  | some (i + 1), b :: bs, h => by
-    simp only [onlineInsert, List.mem_cons, forall_eq_or_imp] at h ⊢
-    exact ⟨h.1, sum_le_of_mem_onlineInsert ha h.2⟩
+      ∀ b ∈ onlineInsert C a o bins, b.sum ≤ C := by
+  intro o bins
+  fun_induction onlineInsert C a o bins <;> simp_all
 
 /-- Inserting an item that fails `p` does not change the number of bins holding an item that
 satisfies `p`. -/
 theorem countP_any_onlineInsert {C a : ℕ} {p : ℕ → Bool} (hp : p a = false) :
     ∀ (o : Option ℕ) (bins : List (List ℕ)),
-      (onlineInsert C a o bins).countP (fun b => b.any p) = bins.countP (fun b => b.any p)
-  | _, [] => by simp [onlineInsert, hp]
-  | none, b :: bs => by
-    simp only [onlineInsert, List.countP_cons, countP_any_onlineInsert hp none bs]
-  | some 0, b :: bs => by
-    simp only [onlineInsert]
-    split_ifs
-    · simp [List.countP_cons, hp]
-    · simp only [List.countP_cons, countP_any_onlineInsert hp none bs]
-  | some (i + 1), b :: bs => by
-    simp only [onlineInsert, List.countP_cons, countP_any_onlineInsert hp (some i) bs]
+      (onlineInsert C a o bins).countP (fun b => b.any p) = bins.countP (fun b => b.any p) := by
+  intro o bins
+  fun_induction onlineInsert C a o bins <;> simp_all [List.countP_cons]
 
 /-- A deterministic online bin-packing algorithm with bin capacity `C`. -/
 structure OnlinePacker (C : ℕ) where
@@ -136,9 +107,7 @@ items. -/
 
 theorem runFrom_append (hist : List ℕ) (bins : List (List ℕ)) (l₁ l₂ : List ℕ) :
     A.runFrom hist bins (l₁ ++ l₂) = A.runFrom (hist ++ l₁) (A.runFrom hist bins l₁) l₂ := by
-  induction l₁ generalizing hist bins with
-  | nil => simp [runFrom]
-  | cons a l ih => simp [runFrom, ih]
+  fun_induction A.runFrom hist bins l₁ <;> simp_all [runFrom]
 
 /-- **Online.** The packing of `l₁ ++ l₂` continues the packing of `l₁`. -/
 theorem run_append (l₁ l₂ : List ℕ) : A.run (l₁ ++ l₂) = A.runFrom l₁ (A.run l₁) l₂ := by

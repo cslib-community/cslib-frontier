@@ -69,34 +69,20 @@ room. -/
 
 /-- Inserting an item adds it to the bins' contents. -/
 theorem perm_flatten_firstFitInsert (C a : ℕ) :
-    ∀ bins : List (List ℕ), (firstFitInsert C a bins).flatten ~ bins.flatten ++ [a]
-  | [] => by simp [firstFitInsert]
-  | b :: bs => by
-    simp only [firstFitInsert]
-    split_ifs
-    · simp only [List.flatten_cons, List.append_assoc]
-      exact List.Perm.append_left b List.perm_append_comm
-    · simp only [List.flatten_cons, List.append_assoc]
-      exact List.Perm.append_left b (perm_flatten_firstFitInsert C a bs)
+    ∀ bins : List (List ℕ), (firstFitInsert C a bins).flatten ~ bins.flatten ++ [a] := by
+  intro bins
+  fun_induction firstFitInsert C a bins with
+  | case1 => simp
+  | case2 b bs _ => simpa using (List.perm_append_comm (l₁ := [a])).append_left b
+  | case3 b bs _ ih => simpa using ih.append_left b
 
 /-- A bin after inserting `a` is an old bin, an old bin with room for `a` extended by `a`, or the
 new bin `[a]`. -/
 theorem mem_firstFitInsert {C a : ℕ} :
     ∀ {bins : List (List ℕ)} {c : List ℕ}, c ∈ firstFitInsert C a bins →
-      c ∈ bins ∨ (∃ b ∈ bins, b.sum + a ≤ C ∧ c = b ++ [a]) ∨ c = [a]
-  | [], c, h => by simp_all [firstFitInsert]
-  | b :: bs, c, h => by
-    simp only [firstFitInsert] at h
-    split_ifs at h with hb
-    · rcases List.mem_cons.1 h with rfl | h
-      · exact Or.inr (Or.inl ⟨b, List.mem_cons_self, hb, rfl⟩)
-      · exact Or.inl (List.mem_cons_of_mem _ h)
-    · rcases List.mem_cons.1 h with rfl | h
-      · exact Or.inl List.mem_cons_self
-      · rcases mem_firstFitInsert h with h | ⟨b', hb', hfit, rfl⟩ | rfl
-        · exact Or.inl (List.mem_cons_of_mem _ h)
-        · exact Or.inr (Or.inl ⟨b', List.mem_cons_of_mem _ hb', hfit, rfl⟩)
-        · exact Or.inr (Or.inr rfl)
+      c ∈ bins ∨ (∃ b ∈ bins, b.sum + a ≤ C ∧ c = b ++ [a]) ∨ c = [a] := by
+  intro bins c
+  fun_induction firstFitInsert C a bins <;> grind
 
 private theorem pairwise_forall_lt_sum_add_firstFitInsert {C a : ℕ} :
     ∀ {bins : List (List ℕ)}, bins.Pairwise (fun b b' => ∀ c ∈ b', C < b.sum + c) →

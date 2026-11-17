@@ -147,37 +147,23 @@ variable (o : {ι : Type} → ArithQuery α ι → ι)
 /-- `addList p q` has the length of the longer list. -/
 theorem length_eval_addList (p q : List α) :
     ((addList p q).eval o).length = max p.length q.length := by
-  induction p generalizing q with
-  | nil => simp [addList]
-  | cons a p ih =>
-    cases q with
-    | nil => simp [addList]
-    | cons b q => simp [addList, ih]
+  fun_induction addList p q <;> simp_all
 
 /-- `subList p q` has the length of the longer list. -/
 theorem length_eval_subList [Zero α] (p q : List α) :
     ((subList p q).eval o).length = max p.length q.length := by
-  induction q generalizing p with
-  | nil => simp [subList]
-  | cons b q ih =>
-    simp only [subList, doSub, FreeM.eval_bind, FreeM.eval_lift, FreeM.eval_pure,
-      List.length_cons, ih, List.length_tail]
-    omega
+  fun_induction subList p q <;> grind [FreeM.eval_bind, FreeM.eval_pure]
 
 /-- `mulFit n` returns `2 n - 1` coefficients under every oracle. -/
 theorem length_eval_mulFit [Zero α] (n : ℕ) (p q : List α) :
     ((mulFit n p q).eval o).length = 2 * n - 1 := by
-  induction n using Nat.strong_induction_on generalizing p q with
-  | _ n ih =>
-    match n with
-    | 0 => simp [mulFit]
-    | 1 => simp [mulFit]
-    | n + 2 =>
-      rw [mulFit]
-      simp only [addAt, FreeM.eval_bind, FreeM.eval_pure, List.length_append, List.length_take,
-        List.length_drop, length_eval_addList, length_eval_subList, List.length_cons]
-      rw [ih _ (by omega), ih _ (by omega), ih _ (by omega)]
-      omega
+  fun_induction mulFit n p q with
+  | case1 | case2 => rfl
+  | case3 n p q m k p₀ p₁ q₀ q₁ ih₀ ih₁ ih₂ =>
+    simp only [addAt, FreeM.eval_bind, FreeM.eval_pure, List.length_append, List.length_take,
+      List.length_drop, length_eval_addList, length_eval_subList, List.length_cons]
+    rw [ih₀, ih₂, ih₁]
+    omega
 
 end Karatsuba
 

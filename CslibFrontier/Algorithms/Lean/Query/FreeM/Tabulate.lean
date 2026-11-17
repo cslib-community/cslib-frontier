@@ -57,11 +57,9 @@ theorem eval_tabulate (oracle : {ι : Type} → Q ι → ι) :
 theorem cost_tabulate {T : Type} [AddCommMonoid T] (oracle : {ι : Type} → Q ι → ι)
     (weight : {ι : Type} → Q ι → T) :
     ∀ (n : ℕ) (f : Fin n → FreeM Q α),
-      (tabulate n f).cost oracle weight = ∑ i, (f i).cost oracle weight
-  | 0, f => by simp [tabulate]
-  | n + 1, f => by
-    simp only [tabulate, cost_bind, cost_pure, add_zero, cost_tabulate oracle weight n,
-      Fin.sum_univ_succ]
+      (tabulate n f).cost oracle weight = ∑ i, (f i).cost oracle weight := by
+  intro n f
+  fun_induction tabulate n f <;> simp_all [Fin.sum_univ_succ]
 
 /-- Run the entry programs `f i j` in row-major order and collect the resulting matrix. -/
 @[expose] def tabulateMatrix (n : ℕ) (f : Fin n → Fin n → FreeM Q α) :

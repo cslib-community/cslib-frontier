@@ -158,32 +158,31 @@ theorem bestSet_spec {R : Finset α} {i : ι} (h : bestSet S w J R = some i) :
 theorem greedyLoop_covers {k : ℕ} {R : Finset α} (hR : R.card ≤ k)
     (hcov : ∀ a ∈ R, ∃ j ∈ J, a ∈ S j) :
     ∀ a ∈ R, ∃ i ∈ greedyLoop S w J k R, a ∈ S i := by
-  induction k generalizing R with
-  | zero =>
+  fun_induction greedyLoop S w J k R with
+  | case1 R =>
     rw [Finset.card_eq_zero.1 (Nat.le_zero.1 hR)]
     simp
-  | succ k ih =>
-    unfold greedyLoop
-    rcases h : bestSet S w J R with _ | i
-    · rw [bestSet_eq_none_iff] at h
-      intro a ha
-      obtain ⟨j, hj, haj⟩ := hcov a ha
-      have : a ∈ S j ∩ R := Finset.mem_inter.2 ⟨haj, ha⟩
-      rw [h j hj] at this
-      exact absurd this (Finset.notMem_empty a)
-    · obtain ⟨-, hne, -⟩ := bestSet_spec h
-      have hlt : (R \ S i).card ≤ k := by
-        have h1 := Finset.card_sdiff_add_card_inter R (S i)
-        have h2 : 0 < (R ∩ S i).card := by
-          rw [Finset.inter_comm]
-          exact hne.card_pos
-        omega
-      have ih' := ih hlt fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
-      intro a ha
-      by_cases hai : a ∈ S i
-      · exact ⟨i, List.mem_cons_self, hai⟩
-      · obtain ⟨j, hj, haj⟩ := ih' a (Finset.mem_sdiff.2 ⟨ha, hai⟩)
-        exact ⟨j, List.mem_cons_of_mem _ hj, haj⟩
+  | case2 k R h =>
+    rw [bestSet_eq_none_iff] at h
+    intro a ha
+    obtain ⟨j, hj, haj⟩ := hcov a ha
+    have : a ∈ S j ∩ R := Finset.mem_inter.2 ⟨haj, ha⟩
+    rw [h j hj] at this
+    exact absurd this (Finset.notMem_empty a)
+  | case3 k R i h ih =>
+    obtain ⟨-, hne, -⟩ := bestSet_spec h
+    have hlt : (R \ S i).card ≤ k := by
+      have h1 := Finset.card_sdiff_add_card_inter R (S i)
+      have h2 : 0 < (R ∩ S i).card := by
+        rw [Finset.inter_comm]
+        exact hne.card_pos
+      omega
+    have ih' := ih hlt fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
+    intro a ha
+    by_cases hai : a ∈ S i
+    · exact ⟨i, List.mem_cons_self, hai⟩
+    · obtain ⟨j, hj, haj⟩ := ih' a (Finset.mem_sdiff.2 ⟨ha, hai⟩)
+      exact ⟨j, List.mem_cons_of_mem _ hj, haj⟩
 
 /-- A property of a chosen set relative to the uncovered elements holds of every set the greedy
 loop chooses when it holds of each round's choice and passes to larger uncovered sets. -/
@@ -191,16 +190,7 @@ private theorem forall_mem_greedyLoop {P : ι → Finset α → Prop}
     (hbest : ∀ {R i}, bestSet S w J R = some i → P i R)
     (hmono : ∀ {R R' i}, R' ⊆ R → P i R' → P i R) {k : ℕ} {R : Finset α} :
     ∀ i ∈ greedyLoop S w J k R, P i R := by
-  induction k generalizing R with
-  | zero => simp [greedyLoop]
-  | succ k ih =>
-    unfold greedyLoop
-    rcases h : bestSet S w J R with _ | i
-    · simp
-    · intro j hj
-      rcases List.mem_cons.1 hj with rfl | hj
-      · exact hbest h
-      · exact hmono Finset.sdiff_subset (ih j hj)
+  fun_induction greedyLoop S w J k R <;> grind
 
 /-- The greedy loop chooses only candidates. -/
 theorem greedyLoop_subset {k : ℕ} {R : Finset α} : ∀ i ∈ greedyLoop S w J k R, i ∈ J :=
@@ -214,26 +204,17 @@ theorem greedyLoop_inter_nonempty {k : ℕ} {R : Finset α} :
 
 /-- The greedy loop never chooses a candidate twice. -/
 theorem nodup_greedyLoop {k : ℕ} {R : Finset α} : (greedyLoop S w J k R).Nodup := by
-  induction k generalizing R with
-  | zero => simp [greedyLoop]
-  | succ k ih =>
-    unfold greedyLoop
-    rcases h : bestSet S w J R with _ | i
-    · simp
-    · refine List.nodup_cons.2 ⟨fun hi => ?_, ih⟩
-      obtain ⟨a, ha⟩ := greedyLoop_inter_nonempty i hi
-      rw [Finset.mem_inter, Finset.mem_sdiff] at ha
-      exact ha.2.2 ha.1
+  fun_induction greedyLoop S w J k R with
+  | case1 | case2 => simp
+  | case3 k R i h ih =>
+    refine List.nodup_cons.2 ⟨fun hi => ?_, ih⟩
+    obtain ⟨a, ha⟩ := greedyLoop_inter_nonempty i hi
+    rw [Finset.mem_inter, Finset.mem_sdiff] at ha
+    exact ha.2.2 ha.1
 
 /-- The greedy loop runs at most its fuel many rounds. -/
 theorem length_greedyLoop_le {k : ℕ} {R : Finset α} : (greedyLoop S w J k R).length ≤ k := by
-  induction k generalizing R with
-  | zero => simp [greedyLoop]
-  | succ k ih =>
-    unfold greedyLoop
-    rcases h : bestSet S w J R with _ | i
-    · simp
-    · simpa using ih
+  fun_induction greedyLoop S w J k R <;> simp_all
 
 /-- **Feasibility.** The greedy algorithm covers `U` whenever the candidates do. -/
 theorem greedy_covers {U : Finset α} (hcov : ∀ a ∈ U, ∃ j ∈ J, a ∈ S j) :

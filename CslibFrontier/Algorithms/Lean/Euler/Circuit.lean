@@ -357,13 +357,7 @@ def walkFrom : ℕ → List (α × α) → α → List α × List (α × α)
 
 theorem length_walkFrom_snd_le (fuel : ℕ) (H : List (α × α)) (u : α) :
     (walkFrom fuel H u).2.length ≤ H.length := by
-  induction fuel generalizing H u with
-  | zero => simp [walkFrom]
-  | succ fuel ih =>
-    simp only [walkFrom]
-    split
-    · exact le_rfl
-    · exact (ih _ _).trans (List.length_erase_le ..)
+  fun_induction walkFrom fuel H u <;> grind
 
 /-- A greedy walk from a vertex with an unused edge uses at least one edge. -/
 theorem length_walkFrom_snd_lt {fuel : ℕ} (hfuel : 0 < fuel) {H : List (α × α)} {u : α}
@@ -449,15 +443,12 @@ def splice (x : α) (c : List α) : List α → List α
 
 theorem exists_splice {x : α} (c : List α) {w : List α} (hx : x ∈ w) :
     ∃ A B, w = A ++ x :: B ∧ splice x c w = A ++ c ++ B := by
-  induction w with
-  | nil => simp at hx
-  | cons a w ih =>
-    by_cases ha : a = x
-    · subst ha
-      exact ⟨[], w, rfl, by simp [splice]⟩
-    · have hx' : x ∈ w := (List.mem_cons.mp hx).resolve_left (Ne.symm ha)
-      obtain ⟨A, B, h1, h2⟩ := ih hx'
-      exact ⟨a :: A, B, by simp [h1], by simp [splice, ha, h2]⟩
+  fun_induction splice x c w with
+  | case1 => simp at hx
+  | case2 w => exact ⟨[], w, rfl, by simp⟩
+  | case3 a w ha ih =>
+    obtain ⟨A, B, h1, h2⟩ := ih ((List.mem_cons.mp hx).resolve_left (Ne.symm ha))
+    exact ⟨a :: A, B, by simp [h1], by simp [h2]⟩
 
 /-- If the edges of `H` are connected to a vertex of `w`, and the edges of `w` together with `R`
 are those of `H`, then some vertex of `w` touches an edge of `R`, unless `R` is empty. -/

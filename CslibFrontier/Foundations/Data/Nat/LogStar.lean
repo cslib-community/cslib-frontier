@@ -70,9 +70,7 @@ theorem twoTower_succ (k : ℕ) : twoTower (k + 1) = 2 ^ twoTower k := rfl
 
 /-- The tower is Mathlib's fourth hyperoperation with base `2`. -/
 theorem twoTower_eq_hyperoperation (k : ℕ) : twoTower k = hyperoperation 4 2 k := by
-  induction k with
-  | zero => rw [hyperoperation_ge_three_eq_one]; rfl
-  | succ k ih => rw [twoTower, ih, hyperoperation_recursion, hyperoperation_three]
+  fun_induction twoTower k <;> grind
 
 theorem twoTower_pos (k : ℕ) : 0 < twoTower k := by
   cases k with

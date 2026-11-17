@@ -55,9 +55,7 @@ def arity : ℕ → ℕ
 
 /-- The arity at `depth` is `2 ^ depth`. -/
 @[simp] theorem arity_eq_two_pow (depth : ℕ) : arity depth = 2 ^ depth := by
-  induction depth with
-  | zero => rfl
-  | succ depth ih => simp [arity, ih, Nat.pow_succ, Nat.mul_two]
+  fun_induction arity depth <;> omega
 
 /-- Four-point lattice invariant for bitonic merge. The four indices are in cyclic order;
 the two inequalities exclude alternating high and low values. -/

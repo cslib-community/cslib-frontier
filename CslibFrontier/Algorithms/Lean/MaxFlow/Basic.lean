@@ -315,27 +315,15 @@ private theorem pathArcs_suffix {l₁ l₂ : List V} (h : l₁ <:+ l₂) :
 
 private theorem suffixFrom_eq_cons_and_suffix [DecidableEq V] {ys : List V} {x : V} (hx : x ∈ ys) :
     ∃ rest, suffixFrom x ys = x :: rest ∧ (x :: rest) <:+ ys := by
-  induction ys with
-  | nil => simp at hx
-  | cons y ys' ih =>
-    simp only [suffixFrom]
-    by_cases hxy : y = x
-    · subst hxy
-      exact ⟨ys', by simp, List.suffix_refl _⟩
-    · have hx' : x ∈ ys' := by grind
-      obtain ⟨rest, hdrop, hsuf⟩ := ih hx'
-      exact ⟨rest, by simp [hxy, hdrop], hsuf.trans (List.suffix_cons y ys')⟩
+  fun_induction suffixFrom x ys <;> grind
 
 theorem head?_loopErase [DecidableEq V] (p : List V) : (loopErase p).head? = p.head? := by
-  induction p with
-  | nil => rfl
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, _⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      rfl
-    · rfl
+  fun_induction loopErase p with
+  | case1 | case3 => rfl
+  | case2 x xs ys hx =>
+    obtain ⟨rest, hdrop, _⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    rfl
 
 theorem getLast?_loopErase [DecidableEq V] (p : List V) :
     (loopErase p).getLast? = p.getLast? := by
@@ -360,15 +348,13 @@ theorem getLast?_loopErase [DecidableEq V] (p : List V) :
       · rw [List.getLast?_cons_of_ne_nil hys_ne, ih, List.getLast?_cons_cons]
 
 theorem nodup_loopErase [DecidableEq V] (p : List V) : (loopErase p).Nodup := by
-  induction p with
-  | nil => exact List.nodup_nil
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      exact ih.sublist hsuf.sublist
-    · exact List.nodup_cons.mpr ⟨hx, ih⟩
+  fun_induction loopErase p with
+  | case1 => exact List.nodup_nil
+  | case2 x xs ys hx ih =>
+    obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    exact ih.sublist hsuf.sublist
+  | case3 x xs ys hx ih => exact List.nodup_cons.mpr ⟨hx, ih⟩
 
 theorem mem_pathArcs_loopErase [DecidableEq V] {p : List V} {e : V × V}
     (he : e ∈ pathArcs (loopErase p)) : e ∈ pathArcs p := by
@@ -399,16 +385,13 @@ theorem mem_pathArcs_loopErase [DecidableEq V] {p : List V} {e : V × V}
           · exact .inr (ih (hys ▸ he'))
 
 theorem length_loopErase_le [DecidableEq V] (p : List V) : (loopErase p).length ≤ p.length := by
-  induction p with
-  | nil => rfl
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      exact le_trans hsuf.sublist.length_le (Nat.le_succ_of_le ih)
-    · simp only [List.length_cons]
-      omega
+  fun_induction loopErase p with
+  | case1 => rfl
+  | case2 x xs ys hx ih =>
+    obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    exact le_trans hsuf.sublist.length_le (Nat.le_succ_of_le ih)
+  | case3 x xs ys hx ih => exact Nat.succ_le_succ ih
 
 /-- A reflexive–transitive chain of `r`-steps from `u` to `v` is realized by a duplicate-free
 vertex list from `u` to `v` whose consecutive pairs are `r`-steps (loop erasure). -/

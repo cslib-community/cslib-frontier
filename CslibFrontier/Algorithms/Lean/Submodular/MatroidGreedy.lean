@@ -173,10 +173,7 @@ variable {α : Type} {β : Type} [DecidableEq α] [LinearOrder β]
     (indep : Finset α → Bool) (S : Finset α) (cs : List α) :
     filterIndepM (fun T => (pure (indep T) : m Bool)) S cs =
       pure (cs.filter fun c => indep (insert c S)) := by
-  induction cs with
-  | nil => rfl
-  | cons c cs ih =>
-    simp only [filterIndepM, pure_bind, ih, List.filter_cons]
+  fun_induction filterIndepM (fun T => (pure (indep T) : m Bool)) S cs <;> grind
 
 @[simp] theorem submodularMatroidGreedyStepM_pure [LawfulMonad m]
     (f : Finset α → β) (indep : Finset α → Bool) (u : List α) (S : Finset α) :
@@ -357,14 +354,11 @@ theorem submodularMatroidGreedy_eq_chain (f : Finset α → β) (indep : Finset 
 /-- The greedy loop only adds elements. -/
 theorem subset_submodularMatroidGreedyLoop (f : Finset α → β) (indep : Finset α → Bool)
     (u : List α) (k : ℕ) (S : Finset α) : S ⊆ submodularMatroidGreedyLoop f indep u k S := by
-  induction k generalizing S with
-  | zero => exact Finset.Subset.refl S
-  | succ k ih =>
-    simp only [submodularMatroidGreedyLoop]
-    rcases h : submodularMatroidGreedyStep f indep u S with _ | S'
-    · exact Finset.Subset.refl S
-    · obtain ⟨c, -, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
-      exact (Finset.subset_insert c S).trans (ih _)
+  fun_induction submodularMatroidGreedyLoop f indep u k S with
+  | case1 | case2 => exact Finset.Subset.refl _
+  | case3 k S S' h ih =>
+    obtain ⟨c, -, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
+    exact (Finset.subset_insert c S).trans ih
 
 theorem submodularMatroidGreedyChain_subset_succ (f : Finset α → β) (indep : Finset α → Bool)
     (u : List α) (t : ℕ) :

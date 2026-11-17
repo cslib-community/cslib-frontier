@@ -86,18 +86,11 @@ section Endpoints
 /-- A vertex is an endpoint of `M` when it is an endpoint of some edge of `M`. -/
 theorem mem_endpoints {M : List (V × V)} {v : V} :
     v ∈ endpoints M ↔ ∃ e ∈ M, v = e.1 ∨ v = e.2 := by
-  induction M with
-  | nil => simp [endpoints]
-  | cons e M ih =>
-    simp only [endpoints, List.mem_cons, ih, exists_eq_or_imp, or_assoc]
+  fun_induction endpoints M <;> grind
 
 /-- Each edge contributes two endpoints. -/
 theorem length_endpoints (M : List (V × V)) : (endpoints M).length = 2 * M.length := by
-  induction M with
-  | nil => rfl
-  | cons e M ih =>
-    simp only [endpoints, List.length_cons, ih]
-    omega
+  fun_induction endpoints M <;> grind
 
 /-- `endpoints` distributes over concatenation. -/
 theorem endpoints_append (M N : List (V × V)) :

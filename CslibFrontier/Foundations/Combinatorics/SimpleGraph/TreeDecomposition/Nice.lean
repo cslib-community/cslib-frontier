@@ -369,30 +369,18 @@ variable {α : Type*} {β : Type*}
   | .join left right => .join (map f left) (map f right)
 
 @[simp] theorem sizePred_map (f : α → β) (T : NiceTree α) : (T.map f).sizePred = T.sizePred := by
-  induction T with
-  | leaf => rfl
-  | introduce _ _ ih => simp [map, sizePred, ih]
-  | forget _ _ ih => simp [map, sizePred, ih]
-  | join _ _ ihL ihR => simp [map, sizePred, ihL, ihR]
+  fun_induction T.map f <;> simp_all [sizePred]
 
 @[simp] theorem size_map (f : α → β) (T : NiceTree α) : (T.map f).size = T.size := by
   simp [size]
 
 theorem bag_map {f : α → β} (hf : Function.Injective f) (T : NiceTree α)
     [DecidableEq α] [DecidableEq β] : (T.map f).bag = T.bag.image f := by
-  induction T with
-  | leaf => simp [map, bag]
-  | introduce v child ih => simp [map, bag, ih, Finset.image_insert]
-  | forget v child ih => simp [map, bag, ih, Finset.image_erase hf]
-  | join left _ ihL _ => simp [map, bag, ihL]
+  fun_induction T.map f <;> simp_all [bag]
 
 theorem subtreeVerts_map (f : α → β) (T : NiceTree α) [DecidableEq α] [DecidableEq β] :
     (T.map f).subtreeVerts = T.subtreeVerts.image f := by
-  induction T with
-  | leaf => simp [map, subtreeVerts]
-  | introduce v child ih => simp [map, subtreeVerts, ih, Finset.image_insert]
-  | forget _ child ih => simp [map, subtreeVerts, ih]
-  | join left right ihL ihR => simp [map, subtreeVerts, ihL, ihR, Finset.image_union]
+  fun_induction T.map f <;> simp_all [subtreeVerts, Finset.image_union]
 
 theorem localValid_map {f : α → β} (hf : Function.Injective f) {T : NiceTree α}
     [DecidableEq α] [DecidableEq β] (h : T.LocalValid) : (T.map f).LocalValid := by
@@ -1459,30 +1447,20 @@ variable {V : Type uV} [DecidableEq V]
 omit [DecidableEq V] in
 private theorem size_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).size = vs.length + t.size := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih => simp only [introduceChain, size_introduce, ih, List.length_cons]; omega
+  fun_induction introduceChain vs t <;> grind [size_introduce]
 
 omit [DecidableEq V] in
 private theorem size_forgetChain (vs : List V) (t : NiceTree V) :
     (forgetChain vs t).size = vs.length + t.size := by
-  induction vs with
-  | nil => simp [forgetChain]
-  | cons v vs ih => simp only [forgetChain, size_forget, ih, List.length_cons]; omega
+  fun_induction forgetChain vs t <;> grind [size_forget]
 
 private theorem bag_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).bag = vs.toFinset ∪ t.bag := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih =>
-    simp only [introduceChain, bag, ih, List.toFinset_cons, Finset.insert_union]
+  fun_induction introduceChain vs t <;> simp_all [bag]
 
 private theorem subtreeVerts_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).subtreeVerts = vs.toFinset ∪ t.subtreeVerts := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih =>
-    simp only [introduceChain, subtreeVerts, ih, List.toFinset_cons, Finset.insert_union]
+  fun_induction introduceChain vs t <;> simp_all [subtreeVerts]
 
 private theorem localValid_introduceChain {vs : List V} {t : NiceTree V}
     (hnd : vs.Nodup) (hdisj : ∀ v ∈ vs, v ∉ t.subtreeVerts) (ht : t.LocalValid) :
@@ -1499,16 +1477,7 @@ private theorem localValid_introduceChain {vs : List V} {t : NiceTree V}
 
 private theorem maxBagCard_introduceChain_le (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).maxBagCard ≤ max (vs.toFinset ∪ t.bag).card t.maxBagCard := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih =>
-    simp only [introduceChain, maxBagCard]
-    refine max_le ?_ (ih.trans (max_le_max ?_ le_rfl))
-    · have hsub : insert v (introduceChain vs t).bag ⊆ (v :: vs).toFinset ∪ t.bag := by
-        rw [bag_introduceChain, List.toFinset_cons, Finset.insert_union]
-      exact (Finset.card_le_card hsub).trans (le_max_left _ _)
-    · exact Finset.card_le_card (Finset.union_subset_union_left (by
-        rw [List.toFinset_cons]; exact Finset.subset_insert _ _))
+  fun_induction introduceChain vs t <;> grind [maxBagCard, bag_introduceChain, List.toFinset_cons]
 
 private theorem coversFinset_introduceChain {vs : List V} {t : NiceTree V} {K : Finset V}
     (h : t.CoversFinset K) : (introduceChain vs t).CoversFinset K := by
@@ -1528,9 +1497,7 @@ private theorem bag_forgetChain (vs : List V) (t : NiceTree V) :
 
 private theorem subtreeVerts_forgetChain (vs : List V) (t : NiceTree V) :
     (forgetChain vs t).subtreeVerts = t.subtreeVerts := by
-  induction vs with
-  | nil => rfl
-  | cons v vs ih => simp [forgetChain, subtreeVerts, ih]
+  fun_induction forgetChain vs t <;> simp_all [subtreeVerts]
 
 private theorem localValid_forgetChain {vs : List V} {t : NiceTree V}
     (hnd : vs.Nodup) (hsub : ∀ v ∈ vs, v ∈ t.bag) (ht : t.LocalValid) :
@@ -1569,11 +1536,7 @@ private theorem bag_joinTrees (t : NiceTree V) (ts : List (NiceTree V)) :
 
 private theorem mem_subtreeVerts_joinTrees {t : NiceTree V} {ts : List (NiceTree V)} {v : V} :
     v ∈ (joinTrees t ts).subtreeVerts ↔ v ∈ t.subtreeVerts ∨ ∃ u ∈ ts, v ∈ u.subtreeVerts := by
-  induction ts generalizing t with
-  | nil => simp [joinTrees]
-  | cons u us ih =>
-    simp only [joinTrees, subtreeVerts, Finset.mem_union, ih (t := u), List.mem_cons,
-      exists_eq_or_imp]
+  fun_induction joinTrees t ts <;> simp_all [subtreeVerts]
 
 private theorem maxBagCard_joinTrees_le (t : NiceTree V) (ts : List (NiceTree V))
     (hbags : ∀ u ∈ ts, u.bag = t.bag) :
@@ -1592,11 +1555,7 @@ private theorem maxBagCard_joinTrees_le (t : NiceTree V) (ts : List (NiceTree V)
 omit [DecidableEq V] in
 private theorem size_joinTrees (t : NiceTree V) (ts : List (NiceTree V)) :
     (joinTrees t ts).size = t.size + ts.length + (ts.map size).sum := by
-  induction ts generalizing t with
-  | nil => simp [joinTrees]
-  | cons u us ih =>
-    simp only [joinTrees, size_join, ih u, List.length_cons, List.map_cons, List.sum_cons]
-    omega
+  fun_induction joinTrees t ts <;> grind [size_join]
 
 private theorem localValid_joinTrees {B : Finset V} :
     ∀ (t : NiceTree V) (ts : List (NiceTree V)),

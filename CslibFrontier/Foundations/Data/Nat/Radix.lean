@@ -268,11 +268,7 @@ def digit (B x : ℕ) : ℕ → ℕ
 
 /-- The recursive extractor agrees with ordinary fixed-position radix arithmetic. -/
 theorem digit_eq_div_pow_mod (B x i : ℕ) : digit B x i = x / B ^ i % B := by
-  induction i generalizing x with
-  | zero => simp [digit]
-  | succ i ih =>
-    rw [digit, ih, Nat.div_div_eq_div_mul, Nat.pow_succ]
-    rw [Nat.mul_comm]
+  fun_induction digit B x i <;> simp_all [Nat.div_div_eq_div_mul, Nat.pow_succ, Nat.mul_comm]
 
 /-- Recover a bounded digit of a little-endian word, including radix one. -/
 theorem digit_ofDigits {B : ℕ} (_hB : 0 < B) (l : List ℕ)

@@ -57,10 +57,9 @@ def lsbValue : List Bool → ℕ
   | b :: w => b.toNat + 2 * lsbValue w
 
 /-- Increment keeps the length. -/
-@[simp] theorem length_increment : ∀ w, (increment w).length = w.length
-  | [] => rfl
-  | false :: _ => rfl
-  | true :: w => by simp [increment, length_increment w]
+@[simp] theorem length_increment : ∀ w, (increment w).length = w.length := by
+  intro w
+  fun_induction increment w <;> simp_all
 
 /-- Iterated increment keeps the length. -/
 @[simp] theorem length_iterate_increment (j : ℕ) (w : List Bool) :
@@ -172,9 +171,7 @@ theorem lsbValue_append : ∀ u v : List Bool,
 
 /-- `lsbValue` is a right fold of `Nat.bit`. -/
 theorem lsbValue_eq_foldr_bit (w : List Bool) : lsbValue w = w.foldr Nat.bit 0 := by
-  induction w with
-  | nil => rfl
-  | cons b w ih => rw [lsbValue, List.foldr_cons, ← ih, Nat.bit_val, Nat.add_comm]
+  fun_induction lsbValue w <;> simp_all [Nat.bit_val, Nat.add_comm]
 
 /-- Binary digit `i` of the value of a word is its bit `i`, or `false` past its end. -/
 @[simp] theorem testBit_lsbValue : ∀ (w : List Bool) (i : ℕ),

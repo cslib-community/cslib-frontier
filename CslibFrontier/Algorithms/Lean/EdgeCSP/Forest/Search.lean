@@ -147,40 +147,17 @@ instance (es : Log F) (v : V) (i : Fin F.length) : Decidable (SameParent es v i)
 /-- Timestamps along every reconstructed ancestry have exactly one entry per walk step. -/
 theorem ancestry_length (es : Log F) (v : V) :
     (es.ancestry v).times.length = (es.ancestry v).walk.steps.length := by
-  induction es generalizing v with
-  | nil => rfl
-  | cons e es ih =>
-    simp only [ancestry]
-    split
-    · simp [Walk.snoc, ih]
-    · exact ih v
+  fun_induction es.ancestry v <;> grind [Walk.snoc]
 
 /-- Every reconstructed ancestry has length at most the number of expansions. -/
 theorem ancestry_length_le (es : Log F) (v : V) :
     (es.ancestry v).walk.steps.length ≤ es.length := by
-  induction es generalizing v with
-  | nil => exact Nat.le_refl 0
-  | cons e es ih =>
-    simp only [ancestry]
-    split
-    · simpa only [Walk.snoc, List.length_append, List.length_singleton, List.length_cons,
-        List.length_nil]
-        using Nat.add_le_add_right (ih e.input.var) 1
-    · exact (ih v).trans (Nat.le_succ _)
+  fun_induction es.ancestry v <;> grind [Walk.snoc]
 
 /-- Every copy along a reconstructed ancestral path strictly predates the next expansion. -/
 theorem ancestry_time_lt (es : Log F) (v : V) {t : ℕ}
     (ht : t ∈ (es.ancestry v).times) : t < es.length := by
-  induction es generalizing v with
-  | nil => simp [ancestry] at ht
-  | cons e es ih =>
-    simp only [ancestry] at ht
-    split at ht
-    · rcases List.mem_append.mp ht with ht | ht
-      · exact (ih e.input.var ht).trans (Nat.lt_succ_self _)
-      · have he : t = es.length := List.mem_singleton.mp ht
-        simpa only [he, List.length_cons] using Nat.lt_succ_self es.length
-    · exact (ih v ht).trans (Nat.lt_succ_self _)
+  fun_induction es.ancestry v <;> grind
 
 end Log
 
