@@ -295,27 +295,11 @@ private lemma resultant_ne_zero_of_isRelPrime {f g : F[X][Y]} {M : ℕ}
 
 private lemma C_X_sub_C_dvd_of_map_evalRingHom_eq_zero {H : F[X][Y]} {w : F}
     (hH : H.map (evalRingHom w) = 0) : C (X - C w) ∣ H := by
-  have hdvd : ∀ t, (X - C w) ∣ H.coeff t := fun t => by
-    rw [dvd_iff_isRoot, IsRoot.def]
-    have ht := congrArg (fun p : F[X] => p.coeff t) hH
-    simpa only [coeff_map, coeff_zero, coe_evalRingHom] using ht
-  choose q hq using hdvd
-  refine ⟨∑ t ∈ H.support, monomial t (q t), ?_⟩
-  ext t
-  rw [coeff_C_mul, finsetSum_coeff]
-  by_cases ht : t ∈ H.support
-  · rw [Finset.sum_eq_single t]
-    · rw [coeff_monomial_same, hq t]
-    · intro b _ hbt
-      exact coeff_monomial_of_ne _ hbt.symm
-    · intro hnt
-      exact absurd ht hnt
-  · have hct : H.coeff t = 0 := notMem_support_iff.1 ht
-    rw [Finset.sum_eq_zero]
-    · rw [mul_zero, hct]
-    · intro b hb
-      have hbt : b ≠ t := fun h => ht (h ▸ hb)
-      exact coeff_monomial_of_ne _ hbt.symm
+  rw [C_dvd_iff_dvd_coeff]
+  intro t
+  rw [dvd_iff_isRoot, IsRoot.def]
+  have ht := congrArg (fun p : F[X] => p.coeff t) hH
+  simpa only [coeff_map, coeff_zero, coe_evalRingHom] using ht
 
 private lemma X_sub_C_pow_dvd_resultant_of_map_eq_mul {f g : F[X][Y]} {M : ℕ} {w : F} {p : F[X]}
     (hpM : p.natDegree + g.natDegree ≤ M)
@@ -401,15 +385,8 @@ private lemma card_mul_natDegree_le_of_isRelPrime_resultant {f g : F[X][Y]} {M a
     obtain ⟨p, hpM, hmap⟩ := hW w hw
     exact X_sub_C_pow_dvd_resultant_of_map_eq_mul hpM hmap
   have hpair : (W : Set F).Pairwise fun w₁ w₂ =>
-      IsCoprime ((X - C w₁) ^ g.natDegree) ((X - C w₂) ^ g.natDegree) := by
-    intro w₁ _ w₂ _ hne
-    refine IsCoprime.pow ?_
-    refine ⟨C (w₂ - w₁)⁻¹, -C (w₂ - w₁)⁻¹, ?_⟩
-    have hsub : w₂ - w₁ ≠ 0 := sub_ne_zero.2 hne.symm
-    calc
-      C (w₂ - w₁)⁻¹ * (X - C w₁) + -C (w₂ - w₁)⁻¹ * (X - C w₂)
-        = C ((w₂ - w₁)⁻¹ * (w₂ - w₁)) := by rw [C_mul, C_sub]; ring
-      _ = 1 := by rw [inv_mul_cancel₀ hsub, C_1]
+      IsCoprime ((X - C w₁) ^ g.natDegree) ((X - C w₂) ^ g.natDegree) := fun _ _ _ _ hne =>
+    (isCoprime_X_sub_C_of_isUnit_sub (sub_ne_zero.2 hne).isUnit).pow
   have hprod_dvd : (∏ w ∈ W, (X - C w) ^ g.natDegree) ∣ R :=
     Finset.prod_dvd_of_coprime hpair hdvd_each
   have hprod_deg : (∏ w ∈ W, (X - C w) ^ g.natDegree).natDegree = g.natDegree * W.card := by
@@ -490,42 +467,14 @@ private lemma exists_det_ne_zero_submatrix_of_linearIndependent_cols {κ ι' : T
   choose ρ hρ using hmem
   refine ⟨ρ, ?_⟩
   let B : Matrix κ κ K := A.submatrix ρ id
-  have hrows : LinearIndependent K (fun j : κ => B j) := by
-    have heq : (fun j : κ => B j) = fun j : κ => (e j : κ → K) := by
+  have hrows : LinearIndependent K B.row := by
+    have heq : B.row = fun j : κ => (e j : κ → K) := by
       ext j c
       exact congrFun (hρ j) c
     rw [heq]
     exact hs_li.comp e e.injective
-  have hinj : Function.Injective (B.transpose).mulVecLin := by
-    rw [← LinearMap.ker_eq_bot, Submodule.eq_bot_iff]
-    intro v hv
-    have hsum : ∑ j : κ, v j • B j = 0 := by
-      ext c
-      have hvc := congrFun hv c
-      simp only [Matrix.mulVecLin_apply, Matrix.mulVec, dotProduct, Matrix.transpose_apply,
-        Pi.zero_apply] at hvc
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply]
-      calc
-        ∑ j : κ, v j * B j c = ∑ j : κ, B j c * v j :=
-          Finset.sum_congr rfl fun j _ => mul_comm _ _
-        _ = 0 := hvc
-    exact funext (Fintype.linearIndependent_iff.1 hrows v hsum)
-  have hsurj : Function.Surjective (B.transpose).mulVecLin :=
-    LinearMap.injective_iff_surjective.1 hinj
-  let eB : (κ → K) ≃ₗ[K] (κ → K) := LinearEquiv.ofBijective (B.transpose).mulVecLin ⟨hinj, hsurj⟩
-  let Cmat : Matrix κ κ K := LinearMap.toMatrix' eB.symm.toLinearMap
-  have hBC : B.transpose * Cmat = 1 := by
-    apply Matrix.toLin'.injective
-    apply LinearMap.ext
-    intro v
-    funext c
-    simp only [Matrix.toLin'_mul, Matrix.toLin'_one, LinearMap.comp_apply, LinearMap.id_apply,
-      Cmat, Matrix.toLin'_toMatrix']
-    exact congrFun (eB.apply_symm_apply v) c
-  intro hdet
-  have h1 : (B.transpose * Cmat).det = 1 := by rw [hBC, Matrix.det_one]
-  rw [Matrix.det_mul, Matrix.det_transpose, hdet, zero_mul] at h1
-  exact zero_ne_one h1
+  exact isUnit_iff_ne_zero.1
+    ((Matrix.isUnit_iff_isUnit_det B).1 (Matrix.linearIndependent_row_iff_isUnit.1 hrows))
 
 private lemma exists_cramer_kernel_vec {ι' : Type*} [Finite ι']
     {e k d : ℕ}
@@ -566,57 +515,15 @@ private lemma exists_cramer_kernel_vec {ι' : Type*} [Finite ι']
   have hspan_j₀ : (fun r : ι' => MK r j₀) ∈
       Submodule.span K (Set.range fun c : C => fun r : ι' => MK r c.1) := by
     by_contra hnot
+    have hC_on : LinearIndepOn K (fun j r => MK r j) (C : Set Col) := hC_li
+    have hnot' : (fun r => MK r j₀) ∉
+        Submodule.span K ((fun j r => MK r j) '' (C : Set Col)) := by
+      rwa [Set.image_eq_range]
     have hC'_li : LinearIndependent K fun c : (insert j₀ C : Finset Col) => fun r : ι' =>
         MK r c.1 := by
-      rw [Fintype.linearIndependent_iff]
-      intro g hg
-      have hg' : g ⟨j₀, mem_insert_self j₀ C⟩ • (fun r : ι' => MK r j₀) +
-          ∑ c : C, g ⟨c.1, mem_insert_of_mem c.2⟩ • (fun r : ι' => MK r c.1) = 0 := by
-        rw [← hg]
-        symm
-        let eIns : Option C ≃ (insert j₀ C : Finset Col) :=
-          { toFun := fun o => match o with
-              | none => ⟨j₀, mem_insert_self j₀ C⟩
-              | some c => ⟨c.1, mem_insert_of_mem c.2⟩
-            invFun := fun x =>
-              if h : x.1 = j₀ then none
-              else some ⟨x.1, (mem_insert.1 x.2).resolve_left h⟩
-            left_inv := fun o => by
-              cases o with
-              | none => simp only [↓reduceDIte]
-              | some c =>
-                have hne : c.1 ≠ j₀ := fun h => hj₀ (h ▸ c.2)
-                simp only [hne, ↓reduceDIte]
-            right_inv := fun x => by
-              by_cases h : x.1 = j₀
-              · simp only [h, ↓reduceDIte]; ext; exact h.symm
-              · simp only [h, ↓reduceDIte] }
-        rw [← Equiv.sum_comp eIns, Fintype.sum_option]
-        rfl
-      have hgj₀ : g ⟨j₀, mem_insert_self j₀ C⟩ = 0 := by
-        by_contra hnz
-        apply hnot
-        have heq : (fun r : ι' => MK r j₀) =
-            ∑ c : C, (-(g ⟨j₀, mem_insert_self j₀ C⟩)⁻¹ * g ⟨c.1, mem_insert_of_mem c.2⟩) •
-              (fun r : ι' => MK r c.1) := by
-          have h1 := eq_neg_of_add_eq_zero_left hg'
-          have h2 := congrArg ((g ⟨j₀, mem_insert_self j₀ C⟩)⁻¹ • ·) h1
-          simp only [smul_smul, inv_mul_cancel₀ hnz, one_smul, smul_neg, Finset.smul_sum,
-            ← Finset.sum_neg_distrib] at h2
-          rw [h2]
-          refine Finset.sum_congr rfl fun c _ => ?_
-          rw [← neg_smul, neg_mul]
-        rw [heq]
-        exact Submodule.sum_mem _ fun c _ =>
-          Submodule.smul_mem _ _ (Submodule.subset_span ⟨c, rfl⟩)
-      intro x
-      by_cases hx : x.1 = j₀
-      · rw [show x = ⟨j₀, mem_insert_self j₀ C⟩ from Subtype.ext hx]
-        exact hgj₀
-      · have hxC : x.1 ∈ C := (mem_insert.1 x.2).resolve_left hx
-        rw [hgj₀, zero_smul, zero_add] at hg'
-        exact Fintype.linearIndependent_iff.1 hC_li
-          (fun c : C => g ⟨c.1, mem_insert_of_mem c.2⟩) hg' ⟨x.1, hxC⟩
+      have h := hC_on.insert hnot'
+      rw [← Finset.coe_insert] at h
+      exact h
     have hmem' : insert j₀ C ∈ indepSets := mem_filter.2 ⟨mem_univ _, hC'_li⟩
     have hle := hC_max (insert j₀ C) hmem'
     rw [card_insert_of_notMem hj₀] at hle
