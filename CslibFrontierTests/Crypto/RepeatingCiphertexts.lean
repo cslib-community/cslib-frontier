@@ -26,7 +26,7 @@ Exercises `CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts`
   `true :: (m ⊕ k)` of length `n + 1`, so `CiphertextLength n n` is false for every `n` (ruling
   out `SymmetricCipher.not_indcpa_of_ciphertext_length_eq`), while
   `SymmetricCipher.not_indcpa_of_deterministic` refutes `INDCPA` and
-  `SymmetricCipher.advantage_cpaGame_example51Adversary` gives CPA advantage `1` for `1 ≤ n`.
+  `SymmetricCipher.advantage_cpaGame_detCPAAdversary` gives CPA advantage `1` for `1 ≤ n`.
 * **Repeated-ciphertext reduction on deterministic and randomized ciphers:** a 2-query
   `CIAdversary` (`twoZeroQueries`, exercising polymorphism in the adversary's return type) wins
   `expandingOtpCipher.repeatCiphertextGame` with probability `1`, forcing CPA advantage `≥ 1 / 2`
@@ -99,13 +99,13 @@ theorem not_indcpa_expandingOtpCipher : ¬ expandingOtpCipher.INDCPA :=
     ⟨true :: List.zipWith xor (List.replicate n false) k,
       by simp [expandingOtpCipher]⟩
 
-/-- For every `1 ≤ n`, `example51Adversary (· + 1)` achieves CPA advantage `1` against
+/-- For every `1 ≤ n`, `detCPAAdversary (· + 1)` achieves CPA advantage `1` against
 `expandingOtpCipher`. -/
 example {n : ℕ} (hn : 1 ≤ n) :
     Game.advantage
-      (ProbComp.eval (expandingOtpCipher.cpaGame (example51Adversary (· + 1)) false n))
-      (ProbComp.eval (expandingOtpCipher.cpaGame (example51Adversary (· + 1)) true n)) = 1 :=
-  expandingOtpCipher.advantage_cpaGame_example51Adversary (· + 1) hn
+      (ProbComp.eval (expandingOtpCipher.cpaGame (detCPAAdversary (· + 1)) false n))
+      (ProbComp.eval (expandingOtpCipher.cpaGame (detCPAAdversary (· + 1)) true n)) = 1 :=
+  expandingOtpCipher.advantage_cpaGame_detCPAAdversary (· + 1) hn
     (fun k hk m hm c hc => (expandingOtpCipher_ciphertextLength n k hk m hm c hc).le)
     (fun k _ => ⟨true :: List.zipWith xor (List.replicate n false) k,
       by simp [expandingOtpCipher]⟩)

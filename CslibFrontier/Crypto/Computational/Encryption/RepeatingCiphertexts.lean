@@ -23,50 +23,37 @@ import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Deterministic Ciphers and Repeating Ciphertexts under Chosen-Plaintext Attack
+# Repeating Ciphertexts under Chosen-Plaintext Attack
 
-This module formalizes two foundational properties of chosen-plaintext security (`INDCPA`) for
-symmetric ciphers (`SymmetricCipher`) from
-[Boneh and Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-Chapter 5:
+This module formalizes Exercise 5.12 of
+[Boneh and Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023]
+(Chapter 5, printed p. 211; Example 5.1's deterministic-cipher refutation
+`not_indcpa_of_deterministic` lives in
+`CslibFrontier/Crypto/Computational/Encryption/Authenticated.lean`):
 
-1. **Deterministic symmetric ciphers are not CPA-secure without ciphertext-length restrictions
-   (`example51Adversary`, `advantage_cpaGame_example51Adversary`, `not_indcpa_of_deterministic`)**
-   ([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182): for any symmetric cipher `E`
-   that encrypts `0^n` deterministically under every supported key from some threshold security
-   parameter `n₀` onward, a two-query CPA distinguisher querying `(0^n, 1^n)` followed by
-   `(0^n, 0^n)` and truncating replies to `E`'s polynomial ciphertext-length bound achieves CPA
-   advantage `1` for all `n ≥ max n₀ 1`, refuting `E.INDCPA`. Unlike
-   `SymmetricCipher.not_indcpa_of_ciphertext_length_eq` (which assumes zero ciphertext expansion,
-   `E.CiphertextLength n n`), this theorem allows arbitrary polynomial ciphertext expansion.
-2. **CPA security prevents ciphertext collisions (`repeatCiphertextGame`, `repeatToCPAAdversary`,
-   `succProbability_repeatCiphertextGame_le_two_mul_advantage`,
-   `INDCPA.negligible_repeatCiphertextGame`)** ([BonehShoup2023], Chapter 5, Exercise 5.12,
-   printed p. 211): in `repeatCiphertextGame`, an adaptive oracle adversary queries `E`'s
-   encryption oracle (`E.ciEncryptionOracle n k`) on chosen `n`-bit messages and wins if any two
-   returned ciphertexts are equal (`!decide out.2.Nodup`). An elementary CPA wrapper
-   `repeatToCPAAdversary` forwards each `n`-bit query `m` as `(m, r)` for a freshly sampled uniform
-   `r ← BitString.sampleList n`, records `(c, r)` pairs, and outputs `true` iff two recorded entries
-   have equal ciphertexts and distinct random right-hand messages (`p.1 == q.1 && p.2 != q.2`). In
-   Experiment `true` (`b = 1`), decryption completeness forces `p.1 = q.1 → p.2 = q.2`, so the
-   wrapper outputs `true` with probability `0`; in Experiment `false` (`b = 0`) for `n ≥ 1`
-   (`|M| = 2^n ≥ 2`), every ciphertext collision in `repeatCiphertextGame` receives distinct
-   independent `r` values with probability `1 - 2^{-n} ≥ 1/2`. Thus
-   `RepeatAdv[A, E] ≤ 2 · CPAadv[B, E]`, and `E.INDCPA` implies negligible winning probability in
-   `repeatCiphertextGame` for every `IsOraclePPT` adversary.
+* **CPA security prevents ciphertext collisions (`repeatCiphertextGame`, `repeatToCPAAdversary`,
+  `succProbability_repeatCiphertextGame_le_two_mul_advantage`,
+  `INDCPA.negligible_repeatCiphertextGame`)**: in `repeatCiphertextGame`, an adaptive oracle
+  adversary queries `E`'s encryption oracle (`E.ciEncryptionOracle n k`) on chosen `n`-bit messages
+  and wins if any two returned ciphertexts are equal (`!decide out.2.Nodup`). An elementary CPA
+  wrapper `repeatToCPAAdversary` forwards each `n`-bit query `m` as `(m, r)` for a freshly sampled
+  uniform `r ← BitString.sampleList n`, records `(c, r)` pairs, and outputs `true` iff two recorded
+  entries have equal ciphertexts and distinct random right-hand messages
+  (`p.1 == q.1 && p.2 != q.2`). In Experiment `true` (`b = 1`), decryption completeness forces
+  `p.1 = q.1 → p.2 = q.2`, so the wrapper outputs `true` with probability `0`; in Experiment `false`
+  (`b = 0`) for `n ≥ 1` (`|M| = 2^n ≥ 2`), every ciphertext collision in `repeatCiphertextGame`
+  receives distinct independent `r` values with probability `1 - 2^{-n} ≥ 1/2`. Thus
+  `RepeatAdv[A, E] ≤ 2 · CPAadv[B, E]`, and `E.INDCPA` implies negligible winning probability in
+  `repeatCiphertextGame` for every `IsOraclePPT` adversary.
 
 ## Model and scope notes relative to Boneh–Shoup
 
 * **`n`-bit message space and threshold `1 ≤ n`.** In `SymmetricCipher`, the message space at
   security parameter `n` is `{0, 1}^n` of size `2^n`, sampled uniformly in polynomial time via
-  `BitString.sampleList n`. Both Example 5.1 ("Let `m, m'` be any two, distinct messages in the
-  message space of `E`", printed p. 182) and Exercise 5.12 ("Assume that there are at least two
+  `BitString.sampleList n`. Exercise 5.12's hypotheses ("Assume that there are at least two
   messages in `M`, that all messages have the same length, and that we can efficiently generate
-  messages in `M` uniformly at random", printed p. 211) correspond quantitatively to
-  `1 ≤ n`, which disappears in the asymptotic `Negligible` conclusions.
-* **Determinism on `0^n` only.** As in `Encryption.not_indcpaOn_of_deterministic`, Example 5.1 uses
-  determinism only on the single plaintext `0^n = List.replicate n false` from some parameter `n₀`
-  onward, while decryption completeness supplies disjointness of encryptions of `0^n` and `1^n`.
+  messages in `M` uniformly at random", printed p. 211) correspond quantitatively to `1 ≤ n`,
+  which disappears in the asymptotic `Negligible` conclusion.
 * **Polymorphic adversary return type in `repeatCiphertextGame`.** Because winning
   `repeatCiphertextGame` depends only on the oracle's ciphertext log and ignores the adversary's
   final output value, `repeatCiphertextGame`, `repeatToCPAAdversary`, and
@@ -76,8 +63,6 @@ Chapter 5:
 
 ## Main definitions
 
-* `Cslib.Crypto.SymmetricCipher.example51Adversary`: two-query CPA distinguisher truncating replies
-  to `ctBound n` ([BonehShoup2023], Example 5.1, printed p. 182).
 * `Cslib.Crypto.SymmetricCipher.repeatCiphertextGame`: adaptive repeated-ciphertext attack game
   ([BonehShoup2023], Exercise 5.12, printed p. 211).
 * `Cslib.Crypto.SymmetricCipher.repeatToCPAAdversary`: elementary CPA wrapper around a
@@ -85,16 +70,9 @@ Chapter 5:
 
 ## Main results
 
-* `Cslib.Crypto.SymmetricCipher.isOraclePPT_example51Adversary`,
-  `Cslib.Crypto.SymmetricCipher.eval_cpaGame_example51Adversary_false`,
-  `Cslib.Crypto.SymmetricCipher.eval_cpaGame_example51Adversary_true`,
-  `Cslib.Crypto.SymmetricCipher.advantage_cpaGame_example51Adversary`,
-  `Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic`: Example 5.1 without ciphertext-length
-  restrictions ([BonehShoup2023], printed p. 182).
 * `Cslib.Crypto.SymmetricCipher.isOraclePPT_repeatToCPAAdversary`: strict uniform oracle-PPT
   certificate for `repeatToCPAAdversary`.
-* `Cslib.Crypto.SymmetricCipher.eval_cpaGame_repeatToCPAAdversary_true`,
-  `Cslib.Crypto.SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage`,
+* `Cslib.Crypto.SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage`,
   `Cslib.Crypto.SymmetricCipher.INDCPA.negligible_repeatCiphertextGame`: quantitative reduction
   `RepeatAdv[A, E] ≤ 2 · CPAadv[B, E]` and asymptotic repeated-ciphertext security from `INDCPA`
   ([BonehShoup2023], Exercise 5.12, printed p. 211).
@@ -111,112 +89,6 @@ namespace Cslib.Crypto.SymmetricCipher
 
 open Probability Turing.MultiTapeTM
 open scoped NNReal ENNReal
-
-/-! ### Example 5.1: Deterministic Symmetric Ciphers Are Not CPA-Secure -/
-
-/-- Two-query CPA distinguisher ([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182):
-queries `(0^n, 1^n)` followed by `(0^n, 0^n)`, truncates each reply to `ctBound n` bits, and
-outputs `true` iff the two truncated replies coincide (`c₁ == c₂`). -/
-@[expose] def example51Adversary (ctBound : ℕ → ℕ) : OracleDistinguisher :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let c₁ ← List.take (ctBound n) <$>
-      ProbOracleComp.query ((), encPair encBits encBits (m0, m1))
-    let c₂ ← List.take (ctBound n) <$>
-      ProbOracleComp.query ((), encPair encBits encBits (m0, m0))
-    return (c₁ == c₂)
-
-/-- `example51Adversary ctBound` is uniformly strict oracle-PPT whenever `ctBound` is computable in
-unary polynomial time. -/
-theorem isOraclePPT_example51Adversary {ctBound : ℕ → ℕ}
-    (hbound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (example51Adversary ctBound) := by
-  ppt [example51Adversary]
-
-/-- In Experiment `false`, `example51Adversary ctBound` receives two encryptions of `0^n`; when
-`E.encrypt n k (0^n)` is deterministic on every supported key `k`, both queries return the same
-ciphertext and `example51Adversary ctBound` outputs `true` with probability `1`
-([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182). -/
-theorem eval_cpaGame_example51Adversary_false (E : SymmetricCipher) (ctBound : ℕ → ℕ) (n : ℕ)
-    (hdet : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
-    ProbComp.eval (E.cpaGame (example51Adversary ctBound) false n) = PMF.pure true := by
-  simp only [cpaGame, example51Adversary, OracleComp.interpret_bind, OracleComp.interpret_map,
-    OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
-    StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
-  obtain ⟨c, hc⟩ := hdet k hk
-  unfold cpaEncryptionOracle
-  dsimp only [StateT.run]
-  simp [hc]
-
-/-- In Experiment `true` for `1 ≤ n`, `example51Adversary ctBound` receives an encryption of `1^n`
-followed by an encryption of `0^n`; when `ctBound n` bounds supported ciphertext lengths on `n`-bit
-messages, decryption completeness keeps the two ciphertexts distinct after truncation, so
-`example51Adversary ctBound` outputs `false` with probability `1`
-([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182). -/
-theorem eval_cpaGame_example51Adversary_true (E : SymmetricCipher) (ctBound : ℕ → ℕ) {n : ℕ}
-    (hn : 1 ≤ n) (hctLen : E.CiphertextLengthLE n (ctBound n)) :
-    ProbComp.eval (E.cpaGame (example51Adversary ctBound) true n) = PMF.pure false := by
-  simp only [cpaGame, example51Adversary, OracleComp.interpret_bind, OracleComp.interpret_map,
-    OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
-    StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
-  have hneMsg : List.replicate n true ≠ List.replicate n false := by
-    obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : n ≠ 0)
-    simp
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
-  unfold cpaEncryptionOracle
-  dsimp only [StateT.run]
-  simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_replicate,
-    beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun c₁ hc₁ => ?_
-  have hc₁Len : c₁.length ≤ ctBound n :=
-    hctLen k hk (List.replicate n true) List.length_replicate c₁ hc₁
-  refine PMF.bind_eq_pure_of_forall_mem_support fun c₂ hc₂ => ?_
-  have hc₂Len : c₂.length ≤ ctBound n :=
-    hctLen k hk (List.replicate n false) List.length_replicate c₂ hc₂
-  have hne : c₁ ≠ c₂ := by
-    intro hEq
-    have hdec1 := E.decrypt_encrypt n k hk (List.replicate n true) List.length_replicate c₁ hc₁
-    have hdec2 := E.decrypt_encrypt n k hk (List.replicate n false) List.length_replicate c₂ hc₂
-    rw [hEq, hdec2] at hdec1
-    exact hneMsg (Option.some.inj hdec1).symm
-  rw [List.take_of_length_le hc₁Len, List.take_of_length_le hc₂Len]
-  simp [beq_eq_false_iff_ne.mpr hne]
-
-/-- At any security parameter `1 ≤ n` where `ctBound n` bounds ciphertext lengths on `n`-bit
-messages and `E.encrypt n k (0^n)` is deterministic under every supported key `k`,
-`example51Adversary ctBound` achieves CPA advantage `1`
-([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182). -/
-theorem advantage_cpaGame_example51Adversary (E : SymmetricCipher) (ctBound : ℕ → ℕ) {n : ℕ}
-    (hn : 1 ≤ n) (hctLen : E.CiphertextLengthLE n (ctBound n))
-    (hdet : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
-    Game.advantage (ProbComp.eval (E.cpaGame (example51Adversary ctBound) false n))
-      (ProbComp.eval (E.cpaGame (example51Adversary ctBound) true n)) = 1 := by
-  rw [eval_cpaGame_example51Adversary_false E ctBound n hdet,
-    eval_cpaGame_example51Adversary_true E ctBound hn hctLen, Game.advantage]
-  simp [Game.succProbability]
-
-/-- **No deterministic symmetric cipher is CPA-secure** ([BonehShoup2023], Section 5.3, Example 5.1,
-printed p. 182): if from some security parameter `n₀` onward, `E.encrypt n k (0^n)` is a point mass
-for every key `k` in the support of `E.keyGen n`, then `E` cannot satisfy `INDCPA`. -/
-theorem not_indcpa_of_deterministic (E : SymmetricCipher) (n₀ : ℕ)
-    (hdet : ∀ n, n₀ ≤ n → ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
-    ¬ E.INDCPA := by
-  intro hcpa
-  obtain ⟨ctBound, hpoly, hctLen⟩ := E.exists_ciphertext_length_bound_of_length_eq
-  have hneg := (hcpa (example51Adversary ctBound) (isOraclePPT_example51Adversary hpoly)).shift
-    (max n₀ 1)
-  have hcongr : Negligible (fun _ : ℕ => (1 : ℝ≥0)) :=
-    hneg.congr' <| Filter.Eventually.of_forall fun n =>
-      advantage_cpaGame_example51Adversary E ctBound (by omega) (hctLen _) (hdet _ (by omega))
-  exact not_negligible_const one_ne_zero hcongr
-
-/-! ### Exercise 5.12: Repeating Ciphertexts under Chosen-Plaintext Security -/
 
 /-- The repeated-ciphertext attack experiment ([BonehShoup2023], Exercise 5.12, printed p. 211):
 sample `k ← E.keyGen n`, run `A n []` against `E.ciEncryptionOracle n k` starting from `[]` (which
@@ -347,7 +219,7 @@ satisfies `c ∈ support(E.encrypt n k r)` when `ctBound n` bounds ciphertext le
 messages; decryption completeness therefore forces `p.1 = q.1 → p.2 = q.2`, so
 `repeatToCPAAdversary ctBound A` outputs `false` with probability `1`
 ([BonehShoup2023], Exercise 5.12, printed p. 211). -/
-theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : SymmetricCipher)
+private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : SymmetricCipher)
     (ctBound : ℕ → ℕ) (A : ℕ → List Bool → WordOracleComp Unit α) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n) = PMF.pure false := by
