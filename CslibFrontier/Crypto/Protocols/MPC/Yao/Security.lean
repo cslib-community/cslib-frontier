@@ -500,7 +500,8 @@ theorem advantage_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect :
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) under the novel
 assumption `Scheme.PrvSimSecureUniversal`, towards Theorem 7 of [LindellPinkas2009] (Section 4.2,
-page 15), not plain-model Theorem 7 or its Case 2 (pages 18–19), which compose with a concrete
+page 15), not plain-model Theorem 7 or its Case 2 (pages 18–23 of the author's copy), which compose
+with a concrete
 semi-honest 1-out-of-2 oblivious-transfer protocol. Case 2 first replaces the oblivious-transfer
 protocol by its simulator, then the real garbled circuit by a fake one; with the ideal
 `batchOTWorld` (`batchOTSpec`) the first step is empty, and the second is the `prv.sim` security of

@@ -18,7 +18,8 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 
 This module instantiates `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` as steps in the ideal
 `batchOTWorld` oblivious-transfer hybrid model (#6045), rather than plain-model Theorem 7 of
-[LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest 1-out-of-2
+[LindellPinkas2009] (Section 4.2, page 15 of the author's copy, which composes with a concrete
+semi-honest 1-out-of-2
 oblivious-transfer protocol), for the library's two garbling schemes whose `prv.sim` simulator
 `simWord` serves every adversary:
 
@@ -60,7 +61,8 @@ namespace Cslib.Crypto
 open Garbling Protocols.MPC Probability Turing.MultiTapeTM
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), not plain-model
-Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest
+Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15 of the author's copy, which composes with a
+concrete semi-honest
 1-out-of-2 oblivious-transfer protocol): Yao's protocol over point-and-permute garbling is
 semi-honest secure in the `batchOTWorld` hybrid against the corruption of either party, for every
 pseudorandom function `family` and every PPT sampler of the public parameters, with the other
@@ -81,7 +83,8 @@ theorem PseudorandomFunction.yaoHybridSemiHonestSecure_pointPermute
     phiTopo_polyTime hsamp i
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), not plain-model
-Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15, which composes with a concrete semi-honest
+Theorem 7 of [LindellPinkas2009] (Section 4.2, page 15 of the author's copy, which composes with a
+concrete semi-honest
 1-out-of-2 oblivious-transfer protocol): Yao's protocol over half-gates garbling is semi-honest
 secure in the `batchOTWorld` hybrid against the corruption of either party, for every circular
 correlation robust hash family `hash` and every PPT sampler of the public parameters, with the
