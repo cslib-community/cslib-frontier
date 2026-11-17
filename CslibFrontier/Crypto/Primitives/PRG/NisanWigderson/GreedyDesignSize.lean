@@ -14,7 +14,7 @@ import CslibFrontier.Foundations.Data.Nat.Factorial
 /-!
 # Size of the greedy design under the parameters of Arora and Barak
 
-Arora and Barak [Lemma 16.18][AroraBarak09] build an `(ℓ, n, d)`-design (Definition 16.17: blocks
+Arora and Barak [Lemma 16.18][AroraBarak07] build an `(ℓ, n, d)`-design (Definition 16.17: blocks
 of `n` elements of `[ℓ]`, two of them sharing at most `d`) with `2 ^ (d / 10)` blocks, for
 `n > d` and `ℓ > 10 n² / d`, by the greedy algorithm `Cslib.Crypto.PRG.NisanWigderson.greedyMasks`
 that scans all subsets of `[ℓ]`. Their proof that the greedy algorithm does not get stuck is
@@ -41,7 +41,7 @@ a real number; the design `Cslib.Crypto.PRG.NisanWigderson.Design.greedy` takes 
 
 ## References
 
-* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak07]
 -/
 
 public section
@@ -103,7 +103,7 @@ theorem two_pow_succ_le_length_greedyMasks {ℓ n d : ℕ} (hdn : d < n) (hℓ :
   have h := choose_le_length_greedyMasks_mul (a := d) hdn hnℓ
   exact Nat.le_of_mul_le_mul_right (hchoose.trans h) hpos
 
-/-- **Arora–Barak Lemma 16.18, size half** [Arora and Barak, Lemma 16.18][AroraBarak09]. This is
+/-- **Arora–Barak Lemma 16.18, size half** [Arora and Barak, Lemma 16.18][AroraBarak07]. This is
 not the full lemma: it omits the running time `2 ^ O(ℓ)` of the algorithm. If `d < n` and
 `10 n² < ℓ d` (that is, `ℓ > 10 n² / d`), the greedy algorithm finds at least `⌈2 ^ (d / 10)⌉`
 blocks, so `Design.greedy ℓ n d ⌈2 ^ (d / 10)⌉ _` is an `(ℓ, n, d)`-design with
