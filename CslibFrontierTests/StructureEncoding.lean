@@ -230,7 +230,7 @@ structure Triple extends Inner.Pair where
 @[expose]
 def Pair.fst (p : Inner.Pair) : ℕ := p.fst + 1
 
-open Inner in
+open CslibFrontierTests.StructureEncoding.Inner in
 /-- Pairs, through `open`. -/
 enc_structure ePair : Pair where fst : encNat, snd : encBool
 

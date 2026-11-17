@@ -29,6 +29,9 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelZeroSpace.l
 # Named finite-control construction data with exact composition bounds; internal kernel milestone
 # #5442 (https://github.com/cslib-community/cslib-frontier/issues/5442).
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeCompiler.lean
+# Effect-free explicit-table counterpart of KernelOnWords and Combinators/StreamFold;
+# raw machine assembly and exact operational endpoint laws only (#862, #5912).
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelStreamTable.lean
 # Existing loop/wrapper laws and supplied-machine fold compiler, exact #862 disposition:
 # https://github.com/cslib-community/cslib-frontier/issues/862#issuecomment-6408754101
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/FoldCompiler.lean

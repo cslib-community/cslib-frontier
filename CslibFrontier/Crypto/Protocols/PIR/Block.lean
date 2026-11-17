@@ -117,6 +117,16 @@ theorem query_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (ib 
     P.toBitScheme.query ib = P.query ib.1 := by
   rfl
 
+theorem answer_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (s : S)
+    (x : ι × κ → Bool) (q : Q) :
+    P.toBitScheme.answer s x q = P.answer s (fun i b => x (i, b)) q := by
+  rfl
+
+theorem reconstruct_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (ib : ι × κ)
+    (r : R) (a : S → A) :
+    P.toBitScheme.reconstruct ib r a = P.reconstruct ib.1 r a ib.2 := by
+  rfl
+
 theorem IsCorrect.toBitScheme {κ : Type} {P : Scheme ι S R Q A (κ → Bool)}
     (h : P.IsCorrect) : P.toBitScheme.IsCorrect := by
   rw [Scheme.isCorrect_iff]
@@ -205,6 +215,15 @@ def toBlock (κ : Type) (P : Scheme ι S R Q A β) : Scheme ι S R Q (κ → A) 
 
 theorem query_toBlock (κ : Type) (P : Scheme ι S R Q A β) (i : ι) :
     (P.toBlock κ).query i = P.query i := by
+  rfl
+
+theorem answer_toBlock (κ : Type) (P : Scheme ι S R Q A β) (s : S) (x : ι → κ → β) (q : Q)
+    (b : κ) : (P.toBlock κ).answer s x q b = P.answer s (fun i' => x i' b) q := by
+  rfl
+
+theorem reconstruct_toBlock (κ : Type) (P : Scheme ι S R Q A β) (i : ι) (r : R)
+    (a : S → κ → A) (b : κ) :
+    (P.toBlock κ).reconstruct i r a b = P.reconstruct i r (fun s => a s b) := by
   rfl
 
 theorem IsCorrect.toBlock (κ : Type) {P : Scheme ι S R Q A β} (h : P.IsCorrect) :

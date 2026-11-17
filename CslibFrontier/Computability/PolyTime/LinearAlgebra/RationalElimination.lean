@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.PolyTime.Int.ExactDiv
 import CslibFrontier.Computability.PolyTime.Int.Table
 import Mathlib.Data.List.GetD
@@ -478,23 +479,7 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
   unfold bareissElimCols bareissInit
   have hpoly_bound : PolyBounded (fun x => (encIn x).length)
       (fun x => bareissStateSizeBound (toTable x).numRows (toTable x).numCols (B x).size) := by
-    unfold bareissStateSizeBound
-    have hsS : PolyBounded (fun x => (encIn x).length)
-        (fun x => ((toTable x).numRows + 1) *
-          ((toTable x).numRows + 1 + ((B x).size + 1)) + 2) :=
-      ((hrows.add (.const 1)).mul ((hrows.add (.const 1)).add (hsizeB.add (.const 1)))).add
-        (.const 2)
-    have hinner := (PolyBounded.const 2).mul (hsS.add (.const 1))
-    have hrow := ((PolyBounded.const 2).mul (hcols.mul (hinner.add (.const 1)))).add (.const 1)
-    have htable := (PolyBounded.const 2).mul
-      ((((((PolyBounded.const 2).mul hrows).add (.const 1))).add
-        ((((((PolyBounded.const 2).mul hcols).add (.const 1))).add (hrows.mul hrow)))))
-    have hpivDet := ((PolyBounded.const 2).mul (hsS.add (.const 1))).add (.const 1)
-    have hpivRows :=
-      ((PolyBounded.const 2).mul
-        (hrows.mul (((PolyBounded.const 2).mul hrows).add (.const 1)))).add (.const 1)
-    have hpivCols := hrows.mul (((PolyBounded.const 2).mul hcols).add (.const 1))
-    exact (htable.add (.const 1)).add (hpivDet.add (hpivRows.add hpivCols))
+    unfold bareissStateSizeBound; growth_poly
   refine (ComputableInPolyTime.foldlWith_spec
     (encP := encBool) (encA := encUnary) (encB := BareissState.enc)
     (par := fun _ => false) (list := fun x => List.range (colLimit x))
@@ -555,16 +540,14 @@ private theorem bareissElim_clearDenoms_poly {α : Type} {encIn : α ↪ List Bo
       PolyBounded.self.mono fun M => (ratTable_encoding_bounds M).2.1
     have hsizeB : PolyBounded (fun M => (RatTable.enc M).length)
         (fun M => (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size) := by
-      have hle : ∀ M : RatTable, (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-          ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1 := by
-        intro M
-        have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-            (M.numCols + 1) * (RatTable.enc M).length + 1 :=
-          Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-        have hmc := (ratTable_encoding_bounds M).2.1
-        exact hsize.trans
-          (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 1)) 1)
-      exact (((PolyBounded.self.add (.const 1)).mul .self).add (.const 1)).mono hle
+      refine (by growth_poly : PolyBounded _
+          fun M => ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1).mono fun M => ?_
+      have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
+          (M.numCols + 1) * (RatTable.enc M).length + 1 :=
+        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
+      exact hsize.trans
+        (Nat.add_le_add_right
+          (Nat.mul_le_mul_right _ (Nat.add_le_add_right (ratTable_encoding_bounds M).2.1 1)) 1)
     exact bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop) clearDenoms_wellFormed
       (fun _ => le_refl _) hrows hcols hsizeB
       fun M i j => clearDenoms_abs_le M (ratTable_encoding_bounds M).2.2 i j
@@ -602,22 +585,20 @@ private theorem bareissElimCols_aug_poly :
     PolyBounded.self.mono fun sys => (linearSystemInput_encoding_bounds sys).1
   have hcols : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
       (fun sys => (toT sys).numCols) :=
-    (PolyBounded.self.add (.const 1)).mono fun sys => by
-      change sys.matrix.numCols + 1 ≤ (LinearSystemInput.enc sys).length + 1
-      exact Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
+    (by growth_poly : PolyBounded _ fun sys => (LinearSystemInput.enc sys).length + 1).mono
+      fun sys => Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
   have hsizeB : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
       (fun sys => (Bfn sys).size) := by
-    have hle : ∀ sys : LinearSystemInput, (Bfn sys).size ≤
-        ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1 := by
-      intro sys
-      dsimp only [Bfn]
-      have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
-          (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      have hmc := (linearSystemInput_encoding_bounds sys).2.1
-      exact hsize.trans
-        (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
-    exact (((PolyBounded.self.add (.const 2)).mul .self).add (.const 1)).mono hle
+    refine (by growth_poly : PolyBounded _ fun sys =>
+        ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1).mono
+      fun sys => ?_
+    dsimp only [Bfn]
+    have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
+        (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
+      Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
+    have hmc := (linearSystemInput_encoding_bounds sys).2.1
+    exact hsize.trans
+      (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
   refine bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop)
     (fun sys => clearDenoms_wellFormed _)
     (fun sys => by simp only [clearDenoms, augmentRatTable]; omega)

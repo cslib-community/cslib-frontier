@@ -35,6 +35,63 @@ open Cslib.Logic.PL Graph.RotationCertificate Graph.RotationSystem
 
 variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
 
+/-- Componentwise polygon face count for any black/white face decomposition matching the
+constraint indices of forward darts and the incidence faces of backward darts. -/
+theorem polygon_component_face_card_of_equiv {α : Type*}
+    (r : Graph.RotationSystem (incidenceGraph F)) (root : ℕ) (hr : root < F.numVars)
+    (e : (polygonRotation r).Face ≃ α ⊕ r.Face) (idx : α → Fin F.length)
+    (hblack : ∀ o : F.Occurrence,
+      ∃ a, e (Quotient.mk _ (polygonDart o false)) = .inl a ∧ idx a = o.1)
+    (hwhite : ∀ o : F.Occurrence,
+      e (Quotient.mk _ (polygonDart ((argumentPermutation F).symm o) true)) =
+        .inr (Quotient.mk _ (incidenceDart o false))) :
+    Nat.card {f : (polygonRotation r).Face // ∃ d : Graph.Dart (polygonGraph F),
+      SameComponent (polygonGraph F) root d.vertex ∧ Quotient.mk _ d = f} =
+    Nat.card {a : α // SameComponent (incidenceGraph F) root (F.numVars + (idx a).val)} +
+      Nat.card {f : r.Face // ∃ d : Graph.Dart (incidenceGraph F),
+        SameComponent (incidenceGraph F) root d.vertex ∧ Quotient.mk _ d = f} := by
+  let Q : α ⊕ r.Face → Prop := Sum.elim
+    (fun a => SameComponent (incidenceGraph F) root (F.numVars + (idx a).val))
+    (fun f => ∃ d : Graph.Dart (incidenceGraph F),
+      SameComponent (incidenceGraph F) root d.vertex ∧ Quotient.mk _ d = f)
+  have hdense (p : F.Occurrence) : F.distinctVars.idxOf p.var < F.numVars := by
+    rw [← CSP.length_distinctVars]
+    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr p.var_mem)
+  have hmem (f : (polygonRotation r).Face) :
+      (∃ d : Graph.Dart (polygonGraph F), SameComponent (polygonGraph F) root d.vertex ∧
+        Quotient.mk _ d = f) ↔ Q (e f) := by
+    induction f using Quotient.inductionOn with
+    | h d =>
+      rcases d with ⟨edge, b⟩
+      obtain ⟨o, ho⟩ := exists_polygonDart (F := F) (edge, b)
+      cases b
+      · obtain ⟨a, ha, hidx⟩ := hblack o
+        rw [← ho, ha, componentFace_mk_iff _ polygon_endpoints_declared, vertex_polygonDart]
+        dsimp only [Q, Sum.elim]
+        have hc := Graph.RotationSystem.sameComponent_reverse (incidenceVertices_declared F)
+          (incidenceDart o false)
+        change SameComponent _ (incidenceDart o false).vertex (incidenceDart o true).vertex at hc
+        simp only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte] at hc ⊢
+        rw [sameComponent_polygon_iff hr (hdense o), hidx]
+        exact ⟨fun h => h.trans hc, fun h => h.trans hc.symm⟩
+      · have hw := hwhite (argumentPermutation F o)
+        rw [Equiv.symm_apply_apply] at hw
+        rw [← ho, hw, componentFace_mk_iff _ polygon_endpoints_declared]
+        change SameComponent _ root (polygonDart o true).vertex ↔
+          ∃ d : Graph.Dart (incidenceGraph F), SameComponent _ root d.vertex ∧
+            (Quotient.mk _ d : r.Face) =
+              Quotient.mk _ (incidenceDart (argumentPermutation F o) false)
+        rw [componentFace_mk_iff _ (incidenceVertices_declared F),
+          vertex_polygonDart, vertex_incidenceDart]
+        exact sameComponent_polygon_iff hr (hdense (argumentSuccessor o))
+  have : Finite α := Finite.of_injective (e.symm ∘ Sum.inl)
+    (e.symm.injective.comp Sum.inl_injective)
+  calc
+    _ = Nat.card {s // Q s} := Nat.card_congr (e.subtypeEquiv hmem)
+    _ = Nat.card {a : α // Q (.inl a)} + Nat.card {f : r.Face // Q (.inr f)} := by
+      rw [Nat.card_congr (Equiv.subtypeSum (p := Q)), Nat.card_sum]
+    _ = _ := rfl
+
 /-- In a component rooted at a dense variable, polygon faces are exactly its constraint
 positions together with its original incidence faces. All face orbits are counted. -/
 theorem polygon_component_face_card (r : Graph.RotationSystem (incidenceGraph F))
@@ -44,50 +101,10 @@ theorem polygon_component_face_card (r : Graph.RotationSystem (incidenceGraph F)
       SameComponent (polygonGraph F) root d.vertex ∧ Quotient.mk _ d = f} =
     Nat.card {i : Fin F.length // SameComponent (incidenceGraph F) root (F.numVars + i.val)} +
       Nat.card {f : r.Face // ∃ d : Graph.Dart (incidenceGraph F),
-        SameComponent (incidenceGraph F) root d.vertex ∧ Quotient.mk _ d = f} := by
-  let Q : Fin F.length ⊕ r.Face → Prop := Sum.elim
-    (fun i => SameComponent (incidenceGraph F) root (F.numVars + i.val))
-    (fun f => ∃ d : Graph.Dart (incidenceGraph F),
-      SameComponent (incidenceGraph F) root d.vertex ∧ Quotient.mk _ d = f)
-  have hmem (f : (polygonRotation r).Face) :
-      (∃ d : Graph.Dart (polygonGraph F), SameComponent (polygonGraph F) root d.vertex ∧
-        Quotient.mk _ d = f) ↔ Q (polygonFaceEquiv r hOrder hPos f) := by
-    induction f using Quotient.inductionOn with
-    | h d =>
-      rcases d with ⟨edge, b⟩
-      obtain ⟨o, ho⟩ := exists_polygonDart (F := F) (edge, b)
-      cases b
-      · rw [← ho, polygonFaceEquiv_black,
-          componentFace_mk_iff _ polygon_endpoints_declared, vertex_polygonDart]
-        have hd : F.distinctVars.idxOf o.var < F.numVars := by
-          rw [← CSP.length_distinctVars]
-          exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
-        have hc := Graph.RotationSystem.sameComponent_reverse (incidenceVertices_declared F)
-          (incidenceDart o false)
-        change SameComponent _ (incidenceDart o false).vertex (incidenceDart o true).vertex at hc
-        simp only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte] at hc ⊢
-        rw [sameComponent_polygon_iff hr hd]
-        exact ⟨fun h => h.trans hc, fun h => h.trans hc.symm⟩
-      · have hw := polygonFaceEquiv_white r hOrder hPos (argumentPermutation F o)
-        rw [Equiv.symm_apply_apply] at hw
-        rw [← ho, hw, componentFace_mk_iff _ polygon_endpoints_declared]
-        change SameComponent _ root (polygonDart o true).vertex ↔
-          ∃ d : Graph.Dart (incidenceGraph F), SameComponent _ root d.vertex ∧
-            (Quotient.mk _ d : r.Face) =
-              Quotient.mk _ (incidenceDart (argumentPermutation F o) false)
-        rw [componentFace_mk_iff _ (incidenceVertices_declared F),
-          vertex_polygonDart, vertex_incidenceDart]
-        have hd : F.distinctVars.idxOf (argumentSuccessor o).var < F.numVars := by
-          rw [← CSP.length_distinctVars]
-          exact List.idxOf_lt_length_of_mem
-            (CSP.mem_distinctVars.mpr (argumentSuccessor o).var_mem)
-        exact sameComponent_polygon_iff hr hd
-  calc
-    _ = Nat.card {s // Q s} :=
-      Nat.card_congr ((polygonFaceEquiv r hOrder hPos).subtypeEquiv hmem)
-    _ = Nat.card {i : Fin F.length // Q (.inl i)} + Nat.card {f : r.Face // Q (.inr f)} := by
-      rw [Nat.card_congr (Equiv.subtypeSum (p := Q)), Nat.card_sum]
-    _ = _ := rfl
+        SameComponent (incidenceGraph F) root d.vertex ∧ Quotient.mk _ d = f} :=
+  polygon_component_face_card_of_equiv r root hr (polygonFaceEquiv r hOrder hPos) id
+    (fun o => ⟨o.1, polygonFaceEquiv_black r hOrder hPos o, rfl⟩)
+    (polygonFaceEquiv_white r hOrder hPos)
 
 open Classical in
 /-- The incidence component has the polygon's variable vertices plus its indexed positive
@@ -129,6 +146,45 @@ theorem polygon_component_edge_count (root : ℕ) (hr : root < F.numVars) :
   rw [← CSP.length_distinctVars]
   exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
 
+open Classical in
+private abbrev ComponentEuler {G : Graph} (s : Graph.RotationSystem G) (root : ℕ) : Prop :=
+  G.distinctVertices.countP (fun v => decide (SameComponent G root v)) +
+    ((List.finRange (2 * G.edges.length)).countP fun i =>
+      decide (SameComponent G root ((Graph.Dart.indexEquiv G).symm i).vertex ∧
+        s.IsFaceRepresentative ((Graph.Dart.indexEquiv G).symm i))) =
+    G.edges.countP (fun e => decide (SameComponent G root e.1)) + 2
+
+private theorem component_euler_iff (r : Graph.RotationSystem (incidenceGraph F))
+    {root : ℕ} (hr : root < F.numVars)
+    (hF : Nat.card (ComponentFace (polygonRotation r) root) =
+      Nat.card {i : Fin F.length // SameComponent (incidenceGraph F) root (F.numVars + i.val)} +
+        Nat.card (ComponentFace r root)) :
+    ComponentEuler (polygonRotation r) root ↔ ComponentEuler r root := by
+  classical
+  dsimp only [ComponentEuler]
+  rw [count_faceRepresentatives_eq_card_componentFace _ polygon_endpoints_declared,
+    count_faceRepresentatives_eq_card_componentFace _ (incidenceVertices_declared F)]
+  have hV := polygon_component_vertex_count root hr
+  have hE := polygon_component_edge_count root hr
+  omega
+
+/-- Backward numerical Euler transport from componentwise face counts on dense variables. -/
+theorem numericalGenusZero_polygon_of_face_card
+    (r : Graph.RotationSystem (incidenceGraph F))
+    (hF : ∀ root < F.numVars,
+      Nat.card (ComponentFace (polygonRotation r) root) =
+        Nat.card {i : Fin F.length // SameComponent (incidenceGraph F) root (F.numVars + i.val)} +
+          Nat.card (ComponentFace r root))
+    (hgenus : r.NumericalGenusZero) : (polygonRotation r).NumericalGenusZero := by
+  classical
+  intro root hr
+  have hdense : root < F.numVars := List.mem_range.mp hr
+  obtain ⟨o, ho⟩ := exists_occurrence_dense root hdense
+  rw [ite_eq_left ⟨polygonDart o false, (vertex_polygonDart o false).trans ho⟩]
+  have hi := hgenus root (by rw [incidenceGraph_vertices, List.mem_range]; omega)
+  rw [ite_eq_left ⟨incidenceDart o false, (vertex_incidenceDart o false).trans ho⟩] at hi
+  exact (component_euler_iff r hdense (hF root hdense)).mpr hi
+
 /-- Replacing every positive ordered incidence star by its actual occurrence-indexed polygon
 preserves the existing componentwise numerical genus-zero predicate in both directions.
 This includes disconnected and empty instances. It asserts no geometric realization. -/
@@ -137,25 +193,9 @@ theorem numericalGenusZero_polygon_iff (r : Graph.RotationSystem (incidenceGraph
     (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) :
     (polygonRotation r).NumericalGenusZero ↔ r.NumericalGenusZero := by
   classical
-  let Euler (G : Graph) (s : Graph.RotationSystem G) (root : ℕ) : Prop :=
-    G.distinctVertices.countP (fun v => decide (SameComponent G root v)) +
-      ((List.finRange (2 * G.edges.length)).countP fun i =>
-        decide (SameComponent G root ((Graph.Dart.indexEquiv G).symm i).vertex ∧
-          s.IsFaceRepresentative ((Graph.Dart.indexEquiv G).symm i))) =
-      G.edges.countP (fun e => decide (SameComponent G root e.1)) + 2
   have hdense (o : F.Occurrence) : F.distinctVars.idxOf o.var < F.numVars := by
     rw [← CSP.length_distinctVars]
     exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
-  have hEuler (root : ℕ) (hr : root < F.numVars) :
-      Euler (polygonGraph F) (polygonRotation r) root ↔ Euler (incidenceGraph F) r root := by
-    dsimp only [Euler]
-    rw [count_faceRepresentatives_eq_card_componentFace _ polygon_endpoints_declared,
-      count_faceRepresentatives_eq_card_componentFace _ (incidenceVertices_declared F)]
-    have hV := polygon_component_vertex_count root hr
-    have hF := polygon_component_face_card r hOrder hPos root hr
-    have hE := polygon_component_edge_count root hr
-    dsimp only [ComponentFace] at *
-    omega
   have hPdart (root : ℕ) (hr : root ∈ (polygonGraph F).vertices) :
       ∃ d : Graph.Dart (polygonGraph F), d.vertex = root := by
     obtain ⟨o, ho⟩ := exists_occurrence_dense root (List.mem_range.mp hr)
@@ -182,7 +222,8 @@ theorem numericalGenusZero_polygon_iff (r : Graph.RotationSystem (incidenceGraph
     rw [ite_eq_left ⟨incidenceDart o b, ho⟩]
     have hp := hP (F.distinctVars.idxOf o.var) (List.mem_range.mpr (hdense o))
     rw [ite_eq_left (hPdart _ (List.mem_range.mpr (hdense o)))] at hp
-    have hi := (hEuler _ (hdense o)).mp hp
+    have hi := (component_euler_iff r (hdense o)
+      (polygon_component_face_card r hOrder hPos _ (hdense o))).mp hp
     have hc : SameComponent (incidenceGraph F) root (F.distinctVars.idxOf o.var) := by
       cases b
       · rw [vertex_incidenceDart] at ho
@@ -198,18 +239,7 @@ theorem numericalGenusZero_polygon_iff (r : Graph.RotationSystem (incidenceGraph
     have hrel (v : ℕ) : SameComponent (incidenceGraph F) root v ↔
         SameComponent (incidenceGraph F) (F.distinctVars.idxOf o.var) v :=
       ⟨fun h => hc.symm.trans h, fun h => hc.trans h⟩
-    simpa only [Euler, hrel] using hi
-  · intro hI
-    unfold Graph.RotationSystem.NumericalGenusZero at hI ⊢
-    intro root hr
-    rw [ite_eq_left (hPdart root hr)]
-    have hroot : root ∈ (incidenceGraph F).vertices := by
-      rw [incidenceGraph_vertices, List.mem_range]
-      have := List.mem_range.mp hr
-      omega
-    obtain ⟨o, b, ho⟩ := hIdart root hroot
-    have hi := hI root hroot
-    rw [ite_eq_left ⟨incidenceDart o b, ho⟩] at hi
-    exact (hEuler root (List.mem_range.mp hr)).mpr hi
+    simpa only [hrel] using hi
+  · exact numericalGenusZero_polygon_of_face_card r (polygon_component_face_card r hOrder hPos)
 
 end Cslib.Complexity.CSP

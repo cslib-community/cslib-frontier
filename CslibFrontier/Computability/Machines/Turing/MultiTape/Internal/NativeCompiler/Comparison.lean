@@ -83,14 +83,14 @@ theorem unaryLtT_run (left right : ℕ) :
           exact ih right
 
 /-- Strict comparison of unary naturals, emitting the standard one-bit Boolean encoding. -/
-@[expose] noncomputable def unaryLtBool :
+@[expose] def unaryLtBool :
     NativeCompiler (fun input : ℕ × ℕ => decide (input.1 < input.2))
       (encPair encUnary encUnary) encBool :=
   ofZipTransducer encUnary encUnary encBool unaryLtT Universal.eBit fun input =>
     unaryLtT_run input.1 input.2
 
 /-- Strict comparison of unary naturals in the empty/nonempty branch-test encoding. -/
-@[expose] noncomputable def unaryLtTest :
+@[expose] def unaryLtTest :
     NativeCompiler (fun input : ℕ × ℕ => decide (input.1 < input.2))
       (encPair encUnary encUnary) encTest :=
   boolToTest.comp unaryLtBool

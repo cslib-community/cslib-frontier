@@ -17,7 +17,8 @@ import Mathlib.Algebra.Polynomial.Roots
 
 Let `F` be a field with `2 ^ m` elements, written as `m`-bit strings by an additive bijection
 `bits : F ≃+ BitString m`. The *powering sample space* of Alon, Goldreich, Håstad and Peralta
-[Alon, Goldreich, Håstad and Peralta, Section 3][AlonGoldreichHastadPeralta1992] maps a seed
+[Alon, Goldreich, Håstad and Peralta, §5, Construction 3, p. 10][AlonGoldreichHastadPeralta1992]
+(June 14, 1992 version) maps a seed
 `(x, y) ∈ F × F`, which is `2 m` bits, to the `n` bits `⟨bits (x ^ i), bits y⟩`, `i < n`, where
 `⟨u, v⟩ = u ⬝ᵥ v` is the inner product of bit strings modulo two
 (`Cslib.BitString.powering`).
@@ -63,7 +64,8 @@ open scoped BigOperators
 variable {F : Type*} [Field F] [Fintype F] {m : ℕ}
 
 /-- The *powering sample space* of Alon, Goldreich, Håstad and Peralta
-[Alon, Goldreich, Håstad and Peralta, Section 3][AlonGoldreichHastadPeralta1992]: the seed
+[Alon, Goldreich, Håstad and Peralta, §5, Construction 3, p. 10][AlonGoldreichHastadPeralta1992]
+(June 14, 1992 version): the seed
 `(x, y) ∈ F × F` gives the `n` bits `⟨bits (x ^ i), bits y⟩`, `i < n`, inner products of bit
 strings modulo two. -/
 def powering (bits : F ≃+ BitString m) (n : ℕ) (s : F × F) : BitString n :=
@@ -122,8 +124,8 @@ theorem card_filter_sum_pow_eq_zero_le [DecidableEq F] {S : Finset (Fin n)}
   rw [Polynomial.mem_roots hP, Polynomial.IsRoot.def]
   simpa [P, Polynomial.eval_finsetSum] using hx
 
-/-- **The powering space has small bias** [Alon, Goldreich, Håstad and Peralta, Section
-3][AlonGoldreichHastadPeralta1992]: it is `((n - 1) / |F|)`-biased. -/
+/-- **The powering space has small bias** [Alon, Goldreich, Håstad and Peralta, §5, Proposition 3,
+p. 10][AlonGoldreichHastadPeralta1992] (June 14, 1992 version): it is `((n - 1) / |F|)`-biased. -/
 theorem isSmallBias_powering :
     IsSmallBias ((n - 1 : ℕ) / Fintype.card F : ℝ)
       ((PMF.uniformOfFintype (F × F)).map (powering bits n)) := fun S hS => by
