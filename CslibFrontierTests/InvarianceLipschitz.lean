@@ -92,12 +92,10 @@ example : ContDiff ℝ 4 ((Real.movingAverage (1 / 4))^[4] fun u : ℝ => |u|) �
   refine ⟨Real.contDiff_iterate_movingAverage continuous_abs 4, fun s => ?_, fun s => ?_⟩
   · have h := lipschitzWith_abs.abs_iterate_movingAverage_sub_le (by norm_num : (0 : ℝ) < 1 / 4)
       4 s
-    norm_num at h
-    exact h
+    exact h.trans_eq (by norm_num)
   · have h := lipschitzWith_abs.abs_iteratedDeriv_iterate_movingAverage_le
       (by norm_num : (0 : ℝ) < 1 / 4) (k := 3) (m := 4) (by norm_num) s
-    norm_num at h
-    exact h
+    exact h.trans_eq (by norm_num)
 
 /-- A moving average of the `1`-Lipschitz function `|·|` is `1`-Lipschitz. -/
 example : LipschitzWith 1 (Real.movingAverage (1 / 4) fun u : ℝ => |u|) :=

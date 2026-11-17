@@ -333,11 +333,12 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
   have hp_deg : p.degree < ↑(nodes.length * J) := by
     rw [Polynomial.degree_lt_iff_coeff_zero]
     intro m hm
-    simp only [p, Polynomial.coeff_smul, smul_eq_mul,
+    simp only [p, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
       Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm), mul_zero]
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
     have hc0_val : (finProdFinEquiv c0 : ℕ) = 0 := by simp [c0]
-    rw [hc0_val, Polynomial.coeff_smul, smul_eq_mul, Polynomial.coeff_zero_eq_eval_zero, hH0]
+    rw [hc0_val, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
+      Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
       fun r => (rowEntry jets r.1 r.2 : ℚ) := by
     funext ⟨i, j⟩
