@@ -82,9 +82,15 @@ output is close to the real view) and whether this PR proves it. Unfoldings, `rf
 listed under "Main results". If the property is missing, request it, or have the PR title, body
 and module documentation say plainly that the change provides definitions only.
 
-Before a published theorem enters the [results inventory](../results/README.md), a human maintainer
-checks the statement against the source and records that check in a comment written by the human,
-not by an agent posting from their account. Agent review alone does not admit an entry.
+Before a published theorem enters the [results inventory](../results/README.md), its statement is
+checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
+checker reads the cited passages in the source itself, not locators copied from the PR, reads the
+definitions the statement rests on, and records the check in a comment that says who made it,
+what was read, which deviations were accepted and what was not checked. An agent's check says
+that it is an agent's and is never presented as a human one. The check is a step of its own,
+separate from the ordinary independent review, which is still required. A maintainer may require
+a human check for entries from their own fleet by saying so on the entry's PR or tracking issue;
+that requirement then holds for those entries.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -97,13 +103,11 @@ truncated reports. Resolve skipped or incomplete scans, or record their coverage
 perform targeted source checks. A successful exit, an empty report or a private declaration is
 not evidence of uniqueness; the tools supplement source search and semantic review.
 
-Review of both manuals is mandatory for every change. Follow
-[Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals): check the impact assessment
-against the final revision. Check affected codebase procedures and examples from the Operator's
-Manual's documented starting point; a human should be able to perform the task by hand, and an
-agent should be able to reuse the account without reconstructing it from conversations. Check
-human direction, roles and handoffs in the Agent Operator's Manual when the workflow changes.
-A passing link or excerpt check does not replace this review.
+Check the writing where a change explains itself: the docstring's mapping from statement to
+source and the PR description. When a change alters a procedure, a role or a registry-backed fact,
+check the procedure page or registry it updates
+([Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals)). The manual's frozen
+reference chapters are not reviewed.
 
 Review API and proof quality for private helpers as well as public declarations, following
 [Improving library ergonomics](workflow.md#improving-library-ergonomics). Request changes for concrete,
@@ -157,7 +161,7 @@ without queueing, and say why in the approval, when:
 - the approval names a hold, such as an unlanded lower PR, a migration or an upstream dependency;
   queue once the hold clears.
 
-Pending source, advisory-notice or rendered-manual review is also a hold. Inspect that material,
+Pending source or advisory-notice review is also a hold. Inspect that material,
 record the hold's resolution and link the existing proof/API/caller assessment before queueing;
 do not start a waiting helper while completing CI will still produce material that needs review.
 A successful check does not release a review hold, and the helper does not judge whether review

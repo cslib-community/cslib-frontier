@@ -54,18 +54,19 @@ A distinguisher outputs a bit, so `DDH` is the same assumption as its word-level
 distinguishers that read the encoded tuple (`ddh_iff_encoded`). A CDH adversary must output a group
 element, whereas a word-level adversary may output any word. `CDH`, and hence the conclusion of
 `DDH.cdh`, is therefore the textbook assumption, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks restoring the
-word-level form for families with decodable encodings.
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` restores the word-level form and
+equivalence `CDH ↔ WordCDH` for `DecodablePrimeOrderGroupFamily` (`#4783`).
 
 We prove the implications `DDH ⇒ CDH ⇒ DiscreteLog` between the assumptions from the fixed-group
 bounds `Cslib.Crypto.dlAdvantage_le_cdhAdvantage_dlToCDH` and
 `Cslib.Crypto.probability_ddhRandomExperiment_cdhToDDH_le`. We also prove the random
 self-reducibility of DDH ([BonehShoup2023], Section 10.11, Exercises 10.8–10.10, pp. 425–426): the
 distributional rerandomisation lemma (`ddhRerandomizeLaw_real`, `ddhRerandomizeLaw_random`), its
-efficient form `ddhSelfReduceDistinguisher`, the equivalence of average-case and worst-case DDH
-(`ddh_of_worstCase`), and a Chernoff-amplified decider `ddhAmplifiedDecider` that turns a
-distinguisher with inverse-polynomial advantage into one that decides every triple except with
-negligible error. The Diffie–Hellman assumptions are hypotheses, not theorems.
+efficient form `ddhSelfReduceDistinguisher`, average-case DDH from worst-case DDH with instances
+that may depend on the distinguisher (`ddh_of_worstCase`), and a Chernoff-amplified decider
+`ddhAmplifiedDecider` that turns a distinguisher with inverse-polynomial advantage into one that
+decides every triple except with negligible error. The Diffie–Hellman assumptions are hypotheses,
+not theorems.
 
 ## Main definitions
 
@@ -114,9 +115,11 @@ negligible error. The Diffie–Hellman assumptions are hypotheses, not theorems.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhSelfReduceDistinguisher`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le`:
   the self-reduction is PPT and loses at most `3 / 2 ^ n` against exact rerandomisation.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhRerandomizeGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRealGame_le_ddhWorstCaseGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase`: average-case and worst-case DDH agree.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhRerandomizeGame`: under `DDH`, rerandomised real and
+  non-DDH triple families are indistinguishable.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRealGame_le_ddhWorstCaseGame`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase`: worst-case DDH implies `DDH` with loss
+  `6 / 2 ^ n`, where the hard instances may depend on the distinguisher.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhAmplifiedDecider`,
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhAmplifiedDecider_error_le_pow`,
   `Cslib.Crypto.PrimeOrderGroupFamily.negligible_ddhAmplifiedDecider_error`: the amplified
@@ -236,7 +239,12 @@ noncomputable def cdhGame (setup : ℕ → PMF F.Desc) (adversary : F.CDHAdversa
   Game.withSetup (setup n) fun d => cdhExperiment (F.order d) (F.generator d) (adversary n d)
 
 /-- The Computational Diffie–Hellman assumption for a family and a setup law: every PPT CDH
-adversary wins `cdhGame` with negligible probability. -/
+adversary wins `cdhGame` with negligible probability. It is [BonehShoup2023], Attack Game 10.5 and
+Definition 10.7 (pp. 409–410), read asymptotically as in Section 10.5.2 (pp. 413–414). The group
+parameters are drawn from `setup`, which need not be efficiently samplable, whereas the source
+draws them with an efficient system parameterization algorithm (Definition 10.9, p. 413); the
+assumption is the source's only for setup laws that an efficient algorithm samples, as for
+`DiscreteLog`. -/
 def CDH (setup : ℕ → PMF F.Desc) : Prop :=
   ∀ adversary : F.CDHAdversary, adversary.IsPPT →
     Negligible fun n => Game.succProbability (F.cdhGame setup adversary n)
@@ -328,7 +336,12 @@ noncomputable def ddhRandomGame (setup : ℕ → PMF F.Desc) (distinguisher : F.
     ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d)
 
 /-- The Decisional Diffie–Hellman assumption for a family and a setup law: every PPT DDH
-distinguisher has negligible advantage between `ddhRealGame` and `ddhRandomGame`. -/
+distinguisher has negligible advantage between `ddhRealGame` and `ddhRandomGame`. It is
+[BonehShoup2023], Attack Game 10.6 and Definition 10.8 (pp. 410–411), read asymptotically as in
+Section 10.5.2 (pp. 413–414). The group parameters are drawn from `setup`, which need not be
+efficiently samplable, whereas the source draws them with an efficient system parameterization
+algorithm (Definition 10.9, p. 413); the assumption is the source's only for setup laws that an
+efficient algorithm samples, as for `DiscreteLog`. -/
 def DDH (setup : ℕ → PMF F.Desc) : Prop :=
   Game.Indistinguishable (F.ddhRealGame setup) (F.ddhRandomGame setup)
     DDHDistinguisher.IsPPT
@@ -419,9 +432,9 @@ theorem isPPT_cdhToDDHDistinguisher {adversary : F.CDHAdversary} (hA : adversary
 
 /-- **DDH implies CDH** when every supported group at parameter `n` has order at least `m n > 0`
 and `1 / m n` is negligible. The conclusion is the textbook CDH assumption against adversaries that
-output group elements, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks the word-level
-form. -/
+output group elements, which is weaker than the word-level CDH assumption in general; see
+`DecodablePrimeOrderGroupFamily.DDH.wordCDH` in
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` for decodable families. -/
 theorem DDH.cdh {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) : F.CDH setup := by
@@ -886,21 +899,26 @@ theorem advantage_ddhRealGame_le_ddhWorstCaseGame (setup : ℕ → PMF F.Desc)
   exact hhops (F.advantage_ddhRerandomizeGame_ddhWorstCaseGame_le setup _ _ _ distinguisher n)
     (F.advantage_ddhRerandomizeGame_ddhWorstCaseGame_le setup _ _ _ distinguisher n)
 
-/-- **Average-case DDH from worst-case DDH**: if every PPT distinguisher has negligible advantage
-between a fixed real triple family and a fixed non-DDH triple family, then `DDH` holds. -/
+/-- **Average-case DDH from worst-case DDH**: if for every PPT distinguisher there are a real
+triple family `(α d • g, β d • g, (α d * β d) • g)` and a non-DDH triple family
+`(α' d • g, β' d • g, γ' d • g)`, with `γ' d ≠ α' d * β' d` on the support of `setup n` for all
+sufficiently large `n`, between which it has negligible advantage, then `DDH` holds. The families
+may depend on the distinguisher: the premise says that for every distinguisher there are families,
+so fixed families that work for every PPT distinguisher (`Game.Indistinguishable` of the two
+`ddhWorstCaseGame`s) also satisfy it. This formulation and `ddhWorstCaseGame` are this library's. -/
 theorem ddh_of_worstCase {setup : ℕ → PMF F.Desc}
-    (α β α' β' γ' : ∀ d : F.Desc, ZMod (F.order d))
-    (hγ' : ∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, γ' d ≠ α' d * β' d)
-    (hworst : Game.Indistinguishable
-      (F.ddhWorstCaseGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
-        (fun d => (α d * β d) • F.generator d))
-      (F.ddhWorstCaseGame setup (fun d => α' d • F.generator d) (fun d => β' d • F.generator d)
-        (fun d => γ' d • F.generator d))
-      DDHDistinguisher.IsPPT) :
+    (hworst : ∀ distinguisher : F.DDHDistinguisher, distinguisher.IsPPT →
+      ∃ α β α' β' γ' : ∀ d : F.Desc, ZMod (F.order d),
+        (∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, γ' d ≠ α' d * β' d) ∧
+        Negligible fun n => Game.advantage
+          (F.ddhWorstCaseGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
+            (fun d => (α d * β d) • F.generator d) distinguisher n)
+          (F.ddhWorstCaseGame setup (fun d => α' d • F.generator d)
+            (fun d => β' d • F.generator d) (fun d => γ' d • F.generator d) distinguisher n)) :
     F.DDH setup := by
   intro distinguisher hD
-  have hworstNeg := hworst (F.ddhSelfReduceDistinguisher distinguisher)
-    (F.isPPT_ddhSelfReduceDistinguisher hD)
+  obtain ⟨α, β, α', β', γ', hγ', hworstNeg⟩ :=
+    hworst (F.ddhSelfReduceDistinguisher distinguisher) (F.isPPT_ddhSelfReduceDistinguisher hD)
   negligible eventually (hγ'.mono fun n hn =>
     F.advantage_ddhRealGame_le_ddhWorstCaseGame setup α β α' β' γ' distinguisher n hn)
 

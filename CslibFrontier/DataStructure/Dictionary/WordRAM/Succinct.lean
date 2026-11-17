@@ -435,15 +435,15 @@ noncomputable def impl {U V w n_max base : ℕ}
       have hfit1 : Fits w 1 := hfit2.of_le (by decide)
       rcases of_decide_eq_true hi with rfl | rfl | rfl <;> cases o with
       | query u =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;> first | exact hfit0 | exact u.isLt.trans hU
+        dsimp only [encode]
+        split_ifs <;> first | exact hfit0 | exact u.isLt.trans hU
       | insert u v =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;>
+        dsimp only [encode]
+        split_ifs <;>
           first | exact hfit1 | exact u.isLt.trans hU | exact hval.2.trans hV | exact hfit0
       | delete u =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;> first | exact hfit2 | exact u.isLt.trans hU | exact hfit0)
+        dsimp only [encode]
+        split_ifs <;> first | exact hfit2 | exact u.isLt.trans hU | exact hfit0)
     (encode_matches := by
       intro o regs
       cases o with

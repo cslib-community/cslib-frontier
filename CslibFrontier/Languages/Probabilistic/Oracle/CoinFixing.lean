@@ -21,9 +21,11 @@ oracle program `fixCoins prog ω : OracleComp spec α` with no private sampling 
 
 * `fixCoins` preserves every external query-cost budget `OracleComp.IsCostBounded` (and in
   particular `IsQueryBounded` and `QueriesSatisfy`);
-* against any deterministic external oracle `table : (q : Query) → spec q`, sampling
-  `ω ← coinLaw prog` and interpreting `fixCoins prog ω` reproduces the exact output distribution of
-  `prog` (`bind_interpret_fixCoins`);
+* against any stateful external oracle, sampling `ω ← coinLaw prog` and running
+  `fixCoins prog ω` reproduces the joint law of the output and final state of `prog`
+  (`coinLaw_bind_runWith_fixCoins`); against a deterministic external oracle
+  `table : (q : Query) → spec q` this is the exact output distribution of `prog`
+  (`bind_interpret_fixCoins`);
 * consequently, any experiment that samples a deterministic oracle table `t ← μ` independently of
   `prog`'s private coins equals the `coinLaw prog`-mixture of the corresponding deterministic-client
   experiments (`table_bind_interpret_eq_coinLaw_bind`), allowing information-theoretic bounds proved
@@ -42,6 +44,9 @@ oracle program `fixCoins prog ω : OracleComp spec α` with no private sampling 
   `Cslib.ProbOracleComp.coinLaw_liftBind_inr`: constructor equations for `coinLaw`.
 * `Cslib.ProbOracleComp.isCostBounded_fixCoins`,
   `Cslib.ProbOracleComp.isQueryBounded_fixCoins`: fixing private coins preserves query budgets.
+* `Cslib.ProbOracleComp.coinLaw_bind_runWith_fixCoins`: averaging the run of `fixCoins prog ω`
+  over `coinLaw prog` against any stateful external oracle equals running `prog` with private
+  coins.
 * `Cslib.ProbOracleComp.bind_interpret_fixCoins`: averaging `fixCoins prog ω` over `coinLaw prog`
   against any deterministic external table equals interpreting `prog` with private coins.
 * `Cslib.ProbOracleComp.table_bind_interpret_eq_coinLaw_bind`: commuting an independent table
@@ -141,6 +146,48 @@ theorem isQueryBounded_fixCoins {prog : ProbOracleComp spec α} {n : ℕ}
     (fixCoins prog ω).IsQueryBounded n :=
   isCostBounded_fixCoins h ω
 
+/-- Against any stateful external oracle, sampling `ω ← coinLaw prog` and running `fixCoins prog ω`
+has the joint law of the result and final state of `prog` (its private samples fresh, as in
+`ProbOracleComp.runWith`). -/
+theorem coinLaw_bind_runWith_fixCoins [∀ q, Fintype (spec q)] {State : Type}
+    (oracle : (q : Query) → StateT State PMF (spec q)) (prog : ProbOracleComp spec α)
+    (s : State) :
+    (coinLaw prog).bind (fun ω => OracleComp.runWith oracle (fixCoins prog ω) s) =
+      ProbOracleComp.runWith oracle prog s := by
+  rw [ProbOracleComp.runWith]
+  induction prog generalizing s with
+  | pure a =>
+    dsimp only [coinLaw, fixCoins]
+    simp [OracleComp.runWith]
+  | liftBind q cont ih =>
+    have hbind (r : ℕ ⊕ Query) (k : probOracleSpec spec r → ProbOracleComp spec α) :
+        PFunctor.FreeM.liftBind r k = (OracleComp.query r >>= k) := rfl
+    cases q with
+    | inl k =>
+      dsimp only [Coins, coinLaw, fixCoins]
+      rw [hbind (.inl k) cont, OracleComp.runWith_bind, OracleComp.runWith_query]
+      simp only [OracleComp.sumHandler, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+      congr 1 with c : 1
+      exact ih c s
+    | inr q =>
+      dsimp only [Coins, coinLaw, fixCoins]
+      rw [hbind (.inr q) cont, OracleComp.runWith_bind, OracleComp.runWith_query]
+      simp only [OracleComp.sumHandler]
+      have hstep (ω : ∀ y : spec q, Coins (cont y)) :
+          OracleComp.runWith oracle
+            (PFunctor.FreeM.liftBind q fun y => fixCoins (cont y) (ω y)) s =
+          (oracle q s).bind fun x =>
+            OracleComp.runWith oracle (fixCoins (cont x.1) (ω x.1)) x.2 := by
+        change OracleComp.runWith oracle
+          (OracleComp.query q >>= fun y => fixCoins (cont y) (ω y)) s = _
+        rw [OracleComp.runWith_bind, OracleComp.runWith_query]
+      simp_rw [hstep]
+      rw [PMF.bind_comm]
+      congr 1 with x : 1
+      have heval := Probability.PMF.pi_map_eval (fun y => coinLaw (cont y)) x.1
+      rw [← ih x.1 x.2, ← heval, PMF.bind_map]
+      rfl
+
 /-- Against any deterministic external oracle `table`, sampling `ω ← coinLaw prog` and running
 `fixCoins prog ω` has the exact output law of `prog`. -/
 theorem bind_interpret_fixCoins [∀ q, Fintype (spec q)] (prog : ProbOracleComp spec α)
@@ -149,37 +196,13 @@ theorem bind_interpret_fixCoins [∀ q, Fintype (spec q)] (prog : ProbOracleComp
       OracleComp.interpret (fun q => PMF.pure (table q)) (fixCoins prog ω)) =
     OracleComp.interpret
       (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (table q))) prog := by
-  induction prog with
-  | pure a =>
-    dsimp only [coinLaw, fixCoins]
-    simp [OracleComp.interpret_pure, Probability.PMF.monad_pure_eq_pure]
-  | liftBind q cont ih =>
-    have hbind (r : ℕ ⊕ Query) (k : probOracleSpec spec r → ProbOracleComp spec α) :
-        PFunctor.FreeM.liftBind r k = (OracleComp.query r >>= k) := rfl
-    cases q with
-    | inl k =>
-      dsimp only [Coins, coinLaw, fixCoins]
-      rw [hbind (.inl k) cont, OracleComp.interpret_bind, OracleComp.interpret_query]
-      simp only [OracleComp.sumHandler, PMF.bind_bind, PMF.bind_map, Function.comp_def,
-        Probability.PMF.monad_bind_eq_bind]
-      congr 1 with c : 1
-      exact ih c
-    | inr q =>
-      dsimp only [Coins, coinLaw, fixCoins]
-      rw [hbind (.inr q) cont, OracleComp.interpret_bind, OracleComp.interpret_query]
-      simp only [OracleComp.sumHandler, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
-      have hstep (f : ∀ y : spec q, Coins (cont y)) :
-          OracleComp.interpret (fun r => PMF.pure (table r))
-            (PFunctor.FreeM.liftBind q fun y => fixCoins (cont y) (f y)) =
-          OracleComp.interpret (fun r => PMF.pure (table r))
-            (fixCoins (cont (table q)) (f (table q))) := by
-        change OracleComp.interpret (fun r => PMF.pure (table r))
-          (OracleComp.query q >>= fun y => fixCoins (cont y) (f y)) = _
-        simp [Probability.PMF.monad_bind_eq_bind]
-      simp_rw [hstep]
-      have heval := Probability.PMF.pi_map_eval (fun y => coinLaw (cont y)) (table q)
-      rw [← ih (table q), ← heval, PMF.bind_map]
-      rfl
+  have h := congrArg (PMF.map Prod.fst)
+    (coinLaw_bind_runWith_fixCoins (State := Unit)
+      (fun q => StateT.lift (PMF.pure (table q))) prog ())
+  rw [PMF.map_bind, ProbOracleComp.runWith_lift] at h
+  simp only [OracleComp.runWith_lift, PMF.map_comp] at h
+  have hid {β : Type} (p : PMF β) : PMF.map (fun x => x) p = p := PMF.map_id p
+  simpa only [OracleComp.evalWith_eq_interpret, Function.comp_def, hid] using h
 
 /-- Sampling an external deterministic oracle table `t ← μ` independently of `prog`'s private coins
 commutes with fixing `ω ← coinLaw prog`. -/

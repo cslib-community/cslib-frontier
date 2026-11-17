@@ -63,8 +63,8 @@ its presentation claims, so this is the part of a change that review exists to c
    satisfying instance.
 4. **The faithful statement supersedes its stand-ins.** A change that proves the faithful
    statement deletes or demotes every stand-in it supersedes, together with their docstrings,
-   manual text, `ROADMAP.md` lines and inventory entries. Search for them by conclusion, by
-   `_of_…` names and in the milestone's issue, not only by name.
+   maintained manual text, `ROADMAP.md` lines and inventory entries. Search for them by
+   conclusion, by `_of_…` names and in the milestone's issue, not only by name.
 
 Stand-ins already on `main` are misformalizations to fix under these rules, not precedents to copy.
 Record them in an issue (#5293 for cryptography). Domain contracts, such as
@@ -217,8 +217,10 @@ Names and docstrings state the model (standard, random-oracle, ideal, query-boun
 information-theoretic), the notion (single- or multi-challenge, one-time or many-time,
 honest-verifier or malicious zero knowledge, semi-honest, static), and any deviation from the
 cited source. When a change replaces a misformalized theorem, it deletes the old one, or demotes it
-to an honestly named and documented helper, and updates its ROADMAP, manual and
+to an honestly named and documented helper, and updates its ROADMAP, maintained manual page and
 [results inventory](../results/README.md) mentions ([Faithful headlines](#faithful-headlines); #5293).
 `scripts/check_security_premises.py` checks the premise rule after a build against a justified
-baseline, and `scripts/check_hardness_assumptions.py` checks that named assumptions are listed in
-the inventory and documented ([details](../CONTRIBUTING.md#library-quality-standard)).
+baseline, `scripts/check_reduction_witnesses.py` checks that each explicit reduction in an
+advantage bound has an efficiency witness or a justified baseline entry, and
+`scripts/check_hardness_assumptions.py` checks that named assumptions are listed in the inventory
+and documented ([details](../CONTRIBUTING.md#library-quality-standard)).

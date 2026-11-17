@@ -726,8 +726,8 @@ private theorem run_runCoins_typedQuery {σ σ' : Type} (n : ℕ) (rep : σ' →
       OracleComp.interpret (fun q => ProbOracleComp.query q) W := by
     simp only [W, _root_.Turing.MultiTapePTM.interpret_runCoins, OracleComp.interpret_query]
   rw [h₁, h₂, OracleComp.interpret_interpret,
-    OracleComp.map_run_interpret ProbComp.isMonadHom_eval, ProbOracleComp.runWith,
-    OracleComp.runWith, OracleComp.interpret_interpret]
+    OracleComp.map_run_interpret ProbComp.isMonadHom_eval,
+    ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret]
   simp only [ProbOracleComp.interpret_query]
   exact OracleComp.run_interpret_map_state _ _ rep (fun q st => hstep q.1 q.2 st) W s
 

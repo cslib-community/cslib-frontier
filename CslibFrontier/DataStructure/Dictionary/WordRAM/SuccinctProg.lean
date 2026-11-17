@@ -914,11 +914,10 @@ theorem realizes_resolveIndexedSlotGen :
   realizeDict using [realizes_readGMGen]
   all_goals
     obtain ⟨hdict, hinv, hb, hj_bc, hj_cap⟩ := h
-    try
-      have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-      have hq : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-      have hdir := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
-      try with_reducible have htail := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
+    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
+    have hq : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+    have hdir := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
+    try with_reducible have htail := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
   all_goals try dictSide
   · rw [clientResult_readGMProg _ hq]
     have hbc := bCount_le_n_max hinv d.1.2
@@ -992,17 +991,6 @@ theorem memoryCost_writeLMProg (U V w n_max h_space c : ℕ) (d : (ℕ × ℕ) �
 @[simp]
 theorem memoryCost_writeGMProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeGMProg U V w n_max h_space d) s = 4 := rfl
-
-/-- A packed write updates the bounded logical array and preserves its zero padding. -/
-private theorem readPacked_writePacked_bounded {base N k w idx val : ℕ}
-    (hw : 0 < w) (hidx : idx < N) (hval : val < 2 ^ k) (mem : ℕ → ℕ) :
-    (fun j => if j < N then readPacked base k w (writePacked base k w mem idx val) j else 0) =
-      Function.update (fun j => if j < N then readPacked base k w mem j else 0) idx val := by
-  refine Function.eq_update_iff.mpr ⟨?_, fun j hj => ?_⟩
-  · simpa only [hidx, ↓reduceIte] using readPacked_writePacked_self base k w mem idx hval
-  · split_ifs
-    · exact readPacked_writePacked_of_ne hw mem hj val
-    · rfl
 
 /-- Pure state effect of `writeQuotProg`. -/
 theorem writeQuotProg_effect {U V w n_max h_space base idx val : ℕ}

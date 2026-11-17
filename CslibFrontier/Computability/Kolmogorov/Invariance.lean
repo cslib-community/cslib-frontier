@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Kolmogorov.Basic
-import Mathlib.Data.Set.Finite.List
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 
 /-!
 # Invariance
@@ -172,13 +172,13 @@ theorem exists_simulation_of_produces {M N : DescriptionMethod α} {c : ℕ}
   classical
   let T (p : List Bool) : ℕ :=
     if hp : (N.run (compile p)).Terminates then (N.run (compile p)).length else 0
-  refine ⟨fun n _ => (List.finite_length_eq Bool n).toFinset.sup T,
+  refine ⟨fun n _ => (BitString.wordsOfLength n).sup T,
     ⟨{ compile, length_compile_le := hlen, mem_runFor_compile := fun {p t x} hx => ?_ }⟩⟩
   have hN : x ∈ N.run (compile p) := h (.of_mem_runFor hx)
   have hT : (N.run (compile p)).Terminates := Computation.terminates_of_mem hN
   refine Computation.mem_runFor_of_le ?_ (Computation.results_of_terminates' _ hN).mem_runFor
   calc (N.run (compile p)).length = T p := (dite_eq_left hT).symm
-    _ ≤ _ := Finset.le_sup ((List.finite_length_eq Bool _).mem_toFinset.mpr rfl)
+    _ ≤ _ := Finset.le_sup (BitString.mem_wordsOfLength.mpr rfl)
 
 /-! ### Additive optimality -/
 

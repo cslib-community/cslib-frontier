@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -727,12 +726,13 @@ theorem eval_ccaRejectGame_aeToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ
   simp only [pmf_norm]
 
 /-- **Real/ideal advantage bound.** If `aeToCCAAdversary ctBound decBound adversary` makes at most
-`Q n` queries, and `ctBound n` and `decBound n` bound the ciphertext and decryption-reply lengths,
-then the real/ideal advantage of `adversary` is at most the CCA advantage of that reduction plus
-`dyadicSize (Q n)` times the CI winning probability of `ccaToCIAdversary` built from it. -/
-theorem advantage_aeRealGame_aeIdealGame_le (E : SymmetricCipher) (ctBound Q : ℕ → ℕ)
+`Qd n` decryption queries, and `ctBound n` and `decBound n` bound the ciphertext and
+decryption-reply lengths, then the real/ideal advantage of `adversary` is at most the CCA advantage
+of that reduction plus `dyadicSize (Qd n - 1)` times the CI winning probability of
+`ccaToCIAdversary` built from it. -/
+theorem advantage_aeRealGame_aeIdealGame_le (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
     (decBound : ℕ → List Bool → ℕ) (adversary : CCAAdversary) (n : ℕ)
-    (hq : (aeToCCAAdversary ctBound decBound adversary n []).IsQueryBounded (Q n))
+    (hq : IsDecryptionQueryBounded (aeToCCAAdversary ctBound decBound adversary n []) (Qd n))
     (hctBound : E.CiphertextLengthLE n (ctBound n))
     (hdecBound : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
       ∀ ct, (encOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
@@ -741,13 +741,13 @@ theorem advantage_aeRealGame_aeIdealGame_le (E : SymmetricCipher) (ctBound Q : �
       (Game.advantage
           (ProbComp.eval (E.ccaGame (aeToCCAAdversary ctBound decBound adversary) false n))
           (ProbComp.eval (E.ccaGame (aeToCCAAdversary ctBound decBound adversary) true n)) : ℝ) +
-        (dyadicSize (Q n) : ℝ) *
+        (dyadicSize (Qd n - 1) : ℝ) *
           (Game.succProbability (ProbComp.eval (E.ciGame
-            (ccaToCIAdversary ctBound Q true (aeToCCAAdversary ctBound decBound adversary)) n)) :
+            (ccaToCIAdversary ctBound Qd true (aeToCCAAdversary ctBound decBound adversary)) n)) :
             ℝ) := by
-  have hhop := (advantage_ccaGame_ccaRejectGame_le_sum E ctBound Q
+  have hhop := (advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd
     (aeToCCAAdversary ctBound decBound adversary) true n hq hctBound).trans
-    (sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Q true
+    (sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Qd true
       (aeToCCAAdversary ctBound decBound adversary) n)
   game_trans
     [ProbComp.eval (E.ccaGame (aeToCCAAdversary ctBound decBound adversary) false n),
@@ -770,8 +770,10 @@ theorem realIdealAE_of_indcca_of_ciphertextIntegrity {E : SymmetricCipher} (hcca
   let Q : ℕ → ℕ := fun n => cq * (n + 2) ^ dq
   have hQPoly : ComputableInPolyTime Q encUnary encUnary := by
     dsimp only [Q]; fun_prop
-  have hq (n : ℕ) : (aeToCCAAdversary ctBound decBound adversary n []).IsQueryBounded (Q n) := by
-    simpa only [Q, List.length_nil, Nat.add_zero] using (hqbounds n []).1
+  have hq (n : ℕ) : IsDecryptionQueryBounded (aeToCCAAdversary ctBound decBound adversary n [])
+      (Q n) :=
+    isDecryptionQueryBounded_of_isQueryBounded <| by
+      simpa only [Q, List.length_nil, Nat.add_zero] using (hqbounds n []).1
   have hccaNeg := hcca _ hred
   have hciNeg := hci.negligible
     (ccaToCIAdversary ctBound Q true (aeToCCAAdversary ctBound decBound adversary))
