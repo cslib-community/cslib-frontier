@@ -601,7 +601,8 @@ def traceKSIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
 def traceKSExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
   oracles ⟨0, by decide⟩ ⟨0, by decide⟩
 
-theorem traceKSIOP_knowledgeSound : IOPKnowledgeSoundness traceKSIOP Eq traceKSExtract := by
+theorem traceKSIOP_zeroErrorKnowledgeSound :
+    IOPZeroErrorKnowledgeSoundness traceKSIOP Eq traceKSExtract := by
   intro x chals oracles hver
   simp only [iopVerify, iopAnswers, traceKSIOP, List.map_cons, List.map_nil, beq_iff_eq,
     List.cons.injEq, and_true] at hver
@@ -774,8 +775,9 @@ example (n : ℕ) :
       (collisionGame keyProjHash (fun _ _ => true)
         (bcsTraceCollisionFinder traceKSIOP keyProjHash (fun b => encBool b) constTraceFS
           cheatingTraceAdversary) n)) :=
-  succProbability_bcsTraceKnowledgeGame_le traceKSIOP_knowledgeSound keyProjHash decSym_encSym
-    false constTraceFS cheatingTraceAdversary n
+  succProbability_bcsTraceKnowledgeGame_le_of_zeroErrorKnowledgeSoundness
+    traceKSIOP_zeroErrorKnowledgeSound keyProjHash decSym_encSym false constTraceFS
+    cheatingTraceAdversary n
 
 -- Standard-model reductions from trace-extraction BCS binding and knowledge soundness to
 -- `CollisionResistant H` and `HashFamily H` for any efficient length-preserving keyed hash `H` and
@@ -800,7 +802,8 @@ example (H : List Bool → List Bool → List Bool) (hf : HashFamily H)
     Negligible (fun n => Game.succProbability (ProbComp.eval
       (bcsTraceKnowledgeGame traceKSIOP Eq traceKSExtract H (fun b => encBool b) decSym
         false constTraceFS adversary n))) :=
-  HashFamily.bcsTraceKnowledge_negligible traceKSIOP_knowledgeSound decSym_encSym false hf
+  HashFamily.bcsTraceKnowledge_negligible_of_zeroErrorKnowledgeSoundness
+    traceKSIOP_zeroErrorKnowledgeSound decSym_encSym false hf
     computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS hadv
 
 end CslibFrontierTests.Crypto.BCSROM

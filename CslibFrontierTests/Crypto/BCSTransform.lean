@@ -192,7 +192,7 @@ def ksIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
 def ksExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
   oracles ⟨0, by decide⟩ ⟨0, by decide⟩
 
-theorem ksIOP_knowledgeSound : IOPKnowledgeSoundness ksIOP toyRel ksExtract := by
+theorem ksIOP_zeroErrorKnowledgeSound : IOPZeroErrorKnowledgeSoundness ksIOP toyRel ksExtract := by
   intro x chals oracles hver
   simp only [iopVerify, iopAnswers, ksIOP, List.map_cons, List.map_nil, beq_iff_eq,
     List.cons.injEq, and_true] at hver
@@ -311,8 +311,8 @@ example (n : ℕ) :
       (collisionGame constHash (fun _ _ => true)
         (bcsTableCollisionFinder ksIOP constHash (fun b => encBool b) constFS
           cheatingTableAdversary) n)) :=
-  succProbability_bcsTableKnowledgeGame_le ksIOP_knowledgeSound constHash encBool.injective
-    constFS cheatingTableAdversary n
+  succProbability_bcsTableKnowledgeGame_le_of_zeroErrorKnowledgeSoundness
+    ksIOP_zeroErrorKnowledgeSound constHash encBool.injective constFS cheatingTableAdversary n
 
 -- 6. Standard-model reductions from BCS table binding and knowledge soundness to
 -- `CollisionResistant H` and `HashFamily H` for any efficient length-preserving keyed hash `H` and
@@ -338,7 +338,8 @@ example (H : List Bool → List Bool → List Bool) (hf : HashFamily H)
     Negligible (fun n => Game.succProbability (ProbComp.eval
       (bcsTableKnowledgeGame ksIOP toyRel ksExtract H (fun b => encBool b) constFS
         adversary n))) :=
-  HashFamily.bcsTableKnowledge_negligible ksIOP_knowledgeSound hf
-    computableInPolyTime_ksIOP_queries computableInPolyTime_constFS hadv
+  HashFamily.bcsTableKnowledge_negligible_of_zeroErrorKnowledgeSoundness
+    ksIOP_zeroErrorKnowledgeSound hf computableInPolyTime_ksIOP_queries
+    computableInPolyTime_constFS hadv
 
 end CslibFrontierTests.Crypto.BCSTransform
