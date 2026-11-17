@@ -12,12 +12,13 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 /-!
 # The rotation strategy for the CHSH game
 
-Arora and Barak's entangled strategy for CHSH [Arora and Barak, Section 20.3.1][AroraBarak09]:
-Alice and Bob share the EPR pair `(|00⟩ + |11⟩)/√2` (`Cslib.Quantum.bell`). On question `1`,
-Alice rotates her qubit by `π/8` and Bob rotates his by `-π/8`; on question `0` neither acts.
-Each then measures in the computational basis and answers the outcome
-(`Cslib.PCP.TwoProverGame.chshRotationStrategy`). Rotating by `θ` (`chshRotation`) maps `|0⟩` to
-`cos θ |0⟩ + sin θ |1⟩` and `|1⟩` to `-sin θ |0⟩ + cos θ |1⟩`, as in the source's computation.
+Arora and Barak's entangled strategy for CHSH [Arora and Barak, Section 20.3.2, printed
+pp. 414–415 / PDF pp. 430–431][AroraBarak07]: Alice and Bob share the EPR pair
+`(|00⟩ + |11⟩)/√2` (`Cslib.Quantum.bell`). On question `1`, Alice rotates her qubit by `π/8` and
+Bob rotates his by `-π/8`; on question `0` neither acts. Each then measures in the computational
+basis and answers the outcome (`Cslib.PCP.TwoProverGame.chshRotationStrategy`). Rotating by `θ`
+(`chshRotation`) maps `|0⟩` to `cos θ |0⟩ + sin θ |1⟩` and `|1⟩` to `-sin θ |0⟩ + cos θ |1⟩`, as in
+the source's computation.
 Measuring after a rotation is the measurement `Cslib.Quantum.POVM.comap` of the rotation, whose
 outcome probabilities are those of the rotated state (`Cslib.Quantum.POVM.prob_comap`).
 
@@ -45,7 +46,8 @@ Barak's Theorem 20.16), but below the optimum `cos²(π/8)` attained by
 
 ## References
 
-* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 20.3][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft dated 2007-01-08,
+  Section 20.3.2][AroraBarak07]
 -/
 
 @[expose] public section
@@ -90,7 +92,7 @@ theorem observable_chshRotatedMeasurement (θ : ℝ) :
       false_and, Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte, Matrix.of_apply, hc, hs] <;>
     ring
 
-/-- The **rotation strategy** of [Arora and Barak, Section 20.3.1][AroraBarak09]: the EPR pair,
+/-- The **rotation strategy** of [Arora and Barak, Section 20.3.2][AroraBarak07]: the EPR pair,
 with Alice rotating by `π/8` on question `1`, Bob rotating by `-π/8` on question `1`, and both
 measuring in the computational basis. -/
 noncomputable def chshRotationStrategy : QuantumStrategy Bool Bool Bool Bool Bool Bool where
@@ -130,8 +132,8 @@ theorem quantumWinProb_chsh_chshRotationStrategy :
   ring
 
 /-- **Arora–Barak Theorem 20.16**: the rotation strategy wins CHSH with probability at least `0.8`
-[Arora and Barak, Theorem 20.16][AroraBarak09]. The exact value is `(5 + √2) / 8`
-(`quantumWinProb_chsh_chshRotationStrategy`). -/
+[Arora and Barak, Theorem 20.16, printed p. 414 / PDF p. 430][AroraBarak07]. The exact value is
+`(5 + √2) / 8` (`quantumWinProb_chsh_chshRotationStrategy`). -/
 theorem four_div_five_le_quantumWinProb_chsh_chshRotationStrategy :
     4 / 5 ≤ chsh.quantumWinProb chshRotationStrategy := by
   rw [quantumWinProb_chsh_chshRotationStrategy]

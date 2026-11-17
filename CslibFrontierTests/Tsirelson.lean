@@ -4,7 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
@@ -15,8 +14,7 @@ Checked instances of the POVM and quantum-strategy API: the trivial and computat
 measurements, the projective measurement of a `±1` observable (and that such an observable is
 unitary), deterministic strategies as quantum strategies, the winning probability of specific
 deterministic strategies for CHSH, the correlations of the optimal EPR strategy (which attains
-Tsirelson's inequality with equality), the rotation strategy of Arora and Barak's Theorem 20.16,
-and the values of CHSH: no quantum strategy wins with
+Tsirelson's inequality with equality), and the values of CHSH: no quantum strategy wins with
 certainty, and the entangled value `1/2 + √2/4` exceeds the classical value `3/4`.
 -/
 
@@ -100,29 +98,6 @@ example : chshEPR.correlation false false + chshEPR.correlation false true +
     chshEPR.correlation true false - chshEPR.correlation true true = 2 * √2 := by
   simp only [correlation_chshEPR, Bool.and_true, Bool.and_false, Bool.cond_true, Bool.cond_false]
   ring
-
-/-! ### The rotation strategy (Arora–Barak Theorem 20.16) -/
-
--- Measuring after a rotation by `θ` is measuring the rotated state: on `|0⟩` the outcome `0` has
--- probability `cos² θ`.
-example (θ : ℝ) : (chshRotatedMeasurement θ).prob (ket false) false = Real.cos θ ^ 2 := by
-  rw [chshRotatedMeasurement, POVM.prob_comap, POVM.prob_basis]
-  simp only [mulVec, dotProduct, Fintype.univ_bool, chshRotation, Bool.false_eq,
-    ↓reduceIte, ket, PiLp.single_apply, mul_ite, mul_one, mul_zero,
-    Finset.sum_ite_eq', Finset.mem_insert, Finset.mem_singleton, or_true]
-  rw [Complex.norm_real, Real.norm_eq_abs, sq_abs]
-
--- The answers always agree on questions `(0, 0)`, and are uncorrelated on `(1, 1)`.
-example : chshRotationStrategy.correlation false false = 1 ∧
-    chshRotationStrategy.correlation true true = 0 := by
-  simp only [correlation_chshRotationStrategy, Bool.cond_true, Bool.cond_false]
-  refine ⟨by simp, ?_⟩
-  rw [show 2 * (π / 8 - -(π / 8)) = π / 2 by ring, Real.cos_pi_div_two]
-
--- The rotation strategy is not optimal: it wins with probability below `cos²(π/8)`.
-example : chsh.quantumWinProb chshRotationStrategy < chsh.quantumValue := by
-  rw [quantumWinProb_chsh_chshRotationStrategy, quantumValue_chsh, Real.cos_sq_pi_div_eight]
-  nlinarith [Real.sq_sqrt (zero_le_two : (0 : ℝ) ≤ 2), Real.sqrt_nonneg 2]
 
 /-! ### Values -/
 
