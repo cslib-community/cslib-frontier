@@ -321,9 +321,9 @@ theorem time_leafM_le (k : ℕ) (W : List (Fin n)) (c₀ : Vector Bool n)
   split_ifs
   · have h := time_minSeparatorM_le (G := G) (Z := memTable W) (A := keepTable G W g c₀)
       (B := flipTable G W g c₀)
-    simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+    simp only [time_simps]
     omega
-  · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+  · simp only [time_simps]
     omega
 
 /-- **Compression step.** Given an odd cycle transversal `W` of `G` with a colouring `c₀` proper
@@ -343,7 +343,7 @@ private theorem leafM_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
     S.Nodup ∧ S.length ≤ k ∧ IsProperOff G c S := by
   simp only [leafM, TimeM.ret_bind] at h
   split_ifs at h with hprop
-  · simp only [TimeM.ret_bind, TimeM.ret_pure] at h
+  · simp only [time_simps] at h
     set out := (minSeparatorM G (memTable W) (keepTable G W g c₀) (flipTable G W g c₀)).ret
       with hout
     set D := W.filter fun w => (vget g w).isNone with hD
@@ -400,7 +400,7 @@ theorem compressM_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
     (hc₀ : IsProperOff G c₀ W) (hW : W.Nodup) {S : List (Fin n)} {c : Vector Bool n}
     (h : (compressM G k W c₀).ret = some (S, c)) :
     S.Nodup ∧ S.length ≤ k ∧ IsProperOff G c S := by
-  simp only [compressM, TimeM.ret_bind, ret_findSomeM] at h
+  simp only [compressM, time_simps] at h
   obtain ⟨g, -, hg⟩ := List.exists_of_findSome?_eq_some h
   exact leafM_sound hc₀ hW hg
 
@@ -412,7 +412,7 @@ theorem compressM_complete {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
   classical
   by_contra hk
   push Not at hk
-  simp only [compressM, TimeM.ret_bind, ret_findSomeM, List.findSome?_eq_none_iff] at h
+  simp only [compressM, time_simps, List.findSome?_eq_none_iff] at h
   obtain ⟨cT, hcT⟩ := isOddCycleTransversal_iff_exists_bool.mp hT
   set g : Vector (Option Bool) n := Vector.ofFn fun v => if v ∈ W ∧ v ∉ T then some (cT v) else none
     with hg
@@ -435,7 +435,7 @@ theorem compressM_complete {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
     exact hcT huv hu'.2 hv'.2
   simp only [leafM, TimeM.ret_bind] at hleaf
   split_ifs at hleaf
-  simp only [TimeM.ret_bind, TimeM.ret_pure] at hleaf
+  simp only [time_simps] at hleaf
   split_ifs at hleaf with hlen
   apply hlen
   -- The deleted part of `W` is `T ∩ W`.
@@ -468,7 +468,7 @@ theorem compressM_complete {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
 
 theorem time_compressM_le (k : ℕ) (W : List (Fin n)) (c₀ : Vector Bool n) :
     (compressM G k W c₀).time ≤ 3 ^ (W.length + 1) + 3 ^ W.length * leafCost n W.length := by
-  simp only [compressM, TimeM.time_bind, TimeM.time_tick]
+  simp only [compressM, time_simps]
   have h := time_findSomeM_le (leafM G k W c₀) (guesses W)
     fun g _ => time_leafM_le G k W c₀ g
   rw [length_guesses] at h
@@ -616,7 +616,7 @@ private theorem time_stepM_le {k : ℕ} {i : Fin n} {r : Option (List (Fin n) ×
     · simpa only [hWdef, hi, ↓reduceIte] using hS
     · simpa only [hWdef, hi, ↓reduceIte] using List.nodup_cons.mpr ⟨hi, hS⟩
   have hWn : W.length ≤ n := by simpa only [Fintype.card_fin] using hW.length_le_card
-  simp only [stepM, TimeM.time_bind, TimeM.time_tick]
+  simp only [stepM, time_simps]
   rw [← hWdef]
   unfold stepCost
   split_ifs with hk
@@ -631,7 +631,7 @@ private theorem time_stepM_le {k : ℕ} {i : Fin n} {r : Option (List (Fin n) ×
 
 private theorem time_loopM_le (k : ℕ) :
     ∀ (i : ℕ) (hi : i ≤ n), (loopM G k i hi).time ≤ n + i * stepCost n k
-  | 0, _ => by simp only [loopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]; omega
+  | 0, _ => by simp only [loopM, time_simps]; omega
   | i + 1, hi => by
     simp only [loopM, TimeM.time_bind]
     have h1 := time_loopM_le k i (by omega)

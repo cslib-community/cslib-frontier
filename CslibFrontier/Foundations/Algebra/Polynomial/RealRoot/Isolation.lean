@@ -246,13 +246,13 @@ private theorem refineLeftRootM_time_le (t : List ℚ) (seq : List (List ℚ)) (
     (u v : ℚ) (vu : ℕ) :
     (refineLeftRootM t seq fuel u v vu).time ≤
       2 * t.length + fuel * (sturmSeqOpCost seq + t.length) := by
-  simp only [refineLeftRootM, TimeM.time_bind, evalListM_time, evalListM_ret]
+  simp only [refineLeftRootM, time_simps]
   by_cases hev : evalCoeffList v t = 0
-  · simp only [eq_true hev, ↓reduceIte, TimeM.time_pure, add_zero]
+  · simp only [eq_true hev, ↓reduceIte, time_simps]
     omega
-  · simp only [eq_false hev, ↓reduceIte, TimeM.time_bind, evalListM_time, evalListM_ret]
+  · simp only [eq_false hev, ↓reduceIte, time_simps]
     by_cases heu : evalCoeffList u t ≠ 0
-    · simp only [eq_true heu, ↓reduceIte, TimeM.time_pure, add_zero]
+    · simp only [eq_true heu, ↓reduceIte, time_simps]
       omega
     · simp only [eq_false heu, ↓reduceIte]
       have hloop := refineLeftLoopM_time_le t seq fuel u v vu
@@ -311,7 +311,7 @@ private theorem isolateIocM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
     · by_cases hc1 : vu - vv = 1
       · have hc1' : c = 1 := hc1
         simp only [eq_false hc0, eq_true hc1, hc1', eq_true (le_refl (1 : ℕ)), ↓reduceIte,
-          TimeM.time_bind, TimeM.time_pure, add_zero, zero_mul, zero_add, one_mul]
+          time_simps, zero_mul, one_mul]
         exact refineLeftRootM_time_le t seq depthBound u v vu
       · have hc2 : 2 ≤ c := by omega
         have hif : ¬c ≤ 1 := by omega
@@ -321,8 +321,7 @@ private theorem isolateIocM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
           simp only [TimeM.time_pure]
           exact Nat.zero_le _
         | succ fuel' =>
-          simp only [TimeM.time_bind, sturmVariationsM_time, sturmVariationsM_ret,
-            TimeM.time_pure, add_zero]
+          simp only [time_simps]
           let m := (u + v) / 2
           let vm := sturmVariationsList seq m
           have hum : u ≤ m := by dsimp only [m]; linarith
@@ -756,7 +755,7 @@ private theorem isolateIocM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
           obtain ⟨α, β, hα, hβ, huα, hαβ, hβv⟩ := exists_two_roots_Ioc_of_two_le hpR0 hcard
           exact not_two_roots_of_width_le hsep hα hβ hαβ huα.le hβv hdepth hwidth
         | succ fuel' =>
-          simp only [TimeM.ret_bind, sturmVariationsM_ret, TimeM.ret_pure]
+          simp only [time_simps]
           let m := (u + v) / 2
           let vm := sturmVariationsList (sturmSeqList cs) m
           have hum : u ≤ m := by dsimp only [m]; linarith
@@ -834,8 +833,7 @@ private theorem isolateRoots_spec_aux {cs : List ℚ} (hsep : (ofCoeffList cs).S
   have heq : isolateRoots cs = (isolateIocM (trim cs) seq (mignotteBisectionDepth cs)
       (mignotteBisectionDepth cs) (-b) b
       (sturmVariationsList seq (-b)) (sturmVariationsList seq b)).ret := by
-    simp only [isolateRoots, isolateRootsM, hte, Bool.false_eq_true, ↓reduceIte,
-      TimeM.ret_bind, sturmVariationsM_ret]
+    simp only [isolateRoots, isolateRootsM, hte, Bool.false_eq_true, ↓reduceIte, time_simps]
     rfl
   rw [heq]
   exact ⟨fun I hI => ⟨(hspec.1 I hI).1, (hspec.1 I hI).2.1, (hspec.1 I hI).2.2.1⟩,
@@ -1064,8 +1062,7 @@ theorem isolateRootsM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable
   let vL := sturmVariationsList seq (-b)
   let vR := sturmVariationsList seq b
   have hc_le : vL - vR ≤ d := sturmVariationsList_cauchy_sub_le hsep
-  simp only [isolateRootsM, hte, Bool.false_eq_true, ↓reduceIte, TimeM.time_bind,
-    sturmVariationsM_time, sturmVariationsM_ret]
+  simp only [isolateRootsM, hte, Bool.false_eq_true, ↓reduceIte, time_simps]
   have hb0 : (0 : ℚ) ≤ b := Nat.cast_nonneg _
   have hrec := isolateIocM_time_le hsep (trim cs) k k (-b) b vL vR (by linarith) rfl rfl
   let sCost := sturmSeqOpCost seq

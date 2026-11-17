@@ -218,7 +218,7 @@ theorem ret_extendM (w : Array α) (j i h : ℕ) :
         Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
         show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
       omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       rw [List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
         List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
         Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]

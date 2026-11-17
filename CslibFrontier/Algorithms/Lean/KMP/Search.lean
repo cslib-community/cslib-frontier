@@ -226,8 +226,8 @@ theorem ret_advanceM_eq_nextLen {α : Type*} [DecidableEq α]
     rw [advanceM, nextLen]
     simp only [hkp, hklist, ↓reduceDIte, hget]
     split_ifs with hmatch hk0 hpi hlt
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
+    · simp only [time_simps]
     · have hsub1 : k - 1 + 1 = k := by omega
       have hval : pi[k - 1]'hpi = borderLen p.toList k := by
         simpa only [hsub1] using htab.2 (k - 1) hpi
@@ -444,7 +444,7 @@ private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
     have hadv := advanceM_time_add_ret_le p pi k (t[i]'hi)
     set k' := (advanceM p pi k (t[i]'hi)).ret
     split_ifs with hfull
-    · simp only [TimeM.time_bind, TimeM.time_pure]
+    · simp only [time_simps]
       have hkNext_le : resetFullMatch p.size pi ≤ k' := hfull ▸ resetFullMatch_le hdec
       have hsub := ih (i + 1) (resetFullMatch p.size pi) (by omega)
       omega

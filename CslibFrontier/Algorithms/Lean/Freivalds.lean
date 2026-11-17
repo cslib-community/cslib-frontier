@@ -120,7 +120,7 @@ theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin 
   induction l with
   | zero => funext i; exact i.elim0
   | succ l ih =>
-    simp only [mulVecM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_dotProductM]
+    simp only [mulVecM, time_simps, ih, ret_dotProductM]
     funext i
     refine Fin.cases ?_ (fun i => ?_) i
     · rfl
@@ -150,7 +150,7 @@ omit [Ring R] in
   induction l with
   | zero => simp [vecEqM, Subsingleton.elim u v]
   | succ l ih =>
-    simp only [vecEqM, TimeM.ret_bind, TimeM.ret_pure, ih, ← Bool.decide_and]
+    simp only [vecEqM, time_simps, ih, ← Bool.decide_and]
     congr 1
     exact propext ⟨fun ⟨h0, ht⟩ => funext fun i => Fin.cases h0 (fun i => congrFun ht i) i,
       fun h => ⟨congrFun h 0, by rw [h]⟩⟩

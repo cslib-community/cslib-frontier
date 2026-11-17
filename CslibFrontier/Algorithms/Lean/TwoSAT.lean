@@ -523,13 +523,11 @@ theorem time_solveM_le (hvs : ∀ v, v ∈ vs) (hnd : vs.Nodup) (φ : CNF V) :
     rw [time_indexComponentsM, hcond.length_flatten_eq_card]
     have hlen := hcond.length_le_card
     omega
-  simp only [solveM, TimeM.time_bind, TimeM.time_tick]
+  simp only [solveM, time_simps]
   dsimp only [TimeM.bind]
   rw [ret_checkClausesM, time_checkClausesM]
   split_ifs with hok
-  · simp only [TimeM.time_bind, ret_literalListM, time_literalListM,
-      ret_implicationAdjM, time_implicationAdjM, ret_sccsM, ret_indexComponentsM,
-      time_extractAssignmentM]
+  · simp only [time_simps, time_literalListM, time_implicationAdjM, time_extractAssignmentM]
     omega
   · simp only [TimeM.time_pure]
     omega
@@ -646,7 +644,7 @@ theorem time_solveNatM_le (φ : CNF ℕ) :
     (solveNatM φ).time ≤ 13 * φ.vars.length + 9 * φ.length + 13 := by
   have hfin := time_solveFinM_le (φ.vars.length + 1) (toFinCNF φ)
   have hlen : (toFinCNF φ).length = φ.length := by simp [toFinCNF, CNF.relabel]
-  simp only [solveNatM, TimeM.time_bind, TimeM.time_pure, ret_toFinCNFM, time_toFinCNFM]
+  simp only [solveNatM, time_simps, ret_toFinCNFM, time_toFinCNFM]
   omega
 
 end Cslib.Algorithms.Lean.TwoSAT

@@ -430,8 +430,7 @@ theorem minSeparatorM_length_sep_le {Y : Finset (Fin n)}
 /-- **Running time.** `minSeparatorM` takes at most `minSeparatorCost n` ticks. -/
 theorem time_minSeparatorM_le : (minSeparatorM G Z A B).time ≤ minSeparatorCost n := by
   have h := edmondsKarpDenseM_time_le ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))
-  simp only [minSeparatorM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, Nat.add_zero,
-    minSeparatorCost]
+  simp only [minSeparatorM, time_simps, minSeparatorCost]
   exact Nat.add_le_add_right h _
 
 end Correctness

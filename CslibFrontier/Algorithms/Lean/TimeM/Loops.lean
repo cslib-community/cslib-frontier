@@ -19,13 +19,21 @@ Return values and costs of three loop combinators run in `Cslib.Algorithms.Lean.
 of each loop is the corresponding pure loop over the return values. The cost of `Vector.ofFnM` and
 of `List.mapM` is the sum of the costs of the cells, and a `List.foldlM` whose step always costs `c`
 costs `c` per element; more generally, if the cost of a step depends only on the element, the fold
-costs the sum of the element costs.
+costs the sum of the element costs, and a fold whose step costs at most `c` costs at most `c` per
+element.
+
+The equations are in the simp set `time_simps`
+(`CslibFrontier.Algorithms.Lean.TimeM.Simps`), so `simp only [time_simps]` and the tactic
+`time_spec` compute the return value and the cost of a program built from these loops. For a fold
+the set uses `time_foldlM_eq_sum_map`, which needs no cost function; a bound is applied by name
+with `time_foldlM_le`.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.TimeM.ret_vectorOfFnM`, `time_vectorOfFnM`.
 * `Cslib.Algorithms.Lean.TimeM.ret_listMapM`, `time_listMapM`.
-* `Cslib.Algorithms.Lean.TimeM.ret_foldlM`, `time_foldlM_of_time_eq`, `time_foldlM_eq_sum`.
+* `Cslib.Algorithms.Lean.TimeM.ret_foldlM`, `time_foldlM_of_time_eq`, `time_foldlM_eq_sum`,
+  `time_foldlM_eq_sum_map`, `time_foldlM_le`.
 -/
 
 public section
@@ -105,7 +113,8 @@ theorem time_foldlM_eq_sum {α β : Type*} (f : β → α → TimeM ℕ β) (c :
   | cons a l ih => rw [List.foldlM_cons, time_bind, ih, hf, List.map_cons, List.sum_cons]
 
 /-- `time_foldlM_eq_sum` in a form `simp` can apply: the hypothesis says that the step cost ignores
-the accumulator, and names no cost function. -/
+the accumulator, and names no cost function. `simp only [time_simps]` proves the hypothesis from
+the laws of the monad; see the docstring of `time_simps` for why `simp [time_simps]` may not. -/
 @[time_simps] theorem time_foldlM_eq_sum_map {α β : Type*} (f : β → α → TimeM ℕ β) (l : List α)
     (b : β) (hf : ∀ acc acc' a, (f acc a).time = (f acc' a).time) :
     (l.foldlM f b).time = (l.map fun a => (f b a).time).sum :=

@@ -332,7 +332,7 @@ restricted vector–adjacency multiplication, and accumulates the signed sum in 
     (u : Fin n) :
     (stepCellM adj k dp u).ret =
       ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.1] else 0 := by
-  simp only [stepCellM, ret_foldlM, ret_bind, ret_pure, Bool.and_eq_true, mem_maskSet]
+  simp only [stepCellM, time_simps, Bool.and_eq_true, mem_maskSet]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 
 @[simp] theorem time_stepCellM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
@@ -377,7 +377,7 @@ theorem ret_roundsM (adj : Fin n → Fin n → Bool) (k r : ℕ) :
 
 @[simp] theorem ret_sumVecM (dp : Vector ℕ n) :
     (sumVecM dp).ret = ∑ u : Fin n, dp[u.1] := by
-  simp only [sumVecM, ret_foldlM, ret_bind, ret_pure]
+  simp only [sumVecM, time_simps]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 
 @[simp, time_simps] theorem time_sumVecM (dp : Vector ℕ n) : (sumVecM dp).time = n := by
@@ -397,7 +397,7 @@ number of Hamiltonian paths of `adj`. -/
 @[simp, time_simps] theorem ret_countHamPathsM (adj : Fin n → Fin n → Bool) :
     (countHamPathsM adj).ret = (#(hamPaths adj) : ℤ) := by
   rw [countHamPathsM, Fin.foldlM_eq_foldlM_finRange, ret_foldlM]
-  simp only [ret_bind, ret_subsetWalksM, ret_pure, maskCard_eq_card_maskSet,
+  simp only [time_simps, ret_subsetWalksM, maskCard_eq_card_maskSet,
     ← card_walksIn_eq_totalWalkCount]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def, card_hamPaths_eq_sum_walksIn]
   refine Finset.sum_bij (fun (k : Fin (2 ^ n)) _ => maskSet n k)

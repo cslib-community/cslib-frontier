@@ -188,7 +188,7 @@ theorem ret_scanLoopM {P : List (List α)} {M : Machine α} (hM : M.IsValid P) (
         (stepM P M.fail (longestNodeSuffix P w) a).ret = longestNodeSuffix P (w ++ [a]) := by
       rw [ret_stepM a (fun v hv _ => (hM v hv).1) (isNode_longestNodeSuffix P w),
         longestNodeSuffix_append_singleton_eq_nextMove]
-    simp only [scanLoopM, TimeM.ret_bind, TimeM.ret_pure, hstep]
+    simp only [scanLoopM, time_simps, hstep]
     have hout : M.out (longestNodeSuffix P (w ++ [a])) = output P (w ++ [a]) := by
       rw [(hM _ (isNode_longestNodeSuffix P _)).2, output_longestNodeSuffix]
     have := ih (w ++ [a])
@@ -212,10 +212,9 @@ theorem time_scanLoopM_le (P : List (List α)) (M : Machine α) (t : List α) (i
   | nil => exact absurd rfl ht
   | cons a t ih =>
     have hs := time_stepM_le P M.fail u a
-    simp only [scanLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-      TimeM.ret_pure, List.length_append, List.length_cons, List.length_map]
+    simp only [scanLoopM, time_simps, List.length_append, List.length_map]
     rcases t with _ | ⟨b, t⟩
-    · simp only [scanLoopM, TimeM.time_pure, TimeM.ret_pure, List.length_nil]
+    · simp only [scanLoopM, time_simps]
       omega
     · have := ih (i + 1) (stepM P M.fail u a).ret (List.cons_ne_nil b t)
       simp only [List.length_cons] at this ⊢

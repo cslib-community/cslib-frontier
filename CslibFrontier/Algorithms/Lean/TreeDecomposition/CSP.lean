@@ -217,10 +217,9 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
   | nil => rfl
   | cons u LP ih =>
     by_cases huv : u = v
-    · simp only [projectUpdateM, huv, ite_true, TimeM.ret_bind, TimeM.ret_pure, ih, toRadix_cons,
-        Function.update_self]
-    · simp only [projectUpdateM, huv, ite_false, TimeM.ret_bind, TimeM.ret_pure, ret_lookupM, ih,
-        toRadix_cons, Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
+    · simp only [projectUpdateM, huv, ite_true, time_simps, ih, toRadix_cons, Function.update_self]
+    · simp only [projectUpdateM, huv, ite_false, time_simps, ret_lookupM, ih, toRadix_cons,
+      Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
@@ -244,7 +243,7 @@ theorem getD_tableLoopM {β : Type} (f : ℕ → TimeM ℕ β) {s n : ℕ} (hs :
   induction n with
   | zero => omega
   | succ n ih =>
-    simp only [tableLoopM, TimeM.ret_bind, TimeM.ret_pure]
+    simp only [tableLoopM, time_simps]
     rw [Array.getD_eq_getD_getElem?, Array.getElem?_push, size_tableLoopM]
     by_cases hsn : s = n
     · subst hsn
@@ -729,9 +728,8 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       simp only [bagList, List.length_nil, Nat.pow_zero] at hm
       omega
     subst hm0
-    simp only [dpTreeM, TimeM.ret_bind, TimeM.ret_pure, Array.getD_eq_getD_getElem?,
-      List.getElem?_toArray, List.getElem?_cons_zero, Option.getD_some,
-      ret_checkNilScopeM hq sem F, dpSpec]
+    simp only [dpTreeM, time_simps, Array.getD_eq_getD_getElem?, List.getElem?_toArray,
+      List.getElem?_cons_zero, Option.getD_some, ret_checkNilScopeM hq sem F, dpSpec]
   | .introduce v child, hval, m, hm => by
     have hm' : m < q * q ^ (bagList child).length := by
       rw [Nat.mul_comm]
@@ -749,7 +747,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       exact ofRadix_cons_ne huv (bagList child) m
     simp only [dpTreeM, bagList, TimeM.ret_bind]
     rw [getD_tableLoopM _ (by simpa [bagList] using hm) A.zero]
-    simp only [TimeM.ret_bind, TimeM.ret_pure, ret_checkIntroScopeM, hbagT, dpSpec]
+    simp only [time_simps, ret_checkIntroScopeM, hbagT, dpSpec]
     rw [ih, dpSpec_congr A q hq sem F F.vars.toFinset hval.2 fun u hu => (hcongr u hu).symm]
   | .forget v child, hval, m, hm => by
     have hbagC : (bagList child).toFinset = child.bag := toFinset_bagList hval.2
@@ -792,11 +790,10 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       simp only [hv, decide_true, ite_true, hvF]
       rw [ret_sumLoopM_eq_dpAlgFold]
       refine dpAlgFold_congr fun d hd => ?_
-      simp only [hd, ↓reduceDIte, TimeM.ret_bind, TimeM.ret_pure]
+      simp only [hd, ↓reduceDIte, time_simps]
       exact hret d hd
     · have hvF : v ∉ F.vars.toFinset := by simpa [List.mem_toFinset] using hv
-      simp only [hv, decide_false, Bool.false_eq_true, ite_false, hvF, TimeM.ret_bind,
-        TimeM.ret_pure]
+      simp only [hv, decide_false, Bool.false_eq_true, ite_false, hvF, time_simps]
       exact hret 0 hq
   | .join left right, hval, m, hm => by
     have hmL : m < q ^ (bagList left).length := by simpa [bagList] using hm
@@ -817,7 +814,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
         (fun w _ => ofRadix_lt hq (bagList left) m w) huR]
     simp only [dpTreeM, bagList, TimeM.ret_bind]
     rw [getD_tableLoopM _ (by simpa [bagList] using hm) A.zero]
-    simp only [TimeM.ret_bind, TimeM.ret_pure, dpSpec]
+    simp only [time_simps, dpSpec]
     rw [ihL, ihR, dpSpec_congr A q hq sem F F.vars.toFinset hval.2.2.2 hagree]
 
 private theorem dpSpec_dpCountAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
@@ -987,8 +984,7 @@ theorem ret_cspCountNiceTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q)
     (cspCountNiceTreeM q hq sem F T).ret =
       @CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F := by
   have hm : 0 < q ^ (bagList T).length := Nat.one_le_pow _ _ hq
-  simp only [cspCountNiceTreeM, TimeM.ret_bind, TimeM.ret_pure,
-    getD_cspCountTreeM hq sem F hval hm]
+  simp only [cspCountNiceTreeM, time_simps, getD_cspCountTreeM hq sem F hval hm]
   exact @CSP.specDPCount_eq_modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
     sem F T hval hbag hsub hcov _
 
@@ -998,8 +994,7 @@ theorem ret_cspDecideNiceTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q
     (cspDecideNiceTreeM q hq sem F T).ret = true ↔
       CSP.Satisfiable sem F := by
   have hm : 0 < q ^ (bagList T).length := Nat.one_le_pow _ _ hq
-  simp only [cspDecideNiceTreeM, TimeM.ret_bind, TimeM.ret_pure,
-    getD_cspDecideTreeM hq sem F hval hm]
+  simp only [cspDecideNiceTreeM, time_simps, getD_cspDecideTreeM hq sem F hval hm]
   exact @CSP.specDPDecide_eq_true_iff_satisfiable _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
     sem F T hval hbag hsub hcov _
 

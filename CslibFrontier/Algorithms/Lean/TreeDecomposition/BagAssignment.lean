@@ -214,8 +214,8 @@ theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
   induction LP with
   | nil => rfl
   | cons u LP ih =>
-    simp only [projectM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_lookupM,
-      toRadix_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
+    simp only [projectM, time_simps, ih, ret_lookupM, toRadix_cons,
+      Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
 
 theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
@@ -227,8 +227,7 @@ theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : L
   induction scope with
   | nil => rfl
   | cons x scope ih =>
-    simp only [evalScopeM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_lookupM,
-      List.map_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
+    simp only [evalScopeM, time_simps, ih, ret_lookupM, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
     rfl
 
 @[time_simps]

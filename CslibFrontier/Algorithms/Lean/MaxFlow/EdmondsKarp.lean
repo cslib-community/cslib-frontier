@@ -1740,7 +1740,7 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
         call.ret.augmentations ≤ n * N.posArcs.card ∧
         call.time ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n)
   | 0, k, M, flows, paths, hfuel, hseq, hfk => by
-    simp only [edmondsKarpLoopM, TimeM.ret_bind, TimeM.ret_pure, TimeM.time_bind, TimeM.time_pure]
+    simp only [edmondsKarpLoopM, time_simps]
     rcases haug : (bfsM N adj M.toFlow).ret.augPath with _ | p
     · simpa using edmondsKarpLoopM_stop hadj hst hseq haug
     · obtain ⟨hshort, _⟩ := (bfsM_spec hadj M.toFlow).1 p haug
@@ -1751,13 +1751,13 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
   | fuel + 1, k, M, flows, paths, hfuel, hseq, hfk => by
     have hbfs := bfsM_spec hadj M.toFlow
     have hbfs_t := bfsM_time_le hadj M.toFlow
-    simp only [edmondsKarpLoopM, TimeM.ret_bind, TimeM.time_bind]
+    simp only [edmondsKarpLoopM, time_simps]
     split
     · rename_i haug
       simpa [TimeM.ret_pure, TimeM.time_pure] using
         edmondsKarpLoopM_stop hadj hst hseq haug
     · rename_i p haug
-      simp only [TimeM.ret_bind, TimeM.time_bind, augmentFlowMatrixM_time]
+      simp only [time_simps, augmentFlowMatrixM_time]
       obtain ⟨hshort, hplen⟩ := hbfs.1 p haug
       have hp : M.toFlow.IsAugmentingPath p := (bfsM N adj M.toFlow).ret.augPath_valid p haug
       have hshort' : (flows k).IsShortestAugmentingPath p := hfk ▸ hshort
@@ -1842,7 +1842,7 @@ theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
     (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
   unfold edmondsKarpM
-  simp only [TimeM.time_bind, initFlowMatrixM_time, TimeM.time_tick]
+  simp only [time_simps, initFlowMatrixM_time]
   by_cases hst : N.s = N.t
   · simp only [hst, ↓reduceIte, TimeM.time_pure]
     have hbase : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n) := by omega

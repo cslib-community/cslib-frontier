@@ -190,7 +190,7 @@ theorem getElem_ret_truthTableM (C : SymAnd (Fin n)) (gates : List (Finset (Fin 
   have hle : C.count ((BitString.equivFin n).symm k) < gates.length + 1 := by
     have := C.count_le_size ((BitString.equivFin n).symm k)
     omega
-  simp only [truthTableM, ret_bind, ret_vectorOfFnM, Vector.getElem_ofFn, ret_pure]
+  simp only [truthTableM, time_simps, Vector.getElem_ofFn]
   simp only [hg, dite_eq_left hle]
   rw [hout _ (by omega)]
   rfl
@@ -209,8 +209,7 @@ theorem ret_truthTableM (C : SymAnd (Fin n)) (gates : List (Finset (Fin n)))
 theorem time_truthTableM (gates : List (Finset (Fin n))) (outM : ℕ → TimeM ℕ Bool) :
     (truthTableM gates outM).time = (n + 2) * 2 ^ n + (n + 2) * gates.length + 1 +
       ∑ j ∈ range (gates.length + 1), (outM j).time := by
-  simp only [truthTableM, time_bind, time_multiplicityM, time_zetaM, time_vectorOfFnM,
-    time_tick, time_pure, add_zero]
+  simp only [truthTableM, time_simps, time_multiplicityM, time_zetaM]
   rw [Fin.sum_univ_eq_sum_range (fun j => 1 + (outM j).time), sum_add_distrib]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, card_range, smul_eq_mul,
     mul_one]

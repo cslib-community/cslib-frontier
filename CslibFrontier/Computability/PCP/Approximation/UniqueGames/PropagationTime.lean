@@ -357,7 +357,7 @@ private theorem scanM_time (labels : List α) {g : Graph (α → α)}
   cases hst : S.stack with
   | nil => simp [scan_nil labels g hst]
   | cons u rest =>
-    simp only [TimeM.time_bind, TimeM.time_tick, visitAllM_time, hbs]
+    simp only [time_simps, visitAllM_time, hbs]
     rw [scan_cons labels g hst]
     set S1 : State α := { S with stack := rest, comp := u :: S.comp } with hS1
     have hstep := foldl_visit_step labels (adj g u) (S := S1) (adj_bounds hlen u)
@@ -385,7 +385,7 @@ private theorem exploreM_time (labels : List α) {g : Graph (α → α)}
     unfold exploreM
     cases hst : S.stack with
     | nil =>
-      simp only [TimeM.time_pure, zero_add]
+      simp only [time_simps]
       rw [Function.iterate_fixed (scan_nil labels g hst)]
     | cons u rest =>
       simp only [TimeM.time_bind, Function.iterate_succ_apply]
@@ -431,9 +431,9 @@ private theorem stepM_time [Inhabited α] (labels : List α) {g : Graph (α → 
       credit labels g S + 1 + 3 * pass labels := by
   unfold stepM step
   cases hs : S.get e.src with
-  | some _ => simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]; omega
+  | some _ => simp only [time_simps]; omega
   | none =>
-    simp only [TimeM.time_bind, TimeM.time_tick, settleM_time, exploreM_ret labels hbs]
+    simp only [time_simps, settleM_time, exploreM_ret labels hbs]
     have hlt : e.src < S.table.length := hlen ▸ src_lt_slots he
     have h1 := exploreM_time labels hbs (slots g) (S := start S e.src)
       (by simp [start, hlen])
@@ -454,7 +454,7 @@ private theorem stepsM_time [Inhabited α] (labels : List α) {g : Graph (α →
   induction l generalizing S with
   | nil => simp [stepsM]
   | cons e l ih =>
-    simp only [stepsM, TimeM.time_bind, List.length_cons]
+    simp only [stepsM, time_simps]
     have h1 := stepM_time labels hbs hlen (hl e (by simp))
     have h2 := ih (fun d hd => hl d (List.mem_cons_of_mem _ hd))
       (S := step labels g S e) (by rw [length_step, hlen])
@@ -512,7 +512,7 @@ analysis are this formalization's own. -/
 theorem solveM_time_le [Inhabited α] (labels : List α) (g : Graph (α → α)) :
     (solveM labels g).time ≤
       (labels.length + 5) * slots g + (9 * labels.length + 16) * g.edges.length + 1 := by
-  simp only [solveM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+  simp only [solveM, time_simps]
   rw [show (slotsM g).ret = slots g from rfl, show (slotsM g).time = g.edges.length + 1 from rfl,
     bucketsM_time, bucketsM_ret]
   have h1 := stepsM_time labels (buckets_getD g) g.edges (fun _ h => h)

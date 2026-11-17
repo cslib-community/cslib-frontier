@@ -669,8 +669,7 @@ private theorem ret_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x :
   | 0 => by ext <;> simp [buildOutEntriesM]
   | m + 1 => by
       have ih := ret_buildOutEntriesM d x outScope bucket m
-      simp only [buildOutEntriesM, TimeM.ret_bind, TimeM.ret_pure, ih,
-        ret_sumVarValuesM_eq_fin]
+      simp only [buildOutEntriesM, time_simps, ih, ret_sumVarValuesM_eq_fin]
       ext i hi₁ hi₂
       · simp
       · simp only [Array.getElem_push, Array.size_ofFn] at hi₁ ⊢
@@ -1197,8 +1196,7 @@ theorem time_eliminateOrderM_le {R V : Type} [Semiring R] [DecidableEq V] {d : �
         have hlen' : (elimVar d x s).live.length ≤ init.live.length :=
           le_trans (length_elimVar_live_le d x s) hlen
         have htail := ih (elimVar d x s) hlen' hs' fun st hst => hW st (by simp [traceOrder, hst])
-        simp only [eliminateOrderM, TimeM.time_bind, List.length_cons, traceOrder, List.map_cons,
-          List.sum_cons, ret_elimVarM]
+        simp only [eliminateOrderM, time_simps, traceOrder]
         calc (elimVarM d x s).time + (eliminateOrderM d xs (elimVar d x s)).time
             ≤ (init.live.length + 1 +
                   d ^ W * (W + ((stepStats d x s).bucketFactors * (max S₀ W + 1) + 1))) +

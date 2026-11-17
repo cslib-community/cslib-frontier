@@ -128,7 +128,7 @@ theorem add_ret_extendM {w : Array α} {c k : ℕ} (hk : k ≤ radius w.toList c
   | succ l ih =>
     simp only [extendM]
     split_ifs with h hEq
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       have hc : c ≤ 2 * w.toList.length := by simp only [Array.length_toList]; omega
       have hpr : IsPalRadius w.toList c (k + 1) := by
         rw [isPalRadius_succ_iff ((isPalRadius_iff_le_radius hc).mpr hk) (by omega)
@@ -139,7 +139,7 @@ theorem add_ret_extendM {w : Array α} {c k : ℕ} (hk : k ≤ radius w.toList c
       have := ih hk1 (by omega)
       rw [show (c + 1) / 2 + (k + 1) = (c + 1) / 2 + k + 1 by omega] at this
       omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       by_contra hne
       have hpr := isPalRadius_succ_of_lt_radius (w := w.toList) (c := c) (k := k) (by omega)
       have hc : c ≤ 2 * w.toList.length := by
@@ -297,7 +297,7 @@ theorem extract_longestPalindromeM (w : Array α) :
   time_spec longestPalindromeM [getD_manacher, size_manacher]
 
 theorem longestPalindromeM_time_le (w : Array α) : (longestPalindromeM w).time ≤ 3 * w.size := by
-  simp only [longestPalindromeM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
+  simp only [longestPalindromeM, time_simps]
   exact manacherM_time_le w
 
 end Cslib.Algorithms.Lean.Palindrome

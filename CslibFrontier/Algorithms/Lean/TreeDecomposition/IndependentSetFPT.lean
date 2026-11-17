@@ -221,8 +221,7 @@ theorem getD_childPassM (w : V → ℕ) {LB : List V} (hLB : LB.Nodup) (LP : Lis
   induction c with
   | zero => simp [childPassM]
   | succ c ih =>
-    simp only [childPassM, TimeM.ret_bind, TimeM.ret_pure, ret_keyM,
-      ret_forgetWeightM w LP hLB]
+    simp only [childPassM, time_simps, ret_keyM, ret_forgetWeightM w LP hLB]
     rw [Finset.range_add_one, Finset.filter_insert]
     by_cases hok : (indepM G LB c).ret = true
     · have hind := (ret_indepM G LB c).1 hok
@@ -281,7 +280,7 @@ theorem getD_parentPassM (LB : List V) {LP : List V} (hLP : LP.Nodup) (old best 
   induction c with
   | zero => omega
   | succ c ih =>
-    simp only [parentPassM, TimeM.ret_bind, TimeM.ret_pure, ret_restrictM LB hLP]
+    simp only [parentPassM, time_simps, ret_restrictM LB hLP]
     rw [Array.getD_eq_getD_getElem?, Array.getElem?_push, size_parentPassM]
     by_cases hsc : s = c
     · subst hsc
@@ -295,8 +294,8 @@ theorem ret_rootPassM (w : V → ℕ) {L : List V} (hL : L.Nodup) (tbl : Array �
   induction c with
   | zero => rfl
   | succ c ih =>
-    simp only [rootPassM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_forgetWeightM w [] hL,
-      List.toFinset_nil, Finset.sdiff_empty]
+    simp only [rootPassM, time_simps, ih, ret_forgetWeightM w [] hL, List.toFinset_nil,
+      Finset.sdiff_empty]
     rw [Finset.range_add_one, Finset.filter_insert]
     by_cases hok : (indepM G L c).ret = true
     · rw [ite_eq_left hok, ite_eq_left ((ret_indepM G L c).1 hok), Finset.sup_insert]
@@ -318,7 +317,7 @@ theorem getD_processM (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : Fin
     (hg : ∀ i, ∀ s < 2 ^ (L i).length, st[i].getD s 0 = g i (ofMask (L i) s)) (j i : Fin (n + 1))
     {s : ℕ} (hs : s < 2 ^ (L i).length) :
     (processM R w L st j).ret[i].getD s 0 = step R w g j i (ofMask (L i) s) := by
-  simp only [processM, TimeM.ret_bind, TimeM.ret_pure, ret_zerosM]
+  simp only [processM, time_simps, ret_zerosM]
   unfold step
   by_cases hi : i = R.parent j
   · subst hi

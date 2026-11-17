@@ -317,8 +317,7 @@ theorem ret_restrictM (LB : List V) {LP : List V} (hLP : LP.Nodup) (s : ℕ) :
   | nil => rfl
   | cons u LP ih =>
     obtain ⟨hu, hLP⟩ := List.nodup_cons.1 hLP
-    simp only [restrictM, TimeM.ret_bind, TimeM.ret_pure, ih hLP, ret_memM,
-      decide_eq_true_eq, toMask]
+    simp only [restrictM, time_simps, ih hLP, decide_eq_true_eq, toMask]
     have hmem : u ∈ ofMask (u :: LP) s ∩ LB.toFinset ↔ s % 2 = 1 ∧ u ∈ LB := by
       rw [Finset.mem_inter, mem_ofMask_cons, List.mem_toFinset]
       constructor
@@ -339,7 +338,7 @@ theorem ret_forgetWeightM (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.
   | nil => simp [forgetWeightM, ofMask]
   | cons u LB ih =>
     obtain ⟨hu, hLB⟩ := List.nodup_cons.1 hLB
-    simp only [forgetWeightM, TimeM.ret_bind, TimeM.ret_pure, ih hLB, ret_memM]
+    simp only [forgetWeightM, time_simps, ih hLB]
     have huA : u ∉ ofMask LB (t / 2) \ LP.toFinset := fun h =>
       hu (List.mem_toFinset.1 (ofMask_subset LB _ (Finset.mem_sdiff.1 h).1))
     rw [ofMask_cons]
@@ -360,8 +359,8 @@ theorem ret_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : �
   induction L generalizing m with
   | nil => simp [indepM, ofMask]
   | cons u L ih =>
-    simp only [indepM, TimeM.ret_bind, TimeM.ret_pure, Bool.and_eq_true, ih,
-      Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, ret_noAdjM]
+    simp only [indepM, time_simps, Bool.and_eq_true, ih, Bool.or_eq_true, Bool.not_eq_true',
+      decide_eq_false_iff_not, ret_noAdjM]
     rw [ofMask_cons]
     by_cases hm : m % 2 = 1
     · rw [ite_eq_left hm, Finset.coe_insert]

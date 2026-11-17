@@ -120,7 +120,7 @@ open Cslib.Algorithms.Lean.TimeM
   induction n with
   | zero => exact i.elim0
   | succ n ih =>
-    simp only [ofFnTickM, TimeM.ret_bind, TimeM.ret_pure, vget]
+    simp only [ofFnTickM, time_simps, vget]
     by_cases hi : i.1 < n
     · rw [Vector.getElem_push_lt hi]
       exact ih (fun j => f j.castSucc) ⟨i.1, hi⟩
@@ -145,7 +145,7 @@ open Cslib.Algorithms.Lean.TimeM
   induction n with
   | zero => exact i.elim0
   | succ n ih =>
-    simp only [ofFnM, TimeM.ret_bind, TimeM.ret_pure, vget]
+    simp only [ofFnM, time_simps, vget]
     by_cases hi : i.1 < n
     · rw [Vector.getElem_push_lt hi]
       exact ih (fun j => f j.castSucc) ⟨i.1, hi⟩
@@ -428,7 +428,7 @@ private theorem hgRelaxM_path (s : HgState n) (i j₁ j : Fin n) :
       if vget s.used j = false ∧ hgRed c s.y s.z i j < vget s.minv j then
         (i, j) :: vget s.path j₁
       else vget s.path j := by
-  simp only [hgRelaxM, TimeM.ret_bind, TimeM.ret_pure, vget_ofFnTickM_ret]
+  simp only [hgRelaxM, time_simps, vget_ofFnTickM_ret]
   by_cases h1 : vget s.used j = false <;> by_cases h2 : hgRed c s.y s.z i j < vget s.minv j <;>
     simp [h1, h2]
 
@@ -906,7 +906,7 @@ private theorem hgLoopM_spec {r : Fin n} :
     omega
   | succ fuel ih =>
     intro s h hfuel
-    simp only [hgLoopM, TimeM.ret_bind, TimeM.time_bind]
+    simp only [hgLoopM, time_simps]
     cases ha : (hgArgminM s).ret with
     | none =>
       have hall := hgArgminM_none ha
@@ -918,12 +918,11 @@ private theorem hgLoopM_spec {r : Fin n} :
       obtain ⟨hj₁, hmin⟩ := hgArgminM_some ha
       have hD := hgInv_dual h hj₁ hmin
       have hz := minv_dual_self s hj₁
-      simp only [TimeM.ret_bind, TimeM.time_bind, hgDualM_mate, hgDualM_path, hgArgminM_time,
-        hgDualM_time]
+      simp only [time_simps, hgDualM_mate, hgDualM_path, hgArgminM_time, hgDualM_time]
       cases hm : vget s.mate j₁ with
       | none =>
         obtain ⟨hO, hL, hT⟩ := hgAugment hD hj₁ hz hm
-        simp only [TimeM.ret_bind, TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]
+        simp only [time_simps]
         refine ⟨hO, hL, ?_⟩
         have : (fuel + 1) * (6 * n + 1) = fuel * (6 * n + 1) + (6 * n + 1) := Nat.succ_mul _ _
         omega
@@ -937,7 +936,7 @@ private theorem hgLoopM_spec {r : Fin n} :
           rw [hcnt]
           change (mateMatching s.mate).card < fuel + (usedCount s.used + 1)
           omega)
-        simp only [TimeM.ret_bind, TimeM.time_bind, hgExtendM_time]
+        simp only [time_simps, hgExtendM_time]
         refine ⟨hO, hL, ?_⟩
         have : (fuel + 1) * (6 * n + 1) = fuel * (6 * n + 1) + (6 * n + 1) := Nat.succ_mul _ _
         omega
@@ -986,7 +985,7 @@ private theorem hgPhaseM_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n
     unfold usedCount
     simp [hgInitM_used]
   obtain ⟨hO, hL, hT⟩ := hgLoopM_spec n _ hI (by rw [h0, hgInitM_mate]; omega)
-  simp only [hgPhaseM, TimeM.ret_bind, TimeM.time_bind, hgInitM_time]
+  simp only [hgPhaseM, time_simps, hgInitM_time]
   exact ⟨hO, hL, by omega⟩
 
 private theorem hgRowsM_spec :
@@ -1133,7 +1132,7 @@ theorem hungarianM_correct (c : Fin n × Fin n → ℤ) :
         ∑ u, (hungarianM c).ret.y u + ∑ v, (hungarianM c).ret.z v := by
   obtain ⟨hO, hL, -⟩ := hungarianM_rows c
   have := hg_final hO hL
-  simpa only [hungarianM, TimeM.ret_bind, TimeM.ret_pure, foldlTickM_ret] using this
+  simpa only [hungarianM, time_simps] using this
 
 /-- **Running time of the Hungarian method**: at most `6 n³ + 6 n² + 3 n` charged steps, i.e.
 `O(n³)`. -/

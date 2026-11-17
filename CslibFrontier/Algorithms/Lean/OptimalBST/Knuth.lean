@@ -311,7 +311,7 @@ theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : 
 theorem ret_solveM {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     (solveM w W n).ret = ⟨optCost w 0 n, optTree w 0 n⟩ := by
   have hT := agrees_tableM hW n
-  simp only [solveM, ret_bind, ret_pure]
+  simp only [solveM, time_simps]
   generalize (tableM w W n n).ret = T at hT
   have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (T a b).root = optRoot w a b := fun a b _ _ hb => by
     rw [hT a b hb (by omega)]

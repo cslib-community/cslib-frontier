@@ -163,7 +163,7 @@ private theorem ret_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : F
     (argMinFinM n pred val).ret = ((List.finRange n).filter pred).argmin val := by
   unfold argMinFinM
   rw [ret_foldlM]
-  simp only [ret_bind, ret_pure]
+  simp only [time_simps]
   exact foldl_argAux_skip (fun x y => val x < val y) pred (List.finRange n) none
 
 /-! ### Per-level subroutines -/
@@ -208,7 +208,7 @@ private theorem ret_selectParentsM (a : AdjTable n) (c : CostTable β n) (r : Fi
     simp only [Vector.getElem_ofFn, optFn]
     split_ifs <;> simp [ret_argMinFinM]
   unfold selectParentsM
-  simp only [ret_bind, ret_pure, hopts, ret_foldlM, ret_vectorOfFnM]
+  simp only [time_simps, hopts]
   congr 1
   · have hvec : ∀ v : Fin n, (Vector.ofFn optFn)[v.1] = optFn v := fun v => by simp
     have hfold : ∀ (l : List (Fin n)) (b : Bool),
@@ -270,7 +270,7 @@ private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).ret =
       (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x := by
   unfold hasCycleFromM
-  simp only [ret_bind, ret_pure, ret_foldlM]
+  simp only [time_simps]
   have hinv : ∀ m : ℕ,
       (List.range m).foldl
         (fun (st : CycleSearchState n) _ =>
@@ -422,7 +422,7 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
 private theorem ret_cycleMaskM (f : ParentTable n) (x0 : Fin n) (y : Fin n) :
     (cycleMaskM f x0).ret[y.1] = true ↔ ∃ k < n, (fun i : Fin n => f[i.1])^[k] x0 = y := by
   unfold cycleMaskM
-  simp only [ret_bind, ret_pure, ret_foldlM]
+  simp only [time_simps]
   have hspec := (cycleMask_loop_spec f x0 n
     (Vector.ofFnM fun _ : Fin n => do ✓ pure false).ret).2 y
   have hinit : ((Vector.ofFnM fun _ : Fin n => do ✓ pure false).ret)[y.1] = false := by
@@ -499,7 +499,7 @@ private theorem ret_otherCycleCostM (c : CostTable β n) (f : ParentTable n)
   unfold otherCycleCostM
   rw [ret_vectorOfFnM, Vector.getElem_ofFn]
   have hxin : inCycle[x.1] = true := (hC x).mpr hx
-  simp only [hxin, ↓reduceIte, ret_foldlM, ret_bind, ret_pure]
+  simp only [hxin, ↓reduceIte, time_simps]
   rw [foldl_add_filter (fun y => inCycle[y.1] && y != x) (fun y => c[y.1][f[y.1].1])]
   rw [zero_add]
   have hnd : ((List.finRange n).filter (fun y => inCycle[y.1] && y != x)).Nodup :=

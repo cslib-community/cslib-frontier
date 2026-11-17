@@ -315,8 +315,8 @@ theorem minChainCoverM_time_le [LT α] [DecidableLT α] (e : Fin n ≃ α) :
   have hM := (hopcroftKarpDenseM_correct (enumLtGraph e)).1.1.card_le_card_left
   rw [Fintype.card_fin] at hM
   rw [min_self, show 7 * n + 3 * n = 10 * n by omega] at hhk
-  simp only [minChainCoverM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, foldlTickM_time,
-    chainLabelsM_time, length_filter_pairs, List.length_product, List.length_finRange]
+  simp only [minChainCoverM, time_simps, chainLabelsM_time, length_filter_pairs,
+    List.length_product, List.length_finRange]
   have := Nat.mul_le_mul_left n hM
   omega
 

@@ -145,12 +145,11 @@ theorem getLast?M_ret {α : Type*} : ∀ (xs : List α), (getLast?M xs).ret = xs
 
 theorem getLast?M_time_le {α : Type*} : ∀ (xs : List α), (getLast?M xs).time ≤ xs.length + 1
   | [] => by
-    simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
+    simp only [getLast?M, time_simps]
     omega
-  | [_] => by simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_singleton]; omega
+  | [_] => by simp only [getLast?M, time_simps, List.length_singleton]; omega
   | _ :: y :: ys => by
-    simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    simp only [getLast?M, time_simps]
     have ih := getLast?M_time_le (y :: ys)
     simp only [List.length_cons] at ih
     omega
@@ -174,12 +173,11 @@ theorem dropLastM_ret {α : Type*} : ∀ (xs : List α), (dropLastM xs).ret = xs
 
 theorem dropLastM_time_le {α : Type*} : ∀ (xs : List α), (dropLastM xs).time ≤ xs.length + 1
   | [] => by
-    simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
+    simp only [dropLastM, time_simps]
     omega
-  | [_] => by simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_singleton]; omega
+  | [_] => by simp only [dropLastM, time_simps, List.length_singleton]; omega
   | _ :: y :: ys => by
-    simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_cons]
+    simp only [dropLastM, time_simps]
     have ih := dropLastM_time_le (y :: ys)
     simp only [List.length_cons] at ih
     omega
@@ -264,7 +262,7 @@ theorem subListM_ret (as bs : List ℚ) : (subListM as bs).ret = subList as bs :
   time_spec subListM
 
 theorem subListM_time_le (as bs : List ℚ) : (subListM as bs).time ≤ 2 * bs.length + 2 := by
-  simp only [subListM, TimeM.time_bind, negListM_time, negListM_ret]
+  simp only [subListM, time_simps, negListM_time]
   have h := addListM_time_le_right as (negList bs)
   have hlen : (negList bs).length = bs.length := List.length_map _
   omega
@@ -331,11 +329,9 @@ theorem derivListM_ret (cs : List ℚ) : (derivListM cs).ret = derivList cs := b
 
 theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.length + 3 := by
   cases cs with
-  | nil => simp only [derivListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_nil]; omega
+  | nil => simp only [derivListM, time_simps]; omega
   | cons _ as =>
-    simp only [derivListM, TimeM.time_bind, TimeM.time_tick, derivAuxM_time, derivAuxM_ret,
-      List.length_cons]
+    simp only [derivListM, time_simps, derivAuxM_time]
     have htr := trimM_time_le (derivAux 1 as)
     rw [derivAux_length 1 as] at htr
     omega
@@ -374,20 +370,19 @@ theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.len
 
 @[simp]
 theorem divModAuxM_ret : ∀ (n : ℕ) (u v : List ℚ), (divModAuxM n u v).ret = divModAux n u v
-  | 0, u, v => by simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, TimeM.ret_pure]
+  | 0, u, v => by simp only [divModAuxM, divModAux, time_simps]
   | n + 1, u, v => by
-    simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, lengthM_ret]
+    simp only [divModAuxM, divModAux, time_simps]
     split_ifs with hlt
     · simp only [TimeM.ret_pure]
     · simp only [TimeM.ret_bind, getLast?M_ret]
       cases v.getLast? with
-      | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
+      | none => simp only [time_simps]
       | some lc =>
         cases (trim u).getLast? with
-        | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
+        | none => simp only [time_simps]
         | some lu =>
-          simp only [TimeM.ret_bind, shiftZeroM_ret, scaleListM_ret, subListM_ret, trimM_ret,
-            divModAuxM_ret n, addListM_ret, TimeM.ret_pure]
+          simp only [time_simps, shiftZeroM_ret, scaleListM_ret, subListM_ret, divModAuxM_ret n]
 
 private theorem divModAux_snd_length_le :
     ∀ (n : ℕ) (u v : List ℚ), (divModAux n u v).2.length ≤ u.length
@@ -418,7 +413,7 @@ theorem divModAuxM_time_le :
     ∀ (n : ℕ) (u v : List ℚ),
       (divModAuxM n u v).time ≤ (n + 1) * (20 * max u.length v.length + 20)
   | 0, u, v => by
-    simp only [divModAuxM, TimeM.time_bind, TimeM.time_pure, zero_add, one_mul]
+    simp only [divModAuxM, time_simps, one_mul]
     have htr := trimM_time_le u
     have hle : u.length ≤ max u.length v.length := le_max_left _ _
     omega
@@ -428,7 +423,7 @@ theorem divModAuxM_time_le :
     have hv_le : v.length ≤ M := le_max_right _ _
     have hu'_le : (trim u).length ≤ u.length := trim_length_le u
     have htr_u := trimM_time_le u
-    simp only [divModAuxM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret, TimeM.time_tick]
+    simp only [divModAuxM, time_simps, lengthM_time]
     split_ifs with hlt
     · simp only [TimeM.time_pure]
       have hpos : 0 ≤ (n + 1) * (20 * M + 20) := Nat.zero_le _
@@ -440,19 +435,18 @@ theorem divModAuxM_time_le :
       have hgl_u := getLast?M_time_le (trim u)
       cases v.getLast? with
       | none =>
-        simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+        simp only [time_simps]
         rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
         omega
       | some lc =>
         cases (trim u).getLast? with
         | none =>
-          simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+          simp only [time_simps]
           rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
           omega
         | some lu =>
-          simp only [TimeM.time_bind, TimeM.time_tick, shiftZeroM_time, shiftZeroM_ret,
-            scaleListM_time, scaleListM_ret, subListM_ret, trimM_ret, divModAuxM_ret,
-            TimeM.time_pure]
+          simp only [time_simps, shiftZeroM_time, shiftZeroM_ret, scaleListM_time, scaleListM_ret,
+            subListM_ret, divModAuxM_ret]
           let shift := (trim u).length - v.length
           let factor := lu / lc
           let shifted := shiftZero shift v
@@ -511,7 +505,7 @@ theorem divModListM_time_le (u v : List ℚ) :
   have hv'_le : (trim v).length ≤ v.length := trim_length_le v
   have hmax' : max (trim u).length (trim v).length ≤ M :=
     max_le (hu'_le.trans hu_le) (hv'_le.trans hv_le)
-  simp only [divModListM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret]
+  simp only [divModListM, time_simps, lengthM_time]
   have htu := trimM_time_le u
   have htv := trimM_time_le v
   have haux := (divModAuxM_time_le (trim u).length (trim u) (trim v)).trans
@@ -536,8 +530,7 @@ theorem negModListM_ret (u v : List ℚ) : (negModListM u v).ret = negModList u 
 
 theorem negModListM_time_le (u v : List ℚ) :
     (negModListM u v).time ≤ (u.length + 2) * (20 * max u.length v.length + 28) := by
-  simp only [negModListM, TimeM.time_bind, negListM_time, negListM_ret, TimeM.time_tick,
-    TimeM.time_pure]
+  simp only [negModListM, time_simps, negListM_time]
   have hdiv := divModListM_time_le (negList u) v
   have hnl : (negList u).length = u.length := List.length_map _
   rw [hnl] at hdiv
@@ -577,7 +570,7 @@ theorem sturmSeqAuxM_time_le :
       (sturmSeqAuxM n p q).time ≤
         (n + 1) * ((max p.length q.length + 2) * (20 * max p.length q.length + 30))
   | 0, p, q => by
-    simp only [sturmSeqAuxM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, zero_add, one_mul]
+    simp only [sturmSeqAuxM, time_simps, one_mul]
     calc 1 + 0 ≤ 2 * 30 := by decide
       _ ≤ (max p.length q.length + 2) * (20 * max p.length q.length + 30) :=
             Nat.mul_le_mul (Nat.le_add_left 2 _) (Nat.le_add_left 30 _)
@@ -585,17 +578,17 @@ theorem sturmSeqAuxM_time_le :
     let M := max p.length q.length
     have hp_le : p.length ≤ M := le_max_left _ _
     have hq_le : q.length ≤ M := le_max_right _ _
-    simp only [sturmSeqAuxM, TimeM.time_bind, isEmptyM_time, isEmptyM_ret]
+    simp only [sturmSeqAuxM, time_simps]
     rw [Nat.succ_mul (n + 1)]
     split_ifs with hemp
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+    · simp only [time_simps]
       have hpos : 0 ≤ (n + 1) * ((max p.length q.length + 2) *
         (20 * max p.length q.length + 30)) := Nat.zero_le _
       have h2 : 2 ≤ (max p.length q.length + 2) * (20 * max p.length q.length + 30) :=
         (by decide : 2 ≤ 2 * 30).trans
           (Nat.mul_le_mul (Nat.le_add_left 2 _) (Nat.le_add_left 30 _))
       omega
-    · simp only [TimeM.time_bind, negModListM_ret, TimeM.time_tick, TimeM.time_pure]
+    · simp only [time_simps]
       have hneg := negModListM_time_le p q
       have hr_le : (negModList p q).length ≤ M := (negModList_length_le p q).trans hp_le
       have hmax_qr : max q.length (negModList p q).length ≤ M := max_le hq_le hr_le
@@ -632,11 +625,11 @@ theorem sturmSeqListM_time_le (cs : List ℚ) :
   let n := cs.length
   have hp_le : (trim cs).length ≤ n := trim_length_le cs
   have htr := trimM_time_le cs
-  simp only [sturmSeqListM, TimeM.time_bind, trimM_ret, isEmptyM_time, isEmptyM_ret]
+  simp only [sturmSeqListM, time_simps]
   split_ifs with hemp
   · simp only [TimeM.time_pure]
     nlinarith
-  · simp only [TimeM.time_bind, derivListM_ret, lengthM_time, lengthM_ret]
+  · simp only [time_simps, lengthM_time]
     have hdp_t := derivListM_time_le (trim cs)
     have hdp_len : (derivList (trim cs)).length ≤ n :=
       (derivList_length_le (trim cs)).trans ((Nat.sub_le _ _).trans hp_le)
@@ -723,12 +716,11 @@ private theorem filterNonzeroSignM_time (ss : List SignType) :
 private theorem destutterNeAuxM_ret (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).ret = List.destutter' (· ≠ ·) b l := by
   induction l generalizing b with
-  | nil => simp only [destutterNeAuxM, List.destutter'_nil, TimeM.ret_bind, TimeM.ret_pure]
+  | nil => simp only [destutterNeAuxM, List.destutter'_nil, time_simps]
   | cons a l ih =>
     simp only [destutterNeAuxM, TimeM.ret_bind]
     by_cases hne : b ≠ a
-    · simp only [eq_true hne, ↓reduceIte, TimeM.ret_bind, TimeM.ret_pure, ih a,
-        List.destutter'_cons_pos l hne]
+    · simp only [eq_true hne, ↓reduceIte, time_simps, ih a, List.destutter'_cons_pos l hne]
     · simp only [eq_false hne, ↓reduceIte, ih b, List.destutter'_cons_neg l hne]
 
 @[time_simps]
@@ -769,9 +761,8 @@ theorem signVariationsM_ret (xs : List ℚ) : (signVariationsM xs).ret = xs.sign
 
 theorem signVariationsM_time_le (xs : List ℚ) :
     (signVariationsM xs).time ≤ 4 * xs.length + 6 := by
-  simp only [signVariationsM, TimeM.time_bind, mapSignM_time, mapSignM_ret,
-    filterNonzeroSignM_time, filterNonzeroSignM_ret, destutterNeM_ret, lengthM_time,
-    TimeM.time_tick, TimeM.time_pure, List.length_map]
+  simp only [signVariationsM, time_simps, mapSignM_time, filterNonzeroSignM_time, lengthM_time,
+    List.length_map]
   let fs := (xs.map SignType.sign).filter (fun x => decide (x ≠ 0))
   have hfs_len : fs.length ≤ xs.length := by
     calc fs.length ≤ (xs.map SignType.sign).length := List.length_filter_le _ _
@@ -814,7 +805,7 @@ theorem sturmVariationsListM_ret (seq : List (List ℚ)) (x : ℚ) :
 
 theorem sturmVariationsListM_time_le (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsListM seq x).time ≤ 2 * (seq.map List.length).sum + 6 * seq.length + 7 := by
-  simp only [sturmVariationsListM, TimeM.time_bind, mapEvalCoeffListM_time, mapEvalCoeffListM_ret]
+  simp only [sturmVariationsListM, time_simps, mapEvalCoeffListM_time]
   have hsv := signVariationsM_time_le (seq.map (evalCoeffList x))
   simp only [List.length_map] at hsv
   omega
@@ -874,13 +865,11 @@ theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     (cauchyBoundNatM cs).time ≤ 8 * cs.length + 12 := by
   have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
   have htr := trimM_time_le cs
-  simp only [cauchyBoundNatM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    TimeM.time_tick]
+  simp only [cauchyBoundNatM, time_simps, lengthM_time]
   split_ifs with hlen
   · simp only [TimeM.time_pure]
     omega
-  · simp only [TimeM.time_bind, dropLastM_ret, maxAbsListM_time, TimeM.time_tick, TimeM.time_pure,
-      List.length_dropLast]
+  · simp only [time_simps, dropLastM_ret, maxAbsListM_time, List.length_dropLast]
     have hgl := getLast?M_time_le (trim cs)
     have hdl := dropLastM_time_le (trim cs)
     omega
@@ -1001,10 +990,10 @@ theorem clog4M_ret (n : ℕ) : (clog4M n).ret = Nat.clog 4 n := by
   | ind n ih =>
     unfold clog4M
     split_ifs with hle
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       have h0 : Nat.clog 4 n ≤ 0 := Nat.clog_le_of_le_pow (by simpa only [pow_zero] using hle)
       omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       have hlt : (n + 3) / 4 < n := by omega
       rw [ih _ hlt]
       have : (n + 3) / 4 = (n + 4 - 1) / 4 := by omega
@@ -1053,9 +1042,8 @@ theorem mignotteSepSqInvM_time_le (cs : List ℚ) :
     (mignotteSepSqInvM cs).time ≤ 12 * cs.length + 14 := by
   have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
   have htr := trimM_time_le cs
-  simp only [mignotteSepSqInvM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    clearDenomsListM_time, clearDenomsListM_ret, sqNormListM_time, sqNormListM_ret,
-    TimeM.time_tick, powNatM_time, TimeM.time_pure]
+  simp only [mignotteSepSqInvM, time_simps, lengthM_time, clearDenomsListM_time, sqNormListM_time,
+    powNatM_time]
   have hns_len : (clearDenomsList (trim cs)).2.length = (trim cs).length := by
     simp only [clearDenomsList, List.length_map]
   rw [hns_len]
@@ -1083,13 +1071,11 @@ theorem mignotteBisectionDepthM_time_le (cs : List ℚ) :
     (mignotteBisectionDepthM cs).time ≤ 24 * cs.length + mignotteBisectionDepth cs + 34 := by
   have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
   have htr := trimM_time_le cs
-  simp only [mignotteBisectionDepthM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    TimeM.time_tick]
+  simp only [mignotteBisectionDepthM, time_simps, lengthM_time]
   split_ifs with hlen
   · simp only [TimeM.time_pure]
     omega
-  · simp only [TimeM.time_bind, cauchyBoundNatM_ret, mignotteSepSqInvM_ret, TimeM.time_tick,
-      clog4M_time]
+  · simp only [time_simps, clog4M_time]
     have hcb := cauchyBoundNatM_time_le cs
     have hms := mignotteSepSqInvM_time_le cs
     have hdepth : mignotteBisectionDepth cs =

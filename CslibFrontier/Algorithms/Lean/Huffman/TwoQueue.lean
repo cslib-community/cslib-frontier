@@ -258,8 +258,7 @@ private theorem popMinM_size_eq {α β : Type u} [LE β] [DecidableRel (· ≤ �
     | cons y f =>
       rw [h2] at h
       by_cases hle : x.wt ≤ y.wt <;>
-        simp only [hle, ↓reduceIte, TimeM.ret_bind, TimeM.ret_pure, Option.some.injEq,
-          Prod.mk.injEq] at h <;>
+        simp only [hle, ↓reduceIte, time_simps, Option.some.injEq, Prod.mk.injEq] at h <;>
         rcases h with ⟨_, rfl, rfl⟩
       · simp only [List.length_cons]; omega
       · rw [FifoQueue.size_checkf, FifoQueue.size, h2]
@@ -394,8 +393,7 @@ theorem huffmanFromSortedM_time_le {α β : Type u} [Add β] [LE β]
   · simp [twoQueueStepsM, popMinM, FifoQueue.empty, FifoQueue.size]
   · simp only [List.map_cons, List.length_cons, List.length_map, FifoQueue.size_empty, add_zero]
     rw [twoQueueStepsM]
-    simp only [TimeM.time_bind, popMinM, FifoQueue.empty, TimeM.ret_pure, TimeM.time_pure,
-      zero_add]
+    simp only [time_simps, popMinM, FifoQueue.empty]
     have hloop := twoQueueStepsM_time_le (syms'.length + 1)
       (syms'.map fun a => (⟨.leaf a, w a⟩ : WeightedTree α β))
       (({ front := [], back := [] } : FifoQueue (WeightedTree α β)).enqueue
