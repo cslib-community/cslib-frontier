@@ -13,6 +13,7 @@ public import Mathlib.Data.Nat.ModEq
 public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
@@ -429,7 +430,8 @@ theorem binary_gcd : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.gcd p.1 p.2
   have hstep : ComputableInPolyTime BinaryGcd.gcdStep
       (encPair encNat encNat) (encPair encNat encNat) := by
     unfold BinaryGcd.gcdStep
-    fun_prop
+    exact (decide_eq' (snd encNat encNat) (const 0)).ite_decide id'
+      ((snd encNat encNat).prod (binary_mod' (fst encNat encNat) (snd encNat encNat)))
   have hiter := iterate hcount hinit hstep
     (bound := fun p => 3 * (encPair encNat encNat p).length)
     ((PolyBounded.const 3).mul .self)
@@ -454,7 +456,8 @@ private theorem computableInPolyTime_modInvNext {α : Type} {enc : α ↪ List B
     (ht₁ : ComputableInPolyTime t₁ enc encNat) :
     ComputableInPolyTime (fun x => BinaryGcd.modInvNext (m x) (q x) (t₀ x) (t₁ x)) enc encNat := by
   unfold BinaryGcd.modInvNext
-  fun_prop
+  exact binary_mod' (binary_sub' (binary_add' ht₀ hm)
+    (binary_mod' (binary_mul' hq ht₁) hm)) hm
 
 /-- Unsigned modular inverse of binary naturals via the extended Euclidean algorithm. -/
 @[fun_prop, program_certificate]
@@ -477,7 +480,14 @@ theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.mo
       (encPair encNat (encPair (encPair encNat encNat) (encPair encNat encNat)))
       (encPair (encPair encNat encNat) (encPair encNat encNat)) := by
     unfold BinaryGcd.modInvStep
-    fun_prop
+    have hm := fst encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
+    have hs := snd encNat (encPair (encPair encNat encNat) (encPair encNat encNat))
+    have hr₀ := hs.fst'.fst'
+    have hr₁ := hs.fst'.snd'
+    exact (decide_eq' hr₁ (const 0)).ite_decide hs
+      ((hr₁.prod (binary_mod' hr₀ hr₁)).prod
+        (hs.snd'.snd'.prod
+          (hnext hm (binary_div' hr₀ hr₁) hs.snd'.fst' hs.snd'.snd')))
   have hiter := iterateWith hpar hcount hinit hstep
     (bound := fun p => 9 * (encPair encNat encNat p).length)
     ((PolyBounded.const 9).mul .self)

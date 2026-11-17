@@ -272,7 +272,7 @@ theorem computableInPolyTime_finish [Finite State] :
   have hstate := ComputableInPolyTime.finiteCfg_state.comp
     (ComputableInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
   have hhalt := (ComputableInPolyTime.of_finite
-    (encB := encBool) (Option.isNone (α := State))).comp hstate
+    (encOut := encBool) (Option.isNone (α := State))).comp hstate
   have hout := ComputableInPolyTime.finiteCfg_output.comp
     (ComputableInPolyTime.finiteConfig_tapes (k := k) (State := State) (Oracle := Empty))
   exact hhalt.ite' ((ComputableInPolyTime.optionSome encBits).comp hout) (.const none)

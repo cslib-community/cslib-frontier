@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Out
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
@@ -120,7 +122,8 @@ theorem exists_framedGuess_machine (enc : α ↪ List Bool) (p : Polynomial ℕ)
             (fun word => encPair enc encBits (a, word))) := by
   obtain ⟨ks, State, hfinite, source, sourceClock, hnon, hs⟩ := exists_guess_machine enc p
   have hframe : ComputableInPolyTime (fun a => frame (enc a)) enc encBits :=
-    .of_linear (.of_frame fun _ => rfl)
+    (ComputableInDegree.of_frame (f := fun a => frame (enc a))
+      (encIn := enc) (encMid := encBits) fun _ => rfl).computableInPolyTime
   obtain ⟨c, d, ki, InitState, hfinite', initializer, hi⟩ :=
     Turing.MultiTapeTM.Internal.NormalForm.polyTime hframe
   let prepare := initializer.extendTapes (Fin.castAddEmb ks)

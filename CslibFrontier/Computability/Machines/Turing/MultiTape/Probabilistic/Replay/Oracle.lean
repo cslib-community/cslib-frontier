@@ -178,7 +178,8 @@ variable [Finite Control] [Fintype Operation]
     (fun p : FiniteConfig k Bool Control Operation × Bool => machine.replyStep p.1 p.2)
     (encPair encFiniteConfig encBool) encFiniteConfig := by
   exact ComputableInPolyTime.ite
-    ((ComputableInPolyTime.of_finite Option.isSome).comp
+    ((ComputableInPolyTime.of_finite
+      (encIn := encFinite (Option (Operation × Control))) (encOut := encBool) Option.isSome).comp
       (machine.pendingQuery_pt.comp (.fst encFiniteConfig encBool)))
     machine.receiveBit_pt (machine.localStep_pt.comp (.fst encFiniteConfig encBool))
 
