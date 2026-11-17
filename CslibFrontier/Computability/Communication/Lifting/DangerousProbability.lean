@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Communication.Lifting.DenseDiscrepancy
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.MeasureTheory.OuterMeasure.Basic
 
 /-!
@@ -164,11 +165,7 @@ theorem probability_exists_parityTest_le {κ : Type*} [Fintype κ] [NeZero m]
   have heq : {x | ∃ k, t k < (w k).bias g x} = ⋃ k, E k := by ext x; simp [E]
   rw [heq]
   calc
-    _ ≤ (∑ k, p.toOuterMeasure (E k)).toReal :=
-      ENNReal.toReal_mono
-        (ENNReal.sum_ne_top.mpr (fun k _ => PMF.toOuterMeasure_ne_top p (E k))) hu
-    _ = ∑ k, (p.toOuterMeasure (E k)).toReal :=
-      ENNReal.toReal_sum (fun k _ => PMF.toOuterMeasure_ne_top p (E k))
+    _ ≤ ∑ k, (p.toOuterMeasure (E k)).toReal := by ennreal_to_real using hu
     _ ≤ ∑ k, β k := sum_le_sum fun k _ =>
       ((w k).probability_bias_lt g hX hY hτX hτY hXne (ht k) (hβ k) (hbound k)).le
 
