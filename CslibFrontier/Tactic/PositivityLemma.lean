@@ -126,8 +126,8 @@ tactic. `positivity` then proves that statement, and `e ≠ 0` from `0 < e`, whe
 `e` occurs in a goal: also in the side goals of `gcongr` and `grw`, in the side conditions of
 `field_simp`, and under casts and the other operations `positivity` knows.
 
-The expression `e` must determine every argument of the lemma, so a lemma with a hypothesis is
-rejected, as is one whose `e` is a variable. -/
+The expression `e` must determine every argument of the lemma: a lemma with a hypothesis or an
+instance argument that `e` does not determine is rejected, as is one whose `e` is a variable. -/
 syntax (name := positivityLemma) "positivity_lemma" : attr
 
 initialize registerBuiltinAttribute {

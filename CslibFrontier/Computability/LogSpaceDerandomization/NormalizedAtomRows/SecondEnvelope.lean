@@ -242,11 +242,7 @@ theorem actualEstimatedResidual_second_envelope_moment
           (16 * P * (estimatedResidualBound HP P km kt n kb (estimatedBinCap cap)) ^ 4) +
           rowNormPow 4 P (rate ks) (retainedMask R.source (side P ks) D ss)
             (retainedMask R.terminal (side P kt) D st) (fun _ => cost))) := by
-  have hHPK : 0 < HP.K := by
-    have hg := HP.gate
-    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-    have hk : (0 : ℝ) < HP.K := by linarith
-    exact_mod_cast hk
+  have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
   extract_lets cutoff bounded source mid terminal estimated canonical channelsV input G F cost
   refine le_trans (secondMeanEnvelope_walk_moment R D ss st ks kt ku (steps (j + 1))
     husage hLh hLρ ζ (input (j + 1)) G cost ?_ (by positivity)) ?_

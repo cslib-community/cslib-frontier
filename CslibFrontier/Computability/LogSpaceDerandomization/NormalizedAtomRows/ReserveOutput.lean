@@ -113,11 +113,7 @@ theorem actualEstimatedResidual_output_from_cost_reserves
   intro P J inst ctx children ε hε
   dsimp only
   intro hreserve
-  have hHPK : 0 < HP.K := by
-    have hg := HP.gate
-    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-    have hk : (0 : ℝ) < HP.K := by linarith
-    exact_mod_cast hk
+  have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
   have htol : 0 < (ctx.tolerance ε) := by dsimp only [ReserveOutputContext.tolerance]; positivity
   have hamp : 0 ≤ (ctx.amplification ζ) := by
     dsimp only [ReserveOutputContext.amplification]

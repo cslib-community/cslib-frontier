@@ -61,6 +61,10 @@ example {V D : Type*} [DecidableEq V] [Fintype V] [Fintype D] (G : RotationMap V
   fail_if_success (have : 0 < G.spectralExpansion := by positivity)
   positivity
 
+/-- A registered `0 ≤ e` does not hide a stronger hypothesis about `e`. -/
+example {V D : Type*} [DecidableEq V] [Fintype V] [Fintype D] (G : RotationMap V D)
+    (h : 0 < G.spectralExpansion) : 0 < 2 * G.spectralExpansion := by positivity
+
 /-! ### Rejected registrations -/
 
 /-- A quantity that is positive only on nonnegative arguments. -/

@@ -522,7 +522,6 @@ theorem expect_walk_pow_sq_le_spectralExpansion_pow_mul {f : V → ℝ}
   induction t with
   | zero => simp
   | succ t ih =>
-    have := G.spectralExpansion_nonneg
     calc
       _ ≤ G.spectralExpansion ^ 2 * 𝔼 v, (G.walk ^ t) f v ^ 2 := by
         rw [pow_succ', mul_apply_eq_comp]
