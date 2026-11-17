@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
+public import CslibFrontier.Foundations.Quantum.Algebra.FamApprox
 import CslibFrontier.Foundations.Algebra.BigOperators.Selection
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 
@@ -47,6 +48,8 @@ The proof follows §3 of the paper, with its two lemmas made explicit in finite 
 
 * `Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le`,
   `Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le`: orthogonalization.
+* `Cslib.Quantum.Measurement.exists_isProjective_famApprox`: orthogonalization of families, in
+  the family relation `≈ᶠ`.
 
 ## References
 
@@ -298,5 +301,16 @@ theorem exists_isProjective_sum_norm_sub_sq_le_of_le (φ : AlgState (Matrix ι �
       ∑ a, φ.norm (M.effect a - P.effect a) ^ 2 ≤ 9 * ε := by
   obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le φ M
   exact ⟨P, hP, h.trans (by linarith)⟩
+
+/-- **Orthogonalization of families of measurements**: if every measurement of a family has
+`φ(∑_a M^q_a²) ≥ 1 - ε`, a family of projective measurements is `√(9ε)`-close to it, in the family
+relation `≈ᶠ`, for every question distribution. -/
+theorem exists_isProjective_famApprox {Q : Type*} [Fintype Q] (μ : PMF Q)
+    (φ : AlgState (Matrix ι ι ℂ)) (M : Q → Measurement α (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : ∀ q, 1 - ε ≤ ∑ a, (φ ((M q).effect a * (M q).effect a)).re) :
+    ∃ P : Q → Measurement α (Matrix ι ι ℂ), (∀ q, (P q).IsProjective) ∧
+      effects M ≈ᶠ[μ, φ; √(9 * ε)] effects P := by
+  choose P hP hMP using fun q => exists_isProjective_sum_norm_sub_sq_le_of_le φ (M q) (hε q)
+  exact ⟨P, hP, famApprox_of_forall hMP⟩
 
 end Cslib.Quantum.Measurement

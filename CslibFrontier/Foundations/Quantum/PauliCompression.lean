@@ -21,9 +21,9 @@ A step toward robust Pauli rigidity, the analysis of the Pauli braiding test
 theorem starts from consistency, linearity and anticommutation conditions of a strategy and
 produces exact Pauli operators close to each generator `X(a)`, `Z(b)` on an enlarged state. This
 file proves the compression bound behind it, for the products `X(a) Z(b)`. For unitaries `X(a)`,
-`Z(b)` on `ℂ^κ` and a vector `ψ` there is an isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` with
+`Z(b)` on `ℂ^κ` there is one isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` with, in every state `φ`,
 
-`E_{a,b} ‖(X(a) Z(b) - Wᴴ (X^a Z^b ⊗ 1) W) ψ‖² ≤ E_{p,q} ‖(f(p) f(q) - f(pq)) ψ‖²`,
+`E_{a,b} ‖X(a) Z(b) - Wᴴ (X^a Z^b ⊗ 1) W‖²_φ ≤ E_{p,q} ‖f(p) f(q) - f(pq)‖²_φ`,
 
 where `f(s, a, b) = (-1)^s X(a) Z(b)` is the **Pauli family** on the Pauli group
 (`Cslib.Quantum.pauliFamily`), and the right side is its multiplicative defect
@@ -31,13 +31,16 @@ where `f(s, a, b) = (-1)^s X(a) Z(b)` is the **Pauli family** on the Pauli group
 
 Two steps toward Theorem 14 are not formalized here: bounding the defect of the Pauli family by
 the consistency, linearity and anticommutation conditions, and passing from the products to the
-individual generators. The bound alone does not certify the generators: `X(a) = -X^a`,
-`Z(b) = -Z^b` give the Pauli strings as products, with defect `0`, but `X(0) = Z(0) = -1`.
+individual generators. Both are tracked in
+[#6149](https://github.com/cslib-community/cslib-frontier/issues/6149) (milestone M3). The bound
+alone does not certify the generators: `X(a) = -X^a`, `Z(b) = -Z^b` give the Pauli strings as
+products, with defect `0`, but `X(0) = Z(0) = -1`.
 
 The proof composes three steps:
 
 * compress the regular representation `g` of the Pauli group through the averaging isometry `V`
-  of `f` (`Cslib.Quantum.sum_norm_sub_compress_le`), which bounds `E_p ‖(f(p) - Vᴴ g(p) V) ψ‖²`;
+  of `f` (`Cslib.Quantum.expect_norm_sub_compress_sq_le`), which bounds
+  `E_p ‖f(p) - Vᴴ g(p) V‖²_φ` in every state;
 * since `f(-p) = -f(p)` exactly, `g(-1) V = -V` exactly
   (`Cslib.Quantum.regularRep_negOne_mul_regularIsometry`), so `V` maps into the `-1` eigenspace of
   the central element, the range of the eigenspace projection `signProj (g(-1)) true` of
@@ -67,6 +70,7 @@ The proof composes three steps:
 @[expose] public section
 
 open Matrix Finset Cslib.BitString
+open scoped BigOperators
 
 namespace Cslib.Quantum
 
@@ -218,38 +222,37 @@ end Rep
 
 section Robust
 
-open scoped Kronecker
+open scoped Kronecker MatrixOrder
 
 universe u v
 
 variable {ι : Type u} [Fintype ι] [DecidableEq ι] {κ : Type v} [Fintype κ] [DecidableEq κ]
 
 omit [Fintype κ] [DecidableEq κ] in
-private theorem sum_pauliGroup (F : (ι → Bool) → (ι → Bool) → ℝ) :
-    ∑ p : PauliGroup ι, F p.x p.z = 2 * ∑ a, ∑ b, F a b := by
-  rw [← Fintype.sum_equiv equivProd.symm (fun t => F t.2.1 t.2.2) _ (fun _ => rfl),
-    Fintype.sum_prod_type, Fintype.sum_bool, Fintype.sum_prod_type, two_mul]
+/-- Averaging over the Pauli group averages over the two bit strings; the sign does not matter. -/
+private theorem expect_pauliGroup (F : (ι → Bool) → (ι → Bool) → ℝ) :
+    𝔼 p : PauliGroup ι, F p.x p.z = 𝔼 a, 𝔼 b, F a b := by
+  rw [Fintype.expect_equiv equivProd (fun p => F p.x p.z) (fun t => F t.2.1 t.2.2) (fun _ => rfl),
+    ← Finset.univ_product_univ, Finset.expect_product]
+  dsimp only
+  rw [Finset.expect_const Finset.univ_nonempty, ← Finset.univ_product_univ, Finset.expect_product]
 
 /-- **Compression of the Pauli family**, a step toward robust Pauli rigidity
 [Natarajan and Vidick, §4.2, Theorem 14][NatarajanVidick2017]: for unitaries `X(a)`, `Z(b)` on
-`ℂ^κ` and a vector `ψ`, there is an isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` under which the products
-`X(a) Z(b)` are close on `ψ`, on average, to the Pauli strings `X^a Z^b ⊗ 1`, with error the
+`ℂ^κ` there is one isometry `W : ℂ^κ → ℂ^{2ⁿ} ⊗ ℂ^J` under which, in **every** state `φ`, the
+products `X(a) Z(b)` are close on average to the Pauli strings `X^a Z^b ⊗ 1`, with error the
 multiplicative defect of the Pauli family `(s, a, b) ↦ (-1)^s X(a) Z(b)` and no dependence on
 `n`. -/
 theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ κ ℂ)
-    (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1) (ψ : EuclideanSpace ℂ κ) :
+    (hX : ∀ a, (X a)ᴴ * X a = 1) (hZ : ∀ b, (Z b)ᴴ * Z b = 1) :
     ∃ (J : Type (max u v)) (_ : Fintype J) (_ : DecidableEq J)
-      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧
-      2 * (∑ a, ∑ b, ‖(WithLp.toLp 2 ((X a * Z b -
-          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) *ᵥ ψ.ofLp) :
-          EuclideanSpace ℂ κ)‖ ^ 2) / Fintype.card (PauliGroup ι) ≤
-        (∑ p, ∑ q, ‖(WithLp.toLp 2 ((pauliFamily X Z p * pauliFamily X Z q -
-          pauliFamily X Z (p * q)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ κ)‖ ^ 2) /
-          (Fintype.card (PauliGroup ι)) ^ 2 := by
+      (W : Matrix ((ι → Bool) × J) κ ℂ), Wᴴ * W = 1 ∧ ∀ φ : AlgState (Matrix κ κ ℂ),
+      𝔼 a, 𝔼 b, φ.norm (X a * Z b -
+          Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix J J ℂ)) * W) ^ 2 ≤
+        𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 := by
   set f := pauliFamily X Z
   set V := regularIsometry f
   have hf := conjTranspose_pauliFamily_mul X Z hX hZ
-  have hcomp := sum_norm_sub_compress_le f hf ψ
   obtain ⟨L₁, E, hEE, hEP⟩ :=
     (isHermitian_signProj_regularRep_negOne :
       (signProj (regularRep (ι := κ) (negOne : PauliGroup ι)) true).IsHermitian
@@ -287,15 +290,13 @@ theorem exists_isometry_compress_pauliFamily (X Z : (ι → Bool) → Matrix κ 
           rw [hp, hRXZ]
           simp only [W, conjTranspose_mul, conjTranspose_conjTranspose, Matrix.smul_mul,
             Matrix.mul_smul, Matrix.mul_assoc]
-  refine ⟨L₂, inferInstance, inferInstance, W, hWW, ?_⟩
-  refine le_of_eq_of_le ?_ hcomp
-  congr 1
-  rw [← sum_pauliGroup (fun a b => ‖(WithLp.toLp 2 ((X a * Z b -
-    Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W) *ᵥ ψ.ofLp) :
-    EuclideanSpace ℂ κ)‖ ^ 2)]
-  refine sum_congr rfl fun p _ => ?_
-  rw [key, show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub, smul_mulVec,
-    WithLp.toLp_smul, norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
+  refine ⟨L₂, inferInstance, inferInstance, W, hWW, fun φ => ?_⟩
+  refine le_of_eq_of_le ?_ (expect_norm_sub_compress_sq_le f φ hf)
+  rw [← expect_pauliGroup (fun a b => φ.norm (X a * Z b -
+    Wᴴ * ((pauliXPow a * pauliZPow b) ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W) ^ 2)]
+  refine Finset.expect_congr rfl fun p _ => ?_
+  rw [key, show f p = (signVal p.sign : ℂ) • (X p.x * Z p.z) from rfl, ← smul_sub,
+    AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs, abs_signVal, one_mul]
 
 end Robust
 

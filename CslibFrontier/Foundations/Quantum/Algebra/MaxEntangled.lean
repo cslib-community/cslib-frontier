@@ -137,7 +137,7 @@ theorem kroneckerOne_approx_oneKronecker_transpose [Nonempty ι] {O : Matrix ι 
   have hsq : star (X - Y) * (X - Y) = 1 + 1 - (O ⊗ₖ Oᵀ + O ⊗ₖ Oᵀ) := by
     rw [star_sub, hX, hY, sub_mul, mul_sub, mul_sub, hXX, hYY, hXY, hYX]
     abel
-  rw [Approx, norm_eq_sqrt, show kroneckerOne O - oneKronecker Oᵀ = X - Y from rfl, hsq]
+  rw [approx_iff, norm_eq_sqrt, show kroneckerOne O - oneKronecker Oᵀ = X - Y from rfl, hsq]
   simp [map_sub, map_add, hcorr]
 
 end AlgState

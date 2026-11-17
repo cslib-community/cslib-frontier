@@ -74,7 +74,7 @@ theorem approx_zero_of_apply_eq_zero {E : A} (h0 : 0 ≤ E) (h1 : E ≤ 1) (hE :
     E ≈[φ; 0] 0 := by
   have := φ.re_apply_mono (mul_self_le_self_of_nonneg_of_le_one h0 h1)
   rw [hE, Complex.zero_re] at this
-  rw [Approx, sub_zero, norm_eq_sqrt, h0.isSelfAdjoint.star_eq, Real.sqrt_eq_zero'.mpr this]
+  rw [approx_iff, sub_zero, norm_eq_sqrt, h0.isSelfAdjoint.star_eq, Real.sqrt_eq_zero'.mpr this]
 
 end AlgState
 

@@ -211,7 +211,7 @@ variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] 
 theorem apply_mul_eq_of_approx_zero {a b : A} (h : a ≈[φ; 0] b) (c : A) :
     φ (c * a) = φ (c * b) := by
   have hle := φ.norm_apply_star_mul_le (star c) (a - b)
-  rw [star_star, h.antisymm (φ.norm_nonneg _), mul_zero, norm_le_zero_iff, mul_sub,
+  rw [star_star, (approx_iff.mp h).antisymm (φ.norm_nonneg _), mul_zero, norm_le_zero_iff, mul_sub,
     map_sub, sub_eq_zero] at hle
   exact hle
 
