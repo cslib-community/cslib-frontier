@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Probability.PMF.EventBind
 
@@ -940,13 +941,10 @@ theorem eval_trial_none_le (R : SelfReducible enc W) {A : α → ℕ → ℕ →
   have h8 := one_eighth_le (q := q) hN he.1
   have htot : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
-    rw [← ENNReal.toReal_sum fun w _ => PMF.apply_ne_top _ _, ← ENNReal.toReal_add
-      (PMF.apply_ne_top _ _) (ENNReal.sum_ne_top.2 fun w _ => PMF.apply_ne_top _ _),
-      eval_trial_none_add_sum, ENNReal.toReal_one]
+    ennreal_to_real using eval_trial_none_add_sum R A x q e
   have hle : (ProbComp.eval (R.trial A x q e) none).toReal ≤ 7 / 8 := by linarith
   calc ProbComp.eval (R.trial A x q e) none
-      ≤ ENNReal.ofReal (7 / 8) := ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _)
-        (by norm_num) |>.2 hle
+      ≤ ENNReal.ofReal (7 / 8) := by ennreal_to_real using hle
     _ = 7 / 8 := by
         rw [ENNReal.ofReal_div_of_pos (by norm_num)]
         norm_num
@@ -1006,9 +1004,7 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
     ENNReal.toReal_le_of_le_ofReal hU (hup w)
   have htotr : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
-    rw [← ENNReal.toReal_sum fun w _ => PMF.apply_ne_top _ _, ← ENNReal.toReal_add
-      (PMF.apply_ne_top _ _) (ENNReal.sum_ne_top.2 fun w _ => PMF.apply_ne_top _ _),
-      eval_trial_none_add_sum, ENNReal.toReal_one]
+    ennreal_to_real using eval_trial_none_add_sum R A x q e
   have hsl := Finset.card_nsmul_le_sum (W x) (fun w => (ProbComp.eval (R.trial A x q e)
     (some w)).toReal) _ fun w hw => le_eval_trial_toReal R hA he hw
   have hsu := Finset.sum_le_card_nsmul (W x) (fun w => (ProbComp.eval (R.trial A x q e)
@@ -1026,10 +1022,8 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
   rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
     hfail]
   simp only [Option.isSome_some, ↓reduceIte]
-  rw [ENNReal.ofReal_le_iff_le_toReal (ENNReal.mul_ne_top (PMF.apply_ne_top _ _)
-    (ENNReal.sum_ne_top.2 fun i _ => ENNReal.pow_ne_top (PMF.apply_ne_top _ _))),
-    ENNReal.toReal_mul, ENNReal.toReal_sum fun i _ => ENNReal.pow_ne_top (PMF.apply_ne_top _ _)]
-  simp only [ENNReal.toReal_pow]
+  rw [ENNReal.ofReal_le_iff_le_toReal (by finiteness)]
+  ennreal_to_real
   exact retry_bound hN rfl hκ' (le_eval_trial_toReal R hA he hv) ENNReal.toReal_nonneg
     (by linarith) (by linarith) h8 rfl
 
