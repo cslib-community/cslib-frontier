@@ -8,13 +8,14 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
-public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Game.Forgery
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -885,9 +886,14 @@ private theorem eval_toForgeExperiment_limitToOneQuery (M : MACScheme)
   dsimp only [Function.comp_apply]
   have hrev :
       (ProbComp.eval (((SignatureScheme.limitToOneQuery bound adversary).toTyped n []).runLogWith
+          (Signer.ofSign M.sign sk))).map (Prod.map id List.reverse) =
+        (ProbComp.eval ((adversary.toTyped n []).runLogWith
+          ((Signer.ofSign M.sign).oneTime sk))).map (Prod.map id List.reverse) := by
+    change
+      (ProbComp.eval (((SignatureScheme.limitToOneQuery bound adversary).toTyped n []).runLogWith
           (Signer.ofSign M.sign sk))).map (fun (a, log) => (a, log.reverse)) =
         (ProbComp.eval ((adversary.toTyped n []).runLogWith
-          ((Signer.ofSign M.sign).oneTime sk))).map (fun (a, log) => (a, log.reverse)) := by
+          ((Signer.ofSign M.sign).oneTime sk))).map (fun (a, log) => (a, log.reverse))
     rw [Forger.toTyped, Forger.toTyped,
       Forger.eval_runLogWith_rename_state (SignatureScheme.limitToOneQuery bound adversary n [])
         (fun w => w) (Signer.ofSign M.sign sk) (M.signingPairOracle sk) List.reverse
@@ -905,16 +911,8 @@ private theorem eval_toForgeExperiment_limitToOneQuery (M : MACScheme)
     rw [OracleComp.interpret_map, StateT.run_map]
     exact run_limitToOneQuery_eq_oneTimeSigningPairOracle M bound n sk (hbound sk hsk)
       (adversary n [])
-  have hlog :
-      ProbComp.eval (((SignatureScheme.limitToOneQuery bound adversary).toTyped n []).runLogWith
-          (Signer.ofSign M.sign sk)) =
-        ProbComp.eval ((adversary.toTyped n []).runLogWith
-          ((Signer.ofSign M.sign).oneTime sk)) := by
-    have h := congrArg (PMF.map fun (a, log) => (a, log.reverse)) hrev
-    simp only [PMF.map_comp, Function.comp_def, List.reverse_reverse, Prod.mk.eta] at h
-    simpa only [show (fun x : (List Bool × List Bool) × List (List Bool × List Bool) => x) = id
-      from rfl, PMF.map_id] using h
-  rw [hlog]
+  rw [Cslib.Probability.PMF.map_injective
+    (Prod.map_injective.mpr ⟨Function.injective_id, List.reverse_injective⟩) hrev]
 
 private theorem oneTime_of_full_forge (M : MACScheme)
     {fullGame oneTimeGame : Forger → ℕ → ProbComp Bool}
