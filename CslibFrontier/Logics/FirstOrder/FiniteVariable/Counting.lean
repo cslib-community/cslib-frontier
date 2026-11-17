@@ -33,15 +33,16 @@ embeds `FO^k` into `C^k` preserving truth, quantifier rank and free variables.
   `L` (`GenFormula CountingQuant L k`).
 * `Cslib.Logic.FO.FiniteVariable.GenFormula.atLeast`,
   `Cslib.Logic.FO.FiniteVariable.GenFormula.exactly`: counting quantifiers `∃^{≥ m}` and `∃^{= m}`.
-* `Cslib.Logic.FO.FiniteVariable.Formula.toCounting`: the embedding of `FO^k` into `C^k`.
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.toCounting`: the embedding of `FO^k` into `C^k`
+  (exported as `Formula.toCounting`).
 
 ## Main results
 
-* `Cslib.Logic.FO.FiniteVariable.CountingFormula.realize_exactly`: `exactly m i φ` holds when
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_exactly`: `exactly m i φ` holds when
   exactly `m` values of `xᵢ` satisfy `φ`.
-* `Cslib.Logic.FO.FiniteVariable.Formula.realize_toCounting`,
-  `Cslib.Logic.FO.FiniteVariable.Formula.quantifierRank_toCounting`,
-  `Cslib.Logic.FO.FiniteVariable.Formula.freeVars_toCounting`: the embedding preserves truth,
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_toCounting`,
+  `Cslib.Logic.FO.FiniteVariable.GenFormula.quantifierRank_toCounting`,
+  `Cslib.Logic.FO.FiniteVariable.GenFormula.freeVars_toCounting`: the embedding preserves truth,
   quantifier rank and free variables.
 
 ## References

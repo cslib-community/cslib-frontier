@@ -41,8 +41,8 @@ their derived connectives, semantics, free variables, congruence, finite quantif
 * `Cslib.Logic.FO.FiniteVariable.InfinitaryCountingFormula`: formulas of `C^k_{∞ω}` with counting
   quantifiers `atLeast m i φ` and disjunctions indexed in `Type w`.
 * `Cslib.Logic.FO.FiniteVariable.CountingFormula.toInfinitary`,
-  `Cslib.Logic.FO.FiniteVariable.InfinitaryFormula.toCounting`: embeddings from `C^k` and
-  `L^k_{∞ω}` into `C^k_{∞ω}`.
+  `Cslib.Logic.FO.FiniteVariable.InfinitaryGenFormula.toCounting`: embeddings from `C^k` and
+  `L^k_{∞ω}` into `C^k_{∞ω}` (the latter exported as `InfinitaryFormula.toCounting`).
 * `Cslib.Logic.FO.FiniteVariable.walkFormula`,
   `Cslib.Logic.FO.FiniteVariable.reachableInfinitary`,
   `Cslib.Logic.FO.FiniteVariable.connectedInfinitary`: 3-variable sliding-pebble formulas defining

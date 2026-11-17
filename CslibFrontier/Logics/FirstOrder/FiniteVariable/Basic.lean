@@ -43,15 +43,16 @@ are simply not used, so the language need not be relational.
   kind `Q`, with `GenFormula.Realize`, `GenFormula.quantifierRank`, `GenFormula.freeVars`,
   `GenFormula.not`, `GenFormula.all`, `GenFormula.ex`, `GenFormula.iInf`, and `GenFormula.iSup`.
 * `Cslib.Logic.FO.FiniteVariable.Formula`: formulas of `FO^k` over the relation symbols of `L`.
-* `Cslib.Logic.FO.FiniteVariable.Formula.toFormula`: the translation to Mathlib's formulas.
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.toFormula`: the translation of `Formula` to Mathlib's
+  formulas (also exported as `Formula.toFormula`).
 
 ## Main results
 
 * `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_congr`: truth depends only on the values of the
   free variables.
-* `Cslib.Logic.FO.FiniteVariable.Formula.realize_toFormula`,
-  `Cslib.Logic.FO.FiniteVariable.Formula.quantifierRank_toFormula`: the translation preserves truth
-  and quantifier rank.
+* `Cslib.Logic.FO.FiniteVariable.GenFormula.realize_toFormula`,
+  `Cslib.Logic.FO.FiniteVariable.GenFormula.quantifierRank_toFormula`: the translation preserves
+  truth and quantifier rank.
 
 ## References
 
