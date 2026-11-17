@@ -6760,6 +6760,8 @@ public import CslibFrontier.Foundations.Relation.Acyclic
 public import CslibFrontier.Foundations.Relation.InductiveCounting
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
 public import CslibFrontier.Foundations.Relation.Transport
+public import CslibFrontier.Foundations.RelationAlgebra.AtomicNetwork
+public import CslibFrontier.Foundations.RelationAlgebra.Game
 public import CslibFrontier.Foundations.RingTheory.AdjoinRoot
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
