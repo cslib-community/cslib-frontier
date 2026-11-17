@@ -86,21 +86,6 @@ variable {N : ℕ}
 
 section Helpers
 
-private theorem sum_sq_le_one {κ : Type*} [Fintype κ] {w : EuclideanSpace ℝ κ} (hw : ‖w‖ ≤ 1) :
-    ∑ x, w.ofLp x ^ 2 ≤ 1 := by
-  rw [← EuclideanSpace.real_norm_sq_eq]
-  exact pow_le_one₀ (norm_nonneg _) hw
-
-private theorem inner_toEuclideanCLM_le_opNorm {κ : Type*} [Fintype κ] [DecidableEq κ]
-    (M : Matrix κ κ ℝ) {u v : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) (hv : ‖v‖ ≤ 1) :
-    inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) M v) ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ :=
-  calc inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) M v)
-      ≤ ‖u‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M v‖ := real_inner_le_norm _ _
-    _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ * 1) :=
-        mul_le_mul hu ((ContinuousLinearMap.le_opNorm _ _).trans
-          (mul_le_mul_of_nonneg_left hv (norm_nonneg _))) (norm_nonneg _) zero_le_one
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ := by ring
-
 private theorem sum_sq_mul_coord_eq {κ ι : Type*} [Fintype κ] [Fintype ι]
     (u : EuclideanSpace ℝ κ) (φ : κ → EuclideanSpace ℂ ι) :
     ∑ p : ι × Bool, ∑ x,
@@ -431,7 +416,7 @@ private theorem advForm_step_sub_le (Γ : Matrix (BitString N) (BitString N) ℝ
             sum_congr rfl fun x _ => by simp only [mul_pow, ← mul_sum]
       _ ≤ ∑ x, w.ofLp x ^ 2 := sum_le_sum fun x _ => by
             nlinarith [sum_sq_norm_ctrlProj_le U hψ₀ x t, sq_nonneg (w.ofLp x)]
-      _ ≤ 1 := sum_sq_le_one hw
+      _ ≤ 1 := (EuclideanSpace.norm_le_one_iff_sum_sq_le_one w).1 hw
   rw [hrewrite, abs_mul, abs_of_nonneg zero_le_two]
   refine mul_le_mul_of_nonneg_left ?_ zero_le_two
   calc |∑ i : Fin N, ∑ x, ∑ y,
@@ -550,7 +535,7 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
   have hvec (w : EuclideanSpace ℝ (BitString N)) (hw : ‖w‖ ≤ 1) :
       ∑ x, (w.ofLp x * ‖αs x‖) ^ 2 + ∑ x, (w.ofLp x * ‖βs x‖) ^ 2 ≤ 1 ∧
       ∑ x, (w.ofLp x * ‖βs x‖) ^ 2 ≤ ε := by
-    have hw1 := sum_sq_le_one hw
+    have hw1 := (EuclideanSpace.norm_le_one_iff_sum_sq_le_one w).1 hw
     refine ⟨?_, ?_⟩
     · rw [← sum_add_distrib]
       exact (sum_le_sum fun x _ => by
@@ -794,7 +779,9 @@ theorem one_sub_mul_opNorm_le_spectral {α : Type*} {P : BitString N → Prop}
               simp only [dotProduct, Matrix.mulVec, mul_sum, Matrix.absVec_apply]
               refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
         _ ≤ δ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
-              mul_le_mul_of_nonneg_left (inner_toEuclideanCLM_le_opNorm Γ huPos hvPos) hδ0
+              mul_le_mul_of_nonneg_left
+                ((le_abs_self _).trans
+                  (Matrix.abs_inner_toEuclideanCLM_le_opNorm Γ huPos hvPos)) hδ0
     linarith [(abs_le.1 ht).2]
   linarith
 
@@ -882,10 +869,10 @@ theorem spectralSensitivity_le_spectralAdversary (f : BooleanFunction N) :
       fun u w _ _ hu1 hw1 => ?_
     rw [← BitString.inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
     have hnorm (v : BitString N → ℝ) (hv : ∑ x, v x ^ 2 = 1) :
-        ‖(WithLp.toLp 2 v : EuclideanSpace ℝ (BitString N))‖ ≤ 1 := by
-      rw [← sq_le_one_iff₀ (norm_nonneg _), EuclideanSpace.real_norm_sq_eq]
-      exact hv.le
-    exact inner_toEuclideanCLM_le_opNorm Γ (hnorm u hu1) (hnorm w hw1)
+        ‖(WithLp.toLp 2 v : EuclideanSpace ℝ (BitString N))‖ ≤ 1 :=
+      (EuclideanSpace.norm_le_one_iff_sum_sq_le_one _).2 hv.le
+    exact (le_abs_self _).trans
+      (Matrix.abs_inner_toEuclideanCLM_le_opNorm Γ (hnorm u hu1) (hnorm w hw1))
   have hle := le_spectralAdversary hsym hnonneg hΓ
   by_cases hm0 : maxDiffNorm Γ = 0
   · have hlam0 : BitString.spectralSensitivity f ≤ 0 := by
@@ -998,8 +985,7 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
       _ = 1 := by field_simp [hW.ne']; ring
   have hw₀ : ‖w₀‖ = 1 := by nlinarith [norm_nonneg w₀]
   have hA_sum : ∑ x, ∑ y, wsRaw S x y = S.weightSum := by
-    calc ∑ x, ∑ y, wsRaw S x y = ∑ x, ∑ y, wsRaw S x y * 1 := by simp only [mul_one]
-      _ = S.weightSum := by rw [sum_wsRaw_mul]; simp only [mul_one, WeightScheme.weightSum]
+    simpa only [mul_one, WeightScheme.weightSum] using sum_wsRaw_mul S fun _ _ => 1
   have hA_sym : ∑ x, ∑ y, wsRaw S y x = S.weightSum := by rw [sum_comm]; exact hA_sum
   have hray : inner ℝ w₀ (Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S) w₀) = 1 := by
     rw [Matrix.inner_toEuclideanCLM]
@@ -1014,7 +1000,8 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
       _ = 1 := by
             simp only [sum_add_distrib, hA_sum, hA_sym]
             field_simp [hW.ne']; ring
-  exact hray.symm.trans_le (inner_toEuclideanCLM_le_opNorm (wsMatrix S) hw₀.le hw₀.le)
+  exact hray.symm.trans_le
+    ((le_abs_self _).trans (Matrix.abs_inner_toEuclideanCLM_le_opNorm (wsMatrix S) hw₀.le hw₀.le))
 
 private theorem wsMatrix_hadamard_bilin_eq (S : WeightScheme N) (i : Fin N)
     (a b : EuclideanSpace ℝ (BitString N)) :
@@ -1183,7 +1170,9 @@ private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
             · simp only [hs, div_zero, mul_zero, add_zero, hφ x]
             · rw [← mul_add, ← add_div, div_self hs, mul_one]
       _ ≤ 1 + 1 := by
-            rw [sum_add_distrib]; exact add_le_add (sum_sq_le_one ha) (sum_sq_le_one hb)
+            rw [sum_add_distrib]
+            exact add_le_add ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one a).1 ha)
+              ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one b).1 hb)
       _ = 2 := by ring
   calc ∑ x, ∑ y, a.ofLp x * (wsMatrix S x y * diffMatrix i x y * b.ofLp y)
       ≤ ∑ p ∈ S.R with p.1 i ≠ p.2 i,
@@ -1283,7 +1272,8 @@ theorem mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge
               (abs_nonneg (v.ofLp y))]
       _ ≤ ∑ _i : Fin N, maxDiffNorm Γ :=
           sum_le_sum fun i _ =>
-            (inner_toEuclideanCLM_le_opNorm _ huPos hvPos).trans
+            ((le_abs_self _).trans
+              (Matrix.abs_inner_toEuclideanCLM_le_opNorm _ huPos hvPos)).trans
               (norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i)
       _ = N * maxDiffNorm Γ := by simp only [sum_const, card_fin, nsmul_eq_mul]
   have hnorm_le := Matrix.opNorm_toEuclideanCLM_le_of_inner Γ
