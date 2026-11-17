@@ -33,11 +33,13 @@ original input are certified here. General loop invariants use `IsPPTOn.iterate_
 Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `OraclePPT`, `PPT` and
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
 (`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Closed
-PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp` so `PolyTime`'s
-`simp_all` rules normalize definitions, projections and match clauses (`zetaDelta := false`) while
-erasing monad-map fusion lemmas (`bind_map_left`, `LawfulMonad.bind_pure_comp`,
-`Functor.map_map`, `LawfulMonad.map_map`, `map_bind`, `PFunctor.FreeM.bind_pure_comp`,
-`PFunctor.FreeM.map_bind`) so encoded samplers (`enc _ <$> sample _`) stay intact. Local
+PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp`, while `PolyTime`'s
+`simp_all` rules turn `dsimp`, `proj`, `iota`, and `zeta` back on for closed PPT goals (only
+`zetaDelta` stays off, whereas all five were off before — needed so `CslibFrontierTests.MemoizePPT`
+does not time out at `whnf`) and erase the monad-map fusion lemmas (`bind_map_left`,
+`LawfulMonad.bind_pure_comp`, `Functor.map_map`, `LawfulMonad.map_map`, `map_bind`,
+`PFunctor.FreeM.bind_pure_comp`, `PFunctor.FreeM.map_bind`) so encoded samplers
+(`enc _ <$> sample _`) stay intact. Local
 and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess'`;
 `pure`, `ProbOracleComp.sample` and `query_take'` bridge to deterministic `PolyTime`, closed `PPT`
 and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
