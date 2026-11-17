@@ -89,6 +89,13 @@ theorem satisfies_ofZeroOne_iff (C : List ZeroOneIP.Equation)
     · simpa only [sum_unitCoeffs hj, one_mul] using (hx ⟨j, hj⟩).2
     · simpa only [sum_unitCoeffs hj, neg_one_mul, neg_nonpos] using (hx ⟨j, hj⟩).1
 
+private lemma ofZeroOne_feasible_iff (C : List ZeroOneIP.Equation) :
+    ofZeroOne C ∈ Feasible ↔ ∃ x : Fin (encZeroOneIP C).length → ℤ,
+      (∀ j, 0 ≤ x j ∧ x j ≤ 1) ∧
+      ∀ c ∈ C, ∑ j : Fin (encZeroOneIP C).length, (c.coeffs.getD j 0 : ℤ) * x j = c.rhs := by
+  simpa +instances only [Feasible, Set.mem_ofPred_eq, ofZeroOne] using
+    (exists_congr (satisfies_ofZeroOne_iff C))
+
 /-- Correctness of the zero-one-to-integer-inequality reduction. -/
 theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
     ofZeroOne C ∈ Feasible ↔ C ∈ ZeroOneIP := by
@@ -103,10 +110,9 @@ theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
     Fin.sum_eq_sum_range_of_eq_zero (hlen c hc)
       (fun j => (c.coeffs.getD j 0 : ℤ) * x j) fun j hj => by
       rw [List.getD_eq_default _ _ hj, Nat.cast_zero, zero_mul]
-  simp_rw [Feasible, Set.mem_ofPred_eq, satisfies_ofZeroOne_iff]
+  rw [ofZeroOne_feasible_iff]
   constructor
   · rintro ⟨x, hx, hC⟩
-    dsimp +instances only [ofZeroOne] at x hx hC
     let z : ℕ → ℤ := fun j => if hj : j < n then x ⟨j, hj⟩ else 0
     have hz : ∀ j, z j = 0 ∨ z j = 1 := by
       intro j
