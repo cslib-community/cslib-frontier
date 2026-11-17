@@ -110,12 +110,12 @@ private theorem nisanRowSpace_le_comap_shiftBy (f : FreeAlgebra K X) (k : ℕ) (
 of length `d - k`. -/
 theorem apply_eq_zero_of_mem_nisanRowSpace {f : FreeAlgebra K X} {d k : ℕ}
     (hf : f.IsHomogeneous d) {g : FreeMonoid X → K} (hg : g ∈ nisanRowSpace f k) {v : FreeMonoid X}
-    (hv : k + v.length ≠ d) : g v = 0 := by
+    (hv : k + v.toList.length ≠ d) : g v = 0 := by
   induction hg using Submodule.span_induction with
   | mem g hg =>
     obtain ⟨u, rfl⟩ := hg
     refine hf.coeff_eq_zero ?_
-    rwa [FreeMonoid.length_mul, FreeMonoid.length_ofFn]
+    rwa [FreeMonoid.toList_mul, List.length_append, FreeMonoid.length_ofFn]
   | zero => rfl
   | add g g' _ _ hg hg' => simp [hg, hg']
   | smul a g _ hg => simp [hg]
@@ -134,7 +134,7 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
     simp [Matrix.row, nisanRow, restr]
   have hinj : Function.Injective (restr ∘ₗ (nisanRowSpace f k).subtype) := by
     refine (injective_iff_map_eq_zero _).mpr fun g hg => Subtype.ext (funext fun v => ?_)
-    by_cases hv : v.length = m
+    by_cases hv : v.toList.length = m
     · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq v hv
       exact congrFun hg u
     · exact apply_eq_zero_of_mem_nisanRowSpace hf g.2 (by omega)
@@ -187,7 +187,7 @@ theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
   obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf0
   have hlen : w.toList.length = k + m := hf w hw
   obtain ⟨u, hu⟩ := FreeMonoid.exists_ofFn_eq (k := k) (FreeMonoid.ofList (w.toList.take k))
-    (by simp [FreeMonoid.length]; omega)
+    (by simp; omega)
   refine ⟨⟨nisanRow f (FreeMonoid.ofFn u), Submodule.subset_span ⟨u, rfl⟩⟩, fun h => hw ?_⟩
   have h' := congrFun (congrArg Subtype.val h) (FreeMonoid.ofList (w.toList.drop k))
   change coeff (FreeMonoid.ofFn u * _) f = 0 at h'
@@ -256,8 +256,8 @@ private theorem rowBasis_apply_one_ne_zero {f : FreeAlgebra K X} {d : ℕ}
     (rowBasis f d i : FreeMonoid X → K) 1 ≠ 0 := by
   intro h
   refine (rowBasis f d).ne_zero i (Subtype.ext (funext fun v => ?_))
-  by_cases hv : v.length = 0
-  · rw [FreeMonoid.length_eq_zero.mp hv]
+  by_cases hv : v.toList.length = 0
+  · rw [show v = 1 from FreeMonoid.ext (List.length_eq_zero_iff.mp hv)]
     exact h
   · exact apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).2 (by omega)
 
@@ -353,7 +353,7 @@ private theorem nisanRow_ofFn_eq_sum {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsH
 private theorem polynomial_optABP {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (hd0 : d ≠ 0) : (optABP f d hd hf).polynomial = f := by
   refine ext_coeff fun w => ?_
-  by_cases hw : w.length = d
+  by_cases hw : w.toList.length = d
   · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq w hw
     have h := congrFun (nisanRow_ofFn_eq_sum hd hf d u) 1
     simp only [nisanRow, mul_one, Finset.sum_apply, Pi.smul_apply, smul_eq_mul,

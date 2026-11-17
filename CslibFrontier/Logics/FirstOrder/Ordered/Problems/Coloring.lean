@@ -285,7 +285,7 @@ private theorem isQF_upperColorEdge (t₁ t₂ : ColorTag)
   have htrue := ProjectionFormula.isQF_const (N := qfNumericLanguage) (L := FO.cnf)
     (α := Fin 2 × Fin (4 + 2)) true
   cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h
-  all_goals try cases h
+  all_goals cases h
   all_goals first
     | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginBoth htrue
     | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 (ProjectionFormula.isQF_negLit _ _)
@@ -526,7 +526,7 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
     rintro u v ⟨t₁, _, t₂, _, hm₁, hm₂, p, h12, hp⟩
     rw [hcol_tag hm₁, hcol_tag hm₂]
     cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h12
-    all_goals try cases h12
+    all_goals cases h12
     · simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
         Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val_fin_one] at hp
@@ -701,7 +701,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnpos
       have hne := hedge (t₁ := .pT) (t₂ := .actPos) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnpos])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnpos)
       exact hne ht.symm
     · by_contra hnA
       have hvt := hvPos_t_of_not_A x hnA
@@ -713,7 +717,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnneg
       have hne := hedge (t₁ := .pT) (t₂ := .actNeg) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnneg])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnneg)
       exact hne ht.symm
     · intro hAx
       have hvt := hvNeg_t_of_A x hAx

@@ -17,6 +17,7 @@ public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Probability
 import CslibFrontier.Computability.PCP.Completeness
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.Bind
@@ -755,8 +756,7 @@ theorem not_micaliGoodState_of_mem_support_micaliSoundnessProg [DecidableEq α]
       ((OracleComp.interpret (micaliMemoize V σ m) (micaliSoundnessProg V L P)).run
         ([], [])).support) :
     ¬ MicaliGoodState V L st' := by
-  simp only [micaliSoundnessProg, run_interpret_bind, run_interpret_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+  simp only [micaliSoundnessProg, interp_norm, pmf_norm, PMF.mem_support_bind_iff,
     PMF.mem_support_pure_iff] at hmem
   rcases hmem with ⟨⟨⟨x, proof⟩, st₁⟩, hP, ⟨ok, st₃⟩, hMV, hwin⟩
   dsimp only at hwin

@@ -14,6 +14,7 @@ public import CslibFrontier.MachineLearning.Replicable.Composition
 public import CslibFrontier.MachineLearning.Replicable.Rounding
 public import CslibFrontier.Probability.Collision
 public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.MachineLearning.Replicable.BiasEstimation
 import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.IID.Event
@@ -24,6 +25,7 @@ import CslibFrontier.Probability.PMF.Markov
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.PMF.Union
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Amplification of accuracy and replicability
@@ -147,6 +149,34 @@ private theorem iid_bad_coord_le {γ : Type*} (q_marg : PMF γ) (bad : γ → Bo
         rw [← PMF.toOuterMeasure_map_apply, (Probability.PMF.iid_map q_marg bad (2 * t)).symm]
     _ ≤ (4 * β₀ * (1 - β₀)) ^ t := Probability.PMF.iid_card_ge_le hq hβ₀ t
 
+private theorem thresholdRound_union_disagree_le {ι : Type*} [Fintype ι] {a b δ : ℝ}
+    (hab : a < b) (N : ℕ) [NeZero N] {x₁ x₂ μ : ι → ℝ}
+    (hx₁ : ∀ j, |x₁ j - μ j| ≤ δ) (hx₂ : ∀ j, |x₂ j - μ j| ≤ δ)
+    {E : Set (Fin N)}
+    (hpre : E ⊆ ⋃ j ∈ (Finset.univ : Finset ι),
+      {i : Fin N | thresholdRound a b N i (x₁ j) ≠ thresholdRound a b N i (x₂ j)}) :
+    ((Probability.PMF.uniformOfFintype (Fin N)).toOuterMeasure E).toReal ≤
+      (Fintype.card ι : ℝ) * (2 * δ / (b - a) + 1 / N) := by
+  refine ((Probability.PMF.toOuterMeasure_toReal_mono _ hpre).trans
+    (Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le _ Finset.univ _)).trans ?_
+  calc ∑ j : ι, ((Probability.PMF.uniformOfFintype (Fin N)).toOuterMeasure
+          {i : Fin N | thresholdRound a b N i (x₁ j) ≠ thresholdRound a b N i (x₂ j)}).toReal
+      ≤ ∑ _j : ι, (2 * δ / (b - a) + 1 / N) := by
+        refine Finset.sum_le_sum fun j _ => ?_
+        have hdist : |x₁ j - x₂ j| ≤ 2 * δ := by
+          have h1 := hx₁ j
+          have h2 := hx₂ j
+          rw [abs_sub_comm] at h2
+          calc |x₁ j - x₂ j| = |(x₁ j - μ j) + (μ j - x₂ j)| := by ring_nf
+            _ ≤ |x₁ j - μ j| + |μ j - x₂ j| := abs_add_le _ _
+            _ ≤ δ + δ := add_le_add h1 h2
+            _ = 2 * δ := by ring
+        refine (thresholdRound_disagree_le hab (x₁ j) (x₂ j)).trans ?_
+        have hba : 0 < b - a := sub_pos.mpr hab
+        gcongr
+    _ = (Fintype.card ι : ℝ) * (2 * δ / (b - a) + 1 / N) := by
+        simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+
 end Helpers
 
 /-! ### Confidence amplification: majority vote and median-of-runs -/
@@ -202,16 +232,9 @@ theorem majorityVote_accurate {A : Algorithm X Ω Bool m} {𝒟 : Set (PMF X)}
     · simp only [ht, ne_eq, decide_eq_true_eq, Bool.not_eq_false] at hv ⊢
       exact hv
     · simp only [ht, ne_eq, decide_eq_true_eq, Bool.not_eq_true] at hv ⊢
-      have hpart :
-          (Finset.univ.filter fun j : Fin (2 * (r + 1)) => v j = true).card +
-            (Finset.univ.filter fun j : Fin (2 * (r + 1)) => v j = false).card =
-          2 * (r + 1) := by
-        rw [Finset.card_filter, Finset.card_filter, ← Finset.sum_add_distrib]
-        calc ∑ j : Fin (2 * (r + 1)), ((if v j = true then 1 else 0) +
-                (if v j = false then 1 else 0))
-            = ∑ _j : Fin (2 * (r + 1)), 1 :=
-              Finset.sum_congr rfl fun j _ => by cases v j <;> simp
-          _ = 2 * (r + 1) := by simp
+      have hpart := Finset.card_filter_add_card_filter_not (s := Finset.univ)
+        fun j : Fin (2 * (r + 1)) => v j = true
+      simp only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fin] at hpart
       omega
   exact iid_bad_coord_le (A.marginal D) (fun b => decide (b ≠ target D)) hq hβ₀ (r + 1) hsub
 
@@ -274,21 +297,9 @@ theorem medianOfRuns_accurate {A : Algorithm X Ω ℝ m} {𝒟 : Set (PMF X)}
       intro hlt
       exact absurd (Cslib.abs_median_sub_le hlt) (not_le.mpr hv)
     rw [Fintype.card_fin, not_lt] at hnot
-    have hpart :
-        (Finset.univ.filter fun j : Fin (2 * (r + 1)) => |v j - target D| ≤ ε).card +
-          (Finset.univ.filter fun j : Fin (2 * (r + 1)) => ¬ |v j - target D| ≤ ε).card =
-        2 * (r + 1) := by
-      rw [Finset.card_filter, Finset.card_filter, ← Finset.sum_add_distrib]
-      calc ∑ j : Fin (2 * (r + 1)), ((if |v j - target D| ≤ ε then 1 else 0) +
-              (if ¬ |v j - target D| ≤ ε then 1 else 0))
-          = ∑ _j : Fin (2 * (r + 1)), 1 :=
-            Finset.sum_congr rfl fun j _ => by by_cases h : |v j - target D| ≤ ε <;> simp [h]
-        _ = 2 * (r + 1) := by simp
-    have heq : (Finset.univ.filter fun j : Fin (2 * (r + 1)) => ε < |v j - target D|) =
-        Finset.univ.filter fun j : Fin (2 * (r + 1)) => ¬ |v j - target D| ≤ ε := by
-      ext j
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_le]
-    rw [heq]
+    have hpart := Finset.card_filter_add_card_filter_not (s := Finset.univ)
+      fun j : Fin (2 * (r + 1)) => |v j - target D| ≤ ε
+    simp only [not_le, Finset.card_univ, Fintype.card_fin] at hpart
     omega
   exact iid_bad_coord_le (A.marginal D) (fun y => decide (ε < |y - target D|)) hq hβ₀ (r + 1) hsub
 
@@ -338,12 +349,8 @@ private theorem iid_splitBlocks_output_eq_iid (A : Algorithm X Ω α m) (D : PMF
     ((Probability.PMF.iid D (k * m)).bind fun S =>
       PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S j)) =
       Probability.PMF.iid (A.marginal D) k := by
-  have hm := (PMF.bind_map (Probability.PMF.iid D (k * m))
-    (BitString.block (α := X) (m := k) (k := m))
-    fun B => PMF.piFin fun j => A.output (B j)).symm
-  dsimp only [Function.comp_def] at hm
-  rw [hm, iid_map_block, ← PMF.piFin_const, PMF.piFin_bind]
-  exact PMF.piFin_const (A.marginal D) k
+  rw [iid_bind_piFin_block D k m fun _ => A.output, PMF.piFin_const]
+  rfl
 
 private theorem marginal_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     (A : Algorithm X Ω α m) (a b : ℝ) (k N : ℕ) [NeZero N] (D : PMF X) :
@@ -351,58 +358,18 @@ private theorem marginal_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder �
       (Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
         (Probability.PMF.iid (A.marginal D) k).map fun v => pickThresholded a b N k i v := by
   rw [Algorithm.marginal_eq_seed_bind]
-  refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin N))) (funext fun i => ?_)
-  dsimp only [amplifyFinite]
-  rw [← PMF.map_bind]
-  exact congrArg (PMF.map _) (iid_splitBlocks_output_eq_iid A D k)
+  simp only [amplifyFinite, ← iid_splitBlocks_output_eq_iid A D k, pmf_norm]
 
 private theorem pairedOutput_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     (A : Algorithm X Ω α m) (a b : ℝ) (k N : ℕ) [NeZero N] (D : PMF X) :
     (amplifyFinite A a b k N).pairedOutput D =
-      (Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-        (Probability.PMF.iid (A.marginal D) k).bind fun v₁ =>
-          (Probability.PMF.iid (A.marginal D) k).map fun v₂ =>
+      (Probability.PMF.iid (A.marginal D) k).bind fun v₁ =>
+        (Probability.PMF.iid (A.marginal D) k).bind fun v₂ =>
+          (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
             (pickThresholded a b N k i v₁, pickThresholded a b N k i v₂) := by
-  simp only [Algorithm.pairedOutput, amplifyFinite]
-  refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin N))) (funext fun i => ?_)
-  have hinner := iid_splitBlocks_output_eq_iid A D k
-  have hmap :
-      ((Probability.PMF.iid D (k * m)).bind fun S =>
-        (PMF.piFin fun j =>
-          A.output (BitString.block (m := k) (k := m) S j)).map (pickThresholded a b N k i)) =
-      (Probability.PMF.iid (A.marginal D) k).map (pickThresholded a b N k i) := by
-    rw [← PMF.map_bind, hinner]
-  calc ((Probability.PMF.iid D (k * m)).bind fun S₁ =>
-          (Probability.PMF.iid D (k * m)).bind fun S₂ =>
-            ((PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S₁ j)).map
-              (pickThresholded a b N k i)).bind fun y₁ =>
-              ((PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S₂ j)).map
-                (pickThresholded a b N k i)).map fun y₂ => (y₁, y₂))
-      = (Probability.PMF.iid D (k * m)).bind fun S₁ =>
-          ((PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S₁ j)).map
-            (pickThresholded a b N k i)).bind fun y₁ =>
-            ((Probability.PMF.iid D (k * m)).bind fun S₂ =>
-              (PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S₂ j)).map
-                (pickThresholded a b N k i)).map fun y₂ => (y₁, y₂) := by
-        refine congrArg (PMF.bind (Probability.PMF.iid D (k * m))) (funext fun S₁ => ?_)
-        rw [PMF.bind_comm]
-        refine congrArg (PMF.bind _) (funext fun y₁ => ?_)
-        exact (PMF.map_bind _ _ _).symm
-    _ = ((Probability.PMF.iid D (k * m)).bind fun S₁ =>
-          (PMF.piFin fun j => A.output (BitString.block (m := k) (k := m) S₁ j)).map
-            (pickThresholded a b N k i)).bind fun y₁ =>
-          ((Probability.PMF.iid (A.marginal D) k).map
-            (pickThresholded a b N k i)).map fun y₂ => (y₁, y₂) := by
-        rw [← PMF.bind_bind]
-        simp_rw [hmap]
-    _ = (Probability.PMF.iid (A.marginal D) k).bind fun v₁ =>
-          (Probability.PMF.iid (A.marginal D) k).map fun v₂ =>
-            (pickThresholded a b N k i v₁, pickThresholded a b N k i v₂) := by
-        rw [hmap, PMF.bind_map]
-        dsimp only [Function.comp_def]
-        refine congrArg (PMF.bind (Probability.PMF.iid (A.marginal D) k)) (funext fun v₁ => ?_)
-        rw [PMF.map_comp]
-        rfl
+  simp only [Algorithm.pairedOutput, amplifyFinite, ← iid_splitBlocks_output_eq_iid A D k,
+    pmf_norm]
+  pmf_swap
 
 private theorem empFreq_concentrates [Finite α] [DecidableEq α] (q : PMF α) (k : ℕ) [NeZero k]
     {δ : ℝ} (hδ : 0 ≤ δ) (y : α) :
@@ -465,16 +432,7 @@ theorem isReplicable_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
       (2 * ((Fintype.card α : ℝ) * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2))) +
         (Fintype.card α : ℝ) * (2 * δ / (b - a) + 1 / N)) := by
   intro D _
-  have hcomm :
-      (amplifyFinite A a b k N).pairedOutput D =
-        (Probability.PMF.iid (A.marginal D) k).bind fun v₁ =>
-          (Probability.PMF.iid (A.marginal D) k).bind fun v₂ =>
-            (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
-              (pickThresholded a b N k i v₁, pickThresholded a b N k i v₂) := by
-    rw [pairedOutput_amplifyFinite, PMF.bind_comm]
-    refine congrArg (PMF.bind (Probability.PMF.iid (A.marginal D) k)) (funext fun v₁ => ?_)
-    exact PMF.bind_comm _ _ _
-  rw [Algorithm.disagreeProb, hcomm]
+  rw [Algorithm.disagreeProb, pairedOutput_amplifyFinite]
   let err : ℝ := (Fintype.card α : ℝ) * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2))
   let seedErr : ℝ := (Fintype.card α : ℝ) * (2 * δ / (b - a) + 1 / N)
   let good : Set (Fin k → α) := {v | ∀ y : α, |empFreq k v y - (A.marginal D y).toReal| ≤ δ}
@@ -520,35 +478,7 @@ theorem isReplicable_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
         dsimp only [pickThresholded]
         simp only [hcand]
       exact hi hsame
-    have hmono := Probability.PMF.toOuterMeasure_toReal_mono
-      (Probability.PMF.uniformOfFintype (Fin N)) hpre
-    have hunionR := Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le
-      (Probability.PMF.uniformOfFintype (Fin N)) Finset.univ
-      (fun y => {i : Fin N | thresholdRound a b N i (empFreq k v₁ y) ≠
-        thresholdRound a b N i (empFreq k v₂ y)})
-    refine (hmono.trans hunionR).trans ?_
-    calc ∑ y : α, ((Probability.PMF.uniformOfFintype (Fin N)).toOuterMeasure
-            {i : Fin N | thresholdRound a b N i (empFreq k v₁ y) ≠
-              thresholdRound a b N i (empFreq k v₂ y)}).toReal
-        ≤ ∑ y : α, (2 * δ / (b - a) + 1 / N) := by
-          refine Finset.sum_le_sum fun y _ => ?_
-          have hdist : |empFreq k v₁ y - empFreq k v₂ y| ≤ 2 * δ := by
-            have h1 := hv₁ y
-            have h2 := hv₂ y
-            rw [abs_sub_comm] at h2
-            calc |empFreq k v₁ y - empFreq k v₂ y|
-                = |(empFreq k v₁ y - (A.marginal D y).toReal) +
-                    ((A.marginal D y).toReal - empFreq k v₂ y)| := by ring_nf
-              _ ≤ |empFreq k v₁ y - (A.marginal D y).toReal| +
-                    |(A.marginal D y).toReal - empFreq k v₂ y| := abs_add_le _ _
-              _ ≤ δ + δ := add_le_add h1 h2
-              _ = 2 * δ := by ring
-          refine (thresholdRound_disagree_le hab (empFreq k v₁ y) (empFreq k v₂ y)).trans ?_
-          have hba : 0 < b - a := sub_pos.mpr hab
-          gcongr
-      _ = seedErr := by
-          dsimp only [seedErr]
-          simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    exact thresholdRound_union_disagree_le hab N hv₁ hv₂ hpre
   have houter := Probability.PMF.toOuterMeasure_bind_failure_toReal_le
     (Probability.PMF.iid (A.marginal D) k)
     (fun v₁ => (Probability.PMF.iid (A.marginal D) k).bind fun v₂ =>
@@ -796,22 +726,12 @@ private theorem seedColl_eq_collBool_true [DecidableEq α] (A : Algorithm X Ω �
 private theorem agreeProb_eq_tsum_seedColl (A : Algorithm X Ω α m) (D : PMF X) :
     A.agreeProb D = ∑' r : Ω, (A.seed r).toReal * seedColl A D r := by
   classical
-  have hcomm (r : Ω) :
-      ((Probability.PMF.iid D m).bind fun S₁ =>
-        (Probability.PMF.iid D m).bind fun S₂ =>
-          (A.run S₁ r).bind fun y₁ => (A.run S₂ r).map fun y₂ => (y₁, y₂)) =
-      (seedOutput A D r).bind fun y₁ => (seedOutput A D r).map fun y₂ => (y₁, y₂) := by
-    simp only [seedOutput, PMF.bind_bind]
-    refine congrArg (PMF.bind (Probability.PMF.iid D m)) (funext fun S₁ => ?_)
-    rw [PMF.bind_comm]
-    refine congrArg (PMF.bind (A.run S₁ r)) (funext fun y₁ => ?_)
-    exact (PMF.map_bind _ _ _).symm
   have hpair :
       A.pairedOutput D =
         A.seed.bind fun r =>
           (seedOutput A D r).bind fun y₁ => (seedOutput A D r).map fun y₂ => (y₁, y₂) := by
-    simp only [Algorithm.pairedOutput]
-    exact congrArg (PMF.bind A.seed) (funext hcomm)
+    simp only [Algorithm.pairedOutput, seedOutput, pmf_norm]
+    pmf_swap
   have hinner (r : Ω) :
       (((seedOutput A D r).bind fun y₁ =>
         (seedOutput A D r).map fun y₂ => (y₁, y₂)).toOuterMeasure
@@ -885,53 +805,15 @@ private theorem iid_bind_trialRun [DecidableEq α] (A : Algorithm X Ω α m) (D 
     (k₁ k₂ : ℕ) [NeZero k₂] :
     ((Probability.PMF.iid D (k₁ * (m + m) + k₂ * m)).bind fun S => trialRun A k₁ k₂ S r) =
       trialRunMarginal A D r k₁ k₂ := by
-  have hsplit :
-      (Probability.PMF.iid D (k₁ * (m + m) + k₂ * m)).bind (fun S => trialRun A k₁ k₂ S r) =
-        (Probability.PMF.iid D (k₁ * (m + m))).bind fun S₁ =>
-          (Probability.PMF.iid D (k₂ * m)).bind fun S₂ =>
-            (PMF.piFin fun l : Fin k₁ =>
-              let pair := splitSample m m (BitString.block (m := k₁) (k := m + m) S₁ l)
-              (A.run pair.1 r).bind fun y₁ =>
-                (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂)).bind fun cs =>
-              (PMF.piFin fun j : Fin k₂ =>
-                  A.run (BitString.block (m := k₂) (k := m) S₂ j) r).map fun zs =>
-                (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
-                  strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩)) := by
-    dsimp only [trialRun] at *
-    have hm := (PMF.bind_map (Probability.PMF.iid D (k₁ * (m + m) + k₂ * m))
-      (splitSample (k₁ * (m + m)) (k₂ * m))
-      (fun p =>
-        (PMF.piFin fun l : Fin k₁ =>
-          let pair := splitSample m m (BitString.block (m := k₁) (k := m + m) p.1 l)
-          (A.run pair.1 r).bind fun y₁ =>
-            (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂)).bind fun cs =>
-          (PMF.piFin fun j : Fin k₂ =>
-              A.run (BitString.block (m := k₂) (k := m) p.2 j) r).map fun zs =>
-            (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
-              strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩)))).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_splitSample, PMF.bind_bind]
-    refine congrArg (PMF.bind (Probability.PMF.iid D (k₁ * (m + m)))) (funext fun S₁ => ?_)
-    rw [PMF.bind_map]
-    rfl
-  rw [hsplit]
   have hpair_eq :
       ((Probability.PMF.iid D (m + m)).bind fun b =>
         (A.run (splitSample m m b).1 r).bind fun y₁ =>
           (A.run (splitSample m m b).2 r).map fun y₂ => decide (y₁ = y₂)) =
       (seedOutput A D r).bind fun y₁ => (seedOutput A D r).map fun y₂ => decide (y₁ = y₂) := by
-    have hm := (PMF.bind_map (Probability.PMF.iid D (m + m)) (splitSample m m)
-      (fun sp => (A.run sp.1 r).bind fun y₁ => (A.run sp.2 r).map fun y₂ =>
-        decide (y₁ = y₂))).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_splitSample, PMF.bind_bind]
-    simp only [seedOutput, PMF.bind_bind]
-    refine congrArg (PMF.bind (Probability.PMF.iid D m)) (funext fun U₁ => ?_)
-    rw [PMF.bind_map]
-    dsimp only [Function.comp_def]
-    rw [PMF.bind_comm]
-    refine congrArg (PMF.bind (A.run U₁ r)) (funext fun y₁ => ?_)
-    exact (PMF.map_bind _ _ _).symm
+    rw [iid_bind_splitSample D m m fun U₁ U₂ =>
+      (A.run U₁ r).bind fun y₁ => (A.run U₂ r).map fun y₂ => decide (y₁ = y₂)]
+    simp only [seedOutput, pmf_norm]
+    pmf_swap
   have hS₁ :
       ((Probability.PMF.iid D (k₁ * (m + m))).bind fun S₁ =>
         PMF.piFin fun l : Fin k₁ =>
@@ -940,57 +822,29 @@ private theorem iid_bind_trialRun [DecidableEq α] (A : Algorithm X Ω α m) (D 
       Probability.PMF.iid
         ((seedOutput A D r).bind fun y₁ => (seedOutput A D r).map fun y₂ => decide (y₁ = y₂))
         k₁ := by
-    have hm := (PMF.bind_map (Probability.PMF.iid D (k₁ * (m + m)))
-      (BitString.block (α := X) (m := k₁) (k := m + m))
-      (fun B => PMF.piFin fun l : Fin k₁ =>
-        let pair := splitSample m m (B l)
-        (A.run pair.1 r).bind fun y₁ => (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂))).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_block, ← PMF.piFin_const,
-      PMF.piFin_bind (fun _ : Fin k₁ => Probability.PMF.iid D (m + m))
-        (fun _ b => (A.run (splitSample m m b).1 r).bind fun y₁ =>
-          (A.run (splitSample m m b).2 r).map fun y₂ => decide (y₁ = y₂))]
+    rw [iid_bind_piFin_block D k₁ (m + m) fun _ b =>
+      (A.run (splitSample m m b).1 r).bind fun y₁ =>
+        (A.run (splitSample m m b).2 r).map fun y₂ => decide (y₁ = y₂)]
     simp_rw [hpair_eq]
     exact PMF.piFin_const _ k₁
   have hS₂ :
       ((Probability.PMF.iid D (k₂ * m)).bind fun S₂ =>
         PMF.piFin fun j : Fin k₂ => A.run (BitString.block (m := k₂) (k := m) S₂ j) r) =
       Probability.PMF.iid (seedOutput A D r) k₂ := by
-    have hm := (PMF.bind_map (Probability.PMF.iid D (k₂ * m))
-      (BitString.block (α := X) (m := k₂) (k := m))
-      (fun B => PMF.piFin fun j : Fin k₂ => A.run (B j) r)).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_block, ← PMF.piFin_const,
-      PMF.piFin_bind (fun _ : Fin k₂ => Probability.PMF.iid D m) (fun _ b => A.run b r)]
-    exact PMF.piFin_const (seedOutput A D r) k₂
-  have hcomm :
-      ((Probability.PMF.iid D (k₁ * (m + m))).bind fun S₁ =>
-        (Probability.PMF.iid D (k₂ * m)).bind fun S₂ =>
-          (PMF.piFin fun l : Fin k₁ =>
-            let pair := splitSample m m (BitString.block (m := k₁) (k := m + m) S₁ l)
-            (A.run pair.1 r).bind fun y₁ =>
-              (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂)).bind fun cs =>
-            (PMF.piFin fun j : Fin k₂ =>
-                A.run (BitString.block (m := k₂) (k := m) S₂ j) r).map fun zs =>
-              (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
-                strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩))) =
-      ((Probability.PMF.iid D (k₁ * (m + m))).bind fun S₁ =>
-        PMF.piFin fun l : Fin k₁ =>
-          let pair := splitSample m m (BitString.block (m := k₁) (k := m + m) S₁ l)
-          (A.run pair.1 r).bind fun y₁ => (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂)).bind
-        fun cs =>
-          ((Probability.PMF.iid D (k₂ * m)).bind fun S₂ =>
-            PMF.piFin fun j : Fin k₂ =>
-              A.run (BitString.block (m := k₂) (k := m) S₂ j) r).map fun zs =>
-              (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
-                strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩)) := by
-    simp only [PMF.bind_bind]
-    refine congrArg (PMF.bind (Probability.PMF.iid D (k₁ * (m + m)))) (funext fun S₁ => ?_)
-    rw [PMF.bind_comm]
-    refine congrArg (PMF.bind (PMF.piFin _)) (funext fun cs => ?_)
-    exact (PMF.map_bind _ _ _).symm
-  rw [hcomm, hS₁, hS₂]
-  rfl
+    rw [iid_bind_piFin_block D k₂ m fun _ b => A.run b r, PMF.piFin_const]
+    rfl
+  dsimp only [trialRun, trialRunMarginal]
+  rw [iid_bind_splitSample D (k₁ * (m + m)) (k₂ * m) fun S₁ S₂ =>
+    (PMF.piFin fun l : Fin k₁ =>
+      let pair := splitSample m m (BitString.block (m := k₁) (k := m + m) S₁ l)
+      (A.run pair.1 r).bind fun y₁ => (A.run pair.2 r).map fun y₂ => decide (y₁ = y₂)).bind
+      fun cs => (PMF.piFin fun j : Fin k₂ =>
+        A.run (BitString.block (m := k₂) (k := m) S₂ j) r).map fun zs =>
+          (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
+            strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩)),
+    ← hS₁, ← hS₂]
+  simp only [pmf_norm]
+  pmf_swap
 
 /-- Pick the first trial `t` whose empirical collision estimate passes `thresholdRound a b N i`,
 falling back to trial `0` when none qualifies. -/
@@ -1021,13 +875,7 @@ private theorem iid_bind_trialRun_block [DecidableEq α] (A : Algorithm X Ω α 
       PMF.piFin fun t : Fin T =>
         trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S t) (rs t)) =
       PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂ := by
-  have hm := (PMF.bind_map (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m)))
-    (BitString.block (α := X) (m := T) (k := k₁ * (m + m) + k₂ * m))
-    fun B => PMF.piFin fun t : Fin T => trialRun A k₁ k₂ (B t) (rs t)).symm
-  dsimp only [Function.comp_def] at hm
-  rw [hm, iid_map_block, ← PMF.piFin_const,
-    PMF.piFin_bind (fun _ : Fin T => Probability.PMF.iid D (k₁ * (m + m) + k₂ * m))
-      (fun t b => trialRun A k₁ k₂ b (rs t))]
+  rw [iid_bind_piFin_block D T (k₁ * (m + m) + k₂ * m) fun t b => trialRun A k₁ k₂ b (rs t)]
   exact congrArg PMF.piFin (funext fun t => iid_bind_trialRun A D (rs t) k₁ k₂)
 
 private theorem marginal_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω α m)
@@ -1038,26 +886,8 @@ private theorem marginal_amplifyReplicability [DecidableEq α] (A : Algorithm X 
           (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
             pickFirstThresholded a b N i trials := by
   rw [Algorithm.marginal_eq_seed_bind]
-  simp only [amplifyReplicability, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  refine congrArg (PMF.bind (PMF.piFin fun _ : Fin T => A.seed)) (funext fun rs => ?_)
-  calc ((Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-          (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S =>
-            (PMF.piFin fun t : Fin T =>
-              trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S t)
-                (rs t)).map fun trials => pickFirstThresholded a b N i trials)
-      = (Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-          (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).map fun trials =>
-            pickFirstThresholded a b N i trials := by
-        refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin N))) (funext fun i => ?_)
-        rw [← PMF.map_bind, iid_bind_trialRun_block A D T k₁ k₂ rs]
-    _ = (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials =>
-          (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
-            pickFirstThresholded a b N i trials := by
-        change ((Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-            (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials =>
-              PMF.pure (pickFirstThresholded a b N i trials)) = _
-        rw [PMF.bind_comm]
-        rfl
+  simp only [amplifyReplicability, ← iid_bind_trialRun_block A D T k₁ k₂, pmf_norm]
+  pmf_swap
 
 private theorem pairedOutput_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω α m)
     (a b : ℝ) (T k₁ k₂ N : ℕ) [NeZero T] [NeZero k₂] [NeZero N] (D : PMF X) :
@@ -1067,88 +897,9 @@ private theorem pairedOutput_amplifyReplicability [DecidableEq α] (A : Algorith
           (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
             (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
               (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-  simp only [Algorithm.pairedOutput, amplifyReplicability, PMF.bind_bind, PMF.bind_map,
-    Function.comp_def]
-  refine congrArg (PMF.bind (PMF.piFin fun _ : Fin T => A.seed)) (funext fun rs => ?_)
-  have hpull := iid_bind_trialRun_block A D T k₁ k₂ rs
-  have hS (i : Fin N) :
-      ((Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₁ =>
-        (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₂ =>
-          (PMF.piFin fun t : Fin T =>
-            trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₁ t)
-              (rs t)).bind
-              fun trials₁ =>
-            (PMF.piFin fun t : Fin T =>
-              trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₂ t)
-                (rs t)).map
-                fun trials₂ =>
-                  (pickFirstThresholded a b N i trials₁,
-                    pickFirstThresholded a b N i trials₂)) =
-      (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₁ =>
-        (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
-          PMF.pure
-            (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-    calc _ = (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₁ =>
-              (PMF.piFin fun t : Fin T =>
-                trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₁ t)
-                  (rs t)).bind
-                  fun trials₁ =>
-                ((Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₂ =>
-                  PMF.piFin fun t : Fin T =>
-                    trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₂ t)
-                      (rs t)).map
-                    fun trials₂ =>
-                      (pickFirstThresholded a b N i trials₁,
-                        pickFirstThresholded a b N i trials₂) := by
-            refine congrArg (PMF.bind (Probability.PMF.iid D _)) (funext fun S₁ => ?_)
-            rw [PMF.bind_comm]
-            refine congrArg (PMF.bind (PMF.piFin _)) (funext fun trials₁ => ?_)
-            exact (PMF.map_bind _ _ _).symm
-      _ = ((Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₁ =>
-              PMF.piFin fun t : Fin T =>
-                trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₁ t)
-                  (rs t)).bind
-              fun trials₁ =>
-            (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).map
-              fun trials₂ =>
-                (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-            rw [← PMF.bind_bind]
-            simp_rw [hpull]
-      _ = (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₁ =>
-            (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
-              PMF.pure
-                (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-            rw [hpull]
-            rfl
-  calc ((Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-          (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₁ =>
-            (Probability.PMF.iid D (T * (k₁ * (m + m) + k₂ * m))).bind fun S₂ =>
-              (PMF.piFin fun t : Fin T =>
-                trialRun A k₁ k₂ (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₁ t)
-                  (rs t)).bind
-                  fun trials₁ =>
-                PMF.map (fun y₂ => (pickFirstThresholded a b N i trials₁, y₂))
-                  (PMF.map (fun trials => pickFirstThresholded a b N i trials)
-                    (PMF.piFin fun t : Fin T =>
-                      trialRun A k₁ k₂
-                        (BitString.block (m := T) (k := k₁ * (m + m) + k₂ * m) S₂ t)
-                        (rs t))))
-      = (Probability.PMF.uniformOfFintype (Fin N)).bind fun i =>
-          (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₁ =>
-            (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
-              PMF.pure
-                (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-        refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin N))) (funext fun i => ?_)
-        simp_rw [PMF.map_comp, Function.comp_def]
-        exact hS i
-    _ = (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₁ =>
-          (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind fun trials₂ =>
-            (Probability.PMF.uniformOfFintype (Fin N)).map fun i =>
-              (pickFirstThresholded a b N i trials₁, pickFirstThresholded a b N i trials₂) := by
-        rw [PMF.bind_comm]
-        refine congrArg (PMF.bind (PMF.piFin _)) (funext fun trials₁ => ?_)
-        rw [PMF.bind_comm]
-        rfl
+  simp only [Algorithm.pairedOutput, amplifyReplicability,
+    ← iid_bind_trialRun_block A D T k₁ k₂, pmf_norm]
+  pmf_swap
 
 private theorem trialRunMarginal_single_fail [DecidableEq α] (A : Algorithm X Ω α m) (D : PMF X)
     (r : Ω) {a δ : ℝ} (hδ : 0 ≤ δ) (ha_half : 1 / 2 + δ < a) (k₁ k₂ : ℕ)
@@ -1508,35 +1259,8 @@ theorem disagreeProb_amplifyReplicability_le [DecidableEq α] (A : Algorithm X �
           goodTrial_heavy_of_thresholdPass A D hab.le htr₁ i tStar ht_pass
         have h2eq : (trials₂ tStar).2 = yStar := (htr₂ tStar).2 hcoll_ge yStar hyStar
         exact hi (by rw [hpick1, hpick2, h1eq, h2eq])
-      have hmono := Probability.PMF.toOuterMeasure_toReal_mono
-        (Probability.PMF.uniformOfFintype (Fin N)) hpre
-      have hunionR := Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le
-        (Probability.PMF.uniformOfFintype (Fin N)) Finset.univ
-        (fun t => {i : Fin N | thresholdRound a b N i (trials₁ t).1 ≠
-          thresholdRound a b N i (trials₂ t).1})
-      refine (hmono.trans hunionR).trans ?_
-      calc ∑ t : Fin T, ((Probability.PMF.uniformOfFintype (Fin N)).toOuterMeasure
-              {i : Fin N | thresholdRound a b N i (trials₁ t).1 ≠
-                thresholdRound a b N i (trials₂ t).1}).toReal
-          ≤ ∑ _t : Fin T, (2 * δ / (b - a) + 1 / N) := by
-            refine Finset.sum_le_sum fun t _ => ?_
-            have hdist : |(trials₁ t).1 - (trials₂ t).1| ≤ 2 * δ := by
-              have h1 := (htr₁ t).1
-              have h2 := (htr₂ t).1
-              rw [abs_sub_comm] at h2
-              calc |(trials₁ t).1 - (trials₂ t).1|
-                  = |((trials₁ t).1 - seedColl A D (rs t)) +
-                      (seedColl A D (rs t) - (trials₂ t).1)| := by ring_nf
-                _ ≤ |(trials₁ t).1 - seedColl A D (rs t)| +
-                      |seedColl A D (rs t) - (trials₂ t).1| := abs_add_le _ _
-                _ ≤ δ + δ := add_le_add h1 h2
-                _ = 2 * δ := by ring
-            refine (thresholdRound_disagree_le hab (trials₁ t).1 (trials₂ t).1).trans ?_
-            have hba : 0 < b - a := sub_pos.mpr hab
-            gcongr
-        _ = seedFail := by
-            dsimp only [seedFail]
-            simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+      simpa only [Fintype.card_fin] using
+        thresholdRound_union_disagree_le hab N (fun t => (htr₁ t).1) (fun t => (htr₂ t).1) hpre
     have houter := Probability.PMF.toOuterMeasure_bind_failure_toReal_le
       (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂)
       (fun trials₁ => (PMF.piFin fun t : Fin T => trialRunMarginal A D (rs t) k₁ k₂).bind

@@ -520,13 +520,8 @@ def schnorrCommitBits (input : F.Desc × List Bool) : List Bool :=
 /-- **Bit-level Schnorr commitment is computable in polynomial time**. -/
 theorem computableInPolyTime_schnorrCommitBits :
     ComputableInPolyTime F.schnorrCommitBits (encPair F.encDesc encBits) encBits := by
-  let encIn := encPair F.encDesc encBits
-  have hd : ComputableInPolyTime (fun p : F.Desc × List Bool => p.1) encIn F.encDesc := by fun_prop
-  have hr : ComputableInPolyTime (fun p : F.Desc × List Bool => p.2) encIn encBits := by fun_prop
-  have hr_nat : ComputableInPolyTime (fun p : F.Desc × List Bool => ofBits p.2) encIn encNat :=
-    (ComputableInPolyTime.bitsToNat.comp hr)
-  have hg := F.computableInPolyTime_generator.comp hd
-  exact F.computableInPolyTime_smul.comp (hd.prod (hr_nat.prod hg))
+  unfold schnorrCommitBits
+  fun_prop
 
 /-- `schnorrCommitBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrCommitBits :

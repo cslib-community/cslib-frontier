@@ -1,5 +1,7 @@
 # Machines and complexity classes
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 cslib-frontier's machine layer connects a concrete multitape operational model to higher-level verification, counting, interaction, search, and description-complexity models. The strongest common feature is that semantic definitions and efficiency claims are separate: a Lean function or free program acquires a native complexity bound only through a machine-realization theorem. This chapter describes those contracts at the pinned snapshot, including variants whose acceptance semantics or resource accounting differ. [cslib-frontier][complexitylib]
 
 The underlying cslib machine contributes read-only input, two-way work tapes, append-only output, and independent time and visited-work-cell bounds. cslib-frontier extends that core to fair randomness, branch multiplicity, alternation, and oracle channels; it also connects cslib's single-tape model and Mathlib's TM0, TM1, TM2, and partial-recursive machinery. These bridges have different preservation strengths: some are step-exact, some polynomial, and some concern only eventual computation. [cslib][cslib]

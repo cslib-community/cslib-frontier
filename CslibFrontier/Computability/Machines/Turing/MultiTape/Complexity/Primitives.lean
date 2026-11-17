@@ -166,11 +166,11 @@ namespace ComputableTidilyInDegree
 
 open EncIntUnary in
 public theorem int_succ : ComputableTidilyInDegree (· + 1) encIntUnary encIntUnary 1 1 := by
-  exact .of_linear (succT.computableTidilyInLinearTimeAndSpace run_succT)
+  exact .of_linear (ComputableInDegree.of_transducer succT run_succT)
 
 open EncIntUnary in
 public theorem int_pred : ComputableTidilyInDegree (· - 1) encIntUnary encIntUnary 1 1 := by
-  exact .of_linear (predT.computableTidilyInLinearTimeAndSpace run_predT)
+  exact .of_linear (ComputableInDegree.of_transducer predT run_predT)
 
 end ComputableTidilyInDegree
 

@@ -271,11 +271,7 @@ open _root_.Turing _root_.Turing.MultiTapeTM ComputableInPolyTime
 /-- Decoding a word is polynomial-time. -/
 theorem computableInPolyTime_decodeWord :
     ComputableInPolyTime decodeWord encBits encBits := by
-  have hidx : ComputableInPolyTime (fun u : List Bool => u.idxOf true + 1) encBits
-      encUnary := by
-    have h := (idxOf encBool).comp (bitsToList.prod (const (encOut := encBool) true))
-    exact unary_succ.comp h
-  exact bitsDropWithInput id' hidx
+  fun_prop [decodeWord]
 
 /-- Decoding a history is polynomial-time. -/
 private theorem computableInPolyTime_decodeHistory :
@@ -416,10 +412,7 @@ private theorem computableInPolyTime_returnStep :
     ComputableInPolyTime (fun s : EvalState α =>
       (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0)))
       (encEvalState enc) (encEvalState enc) := by
-  have hfuel' : ComputableInPolyTime (fun s : EvalState α => fuel s.1) (encEvalState enc)
-      encUnary := hfuel.comp (fst _ _)
-  unfold returnStep
-  fun_prop
+  fun_prop [returnStep]
 
 /-- Pushing a frame is polynomial-time. -/
 private theorem computableInPolyTime_pushStep :
@@ -553,7 +546,8 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
   have hbounded := isBounded_coinFamily M t (enc a)
   have hacc (P : Prover Unit) : acceptProb (V a) P =
       (2 ^ t : ENNReal)⁻¹ * ∑ r, acceptFrom P P.init (some (coinFamily M t (enc a) r)) :=
-    acceptProb_eq_sum M (hV a) P
+    acceptProb_eq_sum M (by
+      simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV a) P
   have hpos : 2 ^ t ≠ 0 := by positivity
   have hcast : ((2 ^ t : ℕ) : ENNReal) = 2 ^ t := by push_cast; rfl
   have hupper (P : Prover Unit) : acceptProb (V a) P ≤ (W : ENNReal) / (2 ^ t : ℕ) := by

@@ -134,6 +134,7 @@ theorem measure_runState_le {cost : Query → ℕ} {A : ProbOracleComp spec α} 
     ∀ z ∈ (ProbComp.eval ((A.runState O).run s)).support, μ z.2 ≤ μ s + n := by
   rintro ⟨result, s'⟩ hz
   rw [eval_runState] at hz
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hz
   change (result, s') ∈ ((OracleComp.interpret (sumHandler
     (fun n => StateT.lift (ProbComp.unifOracle n)) fun q t => ProbComp.eval (O q t)) A).run
       s).support at hz

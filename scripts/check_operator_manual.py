@@ -12,6 +12,12 @@ number. This does not fetch URLs, elaborate Lean, audit
 mathematical meaning, check links whose text names no declaration of the linked file (prose, a
 file, a module, a declaration that moved elsewhere), or assert that historical evidence describes
 the current checkout. Run from any working directory.
+
+The reference chapters listed in `FROZEN` are not kept current. A frozen page keeps the checks of
+its own text (markup, lists, reference definitions, links that leave the repository), of its links
+to other frozen pages, and of its place in the book and the link graph. Its links to Lean source
+and to maintained pages are not checked, because edits elsewhere would break them, and
+`--fix-anchors` does not rewrite it. Links from maintained pages into frozen ones are checked.
 """
 from __future__ import annotations
 
@@ -26,6 +32,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'manual/data'))
+from build_latex import FROZEN, frozen
 from visuals import check_markup
 
 EXCLUDED = {"_build", "_generated", "__pycache__"}
@@ -387,7 +394,12 @@ def check(repo: Path, manual: Path | None = None) -> dict:
     sources: dict[Path, dict[str, list[tuple[int, int]]]] = {}
     unnamed: set[tuple[Path, str]] = set()
     visual_counts = {'diagrams': 0, 'worked_examples': 0}
+
+    def is_frozen(path: Path) -> bool:
+        return within(path, manual) and frozen(path.relative_to(manual).as_posix())
+
     for doc in documents:
+        doc_frozen = is_frozen(doc)
         try:
             for key, value in check_markup(doc.read_text()).items():
                 visual_counts[key] += value
@@ -415,12 +427,17 @@ def check(repo: Path, manual: Path | None = None) -> dict:
             if not within(target, repo):
                 errors.append(f"{doc.relative_to(manual)}: local link escapes repository: {url}")
                 continue
+            # Only another frozen page is a target that a frozen page can rely on.
+            unchecked = doc_frozen and not is_frozen(target)
             if not target.exists():
-                errors.append(f"{doc.relative_to(manual)}: missing local link: {url}")
+                if not unchecked:
+                    errors.append(f"{doc.relative_to(manual)}: missing local link: {url}")
                 continue
             if target in document_set:
                 edges[doc].add(target)
             fragment = unquote(parsed.fragment)
+            if unchecked:
+                continue
             if fragment and target.suffix == ".md" and fragment not in anchors(target.read_text()):
                 errors.append(f"{doc.relative_to(manual)}: missing Markdown anchor: {url}")
             elif fragment and target.suffix == ".lean" and re.fullmatch(r"L\d+(?:-L\d+)?", fragment):
@@ -434,7 +451,7 @@ def check(repo: Path, manual: Path | None = None) -> dict:
                     unnamed.add((target, fragment))
         # Name check, for anchors that start some declaration. A `STALE_SOURCE_ANCHORS` entry
         # also tolerates an anchor that fails only this check.
-        for display, url in link_texts(doc.read_text()):
+        for display, url in () if doc_frozen else link_texts(doc.read_text()):
             parsed = urlsplit(html.unescape(url))
             fragment = unquote(parsed.fragment)
             if parsed.scheme or parsed.netloc or not parsed.path.endswith(".lean") or \
@@ -534,6 +551,7 @@ def check(repo: Path, manual: Path | None = None) -> dict:
     if not rows:
         errors.append("No contextual Lean excerpts registered")
     return {"status": "fail" if errors else "pass", "manual_documents": len(documents),
+            "frozen_documents": sum(map(is_frozen, documents)),
             "local_links_checked": link_count, "excerpts_checked": len(excerpt_results),
             "book_inputs_checked": book_checked, **visual_counts,
             "allowed_stale_source_anchors": sorted(f"{path}#L{line}" for path, line in allowed_stale),
@@ -548,13 +566,14 @@ def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
     header start line when uniquely identified.
 
     Leaves valid anchors, whole-file (`#L1`) and range (`#La-Lb`) links, allowlisted
-    `STALE_SOURCE_ANCHORS`, links whose text names no declaration, and ambiguous multiple-match
-    declarations unchanged.
+    `STALE_SOURCE_ANCHORS`, links whose text names no declaration, ambiguous multiple-match
+    declarations and every `FROZEN` page unchanged.
     """
     repo = repo.resolve()
     manual = (manual or repo / "manual").resolve()
     documents = sorted(p for p in manual.rglob("*.md")
-                       if not EXCLUDED.intersection(p.relative_to(manual).parts))
+                       if not EXCLUDED.intersection(p.relative_to(manual).parts)
+                       and not frozen(p.relative_to(manual).as_posix()))
     file_lines: dict[Path, list[str]] = {}
     sources: dict[Path, dict[str, list[tuple[int, int]]]] = {}
     fixed: list[dict[str, str]] = []

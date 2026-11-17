@@ -256,6 +256,15 @@ theorem rsaEval_rsaInvert (desc : RSADesc) {y : ℕ} (hy : y < desc.modulus) :
   rw [Nat.ModEq, Nat.mod_eq_of_lt hy] at hmod
   exact hmod
 
+/-- RSA evaluation undoes trapdoor inversion modulo `N`, for every natural number `y`. -/
+theorem rsaEval_rsaInvert_mod (desc : RSADesc) (y : ℕ) :
+    rsaEval desc.modulus desc.e (rsaInvert desc.modulus desc.d y) = y % desc.modulus := by
+  have h : rsaInvert desc.modulus desc.d y = rsaInvert desc.modulus desc.d (y % desc.modulus) := by
+    unfold rsaInvert
+    exact Nat.pow_mod y desc.d desc.modulus
+  rw [h]
+  exact rsaEval_rsaInvert desc (Nat.mod_lt _ desc.modulus_pos)
+
 /-- RSA evaluation is a bijection on `Fin N`. -/
 theorem rsaEval_bijective_fin (desc : RSADesc) : Function.Bijective desc.publicKey.eval := by
   refine Function.bijective_iff_has_inverse.mpr ⟨fun y =>

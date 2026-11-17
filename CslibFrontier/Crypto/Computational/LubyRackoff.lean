@@ -1106,13 +1106,7 @@ travels on channel `false` and an inverse query on channel `true`, each as the b
 def strongPermCodec (n : ℕ) :
     OracleCodec Bool (RandomPermutation.PermQuery (BitString n × BitString n))
       fun _ => BitString n × BitString n :=
-  (strongPairCodec n).comap
-    { toFun := fun
-        | .forward x => (false, x)
-        | .inverse y => (true, y)
-      invFun := RandomPermutation.PermQuery.ofBoolProd
-      left_inv := by rintro (x | y) <;> rfl
-      right_inv := by rintro ⟨_ | _, x⟩ <;> rfl }
+  (strongPairCodec n).comap (RandomPermutation.PermQuery.equivBoolProd _)
     fun _ => Function.Embedding.refl _
 
 /-- A bidirectional permutation of pairs of halves presents `strongBlockOracle` on the word

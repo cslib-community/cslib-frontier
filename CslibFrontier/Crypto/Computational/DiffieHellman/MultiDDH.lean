@@ -139,24 +139,6 @@ theorem ddhFixedUWordRerandomize_encode (d : F.Desc) (u v w : F.Carrier d) (σ �
         F.encode d (F.ddhFixedURerandomize d u v w σ τ).2)) := by
   simp [ddhFixedUWordRerandomize, ddhFixedURerandomize, F.smul_encode, F.add_encode]
 
-@[local fun_prop]
-private theorem computableInPolyTime_add_comp {α : Type} {encIn : α ↪ List Bool}
-    {d : α → F.Desc} {x y : α → List Bool}
-    (hd : ComputableInPolyTime d encIn F.encDesc)
-    (hx : ComputableInPolyTime x encIn encBits)
-    (hy : ComputableInPolyTime y encIn encBits) :
-    ComputableInPolyTime (fun a => F.add (d a, x a, y a)) encIn encBits :=
-  F.computableInPolyTime_add.comp (hd.prod (hx.prod hy))
-
-@[local fun_prop]
-private theorem computableInPolyTime_smul_comp {α : Type} {encIn : α ↪ List Bool}
-    {d : α → F.Desc} {k : α → ℕ} {x : α → List Bool}
-    (hd : ComputableInPolyTime d encIn F.encDesc)
-    (hk : ComputableInPolyTime k encIn encNat)
-    (hx : ComputableInPolyTime x encIn encBits) :
-    ComputableInPolyTime (fun a => F.smul (d a, k a, x a)) encIn encBits :=
-  F.computableInPolyTime_smul.comp (hd.prod (hk.prod hx))
-
 /-- `ddhFixedUWordRerandomize` is computable in polynomial time. -/
 theorem computableInPolyTime_ddhFixedUWordRerandomize :
     ComputableInPolyTime
