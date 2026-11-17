@@ -60,6 +60,11 @@ do not license surface that nothing consumes: land it with its first consumer, o
 until then. Efficiency certificates follow the same rule: a certificate for an experiment that no
 theorem consumes is not needed.
 
+Public is a decision, not the default. A declaration is public when another module uses it, when
+the module documentation names it as a result, or when it is a cited result; a helper that only
+its own file uses is `private`. A reader should be able to take a file's public names as the
+things it offers.
+
 ## Replace, do not accumulate
 
 When a change introduces a better notion, it migrates the old one's clients and deletes it,
@@ -89,6 +94,25 @@ rule 4).
 - A sentence about the source's theorem is not placed where it reads as a claim about the Lean
   one.
 - A locator names the line, page or section you looked at in the pinned source.
+
+## A stated limitation is tracked
+
+A docstring that says what is not proved, what is assumed, or what is left to the caller is
+welcome, and it is not a resolution. It makes the gap a known one; it does not make the theorem
+say what its name says.
+
+- Every such sentence cites an issue number, or the declaration has an entry in the baseline of
+  the check that covers it ([reduction witnesses and security premises](../CONTRIBUTING.md)).
+  A limitation with neither is found again only by someone rereading the prose.
+- The name and the first sentence carry the limitation: an ideal-sampling result has `ideal` in
+  its name, a bound for a stand-in scheme names the stand-in, and a helper whose hypothesis
+  assumes the substance of the cited result does not open with that result in bold.
+- A theorem whose hypothesis supplies the reduction, its efficiency, or the bound being proved is
+  discharged by a theorem in the library, or it is deleted. If nothing can discharge it yet, it
+  waits on a branch.
+- A superseded version is removed when its replacement lands
+  ([Replace, do not accumulate](#replace-do-not-accumulate)); a comment saying which theorem is
+  the faithful one is not a substitute.
 
 ## Small facts are shared
 
