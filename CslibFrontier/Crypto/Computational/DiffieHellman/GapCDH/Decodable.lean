@@ -42,8 +42,7 @@ through `routeToTypedQuery` and `tableRep` equates:
 
 Averaging `PrimeOrderGroupFamily.advantage_dhKEMCCAGame_le` over the coin tape and `setup n` yields
 the exact concrete family bound `advantage_dhKEMCCAWordGame_le` (with multiplicative factor `1` and
-zero additive loss), from which `GapCDH.dhKEMROMINDCCA` and `GapCDH.dhKEMROMINDCCA_id` follow
-directly.
+zero additive loss), from which `GapCDH.dhKEMROMINDCCA` follows directly.
 
 ## Main definitions
 
@@ -60,10 +59,9 @@ directly.
   Gap-CDH challenge.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_dhKEMCCAWordGame_le`: concrete family
   bound `Adv_CCA(A) ≤ Succ_GapCDH(dhKEMToGapCDHWord A)` at every `n`.
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA_id`: **[KatzLindell2020],
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`: **[KatzLindell2020],
   Theorem 12.22** — under `F.GapCDH setup`, Construction 12.19 is ROM IND-CCA secure for any
-  polynomial-time `keyLen` (and in particular for `keyLen = id`).
+  polynomial-time `keyLen` (`keyLen = id` gives the `n`-bit keys of Definition 12.13).
 
 ## References
 
@@ -683,7 +681,8 @@ theorem advantage_dhKEMCCAWordGame_le (setup : ℕ → PMF F.Desc) (keyLen : ℕ
 
 /-- **[KatzLindell2020], Theorem 12.22 (p. 435).** If Gap-CDH is hard relative to `(F, setup)` and
 `keyLen` is computable in polynomial time in unary, then the word-level random-oracle Diffie–Hellman
-KEM (Construction 12.19) is IND-CCA secure in the random-oracle model. -/
+KEM (Construction 12.19) is IND-CCA secure in the random-oracle model; taking `keyLen = id` gives
+the `n`-bit keys of Definition 12.13 (p. 425). -/
 theorem GapCDH.dhKEMROMINDCCA {F : DecodablePrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {keyLen : ℕ → ℕ}
     (hGap : F.GapCDH setup)
@@ -694,13 +693,5 @@ theorem GapCDH.dhKEMROMINDCCA {F : DecodablePrimeOrderGroupFamily}
     (hGap (F.dhKEMToGapCDHWord keyLen adversary)
       (F.isOraclePPTOn_dhKEMToGapCDHWord hA hkeyLen))
     (F.advantage_dhKEMCCAWordGame_le setup keyLen hA)
-
-/-- **[KatzLindell2020], Theorem 12.22 (p. 435), `n`-bit key specialization (`keyLen = id`).** If
-Gap-CDH is hard relative to `(F, setup)`, then Construction 12.19 with `n`-bit keys (matching
-Definition 12.13, p. 425) is IND-CCA secure in the random-oracle model. -/
-theorem GapCDH.dhKEMROMINDCCA_id {F : DecodablePrimeOrderGroupFamily}
-    {setup : ℕ → PMF F.Desc} (hGap : F.GapCDH setup) :
-    F.DHKEMROMINDCCAId setup :=
-  hGap.dhKEMROMINDCCA ComputableInPolyTime.id'
 
 end Cslib.Crypto.DecodablePrimeOrderGroupFamily

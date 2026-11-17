@@ -221,9 +221,10 @@ def extractDH (challenge : F.Carrier d) :
     if ← ProbOracleComp.query (challenge, z) then return z else extractDH challenge rest
   | (.inr _, _) :: rest => extractDH challenge rest
 
-/-- The gap-CDH adversary of [KatzLindell2020], Theorem 12.22: on `(c⋆, h)` it runs the KEM
-adversary on public key `h`, challenge ciphertext `c⋆` and a fresh key, answers its queries with
-`simHandler`, and outputs the hash point `x • c⋆` if the adversary asked for it. -/
+/-- The gap-CDH adversary of the concrete per-group step of [KatzLindell2020], Theorem 12.22: on
+`(c⋆, h)` it runs the KEM adversary on public key `h`, challenge ciphertext `c⋆` and a fresh key,
+answers its queries with `simHandler`, and outputs the hash point `x • c⋆` if the adversary asked
+for it. -/
 @[expose] def dhKEMToGapCDH (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
     F.GapCDHAdversary d := fun input =>
   if input.2 = 0 then pure 0
@@ -855,7 +856,7 @@ private theorem bad_le_extract (x : ZMod (F.order d)) (hx : x ≠ 0) (sampleKey 
 
 end Reduction
 
-/-! ### Theorem 12.22 -/
+/-! ### Concrete per-group step of Theorem 12.22 -/
 
 section Security
 

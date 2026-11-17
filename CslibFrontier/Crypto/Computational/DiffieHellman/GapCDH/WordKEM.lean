@@ -57,9 +57,8 @@ satisfying `queryDDHWord cStar z`. Its oracle-PPT certificate uses only `IsOracl
   membership-validating decapsulation of Construction 12.19.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordAnswer`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordGame`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCAId`: word-level ROM IND-CCA oracle,
-  experiment, and asymptotic security definitions (general `keyLen` and `keyLen = id`).
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`: word-level ROM IND-CCA oracle,
+  experiment, and asymptotic security definition.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.simWordHandler`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.extractDHWord`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMToGapCDHWord`: word-level query simulator,
@@ -281,11 +280,6 @@ def DHKEMROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
     (fun A n => F.dhKEMCCAWordGame setup keyLen A true n)
     (fun A n => F.dhKEMCCAWordGame setup keyLen A false n)
     (IsOraclePPT encBool)
-
-/-- Specialization of `DHKEMROMINDCCA` to `n`-bit symmetric keys (`keyLen = id`), matching
-[KatzLindell2020], Definition 12.13 (p. 425, `k ∈ {0, 1}^n`). -/
-abbrev DHKEMROMINDCCAId (setup : ℕ → PMF F.Desc) : Prop :=
-  F.DHKEMROMINDCCA setup id
 
 /-- Stateful query simulator of `dhKEMToGapCDHWord` at parameter `n`, group `d`, and challenge
 ciphertext word `cStar`: answers valid `.hash z` and non-challenge valid `.decaps c` queries

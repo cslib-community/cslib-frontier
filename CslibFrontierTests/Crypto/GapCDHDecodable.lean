@@ -122,17 +122,22 @@ theorem isOraclePPT_toyKEMAdversary : IsOraclePPT encBool toyKEMAdversary := by
 
 example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hGap : F.GapCDH setup) :
+    F.DHKEMROMINDCCA setup id :=
+  hGap.dhKEMROMINDCCA ComputableInPolyTime.id'
+
+example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+    (hGap : F.GapCDH setup) :
     IsOraclePPTOn (encGapCDHInput F.toPrimeOrderGroupFamily) encBits
       (F.dhKEMToGapCDHWord id toyKEMAdversary) ∧
     (∀ n, Game.advantage (F.dhKEMCCAWordGame setup id toyKEMAdversary true n)
         (F.dhKEMCCAWordGame setup id toyKEMAdversary false n) ≤
       Game.succProbability
         (F.gapCDHWordGame setup (F.dhKEMToGapCDHWord id toyKEMAdversary) n)) ∧
-    F.DHKEMROMINDCCAId setup ∧
+    F.DHKEMROMINDCCA setup id ∧
     Negligible (fun n => Game.advantage
       (F.dhKEMCCAWordGame setup id toyKEMAdversary true n)
       (F.dhKEMCCAWordGame setup id toyKEMAdversary false n)) := by
-  have hcca : F.DHKEMROMINDCCAId setup := hGap.dhKEMROMINDCCA_id
+  have hcca : F.DHKEMROMINDCCA setup id := hGap.dhKEMROMINDCCA ComputableInPolyTime.id'
   exact ⟨F.isOraclePPTOn_dhKEMToGapCDHWord_id isOraclePPT_toyKEMAdversary,
     F.advantage_dhKEMCCAWordGame_le setup id isOraclePPT_toyKEMAdversary,
     hcca,
