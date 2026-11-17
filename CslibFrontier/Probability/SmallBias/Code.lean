@@ -22,8 +22,8 @@ on the seed `s`) has a binary linear code `Cslib.BitString.sampleCode G`, which 
 
 The distance between the codewords of `u ≠ v` is the number of seeds at which the parity on the
 nonempty set `{i | u i ≠ v i}` is odd, and the bias of `G` on that set is one minus twice its
-fraction. So `G`, with a uniform seed, is `ε`-biased exactly when every two distinct codewords
-are at distance between `(1 - ε) |σ| / 2` and `(1 + ε) |σ| / 2`
+fraction. So `G`, with a uniform seed, is `ε`-biased exactly when the codewords of every two
+distinct messages are at distance between `(1 - ε) |σ| / 2` and `(1 + ε) |σ| / 2`
 (`Cslib.BitString.isSmallBias_map_iff_hammingDist_sampleCode`). With the seeds `σ = {0,1}^k` and
 messages of `ℓ` bits, this is the correspondence of [Goldreich, Exercise 8.41][Goldreich2007DraftR4]
 between `ε`-bias generators of stretch `ℓ` and binary linear codes from `ℓ`-bit strings to
@@ -138,8 +138,9 @@ private theorem abs_one_sub_two_mul_div_le_iff {N c ε : ℝ} (hc : 0 < c) :
 
 /-- **Small-bias generators are balanced linear codes** [Goldreich, Exercise
 8.41][Goldreich2007DraftR4]: a sample space `G`, with a uniform seed, is `ε`-biased exactly when
-any two distinct codewords of its linear code `sampleCode G` are at Hamming distance between
-`(1 - ε) |σ| / 2` and `(1 + ε) |σ| / 2`. For `σ = {0,1}^k` these bounds are `(1 ± ε) 2^(k-1)`. -/
+the codewords of any two distinct messages under its linear code `sampleCode G` are at Hamming
+distance between `(1 - ε) |σ| / 2` and `(1 + ε) |σ| / 2`. For `σ = {0,1}^k` these bounds are
+`(1 ± ε) 2^(k-1)`. -/
 theorem isSmallBias_map_iff_hammingDist_sampleCode [Nonempty σ] [DecidableEq ι]
     (G : σ → ι → Bool) {ε : ℝ} :
     IsSmallBias ε ((PMF.uniformOfFintype σ).map G) ↔ ∀ u v : ι → Bool, u ≠ v →

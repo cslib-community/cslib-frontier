@@ -9,12 +9,11 @@ module
 
 import CslibFrontier.Probability.SmallBias.Code
 
-/-! [Goldreich2007DraftR4], Exercise 8.41, in the printed form: a generator
-`G : {0,1}^k → {0,1}^ℓ` is an `ε`-bias generator exactly when its linear code from `ℓ`-bit
-messages to words indexed by the `2^k` seeds has every two distinct codewords at distance
-between `(1 - ε) 2^(k-1)` and `(1 + ε) 2^(k-1)`; the `j`-th bit of the codeword of the `i`-th unit
-vector is the `i`-th bit of `G j`; and every binary linear code of these lengths arises from a
-generator. -/
+/-! [Goldreich2007DraftR4], Exercise 8.41, in the printed form: a generator `G : {0,1}^k → {0,1}^ℓ`
+is an `ε`-bias generator exactly when its linear code from `ℓ`-bit messages to words indexed by the
+`2^k` seeds maps every two distinct messages to codewords at distance between `(1 - ε) 2^(k-1)` and
+`(1 + ε) 2^(k-1)`; the `j`-th bit of the codeword of the `i`-th unit vector is the `i`-th bit of
+`G j`; and every binary linear code of these lengths arises from a generator. -/
 
 set_option linter.privateModule false
 
