@@ -9,11 +9,10 @@ module
 
 import CslibFrontier.Computability.Complexity.ProofSystem.Exhaustive
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
-import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 
-/-! Exhaustive proof systems: one for `UNSAT` from its `coNP` membership, one for all bit words
-from the always-rejecting verifier of the empty complement, and Goldreich's Theorem B.13 with the
-one-system dichotomy for `UNSAT`. -/
+/-! Exhaustive proof systems: an unconditional one for `UNSAT`, and a small one for the pairs of
+Booleans whose first component is `true`, where a padded framed member proves itself and a framed
+non-member proves the default member. -/
 
 set_option linter.privateModule false
 
@@ -25,21 +24,39 @@ open Cslib.Complexity Turing.MultiTapeTM
 example : Nonempty (ProofSystem encCNF UNSAT) :=
   ProofSystem.nonempty_of_mem_coNP cnfDecoder UNSAT_mem_coNP ⟨[[]], fun ⟨_, h⟩ => by simp at h⟩
 
-/-- The always-rejecting verifier has the empty set as its language, so its exhaustive system
-proves every bit word. -/
-example : Nonempty (ProofSystem encBits Set.univ) :=
-  ⟨ProofSystem.exhaustive (p := 0) (V := fun _ => false) (L := Set.univ) Decoder.bits
-    (ComputableInPolyTime.const false) (fun a => by simp) (Set.mem_univ [])⟩
+/-- The pairs of Booleans whose first component is `true`. -/
+abbrev FirstTrue : Set (Bool × Bool) := {q | q.1 = true}
 
-/-- Goldreich's Theorem B.13: one fixed refutation system decides `NP = coNP`. -/
-example : ∃ M : ProofSystem encCNF UNSAT,
-    (M.PolynomiallyBounded ↔ ∀ {γ : Type} (encC : γ ↪ List Bool), NP encC = coNP encC) :=
-  ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP
+/-- The complement of `FirstTrue` has the verifier that reads the first component and needs no
+certificate. -/
+theorem isVerifier_compl_firstTrue :
+    IsVerifier (encPair encBool encBool) 0 (fun x : (Bool × Bool) × List Bool => !x.1.1)
+      FirstTrueᶜ := by
+  intro q
+  simp [FirstTrue]
 
-/-- The `coNP ⊆ NP` form for the `coNP`-complete set `UNSAT`. -/
-example : ∃ M : ProofSystem encCNF UNSAT,
-    (M.PolynomiallyBounded ↔ ∀ {γ : Type} (encC : γ ↪ List Bool), coNP encC ⊆ NP encC) :=
-  ProofSystem.exists_polynomiallyBounded_iff_coNP_subset_NP CookLevin.UNSAT_coNPComplete cnfDecoder
-    ⟨[[]], fun ⟨_, h⟩ => by simp at h⟩
+theorem polyTime_firstTrue_verifier :
+    ComputableInPolyTime (fun x : (Bool × Bool) × List Bool => !x.1.1)
+      (encPair (encPair encBool encBool) encBits) encBool := by
+  fun_prop
+
+/-- The exhaustive proof system of `FirstTrue`, with default member `(true, true)`. -/
+noncomputable abbrev firstTrueSystem : ProofSystem (encPair encBool encBool) FirstTrue :=
+  ProofSystem.exhaustive (.pair .bool .bool) polyTime_firstTrue_verifier isVerifier_compl_firstTrue
+    (a₀ := (true, true)) rfl
+
+/-- Acceptance: the framed member `(true, false)` with `2 ^ 0` padding bits proves itself. -/
+example : firstTrueSystem (frame (encPair encBool encBool (true, false)) ++ [false]) =
+    (true, false) := by
+  simpa using ProofSystem.exhaustive_frame_append_replicate (.pair .bool .bool)
+    polyTime_firstTrue_verifier isVerifier_compl_firstTrue (a₀ := (true, true)) rfl
+    (a := (true, false)) rfl
+
+/-- Fallback: the framed non-member `(false, false)` proves the default member `(true, true)`. -/
+example : firstTrueSystem (frame (encPair encBool encBool (false, false)) ++ [false]) =
+    (true, true) :=
+  ProofSystem.exhaustive_eq_of_notMem _ _ _ _ (by
+    rw [ProofSystem.verifierInstance, unframe_frame_append, Decoder.decode_enc]
+    decide)
 
 end CslibFrontierTests.ProofSystemExhaustive
