@@ -6832,6 +6832,8 @@ public import CslibFrontier.Foundations.Quantum.POVM
 public import CslibFrontier.Foundations.Quantum.POVM.Density
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.Pauli
+public import CslibFrontier.Foundations.Quantum.PauliCompression
+public import CslibFrontier.Foundations.Quantum.PauliGroup
 public import CslibFrontier.Foundations.Quantum.PauliStoneVonNeumann
 public import CslibFrontier.Foundations.Quantum.PauliTwirl
 public import CslibFrontier.Foundations.Quantum.Register
