@@ -20,7 +20,7 @@ then clause `2` is false. The empty clause follows: clause `5` forces `a`, then 
 `b`, and clause `4` is false. The kernel checks the certificate with `decide`, and Lean core's
 checker accepts it too. The hints `3, 4` alone do not refute the formula, since clause `3` has two
 unassigned literals, and the checker rejects them; so does a certificate that ends before the
-empty clause.
+empty clause. A literal repeated in a clause counts once.
 -/
 
 namespace CslibFrontierTests.Logics.Propositional.CNF.LRAT
@@ -53,6 +53,10 @@ example : φ.checkLRAT #[.addRup 5 #[1] #[1, 2]] = false := by decide
 
 -- RAT steps are rejected.
 example : φ.checkLRAT #[.addRat 5 #[1] (0, true) #[] #[], .addEmpty 6 #[5, 3, 4]] = false := by
+  decide
+
+-- A repeated literal counts once: `a ∨ a` forces `a`, which falsifies `¬a`.
+example : CNF.checkLRAT [[(0, true), (0, true)], [(0, false)]] #[.addEmpty 3 #[1, 2]] = true := by
   decide
 
 end CslibFrontierTests.Logics.Propositional.CNF.LRAT

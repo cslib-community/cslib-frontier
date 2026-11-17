@@ -69,7 +69,8 @@ def Clause.ofDIMACS (c : List Int) : Clause ℕ :=
 
 /-- Unit propagation along hints, from the literals `trail` assumed true, in a database of
 numbered clauses. Each hinted clause must have every literal but one false under `trail`, and that
-literal is added to `trail`; the run succeeds when a hinted clause has every literal false. -/
+literal is added to `trail`; the run succeeds when a hinted clause has every literal false. A
+literal repeated in a clause counts once. -/
 def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool
   | _, [] => false
   | trail, h :: hs =>
@@ -78,8 +79,7 @@ def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → 
     | some e =>
       match e.2.filter (fun l => !trail.contains (l.1, !l.2)) with
       | [] => true
-      | [l] => propagateHints db (l :: trail) hs
-      | _ => false
+      | l :: ls => if ls.all (· == l) then propagateHints db (l :: trail) hs else false
 
 /-- The checker on a database of numbered clauses. -/
 def CNF.checkLRATAux : List (ℕ × Clause ℕ) → List LRAT.IntAction → Bool
@@ -124,15 +124,22 @@ theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ �
       · rename_i hnil
         rw [hnil] at hkeep
         simp at hkeep
-      · rename_i l hone
-        rw [hone, List.mem_singleton] at hkeep
-        subst hkeep
-        refine ih (trail := l' :: trail) ?_ h
-        intro l hl
-        rcases List.mem_cons.1 hl with rfl | hl
-        · simp [Literal.eval, hl'σ]
-        · exact htrail l hl
-      · simp at h
+      · rename_i l ls hone
+        split at h
+        · rename_i hall
+          -- the literal that holds is the repeated one
+          have hl'l : l' = l := by
+            rw [hone, List.mem_cons] at hkeep
+            rcases hkeep with rfl | hmem
+            · rfl
+            · simpa using List.all_eq_true.1 hall l' hmem
+          subst hl'l
+          refine ih (trail := l' :: trail) ?_ h
+          intro l hl
+          rcases List.mem_cons.1 hl with rfl | hl
+          · simp [Literal.eval, hl'σ]
+          · exact htrail l hl
+        · simp at h
 
 /-- If the checker accepts on a database, no assignment satisfies the database. -/
 theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause ℕ)}
