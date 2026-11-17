@@ -22,6 +22,8 @@ The sign lemmas the library registers are used by `positivity`, and through it b
 statement, a lemma with a hypothesis, and a lemma about a variable.
 -/
 
+public section
+
 namespace CslibFrontierTests.PositivityLemma
 
 open Cslib Matrix Matrix.HierarchyParams.H4RankEnvironment
