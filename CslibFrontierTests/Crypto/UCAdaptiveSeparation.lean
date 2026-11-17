@@ -96,7 +96,8 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
         g (x.1, x.2.corrupted) := by
   induction netProg using OracleComp.induction generalizing C tr₁ tr₂ with
   | pure a =>
-    erw [liftAdaptiveNet_pure, Machine.runFrom_pure, closeEval_pure]
+    dsimp only [liftAdaptiveNet]
+    erw [Machine.liftRightProgram_pure, Machine.runFrom_pure, closeEval_pure]
     erw [Machine.runFrom_pure, closeEval_pure]
     let rs₁ : AdaptiveRouterState CoinState (Option Bool) 2 :=
       { inner := { party0 := none, delivered1 := some b }, corrupted := C, trace := tr₁ }
@@ -126,14 +127,15 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
               (liftAdaptiveNet (cont a))
               { inner := { party0 := none, delivered1 := some b' }
                 corrupted := C, trace := tr }) := by
-        have hk : liftAdaptiveNet (n := 2) (In := CoinIn) (Out := Bool)
+        have hk : Machine.liftRightProgram (adaptivePartySpec 2 CoinIn Bool)
             (OracleComp.query (spec := probOracleSpec
               (netSpec (AdaptiveNetQ 2 CoinIn Unit) (AdaptiveNetR Bool Unit (Option Bool))))
               (Sum.inl k)) =
             ProbOracleComp.sample (ProbComp.unifFin k) := by
-          simp only [liftAdaptiveNet, OracleComp.interpret_query, sumHandler,
+          simp only [Machine.liftRightProgram, OracleComp.interpret_query, sumHandler,
             ProbOracleComp.sample, ProbComp.unifFin, OracleComp.substitute_query]
-        rw [liftAdaptiveNet_bind, hk]
+        dsimp only [liftAdaptiveNet]
+        rw [Machine.liftRightProgram_bind, hk]
         erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, closeEval_bind,
           closeEval_sample]
       rw [hstep b tr₁, hstep false tr₂]
@@ -149,7 +151,8 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
                             corrupted := C, trace := tr })).bind fun y =>
             closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
               (liftAdaptiveNet (cont y.1)) y.2) := by
-        erw [liftAdaptiveNet_bind, liftAdaptiveNet_query, Machine.runFrom_bind,
+        dsimp only [liftAdaptiveNet]
+        erw [Machine.liftRightProgram_bind, Machine.liftRightProgram_query, Machine.runFrom_bind,
           Machine.runFrom_query, closeEval_bind]
       rw [hbind b tr₁, hbind false tr₂]
       cases q with
@@ -244,25 +247,25 @@ private theorem eval_F_coin_Z_star_le_half
     intro sS
     dsimp only [Z_star]
     erw [Machine.runFrom_bind, Machine.runFrom_query]
-    dsimp only [liftAdaptiveAdversary]
+    dsimp only [liftAdaptiveAdversary, Machine.liftRight]
     rw [StateT.run_lift, bind_assoc]
     simp only [pure_bind]
     refine bind_congr fun _ => ?_
     erw [Machine.runFrom_bind, Machine.runFrom_query]
-    dsimp only [liftAdaptiveAdversary]
+    dsimp only [liftAdaptiveAdversary, Machine.liftRight]
     rw [StateT.run_lift, bind_assoc]
     simp only [pure_bind]
     refine bind_congr fun _ => ?_
     erw [Machine.runFrom_bind, Machine.runFrom_query]
-    dsimp only [liftAdaptiveAdversary]
+    dsimp only [liftAdaptiveAdversary, Machine.liftRight]
     rw [StateT.run_lift, bind_assoc]
     simp only [pure_bind]
     refine bind_congr fun optB => ?_
     erw [Machine.runFrom_bind, Machine.runFrom_query]
-    dsimp only [liftAdaptiveAdversary]
+    dsimp only [liftAdaptiveAdversary, Machine.liftRight]
     refine bind_congr fun x3 => ?_
     erw [Machine.runFrom_bind, Machine.runFrom_query]
-    dsimp only [liftAdaptiveAdversary]
+    dsimp only [liftAdaptiveAdversary, Machine.liftRight]
     erw [StateT.run_lift, bind_assoc]
   have hrun_exec : ∀ (sS : (S.machine 0).State)
       (rs : (adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 (S.initial 0)).State),
@@ -329,8 +332,9 @@ private theorem eval_F_coin_Z_star_le_half
     have hfold2 : List.foldl (fun acc (_ : Fin 2) => acc)
         ({ party0 := none, delivered1 := none } : CoinState) (List.finRange 2) =
         { party0 := none, delivered1 := none } := rfl
-    dsimp only [adaptiveExecMachine, Machine.comp_init, liftAdaptiveAdversary, adaptiveRouter,
-      F_coin, IdealFunctionality.toAdaptive, AdaptiveProtocol.applyInitialCorruptions, coinReveal]
+    dsimp only [adaptiveExecMachine, Machine.comp_init, liftAdaptiveAdversary, Machine.liftRight,
+      adaptiveRouter, F_coin, IdealFunctionality.toAdaptive,
+      AdaptiveProtocol.applyInitialCorruptions, coinReveal]
     simp only [ite_self, hfold2, pure_bind]
     erw [ProbOracleComp.sample_bind]
     refine bind_congr fun sS => ?_
