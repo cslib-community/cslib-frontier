@@ -1304,8 +1304,8 @@ negligible advantage in the one-time-pad Hashed ElGamal game `hashedElGamalCPAGa
 exponents are drawn exactly uniformly at the `PMF` level (after [BonehShoup2023], Section 11.5.2,
 Theorem 11.5, pp. 449–451). The strict-PPT scheme's theorems are
 `DDH.kemINDCPA_hashedElGamalEncapsProb` and `DDH.wordINDCPA_hybrid_hashedElGamal`;
-`DDH.negligible_hashedElGamalCPAGame_linearHashKDF` discharges `SecureKDF` for a seeded linear
-hash. -/
+`DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF` discharges `SecureKDF` for a seeded
+linear hash. -/
 theorem DDH.negligible_hashedElGamalCPAGame_ideal {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc}
     {H : F.Desc × List Bool → List Bool} {msgLen : ℕ → ℕ}
