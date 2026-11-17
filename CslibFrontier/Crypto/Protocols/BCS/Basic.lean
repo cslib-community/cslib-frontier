@@ -27,13 +27,13 @@ import Mathlib.Data.List.OfFn
 # The BCS transform: public-coin interactive oracle proofs to non-interactive arguments
 
 The Ben-Sasson–Chiesa–Spooner (BCS) transformation ([BenSassonChiesaSpooner2016]; compare
-[ChiesaYogev2024], Construction 25.1.1 and Remark 25.1.3, printed pp. 274–275) compiles a
+[ChiesaYogev2024], Construction 25.1.1 and Remark 25.1.3, printed pp. 274–276) compiles a
 multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-interactive argument
 (`BCSProof`, `bcsProve`, `bcsVerify`), with the standard-model knowledge-soundness reductions here
 assuming zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector (which no IOP
 with positive probabilistic or state-restoration soundness error satisfies; probabilistic
-state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-Theorem 3, is open in #6042), by combining two primitives:
+state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042), by combining two primitives:
 
 1. **Merkle-tree oracle commitments** (`merkleRoot`, `merklePath`, `merkleVerify` from
    `CslibFrontier.Crypto.Computational.MerkleTree` and
@@ -64,7 +64,7 @@ Theorem 3, is open in #6042), by combining two primitives:
   straight-line knowledge soundness at one challenge vector and, with zero error, on every
   challenge vector (which no IOP with positive probabilistic or state-restoration soundness error
   satisfies; probabilistic state-restoration BCS knowledge soundness as in
-  [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in #6042) for a `PublicCoinIOP`.
+  [ChiesaYogev2024], Theorem 26.1.1, is open in #6042) for a `PublicCoinIOP`.
   These are deterministic predicates; none of them bounds a probability.
 * `Cslib.Crypto.Protocols.BCS.BCSProof`,
   `Cslib.Crypto.Protocols.BCS.rootPrefix`, `Cslib.Crypto.Protocols.BCS.bcsChallenge`: BCS proof
@@ -132,8 +132,8 @@ Theorem 3, is open in #6042), by combining two primitives:
   certificates for `bcsExtractTableCollision` and standard-model reductions to
   `CollisionResistant H` (with the committed-table knowledge-soundness theorems assuming
   zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector; probabilistic
-  state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-  Theorem 3, is open in #6042).
+  state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+  Theorem 26.1.1, is open in #6042).
 
 ## References
 
@@ -332,8 +332,8 @@ def IOPKnowledgeSoundnessAt (iop : PublicCoinIOP r d Stmt Wit Sym Chal) (rel : S
 
 /-- Zero-error straight-line knowledge soundness of a `PublicCoinIOP` on every challenge vector,
 which no IOP with positive probabilistic or state-restoration soundness error satisfies
-(probabilistic state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016],
-Theorem 1 and Theorem 3, is open in #6042): whenever `iopVerify` accepts `oracles` on `(x, chals)`,
+(probabilistic state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042): whenever `iopVerify` accepts `oracles` on `(x, chals)`,
 `iopExtract x oracles` satisfies `rel x`. -/
 def IOPKnowledgeSoundness (iop : PublicCoinIOP r d Stmt Wit Sym Chal) (rel : Stmt → Wit → Prop)
     (iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit) : Prop :=
@@ -1071,7 +1071,7 @@ theorem succProbability_bcsTableBindingGame_le (iop : PublicCoinIOP r d Stmt Wit
 /-- Committed-table BCS knowledge-to-collision reduction assuming zero-error straight-line
 `IOPKnowledgeSoundness` on every challenge vector (which no IOP with positive probabilistic or
 state-restoration soundness error satisfies; probabilistic state-restoration BCS knowledge
-soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in #6042): a
+soundness as in [ChiesaYogev2024], Theorem 26.1.1, is open in #6042): a
 committed-table adversary breaks knowledge soundness at most as often as `bcsTableCollisionFinder`
 finds a hash collision. -/
 theorem succProbability_bcsTableKnowledgeGame_le {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
@@ -1168,8 +1168,8 @@ theorem CollisionResistant.bcsTableBinding_negligible
 /-- Standard-model committed-table BCS knowledge soundness from `CollisionResistant H` assuming
 zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector (which no IOP with
 positive probabilistic or state-restoration soundness error satisfies; probabilistic
-state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-Theorem 3, is open in #6042): every uniform strict PPT committed-table adversary produces an
+state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042): every uniform strict PPT committed-table adversary produces an
 accepting BCS proof whose committed tables fail to yield a valid witness with negligible
 probability. -/
 theorem CollisionResistant.bcsTableKnowledge_negligible
@@ -1214,8 +1214,8 @@ theorem HashFamily.bcsTableBinding_negligible
 /-- Collision-resistant `HashFamily` corollary for committed-table BCS knowledge soundness assuming
 zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector (which no IOP with
 positive probabilistic or state-restoration soundness error satisfies; probabilistic
-state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-Theorem 3, is open in #6042). -/
+state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042). -/
 theorem HashFamily.bcsTableKnowledge_negligible
     {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
     {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}

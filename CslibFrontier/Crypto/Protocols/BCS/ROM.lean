@@ -39,15 +39,15 @@ import Mathlib.Data.List.OfFn
 This module lifts the multi-round Ben-Sasson–Chiesa–Spooner (BCS) transformation
 (`CslibFrontier/Crypto/Protocols/BCS/Basic.lean`) to an explicit two-channel random-oracle model
 ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1, Remark 25.1.3, and
-Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289,
+Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–290,
 Chapter 31, Definitions 31.1.1–31.1.2, Definition 31.1.6, Construction 31.1.8, Theorem 31.2.1, and
 Theorem 31.3.1, composed with Merkle trace extraction from Chapter 18, Construction 18.5.3 and
-Lemma 18.5.7, printed pp. 199 and 207), proving adaptive round-by-round ROM soundness and
+Lemma 18.5.7, printed pp. 199 and 204–207), proving adaptive round-by-round ROM soundness and
 straight-line knowledge-soundness bounds alongside standard-model trace knowledge-soundness
 reductions that assume zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector
 (which no IOP with positive probabilistic or state-restoration soundness error satisfies;
-probabilistic state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016],
-Theorem 1 and Theorem 3, is open in #6042):
+probabilistic state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042):
 
 1. **Straight-line multi-round oracle-table reconstruction (`bcsExtractTable`, `bcsExtractOracles`,
    `bcsExtractWitness`).** Given a symbol decoder `decSym : List Bool → Sym` with
@@ -212,7 +212,7 @@ Theorem 1 and Theorem 3, is open in #6042):
   `Cslib.Crypto.Protocols.BCS.bcs_trace_knowledge_or_collision`: deterministic trace-extraction
   soundness and knowledge reductions (with `bcs_trace_knowledge_or_collision` assuming zero-error
   straight-line `IOPKnowledgeSoundness` on every challenge vector; probabilistic state-restoration
-  BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in
+  BCS knowledge soundness as in [ChiesaYogev2024], Theorem 26.1.1, is open in
   #6042).
 * `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTable`,
   `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractOracles`,
@@ -229,7 +229,7 @@ Theorem 1 and Theorem 3, is open in #6042):
   certificates for straight-line trace extraction and standard-model reductions to
   `CollisionResistant H` (with the trace knowledge-soundness theorems assuming zero-error
   straight-line `IOPKnowledgeSoundness` on every challenge vector; probabilistic state-restoration
-  BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in
+  BCS knowledge soundness as in [ChiesaYogev2024], Theorem 26.1.1, is open in
   #6042).
 
 ## References
@@ -451,7 +451,7 @@ theorem isCollision_bcsExtractTraceCollision
 /-- Straight-line BCS trace knowledge-or-collision step assuming zero-error straight-line
 `IOPKnowledgeSoundness` on every challenge vector (which no IOP with positive probabilistic or
 state-restoration soundness error satisfies; probabilistic state-restoration BCS knowledge
-soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in #6042): any
+soundness as in [ChiesaYogev2024], Theorem 26.1.1, is open in #6042): any
 accepting BCS proof whose opened paths are recorded in a consistent trace `tr_MT` either yields a
 valid witness via `bcsExtractWitness` or yields an explicit hash collision via
 `bcsExtractTraceCollision`. -/
@@ -2373,7 +2373,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_sticky [BEq Stmt] [BEq Chal]
 
 /-- **Adaptive straight-line BCS ROM knowledge soundness theorem** (compare state-restoration
 knowledge soundness and direct extraction in [BenSassonChiesaSpooner2016] and [ChiesaYogev2024],
-Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289, and the round-by-round reduction in
+Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–290, and the round-by-round reduction in
 [ChiesaYogev2024], Chapter 31, Definition 31.1.6 and Theorem 31.3.1): under
 `IOPRoundByRoundKnowledgeSoundness iop rel iopExtract doomed goodStep` with per-round challenge
 escape probability `≤ ε_rbr`, for any adaptive cheating prover `P` making at most `t_FS`
@@ -2865,7 +2865,7 @@ theorem succProbability_bcsTraceBindingGame_le (iop : PublicCoinIOP r d Stmt Wit
 /-- Trace-extraction BCS knowledge-to-collision reduction assuming zero-error straight-line
 `IOPKnowledgeSoundness` on every challenge vector (which no IOP with positive probabilistic or
 state-restoration soundness error satisfies; probabilistic state-restoration BCS knowledge
-soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and Theorem 3, is open in #6042): a
+soundness as in [ChiesaYogev2024], Theorem 26.1.1, is open in #6042): a
 trace-recording adversary breaks straight-line knowledge soundness at most as often as
 `bcsTraceCollisionFinder` finds a hash collision. -/
 theorem succProbability_bcsTraceKnowledgeGame_le {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
@@ -2968,8 +2968,8 @@ theorem CollisionResistant.bcsTraceBinding_negligible
 /-- Standard-model trace-extraction BCS knowledge soundness from `CollisionResistant H` assuming
 zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector (which no IOP with
 positive probabilistic or state-restoration soundness error satisfies; probabilistic
-state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-Theorem 3, is open in #6042): every uniform strict PPT trace-recording BCS adversary breaks
+state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042): every uniform strict PPT trace-recording BCS adversary breaks
 straight-line knowledge soundness (`bcsExtractWitness`) with negligible probability. -/
 theorem CollisionResistant.bcsTraceKnowledge_negligible
     {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
@@ -3016,8 +3016,8 @@ theorem HashFamily.bcsTraceBinding_negligible
 /-- Collision-resistant `HashFamily` corollary for trace-extraction BCS knowledge soundness assuming
 zero-error straight-line `IOPKnowledgeSoundness` on every challenge vector (which no IOP with
 positive probabilistic or state-restoration soundness error satisfies; probabilistic
-state-restoration BCS knowledge soundness as in [BenSassonChiesaSpooner2016], Theorem 1 and
-Theorem 3, is open in #6042). -/
+state-restoration BCS knowledge soundness as in [ChiesaYogev2024],
+Theorem 26.1.1, is open in #6042). -/
 theorem HashFamily.bcsTraceKnowledge_negligible
     {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
     {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
