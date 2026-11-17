@@ -75,7 +75,12 @@ gadgets above. With the source's key length `⌈λ / log₂ (μ i)⌉` the proba
 `2 ^ (-λ log₂ p / log₂ (μ i))` (`2 ^ (-64)` for `μ i = 4` and `λ = 128`); bringing it down to
 `2 ^ (-λ)` needs `ℓ i ≥ ⌈λ / log₂ (Nat.minFac (μ i))⌉`, which is the source's length when `μ i`
 is prime. The definitions here and in `BMR16` take `ℓ` as a parameter, so this is a condition on
-the choice of `ℓ`, not on the definitions; an asymptotic assumption must let `ℓ` grow (#6068).
+the choice of `ℓ`, not on the definitions. In an asymptotic assumption (#6068) the collision
+probability at level `κ` is `p(κ) ^ (-ℓ(κ))`, where `p(κ)` is the least prime factor of the modulus
+at that level. For fixed moduli, or more generally a bounded least prime factor, it is negligible
+only if `ℓ` grows. With moduli that vary it can be negligible for fixed `ℓ`: for `μ κ = p(κ) ^ 2`
+with a prime `p(κ) ≥ 2 ^ κ` and `ℓ = 1` it is at most `2 ^ (-κ)`. So the collision argument alone
+does not force `ℓ` to grow; this observation does not prove security.
 
 ## Main definitions
 
