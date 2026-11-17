@@ -30,8 +30,8 @@ theorem pairwise_isUnit :
 /-- The interpolant of the values `3, 5` at `0, 1` takes those values. -/
 example : (ringInterpolate Finset.univ (![0, 1] : Fin 2 → ZMod 8) ![3, 5]).eval 0 = 3 ∧
     (ringInterpolate Finset.univ (![0, 1] : Fin 2 → ZMod 8) ![3, 5]).eval 1 = 5 :=
-  ⟨eval_ringInterpolate_at_node pairwise_isUnit _ (Finset.mem_univ (0 : Fin 2)),
-    eval_ringInterpolate_at_node pairwise_isUnit _ (Finset.mem_univ (1 : Fin 2))⟩
+  ⟨eval_ringInterpolate_at_node (i := 0) pairwise_isUnit _ (Finset.mem_univ (0 : Fin 2)),
+    eval_ringInterpolate_at_node (i := 1) pairwise_isUnit _ (Finset.mem_univ (1 : Fin 2))⟩
 
 /-- A linear polynomial over `ZMod 8` is the interpolant of its values at `0` and `1`. -/
 example : (C 3 + C 2 * X : (ZMod 8)[X]) =
@@ -47,7 +47,7 @@ example : (C 3 + C 2 * X : (ZMod 8)[X]) =
 example : (C 2 * X : (ZMod 4)[X]).eval 0 = 0 ∧ (C 2 * X : (ZMod 4)[X]).eval 2 = 0 ∧
     (C 2 * X : (ZMod 4)[X]) ≠ 0 := by
   refine ⟨by simp, by simp only [eval_mul, eval_C, eval_X]; decide, fun h => ?_⟩
-  have := congrArg (coeff · 1) h
+  have := congrArg (·.coeff 1) h
   simp only [coeff_C_mul, coeff_X_one, mul_one, coeff_zero] at this
   exact absurd this (by decide)
 

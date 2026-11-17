@@ -52,7 +52,8 @@ route permitted by the source, rather than identifying the new witnesses with ma
   corresponding oracle form for bipartite perfect-matching counts.
 
 * `Cslib.Complexity.exists_mem_FPSearch_sharpPMetricComplete`: Goldreich's Theorem 6.19,
-  an easy search relation whose count is #P-complete under metric reductions.
+  a total easy search relation whose count is #P-complete under metric reductions
+  (also Exercise 6.22(a)).
 
 ## References
 
@@ -104,14 +105,15 @@ theorem bipartitePerfectMatchingCount_computableInPolyTimeWithOracle {α : Type}
       encNat :=
   bipartitePerfectMatchingCount_sharpPMetricComplete.computableInPolyTimeWithOracle hf
 
-/-- [Goldreich2007Draft], Theorem 6.19 (printed p. 225): there is a polynomial-time solvable
-search relation with a #P-complete count under metric (one-query Cook) reductions. Starting
+/-- [Goldreich2007Draft], Theorem 6.19 (printed p. 225) and Exercise 6.22(a) (February 2007
+`r3.pdf`, PDF p. 57 / printed p. 259): there is a total polynomial-time solvable search
+relation with a #P-complete count under metric (one-query Cook) reductions. Starting
 with Valiant's count, adjoining one distinguished solution gives a trivial search algorithm;
 subtracting one recovers the original count. This is the artificial-problem route allowed by
 the source, not a search certificate for the perfect-matching relation itself. -/
 theorem exists_mem_FPSearch_sharpPMetricComplete :
     ∃ R : List (List Bool) → List Bool → Prop, R ∈ FPSearch encBoolTable ∧
-      SharpPMetricComplete encBoolTable (searchCount R) :=
+      IsTotalSearch R ∧ SharpPMetricComplete encBoolTable (searchCount R) :=
   bipartitePerfectMatchingCount_sharpPMetricComplete.exists_mem_FPSearch
 
 end Cslib.Complexity

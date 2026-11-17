@@ -105,7 +105,7 @@ theorem unaryFrameExpand_seed (count : ℕ) :
       rw [hseed, hexpand, ih, List.replicate_succ, encList_cons]
 
 /-- Retained conversion from unary count to a standard framed list of true tokens. -/
-@[expose] noncomputable def unaryTrueListCompiler :
+@[expose] def unaryTrueListCompiler :
     NativeCompiler (fun count => List.replicate count true) encUnary (encList encBool) := by
   let seedCompiler : NativeCompiler unaryFrameSeed encUnary encBits :=
     ofTransducer unaryFrameSeedT unitStateEncoding fun count => by
@@ -121,22 +121,22 @@ universe u
 variable {Value : Type u}
 
 /-- Stream next-state callback for replication: retain the value unchanged. -/
-@[expose] noncomputable def replicateNextCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateNextCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler Prod.fst (encPair encValue encBool) encValue :=
   first encValue encBool
 
 /-- Stream emission callback for replication: emit one framed value. -/
-@[expose] noncomputable def replicateEmitCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateEmitCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler Prod.fst (encPair encValue encBool) (encFramed encValue) :=
   (framedValue encValue).comp (first encValue encBool)
 
 /-- Replication finalization emits no additional bits. -/
-@[expose] noncomputable def replicateFinishCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateFinishCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler (Function.const Value ([] : List Bool)) encValue encBits :=
   const encValue encBits []
 
 /-- Explicit peak lifted-callback workspace over the actual replication rounds. -/
-@[expose] noncomputable def replicateSMax (encValue : Value ↪ List Bool)
+@[expose] def replicateSMax (encValue : Value ↪ List Bool)
     (input : Value × List Bool) : ℕ :=
   let nextCompiler := replicateNextCompiler encValue
   let emitCompiler := replicateEmitCompiler encValue
@@ -160,7 +160,7 @@ variable {Value : Type u}
       if hj : j < input.2.length then (encBool input.2[j]).length else 0)
 
 /-- The retained replication stream before unary-token marshalling. -/
-@[expose] noncomputable def replicateStreamCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateStreamCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler (fun input : Value × List Bool => List.replicate input.2.length input.1)
       (encPair encValue (encList encBool)) (encList encValue) := by
   let nextCompiler := replicateNextCompiler encValue
@@ -215,13 +215,13 @@ variable {Value : Type u}
     exact hbound.trans (Nat.le_max_right _ _)
 
 /-- Retained marshalling from a unary count to the stream's standard framed-token list. -/
-@[expose] noncomputable def replicateMarshalCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateMarshalCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler (fun input : Value × ℕ => (input.1, List.replicate input.2 true))
       (encPair encValue encUnary) (encPair encValue (encList encBool)) :=
   (first encValue encUnary).pair (unaryTrueListCompiler.comp (second encValue encUnary))
 
 /-- Retained unary-driven replication, including the charged unary-to-framed-list conversion. -/
-@[expose] noncomputable def replicateUnaryCompiler (encValue : Value ↪ List Bool) :
+@[expose] def replicateUnaryCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler (fun input : Value × ℕ => List.replicate input.2 input.1)
       (encPair encValue encUnary) (encList encValue) :=
   ((replicateStreamCompiler encValue).comp (replicateMarshalCompiler encValue)).ofOutputEq

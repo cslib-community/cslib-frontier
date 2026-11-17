@@ -24,7 +24,7 @@ compactness.
 
 ## Main definitions
 
-* `Plane`: an indexed matching plane over the corrected 104-tile alphabet.
+* `IndexPlane`: an indexed matching plane over the corrected 104-tile alphabet.
 * `Parent`: a matching substitution parent, with its parity alignment.
 * `Tower`: a sequence of substitution parents above a prescribed plane.
 
@@ -51,7 +51,7 @@ public section
 namespace Cslib.WangTile.Robinson
 
 /-- A matching plane indexed by the corrected Robinson alphabet. -/
-structure Plane where
+structure IndexPlane where
   /-- The corrected tile index at an integer lattice point. -/
   index : ℤ → ℤ → Index
   /-- Horizontal neighbours have equal edge colours. -/
@@ -65,7 +65,7 @@ structure Plane where
 theorem exists_plane_eq {f : ℤ → ℤ → WangTile}
     (hf : ∀ x y, f x y ∈ tileSet ∧ (f x y).right = (f (x + 1) y).left ∧
       (f x y).top = (f x (y + 1)).bottom) :
-    ∃ P : Plane, ∀ x y, tile (components (P.index x y)) = f x y := by
+    ∃ P : IndexPlane, ∀ x y, tile (components (P.index x y)) = f x y := by
   have hm : ∀ x y, ∃ p : Index, tile (components p) = f x y :=
     fun x y => mem_tileSet.mp (hf x y).1
   choose p hp using hm
@@ -73,9 +73,9 @@ theorem exists_plane_eq {f : ℤ → ℤ → WangTile}
     by simpa only [hp] using fun x y => (hf x y).2.2⟩, hp⟩
 
 /-- A matching parent of a fine plane, including the alignment of its child blocks. -/
-structure Parent (fine : Plane) where
+structure Parent (fine : IndexPlane) where
   /-- The matching coarse plane. -/
-  coarse : Plane
+  coarse : IndexPlane
   /-- Horizontal coordinate of the southwest child of the coarse origin. -/
   offsetX : Fin 2
   /-- Vertical coordinate of the southwest child of the coarse origin. -/
@@ -84,33 +84,23 @@ structure Parent (fine : Plane) where
   children : ∀ (x y : ℤ) (i j : Fin 2), childBlock (coarse.index x y) i j =
     fine.index ((offsetX.val : ℤ) + 2 * x + i.val) ((offsetY.val : ℤ) + 2 * y + j.val)
 
-private theorem thin_even (p : Plane) (x y u v : ℤ) :
-    (components (p.index (x + 2 * u) (y + 2 * v))).thin =
-      (components (p.index x y)).thin := by
-  have east (a b : ℤ) : (components (p.index (a + 2) b)).thin =
-      (components (p.index a b)).thin := by
-    have h := thin_east (p.horizontal (a + 1) b)
-    rw [thin_east (p.horizontal a b)] at h
-    simpa only [add_assoc, Int.reduceAdd, phaseEast_involutive] using h
-  have north (a b : ℤ) : (components (p.index a (b + 2))).thin =
-      (components (p.index a b)).thin := by
-    have h := thin_north (p.vertical a (b + 1))
-    rw [thin_north (p.vertical a b)] at h
-    simpa only [add_assoc, Int.reduceAdd, phaseNorth_involutive] using h
-  have hx : Function.Periodic
-      (fun a : ℤ => (components (p.index (x + a) (y + 2 * v))).thin) 2 := by
-    intro a
-    simpa only [← add_assoc] using east (x + a) (y + 2 * v)
-  have hy : Function.Periodic (fun b : ℤ => (components (p.index x (y + b))).thin) 2 := by
-    intro b
-    simpa only [← add_assoc] using north x (y + b)
-  calc
-    _ = (components (p.index x (y + 2 * v))).thin := by
-      simpa only [Int.cast_id, mul_comm, add_zero] using hx.int_mul_eq u
-    _ = (components (p.index x y)).thin := by
-      simpa only [Int.cast_id, mul_comm, add_zero] using hy.int_mul_eq v
+/-- A lattice phase whose unit steps are involutions is invariant under even translations.
+This applies both to the thin Robinson layer and to the subdivision quadrants. -/
+theorem phase_even_of_involutive {β : Type*} (φ : ℤ → ℤ → β) (e n : β → β)
+    (he : Function.Involutive e) (hn : Function.Involutive n)
+    (east : ∀ x y, φ (x + 1) y = e (φ x y)) (north : ∀ x y, φ x (y + 1) = n (φ x y))
+    (x y u v : ℤ) : φ (x + 2 * u) (y + 2 * v) = φ x y := by
+  have hx : Function.Periodic (fun a : ℤ => φ a (y + 2 * v)) 2 := fun a => by
+    change φ (a + 2) _ = _
+    rw [show a + 2 = a + 1 + 1 by omega, east, east, he]
+  have hy : Function.Periodic (fun b : ℤ => φ x b) 2 := fun b => by
+    change φ x (b + 2) = _
+    rw [show b + 2 = b + 1 + 1 by omega, north, north, hn]
+  calc φ (x + 2 * u) (y + 2 * v) = φ x (y + 2 * v) := by
+        simpa only [Int.cast_id, mul_comm] using hx.int_mul u x
+    _ = φ x y := by simpa only [Int.cast_id, mul_comm] using hy.int_mul v y
 
-private theorem exists_phase_origin (p : Plane) :
+private theorem exists_phase_origin (p : IndexPlane) :
     ∃ x y : Fin 2, (components (p.index x.val y.val)).thin = .a := by
   have he := thin_east (p.horizontal 0 0)
   have hn := thin_north (p.vertical 0 0)
@@ -124,7 +114,7 @@ private theorem exists_phase_origin (p : Plane) :
   | c => exact ⟨1, 0, by simpa [h, phaseEast] using he⟩
   | d => exact ⟨0, 1, by simpa [h, phaseNorth] using hn⟩
 
-private def neighborhood (p : Plane) (x y : ℤ)
+private def neighborhood (p : IndexPlane) (x y : ℤ)
     (hphase : (components (p.index x y)).thin = .a) : Neighborhood where
   cell i j := p.index (x + i.val - 1) (y + j.val - 1)
   horizontal i j := by
@@ -142,14 +132,17 @@ private def neighborhood (p : Plane) (x y : ℤ)
   phase := by simpa using hphase
 
 /-- Every matching corrected Robinson plane is a substituted matching plane up to translation. -/
-theorem nonempty_parent (fine : Plane) : Nonempty (Parent fine) := by
+theorem nonempty_parent (fine : IndexPlane) : Nonempty (Parent fine) := by
   obtain ⟨ox, oy, hphase⟩ := exists_phase_origin fine
   have hlocal (x y : ℤ) : ∃ p : Index, ∀ i j : Fin 2,
       childBlock p i j =
         fine.index ((ox.val : ℤ) + 2 * x + i.val) ((oy.val : ℤ) + 2 * y + j.val) := by
     obtain ⟨p, hp, _⟩ := existsUnique_centerParent
       (neighborhood fine ((ox.val : ℤ) + 2 * x) ((oy.val : ℤ) + 2 * y)
-        ((thin_even fine ox.val oy.val x y).trans hphase))
+        ((phase_even_of_involutive (fun x y => (components (fine.index x y)).thin)
+          phaseEast phaseNorth phaseEast_involutive phaseNorth_involutive
+          (fun x y => thin_east (fine.horizontal x y))
+          (fun x y => thin_north (fine.vertical x y)) ox.val oy.val x y).trans hphase))
     refine ⟨p, ?_⟩
     intro i j
     fin_cases i <;> fin_cases j
@@ -174,9 +167,9 @@ theorem nonempty_parent (fine : Plane) : Nonempty (Parent fine) := by
       fine.vertical ((ox.val : ℤ) + 2 * x + i.val) ((oy.val : ℤ) + 2 * y + 1)
 
 /-- A substitution-parent tower above a prescribed indexed plane. -/
-structure Tower (base : Plane) where
+structure Tower (base : IndexPlane) where
   /-- The matching plane at each scale. -/
-  plane : ℕ → Plane
+  plane : ℕ → IndexPlane
   /-- Alignment of horizontal child coordinates at each level. -/
   offsetX : ℕ → Fin 2
   /-- Alignment of vertical child coordinates at each level. -/
@@ -189,98 +182,100 @@ structure Tower (base : Plane) where
       (plane n).index (((offsetX n).val : ℤ) + 2 * x + i.val)
         (((offsetY n).val : ℤ) + 2 * y + j.val)
 
-private noncomputable def chooseParent (p : Plane) : Parent p :=
+private noncomputable def chooseParent (p : IndexPlane) : Parent p :=
   Classical.choice (nonempty_parent p)
 
-private noncomputable def parentPlane (base : Plane) : ℕ → Plane
+private noncomputable def parentPlane (base : IndexPlane) : ℕ → IndexPlane
   | 0 => base
   | n + 1 => (chooseParent (parentPlane base n)).coarse
 
 /-- Repeated desubstitution constructs a parent tower over every matching plane. -/
-noncomputable def tower (base : Plane) : Tower base where
+noncomputable def tower (base : IndexPlane) : Tower base where
   plane := parentPlane base
   offsetX n := (chooseParent (parentPlane base n)).offsetX
   offsetY n := (chooseParent (parentPlane base n)).offsetY
   zero := rfl
   children n := (chooseParent (parentPlane base n)).children
 
-private def bit (code : ℕ) : Fin 2 := ⟨code % 2, Nat.mod_lt _ (by decide)⟩
-
-private def expansion : ℕ → Index → ℕ → ℕ → Index
-  | 0, p, _, _ => p
-  | n + 1, p, x, y => childBlock (expansion n p (x / 2) (y / 2)) (bit x) (bit y)
-
-private theorem expansion_occurs {base : Plane} (t : Tower base) :
-    ∀ (depth level : ℕ) (x y : ℤ) (i j : ℕ), ∃ u v : ℤ,
-      (t.plane level).index u v =
-        expansion depth ((t.plane (level + depth)).index x y) i j := by
-  intro depth
+/-- Every level of a parent tower contains a translated refinement of any quadrant
+at a higher level. -/
+theorem Tower.refined_patch {base : IndexPlane} (t : Tower base) (depth : ℕ) :
+    ∀ (level : ℕ) (a b : ℤ), ∃ u v : ℤ,
+      (fun x y : ℕ => (t.plane level).index (u + x) (v + y)) =
+        iterateRefine depth (fun x y : ℕ => (t.plane (level + depth)).index (a + x) (b + y)) := by
   induction depth with
-  | zero => intro level x y i j; exact ⟨x, y, rfl⟩
+  | zero => exact fun level a b => ⟨a, b, rfl⟩
   | succ depth ih =>
-    intro level x y i j
-    obtain ⟨u, v, huv⟩ := ih (level + 1) x y (i / 2) (j / 2)
-    rw [Nat.add_right_comm] at huv
-    exact ⟨_, _, by rw [← t.children level u v (bit i) (bit j), huv]; rfl⟩
+    intro level a b
+    obtain ⟨u, v, h⟩ := ih (level + 1) a b
+    refine ⟨(t.offsetX level).val + 2 * u, (t.offsetY level).val + 2 * v, ?_⟩
+    funext x y
+    have index := congrFun (congrFun h (x / 2)) (y / 2)
+    simp only [Nat.add_assoc, Nat.add_comm 1 depth] at index
+    simp only [iterateRefine, refineIndexGrid, ← index]
+    rw [t.children]
+    dsimp only
+    congr 1 <;> omega
 
-private theorem zero_descends : ∀ p : Index, ∃ i j : Fin 8, expansion 3 p i j = 0 := by
+private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
+    (depth level : ℕ) (x y : ℤ) (i j : ℕ) (hi : i < 2 ^ depth) (hj : j < 2 ^ depth) :
+    ∃ u v : ℤ, (t.plane level).index u v =
+      iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
+  obtain ⟨u, v, patch⟩ := t.refined_patch depth level x y
+  refine ⟨u + i, v + j, ?_⟩
+  rw [congrFun (congrFun patch i) j]
+  exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
+
+private theorem zero_descends :
+    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
   decide +kernel
 
-private theorem descends_zero : ∀ p : Index, ∃ i j : Fin 32, expansion 5 0 i j = p := by
+private theorem descends_zero :
+    ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := by
   decide +kernel
 
 /-- Every corrected tile type occurs at every level of every parent tower. -/
-theorem Tower.every_tile {base : Plane} (t : Tower base) (level : ℕ) (target : Index) :
+theorem Tower.every_tile {base : IndexPlane} (t : Tower base) (level : ℕ) (target : Index) :
     ∃ x y : ℤ, (t.plane level).index x y = target := by
   obtain ⟨i, j, hij⟩ := zero_descends ((t.plane (level + 5 + 3)).index 0 0)
-  obtain ⟨x, y, hxy⟩ := expansion_occurs t 3 (level + 5) 0 0 i j
+  obtain ⟨x, y, hxy⟩ := expansion_occurs t 3 (level + 5) 0 0 i j i.isLt j.isLt
   obtain ⟨i', j', hij'⟩ := descends_zero target
-  obtain ⟨u, v, huv⟩ := expansion_occurs t 5 level x y i' j'
+  obtain ⟨u, v, huv⟩ := expansion_occurs t 5 level x y i' j' i'.isLt j'.isLt
   exact ⟨u, v, by rw [huv, hxy, hij, hij']⟩
 
-private theorem bit_step (x : ℕ) :
-    (bit x = 0 ∧ bit (x + 1) = 1 ∧ (x + 1) / 2 = x / 2) ∨
-      (bit x = 1 ∧ bit (x + 1) = 0 ∧ (x + 1) / 2 = x / 2 + 1) := by
-  have hm := Nat.mod_lt x (by decide : 0 < 2)
-  by_cases h : x % 2 = 0
-  · left
-    refine ⟨?_, ?_, ?_⟩
-    · apply Fin.ext; exact h
-    · apply Fin.ext; change (x + 1) % 2 = 1; omega
-    · omega
-  · right
-    refine ⟨?_, ?_, ?_⟩
-    · apply Fin.ext; change x % 2 = 1; omega
-    · apply Fin.ext; change (x + 1) % 2 = 0; omega
-    · omega
+private theorem parity_step (x : ℕ) :
+    (x % 2 = 0 ∧ (x + 1) % 2 = 1 ∧ (x + 1) / 2 = x / 2) ∨
+      (x % 2 = 1 ∧ (x + 1) % 2 = 0 ∧ (x + 1) / 2 = x / 2 + 1) := by
+  omega
 
 private theorem expansion_horizontal (n : ℕ) (p : Index) (x y : ℕ)
     (hx : x + 1 < 2 ^ n) :
-    (tile (components (expansion n p x y))).right =
-      (tile (components (expansion n p (x + 1) y))).left := by
+    (tile (components (iterateRefine n (fun _ _ => p) x y))).right =
+      (tile (components (iterateRefine n (fun _ _ => p) (x + 1) y))).left := by
   induction n generalizing x y with
   | zero => simp only [pow_zero] at hx; omega
   | succ n ih =>
-    rcases bit_step x with h | h
-    · simp only [expansion, h.1, h.2.1, h.2.2]
+    rcases parity_step x with h | h
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
       exact child_horizontal _ _
-    · simp only [expansion, h.1, h.2.1, h.2.2]
-      apply (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) (bit y)
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
+      apply (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) ?_)
+        ⟨y % 2, Nat.mod_lt _ (by decide)⟩
       rw [pow_succ] at hx
       omega
 
 private theorem expansion_vertical (n : ℕ) (p : Index) (x y : ℕ)
     (hy : y + 1 < 2 ^ n) :
-    (tile (components (expansion n p x y))).top =
-      (tile (components (expansion n p x (y + 1)))).bottom := by
+    (tile (components (iterateRefine n (fun _ _ => p) x y))).top =
+      (tile (components (iterateRefine n (fun _ _ => p) x (y + 1)))).bottom := by
   induction n generalizing x y with
   | zero => simp only [pow_zero] at hy; omega
   | succ n ih =>
-    rcases bit_step y with h | h
-    · simp only [expansion, h.1, h.2.1, h.2.2]
+    rcases parity_step y with h | h
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
       exact child_vertical _ _
-    · simp only [expansion, h.1, h.2.1, h.2.2]
-      apply (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) (bit x)
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
+      apply (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) ⟨x % 2, Nat.mod_lt _ (by decide)⟩
       rw [pow_succ] at hy
       omega
 
@@ -288,7 +283,7 @@ private theorem square_bound {n x : ℕ} (h : x < n + 1) : x < 2 ^ n :=
   lt_of_lt_of_le h (Nat.succ_le_of_lt (show n < 2 ^ n from Nat.lt_two_pow_self))
 
 private def square (n : ℕ) : Rectangle tileSet (n + 1) (n + 1) where
-  tile i j := tile (components (expansion n 0 i.val j.val))
+  tile i j := tile (components (iterateRefine n (fun _ _ => 0) i.val j.val))
   mem _i _j := tile_components_mem _
   horizontal i j hi := expansion_horizontal n 0 i.val j.val (square_bound hi)
   vertical i j hj := expansion_vertical n 0 i.val j.val (square_bound hj)

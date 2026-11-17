@@ -139,8 +139,8 @@ theorem exists_computes_of_forall_exists_distributionalError_le {ε : ℝ}
       Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
       Finsupp.sum_fintype _ _ fun _ => zero_mul _]
     exact le_of_eq_of_le (Finset.sum_congr rfl fun S _ => by rw [hM]) (hp x)
-  · obtain ⟨S, -, rfl⟩ := Finset.mem_image.mp
-      (Finsupp.mapDomain_support (by simpa [StdSimplex.weights_map] using ht))
+  · obtain ⟨S, -, rfl⟩ : ∃ S, ¬p.weights S = 0 ∧ tree S = t := by
+      simpa [StdSimplex.weights_map] using ht
     exact htree_depth S
 
 /-- `R_ε(f) ≤ d` exactly when `D^ν_ε(f) ≤ d` for every distribution `ν` on the inputs. -/

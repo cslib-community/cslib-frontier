@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.ByteString
+public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.Order.Floor.Div
 import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
@@ -33,7 +34,7 @@ instantiations, or a security theorem.
 ## Main definitions
 
 * `Cslib.Crypto.SLHDSA.base2b`: Algorithm 4 on byte strings.
-* `Cslib.Crypto.SLHDSA.WOTS.SecurityBytes`: the three standard values of `n`.
+* `Cslib.Crypto.SLHDSA.SecurityBytes`: the three standard values of `n`.
 * `Cslib.Crypto.SLHDSA.WOTS.Digit`: one base-16 WOTS+ digit.
 * `Cslib.Crypto.SLHDSA.WOTS.messageDigits`: the `len1` message digits.
 * `Cslib.Crypto.SLHDSA.WOTS.checksum`: the complement checksum.
@@ -103,27 +104,6 @@ theorem base2b_lt (X : List Byte) (b outLen : ℕ) (h : Base2bInput X b outLen)
 
 namespace WOTS
 
-/-- The three byte lengths `n` used by the FIPS 205 parameter sets. -/
-inductive SecurityBytes where
-  | bytes16
-  | bytes24
-  | bytes32
-  deriving DecidableEq, Repr
-
-namespace SecurityBytes
-
-/-- The security-element and message length `n`, in bytes. -/
-def count : SecurityBytes → ℕ
-  | .bytes16 => 16
-  | .bytes24 => 24
-  | .bytes32 => 32
-
-/-- Every standardized value of `n` is at most 32 bytes. -/
-theorem count_le_32 (p : SecurityBytes) : p.count ≤ 32 := by
-  cases p <;> decide
-
-end SecurityBytes
-
 /-- The Winternitz digit width fixed by FIPS 205. -/
 abbrev lgW : ℕ := 4
 
@@ -154,7 +134,8 @@ theorem message_base2bInput {p : SecurityBytes} (M : Message p) :
     Base2bInput (messageByteString M) lgW (len1 p) := by
   unfold Base2bInput messageByteString
   rw [List.length_ofFn]
-  cases p <;> decide
+  norm_num [len1, lgW]
+  omega
 
 /-- The `len1 = 2n` base-16 message digits from line 2 of Algorithms 7 and 8. -/
 def messageDigits {p : SecurityBytes} (M : Message p) : Fin (len1 p) → Digit :=
@@ -170,7 +151,9 @@ theorem checksum_lt {p : SecurityBytes} (M : Message p) : checksum M < 2 ^ (len2
     unfold checksum
     exact Finset.sum_le_sum fun _i _hi => Nat.sub_le _ _
   have hcount : len1 p * (w - 1) < 2 ^ (len2 * lgW) := by
-    cases p <;> decide
+    have hp := p.count_le_32
+    norm_num [len1, w, len2, lgW] at *
+    omega
   calc
     checksum M ≤ Finset.univ.sum (fun _i : Fin (len1 p) => w - 1) := hle
     _ = len1 p * (w - 1) := by simp

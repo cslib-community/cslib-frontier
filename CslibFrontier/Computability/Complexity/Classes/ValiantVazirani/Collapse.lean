@@ -8,9 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.ValiantVazirani
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+public import CslibFrontier.Computability.Complexity.Classes.Promise.Oracle
 import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
-import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 
 /-!
 # If unique satisfiability is easy, then NP = RP
@@ -35,8 +34,6 @@ relative to such a promise problem is `RP` (`Cslib.Complexity.RPWithPromiseOracl
 ## Main results
 
 * `Cslib.Complexity.RPWithOracle_eq_RP`: `RP^A = RP` for `A ∈ P`.
-* `Cslib.Complexity.exists_mem_P_solvedBy_of_mem_PromiseP`: a promise problem in `PromiseP`
-  under a decodable encoding is solved by an oracle language in `P`.
 * `Cslib.Complexity.RPWithPromiseOracle_eq_RP`: `RP` relative to a promise problem in
   `PromiseP`, under a decodable encoding, is `RP`.
 * `Cslib.Complexity.NP_eq_RP_of_PromiseUSAT_mem_PromiseP`: if `PromiseUSAT ∈ PromiseP`, then
@@ -65,41 +62,21 @@ theorem RPWithOracle_eq_RP (hA : A ∈ P encBits) (enc : α ↪ List Bool) :
     (fun _ ⟨p, V, hV, hL⟩ => ⟨p, V, hV.computableInPolyTime hA, hL⟩)
     (RP_subset_RPWithOracle A enc)
 
-open Classical in
-/-- **A promise problem in `PromiseP` is solved by an oracle language in `P`**, under an encoding
-of its instances with a total decoder: the words whose decoding the polynomial-time solver
-accepts. -/
-theorem exists_mem_P_solvedBy_of_mem_PromiseP {Q : PromiseProblem β} {encQ : β ↪ List Bool}
-    (D : Decoder encQ) (hQ : Q ∈ PromiseP encQ) :
-    ∃ A ∈ P encBits, Q.SolvedBy fun b => decide (encQ b ∈ A) := by
-  obtain ⟨f, hf, hsolve⟩ := mem_PromiseP_iff.1 hQ
-  obtain ⟨_, _, hD⟩ := D.computable
-  refine ⟨{w | f (D.decode w) = true}, ⟨_, hf.comp hD.computableInPolyTime,
-    fun _ => Iff.rfl⟩, ?_⟩
-  simpa [D.decode_enc] using hsolve
-
-/-- `RP` relative to a promise problem in `PromiseP` lies in `RP`, under an encoding of its
-instances with a total decoder. -/
-theorem RPWithPromiseOracle_subset_RP {Q : PromiseProblem β} {encQ : β ↪ List Bool}
-    (D : Decoder encQ) (hQ : Q ∈ PromiseP encQ) (enc : α ↪ List Bool) :
-    RPWithPromiseOracle Q encQ enc ⊆ RP enc :=
-  let ⟨_, hA, hsolve⟩ := exists_mem_P_solvedBy_of_mem_PromiseP D hQ
-  (RPWithPromiseOracle_subset_RPWithOracle hsolve enc).trans (RPWithOracle_eq_RP hA enc).subset
-
 /-- **`RP` relative to a promise problem in `PromiseP` is `RP`**, under an encoding of its
 instances with a total decoder. -/
 theorem RPWithPromiseOracle_eq_RP {Q : PromiseProblem β} {encQ : β ↪ List Bool}
     (D : Decoder encQ) (hQ : Q ∈ PromiseP encQ) (enc : α ↪ List Bool) :
     RPWithPromiseOracle Q encQ enc = RP enc :=
-  Set.Subset.antisymm (RPWithPromiseOracle_subset_RP D hQ enc)
-    (RP_subset_RPWithPromiseOracle Q encQ enc)
+  Set.Subset.antisymm (fun _ ⟨p, hL⟩ => by
+    obtain ⟨V, hV, hdec⟩ := hL.exists_computableInPolyTime_of_mem_PromiseP D hQ
+    exact ⟨p, V, hV, hdec⟩) (RP_subset_RPWithPromiseOracle Q encQ enc)
 
 /-- **Valiant–Vazirani: if `PromiseUSAT` has a polynomial-time solver, then `NP = RP`**, for every
 encoding of instances. -/
 theorem NP_eq_RP_of_PromiseUSAT_mem_PromiseP (h : PromiseUSAT ∈ PromiseP encCNF)
     (enc : α ↪ List Bool) : NP enc = RP enc :=
   Set.Subset.antisymm ((NP_subset_RPWithPromiseOracle_PromiseUSAT enc).trans
-    (RPWithPromiseOracle_subset_RP cnfDecoder h enc)) RP_subset_NP
+    (RPWithPromiseOracle_eq_RP cnfDecoder h enc).subset) RP_subset_NP
 
 /-- **Valiant–Vazirani: if `USAT ∈ P`, then `NP = RP`**, for every encoding of instances. This
 form is weak: `USAT` as a language is `coNP`-hard. -/

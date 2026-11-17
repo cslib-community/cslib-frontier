@@ -23,7 +23,8 @@ In `CslibFrontier/Crypto/Computational/ElGamal.lean`, `elGamalGroupCPAGameOn` an
 
 * `elGamalGroupCPAGame` checks `F.isElem (d, m₀) && F.isElem (d, m₁)` directly using the
   sampled group description `d`, removing the external `valid`, `hvalid`, and
-  `AdmitsGroupElements` parameters (`DDH.negligible_elGamalGroupCPAGame`).
+  `AdmitsGroupElements` parameters (`DDH.negligible_elGamalGroupCPAGame_ideal`). Like the games of
+  `ElGamal.lean`, it draws the key and challenge exponents exactly uniformly at the `PMF` level.
 * For a polynomial-time group description family `d : ℕ → F.Desc`, `elGamalGroupValid F d`
   supplies the native `Encryption.INDCPAOn` admissibility predicate using `F.isElem (d n, ·)`,
   yielding `DDH.indcpaOn_elGamalGroupEncryptProb` without external validity premises.
@@ -45,11 +46,21 @@ equal bit-length (`equalLengthWords`), and generic `PrimeOrderGroupFamily` state
 
 ## Main results
 
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGame`: DDH implies
-  group-element ElGamal CPA security without an external `valid` predicate.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcpaOn_elGamalGroupEncryptProb`: native
   `Encryption.INDCPAOn` security of `(F.elGamalKeyGenProb d, F.elGamalEncryptProb (fun _ m => m)
   d)` under DDH for `d : ℕ → F.Desc`.
+
+## Ideal-sampling step
+
+`elGamalGroupCPAGame` draws exponents exactly uniformly at the `PMF` level, so the results about it
+are a step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result. They hold for an
+arbitrary setup law, while the native theorem fixes the group description at each security
+parameter.
+
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.advantage_elGamalGroupCPAGame_le`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.negligible_elGamalGroupCPAGame_ideal`: DDH
+  implies group-element ElGamal CPA security of the ideal-sampling game without an external `valid`
+  predicate.
 -/
 
 public section
@@ -130,15 +141,17 @@ theorem advantage_elGamalGroupCPAGame_le (setup : ℕ → PMF F.Desc)
   F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le _ (fun _ m => m) setup adversary n
     fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
 
-/-- **Group-element ElGamal encryption is IND-CPA secure under DDH** for every
-`DecodablePrimeOrderGroupFamily`, with challenge membership enforced directly by `F.isElem`. -/
-theorem DDH.negligible_elGamalGroupCPAGame {F : DecodablePrimeOrderGroupFamily}
+/-- Ideal-sampling step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result: under
+DDH for any setup law, every uniform strict PPT `Encryption.WordAdversary` has negligible advantage
+in `elGamalGroupCPAGame`, whose key and challenge exponents are drawn exactly uniformly at the `PMF`
+level and whose challenge membership is enforced directly by `F.isElem`. -/
+theorem DDH.negligible_elGamalGroupCPAGame_ideal {F : DecodablePrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} (hDDH : F.toPrimeOrderGroupFamily.DDH setup)
     {adversary : Encryption.WordAdversary} (hA : adversary.IsPPT) :
     Negligible fun n =>
       Game.advantage (F.elGamalGroupCPAGame setup adversary false n)
         (F.elGamalGroupCPAGame setup adversary true n) :=
-  hDDH.negligible_elGamalMsgCPAGameWith
+  hDDH.negligible_elGamalMsgCPAGameWith_ideal
     (computableInPolyTime_elemGuard F.computableInPolyTime_isElem)
     (fun _ d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv)
     (.snd F.encDesc encBits) hA
