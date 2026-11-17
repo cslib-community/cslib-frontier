@@ -95,10 +95,8 @@ private theorem getD_canonicalize (φ : CNF ℕ) (w : List Bool) (i : ℕ) :
 private theorem verifier_canonicalize (φ : CNF ℕ) (w : List Bool) :
     verifier (φ, canonicalize φ w) = verifier (φ, w) := by
   refine CNF.eval_congr fun v (hv : v ∈ φ.vars) => ?_
-  have hlt := List.idxOf_lt_length_iff.2 hv
   change (canonicalize φ w).getD _ false = w.getD _ false
-  rw [getD_canonicalize]
-  simp [SharpSAT.isFirst, hlt]
+  rw [getD_canonicalize, SharpSAT.isFirst_idxOf hv, Bool.and_true]
 
 private theorem canonical_canonicalize (φ : CNF ℕ) (w : List Bool) :
     SharpSAT.canonical φ (canonicalize φ w) = true :=
