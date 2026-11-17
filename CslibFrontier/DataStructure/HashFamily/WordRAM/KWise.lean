@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.Probability.KWiseIndependent.Trinomial
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.Fits
 
@@ -597,15 +598,11 @@ theorem trinomialParamsCode_exec {w base U M b : ℕ} {x : Data 18}
       y.mem = x.mem := by
   set B := trinomialTargetBits U M
   have hB_le_q : B ≤ trinomialDeg U M := trinomialTargetBits_le_trinomialDeg U M
-  have hpow_q : trinomialDeg U M + 2 ≤ 2 ^ trinomialDeg U M := by
-    have hr : 1 ≤ 3 ^ trinomialStep U M := Nat.one_le_pow _ 3 (by decide)
-    have h2_pow : 2 ≤ 2 ^ 3 ^ trinomialStep U M :=
-      by simpa using Nat.pow_le_pow_right (by decide : 1 ≤ 2) hr
-    calc trinomialDeg U M + 2
-        = 2 * (3 ^ trinomialStep U M + 1) := by dsimp only [trinomialDeg]; ring
-      _ ≤ 2 ^ 3 ^ trinomialStep U M * 2 ^ 3 ^ trinomialStep U M :=
-          Nat.mul_le_mul h2_pow Nat.lt_two_pow_self
-      _ = 2 ^ trinomialDeg U M := by dsimp only [trinomialDeg]; rw [two_mul, pow_add]
+  have hpow_q : trinomialDeg U M + 2 ≤ 2 ^ trinomialDeg U M :=
+    Nat.add_two_le_two_pow (by
+      dsimp only [trinomialDeg]
+      have := Nat.one_le_pow (trinomialStep U M) 3 (by decide)
+      omega)
   have hfit_q2 : Fits w (trinomialDeg U M + 2) := by fits
   have hclog_le_B : Nat.clog 2 (max U 2) ≤ B := le_max_left _ _
   have hr_le_q : 3 ^ trinomialStepAux B ≤ trinomialDeg U M := by
