@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Counter
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.Algebra.Order.Floor.Div
+import CslibFrontier.Foundations.Data.Nat.CeilDiv
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -65,11 +65,8 @@ noncomputable def schoeningTrials (k n c : ℕ) : ℕ :=
 
 /-- Rounding up a quotient of natural numbers. -/
 theorem natCeil_natCast_div {m d : ℕ} (hd : 0 < d) :
-    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d := by
-  rw [← Nat.ceilDiv_eq_add_pred_div]
-  refine eq_of_forall_ge_iff fun c => ?_
-  rw [Nat.ceil_le, div_le_iff₀ (Nat.cast_pos.mpr hd), ceilDiv_le_iff_le_mul hd, mul_comm]
-  exact_mod_cast Iff.rfl
+    ⌈(m : ℝ) / d⌉₊ = (m + d - 1) / d :=
+  (Nat.ceil_div_eq_ceilDiv m hd).trans (Nat.ceilDiv_eq_add_pred_div m d)
 
 /-- Rounding up in two stages is rounding up once. -/
 theorem add_pred_div_add_pred_div {v a b : ℕ} (ha : 0 < a) (hb : 0 < b) :

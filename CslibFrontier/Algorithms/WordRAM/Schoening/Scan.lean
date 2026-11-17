@@ -246,12 +246,6 @@ section Specs
 
 variable {w : ℕ}
 
-/-- Splitting off the head of a represented list. -/
-private theorem holdsList_cons {a x : ℕ} {xs : List ℕ} {mem : ℕ → ℕ}
-    (h : HoldsList a (x :: xs) mem) : mem a = x ∧ HoldsList (a + 1) xs mem := by
-  obtain ⟨hx, hxs⟩ := (holdsList_append_iff (xs := [x]) (ys := xs)).mp h
-  exact ⟨by simpa using hx.get 0 (by simp), hxs⟩
-
 /-- **The literal loop.** Starting from `sat = s`, the loop over the literals `ls` ends with
 `sat = s || ls.eval σ`, `lptr = lend`, and unchanged memory. -/
 theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24) (s : Bool)
@@ -270,7 +264,7 @@ theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24) (
   | cons l ls ih =>
     simp only [List.length_cons] at hend
     have hc : (Cond.lt lptr lend).Holds x := by simp only [Cond.holds_lt, hend]; omega
-    obtain ⟨hlit, hrest⟩ := holdsList_cons hl
+    obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp hl
     have hlv : l.1.val < n := l.1.isLt
     have : Fits w l.1.val := hw.of_le (by omega)
     have : Fits w l.2.toNat := hw.of_le (by have := Bool.toNat_le l.2; omega)
@@ -313,7 +307,7 @@ theorem clauseLoop_spec (σ : Fin n → Bool) (ψ : CNF (Fin n)) (x : Data 24)
     rw [encodeClauses_cons] at hp hend
     obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp
     simp only [List.length_append, length_encodeClause] at hend hpψ
-    obtain ⟨hlen, hlits⟩ := holdsList_cons hpc
+    obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp hpc
     have hc : (Cond.lt ptr aBase).Holds x := by simp only [Cond.holds_lt]; omega
     have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     have : Fits w (x.regs ptr + 1 + c.length) := hw.of_le (by omega)

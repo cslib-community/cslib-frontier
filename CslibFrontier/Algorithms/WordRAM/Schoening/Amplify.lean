@@ -504,11 +504,13 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
   have : Fits w (n + n + n + 1) := hfm.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold countSetup countInit confStep
+  -- the counter starts at `3 n + 1`
   wram_exec [h.frame.zero_eq, h.frame.one_eq, h.frame.nReg_eq]
   wram_call (((((h.set (by decide) _).set (by decide) _).set (by decide) _).set
     (by decide) _).mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1)
     (by wram_simp) (by wram_simp; omega) (Nat.zero_le _) le_rfl (hfm.of_le (by omega)) (hfl hL₀))
     with y₀ ⟨hS₀, -⟩
+  -- multiply by `2 (k - 1)`, `n` times
   refine WP.seq ?_
   wram_call (hS₀.repeatCode (lim := nReg) (body := numStep₁) (j := n) (Tb := 10 * ℓ + 8)
     (by decide) (by decide) (by decide) (mulStep (2 * (k - 1))) (fun i hi z hz => by
@@ -518,6 +520,7 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
       exact ⟨y, hy.mono (by omega), hyS⟩)
     (hfm.of_le (by omega)) hS₀.frame.nReg_eq)
     with y₁ hS₁
+  -- multiply by `k`, `k - 3` times
   refine WP.seq ?_
   wram_call (hS₁.repeatCode (lim := kSub) (body := numStep₂) (j := k - 3) (Tb := 10 * ℓ + 8)
     (by decide) (by decide) (by decide) (mulStep k) (fun i hi z hz => by
@@ -528,6 +531,7 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
     (hfm.of_le (by omega)) hS₁.kSub_eq)
     with y₂ hS₂
   change SetupState φ k c A (numeratorDigits k n) y₂ at hS₂
+  -- divide by `k`, `n` times
   refine WP.seq ?_
   wram_call (hS₂.repeatCode (lim := nReg) (body := denStep₁) (j := n) (Tb := 20 * ℓ + 13)
     (by decide) (by decide) (by decide) (ceilStep k) (fun i hi z hz => by
@@ -537,6 +541,7 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
       exact ⟨y, hy.mono (by omega), hyS⟩)
     (hfm.of_le (by omega)) hS₂.frame.nReg_eq)
     with y₃ hS₃
+  -- divide by `k - 1`, `k - 3` times
   refine WP.seq ?_
   wram_call (hS₃.repeatCode (lim := kSub) (body := denStep₂) (j := k - 3) (Tb := 20 * ℓ + 13)
     (by decide) (by decide) (by decide) (ceilStep (k - 1)) (fun i hi z hz => by
@@ -546,13 +551,13 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
       exact ⟨y, hy.mono (by omega), hyS⟩)
     (hfm.of_le (by omega)) hS₃.kSub_eq)
     with y₄ hS₄
+  -- multiply by `c`
   wram_exec [hS₄.cReg_eq, hS₄.frame.zero_eq]
   wram_call (((hS₄.set (by decide) _).set (by decide) _).mulAdd (a := c) (cy := 0) (Bd := c)
     (by wram_simp) (by wram_simp) le_rfl (Nat.zero_le _) (hfm.of_le (by omega)) (hfl hlast))
     with y₅ ⟨hS₅, -⟩
   refine ⟨?_, hS₅⟩
   simp only [setupTime, ← hℓ]
-  have := hL₀
   have hlast' : (mulAddDigits c 0 ((ceilStep (k - 1))^[k - 3]
       ((ceilStep k)^[n] (numeratorDigits k n)))).length ≤ ℓ := hlast
   have hkn : k - 3 ≤ k := Nat.sub_le k 3
