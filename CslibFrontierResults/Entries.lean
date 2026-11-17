@@ -178,6 +178,7 @@ import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
@@ -5531,22 +5532,49 @@ register_result "cgks-pir-multi-interactive-lower-bound" where
     Multi-round lower bounds below full collusion (t < |S|) are not proved."
 
 register_result "prp-prf-switching" where
-  title := "PRP/PRF switching lemma: a pseudorandom permutation is a pseudorandom function"
+  title := "PRP/PRF switching lemma: PRP and PRF advantages differ by at most a birthday term"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 4.4 and Corollary 4.5",
-      locator := "Section 4.4.3" }
+    { paper := BonehShoup2023, theorem := "Theorems 4.4 and 4.6",
+      locator := "Section 4.4.3, pp. 134–135" }
   ]
   theorems := [
     Cslib.Crypto.PRP.advantage_idealExperiment_prfIdealExperiment_le,
+    Cslib.Crypto.PRP.abs_advantage_sub_prfAdvantage_le,
     Cslib.Crypto.PRP.prfAdvantage_le_advantage_add
   ]
   scope := "Finite block set D and key set Key, block ciphers E : Key → Equiv.Perm D, and \
     adaptive oracle adversaries with private coins (PRF.Adversary D D) making at most Q queries \
-    (IsQueryBounded Q). A uniform permutation and a uniform function of D are distinguished \
-    with advantage at most Q.choose 2 / |D|, so the PRF advantage of E is at most its PRP \
-    advantage plus Q.choose 2 / |D|. Concrete information-theoretic bounds; no running time is \
-    charged and no asymptotic form is stated."
+    on every path (IsQueryBounded Q), with no bound on running time, as in the source. \
+    Theorem 4.6 (advantage_idealExperiment_prfIdealExperiment_le): a uniform permutation and a \
+    uniform function of D are distinguished with advantage at most Q.choose 2 / |D|. \
+    Theorem 4.4 (abs_advantage_sub_prfAdvantage_le): the PRP and PRF advantages of E differ in \
+    absolute value by at most Q.choose 2 / |D|; prfAdvantage_le_advantage_add is its PRP-to-PRF \
+    half. The bound Q (Q - 1) / 2|D| is at most the source's Q² / 2N, so each statement implies \
+    the source's. Concrete information-theoretic bounds; the asymptotic Corollary 4.5 is the \
+    entry prp-iff-prf."
+
+register_result "prp-iff-prf" where
+  title := "A block cipher with a super-polynomial block space is a PRP iff it is a PRF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 4.5", locator := "Section 4.4.3, p. 135" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.prp_iff_pseudorandomFunctionOver,
+    Cslib.Crypto.BlockCipher.PRP.pseudorandomFunction
+  ]
+  scope := "Uniform block ciphers (BlockCipher: polynomial-time key and block lengths, and \
+    deterministic polynomial-time encryption and decryption, mutually inverse on blockLen n-bit \
+    blocks under keyLen n-bit keys) against uniform oracle-PPT distinguishers (IsOraclePPT) in \
+    the adaptive word-oracle forms of Attack Games 4.1 and 4.2, where a query of the wrong \
+    length is answered with the empty word in both games. The source's super-poly N is the \
+    hypothesis that (2 ^ blockLen n)⁻¹ is negligible. Restriction: keys are n-bit words \
+    (keyLen = id), because the word-level PRF notion PseudorandomFunctionOver samples n-bit keys; \
+    the source allows any key space. prp_iff_pseudorandomFunctionOver is the corollary's \
+    equivalence under these hypotheses; its PRF side includes the polynomial-time evaluation and \
+    length fields of PseudorandomFunctionOver. BlockCipher.PRP.pseudorandomFunction is its \
+    PRP-to-PRF direction for blockLen = id, where the super-poly hypothesis holds automatically."
 
 register_result "ajtai-collision-sis" where
   title := "Finding collisions in Ajtai's hash function is no easier than SIS"
