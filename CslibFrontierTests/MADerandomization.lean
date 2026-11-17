@@ -9,9 +9,8 @@ module
 
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 
-/-! Checked clients of the promise derandomization
-(`Cslib.Complexity.PromiseBPP_subset_PromiseP_of_isAverageCaseHard`) and of Arora and Barak's
-Exercise 16.4 (`Cslib.Complexity.MA_eq_NP_of_isAverageCaseHard`). -/
+/-! Checked client of Arora and Barak's Exercise 16.4
+(`Cslib.Complexity.MA_eq_NP_of_isAverageCaseHard`). -/
 
 set_option linter.privateModule false
 
@@ -24,11 +23,3 @@ example {L : Language Bool} {c : ℕ} (hL : (L : Set (List Bool)) ∈ E encBits)
     MA encBits = NP encBits ∧ BPP encBits ⊆ NP encBits := by
   have hMA := MA_eq_NP_of_isAverageCaseHard hL hc hard encBits
   exact ⟨hMA, hMA ▸ BPP_subset_MA⟩
-
-/-- The promise result specializes to decision problems: `ofSet A` is in `PromiseBPP` exactly when
-`A` is in `BPP`. -/
-example {L : Language Bool} {c : ℕ} (hL : (L : Set (List Bool)) ∈ E encBits) (hc : 0 < c)
-    (hard : ∀ᶠ n in atTop, IsAverageCaseHard (L.slice n) (2 ^ (n / c))) {A : Set (List Bool)}
-    (hA : A ∈ BPP encBits) : A ∈ P encBits :=
-  ofSet_mem_PromiseP.1
-    (PromiseBPP_subset_PromiseP_of_isAverageCaseHard hL hc hard encBits (ofSet_mem_PromiseBPP.2 hA))

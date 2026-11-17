@@ -196,19 +196,14 @@ theorem PromiseBPP_subset_PromiseP_of_isAverageCaseHard {L : Language Bool} {c :
   obtain ⟨n₀, hn₀⟩ := eventually_atTop.1 hard
   set t : ℕ → ℕ := fun N => n₀ + 3 + e * (Nat.log 2 N + 1) with ht
   set b := 2 ^ (8 * c + 1)
-  -- the decider is right on every instance where `V` has bounded error
-  suffices key : ∀ x (A : Set α), (x ∈ A → BoundedErrorAt enc p V x true) →
-      (x ∉ A → BoundedErrorAt enc p V x false) →
-      (x ∈ A ↔ seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
+  -- the decider gives the expected answer on every instance where `V` has bounded error
+  suffices key : ∀ x (ans : Bool), BoundedErrorAt enc p V x ans →
+      seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
         (fun x => c * (4 * t (enc x).length)) (fun x => t (enc x).length - 1)
-        (fun x => p.eval (enc x).length)) (fun x => (b + 1) * t (enc x).length) x = true) by
-    refine mem_PromiseP_iff.2 ⟨_, computableInPolyTime_seedDecider_nwGen enc hV hg n₀ e c p,
-      fun x hx => ?_, fun x hx => ?_⟩
-    · exact (key x Set.univ (fun _ => (hdec x).1 hx) fun h => absurd (Set.mem_univ x) h).1
-        (Set.mem_univ x)
-    · have h := key x ∅ (fun h => absurd h (Set.notMem_empty x)) fun _ => (hdec x).2 hx
-      exact Bool.eq_false_iff.2 fun h' => Set.notMem_empty x (h.2 h')
-  intro x A hyes hno
+        (fun x => p.eval (enc x).length)) (fun x => (b + 1) * t (enc x).length) x = ans by
+    exact mem_PromiseP_iff.2 ⟨_, computableInPolyTime_seedDecider_nwGen enc hV hg n₀ e c p,
+      fun x hx => key x true ((hdec x).1 hx), fun x hx => key x false ((hdec x).2 hx)⟩
+  intro x ans hans
   set N := (enc x).length
   set τ := t N with hτ
   set m := p.eval N
@@ -227,8 +222,8 @@ theorem PromiseBPP_subset_PromiseP_of_isAverageCaseHard {L : Language Bool} {c :
       rw [htest_def, List.take_of_length_le (by simp), hVL', encPair_apply, encBits_apply]
     rwa [length_frame] at h
   have hgap := abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
-  refine (seedDecider_eq_true_iff hyes (fun hx => boundedErrorAt_false_iff.1 (hno hx))
-    _ _ ?_).symm
+  refine seedDecider_eq_of_boundedError (fun h => boundedErrorAt_true_iff.1 (h ▸ hans))
+    (fun h => boundedErrorAt_false_iff.1 (h ▸ hans)) _ _ ?_
   have hseeds : #{z : Fin ((b + 1) * τ) → Bool |
       V (x, nwGen g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
         (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) =

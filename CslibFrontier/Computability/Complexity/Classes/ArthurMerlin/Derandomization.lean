@@ -75,22 +75,22 @@ theorem MA_subset_NP_of_PromiseBPP_subset_PromiseP
   let V' : (α × List Bool) × List Bool → Bool := fun x =>
     V (x.1.1, x.1.2 ++ x.2.take (p.eval (enc x.1.1).length))
   have hV' : ComputableInPolyTime V' (encPair (encPair enc encBits) encBits) encBool := by
-    have hm : ComputableInPolyTime (fun x : (α × List Bool) × List Bool =>
-        p.eval (enc x.1.1).length) (encPair (encPair enc encBits) encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp ((ComputableInPolyTime.encoding_length enc).comp
-        ((ComputableInPolyTime.fst enc encBits).comp
-          (ComputableInPolyTime.fst (encPair enc encBits) encBits)))
+    -- the pair `(a, w)`, from which the instance and the proof are projected
+    have hpair : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1)
+        (encPair (encPair enc encBits) encBits) (encPair enc encBits) :=
+      ComputableInPolyTime.fst (encPair enc encBits) encBits
+    have ha : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1.1)
+        (encPair (encPair enc encBits) encBits) enc :=
+      (ComputableInPolyTime.fst enc encBits).comp hpair
     have hw : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1.2)
         (encPair (encPair enc encBits) encBits) encBits :=
-      (ComputableInPolyTime.snd enc encBits).comp
-        (ComputableInPolyTime.fst (encPair enc encBits) encBits)
+      (ComputableInPolyTime.snd enc encBits).comp hpair
+    have hm : ComputableInPolyTime (fun x : (α × List Bool) × List Bool =>
+        p.eval (enc x.1.1).length) (encPair (encPair enc encBits) encBits) encUnary :=
+      (ComputableInPolyTime.unary_eval p).comp ((ComputableInPolyTime.encoding_length enc).comp ha)
     have hr : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.2)
         (encPair (encPair enc encBits) encBits) encBits :=
       ComputableInPolyTime.snd (encPair enc encBits) encBits
-    have ha : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1.1)
-        (encPair (encPair enc encBits) encBits) enc :=
-      (ComputableInPolyTime.fst enc encBits).comp
-        (ComputableInPolyTime.fst (encPair enc encBits) encBits)
     exact hV.comp (ha.prod (ComputableInPolyTime.bitsAppend hw
       (ComputableInPolyTime.bitsTakeWithInput hr hm)))
   -- bounded error transfers from the instance to the pair
@@ -138,12 +138,19 @@ large `n` the slice of `L` at `n` is average-case hard for size `2 ^ (n / c)`, t
 The draft assumes `f ∈ E` and `ε > 0` with `H_avg(f)(n) ≥ 2 ^ (ε n)` for every `n`
 (Definition 16.7: for some natural `S ≥ 2 ^ (ε n)`, every circuit of size at most `S` agrees with
 `f` on less than a `1 / 2 + 1 / S` fraction of the inputs). That hypothesis implies the one here
-for every natural `c ≥ 1 / ε`: `2 ^ (n / c) ≤ 2 ^ (ε n) ≤ S`, the bound `1 / 2 + 1 / S` is at most
-`1 / 2 + 2 ^ (-(n / c))`, and the strict bound implies the non-strict one
-(`Cslib.Circuits.Boolean.IsAverageCaseHard`, with `IsAverageCaseHard.mono`). So the theorem holds
-under the draft's hypothesis, and under the weaker one stated: eventual, non-strict hardness, for
-nonuniform De Morgan circuits whose size counts gates but not inputs. `MA` has two-sided error
-`1 / 3` (`Cslib.Complexity.MA`). -/
+for every natural `c > 1 / ε` (for instance `c > 2 / ε`). The two circuit conventions differ:
+the draft's Definition 6.1 counts all nodes (inputs, AND, OR and NOT gates of fan-in at most two,
+and output nodes, without constants), while `Cslib.Circuits.Boolean.IsAverageCaseHard` counts the
+De Morgan gates (AND, OR, NOT and constants) of a circuit, not its inputs. Translate a De Morgan
+circuit with `s` gates on `n ≥ 1` inputs into a source circuit: keep the `n` input nodes and every
+AND, OR and NOT gate, replace each constant gate by `x₁ ∧ ¬x₁` or `¬(x₁ ∧ ¬x₁)` (at most three
+nodes), and add one output node. The result has at most `n + 3 s + 1` nodes. With
+`s = 2 ^ ⌊n / c⌋ ≤ 2 ^ (n / c)` and `1 / c < ε`, eventually `n + 3 s + 1 ≤ 2 ^ (ε n) ≤ S`. So
+every Boolean function `g` of complexity at most `s` agrees with `f` on less than a
+`1 / 2 + 1 / S ≤ 1 / 2 + 1 / s` fraction of the inputs, since `s ≤ S`. That is
+`IsAverageCaseHard (f.slice n) s` for all large `n`, the hypothesis here. So the theorem holds
+under the draft's hypothesis, and also under the weaker one stated: eventual, non-strict
+hardness. `MA` has two-sided error `1 / 3` (`Cslib.Complexity.MA`). -/
 theorem MA_eq_NP_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
     (hL : (L : Set (List Bool)) ∈ E encBits) (hc : 0 < c)
     (hard : ∀ᶠ n in atTop, IsAverageCaseHard (L.slice n) (2 ^ (n / c)))
