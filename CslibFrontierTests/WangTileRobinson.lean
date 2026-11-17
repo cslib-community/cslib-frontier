@@ -57,7 +57,7 @@ public theorem tile103_occurs_in_given_tiling {f : ℤ → ℤ → Cslib.WangTil
   exact ⟨x, y, by rw [← hp, hxy]⟩
 
 -- The tower and recurrence apply to a concrete nonempty family of planes.
-example : ∃ p : Plane, ∃ x y : ℤ, p.index x y = 103 := by
+example : ∃ p : IndexPlane, ∃ x y : ℤ, p.index x y = 103 := by
   obtain ⟨f, hf⟩ := tilesPlane_tileSet
   obtain ⟨p, _⟩ := exists_plane_eq hf
   have h := (tower p).every_tile 0 103

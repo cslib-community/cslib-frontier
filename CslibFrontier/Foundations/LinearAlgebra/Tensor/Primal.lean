@@ -133,41 +133,44 @@ private theorem primal_entry (a b c t : ℕ) (h : a + b - 1 ≤ a + (b + t) - 1)
   rw [dite_eq_left (Finset.mem_range.1 hy')]
   simp only [mul_ite, mul_zero]
 
-/-- The entries decoding a full target `j' ≤ c`: `ε` times the `ε`-free part plus `ε ^ 2` times
-the rest. -/
-private theorem sum_primalBeta_mul_le (b c t s : ℕ) {j' : ℕ} (hj' : j' ≤ c) (x j y k : ℕ)
+/-- Expand the double sum of `primalBeta` against a scalar decoder `C (γ · ·)` into its `ε`-free
+and `ε`-parts. -/
+private theorem sum_primalBeta_mul_C (b c t s : ℕ) (x j y : ℕ) (γ : ℕ → ℕ → K)
     (P : ℕ → Prop) [DecidablePred P] (n m : ℕ) :
     ∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta (K := K) b c t s ν y' j y *
-        (if P y' then primalGamma b c t s j' k ν (x + y') else 0) =
-      Polynomial.X * C (∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta₀ b t ν y' j y *
-          (if P y' then primalGamma₁ t s j' k ν (x + y') else 0)) +
-        Polynomial.X ^ 2 * C (∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta₁ b c t s ν y' j y *
-          (if P y' then primalGamma₁ t s j' k ν (x + y') else 0)) := by
-  simp only [primalBeta, primalGamma, ite_eq_left hj', map_sum, Finset.mul_sum,
-    ← Finset.sum_add_distrib]
-  refine Finset.sum_congr rfl fun ν _ => Finset.sum_congr rfl fun y' _ => ?_
-  split_ifs
-  · simp only [map_mul]
-    ring
-  · simp
-
-/-- The entries decoding the middle target `j' = c + 1`. -/
-private theorem sum_primalBeta_mul_not_le (b c t s : ℕ) {j' : ℕ} (hj' : ¬ j' ≤ c) (x j y k : ℕ)
-    (P : ℕ → Prop) [DecidablePred P] (n m : ℕ) :
-    ∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta (K := K) b c t s ν y' j y *
-        (if P y' then primalGamma b c t s j' k ν (x + y') else 0) =
+        (if P y' then C (γ ν (x + y')) else 0) =
       C (∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta₀ b t ν y' j y *
-          (if P y' then primalGamma₀ b t s k ν (x + y') else 0)) +
+          (if P y' then γ ν (x + y') else 0)) +
         Polynomial.X * C (∑ ν ∈ range n, ∑ y' ∈ range m, primalBeta₁ b c t s ν y' j y *
-          (if P y' then primalGamma₀ b t s k ν (x + y') else 0)) := by
-  simp only [primalBeta, primalGamma, ite_eq_right hj', map_sum, Finset.mul_sum,
-    ← Finset.sum_add_distrib]
+          (if P y' then γ ν (x + y') else 0)) := by
+  simp only [primalBeta, map_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
   refine Finset.sum_congr rfl fun ν _ => Finset.sum_congr rfl fun y' _ => ?_
   split_ifs
   · simp only [map_mul]
     ring
   · simp
 
+/-- Collapse the `primalBeta₀` double sum to the difference between the `(j, y)` term and the
+shifted `(j - 1, y + t)` term. -/
+private theorem sum_primalBeta₀_mul {a b c t : ℕ} (ha : 1 ≤ a) (x j y : ℕ) (g : ℕ → ℕ → K) :
+    ∑ ν ∈ range c, ∑ y' ∈ range (a + (b + t) - 1), primalBeta₀ (K := K) b t ν y' j y *
+        (if x < a ∧ y' < b + t ∧ x + y' < a + (b + t) - 1 then g ν (x + y') else 0) =
+      if x < a ∧ y < b then
+        (if j < c then g j (x + y) else 0) -
+          (if j - 1 < c ∧ 1 ≤ j then g (j - 1) (x + (y + t)) else 0)
+      else 0 := by
+  simp only [primalBeta₀, sub_mul, Finset.sum_sub_distrib, ite_and, ite_mul, zero_mul, one_mul,
+    Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq, Finset.sum_ite_eq',
+    Finset.mem_range]
+  by_cases hxa : x < a
+  swap
+  · simp [hxa]
+  by_cases hyb : y < b
+  swap
+  · simp [hyb]
+  simp [hxa, hyb, (by omega : y < a + (b + t) - 1), (by omega : y < b + t),
+    (by omega : x + y < a + (b + t) - 1), (by omega : y + t < a + (b + t) - 1),
+    (by omega : y + t < b + t), (by omega : x + (y + t) < a + (b + t) - 1)]
 
 /-- The `ε`-free part decoding a full target `j' ≤ c` is that target. -/
 private theorem primal_key_full {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
@@ -178,79 +181,56 @@ private theorem primal_key_full {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
           primalGamma₁ t (a + b - 1) j' k ν (x + y') else 0) =
       if j = j' ∧ x < a ∧ y < b ∧ x + y = k then 1 else 0 := by
   have hc0 : 1 ≤ c := Nat.pos_of_ne_zero (by rintro rfl; simp at hc; omega)
-  simp only [primalBeta₀, sub_mul, Finset.sum_sub_distrib, ite_and, ite_mul, zero_mul, one_mul,
-    Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq, Finset.sum_ite_eq',
-    Finset.mem_range]
-  by_cases hxa : x < a
+  rw [sum_primalBeta₀_mul ha]
+  by_cases hxy : x < a ∧ y < b
   swap
-  · simp [hxa]
-  by_cases hyb : y < b
-  swap
-  · simp [hyb]
-  simp only [hxa, hyb, (by omega : y < a + (b + t) - 1), (by omega : y < b + t),
-    (by omega : x + y < a + (b + t) - 1), (by omega : y + t < a + (b + t) - 1),
-    (by omega : y + t < b + t), (by omega : x + (y + t) < a + (b + t) - 1), ite_true,
-    primalGamma₁]
+  · rw [ite_eq_right hxy, ite_eq_right (by tauto)]
+  simp only [hxy, and_self, true_and, ite_true, primalGamma₁]
   rcases Nat.lt_or_ge j c with hjc | hjc
   · rcases Nat.eq_zero_or_pos j with rfl | hj0
-    · have h10 : ¬ (1 : ℕ) ≤ 0 := by omega
-      simp only [(by omega : (0 : ℕ) - 1 < c), h10, ite_true, ite_false, mul_zero, add_zero,
-        sub_zero]
-      rcases Nat.eq_zero_or_pos j' with rfl | hj'0
-      · simp [hk]
-      · rw [ite_eq_right (by omega : ¬ (0 = j'))]
-        split_ifs <;> first | omega | simp
+    · have hf0 : j' = 0 → t * j' = 0 := fun h => by subst h; rfl
+      simp only [hjc, show ¬ (1 : ℕ) ≤ 0 by decide, and_false, ite_true, ite_false, mul_zero,
+        add_zero, sub_zero]
+      split_ifs <;> first | omega | ring
     · obtain ⟨j₁, rfl⟩ : ∃ j₁, j = j₁ + 1 := ⟨j - 1, by omega⟩
-      simp only [hjc, Nat.add_sub_cancel, (by omega : j₁ < c), (by omega : 1 ≤ j₁ + 1), ite_true,
-        mul_add_one]
       have hf : j' = j₁ + 1 → t * j' = t * j₁ + t := fun h => by subst h; ring
-      split_ifs <;> first | omega | norm_num
+      simp only [hjc, Nat.add_sub_cancel, (by omega : j₁ < c), (by omega : 1 ≤ j₁ + 1), and_self,
+        ite_true, mul_add_one]
+      split_ifs <;> first | omega | ring
   · obtain rfl | rfl : c = j ∨ c + 1 = j := by omega
-    · simp only [lt_irrefl, ite_false, (by omega : c - 1 < c), hc0, ite_true, zero_sub]
-      have hf : t * (c - 1) + t = t * c := by
-        rw [← mul_add_one, Nat.sub_add_cancel hc0]
+    · have hf : t * (c - 1) + t = t * c := by rw [← mul_add_one, Nat.sub_add_cancel hc0]
       have hf2 : j' = c → t * j' = t * c := fun h => by subst h; rfl
-      split_ifs <;> first | omega | norm_num
-    · have hcc : ¬ c + 1 < c := by omega
-      simp only [hcc, Nat.add_sub_cancel, lt_irrefl, ite_false, sub_zero]
-      rw [ite_eq_right (by omega : ¬ (c + 1 = j'))]
+      simp only [lt_irrefl, ite_false, (by omega : c - 1 < c), hc0, and_self, ite_true, zero_sub]
+      split_ifs <;> first | omega | ring
+    · simp only [Nat.add_sub_cancel, lt_irrefl, false_and, ite_false, sub_zero]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega)]
 
 /-- The `ε`-free part decoding the middle target vanishes. -/
-private theorem primal_key_mid_zero {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
+private theorem primal_key_mid_zero {a b c t : ℕ} (ha : 1 ≤ a)
     (hc : a + b - 1 + b ≤ t * c) {x j y k : ℕ} (hj : j < c + 2) (hk : k < a + b - 1) :
     ∑ ν ∈ range c, ∑ y' ∈ range (a + (b + t) - 1), primalBeta₀ (K := K) b t ν y' j y *
         (if x < a ∧ y' < b + t ∧ x + y' < a + (b + t) - 1 then
           primalGamma₀ b t (a + b - 1) k ν (x + y') else 0) = 0 := by
   have hc0 : 1 ≤ c := Nat.pos_of_ne_zero (by rintro rfl; simp at hc; omega)
-  simp only [primalBeta₀, sub_mul, Finset.sum_sub_distrib, ite_and, ite_mul, zero_mul, one_mul,
-    Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq, Finset.sum_ite_eq',
-    Finset.mem_range]
-  by_cases hxa : x < a
+  rw [sum_primalBeta₀_mul ha]
+  by_cases hxy : x < a ∧ y < b
   swap
-  · simp [hxa]
-  by_cases hyb : y < b
-  swap
-  · simp [hyb]
-  simp only [hxa, hyb, (by omega : y < a + (b + t) - 1), (by omega : y < b + t),
-    (by omega : x + y < a + (b + t) - 1), (by omega : y + t < a + (b + t) - 1),
-    (by omega : y + t < b + t), (by omega : x + (y + t) < a + (b + t) - 1), ite_true,
-    primalGamma₀]
+  · simp [hxy]
+  simp only [hxy, and_self, ite_true, primalGamma₀]
   rcases Nat.lt_or_ge j c with hjc | hjc
   · rcases Nat.eq_zero_or_pos j with rfl | hj0
-    · have h10 : ¬ (1 : ℕ) ≤ 0 := by omega
-      simp only [hjc, h10, ite_true, ite_false, mul_zero, add_zero, sub_zero]
-      split_ifs <;> first | omega | rfl
+    · simp only [hjc, show ¬ (1 : ℕ) ≤ 0 by decide, and_false, ite_true, ite_false, mul_zero,
+        add_zero, sub_zero]
+      split_ifs <;> first | omega | ring
     · obtain ⟨j₁, rfl⟩ : ∃ j₁, j = j₁ + 1 := ⟨j - 1, by omega⟩
-      simp only [hjc, Nat.add_sub_cancel, (by omega : j₁ < c), (by omega : 1 ≤ j₁ + 1), ite_true,
-        mul_add_one]
-      split_ifs <;> first | omega | norm_num
+      simp only [hjc, Nat.add_sub_cancel, (by omega : j₁ < c), (by omega : 1 ≤ j₁ + 1), and_self,
+        ite_true, mul_add_one]
+      split_ifs <;> first | omega | ring
   · obtain rfl | rfl : c = j ∨ c + 1 = j := by omega
-    · simp only [lt_irrefl, ite_false, (by omega : c - 1 < c), hc0, ite_true, zero_sub]
-      have hf : t * (c - 1) + t = t * c := by
-        rw [← mul_add_one, Nat.sub_add_cancel hc0]
-      split_ifs <;> first | omega | norm_num
-    · have hcc : ¬ c + 1 < c := by omega
-      simp only [hcc, Nat.add_sub_cancel, lt_irrefl, ite_false, sub_zero]
+    · have hf : t * (c - 1) + t = t * c := by rw [← mul_add_one, Nat.sub_add_cancel hc0]
+      simp only [lt_irrefl, ite_false, (by omega : c - 1 < c), hc0, and_self, ite_true, zero_sub]
+      split_ifs <;> first | omega | ring
+    · simp
 
 /-- The `ε`-part decoding the middle target is the middle target. -/
 private theorem primal_key_mid {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) (ht : 1 ≤ t)
@@ -326,11 +306,13 @@ private theorem primal_entry_eq {a b c t : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) (h
         Polynomial.X ^ 2 * primalRem a b c t x.val (j.val, y.val) (j'.val, k.val) := by
   rw [primal_entry, slSum_primalTargets_apply]
   by_cases hj' : j'.val ≤ c
-  · rw [sum_primalBeta_mul_le b c t (a + b - 1) hj', primal_key_full ha hb hc j.isLt hj' k.isLt]
-    simp only [primalRem, hj', ite_true]
-  · rw [sum_primalBeta_mul_not_le b c t (a + b - 1) hj',
-      primal_key_mid_zero ha hb hc j.isLt k.isLt, primal_key_mid ha hb ht hc, map_zero, zero_add]
-    simp only [primalRem, hj', ite_false, mul_zero, add_zero]
+  · simp only [primalGamma, hj', ite_true, ← mul_ite_zero, mul_left_comm _ Polynomial.X,
+      ← Finset.mul_sum, sum_primalBeta_mul_C, primal_key_full ha hb hc j.isLt hj' k.isLt,
+      primalRem]
+    ring
+  · simp only [primalGamma, hj', ite_false, sum_primalBeta_mul_C,
+      primal_key_mid_zero ha hc j.isLt k.isLt, primal_key_mid ha hb ht hc,
+      primalRem, map_zero, zero_add, mul_zero, add_zero]
 
 /-- **The primal packing** ([Pass][Pass2026], Theorem 3.1): for `a, b, t ≥ 1` and
 `c t ≥ a + 2 b - 1`, the shared-left sum of `c + 1` full products `Full_{a,b}` and one middle

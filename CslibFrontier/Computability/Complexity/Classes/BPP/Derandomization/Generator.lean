@@ -108,13 +108,13 @@ namespace Turing.MultiTapeTM
 of length `n`, for a monotone `T`. Then cutting a word to a computed length `cut x` and applying
 `g` is polynomial-time in the pair of `x` and the word, provided `T (cut x)` is polynomially
 bounded in the length of `x`. -/
-theorem ComputableInO.computableInPolyTime_take {γ : Type} {encIn : γ ↪ List Bool}
-    {g : List Bool → Bool} {T : ℕ → ℕ} (hT : Monotone T)
-    (hg : ComputableInO g encBits encBool (fun y => T y.length) fun y => T y.length)
+theorem ComputableInO.computableInPolyTime_take {γ β : Type} {encIn : γ ↪ List Bool}
+    {encOut : β ↪ List Bool} {g : List Bool → β} {T : ℕ → ℕ} (hT : Monotone T)
+    (hg : ComputableInO g encBits encOut (fun y => T y.length) fun y => T y.length)
     {cut : γ → ℕ} (hcut : ComputableInPolyTime cut encIn encUnary)
     (hbound : PolyBounded (fun x => (encIn x).length) fun x => T (cut x)) :
     ComputableInPolyTime (fun p : γ × List Bool => g (p.2.take (cut p.1)))
-      (encPair encIn encBits) encBool := by
+      (encPair encIn encBits) encOut := by
   have htake : ComputableInPolyTime (fun p : γ × List Bool => p.2.take (cut p.1))
       (encPair encIn encBits) encBits := by
     have := hcut.comp (ComputableInPolyTime.fst encIn encBits)

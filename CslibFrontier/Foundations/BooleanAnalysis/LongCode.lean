@@ -238,6 +238,13 @@ theorem projectSet_insert (π : β → γ) {x : β} {T : Finset β} (hx : x ∉ 
   · have hyx : y ≠ π x := Ne.symm hxy
     simp [hxy, hyx]
 
+/-- The mod-2 projection along the identity is the identity. -/
+@[simp]
+theorem projectSet_id [Fintype β] (T : Finset β) : projectSet id T = T := by
+  ext y
+  rw [mem_projectSet, show {x ∈ T | id x = y} = {x ∈ T | x = y} from rfl, filter_eq' T y]
+  by_cases hy : y ∈ T <;> simp [hy]
+
 omit [DecidableEq β] in
 /-- **Pulling a character back along `π` projects the frequency set by `projectSet π`**:
 `chi ℝ T (f ∘ π) = chi ℝ (projectSet π T) f`. -/
