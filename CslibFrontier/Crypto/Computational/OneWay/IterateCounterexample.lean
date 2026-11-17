@@ -30,14 +30,16 @@ The construction starts from a one-way function `g` whose output length depends 
 input length (`OneWay.exists_fixedOutputLength`). Call a word *low-zero* when its first
 `⌊|w| / 2⌋` bits are all `false`. Then
 
-* `f x = 0^|x|` when `x` is low-zero, and
+* `f x = 0^(|x| + 2 |g x| + 1)` when `x` is low-zero, and
 * `f x = 0^(|x| + |g x|) ++ 1 :: g x` otherwise.
 
-Every image of `f` is low-zero, so `f (f x) = 0^|f x|`, and `f` fixes all-zero words. Every
-iterate with at least two steps therefore depends only on the input length and on whether the input
-is low-zero. The inverter answers `0^n` when the challenge has length `n` and `1^n` otherwise.
-Inverting `f` itself still means inverting `g`, except on low-zero inputs, which have probability
-at most `2^-(n / 2)`. The marker bit `1` makes the challenge determine `g x`.
+Both branches have length `|x| + 2 |g x| + 1`, so `f` has a single output length `m n` at each
+input length `n`, as in the family of Definition 10.1. Every image of `f` is low-zero, so
+`f (f x)` is the all-zero word whose length depends only on `|x|`. All inputs of one length
+therefore share their second image, and every later iterate. The inverter for any iterate with at
+least two steps simply answers `0^n`. Inverting `f` itself still means inverting `g`, except on
+low-zero inputs, which have probability at most `2^-(n / 2)`. The marker bit `1` makes the
+challenge determine `g x`.
 
 ## Main definitions
 
@@ -47,10 +49,14 @@ at most `2^-(n / 2)`. The marker bit `1` makes the challenge determine `g x`.
 
 * `Cslib.Crypto.IterateCounterexample.oneWay_collapse`: `f` is one-way when `g` is one-way with
   fixed output length.
+* `Cslib.Crypto.IterateCounterexample.length_collapse`,
+  `Cslib.Crypto.IterateCounterexample.iterate_collapse_eq`: fixed output length, and equal second
+  images for inputs of equal length.
 * `Cslib.Crypto.IterateCounterexample.not_oneWay_iterate_collapse`: every iterate with eventually
   at least two steps is not one-way.
 * `Cslib.Crypto.exists_oneWay_not_oneWay_iterate`,
-  `Cslib.Crypto.exists_oneWay_not_oneWay_iterate_ceil_rpow`: the exercise.
+  `Cslib.Crypto.exists_oneWay_not_oneWay_iterate_ceil_rpow`: the exercise, with a witness of
+  polynomial-time fixed output length.
 
 ## References
 
@@ -76,10 +82,11 @@ def lowZero (w : List Bool) : Bool :=
 def mark (n : ℕ) (w : List Bool) : List Bool :=
   List.replicate (n + w.length) false ++ true :: w
 
-/-- The one-way function whose iterates collapse: all zeros on low-zero inputs, and the marked
-image of `g x` otherwise. -/
+/-- The one-way function whose iterates collapse: on a low-zero input `x`, the all-zero word of
+the marked image's length `|x| + 2 |g x| + 1`; otherwise the marked image of `g x`. -/
 def collapse (g : List Bool → List Bool) (x : List Bool) : List Bool :=
-  if lowZero x then List.replicate x.length false else mark x.length (g x)
+  if lowZero x then List.replicate (x.length + 2 * (g x).length + 1) false
+  else mark x.length (g x)
 
 private theorem lowZero_replicate (m : ℕ) : lowZero (List.replicate m false) = true := by
   simp [lowZero, List.take_replicate, Nat.div_le_self]
@@ -110,99 +117,61 @@ private theorem eq_of_mark_eq {n m : ℕ} {u v : List Bool} (h : mark n u = mark
   | zero => cases q <;> simp_all [List.replicate_succ]
   | succ p ih => cases q <;> simp_all [List.replicate_succ]
 
-/-- `collapse g` sends every word to the all-zero word of the same length as its image. -/
-private theorem collapse_collapse (g : List Bool → List Bool) (x : List Bool) :
-    collapse g (collapse g x) = List.replicate (collapse g x).length false := by
-  rw [collapse, ite_eq_left (lowZero_collapse g x)]
+private theorem collapse_of_lowZero (g : List Bool → List Bool) {w : List Bool}
+    (hw : lowZero w = true) :
+    collapse g w = List.replicate (w.length + 2 * (g w).length + 1) false := by
+  rw [collapse, ite_eq_left hw]
 
-private theorem collapse_replicate (g : List Bool → List Bool) (m : ℕ) :
-    collapse g (List.replicate m false) = List.replicate m false := by
-  rw [collapse, ite_eq_left (lowZero_replicate m), List.length_replicate]
-
-/-- At least two steps of `collapse g` give the all-zero word of the length of the first image. -/
-theorem iterate_collapse (g : List Bool → List Bool) (j : ℕ) (x : List Bool) :
-    (collapse g)^[j + 2] x = List.replicate (collapse g x).length false := by
-  induction j with
-  | zero => exact collapse_collapse g x
-  | succ j ih =>
-    rw [Function.iterate_succ_apply', ih, collapse_replicate]
-
-/-- The length of the first image: the input length on low-zero inputs, and
-`|x| + 2 |g x| + 1` otherwise. -/
-private theorem length_collapse (g : List Bool → List Bool) (x : List Bool) :
-    (collapse g x).length = if lowZero x then x.length else x.length + 2 * (g x).length + 1 := by
+/-- Both branches of `collapse g` have length `|x| + 2 |g x| + 1`. With `g` of fixed output
+length, `collapse g` therefore has fixed output length too. -/
+theorem length_collapse (g : List Bool → List Bool) (x : List Bool) :
+    (collapse g x).length = x.length + 2 * (g x).length + 1 := by
   unfold collapse mark
   split <;> simp only [List.length_replicate, List.length_append, List.length_cons]
   omega
 
-/-- The inverter for the iterates: `0^n` for a challenge of length `n`, else `1^n`. -/
-def iterateInverse (n : ℕ) (z : List Bool) : List Bool :=
-  if z.length = n then List.replicate n false else List.replicate n true
+/-- **Second images coincide.** If `g` has fixed output length, then at least two steps of
+`collapse g` send all inputs of the same length to the same word. -/
+theorem iterate_collapse_eq {g : List Bool → List Bool} {length : ℕ → ℕ}
+    (hlen : ∀ input, (g input).length = length input.length) (j : ℕ) {x y : List Bool}
+    (hxy : x.length = y.length) : (collapse g)^[j + 2] x = (collapse g)^[j + 2] y := by
+  have hfirst : (collapse g x).length = (collapse g y).length := by
+    rw [length_collapse, length_collapse, hlen, hlen, hxy]
+  have hsecond : collapse g (collapse g x) = collapse g (collapse g y) := by
+    rw [collapse_of_lowZero g (lowZero_collapse g x), collapse_of_lowZero g (lowZero_collapse g y),
+      hlen (collapse g x), hlen (collapse g y), hfirst]
+  rw [Function.iterate_add_apply, Function.iterate_add_apply]
+  exact congrArg _ hsecond
 
-/-- The iterate inverter is correct whenever the iterate takes at least two steps. -/
-private theorem iterate_iterateInverse {g : List Bool → List Bool} {length : ℕ → ℕ}
-    (hlen : ∀ input, (g input).length = length input.length) {j : ℕ} (x : List Bool) :
-    (collapse g)^[j + 2] (iterateInverse x.length ((collapse g)^[j + 2] x)) =
-      (collapse g)^[j + 2] x := by
-  rw [iterate_collapse, iterate_collapse]
-  congr 1
-  simp only [iterateInverse, List.length_replicate]
-  by_cases hx : lowZero x = true
-  · have hL : (collapse g x).length = x.length := by rw [length_collapse, ite_eq_left hx]
-    rw [hL, ite_eq_left rfl, length_collapse, ite_eq_left (lowZero_replicate _),
-      List.length_replicate]
-  · have hhalf : x.length / 2 ≠ 0 := by
-      intro h0
-      exact hx (by simp [lowZero, h0])
-    have hones : lowZero (List.replicate x.length true) = false := by
-      simp only [lowZero, List.length_replicate, List.take_replicate, Nat.min_eq_left
-        (Nat.div_le_self _ 2), decide_eq_false_iff_not]
-      intro h
-      obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero hhalf
-      rw [hm, List.replicate_succ, List.replicate_succ] at h
-      simp at h
-    have hL : (collapse g x).length = x.length + 2 * length x.length + 1 := by
-      rw [length_collapse, ite_eq_right hx, hlen]
-    rw [hL, ite_eq_right (by omega), length_collapse, hones, ite_eq_right Bool.false_ne_true,
-      List.length_replicate, hlen, List.length_replicate]
-
-/-- The iterate inverter is polynomial time. -/
-private theorem computableInPolyTime_iterateInverse :
-    ComputableInPolyTime (fun p : ℕ × List Bool => iterateInverse p.1 p.2)
-      (encPair encUnary encBits) encBits := by
-  unfold iterateInverse
-  polytime
-
-/-- **Iterates of `collapse g` are not one-way.** For a count `k` with `k n ≥ 2` for all large
-`n`, the efficient inverter `iterateInverse` inverts `x ↦ (collapse g)^[k |x|] x` with
-probability one at every such length. -/
+/-- **Iterates of `collapse g` are not one-way.** For `g` of fixed output length and a count `k`
+with `k n ≥ 2` for all large `n`, the constant inverter answering `0^n` inverts
+`x ↦ (collapse g)^[k |x|] x` with probability one at every such length. -/
 theorem not_oneWay_iterate_collapse {g : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ input, (g input).length = length input.length) {k : ℕ → ℕ}
     (hk : ∀ᶠ n in Filter.atTop, 2 ≤ k n) :
     ¬ OneWay (fun x => (collapse g)^[k x.length] x) := by
   intro hf
-  have hPPT : IsPPT encBits (fun n y => (pure (iterateInverse n y) : ProbComp (List Bool))) :=
-    computableInPolyTime_iterateInverse.isPPTOn
+  have hzeros : ComputableInPolyTime (fun p : ℕ × List Bool => List.replicate p.1 false)
+      (encPair encUnary encBits) encBits := by polytime
+  have hPPT : IsPPT encBits
+      (fun n _ => (pure (List.replicate n false) : ProbComp (List Bool))) := hzeros.isPPTOn
   refine not_negligible_const one_ne_zero ((hf.inversion_negligible _ hPPT).congr' ?_)
   filter_upwards [hk] with n hn
   obtain ⟨j, hj⟩ : ∃ j, k n = j + 2 := ⟨k n - 2, by omega⟩
   have hgame : ProbComp.eval (inversionGame (fun x => (collapse g)^[k x.length] x)
-      (fun n y => pure (iterateInverse n y)) n) = PMF.pure true := by
+      (fun n _ => pure (List.replicate n false)) n) = PMF.pure true := by
     have heval : ProbComp.eval (inversionGame (fun x => (collapse g)^[k x.length] x)
-        (fun n y => pure (iterateInverse n y)) n) =
+        (fun n _ => pure (List.replicate n false)) n) =
         (BitString.uniformList n).map fun x =>
-          (collapse g)^[k (iterateInverse n ((collapse g)^[k x.length] x)).length]
-            (iterateInverse n ((collapse g)^[k x.length] x)) ==
+          (collapse g)^[k (List.replicate n false).length] (List.replicate n false) ==
             (collapse g)^[k x.length] x := by
       simp [inversionGame, inversionExperiment]
     rw [heval, ← PMF.bind_pure_comp, PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true)
       fun x hx => ?_, PMF.bind_const]
     have hxn : x.length = n := BitString.length_of_mem_support_uniformList hx
-    have hinv : (iterateInverse n ((collapse g)^[k x.length] x)).length = n := by
-      unfold iterateInverse
-      split <;> simp
-    rw [Function.comp_apply, hinv, hxn, hj, ← hxn, iterate_iterateInverse hlen,
-      beq_self_eq_true]
+    rw [Function.comp_apply, List.length_replicate, hxn, hj,
+      iterate_collapse_eq hlen j (x := List.replicate n false) (y := x)
+      (by rw [List.length_replicate, hxn]), beq_self_eq_true]
   simp [Game.succProbability, hgame]
 
 /-- The inverter for `g` built from an inverter for `collapse g`: mark the challenge. -/
@@ -280,23 +249,31 @@ end IterateCounterexample
 open IterateCounterexample
 
 /-- **Iterates of one-way functions need not be one-way** ([AroraBarak07], Chapter 10,
-Exercise 4). If a one-way function exists, then some one-way function `f` has the property that
-`x ↦ f^[k |x|] x` is not one-way for every count `k` with `k n ≥ 2` for all large `n`. -/
+Exercise 4). If a one-way function exists, then some one-way function `f` has a single output
+length `m n` for all inputs of length `n` (with `m` polynomial-time in unary), as in the family of
+Definition 10.1, and `x ↦ f^[k |x|] x` is not one-way for every count `k` with `k n ≥ 2` for all
+large `n`. -/
 theorem exists_oneWay_not_oneWay_iterate (h : ∃ g : List Bool → List Bool, OneWay g) :
     ∃ f : List Bool → List Bool, OneWay f ∧
+      (∃ m : ℕ → ℕ, (∀ x, (f x).length = m x.length) ∧
+        ComputableInPolyTime m encUnary encUnary) ∧
       ∀ k : ℕ → ℕ, (∀ᶠ n in Filter.atTop, 2 ≤ k n) → ¬ OneWay (fun x => f^[k x.length] x) := by
   obtain ⟨g₀, hg₀⟩ := h
-  obtain ⟨g, length, hg, hlen, -⟩ := hg₀.exists_fixedOutputLength
-  exact ⟨collapse g, oneWay_collapse hg, fun k hk => not_oneWay_iterate_collapse hlen hk⟩
+  obtain ⟨g, length, hg, hlen, hlength⟩ := hg₀.exists_fixedOutputLength
+  refine ⟨collapse g, oneWay_collapse hg, ⟨fun n => n + 2 * length n + 1, fun x => ?_, by fun_prop⟩,
+    fun k hk => not_oneWay_iterate_collapse hlen hk⟩
+  rw [length_collapse, hlen]
 
 /-- **The exercise's counts** ([AroraBarak07], Chapter 10, Exercise 4): if a one-way function
-exists, then some one-way function `f` has `x ↦ f^[⌈|x| ^ c⌉] x` not one-way for every real
-`c > 0`. -/
+exists, then some one-way function `f` with polynomial-time fixed output length has
+`x ↦ f^[⌈|x| ^ c⌉] x` not one-way for every real `c > 0`. -/
 theorem exists_oneWay_not_oneWay_iterate_ceil_rpow (h : ∃ g : List Bool → List Bool, OneWay g) :
     ∃ f : List Bool → List Bool, OneWay f ∧
+      (∃ m : ℕ → ℕ, (∀ x, (f x).length = m x.length) ∧
+        ComputableInPolyTime m encUnary encUnary) ∧
       ∀ c : ℝ, 0 < c → ¬ OneWay (fun x => f^[⌈(x.length : ℝ) ^ c⌉₊] x) := by
-  obtain ⟨f, hf, hiter⟩ := exists_oneWay_not_oneWay_iterate h
-  refine ⟨f, hf, fun c hc => hiter (fun n => ⌈(n : ℝ) ^ c⌉₊) ?_⟩
+  obtain ⟨f, hf, hm, hiter⟩ := exists_oneWay_not_oneWay_iterate h
+  refine ⟨f, hf, hm, fun c hc => hiter (fun n => ⌈(n : ℝ) ^ c⌉₊) ?_⟩
   have hlim := (tendsto_rpow_atTop hc).comp tendsto_natCast_atTop_atTop
   filter_upwards [hlim.eventually_ge_atTop 2] with n hn
   exact_mod_cast (show (2 : ℝ) ≤ ⌈(n : ℝ) ^ c⌉₊ from hn.trans (Nat.le_ceil _))
