@@ -59,7 +59,7 @@ theorem realizes_allocLayout : Realizes .exact Stack.Memory.allocLayout
     (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding layoutWords
     (fun w C s => Fits w (s.frontier + 1 + C)) (fun _ _ => 0) := by
   realize
-  all_goals exact h.of_le (by omega)
+  exact h.of_le (by omega)
 
 /-- The allocation's body. -/
 noncomputable def allocCertificate : Unit → Certificate .exact :=
@@ -214,7 +214,7 @@ theorem realizes_allocTwo : Realizes .exact allocTwo (Equiv.funUnique (Fin 1) �
     (appendWords layoutWords layoutWords) (fun w C s => Fits w (s.frontier + 2 * (C + 1)))
     (fun _ _ => 0) := by
   realize
-  all_goals exact h.of_le (by omega)
+  exact h.of_le (by omega)
 
 /-- The body allocating both stacks. -/
 noncomputable def pairAllocCertificate : Unit → Certificate .exact :=
