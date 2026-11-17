@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Attachment
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.AttachmentLabels
 import Mathlib.Tactic.FinCases
 import Batteries.Data.List.Lemmas
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Attaching an ordered two-port body at any old coordinate
@@ -43,10 +44,8 @@ theorem nodup_binaryAttachmentPorts (k a : ℕ) (j : Fin k) :
   have hlast : Sum.inl (Fin.last k) ∉ output := by
     intro he
     obtain ⟨i, hi⟩ := List.mem_ofFn.mp he
-    have hv := congrArg Fin.val (Sum.inl.inj hi)
-    have hb := i.isLt
-    simp only [Fin.val_castSucc, Fin.val_last] at hv
-    omega
+    have := Sum.inl.inj hi
+    fin_index
   have hn := List.nodup_cons.mpr ⟨hlast, hno⟩
   have hp := (List.perm_append_comm (l₁ := [Sum.inl (Fin.last k)])
     (l₂ := output.take j.val)).append_right (output.drop j.val)

@@ -320,9 +320,7 @@ private theorem computableInPolyTime_answerFromHistory (op : Operation) (next : 
         answerFromHistory matchOp entryPair p.1.1 op next p.1.2)
       (encPair (encPair encUnary (encAliveState encEntry)) encBool)
       (encAliveState encEntry) := by
-  have hmatchOp := hmatch op
-  unfold answerFromHistory
-  fun_prop
+  fun_prop [answerFromHistory]
 
 include hmatch hpair in
 /-- **A step of the live replay is polynomial-time.** -/

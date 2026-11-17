@@ -32,7 +32,9 @@ CCA experiment ([KatzLindell2020], Definition 12.13, p. 425) gives the adversary
 the challenge ciphertext and either the real key or an independent key, together with the random
 oracle `H` and a decapsulation oracle that refuses the challenge ciphertext.
 
-We prove [KatzLindell2020], Theorem 12.22 (p. 435) as a concrete reduction: the distinguishing
+We prove the concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the
+asymptotic theorem is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA` in
+`CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Decodable`. The distinguishing
 advantage of every CCA adversary against the KEM is at most the success probability of an
 explicit gap-CDH adversary `dhKEMToGapCDH`. The reduction runs the KEM adversary, answering hash
 and decapsulation queries consistently from a table of past queries by asking the DDH oracle
@@ -47,7 +49,7 @@ point `z` with `z = x • c⋆` for the challenge ciphertext `c⋆`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMEncaps`,
   `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMDecaps`: Construction 12.19 for a fixed hash function.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMCCAGame`: the CCA experiment in the random-oracle model.
-* `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMToGapCDH`: the reduction of Theorem 12.22.
+* `Cslib.Crypto.PrimeOrderGroupFamily.dhKEMToGapCDH`: the concrete per-group reduction step.
 
 ## Main results
 
@@ -219,9 +221,10 @@ def extractDH (challenge : F.Carrier d) :
     if ← ProbOracleComp.query (challenge, z) then return z else extractDH challenge rest
   | (.inr _, _) :: rest => extractDH challenge rest
 
-/-- The gap-CDH adversary of [KatzLindell2020], Theorem 12.22: on `(c⋆, h)` it runs the KEM
-adversary on public key `h`, challenge ciphertext `c⋆` and a fresh key, answers its queries with
-`simHandler`, and outputs the hash point `x • c⋆` if the adversary asked for it. -/
+/-- The gap-CDH adversary of the concrete per-group step of [KatzLindell2020], Theorem 12.22: on
+`(c⋆, h)` it runs the KEM adversary on public key `h`, challenge ciphertext `c⋆` and a fresh key,
+answers its queries with `simHandler`, and outputs the hash point `x • c⋆` if the adversary asked
+for it. -/
 @[expose] def dhKEMToGapCDH (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
     F.GapCDHAdversary d := fun input =>
   if input.2 = 0 then pure 0
@@ -237,10 +240,10 @@ section Execution
 
 variable {α β : Type}
 
-@[simp] private theorem runDDH_pure (y : ZMod (F.order d)) (a : α) :
+@[simp] theorem runDDH_pure (y : ZMod (F.order d)) (a : α) :
     F.runDDH d y (pure a) = PMF.pure a := rfl
 
-private theorem runDDH_bind (y : ZMod (F.order d)) (program : ProbOracleComp (F.DDHSpec d) α)
+theorem runDDH_bind (y : ZMod (F.order d)) (program : ProbOracleComp (F.DDHSpec d) α)
     (next : α → ProbOracleComp (F.DDHSpec d) β) :
     F.runDDH d y (program >>= next) = (F.runDDH d y program).bind fun a => F.runDDH d y (next a) :=
   OracleComp.interpret_bind _ _ _
@@ -254,19 +257,19 @@ private theorem runDDH_query (y : ZMod (F.order d)) (q : F.Carrier d × F.Carrie
     F.runDDH d y (ProbOracleComp.query q) = F.ddhOracle d y q :=
   ProbOracleComp.interpret_query _ _ q
 
-private theorem runDDH_sample (y : ZMod (F.order d)) (program : ProbComp α) :
+theorem runDDH_sample (y : ZMod (F.order d)) (program : ProbComp α) :
     F.runDDH d y (ProbOracleComp.sample program) = ProbComp.eval program :=
   (ProbOracleComp.interpret_sample _ _ program).trans
     (OracleComp.evalWith_eq_interpret _ program).symm
 
 /-- A stateful handler over the DDH interface, with every call executed against `O_y`. -/
-private def lowerHandler {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.order d))
+@[expose] def lowerHandler {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.order d))
     (handler : (q : ι) → StateT σ (ProbOracleComp (F.DDHSpec d)) (spec q)) (q : ι) :
     StateT σ PMF (spec q) :=
   fun t => F.runDDH d y ((handler q).run t)
 
 /-- Executing a stateful handler against the DDH oracle executes each of its calls. -/
-private theorem runDDH_run_interpret {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.order d))
+theorem runDDH_run_interpret {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.order d))
     (handler : (q : ι) → StateT σ (ProbOracleComp (F.DDHSpec d)) (spec q))
     (program : OracleComp spec α) (s : σ) :
     F.runDDH d y ((OracleComp.interpret handler program).run s) =
@@ -517,6 +520,71 @@ private theorem exists_mem_of_tableCache (x : ZMod (F.order d)) (hx : x ≠ 0)
   cases l with
   | inl z => exact ⟨key, by rwa [show z = x • challenge from hl] at hmem⟩
   | inr c => exact absurd (by rw [(F.smul_inj d x hx).mp hl]) (hinv _ hmem)
+
+/-- Whether a `SimTable` label matches a hash query `z` under DDH exponent `y`. -/
+@[expose] def hashMatches (y : ZMod (F.order d)) (z : F.Carrier d) :
+    F.Carrier d ⊕ F.Carrier d → Bool
+  | .inl z' => decide (z' = z)
+  | .inr c => decide (z = y • c)
+
+/-- Whether a `SimTable` label matches a decapsulation query `c` under DDH exponent `y`. -/
+@[expose] def decapsMatches (y : ZMod (F.order d)) (c : F.Carrier d) :
+    F.Carrier d ⊕ F.Carrier d → Bool
+  | .inl z => decide (z = y • c)
+  | .inr c' => decide (c' = c)
+
+/-- `PMF` law of `simHandler` on `.hash z` against `O_y`. -/
+theorem runDDH_simHandler_hash (y : ZMod (F.order d)) (sampleKey : ProbComp K)
+    (challenge z : F.Carrier d) (table : F.SimTable d K) :
+    F.runDDH d y ((F.simHandler d sampleKey challenge (.hash z)).run table) =
+      match (table.find? fun e => F.hashMatches d y z e.1).map Prod.snd with
+      | some key => PMF.pure (key, table)
+      | none => (ProbComp.eval sampleKey).map fun key => (key, (.inl z, key) :: table) := by
+  have htest : ∀ l, F.runDDH d y (F.hashTest d z l) = PMF.pure (F.hashMatches d y z l) := by
+    intro l; cases l <;> simp [hashTest, hashMatches, runDDH_query, ddhOracle]
+  cases hfind : (table.find? fun e => F.hashMatches d y z e.1).map Prod.snd with
+  | some key =>
+    exact F.runDDH_simLookup_of_some d y sampleKey _ _ htest (.inl z) table key hfind
+  | none =>
+    exact F.runDDH_simLookup_of_none d y sampleKey _ _ htest (.inl z) table hfind
+
+/-- `PMF` law of `simHandler` on `.decaps c` against `O_y`. -/
+theorem runDDH_simHandler_decaps (y : ZMod (F.order d)) (sampleKey : ProbComp K)
+    (challenge c : F.Carrier d) (table : F.SimTable d K) :
+    F.runDDH d y ((F.simHandler d sampleKey challenge (.decaps c)).run table) =
+      if c = challenge then PMF.pure (none, table)
+      else match (table.find? fun e => F.decapsMatches d y c e.1).map Prod.snd with
+      | some key => PMF.pure (some key, table)
+      | none => (ProbComp.eval sampleKey).map fun key => (some key, (.inr c, key) :: table) := by
+  by_cases hc : c = challenge
+  · subst hc; simp only [↓reduceIte]; exact F.lowerHandler_decaps_self d y sampleKey c table
+  · simp only [hc, ↓reduceIte]
+    rw [show F.runDDH d y ((F.simHandler d sampleKey challenge (.decaps c)).run table) =
+      F.lowerHandler d y (F.simHandler d sampleKey challenge) (.decaps c) table from rfl,
+      F.lowerHandler_decaps_of_ne d y sampleKey challenge c hc]
+    have htest : ∀ l, F.runDDH d y (F.decapsTest d c l) = PMF.pure (F.decapsMatches d y c l) := by
+      intro l; cases l <;> simp [decapsTest, decapsMatches, runDDH_query, ddhOracle]
+    cases hfind : (table.find? fun e => F.decapsMatches d y c e.1).map Prod.snd with
+    | some key =>
+      rw [F.runDDH_simLookup_of_some d y sampleKey _ _ htest (.inr c) table key hfind,
+        PMF.pure_map]
+    | none =>
+      rw [F.runDDH_simLookup_of_none d y sampleKey _ _ htest (.inr c) table hfind, PMF.map_comp]
+      rfl
+
+@[simp] theorem runDDH_extractDH_nil (y : ZMod (F.order d)) (challenge : F.Carrier d) :
+    F.runDDH d y (F.extractDH d challenge ([] : F.SimTable d K)) = PMF.pure 0 := by rfl
+
+@[simp] theorem runDDH_extractDH_cons_inl (y : ZMod (F.order d)) (challenge z : F.Carrier d)
+    (key : K) (rest : F.SimTable d K) :
+    F.runDDH d y (F.extractDH d challenge ((.inl z, key) :: rest)) =
+      if z = y • challenge then PMF.pure z else F.runDDH d y (F.extractDH d challenge rest) := by
+  by_cases hz : z = y • challenge <;> simp [extractDH, runDDH_bind, runDDH_query, ddhOracle, hz]
+
+@[simp] theorem runDDH_extractDH_cons_inr (y : ZMod (F.order d)) (challenge c : F.Carrier d)
+    (key : K) (rest : F.SimTable d K) :
+    F.runDDH d y (F.extractDH d challenge ((.inr c, key) :: rest)) =
+      F.runDDH d y (F.extractDH d challenge rest) := by rfl
 
 end Simulation
 
@@ -788,7 +856,7 @@ private theorem bad_le_extract (x : ZMod (F.order d)) (hx : x ≠ 0) (sampleKey 
 
 end Reduction
 
-/-! ### Theorem 12.22 -/
+/-! ### Concrete per-group step of Theorem 12.22 -/
 
 section Security
 
@@ -821,9 +889,12 @@ private theorem ccaAt_bound (sampleKey : ProbComp K) (adversary : F.DHKEMAdversa
   have hbad := F.bad_le_extract d x hx sampleKey adversary y key
   exact ⟨h1.trans (add_le_add le_rfl hbad), h2.trans (add_le_add le_rfl hbad)⟩
 
-/-- **[KatzLindell2020], Theorem 12.22.** The CCA advantage of every adversary against the
-random-oracle Diffie–Hellman KEM (Construction 12.19) is at most the success probability of the
-gap-CDH adversary `dhKEMToGapCDH` built from it. -/
+/-- Concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the asymptotic theorem
+is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
+(`CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH/Decodable.lean`).
+The CCA advantage of every adversary against the random-oracle Diffie–Hellman KEM
+(Construction 12.19) is at most the success probability of the gap-CDH adversary `dhKEMToGapCDH`
+built from it. -/
 theorem advantage_dhKEMCCAGame_le (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
     Game.advantage (F.dhKEMCCAGame d sampleKey adversary true)
         (F.dhKEMCCAGame d sampleKey adversary false) ≤

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
+import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
 import CslibFrontier.Crypto.Computational.RabinFactoring
@@ -26,9 +27,10 @@ Each security definition below fails for an obviously insecure instance, so none
 for every candidate. The negative instances for one-way functions, symmetric IND-CPA,
 pseudorandom generators and hard-core predicates are elsewhere.
 
-* **Discrete logarithm, CDH and DDH.** For every prime-order group family `F` and every fixed
-  description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of `F.DiscreteLog`,
-  `F.CDH`, `F.WordCDH` and `F.DDH`. Guessing the exponent `0` solves the discrete logarithm with
+* **Discrete logarithm, CDH, Gap-CDH and DDH.** For every prime-order group family `F` and every
+  fixed description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of
+  `F.DiscreteLog`, `F.CDH`, `F.WordCDH` and `F.DDH` (nor `F.GapCDH` when `F` is a
+  `DecodablePrimeOrderGroupFamily`). Guessing the exponent `0` solves the discrete logarithm with
   probability `1 / q`. Testing whether the first and third elements are both the identity has
   advantage `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with
   the security parameter.
@@ -76,6 +78,11 @@ theorem not_cdh_const : ¬ F.CDH fun _ => PMF.pure d :=
 /-- **Word-level CDH fails for a fixed group**, since it implies CDH. -/
 theorem not_wordCDH_const : ¬ F.WordCDH fun _ => PMF.pure d :=
   fun h => not_cdh_const F d h.cdh
+
+/-- **Gap-CDH fails for a fixed decodable group**, since it implies word-level CDH. -/
+theorem not_gapCDH_const (F : DecodablePrimeOrderGroupFamily) (d : F.Desc) :
+    ¬ F.GapCDH fun _ => PMF.pure d :=
+  fun h => not_wordCDH_const F.toPrimeOrderGroupFamily d h.wordCDH
 
 /-! ### DDH -/
 

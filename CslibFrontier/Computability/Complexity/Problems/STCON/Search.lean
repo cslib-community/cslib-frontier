@@ -464,29 +464,16 @@ local macro (name := searchHead) "search_head" b:term : tactic => `(tactic| (
   refine Branches.head (by simp [CounterProgram.halted, instr, searchProgram, Instr.halts]) $b ?_;
   search_step))
 
-/-- One unary header-counting phase `(l, regs 0) →* (l + 2, regs bound)`. -/
-private theorem branches_count {l bound : ℕ} (regs : ℕ → List ℕ)
-    (hread : ∀ j ≤ bound, Branches (P := searchProgram) (w := I.encode) (l, regs j)
-      (readLabel (l + 1) (l + 2) 18 (some (decide (j < bound))), regs j))
-    (hinc : ∀ j < bound, Branches (P := searchProgram) (w := I.encode)
-      (l + 1, regs j) (l, regs (j + 1))) :
-    Branches (P := searchProgram) (w := I.encode) (l, regs 0) (l + 2, regs bound) :=
-  Nat.decreasingInduction (motive := fun j _ => Branches (P := searchProgram) (w := I.encode)
-      (l, regs j) (l + 2, regs bound))
-    (fun j hj ih => (Branches.trans (by simpa only [hj, decide_true, readLabel] using hread j hj.le)
-      (hinc j hj)).trans ih)
-    (by simpa only [lt_irrefl, decide_false, readLabel] using hread bound le_rfl) (Nat.zero_le _)
-
 /-- The header is read, and the walk starts at the source. -/
 private theorem branches_header : Branches (P := searchProgram) (w := I.encode) searchProgram.init
     (7, [0, I.n, I.s, I.t, I.s, 0, 0]) := by
-  refine (branches_count I (fun j => [0, j, 0, 0, 0, 0, 0])
+  refine (Branches.count (fun j => [0, j, 0, 0, 0, 0, 0])
     (fun _ hj => by search_head false; rw [I.getElem?_encode_n hj]; exact Branches.refl _)
     (fun _ _ => by search_head false; exact Branches.refl _)).trans ?_
-  refine (branches_count I (fun j => [0, I.n, j, 0, 0, 0, 0])
+  refine (Branches.count (fun j => [0, I.n, j, 0, 0, 0, 0])
     (fun _ hj => by search_head false; rw [I.getElem?_encode_s hj]; exact Branches.refl _)
     (fun _ _ => by search_head false; exact Branches.refl _)).trans ?_
-  refine (branches_count I (fun j => [0, I.n, I.s, j, 0, 0, 0])
+  refine (Branches.count (fun j => [0, I.n, I.s, j, 0, 0, 0])
     (fun _ hj => by search_head false; rw [I.getElem?_encode_t hj]; exact Branches.refl _)
     (fun _ _ => by search_head false; exact Branches.refl _)).trans ?_
   search_head false

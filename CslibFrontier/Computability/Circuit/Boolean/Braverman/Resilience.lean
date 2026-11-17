@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Unbounded.Restriction
 public import CslibFrontier.Computability.Circuit.Pi
 public import CslibFrontier.Probability.Resilience
 import CslibFrontier.Computability.Circuit.FanIn
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Resilient functions under bounded independence
@@ -106,6 +107,7 @@ def fixCircuit (Q : Finset (Fin n)) (b : Bool) : Circuit Unbounded.signature n n
   Unbounded.size_restrictCircuit _
 
 /-- `fixCircuit Q b` has depth at most one. -/
+@[circuit_bound]
 theorem depth_fixCircuit_le (Q : Finset (Fin n)) (b : Bool) : (fixCircuit Q b).depth ≤ 1 :=
   Unbounded.depth_restrictCircuit_le _
 
@@ -129,19 +131,12 @@ private def andNotCircuit : Circuit Unbounded.signature 2 1 :=
 
 /-- `andNotCircuit` has two gates. -/
 @[simp] private theorem size_andNotCircuit : andNotCircuit.size = 2 := by
-  simp only [andNotCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring,
-    Circuit.size_oneGate, Nat.zero_add]
+  simp only [circuit_simps, andNotCircuit]
 
 /-- `andNotCircuit` has depth at most two. -/
+@[circuit_bound]
 private theorem depth_andNotCircuit_le : andNotCircuit.depth ≤ 2 := by
-  have h := Circuit.depth_append_le (Circuit.wiring Unbounded.signature ![(0 : Fin 2)])
-    (Circuit.oneGate Unbounded.Op.not ![(1 : Fin 2)])
-  rw [Circuit.depth_wiring, Circuit.depth_oneGate] at h
-  have h' := Circuit.depth_comp_le (Circuit.oneGate (Unbounded.Op.and 2) (id : Fin 2 → Fin 2))
-    ((Circuit.wiring Unbounded.signature ![(0 : Fin 2)]).append
-      (Circuit.oneGate Unbounded.Op.not ![(1 : Fin 2)]))
-  rw [Circuit.depth_oneGate] at h'
-  exact h'.trans (by omega)
+  circuit_bound [andNotCircuit]
 
 /-- `andNotCircuit` has fan-in at most two. -/
 private theorem fanInAtMost_andNotCircuit : andNotCircuit.FanInAtMost 2 :=
@@ -165,26 +160,18 @@ theorem eval_undeterminedCircuit (C : Circuit Unbounded.signature n 1) (Q : Fins
         !C.eval Unbounded.interpretation (Q.piecewise (fun _ => false) x) 0) := by
   have e0 (a b : Fin 1 → Bool) : (Fin.append a b : Fin 2 → Bool) 0 = a 0 := Fin.append_left a b 0
   have e1 (a b : Fin 1 → Bool) : (Fin.append a b : Fin 2 → Bool) 1 = b 0 := Fin.append_right a b 0
-  rw [undeterminedCircuit, Circuit.eval_comp, eval_andNotCircuit, Circuit.eval_append, e0, e1,
-    Circuit.eval_comp, Circuit.eval_comp, eval_fixCircuit, eval_fixCircuit]
+  simp only [circuit_simps, undeterminedCircuit, eval_andNotCircuit, e0, e1, eval_fixCircuit]
 
 /-- **The size of `E_Q`**, our count: exactly `2 m + 6` gates for a circuit `C` of `m` gates. -/
 @[simp] theorem size_undeterminedCircuit (C : Circuit Unbounded.signature n 1)
     (Q : Finset (Fin n)) : (undeterminedCircuit C Q).size = 2 * C.size + 6 := by
-  simp only [undeterminedCircuit, Circuit.size_comp, Circuit.size_append, size_fixCircuit,
-    size_andNotCircuit]
+  simp only [circuit_simps, undeterminedCircuit, size_fixCircuit, size_andNotCircuit]
   ring
 
 /-- **The depth of `E_Q`**, our count: at most `d + 3` for a circuit `C` of depth `d`. -/
 theorem depth_undeterminedCircuit_le (C : Circuit Unbounded.signature n 1) (Q : Finset (Fin n)) :
     (undeterminedCircuit C Q).depth ≤ C.depth + 3 := by
-  have h (b : Bool) : (C.comp (fixCircuit Q b)).depth ≤ C.depth + 1 :=
-    (Circuit.depth_comp_le _ _).trans (Nat.add_le_add_left (depth_fixCircuit_le Q b) _)
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have := (Circuit.depth_append_le (C.comp (fixCircuit Q true)) (C.comp (fixCircuit Q false))).trans
-    (max_le (h true) (h false))
-  have := depth_andNotCircuit_le
-  omega
+  circuit_bound [undeterminedCircuit]
 
 /-- **The fan-in of `E_Q`**: at most `max r 2` for a circuit `C` of fan-in at most `r`. -/
 theorem fanInAtMost_undeterminedCircuit {C : Circuit Unbounded.signature n 1} {r : ℕ}

@@ -17,6 +17,7 @@ public import CslibFrontier.Probability.HashFamily.Uniform
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
@@ -475,8 +476,7 @@ private theorem realRoundHandler_map_fst (f₁ : G → G) (p : G × G)
     (st : List ((Bool × G) × G) × Bool) :
     (realRoundHandler f₁ p st).map (fun (ans, st') => (ans, st'.1)) =
       lazyRoundHandler f₁ p st.1 := by
-  simp only [pmf_norm, realRoundHandler, lazyRoundHandler, feistel3Query, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, realRoundHandler, lazyRoundHandler, feistel3Query]
   rfl
 
 private theorem feistel3FixedGame_eq_realRoundHandler (f₁ : G → G)
@@ -643,7 +643,7 @@ private theorem run_idealRoundHandler_memoize {α : Type} (f₁ : G → G)
         (representCache f₁ qc, hasCollision f₁ qc)) =
       ((OracleComp.interpret (memoize (fun _ : G × G => PMF.uniformOfFintype (G × G)))
         (OracleComp.query p >>= cont)).run qc).map _
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     change (((OracleComp.interpret (idealRoundHandler f₁) (memoize OracleComp.query p qc)).run
         (representCache f₁ qc, hasCollision f₁ qc)).bind fun p_1 =>
       (OracleComp.interpret (idealRoundHandler f₁)
@@ -655,13 +655,11 @@ private theorem run_idealRoundHandler_memoize {α : Type} (f₁ : G → G)
     cases h : qc.lookup p with
     | some r =>
       rw [memoize_of_some _ _ _ _ h, memoize_of_some _ _ _ _ h]
-      simp only [OracleComp.interpret_pure, StateT.run_pure,
-        Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+      simp only [interp_norm, pmf_norm]
       exact ih r qc
     | none =>
       rw [memoize_of_none _ _ _ h, memoize_of_none _ _ _ h]
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+      simp only [interp_norm, pmf_norm]
       simp only [pmf_norm, StateT.run, idealRoundHandler]
       refine congrArg (PMF.bind _) (funext fun vw => ?_)
       exact ih vw ((p, vw) :: qc)
@@ -1266,8 +1264,8 @@ and any `l₀, l₁, r₀ : G`. -/
 theorem eval_feistel3_feistel3CCAAttack (f₁ f₂ f₃ : G → G) (l₀ l₁ r₀ : G) :
     OracleComp.interpret (feistelStrongOracle (feistel3 f₁ f₂ f₃))
       (feistel3CCAAttack l₀ l₁ r₀) = PMF.pure true := by
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, feistel3_apply, feistel3_symm_apply,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, feistel3_apply,
+    feistel3_symm_apply]
   have h1 :
       (l₁ - l₀ + (l₀ + f₁ r₀ + f₃ (r₀ + f₂ (l₀ + f₁ r₀)))) - f₃ (r₀ + f₂ (l₀ + f₁ r₀)) =
         l₁ + f₁ r₀ := by
@@ -1286,9 +1284,8 @@ ciphertext, so *every* bidirectional permutation `π : G × G ≃ G × G` is acc
 theorem eval_feistelStrongOracle_feistel3CCAAttack_self (π : G × G ≃ G × G) (l₀ r₀ : G) :
     OracleComp.interpret (feistelStrongOracle π) (feistel3CCAAttack l₀ l₀ r₀) =
       PMF.pure true := by
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, sub_self, zero_add, Prod.mk.eta,
-    Equiv.symm_apply_apply, decide_true, OracleComp.interpret_bind, OracleComp.interpret_query,
-    OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, sub_self, zero_add,
+    Prod.mk.eta, Equiv.symm_apply_apply, decide_true]
 
 /-- At `l₀ = l₁`, the permutation-ideal game `idealStrongGame` accepts `feistel3CCAAttack l₀ l₀ r₀`
 with probability `1`. -/
@@ -1323,8 +1320,7 @@ theorem eval_feistelStrongOracle_swap_feistel3CCAAttack_eq_false {l₀ l₁ l₂
   have hB2 : (l₁, r₀) ≠ (l₂, r₀) := fun h => h12 (congrArg Prod.fst h)
   have hne : -l₀ + r₀ ≠ -l₁ + r₀ := fun h =>
     h01 (neg_inj.mp (add_right_cancel h))
-  simp only [pmf_norm, feistel3CCAAttack, feistelStrongOracle, Equiv.symm_swap,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
+  simp only [interp_norm, pmf_norm, feistel3CCAAttack, feistelStrongOracle, Equiv.symm_swap,
     Equiv.swap_apply_of_ne_of_ne hA1 hA2, Equiv.swap_apply_of_ne_of_ne hB1 hB2,
     Equiv.swap_apply_left, decide_eq_false hne]
 
@@ -1399,8 +1395,7 @@ theorem eval_independentTableStrongGame_feistel3CCAAttack (l₀ l₁ r₀ : G) :
             let lr₂ := decTable (vw₀.1, (l₁ - l₀) + vw₀.2)
             PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) := by
     rw [independentTableStrongGame, Probability.PMF.monad_bind_eq_bind, hprod]
-    simp only [pmf_norm, feistel3CCAAttack, splitBoolTable, Equiv.coe_fn_symm_mk,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
+    simp only [interp_norm, pmf_norm, feistel3CCAAttack, splitBoolTable, Equiv.coe_fn_symm_mk,
       Bool.cond_false, Bool.cond_true]
   rw [hsplit]
   have hinner (encTable : G × G → G × G) :
@@ -1501,9 +1496,7 @@ theorem idealStrongGame_feistel3CCAAttack_true_le {l₀ l₁ : G} (r₀ : G) (h0
                 [((l₁, r₀), vw₁), ((l₀, r₀), vw₀)]).map
                 (fun x => decide (-vw₀.1 + x.1.2 = -vw₁.1 + r₀)) := by
       simp only [feistel3CCAAttack, RandomPermutation.liftBoolProd,
-        RandomPermutation.PermQuery.ofBoolProd,
-        OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-        StateT.run_bind, StateT.run_pure]
+        RandomPermutation.PermQuery.ofBoolProd, interp_norm]
       dsimp only [StateT.run, RandomPermutation.forgetfulAnswer]
       simp only [pmf_norm, List.lookup, beq_eq_false_iff_ne.mpr hp10]
       rfl
@@ -1708,12 +1701,10 @@ private theorem realRoundHandler4_map_fst (f₁ f₄ : G → G)
   rcases st with ⟨cache, bad⟩
   cases q with
   | forward p =>
-    simp only [pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+    simp only [interp_norm, pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query]
     rfl
   | inverse wz =>
-    simp only [pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure]
+    simp only [interp_norm, pmf_norm, realRoundHandler4, lazyRoundHandler4, feistel4Query]
     rfl
 
 private theorem feistel4StrongFixedGame_eq_realRoundHandler4 (f₁ f₄ : G → G)
@@ -2117,8 +2108,7 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
   | pure a =>
     simp [PMF.pure_map, hst.bad_eq]
   | query_bind q cont ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind,
-      OracleComp.interpret_query, StateT.run_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm]
     change ((((OracleComp.interpret (idealRoundHandler4 f₁ f₄)
       (RandomPermutation.bidirDedupStep q qc)).run st).bind
       fun p_1 =>
@@ -2135,14 +2125,12 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
       | some wz =>
         rw [RandomPermutation.bidirDedupStep_forward_of_some h,
           RandomPermutation.forgetfulAnswer_forward_of_some h]
-        simp only [OracleComp.interpret_pure, StateT.run_pure,
-          Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+        simp only [interp_norm, pmf_norm]
         exact ih wz hst
       | none =>
         rw [RandomPermutation.bidirDedupStep_forward_of_none h,
           RandomPermutation.forgetfulAnswer_forward_of_none h]
-        simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-          OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+        simp only [interp_norm, pmf_norm]
         simp only [pmf_norm, StateT.run, idealRoundHandler4]
         exact congrArg (PMF.bind _) (funext fun wz => ih wz (hst.forward p wz))
     | inverse wz =>
@@ -2150,14 +2138,12 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
       | some p =>
         rw [RandomPermutation.bidirDedupStep_inverse_of_some h,
           RandomPermutation.forgetfulAnswer_inverse_of_some h]
-        simp only [OracleComp.interpret_pure, StateT.run_pure,
-          Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+        simp only [interp_norm, pmf_norm]
         exact ih p hst
       | none =>
         rw [RandomPermutation.bidirDedupStep_inverse_of_none h,
           RandomPermutation.forgetfulAnswer_inverse_of_none h]
-        simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-          OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure]
+        simp only [interp_norm, pmf_norm]
         simp only [pmf_norm, StateT.run, idealRoundHandler4]
         exact congrArg (PMF.bind _) (funext fun p => ih p (hst.inverse p wz))
 

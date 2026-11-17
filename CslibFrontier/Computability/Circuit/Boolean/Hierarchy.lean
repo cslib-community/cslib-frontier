@@ -30,7 +30,7 @@ Walking from a constant function to any function `f` shows that `f` costs at mos
 
 * `Cslib.Circuits.Boolean.complexity_const`: a constant costs exactly one gate.
 * `Cslib.Circuits.Boolean.complexity_update_le`: changing one value costs `2 n + 3` gates.
-* `Cslib.Circuits.Boolean.complexity_mask_le`,
+* `Cslib.Circuits.Boolean.complexity_ite_mem_le`, `Cslib.Circuits.Boolean.complexity_mask_le`,
   `Cslib.Circuits.Boolean.complexity_le_two_pow_mul_add_one`,
   `Cslib.Circuits.Boolean.complexity_le_of_dependsOn`: the sparse and truth-table bounds, for
   finite supports, all functions, and functions depending on few inputs.
@@ -83,25 +83,35 @@ theorem complexity_update_le (f : BooleanFunction n) (a : Fin n → Bool) (b : B
           complexity_or_le _ _
       _ ≤ complexity interpretation (single f) + (2 * n + 3) := by omega
 
-/-- Restricting a Boolean function `f` to `S` and returning `false` outside `S` costs at most
-`#S * (2 * n + 3) + 1` gates: start from the constant `false` and change one value in `S` at a
-time. -/
-theorem complexity_mask_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) :
-    complexity interpretation (single fun x => decide (x ∈ S) && f x) ≤
+/-- **Finite override of a constant.** Returning `f x` on a finite set `S` and the constant `c`
+outside `S` costs at most `#S * (2 * n + 3) + 1` gates: start from the constant `c` and change
+one value in `S` at a time. -/
+theorem complexity_ite_mem_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) (c : Bool) :
+    complexity interpretation (single fun x => if x ∈ S then f x else c) ≤
       #S * (2 * n + 3) + 1 := by
-  classical
   induction S using Finset.induction_on with
-  | empty => simpa using (Synthesis.const false).complexity_le
+  | empty => simpa using (Synthesis.const (n := n) c).complexity_le
   | @insert a S ha ih =>
-    have e : (fun x => decide (x ∈ insert a S) && f x) =
-        Function.update (fun x => decide (x ∈ S) && f x) a (f a) := funext fun x => by
+    have e : (fun x => if x ∈ insert a S then f x else c) =
+        Function.update (fun x => if x ∈ S then f x else c) a (f a) := funext fun x => by
       by_cases hx : x = a
       · subst hx
         simp
       · simp [hx]
     rw [e, Finset.card_insert_of_notMem ha, add_one_mul]
-    calc _ ≤ _ := complexity_update_le _ a (f a)
-      _ ≤ _ := by omega
+    calc _ ≤ _ + (2 * n + 3) := complexity_update_le _ a (f a)
+      _ ≤ #S * (2 * n + 3) + 1 + (2 * n + 3) := Nat.add_le_add_right ih _
+      _ = _ := by ring
+
+/-- Restricting a Boolean function `f` to `S` and returning `false` outside `S` costs at most
+`#S * (2 * n + 3) + 1` gates (`complexity_ite_mem_le` with the constant `false`). -/
+theorem complexity_mask_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) :
+    complexity interpretation (single fun x => decide (x ∈ S) && f x) ≤
+      #S * (2 * n + 3) + 1 := by
+  have e : (fun x => decide (x ∈ S) && f x) = fun x => if x ∈ S then f x else false :=
+    funext fun x => by by_cases hx : x ∈ S <;> simp [hx]
+  rw [e]
+  exact complexity_ite_mem_le f S false
 
 /-- **The truth-table bound.** A Boolean function on `n` inputs costs at most
 `2 ^ n * (2 * n + 3) + 1` gates: start from a constant and change one value at a time. -/

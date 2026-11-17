@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Parity
 public import CslibFrontier.Computability.Circuit.Pi
 import CslibFrontier.Foundations.Data.BitString.Block
 import Batteries.Data.Vector.Lemmas
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Retained Boolean circuit for Keccak-p[1600, 24]
@@ -222,39 +223,23 @@ private def flatY (i : Fin 1600) : Fin 5 := keccakFlatY%(i)
 private def flatZ (i : Fin 1600) : Fin 64 := keccakFlatZ%(i)
 
 private theorem bitIndex_flat (i : Fin 1600) : bitIndex (flatX i) (flatY i) (flatZ i) = i := by
-  apply Fin.ext
-  unfold bitIndex flatX flatY flatZ coordinate
-  change 64 * (5 * (i.val / 64 / 5) + i.val / 64 % 5) + i.val % 64 = i.val
-  have hi := i.isLt
-  omega
+  fin_index [bitIndex, flatX, flatY, flatZ, coordinate]
 
 @[simp] private theorem flatX_bitIndex (x y : Fin 5) (z : Fin 64) :
     flatX (bitIndex x y z) = x := by
-  apply Fin.ext
-  unfold flatX bitIndex coordinate
-  change (64 * (5 * y.val + x.val) + z.val) / 64 % 5 = x.val
-  omega
+  fin_index [flatX, bitIndex, coordinate]
 
 @[simp] private theorem flatY_bitIndex (x y : Fin 5) (z : Fin 64) :
     flatY (bitIndex x y z) = y := by
-  apply Fin.ext
-  unfold flatY bitIndex
-  change (64 * (5 * y.val + x.val) + z.val) / 64 / 5 = y.val
-  omega
+  fin_index [flatY, bitIndex]
 
 @[simp] private theorem flatZ_bitIndex (x y : Fin 5) (z : Fin 64) :
     flatZ (bitIndex x y z) = z := by
-  apply Fin.ext
-  unfold flatZ bitIndex
-  change (64 * (5 * y.val + x.val) + z.val) % 64 = z.val
-  omega
+  fin_index [flatZ, bitIndex]
 
 @[simp] private theorem coordinate_laneIndex (x y : Fin 5) :
     coordinate (laneIndex x y).val = x := by
-  apply Fin.ext
-  unfold coordinate laneIndex
-  change (5 * y.val + x.val) % 5 = x.val
-  omega
+  fin_index [coordinate, laneIndex]
 
 @[simp] private theorem laneIndex_div_five (x y : Fin 5) :
     (laneIndex x y).val / 5 = y.val := by

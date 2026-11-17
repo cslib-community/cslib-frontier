@@ -649,10 +649,7 @@ theorem length_encode_bussKernel_le (x : VertexCoverInstance) :
 @[fun_prop]
 theorem computableInPolyTime_bussKernel :
     ComputableInPolyTime bussKernel encVertexCoverInstance encVertexCoverInstance := by
-  unfold bussKernel
-  exact ComputableInPolyTime.ite' computableInPolyTime_accept
-    (by fun_prop)
-    (ComputableInPolyTime.const _)
+  fun_prop [bussKernel]
 
 /-- Buss's kernel has target at most `k`, or `1`. -/
 theorem bussKernel_snd_le (x : VertexCoverInstance) : (bussKernel x).k ≤ max x.k 1 := by

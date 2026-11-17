@@ -942,9 +942,7 @@ theorem computableInPolyTime_gadgetNode {α : Type} {enc : α ↪ List Bool} {u 
 /-- The number of layers is computable in polynomial time in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_layers : ComputableInPolyTime layers encGraph encUnary := by
-  have := (length_list encNat).comp Graph.computableInPolyTime_distinctVertices
-  unfold layers
-  fun_prop
+  fun_prop [layers]
 
 /-- **The reduction is polynomial-time.** -/
 @[fun_prop]

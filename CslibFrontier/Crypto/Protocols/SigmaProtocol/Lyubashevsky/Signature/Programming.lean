@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signatur
 import CslibFrontier.Crypto.Game.CloseTo.UntilBad
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Commitment
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Programming every bounded signing attempt
@@ -93,7 +94,7 @@ private theorem closeTo_attempt_program {Ω M : Type} [DecidableEq M]
       | some c => exact False.elim (hgood (by
           simp only [Set.mem_ofPred_eq, hit, hq, Option.isSome_some]))
     dsimp only [real, programmed]
-    simp only [pmf_norm, interpret_map, interpret_query, StateT.run_map]
+    simp only [interp_norm, pmf_norm]
     change ((oracle (BitString k) (msg a.2.1, a.2.2.1) (cache a.2.1)).map _) = _
     rw [oracle, memoize_of_none _ _ _ hlookup]
     simp only [pmf_norm]
@@ -180,8 +181,7 @@ theorem closeTo_lyubashevskySign_program {Ω M : Type} [DecidableEq M]
     simp only [pmf_norm, history, PMF.map] at htail hhead
     have hboth := hhead.trans htail
     simp only [pmf_norm, fiatShamirAbortSign_run_succ, PMF.map]
-    simp only [pmf_norm, interpret_map, interpret_query, StateT.run_map, PMF.map,
-      combine] at hboth ⊢
+    simp only [interp_norm, pmf_norm, PMF.map, combine] at hboth ⊢
     simp only [StateT.run, PMF.bind_bind, PMF.pure_bind] at hboth ⊢
     simpa only [Finset.sum_range_succ', Nat.add_zero, add_assoc,
       add_left_comm, add_comm] using hboth

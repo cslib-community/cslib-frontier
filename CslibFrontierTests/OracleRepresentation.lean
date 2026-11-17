@@ -41,8 +41,7 @@ example :
 
 -- The final state remains correlated with both returned replies, rather than being discarded.
 example : (OracleComp.interpret target adaptive).run false = PMF.pure ((false, true), false) := by
-  simp [adaptive, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-    run_target]
+  simp [adaptive, run_target]
 
 private noncomputable def randomized : ProbOracleComp (fun _ : Bool => Bool)
     (Bool × Bool × Bool) := do
