@@ -154,7 +154,7 @@ variable [Fintype D] {ι : Type} [Fintype ι] [DecidableEq ι]
 /-- The answer of the `2 ^ d`-server scheme that the user reads for the word produced by the
 server `s` and the optional direction `r`: the answer bit of `s` itself, or the emulated answer
 for the position `j` of the flipped coordinate. -/
-private def readAnswer (j : D → ι) : S × Option M → (S → Bool × (M → ι → Bool)) → Bool
+@[expose] def readAnswer (j : D → ι) : S × Option M → (S → Bool × (M → ι → Bool)) → Bool
   | (s, none), a => (a s).1
   | (s, some r), a => (a s).2 r (j (K.dir s r))
 
@@ -177,6 +177,10 @@ variable {ι}
 
 theorem query_scheme (i : D → ι) :
     (K.scheme ι).query i = (fun rq => (rq.1, fun s => rq.2 (K.code s))) <$> (cube D ι).query i := by
+  rfl
+
+theorem reconstruct_scheme (i : D → ι) (r : Unit) (a : S → Bool × (M → ι → Bool)) :
+    (K.scheme ι).reconstruct i r a = ∑ w : D → Bool, K.readAnswer i (K.cover w) a := by
   rfl
 
 /-- The server `s` of the covering-code scheme receives the query of the server `code s` of
@@ -304,7 +308,7 @@ end HammingDist
 /-- The repetition code `{000, 111}` covers the cube `Fin 3 → Bool` with radius `1`
 [CGKS, Section 3.3][ChorGoldreichKushilevitzSudan1998]. Each codeword emulates its three
 neighbours, so the cover is balanced: `2 (3 + 1) = 2 ^ 3`. -/
-def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
+@[expose] def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
   code b _ := b
   dir _ l := l
   cover w :=
@@ -317,7 +321,7 @@ def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
 [CGKS, Section 3.3][ChorGoldreichKushilevitzSudan1998]. The codeword of `(a, b)` is `a b b b`, and
 each codeword emulates its neighbours in the last three coordinates, so the cover is balanced:
 `4 (3 + 1) = 2 ^ 4`. -/
-def cubeFour : RadiusOneCover (Bool × Bool) (Fin 4) (Fin 3) where
+@[expose] def cubeFour : RadiusOneCover (Bool × Bool) (Fin 4) (Fin 3) where
   code ab l := if l = 0 then ab.1 else ab.2
   dir _ r := r.succ
   cover w :=

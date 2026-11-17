@@ -37,6 +37,10 @@ variable {r : ℕ}
 def value (β : ℕ) (x : Data r) (ds : List (Fin r)) : ℕ :=
   Nat.ofDigits β (ds.map x.regs)
 
+/-- Prepending a register adjoins its digit as the low digit. -/
+theorem value_cons (β : ℕ) (x : Data r) (d : Fin r) (ds : List (Fin r)) :
+    value β x (d :: ds) = x.regs d + β * value β x ds := rfl
+
 /-- The value of a digit list depends only on the registers it lists. -/
 theorem value_congr {β : ℕ} {x y : Data r} {ds : List (Fin r)}
     (h : ∀ i ∈ ds, x.regs i = y.regs i) : value β x ds = value β y ds :=

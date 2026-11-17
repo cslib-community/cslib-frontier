@@ -28,8 +28,8 @@ on a blank tape. Tiles record two-row, three-cell windows rather than the source
 one-sided tape. The resulting seeded quadrant is tileable precisely when the encoded partial
 recursive program does not halt on zero.
 
-This is the **seeded-quadrant** problem. Undecidability of the unseeded integer-plane domino
-problem requires a separate seed-removal construction and remains open here.
+This is the **seeded-quadrant** problem. The separate `WangTile.Undecidable` module derives
+undecidability of the unseeded integer-plane domino problem by concrete seed removal.
 
 ## Main definitions
 

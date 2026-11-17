@@ -1814,7 +1814,7 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
     (oracle := fun q (state : Unit × List (List Bool × List Bool)) =>
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun req s => ProbComp.eval (cachedRandomFunctionOracle n req.2 s)))
+          (fun req s => ProbComp.eval (cachedRandomFunctionOracle n n req.2 s)))
         (cpaToPrfHandler n bit q state.1)).run state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (oracle' := fun q (cache : List (List Bool × List Bool)) =>

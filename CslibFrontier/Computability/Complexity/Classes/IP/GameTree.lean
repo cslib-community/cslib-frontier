@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Order.Interval.Finset.Nat
+import CslibFrontier.Foundations.Data.Nat.Min
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -127,9 +128,6 @@ variable (N cap first next leaf) in
 private def partialMax (n : ℕ) (h : List (X × X)) (i j : ℕ) : ℕ :=
   (range j).sup fun b => value N cap first next leaf n ((next^[i] first, next^[b] first) :: h)
 
-private theorem min_cap_add (a b : ℕ) : min cap (min cap a + b) = min cap (a + b) := by
-  lia
-
 /-- A value returned into the empty stack is a fixed point. -/
 private theorem step_nil_some (v : ℕ) : step D cap first next last leaf ([], some v) =
     ([], some v) := rfl
@@ -171,7 +169,7 @@ theorem iterate_step_node (n : ℕ) (st : List (Frame X)) (hst : st.length + n =
           ← Function.iterate_succ_apply' next]
       · have hjN : j + 1 = N := by lia
         have hsum : min cap (S i + M i (j + 1)) = S (i + 1) := by
-          simp only [S, partialSum, min_cap_add, sum_range_succ, M, partialMax, hjN, add_assoc]
+          simp only [S, partialSum, Nat.min_min_add, sum_range_succ, M, partialMax, hjN, add_assoc]
         rw [ite_eq_left hjN, ite_eq_right hj', hsum]
         by_cases hi' : i + 1 < N
         · rw [ite_eq_right (by lia : ¬ i + 1 = N), ite_eq_left hi',

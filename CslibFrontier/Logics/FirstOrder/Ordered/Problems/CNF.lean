@@ -352,6 +352,13 @@ private theorem realize_pair_arg01 {n : ℕ} (u v : Fin (3 + 2) → Fin n) :
 private theorem mem_allThreeSATTags (t : ThreeSATTag) : t ∈ allThreeSATTags := by
   cases t <;> simp [allThreeSATTags]
 
+private theorem valuation_vecCons_eq {n : ℕ} (u v : Fin (3 + 2) → Fin n) :
+    (fun p : Fin 2 × Fin (3 + 2) =>
+      Matrix.vecCons (u p.2) (fun _ => v p.2) p.1) =
+      fun p => (![u, v] p.1) p.2 := by
+  funext ⟨i, j⟩
+  fin_cases i <;> rfl
+
 private theorem realize_tautHalf {n : ℕ} [Fact (2 ≤ n)] [FO.cnf.Structure (Fin n)]
     (u v : Fin (3 + 2) → Fin n) :
     tautHalf.toFormula.Realize (fun p : Fin 2 × Fin (3 + 2) => (![u, v] p.1) p.2) ↔ v = varX 0 := by
@@ -721,12 +728,16 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
             ProjectionFormula.realize_posLit, realize_pair_arg00, hpos, and_self, true_or]
         · refine ⟨varPos (u pay0) 0, .inr ⟨?_, hp0⟩⟩
           rw [← FO.cnf.lit_false, relMap_on_tagged M false .posStart u (varPos (u pay0) 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_isVarPosZero]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using
+            (realize_isVarPosZero u (varPos (u pay0) 0)).2 rfl
       · refine tautology_clauseSatisfied M B u ?_ ?_
         · rw [← FO.cnf.lit_true, relMap_on_tagged M true .posStart u (varX 0) hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
         · rw [← FO.cnf.lit_false, relMap_on_tagged M false .posStart u (varX 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
     · by_cases hx : u pay1 ≠ QFNumeric.maxFin M.size
       · let x' := nextFin (u pay1) hx
         by_cases hnext : B (varPos (u pay0) x')
@@ -736,7 +747,9 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
               (hB_varPos (u pay0) (u pay1)).mpr ⟨y, hyle, hpos, hAy⟩⟩⟩
             rw [← FO.cnf.lit_true,
               relMap_on_tagged M true .posStep u (varPos (u pay0) (u pay1)) hm]
-            simp [posBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_isVarPosSame]
+            simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
+              valuation_vecCons_eq] using
+              Or.inl ((realize_isVarPosSame u (varPos (u pay0) (u pay1))).2 rfl)
           · have hy_eq : y = x' := by
               apply Fin.ext
               change y.val ≤ (u pay1).val + 1 at hy_le
@@ -758,21 +771,26 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
             exact hpos
         · refine ⟨varPos (u pay0) x', .inr ⟨?_, hnext⟩⟩
           rw [← FO.cnf.lit_false, relMap_on_tagged M false .posStep u (varPos (u pay0) x') hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hx,
-            realize_isVarPosSucc hx, x']
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hx, x',
+            valuation_vecCons_eq] using
+            (realize_isVarPosSucc (u := u) (v := varPos (u pay0) x') hx).2 rfl
       · push Not at hx
         refine tautology_clauseSatisfied M B u ?_ ?_
         · rw [← FO.cnf.lit_true, relMap_on_tagged M true .posStep u (varX 0) hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_tautHalf]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
         · rw [← FO.cnf.lit_false, relMap_on_tagged M false .posStep u (varX 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_tautHalf]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hx,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
     · by_cases hz : u pay1 = 0
       · by_cases hn0 : B (varNeg (u pay0) 0)
         · rcases (hB_varNeg (u pay0) 0).mp hn0 with ⟨y, hpos, hAy⟩ | ⟨y, hy0, hneg, hnAy⟩
           · refine ⟨varPos (u pay0) (QFNumeric.maxFin M.size), .inl ⟨?_,
               (hB_varPos _ _).mpr ⟨y, hle_max y, hpos, hAy⟩⟩⟩
             rw [← FO.cnf.lit_true, relMap_on_tagged M true .bridge u _ hm]
-            simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_isVarPosMax]
+            simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+              valuation_vecCons_eq] using (realize_isVarPosMax u
+              (varPos (u pay0) (QFNumeric.maxFin M.size))).2 rfl
           · have hy : y = 0 := Fin.ext (Nat.eq_zero_of_le_zero hy0)
             subst hy
             refine ⟨varX 0, .inr ⟨?_, fun hA0 => hnAy ((hB_varX 0).mp hA0)⟩⟩
@@ -787,12 +805,16 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
             exact hneg
         · refine ⟨varNeg (u pay0) 0, .inr ⟨?_, hn0⟩⟩
           rw [← FO.cnf.lit_false, relMap_on_tagged M false .bridge u (varNeg (u pay0) 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_isVarNegZero]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using
+            Or.inl ((realize_isVarNegZero u (varNeg (u pay0) 0)).2 rfl)
       · refine tautology_clauseSatisfied M B u ?_ ?_
         · rw [← FO.cnf.lit_true, relMap_on_tagged M true .bridge u (varX 0) hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
         · rw [← FO.cnf.lit_false, relMap_on_tagged M false .bridge u (varX 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
     · by_cases hx : u pay1 ≠ QFNumeric.maxFin M.size
       · let x' := nextFin (u pay1) hx
         by_cases hnext : B (varNeg (u pay0) x')
@@ -801,14 +823,17 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
               (hB_varNeg _ _).mpr (.inl ⟨y, hpos, hAy⟩)⟩⟩
             rw [← FO.cnf.lit_true,
               relMap_on_tagged M true .negStep u (varNeg (u pay0) (u pay1)) hm]
-            simp [posBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_isVarNegSame]
+            simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
+              valuation_vecCons_eq] using
+              (realize_isVarNegSame u (varNeg (u pay0) (u pay1))).2 rfl
           · by_cases hyle : y ≤ u pay1
             · refine ⟨varNeg (u pay0) (u pay1), .inl ⟨?_,
                 (hB_varNeg _ _).mpr (.inr ⟨y, hyle, hneg, hnAy⟩)⟩⟩
               rw [← FO.cnf.lit_true,
                 relMap_on_tagged M true .negStep u (varNeg (u pay0) (u pay1)) hm]
-              simp [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
-                realize_isVarNegSame]
+              simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
+                valuation_vecCons_eq] using
+                (realize_isVarNegSame u (varNeg (u pay0) (u pay1))).2 rfl
             · have hy_eq : y = x' := by
                 apply Fin.ext
                 change y.val ≤ (u pay1).val + 1 at hy_le
@@ -831,29 +856,38 @@ private theorem satisfiable_satToThreeSAT_of_satisfiable (M : Structure FO.cnf)
               exact hneg
         · refine ⟨varNeg (u pay0) x', .inr ⟨?_, hnext⟩⟩
           rw [← FO.cnf.lit_false, relMap_on_tagged M false .negStep u (varNeg (u pay0) x') hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hx,
-            realize_isVarNegSucc hx, x']
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hx, x',
+            valuation_vecCons_eq] using Or.inl
+            ((realize_isVarNegSucc (u := u) (v := varNeg (u pay0) x') hx).2 rfl)
       · push Not at hx
         refine tautology_clauseSatisfied M B u ?_ ?_
         · rw [← FO.cnf.lit_true, relMap_on_tagged M true .negStep u (varX 0) hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_tautHalf]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hx,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
         · rw [← FO.cnf.lit_false, relMap_on_tagged M false .negStep u (varX 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hx, realize_tautHalf]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hx,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
     · by_cases hz : u pay1 = 0
       · obtain ⟨y, ⟨hpos, hAy⟩ | ⟨hneg, hnAy⟩⟩ := hA (u pay0)
         · refine ⟨varNeg (u pay0) (QFNumeric.maxFin M.size), .inl ⟨?_,
             (hB_varNeg _ _).mpr (.inl ⟨y, hpos, hAy⟩)⟩⟩
           rw [← FO.cnf.lit_true, relMap_on_tagged M true .goal u _ hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_isVarNegMax]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_isVarNegMax u
+            (varNeg (u pay0) (QFNumeric.maxFin M.size))).2 rfl
         · refine ⟨varNeg (u pay0) (QFNumeric.maxFin M.size), .inl ⟨?_,
             (hB_varNeg _ _).mpr (.inr ⟨y, hle_max y, hneg, hnAy⟩)⟩⟩
           rw [← FO.cnf.lit_true, relMap_on_tagged M true .goal u _ hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_isVarNegMax]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_isVarNegMax u
+            (varNeg (u pay0) (QFNumeric.maxFin M.size))).2 rfl
       · refine tautology_clauseSatisfied M B u ?_ ?_
         · rw [← FO.cnf.lit_true, relMap_on_tagged M true .goal u (varX 0) hm]
-          simp [posBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [posBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
         · rw [← FO.cnf.lit_false, relMap_on_tagged M false .goal u (varX 0) hm]
-          simp [negBranch, ProjectionFormula.realize_toFormula_branch, hz, realize_tautHalf]
+          simpa [negBranch, ProjectionFormula.realize_toFormula_branch, hz,
+            valuation_vecCons_eq] using (realize_tautHalf u (varX 0)).2 rfl
   · push Not at htag
     exact tautology_clauseSatisfied M B u
       ((relMap_on_untagged M true u (varX 0) htag).mpr rfl)
