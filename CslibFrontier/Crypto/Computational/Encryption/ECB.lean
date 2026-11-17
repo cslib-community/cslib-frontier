@@ -443,7 +443,7 @@ theorem isOraclePPT_ecbToPrpDistinguisher {ℓ : ℕ → ℕ}
 
 /-! ### Theorem 4.1 on words -/
 
-/-- **Theorem 4.1** ([BonehShoup2023], pp. 104–105): if `E` is a secure block cipher, its ECB
+/-- **Theorem 4.1** ([BonehShoup2023], pp. 104–106): if `E` is a secure block cipher, its ECB
 cipher restricted to messages of at most `ℓ n` distinct blocks is semantically secure (Attack
 Game 2.1 with a uniform `keyLen n`-bit key), for every block bound `ℓ` computable in unary in
 polynomial time. -/
