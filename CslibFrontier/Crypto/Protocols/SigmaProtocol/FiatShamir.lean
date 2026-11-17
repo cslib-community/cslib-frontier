@@ -13,12 +13,7 @@ public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.Forking
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.BindFailure
-import CslibFrontier.Probability.PMF.Event
-import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Languages.Probabilistic.Presample
-import CslibFrontier.Languages.Probabilistic.UntilBad
-import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Probability.PMF
 
@@ -53,8 +48,8 @@ The proof follows [BonehShoup2023], Theorems 19.7 and 19.16, with the general fo
 1. The signer is replaced by one that programs the oracle at `hashPoint (m, t)` with a fresh
    challenge.
    The two agree until the signer's commitment hits a point already in the oracle's table, which
-   has probability at most `Qs · (Qs + Qro) · δ` (the difference lemma,
-   `OracleComp.IdenticalUntilBad.bind_apply_le`, and `OracleComp.toOuterMeasure_bad_le`).
+   has probability at most `Qs · (Qs + Qro) · δ`
+   (`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`).
 2. Special HVZK replaces the programming signer by the simulator, which needs no witness.
 3. The simulated transcripts are drawn in advance, one per call
    (`OracleComp.IsQueryBounded.run_interpret_presample`).
@@ -216,40 +211,6 @@ private theorem eufCmaGame_fiatShamir (P : SigmaProtocol X Y T C Z) (keyGen : PM
     interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
   rfl
 
-/-- The real signer, with a flag raised when its commitment hits a point of the table. -/
-private noncomputable def realHandler (P : SigmaProtocol X Y T C Z) (key : X × Y) :
-    (q : M ⊕ Query) → StateT (GameState M Query C × Bool) PMF (ForgerSpec M Query (T × Z) C q)
-  | .inl m => fun st => (P.commit key.1 key.2).bind fun ts =>
-    (oracle C (hashPoint (m, ts.1)) st.1.1).map fun r => ((ts.1, P.respond key.1 key.2 ts.2 r.1),
-      ((r.2, m :: st.1.2), st.2 || (st.1.1.lookup (hashPoint (m, ts.1))).isSome))
-  | .inr x => fun st => (oracle C x st.1.1).map fun r => (r.1, ((r.2, st.1.2), st.2))
-
-/-- The programming signer: it sets the oracle at `hashPoint (m, t)` to a fresh challenge,
-with the same flag as the real signer. -/
-private noncomputable def programHandler (P : SigmaProtocol X Y T C Z) (key : X × Y) :
-    (q : M ⊕ Query) → StateT (GameState M Query C × Bool) PMF (ForgerSpec M Query (T × Z) C q) :=
-  RandomOracle.flaggedOverwriteProgramHandler (Reply := fun _ : M => T × Z)
-    (PMF.uniformOfFintype C) (fun _ : M => true) (fun _ h _ => Bool.noConfusion h)
-    (fun _ => P.commit key.1 key.2) (fun m ts => hashPoint (m, ts.1))
-    (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed))
-
-omit [DecidableEq M] in
-private theorem realHandler_eq_flaggedLazyProgramHandler (P : SigmaProtocol X Y T C Z)
-    (key : X × Y) :
-    realHandler hashPoint P key =
-      RandomOracle.flaggedLazyProgramHandler (Reply := fun _ : M => T × Z)
-        (PMF.uniformOfFintype C) (fun _ : M => true) (fun _ h _ => Bool.noConfusion h)
-        (fun _ => P.commit key.1 key.2) (fun m ts => hashPoint (m, ts.1))
-        (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed)) := by
-  funext q ⟨⟨cache, signed⟩, b⟩
-  cases q with
-  | inl m =>
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inl]
-    rfl
-  | inr x =>
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inr]
-    rfl
-
 omit [DecidableEq M] in
 private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y T C Z)
     (keyGen : PMF (X × Y)) (key : X × Y) :
@@ -269,86 +230,7 @@ private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y 
     exact (PMF.bind_pure_comp _ _).symm
 
 omit [DecidableEq M] in
-/-- The real and the programming signer agree until the flag is raised. -/
-private theorem identicalUntilBad (P : SigmaProtocol X Y T C Z) (key : X × Y) :
-    IdenticalUntilBad (realHandler hashPoint P key) (programHandler hashPoint P key)
-      fun st => st.2 = true := by
-  rw [realHandler_eq_flaggedLazyProgramHandler, programHandler]
-  exact RandomOracle.identicalUntilBad_flaggedProgramHandlers _ _ _ _ _ _
-
-omit [Fintype C] [Nonempty C] in
-open scoped ENNReal in
-omit [DecidableEq M] in
-/-- With `δ`-unpredictable commitments, a commitment hits one of the points of a table, for a
-fixed message, with probability at most `δ` times the table's length. -/
-private theorem toOuterMeasure_lookup_le (P : SigmaProtocol X Y T C Z) (key : X × Y)
-    {δ : ℝ≥0∞} (hcommit : ∀ t, (P.commit key.1 key.2).map Prod.fst t ≤ δ) (m : M)
-    (cache : List (Query × C)) :
-    (P.commit key.1 key.2).toOuterMeasure {ts | (cache.lookup (hashPoint (m, ts.1))).isSome} ≤
-      cache.length * δ := by
-  have hpoint (x : Query) :
-      (P.commit key.1 key.2).toOuterMeasure {ts | hashPoint (m, ts.1) = x} ≤ δ := by
-    by_cases hx : ∃ t, hashPoint (m, t) = x
-    · obtain ⟨t, rfl⟩ := hx
-      simp only [hashPoint.injective.eq_iff, Prod.mk.injEq, true_and]
-      rw [show {ts : T × P.State | ts.1 = t} = Prod.fst ⁻¹' {t} from rfl,
-        ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
-      exact hcommit t
-    · have hempty : {ts : T × P.State | hashPoint (m, ts.1) = x} = ∅ := by
-        apply Set.eq_empty_iff_forall_notMem.mpr
-        exact fun ts hts => hx ⟨ts.1, hts⟩
-      simp [hempty]
-  exact Probability.PMF.toOuterMeasure_lookup_isSome_le _ _ hpoint cache
-
-open scoped ENNReal in
-omit [DecidableEq M] in
-/-- With `δ`-unpredictable commitments, the flag of a forger making at most `Qs` signing calls
-and `Q` calls in all is raised with probability at most `Qs · Q · δ`: each signing call hits one of
-the at most `Q` points of the table with probability at most `Q · δ`. -/
-private theorem toOuterMeasure_flag_le (P : SigmaProtocol X Y T C Z) (key : X × Y)
-    {δ : ℝ≥0∞} (hcommit : ∀ t, (P.commit key.1 key.2).map Prod.fst t ≤ δ) {α : Type}
-    {program : OracleComp (ForgerSpec M Query (T × Z) C) α} {Qs Q : ℕ}
-    (hQs : IsCostBounded signingCost program Qs) (hQ : IsQueryBounded program Q) :
-    ((interpret (realHandler hashPoint P key) program).run (([], []), false)).toOuterMeasure
-      {x | x.2.2 = true} ≤ Qs * (Q * δ) := by
-  have h := toOuterMeasure_bad_le (handler := realHandler hashPoint P key) (bad := fun st => st.2
-    = true)
-    signingCost (fun st => st.1.1.length * δ) δ ?_ ?_ hQ hQs (s := (([], []), false)) (by simp)
-  · simpa using h
-  · intro q st hst
-    cases q with
-    | inl m =>
-      rw [signingCost, Nat.cast_one, one_mul, realHandler]
-      refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
-        {ts : T × P.State | (st.1.1.lookup (hashPoint (m, ts.1))).isSome} _ 0
-        fun ts _ hts => le_of_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
-          (Set.disjoint_left.mpr fun x hx hbad => ?_))).trans ?_
-      · obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp_all
-      · rw [add_zero]
-        exact toOuterMeasure_lookup_le hashPoint P key hcommit m st.1.1
-    | inr x =>
-      refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_) zero_le
-      refine Set.disjoint_left.mpr fun y hy hbad => hst ?_
-      obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy
-      exact hbad
-  · intro q st _ x hx _
-    have hlen : x.2.1.1.length ≤ st.1.1.length + 1 := by
-      cases q with
-      | inl m =>
-        obtain ⟨ts, -, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
-        obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        exact length_le_of_mem_support_oracle hr
-      | inr x' =>
-        obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        exact length_le_of_mem_support_oracle hr
-    calc (x.2.1.1.length : ℝ≥0∞) * δ ≤ ((st.1.1.length + 1 : ℕ) : ℝ≥0∞) * δ := by
-          gcongr
-      _ = st.1.1.length * δ + δ := by
-          rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
-
-omit [DecidableEq M] in
-/-- Under special HVZK, the unflagged overwrite signer equals the game signer of
+/-- Under special HVZK, the overwrite signer equals the game signer of
 `FiatShamir.signer` on a simulated transcript. -/
 private theorem overwriteProgramHandler_eq_gameHandler [Nonempty T] [Nonempty Z]
     {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {simulate : Y → C → PMF (T × Z)}
@@ -401,30 +283,26 @@ private theorem run_bind_finishGame_le {P : SigmaProtocol X Y T C Z} {keyGen : P
       ((PMF.iid (simulateConversation simulate key.2) (Qs + Qro)).map List.ofFn).bind (fun trs =>
         ((interpret countingUniform (forkingProgram hashPoint P A (key.2, c, trs))).run 0).map
           fun ((_, outcome), _) => outcome.won) true + (Qs * (Qs + Qro) : ℕ) * δ := by
-  have h0 : ((interpret (realHandler hashPoint P key) (A.forge key.2 c)).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (handler (fiatShamir hashPoint P keyGen) key) (A.forge key.2 c)).run ([], []) := by
-    rw [realHandler_eq_flaggedLazyProgramHandler, handler_fiatShamir_eq_lazyProgramHandler]
-    exact RandomOracle.run_flaggedLazyProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have h1 : ((interpret (programHandler hashPoint P key) (A.forge key.2 c)).run
-      (([], []), false)).map (Prod.map id Prod.fst) =
-      (interpret (m := StateT (GameState M Query C) PMF)
-        (fun q st => (simulateConversation simulate key.2).bind fun v =>
-          ForkingReduction.gameHandler (signer hashPoint) v q st) (A.forge key.2 c)).run
-        ([], []) := by
-    rw [programHandler, ← overwriteProgramHandler_eq_gameHandler hashPoint hzk hkey]
-    exact RandomOracle.run_flaggedOverwriteProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have h2 := (hA.isQueryBounded key.2 c).run_interpret_presample
+  have hclose :=
+    RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
+      (Reply := fun _ : M => T × Z) (PMF.uniformOfFintype C) (fun _ : M => true)
+      (fun _ h _ => Bool.noConfusion h) (fun _ => P.commit key.1 key.2)
+      (fun m ts => hashPoint (m, ts.1))
+      (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed))
+      (fun m _ q => RandomOracle.map_comp_apply_le_of_injective
+        (fun _ _ h => (Prod.mk.inj (hashPoint.injective h)).2) hcommit q)
+      ((hA key.2 c).1.of_le fun q => by cases q <;> rfl)
+      (hA.isQueryBounded key.2 c) [] []
+  rw [handler_fiatShamir_eq_lazyProgramHandler]
+  have hle := (hclose.bind_left (ForkingReduction.finishGame (check hashPoint P key.2))) {true}
+  simp only [PMF.toOuterMeasure_apply_singleton, List.length_nil, zero_add] at hle
+  refine hle.trans_eq ?_
+  rw [overwriteProgramHandler_eq_gameHandler hashPoint hzk hkey]
+  have hpre := (hA.isQueryBounded key.2 c).run_interpret_presample
     (simulateConversation simulate key.2) (signer hashPoint).fallback
-      (ForkingReduction.gameHandler (signer hashPoint)) ([], [])
-  have hflag := toOuterMeasure_flag_le hashPoint P key hcommit (hA key.2 c).1 (hA.isQueryBounded
-    key.2 c)
-  rw [show (Qs : ENNReal) * ((Qs + Qro : ℕ) * δ) = (Qs * (Qs + Qro) : ℕ) * δ by
-    push_cast; ring] at hflag
-  rw [← h0, PMF.bind_map]
-  refine ((identicalUntilBad hashPoint P key).bind_apply_le _ _ _ _).trans
-    (add_le_add (le_of_eq ?_) hflag)
-  rw [← PMF.bind_map, h1, ← h2, PMF.bind_bind]
+    (ForkingReduction.gameHandler (signer hashPoint)) ([], [])
+  rw [← hpre, PMF.bind_bind]
+  refine congrArg (· + (Qs * (Qs + Qro) : ℕ) * δ) ?_
   refine congrArg (fun p : PMF Bool => p true) (congrArg (PMF.bind _) (funext fun trs => ?_))
   rw [PMF.bind_map, forkingProgram, ForkingReduction.map_run_program]
   rfl

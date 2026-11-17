@@ -111,6 +111,123 @@ public theorem ComputesTidilyInTimeAndSpace.ite {tmc : MultiTapeTM k₀ Symbol S
   · split_ifs <;> omega
   · split_ifs <;> omega
 
+end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeMachine
+
+variable {k₀ k₁ k₂ : ℕ} {Symbol S₀ S₁ S₂ : Type}
+
+/-- Choice-free conditional composition of three explicit transition tables. -/
+public def ite (condition : MultiTapeMachine k₀ Symbol S₀ Empty Id)
+    (ifTrue : MultiTapeMachine k₁ Symbol S₁ Empty Id)
+    (ifFalse : MultiTapeMachine k₂ Symbol S₂ Empty Id) :
+    MultiTapeMachine (max k₀ (max k₁ k₂) + 1) Symbol
+      ((S₀ ⊕ MultiTapeTM.RewindWorkState) ⊕
+        Option (S₁ ⊕ S₂) ⊕ Unit ⊕ MultiTapeTM.RewindWorkState) Empty Id :=
+  ((condition.extendTapes (Fin.castLEEmb (le_max_left _ _))).outputToWord).seq
+    ((branch (Fin.last _)
+        ((ifTrue.extendTapes (Fin.castLEEmb ((le_max_left k₁ k₂).trans
+          (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)
+        ((ifFalse.extendTapes (Fin.castLEEmb ((le_max_right k₁ k₂).trans
+          (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)).seq
+      ((clearWork Symbol).extendTapes (MultiTapeTM.tapeEmb (Fin.last _))))
+
+/-- Complete semantics and exact independent resources of explicit conditional composition. -/
+public theorem computesTidilyInTimeAndSpace_ite
+    {condition : MultiTapeMachine k₀ Symbol S₀ Empty Id}
+    {ifTrue : MultiTapeMachine k₁ Symbol S₁ Empty Id}
+    {ifFalse : MultiTapeMachine k₂ Symbol S₂ Empty Id}
+    {input test output : List Symbol}
+    {testTime testSpace trueTime trueSpace falseTime falseSpace : ℕ}
+    (hcondition : condition.toTM.ComputesTidilyInTimeAndSpace
+      input test testTime testSpace)
+    (htrue : test ≠ [] → ifTrue.toTM.ComputesTidilyInTimeAndSpace
+      input output trueTime trueSpace)
+    (hfalse : test = [] → ifFalse.toTM.ComputesTidilyInTimeAndSpace
+      input output falseTime falseSpace) :
+    (ite condition ifTrue ifFalse).toTM.ComputesTidilyInTimeAndSpace input output
+      (testTime + (if test = [] then falseTime else trueTime) + 4 * test.length + 6)
+      (testSpace + (if test = [] then falseSpace else trueSpace) +
+        3 * test.length + 5 * max k₀ (max k₁ k₂) + 10) := by
+  set K := max k₀ (max k₁ k₂)
+  have hconditionExtended :
+      ((condition.extendTapes (Fin.castLEEmb (le_max_left k₀ (max k₁ k₂)))).toTM)
+        |>.ComputesTidilyInTimeAndSpace input test testTime
+          (testSpace + (max k₀ (max k₁ k₂) - k₀)) := by
+    rw [toTM_extendTapes]
+    exact hcondition.extendTapes _
+  have hphase₁ := computesTidilyInTimeAndSpace_outputToWord hconditionExtended
+  have htruePadded : MultiTapeTM.TransformsTapes
+      (((ifTrue.extendTapes (Fin.castLEEmb ((le_max_left k₁ k₂).trans
+        (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb).toTM)
+      (fun word tapes => (word = input ∧
+        tapes = Function.update (fun _ => []) (Fin.last K) test) ∧
+          tapes (Fin.last K) ≠ [])
+      (fun _ _ tapes' emitted =>
+        tapes' = Function.update (fun _ => []) (Fin.last K) test ∧ emitted = output)
+      (if test = [] then 0 else trueTime)
+      (if test = [] then 0 else trueSpace + (K - k₁) + (K + 1 - K)) := by
+    rw [toTM_extendTapes, toTM_extendTapes]
+    split_ifs with htest
+    · rintro _ _ _ ⟨⟨_, rfl⟩, hne⟩
+      simp [htest] at hne
+    · exact (MultiTapeTM.Ite.transformsTapes_padded _ (htrue htest)).imp
+        (fun _ _ h => h.1) (fun _ _ _ _ _ h => h) le_rfl le_rfl
+  have hfalsePadded : MultiTapeTM.TransformsTapes
+      (((ifFalse.extendTapes (Fin.castLEEmb ((le_max_right k₁ k₂).trans
+        (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb).toTM)
+      (fun word tapes => (word = input ∧
+        tapes = Function.update (fun _ => []) (Fin.last K) test) ∧
+          tapes (Fin.last K) = [])
+      (fun _ _ tapes' emitted =>
+        tapes' = Function.update (fun _ => []) (Fin.last K) test ∧ emitted = output)
+      (if test = [] then falseTime else 0)
+      (if test = [] then falseSpace + (K - k₂) + (K + 1 - K) else 0) := by
+    rw [toTM_extendTapes, toTM_extendTapes]
+    split_ifs with htest
+    · exact (MultiTapeTM.Ite.transformsTapes_padded _ (hfalse htest)).imp
+        (fun _ _ h => h.1) (fun _ _ _ _ _ h => h) le_rfl le_rfl
+    · rintro _ _ _ ⟨⟨_, rfl⟩, heq⟩
+      simp [htest] at heq
+  have hphase₂ : MultiTapeTM.TransformsTapes
+      (branch (Fin.last K)
+        ((ifTrue.extendTapes (Fin.castLEEmb ((le_max_left k₁ k₂).trans
+          (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)
+        ((ifFalse.extendTapes (Fin.castLEEmb ((le_max_right k₁ k₂).trans
+          (le_max_right k₀ _)))).extendTapes Fin.castSuccEmb)).toTM
+      (fun word tapes => word = input ∧
+        tapes = Function.update (fun _ => []) (Fin.last K) test)
+      (fun _ _ tapes' emitted =>
+        tapes' = Function.update (fun _ => []) (Fin.last K) test ∧ emitted = output)
+      (max (if test = [] then 0 else trueTime)
+        (if test = [] then falseTime else 0) + 1)
+      (max (if test = [] then 0 else trueSpace + (K - k₁) + (K + 1 - K))
+        (if test = [] then falseSpace + (K - k₂) + (K + 1 - K) else 0) + (K + 1)) := by
+    rw [toTM_branch]
+    exact MultiTapeTM.transformsTapes_branch (Fin.last K) htruePadded hfalsePadded
+  have hphase₃ : MultiTapeTM.TransformsTapes
+      ((clearWork Symbol).extendTapes (MultiTapeTM.tapeEmb (Fin.last K))).toTM
+      (fun _ tapes => tapes = Function.update (fun _ => []) (Fin.last K) test)
+      (fun _ _ tapes' emitted => tapes' = (fun _ => []) ∧ emitted = [])
+      (3 * (test.length + 1)) (test.length + 1 + (K + 1)) := by
+    rw [toTM_extendTapes]
+    exact ((transformsTapes_clearWork test).tapeEmb (Fin.last K)).imp
+      (fun _ _ htapes => by rw [htapes, Function.update_self])
+      (fun _ tapes tapes' _ htapes ⟨value, ⟨hvalue, hemitted⟩, htapes'⟩ =>
+        ⟨by rw [htapes', hvalue, htapes, Function.update_idem]; simp, hemitted⟩)
+      le_rfl (by have := (Fin.last K).pos; lia)
+  rw [ite, toTM_seq, toTM_seq]
+  refine (MultiTapeTM.transformsTapes_seq hphase₁ (hphase₂.seq_eq hphase₃)
+    fun _ _ _ _ hfirst hsecond => ⟨hfirst.1, hsecond.1⟩).imp (fun _ _ h => h) ?_ ?_ ?_
+  · rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨htapes, rfl⟩, rfl⟩
+    exact ⟨htapes, by simp⟩
+  · split_ifs <;> omega
+  · split_ifs <;> omega
+
+end Turing.MultiTapeMachine
+
+namespace Turing.MultiTapeTM
+
 /-- The test word of a condition: empty exactly for `false`. -/
 @[expose] public def encTest : Bool ↪ List Bool :=
   ⟨fun b => if b then [true] else [], fun a b h => by cases a <;> cases b <;> simp_all⟩

@@ -12,11 +12,12 @@ public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 /-!
 # Subroutine replacement and statistical call-bounded UC composition
 
-This module proves statistical, call-bounded single-subroutine static-corruption UC composition
-(where environments, adversaries, and simulators are only query-bounded with unbounded local
-computation in this library's novel call-bounded port model, rather than computational
-polynomial-time machine composition of [Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043). A
-*hybrid protocol* `ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
+This module proves statistical, call-bounded single-subroutine static-corruption composition for
+this library's novel call-bounded port-model emulation notions, a step toward Canetti's
+computational UC composition theorem ([Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b);
+#6043) where environments, adversaries, and simulators are only query-bounded with unbounded local
+computation rather than polynomial-time machines. A *hybrid protocol*
+`ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
 protocol whose machines also call the party port of a subroutine with inputs `SubIn` and outputs
 `SubOut`. Subroutine replacement `UC.compose ρ σ` (written `ρ^σ` below) answers those calls with the
 protocol `σ : UC.Protocol n SubIn SubOut NQ NR`, run for the same parties, security parameter and
@@ -25,12 +26,12 @@ corrupted parties `C` behind the static-corruption router `UC.corruptRouter C`. 
 schedules `σ`'s network and plays the corrupted parties of `σ`. With `σ = F.toProtocol` this is the
 `F`-hybrid protocol `ρ^F`; with `σ = π` it is the protocol in which `ρ` calls `π` instead.
 
-The statistical, call-bounded composition theorem (`UC.Emulates.compose`; #6043) says that
-single-subroutine replacement preserves UC emulation: if `π` UC-emulates `φ`, then `ρ^π`
-UC-emulates `ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. In particular, if
-`π` UC-realizes `F` then `ρ^π` UC-emulates `ρ^F`
-(`UC.Realizes.compose`), and if moreover `ρ^F` UC-realizes `G` then `ρ^π` UC-realizes `G`
-(`UC.Realizes.compose_trans`). The concrete versions keep track of budgets and errors:
+The statistical, call-bounded composition theorem (`UC.Emulates.compose`, #6043) says that
+single-subroutine replacement preserves `UC.Emulates`: if `π` emulates `φ`, then `ρ^π` emulates
+`ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. In particular, if `π` realizes
+`F` in the sense of `UC.Realizes` then `ρ^π` emulates `ρ^F` (`UC.Realizes.compose`), and if
+moreover `ρ^F` realizes `G` then `ρ^π` realizes `G` (`UC.Realizes.compose_trans`). The concrete
+versions keep track of budgets and errors:
 `UC.EmulatesDummyWithin.compose` turns a simulator `S` with budget `pD` for the dummy adversary of
 `π` into the simulator `UC.hybridSim S` with budget `pD + 1` for the dummy adversary of `ρ^π`, with
 the error evaluated at the environment budget `UC.absorbPoly pZ pρ`, and `UC.EmulatesWithin.compose`
@@ -93,7 +94,7 @@ operation that replaces many sessions in one step.
   `Cslib.Crypto.Protocols.UC.compose_polyBounded`: budgets.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.compose`,
   `Cslib.Crypto.Protocols.UC.EmulatesWithin.compose`, `Cslib.Crypto.Protocols.UC.Emulates.compose`:
-  statistical, call-bounded single-subroutine static-corruption UC composition (#6043).
+  statistical, call-bounded single-subroutine static-corruption composition (#6043).
 * `Cslib.Crypto.Protocols.UC.Realizes.compose`, `Cslib.Crypto.Protocols.UC.Realizes.compose_trans`:
   statistical, call-bounded single-subroutine ideal-functionality replacement (#6043).
 
@@ -705,13 +706,12 @@ theorem compose_polyBounded {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut
 variable {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
   {π : Protocol n SubIn SubOut NQ₁ NR₁} {φ : Protocol n SubIn SubOut NQ₂ NR₂}
 
-/-- Statistical, call-bounded single-subroutine static-corruption UC composition for
-dummy-adversary simulators (where environments, adversaries, and simulators are only query-bounded
-with unbounded local computation in this library's novel call-bounded port model, rather than
-computational polynomial-time machine composition of [Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b);
-#6043): if `S` simulates the dummy adversary of `π` in `φ` with call budget `pD` and error `ε`,
-then `hybridSim S` simulates the dummy adversary of `ρ^π` in `ρ^φ` with call budget `pD + 1` and
-error `ε` evaluated at the absorbed environment's budget `absorbPoly pZ pρ`. -/
+/-- Composition for `EmulatesDummyWithin`, this library's novel call-bounded, fixed-`n`-party,
+port-model emulation of the dummy adversary, a step toward Canetti's computational UC composition
+theorem but not that theorem (#6043): if `S` simulates the dummy adversary of `π` in `φ` with
+budget `pD` and error `ε`, then the composed simulator simulates the dummy adversary of `ρ^π` in
+`ρ^φ` with budget `pD + 1` and error `ε` evaluated at the absorbed environment's budget
+`absorbPoly pZ pρ`. -/
 theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (hρ : ρ.PolyBounded pρ) (h : EmulatesDummyWithin π φ pD ε) :
     EmulatesDummyWithin (compose ρ π) (compose ρ φ) (pD + 1) (fun pZ => ε (absorbPoly pZ pρ)) := by
@@ -720,13 +720,11 @@ theorem EmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial �
   rw [advantage_compose]
   exact hadv C _ _ (absorbHybrid_polyBounded C hρ hZ) κ z
 
-/-- Concrete statistical, call-bounded single-subroutine static-corruption UC composition (where
-environments, adversaries, and simulators are only query-bounded with unbounded local computation
-in this library's novel call-bounded port model, rather than computational polynomial-time machine
-composition of [Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043): if `π` emulates `φ` with
-simulator call-budget overhead `g` and error `ε`, then `ρ^π` emulates `ρ^φ` with the overhead
-below and error `ε 1` evaluated at the environment call budget that absorbs both the adversary and
-the hybrid protocol. -/
+/-- Concrete composition for `EmulatesWithin`, this library's novel call-bounded, fixed-`n`-party,
+port-model emulation notion, a step toward Canetti's computational UC composition theorem but not
+that theorem (#6043): if `π` emulates `φ` with simulator overhead `g` and error `ε`, then `ρ^π`
+emulates `ρ^φ` with the overhead below and error `ε 1` evaluated at the environment budget that
+absorbs both the adversary and the hybrid protocol. -/
 theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (hρ : ρ.PolyBounded pρ)
     (h : EmulatesWithin π φ g ε) :
@@ -743,11 +741,11 @@ theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
     Polynomial.eval_comp]
   gcongr
 
-/-- Statistical, call-bounded single-subroutine static-corruption UC composition (where
-environments, adversaries, and simulators are only query-bounded with unbounded local computation
-in this library's novel call-bounded port model, rather than computational polynomial-time machine
-composition of [Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b); #6043): if `π` UC-emulates `φ`,
-then `ρ^π` UC-emulates `ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. -/
+/-- Composition for `Emulates`, this library's novel call-bounded, fixed-`n`-party, port-model
+emulation notion, which is related to but is not UC emulation (Definition 9 of [Canetti2020]): a
+step toward the computational UC composition theorem, Theorem 3 of Section 2.3, but not that
+theorem (#6043; see the module docstring for the model). If `π` emulates `φ`, then `ρ^π` emulates
+`ρ^φ` for every hybrid protocol `ρ` with a polynomial budget. -/
 theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : Emulates π φ) :
     Emulates (compose ρ π) (compose ρ φ) := by
   rw [emulates_iff_emulatesDummy] at h ⊢
@@ -758,22 +756,20 @@ theorem Emulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : 
   rw [advantage_compose]
   exact hbound C _ (absorbHybrid_polyBounded C hρ hZ) κ z
 
-/-- Statistical, call-bounded single-subroutine static-corruption UC ideal-functionality
-replacement (where environments, adversaries, and simulators are only query-bounded with unbounded
-local computation in this library's novel call-bounded port model, rather than computational
-polynomial-time machine composition of [Canetti2020], Section 2.3, Theorem 3, Corollary (a); #6043): if `π`
-UC-realizes `F`, then `ρ^π` UC-emulates the `F`-hybrid protocol `ρ^F`. -/
+/-- Replacing an ideal functionality by a protocol that realizes it in the sense of `Realizes`,
+this library's novel call-bounded, fixed-`n`-party, port-model notion: a step after corollary (a)
+of Theorem 3 of Section 2.3 of [Canetti2020], not that corollary (#6043). If `π` realizes `F`, then
+`ρ^π` emulates the `F`-hybrid protocol `ρ^F` in the sense of `Emulates`. -/
 theorem Realizes.compose {BackQ BackR : Type} {π : Protocol n SubIn SubOut NQ NR}
     {F : IdealFunctionality n SubIn SubOut BackQ BackR} {pρ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (h : Realizes π F) :
     Emulates (compose ρ π) (compose ρ F.toProtocol) :=
   Emulates.compose hρ h
 
-/-- Statistical, call-bounded single-subroutine static-corruption modular UC protocol composition
-(where environments, adversaries, and simulators are only query-bounded with unbounded local
-computation in this library's novel call-bounded port model, rather than computational
-polynomial-time machine composition of [Canetti2020], Section 2.3, Theorem 3, Corollary (b); #6043): if `ρ^F`
-UC-realizes `G` in the `F`-hybrid model and `π` UC-realizes `F`, then `ρ^π` UC-realizes `G`. -/
+/-- Modular protocol design for `Realizes`, this library's novel call-bounded, fixed-`n`-party,
+port-model notion: a step after corollary (b) of Theorem 3 of Section 2.3 of [Canetti2020], not
+that corollary (#6043). If `ρ^F` realizes `G` in the `F`-hybrid model and `π` realizes `F`, then
+`ρ^π` realizes `G`. -/
 theorem Realizes.compose_trans {BackQ BackR GQ GR : Type} {π : Protocol n SubIn SubOut NQ NR}
     {F : IdealFunctionality n SubIn SubOut BackQ BackR} {G : IdealFunctionality n In Out GQ GR}
     {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hπ : Realizes π F)

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
@@ -111,6 +112,7 @@ public inductive State where
   | marker (inBit : Bool)
   /-- Streaming: expecting an inner symbol of kind `inBit`. -/
   | symbol (inBit : Bool)
+  deriving DecidableEq
 
 /-- An encoding of the control states into a finite type. -/
 private def State.toSum : State → Fin 4 ⊕ Bool ⊕ Bool
@@ -125,43 +127,55 @@ public instance State.instFinite : Finite State :=
   Finite.of_injective State.toSum fun a b h => by
     cases a <;> cases b <;> simp_all [State.toSum]
 
-/-- The action that halts without moving or writing. -/
-private def haltAction : Action 1 Bool State :=
-  { inputTape := 0, workTapes := fun _ => (none, 0), output := none, state := none }
+/-- Constructive enumeration of the direct unary take/drop control states. -/
+public instance State.instFintype : Fintype State :=
+  ⟨{.skip, .skipBit, .copy, .rewind, .marker false, .marker true,
+      .symbol false, .symbol true}, fun state => by cases state <;> simp⟩
 
-/-- The action moving the input head by `d` into state `q`. -/
-private def moveTo (d : SignType) (q : State) : Action 1 Bool State :=
-  { inputTape := d, workTapes := fun _ => (none, 0), output := none, state := some q }
+/-- The explicit table with one work tape cutting `frame u ++ List.replicate n true`: it emits the
+inner frames of `u` while the count `n` lasts (`keep = true`) or after it is used up
+(`keep = false`). -/
+@[expose] public def toMachine (keep : Bool) : MultiTapeMachine 1 Bool State Empty Id :=
+  let haltAction : Action 1 Bool State :=
+    { inputTape := 0, workTapes := fun _ => (none, 0), output := none, state := none }
+  let moveTo (direction : SignType) (state : State) : Action 1 Bool State :=
+    { inputTape := direction, workTapes := fun _ => (none, 0), output := none,
+      state := some state }
+  MultiTapeMachine.ofTr .skip fun state input work =>
+    match state, input, work 0 with
+    | .skip, some true, _ => moveTo 1 .skipBit
+    | .skip, some false, _ => moveTo 1 .copy
+    | .skip, none, _ => haltAction
+    | .skipBit, some _, _ => moveTo 1 .skip
+    | .skipBit, none, _ => haltAction
+    | .copy, some true, _ =>
+      { inputTape := 1, workTapes := fun _ => (some (some true), 1), output := none,
+        state := some .copy }
+    | .copy, some false, _ => haltAction
+    | .copy, none, _ =>
+      { inputTape := -1, workTapes := fun _ => (none, -1), output := none,
+        state := some .rewind }
+    | .rewind, some _, _ => moveTo (-1) .rewind
+    | .rewind, none, _ => moveTo 1 (.marker false)
+    | .marker bit, some true, _ => moveTo 1 (.symbol bit)
+    | .marker _, some false, _ => haltAction
+    | .marker _, none, _ => haltAction
+    | .symbol inBit, some bit, workSymbol =>
+      { inputTape := 1,
+        workTapes := fun _ => (none, if !inBit && !bit && workSymbol.isSome then -1 else 0),
+        output := if workSymbol.isSome == keep then some bit else none,
+        state := some (.marker (nextKind inBit bit)) }
+    | .symbol _, none, _ => haltAction
 
-/-- The transition function of `TakeDropUnary.toTM`. -/
-private def tr (keep : Bool) : State → Option Bool → Option Bool → Action 1 Bool State
-  | .skip, some true, _ => moveTo 1 .skipBit
-  | .skip, some false, _ => moveTo 1 .copy
-  | .skip, none, _ => haltAction
-  | .skipBit, some _, _ => moveTo 1 .skip
-  | .skipBit, none, _ => haltAction
-  | .copy, some true, _ =>
-    { inputTape := 1, workTapes := fun _ => (some (some true), 1), output := none,
-      state := some .copy }
-  | .copy, some false, _ => haltAction
-  | .copy, none, _ =>
-    { inputTape := -1, workTapes := fun _ => (none, -1), output := none, state := some .rewind }
-  | .rewind, some _, _ => moveTo (-1) .rewind
-  | .rewind, none, _ => moveTo 1 (.marker false)
-  | .marker b, some true, _ => moveTo 1 (.symbol b)
-  | .marker _, some false, _ => haltAction
-  | .marker _, none, _ => haltAction
-  | .symbol inBit, some b, y =>
-    { inputTape := 1,
-      workTapes := fun _ => (none, if !inBit && !b && y.isSome then -1 else 0),
-      output := if y.isSome == keep then some b else none,
-      state := some (.marker (nextKind inBit b)) }
-  | .symbol _, none, _ => haltAction
+/-- Deterministic semantics of the explicit take/drop table. -/
+@[expose] public def toTM (keep : Bool) : MultiTapeTM 1 Bool State :=
+  (toMachine keep).toTM
 
-/-- The machine with one work tape cutting `frame u ++ List.replicate n true`: it emits the inner
-frames of `u` while the count `n` lasts (`keep = true`) or after it is used up (`keep = false`). -/
-public def toTM (keep : Bool) : MultiTapeTM 1 Bool State :=
-  ofTr .skip fun s x ys => tr keep s x (ys 0)
+/-- The ordinary action selected by the explicit take/drop table. -/
+private def tr (keep : Bool) (state : State) (input work : Option Bool) :
+    Action 1 Bool State :=
+  MultiTapeMachine.Action.emptyOracleEquiv
+    ((toMachine keep).tr state input (fun _ => work) Empty.elim)
 
 /-! ### Configurations -/
 
@@ -172,7 +186,7 @@ variable {keep : Bool}
 /-- The transition function of `toTM keep` on its single work tape. -/
 private lemma tr_toTM (s : State) (x y : Option Bool) :
     (toTM keep).tr s x (fun _ => y) = tr keep s x y :=
-  tr_ofTr _ _ s x _
+  by simp [toTM, tr, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr_tr]
 
 /-! ### The framed input -/
 
@@ -216,13 +230,17 @@ private lemma seg_skip {i : ℕ} (hi : i ≤ u.length) :
         (cfgAt (word u n) (some .skip) (2 * i + 1) (tapeOfList []) 0 []) =
         cfgAt (word u n) (some .skipBit) (2 * i + 2) (tapeOfList []) 0 [] := by
       rw [step_cfgAt tr_toTM, min_eq_left (by omega), h₁]
-      simp only [tr, moveTo, moveInputPosNat_one (by omega : 2 * i + 1 ≤ (word u n).length),
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * i + 1 ≤ (word u n).length),
         SignType.coe_zero, add_zero, List.append_nil, Option.toList_none]
     have s₂ : (toTM keep).step
         (cfgAt (word u n) (some .skipBit) (2 * i + 2) (tapeOfList []) 0 []) =
         cfgAt (word u n) (some .skip) (2 * (i + 1) + 1) (tapeOfList []) 0 [] := by
       rw [step_cfgAt tr_toTM, min_eq_left (by omega), h₂]
-      simp only [tr, moveTo, moveInputPosNat_one (by omega : 2 * i + 2 ≤ (word u n).length),
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * i + 2 ≤ (word u n).length),
         SignType.coe_zero, add_zero, List.append_nil, Option.toList_none]
       exact cfgAt_congr (by omega) rfl
     refine ((Seg.single (cfgAt_mem_cells (by omega) (by omega)) s₁
@@ -238,7 +256,9 @@ private lemma step_endFrame :
         ((0 : ℕ) : ℤ) [] := by
   have hn := length_word u n
   rw [step_cfgAt tr_toTM, min_eq_left (by omega), inputAt_frame_append_length]
-  simp only [tr, moveTo, moveInputPosNat_one (by omega : 2 * u.length + 1 ≤ (word u n).length),
+  simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+    MultiTapeMachine.Action.emptyOracleEquiv_step,
+    moveInputPosNat_one (by omega : 2 * u.length + 1 ≤ (word u n).length),
     SignType.coe_zero, add_zero, List.append_nil, Option.toList_none, List.replicate_zero]
   exact cfgAt_congr (by omega) (by simp)
 
@@ -271,7 +291,9 @@ private lemma seg_copy {i : ℕ} (hi : i ≤ n) :
         cfgAt (word u n) (some .copy) (2 * u.length + 2 + (i + 1))
           (tapeOfList (List.replicate (i + 1) true)) ((i + 1 : ℕ) : ℤ) [] := by
       rw [step_cfgAt tr_toTM, min_eq_left (by omega), hx]
-      simp only [tr, moveInputPosNat_one (by omega : 2 * u.length + 2 + i ≤ (word u n).length),
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * u.length + 2 + i ≤ (word u n).length),
         SignType.coe_one, List.append_nil, Option.toList_none, ht]
       exact cfgAt_congr (by omega) (by push_cast; rfl)
     exact ((Seg.single (cfgAt_mem_cells (by omega) (by omega)) s
@@ -291,7 +313,9 @@ private lemma step_endCount :
     · rfl
     · exact List.getElem?_eq_none (by omega)
   rw [step_cfgAt tr_toTM, min_eq_left (by omega), hx]
-  simp only [tr, moveInputPosNat_neg_one (by omega : 2 * u.length + 2 + n ≤ (word u n).length + 1),
+  simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+    MultiTapeMachine.Action.emptyOracleEquiv_step,
+    moveInputPosNat_neg_one (by omega : 2 * u.length + 2 + n ≤ (word u n).length + 1),
     SignType.coe_neg_one, List.append_nil, Option.toList_none]
   exact cfgAt_congr (by omega) (by omega)
 
@@ -308,7 +332,8 @@ private lemma seg_rewind {j : ℕ} (hj : j ≤ (word u n).length) :
       (cfgAt_mem_cells (by omega) (by omega))
     have h0 : inputAt (word u n) 0 = none := by simp [inputAt]
     rw [step_cfgAt tr_toTM, min_eq_left (by omega), h0]
-    simp only [tr, moveTo,
+    simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+      MultiTapeMachine.Action.emptyOracleEquiv_step,
       moveInputPosNat_one (Nat.zero_le (word u n).length), SignType.coe_zero, add_zero,
       List.append_nil, Option.toList_none]
   | succ j ih =>
@@ -322,7 +347,9 @@ private lemma seg_rewind {j : ℕ} (hj : j ≤ (word u n).length) :
         cfgAt (word u n) (some .rewind) j (tapeOfList (List.replicate n true))
           ((n : ℤ) - 1) [] := by
       rw [step_cfgAt tr_toTM, min_eq_left (by omega), hx]
-      simp only [tr, moveTo, moveInputPosNat_neg_one (by omega : j + 1 ≤ (word u n).length + 1),
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_neg_one (by omega : j + 1 ≤ (word u n).length + 1),
         SignType.coe_zero, add_zero, List.append_nil, Option.toList_none, Nat.add_sub_cancel]
     exact ((Seg.single (cfgAt_mem_cells (by omega) (by omega)) s
       (cfgAt_mem_cells (by omega) (by omega))).trans (ih (by omega))).mono (by omega)
@@ -355,7 +382,9 @@ private lemma seg_stream (v : List Bool) (inBit : Bool) {r : ℕ} (hr : r ≤ u.
     refine (Seg.single (cfgAt_mem_cells (by omega) (by omega)) ?_
       (cfgAt_mem_cells (by omega) (by omega))).mono (by omega)
     rw [step_cfgAt tr_toTM, min_eq_left (by omega), inputAt_frame_append_length]
-    simp only [tr, haltAction, moveInputPosNat_zero (by omega : 2 * u.length + 1 ≤
+    simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+      MultiTapeMachine.Action.emptyOracleEquiv_step,
+      moveInputPosNat_zero (by omega : 2 * u.length + 1 ≤
       (frame u ++ v).length + 1), SignType.coe_zero, add_zero, Option.toList_none, stream]
   | succ d ih =>
     have hr' : r < u.length := by omega
@@ -366,7 +395,9 @@ private lemma seg_stream (v : List Bool) (inBit : Bool) {r : ℕ} (hr : r ≤ u.
         cfgAt (frame u ++ v) (some (.symbol inBit)) (2 * r + 2)
           (tapeOfList (List.replicate n true)) ((c : ℤ) - 1) o := by
       rw [step_cfgAt tr_toTM, min_eq_left (by omega), h₁]
-      simp only [tr, moveTo, moveInputPosNat_one (by omega : 2 * r + 1 ≤ (frame u ++ v).length),
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * r + 1 ≤ (frame u ++ v).length),
         SignType.coe_zero, add_zero, List.append_nil, Option.toList_none]
     have hcell := tapeOfList_replicate_count (n := n) hc
     have hsome : (tapeOfList (List.replicate n true) ((c : ℤ) - 1)).isSome = decide (0 < c) := by
@@ -393,7 +424,9 @@ private lemma seg_stream (v : List Bool) (inBit : Bool) {r : ℕ} (hr : r ≤ u.
           then some u[r] else none).toList = if emits keep c then [u[r]] else [] := by
         rw [hsome, emits]
         split_ifs <;> rfl
-      simp only [tr, moveInputPosNat_one (by omega : 2 * r + 2 ≤ (frame u ++ v).length), hhead, ho]
+      simp only [tr, toMachine, MultiTapeMachine.ofTr_tr,
+        MultiTapeMachine.Action.emptyOracleEquiv_step,
+        moveInputPosNat_one (by omega : 2 * r + 2 ≤ (frame u ++ v).length), hhead, ho]
       exact cfgAt_congr (by omega) rfl
     obtain ⟨h', hh₀, hh₁, hseg⟩ := ih (nextKind inBit u[r]) (r := r + 1) (by omega) hnext
       (o ++ if emits keep c then [u[r]] else []) (by omega)
