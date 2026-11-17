@@ -152,9 +152,11 @@ private theorem targetSafe_of_relax_valid (G : ListInstance) {w base : ℕ} (T :
   refine ⟨v.isLt, G.n * G.maxWeight, hK, hwindow, hf.1.1, hf.1.2,
     hf.2.1.1, hT.length_eq, hd.mono_right Finset.subset_union_left,
     hfit.of_le (by nlinarith), ?_⟩
-  exact relax_valid_queue _ u v du i c hg hv
+  exact relax_valid_queue u v du i c hg hv
 
 private abbrev Env := ((ℕ × ℕ) × Block) × (ℕ × ℕ)
+/-- The input graph layout `Memory.inputGraph e.2.1 e.2.2`, spelled out because `realize` must
+compute its offsets from the live words and does not unfold `Memory.inputGraph`. -/
 private abbrev envGraph (e : Env) : AdjacencyList.Memory.Layout :=
   ⟨⟨3, e.2.1 + 1⟩, ⟨e.2.1 + 4, 2 * e.2.2⟩⟩
 private def envInput := appendWords
@@ -250,7 +252,7 @@ private theorem scan_realizes : Realizes .exact (fun d : ScanArgs =>
           T (Memory.inputGraph G.n G.m) u du i)
         (fun i s _ hinv hvalid => ⟨G, base, hnFit, hK, hT, u, rfl, rfl, rfl, rfl, hinv,
           hdu, hfit, hwindow, hvalid⟩)
-        s hf hbfit (scan_valid_remainingEdges (M.abs s) u du hv) hm
+        s hf hbfit (scan_valid_remainingEdges u du hv) hm
 
 private def extractWord (e : ℕ × ℕ) : Memory.Prog (Option (ℕ × ℕ)) :=
   link ((FibonacciHeap.layout e.1 e.2).methods 0) (FibonacciHeap.Native.extractRaw e.1)
@@ -418,7 +420,7 @@ private theorem word_run_realizes : Realizes .exact
           ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩,
           [.allocDirty G.n]) := rfl
     simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
-      allocProgram_run, hn, hs, init_mem_edgeCount G, ht]
+      allocProgram_run, hn, hs, Memory.init_mem_edgeCount G, ht]
     exact initial_loop_safe G hfit
 
 /-- One native emitter realizes the original Fibonacci-heap Dijkstra memory client. Its

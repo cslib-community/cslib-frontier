@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
-import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
 
 /-!
 # Shared reached-state reasoning for native Dijkstra clients
@@ -29,8 +28,8 @@ and domain transport, not native instruction bounds.
 * `abstractLoopStep_extract`: extraction-to-scan refinement and key-bound transport for one round.
 * `client_keys`: the queued-key bound after an admissible client.
 * `loopStep_eq_link`: complete program equality for the original round.
-* `initial_loop_safe`, `initial_loop_safe_insert`, `init_mem_edgeCount`: initial loop admissibility
-  and input-header edge count.
+* `initial_loop_safe_insert`: initial loop admissibility after setting the source distance and
+  inserting the source into the queue.
 -/
 
 public section
@@ -41,15 +40,16 @@ open Cslib.DataStructure Cslib.DataStructure.Memory Cslib.DataStructure.Priority
 open Cslib.WordRAM Cslib.WordRAM.Realization
 
 /-- The original relaxation history supplies the reached insert or decrease-key precondition. -/
-theorem relax_valid_queue {n K V : ℕ} (s : (spec n K V).State)
+theorem relax_valid_queue {n K V : ℕ}
+    {pq : IndexedMinPQ.State n} {dist : Dictionary.State n} {adj : AdjacencyList.State n}
     (u v : Fin n) (du i c : ℕ)
-    (hg : AdjacencyList.step s.2.2 (.edge u i) = (s.2.2, (v, c)))
-    (hv : (spec n K V).ValidHistory s
-      ((spec n K V).clientHistory s (relaxEdge u du i))) :
-    match s.2.1 v with
-    | none => IndexedMinPQ.valid K s.1 (.insert v (du + c))
-    | some old => du + c < old → IndexedMinPQ.valid K s.1 (.decreaseKey v (du + c)) := by
-  cases hd : s.2.1 v with
+    (hg : AdjacencyList.step adj (.edge u i) = (adj, (v, c)))
+    (hv : (spec n K V).ValidHistory (pq, dist, adj)
+      ((spec n K V).clientHistory (pq, dist, adj) (relaxEdge u du i))) :
+    match dist v with
+    | none => IndexedMinPQ.valid K pq (.insert v (du + c))
+    | some old => du + c < old → IndexedMinPQ.valid K pq (.decreaseKey v (du + c)) := by
+  cases hd : dist v with
   | none =>
     have hp := hv
     unfold relaxEdge at hp
@@ -115,17 +115,21 @@ theorem remainingEdges_step {n K V w : ℕ}
   exact hv.2
 
 /-- An admissible `scan u du` history supplies an admissible `remainingEdges` suffix from `0`. -/
-theorem scan_valid_remainingEdges {n K V : ℕ} (s : (spec n K V).State) (u : Fin n) (du : ℕ)
-    (hv : (spec n K V).ValidHistory s ((spec n K V).clientHistory s (scan u du))) :
-    (spec n K V).ValidHistory s
-      ((spec n K V).clientHistory s (remainingEdges u du (s.2.2 u).length 0)) := by
+theorem scan_valid_remainingEdges {n K V : ℕ}
+    {pq : IndexedMinPQ.State n} {dist : Dictionary.State n} {adj : AdjacencyList.State n}
+    (u : Fin n) (du : ℕ)
+    (hv : (spec n K V).ValidHistory (pq, dist, adj)
+      ((spec n K V).clientHistory (pq, dist, adj) (scan u du))) :
+    (spec n K V).ValidHistory (pq, dist, adj)
+      ((spec n K V).clientHistory (pq, dist, adj) (remainingEdges u du (adj u).length 0)) := by
   unfold scan at hv
   dsimp only [degree, StateTransitionSpec.clientHistory, StateTransitionSpec.runClient,
     PFunctor.FreeM.lift, PFunctor.FreeM.bind, Bind.bind, Pure.pure,
     PFunctor.FreeM.instBind, PFunctor.FreeM.instPure, StateTransitionSpec.stepFn,
     productStepFn, AdjacencyList.step] at hv
-  change _ ∧ (spec n K V).ValidHistory s
-    ((spec n K V).clientHistory s ((List.range (s.2.2 u).length).forM (relaxEdge u du))) at hv
+  change _ ∧ (spec n K V).ValidHistory (pq, dist, adj)
+    ((spec n K V).clientHistory (pq, dist, adj)
+      ((List.range (adj u).length).forM (relaxEdge u du))) at hv
   simpa only [remainingEdges, Nat.sub_zero, List.range_eq_range'] using hv.2
 
 
@@ -337,41 +341,6 @@ theorem loop_while_safe {n K V w : ℕ} {ε : Type}
     · have hl := hdown a s
       omega
 
-/-- Installing the source distance and its zero-key queue entry leaves a valid original loop.
-The conclusion concerns the existing refinement's whole lower state, with no initialization
-or argument-delivery clock assumed. -/
-theorem initial_loop_safe {K V w : ℕ}
-    (G : Cslib.Algorithms.Dijkstra.ListInstance)
-    (hK : G.n * G.maxWeight ≤ K) (hV : G.n * G.maxWeight < V)
-    (M : Refinement (spec G.n K V) (Memory.spec w)) (s : Memory.State)
-    (hi : M.inv s) (habs : M.abs s = init G) :
-    let p : (spec G.n K V).Client Unit := do
-      setDist G.source 0
-      queue (.insert G.source 0)
-    let t := (Memory.spec w).clientState s (link M.methods p)
-    M.inv t ∧ (∀ v k, (M.abs t).1 v = some k → k ≤ K) ∧
-      (spec G.n K V).ValidHistory (M.abs t)
-        ((spec G.n K V).clientHistory (M.abs t) (loop G.n)) := by
-  let p : (spec G.n K V).Client Unit := do
-    setDist G.source 0
-    queue (.insert G.source 0)
-  have hp : dijkstra (K := K) (V := V) G.source = (do p; loop G.n) := by
-    unfold dijkstra p
-    rw [bind_assoc]
-  obtain ⟨hv, _⟩ := dijkstra_correct G hK hV
-  rw [← habs, hp, StateTransitionSpec.clientHistory_bind,
-    StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
-  obtain ⟨_, _, hstate, hinv⟩ := M.simulates_client p hi hv.1
-  refine ⟨hinv, ?_, ?_⟩
-  · rw [hstate]
-    apply client_keys (M.abs s) p hv.1
-    intro v k hk
-    rw [habs] at hk
-    change (none : Option ℕ) = some k at hk
-    cases hk
-  · rw [hstate]
-    exact hv.2
-
 /-- Running an erased native `extractMin` on an admissible `abstractLoopStep` state either yields
 `none` or yields `some (u.val, du)` for some `u : Fin n` with `du ≤ K` and an admissible `scan u du`
 in the post-extraction state. -/
@@ -379,7 +348,7 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
     (M : Refinement (spec n K V) (Memory.spec w))
     (extract : Memory.Prog (Option (ℕ × ℕ)))
     (hex : extract =
-      (show Memory.Prog (Option (Fin n × ℕ)) from M.methods (.inl .extractMin)).map
+      (M.methods (.inl .extractMin) : Memory.Prog (Option (Fin n × ℕ))).map
         (Option.map fun p => (p.1.val, p.2)))
     (s : Memory.State) (hf : M.inv s)
     (hb : ∀ v k, (M.abs s).1 v = some k → k ≤ K)
@@ -456,7 +425,13 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
   let p : (spec G.n K V).Client Unit := do
     setDist G.source 0
     queue (.insert G.source 0)
-  have hloop := initial_loop_safe G hK hV M s hi habs
+  have hp : dijkstra (K := K) (V := V) G.source = (do p; loop G.n) := by
+    unfold dijkstra p
+    rw [bind_assoc]
+  obtain ⟨hv, _⟩ := dijkstra_correct G hK hV
+  rw [← habs, hp, StateTransitionSpec.clientHistory_bind,
+    StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
+  obtain ⟨_, _, hstate, hinv⟩ := M.simulates_client p hi hv.1
   have hpeq : link M.methods p = (do write (f + G.source.val) 1; ins0) := by
     unfold p link
     rw [PFunctor.FreeM.liftM_bind]
@@ -474,19 +449,15 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
         ⟨Function.update s.mem (f + G.source.val) 1, s.frontier⟩ ins0 := by
     rw [hpeq, StateTransitionSpec.clientState_bind]
     exact clientState_width _ _ _
-  change M.inv ((Memory.spec w).clientState s (link M.methods p)) ∧
-    (∀ v k, (M.abs ((Memory.spec w).clientState s (link M.methods p))).1 v = some k →
-      k ≤ K) ∧
-    (spec G.n K V).ValidHistory
-      (M.abs ((Memory.spec w).clientState s (link M.methods p)))
-      ((spec G.n K V).clientHistory
-        (M.abs ((Memory.spec w).clientState s (link M.methods p))) (loop G.n)) at hloop
-  rwa [hs] at hloop
-
-/-- In the encoded graph input, cell `G.n + 3` holds the edge count `G.m`. -/
-theorem init_mem_edgeCount (G : Cslib.Algorithms.Dijkstra.ListInstance) :
-    (Memory.State.init G.encode).mem (G.n + 3) = G.m := by
-  rw [← G.offset_n]
-  exact G.init_offset (r := 0) le_rfl
+  rw [hs] at hstate hinv
+  refine ⟨hinv, ?_, ?_⟩
+  · rw [hstate]
+    apply client_keys (M.abs s) p hv.1
+    intro v k hk
+    rw [habs] at hk
+    change (none : Option ℕ) = some k at hk
+    cases hk
+  · rw [hstate]
+    exact hv.2
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

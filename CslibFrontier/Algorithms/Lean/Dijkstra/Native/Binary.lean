@@ -147,7 +147,7 @@ private theorem targetSafe_of_relax_valid (G : Algorithms.Dijkstra.ListInstance)
   change Disjoint H.footprint (T.footprint ∪ (Memory.inputGraph G.n G.m).footprint) at hd
   refine ⟨v.isLt, G.n * G.maxWeight, hH, hf.1, hf.2.1.1, hT.length_eq,
     hd.mono_right Finset.subset_union_left, hfit.of_le (by nlinarith), ?_⟩
-  exact relax_valid_queue _ u v du i c hg hv
+  exact relax_valid_queue u v du i c hg hv
 
 /-- The loop context shared by the scan, relax and step bodies: heap, distance table and the
 vertex and edge counts locating the input graph. -/
@@ -324,8 +324,7 @@ private theorem scan_realizes : Realizes .exact (fun d : ScanArgs =>
       rw [hsucc, Nat.add_sub_cancel_left] at hm ⊢
       have hbfit : Fits w (G.adj u).length := (hmem.mem_fits (3 + (u.val + 1))).of_le (by omega)
       exact scan_while_safe G H T hH hT u du s hf hdu hfit hbfit
-        (scan_valid_remainingEdges
-          ((Memory.framed hH hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s) u du hv) hm
+        (scan_valid_remainingEdges u du hv) hm
 
 /-- One loop round with `rounds` rounds remaining. -/
 private abbrev StepArgs := Context × ℕ
@@ -381,10 +380,10 @@ private theorem loop_realizes : Realizes .exact (fun d : StepArgs =>
   refine ⟨⟨G.n * G.maxWeight, hH, hinv.1⟩, ?_⟩
   dsimp only
   rcases abstractLoopStep_extract M.toRefinement
-    ((BinaryHeap.Memory.extractMin H).map (Option.map fun a => (a.1.val, a.2))) rfl
+    ((Option.map fun a => (a.1.val, a.2)) <$> BinaryHeap.Memory.extractMin H) rfl
     s hinv hkeys hvalid with hnone | ⟨u, du, hsome, hdu, hinv', hscan⟩
-  · rw [hnone]; simp
-  · rw [hsome]
+  · simp [hnone]
+  · simp only [PFunctor.FreeM.map_eq_map, hsome]
     change if (1 : ℕ) = 0 then True else if u.val < G.n then _ else True
     rw [ite_eq_right (by decide), ite_eq_left u.isLt]
     exact ⟨⟨G, H, hH, hT, u, rfl, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩
@@ -506,7 +505,7 @@ private theorem word_run_realizes : Realizes .exact
           ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩,
           [.allocDirty G.n]) := rfl
     simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
-      BinaryHeap.Native.Initialize.allocLayout_run, hn, hs, init_mem_edgeCount G, ht]
+      BinaryHeap.Native.Initialize.allocLayout_run, hn, hs, Memory.init_mem_edgeCount G, ht]
     exact initial_loop_safe G hfit
 
 /-- One fixed native emitter realizes the original allocated binary-heap Dijkstra memory
