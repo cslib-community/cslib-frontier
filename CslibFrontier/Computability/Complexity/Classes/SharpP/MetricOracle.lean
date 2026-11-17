@@ -53,8 +53,9 @@ oracle and is correct against every oracle language answering the bits of `g`. H
   function with polynomially many bits is a polynomial-time oracle computation.
 * `Cslib.Complexity.SharpPMetricComplete.computableInPolyTimeWithOracle`: every #P function is
   in `FP^f` for a #P-complete `f` under metric reductions (Arora–Barak Definition 9.5).
-* `Cslib.Complexity.mem_SharpP_iff_computableInPolyTime_of_bitGraph`: if every #P function is in
-  `FP^g` and `g ∈ FP`, then `#P = FP` (Arora–Barak Proposition 9.6).
+* `Cslib.Complexity.mem_SharpP_iff_computableInPolyTime_of_bitGraph`: if every #P function under
+  an encoding is in `FP^g` and `g ∈ FP`, then `#P = FP` under that encoding (Arora–Barak
+  Proposition 9.6).
 
 ## References
 
@@ -187,24 +188,24 @@ theorem SharpPMetricComplete.computableInPolyTimeWithOracle {g : β → ℕ}
   calc g b ≤ 2 ^ p.eval (encB b).length := hp b
     _ < 2 ^ (p + 1).eval (encB b).length := Nat.pow_lt_pow_right (by norm_num) (by simp)
 
-/-- **A #P-complete function in FP collapses #P to FP** [AroraBarak07, Proposition 9.6]. Suppose
-every function in #P, with any encoding of its instances, is computable in polynomial time
-relative to the bit graph of `g`, as in Definition 9.5, and `g` itself is computable in
-polynomial time. Then the functions in #P are exactly the polynomial-time functions with binary
-output (`FP` here), for every instance encoding: `f ∈ FP^g = FP`, and `FP ⊆ #P` by
-`mem_SharpP_of_polyTime`.
+/-- **A #P-complete function in FP collapses #P to FP** [AroraBarak07, Proposition 9.6]. Fix an
+instance encoding `encA`. Suppose every function in #P under `encA` is computable in polynomial
+time relative to the bit graph of `g`, as in Definition 9.5, and `g` itself is computable in
+polynomial time. Then the functions in #P under `encA` are exactly the polynomial-time functions
+with binary output (`FP` here): `f ∈ FP^g = FP`, and `FP ⊆ #P` by `mem_SharpP_of_polyTime`.
 
-The draft's functions are on `{0,1}*`, where `Decoder.bits` decodes the instances. Here `g` may
-have any instance encoding with a polynomial-time decoder, which lets the bit-graph oracle reject
-words that are not codes (`bitGraph_mem_P`). The draft's hypothesis `g ∈ #P` is not needed. For
-#SAT and the 0/1 permanent, the completeness hypothesis is
+The draft's functions are on `{0,1}*`: at `encA = encBits` the completeness premise is
+Definition 9.5's, and `Decoder.bits` decodes the instances of `g`. Here `g` may have any instance
+encoding with a polynomial-time decoder, which lets the bit-graph oracle reject words that are not
+codes (`bitGraph_mem_P`). The draft's hypothesis `g ∈ #P` is not needed. For #SAT and the 0/1
+permanent, the completeness premise holds at every encoding, by
 `SharpPMetricComplete.computableInPolyTimeWithOracle`. -/
 theorem mem_SharpP_iff_computableInPolyTime_of_bitGraph {g : β → ℕ} (D : Decoder encB)
-    (hcomplete : ∀ {α : Type} (enc : α ↪ List Bool) (f : α → ℕ), f ∈ SharpP enc →
-      ComputableInPolyTimeWithOracle (bitGraph encB g) f enc encNat)
+    (hcomplete : ∀ f : α → ℕ, f ∈ SharpP encA →
+      ComputableInPolyTimeWithOracle (bitGraph encB g) f encA encNat)
     (hg : ComputableInPolyTime g encB encNat) {f : α → ℕ} :
     f ∈ SharpP encA ↔ ComputableInPolyTime f encA encNat :=
-  ⟨fun hf => (hcomplete encA f hf).computableInPolyTime (bitGraph_mem_P D hg),
+  ⟨fun hf => (hcomplete f hf).computableInPolyTime (bitGraph_mem_P D hg),
     mem_SharpP_of_polyTime⟩
 
 end Cslib.Complexity
