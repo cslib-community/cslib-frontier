@@ -2766,6 +2766,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Incidence.Comp
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Incidence.Degree
 public import CslibFrontier.Computability.Complexity.Problems.SAT.LeftSet
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Paddable
+public import CslibFrontier.Computability.Complexity.Problems.SAT.Padded
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayout
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayoutChecks
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayoutData
