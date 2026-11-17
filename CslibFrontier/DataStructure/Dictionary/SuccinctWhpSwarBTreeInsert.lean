@@ -383,27 +383,28 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
       have hsucc_eq (k : Fin (cnt + 1)) :
           cs_mid (r1.succAbove k) = Function.update cs r_fin leftT k :=
         Fin.insertNth_apply_succAbove _ _ _ _
-      have hcs_lt (i : Fin (cnt + 2)) (hi : i.val < r) : cs_mid i = cs ⟨i.val, by lia⟩ := by
-        let k : Fin (cnt + 1) := ⟨i.val, by lia⟩
-        have hk : k.castSucc < r1 := by change i.val < r + 1; lia
+      have hcs_lt (i : Fin (cnt + 2)) (hi : i.val < r) :
+          cs_mid i = cs ⟨i.val, hi.trans r_fin.isLt⟩ := by
+        let k : Fin (cnt + 1) := ⟨i.val, hi.trans r_fin.isLt⟩
+        have hk : k.castSucc < r1 := Nat.lt_succ_of_lt hi
         have hki : k.castSucc = i := Fin.ext rfl
         simpa only [Fin.succAbove_of_castSucc_lt _ _ hk, hki,
           Function.update_of_ne (show k ≠ r_fin from Fin.ne_of_val_ne hi.ne)] using hsucc_eq k
       have hcs_eq_r (i : Fin (cnt + 2)) (hi : i.val = r) : cs_mid i = leftT := by
-        have hk : r_fin.castSucc < r1 := by change r < r + 1; lia
+        have hk : r_fin.castSucc < r1 := Nat.lt_succ_self r
         rw [show i = r_fin.castSucc from Fin.ext hi, ← Fin.succAbove_of_castSucc_lt _ _ hk,
           hsucc_eq, Function.update_self]
       have hcs_eq_r1 (i : Fin (cnt + 2)) (hi : i.val = r + 1) : cs_mid i = rightT := by
         rw [show i = r1 from Fin.ext hi]
         exact Fin.insertNth_apply_same _ _ _
       have hcs_gt (i : Fin (cnt + 2)) (hi : r + 1 < i.val) :
-          cs_mid i = cs ⟨i.val - 1, by lia⟩ := by
-        let k : Fin (cnt + 1) := ⟨i.val - 1, by lia⟩
-        have hk : r1 ≤ k.castSucc := by change r + 1 ≤ i.val - 1; lia
-        have hki : i = k.succ := Fin.ext (by change i.val = i.val - 1 + 1; lia)
-        simpa only [Fin.succAbove_of_le_castSucc _ _ hk, ← hki,
-          Function.update_of_ne (show k ≠ r_fin from
-            Fin.ne_of_val_ne (by change i.val - 1 ≠ r; lia))] using hsucc_eq k
+          cs_mid i = cs (i.pred (Fin.ne_of_val_ne ((Nat.succ_pos r).trans hi).ne')) := by
+        cases i using Fin.cases with
+        | zero => exact (Nat.not_lt_zero _ hi).elim
+        | succ k =>
+          have hk : r_fin < k := Nat.lt_of_succ_lt_succ hi
+          simpa only [Fin.succAbove_of_lt_succ r1 k hi, Function.update_of_ne hk.ne',
+            Fin.pred_succ] using hsucc_eq k
       have hsep_lt_W : sep < 2 ^ W_key :=
         ((hsep_chi.trans_le hchi_le).trans hhi).trans
           (Nat.pow_lt_pow_right (by decide) (by dsimp [W_key]; omega))
