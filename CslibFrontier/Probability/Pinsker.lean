@@ -85,7 +85,7 @@ theorem ofReal_two_mul_sq_measureReal_sub_le_klDiv {mα : MeasurableSpace α}
       _ ≤ Real.exp ((‖(1 : ℝ) - 0‖₊ / 2) ^ 2 * t ^ 2 / 2) * Real.exp (t * ν.real s) :=
           mul_le_mul_of_nonneg_right h (Real.exp_pos _).le
       _ = Real.exp (t * ν.real s + t ^ 2 / 8) := by
-          rw [← Real.exp_add, sub_zero, nnnorm_one]
+          rw [← Real.exp_add, sub_zero, nnNorm_one]
           congr 1
           push_cast
           ring

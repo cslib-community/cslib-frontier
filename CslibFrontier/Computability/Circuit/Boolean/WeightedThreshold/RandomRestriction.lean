@@ -145,11 +145,11 @@ theorem sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign {ι : Type*} [Fintype ι] [D
   refine ⟨sum_le_sum fun i _ => ?_, sum_le_sum fun i _ => ?_⟩
   · by_cases hi : i ∈ B
     · simp only [ltfMinAssign, restrictUpdate, hi, ↓reduceIte]
-      by_cases ha : a i < 0 <;> cases u i <;> (simp [ha, not_lt.mp]; try linarith)
+      by_cases ha : a i < 0 <;> cases u i <;> simp [ha, not_lt.mp, le_of_lt]
     · simp [ltfMinAssign, restrictUpdate, hi]
   · by_cases hi : i ∈ B
     · simp only [ltfMaxAssign, restrictUpdate, hi, ↓reduceIte]
-      by_cases ha : 0 ≤ a i <;> cases u i <;> (simp [ha]; try linarith [not_le.mp ha])
+      by_cases ha : 0 ≤ a i <;> cases u i <;> simp [ha, le_of_lt, not_le.mp]
     · simp [ltfMaxAssign, restrictUpdate, hi]
 
 /-- The maximum completion sum minus the minimum completion sum on `B` equals

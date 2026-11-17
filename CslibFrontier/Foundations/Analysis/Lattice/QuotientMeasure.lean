@@ -68,7 +68,7 @@ theorem isProbabilityMeasure_normalized_quotient {F : Set E}
     IsProbabilityMeasure ((ENNReal.ofReal (covolume L μ))⁻¹ •
       Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (μ.restrict F)) := by
   constructor
-  rw [Measure.smul_apply, Measure.map_apply (by fun_prop) MeasurableSet.univ]
+  rw [smul_apply, Measure.map_apply (by fun_prop) MeasurableSet.univ]
   simp only [Set.preimage_univ, Measure.restrict_apply_univ, smul_eq_mul]
   rw [measure_eq_ofReal_covolume_of_op L μ hF,
     ENNReal.inv_mul_cancel (ENNReal.ofReal_pos.mpr (covolume_pos L μ)).ne' ENNReal.ofReal_ne_top]
