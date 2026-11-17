@@ -5522,24 +5522,26 @@ register_result "prp-prf-switching" where
     charged and no asymptotic form is stated."
 
 register_result "ajtai-collision-sis" where
-  title := "Finding collisions in Ajtai's hash function is no easier than SIS"
+  title := "Ajtai's hash family is collision resistant under SIS"
   topic := "cryptography"
   sources := [
-    { paper := Ajtai1996, theorem := unverified, locator := unverified }
+    { paper := GoldreichGoldwasserHalevi1996, theorem := "Theorem 2",
+      locator := "Section 3, p. 4" }
   ]
   theorems := [
-    Cslib.Crypto.IsAjtaiCollision.isSolution_sub,
-    Cslib.Crypto.isSolution_sub_of_abs_le,
-    Cslib.Crypto.ajtaiAdvantage_le_sisAdvantage
+    Cslib.Crypto.SIS.collisionResistantForOn_ajtaiWordHash
   ]
-  scope := "Ajtai's hash x ↦ A x mod q on integer vectors, for every nonzero modulus q (the two \
-    collision lemmas need no assumption on q), dimensions n × m and bound β, with no primality \
-    or compression assumption. Distinct inputs in [0, β]^m (or [-β, β]^m) with equal hashes \
-    differ by a nonzero solution with ∞-norm at most β (or 2β), and the collision-finding \
-    success probability of any finder against a uniform A ∈ ℤ_q^{n×m} is at most the SIS \
-    success probability of collisionToSIS, which subtracts the two inputs. Ajtai's \
-    worst-case-to-average-case reduction for lattice problems is not formalized; no running \
-    time is charged."
+  scope := "Ajtai's hash family h_A(s) = A s mod q on the words s of length m (the source's \
+    {0,1}^m), keyed by a uniform A ∈ ℤ_q^{n×m}, for any SIS parameter family P whose column \
+    count P.m is computable in polynomial time and whose ℓ_∞ bound P.β is at least 1. Under \
+    SIS P (at P.β = 1, the source's Problem (A2)), every uniform strict PPT finder given κ and \
+    the key ⟨κ, A⟩ finds two distinct words with equal hashes only with negligible probability \
+    (CollisionResistantForOn, Boneh–Shoup Definition 8.2). The reduction subtracts the two \
+    words read as 0/1 vectors and is certified PPT from the finder's certificate. The source's \
+    parameter relations (n log q < m ≤ q/(2n⁴), q = O(n^c)) are not required, and its \
+    expected-time bound T(n, m, q) is replaced by strict PPT and negligible success. The cost \
+    of sampling the key and of evaluating the hash is not certified, and worst-case lattice \
+    hardness (the source's Theorem 1, after Ajtai) is not formalized."
 
 register_result "mldsa-key-only-forgery" where
   title := "ML-DSA key-only unforgeability from Module-LWE and self-target MSIS"

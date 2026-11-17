@@ -15,7 +15,8 @@ import CslibFrontier.Tactic.PPT
 
 Concrete evaluations and nonvacuity checks for:
 1. `SIS.IsResidueSolution` over a composite modulus (`ZMod 6`), Ajtai collisions and their
-   short differences, and nonvacuity of `SIS`.
+   short differences, collisions of Ajtai's hash family on words, the side conditions of its
+   collision-resistance theorem for a polynomial family, and nonvacuity of `SIS`.
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
@@ -46,6 +47,46 @@ example : IsAjtaiCollision ajtaiMat 1 ![1, 1, 0] ![0, 0, 1] := by decide
 
 example : SIS.IsSolution ajtaiMat 1 (![1, 1, 0] - ![0, 0, 1]) :=
   IsAjtaiCollision.isSolution_sub (A := ajtaiMat) (β := 1) (by decide)
+
+/-- A family with the dimensions and modulus of `ajtaiMat` at every security parameter. -/
+def ajtaiToySIS : SISParams where
+  n _ := 1
+  m _ := 3
+  q _ := 6
+  β _ := 1
+  hq _ := inferInstance
+
+/-- Under the key `⟨0, ajtaiMat⟩`, the words `110` and `001` collide in Ajtai's hash family on
+words; their 0/1 vectors are the collision above. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false] [false, false, true] = true := by
+  decide
+
+/-- The word `1100` has the same hash as `001` but lies outside the message space `{0,1}^3`, so
+the pair is not a collision. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false, false] [false, false, true] = false := by
+  decide
+
+/-- A family with polynomial dimensions `n = κ + 1` and `m = (κ + 1)(κ + 3)`, modulus
+`q = (κ + 2)²` and bound `1`. -/
+def ajtaiPolySIS : SISParams where
+  n κ := κ + 1
+  m κ := (κ + 1) * (κ + 3)
+  q κ := (κ + 2) ^ 2
+  β _ := 1
+  hq _ := ⟨by positivity⟩
+
+/-- The side conditions of `SIS.collisionResistantForOn_ajtaiWordHash` hold for `ajtaiPolySIS`,
+so `SIS ajtaiPolySIS` gives collision resistance of Ajtai's hash family on words. -/
+example (hSIS : SIS ajtaiPolySIS) :
+    CollisionResistantForOn ajtaiPolySIS.encInput (ajtaiSetup ajtaiPolySIS)
+      (ajtaiWordHash ajtaiPolySIS) (fun _ d s => s.length == ajtaiPolySIS.m d.secParam) :=
+  hSIS.collisionResistantForOn_ajtaiWordHash
+    (show ComputableInPolyTime (fun κ => (κ + 1) * (κ + 3)) encUnary encUnary by fun_prop)
+    fun _ => le_rfl
 
 /-- Degenerate `SISParams` with `0` rows, `1` column, modulus `3` and bound `1`. -/
 def zeroRowSIS : SISParams where
