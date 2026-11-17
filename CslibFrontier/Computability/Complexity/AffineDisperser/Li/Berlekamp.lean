@@ -72,9 +72,6 @@ open scoped Matrix
 
 /-! ### Helper identities -/
 
-private theorem polyOfBits_ne_zero_of_mem {l : List Bool} (h : true ∈ l) : polyOfBits l ≠ 0 :=
-  fun h0 => Bool.true_eq_false.mp (polyOfBits_eq_zero_iff.mp h0 true h)
-
 private theorem coeff_comp_X_pow (P : (ZMod 2)[X]) {q : ℕ} (hq : 0 < q) (k : ℕ) :
     (P.comp (X ^ q)).coeff k = if q ∣ k then P.coeff (k / q) else 0 := by
   induction P using Polynomial.induction_on' with
@@ -750,7 +747,7 @@ theorem length_kernelVecBits (n : ℕ) (M : List (List Bool)) :
   | none => simp
   | some v => exact (length_kernelBasisBits n M).2 v (List.mem_of_find?_eq_some hfind)
 
-private theorem sum_firstFlags_smul_eq {M : Type*} [AddCommMonoid M] [Module (ZMod 2) M]
+private theorem sum_firstFlags_smul_eq_of_first {M : Type*} [AddCommMonoid M] [Module (ZMod 2) M]
     {n : ℕ} (b : Fin n → ZMod 2) (g : Fin n → M) {p : Fin n}
     (hp : b p ≠ 0) (hmin : ∀ i < p, b i = 0) :
     ∑ i, firstFlags b i • g i = g p := by
@@ -761,7 +758,8 @@ private theorem sum_firstFlags_smul_eq {M : Type*} [AddCommMonoid M] [Module (ZM
         (not_lt.mp fun h => absurd (hmin j h) hj)
     rwa [hjp] at hsum
 
-private theorem bitsToZModVec_eq_zero_iff {n : ℕ} {v : List Bool} (hv : v.length = n) :
+/-- `bitsToZModVec n v` vanishes iff no entry of `v` is `true`. -/
+theorem bitsToZModVec_eq_zero_iff {n : ℕ} {v : List Bool} (hv : v.length = n) :
     bitsToZModVec n v = 0 ↔ v.any id = false := by
   rw [funext_iff]
   simp only [bitsToZModVec, Pi.zero_apply, map_eq_zero_iff bitEquiv.symm bitEquiv.symm.injective,
@@ -797,7 +795,7 @@ private theorem kernelStepBits_eq_kernelStep {n : ℕ} {a : List Bool} {N : List
       simp only [List.getElem_map, beq_true] at hnt
       rw [hval k, List.getD_eq_getElem _ _ (by omega), hnt, bitEquiv_symm_false]
     have hpiv_eq : pivotVec aZ NZ = NZ ⟨p, hp_lt'⟩ :=
-      sum_firstFlags_smul_eq (rowValues aZ NZ) NZ
+      sum_firstFlags_smul_eq_of_first (rowValues aZ NZ) NZ
         (by rw [hval ⟨p, hp_lt'⟩, hp_dot]; exact one_ne_zero) hp_min
     have hbeta : aZ ⬝ᵥ pivotVec aZ NZ = 1 := by
       rw [hpiv_eq]
@@ -909,7 +907,7 @@ theorem bitsToZModVec_kernelVecBits_eq {r n : ℕ} (M : List (List Bool)) (hM_le
         rw [← bitsToZModVec_kernelBasisBits M hM_len hM_mem i, List.getD_eq_getElem N [] (by omega)]
         exact (bitsToZModVec_eq_zero_iff (hN_mem _ (List.getElem_mem _))).mpr hfalse
       simp [hi0]
-    rw [sum_firstFlags_smul_eq _ (kernelBasis A) (by simp [hne_p]) hlt_p,
+    rw [sum_firstFlags_smul_eq_of_first _ (kernelBasis A) (by simp [hne_p]) hlt_p,
       hv_eq, bitsToZModVec_kernelBasisBits M hM_len hM_mem ⟨p, hp_lt'⟩]
 
 /-- `kernelVecBits n M` lies in the right kernel of `rowsToZModMatrix r n M`. -/
@@ -967,7 +965,7 @@ private theorem length_berlekampMatrix (g : List Bool) :
   simp only [List.length_map, List.length_range]
   omega
 
-private theorem eq_sum_C_mul_X_pow_succ_of_coeff_zero {d : ℕ} {h : (ZMod 2)[X]}
+private theorem eq_sum_C_mul_X_pow_succ_of_coeff_zero {R : Type*} [Semiring R] {d : ℕ} {h : R[X]}
     (h0 : h.coeff 0 = 0) (hhi : ∀ m, d ≤ m → h.coeff m = 0) :
     h = ∑ k : Fin (d - 1), C (h.coeff (k.1 + 1)) * X ^ (k.1 + 1) := by
   rcases Nat.eq_zero_or_pos d with rfl | hd
