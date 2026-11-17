@@ -197,13 +197,12 @@ theorem convex_setOf_forall_le (L : Set (E →ᵃ[ℝ] ℝ)) :
   rw [heq]
   exact convex_iInter fun ℓ => convex_iInter fun _ => (convex_Iic (0 : ℝ)).affine_preimage ℓ
 
-private lemma setOf_forall_le_inter (L₁ L₂ : Set (E →ᵃ[ℝ] ℝ)) :
+/-- The intersection of two affine half-space systems is cut out by their union. -/
+theorem setOf_forall_le_inter (L₁ L₂ : Set (E →ᵃ[ℝ] ℝ)) :
     {x : E | ∀ ℓ ∈ L₁, ℓ x ≤ 0} ∩ {x : E | ∀ ℓ ∈ L₂, ℓ x ≤ 0} =
       {x : E | ∀ ℓ ∈ L₁ ∪ L₂, ℓ x ≤ 0} := by
   ext x
-  simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-  exact ⟨fun ⟨h1, h2⟩ ℓ h => h.elim (h1 ℓ) (h2 ℓ),
-    fun h => ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun ℓ hℓ => h ℓ (.inr hℓ)⟩⟩
+  simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union, or_imp, forall_and]
 
 private lemma preimage_setOf_forall_le (L : Set (F →ᵃ[ℝ] ℝ)) (f : E →ᵃ[ℝ] F) :
     f ⁻¹' {y : F | ∀ m ∈ L, m y ≤ 0} =

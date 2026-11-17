@@ -479,12 +479,7 @@ private lemma isHRepIn_splitComplex {C : PolytopalComplex E} {M : Set (E →ᵃ[
   refine ⟨LP ∪ halfSpaceLR ℓ k, ?_, hLP.union (halfSpaceLR_finite ℓ k), ?_⟩
   · refine union_subset (hLM.trans subset_union_left)
       ((halfSpaceLR_sub ℓ k).trans subset_union_right)
-  · rw [halfSpaceSet_eq ℓ k]
-    ext x
-    simp only [mem_inter_iff, mem_ofPred_eq, Set.mem_union]
-    rw [hPeq]
-    exact ⟨fun ⟨h1, h2⟩ m hm => hm.elim (h1 m) (h2 m),
-      fun h => ⟨fun m hm => h m (.inl hm), fun m hm => h m (.inr hm)⟩⟩
+  · rw [hPeq, halfSpaceSet_eq ℓ k, setOf_forall_le_inter]
 
 private lemma isHRepIn_splitList {C : PolytopalComplex E} {M : Set (E →ᵃ[ℝ] ℝ)}
     (hM : ∀ P ∈ C.cells, IsHRepIn M P) (ls : List (E →ᵃ[ℝ] ℝ)) :
@@ -812,9 +807,8 @@ private lemma affineIndependent_vertexCentroid_of_isCellChain (C : PolytopalComp
     obtain ⟨P, hP𝒞, hmax⟩ := isCellChain_exists_top h𝒞
     set 𝒞' := 𝒞.erase P
     rcases 𝒞'.eq_empty_or_nonempty with hmt | h𝒞'ne
-    · have hsingle : 𝒞 = {P} := Finset.eq_singleton_iff_unique_mem.2
-        ⟨hP𝒞, fun Q hQ =>
-          by_contra fun hne => Finset.notMem_empty Q (hmt ▸ Finset.mem_erase.2 ⟨hne, hQ⟩)⟩
+    · have hsingle : 𝒞 = {P} :=
+        ((Finset.erase_eq_empty_iff 𝒞 P).1 hmt).resolve_left (Finset.Nonempty.ne_empty ⟨P, hP𝒞⟩)
       have himg : 𝒞.image vertexCentroid = {vertexCentroid P} := by simp [hsingle]
       rw [himg]
       exact affineIndependent_of_subsingleton ℝ _
@@ -871,11 +865,18 @@ private lemma sum_vertexCentroid_mem_top {C : PolytopalComplex E} {A : Finset (S
     rw [(Finset.mem_filter.1 hQ).2]
   exact isCellChain_convexHull_subset hA hPC hmax hhull
 
+open Classical in
+omit [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E] in
+private lemma eq_one_of_erase_eq_empty {A : Finset (Set E)} {w : Set E → ℝ} {P : Set E}
+    (hP : P ∈ A) (hsum : ∑ Q ∈ A, w Q = 1) (hmt : A.erase P = ∅) : w P = 1 := by
+  have h := Finset.add_sum_erase A w hP
+  rwa [hmt, Finset.sum_empty, add_zero, hsum] at h
+
 private lemma isCellChain_erase_decomp {C : PolytopalComplex E} {A : Finset (Set E)}
     (hA : IsCellChain C A) {P R : Set E} (hP : P ∈ A) (hA' : (A.erase P).Nonempty)
     (hRC : R ∈ C.cells) (hmax : ∀ Q ∈ A.erase P, Q ⊆ R)
     {w : Set E → ℝ} (hwpos : ∀ Q ∈ A, 0 < w Q) (hw1 : ∑ Q ∈ A, w Q = 1) :
-    0 < 1 - w P ∧ w P ≤ 1 ∧ ∑ Q ∈ A.erase P, w Q = 1 - w P ∧
+    0 < 1 - w P ∧ w P ≤ 1 ∧
       ∑ Q ∈ A.erase P, w Q / (1 - w P) = 1 ∧
       (∑ Q ∈ A.erase P, (w Q / (1 - w P)) • vertexCentroid Q) ∈ R ∧
       w P • vertexCentroid P +
@@ -899,7 +900,7 @@ private lemma isCellChain_erase_decomp {C : PolytopalComplex E} {A : Finset (Set
     rw [← Finset.add_sum_erase A (fun Q => w Q • vertexCentroid Q) hP, Finset.smul_sum]
     congr 1
     exact Finset.sum_congr rfl fun Q _ => by rw [smul_smul, mul_div_cancel₀ _ h1w_pos.ne']
-  exact ⟨h1w_pos, hw_le, hrem_eq, hdiv_sum, hyR, hsplit⟩
+  exact ⟨h1w_pos, hw_le, hdiv_sum, hyR, hsplit⟩
 
 private lemma top_subset_of_face_mem_sum {C : PolytopalComplex E} {A : Finset (Set E)}
     (hA : IsCellChain C A) {P : Set E} (hP : P ∈ A) (hmax : ∀ Q ∈ A, Q ⊆ P)
@@ -911,13 +912,12 @@ private lemma top_subset_of_face_mem_sum {C : PolytopalComplex E} {A : Finset (S
   have hbF : vertexCentroid P ∈ F := by
     set A' := A.erase P
     rcases A'.eq_empty_or_nonempty with hmt | hA'ne
-    · have hsingle : A = {P} := Finset.eq_singleton_iff_unique_mem.2
-        ⟨hP, fun Q hQ =>
-          by_contra fun hne => Finset.notMem_empty Q (hmt ▸ Finset.mem_erase.2 ⟨hne, hQ⟩)⟩
+    · have hsingle : A = {P} :=
+        ((Finset.erase_eq_empty_iff A P).1 hmt).resolve_left (Finset.Nonempty.ne_empty ⟨P, hP⟩)
       subst hsingle
       simp only [Finset.sum_singleton] at hw1 hxF
       rwa [hw1, one_smul] at hxF
-    · obtain ⟨_, hc_le, _, _, hyP, hsplit⟩ := isCellChain_erase_decomp hA hP hA'ne hPC
+    · obtain ⟨_, hc_le, _, hyP, hsplit⟩ := isCellChain_erase_decomp hA hP hA'ne hPC
         (fun Q hQ => hmax Q (Finset.erase_subset P A hQ)) hwpos hw1
       have hbP : vertexCentroid P ∈ P :=
         vertexCentroid_mem (C.isPolytope_of_mem hPC) (C.nonempty_of_mem hPC)
@@ -936,16 +936,11 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
     ¬(w₁ P < w₂ P) := by
   classical
   intro hlt
-  have h1c_pos : 0 < 1 - w₁ P := by
-    have : w₂ P ≤ 1 := hsum₂ ▸ Finset.single_le_sum (fun Q hQ => (hw₂ Q hQ).le) hP₂
-    linarith
+  have hw₂_le : w₂ P ≤ 1 := hsum₂ ▸ Finset.single_le_sum (fun Q hQ => (hw₂ Q hQ).le) hP₂
+  have h1c_pos : 0 < 1 - w₁ P := by linarith
   set A₁' := A₁.erase P
-  have hA₁'ne : A₁'.Nonempty := by
-    by_contra hmt
-    rw [Finset.not_nonempty_iff_eq_empty] at hmt
-    have hrem := Finset.add_sum_erase A₁ w₁ hP₁
-    rw [show A₁.erase P = A₁' from rfl, hmt, Finset.sum_empty, add_zero, hsum₁] at hrem
-    linarith
+  have hA₁'ne : A₁'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by
+    linarith [eq_one_of_erase_eq_empty hP₁ hsum₁ hmt]
   obtain ⟨P', hP'A₁', hmaxP'⟩ := isCellChain_exists_top (isCellChain_erase hA₁ hA₁'ne)
   have hPC := hA₁.1 hP₁
   have hP'C := (isCellChain_erase hA₁ hA₁'ne).1 hP'A₁'
@@ -956,13 +951,11 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
     have := C.inter_face hPC hP'C
     rwa [inter_eq_right.2 hP'sub] at this
   let z : E := ∑ Q ∈ A₁', (w₁ Q / (1 - w₁ P)) • vertexCentroid Q
-  obtain ⟨_, _, _, _, hzP', hsplit₁⟩ :=
+  obtain ⟨_, _, _, hzP', hsplit₁⟩ :=
     isCellChain_erase_decomp hA₁ hP₁ hA₁'ne hP'C hmaxP' hw₁ hsum₁
   set A₂' := A₂.erase P
   rcases A₂'.eq_empty_or_nonempty with hmt₂ | hA₂'ne
-  · have hw₂1 : w₂ P = 1 := by
-      have h := Finset.add_sum_erase A₂ w₂ hP₂
-      rwa [show A₂.erase P = A₂' from rfl, hmt₂, Finset.sum_empty, add_zero, hsum₂] at h
+  · have hw₂1 : w₂ P = 1 := eq_one_of_erase_eq_empty hP₂ hsum₂ hmt₂
     have hsum2 : ∑ Q ∈ A₂, w₂ Q • vertexCentroid Q = vertexCentroid P := by
       rw [← Finset.add_sum_erase A₂ (fun Q => w₂ Q • vertexCentroid Q) hP₂,
         show A₂.erase P = A₂' from rfl, hmt₂, Finset.sum_empty, add_zero, hw₂1, one_smul]
@@ -972,7 +965,7 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
       rw [hsub, sub_smul, one_smul]
     exact vertexCentroid_notMem_of_ssubset (C.isPolytope_of_mem hPC) hface hss
       ((smul_right_inj h1c_pos.ne').1 hcomb ▸ hzP')
-  · obtain ⟨h1w2_pos, _, _, _, hyP, hsplit₂⟩ := isCellChain_erase_decomp hA₂ hP₂ hA₂'ne hPC
+  · obtain ⟨_, _, _, hyP, hsplit₂⟩ := isCellChain_erase_decomp hA₂ hP₂ hA₂'ne hPC
       (fun Q hQ => hmax₂ Q (Finset.erase_subset P A₂ hQ)) hw₂ hsum₂
     let y : E := ∑ Q ∈ A₂', (w₂ Q / (1 - w₂ P)) • vertexCentroid Q
     let c : ℝ := (w₂ P - w₁ P) / (1 - w₁ P)
@@ -1044,33 +1037,27 @@ private lemma mem_convexHull_inter_of_chains (C : PolytopalComplex E) :
     have hP₁_inter : vertexCentroid P₁ ∈ (((A₁ ∩ A₂).image vertexCentroid : Finset E) : Set E) :=
       Finset.mem_coe.2 (Finset.mem_image_of_mem _ (Finset.mem_inter.2 ⟨hP₁A₁, hQ₂A₂⟩))
     by_cases h1 : w₁ P₁ = 1
-    · have hsingle : A₁ = {P₁} := Finset.eq_singleton_iff_unique_mem.2
-        ⟨hP₁A₁, fun R hR => by_contra fun hne => by
-          have hsub : w₁ P₁ + w₁ R ≤ ∑ Q ∈ A₁, w₁ Q := by
-            rw [← Finset.sum_pair (Ne.symm hne)]
-            exact Finset.sum_le_sum_of_subset_of_nonneg
-              (Finset.insert_subset hP₁A₁ (Finset.singleton_subset_iff.2 hR))
-              (fun z hz _ => (hw₁ z hz).le)
-          linarith [hw₁ R hR]⟩
+    · have hmt : A₁.erase P₁ = ∅ := Finset.eq_empty_iff_forall_notMem.2 fun R hR => by
+        have hpos : 0 < ∑ Q ∈ A₁.erase P₁, w₁ Q :=
+          Finset.sum_pos (fun Q hQ => hw₁ Q (Finset.erase_subset P₁ A₁ hQ)) ⟨R, hR⟩
+        have hsum := Finset.add_sum_erase A₁ w₁ hP₁A₁
+        linarith
+      have hsingle : A₁ = {P₁} :=
+        ((Finset.erase_eq_empty_iff A₁ P₁).1 hmt).resolve_left
+          (Finset.Nonempty.ne_empty ⟨P₁, hP₁A₁⟩)
       have hx_eq : x = vertexCentroid P₁ := by simp [x, hsingle, h1]
       change x ∈ _
       rw [hx_eq]
       exact subset_convexHull ℝ _ hP₁_inter
     · set A₁' := A₁.erase P₁
       set A₂' := A₂.erase P₁
-      have hne_rem : ∀ {A : Finset (Set E)} {w : Set E → ℝ}, P₁ ∈ A → ∑ Q ∈ A, w Q = 1 →
-          w P₁ ≠ 1 → (A.erase P₁).Nonempty := by
-        intro A w hPA hsum hne1
-        by_contra hmt
-        rw [Finset.not_nonempty_iff_eq_empty] at hmt
-        have h := Finset.add_sum_erase A w hPA
-        rw [hmt, Finset.sum_empty, add_zero, hsum] at h
-        exact hne1 h
-      have hA₁'ne : A₁'.Nonempty := hne_rem hP₁A₁ hsum₁ h1
-      have hA₂'ne : A₂'.Nonempty := hne_rem hQ₂A₂ hsum₂ (hw_eq ▸ h1)
-      obtain ⟨h1t_pos, _, _, hsum₁'_div, _, hx_split⟩ := isCellChain_erase_decomp hA₁ hP₁A₁ hA₁'ne
+      have hA₁'ne : A₁'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+        h1 (eq_one_of_erase_eq_empty hP₁A₁ hsum₁ hmt)
+      have hA₂'ne : A₂'.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+        (hw_eq ▸ h1) (eq_one_of_erase_eq_empty hQ₂A₂ hsum₂ hmt)
+      obtain ⟨h1t_pos, _, hsum₁'_div, _, hx_split⟩ := isCellChain_erase_decomp hA₁ hP₁A₁ hA₁'ne
         hP₁C (fun Q hQ => hmax₁ Q (Finset.erase_subset P₁ A₁ hQ)) hw₁ hsum₁
-      obtain ⟨_, _, _, hsum₂'_div, _, hx_split₂⟩ := isCellChain_erase_decomp hA₂ hQ₂A₂ hA₂'ne
+      obtain ⟨_, _, hsum₂'_div, _, hx_split₂⟩ := isCellChain_erase_decomp hA₂ hQ₂A₂ hA₂'ne
         hP₁C (fun Q hQ => hmax₂ Q (Finset.erase_subset P₁ A₂ hQ)) hw₂ hsum₂
       have hcard' : A₁'.card + A₂'.card < n := by
         rw [← hn]
