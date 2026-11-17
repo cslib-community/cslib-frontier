@@ -16,9 +16,13 @@ import CslibFrontier.Probability.StatisticalDistance.UniformMod
 /-!
 # Modular reduction of finite pseudorandom generators
 
-Reduction of a finite-type `PRG.Generator Seed (Fin N)` modulo `m`, giving `Generator.modNat`, the
-concrete advantage inequality of Boneh–Shoup Example 3.3 (`Generator.advantage_modNat_le`), and
-concrete security transfer (`Generator.Secure.modNat`).
+Reduction of a finite-type `PRG.Generator Seed (Fin N)` modulo `m`, giving `Generator.modNat`, and
+the concrete advantage inequality of Boneh–Shoup Example 3.3 (`Generator.advantage_modNat_le`) for
+every adversary. Example 3.3 itself, that the residues are computationally indistinguishable from
+uniform when the generator is secure and `m / N` is negligible, is
+`Cslib.Crypto.ComputationallyIndistinguishable.map_modWord` and
+`Cslib.Crypto.PseudorandomGenerator.indistinguishable_map_modWord`, whose reduction is certified
+PPT (`Cslib.Crypto.isPPT_modDistinguisher`).
 
 ## Main definitions
 
@@ -28,8 +32,6 @@ concrete security transfer (`Generator.Secure.modNat`).
 
 * `Cslib.Crypto.PRG.Generator.advantage_modNat_le`:
   `Distadv[A, P₀, P₁] ≤ PRGadv[B, G] + m / N`.
-* `Cslib.Crypto.PRG.Generator.Secure.modNat`: concrete security transfer with additive error
-  `m / N`.
 
 ## References
 
@@ -42,7 +44,6 @@ public section
 namespace Cslib.Crypto.PRG.Generator
 
 open Cslib.Probability
-open scoped NNReal
 
 variable {Seed : Type*}
 
@@ -80,19 +81,5 @@ theorem advantage_modNat_le {N : ℕ} [NeZero N] (G : Generator Seed (Fin N)) (m
   refine (abs_sub_le _ ((idealExperiment fun y : Fin N => adversary (y.val : ZMod m)) true).toReal
     _).trans (add_le_add le_rfl ?_)
   exact hmid.trans (PMF.dist_map_natCast_uniformOfFintype_le_div N m)
-
-/-- Concrete security of `G` reduced modulo `m` ([BonehShoup2023], Example 3.3, p. 87), for
-adversary classes such that reducing the challenge modulo `m` turns an admissible test of the
-residues into an admissible test of `G`. -/
-theorem Secure.modNat {N : ℕ} [NeZero N] {G : Generator Seed (Fin N)} {m : ℕ} [NeZero m]
-    {Admissible : Adversary (Fin N) → Prop} {Admissible' : Adversary (ZMod m) → Prop} {ε : ℝ≥0}
-    (hG : G.Secure Admissible ε)
-    (hred : ∀ A, Admissible' A → Admissible fun y => A (y.val : ZMod m)) :
-    (G.modNat m).Secure Admissible' (ε + m / N) := by
-  intro A hA
-  have h := G.advantage_modNat_le m A
-  have h₁ := hG _ (hred A hA)
-  push_cast
-  linarith
 
 end Cslib.Crypto.PRG.Generator

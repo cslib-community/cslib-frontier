@@ -4,10 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Complexity.Problems.CSP.Constant
 import CslibFrontier.Computability.Complexity.Problems.CSP.Majority
 
-/-! Native tractability on concrete languages with inconsistent and empty-relation instances. -/
+/-!
+Native tractability on concrete languages with inconsistent and empty-relation instances.
+The private fixtures are shared with ordinary module clients through a test-only `import all`.
+-/
+
+-- The concrete language fixtures and their hypotheses intentionally remain private.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.CSPTractability
 

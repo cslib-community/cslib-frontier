@@ -74,20 +74,20 @@ example : ∃ g, State.Embeds g ((Instr.create 1).effect source)
   change some 4 = some (g 2) at hp
   exact (Option.some.inj hp).symm
 
-private def code : List (Instr model layout) :=
+private def prog : List (Instr model layout) :=
   [.create 1, .storePtr 0 1 0, .movePtr 0 1, .null 1,
    .ifPtrEq 0 1 7, .loadPtr 0 0 0, .goto 4, .halt]
 
 private def state : ℕ → S
   | 0 => source
-  | n + 1 => (step code (state n)).getD (state n)
+  | n + 1 => (step prog (state n)).getD (state n)
 
-private theorem transition (n : Fin 14) : step code (state n) = some (state (n + 1)) := by
+private theorem transition (n : Fin 14) : step prog (state n) = some (state (n + 1)) := by
   fin_cases n <;> rfl
 
-private theorem execution : Executes code source (state 14) 15 := by
+private theorem execution : Executes prog source (state 14) 15 := by
   refine ⟨14, ?_, rfl, rfl⟩
-  have run (n : ℕ) (hn : n ≤ 14) : Runs code source (state n) n := by
+  have run (n : ℕ) (hn : n ≤ 14) : Runs prog source (state n) n := by
     induction n with
     | zero => exact .refl _
     | succ n ih => exact .tail _ _ _ _ (ih (by omega)) (transition ⟨n, by omega⟩)
@@ -96,13 +96,13 @@ private theorem execution : Executes code source (state 14) 15 := by
 example : (state 14).ptr 0 = none ∧ (state 14).heap.length = 3 := ⟨rfl, rfl⟩
 
 -- The larger heap runs the same program in 15 instructions, including halt.
-example : ∃ y g, Executes code target y 15 ∧ State.Embeds g (state 14) y ∧
+example : ∃ y g, Executes prog target y 15 ∧ State.Embeds g (state 14) y ∧
     ∀ a, a < source.heap.length → g a = address a := execution.embed embedding
 
 -- Reflection and determinism rule out a different successful running time in the larger heap.
-example {y : S} {time : ℕ} (h : Executes code target y time) : time = 15 := by
+example {y : S} {time : ℕ} (h : Executes prog target y time) : time = 15 := by
   obtain ⟨x, _, hx, _, _⟩ := h.of_embed embedding
   exact (hx.unique execution).2
 
-example : (∃ x, Executes code source x 15) ↔ ∃ y, Executes code target y 15 :=
+example : (∃ x, Executes prog source x 15) ↔ ∃ y, Executes prog target y 15 :=
   embedding.halts_iff

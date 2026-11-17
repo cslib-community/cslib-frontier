@@ -184,8 +184,8 @@ theorem tvDist_conv_discreteGaussian_le (r s t : ℝ)
       (measure_univ (μ := ν.withDensity f))
   have hfi : Integrable f ν := by
     refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_enorm]
-    simpa only [enorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+    rw [hasFiniteIntegral_iff_eNorm]
+    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
   have hbound (x : E) : |1 - (f x).toReal| ≤ (δ h + δ r) / A r (-u) := by
     have hnum : 0 < A h ((r / t) ^ 2 • x - u) :=
       mul_pos (div_pos (covolume_pos L volume) (pow_pos hh _)) (gaussianMass_pos L h hh _)
