@@ -137,7 +137,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
       unfold digits
       wram_exec [List.length_nil]
       refine ⟨by simp [Bounded], by wram_simp; exact Nat.two_pow_pos _, by simp [value],
-        by wram_simp, ⟨rfl, fun i _ _ hc => by wram_simp⟩⟩
+        by wram_simp, frame_set_carry x 0 []⟩
   | cons d ds ih =>
     have hd := digit_ne (hout d (by simp))
     have hds : ∀ i ∈ ds, IsDigit i := fun i hi => hout i (by simp [hi])
@@ -166,9 +166,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
       wram_call (ih [] (by simp) (by simp) hds hnd' (by simp) x hb hz hs
         (by simp [Bounded])) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
       wram_exec [List.length_cons, List.length_nil]
-      have hyf : Frame z (z.set d 0) [d] := ⟨rfl, fun i hi _ _ => by
-        simp only [List.mem_singleton] at hi; wram_simp⟩
-      obtain ⟨hyb, hyv, hyframe⟩ := hcons hzf hyf hzb
+      obtain ⟨hyb, hyv, hyframe⟩ := hcons hzf (frame_set_mem (d := d) z 0) hzb
         (by wram_simp; exact lt_trans zero_lt_one (one_lt_radix hw))
       refine ⟨hyb, by wram_simp [hzc], ?_, by wram_simp [hzt], hyframe⟩
       change ((z.set d 0).regs d + radix w * value (radix w) (z.set d 0) ds) * _ + _ = _
@@ -229,8 +227,9 @@ private theorem exec_finish {w : ℕ} (hw : 2 ≤ w)
   unfold finish
   wram_exec [h1, hpow, hshift]
   refine WP.Exact.name fun z hzx => ?_
-  have hzf : Frame x z [zero] := ⟨by rw [hzx]; rfl, fun i hi _ _ => by
-    simp only [List.mem_singleton] at hi; rw [hzx]; wram_simp⟩
+  have hzf : Frame x z [zero] := by
+    rw [hzx, Data.set_set]
+    exact frame_set_mem x _
   have hza (i : Fin (r + 4)) (hi : i ∈ as) : z.regs i = x.regs i :=
     hzf.2 i (by simpa only [List.mem_singleton] using (digit_ne (hin i hi)).2.2.2)
       (digit_ne (hin i hi)).1 (digit_ne (hin i hi)).2.1
@@ -285,8 +284,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
     wram_call (exec_finish hw [] ds (by simp) (by simp) hout hnd (by simp) _
       (by wram_simp [hb]) (by wram_simp; omega) (by simp [Bounded])) with y ⟨hyb, hyv, hyf⟩
     refine ⟨by simp only [List.length_nil]; omega, hyb, ?_,
-      frame_trans (show Frame x (x.set total 0) (base :: zero :: ds) from
-        ⟨rfl, fun i _ ht _ => by wram_simp⟩) (frame_mono hyf (by simp))⟩
+      frame_trans (frame_set_total x 0 _) (frame_mono hyf (by simp))⟩
     simpa only [value, List.map_nil, Nat.ofDigits_nil, Nat.zero_shiftRight] using hyv
   | cons a as ih =>
     have hlen' : as.length ≤ ds.length := by simp only [List.length_cons] at hlen; omega
@@ -316,8 +314,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
         rw [Nat.add_mul_div_left _ _ (by have := one_lt_radix hw; omega),
           Nat.div_eq_of_lt (ha a (by simp)), zero_add]
       refine ⟨by simp only [List.length_cons]; omega, hyb, ?_,
-        frame_trans (show Frame x (x.set total (x.regs total - w / 2)) (base :: zero :: ds) from
-          ⟨rfl, fun i _ ht _ => by wram_simp⟩) hyf⟩
+        frame_trans (frame_set_total x _ _) hyf⟩
       rw [show x.regs total = w / 2 + (x.regs total - w / 2) by omega,
         Nat.shiftRight_add, hdrop, ← value_congr hza]
       wram_simp at hyv
@@ -359,10 +356,10 @@ theorem exec {w : ℕ} (hw : 2 ≤ w)
   wram_call (exec_dispatch hw as ds hlen hin hout hnd hdis z (by rw [hzx]; wram_simp)
     (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp [hs])
     (fun i hi => by rw [hzi i (hin i hi)]; exact ha i hi)) with y ⟨hyb, hyv, hyf⟩
-  have hzf : Frame x z (base :: zero :: ds) := ⟨by rw [hzx]; rfl, fun i hi ht _ => by
-    have hbi : i ≠ base := fun h => hi (by simp [h])
-    have hzi' : i ≠ zero := fun h => hi (by simp [h])
-    rw [hzx]; wram_simp⟩
+  have hzf : Frame x z (base :: zero :: ds) := by
+    rw [hzx]
+    exact frame_trans (frame_set_mem x (radix w))
+      (frame_trans (frame_set_mem (d := zero) _ (w / 2)) (frame_set_total _ _ _))
   have hf := frame_trans hzf hyf
   refine ⟨by omega, hyb, ?_, hf, hf.2 s (by simp [hsb, hsz, hsout]) hst hsc⟩
   have hzt : z.regs total = x.regs s := by rw [hzx]; wram_simp
