@@ -701,7 +701,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnpos
       have hne := hedge (t₁ := .pT) (t₂ := .actPos) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnpos])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnpos)
       exact hne ht.symm
     · by_contra hnA
       have hvt := hvPos_t_of_not_A x hnA
@@ -713,7 +717,11 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
     constructor
     · by_contra hnneg
       have hne := hedge (t₁ := .pT) (t₂ := .actNeg) rfl 0 0 c x (by
-        simp [guardOrigin0, pair_arg1_pay, mkVertex, hnneg])
+        rw [ProjectionFormula.realize_guardAnd]
+        constructor
+        · simp [guardOrigin0, mkVertex]
+        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
+          simpa [mkVertex] using hnneg)
       exact hne ht.symm
     · intro hAx
       have hvt := hvNeg_t_of_A x hAx

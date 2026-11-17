@@ -1282,8 +1282,8 @@ register_result "goldreich-levin-hard-core" where
   topic := "cryptography"
   sources := [
     { paper := GoldreichLevin1989, theorem := unverified, locator := unverified },
-    { paper := Goldreich2007Draft, theorem := "Theorem 7.7",
-      locator := "March 2007 draft r4.pdf, PDF p. 12; printed p. 276" }
+    { paper := Goldreich2007DraftR4, theorem := "Theorem 7.7 and Proposition 8.9",
+      locator := "March 2007 draft r4.pdf, PDF pp. 12 and 66; printed pp. 276 and 330" }
   ]
   theorems := [
     Cslib.Crypto.GoldreichLevin.padded_hardCore,
@@ -1294,8 +1294,10 @@ register_result "goldreich-levin-hard-core" where
     spare bit s so that every seed length is covered, against uniform strict PPT predictors \
     with negligible bias. This is not a hard-core predicate for f itself. For a length-preserving \
     one-way permutation, appending that bit gives a deterministic polynomial-time generator with \
-    one-bit stretch, secure against uniform strict PPT distinguishers. Asymptotic security; the \
-    source's explicit runtime and advantage trade-off is not stated."
+    one-bit stretch, secure against uniform strict PPT distinguishers: Proposition 8.9 applied \
+    to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
+    predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
+    stated."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -2357,8 +2359,10 @@ register_result "gmw-zero-knowledge" where
   sources := [
     { paper := GoldreichMicaliWigderson1991, theorem := unverified,
       locator := unverified },
-    { paper := Goldreich2001, theorem := unverified,
-      locator := "Sections 4.3.3 and 4.4" }
+    { paper := Goldreich1998Fragments, theorem := "Theorem 4.4.10, with Definition 4.3.8",
+      locator := "Section 4.3.3 (Definition 4.3.8, pp. 151–152) and Section 4.4.3 \
+        (Theorem 4.4.10 and the remark after it, pp. 175–176) of the posted draft of \
+        February 27, 1998" }
   ]
   theorems := [
     Cslib.Crypto.NonuniformOneWay.exists_zkProof_of_mem_NP,
@@ -2368,7 +2372,13 @@ register_result "gmw-zero-knowledge" where
     NPRelation R admits a sequentially amplified ZKProof system (adapted masked-3SAT \
     protocol) with soundness (1/3)^(n+1), NegligibleSoundness, and auxiliary-input zero \
     knowledge in family-indexed, unbounded-auxiliary-input, and Goldreich instance-indexed \
-    forms; the relation version preserves R's native witnesses via a Levin reduction."
+    forms; the relation version preserves R's native witnesses via a Levin reduction. \
+    Theorem 4.4.10 assumes a commitment scheme with nonuniform secrecy, which the remark after \
+    it obtains from nonuniformly one-way functions. Of the three forms, only the instance-indexed \
+    one, InstanceAuxiliaryInputZeroKnowledge, follows the indexing and clocks of Definition \
+    4.3.8; it ranges over valid witnesses of polynomially bounded length in place of every \
+    prover input that meets the completeness condition. The other two are novel to this \
+    library and imply it."
 
 register_result "gkst-pir-to-smooth-code" where
   title := "Smooth codes from private information retrieval schemes"
