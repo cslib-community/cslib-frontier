@@ -27,7 +27,8 @@ literals (`Proposition.length_le_three_of_mem_tseitinCNF`). In the other directi
 the transformation restricts to a model of `A` (`Proposition.eval_of_eval_plaistedGreenbaumCNF`), so
 the two are equisatisfiable (`Proposition.satisfiable_plaistedGreenbaumCNF_iff`). Unlike for the
 Tseitin transformation, the extension of a model of `A` is not unique: a variable of a subformula
-that occurs only positively may be false while the subformula is true. In exchange there are at most
+that occurs only positively may be false while the subformula is true
+(`Proposition.not_forall_eq_of_eval_plaistedGreenbaumCNF`). In exchange there are at most
 two clauses for each node of `A` instead of three (`Proposition.length_plaistedGreenbaumCNF_le`).
 
 ## Main definitions
@@ -43,6 +44,8 @@ two clauses for each node of `A` instead of three (`Proposition.length_plaistedG
 * `Cslib.Logic.PL.Proposition.eval_of_eval_plaistedGreenbaumCNF`: every model restricts to a model
   of the proposition.
 * `Cslib.Logic.PL.Proposition.satisfiable_plaistedGreenbaumCNF_iff`: equisatisfiability.
+* `Cslib.Logic.PL.Proposition.not_forall_eq_of_eval_plaistedGreenbaumCNF`: models are not
+  determined by the atoms.
 * `Cslib.Logic.PL.Proposition.length_plaistedGreenbaumCNF_le`: at most `2 · A.size + 1` clauses.
 
 ## References
@@ -166,6 +169,25 @@ theorem eval_of_eval_plaistedGreenbaumCNF {σ : Atom ⊕ Proposition Atom → Bo
   simp only [plaistedGreenbaumCNF, CNF.eval_cons, Clause.eval_cons, Literal.eval_mk,
     Clause.eval_nil, Bool.or_false, beq_iff_eq, Bool.and_eq_true] at h
   exact eval_eq_of_eval_plaistedGreenbaumDefs h.2 h.1
+
+/-- **Models of the Plaisted–Greenbaum transformation are not determined by the atoms**, unlike
+those of the Tseitin transformation (`Proposition.eq_of_eval_tseitinCNF`). In `(x ∧ x) ∨ x` the
+conjunction occurs positively, so with `x` true its variable may be true or false. -/
+theorem not_forall_eq_of_eval_plaistedGreenbaumCNF [Nonempty Atom] :
+    ¬ ∀ (A : Proposition Atom) (σ τ : Atom ⊕ Proposition Atom → Bool),
+      A.plaistedGreenbaumCNF.eval σ = true → A.plaistedGreenbaumCNF.eval τ = true →
+        σ ∘ Sum.inl = τ ∘ Sum.inl → ∀ y ∈ A.plaistedGreenbaumCNF.vars, σ y = τ y := by
+  intro h
+  obtain ⟨x⟩ := ‹Nonempty Atom›
+  let τ : Atom ⊕ Proposition Atom → Bool
+    | .inr (.and _ _) => false
+    | _ => true
+  have := h (.or (.and (.atom x) (.atom x)) (.atom x)) (fun _ => true) τ rfl rfl rfl
+    (.inr (.and (.atom x) (.atom x)))
+    (CNF.mem_vars.2 ⟨[(.inr (.and (.atom x) (.atom x)), false), (.inl x, true)],
+      by simp [plaistedGreenbaumCNF, plaistedGreenbaumDefs, tseitinVar], false,
+      List.mem_cons_self⟩)
+  exact Bool.noConfusion this
 
 /-- **The Plaisted–Greenbaum transformation preserves satisfiability.** -/
 theorem satisfiable_plaistedGreenbaumCNF_iff (A : Proposition Atom) :

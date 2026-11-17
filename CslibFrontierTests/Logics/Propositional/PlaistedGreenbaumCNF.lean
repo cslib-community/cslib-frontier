@@ -60,4 +60,10 @@ example : σ (.inr (.and p q)) ≠ tseitinExtend (σ ∘ Sum.inl) (.inr (.and p 
 
 example : disj.tseitinCNF.eval σ = false := by decide
 
+-- In general, models over a nonempty type of atoms are not determined by the atoms.
+example : ¬ ∀ (A : Proposition (Fin 2)) (σ τ : Fin 2 ⊕ Proposition (Fin 2) → Bool),
+    A.plaistedGreenbaumCNF.eval σ = true → A.plaistedGreenbaumCNF.eval τ = true →
+      σ ∘ Sum.inl = τ ∘ Sum.inl → ∀ y ∈ A.plaistedGreenbaumCNF.vars, σ y = τ y :=
+  not_forall_eq_of_eval_plaistedGreenbaumCNF
+
 end CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF
