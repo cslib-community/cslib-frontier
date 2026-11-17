@@ -44,7 +44,7 @@ a real number; the design `Cslib.Crypto.PRG.NisanWigderson.Design.greedy` takes 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.PRG.NisanWigderson
 
