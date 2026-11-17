@@ -6,6 +6,8 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Complexity.Classes.Toda
 import CslibFrontier.Computability.Complexity.Classes.Toda.Counting
+import CslibFrontier.Computability.Complexity.Classes.Toda.SharpSAT
+import CslibFrontier.Computability.Complexity.Classes.PP.Bit
 
 /-! Parity-P and the class operators on concrete problems, the Valiant–Vazirani test and the
 counting tests of Toda's theorem on concrete words, and non-vacuity witnesses. -/
@@ -142,5 +144,22 @@ example : NP encBits ⊆ PWithSharpPOracle encBits := NP_subset_PH.trans PH_subs
 /-- `coNP ⊆ BP·⊕P`. -/
 example : coNP encBits ⊆ BPOp encBits (ParityP (encPair encBits encBits)) :=
   coNP_subset_PH.trans PH_subset_BPOp_ParityP
+
+/-! ### Toda's theorem with the fixed `#SAT` oracle -/
+
+/-- **Toda's theorem, `PH ⊆ P^{#SAT}`**, applied to the universal language via `P ⊆ NP ⊆ PH`:
+the fixed oracle language is the bit graph of `#SAT` on `encCNF` formulas. -/
+example : (Set.univ : Set (List Bool)) ∈ PWithOracle (bitGraph encCNF SharpSAT) encBits :=
+  PH_subset_PWithOracle_bitGraph_SharpSAT (NP_subset_PH
+    (P_subset_NP ⟨fun _ => true, .const true, fun _ => by simp⟩))
+
+/-- `coNP ⊆ P^{#SAT}`. -/
+example : coNP encBits ⊆ PWithOracle (bitGraph encCNF SharpSAT) encBits :=
+  coNP_subset_PH.trans PH_subset_PWithOracle_bitGraph_SharpSAT
+
+/-- `PP ⊆ P^{#SAT}`: the bit lemma applies to any `#P` function bit, not only Toda's. -/
+example : PP encBits ⊆ PWithOracle (bitGraph encCNF SharpSAT) encBits := fun _ hA =>
+  let ⟨_, hf, _, h⟩ := exists_SharpP_testBit_of_mem_PP hA
+  CookLevin.SharpSAT_sharpPHard.mem_PWithOracle_bitGraph_of_testBit hf h
 
 end CslibFrontierTests.Toda
