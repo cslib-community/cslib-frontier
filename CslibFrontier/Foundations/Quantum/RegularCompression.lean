@@ -78,16 +78,16 @@ def regularPerm (y : G) : Equiv.Perm (ι × G) :=
   Equiv.prodCongr (Equiv.refl ι) (Equiv.mulRight y)
 
 omit [Fintype G] [DecidableEq G] [Fintype ι] [DecidableEq ι] in
-theorem regularPerm_mul (y y' : G) :
+private theorem regularPerm_mul (y y' : G) :
     regularPerm (ι := ι) (y * y') = regularPerm y' * regularPerm y := by
   ext p <;> simp [regularPerm, mul_assoc]
 
 omit [Fintype G] [DecidableEq G] [Fintype ι] [DecidableEq ι] in
-theorem regularPerm_one : regularPerm (ι := ι) (1 : G) = 1 := by
+private theorem regularPerm_one : regularPerm (ι := ι) (1 : G) = 1 := by
   ext p <;> simp [regularPerm]
 
 omit [Fintype G] [DecidableEq G] [Fintype ι] [DecidableEq ι] in
-theorem regularPerm_inv (y : G) : (regularPerm (ι := ι) y)⁻¹ = regularPerm y⁻¹ := by
+private theorem regularPerm_inv (y : G) : (regularPerm (ι := ι) y)⁻¹ = regularPerm y⁻¹ := by
   rw [inv_eq_iff_mul_eq_one, ← regularPerm_mul, inv_mul_cancel, regularPerm_one]
 
 /-- The **right regular representation** on `ℂ^ι ⊗ ℂ^G`, `(g(y) w)(i, z) = w(i, z y)`: the
