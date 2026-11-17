@@ -67,7 +67,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 | 7 | 24 | 23 | 3 | 1 | — |
 | 8 | 44 | 31 | 12 | 1 | — |
 | 9 | 29 | 23 | 7 | 1 | — |
-| 10 | 29 | 25 | 2 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
+| 10 | 29 | 24 | 3 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
 
 The 2026-11-17 follow-up to [#5940](https://github.com/cslib-community/cslib-frontier/issues/5940)
 covers 6.22 and both parts of 6.36 (part (a) with the padded SAT relation of 6.35), so 6.36 is
