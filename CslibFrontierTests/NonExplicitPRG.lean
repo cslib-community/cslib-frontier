@@ -17,14 +17,14 @@ set_option linter.privateModule false
 
 open Cslib Cslib.Crypto Cslib.Crypto.PRG Cslib.Complexity
 
-/-- At seed length `20` the generator stretches to `⌈2 ^ 2⌉ = 4` bits and fools every circuit
-with at most `4 ^ 3 = 64` gates. -/
-example : ∃ S : ℕ → ℕ, ∃ G : List Bool → List Bool, S 20 = 4 ∧
-    ∀ adversary, IsCircuitTest (S 20 ^ 3) adversary →
-      (PRG.wordFamily G S 20).advantage adversary < 1 / 10 := by
+/-- At seed length `60` the generator expands to `⌈2 ^ 6⌉ = 64` bits and fools every circuit
+with at most `64 ^ 3` gates. -/
+example : ∃ S : ℕ → ℕ, ∃ G : List Bool → List Bool, S 60 = 64 ∧
+    ∀ adversary, IsCircuitTest (S 60 ^ 3) adversary →
+      (PRG.wordFamily G S 60).advantage adversary < 1 / 10 := by
   obtain ⟨S, G, hS, -, -, -, hG⟩ := exists_generator_advantage_lt
-  refine ⟨S, G, ?_, hG 20⟩
-  rw [hS 20 (by norm_num)]
+  refine ⟨S, G, ?_, hG 60⟩
+  rw [hS 60 (by norm_num)]
   norm_num
 
 /-- With the hint's `ε = 1 / 10` and the draft's rounding, no generator at all is pseudorandom at

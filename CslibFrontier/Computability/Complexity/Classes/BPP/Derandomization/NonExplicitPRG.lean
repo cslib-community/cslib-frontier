@@ -26,9 +26,19 @@ import CslibFrontier.Probability.PMF.Uniform
 
 Arora and Barak's Exercise 16.2 asks for some `ε > 0` and a function `G` that meets every
 condition of their Definition 16.2 of a `2 ^ (ε ℓ)`-pseudorandom generator except the running
-time. Seeds of `ℓ` bits map to `S(ℓ) = 2 ^ (ε ℓ)` bits, and for every `ℓ` no circuit with at most
-`S(ℓ) ^ 3` gates tells `G(U_ℓ)` from `U_{S(ℓ)}` with advantage `1 / 10` or more. The hint takes a
-random function from `ℓ` bits to `2 ^ (ℓ / 10)` bits.
+time of `G`. Those conditions are: the output length `S(ℓ) = 2 ^ (ε ℓ)` is a monotone,
+polynomial-time computable function, seeds of `ℓ` bits map to `S(ℓ)` bits, and for every `ℓ` no
+circuit of size at most `S(ℓ) ^ 3` tells `G(U_ℓ)` from `U_{S(ℓ)}` with advantage `1 / 10` or more.
+The hint takes a random function from `ℓ` bits to `2 ^ (ℓ / 10)` bits.
+
+**Circuit size.** Tests are `Cslib.Crypto.PRG.IsCircuitTest`: deterministic tests of De Morgan
+circuit complexity at most the budget, counting every AND, OR, NOT and constant gate but not the
+inputs. The draft's Definition 6.1 counts all nodes, inputs included. So a circuit of source size
+`s` has at most `s` gates here, the library admits at least the source's tests, and the
+indistinguishability bound below implies the source's. A refutation needs the converse: its
+witness must fit the source's count. The one-bit witness below does: at most four gates, plus the
+`m` input nodes and possibly a separate output node, is at most `m + 5 ≤ m ^ 3` nodes for every
+output length `m ≥ 2`.
 
 As printed, the exercise is false at `ℓ = 1`. The draft rounds a real number used as a whole number
 up (Conventions, p. 7), so `S(1) = ⌈2 ^ ε⌉ ≥ 2` for every `ε > 0`. A one-bit seed has only two
@@ -36,8 +46,11 @@ outputs, and one of the tests `y₀`, `y₁` or `y₀ xor y₁`, each with at mo
 on both outputs and balanced on `{0,1} ^ S(1)`. Its advantage is `1 / 2`
 (`exists_isCircuitTest_le_advantage_one`). If `0 ∈ ℕ`, `ℓ = 0` fails for the same reason.
 
-The corrected endpoint (`exists_generator_advantage_lt`) keeps the hint's `ε = 1 / 10` and the
-draft's rounding, `S(ℓ) = ⌈2 ^ (ℓ / 10)⌉`, for every `ℓ ≥ 2`, and sets `S(ℓ) = ℓ` for `ℓ ≤ 1`.
+The corrected endpoint is proved for its **length and indistinguishability properties**
+(`exists_generator_advantage_lt`); polynomial-time computability of the length function, the one
+remaining condition of Definition 16.2, is not proved here and stays open. The correction keeps
+the hint's `ε = 1 / 10` and the draft's rounding, `S(ℓ) = ⌈2 ^ (ℓ / 10)⌉`, for every `ℓ ≥ 2`, and
+sets `S(ℓ) = ℓ` for `ℓ ≤ 1`.
 Where `S(ℓ) ≤ ℓ`, which holds for `2 ≤ ℓ ≤ 58`, the generator truncates its seed, and the output is
 exactly uniform. Otherwise `S(ℓ) ≥ 60` and `(S(ℓ) - 1) ^ 10 < 2 ^ ℓ`. Then the hint's argument
 works: for a fixed test, Hoeffding's inequality bounds the fraction of functions
@@ -49,8 +62,8 @@ complexity at most `S(ℓ) ^ 3` leaves a good `g`.
 
 * `Cslib.Complexity.exists_isCircuitTest_le_advantage_one`: the printed exercise fails at `ℓ = 1`
   for every `ε > 0`.
-* `Cslib.Complexity.exists_generator_advantage_lt`: Arora and Barak's Exercise 16.2, corrected at
-  `ℓ ≤ 1`.
+* `Cslib.Complexity.exists_generator_advantage_lt`: the length and indistinguishability properties
+  of Arora and Barak's Exercise 16.2, corrected at `ℓ ≤ 1`.
 
 ## References
 
@@ -88,11 +101,16 @@ private theorem two_mul_card_filter_of_flip {m : ℕ} (i : Fin m) (T : BitString
 
 /-- **The printed Exercise 16.2 fails at `ℓ = 1`.** Under the draft's rounding convention
 (a real number used as a whole number is rounded up, p. 7), a `2 ^ (ε ℓ)`-pseudorandom generator
-has `S(1) = ⌈2 ^ ε⌉ ≥ 2` output bits on one-bit seeds, for every `ε > 0`. For every `G`, some
-test computed by a circuit with at most `S(1) ^ 3` gates (in fact at most four) has advantage at
+has `m = S(1) = ⌈2 ^ ε⌉ ≥ 2` output bits on one-bit seeds, for every `ε > 0`. For every `G`, some
+test computed by a circuit with at most `m ^ 3` gates (in fact at most four) has advantage at
 least `1 / 10` (in fact `1 / 2`) on seeds of length one, so the pseudorandomness condition of Arora
 and Barak's Definition 16.2 [AroraBarak07] fails at `ℓ = 1`. (`PRG.wordFamily` reads the first
-`S(1)` bits of `G z`, padded with zeros, so no output-length hypothesis is needed.) -/
+`S(1)` bits of `G z`, padded with zeros, so no output-length hypothesis is needed.)
+
+The test is one of `y₀`, `y₁` and `y₀ xor y₁`. `IsCircuitTest` counts gates only, while the draft's
+Definition 6.1 counts all nodes. The witness also fits the draft's budget: at most four gates plus
+the `m` input nodes and, if counted separately, one output node make at most
+`m + 5 ≤ m ^ 3` nodes, as `m ≥ 2`. -/
 theorem exists_isCircuitTest_le_advantage_one {ε : ℝ} (hε : 0 < ε) (G : List Bool → List Bool) :
     ∃ adversary, IsCircuitTest (⌈(2 : ℝ) ^ (ε * ((1 : ℕ) : ℝ))⌉₊ ^ 3) adversary ∧
       1 / 10 ≤ (PRG.wordFamily G (fun ℓ => ⌈(2 : ℝ) ^ (ε * ℓ)⌉₊) 1).advantage adversary := by
@@ -362,22 +380,24 @@ private theorem exists_good_map (ℓ : ℕ) :
     interval_cases k <;> norm_num at h2
   exact exists_forall_complexity_le_abs_sub_lt hm60 hhigh
 
-/-- **Non-explicit pseudorandom generators exist** [Arora and Barak, Exercise 16.2][AroraBarak07]
-(web draft 2007-01-08, printed p. 318, PDF p. 334), corrected at seed lengths `ℓ ≤ 1`. With the
-hint's `ε = 1 / 10`, some `G : {0,1}* → {0,1}*` meets every condition of Definition 16.2 of an
-`S(ℓ)`-pseudorandom generator except the running time, for the output length
-`S(ℓ) = ⌈2 ^ (ℓ / 10)⌉` at every `ℓ ≥ 2`, rounded up as the draft's conventions prescribe, and
-`S(ℓ) = ℓ` at `ℓ ≤ 1`: `S` is monotone, `|G(z)| = S(|z|)` for every `z`, and for every `ℓ` every
-De Morgan circuit with at most `S(ℓ) ^ 3` gates has advantage below `1 / 10` in distinguishing
-`G(U_ℓ)` from `U_{S(ℓ)}`.
+/-- **Non-explicit pseudorandom generators: the length and indistinguishability properties**
+[Arora and Barak, Exercise 16.2][AroraBarak07] (web draft 2007-01-08, printed p. 318, PDF p. 334),
+corrected at seed lengths `ℓ ≤ 1`. With the hint's `ε = 1 / 10`, some `G : {0,1}* → {0,1}*` and
+the output length `S(ℓ) = ⌈2 ^ (ℓ / 10)⌉` at every `ℓ ≥ 2`, rounded up as the draft's conventions
+prescribe, and `S(ℓ) = ℓ` at `ℓ ≤ 1`, satisfy: `S` is monotone, `|G(z)| = S(|z|)` for every `z`,
+and for every `ℓ` every De Morgan circuit with at most `S(ℓ) ^ 3` gates has advantage below
+`1 / 10` in distinguishing `G(U_ℓ)` from `U_{S(ℓ)}`.
 
 These are the fields `monotone`, `length_eq` and `pseudorandom` of
-`Cslib.Complexity.ExponentialTimePRG`; only its `time` field is dropped, as the exercise allows.
-Definition 16.2 also asks for `S` to be polynomial-time computable, which that record omits as
-well. The printed exercise asks for `S(ℓ) = ⌈2 ^ (ε ℓ)⌉` at every `ℓ`, which fails at `ℓ = 1` for
-every `ε > 0` (`exists_isCircuitTest_le_advantage_one`). The correction changes only `S(1)`, from
-`2` to `1`, and `S(0)`, from `1` to `0` if `0 ∈ ℕ`. Circuit size counts every AND, OR, NOT and
-constant gate, not the inputs. -/
+`Cslib.Complexity.ExponentialTimePRG`; its `time` field (the running time of `G`) is dropped, as
+the exercise allows. **Not proved here:** Definition 16.2 also requires the length function `S` to
+be polynomial-time computable, a condition the exercise keeps; `ExponentialTimePRG` omits it, and
+this theorem does not certify it, so that condition of the corrected exercise remains open.
+Circuit size counts gates, not inputs; the draft's Definition 6.1 counts all nodes, so the tests
+admitted here include the source's and the bound implies the source's. The printed exercise asks
+for `S(ℓ) = ⌈2 ^ (ε ℓ)⌉` at every `ℓ`, which fails at `ℓ = 1` for every `ε > 0`
+(`exists_isCircuitTest_le_advantage_one`). The correction changes only `S(1)`, from `2` to `1`, and
+`S(0)`, from `1` to `0` if `0 ∈ ℕ`. -/
 theorem exists_generator_advantage_lt :
     ∃ S : ℕ → ℕ, ∃ G : List Bool → List Bool,
       (∀ ℓ, 2 ≤ ℓ → S ℓ = ⌈(2 : ℝ) ^ ((ℓ : ℝ) / 10)⌉₊) ∧ (∀ ℓ ≤ 1, S ℓ = ℓ) ∧

@@ -282,6 +282,7 @@ import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 
 /-!
 # Collected results
@@ -6176,3 +6177,23 @@ register_result "uniform-probing-expected-probes" where
     uniform-key-averaged logarithmic endpoint of CLRS Theorem 11.8 (the module formalizes only a \
     per-key intermediate step)."
 
+
+register_result "arora-barak-nonexplicit-prg" where
+  title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 2 (corrected at seed length ≤ 1)",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.2 printed 283 / \
+        PDF 299; rounding convention printed 7 / PDF 23" }
+  ]
+  theorems := [Cslib.Complexity.exists_generator_advantage_lt,
+    Cslib.Complexity.exists_isCircuitTest_le_advantage_one]
+  scope := "Outside check: PR #6271, review 5947409116. epsilon = 1/10; one map G on words \
+    and output length S(l) = ceil(2^(l/10)) for l >= 2 and S(l) = l for l <= 1, monotone, \
+    with |G(z)| = S(|z|), and for every l advantage below 1/10 against every deterministic \
+    De Morgan circuit with at most S(l)^3 non-input gates (uniform seed versus uniform \
+    output). Only these length and indistinguishability properties are covered: \
+    polynomial-time computability of S (a condition of Definition 16.2) is not proved, and \
+    G has no time bound, as the exercise allows. The printed form fails at l = 1 for every \
+    epsilon > 0 and every G under the draft's ceiling convention; the witness has at most \
+    four gates, at most m + 5 <= m^3 nodes when inputs and an output node are counted."
