@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
 public import Mathlib.Analysis.Real.Sqrt
+import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Tactic.Positivity
@@ -618,10 +619,8 @@ theorem mem_guruswamiSudan_johnson_iff (hα : Function.Injective α) (hk : 2 ≤
     have hsub : n - e = 0 := Nat.sub_eq_zero_of_le (le_of_not_ge hgt)
     rw [hsub] at he
     simp at he
-  have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n := by
-    change #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = Fintype.card ι
-    rw [hammingDist, ← card_univ]
-    exact card_filter_add_card_filter_not _
+  have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n :=
+    card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
   constructor
   · rintro ⟨hdeg, hagree⟩
     refine ⟨hdeg, ?_⟩
@@ -752,10 +751,8 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
       fun w => ⟨card_guruswamiSudan_mul_le, fun P hP hdist => ?_⟩⟩
     rw [mem_guruswamiSudan_iff_of_lt hα hk hineq]
     refine ⟨hP, ?_⟩
-    have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n := by
-      change #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = Fintype.card ι
-      rw [hammingDist, ← card_univ]
-      exact card_filter_add_card_filter_not _
+    have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n :=
+      card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
     have hcard_sumR : (#{i | P.eval (α i) = w i} : ℝ) +
         (hammingDist (fun i => P.eval (α i)) w : ℝ) = n := by
       exact_mod_cast hcard_sum
