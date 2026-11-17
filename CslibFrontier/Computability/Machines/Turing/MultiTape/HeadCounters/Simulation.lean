@@ -404,15 +404,8 @@ private lemma run_back (T : ℕ) (cs : Fin (k + k + 1) → ℕ) (hT : cs tmp = T
   | zero =>
     have e : update (update cs tmp 0) (target j (dir tm q inp sc j))
         (cs (target j (dir tm q inp sc j)) + 0) = cs := by
-      funext i
-      by_cases h2 : i = target j (dir tm q inp sc j)
-      · subst h2
-        simp only [update_self]
-        omega
-      · by_cases h1 : i = tmp
-        · subst h1
-          simp only [update_of_ne h2, update_self, hT]
-        · simp only [update_of_ne h1, update_of_ne h2]
+      rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
+      simp only [Nat.add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out
       (c' := ⟨q, inp, sc, cur, .addDigit j ⟨digit (written (tm.tr q inp sc) sc j), digit_lt _⟩⟩)
       (mv := fun _ => 0) (fun _ => by simp [ctl, hT]), moveCounters_zero]
@@ -533,15 +526,8 @@ private lemma run_restore (T : ℕ) (r : Fin 3) (cs : Fin (k + k + 1) → ℕ) (
   | zero =>
     have e : update (update cs tmp 0) (source j (dir tm q inp sc j))
         (cs (source j (dir tm q inp sc j)) + 0) = cs := by
-      funext i
-      by_cases h2 : i = source j (dir tm q inp sc j)
-      · subst h2
-        simp only [update_self]
-        omega
-      · by_cases h1 : i = tmp
-        · subst h1
-          simp only [update_of_ne h2, update_self, hT]
-        · simp only [update_of_ne h1, update_of_ne h2]
+      rw [(congrArg (update cs tmp) hT.symm).trans (update_eq_self tmp cs)]
+      simp only [Nat.add_zero, update_eq_self]
     rw [e, runFrom_succ_of_ctl tm pos out
       (c' := ⟨q, inp, sc, update cur j (symbol r), phaseAt k (j + 1)⟩)
       (mv := fun _ => 0) (fun _ => by simp [ctl, hT]), moveCounters_zero]
