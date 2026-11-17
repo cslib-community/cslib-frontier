@@ -2877,6 +2877,7 @@ public import CslibFrontier.Computability.Complexity.Problems.VertexCover
 public import CslibFrontier.Computability.Complexity.Problems.VertexCover.Approximation
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
+public import CslibFrontier.Computability.Complexity.Problems.XSAT
 public import CslibFrontier.Computability.Complexity.ProofSystem
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction.Autoreducibility
@@ -4566,6 +4567,9 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman.Equivalents
 public import CslibFrontier.Crypto.Computational.DiffieHellman.EvenOrder
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
 public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH
+public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
+public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Decodable
+public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.WordKEM
 public import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDH
 public import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 public import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
@@ -5187,6 +5191,7 @@ public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
+public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
@@ -7830,6 +7835,7 @@ public import CslibFrontier.Probability.SaksZhou
 public import CslibFrontier.Probability.SaksZhou.Snap
 public import CslibFrontier.Probability.Shearer
 public import CslibFrontier.Probability.SmallBias
+public import CslibFrontier.Probability.SmallBias.Code
 public import CslibFrontier.Probability.SmallBias.Correlation
 public import CslibFrontier.Probability.SmallBias.Pointwise
 public import CslibFrontier.Probability.SmallBias.Powering

@@ -86,19 +86,18 @@ variable {N : ℕ}
 
 section Helpers
 
-private theorem norm_identity_helper {κ ι : Type*} [Fintype κ] [Fintype ι]
-    (u : EuclideanSpace ℝ κ) (φ : κ → EuclideanSpace ℂ ι)
-    (coord : κ → ι × Bool → ℝ)
-    (hcoord : ∀ x p, coord x p = if p.2 then ((φ x).ofLp p.1).im else ((φ x).ofLp p.1).re) :
-    ∑ p : ι × Bool, ‖(WithLp.toLp 2 fun x => u.ofLp x * coord x p : EuclideanSpace ℝ κ)‖ ^ 2 =
+private theorem sum_sq_mul_coord_eq {κ ι : Type*} [Fintype κ] [Fintype ι]
+    (u : EuclideanSpace ℝ κ) (φ : κ → EuclideanSpace ℂ ι) :
+    ∑ p : ι × Bool, ∑ x,
+        (u.ofLp x * if p.2 then ((φ x).ofLp p.1).im else ((φ x).ofLp p.1).re) ^ 2 =
       ∑ x, (u.ofLp x * ‖φ x‖) ^ 2 := by
-  simp only [EuclideanSpace.real_norm_sq_eq]
   rw [sum_comm]
   refine sum_congr rfl fun x _ => ?_
   rw [Fintype.sum_prod_type, mul_pow, EuclideanSpace.norm_sq_eq, mul_sum]
   refine sum_congr rfl fun k _ => ?_
   rw [← Complex.normSq_eq_norm_sq, Complex.normSq_apply]
-  simp [hcoord]; ring
+  simp only [Fintype.sum_bool, Bool.false_eq_true, ↓reduceIte]
+  ring
 
 /-- Vector-matrix-inner-product Cauchy–Schwarz bound:
 `|∑ x y, M[x, y] u_x v_y Re⟨φ_x, ψ_y⟩| ≤ ‖M‖ √(∑ x u_x² ‖φ_x‖²) √(∑ y v_y² ‖ψ_y‖²)`. -/
@@ -107,65 +106,41 @@ private theorem abs_sum_mul_re_inner_le {κ ι : Type*} [Fintype κ] [DecidableE
     |∑ x, ∑ y, M x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (φ x) (ψ y))| ≤
       ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ *
         √(∑ x, (u.ofLp x * ‖φ x‖) ^ 2) * √(∑ y, (v.ofLp y * ‖ψ y‖) ^ 2) := by
-  let coord : κ → ι × Bool → ℝ := fun x p =>
-    if p.2 then ((φ x).ofLp p.1).im else ((φ x).ofLp p.1).re
-  let coordψ : κ → ι × Bool → ℝ := fun y p =>
-    if p.2 then ((ψ y).ofLp p.1).im else ((ψ y).ofLp p.1).re
+  let coord (χ : κ → EuclideanSpace ℂ ι) (x : κ) (p : ι × Bool) : ℝ :=
+    if p.2 then ((χ x).ofLp p.1).im else ((χ x).ofLp p.1).re
   have hre (x y : κ) : RCLike.re (inner ℂ (φ x) (ψ y)) =
-      ∑ p : ι × Bool, coord x p * coordψ y p := by
+      ∑ p : ι × Bool, coord φ x p * coord ψ y p := by
     rw [PiLp.inner_apply, map_sum, Fintype.sum_prod_type]
     refine sum_congr rfl fun k _ => ?_
-    change ((ψ y).ofLp k * star ((φ x).ofLp k)).re = _
-    simp [coord, coordψ, Complex.mul_re]
+    simp only [RCLike.inner_apply', RCLike.re_to_complex, Complex.mul_re, Complex.conj_re,
+      Complex.conj_im, Fintype.sum_bool, Bool.false_eq_true, ↓reduceIte, coord]
     ring
   have hrewrite :
       (∑ x, ∑ y, M x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (φ x) (ψ y))) =
       ∑ p : ι × Bool, ∑ x, ∑ y,
-        M x y * (u.ofLp x * coord x p) * (v.ofLp y * coordψ y p) := by
+        (u.ofLp x * coord φ x p) * M x y * (v.ofLp y * coord ψ y p) := by
     simp only [hre, mul_sum]
-    calc ∑ x, ∑ y, ∑ p : ι × Bool, M x y * u.ofLp x * v.ofLp y * (coord x p * coordψ y p)
-        = ∑ x, ∑ p : ι × Bool, ∑ y, M x y * u.ofLp x * v.ofLp y * (coord x p * coordψ y p) :=
-          sum_congr rfl fun x _ => Finset.sum_comm
-      _ = ∑ p : ι × Bool, ∑ x, ∑ y, M x y * u.ofLp x * v.ofLp y * (coord x p * coordψ y p) :=
-          Finset.sum_comm
-      _ = ∑ p : ι × Bool, ∑ x, ∑ y,
-            M x y * (u.ofLp x * coord x p) * (v.ofLp y * coordψ y p) := by
-          refine sum_congr rfl fun p _ => sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
-  let vecφ : ι × Bool → EuclideanSpace ℝ κ := fun p => WithLp.toLp 2 fun x => u.ofLp x * coord x p
-  let vecψ : ι × Bool → EuclideanSpace ℝ κ := fun p => WithLp.toLp 2 fun y => v.ofLp y * coordψ y p
-  have hcoord (p : ι × Bool) :
-      (∑ x, ∑ y, M x y * (u.ofLp x * coord x p) * (v.ofLp y * coordψ y p)) =
-      inner ℝ (vecφ p) (Matrix.toEuclideanCLM (𝕜 := ℝ) M (vecψ p)) := by
-    rw [Matrix.inner_toEuclideanCLM]
-    simp only [dotProduct, Matrix.mulVec, mul_sum, vecφ, vecψ]
-    refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
-  have hcs := Real.sum_mul_le_sqrt_mul_sqrt (univ : Finset (ι × Bool))
-    (fun p => ‖vecφ p‖) (fun p => ‖vecψ p‖)
-  have hnormφ : ∑ p : ι × Bool, ‖vecφ p‖ ^ 2 = ∑ x, (u.ofLp x * ‖φ x‖) ^ 2 :=
-    norm_identity_helper u φ coord fun _ _ => rfl
-  have hnormψ : ∑ p : ι × Bool, ‖vecψ p‖ ^ 2 = ∑ y, (v.ofLp y * ‖ψ y‖) ^ 2 :=
-    norm_identity_helper v ψ coordψ fun _ _ => rfl
-  calc |∑ x, ∑ y, M x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (φ x) (ψ y))|
-      = |∑ p : ι × Bool, inner ℝ (vecφ p) (Matrix.toEuclideanCLM (𝕜 := ℝ) M (vecψ p))| := by
-          rw [hrewrite]; simp only [hcoord]
-    _ ≤ ∑ p : ι × Bool, |inner ℝ (vecφ p) (Matrix.toEuclideanCLM (𝕜 := ℝ) M (vecψ p))| :=
+    conv_lhs => enter [2, x]; rw [Finset.sum_comm]
+    rw [Finset.sum_comm]
+    refine sum_congr rfl fun p _ => sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
+  rw [hrewrite, Matrix.l2_opNorm_toEuclideanCLM]
+  calc |∑ p : ι × Bool, ∑ x, ∑ y,
+        (u.ofLp x * coord φ x p) * M x y * (v.ofLp y * coord ψ y p)|
+      ≤ ∑ p : ι × Bool, |∑ x, ∑ y, (u.ofLp x * coord φ x p) * M x y * (v.ofLp y * coord ψ y p)| :=
           abs_sum_le_sum_abs _ _
-    _ ≤ ∑ p : ι × Bool, ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ * (‖vecφ p‖ * ‖vecψ p‖) := by
-          refine sum_le_sum fun p _ => ?_
-          calc |inner ℝ (vecφ p) (Matrix.toEuclideanCLM (𝕜 := ℝ) M (vecψ p))|
-              ≤ ‖vecφ p‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M (vecψ p)‖ :=
-                abs_real_inner_le_norm _ _
-            _ ≤ ‖vecφ p‖ * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ * ‖vecψ p‖) :=
-                mul_le_mul_of_nonneg_left (ContinuousLinearMap.le_opNorm _ _) (norm_nonneg _)
-            _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ * (‖vecφ p‖ * ‖vecψ p‖) := by ring
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ * ∑ p : ι × Bool, ‖vecφ p‖ * ‖vecψ p‖ :=
-          (mul_sum _ _ _).symm
-    _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ *
-          (√(∑ p : ι × Bool, ‖vecφ p‖ ^ 2) * √(∑ p : ι × Bool, ‖vecψ p‖ ^ 2)) :=
-          mul_le_mul_of_nonneg_left hcs (norm_nonneg _)
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) M‖ *
-          √(∑ x, (u.ofLp x * ‖φ x‖) ^ 2) * √(∑ y, (v.ofLp y * ‖ψ y‖) ^ 2) := by
-          rw [hnormφ, hnormψ, mul_assoc]
+    _ ≤ ∑ p : ι × Bool, ‖M‖ * √(∑ x, (u.ofLp x * coord φ x p) ^ 2) *
+          √(∑ y, (v.ofLp y * coord ψ y p) ^ 2) :=
+          sum_le_sum fun p _ => Matrix.abs_sum_mul_le_l2_opNorm M _ _
+    _ = ‖M‖ * ∑ p : ι × Bool,
+          √(∑ x, (u.ofLp x * coord φ x p) ^ 2) * √(∑ y, (v.ofLp y * coord ψ y p) ^ 2) := by
+          simp only [mul_assoc, ← mul_sum]
+    _ ≤ ‖M‖ * (√(∑ p : ι × Bool, ∑ x, (u.ofLp x * coord φ x p) ^ 2) *
+          √(∑ p : ι × Bool, ∑ y, (v.ofLp y * coord ψ y p) ^ 2)) :=
+          mul_le_mul_of_nonneg_left (Real.sum_sqrt_mul_sqrt_le univ
+            (fun _ => sum_nonneg fun _ _ => sq_nonneg _)
+            (fun _ => sum_nonneg fun _ _ => sq_nonneg _)) (norm_nonneg _)
+    _ = ‖M‖ * √(∑ x, (u.ofLp x * ‖φ x‖) ^ 2) * √(∑ y, (v.ofLp y * ‖ψ y‖) ^ 2) := by
+          rw [sum_sq_mul_coord_eq u φ, sum_sq_mul_coord_eq v ψ, mul_assoc]
 
 /-- Algebraic bound maximizing `√((1 - p) q) + √(p (1 - q))` for `0 ≤ p, q ≤ ε ≤ 1/2`. -/
 private theorem mul_add_mul_le_two_mul_sqrt {a b p q ε : ℝ}
@@ -182,28 +157,15 @@ private theorem mul_add_mul_le_two_mul_sqrt {a b p q ε : ℝ}
   have hε1 : 0 ≤ 1 - ε := by linarith
   have hp_bd : p * (1 - p) ≤ ε * (1 - ε) := by nlinarith
   have hq_bd : q * (1 - q) ≤ ε * (1 - ε) := by nlinarith
-  have hmix : (1 - p) * q + p * (1 - q) ≤ 2 * (ε * (1 - ε)) := by nlinarith
+  have hprod : √((1 - p) * q) * √(p * (1 - q)) ≤ ε * (1 - ε) := by
+    rw [← Real.sqrt_mul (by nlinarith)]
+    exact (Real.sqrt_le_sqrt <| (mul_le_mul hp_bd hq_bd (by nlinarith) (by nlinarith)).trans_eq'
+      (by ring)).trans_eq (Real.sqrt_mul_self (mul_nonneg hε0 hε1))
   have hsq : (√((1 - p) * q) + √(p * (1 - q))) ^ 2 ≤ (2 * √(ε * (1 - ε))) ^ 2 := by
-    have hprod : √((1 - p) * q) * √(p * (1 - q)) ≤ ε * (1 - ε) := by
-      calc √((1 - p) * q) * √(p * (1 - q))
-          = √(p * (1 - p) * (q * (1 - q))) := by
-              rw [← Real.sqrt_mul (by nlinarith)]
-              congr 1; ring
-        _ ≤ √((ε * (1 - ε)) * (ε * (1 - ε))) :=
-              Real.sqrt_le_sqrt (mul_le_mul hp_bd hq_bd (by nlinarith) (by nlinarith))
-        _ = ε * (1 - ε) := Real.sqrt_mul_self (mul_nonneg hε0 hε1)
-    calc (√((1 - p) * q) + √(p * (1 - q))) ^ 2
-        = (1 - p) * q + p * (1 - q) + 2 * (√((1 - p) * q) * √(p * (1 - q))) := by
-            rw [add_sq, Real.sq_sqrt (by nlinarith), Real.sq_sqrt (by nlinarith)]
-            ring
-      _ ≤ 2 * (ε * (1 - ε)) + 2 * (ε * (1 - ε)) := add_le_add hmix (by linarith)
-      _ = (2 * √(ε * (1 - ε))) ^ 2 := by
-            rw [mul_pow, Real.sq_sqrt (mul_nonneg hε0 hε1)]
-            ring
-  have hle : √((1 - p) * q) + √(p * (1 - q)) ≤ 2 * √(ε * (1 - ε)) := by
-    nlinarith [Real.sqrt_nonneg ((1 - p) * q), Real.sqrt_nonneg (p * (1 - q)),
-      Real.sqrt_nonneg (ε * (1 - ε))]
-  exact hsum.trans hle
+    rw [add_sq, Real.sq_sqrt (by nlinarith), Real.sq_sqrt (by nlinarith), mul_pow,
+      Real.sq_sqrt (mul_nonneg hε0 hε1)]
+    nlinarith
+  exact hsum.trans ((sq_le_sq₀ (by positivity) (by positivity)).1 hsq)
 
 end Helpers
 
@@ -287,26 +249,24 @@ private theorem norm_div_maxDiffNorm_le_card {α : Type*} {P : BitString N → P
     (hΓ : IsAdversaryMatrix P f Γ) :
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ ≤ (Fintype.card (BitString N) : ℝ) := by
   by_cases h0 : maxDiffNorm Γ = 0
-  · simp [h0]
+  · simp only [h0, div_zero, Nat.cast_nonneg]
   have hpos : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm h0)
   have hentry (x y : BitString N) : |Γ x y| ≤ maxDiffNorm Γ := by
     by_cases hxy0 : Γ x y = 0
-    · simp [hxy0, maxDiffNorm_nonneg Γ]
+    · simp only [hxy0, abs_zero, maxDiffNorm_nonneg Γ]
     · have hxy : x ≠ y := fun h => (hΓ x y hxy0).2.2 (congrArg f h)
       obtain ⟨i, hi⟩ := Function.ne_iff.1 hxy
-      calc |Γ x y| = |(Γ.hadamard (diffMatrix i)) x y| := by simp [hi]
+      calc |Γ x y| = |(Γ.hadamard (diffMatrix i)) x y| := by
+            simp only [Matrix.hadamard_apply, diffMatrix_apply, hi, ne_eq, not_false_eq_true,
+              ↓reduceIte, mul_one]
         _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix i))‖ :=
               Matrix.abs_entry_le_norm_toEuclideanCLM _ x y
         _ ≤ maxDiffNorm Γ := norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i
-  have hrow (x : BitString N) :
-      ∑ y, |Γ x y| ≤ (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ := by
-    calc ∑ y, |Γ x y| ≤ ∑ _y : BitString N, maxDiffNorm Γ := sum_le_sum fun y _ => hentry x y
-      _ = (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ := by simp
-  have hcol (y : BitString N) :
-      ∑ x, |Γ x y| ≤ (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ := by
-    calc ∑ x, |Γ x y| ≤ ∑ _x : BitString N, maxDiffNorm Γ := sum_le_sum fun x _ => hentry x y
-      _ = (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ := by simp
-  have hschur := Matrix.opNorm_toEuclideanCLM_le_sqrt Γ (by positivity) (by positivity) hrow hcol
+  have hsum (g : BitString N → ℝ) (hg : ∀ z, g z ≤ maxDiffNorm Γ) :
+      ∑ z, g z ≤ (Fintype.card (BitString N) : ℝ) * maxDiffNorm Γ :=
+    (sum_le_sum fun z _ => hg z).trans_eq (by simp only [sum_const, card_univ, nsmul_eq_mul])
+  have hschur := Matrix.opNorm_toEuclideanCLM_le_sqrt Γ (by positivity) (by positivity)
+    (fun x => hsum _ (hentry x)) (fun y => hsum _ (fun x => hentry x y))
   rw [Real.sqrt_mul_self (by positivity)] at hschur
   exact (div_le_iff₀ hpos).2 hschur
 
@@ -330,13 +290,13 @@ theorem spectralAdversary_nonneg {α : Type*} (P : BitString N → Prop) (f : Bi
     0 ≤ spectralAdversary P f := by
   refine le_csSup (bddAbove_spectralAdversary P f) ⟨0, Matrix.isSymm_zero, fun _ _ => le_rfl,
     fun _ _ h => (h rfl).elim, ?_⟩
-  simp
+  simp only [map_zero, norm_zero, zero_div]
 
 theorem generalAdversary_nonneg {α : Type*} (P : BitString N → Prop) (f : BitString N → α) :
     0 ≤ generalAdversary P f := by
   refine le_csSup (bddAbove_generalAdversary P f) ⟨0, Matrix.isSymm_zero,
     fun _ _ h => (h rfl).elim, ?_⟩
-  simp
+  simp only [map_zero, norm_zero, zero_div]
 
 theorem le_spectralAdversary {α : Type*} {P : BitString N → Prop} {f : BitString N → α}
     {Γ : Matrix (BitString N) (BitString N) ℝ} (hsym : Γ.IsSymm) (hnonneg : ∀ x y, 0 ≤ Γ x y)
@@ -355,7 +315,7 @@ private theorem div_maxDiffNorm_le_of_mul {Γ : Matrix (BitString N) (BitString 
     (h : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ) :
     ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ ≤ K := by
   by_cases hm0 : maxDiffNorm Γ = 0
-  · simp [hm0, hK]
+  · simp only [hm0, div_zero, hK]
   · have hm : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm hm0)
     exact (div_le_iff₀ hm).2 h
 
@@ -378,7 +338,7 @@ theorem spectralAdversary_le_iff {α : Type*} {P : BitString N → Prop} {f : Bi
   refine ⟨fun hle Γ hsym hnonneg hΓ =>
     mul_maxDiffNorm_of_div_le hΓ ((le_spectralAdversary hsym hnonneg hΓ).trans hle), fun h => ?_⟩
   refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ => le_rfl,
-    fun _ _ h => (h rfl).elim, by simp⟩ ?_
+    fun _ _ h => (h rfl).elim, by simp only [map_zero, norm_zero, zero_div]⟩ ?_
   rintro r ⟨Γ, hsym, hnonneg, hΓ, rfl⟩
   exact div_maxDiffNorm_le_of_mul hK (h Γ hsym hnonneg hΓ)
 
@@ -390,7 +350,8 @@ theorem generalAdversary_le_iff {α : Type*} {P : BitString N → Prop} {f : Bit
         IsAdversaryMatrix P f Γ → ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ := by
   refine ⟨fun hle Γ hsym hΓ =>
     mul_maxDiffNorm_of_div_le hΓ ((le_generalAdversary hsym hΓ).trans hle), fun h => ?_⟩
-  refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ h => (h rfl).elim, by simp⟩ ?_
+  refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ h => (h rfl).elim,
+    by simp only [map_zero, norm_zero, zero_div]⟩ ?_
   rintro r ⟨Γ, hsym, hΓ, rfl⟩
   exact div_maxDiffNorm_le_of_mul hK (h Γ hsym hΓ)
 
@@ -399,7 +360,7 @@ adversary bound. -/
 theorem spectralAdversary_le_generalAdversary {α : Type*} (P : BitString N → Prop)
     (f : BitString N → α) : spectralAdversary P f ≤ generalAdversary P f := by
   refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ => le_rfl,
-    fun _ _ h => (h rfl).elim, by simp⟩ ?_
+    fun _ _ h => (h rfl).elim, by simp only [map_zero, norm_zero, zero_div]⟩ ?_
   rintro r ⟨Γ, hsym, -, hΓ, rfl⟩
   exact le_generalAdversary hsym hΓ
 
@@ -429,96 +390,66 @@ private theorem advForm_step_sub_le (Γ : Matrix (BitString N) (BitString N) ℝ
       (U (t + 1)).inner_map_map _ _
     rw [hrun, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel]
     have hre2 : ∀ z : ℂ, RCLike.re (2 * z) = 2 * RCLike.re z := fun z => by
-      simp [RCLike.re, Complex.mul_re]
+      simp only [RCLike.re_to_complex, Complex.mul_re, Complex.re_ofNat, Complex.im_ofNat, zero_mul,
+        sub_zero]
     rw [hre2, map_sum, Finset.sum_filter]
     congr 1
     refine sum_congr rfl fun i _ => ?_
     simp only [diffMatrix_apply, ne_eq]
-    split_ifs <;> simp
+    split_ifs <;> simp only [one_mul, zero_mul]
   have hrewrite :
       advForm Γ u v (fun x => run U ψ₀ x t) - advForm Γ u v (fun x => run U ψ₀ x (t + 1)) =
       2 * ∑ i : Fin N, ∑ x, ∑ y,
         (Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
           RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t))) := by
     simp only [advForm, ← sum_sub_distrib, ← mul_sub, hdiff]
-    rw [mul_sum]
-    have hxy (x y : BitString N) :
-        Γ x y * u.ofLp x * v.ofLp y * (2 * ∑ i : Fin N,
-          diffMatrix i x y * RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t))
-            (ctrlProj i (run U ψ₀ y t)))) =
-        ∑ i : Fin N, 2 * ((Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-          RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))) := by
-      rw [mul_sum, mul_sum]
-      refine sum_congr rfl fun i _ => by rw [Matrix.hadamard_apply]; ring
-    simp_rw [hxy]
-    calc ∑ x, ∑ y, ∑ i : Fin N, 2 * ((Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t))))
-        = ∑ x, ∑ i : Fin N, ∑ y, 2 * ((Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))) :=
-          sum_congr rfl fun x _ => Finset.sum_comm
-      _ = ∑ i : Fin N, ∑ x, ∑ y, 2 * ((Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))) :=
-          Finset.sum_comm
-      _ = ∑ i : Fin N, 2 * ∑ x, ∑ y, (Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t))) := by
-          refine sum_congr rfl fun i _ => ?_
-          symm
-          rw [mul_sum]
-          exact sum_congr rfl fun x _ => mul_sum _ _ _
+    simp_rw [mul_sum]
+    conv_lhs => enter [2, x]; rw [Finset.sum_comm]
+    rw [Finset.sum_comm]
+    refine sum_congr rfl fun i _ => sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
+    rw [Matrix.hadamard_apply]; ring
+  have hctrl (w : EuclideanSpace ℝ (BitString N)) (hw : ‖w‖ ≤ 1) :
+      ∑ i : Fin N, ∑ x, (w.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2 ≤ 1 := by
+    rw [sum_comm]
+    calc ∑ x, ∑ i : Fin N, (w.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2
+        = ∑ x, w.ofLp x ^ 2 * ∑ i : Fin N, ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 :=
+            sum_congr rfl fun x _ => by simp only [mul_pow, ← mul_sum]
+      _ ≤ ∑ x, w.ofLp x ^ 2 := sum_le_sum fun x _ => by
+            nlinarith [sum_sq_norm_ctrlProj_le U hψ₀ x t, sq_nonneg (w.ofLp x)]
+      _ ≤ 1 := (EuclideanSpace.norm_le_one_iff_sum_sq_le_one w).1 hw
   rw [hrewrite, abs_mul, abs_of_nonneg zero_le_two]
-  have hstep :
-      |∑ i : Fin N, ∑ x, ∑ y,
+  refine mul_le_mul_of_nonneg_left ?_ zero_le_two
+  calc |∑ i : Fin N, ∑ x, ∑ y,
         (Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-          RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))| ≤
-      maxDiffNorm Γ := by
-    calc |∑ i : Fin N, ∑ x, ∑ y,
+          RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))|
+      ≤ ∑ i : Fin N, |∑ x, ∑ y,
           (Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))|
-        ≤ ∑ i : Fin N, |∑ x, ∑ y,
-            (Γ.hadamard (diffMatrix i)) x y * u.ofLp x * v.ofLp y *
-              RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))| :=
+            RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t)))| :=
           abs_sum_le_sum_abs _ _
-      _ ≤ ∑ i : Fin N, maxDiffNorm Γ *
-            √(∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
-            √(∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2) := by
+    _ ≤ ∑ i : Fin N, maxDiffNorm Γ *
+          (√(∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
+           √(∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2)) := by
           refine sum_le_sum fun i _ => ?_
           have hb := abs_sum_mul_re_inner_le (Γ.hadamard (diffMatrix i)) u v
             (fun x => ctrlProj i (run U ψ₀ x t)) (fun y => ctrlProj i (run U ψ₀ y t))
           have hnorm := norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i
-          exact hb.trans (mul_le_mul_of_nonneg_right
-            (mul_le_mul_of_nonneg_right hnorm (Real.sqrt_nonneg _)) (Real.sqrt_nonneg _))
-      _ = maxDiffNorm Γ * ∑ i : Fin N,
-            √(∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
-            √(∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2) := by
-          rw [mul_sum]
-          refine sum_congr rfl fun i _ => by ring
-      _ ≤ maxDiffNorm Γ *
-            (√(∑ i : Fin N, ∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
-             √(∑ i : Fin N, ∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2)) := by
-          refine mul_le_mul_of_nonneg_left ?_ (maxDiffNorm_nonneg Γ)
-          have hcs := Real.sum_mul_le_sqrt_mul_sqrt (univ : Finset (Fin N))
-            (fun i => √(∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2))
-            (fun i => √(∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2))
-          simpa [Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _)] using hcs
-      _ ≤ maxDiffNorm Γ * (1 * 1) := by
-          refine mul_le_mul_of_nonneg_left ?_ (maxDiffNorm_nonneg Γ)
-          have hctrl (w : EuclideanSpace ℝ (BitString N)) (hw : ‖w‖ ≤ 1) :
-              √(∑ i : Fin N, ∑ x, (w.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) ≤ 1 := by
-            rw [Real.sqrt_le_one, sum_comm]
-            calc ∑ x, ∑ i : Fin N, (w.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2
-                = ∑ x, w.ofLp x ^ 2 * ∑ i : Fin N, ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 := by
-                    refine sum_congr rfl fun x _ => ?_
-                    rw [mul_sum]
-                    refine sum_congr rfl fun i _ => by rw [mul_pow]
-              _ ≤ ∑ x, w.ofLp x ^ 2 * 1 := sum_le_sum fun x _ =>
-                    mul_le_mul_of_nonneg_left (sum_sq_norm_ctrlProj_le U hψ₀ x t) (sq_nonneg _)
-              _ = ∑ x, w.ofLp x ^ 2 := by simp
-              _ ≤ 1 := by
-                    rw [← EuclideanSpace.real_norm_sq_eq]
-                    exact pow_le_one₀ (norm_nonneg _) hw
-          exact mul_le_mul (hctrl u hu) (hctrl v hv) (Real.sqrt_nonneg _) zero_le_one
-      _ = maxDiffNorm Γ := by ring
-  linarith
+          rw [mul_assoc] at hb
+          exact hb.trans (mul_le_mul_of_nonneg_right hnorm (by positivity))
+    _ = maxDiffNorm Γ * ∑ i : Fin N,
+          √(∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
+          √(∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2) := (mul_sum _ _ _).symm
+    _ ≤ maxDiffNorm Γ *
+          (√(∑ i : Fin N, ∑ x, (u.ofLp x * ‖ctrlProj i (run U ψ₀ x t)‖) ^ 2) *
+           √(∑ i : Fin N, ∑ y, (v.ofLp y * ‖ctrlProj i (run U ψ₀ y t)‖) ^ 2)) :=
+          mul_le_mul_of_nonneg_left (Real.sum_sqrt_mul_sqrt_le univ
+            (fun _ => sum_nonneg fun _ _ => sq_nonneg _)
+            (fun _ => sum_nonneg fun _ _ => sq_nonneg _)) (maxDiffNorm_nonneg Γ)
+    _ ≤ maxDiffNorm Γ * (1 * 1) :=
+          mul_le_mul_of_nonneg_left
+            (mul_le_mul (Real.sqrt_le_one.2 (hctrl u hu)) (Real.sqrt_le_one.2 (hctrl v hv))
+              (Real.sqrt_nonneg _) zero_le_one)
+            (maxDiffNorm_nonneg Γ)
+    _ = maxDiffNorm Γ := by rw [mul_one, mul_one]
 
 private theorem abs_inner_toEuclideanCLM_sub_advForm_le
     (Γ : Matrix (BitString N) (BitString N) ℝ)
@@ -530,7 +461,7 @@ private theorem abs_inner_toEuclideanCLM_sub_advForm_le
       advForm Γ u v (fun x => run U ψ₀ x 0) := by
     have hinner : inner ℂ (U 0 ψ₀) (U 0 ψ₀) = (1 : ℂ) := by
       rw [LinearIsometry.inner_map_map, inner_self_eq_norm_sq_to_K, hψ₀]
-      simp
+      norm_num
     rw [Matrix.inner_toEuclideanCLM]
     simp only [advForm, run, hinner, dotProduct, Matrix.mulVec, mul_sum, RCLike.one_re]
     refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
@@ -547,7 +478,7 @@ private theorem abs_inner_toEuclideanCLM_sub_advForm_le
           advForm Γ u v (fun x => run U ψ₀ x (t + 1))| := abs_sum_le_sum_abs _ _
     _ ≤ ∑ _t ∈ range T, 2 * maxDiffNorm Γ :=
           sum_le_sum fun t _ => advForm_step_sub_le Γ u v hu hv U hψ₀ t
-    _ = 2 * T * maxDiffNorm Γ := by simp; ring
+    _ = 2 * T * maxDiffNorm Γ := by simp only [sum_const, card_range, nsmul_eq_mul]; ring
 
 private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → Prop}
     {f : BitString N → α} {Γ : Matrix (BitString N) (BitString N) ℝ}
@@ -568,6 +499,8 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
     if P x then projOutcomes (· ∈ S_out (f x)) (run U ψ₀ x T) else 0
   let βs : BitString N → State N W := fun x =>
     if P x then projOutcomes (fun k => ¬(k ∈ S_out (f x))) (run U ψ₀ x T) else 0
+  let term (φ ψ : BitString N → State N W) : ℝ :=
+    ∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (φ x) (ψ y))
   have hsplit {x y : BitString N} (hxy : Γ x y ≠ 0) :
       RCLike.re (inner ℂ (run U ψ₀ x T) (run U ψ₀ y T)) =
         RCLike.re (inner ℂ (αs x) (βs y)) + RCLike.re (inner ℂ (βs x) (αs y)) +
@@ -585,15 +518,6 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
         (fun _ ⟨h1, h2⟩ => Finset.disjoint_left.1 (hdisj hf) h1 h2) _ _
     rw [hrx, hry, inner_add_left, inner_add_right, inner_add_right, haa, zero_add]
     simp only [map_add, add_assoc]
-  have hpnorm (φ ψ : BitString N → State N W) :
-      |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (φ x) (ψ y))| ≤
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ *
-        √(∑ x, (u.ofLp x * ‖φ x‖) ^ 2) * √(∑ y, (v.ofLp y * ‖ψ y‖) ^ 2) :=
-    abs_sum_mul_re_inner_le Γ u v φ ψ
-  set Au := √(∑ x, (u.ofLp x * ‖αs x‖) ^ 2)
-  set Bu := √(∑ x, (u.ofLp x * ‖βs x‖) ^ 2)
-  set Av := √(∑ y, (v.ofLp y * ‖αs y‖) ^ 2)
-  set Bv := √(∑ y, (v.ofLp y * ‖βs y‖) ^ 2)
   have hnorm_sq (x : BitString N) : ‖αs x‖ ^ 2 + ‖βs x‖ ^ 2 ≤ 1 ∧ ‖βs x‖ ^ 2 ≤ ε := by
     by_cases hx : P x
     · have hmeas : ‖run U ψ₀ x T‖ = 1 := by rw [norm_run, hψ₀]
@@ -605,106 +529,89 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
         simp only [βs, hx, ↓reduceIte, norm_projOutcomes_sq, hcomp, measureProb_compl, hmeas,
           one_pow]
       have hle := herr x hx
-      refine ⟨by linarith, by linarith⟩
+      exact ⟨by linarith, by linarith⟩
     · simp only [αs, βs, hx, ↓reduceIte, norm_zero, ne_eq, OfNat.ofNat_ne_zero,
         not_false_eq_true, zero_pow, add_zero, zero_le_one, hε0, and_self]
   have hvec (w : EuclideanSpace ℝ (BitString N)) (hw : ‖w‖ ≤ 1) :
-      (√(∑ x, (w.ofLp x * ‖αs x‖) ^ 2)) ^ 2 + (√(∑ x, (w.ofLp x * ‖βs x‖) ^ 2)) ^ 2 ≤ 1 ∧
-      (√(∑ x, (w.ofLp x * ‖βs x‖) ^ 2)) ^ 2 ≤ ε := by
-    rw [Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _),
-      Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _)]
-    have hw1 : ∑ x, w.ofLp x ^ 2 ≤ 1 := by
-      rw [← EuclideanSpace.real_norm_sq_eq]
-      exact pow_le_one₀ (norm_nonneg _) hw
+      ∑ x, (w.ofLp x * ‖αs x‖) ^ 2 + ∑ x, (w.ofLp x * ‖βs x‖) ^ 2 ≤ 1 ∧
+      ∑ x, (w.ofLp x * ‖βs x‖) ^ 2 ≤ ε := by
+    have hw1 := (EuclideanSpace.norm_le_one_iff_sum_sq_le_one w).1 hw
     refine ⟨?_, ?_⟩
-    · calc ∑ x, (w.ofLp x * ‖αs x‖) ^ 2 + ∑ x, (w.ofLp x * ‖βs x‖) ^ 2
-          = ∑ x, w.ofLp x ^ 2 * (‖αs x‖ ^ 2 + ‖βs x‖ ^ 2) := by
-              rw [← sum_add_distrib]
-              refine sum_congr rfl fun x _ => by ring
-        _ ≤ ∑ x, w.ofLp x ^ 2 * 1 :=
-              sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hnorm_sq x).1 (sq_nonneg _)
-        _ = ∑ x, w.ofLp x ^ 2 := by simp
-        _ ≤ 1 := hw1
+    · rw [← sum_add_distrib]
+      exact (sum_le_sum fun x _ => by
+        nlinarith [(hnorm_sq x).1, sq_nonneg (w.ofLp x)]).trans hw1
     · calc ∑ x, (w.ofLp x * ‖βs x‖) ^ 2
-          = ∑ x, w.ofLp x ^ 2 * ‖βs x‖ ^ 2 := sum_congr rfl fun x _ => by ring
-        _ ≤ ∑ x, w.ofLp x ^ 2 * ε :=
-              sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hnorm_sq x).2 (sq_nonneg _)
-        _ = (∑ x, w.ofLp x ^ 2) * ε := (sum_mul _ _ _).symm
-        _ ≤ 1 * ε := mul_le_mul_of_nonneg_right hw1 hε0
-        _ = ε := one_mul ε
-  have hAB : Au * Bv + Bu * Av ≤ 2 * √(ε * (1 - ε)) := by
-    have hA_sq : Au ^ 2 + Bu ^ 2 ≤ 1 := (hvec u hu).1
-    have hB_sq : Av ^ 2 + Bv ^ 2 ≤ 1 := (hvec v hv).1
-    have hBu_le : Bu ^ 2 ≤ ε := (hvec u hu).2
-    have hBv_le : Bv ^ 2 ≤ ε := (hvec v hv).2
-    have hbd := mul_add_mul_le_two_mul_sqrt (sq_nonneg Bu) (sq_nonneg Bv) hBu_le hBv_le hε
-      hA_sq hB_sq
-    rwa [Real.sqrt_sq (Real.sqrt_nonneg _), Real.sqrt_sq (Real.sqrt_nonneg _)] at hbd
-  have hBB : Bu * Bv ≤ ε := by
-    calc Bu * Bv = √(Bu ^ 2) * √(Bv ^ 2) := by
-          rw [Real.sqrt_sq (Real.sqrt_nonneg _), Real.sqrt_sq (Real.sqrt_nonneg _)]
-      _ ≤ √ε * √ε := mul_le_mul (Real.sqrt_le_sqrt (hvec u hu).2)
-            (Real.sqrt_le_sqrt (hvec v hv).2) (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)
-      _ = ε := Real.mul_self_sqrt hε0
-  have hΓnorm : 0 ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := norm_nonneg _
-  have hterm1 : |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))| ≤
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Au * Bv) := by
-    simpa [Au, Bv, mul_assoc] using hpnorm αs βs
-  have hterm2 : |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y))| ≤
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Bu * Av) := by
-    simpa [Bu, Av, mul_assoc] using hpnorm βs αs
-  have hterm3 : |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (βs y))| ≤
-      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Bu * Bv) := by
-    simpa [Bu, Bv, mul_assoc] using hpnorm βs βs
+          ≤ ∑ x, w.ofLp x ^ 2 * ε := sum_le_sum fun x _ => by
+              rw [mul_pow]; exact mul_le_mul_of_nonneg_left (hnorm_sq x).2 (sq_nonneg _)
+        _ ≤ ε := by rw [← sum_mul]; exact (mul_le_mul_of_nonneg_right hw1 hε0).trans_eq (one_mul ε)
+  set Au := √(∑ x, (u.ofLp x * ‖αs x‖) ^ 2)
+  set Bu := √(∑ x, (u.ofLp x * ‖βs x‖) ^ 2)
+  set Av := √(∑ y, (v.ofLp y * ‖αs y‖) ^ 2)
+  set Bv := √(∑ y, (v.ofLp y * ‖βs y‖) ^ 2)
+  have hsq (w : EuclideanSpace ℝ (BitString N)) (φ : BitString N → State N W) :
+      (√(∑ x, (w.ofLp x * ‖φ x‖) ^ 2)) ^ 2 = ∑ x, (w.ofLp x * ‖φ x‖) ^ 2 :=
+    Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _)
+  have hAB : Au * Bv + Bu * Av ≤ 2 * √(ε * (1 - ε)) :=
+    mul_add_mul_le_two_mul_sqrt (sum_nonneg fun _ _ => sq_nonneg _)
+      (sum_nonneg fun _ _ => sq_nonneg _) (hvec u hu).2 (hvec v hv).2 hε
+      (by dsimp only [Au]; rw [hsq]; exact (hvec u hu).1)
+      (by dsimp only [Av]; rw [hsq]; exact (hvec v hv).1)
+  have hBB : Bu * Bv ≤ ε :=
+    (mul_le_mul (Real.sqrt_le_sqrt (hvec u hu).2) (Real.sqrt_le_sqrt (hvec v hv).2)
+      (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)).trans_eq (Real.mul_self_sqrt hε0)
+  have hcross : |term αs βs + term βs αs| ≤
+      2 * √(ε * (1 - ε)) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by
+    calc |term αs βs + term βs αs|
+        ≤ |term αs βs| + |term βs αs| := abs_add_le _ _
+      _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * Au * Bv +
+            ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * Bu * Av :=
+          add_le_add (abs_sum_mul_re_inner_le Γ u v αs βs)
+            (abs_sum_mul_re_inner_le Γ u v βs αs)
+      _ = (Au * Bv + Bu * Av) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by ring
+      _ ≤ 2 * √(ε * (1 - ε)) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
+          mul_le_mul_of_nonneg_right hAB (norm_nonneg _)
+  have hββ : |term βs βs| ≤ ε * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
+    (abs_sum_mul_re_inner_le Γ u v βs βs).trans <| by
+      rw [mul_assoc, mul_comm ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖]
+      exact mul_le_mul_of_nonneg_right hBB (norm_nonneg _)
   have hsum_all :
-      advForm Γ u v (fun x => run U ψ₀ x T) =
-        (∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))) +
-        (∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y))) +
-        (∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (βs y))) := by
-    simp only [advForm, ← sum_add_distrib]
+      advForm Γ u v (fun x => run U ψ₀ x T) = term αs βs + term βs αs + term βs βs := by
+    simp only [advForm, term, ← sum_add_distrib]
     refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
     by_cases hxy0 : Γ x y = 0
-    · simp [hxy0]
+    · simp only [hxy0, zero_mul, add_zero]
     · rw [hsplit hxy0]; ring
   refine ⟨?_, fun hβ => ?_⟩
-  · calc |advForm Γ u v (fun x => run U ψ₀ x T)|
-        ≤ |(∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))) +
-             (∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y)))| +
-           |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (βs y))| := by
-            rw [hsum_all]
-            exact abs_add_le _ _
-      _ ≤ (|∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))| +
-             |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y))|) +
-           |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (βs y))| :=
-            add_le_add (abs_add_le _ _) le_rfl
-      _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Au * Bv) +
-            ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Bu * Av) +
-            ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Bu * Bv) :=
-            add_le_add (add_le_add hterm1 hterm2) hterm3
-      _ = (Au * Bv + Bu * Av + Bu * Bv) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by ring
-      _ ≤ (2 * √(ε * (1 - ε)) + ε) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
-            mul_le_mul_of_nonneg_right (add_le_add hAB hBB) hΓnorm
-  · have hβzero :
-        ∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (βs y)) = 0 := by
+  · rw [hsum_all]
+    exact (abs_add_le _ _).trans ((add_le_add hcross hββ).trans_eq (by ring))
+  · have hβzero : term βs βs = 0 := by
       refine sum_eq_zero fun x _ => sum_eq_zero fun y _ => ?_
       by_cases hxy0 : Γ x y = 0
-      · simp [hxy0]
+      · simp only [hxy0, zero_mul]
       · obtain ⟨hx, hy, hf⟩ := hΓ x y hxy0
         have hbb : inner ℂ (βs x) (βs y) = 0 := by
           simp only [βs, hx, hy, ↓reduceIte]
           exact inner_projOutcomes_eq_zero _ _ (fun k ⟨h1, h2⟩ => h2 (hβ x y hx hy hf k h1)) _ _
-        simp [hbb]
+        simp only [hbb, map_zero, mul_zero]
     rw [hsum_all, hβzero, add_zero]
-    calc |(∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))) +
-          (∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y)))|
-        ≤ |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (αs x) (βs y))| +
-          |∑ x, ∑ y, Γ x y * u.ofLp x * v.ofLp y * RCLike.re (inner ℂ (βs x) (αs y))| :=
-          abs_add_le _ _
-      _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Au * Bv) +
-            ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * (Bu * Av) := add_le_add hterm1 hterm2
-      _ = (Au * Bv + Bu * Av) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by ring
-      _ ≤ (2 * √(ε * (1 - ε))) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
-            mul_le_mul_of_nonneg_right hAB hΓnorm
+    exact hcross
+
+private theorem one_sub_mul_opNorm_le_of_advForm
+    (Γ : Matrix (BitString N) (BitString N) ℝ)
+    (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ)
+    {c : ℝ} (hc : 0 ≤ c)
+    (hfin : ∀ u v : EuclideanSpace ℝ (BitString N), ‖u‖ ≤ 1 → ‖v‖ ≤ 1 →
+      |advForm Γ u v (fun x => run U ψ₀ x T)| ≤ c * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖) :
+    (1 - c) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ 2 * T * maxDiffNorm Γ := by
+  have hnn : 0 ≤ c * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ + 2 * T * maxDiffNorm Γ :=
+    add_nonneg (mul_nonneg hc (norm_nonneg _))
+      (mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg _)) (maxDiffNorm_nonneg _))
+  have hbound := Matrix.opNorm_toEuclideanCLM_le_of_inner Γ hnn fun u v hu hv => by
+    have ht := abs_inner_toEuclideanCLM_sub_advForm_le Γ u v hu hv U hψ₀ T
+    have hf := hfin u v hu hv
+    linarith [le_abs_self (inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ v)),
+      (abs_le.1 ht).2, (abs_le.1 hf).2]
+  linarith
 
 /-- **Negative-weight adversary bound for Boolean outputs** ([HoyerLeeSpalek2007], Theorem 2):
 for any real matrix `Γ` supported on `{(x, y) | P x ∧ P y ∧ f x ≠ f y}` and any `T`-query
@@ -722,42 +629,24 @@ theorem one_sub_mul_opNorm_le_general_boolean {P : BitString N → Prop}
       2 * T * maxDiffNorm Γ := by
   classical
   let S_out : Bool → Finset (Fin N × Bool × W) := fun b => if b then S_acc else S_accᶜ
-  have hdisj : Pairwise (Disjoint on S_out) := by
-    intro b₁ b₂ hne
-    cases b₁ <;> cases b₂
-    · exact absurd rfl hne
-    · change Disjoint S_accᶜ S_acc
-      exact disjoint_compl_left
-    · change Disjoint S_acc S_accᶜ
-      exact disjoint_compl_right
-    · exact absurd rfl hne
+  have hdisj : Pairwise (Disjoint on S_out) := fun b₁ b₂ hne => by
+    cases b₁ <;> cases b₂ <;>
+      simp only [Function.onFun, S_out, Bool.false_eq_true, ↓reduceIte] <;>
+      first | exact absurd rfl hne | exact disjoint_compl_left | exact disjoint_compl_right
   have herr : ∀ x, P x → 1 - ε ≤ measureProb (run U ψ₀ x T) (S_out (f x)) := by
     intro x hx
     cases hfx : f x
     · simp only [S_out, Bool.false_eq_true, ↓reduceIte, measureProb_compl, norm_run, hψ₀, one_pow]
       linarith [h₀ x hx hfx]
-    · simpa [S_out, hfx] using h₁ x hx hfx
+    · simp only [S_out, ↓reduceIte]
+      exact h₁ x hx hfx
   have hcomp : ∀ x y, P x → P y → f x ≠ f y → ∀ k, k ∉ S_out (f x) → k ∈ S_out (f y) := by
     intro x y _ _ hne k hk
-    cases hfx : f x <;> cases hfy : f y
-    · exact absurd (hfx.trans hfy.symm) hne
-    · simp only [S_out, hfx, Bool.false_eq_true, ↓reduceIte, mem_compl] at hk ⊢
-      exact not_not.1 hk
-    · simp only [S_out, hfx, Bool.false_eq_true, ↓reduceIte, mem_compl] at hk ⊢
-      exact hk
-    · exact absurd (hfx.trans hfy.symm) hne
-  have hbound : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤
-      2 * √(ε * (1 - ε)) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ + 2 * T * maxDiffNorm Γ := by
-    have hnn : 0 ≤ 2 * √(ε * (1 - ε)) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ +
-        2 * T * maxDiffNorm Γ :=
-      add_nonneg (mul_nonneg (mul_nonneg zero_le_two (Real.sqrt_nonneg _)) (norm_nonneg _))
-        (mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg _)) (maxDiffNorm_nonneg _))
-    refine Matrix.opNorm_toEuclideanCLM_le_of_inner Γ hnn fun u v hu hv => ?_
-    have ht := abs_inner_toEuclideanCLM_sub_advForm_le Γ u v hu hv U hψ₀ T
-    have hf := (abs_advForm_final_le_of_proj hΓ u v hu hv U hψ₀ T S_out hdisj hε0 hε herr).2 hcomp
-    linarith [le_abs_self (inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ v)),
-      (abs_le.1 ht).2, (abs_le.1 hf).2]
-  linarith
+    cases hfx : f x <;> cases hfy : f y <;> simp_all [S_out]
+  exact one_sub_mul_opNorm_le_of_advForm Γ U hψ₀ T
+    (mul_nonneg zero_le_two (Real.sqrt_nonneg _))
+    fun u v hu hv =>
+      (abs_advForm_final_le_of_proj hΓ u v hu hv U hψ₀ T S_out hdisj hε0 hε herr).2 hcomp
 
 private theorem c_mul_generalAdversary_le {α : Type*} {P : BitString N → Prop}
     {f : BitString N → α} {c : ℝ} {T : ℕ}
@@ -766,16 +655,10 @@ private theorem c_mul_generalAdversary_le {α : Type*} {P : BitString N → Prop
     c * generalAdversary P f ≤ 2 * T := by
   rcases le_or_gt c 0 with hc0 | hcpos
   · exact (mul_nonpos_of_nonpos_of_nonneg hc0 (generalAdversary_nonneg P f)).trans (by positivity)
-  · rw [mul_comm, ← le_div_iff₀ hcpos]
-    refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ h => (h rfl).elim, by simp⟩ ?_
-    rintro r ⟨Γ, hsym, hΓ, rfl⟩
-    rw [le_div_iff₀ hcpos]
-    by_cases hm0 : maxDiffNorm Γ = 0
-    · simp only [hm0, div_zero, zero_mul]; positivity
-    · have hm : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm hm0)
-      have hbd := hc_mat Γ hsym hΓ
-      rw [div_mul_eq_mul_div, div_le_iff₀ hm]
-      simpa [mul_comm, mul_left_comm, mul_assoc] using hbd
+  · rw [← le_div_iff₀' hcpos]
+    refine (generalAdversary_le_iff (by positivity)).2 fun Γ hsym hΓ => ?_
+    rw [div_mul_eq_mul_div, le_div_iff₀' hcpos]
+    exact hc_mat Γ hsym hΓ
 
 /-- **Negative-weight adversary lower bound `ADV±(f)` for Boolean functions**
 ([HoyerLeeSpalek2007], Theorem 2):
@@ -802,19 +685,11 @@ theorem one_sub_mul_opNorm_le_general {α : Type*} {P : BitString N → Prop}
     (herr : ∀ x, P x → 1 - ε ≤ measureProb (run U ψ₀ x T) (S_out (f x))) :
     (1 - 2 * √(ε * (1 - ε)) - ε) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤
       2 * T * maxDiffNorm Γ := by
-  have hbound : ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤
-      (2 * √(ε * (1 - ε)) + ε) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ + 2 * T * maxDiffNorm Γ := by
-    have hnn : 0 ≤ (2 * √(ε * (1 - ε)) + ε) * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ +
-        2 * T * maxDiffNorm Γ :=
-      add_nonneg (mul_nonneg (add_nonneg (mul_nonneg zero_le_two (Real.sqrt_nonneg _)) hε0)
-        (norm_nonneg _))
-        (mul_nonneg (mul_nonneg zero_le_two (Nat.cast_nonneg _)) (maxDiffNorm_nonneg _))
-    refine Matrix.opNorm_toEuclideanCLM_le_of_inner Γ hnn fun u v hu hv => ?_
-    have ht := abs_inner_toEuclideanCLM_sub_advForm_le Γ u v hu hv U hψ₀ T
-    have hf := (abs_advForm_final_le_of_proj hΓ u v hu hv U hψ₀ T S_out hdisj hε0 hε herr).1
-    linarith [le_abs_self (inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ v)),
-      (abs_le.1 ht).2, (abs_le.1 hf).2]
-  linarith
+  rw [sub_sub]
+  exact one_sub_mul_opNorm_le_of_advForm Γ U hψ₀ T
+    (add_nonneg (mul_nonneg zero_le_two (Real.sqrt_nonneg _)) hε0)
+    fun u v hu hv =>
+      (abs_advForm_final_le_of_proj hΓ u v hu hv U hψ₀ T S_out hdisj hε0 hε herr).1
 
 /-- Weakened form matching [HoyerLeeSpalek2007], Theorem 2:
 `(1 - 2√(ε(1-ε)) - 2ε) ‖Γ‖ ≤ 2 T · maxDiffNorm Γ`. -/
@@ -893,7 +768,7 @@ theorem one_sub_mul_opNorm_le_spectral {α : Type*} {P : BitString N → Prop}
           ≤ ∑ x, ∑ y, Γ x y * |u.ofLp x| * |v.ofLp y| * δ := by
               refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
               by_cases hxy : Γ x y = 0
-              · simp [hxy]
+              · simp only [hxy, zero_mul, le_refl]
               · obtain ⟨hx, hy, hf⟩ := hΓ x y hxy
                 have hre : RCLike.re (inner ℂ (run U ψ₀ x T) (run U ψ₀ y T)) ≤ δ :=
                   (RCLike.re_le_norm _).trans (hδ x y hx hy hf)
@@ -903,18 +778,10 @@ theorem one_sub_mul_opNorm_le_spectral {α : Type*} {P : BitString N → Prop}
               rw [Matrix.inner_toEuclideanCLM]
               simp only [dotProduct, Matrix.mulVec, mul_sum, Matrix.absVec_apply]
               refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
-        _ ≤ δ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by
-              refine mul_le_mul_of_nonneg_left ?_ hδ0
-              calc inner ℝ (Matrix.absVec u)
-                    (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ (Matrix.absVec v))
-                  ≤ ‖Matrix.absVec u‖ *
-                      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ (Matrix.absVec v)‖ :=
-                    real_inner_le_norm _ _
-                _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * ‖Matrix.absVec v‖) :=
-                    mul_le_mul huPos (ContinuousLinearMap.le_opNorm _ _) (norm_nonneg _) zero_le_one
-                _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * 1 := by
-                    rw [one_mul]; exact mul_le_mul_of_nonneg_left hvPos (norm_nonneg _)
-                _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := mul_one _
+        _ ≤ δ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ :=
+              mul_le_mul_of_nonneg_left
+                ((le_abs_self _).trans
+                  (Matrix.abs_inner_toEuclideanCLM_le_opNorm Γ huPos hvPos)) hδ0
     linarith [(abs_le.1 ht).2]
   linarith
 
@@ -928,17 +795,10 @@ theorem one_sub_mul_spectralAdversary_le_of_inner {α : Type*} {P : BitString N 
     (1 - δ) * spectralAdversary P f ≤ 2 * T := by
   rcases le_or_gt (1 - δ) 0 with hc0 | hcpos
   · exact (mul_nonpos_of_nonpos_of_nonneg hc0 (spectralAdversary_nonneg P f)).trans (by positivity)
-  · rw [mul_comm, ← le_div_iff₀ hcpos]
-    refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ => le_rfl,
-      fun _ _ h => (h rfl).elim, by simp⟩ ?_
-    rintro r ⟨Γ, -, hnonneg, hΓ, rfl⟩
-    rw [le_div_iff₀ hcpos]
-    by_cases hm0 : maxDiffNorm Γ = 0
-    · simp only [hm0, div_zero, zero_mul]; positivity
-    · have hm : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm hm0)
-      have hbd := one_sub_mul_opNorm_le_spectral hnonneg hΓ U hψ₀ T hδ
-      rw [div_mul_eq_mul_div, div_le_iff₀ hm]
-      simpa [mul_comm, mul_left_comm, mul_assoc] using hbd
+  · rw [← le_div_iff₀' hcpos]
+    refine (spectralAdversary_le_iff (by positivity)).2 fun Γ _ hnonneg hΓ => ?_
+    rw [div_mul_eq_mul_div, le_div_iff₀' hcpos]
+    exact one_sub_mul_opNorm_le_spectral hnonneg hΓ U hψ₀ T hδ
 
 /-- **Nonnegative spectral adversary lower bound `ADV(f)`** for finite-output algorithms with
 error probability at most `ε ≤ 1/2`: `(1 - 2√(ε(1-ε))) ADV(f) ≤ 2 T`. -/
@@ -976,82 +836,51 @@ theorem spectralSensitivity_le_spectralAdversary (f : BooleanFunction N) :
   have hnonneg : ∀ x y, 0 ≤ Γ x y := fun x y => by
     simp only [Γ, SimpleGraph.adjMatrix_apply]
     split_ifs <;> norm_num
-  have hΓ : IsAdversaryMatrix (fun _ => True) f Γ := by
-    intro x y hne
+  have hΓ : IsAdversaryMatrix (fun _ => True) f Γ := fun x y hne => by
     have hadj : (BitString.sensitivityGraph f).Adj x y := by
-      simpa [Γ, SimpleGraph.adjMatrix_apply] using hne
+      by_contra h
+      exact hne (by simp only [Γ, SimpleGraph.adjMatrix_apply, h, ↓reduceIte])
     obtain ⟨i, hi, rfl⟩ := BitString.sensitivityGraph_adj.1 hadj
     exact ⟨trivial, trivial, Ne.symm hi⟩
   have hmax : maxDiffNorm Γ ≤ 1 := by
     refine (maxDiffNorm_le_iff zero_le_one).2 fun i => ?_
-    refine (Matrix.opNorm_toEuclideanCLM_le_sqrt _ zero_le_one zero_le_one
-      (fun x => ?_) (fun y => ?_)).trans (by simp)
-    · have hrow : ∑ y, |(Γ.hadamard (diffMatrix i)) x y| =
-          if (BitString.sensitivityGraph f).Adj x (Function.update x i (!x i)) then 1 else 0 := by
-        rw [Finset.sum_eq_single (Function.update x i (!x i))]
-        · by_cases hadj : (BitString.sensitivityGraph f).Adj x (Function.update x i (!x i)) <;>
-            simp [Γ, hadj]
-        · intro y _ hyne
-          by_cases hadj : (BitString.sensitivityGraph f).Adj x y
-          · obtain ⟨j, hj, rfl⟩ := BitString.sensitivityGraph_adj.1 hadj
-            have hji : j ≠ i := fun h => hyne (by subst h; rfl)
-            simp [Function.update_of_ne hji.symm]
-          · simp [Γ, hadj]
-        · intro hmem; exact absurd (mem_univ _) hmem
-      rw [hrow]
-      split_ifs <;> norm_num
-    · have hcol : ∑ x, |(Γ.hadamard (diffMatrix i)) x y| =
-          if (BitString.sensitivityGraph f).Adj (Function.update y i (!y i)) y then 1 else 0 := by
-        rw [Finset.sum_eq_single (Function.update y i (!y i))]
-        · by_cases hadj : (BitString.sensitivityGraph f).Adj (Function.update y i (!y i)) y <;>
-            simp [Γ, hadj]
-        · intro x _ hxne
-          by_cases hadj : (BitString.sensitivityGraph f).Adj x y
-          · obtain ⟨j, -, rfl⟩ := BitString.sensitivityGraph_adj.1 hadj
-            have hji : j ≠ i := by
-              intro h; subst h
-              exact hxne (by
-                simp only [Function.update_self, Bool.not_not, Function.update_idem,
-                  Function.update_eq_self])
-            simp [Function.update_of_ne hji.symm]
-          · simp [Γ, hadj]
-        · intro hmem; exact absurd (mem_univ _) hmem
-      rw [hcol]
-      split_ifs <;> norm_num
+    have hrow (x : BitString N) : ∑ y, |(Γ.hadamard (diffMatrix i)) x y| ≤ 1 := by
+      rw [Finset.sum_eq_single (Function.update x i (!x i))]
+      · simp only [Matrix.hadamard_apply, Γ, SimpleGraph.adjMatrix_apply, diffMatrix_apply]
+        split_ifs <;> norm_num
+      · intro y _ hyne
+        by_cases hadj : (BitString.sensitivityGraph f).Adj x y
+        · obtain ⟨j, hj, rfl⟩ := BitString.sensitivityGraph_adj.1 hadj
+          have hji : j ≠ i := fun h => hyne (by subst h; rfl)
+          simp [Function.update_of_ne hji.symm]
+        · simp [Γ, hadj]
+      · intro hmem; exact absurd (mem_univ _) hmem
+    refine (Matrix.opNorm_toEuclideanCLM_le_sqrt _ zero_le_one zero_le_one hrow fun y => ?_).trans
+      (by norm_num)
+    have hsym_entry (x : BitString N) :
+        |(Γ.hadamard (diffMatrix i)) x y| = |(Γ.hadamard (diffMatrix i)) y x| := by
+      rw [Matrix.hadamard_apply, Matrix.hadamard_apply,
+        ← Matrix.transpose_apply Γ x y, hsym.eq,
+        ← Matrix.transpose_apply (diffMatrix i) x y, diffMatrix_transpose]
+    simp_rw [hsym_entry]
+    exact hrow y
   have hspec_le : BitString.spectralSensitivity f ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by
     refine BitString.spectralSensitivity_le_of_forall_sum_le (norm_nonneg _)
       fun u w _ _ hu1 hw1 => ?_
     rw [← BitString.inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
-    set u' : EuclideanSpace ℝ (BitString N) := WithLp.toLp 2 u
-    set w' : EuclideanSpace ℝ (BitString N) := WithLp.toLp 2 w
-    have hu' : ‖u'‖ = 1 := by
-      have hu_sq : ‖u'‖ ^ 2 = 1 := by
-        rw [EuclideanSpace.real_norm_sq_eq]
-        exact hu1
-      nlinarith [norm_nonneg u']
-    have hw' : ‖w'‖ = 1 := by
-      have hw_sq : ‖w'‖ ^ 2 = 1 := by
-        rw [EuclideanSpace.real_norm_sq_eq]
-        exact hw1
-      nlinarith [norm_nonneg w']
-    calc inner ℝ u' (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ w')
-        ≤ ‖u'‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ w'‖ := real_inner_le_norm _ _
-      _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ * ‖w'‖) := by
-          rw [hu']
-          exact mul_le_mul_of_nonneg_left (ContinuousLinearMap.le_opNorm _ _) zero_le_one
-      _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ := by rw [hw', mul_one, one_mul]
+    have hnorm (v : BitString N → ℝ) (hv : ∑ x, v x ^ 2 = 1) :
+        ‖(WithLp.toLp 2 v : EuclideanSpace ℝ (BitString N))‖ ≤ 1 :=
+      (EuclideanSpace.norm_le_one_iff_sum_sq_le_one _).2 hv.le
+    exact (le_abs_self _).trans
+      (Matrix.abs_inner_toEuclideanCLM_le_opNorm Γ (hnorm u hu1) (hnorm w hw1))
   have hle := le_spectralAdversary hsym hnonneg hΓ
   by_cases hm0 : maxDiffNorm Γ = 0
-  · have hΓ0 := eq_zero_of_maxDiffNorm_eq_zero hΓ hm0
-    have hlam0 : BitString.spectralSensitivity f ≤ 0 := by
-      simpa [hΓ0] using hspec_le
+  · have hlam0 : BitString.spectralSensitivity f ≤ 0 := by
+      simpa only [eq_zero_of_maxDiffNorm_eq_zero hΓ hm0, map_zero, norm_zero] using hspec_le
     exact hlam0.trans (spectralAdversary_nonneg _ _)
   · have hm : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm hm0)
-    calc BitString.spectralSensitivity f ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / 1 := by
-          simpa using hspec_le
-      _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ :=
-          div_le_div_of_nonneg_left (norm_nonneg _) hm hmax
-      _ ≤ spectralAdversary (fun _ => True) f := hle
+    exact (hspec_le.trans_eq (div_one _).symm).trans
+      ((div_le_div_of_nonneg_left (norm_nonneg _) hm hmax).trans hle)
 
 /-- Weight matrix `A[x, y] = ∑_{p ∈ S.R, p = (x, y)} S.w p` associated with a weight scheme. -/
 private noncomputable def wsRaw (S : WeightScheme N) : Matrix (BitString N) (BitString N) ℝ :=
@@ -1073,6 +902,20 @@ private theorem wsMatrix_nonneg (S : WeightScheme N) (x y : BitString N) : 0 ≤
   refine div_nonneg (add_nonneg ?_ ?_) (mul_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _)) <;>
     exact sum_nonneg fun p hp => S.w_nonneg p (mem_filter.1 hp).1
 
+private theorem sum_wsRaw_mul (S : WeightScheme N) (g : BitString N → BitString N → ℝ) :
+    ∑ x, ∑ y, wsRaw S x y * g x y = ∑ p ∈ S.R, S.w p * g p.1 p.2 := by
+  classical
+  calc ∑ x, ∑ y, wsRaw S x y * g x y
+      = ∑ x, ∑ y, ∑ p ∈ S.R, if p = (x, y) then S.w p * g x y else 0 := by
+          simp only [wsRaw, Matrix.of_apply, sum_filter, sum_mul, ite_mul, zero_mul]
+    _ = ∑ x, ∑ p ∈ S.R, ∑ y, if p = (x, y) then S.w p * g x y else 0 :=
+          sum_congr rfl fun _ _ => sum_comm
+    _ = ∑ p ∈ S.R, ∑ x, ∑ y, if p = (x, y) then S.w p * g x y else 0 := sum_comm
+    _ = ∑ p ∈ S.R, S.w p * g p.1 p.2 :=
+          sum_congr rfl fun p _ => by
+            rw [← Fintype.sum_prod_type (f := fun xy : BitString N × BitString N =>
+              if p = xy then S.w p * g xy.1 xy.2 else 0), Fintype.sum_ite_eq]
+
 private theorem wsMatrix_isAdversary {α : Type*} {P : BitString N → Prop} {f : BitString N → α}
     (S : WeightScheme N) (hS : ∀ p ∈ S.R, P p.1 ∧ P p.2 ∧ f p.1 ≠ f p.2) :
     IsAdversaryMatrix P f (wsMatrix S) := by
@@ -1081,7 +924,7 @@ private theorem wsMatrix_isAdversary {α : Type*} {P : BitString N → Prop} {f 
   have hA_ne : wsRaw S x y ≠ 0 ∨ wsRaw S y x ≠ 0 := by
     by_contra hboth
     push Not at hboth
-    simp [wsMatrix, hboth.1, hboth.2] at hne
+    exact hne (by simp only [wsMatrix, Matrix.of_apply, hboth.1, hboth.2, add_zero, zero_div])
   rcases hA_ne with h1 | h2
   · obtain ⟨p, hp, _⟩ := exists_ne_zero_of_sum_ne_zero h1
     obtain ⟨hpR, hpx⟩ := mem_filter.1 hp
@@ -1104,36 +947,33 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
     · have hwt_le (u v : BitString N) (hzu : z u = 0) : wsRaw S u v = 0 ∧ wsRaw S v u = 0 := by
         have hsum0 : S.wtFst u + S.wtSnd u = 0 := by
           have := congrArg (· ^ 2) hzu
-          rw [Real.sq_sqrt (add_nonneg (S.wtFst_nonneg u) (S.wtSnd_nonneg u))] at this
-          simpa using this
-        have h1 : S.wtFst u = 0 := le_antisymm (by linarith [S.wtSnd_nonneg u]) (S.wtFst_nonneg u)
-        have h2 : S.wtSnd u = 0 := le_antisymm (by linarith [S.wtFst_nonneg u]) (S.wtSnd_nonneg u)
-        refine ⟨sum_eq_zero fun p hp => ?_, sum_eq_zero fun p hp => ?_⟩
-        · obtain ⟨hpR, hpuv⟩ := mem_filter.1 hp
-          exact (sum_eq_zero_iff_of_nonneg fun q hq => S.w_nonneg q (mem_filter.1 hq).1).1 h1
-            p (mem_filter.2 ⟨hpR, congrArg Prod.fst hpuv⟩)
-        · obtain ⟨hpR, hpvu⟩ := mem_filter.1 hp
-          exact (sum_eq_zero_iff_of_nonneg fun q hq => S.w_nonneg q (mem_filter.1 hq).1).1 h2
-            p (mem_filter.2 ⟨hpR, congrArg Prod.snd hpvu⟩)
+          rwa [Real.sq_sqrt (add_nonneg (S.wtFst_nonneg u) (S.wtSnd_nonneg u)),
+            zero_pow two_ne_zero] at this
+        have hle1 : wsRaw S u v ≤ S.wtFst u := sum_le_sum_of_subset_of_nonneg
+          (fun p hp => mem_filter.2 ⟨(mem_filter.1 hp).1, congrArg Prod.fst (mem_filter.1 hp).2⟩)
+          fun p hp _ => S.w_nonneg p (mem_filter.1 hp).1
+        have hle2 : wsRaw S v u ≤ S.wtSnd u := sum_le_sum_of_subset_of_nonneg
+          (fun p hp => mem_filter.2 ⟨(mem_filter.1 hp).1, congrArg Prod.snd (mem_filter.1 hp).2⟩)
+          fun p hp _ => S.w_nonneg p (mem_filter.1 hp).1
+        have h01 : 0 ≤ wsRaw S u v := sum_nonneg fun p hp => S.w_nonneg p (mem_filter.1 hp).1
+        have h02 : 0 ≤ wsRaw S v u := sum_nonneg fun p hp => S.w_nonneg p (mem_filter.1 hp).1
+        exact ⟨by linarith [S.wtFst_nonneg u, S.wtSnd_nonneg u],
+          by linarith [S.wtFst_nonneg u, S.wtSnd_nonneg u]⟩
       rcases mul_eq_zero.1 hz with hzx | hzy
       · obtain ⟨h1, h2⟩ := hwt_le x y hzx
-        simp [wsMatrix, z, hz, h1, h2]
+        simp only [wsMatrix, Matrix.of_apply, h1, h2, add_zero, zero_div, zero_mul]
       · obtain ⟨h1, h2⟩ := hwt_le y x hzy
-        simp [wsMatrix, z, hz, h1, h2]
+        simp only [wsMatrix, Matrix.of_apply, h1, h2, add_zero, zero_div, zero_mul]
     · exact div_mul_cancel₀ _ hz
   let w₀ : EuclideanSpace ℝ (BitString N) := WithLp.toLp 2 fun x => z x / √(2 * S.weightSum)
-  have hfst : ∑ x, S.wtFst x = S.weightSum := by
-    rw [← S.sum_wtFst_eq_weightSum]
-    exact (sum_subset (subset_univ _) fun x _ hx => by
-      refine sum_eq_zero fun p hp => ?_
-      exact absurd (mem_image.2 ⟨p, (mem_filter.1 hp).1, (mem_filter.1 hp).2⟩) hx).symm
+  have hfst : ∑ x, S.wtFst x = S.weightSum :=
+    sum_fiberwise_of_maps_to (s := S.R) (g := Prod.fst) (t := (univ : Finset (BitString N)))
+      (f := S.w) (fun _ _ => mem_univ _)
+  have hsnd : ∑ y, S.wtSnd y = S.weightSum :=
+    sum_fiberwise_of_maps_to (s := S.R) (g := Prod.snd) (t := (univ : Finset (BitString N)))
+      (f := S.w) (fun _ _ => mem_univ _)
   have hw₀_sq : ‖w₀‖ ^ 2 = 1 := by
     rw [EuclideanSpace.real_norm_sq_eq]
-    have hsnd : ∑ y, S.wtSnd y = S.weightSum := by
-      rw [← S.sum_wtSnd_eq_weightSum]
-      exact (sum_subset (subset_univ _) fun y _ hy => by
-        refine sum_eq_zero fun p hp => ?_
-        exact absurd (mem_image.2 ⟨p, (mem_filter.1 hp).1, (mem_filter.1 hp).2⟩) hy).symm
     calc ∑ x, (z x / √(2 * S.weightSum)) ^ 2
         = (∑ x, (S.wtFst x + S.wtSnd x)) / (2 * S.weightSum) := by
             rw [sum_div]
@@ -1145,39 +985,23 @@ private theorem wsMatrix_opNorm_ge_one (S : WeightScheme N) (hW : 0 < S.weightSu
       _ = 1 := by field_simp [hW.ne']; ring
   have hw₀ : ‖w₀‖ = 1 := by nlinarith [norm_nonneg w₀]
   have hA_sum : ∑ x, ∑ y, wsRaw S x y = S.weightSum := by
-    calc ∑ x, ∑ y, wsRaw S x y
-        = ∑ x, S.wtFst x := by
-          refine sum_congr rfl fun x _ => ?_
-          rw [WeightScheme.wtFst, ← sum_fiberwise_of_maps_to (s := S.R.filter fun p => p.1 = x)
-            (g := Prod.snd) (t := univ) (fun _ _ => mem_univ _)]
-          refine sum_congr rfl fun y _ => sum_congr ?_ fun _ _ => rfl
-          ext p
-          simp only [mem_filter, Prod.ext_iff, and_assoc]
-      _ = S.weightSum := hfst
-  have hA_sym : ∑ x, ∑ y, wsRaw S y x = S.weightSum := by
-    rw [sum_comm]; exact hA_sum
+    simpa only [mul_one, WeightScheme.weightSum] using sum_wsRaw_mul S fun _ _ => 1
+  have hA_sym : ∑ x, ∑ y, wsRaw S y x = S.weightSum := by rw [sum_comm]; exact hA_sum
   have hray : inner ℝ w₀ (Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S) w₀) = 1 := by
     rw [Matrix.inner_toEuclideanCLM]
     simp only [dotProduct, Matrix.mulVec, w₀, mul_sum]
     calc ∑ x, ∑ y, (z x / √(2 * S.weightSum)) * (wsMatrix S x y * (z y / √(2 * S.weightSum)))
-        = (∑ x, ∑ y, (wsRaw S x y + wsRaw S y x)) / (2 * S.weightSum) := by
-            rw [sum_div]
-            refine sum_congr rfl fun x _ => by
-              rw [sum_div]
-              refine sum_congr rfl fun y _ => ?_
-              calc (z x / √(2 * S.weightSum)) * (wsMatrix S x y * (z y / √(2 * S.weightSum)))
-                  = (wsMatrix S x y * (z x * z y)) / (√(2 * S.weightSum) * √(2 * S.weightSum)) :=
-                    by ring
-                _ = (wsRaw S x y + wsRaw S y x) / (2 * S.weightSum) := by
-                    rw [hmul_self, Real.mul_self_sqrt (by linarith)]
-      _ = (S.weightSum + S.weightSum) / (2 * S.weightSum) := by
+        = ∑ x, ∑ y, (wsRaw S x y + wsRaw S y x) / (2 * S.weightSum) :=
+            sum_congr rfl fun x _ => sum_congr rfl fun y _ => by
+              rw [show (z x / √(2 * S.weightSum)) * (wsMatrix S x y * (z y / √(2 * S.weightSum))) =
+                  (wsMatrix S x y * (z x * z y)) / (√(2 * S.weightSum) * √(2 * S.weightSum))
+                by ring, hmul_self, Real.mul_self_sqrt (by linarith)]
+      _ = (∑ x, ∑ y, (wsRaw S x y + wsRaw S y x)) / (2 * S.weightSum) := by simp_rw [← sum_div]
+      _ = 1 := by
             simp only [sum_add_distrib, hA_sum, hA_sym]
-      _ = 1 := by field_simp [hW.ne']; ring
-  calc (1 : ℝ) = inner ℝ w₀ (Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S) w₀) := hray.symm
-    _ ≤ ‖w₀‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S) w₀‖ := real_inner_le_norm _ _
-    _ ≤ ‖w₀‖ * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S)‖ * ‖w₀‖) :=
-        mul_le_mul_of_nonneg_left (ContinuousLinearMap.le_opNorm _ _) (norm_nonneg _)
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) (wsMatrix S)‖ := by rw [hw₀, mul_one, one_mul]
+            field_simp [hW.ne']; ring
+  exact hray.symm.trans_le
+    ((le_abs_self _).trans (Matrix.abs_inner_toEuclideanCLM_le_opNorm (wsMatrix S) hw₀.le hw₀.le))
 
 private theorem wsMatrix_hadamard_bilin_eq (S : WeightScheme N) (i : Fin N)
     (a b : EuclideanSpace ℝ (BitString N)) :
@@ -1187,66 +1011,57 @@ private theorem wsMatrix_hadamard_bilin_eq (S : WeightScheme N) (i : Fin N)
           (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) := by
   classical
   let z : BitString N → ℝ := fun x => √(S.wtFst x + S.wtSnd x)
-  have hΓdiff (x y : BitString N) :
-      wsMatrix S x y * diffMatrix i x y * (|a.ofLp x| * |b.ofLp y|) =
-      (∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (x, y),
-        S.w p / (z p.1 * z p.2) * (|a.ofLp p.1| * |b.ofLp p.2|)) +
-      (∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (y, x),
-        S.w p / (z p.1 * z p.2) * (|a.ofLp p.2| * |b.ofLp p.1|)) := by
-    by_cases hxi : x i ≠ y i
-    · have hA1 : wsRaw S x y / (z x * z y) * (|a.ofLp x| * |b.ofLp y|) =
-          ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (x, y),
-            S.w p / (z p.1 * z p.2) * (|a.ofLp p.1| * |b.ofLp p.2|) := by
-        rw [wsRaw, Matrix.of_apply, sum_div, sum_mul]
-        refine sum_congr ?_ fun p hp => ?_
-        · ext p; simp only [mem_filter]
-          exact ⟨fun h => ⟨h.1, ⟨by rw [h.2]; exact hxi, h.2⟩⟩, fun h => ⟨h.1, h.2.2⟩⟩
-        · rw [(mem_filter.1 hp).2.2]
-      have hA2 : wsRaw S y x / (z x * z y) * (|a.ofLp x| * |b.ofLp y|) =
-          ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (y, x),
-            S.w p / (z p.1 * z p.2) * (|a.ofLp p.2| * |b.ofLp p.1|) := by
-        rw [wsRaw, Matrix.of_apply, sum_div, sum_mul]
-        refine sum_congr ?_ fun p hp => ?_
-        · ext p; simp only [mem_filter]
-          exact ⟨fun h => ⟨h.1, ⟨by rw [h.2]; exact hxi.symm, h.2⟩⟩, fun h => ⟨h.1, h.2.2⟩⟩
-        · rw [(mem_filter.1 hp).2.2]; ring
-      simp only [diffMatrix_apply, hxi, ne_eq, not_false_eq_true, ↓reduceIte, mul_one,
-        wsMatrix, Matrix.of_apply, z, add_div, add_mul, hA1, hA2]
-    · simp only [diffMatrix_apply, hxi, ne_eq, ↓reduceIte, mul_zero, zero_mul]
-      symm
-      rw [add_eq_zero_iff_of_nonneg (sum_nonneg fun p hp => by
-        obtain ⟨hpR, _, _⟩ := mem_filter.1 hp
-        have := S.w_nonneg p hpR
-        positivity) (sum_nonneg fun p hp => by
-        obtain ⟨hpR, _, _⟩ := mem_filter.1 hp
-        have := S.w_nonneg p hpR
-        positivity)]
-      refine ⟨sum_eq_zero fun p hp => ?_, sum_eq_zero fun p hp => ?_⟩
-      · obtain ⟨_, hne, hpq⟩ := mem_filter.1 hp
-        rw [hpq] at hne; exact absurd hne hxi
-      · obtain ⟨_, hne, hpq⟩ := mem_filter.1 hp
-        rw [hpq] at hne; exact absurd (Ne.symm hne) hxi
-  simp only [hΓdiff, sum_add_distrib]
-  have hcollapse (f : BitString N × BitString N → ℝ) :
-      (∑ x, ∑ y, ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (x, y), f p) =
-      ∑ p ∈ S.R with p.1 i ≠ p.2 i, f p := by
-    rw [← Fintype.sum_prod_type (f := fun xy => ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = xy, f p)]
-    have h_fiber := sum_fiberwise_of_maps_to (s := S.R.filter fun p => p.1 i ≠ p.2 i)
-      (g := id) (t := univ) (fun _ _ => mem_univ _) f
-    refine Eq.trans ?_ h_fiber
-    refine sum_congr rfl fun _ _ => sum_congr (by ext; simp [id_eq, and_assoc]) fun _ _ => rfl
-  have hf1 : ∑ x, ∑ y, ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (x, y),
-      S.w p / (z p.1 * z p.2) * (|a.ofLp p.1| * |b.ofLp p.2|) =
-      ∑ p ∈ S.R with p.1 i ≠ p.2 i,
-        S.w p / (z p.1 * z p.2) * (|a.ofLp p.1| * |b.ofLp p.2|) := hcollapse _
-  have hf2 : ∑ x, ∑ y, ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p = (y, x),
-      S.w p / (z p.1 * z p.2) * (|a.ofLp p.2| * |b.ofLp p.1|) =
-      ∑ p ∈ S.R with p.1 i ≠ p.2 i,
-        S.w p / (z p.1 * z p.2) * (|a.ofLp p.2| * |b.ofLp p.1|) := by
-    rw [sum_comm]
-    exact hcollapse _
-  rw [hf1, hf2, ← sum_add_distrib]
-  refine sum_congr rfl fun p _ => by ring
+  let g (x y : BitString N) : ℝ := diffMatrix i x y * (|a.ofLp x| * |b.ofLp y|) / (z x * z y)
+  calc ∑ x, ∑ y, wsMatrix S x y * diffMatrix i x y * (|a.ofLp x| * |b.ofLp y|)
+      = ∑ x, ∑ y, (wsRaw S x y * g x y + wsRaw S y x * g x y) :=
+          sum_congr rfl fun x _ => sum_congr rfl fun y _ => by
+            simp only [wsMatrix, Matrix.of_apply, z, g]; ring
+    _ = (∑ x, ∑ y, wsRaw S x y * g x y) + (∑ y, ∑ x, wsRaw S y x * g x y) := by
+          simp_rw [sum_add_distrib]
+          conv_lhs => rhs; rw [sum_comm]
+    _ = ∑ p ∈ S.R, S.w p * (g p.1 p.2 + g p.2 p.1) := by
+          rw [sum_wsRaw_mul, sum_wsRaw_mul, ← sum_add_distrib]
+          exact sum_congr rfl fun p _ => (mul_add _ _ _).symm
+    _ = ∑ p ∈ S.R with p.1 i ≠ p.2 i,
+          (S.w p / (z p.1 * z p.2)) *
+            (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) := by
+          rw [sum_filter]
+          refine sum_congr rfl fun p _ => ?_
+          simp only [g, diffMatrix_apply, ne_comm]
+          split_ifs with hpi
+          · ring
+          · simp only [zero_mul, zero_div, add_zero, mul_zero]
+
+private theorem sum_fiber_endpoint_le (S : WeightScheme N) (i : Fin N)
+    (k : BitString N × BitString N → BitString N)
+    (wt : BitString N → ℝ) (hwt : ∀ x, 0 ≤ wt x)
+    (g : BitString N × BitString N → ℝ) (φ : BitString N → ℝ) (hφ : ∀ x, 0 ≤ φ x)
+    {K : ℝ} (hK : 0 ≤ K)
+    (hbd : ∀ x ∈ S.R.image k, (∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ k p = x, g p) ≤ K * wt x) :
+    ∑ p ∈ S.R with p.1 i ≠ p.2 i, φ (k p) * g p / (S.wtFst (k p) + S.wtSnd (k p)) ≤
+      K * ∑ x, φ x * (wt x / (S.wtFst x + S.wtSnd x)) := by
+  classical
+  rw [← sum_fiberwise_of_maps_to (s := S.R.filter fun p => p.1 i ≠ p.2 i)
+    (g := k) (t := univ) (fun _ _ => mem_univ _), mul_sum]
+  refine sum_le_sum fun x _ => ?_
+  have hfiber : ∑ p ∈ (S.R.filter fun p => p.1 i ≠ p.2 i) with k p = x,
+      φ (k p) * g p / (S.wtFst (k p) + S.wtSnd (k p)) =
+      φ x * (∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ k p = x, g p) / (S.wtFst x + S.wtSnd x) := by
+    rw [mul_sum, sum_div]
+    refine sum_congr (by ext p; simp only [mem_filter, and_assoc]) fun p hp => ?_
+    rw [(mem_filter.1 hp).2.2]
+  rw [hfiber]
+  have hle : ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ k p = x, g p ≤ K * wt x := by
+    by_cases hxk : x ∈ S.R.image k
+    · exact hbd x hxk
+    · rw [sum_eq_zero fun p hp =>
+        absurd (mem_image.2 ⟨p, (mem_filter.1 hp).1, (mem_filter.1 hp).2.2⟩) hxk]
+      exact mul_nonneg hK (hwt x)
+  calc φ x * (∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ k p = x, g p) / (S.wtFst x + S.wtSnd x)
+      ≤ φ x * (K * wt x) / (S.wtFst x + S.wtSnd x) :=
+          div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hle (hφ x))
+            (add_nonneg (S.wtFst_nonneg x) (S.wtSnd_nonneg x))
+    _ = K * (φ x * (wt x / (S.wtFst x + S.wtSnd x))) := by ring
 
 private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
     (hvA : 0 < vA) (hvB : 0 < vB)
@@ -1258,14 +1073,12 @@ private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
   set c := √vB / √vA
   have hc : 0 < c := div_pos (Real.sqrt_pos.2 hvB) (Real.sqrt_pos.2 hvA)
   have hc_eq : c * vA = √(vA * vB) := by
-    dsimp only [c]
-    rw [Real.sqrt_mul hvA.le, div_mul_eq_mul_div]
-    calc √vB * vA / √vA = √vB * (√vA * √vA) / √vA := by rw [Real.mul_self_sqrt hvA.le]
+    rw [Real.sqrt_mul hvA.le]
+    calc c * vA = √vB / √vA * (√vA * √vA) := by rw [Real.mul_self_sqrt hvA.le]
       _ = √vA * √vB := by field_simp [Real.sqrt_ne_zero'.2 hvA]
   have hc_eq' : vB / c = √(vA * vB) := by
-    dsimp only [c]
-    rw [Real.sqrt_mul hvA.le, div_div_eq_mul_div]
-    calc vB * √vA / √vB = (√vB * √vB) * √vA / √vB := by rw [Real.mul_self_sqrt hvB.le]
+    rw [Real.sqrt_mul hvA.le]
+    calc vB / c = (√vB * √vB) / (√vB / √vA) := by rw [Real.mul_self_sqrt hvB.le]
       _ = √vA * √vB := by field_simp [Real.sqrt_ne_zero'.2 hvB]
   refine (maxDiffNorm_le_iff (Real.sqrt_nonneg _)).2 fun i => ?_
   refine Matrix.opNorm_toEuclideanCLM_le_of_inner _ (Real.sqrt_nonneg _) fun a b ha hb => ?_
@@ -1279,12 +1092,12 @@ private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
     calc ∑ x, ∑ y, a.ofLp x * (wsMatrix S x y * diffMatrix i x y * b.ofLp y)
         ≤ ∑ x, ∑ y, wsMatrix S x y * diffMatrix i x y * (|a.ofLp x| * |b.ofLp y|) := by
           refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
-          have heq : a.ofLp x * (wsMatrix S x y * diffMatrix i x y * b.ofLp y) =
-              wsMatrix S x y * diffMatrix i x y * (a.ofLp x * b.ofLp y) := by ring
-          rw [heq]
-          refine mul_le_mul_of_nonneg_left ?_ (mul_nonneg (wsMatrix_nonneg S x y) (by
-            simp [diffMatrix]; split_ifs <;> norm_num))
-          rw [← abs_mul]; exact le_abs_self _
+          rw [show a.ofLp x * (wsMatrix S x y * diffMatrix i x y * b.ofLp y) =
+            wsMatrix S x y * diffMatrix i x y * (a.ofLp x * b.ofLp y) by ring]
+          refine mul_le_mul_of_nonneg_left ((le_abs_self _).trans_eq (abs_mul _ _))
+            (mul_nonneg (wsMatrix_nonneg S x y) ?_)
+          rw [diffMatrix_apply]
+          split_ifs <;> norm_num
       _ = ∑ p ∈ S.R with p.1 i ≠ p.2 i,
           (S.w p / (z p.1 * z p.2)) *
             (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) :=
@@ -1296,163 +1109,87 @@ private theorem wsMatrix_maxDiffNorm_le (S : WeightScheme N) {vA vB : ℝ}
         (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2)) /
         2 := by
     obtain ⟨hpR, hpi⟩ := mem_filter.1 hp
-    rcases (S.w_nonneg p hpR).eq_or_lt with hw0 | hwpos
-    · simp only [← hw0, zero_div, zero_mul]
-      have hu0 := S.u_nonneg p hpR i hpi
-      have hv0 := S.v_nonneg p hpR i hpi
-      have := S.wtFst_nonneg p.1
-      have := S.wtSnd_nonneg p.1
-      have := S.wtFst_nonneg p.2
-      have := S.wtSnd_nonneg p.2
-      positivity
-    · have hz1 : 0 < z p.1 := Real.sqrt_pos.2 (by
-        have h1 : 0 < S.wtFst p.1 := lt_of_lt_of_le hwpos
+    have hu0 := S.u_nonneg p hpR i hpi
+    have hv0 := S.v_nonneg p hpR i hpi
+    have hwt1 := add_nonneg (S.wtFst_nonneg p.1) (S.wtSnd_nonneg p.1)
+    have hwt2 := add_nonneg (S.wtFst_nonneg p.2) (S.wtSnd_nonneg p.2)
+    set u' := (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1)
+    set v' := (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2)
+    have hsq : (S.w p / (z p.1 * z p.2)) ^ 2 ≤ u' * v' := by
+      rcases (S.w_nonneg p hpR).eq_or_lt with hw0 | hwpos
+      · rw [← hw0, zero_div, zero_pow two_ne_zero]; positivity
+      · have h1 : 0 < S.wtFst p.1 := lt_of_lt_of_le hwpos
           (single_le_sum (fun q hq => S.w_nonneg q (mem_filter.1 hq).1) (mem_filter.2 ⟨hpR, rfl⟩))
-        linarith [S.wtSnd_nonneg p.1])
-      have hz2 : 0 < z p.2 := Real.sqrt_pos.2 (by
         have h2 : 0 < S.wtSnd p.2 := lt_of_lt_of_le hwpos
           (single_le_sum (fun q hq => S.w_nonneg q (mem_filter.1 hq).1) (mem_filter.2 ⟨hpR, rfl⟩))
-        linarith [S.wtFst_nonneg p.2])
-      have hu0 := S.u_nonneg p hpR i hpi
-      have hv0 := S.v_nonneg p hpR i hpi
-      have hsq : S.w p ≤ √(c * S.u p i) * √(S.v p i / c) := by
-        rw [← Real.sqrt_mul (mul_nonneg hc.le hu0)]
-        have hid : (c * S.u p i) * (S.v p i / c) = S.u p i * S.v p i := by field_simp [hc.ne']
-        rw [hid, Real.le_sqrt (S.w_nonneg p hpR) (mul_nonneg hu0 hv0)]
-        exact S.sq_le p hpR i hpi
-      set A1 := |a.ofLp p.1| * √(c * S.u p i) / z p.1
-      set B2 := |b.ofLp p.2| * √(S.v p i / c) / z p.2
-      set B1 := |b.ofLp p.1| * √(c * S.u p i) / z p.1
-      set A2 := |a.ofLp p.2| * √(S.v p i / c) / z p.2
-      have hm1 : A1 * B2 ≤ (A1 ^ 2 + B2 ^ 2) / 2 := by nlinarith [sq_nonneg (A1 - B2)]
-      have hm2 : B1 * A2 ≤ (B1 ^ 2 + A2 ^ 2) / 2 := by nlinarith [sq_nonneg (B1 - A2)]
-      have hpair :
+        calc (S.w p / (z p.1 * z p.2)) ^ 2
+            = S.w p ^ 2 / ((S.wtFst p.1 + S.wtSnd p.1) * (S.wtFst p.2 + S.wtSnd p.2)) := by
+                rw [div_pow, mul_pow, Real.sq_sqrt hwt1, Real.sq_sqrt hwt2]
+          _ ≤ (S.u p i * S.v p i) /
+                ((S.wtFst p.1 + S.wtSnd p.1) * (S.wtFst p.2 + S.wtSnd p.2)) :=
+                div_le_div_of_nonneg_right (S.sq_le p hpR i hpi) (mul_nonneg hwt1 hwt2)
+          _ = u' * v' := by dsimp only [u', v']; field_simp [hc.ne']
+    have h1 := two_mul_mul_le_of_sq_le_mul (abs_nonneg (a.ofLp p.1)) (abs_nonneg (b.ofLp p.2))
+      (by positivity) (by positivity) hsq
+    have h2 := two_mul_mul_le_of_sq_le_mul (abs_nonneg (b.ofLp p.1)) (abs_nonneg (a.ofLp p.2))
+      (by positivity) (by positivity) hsq
+    simp only [sq_abs] at h1 h2
+    have hsum : (a.ofLp p.1 ^ 2 + b.ofLp p.1 ^ 2) * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1) +
+        (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2) =
+        (u' * a.ofLp p.1 ^ 2 + v' * b.ofLp p.2 ^ 2) +
+          (u' * b.ofLp p.1 ^ 2 + v' * a.ofLp p.2 ^ 2) := by
+      dsimp only [u', v']; ring
+    linarith
+  let φ : BitString N → ℝ := fun x => a.ofLp x ^ 2 + b.ofLp x ^ 2
+  have hφ : ∀ x, 0 ≤ φ x := fun x => add_nonneg (sq_nonneg _) (sq_nonneg _)
+  have hfst_bd : ∑ p ∈ S.R with p.1 i ≠ p.2 i,
+      φ p.1 * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1) ≤
+      √(vA * vB) * ∑ x, φ x * (S.wtFst x / (S.wtFst x + S.wtSnd x)) :=
+    sum_fiber_endpoint_le S i Prod.fst S.wtFst S.wtFst_nonneg (fun p => c * S.u p i) φ hφ
+      (Real.sqrt_nonneg _) fun x hx => by
+        rw [← mul_sum]
+        calc c * S.loadFst x i ≤ c * (vA * S.wtFst x) :=
+              mul_le_mul_of_nonneg_left (hA x hx i) hc.le
+          _ = √(vA * vB) * S.wtFst x := by rw [← mul_assoc, hc_eq]
+  have hsnd_bd : ∑ p ∈ S.R with p.1 i ≠ p.2 i,
+      φ p.2 * (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2) ≤
+      √(vA * vB) * ∑ y, φ y * (S.wtSnd y / (S.wtFst y + S.wtSnd y)) :=
+    sum_fiber_endpoint_le S i Prod.snd S.wtSnd S.wtSnd_nonneg (fun p => S.v p i / c) φ hφ
+      (Real.sqrt_nonneg _) fun y hy => by
+        rw [← sum_div]
+        calc S.loadSnd y i / c ≤ (vB * S.wtSnd y) / c :=
+              div_le_div_of_nonneg_right (hB y hy i) hc.le
+          _ = √(vA * vB) * S.wtSnd y := by rw [mul_div_right_comm, hc_eq']
+  have hwt_sum : ∑ x, φ x * (S.wtFst x / (S.wtFst x + S.wtSnd x)) +
+      ∑ y, φ y * (S.wtSnd y / (S.wtFst y + S.wtSnd y)) ≤ 2 := by
+    rw [← sum_add_distrib]
+    calc ∑ x, (φ x * (S.wtFst x / (S.wtFst x + S.wtSnd x)) +
+          φ x * (S.wtSnd x / (S.wtFst x + S.wtSnd x)))
+        ≤ ∑ x, φ x := sum_le_sum fun x _ => by
+            by_cases hs : S.wtFst x + S.wtSnd x = 0
+            · simp only [hs, div_zero, mul_zero, add_zero, hφ x]
+            · rw [← mul_add, ← add_div, div_self hs, mul_one]
+      _ ≤ 1 + 1 := by
+            rw [sum_add_distrib]
+            exact add_le_add ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one a).1 ha)
+              ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one b).1 hb)
+      _ = 2 := by ring
+  calc ∑ x, ∑ y, a.ofLp x * (wsMatrix S x y * diffMatrix i x y * b.ofLp y)
+      ≤ ∑ p ∈ S.R with p.1 i ≠ p.2 i,
           (S.w p / (z p.1 * z p.2)) *
-            (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) ≤ A1 * B2 + B1 * A2 := by
-        have heq : A1 * B2 + B1 * A2 =
-            (√(c * S.u p i) * √(S.v p i / c) / (z p.1 * z p.2)) *
-              (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) := by
-          dsimp only [A1, B2, B1, A2]; ring
-        rw [heq]
-        refine mul_le_mul_of_nonneg_right
-          (div_le_div_of_nonneg_right hsq (mul_nonneg hz1.le hz2.le))
-          (add_nonneg (mul_nonneg (abs_nonneg _) (abs_nonneg _))
-            (mul_nonneg (abs_nonneg _) (abs_nonneg _)))
-      have hsqsum : (A1 ^ 2 + B2 ^ 2) / 2 + (B1 ^ 2 + A2 ^ 2) / 2 =
-          ((a.ofLp p.1 ^ 2 + b.ofLp p.1 ^ 2) * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1) +
-            (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) /
-              (S.wtFst p.2 + S.wtSnd p.2)) / 2 := by
-        dsimp only [A1, B2, B1, A2, z]
-        rw [div_pow, div_pow, div_pow, div_pow, mul_pow, mul_pow, mul_pow, mul_pow,
-          Real.sq_sqrt (add_nonneg (S.wtFst_nonneg p.1) (S.wtSnd_nonneg p.1)),
-          Real.sq_sqrt (add_nonneg (S.wtFst_nonneg p.2) (S.wtSnd_nonneg p.2)),
-          Real.sq_sqrt (mul_nonneg hc.le hu0), Real.sq_sqrt (div_nonneg hv0 hc.le),
-          sq_abs, sq_abs, sq_abs, sq_abs]
-        ring
-      linarith
-  have hstep2 :
-      ∑ p ∈ S.R with p.1 i ≠ p.2 i,
-        (S.w p / (z p.1 * z p.2)) *
-          (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) ≤ √(vA * vB) := by
-    calc ∑ p ∈ S.R with p.1 i ≠ p.2 i,
-          (S.w p / (z p.1 * z p.2)) *
-            (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|)
-        ≤ ((∑ p ∈ S.R with p.1 i ≠ p.2 i,
-              (a.ofLp p.1 ^ 2 + b.ofLp p.1 ^ 2) * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1)) +
-            (∑ p ∈ S.R with p.1 i ≠ p.2 i,
-              (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) /
-                (S.wtFst p.2 + S.wtSnd p.2))) / 2 := by
-          rw [← sum_add_distrib, sum_div]
-          exact sum_le_sum hterm
-      _ ≤ (√(vA * vB) * ∑ x, (a.ofLp x ^ 2 + b.ofLp x ^ 2) *
-              (S.wtFst x / (S.wtFst x + S.wtSnd x)) +
-            √(vA * vB) * ∑ y, (a.ofLp y ^ 2 + b.ofLp y ^ 2) *
-              (S.wtSnd y / (S.wtFst y + S.wtSnd y))) / 2 := by
-          refine div_le_div_of_nonneg_right (add_le_add ?_ ?_) zero_le_two
-          · rw [← sum_fiberwise_of_maps_to (s := S.R.filter fun p => p.1 i ≠ p.2 i)
-              (g := Prod.fst) (t := univ) (fun _ _ => mem_univ _), mul_sum]
-            refine sum_le_sum fun x _ => ?_
-            have hxsum : ∑ p ∈ S.R.filter (fun p => p.1 i ≠ p.2 i) with p.1 = x,
-                (a.ofLp p.1 ^ 2 + b.ofLp p.1 ^ 2) * (c * S.u p i) /
-                  (S.wtFst p.1 + S.wtSnd p.1) =
-                (a.ofLp x ^ 2 + b.ofLp x ^ 2) * (c * S.loadFst x i) /
-                  (S.wtFst x + S.wtSnd x) := by
-              simp only [WeightScheme.loadFst, mul_sum, sum_div]
-              refine sum_congr ?_ fun p hp => ?_
-              · ext p; simp only [mem_filter]; tauto
-              · rw [(mem_filter.1 hp).2.2]
-            rw [hxsum]
-            by_cases hxfst : x ∈ S.R.image Prod.fst
-            · calc (a.ofLp x ^ 2 + b.ofLp x ^ 2) * (c * S.loadFst x i) /
-                    (S.wtFst x + S.wtSnd x)
-                  ≤ (a.ofLp x ^ 2 + b.ofLp x ^ 2) * (c * (vA * S.wtFst x)) /
-                      (S.wtFst x + S.wtSnd x) := by
-                    refine div_le_div_of_nonneg_right
-                      (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hA x hxfst i) hc.le)
-                        (add_nonneg (sq_nonneg _) (sq_nonneg _)))
-                      (add_nonneg (S.wtFst_nonneg x) (S.wtSnd_nonneg x))
-                _ = √(vA * vB) * ((a.ofLp x ^ 2 + b.ofLp x ^ 2) *
-                      (S.wtFst x / (S.wtFst x + S.wtSnd x))) := by
-                    rw [← mul_assoc c, hc_eq]; ring
-            · have hl0 : S.loadFst x i = 0 := by
-                refine sum_eq_zero fun p hp => ?_
-                exact absurd (mem_image.2 ⟨p, (mem_filter.1 hp).1, (mem_filter.1 hp).2.2⟩) hxfst
-              rw [hl0, mul_zero, mul_zero, zero_div]
-              have := S.wtFst_nonneg x; have := S.wtSnd_nonneg x; positivity
-          · rw [← sum_fiberwise_of_maps_to (s := S.R.filter fun p => p.1 i ≠ p.2 i)
-              (g := Prod.snd) (t := univ) (fun _ _ => mem_univ _), mul_sum]
-            refine sum_le_sum fun y _ => ?_
-            have hysum : ∑ p ∈ S.R.filter (fun p => p.1 i ≠ p.2 i) with p.2 = y,
-                (a.ofLp p.2 ^ 2 + b.ofLp p.2 ^ 2) * (S.v p i / c) /
-                  (S.wtFst p.2 + S.wtSnd p.2) =
-                (a.ofLp y ^ 2 + b.ofLp y ^ 2) * (S.loadSnd y i / c) /
-                  (S.wtFst y + S.wtSnd y) := by
-              simp only [WeightScheme.loadSnd, sum_div, mul_sum]
-              refine sum_congr ?_ fun p hp => ?_
-              · ext p; simp only [mem_filter]; tauto
-              · rw [(mem_filter.1 hp).2.2]
-            rw [hysum]
-            by_cases hysnd : y ∈ S.R.image Prod.snd
-            · calc (a.ofLp y ^ 2 + b.ofLp y ^ 2) * (S.loadSnd y i / c) /
-                    (S.wtFst y + S.wtSnd y)
-                  ≤ (a.ofLp y ^ 2 + b.ofLp y ^ 2) * (vB * S.wtSnd y / c) /
-                      (S.wtFst y + S.wtSnd y) := by
-                    refine div_le_div_of_nonneg_right
-                      (mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right (hB y hysnd i) hc.le)
-                        (add_nonneg (sq_nonneg _) (sq_nonneg _)))
-                      (add_nonneg (S.wtFst_nonneg y) (S.wtSnd_nonneg y))
-                _ = √(vA * vB) * ((a.ofLp y ^ 2 + b.ofLp y ^ 2) *
-                      (S.wtSnd y / (S.wtFst y + S.wtSnd y))) := by
-                    have hdiv : vB * S.wtSnd y / c = (vB / c) * S.wtSnd y := by ring
-                    rw [hdiv, hc_eq']; ring
-            · have hl0 : S.loadSnd y i = 0 := by
-                refine sum_eq_zero fun p hp => ?_
-                exact absurd (mem_image.2 ⟨p, (mem_filter.1 hp).1, (mem_filter.1 hp).2.2⟩) hysnd
-              rw [hl0, zero_div, mul_zero, zero_div]
-              have := S.wtFst_nonneg y; have := S.wtSnd_nonneg y; positivity
-      _ = √(vA * vB) * (∑ x, (a.ofLp x ^ 2 + b.ofLp x ^ 2) *
-            (S.wtFst x / (S.wtFst x + S.wtSnd x) + S.wtSnd x / (S.wtFst x + S.wtSnd x))) / 2 := by
-          rw [← mul_add, ← sum_add_distrib]
-          congr 1; congr 1
-          refine sum_congr rfl fun x _ => by ring
-      _ ≤ √(vA * vB) * (∑ x, (a.ofLp x ^ 2 + b.ofLp x ^ 2) * 1) / 2 := by
-          refine div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left
-            (sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_
-              (add_nonneg (sq_nonneg _) (sq_nonneg _))) (Real.sqrt_nonneg _)) zero_le_two
-          by_cases hs : S.wtFst x + S.wtSnd x = 0
-          · simp [hs]
-          · rw [← add_div, div_self hs]
-      _ ≤ √(vA * vB) * (1 + 1) / 2 := by
-          refine div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left ?_
-            (Real.sqrt_nonneg _)) zero_le_two
-          simp only [mul_one, sum_add_distrib]
-          have ha_sq : ∑ x, a.ofLp x ^ 2 ≤ 1 := by
-            rw [← EuclideanSpace.real_norm_sq_eq]; exact pow_le_one₀ (norm_nonneg _) ha
-          have hb_sq : ∑ x, b.ofLp x ^ 2 ≤ 1 := by
-            rw [← EuclideanSpace.real_norm_sq_eq]; exact pow_le_one₀ (norm_nonneg _) hb
-          exact add_le_add ha_sq hb_sq
-      _ = √(vA * vB) := by ring
-  exact hstep1.trans hstep2
+            (|a.ofLp p.1| * |b.ofLp p.2| + |a.ofLp p.2| * |b.ofLp p.1|) := hstep1
+    _ ≤ ((∑ p ∈ S.R with p.1 i ≠ p.2 i,
+            φ p.1 * (c * S.u p i) / (S.wtFst p.1 + S.wtSnd p.1)) +
+          (∑ p ∈ S.R with p.1 i ≠ p.2 i,
+            φ p.2 * (S.v p i / c) / (S.wtFst p.2 + S.wtSnd p.2))) / 2 := by
+          rw [← sum_add_distrib, sum_div]; exact sum_le_sum hterm
+    _ ≤ (√(vA * vB) * (∑ x, φ x * (S.wtFst x / (S.wtFst x + S.wtSnd x)) +
+          ∑ y, φ y * (S.wtSnd y / (S.wtFst y + S.wtSnd y)))) / 2 := by
+          rw [mul_add]; exact div_le_div_of_nonneg_right (add_le_add hfst_bd hsnd_bd) zero_le_two
+    _ ≤ √(vA * vB) * 2 / 2 :=
+          div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hwt_sum (Real.sqrt_nonneg _))
+            zero_le_two
+    _ = √(vA * vB) := by ring
 
 /-- **Weighted bounds are at most the spectral adversary** (original proof /
 [HoyerLeeSpalek2007]): any `WeightScheme` supported on `{(x, y) | P x ∧ P y ∧ f x ≠ f y}`
@@ -1466,9 +1203,9 @@ theorem WeightScheme.le_spectralAdversary {α : Type*} {P : BitString N → Prop
     (hB : ∀ y ∈ S.R.image Prod.snd, ∀ i, mB * S.loadSnd y i ≤ S.wtSnd y) :
     √(mA * mB) ≤ spectralAdversary P f := by
   rcases hmA.eq_or_lt with rfl | hmA_pos
-  · simp [spectralAdversary_nonneg]
+  · simp only [zero_mul, Real.sqrt_zero, spectralAdversary_nonneg]
   rcases hmB.eq_or_lt with rfl | hmB_pos
-  · simp [spectralAdversary_nonneg]
+  · simp only [mul_zero, Real.sqrt_zero, spectralAdversary_nonneg]
   let Γ := wsMatrix S
   have hsym : Γ.IsSymm := wsMatrix_isSymm S
   have hnonneg : ∀ x y, 0 ≤ Γ x y := wsMatrix_nonneg S
@@ -1517,48 +1254,28 @@ theorem mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge
           mul_le_mul_of_nonneg_left (Matrix.inner_toEuclideanCLM_le_absVec hnonneg u v) hk0.le
       _ ≤ ∑ i : Fin N, inner ℝ (Matrix.absVec u) (Matrix.toEuclideanCLM (𝕜 := ℝ)
             (Γ.hadamard (diffMatrix i)) (Matrix.absVec v)) := by
-          have hrhs : ∑ i : Fin N, inner ℝ (Matrix.absVec u) (Matrix.toEuclideanCLM (𝕜 := ℝ)
-                (Γ.hadamard (diffMatrix i)) (Matrix.absVec v)) =
-              ∑ x, ∑ y, Γ x y * (#{i : Fin N | x i ≠ y i} : ℝ) *
-                |u.ofLp x| * |v.ofLp y| := by
-            simp only [Matrix.inner_toEuclideanCLM, dotProduct, Matrix.mulVec, mul_sum,
-              Matrix.absVec_apply, Matrix.hadamard_apply]
-            rw [sum_comm]
-            refine sum_congr rfl fun x _ => ?_
-            rw [sum_comm]
-            refine sum_congr rfl fun y _ => ?_
-            have hdiff_sum : (∑ i : Fin N, diffMatrix i x y) = (#{i : Fin N | x i ≠ y i} : ℝ) := by
-              rw [Finset.card_filter]; simp [diffMatrix]
-            simp only [mul_assoc, ← hdiff_sum, mul_sum, sum_mul]
-            refine sum_congr rfl fun i _ => by ring
-          have hlhs : (k : ℝ) * inner ℝ (Matrix.absVec u)
-                (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ (Matrix.absVec v)) =
-              ∑ x, ∑ y, (k : ℝ) * (Γ x y * |u.ofLp x| * |v.ofLp y|) := by
-            rw [Matrix.inner_toEuclideanCLM]
-            simp only [dotProduct, Matrix.mulVec, mul_sum, Matrix.absVec_apply]
-            refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
-          rw [hlhs, hrhs]
+          simp only [Matrix.inner_toEuclideanCLM, dotProduct, Matrix.mulVec, mul_sum,
+            Matrix.absVec_apply, Matrix.hadamard_apply]
+          conv_rhs => rw [sum_comm]; enter [2, x]; rw [sum_comm]
           refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
+          rw [show ∑ i : Fin N, |u.ofLp x| * (Γ x y * diffMatrix i x y * |v.ofLp y|) =
+              Γ x y * (∑ i : Fin N, diffMatrix i x y) * |u.ofLp x| * |v.ofLp y| by
+            simp only [mul_sum, sum_mul]; exact sum_congr rfl fun i _ => by ring]
           by_cases hxy0 : Γ x y = 0
-          · simp [hxy0]
-          · have hkx : (k : ℝ) ≤ #{i : Fin N | x i ≠ y i} := Nat.cast_le.2 (hk x y hxy0)
+          · simp only [hxy0, mul_zero, zero_mul, le_refl]
+          · have hdiff : (k : ℝ) ≤ ∑ i : Fin N, diffMatrix i x y := by
+              have hcard := (Nat.cast_le (α := ℝ)).2 (hk x y hxy0)
+              rw [Finset.card_filter, Nat.cast_sum] at hcard
+              exact hcard.trans_eq <| sum_congr rfl fun i _ => by
+                rw [diffMatrix_apply]; split_ifs <;> norm_num
             nlinarith [mul_nonneg (mul_nonneg (hnonneg x y) (abs_nonneg (u.ofLp x)))
               (abs_nonneg (v.ofLp y))]
-      _ ≤ ∑ _i : Fin N, maxDiffNorm Γ := by
-          refine sum_le_sum fun i _ => ?_
-          calc inner ℝ (Matrix.absVec u) (Matrix.toEuclideanCLM (𝕜 := ℝ)
-                (Γ.hadamard (diffMatrix i)) (Matrix.absVec v))
-              ≤ ‖Matrix.absVec u‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ)
-                (Γ.hadamard (diffMatrix i)) (Matrix.absVec v)‖ := real_inner_le_norm _ _
-            _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) (Γ.hadamard (diffMatrix i))‖ *
-                  ‖Matrix.absVec v‖) :=
-                mul_le_mul huPos (ContinuousLinearMap.le_opNorm _ _) (norm_nonneg _) zero_le_one
-            _ ≤ maxDiffNorm Γ * 1 := by
-                rw [one_mul]
-                exact mul_le_mul (norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i) hvPos
-                  (norm_nonneg _) (maxDiffNorm_nonneg Γ)
-            _ = maxDiffNorm Γ := mul_one _
-      _ = N * maxDiffNorm Γ := by simp
+      _ ≤ ∑ _i : Fin N, maxDiffNorm Γ :=
+          sum_le_sum fun i _ =>
+            ((le_abs_self _).trans
+              (Matrix.abs_inner_toEuclideanCLM_le_opNorm _ huPos hvPos)).trans
+              (norm_toEuclideanCLM_hadamard_le_maxDiffNorm Γ i)
+      _ = N * maxDiffNorm Γ := by simp only [sum_const, card_fin, nsmul_eq_mul]
   have hnorm_le := Matrix.opNorm_toEuclideanCLM_le_of_inner Γ
     (div_nonneg (mul_nonneg (Nat.cast_nonneg _) (maxDiffNorm_nonneg _)) hk0.le)
     fun u v hu hv => (le_div_iff₀ hk0).2 (by rw [mul_comm]; exact hbilin u v hu hv)
@@ -1572,17 +1289,11 @@ theorem spectralAdversary_le_div_of_hammingDist_ge {α : Type*} {P : BitString N
     (hk : ∀ x y, P x → P y → f x ≠ f y → k ≤ #{i : Fin N | x i ≠ y i}) :
     spectralAdversary P f ≤ (N : ℝ) / k := by
   have hk_pos : (0 : ℝ) < k := Nat.cast_pos.2 hk0
-  refine csSup_le ⟨0, 0, Matrix.isSymm_zero, fun _ _ => le_rfl,
-    fun _ _ h => (h rfl).elim, by simp⟩ ?_
-  rintro r ⟨Γ, -, hnonneg, hΓ, rfl⟩
-  by_cases hm0 : maxDiffNorm Γ = 0
-  · simp only [hm0, div_zero]; positivity
-  · have hm : 0 < maxDiffNorm Γ := lt_of_le_of_ne (maxDiffNorm_nonneg Γ) (Ne.symm hm0)
-    have hb := mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy0 =>
-      let ⟨hx, hy, hf⟩ := hΓ x y hxy0
-      hk x y hx hy hf
-    rw [div_le_div_iff₀ hm hk_pos]
-    linarith
+  refine (spectralAdversary_le_iff (by positivity)).2 fun Γ _ hnonneg hΓ => ?_
+  rw [div_mul_eq_mul_div, le_div_iff₀' hk_pos]
+  exact mul_opNorm_le_mul_maxDiffNorm_of_hammingDist_ge hnonneg fun x y hxy0 =>
+    let ⟨hx, hy, hf⟩ := hΓ x y hxy0
+    hk x y hx hy hf
 
 end HierarchyAndBarriers
 
