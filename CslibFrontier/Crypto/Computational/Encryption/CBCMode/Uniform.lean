@@ -111,7 +111,7 @@ sequentially on `c[j] ⊕ m[j]`, keeping at most `n` bits of each reply.
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
   Section 5.3 (Attack Game 5.2 and Definition 5.2, printed pp. 181–182), Section 5.4.3 (random-IV
   CBC, Theorem 5.4 and equation (5.22), printed pp. 194–199), and Section 4.4.3 (Theorems 4.4 and
-  4.6 and Corollary 4.5, printed p. 135).
+  4.6 and Corollary 4.5, printed pp. 134–136).
 -/
 
 public section
@@ -141,21 +141,25 @@ noncomputable def cbcWordEncrypt (encFamily : List Bool → List Bool → List B
     ℕ → List Bool → List Bool → ProbComp (List Bool) :=
   ivModeEncrypt (cbcWordBody encFamily)
 
-/-- Random-IV CBC decryption ([BonehShoup2023], Section 5.4.3, printed p. 195): accept an `n`-bit
-initial value followed by whole `n`-bit ciphertext blocks, and recover each plaintext block as the
-XOR of the previous ciphertext block with `decFamily k` of the current ciphertext block (truncated
-to `n` bits). Malformed ciphertexts (shorter than `n` bits, or whose body is not a multiple of `n`
-bits) return `none`. -/
+/-- The CBC decryption body (from initial value `iv` and ciphertext body `body`): recover each
+`n`-bit plaintext block as the XOR of the previous ciphertext block with `decFamily k` of the
+current ciphertext block (truncated to `n` bits). -/
 @[expose]
-def cbcWordDecrypt (decFamily : List Bool → List Bool → List Bool) (n : ℕ)
-    (k ct : List Bool) : Option (List Bool) :=
-  if (decide (n ≤ ct.length) && ((ct.length - n) % n == 0)) = true then
-    some (((BitString.listRows ((ct.length - n) / n) n (ct.drop n)).foldl
-      (fun (prev, acc) block =>
-        (block, acc ++ List.zipWith xor prev ((decFamily k block).take n)))
-      (ct.take n, [])).2)
-  else
-    none
+def cbcWordDecBody (decFamily : List Bool → List Bool → List Bool) (n : ℕ)
+    (k iv body : List Bool) : List Bool :=
+  ((BitString.listRows (body.length / n) n body).foldl
+    (fun (prev, acc) block =>
+      (block, acc ++ List.zipWith xor prev ((decFamily k block).take n)))
+    (iv, [])).2
+
+/-- Random-IV CBC decryption ([BonehShoup2023], Section 5.4.3, printed p. 195): accept an `n`-bit
+initial value followed by whole `n`-bit ciphertext blocks (`ivModeDecrypt`), and recover the
+plaintext blocks via `cbcWordDecBody`. Malformed ciphertexts (shorter than `n` bits, or whose body
+is not a multiple of `n` bits) return `none`. -/
+@[expose]
+def cbcWordDecrypt (decFamily : List Bool → List Bool → List Bool) :
+    ℕ → List Bool → List Bool → Option (List Bool) :=
+  ivModeDecrypt (cbcWordDecBody decFamily)
 
 /-- `BitString.listRows (L / n) n x` is the word view of `BitString.padBlocks n L x`. -/
 private theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
@@ -250,31 +254,32 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
     {msg : List Bool} (hmsg : msg.length % n = 0)
     {ct : List Bool} (hct : ct ∈ (ProbComp.eval (cbcWordEncrypt encFamily n k msg)).support) :
     cbcWordDecrypt decFamily n k ct = some msg := by
-  simp only [cbcWordEncrypt, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
-    BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
-  obtain ⟨iv, hiv, rfl⟩ := hct
-  have hivLen : iv.length = n := BitString.length_of_mem_support_uniformList hiv
-  set ms := BitString.listRows (msg.length / n) n msg
-  have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
-  set cs := cbcChainWords (encFamily k) n iv ms
-  have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
-  have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
-  have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
-    cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
-  have hbodyLen : cs.flatten.length = msg.length := by
-    rw [List.length_flatten, List.map_congr_left hcs, List.map_const', List.sum_replicate_nat,
-      hcsLen, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
-  have hctLen : (iv ++ cbcWordBody encFamily n k iv msg).length = n + msg.length := by
-    rw [hbodyEq, List.length_append, hivLen, hbodyLen]
-  have hcond : (decide (n ≤ (iv ++ cbcWordBody encFamily n k iv msg).length) &&
-      (((iv ++ cbcWordBody encFamily n k iv msg).length - n) % n == 0)) = true := by
-    simp [hctLen, hmsg]
-  simp only [cbcWordDecrypt, hcond, ↓reduceIte]
-  congr 1
-  rw [hctLen, Nat.add_sub_cancel_left, hbodyEq, ← hivLen, List.take_left, List.drop_left, hivLen,
-    ← hcsLen, BitString.listRows_flatten cs hcs,
-    foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
-  exact BitString.flatten_listRows_of_length (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
+  refine ivModeDecrypt_ivModeEncrypt ?_ ?_ hmsg hct
+  · intro iv hivLen
+    set ms := BitString.listRows (msg.length / n) n msg
+    have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+    set cs := cbcChainWords (encFamily k) n iv ms
+    have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
+    have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
+    rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten, List.map_congr_left hcs,
+      List.map_const', List.sum_replicate_nat, hcsLen,
+      Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
+  · intro iv hivLen
+    set ms := BitString.listRows (msg.length / n) n msg
+    have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+    set cs := cbcChainWords (encFamily k) n iv ms
+    have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
+    have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
+    have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
+      cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
+    have hbodyLen : cs.flatten.length = msg.length := by
+      rw [List.length_flatten, List.map_congr_left hcs, List.map_const', List.sum_replicate_nat,
+        hcsLen, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
+    rw [hbodyEq, cbcWordDecBody, hbodyLen, ← hcsLen,
+      BitString.listRows_flatten cs hcs, foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms,
+      List.nil_append]
+    exact BitString.flatten_listRows_of_length
+      (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
 /-- For a `BlockCipher` with `keyLen = id` and `blockLen = id`, `cbcWordDecrypt` with `E.decrypt`
 inverts `cbcWordEncrypt` with `E.encrypt` on whole-block messages under `n`-bit keys. -/
@@ -367,30 +372,25 @@ theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) => cbcWordDecrypt decFamily n k ct)
       (encKeyedInput encBits) (encOption encBits) := by
-  let EIn := encKeyedInput encBits
+  let EBody := encPair encUnary (encPair encBits (encPair encBits encBits))
   let EPar := encPair encUnary encBits
   let EState := encPair encBits encBits
   let EFold := encPair (encPair EPar EState) encBits
-  have hn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.1) EIn encUnary := by
-    dsimp only [EIn]; fun_prop
-  have hk : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.1) EIn encBits := by
-    dsimp only [EIn]; fun_prop
-  have hcond : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool =>
-        decide (p.1 ≤ p.2.2.length) && ((p.2.2.length - p.1) % p.1 == 0))
-      EIn encBool := by
-    dsimp only [EIn]; fun_prop
+  have hn : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.1)
+      EBody encUnary := by dsimp only [EBody]; fun_prop
+  have hk : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.2.1)
+      EBody encBits := by dsimp only [EBody]; fun_prop
   have hblocks : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool =>
-        BitString.listRows ((p.2.2.length - p.1) / p.1) p.1 (p.2.2.drop p.1))
-      EIn (encList encBits) :=
+      (fun p : ℕ × List Bool × List Bool × List Bool =>
+        BitString.listRows (p.2.2.2.length / p.1) p.1 p.2.2.2)
+      EBody (encList encBits) :=
     ComputableInPolyTime.bitsRowsWithInput
-      (by dsimp only [EIn]; fun_prop) hn (by dsimp only [EIn]; fun_prop)
+      (by dsimp only [EBody]; fun_prop) hn (by dsimp only [EBody]; fun_prop)
   have hinit : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool => (p.2.2.take p.1, ([] : List Bool)))
-      EIn EState :=
-    (show ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2.take p.1)
-      EIn encBits by dsimp only [EIn]; fun_prop).prod (ComputableInPolyTime.const [])
+      (fun p : ℕ × List Bool × List Bool × List Bool => (p.2.2.1, ([] : List Bool)))
+      EBody EState :=
+    (show ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool => p.2.2.1)
+      EBody encBits by dsimp only [EBody]; fun_prop).prod (ComputableInPolyTime.const [])
   have hplain : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         List.zipWith xor p.1.2.1 ((decFamily p.1.1.2 p.2).take p.1.1.1))
@@ -411,9 +411,9 @@ theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool
       (ComputableInPolyTime.bitsAppend (by dsimp only [EFold, EPar, EState]; fun_prop) hplain)
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
-    (par := fun p : ℕ × List Bool × List Bool => (p.1, p.2.1))
-    (list := fun p => BitString.listRows ((p.2.2.length - p.1) / p.1) p.1 (p.2.2.drop p.1))
-    (init := fun p => (p.2.2.take p.1, ([] : List Bool)))
+    (par := fun p : ℕ × List Bool × List Bool × List Bool => (p.1, p.2.1))
+    (list := fun p => BitString.listRows (p.2.2.2.length / p.1) p.1 p.2.2.2)
+    (init := fun p => (p.2.2.1, ([] : List Bool)))
     (step := fun nk (prev, acc) block =>
       (block, acc ++ List.zipWith xor prev ((decFamily nk.2 block).take nk.1)))
     (hn.prod hk) hblocks hinit hstep
@@ -425,10 +425,8 @@ theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool
         rw [List.length_zipWith]; omega
       simp only [EState, length_encPair, encBits_apply, List.length_append, hblk]
       omega)
-  exact ComputableInPolyTime.ite hcond
-    ((ComputableInPolyTime.optionSome encBits).comp
-      ((ComputableInPolyTime.snd encBits encBits).comp hfold))
-    (ComputableInPolyTime.const none)
+  exact computableInPolyTime_ivModeDecrypt (decBody := cbcWordDecBody decFamily)
+    ((ComputableInPolyTime.snd encBits encBits).comp hfold)
 
 /-! ### Certified word-oracle reduction -/
 
