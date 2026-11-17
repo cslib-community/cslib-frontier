@@ -86,11 +86,8 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       ∃ z, ExecWithin w (matrixStep transpose) y z (7 * p + 22) ∧ I z ∧
         4 ^ k - z.regs Reg.index < 4 ^ k - y.regs Reg.index := by
     obtain ⟨hr, hi, values, memory⟩ := hy
-    have ysource : y.regs Reg.residueSource = source := by
-      simpa +decide [start, Reg.residueSource, Reg.destination, Reg.index] using
-        hr Reg.residueSource (by decide)
-    have ydestination : y.regs Reg.destination = destination := by
-      simpa +decide [start, Reg.destination, Reg.index] using hr Reg.destination (by decide)
+    have ysource : y.regs Reg.residueSource = source := by regs_frame
+    have ydestination : y.regs Reg.destination = destination := by regs_frame
     have yarea : y.regs Reg.paddedCells = 4 ^ k := by regs_frame
     have hlt : y.regs Reg.index < 4 ^ k := by simpa only [Cond.holds_lt, yarea] using hc
     obtain ⟨z, he, zi, newValues, cellFrame, zr⟩ := exec_matrixStep transpose y

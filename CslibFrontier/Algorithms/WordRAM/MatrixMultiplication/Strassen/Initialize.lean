@@ -68,12 +68,8 @@ theorem exec_setup {w : ℕ} (x : Data 64)
     have hj' := congrArg Fin.val hj
     change j.val = i.val at hj'
     omega
-  have hsmod : s.regs Reg.modulus = x.regs Reg.modulus := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.modulus] using hhigh Reg.modulus (by decide)
-  have hsscratch : s.regs Reg.scratch = x.regs Reg.scratch := by
-    simpa +decide [r, Reg.zero, Reg.one, Reg.four, Reg.frameWidth,
-      Reg.powerBase, Reg.powerExponent, Reg.scratch] using hhigh Reg.scratch (by decide)
+  have hsmod : s.regs Reg.modulus = x.regs Reg.modulus := by regs_frame
+  have hsscratch : s.regs Reg.scratch = x.regs Reg.scratch := by regs_frame
   have hsmem : s.mem = x.mem := htm
   have hsize : Fits w (4 ^ x.regs Reg.depth * x.regs Reg.modulus) := by
     rw [Nat.mul_comm]

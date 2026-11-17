@@ -299,8 +299,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
   have hbnF : b.regs negative ≤ F := by
     rw [hbn, han, Nat.zero_add]
     exact (parts_le _).2.trans hva
-  have hb₁ : b.regs (word 1) = encode zb :=
-    (hb.regs_eq (accumulate_preserves 0 _ (by decide))).trans ha₁
+  have hb₁ : b.regs (word 1) = encode zb := by regs_frame
   obtain ⟨c, hc, hcp, hcn, hcm⟩ := exec_accumulate 1 b hb₁ hpb.two hpb.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpc : Control t abp bcp acp c :=
@@ -313,9 +312,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
     rw [hcn]
     have := (parts_le (encode zb)).2
     omega
-  have hc₂ : c.regs (word 2) = encode zc :=
-    (hc.regs_eq (accumulate_preserves 1 _ (by decide))).trans
-      ((hb.regs_eq (accumulate_preserves 0 _ (by decide))).trans ha₂)
+  have hc₂ : c.regs (word 2) = encode zc := by regs_frame
   obtain ⟨d, hd, hdp, hdn, hdm⟩ := exec_accumulate 2 c hc₂ hpc.two hpc.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpd : Control t abp bcp acp d :=

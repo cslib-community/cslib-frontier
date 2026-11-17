@@ -236,10 +236,8 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
       hv.rename (bank_injective 16 (by decide))
   have hvreg (i : Fin 32) (hi : 24 ≤ i.val) : v'.regs i = a.regs i :=
     hv'.regs_eq (reduce_preserves i hi)
-  have hvn : v'.regs size = n := by simpa +decide [a, size, modulus, weights, area,
-    residues, counts, queries, one] using hvreg size (by decide)
-  have hvp : v'.regs modulus = p := by simpa +decide [a, size, modulus, weights, area,
-    residues, counts, queries, one] using hvreg modulus (by decide)
+  have hvn : v'.regs size = n := by regs_frame
+  have hvp : v'.regs modulus = p := by regs_frame
   have hvr : v'.regs residues = base + 3 * N := by
     have h := hvreg residues (by decide)
     simp +decide only [a, Data.set_regs, Function.update_apply, residues, counts, queries,

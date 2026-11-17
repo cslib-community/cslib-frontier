@@ -174,7 +174,7 @@ theorem exec_store {w N b d : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (negate : B
   | true =>
     obtain ⟨y, hy, hyr, hym, hyreg⟩ := exec_subtract (GenericRAM.Signed.fits_zero hz.1)
       hval q hqr hq
-    have hyd : y.regs dest = d := (hyreg dest (Or.inr (by decide))).trans hqd
+    have hyd : y.regs dest = d := by regs_frame
     have hlast := (Exec.store (B := .standard) (w := w + 2) (x := y)
       (a := dest) (s := result)).within
     have he := hpre.seq (hy.seq hlast)

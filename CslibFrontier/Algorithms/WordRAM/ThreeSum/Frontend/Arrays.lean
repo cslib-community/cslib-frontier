@@ -317,8 +317,7 @@ theorem body_exec {w U Λ j : ℕ} (x : Data 48) (rs : List (ℕ × ℕ))
   have hucap := hreg capacity (by decide) (by decide) (by decide) (by decide)
   have hudesc := hreg descriptors (by decide) (by decide) (by decide) (by decide)
   have hu1 : u.regs one = 1 := by regs_frame
-  have hud : u.regs dst = x.regs heap := by
-    simpa +decide [a] using hu.regs_eq (i := dst) (by decide)
+  have hud : u.regs dst = x.regs heap := by regs_frame
   have hum : Block.HoldsList (x.regs heap) (Math.array U Λ rs j) u.mem := by
     simpa +decide [a] using hmem
   obtain ⟨y, hy, hyc, hyh, hym⟩ := write_exec u hu1

@@ -207,8 +207,7 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
       split_ifs <;> simp only [Function.update_of_ne hne]
     refine ⟨z, he, ?_, hzi⟩
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro j hj
-      exact (he.regs_eq hj).trans (hr j hj)
+    · regs_frame
     · rw [hsuc, List.length_append, hzo, hout]
       cases k <;> simp
     · ram_keep hkeys using hf

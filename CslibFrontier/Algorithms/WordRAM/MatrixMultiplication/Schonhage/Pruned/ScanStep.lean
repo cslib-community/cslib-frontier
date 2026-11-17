@@ -76,7 +76,7 @@ theorem exec_suffix {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
   obtain ⟨y, hy, hc, hm, hf⟩ := exec_emit z hz1 hzs hzl hzn
   have he : ExecWithin w (putSuffix child) x y 10 := hpre.seq hy
   refine ⟨y, he, ?_, ?_, ?_, fun i hi => he.regs_eq (suffix_preserves child i hi)⟩
-  · simpa [z] using hf suffix (by decide)
+  · regs_frame
   · simpa [z, stamps, suffix, childCount, epoch] using hc
   · simpa [z, stamps, suffix, childList, childCount, epoch] using hm
 
