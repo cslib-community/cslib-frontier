@@ -103,9 +103,9 @@ theorem stdGaussian_map_inner_prod {u v : E} (huv : ⟪u, v⟫ = 0) :
 in a measurable set `s` with probability at most `volume s / (√(2π) ‖u‖)`. -/
 theorem stdGaussian_inner_mem_le {u : E} (hu : u ≠ 0) {s : Set ℝ} (hs : MeasurableSet s) :
     stdGaussian E {x | ⟪u, x⟫ ∈ s} ≤ ENNReal.ofReal (√(2 * Real.pi) * ‖u‖)⁻¹ * volume s := by
-  have hv : ‖u‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnnorm_ne_zero_iff.2 hu)
+  have hv : ‖u‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnNorm_ne_zero_iff.2 hu)
   have h := gaussianReal_le_ofReal_mul_volume 0 hv s
-  rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop) hs, NNReal.coe_pow, coe_nnnorm,
+  rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop) hs, NNReal.coe_pow, coe_nnNorm,
     Real.sqrt_mul (by positivity), Real.sqrt_sq (norm_nonneg u)] at h
   exact h
 
@@ -115,7 +115,7 @@ theorem stdGaussian_le_abs_inner_le (u : E) {c : ℝ} (hc : 0 < c) :
     stdGaussian E {x | c ≤ |⟪u, x⟫|} ≤ ENNReal.ofReal (‖u‖ ^ 2 / c ^ 2) := by
   have h := gaussianReal_meas_ge_le 0 (‖u‖₊ ^ 2) hc
   rw [← stdGaussian_map_inner, Measure.map_apply (by fun_prop)
-    (measurableSet_le measurable_const (by fun_prop)), NNReal.coe_pow, coe_nnnorm] at h
+    (measurableSet_le measurable_const (by fun_prop)), NNReal.coe_pow, coe_nnNorm] at h
   simp only [sub_zero] at h
   exact h
 

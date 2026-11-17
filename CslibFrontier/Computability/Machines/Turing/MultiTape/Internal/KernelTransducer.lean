@@ -10,6 +10,7 @@ module
 public import Mathlib.Basic.Finite.Prod
 public import Mathlib.Data.Fintype.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelZeroSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelFacts
 import Mathlib.Tactic.TypeStar
@@ -54,10 +55,11 @@ public lemma run_nil (q : Q) : τ.run q [] = τ.final q := rfl
 public lemma run_cons (q : Q) (a : Symbol) (w : List Symbol) :
     τ.run q (a :: w) = (τ.step q a).2 ++ τ.run (τ.step q a).1 w := rfl
 
-/-- `τ` as a machine without work tapes. Its states are the states of `τ`, a pending output
-symbol, and whether the end of the input has been reached. -/
-public def toTM : MultiTapeTM 0 Symbol (Q × Option Symbol × Bool) :=
-  ofTr (τ.q₀, none, false) fun st inp _ =>
+/-- `τ` as an explicit transition table without work tapes. Its states are the states of `τ`,
+a pending output symbol, and whether the end of the input has been reached. -/
+@[expose] public def toMachine :
+    MultiTapeMachine 0 Symbol (Q × Option Symbol × Bool) Empty Id :=
+  MultiTapeMachine.ofTr (τ.q₀, none, false) fun st inp _ =>
     match st with
     | (q, some b, fin) =>
       { inputTape := 0, workTapes := Fin.elim0, output := some b, state := some (q, none, fin) }
@@ -71,6 +73,10 @@ public def toTM : MultiTapeTM 0 Symbol (Q × Option Symbol × Bool) :=
       | none =>
         { inputTape := 0, workTapes := Fin.elim0, output := (τ.final q).head?,
           state := some (q, (τ.final q).tail.head?, true) }
+
+/-- Forget the explicit transducer table into the deterministic machine semantics. -/
+@[expose] public def toTM : MultiTapeTM 0 Symbol (Q × Option Symbol × Bool) :=
+  τ.toMachine.toTM
 
 variable {input : List Symbol}
 
@@ -86,13 +92,15 @@ lemma step_pending (q : Q) (b : Symbol) (fin : Bool) (pos : Fin (input.length + 
     τ.toTM.step (cfg input (some (q, some b, fin)) pos o) = cfg input (some (q, none, fin)) pos
       (o ++ [b]) := by
   rw [step_of_state rfl]
-  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;> simp [cfg, toTM, Action.apply]
+  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;>
+    simp [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, Action.apply]
 
 /-- After the end of the input, the machine halts. -/
 lemma step_halt (q : Q) (pos : Fin (input.length + 2)) (o : List Symbol) :
     τ.toTM.step (cfg input (some (q, none, true)) pos o) = cfg input none pos o := by
   rw [step_of_state rfl]
-  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;> simp [cfg, toTM, Action.apply]
+  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;>
+    simp [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, Action.apply]
 
 /-- Flushing a possibly pending symbol takes at most one step. -/
 lemma exists_runFrom_flush (q : Q) (p : Option Symbol) (fin : Bool)
@@ -111,9 +119,11 @@ lemma step_read (q : Q) {i : ℕ} (hi : i < input.length) (o : List Symbol) :
   have hsym : (cfg input (some (q, none, false)) ⟨i + 1, by omega⟩ o).inputSymbol =
       some input[i] := inputSymbolInner i (by simp only [cfg]; omega) hi
   rw [step_of_state rfl, hsym]
-  refine Cfg.ext_zero_tapes (by simp [cfg, toTM, Action.apply]) ?_
-    (by simp [cfg, toTM, Action.apply])
-  simp only [cfg, toTM, tr_ofTr, Action.apply]
+  refine Cfg.ext_zero_tapes
+    (by simp [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, Action.apply]) ?_
+    (by simp [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, Action.apply])
+  simp only [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, tr_ofTr,
+    Action.apply]
   exact moveInputPos_pos_of_ne_right _ (by simp only; omega)
 
 /-- Reaching the end of the input. -/
@@ -124,7 +134,8 @@ lemma step_end (q : Q) (o : List Symbol) :
   have hsym : (cfg input (some (q, none, false)) ⟨input.length + 1, by omega⟩ o).inputSymbol =
       none := inputSymbol_eq_none_of_boundary (.inr rfl)
   rw [step_of_state rfl, hsym]
-  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;> simp [cfg, toTM, Action.apply]
+  refine Cfg.ext_zero_tapes ?_ ?_ ?_ <;>
+    simp [cfg, toTM, toMachine, MultiTapeMachine.toTM, MultiTapeMachine.ofTr, Action.apply]
 
 /-- From input position `i` on, the machine halts within `2 * (input.length - i) + 3` steps,
 having emitted what `τ` emits on the rest of the input. -/

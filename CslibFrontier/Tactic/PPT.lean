@@ -461,6 +461,14 @@ private meta def oraclePolyTimeEnvironment (env : Environment) : MetaM Environme
   unless matchedUnsafe.size == 1 do throwError "expected one PolyTime fallback simp rule"
   return modifyLocalRuleState ext env fun state => { state with normRules, unsafeRules }
 
+/-- Mark the PPT predicates irreducible in the search's environment copy. When a rule, certificate
+or hypothesis fails to match an `IsPPTOn` or `IsOraclePPTOn` goal on its arguments, unification
+otherwise compares the two machine-realization statements and unfolds their output distributions.
+Every other definition unfolds as before, so encodings and programs still match. -/
+private meta def foldedPredicateEnvironment (env : Environment) : Environment :=
+  modifyLocalRuleState reducibilityExtraExt env fun status =>
+    (status.insert ``IsPPTOn .irreducible).insert ``IsOraclePPTOn .irreducible
+
 /-- Certify a closed or oracle probabilistic program using proved sampling, composition and
 deterministic rules. Goals may be `IsPPTOn`, `IsPPT`, `IsOraclePPTOn` or `IsOraclePPT`.
 
@@ -483,8 +491,9 @@ rewrite encoded samplers). -/
   let oracle := hasOraclePPTGoal (← instantiateMVars (← getMainTarget))
   Cslib.Tactic.PolyTime.Internal.withFailureHint "ppt" <|
       Cslib.Tactic.PolyTime.Internal.withPlainRuleCache do
+    let env := foldedPredicateEnvironment (← getEnv)
     if oracle then
-      let env ← oraclePolyTimeEnvironment (← getEnv)
+      let env ← oraclePolyTimeEnvironment env
       withEnv env do
         evalTactic (← `(tactic| solve |
           aesop
@@ -494,13 +503,14 @@ rewrite encoded samplers). -/
                 assumptionTransparency := .reducible })
             (rule_sets := [OraclePPT, PPT, PolyTime])))
     else
-      evalTactic (← `(tactic| solve |
-        aesop
-          (config :=
-            { terminal := true
-              enableSimp := false
-              assumptionTransparency := .reducible })
-          (rule_sets := [PPT, PolyTime])))
+      withEnv env do
+        evalTactic (← `(tactic| solve |
+          aesop
+            (config :=
+              { terminal := true
+                enableSimp := false
+                assumptionTransparency := .reducible })
+            (rule_sets := [PPT, PolyTime])))
 
 end Cslib.Tactic.PPT
 

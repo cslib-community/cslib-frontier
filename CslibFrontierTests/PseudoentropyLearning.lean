@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Learning
+import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Training
 import CslibFrontier.Tactic.PPT
 

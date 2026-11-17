@@ -15,8 +15,10 @@ public meta import Lean.Elab.Tactic
 # Compositional polynomial resource bounds
 
 `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the existing constant,
-input-size, addition, multiplication and fixed-power rules, together with logarithm, square
-root, maximum, truncated subtraction and division bounds. It also accepts
+input-size, addition, multiplication and fixed-power rules, together with floor and ceiling
+logarithm, square root, maximum, one-sided minimum, truncated subtraction, division and
+remainder, conditional (`if`, non-dependent `dite`, `cond`), and structural `List.length` bounds
+(`[]`, `::`, `++`, `map`, `replicate`, `reverse`, `take`, `drop`). It also accepts
 `Cslib.PolynomiallyBounded` goals through the existing `fun_prop` rules.
 
 The leaves come from the local context:
@@ -47,15 +49,18 @@ the last one to `CslibFrontier.Computability`):
 When a certificate in the context gives no leaf because its lemma is not imported, the failure
 message names the module to import.
 
-Local `let` values, and definitions whose bodies are arithmetic, are unfolded. The tactic proves
-polynomial growth only. Word admission, exact time bounds and signed overflow conditions remain
-separate obligations, and it does not guess an intermediate size measure: a substitution needs
-the outer bound as a fact. Each step follows the syntax of the bound without backtracking, so a
-goal outside these rules fails at once and names the term it could not bound.
+Local `let` values, and definitions whose bodies are arithmetic, are unfolded without memoization;
+leaf checks may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The tactic proves polynomial
+growth only. Word admission, exact time bounds and signed overflow conditions remain separate
+obligations, and it does not guess an intermediate size measure: a substitution needs the outer
+bound as a fact. The search is bounded and syntax-directed—trying `min_left` then `min_right` once
+at each `min` node without backtracking across surrounding operations—so an unsupported goal fails
+directly and names the term it could not bound.
 
 ## Main declarations
 
-* `Turing.MultiTapeTM.PolyBounded.log`, `sqrt`, `max`, `sub`, `div`: further closure rules.
+* `Turing.MultiTapeTM.PolyBounded.log`, `clog`, `sqrt`, `max`, `min_left`, `min_right`, `sub`,
+  `div`, `mod`, `ite`, `cond`: further closure rules.
 * `Turing.MultiTapeTM.PolyBounded.of_polynomiallyBounded_comp`: substitution into a polynomially
   bounded function of one natural number.
 * `growth_poly`, `growth_poly [h₁, h₂]`: prove polynomial growth from these rules and the local
@@ -78,6 +83,14 @@ theorem log (b : ℕ) (hu : PolyBounded size u) :
     PolyBounded size (fun a => Nat.log b (u a)) :=
   hu.mono fun a => Nat.log_le_self b (u a)
 
+/-- Natural ceiling logarithms preserve polynomial growth in any input-size measure. -/
+theorem clog (b : ℕ) (hu : PolyBounded size u) :
+    PolyBounded size (fun a => Nat.clog b (u a)) :=
+  hu.mono fun a => by
+    rcases le_or_gt b 1 with hb | hb
+    · rw [Nat.clog_of_left_le_one hb]; exact Nat.zero_le _
+    · exact Nat.clog_le_of_le_pow (Nat.lt_pow_self hb).le
+
 /-- Natural square roots preserve polynomial growth in any input-size measure. -/
 theorem sqrt (hu : PolyBounded size u) : PolyBounded size (fun a => Nat.sqrt (u a)) :=
   hu.mono fun a => Nat.sqrt_le_self (u a)
@@ -87,6 +100,16 @@ theorem max (hu : PolyBounded size u) (hv : PolyBounded size v) :
     PolyBounded size (fun a => Max.max (u a) (v a)) :=
   (hu.add hv).mono fun _ => max_le (Nat.le_add_right _ _) (Nat.le_add_left _ _)
 
+/-- The minimum of two functions preserves a polynomial bound on its first argument. -/
+theorem min_left (hu : PolyBounded size u) (v : α → ℕ) :
+    PolyBounded size (fun a => Min.min (u a) (v a)) :=
+  hu.mono fun a => Nat.min_le_left (u a) (v a)
+
+/-- The minimum of two functions preserves a polynomial bound on its second argument. -/
+theorem min_right (u : α → ℕ) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => Min.min (u a) (v a)) :=
+  hv.mono fun a => Nat.min_le_right (u a) (v a)
+
 /-- Truncated subtraction preserves a polynomial bound on its first argument. -/
 theorem sub (hu : PolyBounded size u) (v : α → ℕ) : PolyBounded size (fun a => u a - v a) :=
   hu.mono fun a => Nat.sub_le (u a) (v a)
@@ -94,6 +117,26 @@ theorem sub (hu : PolyBounded size u) (v : α → ℕ) : PolyBounded size (fun a
 /-- Natural division preserves a polynomial bound on its dividend. -/
 theorem div (hu : PolyBounded size u) (v : α → ℕ) : PolyBounded size (fun a => u a / v a) :=
   hu.mono fun a => Nat.div_le_self (u a) (v a)
+
+/-- Natural remainder preserves a polynomial bound on its dividend. -/
+theorem mod (hu : PolyBounded size u) (v : α → ℕ) : PolyBounded size (fun a => u a % v a) :=
+  hu.mono fun a => Nat.mod_le (u a) (v a)
+
+/-- Conditional expressions preserve polynomial bounds across their branches. -/
+theorem ite {c : α → Prop} [DecidablePred c] (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => if c a then u a else v a) :=
+  (hu.add hv).mono fun _ => by
+    split
+    · exact Nat.le_add_right _ _
+    · exact Nat.le_add_left _ _
+
+/-- Boolean conditionals preserve polynomial bounds across their branches. -/
+theorem cond {b : α → Bool} (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => _root_.cond (b a) (u a) (v a)) :=
+  (hu.add hv).mono fun a => by
+    cases b a
+    · exact Nat.le_add_left _ _
+    · exact Nat.le_add_right _ _
 
 /-- Substitute a polynomially bounded argument into a polynomially bounded function of one
 natural number. -/
@@ -104,8 +147,10 @@ theorem of_polynomiallyBounded_comp {p : ℕ → ℕ} (hp : Cslib.PolynomiallyBo
 end Turing.MultiTapeTM.PolyBounded
 
 /-- `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the closure rules for
-constants, the input size, `+`, `*`, fixed powers, `Nat.log`, `Nat.sqrt`, `max`, truncated `-`
-and `/`. The leaves come from local `PolyBounded` facts, also inside conjunctions and definitions
+constants, the input size, `+`, `*`, fixed powers, `Nat.log`, `Nat.clog`, `Nat.sqrt`, `max`,
+one-sided `min`, truncated `-`, `/`, `%`, conditionals (`if`, non-dependent `dite`, `cond`), and
+structural `List.length` normalization (`[]`, `::`, `++`, `map`, `replicate`, `reverse`, `take`,
+`drop`). The leaves come from local `PolyBounded` facts, also inside conjunctions and definitions
 that unfold to them; from local certificates, through their output-length bound; and from local
 `Cslib.PolynomiallyBounded` functions or `PolyBounded` facts at another size, applied to a
 bounded argument. `growth_poly [h₁, h₂]` adds the facts `h₁` and `h₂`.
@@ -115,9 +160,11 @@ docstring lists them, for example `MultiTape.Internal.PolyTimePrimitives` for th
 of `ComputableInPolyTime`. When a certificate in the context gives no leaf for this reason, the
 failure names the module to import.
 
-Local `let` values and arithmetic definitions are unfolded. The search follows the syntax of the
-bound without backtracking: a goal outside these rules fails at once and names the term it could
-not bound. `Cslib.PolynomiallyBounded` goals go to `fun_prop`. -/
+Local `let` values and arithmetic definitions are unfolded without memoization, and leaf checks
+may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The search is bounded and
+syntax-directed—trying `min_left` then `min_right` once at each `min` node without backtracking
+across surrounding operations—so an unsupported goal fails directly and names the term it could not
+bound. `Cslib.PolynomiallyBounded` goals go to `fun_prop`. -/
 syntax (name := growthPoly) "growth_poly" (" [" term,* "]")? : tactic
 
 public meta section
@@ -280,9 +327,18 @@ private def opRule? (body : Expr) : Option Name :=
   | some ``HPow.hPow, 6 => some ``Turing.MultiTapeTM.PolyBounded.pow
   | some ``HSub.hSub, 6 => some ``Turing.MultiTapeTM.PolyBounded.sub
   | some ``HDiv.hDiv, 6 => some ``Turing.MultiTapeTM.PolyBounded.div
+  | some ``HMod.hMod, 6 => some ``Turing.MultiTapeTM.PolyBounded.mod
   | some ``Max.max, 4 => some ``Turing.MultiTapeTM.PolyBounded.max
   | some ``Nat.log, 2 => some ``Turing.MultiTapeTM.PolyBounded.log
+  | some ``Nat.clog, 2 => some ``Turing.MultiTapeTM.PolyBounded.clog
   | some ``Nat.sqrt, 1 => some ``Turing.MultiTapeTM.PolyBounded.sqrt
+  | _, _ => none
+
+/-- The closure rule for a conditional expression, by head constant and arity. -/
+private def condRule? (body : Expr) : Option Name :=
+  match body.getAppFn.constName?, body.getAppNumArgs with
+  | some ``_root_.ite, 5 => some ``Turing.MultiTapeTM.PolyBounded.ite
+  | some ``_root_.cond, 4 => some ``Turing.MultiTapeTM.PolyBounded.cond
   | _, _ => none
 
 /-- The arguments of an operation that must not depend on the input: a power's exponent and a
@@ -290,8 +346,64 @@ logarithm's base. -/
 private def fixedArgs (body : Expr) : Array Expr :=
   match body.getAppFn.constName? with
   | some ``HPow.hPow => #[body.getArg! 5]
-  | some ``Nat.log => #[body.getArg! 0]
+  | some ``Nat.log | some ``Nat.clog => #[body.getArg! 0]
   | _ => #[]
+
+/-- Rewrite a `dite` whose branches do not depend on the proof hypothesis to an `ite`. -/
+private def nondepDiteToIte? (body : Expr) : MetaM (Option Expr) := do
+  unless body.isAppOfArity ``_root_.dite 5 do return none
+  let cProp := body.getArg! 1
+  let inst := body.getArg! 2
+  let tBranch ← withLocalDeclD `h cProp fun h => do
+    let tb ← zetaHead ((body.getArg! 3).beta #[h])
+    return if tb.containsFVar h.fvarId! then none else some tb
+  let eBranch ← withLocalDeclD `hn (mkNot cProp) fun hn => do
+    let eb ← zetaHead ((body.getArg! 4).beta #[hn])
+    return if eb.containsFVar hn.fvarId! then none else some eb
+  let (some tb, some eb) := (tBranch, eBranch) | return none
+  return some (mkApp5 (mkConst ``_root_.ite [Level.one]) (mkConst ``Nat) cProp inst tb eb)
+
+/-- Normalize `List.length` of a list constructor or length-preserving/shrinking operation,
+returning an equality proof `body = rhs` when a structural rule applies. -/
+private def listLengthEq? (body : Expr) : MetaM (Option Expr) := do
+  unless body.isAppOfArity ``List.length 2 do return none
+  let elemTy := body.getArg! 0
+  let xs ← zetaHead (body.getArg! 1)
+  let cand? ← match xs.getAppFn.constName?, xs.getAppNumArgs with
+    | some ``List.nil, 1 =>
+      some <$> mkAppOptM ``List.length_nil #[some elemTy]
+    | some ``List.cons, 3 =>
+      some <$> mkAppOptM ``List.length_cons #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | some ``List.append, 3 =>
+      some <$> mkAppOptM ``List.length_append
+        #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | some ``HAppend.hAppend, 6 =>
+      let listTy ← inferType xs
+      if (← withNewMCtxDepth <| isDefEq (xs.getArg! 0) listTy) &&
+          (← withNewMCtxDepth <| isDefEq (xs.getArg! 1) listTy) then
+        some <$> mkAppOptM ``List.length_append
+          #[some elemTy, some (xs.getArg! 4), some (xs.getArg! 5)]
+      else pure none
+    | some ``List.map, 4 =>
+      some <$> mkAppOptM ``List.length_map
+        #[some (xs.getArg! 0), some (xs.getArg! 1), some (xs.getArg! 3), some (xs.getArg! 2)]
+    | some ``List.replicate, 3 =>
+      some <$> mkAppOptM ``List.length_replicate
+        #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | some ``List.reverse, 2 =>
+      some <$> mkAppOptM ``List.length_reverse #[some elemTy, some (xs.getArg! 1)]
+    | some ``List.take, 3 =>
+      some <$> mkAppOptM ``List.length_take
+        #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | some ``List.drop, 3 =>
+      some <$> mkAppOptM ``List.length_drop
+        #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | _, _ => pure none
+  let some eqPf := cand? | return none
+  let eqTy ← inferType eqPf
+  unless eqTy.isAppOfArity ``Eq 3 do return none
+  unless ← withNewMCtxDepth (isDefEq body (eqTy.getArg! 1)) do return none
+  return some eqPf
 
 /-- How `growth_poly` takes a goal apart. -/
 private inductive Step where
@@ -301,8 +413,12 @@ private inductive Step where
   | apply (rule : Name)
   /-- Apply this rule to the fact `pf` and continue with the remaining `PolyBounded` subgoals. -/
   | applyTo (rule : Name) (pf : Expr)
+  /-- Try proving the goal with `first`; if that fails, restore state and apply `second`. -/
+  | applyFirst (first second : Name)
   /-- Continue with this definitionally equal bounded function. -/
   | change (u : Expr)
+  /-- Reduce `u` to `u'` via a pointwise bound `∀ a, u a ≤ u' a`. -/
+  | mono (u' hle : Expr)
 
 /-- Is `e` a function from natural numbers to natural numbers? -/
 private def isNatFun (e : Expr) : MetaM Bool := do
@@ -364,9 +480,23 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
         `growth_poly [h]`.{MessageData.joinSep unused ""}"
     if body.isAppOfArity ``Nat.succ 1 then
       return .change (← mkLambdaFVars #[a] (mkNatAdd body.appArg! (mkNatLit 1)))
+    if body.isAppOfArity ``Min.min 4 then
+      return .applyFirst ``Turing.MultiTapeTM.PolyBounded.min_left
+        ``Turing.MultiTapeTM.PolyBounded.min_right
     if let some rule := opRule? body then
       if (fixedArgs body).any dependsOnInput then return ← fail
       return .apply rule
+    if let some rule := condRule? body then
+      return .apply rule
+    if let some iteExpr ← nondepDiteToIte? body then
+      return .change (← mkLambdaFVars #[a] iteExpr)
+    if let some eqPf ← listLengthEq? body then
+      let eqTy ← inferType eqPf
+      let rhs := eqTy.getArg! 2
+      let u' ← mkLambdaFVars #[a] rhs
+      let hle ← mkLambdaFVars #[a] (mkApp3 (mkConst ``Nat.le_of_eq) (eqTy.getArg! 1) rhs eqPf)
+      let expectedLe ← mkForallFVars #[a] (← mkAppM ``LE.le #[mkApp u a, mkApp u' a])
+      return .mono u' (← mkExpectedTypeHint hle expectedLe)
     let natFunApp ← pure body.isApp <&&> pure !(dependsOnInput body.appFn!) <&&>
       isNatFun body.appFn!
     -- A polynomially bounded function of one natural number, known from the context.
@@ -387,7 +517,8 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
       if !c.isInternal then
         if let some body' ← unfoldDefinition? body then
           let body' ← zetaHead body'
-          if (opRule? body').isSome || !dependsOnInput body' then
+          if (opRule? body').isSome || body'.isAppOfArity ``Min.min 4 ||
+              !dependsOnInput body' then
             return .change (← mkLambdaFVars #[a] body')
     -- A polynomially bounded function of one natural number, by `fun_prop`.
     if natFunApp then
@@ -403,21 +534,33 @@ private partial def prove (facts : Facts) (g : MVarId) (fuel : Nat) : MetaM Unit
   let goalTy ← whnfR (← instantiateMVars (← g.getType))
   let some (size, u) := polyBoundedArgs? goalTy |
     throwError "growth_poly: expected a `PolyBounded` goal, got{indentExpr goalTy}"
-  let rule ← match ← chooseStep facts goalTy size u with
-    | .close pf => g.assign pf; return
-    | .change u' =>
-      let g' ← g.replaceTargetDefEq (mkAppN goalTy.getAppFn #[goalTy.getArg! 0, size, u'])
-      return ← prove facts g' (fuel - 1)
-    | .apply rule => mkConstWithFreshMVarLevels rule
-    | .applyTo rule pf => applyTo rule pf
-  let gs ← g.apply rule
-  for g' in gs do
-    unless ← g'.isAssigned do
-      let ty ← whnfR (← instantiateMVars (← g'.getType))
-      if (polyBoundedArgs? ty).isSome then prove facts g' (fuel - 1)
-  for g' in gs do
-    unless ← g'.isAssigned do
-      throwError "growth_poly: could not determine{indentExpr (← g'.getType)}"
+  let applyRule (rule : Expr) : MetaM Unit := do
+    let gs ← g.apply rule
+    for g' in gs do
+      unless ← g'.isAssigned do
+        let ty ← whnfR (← instantiateMVars (← g'.getType))
+        if (polyBoundedArgs? ty).isSome then prove facts g' (fuel - 1)
+    for g' in gs do
+      unless ← g'.isAssigned do
+        throwError "growth_poly: could not determine{indentExpr (← g'.getType)}"
+  match ← chooseStep facts goalTy size u with
+  | .close pf => g.assign pf
+  | .change u' =>
+    let g' ← g.replaceTargetDefEq (mkAppN goalTy.getAppFn #[goalTy.getArg! 0, size, u'])
+    prove facts g' (fuel - 1)
+  | .mono u' hle =>
+    let g' ← mkFreshExprMVar (mkAppN goalTy.getAppFn #[goalTy.getArg! 0, size, u'])
+    g.assign (← mkAppM ``Turing.MultiTapeTM.PolyBounded.mono #[g', hle])
+    prove facts g'.mvarId! (fuel - 1)
+  | .apply rule => applyRule (← mkConstWithFreshMVarLevels rule)
+  | .applyTo rule pf => applyRule (← applyTo rule pf)
+  | .applyFirst first second =>
+    let saved ← saveState
+    try
+      applyRule (← mkConstWithFreshMVarLevels first)
+    catch _ =>
+      saved.restore
+      applyRule (← mkConstWithFreshMVarLevels second)
 
 elab_rules : tactic
   | `(tactic| growth_poly $[[$hints,*]]?) => focus do

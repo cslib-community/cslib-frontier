@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Masking
-public import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Learner
 import CslibFrontier.Languages.Probabilistic.Notation
 
@@ -20,16 +19,14 @@ weighted validation trial. The explicit learner then samples descriptions, choos
 and estimates their validation rates. Its output has positive weighted correlation with high
 probability. All target predictions receive only the public observation.
 
-The replay law and the masked source's extraction bound are explicit hypotheses. `SequenceLearner`
-constructs saved descriptions and obtains replay from a certified sequence test. Choosing uniform
-asymptotic parameters remains a separate step in the final cryptographic reduction.
+The replay law is an explicit hypothesis. `SequenceLearner` constructs saved descriptions and
+obtains replay from a certified sequence test. Choosing uniform asymptotic parameters remains a
+separate step in the final cryptographic reduction.
 
 ## Main results
 
 * `maskedSequence_validation_gap`: exact transfer from a sequence gap to weighted validation bias.
 * `maskedSequence_learn_error_pow`: sample a correlated predictor from that gap.
-* `extractedSequence_learn_error_pow_of_extraction_le`: pay the supplied test's extraction error
-  before learning.
 
 ## References
 
@@ -125,44 +122,5 @@ theorem maskedSequence_learn_error_pow [Fintype α]
       dyadicSize count * (1 / inverseGap : ℝ) := by ring
   rw [hfactor] at hdistinguish
   nlinarith
-
-/-- A distinguisher of extracted labels supplies a weak learner once its advantage exceeds
-the masked-source extraction error for that test. The statistical premise concerns the
-complete public observations, hash seed, and output. -/
-theorem extractedSequence_learn_error_pow_of_extraction_le {Seed Output : Type} [Fintype α]
-    (source : ProbComp α) (observe : α → β) (truth : α → Bool)
-    (mask : α → ProbComp Bool) (count : ℕ) (seed : ProbComp Seed)
-    (hash : Seed → List Bool → Output) (test : List β × Seed × Output → ProbComp Bool)
-    (ideal : PMF (List β × Seed × Output)) {ε : ℝ}
-    (hclose : (Game.advantage
-      ((ProbComp.eval (extractLabelsReal (maskedSample source observe truth mask) count seed
-        hash)).bind (fun output => ProbComp.eval (test output)))
-      (ideal.bind (fun output => ProbComp.eval (test output))) : ℝ) ≤ ε)
-    (candidates : ProbComp (List Bool)) (predict : List Bool → β → Bool)
-    (hrealize : ∀ value ∈ (ProbComp.eval source).support,
-      ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
-        ProbComp.eval (maskedSequencePredictor source observe truth mask count
-          (fun samples => extractLabels seed hash samples >>= test) (observe value)))
-    (confidence inverseGap : ℕ) (hgap : 0 < inverseGap)
-    (hdistinguish : (dyadicSize count : ℝ) / inverseGap + ε ≤
-      (Game.advantage (ProbComp.eval (extractLabelsReal
-        ((fun value => (observe value, truth value)) <$> source) count seed hash >>= test))
-        (ideal.bind (fun output => ProbComp.eval (test output))) : ℝ)) :
-    ((ProbComp.eval (learn candidates (fun code => weightedTrial source mask
-      (fun value => pure (predict code (observe value) == truth value)))
-        confidence inverseGap)).toOuterMeasure
-      {code | ¬ 1 / (2 * inverseGap) ≤ ∑ value, (ProbComp.eval source value).toReal *
-        (Pr[mask value] * signedVote (signedPredict predict code (observe value))
-          (truth value))}).toReal ≤
-      (((confidence + 1) * (4 * inverseGap) ^ 2 : ℕ) + 1) * (1 / 2 : ℝ) ^ confidence := by
-  apply maskedSequence_learn_error_pow source observe truth mask count
-    (fun samples => extractLabels seed hash samples >>= test) candidates predict hrealize
-    confidence inverseGap hgap
-  have h := extractLabels_sequence_gap_of_extraction_le
-    ((fun value => (observe value, truth value)) <$> source)
-    (maskedSample source observe truth mask) count seed hash test ideal hclose
-  rw [extractLabelsReal, bind_assoc] at hdistinguish
-  have hgap' := (le_sub_iff_add_le.mpr hdistinguish).trans h
-  simpa only [Game.coe_advantage, Game.coe_succProbability] using hgap'
 
 end Cslib.Crypto.Pseudoentropy

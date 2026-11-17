@@ -53,7 +53,8 @@ clause and the conjunction of the finished clauses at fixed offsets from the end
 * `Cslib.Complexity.CircuitSAT.mem_NP`: circuit satisfiability is in `NP`.
 * `Cslib.Complexity.SAT.toCircuit_mem_CircuitSAT_iff`: the circuit of a formula is satisfiable
   exactly when the formula is.
-* `Cslib.Complexity.SAT.polyTimeReducible_CircuitSAT`: `SAT` reduces to `CircuitSAT` in
+* `Cslib.Complexity.SAT.computableInPolyTime_toCircuit`,
+  `Cslib.Complexity.SAT.polyTimeReducible_CircuitSAT`: `SAT` reduces to `CircuitSAT` in
   polynomial time.
 * `Cslib.Complexity.CircuitSAT_npHard`, `Cslib.Complexity.CircuitSAT_npComplete`: circuit
   satisfiability is `NP`-hard and `NP`-complete.
@@ -424,7 +425,7 @@ private theorem computableInPolyTime_circuitGates :
 
 /-- Building the circuit of a formula is polynomial-time, from the encoding `encCNF` of formulas
 to the binary encoding `encCircuit 1` of circuits. -/
-private theorem computableInPolyTime_toCircuit :
+theorem computableInPolyTime_toCircuit :
     ComputableInPolyTime toCircuit encCNF (encCircuit 1) := by
   have hg := computableInPolyTime_circuitGates
   have hvars := SAT.computableInPolyTime_vars

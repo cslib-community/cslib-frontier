@@ -7,8 +7,9 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.Berlekamp
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Basic
@@ -57,7 +58,7 @@ further from `O(N ^ (4 / 5))` to `O(log N)` [Li2023] remains open.
 * `Cslib.AffineDisperser.Li.ordTwoMod`, `qAdicValTwoPowSubOne`, `shoupCyclicFactor`,
   `shoupBeta`, `shoupPowers`, `shoupMinPolyMatrix`, `shoupIrreducibleBits`: Shoup's deterministic
   irreducible polynomial algorithm over `𝔽₂`.
-* `Cslib.AffineDisperser.Li.primeMulTable`, `primeDisperserBits`, `primeDisperser`,
+* `Cslib.AffineDisperser.Li.primeDisperserBits`, `primeDisperser`,
   `primeThreshold`: the single-prime affine disperser and its dimension threshold.
 
 ## Main results
@@ -78,6 +79,8 @@ further from `O(N ^ (4 / 5))` to `O(log N)` [Li2023] remains open.
 -/
 
 public section
+
+open Cslib.BinaryField
 
 namespace Cslib.AffineDisperser.Li
 
@@ -1482,7 +1485,7 @@ private theorem shoupPowers_entry_length {q m : ℕ} (hm1 : 1 ≤ m) (f : List B
       simp only [List.range_zero, List.foldl_nil]
       rw [List.getD_eq_getElem _ _ (by rw [List.length_map, List.length_range]; exact hi),
         List.getElem_map, List.getElem_range]
-      split_ifs <;> (simp; try omega)
+      split_ifs <;> first | (simp; omega) | simp
     | succ n ih =>
       rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
       dsimp only at ih ⊢
@@ -1700,20 +1703,11 @@ theorem natDegree_polyOfBits_shoupIrreducibleBits {q : ℕ} (hq : q.Prime) (hq3 
 /-- Symmetric-polynomial degree `t = max 1 ⌊N ^ (1 / 5)⌋` for the single-prime disperser. -/
 @[expose] def primeSymDeg (N : ℕ) : ℕ := max 1 (fifthRoot N)
 
-/-- Power-basis multiplication table for `𝔽₂[X] / (g)` (`q = g.length - 1`). Entry `(u, v)` stores
-the reduced bit-list of `X ^ (u + v) mod g`. -/
-@[expose] def primeMulTable (g : List Bool) : List (List (List Bool)) :=
-  let q := g.length - 1
-  let tab := powerTable g
-  (List.range q).map fun u =>
-    (List.range q).map fun v =>
-      tab.getD (u + v) []
-
 /-- Raw-bit evaluator for `primeDisperser` on a bit list of length `N`. -/
 @[expose] def primeDisperserBits (N : ℕ) (x : List Bool) : Bool :=
   let q := primeDeg N
   let g := shoupIrreducibleBits q
-  traceSymCoords (primeMulTable g) (N / q) (primeSymDeg N) x
+  traceSymCoords (powerMulTable g) (N / q) (primeSymDeg N) x
 
 /-- Unconditional explicit affine disperser for dimension `O(N ^ (4 / 5))`, evaluating
 Ben-Sasson and Kopparty's `traceSym 1 r t` over `𝔽_{2 ^ q}` (`q = primeDeg N ≈ N ^ (3 / 5)`). -/
@@ -1728,71 +1722,22 @@ Ben-Sasson and Kopparty's `traceSym 1 r t` over `𝔽_{2 ^ q}` (`q = primeDeg N 
   let t := primeSymDeg N
   (N - r * q) + (r * (r + 1) + r * (r + 1) + q * t + q * r / t)
 
-private theorem getLast_of_polyTrim_eq_self {g : List Bool} (ht : polyTrim g = g)
-    (hne : g ≠ []) : g.getLast hne = true := by
-  by_contra hnt
-  have hf : g.getLast hne = false := Bool.eq_false_iff.mpr hnt
-  have hdrop : g = g.dropLast ++ [false] := by
-    conv_lhs => rw [← List.dropLast_append_getLast hne, hf]
-  have hlen : (polyTrim g).length ≤ g.dropLast.length := by
-    nth_rw 1 [hdrop]
-    rw [polyTrim, List.foldr_append]
-    simp only [List.foldr_cons, List.foldr_nil, Bool.false_or, List.isEmpty_nil,
-      Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-    rw [← polyTrim]
-    exact length_polyTrim_le _
-  rw [ht, List.length_dropLast] at hlen
-  have := List.length_pos_of_ne_nil hne
-  omega
-
-/-- `primeMulTable g` satisfies `IsMulTable` for the power basis of `𝔽₂[X] / (polyOfBits g)`. -/
-theorem primeMulTable_isMulTable {g : List Bool} {q : ℕ}
-    [Fact (Irreducible (polyOfBits g))] (hdeg : (polyOfBits g).natDegree = q)
+/-- `powerMulTable g` satisfies `IsMulTable` for the power basis of `𝔽₂[X] / (polyOfBits g)`. -/
+private theorem primeDisperser_isMulTable {g : List Bool} {q : ℕ}
+    [Fact (Irreducible (polyOfBits g))] (_hdeg : (polyOfBits g).natDegree = q)
     (htrim : polyTrim g = g) (hlen : g.length = q + 1)
     (b : Basis (Fin q) (ZMod 2) (AdjoinRoot (polyOfBits g)))
     (hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.1) :
-    IsMulTable b (primeMulTable g) := by
-  set F := AdjoinRoot (polyOfBits g)
-  set α : F := AdjoinRoot.root (polyOfBits g)
-  have hne : g ≠ [] := List.ne_nil_of_length_pos (by omega)
-  have hlast : g.getLast hne = true := getLast_of_polyTrim_eq_self htrim hne
-  have hg_drop : g.dropLast ++ [true] = g := by
-    conv_rhs => rw [← List.dropLast_append_getLast hne, hlast]
-  have hg_drop_len : g.dropLast.length = q := by
-    rw [List.length_dropLast, hlen]
-    omega
-  have hα : (polyOfBits (g.dropLast ++ [true])).aeval α = 0 := by
-    rw [hg_drop, show α = AdjoinRoot.root (polyOfBits g) from rfl, AdjoinRoot.aeval_eq,
-      AdjoinRoot.mk_self]
-  have hirr : Irreducible (polyOfBits g) := Fact.out
-  have hdeg_pos : 0 < (polyOfBits g).natDegree := hirr.natDegree_pos
-  unfold IsMulTable
-  refine ⟨by simp [primeMulTable, hlen], fun u v => ?_⟩
-  have htable_def : tableEntry (primeMulTable g) u.1 v.1 =
-      (powerTable g).getD (u.1 + v.1) [] := by
-    unfold tableEntry primeMulTable
-    have hq_len : g.length - 1 = q := by omega
-    rw [hq_len]
-    set rows := (List.range q).map fun i =>
-      (List.range q).map fun j => (powerTable g).getD (i + j) []
-    have hrows : rows.length = q := by simp [rows]
-    rw [List.getD_eq_getElem rows [] (by omega)]
-    dsimp only [rows]
-    rw [List.getElem_map, List.getElem_range]
-    set row := (List.range q).map fun j => (powerTable g).getD (u.1 + j) []
-    have hrow : row.length = q := by simp [row]
-    rw [List.getD_eq_getElem row [] (by omega)]
-    dsimp only [row]
-    rw [List.getElem_map, List.getElem_range]
-  have hp_eval : α ^ (u.1 + v.1) =
-      ∑ d ∈ Finset.range g.dropLast.length,
-        bitEquiv.symm (((powerTable g).getD (u.1 + v.1) []).getD d false) • α ^ d := by
-    have hpt := pow_eq_sum_powerTable g.dropLast hα (e := u.1 + v.1) (by rw [hg_drop_len]; omega)
-    simpa only [hg_drop] using hpt
-  rw [hb u, hb v, ← pow_add, hp_eval, hg_drop_len, fieldOfBits, htable_def,
-    ← Fin.sum_univ_eq_sum_range]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [hb i]
+    IsMulTable b (powerMulTable g) := by
+  obtain h | ⟨l, hl⟩ := polyTrim_eq_nil_or_append_true g
+  · rw [htrim] at h
+    simp [h] at hlen
+  · rw [htrim] at hl
+    have hl_len : l.length = q := by simpa [hl] using hlen
+    have hα : (polyOfBits (l ++ [true])).aeval (AdjoinRoot.root (polyOfBits g)) = 0 := by
+      rw [← hl, AdjoinRoot.aeval_eq, AdjoinRoot.mk_self]
+    rw [show powerMulTable g = powerMulTable (l ++ [true]) from congrArg powerMulTable hl]
+    exact isMulTable_powerMulTable hl_len _ hα b hb
 
 /-- `primeDisperser N` is an affine disperser for dimension `primeThreshold N + 1`. -/
 theorem isAffineDisperser_primeDisperser (N : ℕ) :
@@ -1816,8 +1761,8 @@ theorem isAffineDisperser_primeDisperser (N : ℕ) :
     dsimp only [b]
     rw [Basis.reindex_apply, pb.coe_basis, AdjoinRoot.powerBasis_gen]
     rfl
-  have hmul : IsMulTable b (primeMulTable g) :=
-    primeMulTable_isMulTable hdeg htrim hlen b hb
+  have hmul : IsMulTable b (powerMulTable g) :=
+    primeDisperser_isMulTable hdeg htrim hlen b hb
   have ht : 0 < primeSymDeg N := by unfold primeSymDeg; omega
   have hrn : (N / q) * q ≤ N := Nat.div_mul_le_self N q
   have hfinF : Module.Finite (ZMod 2) F := pb.finite

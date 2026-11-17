@@ -60,6 +60,8 @@ open Cslib.Query (LEQuery UpperBound)
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 variable {α β : Type} {t : ℕ} {k : α} {tr : BTree α β}
 
 /-- Erasure, counting comparisons. -/

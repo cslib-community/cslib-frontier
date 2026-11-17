@@ -227,7 +227,7 @@ example : GlueComputes .exact (fun v : Fin 1 → ℕ => 2 * v 0 ≤ 100)
     · intros; rfl
     all_goals intros; (try dsimp [BinOp.eval, Function.comp_def] at *); omega
   exact h.reindex (fun _ => 0)
-    (by intros; (try dsimp [BinOp.eval, Function.comp_def] at *); omega) (by intros; rfl)
+    (by intros; (dsimp [BinOp.eval, Function.comp_def] at *); omega) (by intros; rfl)
 
 -- This function's body is opaque in this importing module. Composition reuses its certificate.
 example : GlueComputable .exact (fun v => WordRAMGlueNamed.twice (v 0 + v 1))

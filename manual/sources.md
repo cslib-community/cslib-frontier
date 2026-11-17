@@ -159,10 +159,20 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2`, the `PublicCoinIOP` `friIOP`, perfect completeness, and exact query accounting—`kFinal + q * (3 * m + 2)` committed-proof-oracle openings (`FRIParams.proofOracleQueries`, via `PublicCoinIOP.queries`) plus `q` direct input-word reads (`FRIParams.inputWordReads`, via `friInputQueries`), for `kFinal + q * (3 * m + 3)` total word queries (`FRIParams.totalWordQueries`, matching the paper's counting of both input-word and prover-table queries on pp. 14:3–14:4)—are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean) and [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean). In [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean), the round-by-round soundness invariant (`friIOP_rbrSound`) and query-round escape bound (`friQueryRound_escape_le`) are unconditional, whereas the generic commit-round escape, uniform round-by-round escape, and two-channel BCS random-oracle soundness bounds (`friCommitRound_escape_le_of_weightedLineGap`, `friRBREscape_of_weightedLineGap`, `friBCS_romSoundness_bound_of_*`, paired with [bcs16](#bcs16) and [bciks20](#bciks20)) are conditional steps assuming a line proximity-gap theorem (`WeightedLineGapBound` or `UniqueLineGapHypothesis`); only the fixed `params257` client in [CslibFrontierTests/Crypto/FRI.lean](../CslibFrontierTests/Crypto/FRI.lean) discharges that hypothesis unconditionally here, so these modules do not yet establish the general unconditional source soundness endpoint.
+
 <a id="bcgl92"></a>
 ## bcgl92
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
+
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section/theorem locators follow ePrint 2020/654 (Section 8). Batched FRI coset folding and the unconditional FRI IOP round-by-round invariant and query-round escape bound are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean) and [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean); the generic commit-phase escape, unique-decoding weighted upgrade, and two-channel BCS random-oracle composition bounds in [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) are conditional steps assuming a line proximity-gap hypothesis (`WeightedLineGapBound` or `UniqueLineGapHypothesis`) rather than the general unconditional soundness endpoint of Section 8, with only the fixed `params257` client in [CslibFrontierTests/Crypto/FRI.lean](../CslibFrontierTests/Crypto/FRI.lean) discharging that hypothesis unconditionally here.
 
 <a id="bcs16"></a>
 ## bcs16
@@ -208,6 +218,16 @@ Claude Berge. *Two Theorems in Graph Theory*. Proceedings of the National Academ
 ## berge58
 
 Claude Berge. *Sur le couplage maximum d'un graphe*. Comptes Rendus Hebdomadaires des Séances de l'Académie des Sciences 247, 258–259, 1958. Bibliographic data from secondary bibliographies; the note was not inspected, and no theorem number is claimed. The manual attributes to it the Tutte–Berge formula, following [schrijver17](#schrijver17), Section 5.1.
+
+<a id="berger1966"></a>
+## berger1966
+
+Robert Berger. *The Undecidability of the Domino Problem*. Memoirs of the American
+Mathematical Society 66, 1966. [Publisher record](https://doi.org/10.1090/memo/0066).
+Bibliographic metadata checked on 2026-11-16 against the publisher record and its Crossref
+deposit. The book's full text was inaccessible in this pass: internal locator not verified.
+The formalization uses the later Robinson–Ollinger route described under
+[Jeandel–Vanier](#jeandelvanier2020), ported from the pinned lean-wang revision there.
 
 <a id="bermanhartmanis75"></a>
 ## bermanhartmanis75
@@ -839,6 +859,17 @@ Venkatesan Guruswami, Atri Rudra and Madhu Sudan. *Essential Coding Theory*. Dra
 
 The draft does not name Wolfowitz. The manual's attribution of the strong converse for discrete memoryless channels to him is standard background and was not checked against his paper.
 
+Multiplicity list decoding of Reed–Solomon codes (the Guruswami–Sudan algorithm) appears in Chapter 12 of this 26 August 2025 draft (checked correspondence, printed pp. 253–259):
+
+- §§12.2.3–12.2.4: adding multiplicities to Sudan's algorithm, with Definitions 12.2.8–9 (multiplicity vanishing via shifted polynomials and Hasse derivatives, formalized in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) as `Polynomial.Bivariate.shift`, `Polynomial.Bivariate.hasseDerivBiv`, and `Polynomial.Bivariate.VanishesToOrder`);
+- Algorithm 12.2.3 and Lemmas 12.2.10–11: multiplicity interpolation and root-divisibility (formalized in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean) as `Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.GuruswamiSudan.weightedInterpolant`, `Cslib.Code.GuruswamiSudan.interpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant.X_sub_C_dvd`, and `Cslib.Code.guruswamiSudan`);
+- Theorem 12.2.12: list decoding of Reed–Solomon codes up to the Johnson radius `1 - √ρ` (formalized as `Cslib.Code.mem_guruswamiSudan_johnson_iff` and `Cslib.Code.exists_guruswamiSudan_of_eps`).
+
+<a id="guruswamisudan99"></a>
+## guruswamisudan99
+
+Venkatesan Guruswami and Madhu Sudan. "Improved Decoding of Reed–Solomon and Algebraic-Geometry Codes." *IEEE Transactions on Information Theory* 45(6), 1757–1767, 1999; preliminary version FOCS 1998. https://doi.org/10.1109/18.782097 . The library's key is `GuruswamiSudan1999`. Bibliographic metadata checked against `references.bib`; the paywalled IEEE article body was not inspected directly, so no journal theorem or page locator is claimed. The formalized exposition follows [Essential Coding Theory](#guruswamirudrasudan25), §§12.2.3–12.2.4, Definitions 12.2.8–9, Algorithm 12.2.3, Lemmas 12.2.10–11, and Theorem 12.2.12 (pp. 253–259), with characteristic-independent bivariate polynomial algebra (`Polynomial.Bivariate.VanishesToOrder`, `Polynomial.Bivariate.weightedDegree`) in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) and Reed–Solomon multiplicity interpolation and Johnson-radius decoding (`Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.guruswamiSudan`, `Cslib.Code.mem_guruswamiSudan_johnson_iff`, `Cslib.Code.exists_guruswamiSudan_of_eps`) in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean).
+
 <a id="gusfield90"></a>
 ## gusfield90
 
@@ -1038,6 +1069,106 @@ Sandy Irani. "Two Results on the List Update Problem." *Information Processing L
 ## jansonluczakrucinski2000
 
 Svante Janson, Tomasz Łuczak and Andrzej Ruciński. *Random Graphs*. Wiley-Interscience Series in Discrete Mathematics and Optimization, Wiley, 2000. https://doi.org/10.1002/9781118032718 . Bibliographic data from secondary records of the DOI. The chapter locator (Chapter 3, small subgraphs and the threshold `n ^ (-1 / m(H))`) was taken from secondary descriptions; the book was not inspected in this pass, and no theorem number is claimed.
+
+<a id="jeandelvanier2020"></a>
+## jeandelvanier2020
+
+Emmanuel Jeandel and Pascal Vanier. *The Undecidability of the Domino Problem*. In Shigeki
+Akiyama and Pierre Arnoux (eds.), *Substitution and Tiling Dynamics*, Lecture Notes in Mathematics
+2273, 293–357, Springer, 2020. [Publisher record](https://doi.org/10.1007/978-3-030-57666-0_6);
+[authors' manuscript](https://www.lacl.fr/pvanier/rech/cirm.pdf). Read on 2026-11-16 by the
+authoring Codex workers: §3.2 (beginning on manuscript p. 22), Definition 10 and Theorem 9
+(p. 23), Proposition 8 (p. 24), and Figures 13–16 (pp. 25–26). The tile set is attributed to
+[Ollinger](#ollinger2008) on p. 24. The Robinson modules use
+[lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3aaaef3eac65559352ef94f62ab9c00482)
+at that revision, retaining its authors and Apache-2.0 credit. “Corrected” identifies its
+Figure 13 component transcription and the second thick-layer summand at `L2b` in Figure 16(c),
+whose southeast extension uses `R1` rather than `R3`
+([plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98)).
+Both thick-layer boundary lanes are retained. This records lean-wang's correction, not a
+verified erratum to the printed figures; historical correction: locator not verified.
+Full agreement with those figures is not checked in Lean. The hierarchy modules formalize
+matching substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
+they do not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The routing worker additionally read §3.3, pp. 26–29, on 2026-11-16: light/dark separation,
+obstruction signals, free-grid transmission and the two directions of seed removal.
+Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
+consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
+and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
+Canonical patches assign nearest-border obstruction signals to matching decorated
+substitutions and establish that the resulting finite scaffold tiles the plane.
+Carrier/BorderCertificates retains the 376-state invariant from
+[ShadedCarrierBorderHierarchyData](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedCarrierBorderHierarchyData.lean).
+Each state records a decorated node, coordinate parities and a three-by-three border halo.
+Indexed witnesses certify all sixteen child refinements, visible border observations and
+index-zero child configurations. Carrier/Borders gives these certificates their recursive
+frame interpretation.
+Carrier/Borders, Carrier/Addresses, Carrier/Corners and Realization port the pinned
+revision's ShadedCarrierHierarchy, ShadedCarrierBorderHierarchy, ShadedCarrierBorderGeometry,
+ShadedCarrierBorderIntervals, ShadedCarrierSquareGeometry, ShadedCarrierHierarchyAddressing,
+ShadedCarrierConcreteRoles and ShadedCarrierCornerAddressing. Recursive owner frames identify
+the canonical carriers, their integer addresses satisfy wire equations, and every corner has
+address zero. Thus the concrete scaffold realizes every pointed payload plane, as in
+ShadedCarrierCornerAddressing.lean:435–440. The named border halo and `AddressedSquare`
+replace the source's raw halo lists and `SquareAddressing`; the carrier arithmetic and
+centered-marker induction closely follow the source.
+The backward authoring worker also read Theorem 10 on manuscript p. 29 and the proof-route
+attribution in §3.4, pp. 29–30, plus [Robinson's primary paper](https://lipn.univ-paris13.fr/~fernique/qc/robinson.pdf),
+§7, printed pp. 201–205, on 2026-11-16.
+The red-path and shading modules are after §3.3, Figures 17–18, manuscript
+pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
+emit signals on their exterior borders. The exact opposite-shade crossing rule (also
+forbidding dark–dark crossings), quarter-port connectivity, and nearest outward-facing
+light-boundary invariant come from lean-wang's red-graph and oriented-light modules at
+the same pinned revision; the discrete-height argument is not attributed to the manuscript. These are scaffold ingredients, not Theorem 10's endpoint.
+This source check is authoring evidence, not independent review.
+
+FreeGrid proves that every decoded scaffold plane contains a light consecutive marked grid
+for each requested number of rows and columns. Its
+canonical free-line inductions follow `coordinate_free_lines` in
+[CanonicalEvenFreeLines, line 417](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalEvenFreeLines.lean#L417)
+and [CanonicalOddFreeLines, line 449](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddFreeLines.lean#L449).
+Transfer to arbitrary shades follows `freeCoordinates` in
+[CanonicalShadeComparison, line 284](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalShadeComparison.lean#L284)
+and [CanonicalOddShadeComparison, line 361](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeComparison.lean#L361),
+sharing one comparison proof and using closed coordinate formulas instead of branch lists.
+Marker transport follows
+[ShadedMarkedFreeGrid, line 64](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedMarkedFreeGrid.lean#L64);
+the arbitrary-plane assembly and gap filling follow
+[SparseFreeLineDecodedMarkedGrid, line 43](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/SparseFreeLineDecodedMarkedGrid.lean#L43)
+and [ShadedConsecutiveFreeGrid, line 220](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedConsecutiveFreeGrid.lean#L220).
+The `RedPaths/Certificates` module supplies the odd-phase finite base after
+[CanonicalOddShadeBase.exists_boundedPath, line 22](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeBase.lean#L22),
+using the [oddNodes witnesses, line 5412](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/RedShadeGraphPathWitnesses.lean#L5412)
+with shared path prefixes and semantic-side certificates.
+
+FreeGrid/Obstruction turns these grids into routed grids: the outward-facing light boundary
+rules out extra crossings. It retains the signal-corridor argument and
+[ShadedObstructionGeometry.Geometry.crossingObstruction, line 252](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedObstructionGeometry.lean#L252),
+while separating the payload propagation of
+[ShadedPayloadCorridors.tileableFixedCornerSquare_of_consecutive, line 229](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedPayloadCorridors.lean#L229)
+into generic Routing. Forcing then proves `scaffold_forces : Forces scaffold`, after
+[OrientedLightForward.closed104_forcesRoutedFixedCornerSquares, line 32](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/OrientedLightForward.lean#L32):
+for every seeded payload and every combined plane tiling, there is a seeded payload square
+of each positive side length. There is no extra premise about the scaffold.
+The lean-wang declarations and locators above were checked against the pinned source by an
+authoring Codex worker on 2026-11-16; this is authoring evidence, not independent review.
+
+Robinson/Reduction discharges both concrete obligations and proves
+`TilesPlane (removeSeed I) ↔ TilesQuadrant I`, with a primitive-recursive map.
+Undecidable then proves Berger's theorem `¬ ComputablePred TilesPlane`, using the existing
+`List WangTile` instance encoding through `(top, bottom, left, right)`.
+This is after Robinson's proof in the Ollinger form presented here, ported and restructured
+from lean-wang's Robinson/Reduction.lean at the same revision. Its `(n, s, e, w)` record and
+`Fin 4 → ℕ` tiles encode the same fixed-orientation matching problem: our top/bottom/left/right
+correspond to n/s/w/e, reordering the last two coded components. The assembly authoring helper
+checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 directly on
+2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
+[Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
 
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
@@ -1498,6 +1629,20 @@ Igor Carboni Oliveira and Rahul Santhanam. *Conspiracies Between Learning Algori
 ## oliveirasanthanam2018
 
 Igor Carboni Oliveira and Rahul Santhanam. *Hardness Magnification for Natural Problems*. FOCS 2018, 65–76. https://doi.org/10.1109/FOCS.2018.00016 . Full version ECCC TR18-139. Bibliographic data comes from the repository bibliography; the paper was not inspected for this chapter. The Lean module documentation quotes Theorems 1, 5, 17 and 27 and Lemma 16 from the ECCC full version with page locators.
+
+<a id="ollinger2008"></a>
+## ollinger2008
+
+Nicolas Ollinger. *Two-by-Two Substitution Systems and the Undecidability of the
+Domino Problem*. In Arnold Beckmann, Costas Dimitracopoulos and Benedikt Löwe
+(eds.), *Logic and Theory of Algorithms*, Lecture Notes in Computer Science 5028,
+476–485, Springer, 2008. [Publisher record](https://doi.org/10.1007/978-3-540-69407-6_51).
+Bibliographic metadata checked at the publisher on 2026-11-16 by an authoring Codex
+agent. Cited as the origin of the tile set attributed to Ollinger in
+[Jeandel–Vanier](#jeandelvanier2020), manuscript p. 24 and Figure 13 on p. 25.
+The paper's full text was not available in this pass: internal theorem/figure
+locator not verified. The concrete formalization follows the pinned lean-wang
+transcription described in that registry entry.
 
 <a id="openaich26"></a>
 ## openaich26

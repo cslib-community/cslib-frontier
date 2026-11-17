@@ -65,7 +65,7 @@ theorem inner_tri (e : Fin 3) : ⟪tri (triEnds e).1, tri (triEnds e).2⟫ = -1 
     Matrix.cons_val, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one,
     PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Fin.sum_univ_two, one_mul, mul_one,
     mul_zero, zero_mul, neg_mul, mul_neg, neg_zero, add_zero]
-  all_goals nlinarith [sqrt3_sq]
+  nlinarith [sqrt3_sq]
 
 theorem sdpValue_tri : sdpValue triEnds triW tri = 9 / 4 := by
   simp only [sdpValue, inner_tri, triW, Fin.sum_univ_three]
