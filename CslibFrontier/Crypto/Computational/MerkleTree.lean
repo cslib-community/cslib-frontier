@@ -405,7 +405,6 @@ def isDigestPair (ℓ : ℕ) (x : List Bool) : Bool :=
     encPair encBits encBits (unframe x, dropFrame x) == x
 
 /-- A pairing is a digest pair exactly when both components have `ℓ` bits. -/
-@[simp]
 theorem isDigestPair_encPair (ℓ : ℕ) (l r : List Bool) :
     isDigestPair ℓ (encPair encBits encBits (l, r)) = (l.length == ℓ && r.length == ℓ) := by
   simp [isDigestPair, encPair_apply]

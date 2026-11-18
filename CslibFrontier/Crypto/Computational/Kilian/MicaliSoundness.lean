@@ -892,18 +892,11 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   have hstep_eq : merklePathStep (fun _ => hTree) [] = merklePathStep H k₀ := by
     funext st
     simp [merklePathStep, hparents]
-  have hcommit : kilianCommit (fun _ => hTree) V [] x table = kilianCommit H V k₀ x table := by
-    simp [kilianCommit, merkleRoot, merkleLevel, merkleLeafLevel, hparents, hH_eq]
   have hrespond (ρs : List (List Bool)) :
       kilianRespond (fun _ => hTree) V [] x table ρs = kilianRespond H V k₀ x table ρs := by
     simp [kilianRespond, kilianOpen, merklePath, merkleLeafLevel, hstep_eq, hH_eq]
-  have hroot : (kilianCommit (fun _ => hTree) V [] x table).length ≤ σ := by
-    rw [hcommit, kilianCommit, merkleRoot]
-    cases h : merkleLevel H k₀ (kilianLeaves (kilianTable V x table))
-        (Nat.clog 2 (kilianLeaves (kilianTable V x table)).length) with
-    | nil => simp
-    | cons y ys =>
-      rw [List.headD_cons, length_of_mem_merkleLevel (hlenH _) (h ▸ List.mem_cons_self), hk₀]
+  have hroot : (kilianCommit (fun _ => hTree) V [] x table).length ≤ σ :=
+    (length_merkleRoot (H := fun _ => hTree) (k := []) hlen _).le
   have hresp := kilianResponseBits_kilianRespond_le hlenH (k := k₀) (table := table) hq hρs
   have hdepth : (hFS (x, kilianCommit (fun _ => hTree) V [] x table)).length *
       (q * (1 + kilianDepth V x * k₀.length)) ≤
