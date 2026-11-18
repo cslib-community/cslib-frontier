@@ -243,6 +243,7 @@ import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
 import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
+import CslibFrontier.Crypto.Computational.Encryption.ParityPrediction
 import CslibFrontier.Crypto.Computational.Encryption.Functional
 import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
 import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
@@ -9526,6 +9527,44 @@ register_result "perfect-secrecy-zero-semantic-advantage" where
     variable-length one-time pad of Example 2.2, with L-bit keys and messages of at most L bits, \
     under the book's equal-length admissibility; this pad is not perfectly secure unless L = 0, \
     so this case does not follow from the first. Information-theoretic; no assumption."
+
+register_result "parity-prediction-from-semantic-security" where
+  title := "A semantically secure cipher with message space {0,1}^L is secure against parity \
+    prediction"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 2.8",
+      locator := "Section 2.2.3.2, pp. 20–22 (Attack Game 2.3, Definition 2.4 and Theorem 2.8, \
+        p. 21)" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage
+  ]
+  scope := "The cipher is a family of randomized encryption algorithms encryptSym n k m on bit \
+    words at security parameter n, with no system parameter. Its key is a uniform keyLen n-bit \
+    word: the book's uniformly sampled key space K is the set of keyLen n-bit words. Its message \
+    space is M = {0,1}^L with L = msgLen n. The premise is semantic security (Attack Game 2.1 \
+    and Definition 2.2, p. 16) against uniform strict PPT two-stage adversaries, for exactly the \
+    challenge pairs in M: DEMOneTimeKeyINDCPAOn with the predicate that both messages have \
+    msgLen n bits. A pair outside M makes both experiments output 0, and nothing is assumed \
+    about messages of other lengths. Encryption need not be efficient or correct, since the \
+    proof uses neither, and decryption is not modeled. Conclusion: every uniform strict PPT \
+    predictor A, given 1ⁿ and c ← E(k, m) for a uniform m ∈ {0,1}^(msgLen n), has negligible \
+    Parityadv[A, E] = |Pr[b̂ = parity(m)] − 1/2| (parityWordAdvantage; Attack Game 2.3 and \
+    Definition 2.4, p. 21). The theorem assumes 1 ≤ msgLen n for every n, which the book leaves \
+    implicit: at L = 0 the parity is constant and the conclusion fails, as the module's tests \
+    check. It also assumes msgLen is computable in polynomial time in unary. This follows from \
+    the book's requirements: M is efficiently recognizable (Definition 2.10, p. 31) and its \
+    words have polynomially bounded length (Definition 2.9, p. 30), so L is found by testing \
+    0^i ∈ M up to that bound. The reduction parityWordToDEMAdversary is the book's B: it draws \
+    a uniform m₀, sets m₁ = m₀ ⊕ (0^(L−1) ‖ 1) and outputs 1 iff b̂ = parity(m₀). \
+    isPPT_parityWordToDEMAdversary certifies it uniform strict PPT, and \
+    parityWordAdvantage_eq_half_mul_demKeyGameOn, in the same module, is the proof's equation \
+    Parityadv[A, E] = SSadv[B, E]/2 at each n. The tests check a cipher that pads \
+    msgLen n-bit messages and sends other messages in the clear: the theorem applies to it, \
+    and it fails the equal-length notion DEMOneTimeKeyWordINDCPA. \
+    parityAdvantage_eq_half_mul_advantage_parityReduction, in the same module, is the equation \
+    for one cipher over BitString L with any key sampler and is not listed."
 
 register_result "deterministic-cipher-not-indcpa" where
   title := "Deterministic and zero-expansion symmetric ciphers are not CPA-secure"
