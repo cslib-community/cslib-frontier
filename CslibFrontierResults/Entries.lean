@@ -191,6 +191,7 @@ import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
@@ -201,6 +202,8 @@ import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
+import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
+import CslibFrontier.Crypto.Computational.OneTimeSignature.DominationFree
 import CslibFrontier.Crypto.Computational.OneWay.Iterate
 import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
@@ -215,11 +218,15 @@ import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.RSAHash
+import CslibFrontier.Crypto.Computational.RSAUnitInversion
+import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
+import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
+import CslibFrontier.Crypto.Protocols.MPC.ProductRelation.Privacy
 import CslibFrontier.Crypto.Protocols.PIR.Block
 import CslibFrontier.Crypto.Protocols.PIR.Collusion
 import CslibFrontier.Crypto.Protocols.PIR.GeneralCover
@@ -228,6 +235,7 @@ import CslibFrontier.Crypto.Protocols.PIR.Interactive
 import CslibFrontier.Crypto.Protocols.PIR.MultiInteractive
 import CslibFrontier.Crypto.Protocols.PIR.Shamir
 import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
+import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.LinearEquivalence
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
@@ -6730,6 +6738,207 @@ register_result "two-point-blinded-cdh-hard" where
     1/2^n of uniform, so succProbability_blindedCDHPairGame_le, in the same module, bounds the \
     success probability by the reduction's CDH success plus 1/2^n. The PAKE₂ protocol and its \
     random-oracle analysis are not formalized."
+
+register_result "kem-dem-hybrid-ind-cpa" where
+  title := "KEM–DEM hybrid encryption is correct, and semantically secure when the KEM and the \
+    DEM are"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 11.9(a)–(b)",
+      locator := "Section 11.8, pp. 460–461" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn,
+    Cslib.Crypto.Encryption.hybridDecrypt_hybridEncrypt
+  ]
+  scope := "The hybrid scheme of the exercise: hybridEncrypt encaps encryptSym draws \
+    (k, c_kem) ← encaps n pk and c ← encryptSym n k m and outputs the framed pair (c_kem, c); \
+    hybridDecrypt decaps decryptSym rejects a malformed pair, then decapsulates and decrypts, \
+    propagating rejection. Part (a) (hybridDecrypt_hybridEncrypt): every ciphertext in the \
+    support of encryption under pk decrypts under sk to its message, when decapsulation under \
+    sk recovers every encapsulation under pk and the DEM decrypts its ciphertexts under every \
+    encapsulated key. Part (b) (KEMINDCPA.hybrid_indcpaOn). Hypotheses: KEMINDCPA keyLen keyGen \
+    encaps, the exercise's KEM semantic security against uniform strict PPT distinguishers, \
+    with K the keyLen n-bit words; DEMOneTimeKeyINDCPAOn valid encMsg keyLen encryptSym, \
+    semantic security of the DEM (Attack Game 2.1 and Definition 2.2, p. 16) under a uniform \
+    keyLen n-bit key against uniform strict PPT adversaries, for challenge pairs admitted by \
+    valid; valid is polynomial-time computable and ignores the public key; key generation, \
+    encapsulation and DEM encryption are uniform strict PPT. Conclusion: INDCPAOn valid \
+    encMsg, semantic security (Attack Game 11.1 and Definition 11.2, pp. 436–437) of the hybrid \
+    scheme against uniform strict PPT two-stage adversaries, for the same valid. Messages are \
+    a type Msg with an encoding, restricted by valid: taking valid to admit pairs of messages \
+    of M of equal length, which is polynomial time because M is efficiently recognizable \
+    (Definition 2.10, p. 31), gives the source's games; a wider valid is a stronger assumption \
+    on the DEM. Deviation: the KEM distinguisher also receives pk, which the exercise's \
+    challenger does not list (p. 460). Part (b) fails without it: a KEM whose key is its \
+    public key and whose encapsulation is empty is then secure, and its hybrid with the \
+    one-time pad is not. The assumptions inventory lists KEMINDCPA as standard with this \
+    deviation. The reductions hybridToKEMDistinguisher and hybridToDEMAdversary are certified \
+    strict PPT (isPPT_hybridToKEMDistinguisher, isPPT_hybridToDEMAdversary). Asymptotic; \
+    advantage_hybridGame_le_two_mul, in the same module, is the exercise's bound \
+    SSadv[A, E] ≤ 2 · SSadv[B_kem, E_kem] + SSadv[B_s, E_s], with the single hidden-bit \
+    distinguisher hybridToKEMHiddenBitDistinguisher. KEMINDCPA.hybrid_indcpa is the case in \
+    which every challenge pair is admissible."
+
+register_result "rsa-unit-preimage-variant" where
+  title := "The RSA assumption implies its variant with a uniform unit preimage"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 10.5", locator := "Section 10.6.2, p. 416" }
+  ]
+  theorems := [
+    Cslib.Crypto.RSAOneWay.rsaUnitOneWay
+  ]
+  scope := "Hypothesis: RSAOneWay gen, the RSA assumption (Attack Game 10.3 and Definition 10.5, \
+    pp. 404–405) for a key law gen on RSADesc, with the preimage x uniform in Z_N and uniform \
+    strict PPT inverters that read (1^n, N, e, y) and return a residue modulo N. Conclusion: \
+    RSAUnitOneWay gen, the variant of p. 416 in which the challenger draws x uniformly from \
+    Z_N^* and everything else is unchanged. The source fixes ℓ > 2 and an odd e > 2 and draws \
+    keys with RSAGen(ℓ, e); here gen is any law on valid RSA parameters (distinct primes p and \
+    q, and e·d ≡ 1 modulo (p − 1)(q − 1)), which need not be efficiently samplable, with no \
+    condition on ℓ or e. The book's B is unitRSAToRSA, certified strict PPT \
+    (isPPT_unitRSAToRSA): it passes a unit challenge to A, answers 0 with 0, and otherwise \
+    factors N with gcd(y, N) and returns y^d′ for a recomputed decryption exponent d′. \
+    Asymptotic; succProbability_rsaUnitInversionGame_le, in the same module, is the theorem's \
+    bound uRSAadv[A, ℓ, e] ≤ RSAadv[B, ℓ, e] at every security parameter."
+
+register_result "rsa-unit-preimage-converse" where
+  title := "The unit-preimage RSA variant implies the RSA assumption when the primes are large"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercises 10.25–10.26",
+      locator := "Section 10.11, p. 431" }
+  ]
+  theorems := [
+    Cslib.Crypto.dist_uniformOfFintype_zmod_units_lt,
+    Cslib.Crypto.RSAUnitOneWay.rsaOneWay,
+    Cslib.Crypto.rsaOneWay_iff_rsaUnitOneWay
+  ]
+  scope := "Exercise 10.25 (dist_uniformOfFintype_zmod_units_lt): for distinct primes p and q of \
+    at least ℓ bits, the uniform law on Z_pq and the uniform law on Z_pq^*, as residues, are at \
+    statistical distance less than 4/2^ℓ = 2^-(ℓ-2); the source's primes, from RSAGen(ℓ, e), \
+    have exactly ℓ bits. Exercise 10.26 (RSAUnitOneWay.rsaOneWay): RSAUnitOneWay gen, the \
+    variant after Theorem 10.5 (p. 416), implies RSAOneWay gen (Attack Game 10.3 and \
+    Definition 10.5, pp. 404–405), for a key law gen on valid RSA parameters, which need not be \
+    efficiently samplable, whose primes have at least n bits at security parameter n for all \
+    large n: the source's ℓ is n. Both games admit the same uniform strict PPT inverters, \
+    reading (1^n, N, e, y) and returning a residue modulo N, so the source's B is A itself and \
+    no reduction is defined. rsaOneWay_iff_rsaUnitOneWay adds the direction of Theorem 10.5 \
+    (entry rsa-unit-preimage-variant) under the same condition on gen. \
+    succProbability_rsaInversionGame_le_of_size, in the same module, is the exercise's bound \
+    RSAadv[A, ℓ, e] ≤ uRSAadv[A, ℓ, e] + 4/2^ℓ when every key's primes have at least ℓ bits, \
+    and RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le is the converse whenever the fraction of \
+    non-units modulo N is bounded by a negligible function, which covers other prime lengths."
+
+register_result "winternitz-domination-free" where
+  title := "The Winternitz checksum encoding is domination free"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 14.5", locator := "Section 14.3.1, p. 593" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneTimeSignature.winternitzDigits_dominationFree
+  ]
+  scope := "DominationFree is Definition 14.4 (p. 591): for distinct messages m and m′, P(m) is \
+    not coordinatewise at most P(m′). winternitzDigits d n0 n1 is the function P of \
+    Section 14.3.1 (pp. 592–593): the n0 base-(d + 1) digits of the message, then the n1 \
+    base-(d + 1) digits of the checksum d·n0 − (s_1 + … + s_n0). The theorem is stated for any \
+    message type with an injection f into the integers below (d + 1)^n0 and any n1 with \
+    d·n0 < (d + 1)^n1. The source's case is {0,1}^v read as the integers below 2^v, with n0 \
+    least such that 2^v ≤ (d + 1)^n0 and n1 = ⌈log_(d+1)(d·n0)⌉ + 1, which satisfies the \
+    inequality. Digits within each block are least significant first, where the source writes \
+    numbers in the usual order; one fixed permutation of the coordinates of every P(m) does \
+    not affect domination freeness. Unconditional combinatorics, with no adversary or \
+    sampling. The Winternitz signature scheme and Theorem 14.4 are not formalized. In the same \
+    module, winternitzDigitList_polyTime computes the encoding in polynomial time, and \
+    winternitzDigits_one_eq_one_iff_mem_optSet relates the case d = 1 to P_opt (p. 593)."
+
+register_result "optimized-lamport-containment-free" where
+  title := "The checksum encoding P_opt of optimized Lamport signatures is containment free"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 14.3", locator := "Section 14.2.1, p. 588" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneTimeSignature.optSet_containmentFree
+  ]
+  scope := "ContainmentFree is Definition 14.3 (p. 587): for distinct messages m and m′, P(m) is \
+    not a subset of P(m′). optSet v w is P_opt of Section 14.2.1 (p. 588) on v-bit messages: \
+    the positions of the 1 bits of m, followed by a w-bit encoding of the number of 0 bits of \
+    m. The theorem holds whenever v < 2^w; the source takes v a power of two and \
+    w = log₂ v + 1. The checksum bits are least significant first, where Figure 14.2 \
+    (p. 589) prints them most significant first; one fixed permutation of positions does not \
+    affect containment freeness. Unconditional combinatorics, with no adversary or sampling. \
+    The general Lamport signature scheme and Theorem 14.2 are not formalized here. \
+    optWord_polyTime, in the same module, computes the encoding in polynomial time."
+
+register_result "span-program-change-of-basis-equivalence" where
+  title := "Right multiplication by an invertible matrix with top row e₁ gives an equivalent \
+    monotone span program"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 22.15", locator := "Section 22.5.2.3, p. 982" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_mulRight
+  ]
+  scope := "Let P be a monotone span program (Definition 22.21, p. 978) whose matrices M_i have \
+    size d_i × d over a finite field F, and R an invertible d × d matrix whose top row is e₁. \
+    Then P.mulRight R, with matrices M_i R, is equivalent to P (Definition 22.23, p. 981): for \
+    every secret, the linear secret sharing schemes that Construction 22.2 (p. 979) derives \
+    from the two programs, with ρ_2, …, ρ_d uniform, give the same distribution of shares. The \
+    source's field is Z_q for a prime q and its parties are 1, …, N; here F is any finite \
+    field and the parties are any type. Unconditional, with no adversary. Theorems 22.13 and \
+    22.14 are not part of this entry."
+
+register_result "product-relation-dealer-soundness" where
+  title := "Honest parties catch a dealer whose product relations fail, except with probability \
+    2m/(q − m − 1)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 23.1", locator := "Section 23.2.4.6, p. 1016" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.MPC.ProductRelation.eval_honestPartiesRun_accept_le
+  ]
+  scope := "Protocol 23.5 (Section 23.2.4.5, pp. 1014–1015) over Z_q for a prime q, with m \
+    product relations (23.7). The dealer is corrupt: its messages to P₁ and P₂ (a_ki and b_ki \
+    for k = 0, …, m, and c_ki for k = 0, …, 2m) are arbitrary values. The statement holds for \
+    every such pair of messages, so it covers a randomized dealer, whose messages precede the \
+    challenge. P₁ and P₂ are honest: each interpolates its polynomials (Lagrange.interpolate, \
+    noncomputable, with no running-time claim), P₁ draws r uniformly from the elements of Z_q \
+    other than 0, …, m, P₂ checks r, and both check (α₁ + α₂)(β₁ + β₂) = γ₁ + γ₂. Hypotheses: \
+    (23.7) fails for the dealt values with k = 1, …, m; and 2m < q, which the source leaves \
+    implicit, so that the interpolation nodes 0, …, 2m are distinct and the challenge set is \
+    not empty. Conclusion: P₁ or P₂ finishes without aborting with probability at most \
+    2m/(q − m − 1). Information-theoretic. eval_honestProtocol_eq_pure, in the same module, \
+    is completeness: an honest dealer on values satisfying (23.7) makes both parties accept \
+    with probability 1."
+
+register_result "product-relation-simulation-privacy" where
+  title := "In Protocol 23.5 a corrupt party's view is simulated from its own values alone"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Fact 23.2", locator := "Section 23.2.4.7, p. 1017" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.MPC.ProductRelation.eval_experiment0P1_eq_experiment1P1,
+    Cslib.Crypto.Protocols.MPC.ProductRelation.eval_experiment0P2_eq_experiment1P2
+  ]
+  scope := "Experiments 0 and 1 of Section 23.2.4.7 (p. 1017) for Protocol 23.5 (p. 1015) over \
+    Z_q for a prime q, with an honest dealer. eval_experiment0P1_eq_experiment1P1 (corrupt \
+    P₁): the adversary chooses values (23.5) and (23.6) satisfying (23.7) on every outcome of \
+    its sampler, receives P₁'s deal, chooses r and plays P₁ against the honest dealer and P₂ \
+    (experiment0P1), or against the simulator S_D^(1) (simDeal and sim1Eval), which is given \
+    only (23.5) (experiment1P1); the two output laws are equal. \
+    eval_experiment0P2_eq_experiment1P2 is the same for a corrupt P₂ and the simulator \
+    S_D^(2), which chooses r itself. Adversaries are arbitrary probabilistic programs with no \
+    resource bound, as the source allows. In every experiment the corrupt party chooses its \
+    Step 5 opening after receiving the honest party's, which admits more adversaries than the \
+    simultaneous exchange of Step 5. Hypothesis 2m < q, which the source leaves implicit. The \
+    dealer, the parties and the simulators sample uniformly from finite sets, as in the \
+    source, and interpolate with Lagrange.interpolate (noncomputable); no running time is \
+    claimed for the simulators (#5829)."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
