@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Propagate
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Computability.Probabilistic.PPT
@@ -74,20 +75,6 @@ open Cslib.Circuits Probability ConventionalCircuit
 `n + q` wires, then four filler labels for each non-XOR gate. -/
 @[expose] def simCoinLen (k : ℕ) (t : XorTopology) : ℕ :=
   (t.topo.1.n + t.topo.1.q + 4 * nonXorRank t.free t.topo.1.q) * (k + 2)
-
-/-- The active label words of the first `n + s` wires read/propagated from the simulator's coins:
-inputs and non-XOR gates read `PointPermute.simLabel k coins`, and XOR gates add their arguments'
-labels. -/
-@[expose] def simPropWords (k : ℕ) (t : Topo) (free : List Bool) (coins : List Bool) :
-    ℕ → List (List Bool)
-  | 0 => List.ofFn fun i : Fin t.n => PointPermute.simLabel k coins i
-  | s + 1 =>
-    if h : s < t.q then
-      let ws := simPropWords k t free coins s
-      ws ++ [if free.getD s false then
-        List.zipWith xor (ws.getD (t.A ⟨s, h⟩ - 1) []) (ws.getD (t.B ⟨s, h⟩ - 1) [])
-      else PointPermute.simLabel k coins (t.n + s)]
-    else simPropWords k t free coins s
 
 variable (hash : List Bool → List Bool → List Bool)
 
@@ -215,11 +202,6 @@ private theorem rowCoinIndex_lt (f : ValidCircuit)
   simp only [rowCoinIndex]
   omega
 
-/-- A simulated base label read from the coins at wire `w`. -/
-@[expose] def simBaseLabels {n s : ℕ} (k : ℕ) (coins : List Bool) (w : Wire n s) :
-    BitString (k + 1) × Bool :=
-  labelOfWord k (PointPermute.simLabel k coins w.toNat)
-
 private noncomputable def simFillerRows (k : ℕ) (f : ValidCircuit) (coins : List Bool)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) : BitString (k + 1) × Bool :=
   labelOfWord k (PointPermute.simLabel k coins (rowCoinIndex f r))
@@ -303,68 +285,16 @@ private theorem uniformList_map_simCoins (k : ℕ) (f : ValidCircuit) :
 
 /-! ### The simulated view is the typed simulator's -/
 
-private theorem simPropWords_eq (k : ℕ) (f : ValidCircuit) (coins : List Bool) {s : ℕ}
-    (hs : s ≤ f.1.q) :
-    simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins s =
-      (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
-        labelBits (propagate (toCircuit f).topology (freeCircuit f)
-          (simBaseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) := by
-  have hτ := (toCircuit f).isOrdered_topology
-  induction s with
-  | zero =>
-    simp only [phiXor, phiTopo, ConventionalCircuit.topo]
-    apply List.ext_getElem (by simp [simPropWords])
-    intro i h₁ h₂
-    simp only [simPropWords, List.length_ofFn] at h₁
-    have hin : (Wire.ofNat i (by omega) : Wire f.1.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
-      Wire.toNat_injective (by simp)
-    simp only [simPropWords, List.getElem_ofFn, List.getElem_take, hin,
-      propagate_input hτ, simBaseLabels, Wire.toNat_input,
-      labelBits_labelOfWord (PointPermute.length_simLabel k coins _)]
-  | succ s ih =>
-    have hsq : s < f.1.q := hs
-    have hsize := size_toCircuit f
-    set g : Fin (toCircuit f).size := ⟨s, by omega⟩ with hg
-    have hgcast : g.cast (size_toCircuit f) = ⟨s, hsq⟩ := Fin.ext rfl
-    have hA₁ := f.2.one_le_A ⟨s, hsq⟩
-    have hAB := f.2.A_lt_B ⟨s, hsq⟩
-    have hBg := f.2.B_lt_gate ⟨s, hsq⟩
-    simp only [ConventionalCircuit.topo] at hA₁ hAB hBg
-    simp only [phiXor, phiTopo, ConventionalCircuit.topo] at ih ⊢
-    rw [simPropWords, dite_eq_left hsq]
-    dsimp only
-    rw [ih hsq.le, ← Nat.add_assoc, List.take_add_one, List.getElem?_ofFn]
-    have hgate : (Wire.ofNat (f.1.n + s) (by omega) : Wire f.1.n (toCircuit f).size) =
-        .gate g := Wire.toNat_injective (by simp [hg])
-    simp only [show f.1.n + s < f.1.n + (toCircuit f).size by omega, dite_true,
-      Option.toList_some, hgate]
-    congr 1
-    have hfree_eq : (List.ofFn fun g' => isXorGate f.1 g').getD s false = freeCircuit f g := by
-      simp [freeCircuit, hgcast, List.getD_eq_getElem?_getD, hsq]
-    rw [hfree_eq]
-    by_cases hfr : freeCircuit f g = true
-    · rw [ite_eq_left hfr, propagate_gate_of_free hτ (simBaseLabels k coins) hfr,
-        ← Fin.sum_congr' _ (arity_topology_toCircuit f g).symm, Fin.sum_univ_two, labelBits_add]
-      have hl := wires_toCircuit_zero f g (by rw [hgcast]; omega)
-      have hr := wires_toCircuit_one f g (by rw [hgcast]; omega)
-      simp only [hgcast] at hl hr
-      rw [hl, hr,
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (simBaseLabels k coins)) (by omega) (by omega),
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (simBaseLabels k coins)) (by omega) (by omega)]
-    · have hfr' : freeCircuit f g = false := Bool.eq_false_iff.mpr hfr
-      rw [ite_eq_right hfr, propagate_gate_of_not_free hτ (simBaseLabels k coins) hfr',
-        simBaseLabels, Wire.toNat_gate, hg,
-        labelBits_labelOfWord (PointPermute.length_simLabel k coins _)]
-
 /-- The simulated propagated words after all `q` gates match the typed propagated base labels. -/
 theorem simPropWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
     simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins f.1.q =
       List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
           (simBaseLabels k coins) (Wire.ofNat v v.isLt)) := by
-  rw [simPropWords_eq k f coins le_rfl, List.take_of_length_le (by simp [size_toCircuit])]
+  rw [show (phiXor.phi f).topo.1 = f.1.topo from rfl,
+    simPropWords_eq_propagate k f (phiXor.phi f).free coins
+      (fun g => by simp [phiXor, List.getD_eq_getElem?_getD]) le_rfl,
+    List.take_of_length_le (by simp [size_toCircuit])]
 
 private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1.m → Bool)
     (coins : List Bool) (g : Fin (toCircuit f).size) (hg : freeCircuit f g = false)
@@ -586,40 +516,6 @@ private theorem nonXorRank_eq_countP (free : List Bool) (g : ℕ) :
     nonXorRank free g = (free.take g).countP fun b => !b := by
   rw [nonXorRank, List.count_eq_countP]
   rfl
-
-/-- After `s ≤ t.q` gates, `simPropWords` holds `t.n + s` label words. -/
-theorem length_simPropWords (k : ℕ) (t : Topo) (free : List Bool) (coins : List Bool)
-    {s : ℕ} (hs : s ≤ t.q) : (simPropWords k t free coins s).length = t.n + s := by
-  induction s with
-  | zero => simp [simPropWords]
-  | succ s ih =>
-    rw [simPropWords, dite_eq_left (show s < t.q by omega), List.length_append, ih (by omega)]
-    rfl
-
-private theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
-    (coins : List Bool) (s : ℕ) :
-    ∀ w ∈ simPropWords k t free coins s, w.length ≤ k + 2 := by
-  induction s with
-  | zero =>
-    intro w hw
-    simp only [simPropWords, List.mem_ofFn] at hw
-    obtain ⟨i, rfl⟩ := hw
-    simp [PointPermute.length_simLabel]
-  | succ s ih =>
-    rw [simPropWords]
-    by_cases hsq : s < t.q
-    · rw [dite_eq_left hsq]
-      intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · exact ih w hw
-      · rw [List.mem_singleton.mp hw]
-        split
-        · have ha := HalfGates.length_getD_le ih (t.A ⟨s, hsq⟩ - 1)
-          rw [List.length_zipWith]
-          omega
-        · simp [PointPermute.length_simLabel]
-    · rw [dite_eq_right hsq]
-      exact ih
 
 private def simPropStep (k n : ℕ) (free coins : List Bool) (ws : List (List Bool))
     (gate : ℕ × ℕ) : List (List Bool) :=
