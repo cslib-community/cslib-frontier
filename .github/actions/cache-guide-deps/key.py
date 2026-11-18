@@ -15,6 +15,7 @@ INPUTS = (
     "guide/lakefile.toml", "guide/lake-manifest.json",
     ".github/actions/cache-guide-deps/action.yml",
     ".github/actions/cache-guide-deps/key.py",
+    ".github/actions/cache-guide-deps/artifact.py",
 )
 MACHINE = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
 

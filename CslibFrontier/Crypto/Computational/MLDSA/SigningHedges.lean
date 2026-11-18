@@ -198,7 +198,7 @@ message representative follows it. -/
 theorem hedge_eq_of_maskSeedInput_eq {key : List Byte} {r r' : FixedBytes 32} {μ ν : List Bool}
     (h : maskSeedInput key r μ = maskSeedInput key r' ν) : r = r' := by
   unfold maskSeedInput at h
-  have hbytes := (List.append_inj h (by simp [bitsLength, FixedBytes.toList])).1
-  exact List.ofFn_inj.mp (List.append_cancel_left (bytes_eq_of_bits_eq hbytes))
+  have hbytes := (List.append_inj h (by simp [Keccak.length_bytesToBitsLE, FixedBytes.toList])).1
+  exact List.ofFn_inj.mp (List.append_cancel_left (Keccak.bytesToBitsLE_injective hbytes))
 
 end Cslib.Crypto.MLDSA.FIPS204

@@ -45,43 +45,45 @@ private abbrev Row := BitString 512 → FixedBytes 64
 private def Xofs.signWithRow (H : Xofs) (s : Level) (key : List Byte) (q : SigningQuery)
     (row : Row) : Option (List Byte) := do
   guard (q.context.length ≤ 255)
-  H.signInternalWithSeed s key (formatMessage q.message q.context) fun _ μ =>
-    (row (BitString.ofList 512 μ)).toList
+  H.runSigning s (H.startSigningWithSeed s key (formatMessage q.message q.context) fun _ μ =>
+    (row (BitString.ofList 512 μ)).toList)
 
-private abbrev Unchanged (H G : Xofs) :=
-  ∀ x : List Bool, x.length ≠ 1024 → ∀ k, H.h256.read x k = G.h256.read x k
+private abbrev Unchanged (H G : Xofs) (bits : ℕ) :=
+  ∀ x : List Bool, x.length ≠ bits → ∀ k, H.h256.read x k = G.h256.read x k
 
-private theorem commitment_unchanged {H G : Xofs} (raw : Unchanged H G) (s : Level)
+private theorem commitmentInput_length_ne_maskSeed (s : Level)
     (w : Fin s.params.k → Fin 256 → ℤ) {μ : List Bool} (hμ : μ.length = 512) :
-    H.commitmentDigest s w μ = G.commitmentDigest s w μ := by
-  apply raw
-  simp only [commitmentInput, List.length_append, hμ, bitsLength, length_packCoeffs]
+    (commitmentInput s w μ).length ≠ 1024 := by
+  simp only [commitmentInput, List.length_append, hμ, Keccak.length_bytesToBitsLE]
+  rw [length_packCoeffs]
   cases s <;> decide
 
-private theorem challenge_unchanged {H G : Xofs} (raw : Unchanged H G) (s : Level)
-    {d : List Byte} (hd : d.length ≤ digestBytes s) :
-    H.sampleInBall s d = G.sampleInBall s d := by
-  have len : digestBytes s ≤ 64 := by cases s <;> decide
-  have eq : H.h256.readBytes d 221 = G.h256.readBytes d 221 := by
-    apply raw
-    rw [bitsLength]
-    lia
+private theorem challenge_unchanged {H G : Xofs} {bits : ℕ} (raw : Unchanged H G bits) (s : Level)
+    {d : List Byte} (hd : 8 * d.length ≠ bits) : H.sampleInBall s d = G.sampleInBall s d := by
+  have eq : H.h256.readBytes d 221 = G.h256.readBytes d 221 :=
+    raw _ (by rwa [Keccak.length_bytesToBitsLE]) _
   simp only [Xofs.sampleInBall, eq]
 
-private theorem attempt_unchanged {H G : Xofs} (raw : Unchanged H G) (s : Level)
-    (sk : PrivateKey s) (A : PublicMatrix s) {μ : List Bool} (hμ : μ.length = 512)
-    (r : FixedBytes 64) (κ : ℕ) :
+/-- A signing attempt is insensitive to changes at a single input length disjoint from
+its mask-expansion, commitment-hash and sparse-challenge inputs. -/
+private theorem attempt_congr_of_read {H G : Xofs} {bits : ℕ} {s : Level} {sk : PrivateKey s}
+    {A : PublicMatrix s} {μ : List Bool} {r : FixedBytes 64} {κ : ℕ} (raw : Unchanged H G bits)
+    (hn : 528 ≠ bits) (hw : ∀ w, (commitmentInput s w μ).length ≠ bits)
+    (hc : 8 * digestBytes s ≠ bits) :
     H.attempt s sk A μ r.toList κ = G.attempt s sk A μ r.toList κ := by
   have nonce (i k : ℕ) : H.h256.readBytes (nonceInput r.toList i) k =
       G.h256.readBytes (nonceInput r.toList i) k := by
     apply raw
-    simp only [bitsLength, nonceInput, List.length_append, FixedBytes.length_toList,
-      List.length_cons, List.length_nil]
-    decide
+    simp only [Keccak.length_bytesToBitsLE, nonceInput, List.length_append, FixedBytes.toList,
+      List.length_ofFn, List.length_cons, List.length_nil]
+    exact hn
   have mask : H.expandMask s r.toList κ = G.expandMask s r.toList κ := by
     simp only [Xofs.expandMask, nonce]
-  simp only [Xofs.attempt, mask, commitment_unchanged raw s _ hμ,
-    challenge_unchanged raw s (length_commitmentDigest ..).le]
+  have digest w : H.commitmentDigest s w μ = G.commitmentDigest s w μ := raw _ (hw w) _
+  have challenge w : H.sampleInBall s (G.commitmentDigest s w μ) =
+      G.sampleInBall s (G.commitmentDigest s w μ) :=
+    challenge_unchanged raw s (by rwa [length_commitmentDigest])
+  simp only [Xofs.attempt, Xofs.attemptWithMask, mask, digest, challenge]
 
 section Coupled
 
@@ -97,7 +99,9 @@ private theorem sign_eq_row {keys : KeyPair} (hg : p.background.keyGen s seed = 
     p.shared.sign s keys.secretKey q.message q.context (t i) =
       p.background.signWithRow s keys.secretKey q (fun μ => rows (i, μ)) := by
   have hs := (keyGen_eq_of_mem_sampleSigningMaskSeeds hp s seed).trans hg
-  obtain ⟨_, _, _, _, dec, _⟩ := privateKey_of_keyGen hs
+  obtain ⟨rho, sk, mat, _, dec, _⟩ := privateKey_of_keyGen hs
+  have bgMat :=
+    (Xofs.expandA_congr (agree_off_sampleSigningMaskSeeds hp).1 s rho.toList).symm.trans mat
   have tr := publicKeyHash_eq_of_mem_sampleSigningMaskSeeds hp hg
   let m := formatMessage q.message q.context
   let μ := p.background.messageRepresentative keys.publicKey m
@@ -110,14 +114,14 @@ private theorem sign_eq_row {keys : KeyPair} (hg : p.background.keyGen s seed = 
   have seedRead := read_of_mem_sampleSigningMaskSeeds hp i (BitString.ofList 512 μ)
   rw [BitString.ofFn_ofList len] at seedRead
   by_cases ctx : q.context.length ≤ 255
-  · simp only [Xofs.sign, Xofs.signWithRow, Xofs.signInternal, Xofs.signInternalWithSeed,
+  · simp only [Xofs.sign, Xofs.signWithRow, Xofs.signInternal, Xofs.runSigning, Xofs.startSigning,
+      Xofs.startSigningWithSeed,
       guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some, dec,
       ← show m = formatMessage q.message q.context from rfl, rep, rep', seedRead,
-      Xofs.expandA_congr (agree_off_sampleSigningMaskSeeds hp).1]
-    congr 1
-    funext A
+      mat, bgMat]
     exact congrArg (fun f => firstAccepted s.params.ℓ f 814 0) (funext fun κ =>
-      attempt_unchanged (read_ne_maskSeed_length hp) s _ A len row κ)
+      attempt_congr_of_read (r := row) (κ := κ) (read_ne_maskSeed_length hp) (by decide)
+        (fun w => commitmentInput_length_ne_maskSeed s w len) (by cases s <;> decide))
   · simp [Xofs.sign, Xofs.signWithRow, guard, ctx]
 
 private theorem verify_eq_background {keys : KeyPair}
@@ -126,21 +130,15 @@ private theorem verify_eq_background {keys : KeyPair}
     p.shared.verify s keys.publicKey f.message f.context f.signature =
       p.background.verify s keys.publicKey f.message f.context f.signature := by
   have raw := read_ne_maskSeed_length hp
-  let pk := keys.publicKey
-  by_cases hc : f.context.length ≤ 255
-  · simp only [Xofs.verify, Xofs.verifyWithExpansion, guard, hc, ↓reduceIte, Option.pure_def,
-      Option.bind_eq_bind, Option.bind_some, Xofs.verifyInternalWith]
-    by_cases hk : keys.publicKey.length = 32 + 320 * s.params.k
-    · simp only [hk, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-      cases hd : sigDecode s f.signature with
-      | none => rfl
-      | some σ =>
-        have dig : σ.digest.length ≤ digestBytes s := by rw [← digest_of_sigDecode hd]; simp
-        simp only [Xofs.expandA_congr (agree_off_sampleSigningMaskSeeds hp).1,
-          challenge_unchanged raw s dig, good, Xofs.check,
-          commitment_unchanged raw s _ (length_messageRepresentative ..)]
-    · simp [hk]
-  · simp [Xofs.verify, Xofs.verifyWithExpansion, guard, hc]
+  apply Xofs.verify_congr_of_reads
+  · exact Xofs.expandA_congr (agree_off_sampleSigningMaskSeeds hp).1 s _
+  · intro d hd
+    apply challenge_unchanged raw s
+    have bound : digestBytes s ≤ 64 := by cases s <;> decide
+    lia
+  · exact fun _ _ => good _
+  · intro w
+    exact raw _ (commitmentInput_length_ne_maskSeed s w (length_messageRepresentative ..)) _
 
 end Coupled
 
@@ -224,8 +222,9 @@ private theorem uniform_row_reply (H : Xofs) (s : Level) (key : List Byte) (q : 
   let i := BitString.ofList 512 (H.representativeFromTr tr (formatMessage q.message q.context))
   have hit (row : Row) : H.signWithRow s key q row = H.signWithRow s key q (fun _ => row i) := by
     cases dec : decodePrivate s key with
-    | none => simp [Xofs.signWithRow, Xofs.signInternalWithSeed, dec]
-    | some sk => simp [Xofs.signWithRow, Xofs.signInternalWithSeed, dec, i, tr]
+    | none => simp [Xofs.signWithRow, Xofs.runSigning, Xofs.startSigningWithSeed, dec]
+    | some sk => simp [Xofs.signWithRow, Xofs.runSigning, Xofs.startSigningWithSeed,
+        dec, i, tr]
   have law : (PMF.uniformOfFintype Row).map (fun row => row i) =
       PMF.uniformOfFintype (FixedBytes 64) := by
     rw [← PMF.pi_uniformOfFintype (ι := BitString 512) (α := fun _ => FixedBytes 64)]

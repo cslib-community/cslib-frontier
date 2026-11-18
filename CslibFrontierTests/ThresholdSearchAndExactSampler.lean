@@ -575,7 +575,8 @@ theorem exactSample_corner_cases :
 /-- End-to-end `IsFPAUS`, `FPAUS` membership, and `IsOraclePPTOn` lifting on `HammingOneCap`. -/
 theorem hammingOne_fpaus_and_oracle_lift (A : Set (List Bool)) :
     IsFPAUS encHammingOneCap hammingOneWitness
-      (hammingOneSelfReducible.boundedConditionalSample hammingOneCount) ∧
+      (hammingOneSelfReducible.atWitnessPrecision
+        (hammingOneSelfReducible.boundedConditionalSample hammingOneCount)) ∧
     hammingOneWitness ∈ FPAUS encHammingOneCap ∧
     ∃ sampler : HammingOneCap → ℕ → WordOracleComp Unit (Option (List Bool)),
       IsOraclePPTOn (encPair encHammingOneCap encUnary) (encOption encBits)

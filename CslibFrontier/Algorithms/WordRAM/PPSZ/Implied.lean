@@ -207,7 +207,7 @@ theorem ImpFrame.write {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {a :
     rw [Data.write_mem, Function.update_of_ne (by omega)]
 
 /-- Values up to the end of the arrays fit a word. -/
-theorem ImpFrame.fits_le {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {v : ℕ}
+private theorem ImpFrame.fits_le {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) {v : ℕ}
     (hv : v ≤ Db + 2 * s + 1) : Fits w v :=
   h.fits.of_le hv
 
@@ -328,7 +328,7 @@ private theorem clauseCons_step {a : ℕ} {u : List ℕ} {y : Data 32}
 
 /-- **The start loop of the clause odometer** from entry `j`: it stores the first clause address
 in `D[j], …, D[s - 1]` and keeps the memory outside them. -/
-theorem initDLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
+private theorem initDLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
     y.regs jR + d = s →
     ∃ z, ExecWithin w initDLoop y z (5 * d + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
       HoldsList (Db + y.regs jR) (List.replicate d C) z.mem ∧
@@ -353,7 +353,7 @@ theorem initD_spec (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y) :
 /-- **The carry loop of the clause odometer** from entry `j`, on a choice `u` of clause addresses
 in `D[j], …`: if the odometer step on `u` has a result, `D[j], …` holds it and `jR = s + 1`; if
 not, `jR = s`. The memory outside `D[j], …, D[s - 1]` is unchanged. -/
-theorem incDLoop_spec : ∀ (u : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
+private theorem incDLoop_spec : ∀ (u : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
     y.regs jR + u.length = s → (∀ a ∈ u, a ∈ clauseAddrs C φ) →
     HoldsList (Db + y.regs jR) u y.mem →
     ∃ z, ExecWithin w incDLoop y z (12 * u.length + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
@@ -476,7 +476,7 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
 /-- **The start loop of the literal odometer** from entry `j`, on the clause addresses `u` in
 `D[j], …`: it stores their first literal addresses in `E[j], …` and clears `sat` if one of the
 clauses is empty. The memory outside `E[j], …, E[s - 1]` is unchanged. -/
-theorem initELoop_spec : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
+private theorem initELoop_spec : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
     ImpFrame w φ τ x b C Tb s Db y → y.regs jR + u.length = s →
     (∀ a ∈ u, a ∈ clauseAddrs C φ) → HoldsList (Db + y.regs jR) u y.mem →
     y.regs sat = f.toNat →
@@ -545,7 +545,7 @@ theorem initE_spec (t : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb 
 `D[j], …` and a choice `eu` of one literal address of each in `E[j], …`: if the odometer step on
 `eu` has a result, `E[j], …` holds it and `jR = s + 1`; if not, `jR = s`. The memory outside
 `E[j], …, E[s - 1]` is unchanged. -/
-theorem incELoop_spec : ∀ (du eu : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
+private theorem incELoop_spec : ∀ (du eu : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
     y.regs jR + du.length = s → (∀ a ∈ du, a ∈ clauseAddrs C φ) →
     HoldsList (Db + y.regs jR) du y.mem → HoldsList (Db + s + y.regs jR) eu y.mem →
     eu ∈ (du.map (litAddrs C φ)).sections →
@@ -683,7 +683,7 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
 
 /-- **The comparison loop** from entry `k`, on literal addresses `u` in `E[k], …`: `sat` is
 cleared if one of their codes is `auxR`. The memory is unchanged. -/
-theorem pairLoop_spec (cc : ℕ) : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
+private theorem pairLoop_spec (cc : ℕ) : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
     ImpFrame w φ τ x b C Tb s Db y → y.regs kR + u.length = s →
     HoldsList (Db + s + y.regs kR) u y.mem → y.regs sat = f.toNat → y.regs auxR = cc →
     ∃ z, ExecWithin w pairLoop y z (9 * u.length + 2) ∧ z.mem = y.mem ∧
@@ -719,7 +719,7 @@ theorem pairLoop_spec (cc : ℕ) : ∀ (u : List ℕ) (f : Bool) (y : Data 32),
 
 /-- **The test of one literal** at `E[j]`, with code `c`: `sat` is cleared if the literal is
 falsified or the code of its complement occurs in `E`. The memory is unchanged. -/
-theorem litTest_spec (El : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y)
+private theorem litTest_spec (El : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y)
     (hj : y.regs jR < s) (hEl : HoldsList (Db + s) El y.mem) (hlen : El.length = s)
     (hcodes : ∀ p ∈ El, y.mem p < 2 * n) (f : Bool) (hs : y.regs sat = f.toNat) :
     ∃ z, ExecWithin w litTest y z (9 * s + 20) ∧ z.mem = y.mem ∧
@@ -796,7 +796,7 @@ variable {w : ℕ} {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {
 
 /-- **The loop of the compatibility test** from entry `j`, on the literal addresses
 `u = E[j], …` of the full list `El` in `E`. The memory is unchanged. -/
-theorem goodLoop_spec (El : List ℕ) (hlen : El.length = s) : ∀ (u : List ℕ) (f : Bool)
+private theorem goodLoop_spec (El : List ℕ) (hlen : El.length = s) : ∀ (u : List ℕ) (f : Bool)
     (y : Data 32), ImpFrame w φ τ x b C Tb s Db y → u = El.drop (y.regs jR) →
     y.regs jR ≤ s → HoldsList (Db + s) El y.mem → (∀ p ∈ El, y.mem p < 2 * n) →
     y.regs sat = f.toNat →
@@ -888,7 +888,7 @@ theorem all_congr_of_mem {α : Type*} {l : List α} {f g : α → Bool} (h : ∀
     simp only [List.all_cons, h a (by simp), ih fun b hb => h b (by simp [hb])]
 
 /-- Compatibility through codes reads only the codes and the words of their variables. -/
-theorem compatCodes_congr {m₁ m₂ : ℕ → ℕ} {Tb x b : ℕ} {El : List ℕ}
+private theorem compatCodes_congr {m₁ m₂ : ℕ → ℕ} {Tb x b : ℕ} {El : List ℕ}
     (hE : ∀ p ∈ El, m₁ p = m₂ p) (hc : ∀ p ∈ El, m₁ p < 2 * n)
     (hτ : ∀ v < n, m₁ (Tb + v) = m₂ (Tb + v)) :
     compatCodes (fun v => m₁ (Tb + v)) x b (El.map m₁) =
@@ -901,7 +901,7 @@ theorem compatCodes_congr {m₁ m₂ : ℕ → ℕ} {Tb x b : ℕ} {El : List �
   simp only [litFine, hτ _ hv]
 
 /-- The literal addresses of a clause address hold literal codes, below `2 n`. -/
-theorem mem_litAddr_lt {mem : ℕ → ℕ} {C : ℕ} {φ : CNF (Fin n)}
+private theorem mem_litAddr_lt {mem : ℕ → ℕ} {C : ℕ} {φ : CNF (Fin n)}
     (hφ : HoldsList C (encodeClauses φ) mem) {a : ℕ} (ha : a ∈ clauseAddrs C φ) {p : ℕ}
     (hp : p ∈ litAddrs C φ a) : mem p < 2 * n := by
   have hc := holdsList_clauseOf hφ ha
@@ -921,7 +921,7 @@ theorem lt_of_mem_litAddrs {C : ℕ} {φ : CNF (Fin n)} {a : ℕ} (ha : a ∈ cl
   omega
 
 /-- The literal addresses of a clause are duplicate-free. -/
-theorem litAddrs_nodup (C : ℕ) (φ : CNF (Fin n)) (a : ℕ) : (litAddrs C φ a).Nodup :=
+private theorem litAddrs_nodup (C : ℕ) (φ : CNF (Fin n)) (a : ℕ) : (litAddrs C φ a).Nodup :=
   List.nodup_range'
 
 /-- A clause has at most as many literals as the encoding has words. -/
@@ -1000,7 +1000,8 @@ theorem litOk_congr {t : List ℕ} (ht : t ∈ (List.replicate s (clauseAddrs C 
 /-- **The loop of the literal search**, on the clause addresses `t` in `D`, from the choice `e`
 in `E`, followed by the choices `xs`: `sat = 1` exactly when one of them is compatible. The memory
 outside `E` is unchanged. -/
-theorem innerLoop_spec (t : List ℕ) (ht : t ∈ (List.replicate s (clauseAddrs C φ)).sections) :
+private theorem innerLoop_spec (t : List ℕ)
+    (ht : t ∈ (List.replicate s (clauseAddrs C φ)).sections) :
     ∀ (xs : List (List ℕ)) (e : List ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
       HoldsList Db t y.mem → HoldsList (Db + s) e y.mem → y.regs contI = 1 →
       Enumerates (t.map (litAddrs C φ)) (e :: xs) →
@@ -1176,7 +1177,7 @@ def clauseOk (m : ℕ → ℕ) (C Tb : ℕ) (φ : CNF (Fin n)) (x : Fin n) (b : 
 /-- **The loop of the clause search**, from the choice `t` in `D`, followed by the choices `xs`:
 `sat = 1` exactly when each of them has a compatible choice of literals. The memory outside `D`
 and `E` is unchanged. -/
-theorem outerLoop_spec : ∀ (xs : List (List ℕ)) (t : List ℕ) (y : Data 32),
+private theorem outerLoop_spec : ∀ (xs : List (List ℕ)) (t : List ℕ) (y : Data 32),
     ImpFrame w φ τ x b C Tb s Db y → HoldsList Db t y.mem → y.regs contO = 1 →
     Enumerates (List.replicate s (clauseAddrs C φ)) (t :: xs) →
     (∀ t' ∈ t :: xs, t' ∈ (List.replicate s (clauseAddrs C φ)).sections) →
@@ -1448,7 +1449,7 @@ theorem ImpFrame.setB {y : Data 32} (h : ImpFrame w φ τ x b C Tb s Db y) (b' :
 
 /-- **The clearing loop** from word `j`: the words `j, …, 2 s - 1` after `Db` become zero, and
 the other memory is unchanged. -/
-theorem zeroLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
+private theorem zeroLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s Db y →
     y.regs stop = 2 * s → y.regs jR + d = 2 * s →
     ∃ z, ExecWithin w zeroLoop y z (5 * d + 2) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
       (∀ i, y.regs jR ≤ i → i < 2 * s → z.mem (Db + i) = 0) ∧
@@ -1463,7 +1464,7 @@ theorem zeroLoop_spec : ∀ (d : ℕ) (y : Data 32), ImpFrame w φ τ x b C Tb s
 
 /-- **Clear the scratch memory**: the `2 s` words of `D` and `E` become zero, and the other memory
 is unchanged, within `10 s + 4` instructions. -/
-theorem zeroScratch_spec (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y) :
+private theorem zeroScratch_spec (y : Data 32) (hf : ImpFrame w φ τ x b C Tb s Db y) :
     ∃ z, ExecWithin w zeroScratch y z (10 * s + 4) ∧ ImpFrame w φ τ x b C Tb s Db z ∧
       (∀ i < 2 * s, z.mem (Db + i) = 0) ∧ ∀ a, a < Db ∨ Db + 2 * s ≤ a → z.mem a = y.mem a := by
   unfold zeroScratch

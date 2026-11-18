@@ -19,8 +19,11 @@ reproduces a deterministic program against every stateful oracle. Fixing all of 
 (`Turing.MultiTapePTM.run` with the coin program `pure false`). Its result against every
 answer function is the program's (`Cslib.Probability.IsOraclePPTOn.exists_run_pure_false`): the
 coin-fixed run is one of the supported runs of the certificate, whose result is determined
-(`Turing.MultiTapePTM.mem_support_runConfigFrom_pure`). The run makes at most one request per
-instruction (`Turing.MultiTapeMachine.length_queriesWith_runConfigFrom_le`).
+(`Turing.MultiTapePTM.mem_support_runConfigFrom_pure`). The same holds against every
+deterministic stateful oracle, for the result and the final state
+(`Cslib.Probability.IsOraclePPTOn.exists_run_pure_false_stateM`, from which the stateless form is
+derived), so the coin-fixed run makes the same requests as the program. The run makes at most one
+request per instruction (`Turing.MultiTapeMachine.length_queriesWith_runConfigFrom_le`).
 
 Relabelling the finite control states to `Fin m` (`Turing.MultiTapePTM.relabel`,
 `Turing.MultiTapePTM.runFrom_relabel`) shows that the deterministic runs behind all certificates
@@ -31,7 +34,8 @@ come from countably many machines with control `Fin m`
 
 * `Turing.MultiTapeMachine.length_queriesWith_runConfigFrom_le`: a deterministic run makes at most
   one request per instruction.
-* `Cslib.Probability.IsOraclePPTOn.exists_run_pure_false`,
+* `Cslib.Probability.IsOraclePPTOn.exists_run_pure_false_stateM`,
+  `Cslib.Probability.IsOraclePPTOn.exists_run_pure_false`,
   `Cslib.Probability.IsOraclePPTOn.exists_fin_run_pure_false`: certificates of deterministic
   programs are deterministic runs of finite machines with a polynomial clock.
 
@@ -82,6 +86,27 @@ variable {Operation α β : Type} [DecidableEq Operation] {input : α ↪ List B
   {output : β ↪ List Bool}
 
 omit [DecidableEq Operation] in
+/-- A deterministic program against a deterministic stateful oracle returns a point mass. -/
+private theorem run_interpret_interpret_query_stateM {σ : Type}
+    (step : Operation × List Bool → σ → List Bool × σ)
+    (program : WordQueryComp Operation β) (s : σ) :
+    (OracleComp.interpret (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
+        (fun q s => PMF.pure (step q s)))
+      (OracleComp.interpret ProbOracleComp.query program)).run s =
+      PMF.pure ((OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ _))
+        program).run s) := by
+  rw [OracleComp.interpret_interpret]
+  simp only [ProbOracleComp.interpret_query]
+  induction program using PFunctor.FreeM.induction generalizing s with
+  | pure b => rfl
+  | lift_bind q cont ih =>
+    rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl,
+      OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
+      Probability.PMF.monad_bind_eq_bind, OracleComp.interpret_bind, OracleComp.interpret_query,
+      StateT.run_bind]
+    exact (PMF.pure_bind _ _).trans (ih _ _)
+
+omit [DecidableEq Operation] in
 /-- A deterministic program against a deterministic oracle returns a point mass and keeps the
 oracle's state. -/
 private theorem run_interpret_interpret_query {σ : Type}
@@ -91,15 +116,48 @@ private theorem run_interpret_interpret_query {σ : Type}
         (fun q s => PMF.pure (answer q, s)))
       (OracleComp.interpret ProbOracleComp.query program)).run s =
       PMF.pure (OracleComp.interpret (m := Id) answer program, s) := by
-  rw [OracleComp.interpret_interpret]
-  simp only [ProbOracleComp.interpret_query]
-  induction program using PFunctor.FreeM.induction generalizing s with
-  | pure b => rfl
-  | lift_bind q cont ih =>
-    rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl,
-      OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind]
-    exact (PMF.pure_bind _ _).trans (ih _ s)
+  rw [run_interpret_interpret_query_stateM (fun q s => (answer q, s))]
+  exact congrArg PMF.pure (OracleComp.run_interpret_stateless (m := Id) answer program s)
+
+/-- **Certificates are deterministic runs, against stateful oracles.** A certificate for a
+deterministic program yields a finite machine and a polynomial clock whose run with every coin
+fixed to `false` returns, against every deterministic stateful oracle, the encoded result of the
+program and the same final state. -/
+theorem exists_run_pure_false_stateM {program : α → WordQueryComp Operation β}
+    (h : IsOraclePPTOn input output
+      (fun a => OracleComp.interpret ProbOracleComp.query (program a))) :
+    ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
+      (machine : MultiTapePTM k Bool Control Operation) (c d : ℕ),
+      ∀ a (σ : Type) (step : Operation × List Bool → σ → List Bool × σ) (s : σ),
+        (OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ _))
+            (machine.run (pure false)
+            (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d)
+            (input a))).run s =
+          Prod.map output id
+            ((OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ _))
+              (program a)).run s) := by
+  obtain ⟨-, k, Control, hfinite, machine, c, d, h⟩ := h
+  refine ⟨k, Control, hfinite, machine, c, d, fun a σ step s => ?_⟩
+  have hcert := h a σ (fun q s => PMF.pure (step q s)) s
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret] at hcert
+  rw [OracleComp.interpret_map, StateT.run_map, run_interpret_interpret_query_stateM,
+    PMF.monad_map_eq_map, PMF.pure_map] at hcert
+  have hmem := MultiTapePTM.mem_support_runConfigFrom_pure_stateM machine false step s
+    (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a))
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hmem
+  have hmem' : (OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ _))
+      (machine.run (pure false)
+      (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d) (input a))).run
+        s ∈ ((OracleComp.interpret (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbComp.unifOracle n)) (fun q s => PMF.pure (step q s)))
+        (machine.runOracle (c * ((input a).length + 1) ^ d) (input a))).run s).support := by
+    simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
+      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
+      PMF.mem_support_map_iff]
+    exact ⟨_, hmem, rfl⟩
+  rw [← hcert, PMF.mem_support_pure_iff] at hmem'
+  exact hmem'
+
 
 /-- **Certificates are deterministic runs.** A certificate for a deterministic program yields a
 finite machine and a polynomial clock whose run with every coin fixed to `false` returns, against
@@ -114,26 +172,15 @@ theorem exists_run_pure_false {program : α → WordQueryComp Operation β}
             (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d)
             (input a)) =
           output (OracleComp.interpret (m := Id) answer (program a)) := by
-  obtain ⟨-, k, Control, hfinite, machine, c, d, h⟩ := h
+  obtain ⟨k, Control, hfinite, machine, c, d, h⟩ := exists_run_pure_false_stateM h
   refine ⟨k, Control, hfinite, machine, c, d, fun a answer => ?_⟩
-  have hcert := h a Unit (fun q s => PMF.pure (answer q, s)) ()
-  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret] at hcert
-  rw [OracleComp.interpret_map, StateT.run_map, run_interpret_interpret_query,
-    PMF.monad_map_eq_map, PMF.pure_map] at hcert
-  have hmem := MultiTapePTM.mem_support_runConfigFrom_pure machine false answer ()
-    (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a))
-  rw [ProbOracleComp.runWith_eq_run_interpret] at hmem
-  have hmem' : (OracleComp.interpret (m := Id) answer (machine.run (pure false)
-      (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d) (input a)),
-      ()) ∈ ((OracleComp.interpret (OracleComp.sumHandler
-        (fun n => StateT.lift (ProbComp.unifOracle n)) (fun q s => PMF.pure (answer q, s)))
-        (machine.runOracle (c * ((input a).length + 1) ^ d) (input a))).run ()).support := by
-    simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
-      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
-      PMF.mem_support_map_iff]
-    exact ⟨_, hmem, rfl⟩
-  rw [← hcert, PMF.mem_support_pure_iff] at hmem'
-  exact (Prod.mk.inj hmem').1
+  have h := congrArg Prod.fst (h a Unit (fun q s => (answer q, s)) ())
+  have e (γ : Type) (p : WordQueryComp Operation γ) :
+      (OracleComp.interpret (m := StateM Unit)
+        (fun q => ((fun s => (answer q, s)) : StateM Unit (List Bool))) p).run () =
+        (OracleComp.interpret (m := Id) answer p, ()) :=
+    OracleComp.run_interpret_stateless (m := Id) answer p ()
+  rwa [e, e] at h
 
 /-- **Certificates are deterministic runs of countably many machines.** As
 `exists_run_pure_false`, with control states `Fin m`. -/
