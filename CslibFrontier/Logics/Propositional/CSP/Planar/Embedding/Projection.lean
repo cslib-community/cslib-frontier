@@ -77,7 +77,10 @@ theorem GadgetWitness.projectHead_certificate {n : â„•} {R : Set (Fin (n + 1) â†
     w.projectHead.certificate = restrictPrefix (2 * (g.body.occurrences.length + n))
       w.certificate := by
   unfold GadgetWitness.projectHead
-  simp only [Witness.relabel_certificate, Witness.forgetHead_certificate, List.length_ofFn]
+  erw [Witness.relabel_certificate
+    (f := PPGadget.substitutePort g.numAux (PPGadget.hidePort (0 : Fin (n + 1))))
+    (hf := fun _ _ _ _ he => projectPort_injective n g.numAux 0 he)]
+  rw [Witness.forgetHead_certificate, List.length_ofFn]
 
 /-- Existential deletion of any selected free port has an internally supplied ordered
 realization on exactly the existing semantic `PPGadget.project j` body. The original argument

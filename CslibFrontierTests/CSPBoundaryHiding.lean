@@ -47,8 +47,7 @@ private def unused : State Unit := ⟨[⟨(), []⟩], [2 ^ 250], ⟨[0, 1]⟩⟩
 example : unused.Accepted ∧ (hideHead unused).Accepted :=
   ⟨by decide +kernel, accepted_hideHead unused (by decide +kernel)⟩
 
-example : hideHead unused = (⟨[⟨(), []⟩], [], ⟨[]⟩⟩ : State Unit) := by
-  decide +kernel
+example : hideHead unused = (⟨[⟨(), []⟩], [], ⟨[]⟩⟩ : State Unit) := rfl
 
 example : hideHead (⟨[⟨(), []⟩], [], ⟨[2 ^ 300]⟩⟩ : State Unit) =
     ⟨[⟨(), []⟩], [], ⟨[2 ^ 300]⟩⟩ := rfl
