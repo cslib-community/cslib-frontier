@@ -173,6 +173,7 @@ import CslibFrontier.Computability.MCSP.MultiNPHard
 import CslibFrontier.Computability.MCSP.PartialETH
 import CslibFrontier.Computability.MCSP.PartialHardness.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter
+import CslibFrontier.Computability.PCP.Approximation.FGLSS
 import CslibFrontier.Computability.PCP.Approximation.MaxCSP.UpperBounds
 import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 import CslibFrontier.Computability.PCP.Completeness
@@ -495,6 +496,33 @@ register_result "gap-two-csp-promise-pcp" where
     nonempty-alphabet hypotheses of Graph.unsatVal_toFiniteGraph, which this statement \
     supplies. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
+
+register_result "goldreich-fglss-independence-number-nonadaptive" where
+  title := "Independence number of the FGLSS graph of a nonadaptive PCP verifier"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.18, items 2–4 and the general identity",
+      locator := "r5.pdf; PDF pages 67–68 / printed pages 449–450" }
+  ]
+  theorems := [
+    Cslib.Complexity.PCPVerifier.exists_acceptCount_eq_indepNum_fglssGraph,
+    Cslib.Complexity.PCPVerifier.acceptCount_le_indepNum_fglssGraph,
+    Cslib.Complexity.PCPVerifier.indepNum_fglssGraph_le,
+    Cslib.Complexity.IsPCPVerifier.indepNum_fglssGraph_eq_of_mem,
+    Cslib.Complexity.IsPCPVerifier.two_mul_indepNum_fglssGraph_le_of_not_mem
+  ]
+  scope := "For the library's nonadaptive PCPVerifier (queries depend only on the instance and \
+    the coins; Goldreich allows adaptive queries), with no time certificate needed: the \
+    vertices are the accepting views that answer repeated queries consistently, and edges join \
+    views with different answers at a common position. Leaving out self-conflicting views \
+    implements the source's inconsistency rule in a loopless graph and leaves the independent \
+    sets unchanged. The independence number equals the largest number of the 2 ^ r coin \
+    strings accepted with one proof, attained by a finite proof (2 ^ r · max_π Pr[V^π(x) = 1]), \
+    where r is the actual coin count V.coins x. Item 2 (at most 2 ^ r) and the identity need \
+    no PCP premise; item 3 (equal to 2 ^ r on members) and item 4 (2 α ≤ 2 ^ r on non-members) \
+    use completeness and soundness of IsPCPVerifier. Item 1 (computing the graph in time \
+    poly(2 ^ (r + q) |x|)) and the every-constant NP-hardness of Independent Set and Clique \
+    are not covered. Outside-fleet six-point source check: review 5951623556 on PR #6382."
 
 register_result "fagin" where
   title := "Fagin: logic captures NP"

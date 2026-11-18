@@ -41,10 +41,11 @@ This is a step toward the exercise, not all of it. Item 1 (computing `x ↦ G_x`
 in `2 ^ (r + q) |x|`) and the consequence that the PCP Theorem makes Independent Set and Clique
 NP-hard to approximate within every constant factor are not proved here.
 
-A view whose queries repeat a position with different answers is inconsistent with itself. In the
-source it is joined to itself and so lies in no independent set. Simple graphs have no loops, so
-such views are left out of the vertex set (`Cslib.Complexity.PCPVerifier.IsFGLSSVertex`), and the
-independent sets are the same.
+A view whose queries repeat a position with different answers is inconsistent with itself. The
+exercise states the conflict condition without discussing repeated queries; read literally, the
+rule joins such a view to itself, so it lies in no independent set. Simple graphs have no loops,
+so this interpretation of the rule is implemented by leaving such views out of the vertex set
+(`Cslib.Complexity.PCPVerifier.IsFGLSSVertex`), which leaves the independent sets unchanged.
 
 ## Main definitions
 
@@ -70,17 +71,39 @@ namespace PCPVerifier
 
 variable (V : PCPVerifier α) (a : α)
 
-/-- A view of the verifier `V` on the instance `a`: a random string `ρ` of `V.coins a` bits and
-answers to the queries `V.queries (a, ρ)`. -/
-abbrev View := Σ ρ : Fin (V.coins a) → Bool, Fin (V.queries (a, List.ofFn ρ)).length → Bool
+/-- A view of the verifier `V` on the instance `a`: a random string of `V.coins a` bits and
+answers to the queries made with it. -/
+structure View where
+  /-- The random string. -/
+  random : Fin (V.coins a) → Bool
+  /-- The answers to the queries `V.queries (a, random)`, in order. -/
+  answers : Fin (V.queries (a, List.ofFn random)).length → Bool
 
 variable {V a}
+
+instance : Finite (V.View a) :=
+  Finite.of_injective (fun v => (⟨v.random, v.answers⟩ :
+      Σ ρ : Fin (V.coins a) → Bool, Fin (V.queries (a, List.ofFn ρ)).length → Bool))
+    fun ⟨_, _⟩ ⟨_, _⟩ h => by
+      obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 h
+      cases h
+      rfl
 
 /-- Two views are consistent when they give the same answer whenever they query the same
 position. -/
 def View.Consistent (v w : V.View a) : Prop :=
-  ∀ (i : Fin (V.queries (a, List.ofFn v.1)).length) (j : Fin (V.queries (a, List.ofFn w.1)).length),
-    (V.queries (a, List.ofFn v.1))[i] = (V.queries (a, List.ofFn w.1))[j] → v.2 i = w.2 j
+  ∀ (i : Fin (V.queries (a, List.ofFn v.random)).length)
+    (j : Fin (V.queries (a, List.ofFn w.random)).length),
+    (V.queries (a, List.ofFn v.random))[i] = (V.queries (a, List.ofFn w.random))[j] →
+      v.answers i = w.answers j
+
+/-- Consistent views agree at every position they both query. -/
+theorem View.Consistent.eq {v w : V.View a} (h : v.Consistent w)
+    {i : Fin (V.queries (a, List.ofFn v.random)).length}
+    {j : Fin (V.queries (a, List.ofFn w.random)).length}
+    (hij : (V.queries (a, List.ofFn v.random))[i] = (V.queries (a, List.ofFn w.random))[j]) :
+    v.answers i = w.answers j :=
+  h i j hij
 
 theorem View.Consistent.symm {v w : V.View a} (h : v.Consistent w) : w.Consistent v :=
   fun i j hij => (h j i hij.symm).symm
@@ -89,16 +112,19 @@ variable (V a)
 
 /-- The vertices of the FGLSS graph: the views on which `V` accepts and which are consistent with
 themselves. -/
-def IsFGLSSVertex (v : V.View a) : Prop :=
-  V.verdict ((a, List.ofFn v.1), List.ofFn v.2) = true ∧ v.Consistent v
+structure IsFGLSSVertex (v : V.View a) : Prop where
+  /-- `V` accepts the view. -/
+  accepts : V.verdict ((a, List.ofFn v.random), List.ofFn v.answers) = true
+  /-- The view answers every repeated query in the same way. -/
+  consistent : v.Consistent v
 
 /-- **The FGLSS graph** [Goldreich, Exercise 9.18][Goldreich2007DraftR5] of the verifier `V` on
 the instance `a`: the accepting self-consistent views, two of them adjacent when they are
-inconsistent. -/
+inconsistent. A vertex is consistent with itself, so the graph has no loops. -/
 def fglssGraph : SimpleGraph {v : V.View a // V.IsFGLSSVertex a v} where
-  Adj v w := v ≠ w ∧ ¬v.1.Consistent w.1
-  symm := ⟨fun _ _ h => ⟨h.1.symm, fun hc => h.2 hc.symm⟩⟩
-  loopless := ⟨fun _ h => h.1 rfl⟩
+  Adj v w := ¬v.1.Consistent w.1
+  symm := ⟨fun _ _ h hc => h hc.symm⟩
+  loopless := ⟨fun v h => h v.property.consistent⟩
 
 variable {V a}
 
@@ -107,7 +133,8 @@ private def proofView (π : List Bool) (ρ : Fin (V.coins a) → Bool) : V.View 
   ⟨ρ, fun i => π.getD (V.queries (a, List.ofFn ρ))[i] false⟩
 
 private theorem ofFn_proofView (π : List Bool) (ρ : Fin (V.coins a) → Bool) :
-    List.ofFn (proofView (V := V) (a := a) π ρ).2 = answers π (V.queries (a, List.ofFn ρ)) := by
+    List.ofFn (proofView (V := V) (a := a) π ρ).answers =
+      answers π (V.queries (a, List.ofFn ρ)) := by
   simp only [proofView, answers]
   simpa only [Fin.getElem_fin] using
     List.ofFn_getElem_eq_map (V.queries (a, List.ofFn ρ)) fun p => π.getD p false
@@ -130,13 +157,13 @@ theorem acceptCount_le_indepNum_fglssGraph (π : List Bool) :
     exact (mem_filter.1 ρ.2).2
   let e : R ↪ {v : V.View a // V.IsFGLSSVertex a v} :=
     ⟨fun ρ => ⟨proofView π ρ.1, hvert ρ⟩, fun ρ ρ' h => by
-      have h := congrArg (fun v => v.1.1) h
+      have h := congrArg (fun v => v.1.random) h
       exact Subtype.ext h⟩
   have hind : (V.fglssGraph a).IsIndepSet (univ.map e : Finset _) := by
     intro v _ w _ hvw hadj
     obtain ⟨ρ, -, rfl⟩ := mem_map.1 ‹v ∈ _›
     obtain ⟨ρ', -, rfl⟩ := mem_map.1 ‹w ∈ _›
-    exact hadj.2 (consistent_proofView π _ _)
+    exact hadj (consistent_proofView π _ _)
   have h := hind.card_le_indepNum
   rwa [card_map, card_univ, Fintype.card_coe] at h
 
@@ -151,22 +178,23 @@ private theorem exists_card_le_acceptCount {S : Finset {v : V.View a // V.IsFGLS
   have hcons {v w} (hv : v ∈ S) (hw : w ∈ S) : v.1.Consistent w.1 := by
     by_cases hvw : v = w
     · subst hvw
-      exact v.2.2
+      exact v.property.consistent
     · by_contra h
-      exact hS hv hw hvw ⟨hvw, h⟩
+      exact hS hv hw hvw h
   -- a bound on the queried positions
-  set N := (S.sup fun v => (V.queries (a, List.ofFn v.1.1)).sum) + 1
-  have hpos {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.1)).length) :
-      (V.queries (a, List.ofFn v.1.1))[i] < N := by
-    have h₁ : (V.queries (a, List.ofFn v.1.1))[i] ≤ (V.queries (a, List.ofFn v.1.1)).sum :=
+  set N := (S.sup fun v => (V.queries (a, List.ofFn v.1.random)).sum) + 1
+  have hpos {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.random)).length) :
+      (V.queries (a, List.ofFn v.1.random))[i] < N := by
+    have h₁ : (V.queries (a, List.ofFn v.1.random))[i] ≤
+        (V.queries (a, List.ofFn v.1.random)).sum :=
       List.le_sum_of_mem (by rw [Fin.getElem_fin]; exact List.getElem_mem _)
-    have h₂ := le_sup (f := fun v => (V.queries (a, List.ofFn v.1.1)).sum) hv
+    have h₂ := le_sup (f := fun v => (V.queries (a, List.ofFn v.1.random)).sum) hv
     omega
   let π : List Bool := List.ofFn fun p : Fin N =>
-    decide (∃ w ∈ S, ∃ j : Fin (V.queries (a, List.ofFn w.1.1)).length,
-      (V.queries (a, List.ofFn w.1.1))[j] = p ∧ w.1.2 j = true)
-  have hread {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.1)).length) :
-      π.getD (V.queries (a, List.ofFn v.1.1))[i] false = v.1.2 i := by
+    decide (∃ w ∈ S, ∃ j : Fin (V.queries (a, List.ofFn w.1.random)).length,
+      (V.queries (a, List.ofFn w.1.random))[j] = p ∧ w.1.answers j = true)
+  have hread {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.random)).length) :
+      π.getD (V.queries (a, List.ofFn v.1.random))[i] false = v.1.answers i := by
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem
       (by simp only [π, List.length_ofFn]; exact hpos hv i),
       Option.getD_some]
@@ -179,16 +207,16 @@ private theorem exists_card_le_acceptCount {S : Finset {v : V.View a // V.IsFGLS
       exact hcons hv hw i j hj.symm
     · intro h
       exact ⟨v, hv, i, rfl, h⟩
-  have hacc {v} (hv : v ∈ S) : V.accepts a π (List.ofFn v.1.1) = true := by
-    have h := v.2.1
-    have hans : answers π (V.queries (a, List.ofFn v.1.1)) = List.ofFn v.1.2 := by
+  have hacc {v} (hv : v ∈ S) : V.accepts a π (List.ofFn v.1.random) = true := by
+    have h := v.property.accepts
+    have hans : answers π (V.queries (a, List.ofFn v.1.random)) = List.ofFn v.1.answers := by
       rw [← ofFn_proofView]
       congr 1
       funext i
       exact hread hv i
     rw [accepts, hans]
     exact h
-  refine ⟨π, card_le_card_of_injOn (fun v => v.1.1) (fun v hv => ?_) fun v hv w hw h => ?_⟩
+  refine ⟨π, card_le_card_of_injOn (fun v => v.1.random) (fun v hv => ?_) fun v hv w hw h => ?_⟩
   · simpa using hacc hv
   · obtain ⟨⟨ρ, β⟩, hv'⟩ := v
     obtain ⟨⟨ρ', β'⟩, hw'⟩ := w
