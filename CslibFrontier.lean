@@ -3977,6 +3977,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
+public import CslibFrontier.Computability.PCP.TwoProverGame.ConsistencyTest
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemConverse
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemPerfect

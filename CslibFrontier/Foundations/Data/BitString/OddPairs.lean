@@ -87,6 +87,13 @@ def oddPairs (ι : Type*) [Fintype ι] [DecidableEq ι] : Finset ((ι → Bool) 
     p ∈ oddPairs ι ↔ p.1 ⬝ᵥ p.2 = true := by
   simp [oddPairs]
 
+/-- A nonempty index type has an odd pair: take the same one-hot string twice. -/
+theorem oddPairs_nonempty [Nonempty ι] : Nonempty ↥(oddPairs ι) := by
+  obtain ⟨i⟩ := ‹Nonempty ι›
+  let u : ι → Bool := Pi.single i true
+  refine ⟨⟨(u, u), mem_oddPairs.mpr ?_⟩⟩
+  simpa [u] using (show true * true = true from rfl)
+
 /-- The odd pairs have density `(1 - 2⁻ⁿ) / 2` among all pairs of `n`-bit strings; for `n = 0` there
 are none. -/
 theorem dens_oddPairs : ((oddPairs ι).dens : ℝ) = (1 - ((2 : ℝ) ^ Fintype.card ι)⁻¹) / 2 := by
