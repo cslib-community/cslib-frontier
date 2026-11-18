@@ -9,6 +9,11 @@ The private-transcript sources are described in [the extraction methods](history
 
 Scott Aaronson. *The Busy Beaver Frontier*. ACM SIGACT News 51(3), 32–54, 2020. https://doi.org/10.1145/3427361.3427369 ; author's version https://www.scottaaronson.com/papers/bb.pdf . Read in the author's version on 2026-11-08: Proposition 1 (oracle access to any upper bound on the shift function solves the halting problem, hence no such bound is computable; the library proves the unrelativized corollary) and Proposition 2 (the shift function eventually exceeds every computable function). Both are stated for Turing machines; Section 2 notes that they hold in any universal model of computation. Section 1 defines `BB_L` for a programming language `L` with bit-string programs (and a variant through Kolmogorov complexity), the closest analogue of the library's code-size version. Journal pagination was taken from the bibliographic record.
 
+<a id="abboudcensorhillelkhourypaz21"></a>
+## abboudcensorhillelkhourypaz21
+
+Amir Abboud, Keren Censor-Hillel, Seri Khoury and Ami Paz. "Smaller Cuts, Higher Lower Bounds." *ACM Transactions on Algorithms* 17(4), article 30, 30:1–30:40, 2021. https://doi.org/10.1145/3469834 ; preprint arXiv:1901.01630. Checked against the publisher's PDF on 2026-11-13: Definition 4 (families of streaming lower bound graphs, p. 30:32) and Theorem 14 (p. 30:33: an `R`-pass streaming algorithm with `M` bits of memory for such a family gives `RM = Ω(CC(f))`, deterministic and randomized). The protocol in the proof of Theorem 14 sends at most `(2R − 1)M` bits (`M` from Alice in each pass and from Bob in every pass but the last); the proof incorrectly writes this total as `R(2M − 1)`, which does not affect the asymptotic statement. The library counts the same protocol exactly, `(2p − 1)b` bits of memory states, plus one bit so that the output is determined by the transcript (in the source, only Bob learns the answer). arXiv:1901.01630v2 numbers these Definition 3 and Theorem 15.
+
 <a id="abukhzam2007"></a>
 ## abukhzam2007
 
@@ -289,6 +294,11 @@ Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Adaptively Secure Garbling wit
 
 Lucien Birgé. "Approximation dans les espaces métriques et théorie de l'estimation." *Zeitschrift für Wahrscheinlichkeitstheorie und Verwandte Gebiete* 65(2), 181–237, 1983. https://doi.org/10.1007/BF00532480 . Bibliographic metadata checked via search summaries on 2026-11-11; the article text was not inspected, and no theorem number is claimed. Cited as background origin for bounded likelihood-ratio Hellinger tests (`leCamBirgeTest`) and Hellinger tournament localization (`birgeTournamentSelect`); the explicit `1/3`–`2/3` clipped `birgeWeight` formulation and constants (`1 - h² / 25`, `10 * r`, `11 * r`, `2 * (M - 1) * exp (-4 n r²)`) are proved from first principles in `CslibFrontier/Probability/HypothesisSelection/{LeCamBirge,Tournament}.lean`.
 
+<a id="bjks04"></a>
+## bjks04
+
+Ziv Bar-Yossef, T. S. Jayram, Ravi Kumar and D. Sivakumar. "An Information Statistics Approach to Data Stream and Communication Complexity." *Journal of Computer and System Sciences* 68(4), 702–732, 2004 (preliminary version in FOCS 2002). https://doi.org/10.1016/j.jcss.2003.11.006 . Checked on 2026-11-16 against an "Article in press" copy of the journal version with the journal's pagination: Section 3.1, the end of the proof of Theorem 3.1 (pp. 708–709), where a `c`-pass `s`-space algorithm gives a `t`-player multi-round protocol in which "the last player sends the content of the memory back to the first player", with total communication at most `cst`. Whether this paragraph is already in the FOCS 2002 version was not checked.
+
 <a id="bjkst02"></a>
 ## bjkst02
 
@@ -419,6 +429,11 @@ Gregory J. Chaitin. *Information-Theoretic Limitations of Formal Systems*. Journ
 
 Amit Chakrabarti. *Data Stream Algorithms: Lecture Notes*. Dartmouth College, latest update July 1, 2025. https://www.cs.dartmouth.edu/~ac/Teach/data-streams-lecnotes.pdf . Locators checked against that PDF on 2026-11-07 UTC: Unit 1 (Section 1.1 for the MAJORITY and FREQUENT problems, Algorithm 1 and Theorem 1.3.1 for Misra–Gries, Exercise 1-1 for the `(m − m̂)/k` sharpening), Section 2.4 (the median trick) and Section 5.3 (Algorithms 7–8 and equations (5.1)–(5.7) for the Count-Sketch).
 
+<a id="changkannan06"></a>
+## changkannan06
+
+Kevin L. Chang and Ravi Kannan. "The Space Complexity of Pass-Efficient Algorithms for Clustering." *Proceedings of the Seventeenth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA 2006)*, 1157–1166. https://doi.org/10.1145/1109557.1109685 . Checked against the SODA text on 2026-11-13: Section 5.1, the proof of Theorem 5.1 (stated on p. 1164), on p. 1165, which simulates an `ℓ`-pass algorithm with memory `M(A)` by "a total of 2ℓ − 1 messages of size at most M(A)", Alice and Bob alternately continuing each pass on their halves of the stream. The journal version (SIAM J. Comput., 2009, retitled) was not inspected.
+
 <a id="charikar02"></a>
 ## charikar02
 
@@ -537,6 +552,11 @@ CSLib contributors. *CSLib*, pinned dependency snapshot `254e30e6d4299c51323aaea
 Marek Cygan, Fedor V. Fomin, Łukasz Kowalik, Daniel Lokshtanov, Dániel Marx, Marcin Pilipczuk, Michał Pilipczuk, and Saket Saurabh. *Parameterized Algorithms*. Springer, 2015. [DOI](https://doi.org/10.1007/978-3-319-21275-3). Inspected the authors' companion PDF dated 2016-05-30: Definitions 1.2–1.3 (p. 13), Definition 2.1 (pp. 18–19), Lemma 2.2 (p. 20), and Section 2.2.1 (pp. 21–22); accessed 2026-11-02. On 2026-11-08 the same PDF returned HTTP 403, so the crown material of Section 2.3 cited by [Crown](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/Crown.lean) was not inspected. Secondary sources number the crown lemma Lemma 2.14 and the `3k` kernel Theorem 2.16; these numbers are unverified and are not used in the Lean docstrings. The color-coding locators Section 5.2 and Lemma 5.5, the fpt-reduction locator Section 13.1, and the tree-decomposition locator Section 7.3.1 (weighted independent set, stated for `n`-vertex graphs), used in [parameterized complexity](machines-and-classes/parameterized-complexity.md), were not re-inspected. Section 4.4 (iterative compression for odd cycle transversal), cited by [OddCycleTransversal](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/OddCycleTransversal.lean) and its algorithm, was not inspected either; its locator comes from secondary sources. Likewise, nice tree-decomposition normalization (Lemma 7.4, p. 161), bounded-treewidth CSP dynamic programming, and the clause-grouping `3-SAT`-to-`Clique` ETH lower bound (Theorem 14.21, p. 485) were inspected in the companion PDF and verified, matching the locators in the [results registry](../CslibFrontierResults/Entries.lean).
 
 The same author PDF supports the weighted-circuit enumeration in Section 13.3, p. 436, and the definition of `W[t]` in Definition 13.16, p. 437, used in [parameterized complexity](machines-and-classes/parameterized-complexity.md). This section does not define `W[P]`; the library's `WP` reduction closure is documented separately and its equivalence with an effective literature class is not claimed.
+
+<a id="dasfraigniaudpazrosen25"></a>
+## dasfraigniaudpazrosen25
+
+Avinandan Das, Pierre Fraigniaud, Ami Paz and Adi Rosén. "Semi-Streaming Algorithms for Graph Property Certification." arXiv:2503.12996v1, 2025. https://arxiv.org/abs/2503.12996 . Checked against arXiv:2503.12996v1 on 2026-11-16: Section 1 (a certification scheme's verifier receives a certificate from the prover before the stream starts; its cost is the certificate size plus the memory) and Lemma 7 (a family of streaming lower bound graphs gives `c + m = Ω(CC^N(f))` for one-pass certification schemes with `c`-bit certificates and `m` bits of memory; the proof simulates one pass, with one message from Alice to Bob).
 
 <a id="dasguptagupta03"></a>
 ## dasguptagupta03
