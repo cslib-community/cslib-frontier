@@ -8,11 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
+public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
+public import CslibFrontier.Probability.IID.FirstSome
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Primitives.ByteString
+import all CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Probability.PMF.Support
 
@@ -23,7 +26,10 @@ import CslibFrontier.Probability.PMF.Support
 seed and two-byte nonce. BitUnpack sends its initial bytes bijectively to the signed
 coefficient box. The table is indexed by the literal 528-bit input and sampled before any
 key generation or quantum interaction. Its other uses, including Algorithm 33 at a coincident
-address and longer adversarial queries, see the same bytes.
+address and longer adversarial queries, see the same bytes. When those expansion bytes are
+private, the full capped signing loop has the same signature-or-failure law as drawing a fresh
+mask from `signingMaskLaw` on every attempt. Both executions hash each commitment with the
+ambient XOF and stop on sparse-challenge exhaustion.
 -/
 
 public section
@@ -94,10 +100,6 @@ private noncomputable def packedEquiv (s : Level) :
     rw [← pow_mul, ← pow_mul]
     congr 1
     ring⟩)
-
-/-- Bytes consumed by Algorithm 34 for one mask polynomial, 576 at ML-DSA-44 and
-640 at ML-DSA-65 and ML-DSA-87. -/
-abbrev maskPolyBytes (s : Level) := 32 * (s.params.γ₁.log2 + 1)
 
 /-- The raw SHAKE256 word for one Algorithm 34 polynomial, including the two-byte nonce.
 Algorithm 33 accesses precisely the same stream if supplied the same word. -/
@@ -207,7 +209,7 @@ theorem Xofs.expandMask_of_mem_sampleWithMasks {base H : Xofs} {s : Level} {a b 
     (i : Fin s.params.ℓ) (j : Fin 256) :
     (((H.expandMask s seed.toList κ).get i).get j) =
       ((masks (maskAddress seed (κ + i.val)) j).val : ZMod 8380417) := by
-  simp only [Xofs.expandMask, Vector.get_ofFn]
+  simp only [Xofs.expandMask, expandMaskFrom, Vector.get_ofFn]
   rw [Xofs.read_mask_of_mem_sampleWithMasks h seed (κ + i.val)]
   let row := masks (maskAddress seed (κ + i.val))
   change ((unpackSigned 1 (width s) s.params.γ₁
@@ -236,7 +238,7 @@ private theorem schedule_injective (s : Level) (seed : FixedBytes 64) :
   obtain ⟨lo, hi⟩ := bs
   have low := congrArg Fin.val lo
   have high := congrArg Fin.val hi
-  simp only [Fin.val_ofNat] at low high
+  simp only [nonceSuffix, Matrix.cons_val_zero, Matrix.cons_val_one, Fin.val_ofNat] at low high
   have bp := nonce_lt s p
   have bq := nonce_lt s q
   have same : schedule s p = schedule s q := by lia
@@ -259,7 +261,7 @@ private theorem uniform_scheduledMasks (s : Level) (seed : FixedBytes 64) :
 /-- In the original joint random-XOF experiment, Algorithm 34 at a fixed seed produces an
 independent uniform signed coefficient at every position in the full 814-attempt schedule.
 The output coefficients are embedded in the FIPS ring. -/
-theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b : ℕ}
+private theorem Xofs.uniformPrefixes_expandMask_coefficients (base : Xofs) (s : Level) {a b : ℕ}
     (ha : 528 ≤ a) (hb : maskPolyBytes s ≤ b) (seed : FixedBytes 64) :
     (base.uniformPrefixes a b).map (fun H (p : Fin 814 × Fin s.params.ℓ) (j : Fin 256) =>
       (((H.expandMask s seed.toList (signingAttemptCounter s.params 0 p.1)).get p.2).get j)) =
@@ -278,6 +280,151 @@ theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b 
   congr 1
   funext p j
   exact Xofs.expandMask_of_mem_sampleWithMasks hH seed _ p.2 j
+
+private abbrev Coefficients (s : Level) := Fin s.params.ℓ → Fin 256 → MaskCoefficient s
+
+private theorem maskLaw_coefficients (s : Level) :
+    (PMF.uniformOfFintype (Coefficients s)).map (fun r i => ringRow (r i)) =
+      signingMaskLaw s.params (by cases s <;> decide) := by
+  classical
+  let pack (r : Coefficients s) : ↥(maskSet s.params) :=
+    ⟨fun i => ringRow (r i), (mem_intervalVectors s.params).2 fun i j => by
+      have hj := Finset.mem_Ioc.mp (r i j).property
+      exact ⟨(r i j).val, ⟨by lia, hj.2⟩, rfl⟩⟩
+  have inj : Function.Injective pack := by
+    intro r t h
+    funext i j
+    apply Subtype.ext
+    have eq := congrArg (fun v : ↥(maskSet s.params) => (v.val i j).valMinAbs) h
+    simpa only [pack, centered] using eq
+  have onto : Function.Surjective pack := by
+    intro y
+    have mem := (mem_intervalVectors s.params).mp y.property
+    choose x hx eq using mem
+    let r : Coefficients s := fun i j => ⟨x i j, Finset.mem_Ioc.mpr ⟨by have := (hx i j).1; lia,
+      (hx i j).2⟩⟩
+    exact ⟨r, Subtype.ext (funext fun i => funext fun j => eq i j)⟩
+  let e := Equiv.ofBijective pack ⟨inj, onto⟩
+  let _ : Nonempty ↥(maskSet s.params) := Finset.nonempty_coe_sort.mpr
+    (mask_nonempty s.params (by cases s <;> decide))
+  have law := PMF.uniformOfFintype_finset_map_val (maskSet s.params)
+  rw [← PMF.uniformOfFintype_map_equiv e, PMF.map_comp] at law
+  exact law
+
+private theorem iid_coefficients (s : Level) (k : ℕ) :
+    (PMF.uniformOfFintype (Fin k × Fin s.params.ℓ → Fin 256 → MaskCoefficient s)).map
+        (fun r i j => ringRow (r (i, j))) =
+      PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) k := by
+  rw [← maskLaw_coefficients, PMF.iid_map, PMF.iid_uniformOfFintype,
+    ← PMF.uniformOfFintype_map_equiv
+      (Equiv.curry (Fin k) (Fin s.params.ℓ) (Fin 256 → MaskCoefficient s)), PMF.map_comp]
+  rfl
+
+/-- All 814 scheduled Algorithm 34 masks have the joint IID law used by the signing simulator. -/
+theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b : ℕ}
+    (ha : 528 ≤ a) (hb : maskPolyBytes s ≤ b) (seed : FixedBytes 64) :
+    (base.uniformPrefixes a b).map (fun H (t : Fin 814) =>
+      ringVectorCoeffs (H.expandMask s seed.toList (signingAttemptCounter s.params 0 t))) =
+      PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) 814 := by
+  have law := congrArg (PMF.map Function.curry)
+    (base.uniformPrefixes_expandMask_coefficients s ha hb seed)
+  rw [← iid_coefficients]
+  simp only [PMF.map_comp] at law
+  convert law using 1 <;> apply congrArg (fun g => PMF.map g _) <;>
+    funext x i k j <;> rfl
+
+private theorem iid_maskFromRow (s : Level) :
+    (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).map
+        (fun row (i : Fin 814) =>
+          ringVectorCoeffs (maskFromRow s row (signingAttemptCounter s.params 0 i))) =
+      PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) 814 := by
+  let tag : ScheduledRow s ↪ FixedBytes 2 := ⟨fun p => nonceSuffix (schedule s p), by
+    intro p q h
+    apply schedule_injective s 0
+    simp only [maskAddress, nonceInput, h]⟩
+  let read (r : ScheduledRow s → FixedBytes (maskPolyBytes s)) (i : Fin 814) (k : Fin s.params.ℓ) :=
+    ((unpackSigned 1 (width s) s.params.γ₁ (r (i, k)).toList).get 0).get
+  have law := congrArg (PMF.map read)
+    (PMF.uniformOfFintype_pi_map_comp_embedding (α := FixedBytes (maskPolyBytes s)) tag)
+  let enc := Equiv.piCongrRight (fun _ : ScheduledRow s => packedEquiv s)
+  rw [PMF.map_comp, ← PMF.uniformOfFintype_map_equiv enc, PMF.map_comp] at law
+  rw [← iid_coefficients]
+  convert law using 1
+  · apply congrArg (fun g => PMF.map g _)
+    funext r i k j
+    simp only [maskFromRow, expandMaskFrom, ringVectorCoeffs, Vector.get_ofFn, Function.comp_apply,
+      read, width, schedule, tag, Function.Embedding.coeFn_mk]
+  · apply congrArg (fun g => PMF.map g _)
+    funext r i k j
+    exact (unpack_row s (r (i, k)) j).symm
+
+private def terminalReply {α : Type} : Option (Option α) → Option (Option α)
+  | none => some none
+  | some reply => reply.map some
+
+private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte)))
+    (k start : ℕ) :
+    firstAccepted stride tryAt k start =
+      (Fin.findSome? fun i : Fin k => terminalReply (tryAt (start + i.val * stride))).join := by
+  induction k generalizing start with
+  | zero => rfl
+  | succ k ih =>
+    rw [Fin.findSome?_succ]
+    simp only [Fin.val_zero, zero_mul, add_zero]
+    have next (i : Fin k) : start + i.succ.val * stride = start + stride + i.val * stride := by
+      rw [Fin.val_succ, Nat.add_mul, Nat.one_mul]
+      lia
+    simp only [next]
+    cases h : tryAt start with
+    | none => simp [firstAccepted, h, terminalReply]
+    | some r =>
+      cases r <;> simp [firstAccepted, h, terminalReply, ih]
+
+private theorem cappedReplay {X Y : Type} (p : PMF X) (μ : PMF Y) (mask : X → ℕ → Y)
+    (finish : Y → Option (Option (List Byte))) (stride k : ℕ)
+    (law : p.map (fun x (i : Fin k) => mask x (0 + i.val * stride)) = PMF.iid μ k) :
+    p.map (fun x => firstAccepted stride (fun nonce => finish (mask x nonce)) k 0) =
+      ((List.range k).findSomeM? fun _ => μ.map (terminalReply ∘ finish)).map Option.join := by
+  let run (u : Fin k → Y) := Fin.findSome? fun i => terminalReply (finish (u i))
+  have schedule := congrArg (PMF.map run) law
+  rw [PMF.map_comp] at schedule
+  have online (xs : List ℕ) (len : xs.length = k) : (PMF.iid μ k).map run =
+      xs.findSomeM? (fun _ => μ.map (terminalReply ∘ finish)) := by
+    subst k
+    exact PMF.iid_map_findSome μ (terminalReply ∘ finish) xs
+  rw [← online _ (List.length_range (n := k)), ← schedule, PMF.map_comp]
+  apply congrArg (fun f => PMF.map f p)
+  funext x
+  exact firstAccepted_eq_terminal stride _ k 0
+
+/-- Drawing independent full-width bytes per nonce and drawing a fresh mask from the signing
+simulator's coefficient box give the same native 814-attempt signing result. The ambient
+commitment and challenge XOF is fixed throughout. Sparse expansion failure stops signing,
+whereas a rejected response advances to the next mask. -/
+theorem Xofs.privateMaskRetries_eq_iid (H : Xofs) (s : Level) (sk : PrivateKey s)
+    (A : PublicMatrix s) (μ : List Bool) :
+    let finish := fun (y : Fin s.params.ℓ → Poly) =>
+      let w := moduleSISMap A y
+      let d := H.commitmentDigest s (highBitsVec s.params w) μ
+      finishSigningAttempt s sk y w d (H.sampleInBall s d)
+    (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).map (fun row =>
+      H.signingRetries s sk A μ (maskFromRow s row)) =
+      ((List.range 814).findSomeM? fun _ =>
+        (signingMaskLaw s.params (by cases s <;> decide)).map fun y =>
+          (finish y).elim (some none) (Option.map some)).map Option.join := by
+  intro finish
+  have native : H.attemptWithMask s sk A μ = finish := by
+    funext y
+    simp only [Xofs.attemptWithMask, AttemptCommitment.ofMask, tabulateRingVector_eq, finish]
+  have stop : (fun y => (finish y).elim (some none) (Option.map some)) =
+      terminalReply ∘ finish := by
+    funext y
+    simp only [Function.comp_apply]
+    cases finish y <;> rfl
+  simp only [Xofs.signingRetries, native, stop]
+  exact cappedReplay _ (signingMaskLaw s.params (by cases s <;> decide))
+    (fun row nonce => ringVectorCoeffs (maskFromRow s row nonce)) finish s.params.ℓ 814
+    (iid_maskFromRow s)
 
 namespace QuantumSigningForger
 

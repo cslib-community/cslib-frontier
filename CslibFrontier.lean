@@ -49,6 +49,7 @@ public import CslibFrontier.Algorithms.Lean.CYK.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
+public import CslibFrontier.Algorithms.Lean.DPLL
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
@@ -2747,6 +2748,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceCrossings
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDetourPlacement
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferencePatchAssembly
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Split
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SplitFeasibility
@@ -4985,7 +4987,9 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
+public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
@@ -7701,6 +7705,7 @@ public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTime
+public import CslibFrontier.Logics.Propositional.Resolution.LRAT
 public import CslibFrontier.Logics.Propositional.Resolution.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Resolution.PigeonholeSpace
 public import CslibFrontier.Logics.Propositional.Resolution.Proof

@@ -8209,6 +8209,44 @@ register_result "prf-mac-suf-cma" where
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 
+register_result "authenticated-encryption-cca" where
+  title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 9.1", locator := "Section 9.2.3, p. 363" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.AuthenticatedEncryption.indcca,
+    Cslib.Crypto.SymmetricCipher.OneTimeAuthenticatedEncryption.oneTimeINDCCA
+  ]
+  scope := "Both sentences of Theorem 9.1 (proof pp. 363–365), for any SymmetricCipher: strict PPT \
+    key generation and encryption, deterministic polynomial-time decryption returning a \
+    message or a rejection, and correct decryption of encryptions of n-bit messages; the \
+    source allows any message space, here messages have exactly n bits at parameter n. A \
+    source cipher over (K, M, C) (Definition 2.10, p. 31) is encoded by choosing ctSpace n to \
+    be the membership test of C and decryption to reject every word outside C, as the field \
+    decrypt_eq_none_of_ctSpace_eq_false requires; Definition 2.10 also makes C efficiently \
+    recognizable, which the proof does not use. The integrity games accept any fresh word as \
+    a forgery, but a word outside C decrypts to a rejection and loses, so CiphertextIntegrity \
+    is Attack Game 9.1 on C and the premise is the source's. The CCA games also answer \
+    decryption queries outside C, with a rejection; the source's adversaries ask only words \
+    of C, so the conclusion implies CCA security on C. AuthenticatedEncryption.indcca: an \
+    AE-secure cipher (Definition 9.2, p. 359: CPA security, Attack Game 5.2 and \
+    Definition 5.2, pp. 181–182, and ciphertext integrity, Attack Game 9.1 and Definition 9.1, \
+    pp. 358–359) is CCA-secure (Attack Game 9.2 and Definition 9.5, p. 362). \
+    OneTimeAuthenticatedEncryption.oneTimeINDCCA: a 1AE-secure cipher (Definitions 9.3–9.4, \
+    p. 360) is 1CCA-secure (Definition 9.6, p. 363). Adversaries are uniform strict \
+    oracle-PPT programs in the standard model, and the advantage is the two-experiment one of \
+    Attack Game 9.2. An encryption query that is not a pair of n-bit messages is answered with \
+    the empty word without encrypting; a decryption query on a ciphertext that the oracle \
+    returned is answered as a rejection instead of being prohibited; the one-time games \
+    answer only the first valid encryption query instead of restricting the adversary to \
+    one. The reductions ccaToCPAAdversary and ccaToCIHiddenBitAdversary are certified oracle \
+    PPT. Asymptotic; the concrete bound advantage_ccaGame_le_two_mul, in the same module, has \
+    CI coefficient 2 · dyadicSize(Qd − 1), at most 4 Qd when Qd ≥ 1, in place of the 2 Qd of \
+    (9.3), because the CI reduction draws its query index with fair coins; \
+    guessingAdvantage_guessBit_ccaGame_le_two_mul states (9.4) with 2 Qd in place of Qd."
+
 register_result "prepend-key-prf-random-oracle" where
   title := "Prepending the key to a random oracle gives a PRF with advantage at most Q_ro/|K| \
     for every nonempty finite key space, and a secure PRF when 1/|K| is negligible in the \
@@ -8555,7 +8593,47 @@ register_result "kem-dem-hybrid-correctness" where
     key pair and its encapsulated keys. Messages may have any type. Part (b), semantic \
     security, is not part of this entry: KEMINDCPA.hybrid_indcpaOn, in the same module, \
     assumes a KEM notion whose distinguisher also receives pk, which the exercise's KEM game \
-    (p. 460) does not give it."
+    (p. 460) does not give it, and is registered as kem-dem-hybrid-ind-cpa-corrected."
+
+register_result "kem-dem-hybrid-ind-cpa-corrected" where
+  title := "KEM–DEM hybrid encryption is semantically secure when the KEM is secure against \
+    distinguishers that also see the public key (corrected Exercise 11.9(b))"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Exercise 11.9(b), corrected: the KEM adversary also receives pk",
+      locator := "Section 11.8, pp. 460–461" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn,
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpa
+  ]
+  scope := "A corrected form of Exercise 11.9(b). The exercise's KEM challenger sends only \
+    (k_b, c_kem) (p. 460), and under that notion part (b) is false: if key generation outputs a \
+    uniform pk with sk = pk and encapsulation returns (pk, []), both printed experiments show a \
+    uniform key and an empty encapsulation, yet the hybrid with the one-time pad encrypts m as \
+    pk ⊕ m, which anyone holding pk decrypts. The KEM hypothesis here, KEMINDCPA keyLen keyGen \
+    encaps, also gives the distinguisher pk. It is the KEM security of Cramer and Shoup \
+    (CramerShoup2003, Section 7.1.2, pp. 38–39 of the authors' revised manuscript of \
+    August 14, 2003), restricted to adversaries that make no decryption queries, against uniform \
+    strict PPT distinguishers, with the ideal key uniform on keyLen n-bit words and the \
+    two-experiment advantage. The other hypotheses: DEMOneTimeKeyINDCPAOn valid encMsg keyLen \
+    encryptSym, semantic security of the DEM (Attack Game 2.1 and Definition 2.2, p. 16) under a \
+    uniform keyLen n-bit key against uniform strict PPT adversaries, for challenge pairs \
+    admitted by valid; valid is polynomial-time computable and ignores the public key; key \
+    generation, encapsulation and DEM encryption are uniform strict PPT. Conclusion: INDCPAOn \
+    valid encMsg, semantic security (Attack Game 11.1 and Definition 11.2, pp. 436–437) of \
+    hybridEncrypt encaps encryptSym, the hybrid scheme of the exercise (p. 461), against uniform \
+    strict PPT two-stage adversaries, for the same valid. Taking valid to admit pairs of \
+    messages of M of equal length, which is polynomial time because M is efficiently \
+    recognizable (Definition 2.10, p. 31), gives the source's games; a wider valid is a stronger \
+    assumption on the DEM. KEMINDCPA.hybrid_indcpa is the case in which every challenge pair is \
+    admissible, the source's games when all messages of the type have one length. The \
+    reductions hybridToKEMDistinguisher and hybridToDEMAdversary are certified strict PPT \
+    (isPPT_hybridToKEMDistinguisher, isPPT_hybridToDEMAdversary). Asymptotic; \
+    advantage_hybridGame_le_two_mul, in the same module, is the corrected exercise's bound \
+    SSadv[A, E] ≤ 2 · SSadv[B_kem, E_kem] + SSadv[B_s, E_s], with the single hidden-bit \
+    distinguisher hybridToKEMHiddenBitDistinguisher."
 
 register_result "rsa-unit-preimage-variant" where
   title := "The RSA assumption implies its variant with a uniform unit preimage"

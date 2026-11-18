@@ -30,7 +30,26 @@ env:
   MATHLIB_NO_CACHE_ON_UPDATE: ${{ (vars.DISABLE_CACHE_RESTORE == 'true' || vars.DISABLE_CACHE_RESTORE == '1') && '1' || '0' }}
 
 jobs:
+  select-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      lean: ${{ steps.select.outputs.lean }}
+      origin: ${{ steps.select.outputs.origin }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          sparse-checkout: scripts/ci
+      - id: select
+        env:
+          FORCE_FULL_CI: ${{ vars.FORCE_FULL_CI }}
+        run: python3 -B scripts/ci/select_checks.py
+
   cache-origin-checks:
+    needs: select-checks
+    if: needs.select-checks.outputs.origin == 'true'
     name: HTTP cache origin
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -142,19 +161,30 @@ jobs:
         run: python3 -B scripts/check_docs.py --config-only
 
   lean-checks:
-    runs-on: ubuntu-24.04
+    needs: select-checks
+    if: needs.select-checks.outputs.lean == 'true'
+    # Pushes to `main` run on the runner named by the repository variable MAIN_BUILD_RUNNER, when
+    # it is set; larger runners are billed even in public repositories. Every other event, and
+    # `main` while the variable is unset, uses the standard runner. Delete the variable to return
+    # `main` to the standard runner without a commit (scripts/cache/README.md).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.MAIN_BUILD_RUNNER || 'ubuntu-24.04' }}
     outputs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
       contents: read
-      # Main may download the exact landed revision's successful merge-group build artifact, and
-      # a merge group that of its nearest first-parent ancestor.
+      # Each consumer reads only successful main merge-group build artifacts.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reclaim unused hosted-runner SDK space
         continue-on-error: true
+        env:
+          SDK_CLEANUP_MIN_GIB: ${{ vars.SDK_CLEANUP_MIN_GIB }}
         run: scripts/ci/prepare-runner.sh
+      - name: Sample runner disk use
+        id: disk-sample
+        continue-on-error: true
+        run: python3 -B scripts/ci/runner_disk.py start
       # The steps below do what lean-action did, with bounded cache retries: install the toolchain,
       # restore and save `.lake` under the same Actions cache key, then build, test and lint.
       - name: Restore .lake from the Actions cache
@@ -231,6 +261,22 @@ jobs:
         run: |
           echo "::error title=Unconfirmed cache process shutdown::The ancestor handoff's history fetch may still be running; rerun the job."
           exit 125
+      # PR and merge-group reads precede the remote-cache top-up because a handoff
+      # replaces the root build as a unit. A PR uses only its merge commit's main parent.
+      - name: Restore PR base merge-group build outputs
+        if: >-
+          github.event_name == 'pull_request' && github.base_ref == 'main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          vars.DISABLE_BUILD_HANDOFF != 'true' && vars.DISABLE_BUILD_HANDOFF != '1' &&
+          vars.DISABLE_PR_BUILD_HANDOFF != 'true' && vars.DISABLE_PR_BUILD_HANDOFF != '1'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
+          DISABLE_PR_BUILD_HANDOFF: ${{ vars.DISABLE_PR_BUILD_HANDOFF }}
+          RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}
+        run: python3 -B scripts/cache_handoff.py restore --pr-base
       # Download the outputs that `main` CI uploaded for the nearest uploaded ancestor of this
       # commit, skipping modules that `.lake` already has (scripts/cache/README.md). The script
       # deepens the depth-1 checkout to 100 generations to find that ancestor. Lake reuses an
@@ -476,11 +522,17 @@ jobs:
           compression-level: 0
           retention-days: 2
           if-no-files-found: error
+      - name: Report runner disk use
+        if: >-
+          !cancelled() && steps.ancestor-handoff.outputs.exit-status != '125' &&
+          steps.disk-sample.outcome == 'success'
+        continue-on-error: true
+        run: python3 -B scripts/ci/runner_disk.py report
   # Keep the existing required-check context while source-only and Lean validation overlap. The
   # Lean job may prepare an unused publication artifact when source validation fails, but no
   # publisher consumes it unless this aggregator succeeds.
   ci-checks:
-    needs: [source-checks, lean-checks]
+    needs: [select-checks, source-checks, lean-checks]
     if: always()
     runs-on: ubuntu-latest
     permissions: {}
@@ -489,11 +541,14 @@ jobs:
     steps:
       - name: Require source and Lean validation
         env:
+          SELECTION_RESULT: ${{ needs.select-checks.result }}
+          EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}
           SOURCE_RESULT: ${{ needs.source-checks.result }}
           LEAN_RESULT: ${{ needs.lean-checks.result }}
         run: |
+          test "$SELECTION_RESULT" = success
           test "$SOURCE_RESULT" = success
-          test "$LEAN_RESULT" = success
+          test "$LEAN_RESULT" = "$EXPECTED_LEAN"
 
   publish-gcs-cache:
     needs: ci-checks
