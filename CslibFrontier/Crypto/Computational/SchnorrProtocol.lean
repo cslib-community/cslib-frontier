@@ -142,7 +142,8 @@ def encScalar (d : F.Desc) : ZMod (F.order d) ↪ List Bool :=
 /-- Schnorr's Sigma protocol ([BonehShoup2023], Example 19.1) in the group described by `i.2`,
 with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. The honest
 prover draws its commitment nonce exactly uniformly on `ZMod q` at the `PMF` level, an ideal
-sampler that no fair-coin machine realizes exactly. Fair-coin honest conversations with `m`-bit
+sampler that no fair-coin machine with a strict polynomial time bound realizes exactly when `q` is
+not a power of two. Fair-coin honest conversations with `m`-bit
 challenges are `schnorrRealTranscript` in `CslibFrontier.Crypto.Computational.SchnorrEavesdrop`
 (#5293). -/
 noncomputable def schnorrFamily (i : ℕ × F.Desc) :
