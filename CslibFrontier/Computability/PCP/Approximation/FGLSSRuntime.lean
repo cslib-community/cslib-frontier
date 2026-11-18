@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.PCP.Approximation.AssignmentConsistency
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
@@ -236,38 +237,12 @@ private theorem nativeTwoPow {encIn : α ↪ List Bool} {size T S width : α →
   exact (hw.mul hw).mono fun a =>
     Nat.mul_le_mul_right _ (Nat.lt_two_pow_self (n := width a))
 
--- Saturating binary decoding at 2 ^ size is exact and incurs only polynomial cost in the value.
-private theorem nativeBinaryUnary :
-    ∃ T S : ℕ → ℕ, PolyBounded id T ∧ PolyBounded id S ∧
-      ComputableInO id encNat encUnary T S := by
-  have hs : PolyBounded id Nat.size := PolyBounded.self.mono fun n =>
-    Nat.size_le.mpr Nat.lt_two_pow_self
-  have hp : PolyBounded id (fun n => 2 ^ n.size) := by
-    refine ((PolyBounded.const 2).mul (PolyBounded.self.add (.const 1))).mono fun n => ?_
-    change 2 ^ n.size ≤ 2 * (n + 1)
-    cases h : n.size with
-    | zero => omega
-    | succ k =>
-      have hk : k < n.size := by omega
-      have hn := Nat.lt_size.mp hk
-      rw [pow_succ]
-      omega
-  obtain ⟨T, S, hT, hS, h⟩ := nativeTwoPow binary_size.nat_inO .self .self hp
-  have hid := ComputableInO.id' (encMid := encNat)
-  have hlen : PolyBounded id (fun n => (encNat n).length) := by
-    simpa [encNat_apply, Nat.size_eq_bits_len] using hs
-  obtain ⟨T', S', hT', hS', h'⟩ := nativePostprocess (h.prod hid)
-    (hT.add hlen) (hS.add hlen) binary_min_unary
-  exact ⟨T', S', hT', hS', h'.of_enc_eq fun n => by simp [min_eq_right (Nat.lt_size_self n).le]⟩
-
 private theorem polyEnumFromBudget :
     ComputableInPolyTime (fun n => BitString.enumList (Nat.log 2 n)) encUnary encWords := by
   apply bitsEnumList_of_polyBounded (.of_tidy ComputableTidilyInPolyTime.unary_log_two)
   refine (PolyBounded.self.add (.const 1)).mono fun n => ?_
   simp only [encUnary_apply, List.length_replicate]
-  cases n with
-  | zero => simp
-  | succ n => exact (Nat.pow_log_le_self 2 (Nat.succ_ne_zero _)).trans (Nat.le_succ _)
+  exact Nat.pow_log_le_add_one 2 n
 
 private theorem polyQueryWidth (hV : V.PolyTime enc) :
     ComputableInPolyTime (fun p : α × List (List Bool) => V.queryWidth p.1 p.2)
@@ -304,10 +279,7 @@ private theorem polyGraphFrom (hV : V.PolyTime enc) :
     have hlog := (of_tidy ComputableTidilyInPolyTime.unary_log_two).comp h.fst'.snd'
     have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog)
       ((PolyBounded.self.add (.const 1)).mono fun p => by
-        have hn : 2 ^ Nat.log 2 p.1.2 ≤ p.1.2 + 1 := by
-          by_cases hh : p.1.2 = 0
-          · simp [hh]
-          · exact (Nat.pow_log_le_self 2 hh).trans (Nat.le_succ _)
+        have hn := Nat.pow_log_le_add_one 2 p.1.2
         have hle := Nat.pow_le_pow_right (by decide : 0 < (2 : ℕ))
           (min_le_right (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2))
         change 2 ^ min (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2) ≤
@@ -342,10 +314,9 @@ theorem computableInO_fglssEdgeList (hV : V.PolyTime enc) (q : ℕ → ℕ)
     (Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _)).trans
       (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
   obtain ⟨Tc, Sc, hTc, hSc, hc⟩ := hV.coins.exists_computableInO
-  obtain ⟨Tb, Sb, hTb, hSb, hb⟩ := nativeBinaryUnary
   have hcoins : PolyBounded size V.coins := hr.mono fun _ => Nat.lt_two_pow_self.le
-  obtain ⟨Tp, Sp, hTp, hSp, hp⟩ := nativeTwoPow (hb.comp hc)
-    ((hTc.comp hi).add (hTb.comp hcoins)) ((hSc.comp hi).add (hSb.comp hcoins)) hr
+  obtain ⟨Tp, Sp, hTp, hSp, hp⟩ := nativeTwoPow (ComputableInO.natToUnary.comp hc)
+    ((hTc.comp hi).add hcoins) ((hSc.comp hi).add hcoins) hr
   obtain ⟨Tr, Sr, hTr, hSr, hrand⟩ := nativePostprocess hp hTp hSp polyEnumFromBudget
   have hrand' := hrand.of_enc_eq (encC := encWords) (g := fun a => BitString.enumList (V.coins a))
     fun a => by simp [Nat.log_pow (by decide : 1 < 2)]
