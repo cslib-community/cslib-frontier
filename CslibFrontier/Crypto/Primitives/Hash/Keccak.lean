@@ -407,6 +407,18 @@ theorem take_squeezeBytesFor (layout : SpongeLayout)
   rw [squeezeBytesFor, take_flatMap_rateBytesFor,
     Sponge.take_hashBlocks _ _ h, squeezeBytesFor]
 
+/-- Absorb an arbitrary bit string with a distinguished suffix and FIPS 202 padding, then
+squeeze the requested number of little-endian bytes. -/
+@[expose] def bitSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List Bool) (outputBytes : ℕ) :
+    List (Fin 256) :=
+  let suffixed := input ++ suffix
+  let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
+  let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
+  let rateBytes := 8 * layout.rateLanes
+  let outputBlockCount := outputBytes ⌈/⌉ rateBytes
+  (squeezeBytesFor layout blocks outputBlockCount).take outputBytes
+
 /-- Byte-aligned Keccak sponge with the rate and capacity selected by `layout` and the supplied
 domain-separation suffix, whose bits are listed in FIPS 202 bit-string order.
 
@@ -415,18 +427,13 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
 @[expose] def byteSponge (layout : SpongeLayout) (suffix : List Bool)
     (input : List (Fin 256)) (outputBytes : ℕ) :
     List (Fin 256) :=
-  let suffixed := bytesToBitsLE input ++ suffix
-  let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
-  let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
-  let rateBytes := 8 * layout.rateLanes
-  let outputBlockCount := outputBytes ⌈/⌉ rateBytes
-  (squeezeBytesFor layout blocks outputBlockCount).take outputBytes
+  bitSponge layout suffix (bytesToBitsLE input) outputBytes
 
 /-- A byte-aligned sponge returns exactly the requested byte count. -/
 @[simp] theorem length_byteSponge (layout : SpongeLayout) (suffix : List Bool)
     (input : List (Fin 256)) (outputBytes : ℕ) :
     (byteSponge layout suffix input outputBytes).length = outputBytes := by
-  rw [byteSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
+  rw [byteSponge, bitSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
   exact le_smul_ceilDiv (a := 8 * layout.rateLanes) (b := outputBytes) (by
     have hr := layout.rate_pos
     omega)
@@ -435,7 +442,7 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
 theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
     (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
     (byteSponge layout suffix input n).take m = byteSponge layout suffix input m := by
-  rw [byteSponge, List.take_take, Nat.min_eq_left h, byteSponge]
+  rw [byteSponge, bitSponge, List.take_take, Nat.min_eq_left h, byteSponge, bitSponge]
   have hk : m ⌈/⌉ (8 * layout.rateLanes) ≤ n ⌈/⌉ (8 * layout.rateLanes) := by
     rw [Nat.ceilDiv_eq_add_pred_div, Nat.ceilDiv_eq_add_pred_div]
     exact Nat.div_le_div_right (by
