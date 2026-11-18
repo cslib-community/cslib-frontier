@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
+import CslibFrontierTests.Crypto.FRI
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Data.ZMod.Basic
@@ -194,59 +195,27 @@ end Helpers
 
 section Unique257
 
-instance instPrime257 : Fact (Nat.Prime 257) := ⟨by norm_num⟩
+open CslibFrontierTests.Crypto.FRI
 
-/-- `2`-folding-round (`4` total batched rounds), depth-`3` (`|L_0| = 8`), rate-`1/2` (`dim 0 = 4`),
-`q = 6` batched FRI parameters over `ZMod 257`. -/
-def params257 : FRIParams (ZMod 257) where
-  d := 3
-  m := 2
-  kFinal := 1
-  q := 6
-  g := 1
-  ω := 4
-  hm := by omega
-  hkPos := by omega
-  hkLe := by omega
-  hg := one_ne_zero
-  h2 := by decide
-  hω := isPrimitiveRoot_two_pow_succ (k := 2) (by decide) (by decide)
-
-/-- Nonvacuous false `3`-word (`t = 2`) statement over `ZMod 257` whose second generator word is
-`X ^ 4` on `L_0`. -/
+/-- Nonvacuous false `3`-word (`t = 2`) statement over `ZMod 257` reusing the shared `params257`,
+`honestWord`, and `farWord` fixtures from `CslibFrontierTests.Crypto.FRI`. -/
 def badStmt257 : FRIBatchStmt (ZMod 257) params257.d 2 where
-  base := 0
-  terms := ![0, fun idx => (params257.eval 0 idx) ^ 4]
+  base := honestWord
+  terms := ![0, farWord]
 
-theorem badStmt257_not_mem : badStmt257 ∉ params257.batchProximityLang 2 2 :=
-  not_mem_batchProximityLang_of_monomial_term params257 badStmt257 ⟨1, by omega⟩ rfl (by decide)
+theorem badStmt257_not_mem : badStmt257 ∉ params257.batchProximityLang 2 2 := by
+  rintro ⟨D', hcard, _, _, v, hv, hagree⟩
+  have hle : D'.card ≤ 4 := card_agree_farWord_le_four (hv 1) fun s hs => (hagree s hs).2 1
+  change 2 ^ 3 - 2 ≤ D'.card at hcard
+  omega
 
-/-- Nonvacuous false `1`-word (`t = 0`) statement over `ZMod 257` (`base = X ^ 4`). -/
+/-- Nonvacuous false `1`-word (`t = 0`) statement over `ZMod 257` (`base = farWord`). -/
 def badStmt257Zero : FRIBatchStmt (ZMod 257) params257.d 0 where
-  base := fun idx => (params257.eval 0 idx) ^ 4
+  base := farWord
   terms := Fin.elim0
 
-theorem badStmt257Zero_not_mem : badStmt257Zero ∉ params257.batchProximityLang 0 2 := by
-  rw [mem_batchProximityLang_zero_iff]
-  rintro ⟨c, hc, hdist⟩
-  have hnot : (⟨0, ![badStmt257Zero.base]⟩ : FRIBatchStmt (ZMod 257) params257.d 1) ∉
-      params257.batchProximityLang 1 2 :=
-    not_mem_batchProximityLang_of_monomial_term params257 _ ⟨0, by omega⟩ rfl (by decide)
-  apply hnot
-  classical
-  refine ⟨Finset.univ.filter fun s : Fin (2 ^ params257.d) => badStmt257Zero.base s = c s, ?_,
-    0, zero_mem _, fun _ => c, fun _ => hc, fun s hs => ⟨rfl, fun j => ?_⟩⟩
-  · have hpart := Finset.card_filter_add_card_filter_not
-      (s := (Finset.univ : Finset (Fin (2 ^ params257.d)))) (fun s => badStmt257Zero.base s = c s)
-    rw [Finset.card_univ, Fintype.card_fin] at hpart
-    have hd :
-        (Finset.univ.filter fun s : Fin (2 ^ params257.d) => ¬ badStmt257Zero.base s = c s).card ≤
-          2 := by
-      simpa only [hammingDist] using hdist
-    have hpow : 2 ^ params257.d = 8 := rfl
-    omega
-  · fin_cases j
-    exact (Finset.mem_filter.mp hs).2
+theorem badStmt257Zero_not_mem : badStmt257Zero ∉ params257.batchProximityLang 0 2 :=
+  (mem_batchProximityLang_zero_iff params257 2 badStmt257Zero).not.mpr farWord_not_mem_proximityLang
 
 -- Direct checks on `friBatchTailTranscript`, `friBatchDoomed`, `friBatchGoodStep`, and
 -- `friBatchIOP_rbrSound` (all three fields).
