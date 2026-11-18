@@ -338,7 +338,7 @@ polynomial-time in the framed input bytes and the unary requested output length.
   have htaken := Turing.MultiTapeTM.ComputableTidilyInPolyTime.listTakeWithInput
     hsqueezed.tidy houtput.tidy
   exact ComputableInPolyTime.of_tidy <| by
-    simpa only [byteSponge, rate, rateBytes] using htaken
+    simpa only [byteSponge, bitSponge, rate, rateBytes] using htaken
 
 /-- SHA3-512 is uniformly polynomial-time in its framed little-endian input bytes. -/
 @[fun_prop] theorem computableInPolyTime_sha3512 :

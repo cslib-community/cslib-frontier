@@ -21,12 +21,12 @@ with `Cslib.negacyclicMul`), and proves its correctness.
 
 The model is the *uncompressed-public-key* scheme: the public key is `(A, t)` with
 `t = A s₁ + s₂`, a signature is `(z, c)`, and verification recomputes
-`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`. It omits the parts of [NISTFIPS204]
-that only shrink keys and signatures or derive randomness from seeds: `Power2Round` of `t`, the
-hint vector (`MakeHint` / `UseHint`), the byte encodings, the `ExpandA` / `ExpandS` /
-`ExpandMask` expansions and the message representative `μ`. The hash-to-ball map
-`SampleInBall ∘ H` is an arbitrary function `Hash`, and the masking vector `y` of each attempt is
-drawn from an arbitrary `ProbComp` sampler.
+`w₁' = HighBits(A z - c t)` and checks `c = H(w₁', M)`.
+This fixed hash-to-ball function compares challenge polynomials.
+FIPS 204 Algorithm 8 checks equality of the full commitment digests, uses a rounded public vector
+and hint, and hashes the message representative and encoded commitment. Its byte-level verifier
+is in `CslibFrontier.Crypto.Computational.MLDSA.FIPS204`. Each signing attempt in this algebraic
+model draws its masking vector `y` from an arbitrary `ProbComp` sampler.
 
 * **Parameters.** `Params` bundles `(n, q, k, ℓ, η, γ₁, γ₂, τ, β)`; `Params.mldsa44`,
   `Params.mldsa65` and `Params.mldsa87` are the three parameter sets of [NISTFIPS204]
