@@ -93,7 +93,9 @@ example : emptyInstance ∉ Complexity.USTCON := by
   intro h
   obtain ⟨p⟩ := h
   cases p with
-  | cons hadj _ => exact absurd hadj (by simp [emptyInstance, Complexity.USTCONInstance.graph])
+  | cons hadj _ =>
+    have h := (Complexity.USTCONInstance.graph_adj emptyInstance).1 hadj
+    contradiction
 
 example : Complexity.USTCON ∈ Complexity.P Complexity.encUSTCON :=
   Complexity.L_subset_P Complexity.USTCON_mem_L

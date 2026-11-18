@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.Transcript
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Query budgets
@@ -158,7 +159,7 @@ theorem run_interpret {κ : Type u} {target : OracleSpec.{u, v} κ} {cost' : κ 
   induction h generalizing s with
   | pure a n => exact .pure (a, s) _
   | liftBind q cont n _ ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     rw [Nat.add_comm]
     exact (hhandler q s).bind fun result => ih result.1 result.2
 
@@ -258,8 +259,7 @@ theorem IsCostBounded.measure_le {cost : Query → ℕ} {program : OracleComp Re
     rcases hmem with ⟨-, rfl⟩
     omega
   | liftBind q cont n _ ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
     obtain ⟨⟨ans, s₁⟩, hans, hcont⟩ := hmem
     have h₁ := hstep q s ans s₁ hans
     have h₂ : size s' ≤ size s₁ + n := ih ans hcont
@@ -281,8 +281,7 @@ theorem IsCostBounded.transcript_cost_le {cost : Query → ℕ} {program : Oracl
     cases hmem
     simp
   | liftBind q cont n _ ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
     obtain ⟨⟨a, middle, seen⟩, hfirst, hrest⟩ := hmem
     simp only [StateT.run, withTranscript, PMF.mem_support_map_iff] at hfirst
     obtain ⟨⟨answer, next⟩, -, heq⟩ := hfirst

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Sorting
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Reversing sorting circuits with saved comparison decisions
@@ -108,9 +109,8 @@ private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) 
       BitonicSort.routeLayer flags x := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp only [unlayer, Circuit.eval_comp, Circuit.eval_wiring, BitString.block,
-      Function.comp_apply, bitonicLayerCircuit.scatter, Equiv.symm_apply_apply,
-      Fin.addCases_left, Fin.addCases_right, Circuit.eval_replicate_apply]
+    simp only [circuit_simps, unlayer, BitString.block, bitonicLayerCircuit.scatter,
+      Equiv.symm_apply_apply, Fin.addCases_left, Fin.addCases_right, Circuit.eval_replicate_apply]
   all_goals
     unfold BitString.block
     simp only [Function.comp_def, Equiv.symm_apply_apply]
@@ -120,8 +120,8 @@ private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) 
 
 private theorem cost_unlayer (n r : ℕ) (cost : signature.Op → ℕ) :
     (unlayer n r).program.cost cost = n * (2 * r * (2 * cost .and + cost .or)) := by
-  simp only [unlayer, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Circuit.cost_program_replicate, compareSwapCircuit.cost_switch, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, unlayer, Circuit.cost_program_replicate, compareSwapCircuit.cost_switch,
+    Nat.zero_add, Nat.add_zero]
 
 /-- Reverse two independent circuits using the matching halves of their controls and records. -/
 def unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
@@ -152,8 +152,7 @@ private theorem cost_unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 +
     (right : Circuit signature (b * 2 + n * r) (n * r)) (cost : signature.Op → ℕ) :
     (unhalves left right).program.cost cost =
       left.program.cost cost + right.program.cost cost := by
-  simp only [unhalves, select, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, unhalves, select, Nat.zero_add, Nat.add_zero]
 
 /-- Preserve the first controls while undoing the second stage, then undo the first stage. -/
 def unchain {a b n r : ℕ} (first : Circuit signature (a * 2 + n * r) (n * r))
@@ -183,8 +182,7 @@ private theorem cost_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 +
     (second : Circuit signature (b * 2 + n * r) (n * r)) (cost : signature.Op → ℕ) :
     (unchain first second).program.cost cost =
       first.program.cost cost + second.program.cost cost := by
-  simp only [unchain, select, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.zero_add]
+  simp only [circuit_simps, unchain, select, Nat.zero_add]
   exact Nat.add_comm _ _
 
 private theorem pairs_comp {a b : ℕ} (flags : BitString a) (f : Fin b → Fin a) :

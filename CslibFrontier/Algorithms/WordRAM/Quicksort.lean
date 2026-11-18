@@ -19,6 +19,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Data.List.Sort
 import Mathlib.Data.Rat.BigOperators
 import Mathlib.Data.Rat.Cast.Order
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # In-place randomized quicksort on the word RAM
@@ -1118,15 +1119,12 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
   have hread₆ : readStack n x₆ = S₀ := by
     rw [← hread]
     refine readStack_congr ?_ fun a ha => hPart₆.modifies a (by simp [Finset.mem_Ico]; omega)
-    exact (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁])
+    regs_frame
   -- 3. `pushIfNonTrivial lo lt` (`≤ 8` steps)
   have hpres₆_one : x₆.regs one = 1 := hPart₆.one_eq
-  have hpres₆_two : x₆.regs two = 2 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, htwo])
-  have hpres₆_sLo : x₆.regs stackLo = n + 1 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, hsLo])
-  have hpres₆_sHi : x₆.regs stackHi = 2 * n + 1 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, hsHi])
+  have hpres₆_two : x₆.regs two = 2 := by regs_frame
+  have hpres₆_sLo : x₆.regs stackLo = n + 1 := by regs_frame
+  have hpres₆_sHi : x₆.regs stackHi = 2 * n + 1 := by regs_frame
   obtain ⟨x₇, e_push₁, hread₇, hmod₇⟩ := pushIfNonTrivial_spec (w := w) (n := n)
     (a := lo) (b := lt) (x := x₆) (by decide) (by decide)
     hpres₆_one hpres₆_two hpres₆_sLo hpres₆_sHi hfit_all
@@ -1142,13 +1140,10 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
       omega)
   -- 4. `pushIfNonTrivial gt hi` (`≤ 8` steps)
   have hgt₇ : x₇.regs gt = vgt := e_push₁.regs_eq (by decide)
-  have hhi₇ : x₇.regs hi = vhi := (e_push₁.regs_eq (by decide)).trans hPart₆.hi_eq
+  have hhi₇ : x₇.regs hi = vhi := by regs_frame
   obtain ⟨y, e_push₂, hread_y, hmod_y⟩ := pushIfNonTrivial_spec (w := w) (n := n)
     (a := gt) (b := hi) (x := x₇) (by decide) (by decide)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_one)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_two)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_sLo)
-    ((e_push₁.regs_eq (by decide)).trans hpres₆_sHi) hfit_all
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hfit_all
     ⟨by rw [hgt₇]; have := hPart₆.gt_le_hi; omega, by rw [hhi₇]; omega⟩
     (fun hge => by
       rw [hgt₇, hhi₇] at hge
@@ -1200,12 +1195,7 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
       hmod₀ a (by simp [Finset.mem_Ico]; omega)]
   refine ⟨y, t, he_all, ht_le, ?_, hread_final⟩
   refine ⟨hw,
-    (he_all.regs_eq (by decide)).trans hzero,
-    (he_all.regs_eq (by decide)).trans hone,
-    (he_all.regs_eq (by decide)).trans htwo,
-    (he_all.regs_eq (by decide)).trans hlen,
-    (he_all.regs_eq (by decide)).trans hsLo,
-    (he_all.regs_eq (by decide)).trans hsHi,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hread_final ▸ (hS₂_eq ▸ hVS₂),
     hread_final ▸ hno_inv_y,
     hperm_y,
@@ -1695,12 +1685,7 @@ theorem setup_spec {w : ℕ} {input : List ℕ} (hw : logWidth 3 input.length �
     exact absurd ⟨hi1, hjn⟩ (hno (1, n + 1) (List.mem_singleton_self _))
   refine ⟨x_init, t_s, he_setup, hts_le, ?_, hstack_final⟩
   exact ⟨hw,
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_zero]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_one]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_len, n]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_sLo, n]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_sHi, n]),
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hVS_init, hno_inv_init, by rw [hslice_init], hmod_init⟩
 
 /-- **In-place randomized quicksort: correctness, worst-case bounds, `rand`-call bound, and

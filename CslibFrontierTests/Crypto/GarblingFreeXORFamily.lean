@@ -141,8 +141,4 @@ example : PointPermute.decodeWord simView.decInfo
   simp only [simView, FreeXOR.simViewWord, FreeXOR.evalWord, PointPermute.fnDecoder.decode_enc]
   decide
 
-/-- The query of the stateful `prv.sim` adversary: `validCircuit₁` on `[true, false, true]`. -/
-def query : Query ValidCircuit := ⟨validCircuit₁, [true, false, true]⟩
-
-
 end CslibFrontierTests.Crypto.GarblingFreeXORFamily

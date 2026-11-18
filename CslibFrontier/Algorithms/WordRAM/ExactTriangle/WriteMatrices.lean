@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native zero/one matrices for an Exact Triangle instance
@@ -172,11 +173,7 @@ theorem program_fixed (rightSide : Bool) :
   cases rightSide <;> decide
 
 private theorem entry_of_regs {A : Args} {x y : Data 17} (hx : Entry A x)
-    (h : ∀ i : Fin 17, i.val < 8 → y.regs i = x.regs i) : Entry A y :=
-  ⟨(h src (by decide)).trans hx.src, (h dst (by decide)).trans hx.dst,
-    (h size (by decide)).trans hx.size, (h dimension (by decide)).trans hx.dimension,
-    (h modulus (by decide)).trans hx.modulus, (h first (by decide)).trans hx.first,
-    (h length (by decide)).trans hx.length, (h rho (by decide)).trans hx.rho⟩
+    (h : ∀ i : Fin 17, i.val < 8 → y.regs i = x.regs i) : Entry A y := by regs_frame
 
 private theorem exec_indices {w q : ℕ} (side : Bool) (A : Args) (x : Data 17)
     (hx : Entry A x) (hq : x.regs idx = q) (hfit : Fits w q) :
@@ -302,10 +299,10 @@ private theorem exec_body {w q : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
         (by simpa only [hbm] using hinput) hsrc hmod hrho
       let wanted := if side then (A.p - R (row * A.n + A.first + v)) % A.p
         else (R (row * A.n + A.first + v) + A.rho) % A.p
-      have hcl : c.regs label = σ := (hcr label (by decide) (by decide)).trans hbb
-      have hci : c.regs idx = q := (hcr idx (by decide) (by decide)).trans hbi
-      have hco : c.regs one = 1 := (hcr one (by decide) (by decide)).trans (hbo.trans ho)
-      have hcz : c.regs zero = 0 := (hcr zero (by decide) (by decide)).trans (hbz.trans hz)
+      have hcl : c.regs label = σ := by regs_frame
+      have hci : c.regs idx = q := by regs_frame
+      have hco : c.regs one = 1 := by regs_frame
+      have hcz : c.regs zero = 0 := by regs_frame
       let z := c.set value (if σ = wanted then 1 else 0)
       have hchoose : ExecWithin (B := .standard) w
           (.branch (.eq label value) (.op (.copy value one)) (.op (.copy value zero))) c z 3 := by
