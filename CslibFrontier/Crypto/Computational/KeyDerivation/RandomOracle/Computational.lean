@@ -557,11 +557,14 @@ theorem isPPT_lazyROToGuess {X : Type} {encX : X ↪ List Bool} {width Q secLen 
   simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
     PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, ofFn_getD, hrep]
 
-/-- **Lazy singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
-pp. 331–332): when `D n (info n s) z` makes at most `Q n` oracle queries on every supported secret
-`s` and `outLen n`-bit key `z`, the random-oracle KDF distinguishing advantage is at most
+/-- **Concrete variant of the singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023],
+§8.10.2, pp. 331–332), with an additive index-sampling bias: when `D n (info n s) z` makes at most
+`Q n` oracle queries on every supported secret `s` and `outLen n`-bit key `z`, the random-oracle
+KDF distinguishing advantage is at most
 `Q n * guessAdvantage (sample n) (info n) (lazyROToGuess width Q secLen outLen D n) +
-Q n / 2 ^ width n`, where `Q n / 2 ^ width n` is the fair-coin modular index-sampling bias. -/
+Q n / 2 ^ width n`. The extra term `Q n / 2 ^ width n` is the bias of the finite fair-coin
+modular index sampling, where the book picks the index exactly uniformly;
+`SecretGuessHard.negligible_roAdvantage` absorbs it. -/
 theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X : Type}
     (width Q secLen outLen : ℕ → ℕ) (sample : ∀ n, PMF (BitString (secLen n)))
     (info : ∀ n, BitString (secLen n) → X) (D : WordRODistinguisher X) (n : ℕ)
