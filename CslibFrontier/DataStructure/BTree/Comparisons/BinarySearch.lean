@@ -34,9 +34,12 @@ bisection replaces the factor `2 * t` by `⌈log₂ (2 * t)⌉ + 1`.
 Composed with the height bound `IsWF.height_le_log`, the counts become bounds in the number `n`
 of entries: at most `(⌈log₂ (2 * t)⌉ + 1) * (log_t ((n + 1) / 2) + 1)` comparisons for lookup
 and `⌈log₂ (2 * t)⌉ * (log_t ((n + 1) / 2) + 1)` for rank, with the dependence on `t`
-explicit. For fixed `t` both are within a constant factor of `⌈log₂ (n + 1)⌉`. They are stated
-for every well-formed tree, for the tree bulk-loaded from a sorted list of `n` entries, and as
-`UpperBound` statements whose size function is `size`.
+explicit. For fixed `t` and `n ≥ 1` both are within a constant factor of `⌈log₂ (n + 1)⌉`.
+They are stated for every well-formed tree, and as `UpperBound` statements whose size function
+is `size`. They are also stated for the tree bulk-loaded from any list of `n` entries, sorted or
+not: like the answers of the oracle, the order of the keys does not change the shape of the
+tree, and the counts need only the shape (`countQueries_lookupBinQ_le_of_occupied`,
+`countQueries_rankBinQ_le_of_occupied`).
 
 The statements are original to this development; no lower bound is proved here.
 
@@ -53,8 +56,10 @@ The statements are original to this development; no lower bound is proved here.
   `⌈log₂ (2 * t)⌉ * height` comparisons on a well-formed tree.
 * `countQueries_lookupBinQ_le_log`, `countQueries_rankBinQ_le_log`: the same counts in the number
   of entries, through `IsWF.height_le_log`.
+* `countQueries_lookupBinQ_le_of_occupied`, `countQueries_rankBinQ_le_of_occupied`: the counts
+  per level from the shape of the tree alone, without sorted keys.
 * `countQueries_lookupBinQ_ofSortedList_le`, `countQueries_rankBinQ_ofSortedList_le`: the counts
-  on a bulk-loaded tree, in the length of the list.
+  on a tree bulk-loaded from any list, in the length of the list.
 * `lookupBinQ_upperBound_size`, `rankBinQ_upperBound_size`: the bounds in the number of entries
   over all oracles.
 -/
@@ -170,25 +175,59 @@ private theorem countQueries_rankBinQ_node_le (ht : 0 < t) (k : α) (first : BTr
     simp
     omega
 
+/-- Lookup by binary in-node search makes at most `⌈log₂ (2 * t)⌉ + 1` comparisons per level,
+under every oracle, in a tree whose root holds at most `2 * t - 1` keys and whose children are
+occupied. The keys need not be sorted. -/
+theorem countQueries_lookupBinQ_le_of_occupied (ht : 0 < t) (hk : tr.rootKeys ≤ 2 * t - 1)
+    (hc : ∀ c ∈ tr.children, Occupied t c) (k : α) :
+    (lookupBinQ k tr).countQueries oracle ≤ (Nat.clog 2 (2 * t) + 1) * tr.height :=
+  le_mul_height_of_node_le (by simp [lookupBinQ, lookupBinM_leaf])
+    (fun first _ _ hl hB => countQueries_lookupBinQ_node_le oracle ht k first hl hB) hk hc
+
+/-- Rank by binary in-node search makes at most `⌈log₂ (2 * t)⌉` comparisons per level, under
+every oracle, in a tree whose root holds at most `2 * t - 1` keys and whose children are
+occupied. The keys need not be sorted. -/
+theorem countQueries_rankBinQ_le_of_occupied (ht : 0 < t) (hk : tr.rootKeys ≤ 2 * t - 1)
+    (hc : ∀ c ∈ tr.children, Occupied t c) (k : α) :
+    (rankBinQ k tr).countQueries oracle ≤ Nat.clog 2 (2 * t) * tr.height :=
+  le_mul_height_of_node_le (by simp [rankBinQ, rankBinM_leaf])
+    (fun first _ _ hl hB => countQueries_rankBinQ_node_le oracle ht k first hl hB) hk hc
+
+/-- Lookup by binary in-node search in the tree bulk-loaded from a list of `n` entries makes at
+most `(⌈log₂ (2 * t)⌉ + 1) * (log_t ((n + 1) / 2) + 1)` comparisons, under every oracle. The
+list need not be sorted: the shape of the tree does not depend on the keys. -/
+theorem countQueries_lookupBinQ_ofSortedList_le (ht : 2 ≤ t) (l : List (α × β)) (k : α) :
+    (lookupBinQ k (ofSortedList t l)).countQueries oracle ≤
+      (Nat.clog 2 (2 * t) + 1) * (Nat.log t ((l.length + 1) / 2) + 1) :=
+  (countQueries_lookupBinQ_le_of_occupied oracle (by omega) (rootKeys_ofSortedList_le ht l)
+    (fun _ hc => occupied_of_mem_children_ofSortedList ht l hc) k).trans
+    (Nat.mul_le_mul_left _ (height_ofSortedList_le ht l))
+
+/-- Rank by binary in-node search in the tree bulk-loaded from a list of `n` entries makes at
+most `⌈log₂ (2 * t)⌉ * (log_t ((n + 1) / 2) + 1)` comparisons, under every oracle. The list
+need not be sorted. -/
+theorem countQueries_rankBinQ_ofSortedList_le (ht : 2 ≤ t) (l : List (α × β)) (k : α) :
+    (rankBinQ k (ofSortedList t l)).countQueries oracle ≤
+      Nat.clog 2 (2 * t) * (Nat.log t ((l.length + 1) / 2) + 1) :=
+  (countQueries_rankBinQ_le_of_occupied oracle (by omega) (rootKeys_ofSortedList_le ht l)
+    (fun _ hc => occupied_of_mem_children_ofSortedList ht l hc) k).trans
+    (Nat.mul_le_mul_left _ (height_ofSortedList_le ht l))
+
 variable [LinearOrder α]
 
 /-- Lookup by binary in-node search in a well-formed tree makes at most `⌈log₂ (2 * t)⌉ + 1`
 comparisons per level, under every oracle. -/
 theorem countQueries_lookupBinQ_le (h : IsWF t tr) (k : α) :
     (lookupBinQ k tr).countQueries oracle ≤ (Nat.clog 2 (2 * t) + 1) * tr.height :=
-  le_mul_height_of_node_le (by simp [lookupBinQ, lookupBinM_leaf])
-    (fun first _ _ hl hB =>
-      countQueries_lookupBinQ_node_le oracle (by have := h.two_le; omega) k first hl hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  countQueries_lookupBinQ_le_of_occupied oracle (by have := h.two_le; omega) h.rootKeys_le
+    h.occupied_of_mem_children k
 
 /-- Rank by binary in-node search in a well-formed tree makes at most `⌈log₂ (2 * t)⌉`
 comparisons per level, under every oracle. -/
 theorem countQueries_rankBinQ_le (h : IsWF t tr) (k : α) :
     (rankBinQ k tr).countQueries oracle ≤ Nat.clog 2 (2 * t) * tr.height :=
-  le_mul_height_of_node_le (by simp [rankBinQ, rankBinM_leaf])
-    (fun first _ _ hl hB =>
-      countQueries_rankBinQ_node_le oracle (by have := h.two_le; omega) k first hl hB)
-    h.rootKeys_le h.occupied_of_mem_children
+  countQueries_rankBinQ_le_of_occupied oracle (by have := h.two_le; omega) h.rootKeys_le
+    h.occupied_of_mem_children k
 
 /-! ### Bounds in the number of entries -/
 
@@ -205,23 +244,6 @@ theorem countQueries_rankBinQ_le_log (h : IsWF t tr) (k : α) :
     (rankBinQ k tr).countQueries oracle ≤
       Nat.clog 2 (2 * t) * (Nat.log t ((tr.size + 1) / 2) + 1) :=
   (countQueries_rankBinQ_le oracle h k).trans (Nat.mul_le_mul_left _ h.height_le_log)
-
-/-- Lookup by binary in-node search in the tree bulk-loaded from a sorted list of `n` entries
-makes at most `(⌈log₂ (2 * t)⌉ + 1) * (log_t ((n + 1) / 2) + 1)` comparisons, under every
-oracle. -/
-theorem countQueries_lookupBinQ_ofSortedList_le (ht : 2 ≤ t) {l : List (α × β)}
-    (hs : l.IsSortedAssoc) (k : α) :
-    (lookupBinQ k (ofSortedList t l)).countQueries oracle ≤
-      (Nat.clog 2 (2 * t) + 1) * (Nat.log t ((l.length + 1) / 2) + 1) := by
-  simpa using countQueries_lookupBinQ_le_log oracle (isWF_ofSortedList ht hs) k
-
-/-- Rank by binary in-node search in the tree bulk-loaded from a sorted list of `n` entries makes
-at most `⌈log₂ (2 * t)⌉ * (log_t ((n + 1) / 2) + 1)` comparisons, under every oracle. -/
-theorem countQueries_rankBinQ_ofSortedList_le (ht : 2 ≤ t) {l : List (α × β)}
-    (hs : l.IsSortedAssoc) (k : α) :
-    (rankBinQ k (ofSortedList t l)).countQueries oracle ≤
-      Nat.clog 2 (2 * t) * (Nat.log t ((l.length + 1) / 2) + 1) := by
-  simpa using countQueries_rankBinQ_le_log oracle (isWF_ofSortedList ht hs) k
 
 end Comparisons
 

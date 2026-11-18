@@ -109,16 +109,19 @@ example : Nat.clog 2 (2 * 2) * (Nat.log 2 ((twoLevel.size + 1) / 2) + 1) = 6 := 
 example : (rankBinQ 8 twoLevel).countQueries falseOracle ≤ 6 :=
   (countQueries_rankBinQ_le_log falseOracle twoLevel_isWF 8).trans (by decide)
 
-/-! A bulk-loaded tree: the bound is in the length of the list, under any oracle. -/
+/-! A bulk-loaded tree: the bounds are in the length of the list and need no sortedness. The
+list below is in descending key order, so the tree built from it is not well-formed, and the
+bounds at five entries and minimum degree `2` are `(2 + 1) * (log₂ 3 + 1) = 6` and `4`. -/
 
-example (l : List (ℕ × String)) (hs : l.IsSortedAssoc) (k : ℕ) :
-    (lookupBinQ k (ofSortedList 3 l)).countQueries falseOracle ≤
-      (Nat.clog 2 (2 * 3) + 1) * (Nat.log 3 ((l.length + 1) / 2) + 1) :=
-  countQueries_lookupBinQ_ofSortedList_le falseOracle (by decide) hs k
+/-- Five entries in descending key order. -/
+def descending : List (ℕ × String) := [(5, "e"), (4, "d"), (3, "c"), (2, "b"), (1, "a")]
 
-example (l : List (ℕ × String)) (hs : l.IsSortedAssoc) (k : ℕ) :
-    (rankBinQ k (ofSortedList 3 l)).countQueries falseOracle ≤
-      Nat.clog 2 (2 * 3) * (Nat.log 3 ((l.length + 1) / 2) + 1) :=
-  countQueries_rankBinQ_ofSortedList_le falseOracle (by decide) hs k
+example : ¬ descending.IsSortedAssoc := by decide
+
+example (k : ℕ) : (lookupBinQ k (ofSortedList 2 descending)).countQueries orderOracle ≤ 6 :=
+  countQueries_lookupBinQ_ofSortedList_le orderOracle (by decide) descending k
+
+example (k : ℕ) : (rankBinQ k (ofSortedList 2 descending)).countQueries falseOracle ≤ 4 :=
+  countQueries_rankBinQ_ofSortedList_le falseOracle (by decide) descending k
 
 end CslibFrontierTests.BTreeBinarySearch
