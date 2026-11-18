@@ -68,7 +68,7 @@ example {V E : Type} [Fintype V] [DecidableEq V] [Finite E] (L : LinearSystem V 
     ∃ Z : L.StateSolution φ, ∀ v, Z.op v = (Measurement.ofInvolution (hY v) (hY' v)).observable :=
   ⟨CommutingStrategy.stateSolution L (X.strategy Y hY hY' φ hXY) hne hμ
     X.isProjective_eqMeasurement (fun v => Measurement.isProjective_ofInvolution (hY v) (hY' v))
-    (X.commutingWinProb_strategy Y hY hY' φ hXY hagree μ), fun _ => rfl⟩
+    (X.commutingWinProb_strategy_of_agreement Y hY hY' φ hXY hagree μ), fun _ => rfl⟩
 
 /-- The identity state on `ℂ`. -/
 noncomputable def complexState : AlgState ℂ where
@@ -90,7 +90,7 @@ noncomputable example {V E : Type} [Fintype V] [DecidableEq V] [Finite E] [Nonem
     (fun _ => ⟨Classical.arbitrary V, hμ _⟩) (fun _ _ _ => hμ _)
     X.isProjective_eqMeasurement
     (fun v => Measurement.isProjective_ofInvolution (X.isSelfAdjoint v) (X.mul_self v))
-    (X.commutingWinProb_strategy _ _ _ _ _ (fun _ => AlgState.approx_self _ _) _)
+    (X.commutingWinProb_strategy_of_agreement _ _ _ _ _ (fun _ => AlgState.approx_self _ _) _)
 
 /-- Rejected answers have probability `0` in a perfect strategy. -/
 example {V E : Type} [Fintype V] [DecidableEq V] [Finite E] (L : LinearSystem V E)
