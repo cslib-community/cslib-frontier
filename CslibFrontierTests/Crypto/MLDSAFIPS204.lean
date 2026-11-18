@@ -8,6 +8,8 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
+meta import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -118,6 +120,33 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- The same raw word is a legal representative and a commitment input. Short inputs in
+-- Algorithm 6 return zeros, so the public key starts with zeros. Its own 64-byte hash and
+-- the one-bit message's representative consist of 0x01 bytes; the empty message misses.
+private def representativeOverlapCheck (s : Level) (messageBits : ℕ) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream (fun x => if x.length > 528 then 1 else 0)⟩
+  let some keys := H.keyGen s (fun _ => 0) | return false
+  let pk := keys.publicKey
+  let tr := H.h256.readBytes pk 64
+  let empty : Forgery := ⟨[], [], []⟩
+  let one : Forgery := ⟨[], [false], []⟩
+  let y := representativeInput tr (formattedMessage one)
+  let final := representativeInput tr (formatMessage (List.replicate messageBits false) [])
+  let signed := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage one))
+  -- A second stream tests the equal-input outcome on the generated all-zero public key.
+  let Z : Xofs := ⟨zero, zero⟩
+  let self : Forgery := ⟨[], List.replicate (8 * pk.length - 528) false, []⟩
+  return final == signed && H.matchingRepresentativeInput pk [empty] == none &&
+    H.matchingRepresentativeInput pk [empty, one] == some y && Keccak.bytesToBitsLE pk != y &&
+    H.h256.read y 64 == tr && tr != pk.take 64 &&
+    Z.matchingRepresentativeInput pk [self] == some (Keccak.bytesToBitsLE pk) &&
+    Z.h256.readBytes pk 64 == pk.take 64
+
+#guard representativeOverlapCheck .mlDSA44 6128
+#guard representativeOverlapCheck .mlDSA65 6128
+#guard representativeOverlapCheck .mlDSA87 8176
 
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.
