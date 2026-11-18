@@ -1332,6 +1332,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.NativeEvaluation
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.ConstDepth
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator
+public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Restriction
 public import CslibFrontier.Computability.Circuit.Boolean.Nechiporuk
 public import CslibFrontier.Computability.Circuit.Boolean.NegationNormalForm
 public import CslibFrontier.Computability.Circuit.Boolean.NonconstantCost
