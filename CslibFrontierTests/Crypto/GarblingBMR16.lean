@@ -15,10 +15,9 @@ import CslibFrontier.Probability.Product
 Clients of the BMR16 API under module encapsulation, with ordinary imports. A two-gate circuit
 with a projection `ℤ₂ → ℤ₃` followed by an addition modulo `3`, evaluated by computation; the
 number of ciphertexts of a projection gate; correctness, simulator correctness, legality of the
-reduction, the privacy equality instantiated with injective tweaks and the algebraic helper
-`advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem` applied to it; the
-mixed-modulus CCR games on an adversary that makes no query; and a legal one-query adversary
-showing that the constant zero hash is not mixed-modulus CCR for any bound below `1 / 2`. -/
+reduction and the reduction identity instantiated with injective tweaks; the mixed-modulus CCR
+games on an adversary that makes no query, which has advantage `0`; and a legal one-query adversary
+with advantage `1 / 2` against the constant zero hash. -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
 set_option linter.privateModule false
@@ -109,29 +108,19 @@ example (x : Env (Residue μ) [0, 1]) (D : View ℓ crossC → ProbComp Bool) :
     (reduction toyH tw crossC x D).IsLegal :=
   reduction_isLegal toyH tw crossC x D tw_injOn
 
--- The privacy theorem applies to the circuit with injective tweaks, for every distinguisher; with
--- the toy hash the right side is not small.
+-- The reduction identity applies to the circuit with injective tweaks, for every distinguisher;
+-- with the toy hash the right side is not small.
 example (x : Env (Residue μ) [0, 1]) (D : View ℓ crossC → ProbComp Bool) :
     Game.advantage (realGame toyH tw crossC x D) (simGame toyH tw crossC x D) =
       ccrAdvantage toyH (reduction toyH tw crossC x D) :=
   advantage_realGame_simGame toyH tw crossC x D tw_injOn
 
--- The algebraic helper: for every hash, a `MixedModulusCCR` bound `ε` against a class containing
--- the reduction bounds the advantage of the distinguisher by `ε`.
-example (H : MixedModulusHash (Fin 2) μ ℓ) (x : Env (Residue μ) [0, 1])
-    (D : View ℓ crossC → ProbComp Bool) {𝒟 : Set (CCRAdversary (Fin 2) μ ℓ)} {ε : NNReal}
-    (hH : MixedModulusCCR H 𝒟 ε) (hD : reduction H tw crossC x D ∈ 𝒟) :
-    Game.advantage (realGame H tw crossC x D) (simGame H tw crossC x D) ≤ ε :=
-  advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem H tw crossC x D tw_injOn hH hD
-
--- An adversary that makes no query is legal and has advantage zero, so `MixedModulusCCR` with
--- bound `0` is satisfiable for that class.
+-- An adversary that makes no query is legal and has advantage zero.
 example (b : Bool) : CCRAdversary.IsLegal (pure b : CCRAdversary (Fin 2) μ ℓ) := by
   rintro requests b' ⟨rfl, -⟩
   simp [CCRLegal]
 
-example (b : Bool) : MixedModulusCCR toyH {pure b} 0 := by
-  rintro B rfl -
+example (b : Bool) : ccrAdvantage toyH (pure b : CCRAdversary (Fin 2) μ ℓ) = 0 := by
   have h₁ : ccrRealGame toyH (pure b : CCRAdversary (Fin 2) μ ℓ) = PMF.pure b := by
     simp only [ccrRealGame, OracleComp.interpret_pure, ProbComp.eval_bind, ProbComp.eval_pure,
       PMF.bind_const]
@@ -168,7 +157,7 @@ example : ¬ twoCoins.IsLegal := by
   revert heq
   decide
 
-/-! ### The zero hash is not mixed-modulus CCR
+/-! ### A legal adversary with advantage `1 / 2` against the zero hash
 
 The real oracle answers `(g, X, a, b)` with `H(g, X + a Δ_i) + b Δ_j`. For the zero hash and
 `b = 0` this is `0`, whatever the offsets, while the ideal oracle's answer has a uniform colour. -/
@@ -221,15 +210,13 @@ private theorem ccrIdealGame_colourTest :
         (fun f => f 0) from rfl, ← PMF.map_comp, ← PMF.map_comp, ← PMF.map_comp, h0, h1,
     Probability.PMF.uniformOfFintype_prod_map_snd, h2]
 
-/-- **`MixedModulusCCR` is not vacuous**: the zero hash is not mixed-modulus CCR with any bound
-below `1 / 2` for a class containing the legal one-query adversary `colourTest`. -/
-theorem not_mixedModulusCCR_zeroH {𝒟 : Set (CCRAdversary (Fin 2) μ ℓ)} (hD : colourTest ∈ 𝒟)
-    {ε : NNReal} (hε : ε < 2⁻¹) : ¬ MixedModulusCCR zeroH 𝒟 ε := by
-  intro h
-  have hadv := h colourTest hD colourTest_isLegal
+/-- **The zero hash is broken by a legal adversary**: the one-query adversary `colourTest` is legal
+and has mixed-modulus CCR advantage `1 / 2` against the zero hash. -/
+theorem isLegal_colourTest_and_ccrAdvantage_zeroH :
+    colourTest.IsLegal ∧ ccrAdvantage zeroH colourTest = 2⁻¹ := by
+  refine ⟨colourTest_isLegal, ?_⟩
   rw [ccrAdvantage, ccrRealGame_zeroH_colourTest, ccrIdealGame_colourTest,
-    Game.advantage_pure_true_left] at hadv
-  refine hε.not_ge (le_of_eq_of_le ?_ hadv)
+    Game.advantage_pure_true_left]
   simp [Game.failProbability, Probability.PMF.uniformOfFintype_apply, ENNReal.toNNReal_ofNat]
 
 end CslibFrontierTests.GarblingBMR16
