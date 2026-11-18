@@ -218,7 +218,8 @@ example :
       honestBatchStmt
       (bcsProve (friBatchIOP params257 2) (fun _ => idHash) [] (encZMod (p := 257)) constBatchFS
         honestBatchStmt ()) = true :=
-  friBatchBCS_verify_prove_eq_true params257 2 (fun _ => idHash) [] (encZMod (p := 257))
+  friBatchBCS_verify_prove_eq_true params257 2 (fun _ => idHash) []
+    CslibFrontierTests.Crypto.MerkleTestHash.length_polyHash (encZMod (p := 257))
     constBatchFS honestBatchStmt_completeRel
 
 -- Perfect completeness in the lazy two-channel BCS random-oracle model for every digest length `σ`.
