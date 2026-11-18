@@ -1064,7 +1064,7 @@ register_result "goldreich-majority-randomized-probes" where
   theorems := [
     Cslib.RandomizedDecisionTree.Computes.exists_div_two_add_one_le_three_mul_cost_majority
   ]
-  scope := "Outside check: PR #6397, review 5953634105. For n ≥ 1, every finitely supported \
+  scope := "Outside check: PR #6397, review 5953955718. For n ≥ 1, every finitely supported \
     mixture of adaptive decision trees computing majority (at least ⌈n/2⌉ ones) on n bits \
     with error ≤ 1/3 on every input has an input x and a tree t it can draw with \
     ⌊n/2⌋ + 1 ≤ 3 · t.cost x, where cost counts executed probes, repeats included. The \

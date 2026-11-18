@@ -170,11 +170,10 @@ theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Com
     ring
   -- the average cost is at most the largest cost of a tree that `μ` can draw
   obtain ⟨t₀, ht₀, hmax⟩ := Finset.exists_max_image μ.weights.support
-    (fun t => (t.cost x : ℝ)) (Finset.nonempty_of_sum_ne_zero (htot.trans_ne one_ne_zero))
-  have hcost : ∑ t ∈ μ.weights.support, μ.weights t * t.cost x ≤ t₀.cost x := by
-    refine (Finset.sum_le_sum fun t ht =>
-      mul_le_mul_of_nonneg_left (hmax t ht) (μ.weights_nonneg t)).trans_eq ?_
-    rw [← Finset.sum_mul, htot, one_mul]
+    (fun t => (t.cost x : ℝ)) μ.support_weights_nonempty
+  have hcost : ∑ t ∈ μ.weights.support, μ.weights t * t.cost x ≤ t₀.cost x :=
+    StdSimplex.sum_mul_le_of_forall_le
+      (g := fun t : DecisionTree (Fin n) Bool => (t.cost x : ℝ)) hmax
   exact ⟨x, t₀, ht₀, by linarith⟩
 
 /-- **Nisan's bound for one randomized decision tree**: if `μ` computes `f` with error `ε`, then
