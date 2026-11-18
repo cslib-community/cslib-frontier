@@ -39,8 +39,10 @@ with:
   (`Cslib.Algorithms.Lean.CDCL.analyze`) resolves it with the reasons of the newest implied
   literals until exactly one of its literals is false at the current level. Its type guarantees an
   asserting clause: the analysed clause always has a literal false at the current level, and at
-  the decision only the decision's negation can be one. The solver backjumps below the newest
-  decision, adds the asserting literal with the learned clause as its reason, and learns the
+  the decision only the decision's negation can be one. The solver backjumps, as MiniSat does, to
+  the second-highest level of the learned clause: below the newest decision and every level
+  below it with no variable of the clause (`Cslib.Algorithms.Lean.CDCL.Exec.jump`, without decision
+  levels). It adds the asserting literal with the learned clause as its reason, and learns the
   clause (Backjump and Learn, `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict`). The intermediate
   resolvents of the analysis are then deleted from the log.
 * UnitPropagate (`Cslib.Algorithms.Lean.CDCL.Exec.propagate`) and Decide
@@ -59,14 +61,15 @@ RUP step hinting the two clauses it resolves, so the checker accepts the certifi
 construction (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 
 **Scope.** `Exec` does not choose decisions: the solver with watched literals chooses them
-(`Cslib.Algorithms.Lean.CDCL.Activity`). Backjump returns to just below the newest decision rather
-than to the second-highest level of the learned clause.
+(`Cslib.Algorithms.Lean.CDCL.Activity`).
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.Exec`, `Cslib.Algorithms.Lean.CDCL.Exec.Inv`: the state and its
   invariant.
 * `Cslib.Algorithms.Lean.CDCL.analyze`: first-UIP conflict analysis.
+* `Cslib.Algorithms.Lean.CDCL.Exec.jump`: the backjump to the second-highest level of the learned
+  clause.
 * `Cslib.Algorithms.Lean.CDCL.refute`: the certificate when there is no decision.
 
 ## Main results
@@ -682,11 +685,103 @@ theorem mem_resolventIds {n next id i : ℕ} (h : i ∈ resolventIds n next id) 
   simp only [resolventIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq] at h
   exact ⟨h.1.1, h.2⟩
 
-/-- The learned clause of a conflict, and the state after Backjump and Learn. The intermediate
+/-- **Dropping the newest levels** of the trail `M` none of whose variables is `marked`, at most
+`fuel` of them: the entries dropped, and the trail kept. -/
+def XTrail.dropLevels (marked : ℕ → Bool) : ℕ → XTrail → XTrail × XTrail
+  | 0, M => ([], M)
+  | fuel + 1, M =>
+    match XTrail.split M with
+    | none => ([], M)
+    | some sp =>
+      if (sp.above.all fun x => !marked x.entry.lit.1) && !marked sp.decision.1 then
+        let r := XTrail.dropLevels marked fuel sp.below
+        (sp.above ++ .decision sp.decision :: r.1, r.2)
+      else ([], M)
+
+/-- The entries dropped and the trail kept make up the trail; the entries dropped end with a
+decision, if any, and none of their variables is marked. -/
+theorem XTrail.dropLevels_spec (marked : ℕ → Bool) : ∀ (fuel : ℕ) (M : XTrail),
+    M = (XTrail.dropLevels marked fuel M).1 ++ (XTrail.dropLevels marked fuel M).2 ∧
+    ((XTrail.dropLevels marked fuel M).1 = [] ∨
+      ∃ J d, (XTrail.dropLevels marked fuel M).1 = J ++ [.decision d]) ∧
+    ∀ x ∈ (XTrail.dropLevels marked fuel M).1, marked x.entry.lit.1 = false
+  | 0, M => ⟨rfl, .inl rfl, by simp [dropLevels]⟩
+  | fuel + 1, M => by
+    unfold dropLevels
+    split
+    · exact ⟨rfl, .inl rfl, by simp⟩
+    · rename_i sp hsp
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at hm
+        obtain ⟨ih₁, ih₂, ih₃⟩ := XTrail.dropLevels_spec marked fuel sp.below
+        refine ⟨?_, .inr ?_, fun x hx => ?_⟩
+        · conv_lhs => rw [(XTrail.split_eq_some hsp).1, ih₁]
+          simp
+        · rcases ih₂ with h | ⟨J, d, h⟩
+          · exact ⟨sp.above, sp.decision, by simp only [h]⟩
+          · exact ⟨sp.above ++ .decision sp.decision :: J, d, by simp only [h]; simp⟩
+        · simp only [List.mem_append, List.mem_cons] at hx
+          rcases hx with hx | rfl | hx
+          · exact hm.1 x hx
+          · exact hm.2
+          · exact ih₃ x hx
+      · exact ⟨rfl, .inl rfl, by simp⟩
+
+/-- **The backjump of a conflict** at the split `sp` learning `L`, as MiniSat's: the entries undone,
+the newest decision level and the levels below it with no variable of the learned clause, and the
+trail kept, the trail at the second highest level of the learned clause. -/
+def Exec.jump (S : Exec φ) (sp : Split) (L : S.LearnedAt sp) : XTrail × XTrail :=
+  let marks := Assign.marks (L.clause.map Prod.fst)
+  let r := XTrail.dropLevels (fun v => marks.assigned v) sp.below.length sp.below
+  (sp.above ++ .decision sp.decision :: r.1, r.2)
+
+/-- The entries undone end with a decision, and the learned clause is asserting on the trail
+kept. -/
+theorem Exec.jump_spec {S : Exec φ} {sp : Split} (hsp : XTrail.split S.trail = some sp)
+    (L : S.LearnedAt sp) :
+    S.trail = (S.jump sp L).1 ++ (S.jump sp L).2 ∧
+    (∃ J d, (S.jump sp L).1 = J ++ [.decision d]) ∧
+    (∀ y ∈ L.clause, y ≠ L.lit → y.negate ∈ Trail.lits (XTrail.trail (S.jump sp L).2)) ∧
+    L.lit.1 ∉ Trail.vars (XTrail.trail (S.jump sp L).2) := by
+  obtain ⟨h₁, h₂, h₃⟩ := XTrail.dropLevels_spec
+    (fun v => (Assign.marks (L.clause.map Prod.fst)).assigned v) sp.below.length sp.below
+  simp only [Exec.jump]
+  set r := XTrail.dropLevels (fun v => (Assign.marks (L.clause.map Prod.fst)).assigned v)
+    sp.below.length sp.below
+  have hbelow : XTrail.trail sp.below = XTrail.trail r.1 ++ XTrail.trail r.2 := by
+    conv_lhs => rw [h₁]
+    exact XTrail.trail_append _ _
+  refine ⟨?_, ?_, fun y hy hne => ?_, fun h => L.undef ?_⟩
+  · rw [(XTrail.split_eq_some hsp).1]
+    conv_lhs => rw [h₁]
+    simp
+  · rcases h₂ with h | ⟨J, d, h⟩
+    · exact ⟨sp.above, sp.decision, by rw [h]⟩
+    · exact ⟨sp.above ++ .decision sp.decision :: J, d, by rw [h]; simp⟩
+  · have := L.false_below y hy hne
+    rw [hbelow, lits_append, List.mem_append] at this
+    refine this.resolve_left fun hU => ?_
+    obtain ⟨e, he, hel⟩ := List.mem_map.1 hU
+    obtain ⟨x, hx, rfl⟩ := List.mem_map.1 he
+    have hm := h₃ x hx
+    rw [hel] at hm
+    have : y.1 ∈ L.clause.map Prod.fst := List.mem_map.2 ⟨y, hy, rfl⟩
+    rw [← Assign.assigned_marks] at this
+    simp only [Std.Sat.Literal.negate] at hm
+    rw [this] at hm
+    exact absurd hm (by decide)
+  · have hv : Trail.vars (XTrail.trail sp.below) =
+        Trail.vars (XTrail.trail r.1) ++ Trail.vars (XTrail.trail r.2) := by
+      rw [hbelow, vars_append]
+    exact hv ▸ List.mem_append_right _ h
+
+/-- The learned clause of a conflict, and the state after Backjump and Learn: back to the trail
+kept by `Exec.jump`, with the asserting literal implied by the learned clause. The intermediate
 resolvents of the analysis are deleted from the log. -/
 def Exec.afterConflict (S : Exec φ) (sp : Split) (L : S.LearnedAt sp) :
     Exec φ :=
-  ⟨.implied L.lit L.id :: sp.below, (L.id, L.clause) :: S.db,
+  ⟨.implied L.lit L.id :: (S.jump sp L).2, (L.id, L.clause) :: S.db,
     L.log.delete (resolventIds S.log.next L.log.next L.id)⟩
 
 /-- Backjump and Learn keep the invariant and lower the rank. -/
@@ -695,27 +790,32 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
     (hsp : XTrail.split S.trail = some sp) (L : S.LearnedAt sp) :
     (S.afterConflict sp L).Inv ∧
       rank φ.vars (S.afterConflict sp L).state < rank φ.vars S.state := by
+  obtain ⟨hUK, ⟨J, d', hJ⟩, hfalseK, hundefK⟩ := Exec.jump_spec hsp L
+  set K := (S.jump sp L).2
+  have hsplitK : XTrail.trail S.trail = XTrail.trail J ++ ⟨d', true⟩ :: XTrail.trail K := by
+    conv_lhs => rw [hUK, hJ]
+    simp [XTrail.trail_append, XTrail.trail_cons]
   have hsplit := XTrail.trail_of_split hsp
   have hc : e.2 ∈ S.clauses := List.mem_map.2 ⟨e, he, rfl⟩
   have hentails : ∀ σ, CNF.eval σ S.clauses = true → L.clause.eval σ = true :=
     fun σ hσ => L.log.eval_of_clause? L.clause?_eq (by rw [← hS.run.models]; exact hσ)
   have hbj : BasicStep (.run (XTrail.trail S.trail) S.clauses)
-      (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) S.clauses) := by
+      (.run (⟨L.lit, false⟩ :: XTrail.trail K) S.clauses) := by
     -- the asserting literal is over a variable of the current level
-    have hocc : L.lit.1 ∈ Trail.vars
-        (XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: XTrail.trail sp.below) := by
+    have hocc : L.lit.1 ∈ Trail.vars (XTrail.trail S.trail) := by
       have := Trail.mem_vars_of_mem_lits L.above
+      rw [hsplit]
       simp only [Std.Sat.Literal.negate, Trail.vars, List.map_append, List.mem_append,
         List.map_cons, List.mem_cons, List.map_nil, List.not_mem_nil, or_false] at this ⊢
       tauto
-    rw [hsplit]
-    exact .backjump hc (hsplit ▸ hconf) hentails L.mem L.false_below L.undef (.inr hocc)
-  have hlearn : Learn (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) S.clauses)
-      (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) (L.clause :: S.clauses)) :=
+    rw [hsplitK] at hconf hocc ⊢
+    exact .backjump hc hconf hentails L.mem hfalseK hundefK (.inr hocc)
+  have hlearn : Learn (.run (⟨L.lit, false⟩ :: XTrail.trail K) S.clauses)
+      (.run (⟨L.lit, false⟩ :: XTrail.trail K) (L.clause :: S.clauses)) :=
     .learn hentails fun l hl => .inr (by
       by_cases hne : l = L.lit
       · subst hne; simp [Trail.vars]
-      · have := Trail.mem_vars_of_mem_lits (L.false_below l hl hne)
+      · have := Trail.mem_vars_of_mem_lits (hfalseK l hl hne)
         simp only [Std.Sat.Literal.negate] at this
         simp only [Trail.vars, List.map_cons, List.mem_cons] at this ⊢
         exact .inr this)
@@ -726,9 +826,12 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
   have hold : ∀ i, i < S.log.next → i ∉ resolventIds S.log.next L.log.next L.id :=
     fun i hi h => by have := (mem_resolventIds h).1; omega
   refine ⟨⟨hrun₂, ?_, ?_, ?_, fun e' he' => List.mem_cons_of_mem _ (hS.orig e' he')⟩, ?_⟩
-  · have hbelow := (hS.split_reasons hsp).append_right.tail
+  · have hbelow : Reasons S.log K := by
+      have := hS.reasons
+      rw [hUK] at this
+      exact this.append_right
     refine .implied L.lit L.id ((hbelow.mono L.ext).delete fun r hr => hold r (hbelow.lt_next r hr))
-      ((LRATLog.clause?_delete hid).trans L.clause?_eq) L.mem L.false_below
+      ((LRATLog.clause?_delete hid).trans L.clause?_eq) L.mem hfalseK
   · intro e' he'
     rcases List.mem_cons.1 he' with rfl | he'
     · exact (LRATLog.clause?_delete hid).trans L.clause?_eq
@@ -745,16 +848,16 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
     obtain ⟨-, hN⟩ := hN
     rcases List.mem_cons.1 hc' with rfl | hc'
     · intro hfalse
-      apply L.undef
+      apply hundefK
       have := hfalse _ L.mem
       rw [congrArg Trail.vars hN]
       have hv := Trail.mem_vars_of_mem_lits this
       simp only [Trail.vars, Std.Sat.Literal.negate] at hv
       simp only [Trail.vars, List.map_append, List.map_cons, List.mem_append, List.mem_cons]
       exact .inr (.inr hv)
-    · exact hS.below (XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: N) d M₁
-        (by rw [hsplit, hN]; simp) c hc'
-  · change rank φ.vars (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) (L.clause :: S.clauses)) <
+    · exact hS.below (XTrail.trail J ++ ⟨d', true⟩ :: N) d M₁
+        (by rw [hsplitK, hN]; simp) c hc'
+  · change rank φ.vars (.run (⟨L.lit, false⟩ :: XTrail.trail K) (L.clause :: S.clauses)) <
       rank φ.vars (.run (XTrail.trail S.trail) S.clauses)
     exact (LearnOrForget.rank_eq (.inl hlearn)).trans_lt (hbj.rank_lt hS.run)
 

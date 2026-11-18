@@ -8,7 +8,9 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.Lean.CDCL.Watched
+import CslibFrontier.Logics.Propositional.Pigeonhole
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
+public meta import CslibFrontier.Logics.Propositional.Pigeonhole
 
 /-!
 # The CDCL solver on renamed variables
@@ -49,5 +51,21 @@ private abbrev chain : CNF ℕ := [[(1000000000, true)], [(1000000000, false), (
 #guard (WExec.init ([] : CNF ℕ) {}).phase.saved.size == 0
 #guard (WExec.init ([[]] : CNF ℕ) {}).phase.saved.size == 0
 #guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ) {}).phase.saved.size == 3
+
+/-- The minimization steps of a certificate: the RUP steps hinting at least three clauses, which
+resolution steps, hinting two, cannot be. Each comes with whether its clause repeats no literal. -/
+private def minimizationSteps (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) : List Bool :=
+  cert.toList.filterMap fun
+    | .addRup _ c hints => if 3 ≤ hints.size then some (decide c.toList.Nodup) else none
+    | _ => none
+
+/-- PHP(5, 4), with pigeon `i` in hole `j` as `4 * i + j`. -/
+private def php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val + x.2.val
+
+-- On PHP(5, 4) minimization removes several literals at once, and its clauses repeat no literal:
+-- the asserting literal is not kept in the tail as well as at the head.
+#guard match (solveWith {} php54).1 with
+  | .unsat cert => !(minimizationSteps cert).isEmpty && (minimizationSteps cert).all id
+  | .sat _ => false
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Compact
