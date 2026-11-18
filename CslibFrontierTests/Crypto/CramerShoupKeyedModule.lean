@@ -44,9 +44,9 @@ example {F : PrimeOrderGroupFamily}
   ⟨hDDH.indcca2On_cramerShoup hH hisElem hd hkeyLen hmem hCR hm0 hm hinv,
    hDDH.indcca2InterleavedOn_cramerShoup hH hisElem hd hkeyLen hmem hCR hm0 hm hinv⟩
 
--- Collision resistance on all words implies the premise on well-formed inputs, so the
--- associated-data theorem also follows from the stronger all-word assumption.
-example {F : PrimeOrderGroupFamily} {AD : Type} (encAD : AD ↪ List Bool)
+-- Collision resistance on all words implies the premise on well-formed inputs, so the theorem
+-- with associated data in `{0,1}*` also follows from the stronger all-word assumption.
+example {F : PrimeOrderGroupFamily}
     {H : F.withKey.Desc × List Bool → List Bool} {isElem : F.Desc × List Bool → Bool}
     {d : ℕ → F.Desc} {keyLen : ℕ → ℕ}
     (hH : ComputableInPolyTime H (encPair F.withKey.encDesc encBits) encBits)
@@ -59,10 +59,10 @@ example {F : PrimeOrderGroupFamily} {AD : Type} (encAD : AD ↪ List Bool)
       (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H))
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, m n ≤ F.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2ADOn (F.cramerShoupValid isElem d) encBits encAD encBits
-      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encAD H d)
+    INDCCA2ADOn (F.cramerShoupValid isElem d) encBits encBits encBits
+      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encBits H d)
       (F.cramerShoupADDecryptOpt H isElem d) :=
-  hDDH.indcca2ADOn_cramerShoup encAD hH hisElem hd hkeyLen hmem
+  hDDH.indcca2ADOn_cramerShoup_bitStringAD hH hisElem hd hkeyLen hmem
     (hCR.mono (.of_forall fun _ _ _ _ _ => rfl)) hm0 hm hinv
 
 -- DDH transfers to the family with an attached key, through a certified reduction.

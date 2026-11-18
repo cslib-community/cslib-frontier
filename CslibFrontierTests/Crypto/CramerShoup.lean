@@ -475,10 +475,10 @@ example (adversary : Encryption.WordCCA2Adversary) (Q₁ Q₂ : ℕ → ℕ)
   exact schnorrGroups.advantage_cramerShoupGroupCCA2Game_le_ideal (fun _ => PMF.pure d23)
     testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
-/-- Conditional API client over `schnorrDecodableGroups` (`INDCCA2ADOn` with associated data,
-`INDCCA2On` without associated data, `INDCCA2MultiOn`, and `INDCCA2InterleavedOn`) without
+/-- Conditional API client over `schnorrDecodableGroups` (`INDCCA2ADOn` with associated data in
+`{0,1}*`, `INDCCA2On` without associated data, `INDCCA2MultiOn`, and `INDCCA2InterleavedOn`) without
 supplying an external `isElem`, `hisElem`, or `hmem` parameter. -/
-example {AD : Type} (encAD : AD ↪ List Bool)
+example
     {H : schnorrDecodableGroups.withKey.Desc × List Bool → List Bool}
     {d : ℕ → schnorrDecodableGroups.Desc} {keyLen : ℕ → ℕ}
     (hH : ComputableInPolyTime H (encPair schnorrDecodableGroups.withKey.encDesc encBits) encBits)
@@ -497,9 +497,9 @@ example {AD : Type} (encAD : AD ↪ List Bool)
         (schnorrDecodableGroups.isElemWithKey schnorrDecodableGroups.isElem)))
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, m n ≤ schnorrDecodableGroups.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2ADOn (schnorrDecodableGroups.cramerShoupValid d) encBits encAD encBits
+    INDCCA2ADOn (schnorrDecodableGroups.cramerShoupValid d) encBits encBits encBits
       (schnorrDecodableGroups.cramerShoupKeyGenProb d keyLen)
-      (schnorrDecodableGroups.cramerShoupADEncryptProb encAD H d)
+      (schnorrDecodableGroups.cramerShoupADEncryptProb encBits H d)
       (schnorrDecodableGroups.cramerShoupADDecryptOpt H d) ∧
     INDCCA2On (schnorrDecodableGroups.cramerShoupValid d) encBits encBits
       (schnorrDecodableGroups.cramerShoupKeyGenProb d keyLen)
@@ -513,19 +513,20 @@ example {AD : Type} (encAD : AD ↪ List Bool)
       (schnorrDecodableGroups.cramerShoupKeyGenProb d keyLen)
       (schnorrDecodableGroups.cramerShoupEncryptProb H d)
       (schnorrDecodableGroups.cramerShoupDecryptOpt H d) :=
-  ⟨DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup encAD hH hd hkeyLen hDDH hCRAD hm0
-     hm hinv,
+  ⟨DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup_bitStringAD hH hd hkeyLen hDDH hCRAD
+     hm0 hm hinv,
    DecodablePrimeOrderGroupFamily.DDH.indcca2On_cramerShoup hH hd hkeyLen hDDH hCR hm0 hm hinv,
    DecodablePrimeOrderGroupFamily.DDH.indcca2MultiOn_cramerShoup hH hd hkeyLen hDDH hCR hm0 hm hinv,
    DecodablePrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup hH hd hkeyLen hDDH hCR hm0 hm
      hinv⟩
 
 /-- Conditional API client over a parameterized group family (both `INDCCA2ADOn` with associated
-data and `INDCCA2On` without associated data). Key generation draws a uniform `keyLen n`-bit hash
-key; the hash premises are collision resistance of the keyed family under `withKeySetup` on its
-well-formed inputs, with and without associated data. This does not assert DDH security for the
-fixed finite fixture `d23`; the group-order lower bound must grow with the parameter. -/
-example {AD : Type} (encAD : AD ↪ List Bool)
+data in `{0,1}*` and `INDCCA2On` without associated data). Key generation draws a uniform
+`keyLen n`-bit hash key; the hash premises are collision resistance of the keyed family under
+`withKeySetup` on its well-formed inputs, with and without associated data. This does not assert
+DDH security for the fixed finite fixture `d23`; the group-order lower bound must grow with the
+parameter. -/
+example
     {H : schnorrGroups.withKey.Desc × List Bool → List Bool}
     {isElem : schnorrGroups.Desc × List Bool → Bool}
     {d : ℕ → schnorrGroups.Desc} {keyLen : ℕ → ℕ}
@@ -547,9 +548,9 @@ example {AD : Type} (encAD : AD ↪ List Bool)
         (schnorrGroups.isElemWithKey isElem)))
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, m n ≤ schnorrGroups.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2ADOn (schnorrGroups.cramerShoupValid isElem d) encBits encAD encBits
+    INDCCA2ADOn (schnorrGroups.cramerShoupValid isElem d) encBits encBits encBits
       (schnorrGroups.cramerShoupKeyGenProb d keyLen)
-      (schnorrGroups.cramerShoupADEncryptProb encAD H d)
+      (schnorrGroups.cramerShoupADEncryptProb encBits H d)
       (schnorrGroups.cramerShoupADDecryptOpt H isElem d) ∧
     INDCCA2On (schnorrGroups.cramerShoupValid isElem d) encBits encBits
       (schnorrGroups.cramerShoupKeyGenProb d keyLen) (schnorrGroups.cramerShoupEncryptProb H d)
@@ -557,7 +558,7 @@ example {AD : Type} (encAD : AD ↪ List Bool)
     INDCCA2MultiOn (schnorrGroups.cramerShoupValid isElem d) encBits encBits
       (schnorrGroups.cramerShoupKeyGenProb d keyLen) (schnorrGroups.cramerShoupEncryptProb H d)
       (schnorrGroups.cramerShoupDecryptOpt H isElem d) :=
-  ⟨hDDH.indcca2ADOn_cramerShoup encAD hH hisElem hd hkeyLen hmem hCRAD hm0 hm hinv,
+  ⟨hDDH.indcca2ADOn_cramerShoup_bitStringAD hH hisElem hd hkeyLen hmem hCRAD hm0 hm hinv,
    hDDH.indcca2On_cramerShoup hH hisElem hd hkeyLen hmem hCR hm0 hm hinv,
    hDDH.indcca2MultiOn_cramerShoup hH hisElem hd hkeyLen hmem hCR hm0 hm hinv⟩
 

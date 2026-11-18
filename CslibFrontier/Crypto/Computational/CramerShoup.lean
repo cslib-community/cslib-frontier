@@ -60,9 +60,9 @@ library's **native strict-PPT PKE 1CCA notions** (`Encryption.cca2ADGameOn`,
 `Encryption.INDCCA2On`) via `advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le` and
 `advantage_cca2GameOn_cramerShoupGroupCCA2Game_le` (which account for the additional `8 / 2 ^ n`
 per-bit `sampleModNat` approximation loss of `cramerShoupKeyGenProb`, `cramerShoupADEncryptProb`,
-and `cramerShoupEncryptProb`), yielding `DDH.indcca2ADOn_cramerShoup`,
-`DDH.indcca2On_cramerShoup`, and (via the Theorem 12.1 batch-challenge hybrid reduction
-`INDCCA2On.indcca2MultiOn`) batch-challenge multi-challenge CCA security
+and `cramerShoupEncryptProb`), yielding `DDH.indcca2ADOn_cramerShoup_bitStringAD` (associated
+data in $\{0,1\}^*$), `DDH.indcca2On_cramerShoup`, and (via the Theorem 12.1 batch-challenge
+hybrid reduction `INDCCA2On.indcca2MultiOn`) batch-challenge multi-challenge CCA security
 `DDH.indcca2MultiOn_cramerShoup`.
 
 ## Source Statements ([BonehShoup2023], Section 12.5.3 & Exercise 12.27)
@@ -152,11 +152,11 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   distinguishers and two fixed-bit collision finders contribute `42 / 2 ^ n` from their internal
   `sampleModNat` exponent draws, and `(2 * Q₁ n + 2 * Q₂ n + 2) / m` combines the non-DH triple
   exclusion (`1 / m`) and the adaptive Lemma 12.8 bound (`(Q₁ n + Q₂ n) / m`) across `bit = false`
-  and `bit = true`. The **native strict-PPT** security theorems `DDH.indcca2ADOn_cramerShoup` and
-  `DDH.indcca2On_cramerShoup` instantiate `Encryption.INDCCA2ADOn` and `Encryption.INDCCA2On`,
-  bridging from `cramerShoupKeyGenProb`, `cramerShoupADEncryptProb`, and `cramerShoupEncryptProb`
-  to the ideal games with an additional `8 / 2 ^ n` statistical loss per challenge bit (`16 / 2 ^ n`
-  across both bits).
+  and `bit = true`. The **native strict-PPT** security theorems
+  `DDH.indcca2ADOn_cramerShoup_bitStringAD` and `DDH.indcca2On_cramerShoup` instantiate
+  `Encryption.INDCCA2ADOn` and `Encryption.INDCCA2On`, bridging from `cramerShoupKeyGenProb`,
+  `cramerShoupADEncryptProb`, and `cramerShoupEncryptProb` to the ideal games with an additional
+  `8 / 2 ^ n` statistical loss per challenge bit (`16 / 2 ^ n` across both bits).
 * **Keyed hash and fixed group family in the native theorems**: the ideal-game theorems
   (`DDH.cramerShoupADGroupIdealINDCCA2`, `DDH.cramerShoupGroupIdealINDCCA2`) hold for an arbitrary
   setup law `setup : ℕ → PMF F.Desc`, and their collision-resistance premise is stated for that
@@ -169,7 +169,7 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   the public key, as [CramerShoup2003], Section 6.1, Figure 1 does (and [CramerShoup1998],
   Section 3, which chooses the hash function from a universal one-way family at key generation).
   It is the scheme of `CramerShoup.Reductions` over `F.withKey`, whose parameters `(d, hk)` attach
-  the hash key `hk` to the group `d`. The native theorems `DDH.indcca2ADOn_cramerShoup`,
+  the hash key `hk` to the group `d`. The native theorems `DDH.indcca2ADOn_cramerShoup_bitStringAD`,
   `DDH.indcca2On_cramerShoup`, and `DDH.indcca2MultiOn_cramerShoup` fix a polynomial-time
   computable group family `d : ℕ → F.Desc` and a polynomial-time key length `keyLen`: the group at
   parameter `n` is `d n` and is not sampled, and the hash key is a uniform `keyLen n`-bit word.
@@ -183,11 +183,14 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   $H' : \mathbb{G}^3 \times \mathcal{D} \to \mathbb{Z}_q$, and the theorems assume collision
   resistance of the keyed hash only there: `CollisionResistantForOn` with the domain
   `isCramerShoupHashInput hasAD isElem`, which accepts exactly the encoded tuples
-  `encodeCramerShoupTuple d v w e ad` (`isCramerShoupHashInput_iff`). With associated data,
-  $\mathcal{D}$ is every word, since decryption accepts any associated-data word; without it,
-  $\mathcal{D} = \{[]\}$. Collision resistance on all words (`CollisionResistantFor`) implies this
-  premise (`CollisionResistantForOn.mono`) and is strictly stronger: a hash that is collision
-  resistant on $\mathbb{G}^3 \times \mathcal{D}$ can be made to collide on malformed words. The
+  `encodeCramerShoupTuple d v w e ad` (`isCramerShoupHashInput_iff`). With associated data the
+  native theorem takes $\mathcal{D} = \{0,1\}^*$ (`encAD = encBits`), because decryption hashes
+  whatever associated-data word it is given; a general $\mathcal{D}$, with collision resistance
+  only on $\mathbb{G}^3 \times \mathcal{D}$, needs decryption to reject associated data outside
+  $\mathcal{D}$ and is open (#5293). Without associated data, $\mathcal{D} = \{[]\}$. Collision
+  resistance on all words (`CollisionResistantFor`) implies this premise
+  (`CollisionResistantForOn.mono`) and is strictly stronger: a hash that is collision resistant on
+  $\mathbb{G}^3 \times \mathcal{D}$ can be made to collide on malformed words. The
   collision finder outputs only collisions between the challenge's tuple and the tuple of a
   Phase 2 query that is well-formed; a colliding query whose tuple is malformed fails the
   group-membership checks that decryption performs (compare [BonehShoup2023], Remark 12.3,
@@ -868,8 +871,8 @@ uniformly at the `PMF` level, is bounded by the DDH advantages of
 `cramerShoupMsgToDDHDistinguisher` (`false` and `true`), the collision-finding success
 probabilities of `cramerShoupMsgToCollisionFinder` (`false` and `true`), plus
 `(2 * Q₁ n + 2 * Q₂ n + 2) / m + 42 / 2 ^ n`. The cited result for the strict-PPT scheme with
-group-element messages is `DDH.indcca2ADOn_cramerShoup` (with associated data) and
-`DDH.indcca2On_cramerShoup`. -/
+group-element messages is `DDH.indcca2ADOn_cramerShoup_bitStringAD` (with associated data in
+$\{0,1\}^*$) and `DDH.indcca2On_cramerShoup`. -/
 theorem advantage_cramerShoupMsgCCA2Game_le_ideal
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool)
@@ -897,9 +900,9 @@ printed pp. 501–502, and Exercise 12.27, printed pp. 521–522): an adaptation
 bound (12.19) to the ideal exact-uniform PMF 1CCA game `cramerShoupADGroupCCA2Game` for
 Multiplicative Cramer–Shoup $\mathcal{E}_{\mathrm{MCS}}$ with associated data and group-element
 messages, in the two-run single-bit reduction style (with `42 / 2 ^ n` from the approximate
-`sampleModNat` exponent draws in the reductions). The cited result for the strict-PPT scheme is
-`DDH.indcca2ADOn_cramerShoup`, which reaches this game through
-`advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le`. -/
+`sampleModNat` exponent draws in the reductions). The cited result for the strict-PPT scheme, with
+associated data in $\{0,1\}^*$ (`encAD = encBits`), is `DDH.indcca2ADOn_cramerShoup_bitStringAD`,
+which reaches this game through `advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le`. -/
 theorem advantage_cramerShoupADGroupCCA2Game_le_ideal
     {AD : Type} (encAD : AD ↪ List Bool)
     (setup : ℕ → PMF F.Desc)
@@ -1003,7 +1006,8 @@ private theorem length_encodeCramerShoupPublicKey_le {d : F.Desc} {B : ℕ}
   have h4 := F.length_encBits4_encode_le hB (csPkU pk) (csPkH pk) (csPkH₁ pk) (csPkH₂ pk)
   enc_len
 
-/-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup` and `DDH.indcca2On_cramerShoup`, not
+/-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup_bitStringAD` and
+`DDH.indcca2On_cramerShoup`, not
 the cited result: asymptotic 1CCA security of Multiplicative Cramer–Shoup for general message and
 associated-data encodings in the ideal exact-uniform PMF game (after [BonehShoup2023],
 Theorem 12.9, Section 12.7 & Exercise 12.27, printed pp. 488–493, 501–502, 521–522). If DDH holds
@@ -1117,13 +1121,15 @@ theorem DDH.cramerShoupMsgIdealINDCCA2
   refine (hQ₂_raw n (csChoiceState choiceOut.1) _).mono ?_
   dsimp only [Q₂, Lct] at hct ⊢; gcongr
 
-/-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup`, not the cited result (after
-[BonehShoup2023], Theorem 12.9 & Exercise 12.27): for group-element messages with associated data
-`AD`, Multiplicative Cramer–Shoup satisfies the ideal exact-uniform PMF 1CCA notion
-`cramerShoupADGroupIdealINDCCA2` under DDH, collision resistance of `cramerShoupHashMod H` on its
-well-formed inputs `isCramerShoupHashInput true isElem`, a positive group-order lower bound
-`m n > 0` with `1 / m n` negligible, and polynomially bounded group description bit-length, for an
-arbitrary setup law. -/
+/-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup_bitStringAD`, not the cited result
+(after [BonehShoup2023], Theorem 12.9 & Exercise 12.27): for group-element messages with associated
+data `AD`, Multiplicative Cramer–Shoup satisfies the ideal exact-uniform PMF 1CCA notion
+`cramerShoupADGroupIdealINDCCA2` under DDH, collision resistance of `cramerShoupHashMod H` on
+`isCramerShoupHashInput true isElem`, a positive group-order lower bound `m n > 0` with `1 / m n`
+negligible, and polynomially bounded group description bit-length, for an arbitrary setup law.
+The hash premise covers every associated-data word, not only those in the range of `encAD`,
+because decryption hashes any associated-data word; it is the exercise's premise only when
+`encAD` is onto, as `encBits` is. -/
 theorem DDH.cramerShoupADGroupIdealINDCCA2
     {F : PrimeOrderGroupFamily}
     {AD : Type} (encAD : AD ↪ List Bool)
@@ -1483,26 +1489,32 @@ theorem advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le
     F.withKey.advantage_cramerShoupCCA2InnerSK_le true (fun p => encAD p.2) H
       (F.isElemWithKey isElem) (d n, hk) adversary bit n
 
-/-- **Multiplicative Cramer–Shoup with associated data is 1CCA secure** ([BonehShoup2023],
-Exercise 12.27, printed pp. 521–522, proved by the method of Theorem 12.9, printed pp. 489–493)
-under DDH and collision resistance of $H'$ on its well-formed inputs
-$\mathbb{G}^3 \times \mathcal{D}$. For any associated-data encoding `encAD : AD ↪ List Bool`,
-polynomial-time group description family `d : ℕ → F.Desc`, polynomial-time key length `keyLen`,
-and polynomial-time `H` and `isElem` such that `isElem` accepts exactly the encodings of group
-elements, the probabilistic polynomial-time scheme `(cramerShoupKeyGenProb d keyLen,
-cramerShoupADEncryptProb encAD H d, cramerShoupADDecryptOpt H isElem d)` satisfies the native
-single-challenge `Encryption.INDCCA2ADOn` notion with respect to `cramerShoupValid isElem d`.
-The premises are DDH for the point-mass setup `fun n => PMF.pure (d n)`; collision resistance of
-the keyed hash family `F.withKey.cramerShoupHashMod H`, whose system parameter is the group `d n`
-together with a uniform `keyLen n`-bit key, on the words that `isCramerShoupHashInput true`
-accepts (encoded group-element triples with any associated-data word, since decryption accepts
-any); and a positive lower bound `m n ≤ F.order (d n)` with `1 / m n` negligible. Key generation
-draws the hash key and publishes it in the public key, as in [CramerShoup2003], Section 6.1,
-Figure 1. The group at parameter `n` is the fixed description `d n`; it is not sampled.
-[CramerShoup2003], Theorem 1, assumes only target collision resistance of the keyed hash. -/
-theorem DDH.indcca2ADOn_cramerShoup
+/-- **Multiplicative Cramer–Shoup with associated data in $\mathcal{D} = \{0,1\}^*$ is 1CCA
+secure** ([BonehShoup2023], Exercise 12.27, printed pp. 521–522, by the method of Theorem 12.9,
+printed pp. 489–493) under DDH and collision resistance of $H'$ on
+$\mathbb{G}^3 \times \{0,1\}^*$. The associated-data space is all words because decryption
+hashes whatever associated-data word it is given: `cca2ADPhase1Oracle` and `cca2ADPhase2Oracle`
+pass any word to `cramerShoupADDecryptOpt`. A general space $\mathcal{D}$, with collision
+resistance assumed only on $\mathbb{G}^3 \times \mathcal{D}$, is open (#5293); it needs
+decryption to reject associated data outside $\mathcal{D}$.
+
+In detail: for any polynomial-time group description family `d : ℕ → F.Desc`, polynomial-time
+key length `keyLen`, and polynomial-time `H` and `isElem` such that `isElem` accepts exactly the
+encodings of group elements, the probabilistic polynomial-time scheme
+`(cramerShoupKeyGenProb d keyLen, cramerShoupADEncryptProb encBits H d,
+cramerShoupADDecryptOpt H isElem d)`, with associated data the bit strings themselves
+(`encBits` is the identity embedding), satisfies the native single-challenge
+`Encryption.INDCCA2ADOn` notion with respect to `cramerShoupValid isElem d`. The premises are DDH
+for the point-mass setup `fun n => PMF.pure (d n)`; collision resistance of the keyed hash family
+`F.withKey.cramerShoupHashMod H`, whose system parameter is the group `d n` together with a
+uniform `keyLen n`-bit key, on the words that `isCramerShoupHashInput true` accepts (encoded
+group-element triples with any associated-data word); and a positive lower bound
+`m n ≤ F.order (d n)` with `1 / m n` negligible. Key generation draws the hash key and publishes
+it in the public key, as in [CramerShoup2003], Section 6.1, Figure 1. The group at parameter `n`
+is the fixed description `d n`; it is not sampled. [CramerShoup2003], Theorem 1, assumes only
+target collision resistance of the keyed hash. -/
+theorem DDH.indcca2ADOn_cramerShoup_bitStringAD
     {F : PrimeOrderGroupFamily}
-    {AD : Type} (encAD : AD ↪ List Bool)
     {H : F.withKey.Desc × List Bool → List Bool}
     {isElem : F.Desc × List Bool → Bool}
     {d : ℕ → F.Desc} {keyLen : ℕ → ℕ}
@@ -1518,20 +1530,20 @@ theorem DDH.indcca2ADOn_cramerShoup
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
     (hm : ∀ n, m n ≤ F.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2ADOn (F.cramerShoupValid isElem d) encBits encAD encBits
-      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encAD H d)
+    INDCCA2ADOn (F.cramerShoupValid isElem d) encBits encBits encBits
+      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encBits H d)
       (F.cramerShoupADDecryptOpt H isElem d) := by
-  have hgroup : F.withKey.cramerShoupADGroupIdealINDCCA2 encAD
+  have hgroup : F.withKey.cramerShoupADGroupIdealINDCCA2 encBits
       (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) H (F.isElemWithKey isElem) :=
-    (hDDH.withKey hkeyLen).cramerShoupADGroupIdealINDCCA2 encAD hH
+    (hDDH.withKey hkeyLen).cramerShoupADGroupIdealINDCCA2 encBits hH
       (F.computableInPolyTime_isElemWithKey hisElem) (F.isElemWithKey_iff hmem) hCR hm0
       (F.order_withKeySetup_ge hm) hinv (F.exists_length_encDesc_withKeySetup_le hd hkeyLen)
   intro adversary hA
   dsimp only [INDCCA2ADOn, Game.Indistinguishable]
   exact negligible_advantage_of_eight_le (hgroup adversary hA)
-    (F.advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le encAD H isElem hmem d keyLen
+    (F.advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le encBits H isElem hmem d keyLen
       adversary false)
-    (F.advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le encAD H isElem hmem d keyLen
+    (F.advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le encBits H isElem hmem d keyLen
       adversary true)
 
 /-- The native `Encryption.cca2GameOn` experiment for `(cramerShoupValid, cramerShoupKeyGenProb,

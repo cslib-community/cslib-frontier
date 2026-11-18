@@ -35,8 +35,9 @@ theorems without `isElem`, `hisElem`, or `hmem` parameters.
 
 ## Main results
 
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup`: native
-  `Encryption.INDCCA2ADOn` security without external `isElem` premises.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup_bitStringAD`: native
+  `Encryption.INDCCA2ADOn` security with associated data in $\{0,1\}^*$ without external
+  `isElem` premises.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2On_cramerShoup`: native
   `Encryption.INDCCA2On` security without external `isElem` premises.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2MultiOn_cramerShoup`: batch-challenge
@@ -56,7 +57,9 @@ theorems without `isElem`, `hisElem`, or `hmem` parameters.
 * **Hash assumption**: following [BonehShoup2023], Exercise 12.27, which declares
   $H' : \mathbb{G}^3 \times \mathcal{D} \to \mathbb{Z}_q$, the theorems assume collision
   resistance of the keyed hash on the words that `isCramerShoupHashInput` accepts with
-  `isElemWithKey F.isElem`, the encodings of $\mathbb{G}^3 \times \mathcal{D}$.
+  `isElemWithKey F.isElem`, the encodings of $\mathbb{G}^3 \times \mathcal{D}$. With associated
+  data, $\mathcal{D} = \{0,1\}^*$, because decryption hashes any associated-data word; a general
+  $\mathcal{D}$ is open (#5293).
   [CramerShoup2003], Theorem 1 (Section 6.2), needs only target collision resistance, which is
   weaker, so these theorems use a stronger hash assumption than the original paper.
 
@@ -100,15 +103,17 @@ abbrev cramerShoupDecryptOpt (H : F.withKey.Desc × List Bool → List Bool) (d 
     (n : ℕ) (skBits ct : List Bool) : Option (List Bool) :=
   F.toPrimeOrderGroupFamily.cramerShoupDecryptOpt H F.isElem d n skBits ct
 
-/-- **Multiplicative Cramer–Shoup with associated data is 1CCA secure** ([BonehShoup2023],
-Exercise 12.27, printed pp. 521–522, proved by the method of Theorem 12.9, printed pp. 489–493)
-under DDH and collision resistance of $H'$ on its well-formed inputs
-$\mathbb{G}^3 \times \mathcal{D}$: `PrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup` over a
+/-- **Multiplicative Cramer–Shoup with associated data in $\mathcal{D} = \{0,1\}^*$ is 1CCA
+secure** ([BonehShoup2023], Exercise 12.27, printed pp. 521–522, by the method of Theorem 12.9,
+printed pp. 489–493) under DDH and collision resistance of $H'$ on
+$\mathbb{G}^3 \times \{0,1\}^*$. The associated-data space is all words because decryption
+hashes whatever associated-data word it is given. A general space $\mathcal{D}$ is open (#5293);
+it needs decryption to reject associated data outside $\mathcal{D}$. This is
+`PrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup_bitStringAD` over a
 `DecodablePrimeOrderGroupFamily`, whose `F.isElem` supplies the group-membership test (no external
 `isElem`, `hisElem`, or `hmem` parameters). -/
-theorem DDH.indcca2ADOn_cramerShoup
+theorem DDH.indcca2ADOn_cramerShoup_bitStringAD
     {F : DecodablePrimeOrderGroupFamily}
-    {AD : Type} (encAD : AD ↪ List Bool)
     {H : F.withKey.Desc × List Bool → List Bool}
     {d : ℕ → F.Desc} {keyLen : ℕ → ℕ}
     (hH : ComputableInPolyTime H (encPair F.withKey.encDesc encBits) encBits)
@@ -121,10 +126,10 @@ theorem DDH.indcca2ADOn_cramerShoup
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
     (hm : ∀ n, m n ≤ F.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2ADOn (F.cramerShoupValid d) encBits encAD encBits
-      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encAD H d)
+    INDCCA2ADOn (F.cramerShoupValid d) encBits encBits encBits
+      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupADEncryptProb encBits H d)
       (F.cramerShoupADDecryptOpt H d) :=
-  hDDH.indcca2ADOn_cramerShoup encAD hH F.computableInPolyTime_isElem hd hkeyLen
+  hDDH.indcca2ADOn_cramerShoup_bitStringAD hH F.computableInPolyTime_isElem hd hkeyLen
     F.isElem_eq_true_iff hCR hm0 hm hinv
 
 /-- **Multiplicative Cramer–Shoup is 1CCA secure** ([BonehShoup2023], Exercise 12.27, printed
