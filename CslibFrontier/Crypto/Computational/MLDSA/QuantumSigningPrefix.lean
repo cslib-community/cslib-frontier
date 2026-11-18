@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.QueryComplexity.Quantum.MeasuredPrefix
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-public import CslibFrontier.Crypto.Computational.MLDSA.SplitMatrix
+public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
 import CslibFrontier.Probability.PMF.Expect
 
 /-!
@@ -97,31 +97,37 @@ theorem commitmentDigest_sharedXofs (base : Xofs)
   simp [sharedXofs, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix, i.property,
     List.take_of_length_le, base.h256.length_read]
 
-private noncomputable def read256 (base : Xofs) (q : XofRead) :
+/-- Serve a raw SHAKE256 read by consulting the coherent table once for its stored digest
+prefix and using the fixed underlying XOF bytes for the rest. -/
+noncomputable def read256 (base : Xofs) (q : ExtendableOutput.Request) :
     OracleComp (fun _ : commitmentAddresses s extra => DigestRegister s) (List Byte) :=
   if h : q.input ∈ commitmentAddresses s extra then do
     let d ← OracleComp.query ⟨q.input, h⟩
     return base.h256.readWithPrefix q.input q.count (registerBytes s d)
   else pure (base.h256.read q.input q.count)
 
-private theorem bounded_read256 (base : Xofs) (q : XofRead) :
+/-- A raw SHAKE256 read needs at most one query to the shared digest-prefix register. -/
+theorem bounded_read256 (base : Xofs) (q : ExtendableOutput.Request) :
     (read256 s extra base q).IsQueryBounded 1 := by
   unfold read256
   split
   · exact .liftBind _ _ 0 fun _ => .pure _ _
   · exact .pure _ _
 
-private theorem eval_shared_reads (base : Xofs) (T : commitmentAddresses s extra → DigestRegister s)
-    {R : Type} (run : SigningReads R) :
+/-- Interpreting any adaptive raw SHAKE256 program using the finite table agrees with
+evaluating that program against the resulting shared, prefix-consistent XOF. -/
+theorem eval_shared_reads (base : Xofs) (T : commitmentAddresses s extra → DigestRegister s)
+    {R : Type} (run : ExtendableOutput.Reads R) :
     OracleComp.evalPure T (OracleComp.interpret (read256 s extra base) run) =
-      OracleComp.evalPure (XofRead.answer (sharedXofs s extra base T).h256) run := by
+      OracleComp.evalPure (ExtendableOutput.Request.answer (sharedXofs s extra base T).h256)
+        run := by
   induction run using OracleComp.induction with
   | pure r => rfl
   | query_bind q cont ih =>
     simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind, OracleComp.interpret_query,
       OracleComp.evalPure_bind, OracleComp.evalPure_query, ih]
     congr 1
-    unfold read256 sharedXofs XofRead.answer ExtendableOutput.withPrefixes
+    unfold read256 sharedXofs ExtendableOutput.Request.answer ExtendableOutput.withPrefixes
     by_cases h : q.input ∈ commitmentAddresses s extra <;> simp [h]
 
 /-- A signing request on the same raw SHAKE256 table as coherent queries. The finite reply
@@ -143,9 +149,10 @@ private theorem request_bounded (base : Xofs) (key : List Byte) (q : SigningQuer
 
 private theorem eval_loop (H : Xofs) (sk : PrivateKey s) (A : PublicMatrix s) (m : List Bool)
     (seed : List Byte) (fuel κ : ℕ) :
-    (OracleComp.evalPure (XofRead.answer H.h256) (signingQueries s sk A m seed (recordReply s)
-      fuel κ)).map FixedBytes.toList =
-      OracleComp.evalPure (XofRead.answer H.h256) (signingQueries s sk A m seed id fuel κ) := by
+    (OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+      (signingQueries s sk A m seed (recordReply s) fuel κ)).map FixedBytes.toList =
+      OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+        (signingQueries s sk A m seed id fuel κ) := by
   induction fuel generalizing κ with
   | zero => rfl
   | succ n ih =>
@@ -237,7 +244,7 @@ theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : P
     let H := sharedXofs s extra base T
     (completeSigningTrial s extra base sk A T m seed fuel nonce
       (ringVectorCoeffs (H.expandMask s seed nonce))).map FixedBytes.toList =
-      OracleComp.evalPure (XofRead.answer H.h256)
+      OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
         (signingQueries s sk A (List.ofFn m) seed id (fuel + 1) nonce) := by
   intro H
   let y := ringVectorCoeffs (H.expandMask s seed nonce)
@@ -251,10 +258,11 @@ theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : P
   apply congrArg (Option.map FixedBytes.toList)
   unfold completeSigningTrial trialResult
   simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-    tabulateRingVector_eq, XofRead.answer, Xofs.sampleInBall, ExtendableOutput.readBytes]
+    tabulateRingVector_eq, ExtendableOutput.Request.answer, Xofs.sampleInBall,
+    ExtendableOutput.readBytes]
   change OracleComp.evalPure T (finishRequest s extra base sk A m seed fuel (nonce + s.params.ℓ)
     (finishSigningAttempt s sk y w d (expand d))) =
-    OracleComp.evalPure (XofRead.answer H.h256) (match
+    OracleComp.evalPure (ExtendableOutput.Request.answer H.h256) (match
       finishSigningAttempt s sk y w raw (expand raw) with
       | none => pure (recordReply s none)
       | some (some sig) => pure (recordReply s (some sig))

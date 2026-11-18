@@ -35,23 +35,10 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability
 
-/-- A call to the common SHAKE256 stream specifies the raw input and requested byte count. -/
-structure XofRead where
-  /-- Complete input bits, including any message, seed or counter framing. -/
-  input : List Bool
-  /-- Number of bytes requested from the beginning of this stream. -/
-  count : ℕ
-
-/-- Signing computations that request SHAKE256 bytes at raw inputs. -/
-abbrev SigningReads := OracleComp (fun _ : XofRead => List Byte)
-
-/-- Read every request consistently from one XOF. -/
-@[expose] def XofRead.answer (H : ExtendableOutput) (q : XofRead) := H.read q.input q.count
-
 /-- ExpandMask (Algorithm 34). Each of the ℓ rows queries the same seed with its own
 two-byte little-endian counter. All rows share their raw XOF with every other signing role. -/
 @[expose] def expandMaskReads (s : Level) (seed : List Byte) (κ : ℕ) :
-    SigningReads (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) :=
+    ExtendableOutput.Reads (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) :=
   let width := s.params.γ₁.log2 + 1
   Vector.ofFnM fun i : Fin s.params.ℓ => do
     let nonce := κ + i.val
@@ -61,7 +48,7 @@ two-byte little-endian counter. All rows share their raw XOF with every other si
 
 /-- Algorithm 34 evaluated against the selected SHAKE256 stream. -/
 @[expose] def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :=
-  OracleComp.evalPure (XofRead.answer H.h256) (expandMaskReads s seed κ)
+  OracleComp.evalPure (ExtendableOutput.Request.answer H.h256) (expandMaskReads s seed κ)
 
 /-- FIPS 202 specialization of `Xofs.expandMask`. -/
 abbrev expandMask := Xofs.expandMask Xofs.shake
@@ -104,7 +91,8 @@ private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : Pu
 /-- The capped signing loop. Each attempt reads all ExpandMask rows, the commitment digest
 and the 221 SampleInBall bytes. Every request goes to one raw SHAKE256 interface. -/
 @[expose] def signingQueries {R : Type} (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
-    (μ : List Bool) (seed : List Byte) (reply : Option (List Byte) → R) : ℕ → ℕ → SigningReads R
+    (μ : List Bool) (seed : List Byte) (reply : Option (List Byte) → R) :
+    ℕ → ℕ → ExtendableOutput.Reads R
   | 0, _ => pure (reply none)
   | fuel + 1, κ => do
     let masks ← expandMaskReads s seed κ
@@ -121,7 +109,7 @@ and the 221 SampleInBall bytes. Every request goes to one raw SHAKE256 interface
 the message representative and masking seed through the rejection loop, is an oracle call. -/
 @[expose] def Xofs.signInternalReads {R : Type} (H : Xofs) (s : Level) (key : List Byte)
     (formatted : List Bool) (rnd : FixedBytes 32) (reply : Option (List Byte) → R) :
-    SigningReads R :=
+    ExtendableOutput.Reads R :=
   match decodePrivate s key with
   | none => pure (reply none)
   | some sk =>
@@ -137,7 +125,8 @@ the message representative and masking seed through the rejection loop, is an or
 814-attempt limit. -/
 @[expose] def Xofs.signInternal (H : Xofs) (s : Level) (key : List Byte) (formatted : List Bool)
     (rnd : FixedBytes 32) : Option (List Byte) :=
-  OracleComp.evalPure (XofRead.answer H.h256) (H.signInternalReads s key formatted rnd id)
+  OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+    (H.signInternalReads s key formatted rnd id)
 
 /-- FIPS 202 specialization of `Xofs.signInternal`. -/
 abbrev signInternal := Xofs.signInternal Xofs.shake
@@ -151,7 +140,7 @@ abbrev signInternal := Xofs.signInternal Xofs.shake
 /-- FIPS 202 specialization of `Xofs.sign`. -/
 abbrev sign := Xofs.sign Xofs.shake
 
-private theorem bounded_vector_reads {α : Type} {n : ℕ} (f : Fin n → SigningReads α)
+private theorem bounded_vector_reads {α : Type} {n : ℕ} (f : Fin n → ExtendableOutput.Reads α)
     (h : ∀ i, (f i).IsQueryBounded 1) : (Vector.ofFnM f).IsQueryBounded n := by
   induction n with
   | zero => rw [Vector.ofFnM_zero]; exact .pure _ _
@@ -198,7 +187,7 @@ theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : 
 
 private theorem attempt_of_signingQueries (H : Xofs) (s : Level) (sk : PrivateKey s)
     (A : PublicMatrix s) (μ : List Bool) (seed : List Byte) (fuel κ : ℕ) {sig : List Byte}
-    (hs : OracleComp.evalPure (XofRead.answer H.h256)
+    (hs : OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
       (signingQueries s sk A μ seed id fuel κ) = some sig) :
     ∃ nonce, H.attempt s sk A μ seed nonce = some (some sig) := by
   induction fuel generalizing κ with
