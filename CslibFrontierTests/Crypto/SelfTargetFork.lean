@@ -14,7 +14,7 @@ open Cslib Cslib.Crypto Cslib.Probability
 
 /-- With no oracle queries, a solver that always outputs zero guesses the one-bit challenge
 on its output point with probability one half. -/
-example : (ModuleSIS.SelfTarget.game (Function.Embedding.refl (Fin 1 → ZMod 2)) 0
+example : (ModuleSIS.SelfTarget.game some 0
     (PMF.pure ()) (fun _ _ => pure ([], 0))
     (0 : Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 2))) true = 1 / 2 := by
   classical
@@ -25,3 +25,19 @@ example : (ModuleSIS.SelfTarget.game (Function.Embedding.refl (Fin 1 → ZMod 2)
   simp [ModuleSIS.SelfTarget.game, ModuleSIS.SelfTarget.accepts, fresh,
     Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
     OracleComp.interpret_pure, PMF.uniformOfFintype_apply]
+
+/-- Distinct one-bit digests that decode to the same successful polynomial lose exactly one
+half of the fresh replies in the worst case. -/
+example : ModuleSIS.SelfTarget.collisionMass (fun _ : Bool => some (0 : Fin 1 → ZMod 2)) =
+    1 / 2 := by
+  classical
+  rw [ModuleSIS.SelfTarget.collisionMass_eq_card]
+  have hu : (Finset.univ : Finset Bool) = {false, true} := by decide
+  simp [hu]
+
+/-- Failure at every digest never contributes a collision between accepted replies. -/
+example : ModuleSIS.SelfTarget.collisionMass (fun _ : Bool => (none : Option (Fin 1 → ZMod 2))) =
+    0 := by
+  rw [ModuleSIS.SelfTarget.collisionMass_eq_card]
+  have hu : (Finset.univ : Finset Bool) = {false, true} := by decide
+  simp [hu]

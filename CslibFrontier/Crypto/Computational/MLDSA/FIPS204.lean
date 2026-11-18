@@ -8,12 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+public import CslibFrontier.Crypto.Computational.SIS.SelfTargetFork
 public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Game.Order
 import Mathlib.Order.Interval.Finset.Fin
+import CslibFrontier.Foundations.Data.BitString.List
+import all Batteries.Data.List.Basic
 
 /-!
 # ML-DSA verification on byte keys and signatures
@@ -25,7 +28,9 @@ The ring products use the coefficient form of Algorithm 8, line 9.
 
 The key-only reduction retains the matrix seed and the verifier's SHAKE-derived message
 representative. Its setup samples the Algorithm 6 key-generation seed. The resulting
-self-target experiment has that same seeded setup.
+self-target experiment has that same seeded setup. For challenges supplying a full vector and a
+matrix at the published seed, `decode_encodePublic` recovers the rounded high term, and
+`verifiedSignature_of_verifyWithExpansion` recovers the full digest check for that vector.
 -/
 
 public section
@@ -47,7 +52,8 @@ abbrev Level.params (s : Level) : Params :=
     | .mlDSA87 => Params.mldsa87
   { p with n := 256, q := 8380417 }
 
-private def digestBytes : Level → ℕ
+/-- Byte length of the commitment digest (FIPS 204, Table 1, `2λ` bits). -/
+def digestBytes : Level → ℕ
   | .mlDSA44 => 32 | .mlDSA65 => 48 | .mlDSA87 => 64
 
 private def hintLimit : Level → ℕ
@@ -66,6 +72,78 @@ private def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 
 
 private def unpackCoeff (bits : List Bool) (width index : ℕ) : ℕ :=
   BitString.lsbValue ((bits.drop (width * index)).take width)
+
+private theorem bitsOfChunks {bits : List Bool} (h : 8 ∣ bits.length) :
+    Keccak.bytesToBitsLE ((bits.toChunks 8).map Keccak.bitsToByteLE) = bits := by
+  let decode (chunks : List (List Bool)) :=
+    Keccak.bytesToBitsLE (chunks.map Keccak.bitsToByteLE)
+  have snoc (chunks : Array (List Bool)) (chunk : Array Bool) (hlen : chunk.size = 8) :
+      decode (chunks.push chunk.toList).toList = decode chunks.toList ++ chunk.toList := by
+    simp [decode, Keccak.bytesToBitsLE, hlen, Keccak.byteBitsLE_bitsToByteLE]
+  have go (tail : List Bool) (cur : Array Bool) (done : Array (List Bool))
+      (hp : 0 < cur.size) (hb : cur.size ≤ 8) (hdiv : 8 ∣ cur.size + tail.length) :
+      decode (List.toChunks.go 8 tail cur done) = decode done.toList ++ cur.toList ++ tail := by
+    induction tail generalizing cur done with
+    | nil =>
+      have hl : cur.size = 8 := by simp at hdiv; omega
+      simp only [List.toChunks.go, List.append_nil]
+      exact snoc done cur hl
+    | cons x xs ih =>
+      rw [List.toChunks.go]
+      split
+      · rename_i hc
+        have hl : cur.size = 8 := beq_iff_eq.mp hc
+        rw [ih _ _ (by simp) (by simp) (by simp_all; omega), snoc _ _ hl]
+        simp
+      · rename_i hn
+        have hl : cur.size ≠ 8 := by simpa using hn
+        rw [ih _ _ (by simp) (by simp; omega) (by simpa [Nat.add_assoc, Nat.add_comm,
+          Nat.add_left_comm] using hdiv)]
+        simp
+  cases bits with
+  | nil => rfl
+  | cons x xs =>
+    change decode (List.toChunks.go 8 xs #[x] #[]) = x :: xs
+    simpa [decode, Keccak.bytesToBitsLE] using
+      go xs #[x] #[] (by simp) (by simp) (by simpa [Nat.add_comm] using h)
+
+private theorem unpack_packCoeffs {rows width : ℕ} (coeff : Fin rows → Fin 256 → ℕ)
+    (hc : ∀ i j, coeff i j < 2 ^ width) (i : Fin rows) (j : Fin 256) :
+    unpackCoeff (Keccak.bytesToBitsLE (packCoeffs width coeff)) width (256 * i + j) =
+      coeff i j := by
+  let flat : Fin (rows * 256) → List Bool := fun a =>
+    BitString.lowBits width (coeff ⟨a / 256, by have := a.isLt; omega⟩ ⟨a % 256, by omega⟩)
+  have hflat (a : Fin (rows * 256)) : (flat a).length = width := BitString.length_lowBits _ _
+  have hbits : ((List.finRange rows).flatMap fun i => (List.finRange 256).flatMap
+      fun j => BitString.lowBits width (coeff i j)) = (List.ofFn flat).flatten := by
+    rw [List.ofFn_mul flat]
+    simp only [List.flatMap_def, ← List.ofFn_eq_map, List.flatten_flatten, List.map_ofFn,
+      Function.comp_def]
+    congr 1
+    apply congrArg List.ofFn
+    funext a
+    congr 1
+    apply congrArg List.ofFn
+    funext b
+    have hdiv : (a.val * 256 + b.val) / 256 = a.val := by omega
+    have hmod : (a.val * 256 + b.val) % 256 = b.val := by omega
+    simp only [flat, hdiv, hmod, Fin.eta]
+  have hlen : (List.ofFn flat).flatten.length = rows * 256 * width := by
+    simp [List.length_flatten, List.map_ofFn, Function.comp_def, hflat]
+  let idx : Fin (rows * 256) := ⟨256 * i.val + j.val, by have := i.isLt; have := j.isLt; omega⟩
+  have hrow := BitString.listRow_flatten_ofFn flat hflat idx
+  have hremaining : width ≤ ((List.ofFn flat).flatten.drop (idx.val * width)).length := by
+    rw [List.length_drop, hlen]
+    have hmul := Nat.mul_le_mul_right width (Nat.succ_le_of_lt idx.isLt)
+    rw [Nat.succ_mul] at hmul
+    omega
+  rw [BitString.listRow, List.take_append_of_le_length hremaining] at hrow
+  simp only [packCoeffs, hbits, bitsOfChunks (by rw [hlen]; exact ⟨rows * 32 * width, by ring⟩),
+    unpackCoeff]
+  rw [show width * (256 * (i : ℕ) + j) = idx.val * width by exact Nat.mul_comm .., hrow]
+  have hi : idx.val / 256 = i.val := by dsimp [idx]; omega
+  have hj : idx.val % 256 = j.val := by dsimp [idx]; omega
+  simpa only [flat, hi, hj, Fin.eta] using BitString.lsbValue_lowBits (hc i j)
 
 private def uniformCoeffs : List Byte → List (ZMod 8380417)
   | a :: b :: c :: rest =>
@@ -225,11 +303,39 @@ private def decodeRounded (s : Level) (bytes : List Byte) (i : Fin s.params.k) (
     Fin 1024 :=
   Fin.ofNat 1024 (unpackCoeff (Keccak.bytesToBitsLE (bytes.drop 32)) 10 (256 * i.val + j.val))
 
-private def publicKey (s : Level) (bytes : List Byte)
+/-- Decode the rounded public coefficients and lift them by the FIPS factor `2^13`. -/
+def publicKey (s : Level) (bytes : List Byte)
     (matrix : PublicMatrix s) : MLDSA.PublicKey s.params :=
   let t := Vector.ofFn fun i : Fin s.params.k => Vector.ofFn fun j : Fin 256 =>
     ((decodeRounded s bytes i j).val : ZMod 8380417) * 8192
   ⟨matrix, fun i j => t[i.val][j.val]⟩
+
+private theorem highPart_range (r : ZMod 8380417) :
+    0 ≤ (power2Round 8380417 13 r).1 ∧ (power2Round 8380417 13 r).1 < 1024 := by
+  have h := power2Round_high_mul_add_low (d := 13) r
+  have hlo := power2Round_low_mem_Ioc (by decide : 0 < 13) r
+  have hr := r.val_lt
+  change (power2Round 8380417 13 r).1 * 8192 + (power2Round 8380417 13 r).2 = (r.val : ℤ) at h
+  change -4096 < (power2Round 8380417 13 r).2 ∧ (power2Round 8380417 13 r).2 ≤ 4096 at hlo
+  omega
+
+/-- Decoding the public-key bytes recovers the dilated high vector `2^13 t₁` coefficientwise,
+including the upper endpoint 1023 in the ten-bit encoding. -/
+theorem decode_encodePublic (s : Level) (rho : FixedBytes 32) (A : PublicMatrix s)
+    (t : Fin s.params.k → Poly) :
+    (publicKey s (encodePublic s rho.toList t) A).t = publicKeyHighTerm s.params 13 ⟨A, t⟩ := by
+  funext i j
+  have bounds (a b) := highPart_range (t a b)
+  have hbits := unpack_packCoeffs (width := 10)
+    (fun a b => (power2Round 8380417 13 (t a b)).1.toNat)
+    (fun a b => by have := bounds a b; norm_num; omega) i j
+  simp only [publicKey, Vector.getElem_ofFn, decodeRounded, encodePublic,
+    List.drop_left' (by simp : rho.toList.length = 32), hbits, Fin.val_ofNat,
+    publicKeyHighTerm, power2RoundVec]
+  have hb : (power2Round 8380417 13 (t i j)).1.toNat < 1024 := by have := bounds i j; omega
+  rw [Nat.mod_eq_of_lt hb]
+  push_cast
+  rw [← Int.cast_natCast (R := ZMod 8380417), Int.toNat_of_nonneg (bounds i j).1]
 
 /-- A decoded public coefficient lies in [0,1023]. Multiplication by 2^13 preserves the
 canonical lift, so rounding this lifted key recovers exactly Algorithm 8's public term. -/
@@ -261,7 +367,8 @@ def messageRepresentative (pk : List Byte) (formatted : List Bool) : List Bool :
   Keccak.bytesToBitsLE (Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
     (Keccak.bytesToBitsLE (Keccak.shake256 pk 64) ++ formatted) 64)
 
-private def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
+/-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
+def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
     List Byte :=
   let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
   let packed := packCoeffs width (fun i j => (w i j).toNat)
@@ -315,6 +422,8 @@ theorem verifyWithExpansion_encodePublic (s : Level) (expand : List Byte → Opt
 then run Algorithm 8. Contexts longer than 255 bytes return the specified error. -/
 def verify (s : Level) := verifyWithExpansion s (expandA s)
 
+/-- Expand the concrete FIPS commitment digest to a sparse challenge. The zero value on
+exhaustion is outside the challenge ball for every standard set. -/
 private def algebraicHash (s : Level) : Hash s.params :=
   fun ⟨w, μ⟩ => (sampleInBall s (commitmentDigest s w μ)).getD 0
 
@@ -342,12 +451,77 @@ structure Forgery where
   /-- Byte encoding of the purported signature. -/
   signature : List Byte
 
-private def formattedMessage (f : Forgery) : List Bool :=
+/-- Algorithm 3 frames the context before the bit-string message. -/
+def formattedMessage (f : Forgery) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 f.context.length :: f.context) ++ f.message
 
 private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
     (σ : Signature s) (c : Poly) : SelfTargetCandidate s.params :=
   SelfTargetCandidate.ofCompressedForgery s.params 13 pk μ ⟨σ.z, σ.h, c⟩
+
+private theorem parsed_of_verifyWithExpansion {s : Level} {bytes : List Byte}
+    {expand : List Byte → Option (PublicMatrix s)} {f : Forgery}
+    (hv : verifyWithExpansion s expand bytes f.message f.context f.signature = some true) :
+    ∃ A σ c, expand (bytes.take 32) = some A ∧ sigDecode s f.signature = some σ ∧
+      sampleInBall s σ.digest = some c ∧
+      check s (publicKey s bytes A) (messageRepresentative bytes (formattedMessage f)) σ c := by
+  simp only [verifyWithExpansion, verifyInternalWith] at hv
+  have hctx : f.context.length ≤ 255 := by by_contra h; simp [guard, h] at hv
+  have hlen : bytes.length = 32 + 320 * s.params.k := by
+    by_contra h
+    simp [guard, hctx, h] at hv
+  cases hσ : sigDecode s f.signature with
+  | none => simp [guard, hctx, hlen, hσ] at hv
+  | some σ =>
+    cases hA : expand (bytes.take 32) with
+    | none => simp [guard, hctx, hlen, hσ, hA] at hv
+    | some A =>
+      cases hc : sampleInBall s σ.digest with
+      | none => simp [guard, hctx, hlen, hσ, hA, hc] at hv
+      | some c =>
+        exact ⟨A, σ, c, rfl, rfl, hc, by
+          simpa [guard, hctx, hlen, hσ, hA, hc, formattedMessage] using hv⟩
+
+/-- A successful byte verification on a published `(ρ,t₁)` determines the parsed signature,
+its sparse challenge, the response bound, and the complete FIPS digest equality, expressed
+using the rounded high term of the original full vector `t`. -/
+theorem verifiedSignature_of_verifyWithExpansion {s : Level}
+    {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
+    {A : PublicMatrix s} {t : Fin s.params.k → Poly} {f : Forgery}
+    (hA : expand rho.toList = some A)
+    (hv : verifyWithExpansion s expand (encodePublic s rho.toList t)
+      f.message f.context f.signature = some true) :
+    ∃ σ c, sigDecode s f.signature = some σ ∧ sampleInBall s σ.digest = some c ∧
+      ResponseShort s.params σ.z ∧
+      commitmentDigest s (fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
+        (compressedVerifierCommitment s.params 13 ⟨A, t⟩ σ.z c i))
+        (messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)) = σ.digest := by
+  obtain ⟨A', σ, c, hA', hσ, hc, hcheck⟩ := parsed_of_verifyWithExpansion hv
+  rw [take_encodePublic, hA, Option.some.injEq] at hA'
+  subst A'
+  simp only [check, Bool.and_eq_true, decide_eq_true_eq] at hcheck
+  refine ⟨σ, c, hσ, hc, hcheck.1, ?_⟩
+  have hw : hintedCommitment s (publicKey s (encodePublic s rho.toList t) A) σ c =
+      fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
+        (compressedVerifierCommitment s.params 13 ⟨A, t⟩ σ.z c i) := by
+    unfold hintedCommitment compressedVerifierCommitment
+    rw [decode_encodePublic s rho A t]
+    rfl
+  rw [← hw]
+  exact hcheck.2
+
+private theorem solution_of_compressed {s : Level} {pk : MLDSA.PublicKey s.params}
+    {μ : List Bool} {σ : Signature s} {c : Poly}
+    (hv : compressedVerify s.params 13 (algebraicHash s) pk μ ⟨σ.z, σ.h, c⟩) :
+    IsSelfTargetSolution s.params (selfTargetHash s.params (algebraicHash s))
+      (compressedSelfTargetRadius s.params 13) pk (candidate s pk μ σ c) := by
+  have hvalid : s.params.Valid := by
+    cases s
+    · exact Params.valid_mldsa44
+    · exact Params.valid_mldsa65
+    · exact Params.valid_mldsa87
+  exact isSelfTargetSolution_of_compressedVerify hvalid
+    (by cases s <;> decide : 4 * s.params.γ₂ < s.params.q) (by decide : 0 < 13) hv
 
 /-- For each fixed published byte key, the solver parses the forgery and extracts a self-target
 candidate. The hash input contains its actual public-key-bound message representative. -/
@@ -375,35 +549,9 @@ candidate on the same published key, including its matrix seed. -/
 theorem solves_extract_of_verify {s : Level} {bytes : List Byte} {f : Forgery}
     (hv : verify s bytes f.message f.context f.signature = some true) :
     solves s bytes (fun matrix => extract s bytes matrix f) = true := by
-  simp only [verify, verifyWithExpansion, verifyInternalWith] at hv
-  have hctx : f.context.length ≤ 255 := by
-    by_contra h
-    simp [guard, h] at hv
-  have hlen : bytes.length = 32 + 320 * s.params.k := by
-    by_contra h
-    simp [guard, hctx, h] at hv
-  cases hσ : sigDecode s f.signature with
-  | none => simp [guard, hctx, hlen, hσ] at hv
-  | some σ =>
-    cases hmatrix : expandA s (bytes.take 32) with
-    | none => simp [guard, hctx, hlen, hσ, hmatrix] at hv
-    | some matrix =>
-      cases hc : sampleInBall s σ.digest with
-      | none => simp [guard, hctx, hlen, hσ, hmatrix, hc] at hv
-      | some c =>
-        have hcheck : check s (publicKey s bytes matrix)
-            (messageRepresentative bytes (formattedMessage f)) σ c := by
-          simpa [guard, hctx, hlen, hσ, hmatrix, hc,
-            formattedMessage] using hv
-        have hvalid : s.params.Valid := by
-          cases s
-          · exact Params.valid_mldsa44
-          · exact Params.valid_mldsa65
-          · exact Params.valid_mldsa87
-        have hs := isSelfTargetSolution_of_compressedVerify hvalid
-          (by cases s <;> decide : 4 * s.params.γ₂ < s.params.q) (by decide : 0 < 13)
-          (compressedVerify_of_check hc hcheck)
-        simpa [solves, hmatrix, extract, hσ, hc, candidate, formattedMessage] using hs
+  obtain ⟨A, σ, c, hA, hσ, hc, hcheck⟩ := parsed_of_verifyWithExpansion hv
+  have hs := solution_of_compressed (compressedVerify_of_check hc hcheck)
+  simpa [solves, hA, extract, hσ, hc] using hs
 
 /-- Run the supplied byte-key forger after generating the published key from a uniform 32-byte
 seed, treating a key-generation failure as an unsuccessful trial. -/
@@ -446,5 +594,31 @@ theorem succProbability_verify_le_seededSelfTarget (s : Level)
       cases b
       · simp [hv]
       · simp [hv, solves_extract_of_verify hv]
+
+/-- Expand an oracle's fixed-length commitment digest by Algorithm 29, including XOF
+exhaustion at the Appendix C limit. -/
+def expandDigest (s : Level) (digest : FixedBytes (digestBytes s)) : Option Poly :=
+  sampleInBall s digest.toList
+
+open ModuleSIS.SelfTarget in
+/-- Classical self-target forking for the three FIPS parameter sets, in the model where a fresh
+commitment query returns a uniform digest. Algorithm 29 acts on those digest bytes. The
+collision term is the largest distinct-digest collision probability of the fixed SHAKE256
+expansion; the library gives it only the trivial bound of one. -/
+theorem selfTarget_digest_fork (s : Level) (Q : ℕ) {Coins : Type}
+    (matrices : PMF (Matrix (Fin s.params.k) (Fin (s.params.k + s.params.ℓ + 1)) Poly))
+    (coins : PMF Coins) (adv : Adversary s.params.k (s.params.k + s.params.ℓ) 256 8380417
+      (FixedBytes (digestBytes s)) Coins)
+    (hQ : ∀ A r, (adv A r).IsQueryBounded Q) :
+    let radius := compressedSelfTargetRadius s.params 13
+    ((matrices.bind (game (expandDigest s) radius coins adv)) true).toReal ≤
+      (Q + 1 : ℕ) / ((256 : ℝ) ^ digestBytes s) + Real.sqrt ((Q + 1 : ℕ) *
+        ((matrices.bind fun A => (reductionLaw 0 (expandDigest s) radius Q coins adv A).map
+          fun w => decide (ModuleSIS.IsSolution A (2 * radius) w)) true +
+            collisionMass (expandDigest s)).toReal) := by
+  have hbyte : (2 : ℝ) ^ 8 = 256 := by norm_num
+  simpa only [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, hbyte] using
+    success_le_fork_digest (expandDigest s) (compressedSelfTargetRadius s.params 13) Q
+      matrices coins adv hQ 0
 
 end Cslib.Crypto.MLDSA.FIPS204

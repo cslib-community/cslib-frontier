@@ -6,6 +6,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
@@ -15,7 +16,9 @@ import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
+import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.Membership
 import CslibFrontier.Computability.Complexity.Problems.UCONN
+import CslibFrontier.Computability.Complexity.Problems.UDistance.Completeness
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
@@ -109,6 +112,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
+import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
@@ -170,6 +174,7 @@ import CslibFrontier.Computability.MCSP.MultiNPHard
 import CslibFrontier.Computability.MCSP.PartialETH
 import CslibFrontier.Computability.MCSP.PartialHardness.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter
+import CslibFrontier.Computability.PCP.Approximation.MaxCSP.UpperBounds
 import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 import CslibFrontier.Computability.PCP.Completeness
 import CslibFrontier.Computability.PolyTime.LinearAlgebra.RationalElimination
@@ -179,8 +184,11 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
+import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
+import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
@@ -188,6 +196,8 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.LubyRackoff
+import CslibFrontier.Crypto.Computational.MAC
+import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneWay.Iterate
@@ -197,12 +207,15 @@ import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
+import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
@@ -304,6 +317,7 @@ import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.ExponentialDesign
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
@@ -462,6 +476,33 @@ register_result "pcp" where
     uses O(log n + 1) random bits and O(1) queries, with perfect completeness and soundness at \
     most one half. NP is the library's deterministic-verifier class. Construction constants \
     are large."
+
+register_result "gap-two-csp-promise-pcp" where
+  title := "Constant-gap gapCSP is in PCP(log, O(1))"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.25",
+      locator := "r5.pdf; PDF page 70 / printed page 452; Definitions 9.14 and 9.18 checked" }
+  ]
+  theorems := [
+    Cslib.Complexity.GapTwoCSP_restrict_mem_PromisePCP
+  ]
+  scope := "For every finite nonempty alphabet α and every constant c > 0, fixed before the \
+    input, (GapTwoCSP α (1 - c)).restrict to well-formed graphs is in the promise class \
+    PromisePCP (log n + 1) 1 under Graph.encoding encConstraintTable (unary vertex counts \
+    and endpoints, framed edge lists, full constraint tables). PromisePCP is Definition 9.14 \
+    with completeness on yes-instances and soundness on no-instances, with the polynomial-time \
+    nonadaptive verifier and resource bounds of the library PCP on every instance. The \
+    verifier samples independent fair-bit blocks; each block selects an edge index from a \
+    power-of-two range and accepts on padding indices. Labels are one-hot of width |α|, so a \
+    round queries 2|α| proof bits, and both inputs of a loop query the same vertex label. One \
+    round rejects a no-instance with probability at least c/2, and constant repetition gives \
+    soundness 1/2. Parallel edges keep multiplicity and an empty edge set has violation \
+    value zero. The library unsatVal of the natural-number interpretation agrees with the \
+    minimum over assignments of the declared vertices only under the well-formedness and \
+    nonempty-alphabet hypotheses of Graph.unsatVal_toFiniteGraph, which this statement \
+    supplies. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
 register_result "fagin" where
   title := "Fagin: logic captures NP"
@@ -653,6 +694,54 @@ register_result "bipartite-in-logspace" where
     double cover, one USTCON query) and USTCON ≤ non-bipartiteness, the latter the trivial \
     reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
     ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
+
+register_result "bounded-stcon-in-nl" where
+  title := "Length-bounded directed s–t connectivity is in NL"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.19",
+      locator := "January 2007 r2.pdf, printed p. 197; PDF p. 81" }
+  ]
+  theorems := [
+    Cslib.Complexity.BoundedSTCON.mem_NL
+  ]
+  scope := "Directed adjacency-matrix graphs (encSTCON, framed) followed by a natural bound in \
+    binary (encBoundedSTCON); walks of at most bound arcs, zero-length walks allowed. Negative \
+    integer bounds are outside the encoding (they are always no-instances). Native visited-cell \
+    NL. Outside-fleet six-point check on PR #6364."
+
+register_result "undirected-distance-at-most-nl-complete" where
+  title := "Undirected s–t paths of length at most K: NL-complete"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.24 (at most)",
+      locator := "January 2007 r2.pdf, printed p. 198; PDF p. 82" }
+  ]
+  theorems := [
+    Cslib.Complexity.UDistanceAtMost.logSpaceComplete
+  ]
+  scope := "The literal 'at most K' question. Undirected graphs as symmetric loopless adjacency \
+    matrices with terminals (encUSTCON), framed and followed by the natural bound K in binary \
+    (encUDistance); the language is edist s t ≤ K, equivalently a path of at most K edges. \
+    Native visited-cell NL and logspace many-one reductions; hardness uses the guideline's \
+    layered graph with n + 1 layers and bound n. Outside-fleet six-point check on PR #6364."
+
+register_result "undirected-shortest-distance-nl-complete" where
+  title := "Undirected s–t distance exactly K: NL-complete (shortest-distance reading)"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.24 (exactly), interpreted",
+      locator := "January 2007 r2.pdf, printed p. 198; PDF p. 82" }
+  ]
+  theorems := [
+    Cslib.Complexity.UDistanceEq.logSpaceComplete
+  ]
+  scope := "An interpretation, not the literal question: 'a path of length exactly K' is read \
+    as 'the distance is K' (edist s t = K), following the exercise title, its NL = coNL \
+    guideline and Exercise 5.27. The literal question differs: a triangle with adjacent \
+    terminals has a simple path of exactly 2 edges but distance 1. Same encoding and classes \
+    as the 'at most' entry; disconnected pairs are in neither language. Outside-fleet \
+    six-point check on PR #6364."
 
 
 register_result "uconn-in-logspace" where
@@ -1150,6 +1239,28 @@ register_result "bpp-proper-subset-ppoly" where
     No efficient separator or uniform circuit-family construction. Strictness is not asserted \
     for arbitrary encoded finite instance domains, where the two classes coincide."
 
+register_result "goldreich-coin-split-promise-corp" where
+  title := "Splitting the coins of a very-low-error BPP algorithm gives a one-sided reduction \
+    to promise-coRP"
+  topic := "randomized complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.11",
+      locator := "February 2007 draft r3.pdf, PDF p. 53; printed p. 255 (illustration in the \
+        proof of Theorem 6.9: PDF p. 14; printed p. 216)" }
+  ]
+  theorems := [
+    Cslib.Complexity.PromiseProblem.half_lt_toOuterMeasure_coinSplit_yes,
+    Cslib.Complexity.PromiseProblem.rpReducibleWithError_coinSplit,
+    Cslib.Complexity.PromiseProblem.coinSplit_mem_PromiseCoRP
+  ]
+  scope := "Instances x of any encoded type, |x| = (encA x).length; A' is a function of the \
+    instance and the coin string, polynomial-time on encPair encA encBits for item 2, with \
+    error below 2^-(p'(|x|)+1) over 2 p'(|x|) coins, stated by counting. Item 1 is \
+    the explicit sampler hits Pi'_yes with probability > 1/2 on members of S \
+    (half_lt_toOuterMeasure_coinSplit_yes), giving RPReducibleWithError with threshold 1/2 \
+    between the complements (the RP orientation). Only the illustrative route, not Theorem 6.9. \
+    Outside-fleet six-point source check: review 5951585789 on PR #6380."
+
 register_result "arora-barak-ma-eq-np-of-hardness" where
   title := "Average-case hardness in E gives MA = NP"
   topic := "derandomization"
@@ -1450,6 +1561,25 @@ register_result "goldreich-stretch-amplification-last-bits" where
     satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
     identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
     six-point source check: review 5947783297 on PR #6287."
+
+register_result "goldreich-exponential-time-design" where
+  title := "An exponential-time set system with small pairwise intersections"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.19 (Condition 2 of Theorem 8.18)",
+      locator := "March 2007 draft r4.pdf, PDF p. 110; printed p. 374" }
+  ]
+  theorems := [Cslib.Crypto.PRG.NisanWigderson.exists_computableInExpTime_design]
+  scope := "For every real γ > 0: S(k, i) ⊆ [k] is given by a characteristic word of length k \
+    (read by maskBlock), with |S(k, i)| = m(k) and |S(k, i) ∩ S(k, j)| ≤ γ m(k) for distinct \
+    zero-based indices below ℓ(k), and m(k) ≥ c k and ℓ(k) ≥ 2 ^ (c k) for k ≥ k₀. The witness \
+    is the deterministic greedy design with B = 10 q² + 1, q = max 2 ⌈1/γ⌉, t = ⌊k / B⌋, blocks \
+    of q t elements, overlaps at most t and ℓ(k) = 2 ^ (t + 1) for k ≥ B (no blocks below B); \
+    its size comes from a counting bound instead of the probabilistic method. Exponential time \
+    is ComputableInExpTime in the parameter k on multi-tape machines, with k in unary and i in \
+    binary: time O(2 ^ (δ k) (L + 1) ^ e). On the indices i < ℓ(k) the whole input has length \
+    O(k + 1), so the time is 2 ^ O(k); the guideline's exponent 2 is a cost estimate for its \
+    implementation. Outside-fleet six-point source check: review 5951520101 on PR #6378."
 
 register_result "goldreich-low-degree-extension-individual-degree" where
   title := "Low-degree extensions of individual degree |H| - 1"
@@ -4908,6 +5038,26 @@ register_result "goemans-williamson-maxdicut" where
     reduction recovering α > 0.87856 on p. 1138. No SDP solver, finite-precision sampler, or \
     derandomization is formalized."
 
+register_result "binary-linear-constraint-operator-solution-perfect" where
+  title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \
+    systems give perfect strategies"
+  topic := "quantum complexity"
+  sources := [
+    { paper := CleveMittal2014,
+      theorem := "unnumbered construction of a perfect strategy from an operator solution",
+      locator := "§2, printed p. 3 (arXiv:1209.2729v1)" }
+  ]
+  theorems := [
+    Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy
+  ]
+  scope := "Binary linear (parity) constraint systems over finite variable and equation types, \
+    with an arbitrary question distribution on pairs of an equation and a variable (the source \
+    asks a uniformly random equation and one of its variables). For every operator solution in \
+    M_ι(ℂ), ι finite and nonempty, the maximally entangled transpose strategy (X_v ⊗ 1 for \
+    Alice, 1 ⊗ X_vᵀ for Bob) wins with probability 1, as a commuting-operator strategy on the \
+    matrix algebra of ℂ^ι ⊗ ℂ^ι with the vector state of the maximally entangled state. The \
+    source treats general Boolean predicates; the converse (its Theorem 1) is separate."
+
 register_result "quantum-value-adversary" where
   title := "Ambainis: relational quantum adversary bound for non-Boolean input alphabets"
   topic := "quantum complexity"
@@ -5033,6 +5183,28 @@ register_result "unique-games-perfect-completeness" where
     empty so every unique game vacuously has unsatVal = 0 and GapUniqueGames (Fin 0) 1 s \
     has no no-instances, while no graph is satisfiable. This fixes L rather than taking it \
     as part of the input."
+
+register_result "gap-two-csp-boolean-promise-p" where
+  title := "Boolean gapCSP is in polynomial time"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.24",
+      locator := "r5.pdf; PDF page 70 / printed page 452; Definition 9.18 checked" }
+  ]
+  theorems := [
+    Cslib.Complexity.mem_PromiseP_of_satisfiable_bool
+  ]
+  scope := "Every promise problem on Boolean constraint graphs under Graph.encoding \
+    encConstraintTable whose yes-instances are satisfiable and whose no-instances are \
+    unsatisfiable is in PromiseP, with a uniform deterministic polynomial-time decider and no \
+    randomness. This covers gapCSP^{0,1}_τ for every positive threshold function τ without \
+    computing τ. The reduction is Graph.toCNF with one bit per label, producing a width-two \
+    CNF satisfiable exactly when the graph is, decided by TwoSAT.mem_P. Instances need not be \
+    well-formed: vertices are natural numbers and malformed vertex counts are admitted, a \
+    larger promise. For well-formed graphs over a nonempty alphabet, \
+    Graph.unsatVal_toFiniteGraph identifies the library unsatVal with the minimum over \
+    assignments of the declared vertices. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"
@@ -5924,6 +6096,34 @@ register_result "ajtai-collision-sis" where
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
 
+register_result "cbc-mode-cpa" where
+  title := "CBC mode with a random IV is CPA-secure for a block cipher"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 5.4", locator := "Section 5.4.3, p. 195" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.PRP.indcpa_cbcEncrypt
+  ]
+  scope := "Cipher block chaining with a random IV (BlockCipher.cbcEncrypt: a uniform \
+    E.blockLen n-bit initial value c[0], then ciphertext blocks c[j + 1] = E.encrypt n k \
+    (c[j] ⊕ m[j])) for any uniform BlockCipher E with key space {0,1}^{E.keyLen n}, block \
+    space X = {0,1}^{E.blockLen n}, E.PRP (Attack Game 4.1 and Definition 4.1, p. 98), and \
+    super-polynomial block space Negligible (fun n => (2 ^ E.blockLen n)⁻¹). The notion is \
+    many-query left-or-right CPA security (SymmetricINDCPAOn, Attack Game 5.2 and \
+    Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard model, on \
+    equal-length pairs of whole E.blockLen n-bit blocks. The source fixes a poly-bounded cap \
+    ℓ on the number of blocks; here any number is admitted, which implies the statement for \
+    every ℓ. The block-cipher reductions BlockCipher.cbcToPrpDistinguisher are certified \
+    oracle PPT, and BlockCipher.cbcDecrypt_cbcEncrypt proves round-trip decryption \
+    correctness. Concrete bounds: BlockCipher.advantage_cbcEncrypt_le, in the same module, \
+    bounds the advantage by the PRP advantages of the two fixed-bit reductions plus \
+    4 * ((Q * L).choose 2 / 2 ^ E.blockLen n) for Q requests of at most L bits, a cruder \
+    collision term than (5.22). advantage_cbcCpaGame_le, in CBCMode.lean, gives the typed \
+    bound of two PRP advantages plus 4 * (K.choose 2 / 2 ^ n) (≤ 2 Q² ℓ² / 2 ^ n) for \
+    block-mode adversaries asking at most K blocks over a finite key set; it charges no \
+    running time. Outside check: PR #6325, review 5951248027."
+
 register_result "ctr-mode-cpa" where
   title := "CTR mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
@@ -6060,6 +6260,73 @@ register_result "luby-rackoff-prp" where
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
 
+register_result "pedersen-commitment-hiding" where
+  title := "Pedersen commitments are uniformly distributed at every non-identity key"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence)",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_uniform_of_ne_zero
+  ]
+  scope := "The first sentence of Theorem 3.1 says that for any s ∈ Z_q and uniform t ∈ Z_q the \
+    commitment E(s, t) = g^s h^t is uniform on G_q, the order-q subgroup of Z_p^* for primes \
+    q | p − 1 (Section 2, p. 130), where g and h are chosen so that nobody knows log_g h, by a \
+    trusted center or a coin-flipping protocol (p. 131); that condition excludes h = 1, where \
+    E(s, t) = g^s. Here the group is F.Carrier d for any prime-order group family F and \
+    description d, of prime order q = F.order d, written additively with generator \
+    g = F.generator d, so the commitment is m·g + r·h. For every key h ≠ 0, the source's h ≠ 1, \
+    and every message m ∈ ZMod q, the law pedersenCommitLaw d h m of m·g + r·h with r exactly \
+    uniform on ZMod q equals the image of a uniform exponent γ under γ ↦ γ·g, which is a \
+    bijection onto the group, so the commitment is uniform on the group. The statement is at a \
+    fixed group and key, with messages in ZMod q as in the source; it involves no adversary and \
+    makes no efficiency claim. uniform_pedersenCommit is the same statement composed with a \
+    continuation, and pedersenCommitLaw_eq_of_ne_zero and pedersen_perfectlyHidingAt derive the \
+    source's reading that E(s, t) reveals no information about s: any two messages have the \
+    same commitment law. The variant for generated keys and the scheme's fair-coin samplers is \
+    pedersen-commitment-hiding-native."
+
+register_result "pedersen-commitment-hiding-native" where
+  title := "Pedersen commitments are statistically hiding with generated keys and fair-coin \
+    sampling"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence), statistical variant",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
+  ]
+  scope := "A statistical variant of the first sentence of Theorem 3.1, whose exact form is \
+    pedersen-commitment-hiding, for keys and commitments drawn by the scheme's own fair-coin \
+    samplers. Pedersen fixes g and h, chosen so that nobody knows log_g h, by a trusted center \
+    or a coin-flipping protocol (p. 131), draws t exactly uniformly and concludes that E(s, t) \
+    is uniform on G_q, the order-q subgroup of Z_p^* (Section 2, p. 130). Here the group is any \
+    prime-order group family, written additively, so the commitment is m·g + r·h, and the \
+    conclusion is a negligible game advantage, not an equality of distributions. The game \
+    pedersenHidingProbGame draws the group d from an arbitrary setup law, with no efficiency \
+    condition, then the key h = α·g with α from the fair-coin program sampleExp \
+    (pedersenKeyGenProb), and gives the adversary the encoded key (d, h). The adversary chooses \
+    two words and receives the commitment string, without the opening, for the word selected by \
+    the hidden bit, with r drawn by pedersenCommitProb, again by sampleExp; each draw is within \
+    statistical distance 1/2^n of uniform on Z_q. Messages are canonical binary words of \
+    naturals below q, read as elements of Z_q; if either word is not one, both worlds commit to \
+    the first word. This is the hiding experiment of [BonehShoup2023], Section 8.12 (p. 344), \
+    for a scheme with a public key (Section 8.12's schemes have none), played against every \
+    Encryption.WordAdversary with no efficiency bound, as in unconditional hiding (p. 346). The \
+    key h = 0, drawn with probability about 1/q, is the only loss besides 4/2^n of sampling \
+    error: advantage_pedersenHidingProbGame_le bounds the advantage by 1/m + 4/2^n when every \
+    group in the setup's support has order at least m. The theorem therefore asks that every \
+    group in the support at parameter n have order at least m n > 0 with 1/m n negligible, \
+    where Pedersen asks only that q be a large prime; it does not apply to groups of bounded \
+    order, which the exact statement covers. At a fixed key h ≠ 0 the fair-coin bound is 2/2^n \
+    (advantage_pedersenHidingProbForKey_le_of_ne_zero). The samplers in the game are the ones \
+    proved correct (pedersenVerify_of_mem_support_pedersenCommitProb) and strict PPT \
+    (isPPTOn_pedersenCommitProb, isPPTOn_pedersenKeyGenProb). The result is not stated as \
+    CommitmentScheme.StatisticalHiding, whose commitment law takes no security parameter \
+    (#6133)."
+
 register_result "pedersen-commitment-binding" where
   title := "Pedersen commitments are computationally binding under the discrete-logarithm \
     assumption"
@@ -6067,7 +6334,8 @@ register_result "pedersen-commitment-binding" where
   sources := [
     { paper := BonehShoup2023, theorem := "Theorem 10.4 and Fact 10.3",
       locator := "Section 10.6.1, pp. 414–415; binding: Section 8.12, pp. 344 and 346" },
-    { paper := Pedersen1991, theorem := unverified, locator := unverified }
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (second sentence)",
+      locator := "Section 3, p. 131" }
   ]
   theorems := [
     Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb
@@ -6088,8 +6356,12 @@ register_result "pedersen-commitment-binding" where
     certified strict PPT (isPPTOn_pedersenToDLAdversary). The setup law need not be efficiently \
     samplable; the assumption is Boneh–Shoup's when it is. Asymptotic; the per-parameter bound \
     succProbability_pedersenBindingGame_pedersenKeyDistProb_le adds 1/2^n to the \
-    discrete-logarithm success probability. The [Pedersen1991] theorem number and locator were \
-    not checked: no copy is recorded in the manual's sources."
+    discrete-logarithm success probability. The second sentence of [Pedersen1991], \
+    Theorem 3.1, is the extraction identity: if s ≠ s' and E(s, t) = E(s', t'), then \
+    t ≠ t' mod q and log_g h = (s − s')/(t' − t) mod q, which is what pedersenToDLAdversary \
+    computes (extractNat_eq_of_pedersenCommit_eq). Pedersen reads it as binding unless the \
+    committer can find log_g h, for g and h chosen so that nobody knows log_g h (p. 131); the \
+    binding game and the discrete-logarithm assumption are Boneh–Shoup's."
 
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
@@ -6222,6 +6494,214 @@ register_result "hashed-elgamal-ddh-kdf-cpa" where
     of E′_EG (DDH.kemINDCPA_hashedElGamalEncapsProb, Games 0–2 of the proof of Theorem 11.5), \
     then the KEM–DEM composition of Exercise 11.9(b) (p. 461). No concrete bound in the form \
     of (11.14) is stated for the encryption scheme."
+
+register_result "cramer-shoup-ddh-cca" where
+  title := "Multiplicative Cramer–Shoup is CCA secure under DDH and a collision-resistant hash"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 12.27",
+      locator := "Section 12.11, pp. 521–522; proof method of Theorem 12.9, Section 12.5.3, \
+        p. 489; Theorem 12.1, p. 468, and its extension to associated data, p. 502" }
+  ]
+  theorems := [
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup_bitStringAD,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2On_cramerShoup,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2MultiOn_cramerShoup
+  ]
+  scope := "The scheme E_MCS of the exercise (v = β·g, w = β·u, e = β·h + m, \
+    ρ = H'(v, w, e, ad), z' = β·(h₁ + ρ·h₂), in additive notation) over a decodable prime-order \
+    group family (efficiently recognizable groups, Definition 10.9(1), p. 413), at a \
+    deterministic polynomial-time group schedule d in place of a sampled system parameter. \
+    Assumptions: DDH (Definition 10.8, p. 411) for the point-mass setup at d, and collision \
+    resistance (Attack Game 8.1 and Definition 8.1, p. 290) of the hash H' = H mod q, keyed by \
+    d n and a uniform keyLen n-bit hash key, with H, d and keyLen polynomial time, on the \
+    exercise's domain G³ × D only: the canonically framed tuples (v, w, e, ad) of group-element \
+    words and an associated-data word (isCramerShoupHashInput, characterized by \
+    isCramerShoupHashInput_iff). With associated data, D = {0,1}* (encAD = encBits), because \
+    decryption hashes whatever associated-data word a query carries; without it, D = {[]}. A \
+    general encoded associated-data space, with collision resistance only on G³ × D, needs \
+    decryption to reject associated data outside D and is open (#5293). One deviation concerns \
+    the hash: key generation draws the hash key and publishes it in the public key, where the \
+    exercise's H' is fixed with the group. The premises 0 < m n ≤ q(d n) with 1/m n negligible \
+    add no assumption: DDH implies that 1/q(d n) is negligible (DDH.cdh and \
+    CDH.negligible_inv_order), so m n = q(d n) meets them. The scheme's own fair-coin programs \
+    (cramerShoupKeyGenProb and the encryption programs) draw the seven key exponents and the \
+    encryption exponent with sampleExp, each within statistical distance 1/2^n of uniform on \
+    Z_q; decryption is deterministic polynomial time and checks the framing and the group \
+    membership of v, w and e. A challenge pair is admissible when both words encode group \
+    elements (cramerShoupValid); an inadmissible pair makes both experiments output false. \
+    Notions, all against uniform strict oracle-PPT adversaries reading 1^n: \
+    indcca2ADOn_cramerShoup_bitStringAD is 1CCA security with associated data in {0,1}* \
+    (Definition 12.7, pp. 501–502, one challenge), the exercise's statement in the one-challenge \
+    form that Theorem 12.1 lifts to many challenges (p. 502); indcca2On_cramerShoup is the 1CCA \
+    form without associated data (Definition 12.2, p. 468, ad = []); \
+    indcca2InterleavedOn_cramerShoup is CCA security with adaptively interleaved challenge and \
+    decryption queries (Attack Game 12.1 and Definition 12.1, pp. 467–468), without associated \
+    data; indcca2MultiOn_cramerShoup is its restriction to one batch of challenges. A decryption \
+    query on a challenge ciphertext (with its associated data) is answered as a rejection, \
+    where the source forbids it. The proof follows Theorem 12.9 for the hybrid scheme E_CS of \
+    Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
+
+register_result "prf-mac-suf-cma" where
+  title := "A secure pseudorandom function is a strongly unforgeable MAC"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 6.2", locator := "Section 6.3, p. 224" }
+  ]
+  theorems := [
+    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC
+  ]
+  scope := "Let F be a PseudorandomFunction: n-bit keys, inputs and outputs, deterministic \
+    polynomial-time evaluation, secure against adaptive uniform oracle-PPT tests, with queries \
+    of another length answered by the empty word (Attack Game 4.2 and Definition 4.2, \
+    pp. 132–133). This is Theorem 6.2's PRF over (K, X, Y) with K = X = Y = {0,1}^n, so \
+    |Y| = 2^n is super-poly. The MAC proved secure is prfMAC, the deterministic MAC derived from \
+    F in Section 6.3 (p. 223): a uniform n-bit key, the tag F(k, m) of an n-bit message, and \
+    verification by recomputing the tag. It is a MACScheme, whose fields certify strict PPT key \
+    generation and tagging, polynomial-time verification and correctness on n-bit messages. The \
+    notion is SUFCMA (Attack Game 6.1 and Definition 6.2, pp. 218–219), against uniform strict \
+    oracle-PPT forgers in the standard model: a forgery wins when it is a valid pair on an n-bit \
+    message that the tagging oracle never returned. Tagging queries may be words of any length, \
+    which prfMAC answers with the empty word unless they have n bits, where the source's \
+    queries lie in the message space; this admits more forgers, so the conclusion implies \
+    Definition 6.2 on n-bit messages. The reduction macToPrfDistinguisher is certified oracle \
+    PPT (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
+    in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
+    1/2^n = 1/|Y|."
+
+register_result "merkle-damgard-collision-resistance" where
+  title := "The Merkle–Damgård hash of a collision-resistant compression function is collision \
+    resistant"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.3", locator := "Section 8.4, p. 297" }
+  ]
+  theorems := [
+    Cslib.Crypto.CompressionFamily.collisionResistant_lengthStrengthenedMD,
+    Cslib.Crypto.CompressionFamily.hashFamily_lengthStrengthenedMD
+  ]
+  scope := "Let h be a CompressionFamily: deterministic polynomial time, mapping 2n-bit inputs \
+    under a uniform n-bit key to n-bit digests, and collision resistant on 2n-bit inputs \
+    against uniform strict PPT finders (Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291, \
+    with the key as the system parameter, as footnote 1 on p. 290 allows). This is \
+    Theorem 8.3's h over (X × Y, X) with X = Y = {0,1}^n, the chaining value and the block read \
+    as one 2n-bit word. lengthStrengthenedMD h is the hash H_MD of Section 8.4 and Figure 8.5 \
+    (pp. 295–297) with IV = 0^n and padding block PB = 1 ‖ 0^k ‖ ⟨s⟩, whose length field ⟨s⟩ \
+    has n/2 bits (the book's is a fixed-length field, typically 64 bits) and counts the blocks \
+    of the padded message, the count the proof on p. 297 uses (p. 296 says the blocks of M). \
+    collisionResistant_lengthStrengthenedMD: H_MD is collision resistant on all bit strings \
+    against uniform strict PPT finders, in place of the source's {0,1}^{≤L} for a poly-bounded \
+    L. A strict PPT finder outputs polynomially long messages, whose block counts fit in the \
+    length field for all large n, so this covers every poly-bounded L at once. \
+    hashFamily_lengthStrengthenedMD adds polynomial-time evaluation and n-bit digests, \
+    packaging H_MD as a HashFamily. The proof's B is lengthStrengthenedWrapper, certified \
+    strict PPT (isPPT_lengthStrengthenedWrapper). Asymptotic; \
+    succProbability_collisionGame_lengthStrengthenedMD_eq, in the same module, is the \
+    theorem's CRadv[A, H_MD] = CRadv[B, h] on any message domain whose padded block counts \
+    are below 2^(n/2). The one-bit-per-block hash merkleDamgard of MerkleDamgard.lean is not \
+    part of this entry."
+
+register_result "xor-tcr-from-second-preimage" where
+  title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
+    collision resistant one"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.12", locator := "Section 8.11.3, p. 338" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.targetCollisionResistantOn_xorTargetHash
+  ]
+  scope := "The keyed hash H_tcr(k, m) = H(k ⊕ m) of equation (8.18) (p. 338), as xorTargetHash, \
+    with keys and messages of n bits: the source's M is taken to be {0,1}^n, with ⊕ the bitwise \
+    XOR. H is one unkeyed function on bit strings, without a system parameter, evaluated in \
+    deterministic polynomial time. Hypothesis: SecondPreimageResistantOn H valid for a validity \
+    predicate that admits every n-bit word for all large n. At valid = validFixedLengthInput it \
+    is Definition 8.6 (p. 336) on M = {0,1}^n, with a uniform n-bit challenge and uniform \
+    strict PPT finders, the source's assumption; wider predicates give stronger assumptions. \
+    Conclusion: TargetCollisionResistantOn for xorTargetHash H on n-bit messages (Attack \
+    Game 8.5 and Definition 8.7, pp. 337–338) against uniform strict PPT two-stage adversaries, \
+    which commit to m₀ before a uniform n-bit key is drawn. The proof's B is \
+    xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
+    Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
+    the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "rsa-hash-collision-resistance" where
+  title := "The RSA hash a^e y^b is collision resistant under the RSA assumption"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 10.7",
+      locator := "Section 10.6.2, pp. 416–417" }
+  ]
+  theorems := [
+    Cslib.Crypto.RSAOneWay.collisionResistantForOn_rsaHash
+  ]
+  scope := "Hypotheses: RSAOneWay gen, the RSA assumption (Attack Game 10.3 and Definition 10.5, \
+    pp. 404–405) for a key law gen on RSADesc with a uniform challenge in Z_N, and that the \
+    exponent e is prime for every key in the support of gen n, for all large n. The source \
+    fixes one prime e and draws keys with RSAGen(ℓ, e); here gen is any law, which need not be \
+    efficiently samplable, and the assumption is Boneh–Shoup's when gen is their RSAGen(ℓ, e) \
+    for a prime e. Conclusion: H_rsa(a, b) = a^e y^b mod N (rsaHash, p. 415), keyed by (N, e, y) \
+    with y uniform among the units modulo N (rsaHashSetup), is collision resistant \
+    (CollisionResistantForOn: Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291) on its \
+    domain Z_N^* × I_e against uniform strict PPT finders given 1^n and the key. Messages are \
+    words: validRSAHashInput accepts the canonical encodings of pairs (a, b) with a < N coprime \
+    to N and b < e, so distinct valid words are distinct pairs; digests are natural numbers \
+    below N. The proof's B′ is rsaHashToRSA, certified strict PPT (isPPT_rsaHashToRSA), and \
+    Theorem 10.5 (RSAOneWay.rsaUnitOneWay) passes from the unit-preimage game to the RSA game; \
+    RSAUnitOneWay.collisionResistantForOn_rsaHash, in the same module, states the conclusion \
+    from that variant assumption. Hash evaluation and the domain test are polynomial time \
+    (computableInPolyTime_rsaHash, computableInPolyTime_validRSAHashInput). Asymptotic; \
+    succProbability_collisionGameFor_rsaHash_le_rsaInversionGame, in the same module, is the \
+    bound (10.3), CRadv[A, H_rsa] ≤ RSAadv[B, ℓ, e]."
+
+register_result "blinded-cdh-hard" where
+  title := "The blinded Diffie–Hellman problem of protocol PAKE₂ is hard under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 21.7", locator := "Section 21.11.5, p. 910" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_blindedCDHGame
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under the \
+    CDH assumption F.CDH setup (Attack Game 10.5 and Definition 10.7, pp. 409–410); the setup \
+    law need not be efficiently samplable, and the assumption is Boneh–Shoup's when it is. \
+    Given uniform a, b, u, v in the group, the adversary must output γ ∈ Z_q and \
+    w = [u / a^γ, v / b^γ], written additively as blindedDH. The book names neither the problem \
+    nor the game; blindedCDHGame is the library's name. Adversaries return a typed exponent and \
+    group element, as in the source, and are uniform strict PPT on their encodings \
+    (BlindedCDHAdversary.IsPPT), the convention of CDH. Conclusion: every such adversary wins \
+    blindedCDHGame with negligible probability. The book's reduction blindedCDHToCDHAdversary \
+    is certified strict PPT (isPPT_blindedCDHToCDHAdversary) and draws its two blinding \
+    exponents with the fair-coin sampler sampleExp, each within 1/2^n of uniform, so \
+    advantage_blindedCDHGame_cdhGame_le, in the same module, bounds the gap to the CDH game of \
+    the reduction by 2/2^n. The PAKE₂ protocol and its random-oracle analysis are not \
+    formalized."
+
+register_result "two-point-blinded-cdh-hard" where
+  title := "The two-point blinded Diffie–Hellman problem of protocol PAKE₂ is hard under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 21.8", locator := "Section 21.11.5, p. 911" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_blindedCDHPairGame
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under the \
+    CDH assumption F.CDH setup (Attack Game 10.5 and Definition 10.7, pp. 409–410); the setup \
+    law need not be efficiently samplable, and the assumption is Boneh–Shoup's when it is. \
+    Given uniform a, b, u in the group, the adversary must output γ₁ ≠ γ₂ in Z_q, an element v \
+    and wᵢ = [u / a^γᵢ, v / b^γᵢ] for i = 1, 2, written additively with blindedDH. The book \
+    names neither the problem nor the game; blindedCDHPairGame is the library's name. \
+    Adversaries return typed exponents and group elements, as in the source, and are uniform \
+    strict PPT on their encodings (BlindedCDHPairAdversary.IsPPT), the convention of CDH. \
+    Conclusion: every such adversary wins blindedCDHPairGame with negligible probability. The \
+    book's reduction blindedCDHPairToCDHAdversary is certified strict PPT \
+    (isPPT_blindedCDHPairToCDHAdversary) and draws its blinding exponent with sampleExp, within \
+    1/2^n of uniform, so succProbability_blindedCDHPairGame_le, in the same module, bounds the \
+    success probability by the reduction's CDH success plus 1/2^n. The PAKE₂ protocol and its \
+    random-oracle analysis are not formalized."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
