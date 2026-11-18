@@ -49,7 +49,8 @@ challenge determine `g x`.
 
 ## Main results
 
-* `Cslib.Crypto.IterateCounterexample.oneWay_collapse`: `f` is one-way when `g` is one-way.
+* `Cslib.Crypto.IterateCounterexample.oneWay_collapse`: `f` is one-way when `g` is one-way, through
+  the strict-PPT reduction `markInverter` (`isPPT_markInverter`).
 * `Cslib.Crypto.IterateCounterexample.length_collapse`,
   `Cslib.Crypto.IterateCounterexample.iterate_collapse_eq`: fixed output length, and equal second
   images for inputs of equal length.
@@ -177,6 +178,15 @@ theorem not_oneWay_iterate_collapse {g : List Bool → List Bool} {length : ℕ 
 def markInverter (adversary : Inverter) : Inverter :=
   fun n w => adversary n (mark n w)
 
+/-- `markInverter adversary` is uniform strict PPT when `adversary` is. -/
+theorem isPPT_markInverter {adversary : Inverter} (hadversary : IsPPT encBits adversary) :
+    IsPPT encBits (markInverter adversary) := by
+  have hprepare : ComputableInPolyTime (fun p : ℕ × List Bool => mark p.1 p.2)
+      (encPair encUnary encBits) encBits := by
+    unfold mark
+    polytime
+  exact hadversary.preprocess (ComputableTidilyInPolyTime.fst encUnary encBits) hprepare.tidy
+
 /-- Inverting `collapse g` succeeds at most as often as inverting `g` with the marked challenge,
 plus the probability `2^-(n / 2)` of a low-zero input. -/
 theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
@@ -233,13 +243,7 @@ theorem oneWay_collapse {g : List Bool → List Bool} (hg : OneWay g) : OneWay (
   have hpoly := hg.polyTime
   refine OneWay.of_inversion_negligible (by unfold collapse lowZero mark; polytime)
     fun adversary hadversary => ?_
-  have hmark : IsPPT encBits (markInverter adversary) := by
-    have hprepare : ComputableInPolyTime (fun p : ℕ × List Bool => mark p.1 p.2)
-        (encPair encUnary encBits) encBits := by
-      unfold mark
-      polytime
-    exact hadversary.preprocess (ComputableTidilyInPolyTime.fst encUnary encBits) hprepare.tidy
-  have hε := (hg.inversion_negligible _ hmark).add
+  have hε := (hg.inversion_negligible _ (isPPT_markInverter hadversary)).add
     ((negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).div_const (by norm_num : 0 < 2))
   exact negligible_of_le hε fun n => succProbability_inversionGame_collapse_le g adversary n
 
