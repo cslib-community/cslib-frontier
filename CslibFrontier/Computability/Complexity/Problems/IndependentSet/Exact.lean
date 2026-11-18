@@ -22,11 +22,11 @@ in `DP` ([Arora and Barak, Exercise 5 §8(a)][AroraBarak07]).
 
 ## Main definitions
 
-* `Cslib.Complexity.ExactIndependentSet`: the instances `⟨G, k⟩` with `α(G) = k`.
+* `Cslib.Complexity.ExactIndependentSet`: the instances `⟨G, k⟩` with `α(G) = k`
+  (`Cslib.Complexity.mem_ExactIndependentSet` unfolds membership).
 
 ## Main results
 
-* `Cslib.Complexity.mem_ExactIndependentSet`: membership is `α(G) = k`.
 * `Cslib.Complexity.mem_ExactIndependentSet_iff`: an independent set of `k` vertices and none of
   `k + 1`.
 * `Cslib.Complexity.ExactIndependentSet_mem_DP`: `EXACT INDSET ∈ DP`.

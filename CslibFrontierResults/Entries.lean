@@ -143,6 +143,7 @@ import CslibFrontier.Computability.Complexity.Parameterized.WHierarchy.XP
 import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -6885,6 +6886,19 @@ register_result "np-eq-conp-iff-threesat-tautology" where
     most three) and TAUTOLOGY under encQBF (quantifier-free QBF Nat). The proof instantiates \
     NPComplete.NP_eq_coNP_iff_reducible, which holds for any NP-complete and coNP-complete \
     pair."
+
+register_result "arora-barak-exact-indset-dp" where
+  title := "EXACT INDSET is in DP"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 5 §8(a)",
+      locator := "January 2007 draft, PDF p. 116; p. 5.10 (printed 100)" }
+  ]
+  theorems := [Cslib.Complexity.ExactIndependentSet_mem_DP]
+  scope := "EXACT INDSET = instances ⟨G, k⟩ (library Graph with declared vertices, framed graph and \
+    binary k) whose independence number is exactly k; DP = intersections of an NP and a coNP \
+    language. DP-hardness (part (b)) is not included. Outside-fleet six-point source check: \
+    review 5953416411 on PR #6402."
 
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
