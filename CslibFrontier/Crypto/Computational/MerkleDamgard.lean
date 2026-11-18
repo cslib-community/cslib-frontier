@@ -735,7 +735,8 @@ theorem computableInPolyTime_extractMerkleDamgardCollision
     (computableInPolyTime_mdBlocks_comp hkl h2.fst')
     (computableInPolyTime_mdBlocks_comp hkl h2.snd')
 
-/-- **Deterministic Merkle–Damgård collision extraction ([BonehShoup2023], Theorem 8.3)**:
+/-- Deterministic collision extraction for the one-bit-per-block encoding `mdBlocks`, by the
+suffix-free argument used in the proof of [BonehShoup2023], Theorem 8.3 (Section 8.4, p. 297):
 for any key `k` of length `≥ 2` and any two distinct messages `m₁ ≠ m₂` with
 `merkleDamgard h k m₁ = merkleDamgard h k m₂`, `extractMerkleDamgardCollision h k m₁ m₂` outputs a
 valid `2 * k.length`-bit collision `(x₁, x₂)` for `h k`. -/
