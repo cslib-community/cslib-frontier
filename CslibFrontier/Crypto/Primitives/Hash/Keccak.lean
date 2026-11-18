@@ -444,11 +444,11 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
     (byteSponge layout suffix input outputBytes).length = outputBytes :=
   length_bitSponge layout suffix (bytesToBitsLE input) outputBytes
 
-/-- For a fixed suffix, byte-aligned sponge output is prefix-consistent across requested lengths. -/
-theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
-    (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
-    (byteSponge layout suffix input n).take m = byteSponge layout suffix input m := by
-  rw [byteSponge, bitSponge, List.take_take, Nat.min_eq_left h, byteSponge, bitSponge]
+/-- On arbitrary bit-string inputs, shorter sponge outputs are prefixes of longer ones. -/
+theorem take_bitSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List Bool) {m n : ℕ} (h : m ≤ n) :
+    (bitSponge layout suffix input n).take m = bitSponge layout suffix input m := by
+  rw [bitSponge, List.take_take, Nat.min_eq_left h, bitSponge]
   have hk : m ⌈/⌉ (8 * layout.rateLanes) ≤ n ⌈/⌉ (8 * layout.rateLanes) := by
     rw [Nat.ceilDiv_eq_add_pred_div, Nat.ceilDiv_eq_add_pred_div]
     exact Nat.div_le_div_right (by
@@ -465,6 +465,12 @@ theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
       rw [List.take_take, Nat.min_eq_left hm]
     _ = (squeezeBytesFor layout _ (m ⌈/⌉ (8 * layout.rateLanes))).take m := by
       rw [take_squeezeBytesFor _ _ hk]
+
+/-- For a fixed suffix, byte-aligned sponge output is prefix-consistent across requested lengths. -/
+theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
+    (byteSponge layout suffix input n).take m = byteSponge layout suffix input m :=
+  take_bitSponge layout suffix (bytesToBitsLE input) h
 
 /-- Byte-aligned SHAKE with the rate and capacity selected by `layout`.
 
