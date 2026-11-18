@@ -70,6 +70,13 @@ abbrev Level.params (s : Level) : Params :=
     | .mlDSA87 => Params.mldsa87
   { p with n := 256, q := 8380417 }
 
+/-- Each FIPS parameter set satisfies the ring, challenge and rounding conditions. -/
+theorem Level.valid (s : Level) : s.params.Valid := by
+  cases s
+  · exact Params.valid_mldsa44
+  · exact Params.valid_mldsa65
+  · exact Params.valid_mldsa87
+
 /-- Length in bytes of the FIPS challenge digest for each parameter set (Table 1). -/
 def digestBytes : Level → ℕ
   | .mlDSA44 => 32 | .mlDSA65 => 48 | .mlDSA87 => 64
@@ -1228,8 +1235,11 @@ abbrev verify := Xofs.verify Xofs.shake
 
 /-- Expand the concrete FIPS commitment digest to a sparse challenge. The zero value on
 exhaustion is outside the challenge ball for every standard set. -/
-def algebraicHash (s : Level) : Hash s.params :=
-  fun ⟨w, μ⟩ => (sampleInBall s (commitmentDigest s w μ)).getD 0
+def Xofs.algebraicHash (H : Xofs) (s : Level) : Hash s.params :=
+  fun ⟨w, μ⟩ => (H.sampleInBall s (H.commitmentDigest s w μ)).getD 0
+
+/-- FIPS 202 specialization of `Xofs.algebraicHash`. -/
+abbrev algebraicHash := Xofs.algebraicHash Xofs.shake
 
 private theorem compressedVerify_of_check {s : Level} {bytes : List Byte} {matrix}
     {μ : List Bool} {σ : Signature s} {c : Poly} (hc : sampleInBall s σ.digest = some c)
@@ -1357,45 +1367,43 @@ theorem verifyWithExpansion_of_recovered {H : Xofs} {s : Level}
   simp [Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard, len, hctx, hσ, hc, hA, Xofs.check,
     hz, hintedCommitment_encodePublic, hd]
 
-private theorem solution_of_compressed {s : Level} {pk : MLDSA.PublicKey s.params}
-    {μ : List Bool} {σ : Signature s} {c : Poly}
-    (hv : compressedVerify s.params 13 (algebraicHash s) pk μ ⟨σ.z, σ.h, c⟩) :
-    IsSelfTargetSolution s.params (selfTargetHash s.params (algebraicHash s))
+private theorem solution_of_compressed {s : Level} {hash : Hash s.params}
+    {pk : MLDSA.PublicKey s.params} {μ : List Bool} {σ : Signature s} {c : Poly}
+    (hv : compressedVerify s.params 13 hash pk μ ⟨σ.z, σ.h, c⟩) :
+    IsSelfTargetSolution s.params (selfTargetHash s.params hash)
       (compressedSelfTargetRadius s.params 13) pk (candidate s pk μ σ c) := by
-  have hvalid : s.params.Valid := by
-    cases s
-    · exact Params.valid_mldsa44
-    · exact Params.valid_mldsa65
-    · exact Params.valid_mldsa87
-  exact isSelfTargetSolution_of_compressedVerify hvalid
+  exact isSelfTargetSolution_of_compressedVerify s.valid
     (by cases s <;> decide : 4 * s.params.γ₂ < s.params.q) (by decide : 0 < 13) hv
 
 /-- Extraction for a full challenge `(A,t)`. The published bytes and message representative
 use the rounded key, while the witness computed from the full key includes the term `c t₀`
 in the low vector (Dilithium v3.1, §6.2.1, equation (10)). -/
-def extractFull (s : Level) (rho : FixedBytes 32) (A : PublicMatrix s)
+def Xofs.extractFull (H : Xofs) (s : Level) (rho : FixedBytes 32) (A : PublicMatrix s)
     (t : Fin s.params.k → Poly) (f : Forgery) : Option (SelfTargetCandidate s.params) := do
   let σ ← sigDecode s f.signature
-  let c ← sampleInBall s σ.digest
-  return candidate s ⟨A, t⟩ (messageRepresentative (encodePublic s rho.toList t)
+  let c ← H.sampleInBall s σ.digest
+  return candidate s ⟨A, t⟩ (H.messageRepresentative (encodePublic s rho.toList t)
     (formattedMessage f)) σ c
 
+/-- FIPS 202 specialization of `Xofs.extractFull`. -/
+abbrev extractFull := Xofs.extractFull Xofs.shake
+
 /-- Every accepted byte forgery yields a solution on the full vector supplied by the challenge. -/
-theorem extractFull_of_verifyWithExpansion {s : Level}
+theorem extractFull_of_verifyWithExpansion {H : Xofs} {s : Level}
     {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
     {A : PublicMatrix s} {t : Fin s.params.k → Poly} {f : Forgery}
     (hA : expand rho.toList = some A)
-    (hv : verifyWithExpansion s expand (encodePublic s rho.toList t)
+    (hv : H.verifyWithExpansion s expand (encodePublic s rho.toList t)
       f.message f.context f.signature = some true) :
-    ∃ y, extractFull s rho A t f = some y ∧
-      IsSelfTargetSolution s.params (selfTargetHash s.params (algebraicHash s))
+    ∃ y, H.extractFull s rho A t f = some y ∧
+      IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
         (compressedSelfTargetRadius s.params 13) ⟨A, t⟩ y := by
   obtain ⟨σ, c, hσ, hc, hz, hd⟩ := verifiedSignature_of_verifyWithExpansion hA hv
-  let μ := messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)
-  have hv' : compressedVerify s.params 13 (algebraicHash s) ⟨A, t⟩ μ ⟨σ.z, σ.h, c⟩ := by
+  let μ := H.messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)
+  have hv' : compressedVerify s.params 13 (H.algebraicHash s) ⟨A, t⟩ μ ⟨σ.z, σ.h, c⟩ := by
     simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨hz, inBall_of_sampleInBall hc⟩, by simp [algebraicHash, μ, hd, hc]⟩
-  exact ⟨_, by simp [extractFull, hσ, hc, μ], solution_of_compressed hv'⟩
+    exact ⟨⟨hz, inBall_of_sampleInBall hc⟩, by simp [Xofs.algebraicHash, μ, hd, hc]⟩
+  exact ⟨_, by simp [Xofs.extractFull, hσ, hc, μ], solution_of_compressed hv'⟩
 
 /-- For each fixed published byte key, the solver parses the forgery and extracts a self-target
 candidate. The hash input contains its actual public-key-bound message representative. -/

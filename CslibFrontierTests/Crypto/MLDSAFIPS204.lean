@@ -7,7 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
+import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+meta import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -120,6 +122,46 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- At every standard level the bound counts the public-key rounding correction.
+example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =
+    match s with
+    | .mlDSA44 => 350209
+    | .mlDSA65 => 724481
+    | .mlDSA87 => 769537 := by
+  cases s <;> decide
+
+-- On this raw table, actual 44-level extraction must recompute 0x07 digest bytes.
+-- Expanding 0x07 yields a signed sparse challenge. Setting that expansion row to 0xff
+-- exhausts it. Moving the product off zero by one keeps the high bits at zero.
+private def rawOpeningCheck : Bool := Id.run do
+  let s := Level.mlDSA44
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream fun x => if x.length > 512 then 7 else 0⟩
+  let rho : FixedBytes 32 := fun _ => 0
+  let pk : MLDSA.PublicKey s.params := ⟨fun _ _ _ => 0, fun _ _ => 0⟩
+  let d := List.replicate (digestBytes s) (7 : Byte)
+  let bytes := encodePublic s rho.toList pk.t
+  let sig := encodeSignature s ⟨d, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig⟩
+  let some y := H.extractFull s rho pk.A pk.t f | return false
+  let some c := H.sampleInBall s d | return false
+  let x := Keccak.bytesToBitsLE d
+  let failed := H.writeCommitment x (List.replicate 221 255)
+  let low := Vector.ofFn fun i => Vector.ofFn (y.u i)
+  let response := Vector.ofFn fun i => Vector.ofFn (y.z i)
+  let point := {y with u := fun i j => (low.get i).get j,
+                       z := fun i j => (response.get i).get j}
+  let off := {point with u := fun _ _ => 1}
+  return H.verify s bytes f.message f.context f.signature == some true &&
+    y.msg == H.messageRepresentative bytes (formattedMessage f) && y.c 0 == c 0 &&
+    y.u ⟨0, by decide⟩ 0 == 0 && y.z ⟨0, by decide⟩ 0 == 0 &&
+    H.openFullWitness s pk point == some d &&
+    (failed.sampleInBall s d).isNone && (failed.openFullWitness s pk point).isNone &&
+    MLDSA.highBits s.params.q s.params.γ₂ 1 == MLDSA.highBits s.params.q s.params.γ₂ 0 &&
+    (H.openFullWitness s pk off).isNone
+
+#guard rawOpeningCheck
 
 -- The final commitment read is necessary. Under this legitimate XOF and encoded key the
 -- zero response is accepted, writing a different digest rejects it, and a second write at

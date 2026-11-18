@@ -144,11 +144,7 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     | none => simp [he] at out
     | some σ =>
       have enc : encodeSignature s ⟨digest, σ.z, σ.h⟩ = f.signature := by simpa [he] using out
-      have valid : s.params.Valid := by
-        cases s
-        · exact Params.valid_mldsa44
-        · exact Params.valid_mldsa65
-        · exact Params.valid_mldsa87
+      have valid := s.valid
       obtain ⟨hz, hw, hchallenge, recovers⟩ := recovered_of_compressedResponse s.params valid
         (by cases s <;> decide) (inBall_of_sampleInBall hc) hs₂ he
       have dec := sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩
