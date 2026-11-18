@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -38,10 +39,10 @@ private def matrixStreamCheck : Bool := Id.run do
   let target : Poly := fun _ => 66051
   let (stream, saved) := exchangeRejNTT 894 (matrixStream 894, target)
   let first := (List.ofFn stream).take 9
-  let short := (exchangeRejNTT 768 (matrixStream 768, target)).1
+  let (short, partialSaved) := exchangeRejNTT 768 (matrixStream 768, target)
   return first == [1, 224, 127, 3, 2, 129, 3, 2, 1] && saved 0 == 0 &&
     stream 771 == 99 && (rejNTTPoly (List.ofFn stream)).map (· 255) == some 66051 &&
-    (rejNTTPoly (List.ofFn short)).isNone
+    (rejNTTPoly (List.ofFn short)).isNone && partialSaved 254 == 0 && partialSaved 255 == 66051
 
 #guard matrixStreamCheck
 
@@ -63,20 +64,20 @@ private def secretKeyFingerprint : List Byte := [
     0x52, 0x20, 0x41, 0x45, 0x9d, 0xbd, 0xcd, 0x23, 0xde, 0x69, 0x8d, 0x5b,
     0x8b, 0xa9, 0x61, 0x04, 0x3c, 0x1f, 0x13, 0x62]
 
--- Use a message ending mid-byte and a nonempty context; changing the context must invalidate it.
+-- Sign a message ending mid-byte at the 255-byte context limit. One more byte must fail.
 private def keyAndSigningChecks : Option Bool := do
   let keys ← keyGen .mlDSA44 fun i => keyGenSeed[i.val]!
   let msg := [true, false, true]
-  let ctx := [11, 22]
+  let ctx := List.replicate 255 11
   let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
   return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
     Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
     verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
-    verify .mlDSA44 keys.publicKey msg [11] σ == some false
+    verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
+    (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
 
 #guard keyAndSigningChecks == some true
 #guard (sign .mlDSA44 [] [] [] (fun _ => 0)).isNone
-#guard (sign .mlDSA44 [] [] (List.replicate 256 0) (fun _ => 0)).isNone
 
 -- Independent SHAKE256(0^256) expansion followed by the FIPS 204 Algorithm 29 shuffle.
 private def zeroDigestSupport (value : ZMod 8380417) : Option (List ℕ) := do
@@ -134,6 +135,21 @@ private def matrixAddressChecks : Bool := Id.run do
 
 #guard matrixAddressChecks
 
+-- One expansion samples 16, 30 or 56 entries at the respective FIPS levels.
+open Cslib.Probability in
+example (H : Xofs) (s : Level) (rho : List Byte) :
+    ((PMF.uniformOfFintype (MatrixPrefixes s)).toOuterMeasure
+      {t | (H.withMatrixPrefixes s rho t).expandA s rho = none}).toReal <
+      1 / (2 : ℝ) ^ (match s with | .mlDSA44 => 252 | .mlDSA65 => 251 | .mlDSA87 => 250) := by
+  apply (prob_expandA_exhaustion H s rho).trans_le
+  cases s
+  · change (16 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 252
+    norm_num
+  · change (30 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 251
+    norm_num
+  · change (56 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 250
+    norm_num
+
 private def markedNonce : Xofs :=
   let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])
   ⟨constantStream (fun _ => 0), constantStream (fun x => if x = address then 1 else 0)⟩
@@ -172,6 +188,38 @@ private def repeatedAcrossMessages : Bool := Id.run do
     y == representativeInput tr (formattedMessage signed) && H.h256.read x 32 == H.h256.read y 32
 
 #guard repeatedAcrossMessages
+
+-- Different 32-byte seeds can expand to the same sparse polynomial. Preserve their
+-- eight exposed sign bytes while filling each rejection tape with zero bytes.
+private def collidingExpansionRows : Option Bool := do
+  let a := List.replicate 32 (0 : Byte)
+  let b := (1 : Byte) :: List.replicate 31 0
+  let rows : Finset (List Bool) := {Keccak.bytesToBitsLE a, Keccak.bytesToBitsLE b}
+  let background := constantStream (fun _ => 247)
+  let H : Xofs := ⟨background, background.fill (rows := rows) (width := 221)
+    (fun _ => 8) (fun _ _ => 0)⟩
+  let c ← H.sampleInBall .mlDSA44 a
+  let c' ← H.sampleInBall .mlDSA44 b
+  return a != b && c == c' && H.h256.readBytes a 9 == List.replicate 8 247 ++ [0] &&
+    H.h256.readBytes [] 9 == List.replicate 9 247
+
+#guard collidingExpansionRows == some true
+
+-- Once all 221 input bytes have been read, reprogramming the suffix cannot alter
+-- the actual signature challenge, including exhaustion.
+example (H : Xofs) (s : Level) (d : List Byte) (seen : List Bool → ℕ)
+    (table : digestRows s → FixedBytes 221) (h : 221 ≤ seen (Keccak.bytesToBitsLE d)) :
+    (H.withExpansionRows s seen table).sampleInBall s d = H.sampleInBall s d := by
+  apply congrArg (sampleInBallBytes s)
+  exact H.h256.read_fill_of_le seen table h
+
+-- The first reply is actually passed to the continuation. Returning exactly those bytes as
+-- the forgery is rejected, even when they verify, because the genuine reply was logged.
+example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List Byte) :
+    K.continueFirstSigning s keys q (some sig) (fun _ _ ans =>
+      pure ⟨q.context, q.message, ans.getD []⟩) = PMF.pure false := by
+  simp [Xofs.continueFirstSigning, Xofs.winsForgery, SigningQuery.logReply,
+    Cslib.ProbOracleComp.runWith_pure]
 
 -- The forger selects the signing context from SHAKE128, then uses the actual signing reply
 -- as its SHAKE256 input. Both public reads use the same oracle pair as the protocol.

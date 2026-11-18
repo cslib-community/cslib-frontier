@@ -134,8 +134,10 @@ private theorem coupled_key {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
   let x := Keccak.bytesToBitsLE
     (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ])
   change pair.shared.h256.read x 128 = pair.background.h256.read x 128
-  have len : x.length = 272 := by simp only [x, bitsLength, List.length_append,
-    FixedBytes.length_toList, List.length_cons, List.length_nil]
+  have len : x.length = 272 := by
+    dsimp only [x]
+    rw [Keccak.length_bytesToBitsLE, List.length_append, FixedBytes.length_toList seed]
+    rfl
   apply read_eq_of_byteAt_eq
   intro i _
   apply coupled_off _ _ _ _ _ _ _ _ _ _ _ (.inr _)
@@ -210,7 +212,7 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
     intro i μ eq
     change seedInput (signingKeyBytes pair.background s seed) t (i, μ) = _ at eq
     have len := congrArg List.length eq
-    rw [seedInput_length (signingKeyBytes_length ..), bitsLength] at len
+    rw [seedInput_length (signingKeyBytes_length ..), Keccak.length_bytesToBitsLE] at len
     lia
   apply Xofs.keyGen_congr_of_reads level setup same128
   · exact bytes _ _ (by simp [FixedBytes.toList])

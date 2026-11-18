@@ -1,0 +1,420 @@
+/-
+Copyright (c) 2026 Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Erik Demaine
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CrossingNeighborhoods
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
+public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+public import CslibFrontier.Foundations.Geometry.Polygonal.Translation
+public import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
+import Mathlib.Analysis.Complex.Norm
+import Mathlib.Tactic.Choose
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
+
+/-!
+# Local source-oriented detours at actual reference crossings
+
+One actual crossing determines its finite family of incident indexed routes. Slopes and
+an optional frozen member are derived internally. Horizontal cut margins and finite slope
+bounds choose local detours inside any given positive-radius ball, with the original source
+orientation and literal one-segment protected cuts. All parameters and contacts are actual
+polygonal route parameters; reversing a free member moves its old first piece to its last.
+
+## Main results
+
+* `Cslib.Complexity.Graph.RotationRecognition.exists_reference_detour_placement`: actual
+  simple local routes, source cut endpoints, protected line identity, unique transverse
+  pair contacts and no triple contact inside a given ball.
+
+These are local cuts. Keeping global frozen routes literal, assembling ordered patches,
+global simplicity/contact/parity, placement, HT and the query/source criterion remain open
+under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+-/
+
+public section
+
+namespace Cslib.Complexity.Graph.RotationRecognition
+
+open Polygonal
+
+private def placed (p : Route) (flip : Bool) (z : ℂ) : Route :=
+  (if flip then p.reverse else p).translate z
+
+private def contactIndex (p : Route) (flip : Bool) (z : ℂ) :
+    Fin (placed p flip z).segments := by
+  cases flip
+  · exact 0
+  · exact (0 : Fin p.segments).rev
+
+private def contactTime (flip : Bool) (t : ℝ) : ℝ := if flip then 1 - t else t
+
+private theorem placed_support (p : Route) (flip : Bool) (z : ℂ) :
+    (placed p flip z).support = (fun w => z + w) '' p.support := by
+  cases flip <;> simp only [placed, Bool.false_eq_true, ↓reduceIte,
+    Route.support_translate, Route.support_reverse]
+
+private theorem placed_simple {p : Route} (hp : p.IsSimple) (flip : Bool) (z : ℂ) :
+    (placed p flip z).IsSimple := by
+  cases flip
+  · exact hp.translate z
+  · exact hp.reverse.translate z
+
+private theorem placed_contact_eval (p : Route) (flip : Bool) (z : ℂ) (t : ℝ) :
+    (placed p flip z).eval (contactIndex p flip z) (contactTime flip t) = z + p.eval 0 t := by
+  cases flip
+  · exact Route.eval_translate p z 0 t
+  · change (p.reverse.translate z).eval (0 : Fin p.segments).rev (1 - t) = _
+    have hi : ((0 : Fin p.segments).rev : Fin p.reverse.segments).rev = 0 := Fin.rev_rev _
+    exact (Route.eval_translate _ z _ _).trans
+      (congrArg (fun w => z + w) ((Route.eval_reverse p _ _).trans
+        (congrArg₂ (fun (i : Fin p.segments) (u : ℝ) => p.eval i u) hi
+          (sub_sub_cancel 1 t))))
+
+private theorem placed_vector (p : Route) (flip : Bool) (z : ℂ) :
+    let i := contactIndex p flip z
+    (placed p flip z).point i.succ - (placed p flip z).point i.castSucc =
+      if flip then -p.germ false else p.germ false := by
+  dsimp only
+  have h0 := placed_contact_eval p flip z 0
+  have h1 := placed_contact_eval p flip z 1
+  have hvec : ∀ q : Route, ∀ i : Fin q.segments,
+      q.point i.succ - q.point i.castSucc = q.eval i 1 - q.eval i 0 := by
+    intro q i
+    simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero]
+  rw [hvec]
+  cases flip <;> simp only [contactTime, Bool.false_eq_true, ↓reduceIte, sub_zero,
+    sub_self] at h0 h1 ⊢
+  · rw [h1, h0]
+    simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
+      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
+      Bool.false_eq_true, ↓reduceIte, Route.start]
+  · rw [h0, h1]
+    simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
+      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
+      Bool.false_eq_true, ↓reduceIte, Route.start,
+      neg_sub]
+
+private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
+    (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b)) {r : ℝ} (hr : 0 < r)
+    (hm : r < min (z.re - min a b) (max a b - z.re)) :
+    ∃ α β : ℝ, 0 < α ∧ α < β ∧ β < 1 ∧
+      AffineMap.lineMap (parabolaPoint a) (parabolaPoint b) α =
+        z + (if b < a then (⟨r, r * (a + b)⟩ : ℂ) else ⟨-r, -r * (a + b)⟩) ∧
+      AffineMap.lineMap (parabolaPoint a) (parabolaPoint b) β =
+        z + (if b < a then (⟨-r, -r * (a + b)⟩ : ℂ) else ⟨r, r * (a + b)⟩) := by
+  obtain ⟨hbetween, hline⟩ := (mem_openChord_iff hab z).mp hz
+  have hshift (x : ℝ) (hx : |x| < min (z.re - min a b) (max a b - z.re)) :
+      z + (⟨x, x * (a + b)⟩ : ℂ) ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) := by
+    have hx' := lt_min_iff.mp hx
+    have hxlow := neg_abs_le x
+    have hxhigh := le_abs_self x
+    apply (mem_openChord_iff hab _).mpr
+    constructor
+    · change min a b < z.re + x ∧ z.re + x < max a b
+      constructor <;> linarith
+    · change z.im + x * (a + b) = (a + b) * (z.re + x) - a * b
+      nlinarith only [hline]
+  have hleft := hshift (-r) (by simpa only [abs_neg, abs_of_pos hr] using hm)
+  have hright := hshift r (by simpa only [abs_of_pos hr] using hm)
+  rw [openSegment_eq_image_lineMap] at hleft hright
+  obtain ⟨l, hl, hleq⟩ := hleft
+  obtain ⟨u, hu, hueq⟩ := hright
+  have hxl : (1 - l) * a + l * b = z.re - r := by
+    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint, sub_eq_add_neg] using
+      congrArg Complex.re hleq
+  have hxu : (1 - u) * a + u * b = z.re + r := by
+    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint, sub_eq_add_neg] using
+      congrArg Complex.re hueq
+  rcases lt_or_gt_of_ne hab with hab' | hba
+  · have hlu : l < u := by
+      by_contra h
+      have hmul : 0 ≤ (l - u) * (b - a) :=
+        mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hab'.le)
+      nlinarith only [hmul, hxl, hxu, hr]
+    exact ⟨l, u, hl.1, hlu, hu.2, by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hleq,
+      by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hueq⟩
+  · have hul : u < l := by
+      by_contra h
+      have hmul : 0 ≤ (u - l) * (a - b) :=
+        mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hba.le)
+      nlinarith only [hmul, hxl, hxu, hr]
+    exact ⟨u, l, hu.1, hul, hl.2, by simpa only [ite_eq_left hba] using hueq,
+      by simpa only [ite_eq_left hba] using hleq⟩
+
+private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
+    (hm : ∀ i, 0 < m i) {ρ : ℝ} (hρ : 0 < ρ) :
+    ∃ r ε : ℝ, 0 < r ∧ 0 < ε ∧ (∀ i, r < m i) ∧
+      (∀ i, r * (1 + |s i|) + ε < ρ) := by
+  classical
+  let := Fintype.ofFinite ι
+  let K := 1 + ∑ i, |s i|
+  let T := 1 + ∑ i, 1 / m i
+  let r := min (ρ / (4 * K)) (1 / (2 * T))
+  let ε := ρ / 4
+  have hsumK : 0 ≤ ∑ i, |s i| := Finset.sum_nonneg fun i _ => abs_nonneg (s i)
+  have hsumT : 0 ≤ ∑ i, 1 / m i :=
+    Finset.sum_nonneg fun i _ => (div_pos zero_lt_one (hm i)).le
+  have hK : 0 < K := by dsimp [K]; linarith
+  have hT : 0 < T := by dsimp [T]; linarith
+  have hr : 0 < r := by dsimp [r]; positivity
+  refine ⟨r, ε, hr, by dsimp [ε]; positivity, ?_, ?_⟩
+  · intro i
+    have hi : 1 / m i ≤ ∑ j, 1 / m j :=
+      Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le) (Finset.mem_univ i)
+    have hTi : 1 / m i < T := by dsimp [T]; linarith
+    have hprod := (div_lt_iff₀ (hm i)).mp hTi
+    have hsmall : 1 / (2 * T) < m i := by
+      apply (div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
+      nlinarith
+    exact (min_le_right _ _).trans_lt hsmall
+  · intro i
+    have hi : |s i| ≤ ∑ j, |s j| :=
+      Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)
+    have hKi : 1 + |s i| ≤ K := by dsimp [K]; linarith
+    have hrK : r * K ≤ ρ / 4 := by
+      have hh : r ≤ ρ / (4 * K) := min_le_left _ _
+      have := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp hh
+      nlinarith
+    have hbound := mul_le_mul_of_nonneg_left hKi hr.le
+    dsimp [ε]
+    linarith
+
+/-- Place the actual finite incident family inside any positive-radius ball. Source cut
+parameters, optional frozen protection, slopes and all geometric conclusions are internal.
+The protected local route is literally a single cut line; no global route is constructed. -/
+theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I) {z : ℂ}
+    (hz : ∃ e f : Fin (subdivisionGraph I).edges.length, e ≠ f ∧
+      z ∈ openSegment ℝ ((referenceDrawing I).route e).start
+        ((referenceDrawing I).route e).finish ∧
+      z ∈ openSegment ℝ ((referenceDrawing I).route f).start
+        ((referenceDrawing I).route f).finish) {ρ : ℝ} (hρ : 0 < ρ) :
+    let D := referenceDrawing I
+    let E := Fin (subdivisionGraph I).edges.length
+    let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+    let X := {e : E // z ∈ (D.route e).support}
+    let s : X → ℝ := fun e => (D.route e.val).start.re + (D.route e.val).finish.re
+    ∃ r : ℝ, 0 < r ∧ ∃ d α β : X → ℝ,
+      let R : X → Route := fun e => if F e.val then
+        Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩ else Route.slopeDetour r (s e) (d e)
+      let P : X → Route := fun e =>
+        (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
+          then (R e).reverse else R e).translate z
+      (∀ e, 0 < α e ∧ α e < β e ∧ β e < 1 ∧
+        (P e).start = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e) ∧
+        (P e).finish = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e) ∧
+        (P e).IsSimple ∧ (P e).support ⊆ Metric.ball z ρ) ∧
+      (∀ e, F e.val = true → d e = 0 ∧
+        P e = Route.line (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e))
+          (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e))) ∧
+      (∀ e f, e ≠ f → ∃! w : ℂ, w ∈ (P e).support ∧ w ∈ (P f).support) ∧
+      (∀ e f, e ≠ f → ∀ w : ℂ, w ∈ (P e).support → w ∈ (P f).support →
+        ∃ (i : Fin (P e).segments) (j : Fin (P f).segments) (u v : ℝ),
+          u ∈ Set.Ioo 0 1 ∧ v ∈ Set.Ioo 0 1 ∧ (P e).eval i u = w ∧ (P f).eval j v = w ∧
+          let a := (P e).point i.succ - (P e).point i.castSucc
+          let b := (P f).point j.succ - (P f).point j.castSucc
+          a.re * b.im - a.im * b.re ≠ 0) ∧
+      (∀ e f g, e ≠ f → e ≠ g → f ≠ g → ∀ w : ℂ,
+        w ∈ (P e).support → w ∈ (P f).support → w ∉ (P g).support) := by
+  classical
+  let D := referenceDrawing I
+  let E := Fin (subdivisionGraph I).edges.length
+  let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
+    simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+  let X := {e : E // z ∈ (D.route e).support}
+  let : DecidableEq X := fun e f => Classical.propDecidable (e = f)
+  let a : E → ℝ := fun e => (D.route e).start.re
+  let b : E → ℝ := fun e => (D.route e).finish.re
+  have hshape (e : E) : D.route e = Route.line (parabolaPoint (a e)) (parabolaPoint (b e)) := rfl
+  have hne (e : E) : a e ≠ b e := by
+    intro hab
+    have hn := (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e)
+    exact hn (congrArg parabolaPoint hab)
+  have hopen (e : X) : z ∈ openSegment ℝ (D.route e.val).start (D.route e.val).finish := by
+    have hend (tag : Bool) : z ≠ (D.route e.val).endpoint tag := by
+      rw [D.endpoint_eq]
+      apply referenceDrawing_crossing_ne_vertex hI hz
+      exact ((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e.val).1 tag)
+    apply mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
+    exact (Route.support_line _ _) ▸ e.property
+  let s : X → ℝ := fun e => a e.val + b e.val
+  have hs : Function.Injective s := by
+    intro e f heq
+    apply Subtype.ext
+    by_contra hef
+    exact (referenceDrawing_slope_ne_of_interior_contact hI e.val f.val hef (hopen e) (hopen f)) heq
+  have hF : ∀ e f : X, F e.val = true → F f.val = true → e = f := by
+    intro e f he hf
+    by_contra hef
+    have hef' : e.val ≠ f.val := fun h => hef (Subtype.ext h)
+    have hez := hopen e
+    have hfz := hopen f
+    rw [openSegment_eq_image_lineMap] at hez hfz
+    obtain ⟨u, hu, hueq⟩ := hez
+    obtain ⟨v, hv, hveq⟩ := hfz
+    have heval : (D.route e.val).eval 0 u = (D.route f.val).eval 0 v := by
+      rw [hshape e.val, hshape f.val, Route.eval_line, Route.eval_line]
+      exact hueq.trans hveq.symm
+    obtain ⟨be, bf, hbe, hbf, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
+      hef' he hf 0 0 ⟨hu.1.le, hu.2.le⟩ ⟨hv.1.le, hv.2.le⟩ heval
+    exact (Route.not_atEnd_of_mem_Ioo _ 0 hu be) hbe
+  let fixed : Option X := if h : ∃ e : X, F e.val = true then some h.choose else none
+  have hfixed (e : X) : fixed = some e ↔ F e.val = true := by
+    dsimp only [fixed]
+    split_ifs with h
+    · constructor
+      · intro he
+        have hei := Option.some.inj he
+        exact hei ▸ h.choose_spec
+      · intro he
+        exact congrArg some (hF h.choose e h.choose_spec he)
+    · constructor
+      · intro he
+        exact he.elim
+      · intro he
+        exact (h ⟨e, he⟩).elim
+  let m : X → ℝ := fun e => min (z.re - min (a e.val) (b e.val))
+    (max (a e.val) (b e.val) - z.re)
+  have hmem (e : X) : z ∈ openSegment ℝ (parabolaPoint (a e.val))
+      (parabolaPoint (b e.val)) := hopen e
+  have hm (e : X) : 0 < m e := by
+    obtain ⟨hx, _⟩ := (mem_openChord_iff (hne e.val) z).mp (hmem e)
+    exact lt_min (sub_pos.mpr hx.1) (sub_pos.mpr hx.2)
+  obtain ⟨r, ε, hr, hε, hrm, htube⟩ := choose_geometry s m hm hρ
+  have hcut (e : X) := cut_parameters (hne e.val) (hmem e) hr (hrm e)
+  choose α β hα hαβ hβ hcutA hcutB using hcut
+  obtain ⟨d, hsep⟩ := exists_slopeDetour_separation s hs hr hε fixed
+  dsimp only at hsep
+  simp_rw [hfixed] at hsep
+  obtain ⟨hends, hkeep, hpair, hcontact, hdet, hno3⟩ := hsep
+  let R : X → Route := fun e => if F e.val then
+    Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩ else Route.slopeDetour r (s e) (d e)
+  have hraw (e : X) :
+      (if fixed = some e then Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩
+        else Route.slopeDetour r (s e) (d e)) = R e := by
+    simp only [hfixed]
+    rfl
+  have hraw_eval (e : X) (t : ℝ) := congrArg (fun q : Route => q.eval 0 t) (hraw e)
+  let flip : X → Bool := fun e => decide (b e.val < a e.val)
+  let P : X → Route := fun e => placed (R e) (flip e) z
+  have hEndR (e : X) (tag : Bool) : (R e).endpoint tag =
+      if tag then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩ := by
+    cases tag
+    · exact (hends e).1
+    · exact (hends e).2.1
+  have htransport (e : X) (tag : Bool) :
+      (P e).endpoint tag = z + (R e).endpoint (if flip e then !tag else tag) := by
+    change ((if flip e then (R e).reverse else R e).translate z).endpoint tag = _
+    rw [Route.endpoint_translate]
+    cases flip e <;> simp only [Bool.false_eq_true, ↓reduceIte, Route.endpoint_reverse]
+  have hpoint (e : X) (tag : Bool) : (P e).endpoint tag =
+      AffineMap.lineMap (D.route e.val).start (D.route e.val).finish
+        (if tag then β e else α e) := by
+    have hc : AffineMap.lineMap (D.route e.val).start (D.route e.val).finish
+        (if tag then β e else α e) = z +
+        (if tag then (if b e.val < a e.val then (⟨-r, -r * s e⟩ : ℂ) else ⟨r, r * s e⟩)
+          else (if b e.val < a e.val then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩)) := by
+      cases tag
+      · exact hcutA e
+      · exact hcutB e
+    rw [htransport, hEndR, hc]
+    congr 1
+    cases tag <;> by_cases hf : b e.val < a e.val <;>
+      simp only [flip, hf, decide_true, decide_false, Bool.not_false, Bool.not_true,
+        Bool.false_eq_true, ↓reduceIte]
+  have hpointA (e : X) :
+      (P e).start = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e) :=
+    hpoint e false
+  have hpointB (e : X) :
+      (P e).finish = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e) :=
+    hpoint e true
+  have hball (e : X) : (P e).support ⊆ Metric.ball z ρ := by
+    intro w hw
+    obtain ⟨v, hv, rfl⟩ := (placed_support (R e) (flip e) z) ▸ hw
+    obtain ⟨hx, hy⟩ := (hends e).2.2.2 v hv
+    have hxab : |v.re| ≤ r := abs_le.mpr ⟨by linarith [hx.1], hx.2⟩
+    have hyab : |v.im| ≤ |v.im - s e * v.re| + |s e| * r := by
+      calc
+        |v.im| = |(v.im - s e * v.re) + s e * v.re| := by congr 1; ring
+        _ ≤ |v.im - s e * v.re| + |s e * v.re| := abs_add_le _ _
+        _ ≤ |v.im - s e * v.re| + |s e| * r := by
+          rw [abs_mul]
+          exact add_le_add_right (mul_le_mul_of_nonneg_left hxab (abs_nonneg _)) _
+    apply Metric.mem_ball.mpr
+    rw [dist_eq_norm, add_sub_cancel_left]
+    have hn := Complex.norm_le_abs_re_add_abs_im v
+    nlinarith [htube e]
+  have hPkeep (e : X) (he : F e.val = true) : d e = 0 ∧
+      P e = Route.line (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e))
+        (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e)) := by
+    have hd := (hkeep e he).1
+    have hR : R e = Route.line (⟨-r, -r * s e⟩ : ℂ) ⟨r, r * s e⟩ := by
+      simp only [R, he, ↓reduceIte]
+    have hline : P e = Route.line (P e).start (P e).finish := by
+      dsimp only [P, placed]
+      rw [hR]
+      cases flip e <;> simp only [Bool.false_eq_true, ↓reduceIte, Route.reverse_line,
+        Route.translate_line, Route.start_line, Route.finish_line]
+    exact ⟨hd, by rw [hline, hpointA e, hpointB e]⟩
+  refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
+  · intro e
+    exact ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
+      placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
+  · intro e f hef
+    obtain ⟨w, ⟨he, hf⟩, huniq⟩ := hpair e f hef
+    refine ⟨z + w, ?_, ?_⟩
+    · exact ⟨(placed_support (R e) (flip e) z).symm ▸ Set.mem_image_of_mem _ he,
+        (placed_support (R f) (flip f) z).symm ▸ Set.mem_image_of_mem _ hf⟩
+    · intro v hv
+      obtain ⟨u, hue, huv⟩ := (placed_support (R e) (flip e) z) ▸ hv.1
+      obtain ⟨u', huf, hufv⟩ := (placed_support (R f) (flip f) z) ▸ hv.2
+      have huu : u = u' := add_left_cancel (huv.trans hufv.symm)
+      have hu : u = w := huniq u ⟨hue, huu.symm ▸ huf⟩
+      exact huv.symm.trans (congrArg (fun x => z + x) hu)
+  · intro e f hef w hwe hwf
+    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
+    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
+    have huv : u = v := add_left_cancel (hu.trans hv.symm)
+    obtain ⟨_, _, t, t', ht, ht', hete, hetf⟩ := hcontact e f hef u hue (huv.symm ▸ hvf)
+    refine ⟨contactIndex (R e) (flip e) z, contactIndex (R f) (flip f) z,
+      contactTime (flip e) t, contactTime (flip f) t', ?_, ?_, ?_, ?_, ?_⟩
+    · cases flip e <;> dsimp [contactTime] <;> constructor <;> linarith [ht.1, ht.2]
+    · cases flip f <;> dsimp [contactTime] <;> constructor <;> linarith [ht'.1, ht'.2]
+    · exact (placed_contact_eval (R e) (flip e) z t).trans
+        ((congrArg (fun x => z + x) ((hraw_eval e t).symm.trans hete)).trans hu)
+    · exact (placed_contact_eval (R f) (flip f) z t').trans
+        ((congrArg (fun x => z + x) ((hraw_eval f t').symm.trans hetf)).trans hu)
+    · let ve := (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).succ -
+        (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).castSucc
+      let vf := (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).succ -
+        (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).castSucc
+      change ve.re * vf.im - ve.im * vf.re ≠ 0
+      have hve : ve = if flip e then -(R e).germ false else (R e).germ false :=
+        placed_vector (R e) (flip e) z
+      have hvf : vf = if flip f then -(R f).germ false else (R f).germ false :=
+        placed_vector (R f) (flip f) z
+      rw [hve, hvf]
+      have hd := hdet e f hef
+      change ((R e).germ false).re * ((R f).germ false).im -
+        ((R e).germ false).im * ((R f).germ false).re ≠ 0 at hd
+      cases flip e <;> cases flip f <;>
+        simp only [Bool.false_eq_true, ↓reduceIte, Complex.neg_re, Complex.neg_im] <;>
+        intro hzero <;> apply hd <;> nlinarith only [hzero]
+  · intro e f g hef heg hfg w hwe hwf hwg
+    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
+    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
+    obtain ⟨v', hvg, hv'⟩ := (placed_support (R g) (flip g) z) ▸ hwg
+    have huv : u = v := add_left_cancel (hu.trans hv.symm)
+    have huv' : u = v' := add_left_cancel (hu.trans hv'.symm)
+    exact hno3 e f g hef heg hfg u hue (huv.symm ▸ hvf) (huv'.symm ▸ hvg)
+
+end Cslib.Complexity.Graph.RotationRecognition

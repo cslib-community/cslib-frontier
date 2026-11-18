@@ -13,9 +13,10 @@ import CslibFrontier.Tactic.PPT
 Under a hash that ignores its message, every path of the right length opens every leaf, so a
 cheating prover can answer two runs with different bits at one position; both runs are accepted
 by a PCP verifier that accepts everything, and the binding adversary's output breaks position
-binding, as `merkleBreaksBinding_kilianBindingOutput` predicts. Under a hash that returns its
-message, the honest prover's two runs never conflict, and the adversary's fallback output does not
-break binding. A constant prover is strict PPT, so `KilianProver.IsPPT` is not vacuous.
+binding with one-bit leaves, as `merkleBreaksBinding_kilianBindingOutput` predicts. Under a hash
+that returns its message, the honest prover's two runs never conflict, and the adversary's
+fallback output does not break binding. A constant prover is strict PPT, so `KilianProver.IsPPT`
+is not vacuous.
 -/
 
 namespace CslibFrontierTests.Crypto.KilianSoundness
@@ -55,7 +56,8 @@ example : kilianVerify constHash trivialVerifier key x root [[true]] response₂
 example : kilianConflict trivialVerifier x (kilianOpenings trivialVerifier x [[true]] response₁)
     (kilianOpenings trivialVerifier x [[true]] response₂) =
       some ((5, ⟨true, [key]⟩), (5, ⟨false, [key]⟩)) := by decide
-example : merkleBreaksBinding constHash key (kilianBindingOutput trivialVerifier x root
+example : merkleBreaksBinding constHash (fun _ leaf => leaf.length == 1) 2 key
+    (kilianBindingOutput trivialVerifier x root
     (kilianOpenings trivialVerifier x [[true]] response₁)
     (kilianOpenings trivialVerifier x [[true]] response₂)) = true := by decide
 
@@ -66,7 +68,8 @@ example : kilianConflict trivialVerifier x
       (kilianRespond idHash trivialVerifier key x [true, true] [[false]]))
     (kilianOpenings trivialVerifier x [[true]]
       (kilianRespond idHash trivialVerifier key x [true, true] [[true]])) = none := by decide
-example : merkleBreaksBinding idHash key (kilianBindingOutput trivialVerifier x
+example : merkleBreaksBinding idHash (fun _ leaf => leaf.length == 1) 2 key
+    (kilianBindingOutput trivialVerifier x
     (kilianCommit idHash trivialVerifier key x [true, true])
     (kilianOpenings trivialVerifier x [[false]]
       (kilianRespond idHash trivialVerifier key x [true, true] [[false]]))

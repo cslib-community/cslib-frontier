@@ -26,21 +26,29 @@ of order `q`. A fresh encryption therefore equals a given ciphertext with probab
 `1 / q`, under every public key and for every message, which gives `1 / q`-unpredictability
 (`epsilonUnpredictable_elGamalExplicitCoinPKE`). Over a prime-order group family, CDH along a
 deterministic schedule of groups makes `1 / q` negligible (`CDH.negligible_inv_order`), so the
-schemes over those groups are unpredictable (`CDH.elGamal_unpredictable`). The other claim of
-§12.6.2, one-wayness under CDH, is `CDH.elGamal_oneWay` in
+schemes over those groups are unpredictable (`CDH.elGamal_unpredictable_ideal`). The other claim
+of §12.6.2, one-wayness under CDH, is `CDH.elGamal_oneWay_ideal` in
 `CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean`.
+
+Both family theorems are about `elGamalExplicitCoinPKE`, whose key generator and encryption draw
+the exponents exactly uniformly from `ZMod q`, and not about the family's fair-coin multiplicative
+ElGamal (`elGamalKeyGenProb`, `elGamalEncryptProb`), for which the library has no
+unpredictability theorem (#5293). They are ideal-sampling steps toward Theorem 12.12 (p. 501).
 
 ## Main results
 
 * `Cslib.Crypto.epsilonUnpredictable_elGamalExplicitCoinPKE`: multiplicative ElGamal over a fixed
   group is `1 / q`-unpredictable.
-* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_unpredictable`: multiplicative ElGamal over a
-  group family is unpredictable under CDH.
+
+## Ideal-sampling step
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_unpredictable_ideal`: the schemes with exactly
+  uniform exponents over a group family are unpredictable under CDH.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-  Section 12.6.2 (printed pp. 499–500).
+  Section 12.6.2 (printed pp. 499–500) and Theorem 12.12 (printed p. 501).
 -/
 
 public section
@@ -75,12 +83,15 @@ theorem epsilonUnpredictable_elGamalExplicitCoinPKE {G : Type} [AddCommGroup G] 
 
 namespace PrimeOrderGroupFamily
 
-/-- **Multiplicative ElGamal is unpredictable under CDH** ([BonehShoup2023], Section 12.6.2,
-p. 500): if CDH holds for the family along a deterministic schedule of group descriptions `d`, the
-multiplicative ElGamal schemes over the groups `d n` form an unpredictable family. Each scheme is
-`1 / q`-unpredictable, and CDH makes `1 / q` negligible. The group at each security parameter is
-fixed, so that each `n` has one scheme, as `Encryption.Unpredictable` requires. -/
-theorem CDH.elGamal_unpredictable {F : PrimeOrderGroupFamily} {d : ℕ → F.Desc}
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 12.12 (p. 501), not the cited result: if
+CDH holds for the family along a deterministic schedule of group descriptions `d`, the schemes
+`elGamalExplicitCoinPKE` over the groups `d n` form an unpredictable family. This is the
+unpredictability claim of Section 12.6.2 (p. 500) for the scheme whose key generator and
+encryption draw the exponents exactly uniformly from `ZMod q`, not for the family's fair-coin
+scheme (`elGamalKeyGenProb`, `elGamalEncryptProb`) (#5293). Each scheme is `1 / q`-unpredictable,
+and CDH makes `1 / q` negligible. The group at each security parameter is fixed, so that each `n`
+has one scheme, as `Encryption.Unpredictable` requires. -/
+theorem CDH.elGamal_unpredictable_ideal {F : PrimeOrderGroupFamily} {d : ℕ → F.Desc}
     (hCDH : F.CDH fun n => PMF.pure (d n)) :
     Encryption.Unpredictable fun n =>
       (elGamalExplicitCoinPKE (F.order (d n)) (F.generator (d n))).toPKE :=

@@ -24,6 +24,16 @@ symmetric cipher's actual key generator. The two KEM hops surround the actual-ke
 Challenge messages have length exactly the security parameter, as in `SymmetricCipher`.
 The conclusion is `INDCCA2On` with this admissibility rule, not unrestricted `WordINDCCA2`.
 
+The results are steps toward [BonehShoup2023], Exercise 12.5(a), printed p. 513, not the exercise
+itself. The proof constructs both reductions, a KEM distinguisher and a one-time symmetric CCA
+adversary, with their efficiency certificates, but the games it relates are not the exercise's.
+On the KEM side, `kemCCARealGame` and `kemCCAIdealGame` strengthen the exercise's KEM game in two
+distinct ways: the distinguisher receives `(pk, (k, ct))`, where the printed challenger sends only
+the key and the encapsulation (#5293), and it may submit any word other than the challenge for
+decapsulation, where the exercise's queries lie in `C_kem` (#5686). On the DEM side,
+`SymmetricCipher.OneTimeINDCCA` decrypts every word other than the challenge, where Attack Game 9.2
+(printed p. 362) takes queries in `C` (#5686).
+
 The source's uniform key space is represented by uniform `keyLen n`-bit seeds followed by `F n`.
 An exact sampler identity relates this distribution to `E.keyGen n`; no uniformity of encoded
 symmetric keys is assumed. Both KEM games retain their existing postchallenge decapsulation
@@ -49,8 +59,9 @@ a simple fixed-width key split instead needs a supported real-key length contrac
 * `Cslib.Crypto.Encryption.eval_kemCCARealGame_hybridToKEMCCA`,
   `Cslib.Crypto.Encryption.eval_kemCCAIdealGame_hybridToKEMCCA`: exact actual-game identities.
 * `Cslib.Crypto.Encryption.exists_hybridCCA_reductions`: native `HybridCCAReductions` for every
-  PPT adversary, uniformly for every parameter.
-* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security.
+  PPT adversary, uniformly for every parameter (a step toward Exercise 12.5(a)).
+* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security (a step toward
+  Exercise 12.5(a)).
 * `Cslib.Crypto.Encryption.isPPTOn_hybridCCAGame`: native honest-game runtime.
 * `Cslib.Crypto.Encryption.hybridDecrypt_postprocessed_hybridEncrypt`: separate supported-key
   correctness.
@@ -689,13 +700,33 @@ private theorem computableInPolyTime_postprocessed_decaps
       (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
   fun_prop
 
-/-- **Adaptive CCA security of KEM–DEM encryption**, for the source symmetric cipher's
-`n`-bit message model ([BonehShoup2023], Exercise 12.5(a)). The same native postprocessor is
-used on the shown KEM key and on every successful decapsulation. Its ideal-key distribution
-is exactly the actual symmetric key sampler, uniformly in the security parameter.
+/-- Adaptive CCA security of KEM–DEM encryption in the symmetric cipher's `n`-bit message model,
+from a KEM CCA premise and `E.OneTimeINDCCA`: a step toward [BonehShoup2023], Exercise 12.5(a),
+not the cited result, because its KEM premise gives the distinguisher `pk` and answers
+decapsulation queries outside `C_kem`, and its DEM premise answers decryption queries outside `C`
+(#5293, #5686).
 
-KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a separate
-supported-output contract; the security statement does not assert unrestricted word-message CCA. -/
+The proof constructs both reductions, `hybridToKEMCCAHiddenBit` and `hybridToOneTimeCCAAdversary`,
+with their efficiency certificates. The premises differ from the exercise's (printed p. 513) as
+follows.
+* KEM: in `kemCCARealGame` and `kemCCAIdealGame` the distinguisher receives `(pk, (k, ct))`, where
+  the printed challenger sends only the key and the encapsulation (#5293), and it may submit any
+  word other than the challenge for decapsulation, where the exercise's queries lie in `C_kem`
+  (#5686). These are two distinct strengthenings. The counterexample recorded for
+  Exercise 11.9(b) on pull request #6413, a KEM whose key is its public key, shows that the printed
+  statement needs the first.
+* DEM: `E.OneTimeINDCCA` decrypts every word other than the challenge, where the source's 1CCA
+  security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose queries lie in `C`
+  (printed p. 362; #5686).
+
+A KEM or cipher that is secure on its ciphertext space but leaks on some word outside it meets the
+exercise's premises and not these.
+
+The same native postprocessor is used on the shown KEM key and on every successful decapsulation.
+Its ideal-key distribution is exactly the actual symmetric key sampler, uniformly in the security
+parameter. KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a
+separate supported-output contract; the security statement does not assert unrestricted
+word-message CCA. -/
 theorem hybrid_indcca2On (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -732,10 +763,14 @@ theorem hybrid_indcca2On (E : SymmetricCipher)
     advantage_hybridCCA_le_two_mul E keyLen F keyGen encaps decaps decBound adversary n
       (hlaw n) (hcorrect n) (hdecBound n)
 
-/-- The two reductions of Exercise 12.5(a) for the postprocessed KEM–DEM hybrid against
-`adversary`: a KEM CCA distinguisher `kem` and a one-time symmetric CCA adversary `dem`, both
-oracle PPT, such that at every `n` the hybrid's `n`-bit-message CCA advantage is at most twice
-`kem`'s real-versus-ideal KEM advantage plus `dem`'s advantage in `E.ccaOneTimeGame`. -/
+/-- The two reductions for the postprocessed KEM–DEM hybrid against `adversary`, in the library's
+games: a KEM CCA distinguisher `kem` and a one-time symmetric CCA adversary `dem`, both oracle PPT,
+such that at every `n` the hybrid's `n`-bit-message CCA advantage is at most twice `kem`'s
+advantage between `kemCCARealGame` and `kemCCAIdealGame` plus `dem`'s advantage in
+`E.ccaOneTimeGame`. The KEM games give the distinguisher `pk` and decapsulate every word other than
+the challenge, and `E.ccaOneTimeGame` decrypts every word other than the challenge, so this is a
+step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not that bound
+(`exists_hybridCCA_reductions`; #5293, #5686). -/
 structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
     (F : ℕ → List Bool → List Bool) (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encaps : ℕ → List Bool → ProbComp (List Bool × List Bool))
@@ -765,9 +800,19 @@ structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
       Game.advantage (ProbComp.eval (E.ccaOneTimeGame dem false n))
         (ProbComp.eval (E.ccaOneTimeGame dem true n))
 
-/-- The complete concrete reduction of Exercise 12.5(a), with both native adversaries and the
-actual symmetric CCA game. The reduction code and polynomial clocks are fixed before `n`.
-No security assumption is needed for this quantitative statement. -/
+/-- Native KEM and one-time symmetric CCA reductions for the postprocessed KEM–DEM hybrid, with
+hybrid advantage at most twice the KEM advantage plus the symmetric advantage at every `n`: a
+step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not the cited result,
+because the KEM and symmetric games on its right-hand side give the adversary more than the
+exercise's (#5293, #5686).
+
+The proof constructs both reductions. The KEM advantage is measured in `kemCCARealGame` and
+`kemCCAIdealGame`, where the distinguisher receives `(pk, (k, ct))` and may submit any word other
+than the challenge for decapsulation. The symmetric advantage is measured in `E.ccaOneTimeGame`,
+which decrypts every word other than the challenge. The exercise's KEM challenger sends only the
+key and the encapsulation, and its queries lie in `C_kem` and `C` (printed pp. 362 and 513). The
+hybrid game on the left likewise decrypts every word. The reduction code and polynomial clocks are
+fixed before `n`. No security assumption is needed for this quantitative statement. -/
 theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

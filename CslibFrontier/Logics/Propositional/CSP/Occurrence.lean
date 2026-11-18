@@ -118,6 +118,12 @@ theorem map_occurrences (F : CSP Rel V) : F.occurrences.map (fun o => o.2.2) = F
   simpa only [occurrences, List.map_map, Function.comp_def, vars_varCNF] using
     Cslib.Logic.PL.map_occurrences F.varCNF
 
+/-- The variable scan and the indexed occurrence scan have the same length, including
+repeated names and scope positions. -/
+theorem vars_length_eq_occurrences (F : CSP Rel V) :
+    F.vars.length = F.occurrences.length := by
+  rw [← CSP.map_occurrences F, List.length_map]
+
 /-- Every position record occurs exactly once, even if its variable or constraint is repeated. -/
 theorem occurrences_nodup (F : CSP Rel V) : F.occurrences.Nodup := by
   have polarity (o : Cslib.Logic.PL.Occurrence V)

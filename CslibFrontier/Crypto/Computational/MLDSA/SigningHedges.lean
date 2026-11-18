@@ -172,10 +172,10 @@ theorem maskSeedAddress_ne {n : ℕ} (t : Fin n ↪ FixedBytes 32) {i j : Fin n}
     maskSeedInput key (t i) μ ≠ maskSeedInput key (t j) ν := by
   unfold maskSeedInput
   intro h
-  have hbytes := (List.append_inj h (by simp [bitsLength, FixedBytes.toList])).1
+  have hbytes := (List.append_inj h (by simp [Keccak.length_bytesToBitsLE, FixedBytes.toList])).1
   apply hij
   apply t.injective
   apply List.ofFn_inj.mp
-  exact List.append_cancel_left (bytes_eq_of_bits_eq hbytes)
+  exact List.append_cancel_left (Keccak.bytesToBitsLE_injective hbytes)
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
