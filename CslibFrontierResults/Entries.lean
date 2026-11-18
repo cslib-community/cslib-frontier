@@ -197,6 +197,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
@@ -7547,3 +7548,40 @@ register_result "indcpa-no-repeating-ciphertexts" where
     truncates oracle replies to ctBound n bits (the identity on supported ciphertexts under \
     CiphertextLengthLE), and proves RepeatAdv[A, E] ≤ 2 · CPAadv[B, E] for all n ≥ 1 and \
     negligible winning probability under E.INDCPA. Outside check: PR #6337, review 5951220815."
+
+register_result "nested-encryption-semantic-security" where
+  title := "Nested encryption is semantically secure when all keys but one are revealed, \
+    provided encryption preserves challenge admissibility (corrected Theorem 2.12)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Theorem 2.12, corrected by the admissibility-preservation hypothesis",
+      locator := "Section 2.4, p. 37" }
+  ]
+  theorems := [
+    Cslib.Crypto.indistinguishable_nestedExperiment_of_oneTimeExperiment,
+    Cslib.Crypto.advantage_nestedExperiment_eq
+  ]
+  scope := "A corrected form of Theorem 2.12. The book's statement omits the hypothesis \
+    PreservesValid (the encryptions of an admissible pair under a supported key form an \
+    admissible pair), and it fails without it: in CslibFrontierTests/Crypto/NestedEncryption.lean, \
+    tagCipher_no_wrapper exhibits a one-time secure cipher (every single-key advantage is zero) \
+    whose two-layer nested advantage is one. PreservesValid holds for the equal-length rule \
+    whenever the length of a ciphertext is determined by the length of its message. Setting: a \
+    family of ciphers E sec : Cipher K M M, whose ciphertexts lie in the message type so that \
+    the n-way nested cipher E_n of p. 37 (Cipher.nested) is defined for every n. Keys are \
+    indexed 0, …, n − 1 with key 0 innermost, where the book has k_1, …, k_n with k_1 innermost. \
+    Keys come from a sampler sampleKey and challenge pairs are admitted by a predicate valid; \
+    the hypothesis and the conclusion use the same sampleKey and valid, so the book's uniform \
+    keys and equal-length rule are an instance. Hypotheses: one-time semantic security of E \
+    (Attack Game 2.1 and Definition 2.2, p. 16), stated inline as Game.Indistinguishable for \
+    oneTimeExperiment against uniform strict PPT two-stage adversaries with any encodable state; \
+    strict PPT key sampling and encryption and polynomial-time valid; and PreservesValid. \
+    Conclusion: for every constant n, the experiment of p. 37, in which the adversary chooses \
+    (m₀, m₁, d) and receives the nested encryption of m_b under every key except k_d revealed, \
+    is indistinguishable against uniform strict PPT two-stage adversaries; n = 0 is vacuous. The \
+    keys are drawn before the adversary's choice, which gives the same law. \
+    advantage_nestedExperiment_eq is NE^(n)adv[A, E] = SSadv[B, E] with \
+    B = nestedToSingleAdversary, certified strict PPT (isPPT_nestedToSingleAdversary). \
+    Cipher.nested_correct, in the same module, proves E_n correct when E is; it is not part of \
+    Theorem 2.12 and is not listed."
