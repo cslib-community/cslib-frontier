@@ -176,6 +176,7 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
@@ -6045,6 +6046,54 @@ register_result "hashed-elgamal-ddh-kdf-cpa" where
     of E′_EG (DDH.kemINDCPA_hashedElGamalEncapsProb, Games 0–2 of the proof of Theorem 11.5), \
     then the KEM–DEM composition of Exercise 11.9(b) (p. 461). No concrete bound in the form \
     of (11.14) is stated for the encryption scheme."
+
+register_result "cramer-shoup-ddh-cca" where
+  title := "Multiplicative Cramer–Shoup is CCA secure under DDH and a collision-resistant hash"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 12.27",
+      locator := "Section 12.11, pp. 521–522; proof method of Theorem 12.9, Section 12.5.3, \
+        p. 489; Theorem 12.1, p. 468, and its extension to associated data, p. 502" }
+  ]
+  theorems := [
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2ADOn_cramerShoup_bitStringAD,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2On_cramerShoup,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup,
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2MultiOn_cramerShoup
+  ]
+  scope := "The scheme E_MCS of the exercise (v = β·g, w = β·u, e = β·h + m, \
+    ρ = H'(v, w, e, ad), z' = β·(h₁ + ρ·h₂), in additive notation) over a decodable prime-order \
+    group family (efficiently recognizable groups, Definition 10.9(1), p. 413), at a \
+    deterministic polynomial-time group schedule d in place of a sampled system parameter. \
+    Assumptions: DDH (Definition 10.8, p. 411) for the point-mass setup at d, and collision \
+    resistance (Attack Game 8.1 and Definition 8.1, p. 290) of the hash H' = H mod q, keyed by \
+    d n and a uniform keyLen n-bit hash key, with H, d and keyLen polynomial time, on the \
+    exercise's domain G³ × D only: the canonically framed tuples (v, w, e, ad) of group-element \
+    words and an associated-data word (isCramerShoupHashInput, characterized by \
+    isCramerShoupHashInput_iff). With associated data, D = {0,1}* (encAD = encBits), because \
+    decryption hashes whatever associated-data word a query carries; without it, D = {[]}. A \
+    general encoded associated-data space, with collision resistance only on G³ × D, needs \
+    decryption to reject associated data outside D and is open (#5293). One deviation concerns \
+    the hash: key generation draws the hash key and publishes it in the public key, where the \
+    exercise's H' is fixed with the group. The premises 0 < m n ≤ q(d n) with 1/m n negligible \
+    add no assumption: DDH implies that 1/q(d n) is negligible (DDH.cdh and \
+    CDH.negligible_inv_order), so m n = q(d n) meets them. The scheme's own fair-coin programs \
+    (cramerShoupKeyGenProb and the encryption programs) draw the seven key exponents and the \
+    encryption exponent with sampleExp, each within statistical distance 1/2^n of uniform on \
+    Z_q; decryption is deterministic polynomial time and checks the framing and the group \
+    membership of v, w and e. A challenge pair is admissible when both words encode group \
+    elements (cramerShoupValid); an inadmissible pair makes both experiments output false. \
+    Notions, all against uniform strict oracle-PPT adversaries reading 1^n: \
+    indcca2ADOn_cramerShoup_bitStringAD is 1CCA security with associated data in {0,1}* \
+    (Definition 12.7, pp. 501–502, one challenge), the exercise's statement in the one-challenge \
+    form that Theorem 12.1 lifts to many challenges (p. 502); indcca2On_cramerShoup is the 1CCA \
+    form without associated data (Definition 12.2, p. 468, ad = []); \
+    indcca2InterleavedOn_cramerShoup is CCA security with adaptively interleaved challenge and \
+    decryption queries (Attack Game 12.1 and Definition 12.1, pp. 467–468), without associated \
+    data; indcca2MultiOn_cramerShoup is its restriction to one batch of challenges. A decryption \
+    query on a challenge ciphertext (with its associated data) is answered as a rejection, \
+    where the source forbids it. The proof follows Theorem 12.9 for the hybrid scheme E_CS of \
+    Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
