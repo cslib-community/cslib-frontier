@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDetourPlacement
 import CslibFrontierTests.RotationReferenceStar
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Tactic.NormNum
 
 /-!
@@ -103,8 +104,9 @@ theorem frozen_reversed_local_cut : ∃ I : FixedRotationInput, Valid I ∧
     intro heq
     have hnot := frozen_open_disjoint (edge 2) (edge 3) (by decide +kernel) he2 he3 hz.1
     apply hnot
-    rw [heq, Route.support_line]
-    exact openSegment_subset_segment ℝ _ _ hz'.1
+    rw [heq]
+    exact (Route.support_line (D.route (edge 3)).start (D.route (edge 3)).finish).symm ▸
+      openSegment_subset_segment ℝ _ _ hz'.1
   have hdec : (D.route (edge 2)).finish.re < (D.route (edge 2)).start.re := by
     change ((referenceOrder input).idxOf 0 : ℝ) < ((referenceOrder input).idxOf 4 : ℝ)
     exact_mod_cast (show (referenceOrder input).idxOf 0 < (referenceOrder input).idxOf 4
@@ -116,7 +118,7 @@ theorem frozen_reversed_local_cut : ∃ I : FixedRotationInput, Valid I ∧
   obtain ⟨_, radius, hrad, _, hav⟩ := exists_reference_crossing_neighborhoods valid_input
   have hnot0 := frozen_open_disjoint (edge 2) (edge 0) (by decide +kernel) he2 he0 hz.1
   let ρ := radius z
-  obtain ⟨r, ε, hr, hε, d, α, β, hcuts, hkeep, hpair, hcontact, _⟩ :=
+  obtain ⟨r, hr, d, α, β, hcuts, hkeep, hpair, hcontact, _⟩ :=
     exists_reference_detour_placement valid_input hzc (hrad z hzc)
   let X := {e : E // z ∈ (D.route e).support}
   let S : X → ℝ := fun e => (D.route e.val).start.re + (D.route e.val).finish.re
@@ -127,9 +129,16 @@ theorem frozen_reversed_local_cut : ∃ I : FixedRotationInput, Valid I ∧
   let P : X → Route := fun e =>
     (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
       then (R e).reverse else R e).translate z
-  let ef : X := ⟨edge 2, by rw [Route.support_line]; exact openSegment_subset_segment ℝ _ _ hz.1⟩
-  let ff : X := ⟨edge 7, by rw [Route.support_line]; exact openSegment_subset_segment ℝ _ _ hz.2⟩
-  have hef : ef ≠ ff := by intro h; have := congrArg Subtype.val h; exact (by decide) this
+  let ef : X := ⟨edge 2,
+    (Route.support_line (D.route (edge 2)).start (D.route (edge 2)).finish).symm ▸
+      openSegment_subset_segment ℝ _ _ hz.1⟩
+  let ff : X := ⟨edge 7,
+    (Route.support_line (D.route (edge 7)).start (D.route (edge 7)).finish).symm ▸
+      openSegment_subset_segment ℝ _ _ hz.2⟩
+  have hef : ef ≠ ff := by
+    intro h
+    have hval : edge 2 = edge 7 := congrArg Subtype.val h
+    exact (by decide +kernel : edge 2 ≠ edge 7) hval
   obtain ⟨hαe, hαβe, hβe, _, _, hse, hbe⟩ := hcuts ef
   obtain ⟨_, _, _, _, _, hsf, hbf⟩ := hcuts ff
   obtain ⟨_, hline⟩ := hkeep ef he2

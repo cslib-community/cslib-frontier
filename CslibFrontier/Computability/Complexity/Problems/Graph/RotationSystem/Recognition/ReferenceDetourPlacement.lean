@@ -50,7 +50,10 @@ private def placed (p : Route) (flip : Bool) (z : ℂ) : Route :=
   (if flip then p.reverse else p).translate z
 
 private def contactIndex (p : Route) (flip : Bool) (z : ℂ) :
-    Fin (placed p flip z).segments := if flip then (0 : Fin p.segments).rev else 0
+    Fin (placed p flip z).segments := by
+  cases flip
+  · exact 0
+  · exact (0 : Fin p.segments).rev
 
 private def contactTime (flip : Bool) (t : ℝ) : ℝ := if flip then 1 - t else t
 
@@ -92,10 +95,12 @@ private theorem placed_vector (p : Route) (flip : Bool) (z : ℂ) :
     sub_self] at h0 h1 ⊢
   · rw [h1, h0]
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
-      add_sub_add_left_eq_sub, Route.germ, Bool.false_eq_true, ↓reduceIte, Route.start]
+      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
+      Bool.false_eq_true, ↓reduceIte, Route.start]
   · rw [h0, h1]
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
-      add_sub_add_left_eq_sub, Route.germ, Bool.false_eq_true, ↓reduceIte, Route.start,
+      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
+      Bool.false_eq_true, ↓reduceIte, Route.start,
       neg_sub]
 
 private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
@@ -124,10 +129,10 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
   obtain ⟨l, hl, hleq⟩ := hleft
   obtain ⟨u, hu, hueq⟩ := hright
   have hxl : (1 - l) * a + l * b = z.re - r := by
-    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint] using
+    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint, sub_eq_add_neg] using
       congrArg Complex.re hleq
   have hxu : (1 - u) * a + u * b = z.re + r := by
-    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint] using
+    simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint, sub_eq_add_neg] using
       congrArg Complex.re hueq
   rcases lt_or_gt_of_ne hab with hab' | hba
   · have hlu : l < u := by
@@ -135,15 +140,15 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
       have hmul : 0 ≤ (l - u) * (b - a) :=
         mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hab'.le)
       nlinarith only [hmul, hxl, hxu, hr]
-    exact ⟨l, u, hl.1, hlu, hu.2, by simpa only [if_neg (not_lt.mpr hab'.le)] using hleq,
-      by simpa only [if_neg (not_lt.mpr hab'.le)] using hueq⟩
+    exact ⟨l, u, hl.1, hlu, hu.2, by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hleq,
+      by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hueq⟩
   · have hul : u < l := by
       by_contra h
       have hmul : 0 ≤ (u - l) * (a - b) :=
         mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hba.le)
       nlinarith only [hmul, hxl, hxu, hr]
-    exact ⟨u, l, hu.1, hul, hl.2, by simpa only [if_pos hba] using hueq,
-      by simpa only [if_pos hba] using hleq⟩
+    exact ⟨u, l, hu.1, hul, hl.2, by simpa only [ite_eq_left hba] using hueq,
+      by simpa only [ite_eq_left hba] using hleq⟩
 
 private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
     (hm : ∀ i, 0 < m i) {ρ : ℝ} (hρ : 0 < ρ) :
@@ -198,7 +203,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
       simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
     let X := {e : E // z ∈ (D.route e).support}
     let s : X → ℝ := fun e => (D.route e.val).start.re + (D.route e.val).finish.re
-    ∃ r ε : ℝ, 0 < r ∧ 0 < ε ∧ ∃ d α β : X → ℝ,
+    ∃ r : ℝ, 0 < r ∧ ∃ d α β : X → ℝ,
       let R : X → Route := fun e => if F e.val then
         Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩ else Route.slopeDetour r (s e) (d e)
       let P : X → Route := fun e =>
@@ -226,6 +231,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
     simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
   let X := {e : E // z ∈ (D.route e).support}
+  let : DecidableEq X := fun e f => Classical.propDecidable (e = f)
   let a : E → ℝ := fun e => (D.route e).start.re
   let b : E → ℝ := fun e => (D.route e).finish.re
   have hshape (e : E) : D.route e = Route.line (parabolaPoint (a e)) (parabolaPoint (b e)) := rfl
@@ -282,7 +288,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         exact congrArg some (hF h.choose e h.choose_spec he)
     · constructor
       · intro he
-        exact (Option.noConfusion he)
+        exact he.elim
       · intro he
         exact (h ⟨e, he⟩).elim
   let m : X → ℝ := fun e => min (z.re - min (a e.val) (b e.val))
@@ -297,10 +303,16 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   choose α β hα hαβ hβ hcutA hcutB using hcut
   obtain ⟨d, hsep⟩ := exists_slopeDetour_separation s hs hr hε fixed
   dsimp only at hsep
-  simp only [hfixed] at hsep
+  simp_rw [hfixed] at hsep
   obtain ⟨hends, hkeep, hpair, hcontact, hdet, hno3⟩ := hsep
   let R : X → Route := fun e => if F e.val then
     Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩ else Route.slopeDetour r (s e) (d e)
+  have hraw (e : X) :
+      (if fixed = some e then Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩
+        else Route.slopeDetour r (s e) (d e)) = R e := by
+    simp only [hfixed]
+    rfl
+  have hraw_eval (e : X) (t : ℝ) := congrArg (fun q : Route => q.eval 0 t) (hraw e)
   let flip : X → Bool := fun e => decide (b e.val < a e.val)
   let P : X → Route := fun e => placed (R e) (flip e) z
   have hEndR (e : X) (tag : Bool) : (R e).endpoint tag =
@@ -312,7 +324,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
       (P e).endpoint tag = z + (R e).endpoint (if flip e then !tag else tag) := by
     change ((if flip e then (R e).reverse else R e).translate z).endpoint tag = _
     rw [Route.endpoint_translate]
-    cases hf : flip e <;> simp only [hf, Bool.false_eq_true, ↓reduceIte, Route.endpoint_reverse]
+    cases flip e <;> simp only [Bool.false_eq_true, ↓reduceIte, Route.endpoint_reverse]
   have hpoint (e : X) (tag : Bool) : (P e).endpoint tag =
       AffineMap.lineMap (D.route e.val).start (D.route e.val).finish
         (if tag then β e else α e) := by
@@ -345,7 +357,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         _ ≤ |v.im - s e * v.re| + |s e * v.re| := abs_add_le _ _
         _ ≤ |v.im - s e * v.re| + |s e| * r := by
           rw [abs_mul]
-          exact add_le_add_left (mul_le_mul_of_nonneg_left hxab (abs_nonneg _)) _
+          exact add_le_add_right (mul_le_mul_of_nonneg_left hxab (abs_nonneg _)) _
     apply Metric.mem_ball.mpr
     rw [dist_eq_norm, add_sub_cancel_left]
     have hn := Complex.norm_le_abs_re_add_abs_im v
@@ -362,7 +374,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
       cases flip e <;> simp only [Bool.false_eq_true, ↓reduceIte, Route.reverse_line,
         Route.translate_line, Route.start_line, Route.finish_line]
     exact ⟨hd, by rw [hline, hpointA e, hpointB e]⟩
-  refine ⟨r, ε, hr, hε, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
+  refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
   · intro e
     exact ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
@@ -387,14 +399,25 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     · cases flip e <;> dsimp [contactTime] <;> constructor <;> linarith [ht.1, ht.2]
     · cases flip f <;> dsimp [contactTime] <;> constructor <;> linarith [ht'.1, ht'.2]
     · exact (placed_contact_eval (R e) (flip e) z t).trans
-        ((congrArg (fun x => z + x) hete).trans hu)
+        ((congrArg (fun x => z + x) ((hraw_eval e t).symm.trans hete)).trans hu)
     · exact (placed_contact_eval (R f) (flip f) z t').trans
-        ((congrArg (fun x => z + x) hetf).trans hu)
-    · dsimp only
-      rw [placed_vector, placed_vector]
+        ((congrArg (fun x => z + x) ((hraw_eval f t').symm.trans hetf)).trans hu)
+    · let ve := (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).succ -
+        (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).castSucc
+      let vf := (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).succ -
+        (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).castSucc
+      change ve.re * vf.im - ve.im * vf.re ≠ 0
+      have hve : ve = if flip e then -(R e).germ false else (R e).germ false :=
+        placed_vector (R e) (flip e) z
+      have hvf : vf = if flip f then -(R f).germ false else (R f).germ false :=
+        placed_vector (R f) (flip f) z
+      rw [hve, hvf]
       have hd := hdet e f hef
+      change ((R e).germ false).re * ((R f).germ false).im -
+        ((R e).germ false).im * ((R f).germ false).re ≠ 0 at hd
       cases flip e <;> cases flip f <;>
-        simp only [Bool.false_eq_true, ↓reduceIte, Complex.neg_re, Complex.neg_im] <;> nlinarith
+        simp only [Bool.false_eq_true, ↓reduceIte, Complex.neg_re, Complex.neg_im] <;>
+        intro hzero <;> apply hd <;> nlinarith only [hzero]
   · intro e f g hef heg hfg w hwe hwf hwg
     obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
     obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf

@@ -54,6 +54,7 @@ theorem translate_line (a b z : ℂ) :
   unfold translate line
   congr 1
   funext i
+  change z + (if i = 0 then a else b) = if i = 0 then z + a else z + b
   split <;> rfl
 
 /-- Translation carries the entire continuous support to its translated image. -/
