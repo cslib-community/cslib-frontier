@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 
 /-! # Two watched literals
 
@@ -28,9 +28,10 @@ decision, and survives extending the trail (`Supported.cons`) and backjumping
 (`WatchStore.Inv.not_falsifies`).
 
 `WatchStore.visit` is the step of visiting one watcher on the watch list of a falsified literal,
-with its specification `WatchStore.visit_spec`. `WatchStore.build` builds a store on a trail,
-watching literals that are not false, so that it satisfies the invariant with every literal of the
-trail processed as long as no clause is false (`WatchStore.build_inv`).
+with its specification `WatchStore.visit_spec`; it reads the values of literals from an assignment
+indexed by variable (`Assign`) agreeing with the trail. `WatchStore.build` builds a store on a
+trail, watching literals that are not false, so that it satisfies the invariant with every literal
+of the trail processed as long as no clause is false (`WatchStore.build_inv`).
 -/
 
 public section
@@ -224,23 +225,24 @@ inductive Visit
   /-- The clause no longer watches `u`. -/
   | drop
 
-/-- **Visiting a watcher** when its watched literal `u` has become false on the trail `M`: it is
-skipped if its blocker is true; otherwise its clause is read. -/
-@[expose] def WatchStore.visit (S : WatchStore) (M : Trail) (u : Literal ℕ) (w : Watcher) : Visit :=
-  if (Trail.lits M).contains w.blocker then .skip
+/-- **Visiting a watcher** when its watched literal `u` has become false under the assignment `A`:
+it is skipped if its blocker is true; otherwise its clause is read. -/
+@[expose]
+def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watcher) : Visit :=
+  if A.holds w.blocker then .skip
   else
     match S.clauses[w.clause]? with
     | some (id, w₁ :: w₂ :: rest) =>
       if w₁ = u ∨ w₂ = u then
         let other := if w₁ = u then w₂ else w₁
-        if (Trail.lits M).contains other then .keep other
+        if A.holds other then .keep other
         else
-          match rest.find? (fun x => !(Trail.lits M).contains x.negate) with
+          match rest.find? (fun x => !A.holds x.negate) with
           | some x =>
             .move ⟨S.clauses.setIfInBounds w.clause (id, other :: x :: u :: rest.erase x),
               addWatch S.watches (watchIndex x) ⟨w.clause, other⟩⟩
           | none =>
-            if (Trail.lits M).contains other.negate then .conflict id else .unit other id
+            if A.holds other.negate then .conflict id else .unit other id
       else .drop
     | _ => .drop
 
@@ -270,10 +272,11 @@ skipped if its blocker is true; otherwise its clause is read. -/
   | .drop => ∀ (hk : w.clause < S.clauses.size) (w₁ w₂ : Literal ℕ) (rest : Clause ℕ),
       S.clauses[w.clause].2 = w₁ :: w₂ :: rest → w₁ ≠ u ∧ w₂ ≠ u
 
-/-- **The visit meets its specification.** -/
-theorem WatchStore.visit_spec (S : WatchStore) (M : Trail) (u : Literal ℕ) (w : Watcher) :
-    VisitSpec S M u w (S.visit M u w) := by
+/-- **The visit meets its specification**, under an assignment agreeing with the trail. -/
+theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
+    (u : Literal ℕ) (w : Watcher) : VisitSpec S M u w (S.visit A u w) := by
   unfold visit
+  simp only [hA.holds_iff, ← List.contains_iff_mem]
   by_cases hb : (Trail.lits M).contains w.blocker = true
   · simp only [hb, ↓reduceIte, VisitSpec]
     simpa using hb
@@ -291,10 +294,11 @@ theorem WatchStore.visit_spec (S : WatchStore) (M : Trail) (u : Literal ℕ) (w 
         · rename_i x hx
           have hxmem := List.mem_of_find?_eq_some hx
           have hxval := List.find?_some hx
-          exact ⟨hk', id, w₁, w₂, x, rest, hget, hu, hxmem, by simpa using hxval, rfl⟩
+          exact ⟨hk', id, w₁, w₂, x, rest, hget, hu, hxmem,
+            fun h => by simp [(hA.holds_iff _).2 h] at hxval, rfl⟩
         · rename_i hnone
           have hall : ∀ x ∈ rest, x.negate ∈ Trail.lits M := fun x hx => by
-            simpa using List.find?_eq_none.1 hnone x hx
+            simpa [hA.holds_iff] using List.find?_eq_none.1 hnone x hx
           by_cases hfalse : (Trail.lits M).contains
               (Std.Sat.Literal.negate (if w₁ = u then w₂ else w₁)) = true
           · simp only [hfalse, ↓reduceIte]
@@ -423,56 +427,61 @@ theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
   ⟨by simp, by simp, by simp, fun e he => by simp at he, fun k hk => by simp at hk,
     fun i x hx => by simp [watchList] at hx, by simp⟩
 
-/-- A clause with its literals that are not false on the trail `M` first, so that they are the
-ones watched. -/
-@[expose] def watchOrder (M : Trail) (c : Clause ℕ) : Clause ℕ :=
-  c.filter (fun l => !(Trail.lits M).contains l.negate) ++
-    c.filter (fun l => !!(Trail.lits M).contains l.negate)
+/-- A clause with its literals that are not false under the assignment `A` first, so that they are
+the ones watched. -/
+@[expose] def watchOrder (A : Assign) (c : Clause ℕ) : Clause ℕ :=
+  c.filter (fun l => !A.holds l.negate) ++ c.filter (fun l => A.holds l.negate)
 
-theorem watchOrder_perm (M : Trail) (c : Clause ℕ) : (watchOrder M c).Perm c :=
-  List.filter_append_perm _ _
+theorem watchOrder_perm (A : Assign) (c : Clause ℕ) : (watchOrder A c).Perm c := by
+  have := List.filter_append_perm (fun l => !A.holds l.negate) c
+  simpa [watchOrder] using this
 
-/-- If the first literal of `watchOrder M c` is false, every literal of `c` is. -/
-theorem falsifies_of_watchOrder {M : Trail} {c rest : Clause ℕ} {w : Literal ℕ}
-    (h : watchOrder M c = w :: rest) (hw : w.negate ∈ Trail.lits M) : Trail.Falsifies M c := by
+/-- If the first literal of `watchOrder A c` is false, every literal of `c` is. -/
+theorem falsifies_of_watchOrder {A : Assign} {M : Trail} (hA : A.Agrees M) {c rest : Clause ℕ}
+    {w : Literal ℕ} (h : watchOrder A c = w :: rest) (hw : w.negate ∈ Trail.lits M) :
+    Trail.Falsifies M c := by
   intro l hl
   by_contra hne
-  have hmem : l ∈ c.filter (fun l => !(Trail.lits M).contains l.negate) :=
-    List.mem_filter.2 ⟨hl, by simpa using hne⟩
+  have hmem : l ∈ c.filter (fun l => !A.holds l.negate) :=
+    List.mem_filter.2 ⟨hl, by
+      rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.holds_iff]; exact hne⟩
   obtain ⟨x, xs, hx⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
   rw [watchOrder, hx, List.cons_append, List.cons.injEq] at h
   obtain ⟨rfl, -⟩ := h
   have := (List.mem_filter.1 (hx ▸ List.mem_cons_self : x ∈ _)).2
-  simp_all
+  rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.holds_iff] at this
+  exact this hw
 
-/-- **The watch store** of the numbered clauses `F` on the trail `M`: every clause with at least
-two different literals, without repetitions, watching its first two literals once those that are
-not false on `M` are put first. It adds the clauses with
+/-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
+least two different literals, without repetitions, watching its first two literals once those that
+are not false under `A` are put first. It adds the clauses with
 `Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
 unchanged for fewer than two literals. -/
-@[expose] def WatchStore.build (M : Trail) : List (ℕ × Clause ℕ) → WatchStore
+@[expose] def WatchStore.build (A : Assign) : List (ℕ × Clause ℕ) → WatchStore
   | [] => ⟨#[], #[]⟩
-  | e :: F => (build M F).addClause e.1 (watchOrder M e.2.dedup)
+  | e :: F => (build A F).addClause e.1 (watchOrder A e.2.dedup)
 
-/-- The watch store built from `F` on the trail `M`, none of whose clauses `M` falsifies, satisfies
-the invariant with every literal of `M` processed: a clause whose **first** watched literal is
-false has every literal false. (Its second watched literal may be false while the clause is still
-open, as in a binary clause with one false and one unassigned literal.) -/
-theorem WatchStore.build_inv (M : Trail) : ∀ F : List (ℕ × Clause ℕ),
-    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) → (WatchStore.build M F).Inv F M []
+/-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
+clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
+**first** watched literal is false has every literal false. (Its second watched literal may be
+false while the clause is still open, as in a binary clause with one false and one unassigned
+literal.) -/
+theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
+    ∀ F : List (ℕ × Clause ℕ),
+    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) → (WatchStore.build A F).Inv F M []
   | [], _ => WatchStore.inv_empty M []
   | e :: F, hF => by
-    have ih := build_inv M F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
-    have hperm := watchOrder_perm M e.2.dedup
+    have ih := build_inv hA F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
+    have hperm := watchOrder_perm A e.2.dedup
     simp only [build]
-    match hc : watchOrder M e.2.dedup with
+    match hc : watchOrder A e.2.dedup with
     | w₁ :: w₂ :: rest =>
       rw [hc] at hperm
       have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
       refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
         (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
       exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hc hp.1 l (List.mem_dedup.2 hl)
+        falsifies_of_watchOrder hA hc hp.1 l (List.mem_dedup.2 hl)
     | [] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])

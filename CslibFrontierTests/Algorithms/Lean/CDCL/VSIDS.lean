@@ -27,28 +27,31 @@ namespace CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS
 open Cslib.Algorithms.Lean.CDCL
 
 /-- Fresh activities: the first unassigned variable. -/
-example : (Activity.init 4).pick [] [0, 1, 2, 3] = some 0 := by decide
+example : (Activity.init 4).pick ⟨#[]⟩ [0, 1, 2, 3] = some 0 := by decide
 
 /-- A bumped variable is picked first. -/
-example : ((Activity.init 4).bump [2]).pick [] [0, 1, 2, 3] = some 2 := by decide
+example : ((Activity.init 4).bump [2]).pick ⟨#[]⟩ [0, 1, 2, 3] = some 2 := by decide
 
 /-- A variable met twice in one analysis is bumped once. -/
 example : ((Activity.init 4).bump [2, 2]).get 2 = ((Activity.init 4).bump [2]).get 2 := by decide
 
 /-- Decay: a later bump outweighs an earlier one. -/
-example : (((Activity.init 4).bump [1]).bump [3]).pick [] [0, 1, 2, 3] = some 3 := by decide
+example : (((Activity.init 4).bump [1]).bump [3]).pick ⟨#[]⟩ [0, 1, 2, 3] = some 3 := by decide
 
 /-- Two bumps outweigh one later bump. -/
-example : ((((Activity.init 4).bump [1]).bump [1]).bump [3]).pick [] [0, 1, 2, 3] = some 1 := by
+example :
+    ((((Activity.init 4).bump [1]).bump [1]).bump [3]).pick ⟨#[]⟩ [0, 1, 2, 3] = some 1 := by
   decide
 
 /-- An assigned variable is not picked, however active. -/
-example : ((Activity.init 4).bump [2]).pick [⟨(2, false), true⟩] [0, 1, 2, 3] = some 0 := by
+example :
+    ((Activity.init 4).bump [2]).pick (Assign.ofTrail [⟨(2, false), true⟩]) [0, 1, 2, 3] =
+      some 0 := by
   decide
 
 /-- Every variable assigned: no decision. -/
-example : ((Activity.init 2).bump [1]).pick [⟨(0, true), true⟩, ⟨(1, true), false⟩] [0, 1] =
-    none := by
+example : ((Activity.init 2).bump [1]).pick
+    (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true), false⟩]) [0, 1] = none := by
   decide
 
 /-- Past the limit, activities and the increment are scaled down by `2 ^ 100`. -/
@@ -70,29 +73,31 @@ private abbrev order : VarOrder :=
   VarOrder.insertVars Batteries.BinaryHeap.emptyF act [0, 1, 2, 3]
 
 /-- Popping gives the most active variable. -/
-example : (VarOrder.pop act [] 10 order).1 = some 1 := by decide +kernel
+example : (VarOrder.pop act ⟨#[]⟩ 10 order).1 = some 1 := by decide +kernel
 
 /-- An assigned variable is skipped. -/
-example : (VarOrder.pop act [⟨(1, true), true⟩] 10 order).1 = some 2 := by decide +kernel
+example : (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) 10 order).1 = some 2 := by
+  decide +kernel
 
 /-- A fresh entry has priority: variable `3`, inserted at activity `0`, now has activity `9` and
 is inserted again, and its fresh entry comes out first. (Its stale entry, at `0`, stays below; for
 an unassigned variable a stale entry is never on top of a covering heap, so this does not exercise
 discarding one.) -/
-example : (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ [] 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
-    some 3 := by
+example :
+    (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ ⟨#[]⟩ 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
+      some 3 := by
   decide +kernel
 
 /-- An entry keyed above the variable's activity, as after a rescaling, is put back with the
 current activity: variable `1`, at `5` in the order, now has activity `2`, below variable `2`.
 Popping `2` leaves three entries, that of `1` among them. -/
-example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ [] 10 order).1 = some 2 ∧
-    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ [] 10 order).2.size = 3 := by
+example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ 10 order).1 = some 2 ∧
+    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ 10 order).2.size = 3 := by
   decide +kernel
 
 /-- Every variable assigned: nothing to pop. -/
-example : (VarOrder.pop act [⟨(0, true), true⟩, ⟨(1, true), true⟩, ⟨(2, true), true⟩,
-    ⟨(3, true), true⟩] 10 order).1 = none := by
+example : (VarOrder.pop act (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true), true⟩,
+    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) 10 order).1 = none := by
   decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS

@@ -26,7 +26,9 @@ queued when it is assigned; processing it visits the watchers of its negation: a
 blocker is true is skipped without reading its clause, and otherwise the clause finds another
 watch, is satisfied by its other watch, becomes unit, or is false.
 
-The state `WExec` extends `Exec` with the watch store, the queue, and the clauses with fewer than
+The state `WExec` extends `Exec` with the value of each variable on the trail in an array indexed by
+variable (`Assign`, MiniSat's `assigns`), read by the visits of watchers and the choice of decision
+variable instead of scanning the trail, the watch store, the queue, and the clauses with fewer than
 two different literals, which cannot be watched and are scanned when the queue is empty. Its
 invariant `WExec.Inv` adds to `Exec.Inv`:
 
@@ -34,7 +36,9 @@ invariant `WExec.Inv` adds to `Exec.Inv`:
   stored, and a stored clause with both watches falsified by *processed* literals (literals of the
   trail not on the queue) has a literal that is true and stays true after any backjump keeping
   both watches false;
-* the queue is on the trail, without repetitions, and above the newest decision.
+* the queue is on the trail, without repetitions, and above the newest decision;
+* the array of values agrees with the trail (`Assign.Agrees`): Backjump unassigns the variables
+  undone, and Restart recomputes it from the root of the trail.
 
 The last condition makes the invariant survive Backjump without decision levels: the literals
 removed are exactly those above the newest decision, so every processed literal kept was processed
@@ -222,13 +226,15 @@ def Reduction.learn (R : Reduction) (used : List ℕ) (id next : ℕ) (stored : 
     ⟨act, learnts, R.max + R.max / 10, adjust, adjust⟩
   else ⟨act, learnts, R.max, R.adjust, R.countdown - 1⟩
 
-/-- The state of the solver with watched literals: the state `Exec`, the watch store, the queue
-of trail literals whose watch lists are still to be visited, the clauses with fewer than two
-different literals, the variable activities and order, the saved phases, the reduction of the
-learned clauses, the options and the statistics. -/
+/-- The state of the solver with watched literals: the state `Exec`, the value of each variable on
+the trail, the watch store, the queue of trail literals whose watch lists are still to be visited,
+the clauses with fewer than two different literals, the variable activities and order, the saved
+phases, the reduction of the learned clauses, the options and the statistics. -/
 structure WExec (φ : CNF ℕ) where
   /-- The trail, database and log. -/
   exec : Exec φ
+  /-- The value of each variable on the trail. -/
+  assign : Assign
   /-- The watch store. -/
   store : WatchStore
   /-- The literals still to be processed. -/
@@ -263,7 +269,8 @@ theorem WExec.OrderInv.extend {S S' : WExec φ} (h : S.OrderInv) (horder : S'.or
 
 /-- **The invariant of the solver with watched literals**: the invariant `Exec.Inv`, the
 invariant of the watch store, the short clauses, and a queue of distinct trail literals above the
-newest decision, and with VSIDS the invariant of the variable order. -/
+newest decision, with VSIDS the invariant of the variable order, and the array of values agreeing
+with the trail. -/
 structure WExec.Inv (S : WExec φ) : Prop where
   exec : S.exec.Inv
   store : S.store.Inv S.exec.db S.M S.queue
@@ -273,6 +280,7 @@ structure WExec.Inv (S : WExec φ) : Prop where
   queue_trail : ∀ x ∈ S.queue, x ∈ Trail.lits S.M
   queue_above : ∀ x ∈ S.queue, ∀ N d M₀, S.M = N ++ ⟨d, true⟩ :: M₀ → x ∉ Trail.lits M₀
   order : S.opts.vsids = true → S.OrderInv
+  assign : S.assign.Agrees S.M
 
 /-- The number of slots for arrays indexed by the variables of `φ`: one more than the largest
 variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
@@ -280,7 +288,8 @@ variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
-  ⟨Exec.init φ, WatchStore.build [] φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
+  ⟨Exec.init φ, ⟨#[]⟩, WatchStore.build ⟨#[]⟩ φ.lratDB, [],
+    φ.lratDB.filter fun e => e.2.dedup.length < 2,
     Activity.init (varSlots φ),
     if o.vsids then
       VarOrder.insertVars Batteries.BinaryHeap.emptyF (Activity.init (varSlots φ))
@@ -290,7 +299,7 @@ variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 
 theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv where
   exec := Exec.init_inv φ
-  store := WatchStore.build_inv [] φ.lratDB fun e _ hlen hf => by
+  store := WatchStore.build_inv Assign.agrees_nil φ.lratDB fun e _ hlen hf => by
     obtain ⟨l, hl⟩ := List.exists_mem_of_length_pos (by omega : 0 < e.2.dedup.length)
     simpa [Trail.lits] using hf l (List.mem_dedup.1 hl)
   short_mem e he := (List.mem_filter.1 he).1
@@ -298,6 +307,7 @@ theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv wher
   queue_nodup := List.nodup_nil
   queue_trail _ h := absurd h List.not_mem_nil
   queue_above _ h := absurd h List.not_mem_nil
+  assign := Assign.agrees_nil
   order hv := by
     change VarOrder.Inv (if o.vsids then _ else _) _ _ _
     have hv' : o.vsids = true := hv
@@ -365,6 +375,7 @@ structure WExec.ProcInv (S : WExec φ) (t : Literal ℕ) (L : List Watcher) : Pr
   queue_above : ∀ x ∈ S.queue, ∀ N d M₀, S.M = N ++ ⟨d, true⟩ :: M₀ → x ∉ Trail.lits M₀
   t_mem : t ∈ S.queue
   order : S.opts.vsids = true → S.OrderInv
+  assign : S.assign.Agrees S.M
 
 /-- Starting to process `t`: its negation's watch list is emptied and becomes the list to visit. -/
 @[expose] def WExec.start (S : WExec φ) (t : Literal ℕ) : WExec φ :=
@@ -401,6 +412,7 @@ theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t
   queue_above := h.queue_above
   t_mem := ht
   order := h.order
+  assign := h.assign
 
 /-- Finishing the processing of `t`: removing it from the queue. -/
 @[expose]
@@ -436,7 +448,7 @@ theorem WExec.finish_inv {S : WExec φ} {t : Literal ℕ} (h : S.ProcInv t []) :
   refine ⟨⟨h.exec, ⟨h.sound, h.nodup, h.long, h.covers, fun k hk w hw => ?_, h.blocker_mem, ?_⟩,
     h.short_mem, h.short_covers, h.queue_nodup.erase t,
     fun x hx => h.queue_trail x (List.mem_of_mem_erase hx),
-    fun x hx => h.queue_above x (List.mem_of_mem_erase hx), h.order⟩, ?_⟩
+    fun x hx => h.queue_above x (List.mem_of_mem_erase hx), h.order, h.assign⟩, ?_⟩
   · rcases h.listed k hk w hw with hl | ⟨-, hL⟩
     · exact hl
     · simp at hL
@@ -482,7 +494,7 @@ theorem WExec.ProcInv.putBack {S : WExec φ} {t : Literal ℕ} {w : Watcher} {L 
   refine ⟨h.exec, h.sound, h.nodup, h.long, h.covers, fun k' hk' w' hw' => ?_, fun i y hy => ?_,
     fun y hy => h.pending y (List.mem_cons_of_mem _ hy), fun k' hk'' hk' => ?_, h.covered,
     h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above, h.t_mem,
-    h.order⟩
+    h.order, h.assign⟩
   · simp only [WExec.putBack, watchList_addWatch]
     rcases h.listed k' hk' w' hw' with hl | ⟨rfl, hL⟩
     · split
@@ -534,7 +546,7 @@ theorem WExec.ProcInv.drop {S : WExec φ} {t : Literal ℕ} {w : Watcher} {L : L
   refine ⟨h.exec, h.sound, h.nodup, h.long, h.covers, fun k' hk' w' hw' => ?_, h.blocker_mem,
     fun y hy => h.pending y (List.mem_cons_of_mem _ hy), h.visited, h.covered, h.short_mem,
     h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above, h.t_mem,
-    h.order⟩
+    h.order, h.assign⟩
   rcases h.listed k' hk' w' hw' with hl | ⟨rfl, hL⟩
   · exact .inl hl
   · rcases List.mem_cons.1 hL with hkw | hL
@@ -622,7 +634,7 @@ theorem WExec.ProcInv.move {S : WExec φ} {t : Literal ℕ} {w : Watcher} {L : L
     fun y ⟨hy, hb⟩ => ⟨by rw [hsize]; exact hy, hlits _ hy _ hb⟩
   refine ⟨h.exec, ?_, ?_, ?_, ?_, ?_, fun i y hy => ?_, fun y hy => ?_, ?_, ?_, h.short_mem,
     h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above, h.t_mem,
-    h.order⟩
+    h.order, h.assign⟩
   · intro e he
     rcases hmem e he with rfl | he
     · obtain ⟨c, hcdb, hceq⟩ := h.sound _ (Array.getElem_mem hk)
@@ -710,7 +722,7 @@ theorem not_mem_vars_of_undef {M : Trail} {l : Literal ℕ} (h₁ : l ∉ Trail.
 numbered `id` as its reason, and queued. -/
 @[expose] def WExec.propagateUnit (S : WExec φ) (l : Literal ℕ) (id : ℕ) : WExec φ :=
   { S with
-    exec := S.exec.propagate (id, []) l, queue := l :: S.queue }
+    exec := S.exec.propagate (id, []) l, assign := S.assign.assign l, queue := l :: S.queue }
 
 /-- **A unit clause**: its other watched literal is propagated and queued, and its watcher goes
 back on the watch list with that literal as blocker. -/
@@ -756,7 +768,8 @@ theorem WExec.ProcInv.unit {S : WExec φ} {t l : Literal ℕ} {id : ℕ} {w : Wa
     refine ⟨hspec.1, h.sound, h.nodup, h.long, h.covers, h.listed, h.blocker_mem, h.pending,
       fun k' hk' hk'' => ?_, fun e he v₁ v₂ rest' hc' h₁ h₂ => ?_, h.short_mem, h.short_covers,
       ?_, ?_, ?_, List.mem_cons_of_mem _ h.t_mem,
-      fun hv => (h.order hv).extend rfl rfl fun v hv => List.mem_cons_of_mem _ hv⟩
+      fun hv => (h.order hv).extend rfl rfl fun v hv => List.mem_cons_of_mem _ hv,
+      by rw [hM]; exact h.assign.cons (not_mem_vars_of_undef hl hln) false⟩
     · obtain ⟨b, hb, hbM⟩ := h.visited k' hk' hk''
       exact ⟨b, hb, by rw [hlits]; exact List.mem_cons_of_mem _ hbM⟩
     · obtain ⟨b, hb, hs⟩ := h.covered e he v₁ v₂ rest' hc' (hproc _ h₁) (hproc _ h₂)
@@ -801,7 +814,7 @@ theorem WExec.ProcInv.restore_inv {S : WExec φ} {t : Literal ℕ} {L : List Wat
     (h : S.ProcInv t L) : (S.restore t L).Inv ∧ (S.restore t L).measure = S.measure := by
   refine ⟨⟨h.exec, ⟨h.sound, h.nodup, h.long, h.covers, fun k' hk' w hw => ?_, fun i y hy => ?_,
     h.covered⟩, h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above,
-    h.order⟩, rfl⟩
+    h.order, h.assign⟩, rfl⟩
   · simp only [WExec.restore, watchList_setWatch]
     rcases h.listed k' hk' w hw with hl | ⟨rfl, hL⟩
     · split
@@ -864,26 +877,27 @@ def WExec.processList (t : Literal ℕ) : (L : List Watcher) → (S : WExec φ) 
     ProcResult φ S t
   | [], S, h => .done S h le_rfl
   | w :: L, S, h =>
-    match hv : S.store.visit S.M t.negate w with
+    match hv : S.store.visit S.assign t.negate w with
     | .skip =>
-      have hs : VisitSpec S.store S.M t.negate w .skip := hv ▸ S.store.visit_spec S.M t.negate w
+      have hs : VisitSpec S.store S.M t.negate w .skip :=
+        hv ▸ S.store.visit_spec h.assign t.negate w
       (WExec.processList t L _ (h.skip hs)).weaken (S₀ := S) (by exact le_rfl)
     | .keep b =>
       have hs : VisitSpec S.store S.M t.negate w (.keep b) :=
-        hv ▸ S.store.visit_spec S.M t.negate w
+        hv ▸ S.store.visit_spec h.assign t.negate w
       (WExec.processList t L _ (h.keep hs)).weaken (S₀ := S) (by exact le_rfl)
     | .move S' =>
       have hs : VisitSpec S.store S.M t.negate w (.move S') :=
-        hv ▸ S.store.visit_spec S.M t.negate w
+        hv ▸ S.store.visit_spec h.assign t.negate w
       (WExec.processList t L _ (h.move hs)).weaken (S₀ := S) (by exact le_rfl)
     | .unit l id =>
       have hs : VisitSpec S.store S.M t.negate w (.unit l id) :=
-        hv ▸ S.store.visit_spec S.M t.negate w
+        hv ▸ S.store.visit_spec h.assign t.negate w
       have hu := h.unit hs
       (WExec.processList t L _ hu.1).weaken hu.2.le
     | .conflict id =>
       have hs : VisitSpec S.store S.M t.negate w (.conflict id) :=
-        hv ▸ S.store.visit_spec S.M t.negate w
+        hv ▸ S.store.visit_spec h.assign t.negate w
       match hc : S.exec.log.clause? id with
       | some c =>
         have hcc := h.conflict_clause hs
@@ -893,7 +907,8 @@ def WExec.processList (t : Literal ℕ) : (L : List Watcher) → (S : WExec φ) 
           (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hc; cases hc; exact hf) hr.2.le
       | none => absurd hc (by obtain ⟨c', -, hlog, -⟩ := h.conflict_clause hs; simp [hlog])
     | .drop =>
-      have hs : VisitSpec S.store S.M t.negate w .drop := hv ▸ S.store.visit_spec S.M t.negate w
+      have hs : VisitSpec S.store S.M t.negate w .drop :=
+        hv ▸ S.store.visit_spec h.assign t.negate w
       (WExec.processList t L S (h.drop hs)).weaken le_rfl
 
 /-! ### Moves at the top level -/
@@ -928,6 +943,11 @@ are saved, if phase saving is on. -/
   if S.opts.phaseSaving then S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])
   else S.phase
 
+/-- The assignment after backjumping below the newest decision of `sp` and asserting `l`: the
+variables undone are unassigned, then `l` is assigned. -/
+@[expose] def WExec.backjumped (S : WExec φ) (sp : Split) (l : Literal ℕ) : Assign :=
+  (S.assign.unassign (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))).assign l
+
 /-- One more conflict. -/
 @[expose] def Stats.conflict (s : Stats) : Stats := { s with conflicts := s.conflicts + 1 }
 
@@ -949,10 +969,12 @@ literals before minimization. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
     WExec φ :=
   if 2 ≤ L.clause.dedup.length then
-    ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
+    ⟨S.exec.afterConflict sp L, S.backjumped sp L.lit,
+      S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
       S.short, S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup sp, S.saved sp,
       S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
-  else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
+  else ⟨S.exec.afterConflict sp L, S.backjumped sp L.lit, S.store, [L.lit],
+    (L.id, L.clause) :: S.short,
     S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup sp, S.saved sp,
     S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
 
@@ -1033,6 +1055,18 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
         obtain ⟨k, hk, hmem⟩ := hS'.covers v hv hvM'
         exact ⟨k, (Activity.get_bump_le fun h => hvs.1 (List.mem_dedup.2 h)).trans hk,
           VarOrder.mem_insertVars.2 (.inl hmem)⟩
+  -- the assignment undoes the literals above the decision, then asserts the learned literal
+  have hassign : (S.backjumped sp L.lit).Agrees (⟨L.lit, false⟩ :: XTrail.trail sp.below) := by
+    have hA := hS.assign
+    have hnd := hS.exec.run.nodup
+    rw [WExec.M, hsplit, show XTrail.trail sp.above ++ ⟨sp.decision, true⟩ ::
+      XTrail.trail sp.below = (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) ++
+        XTrail.trail sp.below by simp] at hA
+    change (Trail.vars (XTrail.trail S.exec.trail)).Nodup at hnd
+    rw [hsplit, show XTrail.trail sp.above ++ ⟨sp.decision, true⟩ ::
+      XTrail.trail sp.below = (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) ++
+        XTrail.trail sp.below by simp] at hnd
+    exact (hA.drop hnd).cons (List.nodup_cons.1 hnodup').1 false
   have hmeasure : rank φ.vars (S.exec.afterConflict sp L).state * (nvars φ + 2) + 1 <
       S.measure := by
     have := hspec.2
@@ -1052,7 +1086,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       rw [← hc, hperm.mem_iff, List.mem_dedup]
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
-      fun hv => horder hv _ rfl rfl rfl⟩, ?_⟩
+      fun hv => horder hv _ rfl rfl rfl, hassign⟩, ?_⟩
     · have := hstore.addClause (id := L.id) (C := L.clause) hnd hmem hlitneg
       rw [← hc] at this
       exact this
@@ -1065,7 +1099,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   · rename_i hlen
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
-      fun hv => horder hv _ rfl rfl rfl⟩, ?_⟩
+      fun hv => horder hv _ rfl rfl rfl, hassign⟩, ?_⟩
     · exact hstore.consShort (L.id, L.clause) (by simp only; omega)
     · rw [hdb']
       rcases List.mem_cons.1 he' with rfl | he'
@@ -1081,14 +1115,15 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
 theorem WExec.Inv.push {S S' : WExec φ} (hS : S.Inv) (hq : S.queue = []) {l : Literal ℕ}
     {b : Bool} (hexec : S'.exec.Inv) (hM : S'.M = ⟨l, b⟩ :: S.M) (hq' : S'.queue = [l])
     (hdb : S'.exec.db = S.exec.db) (hstore : S'.store = S.store) (hshort : S'.short = S.short)
-    (hundef : l.1 ∉ Trail.vars S.M) (horder : S'.opts.vsids = true → S'.OrderInv) : S'.Inv := by
+    (hundef : l.1 ∉ Trail.vars S.M) (horder : S'.opts.vsids = true → S'.OrderInv)
+    (hassign : S'.assign = S.assign.assign l) : S'.Inv := by
   have hl : l ∉ Trail.lits S.M := fun h => hundef (Trail.mem_vars_of_mem_lits h)
   have hproc : ∀ x, Processed S'.M S'.queue x → Processed S.M S.queue x := by
     intro x ⟨hx, hxq⟩
     rw [hM] at hx
     rw [hq'] at hxq
     exact ⟨(List.mem_cons.1 hx).resolve_left (by simpa using hxq), by simp [hq]⟩
-  refine ⟨hexec, ?_, ?_, ?_, ?_, ?_, ?_, horder⟩
+  refine ⟨hexec, ?_, ?_, ?_, ?_, ?_, ?_, horder, hassign ▸ hM ▸ hS.assign.cons hundef b⟩
   · rw [hstore, hdb]
     exact hS.store.weaken hproc fun _ _ _ _ _ hs => hM ▸ hs.cons _
   · rw [hshort, hdb]; exact hS.short_mem
@@ -1116,7 +1151,7 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 /-- **UnitPropagate from a short clause**, at an empty queue. -/
 @[expose] def WExec.propagateShort (S : WExec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : WExec φ :=
   { S with
-    exec := S.exec.propagate e l, queue := [l] }
+    exec := S.exec.propagate e l, assign := S.assign.assign l, queue := [l] }
 
 /-- The polarity of a decision on `x`: its saved phase, or `false` without phase saving. -/
 @[expose] def WExec.polarity (S : WExec φ) (x : ℕ) : Bool := S.opts.phaseSaving && S.phase.get x
@@ -1127,15 +1162,16 @@ unassigned variables of the database are scanned for one of greatest activity. W
 the first unassigned variable of the database. -/
 @[expose] def WExec.pickVar (S : WExec φ) : Option ℕ × VarOrder :=
   if S.opts.vsids then
-    match VarOrder.pop S.act S.M (S.order.size + 1) S.order with
+    match VarOrder.pop S.act S.assign (S.order.size + 1) S.order with
     | (some x, H) => (some x, H)
-    | (none, H) => (S.act.pick S.M S.exec.clauses.vars, H)
-  else ((Activity.init 0).pick S.M S.exec.clauses.vars, S.order)
+    | (none, H) => (S.act.pick S.assign S.exec.clauses.vars, H)
+  else ((Activity.init 0).pick S.assign S.exec.clauses.vars, S.order)
 
 /-- **Decide** the variable `x`, at an empty queue, with the variable order `H`. -/
 @[expose] def WExec.decide (S : WExec φ) (x : ℕ) (H : VarOrder) : WExec φ :=
   { S with
-    exec := S.exec.decide x (S.polarity x), queue := [(x, S.polarity x)], order := H
+    exec := S.exec.decide x (S.polarity x), assign := S.assign.assign (x, S.polarity x)
+    queue := [(x, S.polarity x)], order := H
     stats := S.stats.decision }
 
 /-- The variables of `φ` are variables of the database. -/
@@ -1157,27 +1193,28 @@ theorem WExec.Inv.pickVar_some {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOrd
   unfold WExec.pickVar at h
   split at h
   · rename_i hv
-    obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec (S.order.size + 1) S.order (hS.order hv).wf
-      (hS.order hv).vars (hS.order hv).covers
-    generalize VarOrder.pop S.act S.M (S.order.size + 1) S.order = r at h hpop
+    obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order
+      (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers
+    generalize VarOrder.pop S.act S.assign (S.order.size + 1) S.order = r at h hpop
     obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_some (congrArg Prod.fst h)
+    · exact Activity.pick_some hS.assign (congrArg Prod.fst h)
     · simp only [Prod.mk.injEq, Option.some.injEq] at h
       obtain ⟨rfl, -⟩ := h
       obtain ⟨hyV, hyM, -⟩ := hpop y rfl
       exact ⟨hS.exec.mem_clauses_vars hyV, hyM⟩
-  · exact Activity.pick_some (congrArg Prod.fst h)
+  · exact Activity.pick_some hS.assign (congrArg Prod.fst h)
 
 /-- Without a decision variable, every variable of the database is assigned. -/
-theorem WExec.Inv.pickVar_none {S : WExec φ} {H : VarOrder} (h : S.pickVar = (none, H)) :
+theorem WExec.Inv.pickVar_none {S : WExec φ} (hS : S.Inv) {H : VarOrder}
+    (h : S.pickVar = (none, H)) :
     ∀ x ∈ S.exec.clauses.vars, x ∈ Trail.vars S.M := by
   unfold WExec.pickVar at h
   split at h
-  · generalize VarOrder.pop S.act S.M (S.order.size + 1) S.order = r at h
+  · generalize VarOrder.pop S.act S.assign (S.order.size + 1) S.order = r at h
     obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_none (congrArg Prod.fst h)
+    · exact Activity.pick_none hS.assign (congrArg Prod.fst h)
     · simp at h
-  · exact Activity.pick_none (congrArg Prod.fst h)
+  · exact Activity.pick_none hS.assign (congrArg Prod.fst h)
 
 /-- **With VSIDS, the decision variable has the greatest activity** among the unassigned variables
 of the database. -/
@@ -1186,11 +1223,11 @@ theorem WExec.Inv.pickVar_max {S : WExec φ} (hS : S.Inv) (hv : S.opts.vsids = t
     ∀ y ∈ S.exec.clauses.vars, y ∉ Trail.vars S.M → S.act.get y ≤ S.act.get x := by
   unfold WExec.pickVar at h
   simp only [hv, ↓reduceIte] at h
-  obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec (S.order.size + 1) S.order (hS.order hv).wf
-    (hS.order hv).vars (hS.order hv).covers
-  generalize VarOrder.pop S.act S.M (S.order.size + 1) S.order = r at h hpop
+  obtain ⟨-, -, hpop, -⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order
+    (hS.order hv).wf (hS.order hv).vars (hS.order hv).covers
+  generalize VarOrder.pop S.act S.assign (S.order.size + 1) S.order = r at h hpop
   obtain ⟨_ | y, H'⟩ := r
-  · exact fun z hz hzM => Activity.pick_max (congrArg Prod.fst h) hz hzM
+  · exact fun z hz hzM => Activity.pick_max hS.assign (congrArg Prod.fst h) hz hzM
   · simp only [Prod.mk.injEq, Option.some.injEq] at h
     obtain ⟨rfl, -⟩ := h
     exact fun z hz hzM => (hpop _ rfl).2.2 z (hS.exec.mem_vars_of_clauses hz) hzM
@@ -1201,14 +1238,14 @@ theorem WExec.Inv.pickVar_order {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOr
     (S.decide x H).OrderInv := by
   change S.opts.vsids = true at hv
   have hS' := hS.order hv
-  obtain ⟨hwf, hV, -, hcov⟩ := VarOrder.pop_spec (S.order.size + 1) S.order hS'.wf hS'.vars
-    hS'.covers
+  obtain ⟨hwf, hV, -, hcov⟩ := VarOrder.pop_spec hS.assign (S.order.size + 1) S.order hS'.wf
+    hS'.vars hS'.covers
   have hM : ∀ v, v ∉ Trail.vars (S.decide x H).M → v ∉ Trail.vars S.M ∧ v ≠ x := fun v hv' =>
     ⟨fun h' => hv' (List.mem_cons_of_mem _ h'), fun h' => hv' (h' ▸ List.mem_cons_self)⟩
   change VarOrder.Inv H S.act φ.vars (S.decide x H).M
   unfold WExec.pickVar at h
   simp only [hv, ↓reduceIte] at h
-  generalize VarOrder.pop S.act S.M (S.order.size + 1) S.order = r at h hwf hV hcov
+  generalize VarOrder.pop S.act S.assign (S.order.size + 1) S.order = r at h hwf hV hcov
   obtain ⟨_ | y, H'⟩ := r
   · simp only [Prod.mk.injEq] at h
     obtain ⟨-, rfl⟩ := h
@@ -1234,6 +1271,7 @@ assigned, so only the saved phases of the undone ones are read later. -/
 @[expose] def WExec.restart (S : WExec φ) : WExec φ :=
   { S with
     exec := S.exec.restart
+    assign := Assign.ofTrail (XTrail.trail (XTrail.root S.exec.trail))
     order := if S.opts.vsids then S.order.insertVars S.act (Trail.vars S.M) else S.order
     phase := if S.opts.phaseSaving then S.phase.save S.M else S.phase
     stats := { S.stats with restarts := S.stats.restarts + 1 } }
@@ -1250,7 +1288,8 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     fun x ⟨hx, _⟩ => ⟨by rw [hM, lits_append]; exact List.mem_append_right _ hx, by simp [hq]⟩
   refine ⟨Exec.restart_inv hS.exec, hS.store.weaken hproc fun b w₁ w₂ h₁ h₂ hs => ?_,
     hS.short_mem, hS.short_covers, by simp [WExec.restart, hq], by simp [WExec.restart, hq],
-    by simp [WExec.restart, hq], fun hv => ?_⟩
+    by simp [WExec.restart, hq], fun hv => ?_,
+    Assign.agrees_ofTrail _ (Exec.restart_inv hS.exec).run.nodup⟩
   swap
   · change S.opts.vsids = true at hv
     have hS' := hS.order hv
@@ -1325,7 +1364,7 @@ trail. -/
 @[expose] def WExec.forgetChosen (S : WExec φ) (ids : List ℕ) : WExec φ :=
   { S with
     exec := S.exec.forget ids
-    store := WatchStore.build S.M (S.exec.forget ids).db
+    store := WatchStore.build S.assign (S.exec.forget ids).db
     red := { S.red with learnts := S.red.learnts - ids.length }
     stats := { S.stats with removed := S.stats.removed + ids.length } }
 
@@ -1365,11 +1404,12 @@ theorem WExec.Inv.reduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
       obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
       exact List.mem_map.2 ⟨e, hdb e he, rfl⟩
     refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => hS.short_covers e (hdb e he) hlen,
-      hS.queue_nodup, hS.queue_trail, hS.queue_above, hS.order⟩,
+      hS.queue_nodup, hS.queue_trail, hS.queue_above, hS.order, hS.assign⟩,
       fun c hc => hnoconf c (hsub c hc), rfl⟩
-    · change (WatchStore.build S.M (S.exec.forget S.reduceIds).db).Inv _ S.M S.queue
+    · change (WatchStore.build S.assign (S.exec.forget S.reduceIds).db).Inv _ S.M S.queue
       rw [hq]
-      exact WatchStore.build_inv S.M _ fun e he _ => hnoconf e.2 (List.mem_map.2 ⟨e, hdb e he, rfl⟩)
+      exact WatchStore.build_inv hS.assign _ fun e he _ =>
+        hnoconf e.2 (List.mem_map.2 ⟨e, hdb e he, rfl⟩)
     · refine List.mem_filter.2 ⟨hS.short_mem e he, ?_⟩
       have : ¬ e.1 ∈ S.reduceIds := fun hi => (WExec.mem_reduceIds hi).2.2 e he rfl
       simpa using this
@@ -1464,8 +1504,8 @@ database, or returns the trail as a model. -/
           have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hu
           have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
           loop φ limit fuel (S.propagateShort e l)
-            (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef fun hv =>
-              (hS.order hv).extend rfl rfl fun v hv => List.mem_cons_of_mem _ hv)
+            (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef (fun hv =>
+              (hS.order hv).extend rfl rfl fun v hv => List.mem_cons_of_mem _ hv) rfl)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
           have ⟨hS₁, hq₁, hnoconf₁, hm₁⟩ := hS.maybeReduce hq hnoconf
@@ -1478,11 +1518,11 @@ database, or returns the trail as a model. -/
             have ⟨hxV, hundef⟩ := hS₁.pickVar_some hx
             have hspec := Exec.decide_spec hS₁.exec hnoconf₁ hxV hundef (S₁.polarity x)
             loop φ limit fuel (S₁.decide x H)
-              (hS₁.push hq₁ hspec.1 rfl rfl rfl rfl rfl hundef (hS₁.pickVar_order hx))
+              (hS₁.push hq₁ hspec.1 rfl rfl rfl rfl rfl hundef (hS₁.pickVar_order hx) rfl)
               (by have := WExec.measure_push_lt (S' := S₁.decide x H) hq₁ rfl hspec.2; omega)
           | (none, _) =>
             .done (.sat (Trail.assignment S₁.M)
-              (hS₁.exec.run.eval_model hnoconf₁ (WExec.Inv.pickVar_none hx)), S₁.stats)
+              (hS₁.exec.run.eval_model hnoconf₁ (hS₁.pickVar_none hx)), S₁.stats)
 
 /-- **Search with restarts**: runs of the loop, each restarting after its budget of conflicts, at
 most `k` of them; the last run does not restart. -/

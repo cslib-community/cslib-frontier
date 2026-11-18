@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 public import CslibFrontier.Algorithms.Lean.CDCL.Heap
 public import Mathlib.Data.List.MinMax
 
@@ -117,32 +117,38 @@ def Activity.bump (A : Activity) (vs : List ℕ) (decay : ℕ := 19) : Activity 
 def Activity.grow (A : Activity) (n : ℕ) : Activity :=
   if A.score.size < n then ⟨A.score ++ Array.replicate (n - A.score.size) 0, A.inc⟩ else A
 
-/-- **The decision variable**: an unassigned variable of `vs` of greatest activity, the first one
-among ties. -/
-def Activity.pick (A : Activity) (M : Trail) (vs : List ℕ) : Option ℕ :=
-  (vs.filter fun x => !(Trail.vars M).contains x).argmax A.get
+/-- **The decision variable**: a variable of `vs` unassigned in `asg`, of greatest activity, the
+first one among ties. -/
+def Activity.pick (A : Activity) (asg : Assign) (vs : List ℕ) : Option ℕ :=
+  (vs.filter fun x => !asg.assigned x).argmax A.get
 
-theorem Activity.pick_some {A : Activity} {M : Trail} {vs : List ℕ} {x : ℕ}
-    (h : A.pick M vs = some x) : x ∈ vs ∧ x ∉ Trail.vars M := by
-  have hm : x ∈ (vs.filter fun x => !(Trail.vars M).contains x).argmax A.get := by
-    change x ∈ A.pick M vs; rw [h]; rfl
+variable {asg : Assign} {M : Trail}
+
+theorem Activity.pick_some {A : Activity} (hasg : asg.Agrees M) {vs : List ℕ} {x : ℕ}
+    (h : A.pick asg vs = some x) : x ∈ vs ∧ x ∉ Trail.vars M := by
+  have hm : x ∈ (vs.filter fun x => !asg.assigned x).argmax A.get := by
+    change x ∈ A.pick asg vs; rw [h]; rfl
   have := List.mem_filter.1 (List.argmax_mem hm)
-  exact ⟨this.1, by simpa using this.2⟩
+  refine ⟨this.1, fun hx => ?_⟩
+  have := this.2
+  rw [(hasg.assigned_iff x).2 hx] at this
+  exact absurd this (by decide)
 
-theorem Activity.pick_none {A : Activity} {M : Trail} {vs : List ℕ}
-    (h : A.pick M vs = none) : ∀ x ∈ vs, x ∈ Trail.vars M := by
+theorem Activity.pick_none {A : Activity} (hasg : asg.Agrees M) {vs : List ℕ}
+    (h : A.pick asg vs = none) : ∀ x ∈ vs, x ∈ Trail.vars M := by
   intro x hx
   have := List.argmax_eq_none.1 h
   by_contra hxM
-  have : x ∈ vs.filter fun x => !(Trail.vars M).contains x := List.mem_filter.2 ⟨hx, by simpa⟩
+  have : x ∈ vs.filter fun x => !asg.assigned x :=
+    List.mem_filter.2 ⟨hx, by simp [hasg.not_assigned hxM]⟩
   simp_all
 
 /-- **The chosen variable has the greatest activity** among the unassigned variables of `vs`. -/
-theorem Activity.pick_max {A : Activity} {M : Trail} {vs : List ℕ} {x : ℕ}
-    (h : A.pick M vs = some x) {y : ℕ} (hy : y ∈ vs) (hyM : y ∉ Trail.vars M) :
+theorem Activity.pick_max {A : Activity} (hasg : asg.Agrees M) {vs : List ℕ} {x : ℕ}
+    (h : A.pick asg vs = some x) {y : ℕ} (hy : y ∈ vs) (hyM : y ∉ Trail.vars M) :
     A.get y ≤ A.get x :=
-  List.le_of_mem_argmax (List.mem_filter.2 ⟨hy, by simpa using hyM⟩)
-    (show x ∈ A.pick M vs by rw [h]; rfl)
+  List.le_of_mem_argmax (List.mem_filter.2 ⟨hy, by simp [hasg.not_assigned hyM]⟩)
+    (show x ∈ A.pick asg vs by rw [h]; rfl)
 
 /-- Bumping another variable does not raise the activity of `u`. -/
 theorem Activity.get_bumpVar_le {A : Activity} {u v : ℕ} (huv : u ≠ v) :
@@ -256,7 +262,7 @@ unassigned variable with its current activity. An entry of an assigned variable,
 the variable's activity, is dropped; an entry keyed above it, left by a rescaling of the
 activities, is inserted again with the current activity. `none` if the order runs out, or the
 fuel does. -/
-def VarOrder.pop (A : Activity) (M : Trail) : (fuel : ℕ) → VarOrder → Option ℕ × VarOrder
+def VarOrder.pop (A : Activity) (asg : Assign) : (fuel : ℕ) → VarOrder → Option ℕ × VarOrder
   | 0, H => (none, H)
   | fuel + 1, H =>
     match H.maxF with
@@ -265,21 +271,21 @@ def VarOrder.pop (A : Activity) (M : Trail) : (fuel : ℕ) → VarOrder → Opti
       let v := e.var
       let k := e.activity
       let H' := H.popMaxF
-      if (Trail.vars M).contains v then VarOrder.pop A M fuel H'
+      if asg.assigned v then VarOrder.pop A asg fuel H'
       else if A.get v = k then (some v, H')
-      else if A.get v < k then VarOrder.pop A M fuel (H'.insertF (OrderKey.mk (A.get v) v))
-      else VarOrder.pop A M fuel H'
+      else if A.get v < k then VarOrder.pop A asg fuel (H'.insertF (OrderKey.mk (A.get v) v))
+      else VarOrder.pop A asg fuel H'
 
 /-- **What popping finds**: the order stays well formed over the variables `V`; a variable found
 is in `V`, unassigned, and of greatest activity among the unassigned variables of `V`; and every
 other unassigned variable of `V` stays covered. -/
-theorem VarOrder.pop_spec {A : Activity} {M : Trail} {V : List ℕ} :
+theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} (hasg : asg.Agrees M) :
     ∀ (fuel : ℕ) (H : VarOrder), H.WF → (∀ e ∈ H, e.var ∈ V) → H.Covers A V M →
-    (VarOrder.pop A M fuel H).2.WF ∧ (∀ e ∈ (VarOrder.pop A M fuel H).2, e.var ∈ V) ∧
-    (∀ x, (VarOrder.pop A M fuel H).1 = some x →
+    (VarOrder.pop A asg fuel H).2.WF ∧ (∀ e ∈ (VarOrder.pop A asg fuel H).2, e.var ∈ V) ∧
+    (∀ x, (VarOrder.pop A asg fuel H).1 = some x →
       x ∈ V ∧ x ∉ Trail.vars M ∧ ∀ y ∈ V, y ∉ Trail.vars M → A.get y ≤ A.get x) ∧
-    (∀ v ∈ V, v ∉ Trail.vars M → (VarOrder.pop A M fuel H).1 ≠ some v →
-      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A M fuel H).2)
+    (∀ v ∈ V, v ∉ Trail.vars M → (VarOrder.pop A asg fuel H).1 ≠ some v →
+      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A asg fuel H).2)
   | 0, H, hwf, hV, hcov => ⟨hwf, hV, fun _ h => absurd h (by simp [VarOrder.pop]),
       fun v hv hvM _ => hcov v hv hvM⟩
   | fuel + 1, H, hwf, hV, hcov => by
@@ -310,10 +316,12 @@ theorem VarOrder.pop_spec {A : Activity} {M : Trail} {V : List ℕ} :
         fun v hne k _ h => hne (by rw [← h])
       split
       · rename_i hassigned
-        refine VarOrder.pop_spec fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM fun k _ h => ?_
-        exact hvM (by rw [show v = e.var by rw [← h]]; simpa using hassigned)
+        refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM fun k _ h => ?_
+        exact hvM (by
+          rw [show v = e.var by rw [← h]]; exact (hasg.assigned_iff _).1 hassigned)
       · rename_i hunassigned
-        have hunassigned : e.var ∉ Trail.vars M := by simpa using hunassigned
+        have hunassigned : e.var ∉ Trail.vars M := fun h =>
+          hunassigned ((hasg.assigned_iff _).2 h)
         split
         · rename_i hk
           refine ⟨hwf', hV', fun x hx => ?_, fun v hv hvM hne =>
@@ -328,7 +336,7 @@ theorem VarOrder.pop_spec {A : Activity} {M : Trail} {V : List ℕ} :
             have hwf'' :
                 (H.popMaxF.insertF (OrderKey.mk (A.get e.var) e.var)).WF := by
               rw [Batteries.BinaryHeap.insertF_eq]; exact Batteries.BinaryHeap.insert_wf hwf'
-            refine VarOrder.pop_spec fuel _ hwf'' (fun f hf => ?_) fun v hv hvM => ?_
+            refine VarOrder.pop_spec hasg fuel _ hwf'' (fun f hf => ?_) fun v hv hvM => ?_
             · rw [Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert] at hf
               rcases hf with hf | rfl
               · exact hV' f hf
@@ -340,7 +348,7 @@ theorem VarOrder.pop_spec {A : Activity} {M : Trail} {V : List ℕ} :
               · obtain ⟨k, hk, hmem⟩ := hkeep v hv hvM (hother v hve)
                 exact ⟨k, hk, Batteries.BinaryHeap.mem_insert.2 (.inl hmem)⟩
           · rename_i hne hnlt
-            refine VarOrder.pop_spec fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM ?_
+            refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM ?_
             intro k hk h
             have hv : v = e.var := by rw [← h]
             have hke : k = e.activity := by rw [← h]
