@@ -10,6 +10,7 @@ module
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -163,6 +164,14 @@ private def rawOpeningCheck : Bool := Id.run do
     (H.openFullWitness s pk off).isNone
 
 #guard rawOpeningCheck
+
+-- A fatal expansion ends a request with a terminal write and no successful log entry.
+#guard
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let w : TerminalSigningWrite .mlDSA44 := ⟨⟨[], [true]⟩, fun _ _ => 0, [], fun _ => 0, none⟩
+  !(H.terminalRepresentativeMatch (s := .mlDSA44) [] []) &&
+    H.terminalRepresentativeMatch [] [w]
 
 -- The final commitment read is necessary. Under this legitimate XOF and encoded key the
 -- zero response is accepted, writing a different digest rejects it, and a second write at

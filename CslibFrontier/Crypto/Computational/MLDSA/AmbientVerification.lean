@@ -35,6 +35,14 @@ public section
 
 namespace Cslib.Crypto.MLDSA.FIPS204
 
+/-- Does a terminal signing request hash to the public-key hash on the original SHAKE256
+stream? The search includes requests that returned an expansion error. -/
+def Xofs.terminalRepresentativeMatch (H : Xofs) {s : Level} (pk : List Byte)
+    (writes : List (TerminalSigningWrite s)) : Bool :=
+  let tr := H.h256.readBytes pk 64
+  writes.any fun w =>
+    H.h256.read (representativeInput tr (formatMessage w.request.message w.request.context)) 64 == tr
+
 private theorem TerminalSigningWrite.History.matrix {s : Level} {base G : Xofs} {tr writes}
     (history : History s base tr writes G) (seed : List Byte) :
     G.expandA s seed = base.expandA s seed := by
@@ -129,10 +137,7 @@ theorem publicPairSigning_freshDigest_le (C : QuantumSigningForger) (s : Level) 
     Game.succProbability (run.map fun r => r.trial.newDigestWin) ≤
       Game.succProbability (run.map fun r =>
         ({r.trial with xofs := base} : SignedMatrixTrial s).newDigestWin) +
-      Game.succProbability (run.map fun r => r.writes.any fun w =>
-        let tr := base.h256.readBytes r.trial.publicKey 64
-        let m := formatMessage w.request.message w.request.context
-        base.h256.read (representativeInput tr m) 64 == tr) := by
+      Game.succProbability (run.map fun r => base.terminalRepresentativeMatch r.trial.publicKey r.writes) := by
   intro run
   apply ENNReal.coe_le_coe.mp
   simp only [Game.succProbability, ENNReal.coe_add, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
@@ -164,10 +169,7 @@ theorem freshMask_freshDigest_le_ambient (C : QuantumSigningForger) (s : Level)
       (C.freshMaskSigning s H keys).map (·.any fun r => r.trial.newDigestWin)) ≤
       Game.succProbability (run fun H r =>
         ({r.trial with xofs := H} : SignedMatrixTrial s).newDigestWin) +
-      Game.succProbability (run fun H r => r.writes.any fun w =>
-        let tr := H.h256.readBytes r.trial.publicKey 64
-        let m := formatMessage w.request.message w.request.context
-        H.h256.read (representativeInput tr m) 64 == tr) := by
+      Game.succProbability (run fun H r => H.terminalRepresentativeMatch r.trial.publicKey r.writes) := by
   intro run
   rw [C.freshMask_newDigestGame_eq_publicPair]
   apply ENNReal.coe_le_coe.mp
