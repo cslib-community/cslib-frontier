@@ -151,6 +151,14 @@ private def collidingExpansionRows : Option Bool := do
 
 #guard collidingExpansionRows == some true
 
+-- Once all 221 input bytes have been read, reprogramming the suffix cannot alter
+-- the actual signature challenge, including exhaustion.
+example (H : Xofs) (s : Level) (d : List Byte) (seen : List Bool → ℕ)
+    (table : digestRows s → FixedBytes 221) (h : 221 ≤ seen (Keccak.bytesToBitsLE d)) :
+    (H.withExpansionRows s seen table).sampleInBall s d = H.sampleInBall s d := by
+  apply congrArg (sampleInBallBytes s)
+  exact H.h256.read_fill_of_le seen table h
+
 -- The first reply is actually passed to the continuation. Returning exactly those bytes as
 -- the forgery is rejected, even when they verify, because the genuine reply was logged.
 example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List Byte) :

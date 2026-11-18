@@ -338,7 +338,7 @@ private def expansionRow (s : Level) (d : List Byte) (hd : d.length = digestByte
 
 /-- A 221-byte suffix window after the previous read prefix at each SHAKE256 digest input.
 SHAKE128 and all other SHAKE256 words retain their background streams. -/
-def Xofs.withExpansionRows (H : Xofs) (s : Level) (seen : List Bool → ℕ)
+@[expose] def Xofs.withExpansionRows (H : Xofs) (s : Level) (seen : List Bool → ℕ)
     (table : digestRows s → FixedBytes 221) : Xofs := { H with h256 := H.h256.fill seen table }
 
 private theorem read_off_rows (H : Xofs) {s : Level} (seen : List Bool → ℕ)
