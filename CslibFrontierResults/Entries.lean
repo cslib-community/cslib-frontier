@@ -184,6 +184,7 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
+import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
@@ -193,6 +194,8 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.LubyRackoff
+import CslibFrontier.Crypto.Computational.MAC
+import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
@@ -203,12 +206,15 @@ import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
+import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
@@ -6216,6 +6222,73 @@ register_result "luby-rackoff-prp" where
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
 
+register_result "pedersen-commitment-hiding" where
+  title := "Pedersen commitments are uniformly distributed at every non-identity key"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence)",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_uniform_of_ne_zero
+  ]
+  scope := "The first sentence of Theorem 3.1 says that for any s ∈ Z_q and uniform t ∈ Z_q the \
+    commitment E(s, t) = g^s h^t is uniform on G_q, the order-q subgroup of Z_p^* for primes \
+    q | p − 1 (Section 2, p. 130), where g and h are chosen so that nobody knows log_g h, by a \
+    trusted center or a coin-flipping protocol (p. 131); that condition excludes h = 1, where \
+    E(s, t) = g^s. Here the group is F.Carrier d for any prime-order group family F and \
+    description d, of prime order q = F.order d, written additively with generator \
+    g = F.generator d, so the commitment is m·g + r·h. For every key h ≠ 0, the source's h ≠ 1, \
+    and every message m ∈ ZMod q, the law pedersenCommitLaw d h m of m·g + r·h with r exactly \
+    uniform on ZMod q equals the image of a uniform exponent γ under γ ↦ γ·g, which is a \
+    bijection onto the group, so the commitment is uniform on the group. The statement is at a \
+    fixed group and key, with messages in ZMod q as in the source; it involves no adversary and \
+    makes no efficiency claim. uniform_pedersenCommit is the same statement composed with a \
+    continuation, and pedersenCommitLaw_eq_of_ne_zero and pedersen_perfectlyHidingAt derive the \
+    source's reading that E(s, t) reveals no information about s: any two messages have the \
+    same commitment law. The variant for generated keys and the scheme's fair-coin samplers is \
+    pedersen-commitment-hiding-native."
+
+register_result "pedersen-commitment-hiding-native" where
+  title := "Pedersen commitments are statistically hiding with generated keys and fair-coin \
+    sampling"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence), statistical variant",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
+  ]
+  scope := "A statistical variant of the first sentence of Theorem 3.1, whose exact form is \
+    pedersen-commitment-hiding, for keys and commitments drawn by the scheme's own fair-coin \
+    samplers. Pedersen fixes g and h, chosen so that nobody knows log_g h, by a trusted center \
+    or a coin-flipping protocol (p. 131), draws t exactly uniformly and concludes that E(s, t) \
+    is uniform on G_q, the order-q subgroup of Z_p^* (Section 2, p. 130). Here the group is any \
+    prime-order group family, written additively, so the commitment is m·g + r·h, and the \
+    conclusion is a negligible game advantage, not an equality of distributions. The game \
+    pedersenHidingProbGame draws the group d from an arbitrary setup law, with no efficiency \
+    condition, then the key h = α·g with α from the fair-coin program sampleExp \
+    (pedersenKeyGenProb), and gives the adversary the encoded key (d, h). The adversary chooses \
+    two words and receives the commitment string, without the opening, for the word selected by \
+    the hidden bit, with r drawn by pedersenCommitProb, again by sampleExp; each draw is within \
+    statistical distance 1/2^n of uniform on Z_q. Messages are canonical binary words of \
+    naturals below q, read as elements of Z_q; if either word is not one, both worlds commit to \
+    the first word. This is the hiding experiment of [BonehShoup2023], Section 8.12 (p. 344), \
+    for a scheme with a public key (Section 8.12's schemes have none), played against every \
+    Encryption.WordAdversary with no efficiency bound, as in unconditional hiding (p. 346). The \
+    key h = 0, drawn with probability about 1/q, is the only loss besides 4/2^n of sampling \
+    error: advantage_pedersenHidingProbGame_le bounds the advantage by 1/m + 4/2^n when every \
+    group in the setup's support has order at least m. The theorem therefore asks that every \
+    group in the support at parameter n have order at least m n > 0 with 1/m n negligible, \
+    where Pedersen asks only that q be a large prime; it does not apply to groups of bounded \
+    order, which the exact statement covers. At a fixed key h ≠ 0 the fair-coin bound is 2/2^n \
+    (advantage_pedersenHidingProbForKey_le_of_ne_zero). The samplers in the game are the ones \
+    proved correct (pedersenVerify_of_mem_support_pedersenCommitProb) and strict PPT \
+    (isPPTOn_pedersenCommitProb, isPPTOn_pedersenKeyGenProb). The result is not stated as \
+    CommitmentScheme.StatisticalHiding, whose commitment law takes no security parameter \
+    (#6133)."
+
 register_result "pedersen-commitment-binding" where
   title := "Pedersen commitments are computationally binding under the discrete-logarithm \
     assumption"
@@ -6223,7 +6296,8 @@ register_result "pedersen-commitment-binding" where
   sources := [
     { paper := BonehShoup2023, theorem := "Theorem 10.4 and Fact 10.3",
       locator := "Section 10.6.1, pp. 414–415; binding: Section 8.12, pp. 344 and 346" },
-    { paper := Pedersen1991, theorem := unverified, locator := unverified }
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (second sentence)",
+      locator := "Section 3, p. 131" }
   ]
   theorems := [
     Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb
@@ -6244,8 +6318,12 @@ register_result "pedersen-commitment-binding" where
     certified strict PPT (isPPTOn_pedersenToDLAdversary). The setup law need not be efficiently \
     samplable; the assumption is Boneh–Shoup's when it is. Asymptotic; the per-parameter bound \
     succProbability_pedersenBindingGame_pedersenKeyDistProb_le adds 1/2^n to the \
-    discrete-logarithm success probability. The [Pedersen1991] theorem number and locator were \
-    not checked: no copy is recorded in the manual's sources."
+    discrete-logarithm success probability. The second sentence of [Pedersen1991], \
+    Theorem 3.1, is the extraction identity: if s ≠ s' and E(s, t) = E(s', t'), then \
+    t ≠ t' mod q and log_g h = (s − s')/(t' − t) mod q, which is what pedersenToDLAdversary \
+    computes (extractNat_eq_of_pedersenCommit_eq). Pedersen reads it as binding unless the \
+    committer can find log_g h, for g and h chosen so that nobody knows log_g h (p. 131); the \
+    binding game and the discrete-logarithm assumption are Boneh–Shoup's."
 
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
@@ -6426,6 +6504,166 @@ register_result "cramer-shoup-ddh-cca" where
     query on a challenge ciphertext (with its associated data) is answered as a rejection, \
     where the source forbids it. The proof follows Theorem 12.9 for the hybrid scheme E_CS of \
     Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
+
+register_result "prf-mac-suf-cma" where
+  title := "A secure pseudorandom function is a strongly unforgeable MAC"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 6.2", locator := "Section 6.3, p. 224" }
+  ]
+  theorems := [
+    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC
+  ]
+  scope := "Let F be a PseudorandomFunction: n-bit keys, inputs and outputs, deterministic \
+    polynomial-time evaluation, secure against adaptive uniform oracle-PPT tests, with queries \
+    of another length answered by the empty word (Attack Game 4.2 and Definition 4.2, \
+    pp. 132–133). This is Theorem 6.2's PRF over (K, X, Y) with K = X = Y = {0,1}^n, so \
+    |Y| = 2^n is super-poly. The MAC proved secure is prfMAC, the deterministic MAC derived from \
+    F in Section 6.3 (p. 223): a uniform n-bit key, the tag F(k, m) of an n-bit message, and \
+    verification by recomputing the tag. It is a MACScheme, whose fields certify strict PPT key \
+    generation and tagging, polynomial-time verification and correctness on n-bit messages. The \
+    notion is SUFCMA (Attack Game 6.1 and Definition 6.2, pp. 218–219), against uniform strict \
+    oracle-PPT forgers in the standard model: a forgery wins when it is a valid pair on an n-bit \
+    message that the tagging oracle never returned. Tagging queries may be words of any length, \
+    which prfMAC answers with the empty word unless they have n bits, where the source's \
+    queries lie in the message space; this admits more forgers, so the conclusion implies \
+    Definition 6.2 on n-bit messages. The reduction macToPrfDistinguisher is certified oracle \
+    PPT (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
+    in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
+    1/2^n = 1/|Y|."
+
+register_result "merkle-damgard-collision-resistance" where
+  title := "The Merkle–Damgård hash of a collision-resistant compression function is collision \
+    resistant"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.3", locator := "Section 8.4, p. 297" }
+  ]
+  theorems := [
+    Cslib.Crypto.CompressionFamily.collisionResistant_lengthStrengthenedMD,
+    Cslib.Crypto.CompressionFamily.hashFamily_lengthStrengthenedMD
+  ]
+  scope := "Let h be a CompressionFamily: deterministic polynomial time, mapping 2n-bit inputs \
+    under a uniform n-bit key to n-bit digests, and collision resistant on 2n-bit inputs \
+    against uniform strict PPT finders (Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291, \
+    with the key as the system parameter, as footnote 1 on p. 290 allows). This is \
+    Theorem 8.3's h over (X × Y, X) with X = Y = {0,1}^n, the chaining value and the block read \
+    as one 2n-bit word. lengthStrengthenedMD h is the hash H_MD of Section 8.4 and Figure 8.5 \
+    (pp. 295–297) with IV = 0^n and padding block PB = 1 ‖ 0^k ‖ ⟨s⟩, whose length field ⟨s⟩ \
+    has n/2 bits (the book's is a fixed-length field, typically 64 bits) and counts the blocks \
+    of the padded message, the count the proof on p. 297 uses (p. 296 says the blocks of M). \
+    collisionResistant_lengthStrengthenedMD: H_MD is collision resistant on all bit strings \
+    against uniform strict PPT finders, in place of the source's {0,1}^{≤L} for a poly-bounded \
+    L. A strict PPT finder outputs polynomially long messages, whose block counts fit in the \
+    length field for all large n, so this covers every poly-bounded L at once. \
+    hashFamily_lengthStrengthenedMD adds polynomial-time evaluation and n-bit digests, \
+    packaging H_MD as a HashFamily. The proof's B is lengthStrengthenedWrapper, certified \
+    strict PPT (isPPT_lengthStrengthenedWrapper). Asymptotic; \
+    succProbability_collisionGame_lengthStrengthenedMD_eq, in the same module, is the \
+    theorem's CRadv[A, H_MD] = CRadv[B, h] on any message domain whose padded block counts \
+    are below 2^(n/2). The one-bit-per-block hash merkleDamgard of MerkleDamgard.lean is not \
+    part of this entry."
+
+register_result "xor-tcr-from-second-preimage" where
+  title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
+    collision resistant one"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.12", locator := "Section 8.11.3, p. 338" }
+  ]
+  theorems := [
+    Cslib.Crypto.SecondPreimageResistantOn.targetCollisionResistantOn_xorTargetHash
+  ]
+  scope := "The keyed hash H_tcr(k, m) = H(k ⊕ m) of equation (8.18) (p. 338), as xorTargetHash, \
+    with keys and messages of n bits: the source's M is taken to be {0,1}^n, with ⊕ the bitwise \
+    XOR. H is one unkeyed function on bit strings, without a system parameter, evaluated in \
+    deterministic polynomial time. Hypothesis: SecondPreimageResistantOn H valid for a validity \
+    predicate that admits every n-bit word for all large n. At valid = validFixedLengthInput it \
+    is Definition 8.6 (p. 336) on M = {0,1}^n, with a uniform n-bit challenge and uniform \
+    strict PPT finders, the source's assumption; wider predicates give stronger assumptions. \
+    Conclusion: TargetCollisionResistantOn for xorTargetHash H on n-bit messages (Attack \
+    Game 8.5 and Definition 8.7, pp. 337–338) against uniform strict PPT two-stage adversaries, \
+    which commit to m₀ before a uniform n-bit key is drawn. The proof's B is \
+    xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
+    Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
+    the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "rsa-hash-collision-resistance" where
+  title := "The RSA hash a^e y^b is collision resistant under the RSA assumption"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 10.7",
+      locator := "Section 10.6.2, pp. 416–417" }
+  ]
+  theorems := [
+    Cslib.Crypto.RSAOneWay.collisionResistantForOn_rsaHash
+  ]
+  scope := "Hypotheses: RSAOneWay gen, the RSA assumption (Attack Game 10.3 and Definition 10.5, \
+    pp. 404–405) for a key law gen on RSADesc with a uniform challenge in Z_N, and that the \
+    exponent e is prime for every key in the support of gen n, for all large n. The source \
+    fixes one prime e and draws keys with RSAGen(ℓ, e); here gen is any law, which need not be \
+    efficiently samplable, and the assumption is Boneh–Shoup's when gen is their RSAGen(ℓ, e) \
+    for a prime e. Conclusion: H_rsa(a, b) = a^e y^b mod N (rsaHash, p. 415), keyed by (N, e, y) \
+    with y uniform among the units modulo N (rsaHashSetup), is collision resistant \
+    (CollisionResistantForOn: Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291) on its \
+    domain Z_N^* × I_e against uniform strict PPT finders given 1^n and the key. Messages are \
+    words: validRSAHashInput accepts the canonical encodings of pairs (a, b) with a < N coprime \
+    to N and b < e, so distinct valid words are distinct pairs; digests are natural numbers \
+    below N. The proof's B′ is rsaHashToRSA, certified strict PPT (isPPT_rsaHashToRSA), and \
+    Theorem 10.5 (RSAOneWay.rsaUnitOneWay) passes from the unit-preimage game to the RSA game; \
+    RSAUnitOneWay.collisionResistantForOn_rsaHash, in the same module, states the conclusion \
+    from that variant assumption. Hash evaluation and the domain test are polynomial time \
+    (computableInPolyTime_rsaHash, computableInPolyTime_validRSAHashInput). Asymptotic; \
+    succProbability_collisionGameFor_rsaHash_le_rsaInversionGame, in the same module, is the \
+    bound (10.3), CRadv[A, H_rsa] ≤ RSAadv[B, ℓ, e]."
+
+register_result "blinded-cdh-hard" where
+  title := "The blinded Diffie–Hellman problem of protocol PAKE₂ is hard under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 21.7", locator := "Section 21.11.5, p. 910" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_blindedCDHGame
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under the \
+    CDH assumption F.CDH setup (Attack Game 10.5 and Definition 10.7, pp. 409–410); the setup \
+    law need not be efficiently samplable, and the assumption is Boneh–Shoup's when it is. \
+    Given uniform a, b, u, v in the group, the adversary must output γ ∈ Z_q and \
+    w = [u / a^γ, v / b^γ], written additively as blindedDH. The book names neither the problem \
+    nor the game; blindedCDHGame is the library's name. Adversaries return a typed exponent and \
+    group element, as in the source, and are uniform strict PPT on their encodings \
+    (BlindedCDHAdversary.IsPPT), the convention of CDH. Conclusion: every such adversary wins \
+    blindedCDHGame with negligible probability. The book's reduction blindedCDHToCDHAdversary \
+    is certified strict PPT (isPPT_blindedCDHToCDHAdversary) and draws its two blinding \
+    exponents with the fair-coin sampler sampleExp, each within 1/2^n of uniform, so \
+    advantage_blindedCDHGame_cdhGame_le, in the same module, bounds the gap to the CDH game of \
+    the reduction by 2/2^n. The PAKE₂ protocol and its random-oracle analysis are not \
+    formalized."
+
+register_result "two-point-blinded-cdh-hard" where
+  title := "The two-point blinded Diffie–Hellman problem of protocol PAKE₂ is hard under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 21.8", locator := "Section 21.11.5, p. 911" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_blindedCDHPairGame
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under the \
+    CDH assumption F.CDH setup (Attack Game 10.5 and Definition 10.7, pp. 409–410); the setup \
+    law need not be efficiently samplable, and the assumption is Boneh–Shoup's when it is. \
+    Given uniform a, b, u in the group, the adversary must output γ₁ ≠ γ₂ in Z_q, an element v \
+    and wᵢ = [u / a^γᵢ, v / b^γᵢ] for i = 1, 2, written additively with blindedDH. The book \
+    names neither the problem nor the game; blindedCDHPairGame is the library's name. \
+    Adversaries return typed exponents and group elements, as in the source, and are uniform \
+    strict PPT on their encodings (BlindedCDHPairAdversary.IsPPT), the convention of CDH. \
+    Conclusion: every such adversary wins blindedCDHPairGame with negligible probability. The \
+    book's reduction blindedCDHPairToCDHAdversary is certified strict PPT \
+    (isPPT_blindedCDHPairToCDHAdversary) and draws its blinding exponent with sampleExp, within \
+    1/2^n of uniform, so succProbability_blindedCDHPairGame_le, in the same module, bounds the \
+    success probability by the reduction's CDH success plus 1/2^n. The PAKE₂ protocol and its \
+    random-oracle analysis are not formalized."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
