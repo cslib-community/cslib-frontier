@@ -168,7 +168,7 @@ theorem verify_sign (hlen : ∀ k m, (H k m).length = k.length) (n : ℕ)
   have hvk : (otsKeys.map Prod.fst).getD u [] = (otsKeys.getD u ([], [])).1 := by
     rw [List.getD_eq_getElem _ _ (by simpa using hu'), List.getD_eq_getElem _ _ hu',
       List.getElem_map]
-  have hopen := merkleVerify_merklePath_of_clog_eq (H := H) (k := k) hdepth hu
+  have hopen := merkleVerify_merklePath_of_clog_eq (H := H) (k := k) (hlen k) hdepth hu
   rw [hvk] at hopen
   have hverify := S.verify_sign n _ hkey (H k msg) (by rw [hlen, hk]) ots hots_sig
   simp only [verify, encodeSignature, signatureDecoder.decode_enc]

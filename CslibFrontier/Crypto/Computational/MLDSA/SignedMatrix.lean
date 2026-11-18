@@ -47,7 +47,7 @@ private theorem matrix_of_programmed_keyGen (H : Xofs) (s : Level) (seed : Fixed
     G.keyGen s seed = some keys → G.expandA s (keys.publicKey.take 32) = some A := by
   intro rho G hk
   have seedEq : keys.publicKey.take 32 = rho := publicSeed_of_keyGen (H := G) hk
-  obtain ⟨r, sk, _, hr, hpk, _, _⟩ := privateKey_of_keyGen hk
+  obtain ⟨r, sk, hr, hpk, _, _⟩ := privateKey_of_keyGen hk
   have present : G.expandA s (keys.publicKey.take 32) = some sk.A := by
     rwa [hpk, take_encodePublic]
   rw [seedEq] at present ⊢

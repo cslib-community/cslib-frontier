@@ -45,6 +45,8 @@ the overwritten string and the old part together determine `(a, b)`.
   dependent function along an embedding gives the uniform distribution on the domain.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate`: resampling the value at a
   point chosen from the function itself.
+* `Cslib.Probability.PMF.uniformOfFintype_map_exchange_option`: the joint law after exchanging
+  the output of a partial decoder with an independent uniform input.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_map_fst_equiv`,
   `Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv`: resampling along an equivalence.
 * `Cslib.Probability.PMF.toOuterMeasure_uniformOfFinset`,
@@ -121,6 +123,22 @@ theorem uniformOfFintype_prod_map_snd :
     (uniformOfFintype (α × β)).map Prod.snd = uniformOfFintype β := by
   rw [← uniformOfFintype_map_equiv (Equiv.prodComm β α), PMF.map_comp]
   exact uniformOfFintype_prod_map_fst
+
+/-- Exchange the successful result of a partial decoder with an independent uniform value.
+If a permutation of the full input pair preserves exhaustion and makes a successful input decode
+to the supplied value, the programmed input and the reported result have the original joint law. -/
+theorem uniformOfFintype_map_exchange_option (e : Equiv.Perm (α × β)) (read : α → Option γ)
+    (value : β → γ) (hnone : ∀ {a}, read a = none → ∀ b, read (e (a, b)).1 = none)
+    (hsome : ∀ {a c}, read a = some c → ∀ b, read (e (a, b)).1 = some (value b)) :
+    (uniformOfFintype (α × β)).map (fun (a, b) => ((e (a, b)).1, (read a).map fun _ => value b)) =
+    (uniformOfFintype α).map (fun a => (a, read a)) := by
+  rw [← uniformOfFintype_prod_map_fst (α := α) (β := β), _root_.PMF.map_comp]
+  conv_rhs => rw [← uniformOfFintype_map_equiv e, _root_.PMF.map_comp]
+  congr 1
+  funext ⟨a, b⟩
+  cases h : read a with
+  | none => simp [h, hnone h]
+  | some c => simp [h, hsome h]
 
 /-- Mapping a curried binary function over two independent uniform draws is equivalent to
 mapping the uncurried function over a uniform pair. Iterating this rewrite collapses `n`-ary

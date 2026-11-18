@@ -591,12 +591,18 @@ security under admissibility predicate `valid` implies `Q`-query left-or-right C
   filter simulated prefix and suffix queries.
 - `hencrypt`: `encrypt` must be uniformly strict PPT because `lorToSingle` directly encrypts
   simulated prefix and suffix queries under `pk`.
-- `hctBound` and `hctLen`: every ciphertext of every `msg : Msg`, admissible or not, has length at
-  most `ctBound n`, a polynomial in `n` alone, so that the transcript stays polynomially bounded
-  over `Q n` rounds. On an infinite message type no scheme that decrypts every message satisfies
-  this (there are finitely many ciphertexts of length at most `ctBound n`): as in [BonehShoup2023],
-  Definition 11.3 (pp. 437–438), the message space is length-bounded, and `encrypt` must truncate
-  or reject longer inputs.
+- `hctBound` and `hctLen`: under every key word and for every `msg : Msg`, admissible or not,
+  every ciphertext has length at most `ctBound n`, a polynomial in `n` alone, so that the
+  transcript stays polynomially bounded over `Q n` rounds. This global output-length bound is a
+  convention of this library and is stronger than the source's. [BonehShoup2023], Definition 2.9
+  (p. 30), bounds the lengths of the members of each space, and Definition 11.3(4) (p. 438) asks
+  that encryption land in the ciphertext space only for generated keys and for messages in the
+  message space. A total `encrypt` that copies a long input from outside the source's message
+  space fails `hctLen` without changing any experiment of the source. Every source scheme has a
+  bounded-output extension that agrees with it on the source's domain and truncates or rejects
+  other inputs; that extension satisfies `hctLen`. On an infinite message type no scheme that
+  decrypts every message satisfies `hctLen`, since there are finitely many ciphertexts of length at
+  most `ctBound n`.
 - `hQ`: `Q` must be computable in unary polynomial time so `lorToSingle` can sample the hybrid cut,
   iterate `Q n` steps in strict PPT, and bound `dyadicSize (Q n)` polynomially. -/
 theorem INDCPAOn.lorINDCPAOn {Msg : Type}
