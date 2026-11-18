@@ -211,4 +211,15 @@ example : ({ restartFirst := 0 } : CDCL.Options).restartBudget 0 = 1 ∧
     ({ luby := false, restartFirst := 1, restartInc := 1 } : CDCL.Options).restartBudget 3 = 8 := by
   decide
 
+/-- `p`, `¬p ∨ q`, `q ∨ r`. -/
+private abbrev rootSat : CNF ℕ := [[(0, true)], [(0, false), (1, true)], [(1, true), (2, true)]]
+
+/-- On `rootSat` the first two clauses imply `p` and `q` at the root, and root simplification
+deletes `q ∨ r`, the only clause with `r`: the solver then needs no decision. Keeping the input
+clauses leaves `r` in the database, and it is decided. -/
+example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
+    (CDCL.solveWith {} rootSat).2.decisions = 0 ∧
+    (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
+  decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

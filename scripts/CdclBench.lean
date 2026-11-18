@@ -11,7 +11,8 @@ import CslibFrontier.Logics.Propositional.Pigeonhole
 
 Runs the CDCL solver with its default options, with each heuristic turned off in turn (VSIDS,
 phase saving, restarts, minimization and reduction of the learned clauses), with geometric instead
-of Luby restarts, and with every heuristic off, on pigeonhole formulas, seeded random 3-SAT at the
+of Luby restarts, and with every option off (`none`; the deletion of learned clauses satisfied at
+the root still runs), on pigeonhole formulas, seeded random 3-SAT at the
 threshold ratio 4.26, and the `n`-queens problem. For each run it prints the answer, the conflicts,
 decisions, propagations (literals taken from the propagation queue, as MiniSat counts them) and
 restarts, the literals of the learned clauses, the learned clauses forgotten, the time to solve
@@ -77,7 +78,7 @@ def configs : List (String × Options) :=
     ("no-reduce", { reduce := false }), ("keep-input", { removeSatisfied := false }),
     ("none",
       { vsids := false, phaseSaving := false, restarts := false, ccminMode := .none
-        reduce := false })]
+        reduce := false, removeSatisfied := false })]
 
 /-- Runs every configuration on `φ`, checks the answers, and prints a line for each. -/
 def bench (name : String) (φ : CNF ℕ) : IO Unit := do
