@@ -4908,23 +4908,25 @@ register_result "goemans-williamson-maxdicut" where
     reduction recovering α > 0.87856 on p. 1138. No SDP solver, finite-precision sampler, or \
     derandomization is formalized."
 
-register_result "binary-constraint-operator-solution-perfect" where
-  title := "Cleve–Mittal: finite-dimensional operator solutions give perfect strategies"
+register_result "binary-linear-constraint-operator-solution-perfect" where
+  title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \
+    systems give perfect strategies"
   topic := "quantum complexity"
   sources := [
-    { paper := CleveMittal2014, theorem := unverified,
-      locator := "§2, p. 3 (arXiv:1209.2729v1)" }
+    { paper := CleveMittal2014,
+      theorem := "unnumbered construction of a perfect strategy from an operator solution",
+      locator := "§2, printed p. 3 (arXiv:1209.2729v1)" }
   ]
   theorems := [
     Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy
   ]
-  scope := "Binary linear constraint systems over arbitrary variable and finite equation types, \
+  scope := "Binary linear (parity) constraint systems over finite variable and equation types, \
     with an arbitrary question distribution on pairs of an equation and a variable (the source \
     asks a uniformly random equation and one of its variables). For every operator solution in \
     M_ι(ℂ), ι finite and nonempty, the maximally entangled transpose strategy (X_v ⊗ 1 for \
     Alice, 1 ⊗ X_vᵀ for Bob) wins with probability 1, as a commuting-operator strategy on the \
     matrix algebra of ℂ^ι ⊗ ℂ^ι with the vector state of the maximally entangled state. The \
-    converse direction is separate."
+    source treats general Boolean predicates; the converse (its Theorem 1) is separate."
 
 register_result "quantum-value-adversary" where
   title := "Ambainis: relational quantum adversary bound for non-Boolean input alphabets"

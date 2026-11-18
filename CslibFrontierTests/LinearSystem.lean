@@ -13,9 +13,15 @@ import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 /-! # Linear constraint system games
 
 Checked clients of joint measurements and linear constraint system games: the sign of an
-assignment is the sign of its parity, joint projections of commuting observables sum to `1` and
-vanish on outcomes that contradict the product of the family, and operator solutions win every
-linear constraint system game with certainty in any C⋆-algebra.
+assignment is the sign of its parity, and joint projections of commuting observables sum to `1`
+and vanish on outcomes that contradict the product of the family. Two statements cover perfect
+strategies. In any C⋆-algebra, an operator solution together with a *supplied* Bob that commutes
+with Alice and agrees perfectly in a *supplied* state wins with certainty
+(`commutingWinProb_strategy_of_agreement`; the scalar `evenPair` example supplies the agreement).
+For a finite-dimensional operator solution, the maximally entangled transpose strategy obtains
+Bob, the state and the agreement from the matrices alone and wins with certainty
+(`commutingWinProb_maxEntangledStrategy`), exercised in general and on `evenPair` as `1 × 1`
+matrices.
 -/
 
 set_option linter.privateModule false
