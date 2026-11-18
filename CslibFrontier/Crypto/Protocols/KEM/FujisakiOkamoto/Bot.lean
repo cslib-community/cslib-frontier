@@ -146,7 +146,8 @@ against the lazy random oracles `G` and `H`. -/
 def roBotHandler (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (cStar : CT)
     (q : ROQuery M CT) : StateT (ROCache M R CT K) ProbComp (ROResp R K q) :=
   ROQuery.dispatch (roHashG S.pke.sampleCoins) (roHashH S.sampleKey)
-    (S.decapsBotM (roHashG S.pke.sampleCoins) (roHashH S.sampleKey) pk sk) cStar q
+    (S.decapsBotM (roHashG S.pke.sampleCoins)
+      (fun mc => roHashH S.sampleKey (false, mc)) pk sk) cStar q
 
 /-- The executable ROM IND-CCA security game for `FO^⊥ = U^⊥ ∘ T` with bit `b : Bool`. When
 `b = false`, the adversary receives the real encapsulated key `kReal = H(false, m*, c*)`; when
@@ -173,12 +174,12 @@ noncomputable def indCcaBotAdvantage (S : Scheme PK SK M R CT K)
   Experiment.advantage (A.play S.roIndCcaBotGame false) (A.play S.roIndCcaBotGame true)
 
 /-- Stateless handler for `S.eagerIndCcaBotGame`: `G` and `H` are complete functions and
-decapsulation queries for `c ≠ cStar` evaluate `S.decapsBot G H pk sk c`. -/
+decapsulation queries for `c ≠ cStar` evaluate `S.decapsBot G (fun mc => H (false, mc)) pk sk c`. -/
 noncomputable def eagerBotHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (pk : PK) (sk : SK) (cStar : CT) (q : ROQuery M CT) :
     PMF (ROResp R K q) :=
-  ROQuery.dispatch (PMF.pure ∘ G) (PMF.pure ∘ H) (fun c => PMF.pure (S.decapsBot G H pk sk c))
-    cStar q
+  ROQuery.dispatch (PMF.pure ∘ G) (PMF.pure ∘ H)
+    (fun c => PMF.pure (S.decapsBot G (fun mc => H (false, mc)) pk sk c)) cStar q
 
 /-- The eager random-oracle IND-CCA game for `FO^⊥`, defined directly from `S.pke.keyGen`,
 `S.encapsBot`, and `S.decapsBot` over eager random oracles `G ← S.coinTable` and
@@ -188,7 +189,7 @@ noncomputable def eagerIndCcaBotGame [Fintype M] [Finite R] [Fintype CT] [Finite
   let (pk, sk) ← ProbComp.eval S.pke.keyGen
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   let kStar := if b then kRand else kReal
   OracleComp.interpret (S.eagerBotHandler G H pk sk cStar) (A ⟨pk, cStar, kStar⟩)
@@ -198,7 +199,7 @@ omit [DecidableEq M] in
 def botDecaps (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (c : CT) :
     OracleComp (ROSpec M R CT K) (Option K) :=
   S.decapsBotM (fun m => OracleComp.query (spec := ROSpec M R CT K) (Sum.inl m))
-    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr x)) pk sk c
+    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr (false, x))) pk sk c
 
 /-- `roBotHandler` is the lazy handler of `romProgram` with `FO^⊥` decapsulation. -/
 theorem roBotHandler_eq_romHandler (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (cStar : CT) :
@@ -212,11 +213,12 @@ omit [DecidableEq M] in
 theorem eagerBotHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (pk : PK) (sk : SK) (cStar : CT) :
     S.eagerBotHandler G H pk sk cStar = romEagerHandler G H (S.botDecaps pk sk) cStar := by
-  have hd (c : CT) : PMF.pure (S.decapsBot G H pk sk c) = OracleComp.interpret
-      (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
-      (S.botDecaps pk sk c) := by
+  have hd (c : CT) : PMF.pure (S.decapsBot G (fun mc => H (false, mc)) pk sk c) =
+      OracleComp.interpret
+        (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
+        (S.botDecaps pk sk c) := by
     simp only [botDecaps, interpret_decapsBotM, OracleComp.interpret_query]
-    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ H) pk sk c
+    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) pk sk c
     rw [decapsBotM_pure]
     rfl
   funext q

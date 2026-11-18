@@ -33,8 +33,8 @@ words. It draws its two challenges with the fair-coin sampler `schnorrSampleChal
   `1 / 2 ^ n` of uniform on `ZMod q`.
 
 Combined with a discrete-logarithm assumption, this is the extraction step behind the security of
-Schnorr identification; `CslibFrontier.Crypto.Computational.SchnorrIdentification` proves that
-security with `k`-bit challenges.
+Schnorr identification; `negligible_schnorrDirectProbGame` in
+`CslibFrontier.Crypto.Computational.SchnorrEavesdrop` proves that security with `k`-bit challenges.
 
 ## Main definitions
 
