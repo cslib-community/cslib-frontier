@@ -19,7 +19,6 @@ import Mathlib.Data.List.Sort
 import Mathlib.Order.Interval.Finset.Fin
 import CslibFrontier.Foundations.Data.List.Flatten
 import CslibFrontier.Foundations.Data.BitString.List
-import all Batteries.Data.List.Basic
 
 /-!
 # ML-DSA verification on byte keys and signatures
@@ -94,49 +93,6 @@ def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 → ℕ)
 private def unpackCoeff (bits : List Bool) (width index : ℕ) : ℕ :=
   BitString.lsbValue ((bits.drop (width * index)).take width)
 
-private theorem bitsOfChunks {bits : List Bool} (h : 8 ∣ bits.length) :
-    Keccak.bytesToBitsLE ((bits.toChunks 8).map Keccak.bitsToByteLE) = bits := by
-  let decode (chunks : List (List Bool)) :=
-    Keccak.bytesToBitsLE (chunks.map Keccak.bitsToByteLE)
-  have snoc (chunks : Array (List Bool)) (chunk : Array Bool) (hlen : chunk.size = 8) :
-      decode (chunks.push chunk.toList).toList = decode chunks.toList ++ chunk.toList := by
-    simp [decode, Keccak.bytesToBitsLE, hlen, Keccak.byteBitsLE_bitsToByteLE]
-  have go (tail : List Bool) (cur : Array Bool) (done : Array (List Bool))
-      (hp : 0 < cur.size) (hb : cur.size ≤ 8) (hdiv : 8 ∣ cur.size + tail.length) :
-      decode (List.toChunks.go 8 tail cur done) = decode done.toList ++ cur.toList ++ tail := by
-    induction tail generalizing cur done with
-    | nil =>
-      have hl : cur.size = 8 := by simp at hdiv; omega
-      simp only [List.toChunks.go, List.append_nil]
-      exact snoc done cur hl
-    | cons x xs ih =>
-      rw [List.toChunks.go]
-      split
-      · rename_i hc
-        have hl : cur.size = 8 := beq_iff_eq.mp hc
-        rw [ih _ _ (by simp) (by simp) (by simp_all; omega), snoc _ _ hl]
-        simp
-      · rename_i hn
-        have hl : cur.size ≠ 8 := by simpa using hn
-        rw [ih _ _ (by simp) (by simp; omega) (by simpa [Nat.add_assoc, Nat.add_comm,
-          Nat.add_left_comm] using hdiv)]
-        simp
-  cases bits with
-  | nil => rfl
-  | cons x xs =>
-    change decode (List.toChunks.go 8 xs #[x] #[]) = x :: xs
-    simpa [decode, Keccak.bytesToBitsLE] using
-      go xs #[x] #[] (by simp) (by simp) (by simpa [Nat.add_comm] using h)
-
-private theorem bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8 * l.length := by
-  induction l with
-  | nil => rfl
-  | cons a l ih =>
-    change (Keccak.byteBitsLE a ++ Keccak.bytesToBitsLE l).length = _
-    simp only [List.length_append, Keccak.byteBitsLE, BitString.length_lowBits, ih,
-      List.length_cons, Nat.mul_succ]
-    omega
-
 /-- Fixed-width packing uses exactly 32 times the field width bytes per polynomial. -/
 @[simp] theorem length_packCoeffs {rows width : ℕ} (coeff : Fin rows → Fin 256 → ℕ) :
     (packCoeffs width coeff).length = 32 * width * rows := by
@@ -146,8 +102,8 @@ private theorem bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8
     simp only [bits, List.length_flatMap, BitString.length_lowBits, List.map_const',
       List.length_finRange, List.sum_replicate_nat]
   have hdiv : 8 ∣ bits.length := ⟨rows * (32 * width), by rw [len]; ring⟩
-  have he := congrArg List.length (bitsOfChunks hdiv)
-  rw [bitsLength, len] at he
+  have he := congrArg List.length (Keccak.bytesToBitsLE_toChunks hdiv)
+  rw [Keccak.length_bytesToBitsLE, len] at he
   change ((bits.toChunks 8).map Keccak.bitsToByteLE).length = _
   nlinarith
 
@@ -182,7 +138,8 @@ private theorem unpack_packCoeffs {rows width : ℕ} (coeff : Fin rows → Fin 2
     rw [Nat.succ_mul] at hmul
     omega
   rw [BitString.listRow, List.take_append_of_le_length hremaining] at hrow
-  simp only [packCoeffs, hbits, bitsOfChunks (by rw [hlen]; exact ⟨rows * 32 * width, by ring⟩),
+  simp only [packCoeffs, hbits,
+    Keccak.bytesToBitsLE_toChunks (by rw [hlen]; exact ⟨rows * 32 * width, by ring⟩),
     unpackCoeff]
   rw [show width * (256 * (i : ℕ) + j) = idx.val * width by exact Nat.mul_comm .., hrow]
   have hi : idx.val / 256 = i.val := by dsimp [idx]; omega
@@ -510,15 +467,29 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
 def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) :=
   KeyPair.publicKey <$> keyGen s seed
 
-private def swaps (first count : ℕ) (bytes : List Byte) :
-    Option (Equiv.Perm (Fin 256)) :=
-  match count with
-  | 0 => some (Equiv.refl _)
-  | count + 1 => do
-    let choices := bytes.dropWhile (fun b => decide (first < b.val))
-    let b ← choices.head?
-    let rest ← swaps (first + 1) count (choices.drop 1)
-    return (Equiv.swap (Fin.ofNat 256 first) b).trans rest
+namespace ChallengeRow
+
+-- Retaining each rejected byte and the unconsumed suffix also permits programming the raw row.
+private inductive Trace : ℕ → ℕ → Type where
+  | done {i : ℕ} (tail : List Byte) : Trace i 0
+  | reject {i n : ℕ} (b : Byte) (h : i < b.val) (rest : Trace i (n + 1)) : Trace i (n + 1)
+  | accept {i n : ℕ} (b : Byte) (h : b.val ≤ i) (rest : Trace (i + 1) n) : Trace i (n + 1)
+
+private def Trace.perm {i n : ℕ} : Trace i n → Equiv.Perm Byte
+  | .done _ => Equiv.refl _
+  | .reject _ _ t => t.perm
+  | .accept (i := j) b _ t => (Equiv.swap (Fin.ofNat 256 j) b).trans t.perm
+
+private def parse (i n : ℕ) (bytes : List Byte) : Option (Trace i n) :=
+  match n, bytes with
+  | 0, tail => some (.done tail)
+  | _ + 1, [] => none
+  | k + 1, b :: rest =>
+    if h : i < b.val then (parse i (k + 1) rest).map (.reject b h)
+    else (parse (i + 1) k rest).map (.accept b (Nat.le_of_not_gt h))
+termination_by bytes.length
+
+end ChallengeRow
 
 private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380417 :=
   if i.val < 256 - s.params.τ then 0
@@ -526,11 +497,16 @@ private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380
 
 /-- Algorithm 29. Preload the last τ positions with the SHAKE sign bits and exchange each
 with its chosen position in increasing order. Future sign positions remain untouched because an
-accepted index is at most the current position. The SHAKE256 limit is 221 bytes. -/
-def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly := do
-  let bytes := H.h256.readBytes digest 221
-  let e ← swaps (256 - s.params.τ) s.params.τ (bytes.drop 8)
-  return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ e.symm
+accepted index is at most the current position. The caller supplies the SHAKE256 bytes. The FIPS
+wrapper below chooses the minimum permitted 221-byte bound from Appendix C, Table 3. -/
+def sampleInBallBytes (s : Level) (bytes : List Byte) : Option Poly := do
+  let t ← ChallengeRow.parse (256 - s.params.τ) s.params.τ (bytes.drop 8)
+  return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ t.perm.symm
+
+/-- Bounded Algorithm 29 reads 221 bytes at the challenge digest. This implementation chooses
+the minimum cap permitted by FIPS 204, Appendix C, Table 3. -/
+def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly :=
+  sampleInBallBytes s (H.h256.readBytes digest 221)
 
 /-- FIPS 202 specialization of `Xofs.sampleInBall`. -/
 abbrev sampleInBall := Xofs.sampleInBall Xofs.shake
@@ -560,14 +536,19 @@ private theorem inBall_signedTail (s : Level) (signs : List Bool) (e : Equiv.Per
     rw [hs, Finset.card_map, Fin.card_Ici]
     cases s <;> rfl
 
+/-- Every successful Algorithm 29 byte row yields a signed challenge of weight τ. -/
+theorem inBall_of_sampleInBallBytes {s : Level} {bytes : List Byte} {c : Poly}
+    (h : sampleInBallBytes s bytes = some c) : InBall s.params.τ c := by
+  cases ht : ChallengeRow.parse (256 - s.params.τ) s.params.τ (bytes.drop 8) with
+  | none => simp [sampleInBallBytes, ht] at h
+  | some t =>
+    rw [sampleInBallBytes, ht] at h
+    exact (Option.some.inj h) ▸ inBall_signedTail s _ t.perm
+
 /-- Every successful FIPS expansion gives exactly τ signed unit coefficients. -/
 theorem inBall_of_sampleInBall {H : Xofs} {s : Level} {digest : List Byte} {c : Poly}
-    (h : H.sampleInBall s digest = some c) : InBall s.params.τ c := by
-  cases he : swaps (256 - s.params.τ) s.params.τ ((H.h256.readBytes digest 221).drop 8) with
-  | none => simp [Xofs.sampleInBall, he] at h
-  | some e =>
-    rw [Xofs.sampleInBall, he] at h
-    exact (Option.some.inj h) ▸ inBall_signedTail s _ e
+    (h : H.sampleInBall s digest = some c) : InBall s.params.τ c :=
+  inBall_of_sampleInBallBytes h
 
 /-- The components of a FIPS 204 signature after Algorithm 27 has checked its encoding. -/
 structure Signature (s : Level) where
@@ -743,30 +724,6 @@ private theorem unpackHint_inj {s : Level} {a b : List Byte} {h : Fin s.params.k
   exact (List.take_append_drop ω a).symm.trans <| (congrArg₂ (· ++ ·) left ends).trans
     (List.take_append_drop ω b)
 
-private theorem takeBytes_eq_of_bits {x y : List Byte} (n : ℕ) (hx : n ≤ x.length)
-    (hy : n ≤ y.length)
-    (he : (Keccak.bytesToBitsLE x).take (8 * n) = (Keccak.bytesToBitsLE y).take (8 * n)) :
-    x.take n = y.take n := by
-  induction n generalizing x y with
-  | zero => simp
-  | succ n ih =>
-    cases x with
-    | nil => simp at hx
-    | cons a x =>
-      cases y with
-      | nil => simp at hy
-      | cons b y =>
-        have step (c : Byte) (l : List Byte) :
-            (Keccak.bytesToBitsLE (c :: l)).take (8 * (n + 1)) =
-              Keccak.byteBitsLE c ++ (Keccak.bytesToBitsLE l).take (8 * n) := by
-          change ((Keccak.byteBitsLE c) ++ Keccak.bytesToBitsLE l).take _ = _
-          rw [List.take_append, List.take_of_length_le (by simp [Keccak.byteBitsLE])]
-          simp [Keccak.byteBitsLE, Nat.mul_succ]
-        rw [step, step] at he
-        obtain ⟨head, tail⟩ := List.append_inj he (by simp [Keccak.byteBitsLE])
-        have hab : a = b := by simpa using congrArg Keccak.bitsToByteLE head
-        simpa [hab] using ih (by simpa using hx) (by simpa using hy) tail
-
 private theorem responseBytes_inj {s : Level} {x y : List Byte}
     (w : ℕ) (hw : w = s.params.γ₁.log2 + 1)
     (hx : 32 * w * s.params.ℓ ≤ x.length) (hy : 32 * w * s.params.ℓ ≤ y.length)
@@ -777,7 +734,7 @@ private theorem responseBytes_inj {s : Level} {x y : List Byte}
   let n := 256 * s.params.ℓ
   have cover (l : List Byte) (hl : 32 * w * s.params.ℓ ≤ l.length) :
       w * n ≤ (Keccak.bytesToBitsLE l).length := by
-    rw [bitsLength]
+    rw [Keccak.length_bytesToBitsLE]
     convert Nat.mul_le_mul_left 8 hl using 1
     dsimp [n]
     ring
@@ -810,7 +767,8 @@ private theorem responseBytes_inj {s : Level} {x y : List Byte}
     | zero => simp
     | succ u ih =>
       rw [Nat.mul_succ, List.take_add, List.take_add, ih (by omega), eqBlock u hn']
-  apply takeBytes_eq_of_bits _ hx hy
+  apply Keccak.bytesToBitsLE_injective
+  rw [Keccak.bytesToBitsLE_take, Keccak.bytesToBitsLE_take]
   convert words n le_rfl using 2 <;> dsimp [n] <;> ring
 
 /-- Algorithm 27, including the prescribed total length, increasing hint indices within each
@@ -931,7 +889,7 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
       have := j.isLt
       lia
     have room : w * (256 * i.val + j.val) + w ≤ (Keccak.bytesToBitsLE resp).length := by
-      rw [bitsLength, plen, ← Nat.mul_succ]
+      rw [Keccak.length_bytesToBitsLE, plen, ← Nat.mul_succ]
       calc w * (256 * i.val + j.val).succ ≤ w * (256 * s.params.ℓ) := Nat.mul_le_mul_left w idx
         _ = 8 * (32 * w * s.params.ℓ) := by ring
     have bits : Keccak.bytesToBitsLE (resp ++ hints) =
@@ -1100,24 +1058,18 @@ private abbrev verifyInternalWith := Xofs.verifyInternalWith Xofs.shake
 @[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
 
-private theorem bytes_eq_of_bits_eq {a b : List Byte}
-    (h : Keccak.bytesToBitsLE a = Keccak.bytesToBitsLE b) : a = b := by
-  have hl := congrArg List.length h
-  simp only [bitsLength] at hl
-  have len : a.length = b.length := by omega
-  simpa only [List.take_length, List.take_of_length_le len.ge] using
-    takeBytes_eq_of_bits a.length (le_refl _) len.le (congrArg (List.take (8 * a.length)) h)
-
 /-- Equal 512-bit representatives give equal full SHAKE256 outputs at the two raw inputs. -/
 theorem read_eq_of_messageRepresentative_eq (H : Xofs) (pk : List Byte) {m n : List Bool}
     (h : H.messageRepresentative pk m = H.messageRepresentative pk n) :
     H.h256.read (representativeInput (H.h256.readBytes pk 64) m) 64 =
-      H.h256.read (representativeInput (H.h256.readBytes pk 64) n) 64 := bytes_eq_of_bits_eq h
+      H.h256.read (representativeInput (H.h256.readBytes pk 64) n) 64 :=
+  Keccak.bytesToBitsLE_injective h
 
 /-- The byte verifier places exactly 512 message-representative bits before the commitment. -/
 @[simp] theorem length_messageRepresentative (H : Xofs) (pk : List Byte) (m : List Bool) :
     (H.messageRepresentative pk m).length = 512 := by
-  rw [Xofs.messageRepresentative, Xofs.representativeFromTr, bitsLength, H.h256.length_read]
+  rw [Xofs.messageRepresentative, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE,
+    H.h256.length_read]
 
 /-- On the contexts allowed by Algorithm 3, the pure-mode prefix determines both the external
 context and the entire bit-string message, including a final incomplete byte. -/
@@ -1132,8 +1084,8 @@ theorem formatMessage_inj {m n : List Bool} {c d : List Byte} (hc : c.length ≤
   have hv := congrArg (fun v => (Keccak.bitsToByteLE v).val) ht
   simp only [L, Keccak.bitsToByteLE_byteBitsLE, Fin.val_ofNat] at hv
   have hlen : c.length = d.length := by omega
-  obtain ⟨hctx, hmsg⟩ := List.append_inj hb (by rw [bitsLength, bitsLength, hlen])
-  exact ⟨bytes_eq_of_bits_eq hctx, hmsg⟩
+  obtain ⟨hctx, hmsg⟩ := List.append_inj hb (by simp only [Keccak.length_bytesToBitsLE, hlen])
+  exact ⟨Keccak.bytesToBitsLE_injective hctx, hmsg⟩
 
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
 uniform Appendix C error for an exhausted SHAKE rejection stream is `none`. -/
