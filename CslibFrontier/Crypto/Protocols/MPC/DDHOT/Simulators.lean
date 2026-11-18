@@ -347,10 +347,12 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
 
 /-! ### Security -/
 
-/-- **Statistical security against a corrupted sender**: for every environment, with no efficiency
-requirement, the advantage between the real game and the ideal game with
-`ddhOTSenderSimSampleExp` is at most `6 / 2 ^ n`. The real game is the ideal game with the
-exact-sampling simulator `ddhOTSenderSim` (`idealJoint_ddhOT_sender`). -/
+/-- Ideal-coins step towards [BonehShoup2023], Theorem 23.7, not the cited result: the honest
+parties of `ddhOTFamily` draw exact uniform exponents (`ProbComp.uniform`), and against a corrupted
+sender every environment, with no efficiency requirement, has advantage at most `6 / 2 ^ n`
+between the real game and the ideal game with `ddhOTSenderSimSampleExp`. The real game is the
+ideal game with the exact-sampling simulator `ddhOTSenderSim` (`idealJoint_ddhOT_sender`). The
+statement for parties that derive their exponents from random bit strings is open (#5293). -/
 theorem advantage_ddhOTSenderGame_le (setup : ℕ → PMF F.Desc) (Z : Environment F.ddhOTFamily {0})
     (n : ℕ) :
     Game.advantage (F.ddhOTFamily.realGame setup {0} Z n)

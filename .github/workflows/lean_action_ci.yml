@@ -142,7 +142,11 @@ jobs:
         run: python3 -B scripts/check_docs.py --config-only
 
   lean-checks:
-    runs-on: ubuntu-24.04
+    # Pushes to `main` run on the runner named by the repository variable MAIN_BUILD_RUNNER, when
+    # it is set; larger runners are billed even in public repositories. Every other event, and
+    # `main` while the variable is unset, uses the standard runner. Delete the variable to return
+    # `main` to the standard runner without a commit (scripts/cache/README.md).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.MAIN_BUILD_RUNNER || 'ubuntu-24.04' }}
     outputs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:

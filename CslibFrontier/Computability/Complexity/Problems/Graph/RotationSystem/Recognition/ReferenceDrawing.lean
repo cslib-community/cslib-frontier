@@ -39,6 +39,8 @@ and the parity-query feasibility criterion remain separate obligations.
 
 ## Main results
 
+* `Cslib.Complexity.Graph.RotationRecognition.subdivision_endpoint_spec`: actual endpoint
+  membership and nonloop certificate for every indexed subdivision edge.
 * `Cslib.Complexity.Graph.RotationRecognition.subdivide_source_ne_target`: all three segments
   of each original occurrence are nonloops, including when the original occurrence is a loop.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_simple`: each actual route is simple.
@@ -84,7 +86,9 @@ theorem subdivide_source_ne_target {I : FixedRotationInput} (hI : Valid I)
   rcases hs with rfl | rfl | rfl <;>
     dsimp only [Segment.source, Segment.target, Segment.endpoints] <;> omega
 
-private theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
+/-- Both ends of an actual indexed subdivision edge occur in the reference order and
+are distinct. The certificate includes original loops after twice subdivision. -/
+theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
     (e : Fin (subdivisionGraph I).edges.length) :
     (∀ b, Dart.vertex (e, b) ∈ referenceOrder I) ∧
       Dart.vertex (e, false) ≠ Dart.vertex (e, true) := by

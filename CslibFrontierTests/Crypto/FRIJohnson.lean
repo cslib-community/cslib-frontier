@@ -6,7 +6,7 @@ Authors: Mayank Rathee
 
 module
 
-import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Analysis.Real.Sqrt
@@ -55,8 +55,8 @@ ordinary `module` client (no `import all`, zero gap-assumption premises) across 
    (`< 1 / 25`), and `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` (`< 1 / 3`).
 -/
 
--- This regression module checks ordinary imports and exports no test fixtures.
-set_option linter.privateModule false
+-- Exports the primitive-root and monomial far-word helpers shared with
+-- `CslibFrontierTests/Crypto/FRIBatchSoundness.lean`.
 
 namespace CslibFrontierTests.Crypto.FRIJohnson
 
@@ -145,7 +145,7 @@ private theorem zmod_pow_chunks16 {p a b16 b32 b48 e : ℕ}
 
 /-- Over any field of characteristic `≠ 2`, `ω ^ (2 ^ (d - 1)) = -1` implies `ω` is a primitive
 `2 ^ d`-th root of unity. -/
-private theorem isPrimitiveRoot_two_pow_of_neg_one {F : Type*} [Field F]
+public theorem isPrimitiveRoot_two_pow_of_neg_one {F : Type*} [Field F]
     {ω : F} {d : ℕ} (hd : 1 ≤ d) (h2 : (2 : F) ≠ 0) (hneg : ω ^ (2 ^ (d - 1)) = -1) :
     IsPrimitiveRoot ω (2 ^ d) := by
   have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
@@ -174,7 +174,7 @@ private theorem card_filter_congr_decidable {α : Type*} (s : Finset α) (p : α
 /-- Evaluating `X ^ (params.dim 0)` on the initial coset `L_0` yields a word at Hamming distance at
 least `2 ^ d - params.dim 0` from every codeword in `params.initialCode`, hence outside
 `params.proximityLang e` whenever `e + params.dim 0 < 2 ^ d`. -/
-private theorem monomial_far_not_mem_proximityLang {F : Type} [Field F] [DecidableEq F]
+public theorem monomial_far_not_mem_proximityLang {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (hgap : e + params.dim 0 < 2 ^ params.d) :
     (fun idx : Fin (2 ^ params.d) => (params.eval 0 idx) ^ params.dim 0) ∉
       params.proximityLang e := by
@@ -933,7 +933,7 @@ end Johnson998244353
 section JohnsonGoldilocks
 
 /-- The 64-bit Goldilocks prime `p = 2 ^ 64 - 2 ^ 32 + 1 = 18446744069414584321`. -/
-abbrev goldilocksP : ℕ := 18446744069414584321
+public abbrev goldilocksP : ℕ := 18446744069414584321
 
 private theorem goldilocks_seven_pow16 :
     (7 : ZMod goldilocksP) ^ (2 ^ 16) = ((11156834669773791359 : ℕ) : ZMod goldilocksP) := by
@@ -982,7 +982,7 @@ theorem prime_goldilocks : Nat.Prime goldilocksP := by
           (by decide)]
       decide
 
-instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
+public instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
 
 private theorem omegaGoldilocks_pow_16 : (64 : ZMod goldilocksP) ^ 16 = -1 := by
   rw [show (64 : ZMod goldilocksP) = ((64 : ℕ) : ZMod goldilocksP) from rfl,
@@ -1012,6 +1012,27 @@ theorem paramsGoldilocks_beyond_unique :
 
 -- Exact evaluation of the closed-form uniform Johnson commit budget (`mJ = 2`).
 example : friJohnsonCommitBound paramsGoldilocks 2 = 5374771200 := rfl
+
+-- Direct check of `friJohnsonEtaCommitBound` and `weightedLineGapBound_of_johnson_eta`
+-- (`η = 1 / 16` at `e = 17`, since `17 / 32 ≤ 1 - √(1 / 8) - 1 / 16`).
+example : friJohnsonEtaCommitBound paramsGoldilocks (1 / 16) = 7916483719987200 := by
+  simp only [friJohnsonEtaCommitBound, paramsGoldilocks, FRIParams.dim]
+  exact (Nat.floor_eq_iff (by norm_num)).mpr ⟨by norm_num, by norm_num⟩
+
+example :
+    WeightedLineGapBound paramsGoldilocks 14
+      (friJohnsonEtaCommitBound paramsGoldilocks (1 / 16)) := by
+  refine weightedLineGapBound_of_johnson_eta paramsGoldilocks (e := 17) (by norm_num) ?_
+  have hsq : Real.sqrt ((1 : ℝ) / 8) ≤ (13 : ℝ) / 32 := by
+    rw [Real.sqrt_le_iff]
+    constructor <;> norm_num
+  have hrate :
+      ((paramsGoldilocks.dim 0 : ℝ) / (2 ^ paramsGoldilocks.d : ℝ)) = (1 : ℝ) / 8 := by
+    norm_num [paramsGoldilocks, FRIParams.dim]
+  have h17 : ((17 : ℕ) : ℝ) / (2 ^ paramsGoldilocks.d : ℝ) = (17 : ℝ) / 32 := by
+    norm_num [paramsGoldilocks]
+  rw [hrate, h17]
+  linarith
 
 -- Honest completeness over Goldilocks holds simultaneously with Johnson soundness.
 example (σ : ℕ) :

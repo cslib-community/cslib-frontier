@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.FPAUS
-public import CslibFrontier.Computability.Complexity.Classes.FPAUS.SelfReducible
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Languages.Probabilistic.BoundedUniform
@@ -67,8 +66,9 @@ counter `count y = (W y).card` yields **exact** prefix bit-by-bit conditional sa
    `c.size` fair bits, keeps expected fair-coin cost at most `2 * c.size` per step
    (`ProbComp.expectedCost_sampleUniformIntervalRetry_le`), makes at most
    `1 + R.len x` counter calls (independent of the accuracy `q`), achieves total-variation
-   distance at most `(1 / 2) ^ q` from `uniformWitness (W x)` (`IsFPAUS` when `count` is
-   polynomial-time), and lifts to `IsOraclePPTOn` when `count` is computed relative to an oracle.
+   distance at most `(1 / 2) ^ q` from `uniformWitness (W x)` at every precision
+   (with the JVV pointwise guarantee at increased precision for a polynomial-time counter),
+   and lifts to `IsOraclePPTOn` when `count` is computed relative to an oracle.
 
 ## Main definitions
 
@@ -193,20 +193,6 @@ theorem encConditionalWalkState_mk_polyTime {α γ : Type} {enc : α ↪ List Bo
 namespace SelfReducible
 
 variable {α : Type} {enc : α ↪ List Bool} {W : α → Finset (List Bool)}
-
-/-- A self-reducible witness set of witness length `ℓ` has at most `2 ^ ℓ` witnesses. -/
-theorem card_le_two_pow_len (R : SelfReducible enc W) (x : α) :
-    (W x).card ≤ 2 ^ R.len x := by
-  generalize hℓ : R.len x = ℓ
-  induction ℓ generalizing x with
-  | zero =>
-    simpa using Finset.card_le_card (R.subset_singleton_nil hℓ)
-  | succ k ih =>
-    have hpos : 0 < R.len x := by omega
-    rw [R.card_eq_add hpos, pow_succ']
-    have h0 := ih (R.child x false) (by have := R.len_child x hpos false; omega)
-    have h1 := ih (R.child x true) (by have := R.len_child x hpos true; omega)
-    omega
 
 /-- Recursive exact conditional prefix walk of `n` remaining bits from `y` with known positive
 witness count `c`: query only `count (R.child y true)` and branch via `unif c`. -/
@@ -740,6 +726,40 @@ theorem boundedConditionalSample_eq_walk (R : SelfReducible enc W) (count : α �
   rw [boundedConditionalSample, R.map_finish_iterate_conditionalWalkStep]
   simp only [List.reverse_nil, List.nil_append, Option.map_id_fun', id_map]
 
+/-- Every successful bounded prefix walk produces a witness, for arbitrary count estimates. -/
+private theorem boundedConditionalWalk_valid (R : SelfReducible enc W) (count : α → ℕ)
+    (fuel : ℕ) {n : ℕ} {y : α} (hlen : R.len y = n) (c : ℕ) (w : List Bool)
+    (hw : some w ∈ (ProbComp.eval (R.boundedConditionalWalk count fuel n y c)).support) :
+    w ∈ W y := by
+  induction n generalizing y c w with
+  | zero =>
+    simp only [boundedConditionalWalk, ProbComp.eval_pure, PMF.support_pure,
+      Set.mem_singleton_iff] at hw
+    split at hw <;> simp_all
+  | succ n ih =>
+    have hy : 0 < R.len y := by lia
+    rw [boundedConditionalWalk] at hw
+    split at hw
+    · rw [ProbComp.eval_bind] at hw
+      obtain ⟨ro, -, hout⟩ := (PMF.mem_support_bind_iff _ _ _).mp hw
+      cases ro with
+      | none => simp at hout
+      | some r =>
+        have hbranch (b : Bool) (k : ℕ) (hs : some w ∈ (ProbComp.eval
+            ((Option.map (b :: ·)) <$>
+              R.boundedConditionalWalk count fuel n (R.child y b) k)).support) :
+            w ∈ W y := by
+          rw [ProbComp.eval_map] at hs
+          obtain ⟨_ | v, hmem, eq⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
+          · simp at eq
+          · simp only [Option.map_some, Option.some.injEq] at eq
+            subst w
+            apply (R.cons_mem_iff y hy b v).2
+            exact ih (by have := R.len_child y hy b; lia) k v hmem
+        dsimp only at hout
+        split at hout <;> exact hbranch _ _ hout
+    · simp at hw
+
 /-- Pointwise witness probability lower bound for `boundedConditionalWalk`. -/
 theorem le_eval_boundedConditionalWalk_some (R : SelfReducible enc W) {count : α → ℕ}
     {fuel n : ℕ} {y : α} (hlen : R.len y = n)
@@ -1119,15 +1139,18 @@ theorem isPPTOn_boundedConditionalSample (R : SelfReducible enc W) {count : α �
 theorem isFPAUS_boundedConditionalSample (R : SelfReducible enc W) {count : α → ℕ}
     (hcount_poly : ComputableInPolyTime count enc encNat)
     (hcount_eq : ∀ x, count x = (W x).card) :
-    IsFPAUS enc W (R.boundedConditionalSample count) :=
-  ⟨R.isPPTOn_boundedConditionalSample hcount_poly,
-    fun _ q => R.closeTo_boundedConditionalSample (fun z _ => hcount_eq z) q⟩
+    IsFPAUS enc W (R.atWitnessPrecision (R.boundedConditionalSample count)) := by
+  apply R.isFPAUS_atWitnessPrecision (R.isPPTOn_boundedConditionalSample hcount_poly) _
+    (fun _ q => R.closeTo_boundedConditionalSample (fun z _ => hcount_eq z) q)
+  intro x q w hw
+  rw [R.boundedConditionalSample_eq_walk, PMF.apply_eq_zero_iff]
+  exact fun hs => hw (R.boundedConditionalWalk_valid count _ rfl _ w hs)
 
 theorem mem_FPAUS_of_exact_polyTime_count (R : SelfReducible enc W) {count : α → ℕ}
     (hcount_poly : ComputableInPolyTime count enc encNat)
     (hcount_eq : ∀ x, count x = (W x).card) :
     W ∈ FPAUS enc :=
-  ⟨R.boundedConditionalSample count, R.isFPAUS_boundedConditionalSample hcount_poly hcount_eq⟩
+  ⟨_, R.isFPAUS_boundedConditionalSample hcount_poly hcount_eq⟩
 
 /-! ### Oracle-counter lift (`IsOraclePPTOn`) -/
 

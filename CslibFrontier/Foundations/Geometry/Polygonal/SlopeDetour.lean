@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Foundations.Geometry.Polygonal.Join
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
+import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
+import Mathlib.Tactic.FinCases
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.FieldSimp
@@ -95,31 +97,20 @@ private theorem member_ends (r s d : ℝ) (keep : Bool) :
 
 private theorem member_simple {r : ℝ} (hr : 0 < r) (s d : ℝ) (keep : Bool) :
     (member r s d keep).IsSimple := by
-  have hleft : (⟨-r, -r * s⟩ : ℂ) ≠ ⟨0, d⟩ := by
-    intro h
-    have := congrArg Complex.re h
-    change -r = 0 at this
-    linarith
   cases keep
-  · apply IsSimple.append (isSimple_line hleft)
-    · intro h
-      have := congrArg Complex.re h
-      change 0 = r at this
+  · apply isSimple_of_strictMono_re
+    apply Fin.strictMono_iff_lt_succ.mpr
+    intro i
+    fin_cases i
+    · change -r < (0 : ℝ)
       linarith
-    · intro i u v hu hv heq
-      rw [eval_line] at heq
-      have hreal := congrArg Complex.re heq
-      simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re,
-        smul_eq_mul, finish_line, mul_zero, add_zero, zero_add] at hreal
-      have hprod : r * (u - 1 - v) = 0 := by nlinarith only [hreal]
-      have hparam := (mul_eq_zero.mp hprod).resolve_left hr.ne'
-      have hu1 : u = 1 := by linarith [hu.2, hv.1]
-      have hv0 : v = 0 := by linarith [hu.2, hv.1]
-      exact Or.inl ⟨(atEnd_line_iff _ _ i u true).mpr hu1, hv0⟩
-  · apply isSimple_line
-    intro h
-    have := congrArg Complex.re h
-    change -r = r at this
+    · change (0 : ℝ) < r
+      exact hr
+  · apply isSimple_of_strictMono_re
+    apply Fin.strictMono_iff_lt_succ.mpr
+    intro i
+    fin_cases i
+    change -r < r
     linarith
 
 private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
