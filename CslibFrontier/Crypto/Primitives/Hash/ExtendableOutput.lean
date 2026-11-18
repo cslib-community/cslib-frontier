@@ -46,8 +46,8 @@ structure ExtendableOutput.Request where
 abbrev ExtendableOutput.Reads := OracleComp (fun _ : ExtendableOutput.Request => List Byte)
 
 /-- Read every request consistently from one XOF. -/
-@[expose] def ExtendableOutput.Request.answer (H : ExtendableOutput) (q : ExtendableOutput.Request) :=
-  H.read q.input q.count
+@[expose] def ExtendableOutput.Request.answer (H : ExtendableOutput)
+    (q : ExtendableOutput.Request) := H.read q.input q.count
 
 /-- Read an XOF with the first bytes of this stream replaced. Requests shorter than the
 replacement are truncations. Longer requests continue with the original tail. -/

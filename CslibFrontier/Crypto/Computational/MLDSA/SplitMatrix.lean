@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
+public import CslibFrontier.Crypto.Computational.MLDSA.CommitmentEntropy
 public import CslibFrontier.Crypto.Computational.SIS.Polynomial
+import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Probability.HashFamily.MatrixKernel
 import Mathlib.Algebra.Field.ZMod
@@ -166,16 +167,90 @@ theorem mean_sqrt_commitmentKernelSize_lt (s : Level) :
   change (𝔼 A : PublicMatrix s, K (A.submatrix (Fin.castLE hdim) id)) < _
   exact lt_of_eq_of_lt (expect_firstRows hdim K) (mean_sqrt_squareKernel_lt s.params.ℓ)
 
-/-- The distinguishing advantage for one fresh ideal signing commitment after `T` coherent
-queries. The right-hand side is numerical at every FIPS 204 level. -/
-theorem abs_commitmentRefreshProbability_sub_le_fips (s : Level) (extra : Finset (List Bool))
-    {W κ : Type*} [Fintype W] [Fintype κ] (T : ℕ) (U ψ readout post accept)
-    (hψ : ∀ A, ‖ψ A‖ = 1) :
-    |commitmentRefreshProbability s extra true (W := W) (κ := κ) T U ψ readout post accept -
-      commitmentRefreshProbability s extra false T U ψ readout post accept| ≤
-      2 * T * ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) := by
-  apply (abs_commitmentRefreshProbability_sub_le_kernel s extra T U ψ readout post accept hψ).trans
-  gcongr
-  exact (mean_sqrt_commitmentKernelSize_lt s).le
+/-- Expected square root of the largest commitment probability under the uniform public
+matrix. This uses the entire matrix distribution, including singular square submatrices. -/
+theorem mean_sqrt_commitmentGuessProbability_le (s : Level) :
+    (𝔼 A : PublicMatrix s, Real.sqrt
+      (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal) ≤
+      (11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits) := by
+  calc
+    _ ≤ 𝔼 A : PublicMatrix s, Real.sqrt (commitmentKernelSize s A) /
+        Real.sqrt (2 ^ s.commitmentBoxBits) := by
+      refine expect_le_expect fun A _ => ?_
+      rw [← Real.sqrt_div (Nat.cast_nonneg _)]
+      exact Real.sqrt_le_sqrt (commitmentGuessProbability_le_kernel_div_pow s A)
+    _ ≤ _ := by
+      simp only [div_eq_mul_inv, ← expect_mul]
+      gcongr
+      exact (mean_sqrt_commitmentKernelSize_lt s).le
+
+/-! ### Statistical distance of the classical signing simulation -/
+
+open Cslib.Probability Cslib.OracleComp Cslib.Crypto.Protocols.ROMSignature
+open scoped ENNReal
+
+/-- Discharge the maximum commitment probability in a fixed-matrix game comparison by
+averaging over the FIPS matrix. The bound is numerical at all three parameter sets. -/
+theorem closeTo_uniformMatrix_of_guessProbability (s : Level) (count : ℕ)
+    {α : Type} {real sim : PublicMatrix s → PMF α}
+    (h : ∀ A, CloseTo (real A) (sim A)
+      (count * commitmentGuessProbability s.params (by cases s <;> decide) A)) :
+    CloseTo ((PMF.uniformOfFintype _).bind real) ((PMF.uniformOfFintype _).bind sim)
+      (count * ENNReal.ofReal ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits))) := by
+  classical
+  let p (A : PublicMatrix s) := commitmentGuessProbability s.params (by cases s <;> decide) A
+  have hp (A) : p A ≤ 1 := iSup_le fun _ => PMF.coe_le_one _ _
+  have hf (A) : p A ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hp A)
+  have hmean : (𝔼 A : PublicMatrix s, (p A).toReal) ≤
+      (11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits) := by
+    refine le_trans (b := 𝔼 A : PublicMatrix s, Real.sqrt (p A).toReal)
+      (expect_le_expect fun A _ => ?_) (mean_sqrt_commitmentGuessProbability_le s)
+    apply Real.le_sqrt_of_sq_le
+    have hle : (p A).toReal ≤ 1 := by
+      simpa using ENNReal.toReal_mono ENNReal.one_ne_top (hp A)
+    nlinarith [ENNReal.toReal_nonneg (a := p A)]
+  refine (CloseTo.bind_right_tsum (PMF.uniformOfFintype (PublicMatrix s))
+    (err := fun A => count * p A) (fun A _ => h A)).mono ?_
+  rw [tsum_fintype]
+  simp only [PMF.uniformOfFintype_apply, mul_left_comm _ (count : ℝ≥0∞), ← mul_sum]
+  apply mul_le_mul_of_nonneg_left _ zero_le
+  apply (ENNReal.le_ofReal_iff_toReal_le ?_ (by positivity)).2
+  · simpa only [ENNReal.toReal_mul, ENNReal.toReal_sum (fun a _ => hf a),
+      ENNReal.toReal_inv, ENNReal.toReal_natCast, Fintype.expect_eq_sum_div_card,
+      div_eq_inv_mul] using hmean
+  · exact ENNReal.mul_ne_top (by simp) (ENNReal.sum_ne_top.mpr fun a _ => hf a)
+
+/-- The adaptive ideal-mask signing simulation under a uniform FIPS matrix, for a digest
+expander that always returns a sparse challenge. The error counts all signing attempts and hash
+queries. The adversary chooses its program after receiving the public key. -/
+theorem closeTo_simulateSigning_uniformMatrix (s : Level) (d ω K : ℕ) {Digest α : Type}
+    (dist : PMF Digest) (expand : Digest → Poly)
+    (hc : ∀ c, InBall s.params.τ (expand c))
+    (s₁ : Fin s.params.ℓ → Poly) (s₂ : Fin s.params.k → Poly)
+    (hs₁ : ∀ i j, |(s₁ i j).valMinAbs| ≤ s.params.η)
+    (hs₂ : ∀ i j, |(s₂ i j).valMinAbs| ≤ s.params.η)
+    (forger : PublicKey s.params → OracleComp (SigningROMSpec s.params Digest) α) {S H : ℕ}
+    (hS : ∀ pk, IsCostBounded signingCost (forger pk) S)
+    (hH : ∀ pk, IsCostBounded hashCost (forger pk) H) :
+    CloseTo ((PMF.uniformOfFintype _).bind fun A =>
+      let sk : SecretKey s.params := ⟨A, s₁, s₂⟩
+      (runBoundedSigningROM s.params false d ω K (by cases s <;> decide)
+        dist expand sk (forger sk.publicKey)).map Prod.fst)
+      ((PMF.uniformOfFintype _).bind fun A =>
+        let pk := (SecretKey.mk A s₁ s₂ : SecretKey s.params).publicKey
+        (runAcceptedSigningROM s.params K dist
+          (fun c => simulateFreshSigningAttempt s.params d ω (by cases s <;> decide) pk (expand c))
+          (forger pk)).map Prod.fst)
+      ((2 * (S * K) * H + (S * K).choose 2 : ℕ) * ENNReal.ofReal
+        ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits))) := by
+  apply closeTo_uniformMatrix_of_guessProbability s
+  intro A
+  exact closeTo_runBoundedSigningROM_simulate s.params (by
+    cases s
+    · exact Params.valid_mldsa44
+    · exact Params.valid_mldsa65
+    · exact Params.valid_mldsa87) (by cases s <;> decide) (by cases s <;> decide)
+    d ω K dist expand ⟨A, s₁, s₂⟩
+    hs₁ hs₂ hc (hS _) (hH _)
 
 end Cslib.Crypto.MLDSA.FIPS204

@@ -39,6 +39,7 @@ import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 import CslibFrontier.Computability.Complexity.Problems.StronglyConnected.Completeness
 
 import CslibFrontier.Computability.QueryComplexity.AdjacentPair
+import CslibFrontier.Crypto.Computational.Stretch.Prefix
 import CslibFrontier.Computability.Circuit.Arithmetic.BitBlast
 import CslibFrontier.Computability.Circuit.Arithmetic.CircuitLowerBound
 import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.LowerBound
@@ -74,6 +75,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
+import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
 import CslibFrontier.Computability.Communication.Discrepancy
 import CslibFrontier.Computability.Communication.Discrepancy.Spectral
 import CslibFrontier.Computability.Communication.DistinctRows
@@ -194,6 +196,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
@@ -295,6 +298,8 @@ import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
+import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 
 /-!
 # Collected results
@@ -1119,6 +1124,25 @@ register_result "bpp-proper-subset-ppoly" where
     No efficient separator or uniform circuit-family construction. Strictness is not asserted \
     for arbitrary encoded finite instance domains, where the two classes coincide."
 
+register_result "arora-barak-ma-eq-np-of-hardness" where
+  title := "Average-case hardness in E gives MA = NP"
+  topic := "derandomization"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 4",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.7 printed 286 / \
+        PDF 302" }
+  ]
+  theorems := [Cslib.Complexity.MA_eq_NP_of_isAverageCaseHard]
+  scope := "Outside check: PR #6276, review 5947521916. MA enc = NP enc for every injective \
+    instance encoding, assuming L ∈ E encBits whose slices are eventually IsAverageCaseHard \
+    (non-strict, De Morgan gates counted, inputs not) for size 2^⌊n/c⌋, some natural c > 0. \
+    The draft's hypothesis (f ∈ E, strict H_avg(f)(n) ≥ 2^(εn) for every n, Definition 6.1 \
+    counting all nodes) implies this for every natural c > 1/ε: a De Morgan circuit with s \
+    gates on n ≥ 1 inputs becomes a source circuit with O(n + s + 1) nodes and the output as \
+    its only sink (prune unused gates, constants as x1 ∧ ¬x1 or its negation, unused inputs \
+    folded into a dummy zero ORed into the output), which is at most 2^(εn) ≤ S for all \
+    large n, and 1/2 + 1/S ≤ 1/2 + 1/s. MA has two-sided error 1/3."
+
 register_result "one-bit-advice-undecidable" where
   title := "One bit of advice decides a length-dependent undecidable bit language"
   topic := "complexity theory"
@@ -1379,6 +1403,28 @@ register_result "goldreich-levin-hard-core" where
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
 
+register_result "goldreich-stretch-amplification-last-bits" where
+  title := "Stretch amplification of a one-bit pseudorandom generator by emitted last bits"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Proposition 8.8 (with Construction 8.7)",
+      locator := "March 2007 draft r4.pdf, PDF p. 64; printed p. 328" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRGStretch.pseudorandomGenerator_take_forwardIterate,
+    Cslib.Crypto.PRGStretch.take_forwardIterate_eq_flatten_emitBit
+  ]
+  scope := "Uniform PRGs as PseudorandomGenerator: a deterministic polynomial-time generator of \
+    exact output length, secure against uniform PPT tests. The tests of prgRealGame and \
+    prgIdealGame also receive the seed length n in unary, while those of Definition 8.1 \
+    (Eq. (8.2)) see only the challenge word. On the one-bit premise a challenge-only test \
+    recovers n = |word| - 1 and can simulate such a test, and on the conclusion a test may \
+    ignore n, so the source implication follows even when the output length does not determine \
+    the seed length. The stretch function ℓ is computable in polynomial time in unary and \
+    satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
+    identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
+    six-point source check: review 5947783297 on PR #6287."
+
 register_result "goldreich-low-degree-extension-individual-degree" where
   title := "Low-degree extensions of individual degree |H| - 1"
   topic := "codes"
@@ -1552,6 +1598,20 @@ register_result "communication-clique-independent-set" where
     protocol trees in which Alice holds a clique C and Bob an independent set I and both \
     learn |C ∩ I| (a natural number, at most one) need depth at most 3 (floor(log2 n) + 1)^2, \
     uniformly in the graph. The open second question of the exercise is not addressed."
+-- https://github.com/cslib-community/cslib-frontier/pull/6259#pullrequestreview-5947134959
+register_result "communication-aho-ullman-yannakakis" where
+  title := "Monochromatic tilings give O(log² χ) deterministic protocols"
+  topic := "communication complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 12, Exercise 7",
+      locator := "Web draft 2007-01-08; printed p. 232 / PDF p. 248" }
+  ]
+  theorems := [Cslib.Communication.RectanglePartition.ecomplexityFun_run_le,
+    Cslib.Communication.ecomplexityFun_le_eight_mul_log_tilingNumber_sq]
+  scope := "A labelled rectangle partition with t pieces gives a deterministic protocol \
+    tree of depth at most 2 ceil(log2 t) ceil(log2 (t+1)); hence C(f) <= 8 floor(log2 chi(f))^2 \
+    for finite input types and any nonempty output type (the draft: Boolean f on n-bit \
+    strings). chi is the minimum tiling number; the cover form O(N0 N1) is not claimed."
 
 register_result "communication-tiling-discrepancy" where
   title := "Discrepancy bounds the minimum arbitrary monochromatic tiling size"
@@ -5426,8 +5486,8 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
     Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and decapsulation; \
     no premise bounds the number of queries. Encapsulation draws m uniformly from words of \
     length msgLen n, as in Fig. 18. G and H are lazily sampled random oracles on word domains, \
-    and a request outside a domain gets the empty word. The key is the domain-separated \
-    H(false, m, c) in place of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
+    and a request outside a domain gets the empty word. The key uses the canonical encoding \
+    H(false, m, c) of HHK17's H(m, c). Decapsulation refuses the challenge ciphertext, \
     rejects words longer than ctLen n with ⊥, and treats decryption results of the wrong length \
     as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice HHK17's \
     |Pr[b' = b] - 1/2|. HHK17 state a concrete bound (the FO^⊥ row of the §3.3 table, p. 22: \
@@ -5465,8 +5525,8 @@ register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
     / Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and \
     decapsulation; no premise bounds the number of decapsulation queries. G and H are lazily \
     sampled random oracles on word domains, and a request outside a domain gets the empty word. \
-    H is domain-separated (H(false, m, c) for keys, H(true, s, c) for implicit rejection) in \
-    place of HHK17's untagged H(m, c) and H(s, c). Decapsulation refuses the challenge \
+    Key derivation and implicit rejection query the same H on (m, c) and (s, c), respectively, \
+    as in HHK17 Fig. 12. Decapsulation refuses the challenge \
     ciphertext, rejects words longer than ctLen n with ⊥, and treats decryption results of the \
     wrong length as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice \
     HHK17's |Pr[b' = b] - 1/2|. As in the source, no γ-spreadness is assumed (§1.1.2 table, \
@@ -5689,22 +5749,47 @@ register_result "cgks-pir-multi-interactive-lower-bound" where
     Multi-round lower bounds below full collusion (t < |S|) are not proved."
 
 register_result "prp-prf-switching" where
-  title := "PRP/PRF switching lemma: a pseudorandom permutation is a pseudorandom function"
+  title := "PRP/PRF switching lemma: PRP and PRF advantages differ by at most a birthday term"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 4.4 and Corollary 4.5",
-      locator := "Section 4.4.3" }
+    { paper := BonehShoup2023, theorem := "Theorems 4.4 and 4.6",
+      locator := "Section 4.4.3, pp. 134–135" }
   ]
   theorems := [
     Cslib.Crypto.PRP.advantage_idealExperiment_prfIdealExperiment_le,
+    Cslib.Crypto.PRP.abs_advantage_sub_prfAdvantage_le,
     Cslib.Crypto.PRP.prfAdvantage_le_advantage_add
   ]
   scope := "Finite block set D and key set Key, block ciphers E : Key → Equiv.Perm D, and \
     adaptive oracle adversaries with private coins (PRF.Adversary D D) making at most Q queries \
-    (IsQueryBounded Q). A uniform permutation and a uniform function of D are distinguished \
-    with advantage at most Q.choose 2 / |D|, so the PRF advantage of E is at most its PRP \
-    advantage plus Q.choose 2 / |D|. Concrete information-theoretic bounds; no running time is \
-    charged and no asymptotic form is stated."
+    on every path (IsQueryBounded Q), with no bound on running time, as in the source. \
+    Theorem 4.6 (advantage_idealExperiment_prfIdealExperiment_le): a uniform permutation and a \
+    uniform function of D are distinguished with advantage at most Q.choose 2 / |D|. \
+    Theorem 4.4 (abs_advantage_sub_prfAdvantage_le): the PRP and PRF advantages of E differ in \
+    absolute value by at most Q.choose 2 / |D|; prfAdvantage_le_advantage_add is its PRP-to-PRF \
+    half. The bound Q (Q - 1) / 2|D| is at most the source's Q² / 2N, so each statement implies \
+    the source's. Concrete information-theoretic bounds; the asymptotic Corollary 4.5 is the \
+    entry prp-iff-prf."
+
+register_result "prp-iff-prf" where
+  title := "A block cipher with a super-polynomial block space is a PRP iff it is a PRF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 4.5", locator := "Section 4.4.3, p. 135" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame
+  ]
+  scope := "Every uniform block cipher (BlockCipher: polynomial-time key and block lengths, and \
+    deterministic polynomial-time encryption and decryption, mutually inverse on blockLen n-bit \
+    blocks under keyLen n-bit keys), with any key length, against uniform oracle-PPT \
+    distinguishers (IsOraclePPT) in the adaptive word-oracle forms of Attack Games 4.1 and 4.2, \
+    where a query of the wrong length is answered with the empty word in both games. The \
+    source's super-poly N is the hypothesis that (2 ^ blockLen n)⁻¹ is negligible. The PRF side \
+    is stated as indistinguishability of E.prpRealGame, which is the real experiment of E viewed \
+    as a PRF over (K, X, X), from prfIdealGame blockLen blockLen; the library's named PRF notion \
+    PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
+    BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
 register_result "ajtai-collision-sis" where
   title := "Ajtai's hash family is collision resistant under SIS"
@@ -6323,6 +6408,26 @@ register_result "goldreich-read-once-prg-stretch" where
     s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
+
+register_result "arora-barak-nonexplicit-prg" where
+  title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 2 (corrected at seed length ≤ 1)",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.2 printed 283 / \
+        PDF 299; rounding convention printed 7 / PDF 23" }
+  ]
+  theorems := [Cslib.Complexity.exists_generator_advantage_lt,
+    Cslib.Complexity.exists_isCircuitTest_le_advantage_one]
+  scope := "Outside check: PR #6271, review 5947409116. epsilon = 1/10; one map G on words \
+    and output length S(l) = ceil(2^(l/10)) for l >= 2 and S(l) = l for l <= 1, monotone, \
+    with |G(z)| = S(|z|), and for every l advantage below 1/10 against every deterministic \
+    De Morgan circuit with at most S(l)^3 non-input gates (uniform seed versus uniform \
+    output). Only these length and indistinguishability properties are covered: \
+    polynomial-time computability of S (a condition of Definition 16.2) is not proved, and \
+    G has no time bound, as the exercise allows. The printed form fails at l = 1 for every \
+    epsilon > 0 and every G under the draft's ceiling convention; the witness has at most \
+    four gates, at most m + 5 <= m^3 nodes when inputs and an output node are counted."
 
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"

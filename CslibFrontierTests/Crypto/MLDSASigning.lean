@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Computational.MLDSA.CommitmentCollision
-import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+import CslibFrontier.Crypto.Computational.MLDSA.SigningROM
 import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
@@ -212,15 +211,6 @@ example : (interpret countTrials (expandSigningRetries toy 4 interleaved)).run 0
   simp only [expandSigningRetries, interleaved, hr, List.findSomeM?_cons, List.findSomeM?_nil,
     sumHandler, interpret_bind, interpret_query, countTrials, StateT.run, bind_pure_comp]
   rfl
-
--- The common-half MSIS solver fits both the strong-forgery and classical fork radii
--- for each FIPS parameter set.
-example : ∀ P ∈ [Params.mldsa44, Params.mldsa65, Params.mldsa87],
-    let radius := max (P.γ₁ - 1) (2 * P.γ₂)
-    radius ≤ max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2) ∧
-      radius ≤ 2 * compressedSelfTargetRadius P 13 := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  rintro P (rfl | rfl | rfl) <;> decide +kernel
 
 -- The rejected point is the first coin, and its digest equals that coin. Among the four
 -- equiprobable two-coin tapes, reading `false` returns true once if the rejected write is kept,

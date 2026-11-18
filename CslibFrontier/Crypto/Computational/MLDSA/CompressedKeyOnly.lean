@@ -148,7 +148,7 @@ def SelfTargetCandidate.ofCompressedForgery (d : ℕ) (pk : PublicKey P) (msg : 
   ⟨msg, compressedForgeryLowPart P d pk σ, σ.z, σ.c⟩
 
 /-- The conservative self-target radius from Dilithium v3.1 equation (7). -/
-@[expose] def compressedSelfTargetRadius (d : ℕ) : ℕ :=
+def compressedSelfTargetRadius (d : ℕ) : ℕ :=
   max (P.γ₁ - P.β) (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))
 
 variable {P}

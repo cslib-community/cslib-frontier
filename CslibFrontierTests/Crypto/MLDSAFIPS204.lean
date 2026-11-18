@@ -137,6 +137,27 @@ private def allOnesXof : ExtendableOutput where
 #guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
 #guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
 
+-- The classical comparison permits 814 attempts on each of 2^64 signing requests.
+-- At the three hash-query budgets its statistical-distance contribution remains below one.
+example (s : Level) :
+    let h : ℕ := match s with | .mlDSA44 => 128 | .mlDSA65 => 192 | .mlDSA87 => 256
+    let bits : ℕ := match s with | .mlDSA44 => 32 | .mlDSA65 => 373 | .mlDSA87 => 566
+    let t := 2 ^ 64 * 814
+    ((2 * t * 2 ^ h + t.choose 2 : ℕ) : ℝ) *
+      ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) ≤ 1 / 2 ^ bits := by
+  intro h bits t
+  rw [← mul_div_assoc, div_le_div_iff₀ (by positivity) (by positivity), one_mul]
+  apply (Real.le_sqrt (by positivity) (by positivity)).2
+  let count := 2 * t * 2 ^ h + t.choose 2
+  have cert : (11 * count * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    dsimp only [count, t]
+    rw [Nat.choose_two_right]
+    cases s <;> decide +kernel
+  have bound : ((11 : ℝ) * count * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    exact_mod_cast cert
+  change ((count : ℝ) * (11 / 10) * 2 ^ bits) ^ 2 ≤ _
+  nlinarith only [bound]
+
 -- Reading the actual SHAKE bytes through the common register recovers every byte of Algorithm 2.
 example (s : Level) (extra : Finset (List Bool)) (key : List Byte) (q : SigningQuery)
     (rnd : FixedBytes 32) :
