@@ -46,16 +46,23 @@ def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :
 /-- FIPS 202 specialization of `Xofs.expandMask`. -/
 abbrev expandMask := Xofs.expandMask Xofs.shake
 
+/-- Complete Algorithm 7 using the sampled challenge and digest. XOF exhaustion is fatal,
+a failed norm or hint check rejects the mask, and success returns the encoded signature. -/
+def finishSigningAttempt (s : Level) (sk : PrivateKey s) (y : Fin s.params.ℓ → Poly)
+    (w : Fin s.params.k → Poly) (digest : List Byte) (challenge : Option Poly) :
+    Option (Option (List Byte)) := do
+  let c ← challenge
+  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w
+    (Vector.ofFn c).get
+  return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
+
 private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s)
     (matrix : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly)
     (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) := do
   let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
   let w := ringVectorCoeffs (tabulateRingVector (moduleSISMap matrix y))
   let digest := H.commitmentDigest s (highBitsVec s.params w) μ
-  let c ← H.sampleInBall s digest
-  let challenge := Vector.ofFn c
-  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w challenge.get
-  return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
+  finishSigningAttempt s sk y w digest (H.sampleInBall s digest)
 
 private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte))) :
     ℕ → ℕ → Option (List Byte)
@@ -123,14 +130,14 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     funext (Vector.get_ofFn g)
   cases hc : H.sampleInBall s digest with
   | none =>
-    simp only [Xofs.attempt, tabulateRingVector_eq] at hs
+    simp only [Xofs.attempt, finishSigningAttempt, tabulateRingVector_eq] at hs
     change (H.sampleInBall s digest).bind _ = _ at hs
     simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [Xofs.attempt, tabulateRingVector_eq, vecGet] at hs
+      simp only [Xofs.attempt, finishSigningAttempt, tabulateRingVector_eq, vecGet] at hs
       change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
     cases he : resp with
@@ -158,7 +165,7 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     {rnd : FixedBytes 32} (hg : H.keyGen s seed = some keys)
     (hs : H.sign s keys.secretKey f.message f.context rnd = some f.signature) :
     H.verify s keys.publicKey f.message f.context f.signature = some true := by
-  obtain ⟨rho, sk, key, hA, pk, decoded, short⟩ := privateKey_of_keyGen hg
+  obtain ⟨rho, sk, key, hA, pk, decoded, _, short⟩ := privateKey_of_keyGen hg
   have ctx : f.context.length ≤ 255 := by
     by_contra h
     simp [Xofs.sign, guard, h] at hs
