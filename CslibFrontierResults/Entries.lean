@@ -995,7 +995,14 @@ register_result "arora-barak-oracle-counterexample-to-3sat" where
       locator := "January 2007 draft, printed p. 74; PDF p. 90" }
   ]
   theorems := [Cslib.Complexity.exists_unaryLengthLanguage_not_reducibleWithOracle]
-  scope := "For every fixed encoded target, an oracle B has a unary length language in NP     relative to B with no many-one reduction computable in polynomial time with access to B.     The 3SAT client in CslibFrontierTests/Relativization.lean takes the fixed target     encCNF '' ThreeSAT with the identity encoding of words. The disallowed reductions can     output any word, including malformed CNF codes on negative inputs. The witness language     asks whether its unary input length occurs among words in B. The diagonal test checks     the encoded target after the candidate has finished its queries. Outside-fleet source     check: https://github.com/cslib-community/cslib-frontier/pull/6463#pullrequestreview-5958790305"
+  scope := "For every fixed encoded target, an oracle B has a unary length language in NP \
+    relative to B with no many-one reduction computable in polynomial time with access to B. \
+    The 3SAT client in CslibFrontierTests/Relativization.lean takes the fixed target \
+    encCNF '' ThreeSAT with the identity encoding of words. The disallowed reductions can \
+    output any word, including malformed CNF codes on negative inputs. The witness language \
+    asks whether its unary input length occurs among words in B. The diagonal test checks \
+    the encoded target after the candidate has finished its queries. Outside-fleet source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6463#pullrequestreview-5958790305"
 
 register_result "arora-barak-perfectly-complete-set-lower-bound" where
   title := "A perfectly complete AM protocol for set lower bounds"
