@@ -3603,6 +3603,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Sum
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Derive
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
@@ -3631,6 +3632,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Policy.BinaryIntUnaryFin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Rat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveChild

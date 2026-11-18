@@ -51,11 +51,10 @@ private partial def containsFamily (family : Name) (expression : Expr) : MetaM B
   | .mdata _ body | .proj _ _ body => containsFamily family body
   | _ => return false
 
-/-- Check the recursive `enc_inductive` input before the command emits any declarations.
-`T` is fully applied to its uniform parameters; the caller supplies any section variables used
-by `T` or the scalar encodings. Each recursive field is annotated `_`, and every other field
-has an explicit encoding. The returned field types contain no constructor-local variables. -/
-def checkRecursiveInductive (T : Term) (cs : Array Ident) (encss : Array (Array Term)) :
+/-- Inspect a supported family before selecting field encodings or emitting declarations.
+`T` is fully applied to uniform parameters from the current section. The returned field types
+contain no constructor-local variables. Shared by the explicit and policy-driven frontends. -/
+def inspectRecursiveInductive (T : Term) :
     CommandElabM RecursiveInductiveInfo := runTermElabM fun _ => Term.withoutErrToSorry do
   let target ← Term.elabTerm T none
   Term.synthesizeSyntheticMVarsNoPostponing
@@ -82,22 +81,14 @@ def checkRecursiveInductive (T : Term) (cs : Array Ident) (encss : Array (Array 
   unless ← isDefEq (← inferType target) (mkSort (.succ .zero)) do
     throwErrorAt T "enc_inductive: recursive encoding automation currently requires values in \
       `Type`; higher-universe value types are not supported"
-  let expected := info.ctors.map (·.replacePrefix typeName .anonymous)
-  unless cs.toList.map (·.getId) == expected do
-    throwErrorAt T "enc_inductive: list every constructor of `{.ofConstName typeName}` once, in \
-      declaration order:{indentD (" ".intercalate (expected.map fun c => s!"| {c}"))}"
-  unless encss.size == cs.size do
-    throwErrorAt T "enc_inductive: give a field annotation list for each constructor"
   let mut fieldTypes := #[]
   let mut recursiveFields := #[]
-  for c in cs, ctor in info.ctors, encs in encss do
+  for ctor in info.ctors do
+    let c := T
     let ctorType ← inferType (mkAppN (mkConst ctor levels) parameters)
     let types ← forallTelescopeReducing ctorType fun fields result => do
       unless ← isDefEq result target do
         throwErrorAt c "enc_inductive: constructor result does not preserve the uniform parameters"
-      unless fields.size == encs.size do
-        throwErrorAt c "enc_inductive: `{.ofConstName ctor}` has {fields.size} explicit field(s), \
-          but {encs.size} encoding(s) are listed; give one encoding per field, in order"
       let mut earlier := #[]
       let mut types := #[]
       for field in fields do
@@ -116,26 +107,49 @@ def checkRecursiveInductive (T : Term) (cs : Array Ident) (encss : Array (Array 
       return types
     let mut flags := #[]
     let mut printed := #[]
-    for type in types, enc in encs do
+    for type in types do
       let recursive ← isDefEq type target
-      let placeholder := enc.raw.isOfKind ``Lean.Parser.Term.hole
-      if recursive then
-        unless placeholder do
-          throwErrorAt enc "enc_inductive: annotate a directly recursive field with `_`"
-      else
+      unless recursive do
         if ← containsFamily typeName type then
-          throwErrorAt enc "enc_inductive: recursive fields must be exactly the same family \
+          throwErrorAt T "enc_inductive: recursive fields must be exactly the same family \
             applied to the unchanged uniform parameters; nested or altered-parameter recursion \
             is not supported"
-        if placeholder then
-          throwErrorAt enc "enc_inductive: a nonrecursive field needs an explicit encoding"
-        let embedding ← mkAppM ``Function.Embedding #[type, ← mkAppM ``List #[mkConst ``Bool]]
-        discard <| Term.elabTermEnsuringType enc embedding
-        Term.synthesizeSyntheticMVarsNoPostponing
       flags := flags.push recursive
       printed := printed.push (← PrettyPrinter.delab type)
     fieldTypes := fieldTypes.push printed
     recursiveFields := recursiveFields.push flags
   return { typeName, fieldTypes, recursiveFields }
+
+/-- Check the explicit constructor list and embeddings before generation. Structural inspection
+is shared with `derive_encoding`; the explicit command never consults a codec registry. -/
+def checkRecursiveInductive (T : Term) (cs : Array Ident) (encss : Array (Array Term)) :
+    CommandElabM RecursiveInductiveInfo := do
+  let checked ← inspectRecursiveInductive T
+  let .inductInfo info ← getConstInfo checked.typeName | throwUnsupportedSyntax
+  let expected := info.ctors.map (·.replacePrefix checked.typeName .anonymous)
+  unless cs.toList.map (·.getId) == expected do
+    throwErrorAt T "enc_inductive: list every constructor of `{.ofConstName checked.typeName}` \
+      once, in declaration order:{indentD (" ".intercalate (expected.map fun c => s!"| {c}"))}"
+  unless encss.size == cs.size do
+    throwErrorAt T "enc_inductive: give a field annotation list for each constructor"
+  for c in cs, ctor in info.ctors, types in checked.fieldTypes, encs in encss,
+      recursive in checked.recursiveFields do
+    unless types.size == encs.size do
+      throwErrorAt c "enc_inductive: `{.ofConstName ctor}` has {types.size} explicit field(s), \
+        but {encs.size} encoding(s) are listed; give one encoding per field, in order"
+    runTermElabM fun _ => Term.withoutErrToSorry do
+      for type in types, enc in encs, isRecursive in recursive do
+        let placeholder := enc.raw.isOfKind ``Lean.Parser.Term.hole
+        if isRecursive then
+          unless placeholder do
+            throwErrorAt enc "enc_inductive: annotate a directly recursive field with `_`"
+        else
+          if placeholder then
+            throwErrorAt enc "enc_inductive: a nonrecursive field needs an explicit encoding"
+          let type ← Term.elabTerm type none
+          let embedding ← mkAppM ``Function.Embedding #[type, ← mkAppM ``List #[mkConst ``Bool]]
+          discard <| Term.elabTermEnsuringType enc embedding
+          Term.synthesizeSyntheticMVarsNoPostponing
+  return checked
 
 end Turing.MultiTapeTM.Internal

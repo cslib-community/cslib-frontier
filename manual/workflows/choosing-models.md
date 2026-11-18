@@ -149,6 +149,57 @@ indices, dependencies on earlier constructor fields, proof or implicit fields,
 mutual recursion, nested recursion, and altered recursive parameters are rejected before any
 encoding declarations are emitted. Constructor arity has no fixed limit.
 
+To omit the constructor list, import
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Derive` and declare
+`derive_encoding encTerm (n : ℕ) : Term n` inside a namespace. This declaration-time frontend
+selects scalar embeddings, then generates the same public encoding and native APIs as
+`enc_inductive`; the target inductive type must be public. The selected terms are fixed at the
+declaration, so later policy changes do not alter its encoded words.
+List every type, value and embedding parameter used by the target or selected encodings explicitly
+before the colon; ambient section parameters are rejected.
+The core import registers no defaults. A named policy must be imported and activated explicitly:
+
+```text
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Policy.BinaryIntUnaryFin
+
+namespace Arithmetic
+open scoped Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin
+
+derive_encoding encTerm (n : ℕ) : Term n
+derive_encoding encFormula (n : ℕ) : Formula n
+end Arithmetic
+```
+
+This policy selects binary `encIntBin` for integers, unary `encFinEnum (Fin n)` for finite
+variable indices, `encBool` for Booleans and `encUnit` for unit. It makes no choice for natural
+numbers. A constructor field that is directly recursive uses the generated encoding. For every
+other field, a matching embedding supplied as a declaration parameter, such as
+`(eα : α ↪ List Bool)`, takes precedence over registered rules. Two matching local embeddings
+are an error. Otherwise exactly one active registered rule must apply: missing and ambiguous
+choices are errors, rather than a fallback to a different representation. A family's parameters
+are inferred from the field type, and any embedding arguments it needs are resolved recursively.
+Thus deriving `encTree (α : Type) (eα : α ↪ List Bool) : Tree α` lets a later family with a
+`Tree α` field reuse `encTree α eα`.
+
+Register an existing embedding or parameterized encoding with
+`attribute [scoped encoding_rule] encName` in the policy's namespace, and activate it with
+`open scoped PolicyNamespace`. Scoped rules are active within that namespace and when it is
+reopened; an importing client must reactivate them. Opening a parent namespace does not activate
+its children's rules. Use `[local encoding_rule]` for a section-local choice, or plain
+`[encoding_rule]` for an intentionally global rule. A successful `derive_encoding` automatically
+registers its encoding as a scoped rule in its declaring namespace, so `encFormula` above reuses
+`encTerm` without repeating its parameters or scalar choices. Clients reactivate both with
+`open scoped Arithmetic`; importing the module alone does not activate those choices. Local
+registrations expire at the end of their scope and are not restored by reopening the namespace.
+Registered embeddings must be public; use local or scoped registration to limit their activation.
+The frontend rejects unsupported constructors before generating names and inherits the uniform
+parameter and recursion restrictions above. Use `enc_inductive` to spell out a particular
+constructor layout or resolve a deliberate choice explicitly. Neither command supplies scalar
+decoders. The [frontend fixture](../../CslibFrontierTests/DeriveEncoding.lean) compares the full
+arithmetic grammar and parameterized trees with explicit declarations; its
+[importing client](../../CslibFrontierTests/DeriveEncodingClient.lean) exercises scoped reuse,
+certified construction and projections, and strict decoding.
+
 The recursive representation is a preorder constructor stream. Each token contains its
 constructor tag and scalar fields in scalar-field order, followed by the child streams in
 recursive-field order. Tags use the same right-nested sum convention as above. Scalar tuples
