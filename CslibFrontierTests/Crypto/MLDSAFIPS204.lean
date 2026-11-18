@@ -7,11 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
-# ML-DSA byte verification
+# ML-DSA byte keys, signing and verification
 
 Exercise Algorithm 29's signed shuffle and rejection stream, Algorithm 27's digest boundary,
 and Algorithm 21's rejection of noncanonical hint encodings.
@@ -35,8 +35,25 @@ private def publicKeyFingerprint : List Byte := [
     0x79, 0x36, 0x11, 0xa1, 0x7f, 0xcc, 0x00, 0x06, 0xff, 0xea, 0x26, 0xcf,
     0x70, 0x94, 0xd8, 0x32, 0x50, 0x37, 0x28, 0x8f]
 
-#guard (keyGenPublic .mlDSA44 (fun i => keyGenSeed[i.val]!)).map (Keccak.shake256 · 32) ==
-  some publicKeyFingerprint
+private def secretKeyFingerprint : List Byte := [
+    0xb2, 0xfc, 0xe5, 0xa6, 0xc1, 0xc6, 0xa3, 0x65, 0x20, 0x6e, 0xdc, 0x65,
+    0x52, 0x20, 0x41, 0x45, 0x9d, 0xbd, 0xcd, 0x23, 0xde, 0x69, 0x8d, 0x5b,
+    0x8b, 0xa9, 0x61, 0x04, 0x3c, 0x1f, 0x13, 0x62]
+
+-- Sign a message ending mid-byte at the 255-byte context limit. One more byte must fail.
+private def keyAndSigningChecks : Option Bool := do
+  let keys ← keyGen .mlDSA44 fun i => keyGenSeed[i.val]!
+  let msg := [true, false, true]
+  let ctx := List.replicate 255 11
+  let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
+  return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
+    Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
+    verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
+    verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
+    (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
+
+#guard keyAndSigningChecks == some true
+#guard (sign .mlDSA44 [] [] [] (fun _ => 0)).isNone
 
 -- Independent SHAKE256(0^256) expansion followed by the FIPS 204 Algorithm 29 shuffle.
 private def zeroDigestSupport (value : ZMod 8380417) : Option (List ℕ) := do
