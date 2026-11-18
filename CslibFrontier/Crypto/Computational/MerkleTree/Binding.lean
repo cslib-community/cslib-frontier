@@ -45,7 +45,8 @@ not the cited result (see "Differences from [BonehShoup2023]" below).
   wins when both openings are accepted at the depth of the first path and their leaves differ
   (`merkleBreaksBinding`).
   `MerklePositionBinding H` asks that every uniform strict PPT adversary win with negligible
-  probability.
+  probability. It is novel to this library, and stronger than Definition 8.4, since leaves and
+  path labels may be any words (see the differences below).
 * **The reduction.** `merkleCollisionFinder` runs the adversary and applies
   `extractMerkleCollision` to its two openings. Every win yields a collision, so the binding
   advantage is at most the collision advantage at every parameter
@@ -395,10 +396,14 @@ noncomputable def merkleBindingGame (adversary : MerkleBindingAdversary) (n : �
   let out ← adversary n k
   return merkleBreaksBinding H k out
 
-/-- Position binding of Merkle trees over `H` ([BonehShoup2023], Definition 8.4): every uniform
-strict PPT adversary breaks binding with negligible probability. Adversaries write positions in
-unary, so this covers polynomially bounded positions. Leaves and path labels may be words of any
-length, unlike the source's leaf space `X` and digests `Y` (see the module documentation). -/
+/-- Position binding of Merkle trees over `H`, a notion novel to this library: every uniform
+strict PPT adversary breaks binding with negligible probability, where its leaves and path labels
+may be any words. This is stronger than [BonehShoup2023], Definition 8.4 and Attack Game 8.2
+(p. 324), where the two leaves lie in a finite leaf space `X` and a proof consists of digests in
+`Y` (Section 8.9, pp. 320–321). It follows from collision resistance on all words
+(`merklePositionBinding_of_hashFamily`), but not from collision resistance on `X ∪ Y²` alone (see
+the module documentation). Adversaries write positions in unary, so this covers polynomially
+bounded positions. -/
 def MerklePositionBinding : Prop :=
   Game.Indistinguishable (fun adversary n => ProbComp.eval (merkleBindingGame H adversary n))
     (fun _ _ => PMF.pure false) (IsPPT encMerkleBindingOutput)
