@@ -24,9 +24,8 @@ service is signing. Both signing and final verification evaluate the concrete FI
 functions. Its zero-signing-query lemma recovers the byte-level key-only experiment.
 
 `verify_of_sign` proves that every successful signature under a generated key passes
-Algorithm 3. For a fresh verifying signature that repeats a logged context, message and
-challenge digest, `digestCollision_or_msis_of_signingTranscript` derives the SHAKE256 collision
-or the short integer kernel witness from the two signatures.
+Algorithm 3. On a fresh verifying triple whose digest occurs in the log, the extractor
+finds a previous reply and computes two colliding SHAKE256 inputs or an integer MSIS vector.
 -/
 
 public section
@@ -229,43 +228,44 @@ theorem verify_of_mem_signingTranscript {H : Xofs} {s : Level} {seed : FixedByte
     · exact verify_of_sign hg sig
     · exact ih g htail
 
-/-- In a supported chosen-message run, an accepted fresh forgery that repeats a logged
-context, message and digest yields either two distinct SHAKE256 inputs with equal output or
-a short nonzero ordinary MSIS vector for the public matrix. -/
-theorem digestCollision_or_msis_of_signingTranscript {s : Level} {seed : FixedBytes 32}
-    {keys : KeyPair} {adv : SigningForger} {out old : Forgery} {log : List Forgery}
-    (hg : keyGen s seed = some keys)
-    (hrun : (out, log) ∈ (ProbOracleComp.runWith (signingOracle s keys.secretKey)
-      (adv keys.publicKey) []).support)
-    (prior : old ∈ log) (fresh : out ∉ log)
-    (msg : out.message = old.message) (ctx : out.context = old.context)
-    (digest : out.signature.take (digestBytes s) = old.signature.take (digestBytes s))
-    (valid : verify s keys.publicKey out.message out.context out.signature = some true) :
-    ∃ (rho : FixedBytes 32) (A : PublicMatrix s) (t : Fin s.params.k → Poly)
-      (a b : Signature s) (c : Poly), expandA s rho.toList = some A ∧
-      keys.publicKey = encodePublic s rho.toList t ∧
-      sigDecode s out.signature = some a ∧ sigDecode s old.signature = some b ∧
-      sampleInBall s a.digest = some c ∧
-      let x : CompressedSignature s.params := ⟨a.z, a.h, c⟩
-      let y : CompressedSignature s.params := ⟨b.z, b.h, c⟩
-      let pk : PublicKey s.params := ⟨A, t⟩
-      let μ := messageRepresentative keys.publicKey (formattedMessage out)
-      ((commitmentInput s (x.recover 13 pk) μ ≠ commitmentInput s (y.recover 13 pk) μ ∧
-        commitmentDigest s (x.recover 13 pk) μ = commitmentDigest s (y.recover 13 pk) μ) ∨
-        ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix A)
-          (max (2 * (s.params.γ₁ - s.params.β)) (4 * s.params.γ₂ + 2))
-          (responseDifference 13 pk x y)) := by
-  have signed := verify_of_mem_signingTranscript hg hrun prior
-  have distinct : out.signature ≠ old.signature := by
-    intro same
-    have he : out = old := by cases out; cases old; congr
-    exact fresh (he ▸ prior)
-  obtain ⟨rho, sk, _, hA, pk, _, _⟩ := privateKey_of_keyGen hg
-  rw [pk] at valid signed
-  rw [← msg, ← ctx] at signed
-  obtain ⟨a, b, c, ha, hb, hc, result⟩ := digestCollision_or_isSolution_of_verifyWithExpansion
-    (f := out) hA distinct digest valid signed
-  exact ⟨rho, sk.A, sk.publicKey.t, a, b, c, hA, pk, ha, hb, hc, pk ▸ result⟩
+/-- Search the actual signing log for a reply sharing the forgery's digest, then extract from
+the two triples using the public bytes and the matrix supplied to the solver. -/
+def Xofs.extractLoggedDigest (H : Xofs) (s : Level) (bytes : List Byte) (A : PublicMatrix s)
+    (f : Forgery) (log : List Forgery) : Option (RepeatedDigestWitness s) := do
+  let old ← log.find? fun g => g.signature.take (digestBytes s) == f.signature.take (digestBytes s)
+  H.extractRepeatedDigest s bytes A f old
+
+/-- Every fresh accepted forgery with a previously signed digest yields a valid computed witness.
+Key generation, the adaptive hedged signing service, verification and extraction use one XOF pair.
+The public matrix is the one obtained from the seed in the generated public key. -/
+theorem extractLoggedDigest_of_signingTranscript {H : Xofs} {s : Level} {seed : FixedBytes 32}
+    {keys : KeyPair} {adv : SigningForger} {out : Forgery} {log : List Forgery}
+    (hg : H.keyGen s seed = some keys)
+    (hrun : (out, log) ∈ (ProbOracleComp.runWith (H.signingOracle s keys.secretKey)
+      (adv keys.publicKey) []).support) (fresh : out ∉ log)
+    (repeated : ∃ g ∈ log, g.signature.take (digestBytes s) = out.signature.take (digestBytes s))
+    (valid : H.verify s keys.publicKey out.message out.context out.signature = some true) :
+    ∃ A w, H.expandA s (keys.publicKey.take 32) = some A ∧
+      H.extractLoggedDigest s keys.publicKey A out log = some w ∧ w.Valid H A := by
+  obtain ⟨rho, sk, _, hA, hpk, _, _⟩ := privateKey_of_keyGen hg
+  have matrix : H.expandA s (keys.publicKey.take 32) = some sk.A := by
+    rwa [hpk, take_encodePublic]
+  let same (g : Forgery) := g.signature.take (digestBytes s) == out.signature.take (digestBytes s)
+  cases h : log.find? same with
+  | none =>
+    obtain ⟨g, hg', eq⟩ := repeated
+    have bad := List.find?_eq_none.mp h g hg'
+    simp [same, eq] at bad
+  | some old =>
+    have prior := List.mem_of_find?_eq_some h
+    have distinct : out ≠ old := fun e => fresh (e ▸ prior)
+    have digest : old.signature.take (digestBytes s) = out.signature.take (digestBytes s) :=
+      beq_iff_eq.mp (List.find?_some (p := same) h)
+    have signed := verify_of_mem_signingTranscript hg hrun prior
+    obtain ⟨w, hw, good⟩ := extractRepeatedDigest_of_verify matrix distinct digest.symm valid signed
+    refine ⟨sk.A, w, matrix, ?_, good⟩
+    change (log.find? same >>= _) = some w
+    rwa [h, Option.bind_eq_bind, Option.bind_some]
 
 /-- The classical strong chosen-message experiment with concrete SHAKE. Both keys come from one
 uniform seed. The signer answers adaptive requests with the secret key. An accepted forgery

@@ -1009,10 +1009,14 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
   simp only [publicKey, publicKeyHighTerm, power2RoundVec, Vector.getElem_ofFn]
   exact coef (decodeRounded s bytes i j)
 
+/-- The raw SHAKE256 input for the message representative, with its public-key hash prefix. -/
+@[expose] def representativeInput (tr : List Byte) (formatted : List Bool) : List Bool :=
+  Keccak.bytesToBitsLE tr ++ formatted
+
 /-- The 64-byte representative of a formatted bit string given the public-key hash tr. -/
 def Xofs.representativeFromTr (H : Xofs) (tr : List Byte) (formatted : List Bool) : List Bool :=
   Keccak.bytesToBitsLE (H.h256.read
-    (Keccak.bytesToBitsLE tr ++ formatted) 64)
+    (representativeInput tr formatted) 64)
 
 /-- FIPS 202 specialization of `Xofs.representativeFromTr`. -/
 abbrev representativeFromTr := Xofs.representativeFromTr Xofs.shake
@@ -1096,6 +1100,41 @@ private abbrev verifyInternalWith := Xofs.verifyInternalWith Xofs.shake
 @[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
 
+private theorem bytes_eq_of_bits_eq {a b : List Byte}
+    (h : Keccak.bytesToBitsLE a = Keccak.bytesToBitsLE b) : a = b := by
+  have hl := congrArg List.length h
+  simp only [bitsLength] at hl
+  have len : a.length = b.length := by omega
+  simpa only [List.take_length, List.take_of_length_le len.ge] using
+    takeBytes_eq_of_bits a.length (le_refl _) len.le (congrArg (List.take (8 * a.length)) h)
+
+/-- Equal 512-bit representatives give equal full SHAKE256 outputs at the two raw inputs. -/
+theorem read_eq_of_messageRepresentative_eq (H : Xofs) (pk : List Byte) {m n : List Bool}
+    (h : H.messageRepresentative pk m = H.messageRepresentative pk n) :
+    H.h256.read (representativeInput (H.h256.readBytes pk 64) m) 64 =
+      H.h256.read (representativeInput (H.h256.readBytes pk 64) n) 64 := bytes_eq_of_bits_eq h
+
+/-- The byte verifier places exactly 512 message-representative bits before the commitment. -/
+@[simp] theorem length_messageRepresentative (H : Xofs) (pk : List Byte) (m : List Bool) :
+    (H.messageRepresentative pk m).length = 512 := by
+  rw [Xofs.messageRepresentative, Xofs.representativeFromTr, bitsLength, H.h256.length_read]
+
+/-- On the contexts allowed by Algorithm 3, the pure-mode prefix determines both the external
+context and the entire bit-string message, including a final incomplete byte. -/
+theorem formatMessage_inj {m n : List Bool} {c d : List Byte} (hc : c.length ≤ 255)
+    (hd : d.length ≤ 255) (h : formatMessage m c = formatMessage n d) : c = d ∧ m = n := by
+  let L (x : List Byte) := Keccak.byteBitsLE (Fin.ofNat 256 x.length)
+  have h' : L c ++ (Keccak.bytesToBitsLE c ++ m) = L d ++ (Keccak.bytesToBitsLE d ++ n) := by
+    apply List.append_cancel_left (as := Keccak.byteBitsLE 0)
+    simpa only [formatMessage, Keccak.bytesToBitsLE, List.flatMap_cons, List.append_assoc, L]
+      using h
+  obtain ⟨ht, hb⟩ := List.append_inj h' (by simp [L, Keccak.byteBitsLE])
+  have hv := congrArg (fun v => (Keccak.bitsToByteLE v).val) ht
+  simp only [L, Keccak.bitsToByteLE_byteBitsLE, Fin.val_ofNat] at hv
+  have hlen : c.length = d.length := by omega
+  obtain ⟨hctx, hmsg⟩ := List.append_inj hb (by rw [bitsLength, bitsLength, hlen])
+  exact ⟨bytes_eq_of_bits_eq hctx, hmsg⟩
+
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
 uniform Appendix C error for an exhausted SHAKE rejection stream is `none`. -/
 def verifyInternal (s : Level) := verifyInternalWith s (expandA s)
@@ -1166,13 +1205,13 @@ private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Boo
     (σ : Signature s) (c : Poly) : SelfTargetCandidate s.params :=
   SelfTargetCandidate.ofCompressedForgery s.params 13 pk μ ⟨σ.z, σ.h, c⟩
 
-private theorem parsed_of_verifyWithExpansion {s : Level} {bytes : List Byte}
+private theorem parsed_of_verifyWithExpansion {H : Xofs} {s : Level} {bytes : List Byte}
     {expand : List Byte → Option (PublicMatrix s)} {f : Forgery}
-    (hv : verifyWithExpansion s expand bytes f.message f.context f.signature = some true) :
+    (hv : H.verifyWithExpansion s expand bytes f.message f.context f.signature = some true) :
     ∃ A σ c, expand (bytes.take 32) = some A ∧ sigDecode s f.signature = some σ ∧
-      sampleInBall s σ.digest = some c ∧
-      check s (publicKey s bytes A) (messageRepresentative bytes (formattedMessage f)) σ c := by
-  simp only [verifyWithExpansion, Xofs.verifyWithExpansion, Xofs.verifyInternalWith] at hv
+      H.sampleInBall s σ.digest = some c ∧
+      H.check s (publicKey s bytes A) (H.messageRepresentative bytes (formattedMessage f)) σ c := by
+  simp only [Xofs.verifyWithExpansion, Xofs.verifyInternalWith] at hv
   have hctx : f.context.length ≤ 255 := by by_contra h; simp [guard, h] at hv
   have hlen : bytes.length = 32 + 320 * s.params.k := by
     by_contra h
@@ -1183,11 +1222,30 @@ private theorem parsed_of_verifyWithExpansion {s : Level} {bytes : List Byte}
     cases hA : expand (bytes.take 32) with
     | none => simp [guard, hctx, hlen, hσ, hA] at hv
     | some A =>
-      cases hc : sampleInBall s σ.digest with
+      cases hc : H.sampleInBall s σ.digest with
       | none => simp [guard, hctx, hlen, hσ, hA, hc] at hv
       | some c =>
         exact ⟨A, σ, c, rfl, rfl, hc, by
           simpa [guard, hctx, hlen, hσ, hA, hc, formattedMessage] using hv⟩
+
+/-- A verifying byte string determines a short response and the precise digest equality for
+the public vector decoded from the bytes. The calculation needs only that key and its matrix. -/
+theorem recovered_of_verifyWithExpansion {H : Xofs} {s : Level} {bytes : List Byte}
+    {expand : List Byte → Option (PublicMatrix s)} {A : PublicMatrix s} {f : Forgery}
+    (hA : expand (bytes.take 32) = some A)
+    (hv : H.verifyWithExpansion s expand bytes f.message f.context f.signature = some true) :
+    ∃ σ c, sigDecode s f.signature = some σ ∧ H.sampleInBall s σ.digest = some c ∧
+      ResponseShort s.params σ.z ∧
+      H.commitmentDigest s (fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
+        (compressedVerifierCommitment s.params 13 (publicKey s bytes A) σ.z c i))
+        (H.messageRepresentative bytes (formattedMessage f)) = σ.digest := by
+  obtain ⟨A', σ, c, hA', hσ, hc, hcheck⟩ := parsed_of_verifyWithExpansion hv
+  rw [hA, Option.some.injEq] at hA'
+  subst A'
+  simp only [Xofs.check, Bool.and_eq_true, decide_eq_true_eq] at hcheck
+  refine ⟨σ, c, hσ, hc, hcheck.1, ?_⟩
+  simp only [compressedVerifierCommitment, highTerm_publicKey, Pi.sub_apply]
+  exact hcheck.2
 
 private theorem hintedCommitment_encodePublic {s : Level} (rho : FixedBytes 32)
     (A : PublicMatrix s) (t : Fin s.params.k → Poly) (σ : Signature s) (c : Poly) :
@@ -1201,24 +1259,24 @@ private theorem hintedCommitment_encodePublic {s : Level} (rho : FixedBytes 32)
 /-- A successful byte verification on a published `(ρ,t₁)` determines the parsed signature,
 its sparse challenge, the response bound, and the complete FIPS digest equality, expressed
 using the rounded high term of the original full vector `t`. -/
-theorem verifiedSignature_of_verifyWithExpansion {s : Level}
+theorem verifiedSignature_of_verifyWithExpansion {H : Xofs} {s : Level}
     {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
     {A : PublicMatrix s} {t : Fin s.params.k → Poly} {f : Forgery}
     (hA : expand rho.toList = some A)
-    (hv : verifyWithExpansion s expand (encodePublic s rho.toList t)
+    (hv : H.verifyWithExpansion s expand (encodePublic s rho.toList t)
       f.message f.context f.signature = some true) :
-    ∃ σ c, sigDecode s f.signature = some σ ∧ sampleInBall s σ.digest = some c ∧
+    ∃ σ c, sigDecode s f.signature = some σ ∧ H.sampleInBall s σ.digest = some c ∧
       ResponseShort s.params σ.z ∧
-      commitmentDigest s (fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
+      H.commitmentDigest s (fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
         (compressedVerifierCommitment s.params 13 ⟨A, t⟩ σ.z c i))
-        (messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)) = σ.digest := by
-  obtain ⟨A', σ, c, hA', hσ, hc, hcheck⟩ := parsed_of_verifyWithExpansion hv
-  rw [take_encodePublic, hA, Option.some.injEq] at hA'
-  subst A'
-  simp only [check, Xofs.check, Bool.and_eq_true, decide_eq_true_eq] at hcheck
-  refine ⟨σ, c, hσ, hc, hcheck.1, ?_⟩
+        (H.messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)) =
+        σ.digest := by
+  obtain ⟨σ, c, hσ, hc, hz, hd⟩ := recovered_of_verifyWithExpansion (f := f)
+    (by rwa [take_encodePublic]) hv
+  refine ⟨σ, c, hσ, hc, hz, ?_⟩
   rw [← hintedCommitment_encodePublic rho A t σ c]
-  exact hcheck.2
+  simp only [compressedVerifierCommitment, highTerm_publicKey, Pi.sub_apply] at hd
+  exact hd
 
 /-- Positive verification direction for an encoded public key and the verifier's exact
 digest check. This also covers fixed, externally supplied matrix expansions. -/
