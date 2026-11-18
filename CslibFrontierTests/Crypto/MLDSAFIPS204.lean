@@ -7,7 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
+meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -118,6 +120,31 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- The final commitment read is necessary. Under this legitimate XOF and encoded key the
+-- zero response is accepted, writing a different digest rejects it, and a second write at
+-- the same input restores acceptance. A prior signature for a different message allows a
+-- strong forgery while excluding it from the fresh-digest branch.
+private def checkVerifierWrite (s : Level) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let pk := encodePublic s (List.replicate 32 0) (fun _ _ => 0)
+  let digest := List.replicate (digestBytes s) (0 : Byte)
+  let sig := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig⟩
+  let x := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage f))
+  let changed := H.writeCommitment x (List.replicate (digestBytes s) 1)
+  let restored := changed.writeCommitment x digest
+  let prior := {f with message := [false]}
+  let trial (G : Xofs) (log : List Forgery) : SignedMatrixTrial s :=
+    ⟨G, fun _ _ _ => 0, pk, f, log⟩
+  return (trial H []).newDigestWin && !(trial changed []).newDigestWin &&
+    (trial restored []).newDigestWin && (trial restored [prior]).wins &&
+    !(trial restored [prior]).newDigestWin
+
+#guard checkVerifierWrite .mlDSA44
+#guard checkVerifierWrite .mlDSA65
+#guard checkVerifierWrite .mlDSA87
 
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.
