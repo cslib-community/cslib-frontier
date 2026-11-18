@@ -67,9 +67,12 @@ With no certificates, `S a` is the set counted by a `#P` function, so `SBP ⊆ A
 * `Cslib.Complexity.SetLowerBound.card_amplifiedSet`: the size of the amplified set.
 * `Cslib.Complexity.SetLowerBound.exists_verifier_iff`: Merlin has an accepted answer exactly when
   the amplified set meets the kernel of Arthur's hash.
-* `Cslib.Complexity.mem_AM_of_card_certifiedSet`: **the set lower bound protocol**.
+* `Cslib.Complexity.exists_verifier_of_card_certifiedSet`: **the set lower bound protocol**, with
+  completeness and soundness on every input separately.
+* `Cslib.Complexity.mem_AM_of_card_certifiedSet`: the protocol for a language.
 * `Cslib.Complexity.exists_perfectlyComplete_verifier_of_card_certifiedSet`: the protocol with
-  perfect completeness and soundness error `1 / 3` ([Arora and Barak, Exercise 8.3][AroraBarak07]).
+  perfect completeness and soundness error `1 / 3`, on every input separately
+  ([Arora and Barak, Exercise 8 §3][AroraBarak07]).
 * `Cslib.Complexity.SBP_subset_AM`.
 
 ## References
@@ -80,7 +83,7 @@ With no certificates, `S a` is the set counted by a `#P` function, so `SBP ⊆ A
   MA and AM*][BoehlerGlasserMeister2006]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, draft of January 2007,
-  Exercise 8.3][AroraBarak07]
+  Exercise 8 §3][AroraBarak07]
 -/
 
 @[expose] public section
@@ -275,15 +278,24 @@ end SetLowerBound
 open SetLowerBound
 
 /-- **The set lower bound protocol** of Goldwasser and Sipser [GoldwasserSipser1986]
-[Arora and Barak, Section 8.2][AroraBarak09]. Let `R` be a polynomial-time test, `N` and `c`
-polynomials, and `K` a polynomial-time threshold in binary with `K a > 0`. If the set of strings
-of `N(n)` bits with a certificate of `c(n)` bits accepted by `R` has at least `K a` elements for
-every member `a` of `A`, and at most `K a / 2` for every non-member, then `A ∈ AM`. -/
-theorem mem_AM_of_card_certifiedSet {N c : Polynomial ℕ} {R : α × List Bool → Bool} {K : α → ℕ}
-    (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
-    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a)
-    (hmem : ∀ a ∈ A, K a ≤ #(certifiedSet enc N c R a))
-    (hnot : ∀ a ∉ A, 2 * #(certifiedSet enc N c R a) ≤ K a) : A ∈ AM enc := by
+[Arora and Barak, Section 8.2][AroraBarak09], for every input separately. Let `R` be a
+polynomial-time test, `N` and `c` polynomials, and `K` a polynomial-time threshold in binary with
+`K a > 0`. One polynomial-time Arthur–Merlin verifier has, on every input `a`, an accepted reply
+for at least two thirds of the random strings when the set of strings of `N(n)` bits with a
+certificate of `c(n)` bits accepted by `R` has at least `K a` elements, and for at most a third
+when it has at most `K a / 2`. Inputs between the two bounds carry no obligation. -/
+theorem exists_verifier_of_card_certifiedSet {N c : Polynomial ℕ} {R : α × List Bool → Bool}
+    {K : α → ℕ} (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
+    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a) :
+    ∃ (p q : Polynomial ℕ) (V : α × List Bool → Bool),
+      ComputableInPolyTime V (encPair enc encBits) encBool ∧
+      ∀ a, (K a ≤ #(certifiedSet enc N c R a) → 2 * 2 ^ p.eval (enc a).length ≤
+          3 * #{r : Fin (p.eval (enc a).length) → Bool |
+            ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true}) ∧
+        (2 * #(certifiedSet enc N c R a) ≤ K a → 2 * 2 ^ p.eval (enc a).length ≤
+          3 * #{r : Fin (p.eval (enc a).length) → Bool |
+            ∀ y : Fin (q.eval (enc a).length) → Bool,
+              V (a, List.ofFn r ++ List.ofFn y) = false}) := by
   -- normalise the threshold `K a ^ 5` to a power of two
   set ℓ : α → ℕ := fun a => Nat.log 2 (K a ^ 5) with hℓdef
   have hℓ : ComputableInPolyTime ℓ enc encUnary :=
@@ -311,12 +323,25 @@ theorem mem_AM_of_card_certifiedSet {N c : Polynomial ℕ} {R : α × List Bool 
     intro ha
     refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le _ ?_
     simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using
-      hh.four_mul_card_filter_notMem_image_le (hbnds.1 (hmem a ha)) 0
+      hh.four_mul_card_filter_notMem_image_le (hbnds.1 ha) 0
   · -- non-members: the amplified set has at most `2 ^ m(n) / 4` elements
     intro ha
     refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le _ ?_
     simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, not_not] using
-      hh.four_mul_card_filter_mem_image_le (hbnds.2 (hnot a ha)) 0
+      hh.four_mul_card_filter_mem_image_le (hbnds.2 ha) 0
+
+/-- **The set lower bound protocol** of Goldwasser and Sipser [GoldwasserSipser1986]
+[Arora and Barak, Section 8.2][AroraBarak09]. Let `R` be a polynomial-time test, `N` and `c`
+polynomials, and `K` a polynomial-time threshold in binary with `K a > 0`. If the set of strings
+of `N(n)` bits with a certificate of `c(n)` bits accepted by `R` has at least `K a` elements for
+every member `a` of `A`, and at most `K a / 2` for every non-member, then `A ∈ AM`. -/
+theorem mem_AM_of_card_certifiedSet {N c : Polynomial ℕ} {R : α × List Bool → Bool} {K : α → ℕ}
+    (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
+    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a)
+    (hmem : ∀ a ∈ A, K a ≤ #(certifiedSet enc N c R a))
+    (hnot : ∀ a ∉ A, 2 * #(certifiedSet enc N c R a) ≤ K a) : A ∈ AM enc :=
+  let ⟨p, q, V, hV, h⟩ := exists_verifier_of_card_certifiedSet (N := N) (c := c) hR hK hKpos
+  ⟨p, q, V, hV, fun a => ⟨fun ha => (h a).1 (hmem a ha), fun ha => (h a).2 (hnot a ha)⟩⟩
 
 /-- **`SBP ⊆ AM`** [Böhler, Glaßer and Meister][BoehlerGlasserMeister2006]: the set counted by the
 `#P` function of an `SBP` problem needs no certificates, and the set lower bound protocol applies
@@ -344,53 +369,60 @@ theorem SBP_subset_AM : SBP enc ⊆ AM enc := by
     exact ((hA a).2 ha).le
 
 
-/-- **A perfectly complete set lower bound protocol** ([Arora and Barak, Exercise 8.3, draft of
-January 2007, p. 8.20][AroraBarak07]). Under the hypotheses of the set lower bound protocol
-(`mem_AM_of_card_certifiedSet`), there is a polynomial-time Arthur–Merlin verifier, with Arthur's
-random string of `p(n)` bits followed by Merlin's reply of `q(n)` bits, that accepts some reply to
-**every** random string on members, and some reply to at most a third of the random strings on
-non-members.
+/-- **A perfectly complete set lower bound protocol** ([Arora and Barak, Exercise 8 §3, draft of
+January 2007, p. 8.20][AroraBarak07]). Let `R` be a polynomial-time test, `N` and `c` polynomials,
+and `K` a polynomial-time threshold in binary with `K a > 0`, and write `S a` for the strings of
+`N(n)` bits with a certificate of `c(n)` bits accepted by `R`. One polynomial-time Arthur–Merlin
+verifier, with Arthur's random string of `p(n)` bits followed by Merlin's reply of `q(n)` bits,
+has on every input `a`:
+
+* an accepted reply to **every** random string when `K a ≤ #(S a)`;
+* no accepted reply for at least two thirds of the random strings when `2 #(S a) ≤ K a`.
+
+Inputs with `K a / 2 < #(S a) < K a` carry no obligation.
 
 The proof does not follow the exercise's hint (Merlin chooses several hash functions, and the gap
-is amplified by Cartesian powers of the set). It turns the bounded-error protocol into one with
-perfect completeness and soundness error `1 / 2` by `AM_eq_AMOne` (Lautemann's covering argument,
-after Fürer, Goldreich, Mansour, Sipser and Zachos), and runs two copies in parallel, accepting when
-both accept, which brings the soundness error to `1 / 4`. -/
+is amplified by Cartesian powers of the set). It makes the bounded-error protocol
+(`exists_verifier_of_card_certifiedSet`) perfectly complete with soundness error `1 / 2` by
+amplification and Lautemann's shifts, as in `AM_subset_AMOne` (after Fürer, Goldreich, Mansour,
+Sipser and Zachos), and runs two copies in parallel, accepting when both accept, which brings the
+soundness error to `1 / 4` (`IsArthurMerlinOneVerifier.arthurMerlinRepeat_one_perfect`). Those
+steps are stated for a language; they are applied to the inputs outside the middle band, a
+subtype on which the two cases partition the inputs, and the constructed verifier on an input of
+the subtype is the verifier on the underlying input. -/
 theorem exists_perfectlyComplete_verifier_of_card_certifiedSet {N c : Polynomial ℕ}
     {R : α × List Bool → Bool} {K : α → ℕ}
     (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
-    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a)
-    (hmem : ∀ a ∈ A, K a ≤ #(certifiedSet enc N c R a))
-    (hnot : ∀ a ∉ A, 2 * #(certifiedSet enc N c R a) ≤ K a) :
+    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a) :
     ∃ (p q : Polynomial ℕ) (V : α × List Bool → Bool),
       ComputableInPolyTime V (encPair enc encBits) encBool ∧
-      ∀ a, (a ∈ A → ∀ r : Fin (p.eval (enc a).length) → Bool,
+      ∀ a, (K a ≤ #(certifiedSet enc N c R a) → ∀ r : Fin (p.eval (enc a).length) → Bool,
           ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true) ∧
-        (a ∉ A → 3 * #{r : Fin (p.eval (enc a).length) → Bool |
-          ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true} ≤
-            2 ^ p.eval (enc a).length) := by
-  obtain ⟨p, q, V, hV, h⟩ : A ∈ AMOne enc :=
-    AM_eq_AMOne (enc := enc) ▸ mem_AM_of_card_certifiedSet hR hK hKpos hmem hnot
-  refine ⟨2 * 1 * p, 2 * 1 * q, arthurMerlinRepeat enc 1 p q V,
-    computableInPolyTime_arthurMerlinRepeat hV 1 p q, fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
-  · have hlenP : (2 * 1 * p).eval (enc a).length =
-        2 * (1 : Polynomial ℕ).eval (enc a).length * p.eval (enc a).length := by
-      simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
-    have hlenQ : (2 * 1 * q).eval (enc a).length =
-        2 * (1 : Polynomial ℕ).eval (enc a).length * q.eval (enc a).length := by
-      simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
-    rw [hlenP, hlenQ]
-    intro x
-    rw [exists_arthurMerlinRepeat_ofFn_append_ofFn_iff,
-      filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
-    simp
-  · have hsound := ((h.arthurMerlinRepeat_one a).2 ha)
-    have hsplit := card_filter_add_card_filter_not (s := univ)
-      (fun r : Fin ((2 * 1 * p).eval (enc a).length) → Bool =>
-        ∃ y : Fin ((2 * 1 * q).eval (enc a).length) → Bool,
-          arthurMerlinRepeat enc 1 p q V (a, List.ofFn r ++ List.ofFn y) = true)
-    simp only [not_exists, Bool.not_eq_true, card_univ, Fintype.card_fun, Fintype.card_bool,
-      Fintype.card_fin] at hsplit
-    omega
+        (2 * #(certifiedSet enc N c R a) ≤ K a → 2 * 2 ^ p.eval (enc a).length ≤
+          3 * #{r : Fin (p.eval (enc a).length) → Bool |
+            ∀ y : Fin (q.eval (enc a).length) → Bool,
+              V (a, List.ofFn r ++ List.ofFn y) = false}) := by
+  obtain ⟨p, q, V, hV, h⟩ := exists_verifier_of_card_certifiedSet (N := N) (c := c) hR hK hKpos
+  -- the inputs outside the middle band, where membership is `K a ≤ #(S a)`
+  let β := {a : α // K a ≤ #(certifiedSet enc N c R a) ∨ 2 * #(certifiedSet enc N c R a) ≤ K a}
+  let encβ : β ↪ List Bool := (Function.Embedding.subtype _).trans enc
+  have hβ : IsArthurMerlinVerifier encβ p q (fun x => V (x.1.1, x.2))
+      {b : β | K b.1 ≤ #(certifiedSet enc N c R b.1)} := fun b =>
+    ⟨(h b.1).1, fun hb => (h b.1).2 (b.2.resolve_left hb)⟩
+  have hOne := ArthurMerlin.isArthurMerlinOneVerifier_piTwoVerifier (hβ.repeatMajority _)
+    (ArthurMerlin.eval_lt_mul p) fun _ => Nat.lt_two_pow_self
+  refine ⟨2 * 1 * ((12 * p + 1) * (12 * (12 * p + 1) * p)),
+    2 * 1 * (12 * (12 * p + 1) * p + (12 * p + 1) * (12 * (12 * p + 1) * q)),
+    arthurMerlinRepeat enc 1 ((12 * p + 1) * (12 * (12 * p + 1) * p))
+      (12 * (12 * p + 1) * p + (12 * p + 1) * (12 * (12 * p + 1) * q))
+      (ArthurMerlin.piTwoVerifier enc (12 * p + 1) (12 * (12 * p + 1) * p) (12 * (12 * p + 1) * q)
+        (arthurMerlinRepeat enc (6 * (12 * p + 1)) p q V)),
+    computableInPolyTime_arthurMerlinRepeat (ArthurMerlin.computableInPolyTime_piTwoVerifier
+      (computableInPolyTime_arthurMerlinRepeat hV _ _ _) _ _ _) _ _ _,
+    fun a => ⟨fun ha => (hOne.arthurMerlinRepeat_one_perfect ⟨a, .inl ha⟩).1 ha,
+      fun ha => (hOne.arthurMerlinRepeat_one_perfect ⟨a, .inr ha⟩).2 fun hK' => by
+        have := hKpos a
+        simp only [Set.mem_ofPred_eq] at hK'
+        omega⟩⟩
 
 end Cslib.Complexity
