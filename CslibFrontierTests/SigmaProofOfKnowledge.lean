@@ -105,10 +105,10 @@ private def xorSimulator : Simulator Unit (fun _ => Bool) (fun _ => Unit)
 private theorem xorSimulator_isPPT : Simulator.IsPPT xorEncoding xorSimulator := by
   refine Simulator.IsPPT.of_word
     (program := fun input => pure ([], List.zipWith xor input.2.2 input.2.1)) ?_ ?_
-  · exact (ComputableInPolyTime.tidy (by fun_prop :
+  · exact (by fun_prop :
       ComputableInPolyTime
         (fun input : Unit × List Bool × List Bool => ([], List.zipWith xor input.2.2 input.2.1))
-        (encSimulatorWordInput encUnit) (encPair encBits encBits))).isPPTOn
+        (encSimulatorWordInput encUnit) (encPair encBits encBits)).isPPTOn
   · intro i y c
     simp [xorSimulator, xorEncoding, ProbComp.eval_pure]
 
