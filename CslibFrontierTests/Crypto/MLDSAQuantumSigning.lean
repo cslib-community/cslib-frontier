@@ -55,7 +55,7 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) (sk : List Byte) (q : 
       (C.commands H s sk (.inr q) p.2).bind fun r =>
         (C.commands H s sk (.inl .query) r.2).map (fun u => (r.1, u.2))) =
       (H.signingOracle s sk q st.2).map (fun r => (r.1, st.1, r.2)) := by
-  simp [commands, OracleComp.sumHandler, deviceHandler_query,
+  simp [commands, deviceCommand, OracleComp.sumHandler, deviceHandler_query,
     Function.comp_def, unquery, PMF.map]
 
 -- Even when the empty string is the only permitted input, the two SHAKE variants return
