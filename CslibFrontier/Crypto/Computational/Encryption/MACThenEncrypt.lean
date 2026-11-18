@@ -140,7 +140,7 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     have hencode : ComputableInPolyTime
         (fun p : (ℕ × List Bool) × List Bool => encPair encBits encBits (p.1.2, p.2))
         (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
-    exact hke.bind_with (hkm.bind_with hencode.isPPTOn)
+    simpa only [bind_pure_comp] using IsPPTOn.bind_with hke (IsPPTOn.map_with hkm hencode)
   encrypt_ppt := by
     have hpt := hptLenPoly
     ppt

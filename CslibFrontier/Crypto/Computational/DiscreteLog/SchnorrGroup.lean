@@ -209,6 +209,7 @@ theorem computableInPolyTime_generator :
 /-- Multiplication modulo `p` is computable in polynomial time. -/
 theorem computableInPolyTime_add :
     ComputableInPolyTime add (encPair encDesc (encPair encBits encBits)) encBits := by
+  change ComputableInPolyTime (fun p => add p) _ _
   have hp := ComputableInPolyTime.id'
     (encIn := encPair encDesc (encPair encBits encBits))
   have hd := computableInPolyTime_val.comp hp.fst'

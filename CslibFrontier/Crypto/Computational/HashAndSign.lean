@@ -172,6 +172,7 @@ theorem verify_sign (hlen : ∀ s msg, (H s msg).length = s.length) (n : ℕ)
 
 @[program_certificate]
 theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) (keyGen S) := by
+  change IsPPTOn encUnary (encPair encBits encBits) (fun n => keyGen S n)
   have hkg := S.keyGen_ppt
   have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
   have hp := ComputableInPolyTime.id'
