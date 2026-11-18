@@ -397,9 +397,8 @@ theorem bytesToBitsLE_injective : Function.Injective bytesToBitsLE := by
   induction xs with
   | nil =>
     intro ys h
-    have len := congrArg List.length h
-    simp [length_bytesToBitsLE] at len
-    simp [len]
+    symm
+    simpa [length_bytesToBitsLE] using congrArg List.length h
   | cons a xs ih =>
     intro ys h
     cases ys with
