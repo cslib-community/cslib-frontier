@@ -2036,6 +2036,7 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP.Separation
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE.Separation
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.ExactSampler
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.FPRAS
@@ -2206,6 +2207,7 @@ public import CslibFrontier.Computability.Complexity.Classes.P.WordRAM
 public import CslibFrontier.Computability.Complexity.Classes.PCP
 public import CslibFrontier.Computability.Complexity.Classes.PCP.NP
 public import CslibFrontier.Computability.Complexity.Classes.PCP.Promise
+public import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 public import CslibFrontier.Computability.Complexity.Classes.PCP.Robustness
 public import CslibFrontier.Computability.Complexity.Classes.PCP.ZeroRandomness
 public import CslibFrontier.Computability.Complexity.Classes.PH
@@ -2350,6 +2352,7 @@ public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Pri
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Sperner
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
+public import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
 public import CslibFrontier.Computability.Complexity.Classes.Tally
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import CslibFrontier.Computability.Complexity.Classes.Time.AcceptCount
@@ -2543,7 +2546,15 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceEnume
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceFlatMap
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidencePrefix
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceRelabel
+public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceUniform
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Majority
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Compiler
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Hardness
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Order
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.OrderAcceptance
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationHardness
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationReduction
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT.Tractable
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
@@ -2554,8 +2565,11 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentIndices
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentOrderTable
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentPermutation
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArityOccurrence
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendProgram
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryFusion
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryHiding
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Certificate
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ConstraintParity
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Darts
@@ -2715,6 +2729,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.VertexSplitGenus
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Bounds
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CSPBounds
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CrossingNeighborhoods
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Declarations
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Frame
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
@@ -2724,10 +2739,12 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Recovery
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryBudget
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceCrossings
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Split
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SplitFeasibility
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Relabel
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Star
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Transport
@@ -2752,6 +2769,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Undirected
 public import CslibFrontier.Computability.Complexity.Problems.HornSAT
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet
+public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 public import CslibFrontier.Computability.Complexity.Problems.JobSequencing
@@ -3989,6 +4007,7 @@ public import CslibFrontier.Computability.PCP.Amplification.Family
 public import CslibFrontier.Computability.PCP.Amplifier
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Computability.PCP.Approximation.BinPacking
+public import CslibFrontier.Computability.PCP.Approximation.FGLSS
 public import CslibFrontier.Computability.PCP.Approximation.GapLin
 public import CslibFrontier.Computability.PCP.Approximation.Hastad
 public import CslibFrontier.Computability.PCP.Approximation.Hastad.LinearTest
@@ -4074,7 +4093,9 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemConverse
+public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemPerfect
 public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
+public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -4116,8 +4137,12 @@ public import CslibFrontier.Computability.PolyTime.CNF.SparsePolyCompile
 public import CslibFrontier.Computability.PolyTime.CSP.AffineEquation
 public import CslibFrontier.Computability.PolyTime.CSP.AffineTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.Boolean
+public import CslibFrontier.Computability.PolyTime.CSP.Boundary
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryAppend
+public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
+public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
 public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
+public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.FaceParity
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Native
@@ -4167,6 +4192,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.Gadget.PlanarCompiler
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Rotation
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Size
 public import CslibFrontier.Computability.PolyTime.CSP.Occurrence
+public import CslibFrontier.Computability.PolyTime.CSP.OneHotOrder
 public import CslibFrontier.Computability.PolyTime.CSP.Table
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
 public import CslibFrontier.Computability.PolyTime.CSP.Vars
@@ -4629,6 +4655,7 @@ public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
+public import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 public import CslibFrontier.Crypto.Computational.CollisionResistant.GenericAttacks
 public import CslibFrontier.Crypto.Computational.CollisionResistantToOneWay
 public import CslibFrontier.Crypto.Computational.Commitment
@@ -4682,6 +4709,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal
 public import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 public import CslibFrontier.Crypto.Computational.ElGamal.ExplicitCoin
 public import CslibFrontier.Crypto.Computational.ElGamal.GeneralCipher
+public import CslibFrontier.Crypto.Computational.ElGamal.Homomorphism
 public import CslibFrontier.Crypto.Computational.ElGamal.KDF
 public import CslibFrontier.Crypto.Computational.ElGamal.KeyDerivation
 public import CslibFrontier.Crypto.Computational.ElGamal.Malleability
@@ -4745,6 +4773,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyCPA
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.Encryption.RandomFunctionHybrid
 public import CslibFrontier.Crypto.Computational.Encryption.RealIdealAE
+public import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 public import CslibFrontier.Crypto.Computational.Encryption.Roulette
 public import CslibFrontier.Crypto.Computational.Encryption.Scheme
 public import CslibFrontier.Crypto.Computational.Encryption.StreamMalleability
@@ -4927,14 +4956,18 @@ public import CslibFrontier.Crypto.Computational.LubyRackoff
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter
 public import CslibFrontier.Crypto.Computational.MLDSA.Basic
+public import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Decompose
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Roots
+public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
+public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningROM
@@ -5238,6 +5271,7 @@ public import CslibFrontier.Crypto.Primitives.HQC.SupportProbability
 public import CslibFrontier.Crypto.Primitives.HQC.SupportSampling
 public import CslibFrontier.Crypto.Primitives.HQC.Syndrome
 public import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
+public import CslibFrontier.Crypto.Primitives.Hash.ExtendableOutput
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Circuit
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Efficient
@@ -5287,6 +5321,7 @@ public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
+public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
 public import CslibFrontier.Crypto.Protocols.Cipher.EvenMansour
 public import CslibFrontier.Crypto.Protocols.Cipher.FeistelNetworks
@@ -5295,6 +5330,8 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
+public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
 public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol
@@ -6731,6 +6768,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityEven
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityTransport
+public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
@@ -6990,6 +7028,7 @@ public import CslibFrontier.Foundations.Quantum.Measurement.Overlap
 public import CslibFrontier.Foundations.Quantum.Measurement.Readout
 public import CslibFrontier.Foundations.Quantum.Measurement.ReadoutOverlap
 public import CslibFrontier.Foundations.Quantum.Measurement.Restrict
+public import CslibFrontier.Foundations.Quantum.Naimark
 public import CslibFrontier.Foundations.Quantum.NoCloning
 public import CslibFrontier.Foundations.Quantum.POVM
 public import CslibFrontier.Foundations.Quantum.POVM.Density
@@ -7439,6 +7478,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Affine
 public import CslibFrontier.Logics.Propositional.CSP.AffineTemplate
 public import CslibFrontier.Logics.Propositional.CSP.BinaryDigits
 public import CslibFrontier.Logics.Propositional.CSP.Boolean
+public import CslibFrontier.Logics.Propositional.CSP.Boolean.FiniteSignature
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Augmenting
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAG
@@ -7868,6 +7908,7 @@ public import CslibFrontier.Probability.HashFamily
 public import CslibFrontier.Probability.HashFamily.Collisions
 public import CslibFrontier.Probability.HashFamily.IntegerBox
 public import CslibFrontier.Probability.HashFamily.Matrix
+public import CslibFrontier.Probability.HashFamily.MatrixKernel
 public import CslibFrontier.Probability.HashFamily.MultiplyShift
 public import CslibFrontier.Probability.HashFamily.Polynomial
 public import CslibFrontier.Probability.HashFamily.Transport

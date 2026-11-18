@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
+public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.PMF.UniformBound
@@ -16,14 +17,18 @@ public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
-# FRI Round-by-Round Soundness and BCS Random-Oracle Composition
+# FRI Round-by-Round Soundness, Per-Round Summed IOP Soundness, and BCS ROM Composition
 
 This module proves unconditional round-by-round soundness
 (`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`) and query-round escape bounds for the
 multi-round 2-to-1 FRI IOP `Cslib.Crypto.Protocols.FRI.friIOP` ([BenSassonBentovHoreshRiabzev2018],
-[BenSassonCarmonIshaiKoppartySaraf2020]), together with conditional commit-round escape and
-two-channel BCS random-oracle composition steps parameterized by a line proximity-gap hypothesis
-([BenSassonChiesaSpooner2016], [ChiesaYogev2024]).
+[BenSassonCarmonIshaiKoppartySaraf2020]), together with conditional per-round commit-phase escape,
+summed commit-phase and full interactive FRI soundness (via
+`CslibFrontier.Crypto.Protocols.BCS.Interactive`, mirroring the commit-phase bad-event sum in the
+proof of Lemma 8.2 in [BenSassonCarmonIshaiKoppartySaraf2020, Section 8.2.1, p. 42] and its
+combination with the query phase in the proof of Theorem 8.3 on p. 40), and two-channel BCS
+random-oracle composition steps parameterized by per-round line proximity-gap or escape-probability
+hypotheses ([BenSassonChiesaSpooner2016], [ChiesaYogev2024]).
 
 ## Overview of the integer-weight round-by-round invariant
 
@@ -49,22 +54,32 @@ For an input word `stmt : OracleTable params.d F` and any partial verifier trans
   queried starting points fails `friTranscriptSingleAccepts`.
 
 This yields:
-1. Unconditional `IOPRoundByRoundSoundness` (`friIOP_rbrSound`).
-2. Unconditional query-round escape bound `≤ (B / 2 ^ d) ^ q` (`friQueryRound_escape_le`).
-3. **Conditional steps** assuming a line proximity-gap theorem (`WeightedLineGapBound` or
-   `UniqueLineGapHypothesis`): commit-round escape `≤ B_commit / |F|`
-   (`friCommitRound_escape_le_of_weightedLineGap`), uniform per-round escape
-   (`friRBREscape_of_weightedLineGap`), and the unique-decoding weighted upgrade
-   (`weightedLineGapBound_of_uniqueLineGap` with `B_commit = 2 ^ (d - 1)`). These do not by
-   themselves discharge the general unconditional proximity-gap theorems of
-   [BenSassonCarmonIshaiKoppartySaraf2020].
-4. **Conditional BCS ROM composition steps** (`friBCS_romSoundness_bound_of_weightedLineGap`,
+1. **Unconditional single-word FRI round-by-round invariant and query bound**:
+   `IOPRoundByRoundSoundness` (`friIOP_rbrSound`), final-oracle query-set bound
+   (`card_filter_friFinalPasses_le_of_friDoomed`), and query-round escape `≤ (B / 2 ^ d) ^ q`
+   (`friQueryRound_escape_le`).
+2. **Conditional per-round and uniform steps** assuming a per-round line escape or proximity-gap
+   hypothesis (`WeightedLineEscapePerRound`, `WeightedLineGapPerRound`, `WeightedLineGapBound`, or
+   `UniqueLineGapHypothesis`): commit-round escape `≤ ε_commit i` / `B_commit i / |F|`
+   (`friCommitRound_escape_le_of_weightedLineEscapePerRound`,
+   `friCommitRound_escape_le_of_weightedLineGapPerRound`, and uniform corollary
+   `friCommitRound_escape_le_of_weightedLineGap`), summed commit-phase and full interactive IOP
+   soundness (`friCommitGame_le_of_weightedLineEscapePerRound`,
+   `friIOP_interactiveGame_le_of_weightedLineEscapePerRound`), and the shrinking unique-decoding
+   per-round upgrade (`weightedLineGapPerRound_of_uniqueLineGap` with `B_commit i =
+   2 ^ (d - (i + 1))` summing to `2 ^ d - 2 ^ (d - m) < 2 ^ d`, with uniform
+   `weightedLineGapBound_of_uniqueLineGap` as a corollary). These conditional steps do not by
+   themselves discharge the unconditional proximity-gap theorems of
+   [BenSassonCarmonIshaiKoppartySaraf2020] (see `JohnsonSoundness` for unconditional discharges).
+3. **Conditional BCS ROM composition steps**
+   (`friBCS_romSoundness_bound_of_weightedLineEscapePerRound`,
+   `friBCS_romSoundness_bound_of_weightedLineGap`,
+   `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineEscapePerRound`,
    `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`, and
-   `friBCS_romSoundness_bound_of_uniqueLineGap`) composing the conditional RBR escape bounds with
-   `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` and
+   `friBCS_romSoundness_bound_of_uniqueLineGap`) composing the per-round `sup` or uniform RBR
+   escape bounds with `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` and
    `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`, together with an unsigned
-   little-endian binary symbol codec (`encZMod`, `decZMod`) built directly on `Nat.bits` and
-   `Turing.MultiTapeTM.ofBits` (`leftInverse_decZMod_encZMod`).
+   little-endian binary symbol codec (`encZMod`, `decZMod`, `leftInverse_decZMod_encZMod`).
 -/
 
 public section
@@ -942,22 +957,24 @@ theorem friIOP_rbrSound [DecidableEq F] (params : FRIParams F) (e : ℕ) :
       exact ha ((friTranscriptSingleAccepts_ofFn_iff params stmt oracles chals _).mpr hall)
 
 omit [Field F] in
-/-- Cardinality of `FRIChal` elements whose `foldScalar` lies in `S : Finset F`. -/
-private theorem card_filter_foldScalar_mem [Fintype F] [DecidableEq F] {d q : ℕ}
-    (S : Finset F) :
-    (Finset.univ.filter fun c : FRIChal F d q => c.foldScalar ∈ S).card =
-      S.card * (2 ^ d) ^ q := by
-  let e : {c : FRIChal F d q // c.foldScalar ∈ S} ≃
-      {z : F // z ∈ S} × (Fin q → Fin (2 ^ d)) :=
-    { toFun := fun ⟨c, hc⟩ => (⟨c.foldScalar, hc⟩, c.queryIdxs)
-      invFun := fun ⟨⟨z, hz⟩, qs⟩ => ⟨⟨z, qs⟩, hz⟩
-      left_inv := fun ⟨⟨_, _⟩, _⟩ => rfl
-      right_inv := fun ⟨⟨_, _⟩, _⟩ => rfl }
-  calc (Finset.univ.filter fun c : FRIChal F d q => c.foldScalar ∈ S).card
-      = Fintype.card {c : FRIChal F d q // c.foldScalar ∈ S} := (Fintype.card_subtype _).symm
-    _ = Fintype.card ({z : F // z ∈ S} × (Fin q → Fin (2 ^ d))) := Fintype.card_congr e
-    _ = S.card * (2 ^ d) ^ q := by
-        simp [Fintype.card_prod, Fintype.card_coe]
+/-- Projecting a uniform `FRIChal F d q` onto its folding scalar `foldScalar` yields the uniform
+distribution on `F`. -/
+theorem uniformOfFintype_friChal_map_foldScalar [Fintype F] [Nonempty F] (d q : ℕ) :
+    (PMF.uniformOfFintype (FRIChal F d q)).map FRIChal.foldScalar =
+      PMF.uniformOfFintype F := by
+  have : Nonempty (Fin q → Fin (2 ^ d)) := ⟨fun _ => ⟨0, Nat.two_pow_pos d⟩⟩
+  let e : FRIChal F d q ≃ F × (Fin q → Fin (2 ^ d)) :=
+    { toFun := fun c => (c.foldScalar, c.queryIdxs)
+      invFun := fun p => ⟨p.1, p.2⟩
+      left_inv := fun ⟨_, _⟩ => rfl
+      right_inv := fun ⟨_, _⟩ => rfl }
+  calc (PMF.uniformOfFintype (FRIChal F d q)).map FRIChal.foldScalar
+      = ((PMF.uniformOfFintype (FRIChal F d q)).map e).map Prod.fst := by
+          rw [PMF.map_comp]
+          rfl
+    _ = (PMF.uniformOfFintype (F × (Fin q → Fin (2 ^ d)))).map Prod.fst := by
+          rw [Cslib.Probability.PMF.uniformOfFintype_map_equiv e]
+    _ = PMF.uniformOfFintype F := Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
 
 omit [Field F] in
 /-- Cardinality of `FRIChal` elements whose `q` query starting indices all lie in `S`. -/
@@ -978,6 +995,21 @@ private theorem card_filter_queryIdxs_mem [Fintype F] {d q : ℕ}
     _ = Fintype.card F * S.card ^ q := by
         simp [Fintype.card_prod, Fintype.card_coe]
 
+/-- When `pref.length = m` and `pref` is doomed at threshold `B`, at most `B` starting points in
+`Fin (2 ^ d)` pass `friFinalPasses` against any final oracle `π`. -/
+theorem card_filter_friFinalPasses_le_of_friDoomed [DecidableEq F] (params : FRIParams F)
+    {B : ℕ} {stmt : OracleTable params.d F}
+    {pref : List (OracleTable params.d F × FRIChal F params.d params.q)}
+    (hlen : pref.length = params.m) (π : OracleTable params.d F)
+    (hdoomed : friDoomed params B stmt pref) :
+    (Finset.univ.filter fun s => friFinalPasses params stmt pref π s).card ≤ B := by
+  have hcommit : friCommitDoomed params B stmt pref params.m le_rfl := by
+    have hle : pref.length ≤ params.m := hlen.le
+    simp only [friDoomed, hle, ↓reduceDIte] at hdoomed
+    exact (friCommitDoomed_congr_round params B stmt pref hlen hle le_rfl).mp hdoomed
+  exact (card_filter_friFinalPasses_le params stmt pref hlen π).trans
+    (hcommit (friFinalCodeword params π) (friFinalCodeword_mem_rsCode params π))
+
 /-- **Unconditional query-round escape bound**: when `pref.length = m` and `pref` is doomed at
 threshold `B`, the probability over a uniform `FRIChal` that all `q` query repetitions pass is at
 most `(B / 2 ^ d) ^ q`. -/
@@ -990,15 +1022,10 @@ theorem friQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIParams 
         {c | ¬ friGoodStep params B stmt pref π c} ≤
       ((B : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
   classical
-  have hcommit : friCommitDoomed params B stmt pref params.m le_rfl := by
-    have hle : pref.length ≤ params.m := hlen.le
-    simp only [friDoomed, hle, ↓reduceDIte] at hdoomed
-    exact (friCommitDoomed_congr_round params B stmt pref hlen hle le_rfl).mp hdoomed
   let goodS : Finset (Fin (2 ^ params.d)) :=
     Finset.univ.filter fun s => friFinalPasses params stmt pref π s
   have hgoodS_card : goodS.card ≤ B :=
-    (card_filter_friFinalPasses_le params stmt pref hlen π).trans
-      (hcommit (friFinalCodeword params π) (friFinalCodeword_mem_rsCode params π))
+    card_filter_friFinalPasses_le_of_friDoomed params hlen π hdoomed
   have hbad_eq :
       {c : FRIChal F params.d params.q | ¬ friGoodStep params B stmt pref π c} =
       {c : FRIChal F params.d params.q | ∀ a : Fin params.q, c.queryIdxs a ∈ goodS} := by
@@ -1032,14 +1059,11 @@ theorem friQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIParams 
     simp only [Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv, mul_pow, ENNReal.inv_pow]
   exact hdiv.trans_eq hpow
 
-/-- **Polymorphic weighted line proximity-gap contract** for all `m` FRI folding rounds at
-agreement threshold `B` and bad-scalar budget `B_commit`.
-
-Discharged both by unique-decoding proximity gaps (via `weightedLineGapBound_of_uniqueLineGap` with
-sharp `B_commit = 2 ^ (d - 1)`) and by Johnson-regime weighted correlated agreement
-([BenSassonCarmonIshaiKoppartySaraf2020], Section 7). -/
-@[expose] def WeightedLineGapBound [DecidableEq F] (params : FRIParams F)
-    (B B_commit : ℕ) : Prop :=
+/-- **Polymorphic per-round weighted line proximity-gap contract** across all `m` FRI folding
+rounds at agreement threshold `B` and per-round exceptional-scalar budgets
+`B_commit : Fin params.m → ℕ`. -/
+@[expose] def WeightedLineGapPerRound [DecidableEq F] (params : FRIParams F)
+    (B : ℕ) (B_commit : Fin params.m → ℕ) : Prop :=
   ∀ (i : Fin params.m) (W : Fin (2 ^ (params.d - (i.val + 1))) → ℕ),
     (∀ j, W j ≤ 2 ^ (i.val + 1)) →
     (∑ j, W j ≤ 2 ^ params.d) →
@@ -1049,22 +1073,100 @@ sharp `B_commit = 2 ^ (d - 1)`) and by Johnson-regime weighted correlated agreem
       ∀ Z : Finset F,
         (∀ z ∈ Z, ∃ v ∈ params.rsCode (i.val + 1),
           B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j) →
-        Z.card ≤ B_commit
+        Z.card ≤ B_commit i
 
-/-- **Conditional step (commit-round escape bound assuming `WeightedLineGapBound`)**: when
+/-- Pointwise monotonicity of `WeightedLineGapPerRound` in the per-round scalar budget. -/
+theorem WeightedLineGapPerRound.mono [DecidableEq F] {params : FRIParams F} {B : ℕ}
+    {B₁ B₂ : Fin params.m → ℕ} (hgap : WeightedLineGapPerRound params B B₁)
+    (hle : ∀ i : Fin params.m, B₁ i ≤ B₂ i) :
+    WeightedLineGapPerRound params B B₂ :=
+  fun i W hW_le hW_sum u₀ u₁ hno Z hZ =>
+    (hgap i W hW_le hW_sum u₀ u₁ hno Z hZ).trans (hle i)
+
+/-- **Polymorphic uniform weighted line proximity-gap contract** for all `m` FRI folding rounds at
+agreement threshold `B` and uniform bad-scalar budget `B_commit` (definitionally equal to
+`WeightedLineGapPerRound params B (fun _ => B_commit)`).
+
+Discharged both by unique-decoding proximity gaps (via `weightedLineGapBound_of_uniqueLineGap` with
+sharp `B_commit = 2 ^ (d - 1)`) and by Johnson-regime weighted correlated agreement
+([BenSassonCarmonIshaiKoppartySaraf2020], Section 7). -/
+@[expose] def WeightedLineGapBound [DecidableEq F] (params : FRIParams F)
+    (B B_commit : ℕ) : Prop :=
+  WeightedLineGapPerRound params B (fun _ => B_commit)
+
+/-- **Polymorphic per-round weighted line escape-probability contract** across all `m` FRI folding
+rounds at agreement threshold `B` and per-round escape probability budgets
+`ε_commit : Fin params.m → ℝ≥0∞` (allowing real-valued proximity-gap bounds such as
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.2] to plug directly into FRI commit, IOP, and
+BCS ROM soundness theorems without integer-floor rounding). -/
+@[expose] def WeightedLineEscapePerRound [Fintype F] [DecidableEq F] (params : FRIParams F)
+    (B : ℕ) (ε_commit : Fin params.m → ℝ≥0∞) : Prop :=
+  ∀ (i : Fin params.m) (W : Fin (2 ^ (params.d - (i.val + 1))) → ℕ),
+    (∀ j, W j ≤ 2 ^ (i.val + 1)) →
+    (∑ j, W j ≤ 2 ^ params.d) →
+    ∀ (u₀ u₁ : Fin (2 ^ (params.d - (i.val + 1))) → F),
+      (∀ v₀ ∈ params.rsCode (i.val + 1), ∀ v₁ ∈ params.rsCode (i.val + 1),
+        (∑ j ∈ Finset.univ.filter (fun j => u₀ j = v₀ j ∧ u₁ j = v₁ j), W j) ≤ B) →
+      (PMF.uniformOfFintype F).toOuterMeasure
+        {z : F | ∃ v ∈ params.rsCode (i.val + 1),
+          B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j} ≤
+        ε_commit i
+
+/-- Pointwise monotonicity of `WeightedLineEscapePerRound` in the per-round escape budget. -/
+theorem WeightedLineEscapePerRound.mono [Fintype F] [DecidableEq F] {params : FRIParams F}
+    {B : ℕ} {ε₁ ε₂ : Fin params.m → ℝ≥0∞} (hesc : WeightedLineEscapePerRound params B ε₁)
+    (hle : ∀ i : Fin params.m, ε₁ i ≤ ε₂ i) :
+    WeightedLineEscapePerRound params B ε₂ :=
+  fun i W hW_le hW_sum u₀ u₁ hno => (hesc i W hW_le hW_sum u₀ u₁ hno).trans (hle i)
+
+/-- Every integer per-round bad-scalar bound `WeightedLineGapPerRound params B B_commit` induces a
+per-round escape-probability bound `ε_commit i = B_commit i / |F|`. -/
+theorem weightedLineEscapePerRound_of_gapPerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {B : ℕ} {B_commit : Fin params.m → ℕ}
+    (hgap : WeightedLineGapPerRound params B B_commit) :
+    WeightedLineEscapePerRound params B
+      (fun i => (B_commit i : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
+  intro i W hW_le hW_sum u₀ u₁ hno_corr
+  classical
+  let badZ : Finset F :=
+    Finset.univ.filter fun z : F =>
+      ∃ v ∈ params.rsCode (i.val + 1),
+        B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j
+  have hbadZ_card : badZ.card ≤ B_commit i :=
+    hgap i W hW_le hW_sum u₀ u₁ hno_corr badZ (fun z hz => (Finset.mem_filter.mp hz).2)
+  have hcard_bound :
+      Fintype.card F * (Finset.univ.filter fun z : F => z ∈ badZ).card ≤
+        B_commit i * Fintype.card F := by
+    have hfeq : (Finset.univ.filter fun z : F => z ∈ badZ) = badZ := by
+      ext z
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    rw [hfeq, mul_comm]
+    exact Nat.mul_le_mul_right _ hbadZ_card
+  have hdiv := Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div
+    (α := F) (P := fun z => z ∈ badZ) Fintype.card_pos hcard_bound
+  have hset :
+      {z : F | ∃ v ∈ params.rsCode (i.val + 1),
+        B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j} =
+      {z : F | z ∈ badZ} := by
+    ext z
+    simp only [Set.mem_ofPred_eq, badZ, Finset.mem_filter, Finset.mem_univ, true_and]
+  rwa [hset]
+
+/-- **Conditional step (commit-round escape bound assuming `WeightedLineEscapePerRound`)**: when
 `pref.length < m` and `pref` is doomed at threshold `B`, the probability over a uniform `FRIChal`
 that the folded target escapes to `> B` weighted agreement with `params.rsCode (pref.length + 1)`
-is at most `B_commit / Fintype.card F`. This does not discharge `WeightedLineGapBound` itself. -/
-theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
-    (params : FRIParams F) {B B_commit : ℕ}
-    (hgap : WeightedLineGapBound params B B_commit)
+is at most `ε_commit ⟨pref.length, hpm⟩`. Discharging `WeightedLineEscapePerRound` is left to the
+caller. -/
+theorem friCommitRound_escape_le_of_weightedLineEscapePerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {B : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params B ε_commit)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (hpm : pref.length < params.m) (π : OracleTable params.d F)
     (hdoomed : friDoomed params B stmt pref) :
     (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
         {c | ¬ friGoodStep params B stmt pref π c} ≤
-      (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
+      ε_commit ⟨pref.length, hpm⟩ := by
   let i : ℕ := pref.length
   have hle : pref.length ≤ params.m := hpm.le
   have hjd : i < params.d := lt_of_lt_of_le hpm params.hm
@@ -1128,43 +1230,95 @@ theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
             friPreWeight params stmt pref i hle y :=
           sum_agree_friOracleFilterWeight_le params stmt pref i hle π c'
       _ ≤ B := hcommit c' hc'_rs
-  let _ : DecidablePred (fun z : F =>
-      ∃ v ∈ params.rsCode (i + 1),
-        B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W_next j) :=
-    Classical.decPred _
-  let badZ : Finset F :=
-    Finset.univ.filter fun z : F =>
-      ∃ v ∈ params.rsCode (i + 1),
-        B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W_next j
-  have hbadZ_card : badZ.card ≤ B_commit :=
-    hgap ⟨i, hpm⟩ W_next (friNextWeight_le params stmt pref i hpm π)
-      (sum_friNextWeight_le params stmt pref i hpm π) u₀ u₁ hno_corr badZ
-      (fun z hz => (Finset.mem_filter.mp hz).2)
+  let badScalar : Set F :=
+    {z : F | ∃ v ∈ params.rsCode (i + 1),
+      B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W_next j}
   have hbad_eq :
       {c : FRIChal F params.d params.q | ¬ friGoodStep params B stmt pref π c} =
-      {c : FRIChal F params.d params.q | c.foldScalar ∈ badZ} := by
+      FRIChal.foldScalar ⁻¹' badScalar := by
     ext c
     have hlen' : (pref ++ [(π, c)]).length = i + 1 := by simp [i, List.length_append]
     have hle' : (pref ++ [(π, c)]).length ≤ params.m := by omega
-    simp only [Set.mem_ofPred_eq, friGoodStep, hle, ↓reduceIte, friDoomed, hle', ↓reduceDIte]
+    simp only [Set.mem_ofPred_eq, Set.mem_preimage, friGoodStep, hle, ↓reduceIte, friDoomed,
+      hle', ↓reduceDIte]
     rw [friCommitDoomed_congr_round params B stmt (pref ++ [(π, c)]) hlen' hle' hpm]
     simp only [friCommitDoomed, i, friTargetWord_append_step params stmt pref hpm π c,
       friPreWeight_append_step params stmt pref hpm π c, fold2_eq_line, not_forall, not_le,
-      exists_prop, badZ, W_next, u₀, u₁, f, Finset.mem_filter, Finset.mem_univ, true_and]
-  rw [hbad_eq]
-  have hF_pos : 0 < Fintype.card F := Fintype.card_pos
-  have hcard_bound :
-      Fintype.card F *
-        (Finset.univ.filter fun c : FRIChal F params.d params.q => c.foldScalar ∈ badZ).card ≤
-      B_commit * Fintype.card (FRIChal F params.d params.q) := by
-    rw [card_filter_foldScalar_mem badZ, card_friChal]
-    calc Fintype.card F * (badZ.card * (2 ^ params.d) ^ params.q)
-        = badZ.card * (Fintype.card F * (2 ^ params.d) ^ params.q) := by ring
-      _ ≤ B_commit * (Fintype.card F * (2 ^ params.d) ^ params.q) :=
-          Nat.mul_le_mul_right _ hbadZ_card
-  exact Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div
-    (α := FRIChal F params.d params.q)
-    (P := fun c => c.foldScalar ∈ badZ) hF_pos hcard_bound
+      exists_prop, badScalar, W_next, u₀, u₁, f, Set.mem_ofPred_eq]
+  rw [hbad_eq, ← PMF.toOuterMeasure_map_apply,
+    uniformOfFintype_friChal_map_foldScalar params.d params.q]
+  exact hesc ⟨i, hpm⟩ W_next (friNextWeight_le params stmt pref i hpm π)
+    (sum_friNextWeight_le params stmt pref i hpm π) u₀ u₁ hno_corr
+
+/-- **Conditional step (commit-round escape bound assuming `WeightedLineGapPerRound`)**: when
+`pref.length < m` and `pref` is doomed at threshold `B`, the probability over a uniform `FRIChal`
+that round `pref.length` escapes `friDoomed` is at most
+`B_commit ⟨pref.length, hpm⟩ / Fintype.card F`. Discharging `WeightedLineGapPerRound` is left to
+the caller. -/
+theorem friCommitRound_escape_le_of_weightedLineGapPerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {B : ℕ} {B_commit : Fin params.m → ℕ}
+    (hgap : WeightedLineGapPerRound params B B_commit)
+    (stmt : OracleTable params.d F)
+    (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
+    (hpm : pref.length < params.m) (π : OracleTable params.d F)
+    (hdoomed : friDoomed params B stmt pref) :
+    (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
+        {c | ¬ friGoodStep params B stmt pref π c} ≤
+      (B_commit ⟨pref.length, hpm⟩ : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
+  friCommitRound_escape_le_of_weightedLineEscapePerRound params
+    (weightedLineEscapePerRound_of_gapPerRound params hgap) stmt pref hpm π hdoomed
+
+/-- **Conditional step (commit-round escape bound assuming `WeightedLineGapBound`)**: when
+`pref.length < m` and `pref` is doomed at threshold `B`, the probability over a uniform `FRIChal`
+that the folded target escapes to `> B` weighted agreement with `params.rsCode (pref.length + 1)`
+is at most `B_commit / Fintype.card F`. This does not discharge `WeightedLineGapBound` itself. -/
+theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {B B_commit : ℕ}
+    (hgap : WeightedLineGapBound params B B_commit)
+    (stmt : OracleTable params.d F)
+    (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
+    (hpm : pref.length < params.m) (π : OracleTable params.d F)
+    (hdoomed : friDoomed params B stmt pref) :
+    (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
+        {c | ¬ friGoodStep params B stmt pref π c} ≤
+      (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
+  friCommitRound_escape_le_of_weightedLineGapPerRound params hgap stmt pref hpm π hdoomed
+
+/-- Per-round escape budget vector for single-word `(m + 1)`-round `friIOP`: `ε_commit i` in
+folding rounds `0 ≤ i < m`, and `((2 ^ d - e - 1) / 2 ^ d) ^ q` in the final query round `m`. -/
+@[expose] noncomputable def friRoundEscape (params : FRIParams F) (e : ℕ)
+    (ε_commit : Fin params.m → ℝ≥0∞) (j : Fin (params.m + 1)) : ℝ≥0∞ :=
+  if hj : j.val < params.m then
+    ε_commit ⟨j.val, hj⟩
+  else
+    (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
+
+/-- Summed interactive FRI soundness error
+`(∑ i : Fin m, ε_commit i) + ((2 ^ d - e - 1) / 2 ^ d) ^ q`, combining the commit-phase
+bad-event sum (cf. the proof of Lemma 8.2 in [BenSassonCarmonIshaiKoppartySaraf2020,
+Section 8.2.1, p. 42]) with the `q`-invocation query error (cf. the proof of Theorem 8.3 on
+p. 40 applying Lemma 8.2). -/
+@[expose] noncomputable def friSumError (params : FRIParams F) (e : ℕ)
+    (ε_commit : Fin params.m → ℝ≥0∞) : ℝ≥0∞ :=
+  (∑ i : Fin params.m, ε_commit i) +
+    (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
+
+theorem sum_friRoundEscape_eq_friSumError (params : FRIParams F) (e : ℕ)
+    (ε_commit : Fin params.m → ℝ≥0∞) :
+    (∑ j : Fin (params.m + 1), friRoundEscape params e ε_commit j) =
+      friSumError params e ε_commit := by
+  rw [Fin.sum_univ_castSucc, friSumError]
+  congr 1
+  · refine Finset.sum_congr rfl fun i _ => ?_
+    simp only [friRoundEscape, Fin.val_castSucc, i.isLt, ↓reduceDIte, Fin.eta]
+  · simp only [friRoundEscape, Fin.val_last, lt_irrefl, ↓reduceDIte]
+
+/-- Uniform per-round escape error `sup_j (friRoundEscape params e ε_commit j)` across all `m + 1`
+rounds of `friIOP`, feeding `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` from per-round
+commit budgets. -/
+@[expose] noncomputable def friSupRBRError (params : FRIParams F) (e : ℕ)
+    (ε_commit : Fin params.m → ℝ≥0∞) : ℝ≥0∞ :=
+  Finset.univ.sup (friRoundEscape params e ε_commit)
 
 /-- Uniform per-round escape error for FRI: the maximum of the commit-round error
 `B_commit / |F|` and the batched query-round error `((2 ^ d - e - 1) / 2 ^ d) ^ q`. -/
@@ -1172,6 +1326,61 @@ theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
     (e B_commit : ℕ) : ℝ≥0∞ :=
   max ((B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞))
     ((((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q)
+
+theorem friSupRBRError_const_le_friRBRError [Fintype F] (params : FRIParams F)
+    (e B_commit : ℕ) :
+    friSupRBRError params e (fun _ => (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) ≤
+      friRBRError params e B_commit := by
+  refine Finset.sup_le fun j _ => ?_
+  by_cases hj : j.val < params.m
+  · simp only [friRoundEscape, hj, ↓reduceDIte]
+    exact le_max_left _ _
+  · simp only [friRoundEscape, hj, ↓reduceDIte]
+    exact le_max_right _ _
+
+/-- **Conditional step (indexed per-round escape bound assuming `WeightedLineEscapePerRound`)**:
+at round `j : Fin (m + 1)` and any doomed prefix of length `j`, single-word `friIOP` escapes
+`friGoodStep` with probability at most `friRoundEscape params e ε_commit j`. Discharging
+`WeightedLineEscapePerRound` is left to the caller. -/
+theorem friPerRoundEscape_of_weightedLineEscapePerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit) :
+    ∀ stmt ∉ params.proximityLang e, ∀ (j : Fin (params.m + 1)) pref π,
+      pref.length = j.val →
+      friDoomed params (2 ^ params.d - e - 1) stmt pref →
+      (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
+        {c | ¬ friGoodStep params (2 ^ params.d - e - 1) stmt pref π c} ≤
+      friRoundEscape params e ε_commit j := by
+  intro stmt _ j pref π hlen hdoomed
+  by_cases hj : j.val < params.m
+  · have hpm : pref.length < params.m := hlen ▸ hj
+    have hbound := friCommitRound_escape_le_of_weightedLineEscapePerRound params hesc
+      stmt pref hpm π hdoomed
+    have hidx : (⟨pref.length, hpm⟩ : Fin params.m) = ⟨j.val, hj⟩ := Fin.ext hlen
+    rw [hidx] at hbound
+    simpa only [friRoundEscape, hj, ↓reduceDIte] using hbound
+  · have heq : j.val = params.m := by omega
+    have hlen_m : pref.length = params.m := hlen.trans heq
+    simpa only [friRoundEscape, hj, ↓reduceDIte] using
+      friQueryRound_escape_le params (2 ^ params.d - e - 1) stmt pref hlen_m π hdoomed
+
+/-- **Conditional step (all-prefix `sup` RBR escape bound assuming `WeightedLineEscapePerRound`)**:
+across all transcript prefixes `pref`, single-word `friIOP` escapes `friGoodStep` with probability
+at most `friSupRBRError params e ε_commit`. Discharging `WeightedLineEscapePerRound` is left to the
+caller. -/
+theorem friRBREscape_of_weightedLineEscapePerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit) :
+    ∀ stmt ∉ params.proximityLang e, ∀ pref π,
+      friDoomed params (2 ^ params.d - e - 1) stmt pref →
+      (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
+        {c | ¬ friGoodStep params (2 ^ params.d - e - 1) stmt pref π c} ≤
+      friSupRBRError params e ε_commit :=
+  iopEscape_le_sup_of_perRound (friRoundEscape params e ε_commit)
+    (friPerRoundEscape_of_weightedLineEscapePerRound params hesc)
+    (fun _ _ pref _ _ hge => by
+      have hgt : ¬ pref.length ≤ params.m := by omega
+      simp only [friGoodStep, hgt, ↓reduceIte])
 
 /-- **Conditional step (uniform round-by-round escape bound assuming `WeightedLineGapBound`)**:
 across ALL transcript prefixes `pref` (commit rounds `pref.length < m`, query round
@@ -1185,23 +1394,90 @@ theorem friRBREscape_of_weightedLineGap [Fintype F] [DecidableEq F] (params : FR
       friDoomed params (2 ^ params.d - e - 1) stmt pref →
       (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
         {c | ¬ friGoodStep params (2 ^ params.d - e - 1) stmt pref π c} ≤
-      friRBRError params e B_commit := by
-  intro stmt _ pref π hdoomed
-  by_cases hlt : pref.length < params.m
-  · exact (friCommitRound_escape_le_of_weightedLineGap params hgap stmt pref hlt π hdoomed).trans
-      (le_max_left _ _)
-  · by_cases heq : pref.length = params.m
-    · exact (friQueryRound_escape_le params (2 ^ params.d - e - 1) stmt pref heq π hdoomed).trans
-        (le_max_right _ _)
-    · have hgt : ¬ pref.length ≤ params.m := by omega
-      have hempty :
-          {c : FRIChal F params.d params.q |
-            ¬ friGoodStep params (2 ^ params.d - e - 1) stmt pref π c} = ∅ := by
-        ext c
-        simp only [Set.mem_ofPred_eq, friGoodStep, hgt, ↓reduceIte, not_true_eq_false,
-          Set.mem_empty_iff_false]
-      rw [hempty]
-      exact (MeasureTheory.OuterMeasure.empty _).trans_le zero_le
+      friRBRError params e B_commit :=
+  fun stmt hfar pref π hdoomed =>
+    (friRBREscape_of_weightedLineEscapePerRound params
+      (weightedLineEscapePerRound_of_gapPerRound params hgap) stmt hfar pref π hdoomed).trans
+      (friSupRBRError_const_le_friRBRError params e B_commit)
+
+/-- Single-word FRI commit-phase game (single-word counterpart of the commit-phase event bounded
+via the bad-event sum in [BenSassonCarmonIshaiKoppartySaraf2020, Lemma 8.2, pp. 38–39;
+Section 8.2.1, p. 42]): runs `m` interactive folding rounds and samples the final committed oracle
+`πFinal ← P pref`, returning `true` iff strictly more than `B` starting points in `Fin (2 ^ d)`
+pass `friFinalPasses`. -/
+@[expose] noncomputable def friCommitGame [Fintype F] (params : FRIParams F)
+    (B : ℕ) (stmt : OracleTable params.d F)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) : PMF Bool :=
+  (iopRunRounds P params.m []).bind fun pref =>
+    (P pref).map fun πFinal =>
+      letI : DecidablePred (fun s => friFinalPasses params stmt pref πFinal s) :=
+        Classical.decPred _
+      decide (B < (Finset.univ.filter fun s => friFinalPasses params stmt pref πFinal s).card)
+
+/-- **Conditional step (single-word FRI commit-phase union bound assuming
+`WeightedLineEscapePerRound`)**: for `stmt ∉ params.proximityLang e`, `friCommitGame` exceeds
+agreement `B = 2 ^ d - e - 1` with probability at most `∑ i : Fin params.m, ε_commit i`. -/
+theorem friCommitGame_le_of_weightedLineEscapePerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    friCommitGame params (2 ^ params.d - e - 1) stmt P true ≤ ∑ i : Fin params.m, ε_commit i := by
+  have hrbr := friIOP_rbrSound params e
+  refine iopCommitPhase_map_true_le_sum (hrbr.init_doomed stmt hfar) (hrbr.step_doomed stmt)
+    params.m ε_commit (fun i pref π hlen hdoomed => ?_) P _ (fun pref πFinal hlen hdoomed => ?_)
+  · have hpm : pref.length < params.m := hlen ▸ i.isLt
+    have hbound := friCommitRound_escape_le_of_weightedLineEscapePerRound params hesc
+      stmt pref hpm π hdoomed
+    have hidx : (⟨pref.length, hpm⟩ : Fin params.m) = i := Fin.ext hlen
+    rwa [hidx] at hbound
+  · have hcard := card_filter_friFinalPasses_le_of_friDoomed params hlen πFinal hdoomed
+    have hcongr :
+        (@Finset.filter _ (fun s => friFinalPasses params stmt pref πFinal s)
+          (Classical.decPred _) Finset.univ).card =
+        (Finset.univ.filter fun s => friFinalPasses params stmt pref πFinal s).card := by
+      congr 2
+    exact decide_eq_false (not_lt_of_ge (hcongr.trans_le hcard))
+
+/-- **Conditional step (single-word FRI commit-phase union bound assuming
+`WeightedLineGapPerRound`)**: specializes `friCommitGame_le_of_weightedLineEscapePerRound` to
+integer bad-scalar budgets `B_commit : Fin params.m → ℕ`. -/
+theorem friCommitGame_le_of_weightedLineGapPerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {B_commit : Fin params.m → ℕ}
+    (hgap : WeightedLineGapPerRound params (2 ^ params.d - e - 1) B_commit)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    friCommitGame params (2 ^ params.d - e - 1) stmt P true ≤
+      ∑ i : Fin params.m, (B_commit i : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
+  friCommitGame_le_of_weightedLineEscapePerRound params
+    (weightedLineEscapePerRound_of_gapPerRound params hgap) hfar P
+
+/-- **Conditional step (summed interactive soundness for single-word `friIOP` assuming
+`WeightedLineEscapePerRound`)**: for `stmt ∉ params.proximityLang e` and any adaptive prover `P`,
+`iopInteractiveGame (friIOP params) stmt P true ≤ friSumError params e ε_commit`. -/
+theorem friIOP_interactiveGame_le_of_weightedLineEscapePerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    iopInteractiveGame (friIOP params) stmt P true ≤ friSumError params e ε_commit :=
+  (iopInteractiveGame_le_sum (friIOP_rbrSound params e)
+    (friRoundEscape params e ε_commit)
+    (friPerRoundEscape_of_weightedLineEscapePerRound params hesc) hfar P).trans_eq
+    (sum_friRoundEscape_eq_friSumError params e ε_commit)
+
+/-- **Conditional step (summed interactive soundness for single-word `friIOP` assuming
+`WeightedLineGapPerRound`)**: specializes `friIOP_interactiveGame_le_of_weightedLineEscapePerRound`
+to integer bad-scalar budgets `B_commit : Fin params.m → ℕ`. -/
+theorem friIOP_interactiveGame_le_of_weightedLineGapPerRound [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {B_commit : Fin params.m → ℕ}
+    (hgap : WeightedLineGapPerRound params (2 ^ params.d - e - 1) B_commit)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    iopInteractiveGame (friIOP params) stmt P true ≤
+      friSumError params e (fun i => (B_commit i : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) :=
+  friIOP_interactiveGame_le_of_weightedLineEscapePerRound params
+    (weightedLineEscapePerRound_of_gapPerRound params hgap) hfar P
 
 end RoundByRoundSoundness
 
@@ -1230,6 +1506,37 @@ theorem FRIParams.fiber_mul_dim (params : FRIParams F) (i : Fin params.m) :
 theorem FRIParams.one_le_dim (params : FRIParams F) (r : ℕ) : 1 ≤ params.dim r := by
   simp only [FRIParams.dim]
   exact Nat.mul_pos params.hkPos (Nat.pow_pos (by omega))
+
+/-- Each active round dimension fits inside its active coset size (`r ≤ m`). -/
+theorem FRIParams.dim_le_domainSize (params : FRIParams F) {r : ℕ} (hr : r ≤ params.m) :
+    params.dim r ≤ 2 ^ (params.d - r) := by
+  have hle : params.m ≤ params.d := params.hm
+  have hsub : (params.d - params.m) + (params.m - r) = params.d - r := by omega
+  calc params.dim r
+      = params.kFinal * 2 ^ (params.m - r) := rfl
+    _ ≤ 2 ^ (params.d - params.m) * 2 ^ (params.m - r) :=
+        Nat.mul_le_mul_right _ params.hkLe
+    _ = 2 ^ (params.d - r) := by rw [← pow_add, hsub]
+
+private theorem sum_two_pow_sub_succ (d : ℕ) :
+    ∀ {m : ℕ}, m ≤ d →
+      (∑ i ∈ Finset.range m, 2 ^ (d - (i + 1))) = 2 ^ d - 2 ^ (d - m)
+  | 0, _ => by simp
+  | m + 1, hm => by
+    rw [Finset.sum_range_succ, sum_two_pow_sub_succ d (Nat.le_of_succ_le hm)]
+    have hpow : 2 ^ (d - m) = 2 * 2 ^ (d - (m + 1)) := by
+      have hsub : d - m = (d - (m + 1)) + 1 := by omega
+      rw [hsub, pow_succ, mul_comm]
+    have hle : 2 ^ (d - m) ≤ 2 ^ d := Nat.pow_le_pow_right (by omega) (Nat.sub_le d m)
+    omega
+
+/-- Exact geometric sum of active folded coset sizes across all `m` FRI folding rounds:
+`∑ i : Fin params.m, 2 ^ (params.d - (i.val + 1)) = 2 ^ params.d - 2 ^ (params.d - params.m)`. -/
+theorem FRIParams.sum_domainSize_succ (params : FRIParams F) :
+    (∑ i : Fin params.m, 2 ^ (params.d - (i.val + 1))) =
+      2 ^ params.d - 2 ^ (params.d - params.m) := by
+  rw [Fin.sum_univ_eq_sum_range (fun k => 2 ^ (params.d - (k + 1))) params.m]
+  exact sum_two_pow_sub_succ params.d params.hm
 
 /-- Transport the initial unique-decoding bound `2 * e + params.dim 0 ≤ 2 ^ params.d` to the
 scaled round-`(i + 1)` unique-decoding bound
@@ -1260,14 +1567,17 @@ radii `e / 2 ^ (i + 1)` (matching [BenSassonCarmonIshaiKoppartySaraf2020], Theor
         2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1) ≤ D'.card ∧
         ∀ j ∈ D', u₀ j = v₀ j ∧ u₁ j = v₁ j
 
-/-- **Conditional step (unique-decoding weighted upgrade)**: inside the unique-decoding regime
-`2 * e + params.dim 0 ≤ 2 ^ d`, assuming `UniqueLineGapHypothesis params e` yields
-`WeightedLineGapBound` via `weighted_agree_of_line_many` with `B_commit = 2 ^ (d - 1)`. This does
-not itself prove the unweighted line proximity-gap theorem. -/
-theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
+/-- **Conditional step (shrinking per-round unique-decoding weighted upgrade)**: inside the
+unique-decoding regime `2 * e + params.dim 0 ≤ 2 ^ d`, assuming `UniqueLineGapHypothesis params e`
+yields `WeightedLineGapPerRound` via `weighted_agree_of_line_many` with shrinking active-domain
+budget `fun i => 2 ^ (params.d - (i.val + 1))` (whose sum over all `m` rounds is
+`2 ^ d - 2 ^ (d - m) < 2 ^ d`). This does not itself prove the unweighted line proximity-gap
+theorem. -/
+theorem weightedLineGapPerRound_of_uniqueLineGap [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
     (hgap : UniqueLineGapHypothesis params e) :
-    WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) := by
+    WeightedLineGapPerRound params (2 ^ params.d - e - 1)
+      (fun i => 2 ^ (params.d - (i.val + 1))) := by
   intro i W hW_le _ u₀ u₁ hno_corr Z hZ_good
   let N := 2 ^ (params.d - (i.val + 1))
   let M := 2 ^ (i.val + 1)
@@ -1278,10 +1588,8 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
   have he_lt : e < 2 ^ params.d := by
     have hdim_pos : 1 ≤ params.dim 0 := params.one_le_dim 0
     omega
-  have hN_le : N ≤ 2 ^ (params.d - 1) :=
-    Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
   by_contra hgt
-  have hZ_gt : N < Z.card := lt_of_le_of_lt hN_le (Nat.lt_of_not_ge hgt)
+  have hZ_gt : N < Z.card := Nat.lt_of_not_ge hgt
   have hdist_of_wt : ∀ (z : F) (v : Fin N → F),
       2 ^ params.d - e - 1 < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j →
       hammingDist (u₀ + z • u₁) v ≤ e / M := by
@@ -1321,7 +1629,8 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
     have hline_rs : v₀ + z • v₁ ∈ params.rsCode (i.val + 1) :=
       (params.rsCode (i.val + 1)).add_mem hv₀ ((params.rsCode (i.val + 1)).smul_mem z hv₁)
     have hdist_line : hammingDist (u₀ + z • u₁) (v₀ + z • v₁) ≤ e / M := by
-      have hsub : D' ⊆ Finset.univ.filter (fun j : Fin N => (u₀ + z • u₁) j = (v₀ + z • v₁) j) := by
+      have hsub :
+          D' ⊆ Finset.univ.filter (fun j : Fin N => (u₀ + z • u₁) j = (v₀ + z • v₁) j) := by
         intro j hj
         obtain ⟨h0, h1⟩ := hD'_agree j hj
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, Pi.add_apply, Pi.smul_apply,
@@ -1343,6 +1652,19 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
   have hcorr := weighted_agree_of_line_many W u₀ u₁ v₀ v₁ Z (2 ^ params.d - e - 1)
     (by simpa only [Fintype.card_fin] using hZ_gt) hgood_line
   exact not_lt_of_ge (hno_corr v₀ hv₀ v₁ hv₁) hcorr
+
+/-- **Conditional step (uniform unique-decoding weighted upgrade)**: inside the unique-decoding
+regime `2 * e + params.dim 0 ≤ 2 ^ d`, assuming `UniqueLineGapHypothesis params e` yields uniform
+`WeightedLineGapBound` with `B_commit = 2 ^ (d - 1)` as a corollary of
+`weightedLineGapPerRound_of_uniqueLineGap`. This does not itself prove the unweighted line
+proximity-gap theorem. -/
+theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
+    (hgap : UniqueLineGapHypothesis params e) :
+    WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) :=
+  (weightedLineGapPerRound_of_uniqueLineGap params huniq hgap).mono fun _ =>
+    Nat.pow_le_pow_right (by omega)
+      (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
 
 end UniqueDecodingUpgrade
 
@@ -1369,6 +1691,63 @@ end SymbolEncoding
 section BCSROMComposition
 
 variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
+
+/-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness assuming
+`WeightedLineEscapePerRound`)**: composes `friIOP_rbrSound` and
+`friRBREscape_of_weightedLineEscapePerRound` (`friSupRBRError`) with
+`Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` ([BenSassonChiesaSpooner2016],
+[BenSassonCarmonIshaiKoppartySaraf2020]); discharging `WeightedLineEscapePerRound` is left to the
+caller. -/
+theorem friBCS_romSoundness_bound_of_weightedLineEscapePerRound (params : FRIParams F)
+    {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit)
+    {encSym : F → List Bool} {decSym : List Bool → F}
+    (hdec : Function.LeftInverse decSym encSym) (σ : ℕ)
+    {P : OracleComp (BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+      (OracleTable params.d F × BCSProof (params.m + 1) F)}
+    {t_FS Q_MT : ℕ}
+    (hFS : IsCostBounded bcsFSCost P t_FS)
+    (hMT : IsCostBounded bcsMTCost
+      (bcsSoundnessProg (friIOP params) encSym (params.proximityLang e) P) Q_MT) :
+    bcsSoundnessGame (friIOP params) encSym (params.proximityLang e) P σ true ≤
+      ((t_FS + (params.m + 1) : ℕ) : ℝ≥0∞) *
+          (friSupRBRError params e ε_commit +
+            ((t_FS + (params.m + 1) : ℕ) : ℝ≥0∞) *
+              ((1 : ℝ≥0∞) / Fintype.card (FRIChal F params.d params.q))) +
+        (Q_MT : ℝ≥0∞) *
+          (((3 * Q_MT + (params.m + 1) * (t_FS + (params.m + 1)) : ℕ) : ℝ≥0∞) *
+            ((1 : ℝ≥0∞) / 2 ^ σ)) :=
+  bcsROMSoundness_bound (friIOP_rbrSound params e)
+    (friRBREscape_of_weightedLineEscapePerRound params hesc) hdec 0 σ hFS hMT
+
+/-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness with separate prover/verifier
+Merkle budgets assuming `WeightedLineEscapePerRound`)**: bounds verifier Merkle cost via
+`isCostBounded_bcsMTCost_friVerifyROM` (`q_V = params.proofOracleQueries * (L_path + 1)`) and
+composes with `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`; discharging
+`WeightedLineEscapePerRound` is left to the caller. -/
+theorem friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineEscapePerRound
+    (params : FRIParams F) {e : ℕ} {ε_commit : Fin params.m → ℝ≥0∞}
+    (hesc : WeightedLineEscapePerRound params (2 ^ params.d - e - 1) ε_commit)
+    {encSym : F → List Bool} {decSym : List Bool → F}
+    (hdec : Function.LeftInverse decSym encSym) (σ : ℕ)
+    {P : OracleComp (BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+      (OracleTable params.d F × BCSProof (params.m + 1) F)}
+    {t_MT t_FS L_path : ℕ}
+    (hMT : IsCostBounded bcsMTCost P t_MT)
+    (hFS : IsCostBounded bcsFSCost P t_FS)
+    (hops : ∀ x prf, (x, prf) ∈ P.support → ∀ op ∈ prf.openings, op.path.length ≤ L_path) :
+    bcsSoundnessGame (friIOP params) encSym (params.proximityLang e) P σ true ≤
+      ((t_FS + (params.m + 1) : ℕ) : ℝ≥0∞) *
+          (friSupRBRError params e ε_commit +
+            ((t_FS + (params.m + 1) : ℕ) : ℝ≥0∞) *
+              ((1 : ℝ≥0∞) / Fintype.card (FRIChal F params.d params.q))) +
+        ((t_MT + params.proofOracleQueries * (L_path + 1) : ℕ) : ℝ≥0∞) *
+          (((3 * (t_MT + params.proofOracleQueries * (L_path + 1)) +
+              (params.m + 1) * (t_FS + (params.m + 1)) : ℕ) : ℝ≥0∞) *
+            ((1 : ℝ≥0∞) / 2 ^ σ)) :=
+  bcsROMSoundness_bound_of_prover_verifier (friIOP_rbrSound params e)
+    (friRBREscape_of_weightedLineEscapePerRound params hesc) hdec 0 σ hMT hFS
+    (fun x prf hmem => isCostBounded_bcsMTCost_friVerifyROM params encSym x prf (hops x prf hmem))
 
 /-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness assuming
 `WeightedLineGapBound`)**: composes `friIOP_rbrSound` and `friRBREscape_of_weightedLineGap` with

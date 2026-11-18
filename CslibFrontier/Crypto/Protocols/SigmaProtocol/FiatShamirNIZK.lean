@@ -23,7 +23,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# Fiat–Shamir non-interactive zero-knowledge proofs of knowledge in the random-oracle model
+# Fiat–Shamir non-interactive proofs in the random-oracle model: completeness and concrete bounds
 
 The Fiat–Shamir transformation ([FiatShamir1986]; [BonehShoup2023], Sections 20.3.3–20.3.5)
 compiles a public-coin Sigma protocol `P : SigmaProtocol X Y T C Z` for a relation
@@ -36,16 +36,16 @@ in the hash query is essential when statements can be chosen adaptively after qu
 `t` alone fails soundness on protocols such as Schnorr's where a cheating prover can solve the
 verification equation for `y` after seeing `H(t)`.
 
-This module establishes the random-oracle security properties of Fiat–Shamir NIZK proofs as exact
-probability laws over `OracleComp`:
+This module proves completeness of Fiat–Shamir non-interactive proofs and concrete simulation,
+extraction and soundness bounds for them in the `OracleComp` random-oracle model:
 
 1. **Completeness** (`fiatShamirNIZK_complete`, `fiatShamirNIZK_verify_of_prove`; [BonehShoup2023],
    Section 20.3.3): for every `(x, y)` with `R x y` and every initial random-oracle cache `cache`,
    running honest commitment sampling, `fiatShamirNIZKProve`, and `fiatShamirNIZKVerify` against the
    lazy uniform random oracle `ROMSignature.oracle C` accepts with probability `1`
    (`= PMF.pure true`).
-2. **Adaptive multi-theorem zero knowledge in the programmable ROM** ([BonehShoup2023], Section
-   20.3.5, Attack Game 20.3, Figure 20.2, and Theorem 20.3 / Equation (20.9)): an adaptive
+2. **The zero-knowledge bound (20.9) in the programmable ROM** ([BonehShoup2023], Section
+   20.3.5, Attack Game 20.3 and Figure 20.2; a step toward Theorem 20.3): an adaptive
    distinguisher queries `.inl (x, y)` for a proof (validated by an explicit Boolean relation
    checker `valid : X → Y → Bool` with `∀ x y, valid x y = true → R x y`, returning `none`
    identically in both experiments when `valid x y = false`) and `.inr (y, t)` for the random
@@ -60,14 +60,16 @@ probability laws over `OracleComp`:
    cache; the programming collision hop
    `RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
    directly justifies this overwrite simulator.
-3. **ROM proof of knowledge and derived simulation-extractability**:
-   * *Plain ROM proof of knowledge* (`fiatShamirNIZKExtract`,
-     `succProbability_fiatShamirNIZKPokGame_le`; [BonehShoup2023], Section 20.3.4, proved via the
-     general forking inequality of [BellareNeven2006], Lemma 1): for an explicit-coin cheating
-     prover making at most `Qro` hash calls on statement `y`, the acceptance probability `ε`
-     satisfies `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that
-     rewinding outputs `some w` with `R w y`.
-   * *Derived adaptive multi-theorem simulation-extractability* (`fiatShamirNIZKSimExtractWith`,
+3. **ROM extraction bounds and derived simulation-extractability bounds**:
+   * *Plain ROM extraction bound* (`fiatShamirNIZKExtract`,
+     `succProbability_fiatShamirNIZKPokGame_le`, proved via the general forking inequality of
+     [BellareNeven2006], Lemma 1): for an explicit-coin cheating prover making at most `Qro` hash
+     calls on statement `y`, the acceptance probability `ε` satisfies
+     `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that rewinding
+     outputs `some w` with `R w y`. On a false statement this gives the soundness bound
+     `(Qro + 1) / |C|` (`succProbability_fiatShamirNIZKPokGame_le_of_false`). [BonehShoup2023],
+     Section 20.3.4, proves soundness (Theorem 20.2) by guessing the relevant hash query instead.
+   * *Derived adaptive simulation-extraction bounds* (`fiatShamirNIZKSimExtractWith`,
      `fiatShamirNIZKSimExtract`, `succProbability_fiatShamirNIZKRealExtGame_le`,
      `succProbability_fiatShamirNIZKSimExtGame_le`): derived here by combining our Attack Game 20.3
      zero-knowledge simulation hop, `SimCoinSource` presampling across forks, and
@@ -81,11 +83,15 @@ probability laws over `OracleComp`:
 
 Specializations are provided for `SigmaProtocol.linear` and `SigmaProtocol.schnorr`, using an
 explicit statement-independent simulator coin source (`linearSimCoinSource`) so that `linear` and
-`schnorr` simulation-extractability require no finiteness assumption on the statement or group
+`schnorr` simulation-extraction bounds require no finiteness assumption on the statement or group
 carrier types.
 
-All results are exact finite probability laws in the `OracleComp` random-oracle model; encoded
-machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions are separate.
+Every result is about one Sigma protocol: completeness is an equality of distributions, and the
+other results are concrete inequalities. The zero-knowledge, extraction and soundness bounds are
+steps toward [BonehShoup2023], Theorems 20.2 and 20.3, not the cited results: those theorems
+conclude that the proof system is sound (Definition 20.4) and niZK (Definition 20.5, which asks
+for an efficient simulator), while nothing here certifies the simulator `nizkSimProve` or the
+rewinding extractors as efficient. The asymptotic theorems are open (#5293).
 
 ## Main definitions
 
@@ -136,28 +142,33 @@ machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions ar
   `Cslib.Crypto.Protocols.SigmaProtocol.nizkSimHandler_inl_of_false`,
   `Cslib.Crypto.Protocols.SigmaProtocol.nizkSimHandler_inl_congr`: invalid queries return `none`
   identically and simulation ignores witness values beyond `valid x y`.
+* `Cslib.Crypto.Protocols.SigmaProtocol.linear_unpredictableCommitments_of_injective`,
+  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_unpredictableCommitments`,
+  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_fiatShamirNIZK_complete`: unpredictable
+  commitments of `SigmaProtocol.linear` and `SigmaProtocol.schnorr`, and completeness for Schnorr.
+
+## Steps toward Theorems 20.2 and 20.3
+
 * `Cslib.Crypto.Protocols.SigmaProtocol.abs_sub_fiatShamirNIZKRealGame_simGame_le`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.advantage_fiatShamirNIZKRealGame_simGame_le`: adaptive
-  multi-theorem NIZK zero-knowledge bound `Qp * (Qp + Qro) * δ`.
+  `Cslib.Crypto.Protocols.SigmaProtocol.advantage_fiatShamirNIZKRealGame_simGame_le`: the concrete
+  zero-knowledge bound (20.9), `Qp * (Qp + Qro) * δ`, for one Sigma protocol.
 * `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokKeyGen_le`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le_of_false`: plain
-  ROM proof-of-knowledge, one-way key-generator reduction, and soundness on false statements.
+  `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le_of_false`:
+  concrete extraction bounds on one statement and against a key generator, and the soundness
+  bound on one false statement.
 * `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKSimExtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKSimExtGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKFreshStmtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGameOn_le_of_false`:
-  adaptive simulation-extractability and simulation-soundness bounds.
-* `Cslib.Crypto.Protocols.SigmaProtocol.linear_unpredictableCommitments_of_injective`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.linear_advantage_fiatShamirNIZKRealGame_simGame_le`,
+  concrete adaptive simulation-extraction and soundness bounds, derived here.
+* `Cslib.Crypto.Protocols.SigmaProtocol.linear_advantage_fiatShamirNIZKRealGame_simGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.linear_succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.linear_succProbability_fiatShamirNIZKRealExtGame_le`:
   specializations to `SigmaProtocol.linear`.
-* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_unpredictableCommitments`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_fiatShamirNIZK_complete`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_advantage_fiatShamirNIZKRealGame_simGame_le`,
+* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_advantage_fiatShamirNIZKRealGame_simGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_fiatShamirNIZKRealExtGame_le`:
   specializations to `SigmaProtocol.schnorr`.
@@ -165,8 +176,8 @@ machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions ar
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 19.6.1, 19.7, and 20.3.3–20.3.5 (Attack Game 20.3,
-  Figure 20.2, and Theorem 20.3).
+  Version 0.6][BonehShoup2023], Sections 19.6.1, 19.7, and 20.3.2–20.3.5 (Definitions 20.3–20.5,
+  Attack Games 20.2 and 20.3, Figure 20.2, and Theorems 20.2 and 20.3).
 * [M. Bellare, G. Neven, *Multi-Signatures in the Plain Public-Key Model and a General Forking
   Lemma*][BellareNeven2006], Lemma 1.
 * [A. Fiat, A. Shamir, *How to Prove Yourself: Practical Solutions to Identification and Signature
@@ -571,14 +582,17 @@ private theorem extHandlers_bind_apply_le [DecidableEq Y] [DecidableEq T] [Finty
   have h := ((closeTo_nizkExtHandlers hvalid hHVZK hUnpred hcall).bind_left next) {b}
   rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
-/-- **Adaptive multi-theorem zero knowledge** of Fiat–Shamir NIZK proofs in the programmable
-random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9)), adapted via
-the programming hop
-`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
-to the overwrite simulator `nizkSimProve`: under `SpecialHVZK` and `δ`-unpredictable commitments,
-any adaptive distinguisher making at most `Qp` prove calls and `Qro` direct hash calls distinguishes
+/-- Concrete zero-knowledge bound (20.9) for one Sigma protocol, a step toward [BonehShoup2023],
+Theorem 20.3, not the cited result: under `SpecialHVZK` and `δ`-unpredictable commitments, any
+adaptive distinguisher making at most `Qp` prove calls and `Qro` direct hash calls distinguishes
 `fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with acceptance-probability difference at most
-`Qp * (Qp + Qro) * δ`. -/
+`Qp * (Qp + Qro) * δ`. The simulator is the overwrite variant `nizkSimProve` of Figure 20.2,
+justified by the programming hop
+`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`.
+
+Theorem 20.3 concludes that the proof system is niZK (Definition 20.5), which asks for an efficient
+simulator. This lemma has no efficiency claim for the simulator and fixes one protocol; the
+asymptotic theorem is open (#5293). -/
 theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}
@@ -605,8 +619,9 @@ theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T
   rw [hrealEq, hsimEq]
   exact abs_sub_extHandlers_bind_le hvalid hHVZK hUnpred hD (fun (b, _) => PMF.pure b) true
 
-/-- `Game.advantage` form of **adaptive multi-theorem Fiat–Shamir NIZK zero knowledge**
-([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9)). -/
+/-- `Game.advantage` form of the concrete zero-knowledge bound (20.9) for one Sigma protocol, a step
+toward [BonehShoup2023], Theorem 20.3, not the cited result: the simulator has no efficiency claim
+(`abs_sub_fiatShamirNIZKRealGame_simGame_le`; #5293). -/
 theorem advantage_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}
@@ -804,11 +819,16 @@ private theorem fork_plain_le_extractGame [DecidableEq Y] [DecidableEq T] [Finty
     have hR := hsound _ _ _ _ _ hne hacc hacc'
     simp [hR]
 
-/-- **Plain ROM proof of knowledge** for Fiat–Shamir NIZK proofs ([BonehShoup2023], Section 20.3.4,
-proved via the general forking inequality of [BellareNeven2006], Lemma 1): if `P` is special sound
-at `y` with extractor `extract` and `A` makes at most `Qro` hash calls on `y`, then `A`'s
-acceptance probability `ε` satisfies `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the
-probability that `fiatShamirNIZKExtract P extract A Qro y` outputs `some w` with `R w y`. -/
+/-- Concrete extraction bound for one Sigma protocol and statement, a step toward
+[BonehShoup2023], Theorem 20.2, not the cited result (proved via the general forking inequality of
+[BellareNeven2006], Lemma 1): if `P` is special sound at `y` with extractor `extract` and `A` makes
+at most `Qro` hash calls on `y`, then `A`'s acceptance probability `ε` satisfies
+`ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that
+`fiatShamirNIZKExtract P extract A Qro y` outputs `some w` with `R w y`.
+
+The book proves soundness, not extraction, in Section 20.3.4; this bound yields the soundness bound
+`succProbability_fiatShamirNIZKPokGame_le_of_false`. The extractor has no efficiency claim and the
+protocol is one instance (#5293). -/
 theorem succProbability_fiatShamirNIZKPokGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z} {R : W → Y → Prop}
     [∀ w y, Decidable (R w y)] {extract : Y → T → C → Z → C → Z → W}
@@ -830,9 +850,10 @@ theorem succProbability_fiatShamirNIZKPokGame_le [DecidableEq Y] [DecidableEq T]
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **Plain ROM proof of knowledge against a key generator** (`oneWayGame` form): averaging over
-`(x, y) ← keyGen`, a cheating prover making at most `Qro` hash calls yields a `oneWayGame`
-adversary via `fiatShamirNIZKExtract`. -/
+/-- Concrete extraction bound against a key generator (`oneWayGame` form), a step like
+`succProbability_fiatShamirNIZKPokGame_le`, with no efficiency claim for the extractor (#5293):
+averaging over `(x, y) ← keyGen`, a cheating prover making at most `Qro` hash calls yields a
+`oneWayGame` adversary via `fiatShamirNIZKExtract`. -/
 theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] [DecidableEq C] [Nonempty X] {P : SigmaProtocol X Y T C Z}
     {keyGen : PMF (X × Y)} {R : X → Y → Prop} [∀ x y, Decidable (R x y)]
@@ -884,9 +905,16 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **ROM soundness on false statements**: if `y` has no witness in `R`, any cheating prover making
-at most `Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most
-`(Qro + 1) / |C|`. -/
+/-- Concrete soundness bound on one fixed false statement, a step toward [BonehShoup2023],
+Theorem 20.2, not the cited result: if `y` has no witness in `R`, any cheating prover making at most
+`Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most `(Qro + 1) / |C|`.
+
+This is the bound `(Qro + 1) / N` that the book derives from Theorems 20.2 and 20.1 for its
+Chaum–Pedersen example (pp. 837–838), here from special soundness and for a statement fixed in
+advance. In Attack Game 20.2 the adversary chooses the statement; with special HVZK and
+unpredictable commitments, `succProbability_fiatShamirNIZKRealExtGameOn_le_of_false` bounds
+adaptively chosen false statements. Theorem 20.2 assumes only that the Sigma protocol is sound and
+concludes asymptotic soundness (#5293). -/
 theorem succProbability_fiatShamirNIZKPokGame_le_of_false [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R : W → Y → Prop} {extract : Y → T → C → Z → C → Z → W}
@@ -1163,11 +1191,12 @@ private theorem fork_sim_le_simExtractGame [DecidableEq Y] [DecidableEq T] [Fint
     have hadm := hv.1
     simp [hadm, hR]
 
-/-- **Derived simulation-extractability against simulated proofs** (general `SimCoinSource` and
-`admissible` form, via `SimCoinSource` presampling and [BellareNeven2006], Lemma 1): without
-needing commitment unpredictability or `SpecialHVZK`, an adaptive adversary making at most `Qp`
-prove calls and `Qro` hash calls wins `fiatShamirNIZKSimExtGameOn` with probability at most
-`(Qro + 1) / |C| + √((Qro + 1) * ε')`. -/
+/-- Concrete simulation-extraction bound against simulated proofs for one Sigma protocol, derived
+here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form, via
+`SimCoinSource` presampling and [BellareNeven2006], Lemma 1): without needing commitment
+unpredictability or `SpecialHVZK`, an adaptive adversary making at most `Qp` prove calls and `Qro`
+hash calls wins `fiatShamirNIZKSimExtGameOn` with probability at most
+`(Qro + 1) / |C| + √((Qro + 1) * ε')`. The extractor has no efficiency claim (#5293). -/
 theorem succProbability_fiatShamirNIZKSimExtGameOn_le [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1192,8 +1221,8 @@ theorem succProbability_fiatShamirNIZKSimExtGameOn_le [DecidableEq Y] [Decidable
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **Simulation-extractability against simulated proofs** over finite statement and transcript
-types. -/
+/-- The concrete simulation-extraction bound of `succProbability_fiatShamirNIZKSimExtGameOn_le`
+against simulated proofs, over finite statement and transcript types. -/
 theorem succProbability_fiatShamirNIZKSimExtGame_le [DecidableEq Y] [DecidableEq T]
     [Fintype Y] [Finite T] [Finite Z] [Fintype C] [Nonempty C] [DecidableEq C] {W : Type}
     {P : SigmaProtocol X Y T C Z} {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1208,12 +1237,14 @@ theorem succProbability_fiatShamirNIZKSimExtGame_le [DecidableEq Y] [DecidableEq
   succProbability_fiatShamirNIZKSimExtGameOn_le hsound (SimCoinSource.ofFintype simulate)
     valid (fun _ => true) hA
 
-/-- **Derived adaptive multi-theorem proof of knowledge (simulation-extractability) against real
-proofs** (general `SimCoinSource` and `admissible` form, combining the Attack Game 20.3 / Theorem
-20.3 zero-knowledge hop with `SimCoinSource` presampling and [BellareNeven2006], Lemma 1): under
-`SpecialSoundness`, `SpecialHVZK`, and `UnpredictableCommitments R_honest δ`, an adversary making
-at most `Qp` prove calls and `Qro` hash calls wins `fiatShamirNIZKRealExtGameOn` with probability
-at most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C| + √((Qro + 1) * ε')`. -/
+/-- Concrete adaptive simulation-extraction bound against real proofs for one Sigma protocol,
+derived here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form,
+combining the Attack Game 20.3 zero-knowledge hop with `SimCoinSource` presampling and
+[BellareNeven2006], Lemma 1): under `SpecialSoundness`, `SpecialHVZK`, and
+`UnpredictableCommitments R_honest δ`, an adversary making at most `Qp` prove calls and `Qro` hash
+calls wins `fiatShamirNIZKRealExtGameOn` with probability at most
+`Qp * (Qp + Qro) * δ + (Qro + 1) / |C| + √((Qro + 1) * ε')`. The extractor has no efficiency
+claim (#5293). -/
 theorem succProbability_fiatShamirNIZKRealExtGameOn_le [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R_honest : X → Y → Prop} {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1255,9 +1286,9 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le [DecidableEq Y] [Decidabl
     linarith
   linarith
 
-/-- **Derived adaptive multi-theorem simulation-extractability** of Fiat–Shamir NIZK proofs in the
-random-oracle model (combining the Attack Game 20.3 / Theorem 20.3 zero-knowledge hop with
-[BellareNeven2006], Lemma 1). -/
+/-- The concrete simulation-extraction bound of `succProbability_fiatShamirNIZKRealExtGameOn_le`
+against real proofs, over finite statement and transcript types, with every final statement
+admissible. -/
 theorem succProbability_fiatShamirNIZKRealExtGame_le [DecidableEq Y] [DecidableEq T]
     [Fintype Y] [Finite T] [Finite Z] [Fintype C] [Nonempty C] [DecidableEq C] {W : Type}
     {P : SigmaProtocol X Y T C Z} {R_honest : X → Y → Prop} {R : W → Y → Prop}
@@ -1318,10 +1349,10 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
   exact ENNReal.toReal_mono (PMF.apply_ne_top _ _) hmono
 
-/-- **Adaptive simulation-soundness** on false statements: if every statement accepted by
-`admissible` lacks a witness in `R`, then even after `Qp` adaptive prove queries on valid
-statements, `A` produces an accepted proof on an `admissible` false statement with probability at
-most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C|`. -/
+/-- Concrete adaptive soundness bound on false statements for one Sigma protocol, derived here: if
+every statement accepted by `admissible` lacks a witness in `R`, then even after `Qp` adaptive
+prove queries on valid statements, `A` produces an accepted proof on an `admissible` false
+statement with probability at most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C|`. -/
 theorem succProbability_fiatShamirNIZKRealExtGameOn_le_of_false [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R_honest : X → Y → Prop} {R : W → Y → Prop}

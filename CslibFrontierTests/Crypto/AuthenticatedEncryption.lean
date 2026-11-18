@@ -439,9 +439,9 @@ theorem not_oneTimeINDCPA_echoCipher : ¬ echoCipher.OneTimeINDCPA := by
 answer is then `[]`: the adversary outputs `false` under both challenge bits, so the attack that
 breaks multi-query `INDCPA` has no advantage here. -/
 theorem eval_cpaOneTimeGame_detCPAAdversary (bit : Bool) (n : ℕ) :
-    ProbComp.eval (echoCipher.cpaOneTimeGame SymmetricCipher.detCPAAdversary bit (n + 1)) =
+    ProbComp.eval (echoCipher.cpaOneTimeGame (SymmetricCipher.detCPAAdversary id) bit (n + 1)) =
       PMF.pure false := by
-  simp only [SymmetricCipher.cpaOneTimeGame, SymmetricCipher.detCPAAdversary,
+  simp only [SymmetricCipher.cpaOneTimeGame, SymmetricCipher.detCPAAdversary, id_eq,
     OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
     ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]

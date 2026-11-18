@@ -56,11 +56,6 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP Graph Graph.RotationSystem
 variable {Rel V : Type} [DecidableEq V]
 
 omit [DecidableEq V] in
-private theorem vars_length_eq_occurrences (F : CSP Rel V) :
-    F.vars.length = F.occurrences.length := by
-  rw [← CSP.map_occurrences F, List.length_map]
-
-omit [DecidableEq V] in
 private theorem occurrences_length_append (F H : CSP Rel V) :
     (F ++ H).occurrences.length = F.occurrences.length + H.occurrences.length := by
   simp only [CSP.length_occurrences, List.map_append, List.sum_append]
