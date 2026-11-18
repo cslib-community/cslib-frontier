@@ -35,53 +35,8 @@ open Cslib Cslib.Crypto Cslib.Crypto.Protocols.UC
 open CslibFrontierTests.Crypto.UCAdaptive
 open CslibFrontierTests.Crypto.UCAdaptiveDummy
 open OracleComp (sumHandler)
-open Machine (closeEval closeEval_pure closeEval_bind closeEval_map closeEval_sample
-  mem_support_closeEval_runFrom_invariant)
+open Machine (closeEval closeEval_pure closeEval_bind closeEval_map closeEval_sample)
 open scoped ENNReal NNReal
-
-private theorem coin_router_corrupt_mono {α : Type} (κ : ℕ)
-    (netProg : ProbOracleComp (netSpec (AdaptiveNetQ 2 CoinIn Unit)
-      (AdaptiveNetR Bool Unit (Option Bool))) α)
-    (rs : AdaptiveRouterState CoinState (Option Bool) 2)
-    {x : α × AdaptiveRouterState CoinState (Option Bool) 2}
-    (hx : x ∈ (closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
-      (liftAdaptiveNet netProg) rs)).support) :
-    rs.corrupted ⊆ x.2.corrupted := by
-  refine mem_support_closeEval_runFrom_invariant
-    (adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅)
-    (fun _ => True) (fun s₁ s₂ => s₁.corrupted ⊆ s₂.corrupted)
-    (fun _ => Finset.Subset.rfl) Finset.Subset.trans (liftAdaptiveNet netProg)
-    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _) rs hx
-    fun q s' y _ hy => ?_
-  rcases q with (⟨i, u⟩ | _) | (⟨i, u⟩ | i | u)
-  · simp only [adaptiveRouter, StateT.run] at hy
-    split_ifs at hy
-    · erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
-      rcases hy with rfl; exact Finset.Subset.rfl
-    · erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
-      rcases hy with ⟨⟨_, _⟩, _, hy'⟩
-      erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'
-      rcases hy' with rfl; exact Finset.Subset.rfl
-  · simp only [adaptiveRouter, StateT.run] at hy
-    erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
-    rcases hy with rfl; exact Finset.Subset.rfl
-  · simp only [adaptiveRouter, StateT.run] at hy
-    split_ifs at hy
-    · erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
-      rcases hy with ⟨⟨_, _⟩, _, hy'⟩
-      erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'
-      rcases hy' with rfl; exact Finset.Subset.rfl
-    · erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
-      rcases hy with rfl; exact Finset.Subset.rfl
-  · simp only [adaptiveRouter, StateT.run] at hy
-    erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
-    rcases hy with rfl
-    by_cases hi : i ∈ s'.corrupted <;> simp [hi, Finset.subset_insert]
-  · simp only [adaptiveRouter, StateT.run] at hy
-    erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
-    rcases hy with ⟨⟨_, _⟩, _, hy'⟩
-    erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'
-    rcases hy' with rfl; exact Finset.Subset.rfl
 
 private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
     (netProg : ProbOracleComp (netSpec (AdaptiveNetQ 2 CoinIn Unit)
@@ -133,15 +88,8 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
               (liftAdaptiveNet (cont a))
               { inner := { party0 := none, delivered1 := some b' }
                 corrupted := C, trace := tr }) := by
-        have hk : Machine.liftRightProgram (adaptivePartySpec 2 CoinIn Bool)
-            (OracleComp.query (spec := probOracleSpec
-              (netSpec (AdaptiveNetQ 2 CoinIn Unit) (AdaptiveNetR Bool Unit (Option Bool))))
-              (Sum.inl k)) =
-            ProbOracleComp.sample (ProbComp.unifFin k) := by
-          simp only [Machine.liftRightProgram, OracleComp.interpret_query, sumHandler,
-            ProbOracleComp.sample, ProbComp.unifFin, OracleComp.substitute_query]
         dsimp only [liftAdaptiveNet]
-        rw [Machine.liftRightProgram_bind, hk]
+        rw [Machine.liftRightProgram_bind, liftAdaptiveNet_unifFin]
         erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, closeEval_bind,
           closeEval_sample]
       rw [hstep b tr₁, hstep false tr₂]
@@ -227,7 +175,7 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
                   { inner := { party0 := none, delivered1 := some b' }
                     corrupted := insert 1 C, trace := tr })).support := by
                 erw [PMF.mem_support_iff]; exact hx
-              have hsub := coin_router_corrupt_mono κ _ _ hxsup
+              have hsub := corrupted_subset_of_mem_support_router _ κ ∅ _ _ hxsup
               exact mul_eq_zero_of_right _ (hg x.1 x.2.corrupted
                 (hsub (Finset.mem_insert_self 1 C)))
           erw [hzero b tr₁, hzero false tr₂]
