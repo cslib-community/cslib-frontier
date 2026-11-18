@@ -4969,6 +4969,7 @@ public import CslibFrontier.Crypto.Computational.LWE.Trapdoor
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Basic
 public import CslibFrontier.Crypto.Computational.LWE.Trapdoor.Gadget
 public import CslibFrontier.Crypto.Computational.Lattice.ShortestVector
+public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.LubyRackoff
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter

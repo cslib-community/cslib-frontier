@@ -7,17 +7,14 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.DiffieHellman
+public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
-public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient.Verifier
-public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -66,15 +63,12 @@ Main results for the protocol:
   distinguishing advantage in Attack Game 20.4 against arbitrary (even computationally unbounded)
   adversaries, and Definition 20.6 (`ComputationalSpecialHVZK`) with exact zero acceptance error
   (`accepts_schnorrSimulator`, `δ = fun _ => 0`), derived without proof duplication through the
-  shared `linearProbFamily` / `ComputationalSpecialHVZK.of_closeTo_transcript` transfer.
+  shared `linearProbFamily` transfer in `CslibFrontier.Crypto.Computational.LinearSigmaProtocol`.
 
 ## Main definitions
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrFamily`: Schnorr's Sigma protocol with an ideal
   `ZMod q` commitment sampler.
-* `Cslib.Crypto.PrimeOrderGroupFamily.linearProbCommit`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.linearProbFamily`: fair-coin `sampleExp` commitment sampler
-  and `SigmaProtocol.linear` family over `ZMod q`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrProbCommit`,
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrProbFamily`: Schnorr's Sigma protocol with a fair-coin
   `sampleExp` commitment sampler.
@@ -99,13 +93,6 @@ Main results for the protocol:
 
 ## Main results
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_linearProbFamily`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.linearProbFamily_complete`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_linearProbFamily_simulator`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkGame_linearProbFamily_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_linearProbFamily`: shared
-  `sampleExp` transcript closeness, completeness and special-HVZK transfer for
-  `SigmaProtocol.linear` over `ZMod q`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrProbFamily_complete`: completeness of
   `schnorrProbFamily` (Definition 19.3).
 * `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_schnorr`,
@@ -189,28 +176,6 @@ noncomputable def schnorrFamily (i : ℕ × F.Desc) :
     SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2) (F.Carrier i.2) (ZMod (F.order i.2))
       (ZMod (F.order i.2)) :=
   schnorr (Function.Embedding.refl _) (F.generator i.2)
-
-/-- Fair-coin commitment sampler for `SigmaProtocol.linear` over a `PrimeOrderGroupFamily`: at
-index `i = (n, d)`, draw `s ← F.sampleExp n d`, read `r = s mod q`, and return `(ψ i y r, r)`. -/
-noncomputable def linearProbCommit {Y N : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)]
-    (ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i)
-    (i : ℕ × F.Desc) (_ : ZMod (F.order i.2)) (y : Y i) :
-    ProbComp (N i × ZMod (F.order i.2)) :=
-  (fun r : ZMod (F.order i.2) => (ψ i y r, r)) <$>
-    ((Nat.cast : ℕ → ZMod (F.order i.2)) <$> F.sampleExp i.1 i.2)
-
-/-- `SigmaProtocol.linear` over `ZMod q` with its commitment nonce sampled from fair coins by
-`sampleExp` (`linearProbCommit`). -/
-noncomputable def linearProbFamily {Y N C : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    (ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i)
-    (u : ∀ i, Y i → N i) (ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2)) (i : ℕ × F.Desc) :
-    SigmaProtocol (ZMod (F.order i.2)) (Y i) (N i) (C i) (ZMod (F.order i.2)) where
-  State := ZMod (F.order i.2)
-  commit x y := ProbComp.eval (F.linearProbCommit ψ i x y)
-  respond x _ r c := r + ι i c • x
-  verify y t c z := decide (ψ i y z = t + ι i c • u i y)
 
 /-- Fair-coin commitment sampler for Schnorr's Sigma protocol ([BonehShoup2023], Figure 19.1,
 p. 756, and Example 19.1, p. 773): at index `i = (n, d)`, draw `s ← F.sampleExp n d`, read
@@ -332,33 +297,6 @@ theorem efficientSpecialSoundness_schnorr :
     F.extractorRealizedBy_schnorrExtractWord⟩
 
 /-! ### Special HVZK -/
-
-open Classical in
-/-- An exponent sampled by `sampleExp n d` is within statistical distance `1 / 2 ^ n` of
-uniform on `ZMod q`. -/
-theorem closeTo_uniform_sampleExp (n : ℕ) (d : F.Desc) :
-    CloseTo (PMF.uniformOfFintype (ZMod (F.order d)))
-      ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d)))
-      (1 / 2 ^ n : ℝ≥0) := by
-  refine Game.closeTo_of_advantage_decide_le fun E => ?_
-  rw [Game.advantage_comm]
-  have h := F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
-  rw [PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-  exact h
-
-open Classical in
-/-- Post-processing the modular cast of `sampleExp n d` by `f` is within `ℝ≥0∞`-distance
-`1 / 2 ^ n` of `f` applied to a uniform scalar in `ZMod q`. -/
-theorem closeTo_map_uniform_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
-    (f : ZMod (F.order d) → α) :
-    CloseTo ((PMF.uniformOfFintype (ZMod (F.order d))).map f)
-      (ProbComp.eval (f <$> ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)))
-      (1 / 2 ^ n : ℝ≥0∞) := by
-  have hδ : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  rw [ProbComp.eval_map, ProbComp.eval_map, ← hδ]
-  exact (F.closeTo_uniform_sampleExp n d).map f
 
 /-- A challenge sampler for `schnorrFamily` with fair coins: at index `(n, d)`, sample `s` with
 `sampleExp n d` and read it modulo the group order. It is within statistical distance `1 / 2 ^ n`
@@ -534,124 +472,7 @@ theorem computationalSpecialHVZK_schnorr_ideal (setup : ℕ → PMF F.Desc) :
     (fun i u c => by rw [F.accepts_schnorrSimulator i u c, tsub_zero])
     (exists_negligible_inv_two_pow_map setup)
 
-/-! ### Fair-coin commitment transfer for `SigmaProtocol.linear` and `schnorrProbFamily` -/
-
-/-- The honest transcript of `linearProbFamily` is within statistical distance `1 / 2 ^ n` of the
-ideal-nonce `SigmaProtocol.linear` transcript at every index `i = (n, d)`, witness, statement and
-challenge. -/
-theorem closeTo_transcript_linearProbFamily {Y N C : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    (ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i)
-    (u : ∀ i, Y i → N i) (ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2))
-    (i : ℕ × F.Desc) (x : ZMod (F.order i.2)) (y : Y i) (c : C i) :
-    CloseTo ((linear (ψ i) (u i) (ι i)).transcript x y c)
-      ((F.linearProbFamily ψ u ι i).transcript x y c) (1 / 2 ^ i.1 : ℝ≥0) := by
-  rw [linear_transcript]
-  have hrhs : (F.linearProbFamily ψ u ι i).transcript x y c =
-      ((ProbComp.eval (F.sampleExp i.1 i.2)).map (Nat.cast : ℕ → ZMod (F.order i.2))).map
-        fun r : ZMod (F.order i.2) => (ψ i y r, r + ι i c • x) := by
-    simp only [SigmaProtocol.transcript, linearProbFamily, linearProbCommit, ProbComp.eval_map,
-      PMF.map_comp, Function.comp_def]
-  rw [hrhs]
-  exact (F.closeTo_uniform_sampleExp i.1 i.2).map _
-
-/-- Completeness of `linearProbFamily` ([BonehShoup2023], Theorem 19.12 with Definition 19.3). -/
-theorem linearProbFamily_complete {Y N C : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    (ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i)
-    (u : ∀ i, Y i → N i) (ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2)) (i : ℕ × F.Desc) :
-    (F.linearProbFamily ψ u ι i).Complete fun x y => ψ i y x = u i y := by
-  intro x y hxy c tz htz
-  simp only [SigmaProtocol.transcript, linearProbFamily, linearProbCommit, ProbComp.eval_map,
-    PMF.map_comp, PMF.mem_support_map_iff] at htz
-  obtain ⟨s, -, rfl⟩ := htz
-  change (linear (ψ i) (u i) (ι i)).Accepts y (ψ i y (s : ZMod (F.order i.2))) c
-    ((s : ZMod (F.order i.2)) + ι i c • x)
-  simp only [linear_accepts_iff, map_add, map_smul, hxy]
-
-/-- When `sim` realizes a perfect simulator for `linear (ψ i) (u i) (ι i)` up to `1 / 2 ^ n`, its
-output is within statistical distance `2 / 2 ^ n` of the honest transcript of `linearProbFamily`
-on every valid pair and challenge. -/
-theorem closeTo_transcript_linearProbFamily_simulator {Y N C : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    {ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i}
-    {u : ∀ i, Y i → N i} {ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2)}
-    {R : ∀ i, ZMod (F.order i.2) → Y i → Prop}
-    {simulate : ∀ i, Y i → C i → PMF (N i × ZMod (F.order i.2))}
-    {sim : Simulator (ℕ × F.Desc) Y N C (fun i => ZMod (F.order i.2))}
-    (hS : ∀ i, (linear (ψ i) (u i) (ι i)).SpecialHVZK (R i) (simulate i))
-    (hreal : SimulatorRealizedBy simulate sim (fun i => 1 / 2 ^ i.1))
-    {i : ℕ × F.Desc} {x : ZMod (F.order i.2)} {y : Y i} (hxy : R i x y) (c : C i) :
-    CloseTo ((F.linearProbFamily ψ u ι i).transcript x y c)
-      (ProbComp.eval (sim i y c)) (2 / 2 ^ i.1) := by
-  have hcoe : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  have htrans : CloseTo ((linear (ψ i) (u i) (ι i)).transcript x y c)
-      ((F.linearProbFamily ψ u ι i).transcript x y c) (1 / 2 ^ i.1 : ℝ≥0∞) := by
-    rw [← hcoe]
-    exact F.closeTo_transcript_linearProbFamily ψ u ι i x y c
-  have h12 := hreal.closeTo_transcript_of_closeTo (δP := fun i => 1 / 2 ^ i.1) hS hxy htrans
-  have hadd : (1 / 2 ^ i.1 : ℝ≥0∞) + 1 / 2 ^ i.1 = 2 / 2 ^ i.1 := by
-    rw [← ENNReal.add_div, one_add_one_eq_two]
-  rwa [hadd] at h12
-
-/-- When `sim` realizes a perfect simulator for `linear (ψ i) (u i) (ι i)` up to `1 / 2 ^ n`,
-Attack Game 20.4 distinguishing advantage for `linearProbFamily` over `(setup m).map (m, ·)` is at
-most `2 / 2 ^ n` against every adversary (including computationally unbounded ones). -/
-theorem advantage_chvzkGame_linearProbFamily_le {Y N C : ℕ × F.Desc → Type} {σ : Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
-    {ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i}
-    {u : ∀ i, Y i → N i} {ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2)}
-    {R : ∀ i, ZMod (F.order i.2) → Y i → Prop}
-    {simulate : ∀ i, Y i → C i → PMF (N i × ZMod (F.order i.2))}
-    {sim : Simulator (ℕ × F.Desc) Y N C (fun i => ZMod (F.order i.2))}
-    (hS : ∀ i, (linear (ψ i) (u i) (ι i)).SpecialHVZK (R i) (simulate i))
-    (hreal : SimulatorRealizedBy simulate sim (fun i => 1 / 2 ^ i.1))
-    (setup : ℕ → PMF F.Desc)
-    (A : CHVZKAdversary (ℕ × F.Desc) (fun i => ZMod (F.order i.2)) Y N C
-      (fun i => ZMod (F.order i.2)) σ) (n : ℕ) :
-    Game.advantage
-      (chvzkRealGame (F.linearProbFamily ψ u ι) R (fun m => (setup m).map (m, ·)) A n)
-      (chvzkSimGame R (fun m => (setup m).map (m, ·)) sim A n) ≤
-      2 / 2 ^ n := by
-  refine (hreal.advantage_chvzkGame_le_of_closeTo_transcript
-    (P' := F.linearProbFamily ψ u ι) (εP := 1 / 2 ^ n) (εS := 1 / 2 ^ n) hS
-    (fun i hi x y _ c => ?_) (fun i hi => ?_) A).trans_eq ?_
-  · obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-    exact F.closeTo_transcript_linearProbFamily ψ u ι (n, d) x y c
-  · obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-    dsimp only
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  · ext
-    push_cast
-    ring
-
-/-- Transfer `ComputationalSpecialHVZK` from the ideal-nonce `SigmaProtocol.linear` family to the
-fair-coin `linearProbFamily` over `(setup n).map (n, ·)`, preserving the simulator and acceptance
-error. -/
-theorem computationalSpecialHVZK_linearProbFamily {Y N C : ℕ × F.Desc → Type}
-    [∀ i, AddCommGroup (N i)] [∀ i, Module (ZMod (F.order i.2)) (N i)] [∀ i, DecidableEq (N i)]
-    [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
-    {ψ : ∀ i, Y i → ZMod (F.order i.2) →ₗ[ZMod (F.order i.2)] N i}
-    {u : ∀ i, Y i → N i} {ι : ∀ i : ℕ × F.Desc, C i ↪ ZMod (F.order i.2)}
-    {R : ∀ i, ZMod (F.order i.2) → Y i → Prop}
-    {enc : Encoding (ℕ × F.Desc) Y N C (fun i => ZMod (F.order i.2))}
-    {encW : ∀ i : ℕ × F.Desc, ZMod (F.order i.2) ↪ List Bool}
-    {setup : ℕ → PMF F.Desc}
-    {sim : Simulator (ℕ × F.Desc) Y N C (fun i => ZMod (F.order i.2))}
-    {δ : ℕ × F.Desc → ℝ≥0∞}
-    (h : ComputationalSpecialHVZK (fun i => linear (ψ i) (u i) (ι i)) R enc encW
-      (fun n => (setup n).map (n, ·)) sim δ) :
-    ComputationalSpecialHVZK (F.linearProbFamily ψ u ι) R enc encW
-      (fun n => (setup n).map (n, ·)) sim δ := by
-  refine h.of_closeTo_transcript (fun _ _ _ _ _ hacc => hacc)
-    ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), ?_⟩
-  intro n i hi x y _ c
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  simpa only [one_div_pow] using F.closeTo_transcript_linearProbFamily ψ u ι (n, d) x y c
+/-! ### Fair-coin `schnorrProbFamily` completeness, special soundness, and special HVZK -/
 
 /-- **Completeness of the fair-coin Schnorr Sigma protocol** ([BonehShoup2023], Figure 19.1,
 p. 756, and Example 19.1 with Definition 19.3, pp. 772–773): for every valid discrete-logarithm
