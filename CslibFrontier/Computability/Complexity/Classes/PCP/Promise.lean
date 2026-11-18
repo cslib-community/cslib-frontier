@@ -20,9 +20,11 @@ r5][Goldreich2007DraftR5] (printed pp. 419–420), read in the promise-problem f
 Section 2.4.1. Exercise 9.25 uses it for `gapCSP`. Randomness, query bounds and the polynomial-time
 requirement are those of `Cslib.Complexity.IsPCPVerifier` and `Cslib.Complexity.PCP`.
 
-`PromisePCP` cannot be defined through total completions, as `Cslib.Complexity.PromiseP` is. A
-verifier for a promise problem may accept an instance outside the promise with any probability
-strictly between one half and one. Such a verifier is a PCP verifier for no set.
+Unlike `Cslib.Complexity.PromiseP`, `PromisePCP` is defined directly, not through total
+completions. A particular promise verifier need not verify any completion: for example, one that
+accepts every proof on some instance outside the promise with probability 3/4. This is a fact
+about that verifier only; whether the class has a characterization by completions is not
+addressed here. The resource bounds apply on every instance, including those outside the promise.
 
 ## Main definitions
 

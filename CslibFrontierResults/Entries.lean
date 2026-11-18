@@ -168,6 +168,7 @@ import CslibFrontier.Computability.MCSP.MultiNPHard
 import CslibFrontier.Computability.MCSP.PartialETH
 import CslibFrontier.Computability.MCSP.PartialHardness.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter
+import CslibFrontier.Computability.PCP.Approximation.MaxCSP.UpperBounds
 import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 import CslibFrontier.Computability.PCP.Completeness
 import CslibFrontier.Computability.PolyTime.LinearAlgebra.RationalElimination
@@ -437,6 +438,33 @@ register_result "pcp" where
     uses O(log n + 1) random bits and O(1) queries, with perfect completeness and soundness at \
     most one half. NP is the library's deterministic-verifier class. Construction constants \
     are large."
+
+register_result "gap-two-csp-promise-pcp" where
+  title := "Constant-gap gapCSP is in PCP(log, O(1))"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.25",
+      locator := "r5.pdf; PDF page 70 / printed page 452; Definitions 9.14 and 9.18 checked" }
+  ]
+  theorems := [
+    Cslib.Complexity.GapTwoCSP_restrict_mem_PromisePCP
+  ]
+  scope := "For every finite nonempty alphabet α and every constant c > 0, fixed before the \
+    input, (GapTwoCSP α (1 - c)).restrict to well-formed graphs is in the promise class \
+    PromisePCP (log n + 1) 1 under Graph.encoding encConstraintTable (unary vertex counts \
+    and endpoints, framed edge lists, full constraint tables). PromisePCP is Definition 9.14 \
+    with completeness on yes-instances and soundness on no-instances, with the polynomial-time \
+    nonadaptive verifier and resource bounds of the library PCP on every instance. The \
+    verifier samples independent fair-bit blocks; each block selects an edge index from a \
+    power-of-two range and accepts on padding indices. Labels are one-hot of width |α|, so a \
+    round queries 2|α| proof bits, and both inputs of a loop query the same vertex label. One \
+    round rejects a no-instance with probability at least c/2, and constant repetition gives \
+    soundness 1/2. Parallel edges keep multiplicity and an empty edge set has violation \
+    value zero. The library unsatVal of the natural-number interpretation agrees with the \
+    minimum over assignments of the declared vertices only under the well-formedness and \
+    nonempty-alphabet hypotheses of Graph.unsatVal_toFiniteGraph, which this statement \
+    supplies. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
 register_result "fagin" where
   title := "Fagin: logic captures NP"
@@ -4978,6 +5006,28 @@ register_result "unique-games-perfect-completeness" where
     empty so every unique game vacuously has unsatVal = 0 and GapUniqueGames (Fin 0) 1 s \
     has no no-instances, while no graph is satisfiable. This fixes L rather than taking it \
     as part of the input."
+
+register_result "gap-two-csp-boolean-promise-p" where
+  title := "Boolean gapCSP is in polynomial time"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.24",
+      locator := "r5.pdf; PDF page 70 / printed page 452; Definition 9.18 checked" }
+  ]
+  theorems := [
+    Cslib.Complexity.mem_PromiseP_of_satisfiable_bool
+  ]
+  scope := "Every promise problem on Boolean constraint graphs under Graph.encoding \
+    encConstraintTable whose yes-instances are satisfiable and whose no-instances are \
+    unsatisfiable is in PromiseP, with a uniform deterministic polynomial-time decider and no \
+    randomness. This covers gapCSP^{0,1}_τ for every positive threshold function τ without \
+    computing τ. The reduction is Graph.toCNF with one bit per label, producing a width-two \
+    CNF satisfiable exactly when the graph is, decided by TwoSAT.mem_P. Instances need not be \
+    well-formed: vertices are natural numbers and malformed vertex counts are admitted, a \
+    larger promise. For well-formed graphs over a nonempty alphabet, \
+    Graph.unsatVal_toFiniteGraph identifies the library unsatVal with the minimum over \
+    assignments of the declared vertices. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
 
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"

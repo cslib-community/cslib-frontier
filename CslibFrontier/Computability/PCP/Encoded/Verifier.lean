@@ -26,7 +26,6 @@ large unary indices. The alphabet decoder and block width are fixed before the r
 
 ## Main definitions
 
-* `Cslib.PCP.Encoded.encEvalInput`: the encoded input of a constraint evaluator.
 * `Cslib.PCP.Encoded.Edge.proofQueries`: the bit positions of the two endpoint blocks.
 * `Cslib.PCP.Encoded.Graph.edgeVerifier`: the nonadaptive graph verifier.
 
@@ -51,13 +50,6 @@ large unary indices. The alphabet decoder and block width are fixed before the r
 namespace Cslib.PCP.Encoded
 
 open Turing.MultiTapeTM Cslib.Complexity
-
-/-- The input of a constraint evaluator `eval : C → α → α → Bool`: the constraint descriptor,
-encoded by `enc`, followed by the labels of the two ends of an edge, each encoded by `alphabet`,
-as nested `encPair`s. -/
-abbrev encEvalInput {C α : Type} (enc : C ↪ List Bool) (alphabet : α ↪ List Bool) :
-    C × α × α ↪ List Bool :=
-  encPair enc (encPair alphabet alphabet)
 
 namespace Edge
 
