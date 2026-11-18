@@ -105,20 +105,12 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
 
 /-- Reversal preserves the full continuum of actual support points. -/
 @[simp] theorem support_reverse (p : Route) : p.reverse.support = p.support := by
-  ext z
-  constructor
-  · intro hz
-    obtain ⟨i, t, ht, heq⟩ := (p.reverse.mem_support_iff z).mp hz
-    exact (p.mem_support_iff z).mpr
-      ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, (eval_reverse p i t).symm.trans heq⟩
-  · intro hz
-    obtain ⟨i, t, ht, heq⟩ := (p.mem_support_iff z).mp hz
-    refine (p.reverse.mem_support_iff z).mpr
-      ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, ?_⟩
-    have hi : (i.rev : Fin p.reverse.segments).rev = i := Fin.rev_rev i
-    have ht' : 1 - (1 - t) = t := sub_sub_cancel 1 t
-    exact (eval_reverse p i.rev (1 - t)).trans
-      ((congrArg₂ (fun (k : Fin p.segments) (u : ℝ) => p.eval k u) hi ht').trans heq)
+  have sub (r : Route) : r.reverse.support ⊆ r.support := by
+    intro z hz
+    obtain ⟨i, t, ht, heq⟩ := (r.reverse.mem_support_iff z).mp hz
+    exact (r.mem_support_iff z).mpr
+      ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, (eval_reverse r i t).symm.trans heq⟩
+  exact Set.Subset.antisymm (sub p) (by simpa only [reverse_reverse] using sub p.reverse)
 
 /-- Reversal preserves simplicity without excluding the permitted identification of the
 two ends of a closed route. Both closing alternatives are swapped by the end-tag map. -/

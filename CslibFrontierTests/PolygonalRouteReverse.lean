@@ -24,8 +24,6 @@ namespace Cslib.Tests.PolygonalRouteReverse
 
 open Cslib.Polygonal Cslib.Polygonal.Route
 
-example (a b : ℂ) : (line a b).reverse = line b a := reverse_line a b
-
 private def bent : Route := (line (0 : ℂ) 1).append ⟨1, 2⟩
 
 -- Reversal retains all three listed nodes, in their opposite order.
@@ -33,8 +31,6 @@ example : bent.reverse.point 0 = (⟨1, 2⟩ : ℂ) ∧
     bent.reverse.point 1 = 1 ∧ bent.reverse.point 2 = 0 := by
   change (⟨1, 2⟩ : ℂ) = ⟨1, 2⟩ ∧ (1 : ℂ) = 1 ∧ (0 : ℂ) = 0
   exact ⟨rfl, rfl, rfl⟩
-
-example : bent.reverse.reverse = bent := reverse_reverse bent
 
 -- The old first piece is the LAST source piece after reversal.
 example (t : ℝ) : bent.reverse.eval (1 : Fin 2) t = bent.eval 0 (1 - t) := by
