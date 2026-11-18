@@ -73,21 +73,6 @@ private theorem crossingPoints_finite {I : FixedRotationInput} (hI : Valid I) :
   rw [hC]
   exact Set.finite_iUnion hS
 
-private theorem reference_support (I : FixedRotationInput)
-    (e : Fin (subdivisionGraph I).edges.length) :
-    ((referenceDrawing I).route e).support =
-      segment ℝ ((referenceDrawing I).route e).start ((referenceDrawing I).route e).finish := by
-  let p := referencePoint I (Dart.vertex (e, false))
-  let q := referencePoint I (Dart.vertex (e, true))
-  change (Route.line p q).support = segment ℝ p q
-  ext z
-  rw [(Route.line p q).mem_support_iff, segment_eq_image_lineMap]
-  constructor
-  · rintro ⟨i, t, ht, heq⟩
-    exact ⟨t, ht, (Route.eval_line p q i t).symm.trans heq⟩
-  · rintro ⟨t, ht, heq⟩
-    exact ⟨0, t, ht, (Route.eval_line p q 0 t).trans heq⟩
-
 private theorem crossing_ne_vertex {I : FixedRotationInput} (hI : Valid I)
     {z : ℂ} (hz : z ∈ crossingPoints I) {v : ℕ}
     (hv : v ∈ (subdivisionGraph I).vertices) : z ≠ (referenceDrawing I).vertex v := by
@@ -132,9 +117,11 @@ private theorem exists_crossing_ball {I : FixedRotationInput} (hI : Valid I)
     intro w hw hwe
     apply hze
     have hwseg : w ∈ segment ℝ (a (Sum.inl e)) (b (Sum.inl e)) :=
-      reference_support I e ▸ hwe
+      (Route.support_line (referencePoint I (Dart.vertex (e, false)))
+        (referencePoint I (Dart.vertex (e, true)))) ▸ hwe
     have hzseg := hsep (Sum.inl e) w hw hwseg
-    exact (reference_support I e).symm ▸ hzseg
+    exact (Route.support_line (referencePoint I (Dart.vertex (e, false)))
+        (referencePoint I (Dart.vertex (e, true)))).symm ▸ hzseg
 
 /-- The actual crossing set is finite and has internally chosen pairwise-disjoint closed
 neighborhoods excluding every declared vertex and every nonincident route support. -/
