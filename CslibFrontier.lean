@@ -5315,6 +5315,7 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Folding

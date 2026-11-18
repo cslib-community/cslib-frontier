@@ -982,7 +982,7 @@ theorem prime_goldilocks : Nat.Prime goldilocksP := by
           (by decide)]
       decide
 
-instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
+public instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
 
 private theorem omegaGoldilocks_pow_16 : (64 : ZMod goldilocksP) ^ 16 = -1 := by
   rw [show (64 : ZMod goldilocksP) = ((64 : ℕ) : ZMod goldilocksP) from rfl,
