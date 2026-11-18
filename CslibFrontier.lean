@@ -61,6 +61,7 @@ public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Memory
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Source
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+public import CslibFrontier.Algorithms.Lean.DyadicRecovery
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Arms
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Attachment
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Contraction
