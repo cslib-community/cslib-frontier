@@ -27,7 +27,7 @@ duplicated root-of-unity, monomial far-word, or `mkBatchCheater` helpers:
    (`friBatchCommitRound_escape_le_of_weightedLineEscapePerRound`, `friBatchRoundEscape`,
    `friBatchSumError`, `sum_friBatchRoundEscape_eq`, `friBatchFinalPasses`, `friBatchCommitGame`,
    `friBatchCommitGame_le_of_escape`, `friBatchIOP_interactiveGame_le_of_escape`),
-   `floor_mul_two_pow_lt_iff`, `friBatchUniqueCommitError` (`= 14 / 257`),
+   `batchFloorThreshold_bounds`, `friBatchUniqueCommitError` (`= 14 / 257`),
    `friBatchUniqueCommitError_ennreal_eq`, `friBatchCommitGame_proximity_le_of_unique` (at `t = 2`
    and `t = 0`), `friBatchIOP_interactiveGame_proximity_le_of_unique` (`< 1 / 8`), real-`α`
    `friBatchCommitGame_le_of_unique` & `friBatchIOP_interactiveGame_le_of_unique` (`< 1 / 4`),
@@ -56,6 +56,12 @@ duplicated root-of-unity, monomial far-word, or `mkBatchCheater` helpers:
    **honest causal prover** (`Pr[accept] = 1`) discharging contrapositive
    `friBatchIOP_sound_of_johnson` and `friBatchIOP_sound_of_johnson_eta`, and all six adaptive
    BCS-FRI ROM corollaries (`< 1 / 10` on `mkBatchCheater` at `σ = 24`).
+5. **Suite 5 (`ZMod 17`, `d = 4, n = 16, k = 4, α = 1 / 2`, paper `m = 3` vs. unique decoding).**
+   Machine-checked regression test on `𝔽₁₇ˣ` certifying that when `(1 + ρ) / 2 > max(α, √ρ · (1 +
+   1 / (2 * m)))` (`5 / 8 > 7 / 12`), a tuple satisfying the common-agreement premise (`≤ 4 ≤ 8`)
+   can trigger the paper's `μ⁽⁰⁾`-weighted round-`0` event `E⁽⁰⁾` (`10 / 16 > 7 / 12` at batching
+   scalar `0` with all weights `1`) while missing Lean's strict unique-decoding round-`0` cutoff
+   (`friBatchGoodStep` holds at `⌊(5 / 8) * 16⌋₊ = 10`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -115,10 +121,14 @@ end HonestCausalHelper
 
 section Unique257
 
--- Floor-threshold equivalence check (`⌊(3 / 4) * 8⌋₊ = 6 < k ↔ 3 / 4 < k / 8`).
-example (k : ℕ) :
-    ⌊(3 / 4 : ℝ) * (2 ^ 3 : ℝ)⌋₊ < k ↔ (3 / 4 : ℝ) < (k : ℝ) / (2 ^ 3 : ℝ) :=
-  floor_mul_two_pow_lt_iff (d := 3) (by norm_num)
+-- Floor-threshold bridge check via `batchFloorThreshold_bounds` (`⌊(3 / 4) * 8⌋₊ = 6`, `e₀ = 1`).
+example :
+    let e₀ := 2 ^ params257.d - 1 - ⌊(3 / 4 : ℝ) * (2 ^ params257.d : ℝ)⌋₊
+    2 ^ params257.d - e₀ - 1 = ⌊(3 / 4 : ℝ) * (2 ^ params257.d : ℝ)⌋₊ ∧
+      (e₀ : ℝ) / (2 ^ params257.d : ℝ) < 1 - (3 / 4 : ℝ) := by
+  obtain ⟨_, _, hB, _, he_lt⟩ :=
+    batchFloorThreshold_bounds params257 2 badStmt257 (α := 3 / 4) (by norm_num) (by norm_num)
+  exact ⟨hB, he_lt⟩
 
 -- Direct checks on `friBatchRoundEscape`, `friBatchSumError`, `sum_friBatchRoundEscape_eq`,
 -- `friBatchFinalPasses`, and `friBatchCommitRound_escape_le_of_weightedLineEscapePerRound`.
@@ -282,7 +292,7 @@ theorem honestStmt257_rel : params257.batchCompletenessRel 2 honestStmt257 () :=
 theorem honestStmt257_mem_corrAgree_via_sound :
     honestStmt257 ∈ params257.batchCorrAgreeLang 2 (3 / 4) := by
   refine friBatchIOP_sound_of_unique params257 2 (α := 3 / 4)
-    (by norm_num [params257, FRIParams.dim]) (by norm_num) honestStmt257
+    (by norm_num [params257, FRIParams.dim]) honestStmt257
     (honestCausalBatchProver params257 2 honestStmt257) ?_
   rw [iopInteractiveGame_honestCausalBatchProver_true_eq_one params257 2 honestStmt257_rel,
     friBatchUniqueCommitError_257_eq, ← ENNReal.ofReal_one]
@@ -1030,7 +1040,7 @@ theorem honestStmtGoldilocks_rel :
 theorem honestStmtGoldilocks_mem_corrAgree_via_johnson :
     honestStmtGoldilocks ∈ paramsBatchGoldilocks.batchCorrAgreeLang 2 (5 / 16) := by
   refine friBatchIOP_sound_of_johnson paramsBatchGoldilocks 2 (mJ := 2) (by omega) (α := 5 / 16)
-    batchGoldilocks_alpha_johnson (by norm_num) honestStmtGoldilocks
+    batchGoldilocks_alpha_johnson honestStmtGoldilocks
     (honestCausalBatchProver paramsBatchGoldilocks 2 honestStmtGoldilocks) ?_
   rw [iopInteractiveGame_honestCausalBatchProver_true_eq_one paramsBatchGoldilocks 2
       honestStmtGoldilocks_rel, ← ENNReal.ofReal_one]
@@ -1043,7 +1053,7 @@ theorem honestStmtGoldilocks_mem_corrAgree_via_johnson :
 theorem honestStmtGoldilocks_mem_corrAgree_via_eta :
     honestStmtGoldilocks ∈ paramsBatchGoldilocks.batchCorrAgreeLang 2 (5 / 16) := by
   refine friBatchIOP_sound_of_johnson_eta paramsBatchGoldilocks 2 (η := 1 / 16) (α := 5 / 16)
-    (by norm_num) batchGoldilocks_alpha_eta (by norm_num) honestStmtGoldilocks
+    (by norm_num) batchGoldilocks_alpha_eta honestStmtGoldilocks
     (honestCausalBatchProver paramsBatchGoldilocks 2 honestStmtGoldilocks) ?_
   rw [iopInteractiveGame_honestCausalBatchProver_true_eq_one paramsBatchGoldilocks 2
       honestStmtGoldilocks_rel, ← ENNReal.ofReal_one]
@@ -1313,5 +1323,150 @@ example :
       (batchGoldilocks_rbr_corrAgree_le.trans one_thousandth_le_one_hundredth))
 
 end GoldilocksClosedForm
+
+/-! ### Suite 5: Round-`0` Cutoff Counterexample on `𝔽₁₇ˣ` (`ZMod 17`, `n = 16, k = 4, α = 1 / 2`)
+
+Machine-checked realization of the `𝔽₁₇ˣ` counterexample separating JACM Section 8.2.1's `m = 3`
+weighted round-`0` cutoff `max(1 / 2, √(1 / 4) * (1 + 1 / 6)) = 7 / 12` from the unique-decoding
+cutoff `max(1 / 2, (1 + 1 / 4) / 2) = 5 / 8` when `(1 + ρ) / 2 > max(α, √ρ · (1 + 1 / (2 * m)))`:
+`cutoffStmt17` has common agreement `≤ 4 ≤ 8` with `params17.initialCode`, yet at batching scalar
+`0` (reporting `cutoffStmt17.base` so all `μ⁽⁰⁾` weights are `1`), codeword `0` achieves `10`
+agreeing positions (`10 / 16 > 7 / 12`), while every codeword in `params17.initialCode` agrees with
+`cutoffStmt17.eval 0` on at most `10 = ⌊(5 / 8) * 16⌋₊` positions (`friBatchGoodStep` holds). -/
+
+section CutoffCounterexample17
+
+instance : Fact (Nat.Prime 17) := ⟨by decide⟩
+
+def params17 : FRIParams (ZMod 17) where
+  d := 4
+  m := 2
+  kFinal := 1
+  q := 2
+  g := 1
+  ω := 3
+  hm := by omega
+  hkPos := by omega
+  hkLe := by omega
+  hg := one_ne_zero
+  h2 := by decide
+  hω := isPrimitiveRoot_two_pow_of_neg_one (by omega) (by decide) (by decide)
+
+def cutoffStmt17 : FRIBatchStmt (ZMod 17) params17.d 1 where
+  base := fun idx => if idx.val < 10 then 0 else (params17.eval 0 idx) ^ params17.dim 0
+  terms := ![fun idx => (params17.eval 0 idx) ^ params17.dim 0]
+
+def cZero17 : FRIBatchChal (ZMod 17) params17.d params17.q 1 :=
+  ⟨fun _ => 0, 0, fun _ => ⟨0, by decide⟩⟩
+
+theorem cutoffStmt17_agree_le_four (D' : Finset (Fin (2 ^ params17.d)))
+    (v₀ : OracleTable params17.d (ZMod 17)) (hv₀ : v₀ ∈ params17.initialCode)
+    (v : Fin 1 → OracleTable params17.d (ZMod 17))
+    (hv : ∀ j, v j ∈ params17.initialCode)
+    (hagree : ∀ s ∈ D', cutoffStmt17.base s = v₀ s ∧ ∀ j, cutoffStmt17.terms j s = v j s) :
+    D'.card ≤ 4 := by
+  by_contra hgt
+  have h11 := not_mem_batchProximityLang_of_monomial_term params17 cutoffStmt17 ⟨0, by decide⟩
+    (e := 11) rfl (by decide)
+  exact h11 ⟨D', by change 2 ^ 4 - 11 ≤ D'.card; omega, v₀, hv₀, v, hv, hagree⟩
+
+theorem cutoffStmt17_eval_cZero17 : cutoffStmt17.eval cZero17.batchCoeffs = cutoffStmt17.base := by
+  ext s
+  simp only [FRIBatchStmt.eval, cZero17, Fin.sum_univ_one, zero_smul, add_zero]
+
+private theorem cutoffStmt17_card_zero_eq_ten :
+    (Finset.univ.filter fun s : Fin (2 ^ params17.d) => cutoffStmt17.base s = 0).card = 10 := by
+  decide
+
+theorem cutoffStmt17_clears_paper_m3_cutoff_and_misses_unique_cutoff
+    (π : OracleTable params17.d (ZMod 17)) :
+    let αPaper := max (1 / 2 : ℝ)
+      (Real.sqrt ((params17.dim 0 : ℝ) / (2 ^ params17.d : ℝ)) * (1 + 1 / (2 * (3 : ℝ))))
+    let αUniq := max (1 / 2 : ℝ) ((1 + (params17.dim 0 : ℝ) / (2 ^ params17.d : ℝ)) / 2)
+    (∀ (D' : Finset (Fin (2 ^ params17.d))) (v₀ : OracleTable params17.d (ZMod 17)),
+      v₀ ∈ params17.initialCode →
+      ∀ v : Fin 1 → OracleTable params17.d (ZMod 17),
+        (∀ j, v j ∈ params17.initialCode) →
+        (∀ s ∈ D', cutoffStmt17.base s = v₀ s ∧ ∀ j, cutoffStmt17.terms j s = v j s) →
+        (D'.card : ℝ) / (2 ^ params17.d : ℝ) ≤ 1 / 2) ∧
+    (∃ c' ∈ params17.initialCode,
+      αPaper <
+        ((Finset.univ.filter fun s : Fin (2 ^ params17.d) =>
+          cutoffStmt17.base s = cutoffStmt17.eval cZero17.batchCoeffs s ∧
+            cutoffStmt17.base s = c' s).card : ℝ) / (2 ^ params17.d : ℝ)) ∧
+    friBatchGoodStep params17 1 ⌊αUniq * (2 ^ params17.d : ℝ)⌋₊ cutoffStmt17 [] π cZero17 := by
+  intro αPaper αUniq
+  refine ⟨?_, ?_, ?_⟩
+  · intro D' v₀ hv₀ v hv hagree
+    have hle : (D'.card : ℝ) ≤ 4 := by
+      exact_mod_cast cutoffStmt17_agree_le_four D' v₀ hv₀ v hv hagree
+    have hd : (2 ^ params17.d : ℝ) = 16 := by norm_num [params17]
+    rw [hd]
+    linarith
+  · refine ⟨0, params17.initialCode.zero_mem, ?_⟩
+    have hfilt :
+        (Finset.univ.filter fun s : Fin (2 ^ params17.d) =>
+          cutoffStmt17.base s = cutoffStmt17.eval cZero17.batchCoeffs s ∧
+            cutoffStmt17.base s = (0 : OracleTable params17.d (ZMod 17)) s) =
+        (Finset.univ.filter fun s : Fin (2 ^ params17.d) => cutoffStmt17.base s = 0) := by
+      ext s
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, cutoffStmt17_eval_cZero17,
+        Pi.zero_apply]
+    have hsq : Real.sqrt ((params17.dim 0 : ℝ) / (2 ^ params17.d : ℝ)) = 1 / 2 := by
+      have hr : ((params17.dim 0 : ℝ) / (2 ^ params17.d : ℝ)) = (1 / 2 : ℝ) ^ 2 := by
+        norm_num [params17, FRIParams.dim]
+      rw [hr, Real.sqrt_sq (by norm_num)]
+    rw [hfilt, cutoffStmt17_card_zero_eq_ten]
+    dsimp only [αPaper]
+    rw [hsq]
+    norm_num [params17]
+  · have hfloor : ⌊αUniq * (2 ^ params17.d : ℝ)⌋₊ = 10 := by
+      dsimp only [αUniq]
+      simp only [params17, FRIParams.dim]
+      exact (Nat.floor_eq_iff (by positivity)).mpr ⟨by norm_num, by norm_num⟩
+    rw [hfloor, friBatchGoodStep_nil_iff]
+    intro c' hc'
+    rw [cutoffStmt17_eval_cZero17]
+    by_contra hgt
+    set S := Finset.univ.filter fun s : Fin (2 ^ params17.d) => cutoffStmt17.base s = c' s
+    set T := Finset.univ.filter fun s : Fin (2 ^ params17.d) => s.val < 10
+    have hT_card : T.card = 10 := by decide
+    have hunion_le : (S ∪ T).card ≤ 16 :=
+      (Finset.card_le_univ _).trans_eq (by decide : Fintype.card (Fin (2 ^ params17.d)) = 16)
+    have hsum := Finset.card_union_add_card_inter S T
+    have hinter_ge : 5 ≤ (S ∩ T).card := by omega
+    obtain ⟨p, hp_deg, rfl⟩ := mem_reedSolomon.mp hc'
+    by_cases hp0 : p = 0
+    · subst hp0
+      have hS0 : S = Finset.univ.filter fun s => cutoffStmt17.base s = 0 := by
+        ext s
+        simp only [S, Polynomial.eval_zero]
+      have hScard : S.card = 10 := by rw [hS0, cutoffStmt17_card_zero_eq_ten]
+      omega
+    · have hinj : Function.Injective (params17.eval 0) :=
+        cosetEval_injective params17.hg params17.hω (Nat.zero_le _)
+      have hsub : (S ∩ T).image (params17.eval 0) ⊆ p.roots.toFinset := by
+        intro x hx
+        obtain ⟨s, hs, rfl⟩ := Finset.mem_image.mp hx
+        obtain ⟨hsS, hsT⟩ := Finset.mem_inter.mp hs
+        have hlt10 : s.val < 10 := (Finset.mem_filter.mp hsT).2
+        have hbase0 : cutoffStmt17.base s = 0 := by simp only [cutoffStmt17, hlt10, ↓reduceIte]
+        have heval : p.eval (params17.eval 0 s) = 0 := by
+          have heq := (Finset.mem_filter.mp hsS).2
+          exact heq.symm.trans hbase0
+        exact Multiset.mem_toFinset.mpr ((Polynomial.mem_roots hp0).mpr heval)
+      have hcard_roots : 5 ≤ p.roots.card := by
+        calc 5 ≤ (S ∩ T).card := hinter_ge
+          _ = ((S ∩ T).image (params17.eval 0)).card := (Finset.card_image_of_injective _ hinj).symm
+          _ ≤ p.roots.toFinset.card := Finset.card_le_card hsub
+          _ ≤ p.roots.card := Multiset.toFinset_card_le _
+      have hdeg_lt : p.natDegree < 4 := by
+        have hd0 : params17.dim 0 = 4 := by decide
+        rw [hd0] at hp_deg
+        exact (Polynomial.natDegree_lt_iff_degree_lt hp0).mpr hp_deg
+      have hle_deg : p.roots.card ≤ p.natDegree := Polynomial.card_roots' p
+      omega
+
+end CutoffCounterexample17
 
 end CslibFrontierTests.Crypto.FRIBatchJohnson

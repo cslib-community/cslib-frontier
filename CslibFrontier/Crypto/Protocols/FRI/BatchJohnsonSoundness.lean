@@ -44,24 +44,37 @@ pp. 41–43; [BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
   and Theorem 8.3 are **interactive IOP theorems**; all `bcsSoundnessGame` results in this module
   are separate **two-channel BCS random-oracle compiler compositions**
   ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
-* **Round-`0` event vs. Section 8.2.1 Eq. (8.8), cutoffs, and `t = 0`:**
-  Section 8.2.1 (printed pp. 41–42, Eq. (8.8)) defines `E⁽⁰⁾` via `μ⁽⁰⁾`-weighted agreement of the
-  reported oracle `f⁽⁰⁾` above `α⁽⁰⁾(ρ, m) = max(α, √ρ · (1 + 1 / (2 * m)))`, where `μ⁽⁰⁾(s) = 1`
+* **Round-`0` event vs. Section 8.2.1 `E⁽⁰⁾` (defined before Eq. (8.8)), cutoffs, and `t = 0`:**
+  Section 8.2.1 (printed pp. 41–42) defines the round-`0` bad event `E⁽⁰⁾` **immediately before
+  Eq. (8.8)**—while Eq. (8.8) bounds its probability—via `μ⁽⁰⁾`-weighted agreement of the reported
+  oracle `f⁽⁰⁾` strictly above `α⁽⁰⁾(ρ, m) = max(α, √ρ · (1 + 1 / (2 * m)))`, where `μ⁽⁰⁾(s) = 1`
   only where `f⁽⁰⁾(s) = stmt.eval x s` and `0` otherwise. High `μ⁽⁰⁾`-weighted agreement of `f⁽⁰⁾`
-  implies high unweighted agreement of the affine word `stmt.eval x`, whereas reporting
+  implies at least as much unweighted agreement of `stmt.eval x`, whereas reporting
   `f⁽⁰⁾ ≠ stmt.eval x` everywhere makes `μ⁽⁰⁾ ≡ 0` and shows why the reverse implication can fail
   (in Lean's round ordering, `x = c₀.batchCoeffs` is sampled in round `0` before `f⁽⁰⁾` is chosen in
   round `1`, and `friDoomed` absorbs any discrepancy `f⁽⁰⁾ ≠ stmt.eval x` via
-  `sum_agree_friOracleFilterWeight_le`). For integer parameters `n = 2 ^ d`, `B = n - e - 1`, and a
-  false tuple `stmt ∉ params.batchProximityLang t e`, Lean's unweighted `stmt.eval x` round-`0`
-  event (`> B / n`) **contains** the paper's event `E⁽⁰⁾` whenever
-  `max(α, √ρ · (1 + 1 / (2 * m))) ≥ B / n` (though general integer `(e, α, m)` cutoffs can differ,
-  e.g. at `n = 16, k = 4, e = 7, α = 1 / 2, m = 3` where `8 / 16` admits nine positions while
-  `7 / 12` starts at ten). In the real-`α` commit-phase bounds (`friBatchCommitGame_le_of_*`),
-  `floor_mul_two_pow_lt_iff` aligns the integer count `> ⌊α₀ * 2 ^ d⌋₊` with `> α₀`, while the
-  unweighted `stmt.eval x` round-`0` event still contains (upper-bounds) `E⁽⁰⁾`. All `t`-uniform
-  theorems state **probability upper bounds** (at `t = 0`, `stmt.eval x = stmt.base` is independent
-  of `x` and has round-`0` escape probability `0`).
+  `sum_agree_friOracleFilterWeight_le`). Containment therefore depends on comparing cutoffs:
+  - For integer parameters `n = 2 ^ d`, `B = n - e - 1`, and `stmt ∉ params.batchProximityLang t e`,
+    Lean's unweighted `stmt.eval x` round-`0` event (`> B / n`) contains `E⁽⁰⁾` whenever
+    `B / n ≤ α⁽⁰⁾(ρ, m)` (general integer `(e, α, m)` cutoffs can differ, e.g. at `n = 16, k = 4,
+    e = 7, α = 1 / 2, m = 3` where `> 8 / 16` admits nine positions while `> 7 / 12` starts at ten).
+  - In the real-`α` commit-phase bounds (`> ⌊α₀ * 2 ^ d⌋₊`, bridged to integer proximity via
+    `batchFloorThreshold_bounds` from `BatchProtocol.lean`), `friBatchCommitGame_le_of_johnson` uses
+    `α₀ = max(α, √ρ · (1 + 1 / (2 * mJ)))`, so at matching Johnson multiplicity `mJ = m` (or
+    whenever `m ≤ mJ`) the cutoffs satisfy `α₀ ≤ α⁽⁰⁾(ρ, m)` and Lean's unweighted round-`0` event
+    **unconditionally contains** `E⁽⁰⁾`.
+  - By contrast, `friBatchCommitGame_le_of_unique` uses `α₀ = max(α, (1 + ρ) / 2)` and contains
+    `E⁽⁰⁾` under the explicit condition `(1 + ρ) / 2 ≤ α⁽⁰⁾(ρ, m)` (failing in general when
+    `(1 + ρ) / 2 > α⁽⁰⁾(ρ, m)`: on `𝔽₁₇ˣ` with `n = 16, k = 4, α = 1 / 2, m = 3`, the paper's cutoff
+    is `7 / 12` while the unique-decoding cutoff is `5 / 8`, and setting the base word to `0` on
+    `10` positions and `X⁴` on `6` positions with direction `X⁴` satisfies common agreement
+    `≤ 4 ≤ 8` yet, at batching scalar `0` with reported oracle equal to the base word so all weights
+    are `1`, achieves `10` agreeing positions—clearing `7 / 12` while missing strict `> 5 / 8`).
+    Likewise, `friBatchCommitGame_le_of_johnson_eta` uses `α₀ = max(α, √ρ + η)` and contains `E⁽⁰⁾`
+    under the explicit condition `√ρ + η ≤ α⁽⁰⁾(ρ, m)` (for example when `η ≤ √ρ / (2 * m)` or
+    `√ρ + η ≤ α`).
+  All `t`-uniform theorems state **probability upper bounds** (at `t = 0`, `stmt.eval x = stmt.base`
+  is independent of `x` and has round-`0` escape probability `0`).
 * **Query schedules and read budgets:**
   `params.proofOracleQueries = kFinal + q * (3 * m + 2)` (`length_friBatchIOP_queries`) is the
   exact committed-proof-oracle opening list length (so verifier Merkle cost
@@ -89,9 +102,9 @@ pp. 41–43; [BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
   `(m + 1)`-round interactive batched commit-phase game (`[Fintype F]` only).
 * `Cslib.Crypto.Protocols.FRI.friBatchUniqueCommitError`,
   `Cslib.Crypto.Protocols.FRI.friBatchJohnsonCommitError`,
-  `Cslib.Crypto.Protocols.FRI.friBatchJohnsonEtaCommitError`,
-  `Cslib.Crypto.Protocols.FRI.friJohnsonEtaCommitBound`: closed-form geometric `(2 - 1 / 2 ^ m)`
-  batched commit-phase error bounds and uniform `η`-gap folding scalar budget.
+  `Cslib.Crypto.Protocols.FRI.friBatchJohnsonEtaCommitError`: closed-form `(2 - 1 / 2 ^ m)`
+  batched commit-phase error bounds across the unique-decoding, explicit-multiplicity Johnson, and
+  `η`-gap regimes.
 
 ## Main results
 
@@ -349,16 +362,6 @@ end ConditionalSummedBridge
 section Helpers
 
 variable {F : Type} [Field F]
-
-/-- For `0 ≤ α₀`, integer agreement count `k` strictly exceeds `⌊α₀ * 2 ^ d⌋₊` if and only if
-relative agreement `(k : ℝ) / 2 ^ d` strictly exceeds `α₀` (connecting the integer threshold of
-`friBatchCommitGame` at `⌊α₀ * 2 ^ d⌋₊` to the real cutoff `> α₀` of
-[BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2, Eq. (8.5) on printed pp. 38–39). -/
-theorem floor_mul_two_pow_lt_iff {d k : ℕ} {α₀ : ℝ} (hα₀ : 0 ≤ α₀) :
-    ⌊α₀ * (2 ^ d : ℝ)⌋₊ < k ↔ α₀ < (k : ℝ) / (2 ^ d : ℝ) := by
-  have hn : (0 : ℝ) < (2 ^ d : ℝ) := by positivity
-  have hnn : 0 ≤ α₀ * (2 ^ d : ℝ) := mul_nonneg hα₀ hn.le
-  rw [← not_le, Nat.le_floor_iff hnn, not_le, lt_div_iff₀ hn]
 
 omit [Field F] in
 private theorem add_sum_natCast_div_ennreal {ι : Type*} (B₀ : ℕ) (s : Finset ι)
@@ -628,10 +631,15 @@ private theorem two_mul_add_dim_le_of_div_le (params : FRIParams F) {e : ℕ}
   exact_mod_cast hcast
 
 /-- **Unconditional real-`α` unique-decoding batched FRI commit-phase upper bound** (unique-decoding
-counterpart of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39): if every
-common agreement witness of `stmt` with `params.initialCode` has relative density `≤ α`, then for
-`α₀ = max α ((1 + ρ) / 2)`, `friBatchCommitGame` exceeds `⌊α₀ * 2 ^ d⌋₊` with probability at most
-`ENNReal.ofReal (friBatchUniqueCommitError params)`. -/
+counterpart of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39, bridged via
+`batchFloorThreshold_bounds`): if every common agreement witness of `stmt` with `params.initialCode`
+has relative density `≤ α`, then for `α₀ = max α ((1 + ρ) / 2)`, `friBatchCommitGame` exceeds
+`⌊α₀ * 2 ^ d⌋₊` with probability at most `ENNReal.ofReal (friBatchUniqueCommitError params)`.
+Relative to the `μ⁽⁰⁾`-weighted oracle event `E⁽⁰⁾` defined immediately before Eq. (8.8) on printed
+pp. 41–42 (with cutoff `max(α, √ρ · (1 + 1 / (2 * m)))`), this unweighted round-`0` event contains
+`E⁽⁰⁾` when `(1 + ρ) / 2 ≤ max(α, √ρ · (1 + 1 / (2 * m)))` and can miss `E⁽⁰⁾` otherwise (for
+example on `𝔽₁₇ˣ` at `n = 16, k = 4, α = 1 / 2, m = 3`, where `10` agreeing positions clear `7 / 12`
+and miss strict `> 5 / 8`). -/
 theorem friBatchCommitGame_le_of_unique [Fintype F]
     (params : FRIParams F) (t : ℕ) {α : ℝ}
     {stmt : FRIBatchStmt F params.d t}
@@ -678,28 +686,21 @@ theorem friBatchIOP_interactiveGame_le_of_unique [Fintype F] [DecidableEq F]
   · exact iopInteractiveGame_le_ofReal_add_pow_of_one_lt params t
       (friBatchUniqueCommitError_nonneg params) (not_le.mp hα_le) stmt P
 
-/-- **Contrapositive real-`α` unique-decoding interactive batched FRI soundness** (`α < 1`): if an
-adaptive prover `P` makes `friBatchIOP params t` accept `stmt` with probability strictly exceeding
-`ENNReal.ofReal (friBatchUniqueCommitError params + α ^ params.q)`, then
-`stmt ∈ params.batchCorrAgreeLang t α`. -/
+/-- **Contrapositive real-`α` unique-decoding interactive batched FRI soundness**: if an adaptive
+prover `P` makes `friBatchIOP params t` accept `stmt` with probability strictly exceeding
+`ENNReal.ofReal (friBatchUniqueCommitError params + α ^ params.q)` (which itself excludes the
+`1 ≤ α` range since `iopInteractiveGame ... true ≤ 1`), then `stmt ∈ params.batchCorrAgreeLang t α`.
+-/
 theorem friBatchIOP_sound_of_unique [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {α : ℝ}
-    (hα : (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2 ≤ α) (hα_lt : α < 1)
+    (hα : (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2 ≤ α)
     (stmt : FRIBatchStmt F params.d t)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t))
     (hacc : ENNReal.ofReal (friBatchUniqueCommitError params + α ^ params.q) <
       iopInteractiveGame (friBatchIOP params t) stmt P true) :
     stmt ∈ params.batchCorrAgreeLang t α := by
   by_contra hfar
-  have hα_pos : 0 < α := lt_of_lt_of_le (by positivity) hα
-  have hle := friBatchIOP_interactiveGame_le_of_corrAgree_le params t
-    (friBatchUniqueCommitError_nonneg params) hα_pos hα_lt.le hfar P fun e hnot_e he_le => by
-      have huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d :=
-        two_mul_add_dim_le_of_div_le params (he_le.trans (by linarith))
-      refine (friBatchIOP_interactiveGame_proximity_le_of_unique params t huniq hnot_e P).trans_eq
-        ?_
-      rw [friBatchUniqueCommitError_ennreal_eq]
-  exact not_lt_of_ge hle hacc
+  exact not_lt_of_ge (friBatchIOP_interactiveGame_le_of_unique params t hα hfar P) hacc
 
 /-- **Unconditional adaptive two-channel batched BCS-FRI ROM soundness in the unique-decoding
 regime** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]), composing `batchRound0Escape_of_unique`
@@ -999,13 +1000,6 @@ finite bound using `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3))
     (115200 * ((2 ^ params.d : ℝ) ^ 2) /
       (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)))
 
-/-- Conservative uniform per-round commit-phase exceptional-scalar budget for 2-to-1 FRI in the
-`η`-gap Johnson regime (`(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η`, `0 < η`):
-`⌊57600 * (2 ^ d) ^ 3 / (dim 0 * η ^ 6)⌋₊` (using this library's original explicit Siegel constant
-`900 * 64 = 57600` and `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
-@[expose] noncomputable def friJohnsonEtaCommitBound (params : FRIParams F) (η : ℝ) : ℕ :=
-  ⌊57600 * ((2 ^ params.d : ℝ) ^ 3) / ((params.dim 0 : ℝ) * (η ^ 6))⌋₊
-
 private theorem friBatchJohnsonCommitError_nonneg [Fintype F] (params : FRIParams F) (mJ : ℕ) :
     0 ≤ friBatchJohnsonCommitError params mJ := by
   have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast params.one_le_dim 0
@@ -1048,38 +1042,6 @@ private theorem friBatchJohnsonCommitError_le_eta [Fintype F] (params : FRIParam
           (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)) := by gcongr
     _ = 115200 * ((2 ^ params.d : ℝ) ^ 2) /
           (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) := by
-        field_simp
-        ring
-
-/-- **Original explicit-constant `η`-gap uniform `WeightedLineGapBound`** across all `m` FRI
-folding rounds up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η` (`0 < η`), derived from
-`weightedLineGapBound_of_johnson` and `ProximityGap.exists_multiplicity_of_eta` (using `η` directly
-rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
-theorem weightedLineGapBound_of_johnson_eta [DecidableEq F]
-    (params : FRIParams F) {e : ℕ} {η : ℝ} (hη : 0 < η)
-    (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
-      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) - η) :
-    WeightedLineGapBound params (2 ^ params.d - e - 1)
-      (friJohnsonEtaCommitBound params η) := by
-  have hk₀_pos : 0 < params.dim 0 := params.one_le_dim 0
-  have hk₀_le : params.dim 0 ≤ 2 ^ params.d := by
-    simpa only [Nat.sub_zero] using params.dim_le_domainSize (Nat.zero_le params.m)
-  obtain ⟨mJ, hmJ, he_mJ, hpow_mJ⟩ :=
-    ProximityGap.exists_multiplicity_of_eta hk₀_pos hk₀_le hη
-      (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he)
-  refine (weightedLineGapBound_of_johnson params hmJ
-    (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he_mJ)).mono fun _ => ?_
-  refine Nat.le_floor ?_
-  have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast hk₀_pos
-  have hdiv_le :
-      ((friJohnsonCommitBound params mJ : ℕ) : ℝ) ≤
-        (900 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := by
-    refine (le_div_iff₀ hk₀R).mpr ?_
-    exact_mod_cast Nat.div_mul_le_self (900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) (params.dim 0)
-  calc ((friJohnsonCommitBound params mJ : ℕ) : ℝ)
-      ≤ (900 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := hdiv_le
-    _ ≤ (900 * (64 / (η ^ 6)) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := by gcongr
-    _ = 57600 * ((2 ^ params.d : ℝ) ^ 3) / ((params.dim 0 : ℝ) * (η ^ 6)) := by
         field_simp
         ring
 
@@ -1183,12 +1145,14 @@ theorem friBatchIOP_interactiveGame_proximity_le_of_johnson_eta [Fintype F] [Dec
 
 /-- **Original explicit-constant real-`α` Johnson batched FRI commit-phase upper bound** (in the
 setting of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39, Eq. (8.5), and
-Section 8.2.1 on printed pp. 41–43): for any `α : ℝ` such that every shared agreement witness of
-`stmt` with `params.initialCode` has relative density `≤ α`, setting
-`α₀ = max α (√ρ * (1 + 1 / (2 * mJ)))`, `friBatchCommitGame` exceeds `⌊α₀ * 2 ^ d⌋₊` with
+Section 8.2.1 on printed pp. 41–43, bridged via `batchFloorThreshold_bounds`): for any `α : ℝ` such
+that every shared agreement witness of `stmt` with `params.initialCode` has relative density `≤ α`,
+setting `α₀ = max α (√ρ * (1 + 1 / (2 * mJ)))`, `friBatchCommitGame` exceeds `⌊α₀ * 2 ^ d⌋₊` with
 probability at most `ENNReal.ofReal (friBatchJohnsonCommitError params mJ)` (valid for all `α : ℝ`,
-using this library's original explicit Siegel constant and unweighted `stmt.eval x` round-`0` event
-containing Section 8.2.1 Eq. (8.8)'s `E⁽⁰⁾`; exact Lemma 8.2 constants remain open on `#5968`). -/
+using this library's original explicit Siegel constant; at matching multiplicity `mJ = m`, or
+whenever `m ≤ mJ`, the unweighted `stmt.eval x` round-`0` event unconditionally contains the
+`μ⁽⁰⁾`-weighted event `E⁽⁰⁾` defined immediately before Eq. (8.8); exact Lemma 8.2 constants remain
+open on `#5968`). -/
 theorem friBatchCommitGame_le_of_johnson [Fintype F]
     (params : FRIParams F) (t : ℕ) {mJ : ℕ} (hmJ : 1 ≤ mJ) {α : ℝ}
     {stmt : FRIBatchStmt F params.d t}
@@ -1220,9 +1184,11 @@ theorem friBatchCommitGame_le_of_johnson [Fintype F]
 
 /-- **Original explicit-constant real-`α` `η`-gap batched FRI commit-phase upper bound** (in the
 setting of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39 and
-Section 8.2.1 on printed pp. 41–43, using `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)):
-for `0 < η` and `α₀ = max α (√ρ + η)`, `friBatchCommitGame` exceeds `⌊α₀ * 2 ^ d⌋₊` with
-probability at most `ENNReal.ofReal (friBatchJohnsonEtaCommitError params η)`. -/
+Section 8.2.1 on printed pp. 41–43, bridged via `batchFloorThreshold_bounds` and using `η` directly
+rather than `min(η, √ρ / 20)` in Eq. (1.3)): for `0 < η` and `α₀ = max α (√ρ + η)`,
+`friBatchCommitGame` exceeds `⌊α₀ * 2 ^ d⌋₊` with probability at most
+`ENNReal.ofReal (friBatchJohnsonEtaCommitError params η)` (containing the `μ⁽⁰⁾`-weighted event
+`E⁽⁰⁾` defined immediately before Eq. (8.8) when `√ρ + η ≤ max(α, √ρ · (1 + 1 / (2 * m)))`). -/
 theorem friBatchCommitGame_le_of_johnson_eta [Fintype F]
     (params : FRIParams F) (t : ℕ) {η α : ℝ} (hη : 0 < η)
     {stmt : FRIBatchStmt F params.d t}
@@ -1289,27 +1255,22 @@ theorem friBatchIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
       (friBatchJohnsonCommitError_nonneg params mJ) (not_le.mp hα_le) stmt P
 
 /-- **Contrapositive original explicit-constant real-`α` Johnson interactive batched FRI soundness**
-(in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed pp. 39–40;
-`hα_lt : α < 1` excludes the vacuous `α ≥ 1` regime): if an adaptive prover `P` makes
+(in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed pp. 39–40; the
+strict acceptance premise `hacc` itself excludes the `1 ≤ α` range): if an adaptive prover `P` makes
 `friBatchIOP params t` accept `stmt` with probability strictly exceeding
 `ENNReal.ofReal (friBatchJohnsonCommitError params mJ + α ^ params.q)`, then
 `stmt ∈ params.batchCorrAgreeLang t α`. -/
 theorem friBatchIOP_sound_of_johnson [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {mJ : ℕ} (hmJ : 1 ≤ mJ) {α : ℝ}
     (hα : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) *
-      (1 + 1 / (2 * (mJ : ℝ))) ≤ α) (hα_lt : α < 1)
+      (1 + 1 / (2 * (mJ : ℝ))) ≤ α)
     (stmt : FRIBatchStmt F params.d t)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t))
     (hacc : ENNReal.ofReal (friBatchJohnsonCommitError params mJ + α ^ params.q) <
       iopInteractiveGame (friBatchIOP params t) stmt P true) :
     stmt ∈ params.batchCorrAgreeLang t α := by
   by_contra hfar
-  have hle := friBatchIOP_interactiveGame_le_of_corrAgree_le params t
-    (friBatchJohnsonCommitError_nonneg params mJ)
-    (johnson_slack_of_le params hmJ hα le_rfl).1 hα_lt.le hfar P fun e hnot_e he_le =>
-      friBatchIOP_interactiveGame_proximity_le_of_johnson params t hmJ
-        (johnson_slack_of_le params hmJ hα he_le).2 hnot_e P
-  exact not_lt_of_ge hle hacc
+  exact not_lt_of_ge (friBatchIOP_interactiveGame_le_of_johnson params t hmJ hα hfar P) hacc
 
 /-- **Original explicit-constant real-`α` `η`-gap interactive batched FRI soundness upper bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed pp. 39–40, using
@@ -1333,21 +1294,18 @@ theorem friBatchIOP_interactiveGame_le_of_johnson_eta [Fintype F] [DecidableEq F
 
 /-- **Contrapositive original explicit-constant real-`α` `η`-gap interactive batched FRI soundness**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed pp. 39–40, using
-`η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3); `hα_lt : α < 1` excludes `α ≥ 1`). -/
+`η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3); the strict acceptance premise `hacc` itself
+excludes the `1 ≤ α` range). -/
 theorem friBatchIOP_sound_of_johnson_eta [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {η α : ℝ} (hη : 0 < η)
-    (hα : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) + η ≤ α) (hα_lt : α < 1)
+    (hα : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) + η ≤ α)
     (stmt : FRIBatchStmt F params.d t)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t))
     (hacc : ENNReal.ofReal (friBatchJohnsonEtaCommitError params η + α ^ params.q) <
       iopInteractiveGame (friBatchIOP params t) stmt P true) :
     stmt ∈ params.batchCorrAgreeLang t α := by
   by_contra hfar
-  have hα_pos : 0 < α := lt_of_lt_of_le (by positivity) hα
-  have hle := friBatchIOP_interactiveGame_le_of_corrAgree_le params t
-    (friBatchJohnsonEtaCommitError_nonneg params hη) hα_pos hα_lt.le hfar P fun e hnot_e he_le =>
-      friBatchIOP_interactiveGame_proximity_le_of_johnson_eta params t hη (by linarith) hnot_e P
-  exact not_lt_of_ge hle hacc
+  exact not_lt_of_ge (friBatchIOP_interactiveGame_le_of_johnson_eta params t hη hα hfar P) hacc
 
 /-- **Original explicit-constant Johnson adaptive two-channel batched BCS-FRI ROM soundness**
 ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]), composing `batchRound0Escape_of_johnson` and
