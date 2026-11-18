@@ -98,12 +98,16 @@ private theorem sub_mem_mask {v z : Fin P.ℓ → Fin P.n → ZMod P.q}
   obtain ⟨hvl, hvu⟩ := abs_le.mp (hv i j)
   exact ⟨(z i j).valMinAbs - (v i j).valMinAbs, ⟨by lia, by lia⟩, by simp⟩
 
+/-- An ideal Algorithm 7 mask, uniform over the coefficient box `(-γ₁, γ₁]^(ℓ n)`. -/
+noncomputable def signingMaskLaw (hγ : 0 < P.γ₁) : PMF (Fin P.ℓ → Fin P.n → ZMod P.q) :=
+  PMF.uniformOfFinset (maskSet P) (mask_nonempty P hγ)
+
 /-- The signing attempt with an ideal, coefficientwise uniform mask and the given fresh
 challenge. On success it emits the high bits of the original commitment `A y` and the
 signature returned by Algorithm 7's two rejection stages. -/
-noncomputable def freshSigningAttempt (d ω : ℕ) (hγ : 0 < P.γ₁) (sk : SecretKey P)
+@[expose] noncomputable def freshSigningAttempt (d ω : ℕ) (hγ : 0 < P.γ₁) (sk : SecretKey P)
     (c : Fin P.n → ZMod P.q) : PMF (Option (AttemptTranscript P)) :=
-  (PMF.uniformOfFinset (maskSet P) (mask_nonempty P hγ)).map fun y =>
+  (signingMaskLaw P hγ).map fun y =>
     (compressedSignAttempt P d ω (fun _ => c) sk [] y).map fun σ =>
       ⟨highBitsVec P (moduleSISMap sk.A y), σ⟩
 
@@ -155,21 +159,22 @@ theorem freshSigningAttempt_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     lia
   unfold simulateFreshSigningAttempt
   simp only [← hm, ← hr, ← hgate, PMF.shiftReject, PMF.map_comp, Function.comp_def,
-    freshSigningAttempt]
+    freshSigningAttempt, signingMaskLaw]
   congr 1 with y : 1
   let w := moduleSISMap sk.A y
   let r := w - fun i => negacyclicMul c (sk.s₂ i)
   have he := verifierCommitment_publicKey sk y c
+  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq]
   by_cases hz : ResponseShort P (y + v)
   · by_cases hl : LowBitsShort P r
     · have hh := highBitsVec_sub_challenge hP hc hs₂ hl
       dsimp only [v, r, w] at hz hl hh ⊢
-      simp only [compressedSignAttempt, mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
+      simp only [mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
         Option.bind_some, finishSimulated, he, guard, pure_bind, hh]
       split_ifs <;> rfl
     · dsimp only [v, r, w] at hz hl ⊢
-      simp [compressedSignAttempt, finishSimulated, mem_response_iff P hq, hz, he, hl, guard]
+      simp [finishSimulated, mem_response_iff P hq, hz, he, hl, guard]
   · dsimp only [v] at hz ⊢
-    simp [compressedSignAttempt, mem_response_iff P hq, hz]
+    simp [mem_response_iff P hq, hz]
 
 end Cslib.Crypto.MLDSA

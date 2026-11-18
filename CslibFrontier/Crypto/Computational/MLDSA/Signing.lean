@@ -82,7 +82,8 @@ instance (ct₀ : Fin P.k → Fin P.n → ZMod P.q) :
     Fin rows → Fin n → ZMod q :=
   fun i => (values.get i).get
 
-private theorem tabulateRingVector_eq {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
+/-- Reading the materialized vector returns the original coefficients. -/
+theorem tabulateRingVector_eq {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
     ringVectorCoeffs (tabulateRingVector f) = f := by
   funext i j
   simp only [tabulateRingVector, ringVectorCoeffs, Vector.get_ofFn]

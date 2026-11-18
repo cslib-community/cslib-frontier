@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Probability.Rewinding
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Algebra.Order.Chebyshev
@@ -91,6 +93,17 @@ noncomputable def accept (first : PMF S) (A : S → (Fin q → H) → Option (Fi
   let h ← PMF.uniformOfFintype (Fin q → H)
   return (A s h).1.isSome
 
+/-- Replay on two supplied tapes with shared coins and the first tape's prefix. Both the
+finite program and its probability law use this deterministic fork. -/
+def onTapes [DecidableEq H] (A : S → (Fin q → H) → Option (Fin q) × β)
+    (s : S) (h h' : Fin q → H) : Option (Fin q × β × β) :=
+  let (index, first) := A s h
+  match index with
+  | none => none
+  | some j =>
+    let (index', second) := A s (splice j h h')
+    if index' = some j ∧ h j ≠ h' j then some (j, first, second) else none
+
 /-- The forking algorithm ([BellareNeven2006]): run `A` on coins `s` and answers `h`; if it
 outputs an index `j`, rerun it on `s` and on `splice j h h'` for fresh answers `h'`, and succeed
 with both results when the rerun outputs `j` too and `h j ≠ h' j`. -/
@@ -99,10 +112,36 @@ noncomputable def fork [DecidableEq H] (first : PMF S)
   let s ← first
   let h ← PMF.uniformOfFintype (Fin q → H)
   let h' ← PMF.uniformOfFintype (Fin q → H)
-  return match (A s h).1 with
-    | none => none
-    | some j => if (A s (splice j h h')).1 = some j ∧ h j ≠ h' j then
-        some (j, (A s h).2, (A s (splice j h h')).2) else none
+  return onTapes A s h h'
+
+/-- A predicate of the two replies in a successful fork costs at most its largest probability
+against a fresh uniform reply. The first run may choose its index after seeing all its answers.
+The output's recorded reply must be the answer at the index it names. -/
+theorem bad_reply_le [DecidableEq H] (first : PMF S)
+    (A : S → (Fin q → H) → Option (Fin q) × β) (reply : β → H)
+    (named : ∀ s h j, (A s h).1 = some j → reply (A s h).2 = h j)
+    (bad : H → H → Bool) :
+    ((fork first A).map (fun r => r.any fun (_, a, b) => bad (reply a) (reply b)) true) ≤
+      Finset.univ.sup (fun c => (PMF.uniformOfFintype H).map (bad c) true) := by
+  simp only [fork, onTapes, pmf_norm]
+  apply Probability.PMF.bind_apply_le_on_support
+  intro s _
+  apply Probability.PMF.bind_apply_le_on_support
+  intro h _
+  cases hj : (A s h).1 with
+  | none => simp
+  | some j =>
+    have eval : (PMF.uniformOfFintype (Fin q → H)).map (fun h' => h' j) =
+        PMF.uniformOfFintype H := by
+      rw [← Probability.PMF.pi_uniformOfFintype, Probability.PMF.pi_map_eval]
+    refine le_trans ?_ (Finset.le_sup (f := fun c => (PMF.uniformOfFintype H).map (bad c) true)
+      (Finset.mem_univ (h j)))
+    rw [← eval, PMF.map_comp, ← PMF.bind_pure_comp]
+    apply Probability.PMF.bind_apply_mono_on_support
+    intro h' _
+    by_cases hf : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j
+    · simp [hf, named s h j hj, named s (splice j h h') j hf.1, splice, Function.comp_def]
+    · simp [hf]
 
 /-! ### Splitting the answers at an index -/
 
@@ -255,7 +294,7 @@ private theorem toReal_fork (first : PMF S) (A : S → (Fin q → H) → Option 
       (PMF.uniformOfFintype (Fin q → H)).map (s, h, ·))
     (fun x => (A x.1 x.2.1).1)
     (fun j x => (A x.1 (splice j x.2.1 x.2.2)).1 = some j ∧ x.2.1 j ≠ x.2.2 j)
-  simp only [fork, pmf_norm] at h ⊢
+  simp only [fork, onTapes, pmf_norm] at h ⊢
   refine Eq.trans (congrArg (fun p : PMF Bool => (p true).toReal) ?_) h
   pmf_swap with s h h'
   cases (A s h).1 with
@@ -327,7 +366,7 @@ theorem mem_support_fork {first : PMF S} {A : S → (Fin q → H) → Option (Fi
     {j : Fin q} {out out' : β} (hfork : some (j, out, out') ∈ (fork first A).support) :
     ∃ s ∈ first.support, ∃ h h' : Fin q → H, (∀ i < j, h i = h' i) ∧ h j ≠ h' j ∧
       A s h = (some j, out) ∧ A s h' = (some j, out') := by
-  supp_cases hfork [fork] with ⟨s, hs, h, h', hres⟩
+  supp_cases hfork [fork, onTapes] with ⟨s, hs, h, h', hres⟩
   refine ⟨s, hs, h, splice j h h', fun i hi => by simp [splice, hi], ?_⟩
   cases hA : (A s h).1 with
   | none => simp [hA] at hres

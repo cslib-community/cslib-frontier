@@ -111,10 +111,15 @@ private theorem dvd_sub_power2Rem (r : ZMod q) :
     (((2 ^ d : ℕ) : ℤ) ∣ (r.val : ℤ) - power2Rem q d r) :=
   (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (ZMod.coe_valMinAbs _)
 
+/-- The integer outputs of power-of-two rounding reconstruct the canonical representative. -/
+theorem power2Round_high_mul_add_low (r : ZMod q) :
+    (power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 = (r.val : ℤ) := by
+  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+
 /-- **Power2Round reconstruction.** The two outputs reconstruct the input modulo `q`. -/
 theorem intCast_power2Round_high_mul_add_low [NeZero q] (r : ZMod q) :
     ((((power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 : ℤ)) : ZMod q) = r := by
-  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+  rw [power2Round_high_mul_add_low]
   simp
 
 /-- For `d > 0`, the low output of `Power2Round` lies in

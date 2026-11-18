@@ -40,20 +40,20 @@ private def secretKeyFingerprint : List Byte := [
     0x52, 0x20, 0x41, 0x45, 0x9d, 0xbd, 0xcd, 0x23, 0xde, 0x69, 0x8d, 0x5b,
     0x8b, 0xa9, 0x61, 0x04, 0x3c, 0x1f, 0x13, 0x62]
 
--- Use a message ending mid-byte and a nonempty context; changing the context must invalidate it.
+-- Sign a message ending mid-byte at the 255-byte context limit. One more byte must fail.
 private def keyAndSigningChecks : Option Bool := do
   let keys ← keyGen .mlDSA44 fun i => keyGenSeed[i.val]!
   let msg := [true, false, true]
-  let ctx := [11, 22]
+  let ctx := List.replicate 255 11
   let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
   return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
     Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
     verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
-    verify .mlDSA44 keys.publicKey msg [11] σ == some false
+    verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
+    (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
 
 #guard keyAndSigningChecks == some true
 #guard (sign .mlDSA44 [] [] [] (fun _ => 0)).isNone
-#guard (sign .mlDSA44 [] [] (List.replicate 256 0) (fun _ => 0)).isNone
 
 -- Independent SHAKE256(0^256) expansion followed by the FIPS 204 Algorithm 29 shuffle.
 private def zeroDigestSupport (value : ZMod 8380417) : Option (List ℕ) := do
@@ -80,3 +80,10 @@ private def digest44 : List Byte := (List.finRange 32).map (fun i => Fin.ofNat 2
 
 #guard verify .mlDSA44 [] [] [] [] == some false
 #guard verify .mlDSA44 [] [] (List.replicate 256 0) [] == none
+
+-- The ten-bit coefficients 0, 1, 1023 and 2 cross byte boundaries. The first two
+-- distinguish the rounding tie at 4096 from its successor.
+#guard ((encodePublic .mlDSA44 (List.replicate 32 0) fun _ i =>
+    match i.val with
+    | 0 => 4096 | 1 => 4097 | 2 => -1 | 3 => 16384 | _ => 0).drop 32).take 5 ==
+  [0, 4, 240, 191, 0]

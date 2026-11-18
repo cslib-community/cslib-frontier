@@ -46,8 +46,10 @@ bounds.
 
 * `Cslib.Probability.PMF.iid_apply`, `Cslib.Probability.PMF.mem_support_iid_iff`: masses and
   support.
-* `Cslib.Probability.PMF.piFin_apply`, `Cslib.Probability.PMF.piFin_const`,
-  `Cslib.Probability.PMF.piFin_map_eval`: masses, constant families, and marginals of `piFin`.
+* `Cslib.Probability.PMF.piFin_apply`, `Cslib.Probability.PMF.mem_support_piFin_iff`,
+  `Cslib.Probability.PMF.piFin_const`, `Cslib.Probability.PMF.piFin_map`,
+  `Cslib.Probability.PMF.piFin_map_eval`: masses, support, constant families, coordinatewise maps,
+  and marginals of `piFin`.
 * `Cslib.Probability.PMF.piFin_bind`, `Cslib.Probability.PMF.piFin_pair`: coordinatewise kernels
   and pairing of `piFin`.
 * `Cslib.Probability.PMF.iid_map`, `Cslib.Probability.PMF.iid_eq_pi`,
@@ -108,6 +110,32 @@ theorem piFin_const (μ : PMF α) : ∀ k : ℕ, piFin (fun _ : Fin k => μ) = i
       simp only [ite_eq_right_iff]
       intro h
       exact absurd (by rw [h, Fin.cons_zero]) ha
+
+/-- A tuple belongs to the support of `piFin p` exactly when each coordinate belongs to the support
+of `p j`. -/
+theorem mem_support_piFin_iff {k : ℕ} (p : Fin k → PMF α) (v : Fin k → α) :
+    v ∈ (piFin p).support ↔ ∀ j, v j ∈ (p j).support := by
+  simp only [PMF.mem_support_iff, piFin_apply, Finset.prod_ne_zero_iff, Finset.mem_univ,
+    forall_const]
+
+/-- Applying coordinatewise functions to independent draws from a family gives independent draws of
+the images. -/
+theorem piFin_map :
+    ∀ {k : ℕ} (p : Fin k → PMF α) (g : Fin k → α → β),
+      (piFin fun j => (p j).map (g j)) = (piFin p).map (fun v j => g j (v j))
+  | 0, _, _ => by
+    simp only [piFin, PMF.pure_map]
+    congr 1
+    funext j
+    exact j.elim0
+  | k + 1, p, g => by
+    simp only [piFin, PMF.map_bind, PMF.bind_map,
+      piFin_map (fun j => p j.succ) (fun j => g j.succ)]
+    congr 1 with a : 1
+    simp only [Function.comp_apply, PMF.map_comp]
+    congr 1 with v : 1
+    funext j
+    cases j using Fin.cases <;> rfl
 
 /-- Each coordinate of independent draws from a family is distributed as its own law. -/
 theorem piFin_map_eval :
@@ -173,25 +201,13 @@ theorem piFin_pair :
 /-- A tuple can be drawn exactly when each of its coordinates can. -/
 theorem mem_support_iid_iff (μ : PMF α) {k : ℕ} (v : Fin k → α) :
     v ∈ (iid μ k).support ↔ ∀ i, v i ∈ μ.support := by
-  simp only [PMF.mem_support_iff, iid_apply, Finset.prod_ne_zero_iff, Finset.mem_univ,
-    forall_const]
+  rw [← piFin_const, mem_support_piFin_iff]
 
 /-- Applying a function to each coordinate of independent draws gives independent draws of the
 image. -/
 theorem iid_map (μ : PMF α) (g : α → β) (k : ℕ) :
     iid (μ.map g) k = (iid μ k).map (fun v i => g (v i)) := by
-  induction k with
-  | zero =>
-    rw [iid, iid, PMF.pure_map]
-    congr 1 with i : 1
-    exact i.elim0
-  | succ k ih =>
-    rw [iid, iid]
-    simp only [monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, ih]
-    congr 1 with a : 1
-    rw [Function.comp_apply, PMF.map_comp, PMF.map_comp]
-    congr 1 with v i : 2
-    induction i using Fin.cases <;> rfl
+  rw [← piFin_const, ← piFin_const, piFin_map]
 
 /-- On a finite type, independent draws form the product distribution `pi`. -/
 theorem iid_eq_pi [Finite α] (μ : PMF α) (k : ℕ) : iid μ k = pi (fun _ : Fin k => μ) := by
