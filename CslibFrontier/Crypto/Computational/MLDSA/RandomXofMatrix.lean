@@ -39,7 +39,7 @@ private def flatten (s : Level) : MatrixPrefixes s ≃ (MatrixByte s → Byte) w
 
 private theorem address_length (rho : List Byte) {s : Level} (p : Cell s) :
     (address rho p).length = 8 * (rho.length + 2) := by
-  simp [address, Keccak.bytesToBitsLE, Keccak.byteBitsLE, Nat.mul_comm, Nat.mul_add]
+  simp [address, Keccak.length_bytesToBitsLE]
 
 private def point {a b : ℕ} {s : Level} (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a)
     (hb : 894 ≤ b) (p : MatrixByte s) : RawWord a × Fin b :=

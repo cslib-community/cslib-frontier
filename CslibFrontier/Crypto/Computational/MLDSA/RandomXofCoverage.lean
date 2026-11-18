@@ -48,7 +48,7 @@ variable {H G : Xofs} {a b m : ℕ} {s : Level}
 
 private theorem bytes256 (h : Agreement H G a b) {xs : List Byte} (hx : 8 * xs.length ≤ a)
     {n : ℕ} (hn : n ≤ b) : H.h256.readBytes xs n = G.h256.readBytes xs n :=
-  h.shake256 _ (by simpa only [bitsLength] using hx) n hn
+  h.shake256 _ (by simpa only [Keccak.length_bytesToBitsLE] using hx) n hn
 
 private theorem fixedWidth (s : Level) : 8704 ≤ 8 * (32 + 320 * s.params.k) := by
   cases s <;> decide
@@ -61,7 +61,7 @@ private theorem matrix (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
   have raw (i j : Byte) :
       H.h128.readBytes (rho ++ [i, j]) 894 = G.h128.readBytes (rho ++ [i, j]) 894 := by
     apply h.shake128 _ _ _ hb
-    simp only [bitsLength, List.length_append, List.length_cons, List.length_nil]
+    simp only [Keccak.length_bytesToBitsLE, List.length_append, List.length_cons, List.length_nil]
     have := fixedInputs ha
     lia
   simp only [Xofs.expandA, raw]
@@ -99,7 +99,7 @@ private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s
       G.representativeFromTr tr (formatMessage msg ctx) := by
   unfold Xofs.representativeFromTr
   rw [h.shake256 _ _ 64 (by lia)]
-  simp only [representativeInput, formatMessage, List.length_append, bitsLength,
+  simp only [representativeInput, formatMessage, List.length_append, Keccak.length_bytesToBitsLE,
     List.length_cons]
   have := (le_max_right _ (8 * (64 + 2 + 255) + m)).trans ha
   lia
@@ -109,7 +109,7 @@ private theorem commitment (h : Agreement H G a b) (ha : honestAddressBits s m �
     H.commitmentDigest s w μ = G.commitmentDigest s w μ := by
   apply h.shake256
   · have aw := fixedInputs ha
-    simp only [commitmentInput, List.length_append, hm, bitsLength, length_packCoeffs]
+    rw [commitmentInput, List.length_append, hm, Keccak.length_bytesToBitsLE, length_packCoeffs]
     exact le_trans (by cases s <;> decide) aw
   · exact le_trans (by cases s <;> decide) hb
 
@@ -135,7 +135,7 @@ private theorem attempt (h : Agreement H G a b) (ha : honestAddressBits s m ≤ 
     {seed : List Byte} (hr : seed.length = 64) :
     H.attempt s sk A μ seed = G.attempt s sk A μ seed := by
   funext κ
-  simp only [Xofs.attempt, h.mask ha hb hr, h.commitment ha hb hm,
+  simp only [Xofs.attempt, Xofs.prepareAttempt, h.mask ha hb hr, h.commitment ha hb hm,
     h.challenge ha hb (le_of_eq (length_commitmentDigest ..))]
 
 private theorem decoded_bounds {sk : PrivateKey s} {key : List Byte}
@@ -158,9 +158,10 @@ private theorem signAttempts (h : Agreement H G a b) (ha : honestAddressBits s m
   rw [h.representative ha hb ht hc hm]
   let μ := G.representativeFromTr sk.tr (formatMessage msg ctx)
   have len : μ.length = 512 := by
-    simp only [μ, Xofs.representativeFromTr, bitsLength, G.h256.length_read]
+    simp only [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read]
   have hedge := h.shake256 (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ)
-    (by simp only [List.length_append, bitsLength, FixedBytes.length_toList, len]
+    (by rw [List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
+          FixedBytes.length_toList, len]
         have := fixedInputs ha
         lia) 64 (by lia)
   rw [hedge]
@@ -171,7 +172,7 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
     {ctx : List Byte} (hc : ctx.length ≤ 255) (rnd : FixedBytes 32) :
     H.signInternal s key (formatMessage msg ctx) rnd =
       G.signInternal s key (formatMessage msg ctx) rnd := by
-  unfold Xofs.signInternal
+  simp only [Xofs.signInternal, Xofs.startSigning, bind_assoc, pure_bind]
   apply Option.bind_congr
   intro sk hsk
   obtain ⟨hr, hk, ht⟩ := decoded_bounds hsk
