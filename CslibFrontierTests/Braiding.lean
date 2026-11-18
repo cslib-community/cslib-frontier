@@ -25,11 +25,11 @@ namespace CslibFrontierTests.Braiding
 open Matrix Cslib Cslib.Quantum Finset
 open scoped BigOperators MatrixOrder ComplexOrder
 
-/-- **Pointwise transfer**, in any state of any star-ordered algebra. -/
+/-- **Pointwise transfer**, for contractions in any state of any star-ordered algebra. -/
 example {A : Type} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] [Algebra ℂ A]
     [StarModule ℂ A] [SelfAdjointDecompose A] (φ : AlgState A) {X Z X' Z' : A}
-    (hX : X ∈ unitary A) (hZ : Z ∈ unitary A) (hX' : X' ∈ unitary A) (hZ' : Z' ∈ unitary A)
-    (hXZ' : Commute X Z') (hZX' : Commute Z X') :
+    (hX : star X * X ≤ 1) (hZ : star Z * Z ≤ 1) (hX' : star X' * X' ≤ 1)
+    (hZ' : star Z' * Z' ≤ 1) (hXZ' : Commute X Z') (hZX' : Commute Z X') :
     φ.norm (Z * X + X * Z) ≤
       2 * φ.norm (X - X') + 2 * φ.norm (Z - Z') + φ.norm (X' * Z' + Z' * X') := by
   simpa using norm_mul_sub_smul_mul_le_of_consistent φ hX hZ hX' hZ' hXZ' hZX'
@@ -39,8 +39,8 @@ example {A : Type} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] [A
 example {n : Type} [Fintype n] [DecidableEq n] (φ : AlgState (Matrix (n → Bool) (n → Bool) ℂ)) :
     𝔼 p : (n → Bool) × (n → Bool), φ.norm (pauliZPow p.2 * pauliZPow p.1 -
       (1 : ℂ) • (pauliZPow p.1 * pauliZPow p.2)) ^ 2 ≤ 0 := by
-  have hZ : ∀ a, pauliZPow a ∈ unitary (Matrix (n → Bool) (n → Bool) ℂ) :=
-    pauliZPow_mem_unitaryGroup
+  have hZ : ∀ a, star (pauliZPow (ι := n) a) * pauliZPow a ≤ 1 := fun a =>
+    (Unitary.star_mul_self_of_mem (pauliZPow_mem_unitaryGroup a)).le
   have hc : ∀ a b, Commute (pauliZPow (ι := n) a) (pauliZPow b) := fun a b => by
     rw [Commute, SemiconjBy, pauliZPow_mul, pauliZPow_mul, add_comm]
   have h := expect_norm_mul_sub_smul_mul_sq_le_of_consistent (ι := (n → Bool) × (n → Bool)) φ

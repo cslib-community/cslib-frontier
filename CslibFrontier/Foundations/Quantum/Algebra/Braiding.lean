@@ -85,60 +85,65 @@ namespace Cslib.Quantum
 variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] [Algebra ℂ A]
   [StarModule ℂ A] [SelfAdjointDecompose A]
 
-/-- **Transfer of a commutation relation through consistency.** If the unitaries `X` and `Z`
-commute with `Z'` and `X'` respectively, then
+/-- **Transfer of a commutation relation through consistency.** If the contractions `X` and `Z`
+commute with the contractions `Z'` and `X'` respectively, then
 `‖Z X - s X Z‖_φ ≤ 2 ‖X - X'‖_φ + 2 ‖Z - Z'‖_φ + ‖X' Z' - s Z' X'‖_φ`
 for every phase `s` with `‖s‖ = 1`. -/
 theorem norm_mul_sub_smul_mul_le_of_consistent (φ : AlgState A) {X Z X' Z' : A}
-    (hX : X ∈ unitary A) (hZ : Z ∈ unitary A) (hX' : X' ∈ unitary A) (hZ' : Z' ∈ unitary A)
-    (hXZ' : Commute X Z') (hZX' : Commute Z X') {s : ℂ} (hs : ‖s‖ = 1) :
+    (hX : star X * X ≤ 1) (hZ : star Z * Z ≤ 1) (hX' : star X' * X' ≤ 1)
+    (hZ' : star Z' * Z' ≤ 1) (hXZ' : Commute X Z') (hZX' : Commute Z X') {s : ℂ}
+    (hs : ‖s‖ = 1) :
     φ.norm (Z * X - s • (X * Z)) ≤
       2 * φ.norm (X - X') + 2 * φ.norm (Z - Z') + φ.norm (X' * Z' - s • (Z' * X')) := by
   have cX := φ.approx_norm_sub X X'
   have cZ := φ.approx_norm_sub Z Z'
   have chain := calc
-      Z * X ≈[φ; φ.norm (X - X')] Z * X' := cX.mul_left_unitary hZ
+      Z * X ≈[φ; φ.norm (X - X')] Z * X' := cX.mul_left hZ
     _ = X' * Z := hZX'.eq
-    _ ≈[φ; φ.norm (Z - Z')] X' * Z' := cZ.mul_left_unitary hX'
+    _ ≈[φ; φ.norm (Z - Z')] X' * Z' := cZ.mul_left hX'
     _ ≈[φ; φ.norm (X' * Z' - s • (Z' * X'))] s • (Z' * X') := φ.approx_norm_sub _ _
-    _ ≈[φ; ‖s‖ * φ.norm (X - X')] s • (Z' * X) := (cX.symm.mul_left_unitary hZ').smul s
+    _ ≈[φ; ‖s‖ * φ.norm (X - X')] s • (Z' * X) := (cX.symm.mul_left hZ').smul s
     _ = s • (X * Z') := by rw [hXZ'.eq]
-    _ ≈[φ; ‖s‖ * φ.norm (Z - Z')] s • (X * Z) := (cZ.symm.mul_left_unitary hX).smul s
+    _ ≈[φ; ‖s‖ * φ.norm (Z - Z')] s • (X * Z) := (cZ.symm.mul_left hX).smul s
   rw [hs, one_mul, one_mul] at chain
   have h := AlgState.approx_iff.mp chain
   linarith
+
+/-- **Squared transfer**: under the hypotheses of
+`Cslib.Quantum.norm_mul_sub_smul_mul_le_of_consistent`,
+`‖Z X - s X Z‖²_φ ≤ 9 (‖X - X'‖²_φ + ‖Z - Z'‖²_φ + ‖X' Z' - s Z' X'‖²_φ)`. -/
+theorem norm_mul_sub_smul_mul_sq_le_of_consistent (φ : AlgState A) {X Z X' Z' : A}
+    (hX : star X * X ≤ 1) (hZ : star Z * Z ≤ 1) (hX' : star X' * X' ≤ 1)
+    (hZ' : star Z' * Z' ≤ 1) (hXZ' : Commute X Z') (hZX' : Commute Z X') {s : ℂ}
+    (hs : ‖s‖ = 1) :
+    φ.norm (Z * X - s • (X * Z)) ^ 2 ≤
+      9 * (φ.norm (X - X') ^ 2 + φ.norm (Z - Z') ^ 2 + φ.norm (X' * Z' - s • (Z' * X')) ^ 2) := by
+  have h := norm_mul_sub_smul_mul_le_of_consistent φ hX hZ hX' hZ' hXZ' hZX' hs
+  have h0 := φ.norm_nonneg (Z * X - s • (X * Z))
+  have hCS := Finset.sum_mul_sq_le_sq_mul_sq Finset.univ ![(2 : ℝ), 2, 1]
+    ![φ.norm (X - X'), φ.norm (Z - Z'), φ.norm (X' * Z' - s • (Z' * X'))]
+  simp only [Fin.sum_univ_three, Matrix.cons_val] at hCS
+  calc φ.norm (Z * X - s • (X * Z)) ^ 2 ≤
+        (2 * φ.norm (X - X') + 2 * φ.norm (Z - Z') + φ.norm (X' * Z' - s • (Z' * X'))) ^ 2 :=
+        pow_le_pow_left₀ h0 h 2
+    _ ≤ _ := by linarith
 
 /-- **Averaged transfer of a commutation relation through consistency**: over any finite family,
 `E_i ‖Z_i X_i - s_i X_i Z_i‖²_φ ≤ 9 (E_i ‖X_i - X'_i‖²_φ + E_i ‖Z_i - Z'_i‖²_φ +
 E_i ‖X'_i Z'_i - s_i Z'_i X'_i‖²_φ)`. -/
 theorem expect_norm_mul_sub_smul_mul_sq_le_of_consistent {ι : Type*} [Fintype ι]
-    (φ : AlgState A) (X Z X' Z' : ι → A) (s : ι → ℂ) (hX : ∀ i, X i ∈ unitary A)
-    (hZ : ∀ i, Z i ∈ unitary A) (hX' : ∀ i, X' i ∈ unitary A) (hZ' : ∀ i, Z' i ∈ unitary A)
-    (hXZ' : ∀ i, Commute (X i) (Z' i)) (hZX' : ∀ i, Commute (Z i) (X' i))
-    (hs : ∀ i, ‖s i‖ = 1) :
+    (φ : AlgState A) (X Z X' Z' : ι → A) (s : ι → ℂ) (hX : ∀ i, star (X i) * X i ≤ 1)
+    (hZ : ∀ i, star (Z i) * Z i ≤ 1) (hX' : ∀ i, star (X' i) * X' i ≤ 1)
+    (hZ' : ∀ i, star (Z' i) * Z' i ≤ 1) (hXZ' : ∀ i, Commute (X i) (Z' i))
+    (hZX' : ∀ i, Commute (Z i) (X' i)) (hs : ∀ i, ‖s i‖ = 1) :
     𝔼 i, φ.norm (Z i * X i - s i • (X i * Z i)) ^ 2 ≤
       9 * (𝔼 i, φ.norm (X i - X' i) ^ 2 + 𝔼 i, φ.norm (Z i - Z' i) ^ 2 +
         𝔼 i, φ.norm (X' i * Z' i - s i • (Z' i * X' i)) ^ 2) := by
-  have hpt : ∀ i, φ.norm (Z i * X i - s i • (X i * Z i)) ^ 2 ≤
-      9 * (φ.norm (X i - X' i) ^ 2 + φ.norm (Z i - Z' i) ^ 2 +
-        φ.norm (X' i * Z' i - s i • (Z' i * X' i)) ^ 2) := fun i => by
-    have h := norm_mul_sub_smul_mul_le_of_consistent φ (hX i) (hZ i) (hX' i) (hZ' i) (hXZ' i)
-      (hZX' i) (hs i)
-    have h0 := φ.norm_nonneg (Z i * X i - s i • (X i * Z i))
-    set a := φ.norm (X i - X' i)
-    set b := φ.norm (Z i - Z' i)
-    set c := φ.norm (X' i * Z' i - s i • (Z' i * X' i))
-    have ha := φ.norm_nonneg (X i - X' i)
-    have hb := φ.norm_nonneg (Z i - Z' i)
-    have hc := φ.norm_nonneg (X' i * Z' i - s i • (Z' i * X' i))
-    have hCS := Finset.sum_mul_sq_le_sq_mul_sq Finset.univ ![(2 : ℝ), 2, 1] ![a, b, c]
-    simp only [Fin.sum_univ_three, Matrix.cons_val] at hCS
-    calc φ.norm (Z i * X i - s i • (X i * Z i)) ^ 2 ≤ (2 * a + 2 * b + c) ^ 2 :=
-          pow_le_pow_left₀ h0 h 2
-      _ ≤ 9 * (a ^ 2 + b ^ 2 + c ^ 2) := by linarith
   calc 𝔼 i, φ.norm (Z i * X i - s i • (X i * Z i)) ^ 2
       ≤ 𝔼 i, 9 * (φ.norm (X i - X' i) ^ 2 + φ.norm (Z i - Z' i) ^ 2 +
-          φ.norm (X' i * Z' i - s i • (Z' i * X' i)) ^ 2) := expect_le_expect fun i _ => hpt i
+          φ.norm (X' i * Z' i - s i • (Z' i * X' i)) ^ 2) :=
+        expect_le_expect fun i _ => norm_mul_sub_smul_mul_sq_le_of_consistent φ (hX i) (hZ i)
+          (hX' i) (hZ' i) (hXZ' i) (hZX' i) (hs i)
     _ = _ := by rw [← mul_expect, expect_add_distrib, expect_add_distrib]
 
 section Commutation
