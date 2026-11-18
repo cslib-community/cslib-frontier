@@ -213,12 +213,17 @@ structure SigningQuery where
 abbrev SigningForger :=
   List Byte → ProbOracleComp (fun _ : SigningQuery => Option (List Byte)) Forgery
 
-/-- Append the successful answer to this signing request to the FIPS strong-forgery log. -/
+/-- Keep each successful signature with the exact context and message presented to the signer. -/
 @[expose] def SigningQuery.logReply (q : SigningQuery) (sig : Option (List Byte))
     (log : List Forgery) : List Forgery :=
   match sig with
   | none => log
   | some bytes => ⟨q.context, q.message, bytes⟩ :: log
+
+/-- FIPS verifies the output triple and no signing call returned that triple. -/
+@[expose] def Xofs.winsForgery (H : Xofs) (s : Level) (pk : List Byte) (f : Forgery)
+    (log : List Forgery) : Bool :=
+  (H.verify s pk f.message f.context f.signature).getD false && !log.contains f
 
 /-- Sign with fresh hedging randomness and log the context and message of a successful reply. -/
 noncomputable def Xofs.signingOracle (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
@@ -300,8 +305,7 @@ and accept a verifying triple precisely when the signer never returned it. -/
 noncomputable def Xofs.sufCmaGame (H : Xofs) (s : Level) (adv : SigningForger) : Game :=
   H.keyExperiment s fun keys =>
     (ProbOracleComp.runWith (H.signingOracle s keys.secretKey) (adv keys.publicKey) []).map
-      fun (f, log) =>
-        (H.verify s keys.publicKey f.message f.context f.signature).getD false && !log.contains f
+      fun (f, log) => H.winsForgery s keys.publicKey f log
 
 /-- FIPS 202 specialization of the strong chosen-message game. -/
 noncomputable abbrev sufCmaGame := Xofs.sufCmaGame Xofs.shake
@@ -310,7 +314,7 @@ noncomputable abbrev sufCmaGame := Xofs.sufCmaGame Xofs.shake
 recovers the byte-verifier key-only experiment exactly, including key-generation failure. -/
 theorem sufCmaGame_sample_eq_keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) :
     sufCmaGame s (fun pk => ProbOracleComp.sample (adv pk)) = keyOnlyGame s adv := by
-  unfold sufCmaGame Xofs.sufCmaGame keyOnlyGame
+  unfold sufCmaGame Xofs.sufCmaGame keyOnlyGame Xofs.winsForgery
   congr 1
   funext keys
   rw [ProbOracleComp.runWith_sample, PMF.map_comp]
@@ -515,8 +519,7 @@ chosen-message program and check freshness and verification under the same XOFs.
 @[expose] noncomputable def Xofs.continueFirstSigning (K : Xofs) (s : Level) (keys : KeyPair)
     (q : SigningQuery) (ans : Option (List Byte)) (next : SigningContinuation) : Game :=
   (ProbOracleComp.runWith (K.signingOracle s keys.secretKey) (next K keys.publicKey ans)
-    (q.logReply ans [])).map fun (f, log) =>
-      (K.verify s keys.publicKey f.message f.context f.signature).getD false && !log.contains f
+    (q.logReply ans [])).map fun (f, log) => K.winsForgery s keys.publicKey f log
 
 private theorem first_request {State : Type} (K : Xofs) (s : Level)
     (choose : List Byte → ProbComp (SigningQuery × State)) (next : State → SigningContinuation) :

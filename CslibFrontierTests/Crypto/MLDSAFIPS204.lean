@@ -137,4 +137,5 @@ private def collidingExpansionRows : Option Bool := do
 example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List Byte) :
     K.continueFirstSigning s keys q (some sig) (fun _ _ ans =>
       pure ⟨q.context, q.message, ans.getD []⟩) = PMF.pure false := by
-  simp [Xofs.continueFirstSigning, SigningQuery.logReply, Cslib.ProbOracleComp.runWith_pure]
+  simp [Xofs.continueFirstSigning, Xofs.winsForgery, SigningQuery.logReply,
+    Cslib.ProbOracleComp.runWith_pure]
