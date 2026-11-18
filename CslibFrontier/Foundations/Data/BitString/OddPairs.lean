@@ -24,7 +24,9 @@ pairs with the even pairs set to `0`. It is the density `(1 - 2⁻ⁿ) / 2` of t
 conditional average over them (`Cslib.BitString.oddExpect_eq_dens_smul`,
 `Cslib.BitString.dens_oddPairs`); for `n = 0` there are no odd pairs and it is `0`. It is monotone
 and linear on the odd pairs (`Cslib.BitString.oddExpect_mono`, `Cslib.BitString.oddExpect_add`,
-`Cslib.BitString.oddExpect_const_mul`).
+`Cslib.BitString.oddExpect_const_mul`). Each coordinate marginal is half the uniform
+average with the zero string masked out (`Cslib.BitString.oddExpect_fst`,
+`Cslib.BitString.oddExpect_snd`).
 
 A nonzero `a` has `a · c = 1` for exactly half of the `c`, so a bound holding for every such `c`
 holds for twice the masked average over `c`: if `g ≤ h(c)` whenever `a · c = 1`, then
@@ -53,30 +55,38 @@ namespace Cslib.BitString
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
-/-- A nonzero bit string `a` gives a bound `g ≤ h(c)` for every `c` with `a · c = 1`, the half of
-the strings with odd inner product; then `g ≤ 2 E_c [a · c = 1] h(c)`. -/
-theorem le_two_mul_expect_ite_of_forall {a : ι → Bool} (ha : a ≠ 0) {g : ℝ}
-    {h : (ι → Bool) → ℝ} (hg : ∀ c, a ⬝ᵥ c = true → g ≤ h c) :
-    g ≤ 2 * 𝔼 c, if a ⬝ᵥ c = true then h c else 0 := by
+/-- Exactly half the strings have odd inner product with a fixed nonzero string. -/
+theorem dens_oddFiber {a : ι → Bool} (ha : a ≠ 0) :
+    (((univ.filter fun b => a ⬝ᵥ b = true).dens : ℚ≥0) : ℝ) = 1 / 2 := by
   set S := (univ : Finset (ι → Bool)).filter fun c => a ⬝ᵥ c = true
   have hcard : 2 * (S.card : ℝ) = Fintype.card (ι → Bool) := by
     have hc := two_mul_card_dotProduct_eq_true_add a
     simp only [ha, ↓reduceIte, add_zero] at hc
     rw [Fintype.card_fun, Fintype.card_bool]
     exact_mod_cast hc
-  have hS : S.Nonempty := by
-    rw [← Finset.card_pos]
-    have : (0 : ℝ) < Fintype.card (ι → Bool) := by exact_mod_cast Fintype.card_pos
-    exact_mod_cast (by linarith : (0 : ℝ) < S.card)
-  have hdens : (S.dens : ℝ) = 1 / 2 := by
-    have hS0 : (S.card : ℝ) ≠ 0 := by exact_mod_cast hS.card_pos.ne'
-    rw [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, ← hcard]
-    field_simp
+  have hpos : (0 : ℝ) < Fintype.card (ι → Bool) := by exact_mod_cast Fintype.card_pos
+  rw [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, ← hcard]
+  have hS : (S.card : ℝ) ≠ 0 := by linarith
+  field_simp
+
+/-- Every nonzero string has a partner with odd inner product. -/
+theorem oddFiber_nonempty {a : ι → Bool} (ha : a ≠ 0) :
+    (univ.filter fun b => a ⬝ᵥ b = true).Nonempty := by
+  by_contra! h
+  have hd := dens_oddFiber ha
+  norm_num [h] at hd
+
+/-- A nonzero bit string gives a bound holding on its odd partners, which then holds
+for twice the masked average over all partners. -/
+theorem le_two_mul_expect_ite_of_forall {a : ι → Bool} (ha : a ≠ 0) {g : ℝ}
+    {h : (ι → Bool) → ℝ} (hg : ∀ c, a ⬝ᵥ c = true → g ≤ h c) :
+    g ≤ 2 * 𝔼 c, if a ⬝ᵥ c = true then h c else 0 := by
+  let S := (univ : Finset (ι → Bool)).filter fun c => a ⬝ᵥ c = true
   have hmask : (𝔼 c, if a ⬝ᵥ c = true then h c else 0) = (1 / 2 : ℝ) * 𝔼 c ∈ S, h c := by
     simp_rw [show ∀ c, (a ⬝ᵥ c = true) ↔ c ∈ S from fun c => by simp [S]]
-    rw [Fintype.expect_ite_mem, NNRat.smul_def, hdens]
+    rw [Fintype.expect_ite_mem, NNRat.smul_def, dens_oddFiber ha]
   rw [hmask]
-  linarith [Finset.le_expect hS fun c hc => hg c (mem_filter.mp hc).2]
+  linarith [Finset.le_expect (oddFiber_nonempty ha) fun c hc => hg c (mem_filter.mp hc).2]
 
 /-- The **odd pairs** `(a, b)` of bit strings, with `a · b = 1`. -/
 def oddPairs (ι : Type*) [Fintype ι] [DecidableEq ι] : Finset ((ι → Bool) × (ι → Bool)) :=
@@ -137,6 +147,46 @@ theorem oddExpect_eq_dens_smul (f : (ι → Bool) → (ι → Bool) → ℝ) :
     if a ⬝ᵥ b = true then f a b else 0), Finset.univ_product_univ]
   simp_rw [← mem_oddPairs]
   rw [Fintype.expect_ite_mem, NNRat.smul_def]
+
+/-- The first marginal of the masked odd-pair average is half the uniform
+average with the zero string removed by a mask. -/
+theorem oddExpect_fst (g : (ι → Bool) → ℝ) :
+    oddExpect (fun a _ => g a) = (1 / 2 : ℝ) * 𝔼 a, if a = 0 then 0 else g a := by
+  rw [oddExpect_def, Finset.mul_expect]
+  refine expect_congr rfl fun a _ => ?_
+  by_cases ha : a = 0
+  · subst a
+    simp
+  simp only [ha, ite_false]
+  let S := (univ : Finset (ι → Bool)).filter fun b => a ⬝ᵥ b = true
+  have hS (b : ι → Bool) : a ⬝ᵥ b = true ↔ b ∈ S := by simp [S]
+  simp_rw [hS]
+  rw [Fintype.expect_ite_mem, NNRat.smul_def, dens_oddFiber ha]
+  rw [Finset.expect_const (oddFiber_nonempty ha)]
+
+/-- Swapping the two coordinates preserves the masked odd-pair average. -/
+theorem oddExpect_swap (g : (ι → Bool) → (ι → Bool) → ℝ) :
+    oddExpect (fun a b => g b a) = oddExpect g := by
+  rw [oddExpect_def, oddExpect_def, Finset.expect_comm]
+  refine expect_congr rfl fun a _ => expect_congr rfl fun b _ => ?_
+  rw [dotProduct_comm b a]
+
+/-- The second marginal has the same distribution as the first. -/
+theorem oddExpect_snd (g : (ι → Bool) → ℝ) :
+    oddExpect (fun _ b => g b) = (1 / 2 : ℝ) * 𝔼 b, if b = 0 then 0 else g b := by
+  rw [oddExpect_swap (fun a _ => g a), oddExpect_fst]
+
+/-- Recover the uniform average from the masked first marginal and the contribution at zero. -/
+theorem expect_eq_two_mul_oddExpect_fst_add_zero (g : (ι → Bool) → ℝ) :
+    (𝔼 a, g a) = 2 * oddExpect (fun a _ => g a) + g 0 / Fintype.card (ι → Bool) := by
+  have hsplit : (𝔼 a, g a) = (𝔼 a, if a = 0 then 0 else g a) +
+      (𝔼 a, if a = 0 then g a else 0) := by
+    rw [← Finset.expect_add_distrib]
+    refine expect_congr rfl fun a _ => ?_
+    split_ifs <;> simp
+  rw [hsplit, oddExpect_fst, Fintype.expect_ite_eq']
+  simp only [NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast, div_eq_inv_mul]
+  ring
 
 theorem oddExpect_add (f g : (ι → Bool) → (ι → Bool) → ℝ) :
     oddExpect (fun a b => f a b + g a b) = oddExpect f + oddExpect g := by

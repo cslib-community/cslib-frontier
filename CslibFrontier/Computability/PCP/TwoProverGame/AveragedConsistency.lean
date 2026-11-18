@@ -107,11 +107,7 @@ private theorem expect_localDistance_le :
   let B (c : ι → Bool) :=
     let r := PauliConsistencyQuestion.ofChecked basis a c
     ((S.bob r).map r.checkedBit).observable
-  change S.state.norm (A - (𝔼 c, B c)) ^ 2 ≤ 𝔼 c, S.state.norm (A - B c) ^ 2
-  have h : (𝔼 c, (A - B c)) = A - (𝔼 c, B c) := by
-    rw [expect_sub_distrib, Fintype.expect_const]
-  rw [← h]
-  exact S.state.norm_expect_sq_le univ _
+  exact S.state.norm_sub_expect_sq_le univ univ_nonempty A B
 
 /-- The mean squared distance between the two averaged observables is at most four times the
 same-basis game's rejection probability. -/
@@ -125,22 +121,7 @@ theorem expect_norm_sub_sq_le_of_pauliSameBasisTest :
     let q := PauliConsistencyQuestion.ofChecked basis a b
     ((S.alice q).map q.checkedBit).observable
   let B := PauliConsistencyQuestion.averagedObservable S.bob basis a
-  change S.state.norm ((𝔼 b, A b) - B) ^ 2 ≤ 𝔼 b, S.state.norm (A b - B) ^ 2
-  have h : (𝔼 b, (A b - B)) = (𝔼 b, A b) - B := by
-    rw [expect_sub_distrib, Fintype.expect_const]
-  rw [← h]
-  exact S.state.norm_expect_sq_le univ _
-
-omit [TopologicalSpace 𝒜] [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint]
-  [NonnegSpectrumClass ℝ 𝒜] [Module ℚ≥0 𝒜] in
-private theorem norm_sub_sq_le_through (φ : AlgState 𝒜) (a b c : 𝒜) :
-    φ.norm (a - c) ^ 2 ≤ 2 * φ.norm (a - b) ^ 2 + 2 * φ.norm (b - c) ^ 2 := by
-  have h := φ.norm_add_le (a - b) (b - c)
-  rw [sub_add_sub_cancel] at h
-  calc
-    _ ≤ (φ.norm (a - b) + φ.norm (b - c)) ^ 2 :=
-      pow_le_pow_left₀ (φ.norm_nonneg _) h 2
-    _ ≤ _ := by nlinarith [sq_nonneg (φ.norm (a - b) - φ.norm (b - c))]
+  exact S.state.norm_expect_sub_sq_le univ univ_nonempty A B
 
 open BitString
 
@@ -188,7 +169,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
           2 * S.state.norm (A x z - Bavg x z) ^ 2) := by
       refine expect_le_expect fun x _ => expect_le_expect fun z _ => ?_
       rw [S.state.norm_sub_comm (A x z) (Bavg x z)]
-      exact norm_sub_sq_le_through S.state _ _ _
+      exact S.state.norm_sub_sq_le_through _ _ _
     simp only [expect_add_distrib, ← mul_expect] at htri
     linarith
   have hd : oddExpect d ≤ 16 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
@@ -209,7 +190,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
     simpa only [expect, card_attach, sum_attach (oddPairs ι) (fun p => e p.fst p.snd)] using h
   have htri : oddExpect (fun x z => S.state.norm (Aavg x z - B x z) ^ 2) ≤
       oddExpect (fun x z => 2 * d x z + 2 * e x z) :=
-    oddExpect_mono fun x z _ => norm_sub_sq_le_through _ _ _ _
+    oddExpect_mono fun x z _ => S.state.norm_sub_sq_le_through _ _ _
   rw [oddExpect_add, oddExpect_const_mul, oddExpect_const_mul] at htri
   change oddExpect (fun x z => S.state.norm (Aavg x z - B x z) ^ 2) ≤ _
   linarith
