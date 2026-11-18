@@ -7,29 +7,16 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import Cslib.Algorithms.Lean.TimeM
 public import CslibFrontier.Logics.Propositional.TseitinCNF
 
-/-! # The Tseitin transformation with numbered variables, and its running time
+/-! # The Tseitin transformation with numbered variables
 
 The Tseitin transformation `Cslib.Logic.PL.Proposition.tseitinCNF` names a subformula by the
 subformula itself, so comparing two of its variables costs as much as comparing two subformulas.
 Here the variables are numbers. A proposition over the atoms `Fin n` is traversed once, in
 post-order: the atom `i` is the variable `i`, and every other node gets the next unused number,
 counting from `n`. Each node prepends its definitional clauses to an accumulator, so no list is
-copied (`Proposition.tseitinClausesM`).
-
-The traversal is written once, for any monad, with an action `visit` run at every node. At `Id`
-it is the numbered transformation `Proposition.tseitinNumberedCNF`. At `TimeM ℕ` with
-`visit = tick 1` it is `Proposition.tseitinNumberedT`, whose value is the numbered
-transformation (`Proposition.ret_tseitinNumberedT`) and whose time is the number of nodes
-(`Proposition.time_tseitinNumberedT`).
-
-**Cost model.** One unit of time per node of the proposition. Everything else a node does is
-counted as free: reading the results of its children, incrementing the counter, and prepending at
-most three clauses of at most three literals. That is constant work per node, so the count is
-linear running time in the usual RAM model; as with every use of `TimeM`, the correspondence
-between the ticks and the work is by inspection of the definition, not proved.
+copied (`Proposition.tseitinClauses`). No running-time bound is stated here.
 
 The numbered transformation is the Tseitin transformation up to renaming and the order of the
 clauses: renaming every number to the variable of the subformula it was given
@@ -43,18 +30,14 @@ same size bounds.
 
 ## Main definitions
 
-* `Cslib.Logic.PL.Proposition.tseitinClausesM`: the traversal, for any monad, returning a
+* `Cslib.Logic.PL.Proposition.tseitinClauses`: the traversal, returning a
   `Cslib.Logic.PL.Proposition.TseitinResult`.
 * `Cslib.Logic.PL.Proposition.tseitinNumberedCNF`: the numbered transformation.
-* `Cslib.Logic.PL.Proposition.tseitinNumberedT`: the traversal, counting nodes.
 * `Cslib.Logic.PL.Proposition.tseitinLabels`, `Cslib.Logic.PL.Proposition.tseitinNumberedVar`:
   the subformula at every number.
 
 ## Main results
 
-* `Cslib.Logic.PL.Proposition.ret_tseitinNumberedT`,
-  `Cslib.Logic.PL.Proposition.time_tseitinNumberedT`: the counted traversal computes the numbered
-  transformation in time `A.size`.
 * `Cslib.Logic.PL.Proposition.perm_relabel_tseitinNumberedCNF`: it is the Tseitin transformation
   up to renaming and order.
 * `Cslib.Logic.PL.Proposition.satisfiable_tseitinNumberedCNF_iff`: equisatisfiability.
@@ -70,10 +53,7 @@ same size bounds.
 
 namespace Cslib.Logic.PL.Proposition
 
-open Cslib.Algorithms.Lean (TimeM)
-open Cslib.Algorithms.Lean.TimeM (tick)
-
-variable {n : ℕ} {m : Type → Type} [Monad m]
+variable {n : ℕ}
 
 /-- The result of the Tseitin traversal of a subformula. -/
 structure TseitinResult where
@@ -84,83 +64,36 @@ structure TseitinResult where
   /-- The clauses so far, those of the subformula first. -/
   clauses : CNF ℕ
 
-/-- The Tseitin traversal of a proposition over `Fin n`, running `visit` at every node. From the
-first unused number `k` and the clauses `acc` so far, it returns the variable of the proposition,
-the next unused number, and the clauses with those of the subformulas prepended. -/
-def tseitinClausesM (visit : m Unit) : Proposition (Fin n) → ℕ → CNF ℕ → m TseitinResult
-  | atom i, k, acc => do
-    visit
-    pure ⟨i, k, acc⟩
-  | falsum, k, acc => do
-    visit
-    pure ⟨k, k + 1, [(k, false)] :: acc⟩
-  | and A B, k, acc => do
-    visit
-    let a ← tseitinClausesM visit A k acc
-    let b ← tseitinClausesM visit B a.next a.clauses
+/-- The Tseitin traversal of a proposition over `Fin n`. From the first unused number `k` and the
+clauses `acc` so far, it returns the variable of the proposition, the next unused number, and the
+clauses with those of the subformulas prepended. -/
+def tseitinClauses : Proposition (Fin n) → ℕ → CNF ℕ → TseitinResult
+  | atom i, k, acc => ⟨i, k, acc⟩
+  | falsum, k, acc => ⟨k, k + 1, [(k, false)] :: acc⟩
+  | and A B, k, acc =>
+    let a := tseitinClauses A k acc
+    let b := tseitinClauses B a.next a.clauses
     let x := b.next
-    pure ⟨x, x + 1, [(x, false), (a.var, true)] :: [(x, false), (b.var, true)] ::
+    ⟨x, x + 1, [(x, false), (a.var, true)] :: [(x, false), (b.var, true)] ::
       [(x, true), (a.var, false), (b.var, false)] :: b.clauses⟩
-  | or A B, k, acc => do
-    visit
-    let a ← tseitinClausesM visit A k acc
-    let b ← tseitinClausesM visit B a.next a.clauses
+  | or A B, k, acc =>
+    let a := tseitinClauses A k acc
+    let b := tseitinClauses B a.next a.clauses
     let x := b.next
-    pure ⟨x, x + 1, [(x, true), (a.var, false)] :: [(x, true), (b.var, false)] ::
+    ⟨x, x + 1, [(x, true), (a.var, false)] :: [(x, true), (b.var, false)] ::
       [(x, false), (a.var, true), (b.var, true)] :: b.clauses⟩
-  | imp A B, k, acc => do
-    visit
-    let a ← tseitinClausesM visit A k acc
-    let b ← tseitinClausesM visit B a.next a.clauses
+  | imp A B, k, acc =>
+    let a := tseitinClauses A k acc
+    let b := tseitinClauses B a.next a.clauses
     let x := b.next
-    pure ⟨x, x + 1, [(x, true), (a.var, true)] :: [(x, true), (b.var, false)] ::
+    ⟨x, x + 1, [(x, true), (a.var, true)] :: [(x, true), (b.var, false)] ::
       [(x, false), (a.var, false), (b.var, true)] :: b.clauses⟩
-
-/-- A monad morphism commutes with the Tseitin traversal. -/
-theorem _root_.Cslib.IsMonadHom.map_tseitinClausesM {m' : Type → Type} [Monad m']
-    {f : ∀ {α}, m α → m' α} (hf : Cslib.IsMonadHom m m' f) (visit : m Unit)
-    (A : Proposition (Fin n)) (k : ℕ) (acc : CNF ℕ) :
-    f (tseitinClausesM visit A k acc) = tseitinClausesM (f visit) A k acc := by
-  induction A generalizing k acc with
-  | atom i | falsum => simp [tseitinClausesM, hf.map_bind, hf.map_pure]
-  | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    simp [tseitinClausesM, hf.map_bind, hf.map_pure, ihA, ihB]
-
-/-- The Tseitin traversal of a proposition, without side effects. -/
-def tseitinClauses (A : Proposition (Fin n)) (k : ℕ) (acc : CNF ℕ) : TseitinResult :=
-  Id.run (tseitinClausesM (pure ()) A k acc)
 
 /-- **The Tseitin transformation with numbered variables**: the clauses of the traversal from
 the number `n` on, and the unit clause asserting the variable of the proposition. -/
 def tseitinNumberedCNF (A : Proposition (Fin n)) : CNF ℕ :=
   let r := A.tseitinClauses n []
   [(r.var, true)] :: r.clauses
-
-/-- The numbered Tseitin transformation, counting one unit of time per node. -/
-def tseitinNumberedT (A : Proposition (Fin n)) : TimeM ℕ (CNF ℕ) := do
-  let r ← tseitinClausesM (tick 1) A n []
-  pure ([(r.var, true)] :: r.clauses)
-
-/-- **The counted traversal computes the numbered Tseitin transformation.** -/
-@[simp] theorem ret_tseitinNumberedT (A : Proposition (Fin n)) :
-    A.tseitinNumberedT.ret = A.tseitinNumberedCNF := by
-  have := Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_tseitinClausesM (tick 1) A n [])
-  simp only [TimeM.ret_tick] at this
-  simp [tseitinNumberedT, tseitinNumberedCNF, tseitinClauses, ← this]
-
-/-- The traversal visits every node once. -/
-theorem time_tseitinClausesM (A : Proposition (Fin n)) (k : ℕ) (acc : CNF ℕ) :
-    (tseitinClausesM (tick 1) A k acc).time = A.size := by
-  induction A generalizing k acc with
-  | atom i | falsum => simp [tseitinClausesM, size]
-  | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    simp [tseitinClausesM, size, ihA, ihB]
-    omega
-
-/-- **The numbered Tseitin transformation takes time `A.size`**, one unit per node. -/
-@[simp] theorem time_tseitinNumberedT (A : Proposition (Fin n)) :
-    A.tseitinNumberedT.time = A.size := by
-  simp [tseitinNumberedT, time_tseitinClausesM]
 
 /-! ### Renaming to the Tseitin transformation -/
 
@@ -188,15 +121,14 @@ theorem perm_relabel_tseitinClauses (A : Proposition (Fin n)) (k : ℕ) (acc : C
       g (A.tseitinClauses k acc).var = A.tseitinVar ∧
       ((A.tseitinClauses k acc).clauses.relabel g).Perm (A.tseitinDefs ++ acc.relabel g) := by
   induction A generalizing k acc with
-  | atom i => exact ⟨by simp [tseitinClauses, tseitinClausesM, tseitinLabels],
-      hatom i, by
-        simp [tseitinClauses, tseitinClausesM, tseitinDefs]⟩
+  | atom i => exact ⟨by simp [tseitinClauses, tseitinLabels], hatom i,
+      by simp [tseitinClauses, tseitinDefs]⟩
   | falsum =>
     have hk := hlabel 0 falsum rfl
     simp only [Nat.add_zero] at hk
-    refine ⟨by simp [tseitinClauses, tseitinClausesM, tseitinLabels], ?_, ?_⟩
-    · simpa [tseitinClauses, tseitinClausesM, tseitinVar] using hk
-    · simp [tseitinClauses, tseitinClausesM, tseitinDefs, CNF.relabel, Clause.relabel, hk]
+    refine ⟨by simp [tseitinClauses, tseitinLabels], ?_, ?_⟩
+    · simpa [tseitinClauses, tseitinVar] using hk
+    · simp [tseitinClauses, tseitinDefs, CNF.relabel, Clause.relabel, hk]
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     obtain ⟨hkA, hvA, hpA⟩ := ihA k acc fun j C hC => hlabel j C (by
       simp only [tseitinLabels, List.append_assoc]
@@ -210,9 +142,7 @@ theorem perm_relabel_tseitinClauses (A : Proposition (Fin n)) (k : ℕ) (acc : C
         rw [List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
           List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
         exact hC
-    rw [tseitinClauses, tseitinClausesM]
-    simp only [Id.run_bind, Id.run_pure, show ∀ (C : Proposition (Fin n)) k acc,
-      Id.run (tseitinClausesM (pure ()) C k acc) = C.tseitinClauses k acc from fun _ _ _ => rfl]
+    rw [tseitinClauses]
     generalize A.tseitinClauses k acc = a at *
     generalize B.tseitinClauses a.next a.clauses = b at *
     have hx := hlabel (A.tseitinLabels.length + B.tseitinLabels.length) _
@@ -248,15 +178,11 @@ theorem eval_tseitinClauses {σ : ℕ → Bool} (A : Proposition (Fin n)) (k : �
   induction A generalizing k acc with
   | atom i => exact ⟨h, rfl⟩
   | falsum =>
-    simp only [tseitinClauses, tseitinClausesM, Id.run_bind, Id.run_pure, CNF.eval_cons,
-      Clause.eval_cons, Literal.eval_mk, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
-      beq_iff_eq] at h ⊢
+    simp only [tseitinClauses, CNF.eval_cons, Clause.eval_cons, Literal.eval_mk, Clause.eval_nil,
+      Bool.or_false, Bool.and_eq_true, beq_iff_eq] at h ⊢
     exact ⟨h.2, h.1⟩
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
-    rw [tseitinClauses, tseitinClausesM] at h ⊢
-    simp only [Id.run_bind, Id.run_pure, show ∀ (C : Proposition (Fin n)) k acc,
-      Id.run (tseitinClausesM (pure ()) C k acc) = C.tseitinClauses k acc from fun _ _ _ => rfl]
-      at h ⊢
+    rw [tseitinClauses] at h ⊢
     have ihA := ihA k acc
     have ihB := ihB (A.tseitinClauses k acc).next (A.tseitinClauses k acc).clauses
     generalize A.tseitinClauses k acc = a at *

@@ -16,9 +16,8 @@ import Mathlib.Data.Fintype.Pi
 Over the atoms `p = 0` and `q = 1`, the conjunction `p ∧ q` is the variable `2`, and its
 transformation is the unit clause for `2` and the three definitional clauses, newest first. In
 `(p ∧ p) ∨ (p ∧ p)` the two equal conjunctions get the different numbers `2` and `3`, which the
-renaming sends to the same variable of the Tseitin transformation. The counted traversal of the
-negated contraposition takes one unit of time for each of its thirteen nodes, and the transformation
-is unsatisfiable.
+renaming sends to the same variable of the Tseitin transformation. The transformation of the negated
+contraposition is unsatisfiable.
 -/
 
 set_option linter.privateModule false
@@ -40,19 +39,11 @@ example : (Proposition.and p q).tseitinNumberedCNF =
     [[(2, true)], [(2, false), (0, true)], [(2, false), (1, true)],
       [(2, true), (0, false), (1, false)]] := rfl
 
-example : (Proposition.and p q).tseitinNumberedT.ret = (Proposition.and p q).tseitinNumberedCNF :=
-  ret_tseitinNumberedT _
-
 -- Equal subformulas get different numbers, renamed to the same Tseitin variable.
 example : (Proposition.or (.and p p) (.and p p)).tseitinNumberedCNF.length = 10 := rfl
 
 example : (Proposition.or (.and p p) (.and p p)).tseitinNumberedVar 2 =
     (Proposition.or (.and p p) (.and p p)).tseitinNumberedVar 3 := rfl
-
--- Thirteen nodes, thirteen units of time.
-example : (neg contraposition).tseitinNumberedT.time = 13 := by
-  rw [time_tseitinNumberedT]
-  rfl
 
 example : ¬ (neg contraposition).tseitinNumberedCNF.Satisfiable := by
   rw [satisfiable_tseitinNumberedCNF_iff]
