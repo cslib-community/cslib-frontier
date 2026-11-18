@@ -200,10 +200,8 @@ public theorem computableInO_universal :
       simp only [round_iterate]
       exact Nat.add_le_add h₂ h₁)
     (fun i k hk => by
-      show (eRun (round^[k] (((i.1, i.2.1), init i.1), []))).length ≤ _
       exact length_eRun_le i.1 i.2.1 hk)
     (fun i k hk => by
-      show (eRun (round^[k] (((i.1, i.2.1), init i.1), []))).length ≤ _
       exact length_eRun_le i.1 i.2.1 hk))
   have hhalted := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp_linear

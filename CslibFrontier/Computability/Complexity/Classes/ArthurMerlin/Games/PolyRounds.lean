@@ -136,7 +136,8 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
   have hstep : ComputableInPolyTime
       (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
         copyStep p.1.1 p.1.2 p.2)
-      (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits)) (encPair encAMMove encUnary))
+      (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+        (encPair encAMMove encUnary))
       (encPair encBits encBits) := by
     have hp : ComputableInPolyTime
         (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) => p.1.1)

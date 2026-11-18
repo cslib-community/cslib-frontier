@@ -207,22 +207,23 @@ private def supportScanFoldStep (par : ResolveParameters) (suffix : Code) (index
 private theorem computableInPolyTime_supportScanFoldStep :
     ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => supportScanFoldStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat) encCode := by
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+        encCode := by
   have hb : ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => p.1.1.1)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
       encUnary := by fun_prop
   have hc : ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => p.1.1.2.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
       encUnary := by fun_prop
   have hindex : ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
       encNat := by fun_prop
   have htail : ComputableInPolyTime
       (fun p : (ResolveParameters × Code) × ℕ => min p.1.1.2.2 p.2)
-      (encFoldStep (encPair encUnary (encPair encUnary encUnary)) encCode encNat)
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
       encUnary := binary_min_unary' hc hindex
   unfold supportScanFoldStep
   exact computableInPolyTime_supportScanStepCode hb (by fun_prop) htail (by fun_prop)

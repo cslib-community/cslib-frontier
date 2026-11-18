@@ -99,8 +99,10 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
       {t s : ℕ} (_ : tm.ComputesTidilyInTimeAndSpace i o t s) => s) (hmain a)
   have hraw (a : α) := (hmain a).comp (hf (step^[r a] (init a))) true
   have h : ComputableInTimeAndSpace (fun a => fin (step^[r a] (init a))) encIn encOut
-      (fun a => (hmainTime a) + (cf * ((encState (step^[r a] (init a))).length + 1) ^ df) + c₀ * ((encState (step^[r a] (init a))).length + 1))
-      (fun a => (hmainSpace a) + (cf' * ((encState (step^[r a] (init a))).length + 1) ^ df') + c₀ * ((encState (step^[r a] (init a))).length + 1)) := by
+      (fun a => (hmainTime a) + (cf * ((encState (step^[r a] (init a))).length + 1) ^ df) +
+        c₀ * ((encState (step^[r a] (init a))).length + 1))
+      (fun a => (hmainSpace a) + (cf' * ((encState (step^[r a] (init a))).length + 1) ^ df') +
+        c₀ * ((encState (step^[r a] (init a))).length + 1)) := by
     refine ⟨_, _, inferInstance, tmf.comp main true, ?_⟩
     exact ComputesFunInTimeAndSpace.mono
       (fun a => (hraw a).computesInTimeAndSpace)

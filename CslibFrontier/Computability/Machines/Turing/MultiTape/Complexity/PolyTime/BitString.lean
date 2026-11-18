@@ -65,7 +65,8 @@ polynomial bound on the complete encoded output. The operations are total on emp
 Adapted from Computability/Probabilistic/BitString.lean and
 Computability/Probabilistic/UniformNat.lean and
 Crypto/Computational/GoldreichLevin/WordDecoder.lean on the cslib `crypto` branch at
-`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using its machine-level kernel; derived certificates here use plain independent resource bounds.
+`5ff69ca93402e7c947208dc56396d6d86203ccd8`, using its machine-level kernel; derived certificates
+here use plain independent resource bounds.
 -/
 
 public section

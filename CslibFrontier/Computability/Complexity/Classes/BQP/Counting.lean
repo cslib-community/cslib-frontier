@@ -122,10 +122,10 @@ theorem computableInPolyTime_pathStep :
       (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBits := by fun_prop
   simp only [pathStep_eq]
   apply hg.fst'.ite'
-  · exact hH.prod (htail.prod
-      (ComputableInPolyTime.bool_xor.comp
+  · simpa only [Function.comp_def, decide_eq_true_eq] using
+      hH.prod (htail.prod (ComputableInPolyTime.bool_xor.comp
         (hsign.prod (ComputableInPolyTime.bool_and' hbit hhead))))
-  · exact hX.prod (hp.prod hsign)
+  · simpa only [Function.comp_def, decide_eq_true_eq] using hX.prod (hp.prod hsign)
 
 /-- A simulation step never lengthens the encoded state. -/
 private theorem length_encPair_pathStep (st : List Bool × List Bool × Bool) (g : GateCode) :

@@ -106,7 +106,8 @@ theorem searchCount_mem_SharpP {R : α → List Bool → Prop} (hR : R ∈ FNP e
     have hlen := length_bits.comp hf
     have hpadding : ComputableInPolyTime
         (fun x : α × List Bool => List.replicate
-          (q.eval (enc x.1).length - (Turing.MultiTapeTM.frame (Turing.MultiTapeTM.unframe x.2)).length)
+          (q.eval (enc x.1).length -
+            (Turing.MultiTapeTM.frame (Turing.MultiTapeTM.unframe x.2)).length)
           false) (encPair enc encBits) encBits := by
       exact (bitsReplicate false).comp (unary_sub' hn hlen)
     exact bitsAppend hf hpadding

@@ -174,7 +174,8 @@ private def collisionScanFoldStep (par : ScanParameters) (acc : Code) (j : ℕ) 
 private theorem computableInPolyTime_collisionScanFoldStep :
     ComputableInPolyTime
       (fun p : (ScanParameters × Code) × ℕ => collisionScanFoldStep p.1.1 p.1.2 p.2)
-      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat) encCode := by
+      (encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
+        encCode := by
   have hp := ComputableInPolyTime.id' (encIn :=
     encPair (encPair (encPair encUnary (encPair encUnary encUnary)) encCode) encNat)
   have hb := hp.fst'.fst'.fst'

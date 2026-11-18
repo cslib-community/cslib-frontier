@@ -171,9 +171,9 @@ theorem computableInPolyTime_decide_quantifierFree :
       (by fun_prop)
   fun_prop
 
+open Turing.MultiTapeTM.ComputableInPolyTime in
 /-- A step of the scan for a fixed kind of token, with the indicator of a list of variables as the
 assignment, is polynomial-time. -/
-open Turing.MultiTapeTM.ComputableInPolyTime in
 private theorem evalStepAt_pt (k : QBF.Kind) :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)

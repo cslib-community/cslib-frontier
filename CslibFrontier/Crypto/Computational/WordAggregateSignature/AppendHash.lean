@@ -107,7 +107,7 @@ def appendHash (S : WordAggregateSignatureScheme) {Param : Type} {Digest : Param
       exact ComputableInPolyTime.encoding_comp
         ((hhash.comp (ComputableInPolyTime.fst input encBits)).prod
           (ComputableInPolyTime.snd input encBits))
-    simpa only [bind_pure_comp] using hcall.map_with hresult
+    simpa only [bind_pure_comp, Function.comp_def] using hcall.map_with hresult
   aggregateVerify param' pks ms sigAg' :=
     let (param, d) := (Decoder.bits.pair decParam).decode param'
     let (h, sigAg) := (Decoder.bits.pair Decoder.bits).decode sigAg'

@@ -399,7 +399,6 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     have h₁ := hlen x tr.q₀ _ (hps x (i + 1) (by omega))
     have h₂ := hps x (i + 1) (by omega)
     have he := htEnd x i hi
-    beta_reduce
     simp only [Translator.events, passState, Function.comp_apply] at h₀ h₁ h₂ he ⊢
     have hB : B x = 4 * cQ + 4 * lMax x + 6 := rfl
     refine (Nat.add_le_add (Nat.add_le_add
@@ -415,7 +414,6 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     have h₁ := hlen x tr.q₀ _ (hps x (i + 1) (by omega))
     have h₂ := hps x (i + 1) (by omega)
     have he := hsEnd x i hi
-    beta_reduce
     simp only [Translator.events, passState, Function.comp_apply] at h₀ h₁ h₂ he ⊢
     have hB : B x = 4 * cQ + 4 * lMax x + 6 := rfl
     refine (Nat.add_le_add (Nat.add_le_add

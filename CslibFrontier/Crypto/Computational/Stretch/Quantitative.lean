@@ -608,22 +608,8 @@ theorem polyTime_stretch_of_length_eq {generator : List Bool → List Bool} {cou
     (hgenerator : ComputableInPolyTime generator encBits encBits)
     (hcount : ComputableInPolyTime count encUnary encUnary) :
     ComputableInPolyTime (stretch generator count) encBits encBits := by
-  obtain ⟨clG, dlG, hclG⟩ := (hgenerator).polyBounded_length.exists_le
-  obtain ⟨tG, sG, htG, hsG, hgen_ts⟩ := hgenerator
-  obtain ⟨ctG, dtG, hctG⟩ := Cslib.polynomiallyBounded_iff_le.mp htG
-  obtain ⟨csG, dsG, hcsG⟩ := Cslib.polynomiallyBounded_iff_le.mp hsG
-  obtain ⟨clC, dlC, hclC⟩ := (hcount).polyBounded_length.exists_le
-  obtain ⟨tC, sC, htC, hsC, hcount_ts⟩ := hcount
-  obtain ⟨ctC, dtC, hctC⟩ := Cslib.polynomiallyBounded_iff_le.mp htC
-  obtain ⟨csC, dsC, hcsC⟩ := Cslib.polynomiallyBounded_iff_le.mp hsC
-  have hgen_deg : ComputableInDegree generator encBits encBits (max dtG dsG) dlG :=
-    ⟨⟨tG, sG, DegreeBounded.mono_deg ⟨ctG, hctG⟩ (le_max_left _ _),
-      DegreeBounded.mono_deg ⟨csG, hcsG⟩ (le_max_right _ _),
-      hgen_ts⟩, ⟨clG, hclG⟩⟩
-  have hcount_deg : ComputableInDegree count encUnary encUnary (max dtC dsC) dlC :=
-    ⟨⟨tC, sC, DegreeBounded.mono_deg ⟨ctC, hctC⟩ (le_max_left _ _),
-      DegreeBounded.mono_deg ⟨csC, hcsC⟩ (le_max_right _ _),
-      hcount_ts⟩, ⟨clC, hclC⟩⟩
+  obtain ⟨_, _, hgen_deg⟩ := hgenerator.exists_degree
+  obtain ⟨_, _, hcount_deg⟩ := hcount.exists_degree
   exact (computableInDegree_stretch hlen hgen_deg hcount_deg).computableInPolyTime
 
 /-- **Quantitative streaming certificate for `forwardIterate` with a captured parameter.** On input

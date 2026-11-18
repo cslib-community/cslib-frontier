@@ -95,7 +95,7 @@ theorem isPPTOn_parityPredictionGame {f : List Bool → List Bool} {adversary : 
       (fun q : ((ℕ × List Bool) × List Bool) × Bool =>
         q.2 == listDot q.1.1.2 q.1.2)
       (encPair (encPair (encPair encUnary encBits) encBits) encBool) encBool := by fun_prop
-  simpa only [bind_pure_comp] using hcall.map_with hresult
+  simpa only [bind_pure_comp, Function.comp_def] using hcall.map_with hresult
 
 /-- Sample one sign, one predictor seed and independent masks, then decode and check candidates. -/
 noncomputable def wordInverter (f : List Bool → List Bool)

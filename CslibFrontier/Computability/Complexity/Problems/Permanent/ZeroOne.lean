@@ -138,7 +138,7 @@ theorem computableInPolyTime_chainLevel :
     fun_prop
   have hbit : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ =>
       if x.1.2.2.2.testBit x.2 then 1 else 0) encChainLevelInput encNat := by
-    have h := ((ComputableInPolyTime.of_finite (encA := encBool) (encB := encNat)
+    have h := ((ComputableInPolyTime.of_finite (encIn := encBool) (encOut := encNat)
         Bool.toNat).comp (ComputableInPolyTime.binary_testBit hw hk))
     convert h using 2 with x
     simp only [Function.comp_apply]

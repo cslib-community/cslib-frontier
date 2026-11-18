@@ -239,7 +239,7 @@ binary `j`. -/
     ComputableInPolyTime (fun (((r, Q), j) : (ℕ × ℕ) × ℕ) => decodeLabelWord r Q j)
       (encPair (encPair encNat encUnary) encNat) (encList encNat) := by
   simp only [decodeLabelWord, Cslib.Radix.digit_eq_div_pow_mod]
-  refine mapWithInput (encA := encUnary) (by fun_prop) ?_
+  refine ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop) ?_
   exact binary_mod' (binary_div' (by fun_prop) (by fun_prop)) (by fun_prop)
 
 @[fun_prop] theorem computableInPolyTime_decodeLabelWord' {α : Type} {input : α ↪ List Bool}

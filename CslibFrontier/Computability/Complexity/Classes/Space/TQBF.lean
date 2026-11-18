@@ -74,7 +74,8 @@ theorem TQBF_pspaceHard : PSPACEHard encQBF TQBF := by
   obtain ⟨k, State, hfinite, ntm, s, hs, hA⟩ := PSPACE_subset_NPSPACE hA
   obtain ⟨c, d, hcd⟩ := hs.exists_le
   obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
-    Turing.MultiTapeTM.Internal.NormalForm.polyTime (TQBF.computableInPolyTime_edgeTest (enc := enc) (ntm := ntm) (c := c) (d := d))
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime
+      (TQBF.computableInPolyTime_edgeTest (enc := enc) (ntm := ntm) (c := c) (d := d))
   have := Fintype.ofFinite StateV
   classical
   refine ⟨TQBF.reduce enc ntm c d tmV cV dV,

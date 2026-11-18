@@ -201,10 +201,10 @@ theorem computableInPolyTime_subsetAdj :
       (fun q : ℕ × ℕ × List ℕ × List ℕ =>
         (q.2.2.1.filter fun x => decide (x ∈ q.2.2.2)).length % q.1)
       (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat))))
-      encNat := binary_mod' (by fun_prop) (by fun_prop)
+      encNat := ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
   have hright : ComputableInPolyTime (fun q : ℕ × ℕ × List ℕ × List ℕ => q.2.1 % q.1)
       (encPair encNat (encPair encNat (encPair (encList encNat) (encList encNat))))
-      encNat := binary_mod' (by fun_prop) (by fun_prop)
+      encNat := ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
   fun_prop
 
 /-- Names of vertices of the Frankl–Wilson graph are recognized in polynomial time, uniformly in
