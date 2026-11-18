@@ -191,6 +191,11 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
+import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
+import CslibFrontier.Crypto.Computational.DiffieHellman.SelfReduction.Family
+import CslibFrontier.Crypto.Computational.ElGamal.KDF
+import CslibFrontier.Crypto.Computational.SchnorrGuessing
+import CslibFrontier.Crypto.Protocols.SigmaProtocol.Guessing
 import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
@@ -6359,6 +6364,35 @@ register_result "ctr-mode-cpa" where
     key set, for any counter schedule that is distinct within a query and injective in the IV; \
     they charge no running time."
 
+register_result "prf-one-time-pad-cipher-cpa" where
+  title := "The cipher (x, F(k, x) ⊕ m) built from a pseudorandom function F is CPA-secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 5.2, through Theorem 5.2",
+      locator := "Section 5.4.1, pp. 183–184; Theorem 5.2 and its proof, pp. 184–189" }
+  ]
+  theorems := [
+    Cslib.Crypto.PseudorandomFunction.indcpa_prfCipher
+  ]
+  scope := "Let F be a PseudorandomFunction: n-bit keys, inputs and outputs, deterministic \
+    polynomial-time evaluation, secure against adaptive uniform oracle-PPT tests, with queries \
+    of another length answered by the empty word (Attack Game 4.2 and Definition 4.2, \
+    pp. 132–133). prfCipher is the cipher E₀ of Example 5.2 with K′ = X = M = {0,1}^n: a \
+    uniform n-bit key k; an n-bit message m is encrypted as x ‖ (F(k, x) ⊕ m) for a fresh \
+    uniform n-bit x, and decryption recomputes the pad. It is a SymmetricCipher, whose fields \
+    certify strict PPT key generation and encryption, polynomial-time decryption and \
+    correctness on n-bit messages. N = |X| = 2^n is super-poly. Example 5.2 obtains CPA \
+    security from Theorem 5.2 with the one-time pad as the semantically secure cipher E; the \
+    theorem is proved here for this cipher, and Theorem 5.2 for a general E is not formalized. \
+    The notion is INDCPA (Attack Game 5.2 and Definition 5.2, pp. 181–182) against uniform \
+    strict oracle-PPT adversaries in the standard model; both messages of a query have n bits, \
+    and the oracle answers other queries with the empty word. The reductions \
+    cpaToPrfDistinguisher are certified oracle PPT (isOraclePPT_cpaToPrfDistinguisher). \
+    Asymptotic; advantage_cpaGame_prfCipher_le, in the same module, bounds the advantage of an \
+    adversary making Q queries by the PRF advantages of the two fixed-bit reductions plus \
+    2Q²/2^n, where (5.5) with SSadv = 0 gives 2·PRFadv + Q²/N: the collision term is twice the \
+    book's because it uses a cruder union bound."
+
 register_result "ofb-mode-cpa" where
   title := "OFB mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
@@ -6572,6 +6606,32 @@ register_result "pedersen-commitment-binding" where
     committer can find log_g h, for g and h chosen so that nobody knows log_g h (p. 131); the \
     binding game and the discrete-logarithm assumption are Boneh–Shoup's."
 
+register_result "dlog-from-two-representations" where
+  title := "Two different representations of one group element relative to g and h give \
+    log_g h = (α − α′)/(β′ − β)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Fact 10.3", locator := "Section 10.6.1, pp. 414–415" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.extractNat_eq_of_pedersenCommit_eq,
+    Cslib.Crypto.PrimeOrderGroupFamily.extractNat_eq_of_isBindingCollision_pedersenScheme
+  ]
+  scope := "In the group of any description d of a PrimeOrderGroupFamily, of prime order q with \
+    generator g and written additively, a representation of an element relative to g and h is \
+    a pair (m, r) with m·g + r·h equal to it (pedersenCommit d h m r), the book's g^α h^β. \
+    extractNat_eq_of_pedersenCommit_eq: if h = α·g and two pairs (m₀, r₀) ≠ (m₁, r₁), natural \
+    numbers read in Z_q, represent the same element, then extractNat q r₁ m₀ r₀ m₁, which is \
+    (r₁ − r₀)⁻¹(m₀ − m₁) in Z_q, the book's (α − α′)/(β′ − β), equals α. \
+    extractNat_eq_of_isBindingCollision_pedersenScheme states the same for a word-level binding \
+    collision of pedersenScheme, whose two messages are distinct canonical numbers below q. \
+    extractNat computes on natural numbers and inverts by Fermat's little theorem; \
+    computableInPolyTime_extractNat, in DiscreteLog/Extract.lean, certifies that it is \
+    polynomial time in the group description and the four binary numbers, which is the book's \
+    'efficiently compute'. It is not listed because the theorems of one entry share a defining \
+    module. Theorem 10.4, which applies this fact to the hash H_dl, is the entry \
+    pedersen-commitment-binding."
+
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
     assumption"
@@ -6641,6 +6701,67 @@ register_result "schnorr-identification-eavesdropping-dl" where
     (succProbability_schnorrEavesdropProbGame_le), so the combined asymptotic endpoint is \
     stated, not the source's exact finite equality. No concrete running-time statement is made. \
     The setup law is arbitrary, as in schnorr-identification-direct-dl. Asymptotic."
+
+register_result "sigma-protocol-guessing-prover" where
+  title := "A prover without the witness makes the verifier of a special-HVZK Sigma protocol \
+    accept with probability at least 1/|C|"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 19.7", locator := "Section 19.12, p. 811" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.SigmaProtocol.SpecialHVZK.inv_card_le_succProbability_directAttack
+  ]
+  scope := "A Sigma protocol (SigmaProtocol, Definition 19.3, p. 772) with a finite nonempty \
+    challenge set C, stated with distributions and no cost model. The dishonest prover \
+    guessingImpersonator simulate is given only the statement y: it draws a uniform challenge \
+    c₀ and a simulated conversation (t, z) for it, sends t, and answers every challenge with z. \
+    SpecialHVZK.inv_card_le_succProbability_directAttack: if the protocol is special HVZK with \
+    the simulator simulate (SpecialHVZK, Definition 19.5, p. 774), this prover wins the direct \
+    attack (Attack Game 18.1, p. 720, with the protocol's verifier and a uniform challenge in C) \
+    with probability at least 1/|C|, for every distribution of witness–statement pairs, a fixed \
+    statement as in the exercise included; it never sees the witness. The exercise says 'with \
+    probability 1/|C|'; the bound is a lower bound, because a commitment and response may be \
+    accepted for several challenges. The lemma it specializes, in the same module, needs only \
+    that simulated conversations are accepting. SpecialHVZK does not require the simulator to \
+    be efficient, as Definition 19.5 does, so its premise is weaker than the book's. No \
+    efficiency is stated for the prover, which runs the simulator once; the Schnorr instance \
+    with a certified strict PPT prover is schnorr-identification-guessing-attack."
+
+register_result "schnorr-identification-guessing-attack" where
+  title := "Schnorr identification with k n-bit challenges: an efficient guessing impersonator \
+    succeeds with probability at least 2^(−k n), so security requires 2^(−k n) negligible"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "guessing attack showing that the challenge space must be super-poly \
+        (unnumbered)",
+      locator := "Section 19.1.1, p. 762; protocol and key generation: Figure 19.1, p. 756" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.inv_two_pow_le_succProbability_schnorrDirectGame,
+    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_schnorrGuessingImpersonator,
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_inv_two_pow_of_negligible_schnorrDirectGame
+  ]
+  scope := "Schnorr's protocol over a PrimeOrderGroupFamily with group parameters from any setup \
+    law, written additively, with the word encodings, verifier and challenges of \
+    schnorr-identification-direct-dl: a challenge is a uniform k n-bit word read modulo q. The \
+    game is schnorrDirectGame, Attack Game 18.1 (p. 720) with the secret key α drawn exactly \
+    uniformly on Z_q, as the book's key generator draws it (p. 756), and not with the library's \
+    fair-coin key generator of schnorrDirectProbGame, the game of the registered security \
+    theorems; the two games differ by at most 1/2^n \
+    (advantage_schnorrDirectProbGame_schnorrDirectGame_le). The impersonator \
+    schnorrGuessingImpersonator m runs the word-level simulator schnorrSimulatedTranscript on a \
+    uniform m n-bit challenge, sends the simulated commitment and answers every challenge with \
+    the simulated response, as the book's adversary does. \
+    inv_two_pow_le_succProbability_schnorrDirectGame: whenever m n ≤ k n it wins with \
+    probability at least 1/2^(k n), which is the book's 1/|C| when 2^(k n) ≤ q. \
+    isPPT_schnorrGuessingImpersonator: it is uniform strict PPT when m is computable in \
+    polynomial time in unary. negligible_inv_two_pow_of_negligible_schnorrDirectGame: if every \
+    uniform strict PPT impersonator wins schnorrDirectGame with negligible probability, then \
+    2^(−k n) is negligible, the book's conclusion that |C| must be super-poly; no condition on k \
+    is needed. The general form for special-HVZK Sigma protocols is \
+    sigma-protocol-guessing-prover."
 
 register_result "elgamal-ddh-ind-cpa" where
   title := "Multiplicative ElGamal is semantically secure under DDH"
@@ -6765,6 +6886,49 @@ register_result "hashed-elgamal-ddh-kdf-cpa" where
     of E′_EG (DDH.kemINDCPA_hashedElGamalEncapsProb, Games 0–2 of the proof of Theorem 11.5), \
     then the KEM–DEM composition of Exercise 11.9(b) (p. 461). No concrete bound in the form \
     of (11.14) is stated for the encryption scheme."
+
+register_result "leftover-hash-secure-kdf" where
+  title := "Binary matrix hashing with a public random seed is an unconditionally secure KDF for \
+    hashed ElGamal when 2^ℓ/q is negligible"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "unconditionally secure KDF from a universal hash and the leftover hash lemma \
+        (unnumbered), with Theorem 8.11 at m = 1 and α = 0",
+      locator := "Section 11.5.2, p. 449; Theorem 8.11: Section 8.10.4, p. 334; Attack \
+        Game 11.3 and Definition 11.5, pp. 448–449" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_kdfGame_linearHashKDF_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF_const,
+    Cslib.Crypto.PrimeOrderGroupFamily.exists_secureKDF_withSeed
+  ]
+  scope := "Over any PrimeOrderGroupFamily F and setup law. The hash key is a public system \
+    parameter, as p. 334 allows: F.withSeed adds a seed word s to the group description, and \
+    seededSetup draws d from the setup law, then s uniform of length ℓ·(2b + 1), independently \
+    of the group exponents, where ℓ = msgLen n is the key length and b = bound d bounds the \
+    length of encoded group elements. linearHashKDF pads the encoding of a group element \
+    injectively to 2b + 1 bits and multiplies it by s read as an ℓ × (2b + 1) binary matrix, a \
+    (1/2^ℓ)-universal hash, so α = 0 in Theorem 8.11. The notion is SecureKDF: Attack Game 11.3 \
+    for the hash of one group element, the key derivation of the variant E′_EG of Remark 11.1, \
+    as its assumptions-inventory row records. The distinguisher sees (d, s), two independent \
+    uniform group elements, and either the hash of a third or a uniform ℓ-bit key. \
+    advantage_kdfGame_linearHashKDF_le: if every group in the support of setup n has order at \
+    least qMin > 0, encodings of at most b bits and key length ℓ, then every distinguisher, \
+    with no efficiency bound, has advantage at most √(2^ℓ/qMin)/2, Theorem 8.11's bound \
+    (1/2)√(Nγ) with N = 2^ℓ and guessing probability γ = 1/q ≤ 1/qMin. \
+    secureKDF_linearHashKDF: under LinearHashKDFConditions, which add that 2^ℓ/qMin n is \
+    negligible, linearHashKDF is a SecureKDF against uniform strict PPT distinguishers, with no \
+    computational assumption. secureKDF_linearHashKDF_const fixes a constant key length k and \
+    asks that 1/qMin n be negligible. exists_secureKDF_withSeed adds a polynomial-time seed \
+    length and a polynomial-time hash with k-bit outputs, so every family whose orders have a \
+    lower bound qMin with 1/qMin negligible has such a KDF. linearHashKDF is polynomial time \
+    whenever ℓ and b are (computableInPolyTime_linearHashKDF). DDH.withSeed, in the same \
+    module, transfers DDH to the seeded family when the seed length is polynomial time; it has \
+    no counterpart in the book and is not listed. The hashed ElGamal corollary \
+    DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF draws its exponents exactly and is \
+    a step, not part of this entry."
 
 register_result "cramer-shoup-ddh-cca" where
   title := "Multiplicative Cramer–Shoup is CCA secure under DDH and a collision-resistant hash"
@@ -7675,6 +7839,165 @@ register_result "cdh-inverse-order-negligible" where
     CDH.negligible_expected_inv_order, in the same module, states that the expected inverse \
     order is negligible, and DDH.negligible_expected_inv_order states the same under DDH; the \
     module labels both original, and they are not listed here."
+
+open Cslib.Crypto.PrimeOrderGroupFamily in
+register_result "dlog-self-reduction-iterated" where
+  title := "If an efficient algorithm finds the discrete logarithm of a random element with \
+    inverse-polynomial probability, an efficient algorithm finds every discrete logarithm with \
+    negligible failure probability"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "remark after Theorem 10.2 on iterating the random self-reduction (unnumbered)",
+      locator := "Section 10.5.1, p. 412; Theorem 10.2 and its proof, pp. 411–412" }
+  ]
+  theorems := [
+    negligible_dlSelfReduceRetryAdversary_error,
+    isPPTOn_dlSelfReduceRetryAdversary_invEps,
+    eq_nil_or_encode_smul_eq_of_mem_support_dlSelfReduceRetryAdversary
+  ]
+  scope := "The group is fixed for each security parameter, as footnote 1 on p. 411 fixes it: \
+    any sequence d of parameters of a PrimeOrderGroupFamily, the group d n having prime order q \
+    and generator g. The adversary is a word-level discrete-logarithm adversary, reading 1^n, \
+    d n and an encoded element and writing the exponent in binary, read modulo q, as in \
+    DiscreteLog. Hypotheses: for all large n it wins discreteLogGame with the point-mass setup \
+    at d n, that is on a uniform element of d n (the book's ε), with probability at least \
+    1/invEps n > 0, where invEps is computable in polynomial time in unary; when 1/ε is \
+    poly-bounded, a polynomial above it serves. dlSelfReduceRetryAdversary makes \
+    n·(2·invEps n) attempts of the algorithm B of Theorem 10.2 (mask the input by σ·g, run the \
+    adversary, subtract σ, test the answer) and returns the first answer that passes, or the \
+    empty word for the book's fail. Its masks come from the fair-coin sampler sampleExp, within \
+    1/2^n of uniform; the doubled attempt count, against the book's n⌈1/ε⌉, absorbs that loss. \
+    negligible_dlSelfReduceRetryAdversary_error: on the encoding of every sequence of elements \
+    α n·g, the program fails or returns a word that does not read as α n only with negligible \
+    probability. isPPTOn_dlSelfReduceRetryAdversary_invEps: it is uniform strict PPT whenever \
+    the adversary is. eq_nil_or_encode_smul_eq_of_mem_support_dlSelfReduceRetryAdversary: on \
+    every input word it outputs fail or a discrete logarithm of the input, Theorem 10.2's 'B \
+    either outputs fail or Dlog_g(u)'. dlSelfReduceRetryAdversary_error_le_pow, in the same \
+    module, bounds the error by (1/2)^n at each n, where the book has exp(−n). Theorem 10.2 \
+    itself is not part of this entry: for one fair-coin attempt the module proves success at \
+    least ε − 1/2^n (le_toOuterMeasure_dlSelfReduceRetryAdversary_one), and the exact ε is \
+    eval_dlSelfReduce_one_smul_some in SelfReduction.lean, which has uniform masks and no cost \
+    model. discreteLog_of_worstCase, the library's formulation of the book's 'if it is hard in \
+    the worst case, then it must be hard on average' (p. 412), is not listed."
+
+register_result "cdh-random-self-reduction" where
+  title := "Random self-reduction for CDH: an efficient CDH algorithm yields an efficient \
+    algorithm that solves every instance with its average-case success probability, up to 2/2^n"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 10.6, with a 2/2^n sampling loss",
+      locator := "Section 10.11, p. 425; the map of Exercise 10.5, p. 424" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_cdhSelfReduceAdversary_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhSelfReduceAdversary
+  ]
+  scope := "Over a PrimeOrderGroupFamily, in the group of any parameters d at security parameter \
+    n, of prime order q with generator g, written additively. A is a CDH adversary of the \
+    family (CDHAdversary, typed group elements in and out), and ε is its success probability on \
+    two uniform elements of d (cdhExperiment, Attack Game 10.5 in a fixed group). \
+    cdhSelfReduceAdversary A masks both inputs, as u + ρ·g and v + τ·g, runs A and subtracts \
+    τ·u + ρ·v + (ρτ)·g: Exercise 10.5's one-sided map applied to both inputs. The exercise \
+    gives no construction, and this one is the library's. advantage_cdhSelfReduceAdversary_le: \
+    on every input pair (α·g, β·g), which covers every pair of elements, the probability that \
+    it outputs (αβ)·g differs from ε by at most 2/2^n, where the exercise asks for equality: \
+    the masks come from the fair-coin sampler sampleExp, each within 1/2^n of uniform. With \
+    exactly uniform masks the equality holds (eval_cdhSelfReduce_smul_apply, in \
+    SelfReduction.lean, which has no cost model). isPPT_cdhSelfReduceAdversary: the reduction \
+    is uniform strict PPT whenever A is (CDHAdversary.IsPPT). cdh_of_worstCase, in the same \
+    module, derives CDH from a worst-case hardness hypothesis on instances (α d·g, β d·g); its \
+    docstring labels that formulation the library's, and it is not listed. The remark after the \
+    exercise, on iterating B, is not formalized."
+
+register_result "ddh-fixed-first-coordinate-rerandomization" where
+  title := "With u fixed, (v, w) ↦ (g^σ v^τ, u^σ w^τ) sends a DH-triple to a uniform DH-triple \
+    and any other triple to a uniform triple, both with first coordinate u"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 10.8", locator := "Section 10.11, p. 425" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw_real,
+    Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw_random
+  ]
+  scope := "In the group of any description d of a PrimeOrderGroupFamily, of prime order q with \
+    generator g and written additively, where every element is a multiple of g. For u = α·g, \
+    ddhFixedURerandomizeLaw draws σ and τ exactly uniformly from Z_q and outputs \
+    (v*, w*) = (σ·g + τ·v, σ·u + τ·w), the book's (g^σ v^τ, u^σ w^τ); u stays fixed. \
+    ddhFixedURerandomizeLaw_real, part (a): on a DH-triple (α·g, β·g, (αβ)·g) the law of \
+    (v*, w*) is that of (β′·g, (αβ′)·g) for uniform β′, the uniform distribution on DH ∩ T_u \
+    written by its last two coordinates. ddhFixedURerandomizeLaw_random, part (b): on a triple \
+    (α·g, β·g, γ·g) with γ ≠ αβ it is that of (β′·g, γ′·g) for independent uniform β′ and γ′, \
+    the uniform distribution on T_u. These are equalities of distributions in one group; the \
+    exercise makes no efficiency claim. With exponents from the fair-coin sampler sampleExp, \
+    the executable ddhFixedUSelfReduceDistinguisher changes any test's acceptance probability \
+    by at most 2/2^n \
+    (advantage_ddhFixedURerandomizeLaw_ddhFixedUSelfReduceDistinguisher_le, in the same \
+    module)."
+
+register_result "ddh-worst-case-decider" where
+  title := "An efficient DDH distinguisher with inverse-polynomial advantage gives an efficient \
+    algorithm that decides with negligible error whether any triple is a DH-triple"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 10.10",
+      locator := "Section 10.11, p. 426; Exercises 10.8–10.9, pp. 425–426" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_ddhAmplifiedDecider_error,
+    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhAmplifiedDecider
+  ]
+  scope := "Over a PrimeOrderGroupFamily along any sequence d of group parameters, the group d n \
+    having prime order q and generator g, given to the algorithms as input. Hypotheses: for all \
+    large n the distinguisher's advantage in the group d n (ddhAdvantage: |Pr[real] − \
+    Pr[random]| for uniform exponents, Attack Game 10.6 in a fixed group) is at least \
+    1/invEps n, and invEps n > 0, where invEps is computable in polynomial time in unary. The \
+    exercise assumes that the signed difference equals ε with 1/ε poly-bounded; a polynomial \
+    above 1/ε serves as invEps, and the absolute value admits either sign. \
+    ddhAmplifiedDecider runs N = (n + 3)·(7·invEps n)² trials of the DDH self-reduction \
+    ddhSelfReduceDistinguisher (Exercises 10.8–10.9, with exponents from the fair-coin sampler \
+    sampleExp) on the input triple, on the DH-triple (0, 0, 0) and on the non-DH-triple \
+    (0, 0, g), and answers according to which reference count the input's count is closer to, \
+    which handles either sign of the advantage. negligible_ddhAmplifiedDecider_error: on every \
+    sequence of inputs (α n·g, β n·g, γ n·g), which covers every triple of elements, the \
+    probability that its answer differs from [γ n = α n·β n] is negligible; this holds for any \
+    distinguisher. isPPT_ddhAmplifiedDecider: the decider is uniform strict PPT whenever the \
+    distinguisher is (DDHDistinguisher.IsPPT). ddhAmplifiedDecider_error_le_pow, in the same \
+    module, bounds the error by (1/2)^n at each n with 3/2^n ≤ 1/(12·invEps n); the exercise \
+    states no bound."
+
+register_result "multi-ddh-from-ddh" where
+  title := "Under DDH, the Multi-DDH (I) distributions D and R are computationally \
+    indistinguishable"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 10.11",
+      locator := "Section 10.11, p. 426; Definition 3.4, p. 82" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.multiDDH,
+    Cslib.Crypto.PrimeOrderGroupFamily.DDH.singleSecretMultiDDH
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under DDH \
+    for that law (Attack Game 10.6 and Definition 10.8, pp. 410–411); the setup law need not be \
+    efficiently samplable, and the assumption is Boneh–Shoup's when it is. The exercise's n \
+    secrets and m pairs per secret are schedules secretCount n and pairCount n, computable in \
+    polynomial time in unary so that the uniform reduction knows how many to generate; zero is \
+    allowed, where the exercise has positive n and m. multiDDHRealGame gives the distinguisher \
+    1^n, the group parameters and secretCount n blocks (α_i·g, [(β_ij·g, (α_i β_ij)·g)]), the \
+    distribution D written additively; multiDDHRandomGame replaces (α_i β_ij)·g by γ_ij·g, the \
+    distribution R. All exponents are exactly uniform and independent. DDH.multiDDH: every \
+    uniform strict PPT distinguisher (MultiDDHDistinguisher.IsPPT) has negligible advantage, \
+    the exercise's computational indistinguishability (Definition 3.4) read asymptotically. \
+    DDH.singleSecretMultiDDH is the case of one secret with count n pairs. The reductions \
+    multiDDHToDDHDistinguisher and singleSecretMultiDDHToDDHDistinguisher, built from \
+    Exercises 10.8–10.9 with exponents from the fair-coin sampler sampleExp, are certified \
+    strict PPT (isPPT_multiDDHToDDHDistinguisher, isPPT_singleSecretMultiDDHToDDHDistinguisher). \
+    advantage_multiDDHGame_le, in the same module, is the exercise's bound \
+    Distadv[A, D, R] ≤ 1/q + DDHadv[B, G] with 1/q replaced by its expectation over the setup \
+    law and an added sampling term 2·secretCount n·(1 + 2·pairCount n)/2^n; the expected 1/q is \
+    negligible under DDH (DDH.negligible_expected_inv_order)."
 
 register_result "malleable-encryption-not-1cca" where
   title := "A public-key scheme with an efficient transformation whose decryption reveals the \
