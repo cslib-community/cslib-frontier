@@ -154,7 +154,8 @@ theorem exists_unaryLengthLanguage_not_reducibleWithOracle {α : Type}
   let test (w : List Bool) := decide (w ∈ enc '' L)
   obtain ⟨B, hB⟩ := exists_oracle_diagonal (fun c n => test <$> Candidate.output c n)
     Candidate.clock Candidate.eventually_clock_lt
-    (fun c n A => by simpa only [OracleComp.queriesWith_map] using c.length_queriesWith_output_le n A)
+    (fun c n A => by
+      simpa only [OracleComp.queriesWith_map] using c.length_queriesWith_output_le n A)
   refine ⟨B, unaryLengthLanguage_mem_NPWithOracle B,
     fun ⟨f, ⟨program, hcertificate, hprogram⟩, hf⟩ => ?_⟩
   obtain ⟨k, m, machine, c, d, hrun⟩ := hcertificate.exists_fin_run_pure_false
