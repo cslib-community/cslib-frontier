@@ -61,7 +61,7 @@ example : ¬∃ τ : ℕ → Bool, (transposeTail g w unused).body.eval nearSem 
     (∀ z, τ (2 * z) = decide (z = 20)) ∧
     (transposeTail g w unused).ports.map τ = [false, true] := by
   rintro ⟨τ, ht, he, hv⟩
-  have h := values_transposeTail g w [] [] 10 20 unused.rotation τ ht
+  have h := (recover_transposeTail g w [] [] 10 20 unused.rotation τ ht).2
   simp only [List.map_nil, List.nil_append, he] at h
   change (transposeTail g w unused).ports.map τ = _ at h
   rw [hv] at h
@@ -83,7 +83,7 @@ example : ∃ τ : ℕ → Bool, (transposeTail g w repeated).body.eval nearSem 
 example : ¬∃ τ : ℕ → Bool, (transposeTail g w repeated).body.eval nearSem τ = true ∧
     (transposeTail g w repeated).ports.map τ = [false, true, false] := by
   rintro ⟨τ, ht, hv⟩
-  have h := values_transposeTail g w [] [2 ^ 250] 17 17 repeated.rotation τ ht
+  have h := (recover_transposeTail g w [] [2 ^ 250] 17 17 repeated.rotation τ ht).2
   change (transposeTail g w repeated).ports.map τ = _ at h
   rw [hv] at h
   simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append] at h
@@ -102,11 +102,8 @@ example : (transposeTail g w closedFalse).body.head? = some ⟨(), []⟩ ∧
 
 example : ¬∃ τ : ℕ → Bool, (transposeTail g w closedFalse).body.eval nearSem τ = true := by
   rintro ⟨τ, ht⟩
-  let σ := fun z => τ (2 * z)
-  have hv := values_transposeTail g w closedFalse.body [] (2 ^ 250) 17
-    closedFalse.rotation τ ht
-  have h := (eval_transposeTail_iff g w closedFalse.body [] (2 ^ 250) 17
-    closedFalse.rotation σ).mpr ⟨τ, ht, fun _ => rfl, hv⟩
+  have h := (recover_transposeTail g w closedFalse.body [] (2 ^ 250) 17
+    closedFalse.rotation τ ht).1
   change false = true at h
   contradiction
 

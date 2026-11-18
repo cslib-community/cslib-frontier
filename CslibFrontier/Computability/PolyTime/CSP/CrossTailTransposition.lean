@@ -38,7 +38,7 @@ iteration, the full compiler, source criterion and hardness remain open there.
 
 * `CrossInsertion.accepted_transposeTail`: internally derived full checker preservation.
 * `CrossInsertion.eval_transposeTail_iff`: extension on every even old name.
-* `CrossInsertion.values_transposeTail`: every final satisfying assignment carries `y,x`.
+* `CrossInsertion.recover_transposeTail`: recover source satisfaction and reversed `y,x` values.
 * `CrossInsertion.computableInPolyTime_transposeTail`: plain time on every raw encoded state.
 * `CrossInsertion.emitted_rotation_lengths_le`: a single-insertion bound on all thirteen tables.
 * `CrossInsertion.name_width_transposeTail_le`: one old-name bit growth, separate from runtime.
@@ -239,6 +239,40 @@ private theorem eval_long (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   rfl
 
 
+/-- Recover source satisfaction and reversed tail values from any satisfying output
+assignment. The recovered source assignment reads EVERY doubled old name, including
+unused names. No accepted-state, distinctness, arity or prescribed-word premise is needed,
+including for repeated raw names and malformed certificates. -/
+theorem recover_transposeTail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
+    (c : Graph.RotationCertificate) (τ : ℕ → Bool)
+    (ht : (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.eval sem τ = true) :
+    F.eval sem (fun z => τ (2 * z)) = true ∧
+      (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).ports.map τ =
+        L.map (fun z => τ (2 * z)) ++ [τ (2 * y), τ (2 * x)] := by
+  let I : State Rel := ⟨F, L ++ [x, y], c⟩
+  let u0 := Function.update id 1 (2 * y)
+  let u1 := Function.update id 3 (2 * x)
+  let ρ := τ ∘ u1 ∘ u0
+  let σ := fun z => τ (2 * z)
+  let a : Fin 4 → Bool := fun i => ρ (2 * i.val + 1)
+  have hr : (insert g w I).body.eval sem ρ = true := by
+    simpa only [ρ, u0, u1] using (eval_long g w F L x y c τ).symm.trans ht
+  have he (z : ℕ) : ρ (2 * z) = σ z := by
+    simp [ρ, σ, u0, u1, Function.comp_def,
+      show 2 * z ≠ 1 from by omega, show 2 * z ≠ 3 from by omega]
+  have hsource := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
+  have ha := hsource.2
+  have h5 : τ 5 = τ (2 * y) := by
+    have h := ha.1
+    simpa [a, ρ, u0, u1, cross, Function.comp_def,
+      show 2 * y ≠ 3 from by omega] using h.symm
+  have h7 : τ 7 = τ (2 * x) := by
+    have h := ha.2
+    simpa [a, ρ, u0, u1, cross, Function.comp_def] using h.symm
+  refine ⟨hsource.1, ?_⟩
+  rw [ports_transposeTail, List.map_append, List.map_map]
+  simp only [Function.comp_def, List.map_cons, List.map_nil, h5, h7]
+
 /-- Exact long-branch assignment extension: the output uses fresh tail names carrying
 `y,x`, while agreeing on EVERY doubled old name, including unused names. There is no
 semantic checker, distinctness, arity, well-formedness or word-length assumption. -/
@@ -281,44 +315,8 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
         show τ 5 = σ y from by simpa [a] using hf (2 : Fin 4),
         show τ 7 = σ x from by simpa [a] using hf (3 : Fin 4)]
   · rintro ⟨τ, ht, he, _⟩
-    let ρ := τ ∘ u1 ∘ u0
-    have hr : (insert g w I).body.eval sem ρ = true := by
-      simpa only [ρ, u0, u1] using (eval_long g w F L x y c τ).symm.trans ht
-    have heven (z : ℕ) : ρ (2 * z) = σ z := by
-      simpa [ρ, u0, u1, Function.comp_def,
-        show 2 * z ≠ 1 from by omega, show 2 * z ≠ 3 from by omega] using he z
-    let a : Fin 4 → Bool := fun i => ρ (2 * i.val + 1)
-    exact ((eval_insert_iff g w I σ a).mpr ⟨ρ, hr, heven, fun _ => rfl⟩).1
-
-/-- Every satisfying final assignment carries the reversed old tail values, read on
-all even old names. This pointwise statement rules out incompatible output words, even
-for repeated raw names and malformed certificates. -/
-theorem values_transposeTail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
-    (c : Graph.RotationCertificate) (τ : ℕ → Bool)
-    (ht : (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.eval sem τ = true) :
-    (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).ports.map τ =
-      L.map (fun z => τ (2 * z)) ++ [τ (2 * y), τ (2 * x)] := by
-  let I : State Rel := ⟨F, L ++ [x, y], c⟩
-  let u0 := Function.update id 1 (2 * y)
-  let u1 := Function.update id 3 (2 * x)
-  let ρ := τ ∘ u1 ∘ u0
-  let σ := fun z => τ (2 * z)
-  let a : Fin 4 → Bool := fun i => ρ (2 * i.val + 1)
-  have hr : (insert g w I).body.eval sem ρ = true := by
-    simpa only [ρ, u0, u1] using (eval_long g w F L x y c τ).symm.trans ht
-  have he (z : ℕ) : ρ (2 * z) = σ z := by
-    simp [ρ, σ, u0, u1, Function.comp_def,
-      show 2 * z ≠ 1 from by omega, show 2 * z ≠ 3 from by omega]
-  have ha := ((eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩).2
-  have h5 : τ 5 = τ (2 * y) := by
-    have h := ha.1
-    simpa [a, ρ, u0, u1, cross, Function.comp_def,
-      show 2 * y ≠ 3 from by omega] using h.symm
-  have h7 : τ 7 = τ (2 * x) := by
-    have h := ha.2
-    simpa [a, ρ, u0, u1, cross, Function.comp_def] using h.symm
-  rw [ports_transposeTail, List.map_append, List.map_map]
-  simp only [Function.comp_def, List.map_cons, List.map_nil, h5, h7]
+    have hσ : (fun z => τ (2 * z)) = σ := funext he
+    simpa only [hσ] using (recover_transposeTail g w F L x y c τ ht).1
 
 /-- Long-branch rows are exactly the old rows plus the fixed actual gadget rows. -/
 theorem length_transposeTail_body (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
