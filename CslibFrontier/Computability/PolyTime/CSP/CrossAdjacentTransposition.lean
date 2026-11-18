@@ -119,6 +119,24 @@ theorem accepted_transposeAdjacent (I : State Rel) (j : ℕ) (h : I.Accepted) :
   · exact left_accepted _ _ (accepted_transposeTail g w _ (right_accepted I _ h))
   · exact h
 
+-- The initial positioned RIGHT-state calculation is independent of any gadget.
+private theorem positioned_state (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
+    (R : List ℕ) (c : RotationCertificate) :
+    (rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel) =
+      ⟨F, (R ++ L) ++ [x, y],
+        ((rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel)).rotation⟩ := by
+  let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
+  let J := (rotateRight^[R.length]) I
+  have hJ : J.ports = (R ++ L) ++ [x, y] := by
+    rw [right_ports]
+    simp only [I, List.reverse_append]
+    rw [← List.length_reverse (as := R), List.rotate_append_length_eq]
+    simp only [List.reverse_reverse, List.reverse_append, List.append_assoc]
+  have hb : J.body = F := right_body I R.length
+  calc
+    J = ⟨J.body, J.ports, J.rotation⟩ := rfl
+    _ = _ := by rw [hb, hJ]
+
 private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (R : List ℕ) (c : RotationCertificate) :
     let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
@@ -130,16 +148,10 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   dsimp only
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
-  have hJ : J.ports = (R ++ L) ++ [x, y] := by
-    rw [right_ports]
-    simp only [I, List.reverse_append]
-    rw [← List.length_reverse (as := R), List.rotate_append_length_eq]
-    simp only [List.reverse_reverse, List.reverse_append, List.append_assoc]
-  have hb : J.body = F := right_body I R.length
-  have hstate : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    calc
-      J = ⟨J.body, J.ports, J.rotation⟩ := rfl
-      _ = _ := by rw [hb, hJ]
+  have hstate := positioned_state F L x y R c
+  have hb : J.body = F := congrArg (fun K : State Rel => K.body) hstate
+  have hJ : J.ports = (R ++ L) ++ [x, y] :=
+    congrArg (fun K : State Rel => K.ports) hstate
   have hvalid : L.length + 1 < I.ports.length := by
     simp only [I, List.length_append, List.length_cons, List.length_nil]
     omega
@@ -153,20 +165,6 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   rw [left_ports, hp, List.map_append]
   rw [show R.length = (R.map (2 * ·)).length from (List.length_map _).symm]
   rw [List.append_assoc, List.rotate_append_length_eq]
-
--- Reuse the same literal intermediate State in the semantic/count/width callers.
-include g w in
-private theorem positioned_state (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
-    (R : List ℕ) (c : RotationCertificate) :
-    (rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel) =
-      ⟨F, (R ++ L) ++ [x, y],
-        ((rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel)).rotation⟩ := by
-  have hf := positioned_fields g w F L x y R c
-  let J := (rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel)
-  calc
-    J = ⟨J.body, J.ports, J.rotation⟩ := rfl
-    _ = _ := by rw [show J.body = F from hf.2.1,
-      show J.ports = (R ++ L) ++ [x, y] from hf.2.2.1]
 
 /-- The actual directed port word has fresh middle names carrying reversed values.
 Repeated names and malformed tables need no premise. -/
@@ -197,7 +195,7 @@ theorem recover_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj := positioned_state g w F L x y R c
+  have hj := positioned_state F L x y R c
   have ht' : (transposeTail g w J).body.eval sem τ = true := by
     rw [← hf.1]
     exact ht
@@ -229,7 +227,7 @@ theorem eval_transposeAdjacent_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj := positioned_state g w F L x y R c
+  have hj := positioned_state F L x y R c
   constructor
   · intro hσ
     obtain ⟨τ, ht, he, _⟩ :=
@@ -263,7 +261,7 @@ theorem counts_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj := positioned_state g w F L x y R c
+  have hj := positioned_state F L x y R c
   constructor
   · rw [hf.1, hj, length_transposeTail_body]
   constructor
@@ -283,7 +281,7 @@ theorem name_width_transposeAdjacent_le (F : CSP Rel ℕ) (L : List ℕ) (x y : 
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj := positioned_state g w F L x y R c
+  have hj := positioned_state F L x y R c
   have hW' : ∀ z ∈ F.vars ++ ((R ++ L) ++ [x, y]), z.size ≤ W := by
     intro z hz
     apply hW z
