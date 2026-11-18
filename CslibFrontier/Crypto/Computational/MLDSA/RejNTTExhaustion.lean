@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import CslibFrontier.Probability.Product
+import CslibFrontier.Probability.Product.Event
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
@@ -104,38 +104,23 @@ private theorem card_allowed : allowed.card = 16384 := by
   norm_num [tailBytes, Fin.card_Icc, Byte, Fin.val_natCast]
 
 private def atPositions {n : ℕ} (J : Finset (Fin n)) : Set (Fin n → Triple) :=
-  {b | ∀ i ∈ J, b i ∈ allowed}
-
-private theorem constrained_mem {α ι : Type*} [Fintype α] [DecidableEq ι]
-    (a : Finset α) (J : Finset ι) (b : ι → α) :
-    (∀ i ∈ J, b i ∈ a) ↔ ∀ i, b i ∈ (if i ∈ J then a else univ) := by
-  constructor
-  · intro h i
-    split_ifs with hi
-    · exact h i hi
-    · exact Finset.mem_univ _
-  · intro h i hi
-    simpa only [hi, ite_true] using h i
+  {b | ∀ i, b i ∈ (if i ∈ J then (allowed : Set Triple) else Set.univ)}
 
 private theorem prob_atPositions {n : ℕ} (J : Finset (Fin n)) :
     ((PMF.uniformOfFintype (Fin n → Triple)).toOuterMeasure (atPositions J)).toReal =
       (1 / 1024 : ℝ) ^ J.card := by
   classical
-  let S (i : Fin n) : Finset Triple := if i ∈ J then allowed else univ
-  have hset : univ.filter (· ∈ atPositions J) = Fintype.piFinset S := by
-    apply Finset.ext
-    intro b
-    rw [mem_filter, Fintype.mem_piFinset]
-    simp only [mem_univ, true_and, S]
-    exact constrained_mem allowed J b
-  rw [PMF.toOuterMeasure_uniformOfFintype_toReal, hset, Fintype.card_piFinset, Fintype.card_pi]
-  simp only [Nat.cast_prod, ← Finset.prod_div_distrib]
-  have hf (i : Fin n) : ((S i).card : ℝ) / Fintype.card Triple =
-      if i ∈ J then 1 / 1024 else 1 := by
+  have oneTriple : ((PMF.uniformOfFintype Triple).toOuterMeasure
+      (allowed : Set Triple)).toReal = 1 / 1024 := by
     have ht : Fintype.card Triple = 16777216 := by simp [Fintype.card_pi, Byte]
-    split_ifs with h <;> simp [S, h, card_allowed, ht]
+    rw [PMF.toOuterMeasure_uniformOfFintype_toReal]
+    simp only [mem_coe, filter_mem_eq_inter, univ_inter, card_allowed, ht]
     norm_num
-  simp only [hf, Fintype.prod_ite_mem, prod_const]
+  rw [← PMF.pi_uniformOfFintype, atPositions, PMF.toOuterMeasure_pi_forall, ENNReal.toReal_prod]
+  have hall := ((PMF.uniformOfFintype Triple).toOuterMeasure_apply_eq_one_iff Set.univ).2
+    (Set.subset_univ _)
+  simp only [apply_ite, oneTriple, hall, ENNReal.toReal_one,
+    Fintype.prod_ite_mem, prod_const]
 
 private theorem covers_exhaustion (b : Fin 298 → Triple)
     (h : rejNTTPoly (List.ofFn ((groupBytes 298).symm b)) = none) :
@@ -149,11 +134,13 @@ private theorem covers_exhaustion (b : Fin 298 → Triple)
     (show 43 ≤ (univ.filter fun i => rejects (b i)).card by omega)
   apply Set.mem_iUnion.mpr
   refine ⟨J, Set.mem_iUnion.mpr ⟨mem_powersetCard.mpr ⟨subset_univ _, hcard⟩, ?_⟩⟩
-  intro i hi
-  change b i ∈ Fintype.piFinset tailBytes
-  rw [Fintype.mem_piFinset]
-  have hr : rejects (b i) := (mem_filter.mp (hJ hi)).2
-  exact rejects_mem hr
+  intro i
+  by_cases hi : i ∈ J
+  · rw [ite_eq_left hi]
+    change b i ∈ Fintype.piFinset tailBytes
+    rw [Fintype.mem_piFinset]
+    exact rejects_mem (mem_filter.mp (hJ hi)).2
+  · simp only [hi, ite_false, Set.mem_univ]
 
 /-- With 894 uniformly sampled bytes, FIPS 204 Algorithm 30 exhausts with probability below
 2⁻²⁵⁶. The union counts the possible locations of 43 rejections among 298 three-byte proposals. -/
