@@ -248,13 +248,13 @@ theorem exec_compose_dummy (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
 
 /-- A reply of the composed network port, read as a reply of the subroutine's routed network port.
 Replies of `ρ`'s own ports do not occur where it is used. -/
-private def subReply : RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR) → RoutedNetR SubOut NR
+@[expose] def subReply : RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR) → RoutedNetR SubOut NR
   | .inr (.inr r) => r
   | _ => .inl none
 
 /-- A reply of `ρ^φ`'s network port to a query for `ρ`, read as a reply of `ρ^π`'s network port.
 Replies of the subroutine part do not occur where it is used. -/
-private def outerReply :
+@[expose] def outerReply :
     RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂) → RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁)
   | .inl o => .inl o
   | .inr (.inl r) => .inr (.inl r)
@@ -445,7 +445,7 @@ private theorem hybridSimMachine_handle_inr_inr
 
 /-- Behind a closed machine, the order in which two independent initial states are sampled does
 not change the output distribution. -/
-theorem eval_run_sample_bind_swap {ιJ : Type} {J : ιJ → Type} {σ τ : Type}
+private theorem eval_run_sample_bind_swap {ιJ : Type} {J : ιJ → Type} {σ τ : Type}
     (R : Machine OracleSpec.empty J) (p : ProbComp σ) (q : ProbComp τ)
     (k : τ × σ → ProbOracleComp J α) :
     (R.run (ProbOracleComp.sample (do

@@ -14,16 +14,16 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 /-!
 # Multi-session universal composition for a fixed session family
 
-This module extends the single-session UC composition theorem of
-`CslibFrontier/Crypto/Protocols/UC/Composition.lean` to a fixed finite family of `m` subroutine
-sessions (`Fin m`), adapting Theorem 22, Corollaries 23–24, and the heterogeneous-family extension
-of Section 6.3 of [Canetti2020] in the fixed-session, static-corruption, call-bounded model, via
-the multi-session state-separating hybrid bound `SSP.advantage_parFin_le_sum` [BrzuskaDFKK2018].
+This module proves fixed-arity multi-session composition steps for this library's own call-bounded,
+static-corruption port-model emulation notions (`UC.EmulatesDummyWithin`, `UC.EmulatesWithin`,
+`UC.Emulates`, `UC.Realizes`), via explicit parallel simulation and the multi-session
+state-separating hybrid bound `SSP.advantage_parFin_le_sum` [BrzuskaDFKK2018].
 
-## Scope and fidelity gaps relative to [Canetti2020]
+## Scope and relation to [Canetti2020]
 
-This is a **fixed number `m` of sessions chosen in advance; not dynamic session creation; this is
-not the full Theorem 22**. Specifically:
+These results adapt Theorem 22, Corollaries 23–24, and the heterogeneous-family extension of
+Section 6.3 of [Canetti2020] to a **fixed number `m` of sessions chosen in advance; not dynamic
+session creation; this is not the full Theorem 22**. Specifically:
 
 1. **Fixed `Fin m` session family vs. dynamic `SID` spawning.** In Theorem 22 of [Canetti2020]
    (JACM p. 28:58; ePrint 2000/067, rev. February 11, 2020, p. 61), a calling protocol dynamically
@@ -32,15 +32,25 @@ not the full Theorem 22**. Specifically:
    universally quantified over `{m : ℕ}` in every theorem (so concrete `EmulatesWithin` bounds
    instantiate `m := q.eval κ` at any fixed security parameter `κ`). Lazy first-touch spawning
    and dynamic session identifiers are not formalised here and are left to a follow-up.
-2. **Call-bounded statistical participants vs. PPT ITMs.** `MultiHybridProtocol.PolyBounded`,
-   `Protocol.PolyBounded`, `Adversary.PolyBounded`, and `Environment.PolyBounded` bound only the
-   number of oracle and randomness calls per activation (or total for `Z`) by a `Polynomial ℕ`, as
-   in Section 4.4 of [Canetti2020] (JACM p. 28:48; ePrint p. 50); pure computation, state size,
-   and message length are unbounded.
-3. **Static same-party corruptions `C : Finset (Fin n)` vs. adaptive per-identity corruptions.**
+2. **Heterogeneous §6.3 families with one fixed interface per side.** In Section 6.3 of
+   [Canetti2020] (JACM p. 28:67; ePrint p. 70), distinct session identifiers may invoke distinct
+   protocols. In `EmulatesDummyWithin.composeFamily` and `Emulates.composeFamily`, the protocol
+   implementations and their private state types (`(π j κ C).State`, `(φ j κ C).State`) may vary
+   with the session `j : Fin m`, while the party count `n`, party input/output types `SubIn` and
+   `SubOut`, and each side's network message types (`NQ₁`, `NR₁` and `NQ₂`, `NR₂`) are shared
+   across all `m` sessions.
+3. **Library call-bounded statistical notions vs. PPT ITMs and §4.4.** Per-activation counting of
+   oracle calls and private samples (`MultiHybridProtocol.PolyBounded`, `Protocol.PolyBounded`,
+   `Adversary.PolyBounded`, `Environment.PolyBounded`) is this library's own convention (see the
+   `Cslib.Crypto.Protocols.UC.Emulates` docstring); pure computation, state size, and message
+   length are unbounded. By contrast, Section 4.4 of [Canetti2020] (JACM p. 28:48; ePrint p. 50)
+   defines statistical emulation with computationally unbounded participants and quantitative
+   running-time simulation overhead, and Theorem 22 is proved for PPT ITMs; no implication to or
+   from Canetti's PPT or Section 4.4 notions is established here.
+4. **Static same-party corruptions `C : Finset (Fin n)` vs. adaptive per-identity corruptions.**
    The calling protocol `ρ κ C` and all `m` subroutine sessions `corruptRouter C (σ j κ C)` share
    the same static corruption set `C`, fixed prior to execution.
-4. **Structural type-level isolation and compliance vs. runtime predicates.** Subroutine-respecting
+5. **Structural type-level isolation and compliance vs. runtime predicates.** Subroutine-respecting
    isolation (each session `j : Fin m` is a closed `Machine OracleSpec.empty` package inside
    `SSP.parFin`), subroutine-exposing network addressing (`MultiNetQ.sub j q`), and `(π, φ, ξ)`-
    compliance (unrestricted `SubSessionCall m n SubIn`, corresponding to `ξ = univ`) are enforced
@@ -54,11 +64,12 @@ hypothesis that `ρ`, `π`, and `φ` are all bounded protocols.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.UC.SubSessionCall`: named record for a party-port call to session `j`.
+* `Cslib.Crypto.Protocols.UC.SubSessionCall`: named record selecting a target subroutine session `j`
+  and target party port `party`.
 * `Cslib.Crypto.Protocols.UC.multiPartySpec`, `Cslib.Crypto.Protocols.UC.MultiHybridProtocol`,
   `Cslib.Crypto.Protocols.UC.MultiHybridProtocol.PolyBounded`: multi-session hybrid protocols.
-* `Cslib.Crypto.Protocols.UC.MultiNetQ`, `Cslib.Crypto.Protocols.UC.MultiNetR`: composed network
-  ports tagging outer vs. per-session subroutine traffic.
+* `Cslib.Crypto.Protocols.UC.MultiNetQ`: composed network request port tagging outer vs.
+  per-session subroutine traffic (paired with the sum reply type `NetR ⊕ RoutedNetR SubOut NR`).
 * `Cslib.Crypto.Protocols.UC.sessionRouter`: `m` isolated static-corruption sessions via
   `SSP.parFin`.
 * `Cslib.Crypto.Protocols.UC.multiHybridWrap`, `Cslib.Crypto.Protocols.UC.composeFamily`,
@@ -81,16 +92,16 @@ hypothesis that `ρ`, `π`, and `φ` are all bounded protocols.
   the `m`-session distinguishing advantage to the sum of `m` single-session advantages against
   `sessionHopEnv`.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.composeFamily`,
-  `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.composeMulti`: quantitative dummy-adversary
-  multi-session composition theorems.
-* `Cslib.Crypto.Protocols.UC.EmulatesWithin.composeMulti`: full quantitative multi-session
-  composition theorem with polynomial overhead `(C m * g.comp (X + 1) + 1)`-wrapped.
+  `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.composeMulti`: fixed-session composition steps for
+  dummy-adversary emulation.
+* `Cslib.Crypto.Protocols.UC.EmulatesWithin.composeMulti`: fixed-session quantitative composition
+  step with explicit simulator call overhead and distinguishing bound.
 * `Cslib.Crypto.Protocols.UC.Emulates.composeFamily`,
-  `Cslib.Crypto.Protocols.UC.Emulates.composeMulti`: asymptotic heterogeneous and homogeneous
-  fixed-arity multi-session UC composition theorems.
+  `Cslib.Crypto.Protocols.UC.Emulates.composeMulti`: fixed-session heterogeneous and homogeneous
+  composition steps for `UC.Emulates`.
 * `Cslib.Crypto.Protocols.UC.Realizes.composeMulti`,
-  `Cslib.Crypto.Protocols.UC.Realizes.composeMulti_trans`: multi-session ideal-functionality
-  realization and hybrid replacement.
+  `Cslib.Crypto.Protocols.UC.Realizes.composeMulti_trans`: fixed-session composition steps for
+  `UC.Realizes`.
 
 ## References
 
@@ -111,12 +122,13 @@ open scoped NNReal
 
 /-! ### Ports, hybrid protocols, and session routing -/
 
-/-- A subroutine party-port call from a multi-session hybrid protocol: party `party` passes
-`input` to subroutine session `session` (or polls it). -/
+/-- A subroutine party-port call from a multi-session hybrid protocol: delivers `input` to target
+party port `party` of subroutine session `session` (or polls it). The outer protocol can select
+any target `party : Fin n`, including on a network activation. -/
 structure SubSessionCall (m n : ℕ) (SubIn : Type) : Type where
   /-- Target subroutine session index (`0 ≤ session < m`). -/
   session : Fin m
-  /-- Calling party index (`0 ≤ party < n`). -/
+  /-- Target party port index (`0 ≤ party < n`) in that subroutine session. -/
   party : Fin n
   /-- Input (or poll token) delivered to `(session, party)`. -/
   input : SubIn
@@ -151,14 +163,6 @@ inductive MultiNetQ (m : ℕ) (NetQ SubRoutedQ : Type) : Type
   | sub (session : Fin m) (query : SubRoutedQ)
   deriving DecidableEq
 
-/-- Network-side reply from a multi-session composed protocol. -/
-inductive MultiNetR (NetR SubRoutedR : Type) : Type
-  /-- A reply from the outer calling protocol `ρ`'s own network port. -/
-  | outer (reply : NetR)
-  /-- A reply from the addressed subroutine session's routed network port. -/
-  | sub (reply : SubRoutedR)
-  deriving DecidableEq
-
 /-- Parallel router for `m` independent subroutine sessions sharing the static corruption set `C`.
 Each session `j : Fin m` owns its private state inside `SSP.parFin` and cannot inspect or mutate
 any other session's state. -/
@@ -186,17 +190,17 @@ interface `SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR)`. -/
 
 /-- Wrap a multi-session hybrid protocol machine so its subroutine party calls target
 `SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR)` and each subroutine session's network port
-is exposed under `MultiNetQ.sub j` / `MultiNetR.sub`. -/
+is exposed under `MultiNetQ.sub j` / `Sum.inr`. -/
 @[expose] def multiHybridWrap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
     (M : Machine (multiPartySpec m n SubIn SubOut) (protocolSpec n In Out NetQ NetR)) :
     Machine (SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
-      (protocolSpec n In Out (MultiNetQ m NetQ NQ) (MultiNetR NetR NR)) where
+      (protocolSpec n In Out (MultiNetQ m NetQ NQ) (NetR ⊕ NR)) where
   State := M.State
   init := M.init
   handle
     | .inl p => fun s => liftMultiParty ((M.handle (.inl p)).run s)
-    | .inr (.outer q) => fun s => liftMultiParty ((MultiNetR.outer <$> M.handle (.inr q)).run s)
-    | .inr (.sub j q) => StateT.lift (MultiNetR.sub <$>
+    | .inr (.outer q) => fun s => liftMultiParty ((Sum.inl <$> M.handle (.inr q)).run s)
+    | .inr (.sub j q) => StateT.lift (Sum.inr <$>
         ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
           (j, Sum.inr q))
 
@@ -208,7 +212,7 @@ subroutine sessions answered by the independent protocol family `σ : Fin m → 
     (σ : Fin m → Protocol n SubIn SubOut NQ NR) :
     Protocol n In Out
       (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ))
-      (MultiNetR NetR (RoutedNetR SubOut NR)) :=
+      (NetR ⊕ RoutedNetR SubOut NR) :=
   fun κ C => (multiHybridWrap (ρ κ C)).comp (sessionRouter C fun j => σ j κ C)
 
 /-- Homogeneous multi-session subroutine replacement: `ρ` calling `m` independent instances of the
@@ -218,40 +222,28 @@ abbrev composeMulti {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
     (σ : Protocol n SubIn SubOut NQ NR) :
     Protocol n In Out
       (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ))
-      (MultiNetR NetR (RoutedNetR SubOut NR)) :=
+      (NetR ⊕ RoutedNetR SubOut NR) :=
   composeFamily ρ (fun _ => σ)
 
 /-! ### Multi-session simulator, absorbed hybrid, and single-hop reduction environment -/
-
-private def multiSubReply {Out NetR SubOut NR : Type} :
-    RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR)) → RoutedNetR SubOut NR
-  | .inr (.sub r) => r
-  | _ => .inl none
-
-private def multiOuterReply {Out NetR SubOut NR₁ NR₂ : Type} :
-    RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂)) →
-      RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁))
-  | .inl o => .inl o
-  | .inr (.outer r) => .inr (.outer r)
-  | .inr (.sub _) => .inl none
 
 private def liftMultiSubNet {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR α : Type}
     (j : Fin m)
     (program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α) :
     ProbOracleComp
       (netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR)))) α :=
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) α :=
   OracleComp.interpret
     (sumHandler
       (fun k => OracleComp.query
         (spec := probOracleSpec (netSpec
           (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-          (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR)))))
+          (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))))
         (Sum.inl k))
-      fun q => multiSubReply <$> ProbOracleComp.query
+      fun q => subReply <$> ProbOracleComp.query
         (spec := netSpec
           (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-          (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR))))
+          (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR)))
         (.inr (.sub j q)))
     program
 
@@ -263,20 +255,20 @@ def multiHybridSimMachine {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR₁
       (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁))) :
     Machine
       (netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂))))
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂)))
       (netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁)))) where
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁))) where
   State := (j : Fin m) → (S j).State
   init := OracleComp.pi fun j => (S j).init
   handle
-    | .inl p => StateT.lift (multiOuterReply <$> ProbOracleComp.query (spec := netSpec
+    | .inl p => StateT.lift (outerReply <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂)))) (.inl p))
-    | .inr (.outer q) => StateT.lift (multiOuterReply <$> ProbOracleComp.query (spec := netSpec
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inl p))
+    | .inr (.outer q) => StateT.lift (outerReply <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂)))) (.inr (.outer q)))
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inr (.outer q)))
     | .inr (.sub j q) => fun s =>
-        liftMultiSubNet j ((fun x => (Sum.inr (MultiNetR.sub x.1), Function.update s j x.2)) <$>
+        liftMultiSubNet j ((fun x => (Sum.inr (Sum.inr x.1), Function.update s j x.2)) <$>
           ((S j).handle q).run (s j))
 
 /-- The composed simulator for `composeFamily ρ π` against `composeFamily ρ φ`, running an
@@ -287,9 +279,9 @@ independent simulator `S j` for each subroutine session `j : Fin m`. -/
         (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂)) :
     Adversary n
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁)))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁))
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂))) :=
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂)) :=
   fun κ C => multiHybridSimMachine fun j => S j κ C
 
 /-- Absorbing `ρ κ C` into an environment `Z` produces a distinguisher against the `m`-session
@@ -299,7 +291,7 @@ subroutine interface `SSP.sessionSpec m (protocolSpec n SubIn SubOut …)`. -/
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
     (Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR))))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR)))
     (κ : ℕ) (z : List Bool) :
     ProbOracleComp
       (SSP.sessionSpec m
@@ -319,7 +311,7 @@ for `j < j₀`, forwards session `j₀` externally, and runs real sessions `π j
         (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
     (Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁))))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁)))
     (j₀ : Fin m) :
     Environment n SubIn SubOut (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁) :=
   fun κ z =>
@@ -348,7 +340,7 @@ theorem exec_composeFamily_dummy {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ N
     (π : Fin m → Protocol n SubIn SubOut NQ NR) (C : Finset (Fin n))
     (Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR))))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR)))
     (κ : ℕ) (z : List Bool) :
     exec (composeFamily ρ π) (dummyAdversary n _ _) C Z κ z =
       (sessionRouter C fun j => π j κ C).run (absorbMultiHybrid C ρ Z κ z) := by
@@ -440,8 +432,8 @@ private theorem multiHybridWrap_handle_inr_outer {m n : ℕ}
     (M : Machine (multiPartySpec m n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
     (q : NetQ) (s : M.State) :
     ((multiHybridWrap (NQ := NQ) (NR := NR) M).handle (.inr (.outer q))).run s =
-      (fun p => (MultiNetR.outer p.1, p.2)) <$> liftMultiParty ((M.handle (.inr q)).run s) := by
-  change liftMultiParty ((MultiNetR.outer <$> M.handle (.inr q)).run s) = _
+      (fun p => (Sum.inl p.1, p.2)) <$> liftMultiParty ((M.handle (.inr q)).run s) := by
+  change liftMultiParty ((Sum.inl <$> M.handle (.inr q)).run s) = _
   rw [StateT.run_map, liftMultiParty_map]
 
 private theorem multiHybridWrap_handle_inr_sub {m n : ℕ}
@@ -449,7 +441,7 @@ private theorem multiHybridWrap_handle_inr_sub {m n : ℕ}
     (M : Machine (multiPartySpec m n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
     (j : Fin m) (q : NQ) (s : M.State) :
     ((multiHybridWrap (NR := NR) M).handle (.inr (.sub j q))).run s =
-      (fun a => (MultiNetR.sub a, s)) <$>
+      (fun a => (Sum.inr a, s)) <$>
         ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
           (j, Sum.inr q) := by
   change (StateT.lift _).run s = _
@@ -462,9 +454,9 @@ private theorem multiHybridSimMachine_handle_inl {m n : ℕ}
     (p : Fin n × In) (s : (multiHybridSimMachine S).State) :
     ((multiHybridSimMachine (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) S).handle
         (.inl p)).run s =
-      (fun a => (multiOuterReply a, s)) <$> ProbOracleComp.query (spec := netSpec
+      (fun a => (outerReply a, s)) <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂)))) (.inl p) := by
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inl p) := by
   change (StateT.lift _).run s = _
   rw [StateT.run_lift, bind_pure_comp, Functor.map_map]
 
@@ -475,9 +467,9 @@ private theorem multiHybridSimMachine_handle_inr_outer {m n : ℕ}
     (q : NetQ) (s : (multiHybridSimMachine S).State) :
     ((multiHybridSimMachine (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) S).handle
         (.inr (.outer q))).run s =
-      (fun a => (multiOuterReply a, s)) <$> ProbOracleComp.query (spec := netSpec
+      (fun a => (outerReply a, s)) <$> ProbOracleComp.query (spec := netSpec
         (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂)))
-        (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₂)))) (.inr (.outer q)) := by
+        (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂))) (.inr (.outer q)) := by
   change (StateT.lift _).run s = _
   rw [StateT.run_lift, bind_pure_comp, Functor.map_map]
 
@@ -488,7 +480,7 @@ private theorem multiHybridSimMachine_handle_inr_sub {m n : ℕ}
     (j : Fin m) (q : RoutedNetQ n SubIn NQ₁) (s : (multiHybridSimMachine S).State) :
     ((multiHybridSimMachine (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) S).handle
         (.inr (.sub j q))).run s =
-      (fun x => (Sum.inr (MultiNetR.sub x.1), Function.update s j x.2)) <$>
+      (fun x => (Sum.inr (Sum.inr x.1), Function.update s j x.2)) <$>
         liftMultiSubNet j (((S j).handle q).run (s j)) := by
   change liftMultiSubNet j (_ <$> ((S j).handle q).run (s j)) = _
   rw [liftMultiSubNet_map]
@@ -515,7 +507,7 @@ private theorem runFrom_routeCorrupt_liftNet_liftMultiSubNet {m n : ℕ}
   | inr q =>
     simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query, Machine.runFrom_map,
       Machine.runFrom_query]
-    change Prod.map multiSubReply _root_.id <$> ((Sum.inr <$> StateT.lift (MultiNetR.sub <$>
+    change Prod.map subReply _root_.id <$> ((Sum.inr <$> StateT.lift (Sum.inr <$>
       ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut
         (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR))) (j, Sum.inr q))).run s) = _
     rw [StateT.run_map, StateT.run_lift, bind_pure_comp, Functor.map_map, Functor.map_map,
@@ -724,7 +716,7 @@ theorem eval_exec_composeFamily_multiHybridSim {m n : ℕ}
     (C : Finset (Fin n))
     (Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁))))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁)))
     (κ : ℕ) (z : List Bool) :
     (exec (composeFamily ρ φ) (multiHybridSim S) C Z κ z).eval =
       ((SSP.parFin fun j => execMachine (φ j) (S j) κ C).run
@@ -762,7 +754,7 @@ theorem advantage_composeFamily_le_sum {m n : ℕ}
     (C : Finset (Fin n))
     (Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁))))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁)))
     (κ : ℕ) (z : List Bool) :
     advantage (composeFamily ρ π) (composeFamily ρ φ)
         (dummyAdversary n _ _) (multiHybridSim S) C Z κ z ≤
@@ -806,11 +798,11 @@ theorem isBounded_multiHybridWrap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ 
   · exact (isQueryBounded_liftMultiParty (h.2 (.inl p) s)).mono (Nat.le_succ t)
   · dsimp only [multiHybridWrap] at s ⊢
     change OracleComp.IsQueryBounded
-      (liftMultiParty ((MultiNetR.outer <$> M.handle (.inr outer)).run s)) (t + 1)
+      (liftMultiParty ((Sum.inl <$> M.handle (.inr outer)).run s)) (t + 1)
     rw [StateT.run_map, liftMultiParty_map, ← bind_pure_comp]
     refine ((isQueryBounded_liftMultiParty (h.2 (.inr outer) s)).bind fun _ =>
       OracleComp.IsCostBounded.pure _ 0).mono (Nat.le_succ t)
-  · change OracleComp.IsQueryBounded ((StateT.lift (MultiNetR.sub <$>
+  · change OracleComp.IsQueryBounded ((StateT.lift (Sum.inr <$>
       ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
         (j, Sum.inr q))).run s) (t + 1)
     rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
@@ -825,7 +817,7 @@ theorem absorbMultiHybrid_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
     {Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR)))}
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))}
     {pρ pZ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hZ : Z.PolyBounded pZ) :
     ∀ κ z, (absorbMultiHybrid C ρ Z κ z).IsQueryBounded ((absorbPoly pZ pρ).eval κ) := by
   intro κ z
@@ -927,7 +919,7 @@ theorem sessionHopEnv_polyBounded {m n : ℕ}
         (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂)}
     {Z : Environment n In Out
       (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁)))}
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁))}
     {pρ pπ pφ pD pZ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (hπ : ∀ j, (π j).PolyBounded pπ)
     (hφ : ∀ j, (φ j).PolyBounded pφ) (hS : ∀ j, (S j).PolyBounded pD)
@@ -962,10 +954,13 @@ private theorem emulatesDummyWithin_mono_bound {n : ℕ} {In Out NQ₁ NR₁ NQ�
   rcases h with ⟨S_D, hSD, hadv⟩
   exact ⟨S_D, hSD.mono hp, hadv⟩
 
-/-- Quantitative multi-session composition for a heterogeneous family of protocols in the dummy
-adversary model, adapting Theorem 22 and Section 6.3 of [Canetti2020].
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session composition step for `EmulatesDummyWithin`, this library's own call-bounded
+dummy-adversary emulation relation, with an explicit parallel simulator `multiHybridSim` over a
+fixed family of `m` sessions sharing party count, party input/output types, and one fixed network
+interface per side (implementations and private state types may vary per session).
+Adapts Theorem 22 and Section 6.3 of [Canetti2020] (JACM p. 28:58, p. 28:67; ePrint 2000/067,
+pp. 61, 70) to static corruptions and a fixed `Fin m` session family; see the module docstring for
+the relation to Canetti's PPT theorem. -/
 theorem EmulatesDummyWithin.composeFamily {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -984,10 +979,12 @@ theorem EmulatesDummyWithin.composeFamily {m n : ℕ}
   exact hadv j C (sessionHopEnv C ρ π φ S_D Z j) (sessionHopPoly m pZ pρ pπ pφ pD)
     (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
 
-/-- Quantitative multi-session composition for homogeneous subroutine instances in the dummy
-adversary model, adapting Theorem 22 of [Canetti2020].
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session homogeneous composition step for `EmulatesDummyWithin`, this library's own
+call-bounded dummy-adversary emulation relation, specializing `EmulatesDummyWithin.composeFamily`
+to `m` instances of a single subroutine protocol `π` replaced by `φ`.
+Adapts Theorem 22 of [Canetti2020] (JACM p. 28:58; ePrint 2000/067, p. 61) to static corruptions
+and a fixed `Fin m` session count; see the module docstring for the relation to Canetti's PPT
+theorem. -/
 theorem EmulatesDummyWithin.composeMulti {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -1001,12 +998,12 @@ theorem EmulatesDummyWithin.composeMulti {m n : ℕ}
   simpa [composeMulti, Finset.sum_const, Finset.card_fin] using
     EmulatesDummyWithin.composeFamily hρ (fun _ => hπ) (fun _ => hφ) (fun _ => h)
 
-/-- Full quantitative multi-session UC composition theorem (fixed-arity adaptation of Theorem 22
-of [Canetti2020]): replacing `m` subroutines `π` with `φ` in `composeMulti ρ` preserves
-concrete security with `m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ (g.comp (X + 1)))`
-distinguishing error.
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session quantitative composition step for `EmulatesWithin`, this library's own
+call-bounded emulation relation, yielding explicit simulator call overhead and distinguishing bound
+`m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ (g.comp (X + 1)))`.
+Adapts Theorem 22 of [Canetti2020] (JACM p. 28:58; ePrint 2000/067, p. 61) to static corruptions
+and a fixed `Fin m` session count; see the module docstring for the relation to Canetti's PPT
+theorem. -/
 theorem EmulatesWithin.composeMulti {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -1027,10 +1024,13 @@ theorem EmulatesWithin.composeMulti {m n : ℕ}
         using hpD κ
   exact (EmulatesDummyWithin.composeMulti hρ hπ hφ hD').emulatesWithin
 
-/-- Asymptotic multi-session UC composition theorem for a heterogeneous family of subroutine
-protocols (fixed-arity adaptation of Theorem 22 and Section 6.3 of [Canetti2020]).
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session composition step for `Emulates`, this library's own call-bounded emulation
+relation, with an explicit parallel simulator and one fixed interface per side: protocol
+implementations and private state types may vary per session `j : Fin m`, while party count `n`,
+party input/output types, and each side's network message types are shared across sessions.
+Adapts Theorem 22 and Section 6.3 of [Canetti2020] (JACM p. 28:58, p. 28:67; ePrint 2000/067,
+pp. 61, 70) to static corruptions and a fixed `Fin m` session family; see the module docstring for
+the relation to Canetti's PPT theorem. -/
 theorem Emulates.composeFamily {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -1054,20 +1054,17 @@ theorem Emulates.composeFamily {m n : ℕ}
     exact Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
       (Finset.mem_univ j)
   choose ε hε hD using hdummy
-  have hwithin := (EmulatesDummyWithin.composeFamily hρ hπ hφ hD).emulatesWithin
-  intro AdvQ AdvR A pA hA
-  rcases hwithin AdvQ AdvR A pA hA with ⟨S, pS, hpS, _, hSadv⟩
-  refine ⟨S, pS, hpS, fun pZ => ⟨fun κ =>
-    ∑ j : Fin m, ε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) κ, ?_, ?_⟩⟩
-  · convert (Negligible.sum Finset.univ fun j _ =>
-      hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max)) using 1
-    funext κ; simp [Finset.sum_apply]
-  · exact fun C Z hZ κ z => hSadv C Z pZ hZ κ z
+  refine (EmulatesDummyWithin.composeFamily hρ hπ hφ hD).emulatesWithin.emulates fun pA pZ => ?_
+  convert Negligible.sum Finset.univ fun j _ =>
+    hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) using 1
+  funext κ
+  simp [Finset.sum_apply]
 
-/-- Asymptotic multi-session UC composition theorem for homogeneous subroutine instances
-(fixed-arity adaptation of Theorem 22 of [Canetti2020]).
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session homogeneous composition step for `Emulates`, this library's own call-bounded
+emulation relation, specializing `Emulates.composeFamily` to `m` instances of `π` replaced by `φ`.
+Adapts Theorem 22 of [Canetti2020] (JACM p. 28:58; ePrint 2000/067, p. 61) to static corruptions
+and a fixed `Fin m` session count; see the module docstring for the relation to Canetti's PPT
+theorem. -/
 theorem Emulates.composeMulti {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -1078,11 +1075,12 @@ theorem Emulates.composeMulti {m n : ℕ}
     Emulates (composeMulti ρ π) (composeMulti ρ φ) :=
   Emulates.composeFamily hρ (fun _ => hπ) (fun _ => hφ) (fun _ => h)
 
-/-- Multi-session ideal-functionality realization: replacing `m` instances of `F` with `π` inside
-`composeMulti ρ` yields a protocol emulating `composeMulti ρ F.toProtocol` (fixed-arity
-adaptation of Corollary 23 of [Canetti2020]).
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session composition step for `Realizes`, this library's own call-bounded emulation
+relation against an ideal functionality, replacing `m` instances of `F` in `composeMulti ρ` with
+a protocol `π` that realizes `F`.
+Adapts Corollary 23 of [Canetti2020] (JACM p. 28:59; ePrint 2000/067, p. 62) to static corruptions
+and a fixed `Fin m` session count; see the module docstring for the relation to Canetti's PPT
+theorem. -/
 theorem Realizes.composeMulti {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
@@ -1094,11 +1092,12 @@ theorem Realizes.composeMulti {m n : ℕ}
     Emulates (composeMulti ρ π) (composeMulti ρ F.toProtocol) :=
   Emulates.composeMulti hρ hπ hF h
 
-/-- Transitive multi-session hybrid replacement: if `π` realizes `F` and
-`composeMulti ρ F.toProtocol` realizes `G`, then `composeMulti ρ π` realizes `G` (fixed-arity
-adaptation of Corollary 24 of [Canetti2020]).
-Fixed number `m` of sessions chosen in advance; not dynamic session creation; this is not the
-full Theorem 22 (static corruption, call-bounded participants). -/
+/-- Fixed-session transitive hybrid replacement step for `Realizes`, this library's own
+call-bounded emulation relation against an ideal functionality: if `π` realizes `F` and
+`composeMulti ρ F.toProtocol` realizes `G`, then `composeMulti ρ π` realizes `G`.
+Adapts Corollary 24 of [Canetti2020] (JACM p. 28:59; ePrint 2000/067, p. 62) to static corruptions
+and a fixed `Fin m` session count; see the module docstring for the relation to Canetti's PPT
+theorem. -/
 theorem Realizes.composeMulti_trans {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR GQ GR : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}

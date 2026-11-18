@@ -46,7 +46,7 @@ def orOuter : MultiHybridProtocol 2 2 Bool Bool Unit Unit Bool Bool := fun _ _ =
 /-- Distinguisher activating party `p` with `true` and checking if conjunction dropped. -/
 def zOr (p : Fin 2) : Environment 2 Bool Bool
     (RoutedNetQ 2 Bool (MultiNetQ 2 Unit (RoutedNetQ 2 Bool Unit)))
-    (RoutedNetR Bool (MultiNetR Unit (RoutedNetR Bool Unit))) := fun _ _ =>
+    (RoutedNetR Bool (Unit ⊕ RoutedNetR Bool Unit)) := fun _ _ =>
   ProbOracleComp.query (Sum.inl (p, true)) >>= fun res => pure (!(res.getD false))
 
 theorem idealRelay_polyBounded : idealRelay.toProtocol.PolyBounded 1 := fun _ _ =>
@@ -187,14 +187,11 @@ theorem faultyRelay_emulatesDummyWithin : EmulatesDummyWithin faultyRelay idealR
     { last := none }).trans (le_of_eq (by simp [div_eq_mul_inv]))
 
 theorem faultyRelay_realizes : Realizes faultyRelay idealRelay := by
-  have hw := faultyRelay_emulatesDummyWithin.emulatesWithin
-  intro AdvQ AdvR A pA hA; rcases hw AdvQ AdvR A pA hA with ⟨S, pS, hpS, _, hadv⟩
-  refine ⟨S, pS, hpS, fun pZ => ⟨fun κ => (((absorbPoly pZ pA).eval κ : ℕ) : ℝ≥0) /
-    2 ^ (κ + 1), ?_, fun C Z hZ κ z => hadv C Z pZ hZ κ z⟩⟩
+  refine faultyRelay_emulatesDummyWithin.emulatesWithin.emulates fun pA pZ => ?_
   have hneg : Negligible fun κ => (((absorbPoly pZ pA).eval κ : ℕ) : ℝ≥0) * ((2⁻¹ : ℝ≥0) ^ κ) := by
     negligible
-  intro n; simpa [div_eq_mul_inv, pow_succ, mul_inv, mul_left_comm, mul_comm, mul_assoc] using
-    (hneg n).const_mul (2⁻¹ : ℝ≥0)
+  intro k; simpa [div_eq_mul_inv, pow_succ, mul_inv, mul_left_comm, mul_comm, mul_assoc] using
+    (hneg k).const_mul (2⁻¹ : ℝ≥0)
 
 /-- Multi-session composition (`m = 2, n = 2`) for `orOuter` and `faultyRelay` vs `idealRelay`. -/
 theorem composeMulti_orOuter_realizes :
