@@ -31,11 +31,21 @@ each marked as a decision or not (`Cslib.Algorithms.Lean.CDCL.Entry`). The rules
 * **Forget** (`Cslib.Algorithms.Lean.CDCL.Forget`, their Definition 2.5): remove a clause entailed
   by the rest of `F`.
 
+**Entailment.** The source (§2.1) works with partial assignments: a set of literals is a model of a
+clause set if it contains a literal of every clause, and `F` entails `C` if every such model of `F`
+contains a literal of `C` (`Cslib.Algorithms.Lean.CDCL.PEntails`). Forget uses this entailment,
+which the partial-model conclusion of Theorem 2.12 needs: entailment by total assignments would let
+Forget remove the tautology `b ∨ ¬b` from `a, b ∨ ¬b`, ending at the trail `a`, which has no
+literal of `b ∨ ¬b`. Backjump and Learn use entailment by total assignments. The §2.1 entailment
+implies it (`Cslib.Algorithms.Lean.CDCL.PEntails.eval`), so every step of the source is a step
+here, and the results below hold for at least the source's runs.
+
 DPLL with learning (`Cslib.Algorithms.Lean.CDCL.Step`) is the union of the three. The invariant
 `Cslib.Algorithms.Lean.CDCL.Inv` is their Lemma 2.7, over a list `V` of variables containing those
-of the input formula `φ`: the database has the models of `φ` and uses variables of `V`, the trail
-assigns each variable of `V` at most once, and every implied literal holds in every model of `φ`
-satisfying the older literals; in `fail`, `φ` is unsatisfiable. Every step keeps it
+of the input formula `φ`: the database has the models of `φ`, its partial models are partial
+models of `φ`, and it uses variables of `V`, the trail assigns each variable of `V` at most once,
+and every implied literal holds in every model of `φ` satisfying the older literals; in `fail`, `φ`
+is unsatisfiable. Every step keeps it
 (`Cslib.Algorithms.Lean.CDCL.Step.inv`). Their results then hold, from the initial state with the
 empty trail and `F = φ`, taking `V` to be the variables of `φ`:
 
@@ -50,8 +60,10 @@ empty trail and `F = φ`, taking `V` to be the variables of `φ`:
   steps is finite, stated as the well-foundedness of "Learn and Forget steps, then a Basic DPLL
   step" (`Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep`).
 * **Theorem 2.12**: a reachable state that is final for Basic DPLL is `fail` exactly when `φ` is
-  unsatisfiable, and otherwise its trail is a model of `φ`
-  (`Cslib.Algorithms.Lean.CDCL.final_of_reachable`).
+  unsatisfiable, and otherwise its trail is a model of `φ` in the sense of §2.1, containing a
+  literal of every clause (`Cslib.Algorithms.Lean.CDCL.final_of_reachable`). The invariant keeps
+  every partial model of the database a partial model of `φ`, and Forget's side condition is what
+  preserves this.
 
 **Representations.** Clause sets are lists, so Learn prepends a clause and Forget removes one
 occurrence. The trail is kept newest first. Locators refer to the authors' manuscript, printed
@@ -99,6 +111,28 @@ abbrev Entry.var (e : Entry) : ℕ := e.lit.1
 /-- A trail: the assigned literals, newest first. -/
 abbrev Trail := List Entry
 
+/-- A partial assignment satisfies a clause if it makes one of its literals true
+[NieuwenhuisOliverasTinelli2006, §2.1]: the variable of the literal is assigned, with its
+polarity. -/
+def PSat (ρ : ℕ → Option Bool) (c : Clause ℕ) : Prop := ∃ l ∈ c, ρ l.1 = some l.2
+
+/-- A partial assignment is a model of a clause set if it satisfies every clause. -/
+def PModels (ρ : ℕ → Option Bool) (F : CNF ℕ) : Prop := ∀ c ∈ F, PSat ρ c
+
+/-- **Entailment** [NieuwenhuisOliverasTinelli2006, §2.1]: every partial model of `F` satisfies
+`C`. It implies entailment by total assignments (`Cslib.Algorithms.Lean.CDCL.PEntails.eval`), but
+not conversely: the tautology `b ∨ ¬b` holds under every total assignment, while the partial
+model `{a}` of the clause `a` does not satisfy it. -/
+def PEntails (F : CNF ℕ) (C : Clause ℕ) : Prop := ∀ ρ, PModels ρ F → PSat ρ C
+
+/-- Entailment by partial assignments implies entailment by total ones. -/
+theorem PEntails.eval {F : CNF ℕ} {C : Clause ℕ} (h : PEntails F C) (σ : ℕ → Bool)
+    (hσ : F.eval σ = true) : C.eval σ = true := by
+  obtain ⟨l, hl, hlσ⟩ := h (fun x => some (σ x)) fun c hc => by
+    obtain ⟨l, hl, hlσ⟩ := (Clause.eval_eq_true_iff σ c).1 ((CNF.eval_eq_true_iff σ F).1 hσ c hc)
+    exact ⟨l, hl, by simp [hlσ]⟩
+  exact (Clause.eval_eq_true_iff σ C).2 ⟨l, hl, by simpa using hlσ⟩
+
 namespace Trail
 
 /-- The literals of a trail. -/
@@ -127,6 +161,11 @@ inductive Entailed (φ : CNF ℕ) : Trail → Prop
 
 /-- The total assignment of a trail: a variable is true if the trail makes it true. -/
 def assignment (M : Trail) (x : ℕ) : Bool := decide ((x, true) ∈ lits M)
+
+/-- The partial assignment of a trail: a variable is true or false if the trail makes it so, and
+unassigned otherwise. -/
+def partialAssignment (M : Trail) (x : ℕ) : Option Bool :=
+  if (x, true) ∈ lits M then some true else if (x, false) ∈ lits M then some false else none
 
 /-- The negation of the decisions of a trail. -/
 def decisionClause (M : Trail) : Clause ℕ :=
@@ -170,10 +209,9 @@ inductive Learn : State → State → Prop
       (hCV : ∀ l ∈ C, l.1 ∈ F.vars ∨ l.1 ∈ Trail.vars M) : Learn (.run M F) (.run M (C :: F))
 
 /-- **Forget** [NieuwenhuisOliverasTinelli2006, Definition 2.5]: removing a clause entailed by the
-rest of the database. -/
+rest of the database, in the sense of §2.1 (`Cslib.Algorithms.Lean.CDCL.PEntails`). -/
 inductive Forget : State → State → Prop
-  | forget {M : Trail} {F₁ F₂ : CNF ℕ} {C : Clause ℕ}
-      (hC : ∀ σ, (F₁ ++ F₂).eval σ = true → C.eval σ = true) :
+  | forget {M : Trail} {F₁ F₂ : CNF ℕ} {C : Clause ℕ} (hC : PEntails (F₁ ++ F₂) C) :
       Forget (.run M (F₁ ++ C :: F₂)) (.run M (F₁ ++ F₂))
 
 /-- **DPLL with learning** [NieuwenhuisOliverasTinelli2006, Definition 2.5]: a Basic DPLL step, a
@@ -184,6 +222,8 @@ def Step (S S' : State) : Prop := BasicStep S S' ∨ Learn S S' ∨ Forget S S'
 structure RunInv (φ : CNF ℕ) (V : List ℕ) (M : Trail) (F : CNF ℕ) : Prop where
   /-- The database has the models of `φ`. -/
   models : ∀ σ, F.eval σ = φ.eval σ
+  /-- Every partial model of the database is a partial model of `φ`. -/
+  pmodels : ∀ ρ, PModels ρ F → PModels ρ φ
   /-- The trail assigns each variable at most once. -/
   nodup : (Trail.vars M).Nodup
   /-- The trail assigns variables of `V`. -/
@@ -265,7 +305,7 @@ end Trail
 /-- The initial state, with the empty trail and the clauses of `φ`, satisfies the invariant. -/
 theorem Inv.init {φ : CNF ℕ} {V : List ℕ} (hV : ∀ c ∈ φ, ∀ l ∈ c, l.1 ∈ V) :
     Inv φ V (.run [] φ) :=
-  ⟨fun _ => rfl, by simp [Trail.vars], by simp [Trail.vars], hV, .nil⟩
+  ⟨fun _ => rfl, fun _ h => h, by simp [Trail.vars], by simp [Trail.vars], hV, .nil⟩
 
 /-! ### Steps keep the invariant -/
 
@@ -289,13 +329,13 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
   · cases hstep with
     | @unitPropagate M F c l hc hl hfalse hundef =>
       obtain ⟨hnd, hsub⟩ := RunInv.push h false hundef (h.db_vars c hc l hl)
-      refine ⟨h.models, hnd, hsub, h.db_vars, .implied l h.entailed fun σ hσ hM => ?_⟩
+      refine ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .implied l h.entailed fun σ hσ hM => ?_⟩
       exact Trail.eval_of_forall_ne
         ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc) hM hfalse
     | @decide M F l hundef hv =>
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hv
       obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.db_vars c hc (_, b) hb)
-      exact ⟨h.models, hnd, hsub, h.db_vars, .decision l h.entailed⟩
+      exact ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .decision l h.entailed⟩
     | @fail M F c hc hconf hnodec =>
       rintro ⟨σ, hσ⟩
       have hM := Trail.sat_of_entailed h.entailed hσ fun l hl => by simpa using hnodec _ hl
@@ -309,7 +349,7 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         have := h.nodup
         simp only [Trail.vars, List.map_append, List.map_cons] at this
         exact (List.nodup_cons.1 (List.nodup_append.1 this).2.1).2
-      refine ⟨h.models, ?_, ?_, h.db_vars, ?_⟩
+      refine ⟨h.models, h.pmodels, ?_, ?_, h.db_vars, ?_⟩
       · simp only [Trail.vars, List.map_cons, List.nodup_cons]
         exact ⟨hundef, hnodup⟩
       · intro x hx
@@ -325,7 +365,8 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         exact Trail.eval_of_forall_ne (hC σ (by rw [h.models]; exact hσ)) hM hfalse
   · cases hstep with
     | @learn M F C hC hCV =>
-      refine ⟨fun σ => ?_, h.nodup, h.subset, ?_, h.entailed⟩
+      refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => hρ c (List.mem_cons_of_mem _ hc),
+        h.nodup, h.subset, ?_, h.entailed⟩
       · rw [CNF.eval_cons, ← h.models]
         cases hF : CNF.eval σ F
         · simp
@@ -339,20 +380,39 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         · exact h.db_vars c hc l hl
   · cases hstep with
     | @forget M F₁ F₂ C hC =>
-      refine ⟨fun σ => ?_, h.nodup, h.subset, fun c hc => h.db_vars c (by simp at hc ⊢; tauto),
-        h.entailed⟩
+      refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => ?_, h.nodup, h.subset,
+        fun c hc => h.db_vars c (by simp at hc ⊢; tauto), h.entailed⟩
+      swap
+      · simp only [List.mem_append, List.mem_cons] at hc
+        rcases hc with hc | rfl | hc
+        · exact hρ c (List.mem_append_left _ hc)
+        · exact hC ρ hρ
+        · exact hρ c (List.mem_append_right _ hc)
       rw [← h.models]
-      have := hC σ
+      have := hC.eval σ
       simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
       cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
 
 /-! ### Final states -/
 
-/-- A running state with no false clause that assigns every variable gives a model. -/
-theorem RunInv.eval_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
-    (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c) (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) :
-    φ.eval (Trail.assignment M) = true := by
-  rw [← h.models, CNF.eval_eq_true_iff]
+/-- With each variable assigned once, the partial assignment of a trail makes a literal true
+exactly when the literal is on the trail. -/
+theorem Trail.partialAssignment_eq_some_iff {M : Trail} (hM : (Trail.vars M).Nodup)
+    (l : Literal ℕ) : Trail.partialAssignment M l.1 = some l.2 ↔ l ∈ Trail.lits M := by
+  obtain ⟨v, b⟩ := l
+  unfold Trail.partialAssignment
+  cases b
+  · have : (v, false) ∈ Trail.lits M → (v, true) ∉ Trail.lits M := fun h =>
+      Trail.negate_not_mem hM h
+    by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
+      simp_all
+  · by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
+      simp_all
+
+/-- A trail that falsifies no clause of `F` and assigns every variable of `F` has a literal of
+every clause of `F`. -/
+theorem Trail.exists_mem_lits {M : Trail} {F : CNF ℕ} (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c)
+    (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) : ∀ c ∈ F, ∃ l ∈ c, l ∈ Trail.lits M := by
   intro c hc
   have : ∃ l ∈ c, l.negate ∉ Trail.lits M := by
     by_contra hne
@@ -368,10 +428,30 @@ theorem RunInv.eval_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ
     simp only [Entry.var] at hl'
     subst hl'
     cases s <;> cases s' <;> simp_all [Std.Sat.Literal.negate]
-  rw [hel] at helits
+  exact ⟨l, hl, hel ▸ helits⟩
+
+/-- **The trail is a model** [NieuwenhuisOliverasTinelli2006, §2.1]: in a running state with no
+false clause that assigns every variable, every clause of `φ` has a literal on the trail. -/
+theorem RunInv.trail_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
+    (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c) (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) :
+    ∀ c ∈ φ, ∃ l ∈ c, l ∈ Trail.lits M := by
+  intro c hc
+  obtain ⟨l, hl, hlM⟩ := h.pmodels (Trail.partialAssignment M) (fun c hc => by
+    obtain ⟨l, hl, hlM⟩ := Trail.exists_mem_lits hnoconf htotal c hc
+    exact ⟨l, hl, (Trail.partialAssignment_eq_some_iff h.nodup l).2 hlM⟩) c hc
+  exact ⟨l, hl, (Trail.partialAssignment_eq_some_iff h.nodup l).1 hlM⟩
+
+/-- A running state with no false clause that assigns every variable gives a total model: the
+assignment making the trail's literals true. -/
+theorem RunInv.eval_model {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
+    (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c) (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) :
+    φ.eval (Trail.assignment M) = true := by
+  rw [CNF.eval_eq_true_iff]
+  intro c hc
+  obtain ⟨l, hl, hlM⟩ := h.trail_model hnoconf htotal c hc
   refine (Clause.eval_eq_true_iff _ c).2 ⟨l, hl, ?_⟩
   obtain ⟨v, s⟩ := l
-  have := Trail.negate_not_mem h.nodup helits
+  have := Trail.negate_not_mem h.nodup hlM
   cases s <;> simp_all [Trail.assignment, Std.Sat.Literal.negate]
 
 /-- A trail with a decision splits at its newest decision. -/
@@ -463,22 +543,24 @@ theorem RunInv.exists_basicStep {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : C
     exact ⟨_, BasicStep.decide (l := (x, true)) hxM hx⟩
 
 /-- A state that satisfies the invariant and is final for Basic DPLL is `fail` exactly when `φ` is
-unsatisfiable, and otherwise its trail is a model of `φ`. -/
+unsatisfiable, and otherwise its trail is a model of `φ`: every clause of `φ` has a literal on the
+trail, so the total assignment making the trail's literals true is a model too. -/
 theorem Inv.final {φ : CNF ℕ} {V : List ℕ} {S : State} (h : Inv φ V S)
     (hfinal : ∀ S', ¬ BasicStep S S') :
-    (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F → φ.eval (Trail.assignment M) = true := by
+    (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F →
+      (∀ c ∈ φ, ∃ l ∈ c, l ∈ Trail.lits M) ∧ φ.eval (Trail.assignment M) = true := by
   cases S with
   | fail => exact ⟨⟨fun _ => h, fun _ => rfl⟩, fun _ _ h => absurd h (by simp)⟩
   | run M F =>
-    have hmodel : φ.eval (Trail.assignment M) = true := by
+    have hdone : (∀ c ∈ F, ¬ Trail.Falsifies M c) ∧ ∀ x ∈ F.vars, x ∈ Trail.vars M := by
       by_contra hne
-      obtain ⟨S', hS'⟩ := RunInv.exists_basicStep h fun ⟨hnoconf, htotal⟩ =>
-        hne (h.eval_model hnoconf htotal)
+      obtain ⟨S', hS'⟩ := RunInv.exists_basicStep h hne
       exact hfinal S' hS'
+    have hmodel := h.eval_model hdone.1 hdone.2
     refine ⟨⟨fun hS => absurd hS (by simp), fun hns => absurd ⟨_, hmodel⟩ hns⟩, ?_⟩
     rintro M' F' hS
     cases hS
-    exact hmodel
+    exact ⟨h.trail_model hdone.1 hdone.2, hmodel⟩
 
 /-- The states reachable from the initial state satisfy the invariant. -/
 theorem inv_of_reachable {φ : CNF ℕ} {S : State}
@@ -489,11 +571,14 @@ theorem inv_of_reachable {φ : CNF ℕ} {S : State}
 
 /-- **Final states decide satisfiability** [NieuwenhuisOliverasTinelli2006, Theorem 2.12]: a state
 reachable from the initial state by DPLL with learning and final for Basic DPLL is `fail` exactly
-when `φ` is unsatisfiable, and otherwise its trail is a model of `φ`. -/
+when `φ` is unsatisfiable, and otherwise its trail is a model of `φ` in the sense of §2.1: every
+clause of `φ` has a literal on the trail. The total assignment making the trail's literals true is
+then a model as well. -/
 theorem final_of_reachable {φ : CNF ℕ} {S : State}
     (h : Relation.ReflTransGen Step (.run [] φ) S)
     (hfinal : ∀ S', ¬ BasicStep S S') :
-    (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F → φ.eval (Trail.assignment M) = true :=
+    (S = .fail ↔ ¬ φ.Satisfiable) ∧ ∀ M F, S = .run M F →
+      (∀ c ∈ φ, ∃ l ∈ c, l ∈ Trail.lits M) ∧ φ.eval (Trail.assignment M) = true :=
   (inv_of_reachable h).final hfinal
 
 /-! ### Termination -/

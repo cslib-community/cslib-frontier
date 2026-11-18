@@ -18,7 +18,9 @@ false clause with no decision, from which Fail goes to `fail`; the invariant the
 is unsatisfiable. With the empty clause in the database, Fail applies at once, and nothing follows
 `fail`. A Decide step followed by Backjump and Learn illustrates the remaining Basic DPLL rule and
 Learn, and Forget removes `a ∨ b` from `a, a ∨ b`, after which `b` no longer occurs in the database
-and Decide cannot choose it.
+and Decide cannot choose it. Forget cannot remove the tautology `b ∨ ¬b` from `a, b ∨ ¬b`: every
+total assignment satisfies it, but the partial model `{a}` of `a` does not, so `a` does not entail
+it in the sense of [NieuwenhuisOliverasTinelli2006, §2.1].
 -/
 
 set_option linter.privateModule false
@@ -72,11 +74,51 @@ example : Learn (.run [⟨(0, false), false⟩] [[(0, false)]])
 
 -- Forget `a ∨ b`, which `a` entails; then `b` no longer occurs in the database.
 example : Forget (.run [] [[(0, true)], [(0, true), (1, true)]]) (.run [] [[(0, true)]]) :=
-  .forget (F₁ := [[(0, true)]]) (F₂ := []) fun σ h => by
-    simp only [List.append_nil, CNF.eval_cons, CNF.eval_nil, Bool.and_true, Clause.eval_cons,
-      Clause.eval_nil, Bool.or_false, Literal.eval_mk, beq_iff_eq] at h
-    simp [Clause.eval, h]
+  .forget (F₁ := [[(0, true)]]) (F₂ := []) fun ρ h => by
+    obtain ⟨l, hl, hρ⟩ := h [(0, true)] (by simp)
+    simp only [List.mem_singleton] at hl
+    subst hl
+    exact ⟨(0, true), by simp, hρ⟩
 
 example : 1 ∉ CNF.vars [[((0 : ℕ), true)]] := by decide
+
+/-! ### Forget uses entailment by partial models -/
+
+-- Every total assignment satisfies the tautology `b ∨ ¬b`, so `a` entails it in the total sense.
+example (σ : ℕ → Bool) : Clause.eval σ [(1, true), (1, false)] = true := by
+  cases h : σ 1 <;> simp [Clause.eval, h]
+
+-- The partial model `{a}` of `a` does not satisfy `b ∨ ¬b`, so `a` does not entail it in the sense
+-- of §2.1.
+private theorem not_pentails_tautology : ¬ PEntails [[(0, true)]] [(1, true), (1, false)] :=
+  fun h => by
+    obtain ⟨l, hl, hρ⟩ := h (fun x => if x = 0 then some true else none)
+      (by simp [PModels, PSat])
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl <;> simp at hρ
+
+-- So Forget cannot remove `b ∨ ¬b` from `a, b ∨ ¬b`. If it could, the final trail `a` of the
+-- remaining database `a` would not be a model of the input in the sense of §2.1: it has no literal
+-- of `b ∨ ¬b`.
+example : ¬ Forget (.run [] [[(0, true)], [(1, true), (1, false)]]) (.run [] [[(0, true)]]) := by
+  intro h
+  generalize hS : (State.run [] [[(0, true)], [(1, true), (1, false)]]) = S at h
+  generalize hS' : (State.run [] [[(0, true)]]) = S' at h
+  obtain ⟨hC⟩ := h
+  rename_i F₁ F₂ C
+  injection hS with _ hS
+  injection hS' with _ hS'
+  rcases F₁ with _ | ⟨c₁, _ | ⟨c₂, F₁⟩⟩
+  · simp only [List.nil_append, List.cons.injEq] at hS hS'
+    obtain ⟨rfl, rfl⟩ := hS
+    simp at hS'
+  · simp only [List.cons_append, List.nil_append, List.cons.injEq] at hS
+    obtain ⟨rfl, rfl, rfl⟩ := hS
+    exact not_pentails_tautology hC
+  · simp at hS'
+
+-- The final trail of `a, ¬a ∨ b` has a literal of every clause.
+example : ∀ c ∈ chain, ∃ l ∈ c, l ∈ Trail.lits [⟨(1, true), false⟩, ⟨(0, true), false⟩] := by
+  decide
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.System

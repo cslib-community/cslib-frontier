@@ -10367,7 +10367,10 @@ register_result "abstract-dpll-learning-termination" where
   ]
   theorems := [Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep]
   scope := "DPLL with learning is Basic DPLL with Learn and Forget (Definition 2.5); clause sets \
-    are lists, so Learn prepends a clause and Forget removes one occurrence. A derivation with no \
+    are lists, so Learn prepends a clause and Forget removes one occurrence. Forget uses the \
+    entailment of §2.1, by partial models; Backjump and Learn use entailment by total \
+    assignments, which the §2.1 entailment implies, so every step of the source is a step here. \
+    A derivation with no \
     infinite subderivation of Learn and Forget steps is a sequence of moves, each finitely many \
     Learn and Forget steps followed by a Basic DPLL step; the theorem is the well-foundedness of \
     these moves from the initial state."
@@ -10382,5 +10385,10 @@ register_result "abstract-dpll-learning-correctness" where
   theorems := [Cslib.Algorithms.Lean.CDCL.final_of_reachable]
   scope := "For a propositional list CNF φ over ℕ and a state reachable from the initial state \
     by DPLL with learning (Basic DPLL, Learn and Forget), if no Basic DPLL step applies then the \
-    state is fail exactly when φ is unsatisfiable, and otherwise the total assignment that makes \
-    the trail's literals true, and the others false, is a model of φ."
+    state is fail exactly when φ is unsatisfiable, and otherwise the trail is a model of φ in the \
+    sense of §2.1: every clause of φ has a literal on the trail. The total assignment that makes \
+    the trail's literals true, and the others false, is then a model as well. Forget uses the \
+    §2.1 entailment, by partial models, which this conclusion needs: with entailment by total \
+    assignments, Forget could remove the tautology b ∨ ¬b from a, b ∨ ¬b and end at the trail a. \
+    Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
+    so every step of the source is a step here."
