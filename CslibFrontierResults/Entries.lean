@@ -197,6 +197,7 @@ import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
+import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
@@ -6009,41 +6010,68 @@ register_result "luby-rackoff-prp" where
     entry."
 
 register_result "pedersen-commitment-hiding" where
-  title := "Pedersen commitments are statistically hiding against unbounded adversaries"
+  title := "Pedersen commitments are uniformly distributed at every non-identity key"
   topic := "cryptography"
   sources := [
     { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence)",
       locator := "Section 3, p. 131" }
   ]
   theorems := [
-    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
+    Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_uniform_of_ne_zero
   ]
   scope := "The first sentence of Theorem 3.1 says that for any s ∈ Z_q and uniform t ∈ Z_q the \
     commitment E(s, t) = g^s h^t is uniform on G_q, the order-q subgroup of Z_p^* for primes \
     q | p − 1 (Section 2, p. 130), where g and h are chosen so that nobody knows log_g h, by a \
     trusted center or a coin-flipping protocol (p. 131); that condition excludes h = 1, where \
-    E(s, t) = g^s. Here the group is any prime-order group family, written additively, so the \
-    commitment is m·g + r·h, and the conclusion is a negligible game advantage, not an equality \
-    of distributions. The game pedersenHidingProbGame draws the group d from an arbitrary setup \
-    law, with no efficiency condition, then the key h = α·g with α from the fair-coin program \
-    sampleExp (pedersenKeyGenProb), and gives the adversary the encoded key (d, h). The \
-    adversary chooses two words and receives the commitment string, without the opening, for \
-    the word selected by the hidden bit, with r drawn by pedersenCommitProb, again by \
-    sampleExp; each draw is within statistical distance 1/2^n of uniform on Z_q. Messages are \
-    canonical binary words of naturals below q, read as elements of Z_q; if either word is not \
-    one, both worlds commit to the first word. This is the hiding experiment of \
-    [BonehShoup2023], Section 8.12 (p. 344), for a scheme with a public key (Section 8.12's \
-    schemes have none), played against every Encryption.WordAdversary with no efficiency \
-    bound, as in unconditional hiding (p. 346). The key h = 0, drawn with probability about \
-    1/q, is the only loss besides 4/2^n of sampling error: advantage_pedersenHidingProbGame_le \
-    bounds the advantage by 1/m + 4/2^n when every group in the setup's support has order at \
-    least m. The theorem therefore asks that every group in the support at parameter n have \
-    order at least m n > 0 with 1/m n negligible, where Pedersen asks only that q be a large \
-    prime. At a fixed key h ≠ 0 the fair-coin bound is 2/2^n \
-    (advantage_pedersenHidingProbForKey_le_of_ne_zero); with exactly uniform r the commitment \
-    is exactly uniform (pedersenCommitLaw_eq_uniform_of_ne_zero, in PedersenCommitment.lean, \
-    not listed because an entry's theorems come from one module). The samplers in the game are \
-    the ones proved correct (pedersenVerify_of_mem_support_pedersenCommitProb) and strict PPT \
+    E(s, t) = g^s. Here the group is F.Carrier d for any prime-order group family F and \
+    description d, of prime order q = F.order d, written additively with generator \
+    g = F.generator d, so the commitment is m·g + r·h. For every key h ≠ 0, the source's h ≠ 1, \
+    and every message m ∈ ZMod q, the law pedersenCommitLaw d h m of m·g + r·h with r exactly \
+    uniform on ZMod q equals the image of a uniform exponent γ under γ ↦ γ·g, which is a \
+    bijection onto the group, so the commitment is uniform on the group. The statement is at a \
+    fixed group and key, with messages in ZMod q as in the source; it involves no adversary and \
+    makes no efficiency claim. uniform_pedersenCommit is the same statement composed with a \
+    continuation, and pedersenCommitLaw_eq_of_ne_zero and pedersen_perfectlyHidingAt derive the \
+    source's reading that E(s, t) reveals no information about s: any two messages have the \
+    same commitment law. The variant for generated keys and the scheme's fair-coin samplers is \
+    pedersen-commitment-hiding-native."
+
+register_result "pedersen-commitment-hiding-native" where
+  title := "Pedersen commitments are statistically hiding with generated keys and fair-coin \
+    sampling"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence), statistical variant",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
+  ]
+  scope := "A statistical variant of the first sentence of Theorem 3.1, whose exact form is \
+    pedersen-commitment-hiding, for keys and commitments drawn by the scheme's own fair-coin \
+    samplers. Pedersen fixes g and h, chosen so that nobody knows log_g h, by a trusted center \
+    or a coin-flipping protocol (p. 131), draws t exactly uniformly and concludes that E(s, t) \
+    is uniform on G_q, the order-q subgroup of Z_p^* (Section 2, p. 130). Here the group is any \
+    prime-order group family, written additively, so the commitment is m·g + r·h, and the \
+    conclusion is a negligible game advantage, not an equality of distributions. The game \
+    pedersenHidingProbGame draws the group d from an arbitrary setup law, with no efficiency \
+    condition, then the key h = α·g with α from the fair-coin program sampleExp \
+    (pedersenKeyGenProb), and gives the adversary the encoded key (d, h). The adversary chooses \
+    two words and receives the commitment string, without the opening, for the word selected by \
+    the hidden bit, with r drawn by pedersenCommitProb, again by sampleExp; each draw is within \
+    statistical distance 1/2^n of uniform on Z_q. Messages are canonical binary words of \
+    naturals below q, read as elements of Z_q; if either word is not one, both worlds commit to \
+    the first word. This is the hiding experiment of [BonehShoup2023], Section 8.12 (p. 344), \
+    for a scheme with a public key (Section 8.12's schemes have none), played against every \
+    Encryption.WordAdversary with no efficiency bound, as in unconditional hiding (p. 346). The \
+    key h = 0, drawn with probability about 1/q, is the only loss besides 4/2^n of sampling \
+    error: advantage_pedersenHidingProbGame_le bounds the advantage by 1/m + 4/2^n when every \
+    group in the setup's support has order at least m. The theorem therefore asks that every \
+    group in the support at parameter n have order at least m n > 0 with 1/m n negligible, \
+    where Pedersen asks only that q be a large prime; it does not apply to groups of bounded \
+    order, which the exact statement covers. At a fixed key h ≠ 0 the fair-coin bound is 2/2^n \
+    (advantage_pedersenHidingProbForKey_le_of_ne_zero). The samplers in the game are the ones \
+    proved correct (pedersenVerify_of_mem_support_pedersenCommitProb) and strict PPT \
     (isPPTOn_pedersenCommitProb, isPPTOn_pedersenKeyGenProb). The result is not stated as \
     CommitmentScheme.StatisticalHiding, whose commitment law takes no security parameter \
     (#6133)."
