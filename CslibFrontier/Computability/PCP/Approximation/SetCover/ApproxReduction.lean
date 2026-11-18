@@ -330,10 +330,7 @@ theorem mem_no_GapWeightedSetCoverFn {r : WeightedSetSystem → ℝ}
 
 @[fun_prop] theorem computableInPolyTime_toWeighted :
     ComputableInPolyTime SetSystem.toWeighted encSetSystem encWeightedSetSystem := by
-  unfold SetSystem.toWeighted
-  apply computableInPolyTime_weightedSetSystemMk (by fun_prop)
-  refine (ComputableInPolyTime.map ?_).comp (by fun_prop)
-  exact computableInPolyTime_weightedSetMk (id') (const 1)
+  fun_prop [SetSystem.toWeighted]
 
 theorem toSetSystem_toWeighted (S : SetSystem) : S.toWeighted.toSetSystem = S := by
   simp only [SetSystem.toWeighted, WeightedSetSystem.toSetSystem, List.map_map]

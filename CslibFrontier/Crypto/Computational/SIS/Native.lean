@@ -174,10 +174,7 @@ theorem subResidues {q : α → ℕ} {a b : α → List ℕ} (hq : ComputableInP
     (hb : ComputableInPolyTime b input (encList encNat)) :
     ComputableInPolyTime (fun x => Cslib.Crypto.subResidues (q x) (a x) (b x)) input
       (encList encNat) := by
-  unfold Cslib.Crypto.subResidues
-  apply mapWithInput ((zip encNat encNat).comp (ha.prod hb))
-  exact intBin_emodNat' (intBin_sub' (intBin_natCast.comp ((fst encNat encNat).comp (snd input _)))
-    (intBin_natCast.comp ((snd encNat encNat).comp (snd input _)))) (hq.comp (fst input _))
+  fun_prop [Cslib.Crypto.subResidues]
 
 /-- The native inner product with a computed unary degree and binary modulus. -/
 @[fun_prop]

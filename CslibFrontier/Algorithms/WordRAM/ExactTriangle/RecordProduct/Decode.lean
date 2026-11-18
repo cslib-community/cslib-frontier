@@ -32,10 +32,8 @@ private theorem logBank_injective : Function.Injective logBank := by
   apply Fin.ext
   simpa only [logBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
 
--- This closed preservation test enumerates the finite relocated register bank.
-set_option maxRecDepth 4096 in
 private theorem log_preserves : ∀ i : Fin 320,
-    i.val < 96 ∨ 100 ≤ i.val → logarithm.Preserves i := by decide
+    i.val < 96 ∨ 100 ≤ i.val → logarithm.Preserves i := by decide +kernel
 
 /-- The computed logarithm is read from the actual existing loop, with no logarithm input
 certificate. Its charge is `8m+5` at a power of four. -/

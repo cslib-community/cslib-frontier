@@ -266,7 +266,6 @@ theorem dens_filter_selected_walkAt_mem_le_of_spectralExpansion_le
     (dens {p : V × (Fin t → D) | ∀ i ∈ S, G.walkAt p i ∈ W} : ℝ) ≤
       ((dens W : ℝ) + (lambda / d) ^ 2) ^ ((S.card : ℝ) / 2) := by
   refine (G.dens_filter_selected_walkAt_mem_le W t S hS).trans ?_
-  have hn := G.spectralExpansion_nonneg
   gcongr
 
 end Cslib.RotationMap

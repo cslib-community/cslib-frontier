@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
 public import CslibFrontier.Foundations.Combinatorics.Expander.Power
 public import Mathlib.Data.Fin.Tuple.Take
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -358,10 +359,9 @@ private theorem glue_take_drop (p : V × (Fin t → D)) (i : Fin t) :
       Fin.append_left, Fin.snoc_last, Fin.ext h]
   · have := j.isLt
     rw [show j.cast (Nat.add_sub_of_le i.isLt).symm =
-        Fin.natAdd (i + 1) ⟨j - (i + 1), by omega⟩ from
-        Fin.ext (by simp only [Fin.val_cast, Fin.val_natAdd]; omega),
+        Fin.natAdd (i + 1) ⟨j - (i + 1), by omega⟩ from by fin_index,
       Fin.append_right, walkDrop_snd_apply]
-    exact congrArg p.2 (Fin.ext (by simp only; omega))
+    exact congrArg p.2 (by fin_index)
 
 /-- **Splitting a walk at its `i`-th step.** A walk `p` of length `t` is determined by its `i`-th
 dart `q`, the labels `r` of the reverse of its first `i` steps, which lead back from the start of

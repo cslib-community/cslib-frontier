@@ -198,7 +198,7 @@ theorem initialPilotNormalized_root_moment_coarse
     truePrep (fun _ _ => 0)
     (fun _ => initialPilotDetector HP D R bin ks kt kb ss st cutoff h C detectorSteps)
     (fun _ _ => 0) (fun _ => initialTrueDetector HP D R ks kt ss st C)
-    P (rate ks) (mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le) (fun _ _ hy => hy)
+    P (rate ks) (by positivity) (fun _ _ hy => hy)
   have hz : rowNormPow 4 P (rate ks)
       (fun σ v => r.source.retains (channels D) σ (id v))
       (fun σ v => r.terminal.retains (channels D) σ (id v)) (fun _ _ _ => (0:ℝ)) = 0 := by
@@ -254,7 +254,7 @@ theorem initialPilotNormalized_root_moment
     truePrep (fun _ _ => 0)
     (fun _ => initialPilotDetector HP D R bin ks kt kb ss st cutoff h C detectorSteps)
     (fun _ _ => 0) (fun _ => initialTrueDetector HP D R ks kt ss st C)
-    P (rate ks) (mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le) (fun _ _ hy => hy)
+    P (rate ks) (by positivity) (fun _ _ hy => hy)
   have hz : rowNormPow 4 P (rate ks)
       (fun σ v => r.source.retains (channels D) σ (id v))
       (fun σ v => r.terminal.retains (channels D) σ (id v)) (fun _ _ _ => (0:ℝ)) = 0 := by
@@ -316,7 +316,7 @@ theorem initialPilotNormalized_raw_detector_moment
     (H4RankEnvironment.Y R.terminal (side P kt) (CopyPadding.identifier D st))
     _ hKc _ (rate_pos kt)
     (initialPilotWalk HP D R bin ks kt kb ss st cutoff h C rawSteps) (fun _ => C)
-    P (rate ks) (mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le)
+    P (rate ks) (by positivity)
   have hprep' : rowNormPow 4 P (rate ks) X Y (fun σ x y =>
       initialPilotPreparation HP D R bin ks kt kb ss st cutoff h C rawSteps σ x y -
         truePrep σ x y) ≤
@@ -366,11 +366,8 @@ theorem initialPilotCorrection_mem_Icc
     initialPilotCorrection HP D R bin ks kt kb ss st cutoff h C rawSteps detectorSteps σ x y ∈
       Set.Icc 0 (rate kt * HP.Q HP.toHierarchyParams.atomCap) := by
   unfold initialPilotCorrection
-  exact ⟨mul_nonneg (mul_nonneg (rate_pos kt).le
-    (HP.toHierarchyParams.atomCutoff_nonneg _)) (HP.γ_nonneg _),
-    (mul_le_of_le_one_right (mul_nonneg (rate_pos kt).le
-      (HP.toHierarchyParams.atomCutoff_nonneg _)) (HP.γ_le_one _)).trans
-      (mul_le_mul_of_nonneg_left (HP.toHierarchyParams.atomCutoff_le _) (rate_pos kt).le)⟩
+  exact ⟨by positivity, (mul_le_of_le_one_right (by positivity) (HP.γ_le_one _)).trans
+    (by gcongr; exact HP.toHierarchyParams.atomCutoff_le _)⟩
 
 /-- Global root constants for the direct pilot constructor are fixed before the
 prime, rates, requests and child functions. Only the scalar source cutoff is clipped. -/
@@ -457,10 +454,9 @@ theorem initialPilotCorrection_root_moment
   let ag := (rate kt) ^ (4⁻¹ : ℝ) * Lg
   let F := fun σ x y => ar * |A σ x y - C x y|
   let G := fun (_ : Environment P J) (_ : ZMod P) y => ag * |d y - t y|
-  have har : 0 ≤ ar := div_nonneg
-    (mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hq) (rate_pos kt).le
-  have hag : 0 ≤ ag := mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hg
-  have hNu : 0 ≤ (P : ℝ) * rate ks := mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le
+  have har : 0 ≤ ar := by positivity
+  have hag : 0 ≤ ag := by positivity
+  have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
   have he (σ : Environment P J) (x y : ZMod P) :
       |initialPilotCorrection HP D R bin ks kt kb ss st cutoff h C rawSteps detectorSteps
         σ x y ^ (4⁻¹ : ℝ) - target σ x y ^ (4⁻¹ : ℝ)| ≤ F σ x y + G σ x y + 0 := by
@@ -531,7 +527,7 @@ theorem initialPilotRaw_allocated
       initialPilotWalk HP D R bin ks kt kb ss st cutoff h C steps σ x y -
         rowSliceMean X Y input x y) ≤ ε ^ 4 := by
   intro X Y input steps
-  have hNu : 0 ≤ (P : ℝ) * rate ks := mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le
+  have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
   have hden : (1:ℝ) < 155648 * (J+1) * (4:ℝ)^4 := by
     have := Nat.cast_nonneg (α := ℝ) J; nlinarith
   have hr : 0 < 1 - 1 / (155648 * (J+1) * (4:ℝ)^4) :=

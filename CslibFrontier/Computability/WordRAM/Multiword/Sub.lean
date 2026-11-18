@@ -139,10 +139,6 @@ theorem size_digits (bs ds : List (Fin (r + 4))) (hlen : bs.length = ds.length) 
       simp only [digits, Code.size, cell, ih ds hlen, List.length_cons]
       omega
 
-private theorem value_cons (β : ℕ) (x : Data (r + 4)) (d : Fin (r + 4))
-    (ds : List (Fin (r + 4))) :
-    value β x (d :: ds) = x.regs d + β * value β x ds := rfl
-
 /-- Execute an entire subtraction, retaining a possible final borrow. Source digits and
 all registers outside the destinations and arithmetic workspaces are preserved. -/
 theorem exec_digits {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))

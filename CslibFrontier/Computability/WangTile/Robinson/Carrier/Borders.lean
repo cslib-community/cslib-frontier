@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 public import CslibFrontier.Computability.WangTile.Robinson.Carrier.BorderCertificates
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Nat.Periodic
 
 /-!
@@ -828,12 +829,8 @@ private theorem arithmeticState_succ (level x y : ℕ) (i j : Fin 4) :
   unfold arithmeticState BorderState.refine
   simp only [node]
   congr 1
-  · apply Fin.ext
-    change (4 * x + i.val) % 2 = i.val % 2
-    omega
-  · apply Fin.ext
-    change (4 * y + j.val) % 2 = j.val % 2
-    omega
+  · fin_index
+  · fin_index
   · apply congrArg₂ BorderHalo.mk
     · funext a b
       simpa only [frameBorder_zero] using

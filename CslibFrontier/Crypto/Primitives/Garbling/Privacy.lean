@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Languages.Probabilistic.Oracle.Tabulate
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Crypto.Game.Hybrid
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.Uniform
@@ -428,8 +429,7 @@ theorem eval_run_reduction (C : Circuit σ n m) (I : Interpretation σ Bool)
         (PMF.uniformOfFintype (Wire n C.size → Bool)).bind fun perm =>
           (PMF.uniformOfFintype (Row C.topology → K × Bool)).bind fun R =>
             ProbComp.eval (D (hybridView C I F tw x j key perm R fun p => f (tw p))) := by
-  simp only [ProbOracleComp.run, reduction, OracleComp.interpret_bind,
-    ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin, ProbOracleComp.interpret_tabulate,
+  simp only [ProbOracleComp.run, reduction, interp_norm, ProbOracleComp.interpret_tabulate,
     pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, Finset.mem_toList, Finset.mem_univ,
     ite_true]
 

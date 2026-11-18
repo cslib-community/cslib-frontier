@@ -92,8 +92,6 @@ theorem Op.IsBinary.eq_or_eq {op : Op} (h : op.IsBinary) {s t : Fin (signature.A
   have hs := h.val_lt_two s
   have ht := h.val_lt_two t
   have hu := h.val_lt_two u
-  rw [Ne, Fin.ext_iff] at hst
-  rw [Fin.ext_iff, Fin.ext_iff]
   omega
 
 /-- The cost function charging one for each AND and OR gate and nothing for negations and

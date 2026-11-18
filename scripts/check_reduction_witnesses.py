@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Keep explicit security reductions from lacking an efficiency witness (#5293).
+"""Point a reviewer at explicit security reductions that have no efficiency certificate (#5293).
 
 Usage: python3 scripts/check_reduction_witnesses.py [--base REF | --all | --report]
-           [--list [PREFIX]] [--update-baseline] [--no-build-check] [--baseline FILE]
+           [--list [PREFIX]] [--advisory] [--update-baseline] [--no-build-check]
+           [--baseline FILE]
 
-This checks the rule "Security theorems" in AGENTS.md: each reduction is an explicit program with
-an efficiency witness proved from the adversary's certificate, an `isPPT_…` or `isOraclePPT_…`
-lemma or the model's certificate. `scripts/check_security_premises.py` catches a theorem that
-assumes the reduction's efficiency; this check catches a reduction that has no certificate at
-all, so that no asymptotic theorem can apply a hardness assumption to it.
+This is an advisory search for the rule "Security theorems" in AGENTS.md: each reduction is an
+explicit program with an efficiency witness proved from the adversary's certificate, an `isPPT_…`
+or `isOraclePPT_…` lemma or the model's certificate. On a pull request it prints what it finds in
+the changed modules and does not fail. `scripts/check_security_premises.py` finds a theorem that
+assumes the reduction's efficiency; this scan finds a reduction that has no certificate at all.
+A hardness assumption stated for a fixed efficient adversary class cannot be applied to such a
+reduction, because Lean asks for the certificate there, so an uncertified reduction is a place to
+look and not by itself a defect.
 
 `scripts/SecurityPremises.lean --reductions` reads the built `.olean` files of the library, with
 CSLib's as context, so it sees elaborated statements. A *reduction* is a definition under
@@ -24,14 +28,15 @@ certified when it is an `abbrev` of certified reductions, or when a certified de
 it (the word-level program that runs it). The Lean file's docstring gives the exact rules and the
 known gaps.
 
-`scripts/reduction_witnesses_baseline.json` records the uncertified reductions that are allowed,
+`scripts/reduction_witnesses_baseline.json` records the uncertified reductions that are known,
 one per line, as `{reduction: {"module": source path, "kind": "gap" | "via_certified_program" |
-"exempt", "why": justification}}`. A `gap` is a reduction that still needs its witness; its `why`
-names the issue that tracks it. An `exempt` entry needs none, and its `why` says which case it is:
-the bound is information-theoretic (it holds for unbounded adversaries and no computational
-theorem applies an assumption to the reduction), or the definition is not a reduction, such as a
-scheme or protocol built from a component, which the checker cannot tell apart. Every entry needs
-a one-line justification.
+"exempt", "why": note}}`. A `gap` is a reduction without a witness; its `why` names the issue
+that tracks it. An `exempt` entry needs none, and its `why` says which case it is: the bound is
+information-theoretic (it holds for unbounded adversaries and no computational theorem applies an
+assumption to the reduction), or the definition is not a reduction, such as a scheme or protocol
+built from a component, which the checker cannot tell apart. An entry is a note that the item is
+known, so that the report does not repeat it. It is not a clearance, the number of entries of a
+kind does not measure progress, and moving an entry from one kind to another proves nothing.
 
 A `via_certified_program` entry records a typed reduction, often a per-instance step, that a
 certified program runs. Between `kind` and `why` it names four declarations: `"program"` X, the
@@ -95,27 +100,37 @@ reduction at the instance that the equality covers; review does. `--update-basel
 entries for the unrecorded uncertified definitions and keeps the recorded ones. The summary prints
 the gap, via, instance-scoped via and exempt counts separately.
 
-In a module that the change touches (adds, modifies or deletes, against the merge base of
-`--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
-computes it), an uncertified reduction without an entry fails, and so does an entry that no
-longer matches an uncertified reduction, until the baseline drops it in the same change: the
-baseline only shrinks unless a change adds an entry on purpose. A reduction belongs to the module
-that defines it and to the modules of the theorems that state bounds with it. A change that adds
-or modifies the checker or the baseline enforces every module. Differences in other modules are
-printed as a notice but do not fail: a change can cause them without touching those modules, for
-example by deleting a witness. Pull requests run this mode. `--all` enforces every module.
-`--report` prints every difference and always succeeds; merge groups and pushes to `main` run it,
-so that a queued pull request is never ejected by a change elsewhere. `--list [PREFIX]` ignores
-the baseline and prints every reduction defined in the modules under the path PREFIX with its
-certificate. `--update-baseline` adds `gap` entries with an empty justification for the
-unrecorded uncertified reductions of the enforced modules and removes their stale entries; fill
-in each `why`, or the check fails. It never writes a `via_certified_program` entry; turn a `gap`
-into one by hand.
+The modules that a change touches are those it adds, modifies or deletes, against the merge base
+of `--base` (default `origin/main`) and the working tree, as `scripts/check_changed_files.py`
+computes them. A reduction belongs to the module that defines it and to the modules of the
+theorems that state bounds with it. A change that adds or modifies the checker or the baseline
+covers every module.
+
+Pull requests run `--base REF --advisory`. It prints the differences from the baseline in the
+touched modules (an uncertified reduction without an entry, an entry that no longer matches an
+uncertified reduction, an entry without a `why`, a `via_certified_program` entry that the Lean
+pass does not verify), emits a GitHub `::notice` when running in Actions, and succeeds. So where
+the paragraphs above say that the pass or this checker fails, it reports a difference, which
+fails only under the enforcement below. A difference is a prompt for the reviewer to look, not a
+failure. The scan still fails when it cannot run or the baseline is malformed, because that is a
+broken tool and not a finding. `--report` prints every difference in every module and always
+succeeds; merge groups and pushes to `main` run it.
+
+Without `--advisory`, `--base` and `--all` enforce, which CI no longer does and which remains for
+local use: a difference in a touched module (`--all`: in any module) fails, and differences in
+other modules are printed but do not fail, since a change can cause them without touching those
+modules, for example by deleting a witness.
+
+`--list [PREFIX]` ignores the baseline and prints every reduction defined in the modules under
+the path PREFIX with its certificate. `--update-baseline` adds `gap` entries with an empty `why`
+for the unrecorded uncertified reductions of the touched modules and removes their stale entries;
+fill in each `why`, which the checker's unit tests require of the committed baseline. It never
+writes a `via_certified_program` entry.
 
 This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
 ones unless `--no-build-check` is given.
 
-The check supplements review: a clean run is not evidence that a reduction is efficient in the
+The scan supplements review: a clean run is not evidence that a reduction is efficient in the
 sense its theorem needs. A witness is recognized by the constants its conclusion mentions, so
 the check does not judge whether the witness assumes only the adversary's certificate, covers the
 oracles the reduction simulates, or is the one the asymptotic theorem uses. It does not see a
@@ -143,7 +158,7 @@ import check_security_premises as csp  # noqa: E402
 import lean_outputs as lo  # noqa: E402
 
 BASELINE = ROOT / "scripts/reduction_witnesses_baseline.json"
-# A change to the checker or its baseline enforces every module, so that its own CI run sees
+# A change to the checker or its baseline covers every module, so that its own CI run shows
 # whether the whole library still matches.
 CHECKER_FILES = frozenset({csp.TOOL, "scripts/check_reduction_witnesses.py",
                            "scripts/reduction_witnesses_baseline.json"})
@@ -423,10 +438,17 @@ def describe(r: Reduction) -> list[str]:
     return [f"  {r.path}:{r.line}: {r.name}", f"    bound stated by {shown}{more}"]
 
 
-def report(problems: Problems) -> str:
+def report(problems: Problems, advisory: bool = False) -> str:
+    """The differences as text: as failures to fix, or with `advisory` as prompts for a reviewer."""
     out = []
     if problems.new:
-        out += ["Explicit reductions without an efficiency witness. Each reduction needs a "
+        out += ["Explicit reductions without an efficiency witness, which the baseline does not "
+                f"record ({RULE}). Each is a prompt to look, not a failure: check whether an "
+                "asymptotic theorem applies a hardness assumption through the reduction, which "
+                "needs a certificate for it or for a program that runs it (`isPPT_…`, "
+                "`isOraclePPT_…`). An information-theoretic bound, or a definition that is not a "
+                f"reduction, needs none. `{UPDATE}` records an item as known." if advisory else
+                "Explicit reductions without an efficiency witness. Each reduction needs a "
                 f"certificate proved from the adversary's ({RULE}): prove `isPPT_…` or "
                 "`isOraclePPT_…` for it (as `isPPT_elGamalMsgToDDHDistinguisher` does), or for the "
                 "word-level program that runs it, and apply the hardness assumption through that "
@@ -438,6 +460,8 @@ def report(problems: Problems) -> str:
             out += describe(r)
     if problems.stale:
         out += ([""] if out else []) + [
+            f"Baseline entries that no longer match an uncertified reduction (`{UPDATE}` drops "
+            "them):" if advisory else
             "Baseline entries that no longer match an uncertified reduction; remove or update "
             f"them in the same change (`{UPDATE}`):"]
         out += [f"  {entry['module']}: {name} ({reason})" for name, entry, reason in problems.stale]
@@ -446,6 +470,7 @@ def report(problems: Problems) -> str:
         out += [f"  {name}" for name in problems.unjustified]
     if problems.invalid:
         out += ([""] if out else []) + [
+            f"`{VIA}` entries that the Lean pass does not verify:" if advisory else
             f"`{VIA}` entries that the Lean pass does not verify. Fix the entry, or make it a "
             "`gap` until the certified program, its certificate, an equation between the "
             "program's law and the reduction's, and a headline that consumes the program all "
@@ -530,22 +555,26 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument("--base", default="origin/main",
-                       help="enforce in the modules changed since the merge base with this "
-                            "revision (default origin/main)")
-    scope.add_argument("--all", action="store_true", help="enforce in every module")
+                       help="check the modules changed since the merge base with this revision "
+                            "(default origin/main)")
+    scope.add_argument("--all", action="store_true", help="check every module")
     scope.add_argument("--report", action="store_true",
                        help="report every difference from the baseline and succeed")
     scope.add_argument("--list", nargs="?", const="", metavar="PREFIX",
                        help="ignore the baseline and list every reduction defined in the modules "
                             "under the path PREFIX with its certificate; always succeeds")
+    parser.add_argument("--advisory", action="store_true",
+                        help="print the differences in the checked modules as prompts for a "
+                             "reviewer and succeed, instead of failing on them; pull requests "
+                             "run `--base REF --advisory`")
     parser.add_argument("--update-baseline", action="store_true",
-                        help="record the uncertified reductions of the enforced modules")
+                        help="record the uncertified reductions of the checked modules")
     parser.add_argument("--no-build-check", action="store_true",
                         help="do not check that the build outputs are current")
     parser.add_argument("--baseline", type=Path, default=BASELINE)
     args = parser.parse_args(argv)
-    if (args.report or args.list is not None) and args.update_baseline:
-        parser.error("--report and --list do not combine with --update-baseline")
+    if (args.report or args.advisory or args.list is not None) and args.update_baseline:
+        parser.error("--report, --advisory and --list do not combine with --update-baseline")
     if not args.no_build_check and not lo.lake_outputs_current(("CslibFrontier",)):
         sys.exit("build outputs are missing or stale; run `lake build CslibFrontier` "
                  "(or pass --no-build-check)")
@@ -559,7 +588,7 @@ def main(argv: list[str] | None = None) -> int:
     if not whole and checker_changed(ROOT, args.base):
         whole = True
         print("This change edits the reduction-witness checker or its baseline, so every module "
-              "is enforced.")
+              f"is {'reported' if args.advisory else 'enforced'}.")
     paths = None if whole else cer.touched_modules(ROOT, args.base)
     scope_text = "every module" if whole else f"{len(paths)} changed module(s)"
     if args.update_baseline:
@@ -573,7 +602,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = status(reductions, baseline, scope_text)
     if args.report:
         if problems:
-            print(report(problems) + "\n")
+            print(report(problems, advisory=True) + "\n")
         vias = via_listing(baseline, checks)
         if vias:
             print(vias + "\n")
@@ -581,6 +610,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     elsewhere = (outside(compare(reductions, baseline, None, checks), problems)
                  if paths is not None else None)
+    if args.advisory:
+        if problems:
+            print(report(problems, advisory=True) + "\n")
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                count = (len(problems.new) + len(problems.stale) + len(problems.unjustified)
+                         + len(problems.invalid))
+                print(f"::notice title=Reduction witnesses (advisory)::{count} difference(s) "
+                      "from the baseline in the modules this change touches, for the reviewer "
+                      "to open; see the step log. Nothing is enforced.")
+        more = (len(elsewhere.new) + len(elsewhere.stale) + len(elsewhere.unjustified)
+                + len(elsewhere.invalid) if elsewhere else 0)
+        print(f"{summary}; advisory, nothing is enforced."
+              + (f" {more} more difference(s) in modules this change does not touch; `--report` "
+                 "lists them." if more else ""))
+        return 0
     if elsewhere:
         print("Not enforced: differences from the baseline in modules this change does not touch. "
               "They fail the next change to those modules. A change can cause them without "
