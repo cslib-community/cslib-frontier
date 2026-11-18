@@ -292,7 +292,7 @@ example (F : PrimeOrderGroupFamily) (k : ℕ × F.Desc → ℕ) :
             (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
         (fun i => (k i : ENNReal) * (1 / 2 ^ i.1))) :=
   ⟨⟨F.efficientSpecialSoundness_orProof_schnorr⟩,
-   ⟨F.efficientSpecialHVZK_parallelRepetition_schnorr k⟩⟩
+   ⟨F.efficientSpecialHVZK_parallelRepetition_schnorr_ideal k⟩⟩
 
 /-- Concrete evaluation of `orExtractWord` via `extractorRealizedBy_orExtractWord`: when the first
 side's challenge words differ, it outputs `encSum encBool encBool (.inl true)`; when they agree, it
