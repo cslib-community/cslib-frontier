@@ -61,7 +61,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 
 | Chapter | Exercises | T rows | C rows | S items | Owned or claimed T work |
 |---|---|---|---|---|---|
-| 2 | 36 | 21 | 16 | 0 | — |
+| 2 | 36 | 20 | 17 | 0 | — |
 | 5 | 30 | 27 | 6 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
 | 6 | 39 | 28 | 17 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
 | 7 | 24 | 19 | 7 | 1 | — |
@@ -76,6 +76,9 @@ now C; 10.6 is unchanged. Chapter 6 totals are recounted from its current rows.
 The 2026-11-18 gapCSP update ([#6361](https://github.com/cslib-community/cslib-frontier/issues/6361)) moves 9.24 and 9.25 from T to C; the Chapter 9 totals are recounted from its rows.
 
 The 2026-11-17 integer-programming update moves 2.23 from T to C.
+
+The 2026-11-18 `PF ⊄ PC` update moves 2.1 from T to C; the Chapter 2 totals are recounted from its
+rows.
 
 The 2026-11-17 modular square-root and non-negative permanent updates move 6.16(1–3) and 6.25
 from T to C; the Chapter 6 totals are recounted from its rows.
@@ -139,13 +142,14 @@ PDF 139). Subparts used below: 2.5(1–3 + "iff trivial"), 2.13(1) with its "har
 3-colorability, 2.13(2), 2.14(1–2), 2.28 (two claims), 2.33(1–2), 2.36(1–3).
 Snapshot: `07891ebd4` (`origin/main`, 2026-11-13), CSLib pin `ee99dd30`. Model conventions follow the
 Chapter 2 section of open audit PR #4777: `PC` = `FNP` (balanced, polynomially decidable),
-`PF` search = `FPSearch` (with correct `none` on empty solution sets), Karp = `PolyTimeReducible`,
+`PF ∩ PC` search = `FPSearch` (with correct `none` on empty solution sets; unrestricted `PF`, as in
+Exercise 2.1, is spelled out where needed), Karp = `PolyTimeReducible`,
 Cook (decision) = `PolyTimeTuringReducible` / `PWithOracle`, Levin = `LevinReduction` (which also
 carries a forward witness map). Names are in `Cslib.Complexity` unless qualified otherwise.
 
 | Exercise | Printed / PDF page | Class | Endpoint and disposition |
 |---|---|---|---|
-| 2.1 | 105 / 130 | **T** | PF ⊄ PC: there is a relation $R$ solvable in polynomial time (a poly-time $A$ with $A(x)\in R(x)$ whenever $R(x)\neq\emptyset$ and $A(x)=\bot$ otherwise) that is not in PC. Guideline witness: $R=\{(x,1)\}\cup\{(x,0):x\in S\}$, $S$ undecidable. Not located: the library's `FPSearch` is defined as a subset of `FNP` (`FPSearch_subset_FNP` in [TFNP.lean](../CslibFrontier/Computability/Complexity/Classes/TFNP.lean)), so there is no unrestricted PF class to separate. Main text cites it (printed 59/60). |
+| 2.1 | 105 / 130 | **C** | PF ⊄ PC: there is a relation $R$ solvable in polynomial time (a poly-time $A$ with $A(x)\in R(x)$ whenever $R(x)\neq\emptyset$ and $A(x)=\bot$ otherwise) that is not in PC. Covered: `exists_polyTimeSolvable_not_mem_FNP` in [TFNP/Uncheckable.lean](../CslibFrontier/Computability/Complexity/Classes/TFNP/Uncheckable.lean). The library's `FPSearch` is `PF ∩ PC` (it asks for `FNP` membership), so `PF` membership of the witness is spelled out: solutions of length at most a polynomial in $\|x\|$, and a polynomial-time `SolvesSearch` solver with `encOption encBits` output; instances are words (`encBits`). Witness: the guideline's `membershipSearch S` $=\{(x,1)\}\cup\{(x,0):x\in S\}$ for the undecidable `selfHaltingProblem`, solved by the constant algorithm; `mem_P_of_membershipSearch_mem_FNP` shows that a polynomial-time checker would decide $S$. [Checked clients](../CslibFrontierTests/UncheckableSearch.lean). Main text cites it (printed 59/60). Registered as `goldreich-pf-not-subset-pc`. |
 | 2.4 | 105–106 / 130–131 | **T** | Normal form for Def. 2.7: if $S$ is accepted by a nondeterministic machine of time $t$, it is accepted by one of time $O(t)$ whose transition relation maps every (symbol, state) pair to exactly two triples. Not located: `mem_NP_iff_decidableInPolyTime` in [Nondeterministic.lean](../CslibFrontier/Computability/Complexity/Classes/NP/Nondeterministic.lean) encodes arbitrary finite branching by coins and does not provide an exactly-binary NTM normal form. Main text uses it as a w.l.o.g. remark (printed 62). |
 | 2.5 | 106 / 131 | **T** | Cook reductions: (1) $\Pi\le_C\Pi'$ and $\Pi'$ poly-time solvable ⇒ $\Pi$ poly-time solvable; (2) transitivity; (3) poly-time $\Pi$ reduces to every $\Pi'$; and $\Pi$ poly-time iff Cook-reducible to $\emptyset$. Here $\Pi,\Pi'$ range over search **and** decision problems. Partial: for decision problems with word-language oracles, `PolyTimeTuringReducible.mem_P`, `PolyTimeTuringReducible.trans` in [Turing.lean](../CslibFrontier/Computability/Complexity/Reduction/Turing.lean), `P_subset_PWithOracle` in [Oracle.lean](../CslibFrontier/Computability/Complexity/Classes/Oracle.lean) and `PWithOracle_eq_P` in [PolyTime.lean](../CslibFrontier/Computability/Complexity/Classes/Oracle/PolyTime.lean) give all four items (the "trivial problem" item via $\emptyset\in P$). Remaining: the same for search problems (Option-valued solvers relative to a relation/search oracle); `ComputableInPolyTimeWithOracle.of_mem_PWithOracle` substitutes only Boolean oracles. |
 | 2.6 | 106 / 131 | **C** | Karp and Levin reductions are transitive. Covered: `PolyTimeReducible.trans` in [Reduction.lean](../CslibFrontier/Computability/Complexity/Reduction.lean); `LevinReduction.trans` in [Levin.lean](../CslibFrontier/Computability/Complexity/Reduction/Levin.lean). The library's Levin reduction carries the extra forward witness map (Exercise 2.28 form); the backward-only Def. 2.12 version is not a separate structure, but its transitivity is the same composition. |
