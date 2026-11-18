@@ -248,9 +248,11 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
     if halfByte < 15 then some ((2 : ZMod 8380417) - ↑(halfByte % 5)) else none
   else if halfByte < 9 then some (4 - (halfByte : ZMod 8380417)) else none
 
+private def nonceSuffix (i : ℕ) : FixedBytes 2 := ![Fin.ofNat 256 i, Fin.ofNat 256 (i / 256)]
+
 /-- Algorithms 33 and 34 append the two-byte little-endian counter to the 64-byte seed. -/
 def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
-  seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
+  seed ++ [nonceSuffix nonce 0, nonceSuffix nonce 1]
 
 /-- An Algorithm 34 mask row has a 64-byte seed and two counter bytes. It cannot alias
 the SHAKE input at the 32-, 48-, or 64-byte digest consumed by Algorithm 29. -/
@@ -480,6 +482,30 @@ def Xofs.keyGen (H : Xofs) (s : Level) (seed : FixedBytes 32) : Option KeyPair :
     fun i j => ((power2Round 8380417 13 (t i j)).2 : ZMod 8380417)⟩
   return ⟨pk, sk.encode⟩
 
+/-- Algorithm 6 gives the same keys or failure when the matrix stream, key expansion,
+66-byte secret-vector nonce reads and encoded-public-key hash reads agree. -/
+theorem Xofs.keyGen_congr_of_reads {H G : Xofs} (s : Level) (seed : FixedBytes 32)
+    (matrixStream : G.h128 = H.h128) (seedRead : G.expandKeySeed s seed = H.expandKeySeed s seed)
+    (nonceRead : ∀ x : List Byte, x.length = 66 → G.h256.readBytes x 481 = H.h256.readBytes x 481)
+    (publicRead : ∀ x : List Byte, x.length = 32 + 320 * s.params.k →
+      G.h256.readBytes x 64 = H.h256.readBytes x 64) : G.keyGen s seed = H.keyGen s seed := by
+  let ex := H.expandKeySeed s seed
+  have len : ex.length = 128 := H.h256.length_read ..
+  have matrix : G.expandA s (ex.take 32) = H.expandA s (ex.take 32) := by
+    simp only [Xofs.expandA, matrixStream]
+    rfl
+  have short (i : ℕ) : G.secretPoly s ((ex.drop 32).take 64) i =
+      H.secretPoly s ((ex.drop 32).take 64) i := by
+    unfold Xofs.secretPoly
+    rw [nonceRead _ (by simp [nonceInput, len])]
+  have pk (v : Fin s.params.k → Poly) :
+      G.h256.readBytes (encodePublic s (ex.take 32) v) 64 =
+        H.h256.readBytes (encodePublic s (ex.take 32) v) 64 := by
+    apply publicRead
+    simp only [encodePublic, List.length_append, List.length_take, len, length_packCoeffs]
+    rfl
+  simp only [Xofs.keyGen, seedRead, ← show ex = H.expandKeySeed s seed from rfl, matrix, short, pk]
+
 /-- The seed recovered from a successful public key is precisely the prefix used to index
 the SHAKE128 matrix streams during this execution of Algorithm 6. -/
 theorem publicSeed_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : KeyPair}
@@ -504,45 +530,33 @@ theorem Xofs.keyGen_congr_off_digest {H K : Xofs} (s : Level) (seed : FixedBytes
     apply agree
     rw [Keccak.length_bytesToBitsLE]
     omega
-  have init : K.h256.readBytes (seed.toList ++ [Fin.ofNat 256 s.params.k,
-      Fin.ofNat 256 s.params.ℓ]) 128 = H.h256.readBytes
-      (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 := by
-    apply raw
+  apply Xofs.keyGen_congr_of_reads s seed ha
+  · apply raw
     simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
     cases s <;> decide
-  have matrix := Xofs.expandA_congr ha s
-  unfold Xofs.keyGen Xofs.expandKeySeed
-  rw [init]
-  generalize h : H.h256.readBytes
-    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded
-  have len : expanded.length = 128 := by rw [← h]; exact H.h256.length_read ..
-  have secret (i : ℕ) : K.secretPoly s ((expanded.drop 32).take 64) i =
-      H.secretPoly s ((expanded.drop 32).take 64) i := by
-    unfold Xofs.secretPoly
-    rw [raw]
-    simp only [nonceInput, List.length_append, List.length_cons, List.length_nil, List.length_take,
-      List.length_drop, len]
-    cases s <;> decide
-  have pub (t : Fin s.params.k → Poly) :
-      K.h256.readBytes (encodePublic s (expanded.take 32) t) 64 =
-        H.h256.readBytes (encodePublic s (expanded.take 32) t) 64 := by
+  · intro x hx
     apply raw
-    simp only [encodePublic, List.length_append, List.length_take, len, length_packCoeffs]
+    rw [hx]
     cases s <;> decide
-  simp only [matrix, secret, pub]
+  · intro x hx
+    apply raw
+    rw [hx]
+    cases s <;> decide
 
 /-- FIPS 202 specialization of `Xofs.keyGen`. -/
 abbrev keyGen := Xofs.keyGen Xofs.shake
 
-/-- A generated private key decodes to the same matrix seed, short vectors, public-key hash,
-and rounded low part that generated its public key. -/
+/-- A generated private key decodes to the same matrix seed, last 32 key-expansion bytes,
+short vectors, public-key hash and rounded low part used by Algorithm 6. -/
 theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : KeyPair}
     (hg : H.keyGen s seed = some keys) :
-    ∃ (rho : FixedBytes 32) (sk : MLDSA.SecretKey s.params) (key : List Byte),
+    ∃ (rho : FixedBytes 32) (sk : MLDSA.SecretKey s.params),
       H.expandA s rho.toList = some sk.A ∧
       keys.publicKey = encodePublic s rho.toList sk.publicKey.t ∧
-      decodePrivate s keys.secretKey = some ⟨rho.toList, key, H.h256.readBytes keys.publicKey 64,
+      decodePrivate s keys.secretKey = some ⟨rho.toList, (H.expandKeySeed s seed).drop 96,
+        H.h256.readBytes keys.publicKey 64,
         sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩ ∧
+      (∀ i j, |(sk.s₁ i j).valMinAbs| ≤ s.params.η) ∧
       (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
   unfold Xofs.keyGen Xofs.expandKeySeed at hg
   generalize hh : H.h256.readBytes
@@ -576,9 +590,10 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
         simp only [ha, h₁, h₂, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
           materialized, Option.some.injEq, ht] at hg
         subst keys
-        refine ⟨rho, sk, expanded.drop 96, hrho ▸ ha, ?_, ?_, sb⟩
+        refine ⟨rho, sk, hrho ▸ ha, ?_, ?_, sa, sb⟩
         · rw [hrho]
         · rw [hrho]
+          simp only [Xofs.expandKeySeed, hh]
           apply decodePrivate_encode
           · exact hr
           · simp [hex]

@@ -50,7 +50,7 @@ private theorem repeatedRequest_budget (q : SigningQuery) :
 -- The genuine two-call program needs only the two presampled hedges even with its device calls.
 example (q : SigningQuery) (H : Xofs) (s : Level) (keys : KeyPair) :
     (PMF.uniformOfFintype (Fin 2 → FixedBytes 32)).bind (fun t =>
-      (repeatedRequest q).transcriptWithHedges H s keys (List.ofFn t)) =
+      (repeatedRequest q).transcriptWithHedges H H s keys (List.ofFn t)) =
       (repeatedRequest q).transcript H s keys :=
   (repeatedRequest q).uniform_transcriptWithHedges H s keys (repeatedRequest_budget q)
 

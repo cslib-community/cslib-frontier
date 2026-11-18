@@ -53,6 +53,15 @@ theorem length_occurrences_probeBody (F : CSP Rel V) (ports : List V) :
   simp only [occurrences_probeBody, List.length_append, List.length_map,
     List.length_zipIdx, List.length_reverse]
 
+/-- A checked boundary table has exactly the body darts followed by the actual probe darts.
+This counts boundary positions, including unused names, and retains closed/nullary bodies. -/
+theorem Witness.length_certificate {F : CSP Rel V} {ports : List V}
+    (w : Witness F ports) :
+    w.certificate.successor.length = 2 * (F.occurrences.length + ports.length) := by
+  have h := RotationCertificate.length_of_verifyRotation
+    (((verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted).choose)
+  simpa only [incidenceGraph_edges, List.length_map, length_occurrences_probeBody] using h
+
 /-- A source occurrence belongs to the body prefix exactly when its constraint position
 precedes the structural probe center. This concerns positions, not distinct scope records. -/
 theorem incidenceEdgeIndex_probeBody_lt_iff (F : CSP Rel V) (ports : List V)

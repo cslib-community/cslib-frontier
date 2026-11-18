@@ -132,16 +132,21 @@ theorem byteAt_withPrefixes (H : ExtendableOutput) (f : List Bool → Option (Li
         List.take_of_length_le (by lia : row.length ≤ i + 1), List.getElem_append_right le,
         List.getElem_drop, Nat.add_sub_of_le le]
 
+/-- The first `n` bytes at one input determine its `n`-byte read. -/
+theorem read_eq_of_byteAt_eq {H G : ExtendableOutput} {x : List Bool} {n : ℕ}
+    (same : ∀ i < n, H.byteAt x i = G.byteAt x i) : H.read x n = G.read x n := by
+  apply List.ext_getElem
+  · rw [H.length_read, G.length_read]
+  · intro i hi _
+    have h : i < n := hi.trans_le (H.length_read ..).le
+    rw [getElem_read H x h, getElem_read G x h, same i h]
+
 /-- Two XOFs agree on all finite reads if their individual bytes agree. -/
 theorem ext_byteAt {H G : ExtendableOutput}
     (same : ∀ x i, byteAt H x i = byteAt G x i) : H = G := by
   have hr : H.read = G.read := by
     funext x n
-    apply List.ext_getElem
-    · rw [H.length_read, G.length_read]
-    · intro i hi _
-      have h : i < n := hi.trans_le (H.length_read ..).le
-      rw [getElem_read H x h, getElem_read G x h, same]
+    exact read_eq_of_byteAt_eq fun i _ => same x i
   cases H
   cases G
   congr
