@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Handler
 import CslibFrontier.Probability.PMF.Uniform
@@ -29,62 +30,6 @@ public section
 namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability Cslib.Quantum
-
-namespace Xofs
-
-/-- Encode a raw word of at most `a` bits in the coherent address register. The first bit
-selects SHAKE256 when set and SHAKE128 otherwise. Leading zero padding and a one-bit delimiter
-preserve the input length, including empty inputs and inputs starting with zero. -/
-def queryAddress (a : ℕ) (strength : Bool) (x : List Bool) (_ : x.length ≤ a) :
-    BitString (a + 2) :=
-  Fin.cons strength (BitString.ofList (a + 1) (List.replicate (a - x.length) false ++ true :: x))
-
-private def unpad : List Bool → Option (List Bool)
-  | [] => none
-  | true :: x => some x
-  | false :: x => unpad x
-
-private theorem unpad_word (k : ℕ) (x : List Bool) :
-    unpad (List.replicate k false ++ true :: x) = some x := by
-  induction k with
-  | zero => rfl
-  | succ k ih => simpa only [List.replicate_succ, List.cons_append, unpad] using ih
-
-/-- The XOR oracle's output bits in FIPS 202 least-significant-bit-first order.
-An address without a delimiter has the all-zero response. -/
-def queryTable (H : Xofs) (a bytes : ℕ) (address : BitString (a + 2)) : BitString (8 * bytes) :=
-  match unpad (List.ofFn (fun i : Fin (a + 1) => address i.succ)) with
-  | none => 0
-  | some x => BitString.ofList (8 * bytes)
-      (Keccak.bytesToBitsLE ((if address 0 then H.h256 else H.h128).read x bytes))
-
-/-- A coherent query at each encodable raw word reads the very stream used by FIPS, at
-the full device response length. Shorter reads use its prefix. -/
-theorem queryTable_queryAddress (H : Xofs) (a bytes : ℕ) (strength : Bool) (x : List Bool)
-    (hx : x.length ≤ a) :
-    List.ofFn (H.queryTable a bytes (queryAddress a strength x hx)) =
-      Keccak.bytesToBitsLE ((if strength then H.h256 else H.h128).read x bytes) := by
-  have len : (List.replicate (a - x.length) false ++ true :: x).length = a + 1 := by
-    simp only [List.length_append, List.length_replicate, List.length_cons]
-    lia
-  simp only [queryTable, queryAddress, Fin.cons_succ, BitString.ofFn_ofList len, unpad_word,
-    Fin.cons_zero]
-  apply BitString.ofFn_ofList
-  let stream := if strength then H.h256 else H.h128
-  change (Keccak.bytesToBitsLE (stream.read x bytes)).length = 8 * bytes
-  have lenRead := stream.length_read x bytes
-  simp [Keccak.bytesToBitsLE, Keccak.byteBitsLE, lenRead, Nat.mul_comm]
-
-/-- Sample one finite prefix table for both raw XOFs before the execution. Each raw input of
-at most `a` bits receives `bytes` independent uniform bytes for each SHAKE variant. The
-background supplies longer inputs and bytes beyond these prefixes. -/
-noncomputable def uniformPrefixes (background : Xofs) (a bytes : ℕ) : PMF Xofs :=
-  (PMF.uniformOfFintype (BitString (a + 2) → FixedBytes bytes)).map fun T =>
-    let row (strength : Bool) (x : List Bool) :=
-      if h : x.length ≤ a then some ((T (queryAddress a strength x h)).toList) else none
-    ⟨background.h128.withPrefixes (row false), background.h256.withPrefixes (row true)⟩
-
-end Xofs
 
 /-- An adaptive program runs elementary quantum instructions and asks for classical signatures.
 The argument and XOR output registers fit alongside the stated number of work qubits. The only
@@ -210,7 +155,7 @@ noncomputable def matrixSolver (C : QuantumSigningForger) (s : Level) (H : Xofs)
 private theorem verified_programmedTrial (C : QuantumSigningForger) {H : Xofs} {s : Level}
     {A : PublicMatrix s} {u : SignedMatrixTrial s}
     (hu : some u ∈ (C.programmedTrial s H A).support) :
-    u.matrix = A ∧ u.xofs.expandA s (u.publicKey.take 32) = some A ∧
+    u.xofs.h256 = H.h256 ∧ u.matrix = A ∧ u.xofs.expandA s (u.publicKey.take 32) = some A ∧
       ∀ f ∈ u.log, u.xofs.verify s u.publicKey f.message f.context f.signature = some true := by
   simp only [programmedTrial, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hu
   obtain ⟨⟨G, setup⟩, hs, h⟩ := hu
@@ -218,11 +163,11 @@ private theorem verified_programmedTrial (C : QuantumSigningForger) {H : Xofs} {
   | none => simp [runAtSetup] at h
   | some pair =>
     obtain ⟨B, keys⟩ := pair
-    obtain ⟨rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
+    obtain ⟨same, rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
     obtain ⟨⟨f, log⟩, hr, eq⟩ := (PMF.mem_support_map_iff ..).mp h
     simp only [Option.some.injEq] at eq
     subst u
-    exact ⟨rfl, hm, fun _ hmem => C.verify_of_mem_transcript hg hr hmem⟩
+    exact ⟨same, rfl, hm, fun _ hmem => C.verify_of_mem_transcript hg hr hmem⟩
 
 /-- The full strong-forgery probability in the quantum matrix-prefix hybrid is bounded by
 fresh-digest forgeries, computed SHAKE256 collisions and the explicit solver's success on
@@ -240,7 +185,7 @@ theorem matrixTrial_forgery_le (C : QuantumSigningForger) (s : Level) (H : Xofs)
               (4 * s.params.γ₂ + 2)) v))) := by
   intro trial
   have h := SignedMatrixTrial.bound_of_verifiedLog (fun A => C.programmedTrial s H A)
-    (fun _ _ hu => C.verified_programmedTrial hu)
+    (fun _ _ hu => (C.verified_programmedTrial hu).2)
   simpa only [uniform_programmedTrial, matrixSolver, PMF.map_comp, Function.comp_def, trial] using h
 
 end QuantumSigningForger
