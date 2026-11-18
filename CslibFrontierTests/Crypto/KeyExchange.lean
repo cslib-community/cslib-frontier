@@ -26,6 +26,16 @@ open scoped NNReal
 
 /-! ### Word layouts -/
 
+/-- An honest-execution outcome is encoded as its framed transcript, framed Alice key, and Bob
+key. -/
+example {T : Type} {K : T → Type} (encT : T ↪ List Bool) (encK : (t : T) → K t ↪ List Bool)
+    (outcome : KeyExchange.Outcome T K) :
+    KeyExchange.encOutcome encT encK outcome =
+      encPair encT (encPair encBits encBits)
+        (outcome.transcript,
+          (encK outcome.transcript outcome.aliceKey, encK outcome.transcript outcome.bobKey)) :=
+  rfl
+
 /-- A view is encoded as its framed transcript followed by the word of its key. -/
 example {T : Type} {K : T → Type} (encT : T ↪ List Bool) (encK : (t : T) → K t ↪ List Bool)
     (view : KeyExchange.View T K) :
@@ -56,16 +66,28 @@ private def d23 : schnorrGroups.Desc :=
 
 private def setup23 (_n : ℕ) : PMF schnorrGroups.Desc := PMF.pure d23
 
-/-- Honest Diffie–Hellman executions over `d23` always agree on Alice's and Bob's keys. -/
-example : (schnorrGroups.dhKeyExchange setup23).Correct :=
-  schnorrGroups.dhKeyExchange_correct setup23
+/-- Honest Diffie–Hellman executions over `d23` always agree on Alice's and Bob's keys, in both
+the fair-coin and ideal-sampling protocols. -/
+example : (schnorrGroups.dhKeyExchangeProb setup23).Correct ∧
+    (schnorrGroups.dhKeyExchange setup23).Correct :=
+  ⟨schnorrGroups.dhKeyExchangeProb_correct setup23, schnorrGroups.dhKeyExchange_correct setup23⟩
 
-/-- Under DDH for `setup`, the ideal-sampling Diffie–Hellman key exchange is secure against
-eavesdroppers. -/
+/-- Fair-coin Diffie–Hellman execution over `schnorrGroups` is uniform strict PPT on `(1ⁿ, d)`. -/
+example :
+    IsPPTOn (encPair encUnary schnorrGroups.encDesc)
+      (KeyExchange.encOutcome schnorrGroups.encDHTranscript schnorrGroups.encDHKey)
+      (fun input => schnorrGroups.dhExecutionProb input.1 input.2) :=
+  schnorrGroups.isPPTOn_dhExecutionProb (.fst _ _) (.snd _ _)
+
+/-- Under DDH for `setup`, both the fair-coin and the ideal-sampling Diffie–Hellman key-exchange
+protocols are secure against eavesdroppers. -/
 example {setup : ℕ → PMF schnorrGroups.Desc} (h : schnorrGroups.DDH setup) :
+    (schnorrGroups.dhKeyExchangeProb setup).EavSecure schnorrGroups.encDHTranscript
+      schnorrGroups.encDHKey (fun _ => schnorrGroups.dhIdealKey) ∧
     (schnorrGroups.dhKeyExchange setup).EavSecure schnorrGroups.encDHTranscript
-      schnorrGroups.encDHKey fun _ => schnorrGroups.dhIdealKey :=
-  PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal h
+      schnorrGroups.encDHKey (fun _ => schnorrGroups.dhIdealKey) :=
+  ⟨PrimeOrderGroupFamily.DDH.dhKeyExchangeProb_eavSecure h,
+    PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal h⟩
 
 /-! The typed eavesdropper class contains every word-level eavesdropper that reads the encoded
 transcript `(d, hA, hB)` and key, so the typed theorem gives the word-level statement. -/
@@ -97,49 +119,56 @@ private theorem isPPT_ofWords
     (input.1, ((input.2.transcript.groupParameters, F.encode _ input.2.transcript.aliceShare,
       F.encode _ input.2.transcript.bobShare), F.encode _ input.2.key))) (by fun_prop)
 
-/-- The word-level real experiment: the encoded transcript with Alice's encoded key `x • hB`. -/
-private def wordRealGame (setup : ℕ → PMF F.Desc)
+/-- The word-level real experiment with fair-coin exponents `sampleExp n d`. -/
+private def wordRealGameProb (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool) (n : ℕ) :
     Game := do
   let d ← setup n
-  let x ← PMF.uniformOfFintype (ZMod (F.order d))
-  let y ← PMF.uniformOfFintype (ZMod (F.order d))
-  ProbComp.eval (adversary n ((d, F.encode d (x • F.generator d), F.encode d (y • F.generator d)),
-    F.encode d (x • y • F.generator d)))
+  let x ← ProbComp.eval (F.sampleExp n d)
+  let y ← ProbComp.eval (F.sampleExp n d)
+  ProbComp.eval (adversary n
+    ((d, F.encode d ((x : ZMod (F.order d)) • F.generator d),
+      F.encode d ((y : ZMod (F.order d)) • F.generator d)),
+      F.encode d ((x : ZMod (F.order d)) • ((y : ZMod (F.order d)) • F.generator d))))
 
-/-- The word-level ideal experiment: the encoded transcript with an encoded uniform element. -/
-private def wordIdealGame (setup : ℕ → PMF F.Desc)
+/-- The word-level ideal experiment with fair-coin public shares and an encoded uniform key. -/
+private def wordIdealGameProb (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool) (n : ℕ) :
     Game := do
   let d ← setup n
-  let x ← PMF.uniformOfFintype (ZMod (F.order d))
-  let y ← PMF.uniformOfFintype (ZMod (F.order d))
+  let x ← ProbComp.eval (F.sampleExp n d)
+  let y ← ProbComp.eval (F.sampleExp n d)
   let z ← PMF.uniformOfFintype (ZMod (F.order d))
-  ProbComp.eval (adversary n ((d, F.encode d (x • F.generator d), F.encode d (y • F.generator d)),
-    F.encode d (z • F.generator d)))
+  ProbComp.eval (adversary n
+    ((d, F.encode d ((x : ZMod (F.order d)) • F.generator d),
+      F.encode d ((y : ZMod (F.order d)) • F.generator d)),
+      F.encode d (z • F.generator d)))
 
 /-- Under DDH, every word-level PPT eavesdropper on the encoded transcript and key has negligible
-advantage between the ideal-sampling word games. -/
+advantage between the fair-coin word games. -/
 example {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
     {adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool}
     (hA : IsPPTOn (encPair encUnary (encPair (encPair F.encDesc (encPair encBits encBits)) encBits))
       encBool fun input => adversary input.1 input.2) :
     Negligible fun n =>
-      Game.advantage (wordRealGame setup adversary n) (wordIdealGame setup adversary n) := by
-  have hreal : ∀ n, wordRealGame setup adversary n =
-      (F.dhKeyExchange setup).realGame (ofWords adversary) n := fun n => by
-    simp only [wordRealGame, KeyExchange.realGame, Game.withSetup, KeyExchange.realView,
-      PrimeOrderGroupFamily.dhKeyExchange, PrimeOrderGroupFamily.dhExecution, ofWords,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-  have hideal : ∀ n, wordIdealGame setup adversary n =
-      (F.dhKeyExchange setup).idealGame (fun _ => F.dhIdealKey) (ofWords adversary) n :=
+      Game.advantage (wordRealGameProb setup adversary n)
+        (wordIdealGameProb setup adversary n) := by
+  have hreal : ∀ n, wordRealGameProb setup adversary n =
+      (F.dhKeyExchangeProb setup).realGame (ofWords adversary) n := fun n => by
+    simp only [wordRealGameProb, KeyExchange.realGame, Game.withSetup, KeyExchange.realView,
+      PrimeOrderGroupFamily.dhKeyExchangeProb, PrimeOrderGroupFamily.dhExecutionProb, ofWords,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      PMF.bind_bind, PMF.pure_bind]
+  have hideal : ∀ n, wordIdealGameProb setup adversary n =
+      (F.dhKeyExchangeProb setup).idealGame (fun _ => F.dhIdealKey) (ofWords adversary) n :=
     fun n => by
-      simp only [wordIdealGame, KeyExchange.idealGame, Game.withSetup, KeyExchange.idealView,
-        PrimeOrderGroupFamily.dhKeyExchange, PrimeOrderGroupFamily.dhExecution,
-        PrimeOrderGroupFamily.dhIdealKey, ofWords, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+      simp only [wordIdealGameProb, KeyExchange.idealGame, Game.withSetup, KeyExchange.idealView,
+        PrimeOrderGroupFamily.dhKeyExchangeProb, PrimeOrderGroupFamily.dhExecutionProb,
+        PrimeOrderGroupFamily.dhIdealKey, ofWords, ProbComp.eval_bind, ProbComp.eval_pure,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
+        Function.comp_def]
   simpa only [hreal, hideal] using
-    PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal hDDH (ofWords adversary)
+    PrimeOrderGroupFamily.DDH.dhKeyExchangeProb_eavSecure hDDH (ofWords adversary)
       (isPPT_ofWords hA)
 
 end WordLevel

@@ -96,6 +96,13 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
 
 ## Specializations and losses relative to Boneh–Shoup Chapter 9
 
+* **Ciphertext space**: a cipher declares its ciphertext space `ctSpace`, every word by default,
+  and decryption rejects outside it (`decrypt_eq_none_of_ctSpace_eq_false`). Attack Game 9.1 asks
+  for a forgery in `C`, and Attack Game 9.2 for decryption queries in `C`. On a cipher with
+  `ctSpace = C`, a forgery outside `C` loses and a decryption query outside `C` is answered with a
+  rejection, so the integrity games are the source's on `C`, and `INDCCA` and `OneTimeINDCCA`
+  imply the source's CCA and 1CCA security on `C` (and are equivalent to them when `C` is
+  efficiently recognizable, as Definition 2.10 requires).
 * **Fixed `n`-bit plaintext domain at security parameter `n`**: encryption queries take `n`-bit
   messages (`msg.length = n` in `ciGame`, `m0.length = n ∧ m1.length = n` in `cpaGame` and
   `ccaGame`). Malformed encryption queries return `[]` without invoking `encrypt` or recording a
@@ -124,7 +131,8 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
 
 * `Cslib.Crypto.CIAdversary`, `Cslib.Crypto.CCAAdversary`: adaptive ciphertext-integrity and
   chosen-ciphertext adversaries.
-* `Cslib.Crypto.SymmetricCipher`: uniform symmetric cipher on `n`-bit messages.
+* `Cslib.Crypto.SymmetricCipher`: uniform symmetric cipher on `n`-bit messages, with a ciphertext
+  space outside which decryption rejects.
 * `Cslib.Crypto.SymmetricCipher.CiphertextLength`, `CiphertextLengthLE`: exact and bounded
   ciphertext length on `n`-bit messages under keys supported by `keyGen n`.
 * `Cslib.Crypto.SymmetricCipher.cpaGame`, `INDCPA`, `cpaOneTimeGame`, `OneTimeINDCPA`,
@@ -210,8 +218,18 @@ abbrev CCAAdversary := ℕ → List Bool → WordOracleComp Bool Bool
 
 /-- A uniform symmetric cipher on `n`-bit messages at security parameter `n`, with strict
 probabilistic polynomial-time key generation and encryption, deterministic polynomial-time
-decryption (returning `Option (List Bool)`), and perfect decryption completeness on supported keys,
-`n`-bit messages, and ciphertexts ([BonehShoup2023], Sections 5.3 and 9.1). -/
+decryption (returning `Option (List Bool)`), a ciphertext space `ctSpace` outside which decryption
+rejects, and perfect decryption completeness on supported keys, `n`-bit messages, and ciphertexts
+([BonehShoup2023], Sections 5.3 and 9.1).
+
+A source cipher defined over `(K, M, C)` ([BonehShoup2023], Section 2.3.2, Definition 2.10,
+printed p. 31) decrypts only words of `C`. It is encoded with `ctSpace n` deciding `C` at
+parameter `n` and with `decrypt` rejecting every other word, which
+`decrypt_eq_none_of_ctSpace_eq_false` requires. The integrity and chosen-ciphertext games then
+match the source's games on `C` (`ciGame` and `ccaOracle` say how). Both fields have defaults,
+every word and its trivial proof, for a cipher whose decryption is meant for all words.
+Definition 2.10 also requires `C` to be efficiently recognizable; `ctSpace` carries no complexity
+certificate, since no theorem here needs one. -/
 structure SymmetricCipher where
   /-- Sample a symmetric secret key `k` at unary security parameter `n`. -/
   keyGen : ℕ → ProbComp (List Bool)
@@ -220,6 +238,9 @@ structure SymmetricCipher where
   /-- Deterministically decrypt a candidate ciphertext `ct` under secret key `k` at parameter `n`,
   returning `none` on rejection and `some msg` on acceptance. -/
   decrypt : ℕ → List Bool → List Bool → Option (List Bool)
+  /-- The ciphertext space at security parameter `n`, as a membership test on words: the set `C`
+  of the source cipher ([BonehShoup2023], Definition 2.10). By default every word. -/
+  ctSpace : ℕ → List Bool → Bool := fun _ _ => true
   /-- Key generation is uniformly strict PPT in the unary security parameter. -/
   keyGen_ppt : IsPPTOn encUnary encBits keyGen
   /-- Encryption is uniformly strict PPT in `(n, k, msg)`. -/
@@ -235,6 +256,9 @@ structure SymmetricCipher where
     ∀ msg, msg.length = n →
     ∀ ct, ct ∈ (ProbComp.eval (encrypt n k msg)).support →
     decrypt n k ct = some msg
+  /-- Decryption rejects every word outside the ciphertext space, under every key. -/
+  decrypt_eq_none_of_ctSpace_eq_false :
+    ∀ n k ct, ctSpace n ct = false → decrypt n k ct = none := by simp
 
 namespace SymmetricCipher
 
@@ -994,7 +1018,12 @@ noncomputable def ciEncryptionOracle (E : SymmetricCipher) (n : ℕ) (k : List B
 sample `k ← E.keyGen n`, run `adversary n []` with oracle access to `E.ciEncryptionOracle n k`, and
 accept when the adversary outputs a candidate ciphertext `ct` that was never returned by the
 encryption oracle (`!out.2.contains out.1`) and decrypts without rejection
-(`(E.decrypt n k out.1).isSome`). -/
+(`(E.decrypt n k out.1).isSome`).
+
+This is Attack Game 9.1 on the ciphertext space `C = E.ctSpace n`: a candidate outside `C`
+decrypts to `none` (`decrypt_eq_none_of_ctSpace_eq_false`) and loses, so the adversary wins
+exactly when it outputs a fresh word of `C` that decrypts, which is the source's winning event. The
+same holds for `ciOneTimeGame`. -/
 noncomputable def ciGame (E : SymmetricCipher) (adversary : CIAdversary) (n : ℕ) :
     ProbComp Bool := do
   let k ← E.keyGen n
@@ -1437,7 +1466,15 @@ theorem AuthenticatedEncryption.oneTimeAuthenticatedEncryption {E : SymmetricCip
   both have length `n`, encrypt `if bit then m1 else m0` under `k`, prepend the resulting
   ciphertext `ct` to `queriedCiphertexts`, and return `ct`; otherwise return `[]`.
 * On a decryption query `(true, ct)`: if `queriedCiphertexts.contains ct` is `true`, return `[]`
-  (prohibited challenge ciphertext); otherwise return `encOption encBits (E.decrypt n k ct)`. -/
+  (prohibited challenge ciphertext); otherwise return `encOption encBits (E.decrypt n k ct)`.
+
+Attack Game 9.2 takes decryption queries from the ciphertext space `C = E.ctSpace n`. A query
+outside `C` is answered here with the rejection `[] = encOption encBits none`
+(`decrypt_eq_none_of_ctSpace_eq_false`), and a query inside `C` as in the source, so an adversary
+that asks only the source's queries sees the source's oracle and `INDCCA` implies CCA security on
+`C`. Conversely, when `C` is efficiently recognizable, as [BonehShoup2023], Definition 2.10
+requires, an adversary can answer its queries outside `C` itself, so CCA security on `C` implies
+`INDCCA`. The same holds for `oneTimeCCAOracle`. -/
 noncomputable def ccaOracle (E : SymmetricCipher) (n : ℕ) (k : List Bool) (bit : Bool)
     (request : Bool × List Bool) : StateT (List (List Bool)) ProbComp (List Bool) :=
   fun queriedCiphertexts =>

@@ -295,9 +295,7 @@ private theorem freshMaskDraw_eq (s : Level) (sk : MLDSA.SecretKey s.params)
   unfold freshMaskDraw publicDraw
   congr 1
   funext d c hc
-  have valid : s.params.Valid := by
-    cases s <;> first | exact Params.valid_mldsa44 | exact Params.valid_mldsa65
-                      | exact Params.valid_mldsa87
+  have valid := s.valid
   have eq := freshSigningAttempt_eq_simulate s.params valid (by cases s <;> decide)
     (by cases s <;> decide) 13 (hintLimit s) sk h₁ h₂ (inBall_of_sampleInBall hc)
   rw [← eq]
@@ -446,8 +444,7 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
     obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
     have rho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := by
       funext i
-      change (List.ofFn ρ)[i.val]! = ρ i
-      rw [getElem!_pos _ _ (by simpa only [List.length_ofFn] using i.isLt), List.getElem_ofFn]
+      simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
     have same := C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂
     dsimp only
     rw [same, _root_.PMF.map_comp]

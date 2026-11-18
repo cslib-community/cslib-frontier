@@ -132,6 +132,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
+import CslibFrontier.Computability.Complexity.Classes.PH.OracleCollapse
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
@@ -252,6 +253,7 @@ import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
+import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
@@ -7811,6 +7813,41 @@ register_result "elgamal-ddh-ind-cpa" where
     programs is elGamalDecryptDet_elGamalEncryptProb. Asymptotic; the exercise's exact concrete \
     forward bound 2ε remains open."
 
+register_result "dh-anonymous-key-exchange-iff-cdh" where
+  title := "Diffie–Hellman anonymous key exchange is key-guessing secure if and only if CDH holds"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "security of Diffie–Hellman key exchange (unnumbered)",
+      locator := "Section 10.4.2, p. 408; Attack Game 10.1 and Definition 10.1, Section 10.1, \
+        p. 400" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchangeProb_anonKESecure_iff_cdh,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le
+  ]
+  scope := "Over any PrimeOrderGroupFamily F and setup law setup : ℕ → PMF F.Desc, \
+    F.dhKeyExchangeProb setup draws group parameters d from setup n and runs dhExecutionProb n d \
+    (Figure 10.2, pp. 407–408), written additively: Alice and Bob sample exponents x, y with \
+    F.sampleExp n d (within statistical distance 1/2^n of uniform on ZMod q), exchange \
+    hA = x·g and hB = y·g, and output x·hB and y·hA. Correctness and honest-party efficiency \
+    are proved on the same protocol in KeyExchange.lean (dhKeyExchangeProb_correct and \
+    isPPTOn_dhExecutionProb). AnonKESecure (Attack Game 10.1 and Definition 10.1, p. 400, \
+    called 'secure against an eavesdropper' in the book) requires every uniform strict PPT \
+    KeyGuesser reading (1^n, transcript) to guess Alice's key with negligible probability; \
+    F.CDH setup is Attack Game 10.5 and Definition 10.7 (pp. 409–410, asymptotic form with \
+    Section 10.5.2, pp. 413–414). advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le bounds \
+    |AnonKEadv[A, dhKeyExchangeProb] − CDHadv[dhToCDHAdversary A, F]| ≤ 2/2^n (and conversely \
+    via cdhToDHKeyGuesser, since dhToCDHAdversary (cdhToDHKeyGuesser B) = B is definitional; \
+    both conversions preserve strict PPT via isPPT_dhToCDHAdversary and \
+    isPPT_cdhToDHKeyGuesser). Deviations: (1) Correct and honest-party efficiency are unbundled \
+    from KeyExchange rather than built into protocol syntax (Correct.anonKEGame_eq_bobKey \
+    identifies guessing Alice's key with guessing Bob's key); (2) honest parties sample \
+    exponents from fair coins with sampleExp rather than exact uniform ZMod q draws, incurring \
+    at most 2/2^n statistical loss against cdhGame; (3) DHTranscript carries \
+    groupParameters : F.Desc and setup need not be efficiently samplable, matching F.CDH setup \
+    (agrees with Definition 10.9, p. 413, when setup is efficiently samplable). Asymptotic."
+
 register_result "elgamal-ind-cpa-iff-ddh" where
   title := "Multiplicative ElGamal is semantically secure if and only if DDH holds"
   topic := "cryptography"
@@ -8316,6 +8353,44 @@ register_result "prf-mac-suf-cma" where
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 
+register_result "authenticated-encryption-cca" where
+  title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 9.1", locator := "Section 9.2.3, p. 363" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.AuthenticatedEncryption.indcca,
+    Cslib.Crypto.SymmetricCipher.OneTimeAuthenticatedEncryption.oneTimeINDCCA
+  ]
+  scope := "Both sentences of Theorem 9.1 (proof pp. 363–365), for any SymmetricCipher: strict PPT \
+    key generation and encryption, deterministic polynomial-time decryption returning a \
+    message or a rejection, and correct decryption of encryptions of n-bit messages; the \
+    source allows any message space, here messages have exactly n bits at parameter n. A \
+    source cipher over (K, M, C) (Definition 2.10, p. 31) is encoded by choosing ctSpace n to \
+    be the membership test of C and decryption to reject every word outside C, as the field \
+    decrypt_eq_none_of_ctSpace_eq_false requires; Definition 2.10 also makes C efficiently \
+    recognizable, which the proof does not use. The integrity games accept any fresh word as \
+    a forgery, but a word outside C decrypts to a rejection and loses, so CiphertextIntegrity \
+    is Attack Game 9.1 on C and the premise is the source's. The CCA games also answer \
+    decryption queries outside C, with a rejection; the source's adversaries ask only words \
+    of C, so the conclusion implies CCA security on C. AuthenticatedEncryption.indcca: an \
+    AE-secure cipher (Definition 9.2, p. 359: CPA security, Attack Game 5.2 and \
+    Definition 5.2, pp. 181–182, and ciphertext integrity, Attack Game 9.1 and Definition 9.1, \
+    pp. 358–359) is CCA-secure (Attack Game 9.2 and Definition 9.5, p. 362). \
+    OneTimeAuthenticatedEncryption.oneTimeINDCCA: a 1AE-secure cipher (Definitions 9.3–9.4, \
+    p. 360) is 1CCA-secure (Definition 9.6, p. 363). Adversaries are uniform strict \
+    oracle-PPT programs in the standard model, and the advantage is the two-experiment one of \
+    Attack Game 9.2. An encryption query that is not a pair of n-bit messages is answered with \
+    the empty word without encrypting; a decryption query on a ciphertext that the oracle \
+    returned is answered as a rejection instead of being prohibited; the one-time games \
+    answer only the first valid encryption query instead of restricting the adversary to \
+    one. The reductions ccaToCPAAdversary and ccaToCIHiddenBitAdversary are certified oracle \
+    PPT. Asymptotic; the concrete bound advantage_ccaGame_le_two_mul, in the same module, has \
+    CI coefficient 2 · dyadicSize(Qd − 1), at most 4 Qd when Qd ≥ 1, in place of the 2 Qd of \
+    (9.3), because the CI reduction draws its query index with fair coins; \
+    guessingAdvantage_guessBit_ccaGame_le_two_mul states (9.4) with 2 Qd in place of Qd."
+
 register_result "prepend-key-prf-random-oracle" where
   title := "Prepending the key to a random oracle gives a PRF with advantage at most Q_ro/|K| \
     for every nonempty finite key space, and a secure PRF when 1/|K| is negligible in the \
@@ -8662,7 +8737,47 @@ register_result "kem-dem-hybrid-correctness" where
     key pair and its encapsulated keys. Messages may have any type. Part (b), semantic \
     security, is not part of this entry: KEMINDCPA.hybrid_indcpaOn, in the same module, \
     assumes a KEM notion whose distinguisher also receives pk, which the exercise's KEM game \
-    (p. 460) does not give it."
+    (p. 460) does not give it, and is registered as kem-dem-hybrid-ind-cpa-corrected."
+
+register_result "kem-dem-hybrid-ind-cpa-corrected" where
+  title := "KEM–DEM hybrid encryption is semantically secure when the KEM is secure against \
+    distinguishers that also see the public key (corrected Exercise 11.9(b))"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Exercise 11.9(b), corrected: the KEM adversary also receives pk",
+      locator := "Section 11.8, pp. 460–461" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn,
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpa
+  ]
+  scope := "A corrected form of Exercise 11.9(b). The exercise's KEM challenger sends only \
+    (k_b, c_kem) (p. 460), and under that notion part (b) is false: if key generation outputs a \
+    uniform pk with sk = pk and encapsulation returns (pk, []), both printed experiments show a \
+    uniform key and an empty encapsulation, yet the hybrid with the one-time pad encrypts m as \
+    pk ⊕ m, which anyone holding pk decrypts. The KEM hypothesis here, KEMINDCPA keyLen keyGen \
+    encaps, also gives the distinguisher pk. It is the KEM security of Cramer and Shoup \
+    (CramerShoup2003, Section 7.1.2, pp. 38–39 of the authors' revised manuscript of \
+    August 14, 2003), restricted to adversaries that make no decryption queries, against uniform \
+    strict PPT distinguishers, with the ideal key uniform on keyLen n-bit words and the \
+    two-experiment advantage. The other hypotheses: DEMOneTimeKeyINDCPAOn valid encMsg keyLen \
+    encryptSym, semantic security of the DEM (Attack Game 2.1 and Definition 2.2, p. 16) under a \
+    uniform keyLen n-bit key against uniform strict PPT adversaries, for challenge pairs \
+    admitted by valid; valid is polynomial-time computable and ignores the public key; key \
+    generation, encapsulation and DEM encryption are uniform strict PPT. Conclusion: INDCPAOn \
+    valid encMsg, semantic security (Attack Game 11.1 and Definition 11.2, pp. 436–437) of \
+    hybridEncrypt encaps encryptSym, the hybrid scheme of the exercise (p. 461), against uniform \
+    strict PPT two-stage adversaries, for the same valid. Taking valid to admit pairs of \
+    messages of M of equal length, which is polynomial time because M is efficiently \
+    recognizable (Definition 2.10, p. 31), gives the source's games; a wider valid is a stronger \
+    assumption on the DEM. KEMINDCPA.hybrid_indcpa is the case in which every challenge pair is \
+    admissible, the source's games when all messages of the type have one length. The \
+    reductions hybridToKEMDistinguisher and hybridToDEMAdversary are certified strict PPT \
+    (isPPT_hybridToKEMDistinguisher, isPPT_hybridToDEMAdversary). Asymptotic; \
+    advantage_hybridGame_le_two_mul, in the same module, is the corrected exercise's bound \
+    SSadv[A, E] ≤ 2 · SSadv[B_kem, E_kem] + SSadv[B_s, E_s], with the single hidden-bit \
+    distinguisher hybridToKEMHiddenBitDistinguisher."
 
 register_result "rsa-unit-preimage-variant" where
   title := "The RSA assumption implies its variant with a uniform unit preimage"
@@ -8978,6 +9093,19 @@ register_result "three-sat-complement-ph-collapse" where
   scope := "Native polynomial-time many-one reduction with encCNF. ThreeSAT has clause width \
     at most three; its complement is inside all CNF Nat, including wider formulas. \
     The conclusion PH enc = NP enc holds for every explicit encoding enc."
+
+register_result "arora-barak-relativized-ph-collapse" where
+  title := "Relative P = NP collapses the polynomial hierarchy for the same oracle"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 5, Exercise §9",
+      locator := "2007-01-08 public draft, printed p. 100 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Complexity.PHWithOracle_subset_PWithOracle_of_eq_NPWithOracle]
+  scope := "For an arbitrary fixed Boolean-word oracle O, equality of relative P and NP on \
+    Boolean words implies the exercise's inclusion PH^O ⊆ P^O. The Lean conclusion holds on \
+    every explicit instance encoding. A native polynomial-time multitape verifier queries O \
+    after finitely many alternating blocks with polynomial lengths."
 
 register_result "tautology-conp-complete" where
   title := "TAUTOLOGY is coNP-complete"

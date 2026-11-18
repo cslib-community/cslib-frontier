@@ -7,10 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
+meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -121,6 +126,80 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- At every standard level the bound counts the public-key rounding correction.
+example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =
+    match s with
+    | .mlDSA44 => 350209
+    | .mlDSA65 => 724481
+    | .mlDSA87 => 769537 := by
+  cases s <;> decide
+
+-- The full t has ring unit 1 in every row, so its rounded public part vanishes and the
+-- extracted low vector is c. Different digest bytes can give exactly the same sparse c.
+private def rawOpeningCheck : Bool := Id.run do
+  let s := Level.mlDSA44
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream fun x => if x.length > 512 then 7 else 0⟩
+  let rho : FixedBytes 32 := fun _ => 0
+  let pk : MLDSA.PublicKey s.params := ⟨fun _ _ _ => 0, fun _ j => if j.val = 0 then 1 else 0⟩
+  let d := List.replicate (digestBytes s) (7 : Byte)
+  let other := List.replicate (digestBytes s) (9 : Byte)
+  let bytes := encodePublic s rho.toList pk.t
+  let sig (digest : List Byte) := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig d⟩
+  let some y := H.extractFull s rho pk.A pk.t f | return false
+  let some c := H.sampleInBall s other | return false
+  let failed := H.writeCommitment (Keccak.bytesToBitsLE d) (List.replicate 221 255)
+  let low := Vector.ofFn fun i => Vector.ofFn (y.u i)
+  let response := Vector.ofFn fun i => Vector.ofFn (y.z i)
+  let point := {y with u := fun i j => (low.get i).get j,
+                       z := fun i j => (response.get i).get j}
+  let off := {point with u := fun i j => point.u i j + 1}
+  let first := low.get ⟨0, by decide⟩
+  return H.verify s bytes f.message f.context f.signature == some true &&
+    H.verify s bytes f.message f.context (sig other) == some false &&
+    y.msg == H.messageRepresentative bytes (formattedMessage f) &&
+    Vector.ofFn c == Vector.ofFn y.c && first == Vector.ofFn y.c && first.toList.any (· != 0) &&
+    H.openFullWitness s pk point == some d && (failed.sampleInBall s d).isNone &&
+    (failed.openFullWitness s pk point).isNone &&
+    MLDSA.highBits s.params.q s.params.γ₂ 1 == MLDSA.highBits s.params.q s.params.γ₂ 0 &&
+    (H.openFullWitness s pk off).isNone
+
+#guard rawOpeningCheck
+
+-- A fatal expansion ends a request with a terminal write and no successful log entry.
+#guard
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let w : TerminalSigningWrite .mlDSA44 := ⟨⟨[], [true]⟩, fun _ _ => 0, [], fun _ => 0, none⟩
+  !(H.terminalRepresentativeMatch (s := .mlDSA44) [] []) &&
+    H.terminalRepresentativeMatch [] [w]
+
+-- The final commitment read is necessary. Under this legitimate XOF and encoded key the
+-- zero response is accepted, writing a different digest rejects it, and a second write at
+-- the same input restores acceptance. A prior signature for a different message allows a
+-- strong forgery while excluding it from the fresh-digest branch.
+private def checkVerifierWrite (s : Level) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let pk := encodePublic s (List.replicate 32 0) (fun _ _ => 0)
+  let digest := List.replicate (digestBytes s) (0 : Byte)
+  let sig := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig⟩
+  let x := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage f))
+  let changed := H.writeCommitment x (List.replicate (digestBytes s) 1)
+  let restored := changed.writeCommitment x digest
+  let prior := {f with message := [false]}
+  let trial (G : Xofs) (log : List Forgery) : SignedMatrixTrial s :=
+    ⟨G, fun _ _ _ => 0, pk, f, log⟩
+  return (trial H []).newDigestWin && !(trial changed []).newDigestWin &&
+    (trial restored []).newDigestWin && (trial restored [prior]).wins &&
+    !(trial restored [prior]).newDigestWin
+
+#guard checkVerifierWrite .mlDSA44
+#guard checkVerifierWrite .mlDSA65
+#guard checkVerifierWrite .mlDSA87
 
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.

@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.SIS.SelfTargetFork
 public import CslibFrontier.Crypto.Primitives.Hash.ExtendableOutput
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Probability.PMF
+import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Game.Order
 import Batteries.Data.Vector.Lemmas
@@ -69,6 +70,13 @@ abbrev Level.params (s : Level) : Params :=
     | .mlDSA65 => Params.mldsa65
     | .mlDSA87 => Params.mldsa87
   { p with n := 256, q := 8380417 }
+
+/-- Each FIPS parameter set satisfies the ring, challenge and rounding conditions. -/
+theorem Level.valid (s : Level) : s.params.Valid := by
+  cases s
+  · exact Params.valid_mldsa44
+  · exact Params.valid_mldsa65
+  · exact Params.valid_mldsa87
 
 /-- Byte length of the commitment digest (FIPS 204, Table 1, `2λ` bits). -/
 @[expose] def digestBytes : Level → ℕ
@@ -491,9 +499,7 @@ theorem Xofs.keyGen_congr_of_reads {H G : Xofs} (s : Level) (seed : FixedBytes 3
       G.h256.readBytes x 64 = H.h256.readBytes x 64) : G.keyGen s seed = H.keyGen s seed := by
   let ex := H.expandKeySeed s seed
   have len : ex.length = 128 := H.h256.length_read ..
-  have matrix : G.expandA s (ex.take 32) = H.expandA s (ex.take 32) := by
-    simp only [Xofs.expandA, matrixStream]
-    rfl
+  have matrix := Xofs.expandA_congr matrixStream s (ex.take 32)
   have short (i : ℕ) : G.secretPoly s ((ex.drop 32).take 64) i =
       H.secretPoly s ((ex.drop 32).take 64) i := by
     unfold Xofs.secretPoly
@@ -1128,6 +1134,17 @@ between two byte boundaries (Algorithm 8, lines 6–7). -/
 /-- FIPS 202 specialization of `Xofs.messageRepresentative`. -/
 abbrev messageRepresentative := Xofs.messageRepresentative Xofs.shake
 
+namespace SharedDigest
+
+/-- A module product on the canonical FIPS commitment grid is determined by its high bits. -/
+@[expose] def OnCommitmentGrid (s : Level) (v : Fin s.params.k → Poly) : Prop :=
+  ∀ i j, v i j = ((highBitsVec s.params v i j * (2 * s.params.γ₂ : ℕ) : ℤ) : ZMod 8380417)
+
+instance (s : Level) (v : Fin s.params.k → Poly) : Decidable (OnCommitmentGrid s v) :=
+  by unfold OnCommitmentGrid; infer_instance
+
+end SharedDigest
+
 /-- SHAKE256 input in Algorithm 8, line 12, including the message representative and
 the fixed-width packing of the recovered high bits. -/
 def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) : List Bool :=
@@ -1268,13 +1285,43 @@ theorem verifyWithExpansion_encodePublic (s : Level) (expand : List Byte → Opt
 then run Algorithm 8. Contexts longer than 255 bytes return the specified error. -/
 @[expose] def Xofs.verify (H : Xofs) (s : Level) := H.verifyWithExpansion s (H.expandA s)
 
+/-- The two verifiers return the same Boolean or error if their matrix, bounded sparse
+challenge, message representative and final commitment digest agree. The representative
+needs to agree only for a well-formed context and public-key length. -/
+theorem Xofs.verify_congr_of_reads {H G : Xofs} (s : Level) (pk : List Byte)
+    (msg : List Bool) (ctx sig : List Byte)
+    (matrix : H.expandA s (pk.take 32) = G.expandA s (pk.take 32))
+    (challenge : ∀ d : List Byte, d.length ≤ digestBytes s →
+      H.sampleInBall s d = G.sampleInBall s d)
+    (rep : ctx.length ≤ 255 → pk.length = 32 + 320 * s.params.k →
+      H.messageRepresentative pk (formatMessage msg ctx) =
+        G.messageRepresentative pk (formatMessage msg ctx))
+    (digest : ∀ w, H.commitmentDigest s w (G.messageRepresentative pk (formatMessage msg ctx)) =
+      G.commitmentDigest s w (G.messageRepresentative pk (formatMessage msg ctx))) :
+    H.verify s pk msg ctx sig = G.verify s pk msg ctx sig := by
+  by_cases hc : ctx.length ≤ 255
+  · simp only [Xofs.verify, Xofs.verifyWithExpansion, guard, hc, ↓reduceIte, Option.pure_def,
+      Option.bind_eq_bind, Option.bind_some, Xofs.verifyInternalWith]
+    by_cases hk : pk.length = 32 + 320 * s.params.k
+    · simp only [hk, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+      cases hd : sigDecode s sig with
+      | none => rfl
+      | some σ =>
+        have short : σ.digest.length ≤ digestBytes s := by rw [← digest_of_sigDecode hd]; simp
+        simp only [matrix, challenge _ short, rep hc hk, Xofs.check, digest]
+    · simp [hk, bne_iff_ne]
+  · simp [Xofs.verify, Xofs.verifyWithExpansion, guard, hc]
+
 /-- FIPS 202 specialization of `Xofs.verify`. -/
 abbrev verify := Xofs.verify Xofs.shake
 
 /-- Expand the concrete FIPS commitment digest to a sparse challenge. The zero value on
 exhaustion is outside the challenge ball for every standard set. -/
-private def algebraicHash (s : Level) : Hash s.params :=
-  fun ⟨w, μ⟩ => (sampleInBall s (commitmentDigest s w μ)).getD 0
+def Xofs.algebraicHash (H : Xofs) (s : Level) : Hash s.params :=
+  fun ⟨w, μ⟩ => (H.sampleInBall s (H.commitmentDigest s w μ)).getD 0
+
+/-- FIPS 202 specialization of `Xofs.algebraicHash`. -/
+private abbrev algebraicHash := Xofs.algebraicHash Xofs.shake
 
 private theorem compressedVerify_of_check {s : Level} {bytes : List Byte} {matrix}
     {μ : List Bool} {σ : Signature s} {c : Poly} (hc : sampleInBall s σ.digest = some c)
@@ -1402,18 +1449,103 @@ theorem verifyWithExpansion_of_recovered {H : Xofs} {s : Level}
   simp [Xofs.verifyWithExpansion, Xofs.verifyInternalWith, guard, len, hctx, hσ, hc, hA, Xofs.check,
     hz, hintedCommitment_encodePublic, hd]
 
-private theorem solution_of_compressed {s : Level} {pk : MLDSA.PublicKey s.params}
-    {μ : List Bool} {σ : Signature s} {c : Poly}
-    (hv : compressedVerify s.params 13 (algebraicHash s) pk μ ⟨σ.z, σ.h, c⟩) :
-    IsSelfTargetSolution s.params (selfTargetHash s.params (algebraicHash s))
+private theorem solution_of_compressed {s : Level} {hash : Hash s.params}
+    {pk : MLDSA.PublicKey s.params} {μ : List Bool} {σ : Signature s} {c : Poly}
+    (hv : compressedVerify s.params 13 hash pk μ ⟨σ.z, σ.h, c⟩) :
+    IsSelfTargetSolution s.params (selfTargetHash s.params hash)
       (compressedSelfTargetRadius s.params 13) pk (candidate s pk μ σ c) := by
-  have hvalid : s.params.Valid := by
-    cases s
-    · exact Params.valid_mldsa44
-    · exact Params.valid_mldsa65
-    · exact Params.valid_mldsa87
-  exact isSelfTargetSolution_of_compressedVerify hvalid
+  exact isSelfTargetSolution_of_compressedVerify s.valid
     (by cases s <;> decide : 4 * s.params.γ₂ < s.params.q) (by decide : 0 < 13) hv
+
+/-- Extraction for a full challenge `(A,t)`. The published bytes and message representative
+use the rounded key, while the witness computed from the full key includes the term `c t₀`
+in the low vector (Dilithium v3.1, §6.2.1, equation (10)). -/
+def Xofs.extractFull (H : Xofs) (s : Level) (rho : FixedBytes 32) (A : PublicMatrix s)
+    (t : Fin s.params.k → Poly) (f : Forgery) : Option (SelfTargetCandidate s.params) := do
+  let σ ← sigDecode s f.signature
+  let c ← H.sampleInBall s σ.digest
+  return candidate s ⟨A, t⟩ (H.messageRepresentative (encodePublic s rho.toList t)
+    (formattedMessage f)) σ c
+
+/-- Check a corrected short witness on the original raw FIPS streams. Recover the complete
+commitment digest only when the representative is 512 bits, the product is on the commitment
+grid, the low part and response obey the extraction bound, and Algorithm 29 returns the
+witness challenge. An exhausted expansion fails the check. -/
+def Xofs.openFullWitness (H : Xofs) (s : Level) (pk : MLDSA.PublicKey s.params)
+    (y : SelfTargetCandidate s.params) : Option (List Byte) := do
+  let v := selfTargetMap s.params pk y.u y.z y.c
+  let w := highBitsVec s.params v
+  let radius := compressedSelfTargetRadius s.params 13
+  guard (y.msg.length = 512)
+  guard (ModuleSIS.inInfNormBound radius y.u ∧ ModuleSIS.inInfNormBound radius y.z)
+  guard (SharedDigest.OnCommitmentGrid s v)
+  let digest := H.commitmentDigest s w y.msg
+  guard (H.sampleInBall s digest = some y.c)
+  return digest
+
+/-- A raw opening is equivalent to a short-vector solution on the canonical grid, with
+the exact commitment digest and a successful sparse expansion at that digest. -/
+theorem openFullWitness_eq_some_iff {H : Xofs} {s : Level}
+    {pk : MLDSA.PublicKey s.params} {y : SelfTargetCandidate s.params} {d : List Byte} :
+    H.openFullWitness s pk y = some d ↔
+      let v := selfTargetMap s.params pk y.u y.z y.c
+      y.msg.length = 512 ∧ SharedDigest.OnCommitmentGrid s v ∧
+        H.commitmentDigest s (highBitsVec s.params v) y.msg = d ∧
+        H.sampleInBall s d = some y.c ∧
+        IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
+          (compressedSelfTargetRadius s.params 13) pk y := by
+  simp only [Xofs.openFullWitness, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.guard_eq_some', Option.pure_def, Option.some.injEq, exists_const]
+  constructor
+  · rintro ⟨len, ⟨hu, hz⟩, grid, hc, rfl⟩
+    refine ⟨len, grid, rfl, hc, hu, hz, inBall_of_sampleInBall hc, ?_⟩
+    exact congrArg (fun x => Option.getD x 0) hc
+  · rintro ⟨len, grid, rfl, hc, sol⟩
+    exact ⟨len, ⟨sol.1, sol.2.1⟩, grid, hc, rfl⟩
+
+/-- An accepting byte signature gives a short witness whose raw opening recovers exactly the
+digest bytes in that signature. The matrix at the public seed and the full public vector are
+those of the lattice pair supplied to the extractor. -/
+theorem opening_extractFull_of_verifyWithExpansion {H : Xofs} {s : Level}
+    {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
+    {pk : MLDSA.PublicKey s.params} {f : Forgery} (hA : expand rho.toList = some pk.A)
+    (hv : H.verifyWithExpansion s expand (encodePublic s rho.toList pk.t)
+      f.message f.context f.signature = some true) :
+    ∃ y, H.extractFull s rho pk.A pk.t f = some y ∧
+      H.openFullWitness s pk y = some (f.signature.take (digestBytes s)) := by
+  obtain ⟨σ, c, hs, hc, hz, hd⟩ := verifiedSignature_of_verifyWithExpansion hA hv
+  let μ := H.messageRepresentative (encodePublic s rho.toList pk.t) (formattedMessage f)
+  let sig : CompressedSignature s.params := ⟨σ.z, σ.h, c⟩
+  let u := compressedForgeryLowPart s.params 13 pk sig
+  have accepted : compressedVerify s.params 13 (H.algebraicHash s) pk μ sig := by
+    simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq]
+    exact ⟨⟨hz, inBall_of_sampleInBall hc⟩, by simp [Xofs.algebraicHash, μ, sig, hd, hc]⟩
+  refine ⟨candidate s pk μ σ c, by simp [Xofs.extractFull, hs, hc, μ], ?_⟩
+  have high := highBits_selfTargetMap_compressedForgeryLowPart s.valid
+    (by cases s <;> decide) 13 pk sig
+  have grid : SharedDigest.OnCommitmentGrid s (selfTargetMap s.params pk u σ.z c) := by
+    intro i j
+    rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
+    exact congrFun (congrFun (selfTargetMap_compressedForgeryLowPart 13 pk sig) i) j
+  have digest : H.commitmentDigest s
+      (highBitsVec s.params (selfTargetMap s.params pk u σ.z c)) μ = σ.digest := by
+    rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
+    exact hd
+  rw [openFullWitness_eq_some_iff, digest_of_sigDecode hs]
+  exact ⟨length_messageRepresentative .., grid, digest, hc, solution_of_compressed accepted⟩
+
+/-- Every accepted byte forgery yields a solution on the full vector supplied by the challenge. -/
+theorem extractFull_of_verifyWithExpansion {H : Xofs} {s : Level}
+    {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
+    {A : PublicMatrix s} {t : Fin s.params.k → Poly} {f : Forgery}
+    (hA : expand rho.toList = some A)
+    (hv : H.verifyWithExpansion s expand (encodePublic s rho.toList t)
+      f.message f.context f.signature = some true) :
+    ∃ y, H.extractFull s rho A t f = some y ∧
+      IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
+        (compressedSelfTargetRadius s.params 13) ⟨A, t⟩ y := by
+  obtain ⟨y, get, opened⟩ := opening_extractFull_of_verifyWithExpansion (pk := ⟨A, t⟩) hA hv
+  exact ⟨y, get, (openFullWitness_eq_some_iff.mp opened).2.2.2.2⟩
 
 /-- For each fixed published byte key, the solver parses the forgery and extracts a self-target
 candidate. The hash input contains its actual public-key-bound message representative. -/
