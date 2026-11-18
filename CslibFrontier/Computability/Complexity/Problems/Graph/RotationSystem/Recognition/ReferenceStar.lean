@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Angle
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Data.List.GetD
@@ -69,31 +70,6 @@ subdivision segment. In particular, the two original loop ends select different 
     have hi := d.1.isLt
     simp only [subdivisionGraph, List.length_map, length_subdivide]
     cases d.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega⟩, d.2)
-
-private theorem subdivide_getElem? (I : FixedRotationInput)
-    (i : Fin I.graph.edges.length) (k : Fin 3) :
-    (subdivide I)[3 * i.val + k.val]? = some
-      ([((I.graph.edges[i].1, I.graph.vertices.length + 2 * i.val),
-          (I.orders.getD I.graph.edges[i].1 none).isSome),
-        ((I.graph.vertices.length + 2 * i.val, I.graph.vertices.length + 2 * i.val + 1), false),
-        ((I.graph.vertices.length + 2 * i.val + 1, I.graph.edges[i].2),
-          (I.orders.getD I.graph.edges[i].2 none).isSome)] : List Segment)[k] := by
-  let entries := I.graph.edges.zipIdx
-  let emit : (ℕ × ℕ) × ℕ → List Segment := fun ((u, v), j) =>
-    [((u, I.graph.vertices.length + 2 * j), (I.orders.getD u none).isSome),
-      ((I.graph.vertices.length + 2 * j, I.graph.vertices.length + 2 * j + 1), false),
-      ((I.graph.vertices.length + 2 * j + 1, v), (I.orders.getD v none).isSome)]
-  have hi : i.val < entries.length := by simp [entries]
-  have hsplit : entries = entries.take i.val ++ entries[i.val] :: entries.drop (i.val + 1) := by
-    rw [List.getElem_cons_drop, List.take_append_drop]
-  have hprefix : ((entries.take i.val).flatMap emit).length = 3 * i.val := by
-    simp [emit, List.length_flatMap, Nat.min_eq_left hi.le, Nat.mul_comm]
-  change (entries.flatMap emit)[3 * i.val + k.val]? = _
-  rw [hsplit, List.flatMap_append, List.flatMap_cons,
-    List.getElem?_append_right (by omega), hprefix]
-  have hsub : 3 * i.val + k.val - 3 * i.val = k.val := by omega
-  rw [hsub, List.getElem?_append_left (by simp [emit])]
-  simp [emit, entries, List.getElem_zipIdx]
 
 /-- The actual stored frozen bit selects exactly the first or last segment of an originally
 fixed indexed end. This raw combinatorial classifier does not require `Valid`. -/

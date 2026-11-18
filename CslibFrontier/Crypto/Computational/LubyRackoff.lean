@@ -42,7 +42,8 @@ the rounds backwards.
 the Luby–Rackoff cipher is a pseudorandom permutation
 (`PseudorandomFunction.prp_lubyRackoffCipher`).
 The proof follows the textbook. The 3-wise parallel composition of the PRF
-(`PseudorandomFunction.multiKey`) replaces the three keyed rounds with independent random functions.
+(`PseudorandomFunction.multiKey_constantCount`) replaces the three keyed rounds with independent
+random functions.
 The adapter `lubyRackoffAdversary` turns a block-cipher adversary into a three-channel one, which
 costs one oracle-PPT reduction (`isOraclePPT_lubyRackoffAdversary`). With random rounds, the
 information-theoretic bound `LubyRackoff.advantage_feistel3RandomRoundsGame_idealPermGame_le`
@@ -792,7 +793,7 @@ theorem PseudorandomFunction.prp_lubyRackoffCipher {family : List Bool → List 
       (IsOraclePPT encBool) := by
     intro adversary hadversary
     simpa only [eval_prpRealGame_lubyRackoffCipher hfamily] using
-      hfamily.multiKey 3 (lubyRackoffAdversary adversary)
+      hfamily.multiKey_constantCount 3 (lubyRackoffAdversary adversary)
         (isOraclePPT_lubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
     (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ => ?_)
@@ -1232,7 +1233,7 @@ theorem PseudorandomFunction.strongPRP_lubyRackoff4Cipher
       (IsOraclePPT encBool) := by
     intro adversary hadversary
     simpa only [eval_strongPRPRealGame_lubyRackoff4Cipher hfamily] using
-      hfamily.multiKey 4 (strongLubyRackoffAdversary adversary)
+      hfamily.multiKey_constantCount 4 (strongLubyRackoffAdversary adversary)
         (isOraclePPT_strongLubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
     (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 4 (by negligible) fun n Q adversary hQ => ?_)

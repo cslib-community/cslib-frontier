@@ -61,8 +61,8 @@ library's **native strict-PPT PKE 1CCA notions** (`Encryption.cca2ADGameOn`,
 `advantage_cca2GameOn_cramerShoupGroupCCA2Game_le` (which account for the additional `8 / 2 ^ n`
 per-bit `sampleModNat` approximation loss of `cramerShoupKeyGenProb`, `cramerShoupADEncryptProb`,
 and `cramerShoupEncryptProb`), yielding `DDH.indcca2ADOn_cramerShoup_bitStringAD` (associated
-data in $\{0,1\}^*$), `DDH.indcca2On_cramerShoup`, and (via the Theorem 12.1 batch-challenge
-hybrid reduction `INDCCA2On.indcca2MultiOn`) batch-challenge multi-challenge CCA security
+data in $\{0,1\}^*$), `DDH.indcca2On_cramerShoup`, and (via `INDCCA2On.indcca2MultiOn`, the
+batch-challenge step toward Theorem 12.1) batch-challenge multi-challenge CCA security
 `DDH.indcca2MultiOn_cramerShoup`.
 
 ## Source Statements ([BonehShoup2023], Section 12.5.3 & Exercise 12.27)

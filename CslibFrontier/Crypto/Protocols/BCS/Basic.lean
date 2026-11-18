@@ -91,7 +91,7 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   vector.
 * `Cslib.Crypto.Protocols.BCS.bcsVerify_bcsProve_of_iopVerify`,
   `Cslib.Crypto.Protocols.BCS.bcsVerify_bcsProve_eq_true`: perfect completeness of the BCS transform
-  for any hash function `H k` and any Fiat–Shamir function `hFS`.
+  for any hash function `H k` whose digests have one length and any Fiat–Shamir function `hFS`.
 * `Cslib.Crypto.Protocols.BCS.bcs_sound_or_merkleCollision`,
   `Cslib.Crypto.Protocols.BCS.isCollision_of_bcsVerify_of_iopVerify_eq_false`,
   `Cslib.Crypto.Protocols.BCS.isCollision_of_bcsVerify_conflict`: deterministic Merkle binding.
@@ -169,16 +169,17 @@ theorem getD_oracleLeaves {Sym : Type} (encSym : Sym → List Bool) (d : ℕ)
   rw [List.getD_eq_getElem _ _ hlt]
   simp [oracleLeaves]
 
-/-- **Honest openings of an oracle table pass `merkleVerify`**: for every index `idx : Fin (2 ^ d)`,
-opening `oracleLeaves encSym d π` at `idx.val` with `merklePath` is accepted by `merkleVerify` at
-depth `d`. -/
+/-- **Honest openings of an oracle table pass `merkleVerify`**: when all digests of `H k` have one
+length, for every index `idx : Fin (2 ^ d)`, opening `oracleLeaves encSym d π` at `idx.val` with
+`merklePath` is accepted by `merkleVerify` at depth `d`. -/
 theorem merkleVerify_oracleLeaves (H : List Bool → List Bool → List Bool) (k : List Bool)
+    {ℓ : ℕ} (hlen : ∀ y, (H k y).length = ℓ)
     {Sym : Type} (encSym : Sym → List Bool) (d : ℕ) (π : OracleTable d Sym)
     (idx : Fin (2 ^ d)) :
     merkleVerify H k d (merkleRoot H k (oracleLeaves encSym d π)) idx.val (encSym (π idx))
       (merklePath H k (oracleLeaves encSym d π) idx.val) = true := by
   rw [← getD_oracleLeaves encSym d π idx]
-  exact merkleVerify_merklePath_of_clog_eq (clog_length_oracleLeaves encSym d π) idx.isLt
+  exact merkleVerify_merklePath_of_clog_eq hlen (clog_length_oracleLeaves encSym d π) idx.isLt
 
 /-! ### Public-coin Interactive Oracle Proofs (`PublicCoinIOP`) -/
 
@@ -484,9 +485,11 @@ theorem bcsHonestTables_eq_iopProverOracles (iop : PublicCoinIOP r d Stmt Wit Sy
     ⟨t.val, Nat.lt_trans ht j.isLt⟩ (Nat.le_of_lt ht) le_rfl]
 
 /-- If the IOP verifier accepts the honest prover's tables at the Fiat–Shamir challenge vector
-`bcsHonestChallenges`, then `bcsVerify` accepts `bcsProve`. -/
+`bcsHonestChallenges`, then `bcsVerify` accepts `bcsProve`, when all digests of `H k` have one
+length. -/
 theorem bcsVerify_bcsProve_of_iopVerify (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : Sym → List Bool)
     (hFS : Stmt → List (List Bool) → Chal) (x : Stmt) (w : Wit)
     (hiop : iopVerify iop x (bcsHonestChallenges iop H k encSym hFS x w)
       (iopProverOracles iop x w (bcsHonestChallenges iop H k encSym hFS x w)) = true) :
@@ -504,20 +507,21 @@ theorem bcsVerify_bcsProve_of_iopVerify (iop : PublicCoinIOP r d Stmt Wit Sym Ch
   simp only [hzip, MerkleOpening.verify, Bool.and_eq_true, beq_iff_eq, List.length_map,
     List.all_map, List.all_eq_true, Function.comp_def, List.map_map, true_and]
   refine ⟨fun ⟨j, idx⟩ _ => ?_, ?_⟩
-  · exact merkleVerify_oracleLeaves H k encSym d (tables j) idx
+  · exact merkleVerify_oracleLeaves H k hlen encSym d (tables j) idx
   · rw [bcsHonestTables_eq_iopProverOracles]
     exact hiop
 
 /-- **Perfect completeness of the BCS transform**: if `iop` satisfies `IOPCompleteness iop rel` and
-`rel x w` holds, then for *every* Merkle hash `H`, key `k`, symbol encoding `encSym`, and
-Fiat–Shamir function `hFS`, `bcsVerify` accepts `bcsProve` ([BenSassonChiesaSpooner2016]; compare
-[ChiesaYogev2024], Construction 25.1.1). -/
+`rel x w` holds, then for every Merkle hash `H` and key `k` such that all digests of `H k` have one
+length, every symbol encoding `encSym`, and every Fiat–Shamir function `hFS`, `bcsVerify` accepts
+`bcsProve` ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1). -/
 theorem bcsVerify_bcsProve_eq_true {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : Sym → List Bool)
     (hFS : Stmt → List (List Bool) → Chal) {x : Stmt} {w : Wit} (hrel : rel x w) :
     bcsVerify iop H k encSym hFS x (bcsProve iop H k encSym hFS x w) = true :=
-  bcsVerify_bcsProve_of_iopVerify iop H k encSym hFS x w
+  bcsVerify_bcsProve_of_iopVerify iop H k hlen encSym hFS x w
     (hcomp x w hrel (bcsHonestChallenges iop H k encSym hFS x w))
 
 /-! ### Binding extraction and soundness / knowledge reductions -/
@@ -595,12 +599,12 @@ theorem bcs_sound_or_merkleCollision
     simp only [bne_iff_ne, ne_eq] at hne_bool
     have hmv₁ : merkleVerify H k d (prf.roots j) idx.val (encSym val) path = true :=
       verify_of_bcsVerify hver hmem
-    have hmv₂ : merkleVerify H k d (prf.roots j) idx.val (encSym (oracles j idx))
-        (merklePath H k (oracleLeaves encSym d (oracles j)) idx.val) = true := by
-      rw [hroots j]
-      exact merkleVerify_oracleLeaves H k encSym d (oracles j) idx
+    rw [hroots j] at hmv₁
+    rw [← getD_oracleLeaves encSym d (oracles j) idx] at hne_bool
     simp only [bcsExtractTableCollision, hsome]
-    exact isCollision_of_merkleVerify hmv₁ hmv₂ hne_bool n
+    rw [← getD_oracleLeaves encSym d (oracles j) idx]
+    exact isCollision_of_merkleVerify_merklePath (clog_length_oracleLeaves encSym d (oracles j))
+      hmv₁ hne_bool n
   · left
     rw [Bool.not_eq_true, Option.isSome_eq_false_iff, Option.isNone_iff_eq_none] at hfind
     refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
