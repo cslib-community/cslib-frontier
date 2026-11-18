@@ -60,6 +60,7 @@ import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
 import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
+import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.RandomFunction
 import CslibFrontier.Computability.Circuit.Boolean.ParityNC1
 import CslibFrontier.Computability.Circuit.Boolean.Braverman.Fooling
 import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
@@ -1408,6 +1409,21 @@ register_result "goldreich-circuit-agreement-limit" where
     f : {0,1}^n → {0,1} and every t with 2 t ≤ 2 ^ n, some function of complexity at most \
     t (2 n + 3) + 1 agrees with f on at least a 1/2 + t/2^n fraction of the inputs. For t = 1 \
     and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
+
+register_result "random-functions-average-case-hard" where
+  title := "Random functions are hard on average"
+  topic := "circuit complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 3",
+      locator := "Web draft 2007-01-08; printed p. 318 / PDF p. 334 (Definition 16.7 on \
+        p. 286 / PDF p. 302)" }
+  ]
+  theorems := [Cslib.Circuits.Boolean.exists_forall_complexity_le_card_agree_lt]
+  scope := "For every n ≥ 400 some Boolean function f on n bits has H_avg(f)(n) ≥ 2^(n/10) in \
+    the sense of Definition 16.7: for the natural number S = ⌈2^(n/10)⌉, every De Morgan \
+    circuit with at most S gates (inputs not counted) agrees with f on fewer than a \
+    1/2 + 1/S fraction of the inputs (strict, as in the draft). Outside-fleet source check: \
+    PR #6269, pullrequestreview-5947274913."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"

@@ -17,7 +17,7 @@ import CslibFrontier.Foundations.Data.Nat.Power
 /-!
 # Random functions are hard on average
 
-Most Boolean functions on `n` bits are hard on average for circuits of size `2 ^ (n / 10)`: for
+Boolean functions that are hard on average for circuits of size `2 ^ (n / 10)` exist: for
 every `n ≥ 400` some `f` has, in the sense of Arora and Barak's Definition 16.7, average-case
 hardness `H_avg(f)(n) ≥ 2 ^ (n / 10)`. That is, for some natural number `S ≥ 2 ^ (n / 10)`,
 every circuit of size at most `S` agrees with `f` on less than a `1 / 2 + 1 / S` fraction of the
@@ -54,7 +54,7 @@ variable {n : ℕ}
 
 /-- **Agreement with a random function concentrates.** For a fixed `g` and `t ≥ 0`, at most an
 `exp (-2 t² / 2 ^ n)` fraction of the functions `f` on `n` bits agree with `g` on at least
-`2 ^ n / 2 + t` inputs. The agreement count is that of the true coordinates of `f xor g`, a
+`2 ^ n / 2 + t` inputs. The agreement count is that of the false coordinates of `f xor g`, a
 uniformly random bit string of length `2 ^ n`, so this is Hoeffding's inequality
 (`Cslib.BitString.card_filter_le_card_filter_sub_half_le`). -/
 theorem card_filter_add_le_card_agree_le (g : BooleanFunction n) {t : ℝ} (ht : 0 ≤ t) :
