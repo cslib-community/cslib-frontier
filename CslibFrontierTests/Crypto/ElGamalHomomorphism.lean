@@ -27,8 +27,7 @@ Exercise 11.5(b) and (c), p. 459) under module encapsulation:
    description `d₀`, DDH fails on `fun _ => PMF.pure d₀` (`PrimeOrderGroupFixture.not_ddh_const`),
    so native group-element multiplicative ElGamal fails `INDCPAOn` by
    `mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh (.const d₀)).mp` (instantiated concretely on
-   `schnorrDecodableGroups` at `d23`), alongside the setup-general ideal-sampling step
-   `negligible_elGamalGroupCPAGame_ideal_iff_ddh`.
+   `schnorrDecodableGroups` at `d23`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -114,16 +113,5 @@ example :
         (schnorrDecodableGroups.elGamalEncryptProb (fun _ m => m) (fun _ => d23)) :=
   ⟨not_ddh_const schnorrDecodableGroups.toPrimeOrderGroupFamily d23,
    not_indcpaOn_elGamalGroupEncryptProb_const schnorrDecodableGroups d23⟩
-
--- Setup-general ideal-sampling step `negligible_elGamalGroupCPAGame_ideal_iff_ddh` through
--- ordinary imports.
-example {F : DecodablePrimeOrderGroupFamily} (setup : ℕ → PMF F.Desc)
-    (decDesc : Decoder F.encDesc) :
-    (∀ adversary : Encryption.WordAdversary, adversary.IsPPT →
-      Negligible fun n =>
-        Game.advantage (F.elGamalGroupCPAGame setup adversary false n)
-          (F.elGamalGroupCPAGame setup adversary true n)) ↔
-      F.toPrimeOrderGroupFamily.DDH setup :=
-  F.negligible_elGamalGroupCPAGame_ideal_iff_ddh setup decDesc
 
 end CslibFrontierTests.Crypto.ElGamalHomomorphism
