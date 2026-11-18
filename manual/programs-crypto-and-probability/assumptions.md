@@ -184,12 +184,12 @@ The assumption has two parts. The premise `polyTime`, deterministic polynomial-t
 | `Encryption.DEMOneTimeINDCPAOf` | standard | [BonehShoup2023] Attack Game 2.1 and Definition 2.2, p. 16 | `n`-bit keys; every challenge pair admissible, in place of the equal-length rule. Generic in the message type: exactly the source's notion when all messages of the type have one length. At `List Bool` it is strictly stronger, so it is not the source's notion (`Encryption.DEMOneTimeWordINDCPA` is). | — |
 | `SymmetricCipher.INDCPA` | standard | [BonehShoup2023] Attack Game 5.2 and Definition 5.2, pp. 181–182 | Both messages of a query have exactly `n` bits; the oracle answers other queries with `[]`. | — |
 | `SymmetricCipher.OneTimeINDCPA` | standard | [BonehShoup2023] Definition 2.2, p. 16, and Definition 9.4, p. 360 | — | — |
-| `SymmetricCipher.CiphertextIntegrity` | standard | [BonehShoup2023] Attack Game 9.1 and Definition 9.1, pp. 358–359 | — | — |
-| `SymmetricCipher.OneTimeCiphertextIntegrity` | standard | [BonehShoup2023] Definition 9.3, p. 360 | — | — |
+| `SymmetricCipher.CiphertextIntegrity` | standard | [BonehShoup2023] Attack Game 9.1 and Definition 9.1, pp. 358–359 | A forgery may be any word, but decryption rejects outside the cipher's `ctSpace`, so on `ctSpace = C` the game is the source's on `C`. | — |
+| `SymmetricCipher.OneTimeCiphertextIntegrity` | standard | [BonehShoup2023] Definition 9.3, p. 360 | As for `CiphertextIntegrity`: on `ctSpace = C` the game is the source's on `C`. | — |
 | `SymmetricCipher.AuthenticatedEncryption` | standard | [BonehShoup2023] Definition 9.2, p. 359 | — | — |
 | `SymmetricCipher.OneTimeAuthenticatedEncryption` | standard | [BonehShoup2023] Definition 9.4, p. 360 | — | — |
-| `SymmetricCipher.INDCCA` | standard | [BonehShoup2023] Attack Game 9.2 and Definition 9.5, p. 362 | — | — |
-| `SymmetricCipher.OneTimeINDCCA` | standard | [BonehShoup2023] Definition 9.6, p. 363 | — | — |
+| `SymmetricCipher.INDCCA` | standard | [BonehShoup2023] Attack Game 9.2 and Definition 9.5, p. 362 | Decryption queries outside the cipher's `ctSpace`, and on returned ciphertexts, are answered with a rejection instead of being excluded. An adversary can compute these answers itself when `ctSpace` is an efficiently recognizable `C`, as Definition 2.10 (p. 31) requires, so on `ctSpace = C` this is the source's notion on `C`. | — |
+| `SymmetricCipher.OneTimeINDCCA` | standard | [BonehShoup2023] Definition 9.6, p. 363 | As for `INDCCA`; only the first valid encryption query is answered. | — |
 | `SymmetricCipher.EncForge` | standard | [BonehShoup2023] Exercise 9.15, p. 395 (plaintext integrity: Attack Game 9.1, pp. 358–359, won by a ciphertext that decrypts to a message never queried) | Encryption queries other than `n`-bit messages are answered with `[]`. | — |
 | `SymmetricCipher.RealIdealAE` | standard | [KatzLindell2020] Definition 5.4 (locator not verified) | — | — |
 | `Protocols.FujisakiOkamoto.WordPKE.INDCPA` | standard | [HofheinzHoevelmannsKiltz2017] Definition 2.2 and Figure 4, pp. 9–10 (ePrint 2017/604, version of 2 November 2021) | Challenge messages in the scheme's message space. Asymptotic, against uniform strict PPT adversaries, where the source defines the concrete advantage `|Pr[b' = b] - 1/2|`, half the two-experiment advantage used here. | — |

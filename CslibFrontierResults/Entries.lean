@@ -8209,6 +8209,44 @@ register_result "prf-mac-suf-cma" where
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 
+register_result "authenticated-encryption-cca" where
+  title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 9.1", locator := "Section 9.2.3, p. 363" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.AuthenticatedEncryption.indcca,
+    Cslib.Crypto.SymmetricCipher.OneTimeAuthenticatedEncryption.oneTimeINDCCA
+  ]
+  scope := "Both sentences of Theorem 9.1 (proof pp. 363–365), for any SymmetricCipher: strict PPT \
+    key generation and encryption, deterministic polynomial-time decryption returning a \
+    message or a rejection, and correct decryption of encryptions of n-bit messages; the \
+    source allows any message space, here messages have exactly n bits at parameter n. A \
+    source cipher over (K, M, C) (Definition 2.10, p. 31) is encoded by choosing ctSpace n to \
+    be the membership test of C and decryption to reject every word outside C, as the field \
+    decrypt_eq_none_of_ctSpace_eq_false requires; Definition 2.10 also makes C efficiently \
+    recognizable, which the proof does not use. The integrity games accept any fresh word as \
+    a forgery, but a word outside C decrypts to a rejection and loses, so CiphertextIntegrity \
+    is Attack Game 9.1 on C and the premise is the source's. The CCA games also answer \
+    decryption queries outside C, with a rejection; the source's adversaries ask only words \
+    of C, so the conclusion implies CCA security on C. AuthenticatedEncryption.indcca: an \
+    AE-secure cipher (Definition 9.2, p. 359: CPA security, Attack Game 5.2 and \
+    Definition 5.2, pp. 181–182, and ciphertext integrity, Attack Game 9.1 and Definition 9.1, \
+    pp. 358–359) is CCA-secure (Attack Game 9.2 and Definition 9.5, p. 362). \
+    OneTimeAuthenticatedEncryption.oneTimeINDCCA: a 1AE-secure cipher (Definitions 9.3–9.4, \
+    p. 360) is 1CCA-secure (Definition 9.6, p. 363). Adversaries are uniform strict \
+    oracle-PPT programs in the standard model, and the advantage is the two-experiment one of \
+    Attack Game 9.2. An encryption query that is not a pair of n-bit messages is answered with \
+    the empty word without encrypting; a decryption query on a ciphertext that the oracle \
+    returned is answered as a rejection instead of being prohibited; the one-time games \
+    answer only the first valid encryption query instead of restricting the adversary to \
+    one. The reductions ccaToCPAAdversary and ccaToCIHiddenBitAdversary are certified oracle \
+    PPT. Asymptotic; the concrete bound advantage_ccaGame_le_two_mul, in the same module, has \
+    CI coefficient 2 · dyadicSize(Qd − 1), at most 4 Qd when Qd ≥ 1, in place of the 2 Qd of \
+    (9.3), because the CI reduction draws its query index with fair coins; \
+    guessingAdvantage_guessBit_ccaGame_le_two_mul states (9.4) with 2 Qd in place of Qd."
+
 register_result "prepend-key-prf-random-oracle" where
   title := "Prepending the key to a random oracle gives a PRF with advantage at most Q_ro/|K| \
     for every nonempty finite key space, and a secure PRF when 1/|K| is negligible in the \
