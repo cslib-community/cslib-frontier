@@ -176,7 +176,6 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
-import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
@@ -187,7 +186,6 @@ import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
-import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneWay.Iterate
@@ -6006,37 +6004,6 @@ register_result "prf-mac-suf-cma" where
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 
-register_result "authenticated-encryption-cca" where
-  title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 9.1", locator := "Section 9.2.3, p. 363" }
-  ]
-  theorems := [
-    Cslib.Crypto.SymmetricCipher.AuthenticatedEncryption.indcca,
-    Cslib.Crypto.SymmetricCipher.OneTimeAuthenticatedEncryption.oneTimeINDCCA
-  ]
-  scope := "Both sentences of Theorem 9.1 (proof pp. 363–365), for any SymmetricCipher: strict PPT \
-    key generation and encryption, deterministic polynomial-time decryption returning a \
-    message or a rejection, and correct decryption of encryptions of n-bit messages; the \
-    source allows any message space, here messages have exactly n bits at parameter n. \
-    AuthenticatedEncryption.indcca: an AE-secure cipher (Definition 9.2, p. 359: CPA security, \
-    Attack Game 5.2 and Definition 5.2, pp. 181–182, and ciphertext integrity, Attack Game 9.1 \
-    and Definition 9.1, pp. 358–359) is CCA-secure (Attack Game 9.2 and Definition 9.5, \
-    p. 362). OneTimeAuthenticatedEncryption.oneTimeINDCCA: a 1AE-secure cipher \
-    (Definitions 9.3–9.4, p. 360) is 1CCA-secure (Definition 9.6, p. 363). Adversaries are \
-    uniform strict oracle-PPT programs in the standard model, and the advantage is the \
-    two-experiment one of Attack Game 9.2. An encryption query that is not a pair of n-bit \
-    messages is answered with the empty word without encrypting; a decryption query on a \
-    ciphertext that the oracle returned is answered as a rejection instead of being \
-    prohibited; the one-time games answer only the first valid encryption query instead of \
-    restricting the adversary to one. The reductions ccaToCPAAdversary and \
-    ccaToCIHiddenBitAdversary are certified oracle PPT. Asymptotic; the concrete bound \
-    advantage_ccaGame_le_two_mul, in the same module, has CI coefficient \
-    2 · dyadicSize(Qd − 1), at most 4 Qd when Qd ≥ 1, in place of the 2 Qd of (9.3), because \
-    the CI reduction draws its query index with fair coins; \
-    guessingAdvantage_guessBit_ccaGame_le_two_mul states (9.4) with 2 Qd in place of Qd."
-
 register_result "merkle-damgard-collision-resistance" where
   title := "The Merkle–Damgård hash of a collision-resistant compression function is collision \
     resistant"
@@ -6068,39 +6035,6 @@ register_result "merkle-damgard-collision-resistance" where
     theorem's CRadv[A, H_MD] = CRadv[B, h] on any message domain whose padded block counts \
     are below 2^(n/2). The one-bit-per-block hash merkleDamgard of MerkleDamgard.lean is not \
     part of this entry."
-
-register_result "merkle-tree-position-binding" where
-  title := "Merkle trees over a collision-resistant hash are secure authenticated data structures"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 8.8", locator := "Section 8.9.1, p. 324" }
-  ]
-  theorems := [
-    Cslib.Crypto.HashFamily.merklePositionBinding,
-    Cslib.Crypto.merkleVerify_merklePath
-  ]
-  scope := "Let H be a HashFamily: deterministic polynomial time, mapping every bit string under \
-    a uniform n-bit key to an n-bit digest, and collision resistant on all bit strings against \
-    uniform strict PPT finders (Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291, keyed as \
-    footnote 1 on p. 290 allows); the source does not require n-bit digests. The tree is that \
-    of Section 8.9 and Figure 8.12 (pp. 320–321): a leaf x becomes H k x and the parent of \
-    nodes l and r is H k (encPair l r), the injective pairing standing for the source's pair in \
-    Y². Leaves are any bit strings, so the source's X is the set of all bit strings and H is \
-    collision resistant on all of its inputs. merkleVerify is the verifier V of Definition 8.3 \
-    (p. 323): it accepts a path of exactly d labels for a position i < 2^d whose recomputed \
-    root is the claimed one. merkleVerify_merklePath is the correctness requirement of \
-    Definition 8.3 for the honest root and paths, the leaves padded with empty words to a power \
-    of two as Section 8.9 suggests. HashFamily.merklePositionBinding: the scheme is secure \
-    (MerklePositionBinding: Attack Game 8.2 and Definition 8.4, p. 324) against uniform strict \
-    PPT adversaries that receive the key, output a root, a position and two openings, and win \
-    when both openings verify and the leaves differ. Where the source fixes the number of \
-    items, the adversary chooses the depth d, the length of its first path, and both openings \
-    are checked at d, which implies the fixed-depth game; positions run over 0 ≤ i < 2^d, \
-    padding positions included; and the adversary writes the position in unary, which covers \
-    trees with polynomially many leaves. The reduction merkleCollisionFinder is certified \
-    strict PPT (isPPT_merkleCollisionFinder) and loses nothing \
-    (succProbability_merkleBindingGame_le). Verification is polynomial time \
-    (computableInPolyTime_merkleVerify). The source states no concrete bound."
 
 register_result "xor-tcr-from-second-preimage" where
   title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
