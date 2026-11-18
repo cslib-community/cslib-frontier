@@ -138,10 +138,35 @@ private theorem checkZero_perRound_escape :
       exact (MeasureTheory.OuterMeasure.empty _).trans_le zero_le
     · simp at hlen
 
-/-- Adaptive prefix-dependent randomized cheating prover on `checkZeroIOP`. -/
+/-- Adaptive prefix-dependent randomized cheating prover on `checkZeroIOP`: in round `0`
+(`pref = []`), samples a uniform constant table; after round `0` (`pref = (_, c₀) :: _`), replies
+deterministically with the all-`false` table when `c₀ = 0` and mixes constant tables uniformly
+otherwise. -/
 noncomputable def adaptiveBitProver : InteractiveIOPProver 1 Bool (Fin 4)
   | [] => (PMF.uniformOfFintype Bool).map fun b _ => b
-  | (_, c₀) :: _ => (PMF.uniformOfFintype Bool).map fun b _ => xor b (c₀ == 0)
+  | (_, c₀) :: _ =>
+    if c₀ = 0 then
+      PMF.pure (fun _ => false)
+    else
+      (PMF.uniformOfFintype Bool).map fun b _ => b
+
+/-- Witness that `adaptiveBitProver` genuinely changes its conditional output distribution across
+prefixes (both between round `0` and round `1`, and between two round-`1` prefixes with `c₀ = 0`
+vs. `c₀ = 1`): `(fun _ => true)` has positive mass at `[]` and at `[(fun _ => false, 1)]`, but zero
+mass at `[(fun _ => false, 0)]`. -/
+theorem adaptiveBitProver_prefix_dependent :
+    adaptiveBitProver [] ≠ adaptiveBitProver [(fun _ => false, 0)] ∧
+      adaptiveBitProver [(fun _ => false, 0)] ≠ adaptiveBitProver [(fun _ => false, 1)] := by
+  have hnot_zero : (fun _ : Fin 2 => true) ∉
+      (adaptiveBitProver [(fun _ => false, 0)]).support := by
+    rw [adaptiveBitProver, ite_eq_left rfl, PMF.support_pure, Set.mem_singleton_iff]
+    intro h
+    exact Bool.false_ne_true (congrFun h 0).symm
+  refine ⟨fun heq => hnot_zero (heq ▸ ?_), fun heq => hnot_zero (heq.symm ▸ ?_)⟩
+  · rw [adaptiveBitProver, PMF.mem_support_map_iff]
+    exact ⟨true, PMF.mem_support_uniformOfFintype true, rfl⟩
+  · rw [adaptiveBitProver, ite_eq_right (by decide : (1 : Fin 4) ≠ 0), PMF.mem_support_map_iff]
+    exact ⟨true, PMF.mem_support_uniformOfFintype true, rfl⟩
 
 /-- Standalone `iopInteractiveGame_le_sum` test (`≤ 1 / 4 + 1 / 4 = 1 / 2`) with zero FRI imports.
 -/
