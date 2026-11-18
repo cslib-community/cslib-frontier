@@ -137,7 +137,6 @@ private def allOnesXof : ExtendableOutput where
 #guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
 #guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
 
-
 -- Reading the actual SHAKE bytes through the common register recovers every byte of Algorithm 2.
 example (s : Level) (extra : Finset (List Bool)) (key : List Byte) (q : SigningQuery)
     (rnd : FixedBytes 32) :
