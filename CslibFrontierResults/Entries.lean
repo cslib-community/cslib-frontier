@@ -195,6 +195,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
+import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
@@ -5983,6 +5984,76 @@ register_result "pedersen-commitment-binding" where
     succProbability_pedersenBindingGame_pedersenKeyDistProb_le adds 1/2^n to the \
     discrete-logarithm success probability. The [Pedersen1991] theorem number and locator were \
     not checked: no copy is recorded in the manual's sources."
+
+register_result "schnorr-identification-direct-dl" where
+  title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
+    assumption"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 19.1",
+      locator := "Section 19.1, p. 757 (Theorem 19.1 with (19.1) and (19.2)); protocol: \
+        Figure 19.1, p. 756; attack: Attack Game 18.1 and Definition 18.2, p. 720" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_schnorrDirectProbGame
+  ]
+  scope := "Over any prime-order group family F and setup law setup : ℕ → PMF F.Desc, under the \
+    discrete-logarithm assumption F.DiscreteLog setup (Attack Game 10.4 and Definition 10.6, \
+    p. 409). Schnorr's protocol (Figure 19.1) is written additively, u = α·g, and group \
+    elements, commitments and responses are binary words: the verifier accepts when the \
+    commitment word encodes z·g − c·u, with the challenge and response words read as numbers \
+    modulo q. The challenge set is the k n-bit words read modulo q, a power-of-two subset of Z_q \
+    that embeds injectively when 2^(k n) ≤ q, in place of an arbitrary C ⊆ Z_q. Premises: k is \
+    computable in polynomial time, 2^(k n) ≤ q for every group in the support of setup n, and \
+    2^(−k n) is negligible (the source's super-poly N = |C|). The game is schnorrDirectProbGame \
+    (Attack Game 18.1): the key comes from the scheme's fair-coin key generator \
+    schnorrSigKeyGen, whose exponent sampleExp is within statistical distance 2^(−n) of uniform \
+    on Z_q, and the challenge is an exactly uniform k n-bit word. Adversaries are uniform strict \
+    PPT two-stage word programs reading 1^n, the group description and the encoded public key \
+    (SchnorrImpersonator.IsPPT); the conclusion is that each succeeds with negligible \
+    probability (Definition 18.2). The proof applies DiscreteLog to the rewinding adversary \
+    A.rewind k through its certificate isPPTOn_rewind. The per-parameter bound \
+    succProbability_schnorrDirectProbGame_le is ε ≤ 2^(−n) + 2^(−k n) + √ε′, the source's \
+    (19.2) plus the sampler's error; no concrete running-time statement, such as the source's \
+    factor two, is made. The setup law is arbitrary: the assumption is Boneh–Shoup's when setup \
+    is sampled efficiently with descriptions of polynomial length, as for the system \
+    parameterization of Section 10.5.2 (Definition 10.9, p. 413). Asymptotic."
+
+register_result "schnorr-identification-eavesdropping-dl" where
+  title := "Schnorr identification is secure against eavesdropping attacks under the \
+    discrete-logarithm assumption"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorems 19.1 and 19.5 combined",
+      locator := "Section 19.1: Theorem 19.1, p. 757; Theorems 19.3–19.5, pp. 761–762; \
+        attack: Attack Game 18.2 and Definition 18.6, pp. 733–734" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame,
+    Cslib.Crypto.PrimeOrderGroupFamily.schnorr_isProbEavesdropSecure_of_discreteLogHard
+  ]
+  scope := "Theorems 19.1 and 19.5 combined: under the discrete-logarithm assumption, Schnorr \
+    identification is secure against eavesdropping attacks. Theorem 19.5 on its own (security \
+    against direct attacks implies security against eavesdropping) is not stated. The group \
+    family, setup law and assumption, the additive notation and binary word encodings, the \
+    power-of-two k n-bit challenge set, the adversary class and the premises (k computable in \
+    polynomial time, 2^(k n) ≤ q on the support of setup n, 2^(−k n) negligible) are as in \
+    schnorr-identification-direct-dl; in addition the conversation count Q is computable in \
+    polynomial time. The game schnorrEavesdropProbGame (Attack Game 18.2) draws the key with \
+    schnorrSigKeyGen and gives the adversary Q n independent honest conversations for that key \
+    from the scheme's strict-PPT prover schnorrRealTranscript, whose commitment exponent comes \
+    from sampleExp and whose challenge is an exactly uniform k n-bit word. \
+    IsProbEavesdropSecure (Definition 18.6) quantifies over every polynomial-time Q and every \
+    uniform strict PPT eavesdropper; the source's adversary chooses how many conversations to \
+    request, and a bounded one is covered by a Q that it may partly ignore. The proof turns the \
+    eavesdropper into the direct impersonator A.toDirect k Q, which simulates the conversations \
+    with the strict-PPT simulator (certified by isPPT_toDirect), and applies DiscreteLog to its \
+    rewinding adversary through isPPTOn_rewind. Where Theorem 19.5 has the exact equality \
+    ID2adv[A, I] = ID1adv[B, I] (from Theorems 19.3 and 19.4, p. 761), the fair-coin key \
+    generator and simulator add the statistical term (2 Q n + 1)·2^(−n) \
+    (succProbability_schnorrEavesdropProbGame_le), so the combined asymptotic endpoint is \
+    stated, not the source's exact finite equality. No concrete running-time statement is made. \
+    The setup law is arbitrary, as in schnorr-identification-direct-dl. Asymptotic."
 
 register_result "elgamal-ddh-ind-cpa" where
   title := "Multiplicative ElGamal is semantically secure under DDH"
