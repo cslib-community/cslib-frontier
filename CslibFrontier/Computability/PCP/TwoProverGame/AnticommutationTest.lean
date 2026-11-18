@@ -28,11 +28,13 @@ constants. Its inputs are a common state `φ`, for every pair with `a · b = 1` 
 `G(a, b)` in that state whose first player's observables `X'(a, b)`, `Z'(a, b)` play the role of the
 source's special-question observables (the roles in CHSH are symmetric), its winning probability
 `cos²(π/8) - ε(a, b)`, and contractions `X(a)`, `Z(b)` commuting with `Z'(a, b)`, `X'(a, b)`
-together with their consistency distances. Then (`Cslib.PCP.expect_anticommDefectSq_le_of_chsh`)
+together with their consistency distances. Then (`Cslib.PCP.oddExpect_norm_anticomm_sq_le_of_chsh`)
 
 `E_{a,b} [a · b = 1] ‖X(a) Z(b) + Z(b) X(a)‖²_φ ≤
 9 (E [a · b = 1] ‖X(a) - X'(a, b)‖²_φ + E [a · b = 1] ‖Z(b) - Z'(a, b)‖²_φ +
-K E [a · b = 1] ε(a, b))`
+K E [a · b = 1] ε(a, b))`,
+
+with each masked average `E [a · b = 1]` written `Cslib.BitString.oddExpect`
 
 with `K = (4 + 2√2)² · 8√2` (`Cslib.PCP.chshAnticommConst`, value
 `Cslib.PCP.chshAnticommConst_eq`): CHSH rigidity (`Cslib.PCP.CommutingStrategy.anticomm_of_chsh`)
@@ -59,7 +61,7 @@ braiding test as a game are tracked in cslib-community/cslib-frontier#6149.
 
 ## Main results
 
-* `Cslib.PCP.expect_anticommDefectSq_le_of_chsh`: the CHSH operator transfer, anticommutation of
+* `Cslib.PCP.oddExpect_norm_anticomm_sq_le_of_chsh`: the CHSH operator transfer, anticommutation of
   the consistent contractions from the CHSH anticommutation test.
 * `Cslib.PCP.expect_norm_pauliFamily_sub_sq_le_of_chsh`: the Pauli-family defect from the CHSH
   anticommutation test, consistency and linearity.
@@ -115,7 +117,7 @@ observables `X'(a, b)`, `Z'(a, b)` and win with probability at least `cos²(π/8
 contractions `X(a)`, `Z(b)` commute with `Z'(a, b)`, `X'(a, b)` on these pairs, the averaged masked
 anticommutation defect of `X`, `Z` is at most
 `9 (E [a·b = 1] ‖X(a) - X'(a, b)‖² + E [a·b = 1] ‖Z(b) - Z'(a, b)‖² + K E [a·b = 1] ε(a, b))`. -/
-theorem expect_anticommDefectSq_le_of_chsh (φ : AlgState 𝒜) (X Z : (ι → Bool) → 𝒜)
+theorem oddExpect_norm_anticomm_sq_le_of_chsh (φ : AlgState 𝒜) (X Z : (ι → Bool) → 𝒜)
     (G : (ι → Bool) → (ι → Bool) → CommutingStrategy Bool Bool Bool Bool 𝒜)
     (hφ : ∀ a b, a ⬝ᵥ b = true → (G a b).state = φ) (hX : ∀ a, star (X a) * X a ≤ 1)
     (hZ : ∀ b, star (Z b) * Z b ≤ 1)
@@ -124,39 +126,27 @@ theorem expect_anticommDefectSq_le_of_chsh (φ : AlgState 𝒜) (X Z : (ι → B
     (ε : (ι → Bool) → (ι → Bool) → ℝ)
     (hε : ∀ a b, a ⬝ᵥ b = true →
       Real.cos (π / 8) ^ 2 - ε a b ≤ TwoProverGame.chsh.commutingWinProb (G a b)) :
-    𝔼 a, 𝔼 b, anticommDefectSq φ X Z a b ≤
-      9 * (𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then
-          φ.norm (X a - ((G a b).alice false).observable) ^ 2 else 0) +
-        𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then
-          φ.norm (Z b - ((G a b).alice true).observable) ^ 2 else 0) +
-        chshAnticommConst * 𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then ε a b else 0)) := by
-  have hpt : ∀ a b, anticommDefectSq φ X Z a b ≤
-      9 * ((if a ⬝ᵥ b = true then φ.norm (X a - ((G a b).alice false).observable) ^ 2 else 0) +
-        (if a ⬝ᵥ b = true then φ.norm (Z b - ((G a b).alice true).observable) ^ 2 else 0) +
-        chshAnticommConst * (if a ⬝ᵥ b = true then ε a b else 0)) := by
-    intro a b
-    by_cases hab : a ⬝ᵥ b = true
-    · simp only [hab, ite_true, anticommDefectSq_of_dotProduct_eq_true φ X Z hab]
-      have htr := norm_mul_sub_smul_mul_sq_le_of_consistent φ (hX a) (hZ b)
-        ((G a b).alice false).star_observable_mul_self_le_one
-        ((G a b).alice true).star_observable_mul_self_le_one (hXZ' a b hab) (hZX' a b hab)
-        (s := -1) (by simp)
-      have hR := norm_anticomm_sq_le_of_chsh (G a b) (hε a b hab)
-      rw [hφ a b hab] at hR
-      simp only [neg_one_smul, sub_neg_eq_add] at htr
-      rw [add_comm (Z b * X a)] at htr
-      linarith
-    · have hab' : a ⬝ᵥ b = false := by simpa using hab
-      simp only [hab, Bool.false_eq_true, ite_false, mul_zero, add_zero,
-        anticommDefectSq_of_dotProduct_eq_false φ X Z hab', le_refl]
-  calc 𝔼 a, 𝔼 b, anticommDefectSq φ X Z a b ≤ 𝔼 a, 𝔼 b, 9 * (_ + _ + _) :=
-        expect_le_expect fun a _ => expect_le_expect fun b _ => hpt a b
-    _ = _ := by simp only [← mul_expect, expect_add_distrib]
+    BitString.oddExpect (fun a b => φ.norm (X a * Z b + Z b * X a) ^ 2) ≤
+      9 * (BitString.oddExpect (fun a b => φ.norm (X a - ((G a b).alice false).observable) ^ 2) +
+        BitString.oddExpect (fun a b => φ.norm (Z b - ((G a b).alice true).observable) ^ 2) +
+        chshAnticommConst * BitString.oddExpect ε) := by
+  rw [← BitString.oddExpect_const_mul, ← BitString.oddExpect_add, ← BitString.oddExpect_add,
+    ← BitString.oddExpect_const_mul]
+  refine BitString.oddExpect_mono fun a b hab => ?_
+  have htr := norm_mul_sub_smul_mul_sq_le_of_consistent φ (hX a) (hZ b)
+    ((G a b).alice false).star_observable_mul_self_le_one
+    ((G a b).alice true).star_observable_mul_self_le_one (hXZ' a b hab) (hZX' a b hab)
+    (s := -1) (by simp)
+  have hR := norm_anticomm_sq_le_of_chsh (G a b) (hε a b hab)
+  rw [hφ a b hab] at hR
+  simp only [neg_one_smul, sub_neg_eq_add] at htr
+  rw [add_comm (Z b * X a)] at htr
+  linarith
 
 /-- **The Pauli-family defect from the CHSH anticommutation test, consistency and linearity.** Let
 Alice's unitaries `X(a)`, `Z(b)` with `X(0) = 1` have consistent unitary copies `X''(a)`, `Z''(b)`
 for Bob, commuting with them, as in the linearity and consistency tests, and let the CHSH
-strategies `G(a, b)` be as in `Cslib.PCP.expect_anticommDefectSq_le_of_chsh`. Then the
+strategies `G(a, b)` be as in `Cslib.PCP.oddExpect_norm_anticomm_sq_le_of_chsh`. Then the
 multiplicative defect `E_{p,q} ‖P(p) P(q) - P(pq)‖²_φ` of the Pauli family
 `P(a, b, s) = s X(a) Z(b)` is bounded by the consistency distances, the CHSH deficits and the
 linearity defects. -/
@@ -173,16 +163,15 @@ theorem expect_norm_pauliFamily_sub_sq_le_of_chsh (φ : AlgState 𝒜) (X Z X'' 
       Real.cos (π / 8) ^ 2 - ε a b ≤ TwoProverGame.chsh.commutingWinProb (G a b)) :
     𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 ≤
       5 * (40 * 𝔼 c, φ.norm (Z c - Z'' c) ^ 2 + 32 * 𝔼 a, φ.norm (X a - X'' a) ^ 2 +
-        33 * (9 * (𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then
-            φ.norm (X a - ((G a b).alice false).observable) ^ 2 else 0) +
-          𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then
-            φ.norm (Z b - ((G a b).alice true).observable) ^ 2 else 0) +
-          chshAnticommConst * 𝔼 a, 𝔼 b, (if a ⬝ᵥ b = true then ε a b else 0))) +
+        33 * (9 * (BitString.oddExpect
+            (fun a b => φ.norm (X a - ((G a b).alice false).observable) ^ 2) +
+          BitString.oddExpect (fun a b => φ.norm (Z b - ((G a b).alice true).observable) ^ 2) +
+          chshAnticommConst * BitString.oddExpect ε)) +
         𝔼 a, 𝔼 a', φ.norm (X a * X a' - X (a + a')) ^ 2 +
         33 * 𝔼 b, 𝔼 b', φ.norm (Z b * Z b' - Z (b + b')) ^ 2) := by
   have h₁ := expect_norm_pauliFamily_sub_sq_le_of_anticommute φ X Z X'' Z'' hX hZ hX'' hZ'' hXZ''
     hZZ'' hZX'' hX0
-  have h₂ := expect_anticommDefectSq_le_of_chsh φ X Z G hφ
+  have h₂ := oddExpect_norm_anticomm_sq_le_of_chsh φ X Z G hφ
     (fun a => (Unitary.star_mul_self_of_mem (hX a)).le)
     (fun b => (Unitary.star_mul_self_of_mem (hZ b)).le) hXZ' hZX' ε hε
   refine h₁.trans ?_

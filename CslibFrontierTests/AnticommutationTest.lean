@@ -42,10 +42,12 @@ tensor factor, which agree exactly with the first player's `Z ⊗ 1`, `X ⊗ 1` 
 input of the transfer vanishes, so the masked anticommutation defect of the second-factor
 observables is `0` in the EPR state. This checks the role and state conventions of the transfer. -/
 example :
-    𝔼 a, 𝔼 b, anticommDefectSq TwoProverGame.chshEPR.toCommuting.state
-      (fun _ : Unit → Bool =>
-        oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable false)ᵀ)
-      (fun _ => oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable true)ᵀ) a b ≤ 0 := by
+    BitString.oddExpect (ι := Unit) (fun _ _ =>
+      TwoProverGame.chshEPR.toCommuting.state.norm
+        (oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable false)ᵀ *
+            oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable true)ᵀ +
+          oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable true)ᵀ *
+            oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable false)ᵀ) ^ 2) ≤ 0 := by
   set φ := TwoProverGame.chshEPR.toCommuting.state
   have hφ : φ = AlgState.vector (maxEntangled Bool) norm_maxEntangled := by
     change AlgState.vector bell norm_bell = _
@@ -67,7 +69,7 @@ example :
       rw [conjTranspose_transpose_eq_transpose_conjTranspose,
         (TwoProverGame.isHermitian_chshAliceObservable x).eq]
     · rw [← transpose_mul, TwoProverGame.chshAliceObservable_mul_self, transpose_one]
-  have h := expect_anticommDefectSq_le_of_chsh (ι := Unit) φ
+  have h := oddExpect_norm_anticomm_sq_le_of_chsh (ι := Unit) φ
     (fun _ => oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable false)ᵀ)
     (fun _ => oneKronecker (ι := Bool) (TwoProverGame.chshAliceObservable true)ᵀ)
     (fun _ _ => TwoProverGame.chshEPR.toCommuting) (fun _ _ _ => rfl)
@@ -81,8 +83,8 @@ example :
       rw [TwoProverGame.commutingWinProb_toCommuting, TwoProverGame.quantumWinProb_chsh_chshEPR,
         sub_zero])
   refine h.trans (le_of_eq ?_)
-  simp only [hcons, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, ite_self,
-    Fintype.expect_const, mul_zero, add_zero]
+  simp only [hcons, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
+    BitString.oddExpect_def, ite_self, Fintype.expect_const, mul_zero, add_zero]
 
 /-- **Concrete instance**: the optimal EPR strategy's first-player observables anticommute
 exactly in its state. -/

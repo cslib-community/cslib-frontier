@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Foundations.Quantum.Algebra.PauliFamily
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Sign
-import CslibFrontier.Foundations.Data.Code.Hadamard
+public import CslibFrontier.Foundations.Data.BitString.OddPairs
+import CslibFrontier.Tactic.CommuteLeft
+import Mathlib.Algebra.Order.Chebyshev
 
 /-!
 # Braiding relations from anticommutation, consistency and linearity
@@ -31,13 +33,13 @@ star-ordered algebra, for Alice's unitaries `X(a)`, `Z(b)` and Bob's consistent 
 * **Commutation** (their §4.3.3, Lemma 19, p. 22): for `a · b = 0`, write `Z(b) ≈ Z(c) Z(c + b)`
   with `c · a = 1` and anticommute `X(a)` past both factors
   (`Cslib.Quantum.norm_mul_sub_mul_le_of_anticommute`).
-  Averaging over the half of the `c` with `c · a = 1`, and using `X(0) = 1` for `a = 0`, gives
-  the braiding defect for every pair (`Cslib.Quantum.norm_braid_sq_le`,
-  `Cslib.Quantum.expect_norm_braid_sq_le`):
+  Averaging over the half of the `c` with `c · a = 1`
+  (`Cslib.BitString.le_two_mul_expect_ite_of_forall`), and using `X(0) = 1` for `a = 0`, gives
+  the braiding defect for every pair (`Cslib.Quantum.expect_norm_braid_sq_le`):
   `E_{a,b} ‖Z(b) X(a) - (-1)^{a·b} X(a) Z(b)‖²_φ ≤ 33 E_{a,b} [a · b = 1] α(a, b)² +
   32 (E ‖Z(c) Z(c') - Z(c + c')‖² + E κ_Z² + E κ_X²)`,
-  where `α(a, b) = ‖X(a) Z(b) + Z(b) X(a)‖_φ` (`Cslib.Quantum.anticommDefectSq`) and `κ` are the
-  consistency distances.
+  where `α(a, b) = ‖X(a) Z(b) + Z(b) X(a)‖_φ`, the masked average over the pairs with `a · b = 1` is
+  `Cslib.BitString.oddExpect`, and `κ` are the consistency distances.
 * **The Pauli-family defect** then follows from anticommutation, consistency and linearity
   (`Cslib.Quantum.expect_norm_pauliFamily_sub_sq_le_of_anticommute`).
 
@@ -55,12 +57,6 @@ commutation step likewise averages over all `c` with the mask `c · a = 1` and u
 (`Cslib.Quantum.Measurement.charObs_zero`), such as the rounded observables of the linearity test.
 Deriving the anticommutation defects from a strategy's success in an anticommutation game, and the
 remaining steps toward Pauli rigidity, are tracked in cslib-community/cslib-frontier#6149.
-
-## Main definitions
-
-* `Cslib.Quantum.anticommDefectSq`: the masked squared anticommutation defect, evaluated by
-  `Cslib.Quantum.anticommDefectSq_of_dotProduct_eq_true` and
-  `Cslib.Quantum.anticommDefectSq_of_dotProduct_eq_false`.
 
 ## Main results
 
@@ -179,11 +175,10 @@ theorem norm_mul_sub_mul_le_of_anticommute (φ : AlgState A) (X Z X' Z' : (ι �
     _ = X a * Z c * Z (c + b) := (mul_assoc _ _ _).symm
     _ ≈[φ; φ.norm (Z (c + b) - Z' (c + b))] X a * Z c * Z' (c + b) :=
         hκZ.mul_left_unitary (by unitary_mem)
-    _ = Z' (c + b) * (X a * Z c) := ((hXZ' a _).mul_left (hZZ' c _)).eq
+    _ = Z' (c + b) * (X a * Z c) := by commute_left [hXZ', hZZ']
     _ ≈[φ; φ.norm (X a * Z c + Z c * X a)] Z' (c + b) * -(Z c * X a) :=
         (hα c).mul_left_unitary (hZ' _)
-    _ = -(Z c * X a * Z' (c + b)) := by
-        rw [mul_neg, ((hZZ' c _).mul_left (hXZ' a _)).symm.eq.symm]
+    _ = -(Z c * X a * Z' (c + b)) := by rw [mul_neg]; commute_left [hXZ', hZZ']
     _ ≈[φ; φ.norm (Z (c + b) - Z' (c + b))] -(Z c * X a * Z (c + b)) :=
         (hκZ.symm.mul_left_unitary (by unitary_mem)).neg
     _ = -(Z c * (X a * Z (c + b))) := by rw [mul_assoc]
@@ -191,53 +186,35 @@ theorem norm_mul_sub_mul_le_of_anticommute (φ : AlgState A) (X Z X' Z' : (ι �
         ((hα (c + b)).mul_left_unitary (hZ c)).neg
     _ = Z c * Z (c + b) * X a := by rw [mul_neg, neg_neg, mul_assoc]
     _ ≈[φ; φ.norm (X a - X' a)] Z c * Z (c + b) * X' a := hκX.mul_left_unitary (by unitary_mem)
-    _ = X' a * (Z c * Z (c + b)) := ((hZX' c a).mul_left (hZX' _ a)).eq
+    _ = X' a * (Z c * Z (c + b)) := by commute_left [hZX']
     _ ≈[φ; φ.norm (Z c * Z (c + b) - Z b)] X' a * Z b := hℓ.mul_left_unitary (hX' a)
-    _ = Z b * X' a := ((hZX' b a).eq).symm
+    _ = Z b * X' a := by commute_left [hZX']
     _ ≈[φ; φ.norm (X a - X' a)] Z b * X a := hκX.symm.mul_left_unitary (hZ b)
   rw [AlgState.approx_iff, AlgState.norm_sub_comm] at chain
   linarith
 
-/-- The masked squared anticommutation defect `[a · c = 1] ‖X(a) Z(c) + Z(c) X(a)‖²_φ`. -/
-noncomputable def anticommDefectSq [Fintype ι] (φ : AlgState A) (X Z : (ι → Bool) → A)
-    (a c : ι → Bool) : ℝ :=
-  if a ⬝ᵥ c = true then φ.norm (X a * Z c + Z c * X a) ^ 2 else 0
-
-theorem anticommDefectSq_of_dotProduct_eq_true [Fintype ι] (φ : AlgState A)
-    (X Z : (ι → Bool) → A) {a c : ι → Bool} (h : a ⬝ᵥ c = true) :
-    anticommDefectSq φ X Z a c = φ.norm (X a * Z c + Z c * X a) ^ 2 := by
-  simp only [anticommDefectSq, h, ite_true]
-
-theorem anticommDefectSq_of_dotProduct_eq_false [Fintype ι] (φ : AlgState A)
-    (X Z : (ι → Bool) → A) {a c : ι → Bool} (h : a ⬝ᵥ c = false) :
-    anticommDefectSq φ X Z a c = 0 := by
-  simp only [anticommDefectSq, h, Bool.false_eq_true, ite_false]
-
-theorem anticommDefectSq_nonneg [Fintype ι] (φ : AlgState A) (X Z : (ι → Bool) → A)
-    (a c : ι → Bool) :
-    0 ≤ anticommDefectSq φ X Z a c := by
-  unfold anticommDefectSq; split_ifs <;> positivity
-
-/-- **Braiding relations from anticommutation, consistency and linearity, pointwise in `(a, b)`.**
-The braiding defect `β(a, b) = ‖Z(b) X(a) - (-1)^{a·b} X(a) Z(b)‖_φ` satisfies
+/-- The braiding defect pointwise in `(a, b)`: when `X(0) = 1`,
 `β(a, b)² ≤ [a · b = 1] α(a, b)² +
-32 (E_c ℓ(c, c + b)² + E_c κ_Z(c)² + κ_X(a)² + E_c [a · c = 1] α(a, c)²)`,
-when `X(0) = 1`. -/
-theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A) (X Z X' Z' : (ι → Bool) → A)
+32 (E_c ℓ(c, c + b)² + E_c κ_Z(c)² + κ_X(a)² + E_c [a · c = 1] α(a, c)²)`. -/
+private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
+    (X Z X' Z' : (ι → Bool) → A)
     (hX : ∀ a, X a ∈ unitary A) (hZ : ∀ b, Z b ∈ unitary A) (hX' : ∀ a, X' a ∈ unitary A)
     (hZ' : ∀ b, Z' b ∈ unitary A) (hXZ' : ∀ a b, Commute (X a) (Z' b))
     (hZZ' : ∀ b b', Commute (Z b) (Z' b')) (hZX' : ∀ b a, Commute (Z b) (X' a)) (hX0 : X 0 = 1)
     (a b : ι → Bool) :
     φ.norm (Z b * X a - (BitString.signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)) ^ 2 ≤
-      anticommDefectSq φ X Z a b + 32 * (𝔼 c, φ.norm (Z c * Z (c + b) - Z b) ^ 2 +
-        𝔼 c, φ.norm (Z c - Z' c) ^ 2 + φ.norm (X a - X' a) ^ 2 +
-          𝔼 c, anticommDefectSq φ X Z a c) := by
+      (if a ⬝ᵥ b = true then φ.norm (X a * Z b + Z b * X a) ^ 2 else 0) +
+        32 * (𝔼 c, φ.norm (Z c * Z (c + b) - Z b) ^ 2 + 𝔼 c, φ.norm (Z c - Z' c) ^ 2 +
+          φ.norm (X a - X' a) ^ 2 +
+          𝔼 c, if a ⬝ᵥ c = true then φ.norm (X a * Z c + Z c * X a) ^ 2 else 0) := by
   classical
   set ℓ : (ι → Bool) → ℝ := fun c => φ.norm (Z c * Z (c + b) - Z b)
   set κZ : (ι → Bool) → ℝ := fun c => φ.norm (Z c - Z' c)
   set κX := φ.norm (X a - X' a)
-  set m : (ι → Bool) → ℝ := anticommDefectSq φ X Z a
-  have hm : ∀ c, 0 ≤ m c := anticommDefectSq_nonneg φ X Z a
+  set m : (ι → Bool) → ℝ := fun c => if a ⬝ᵥ c = true then φ.norm (X a * Z c + Z c * X a) ^ 2
+    else 0
+  have hm : ∀ c, 0 ≤ m c := fun c => by simp only [m]; split_ifs <;> positivity
+  change _ ≤ m b + 32 * (𝔼 c, ℓ c ^ 2 + 𝔼 c, κZ c ^ 2 + κX ^ 2 + 𝔼 c, m c)
   have hE : 0 ≤ 𝔼 c, ℓ c ^ 2 + 𝔼 c, κZ c ^ 2 + κX ^ 2 + 𝔼 c, m c := by
     have h1 : 0 ≤ 𝔼 c, ℓ c ^ 2 := expect_nonneg fun c _ => sq_nonneg _
     have h2 : 0 ≤ 𝔼 c, κZ c ^ 2 := expect_nonneg fun c _ => sq_nonneg _
@@ -245,8 +222,7 @@ theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A) (X Z X'
     positivity
   by_cases hab : a ⬝ᵥ b = true
   · have e : φ.norm (Z b * X a - (BitString.signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)) ^ 2 = m b := by
-      rw [show m b = _ from anticommDefectSq_of_dotProduct_eq_true φ X Z hab, hab,
-        BitString.signVal_true]
+      simp only [m, hab, ite_true, BitString.signVal_true]
       congr 2
       rw [Complex.ofReal_neg, Complex.ofReal_one, neg_one_smul, sub_neg_eq_add, add_comm]
     rw [e]
@@ -258,65 +234,33 @@ theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A) (X Z X'
     rw [hX0, mul_one, one_mul, sub_self, AlgState.norm_zero]
     have := hm b
     nlinarith
-  set β := φ.norm (Z b * X a - X a * Z b)
-  set S := (univ : Finset (ι → Bool)).filter (fun c => a ⬝ᵥ c = true)
-  have hN : (0 : ℝ) < Fintype.card (ι → Bool) := by exact_mod_cast Fintype.card_pos
-  have hcard : 2 * (S.card : ℝ) = Fintype.card (ι → Bool) := by
-    have h := BitString.two_mul_card_dotProduct_eq_true_add a
-    simp only [ha, ↓reduceIte, add_zero] at h
-    rw [Fintype.card_fun, Fintype.card_bool]
-    exact_mod_cast h
   set R : (ι → Bool) → ℝ := fun c =>
     2 * ℓ c ^ 2 + 2 * κZ (c + b) ^ 2 + 2 * κX ^ 2 + m c + m (c + b)
   have hR : ∀ c, 0 ≤ R c := fun c => by
     have := hm c; have := hm (c + b); positivity
-  have hpt : ∀ c ∈ S, β ^ 2 ≤ 8 * R c := by
-    intro c hc
-    have hac : a ⬝ᵥ c = true := (mem_filter.mp hc).2
+  have hpt : ∀ c, a ⬝ᵥ c = true → φ.norm (Z b * X a - X a * Z b) ^ 2 ≤ 8 * R c := by
+    intro c hac
     have hacb : a ⬝ᵥ (c + b) = true := by rw [dotProduct_add, hac, hab']; rfl
     have h := norm_mul_sub_mul_le_of_anticommute φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' a b c
-    have e1 : m c = φ.norm (X a * Z c + Z c * X a) ^ 2 :=
-      anticommDefectSq_of_dotProduct_eq_true φ X Z hac
-    have e2 : m (c + b) = φ.norm (X a * Z (c + b) + Z (c + b) * X a) ^ 2 :=
-      anticommDefectSq_of_dotProduct_eq_true φ X Z hacb
-    simp only [R, e1, e2]
+    simp only [R, m, hac, hacb, ite_true]
     have h0 := φ.norm_nonneg (Z b * X a - X a * Z b)
-    have hx := φ.norm_nonneg (Z c * Z (c + b) - Z b)
-    have hy := φ.norm_nonneg (Z (c + b) - Z' (c + b))
-    have hz := φ.norm_nonneg (X a * Z c + Z c * X a)
-    have hw := φ.norm_nonneg (X a * Z (c + b) + Z (c + b) * X a)
-    have hv := φ.norm_nonneg (X a - X' a)
     set x := φ.norm (Z c * Z (c + b) - Z b)
     set y := φ.norm (Z (c + b) - Z' (c + b))
     set z := φ.norm (X a * Z c + Z c * X a)
     set w := φ.norm (X a * Z (c + b) + Z (c + b) * X a)
-    calc β ^ 2 ≤ (2 * x + 2 * y + z + w + 2 * κX) ^ 2 := pow_le_pow_left₀ h0 h 2
+    calc φ.norm (Z b * X a - X a * Z b) ^ 2 ≤ (2 * x + 2 * y + z + w + 2 * κX) ^ 2 :=
+          pow_le_pow_left₀ h0 h 2
       _ ≤ 8 * (2 * x ^ 2 + 2 * y ^ 2 + 2 * κX ^ 2 + z ^ 2 + w ^ 2) := by
-          have hCS := Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul Finset.univ
-            (r := ![2 * x, 2 * y, z, w, 2 * κX]) (f := ![(2 : ℝ), 2, 1, 1, 2])
-            (g := ![2 * x ^ 2, 2 * y ^ 2, z ^ 2, w ^ 2, 2 * κX ^ 2])
-            (fun i _ => by fin_cases i <;> norm_num)
-            (fun i _ => by
-              fin_cases i <;>
-                simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue,
-                  Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val] <;>
-                positivity)
-            (fun i _ => by
-              fin_cases i <;>
-                simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue,
-                  Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val] <;>
-                nlinarith)
-          simp only [Fin.sum_univ_five, Matrix.cons_val] at hCS
+          have hCS := sq_sum_le_card_mul_sum_sq (s := Finset.univ)
+            (f := ![x, x, y, y, κX, κX, z, w])
+          simp only [Finset.card_univ, Fintype.card_fin, Fin.sum_univ_eight, Matrix.cons_val]
+            at hCS
+          push_cast at hCS
           linarith
-  have hsum : (S.card : ℝ) * β ^ 2 ≤ ∑ c, 8 * R c :=
-    calc (S.card : ℝ) * β ^ 2 = ∑ _c ∈ S, β ^ 2 := by rw [sum_const, nsmul_eq_mul]
-      _ ≤ ∑ c ∈ S, 8 * R c := sum_le_sum hpt
-      _ ≤ ∑ c, 8 * R c := sum_le_sum_of_subset_of_nonneg (subset_univ _)
-          (fun c _ _ => by have := hR c; positivity)
-  have hβ : β ^ 2 ≤ 16 * 𝔼 c, R c := by
-    rw [Fintype.expect_eq_sum_div_card, ← mul_sum] at *
-    rw [mul_div_assoc', le_div_iff₀ hN, ← hcard]
-    nlinarith [hsum]
+  -- half of the `c` have `a · c = 1`: twice the masked average of the bound
+  have hβ := BitString.le_two_mul_expect_ite_of_forall ha hpt
+  have hmask : 𝔼 c, (if a ⬝ᵥ c = true then 8 * R c else 0) ≤ 𝔼 c, 8 * R c :=
+    expect_le_expect fun c _ => by split_ifs <;> [exact le_rfl; exact by have := hR c; positivity]
   have hshift : ∀ f : (ι → Bool) → ℝ, 𝔼 c, f (c + b) = 𝔼 c, f c := fun f => by
     simp only [add_comm _ b]
     exact Fintype.expect_add_left f b
@@ -324,14 +268,14 @@ theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A) (X Z X'
     simp only [R, expect_add_distrib, ← mul_expect, Fintype.expect_const]
     rw [hshift (fun c => κZ c ^ 2), hshift m]
     ring
+  rw [← mul_expect] at hmask
   have := hm b
   linarith
 
 /-- **Braiding relations from anticommutation, consistency and linearity**, averaged
 ([Natarajan and Vidick, §4.3.2, Lemma 18 and §4.3.3, Lemma 19][NatarajanVidick2017]): if
-`X(0) = 1`, then
-`E_{a,b} ‖Z(b) X(a) - (-1)^{a·b} X(a) Z(b)‖²_φ` is at most
-`33 E_{a,b} [a · b = 1] α(a, b)² +
+`X(0) = 1`, then `E_{a,b} ‖Z(b) X(a) - (-1)^{a·b} X(a) Z(b)‖²_φ` is at most
+`33 E_{a,b} [a · b = 1] ‖X(a) Z(b) + Z(b) X(a)‖²_φ +
 32 (E_{c,c'} ‖Z(c) Z(c') - Z(c + c')‖²_φ + E_c κ_Z(c)² + E_a κ_X(a)²)`. -/
 theorem expect_norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
     (X Z X' Z' : (ι → Bool) → A)
@@ -339,7 +283,7 @@ theorem expect_norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
     (hZ' : ∀ b, Z' b ∈ unitary A) (hXZ' : ∀ a b, Commute (X a) (Z' b))
     (hZZ' : ∀ b b', Commute (Z b) (Z' b')) (hZX' : ∀ b a, Commute (Z b) (X' a)) (hX0 : X 0 = 1) :
     𝔼 a, 𝔼 b, φ.norm (Z b * X a - (BitString.signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b)) ^ 2 ≤
-      33 * 𝔼 a, 𝔼 b, anticommDefectSq φ X Z a b +
+      33 * BitString.oddExpect (fun a b => φ.norm (X a * Z b + Z b * X a) ^ 2) +
         32 * (𝔼 c, 𝔼 c', φ.norm (Z c * Z c' - Z (c + c')) ^ 2 + 𝔼 c, φ.norm (Z c - Z' c) ^ 2 +
           𝔼 a, φ.norm (X a - X' a) ^ 2) := by
   have hpt := norm_braid_sq_le φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' hX0
@@ -351,7 +295,7 @@ theorem expect_norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
     rw [← Fintype.expect_add_left (fun c' => φ.norm (Z c * Z c' - Z (c + c')) ^ 2) c]
     simp only [BitString.add_cancel_left]
   simp only [expect_add_distrib, ← mul_expect, Fintype.expect_const] at hℓ ⊢
-  rw [hℓ]
+  rw [hℓ, BitString.oddExpect_def]
   ring
 
 /-- **The Pauli-family defect from anticommutation, consistency and linearity.** Combining the
@@ -367,7 +311,7 @@ theorem expect_norm_pauliFamily_sub_sq_le_of_anticommute [Fintype ι] [Decidable
     (hZZ' : ∀ b b', Commute (Z b) (Z' b')) (hZX' : ∀ b a, Commute (Z b) (X' a)) (hX0 : X 0 = 1) :
     𝔼 p, 𝔼 q, φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 ≤
       5 * (40 * 𝔼 c, φ.norm (Z c - Z' c) ^ 2 + 32 * 𝔼 a, φ.norm (X a - X' a) ^ 2 +
-        33 * 𝔼 a, 𝔼 b, anticommDefectSq φ X Z a b +
+        33 * BitString.oddExpect (fun a b => φ.norm (X a * Z b + Z b * X a) ^ 2) +
         𝔼 a, 𝔼 a', φ.norm (X a * X a' - X (a + a')) ^ 2 +
         33 * 𝔼 b, 𝔼 b', φ.norm (Z b * Z b' - Z (b + b')) ^ 2) := by
   have h₁ := expect_norm_pauliFamily_sub_sq_le φ X Z Z' hX hZ hZ' hXZ' hZZ'

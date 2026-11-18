@@ -12,8 +12,8 @@ import CslibFrontier.Foundations.Quantum.PauliTwirl
 
 /-! # Braiding relations from anticommutation, consistency and linearity
 
-Checked clients: the transfer through consistency, in any state of any star-ordered algebra, and
-the evaluation of the masked anticommutation defect. A concrete instance: the commuting phase flips
+Checked client: the transfer through consistency, for contractions in any state of any
+star-ordered algebra. A concrete instance: the commuting phase flips
 `Z^a`, `Z^b`, as their own consistent copies, satisfy `Z^b Z^a = Z^a Z^b` with every input `0`, so
 the averaged transfer certifies commutation.
 -/
@@ -49,12 +49,5 @@ example {n : Type} [Fintype n] [DecidableEq n] (φ : AlgState (Matrix (n → Boo
     (fun _ => hZ _) (fun _ => hc _ _) (fun _ => hc _ _) (fun _ => by simp)
   refine h.trans ?_
   simp [(hc _ _).eq, AlgState.norm_zero]
-
-/-- The masked anticommutation defect vanishes off the pairs with `a · c = 1`. -/
-example {ι A : Type} [Fintype ι] [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A]
-    [Algebra ℂ A] [StarModule ℂ A] [SelfAdjointDecompose A] (φ : AlgState A)
-    (X Z : (ι → Bool) → A) :
-    anticommDefectSq φ X Z 0 0 = 0 :=
-  anticommDefectSq_of_dotProduct_eq_false φ X Z (by rw [zero_dotProduct]; rfl)
 
 end CslibFrontierTests.Braiding

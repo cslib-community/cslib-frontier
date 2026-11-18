@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Expect
 public import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Tactic.CommuteLeft
 
 /-!
 # Linearity from consistency
@@ -68,10 +69,10 @@ theorem re_apply_mul_mul_ge (φ : AlgState R) {A₁ A₂ A₃ N₁ N₂ : R} (h�
   have chain := calc
       A₃ * A₂ * A₁ ≈[φ; φ.norm (A₁ - N₁)] A₃ * A₂ * N₁ :=
         (φ.approx_norm_sub A₁ N₁).mul_left_unitary (by unitary_mem)
-    _ = N₁ * A₃ * A₂ := by rw [← (hc₁₃.mul_right hc₁₂).eq, mul_assoc]
+    _ = N₁ * A₃ * A₂ := by commute_left [hc₁₂.symm, hc₁₃.symm]
     _ ≈[φ; φ.norm (A₂ - N₂)] N₁ * A₃ * N₂ :=
         (φ.approx_norm_sub A₂ N₂).mul_left_unitary (by unitary_mem)
-    _ = N₁ * N₂ * A₃ := by rw [mul_assoc, ← hc₂₃.eq, ← mul_assoc]
+    _ = N₁ * N₂ * A₃ := by commute_left [hc₂₃.symm]
   have h := (Complex.re_le_norm _).trans chain.symm.norm_apply_sub_le
   rw [Complex.sub_re] at h
   linarith

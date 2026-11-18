@@ -6169,6 +6169,7 @@ public import CslibFrontier.Foundations.Data.BitString.LocalBoundary
 public import CslibFrontier.Foundations.Data.BitString.MajorityVote
 public import CslibFrontier.Foundations.Data.BitString.MultiplicativeEnumeration
 public import CslibFrontier.Foundations.Data.BitString.Neg
+public import CslibFrontier.Foundations.Data.BitString.OddPairs
 public import CslibFrontier.Foundations.Data.BitString.PadBlocks
 public import CslibFrontier.Foundations.Data.BitString.Parity
 public import CslibFrontier.Foundations.Data.BitString.Parity.Circulant
@@ -7867,6 +7868,7 @@ public import CslibFrontier.Probability.UniformNat
 public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
+public import CslibFrontier.Tactic.CommuteLeft
 public import CslibFrontier.Tactic.Degree
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator

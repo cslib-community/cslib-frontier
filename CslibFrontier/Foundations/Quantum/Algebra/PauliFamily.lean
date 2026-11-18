@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Expect
+import CslibFrontier.Tactic.CommuteLeft
 public import CslibFrontier.Foundations.Quantum.PauliGroup
 public import CslibFrontier.Foundations.Data.BitString.Sign
 
@@ -149,26 +150,20 @@ theorem norm_mul_mul_mul_sub_le (φ : AlgState A) (X Z ZB : (ι → Bool) → A)
   have chain := calc
       X a * Z b * X a' * Z b' ≈[φ; φ.norm (Z b' - ZB b')] X a * Z b * X a' * ZB b' :=
         (c1 b').mul_left_unitary (by unitary_mem)
-    _ = ZB b' * X a * (Z b * X a') := by
-        rw [(((hXB a b').mul_left (hZZB b b')).mul_left (hXB a' b')).eq]
-        simp only [mul_assoc]
+    _ = ZB b' * X a * (Z b * X a') := by commute_left [hXB, hZZB]
     _ ≈[φ; φ.norm (Z b * X a' - s • (X a' * Z b))] ZB b' * X a * (s • (X a' * Z b)) :=
         (φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)
     _ = s • (ZB b' * (X a * X a') * Z b) := by
         rw [mul_smul_comm]; simp only [mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (ZB b' * (X a * X a') * ZB b) :=
         ((c1 b).mul_left_unitary (by unitary_mem)).smul s
-    _ = s • (ZB b' * ZB b * (X a * X a')) := by
-        rw [mul_assoc, ((hXB a b).mul_left (hXB a' b)).eq, ← mul_assoc]
+    _ = s • (ZB b' * ZB b * (X a * X a')) := by commute_left [hXB]
     _ ≈[φ; ‖s‖ * φ.norm (X a * X a' - X (a + a'))] s • (ZB b' * ZB b * X (a + a')) :=
         ((φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)).smul s
-    _ = s • (X (a + a') * ZB b' * ZB b) := by
-        rw [← (show Commute (X (a + a')) (ZB b' * ZB b) from
-          (hXB _ b').mul_right (hXB _ b)).eq, mul_assoc]
+    _ = s • (X (a + a') * ZB b' * ZB b) := by commute_left [hXB]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (X (a + a') * ZB b' * Z b) :=
         ((c2 b).mul_left_unitary (by unitary_mem)).smul s
-    _ = s • (X (a + a') * Z b * ZB b') := by
-        rw [mul_assoc, ← (hZZB b b').eq, ← mul_assoc]
+    _ = s • (X (a + a') * Z b * ZB b') := by commute_left [hXB, hZZB]
     _ ≈[φ; ‖s‖ * φ.norm (Z b' - ZB b')] s • (X (a + a') * Z b * Z b') :=
         ((c2 b').mul_left_unitary (by unitary_mem)).smul s
     _ ≈[φ; ‖s‖ * φ.norm (Z b * Z b' - Z (b + b'))] s • (X (a + a') * Z (b + b')) := by
