@@ -13,10 +13,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Un
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import CslibFrontier.Tactic.PolyTime.Init
 public import Mathlib.Data.Nat.NthRoot.Defs
+public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
 import CslibFrontier.Tactic.EncLen
@@ -34,10 +36,15 @@ intermediate root at most `m` also for `k = 0`.
 
 The square root `Turing.MultiTapeTM.ComputableInPolyTime.binary_sqrt` is the case `k = 2`.
 
+On unary naturals, the ceiling `⌈n ^ (p / q)⌉` of a rational power is a bounded search: it is
+the greatest `m ≤ n ^ p` with `(m - 1) ^ q < n ^ p`.
+
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_nthRoot`, `.binary_nthRoot'`: plain
   polynomial-time integer `k`-th root `Nat.nthRoot` with unary `k` and binary radicand.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_ceil_rpow`: the ceiling `⌈n ^ (p / q)⌉` of a
+  rational power, unary in and out.
 -/
 
 @[expose] public section
@@ -146,6 +153,37 @@ theorem binary_nthRoot' {α : Type} {input : α ↪ List Bool} {k m : α → ℕ
     (hk : ComputableInPolyTime k input encUnary) (hm : ComputableInPolyTime m input encNat) :
     ComputableInPolyTime (fun a => Nat.nthRoot (k a) (m a)) input encNat :=
   binary_nthRoot.comp (hk.prod hm)
+
+/-- For `q ≠ 0`, `⌈n ^ (p / q)⌉` is the greatest `m ≤ n ^ p` with `(m - 1) ^ q < n ^ p` (or `0`
+when there is none), a bounded search over unary naturals. -/
+private theorem ceil_rpow_eq_findGreatest (n p q : ℕ) (hq : q ≠ 0) :
+    ⌈(n : ℝ) ^ ((p : ℝ) / q)⌉₊ = Nat.findGreatest (fun m => (m - 1) ^ q < n ^ p) (n ^ p) := by
+  set x : ℝ := (n : ℝ) ^ ((p : ℝ) / q)
+  have hx : 0 ≤ x := Real.rpow_nonneg n.cast_nonneg _
+  have hxq : x ^ q = ((n ^ p : ℕ) : ℝ) := by
+    rw [← Real.rpow_mul_natCast n.cast_nonneg, div_mul_cancel₀ _ (Nat.cast_ne_zero.2 hq),
+      Real.rpow_natCast, Nat.cast_pow]
+  have hlt (m : ℕ) : m ^ q < n ^ p ↔ (m : ℝ) < x := by
+    rw [← pow_lt_pow_iff_left₀ m.cast_nonneg hx hq, hxq, ← Nat.cast_pow, Nat.cast_lt]
+  have hkey (m : ℕ) : (m - 1) ^ q < n ^ p ↔ m - 1 < ⌈x⌉₊ := by
+    rw [hlt, Nat.lt_ceil]
+  have hle : ⌈x⌉₊ ≤ n ^ p := by
+    rw [Nat.ceil_le, ← pow_le_pow_iff_left₀ hx (Nat.cast_nonneg _) hq, hxq]
+    exact_mod_cast Nat.le_self_pow hq _
+  symm
+  rw [Nat.findGreatest_eq_iff]
+  refine ⟨hle, fun h => (hkey _).2 (by omega), fun k hk _ => ?_⟩
+  rw [hkey]
+  omega
+
+/-- **Unary rational-power ceilings.** For naturals `p` and `q ≠ 0`, `n ↦ ⌈n ^ (p / q)⌉` is
+polynomial time with unary input and output, by a bounded search below `n ^ p`. -/
+theorem unary_ceil_rpow (p q : ℕ) (hq : q ≠ 0) :
+    ComputableInPolyTime (fun n : ℕ => ⌈(n : ℝ) ^ ((p : ℝ) / q)⌉₊) encUnary encUnary := by
+  simp only [ceil_rpow_eq_findGreatest _ p q hq]
+  have hp := (ComputableTidilyInPolyTime.unary_pow p).computableInPolyTime
+  have hq' := (ComputableTidilyInPolyTime.unary_pow q).computableInPolyTime
+  exact findGreatest hp (by fun_prop)
 
 end ComputableInPolyTime
 
