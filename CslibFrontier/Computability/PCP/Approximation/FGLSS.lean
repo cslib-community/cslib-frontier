@@ -37,9 +37,9 @@ and its general identity:
 
 Here `r` is the number `V.coins x` of random bits the verifier uses on `x`.
 
-This is a step toward the exercise, not all of it. Item 1 (computing `x ↦ G_x` in time polynomial
-in `2 ^ (r + q) |x|`) and the consequence that the PCP Theorem makes Independent Set and Clique
-NP-hard to approximate within every constant factor are not proved here.
+The companion module `FGLSSRuntime` gives the native construction and runtime certificate
+for item 1 in the nonadaptive model. The every-constant approximation hardness corollary
+remains open here.
 
 A view whose queries repeat a position with different answers is inconsistent with itself. The
 exercise states the conflict condition without discussing repeated queries; read literally, the
@@ -91,6 +91,7 @@ instance : Finite (V.View a) :=
 
 /-- Two views are consistent when they give the same answer whenever they query the same
 position. -/
+@[expose]
 def View.Consistent (v w : V.View a) : Prop :=
   ∀ (i : Fin (V.queries (a, List.ofFn v.random)).length)
     (j : Fin (V.queries (a, List.ofFn w.random)).length),
@@ -125,6 +126,10 @@ def fglssGraph : SimpleGraph {v : V.View a // V.IsFGLSSVertex a v} where
   Adj v w := ¬v.1.Consistent w.1
   symm := ⟨fun _ _ h hc => h hc.symm⟩
   loopless := ⟨fun v h => h v.property.consistent⟩
+
+/-- Adjacency in the FGLSS graph is inconsistency of the underlying views. -/
+theorem fglssGraph_adj (u v : {w : V.View a // V.IsFGLSSVertex a w}) :
+    (V.fglssGraph a).Adj u v ↔ ¬u.val.Consistent v.val := Iff.rfl
 
 variable {V a}
 
