@@ -6137,6 +6137,31 @@ register_result "np-eq-conp-iff-threesat-tautology" where
     NPComplete.NP_eq_coNP_iff_reducible, which holds for any NP-complete and coNP-complete \
     pair."
 
+register_result "goldreich-fixed-proof-system-np-conp" where
+  title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
+    NP = coNP"
+  topic := "proof complexity"
+  sources := [
+    { paper := Goldreich2007DraftR6, theorem := "Theorem B.13 (with Definition B.12)",
+      locator := "May 2007 draft r6.pdf, PDF p. 19; printed p. 527" }
+  ]
+  theorems := [
+    Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP
+  ]
+  scope := "CNF refutation form: proof systems for the unsatisfiable CNF formulas (encCNF) \
+    instead of tautologies, which the draft discusses as refutations later in Appendix B.4. \
+    Proof systems are Cook–Reckhow polynomial-time functions from proof words onto the set, not \
+    Definition B.12 verifiers on a proof and a formula measured in their combined length. A \
+    verifier becomes such a function by encoding both the formula and its certificate in the \
+    proof word, and a function gives a verifier by evaluating it and comparing; polynomial \
+    boundedness transfers between the two, but the proofs and their exact lengths need not \
+    agree. PolynomiallyBounded bounds a shortest proof of each member by a polynomial in its \
+    encoded length, the per-instance form of the bound on L_M(n). NP = coNP is stated for every \
+    instance type and encoding. The Lean proof chooses M by cases on NP = coNP (the draft \
+    invokes coNP-completeness): a polynomially bounded system if they are equal, otherwise the \
+    exhaustive system ProofSystem.exhaustive. Outside-fleet six-point source check: review \
+    5947873862 on PR #6300."
+
 register_result "bounded-termination-exponential-completeness" where
   title := "Any-output bounded termination is in E but outside P and is EXP-complete"
   topic := "computational complexity"
@@ -6471,28 +6496,3 @@ register_result "owf-iterate-not-one-way" where
     that is at least 2 for all large n. The draft's parametric Definition 10.1 is read \
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
-
-register_result "goldreich-fixed-proof-system-np-conp" where
-  title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
-    NP = coNP"
-  topic := "proof complexity"
-  sources := [
-    { paper := Goldreich2007DraftR6, theorem := "Theorem B.13 (with Definition B.12)",
-      locator := "May 2007 draft r6.pdf, PDF p. 19; printed p. 527" }
-  ]
-  theorems := [
-    Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP
-  ]
-  scope := "CNF refutation form: proof systems for the unsatisfiable CNF formulas (encCNF) \
-    instead of tautologies, which the draft discusses as refutations later in Appendix B.4. \
-    Proof systems are Cook–Reckhow polynomial-time functions from proof words onto the set, not \
-    Definition B.12 verifiers on a proof and a formula measured in their combined length. A \
-    verifier becomes such a function by encoding both the formula and its certificate in the \
-    proof word, and a function gives a verifier by evaluating it and comparing; polynomial \
-    boundedness transfers between the two, but the proofs and their exact lengths need not \
-    agree. PolynomiallyBounded bounds a shortest proof of each member by a polynomial in its \
-    encoded length, the per-instance form of the bound on L_M(n). NP = coNP is stated for every \
-    instance type and encoding. The Lean proof chooses M by cases on NP = coNP (the draft \
-    invokes coNP-completeness): a polynomially bounded system if they are equal, otherwise the \
-    exhaustive system ProofSystem.exhaustive. Outside-fleet six-point source check: review \
-    5947873862 on PR #6300."
