@@ -86,7 +86,7 @@ theorem computableInPolyTime_orderedConstraints :
   apply ComputableInPolyTime.of_tidy
   have hz : ComputableTidilyInPolyTime (fun p : CSP Unit ℕ × RotationCertificate => p.1.zipIdx)
       encOrderInput (encList (encPair (encConstraint encUnit encNat) encUnary)) :=
-    (ComputableTidilyInPolyTime.zipIdx _).comp (ComputableTidilyInPolyTime.fst _ _)
+    ((ComputableInPolyTime.zipIdx _).tidy).comp (ComputableTidilyInPolyTime.fst _ _)
   simp only [orderedConstraints, List.mapIdx_eq_zipIdx_map]
   apply ComputableTidilyInPolyTime.mapWithInput hz
   let encRow := encPair (encConstraint encUnit encNat) encUnary

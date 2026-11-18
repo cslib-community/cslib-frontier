@@ -2528,7 +2528,15 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceEnume
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceFlatMap
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidencePrefix
 public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceRelabel
+public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceUniform
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Majority
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Compiler
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Hardness
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.Order
+public import CslibFrontier.Computability.Complexity.Problems.CSP.OneHot3.OrderAcceptance
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationHardness
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationReduction
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT.Tractable
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
@@ -2539,6 +2547,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentIndices
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentOrderTable
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArgumentPermutation
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArityOccurrence
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendProgram
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Certificate
@@ -4123,6 +4132,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.Gadget.PlanarCompiler
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Rotation
 public import CslibFrontier.Computability.PolyTime.CSP.Gadget.Size
 public import CslibFrontier.Computability.PolyTime.CSP.Occurrence
+public import CslibFrontier.Computability.PolyTime.CSP.OneHotOrder
 public import CslibFrontier.Computability.PolyTime.CSP.Table
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
 public import CslibFrontier.Computability.PolyTime.CSP.Vars
