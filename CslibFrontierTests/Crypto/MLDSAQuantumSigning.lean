@@ -9,6 +9,7 @@ module
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
@@ -93,3 +94,33 @@ example {base H : Xofs} {s : Level} {a b : ℕ} {ha : 528 ≤ a} {hb : maskPolyB
         ((masks (maskAddress seed nonce) j).val : ZMod 8380417))).take 481 := by
   rw [← Xofs.read_mask_of_mem_sampleWithMasks h seed nonce]
   exact (H.h256.take_read _ (show 481 ≤ maskPolyBytes s by cases s <;> decide)).symm
+
+-- Request a signature on three bits and submit the reply against a different one-bit message.
+private def switchMessage : QuantumSigningForger where
+  addressBits := 2
+  responseBytes := 1
+  workQubits := 0
+  program _ := .liftBind (.inr (.inr ⟨[], [true, false, true]⟩)) fun reply =>
+    .pure ⟨[], [false], reply.getD []⟩
+
+private theorem fits_three : switchMessage.MessagesFit 3 := by
+  intro pk
+  constructor
+  · exact OracleComp.QueriesSatisfy.liftBind_iff.mpr
+      ⟨le_rfl, fun _ => OracleComp.QueriesSatisfy.pure _⟩
+  · intro f hf
+    simp only [switchMessage, OracleComp.support, OracleComp.supportWith, Set.mem_iUnion,
+      Set.mem_univ, Set.mem_singleton_iff, exists_prop, true_and] at hf
+    obtain ⟨_, rfl⟩ := hf
+    exact (by decide : 1 ≤ 3)
+
+example : ¬ switchMessage.MessagesFit 2 := fun fit =>
+  (by decide : ¬ 3 ≤ 2) (OracleComp.QueriesSatisfy.liftBind_iff.mp (fit []).1).1
+
+-- The public key determines the cutoff for this forger. Doubling both windows and
+-- changing both background streams preserves its whole ML-DSA-44 winning distribution.
+example (lo hi : Xofs) :
+    switchMessage.randomPrefixGame .mlDSA44 lo 10496 894 =
+      switchMessage.randomPrefixGame .mlDSA44 hi 20992 1788 :=
+  switchMessage.randomPrefixGame_stable .mlDSA44 fits_three (by decide) (by decide)
+    (by decide) (by decide) lo hi
