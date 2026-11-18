@@ -113,6 +113,11 @@ theorem signProj_mul_signProj_of_ne {b c : Bool} (h : b ≠ c) :
 
 end Sign
 
+/-- An observable commuting with `O` commutes with the projections of `O`. -/
+theorem _root_.Commute.signProj_left {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
+    (h : Commute O O') (b : Bool) : Commute (signProj O b) O' :=
+  ((Commute.one_left _).add_left (h.smul_left _)).smul_left _
+
 /-- The projections of commuting observables commute. -/
 theorem _root_.Commute.signProj {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
     (h : Commute O O') (b c : Bool) : Commute (signProj O b) (signProj O' c) := by
@@ -148,6 +153,10 @@ noncomputable def Measurement.ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' :
   nonneg b := nonneg_of_isSelfAdjoint_of_mul_self (isSelfAdjoint_signProj hO b)
     (signProj_mul_self hO' b)
   sum_effect := sum_signProj O
+
+theorem Measurement.isProjective_ofInvolution {O : A} (hO : IsSelfAdjoint O) (hO' : O * O = 1) :
+    (Measurement.ofInvolution hO hO').IsProjective :=
+  signProj_mul_self hO'
 
 /-- The product `P_{a₀}(O₀) P_{a₁}(O₁) P_{a₂}(O₂)` of the projections of three observables. -/
 noncomputable def signProj₃ (O₀ O₁ O₂ : A) : Bool × Bool × Bool → A

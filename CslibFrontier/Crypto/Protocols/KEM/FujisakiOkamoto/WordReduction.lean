@@ -47,7 +47,7 @@ is `IsOraclePPT encBool A`.
 A request in the domain is answered by the typed keyless simulator `Scheme.simFilterHandler` of
 the bundle `WordPKE.scheme P keyLen n`, on the same state `SimState`; a decapsulation answer is
 encoded with `encOption encBits`. The domain is: messages of length `msgLen n` for `G`; for `H`,
-the canonical encodings `encHQuery (b, m, c)` of a message `m` of length `msgLen n` and a
+the canonical encodings `encHQuery (false, m, c)` of a message `m` of length `msgLen n` and a
 ciphertext `c` of length at most `ctLen n` (`WordPKE.isHQuery`); and ciphertexts of length at most
 `ctLen n` for decapsulation. Any other request gets the empty reply and leaves the state
 unchanged. The filter `d n pk gCache c` decides which decapsulation queries are answered. Every
@@ -161,11 +161,18 @@ namespace WordPKE
 variable (P : WordPKE) (keyLen : ℕ → ℕ)
 
 /-- Whether the `H` request `w` is in the domain at parameter `n`: it is the canonical encoding
-of a triple `(b, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`. -/
+of `(false, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`. -/
 def isHQuery (n : ℕ) (w : List Bool) : Bool :=
   match hQueryDecoder.decode w with
-  | (b, m, c) =>
-    encHQuery (b, m, c) == w && m.length == P.msgLen n && decide (c.length ≤ P.ctLen n)
+  | (_, m, c) =>
+    encHQuery (false, m, c) == w && m.length == P.msgLen n && decide (c.length ≤ P.ctLen n)
+
+private theorem prefix_eq_false_of_isHQuery {P : WordPKE} {n : ℕ} {w : List Bool}
+    (h : P.isHQuery n w = true) : (hQueryDecoder.decode w).1 = false := by
+  simp only [isHQuery, Bool.and_eq_true, beq_iff_eq] at h
+  have hd := congrArg hQueryDecoder.decode h.1.1
+  rw [hQueryDecoder.decode_enc] at hd
+  exact congrArg Prod.fst hd.symm
 
 /-- The native keyless simulator with decapsulation filter `d` at parameter `n`, for public key
 `pk` and challenge ciphertext `cStar`. A request in the domain is answered by the typed simulator
@@ -243,9 +250,10 @@ theorem IsEfficient.computableInPolyTime_isHQuery {P : WordPKE} (hP : P.IsEffici
       (encPair encUnary encBits) encHQuery :=
     hQueryDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
   have hcanon : ComputableInPolyTime
-      (fun x : ℕ × List Bool => encHQuery (hQueryDecoder.decode x.2) == x.2)
+      (fun x : ℕ × List Bool => encHQuery (false, (hQueryDecoder.decode x.2).2) == x.2)
       (encPair encUnary encBits) encBool :=
-    ComputableInPolyTime.beq hdec.encoding_comp (ComputableInPolyTime.snd _ _)
+    ComputableInPolyTime.beq ((ComputableInPolyTime.const false).prod hdec.snd').encoding_comp
+      (ComputableInPolyTime.snd _ _)
   have hmsg : ComputableInPolyTime
       (fun x : ℕ × List Bool => (hQueryDecoder.decode x.2).2.1.length == P.msgLen x.1)
       (encPair encUnary encBits) encBool :=
@@ -341,20 +349,16 @@ private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
         x.2.1.2 x.2.2
     else pure ([], x.2.2)
   else if x.2.1.1 = .H then
-    if P.isHQuery x.1.1 x.2.1.2 then
-      if (hQueryDecoder.decode x.2.1.2).1 then
+    if P.isHQuery x.1.1 x.2.1.2 then do
+      let (r, st₁) ← simHashG (CT := List Bool) (K := List Bool)
+        (BitString.sampleList (P.coinLen x.1.1)) (hQueryDecoder.decode x.2.1.2).2.1 x.2.2
+      if P.encDet x.1.1 x.1.2.1 (hQueryDecoder.decode x.2.1.2).2.1 r =
+          (hQueryDecoder.decode x.2.1.2).2.2 then
+        simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
+          (hQueryDecoder.decode x.2.1.2).2.2 st₁
+      else
         simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-          (true, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) x.2.2
-      else do
-        let (r, st₁) ← simHashG (CT := List Bool) (K := List Bool)
-          (BitString.sampleList (P.coinLen x.1.1)) (hQueryDecoder.decode x.2.1.2).2.1 x.2.2
-        if P.encDet x.1.1 x.1.2.1 (hQueryDecoder.decode x.2.1.2).2.1 r =
-            (hQueryDecoder.decode x.2.1.2).2.2 then
-          simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-            (hQueryDecoder.decode x.2.1.2).2.2 st₁
-        else
-          simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-            (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) st₁
+          (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) st₁
     else pure ([], x.2.2)
   else
     if x.2.1.2.length ≤ P.ctLen x.1.1 then
@@ -378,14 +382,14 @@ private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ →
     by_cases hq : P.isHQuery n w = true
     · simp only [hq, ↓reduceIte, Scheme.simFilterHandler, Scheme.simFilterDispatch,
         ROQuery.dispatch]
-      generalize hQueryDecoder.decode w = y
+      have hp := prefix_eq_false_of_isHQuery hq
+      generalize hQueryDecoder.decode w = y at hp ⊢
       obtain ⟨b, m, c⟩ := y
-      cases b
-      · simp only [Scheme.simHashH, StateT.bind_apply, Bool.false_eq_true, ↓reduceIte, scheme,
-          toExplicitCoin]
-        congr 1 with p
-        by_cases h : P.encDet n pk m p.1 = c <;> simp only [h, ↓reduceIte]
-      · rfl
+      change b = false at hp
+      subst b
+      simp only [Scheme.simHashH, StateT.bind_apply, scheme, toExplicitCoin]
+      congr 1 with p
+      by_cases h : P.encDet n pk m p.1 = c <;> simp only [h, ↓reduceIte]
     · simp only [hq, Bool.false_eq_true, ↓reduceIte]
   · simp only [simFilterWordHandler, simCallExplicit, reduceCtorEq, ↓reduceIte]
     by_cases hl : w.length ≤ P.ctLen n
@@ -448,9 +452,6 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
       (hP.msgLen.comp hn))
     (isPPTOn_simHashG (hP.coinLen.comp hn) hw hst) hreject
   -- `H` requests
-  have hraw := isPPTOn_simHashHRaw (x := fun x => (true, (hQueryDecoder.decode x.2.1.2).2.1,
-      (hQueryDecoder.decode x.2.1.2).2.2)) (hkeyLen.comp hn)
-    ((ComputableInPolyTime.const true).prod hdec.snd') hst
   let Q := encPair encSimCall (encPair encBits encSimState)
   have hfst : ComputableInPolyTime
       (fun q : ((ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) ×
@@ -469,7 +470,7 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
     (isPPTOn_simHashHRaw (hkeyLen.comp (hn.comp hfst))
       ((ComputableInPolyTime.const false).prod (hdec.snd'.comp hfst))
       (ComputableInPolyTime.snd _ _).snd')
-  have hfalse := IsPPTOn.bind_with
+  have hhash := IsPPTOn.bind_with
     (first := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
       simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen x.1.1))
         (hQueryDecoder.decode x.2.1.2).2.1 x.2.2)
@@ -483,7 +484,7 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
           (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) p.2)
     (isPPTOn_simHashG (hP.coinLen.comp hn) hdec.snd'.fst' hst) hafter
   have hH := IsPPTOn.cond' (hP.computableInPolyTime_isHQuery.comp (hn.prod hw))
-    (IsPPTOn.cond' hdec.fst' hraw hfalse) hreject
+    hhash hreject
   -- decapsulation requests
   have hnone : IsPPTOn encSimCall (encPair encBits encSimState)
       (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
@@ -634,12 +635,7 @@ private theorem simCallExplicit_support (P : WordPKE) (keyLen : ℕ → ℕ)
       exact ⟨h₁, by lia, by lia⟩
     · exact hpure [] (by simp) hresult
   · simp only [simCallExplicit, reduceCtorEq, ↓reduceIte] at hresult ⊢
-    split_ifs at hresult with hvalid htag
-    · have hw := length_le_of_isHQuery hvalid
-      obtain ⟨h₁, h₂, h₃⟩ := stepHRaw _ st hinv result hresult
-      refine ⟨h₁, by lia, ?_⟩
-      rw [length_encHQuery] at h₃
-      lia
+    split_ifs at hresult with hvalid
     · have hw := length_le_of_isHQuery hvalid
       rw [ProbComp.eval_bind] at hresult
       obtain ⟨r, hr, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
