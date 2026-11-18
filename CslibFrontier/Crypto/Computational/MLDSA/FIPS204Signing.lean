@@ -12,13 +12,15 @@ public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 
 /-!
-# FIPS 204 signing and the strong chosen-message forgery experiment
+# Definitions of FIPS 204 signing and the strong chosen-message forgery experiment
 
 [FIPS 204][NISTFIPS204], Algorithms 2, 6 and 7. The external signer accepts the encoded
 private key, a bit-string message, a byte context and 32 bytes of randomness. A zero randomness
 string selects deterministic signing. The bounded loop uses the 814-attempt option of Appendix C.
 The adaptive strong-unforgeability experiment draws fresh hedging randomness for each signature
-and records the context, message and exact bytes of every successful reply.
+and records the context, message and exact bytes of every successful reply. Its sole external
+service is signing. Both signing and final verification evaluate the concrete FIPS 202 SHAKE
+functions. Its zero-signing-query lemma recovers the byte-level key-only experiment.
 -/
 
 public section
@@ -130,9 +132,9 @@ noncomputable def signingOracle (s : Level) (sk : List Byte) (q : SigningQuery)
       | none => log
       | some bytes => ⟨q.context, q.message, bytes⟩ :: log)
 
-/-- The strong chosen-message forgery experiment for FIPS 204's finite parameter sets:
-generate both keys from one uniform seed, answer adaptive signing calls with the secret key,
-and accept a verifying triple precisely when the signer never returned it. -/
+/-- The classical strong chosen-message experiment with concrete SHAKE. Both keys come from one
+uniform seed. The signer answers adaptive requests with the secret key. An accepted forgery
+must be fresh among the returned context, message and signature triples. -/
 noncomputable def sufCmaGame (s : Level) (adv : SigningForger) : Game :=
   keyExperiment s fun keys =>
     (ProbOracleComp.runWith (signingOracle s keys.secretKey) (adv keys.publicKey) []).map
