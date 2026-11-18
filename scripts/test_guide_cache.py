@@ -75,15 +75,35 @@ class GuideCacheTests(unittest.TestCase):
     def test_backup_requires_successful_scheduled_docs_producer_on_same_repo(self):
         artifact = self.artifact_helper()
         repo = "owner/project"
-        entry = {"id": 42, "name": "key", "expired": False, "workflow_run": {"id": 15}}
+        entry = {"id": 42, "name": "key-run-15-attempt-2", "expired": False, "workflow_run": {"id": 15}}
         run = {"id": 15, "run_attempt": 2, "event": "schedule", "head_branch": "main", "conclusion": "success",
                "path": ".github/workflows/docs.yml", "head_repository": {"full_name": repo}}
         for change in ({}, {"id": 16}, {"event": "pull_request"}, {"head_branch": "topic"},
                        {"path": ".github/workflows/guide.yml"}, {"conclusion": "cancelled"},
                        {"head_repository": {"full_name": "fork/project"}}):
             with self.subTest(change=change), patch.object(artifact, "api", side_effect=[
-                    {"artifacts": [entry]}, {"workflow_runs": [run | change]}]):
+                    {"workflow_runs": [run | change]}, {"artifacts": [entry]}]):
                 self.assertEqual(artifact.producer(repo, "key"), None if change else (15, 2, 42))
+
+    def test_successful_rerun_cannot_reuse_an_earlier_attempts_backup(self):
+        artifact = self.artifact_helper()
+        run = {"id": 15, "run_attempt": 2, "event": "schedule", "head_branch": "main",
+               "conclusion": "success", "path": ".github/workflows/docs.yml",
+               "head_repository": {"full_name": "owner/project"}}
+        # Attempt 2 succeeded but its optional upload failed. Attempt 1's artifact still
+        # exists, and neither the run id nor a post-download attempt check distinguishes it.
+        for name in ("key", "key-run-15-attempt-1", "key-run-16-attempt-2"):
+            entry = {"id": 42, "name": name, "expired": False, "workflow_run": {"id": 15}}
+            with self.subTest(name=name), patch.object(artifact, "api", side_effect=[
+                    {"workflow_runs": [run]}, {"artifacts": [entry]}]) as api:
+                self.assertIsNone(artifact.producer("owner/project", "key"))
+                self.assertEqual(api.call_args.args[0],
+                                 "repos/owner/project/actions/runs/15/artifacts"
+                                 "?name=key-run-15-attempt-2&per_page=100")
+        docs = (ROOT / ".github/workflows/docs.yml").read_text()
+        self.assertIn("name: ${{ steps.guide-deps.outputs.key }}-run-${{ github.run_id }}"
+                      "-attempt-${{ github.run_attempt }}",
+                      step(docs, "Retain Guide dependencies outside the Actions cache"))
 
     def test_download_pins_artifact_id_and_refuses_restarted_run(self):
         artifact = self.artifact_helper()

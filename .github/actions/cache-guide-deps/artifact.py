@@ -19,17 +19,22 @@ def api(endpoint):
 
 def producer(repository, key):
     prefix = f"repos/{repository}/actions"
-    artifacts = api(f"{prefix}/artifacts?name={key}&per_page=100")["artifacts"]
-    candidates = {a["workflow_run"]["id"]: a["id"] for a in artifacts
-                  if a["name"] == key and not a["expired"] and a.get("workflow_run")}
-    if not candidates:
-        return None
     runs = api(f"{prefix}/workflows/docs.yml/runs?branch=main&event=schedule"
                "&status=success&per_page=14")["workflow_runs"]
-    return next(((r["id"], r["run_attempt"], candidates[r["id"]]) for r in runs if r["id"] in candidates
-                 and r["event"] == "schedule" and r["head_branch"] == "main"
-                 and r["conclusion"] == "success" and r["path"] == ".github/workflows/docs.yml"
-                 and (r.get("head_repository") or {}).get("full_name") == repository), None)
+    for run in runs:
+        if (run["event"] != "schedule" or run["head_branch"] != "main"
+                or run["conclusion"] != "success" or run["path"] != ".github/workflows/docs.yml"
+                or (run.get("head_repository") or {}).get("full_name") != repository):
+            continue
+        # A successful rerun may fail its optional backup step. Never relabel an earlier
+        # attempt's artifact with the successful attempt number returned by the runs API.
+        name = f"{key}-run-{run['id']}-attempt-{run['run_attempt']}"
+        artifacts = api(f"{prefix}/runs/{run['id']}/artifacts?name={name}&per_page=100")["artifacts"]
+        for artifact in artifacts:
+            if (artifact["name"] == name and not artifact["expired"]
+                    and (artifact.get("workflow_run") or {}).get("id") == run["id"]):
+                return run["id"], run["run_attempt"], artifact["id"]
+    return None
 
 
 def pack(root, archive):

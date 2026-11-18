@@ -245,8 +245,10 @@ def pinned_source(pkg, revision):
     return status.returncode == 0 and not status.stdout
 
 try:
-    compatible = same_input("lean-toolchain") and same_input("lake-manifest.json")
+    compatible = all(same_input(name) for name in (
+        "lean-toolchain", "lake-manifest.json", "lakefile.toml", "lakefile.lean"))
     manifest = target / "lake-manifest.json"
+    existing_packages = (target / ".lake/packages").exists()
     matched = []
     if manifest.is_file():
         entries = json.loads(manifest.read_bytes())["packages"]
@@ -263,6 +265,14 @@ try:
                 matched.append(name)
             else:
                 compatible = False
+            # prepare_lake preserves an existing packages directory rather than populating
+            # it. Its actual source trees must therefore match too, including missing pins.
+            if existing_packages and (entry["type"] != "git" or not pinned_source(
+                    target / ".lake/packages" / name, entry["rev"])):
+                compatible = False
+    elif existing_packages:
+        # Without a manifest there is no pinned destination identity to verify.
+        compatible = False
     if compatible:
         print("verified" if manifest.is_file() else "legacy")
     else:

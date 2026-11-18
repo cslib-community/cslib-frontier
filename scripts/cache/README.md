@@ -144,8 +144,10 @@ and is not included in this cache.
 
 The nightly docs run also retains a seven-day Actions artifact of those exact four build
 directories. When the Actions cache evicts its entry, Guide PRs can recover it from a successful
-scheduled docs run on `main` with the same compatibility key. The runner reports the producer
-run ID. Set `DISABLE_GUIDE_ARTIFACT=1` to turn off this backup independently.
+scheduled docs run on `main` with the same compatibility key. Artifact names also include the
+producer run ID and attempt, so a successful rerun whose optional backup failed cannot reuse
+an earlier attempt's artifact. The runner reports that identity. Set `DISABLE_GUIDE_ARTIFACT=1`
+to turn off this backup independently.
 
 ## Hosted-runner disk space
 
@@ -357,8 +359,12 @@ isolates dependency `.git` directories and
 or `index`, and dereferences any package symlink whose target is absolute or escapes the package
 directory. Pass `--copy-cslib` or `--copy-packages` when package sources must change.
 
-Before copying, the helper compares both checkouts’ toolchains and manifests and verifies the
-primary dependency checkouts against the requested Git revisions. Only packages listed in the
+Before copying, the helper compares both checkouts’ toolchains, manifests and root Lake
+configuration files and verifies the primary dependency checkouts against the requested Git
+revisions. If the destination already has a packages directory, every required dependency there
+must also be clean and at its requested revision before root build/config outputs are copied;
+missing packages or an absent manifest prevent that copy. Existing destination sources and
+caches are preserved. Only packages listed in the
 destination root manifest are seeded, even if the primary checkout also contains Guide or API
 documentation dependencies. The helper checks for staged, unstaged
 and nonignored untracked changes outside each dependency's `.lake`. When a pin or toolchain
