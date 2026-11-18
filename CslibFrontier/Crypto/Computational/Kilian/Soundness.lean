@@ -660,7 +660,7 @@ end Efficiency
 
 /-! ### Computational soundness -/
 
-/-- The exact soundness bound composed with the reduction of `HashFamily.merklePositionBinding`:
+/-- The exact soundness bound composed with the reduction of `merklePositionBinding_of_hashFamily`:
 `Pr[x ∉ L ∧ accept] ≤ 2⁻ⁿ + M · √Adv^CR(merkleCollisionFinder H (kilianBindingAdversary P), n)`. -/
 theorem succProbability_kilianSoundnessGame_le_collision (L : Set α) (P : KilianProver α) (n M : ℕ)
     (hsound : ∀ x ∉ L, ∀ π : List Bool,
@@ -705,7 +705,8 @@ theorem HashFamily.kilianSound (hH : HashFamily H) {enc : α ↪ List Bool} {L :
       _ ≤ c₂ * (c₁ * (3 * n + 2) ^ d₁ + 1) ^ d₂ := by gcongr
   have hpoly : PolynomiallyBounded fun n => c₂ * (c₁ * (3 * n + 2) ^ d₁ + 1) ^ d₂ := by
     fun_prop
-  have hbind := hH.merklePositionBinding.negligible _ (isPPT_kilianBindingAdversary hV hcoins hP)
+  have hbind := (merklePositionBinding_of_hashFamily hH).negligible _
+    (isPPT_kilianBindingAdversary hV hcoins hP)
   refine negligible_of_le ((negligible_geometric (by norm_num : (1 / 2 : NNReal) < 1)).add
     (hbind.sqrt.polynomiallyBounded_mul hpoly)) fun n => ?_
   exact succProbability_kilianSoundnessGame_le L P n _ hpcp.sound (hM n)

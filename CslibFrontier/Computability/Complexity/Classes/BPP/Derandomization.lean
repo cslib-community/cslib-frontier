@@ -56,8 +56,10 @@ is at least `2 / 3` on members and at most `1 / 3` on other instances, so the ma
 
 ## Main results
 
-* `Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`: if a problem in `E` has slices
-  average-case hard for size `2 ^ (n / c)` for all large `n`, then `BPP enc ⊆ P enc`.
+* `Cslib.Complexity.PromiseBPP_subset_PromiseP_of_isAverageCaseHard`: if a problem in `E` has
+  slices average-case hard for size `2 ^ (n / c)` for all large `n`, then
+  `PromiseBPP enc ⊆ PromiseP enc`.
+* `Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`: the same for `BPP enc ⊆ P enc`.
 * `Cslib.Complexity.P_eq_BPP_of_isAverageCaseHard`: under the same hypothesis, `P enc = BPP enc`.
 
 The worst-case to average-case amplification, giving the same conclusion from a problem in `E`
@@ -162,22 +164,23 @@ private theorem nw_design_and_size_bounds {c m Tc τ : ℕ} (hc : 0 < c) (hτ3 :
   have h6m' : (6 * m : ℝ) < ((2 ^ (4 * τ) : ℕ) : ℝ) := by exact_mod_cast h6m
   linarith
 
-/-- **Hardness versus randomness: average-case hardness in `E` derandomizes `BPP`**
-[NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. Let `L` be a problem on words
-in `E`, decidable in time `O(2 ^ (k n))` for some `k`, and let `c > 0`. If for all large `n` the
-slice of `L` at `n` is average-case hard for size `2 ^ (n / c)`, that is, every Boolean function of
-De Morgan circuit complexity at most `2 ^ (n / c)` agrees with it on at most a
-`1 / 2 + 2 ^ (-(n / c))` fraction of the words of length `n`, then every problem in `BPP enc` is
-in `P enc`, for every encoding `enc` of instances.
+/-- **Hardness versus randomness for promise problems: average-case hardness in `E` derandomizes
+`PromiseBPP`** [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. Let `L` be a
+problem on words in `E`, decidable in time `O(2 ^ (k n))` for some `k`, and let `c > 0`. If for all
+large `n` the slice of `L` at `n` is average-case hard for size `2 ^ (n / c)`, that is, every
+Boolean function of De Morgan circuit complexity at most `2 ^ (n / c)` agrees with it on at most a
+`1 / 2 + 2 ^ (-(n / c))` fraction of the words of length `n`, then every promise problem in
+`PromiseBPP enc` is in `PromiseP enc`, for every encoding `enc` of instances.
 
 The hardness is nonuniform and non-strict (`Cslib.Circuits.Boolean.IsAverageCaseHard`); the
 conclusion is uniform, with the deterministic decider `Cslib.Complexity.seedDecider` over the
-Nisan–Wigderson generator. -/
-theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
+Nisan–Wigderson generator. The decider is correct on every instance where the verifier has bounded
+error, which is what the promise asks. -/
+theorem PromiseBPP_subset_PromiseP_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
     (hL : (L : Set (List Bool)) ∈ E encBits) (hc : 0 < c)
     (hard : ∀ᶠ n in atTop, IsAverageCaseHard (L.slice n) (2 ^ (n / c)))
-    {α : Type} (enc : α ↪ List Bool) : BPP enc ⊆ P enc := by
-  rintro A ⟨p, V, hV, hdec⟩
+    {α : Type} (enc : α ↪ List Bool) : PromiseBPP enc ⊆ PromiseP enc := by
+  rintro Q ⟨p, V, hV, hdec⟩
   obtain ⟨k, hL⟩ := mem_E_iff.1 hL
   obtain ⟨g, hgL, hg⟩ := exists_computableInO_of_mem_DTIME hL
   have hslice (n : ℕ) : (fun y : Fin n → Bool => g (List.ofFn y)) = L.slice n := by
@@ -193,10 +196,14 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
   obtain ⟨n₀, hn₀⟩ := eventually_atTop.1 hard
   set t : ℕ → ℕ := fun N => n₀ + 3 + e * (Nat.log 2 N + 1) with ht
   set b := 2 ^ (8 * c + 1)
-  refine ⟨seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
-    (fun x => c * (4 * t (enc x).length)) (fun x => t (enc x).length - 1)
-    (fun x => p.eval (enc x).length)) fun x => (b + 1) * t (enc x).length,
-    (computableInPolyTime_seedDecider_nwGen enc hV hg n₀ e c p), fun x => ?_⟩
+  -- the decider gives the expected answer on every instance where `V` has bounded error
+  suffices key : ∀ x (ans : Bool), BoundedErrorAt enc p V x ans →
+      seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
+        (fun x => c * (4 * t (enc x).length)) (fun x => t (enc x).length - 1)
+        (fun x => p.eval (enc x).length)) (fun x => (b + 1) * t (enc x).length) x = ans by
+    exact mem_PromiseP_iff.2 ⟨_, computableInPolyTime_seedDecider_nwGen enc hV hg n₀ e c p,
+      fun x hx => key x true ((hdec x).1 hx), fun x hx => key x false ((hdec x).2 hx)⟩
+  intro x ans hans
   set N := (enc x).length
   set τ := t N with hτ
   set m := p.eval N
@@ -215,8 +222,8 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
       rw [htest_def, List.take_of_length_le (by simp), hVL', encPair_apply, encBits_apply]
     rwa [length_frame] at h
   have hgap := abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
-  refine (seedDecider_eq_true_iff (hdec x).1 (fun hx => boundedErrorAt_false_iff.1 ((hdec x).2 hx))
-    _ _ ?_).symm
+  refine seedDecider_eq_of_boundedError (fun h => boundedErrorAt_true_iff.1 (h ▸ hans))
+    (fun h => boundedErrorAt_false_iff.1 (h ▸ hans)) _ _ ?_
   have hseeds : #{z : Fin ((b + 1) * τ) → Bool |
       V (x, nwGen g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
         (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) =
@@ -227,6 +234,18 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
     rw [htest_def, nwGen, listGenerator_take_greedyMasks hlen, hslice]
   rw [hseeds]
   exact hgap
+
+/-- **Hardness versus randomness: average-case hardness in `E` derandomizes `BPP`**
+[NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]: under the hypothesis of
+`PromiseBPP_subset_PromiseP_of_isAverageCaseHard`, every problem in `BPP enc` is in `P enc`, for
+every encoding `enc` of instances. This is the promise result for promise problems without
+promise. -/
+theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
+    (hL : (L : Set (List Bool)) ∈ E encBits) (hc : 0 < c)
+    (hard : ∀ᶠ n in atTop, IsAverageCaseHard (L.slice n) (2 ^ (n / c)))
+    {α : Type} (enc : α ↪ List Bool) : BPP enc ⊆ P enc := fun _ hA =>
+  ofSet_mem_PromiseP.1
+    (PromiseBPP_subset_PromiseP_of_isAverageCaseHard hL hc hard enc (ofSet_mem_PromiseBPP.2 hA))
 
 /-- **Hardness versus randomness: `P = BPP` from average-case hardness in `E`**
 [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. If some problem in `E` has
