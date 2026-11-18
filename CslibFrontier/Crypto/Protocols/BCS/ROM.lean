@@ -768,16 +768,18 @@ theorem evalPure_bcsVerifyROM (hTree : List Bool → List Bool)
   simp [bcsVerifyROM, bcsVerify]
 
 /-- **Perfect completeness of the BCS ROM programs (`OracleComp` simulation form)**: under any
-deterministic Merkle hash `hTree` and transcript-chained Fiat–Shamir function `f`, `bcsVerifyROM`
-accepts `bcsProveROM` on every `(x, w)` satisfying `rel x w`. -/
+deterministic Merkle hash `hTree` whose digests all have one length and any transcript-chained
+Fiat–Shamir function `f`, `bcsVerifyROM` accepts `bcsProveROM` on every `(x, w)` satisfying
+`rel x w`. -/
 theorem bcsVerifyROM_bcsProveROM_eq_true {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
-    (hTree : List Bool → List Bool) (f : BCSFSQuery Stmt Chal → Chal)
+    (hTree : List Bool → List Bool) {ℓ : ℕ} (hlen : ∀ y, (hTree y).length = ℓ)
+    (f : BCSFSQuery Stmt Chal → Chal)
     (encSym : Sym → List Bool) {x : Stmt} {w : Wit} (hrel : rel x w) :
     OracleComp.evalPure (bcsOracle hTree f) (do
       let prf ← bcsProveROM iop encSym x w
       bcsVerifyROM iop encSym x prf) = true := by
-  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] encSym (chainedFS f) hrel]
+  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] hlen encSym (chainedFS f) hrel]
 
 /-- Per-query distribution of the two-channel BCS random oracle with `σ`-bit Merkle digests and
 uniform challenges over `Chal`: Merkle hash queries (`Sum.inl`) sample `BitString.uniformList σ`,
@@ -815,12 +817,13 @@ theorem bcsHonestROMGame_eq_pure_true [DecidableEq Stmt] [DecidableEq Chal]
     bcsHonestROMGame iop encSym x w σ = PMF.pure true := by
   unfold bcsHonestROMGame
   refine OracleComp.map_fst_runWith_answer_eq_pure (bcsOracleDist Stmt Chal σ)
-    (bcsHonestROMProg iop encSym x w) true fun h _ => ?_
+    (bcsHonestROMProg iop encSym x w) true fun h hh => ?_
   have hsplit : h = bcsOracle (fun msg => h (.inl msg)) (fun fsq => h (.inr fsq)) := by
     funext q
     cases q <;> rfl
   rw [hsplit]
-  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _ _ encSym hrel
+  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _
+    (fun y => BitString.length_of_mem_support_uniformList (hh (.inl y))) _ encSym hrel
 
 end ROMProtocol
 

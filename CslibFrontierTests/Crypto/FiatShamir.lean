@@ -216,7 +216,8 @@ private theorem reduction_rejecting (fallback : ℕ) :
     FiatShamir.reduction (Function.Embedding.refl _) rejecting
       (fun _ _ => PMF.pure ((), ())) (fun _ _ _ _ _ _ => 0) fallback emptyForger 0 0 () =
       PMF.pure fallback := by
-  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, OracleComp.forkingAlgorithm,
+  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, Forking.onTapes,
+    OracleComp.forkingAlgorithm,
     FiatShamir.forkingProgram, ForkingReduction.program, ForkingReduction.finish,
     ForkingReduction.verdict, FiatShamir.check, emptyForger,
     rejecting, OracleComp.validIndex, OracleComp.forkNamedPosition,

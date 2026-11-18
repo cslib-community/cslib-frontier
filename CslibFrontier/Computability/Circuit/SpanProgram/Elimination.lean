@@ -20,7 +20,9 @@ program `P` whose parties are `1, …, N`. For an accepted coalition `s`, `Lin(s
 `λ_j` with `∑_{j ∈ s} λ_j M_j = e₁`. For a coalition that is not accepted, `P_L` is a program that
 accepts the same coalitions and has left-most column zero in the matrix of every member of `s`.
 Both are computed here by one run of elimination on the stacked rows of the members
-(`Cslib.LinearAlgebra.vecMulSolve` and `Cslib.LinearAlgebra.kernelVecAt`).
+(`Cslib.LinearAlgebra.vecMulSolve` and `Cslib.LinearAlgebra.kernelVecAt`). The theorem also says
+that `Lin` is efficient and that `P_L` is efficiently computable. The results here concern their
+values; they are steps toward Theorem 22.14, not the theorem (#5293).
 
 The book proves part (b) by extending a basis of the row space of the coalition. Here `P_L` is
 `P` multiplied on the right by the identity matrix whose first column is a kernel vector `v` of
@@ -31,9 +33,9 @@ span-program namespace because `normalForm` is its only client; it moves to
 
 The three algorithms are total. Outside their domains they return what elimination returns:
 `recombination_eq_zero_of_not_accepts`, `nullVector_eq_zero_of_accepts` and
-`not_accepts_normalForm_of_accepts`. The circuit-size bounds are in
-`CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`; that the shares and the
-secret behave as Theorem 22.14 says is in
+`not_accepts_normalForm_of_accepts`. The circuit-size bounds, one field-gate circuit for each
+shape of program, are in `CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`;
+the identities of Theorem 22.14 for the shares and the secret are in
 `CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.LinearEquivalence`.
 
 ## Main definitions
@@ -50,7 +52,8 @@ secret behave as Theorem 22.14 says is in
   vectors of `Lin` combine the members' rows to `e₁`.
 * `Cslib.Circuits.MonotoneSpanProgram.nullVector_zero_eq_one_iff`: the kernel vector has first
   entry one exactly when the coalition is not accepted.
-* `Cslib.Circuits.MonotoneSpanProgram.normalForm_matrix_zero`: Theorem 22.14(b)(ii).
+* `Cslib.Circuits.MonotoneSpanProgram.normalForm_matrix_zero`: the zero column of
+  Theorem 22.14(b)(ii), a step toward that theorem.
 * `Cslib.Circuits.MonotoneSpanProgram.accepts_normalForm`: for a coalition that is not accepted,
   `P_L` accepts the same coalitions as `P`.
 
@@ -229,8 +232,11 @@ zero, for members and non-members alike, and the program accepts no coalition
     MonotoneSpanProgram F (Fin N) :=
   P.mulRight (shearMatrix (P.nullVector s))
 
-/-- **Theorem 22.14(b)(ii)** ([BonehShoup2023], p. 981): the left-most column of the matrix of
-every member of `s` is zero. This holds for every `s`. -/
+/-- The zero column of Theorem 22.14(b)(ii), a step toward [BonehShoup2023], Theorem 22.14
+(p. 981), not that theorem: in `P.normalForm s`, the left-most column of the matrix of every
+member of `s` is zero. This holds for every `s`. Theorem 22.14(b) also says that `P_L` is
+efficiently computable; the only bound is `Cslib.Circuits.Synthesis.full_normalForm`, one
+field-gate circuit for each shape of program (#5293). -/
 theorem normalForm_matrix_zero (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}
     {i : Fin N} (hi : i ∈ s) (row : Fin (P.rowDim i)) :
     (P.normalForm s).matrix i row 0 = 0 := by

@@ -7,11 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
-# ML-DSA byte verification
+# ML-DSA byte keys, signing and verification
 
 Exercise Algorithm 29's signed shuffle and rejection stream, Algorithm 27's digest boundary,
 and Algorithm 21's rejection of noncanonical hint encodings.
@@ -35,8 +35,25 @@ private def publicKeyFingerprint : List Byte := [
     0x79, 0x36, 0x11, 0xa1, 0x7f, 0xcc, 0x00, 0x06, 0xff, 0xea, 0x26, 0xcf,
     0x70, 0x94, 0xd8, 0x32, 0x50, 0x37, 0x28, 0x8f]
 
-#guard (keyGenPublic .mlDSA44 (fun i => keyGenSeed[i.val]!)).map (Keccak.shake256 · 32) ==
-  some publicKeyFingerprint
+private def secretKeyFingerprint : List Byte := [
+    0xb2, 0xfc, 0xe5, 0xa6, 0xc1, 0xc6, 0xa3, 0x65, 0x20, 0x6e, 0xdc, 0x65,
+    0x52, 0x20, 0x41, 0x45, 0x9d, 0xbd, 0xcd, 0x23, 0xde, 0x69, 0x8d, 0x5b,
+    0x8b, 0xa9, 0x61, 0x04, 0x3c, 0x1f, 0x13, 0x62]
+
+-- Sign a message ending mid-byte at the 255-byte context limit. One more byte must fail.
+private def keyAndSigningChecks : Option Bool := do
+  let keys ← keyGen .mlDSA44 fun i => keyGenSeed[i.val]!
+  let msg := [true, false, true]
+  let ctx := List.replicate 255 11
+  let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
+  return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
+    Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
+    verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
+    verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
+    (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
+
+#guard keyAndSigningChecks == some true
+#guard (sign .mlDSA44 [] [] [] (fun _ => 0)).isNone
 
 -- Independent SHAKE256(0^256) expansion followed by the FIPS 204 Algorithm 29 shuffle.
 private def zeroDigestSupport (value : ZMod 8380417) : Option (List ℕ) := do
@@ -63,3 +80,57 @@ private def digest44 : List Byte := (List.finRange 32).map (fun i => Fin.ofNat 2
 
 #guard verify .mlDSA44 [] [] [] [] == some false
 #guard verify .mlDSA44 [] [] (List.replicate 256 0) [] == none
+
+-- The ten-bit coefficients 0, 1, 1023 and 2 cross byte boundaries. The first two
+-- distinguish the rounding tie at 4096 from its successor.
+#guard ((encodePublic .mlDSA44 (List.replicate 32 0) fun _ i =>
+    match i.val with
+    | 0 => 4096 | 1 => 4097 | 2 => -1 | 3 => 16384 | _ => 0).drop 32).take 5 ==
+  [0, 4, 240, 191, 0]
+
+-- Under this XOF, seed expansion makes ρ′ all zero, and a single SHAKE256 address
+-- returns 0x01 throughout. A swapped nonce byte or an extra role tag changes the two
+-- coefficients below. Both are read through the actual protocol algorithms.
+private def constantStream (value : List Bool → Byte) : ExtendableOutput where
+  read x n := List.replicate n (value x)
+  length_read _ _ := List.length_replicate
+  take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+private def markedNonce : Xofs :=
+  let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])
+  ⟨constantStream (fun _ => 0), constantStream (fun x => if x = address then 1 else 0)⟩
+
+private def secretAtNonceOne : Option (ZMod 8380417) := do
+  let keys ← markedNonce.keyGen .mlDSA44 (fun _ => 0)
+  let sk ← decodePrivate .mlDSA44 keys.secretKey
+  return sk.s₁ ⟨1, by decide⟩ 0
+
+#guard secretAtNonceOne == some 1
+#guard ((markedNonce.expandMask .mlDSA44 (List.replicate 64 0) 1).get ⟨0, by decide⟩).get 0 ==
+  65279
+
+-- An XOF returning 0xff on every stream makes the matrix and the Algorithm 29 sampler
+-- exhaust their bounded reads. Both failures must propagate through the FIPS code.
+private def allOnesXof := constantStream (fun _ => 255)
+
+#guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
+#guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
+
+-- With a collision in the message representative, the exact bytes returned by the signer
+-- can verify on a different request. Recover the two raw message inputs from the log.
+private def repeatedAcrossMessages : Bool := Id.run do
+  let H := Xofs.mk (constantStream fun _ => 0)
+    (constantStream fun x => if x.length = 528 then 85 else 0)
+  let some keys := H.keyGen .mlDSA44 (fun _ => 0) | return false
+  let some sig := H.sign .mlDSA44 keys.secretKey [true] [7] (fun _ => 0) | return false
+  let some A := H.expandA .mlDSA44 (keys.publicKey.take 32) | return false
+  let signed : Forgery := ⟨[7], [true], sig⟩
+  let forged : Forgery := ⟨[], [true, false, true], sig⟩
+  let some (.collision x y) := H.extractLoggedDigest .mlDSA44 keys.publicKey A forged [signed]
+    | return false
+  let tr := H.h256.readBytes keys.publicKey 64
+  return H.verify .mlDSA44 keys.publicKey forged.message forged.context sig == some true &&
+    x != y && x == representativeInput tr (formattedMessage forged) &&
+    y == representativeInput tr (formattedMessage signed) && H.h256.read x 32 == H.h256.read y 32
+
+#guard repeatedAcrossMessages

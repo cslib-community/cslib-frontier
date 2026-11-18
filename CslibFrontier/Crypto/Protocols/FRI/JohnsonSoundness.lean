@@ -15,70 +15,87 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
 
 /-!
-# Unconditional Unique-Decoding and Johnson-Bound FRI and BCS-FRI ROM Soundness
+# Unconditional Unique-Decoding and Johnson-Bound FRI, Summed IOP, and BCS-FRI ROM Soundness
 
-This module discharges the per-round line proximity-gap hypotheses of
+This module discharges the per-round and uniform line proximity-gap hypotheses of
 `CslibFrontier.Crypto.Protocols.FRI.Soundness` unconditionally for the single-word
-(`OracleTable d F`) FRI model in both the unique-decoding regime and the Johnson-bound regime,
+(`OracleTable d F`) 2-to-1 FRI IOP in both the unique-decoding regime and the Johnson-bound regime,
 combining `Cslib.Code.exists_correlatedAgreement_unique`
 ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]) and
 `Cslib.Code.exists_weighted_correlatedAgreement_line_johnson`
 ([BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1 and 7.2]) with
-`Cslib.Crypto.Protocols.FRI.friIOP_rbrSound`,
-`Cslib.Crypto.Protocols.FRI.friRBREscape_of_weightedLineGap`, and the two-channel BCS random-oracle
+`Cslib.Crypto.Protocols.FRI.friIOP_rbrSound`, the per-round commit and summed interactive IOP
+soundness providers (`friCommitGame_le_of_weightedLineGapPerRound`,
+`friIOP_interactiveGame_le_of_weightedLineGapPerRound`), and the two-channel BCS random-oracle
 soundness provider `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_weightedLineGap` /
 `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` ([BenSassonBentovHoreshRiabzev2018];
 [BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
 
 ## Scope and relationship to the source theorems
 
-* Theorem 8.3 of the accepted *Journal of the ACM* (2023) manuscript
-  ([BenSassonCarmonIshaiKoppartySaraf2020]) is an IOP soundness theorem for *batched* FRI
-  establishing correlated agreement of the initial functions with its stated quantitative error; it
-  is not a BCS random-oracle theorem.
-* This module derives the per-round `WeightedLineGapBound` / `UniqueLineGapHypothesis` hypotheses
-  for the single-word (`OracleTable d F`) FRI IOP of [BenSassonBentovHoreshRiabzev2018] with sharp
-  unique-decoding commit budget `2 ^ (d - 1)` and conservative uniform Johnson commit budget
-  `friJohnsonCommitBound params mJ`; batched initial-function correlated agreement and exact
-  quantitative correspondence with Theorem 8.3's error expression remain open.
-* The non-interactive random-oracle soundness theorems in this module follow by composing those
-  single-word FRI IOP escape bounds with the two-channel BCS compiler in
-  `CslibFrontier.Crypto.Protocols.FRI.Soundness` ([BenSassonChiesaSpooner2016];
-  [ChiesaYogev2024]).
+* Lemma 8.2 (printed pp. 38–39, proved via the commit-phase bad-event sum in Section 8.2.1,
+  printed pp. 41–43, p. 42) and Theorem 8.3 (printed p. 39, proved on printed p. 40 by applying
+  Lemma 8.2) of the accepted *Journal of the ACM* (2023) manuscript
+  ([BenSassonCarmonIshaiKoppartySaraf2020]) are interactive IOP soundness theorems for *batched*
+  FRI establishing correlated agreement of the initial functions; BCS random-oracle soundness bounds
+  are separate compositions.
+* Folding in `friIOP` is binary (`l⁽ⁱ⁾ = 2`). Across the `m` folding rounds, the active coset size
+  halves each round (`2 ^ (d - (i + 1))`), so both the shrinking unique-decoding budgets
+  `2 ^ (d - (i + 1))` and the geometric Siegel-interpolation Johnson budgets
+  `friJohnsonRoundBound params mJ i` sum over all `m` rounds without an `O(m)` union-bound factor
+  (mirroring the geometric telescoping on printed p. 43 of [BenSassonCarmonIshaiKoppartySaraf2020]).
+* In the Johnson regime, `friJohnsonRoundBound`, `friJohnsonCommitBound`, and
+  `friJohnsonCommitError` use this library's original explicit Siegel-interpolation constants for
+  all `mJ ≥ 1` (`1800 * (mJ + 1) ^ 6 * …`), which are not uniformly smaller at small `mJ` than the
+  constants displayed in JACM Lemma 8.2 / Theorem 8.3 (and eq. 1.3 uses `min(η, √ρ / 20)` in its
+  denominator). Batched initial-function correlated agreement and exact correspondence with JACM
+  Theorem 8.3's displayed error expression remain open on `#5968`.
+* All uniform `WeightedLineGapBound` theorems (`weightedLineGapBound_of_unique`,
+  `weightedLineGapBound_of_johnson_discrete`, `weightedLineGapBound_of_johnson`) are derived as
+  thin monotonicity corollaries of the per-round `WeightedLineGapPerRound` theorems.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.FRI.friJohnsonCommitBound`: conservative uniform commit-round
-  exceptional-scalar budget `(900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0` across all
-  `m` single-word FRI folding rounds in the Johnson regime with multiplicity slack `mJ`.
+* `Cslib.Crypto.Protocols.FRI.friUniqueCommitError`: closed-form geometric unique-decoding
+  commit-phase error `(1 - 1 / 2 ^ m) * (2 ^ d / |F|)` (`< 2 ^ d / |F|` independently of `m`).
+* `Cslib.Crypto.Protocols.FRI.friJohnsonRoundBound`: per-round geometric Johnson bad-scalar budget
+  `(1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2) / params.dim 0`
+  (equal to `friJohnsonCommitBound params mJ` at `i = 0`, halving each round).
+* `Cslib.Crypto.Protocols.FRI.friJohnsonCommitBound`: uniform commit-round bad-scalar budget
+  `(900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0`.
+* `Cslib.Crypto.Protocols.FRI.friJohnsonCommitError`: closed-form geometric Siegel commit-phase
+  error `(1 - 1 / 2 ^ m) * (1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / ((dim 0 / 2 ^ d) * |F|))`
+  (`< 1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|)` independently of `m`).
 
 ## Main results
 
 ### Unique-decoding regime (`2 * e + params.dim 0 ≤ 2 ^ params.d`)
-* `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_unique`: unconditional
-  `WeightedLineGapBound` with sharp per-round exceptional-scalar budget `2 ^ (d - 1)`.
-* `Cslib.Crypto.Protocols.FRI.friIOP_rbrSound_of_unique`: unconditional round-by-round soundness
-  (invariant and per-round escape bound `≤ friRBRError params e (2 ^ (params.d - 1))`) for the
-  single-word `friIOP params` in the unique-decoding regime.
-* `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_unique` &
-  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_prover_verifier_of_unique`:
-  unconditional adaptive two-channel BCS-FRI ROM soundness bounds in the unique-decoding regime via
-  `friBCS_romSoundness_bound_of_weightedLineGap`.
+* `Cslib.Crypto.Protocols.FRI.weightedLineGapPerRound_of_unique` &
+  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_unique`: unconditional per-round
+  (`2 ^ (d - (i + 1))`) and uniform (`2 ^ (d - 1)`) weighted line proximity-gap bounds.
+* `Cslib.Crypto.Protocols.FRI.friCommitGame_le_of_unique` &
+  `Cslib.Crypto.Protocols.FRI.friIOP_interactiveGame_le_of_unique`: unconditional summed
+  commit-phase and full interactive soundness bounds for single-word `friIOP`.
+* `Cslib.Crypto.Protocols.FRI.friIOP_rbrSound_of_unique`,
+  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_unique`, &
+  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_prover_verifier_of_unique`.
 
 ### Johnson-bound regime (`δ ≤ 1 - √ρ - √ρ / (2 * mJ)` and per-round discrete bounds)
-* `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson_discrete`: unconditional
-  `WeightedLineGapBound` parameterized directly by per-round Guruswami–Sudan parameters
-  `(mRound i, DRound i)` and `Cslib.Code.ProximityGap.johnsonCurveBound` budgets.
-* `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson`: closed-form unconditional
-  `WeightedLineGapBound` up to `1 - √ρ - √ρ / (2 * mJ)` with conservative uniform commit budget
-  `friJohnsonCommitBound params mJ`.
-* `Cslib.Crypto.Protocols.FRI.friIOP_rbrSound_of_johnson`: unconditional round-by-round soundness
-  (invariant and per-round escape bound `≤ friRBRError params e (friJohnsonCommitBound params mJ)`)
-  for the single-word `friIOP params` up to the Johnson bound.
-* `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_johnson` &
-  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_prover_verifier_of_johnson`:
-  unconditional adaptive two-channel BCS-FRI ROM soundness bounds up to the Johnson bound via
-  `friBCS_romSoundness_bound_of_weightedLineGap`.
+* `Cslib.Crypto.Protocols.FRI.weightedLineGapPerRound_of_johnson_discrete` &
+  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson_discrete`: unconditional per-round
+  and uniform discrete `johnsonCurveBound` discharges, plus
+  `friCommitGame_le_of_johnson_discrete` and `friIOP_interactiveGame_le_of_johnson_discrete`.
+* `Cslib.Crypto.Protocols.FRI.weightedLineGapPerRound_of_johnson` &
+  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson`: unconditional geometric per-round
+  (`friJohnsonRoundBound`) and uniform (`friJohnsonCommitBound`) Johnson discharges.
+* `Cslib.Crypto.Protocols.FRI.friCommitGame_le_of_johnson` &
+  `Cslib.Crypto.Protocols.FRI.friIOP_interactiveGame_le_of_johnson`: unconditional summed
+  commit-phase and full interactive soundness bounds for single-word `friIOP` up to the Johnson
+  bound (eliminating any `O(m)` factor via `sum_friJohnsonRoundBound_le` /
+  `sum_friJohnsonRoundEscape_le`).
+* `Cslib.Crypto.Protocols.FRI.friIOP_rbrSound_of_johnson`,
+  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_johnson`, &
+  `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_prover_verifier_of_johnson`.
 
 ## References
 
@@ -105,17 +122,6 @@ section Helpers
 
 variable {F : Type} [Field F]
 
-/-- Each active round dimension fits inside its active coset size (`r ≤ m`). -/
-private theorem fri_dim_le_domainSize (params : FRIParams F) {r : ℕ} (hr : r ≤ params.m) :
-    params.dim r ≤ 2 ^ (params.d - r) := by
-  have hle : params.m ≤ params.d := params.hm
-  have hsub : (params.d - params.m) + (params.m - r) = params.d - r := by omega
-  calc params.dim r
-      = params.kFinal * 2 ^ (params.m - r) := rfl
-    _ ≤ 2 ^ (params.d - params.m) * 2 ^ (params.m - r) :=
-        Nat.mul_le_mul_right _ params.hkLe
-    _ = 2 ^ (params.d - r) := by rw [← pow_add, hsub]
-
 /-- Exact integer ceiling-division identity `⌈(M * N - e) / M⌉ = N - ⌊e / M⌋` for `0 < M` and
 `e ≤ M * N`. -/
 private theorem ceil_div_sub_eq_sub_div {M N e : ℕ} (hM : 0 < M) (he : e ≤ M * N) :
@@ -141,25 +147,67 @@ private theorem ceil_div_sub_eq_sub_div {M N e : ℕ} (hM : 0 < M) (he : e ≤ M
     (Nat.lt_succ_iff.mp ((Nat.div_lt_iff_lt_mul hM).mpr hhi))
     ((Nat.le_div_iff_mul_le hM).mpr hlo)
 
+omit [Field F] in
+private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι → ℕ) (D : ℕ) :
+    (∑ i ∈ s, ((x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞)) =
+      ((∑ i ∈ s, x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞) := by
+  simp only [div_eq_mul_inv, ← Finset.sum_mul, Nat.cast_sum]
+
+omit [Field F] in
+private theorem sum_div_le_div_sum {ι : Type*} (s : Finset ι) (x : ι → ℕ) {k₀ : ℕ}
+    (hk₀ : 0 < k₀) :
+    (∑ i ∈ s, x i / k₀) ≤ (∑ i ∈ s, x i) / k₀ := by
+  refine (Nat.le_div_iff_mul_le hk₀).mpr ?_
+  rw [Finset.sum_mul]
+  exact Finset.sum_le_sum fun i _ => Nat.div_mul_le_self (x i) k₀
+
+omit [Field F] in
+private theorem natCast_div_eq_ofReal {N D : ℕ} (hD : 0 < D) :
+    ((N : ℝ≥0∞) / (D : ℝ≥0∞)) = ENNReal.ofReal ((N : ℝ) / (D : ℝ)) := by
+  have hDR : (0 : ℝ) < (D : ℝ) := by exact_mod_cast hD
+  rw [ENNReal.ofReal_div_of_pos hDR, ENNReal.ofReal_natCast, ENNReal.ofReal_natCast]
+
+private theorem cast_two_pow_sub_eq (params : FRIParams F) :
+    (((2 ^ params.d - 2 ^ (params.d - params.m) : ℕ) : ℝ)) =
+      (1 - (1 : ℝ) / (2 : ℝ) ^ params.m) * ((2 : ℝ) ^ params.d) := by
+  have hle : 2 ^ (params.d - params.m) ≤ 2 ^ params.d :=
+    Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)
+  have hsplit : (2 : ℝ) ^ params.d = (2 : ℝ) ^ (params.d - params.m) * (2 : ℝ) ^ params.m := by
+    rw [← pow_add, Nat.sub_add_cancel params.hm]
+  have h2m_ne : ((2 : ℝ) ^ params.m) ≠ 0 := by positivity
+  calc (((2 ^ params.d - 2 ^ (params.d - params.m) : ℕ) : ℝ))
+      = (2 : ℝ) ^ params.d - (2 : ℝ) ^ (params.d - params.m) := by
+          rw [Nat.cast_sub hle]
+          push_cast
+          rfl
+    _ = (2 : ℝ) ^ (params.d - params.m) * (2 : ℝ) ^ params.m -
+          (2 : ℝ) ^ (params.d - params.m) * (((2 : ℝ) ^ params.m) / ((2 : ℝ) ^ params.m)) := by
+          rw [← hsplit, div_self h2m_ne, mul_one]
+    _ = (1 - (1 : ℝ) / (2 : ℝ) ^ params.m) * ((2 : ℝ) ^ params.d) := by
+          rw [hsplit]
+          ring
+
 end Helpers
 
-/-! ### Unconditional Unique-Decoding FRI & BCS-FRI ROM Soundness -/
+/-! ### Unconditional Unique-Decoding FRI, Summed IOP, & BCS-FRI ROM Soundness -/
 
 section UniqueDecoding
 
 variable {F : Type} [Field F]
 
-/-- **Unconditional unique-decoding `WeightedLineGapBound`** for all `m` single-word FRI folding
-rounds (instantiating [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1] at each round via
-`FRIParams.two_mul_div_add_dim_le`).
+/-- **Unconditional shrinking per-round unique-decoding `WeightedLineGapPerRound`** across all `m`
+single-word FRI folding rounds (instantiating [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]
+at each round via `FRIParams.two_mul_div_add_dim_le`).
 
 Discharges `UniqueLineGapHypothesis` directly from `Cslib.Code.exists_correlatedAgreement_unique`
-over an arbitrary field `F` of characteristic `≠ 2`, yielding the sharp per-round exceptional-scalar
-bound `2 ^ (d - 1)` with zero gap-assumption premise. -/
-theorem weightedLineGapBound_of_unique [DecidableEq F]
+over any field `F` of characteristic `≠ 2`, yielding per-round exceptional-scalar budget
+`2 ^ (d - (i + 1))` (summing over all `m` rounds to `2 ^ d - 2 ^ (d - m) < 2 ^ d`) with zero
+gap-assumption premise. -/
+theorem weightedLineGapPerRound_of_unique [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
-    WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) := by
-  refine weightedLineGapBound_of_uniqueLineGap params huniq ?_
+    WeightedLineGapPerRound params (2 ^ params.d - e - 1)
+      (fun i => 2 ^ (params.d - (i.val + 1))) := by
+  refine weightedLineGapPerRound_of_uniqueLineGap params huniq ?_
   intro i u₀ u₁ Z hZ_gt hZ_close
   have huniq_i :
       2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1) ≤
@@ -171,6 +219,60 @@ theorem weightedLineGapBound_of_unique [DecidableEq F]
     exists_correlatedAgreement_unique hα_inj huniq_i u₀ u₁ Z
       (by simpa only [Fintype.card_fin] using hZ_gt) hZ_close
   exact ⟨D', v₀, hv₀, v₁, hv₁, by simpa only [Fintype.card_fin] using hD'_card, hD'_agree⟩
+
+/-- **Unconditional uniform unique-decoding `WeightedLineGapBound`** for all `m` single-word FRI
+folding rounds (`B_commit = 2 ^ (d - 1)`), obtained as a monotonicity corollary of
+`weightedLineGapPerRound_of_unique`. -/
+theorem weightedLineGapBound_of_unique [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
+    WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) :=
+  (weightedLineGapPerRound_of_unique params huniq).mono fun _ =>
+    Nat.pow_le_pow_right (by omega)
+      (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
+
+/-- Closed-form geometric commit-phase error `(1 - 1 / 2 ^ m) * (2 ^ d / |F|)` across all `m`
+single-word 2-to-1 FRI folding rounds in the unique-decoding regime (`< 2 ^ d / |F|`
+independently of `m`). -/
+@[expose] noncomputable def friUniqueCommitError [Fintype F] (params : FRIParams F) : ℝ :=
+  (1 - (1 : ℝ) / (2 : ℝ) ^ params.m) * ((2 ^ params.d : ℝ) / (Fintype.card F : ℝ))
+
+/-- Exact geometric sum of per-round unique-decoding folding escape budgets in `ℝ≥0∞`. -/
+theorem sum_friUniqueRoundEscape_eq [Fintype F] (params : FRIParams F) :
+    (∑ i : Fin params.m,
+      ((2 ^ (params.d - (i.val + 1)) : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) =
+    ENNReal.ofReal (friUniqueCommitError params) := by
+  rw [sum_natCast_div_ennreal, params.sum_domainSize_succ,
+    natCast_div_eq_ofReal Fintype.card_pos, cast_two_pow_sub_eq, mul_div_assoc,
+    friUniqueCommitError]
+
+/-- **Unconditional summed commit-phase soundness of single-word `friIOP` in the unique-decoding
+regime**: for `stmt ∉ params.proximityLang e`, `friCommitGame` exceeds agreement `2 ^ d - e - 1`
+with probability at most `(2 ^ d - 2 ^ (d - m)) / |F|` (`= ENNReal.ofReal (friUniqueCommitError
+params)`). -/
+theorem friCommitGame_le_of_unique [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    friCommitGame params (2 ^ params.d - e - 1) stmt P true ≤
+      ((2 ^ params.d - 2 ^ (params.d - params.m) : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
+  refine (friCommitGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_unique params huniq) hfar P).trans_eq ?_
+  rw [sum_natCast_div_ennreal, params.sum_domainSize_succ]
+
+/-- **Unconditional summed interactive soundness of single-word `friIOP` in the unique-decoding
+regime**: for `stmt ∉ params.proximityLang e` and any adaptive prover `P`, the acceptance
+probability is at most `(2 ^ d - 2 ^ (d - m)) / |F| + ((2 ^ d - e - 1) / 2 ^ d) ^ q`
+(eliminating the `m * 2 ^ (d - 1)` union-bound blowup across folding rounds). -/
+theorem friIOP_interactiveGame_le_of_unique [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    iopInteractiveGame (friIOP params) stmt P true ≤
+      ((2 ^ params.d - 2 ^ (params.d - params.m) : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
+        (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
+  refine (friIOP_interactiveGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_unique params huniq) hfar P).trans_eq ?_
+  rw [friSumError, sum_natCast_div_ennreal, params.sum_domainSize_succ]
 
 /-- **Unconditional round-by-round soundness of single-word `friIOP` in the unique-decoding regime**
 ([BenSassonBentovHoreshRiabzev2018]; [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1]).
@@ -244,11 +346,19 @@ theorem friBCS_romSoundness_bound_of_prover_verifier_of_unique [Fintype F] [Deci
 
 end UniqueDecoding
 
-/-! ### Unconditional Johnson-Bound FRI & BCS-FRI ROM Soundness -/
+/-! ### Unconditional Johnson-Bound FRI, Summed IOP, & BCS-FRI ROM Soundness -/
 
 section JohnsonBound
 
 variable {F : Type} [Field F]
+
+/-- Per-round geometric Siegel-interpolation bad-scalar bound for single-word 2-to-1 FRI in the
+Johnson regime with multiplicity slack `mJ` at folding round `i : Fin params.m`:
+`(1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2) / params.dim 0`
+(using this library's original explicit Siegel constant `1800 * (mJ + 1) ^ 6`, halving each round,
+and summing over all `m` rounds without an `O(m)` factor). -/
+abbrev friJohnsonRoundBound (params : FRIParams F) (mJ : ℕ) (i : Fin params.m) : ℕ :=
+  (1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2) / params.dim 0
 
 /-- Conservative uniform per-round commit-phase exceptional-scalar bound for single-word FRI in the
 Johnson regime with multiplicity slack `mJ`:
@@ -256,17 +366,107 @@ Johnson regime with multiplicity slack `mJ`:
 abbrev friJohnsonCommitBound (params : FRIParams F) (mJ : ℕ) : ℕ :=
   (900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0
 
-/-- **Unconditional discrete Johnson-bound `WeightedLineGapBound`** for all `m` single-word FRI
-folding rounds (instantiating [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1 and 7.2] per
-round).
+/-- At round `0`, `friJohnsonRoundBound` coincides exactly with `friJohnsonCommitBound`. -/
+theorem friJohnsonRoundBound_zero (params : FRIParams F) (mJ : ℕ) (hm : 0 < params.m) :
+    friJohnsonRoundBound params mJ ⟨0, hm⟩ = friJohnsonCommitBound params mJ := by
+  have h0 : 2 * 2 ^ (params.d - 1) = 2 ^ params.d := by
+    simpa only [Nat.zero_add, pow_one] using params.fiber_mul_domainSize ⟨0, hm⟩
+  have hnum :
+      1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - 1) * (2 ^ params.d) ^ 2 =
+        900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by
+    calc 1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - 1) * (2 ^ params.d) ^ 2
+        = 900 * (mJ + 1) ^ 6 * (2 * 2 ^ (params.d - 1)) * (2 ^ params.d) ^ 2 := by ring
+      _ = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by rw [h0]; ring
+  simp only [friJohnsonRoundBound, friJohnsonCommitBound, Nat.zero_add, hnum]
 
-Given explicit per-round Guruswami–Sudan interpolation parameters `(mRound i, DRound i)` satisfying
-the interpolation and root-divisibility inequalities at each folding round `i`, discharges
-`WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit` directly from
-`Cslib.Code.exists_weighted_correlatedAgreement_line_johnson` with
-`Cslib.Code.ProximityGap.johnsonCurveBound` budgets and zero gap-assumption premise. -/
-theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
-    (params : FRIParams F) {e B_commit : ℕ} (he : e < 2 ^ params.d)
+/-- Every folding round's geometric budget `friJohnsonRoundBound params mJ i` is bounded by the
+round-0 uniform budget `friJohnsonCommitBound params mJ`. -/
+theorem friJohnsonRoundBound_le_commitBound (params : FRIParams F) (mJ : ℕ) (i : Fin params.m) :
+    friJohnsonRoundBound params mJ i ≤ friJohnsonCommitBound params mJ := by
+  have h2ni_le : 2 * 2 ^ (params.d - (i.val + 1)) ≤ 2 ^ params.d := by
+    have h2leM : 2 ≤ 2 ^ (i.val + 1) := by
+      have : 2 ^ 1 ≤ 2 ^ (i.val + 1) := Nat.pow_le_pow_right (by omega) (by omega)
+      simpa only [pow_one] using this
+    calc 2 * 2 ^ (params.d - (i.val + 1))
+        ≤ 2 ^ (i.val + 1) * 2 ^ (params.d - (i.val + 1)) :=
+          Nat.mul_le_mul_right _ h2leM
+      _ = 2 ^ params.d := params.fiber_mul_domainSize i
+  have hnum_le :
+      1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2 ≤
+        900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by
+    calc 1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2
+        = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 * (2 * 2 ^ (params.d - (i.val + 1))) := by ring
+      _ ≤ 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 * 2 ^ params.d :=
+          Nat.mul_le_mul_left _ h2ni_le
+      _ = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by ring
+  exact Nat.div_le_div_right hnum_le
+
+/-- Geometric telescoping upper bound on the integer sum of `friJohnsonRoundBound` across all `m`
+folding rounds (bounded by `< (1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 3) / dim 0` independently of `m`). -/
+theorem sum_friJohnsonRoundBound_le (params : FRIParams F) (mJ : ℕ) :
+    (∑ i : Fin params.m, friJohnsonRoundBound params mJ i) ≤
+      (1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.m)) * (2 ^ params.d) ^ 2) /
+        params.dim 0 := by
+  refine (sum_div_le_div_sum Finset.univ _ (params.one_le_dim 0)).trans_eq ?_
+  congr 1
+  calc (∑ i : Fin params.m,
+        1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - (i.val + 1)) * (2 ^ params.d) ^ 2)
+      = ∑ i : Fin params.m,
+          2 ^ (params.d - (i.val + 1)) * (1800 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2) := by
+          refine Finset.sum_congr rfl fun _ _ => ?_
+          ring
+    _ = (∑ i : Fin params.m, 2 ^ (params.d - (i.val + 1))) *
+          (1800 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2) := (Finset.sum_mul _ _ _).symm
+    _ = 1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.m)) *
+          (2 ^ params.d) ^ 2 := by
+          rw [params.sum_domainSize_succ]
+          ring
+
+/-- Closed-form geometric Siegel commit-phase error across all `m` single-word 2-to-1 FRI folding
+rounds in the Johnson regime (`(1 - 1 / 2 ^ m) * 1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|)`,
+bounded independently of `m`; uses this library's original explicit Siegel constant). -/
+@[expose] noncomputable def friJohnsonCommitError [Fintype F]
+    (params : FRIParams F) (mJ : ℕ) : ℝ :=
+  (1 - (1 : ℝ) / (2 : ℝ) ^ params.m) *
+    (1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
+      (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)))
+
+/-- Geometric sum of per-round Johnson escape probabilities bounded by `friJohnsonCommitError`. -/
+theorem sum_friJohnsonRoundEscape_le [Fintype F] (params : FRIParams F) (mJ : ℕ) :
+    (∑ i : Fin params.m,
+      (friJohnsonRoundBound params mJ i : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) ≤
+    ENNReal.ofReal (friJohnsonCommitError params mJ) := by
+  let num : ℕ :=
+    1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.m)) * (2 ^ params.d) ^ 2
+  have hsum_nat : (∑ i : Fin params.m, friJohnsonRoundBound params mJ i) ≤ num / params.dim 0 :=
+    sum_friJohnsonRoundBound_le params mJ
+  have hk₀_pos : 0 < params.dim 0 := params.one_le_dim 0
+  have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast hk₀_pos
+  have hn₀R_ne : ((2 ^ params.d : ℝ)) ≠ 0 := by positivity
+  have hFR : (0 : ℝ) < (Fintype.card F : ℝ) := by exact_mod_cast Fintype.card_pos
+  rw [sum_natCast_div_ennreal]
+  refine (ENNReal.div_le_div_right (Nat.cast_le.mpr hsum_nat) _).trans ?_
+  rw [natCast_div_eq_ofReal Fintype.card_pos]
+  refine ENNReal.ofReal_le_ofReal ?_
+  have hdiv_le : ((num / params.dim 0 : ℕ) : ℝ) ≤ (num : ℝ) / (params.dim 0 : ℝ) :=
+    (le_div_iff₀ hk₀R).mpr (by exact_mod_cast Nat.div_mul_le_self num (params.dim 0))
+  refine (div_le_div_of_nonneg_right hdiv_le hFR.le).trans_eq ?_
+  have hnumR :
+      (num : ℝ) =
+        (1 - (1 : ℝ) / (2 : ℝ) ^ params.m) *
+          (1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) * (2 ^ params.d : ℝ)) := by
+    dsimp only [num]
+    push_cast
+    rw [cast_two_pow_sub_eq]
+    ring
+  rw [hnumR, friJohnsonCommitError]
+  field_simp
+
+/-- **Unconditional per-round discrete Johnson-bound `WeightedLineGapPerRound`** across all `m`
+single-word FRI folding rounds (instantiating [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1
+and 7.2] per round with exact `Cslib.Code.ProximityGap.johnsonCurveBound` budgets). -/
+theorem weightedLineGapPerRound_of_johnson_discrete [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (he : e < 2 ^ params.d)
     (mRound DRound : Fin params.m → ℕ)
     (hm : ∀ i : Fin params.m, 1 ≤ mRound i)
     (hk_le : ∀ i : Fin params.m,
@@ -275,11 +475,10 @@ theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
       2 ^ (params.d - (i.val + 1)) * (mRound i * (mRound i + 1) / 2) <
         #(Sudan.monomials (params.dim (i.val + 1) - 1) (DRound i)))
     (hroot : ∀ i : Fin params.m,
-      DRound i < mRound i * (2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1)))
-    (hbound : ∀ i : Fin params.m,
-      ProximityGap.johnsonCurveBound (2 ^ (params.d - (i.val + 1))) (mRound i)
-        (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) ≤ B_commit) :
-    WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit := by
+      DRound i < mRound i * (2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1))) :
+    WeightedLineGapPerRound params (2 ^ params.d - e - 1)
+      (fun i => ProximityGap.johnsonCurveBound (2 ^ (params.d - (i.val + 1))) (mRound i)
+        (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d)) := by
   intro i W hW_le hW_sum u₀ u₁ hno_corr Z hZ_good
   by_contra hgt
   let M : ℕ := 2 ^ (i.val + 1)
@@ -297,7 +496,7 @@ theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
       ProximityGap.johnsonCurveBound (Fintype.card (Fin N)) (mRound i)
         (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) < #Z := by
     rw [Fintype.card_fin]
-    exact lt_of_le_of_lt (hbound i) (Nat.lt_of_not_ge hgt)
+    exact Nat.lt_of_not_ge hgt
   have hclose : ∀ z ∈ Z, ∃ c ∈ params.rsCode (i.val + 1),
       B_W ≤ ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = c j), W j := by
     intro z hz
@@ -320,21 +519,95 @@ theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
   dsimp only [B_W] at hle_B
   omega
 
-/-- **Unconditional closed-form Johnson-bound `WeightedLineGapBound`** for all `m` single-word FRI
-folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (instantiating
-[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1, and 7.2] per round).
+/-- **Unconditional discrete Johnson-bound `WeightedLineGapBound`** for all `m` single-word FRI
+folding rounds, derived as a monotonicity corollary of
+`weightedLineGapPerRound_of_johnson_discrete`. -/
+theorem weightedLineGapBound_of_johnson_discrete [DecidableEq F]
+    (params : FRIParams F) {e B_commit : ℕ} (he : e < 2 ^ params.d)
+    (mRound DRound : Fin params.m → ℕ)
+    (hm : ∀ i : Fin params.m, 1 ≤ mRound i)
+    (hk_le : ∀ i : Fin params.m,
+      params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1))
+    (hinterp : ∀ i : Fin params.m,
+      2 ^ (params.d - (i.val + 1)) * (mRound i * (mRound i + 1) / 2) <
+        #(Sudan.monomials (params.dim (i.val + 1) - 1) (DRound i)))
+    (hroot : ∀ i : Fin params.m,
+      DRound i < mRound i * (2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1)))
+    (hbound : ∀ i : Fin params.m,
+      ProximityGap.johnsonCurveBound (2 ^ (params.d - (i.val + 1))) (mRound i)
+        (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) ≤ B_commit) :
+    WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit :=
+  (weightedLineGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot).mono
+    hbound
+
+/-- **Unconditional summed commit-phase soundness of single-word `friIOP` with discrete
+Guruswami–Sudan parameters**: sums exact per-round `johnsonCurveBound` budgets without inflating
+later rounds to the round-0 bound. -/
+theorem friCommitGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (he : e < 2 ^ params.d)
+    (mRound DRound : Fin params.m → ℕ)
+    (hm : ∀ i : Fin params.m, 1 ≤ mRound i)
+    (hk_le : ∀ i : Fin params.m,
+      params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1))
+    (hinterp : ∀ i : Fin params.m,
+      2 ^ (params.d - (i.val + 1)) * (mRound i * (mRound i + 1) / 2) <
+        #(Sudan.monomials (params.dim (i.val + 1) - 1) (DRound i)))
+    (hroot : ∀ i : Fin params.m,
+      DRound i < mRound i * (2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1)))
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    friCommitGame params (2 ^ params.d - e - 1) stmt P true ≤
+      ((∑ i : Fin params.m,
+        ProximityGap.johnsonCurveBound (2 ^ (params.d - (i.val + 1))) (mRound i)
+          (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) : ℕ) : ℝ≥0∞) /
+        (Fintype.card F : ℝ≥0∞) := by
+  refine (friCommitGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot)
+    hfar P).trans_eq ?_
+  exact sum_natCast_div_ennreal Finset.univ _ _
+
+/-- **Unconditional summed interactive soundness of single-word `friIOP` with discrete
+Guruswami–Sudan parameters**: combines summed per-round `johnsonCurveBound` commit escape with the
+query-round bound `((2 ^ d - e - 1) / 2 ^ d) ^ q`. -/
+theorem friIOP_interactiveGame_le_of_johnson_discrete [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} (he : e < 2 ^ params.d)
+    (mRound DRound : Fin params.m → ℕ)
+    (hm : ∀ i : Fin params.m, 1 ≤ mRound i)
+    (hk_le : ∀ i : Fin params.m,
+      params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1))
+    (hinterp : ∀ i : Fin params.m,
+      2 ^ (params.d - (i.val + 1)) * (mRound i * (mRound i + 1) / 2) <
+        #(Sudan.monomials (params.dim (i.val + 1) - 1) (DRound i)))
+    (hroot : ∀ i : Fin params.m,
+      DRound i < mRound i * (2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1)))
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    iopInteractiveGame (friIOP params) stmt P true ≤
+      ((∑ i : Fin params.m,
+          ProximityGap.johnsonCurveBound (2 ^ (params.d - (i.val + 1))) (mRound i)
+            (params.dim (i.val + 1) - 1) (DRound i) 1 (2 ^ params.d) : ℕ) : ℝ≥0∞) /
+          (Fintype.card F : ℝ≥0∞) +
+        (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
+  refine (friIOP_interactiveGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot)
+    hfar P).trans_eq ?_
+  rw [friSumError, sum_natCast_div_ennreal]
+
+/-- **Unconditional geometric per-round Johnson-bound `WeightedLineGapPerRound`** across all `m`
+single-word FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (instantiating
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1, and 7.2] per round with this library's
+explicit Siegel constants).
 
 Reuses `Cslib.Code.ProximityGap.johnson_line_params_bound` and
-`Cslib.Code.ProximityGap.johnsonCurveBound_mul_le` at every round `i : Fin params.m` (exploiting
-round-invariance of the code rate `ρ = params.dim 0 / 2 ^ d` and `2 * 2 ^ (d - (i + 1)) ≤ 2 ^ d`)
-to establish `WeightedLineGapBound` with the conservative uniform budget
-`friJohnsonCommitBound params mJ` and zero gap-assumption premise. -/
-theorem weightedLineGapBound_of_johnson [DecidableEq F]
+`Cslib.Code.ProximityGap.johnsonCurveBound_mul_le` at every round `i : Fin params.m`, retaining the
+halving factor `2 ^ (d - (i + 1))` in `friJohnsonRoundBound params mJ i` so the sum over all `m`
+rounds stays independent of `m`. -/
+theorem weightedLineGapPerRound_of_johnson [DecidableEq F]
     (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
       1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
-    WeightedLineGapBound params (2 ^ params.d - e - 1) (friJohnsonCommitBound params mJ) := by
+    WeightedLineGapPerRound params (2 ^ params.d - e - 1) (friJohnsonRoundBound params mJ) := by
   set n₀ : ℕ := 2 ^ params.d
   set k₀ : ℕ := params.dim 0
   have hn₀_pos : 0 < n₀ := Nat.pow_pos (by omega)
@@ -402,27 +675,21 @@ theorem weightedLineGapBound_of_johnson [DecidableEq F]
       (n := 2 ^ (params.d - (i.val + 1))) (k := params.dim (i.val + 1))
       (e := e / 2 ^ (i.val + 1)) (m := mJ)
       (params.one_le_dim (i.val + 1))
-      (fri_dim_le_domainSize params i.isLt)
+      (params.dim_le_domainSize i.isLt)
       hmJ
       (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using hround_he i)
     simpa only [mRound, DRound, Nat.cast_pow, Nat.cast_ofNat] using hpack
-  refine weightedLineGapBound_of_johnson_discrete params he_lt mRound DRound
+  refine (weightedLineGapPerRound_of_johnson_discrete params he_lt mRound DRound
     (fun _ => by dsimp only [mRound]; omega)
     (fun i => (hparams i).1)
     (fun i => (hparams i).2.1)
-    (fun i => (hparams i).2.2.1)
-    (fun i => ?_)
+    (fun i => (hparams i).2.2.1)).mono fun i => ?_
   set ni : ℕ := 2 ^ (params.d - (i.val + 1))
   set ki : ℕ := params.dim (i.val + 1)
   have hni_pos : 0 < ni := Nat.pow_pos (by omega)
   have hniR : (0 : ℝ) < (ni : ℝ) := by exact_mod_cast hni_pos
-  have h2ni_le : 2 * ni ≤ n₀ := by
-    have h2leM : 2 ≤ 2 ^ (i.val + 1) := by
-      have : 2 ^ 1 ≤ 2 ^ (i.val + 1) := Nat.pow_le_pow_right (by omega) (by omega)
-      simpa only [pow_one] using this
-    calc 2 * ni ≤ 2 ^ (i.val + 1) * ni := Nat.mul_le_mul_right ni h2leM
-      _ = n₀ := params.fiber_mul_domainSize i
-  have hni_le : ni ≤ n₀ := by omega
+  have hni_le : ni ≤ n₀ :=
+    Nat.pow_le_pow_right (by omega) (Nat.sub_le params.d (i.val + 1))
   have hscale_nat := ProximityGap.johnsonCurveBound_mul_le
     (n := ni) (m := mRound i) (d := ki - 1) (D := DRound i) (r := 1) (W_tot := n₀) hni_le
   have hscaleR :
@@ -437,7 +704,7 @@ theorem weightedLineGapBound_of_johnson [DecidableEq F]
     simpa only [ni, ki, Nat.cast_pow, Nat.cast_ofNat] using h
   have hmul_R :
       (ProximityGap.johnsonCurveBound ni (mRound i) (ki - 1) (DRound i) 1 n₀ : ℝ) * (k₀ : ℝ) ≤
-        900 * ((mJ + 1 : ℝ) ^ 6) * ((n₀ : ℝ) ^ 3) := by
+        1800 * ((mJ + 1 : ℝ) ^ 6) * (ni : ℝ) * ((n₀ : ℝ) ^ 2) := by
     have h1 :
         (ProximityGap.johnsonCurveBound ni (mRound i) (ki - 1) (DRound i) 1 n₀ : ℝ) * (ni : ℝ) ≤
           (1800 * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) / ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) :=
@@ -445,32 +712,63 @@ theorem weightedLineGapBound_of_johnson [DecidableEq F]
     have h2 :
         (1800 * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) / ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) *
           (k₀ : ℝ) =
-        1800 * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) * ((n₀ : ℝ) ^ 2) := by
+        1800 * ((mJ + 1 : ℝ) ^ 6) * (ni : ℝ) * ((n₀ : ℝ) ^ 2) * (ni : ℝ) := by
       field_simp
-    have h3 :
-        (ProximityGap.johnsonCurveBound ni (mRound i) (ki - 1) (DRound i) 1 n₀ : ℝ) * (k₀ : ℝ) *
-          (ni : ℝ) ≤
-        900 * ((mJ + 1 : ℝ) ^ 6) * ((n₀ : ℝ) ^ 3) * (ni : ℝ) := by
-      have h2niR : 2 * (ni : ℝ) ≤ (n₀ : ℝ) := by exact_mod_cast h2ni_le
-      have h1k := mul_le_mul_of_nonneg_right h1 hk₀R.le
-      rw [h2] at h1k
-      have hstep :
-          1800 * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) * ((n₀ : ℝ) ^ 2) ≤
-            900 * ((mJ + 1 : ℝ) ^ 6) * ((n₀ : ℝ) ^ 3) * (ni : ℝ) := by
-        have hcoeff_nn : 0 ≤ 900 * ((mJ + 1 : ℝ) ^ 6) * (ni : ℝ) * ((n₀ : ℝ) ^ 2) := by
-          positivity
-        calc 1800 * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) * ((n₀ : ℝ) ^ 2)
-            = 900 * ((mJ + 1 : ℝ) ^ 6) * (ni : ℝ) * ((n₀ : ℝ) ^ 2) * (2 * (ni : ℝ)) := by ring
-          _ ≤ 900 * ((mJ + 1 : ℝ) ^ 6) * (ni : ℝ) * ((n₀ : ℝ) ^ 2) * (n₀ : ℝ) :=
-              mul_le_mul_of_nonneg_left h2niR hcoeff_nn
-          _ = 900 * ((mJ + 1 : ℝ) ^ 6) * ((n₀ : ℝ) ^ 3) * (ni : ℝ) := by ring
-      linarith
-    exact le_of_mul_le_mul_right h3 hniR
+    have h1k := mul_le_mul_of_nonneg_right h1 hk₀R.le
+    rw [h2] at h1k
+    exact le_of_mul_le_mul_right (by linarith) hniR
   have hmul_nat :
       ProximityGap.johnsonCurveBound ni (mRound i) (ki - 1) (DRound i) 1 n₀ * k₀ ≤
-        900 * (mJ + 1) ^ 6 * n₀ ^ 3 := by
+        1800 * (mJ + 1) ^ 6 * ni * n₀ ^ 2 := by
     exact_mod_cast hmul_R
   exact (Nat.le_div_iff_mul_le hk₀_pos).mpr hmul_nat
+
+/-- **Unconditional closed-form uniform Johnson-bound `WeightedLineGapBound`** for all `m`
+single-word FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (`friJohnsonCommitBound params
+mJ`), obtained as a monotonicity corollary of `weightedLineGapPerRound_of_johnson` and
+`friJohnsonRoundBound_le_commitBound`. -/
+theorem weightedLineGapBound_of_johnson [DecidableEq F]
+    (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
+    (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
+      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
+        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
+    WeightedLineGapBound params (2 ^ params.d - e - 1) (friJohnsonCommitBound params mJ) :=
+  (weightedLineGapPerRound_of_johnson params hmJ he).mono (friJohnsonRoundBound_le_commitBound _ _)
+
+/-- **Unconditional summed commit-phase soundness of single-word `friIOP` up to the Johnson bound**
+(using this library's explicit geometric Siegel commit error `friJohnsonCommitError params mJ`,
+bounded independently of `m` with zero gap-assumption premise). -/
+theorem friCommitGame_le_of_johnson [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
+    (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
+      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
+        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)))
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    friCommitGame params (2 ^ params.d - e - 1) stmt P true ≤
+      ENNReal.ofReal (friJohnsonCommitError params mJ) :=
+  (friCommitGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_johnson params hmJ he) hfar P).trans
+    (sum_friJohnsonRoundEscape_le params mJ)
+
+/-- **Unconditional summed interactive soundness of single-word `friIOP` up to the Johnson bound**
+(using this library's explicit geometric Siegel commit error `friJohnsonCommitError params mJ`
+plus query error `((2 ^ d - e - 1) / 2 ^ d) ^ q`, bounded independently of `m` with zero
+gap-assumption premise; batched initial-function correlated agreement and JACM Theorem 8.3's exact
+displayed constants remain separate). -/
+theorem friIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq F]
+    (params : FRIParams F) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
+    (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
+      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
+        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)))
+    {stmt : OracleTable params.d F} (hfar : stmt ∉ params.proximityLang e)
+    (P : InteractiveIOPProver params.d F (FRIChal F params.d params.q)) :
+    iopInteractiveGame (friIOP params) stmt P true ≤
+      ENNReal.ofReal (friJohnsonCommitError params mJ) +
+        (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q :=
+  (friIOP_interactiveGame_le_of_weightedLineGapPerRound params
+    (weightedLineGapPerRound_of_johnson params hmJ he) hfar P).trans
+    (add_le_add (sum_friJohnsonRoundEscape_le params mJ) le_rfl)
 
 /-- **Unconditional round-by-round soundness of single-word `friIOP` up to the Johnson bound**
 ([BenSassonBentovHoreshRiabzev2018]; [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.4, 5.1,
