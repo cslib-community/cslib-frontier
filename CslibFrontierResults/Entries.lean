@@ -122,6 +122,7 @@ import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialL
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
+import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
 import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -460,6 +461,20 @@ register_result "goldreich-few-oracle-queries-search" where
     for any request bound r with 2 ^ r n polynomially bounded. Native multitape oracle \
     machines (ComputableInPolyTimeWithOracle certificates). Outside-fleet six-point source \
     check: review 5950244269 on PR #6358."
+
+register_result "goldreich-pf-not-subset-pc" where
+  title := "PF contains search problems that are not in PC"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.1",
+      locator := "December 2006 r1.pdf, printed p. 105; PDF p. 130" }
+  ]
+  theorems := [Cslib.Complexity.exists_polyTimeSolvable_not_mem_FNP]
+  scope := "Instances and solutions are words (encBits). PF membership is spelled out \
+    (polynomial length bound and a polynomial-time SolvesSearch solver with encOption encBits \
+    output), since the library's FPSearch is PF ∩ PC; PC is FNP. Witness: the guideline \
+    relation for the undecidable self-halting problem. Outside-fleet six-point source check: \
+    review 5953896605 on PR #6407."
 
 register_result "pcp" where
   title := "The PCP theorem"

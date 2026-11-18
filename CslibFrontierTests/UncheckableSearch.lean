@@ -11,9 +11,10 @@ import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
-/-! Checked clients of Goldreich, Exercise 2.1: for a decidable set (here the empty set) the
-guideline relation is in `PC`, so the undecidability of `S` is what puts it outside; and the
-undecidable witness is solved by the constant algorithm. -/
+/-! Checked clients of Goldreich, Exercise 2.1: for the empty set the guideline relation is in
+`PC` (any polynomial-time decidable set would do; mere decidability does not suffice), so the
+undecidability of `S` is what puts it outside; and the undecidable witness is solved by the
+constant algorithm. -/
 
 set_option linter.privateModule false
 
