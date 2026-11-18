@@ -332,6 +332,7 @@ import CslibFrontier.GameTheory.Strategic.Correlated
 import CslibFrontier.GameTheory.Strategic.Nash
 import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
 import CslibFrontier.Logics.Propositional.CNF.TruthTable
+import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.Connectivity
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.FiniteLinearOrder
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.GraphProperties
@@ -8554,7 +8555,47 @@ register_result "kem-dem-hybrid-correctness" where
     key pair and its encapsulated keys. Messages may have any type. Part (b), semantic \
     security, is not part of this entry: KEMINDCPA.hybrid_indcpaOn, in the same module, \
     assumes a KEM notion whose distinguisher also receives pk, which the exercise's KEM game \
-    (p. 460) does not give it."
+    (p. 460) does not give it, and is registered as kem-dem-hybrid-ind-cpa-corrected."
+
+register_result "kem-dem-hybrid-ind-cpa-corrected" where
+  title := "KEM–DEM hybrid encryption is semantically secure when the KEM is secure against \
+    distinguishers that also see the public key (corrected Exercise 11.9(b))"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Exercise 11.9(b), corrected: the KEM adversary also receives pk",
+      locator := "Section 11.8, pp. 460–461" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn,
+    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpa
+  ]
+  scope := "A corrected form of Exercise 11.9(b). The exercise's KEM challenger sends only \
+    (k_b, c_kem) (p. 460), and under that notion part (b) is false: if key generation outputs a \
+    uniform pk with sk = pk and encapsulation returns (pk, []), both printed experiments show a \
+    uniform key and an empty encapsulation, yet the hybrid with the one-time pad encrypts m as \
+    pk ⊕ m, which anyone holding pk decrypts. The KEM hypothesis here, KEMINDCPA keyLen keyGen \
+    encaps, also gives the distinguisher pk. It is the KEM security of Cramer and Shoup \
+    (CramerShoup2003, Section 7.1.2, pp. 38–39 of the authors' revised manuscript of \
+    August 14, 2003), restricted to adversaries that make no decryption queries, against uniform \
+    strict PPT distinguishers, with the ideal key uniform on keyLen n-bit words and the \
+    two-experiment advantage. The other hypotheses: DEMOneTimeKeyINDCPAOn valid encMsg keyLen \
+    encryptSym, semantic security of the DEM (Attack Game 2.1 and Definition 2.2, p. 16) under a \
+    uniform keyLen n-bit key against uniform strict PPT adversaries, for challenge pairs \
+    admitted by valid; valid is polynomial-time computable and ignores the public key; key \
+    generation, encapsulation and DEM encryption are uniform strict PPT. Conclusion: INDCPAOn \
+    valid encMsg, semantic security (Attack Game 11.1 and Definition 11.2, pp. 436–437) of \
+    hybridEncrypt encaps encryptSym, the hybrid scheme of the exercise (p. 461), against uniform \
+    strict PPT two-stage adversaries, for the same valid. Taking valid to admit pairs of \
+    messages of M of equal length, which is polynomial time because M is efficiently \
+    recognizable (Definition 2.10, p. 31), gives the source's games; a wider valid is a stronger \
+    assumption on the DEM. KEMINDCPA.hybrid_indcpa is the case in which every challenge pair is \
+    admissible, the source's games when all messages of the type have one length. The \
+    reductions hybridToKEMDistinguisher and hybridToDEMAdversary are certified strict PPT \
+    (isPPT_hybridToKEMDistinguisher, isPPT_hybridToDEMAdversary). Asymptotic; \
+    advantage_hybridGame_le_two_mul, in the same module, is the corrected exercise's bound \
+    SSadv[A, E] ≤ 2 · SSadv[B_kem, E_kem] + SSadv[B_s, E_s], with the single hidden-bit \
+    distinguisher hybridToKEMHiddenBitDistinguisher."
 
 register_result "rsa-unit-preimage-variant" where
   title := "The RSA assumption implies its variant with a uniform unit preimage"
@@ -10049,3 +10090,27 @@ register_result "goldreich-countably-many-computable-functions" where
     https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935757026. \
     The official draft locator was checked in \
     https://github.com/cslib-community/cslib-frontier/pull/6473#pullrequestreview-5959473706."
+
+register_result "plaisted-greenbaum-correctness" where
+  title := "Plaisted–Greenbaum: the polarity-aware clause form is equisatisfiable"
+  topic := "propositional logic"
+  sources := [
+    { paper := PlaistedGreenbaum1986, theorem := "Theorem 1, Lemma 1, Theorem 2 and Corollary",
+      locator := "§1, p. 294 (construction); p. 295 (Theorem 1); p. 297 (Lemma 1, Theorem 2, \
+        Corollary)" }
+  ]
+  theorems := [
+    Cslib.Logic.PL.Proposition.eval_of_eval_plaistedGreenbaumCNF,
+    Cslib.Logic.PL.Proposition.eval_plaistedGreenbaumCNF_tseitinExtend,
+    Cslib.Logic.PL.Proposition.satisfiable_plaistedGreenbaumCNF_iff
+  ]
+  scope := "Propositional correctness only. Inputs are arbitrary propositions over any atom \
+    type with Boolean atom assignments; the deterministic construction asserts the root \
+    positively, flips polarity in implication antecedents and gives equal subformulas one \
+    variable. Every model of the clauses restricts to a model of the proposition, every \
+    model of the proposition extends (by evaluating subformulas) to a model of the clauses, \
+    and the two are equisatisfiable; no other premise is assumed. Conventions differ from the \
+    paper: CNF is a list of clauses that may repeat, there are no quantifiers or \
+    equivalences, and falsum is added (negation is implication to falsum). The size bound of \
+    2 · A.size + 1 clauses and the non-uniqueness of the extension are separate results and \
+    are not part of this entry. Outside check: PR #6181, review 5948254834."

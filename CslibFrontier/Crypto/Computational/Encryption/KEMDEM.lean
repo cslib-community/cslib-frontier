@@ -22,7 +22,10 @@ it with `D`, and decryption decapsulates the key and decrypts. `KEM.hybrid_corre
 the hybrid is correct when both components are.
 
 Chosen-plaintext security of the hybrid reduces to security of the KEM and one-time security of
-the cipher (Exercise 11.9(b)). Fix a sampler `sampleKey` for the random KEM key, which is also the
+the cipher. These are the concrete bounds for a corrected form of Exercise 11.9(b): the KEM
+experiment `KEM.cpaExperiment` gives the distinguisher the public key, which the exercise's printed
+KEM game does not, and under the printed game part (b) is false (`Encryption.KEMINDCPA` gives a
+counterexample). Fix a sampler `sampleKey` for the random KEM key, which is also the
 key distribution of the one-time cipher experiment. For every two-stage adversary `A` against the
 hybrid and every admissibility predicate on message pairs:
 
@@ -50,7 +53,7 @@ encapsulation itself (`eval_cpaExperiment_hybridDistinguisher_true`).
 
 * `Cslib.Crypto.KEM.hybrid_correct`: the hybrid of a correct KEM and a correct cipher is correct.
 * `Cslib.Crypto.KEM.advantage_hybrid_le`, `Cslib.Crypto.KEM.advantage_hybrid_le_two_mul`: the
-  advantage bounds of [BonehShoup2023], Exercise 11.9(b).
+  concrete bounds for the corrected form of [BonehShoup2023], Exercise 11.9(b).
 
 ## References
 
@@ -161,10 +164,13 @@ theorem eval_cpaExperiment_hybridHiddenBitDistinguisher (c : Bool) :
       pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, PMF.map_bind] <;>
     pmf_swap
 
-/-- **Hybrid encryption from two per-bit KEM distinguishers** (two-distinguisher variant of
-[BonehShoup2023], Exercise 11.9(b)): the chosen-plaintext advantage of the hybrid is at most the
-KEM advantages of `hybridDistinguisher D valid A false` and `hybridDistinguisher D valid A true`
-plus the one-time advantage of `hybridCipherAdversary E A`. -/
+/-- **Hybrid encryption from two per-bit KEM distinguishers**, the concrete bound for the
+corrected form of [BonehShoup2023], Exercise 11.9(b) (§11.8, pp. 460–461), in a two-distinguisher
+variant: the chosen-plaintext advantage of the hybrid is at most the KEM advantages of
+`hybridDistinguisher D valid A false` and `hybridDistinguisher D valid A true` plus the one-time
+advantage of `hybridCipherAdversary E A`. `KEM.cpaExperiment` gives the distinguisher the public
+key; the exercise's printed KEM game does not, and under it part (b) is false
+(see `Encryption.KEMINDCPA`). -/
 theorem advantage_hybrid_le :
     Experiment.advantage ((E.hybrid D).cpaExperiment (fun _ => valid) A false)
         ((E.hybrid D).cpaExperiment (fun _ => valid) A true) ≤
@@ -185,10 +191,12 @@ theorem advantage_hybrid_le :
     (D.oneTimeExperiment sampleKey valid (hybridCipherAdversary E A) true))]
   ac_rfl
 
-/-- **Hybrid encryption from one KEM distinguisher** ([BonehShoup2023], Exercise 11.9(b)): the
-chosen-plaintext advantage of the hybrid is at most twice the KEM advantage of
-`hybridHiddenBitDistinguisher D valid A` plus the one-time advantage of
-`hybridCipherAdversary E A`. -/
+/-- **Hybrid encryption from one KEM distinguisher**, the concrete bound for the corrected form of
+[BonehShoup2023], Exercise 11.9(b) (§11.8, pp. 460–461): the chosen-plaintext advantage of the
+hybrid is at most twice the KEM advantage of `hybridHiddenBitDistinguisher D valid A` plus the
+one-time advantage of `hybridCipherAdversary E A`. `KEM.cpaExperiment` gives the distinguisher the
+public key; the exercise's printed KEM game does not, and under it part (b) is false
+(see `Encryption.KEMINDCPA`). -/
 theorem advantage_hybrid_le_two_mul :
     Experiment.advantage ((E.hybrid D).cpaExperiment (fun _ => valid) A false)
         ((E.hybrid D).cpaExperiment (fun _ => valid) A true) ≤
