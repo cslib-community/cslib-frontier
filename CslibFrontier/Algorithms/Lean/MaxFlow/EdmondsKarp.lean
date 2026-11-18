@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Prod
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Card
@@ -581,7 +582,7 @@ section ExecutableFin
 @[simp]
 theorem attachRet_val {T α : Type*} (m : TimeM T α) : (attachRet m).ret.1 = m.ret := rfl
 
-@[simp]
+@[simp, time_simps]
 theorem attachRet_time {T α : Type*} (m : TimeM T α) : (attachRet m).time = m.time := rfl
 
 /-- Total `Fin n`-indexed lookup on `Vector α n`. -/
@@ -637,30 +638,15 @@ theorem fget_fset_ne {α : Type*} {n : ℕ} (mat : Vector (Vector α n) n) {a b 
     let rest ← replicateM m a
     pure (rest.push a)
 
-@[simp]
+@[simp, time_simps]
 theorem replicateM_ret {α : Type*} (m : ℕ) (a : α) :
     (replicateM m a).ret = Vector.replicate m a := by
-  induction m with
-  | zero =>
-    ext i hi
-    exact False.elim (Nat.not_lt_zero i hi)
-  | succ m ih =>
-    simp only [replicateM, TimeM.ret_bind, TimeM.ret_pure, ih]
-    ext i hi
-    by_cases hlt : i < m
-    · simp [Vector.getElem_push_lt hlt]
-    · have heq : i = m := by omega
-      subst heq
-      simp
+  time_spec replicateM [Vector.replicate_succ]
 
-@[simp]
+@[simp, time_simps]
 theorem replicateM_time {α : Type*} (m : ℕ) (a : α) :
     (replicateM m a).time = m := by
-  induction m with
-  | zero => rfl
-  | succ m ih =>
-    simp only [replicateM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih]
-    omega
+  time_spec replicateM
 
 /-- Filter `vs` into a `Finset`, charging `1` tick per inspected element. -/
 @[expose] def filterFinsetM {α : Type*} [DecidableEq α] (p : α → Bool) :
@@ -674,34 +660,26 @@ theorem replicateM_time {α : Type*} (m : ℕ) (a : α) :
 theorem mem_filterFinsetM_ret {α : Type*} [DecidableEq α] (p : α → Bool)
     (vs : List α) (acc : Finset α) (x : α) :
     x ∈ (filterFinsetM p vs acc).ret ↔ x ∈ acc ∨ (x ∈ vs ∧ p x = true) := by
-  induction vs generalizing acc with
-  | nil => simp [filterFinsetM]
-  | cons v vs' ih =>
-    simp only [filterFinsetM, TimeM.ret_bind, ih]
-    split_ifs with hpv <;> grind
+  time_spec filterFinsetM
 
 @[simp]
 theorem filterFinsetM_time {α : Type*} [DecidableEq α] (p : α → Bool)
     (vs : List α) (acc : Finset α) :
     (filterFinsetM p vs acc).time = vs.length := by
-  induction vs generalizing acc with
-  | nil => rfl
-  | cons _ vs' ih =>
-    simp only [filterFinsetM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec filterFinsetM
 
 /-- Scan all `n` vertices of `Fin n` into `Finset.univ.filter (fun v => p v = true)` in `n` ticks.
 -/
 @[expose] def extractFinsetM {n : ℕ} (p : Fin n → Bool) : TimeM ℕ (Finset (Fin n)) :=
   filterFinsetM p (List.finRange n) ∅
 
-@[simp]
+@[simp, time_simps]
 theorem extractFinsetM_ret {n : ℕ} (p : Fin n → Bool) :
     (extractFinsetM p).ret = Finset.univ.filter fun v => p v = true := by
   ext v
   simp [extractFinsetM, mem_filterFinsetM_ret, List.mem_finRange]
 
-@[simp]
+@[simp, time_simps]
 theorem extractFinsetM_time {n : ℕ} (p : Fin n → Bool) :
     (extractFinsetM p).time = n := by
   simp [extractFinsetM]
@@ -719,17 +697,11 @@ theorem extractFinsetM_time {n : ℕ} (p : Fin n → Bool) :
 
 private theorem reverseLoopM_ret {α : Type*} (xs acc : List α) :
     (reverseLoopM xs acc).ret = xs.reverseAux acc := by
-  induction xs generalizing acc with
-  | nil => rfl
-  | cons x xs' ih => exact ih (x :: acc)
+  time_spec reverseLoopM
 
 private theorem reverseLoopM_time {α : Type*} (xs acc : List α) :
     (reverseLoopM xs acc).time = xs.length := by
-  induction xs generalizing acc with
-  | nil => rfl
-  | cons x xs' ih =>
-    simp only [reverseLoopM, TimeM.time_bind, TimeM.time_tick, ih (x :: acc), List.length_cons]
-    omega
+  time_spec reverseLoopM
 
 @[simp]
 theorem reverseM_ret {α : Type*} (xs : List α) : (reverseM xs).ret = xs.reverse :=
@@ -759,18 +731,13 @@ theorem reverseM_time {α : Type*} (xs : List α) : (reverseM xs).time = xs.leng
 private theorem foldMinArcsM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
     (es : List (V × V)) (acc : ℕ) :
     (foldMinArcsM f es acc).ret = es.foldl (fun m b => min m (f.resCap b.1 b.2)) acc := by
-  induction es generalizing acc with
-  | nil => rfl
-  | cons e es' ih => exact ih (min acc (f.resCap e.1 e.2))
+  time_spec foldMinArcsM
 
+@[time_simps]
 private theorem foldMinArcsM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
     (es : List (V × V)) (acc : ℕ) :
     (foldMinArcsM f es acc).time = es.length := by
-  induction es generalizing acc with
-  | nil => rfl
-  | cons e es' ih =>
-    simp only [foldMinArcsM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec foldMinArcsM
 
 @[simp]
 theorem bottleneckM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
@@ -780,14 +747,10 @@ theorem bottleneckM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p 
   · rfl
   · exact foldMinArcsM_ret f es (f.resCap e.1 e.2)
 
-@[simp]
+@[simp, time_simps]
 theorem bottleneckM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
     (bottleneckM f p).time = (pathArcs p).length := by
-  unfold bottleneckM
-  rcases pathArcs p with _ | ⟨e, es⟩
-  · rfl
-  · simp only [TimeM.time_bind, TimeM.time_tick, foldMinArcsM_time, List.length_cons]
-    omega
+  time_spec bottleneckM
 
 /-- Candidate neighbor lists `adj` cover `N` when every non-loop pair `(u, v)` with positive
 capacity in either direction appears in `adj u`. -/
@@ -868,21 +831,15 @@ theorem card_symArcs_le_adjSteps {n : ℕ} {N : Network (Fin n)} {adj : Fin n �
     ✓
     countListM xs (acc + 1)
 
+@[time_simps]
 private theorem countListM_ret {α : Type*} (xs : List α) (acc : ℕ) :
     (countListM xs acc).ret = acc + xs.length := by
-  induction xs generalizing acc with
-  | nil => simp [countListM]
-  | cons _ xs' ih =>
-    simp only [countListM, TimeM.ret_bind, ih, List.length_cons]
-    omega
+  time_spec countListM
 
+@[time_simps]
 private theorem countListM_time {α : Type*} (xs : List α) (acc : ℕ) :
     (countListM xs acc).time = xs.length := by
-  induction xs generalizing acc with
-  | nil => rfl
-  | cons _ xs' ih =>
-    simp only [countListM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec countListM
 
 /-- Count total neighbor entries across `us`, charging `1` tick per vertex and `1` tick per
 neighbor entry. -/
@@ -894,24 +851,17 @@ neighbor entry. -/
     let acc' ← countListM (adj u) acc
     countAdjLoopM adj us acc'
 
+@[time_simps]
 private theorem countAdjLoopM_ret {n : ℕ} (adj : Fin n → List (Fin n))
     (us : List (Fin n)) (acc : ℕ) :
     (countAdjLoopM adj us acc).ret = acc + (us.map fun u => (adj u).length).sum := by
-  induction us generalizing acc with
-  | nil => simp [countAdjLoopM]
-  | cons u us' ih =>
-    simp only [countAdjLoopM, TimeM.ret_bind, countListM_ret, ih, List.map_cons, List.sum_cons]
-    omega
+  time_spec countAdjLoopM
 
+@[time_simps]
 private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
     (us : List (Fin n)) (acc : ℕ) :
     (countAdjLoopM adj us acc).time = us.length + (us.map fun u => (adj u).length).sum := by
-  induction us generalizing acc with
-  | nil => simp [countAdjLoopM]
-  | cons u us' ih =>
-    simp only [countAdjLoopM, TimeM.time_bind, TimeM.time_tick, countListM_time, countListM_ret, ih,
-      List.length_cons, List.map_cons, List.sum_cons]
-    omega
+  time_spec countAdjLoopM
 
 /-- Compute `adjSteps adj` in `n + adjSteps adj` `TimeM` ticks without `Fin n × Fin n` scans. -/
 @[expose] def countAdjM {n : ℕ} (adj : Fin n → List (Fin n)) : TimeM ℕ ℕ :=
@@ -920,16 +870,12 @@ private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
 @[simp]
 theorem countAdjM_ret {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).ret = adjSteps adj := by
-  simp only [countAdjM, countAdjLoopM_ret, Nat.zero_add]
-  unfold adjSteps Finset.sum
-  simp [Finset.univ, Fintype.elems]
+  time_spec countAdjM
 
 @[simp]
 theorem countAdjM_time {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).time = n + adjSteps adj := by
-  simp only [countAdjM, countAdjLoopM_time, List.length_finRange]
-  unfold adjSteps Finset.sum
-  simp [Finset.univ, Fintype.elems]
+  time_spec countAdjM [List.length_finRange]
 
 /-! #### Reversed-walk validity and executable BFS -/
 
@@ -1140,15 +1086,7 @@ private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (vs : List (Fin n)) (st : BfsState f)
     (hu_mem : ∀ x ∈ rp_u.reverse, (vget st.revPath x).isSome = true) :
     (scanNeighborsM f u rp_u hu_walk vs st hu_mem).time = vs.length := by
-  induction vs generalizing st with
-  | nil => rfl
-  | cons v vs' ih =>
-    simp only [scanNeighborsM]
-    split_ifs with hcond
-    · simp only [TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-      omega
+  time_spec scanNeighborsM
 
 private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (adj : Fin n → List (Fin n)) (us : List (Fin n)) (st : BfsState f) :
@@ -1537,9 +1475,7 @@ theorem bfsM_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
 /-- Every `bfsM` call charges at least `n` ticks (table initialization). -/
 theorem n_le_bfsM_time {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) (f : N.Flow) :
     n ≤ (bfsM N adj f).time := by
-  unfold bfsM
-  simp only [TimeM.time_bind, attachRet_time, replicateM_time]
-  omega
+  time_spec bfsM
 
 /-- Each `bfsM` call takes at most `adjSteps adj + 3 * n` charged `TimeM` ticks. -/
 theorem bfsM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
@@ -1599,11 +1535,10 @@ theorem initFlowMatrixM_toFlow {n : ℕ} (N : Network (Fin n)) :
   ext u v
   simp [initFlowMatrixM, fget]
 
-@[simp]
+@[simp, time_simps]
 theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
     (initFlowMatrixM N).time = 2 * n := by
-  simp only [initFlowMatrixM, TimeM.time_bind, attachRet_time, replicateM_time, TimeM.time_pure]
-  omega
+  time_spec initFlowMatrixM
 
 /-- Push `δ` units along directed arcs `es` in `mat`, charging `1` tick per arc. -/
 @[expose] def updateArcsMatM {n : ℕ} (δ : ℕ) :
@@ -1616,16 +1551,11 @@ theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
     let mat₂ := fset mat₁ a b (fget mat a b + (δ - cancel))
     updateArcsMatM δ es mat₂
 
-@[simp]
+@[simp, time_simps]
 theorem updateArcsMatM_time {n : ℕ} (δ : ℕ) (es : List (Fin n × Fin n))
     (mat : Vector (Vector ℕ n) n) :
     (updateArcsMatM δ es mat).time = es.length := by
-  induction es generalizing mat with
-  | nil => rfl
-  | cons e es' ih =>
-    rcases e with ⟨a, b⟩
-    simp only [updateArcsMatM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec updateArcsMatM
 
 private theorem fget_updateArcsMatM_ret {n : ℕ} (δ : ℕ) {es : List (Fin n × Fin n)}
     (hnodup : es.Nodup) (hloopless : ∀ e ∈ es, e.1 ≠ e.2)
@@ -1711,13 +1641,11 @@ theorem augmentFlowMatrixM_toFlow {n : ℕ} {N : Network (Fin n)} (M : FlowMatri
     (fun e he => ne_of_mem_pathArcs hp.nodup he)
     (fun a b hab => not_swap_mem_pathArcs hp.nodup hab) M.mat u v
 
-@[simp]
+@[simp, time_simps]
 theorem augmentFlowMatrixM_time {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
     (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) :
     (augmentFlowMatrixM M p hp).time = 2 * (pathArcs p).length := by
-  simp only [augmentFlowMatrixM, TimeM.time_bind, attachRet_time, bottleneckM_time,
-    attachRet_val, updateArcsMatM_time, TimeM.time_pure]
-  omega
+  time_spec augmentFlowMatrixM
 
 /-- Output of the Edmonds–Karp algorithm on `N : Network (Fin n)`. -/
 structure Output {n : ℕ} (N : Network (Fin n)) where
@@ -1825,7 +1753,7 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
         call.ret.augmentations ≤ n * N.posArcs.card ∧
         call.time ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n)
   | 0, k, M, flows, paths, hfuel, hseq, hfk => by
-    simp only [edmondsKarpLoopM, TimeM.ret_bind, TimeM.ret_pure, TimeM.time_bind, TimeM.time_pure]
+    simp only [edmondsKarpLoopM, time_simps]
     rcases haug : (bfsM N adj M.toFlow).ret.augPath with _ | p
     · simpa using edmondsKarpLoopM_stop hadj hst hseq haug
     · obtain ⟨hshort, _⟩ := (bfsM_spec hadj M.toFlow).1 p haug
@@ -1836,13 +1764,13 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
   | fuel + 1, k, M, flows, paths, hfuel, hseq, hfk => by
     have hbfs := bfsM_spec hadj M.toFlow
     have hbfs_t := bfsM_time_le hadj M.toFlow
-    simp only [edmondsKarpLoopM, TimeM.ret_bind, TimeM.time_bind]
+    simp only [edmondsKarpLoopM, time_simps]
     split
     · rename_i haug
       simpa [TimeM.ret_pure, TimeM.time_pure] using
         edmondsKarpLoopM_stop hadj hst hseq haug
     · rename_i p haug
-      simp only [TimeM.ret_bind, TimeM.time_bind, augmentFlowMatrixM_time]
+      simp only [time_simps]
       obtain ⟨hshort, hplen⟩ := hbfs.1 p haug
       have hp : M.toFlow.IsAugmentingPath p := (bfsM N adj M.toFlow).ret.augPath_valid p haug
       have hshort' : (flows k).IsShortestAugmentingPath p := hfk ▸ hshort
@@ -1927,7 +1855,7 @@ theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
     (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
   unfold edmondsKarpM
-  simp only [TimeM.time_bind, initFlowMatrixM_time, TimeM.time_tick]
+  simp only [time_simps]
   by_cases hst : N.s = N.t
   · simp only [hst, ↓reduceIte, TimeM.time_pure]
     have hbase : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n) := by omega

@@ -13,6 +13,7 @@ public import CslibFrontier.Probability.PMF.UniformCollisionInsert
 public import CslibFrontier.Probability.PMF.MultiplyHigh
 public import CslibFrontier.Probability.PMF.DensityBounds
 public import CslibFrontier.Foundations.Data.List.CollisionReplace
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Order.Interval.Finset.Nat
 
 /-!
@@ -154,7 +155,7 @@ private def intervalEquiv {offset n : ℕ} (h : offset < n) :
     Fin (n - offset) ≃ ↥(Ico offset n) where
   toFun j := ⟨offset + j.val, mem_Ico.mpr ⟨by omega, by omega⟩⟩
   invFun j := ⟨j.val - offset, by have := mem_Ico.mp j.property; omega⟩
-  left_inv j := by apply Fin.ext; dsimp; omega
+  left_inv j := by fin_index
   right_inv j := by apply Subtype.ext; dsimp; have := mem_Ico.mp j.property; omega
 
 /-- The ideal candidate is uniform on the complete shrinking interval. -/

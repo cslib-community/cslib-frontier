@@ -474,13 +474,7 @@ theorem computableInPolyTime_verifyOrdering {α : Type} {enc : α ↪ List Bool}
     (hcheck : ComputableInPolyTime (fun q : α × List ℕ => check q.1 q.2)
       (encPair enc (encList encNat)) encBool) :
     ComputableInPolyTime (verifyOrdering V check) (encPair enc encBits) encBool := by
-  have hV' : ComputableInPolyTime (fun x : α × List Bool => V x.1) (encPair enc encBits)
-      (encList encNat) := hV.comp (fst _ _)
-  have hp : ComputableInPolyTime (fun x : α × List Bool => decodeVertexList (V x.1) x.2)
-      (encPair enc encBits) (encList encNat) :=
-    computableInPolyTime_decodeVertexList.comp (hV'.prod (snd _ _))
-  exact (computableInPolyTime_enumeratesBool.comp (hV'.prod hp)).bool_and'
-    (hcheck.comp ((fst _ _).prod hp))
+  fun_prop [verifyOrdering]
 
 end Graph
 

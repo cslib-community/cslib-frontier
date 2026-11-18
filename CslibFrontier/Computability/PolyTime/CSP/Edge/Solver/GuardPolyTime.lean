@@ -75,37 +75,7 @@ private abbrev encPairInput := encPair encTable
 private theorem poly_checkPair : ComputableInPolyTime
     (fun p : Table × List Bool × List Bool => checkPair p.1 p.2.1 p.2.2)
     encPairInput encBool := by
-  unfold checkPair
-  have hp : ComputableInPolyTime
-      (fun p : Table × List Bool × List Bool => decide (wordParity p.2.1 = wordParity p.2.2))
-      encPairInput encBool := by fun_prop
-  have he : ComputableInPolyTime
-      (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) =>
-        p.1.2.1.zipIdx.any fun (b, j) => b != p.1.2.2.getD j false &&
-          p.1.1.sem (EdgeAugmenting.flip p.1.2.1 [p.2.2, j]))
-      (encPair encPairInput (encPair encBool encUnary)) encBool := by
-    apply ComputableInPolyTime.anyWithInput
-      (show ComputableInPolyTime
-        (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) => p.1.2.1.zipIdx)
-        (encPair encPairInput (encPair encBool encUnary))
-        (encList (encPair encBool encUnary)) from by fun_prop)
-    fun_prop
-  have hs : ComputableInPolyTime
-      (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) =>
-        p.2.1 == p.1.2.2.getD p.2.2 false ||
-        p.1.2.1.zipIdx.any fun (b, j) => b != p.1.2.2.getD j false &&
-          p.1.1.sem (EdgeAugmenting.flip p.1.2.1 [p.2.2, j]))
-      (encPair encPairInput (encPair encBool encUnary)) encBool := by fun_prop
-  have ha : ComputableInPolyTime
-      (fun p : Table × List Bool × List Bool => p.2.1.zipIdx.all fun (a, i) =>
-        a == p.2.2.getD i false || p.2.1.zipIdx.any fun (b, j) =>
-          b != p.2.2.getD j false && p.1.sem (EdgeAugmenting.flip p.2.1 [i, j]))
-      encPairInput encBool := by
-    apply ComputableInPolyTime.allWithInput
-      (show ComputableInPolyTime (fun p : Table × List Bool × List Bool => p.2.1.zipIdx)
-        encPairInput (encList (encPair encBool encUnary)) from by fun_prop)
-    exact hs
-  exact ComputableInPolyTime.bool_and.comp (hp.prod ha)
+  fun_prop [checkPair]
 
 private theorem poly_checkPairWith {α : Type} {e : α ↪ List Bool}
     {t : α → Table} {x y : α → List Bool}

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import Mathlib.Logic.Equiv.Fin.Basic
 import CslibFrontier.DataStructure.Memory.Frame
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Uniform sequential realization of memory clients
@@ -71,22 +72,15 @@ theorem bindShared_layout {r k m l n₁ n₂ : ℕ} {frontier : Fin r} {src : Fi
     exact Fin.ext h
   have hright : Function.Injective (tmp ∘ bindSharedRight) := by
     intro a b hab
-    apply Fin.ext
-    have h := congrArg Fin.val (hi hab)
+    have h := hi hab
     have hm₁ := Nat.le_max_left n₁ n₂
-    have ha := a.isLt
-    have hb := b.isLt
-    dsimp only [Function.comp_apply, bindSharedRight] at h
-    split_ifs at h <;> dsimp only at h <;> omega
+    fin_index [bindSharedRight]
   -- The predecessor's live answer sits in the tail, above every slot of the continuation.
   have hdisjoint (a : Fin l) (b : Fin (m + n₂ + 1)) :
       tmp (bindSharedRight (Fin.castAdd (n₁ + 1) a)) ≠ tmp (bindSharedLeft b) := by
     intro hab
-    have h := congrArg Fin.val (hi hab)
-    have hm₂ := Nat.le_max_right n₁ n₂
-    have hb := b.isLt
-    simp only [bindSharedRight, Fin.val_castAdd, dite_eq_left a.isLt, bindSharedLeft] at h
-    omega
+    have := hi hab
+    fin_index [bindSharedRight, bindSharedLeft]
   refine ⟨hright, hleft, fun i j => ?_, fun i => ?_⟩
   · refine Fin.addCases (fun a => ?_) (fun b => ?_) i
     · simpa only [Fin.append_left] using hd a (bindSharedLeft j)

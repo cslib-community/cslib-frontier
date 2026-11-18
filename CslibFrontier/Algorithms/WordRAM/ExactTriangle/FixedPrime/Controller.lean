@@ -54,10 +54,8 @@ open Reg in
   ram[ scans ← scans + performed; found ← returned; index ← index + one;
     if found = one then [ limit ← index ] else [ limit ← limit ] ]
 
--- The return branch writes four controller registers and no part of the callee bank.
-set_option maxRecDepth 4096 in
 private theorem receive_preserves : ∀ i : Fin 416,
-    i.val < 400 ∨ i = Reg.one → receive.Preserves i := by decide
+    i.val < 400 ∨ i = Reg.one → receive.Preserves i := by decide +kernel
 
 /-- The native return needs at most six instructions, including control. Its limit
 is shortened exactly when the actual callee flag equals one. The complete callee bank survives. -/
