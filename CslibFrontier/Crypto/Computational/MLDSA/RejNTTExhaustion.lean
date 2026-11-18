@@ -184,9 +184,7 @@ private theorem expandA_exhausts_at_cell (H : Xofs) (s : Level) (rho : List Byte
   have success : ((H.withMatrixPrefixes s rho t).expandA s rho).isSome := by
     let unpack (v : Vector (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) s.params.k) :
         PublicMatrix s := fun i j => ((v.get i).get j).get
-    simp only [Xofs.expandA, read_withMatrixPrefixes, List.take_of_length_le List.length_ofFn.le]
-    simp only [ExtendableOutput.readBytes, List.drop_of_length_le (H.h128.length_read _ _).le,
-      List.append_nil, bind_pure_comp]
+    simp only [Xofs.expandA, read_matrixEntry, bind_pure_comp]
     change (Option.map unpack (Vector.ofFnM fun i => Vector.ofFnM (entry i))).isSome
     rwa [Option.isSome_map]
   simp [h] at success
