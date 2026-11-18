@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Join
+public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import Mathlib.Tactic.Ring
 
 /-!
@@ -23,6 +24,7 @@ every old segment and specify every added segment by its exact list position.
 * `Cslib.Polygonal.Route.segments_foldl_append`: the exact number of segments after a word.
 * `Cslib.Polygonal.Route.foldl_append_eval_cases`: all-real evaluation and chain-position
   classification of every actual segment after a finite append word.
+* `Cslib.Polygonal.Route.eval_foldl_append_line`: actual adjacent-node evaluation after a line.
 -/
 
 public section
@@ -127,5 +129,37 @@ theorem foldl_append_eval_cases (p : Route) (nodes : List ℂ)
         simpa only [List.foldl_cons, hfinish, Fin.getElem_fin, Fin.val_castSucc, Fin.val_succ,
           List.getElem_cons_succ] using heval
       · simpa only [Fin.val_succ] using hpos'
+
+/-- All-real evaluation of a line followed by an append word at its actual adjacent nodes. -/
+theorem eval_foldl_append_line (a b : ℂ) (nodes : List ℂ)
+    (i : Fin (nodes.foldl Route.append (Route.line a b)).segments) (t : ℝ) :
+    (nodes.foldl Route.append (Route.line a b)).eval i t =
+      AffineMap.lineMap ((a :: b :: nodes)[i.val]'(by
+        have hi := i.isLt
+        simp only [Route.segments_foldl_append] at hi
+        change i.val < 1 + nodes.length at hi
+        simp only [List.length_cons]
+        omega))
+        ((a :: b :: nodes)[i.val + 1]'(by
+          have hi := i.isLt
+          simp only [Route.segments_foldl_append] at hi
+          change i.val < 1 + nodes.length at hi
+          simp only [List.length_cons]
+          omega)) t := by
+  rcases Route.foldl_append_eval_cases (Route.line a b) nodes i t with
+    ⟨j, hij, heval, _⟩ | ⟨q, hiq, heval, _⟩
+  · have hj : j = 0 := by
+        apply Fin.ext
+        change j.val = 0
+        have h := j.isLt
+        change j.val < 1 at h
+        omega
+    subst j
+    simpa only [hij, Fin.val_zero, Nat.zero_add, List.getElem_cons_zero,
+      List.getElem_cons_succ, Route.eval_line] using heval
+  · change i.val = 1 + q.val at hiq
+    simpa only [hiq, Nat.add_comm 1 q.val, Nat.add_assoc,
+      Fin.getElem_fin, Fin.val_castSucc, List.getElem_cons_succ,
+      Route.finish_line] using heval
 
 end Cslib.Polygonal.Route

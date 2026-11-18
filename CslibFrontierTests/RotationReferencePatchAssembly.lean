@@ -146,8 +146,7 @@ example : ∃ D' : PolygonalDrawing (subdivisionGraph tripleInput),
     (∀ e b, ∃ c : ℝ, 0 < c ∧
       (D'.route e).germ b = c • ((referenceDrawing tripleInput).route e).germ b) := by
   classical
-  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
-    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
+  obtain ⟨A⟩ :=
       exists_reference_patch_assembly triple_valid
   have hsupport : (⟨9, 90⟩ : ℂ) ∈ ((referenceDrawing tripleInput).route first).support := by
     change (⟨9, 90⟩ : ℂ) ∈
@@ -161,25 +160,20 @@ example : ∃ D' : PolygonalDrawing (subdivisionGraph tripleInput),
         ((referenceDrawing tripleInput).route first).finish).support
     rw [support_line]
     exact openSegment_subset_segment ℝ _ _ another_open.1
-  let C : Set ℂ := {u | ∃ e f : Fin (subdivisionGraph tripleInput).edges.length, e ≠ f ∧
-    u ∈ openSegment ℝ ((referenceDrawing tripleInput).route e).start
-      ((referenceDrawing tripleInput).route e).finish ∧
-    u ∈ openSegment ℝ ((referenceDrawing tripleInput).route f).start
-      ((referenceDrawing tripleInput).route f).finish}
-  let z : {u : ℂ // u ∈ C ∧ u ∈ ((referenceDrawing tripleInput).route first).support} :=
+  let z : ReferencePatchAssembly.EdgeCenter tripleInput first :=
     ⟨(⟨9, 90⟩ : ℂ), ⟨first, second, by decide +kernel,
       selected_open 0, selected_open 1⟩, hsupport⟩
-  let w : {u : ℂ // u ∈ C ∧ u ∈ ((referenceDrawing tripleInput).route first).support} :=
+  let w : ReferencePatchAssembly.EdgeCenter tripleInput first :=
     ⟨(⟨14 / 5, 28⟩ : ℂ), ⟨first, fourth, by decide +kernel,
       another_open.1, another_open.2⟩, hsupport'⟩
-  have hzmem := (hL first).2.1 z
-  have hwmem := (hL first).2.1 w
+  have hzmem := A.centers_complete first z
+  have hwmem := A.centers_complete first w
   have hzw : z ≠ w := by
     intro heq
     have hx := congrArg (fun u => u.val.re) heq
     norm_num [z, w] at hx
-  have hcard : 2 ≤ (L first).length := by
-    have hsubset : ({z, w} : Finset _) ⊆ (L first).toFinset := by
+  have hcard : 2 ≤ (A.centers first).length := by
+    have hsubset : ({z, w} : Finset _) ⊆ (A.centers first).toFinset := by
       intro x hx
       rcases Finset.mem_insert.mp hx with rfl | hx
       · exact List.mem_toFinset.mpr hzmem
@@ -187,9 +181,9 @@ example : ∃ D' : PolygonalDrawing (subdivisionGraph tripleInput),
         exact List.mem_toFinset.mpr hwmem
     have hh := Finset.card_le_card hsubset
     rw [Finset.card_pair hzw] at hh
-    exact hh.trans (List.toFinset_card_le (L first))
-  have hsegments := hcount first (by decide +kernel)
-  exact ⟨D', hv, by omega, hsimple, hgerms⟩
+    exact hh.trans (List.toFinset_card_le (A.centers first))
+  have hsegments := A.segments_eq first (by decide +kernel)
+  exact ⟨A.drawing, A.vertex_eq, by omega, A.simple, A.germs⟩
 
 -- The public prescribed-star fixture includes both loop ends, parallel occurrences,
 -- decreasing source orientations and a fixed isolate. Frozen routes remain literally
@@ -207,18 +201,17 @@ example :
         (D'.route ⟨0, by decide⟩).eval i t ≠ D'.vertex 2) := by
   let I := RotationReferenceStar.input
   have hI : Valid I := (validate_eq_true_iff I).mp (by decide +kernel)
-  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
-    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
+  obtain ⟨A⟩ :=
       exists_reference_patch_assembly hI
-  refine ⟨D', hv, hsimple, ?_, congrFun hv 2, ?_⟩
+  refine ⟨A.drawing, A.vertex_eq, A.simple, ?_, congrFun A.vertex_eq 2, ?_⟩
   · intro e he
     change (subdivide I)[e.val].frozen = true at he
-    have hh := hroute e
+    have hh := A.route_eq e
     dsimp only at hh
     rw [ite_eq_left he] at hh
     exact hh
   · intro i t ht heq
-    obtain ⟨b, _, hb⟩ := hcontacts ⟨0, by decide⟩ i t ht 2 (by decide +kernel) heq
+    obtain ⟨b, _, hb⟩ := A.vertex_contacts ⟨0, by decide⟩ i t ht 2 (by decide +kernel) heq
     cases b <;> norm_num [I, RotationReferenceStar.input, Dart.vertex,
       Cslib.Complexity.Graph.edgeEndpoint,
       subdivisionGraph, subdivide] at hb
@@ -234,16 +227,15 @@ example {I : FixedRotationInput} (hI : Valid I)
     ∃ D' : PolygonalDrawing (subdivisionGraph I),
       D'.vertex = (referenceDrawing I).vertex ∧
       (∀ e, D'.route e = (referenceDrawing I).route e) := by
-  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
-    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
+  obtain ⟨A⟩ :=
       exists_reference_patch_assembly hI
-  have hnil (e : Fin (subdivisionGraph I).edges.length) : L e = [] := by
+  have hnil (e : Fin (subdivisionGraph I).edges.length) : A.centers e = [] := by
     apply List.eq_nil_iff_forall_not_mem.mpr
     intro z _
     exact hno z.val z.property.1
-  refine ⟨D', hv, ?_⟩
+  refine ⟨A.drawing, A.vertex_eq, ?_⟩
   intro e
-  simpa only [hnil, ite_self] using hroute e
+  simpa only [hnil, ite_self] using A.route_eq e
 
 -- In the empty-edge case the internally selected lists and drawing still exist; all
 -- isolated declared vertices are retained. There is no zero-segment Route convention.
@@ -254,10 +246,9 @@ example :
       (∀ e, D'.route e = (referenceDrawing I).route e) := by
   let I : FixedRotationInput := ⟨⟨[0, 1], []⟩, [none, some []]⟩
   have hI : Valid I := (validate_eq_true_iff I).mp (by decide +kernel)
-  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
-    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
+  obtain ⟨A⟩ :=
       exists_reference_patch_assembly hI
-  refine ⟨D', hv, ?_⟩
+  refine ⟨A.drawing, A.vertex_eq, ?_⟩
   intro e
   exact Fin.elim0 e
 

@@ -35,6 +35,7 @@ and preserves outgoing germs up to internally proved positive factors.
 
 ## Main results
 
+* `ReferencePatchAssembly`: named data and properties tied to one constructed drawing.
 * `exists_reference_patch_assembly`: internally selected neighborhoods, complete ordered
   patches and their actual global assembly, with exact all-real local/global parameter maps.
   A free local segment has index `3*q+1+j`; a frozen cut uses the original parameter
@@ -170,37 +171,6 @@ private theorem sorted_reference_cuts (I : FixedRotationInput)
       ⟨hlt.le, le_of_not_gt hn⟩ ⟨le_rfl, (hab w).le⟩
 
 
-private theorem append_word_eval (a b : ℂ) (nodes : List ℂ)
-    (i : Fin (nodes.foldl Route.append (Route.line a b)).segments) (t : ℝ) :
-    (nodes.foldl Route.append (Route.line a b)).eval i t =
-      AffineMap.lineMap ((a :: b :: nodes)[i.val]'(by
-        have hi := i.isLt
-        simp only [Route.segments_foldl_append] at hi
-        change i.val < 1 + nodes.length at hi
-        simp only [List.length_cons]
-        omega))
-        ((a :: b :: nodes)[i.val + 1]'(by
-          have hi := i.isLt
-          simp only [Route.segments_foldl_append] at hi
-          change i.val < 1 + nodes.length at hi
-          simp only [List.length_cons]
-          omega)) t := by
-  rcases Route.foldl_append_eval_cases (Route.line a b) nodes i t with
-    ⟨j, hij, heval, _⟩ | ⟨q, hiq, heval, _⟩
-  · have hj : j = 0 := by
-        apply Fin.ext
-        change j.val = 0
-        have h := j.isLt
-        change j.val < 1 at h
-        omega
-    subst j
-    simpa only [hij, Fin.val_zero, Nat.zero_add, List.getElem_cons_zero,
-      List.getElem_cons_succ, Route.eval_line] using heval
-  · change i.val = 1 + q.val at hiq
-    simpa only [hiq, Nat.add_comm 1 q.val, Nat.add_assoc,
-      Fin.getElem_fin, Fin.val_castSucc, List.getElem_cons_succ,
-      Route.finish_line] using heval
-
 private theorem append_word_support (a b : ℂ) (nodes : List ℂ) (S : Set ℂ)
     (hword : (a :: b :: nodes).IsChain (fun x y => segment ℝ x y ⊆ S)) :
     (nodes.foldl Route.append (Route.line a b)).support ⊆ S := by
@@ -214,14 +184,14 @@ private theorem append_word_support (a b : ℂ) (nodes : List ℂ) (S : Set ℂ)
     omega
   have hpiece := (List.isChain_iff_getElem.mp hword) i.val hi
   apply hpiece
-  rw [← heval, append_word_eval]
+  rw [← heval, Route.eval_foldl_append_line]
   exact lineMap_mem_segment ℝ _ _ ht
 
 private theorem first_germ_after_word (a b : ℂ) (nodes : List ℂ) :
     (nodes.foldl Route.append (Route.line a b)).germ false = b - a := by
   have heval (t : ℝ) : (nodes.foldl Route.append (Route.line a b)).eval 0 t =
       AffineMap.lineMap a b t := by
-    rw [append_word_eval]
+    rw [Route.eval_foldl_append_line]
     rfl
   have h0 := heval 0
   have h1 := heval 1
@@ -566,7 +536,7 @@ private theorem free_route_eval_nodes {I : FixedRotationInput}
         using (List.getElem?_eq_getElem hi)
     · simpa only [word, nodes, List.flatMap_cons, List.cons_append, List.nil_append]
         using (List.getElem?_eq_getElem hi1)
-    · exact append_word_eval _ _ nodes i t
+    · exact Route.eval_foldl_append_line _ _ nodes i t
 
 
 private theorem free_route_patch_eval {I : FixedRotationInput}
@@ -599,17 +569,209 @@ private theorem free_route_patch_eval {I : FixedRotationInput}
   exact he.trans (congrArg₂ (fun x y => AffineMap.lineMap x y t)
     (Option.some.inj ha).symm (Option.some.inj hb).symm)
 
-/-- Assemble all internally selected reference patches, retaining literal frozen routes.
-This is an assembly theorem, not global pair-contact regularization or an HT criterion. -/
-theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) :
+namespace ReferencePatchAssembly
+
+/-- An indexed reference edge whose support contains the given actual crossing. -/
+abbrev IncidentEdge (I : FixedRotationInput) (z : referenceCrossingPoints I) :=
+  {e : Fin (subdivisionGraph I).edges.length // z.val ∈ ((referenceDrawing I).route e).support}
+
+/-- An actual reference crossing lying on the specified indexed edge. -/
+abbrev EdgeCenter (I : FixedRotationInput) (e : Fin (subdivisionGraph I).edges.length) :=
+  {z : ℂ // z ∈ referenceCrossingPoints I ∧ z ∈ ((referenceDrawing I).route e).support}
+
+end ReferencePatchAssembly
+
+/-- One internally chosen reference patch assembly, with all data and properties tied to
+its drawing. `exists_reference_patch_assembly` constructs it from `Valid I` alone.
+Local contact facts do not assert global pair-contact regularization. -/
+structure ReferencePatchAssembly (I : FixedRotationInput) where
+  /-- Radius at each actual crossing center. -/
+  radii : ℂ → ℝ
+  /-- Shared horizontal extent of each local family. -/
+  extent : referenceCrossingPoints I → ℝ
+  /-- Internally chosen local detour heights. -/
+  height : ∀ z : referenceCrossingPoints I, ReferencePatchAssembly.IncidentEdge I z → ℝ
+  /-- Source parameter at the start of each cut. -/
+  startParam : ∀ z : referenceCrossingPoints I, ReferencePatchAssembly.IncidentEdge I z → ℝ
+  /-- Source parameter at the finish of each cut. -/
+  finishParam : ∀ z : referenceCrossingPoints I, ReferencePatchAssembly.IncidentEdge I z → ℝ
+  /-- Complete source-ordered center list for each indexed edge. -/
+  centers : ∀ e, List (ReferencePatchAssembly.EdgeCenter I e)
+  /-- Actual source-oriented local routes. -/
+  patch : ∀ z : referenceCrossingPoints I, ReferencePatchAssembly.IncidentEdge I z → Route
+  /-- Actual assembled polygonal drawing. -/
+  drawing : PolygonalDrawing (subdivisionGraph I)
+  /-- The full actual crossing set is finite. -/
+  crossings_finite : (referenceCrossingPoints I).Finite
+  /-- Every selected neighborhood radius is positive. -/
+  radii_pos : ∀ z ∈ referenceCrossingPoints I, 0 < radii z
+  /-- Distinct crossing neighborhoods have disjoint closed balls. -/
+  balls_disjoint : (referenceCrossingPoints I).PairwiseDisjoint
+    (fun z => Metric.closedBall z (radii z))
+  /-- Each closed neighborhood excludes every declared vertex, including isolates. -/
+  avoids_vertices : ∀ z ∈ referenceCrossingPoints I,
+    ∀ v ∈ (subdivisionGraph I).vertices,
+      (referenceDrawing I).vertex v ∉ Metric.closedBall z (radii z)
+  /-- Each closed neighborhood excludes every nonincident original support. -/
+  avoids_nonincident : ∀ z ∈ referenceCrossingPoints I,
+    ∀ e : Fin (subdivisionGraph I).edges.length,
+      z ∉ ((referenceDrawing I).route e).support →
+      Disjoint (Metric.closedBall z (radii z)) ((referenceDrawing I).route e).support
+  /-- Every local extent is positive. -/
+  extent_pos : ∀ z, 0 < extent z
+  /-- Local routes are precisely the translated, source-oriented existing detours. -/
+  patch_eq : ∀ (z : referenceCrossingPoints I)
+    (e : ReferencePatchAssembly.IncidentEdge I z),
+    let D := referenceDrawing I
+    let s := (D.route e.val).start.re + (D.route e.val).finish.re
+    let frozen := ((subdivide I)[e.val.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.val.isLt)).frozen
+    let raw := if frozen then
+      Route.line ⟨-extent z, -extent z * s⟩ ⟨extent z, extent z * s⟩
+      else Route.slopeDetour (extent z) s (height z e)
+    patch z e = (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
+      then raw.reverse else raw).translate z.val
+  /-- Every cut has two strictly interior, source-ordered parameters. -/
+  cut_bounds : ∀ z e, 0 < startParam z e ∧ startParam z e < finishParam z e ∧
+    finishParam z e < 1
+  /-- A local route starts at its original source cut point. -/
+  patch_start : ∀ z e, (patch z e).start =
+    AffineMap.lineMap (k := ℝ) ((referenceDrawing I).route e.val).start
+      ((referenceDrawing I).route e.val).finish (startParam z e)
+  /-- A local route finishes at its original source cut point. -/
+  patch_finish : ∀ z e, (patch z e).finish =
+    AffineMap.lineMap (k := ℝ) ((referenceDrawing I).route e.val).start
+      ((referenceDrawing I).route e.val).finish (finishParam z e)
+  /-- Every local route is simple as a continuum. -/
+  patch_simple : ∀ z e, (patch z e).IsSimple
+  /-- Every local support lies in its selected open ball. -/
+  patch_support : ∀ z e, (patch z e).support ⊆ Metric.ball z.val (radii z.val)
+  /-- Frozen members have zero detour height. -/
+  frozen_height : ∀ (z : referenceCrossingPoints I)
+    (e : ReferencePatchAssembly.IncidentEdge I z),
+    ((subdivide I)[e.val.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.val.isLt)).frozen = true →
+      height z e = 0
+  /-- A frozen local member is literally its original one-segment cut. -/
+  frozen_patch : ∀ (z : referenceCrossingPoints I)
+    (e : ReferencePatchAssembly.IncidentEdge I z),
+    ((subdivide I)[e.val.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.val.isLt)).frozen = true →
+      patch z e = Route.line
+        (AffineMap.lineMap (k := ℝ) ((referenceDrawing I).route e.val).start
+          ((referenceDrawing I).route e.val).finish
+          (startParam z e))
+        (AffineMap.lineMap (k := ℝ) ((referenceDrawing I).route e.val).start
+          ((referenceDrawing I).route e.val).finish
+          (finishParam z e))
+  /-- Distinct members of one local family have exactly one support contact. -/
+  patch_pair_unique : ∀ z e f, e ≠ f →
+    ∃! w : ℂ, w ∈ (patch z e).support ∧ w ∈ (patch z f).support
+  /-- Every local pair contact has actual open parameters and nonzero determinant. -/
+  patch_transverse : ∀ z e f, e ≠ f → ∀ w : ℂ,
+    w ∈ (patch z e).support → w ∈ (patch z f).support →
+      ∃ (i : Fin (patch z e).segments) (j : Fin (patch z f).segments) (u v : ℝ),
+        u ∈ Set.Ioo 0 1 ∧ v ∈ Set.Ioo 0 1 ∧
+        (patch z e).eval i u = w ∧ (patch z f).eval j v = w ∧
+        let a := (patch z e).point i.succ - (patch z e).point i.castSucc
+        let b := (patch z f).point j.succ - (patch z f).point j.castSucc
+        a.re * b.im - a.im * b.re ≠ 0
+  /-- No three distinct members of one local family share a support point. -/
+  patch_no_triple : ∀ z e f g, e ≠ f → e ≠ g → f ≠ g → ∀ w : ℂ,
+    w ∈ (patch z e).support → w ∈ (patch z f).support → w ∉ (patch z g).support
+  /-- Each source-ordered center list has no duplicate occurrence. -/
+  centers_nodup : ∀ e, (centers e).Nodup
+  /-- Every actual crossing on an indexed edge occurs in its selected list. -/
+  centers_complete : ∀ e (z : ReferencePatchAssembly.EdgeCenter I e), z ∈ centers e
+  /-- Consecutive selected cuts are strictly separated in source order. -/
+  centers_ordered : ∀ e, (centers e).Pairwise (fun z w =>
+    finishParam ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩ <
+      startParam ⟨w.val, w.property.1⟩ ⟨e, w.property.2⟩)
+  /-- All declared vertex positions are unchanged. -/
+  vertex_eq : drawing.vertex = (referenceDrawing I).vertex
+  /-- The assembled route is the literal free append word or the original frozen route. -/
+  route_eq :
     let H := subdivisionGraph I
     let D := referenceDrawing I
     let E := Fin H.edges.length
     let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
       simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
-    let C : Set ℂ := {z | ∃ e f : E, e ≠ f ∧
-      z ∈ openSegment ℝ (D.route e).start (D.route e).finish ∧
-      z ∈ openSegment ℝ (D.route f).start (D.route f).finish}
+    let C : Set ℂ := referenceCrossingPoints I
+    let X : C → Type := fun z => {e : E // z.val ∈ (D.route e).support}
+    let Z : E → Type := fun e => {z : ℂ // z ∈ C ∧ z ∈ (D.route e).support}
+    let site : ∀ e : E, Z e → C := fun _ z => ⟨z.val, z.property.1⟩
+    let occurrence : ∀ (e : E) (z : Z e), X (site e z) := fun e z => ⟨e, z.property.2⟩
+    let cutα : ∀ e : E, Z e → ℝ := fun e z => startParam (site e z) (occurrence e z)
+    let cutβ : ∀ e : E, Z e → ℝ := fun e z => finishParam (site e z) (occurrence e z)
+    let left : ∀ e : E, Z e → ℂ := fun e z =>
+      AffineMap.lineMap (D.route e).start (D.route e).finish (cutα e z)
+    let middle : ∀ e : E, Z e → ℂ := fun e z =>
+      z.val + (⟨0, height (site e z) (occurrence e z)⟩ : ℂ)
+    let right : ∀ e : E, Z e → ℂ := fun e z =>
+      AffineMap.lineMap (D.route e).start (D.route e).finish (cutβ e z)
+    ∀ e : E, drawing.route e = if F e then D.route e else
+      List.casesOn (centers e) (D.route e) (fun z zs =>
+        ([middle e z, right e z] ++ zs.flatMap (fun w => [left e w, middle e w, right e w]) ++
+          [(D.route e).finish]).foldl Route.append (Route.line (D.route e).start (left e z)))
+  /-- A free assembled route has exactly three segments per patch and one outer gap. -/
+  segments_eq : ∀ e : Fin (subdivisionGraph I).edges.length,
+    ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = false →
+      (drawing.route e).segments = 3 * (centers e).length + 1
+  /-- Every assembled route is simple as a continuum. -/
+  simple : ∀ e, (drawing.route e).IsSimple
+  /-- Every continuum contact with a declared vertex is the correct route end. -/
+  vertex_contacts : ∀ e (i : Fin (drawing.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
+    ∀ v ∈ (subdivisionGraph I).vertices, (drawing.route e).eval i t = drawing.vertex v →
+      ∃ b, (drawing.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v
+  /-- Outgoing germs retain their directions with positive real factors. -/
+  germs : ∀ e b, ∃ c : ℝ, 0 < c ∧
+    (drawing.route e).germ b = c • ((referenceDrawing I).route e).germ b
+  /-- Every selected local segment has its exact all-real global parameter map. -/
+  patch_embedding : ∀ (e : Fin (subdivisionGraph I).edges.length) (q : Fin (centers e).length),
+    let z := (centers e)[q]
+    let p := patch ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩
+    let frozen := ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+    (frozen = false → ∀ j : Fin p.segments,
+      ∃ i : Fin (drawing.route e).segments, i.val = 3 * q.val + 1 + j.val ∧
+        ∀ t : ℝ, (drawing.route e).eval i t = p.eval j t) ∧
+    (frozen = true → ∀ t : ℝ, (drawing.route e).eval 0
+      (startParam ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩ +
+        (finishParam ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩ -
+          startParam ⟨z.val, z.property.1⟩ ⟨e, z.property.2⟩) * t) = p.eval 0 t)
+  /-- The raw first detour piece maps to the source-oriented first or last local piece. -/
+  raw_first_embedding : ∀ (e : Fin (subdivisionGraph I).edges.length),
+    ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = false →
+    ∀ q : Fin (centers e).length,
+      let z := (centers e)[q]
+      let site : referenceCrossingPoints I := ⟨z.val, z.property.1⟩
+      let occurrence : ReferencePatchAssembly.IncidentEdge I site := ⟨e, z.property.2⟩
+      let s := ((referenceDrawing I).route e).start.re + ((referenceDrawing I).route e).finish.re
+      let raw := if ((subdivide I)[e.val]'(by
+          simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen then
+        Route.line ⟨-extent site, -extent site * s⟩ ⟨extent site, extent site * s⟩
+        else Route.slopeDetour (extent site) s (height site occurrence)
+      ∃ i : Fin (drawing.route e).segments,
+        i.val = 3 * q.val +
+          (if ((referenceDrawing I).route e).finish.re <
+            ((referenceDrawing I).route e).start.re then 2 else 1) ∧
+        ∀ t : ℝ, (drawing.route e).eval i
+          (if ((referenceDrawing I).route e).finish.re <
+            ((referenceDrawing I).route e).start.re then 1 - t else t) =
+          z.val + raw.eval 0 t
+
+
+/-- Assemble all internally selected reference patches, retaining literal frozen routes.
+This is an assembly theorem, not global pair-contact regularization or an HT criterion. -/
+private theorem exists_reference_patch_assembly_data {I : FixedRotationInput} (hI : Valid I) :
+    let H := subdivisionGraph I
+    let D := referenceDrawing I
+    let E := Fin H.edges.length
+    let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
+      simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
+    let C : Set ℂ := referenceCrossingPoints I
     let X : C → Type := fun z => {e : E // z.val ∈ (D.route e).support}
     let Z : E → Type := fun e => {z : ℂ // z ∈ C ∧ z ∈ (D.route e).support}
     C.Finite ∧ ∃ (ρ : ℂ → ℝ) (r : C → ℝ) (d α β : ∀ z : C, X z → ℝ)
@@ -696,9 +858,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
   let E := Fin H.edges.length
   let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
     simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
-  let C : Set ℂ := {z | ∃ e f : E, e ≠ f ∧
-    z ∈ openSegment ℝ (D.route e).start (D.route e).finish ∧
-    z ∈ openSegment ℝ (D.route f).start (D.route f).finish}
+  let C : Set ℂ := referenceCrossingPoints I
   let X : C → Type := fun z => {e : E // z.val ∈ (D.route e).support}
   let Z : E → Type := fun e => {z : ℂ // z ∈ C ∧ z ∈ (D.route e).support}
   obtain ⟨hC, ρ, hρ, hballs, hexclude⟩ := exists_reference_crossing_neighborhoods hI
@@ -1052,5 +1212,89 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     change (Q e).segments = _
     simp only [Q, he, Bool.false_eq_true, ↓reduceIte]
     exact free_route_segments e (L e) (left e) (middle e) (right e)
+
+/-- Construct one complete named-field reference patch assembly from `Valid I` alone.
+All selected data and proofs refer to its single drawing; global contact regularization
+and the HT criterion remain open. -/
+theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) :
+    Nonempty (ReferencePatchAssembly I) := by
+  classical
+  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
+    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
+      exists_reference_patch_assembly_data hI
+  let D := referenceDrawing I
+  let F : Fin (subdivisionGraph I).edges.length → Bool := fun e =>
+    ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+  let P := fun (z : referenceCrossingPoints I) (e : ReferencePatchAssembly.IncidentEdge I z) =>
+    let s := (D.route e.val).start.re + (D.route e.val).finish.re
+    let R := if F e.val then Route.line ⟨-r z, -r z * s⟩ ⟨r z, r z * s⟩
+      else Route.slopeDetour (r z) s (d z e)
+    (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
+      then R.reverse else R).translate z.val
+  refine ⟨{
+    radii := ρ
+    extent := r
+    height := d
+    startParam := α
+    finishParam := β
+    centers := L
+    patch := P
+    drawing := D'
+    crossings_finite := hC
+    radii_pos := hρ
+    balls_disjoint := hballs
+    avoids_vertices := fun z hz => (havoid z hz).1
+    avoids_nonincident := fun z hz => (havoid z hz).2
+    extent_pos := fun z => (hlocal z).1
+    patch_eq := fun _ _ => rfl
+    cut_bounds := ?_
+    patch_start := ?_
+    patch_finish := ?_
+    patch_simple := ?_
+    patch_support := ?_
+    frozen_height := ?_
+    frozen_patch := ?_
+    patch_pair_unique := ?_
+    patch_transverse := ?_
+    patch_no_triple := ?_
+    centers_nodup := fun e => (hL e).1
+    centers_complete := fun e => (hL e).2.1
+    centers_ordered := fun e => (hL e).2.2
+    vertex_eq := hv
+    route_eq := by
+      dsimp only
+      intro e
+      cases hf : F e <;> cases hL : L e <;>
+        dsimp only [F] at hf <;>
+        simpa only [hf, hL, Bool.false_eq_true, ↓reduceIte] using hroute e
+    segments_eq := hcount
+    simple := hsimple
+    vertex_contacts := hcontacts
+    germs := hgerms
+    patch_embedding := hembed
+    raw_first_embedding := hraw }⟩
+  · intro z e
+    obtain ⟨ha, hab, hb, _⟩ := (hlocal z).2.1 e
+    exact ⟨ha, hab, hb⟩
+  · intro z e
+    exact ((hlocal z).2.1 e).2.2.2.1
+  · intro z e
+    exact ((hlocal z).2.1 e).2.2.2.2.1
+  · intro z e
+    exact ((hlocal z).2.1 e).2.2.2.2.2.1
+  · intro z e
+    exact ((hlocal z).2.1 e).2.2.2.2.2.2
+  · intro z e hf
+    exact ((hlocal z).2.2.1 e hf).1
+  · intro z e hf
+    exact ((hlocal z).2.2.1 e hf).2
+  · intro z
+    exact (hlocal z).2.2.2.1
+  · intro z
+    exact (hlocal z).2.2.2.2.1
+  · intro z
+    exact (hlocal z).2.2.2.2.2
+
 
 end Cslib.Complexity.Graph.RotationRecognition
