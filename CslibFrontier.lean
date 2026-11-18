@@ -5258,6 +5258,7 @@ public import CslibFrontier.Crypto.Primitives.HQC.SupportProbability
 public import CslibFrontier.Crypto.Primitives.HQC.SupportSampling
 public import CslibFrontier.Crypto.Primitives.HQC.Syndrome
 public import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
+public import CslibFrontier.Crypto.Primitives.Hash.ExtendableOutput
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Circuit
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Efficient
@@ -7891,6 +7892,7 @@ public import CslibFrontier.Probability.HashFamily
 public import CslibFrontier.Probability.HashFamily.Collisions
 public import CslibFrontier.Probability.HashFamily.IntegerBox
 public import CslibFrontier.Probability.HashFamily.Matrix
+public import CslibFrontier.Probability.HashFamily.MatrixKernel
 public import CslibFrontier.Probability.HashFamily.MultiplyShift
 public import CslibFrontier.Probability.HashFamily.Polynomial
 public import CslibFrontier.Probability.HashFamily.Transport

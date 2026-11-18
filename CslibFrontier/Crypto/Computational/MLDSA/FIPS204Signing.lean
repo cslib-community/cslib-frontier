@@ -37,22 +37,24 @@ open Cslib.Probability
 
 /-- ExpandMask (Algorithm 34). Each mask polynomial absorbs the same seed and its own
 two-byte little-endian counter, and decodes 256 coefficients in [1 − γ₁, γ₁]. -/
-def expandMask (s : Level) (seed : List Byte) (κ : ℕ) :
+def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :
     Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
   let width := s.params.γ₁.log2 + 1
   Vector.ofFn fun i : Fin s.params.ℓ =>
     let nonce := κ + i.val
-    let bytes := Keccak.shake256 (seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)])
-      (32 * width)
+    let bytes := H.h256.readBytes (nonceInput seed nonce) (32 * width)
     (unpackSigned 1 width s.params.γ₁ bytes).get 0
 
-private def attempt (s : Level) (sk : PrivateKey s)
+/-- FIPS 202 specialization of `Xofs.expandMask`. -/
+abbrev expandMask := Xofs.expandMask Xofs.shake
+
+private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s)
     (matrix : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly)
     (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) := do
-  let y := ringVectorCoeffs (expandMask s maskSeed κ)
+  let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
   let w := ringVectorCoeffs (tabulateRingVector (moduleSISMap matrix y))
-  let digest := commitmentDigest s (highBitsVec s.params w) μ
-  let c ← sampleInBall s digest
+  let digest := H.commitmentDigest s (highBitsVec s.params w) μ
+  let c ← H.sampleInBall s digest
   let challenge := Vector.ofFn c
   let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w challenge.get
   return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
@@ -69,21 +71,27 @@ private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List B
 /-- Algorithm 7 on encoded secret keys, formatted bit-string messages and 32 hedging bytes.
 The signer distinguishes a rejected attempt (advance κ by ℓ) from XOF exhaustion (abort).
 After 814 rejected attempts it returns the single error of Appendix C. -/
-def signInternal (s : Level) (bytes : List Byte) (formatted : List Bool) (rnd : FixedBytes 32) :
-    Option (List Byte) := do
+def Xofs.signInternal (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
+    (rnd : FixedBytes 32) : Option (List Byte) := do
   let sk ← decodePrivate s bytes
-  let matrix ← expandA s sk.rho
-  let μ := representativeFromTr sk.tr formatted
-  let maskSeed := Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
+  let matrix ← H.expandA s sk.rho
+  let μ := H.representativeFromTr sk.tr formatted
+  let maskSeed := H.h256.read
     (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ) 64
-  firstAccepted s.params.ℓ (attempt s sk matrix μ maskSeed) 814 0
+  firstAccepted s.params.ℓ (H.attempt s sk matrix μ maskSeed) 814 0
+
+/-- FIPS 202 specialization of `Xofs.signInternal`. -/
+abbrev signInternal := Xofs.signInternal Xofs.shake
 
 /-- Pure ML-DSA.Sign (Algorithm 2) with explicit hedging randomness. The deterministic
 variant uses 32 zero bytes. Contexts longer than 255 bytes return an error. -/
-def sign (s : Level) (sk : List Byte) (message : List Bool) (ctx : List Byte)
+def Xofs.sign (H : Xofs) (s : Level) (sk : List Byte) (message : List Bool) (ctx : List Byte)
     (rnd : FixedBytes 32) : Option (List Byte) := do
   guard (ctx.length ≤ 255)
-  signInternal s sk (formatMessage message ctx) rnd
+  H.signInternal s sk (formatMessage message ctx) rnd
+
+/-- FIPS 202 specialization of `Xofs.sign`. -/
+abbrev sign := Xofs.sign Xofs.shake
 
 private theorem attempt_of_firstAccepted {stride fuel start : ℕ}
     {f : ℕ → Option (Option (List Byte))} {sig : List Byte}
@@ -100,32 +108,32 @@ private theorem attempt_of_firstAccepted {stride fuel start : ℕ}
         have he : bytes = sig := by simpa [firstAccepted, hf] using h
         exact ⟨start, he ▸ hf⟩
 
-private theorem verified_of_attempt {s : Level} (sk : MLDSA.SecretKey s.params)
+private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey s.params)
     (rho : FixedBytes 32) {key tr maskSeed : List Byte} {κ : ℕ} {f : Forgery}
-    (hA : expandA s rho.toList = some sk.A) (hctx : f.context.length ≤ 255)
+    (hA : H.expandA s rho.toList = some sk.A) (hctx : f.context.length ≤ 255)
     (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η)
-    (hs : attempt s ⟨rho.toList, key, tr, sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩
-      sk.A (messageRepresentative (encodePublic s rho.toList sk.publicKey.t) (formattedMessage f))
+    (hs : H.attempt s ⟨rho.toList, key, tr, sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩
+      sk.A (H.messageRepresentative (encodePublic s rho.toList sk.publicKey.t) (formattedMessage f))
         maskSeed κ = some (some f.signature)) :
-    verify s (encodePublic s rho.toList sk.publicKey.t) f.message f.context f.signature =
+    H.verify s (encodePublic s rho.toList sk.publicKey.t) f.message f.context f.signature =
       some true := by
-  let y := ringVectorCoeffs (expandMask s maskSeed κ)
+  let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
   let w := moduleSISMap sk.A y
-  let μ := messageRepresentative (encodePublic s rho.toList sk.publicKey.t) (formattedMessage f)
-  let digest := commitmentDigest s (highBitsVec s.params w) μ
+  let μ := H.messageRepresentative (encodePublic s rho.toList sk.publicKey.t) (formattedMessage f)
+  let digest := H.commitmentDigest s (highBitsVec s.params w) μ
   have vecGet {n : ℕ} {α : Type} (g : Fin n → α) : (Vector.ofFn g).get = g :=
     funext (Vector.get_ofFn g)
-  cases hc : sampleInBall s digest with
+  cases hc : H.sampleInBall s digest with
   | none =>
-    simp only [attempt, tabulateRingVector_eq] at hs
-    change (sampleInBall s digest).bind _ = _ at hs
+    simp only [Xofs.attempt, tabulateRingVector_eq] at hs
+    change (H.sampleInBall s digest).bind _ = _ at hs
     simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [attempt, tabulateRingVector_eq, vecGet] at hs
-      change ((sampleInBall s digest).bind _) = _ at hs
+      simp only [Xofs.attempt, tabulateRingVector_eq, vecGet] at hs
+      change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
     cases he : resp with
     | none => simp [he] at out
@@ -138,25 +146,26 @@ private theorem verified_of_attempt {s : Level} (sk : MLDSA.SecretKey s.params)
         · exact Params.valid_mldsa87
       obtain ⟨hz, hw, hchallenge, recovers⟩ := recovered_of_compressedResponse s.params valid
         (by cases s <;> decide) (inBall_of_sampleInBall hc) hs₂ he
-      have dec := sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩ (length_commitmentDigest ..) hz hw
+      have dec := sigDecode_encodeSignature s ⟨digest, σ.z, σ.h⟩
+        (length_commitmentDigest (H := H) ..) hz hw
       rw [enc] at dec
       apply verifyWithExpansion_of_recovered (f := f) (c := c) hA hctx dec hc hz
-      change commitmentDigest s _ μ = digest
+      change H.commitmentDigest s _ μ = digest
       rw [← hchallenge]
-      exact congrArg (fun high => commitmentDigest s high μ) recovers
+      exact congrArg (fun high => H.commitmentDigest s high μ) recovers
 
-/-- Every successfully returned signature under a generated FIPS 204 key passes Algorithm 3
-for the same context and bit-string message. This includes deterministic and hedged randomness. -/
-theorem verify_of_sign {s : Level} {seed : FixedBytes 32} {keys : KeyPair} {f : Forgery}
-    {rnd : FixedBytes 32} (hg : keyGen s seed = some keys)
-    (hs : sign s keys.secretKey f.message f.context rnd = some f.signature) :
-    verify s keys.publicKey f.message f.context f.signature = some true := by
+/-- For any fixed pair of XOFs, Algorithm 3 accepts every successful signature produced
+under a key generated with those same XOFs. This includes deterministic and hedged randomness. -/
+theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : KeyPair} {f : Forgery}
+    {rnd : FixedBytes 32} (hg : H.keyGen s seed = some keys)
+    (hs : H.sign s keys.secretKey f.message f.context rnd = some f.signature) :
+    H.verify s keys.publicKey f.message f.context f.signature = some true := by
   obtain ⟨rho, sk, key, hA, pk, decoded, short⟩ := privateKey_of_keyGen hg
   have ctx : f.context.length ≤ 255 := by
     by_contra h
-    simp [sign, guard, h] at hs
-  simp only [sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
-    signInternal, decoded, hA] at hs
+    simp [Xofs.sign, guard, h] at hs
+  simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
+    Option.bind_some, Xofs.signInternal, decoded, hA] at hs
   obtain ⟨κ, htry⟩ := attempt_of_firstAccepted hs
   rw [pk] at htry ⊢
   exact verified_of_attempt sk rho hA ctx short htry
@@ -172,35 +181,48 @@ structure SigningQuery where
 abbrev SigningForger :=
   List Byte → ProbOracleComp (fun _ : SigningQuery => Option (List Byte)) Forgery
 
+/-- Keep each successful signature with the exact context and message presented to the signer. -/
+@[expose] def SigningQuery.logReply (q : SigningQuery) (sig : Option (List Byte))
+    (log : List Forgery) : List Forgery :=
+  match sig with
+  | none => log
+  | some bytes => ⟨q.context, q.message, bytes⟩ :: log
+
+/-- FIPS verifies the output triple and no signing call returned that triple. -/
+@[expose] def Xofs.winsForgery (H : Xofs) (s : Level) (pk : List Byte) (f : Forgery)
+    (log : List Forgery) : Bool :=
+  (H.verify s pk f.message f.context f.signature).getD false && !log.contains f
+
 /-- Sign with fresh hedging randomness and log the context and message of a successful reply. -/
-noncomputable def signingOracle (s : Level) (sk : List Byte) (q : SigningQuery)
+noncomputable def Xofs.signingOracle (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
     (log : List Forgery) : PMF (Option (List Byte) × List Forgery) :=
   (PMF.uniformOfFintype (FixedBytes 32)).map fun rnd =>
-    let sig := sign s sk q.message q.context rnd
-    (sig, match sig with
-      | none => log
-      | some bytes => ⟨q.context, q.message, bytes⟩ :: log)
+    let sig := H.sign s sk q.message q.context rnd
+    (sig, q.logReply sig log)
+
+/-- Signing service with the FIPS 202 XOFs. -/
+noncomputable abbrev signingOracle := Xofs.signingOracle Xofs.shake
 
 /-- Every signature in the actual adaptive signing transcript passes the FIPS byte verifier
 under the public key returned by the same seed. -/
-theorem verify_of_mem_signingTranscript {s : Level} {seed : FixedBytes 32} {keys : KeyPair}
-    {adv : SigningForger} {out f : Forgery} {log : List Forgery}
-    (hg : keyGen s seed = some keys)
-    (hrun : (out, log) ∈ (ProbOracleComp.runWith (signingOracle s keys.secretKey)
+theorem verify_of_mem_signingTranscript {H : Xofs} {s : Level} {seed : FixedBytes 32}
+    {keys : KeyPair} {adv : SigningForger} {out f : Forgery} {log : List Forgery}
+    (hg : H.keyGen s seed = some keys)
+    (hrun : (out, log) ∈ (ProbOracleComp.runWith (H.signingOracle s keys.secretKey)
       (adv keys.publicKey) []).support) (hf : f ∈ log) :
-    verify s keys.publicKey f.message f.context f.signature = some true := by
+    H.verify s keys.publicKey f.message f.context f.signature = some true := by
   let inv (history : List Forgery) := ∀ g ∈ history,
-    verify s keys.publicKey g.message g.context g.signature = some true
+    H.verify s keys.publicKey g.message g.context g.signature = some true
   suffices maintained : inv log from maintained f hf
   apply ProbOracleComp.runWith_invariant _ inv ?_ _ [] (by simp [inv]) out log hrun
   intro q hist ih reply next hs
   obtain ⟨rnd, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
-  cases sig : sign s keys.secretKey q.message q.context rnd with
+  cases sig : H.sign s keys.secretKey q.message q.context rnd with
   | none =>
-    simp only [sig, Prod.mk.injEq] at hr
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
     exact hr.2 ▸ ih
   | some bytes =>
-    simp only [sig, Prod.mk.injEq] at hr
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
     rw [← hr.2]
     intro g hg'
     rcases List.mem_cons.mp hg' with rfl | htail
@@ -251,14 +273,13 @@ must be fresh among the returned context, message and signature triples. -/
 noncomputable def sufCmaGame (s : Level) (adv : SigningForger) : Game :=
   keyExperiment s fun keys =>
     (ProbOracleComp.runWith (signingOracle s keys.secretKey) (adv keys.publicKey) []).map
-      fun (f, log) =>
-        (verify s keys.publicKey f.message f.context f.signature).getD false && !log.contains f
+      fun (f, log) => Xofs.shake.winsForgery s keys.publicKey f log
 
 /-- Restricting the strong chosen-message experiment to a forger that makes no signing calls
 recovers the byte-verifier key-only experiment exactly, including key-generation failure. -/
 theorem sufCmaGame_sample_eq_keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) :
     sufCmaGame s (fun pk => ProbOracleComp.sample (adv pk)) = keyOnlyGame s adv := by
-  unfold sufCmaGame keyOnlyGame
+  unfold sufCmaGame keyOnlyGame Xofs.winsForgery
   congr 1
   funext keys
   rw [ProbOracleComp.runWith_sample, PMF.map_comp]
