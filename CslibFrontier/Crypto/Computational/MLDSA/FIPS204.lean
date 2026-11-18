@@ -1096,6 +1096,17 @@ between two byte boundaries (Algorithm 8, lines 6–7). -/
 /-- FIPS 202 specialization of `Xofs.messageRepresentative`. -/
 abbrev messageRepresentative := Xofs.messageRepresentative Xofs.shake
 
+namespace SharedDigest
+
+/-- A module product on the canonical FIPS commitment grid is determined by its high bits. -/
+@[expose] def OnCommitmentGrid (s : Level) (v : Fin s.params.k → Poly) : Prop :=
+  ∀ i j, v i j = ((highBitsVec s.params v i j * (2 * s.params.γ₂ : ℕ) : ℤ) : ZMod 8380417)
+
+instance (s : Level) (v : Fin s.params.k → Poly) : Decidable (OnCommitmentGrid s v) :=
+  by unfold OnCommitmentGrid; infer_instance
+
+end SharedDigest
+
 /-- SHAKE256 input in Algorithm 8, line 12, including the message representative and
 the fixed-width packing of the recovered high bits. -/
 def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) : List Bool :=

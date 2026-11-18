@@ -44,23 +44,30 @@ def Xofs.openFullWitness (H : Xofs) (s : Level) (pk : MLDSA.PublicKey s.params)
   let radius := compressedSelfTargetRadius s.params 13
   guard (y.msg.length = 512)
   guard (ModuleSIS.inInfNormBound radius y.u ∧ ModuleSIS.inInfNormBound radius y.z)
-  guard (∀ i j, v i j = ((w i j * (2 * s.params.γ₂ : ℕ) : ℤ) : ZMod 8380417))
+  guard (SharedDigest.OnCommitmentGrid s v)
   let digest := H.commitmentDigest s w y.msg
   guard (H.sampleInBall s digest = some y.c)
   return digest
 
-/-- Every successful opening solves the short-vector equation induced by the same raw XOFs
-and expands its returned bytes to the candidate's sparse challenge. -/
-theorem isSelfTargetSolution_of_openFullWitness {H : Xofs} {s : Level}
-    {pk : MLDSA.PublicKey s.params} {y : SelfTargetCandidate s.params} {d : List Byte}
-    (h : H.openFullWitness s pk y = some d) :
-    IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
-        (compressedSelfTargetRadius s.params 13) pk y ∧ H.sampleInBall s d = some y.c := by
+/-- A raw opening is equivalent to a short-vector solution on the canonical grid, with
+the exact commitment digest and a successful sparse expansion at that digest. -/
+theorem openFullWitness_eq_some_iff {H : Xofs} {s : Level}
+    {pk : MLDSA.PublicKey s.params} {y : SelfTargetCandidate s.params} {d : List Byte} :
+    H.openFullWitness s pk y = some d ↔
+      let v := selfTargetMap s.params pk y.u y.z y.c
+      y.msg.length = 512 ∧ SharedDigest.OnCommitmentGrid s v ∧
+        H.commitmentDigest s (highBitsVec s.params v) y.msg = d ∧
+        H.sampleInBall s d = some y.c ∧
+        IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
+          (compressedSelfTargetRadius s.params 13) pk y := by
   simp only [Xofs.openFullWitness, Option.bind_eq_bind, Option.bind_eq_some_iff,
-    Option.guard_eq_some', Option.pure_def, Option.some.injEq, exists_const] at h
-  obtain ⟨_, ⟨hu, hz⟩, _, hc, rfl⟩ := h
-  refine ⟨⟨hu, hz, inBall_of_sampleInBall hc, ?_⟩, hc⟩
-  exact congrArg (fun x => Option.getD x 0) hc
+    Option.guard_eq_some', Option.pure_def, Option.some.injEq, exists_const]
+  constructor
+  · rintro ⟨len, ⟨hu, hz⟩, grid, hc, rfl⟩
+    refine ⟨len, grid, rfl, hc, hu, hz, inBall_of_sampleInBall hc, ?_⟩
+    exact congrArg (fun x => Option.getD x 0) hc
+  · rintro ⟨len, grid, rfl, hc, sol⟩
+    exact ⟨len, ⟨sol.1, sol.2.1⟩, grid, hc, rfl⟩
 
 /-- An accepting byte signature gives a short witness whose raw opening recovers exactly the
 digest bytes in that signature. The matrix at the public seed and the full public vector are
@@ -82,9 +89,7 @@ theorem opening_extractFull_of_verify {H : Xofs} {s : Level} {rho : FixedBytes 3
   refine ⟨_, hy, ?_⟩
   have high := highBits_selfTargetMap_compressedForgeryLowPart s.valid
     (by cases s <;> decide) 13 pk sig
-  have grid : ∀ i j, selfTargetMap s.params pk u σ.z c i j =
-      (((highBitsVec s.params (selfTargetMap s.params pk u σ.z c)) i j *
-        (2 * s.params.γ₂ : ℕ) : ℤ) : ZMod 8380417) := by
+  have grid : SharedDigest.OnCommitmentGrid s (selfTargetMap s.params pk u σ.z c) := by
     intro i j
     rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
     exact congrFun (congrFun (selfTargetMap_compressedForgeryLowPart 13 pk sig) i) j
@@ -92,15 +97,8 @@ theorem opening_extractFull_of_verify {H : Xofs} {s : Level} {rho : FixedBytes 3
       (highBitsVec s.params (selfTargetMap s.params pk u σ.z c)) μ = σ.digest := by
     rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
     exact hd
-  have short := And.intro bounded.1 bounded.2.1
-  change ModuleSIS.inInfNormBound (compressedSelfTargetRadius s.params 13) u ∧
-    ModuleSIS.inInfNormBound (compressedSelfTargetRadius s.params 13) σ.z at short
-  change H.openFullWitness s pk ⟨μ, u, σ.z, c⟩ = _
-  simp only [Xofs.openFullWitness, show μ.length = 512 from length_messageRepresentative ..,
-    grid, short, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
-    digest, hc, digest_of_sigDecode hs]
-  simp
-
+  rw [openFullWitness_eq_some_iff, digest_of_sigDecode hs]
+  exact ⟨length_messageRepresentative .., grid, digest, hc, bounded⟩
 
 namespace QuantumSigningForger
 

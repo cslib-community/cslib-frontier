@@ -131,33 +131,34 @@ example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =
     | .mlDSA87 => 769537 := by
   cases s <;> decide
 
--- On this raw table, actual 44-level extraction must recompute 0x07 digest bytes.
--- Expanding 0x07 yields a signed sparse challenge. Setting that expansion row to 0xff
--- exhausts it. Moving the product off zero by one keeps the high bits at zero.
+-- The full t has ring unit 1 in every row, so its rounded public part vanishes and the
+-- extracted low vector is c. Different digest bytes can give exactly the same sparse c.
 private def rawOpeningCheck : Bool := Id.run do
   let s := Level.mlDSA44
   let zero := constantStream fun _ => 0
   let H : Xofs := ⟨zero, constantStream fun x => if x.length > 512 then 7 else 0⟩
   let rho : FixedBytes 32 := fun _ => 0
-  let pk : MLDSA.PublicKey s.params := ⟨fun _ _ _ => 0, fun _ _ => 0⟩
+  let pk : MLDSA.PublicKey s.params := ⟨fun _ _ _ => 0, fun _ j => if j.val = 0 then 1 else 0⟩
   let d := List.replicate (digestBytes s) (7 : Byte)
+  let other := List.replicate (digestBytes s) (9 : Byte)
   let bytes := encodePublic s rho.toList pk.t
-  let sig := encodeSignature s ⟨d, fun _ _ => 0, fun _ _ => false⟩
-  let f : Forgery := ⟨[], [true, false, true], sig⟩
+  let sig (digest : List Byte) := encodeSignature s ⟨digest, fun _ _ => 0, fun _ _ => false⟩
+  let f : Forgery := ⟨[], [true, false, true], sig d⟩
   let some y := H.extractFull s rho pk.A pk.t f | return false
-  let some c := H.sampleInBall s d | return false
-  let x := Keccak.bytesToBitsLE d
-  let failed := H.writeCommitment x (List.replicate 221 255)
+  let some c := H.sampleInBall s other | return false
+  let failed := H.writeCommitment (Keccak.bytesToBitsLE d) (List.replicate 221 255)
   let low := Vector.ofFn fun i => Vector.ofFn (y.u i)
   let response := Vector.ofFn fun i => Vector.ofFn (y.z i)
   let point := {y with u := fun i j => (low.get i).get j,
                        z := fun i j => (response.get i).get j}
-  let off := {point with u := fun _ _ => 1}
+  let off := {point with u := fun i j => point.u i j + 1}
+  let first := low.get ⟨0, by decide⟩
   return H.verify s bytes f.message f.context f.signature == some true &&
-    y.msg == H.messageRepresentative bytes (formattedMessage f) && y.c 0 == c 0 &&
-    y.u ⟨0, by decide⟩ 0 == 0 && y.z ⟨0, by decide⟩ 0 == 0 &&
-    H.openFullWitness s pk point == some d &&
-    (failed.sampleInBall s d).isNone && (failed.openFullWitness s pk point).isNone &&
+    H.verify s bytes f.message f.context (sig other) == some false &&
+    y.msg == H.messageRepresentative bytes (formattedMessage f) &&
+    Vector.ofFn c == Vector.ofFn y.c && first == Vector.ofFn y.c && first.toList.any (· != 0) &&
+    H.openFullWitness s pk point == some d && (failed.sampleInBall s d).isNone &&
+    (failed.openFullWitness s pk point).isNone &&
     MLDSA.highBits s.params.q s.params.γ₂ 1 == MLDSA.highBits s.params.q s.params.γ₂ 0 &&
     (H.openFullWitness s pk off).isNone
 
