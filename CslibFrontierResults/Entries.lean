@@ -261,12 +261,14 @@ import CslibFrontier.Logics.SecondOrder.WordMSO.StarFree
 import CslibFrontier.MachineLearning.Boosting.AdaBoost
 import CslibFrontier.MachineLearning.LossMinimization.RLM
 import CslibFrontier.MachineLearning.LossMinimization.Squared
+import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.VCDimension
 import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
 import CslibFrontier.MachineLearning.PACBayes.Basic
 import CslibFrontier.MachineLearning.PACBayes.KL
 import CslibFrontier.MachineLearning.PACLearning.AgnosticVCSharp
 import CslibFrontier.MachineLearning.PACLearning.FundamentalTheorem
 import CslibFrontier.MachineLearning.PACLearning.MDL
+import CslibFrontier.MachineLearning.PACLearning.NatarajanDimension
 import CslibFrontier.MachineLearning.PACLearning.Nonuniform
 import CslibFrontier.MachineLearning.UniformLearning.CIKK.AC0Mod
 import CslibFrontier.MachineLearning.UniformLearning.CIKK.Amplification
@@ -2212,6 +2214,29 @@ register_result "blum-mansour-swap-regret" where
     With Hedge copies and losses in [-1, 1], swap regret is at most η T + n ln n / η, and \
     2 √(T n ln n) with the tuned rate when n ≥ 2 and T ≥ n ln n. Stationary vectors are \
     chosen classically; no running time is charged."
+
+register_result "littlestone-vc-mistake-bound" where
+  title := "VC dimension lower-bounds the optimal mistake bound"
+  topic := "online learning"
+  sources := [
+    { paper := Littlestone1988, theorem := "Theorem 4", locator := "Section 3, p. 295" }
+  ]
+  theorems := [Cslib.MachineLearning.OnlineLearning.MistakeBound.evcDim_le_optimalMistakeBound]
+  scope := "Every deterministic online learner for a Boolean class can be forced to make at least \
+    the size of any finite shattered set in mistakes. Taking the supremum extends the paper's \
+    finite-class comparison to arbitrary classes. For the empty class the two extended-natural \
+    quantities are both zero, where Littlestone gives both quantities the value −1."
+
+register_result "natarajan-cardinality-bound" where
+  title := "Natarajan's cardinality bound for multiclass hypotheses"
+  topic := "statistical learning"
+  sources := [
+    { paper := ShalevShwartzBenDavid2014, theorem := "Lemma 29.4", locator := "Section 29.2" }
+  ]
+  theorems := [Cslib.MachineLearning.PACLearning.ncard_le_card_pow_natarajanDim]
+  scope := "For any class of functions from a finite domain X to a finite set of k labels, \
+    its cardinality is at most |X|^d k^(2d), where d is its Natarajan dimension. Finiteness \
+    of the domain gives a finite exponent, including for the empty class."
 
 register_result "adaboost-training-error" where
   title := "AdaBoost training-error bound"

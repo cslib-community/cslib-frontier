@@ -101,7 +101,9 @@ theorem evcDim_le_littlestoneDim (C : ConceptClass α Bool) :
     evcDim C ≤ littlestoneDim C :=
   PACLearning.evcDim_le_iff.mpr (natCast_le_littlestoneDim_of_setShatters (C := C))
 
-/-- [Littlestone1988, §3, Theorem 4]: the VC dimension is at most the optimal mistake bound. -/
+/-- The VC dimension is at most the optimal mistake bound. [Littlestone1988, §3, Theorem 4]
+treats finite Boolean classes and assigns both quantities the value −1 on the empty class.
+The extended-natural bounds here both give zero on the empty class and allow infinite classes. -/
 theorem evcDim_le_optimalMistakeBound (C : ConceptClass α Bool) :
     evcDim C ≤ optimalMistakeBound C :=
   (evcDim_le_littlestoneDim C).trans (littlestoneDim_le_optimalMistakeBound C)
