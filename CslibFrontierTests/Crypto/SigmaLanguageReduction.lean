@@ -300,15 +300,16 @@ noncomputable def schnorrSumFamily (i : ℕ × F.Desc) :
       (F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) :=
   (F.schnorrFamily i).comap (fun x _ => x.1 + x.2) (F.sumStatement i)
 
-/-- Efficient special HVZK transfers, with the same error. -/
-theorem efficientSpecialHVZK_schnorrSum :
+/-- Efficient special HVZK against the ideal-sampling honest prover transfers, with the same
+error. -/
+theorem efficientSpecialHVZK_schnorrSum_ideal :
     EfficientSpecialHVZK F.schnorrSumFamily
       (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
       (F.schnorrEncoding.withStatement F.encSumStatement)
       (fun i y c => linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
         (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _) (F.sumStatement i y) c)
       (fun i => 1 / 2 ^ i.1) :=
-  F.efficientSpecialHVZK_schnorr.comap
+  F.efficientSpecialHVZK_schnorr_ideal.comap
     (fun i x y h => by simp only [sumStatement, add_smul, h.1, h.2])
     F.computableInPolyTime_sumStatementWord F.sumStatementWord_encSumStatement
 

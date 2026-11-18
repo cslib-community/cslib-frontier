@@ -73,7 +73,8 @@ theorem exists_kilianSound_of_mem_NP (hH : HashFamily H) {enc : α ↪ List Bool
           C * (n + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
   obtain ⟨V, c, d, hV, hpcp⟩ := NP_subset_PCP_log enc hL
   exact ⟨V, c, hV, hpcp.coins_le, hpcp.mem_iff_exists_tableVerifier,
-    fun x table htable n => eval_kilianHonestGame H V htable n, hH.kilianSound hV hpcp,
+    fun x table htable n => eval_kilianHonestGame H V hH.length_eq htable n,
+    hH.kilianSound hV hpcp,
     _, fun n k x table ρs hk hn hρs => kilianCommunication_honest_le_log hH.length_eq hk hn hρs
       (fun ρ hρ => hpcp.length_queries_le x ρ hρ) (hpcp.coins_le x)⟩
 

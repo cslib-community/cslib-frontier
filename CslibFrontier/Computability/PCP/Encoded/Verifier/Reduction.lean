@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.Encoded.Verifier.Repetition
+public import CslibFrontier.Computability.Complexity.Classes.PCP.Promise
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Probability
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import Mathlib.Algebra.Order.Archimedean.Basic
@@ -24,6 +25,9 @@ The alphabet has a fixed-width binary representation with a decoding left invers
 packs one block per declared vertex; soundness interprets every proof, even a short one, as a
 consistent labelling. Random strings of arbitrary length remain covered by the cost certificate.
 
+The reduction may be one from a promise problem. Completeness, and well-formedness of the
+constructed graph, are then needed only on yes-instances, and the gap only on no-instances.
+
 ## Main definitions
 
 * `Cslib.PCP.Encoded.Graph.reductionVerifier`: graph construction followed by repeated local checks.
@@ -32,8 +36,9 @@ consistent labelling. Random strings of arbitrary length remain covered by the c
 
 * `Cslib.PCP.Encoded.Graph.polyTime_reductionVerifier`: the verifier is polynomial-time when the
   graph construction and the constraint evaluation are.
-* `Cslib.PCP.Encoded.Graph.mem_PCP_of_gapReduction`: a positive-gap reduction gives membership in
-  `PCP(log n, 1)`.
+* `Cslib.PCP.Encoded.Graph.mem_PromisePCP_of_gapReduction`: a positive-gap reduction from a
+  promise problem gives membership in the promise class `PCP(log n, 1)`.
+* `Cslib.PCP.Encoded.Graph.mem_PCP_of_gapReduction`: the case of a decision problem.
 
 ## References
 
@@ -64,28 +69,29 @@ theorem polyTime_reductionVerifier {graph : Input → Graph C} (width repeats : 
     {eval : C → α → α → Bool}
     (hgraph : ComputableInPolyTime graph input (encoding enc))
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     (reductionVerifier graph width repeats decode eval).PolyTime input :=
   have h := polyTime_repeatedEdgeVerifier width repeats decode heval
   { coins := h.coins.comp hgraph
     queries := h.queries.comp (by fun_prop)
     verdict := h.verdict.comp (by fun_prop) }
 
-/-- An efficient well-formed graph reduction with a fixed positive gap gives a PCP using logarithmic
-randomness and constantly many queries. The alphabet representation precedes the input. -/
-theorem mem_PCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
+/-- An efficient graph reduction from a promise problem, well-formed on yes-instances and with a
+fixed positive gap on no-instances, gives a promise PCP using logarithmic randomness and
+constantly many queries. The alphabet representation precedes the input. -/
+theorem mem_PromisePCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
     (encode : α → Fin width → Bool) (decode : (Fin width → Bool) → α)
     (hdecode : Function.LeftInverse decode encode)
     {input : Input ↪ List Bool} {enc : C ↪ List Bool} {alphabet : α ↪ List Bool}
     {eval : C → α → α → Bool}
     (hgraph : ComputableInPolyTime graph input (encoding enc))
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool)
-    (hwellFormed : ∀ x, (graph x).WellFormed) {A : Set Input}
-    (hcomplete : ∀ x ∈ A, ((graph x).toGraph eval).Satisfiable)
+      (encEvalInput enc alphabet) encBool)
+    {Q : PromiseProblem Input} (hwellFormed : ∀ x ∈ Q.yes, (graph x).WellFormed)
+    (hcomplete : ∀ x ∈ Q.yes, ((graph x).toGraph eval).Satisfiable)
     {gap : ℝ} (hgap : 0 < gap)
-    (hsound : ∀ x ∉ A, gap ≤ ((graph x).toGraph eval).unsatVal) :
-    A ∈ PCP (fun n => Nat.log 2 n + 1) (fun _ => 1) input := by
+    (hsound : ∀ x ∈ Q.no, gap ≤ ((graph x).toGraph eval).unsatVal) :
+    Q ∈ PromisePCP (fun n => Nat.log 2 n + 1) (fun _ => 1) input := by
   obtain ⟨repeats, hrepeats⟩ := exists_pow_lt_of_lt_one (by norm_num : (0 : ℝ) < 1 / 2)
     (by linarith : 1 - gap / 2 < 1)
   have hlength : ComputableInPolyTime (fun x => (graph x).edges.length)
@@ -116,7 +122,7 @@ theorem mem_PCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
     obtain ⟨labels, hlabels⟩ := hcomplete x hx
     exact ⟨proofOfLabels width (graph x).vertices encode labels, fun random _ =>
       repeated_accepts_proofOfLabels width repeats encode decode hdecode eval
-        (hwellFormed x) labels hlabels random⟩
+        (hwellFormed x hx) labels hlabels random⟩
   case sound =>
     intro x hx proof
     apply (acceptCount_le_half_iff _ _ _).mpr
@@ -127,5 +133,23 @@ theorem mem_PCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
     have h := acceptProb_edgeVerifier_le width decode eval (graph x) proof
     have hs := hsound x hx
     exact (pow_le_pow_left₀ ENNReal.toReal_nonneg (by linarith) repeats).trans hrepeats.le
+
+/-- An efficient well-formed graph reduction with a fixed positive gap gives a PCP using logarithmic
+randomness and constantly many queries. The alphabet representation precedes the input. -/
+theorem mem_PCP_of_gapReduction {graph : Input → Graph C} (width : ℕ)
+    (encode : α → Fin width → Bool) (decode : (Fin width → Bool) → α)
+    (hdecode : Function.LeftInverse decode encode)
+    {input : Input ↪ List Bool} {enc : C ↪ List Bool} {alphabet : α ↪ List Bool}
+    {eval : C → α → α → Bool}
+    (hgraph : ComputableInPolyTime graph input (encoding enc))
+    (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
+      (encEvalInput enc alphabet) encBool)
+    (hwellFormed : ∀ x, (graph x).WellFormed) {A : Set Input}
+    (hcomplete : ∀ x ∈ A, ((graph x).toGraph eval).Satisfiable)
+    {gap : ℝ} (hgap : 0 < gap)
+    (hsound : ∀ x ∉ A, gap ≤ ((graph x).toGraph eval).unsatVal) :
+    A ∈ PCP (fun n => Nat.log 2 n + 1) (fun _ => 1) input :=
+  ofSet_mem_PromisePCP.mp <| mem_PromisePCP_of_gapReduction width encode decode hdecode hgraph
+    heval (Q := .ofSet A) (fun x _ => hwellFormed x) hcomplete hgap hsound
 
 end Cslib.PCP.Encoded.Graph

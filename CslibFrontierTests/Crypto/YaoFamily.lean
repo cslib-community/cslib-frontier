@@ -18,9 +18,10 @@ A client of `CslibFrontier.Crypto.Protocols.MPC.Yao.Family` under module encapsu
 Yao's protocol runs over point-and-permute garbling (`PointPermute.scheme`) with a keyed family
 `xorFamily` computed in polynomial time, on one AND gate whose first input the garbler holds and
 whose second the evaluator holds. In every run at a parameter `n ≥ 1` both parties output the AND
-of the two bits. The scheme meets the hypotheses of `Yao.semiHonestSecure_garbler`: it computes
-its coin count in polynomial time, it is correct, and its encoding is `projectiveEncode`; so the
-family is semi-honest secure against a corrupted garbler for every setup law.
+of the two bits. The scheme meets the hypotheses of `Yao.hybridSemiHonestSecure_garbler`: it
+computes its coin count in polynomial time, it is correct, and its encoding is `projectiveEncode`;
+so the family is semi-honest secure in the ideal `batchOTWorld` hybrid against a corrupted garbler
+for every setup law.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -61,12 +62,13 @@ example {n : ℕ} (hn : 0 < n) (a b : Bool)
     _ hr]
   cases a <;> cases b <;> decide
 
-/-- **The hypotheses of `Yao.semiHonestSecure_garbler` hold for point-and-permute garbling**, so
-Yao's protocol over it is semi-honest secure against a corrupted garbler, for every setup law. -/
+/-- **The hypotheses of `Yao.hybridSemiHonestSecure_garbler` hold for point-and-permute garbling**,
+so Yao's protocol over it in the ideal `batchOTWorld` hybrid is semi-honest secure against a
+corrupted garbler, for every setup law. -/
 example (setup : ℕ → PMF (Yao.Params (PointPermute.scheme xorFamily))) :
     (Yao.family (PointPermute.scheme xorFamily)).SemiHonestSecure setup {0}
       (Yao.encoding _ encValidCircuit) :=
-  Yao.semiHonestSecure_garbler (PointPermute.scheme_isEfficient xorFamily_polyTime).coins rfl
+  Yao.hybridSemiHonestSecure_garbler (PointPermute.scheme_isEfficient xorFamily_polyTime).coins rfl
     (PointPermute.scheme_isValid xorFamily).correct setup
 
 end CslibFrontierTests.Crypto.YaoFamily

@@ -57,11 +57,23 @@ across all parents of `HEAD` (with a small fallback for stalled merge bases). Af
 merges `main`, newer published ancestors on the merged parent are tried strictly before the
 branch's older base regardless of commit timestamps or side-branch length. Mapping lookups have
 five-second connection and twenty-second request limits within that origin's overall budget,
-advancing to the next candidate on HTTP 404 or HTTP 403 (since GCS with
-`roles/storage.legacyObjectReader` answers missing objects without list permission with 403) and
-failing fast to the next configured origin on transport errors, timeouts or 5xx responses. The
-fetched mapping is then passed directly to `lake cache get` for syntax verification and artifact
-downloads.
+advancing to the next candidate on HTTP 404 or HTTP 403 and failing fast to the next configured
+origin on transport errors, timeouts or 5xx responses. (On November 17, 2026 the public GCS
+bucket answered 404 for a missing mapping; it answers 403 for every object while the kill switch
+has removed public read.) The fetched mapping is then passed directly to `lake cache get` for
+syntax verification and artifact downloads.
+
+Candidates whose `lake-manifest.json` pins a different Mathlib commit than the checkout's are
+skipped before any lookup. A module's input hash covers the outputs of its imports, so outputs
+built against another Mathlib match nothing: across the three Mathlib bumps on `main` up to
+November 17, 2026, at most one of the 3,880 to 10,469 published modules was reusable afterwards.
+Before this rule, each restore after such a bump downloaded a complete set and then compiled
+everything; on November 17 those downloads sent 25 GB from GCS in an hour, which fired the kill
+switch, and drew HTTP 429 from MIT. Only Mathlib's pin is compared: bumps of cslib alone kept
+52% to 99.8% of outputs reusable and other `lakefile.toml` changes 96% to 100%, and the toolchain
+is already part of the mapping's path. A candidate whose manifest cannot be read is kept. When
+no candidate remains, the first origin attempt reports `skipped`, no other origin is tried and
+the build compiles from source, as it would have after the download.
 
 Each origin reports its elapsed time and whether the request completed, failed or timed out.
 Completion means that request succeeded, not that the checkout is fully built or that all

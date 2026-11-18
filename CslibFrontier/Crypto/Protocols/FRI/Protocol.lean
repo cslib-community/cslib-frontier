@@ -862,16 +862,17 @@ theorem friIOP_complete [DecidableEq F] (params : FRIParams F) :
     exact (evalLagrange_eq_of_mem_reedSolomon params.hkLe
       (cosetEval_injective params.hg params.hω params.hm) hmem (friFinalFin params s)).symm
 
-/-- **Perfect deterministic BCS completeness for FRI**: for any hash function `H k`, any
-Fiat–Shamir function `hFS`, and any symbol encoding `encSym`, `bcsVerify` accepts `bcsProve` on
-every codeword `f₀ ∈ params.initialCode`. -/
+/-- **Perfect deterministic BCS completeness for FRI**: for any hash function `H k` whose digests
+all have one length, any Fiat–Shamir function `hFS`, and any symbol encoding `encSym`, `bcsVerify`
+accepts `bcsProve` on every codeword `f₀ ∈ params.initialCode`. -/
 theorem friBCS_verify_prove_eq_true [DecidableEq F] (params : FRIParams F)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : F → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : F → List Bool)
     (hFS : OracleTable params.d F → List (List Bool) → FRIChal F params.d params.q)
     {f₀ : OracleTable params.d F} (hf₀ : f₀ ∈ params.initialCode) :
     bcsVerify (friIOP params) H k encSym hFS f₀
       (bcsProve (friIOP params) H k encSym hFS f₀ ()) = true :=
-  bcsVerify_bcsProve_eq_true (friIOP_complete params) H k encSym hFS hf₀
+  bcsVerify_bcsProve_eq_true (friIOP_complete params) H k hlen encSym hFS hf₀
 
 /-- **Perfect BCS ROM completeness for FRI**: in the lazy two-channel random-oracle model with any
 digest length `σ`, the honest BCS-FRI game outputs `PMF.pure true` for every codeword

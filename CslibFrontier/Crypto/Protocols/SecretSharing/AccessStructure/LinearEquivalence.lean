@@ -27,21 +27,25 @@ matrix `R` whose top row is `e₁` gives an equivalent program. For a key `k`, t
 `(M_i * R)_i` gives the shares that `P` gives for the key `tail (R * (secret, k))`, and that map
 of keys is a bijection, so a uniform key goes to a uniform key.
 
-Theorem 22.14 of [BonehShoup2023] is stated here for parties `Fin N` and a field with decidable
-equality, where elimination runs. Part (a): for an accepted coalition, the vectors of the
-algorithm `Lin` (`MonotoneSpanProgram.recombination`) recombine the members' shares to the
+For parties `Fin N` and a field with decidable equality, where elimination runs, this module also
+proves the identities of the two parts of Theorem 22.14 of [BonehShoup2023] (p. 981). They are
+steps toward that theorem, not the theorem. Part (a): for an accepted coalition, the vectors of
+the algorithm `Lin` (`MonotoneSpanProgram.recombination`) recombine the members' shares to the
 secret, for every key. Part (b)(i): for a coalition that is not accepted, the program `P_L`
-(`MonotoneSpanProgram.normalForm`) is equivalent to `P`, by Lemma 22.15. The circuit bounds for
-both algorithms are in `CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`.
+(`MonotoneSpanProgram.normalForm`) is equivalent to `P`, by Lemma 22.15. Theorem 22.14 also says
+that `Lin` is an efficient deterministic algorithm and that `P_L` is efficiently computable. The
+only bounds are those of `CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`,
+one field-gate circuit for each shape of program; a uniform bound in bit operations is open
+(#5293).
 
 ## Main results
 
 * `Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_mulRight`:
   Lemma 22.15.
-* `Cslib.Crypto.Protocols.SecretSharing.sum_recombination_dotProduct_linearShare`:
-  Theorem 22.14(a).
-* `Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_normalForm`:
-  Theorem 22.14(b)(i).
+* `Cslib.Crypto.Protocols.SecretSharing.sum_recombination_dotProduct_linearShare`: the
+  recombination identity of Theorem 22.14(a), a step toward that theorem.
+* `Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_normalForm`: the
+  equivalence of Theorem 22.14(b)(i), a step toward that theorem.
 * `Cslib.Crypto.Protocols.SecretSharing.linearShare_eq_of_col_zero`: a share whose matrix has
   first column zero does not depend on the secret.
 
@@ -116,20 +120,27 @@ theorem linearShare_eq_of_col_zero (P : MonotoneSpanProgram F Party) {i : Party}
 variable [DecidableEq F] {N : ℕ}
 
 omit [Fintype F] in
-/-- **Theorem 22.14(a), linearity of the secret** ([BonehShoup2023], p. 981): for an accepted
-coalition `s`, the vectors `P.recombination s` of the algorithm `Lin` recombine the shares of the
-members of `s` to the secret, for every key. -/
+/-- The recombination identity of Theorem 22.14(a), a step toward [BonehShoup2023],
+Theorem 22.14 (p. 981), not that theorem: for an accepted coalition `s`, the vectors
+`P.recombination s` that elimination computes for the algorithm `Lin` recombine the shares of the
+members of `s` to the secret, for every key. Theorem 22.14(a) also says that `Lin` is an efficient
+deterministic algorithm. The only bound is `Cslib.Circuits.Synthesis.full_recombination`, one
+field-gate circuit for each shape of program; a uniform bound in bit operations is open
+(#5293). -/
 theorem sum_recombination_dotProduct_linearShare (P : MonotoneSpanProgram F (Fin N))
     {s : Finset (Fin N)} (hs : P.Accepts s) (k : LinearKey P) (secret : F) :
     ∑ i : s, P.recombination s i.1 ⬝ᵥ linearShare P k secret i.1 = secret :=
   sum_dotProduct_linearShare_eq_secret P k secret (fun i => P.recombination s i.1)
     (P.sum_vecMul_recombination hs)
 
-/-- **Theorem 22.14(b)(i)** ([BonehShoup2023], p. 981): for a coalition `s` that is not accepted,
-the program `P_L = P.normalForm s` is equivalent to `P`: it gives the same distribution of shares
-under a uniform key. Part (ii) is `MonotoneSpanProgram.normalForm_matrix_zero`, and with
-`linearShare_eq_of_col_zero` it says that the shares of the members of `s` do not depend on the
-secret. -/
+/-- The equivalence of Theorem 22.14(b)(i), a step toward [BonehShoup2023], Theorem 22.14
+(p. 981), not that theorem: for a coalition `s` that is not accepted, the program
+`P_L = P.normalForm s` is equivalent to `P`, giving the same distribution of shares under a
+uniform key. The zero column of part (ii) is `MonotoneSpanProgram.normalForm_matrix_zero`, and
+with `linearShare_eq_of_col_zero` it says that the shares of the members of `s` do not depend on
+the secret. Theorem 22.14(b) also says that `P_L` is efficiently computable. The only bound is
+`Cslib.Circuits.Synthesis.full_normalForm`, one field-gate circuit for each shape of program; a
+uniform bound in bit operations is open (#5293). -/
 theorem shareDist_linearUniformAccessScheme_normalForm (P : MonotoneSpanProgram F (Fin N))
     {s : Finset (Fin N)} (hs : ¬ P.Accepts s) (secret : F) :
     (linearUniformAccessScheme (P.normalForm s)).shareDist
