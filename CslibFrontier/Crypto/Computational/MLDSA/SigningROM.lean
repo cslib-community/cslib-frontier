@@ -641,9 +641,9 @@ the oracle answer so that verification compares the transmitted digest with the 
     (forger : OracleComp (SigningROMSpec P Digest) (List Bool × Digest × CompressedSignature P)) :
     OracleComp (SigningROMSpec P Digest)
       ((List Bool × Digest × CompressedSignature P) × Digest) := do
-  let forged ← forger
-  let raw ← query (spec := SigningROMSpec P Digest) (.inr (forged.2.2.recover d pk, forged.1))
-  return (forged, raw)
+  let (msg, raw, σ) ← forger
+  let reply ← query (spec := SigningROMSpec P Digest) (.inr (σ.recover d pk, msg))
+  return ((msg, raw, σ), reply)
 
 private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ₁)
     (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
@@ -655,13 +655,13 @@ private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ�
   simp only [simulatePartialSigningTranscript, queryForgeryDigest, interpret_bind, interpret_query,
     interpret_pure, StateT.run_bind, StateT.run_pure, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
-  obtain ⟨⟨candidate, st, prev⟩, _, ⟨raw, state⟩, hquery, heq⟩ := h
+  obtain ⟨⟨⟨msg, c, σ⟩, st, prev⟩, _, ⟨raw, state⟩, hquery, heq⟩ := h
   cases heq
   obtain ⟨⟨actual, next⟩, hreply, he⟩ := (PMF.mem_support_map_iff ..).1 hquery
   cases he
   simp only [outerSigningQuery, sumHandler, interpret_query, observedTrial, terminalTrialHandler]
     at hreply
-  cases eq : st.lookup (candidate.2.2.recover d pk, candidate.1) with
+  cases eq : st.lookup (σ.recover d pk, msg) with
   | some entry =>
     simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
     obtain ⟨rfl, rfl⟩ := hreply
