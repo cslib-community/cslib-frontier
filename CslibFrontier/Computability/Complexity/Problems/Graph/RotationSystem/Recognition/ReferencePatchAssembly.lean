@@ -763,95 +763,11 @@ structure ReferencePatchAssembly (I : FixedRotationInput) where
           z.val + raw.eval 0 t
 
 
-/-- Assemble all internally selected reference patches, retaining literal frozen routes.
-This is an assembly theorem, not global pair-contact regularization or an HT criterion. -/
-private theorem exists_reference_patch_assembly_data {I : FixedRotationInput} (hI : Valid I) :
-    let H := subdivisionGraph I
-    let D := referenceDrawing I
-    let E := Fin H.edges.length
-    let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
-      simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
-    let C : Set ℂ := referenceCrossingPoints I
-    let X : C → Type := fun z => {e : E // z.val ∈ (D.route e).support}
-    let Z : E → Type := fun e => {z : ℂ // z ∈ C ∧ z ∈ (D.route e).support}
-    C.Finite ∧ ∃ (ρ : ℂ → ℝ) (r : C → ℝ) (d α β : ∀ z : C, X z → ℝ)
-      (L : ∀ e : E, List (Z e)),
-      let s : ∀ z : C, X z → ℝ := fun _ e => (D.route e.val).start.re + (D.route e.val).finish.re
-      let R : ∀ z : C, X z → Route := fun z e => if F e.val then
-        Route.line ⟨-r z, -r z * s z e⟩ ⟨r z, r z * s z e⟩
-        else Route.slopeDetour (r z) (s z e) (d z e)
-      let P : ∀ z : C, X z → Route := fun z e =>
-        (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
-          then (R z e).reverse else R z e).translate z.val
-      let site : ∀ e : E, Z e → C := fun _ z => ⟨z.val, z.property.1⟩
-      let occurrence : ∀ (e : E) (z : Z e), X (site e z) := fun e z => ⟨e, z.property.2⟩
-      let cutα : ∀ e : E, Z e → ℝ := fun e z => α (site e z) (occurrence e z)
-      let cutβ : ∀ e : E, Z e → ℝ := fun e z => β (site e z) (occurrence e z)
-      let left : ∀ e : E, Z e → ℂ := fun e z =>
-        AffineMap.lineMap (D.route e).start (D.route e).finish (cutα e z)
-      let middle : ∀ e : E, Z e → ℂ := fun e z =>
-        z.val + (⟨0, d (site e z) (occurrence e z)⟩ : ℂ)
-      let right : ∀ e : E, Z e → ℂ := fun e z =>
-        AffineMap.lineMap (D.route e).start (D.route e).finish (cutβ e z)
-      (∀ z ∈ C, 0 < ρ z) ∧
-      C.PairwiseDisjoint (fun z => Metric.closedBall z (ρ z)) ∧
-      (∀ z ∈ C,
-        (∀ v ∈ H.vertices, D.vertex v ∉ Metric.closedBall z (ρ z)) ∧
-        (∀ e : E, z ∉ (D.route e).support →
-          Disjoint (Metric.closedBall z (ρ z)) (D.route e).support)) ∧
-      (∀ z : C, 0 < r z ∧
-        (∀ e : X z, 0 < α z e ∧ α z e < β z e ∧ β z e < 1 ∧
-          (P z e).start = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α z e) ∧
-          (P z e).finish = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β z e) ∧
-          (P z e).IsSimple ∧ (P z e).support ⊆ Metric.ball z.val (ρ z.val)) ∧
-        (∀ e : X z, F e.val = true → d z e = 0 ∧
-          P z e = Route.line
-            (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α z e))
-            (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β z e))) ∧
-        (∀ e f : X z, e ≠ f → ∃! w : ℂ, w ∈ (P z e).support ∧ w ∈ (P z f).support) ∧
-        (∀ e f : X z, e ≠ f → ∀ w : ℂ, w ∈ (P z e).support → w ∈ (P z f).support →
-          ∃ (i : Fin (P z e).segments) (j : Fin (P z f).segments) (u v : ℝ),
-            u ∈ Set.Ioo 0 1 ∧ v ∈ Set.Ioo 0 1 ∧ (P z e).eval i u = w ∧ (P z f).eval j v = w ∧
-            let a := (P z e).point i.succ - (P z e).point i.castSucc
-            let b := (P z f).point j.succ - (P z f).point j.castSucc
-            a.re * b.im - a.im * b.re ≠ 0) ∧
-        (∀ e f g : X z, e ≠ f → e ≠ g → f ≠ g → ∀ w : ℂ,
-          w ∈ (P z e).support → w ∈ (P z f).support → w ∉ (P z g).support)) ∧
-      (∀ e : E, (L e).Nodup ∧ (∀ z : Z e, z ∈ L e) ∧
-        (L e).Pairwise (fun z w => cutβ e z < cutα e w)) ∧
-      ∃ D' : PolygonalDrawing H,
-        D'.vertex = D.vertex ∧
-        (∀ e : E, D'.route e = if F e then D.route e else
-          match L e with
-          | [] => D.route e
-          | z :: zs =>
-              ([middle e z, right e z] ++ zs.flatMap (fun w => [left e w, middle e w, right e w]) ++
-                [(D.route e).finish]).foldl Route.append
-                  (Route.line (D.route e).start (left e z))) ∧
-        (∀ e : E, F e = false → (D'.route e).segments = 3 * (L e).length + 1) ∧
-        (∀ e : E, (D'.route e).IsSimple) ∧
-        (∀ e : E, ∀ (i : Fin (D'.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
-          ∀ v ∈ H.vertices, (D'.route e).eval i t = D'.vertex v →
-            ∃ b, (D'.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v) ∧
-        (∀ e : E, ∀ b : Bool, ∃ c : ℝ, 0 < c ∧ (D'.route e).germ b = c • (D.route e).germ b) ∧
-        (∀ (e : E) (q : Fin (L e).length),
-          let z := (L e)[q]
-          let p := P (site e z) (occurrence e z)
-          (F e = false → ∀ j : Fin p.segments,
-            ∃ i : Fin (D'.route e).segments, i.val = 3 * q.val + 1 + j.val ∧
-              ∀ t : ℝ, (D'.route e).eval i t = p.eval j t) ∧
-          (F e = true → ∀ t : ℝ,
-            (D'.route e).eval 0 (cutα e z + (cutβ e z - cutα e z) * t) = p.eval 0 t)) ∧
-        (∀ (e : E) (_he : F e = false) (q : Fin (L e).length),
-          let z := (L e)[q]
-          let raw := R (site e z) (occurrence e z)
-          ∃ i : Fin (D'.route e).segments,
-            i.val = 3 * q.val +
-              (if (D.route e).finish.re < (D.route e).start.re then 2 else 1) ∧
-            ∀ t : ℝ,
-              (D'.route e).eval i
-                (if (D.route e).finish.re < (D.route e).start.re then 1 - t else t) =
-                z.val + raw.eval 0 t) := by
+/-- Construct one complete named-field reference patch assembly from `Valid I` alone.
+All selected data and proofs refer to its single drawing; global contact regularization
+and the HT criterion remain open. -/
+theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) :
+    Nonempty (ReferencePatchAssembly I) := by
   classical
   let H := subdivisionGraph I
   let D := referenceDrawing I
@@ -1196,42 +1112,6 @@ private theorem exists_reference_patch_assembly_data {I : FixedRotationInput} (h
         subst k
         exact Route.eval_translate _ _ _ _
       exact hEval j rfl
-  refine ⟨hC, ρ, r, d, α, β, L, hρ, hballs, hexclude, ?_, ?_, D', rfl, ?_, ?_,
-    hsimple, hvertices, hgerms, hlocal_embed, hraw_embed⟩
-  · intro z
-    exact ⟨hr z, hcuts z, hkeep z, hpair z, htrans z, hno3 z⟩
-  · intro e
-    exact ⟨hnd e, hmem e, hsorted e⟩
-  · intro e
-    cases hf : F e <;> cases hL : L e <;>
-      dsimp only [F] at hf <;>
-      simp only [D', Q, free_route, F, D, site, occurrence, cutα, cutβ, left, middle,
-        right, hf, hL, Bool.false_eq_true, ↓reduceIte]; rfl
-  · intro e he
-    change F e = false at he
-    change (Q e).segments = _
-    simp only [Q, he, Bool.false_eq_true, ↓reduceIte]
-    exact free_route_segments e (L e) (left e) (middle e) (right e)
-
-/-- Construct one complete named-field reference patch assembly from `Valid I` alone.
-All selected data and proofs refer to its single drawing; global contact regularization
-and the HT criterion remain open. -/
-theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) :
-    Nonempty (ReferencePatchAssembly I) := by
-  classical
-  obtain ⟨hC, ρ, r, d, α, β, L, hρ, hballs, havoid, hlocal, hL,
-    D', hv, hroute, hcount, hsimple, hcontacts, hgerms, hembed, hraw⟩ :=
-      exists_reference_patch_assembly_data hI
-  let D := referenceDrawing I
-  let F : Fin (subdivisionGraph I).edges.length → Bool := fun e =>
-    ((subdivide I)[e.val]'(by
-      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
-  let P := fun (z : referenceCrossingPoints I) (e : ReferencePatchAssembly.IncidentEdge I z) =>
-    let s := (D.route e.val).start.re + (D.route e.val).finish.re
-    let R := if F e.val then Route.line ⟨-r z, -r z * s⟩ ⟨r z, r z * s⟩
-      else Route.slopeDetour (r z) s (d z e)
-    (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
-      then R.reverse else R).translate z.val
   refine ⟨{
     radii := ρ
     extent := r
@@ -1244,57 +1124,57 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     crossings_finite := hC
     radii_pos := hρ
     balls_disjoint := hballs
-    avoids_vertices := fun z hz => (havoid z hz).1
-    avoids_nonincident := fun z hz => (havoid z hz).2
-    extent_pos := fun z => (hlocal z).1
+    avoids_vertices := fun z hz => (hexclude z hz).1
+    avoids_nonincident := fun z hz => (hexclude z hz).2
+    extent_pos := hr
     patch_eq := fun _ _ => rfl
     cut_bounds := ?_
     patch_start := ?_
     patch_finish := ?_
     patch_simple := ?_
     patch_support := ?_
-    frozen_height := ?_
-    frozen_patch := ?_
-    patch_pair_unique := ?_
-    patch_transverse := ?_
-    patch_no_triple := ?_
-    centers_nodup := fun e => (hL e).1
-    centers_complete := fun e => (hL e).2.1
-    centers_ordered := fun e => (hL e).2.2
-    vertex_eq := hv
-    route_eq := by
-      dsimp only
-      intro e
-      cases hf : F e <;> cases hL : L e <;>
-        dsimp only [F] at hf <;>
-        simpa only [hf, hL, Bool.false_eq_true, ↓reduceIte] using hroute e
-    segments_eq := hcount
+    frozen_height := fun z e hf => (hkeep z e hf).1
+    frozen_patch := fun z e hf => (hkeep z e hf).2
+    patch_pair_unique := hpair
+    patch_transverse := htrans
+    patch_no_triple := hno3
+    centers_nodup := hnd
+    centers_complete := hmem
+    centers_ordered := hsorted
+    vertex_eq := rfl
+    route_eq := ?_
+    segments_eq := ?_
     simple := hsimple
-    vertex_contacts := hcontacts
+    vertex_contacts := hvertices
     germs := hgerms
-    patch_embedding := hembed
-    raw_first_embedding := hraw }⟩
+    patch_embedding := hlocal_embed
+    raw_first_embedding := hraw_embed }⟩
   · intro z e
-    obtain ⟨ha, hab, hb, _⟩ := (hlocal z).2.1 e
+    obtain ⟨ha, hab, hb, _⟩ := hcuts z e
     exact ⟨ha, hab, hb⟩
   · intro z e
-    exact ((hlocal z).2.1 e).2.2.2.1
+    obtain ⟨_, _, _, hs, _⟩ := hcuts z e
+    exact hs
   · intro z e
-    exact ((hlocal z).2.1 e).2.2.2.2.1
+    obtain ⟨_, _, _, _, hf, _⟩ := hcuts z e
+    exact hf
   · intro z e
-    exact ((hlocal z).2.1 e).2.2.2.2.2.1
+    obtain ⟨_, _, _, _, _, hs, _⟩ := hcuts z e
+    exact hs
   · intro z e
-    exact ((hlocal z).2.1 e).2.2.2.2.2.2
-  · intro z e hf
-    exact ((hlocal z).2.2.1 e hf).1
-  · intro z e hf
-    exact ((hlocal z).2.2.1 e hf).2
-  · intro z
-    exact (hlocal z).2.2.2.1
-  · intro z
-    exact (hlocal z).2.2.2.2.1
-  · intro z
-    exact (hlocal z).2.2.2.2.2
+    obtain ⟨_, _, _, _, _, _, hb⟩ := hcuts z e
+    exact hb
+  · dsimp only
+    intro e
+    cases hf : F e <;> cases hL : L e <;>
+      dsimp only [F] at hf <;>
+      simp only [D', Q, free_route, F, D, site, occurrence, cutα, cutβ, left, middle,
+        right, hf, hL, Bool.false_eq_true, ↓reduceIte]; rfl
+  · intro e he
+    change F e = false at he
+    change (Q e).segments = _
+    simp only [Q, he, Bool.false_eq_true, ↓reduceIte]
+    exact free_route_segments e (L e) (left e) (middle e) (right e)
 
 
 end Cslib.Complexity.Graph.RotationRecognition
