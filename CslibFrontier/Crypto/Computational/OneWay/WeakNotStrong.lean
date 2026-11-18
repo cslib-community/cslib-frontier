@@ -22,8 +22,8 @@ If one-way functions exist, then some weak one-way function is not strongly one-
 The draft gives no guideline. The construction lets the first input bit choose between the
 identity and `f`: `g(1 x) = 1 x` and `g(0 x) = 0 f(x)` (`Cslib.Crypto.OneWayEasyHalf.easyHalf`).
 Returning the challenge inverts `g` whenever the first bit is `1`, so with probability at least
-one half, and `g` is not one-way. An inverter for `g` that succeeded with probability above
-`3/4` would invert `f` on the challenges `0 f(x)` with probability above one half
+one half, and `g` is not one-way. An inverter for `g` that succeeded with probability at least
+`3/4` would invert `f` on the challenges `0 f(x)` with probability at least one half
 (`Cslib.Crypto.OneWayEasyHalf.succProbability_inversionGame_succ_le`), so `g` is weakly one-way
 with the polynomial `p(n) = 4` of Definition 7.4.
 
@@ -143,25 +143,17 @@ theorem half_le_succProbability_inversionGame_id (f : List Bool → List Bool) (
     _ ≤ _ := ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) h
 
 /-- `easyHalf f` is weakly one-way when `f` is one-way: every efficient inverter fails with
-probability at least `1/4` from some length on. -/
+probability strictly greater than `1/4` from some length on. -/
 theorem weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay (easyHalf f) := by
-  refine WeakOneWay.of_le (q := Polynomial.C 4) (computableInPolyTime_easyHalf hf.polyTime)
-    (fun _ => by simp) fun adversary ha => ?_
-  obtain ⟨m, hm⟩ := (negligible_iff _).1 (hf.inversion_negligible _ (isPPT_tailInverter ha)) 0
-    (1 / 2) (by norm_num)
+  refine ⟨Polynomial.C 4, fun _ => by simp, ⟨computableInPolyTime_easyHalf hf.polyTime, ?_⟩⟩
+  intro adversary ha
+  obtain ⟨m, hm⟩ := eventually_atTop.1
+    (hf.weakOneWayAt_half.weak _ (isPPT_tailInverter ha))
   filter_upwards [eventually_ge_atTop (m + 1)] with N hN
   obtain ⟨n, rfl⟩ : ∃ n, N = n + 1 := ⟨N - 1, by omega⟩
-  have hsmall : (Game.succProbability
-      (ProbComp.eval (inversionGame f (tailInverter adversary) n)) : ℝ) ≤ 1 / 2 := by
-    have := (hm n (by omega)).le
-    rw [pow_zero, one_mul] at this
-    exact_mod_cast this
-  have hbound : (Game.succProbability
-      (ProbComp.eval (inversionGame (easyHalf f) adversary (n + 1))) : ℝ) ≤ 3 / 4 := by
-    linarith [succProbability_inversionGame_succ_le f adversary n]
-  simp only [Polynomial.eval_C]
-  norm_num
-  exact hbound
+  have hsmall := hm n (by omega)
+  simp only [Polynomial.eval_C, Nat.cast_ofNat]
+  linarith [succProbability_inversionGame_succ_le f adversary n]
 
 /-- `easyHalf f` is not one-way, for every `f`: returning the challenge succeeds with probability
 at least one half. -/

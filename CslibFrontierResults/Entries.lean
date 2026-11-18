@@ -207,6 +207,7 @@ import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
+import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.PedersenCommitment
@@ -1638,6 +1639,21 @@ register_result "goldreich-length-preserving-one-way" where
     |f'(x)| = |x| for every x. The construction tags the image with the parameter and uses \
     self-delimiting padding instead of the guideline's 0 1^k padding; the statement is \
     unchanged. Outside-fleet six-point source check: review 5949710318 on PR #6352."
+
+register_result "goldreich-weak-not-strong-one-way" where
+  title := "A weak one-way function that is not strongly one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.3",
+      locator := "March 2007 draft r4.pdf, PDF p. 41; printed p. 305" }
+  ]
+  theorems := [Cslib.Crypto.OneWay.exists_weakOneWay_not_oneWay]
+  scope := "If a one-way function exists, some weak one-way function is not strongly one-way. \
+    Definitions 7.1 and 7.4 quantify over uniform strict PPT inverters receiving the unary \
+    length and the image of a uniform input; any preimage counts. On the hard branch the \
+    inverter for the tagged construction is called at length n + 1. On the easy branch the \
+    identity inverter succeeds. The weak bound uses the constant polynomial 4. \
+    Outside-fleet source check: review 5954074813 on PR #6412."
 
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
