@@ -248,9 +248,11 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
     if halfByte < 15 then some ((2 : ZMod 8380417) - ↑(halfByte % 5)) else none
   else if halfByte < 9 then some (4 - (halfByte : ZMod 8380417)) else none
 
+private def nonceSuffix (i : ℕ) : FixedBytes 2 := ![Fin.ofNat 256 i, Fin.ofNat 256 (i / 256)]
+
 /-- Algorithms 33 and 34 append the two-byte little-endian counter to the 64-byte seed. -/
 def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
-  seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
+  seed ++ [nonceSuffix nonce 0, nonceSuffix nonce 1]
 
 /-- An Algorithm 34 mask row has a 64-byte seed and two counter bytes. It cannot alias
 the SHAKE input at the 32-, 48-, or 64-byte digest consumed by Algorithm 29. -/
