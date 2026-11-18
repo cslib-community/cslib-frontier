@@ -65,14 +65,14 @@ private theorem disjoint_reference_cuts (I : FixedRotationInput)
     (hδ : AffineMap.lineMap ((referenceDrawing I).route e).start
       ((referenceDrawing I).route e).finish δ ∈ Metric.ball w τ) :
     Disjoint (Set.Icc α β) (Set.Icc γ δ) := by
-  let f := AffineMap.lineMap ((referenceDrawing I).route e).start
+  let f : ℝ →ᵃ[ℝ] ℂ := AffineMap.lineMap ((referenceDrawing I).route e).start
     ((referenceDrawing I).route e).finish
   have hz : Set.Icc α β ⊆ f ⁻¹' Metric.ball z ρ := by
     simpa only [segment_eq_Icc hαβ] using
-      (Convex.affine_preimage f (convex_ball z ρ)).segment_subset hα hβ
+      (Convex.affine_preimage (𝕜 := ℝ) f (convex_ball z ρ)).segment_subset hα hβ
   have hw : Set.Icc γ δ ⊆ f ⁻¹' Metric.ball w τ := by
     simpa only [segment_eq_Icc hγδ] using
-      (Convex.affine_preimage f (convex_ball w τ)).segment_subset hγ hδ
+      (Convex.affine_preimage (𝕜 := ℝ) f (convex_ball w τ)).segment_subset hγ hδ
   apply Set.disjoint_left.mpr
   intro t ht hu
   exact Set.disjoint_left.mp hballs
@@ -87,8 +87,8 @@ private theorem append_word_point_order {α : Type*} [Preorder α]
   have hnext (q : Fin nodes.length) :
       f ((b :: nodes)[q.castSucc]) < f (nodes[q]) := by
     have h := (List.pairwise_iff_getElem.mp hword.tail) q.val (q.val + 1)
-      (by simp; omega) (by simp; omega) (by omega)
-    simpa only [Fin.getElem_fin, Fin.val_castSucc, List.getElem_cons_succ] using h
+      (by simp) (by simp) (by omega)
+    simpa only [List.tail_cons, Fin.getElem_fin, Fin.val_castSucc, List.getElem_cons_succ] using h
   apply Fin.strictMono_iff_lt_succ.mpr
   intro i
   have h0 := Route.foldl_append_eval_cases (Route.line a b) nodes i 0
@@ -97,17 +97,27 @@ private theorem append_word_point_order {α : Type*} [Preorder α]
       f ((nodes.foldl Route.append (Route.line a b)).eval i 1) := by
     rcases h0 with ⟨j, hj, he0, _⟩ | ⟨q, hq, he0, _⟩ <;>
       rcases h1 with ⟨k, hk, he1, _⟩ | ⟨r, hr, he1, _⟩
-    · have hj0 : j = 0 := Subsingleton.elim _ _
-      have hk0 : k = 0 := Subsingleton.elim _ _
+    · have hj0 : j = 0 := by
+        apply Fin.ext
+        change j.val = 0
+        have h := j.isLt
+        change j.val < 1 at h
+        omega
+      have hk0 : k = 0 := by
+        apply Fin.ext
+        change k.val = 0
+        have h := k.isLt
+        change k.val < 1 at h
+        omega
       subst j
       subst k
       rw [he0, he1, Route.eval_line, Route.eval_line,
         AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
       exact hab
-    · have hj0 : j.val = 0 := congrArg Fin.val (Subsingleton.elim j 0)
+    · have hj0 : j.val = 0 := by have h := j.isLt; change j.val < 1 at h; omega
       change i.val = 1 + r.val at hr
       omega
-    · have hk0 : k.val = 0 := congrArg Fin.val (Subsingleton.elim k 0)
+    · have hk0 : k.val = 0 := by have h := k.isLt; change k.val < 1 at h; omega
       change i.val = 1 + q.val at hq
       omega
     · have hqr : q = r := by
@@ -165,19 +175,24 @@ private theorem append_word_eval (a b : ℂ) (nodes : List ℂ)
     (nodes.foldl Route.append (Route.line a b)).eval i t =
       AffineMap.lineMap ((a :: b :: nodes)[i.val]'(by
         have hi := i.isLt
-        rw [Route.segments_foldl_append] at hi
+        simp only [Route.segments_foldl_append] at hi
         change i.val < 1 + nodes.length at hi
         simp only [List.length_cons]
         omega))
         ((a :: b :: nodes)[i.val + 1]'(by
           have hi := i.isLt
-          rw [Route.segments_foldl_append] at hi
+          simp only [Route.segments_foldl_append] at hi
           change i.val < 1 + nodes.length at hi
           simp only [List.length_cons]
           omega)) t := by
   rcases Route.foldl_append_eval_cases (Route.line a b) nodes i t with
     ⟨j, hij, heval, _⟩ | ⟨q, hiq, heval, _⟩
-  · have hj : j = 0 := Subsingleton.elim _ _
+  · have hj : j = 0 := by
+        apply Fin.ext
+        change j.val = 0
+        have h := j.isLt
+        change j.val < 1 at h
+        omega
     subst j
     simpa only [hij, Fin.val_zero, Nat.zero_add, List.getElem_cons_zero,
       List.getElem_cons_succ, Route.eval_line] using heval
@@ -193,7 +208,7 @@ private theorem append_word_support (a b : ℂ) (nodes : List ℂ) (S : Set ℂ)
   obtain ⟨i, t, ht, heval⟩ := (Route.mem_support_iff _ w).mp hw
   have hi : i.val + 1 < (a :: b :: nodes).length := by
     have hh := i.isLt
-    rw [Route.segments_foldl_append] at hh
+    simp only [Route.segments_foldl_append] at hh
     change i.val < 1 + nodes.length at hh
     simp only [List.length_cons]
     omega
@@ -298,15 +313,15 @@ private theorem chain_patch_word {ι : Type*} (L : List ι) (a b : ℂ)
   have hinternal : ∀ block ∈ blocks, block.IsChain R := by
     intro block hblock
     simp only [blocks, List.mem_cons, List.mem_append, List.mem_map,
-      List.mem_singleton] at hblock
-    rcases hblock with rfl | ⟨z, hz, rfl⟩ | rfl
+      List.not_mem_nil, or_false] at hblock
+    rcases hblock with (rfl | ⟨z, hz, rfl⟩) | rfl
     · exact List.IsChain.singleton _
     · simpa only [List.isChain_cons_cons, List.IsChain.singleton, and_true] using hlocal z hz
     · exact List.IsChain.singleton _
   let G := fun xs ys : List ℂ => ∀ x ∈ xs.getLast?, ∀ y ∈ ys.head?, R x y
   have hmap : (L.map (fun z => [left z, middle z, right z])).Pairwise G := by
     apply List.pairwise_map.mpr
-    exact hbetween.imp fun _ _ h => by simpa [G] using h
+    exact hbetween.imp (by intro z w h; simpa [G] using h)
   have houter : blocks.Pairwise G := by
     apply List.pairwise_cons.mpr
     constructor
@@ -324,7 +339,7 @@ private theorem chain_patch_word {ι : Type*} (L : List ι) (a b : ℂ)
       simpa [G] using hfinal z hz
   have hblocks : blocks.IsChain G := houter.isChain
   have hflat := (List.isChain_flatten hempty).mpr ⟨hinternal, hblocks⟩
-  simpa only [blocks, List.flatten_cons, List.flatten_append, ← List.flatMap_def,
+  simpa only [List.flatten_nil, blocks, List.flatten_cons, List.flatten_append, ← List.flatMap_def,
     List.flatten_singleton, List.singleton_append] using hflat
 
 private theorem start_after_word (p : Route) (nodes : List ℂ) :
@@ -352,7 +367,8 @@ private theorem free_route_segments {I : FixedRotationInput}
   | nil => rfl
   | cons z zs =>
     simp [free_route, Route.segments_foldl_append, List.length_flatMap,
-      Nat.mul_add, Nat.mul_comm, Nat.add_assoc]
+      Route.line, Nat.mul_comm, Nat.add_assoc, Nat.add_mul]
+    omega
 
 private theorem free_route_ends {I : FixedRotationInput}
     (e : Fin (subdivisionGraph I).edges.length) {ι : Type*}
@@ -387,10 +403,16 @@ private theorem free_route_simple {I : FixedRotationInput} (hI : Valid I)
     rcases hword with hword | hword
     · apply Route.isSimple_of_strictMono_re
       exact append_word_point_order Complex.re _ _ nodes (by
-        simpa only [List.flatMap_cons, List.cons_append, List.nil_append] using hword)
-    · have hanti : StrictAnti fun k => ((free_route e (z :: zs) left middle right).point k).re :=
-        append_word_point_order (fun w => (OrderDual.toDual w.re)) _ _ nodes (by
-          simpa only [List.flatMap_cons, List.cons_append, List.nil_append] using hword)
+        simpa only [nodes, List.flatMap_cons, List.cons_append, List.nil_append] using hword)
+    · have hmono : StrictMono fun k =>
+          -((free_route e (z :: zs) left middle right).point k).re :=
+        append_word_point_order (fun w => -w.re) _ _ nodes (by
+          simpa only [nodes, List.flatMap_cons, List.cons_append, List.nil_append] using
+            hword.imp (by intro x y h; exact neg_lt_neg h))
+      have hanti : StrictAnti fun k =>
+          ((free_route e (z :: zs) left middle right).point k).re := by
+        intro i j hij
+        exact neg_lt_neg_iff.mp (hmono hij)
       have hrev : StrictMono fun k =>
           ((free_route e (z :: zs) left middle right).reverse.point k).re := by
         intro i j hij
@@ -432,14 +454,16 @@ private theorem free_route_last_germ {I : FixedRotationInput}
   | nil =>
     have hL : L = [last] := by simpa only [hpre, List.nil_append] using hsplit
     conv_lhs => rw [hL]
-    simp only [free_route, List.flatMap_nil, List.nil_append, List.foldl_cons,
+    simp only [free_route, List.flatMap_nil, List.nil_append, List.cons_append, List.foldl_cons,
       List.foldl_nil, Route.germ_append, hf, ↓reduceIte]
+    rfl
   | cons z zs =>
     have hL : L = z :: (zs ++ [last]) := by simpa only [hpre, List.cons_append] using hsplit
     conv_lhs => rw [hL]
     simp only [free_route, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
       List.nil_append, List.append_assoc, List.foldl_append, List.foldl_cons,
       List.foldl_nil, Route.germ_append, hf, ↓reduceIte]
+    rfl
 
 
 private theorem word_order_from_cuts {ι : Type*} (L : List ι) (a b : ℂ)
@@ -481,11 +505,7 @@ private theorem free_local_real_ends (r s d : ℝ) (z : ℂ) (flip : Bool) :
       else Route.slopeDetour r s d).translate z
     P.start.re = z.re + (if flip then r else -r) ∧
       P.finish.re = z.re + (if flip then -r else r) := by
-  cases flip <;>
-    simp only [Bool.false_eq_true, ↓reduceIte, Route.start, Route.finish,
-      Route.translate, Route.reverse, Route.slopeDetour, Route.append, Route.line,
-      Route.segments, Fin.rev_zero, Fin.rev_last, Fin.lastCases_castSucc,
-      Fin.lastCases_last, Fin.cases_zero, Complex.add_re]
+  cases flip <;> constructor <;> rfl
 
 
 private theorem patch_node_get {ι : Type*} (L : List ι) (a b : ℂ)
@@ -496,12 +516,12 @@ private theorem patch_node_get {ι : Type*} (L : List ι) (a b : ℂ)
   have hj : j.val < (emit L[q.val]).length := by simpa only [emit, List.length_cons,
     List.length_nil] using j.isLt
   have hp : ((L.take q.val).flatMap emit).length = 3 * q.val := by
-    simp [emit, List.length_flatMap, Nat.min_eq_left q.isLt.le, Nat.mul_comm]
+    simp [emit, List.length_flatMap, Nat.mul_comm]
   have hbound := List.flatMap_prefix_add_lt L emit q.isLt hj
   have hget := List.getElem_flatMap_prefix_add L emit q.isLt hj
-  rw [hp] at hbound hget
+  simp only [hp] at hbound hget
   have hindex : 3 * q.val + 1 + j.val = (3 * q.val + j.val) + 1 := by omega
-  rw [hindex, List.getElem?_cons_succ, List.getElem?_append_left hbound,
+  rw [List.cons_append, hindex, List.getElem?_cons_succ, List.getElem?_append_left hbound,
     List.getElem?_eq_getElem hbound, hget]
   rfl
 
@@ -519,7 +539,12 @@ private theorem free_route_eval_nodes {I : FixedRotationInput}
       (free_route e L left middle right).eval i t = AffineMap.lineMap a b t := by
   cases L with
   | nil =>
-    have hi : i = 0 := Subsingleton.elim _ _
+    have hi : i = 0 := by
+        apply Fin.ext
+        change i.val = 0
+        have h := i.isLt
+        change i.val < 1 at h
+        omega
     subst i
     exact ⟨_, _, rfl, rfl, Route.eval_line _ _ 0 t⟩
   | cons z zs =>
@@ -528,14 +553,14 @@ private theorem free_route_eval_nodes {I : FixedRotationInput}
     let word := ((referenceDrawing I).route e).start :: left z :: nodes
     have hi : i.val < word.length := by
       have hh := i.isLt
-      rw [free_route_segments] at hh
+      simp only [free_route_segments] at hh
       simp only [word, nodes, List.length_cons, List.length_append, List.length_flatMap]
-      simp only [List.length_cons, List.length_nil] at hh
-      simp [List.length_flatMap] at * <;> omega
+      simp only [List.length_cons] at hh
+      simp at *; omega
     have hi1 : i.val + 1 < word.length := by
       have hh := i.isLt
-      rw [free_route_segments] at hh
-      simp [word, nodes, List.length_flatMap] at * <;> omega
+      simp only [free_route_segments] at hh
+      simp [word, nodes, List.length_flatMap] at *; omega
     refine ⟨word[i.val], word[i.val + 1], ?_, ?_, ?_⟩
     · simpa only [word, nodes, List.flatMap_cons, List.cons_append, List.nil_append]
         using (List.getElem?_eq_getElem hi)
@@ -553,7 +578,11 @@ private theorem free_route_patch_eval {I : FixedRotationInput}
           AffineMap.lineMap ([left L[q], middle L[q], right L[q]][j.castSucc])
             ([left L[q], middle L[q], right L[q]][j.succ]) t := by
   let i : Fin (free_route e L left middle right).segments :=
-    ⟨3 * q.val + 1 + j.val, by rw [free_route_segments]; omega⟩
+    ⟨3 * q.val + 1 + j.val, by
+      simp only [free_route_segments]
+      have hq := q.isLt
+      have hj := j.isLt
+      omega⟩
   refine ⟨i, rfl, ?_⟩
   intro t
   obtain ⟨a, b, ha, hb, he⟩ := free_route_eval_nodes e L left middle right i t
@@ -562,7 +591,10 @@ private theorem free_route_patch_eval {I : FixedRotationInput}
   have hright := patch_node_get L ((referenceDrawing I).route e).start
     ((referenceDrawing I).route e).finish left middle right q j.succ
   rw [show i.val = 3 * q.val + 1 + j.castSucc.val from rfl, hleft] at ha
-  rw [show i.val + 1 = 3 * q.val + 1 + j.succ.val by dsimp only [i]; omega,
+  rw [show i.val + 1 = 3 * q.val + 1 + j.succ.val by
+      dsimp only [i]
+      simp only [Fin.val_succ]
+      omega,
     hright] at hb
   exact he.trans (congrArg₂ (fun x y => AffineMap.lineMap x y t)
     (Option.some.inj ha).symm (Option.some.inj hb).symm)
@@ -574,7 +606,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     let D := referenceDrawing I
     let E := Fin H.edges.length
     let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
-      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+      simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
     let C : Set ℂ := {z | ∃ e f : E, e ≠ f ∧
       z ∈ openSegment ℝ (D.route e).start (D.route e).finish ∧
       z ∈ openSegment ℝ (D.route f).start (D.route f).finish}
@@ -648,21 +680,22 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
               ∀ t : ℝ, (D'.route e).eval i t = p.eval j t) ∧
           (F e = true → ∀ t : ℝ,
             (D'.route e).eval 0 (cutα e z + (cutβ e z - cutα e z) * t) = p.eval 0 t)) ∧
-        (∀ (e : E) (he : F e = false) (q : Fin (L e).length),
+        (∀ (e : E) (_he : F e = false) (q : Fin (L e).length),
           let z := (L e)[q]
           let raw := R (site e z) (occurrence e z)
           ∃ i : Fin (D'.route e).segments,
             i.val = 3 * q.val +
               (if (D.route e).finish.re < (D.route e).start.re then 2 else 1) ∧
             ∀ t : ℝ,
-              (D'.route e).eval i (if (D.route e).finish.re < (D.route e).start.re then 1 - t else t) =
+              (D'.route e).eval i
+                (if (D.route e).finish.re < (D.route e).start.re then 1 - t else t) =
                 z.val + raw.eval 0 t) := by
   classical
   let H := subdivisionGraph I
   let D := referenceDrawing I
   let E := Fin H.edges.length
   let F : E → Bool := fun e => ((subdivide I)[e.val]'(by
-    simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
+    simpa only [H, subdivisionGraph, List.length_map] using e.isLt)).frozen
   let C : Set ℂ := {z | ∃ e f : E, e ≠ f ∧
     z ∈ openSegment ℝ (D.route e).start (D.route e).finish ∧
     z ∈ openSegment ℝ (D.route f).start (D.route f).finish}
@@ -678,6 +711,14 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
   let P : ∀ z : C, X z → Route := fun z e =>
     (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
       then (R z e).reverse else R z e).translate z.val
+  change ∀ (z : C) (e : X z), 0 < α z e ∧ α z e < β z e ∧ β z e < 1 ∧
+    (P z e).start = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α z e) ∧
+    (P z e).finish = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β z e) ∧
+    (P z e).IsSimple ∧ (P z e).support ⊆ Metric.ball z.val (ρ z.val) at hcuts
+  change ∀ (z : C) (e : X z), F e.val = true → d z e = 0 ∧
+    P z e = Route.line
+      (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α z e))
+      (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β z e)) at hkeep
   let site : ∀ e : E, Z e → C := fun _ z => ⟨z.val, z.property.1⟩
   let occurrence : ∀ (e : E) (z : Z e), X (site e z) := fun e z => ⟨e, z.property.2⟩
   let cutα : ∀ e : E, Z e → ℝ := fun e z => α (site e z) (occurrence e z)
@@ -696,15 +737,19 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     obtain ⟨_, _, _, hs, _, _, hball⟩ := hcuts (site e z) (occurrence e z)
     have hw := hball ((P (site e z) (occurrence e z)).at_mem_support 0
       (show (0 : ℝ) ∈ Set.Icc 0 1 from ⟨le_rfl, zero_le_one⟩))
-    simpa only [Route.eval, AffineMap.lineMap_apply_zero, Fin.castSucc_zero,
-      ← Route.start, hs] using hw
+    change (P (site e z) (occurrence e z)).eval 0 0 ∈ Metric.ball z.val (ρ z.val) at hw
+    rw [Route.eval, AffineMap.lineMap_apply_zero] at hw
+    change (P (site e z) (occurrence e z)).start ∈ Metric.ball z.val (ρ z.val) at hw
+    simpa only [hs] using hw
   have hβball (e : E) (z : Z e) : right e z ∈ Metric.ball z.val (ρ z.val) := by
     obtain ⟨_, _, _, _, hf, _, hball⟩ := hcuts (site e z) (occurrence e z)
     have hw := hball ((P (site e z) (occurrence e z)).at_mem_support
       (Fin.last (P (site e z) (occurrence e z)).bends)
       (show (1 : ℝ) ∈ Set.Icc 0 1 from ⟨zero_le_one, le_rfl⟩))
-    simpa only [Route.eval, AffineMap.lineMap_apply_one, Fin.succ_last,
-      ← Route.finish, hf] using hw
+    change (P (site e z) (occurrence e z)).eval (Fin.last _ ) 1 ∈ Metric.ball z.val (ρ z.val) at hw
+    rw [Route.eval, AffineMap.lineMap_apply_one, Fin.succ_last] at hw
+    change (P (site e z) (occurrence e z)).finish ∈ Metric.ball z.val (ρ z.val) at hw
+    simpa only [hf] using hw
   have hordered (e : E) : ∃ L : List (Z e), L.Nodup ∧ (∀ z : Z e, z ∈ L) ∧
       L.Pairwise (fun z w => cutβ e z < cutα e w) := by
     have hCe : {z : ℂ | z ∈ C ∧ z ∈ (D.route e).support}.Finite :=
@@ -722,6 +767,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
           Route.slopeDetour (r (site e z)) (s (site e z) (occurrence e z))
             (d (site e z) (occurrence e z))).translate z.val := by
     simp only [P, R, occurrence, he, Bool.false_eq_true, ↓reduceIte]
+    rfl
   have hpieces (e : E) (he : F e = false) (z : Z e) :
       (∀ t : ℝ, (P (site e z) (occurrence e z)).eval 0 t =
         AffineMap.lineMap (left e z) (middle e z) t) ∧
@@ -732,6 +778,8 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
       (d (site e z) (occurrence e z)) z.val
       (decide ((D.route e).finish.re < (D.route e).start.re))
     rw [← hfree e he z] at hp
+    change (P (site e z) (occurrence e z)).start = left e z at hs
+    change (P (site e z) (occurrence e z)).finish = right e z at hf
     simpa only [hs, hf] using hp
   have hmiddle_ball (e : E) (he : F e = false) (z : Z e) :
       middle e z ∈ Metric.ball z.val (ρ z.val) := by
@@ -743,7 +791,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
   let S : E → Set ℂ := fun e => (D.route e).support ∪ ⋃ z ∈ C, Metric.ball z (ρ z)
   have hOldConvex (e : E) : Convex ℝ (D.route e).support := by
     exact (Route.support_line (D.route e).start (D.route e).finish).symm ▸
-      convex_segment ℝ _ _
+      convex_segment _ _
   have hOldStart (e : E) : (D.route e).start ∈ (D.route e).support :=
     (Route.support_line (D.route e).start (D.route e).finish).symm ▸ left_mem_segment ℝ _ _
   have hOldFinish (e : E) : (D.route e).finish ∈ (D.route e).support :=
@@ -772,7 +820,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
           (hαball e z) (hmiddle_ball e he z)).trans hballS,
         ((convex_ball z.val (ρ z.val)).segment_subset
           (hmiddle_ball e he z) (hβball e z)).trans hballS⟩
-    · exact (hsorted e).imp fun z w _ => hold _ _ (hRightOld e z) (hLeftOld e w)
+    · exact (hsorted e).imp (by intro z w _; exact hold _ _ (hRightOld e z) (hLeftOld e w))
   have hCoords (e : E) (he : F e = false) (z : Z e) :
       (left e z).re = z.val.re +
         (if (D.route e).finish.re < (D.route e).start.re then r (site e z) else -r (site e z)) ∧
@@ -783,10 +831,12 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
       (d (site e z) (occurrence e z)) z.val
       (decide ((D.route e).finish.re < (D.route e).start.re))
     rw [← hfree e he z] at hx
+    change (P (site e z) (occurrence e z)).start = left e z at hs
+    change (P (site e z) (occurrence e z)).finish = right e z at hf
     by_cases hd : (D.route e).finish.re < (D.route e).start.re <;>
       simpa only [hs, hf, hd, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte] using hx
   have hMiddleRe (e : E) (z : Z e) : (middle e z).re = z.val.re := by
-    simp only [middle, Complex.add_re, Complex.mk_re, add_zero]
+    simp only [middle, Complex.add_re, add_zero]
   have hWordOrder (e : E) (he : F e = false) :
       ((D.route e).start :: (L e).flatMap (fun z => [left e z, middle e z, right e z]) ++
         [(D.route e).finish]).Pairwise (fun x y => x.re < y.re) ∨
@@ -805,7 +855,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
       intro z _
       have hx := hCoords e he z
       have hrz := hr (site e z)
-      rw [ite_eq_right (not_lt_of_ge hab.le)] at hx
+      simp only [ite_eq_right (not_lt_of_ge hab.le)] at hx
       rw [hMiddleRe]
       constructor <;> linarith [hx.1, hx.2]
     · right
@@ -818,18 +868,17 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
         (fun z _ => by
           have hx := hCoords e he z
           have hrz := hr (site e z)
-          rw [ite_eq_left hba] at hx
+          simp only [ite_eq_left hba] at hx
           rw [hMiddleRe]
           constructor <;> linarith [hx.1, hx.2]) (hsorted e)
-      exact hneg.imp fun _ _ h => neg_lt_neg_iff.mp h
+      exact hneg.imp (by intro x y h; exact neg_lt_neg_iff.mp h)
   let Q : E → Route := fun e => if F e then D.route e else
     free_route e (L e) (left e) (middle e) (right e)
   have hends (e : E) : (Q e).start = (D.route e).start ∧ (Q e).finish = (D.route e).finish := by
     cases hf : F e
     · simp only [Q, hf, Bool.false_eq_true, ↓reduceIte]
       exact free_route_ends e (L e) (left e) (middle e) (right e)
-    · simp only [Q, hf, ↓reduceIte]
-      exact ⟨rfl, rfl⟩
+    · simp [Q, hf]
   have hsimple (e : E) : (Q e).IsSimple := by
     cases hf : F e
     · simp only [Q, hf, Bool.false_eq_true, ↓reduceIte]
@@ -851,26 +900,28 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
       cases tag
       · exact (hends e).1.trans (D.endpoint_eq e false)
       · exact (hends e).2.trans (D.endpoint_eq e true)⟩
-  have hgerms (e : E) (tag : Bool) : ∃ c : ℝ, 0 < c ∧ (Q e).germ tag = c • (D.route e).germ tag := by
+  have hgerms (e : E) (tag : Bool) :
+      ∃ c : ℝ, 0 < c ∧ (Q e).germ tag = c • (D.route e).germ tag := by
     cases hf : F e
     · cases hL : L e with
       | nil =>
         refine ⟨1, zero_lt_one, ?_⟩
         simp only [Q, hf, Bool.false_eq_true, ↓reduceIte, hL, free_route, one_smul]
+        rfl
       | cons z zs =>
         cases tag
         · refine ⟨cutα e z, (hmargins e z).1, ?_⟩
           simp only [Q, hf, Bool.false_eq_true, ↓reduceIte, hL, free_route_first_germ]
           change AffineMap.lineMap (D.route e).start (D.route e).finish (cutα e z) -
             (D.route e).start = cutα e z • ((D.route e).finish - (D.route e).start)
-          exact AffineMap.lineMap_vsub_left _ _ _
+          exact AffineMap.lineMap_vsub_left (k := ℝ) (D.route e).start (D.route e).finish _
         · let last := (z :: zs).getLast (by simp)
           refine ⟨1 - cutβ e last, sub_pos.mpr (hmargins e last).2.2, ?_⟩
           simp only [Q, hf, Bool.false_eq_true, ↓reduceIte, hL]
           rw [free_route_last_germ e (z :: zs) (by simp)]
           change AffineMap.lineMap (D.route e).start (D.route e).finish (cutβ e last) -
             (D.route e).finish = (1 - cutβ e last) • ((D.route e).start - (D.route e).finish)
-          exact AffineMap.lineMap_vsub_right _ _ _
+          exact AffineMap.lineMap_vsub_right (k := ℝ) (D.route e).start (D.route e).finish _
     · refine ⟨1, zero_lt_one, ?_⟩
       simp only [Q, hf, ↓reduceIte, one_smul]
   have hsegfree (e : E) (he : F e = false) (z : Z e) :
@@ -896,7 +947,6 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
       rw [hQ]
       refine ⟨i, hi, ?_⟩
       intro t
-      change (free_route e (L e) (left e) (middle e) (right e)).eval i t = _
       rw [hieval]
       have hj : j.val = j'.val := rfl
       have hp := hpieces e he z
@@ -907,14 +957,20 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
         rw [hj0', hj0'']
         exact (hp.1 t).symm
       · have hj1' : j = 1 := Fin.ext (by
-          simpa only [Fin.val_natCast, hsegfree e he z] using hj.trans hj1)
+          calc
+            j.val = 1 := hj.trans hj1
+            _ = (1 : Fin (P (site e z) (occurrence e z)).segments).val := by
+              change 1 = 1 % _
+              rw [hsegfree e he z])
         have hj1'' : j' = 1 := Fin.ext hj1
         rw [hj1', hj1'']
         exact (hp.2 t).symm
     · intro he t
       have hQ : Q e = D.route e := by simp only [Q, he, ↓reduceIte]
       obtain ⟨_, hp⟩ := hkeep (site e z) (occurrence e z) he
-      rw [hQ, hp]
+      rw [hQ]
+      change (D.route e).eval 0 _ = (P (site e z) (occurrence e z)).eval 0 t
+      rw [hp]
       exact (frozen_cut_parameter (D.route e).start (D.route e).finish
         (cutα e z) (cutβ e z) t).symm
   have hraw_embed (e : E) (he : F e = false) (q : Fin (L e).length) :
@@ -928,23 +984,58 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
             z.val + raw.eval 0 t := by
     let z := (L e)[q]
     by_cases hd : (D.route e).finish.re < (D.route e).start.re
-    · let j : Fin (P (site e z) (occurrence e z)).segments :=
+    · have hp : P (site e z) (occurrence e z) =
+          (R (site e z) (occurrence e z)).reverse.translate z.val := by
+        dsimp only [P, occurrence, site]
+        rw [ite_eq_left (by simpa only [decide_eq_true_eq] using hd)]
+      have hn : (R (site e z) (occurrence e z)).segments = 2 := by
+        dsimp only [R, occurrence]
+        rw [ite_eq_right (by simp only [he, Bool.false_eq_true, not_false_eq_true])]
+        rfl
+      let j : Fin (P (site e z) (occurrence e z)).segments :=
         ⟨1, by rw [hsegfree e he z]; decide⟩
       obtain ⟨i, hi, hieval⟩ := (hlocal_embed e q).1 he j
       refine ⟨i, by simpa only [hd, ↓reduceIte, j] using hi, ?_⟩
       intro t
       rw [ite_eq_left hd, hieval]
-      simp only [P, R, occurrence, he, Bool.false_eq_true, ↓reduceIte,
-        hd, decide_true, Route.eval_translate, Route.eval_reverse]
-      change z.val + (Route.slopeDetour _ _ _).eval 0 (1 - (1 - t)) =
-        z.val + (Route.slopeDetour _ _ _).eval 0 t
-      rw [sub_sub_cancel]
-    · let j : Fin (P (site e z) (occurrence e z)).segments := 0
+      -- Keep the segment binder while transporting the route equality: its bound
+      -- depends on the route, whereas the numerical segment value stays one.
+      have hEval : ∀ k : Fin (P (site e z) (occurrence e z)).segments,
+          k.val = 1 → (P (site e z) (occurrence e z)).eval k (1 - t) =
+            z.val + (R (site e z) (occurrence e z)).eval 0 t := by
+        rw [hp]
+        intro k hk
+        change Fin ((R (site e z) (occurrence e z)).bends + 1) at k
+        rw [Route.eval_translate (R (site e z) (occurrence e z)).reverse z.val k (1 - t),
+          Route.eval_reverse (R (site e z) (occurrence e z)) k (1 - t)]
+        have hkrev : k.rev = 0 := by
+          apply Fin.ext
+          simp only [Fin.val_rev, Fin.val_zero]
+          have hn' : (R (site e z) (occurrence e z)).bends + 1 = 2 := hn
+          omega
+        exact (congrArg (fun l : Fin ((R (site e z) (occurrence e z)).bends + 1) =>
+          z.val + (R (site e z) (occurrence e z)).eval l (1 - (1 - t))) hkrev).trans
+            (congrArg (fun u : ℝ => z.val + (R (site e z) (occurrence e z)).eval 0 u)
+              (sub_sub_cancel 1 t))
+      exact hEval j rfl
+    · have hp : P (site e z) (occurrence e z) =
+          (R (site e z) (occurrence e z)).translate z.val := by
+        dsimp only [P, occurrence, site]
+        rw [ite_eq_right (by simpa only [decide_eq_true_eq] using hd)]
+      let j : Fin (P (site e z) (occurrence e z)).segments := 0
       obtain ⟨i, hi, hieval⟩ := (hlocal_embed e q).1 he j
       refine ⟨i, by simpa only [hd, ↓reduceIte, j, Fin.val_zero, Nat.add_zero] using hi, ?_⟩
       intro t
       rw [ite_eq_right hd, hieval]
-      simp only [P, hd, decide_false, Bool.false_eq_true, ↓reduceIte, Route.eval_translate]
+      have hEval : ∀ k : Fin (P (site e z) (occurrence e z)).segments,
+          k.val = 0 → (P (site e z) (occurrence e z)).eval k t =
+            z.val + (R (site e z) (occurrence e z)).eval 0 t := by
+        rw [hp]
+        intro k hk
+        have hkzero : k = 0 := Fin.ext hk
+        subst k
+        exact Route.eval_translate _ _ _ _
+      exact hEval j rfl
   refine ⟨hC, ρ, r, d, α, β, L, hρ, hballs, hexclude, ?_, ?_, D', rfl, ?_, ?_,
     hsimple, hvertices, hgerms, hlocal_embed, hraw_embed⟩
   · intro z
@@ -952,9 +1043,14 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
   · intro e
     exact ⟨hnd e, hmem e, hsorted e⟩
   · intro e
-    rfl
+    cases hf : F e <;> cases hL : L e <;>
+      dsimp only [F] at hf <;>
+      simp only [D', Q, free_route, F, D, site, occurrence, cutα, cutβ, left, middle,
+        right, hf, hL, Bool.false_eq_true, ↓reduceIte]; rfl
   · intro e he
-    simp only [D', Q, he, Bool.false_eq_true, ↓reduceIte]
+    change F e = false at he
+    change (Q e).segments = _
+    simp only [Q, he, Bool.false_eq_true, ↓reduceIte]
     exact free_route_segments e (L e) (left e) (middle e) (right e)
 
 end Cslib.Complexity.Graph.RotationRecognition

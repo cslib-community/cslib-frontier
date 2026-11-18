@@ -111,7 +111,7 @@ theorem foldl_append_eval_cases (p : Route) (nodes : List ℂ)
             (p.segments : ℝ) + t := hpos.trans hkpos
         refine Or.inr ⟨0, ?_, ?_, ?_⟩
         · simpa only [Fin.val_zero, Nat.add_zero] using index_of_position _ i t p.segments hpos'
-        · simpa only [List.getElem_cons_zero, Fin.getElem_fin, Fin.val_zero,
+        · simpa only [List.foldl_cons, List.getElem_cons_zero, Fin.getElem_fin, Fin.val_zero,
             Fin.val_castSucc] using heval.trans hkval
         · simpa using hpos'
     · have hpos' : ((a :: nodes).foldl Route.append p).position i t =
@@ -124,7 +124,7 @@ theorem foldl_append_eval_cases (p : Route) (nodes : List ℂ)
           simpa only [Nat.cast_add] using hpos')
         simpa only [Fin.val_succ] using hindex
       · have hfinish : (p.append a).finish = a := endpoint_append p a true
-        simpa only [hfinish, Fin.getElem_fin, Fin.val_castSucc, Fin.val_succ,
+        simpa only [List.foldl_cons, hfinish, Fin.getElem_fin, Fin.val_castSucc, Fin.val_succ,
           List.getElem_cons_succ] using heval
       · simpa only [Fin.val_succ] using hpos'
 
