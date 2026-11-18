@@ -315,7 +315,9 @@ theorem Witness.rotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → 
       rfl
     · intro j side
       change b (2 * (M + (finRotate n j).val) + side.toNat) = _
-      have hbi := hb.2 (finRotate n j) side
+      have hbi : b (2 * (M + (finRotate n j).val) + side.toNat) =
+          2 * (M + (((finRotate n j).val + n - 1) % n)) + side.toNat :=
+        hb.2 (finRotate n j) side
       rw [hbi, unrotate_mod, Equiv.symm_apply_apply]
 
 /-- The existing static RIGHT constructor emits the complete raw table.
@@ -343,10 +345,11 @@ theorem Witness.unrotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n �
       have hfi : f (2 * (M + j.val) + side.toNat) =
           2 * (M + ((j.val + n - 1) % n)) + side.toNat := hf.2 j side
       rw [hfi, unrotate_mod]
-      rfl
     · intro j side
       change b (2 * (M + ((finRotate n).symm j).val) + side.toNat) = _
-      have hbi := hb.2 ((finRotate n).symm j) side
+      have hbi : b (2 * (M + ((finRotate n).symm j).val) + side.toNat) =
+          2 * (M + ((((finRotate n).symm j).val + 1) % n)) + side.toNat :=
+        hb.2 ((finRotate n).symm j) side
       rw [hbi, rotate_mod, Equiv.apply_symm_apply]
 
 

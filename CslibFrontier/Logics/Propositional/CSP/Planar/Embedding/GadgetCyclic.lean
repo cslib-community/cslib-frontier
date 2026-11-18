@@ -64,6 +64,7 @@ theorem GadgetWitness.rotate_certificate {n : ℕ} {R : Set (Fin (n + 1) → Boo
       rotateBoundaryCertificateRight g.body.occurrences.length (n + 1) w.certificate := by
   unfold GadgetWitness.rotate
   dsimp only
-  rw [Witness.relabel_certificate, Witness.unrotateOfFn_certificate]
+  erw [Witness.relabel_certificate]
+  rw [Witness.unrotateOfFn_certificate]
 
 end Cslib.Complexity.CSP.OrderedBoundary
