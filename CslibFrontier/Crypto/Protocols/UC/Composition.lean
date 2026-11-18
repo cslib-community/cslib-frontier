@@ -549,35 +549,42 @@ private theorem handle_swap
     repeat erw [Functor.map_map]
     rfl
 
-/-- Linking a program against the composed simulator in front of the routed hybrid protocol, or
-against the routed hybrid protocol in front of the subroutine simulator, gives the same closed
-behaviour behind any closed machine: the two links make the same calls, and differ only in the order
-in which the two independent initial states are sampled. -/
-private theorem eval_run_link_swap
-    (R : Machine OracleSpec.empty (protocolSpec n SubIn SubOut (RoutedNetQ n SubIn NQ₂)
-      (RoutedNetR SubOut NR₂)))
-    (Z : ProbOracleComp (execSpec n In Out (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₁))
-      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₁))) α) :
-    (R.run (((liftAdversary (n := n) (In := In) (Out := Out) (hybridSimMachine S)).comp
-        (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
-          (NR := RoutedNetR SubOut NR₂) M))).link Z)).eval =
-      (R.run (((routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-          (NR := RoutedNetR SubOut NR₁) M)).comp
-            (liftAdversary (n := n) (In := SubIn) (Out := SubOut) S)).link Z)).eval := by
-  set A := (liftAdversary (n := n) (In := In) (Out := Out) (hybridSimMachine S)).comp
-    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂) (NR := RoutedNetR SubOut NR₂) M))
-  set B := (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-    (NR := RoutedNetR SubOut NR₁) M)).comp (liftAdversary (n := n) (In := SubIn) (Out := SubOut) S)
-  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z s.swap := by
-    rw [Machine.runFrom_map_state A B Prod.swap (fun q s => handle_swap C M S q s.1 s.2) Z s,
-      Functor.map_map]
+/-- Linking a program against `X₁.comp Y₁`, or against `Y₂.comp X₂` with the component state
+spaces reversed via `fX` and `fY`, gives the same closed behaviour behind any closed machine `R`,
+provided `fX <$> X₂.init = X₁.init`, `fY <$> Y₂.init = Y₁.init`, and the activations agree under
+`(fX s.2, fY s.1)`. -/
+theorem eval_run_link_swap {ιI ιJ₁ ιJ₂ ιE α : Type}
+    {I : ιI → Type} {J₁ : ιJ₁ → Type} {J₂ : ιJ₂ → Type} {E : ιE → Type}
+    (X₁ : Machine J₁ E) (Y₁ : Machine I J₁)
+    (Y₂ : Machine J₂ E) (X₂ : Machine I J₂)
+    (fX : X₂.State → X₁.State) (fY : Y₂.State → Y₁.State)
+    (hX : fX <$> X₂.init = X₁.init) (hY : fY <$> Y₂.init = Y₁.init)
+    (hswap : ∀ q (s : (Y₂.comp X₂).State),
+      ((X₁.comp Y₁).handle q).run (fX s.2, fY s.1) =
+        Prod.map _root_.id (fun s => (fX s.2, fY s.1)) <$> ((Y₂.comp X₂).handle q).run s)
+    (R : Machine OracleSpec.empty I) (Z : ProbOracleComp E α) :
+    (R.run ((X₁.comp Y₁).link Z)).eval = (R.run ((Y₂.comp X₂).link Z)).eval := by
+  let A := X₁.comp Y₁
+  let B := Y₂.comp X₂
+  let f : B.State → A.State := fun s => (fX s.2, fY s.1)
+  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z (f s) := by
+    rw [Machine.runFrom_map_state A B f hswap Z s, Functor.map_map]
     rfl
   have hB : B.link Z =
-      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z s.swap := by
+      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z (f s) := by
     rw [Machine.link]
     exact bind_congr hrun
-  rw [hB, Machine.link]
-  exact eval_run_sample_bind_swap R M.init S.init (fun s => Prod.fst <$> A.runFrom Z s)
+  have hA : A.link Z =
+      ProbOracleComp.sample (do let a ← Y₂.init; let b ← X₂.init; return (b, a)) >>=
+        fun s => Prod.fst <$> A.runFrom Z (fX s.1, fY s.2) := by
+    change ProbOracleComp.sample (do let a ← Y₁.init; let b ← X₁.init; return (b, a)) >>=
+      (fun s => Prod.fst <$> A.runFrom Z s) = _
+    rw [← hY, ← hX]
+    simp only [← bind_pure_comp, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure,
+      bind_assoc, pure_bind]
+  rw [hA, hB]
+  exact eval_run_sample_bind_swap R Y₂.init X₂.init
+    (fun s => Prod.fst <$> A.runFrom Z (fX s.1, fY s.2))
 
 end Swap
 
@@ -594,7 +601,15 @@ theorem eval_exec_compose_hybridSim (ρ : HybridProtocol n In Out NetQ NetR SubI
   simp only [exec, execMachine, compose, corruptRouter_comp, hybridSim, absorbHybrid,
     Machine.run_comp]
   rw [← Machine.link_comp, ← Machine.link_comp]
-  exact eval_run_link_swap C (ρ κ C) (S κ C) _ _
+  refine eval_run_link_swap (liftAdversary (n := n) (In := In) (Out := Out)
+      (hybridSimMachine (S κ C)))
+    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
+      (NR := RoutedNetR SubOut NR₂) (ρ κ C)))
+    (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
+      (NR := RoutedNetR SubOut NR₁) (ρ κ C)))
+    (liftAdversary (n := n) (In := SubIn) (Out := SubOut) (S κ C))
+    _root_.id _root_.id (id_map _) (id_map _) ?_ _ _
+  exact fun q s => handle_swap C (ρ κ C) (S κ C) q s.1 s.2
 
 /-- The advantage of an environment against `ρ^π` with the dummy adversary and `ρ^φ` with the
 composed simulator is the advantage of the absorbed environment against `π` with the dummy adversary

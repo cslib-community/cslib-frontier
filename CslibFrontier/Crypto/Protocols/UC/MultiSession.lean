@@ -585,40 +585,6 @@ private theorem handle_swap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR�
     repeat erw [Functor.map_map]
     rfl
 
-private theorem eval_run_link_swap
-    {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ α : Type}
-    (C : Finset (Fin n))
-    (M : Machine (multiPartySpec m n SubIn SubOut) (protocolSpec n In Out NetQ NetR))
-    (S : (j : Fin m) → Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
-      (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁)))
-    (R : Machine OracleSpec.empty
-      (SSP.sessionSpec m (protocolSpec n SubIn SubOut (RoutedNetQ n SubIn NQ₂)
-        (RoutedNetR SubOut NR₂))))
-    (Z : ProbOracleComp (execSpec n In Out
-      (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
-      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁)))) α) :
-    (R.run (((liftAdversary (n := n) (In := In) (Out := Out)
-        (multiHybridSimMachine S)).comp (routeCorrupt C (multiHybridWrap
-          (NQ := RoutedNetQ n SubIn NQ₂) (NR := RoutedNetR SubOut NR₂) M))).link Z)).eval =
-      (R.run (((routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-          (NR := RoutedNetR SubOut NR₁) M)).comp (parLiftAdversary S)).link Z)).eval := by
-  set A := (liftAdversary (n := n) (In := In) (Out := Out) (multiHybridSimMachine S)).comp
-    (routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
-      (NR := RoutedNetR SubOut NR₂) M))
-  set B := (routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
-    (NR := RoutedNetR SubOut NR₁) M)).comp (parLiftAdversary S)
-  have hrun (s : B.State) : Prod.fst <$> B.runFrom Z s = Prod.fst <$> A.runFrom Z s.swap := by
-    rw [Machine.runFrom_map_state A B Prod.swap (fun q s => handle_swap C M S q s.1 s.2) Z s,
-      Functor.map_map]
-    rfl
-  have hB : B.link Z =
-      ProbOracleComp.sample B.init >>= fun s => Prod.fst <$> A.runFrom Z s.swap := by
-    rw [Machine.link]
-    exact bind_congr hrun
-  rw [hB, Machine.link]
-  exact eval_run_sample_bind_swap R M.init (OracleComp.pi fun j => (S j).init)
-    (fun s => Prod.fst <$> A.runFrom Z s)
-
 private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut NQ NR α : Type}
     (C : Finset (Fin n))
     (φ : Fin m → Machine OracleSpec.empty (protocolSpec n SubIn SubOut NQ NR))
@@ -699,7 +665,8 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
     exact hpair.symm
   · rintro ⟨j, q⟩ ⟨sS, sφ⟩
     rcases q with p | nq
-    · change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
+    on_goal 1 =>
+      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
           (sessionRouter C φ).runFrom
             ((StateT.lift (ProbOracleComp.query (j, Sum.inl p))).run sS) sφ)).eval.map
           (fun x => (x.1, fun i => (x.2.1 i, x.2.2 i))) =
@@ -711,24 +678,8 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run, StateT.lift,
         bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query]
-      repeat erw [Machine.closeProgram_map]
-      repeat erw [ProbComp.eval_map]
-      repeat erw [PMF.map_comp]
-      refine congrArg (PMF.map · _) (funext fun x => ?_)
-      dsimp only [sessionRouter, parLiftAdversary, SSP.parFin] at x sS sφ ⊢
-      repeat erw [Function.comp_apply]
-      repeat erw [Equiv.prodAssoc_apply]
-      repeat erw [Prod.map_apply]
-      dsimp only [id_eq]
-      rcases x with ⟨r, sφ'⟩
-      refine Prod.ext rfl (funext fun i => ?_)
-      by_cases hi : i = j
-      · subst hi
-        dsimp only
-        simp only [Function.update_self]
-      · dsimp only
-        simp only [Function.update_of_ne hi]
-    · change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
+    on_goal 2 =>
+      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
           (sessionRouter C φ).runFrom
             (liftSessionNet j ((fun x => (x.1, Function.update sS j x.2)) <$>
               ((S j).handle nq).run (sS j))) sφ)).eval.map
@@ -739,6 +690,7 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
       erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet]
       erw [SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run]
+    all_goals
       repeat erw [Machine.closeProgram_map]
       repeat erw [ProbComp.eval_map]
       repeat erw [PMF.map_comp]
@@ -748,7 +700,7 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
       repeat erw [Equiv.prodAssoc_apply]
       repeat erw [Prod.map_apply]
       dsimp only [id_eq]
-      rcases x with ⟨⟨r, sS'⟩, sφ'⟩
+      rcases x with ⟨r, sφ'⟩
       refine Prod.ext rfl (funext fun i => ?_)
       by_cases hi : i = j
       · subst hi
@@ -780,7 +732,15 @@ theorem eval_exec_composeFamily_multiHybridSim {m n : ℕ}
   simp only [exec, execMachine, composeFamily, corruptRouter_comp, multiHybridSim,
     absorbMultiHybrid, Machine.run_comp]
   rw [← Machine.link_comp]
-  refine (eval_run_link_swap C (ρ κ C) (fun j => S j κ C)
+  refine (eval_run_link_swap
+    (liftAdversary (n := n) (In := In) (Out := Out) (multiHybridSimMachine fun j => S j κ C))
+    (routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ₂)
+      (NR := RoutedNetR SubOut NR₂) (ρ κ C)))
+    (routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ₁)
+      (NR := RoutedNetR SubOut NR₁) (ρ κ C)))
+    (parLiftAdversary fun j => S j κ C)
+    _root_.id _root_.id (id_map _) (id_map _)
+    (fun q s => handle_swap C (ρ κ C) (fun j => S j κ C) q s.1 s.2)
     (sessionRouter C fun j => φ j κ C) (Z κ z)).trans ?_
   rw [Machine.link_comp, ← Machine.run_comp]
   exact eval_run_parLiftAdversary_comp_sessionRouter C (fun j => φ j κ C) (fun j => S j κ C) _
