@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
+public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Data.BitString.Parity
 import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Probability.PMF
@@ -32,20 +33,28 @@ each equation is the sign `(-1)^{parity e}`. A satisfying assignment is an opera
 `ℂ`, but there are systems, such as the magic square, with operator solutions and no satisfying
 assignment.
 
-**Operator solutions give perfect strategies**: if Alice
-measures each equation jointly in an operator solution `X` (`Cslib.Quantum.Measurement.ofCommuting`)
-and Bob measures each variable `v` by an observable `Y_v` commuting with Alice's and agreeing
-perfectly with `X_v` in the shared state, they win with probability `1` for every question
-distribution, in every commuting-operator model
-(`Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy`). Outcomes violating the
-equation vanish because of the product relation (`Cslib.Quantum.jointProj_eq_zero`), and
-disagreement on `v` vanishes after exchanging Bob's `Y_v` for Alice's `X_v` inside the state
-(`Cslib.Quantum.AlgState.apply_mul_signProj_eq_of_approx_zero`). This generalizes the
-direction "operator solution ⇒ perfect strategy" of [Cleve and Mittal, §2][CleveMittal2014]
-(pp. 2–3), proved there for finite-dimensional Hermitian involutions with the maximally entangled
-transpose strategy, to every commuting-operator model and question distribution. A satisfying
-assignment gives the scalar operator solution `(-1)^{s_v}` in `ℂ`
-(`Cslib.PCP.LinearSystem.OperatorSolution.ofAssignment`).
+**Operator solutions give perfect strategies.** The verification step holds in every
+commuting-operator model: if Alice measures each equation jointly in an operator solution `X`
+(`Cslib.Quantum.Measurement.ofCommuting`) and Bob measures each variable `v` by an observable `Y_v`
+commuting with Alice's and agreeing perfectly with `X_v` in the shared state, they win with
+probability `1` for every question distribution
+(`Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy_of_agreement`). Outcomes
+violating the equation vanish because of the product relation (`Cslib.Quantum.jointProj_eq_zero`),
+and disagreement on `v` vanishes after exchanging Bob's `Y_v` for Alice's `X_v` inside the state
+(`Cslib.Quantum.AlgState.apply_mul_signProj_eq_of_approx_zero`).
+
+For a **finite-dimensional** operator solution `X` in `M_ι(ℂ)`, the construction of
+[Cleve and Mittal, §2][CleveMittal2014] (arXiv:1209.2729v1, p. 3) supplies Bob and the state: on
+the maximally entangled state of `ℂ^ι ⊗ ℂ^ι`, Alice measures with `X_v ⊗ 1` and Bob measures `v`
+by `1 ⊗ X_vᵀ` (`Cslib.PCP.LinearSystem.OperatorSolution.maxEntangledStrategy`), and the transpose
+trick (`Cslib.Quantum.AlgState.kroneckerOne_approx_oneKronecker_transpose`) gives the perfect
+agreement. So every finite-dimensional operator solution, from its matrices alone, wins with
+probability `1` for every question distribution
+(`Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy`): the direction
+"operator solution ⇒ perfect strategy" of Cleve and Mittal, for arbitrary question distributions.
+Alice's observables are the images of `X` under `M ↦ M ⊗ 1`
+(`Cslib.PCP.LinearSystem.OperatorSolution.map`). A satisfying assignment gives the scalar
+operator solution `(-1)^{s_v}` in `ℂ` (`Cslib.PCP.LinearSystem.OperatorSolution.ofAssignment`).
 
 ## Main definitions
 
@@ -55,11 +64,18 @@ assignment gives the scalar operator solution `(-1)^{s_v}` in `ℂ`
 * `Cslib.PCP.LinearSystem.OperatorSolution.strategy`: the strategy of an operator solution.
 * `Cslib.PCP.LinearSystem.OperatorSolution.ofAssignment`: the operator solution of a satisfying
   assignment.
+* `Cslib.PCP.LinearSystem.OperatorSolution.map`: the image of an operator solution under a
+  star-algebra homomorphism.
+* `Cslib.PCP.LinearSystem.OperatorSolution.maxEntangledStrategy`: the maximally entangled
+  transpose strategy of a finite-dimensional operator solution.
 
 ## Main results
 
-* `Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy`: operator solutions with
-  perfect agreement win with certainty.
+* `Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_strategy_of_agreement`: an operator
+  solution with a perfectly agreeing Bob wins with certainty.
+* `Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy`: every
+  finite-dimensional operator solution wins with certainty through the maximally entangled
+  transpose strategy (Cleve and Mittal, §2).
 
 ## References
 
@@ -217,12 +233,13 @@ theorem apply_effect_mul_effect_eq_zero (Y : V → 𝒜) (φ : AlgState 𝒜)
 variable [TopologicalSpace 𝒜] [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint]
   [NonnegSpectrumClass ℝ 𝒜] [Finite E]
 
-/-- **Operator solutions win with certainty**, generalizing
-[Cleve and Mittal, §2][CleveMittal2014]: if Alice
-measures the equations jointly in an operator solution `X`, and Bob measures each variable by an
-observable `Y_v` commuting with Alice's and agreeing perfectly with `X_v` in the state, they win the
-game of the linear constraint system with probability `1`, for every question distribution. -/
-theorem commutingWinProb_strategy (Y : V → 𝒜) (hY : ∀ v, IsSelfAdjoint (Y v))
+/-- **Verification of a perfect strategy**: if Alice measures the equations jointly in an operator
+solution `X`, and Bob measures each variable by a supplied observable `Y_v` commuting with Alice's
+and agreeing perfectly with `X_v` in the supplied state, they win the game of the linear constraint
+system with probability `1`, for every question distribution. The construction of such a Bob and
+state from a finite-dimensional solution is
+`Cslib.PCP.LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy`. -/
+theorem commutingWinProb_strategy_of_agreement (Y : V → 𝒜) (hY : ∀ v, IsSelfAdjoint (Y v))
     (hY' : ∀ v, Y v * Y v = 1) (φ : AlgState 𝒜) (hXY : ∀ u v, Commute (X.op u) (Y v))
     (hagree : ∀ v, X.op v ≈[φ; 0] Y v) (μ : PMF (E × V)) :
     (L.game μ).commutingWinProb (X.strategy Y hY hY' φ hXY) = 1 := by
@@ -259,6 +276,58 @@ noncomputable def ofAssignment (s : V → Bool) (hs : ∀ e, L.Satisfies e s) :
   prod_eq e := by
     rw [jointProd_eq_prod, smul_eq_mul, mul_one, ← hs e, ← prod_signVal_eq]
     exact Finset.prod_coe_sort (L.support e) (fun v => (signVal (s v) : ℂ))
+
+/-- The image of an operator solution under a star-algebra homomorphism. -/
+noncomputable def map {𝒜 ℬ : Type*} [Ring 𝒜] [StarRing 𝒜] [Algebra ℂ 𝒜] [Ring ℬ] [StarRing ℬ]
+    [Algebra ℂ ℬ] (f : 𝒜 →⋆ₐ[ℂ] ℬ) (X : L.OperatorSolution 𝒜) : L.OperatorSolution ℬ where
+  op v := f (X.op v)
+  isSelfAdjoint v := (X.isSelfAdjoint v).map f
+  mul_self v := by rw [← map_mul, X.mul_self, map_one]
+  commute e u hu w hw := (X.commute e u hu w hw).map f
+  prod_eq e := by
+    rw [← map_jointProd (fun v : L.support e => X.op v) (fun u w => X.commute e u u.2 w w.2),
+      X.prod_eq e, map_smul, map_one]
+
+section MaxEntangled
+
+open scoped Kronecker MatrixOrder ComplexOrder
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] (X : L.OperatorSolution (Matrix ι ι ℂ))
+
+/-- Bob's observable of the variable `v` in the transpose strategy: `1 ⊗ X_vᵀ`. -/
+noncomputable def transposeObs (v : V) : Matrix (ι × ι) (ι × ι) ℂ :=
+  oneKronecker (Matrix.transpose (X.op v))
+
+theorem isSelfAdjoint_transposeObs (v : V) : IsSelfAdjoint (X.transposeObs v) := by
+  refine (show IsSelfAdjoint (Matrix.transpose (X.op v)) from ?_).map oneKronecker
+  change Matrix.conjTranspose (Matrix.transpose (X.op v)) = Matrix.transpose (X.op v)
+  rw [Matrix.conjTranspose_transpose_eq_transpose_conjTranspose]
+  exact congrArg Matrix.transpose (X.isSelfAdjoint v)
+
+theorem transposeObs_mul_self (v : V) : X.transposeObs v * X.transposeObs v = 1 := by
+  rw [transposeObs, ← map_mul, ← Matrix.transpose_mul, X.mul_self, Matrix.transpose_one, map_one]
+
+/-- The **maximally entangled transpose strategy** of a finite-dimensional operator solution
+[Cleve and Mittal, §2][CleveMittal2014]: on the maximally entangled state of `ℂ^ι ⊗ ℂ^ι`, Alice
+measures each equation jointly in the observables `X_v ⊗ 1`, and Bob measures each variable `v` by
+`1 ⊗ X_vᵀ`. -/
+noncomputable def maxEntangledStrategy [Fintype V] [DecidableEq V] [Nonempty ι] :
+    CommutingStrategy E V (V → Bool) Bool (Matrix (ι × ι) (ι × ι) ℂ) :=
+  (X.map (kroneckerOne (ι := ι) (κ := ι))).strategy X.transposeObs X.isSelfAdjoint_transposeObs
+    X.transposeObs_mul_self (AlgState.vector (maxEntangled ι) norm_maxEntangled)
+    fun u v => commute_kroneckerOne_oneKronecker (X.op u) (Matrix.transpose (X.op v))
+
+/-- **Operator solutions give perfect strategies** [Cleve and Mittal, §2][CleveMittal2014]: the
+maximally entangled transpose strategy of a finite-dimensional operator solution wins the game of
+the linear constraint system with probability `1`, for every question distribution. -/
+theorem commutingWinProb_maxEntangledStrategy [Fintype V] [DecidableEq V] [Nonempty ι] [Finite E]
+    (μ : PMF (E × V)) :
+    (L.game μ).commutingWinProb X.maxEntangledStrategy = 1 :=
+  (X.map (kroneckerOne (ι := ι) (κ := ι))).commutingWinProb_strategy_of_agreement _ _ _ _ _
+    (fun v => AlgState.kroneckerOne_approx_oneKronecker_transpose (X.isSelfAdjoint v)
+      (X.mul_self v)) μ
+
+end MaxEntangled
 
 end OperatorSolution
 

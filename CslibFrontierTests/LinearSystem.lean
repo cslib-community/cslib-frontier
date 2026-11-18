@@ -23,7 +23,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.LinearSystem
 
 open Cslib Cslib.Quantum Cslib.PCP
-open scoped ComplexOrder
+open scoped ComplexOrder MatrixOrder
 
 /-- The assignment `(1, 1, 0)` has even parity on all three variables, so its signs multiply to
 `1`. -/
@@ -45,14 +45,15 @@ example {ι A : Type} [Fintype ι] [DecidableEq ι] [Ring A] [Algebra ℂ A] (O 
     jointProj O hO a = 0 :=
   jointProj_eq_zero O hO hO' hprod ha
 
-/-- Operator solutions with perfect agreement win every linear constraint system game. -/
+/-- Operator solutions with a supplied perfectly agreeing Bob win every linear constraint system
+game. -/
 example {V E 𝒜 : Type} [Fintype V] [DecidableEq V] [Finite E] [CStarAlgebra 𝒜] [PartialOrder 𝒜]
     [StarOrderedRing 𝒜] (L : LinearSystem V E) (X : L.OperatorSolution 𝒜) (Y : V → 𝒜)
     (hY : ∀ v, IsSelfAdjoint (Y v)) (hY' : ∀ v, Y v * Y v = 1) (φ : AlgState 𝒜)
     (hXY : ∀ u v, Commute (X.op u) (Y v)) (hagree : ∀ v, X.op v ≈[φ; 0] Y v)
     (μ : PMF (E × V)) :
     (L.game μ).commutingWinProb (X.strategy Y hY hY' φ hXY) = 1 :=
-  X.commutingWinProb_strategy Y hY hY' φ hXY hagree μ
+  X.commutingWinProb_strategy_of_agreement Y hY hY' φ hXY hagree μ
 
 /-- The identity state on `ℂ`. -/
 noncomputable def complexState : AlgState ℂ where
@@ -81,7 +82,23 @@ example (μ : PMF (Unit × Fin 2)) :
         (fun _ => Complex.conj_ofReal _)
         (fun _ => by simp)
         complexState (fun _ _ => Commute.all _ _)) = 1 :=
-  LinearSystem.OperatorSolution.commutingWinProb_strategy _ _ _ _ _ _
+  LinearSystem.OperatorSolution.commutingWinProb_strategy_of_agreement _ _ _ _ _ _
     (fun _ => AlgState.approx_self _ _) μ
+
+/-- **Operator solutions give perfect strategies**: every finite-dimensional operator solution, from
+its matrices alone, wins with certainty through the maximally entangled transpose strategy. -/
+example {V E ι : Type} [Fintype V] [DecidableEq V] [Finite E] [Fintype ι] [DecidableEq ι]
+    [Nonempty ι] (L : LinearSystem V E) (X : L.OperatorSolution (Matrix ι ι ℂ))
+    (μ : PMF (E × V)) :
+    (L.game μ).commutingWinProb X.maxEntangledStrategy = 1 :=
+  X.commutingWinProb_maxEntangledStrategy μ
+
+/-- **Concrete instance**: the all-zero assignment of `evenPair`, as `1 × 1` matrices, wins with
+certainty through the maximally entangled transpose strategy. -/
+example (μ : PMF (Unit × Fin 2)) :
+    (evenPair.game μ).commutingWinProb
+      (((LinearSystem.OperatorSolution.ofAssignment (fun _ => false) evenPair_satisfies).map
+        (StarAlgHom.ofId ℂ (Matrix (Fin 1) (Fin 1) ℂ))).maxEntangledStrategy) = 1 :=
+  LinearSystem.OperatorSolution.commutingWinProb_maxEntangledStrategy _ μ
 
 end CslibFrontierTests.LinearSystem

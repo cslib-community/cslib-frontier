@@ -95,6 +95,23 @@ noncomputable def jointProd (O : ι → A) (hO : ∀ i j, Commute (O i) (O j)) :
 variable (O : ι → A) (hO : ∀ i j, Commute (O i) (O j))
 
 omit [DecidableEq ι] in
+/-- The joint product is the ordered product `Finset.noncommProd` of the commuting observables. -/
+theorem jointProd_eq_noncommProd :
+    jointProd O hO = (Finset.univ : Finset ι).noncommProd O fun i _ j _ _ => hO i j := by
+  have := isMulCommutative_jointAlg O hO
+  unfold jointProd
+  rw [← Finset.noncommProd_eq_prod]
+  exact Finset.map_noncommProd _ _ _ (jointAlg O).val
+
+omit [DecidableEq ι] in
+/-- A star-algebra homomorphism carries the joint product to the joint product of the images. -/
+theorem map_jointProd {B F : Type*} [Ring B] [StarRing B] [Algebra ℂ B] [FunLike F A B]
+    [AlgHomClass F ℂ A B] (f : F) :
+    f (jointProd O hO) = jointProd (fun i => f (O i)) fun i j => (hO i j).map f := by
+  rw [jointProd_eq_noncommProd, jointProd_eq_noncommProd]
+  exact Finset.map_noncommProd _ _ _ f
+
+omit [DecidableEq ι] in
 theorem jointProj_mem_jointAlg (a : ι → Bool) : jointProj O hO a ∈ jointAlg O := by
   unfold jointProj
   exact SetLike.coe_mem _
