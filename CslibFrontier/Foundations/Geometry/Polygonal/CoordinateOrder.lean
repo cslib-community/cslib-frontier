@@ -24,6 +24,7 @@ positions and coordinates. Parameters must belong to the closed unit interval.
 
 * `Cslib.Polygonal.Route.eval_re_lt_iff_position_lt_of_strictMono`: actual evaluation
   coordinates have exactly the strict order of their chain positions.
+* `Cslib.Polygonal.Route.isSimple_of_strictMono_re`: strict real node order implies simplicity.
 
 This original geometric criterion supports simplicity proofs for future ordered local
 patch assembly. It is sufficient, not necessary: closed routes and routes with vertical
@@ -125,5 +126,19 @@ theorem eval_re_lt_iff_position_lt_of_strictMono (p : Route)
     by_contra hp
     exact (not_lt_of_ge (eval_re_le_of_position_le h j i ht hs (le_of_not_gt hp))) he
   · exact eval_re_lt_of_position_lt h i j hs ht
+
+/-- Strictly increasing real node coordinates imply simplicity on the closed parameter intervals. -/
+theorem isSimple_of_strictMono_re {p : Route}
+    (h : StrictMono fun k => (p.point k).re) : p.IsSimple := by
+  have hn (i j : Fin p.segments) (s t : ℝ)
+      (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) (he : p.eval i s = p.eval j t) :
+      ¬p.position i s < p.position j t := by
+    intro hp
+    have hr := (eval_re_lt_iff_position_lt_of_strictMono p h i j s t hs ht).mpr hp
+    exact (ne_of_lt hr) (congrArg Complex.re he)
+  intro i j s t hs ht he
+  left
+  exact le_antisymm (le_of_not_gt (hn j i t s ht hs he.symm))
+    (le_of_not_gt (hn i j s t hs ht he))
 
 end Cslib.Polygonal.Route

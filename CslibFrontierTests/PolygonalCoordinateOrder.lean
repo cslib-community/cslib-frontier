@@ -28,19 +28,6 @@ namespace Cslib.Tests.PolygonalCoordinateOrder
 
 open Cslib.Polygonal Cslib.Polygonal.Route
 
-private theorem simple_of_order {p : Route}
-    (h : StrictMono fun k => (p.point k).re) : p.IsSimple := by
-  have hn (i j : Fin p.segments) (s t : ℝ)
-      (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) (he : p.eval i s = p.eval j t) :
-      ¬p.position i s < p.position j t := by
-    intro hp
-    have hr := (eval_re_lt_iff_position_lt_of_strictMono p h i j s t hs ht).mpr hp
-    exact (ne_of_lt hr) (congrArg Complex.re he)
-  intro i j s t hs ht he
-  left
-  exact le_antisymm (le_of_not_gt (hn j i t s ht hs he.symm))
-    (le_of_not_gt (hn i j s t hs ht he))
-
 private def bent : Route := (line (⟨0, 3⟩ : ℂ) ⟨1, -100⟩).append ⟨4, 7⟩
 
 private theorem bent_increasing : StrictMono fun k => (bent.point k).re := by
@@ -56,7 +43,7 @@ private theorem bent_increasing : StrictMono fun k => (bent.point k).re := by
 /-- Strict coordinate order proves simplicity even with large imaginary excursions. -/
 theorem increasing_excursive_simple :
     ((line (⟨0, 3⟩ : ℂ) ⟨1, -100⟩).append ⟨4, 7⟩).IsSimple :=
-  simple_of_order bent_increasing
+  isSimple_of_strictMono_re bent_increasing
 
 -- Adjacent descriptions of one knot coincide; neither comparison is strict.
 example : bent.eval 0 1 = bent.eval 1 0 ∧
@@ -83,11 +70,11 @@ example (i j : Fin bent.reverse.segments) (s t : ℝ)
     (1 - s) (1 - t) (Set.Icc.one_sub_mem hs) (Set.Icc.one_sub_mem ht)]
   constructor <;> intro h <;> linarith
 
-example : bent.reverse.IsSimple := (simple_of_order bent_increasing).reverse
+example : bent.reverse.IsSimple := (isSimple_of_strictMono_re bent_increasing).reverse
 
 -- A single nonvertical segment is the no-patch case, not a zero-segment route.
 example : (line (0 : ℂ) ⟨2, 5⟩).IsSimple := by
-  apply simple_of_order
+  apply isSimple_of_strictMono_re
   apply Fin.strictMono_iff_lt_succ.mpr
   intro i
   fin_cases i
