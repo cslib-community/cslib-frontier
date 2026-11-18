@@ -44,9 +44,17 @@ generates it (`smul_generator_bijective`). `elGamalOWToCDHAdversary` is `ℬ` wi
 the family's polynomial-time exponent sampler `sampleExp`, and is efficient whenever `𝒜` is
 (`isPPT_elGamalOWToCDHAdversary`). Because `sampleExp` is within `1 / 2 ^ n` of uniform, the two
 games differ by at most `1 / 2 ^ n` (`advantage_elGamalOWGame_cdhGame_le`), not exactly, and
-`CDH.elGamal_oneWay` concludes that every efficient typed adversary has negligible advantage under
-CDH. Adversaries read and write group elements, as CDH adversaries of the family do; a word-level
-one-wayness predicate would need a decoder for group elements, which the family does not provide.
+`CDH.elGamal_oneWay_ideal` concludes that every efficient typed adversary has negligible advantage
+under CDH. Adversaries read and write group elements, as CDH adversaries of the family do; a
+word-level one-wayness predicate would need a decoder for group elements, which the family does
+not provide.
+
+The scheme in `elGamalOWGame` is `elGamalExplicitCoinPKE`, whose key generator and encryption draw
+the exponents `α` and `β` exactly uniformly from `ZMod q`. The family's efficient multiplicative
+ElGamal (`elGamalKeyGenProb`, `elGamalEncryptProb`) draws them with the fair-coin sampler
+`sampleExp`, and the library has no one-wayness theorem for it (#5293). `CDH.elGamal_oneWay_ideal`
+is therefore an ideal-sampling step toward Theorem 12.12 (p. 501), not the one-wayness claim of
+Section 12.6.2 for the efficient scheme.
 
 ## Main definitions
 
@@ -64,12 +72,16 @@ one-wayness predicate would need a decoder for group elements, which the family 
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalOWToCDHAdversary`: the reduction is efficient.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWGame_cdhGame_le`: the family games differ
   by at most `1 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay`: one-wayness under CDH.
+
+## Ideal-sampling step
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay_ideal`: one-wayness under CDH of the
+  scheme with exactly uniform exponents.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
-  Section 12.6.2 (printed pp. 499–500).
+  Section 12.6.2 (printed pp. 499–500) and Theorem 12.12 (printed p. 501).
 -/
 
 public section
@@ -228,10 +240,13 @@ theorem advantage_elGamalOWGame_cdhGame_le (setup : ℕ → PMF F.Desc) (A : F.E
     ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
       fun u v => A n d u (v, δ • F.generator d) >>= fun x => pure (δ • F.generator d - x))
 
-/-- **Multiplicative ElGamal is one-way under CDH** ([BonehShoup2023], Section 12.6.2, p. 500): if
-CDH holds for the family under `setup`, every efficient typed adversary wins Attack Game 12.6 with
-negligible probability. -/
-theorem CDH.elGamal_oneWay {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 12.12 (p. 501), not the cited result: if
+CDH holds for the family under `setup`, every efficient typed adversary wins Attack Game 12.6
+against `elGamalExplicitCoinPKE` with negligible probability. This is the one-wayness claim of
+Section 12.6.2 (p. 500) for the scheme whose key generator and encryption draw the exponents
+exactly uniformly from `ZMod q`, not for the family's fair-coin scheme (`elGamalKeyGenProb`,
+`elGamalEncryptProb`), for which the library has no one-wayness theorem (#5293). -/
+theorem CDH.elGamal_oneWay_ideal {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hCDH : F.CDH setup) (A : F.ElGamalOWAdversary) (hA : A.IsPPT) :
     Negligible fun n => Game.succProbability (F.elGamalOWGame setup A n) := by
   have hcdh := hCDH _ (isPPT_elGamalOWToCDHAdversary hA)

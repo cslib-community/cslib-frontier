@@ -16,8 +16,12 @@ public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sourc
 # Linear Secret Sharing from Monotone Span Programs
 
 This module formalizes the linear secret-sharing scheme derived from a monotone span program
-`P : MonotoneSpanProgram F Party` ([BonehShoup2023], Construction 22.2, Theorem 22.13, Definition
-22.22, and Remark 22.15, pp. 978–982).
+`P : MonotoneSpanProgram F Party` ([BonehShoup2023], Construction 22.2, Definition 22.22 and
+Remark 22.15, pp. 978–982), with its correctness and privacy identities. These identities are a
+step toward Theorem 22.13 (p. 980), not that theorem. Theorem 22.13 says that Construction 22.2 is
+a secret sharing scheme in the sense of Definition 22.19 (p. 975), whose sharing and combining
+algorithms are efficient. Here the combiner `linearReconstruct` picks its row weights with
+`Classical.choose`, and no efficiency certificate for sharing or combining is proved (#5293).
 
 In [BonehShoup2023] (Definition 22.21, p. 978), `P` *recognizes* an access structure `A` iff
 `P.accessStructure = A`.
@@ -48,7 +52,7 @@ privacy over infinite fields while correctness still holds for every key; use
   reconstruction of Construction 22.2.
 * `Cslib.Crypto.Protocols.SecretSharing.linearAccessScheme`,
   `Cslib.Crypto.Protocols.SecretSharing.linearUniformAccessScheme`: `AccessScheme` instances
-  (Definition 22.22, Theorem 22.13).
+  (Definition 22.22), bundling the identities toward Theorem 22.13.
 
 ## Main results
 
@@ -62,7 +66,7 @@ privacy over infinite fields while correctness still holds for every key; use
 * `Cslib.Crypto.Protocols.SecretSharing.linearShare_smul`: scalar multiplication homomorphism
   (not in [BonehShoup2023], Remark 22.15 states sums only).
 * `Cslib.Crypto.Protocols.SecretSharing.linearView_eq_of_not_accepts`: secret-independence of
-  unauthorized views under translation-invariant key sources (Theorem 22.13).
+  unauthorized views under translation-invariant key sources, a step toward Theorem 22.13.
 
 ## References
 
@@ -182,9 +186,14 @@ theorem linearReconstruct_linearShare_add (P : MonotoneSpanProgram F Party)
   rw [hcongr]
   exact linearReconstruct_linearShare P (k₁ + k₂) (secret₁ + secret₂) hs
 
-/-- Privacy of Construction 22.2 ([BonehShoup2023], Theorem 22.13, p. 980): under any
-translation-invariant key distribution `Q ∈ SourceClass.translationInvariant (LinearKey P)`, every
-unauthorized coalition's view distribution is independent of the secret. -/
+/-- The privacy identity of Construction 22.2, a step toward [BonehShoup2023], Theorem 22.13
+(p. 980), not that theorem: under any translation-invariant key distribution
+`Q ∈ SourceClass.translationInvariant (LinearKey P)`, every unauthorized coalition's view
+distribution is independent of the secret, the condition of Definition 22.20 (p. 976).
+Theorem 22.13 also says that Construction 22.2 is a secret sharing scheme in the sense of
+Definition 22.19 (p. 975), whose sharing and combining algorithms are efficient. Here the combiner
+`linearReconstruct` picks its row weights with `Classical.choose`, and no efficiency certificate
+for sharing or combining is proved (#5293). -/
 theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
     {Q : PMF (LinearKey P)} (hQ : Q ∈ SourceClass.translationInvariant (LinearKey P))
     {s : Finset Party} (hs : ¬ P.Accepts s) (secret₀ secret₁ : F) :
@@ -202,11 +211,14 @@ theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
   simp only [linearShare]
   rw [← hcons, Matrix.mulVec_add, Matrix.mulVec_smul, hv_null i.1 i.2, smul_zero, add_zero]
 
-/-- **Construction 22.2, Theorem 22.13, and Definition 22.22** ([BonehShoup2023], pp. 979–980):
-the linear secret-sharing scheme derived from a monotone span program `P` over
-`SourceClass.translationInvariant (LinearKey P)`. When `F` is infinite and `P.tailDim ≥ 1`,
-`SourceClass.translationInvariant (LinearKey P) = ∅` so privacy is vacuous (only universal
-correctness holds nontrivially); use `linearUniformAccessScheme` for finite fields. -/
+/-- The linear secret-sharing scheme derived from a monotone span program `P` ([BonehShoup2023],
+Construction 22.2 and Definition 22.22, pp. 979–980), over
+`SourceClass.translationInvariant (LinearKey P)`. It bundles the correctness and privacy
+identities, a step toward Theorem 22.13 (p. 980): its combiner `linearReconstruct` picks its row
+weights with `Classical.choose` and carries no efficiency claim (#5293). When `F` is infinite and
+`P.tailDim ≥ 1`, `SourceClass.translationInvariant (LinearKey P) = ∅`, so privacy is vacuous
+(only universal correctness holds nontrivially); use `linearUniformAccessScheme` for finite
+fields. -/
 @[expose] noncomputable def linearAccessScheme (P : MonotoneSpanProgram F Party) :
     AccessScheme F (LinearKey P) Party (LinearShare P) where
   access := P.accessStructure

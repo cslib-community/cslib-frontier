@@ -205,7 +205,8 @@ theorem evalPure_recursiveDlog {L : ZMod n → S}
         evalPure_product hO, hγ, Nat.div_add_mod]
 
 /-- **Groups of order `2 ^ ℓ`.** Specialization of `recursiveDlog` with `subgroupDlog 2` in
-`ZMod (2 ^ ℓ)` ([BonehShoup2023], Section 16.1.2.1, p. 686). Every query is a product by
+`ZMod (2 ^ ℓ)` ([BonehShoup2023], Section 16.1.2.2, p. 686, the case `n = 2 ^ ℓ`, using
+Algorithm RDL of Section 16.1.2.1, p. 685). Every query is a product by
 `queriesSatisfy_recursiveDlog` and `queriesSatisfy_subgroupDlog`; the constant `6` is this
 library's and no machine-model bound is claimed. -/
 theorem recursiveDlog_two_pow [DecidableEq S] {ℓ : ℕ} (hℓ : 1 ≤ ℓ) {L : ZMod (2 ^ ℓ) → S}
