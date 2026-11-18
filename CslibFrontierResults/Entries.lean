@@ -6996,8 +6996,8 @@ register_result "deterministic-cipher-not-indcpa" where
     scheme's own keyGen and encrypt evaluated exactly and decryption completeness \
     decrypt_encrypt). In not_indcpa_of_deterministic and advantage_cpaGame_detCPAAdversary \
     (Example 5.1), encryption is assumed deterministic only on 0^n under supported keys from some \
-    n₀ onward, and the certified two-query distinguisher detCPAAdversary ctBound queries (1^n, \
-    0^n) and (0^n, 0^n) for n ≥ 1 with replies truncated to ctBound n bits (the identity on \
+    n₀ onward, and the certified two-query distinguisher detCPAAdversary ctBound queries (0^n, \
+    1^n) and (0^n, 0^n) for n ≥ 1 with replies truncated to ctBound n bits (the identity on \
     supported ciphertexts under CiphertextLengthLE), achieving CPA advantage 1 and refuting \
     INDCPA. In not_indcpa_of_ciphertext_length_eq (Exercise 5.10(a)), zero ciphertext expansion \
     (CiphertextLength n n on supported keys and n-bit messages) forces deterministic encryption by \

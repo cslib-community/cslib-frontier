@@ -162,6 +162,7 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
   `Cslib.Crypto.SymmetricCipher.advantage_cpaGame_detCPAAdversary`,
   `Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic`,
   `Cslib.Crypto.SymmetricCipher.encrypt_eq_of_ciphertext_length_eq`,
+  `Cslib.Crypto.SymmetricCipher.exists_eval_encrypt_eq_pure_of_ciphertext_length_eq`,
   `Cslib.Crypto.SymmetricCipher.not_indcpa_of_ciphertext_length_eq`: deterministic symmetric ciphers
   (even with arbitrary polynomial ciphertext expansion) and zero-expansion ciphers cannot satisfy
   `INDCPA` ([BonehShoup2023], Example 5.1 and Exercise 5.10(a)).
