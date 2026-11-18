@@ -131,6 +131,7 @@ syntax (name := encInductiveParameterized) (docComment)? "enc_inductive " ident
   (" (" ident " : " term ")")+ " : " term " where"
   (" | " ident (" : " term:max,+)?)+ : command
 
+/-- Elaborate explicit uniform parameters and field choices through the recursive generator. -/
 @[command_elab encInductiveParameterized] def elabEncInductiveParameterized : CommandElab :=
     fun stx => do
   let `($[$doc:docComment]? enc_inductive $eT:ident $[($ps:ident : $pts:term)]* : $T:term where
