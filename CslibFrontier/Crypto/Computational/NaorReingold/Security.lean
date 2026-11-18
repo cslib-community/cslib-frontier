@@ -57,13 +57,14 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
    distinguisher bounds and asymptotic security under `F.DDH setup` alone: for the keys drawn with
    the fair-coin sampler `sampleNaorReingoldExp` (`DDH.negligible_naorReingoldProbGame`), through
    the ideal-sampling step with exactly uniform keys (`DDH.negligible_naorReingoldWordGame_ideal`).
-3. **Universal-hash bit-string Naor–Reingold PRF (paraphrase of [NaorReingold2004], Section 4.1,
-   Construction 4.2, Theorem 4.3, and Remark 4.2, using Lemma 4.2):** composing
-   `naorReingoldWordEval` with `linearHashKDF` under a public universal-hash seed (`F.withSeed` and
-   `F.seededSetup`) maps group outputs into uniform `outLen n`-bit strings; a multi-query Leftover
-   Hash Lemma bound via `PMF.dist_bind_pair_pi_le_sum` yields adaptive bit-string PRF security
-   (`DDH.negligible_naorReingoldHashedGame`, `DDH.negligible_naorReingoldHashedProbGame`, and
-   `DDH.negligible_naorReingoldHashedGame_const`).
+3. **Universal-hash bit-string Naor–Reingold PRF (after [NaorReingold2004], not checked):**
+   composing `naorReingoldWordEval` with `linearHashKDF` under a public universal-hash seed
+   (`F.withSeed` and `F.seededSetup`) maps group outputs into uniform `outLen n`-bit strings; a
+   multi-query Leftover Hash Lemma bound via `PMF.dist_bind_pair_pi_le_sum` yields adaptive
+   bit-string PRF security for exponents drawn with the fair-coin sampler
+   (`DDH.negligible_naorReingoldHashedProbGame`), through the ideal-key-sampling steps with exactly
+   uniform exponents (`DDH.negligible_naorReingoldHashedGame_ideal`,
+   `DDH.negligible_naorReingoldHashedGame_ideal_const`).
 
 ## Main definitions
 
@@ -97,10 +98,9 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
   security of the Naor–Reingold group-PRF with fair-coin keys under `F.DDH setup`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_naorReingoldHashedWordEval`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldHashedIdeal_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedProbGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame_const`: polynomial-time
-  evaluation, multi-query Leftover Hash Lemma bound, and asymptotic bit-string PRF security.
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedProbGame`: polynomial-time
+  evaluation, multi-query Leftover Hash Lemma bound, and asymptotic bit-string PRF security with
+  fair-coin exponents.
 
 ## Ideal-sampling steps
 
@@ -108,6 +108,11 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldWordGame_ideal`: the quantitative
   DDH reduction bound and asymptotic security for `naorReingoldWordRealGame`, whose keys are drawn
   exactly uniformly. `DDH.negligible_naorReingoldProbGame` consumes them.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame_ideal_const`:
+  asymptotic security of the hashed bit-string PRF for `naorReingoldHashedRealGame`, whose
+  exponents are drawn exactly uniformly. `DDH.negligible_naorReingoldHashedProbGame` consumes the
+  first, and `CslibFrontier/Crypto/Computational/NaorReingold/PRF.lean` consumes both.
 
 ## References
 
@@ -116,7 +121,7 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
   (Exercises 10.4, 10.8, and 10.11, pp. 424–426).
 * [M. Naor, O. Reingold, *Number-Theoretic Constructions of Efficient Pseudo-Random
   Functions*][NaorReingold2004], Section 4.1 (Construction 4.1, Theorem 4.1, Lemma 4.2,
-  Construction 4.2, Theorem 4.3, and Remark 4.2).
+  Construction 4.2, Theorem 4.3, and Remark 4.2); locators not checked.
 -/
 
 public section
@@ -2357,12 +2362,14 @@ private theorem negligible_naorReingoldHashedGame_of_ideal_le {F : PrimeOrderGro
     (hbound n)]
   exact le_rfl
 
-/-- **Asymptotic DDH security of the universal-hash Naor–Reingold bit-string PRF** (paraphrase of
-[NaorReingold2004], Section 4.1, Construction 4.2, Theorem 4.3, and Remark 4.2): under
-`F.DDH setup`, when group descriptions on `(setup n).support` have polynomially bounded bit-length,
-`bound` bounds encoded group elements, and `2 ^ (outLen n) / qMin n` is negligible, no `IsOraclePPT`
-adversary can distinguish `naorReingoldHashedRealGame` from `naorReingoldHashedIdealGame`. -/
-theorem DDH.negligible_naorReingoldHashedGame {F : PrimeOrderGroupFamily}
+/-- Ideal-key-sampling step, not the cited result: under `F.DDH setup`, when group descriptions on
+`(setup n).support` have polynomially bounded bit-length, `bound` bounds encoded group elements,
+and `2 ^ (outLen n) / qMin n` is negligible, no `IsOraclePPT` adversary can distinguish
+`naorReingoldHashedRealGame`, whose exponents are drawn exactly uniformly from `ZMod (F.order d)`,
+from `naorReingoldHashedIdealGame`. The theorem for exponents drawn with the fair-coin sampler
+`sampleNaorReingoldExp` is `DDH.negligible_naorReingoldHashedProbGame`, which uses this one. The
+construction is after [NaorReingold2004], not checked. -/
+theorem DDH.negligible_naorReingoldHashedGame_ideal {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {inLen outLen : ℕ → ℕ} {bound : F.Desc → ℕ}
     {descBound qMin : ℕ → ℕ}
     (hDDH : F.DDH setup)
@@ -2429,17 +2436,20 @@ theorem DDH.negligible_naorReingoldHashedProbGame {F : PrimeOrderGroupFamily}
       (fun w => F.linearHashKDF (fun _ => outLen n) bound (ds, w))
   refine negligible_of_le
     ((negligible_add_one_div_two_pow hinLen).add
-      (hDDH.negligible_naorReingoldHashedGame hinLen houtLen hbound_poly hdesc_poly hdesc hbound
-        hq0 hq hneg hadversary)) fun n => ?_
+      (hDDH.negligible_naorReingoldHashedGame_ideal hinLen houtLen hbound_poly hdesc_poly hdesc
+        hbound hq0 hq hneg hadversary)) fun n => ?_
   game_trans [F.naorReingoldHashedRealGame setup inLen outLen bound adversary n]
     using [hprob_le n, le_rfl]
 
-/-- **Constant-output-length hashed Naor–Reingold security under `F.DDH setup` alone**
-(original, combining `DDH.negligible_expected_inv_order` with Theorem 4.3, Remark 4.2, and Lemma 4.2
-of [NaorReingold2004]): for any constant output length `c : ℕ` (including `c = 1`), `F.DDH setup`
-automatically supplies the inverse-order decay needed by the Leftover Hash Lemma, requiring no
-external `qMin` hypothesis. -/
-theorem DDH.negligible_naorReingoldHashedGame_const {F : PrimeOrderGroupFamily}
+/-- Ideal-key-sampling step with constant output length, not the cited result: for any constant
+output length `c : ℕ` (including `c = 1`), under `F.DDH setup` alone no `IsOraclePPT` adversary can
+distinguish `naorReingoldHashedRealGame`, whose exponents are drawn exactly uniformly from
+`ZMod (F.order d)`, from `naorReingoldHashedIdealGame`. `F.DDH setup` supplies the inverse-order
+decay that the Leftover Hash Lemma needs (`DDH.negligible_expected_inv_order`), so no `qMin`
+hypothesis is needed. The library has no version of this theorem for fair-coin exponents (#5293);
+`DDH.exists_pseudorandomGenerator` in `CslibFrontier/Crypto/Computational/NaorReingold/PRF.lean`
+uses this one. The construction is after [NaorReingold2004], not checked. -/
+theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {inLen : ℕ → ℕ} {bound : F.Desc → ℕ} {descBound : ℕ → ℕ}
     (c : ℕ) (hDDH : F.DDH setup)
     (hinLen : ComputableInPolyTime inLen encUnary encUnary)
