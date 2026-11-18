@@ -103,7 +103,7 @@ example : (81 / 242 : ℝ) ≤ Game.succProbability (oneWayGame (schnorrKeyGen (
     (FiatShamir.reduction (Function.Embedding.refl _) (schnorr ι (2 : ZMod 11))
       (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod 11) (ZMod 11) 2) id ι)
       (linearExtract ι) 0 knower 0 1)) := by
-  have h := schnorr_succProbability_eufCmaGame_le (ι := ι) (g := (2 : ZMod 11)) (by decide)
+  have h := schnorr_succProbability_eufCmaGame_le_ideal (ι := ι) (g := (2 : ZMod 11)) (by decide)
     knower knower_callBounded
   have hknower : Game.succProbability (eufCmaGame (fiatShamir (M := Bool)
     (Function.Embedding.refl _)
@@ -216,7 +216,8 @@ private theorem reduction_rejecting (fallback : ℕ) :
     FiatShamir.reduction (Function.Embedding.refl _) rejecting
       (fun _ _ => PMF.pure ((), ())) (fun _ _ _ _ _ _ => 0) fallback emptyForger 0 0 () =
       PMF.pure fallback := by
-  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, OracleComp.forkingAlgorithm,
+  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, Forking.onTapes,
+    OracleComp.forkingAlgorithm,
     FiatShamir.forkingProgram, ForkingReduction.program, ForkingReduction.finish,
     ForkingReduction.verdict, FiatShamir.check, emptyForger,
     rejecting, OracleComp.validIndex, OracleComp.forkNamedPosition,

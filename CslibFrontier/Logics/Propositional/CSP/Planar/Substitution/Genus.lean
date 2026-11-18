@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Substitution.Rotation
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ArityOccurrence
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Substitution.ProbeParity
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Foundations.Data.BitString.CyclicSeam
@@ -46,28 +47,15 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP OrderedBoundary Graph
 variable {Src Rel : Type} {arity : Rel → ℕ} {sem : Rel → List Bool → Bool}
   {srcArity : Src → ℕ} {srcSem : Src → List Bool → Bool}
 
-private def sourcePort (F : CSP Src ℕ) (hF : WellFormed srcArity F) (i : Fin F.length)
-    (a : Fin (srcArity F[i.val].rel)) : F.Occurrence :=
-  ⟨i, Fin.cast (hF F[i.val] (List.getElem_mem i.isLt)).symm a⟩
-
-private theorem argumentSuccessor_sourcePort (F : CSP Src ℕ) (hF : WellFormed srcArity F)
-    (i : Fin F.length) (a : Fin (srcArity F[i.val].rel)) :
-    argumentSuccessor (sourcePort F hF i a) =
-      sourcePort F hF i (finRotate (srcArity F[i.val].rel) a) := by
-  apply CSP.Occurrence.eq_of_positions
-  · rfl
-  · simp only [argumentSuccessor, sourcePort, val_finRotate, Fin.val_cast,
-      hF F[i.val] (List.getElem_mem i.isLt)]
-
-private theorem sourceEdgeLabels_sourcePort
+private theorem sourceEdgeLabels_arityOccurrence
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
     (witnesses : ∀ r, GadgetWitness (gadgets r)) (B : ℕ) (F : CSP Src ℕ)
     (hF : WellFormed srcArity F) (i : Fin F.length)
     (x : Fin (incidenceGraph (replaceGadgets B (fun r => (gadgets r).template) F)).edges.length →
       Bool) (a : Fin (srcArity F[i.val].rel)) (side : Bool) :
-    sourceEdgeLabels gadgets witnesses B F x (incidenceDart (sourcePort F hF i a) side).1 =
+    sourceEdgeLabels gadgets witnesses B F x (incidenceDart (arityOccurrence F hF i a) side).1 =
       copiedFreeLabels gadgets witnesses B F i x a :=
-  sourceEdgeLabels_incidenceDart gadgets witnesses B F x (sourcePort F hF i a) side a rfl
+  sourceEdgeLabels_incidenceDart gadgets witnesses B F x (arityOccurrence F hF i a) side a rfl
 
 private theorem exists_copy_colorShifts
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
@@ -88,18 +76,18 @@ private theorem exists_copy_colorShifts
       (Pg i d ^^ Pg i d.reverse) = copiedProbeLabels gadgets witnesses B F i x d.1) :
     ∀ i : Fin F.length, ∃ K : Bool, (srcArity F[i.val].rel = 0 → K = false) ∧
       (∀ a, (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) false) ^^ K) =
-        Ps (incidenceDart (sourcePort F hF i a) true)) ∧
+        Ps (incidenceDart (arityOccurrence F hF i a) true)) ∧
       ∀ a, (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) true) ^^ K) =
-        Ps (incidenceDart (sourcePort F hF i a) false) := by
+        Ps (incidenceDart (arityOccurrence F hF i a) false) := by
   intro i
   apply Cslib.BitString.exists_uniform_colorSeam
-    (fun a => Ps (incidenceDart (sourcePort F hF i a) true))
-    (fun a => Ps (incidenceDart (sourcePort F hF i a) false))
+    (fun a => Ps (incidenceDart (arityOccurrence F hF i a) true))
+    (fun a => Ps (incidenceDart (arityOccurrence F hF i a) false))
     (fun a => Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) false))
     (fun a => Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) true))
   · intro a
-    rw [← argumentSuccessor_sourcePort F hF i a, ← hr (sourcePort F hF i a)]
-    exact hs (incidenceDart (sourcePort F hF i a) true)
+    rw [← argumentSuccessor_arityOccurrence F hF i a, ← hr (arityOccurrence F hF i a)]
+    exact hs (incidenceDart (arityOccurrence F hF i a) true)
   · intro a
     have h := hg i (incidenceDart
       (gadgetProbeOccurrence (gadgets F[i.val].rel) (finRotate (srcArity F[i.val].rel) a)) true)
@@ -107,9 +95,9 @@ private theorem exists_copy_colorShifts
       argumentSuccessor_gadgetProbeOccurrence_reverse] at h
     exact h.symm
   · intro a
-    have hleft := hxs (incidenceDart (sourcePort F hF i a) true)
+    have hleft := hxs (incidenceDart (arityOccurrence F hF i a) true)
     have hright := hxg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) false)
-    rw [sourceEdgeLabels_sourcePort] at hleft
+    rw [sourceEdgeLabels_arityOccurrence] at hleft
     rw [copiedProbeLabels_marker] at hright
     exact hleft.trans hright.symm
 
@@ -340,10 +328,10 @@ private theorem isChain_incidenceBlock_colors
       Pg i ((witnesses F[i.val].rel).probeRotation.rotate d) = Pg i d.reverse)
     (hKvar : ∀ (i : Fin F.length) a,
       (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) true) ^^ K i) =
-        Ps (incidenceDart (sourcePort F hF i a) false))
+        Ps (incidenceDart (arityOccurrence F hF i a) false))
     (hKcenter : ∀ (i : Fin F.length) a,
       (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) false) ^^ K i) =
-        Ps (incidenceDart (sourcePort F hF i a) true)) (o : F.Occurrence) :
+        Ps (incidenceDart (arityOccurrence F hF i a) true)) (o : F.Occurrence) :
     List.IsChain (fun p q : Bool × Bool => p.2 = q.1)
       ((Ps (incidenceDart o false), Ps (incidenceDart o false)) ::
         ((incidenceBlock (fun r => (gadgets r).template)
@@ -354,7 +342,7 @@ private theorem isChain_incidenceBlock_colors
         [(Ps (incidenceDart o true), Ps (incidenceDart o true))]) := by
   let a : Fin (srcArity F[o.1.val].rel) :=
     Fin.cast (hF F[o.1.val] (List.getElem_mem o.1.isLt)) o.2
-  have ho : sourcePort F hF o.1 a = o := by
+  have ho : arityOccurrence F hF o.1 a = o := by
     apply CSP.Occurrence.eq_of_positions
     · rfl
     · rfl
@@ -385,10 +373,10 @@ private theorem isChain_variableBlock_colors
       Pg i ((witnesses F[i.val].rel).probeRotation.rotate d) = Pg i d.reverse)
     (hKvar : ∀ (i : Fin F.length) a,
       (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) true) ^^ K i) =
-        Ps (incidenceDart (sourcePort F hF i a) false))
+        Ps (incidenceDart (arityOccurrence F hF i a) false))
     (hKcenter : ∀ (i : Fin F.length) a,
       (Pg i (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) false) ^^ K i) =
-        Ps (incidenceDart (sourcePort F hF i a) true)) (v : ℕ) (hv : v ∈ F.vars) :
+        Ps (incidenceDart (arityOccurrence F hF i a) true)) (v : ℕ) (hv : v ∈ F.vars) :
     ∃ color : Bool, List.IsChain (fun p q : Bool × Bool => p.2 = q.1)
       ((color, color) :: ((variableBlock (fun r => (gadgets r).template)
         (fun r => freeBoundaryBlocks (gadgets r) (witnesses r)) F c v).map

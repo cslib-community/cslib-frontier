@@ -13,13 +13,15 @@ import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
-# FIPS 204 signing and the strong chosen-message forgery experiment
+# Definitions of FIPS 204 signing and the strong chosen-message forgery experiment
 
 [FIPS 204][NISTFIPS204], Algorithms 2, 6 and 7. The external signer accepts the encoded
 private key, a bit-string message, a byte context and 32 bytes of randomness. A zero randomness
 string selects deterministic signing. The bounded loop uses the 814-attempt option of Appendix C.
 The adaptive strong-unforgeability experiment draws fresh hedging randomness for each signature
-and records the context, message and exact bytes of every successful reply.
+and records the context, message and exact bytes of every successful reply. Its sole external
+service is signing. Both signing and final verification evaluate the concrete FIPS 202 SHAKE
+functions. Its zero-signing-query lemma recovers the byte-level key-only experiment.
 
 `verify_of_sign` proves that every successful signature under a generated key passes
 Algorithm 3. For a fresh verifying signature that repeats a logged context, message and
@@ -265,9 +267,9 @@ theorem digestCollision_or_msis_of_signingTranscript {s : Level} {seed : FixedBy
     (f := out) hA distinct digest valid signed
   exact ⟨rho, sk.A, sk.publicKey.t, a, b, c, hA, pk, ha, hb, hc, pk ▸ result⟩
 
-/-- The strong chosen-message forgery experiment for FIPS 204's finite parameter sets:
-generate both keys from one uniform seed, answer adaptive signing calls with the secret key,
-and accept a verifying triple precisely when the signer never returned it. -/
+/-- The classical strong chosen-message experiment with concrete SHAKE. Both keys come from one
+uniform seed. The signer answers adaptive requests with the secret key. An accepted forgery
+must be fresh among the returned context, message and signature triples. -/
 noncomputable def sufCmaGame (s : Level) (adv : SigningForger) : Game :=
   keyExperiment s fun keys =>
     (ProbOracleComp.runWith (signingOracle s keys.secretKey) (adv keys.publicKey) []).map
