@@ -358,28 +358,6 @@ private theorem iid_maskFromRow (s : Level) :
     funext r i k j
     exact (unpack_row s (r (i, k)) j).symm
 
-private def terminalReply {α : Type} : Option (Option α) → Option (Option α)
-  | none => some none
-  | some reply => reply.map some
-
-private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte)))
-    (k start : ℕ) :
-    firstAccepted stride tryAt k start =
-      (Fin.findSome? fun i : Fin k => terminalReply (tryAt (start + i.val * stride))).join := by
-  induction k generalizing start with
-  | zero => rfl
-  | succ k ih =>
-    rw [Fin.findSome?_succ]
-    simp only [Fin.val_zero, zero_mul, add_zero]
-    have next (i : Fin k) : start + i.succ.val * stride = start + stride + i.val * stride := by
-      rw [Fin.val_succ, Nat.add_mul, Nat.one_mul]
-      lia
-    simp only [next]
-    cases h : tryAt start with
-    | none => simp [firstAccepted, h, terminalReply]
-    | some r =>
-      cases r <;> simp [firstAccepted, h, terminalReply, ih]
-
 private theorem cappedReplay {X Y : Type} (p : PMF X) (μ : PMF Y) (mask : X → ℕ → Y)
     (finish : Y → Option (Option (List Byte))) (stride k : ℕ)
     (law : p.map (fun x (i : Fin k) => mask x (0 + i.val * stride)) = PMF.iid μ k) :

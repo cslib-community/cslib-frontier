@@ -553,11 +553,6 @@ theorem computableInPolyTime_schnorrCommitBits :
   unfold schnorrCommitBits
   fun_prop
 
-/-- `schnorrCommitBits` lifted to `ProbComp` is uniform strict PPT. -/
-theorem isPPTOn_schnorrCommitBits :
-    IsPPTOn (encPair F.encDesc encBits) encBits (fun input => pure (F.schnorrCommitBits input)) :=
-  F.computableInPolyTime_schnorrCommitBits.isPPTOn
-
 /-- Input `(d, a, b, c)` of the bit-level Schnorr response and commitment-recovery maps: a group
 description `d`, then three bit words. The description and the first two words are framed. -/
 abbrev encSchnorrBitsInput : F.Desc × List Bool × List Bool × List Bool ↪ List Bool :=
@@ -599,11 +594,6 @@ theorem computableInPolyTime_schnorrRespondBits :
   have hro_nat := ComputableInPolyTime.bitsToNat.comp hro
   exact (ComputableInPolyTime.binary_mod'
     (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq).encoding_comp
-
-/-- `schnorrRespondBits` lifted to `ProbComp` is uniform strict PPT. -/
-theorem isPPTOn_schnorrRespondBits :
-    IsPPTOn F.encSchnorrBitsInput encBits (fun input => pure (F.schnorrRespondBits input)) :=
-  F.computableInPolyTime_schnorrRespondBits.isPPTOn
 
 /-- Bit-level Schnorr commitment recovery ([BonehShoup2023], Sections 19.1 and 19.2.1): given
 `(d, pk, c, z)`, compute the encoded group element `z • g - c • pk`. -/

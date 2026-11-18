@@ -429,6 +429,15 @@ def decodePrivate (s : Level) (bytes : List Byte) : Option (PrivateKey s) := do
     ringVectorCoeffs (unpackSigned _ width s.params.η second),
     ringVectorCoeffs (unpackSigned _ 13 4096 low)⟩
 
+/-- Decoded seed, key and public-key hash lengths are bounded by their FIPS byte widths. -/
+theorem lengths_of_decodePrivate {s : Level} {sk : PrivateKey s} {key : List Byte}
+    (hd : decodePrivate s key = some sk) :
+    sk.rho.length ≤ 32 ∧ sk.key.length ≤ 32 ∧ sk.tr.length ≤ 64 := by
+  simp only [decodePrivate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+    Option.some.injEq] at hd
+  obtain ⟨_, _, rfl⟩ := hd
+  simp
+
 private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.length = 32)
     (hk : v.key.length = 32) (ht : v.tr.length = 64)
     (h₁ : ∀ i j, |(v.s₁ i j).valMinAbs| ≤ s.params.η)
@@ -1151,6 +1160,20 @@ def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : L
   let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
   μ ++ Keccak.bytesToBitsLE (packCoeffs width fun i j => (w i j).toNat)
 
+/-- Bit length of the 512-bit representative followed by FIPS 204's packed high bits.
+It is 6656 at ML-DSA-44 and -65, and 8704 at ML-DSA-87. -/
+@[expose] def Level.commitmentInputBits (s : Level) : ℕ :=
+  512 + 8 * (32 * (((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1) * s.params.k)
+
+/-- Packing a commitment after a full message representative has the parameter-set bit width. -/
+theorem commitmentInput_length (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
+    {μ : List Bool} (hμ : μ.length = 512) :
+    (commitmentInput s w μ).length = s.commitmentInputBits := by
+  simp only [commitmentInput, List.length_append, hμ, Keccak.length_bytesToBitsLE,
+    Level.commitmentInputBits]
+  exact congrArg (fun n => 512 + 8 * n)
+    (length_packCoeffs (rows := s.params.k) (width := _) fun i j => (w i j).toNat)
+
 /-- The two SHAKE256 inputs in the FIPS challenge computation have different lengths:
 the 512-bit message representative is followed by a nonempty packed commitment, whereas the
 digest seed for Algorithm 29 occupies at most 512 bits. -/
@@ -1202,12 +1225,15 @@ private def hintedCommitment (s : Level) (pk : MLDSA.PublicKey s.params)
   fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
     (moduleSISMap pk.A σ.z i - negacyclicMul c (pk.t i))
 
+private abbrev Signature.acceptDigest {s : Level} (σ : Signature s) (digest : Unit → List Byte) :
+    Bool :=
+  decide (ResponseShort s.params σ.z) && decide (digest () = σ.digest)
+
 /-- Algorithm 8 after successful parsing and expansion. The digest from the signature must match
 the full SHAKE output byte for byte. -/
 private def Xofs.check (H : Xofs) (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
     (σ : Signature s) (c : Poly) : Bool :=
-  decide (ResponseShort s.params σ.z) &&
-    decide (H.commitmentDigest s (hintedCommitment s pk σ c) μ = σ.digest)
+  σ.acceptDigest fun _ => H.commitmentDigest s (hintedCommitment s pk σ c) μ
 
 private abbrev check := Xofs.check Xofs.shake
 

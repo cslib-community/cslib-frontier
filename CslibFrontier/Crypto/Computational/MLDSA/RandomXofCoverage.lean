@@ -138,14 +138,6 @@ private theorem attempt (h : Agreement H G a b) (ha : honestAddressBits s m ≤ 
   simp only [Xofs.attempt, Xofs.attemptWithMask, h.mask ha hb hr, h.commitment ha hb hm,
     h.challenge ha hb (le_of_eq (length_commitmentDigest ..))]
 
-private theorem decoded_bounds {sk : PrivateKey s} {key : List Byte}
-    (hd : decodePrivate s key = some sk) :
-    sk.rho.length ≤ 32 ∧ sk.key.length ≤ 32 ∧ sk.tr.length ≤ 64 := by
-  simp only [decodePrivate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
-    Option.some.injEq] at hd
-  obtain ⟨_, _, rfl⟩ := hd
-  simp
-
 private theorem signAttempts (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) (sk : PrivateKey s) (A : PublicMatrix s) {msg : List Bool}
     (hm : msg.length ≤ m) {ctx : List Byte} (hc : ctx.length ≤ 255) (rnd : FixedBytes 32)
@@ -176,7 +168,7 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
     bind_assoc, pure_bind]
   apply Option.bind_congr
   intro sk hsk
-  obtain ⟨hr, hk, ht⟩ := decoded_bounds hsk
+  obtain ⟨hr, hk, ht⟩ := lengths_of_decodePrivate hsk
   rw [h.matrix ha hb hr]
   apply Option.bind_congr
   intro A _
