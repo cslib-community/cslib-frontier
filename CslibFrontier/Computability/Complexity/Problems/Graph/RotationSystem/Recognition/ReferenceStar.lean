@@ -29,8 +29,8 @@ geometric order certificate. Degree zero, one and two need no special convention
 
 These are local statements about the intentionally crossing reference drawing. They supply
 neither a global embedding nor generic position, frozen placement, move realization or a
-Hanani–Tutte/query-completeness theorem. The remaining recognition objective is tracked in
-[issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+Hanani–Tutte/query-completeness theorem. The remaining full recognition and source-model
+objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Main definitions
 
@@ -39,10 +39,14 @@ Hanani–Tutte/query-completeness theorem. The remaining recognition objective i
 
 ## Main results
 
+* `Cslib.Complexity.Graph.RotationRecognition.frozen_iff_exists_subdivisionDart`: the stored
+  flag selects exactly the indexed first/last segments of originally fixed ends.
 * `Cslib.Complexity.Graph.RotationRecognition.subdivisionDart_endpoints`: the original center
   and the fresh leaf named by the original binary dart index.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_subdivisionDart_germ`: the
   actual outgoing vector from that center to that leaf.
+* `Cslib.Complexity.Graph.RotationRecognition.fixedWord_dart_vertex`: membership in a
+  prescribed complete word determines the original center.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_arg_lt_iff`: actual
   arguments decrease in the literal prescribed word, including comparison with itself.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_directions_injective`:
@@ -90,6 +94,64 @@ private theorem subdivide_getElem? (I : FixedRotationInput)
   have hsub : 3 * i.val + k.val - 3 * i.val = k.val := by omega
   rw [hsub, List.getElem?_append_left (by simp [emit])]
   simp [emit, entries, List.getElem_zipIdx]
+
+/-- The actual stored frozen bit selects exactly the first or last segment of an originally
+fixed indexed end. This raw combinatorial classifier does not require `Valid`. -/
+theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
+    (e : Fin (subdivisionGraph I).edges.length) :
+    ((subdivide I)[e.val]'(by
+      simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = true ↔
+      ∃ d : Dart I.graph, e = (subdivisionDart I d).1 ∧
+        (I.orders.getD d.vertex none).isSome = true := by
+  have he : e.val < (subdivide I).length := by
+    simpa only [subdivisionGraph, List.length_map] using e.isLt
+  constructor
+  · intro hf
+    have hsize : e.val < 3 * I.graph.edges.length := by simpa only [length_subdivide] using he
+    let i : Fin I.graph.edges.length := ⟨e.val / 3, by omega⟩
+    let k : Fin 3 := ⟨e.val % 3, Nat.mod_lt _ (by decide)⟩
+    have hlookup := subdivide_getElem? I i k
+    have hindex : 3 * i.val + k.val = e.val := by dsimp [i, k]; omega
+    rw [hindex] at hlookup
+    have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
+    have hk : k.val = 0 ∨ k.val = 1 ∨ k.val = 2 := by have := k.isLt; omega
+    rcases hk with hk | hk | hk
+    · refine ⟨(i, false), Fin.ext ?_, ?_⟩
+      · change e.val = 3 * i.val + 0
+        omega
+      · rw [hget] at hf
+        simpa only [Fin.getElem_fin, hk, List.getElem_cons_zero, Segment.frozen,
+          Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
+          List.getD_eq_getElem _ _ i.isLt] using hf
+    · rw [hget] at hf
+      simp only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+        Segment.frozen, Bool.false_eq_true] at hf
+    · refine ⟨(i, true), Fin.ext ?_, ?_⟩
+      · change e.val = 3 * i.val + 2
+        omega
+      · rw [hget] at hf
+        simpa only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+          Segment.frozen, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
+          List.getD_eq_getElem _ _ i.isLt] using hf
+  · rintro ⟨⟨i, b⟩, rfl, hf⟩
+    cases b
+    · have hlookup := subdivide_getElem? I i 0
+      have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
+      have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans
+        (by simpa only [Fin.val_zero, Nat.add_zero] using hlookup))
+      change ((subdivide I)[3 * i.val]).frozen = true
+      rw [hget]
+      change (I.orders.getD I.graph.edges[i].1 none).isSome = true
+      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
+    · have hlookup := subdivide_getElem? I i 2
+      have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
+      have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans hlookup)
+      change ((subdivide I)[3 * i.val + 2]).frozen = true
+      rw [hget]
+      change (I.orders.getD I.graph.edges[i].2 none).isSome = true
+      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
 
 /-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
 theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
@@ -210,7 +272,8 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     dsimp [k, i]
     omega
 
-private theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
+/-- A dart in a prescribed complete word has that word's center. -/
+theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
     {word : List ℕ} (hw : I.orders.getD v none = some word)
     {d : Dart I.graph} (hd : d.index ∈ word) : d.vertex = v := by
   have hf := (hI.2.2.2 v word hw).2 d.index |>.mp hd
