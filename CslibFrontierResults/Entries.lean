@@ -191,6 +191,8 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
+import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
+import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
@@ -198,6 +200,8 @@ import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
+import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
+import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -221,6 +225,7 @@ import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.RSAHalfPredicate
 import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
@@ -7547,3 +7552,171 @@ register_result "indcpa-no-repeating-ciphertexts" where
     truncates oracle replies to ctBound n bits (the identity on supported ciphertexts under \
     CiphertextLengthLE), and proves RepeatAdv[A, E] ≤ 2 · CPAadv[B, E] for all n ≥ 1 and \
     negligible winning probability under E.INDCPA. Outside check: PR #6337, review 5951220815."
+
+register_result "list-cdh-guessing" where
+  title := "Under CDH, no efficient adversary lists the Diffie–Hellman value among polynomially \
+    many candidates"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "guessing argument for protocol PAKE₁ (unnumbered)",
+      locator := "Section 21.11.4, p. 908" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_listCDHGame
+  ]
+  scope := "Over a PrimeOrderGroupFamily with group parameters drawn from a setup law, under the \
+    CDH assumption F.CDH setup (Attack Game 10.5 and Definition 10.7, pp. 409–410); the setup \
+    law need not be efficiently samplable, and the assumption is Boneh–Shoup's when it is. The \
+    book claims that an eavesdropper on PAKE₁ makes a relevant random-oracle query \
+    (pw′, id_P, id_Q, u, v, w′), one with w′ = [u, v], only with negligible probability. Its \
+    reduction gives u and v to the eavesdropper, answers the oracle from a table, collects the \
+    values w′ of the queries of that form and outputs one of them at random. Here PAKE₁, the \
+    passwords and the random oracle are not modelled, and the adversary returns the candidate \
+    values itself: given a·g and b·g for uniform exponents a and b, it outputs a list of group \
+    elements and wins listCDHGame when (a·b)·g is among the first Q n entries. An eavesdropper \
+    that answers its own oracle queries by lazy sampling is such an adversary. Q is any bound \
+    computable in polynomial time in unary; for an efficiently samplable setup law a strict PPT \
+    adversary's lists have polynomial length, so Q can cover them, where the book states no \
+    bound. Adversaries return typed group elements and are uniform strict PPT on their \
+    encodings (ListCDHAdversary.IsPPT), the convention of CDH. Conclusion: every such adversary \
+    wins with negligible probability. The reduction listCDHToCDHAdversary draws a position \
+    below Q n with n fair coins (sampleModIndex) instead of choosing among the collected \
+    entries, outputs g past the end of the list, and is certified strict PPT \
+    (isPPT_listCDHToCDHAdversary). succProbability_listCDHGame_le, in the same module, bounds \
+    the success probability by Q n times the reduction's CDH success probability plus \
+    Q n/2^(width n), for a reduction drawing width n coins. Its factor Q n is the bound \
+    CDHadv[Bcdh, G] ≥ Pr[Z]/Q, (11.12) in the proof of Theorem 11.4 (Section 11.5.1, \
+    pp. 447–448), which uses the same guessing step; the added term is the cost of the fair \
+    coins."
+
+register_result "cdh-inverse-order-negligible" where
+  title := "Under CDH, the inverse group order 1/q is negligible"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "remark that 1/q is negligible under CDH (unnumbered)",
+      locator := "Section 12.6.2, p. 500" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.negligible_inv_order
+  ]
+  scope := "Over a PrimeOrderGroupFamily along a deterministic schedule d of group parameters, \
+    one group d n of prime order q(d n) for each security parameter n: if F.CDH holds for the \
+    point-mass setup law at d n (Attack Game 10.5 and Definition 10.7, pp. 409–410), then \
+    n ↦ 1/q(d n) is negligible. The book states this in passing while showing that the \
+    multiplicative ElGamal scheme E_a is 1/q-unpredictable. In the book a negligible value is a \
+    negligible function of the security parameter (Section 2.3.4, p. 35), so q is read as a \
+    function of n. The assumption is Boneh–Shoup's when d is computable in polynomial time; the \
+    theorem needs no condition on d and no lower bound on the orders. The proof applies CDH to \
+    the adversary that always outputs the identity, which is certified strict PPT and wins \
+    whenever a = 0, so with probability at least 1/q. For a setup law that samples the group, \
+    CDH.negligible_expected_inv_order, in the same module, states that the expected inverse \
+    order is negligible, and DDH.negligible_expected_inv_order states the same under DDH; the \
+    module labels both original, and they are not listed here."
+
+register_result "malleable-encryption-not-1cca" where
+  title := "A public-key scheme with an efficient transformation whose decryption reveals the \
+    challenge bit is not 1CCA secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "malleability example with a CCA adversary of advantage 1 (unnumbered)",
+      locator := "Section 12.2.1, pp. 469–470" }
+  ]
+  theorems := [
+    Cslib.Crypto.Encryption.not_indcca2On_of_maulAdversary,
+    Cslib.Crypto.Encryption.advantage_cca2GameOn_maulAdversary
+  ]
+  scope := "The book gives an example: the scheme E_TDF with a stream cipher, where Molly changes \
+    the header of a ciphertext but not its body (p. 470), and a CCA adversary A with advantage \
+    1 against any scheme that allows such a change. These theorems prove a conditional \
+    criterion behind that example, for any public-key scheme (keyGen, encrypt, decrypt) on \
+    words, with a message type Msg and a predicate valid that admits challenge pairs. \
+    Criterion: (i) messages msg₀ and msg₁, computed from the public key in polynomial time, \
+    form a pair that valid admits under every honest public key; (ii) a transformation maul \
+    and a target word are computable in polynomial time; (iii) for every honest key pair and \
+    every ciphertext c in the support of the encryption of msg₀ or msg₁, maul(pk, c) ≠ c, and \
+    the decryption of maul(pk, c) encodes to the target exactly when c encrypts msg₁. \
+    maulAdversary plays the book's A: with no Phase 1 query it submits the pair, makes the \
+    single Phase 2 query maul(pk, c) and compares the reply with the target. It is certified \
+    strict oracle PPT (isPPT_maulAdversary). advantage_cca2GameOn_maulAdversary states that \
+    its advantage is exactly 1 at every n where (i) and (iii) hold, and \
+    not_indcca2On_of_maulAdversary concludes that the scheme is not INDCCA2On valid (Attack \
+    Game 12.1 and Definition 12.2, pp. 467–468, one encryption query, against uniform strict \
+    oracle-PPT adversaries). Validity condition: the library's 1CCA game decrypts every word \
+    other than the challenge and admits whatever pairs valid admits, whereas the source's \
+    decryption queries lie in the ciphertext space C and its challenge messages lie in M and \
+    have the same length. The conclusion is the source's only when the derived query \
+    maul(pk, c) lies in C for every honest challenge ciphertext c, as Molly's ciphertext does, \
+    and msg₀ and msg₁ are such messages; then maulAdversary is an adversary of Attack \
+    Game 12.1 with advantage 1 there. The theorems do not state that condition, so each \
+    application has to check it. The library applies them to ElGamal, Goldwasser–Micali and \
+    Paillier encryption, so (i)–(iii) can hold."
+
+register_result "partial-tag-encrypt-then-mac" where
+  title := "Encrypt-then-MAC over a one-block PRF cipher with an unauthenticated IV loses \
+    ciphertext integrity (an analogue of the randomized-CBC example)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "unauthenticated-IV example for randomized CBC mode (unnumbered); an analogue",
+      locator := "Section 9.4.1.1, pp. 368–369" }
+  ]
+  theorems := [
+    Cslib.Crypto.not_ciphertextIntegrity_prfCipherPartialTag,
+    Cslib.Crypto.not_authenticatedEncryption_prfCipherPartialTag,
+    Cslib.Crypto.PseudorandomFunction.prfCipherPartialTag_counterexample
+  ]
+  scope := "An analogue of the book's example, not the example itself. The book applies \
+    encrypt-then-MAC to randomized CBC mode and computes the tag on the body c alone, leaving \
+    the IV r unauthenticated (pp. 368–369). The construction here is prfCipherPartialTag. Its \
+    cipher is the one-block PRF cipher prfCipher for a keyed family F with n-bit keys, inputs \
+    and outputs, computable in polynomial time: the ciphertext of an n-bit message m is \
+    r ‖ (F(k, r) ⊕ m) for a uniform n-bit IV r. Its MAC is any MACScheme on n-bit messages, \
+    applied to the body alone (partialTagMAC), so the IV is not authenticated. CBC mode is \
+    not part of this entry, and neither is its plaintext shift m′[0] = m[0] ⊕ Δ (p. 369). \
+    The adversary partialTagCIAdversary makes one encryption query, on 0^n, flips the first \
+    bit of the IV and keeps the body and the tag, giving a ciphertext (r′, c, t) with r′ ≠ r \
+    as on p. 368. It is certified strict oracle PPT (isOraclePPT_partialTagCIAdversary) and \
+    wins with probability 1 for n ≥ 1 \
+    (eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary). Its query is an n-bit \
+    message and its forgery has the form of an honest ciphertext of this scheme, so it also \
+    wins Attack Game 9.1 for this scheme. Hence, for every such F and every MAC, with no \
+    assumption, the scheme provides neither ciphertext integrity (Attack Game 9.1 and \
+    Definition 9.1, pp. 358–359), nor its one-time form (Definition 9.3, p. 360), nor \
+    authenticated encryption (Definition 9.2, p. 359). prfCipherPartialTag_counterexample \
+    adds that when F is a PseudorandomFunction (Attack Game 4.2 and Definition 4.2, \
+    pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
+    pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
+
+register_result "rsa-half-predicate-inversion" where
+  title := "Baby Bleichenbacher: an oracle for the half predicate inverts RSA"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 12.21(a)–(b)",
+      locator := "Section 12.11, pp. 519–520" }
+  ]
+  theorems := [
+    Cslib.Crypto.lsbRecover_map_decide_lt_two_mul,
+    Cslib.Crypto.lsbInverter_halfToLSBPredictor,
+    Cslib.Crypto.succProbability_rsaInversionGame_halfToLSBPredictor
+  ]
+  scope := "Part (a), lsbRecover_map_decide_lt_two_mul: for an odd modulus N ≤ 2^m and x < N, \
+    the values of P_x(r) = [x·r mod N > N/2], written N < 2·(x·r mod N), at \
+    r = 2^0, …, 2^(m−1) determine x, and lsbRecover computes x from them; with m = N.size these \
+    are about log₂ N points. lsbRecover runs in polynomial time \
+    (computableInPolyTime_lsbRecover, in RSALeastSignificantBit.lean). The source's modulus is \
+    an RSA modulus, hence odd; the theorem needs oddness, since modulo 6 the predicates P_0 and \
+    P_3 agree everywhere. Part (b): H is an oracle that, on each RSA image w^e mod N, answers \
+    whether w > N/2. lsbInverter (halfToLSBPredictor H) asks H about 2^(k·e)·y mod N, the RSA \
+    images of 2^k·w mod N, for k < N.size in order, and returns lsbRecover of the answers \
+    (lsbInverter_halfToLSBPredictor): part (a) at the points r = 2^k. \
+    succProbability_rsaInversionGame_halfToLSBPredictor: if every modulus in the support of \
+    gen n is odd and H answers correctly on every RSA image, the inverter wins the RSA \
+    inversion game (Attack Game 10.3, pp. 404–405, with keys from any law on RSADesc and a \
+    uniform challenge in Z_N) with probability 1; it recovers every e-th root \
+    (eval_lsbInverter with eval_halfToLSBPredictor). H is passed as a function, not as an \
+    oracle channel with a query bound, so efficiency is stated relative to H: the inverter is \
+    PPT whenever H is (isPPT_halfToLSBPredictor with isPPT_lsbInverter), and its N.size queries \
+    and polynomial-time recovery are explicit. \
+    RSAOneWay.not_frequently_alwaysCorrect_halfPredictor, in the same module, is a hardness \
+    corollary that is not part of the exercise and is not listed."

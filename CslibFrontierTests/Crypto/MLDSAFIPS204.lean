@@ -115,3 +115,22 @@ private def allOnesXof := constantStream (fun _ => 255)
 
 #guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
 #guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
+
+-- With a collision in the message representative, the exact bytes returned by the signer
+-- can verify on a different request. Recover the two raw message inputs from the log.
+private def repeatedAcrossMessages : Bool := Id.run do
+  let H := Xofs.mk (constantStream fun _ => 0)
+    (constantStream fun x => if x.length = 528 then 85 else 0)
+  let some keys := H.keyGen .mlDSA44 (fun _ => 0) | return false
+  let some sig := H.sign .mlDSA44 keys.secretKey [true] [7] (fun _ => 0) | return false
+  let some A := H.expandA .mlDSA44 (keys.publicKey.take 32) | return false
+  let signed : Forgery := ⟨[7], [true], sig⟩
+  let forged : Forgery := ⟨[], [true, false, true], sig⟩
+  let some (.collision x y) := H.extractLoggedDigest .mlDSA44 keys.publicKey A forged [signed]
+    | return false
+  let tr := H.h256.readBytes keys.publicKey 64
+  return H.verify .mlDSA44 keys.publicKey forged.message forged.context sig == some true &&
+    x != y && x == representativeInput tr (formattedMessage forged) &&
+    y == representativeInput tr (formattedMessage signed) && H.h256.read x 32 == H.h256.read y 32
+
+#guard repeatedAcrossMessages
