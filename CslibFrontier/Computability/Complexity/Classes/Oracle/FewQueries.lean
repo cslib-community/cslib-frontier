@@ -264,14 +264,24 @@ private theorem run_interpret_popAnswer_finiteStep (cfg : FiniteConfig k Bool Co
         (fun op word => OracleComp.query (op, word)) cfg)).run s =
       machine.popStep (cfg, s) := by
   cases hs : cfg.tapes.state with
-  | none => simp [popStep, finiteStep, pendingQuery, localStep, hs]; rfl
+  | none =>
+    simp only [finiteStep, hs, OracleComp.interpret_pure, StateT.run_pure, popStep,
+      pendingQuery, Option.map_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
+      localStep]
+    rfl
   | some control =>
     cases ht : machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
       cfg.answerSymbols false with
     | step action symbol move =>
-      simp [popStep, finiteStep, pendingQuery, localStep, hs, ht]; rfl
+      simp only [finiteStep, hs, map_pure, ht, bind_pure_comp, pure_bind,
+        OracleComp.interpret_pure, StateT.run_pure, popStep, pendingQuery, Option.map_some,
+        Option.isSome_none, Bool.false_eq_true, ↓reduceIte, localStep]
+      rfl
     | query op next =>
-      simp [popStep, finiteStep, pendingQuery, receiveBit, hs, ht]
+      simp only [finiteStep, hs, map_pure, ht, bind_pure_comp, pure_bind,
+        OracleComp.interpret_map, OracleComp.interpret_query, StateT.run_map, popStep,
+        pendingQuery, Option.map_some, Option.isSome_some, ↓reduceIte, receiveBit,
+        List.headD_eq_head?_getD]
       cases s <;> rfl
 
 /-- **A coin-fixed run against a list of answers is an iteration of `popStep`.** -/
