@@ -20,5 +20,8 @@
   "Cslib.Crypto.WeakOneWay": "#5578: LiuPass2020 is not checked at the source.",
   "Cslib.Crypto.WeakOneWayAt": "#5578: LiuPass2020 is not checked at the source."
  },
- "headlines": {}
+ "headlines": {
+  "Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpa": "Original corrected form of BonehShoup2023 Exercise 11.9(b) on the novel KEMINDCPA, which gives the KEM distinguisher pk; the printed statement is false (counterexample in the KEMINDCPA docstring), and the citation names what is corrected (#6413 review).",
+  "Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn": "Original corrected form of BonehShoup2023 Exercise 11.9(b) on the novel KEMINDCPA, which gives the KEM distinguisher pk; the printed statement is false (counterexample in the KEMINDCPA docstring), and the citation names what is corrected (#6413 review)."
+ }
 }
