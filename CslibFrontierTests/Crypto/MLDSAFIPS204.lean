@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
+import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -205,3 +204,22 @@ example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List B
       pure ⟨q.context, q.message, ans.getD []⟩) = PMF.pure false := by
   simp [Xofs.continueFirstSigning, Xofs.winsForgery, SigningQuery.logReply,
     Cslib.ProbOracleComp.runWith_pure]
+
+-- The forger selects the signing context from SHAKE128, then uses the actual signing reply
+-- as its SHAKE256 input. Both public reads use the same oracle pair as the protocol.
+private def readSignRead (msg : List Bool) : ClassicalForger := fun _ => do
+  let ctx ← Cslib.ProbOracleComp.query (spec := PublicQuery.Reply) (.shake128 msg 2)
+  let reply ← Cslib.ProbOracleComp.query (spec := PublicQuery.Reply) (.sign ⟨ctx, msg⟩)
+  let sig ← Cslib.ProbOracleComp.query (spec := PublicQuery.Reply)
+    (.shake256 (Keccak.bytesToBitsLE (reply.getD [])) 32)
+  return ⟨ctx, msg, sig⟩
+
+example (H : Xofs) (msg : List Bool) :
+    H.answerPublicReads (readSignRead msg) [] = (do
+      let ctx := H.h128.read msg 2
+      let reply ← Cslib.ProbOracleComp.query (spec := fun _ : SigningQuery => Option (List Byte))
+        ⟨ctx, msg⟩
+      return ⟨ctx, msg, H.h256.read (Keccak.bytesToBitsLE (reply.getD [])) 32⟩) := by
+  simp only [Xofs.answerPublicReads, readSignRead, Cslib.ProbOracleComp.simulate_bind,
+    Cslib.ProbOracleComp.simulate_pure, Cslib.ProbOracleComp.simulate_query]
+  rfl
