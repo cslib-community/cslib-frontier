@@ -63,8 +63,13 @@ and rewards only pairs with `m ≠ m'` and `H k m = H k m'`, so duplicate messag
   let k ← ProbComp.uniform K
   return decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')
 
-/-- Lemma 7.1 for a statistical `ε`-UHF on finite types: an adversary whose supported output lists
-have length at most `Q` wins Attack Game 7.2 with probability at most `Q.choose 2 * ε`. -/
+/-- The statistical case of [BonehShoup2023], Lemma 7.1, on finite types, a step toward the lemma,
+not the cited result: against an `ε`-universal hash family, an adversary whose supported output
+lists have length at most `Q` wins Attack Game 7.2 with probability at most `Q.choose 2 * ε`.
+Lemma 7.1 assumes only a computational UHF and bounds the multi-query advantage by `Q ^ 2 / 2`
+times the advantage of an efficient wrapper in Attack Game 7.1; here the hash is an `ε`-UHF
+(Definition 7.2, which bounds every adversary, efficient or not) and no wrapper is built
+(#5790). -/
 theorem eval_multiQueryExperiment_le [Fintype K] [Nonempty K] [DecidableEq M] [DecidableEq Y]
     {H : K → M → Y} {ε : ℝ≥0∞} (hH : IsUniversalHash (PMF.uniformOfFintype K) H ε)
     {B : ProbComp (List M)} {Q : ℕ} (hB : ∀ ms ∈ (ProbComp.eval B).support, ms.length ≤ Q) :
