@@ -63,7 +63,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 |---|---|---|---|---|---|
 | 2 | 36 | 22 | 15 | 0 | — |
 | 5 | 30 | 27 | 6 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
-| 6 | 39 | 30 | 15 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
+| 6 | 39 | 29 | 16 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
 | 7 | 24 | 20 | 6 | 1 | — |
 | 8 | 44 | 27 | 14 | 3 | — |
 | 9 | 29 | 21 | 9 | 1 | — |
