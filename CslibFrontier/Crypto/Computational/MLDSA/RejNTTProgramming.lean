@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Programming the byte stream of RejNTTPoly
@@ -181,13 +182,9 @@ theorem uniform_exchangeRejNTT (n : ℕ) :
     (PMF.uniformOfFintype (FixedBytes n × Poly)).map (fun (bytes, v) =>
       ((exchangeRejNTT n (bytes, v)).1, (rejNTTPoly (List.ofFn bytes)).map fun _ => v)) =
     (PMF.uniformOfFintype (FixedBytes n × Poly)).map (fun (bytes, _) =>
-      (bytes, rejNTTPoly (List.ofFn bytes))) := by
-  conv_rhs => rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv (exchangeRejNTT n),
-    PMF.map_comp]
-  congr 1
-  funext ⟨bytes, v⟩
-  cases h : rejNTTPoly (List.ofFn bytes) with
-  | none => simp [Function.comp, h, exchangeRejNTT_of_none h]
-  | some u => simp [Function.comp, h, (exchangeRejNTT_of_some h v).1]
+      (bytes, rejNTTPoly (List.ofFn bytes))) :=
+  PMF.uniformOfFintype_map_exchange_option (exchangeRejNTT n)
+    (fun bytes => rejNTTPoly (List.ofFn bytes)) id exchangeRejNTT_of_none
+    (fun h v => (exchangeRejNTT_of_some h v).1)
 
 end Cslib.Crypto.MLDSA.FIPS204

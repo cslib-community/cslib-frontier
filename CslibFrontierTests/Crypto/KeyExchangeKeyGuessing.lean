@@ -21,9 +21,9 @@ import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 Checks for `CslibFrontier/Crypto/Computational/KeyExchange/KeyGuessing.lean`:
 
 * `dhToCDHAdversary` and `cdhToDHKeyGuesser` are definitionally mutually inverse.
-* For any fixed group of a `PrimeOrderGroupFamily`, Diffie–Hellman key exchange fails
-  `AnonKESecure` via `dhKeyExchange_anonKESecure_iff_cdh`, `CDH.discreteLog`, and the shared
-  constant-guesser fixture `PrimeOrderGroupFixture.guessZero`.
+* For any fixed group of a `PrimeOrderGroupFamily`, the ideal-sampling Diffie–Hellman key
+  exchange fails `AnonKESecure` via `dhKeyExchange_anonKESecure_iff_cdh_ideal`, `CDH.discreteLog`,
+  and the shared constant-guesser fixture `PrimeOrderGroupFixture.guessZero`.
 * Over `schnorrGroups`, a concrete group-operation key guesser satisfies `KeyGuesser.IsPPT`.
 * The 3-message XOR protocol `KeyExchange.xorKeyExchange` fails `AnonKESecure`: `xorKeyGuesser`
   wins with probability `1` via `KeyExchange.realGame_xorEavesdropper`.
@@ -60,7 +60,7 @@ example (F : PrimeOrderGroupFamily) (A : KeyGuesser F.DHTranscript F.DHKey) :
 example (F : PrimeOrderGroupFamily) (d : F.Desc) :
     ¬ (F.dhKeyExchange fun _ => PMF.pure d).AnonKESecure F.encDHTranscript F.encDHKey := by
   intro h
-  have hdl := ((F.dhKeyExchange_anonKESecure_iff_cdh _).mp h).discreteLog
+  have hdl := ((F.dhKeyExchange_anonKESecure_iff_cdh_ideal _).mp h).discreteLog
     (guessZero F) (guessZero_isPPT F)
   simp only [succProbability_discreteLogGame_guessZero] at hdl
   exact not_negligible_const (inv_ne_zero (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)) hdl
@@ -205,11 +205,11 @@ info: 'Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhToDHKeyGuesser' depends on ax
 #print axioms Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhToDHKeyGuesser
 
 /--
-info: 'Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh' depends on axioms: [propext,
+info: 'Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh_ideal' depends on axioms: [propext,
  Classical.choice,
  Quot.sound]
 -/
 #guard_msgs in
-#print axioms Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh
+#print axioms Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh_ideal
 
 end CslibFrontierTests.Crypto.KeyExchangeKeyGuessing
