@@ -2177,6 +2177,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministi
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Diagonal
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential.Basic
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Function
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.ListOracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Lowness
