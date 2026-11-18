@@ -1361,6 +1361,28 @@ register_result "goldreich-levin-hard-core" where
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
 
+register_result "goldreich-stretch-amplification-last-bits" where
+  title := "Stretch amplification of a one-bit pseudorandom generator by emitted last bits"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Proposition 8.8 (with Construction 8.7)",
+      locator := "March 2007 draft r4.pdf, PDF p. 64; printed p. 328" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRGStretch.pseudorandomGenerator_take_forwardIterate,
+    Cslib.Crypto.PRGStretch.take_forwardIterate_eq_flatten_emitBit
+  ]
+  scope := "Uniform PRGs as PseudorandomGenerator: a deterministic polynomial-time generator of \
+    exact output length, secure against uniform PPT tests. The tests of prgRealGame and \
+    prgIdealGame also receive the seed length n in unary, while those of Definition 8.1 \
+    (Eq. (8.2)) see only the challenge word. On the one-bit premise a challenge-only test \
+    recovers n = |word| - 1 and can simulate such a test, and on the conclusion a test may \
+    ignore n, so the source implication follows even when the output length does not determine \
+    the seed length. The stretch function ℓ is computable in polynomial time in unary and \
+    satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
+    identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
+    six-point source check: review 5947783297 on PR #6287."
+
 register_result "goldreich-low-degree-extension-individual-degree" where
   title := "Low-degree extensions of individual degree |H| - 1"
   topic := "codes"
@@ -6471,25 +6493,3 @@ register_result "owf-iterate-not-one-way" where
     that is at least 2 for all large n. The draft's parametric Definition 10.1 is read \
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
-
-register_result "goldreich-stretch-amplification-last-bits" where
-  title := "Stretch amplification of a one-bit pseudorandom generator by emitted last bits"
-  topic := "pseudorandomness"
-  sources := [
-    { paper := Goldreich2007DraftR4, theorem := "Proposition 8.8 (with Construction 8.7)",
-      locator := "March 2007 draft r4.pdf, PDF p. 64; printed p. 328" }
-  ]
-  theorems := [
-    Cslib.Crypto.PRGStretch.pseudorandomGenerator_take_forwardIterate,
-    Cslib.Crypto.PRGStretch.take_forwardIterate_eq_flatten_emitBit
-  ]
-  scope := "Uniform PRGs as PseudorandomGenerator: a deterministic polynomial-time generator of \
-    exact output length, secure against uniform PPT tests. The tests of prgRealGame and \
-    prgIdealGame also receive the seed length n in unary, while those of Definition 8.1 \
-    (Eq. (8.2)) see only the challenge word. On the one-bit premise a challenge-only test \
-    recovers n = |word| - 1 and can simulate such a test, and on the conclusion a test may \
-    ignore n, so the source implication follows even when the output length does not determine \
-    the seed length. The stretch function ℓ is computable in polynomial time in unary and \
-    satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
-    identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
-    six-point source check: review 5947783297 on PR #6287."
