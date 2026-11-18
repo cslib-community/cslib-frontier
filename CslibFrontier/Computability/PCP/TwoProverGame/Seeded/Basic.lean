@@ -78,6 +78,56 @@ theorem answersWinProb_eq_sum [Fintype R] [Fintype A] [Fintype B]
   refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, AcceptsRound]
 
+/-- Run the questions and checks of `G` using seeds obtained by mapping a new private law.
+This lets clients work directly with the random choices of a subtest. -/
+def pullbackSeed {T : Type*} (law : PMF T) (f : T → R) : SeededGame T X Y A B where
+  seed := law
+  query := G.query ∘ f
+  accepts t := G.accepts (f t)
+
+/-- Mapping private seeds before running the verifier gives the same score as pulling
+the verifier back to the original seed type. -/
+theorem answersWinProb_pullbackSeed {T : Type*} (law : PMF T) (f : T → R)
+    (ans : X → Y → PMF (A × B)) :
+    (G.pullbackSeed law f).answersWinProb ans =
+      ({ G with seed := law.map f }).answersWinProb ans := by
+  unfold answersWinProb
+  rw [PMF.bind_map]
+  let project : T × A × B → R × A × B := fun (t, ab) => (f t, ab)
+  let sample (t : T) := (ans (G.query (f t)).1 (G.query (f t)).2).map fun ab => (t, ab)
+  calc
+    _ = (((law.bind sample).map project).toOuterMeasure {z | G.AcceptsRound z}).toReal := by
+      rw [PMF.toOuterMeasure_map_apply]
+      rfl
+    _ = _ := by
+      simp only [PMF.map_bind, sample, PMF.map_comp]
+      rfl
+
+/-- If the seed law first draws a finite index and then samples from its conditional law,
+the verifier's score is the weighted sum of the conditional scores. -/
+theorem answersWinProb_bind_seed {I : Type*} [Fintype I] (law : PMF I)
+    (conditional : I → PMF R) (ans : X → Y → PMF (A × B)) :
+    ({ G with seed := law.bind conditional }).answersWinProb ans =
+      ∑ i, (law i).toReal * ({ G with seed := conditional i }).answersWinProb ans := by
+  unfold answersWinProb
+  rw [PMF.bind_bind, Cslib.Probability.PMF.toOuterMeasure_bind_toReal]
+  rfl
+
+/-- The weighted rejection probability of one conditional law is bounded by the
+rejection probability under the mixed law. -/
+theorem weighted_rejection_le_of_bind_seed {I : Type*} [Finite I] (law : PMF I)
+    (conditional : I → PMF R) (ans : X → Y → PMF (A × B)) (i : I) :
+    (law i).toReal * (1 - ({ G with seed := conditional i }).answersWinProb ans) ≤
+      1 - ({ G with seed := law.bind conditional }).answersWinProb ans := by
+  let := Fintype.ofFinite I
+  let score (j : I) := ({ G with seed := conditional j }).answersWinProb ans
+  have h := Finset.single_le_sum (f := fun j => (law j).toReal * (1 - score j))
+    (fun j _ => mul_nonneg ENNReal.toReal_nonneg
+      (sub_nonneg.mpr (answersWinProb_le_one _ _))) (Finset.mem_univ i)
+  simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Cslib.Probability.PMF.sum_toReal] at h
+  rw [answersWinProb_bind_seed]
+  simpa only [mul_sub, mul_one, score] using h
+
 end SeededGame
 
 namespace TwoProverGame

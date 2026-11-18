@@ -7,7 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
+import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
+import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Computability.PCP.TwoProverGame.CHSH
 
 /-! # Checked rounds of the Pauli braiding verifier
@@ -76,5 +77,24 @@ example :
       game.accepts (.sameBasis false true odd dummy) (.inl (true, false)) (.inl (false, true)) ∧
       ¬ game.accepts (.sameBasis false true odd dummy) (.inl (true, false)) (.inl (true, false)) :=
   ⟨rfl, rfl, Bool.noConfusion⟩
+
+/-- A designated CHSH question has probability one half in the second-question marginal.
+The matched round's unweighted rejection therefore costs a factor of sixteen. -/
+example (answer : PauliBraidingQuestion 2 Bool → PauliBraidingQuestion 2 Bool →
+    PMF (((Bool × Bool) ⊕ Bool) × ((Bool × Bool) ⊕ Bool))) :
+    let matched := pauliBraidingMatchedGame 2 TwoProverGame.chsh id (fun _ => id) true true
+    let branch := pauliBraidingBranchGame 2 TwoProverGame.chsh id (fun _ => id) 2
+    1 - matched.answersWinProb answer ≤ 16 * (1 - branch.answersWinProb answer) := by
+  dsimp only
+  have h := weighted_rejection_pauliBraidingMatchedGame_le
+    TwoProverGame.chsh id (fun _ => id) true true answer
+  have hmass : ((TwoProverGame.chsh.questions.map Prod.snd) true).toReal = 1 / 2 := by
+    change (((Probability.PMF.uniformOfFintype (Bool × Bool)).map Prod.snd) true).toReal = _
+    rw [Probability.PMF.uniformOfFintype_prod_map_snd,
+      Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
+    norm_num
+  change ((TwoProverGame.chsh.questions.map Prod.snd) true).toReal * _ ≤ _ at h
+  rw [hmass] at h
+  linarith
 
 end CslibFrontierTests.PauliBraidingGame

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
 public import CslibFrontier.Foundations.Data.BitString.OddPairs
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.ToReal
 
 /-!
 # Agreement tests on decoded bits
@@ -119,6 +120,26 @@ theorem sum_norm_sub_sq_le_of_bitAgreement (seed : PMF R) (query : R → X × Y)
     have hdist := Measurement.norm_observable_sub_sq_le S.state
       ((S.alice (query r).1).map (decodeAlice r)) ((S.bob (query r).2).map (decodeBob r)) (h r)
     exact hdist.trans_eq (by ring)
+  linarith
+
+/-- If every accepted answer pair has equal decoded bits, the same squared-distance bound
+holds with the original verifier's rejection probability. The verifier may also reject
+some agreeing answers, for example when an answer has the wrong tag. -/
+theorem sum_norm_sub_sq_le_of_accepts_imp_eq (G : SeededGame R X Y A B)
+    (decodeAlice : R → A → Bool) (decodeBob : R → B → Bool)
+    (haccept : ∀ r a b, G.accepts r a b → decodeAlice r a = decodeBob r b)
+    (S : CommutingStrategy X Y A B 𝒜) :
+    (∑ r, (G.seed r).toReal * S.state.norm
+      (((S.alice (G.query r).1).map (decodeAlice r)).observable -
+        ((S.bob (G.query r).2).map (decodeBob r)).observable) ^ 2) ≤
+      4 * (1 - G.commutingWinProb S) := by
+  refine (sum_norm_sub_sq_le_of_bitAgreement G.seed G.query decodeAlice decodeBob S).trans ?_
+  have hwin : G.commutingWinProb S ≤
+      (bitAgreement G.seed G.query decodeAlice decodeBob).commutingWinProb S := by
+    unfold commutingWinProb answersWinProb
+    apply Probability.PMF.toOuterMeasure_toReal_mono
+    rintro ⟨r, a, b⟩ h
+    exact haccept r a b h
   linarith
 
 end SeededGame
