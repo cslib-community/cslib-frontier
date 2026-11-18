@@ -8,9 +8,9 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
+import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-meta import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
+meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
 /-!
 # ML-DSA byte keys, signing and verification
@@ -119,6 +119,21 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
+-- and longer reads exercise the same XOF that the verifier and an outside caller receive.
+private def matrixAddressChecks : Bool := Id.run do
+  let rho : List Byte := List.replicate 32 11
+  let base := Xofs.mk (constantStream fun _ => 77) (constantStream fun _ => 88)
+  let H := base.withMatrixPrefixes .mlDSA65 rho fun i j _ => Fin.ofNat 256 (16 * i.val + j.val)
+  let input := rho ++ [2, 5]
+  let x := Keccak.bytesToBitsLE input
+  return (H.h128.readBytes input 896).drop 893 == [82, 77, 77] &&
+    H.h128.readBytes (rho ++ [5, 2]) 1 == [77] &&
+    H.h128.readBytes (rho ++ [2, 3]) 1 == [50] &&
+    H.h128.read (x ++ [false]) 1 == [77] && H.h256.read x 1 == [88]
+
+#guard matrixAddressChecks
 
 private def markedNonce : Xofs :=
   let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])
