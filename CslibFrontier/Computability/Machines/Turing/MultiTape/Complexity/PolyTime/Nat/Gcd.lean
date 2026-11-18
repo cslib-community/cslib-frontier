@@ -415,6 +415,18 @@ end Turing.MultiTapeTM.BinaryGcd
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
 
+/-- Iterate the binary Euclidean step a supplied unary number of times. -/
+theorem binary_gcdIterate :
+    ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => BinaryGcd.gcdStep^[x.2] x.1)
+      (encPair (encPair encNat encNat) encUnary) (encPair encNat encNat) := by
+  have hstep : ComputableInPolyTime BinaryGcd.gcdStep
+      (encPair encNat encNat) (encPair encNat encNat) := by
+    unfold BinaryGcd.gcdStep
+    fun_prop
+  exact iterate (snd _ _) (fst _ _) hstep ((PolyBounded.const 3).mul .self)
+    fun x j _ => (BinaryGcd.length_encPair_iterate_gcdStep_le x.1 j).trans
+      (Nat.mul_le_mul_left 3 (length_le_encPair_left (encPair encNat encNat) encUnary x))
+
 /-- Greatest common divisor of binary naturals via Euclid's algorithm. -/
 @[fun_prop, program_certificate]
 theorem binary_gcd : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.gcd p.1 p.2)
@@ -423,19 +435,8 @@ theorem binary_gcd : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.gcd p.1 p.2
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount
     fun_prop
-  have hinit : ComputableInPolyTime (fun p => p)
-      (encPair encNat encNat) (encPair encNat encNat) := by
-    fun_prop
-  have hstep : ComputableInPolyTime BinaryGcd.gcdStep
-      (encPair encNat encNat) (encPair encNat encNat) := by
-    unfold BinaryGcd.gcdStep
-    fun_prop
-  have hiter := iterate hcount hinit hstep
-    (bound := fun p => 3 * (encPair encNat encNat p).length)
-    ((PolyBounded.const 3).mul .self)
-    (fun p i _ => BinaryGcd.length_encPair_iterate_gcdStep_le p i)
-  have hfst := hiter.fst'
-  simpa only [BinaryGcd.iterate_gcdStep_eq] using hfst
+  have hiter := binary_gcdIterate.comp ((id' (encIn := encPair encNat encNat)).prod hcount)
+  simpa only [Function.comp_apply, BinaryGcd.iterate_gcdStep_eq] using hiter.fst'
 
 /-- Greatest common divisor of computed binary values, fixing their intermediate encodings for
 proof search. -/

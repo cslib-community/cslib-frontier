@@ -277,16 +277,6 @@ open Turing.MultiTapeTM.ComputableInPolyTime
 
 private abbrev encEuclidPair := encPair encNat encNat
 
-private theorem euclidIterate_polyTime :
-    ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => gcdStep^[x.2] x.1)
-      (encPair encEuclidPair encUnary) encEuclidPair := by
-  have hstep : ComputableInPolyTime gcdStep encEuclidPair encEuclidPair := by
-    unfold gcdStep encEuclidPair
-    fun_prop
-  exact iterate (snd _ _) (fst _ _) hstep ((PolyBounded.const 3).mul .self)
-    fun x j _ => (length_encPair_iterate_gcdStep_le x.1 j).trans
-      (Nat.mul_le_mul_left 3 (length_le_encPair_left encEuclidPair encUnary x))
-
 private theorem natCastRat_polyTime :
     ComputableInPolyTime (fun n : ℕ => (n : ℚ)) encNat encRat :=
   (rat_intCast.comp intBin_natCast).of_enc_eq fun _ => rfl
@@ -302,7 +292,7 @@ private theorem convergentStep_polyTime :
   have hpar := fst encEuclidPair (encPair encUnary encRat)
   have hstate := snd encEuclidPair (encPair encUnary encRat)
   have hj := unary_sub' hstate.fst' (const 1)
-  have hr := euclidIterate_polyTime.comp (hpar.prod hj)
+  have hr := binary_gcdIterate.comp (hpar.prod hj)
   have hquot := natCastRat_polyTime.comp (binary_div' hr.fst' hr.snd')
   exact hj.prod (rat_add' hquot (rat_inv' hstate.snd'))
 
@@ -323,7 +313,7 @@ private theorem euclidConvergent_polyTime :
   let input := encPair encEuclidPair encUnary
   let init (x : (ℕ × ℕ) × ℕ) := (x.2, euclidConvergent 0 (gcdStep^[x.2] x.1))
   have hinit : ComputableInPolyTime init input (encPair encUnary encRat) := by
-    have hquot := binary_div' euclidIterate_polyTime.fst' euclidIterate_polyTime.snd'
+    have hquot := binary_div' binary_gcdIterate.fst' binary_gcdIterate.snd'
     exact (snd _ _).prod (natCastRat_polyTime.comp hquot)
   have hbound : PolyBounded (fun x => (input x).length)
       (fun x => 2 * (input x).length +
