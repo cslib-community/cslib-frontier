@@ -135,7 +135,7 @@ private theorem attempt (h : Agreement H G a b) (ha : honestAddressBits s m ≤ 
     {seed : List Byte} (hr : seed.length = 64) :
     H.attempt s sk A μ seed = G.attempt s sk A μ seed := by
   funext κ
-  simp only [Xofs.attempt, Xofs.prepareAttempt, h.mask ha hb hr, h.commitment ha hb hm,
+  simp only [Xofs.attempt, Xofs.attemptWithMask, h.mask ha hb hr, h.commitment ha hb hm,
     h.challenge ha hb (le_of_eq (length_commitmentDigest ..))]
 
 private theorem decoded_bounds {sk : PrivateKey s} {key : List Byte}

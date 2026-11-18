@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Languages.Probabilistic.Norm
@@ -42,15 +43,25 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability
 
+/-- Bytes consumed by Algorithm 34 for one mask polynomial, 576 at ML-DSA-44 and
+640 at ML-DSA-65 and ML-DSA-87. -/
+abbrev maskPolyBytes (s : Level) := 32 * (s.params.γ₁.log2 + 1)
+
+private def expandMaskFrom (s : Level) (κ : ℕ) (read : ℕ → List Byte) :
+    Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
+  Vector.ofFn fun i : Fin s.params.ℓ =>
+    (unpackSigned 1 (s.params.γ₁.log2 + 1) s.params.γ₁ (read (κ + i.val))).get 0
+
+/-- The Algorithm 34 mask at counter `κ` from private bytes indexed by its two-byte nonce. -/
+def maskFromRow (s : Level) (row : FixedBytes 2 → FixedBytes (maskPolyBytes s)) (κ : ℕ) :
+    Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
+  expandMaskFrom s κ fun nonce => (row (nonceSuffix nonce)).toList
+
 /-- ExpandMask (Algorithm 34). Each mask polynomial absorbs the same seed and its own
 two-byte little-endian counter, and decodes 256 coefficients in [1 − γ₁, γ₁]. -/
 def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :
     Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
-  let width := s.params.γ₁.log2 + 1
-  Vector.ofFn fun i : Fin s.params.ℓ =>
-    let nonce := κ + i.val
-    let bytes := H.h256.readBytes (nonceInput seed nonce) (32 * width)
-    (unpackSigned 1 width s.params.γ₁ bytes).get 0
+  expandMaskFrom s κ fun nonce => H.h256.readBytes (nonceInput seed nonce) (maskPolyBytes s)
 
 /-- FIPS 202 specialization of `Xofs.expandMask`. -/
 abbrev expandMask := Xofs.expandMask Xofs.shake
@@ -62,11 +73,14 @@ private structure AttemptCommitment (s : Level) where
   /-- The full commitment before taking its high bits. -/
   product : Fin s.params.k → Poly
 
+private def AttemptCommitment.ofMask (s : Level) (A : PublicMatrix s)
+    (y : Fin s.params.ℓ → Poly) : AttemptCommitment s :=
+  ⟨y, ringVectorCoeffs (tabulateRingVector (moduleSISMap A y))⟩
+
 /-- Prepare an actual signing attempt from its mask seed, retry counter and public matrix. -/
 private def Xofs.prepareAttempt (H : Xofs) (s : Level) (A : PublicMatrix s) (maskSeed : List Byte)
     (κ : ℕ) : AttemptCommitment s :=
-  let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
-  ⟨y, ringVectorCoeffs (tabulateRingVector (moduleSISMap A y))⟩
+  AttemptCommitment.ofMask s A (ringVectorCoeffs (H.expandMask s maskSeed κ))
 
 /-- Complete Algorithm 7 using the sampled challenge and digest. XOF exhaustion is fatal,
 a failed norm or hint check rejects the mask, and success returns the encoded signature. -/
@@ -78,11 +92,16 @@ def finishSigningAttempt (s : Level) (sk : PrivateKey s) (y : Fin s.params.ℓ �
     (Vector.ofFn c).get
   return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
 
-private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : PublicMatrix s)
-    (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) :=
-  let prep := H.prepareAttempt s matrix maskSeed κ
+private def Xofs.attemptWithMask (H : Xofs) (s : Level) (sk : PrivateKey s)
+    (matrix : PublicMatrix s) (μ : List Bool) (y : Fin s.params.ℓ → Poly) :
+    Option (Option (List Byte)) :=
+  let prep := AttemptCommitment.ofMask s matrix y
   let digest := H.commitmentDigest s (highBitsVec s.params prep.product) μ
   finishSigningAttempt s sk prep.mask prep.product digest (H.sampleInBall s digest)
+
+private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : PublicMatrix s)
+    (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) :=
+  H.attemptWithMask s sk matrix μ (ringVectorCoeffs (H.expandMask s maskSeed κ))
 
 private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte))) :
     ℕ → ℕ → Option (List Byte)
@@ -92,6 +111,14 @@ private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List B
     match result with
     | some sig => return sig
     | none => firstAccepted stride tryAt fuel (κ + stride)
+
+/-- Algorithm 7's 814-attempt loop with an explicit mask at each retry counter. The ambient XOF
+supplies the commitment digests and sparse challenges. -/
+def Xofs.signingRetries (H : Xofs) (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
+    (μ : List Bool) (mask : ℕ → Vector (Vector (ZMod 8380417) 256) s.params.ℓ) :
+    Option (List Byte) :=
+  firstAccepted s.params.ℓ (fun nonce => H.attemptWithMask s sk A μ
+    (ringVectorCoeffs (mask nonce))) 814 0
 
 private structure SigningState (s : Level) where
   sk : PrivateKey s
@@ -123,7 +150,7 @@ After 814 rejected attempts it returns the single error of Appendix C. -/
 def Xofs.signInternal (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
     (rnd : FixedBytes 32) : Option (List Byte) := do
   let st ← H.startSigning s bytes formatted rnd
-  firstAccepted s.params.ℓ (H.attempt s st.sk st.A st.μ st.maskSeed) 814 0
+  H.signingRetries s st.sk st.A st.μ (H.expandMask s st.maskSeed)
 
 /-- FIPS 202 specialization of `Xofs.signInternal`. -/
 abbrev signInternal := Xofs.signInternal Xofs.shake
@@ -170,14 +197,16 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     funext (Vector.get_ofFn g)
   cases hc : H.sampleInBall s digest with
   | none =>
-    simp only [Xofs.attempt, finishSigningAttempt, Xofs.prepareAttempt, tabulateRingVector_eq] at hs
+    simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, finishSigningAttempt,
+      tabulateRingVector_eq] at hs
     change (H.sampleInBall s digest).bind _ = _ at hs
     simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [Xofs.attempt, finishSigningAttempt, Xofs.prepareAttempt, tabulateRingVector_eq,
+      simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, finishSigningAttempt,
+        tabulateRingVector_eq,
         vecGet] at hs
       change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
@@ -211,7 +240,8 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     by_contra h
     simp [Xofs.sign, guard, h] at hs
   simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
-    Option.bind_some, Xofs.signInternal, Xofs.startSigning, decoded, hA] at hs
+    Option.bind_some, Xofs.signInternal, Xofs.signingRetries, Xofs.startSigning,
+    decoded, hA] at hs
   obtain ⟨κ, htry⟩ := attempt_of_firstAccepted hs
   rw [pk] at htry ⊢
   exact verified_of_attempt sk rho hA ctx short htry
@@ -564,9 +594,12 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
         (finishSigningAttempt s st.sk prep.mask prep.product d (sampleInBallBytes s
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221)))
       simp only [Xofs.sign, hc, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
-        Option.bind_some, Xofs.signInternal, start]
+        Option.bind_some, Xofs.signInternal, Xofs.signingRetries, start]
+      change firstAccepted s.params.ℓ (K.attempt s st.sk st.A st.μ st.maskSeed) 814 0 = _
       rw [firstAccepted_initial]
-      unfold Xofs.attempt
+      change afterAttempt K st (let p := K.prepareAttempt s st.A st.maskSeed 0
+        let c := K.commitmentDigest s (highBitsVec s.params p.product) st.μ
+        finishSigningAttempt s st.sk p.mask p.product c (K.sampleInBall s c)) = _
       rw [prepared]
       change afterAttempt K st
         (finishSigningAttempt s st.sk prep.mask prep.product (K.commitmentDigest s w st.μ)

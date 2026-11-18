@@ -153,6 +153,24 @@ Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Py
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if
 it fails.
 
+## Runner for `main` builds
+
+The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
+`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`). Pull
+requests, merge groups and manual runs always use the standard `ubuntu-24.04` runner, as does
+`main` while the variable is unset. The `main` run saves the `.lake` snapshot and stages the
+remote-cache publication, so a faster one publishes caches for more landed commits; the cache
+keys depend on the operating system and architecture, not the runner size, so standard runners
+restore what it saves.
+
+Larger runners are billed per minute even in public repositories. If the organization's Actions
+budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
+`main` shows a failed run and publishes no cache, while merging continues. Delete the variable
+(`gh variable delete MAIN_BUILD_RUNNER`) to return `main` to the standard runner without a
+commit. A pull request from a branch of this repository runs its own copy of the workflow, so
+this expression does not stop a branch from naming a billed runner; restrict the runner group in
+the organization's settings for that.
+
 ## Merge-queue handoff
 
 After all required checks pass, a merge-group run packages its root `.lake/build` outputs in a
