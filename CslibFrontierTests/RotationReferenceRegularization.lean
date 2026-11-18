@@ -16,7 +16,6 @@ Ordinary public clients consume the actual joint global theorem. The existing fi
 fixture has a genuine nonvertex triple and multiple patches on an indexed route; the
 source fixture and its checked coordinate proof are not reconstructed here. The newly
 chosen contact coordinate is existential, not asserted to equal an old center.
-The source proofs in this module are UNELABORATED.
 -/
 
 public section
