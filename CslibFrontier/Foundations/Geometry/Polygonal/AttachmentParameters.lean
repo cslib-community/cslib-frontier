@@ -8,13 +8,21 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Join
+import Mathlib.Tactic.Ring
 
 /-!
 # Parameters of routes with attached end segments
 
 Every actual segment parameter is either an unchanged old parameter or a parameter of
 an attached end segment. The global position is recorded exactly, so contact proofs can
-recover the original route ends after one or both attachments.
+recover the original route ends after one or both attachments. Finite append words retain
+every old segment and specify every added segment by its exact list position.
+
+## Main results
+
+* `Cslib.Polygonal.Route.segments_foldl_append`: the exact number of segments after a word.
+* `Cslib.Polygonal.Route.foldl_append_eval_cases`: all-real evaluation and chain-position
+  classification of every actual segment after a finite append word.
 -/
 
 public section
@@ -66,5 +74,58 @@ theorem attach_eval_cases (a : ℂ) (p : Route) (b : ℂ)
     have hfinish : (Route.prepend a p).finish = p.finish := endpoint_prepend a p true
     refine ⟨heval.trans (congrArg (fun x => AffineMap.lineMap x b t) hfinish), ?_⟩
     simpa only [segments_prepend, Nat.cast_add, Nat.cast_one] using hpos
+
+/-- Each appended node contributes exactly one actual segment. -/
+theorem segments_foldl_append (p : Route) (nodes : List ℂ) :
+    (nodes.foldl Route.append p).segments = p.segments + nodes.length := by
+  induction nodes generalizing p with
+  | nil => simp
+  | cons a nodes ih =>
+    simp only [List.foldl_cons, ih, segments_append, List.length_cons]
+    omega
+
+private theorem index_of_position (p : Route) (i : Fin p.segments) (t : ℝ) (n : ℕ)
+    (h : p.position i t = (n : ℝ) + t) : i.val = n := by
+  change (i.val : ℝ) + t = (n : ℝ) + t at h
+  exact_mod_cast add_right_cancel h
+
+/-- Every final segment is either an unchanged old segment or the specified consecutive
+node pair of the append word. Indices, evaluations and positions are exact for ALL real times. -/
+theorem foldl_append_eval_cases (p : Route) (nodes : List ℂ)
+    (i : Fin (nodes.foldl Route.append p).segments) (t : ℝ) :
+    (∃ j : Fin p.segments, i.val = j.val ∧
+      (nodes.foldl Route.append p).eval i t = p.eval j t ∧
+      (nodes.foldl Route.append p).position i t = p.position j t) ∨
+    (∃ q : Fin nodes.length, i.val = p.segments + q.val ∧
+      (nodes.foldl Route.append p).eval i t =
+        AffineMap.lineMap ((p.finish :: nodes)[q.castSucc]) (nodes[q]) t ∧
+      (nodes.foldl Route.append p).position i t = (p.segments : ℝ) + q.val + t) := by
+  induction nodes generalizing p with
+  | nil => exact Or.inl ⟨i, rfl, rfl, rfl⟩
+  | cons a nodes ih =>
+    rcases ih (p.append a) i with ⟨j, _, heval, hpos⟩ | ⟨q, _, heval, hpos⟩
+    · rcases append_eval_cases p a j t with ⟨k, hkval, hkpos⟩ | ⟨hkval, hkpos⟩
+      · have hpos' := hpos.trans hkpos
+        exact Or.inl ⟨k, index_of_position _ i t k.val hpos', heval.trans hkval, hpos'⟩
+      · have hpos' : ((a :: nodes).foldl Route.append p).position i t =
+            (p.segments : ℝ) + t := hpos.trans hkpos
+        refine Or.inr ⟨0, ?_, ?_, ?_⟩
+        · simpa only [Fin.val_zero, Nat.add_zero] using index_of_position _ i t p.segments hpos'
+        · simpa only [List.getElem_cons_zero, Fin.getElem_fin, Fin.val_zero,
+            Fin.val_castSucc] using heval.trans hkval
+        · simpa using hpos'
+    · have hpos' : ((a :: nodes).foldl Route.append p).position i t =
+          (p.segments : ℝ) + (q.val + 1 : ℕ) + t := by
+        calc
+          _ = ((p.append a).segments : ℝ) + q.val + t := hpos
+          _ = _ := by simp only [segments_append, Nat.cast_add, Nat.cast_one]; ring
+      refine Or.inr ⟨q.succ, ?_, ?_, ?_⟩
+      · have hindex := index_of_position _ i t (p.segments + (q.val + 1)) (by
+          simpa only [Nat.cast_add] using hpos')
+        simpa only [Fin.val_succ] using hindex
+      · have hfinish : (p.append a).finish = a := endpoint_append p a true
+        simpa only [hfinish, Fin.getElem_fin, Fin.val_castSucc, Fin.val_succ,
+          List.getElem_cons_succ] using heval
+      · simpa only [Fin.val_succ] using hpos'
 
 end Cslib.Polygonal.Route
