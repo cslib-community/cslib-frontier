@@ -6132,6 +6132,26 @@ register_result "goldreich-read-once-prg-stretch" where
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
 
+register_result "arora-barak-nonexplicit-prg" where
+  title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 2 (corrected at seed length ≤ 1)",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.2 printed 283 / \
+        PDF 299; rounding convention printed 7 / PDF 23" }
+  ]
+  theorems := [Cslib.Complexity.exists_generator_advantage_lt,
+    Cslib.Complexity.exists_isCircuitTest_le_advantage_one]
+  scope := "Outside check: PR #6271, review 5947409116. epsilon = 1/10; one map G on words \
+    and output length S(l) = ceil(2^(l/10)) for l >= 2 and S(l) = l for l <= 1, monotone, \
+    with |G(z)| = S(|z|), and for every l advantage below 1/10 against every deterministic \
+    De Morgan circuit with at most S(l)^3 non-input gates (uniform seed versus uniform \
+    output). Only these length and indistinguishability properties are covered: \
+    polynomial-time computability of S (a condition of Definition 16.2) is not proved, and \
+    G has no time bound, as the exercise allows. The printed form fails at l = 1 for every \
+    epsilon > 0 and every G under the draft's ceiling convention; the witness has at most \
+    four gates, at most m + 5 <= m^3 nodes when inputs and an output node are counted."
+
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"
   topic := "property testing"
@@ -6268,24 +6288,3 @@ register_result "owp-iterate-one-way" where
     asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
     concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
     bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."
-
-
-register_result "arora-barak-nonexplicit-prg" where
-  title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
-  topic := "pseudorandomness"
-  sources := [
-    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 2 (corrected at seed length ≤ 1)",
-      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.2 printed 283 / \
-        PDF 299; rounding convention printed 7 / PDF 23" }
-  ]
-  theorems := [Cslib.Complexity.exists_generator_advantage_lt,
-    Cslib.Complexity.exists_isCircuitTest_le_advantage_one]
-  scope := "Outside check: PR #6271, review 5947409116. epsilon = 1/10; one map G on words \
-    and output length S(l) = ceil(2^(l/10)) for l >= 2 and S(l) = l for l <= 1, monotone, \
-    with |G(z)| = S(|z|), and for every l advantage below 1/10 against every deterministic \
-    De Morgan circuit with at most S(l)^3 non-input gates (uniform seed versus uniform \
-    output). Only these length and indistinguishability properties are covered: \
-    polynomial-time computability of S (a condition of Definition 16.2) is not proved, and \
-    G has no time bound, as the exercise allows. The printed form fails at l = 1 for every \
-    epsilon > 0 and every G under the draft's ceiling convention; the witness has at most \
-    four gates, at most m + 5 <= m^3 nodes when inputs and an output node are counted."
