@@ -46,6 +46,11 @@ All definitions and reductions here are stated for one fixed group with per-redu
 `queriesSatisfy_sdhToElGamalKeyRecovery`), with no PPT efficiency certificate over a group family
 (such as `IsOraclePPT` / `IsOraclePPTOn`), no asymptotic SDH assumption, no one-more
 Diffie–Hellman reduction, and no Brown–Gallant–Cheon attack ([BonehShoup2023], Exercise 16.3).
+The theorems about `sdhToElGamalKeyRecovery` are therefore fixed-group steps toward the claim of
+[BonehShoup2023], Section 16.1.4 (p. 688), that a CCA adversary recovers the secret key if SDH is
+easy in `G`, not the cited result: that claim needs the key-recovery adversary to be efficient
+whenever the SDH adversary is, and no efficiency certificate for the reduction is proved here
+(#5293).
 
 ## Differences from the book
 
@@ -237,14 +242,18 @@ SDH oracle. -/
   simp only [sdhToElGamalKeyRecovery, ProbOracleComp.run_simulate, ProbOracleComp.run_query,
     elGamalDecryptOracle_neg_zero]
 
-/-- **The key-recovery experiment of `sdhToElGamalKeyRecovery A` is `sdhExperiment q A`**
-([BonehShoup2023], Section 16.1.4, p. 688). -/
+/-- The key-recovery experiment of `sdhToElGamalKeyRecovery A` is `sdhExperiment q A`: a
+fixed-group step toward [BonehShoup2023], Section 16.1.4 (p. 688), not the cited result, which
+also needs the reduction to be efficient (#5293). -/
 @[simp] theorem elGamalKeyRecoveryExperiment_sdhToElGamalKeyRecovery (A : SDHAdversary G q) :
     elGamalKeyRecoveryExperiment q g (sdhToElGamalKeyRecovery A) = sdhExperiment q A := by
   simp [elGamalKeyRecoveryExperiment, sdhExperiment]
 
-/-- **`sdhToElGamalKeyRecovery A` recovers the ElGamal secret key with the exact SDH advantage of
-`A`** ([BonehShoup2023], Section 16.1.4, p. 688). -/
+/-- `sdhToElGamalKeyRecovery A` recovers the ElGamal secret key with the exact SDH advantage of
+`A`: a fixed-group step toward [BonehShoup2023], Section 16.1.4 (p. 688), not the cited result.
+The book's claim needs the key-recovery adversary to be efficient whenever the SDH adversary is;
+here there is no group family and no `IsOraclePPT` certificate for the reduction, only the query
+bound `isQueryBounded_sdhToElGamalKeyRecovery` (#5293). -/
 @[simp] theorem elGamalKeyRecoveryAdvantage_sdhToElGamalKeyRecovery (A : SDHAdversary G q) :
     elGamalKeyRecoveryAdvantage q g (sdhToElGamalKeyRecovery A) = sdhAdvantage q A := by
   simp [elGamalKeyRecoveryAdvantage, sdhAdvantage]

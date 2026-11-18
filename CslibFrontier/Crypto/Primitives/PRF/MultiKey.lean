@@ -28,7 +28,7 @@ In the real experiment `multiKeyRealExperiment` the channels are `F (keys i)` fo
 uniform keys; in the ideal experiment `multiKeyIdealExperiment` they are `t` independent uniform
 functions `D → R`. This is the `t`-wise parallel composition of a PRF ([BonehShoup2023],
 Exercise 4.26), for finite key, input and output types, and the finite counterpart of the
-word-level `Cslib.Crypto.PseudorandomFunction.multiKey`.
+word-level `Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`.
 
 The proof is the standard hybrid argument. In the `j`-th hybrid the channels below `j` are random
 and the others are keyed. The reduction `multiKeyReduction F j A` is one randomized PRF adversary:
@@ -324,10 +324,11 @@ private theorem eval_idealExperiment_multiKeyReduction (F : Key → D → R) {j 
     · have hlt' : ¬i.val < j + 1 := by omega
       simp only [hlt, heq, hlt', ↓reduceIte]
 
-/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): the multi-key advantage of `A` is at
-most the sum of the PRF advantages of the `t` hybrid reductions `multiKeyReduction F j A`. This is
-a concrete bound for one finite instance; running time is not modeled. The asymptotic word-level
-statement is `Cslib.Crypto.PseudorandomFunction.multiKey`. -/
+/-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: the
+multi-key advantage of `A` is at most the sum of the PRF advantages of the `t` hybrid reductions
+`multiKeyReduction F j A`. This is a concrete bound for one finite instance; running time is not
+modeled. The asymptotic word-level statement, for a constant number of keys, is
+`Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`. -/
 theorem multiKeyAdvantage_le_sum (F : Key → D → R) (A : MultiKeyAdversary t D R) :
     multiKeyAdvantage F A ≤ ∑ j ∈ Finset.range t, advantage F (multiKeyReduction F j A) := by
   rw [multiKeyAdvantage, eval_multiKeyRealExperiment F A, eval_multiKeyIdealExperiment F A]
