@@ -140,7 +140,10 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encFeature)
       encVar :=
     computableInPolyTime_holds.comp (((snd _ _).comp (fst _ _)).prod (snd _ _))
-  refine listAppend' (flatMapWithInput (by fun_prop) (mapWithInput hfeatures hholds)) ?_
+  have htimes := range.comp
+    (unary_add' (snd (encPair encBits encBits) encUnary) (const 1))
+  refine listAppend' (flatMapWithInput htimes (mapWithInput hfeatures hholds)) ?_
+  refine flatMapWithInput (range.comp (length_bits.comp ((fst _ _).snd'))) ?_
   fun_prop
 
 end Cslib.Complexity.CookLevin

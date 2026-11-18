@@ -230,9 +230,11 @@ theorem computableInPolyTime_intTableAbsSum :
 
 theorem computableInPolyTime_permanentModulus :
     ComputableInPolyTime permanentModulus encIntTable encNat := by
-  have hS := computableInPolyTime_intTableAbsSum
-  unfold permanentModulus
-  fun_prop
+  have hlength := length_list (encList encIntBin)
+  have hfactorial := binary_factorial.comp hlength
+  have hpower := binary_pow' computableInPolyTime_intTableAbsSum hlength
+  simpa only [Function.comp_def, permanentModulus] using
+    binary_add' (binary_mul' (binary_mul' (const 2) hfactorial) hpower) (const 1)
 
 theorem computableInPolyTime_reduceIntTable :
     ComputableInPolyTime reduceIntTable encIntTable encNatTable := by
@@ -247,6 +249,7 @@ theorem computableInPolyTime_recoverPermanent :
   have hQ := computableInPolyTime_permanentModulus.comp
     (show ComputableInPolyTime (fun x : List (List ℤ) × ℕ => x.1) (encPair encIntTable encNat)
       encIntTable by fun_prop)
+  have hresidue := binary_mod' (snd encIntTable encNat) hQ
   unfold recoverPermanent
   fun_prop
 

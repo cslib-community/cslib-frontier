@@ -156,7 +156,12 @@ theorem computableInPolyTime_verifier {N c m T : Polynomial ℕ} {ℓ : α → �
     ComputableInPolyTime (verifier enc N c m T ℓ R) (encPair enc encBits) encBool := by
   unfold verifier
   dsimp only
-  fun_prop
+  refine ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' ?_ ?_) ?_
+  · refine ComputableInPolyTime.allConst (List.range 5) fun i _ => ?_
+    refine hR.comp ((ComputableInPolyTime.fst enc encBits).prod ?_)
+    fun_prop
+  · fun_prop
+  · fun_prop
 
 /-- On a seed, an element and five certificates, the verifier accepts exactly when the blocks of
 the element have accepted certificates, the padding starts with `ℓ` bits `false` and the affine

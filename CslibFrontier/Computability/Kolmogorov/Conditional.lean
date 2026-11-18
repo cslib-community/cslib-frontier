@@ -185,10 +185,13 @@ theorem computableInPolyTime_condUniversalTMRunFor :
       (fun pyt : List Bool × (List Bool × ℕ) => condUniversalTMRunFor pyt.1 pyt.2.1 pyt.2.2)
       (encPair encBits (encPair encBits encUnary)) (encOption encBits) := by
   unfold condUniversalTMRunFor
-  exact computableInPolyTime_universalTMRunFor.comp
-    ((computableInPolyTime_condUniversalTMProgram.comp
-      ((ComputableInPolyTime.fst _ _).prod ((ComputableInPolyTime.snd _ _).fst'))).prod
-      ((ComputableInPolyTime.snd _ _).snd'))
+  have hprogram := ComputableInPolyTime.fst encBits (encPair encBits encUnary)
+  have hinput := ComputableInPolyTime.snd encBits (encPair encBits encUnary)
+  have hcondition := hinput.fst'
+  have hclock := hinput.snd'
+  have hcode := computableInPolyTime_condUniversalTMProgram.comp
+    (hprogram.prod hcondition)
+  exact computableInPolyTime_universalTMRunFor.comp (hcode.prod hclock)
 
 /-! ### Clock-preserving conditional simulation of every binary `MultiTapeTM` -/
 
