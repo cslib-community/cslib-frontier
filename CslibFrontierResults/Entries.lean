@@ -104,6 +104,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Converse
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
@@ -419,6 +420,25 @@ register_result "goldreich-three-exact-cover" where
     dummy elements, instead of the draft's chain through 3SC and 3XC'. The remark on Exact \
     Cover with arbitrary set sizes is not covered. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6302#pullrequestreview-5947915507"
+
+register_result "goldreich-few-oracle-queries-search" where
+  title := "Logarithmically many oracle queries do not help to solve PC search problems"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.10",
+      locator := "December 2006 r1.pdf, printed p. 106; PDF p. 131" }
+  ]
+  theorems := [
+    Cslib.Complexity.mem_FPSearch_of_computableInPolyTimeWithOracleQueries_log,
+    Cslib.Complexity.mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le
+  ]
+  scope := "Stated in the equivalent direct form: an FNP relation solved (SolvesSearch) in \
+    polynomial time relative to an arbitrary oracle language with at most c log₂ n + c \
+    requests, counted against that oracle on instances of encoded length n, is in FPSearch, \
+    for every constant c. The first theorem is the exercise; the second is its general form, \
+    for any request bound r with 2 ^ r n polynomially bounded. Native multitape oracle \
+    machines (ComputableInPolyTimeWithOracle certificates). Outside-fleet six-point source \
+    check: review 5950244269 on PR #6358."
 
 register_result "pcp" where
   title := "The PCP theorem"
