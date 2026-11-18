@@ -17,10 +17,11 @@ import CslibFrontier.Probability.PMF.Bind
 /-!
 # Checking a fresh ML-DSA forgery with the original random oracle
 
-The public signing simulator writes challenge digests into the shared SHAKE256 stream. On
-the same public key, final forgery and signing replies, a change of verifier can matter only
-if a terminal request has a message representative equal to the public-key hash under the
-original stream. To prove this, we check both hash reads in [FIPS 204][NISTFIPS204],
+The public signing simulator writes challenge digests into the shared SHAKE256 stream. A
+fresh-digest win under the modified verifier is lost under the original verifier only if a
+terminal request has a message representative equal to the public-key hash under the original
+stream. Both verifiers use the same key, forgery and signing log. We check both hash reads in
+[FIPS 204][NISTFIPS204],
 Algorithm 8. At the commitment address the final digest must come from the original stream
 or a surviving write. A fresh accepted digest differs from every written digest, including
 writes followed by an expansion error. At the representative address the first write that
