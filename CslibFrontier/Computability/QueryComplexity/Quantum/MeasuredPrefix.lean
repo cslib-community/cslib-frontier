@@ -75,7 +75,7 @@ noncomputable def state (step : D → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] Eucli
 /-- The sum of the per-call disturbance factors. A coherent call contributes two and a
 classical service inspecting at most K table entries contributes `√(2K)`. Local gates and
 measurements have zero cost. -/
-noncomputable def updateCost {B} [Fintype B] : MeasuredPrefix ι D V W B → ℝ
+@[expose] noncomputable def updateCost {B} [Fintype B] : MeasuredPrefix ι D V W B → ℝ
   | .start => 0
   | .localGate (history := _) p _ => p.updateCost
   | .coherent (history := _) p _ _ => p.updateCost + 2

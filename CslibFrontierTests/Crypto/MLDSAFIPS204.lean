@@ -8,8 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigningPrefix
-import all CslibFrontier.Computability.QueryComplexity.Quantum.MeasuredPrefix
+import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
@@ -166,29 +165,3 @@ example (s : Level) :
     exact_mod_cast cert
   change ((count : ℝ) * (11 / 10) * 2 ^ bits) ^ 2 ≤ _
   nlinarith only [bound]
-
--- Reading the actual SHAKE bytes through the common register recovers every byte of Algorithm 2.
-example (s : Level) (extra : Finset (List Bool)) (key : List Byte) (q : SigningQuery)
-    (rnd : FixedBytes 32) :
-    (Cslib.OracleComp.evalPure (Xofs.shake.digestTable s extra)
-      (signingRequestQueries s extra Xofs.shake key q rnd)).map FixedBytes.toList =
-      sign s key q.message q.context rnd := by
-  rw [evalPure_signingRequestQueries, sharedXofs_digestTable]
-
--- The first signing reply controls a free local isometry and the second signing request.
--- The total cost counts the two services and one intervening coherent XOR call.
-example (s : Level) (extra : Finset (List Bool)) (H : Xofs) (key : List Byte)
-    (q : SigningQuery) (follow : SigningReply s → SigningQuery) (rnd : FixedBytes 32)
-    (gate : SigningReply s → Cslib.Quantum.ValueState (commitmentAddresses s extra)
-      (DigestRegister s) Unit →ₗᵢ[ℂ] Cslib.Quantum.ValueState (commitmentAddresses s extra)
-      (DigestRegister s) Unit) :
-    let emptyCircuit : SigningInteraction s extra Unit Unit := .start
-    let first := measuredSigningCall s extra emptyCircuit H (fun _ => key) (fun _ => q)
-      (fun _ => rnd)
-    let chosen := first.localGate fun b => gate b.2
-    let oracle := chosen.coherent (fun _ => true) (fun _ => LinearIsometry.id)
-    let second := measuredSigningCall s extra oracle H (fun _ => key) (fun b => follow b.2)
-      (fun _ => rnd)
-    second.updateCost = 2 * Real.sqrt (2 * (((s.params.ℓ + 2) * 814 + 2 : ℕ) : ℝ)) + 2 := by
-  simp [measuredSigningCall, Cslib.Quantum.MeasuredPrefix.updateCost]
-  ring

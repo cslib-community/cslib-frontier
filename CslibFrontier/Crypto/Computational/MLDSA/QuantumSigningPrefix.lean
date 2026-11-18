@@ -27,7 +27,9 @@ and all subsequent operations costs the prefix's query disturbance times the FIP
 commitment entropy factor. For an erased rejected write, a second bound counts future
 signer queries and the following measured quantum interaction without revealing the rejected mask.
 The numerical estimate averages over a uniform coefficient matrix and a fresh independent mask
-at the distinguished trial. A joint replacement for the seeded key and ExpandMask remains open.
+at the distinguished trial. The joint seeded key and ExpandMask law and the full reduction are
+tracked in [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987) and
+[#5683](https://github.com/cslib-community/cslib-frontier/issues/5683).
 
 The single-trial bound is an original finite-query estimate. Rejected-transcript oracle entries
 are central to the CMA-to-NMA arguments of [BarbosaEtAl2023] and [FallahpourFehrHuang2025].
@@ -54,7 +56,7 @@ private theorem recordReply_some {sig : List Byte} (h : sig.length = signatureBy
   obtain ⟨v, rfl⟩ := FixedBytes.exists_toList h
   congr 1
   funext i
-  exact FixedBytes.getD_toList v i 0
+  simp [FixedBytes.toList]
 
 /-- Install one digest-sized prefix per raw input in the finite quantum register. Bytes
 after the installed prefix, raw inputs outside the register and the SHAKE128 component come
@@ -202,6 +204,14 @@ noncomputable def measuredSigningCall {B W : Type} [Fintype B] [Fintype W]
     SigningInteraction s extra W (B × SigningReply s) :=
   p.service (fun b => signingRequestQueries s extra base (key b) (request b) (rnd b))
     ((s.params.ℓ + 2) * 814 + 2) (fun b => request_bounded s extra base (key b) (request b) (rnd b))
+
+/-- The measured call charges the two initial SHAKE256 reads and at most ℓ + 2 per trial. -/
+@[simp] theorem updateCost_measuredSigningCall {B W : Type} [Fintype B] [Fintype W]
+    (p : SigningInteraction s extra W B) (base : Xofs) (key : B → List Byte)
+    (request : B → SigningQuery) (rnd : B → FixedBytes 32) :
+    (measuredSigningCall s extra p base key request rnd).updateCost =
+      p.updateCost + Real.sqrt (2 * (((s.params.ℓ + 2) * 814 + 2 : ℕ) : ℝ)) := by
+  simp only [measuredSigningCall, MeasuredPrefix.updateCost]
 
 /-- Finishing the request after the distinguished attempt. A rejected mask resumes the
 bounded ExpandMask loop on the selected oracle. Failure aborts and acceptance returns bytes. -/
