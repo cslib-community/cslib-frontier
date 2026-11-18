@@ -3711,7 +3711,7 @@ instructions. -/
         (.op (.const (qfReg 24) (2 ^ f - 1))))))))))))))))
 
 /-- Closed-form machine state after `loadClusterInputCode w w₀ n k`. -/
-@[expose] noncomputable def loadClusterInputData (base w w₀ n k : ℕ)
+private noncomputable def loadClusterInputData (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ)
     (x : Data rQF) : Data rQF :=
   let d := mkClusterInput base w w₀ n k q r opTag
