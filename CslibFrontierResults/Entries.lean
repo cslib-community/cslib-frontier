@@ -1641,7 +1641,7 @@ register_result "goldreich-length-preserving-one-way" where
     unchanged. Outside-fleet six-point source check: review 5949710318 on PR #6352."
 
 register_result "goldreich-weak-not-strong-one-way" where
-  title := "A weak one-way function that is not strongly one-way"
+  title := "If one-way functions exist, a weak one-way function need not be strongly one-way"
   topic := "cryptography"
   sources := [
     { paper := Goldreich2007DraftR4, theorem := "Exercise 7.3",
