@@ -80,7 +80,7 @@ def program : Code .standard 12 :=
 theorem program_fixed : program.size ≤ 32 ∧ ¬program.ReadsWidth := by decide
 
 private theorem body_preserves : ∀ i : Fin 12,
-    (i.val < 4 ∨ i = area ∨ i = one) → body.Preserves i := by decide
+    (i.val < 4 ∨ i = area ∨ i = one) → body.Preserves i := by decide +kernel
 
 private theorem exec_body {w : ℕ} (x : Data 12) (R : ℕ → ℕ)
     (ho : x.regs one = 1) (hq : x.regs idx < x.regs size * x.regs size)
