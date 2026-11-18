@@ -93,4 +93,32 @@ example :
     slotBin 2 [(5, "a", (.leaf : BTree ℕ String)), (1, "b", .leaf), (3, "c", .leaf)] = 2 := by
   simp [slotBin_def, slotBinM_cons]
 
+/-! Bounds in the number of entries. `twoLevel` has nine entries and minimum degree `2`, so the
+bound for lookup is `(⌈log₂ 4⌉ + 1) * (log₂ 5 + 1) = 9` and the bound for rank is `6`. -/
+
+example : (lookupBinQ 8 twoLevel).countQueries orderOracle ≤
+    (Nat.clog 2 (2 * 2) + 1) * (Nat.log 2 ((twoLevel.size + 1) / 2) + 1) :=
+  countQueries_lookupBinQ_le_log orderOracle twoLevel_isWF 8
+
+example : (Nat.clog 2 (2 * 2) + 1) * (Nat.log 2 ((twoLevel.size + 1) / 2) + 1) = 9 := by
+  decide
+
+example : Nat.clog 2 (2 * 2) * (Nat.log 2 ((twoLevel.size + 1) / 2) + 1) = 6 := by
+  decide
+
+example : (rankBinQ 8 twoLevel).countQueries falseOracle ≤ 6 :=
+  (countQueries_rankBinQ_le_log falseOracle twoLevel_isWF 8).trans (by decide)
+
+/-! A bulk-loaded tree: the bound is in the length of the list, under any oracle. -/
+
+example (l : List (ℕ × String)) (hs : l.IsSortedAssoc) (k : ℕ) :
+    (lookupBinQ k (ofSortedList 3 l)).countQueries falseOracle ≤
+      (Nat.clog 2 (2 * 3) + 1) * (Nat.log 3 ((l.length + 1) / 2) + 1) :=
+  countQueries_lookupBinQ_ofSortedList_le falseOracle (by decide) hs k
+
+example (l : List (ℕ × String)) (hs : l.IsSortedAssoc) (k : ℕ) :
+    (rankBinQ k (ofSortedList 3 l)).countQueries falseOracle ≤
+      Nat.clog 2 (2 * 3) * (Nat.log 3 ((l.length + 1) / 2) + 1) :=
+  countQueries_rankBinQ_ofSortedList_le falseOracle (by decide) hs k
+
 end CslibFrontierTests.BTreeBinarySearch
