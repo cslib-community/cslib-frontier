@@ -192,9 +192,13 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
 import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
 import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
+import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash
+import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash.Games
+import CslibFrontier.Crypto.Computational.DictionarySearch
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.Order
+import CslibFrontier.Crypto.Computational.DiscreteLog.Interpolation
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
@@ -206,6 +210,10 @@ import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
+import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
+import CslibFrontier.Crypto.Computational.Encryption.Functional
+import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
+import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -229,10 +237,13 @@ import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation.BirthdayAttack
+import CslibFrontier.Crypto.Computational.RSACommonRoot
 import CslibFrontier.Crypto.Computational.RSAHalfPredicate
 import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
+import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
@@ -6212,6 +6223,68 @@ register_result "prp-iff-prf" where
     PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
     BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
+register_result "prp-birthday-distinguisher" where
+  title := "A collision test on Q distinct queries has PRF advantage at least \
+    min(Q(Q − 1)/4N, 0.63) against every block cipher, and at least 1/2 on all N ≥ 2 blocks"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "birthday distinguisher (unnumbered)",
+      locator := "Section 4.4.3, p. 134" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRP.coe_advantage_birthdayDistinguisher,
+    Cslib.Crypto.PRP.min_le_advantage_birthdayDistinguisher,
+    Cslib.Crypto.PRP.half_le_advantage_birthdayDistinguisher_of_bijective
+  ]
+  scope := "A block cipher E : Key → Perm D over finite nonempty key and block sets, with \
+    N = |D|, viewed as a PRF in the finite PRF experiment of Attack Game 4.2 with a uniform key \
+    and a uniform random function. birthdayDistinguisher x queries the Q blocks of an injective \
+    tuple x, so Q ≤ N, and outputs 1 iff two answers collide; against E it outputs 0 surely. \
+    coe_advantage_birthdayDistinguisher: its advantage is exactly \
+    1 − N(N − 1)⋯(N − Q + 1)/N^Q. min_le_advantage_birthdayDistinguisher: the advantage is at \
+    least min(Q(Q − 1)/4N, 0.63). half_le_advantage_birthdayDistinguisher_of_bijective: when x \
+    enumerates D and N ≥ 2, the advantage 1 − N!/N^N is at least 1/2; the book leaves N ≥ 2 \
+    implicit, and at N = 1 the advantage is 0. Concrete and information-theoretic: the \
+    distinguisher makes Q queries (isQueryBounded_birthdayDistinguisher) and no running time is \
+    stated here. The polynomial-time distinguisher on bit strings is the entry \
+    block-cipher-birthday-not-prf."
+
+register_result "block-cipher-birthday-not-prf" where
+  title := "A polynomial-time birthday distinguisher has PRF advantage at least \
+    min(Q(Q − 1)/4N, 0.63), so a block cipher whose block space is not super-polynomial is not \
+    a PRF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "birthday distinguisher and the argument for small N (unnumbered)",
+      locator := "Section 4.4.3, p. 134" }
+  ]
+  theorems := [
+    Cslib.Crypto.isOraclePPT_wordBirthdayDistinguisher,
+    Cslib.Crypto.BlockCipher.min_le_prfAdvantage_wordBirthdayDistinguisher,
+    Cslib.Crypto.BlockCipher.half_le_prfAdvantage_wordBirthdayDistinguisher,
+    Cslib.Crypto.BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame,
+    Cslib.Crypto.BlockCipher.not_pseudorandomFunctionOver_of_not_negligible
+  ]
+  scope := "Every uniform block cipher (BlockCipher, as in the entry prp-iff-prf), with \
+    N = 2^(blockLen n). wordBirthdayDistinguisher blockLen Q queries q = min(Q(n), N) distinct \
+    blockLen n-bit words and outputs 1 iff two answers collide. \
+    isOraclePPT_wordBirthdayDistinguisher: it is uniform oracle-PPT when blockLen and Q are \
+    computable in polynomial time in unary, the book's poly-bounded Q. With n-bit keys \
+    (keyLen = id, the keys of PseudorandomFunctionOver): \
+    BlockCipher.min_le_prfAdvantage_wordBirthdayDistinguisher gives PRF advantage at least \
+    min(q(q − 1)/4N, 0.63) at every n, and \
+    BlockCipher.half_le_prfAdvantage_wordBirthdayDistinguisher gives at least 1/2 when N ≥ 2 \
+    and Q(n) ≥ N, the book's 1 − N!/N^N ≥ 1/2. The book's 'N small' is \
+    read asymptotically as N not super-poly, that is, 1/N not negligible. \
+    BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame: for any key length, if 1/N over \
+    the n with nonzero block length is not negligible, a uniform oracle-PPT adversary \
+    distinguishes E.prpRealGame from prfIdealGame. \
+    BlockCipher.not_pseudorandomFunctionOver_of_not_negligible: with n-bit keys and block length \
+    eventually at least 1, if 1/N is not negligible, E is not a PseudorandomFunctionOver. The PRF \
+    games answer a query of the wrong length with the empty word; the distinguisher makes none. \
+    The converse for super-poly N is Corollary 4.5, the entry prp-iff-prf."
+
 register_result "brute-force-collision-search" where
   title := "Brute-force collision search finds a collision in 2^ℓ + 1 hash evaluations"
   topic := "cryptography"
@@ -6587,6 +6660,38 @@ register_result "ecb-two-block-not-cpa" where
     fails DEMOneTimeKeyINDCPAOn whenever 2 ≤ ℓ n and 1 ≤ E.blockLen n hold infinitely often \
     (not_demOneTimeKeyINDCPAOn_ecbEncrypt). Outside check: PR #6394, review 5953812058."
 
+register_result "lagrange-interpolation-in-the-exponent" where
+  title := "Lagrange interpolation, and interpolation in the exponent, in polynomial time modulo \
+    the order of a prime-order group"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 22.1 and Corollary 22.2",
+      locator := "Section 22.1.1, pp. 928–929" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.eval_eq_sum_lagrangeWeightNat_mul_eval,
+    Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_lagrangeWeightNat,
+    Cslib.Crypto.PrimeOrderGroupFamily.lagrangeCombine_eval_smul,
+    Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encode_lagrangeCombine
+  ]
+  scope := "The node set J ⊆ Z_q of size t is a list of natural numbers with distinct residues \
+    modulo q, and the point j* is any natural number. Lemma 22.1 \
+    (eval_eq_sum_lagrangeWeightNat_mul_eval): for every prime q and every polynomial ω over Z_q \
+    of degree less than t, ω(j*) = Σ_{j ∈ J} λ_j ω(j), where λ_j = lagrangeWeightNat q J j j* is \
+    the product of (j* − j′)/(j − j′) over the other nodes, computed on natural numbers. Its \
+    efficiency clause (computableInPolyTime_lagrangeWeightNat): when q is the order of the group \
+    with description d in a PrimeOrderGroupFamily, λ_j is computable in polynomial time from d, \
+    J, j and j*, with no hypothesis on the nodes. The time is polynomial in the length of the \
+    encoded description, which bounds that of q; the clause is not stated for a bare prime given \
+    in binary, while in Chapter 22 q is the order of the group. Corollary 22.2, written \
+    additively (lagrangeCombine_eval_smul): from the pairs (j, ω(j)·h) for j ∈ J, lagrangeCombine \
+    returns ω(j*)·h, for every group element h and every ω of degree less than t. \
+    computableInPolyTime_encode_lagrangeCombine: the encoding of that combination is computable \
+    in polynomial time from d, j* and the list of nodes paired with encoded group elements. As in \
+    the book, the algorithm is given neither ω nor h. Deterministic; no assumption. The \
+    identities over an arbitrary field and module that Shamir sharing uses (Section 22.5.2) are \
+    in another module and are not listed."
+
 register_result "pedersen-commitment-hiding" where
   title := "Pedersen commitments are uniformly distributed at every non-identity key"
   topic := "cryptography"
@@ -6848,6 +6953,62 @@ register_result "elgamal-multiplicative-homomorphism" where
     and decrypts via elGamalDecryptDet to encode (m₁ + m₂) \
     (elGamalDecryptDet_elGamalAddCiphertext)."
 
+register_result "projective-hash-universal" where
+  title := "The Cramer–Shoup projective hash is universal and its tagged form universal₂: exact \
+    joint laws off the Diffie–Hellman pairs"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemmas 12.5 and 12.7",
+      locator := "Section 12.5.1, p. 485; Section 12.5.2, pp. 487–488" }
+  ]
+  theorems := [
+    Cslib.Crypto.ProjectiveHash.uniform_projHash_apply_of_ne,
+    Cslib.Crypto.ProjectiveHash.uniform_projHash2_apply_of_ne
+  ]
+  scope := "A group of a PrimeOrderGroupFamily, of prime order q with generator g, written \
+    additively, so the book's v^σ w^τ is σ·v + τ·w. Elements are written u = α·g, v = β·g and \
+    w = γ·g, which covers every element, and (u, v, w) is a Diffie–Hellman triple exactly when \
+    γ = αβ (isDHTriple_generator_smul_iff). Lemma 12.5 (uniform_projHash_apply_of_ne): for \
+    uniform independent σ, τ ∈ Z_q and γ ≠ αβ, the pair (σ·g + τ·u, σ·v + τ·w) of (12.14) and \
+    (12.13) equals each (h, z) ∈ G² with probability exactly 1/q². Lemma 12.7 \
+    (uniform_projHash2_apply_of_ne): for uniform independent σ₁, τ₁, σ₂, τ₂ ∈ Z_q, two pairs \
+    (v, w) and (v̂, ŵ) off the Diffie–Hellman triples and tags ρ ≠ ρ̂, the tuple of (h₁, h₂) \
+    from (12.17) and the values f′(v, w, ρ) and f′(v̂, ŵ, ρ̂) of (12.16) equals each value in \
+    G⁴ with probability exactly 1/q⁴; the printed statement writes ρ₁ and ρ₂ in the exponents \
+    for ρ and ρ̂. The projective evaluation on L_u (projHash_smul_generator, \
+    projHash2_smul_generator) is in the same module. Information-theoretic: no assumption and \
+    no adversary."
+
+register_result "projective-hash-games" where
+  title := "Universal projective hashing hides the challenge value, and universal₂ guesses win \
+    with probability at most Q/q, against unbounded adaptive adversaries"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Lemmas 12.6 and 12.8, in the adaptive games of Exercise 12.26(a)–(b)",
+      locator := "Section 12.5.1, p. 486; Section 12.5.2, p. 488; Section 12.11, p. 521" }
+  ]
+  theorems := [
+    Cslib.Crypto.ProjectiveHash.universalDistExperiment_false_eq_true,
+    Cslib.Crypto.ProjectiveHash.succProbability_universal2GuessGame_le
+  ]
+  scope := "Attack Games 12.4 and 12.5 in the adaptive form of Exercise 12.26, over a group of a \
+    PrimeOrderGroupFamily of prime order q: the adversary chooses u, receives h (or (h₁, h₂)), \
+    makes evaluation queries, chooses (v, w) (and ρ), receives z, and makes more evaluation \
+    queries. A second stage that ignores h and makes no query gives the book's non-adaptive \
+    game. Adversaries are randomized oracle programs with no bound on their computation, and \
+    the keys σ, τ (or σ₁, τ₁, σ₂, τ₂) are uniform on Z_q. universalDistExperiment_false_eq_true \
+    (Lemma 12.6 and Exercise 12.26(a)): for every admissible adversary, the experiment with \
+    z = f(v, w) and the one with z uniform on G have the same output law. \
+    succProbability_universal2GuessGame_le \
+    (Lemma 12.8 and Exercise 12.26(b)): an admissible adversary that outputs at most Q tuples \
+    wins with probability at most Q/q. Admissibility asks that every evaluation query lie in \
+    L_u, that the challenge (v, w) of the first game lie outside L_u, and that the output list \
+    have at most Q tuples. Deviations: (1) evaluation queries must lie in L_u on every execution \
+    path, whatever the oracle replies, where the book (p. 486) assumes this of the queries made \
+    in the game; (2) the second game does not require (v, w) ∉ L_u, so it admits more \
+    adversaries than the book's. Information-theoretic: no assumption."
+
 register_result "hashed-elgamal-ddh-kdf-cpa" where
   title := "Hashed ElGamal (the variant E′_EG) is semantically secure under DDH and a secure KDF"
   topic := "cryptography"
@@ -7014,6 +7175,32 @@ register_result "xor-tcr-from-second-preimage" where
     xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
     Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "rsa-common-root-shamir-trick" where
+  title := "Shamir's trick: from w^e = y^f modulo n with coprime natural exponents, an e-th root \
+    of y in polynomial time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 10.6", locator := "Section 10.6.2, p. 416" }
+  ]
+  theorems := [
+    Cslib.Crypto.commonRoot_pow_modEq_right,
+    Cslib.Crypto.commonRoot_coprime,
+    Cslib.Crypto.commonRoot_lt,
+    Cslib.Crypto.computableInPolyTime_commonRoot
+  ]
+  scope := "commonRoot n e f w y returns y mod n when f = 0, w mod n when f = 1, and otherwise \
+    y^s (w⁻¹)^t mod n with s = e⁻¹ mod f and t = (es − 1)/f, so that es − ft = 1; the book \
+    finds es + ft = 1 by the extended Euclidean algorithm and outputs y^s w^t. For 0 < n, \
+    coprime e and f, w coprime to n and w^e ≡ y^f (mod n), the output x satisfies \
+    x^e ≡ y (mod n) (commonRoot_pow_modEq_right) and x < n (commonRoot_lt); if y is also \
+    coprime to n, then so is x (commonRoot_coprime), the book's x ∈ Z_n^*. commonRoot is \
+    computable in polynomial time on binary natural numbers, with no condition on its inputs \
+    (computableInPolyTime_commonRoot). Deviations: the book's e and f are integers, and here \
+    they are natural numbers, so negative exponents are not covered; w and y are natural \
+    numbers, not necessarily below n, and the root congruence needs only w coprime to n. \
+    commonRoot_pow_modEq_left, in the same module, also gives x^f ≡ w (mod n), which the \
+    theorem does not state. Deterministic; no assumption."
 
 register_result "rsa-hash-collision-resistance" where
   title := "The RSA hash a^e y^b is collision resistant under the RSA assumption"
@@ -7689,6 +7876,63 @@ register_result "owf-iterate-not-one-way" where
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
 
+register_result "offline-dictionary-attack" where
+  title := "The offline dictionary attack recovers a password in the dictionary, or one with the \
+    same hash, with at most |D| hash evaluations"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "offline dictionary attack (18.1) (unnumbered)",
+      locator := "Section 18.3.1.2, pp. 721–722" }
+  ]
+  theorems := [
+    Cslib.Crypto.exists_evalPure_dictionaryPreimageSearch_of_mem,
+    Cslib.Crypto.isQueryBounded_dictionarySearch,
+    Cslib.Crypto.dictionarySearch_inverts
+  ]
+  scope := "The hash H : X → Y is an oracle, and the dictionary D is a list of candidate \
+    passwords searched in order; input : P → X derives the hashed input, the identity for \
+    (18.1). exists_evalPure_dictionaryPreimageSearch_of_mem: on vk = H(pw) with pw ∈ D, the \
+    search returns some w ∈ D with H(w) = H(pw), the book's 'pw, or possibly some pw′ with \
+    H(pw) = H(pw′)'. isQueryBounded_dictionarySearch: at most |D| evaluations of H on every \
+    path. The book states running time O(|D|), counting one evaluation of H as one time unit; \
+    the bound here counts evaluations of H only, leaves comparisons uncounted and states no \
+    running time in a machine model. dictionarySearch_inverts: for every H and every law μ of \
+    the password, the search, with at most |D| evaluations on every challenge, inverts \
+    pw ↦ H(pw) with probability at least μ(D); this probability form is the library's. The \
+    preprocessing and batch attacks (18.2)–(18.3) and the salted search of Section 18.4.1, in \
+    the same module, are not listed: the book's attack-phase times rest on table lookups that \
+    the module does not count."
+
+register_result "perfect-secrecy-zero-semantic-advantage" where
+  title := "Perfectly secure ciphers, the one-time pad and the variable-length one-time pad have \
+    semantic-security advantage zero against every adversary"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 2.9 and Exercise 2.7",
+      locator := "Section 2.2.2, p. 17; Section 2.6, p. 39" }
+  ]
+  theorems := [
+    Cslib.Crypto.Cipher.advantage_oneTimeExperiment_eq_zero_of_perfectlySecret,
+    Cslib.Crypto.Cipher.advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq,
+    Cslib.Crypto.Cipher.advantage_oneTimeExperiment_otpCipher,
+    Cslib.Crypto.Cipher.advantage_oneTimeExperiment_variableLengthOTPCipher
+  ]
+  scope := "Cipher.oneTimeExperiment is Attack Game 2.1 (p. 16) for one cipher: a key from the \
+    key sampler and a challenge pair chosen by a two-stage adversary (TwoStage: randomized, \
+    computationally unbounded, with any state type), checked by an admissibility predicate; an \
+    inadmissible pair makes the experiment output 0. \
+    advantage_oneTimeExperiment_eq_zero_of_perfectlySecret: if the cipher's key law and \
+    encryption laws are those of a PerfectlySecret EncScheme, SSadv[A, E] = 0 for every \
+    adversary and every predicate. The cipher may be randomized and the key law arbitrary, \
+    where Example 2.9 takes a deterministic cipher, perfectly secure under Definition 2.1 with a \
+    uniform key. advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq: the same conclusion \
+    when only admissible pairs have equal ciphertext laws. \
+    advantage_oneTimeExperiment_otpCipher: the one-time pad on l-bit words (Example 2.1) with a \
+    uniform key, for any predicate. advantage_oneTimeExperiment_variableLengthOTPCipher: the \
+    variable-length one-time pad of Example 2.2, with L-bit keys and messages of at most L bits, \
+    under the book's equal-length admissibility; this pad is not perfectly secure unless L = 0, \
+    so this case does not follow from the first. Information-theoretic; no assumption."
+
 register_result "deterministic-cipher-not-indcpa" where
   title := "Deterministic and zero-expansion symmetric ciphers are not CPA-secure"
   topic := "cryptography"
@@ -7770,6 +8014,68 @@ register_result "list-cdh-guessing" where
     pp. 447–448), which uses the same guessing step; the added term is the cost of the fair \
     coins."
 
+register_result "baby-step-giant-step" where
+  title := "Baby-step/giant-step computes discrete logarithms in a generic cyclic group of order \
+    q with at most 2⌊√(q − 1)⌋ group operations"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "baby-step/giant-step algorithm (unnumbered)",
+      locator := "Section 16.1.1, pp. 682–683; Section 16.3, p. 693" }
+  ]
+  theorems := [
+    Cslib.Crypto.GenericGroup.babyStepGiantStep_sqrt,
+    Cslib.Crypto.GenericGroup.evalPure_babyStepGiantStep,
+    Cslib.Crypto.GenericGroup.isQueryBounded_babyStepGiantStep,
+    Cslib.Crypto.GenericGroup.queriesSatisfy_babyStepGiantStep,
+    Cslib.Crypto.GenericGroup.evalPure_groupAnswer_babyStepGiantStep
+  ]
+  scope := "babyStepGiantStep m n is a deterministic program over the group oracle of the \
+    generic group model of Section 16.3 (p. 693), given the labels L(1) and L(α), with m baby \
+    and n giant labels. The bounds count group-oracle queries, the book's group operations, not \
+    running time: every query is a product of two labelled elements \
+    (queriesSatisfy_babyStepGiantStep), and table lookups, the search and arithmetic on indices \
+    are not counted, as in the book's count. evalPure_babyStepGiantStep: for every q ≠ 0, prime \
+    or not as in Section 16.1.1, every injective labeling L, every α and all m, n with q ≤ mn, \
+    the output is α. isQueryBounded_babyStepGiantStep: at most (m − 1) + (n − 1) queries on \
+    every run, whatever the oracle answers; varying m with mn ≥ q is the book's time/space \
+    trade-off. babyStepGiantStep_sqrt: at the book's m = n = ⌈√q⌉, written \
+    Nat.sqrt (q − 1) + 1, the output is α after at most 2⌊√(q − 1)⌋ < 2√q queries, the book's \
+    'about 2q^(1/2) group operations in the worse case'. \
+    evalPure_groupAnswer_babyStepGiantStep: run on a ZMod q-module with g of order q, on g and \
+    α·g, the output is α. Deviations: the giant steps add the label of m instead of multiplying \
+    by g^(−m), so no inversion is used, and all giant labels are computed before the search, \
+    which leaves the worst case unchanged. The book's O(q^(1/2)) running time with an \
+    associative array is not formalized."
+
+register_result "recursive-discrete-log" where
+  title := "Algorithm RDL computes discrete logarithms in a group of order q^e with at most \
+    e·T + 6e⌈log₂ e⌉⌈log₂ q⌉ group operations, given a base case of T operations"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Algorithm RDL (unnumbered)",
+      locator := "Section 16.1.2.1, pp. 684–685" }
+  ]
+  theorems := [
+    Cslib.Crypto.GenericGroup.evalPure_recursiveDlog,
+    Cslib.Crypto.GenericGroup.isQueryBounded_recursiveDlog,
+    Cslib.Crypto.GenericGroup.queriesSatisfy_recursiveDlog,
+    Cslib.Crypto.GenericGroup.evalPure_groupAnswer_recursiveDlog
+  ]
+  scope := "recursiveDlog base q e g u is Algorithm RDL over the group oracle of the generic \
+    group model (Section 16.3, p. 693), with f = ⌊e/2⌋ and a base-case program base for order \
+    q. It computes u/g^β as u·g^(q^e − β) by repeated squaring, so every query is a product of \
+    two labels when those of base are (queriesSatisfy_recursiveDlog). The bounds count \
+    group-oracle queries, the book's group operations, not running time; integer arithmetic on \
+    exponents is not counted. isQueryBounded_recursiveDlog: for q ≥ 2, e ≥ 1 and a base case of \
+    at most T queries, at most e·T + 6e⌈log₂ e⌉⌈log₂ q⌉ queries on every run, the book's \
+    O(e·T_base + e log e log q) with this library's constants. evalPure_recursiveDlog: in a \
+    group of order n given by an oracle that multiplies the labels of L, for s of order q^e \
+    (e ≥ 1) and a base case correct on every element of order q, the output on L(s) and L(αs) \
+    is α for every α < q^e; q need not be prime, as in the book. \
+    evalPure_groupAnswer_recursiveDlog: on a ZMod n-module with g of order n = q^e and \
+    baby-step/giant-step as the base case, the output on g and α·g is α. The Pohlig–Hellman \
+    algorithm for several primes (Algorithm PH, Section 16.1.2.2) is not formalized."
+
 register_result "cdh-inverse-order-negligible" where
   title := "Under CDH, the inverse group order 1/q is negligible"
   topic := "cryptography"
@@ -7832,6 +8138,60 @@ register_result "malleable-encryption-not-1cca" where
     Game 12.1 with advantage 1 there. The theorems do not state that condition, so each \
     application has to check it. The library applies them to ElGamal, Goldwasser–Micali and \
     Paillier encryption, so (i)–(iii) can hold."
+
+register_result "functional-encryption-injective-null-key" where
+  title := "When the null function is injective, every functional encryption scheme, the \
+    cleartext scheme included, has semantic-security advantage zero"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Remark 15.13: the zero advantage behind it; Definition 15.14 is not formalized",
+      locator := "Section 15.7, p. 661" }
+  ]
+  theorems := [
+    Cslib.Crypto.FE.advantage_ssExperiment_eq_zero_of_injective_null,
+    Cslib.Crypto.FE.advantage_ssExperiment_pke_eq_zero,
+    Cslib.Crypto.FE.cleartext_correct
+  ]
+  scope := "FE is Definition 15.13 (pp. 658–659) for one fixed scheme: typed setup, key \
+    generation and encryption programs, and deterministic decryption into Option Y, where none \
+    stands for both ⊥ and reject; there is no security parameter and no efficiency. \
+    FE.ssExperiment is Attack Game 15.9 (pp. 660–661) with one encryption query and adaptive key \
+    queries before and after it: the adversary receives mpk and the null key sk_ε, and the run \
+    outputs 0 unless ε and every queried function agree on the challenge pair. \
+    advantage_ssExperiment_eq_zero_of_injective_null: if F(ε, ·) is injective, every adversary, \
+    with no bound on its computation, has SSadv[A, FE] = 0 against every scheme, since only \
+    pairs with m₀ = m₁ are admissible. advantage_ssExperiment_pke_eq_zero is the Remark's \
+    functionality: the identity key and a null key that reveals π(m), for any injective π \
+    (Functionality.pke π). cleartext_correct: the Remark's scheme E(mpk, m) := m, whose key for \
+    f is f and whose decryption is F(f, ·), is correct. One-wayness of π is not needed. The \
+    Remark concludes that the scheme is secure under Definition 15.14, the asymptotic notion \
+    for efficient schemes, which is not formalized (#4894); this entry records the zero \
+    advantage on which that rests. cleartext_robust, in the same module, proves the library's \
+    FE.Robust, which the book's Definition 15.15 implies but not conversely; the Remark does not \
+    claim robustness."
+
+register_result "pke-as-functional-encryption" where
+  title := "A public-key scheme, as functional encryption for the identity and the null \
+    function len, is correct exactly when the scheme is correct and the null key computes len"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 15.1, with the null key of p. 660",
+      locator := "Section 15.7, pp. 659–660" }
+  ]
+  theorems := [
+    Cslib.Crypto.PKE.toFE_correct_iff
+  ]
+  scope := "Functionality.pke len is (15.33) with the null identifier ε of p. 660: the identity \
+    I (some ()) returns the message and ε (none) returns len(m), tagged in M ⊕ L. PKE.toFE leak \
+    views a public-key scheme as a functional encryption scheme whose key for I is the secret \
+    key and whose null key is public and returns leak(c). toFE_correct_iff: E.toFE leak is \
+    correct for Functionality.pke len (Definition 15.13, p. 659) exactly when E is correct and \
+    leak(c) = len(m) for every honest key pair and every honest encryption c of m. Typed records \
+    for one fixed scheme, without security parameter or efficiency. \
+    eval_ssExperiment_toFE_ofTwoStage, in the same module, matches Attack Game 15.9 for E.toFE \
+    against adversaries that make no key query with the chosen-plaintext experiment of E under \
+    equal len; it checks the two games against each other and is not a claim of the book."
 
 register_result "partial-tag-encrypt-then-mac" where
   title := "Encrypt-then-MAC over a one-block PRF cipher with an unauthenticated IV loses \
