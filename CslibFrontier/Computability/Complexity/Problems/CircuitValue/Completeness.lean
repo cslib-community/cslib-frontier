@@ -210,9 +210,10 @@ theorem trailerWire_inSpace (suffix : List Bool) {w : α → ℕ}
 private theorem gateChunk_inSpace {n i : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs)
     (hi : ComputableInSpace i encIn encNat Bs) :
     ComputableInSpace (fun x => gateChunk tm C d (n x) (i x)) encIn encBits Bs :=
-  (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
-    (budget_comp_linear (ComputableInSpace.frame encGate)
-      (gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hi)))).of_enc_eq fun _ => rfl
+  (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
+    (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
+      (budget_comp_linear (ComputableInSpace.frame encGate)
+        (gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hi)))).of_enc_eq fun _ => rfl
 
 omit [DecidableEq State] in
 private theorem trailer_inSpace {n : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs) :
