@@ -17,11 +17,13 @@ import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 
 /-!
-# Finite random-oracle coverage of the ML-DSA strong-forgery game
+# Finite random-oracle coverage of the Appendix C capped ML-DSA strong-forgery game
 
-[FIPS 204][NISTFIPS204], Algorithms 2, 3, 6, 7 and 8 and Appendix C determine the
-maximum raw input and output lengths needed by the honest algorithms. The representative
-hash includes the public-key hash, external context and bit-string message.
+The implementation of [FIPS 204][NISTFIPS204], Algorithms 2, 3 and 6–8, selects the
+minimum permitted Appendix C caps on signing and rejection sampling. It allows 814 signing
+attempts and up to 894 bytes for RejNTTPoly, 481 for RejBoundedPoly and 221 for SampleInBall.
+For this choice, a fixed message budget suffices to cover every raw read, including hashing the
+public key and the framed external bit-string message.
 -/
 
 public section
@@ -324,9 +326,9 @@ private theorem restrict_game {a b A B : ℕ} (ha : a ≤ A) (hb : b ≤ B)
   exact congr _ _ ⟨read_restrict ha hb t₁ lo.h128 hi.h128,
     read_restrict ha hb t₂ lo.h256 hi.h256⟩
 
-/-- The full strong-forgery game has the same law at every larger address or output width
-and for every background outside the sampled SHAKE streams. The smaller widths cover the
-coherent register, the message budget and the Appendix C byte limits of the honest algorithms.
+/-- The Appendix C capped strong-forgery game has the same law at every larger address or
+output width and for every background outside the sampled SHAKE streams. The smaller widths
+cover the coherent register, the message budget and the selected minimum permitted caps.
 Both widths and the resource budget are fixed before key generation. -/
 theorem randomPrefixGame_stable (C : QuantumSigningForger) (s : Level) {m a b A B : ℕ}
     (fit : C.MessagesFit m) (ha : max C.addressBits (honestAddressBits s m) ≤ a)
