@@ -36,6 +36,14 @@ import CslibFrontier.Algorithms.Lean.TrimmedYates
 import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
 import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
+import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
+import CslibFrontier.Crypto.Computational.RSACRT
+import CslibFrontier.Crypto.Game.SecondPreimage
+import CslibFrontier.Crypto.Primitives.IdealCipher.Compression
+import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
+import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
+import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
+import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
 import CslibFrontier.Computability.Complexity.Problems.SharpCycle
@@ -6447,6 +6455,37 @@ register_result "ofb-mode-cpa" where
     at most K blocks in total and at most ℓ per query, over a finite key set; it charges no \
     running time."
 
+register_result "iv-stream-cipher-malleability" where
+  title := "XORing a mask into the body of a random-IV stream ciphertext gives an encryption of \
+    the masked message"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "malleability of randomized counter mode in the chosen-ciphertext example \
+        (unnumbered)",
+      locator := "Section 9.2.1, pp. 360–361" }
+  ]
+  theorems := [
+    Cslib.Crypto.ivStreamXorBody_mem_support_ivStreamEncrypt,
+    Cslib.Crypto.ivStreamDecrypt_ivStreamXorBody,
+    Cslib.Crypto.computableInPolyTime_ivStreamXorBody
+  ]
+  scope := "The book's example: from a randomized counter-mode encryption c of u ‖ m, the \
+    ciphertext ĉ equal to c except that ĉ[1] := c[1] ⊕ u ⊕ v decrypts to v ‖ m (p. 361). These \
+    theorems prove the property behind it for every stream cipher with a random initial value. \
+    ivStreamEncrypt keystream n k msg draws a uniform n-bit IV and outputs IV followed by \
+    keystream(n, k, IV, |msg|/n) ⊕ msg, for an arbitrary keystream function; randomized counter \
+    mode (ctrWordEncrypt, Section 5.4.2), OFB mode and the one-block cipher prfCipher are of \
+    this form. ivStreamXorBody n Δ c keeps the first n bits of c and XORs Δ into the rest; it \
+    uses neither the key nor the keystream, and it is computable in polynomial time with n in \
+    unary (computableInPolyTime_ivStreamXorBody). ivStreamXorBody_mem_support_ivStreamEncrypt: \
+    if c is an encryption of msg and |Δ| ≥ |msg|, the result is an encryption of msg ⊕ Δ (it \
+    lies in the support of that encryption). ivStreamDecrypt_ivStreamXorBody: when msg is a \
+    whole number of n-bit blocks and the keystream from every n-bit IV has that many bits, it \
+    decrypts to msg ⊕ Δ. The book's mask is Δ = (u ⊕ v) ‖ 0…0. Not covered: the randomized CBC \
+    half of the example (ĉ[0] := c[0] ⊕ u ⊕ v) and the CRC step of the WEP malleability attack \
+    (Section 9.10, Attack 3)."
+
 register_result "prg-parallel-composition" where
   title := "The parallel composition of a secure pseudorandom generator is secure"
   topic := "cryptography"
@@ -6531,6 +6570,28 @@ register_result "luby-rackoff-prp" where
     theorem number and locator were not checked: no copy is recorded in the manual's sources. \
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
+
+register_result "linear-cryptanalysis-majority-vote" where
+  title := "Linear cryptanalysis: with a linear relation of bias ε, a majority vote over t known \
+    plaintexts recovers a key parity bit with probability at least 1 − e^(−2tε²)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 4.3, with a sharper exponent",
+      locator := "Section 4.3.1, pp. 123–124 (relation (4.14), p. 123; bound (4.15), p. 124)" }
+  ]
+  theorems := [
+    Cslib.Crypto.LinearCryptanalysis.HasLinearRelation.prob_linearKeyBitEstimate_ge
+  ]
+  scope := "For any keyed function E : {0,1}^h × {0,1}^n → {0,1}^n (the book: a block cipher; \
+    neither invertibility nor decryption is used), masks S₀, S₁ ⊆ {0, …, n − 1} and \
+    S₂ ⊆ {0, …, h − 1}, and ε ≥ 0 (the book assumes ε > 0). HasLinearRelation is (4.14): for \
+    every key k, m[S₀] ⊕ E(k, m)[S₁] = k[S₂] for at least a 1/2 + ε fraction of the messages m. \
+    For every key k and every t, if m₁, …, m_t are independent and uniform, the majority of the \
+    bits m_i[S₀] ⊕ E(k, m_i)[S₁] equals k[S₂] with probability at least 1 − exp(−2tε²), which \
+    implies the printed bound 1 − exp(−tε²/2) of (4.15). The book does not say how a tied vote \
+    is resolved; linearKeyBitEstimate returns the first vote on a tie and false for t = 0. \
+    Only the parity bit k[S₂] is recovered, no running time or query cost is claimed, and the \
+    application to DES (pp. 124–125) is not formalized."
 
 register_result "ecb-distinct-blocks-cpa" where
   title := "ECB mode of a pseudorandom permutation is one-time semantically secure on messages of \
@@ -6959,6 +7020,38 @@ register_result "prf-mac-suf-cma" where
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 
+register_result "prepend-key-prf-random-oracle" where
+  title := "Prepending the key to a random oracle gives a secure PRF, with advantage at most \
+    Q_ro/|K| for Q_ro oracle queries"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.9",
+      locator := "Section 8.10.2, p. 329 (Attack Game 8.4 and Definition 8.5, p. 329)" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRF.roAdvantage_prependKey_le,
+    Cslib.Crypto.PRF.negligible_roAdvantage_prependKey,
+    Cslib.Crypto.PRF.roAdvantage_prependKey_keyAppend_le,
+    Cslib.Crypto.PRF.negligible_roAdvantage_prependKey_keyAppend
+  ]
+  scope := "Attack Game 8.4 for finite types Key, X, M and T: both experiments sample a uniform \
+    oracle table O : M → T; Experiment 0 samples a uniform key and answers each F-query x with \
+    F_pre(k, x) = O(encode(k, x)), Experiment 1 answers with a uniform f : X → T, and both \
+    answer oracle queries with O. The advantage is |Pr[W₀] − Pr[W₁]|. Adversaries are adaptive \
+    programs with private coins that make at most Q oracle queries on every path, with no bound \
+    on F-queries or running time; the book notes that the theorem constrains only the number of \
+    oracle queries. roAdvantage_prependKey_le: for any pairing encode : Key → X → M that is \
+    injective in the pair (in place of k ‖ x), the advantage is at most Q/|Key|. \
+    roAdvantage_prependKey_keyAppend_le is the book's instance K = {0,1}^κ and \
+    X = {0,1}^(≤L), with bound Q/2^κ; there M is exactly the words of length at most κ + L, \
+    while the book allows M to contain more, which the general theorem covers for any finite \
+    M. negligible_roAdvantage_prependKey and negligible_roAdvantage_prependKey_keyAppend: when \
+    1/|Key n| is negligible (for bit strings, keys of at least n bits), every family of \
+    adversaries with polynomially many oracle queries has negligible advantage; efficient \
+    adversaries are such families, so this gives Definition 8.5. The proof is not the book's \
+    and does not assume that F-queries are distinct. Not formalized: the insecurity of F_pre \
+    for a Merkle–Damgård hash (p. 329) and Section 8.10.3."
+
 register_result "merkle-damgard-collision-resistance" where
   title := "The Merkle–Damgård hash of a collision-resistant compression function is collision \
     resistant"
@@ -6990,6 +7083,89 @@ register_result "merkle-damgard-collision-resistance" where
     theorem's CRadv[A, H_MD] = CRadv[B, h] on any message domain whose padded block counts \
     are below 2^(n/2). The one-bit-per-block hash merkleDamgard of MerkleDamgard.lean is not \
     part of this entry."
+
+register_result "davies-meyer-ideal-cipher-collision-resistance" where
+  title := "Davies–Meyer is collision resistant in the ideal cipher model: a Q-query adversary \
+    finds a collision with probability at most (Q + 1)(Q + 2)/|X|"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.4",
+      locator := "Section 8.5.3, p. 302 (the construction: Section 8.5.2, p. 300)" }
+  ]
+  theorems := [
+    Cslib.IdealCipher.daviesMeyer_collisionGame_mul_le,
+    Cslib.IdealCipher.daviesMeyer_collisionGame_le
+  ]
+  scope := "The ideal cipher is a family of independent uniform permutations Π_k of a finite \
+    nonempty block set X, one for each key of a finite key set K. A CollisionFinder is an \
+    adaptive oracle program with private coins that makes forward queries Π_k(a) and inverse \
+    queries Π_k⁻¹(b) and outputs two inputs; IsQueryBounded A Q bounds its queries of both \
+    kinds by Q on every path, with no bound on running time. collisionGame evaluates the \
+    compression function on both outputs, with two further queries, and accepts distinct inputs \
+    with equal outputs. daviesMeyer Π (k, x) = Π_k(x) + x is the book's \
+    h_DM(x, y) = E(y, x) ⊕ x with its arguments swapped, which is a bijection of the input \
+    space, for any group structure + on X: XOR on {0,1}^n, and also modular addition as in \
+    SHA256 (p. 304). daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, \
+    and daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|. The \
+    docstrings of both theorems cite Katz and Lindell, Theorem 7.5, which states the same \
+    bound."
+
+register_result "davies-meyer-insecure-variants" where
+  title := "The Davies–Meyer variants h₄ and h₅ have two-query collision finders that always \
+    succeed in the ideal cipher model"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 8.11, in the ideal cipher model",
+      locator := "Section 8.14, p. 349 (the variants h₄ and h₅: Section 8.5.2, p. 301)" }
+  ]
+  theorems := [
+    Cslib.IdealCipher.keyMaskedAdversary_wins,
+    Cslib.IdealCipher.keyMaskedInputAdversary_wins,
+    Cslib.IdealCipher.exists_collisionFinder_keyMasked,
+    Cslib.IdealCipher.exists_collisionFinder_keyMaskedInput
+  ]
+  scope := "Keys and blocks are the same finite set X with a group structure + (XOR on {0,1}^n), \
+    and the cipher is ideal, as in davies-meyer-ideal-cipher-collision-resistance. \
+    keyMasked Π (k, x) = Π_k(x) + k is h₄(x, y) = E(y, x) ⊕ y with its arguments swapped, and \
+    keyMaskedInput Π (k, x) = Π_k(k + x) + k is h₅(x, y) = E(x, x ⊕ y) ⊕ x. For distinct keys \
+    k₁ ≠ k₂ and any target y, keyMaskedAdversary and keyMaskedInputAdversary make the two \
+    inverse queries Π_k₁⁻¹(y − k₁) and Π_k₂⁻¹(y − k₂) and output two distinct inputs that both \
+    hash to y; they win collisionGame with probability exactly 1 (keyMaskedAdversary_wins, \
+    keyMaskedInputAdversary_wins) with at most 2 queries (isQueryBounded_keyMaskedAdversary and \
+    isQueryBounded_keyMaskedInputAdversary, in the same module). The exists_ forms state this \
+    for every X with at least two elements. The book's 'constant time' (p. 301) is the count of \
+    two queries here; no running time is claimed. The exercise asks to show that h₄ and h₅ are \
+    not collision resistant. The attacks use the cipher only as an oracle for its inverse, but \
+    the statement for a concrete block cipher is not formalized."
+
+register_result "second-preimage-counting-and-inversion" where
+  title := "At most a 1/s fraction of inputs lack a second preimage, and inverting is at most \
+    twice as easy as finding second preimages, up to 1/s"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 8.23(a) and the bound (8.22) of 8.23(b)",
+      locator := "Section 8.14, pp. 352–353; Definition 8.6, Section 8.11.1, p. 336" }
+  ]
+  theorems := [
+    Cslib.Crypto.card_not_hasSecondPreimage_div_le,
+    Cslib.Crypto.succProbability_inversionExperiment_uniform_le_two_mul_add_div,
+    Cslib.Crypto.succProbability_inversionExperiment_uniform_le_add_card_div
+  ]
+  scope := "For any function H : M → T between finite types, M nonempty, and any s > 0 with \
+    s·|T| ≤ |M| (the book assumes s > 1). card_not_hasSecondPreimage_div_le (8.23(a)): the \
+    inputs m with no m′ ≠ m such that H(m′) = H(m) form at most a 1/s fraction of M. The \
+    experiments are those of Definition 8.6: inversionExperiment draws m uniformly from M, gives \
+    H(m) to the inverter and accepts any preimage; secondPreimageExperiment gives m to the \
+    finder and accepts m′ ≠ m with H(m′) = H(m). For every randomized inverter A : T → PMF M \
+    and the finder B(m) = A(H(m)) of the exercise's hint, \
+    succProbability_inversionExperiment_uniform_le_two_mul_add_div is (8.22), \
+    OWadv[A, H] ≤ 2·SPRadv[B, H] + 1/s, and \
+    succProbability_inversionExperiment_uniform_le_add_card_div is the sharper \
+    OWadv[A, H] ≤ SPRadv[B, H] + |T|/|M|, from which (8.22) follows. These are concrete bounds \
+    for every A, with no cost model; B calls A once. The asymptotic part of 8.23(b), that \
+    second-preimage resistance implies one-wayness when s is super-poly, has a bit-string \
+    counterpart in Computational/SecondPreimageResistant/Relations.lean, which is not part of \
+    this entry; nor are 8.23(c)–(d)."
 
 register_result "xor-tcr-from-second-preimage" where
   title := "Masking the input with the key turns a second-preimage-resistant hash into a target \
@@ -7043,6 +7219,38 @@ register_result "rsa-hash-collision-resistance" where
     (computableInPolyTime_rsaHash, computableInPolyTime_validRSAHashInput). Asymptotic; \
     succProbability_collisionGameFor_rsaHash_le_rsaInversionGame, in the same module, is the \
     bound (10.3), CRadv[A, H_rsa] ≤ RSAadv[B, ℓ, e]."
+
+register_result "rsa-crt-fault-attack" where
+  title := "RSA-CRT inversion is correct for odd primes, and a fault in its mod-p half reveals \
+    q = gcd(σ^e − h, n)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "RSA-CRT inversion and the fault-injection attack on it (unnumbered)",
+      locator := "Section 16.4.3, pp. 701–702" }
+  ]
+  theorems := [
+    Cslib.Crypto.RSADesc.invert_crtKey,
+    Cslib.Crypto.RSADesc.gcd_val_pow_sub_combine_eq_q,
+    Cslib.Crypto.computableInPolyTime_crtKey_invert,
+    Cslib.Crypto.computableInPolyTime_gcd_val_pow_sub
+  ]
+  scope := "For an RSA key RSADesc: distinct primes p and q, n = pq, and e·d ≡ 1 modulo \
+    (p − 1)(q − 1). The RSA-CRT key is (p, q, d_p, d_q, q_inv) with d_p = d mod (p − 1), \
+    d_q = d mod (q − 1) and q_inv = q⁻¹ mod p, computed by the extended Euclidean algorithm \
+    (crtQInv); inversion is the book's steps 1–3, recombining as \
+    x_q + (q_inv·(x_p − x_q) mod p)·q. invert_crtKey: for p ≠ 2 and q ≠ 2, RSA-CRT inversion \
+    equals y^d mod n for every natural number y. The book's ordering p > q is not needed, and \
+    oddness is: RSADesc admits p = 2, where d_p = 0 and step 1 is wrong on even y. \
+    gcd_val_pow_sub_combine_eq_q: if x_q ≡ h^d (mod q) and x_p ≢ h^d (mod p), the recombined \
+    output σ satisfies gcd(σ^e − h, n) = q, where σ^e − h is computed in Z_n and read as an \
+    integer in [0, n), as on p. 702; h is any natural number in place of H(m), and q_inv is \
+    any inverse of q modulo p. computableInPolyTime_crtKey_invert and \
+    computableInPolyTime_gcd_val_pow_sub: RSA-CRT inversion and the gcd step are computable in \
+    polynomial time on binary natural numbers from polynomial-time components, so q is found in \
+    polynomial time from n, e, h and the faulty output. The fault is a hypothesis on x_p, not a \
+    model of fault injection, and nothing is stated about an adversary in a security game. Not \
+    formalized: the four-fold speed-up and RSA-CRT as the signer of FDH-RSA."
 
 register_result "blinded-cdh-hard" where
   title := "The blinded Diffie–Hellman problem of protocol PAKE₂ is hard under CDH"
@@ -7868,6 +8076,35 @@ register_result "partial-tag-encrypt-then-mac" where
     adds that when F is a PseudorandomFunction (Attack Game 4.2 and Definition 4.2, \
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
+
+register_result "ghash-gcm-length-block-xor-duf" where
+  title := "GHASH on GCM's zero-padded input with its length block is an ℓ/2^128-XOR-DUF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "GHASH (9.18) with the length fields of line (∗) keeps the XOR-DUF property \
+        (unnumbered)",
+      locator := "Section 9.7, pp. 381–382; XOR-DUFs: Remark 7.3, p. 269" }
+  ]
+  theorems := [
+    Cslib.Crypto.isDeltaUniversalHash_ghashBits_gcmHashInput
+  ]
+  scope := "GHASH is (9.18), z[0]·k^v + ⋯ + z[v − 1]·k, evaluated in any field F with an \
+    additive bijection e between F and {0,1}^128; GF(2^128) with the modulus \
+    X^128 + X^7 + X^2 + X + 1 and the standard's bit order is such a field but is not \
+    constructed. The key is uniform in {0,1}^128 (in GCM it is E(k, 0^128)). gcmHashInput d c \
+    is the input of line (∗): d and c padded with zeros to 128-bit blocks, then one block \
+    holding their two lengths as 64-bit numbers. For any family of inputs x determined by the \
+    pair (d x, c x), with both lengths below 2^64 and at most ℓ blocks hashed, the length block \
+    included, GHASH is an ℓ/2^128-XOR-DUF in the sense of Remark 7.3: for x ≠ x′ and every \
+    δ, Pr_k[GHASH(k, x) ⊕ GHASH(k, x′) = δ] ≤ ℓ/2^128. Deviations: the length fields count \
+    bits, where the book's count bytes, so that arbitrary bit strings are separated after \
+    padding; the book's limit ℓ = 2^32 − 1 on the number of blocks keeps both lengths below \
+    2^64 bits; and the book gives no ε for GHASH, while Remark 7.4 gives (ℓ + 1)/2^n for \
+    H_xpoly, which has the extra leading term k^(v+1). Without the length block GHASH is not \
+    even universal on inputs of at most ℓ blocks, since [] and [0] collide under every key \
+    (not_isUniversalHash_ghash, in the same module, not listed). Only the hash is formalized, \
+    not GCM's encryption or its AEAD security."
 
 register_result "rsa-half-predicate-inversion" where
   title := "Baby Bleichenbacher: an oracle for the half predicate inverts RSA"
