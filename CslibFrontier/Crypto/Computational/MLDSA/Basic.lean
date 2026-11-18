@@ -316,6 +316,20 @@ theorem verifierCommitment_publicKey (sk : SecretKey P) (y : Fin P.ℓ → Fin P
   simp only [h]
   abel
 
+/-- Once the low-bits rejection test succeeds, subtracting the challenge times a short
+secret preserves the high bits of the original commitment. -/
+theorem highBitsVec_sub_challenge (hP : P.Valid) {c : Fin P.n → ZMod P.q}
+    {w s : Fin P.k → Fin P.n → ZMod P.q} (hc : InBall P.τ c)
+    (hs : ∀ i j, |(s i j).valMinAbs| ≤ P.η)
+    (hlow : LowBitsShort P (w - fun i => negacyclicMul c (s i))) :
+    highBitsVec P (w - fun i => negacyclicMul c (s i)) = highBitsVec P w := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  funext i j
+  have hb : |(negacyclicMul c (s i) j).valMinAbs| ≤ P.β :=
+    (abs_valMinAbs_negacyclicMul_le hc (hs i) j).trans (by exact_mod_cast hP.τ_mul_η_le_β)
+  have he := highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hb (hlow i j)
+  simpa only [highBitsVec, Pi.sub_apply, sub_add_cancel] using he.symm
+
 /-- **Correctness of one attempt.** If `‖s₂‖_∞ ≤ η` and the hash takes values in `B_τ`, every
 signature output by `signAttempt` verifies under the matching public key. -/
 theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ (H x))
@@ -332,18 +346,7 @@ theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ 
   simp only [verify, Bool.and_eq_true, decide_eq_true_eq]
   refine ⟨⟨hz, hH _⟩, ?_⟩
   rw [verifierCommitment_publicKey]
-  -- `HighBits(w - c s₂) = HighBits(w)`, since `c s₂` is `β`-short.
-  have hhigh : highBitsVec P (w - fun i => negacyclicMul c (sk.s₂ i)) = highBitsVec P w := by
-    funext i j
-    have hs : |(negacyclicMul c (sk.s₂ i) j).valMinAbs| ≤ P.β := by
-      have := abs_valMinAbs_negacyclicMul_le (hH (highBitsVec P w, msg)) (hs₂ i) j
-      have hτη : ((P.τ * P.η : ℕ) : ℤ) ≤ P.β := by exact_mod_cast hP.τ_mul_η_le_β
-      push_cast at hτη
-      linarith
-    have := highBits_add_of_abs_lowBits_lt hP.γ₂_pos hP.two_mul_γ₂_dvd hP.one_lt_q hs (hlow i j)
-    simp only [Pi.sub_apply, sub_add_cancel] at this
-    exact this.symm
-  rw [hhigh]
+  rw [highBitsVec_sub_challenge hP (hH (highBitsVec P w, msg)) hs₂ hlow]
 
 /-- **Correctness of signing.** Under the hypotheses of `verify_signAttempt`, every signature that
 `sign` can output verifies, whatever the mask sampler and the retry bound. -/

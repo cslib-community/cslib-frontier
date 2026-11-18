@@ -1803,6 +1803,7 @@ public import CslibFrontier.Computability.Circuit.Unfolding
 public import CslibFrontier.Computability.Circuit.Weft
 public import CslibFrontier.Computability.Circuit.WireNumber
 public import CslibFrontier.Computability.Circuit.Wiring
+public import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
 public import CslibFrontier.Computability.Communication.Amplification
 public import CslibFrontier.Computability.Communication.Announce
 public import CslibFrontier.Computability.Communication.BinarySearch
@@ -1954,6 +1955,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
+public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 public import CslibFrontier.Computability.Complexity.Classes.BPP.KarpLipton
 public import CslibFrontier.Computability.Complexity.Classes.BPP.RandomizedReduction
@@ -4892,6 +4894,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.Decompose
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
 public import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthPadding
 public import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
@@ -5449,6 +5452,7 @@ public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
 public import CslibFrontier.DataStructure.BPlusTree.MinMax
 public import CslibFrontier.DataStructure.BPlusTree.PredSucc
+public import CslibFrontier.DataStructure.BPlusTree.Range
 public import CslibFrontier.DataStructure.BPlusTree.Rank
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
@@ -6447,6 +6451,7 @@ public import CslibFrontier.Foundations.Data.List.RowMajor
 public import CslibFrontier.Foundations.Data.List.SelectDistinct
 public import CslibFrontier.Foundations.Data.List.Sort
 public import CslibFrontier.Foundations.Data.List.SortedAssoc
+public import CslibFrontier.Foundations.Data.List.SortedAssoc.Flatten
 public import CslibFrontier.Foundations.Data.List.SortedAssoc.Scan
 public import CslibFrontier.Foundations.Data.List.SortedCount
 public import CslibFrontier.Foundations.Data.List.SumIndicator

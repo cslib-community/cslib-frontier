@@ -74,6 +74,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
+import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
 import CslibFrontier.Computability.Communication.Discrepancy
 import CslibFrontier.Computability.Communication.Discrepancy.Spectral
 import CslibFrontier.Computability.Communication.DistinctRows
@@ -296,6 +297,7 @@ import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 
 /-!
@@ -1554,6 +1556,20 @@ register_result "communication-clique-independent-set" where
     protocol trees in which Alice holds a clique C and Bob an independent set I and both \
     learn |C ∩ I| (a natural number, at most one) need depth at most 3 (floor(log2 n) + 1)^2, \
     uniformly in the graph. The open second question of the exercise is not addressed."
+-- https://github.com/cslib-community/cslib-frontier/pull/6259#pullrequestreview-5947134959
+register_result "communication-aho-ullman-yannakakis" where
+  title := "Monochromatic tilings give O(log² χ) deterministic protocols"
+  topic := "communication complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 12, Exercise 7",
+      locator := "Web draft 2007-01-08; printed p. 232 / PDF p. 248" }
+  ]
+  theorems := [Cslib.Communication.RectanglePartition.ecomplexityFun_run_le,
+    Cslib.Communication.ecomplexityFun_le_eight_mul_log_tilingNumber_sq]
+  scope := "A labelled rectangle partition with t pieces gives a deterministic protocol \
+    tree of depth at most 2 ceil(log2 t) ceil(log2 (t+1)); hence C(f) <= 8 floor(log2 chi(f))^2 \
+    for finite input types and any nonempty output type (the draft: Boolean f on n-bit \
+    strings). chi is the minimum tiling number; the cover form O(N0 N1) is not claimed."
 
 register_result "communication-tiling-discrepancy" where
   title := "Discrepancy bounds the minimum arbitrary monochromatic tiling size"
@@ -6371,6 +6387,26 @@ register_result "goldreich-read-once-prg-stretch" where
     s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
+
+register_result "arora-barak-nonexplicit-prg" where
+  title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 2 (corrected at seed length ≤ 1)",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.2 printed 283 / \
+        PDF 299; rounding convention printed 7 / PDF 23" }
+  ]
+  theorems := [Cslib.Complexity.exists_generator_advantage_lt,
+    Cslib.Complexity.exists_isCircuitTest_le_advantage_one]
+  scope := "Outside check: PR #6271, review 5947409116. epsilon = 1/10; one map G on words \
+    and output length S(l) = ceil(2^(l/10)) for l >= 2 and S(l) = l for l <= 1, monotone, \
+    with |G(z)| = S(|z|), and for every l advantage below 1/10 against every deterministic \
+    De Morgan circuit with at most S(l)^3 non-input gates (uniform seed versus uniform \
+    output). Only these length and indistinguishability properties are covered: \
+    polynomial-time computability of S (a condition of Definition 16.2) is not proved, and \
+    G has no time bound, as the exercise allows. The printed form fails at l = 1 for every \
+    epsilon > 0 and every G under the draft's ceiling convention; the witness has at most \
+    four gates, at most m + 5 <= m^3 nodes when inputs and an output node are counted."
 
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"
