@@ -118,21 +118,30 @@ example (s : Level) :
     exact_mod_cast cert
   nlinarith only [bound]
 
--- If the ExpandS and ExpandMask seeds and counters coincide, their requests share the
--- first 481 SHAKE256 bytes at every FIPS level, including nonstandard XOF instances.
-example (H : Xofs) (s : Level) (seed : FixedBytes 64) (nonce : ℕ) :
-    let addr := seed.toList ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
-    (H.h256.readBytes addr (32 * (s.params.γ₁.log2 + 1))).take 481 =
-      H.h256.readBytes addr 481 := by
-  apply H.h256.take_read
-  cases s <;> decide
+-- Under this XOF, seed expansion makes ρ′ all zero, and a single SHAKE256 address
+-- returns 0x01 throughout. A swapped nonce byte or an extra role tag changes the two
+-- coefficients below. Both are read through the actual protocol algorithms.
+private def constantStream (value : List Bool → Byte) : ExtendableOutput where
+  read x n := List.replicate n (value x)
+  length_read _ _ := List.length_replicate
+  take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+private def markedNonce : Xofs :=
+  let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])
+  ⟨constantStream (fun _ => 0), constantStream (fun x => if x = address then 1 else 0)⟩
+
+private def secretAtNonceOne : Option (ZMod 8380417) := do
+  let keys ← markedNonce.keyGen .mlDSA44 (fun _ => 0)
+  let sk ← decodePrivate .mlDSA44 keys.secretKey
+  return sk.s₁ ⟨1, by decide⟩ 0
+
+#guard secretAtNonceOne == some 1
+#guard ((markedNonce.expandMask .mlDSA44 (List.replicate 64 0) 1).get ⟨0, by decide⟩).get 0 ==
+  65279
 
 -- An XOF returning 0xff on every stream makes the matrix and the Algorithm 29 sampler
 -- exhaust their bounded reads. Both failures must propagate through the FIPS code.
-private def allOnesXof : ExtendableOutput where
-  read _ n := List.replicate n 255
-  length_read _ _ := List.length_replicate
-  take_read _ _ _ h := by simp [Nat.min_eq_left h]
+private def allOnesXof := constantStream (fun _ => 255)
 
 #guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
 #guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone

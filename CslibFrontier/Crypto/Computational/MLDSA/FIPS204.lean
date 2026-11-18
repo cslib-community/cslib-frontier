@@ -237,8 +237,12 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
     if halfByte < 15 then some ((2 : ZMod 8380417) - ↑(halfByte % 5)) else none
   else if halfByte < 9 then some (4 - (halfByte : ZMod 8380417)) else none
 
+/-- Algorithms 33 and 34 append the two-byte little-endian counter to the 64-byte seed. -/
+def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
+  seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
+
 private def Xofs.secretPoly (H : Xofs) (s : Level) (seed : List Byte) (nonce : ℕ) : Option Poly :=
-  let bytes := H.h256.readBytes (seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]) 481
+  let bytes := H.h256.readBytes (nonceInput seed nonce) 481
   asPoly (bytes.flatMap fun b =>
     ([b.val % 16, b.val / 16].filterMap (boundedCoeff s.params.η)))
 
@@ -262,7 +266,7 @@ private theorem boundedCoeff_short {s : Level} {u : ℕ} {z : ZMod 8380417}
 
 private theorem secretPoly_short {H : Xofs} {s : Level} {seed : List Byte} {nonce : ℕ} {v : Poly}
     (h : H.secretPoly s seed nonce = some v) (j : Fin 256) : |(v j).valMinAbs| ≤ s.params.η := by
-  let bytes := H.h256.readBytes (seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]) 481
+  let bytes := H.h256.readBytes (nonceInput seed nonce) 481
   let entries := bytes.flatMap fun b =>
     [b.val % 16, b.val / 16].filterMap (boundedCoeff s.params.η)
   have short {z : ZMod 8380417} (hz : z ∈ entries) : |z.valMinAbs| ≤ s.params.η := by

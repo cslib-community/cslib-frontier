@@ -42,7 +42,7 @@ two-byte little-endian counter. All rows share their raw XOF with every other si
   let width := s.params.γ₁.log2 + 1
   Vector.ofFnM fun i : Fin s.params.ℓ => do
     let nonce := κ + i.val
-    let addr := Keccak.bytesToBitsLE (seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)])
+    let addr := Keccak.bytesToBitsLE (nonceInput seed nonce)
     let bytes ← OracleComp.query ⟨addr, 32 * width⟩
     return (unpackSigned 1 width s.params.γ₁ bytes).get 0
 
