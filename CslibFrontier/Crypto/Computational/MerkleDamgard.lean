@@ -20,9 +20,11 @@ import CslibFrontier.Tactic.EncLen
 
 Given a keyed `2n → n` collision-resistant compression family
 `h : List Bool → List Bool → List Bool`, the Merkle–Damgård transform ([BonehShoup2023],
-Section 8.4, Figure 8.5 and Theorem 8.3) constructs a collision-resistant hash family on
-arbitrary-length messages by iterating `h k` over a sequence of `n`-bit blocks starting from a
-fixed `n`-bit initialization vector `0^n`.
+Section 8.4, Figure 8.5) iterates `h k` over a sequence of `n`-bit blocks starting from a fixed
+`n`-bit initialization vector (`0^n` here). [BonehShoup2023], Theorem 8.3 (printed p. 297), proves
+the padded transform collision-resistant on messages of length at most a poly-bounded parameter
+`L`, not on all bit strings; the one-bit-per-block `merkleDamgard` below covers all bit strings,
+but it is not the transform of that theorem.
 
 We formalize the transform and its collision-extraction reduction at two levels:
 
