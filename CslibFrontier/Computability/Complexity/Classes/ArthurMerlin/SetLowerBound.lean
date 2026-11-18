@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.BitString.AffineHash
 public import CslibFrontier.Probability.BitString.AffineHash.Word
 
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Amplification
+import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.PerfectCompleteness
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -67,6 +68,8 @@ With no certificates, `S a` is the set counted by a `#P` function, so `SBP ⊆ A
 * `Cslib.Complexity.SetLowerBound.exists_verifier_iff`: Merlin has an accepted answer exactly when
   the amplified set meets the kernel of Arthur's hash.
 * `Cslib.Complexity.mem_AM_of_card_certifiedSet`: **the set lower bound protocol**.
+* `Cslib.Complexity.exists_perfectlyComplete_verifier_of_card_certifiedSet`: the protocol with
+  perfect completeness and soundness error `1 / 3` ([Arora and Barak, Exercise 8.3][AroraBarak07]).
 * `Cslib.Complexity.SBP_subset_AM`.
 
 ## References
@@ -76,6 +79,8 @@ With no certificates, `S a` is the set counted by a `#P` function, so `SBP ⊆ A
 * [E. Böhler, C. Glaßer, D. Meister, *Error-bounded probabilistic computations between
   MA and AM*][BoehlerGlasserMeister2006]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, draft of January 2007,
+  Exercise 8.3][AroraBarak07]
 -/
 
 @[expose] public section
@@ -337,5 +342,55 @@ theorem SBP_subset_AM : SBP enc ⊆ AM enc := by
     exact (hA a).1 ha
   · rw [hcount]
     exact ((hA a).2 ha).le
+
+
+/-- **A perfectly complete set lower bound protocol** ([Arora and Barak, Exercise 8.3, draft of
+January 2007, p. 8.20][AroraBarak07]). Under the hypotheses of the set lower bound protocol
+(`mem_AM_of_card_certifiedSet`), there is a polynomial-time Arthur–Merlin verifier, with Arthur's
+random string of `p(n)` bits followed by Merlin's reply of `q(n)` bits, that accepts some reply to
+**every** random string on members, and some reply to at most a third of the random strings on
+non-members.
+
+The proof does not follow the exercise's hint (Merlin chooses several hash functions, and the gap
+is amplified by Cartesian powers of the set). It turns the bounded-error protocol into one with
+perfect completeness and soundness error `1 / 2` by `AM_eq_AMOne` (Lautemann's covering argument,
+after Fürer, Goldreich, Mansour, Sipser and Zachos), and runs two copies in parallel, accepting when
+both accept, which brings the soundness error to `1 / 4`. -/
+theorem exists_perfectlyComplete_verifier_of_card_certifiedSet {N c : Polynomial ℕ}
+    {R : α × List Bool → Bool} {K : α → ℕ}
+    (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
+    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a)
+    (hmem : ∀ a ∈ A, K a ≤ #(certifiedSet enc N c R a))
+    (hnot : ∀ a ∉ A, 2 * #(certifiedSet enc N c R a) ≤ K a) :
+    ∃ (p q : Polynomial ℕ) (V : α × List Bool → Bool),
+      ComputableInPolyTime V (encPair enc encBits) encBool ∧
+      ∀ a, (a ∈ A → ∀ r : Fin (p.eval (enc a).length) → Bool,
+          ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true) ∧
+        (a ∉ A → 3 * #{r : Fin (p.eval (enc a).length) → Bool |
+          ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true} ≤
+            2 ^ p.eval (enc a).length) := by
+  obtain ⟨p, q, V, hV, h⟩ : A ∈ AMOne enc :=
+    AM_eq_AMOne (enc := enc) ▸ mem_AM_of_card_certifiedSet hR hK hKpos hmem hnot
+  refine ⟨2 * 1 * p, 2 * 1 * q, arthurMerlinRepeat enc 1 p q V,
+    computableInPolyTime_arthurMerlinRepeat hV 1 p q, fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
+  · have hlenP : (2 * 1 * p).eval (enc a).length =
+        2 * (1 : Polynomial ℕ).eval (enc a).length * p.eval (enc a).length := by
+      simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
+    have hlenQ : (2 * 1 * q).eval (enc a).length =
+        2 * (1 : Polynomial ℕ).eval (enc a).length * q.eval (enc a).length := by
+      simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
+    rw [hlenP, hlenQ]
+    intro x
+    rw [exists_arthurMerlinRepeat_ofFn_append_ofFn_iff,
+      filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
+    simp
+  · have hsound := ((h.arthurMerlinRepeat_one a).2 ha)
+    have hsplit := card_filter_add_card_filter_not (s := univ)
+      (fun r : Fin ((2 * 1 * p).eval (enc a).length) → Bool =>
+        ∃ y : Fin ((2 * 1 * q).eval (enc a).length) → Bool,
+          arthurMerlinRepeat enc 1 p q V (a, List.ofFn r ++ List.ofFn y) = true)
+    simp only [not_exists, Bool.not_eq_true, card_univ, Fintype.card_fun, Fintype.card_bool,
+      Fintype.card_fin] at hsplit
+    omega
 
 end Cslib.Complexity
