@@ -318,8 +318,8 @@ theorem CollisionResistantForOn.of_map
 
 /-- Restricting the valid input domain preserves setup-parameterized collision resistance: a
 collision on `valid₁` is a collision on `valid₂` whenever `valid₁ ⊆ valid₂` on supported
-parameters. In particular `CollisionResistantFor` gives `CollisionResistantForOn` for every
-`valid`. -/
+parameters. This is `CollisionResistantForOn.of_map` with the identity parameter map. In
+particular `CollisionResistantFor` gives `CollisionResistantForOn` for every `valid`. -/
 theorem CollisionResistantForOn.mono {Param : Type} {Digest : Param → Type}
     [∀ d, DecidableEq (Digest d)] {encParam : Param ↪ List Bool}
     {setup : ℕ → PMF Param} {H : (d : Param) → List Bool → Digest d}
@@ -328,15 +328,10 @@ theorem CollisionResistantForOn.mono {Param : Type} {Digest : Param → Type}
     (hsub : ∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, ∀ m,
       valid₁ n d m = true → valid₂ n d m = true) :
     CollisionResistantForOn encParam setup H valid₁ := by
-  refine hCR.of_eventually_succProbability_reduction id (fun _ h => h) fun adversary _ => ?_
-  filter_upwards [hsub] with n hn
-  apply Game.succProbability_mono
-  simp only [collisionGameFor, Game.withSetup, collisionExperiment, ProbComp.eval_bind,
-    ProbComp.eval_pure, id]
-  refine PMF.bind_apply_mono_on_support _ _ fun d hd =>
-    PMF.map_true_mono _ fun pair _ hcol => ?_
-  rw [isCollisionFor_eq_true_iff] at hcol ⊢
-  exact ⟨hn d hd _ hcol.1, hn d hd _ hcol.2.1, hcol.2.2⟩
+  have h := hCR.of_map (f := fun _ => id) (H₂ := H) (valid₂ := valid₁)
+    (ComputableInPolyTime.snd encUnary encParam)
+    (hsub.mono fun _ hn d hd m₁ m₂ h₁ h₂ hH => ⟨hn d hd m₁ h₁, hn d hd m₂ h₂, hH⟩)
+  simpa only [PMF.map_id] using h
 
 /-! ### Keyed word-level collision-resistant hash families (`Param = List Bool`) -/
 
