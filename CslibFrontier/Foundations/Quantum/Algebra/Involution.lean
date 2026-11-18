@@ -113,6 +113,11 @@ theorem signProj_mul_signProj_of_ne {b c : Bool} (h : b ≠ c) :
 
 end Sign
 
+/-- An observable commuting with `O` commutes with the projections of `O`. -/
+theorem _root_.Commute.signProj_left {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
+    (h : Commute O O') (b : Bool) : Commute (signProj O b) O' :=
+  ((Commute.one_left _).add_left (h.smul_left _)).smul_left _
+
 /-- The projections of commuting observables commute. -/
 theorem _root_.Commute.signProj {A : Type*} [Ring A] [Algebra ℂ A] {O O' : A}
     (h : Commute O O') (b c : Bool) : Commute (signProj O b) (signProj O' c) := by
