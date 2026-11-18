@@ -31,8 +31,9 @@ In an eavesdropping attack on an identification scheme ([BonehShoup2023], Sectio
 Game 18.2), the adversary first overhears `Q n` honest conversations between the prover and the
 verifier for the public key `u = α • g` before attempting impersonation. For an idealized simulator
 that samples `ZMod q` uniformly, special HVZK makes simulated conversations identically distributed
-to honest ones ([BonehShoup2023], Theorems 19.3 and 19.5; `schnorr_eavesdropAttack_eq_directAttack`
-in `CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification`).
+to honest ones ([BonehShoup2023], Theorems 19.3 and 19.5;
+`schnorr_eavesdropAttack_eq_directAttack_ideal` in
+`CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification`).
 
 In the uniform strict-PPT model, fair-coin machines with a fixed polynomial clock cannot sample
 `ZMod q` exactly when the prime group order `q` is not a power of two. Instead, exponent sampling
