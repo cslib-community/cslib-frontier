@@ -2725,6 +2725,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.VertexSplitGenus
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Bounds
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CSPBounds
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CrossingNeighborhoods
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Declarations
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Frame
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference

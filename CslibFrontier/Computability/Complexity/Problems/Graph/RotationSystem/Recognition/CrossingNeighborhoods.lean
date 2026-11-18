@@ -121,6 +121,7 @@ private theorem exists_crossing_ball {I : FixedRotationInput} (hI : Valid I)
   refine ⟨ε, hε, ?_, ?_⟩
   · intro v hv hw
     obtain ⟨j, hj⟩ := List.mem_iff_get.mp hv
+    change H.vertices[j.val] = v at hj
     have hseg : D.vertex v ∈ segment ℝ (a (Sum.inr j)) (b (Sum.inr j)) := by
       simp [a, b, hj]
     have hzseg := hsep (Sum.inr j) (D.vertex v) hw hseg
@@ -167,7 +168,7 @@ theorem exists_reference_crossing_neighborhoods {I : FixedRotationInput} (hI : V
   have hbounds (z : ℂ) (hz : z ∈ crossingPoints I) :
       0 < ρ z ∧ ρ z < δ ⟨z, hz⟩ ∧ ρ z < η ⟨z, hz⟩ := by
     have hρ : ρ z = min (δ ⟨z, hz⟩) (η ⟨z, hz⟩) / 2 := by
-      simp only [ρ, dif_pos hz]
+      simp only [ρ, dite_eq_left hz]
     rw [hρ]
     have hp := lt_min (hδ ⟨z, hz⟩) (hη ⟨z, hz⟩)
     have hleft := min_le_left (δ ⟨z, hz⟩) (η ⟨z, hz⟩)

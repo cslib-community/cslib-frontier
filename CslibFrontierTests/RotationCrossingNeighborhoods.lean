@@ -33,12 +33,15 @@ private theorem valid_input : Valid input := validate_eq_true_iff input |>.mp (b
 private def edge (i : Fin 9) : Fin (subdivisionGraph input).edges.length :=
   ⟨i.val, by change i.val < 9; exact i.isLt⟩
 
-private theorem fixture_point (v : Fin 9) :
-    referencePoint input v.val = parabolaPoint (v.val : ℝ) := by
+private theorem fixture_point (v : ℕ) (hv : v < 9) :
+    referencePoint input v = parabolaPoint (v : ℝ) := by
   have hord : referenceOrder input = [0, 1, 2, 3, 4, 5, 6, 7, 8] := by decide +kernel
-  unfold referencePoint
-  rw [hord]
-  fin_cases v <;> norm_num
+  have h : ∀ i : Fin 9, referencePoint input i.val = parabolaPoint (i.val : ℝ) := by
+    intro i
+    unfold referencePoint
+    rw [hord]
+    fin_cases i <;> norm_num
+  exact h ⟨v, hv⟩
 
 private theorem fixture_contacts :
     (⟨3 / 2, 9 / 2⟩ : ℂ) ∈ openSegment ℝ ((referenceDrawing input).route (edge 0)).start
@@ -52,42 +55,42 @@ private theorem fixture_contacts :
   refine ⟨?_, ?_, ?_, ?_⟩
   · change (⟨3 / 2, 9 / 2⟩ : ℂ) ∈ openSegment ℝ (referencePoint input 0)
       (referencePoint input 3)
-    rw [fixture_point (0 : Fin 9), fixture_point (3 : Fin 9)]
+    rw [fixture_point 0 (by decide), fixture_point 3 (by decide)]
     have h := lineMap_mem_openSegment ℝ (parabolaPoint 0) (parabolaPoint 3)
       (by norm_num : (1 / 2 : ℝ) ∈ Set.Ioo 0 1)
     have heq : AffineMap.lineMap (parabolaPoint 0) (parabolaPoint 3) (1 / 2 : ℝ) =
         (⟨3 / 2, 9 / 2⟩ : ℂ) := by
       apply Complex.ext <;>
         norm_num [parabolaPoint, AffineMap.lineMap_apply_module, Complex.real_smul]
-    exact heq ▸ h
+    simpa using heq ▸ h
   · change (⟨3 / 2, 9 / 2⟩ : ℂ) ∈ openSegment ℝ (referencePoint input 6)
       (referencePoint input 1)
-    rw [fixture_point (6 : Fin 9), fixture_point (1 : Fin 9)]
+    rw [fixture_point 6 (by decide), fixture_point 1 (by decide)]
     have h := lineMap_mem_openSegment ℝ (parabolaPoint 6) (parabolaPoint 1)
       (by norm_num : (9 / 10 : ℝ) ∈ Set.Ioo 0 1)
     have heq : AffineMap.lineMap (parabolaPoint 6) (parabolaPoint 1) (9 / 10 : ℝ) =
         (⟨3 / 2, 9 / 2⟩ : ℂ) := by
       apply Complex.ext <;>
         norm_num [parabolaPoint, AffineMap.lineMap_apply_module, Complex.real_smul]
-    exact heq ▸ h
+    simpa using heq ▸ h
   · change (⟨2, 8⟩ : ℂ) ∈ openSegment ℝ (referencePoint input 4) (referencePoint input 0)
-    rw [fixture_point (4 : Fin 9), fixture_point (0 : Fin 9)]
+    rw [fixture_point 4 (by decide), fixture_point 0 (by decide)]
     have h := lineMap_mem_openSegment ℝ (parabolaPoint 4) (parabolaPoint 0)
       (by norm_num : (1 / 2 : ℝ) ∈ Set.Ioo 0 1)
     have heq : AffineMap.lineMap (parabolaPoint 4) (parabolaPoint 0) (1 / 2 : ℝ) =
         (⟨2, 8⟩ : ℂ) := by
       apply Complex.ext <;>
         norm_num [parabolaPoint, AffineMap.lineMap_apply_module, Complex.real_smul]
-    exact heq ▸ h
+    simpa using heq ▸ h
   · change (⟨2, 8⟩ : ℂ) ∈ openSegment ℝ (referencePoint input 6) (referencePoint input 1)
-    rw [fixture_point (6 : Fin 9), fixture_point (1 : Fin 9)]
+    rw [fixture_point 6 (by decide), fixture_point 1 (by decide)]
     have h := lineMap_mem_openSegment ℝ (parabolaPoint 6) (parabolaPoint 1)
       (by norm_num : (4 / 5 : ℝ) ∈ Set.Ioo 0 1)
     have heq : AffineMap.lineMap (parabolaPoint 6) (parabolaPoint 1) (4 / 5 : ℝ) =
         (⟨2, 8⟩ : ℂ) := by
       apply Complex.ext <;>
         norm_num [parabolaPoint, AffineMap.lineMap_apply_module, Complex.real_smul]
-    exact heq ▸ h
+    simpa using heq ▸ h
 
 private theorem first_center_not_middle_support :
     (⟨3 / 2, 9 / 2⟩ : ℂ) ∉ ((referenceDrawing input).route (edge 1)).support := by
@@ -96,8 +99,11 @@ private theorem first_center_not_middle_support :
     (((referenceDrawing input).route (edge 1)).mem_support_iff _).mp hz
   change (Route.line (referencePoint input 3) (referencePoint input 4)).eval i t =
     (⟨3 / 2, 9 / 2⟩ : ℂ) at heq
-  rw [fixture_point (3 : Fin 9), fixture_point (4 : Fin 9), Route.eval_line] at heq
-  have hx := congrArg Complex.re heq
+  have hline : AffineMap.lineMap (referencePoint input 3) (referencePoint input 4) t =
+      (⟨3 / 2, 9 / 2⟩ : ℂ) :=
+    (Route.eval_line _ _ i t).symm.trans heq
+  rw [fixture_point 3 (by decide), fixture_point 4 (by decide)] at hline
+  have hx := congrArg Complex.re hline
   norm_num [parabolaPoint, AffineMap.lineMap_apply_module, Complex.real_smul] at hx
   linarith [ht.1]
 
@@ -131,7 +137,7 @@ example : ∃ ρ : ℂ → ℝ,
 
 -- Empty edges and a declared isolate give the actual empty crossing set, without a
 -- nonempty-set or positive-cardinality premise on the neighborhood theorem.
-example :
+theorem empty_reference_crossing_set :
     let I : FixedRotationInput := ⟨⟨[0], []⟩, [none]⟩
     let C : Set ℂ := {z | ∃ e f : Fin (subdivisionGraph I).edges.length, e ≠ f ∧
       z ∈ openSegment ℝ ((referenceDrawing I).route e).start
@@ -142,7 +148,7 @@ example :
   let I : FixedRotationInput := ⟨⟨[0], []⟩, [none]⟩
   have hI : Valid I := validate_eq_true_iff I |>.mp (by decide +kernel)
   refine ⟨?_, (exists_reference_crossing_neighborhoods hI).1⟩
-  apply Set.eq_empty_iff_forall_not_mem.mpr
+  apply Set.eq_empty_iff_forall_notMem.mpr
   rintro z ⟨e, _, _, _, _⟩
   exact Fin.elim0 (show Fin 0 from e)
 
