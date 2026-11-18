@@ -7,9 +7,10 @@ Authors: Mayank Rathee
 module
 
 import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
+import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontierTests.Crypto.FRI
-import Mathlib.Algebra.Polynomial.Roots
+import CslibFrontierTests.Crypto.FRIJohnson
 import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
@@ -27,16 +28,19 @@ Exercises every public definition and theorem of
 1. **Suite 1 (`ZMod 257`, `d = 3, m = 2, kFinal = 1, q = 6, e = 2`, `t = 2` and `t = 0`).**
    Exercises `friBatchTailTranscript` (`_nil`, `_cons`, `_append`, `length_friBatchTailTranscript`),
    `friBatchDoomed`, `friBatchDoomed_nil_iff_not_mem_batchProximityLang`, `friBatchGoodStep`,
-   `friBatchGoodStep_nil_iff`, `friBatchGoodStep_cons`, `friBatchIOP_rbrSound` (all three fields on
-   nonvacuous `badStmt257 ∉ params257.batchProximityLang 2 2`), marginal challenge laws
+   `friBatchGoodStep_nil_iff`, `friBatchGoodStep_cons`, `friBatchIOP_rbrSound` (initialization on
+   nonvacuous `badStmt257 ∉ params257.batchProximityLang 2 2`, preservation on good transitions,
+   and terminal rejection), marginal challenge laws
    (`uniformOfFintype_friBatchChal_map_batchCoeffs`, `uniformOfFintype_friBatchChal_map_toFRIChal`,
    `toOuterMeasure_uniform_friBatchChal_batchCoeffs`,
    `toOuterMeasure_uniform_friBatchChal_toFRIChal`, `toOuterMeasure_not_friBatchGoodStep_cons`,
-   `friBatchQueryRound_escape_le`, `friBatchCommitRound_escape_le_of_weightedLineGap`), sharp
-   unique-decoding round-`0` discharges (`batchRound0GapBound_of_unique` and
-   `batchRound0Escape_of_unique` achieving `≤ 8 / 257` for both `t = 2` and `t = 0`), contract
-   monotonicity (`.mono`), conditional round-`0` escape steps, and end-to-end adaptive two-channel
-   batched BCS-FRI ROM soundness (`< 1 / 3` via both `friBatchBCS_romSoundness_bound_of_escape` and
+   `friBatchQueryRound_escape_le`, `friBatchCommitRound_escape_le_of_weightedLineGap`),
+   unique-decoding round-`0` upper bounds (`batchRound0GapBound_of_unique` and
+   `batchRound0Escape_of_unique` giving `≤ 8 / 257` for both `t = 2` and `t = 0`, together with
+   exact zero round-`0` escape probability `round0Escape257_t0_eq_zero` at `t = 0` where the false
+   word is independent of the challenge), contract monotonicity (`.mono`), conditional round-`0`
+   escape steps, and end-to-end adaptive two-channel batched BCS-FRI ROM soundness (`< 1 / 3` via
+   both `friBatchBCS_romSoundness_bound_of_escape` and
    `friBatchBCS_romSoundness_bound_of_prover_verifier_of_escape`, instantiated on `mkBatchCheater`).
 2. **Suite 2 (`ZMod 786433`, beyond-unique-decoding discrete Sudan `m₀ = 1`:
    `d = 4, m = 2, kFinal = 1, q = 8, e = 7, t = 2`).**
@@ -56,8 +60,8 @@ Exercises every public definition and theorem of
    `d = 6, m = 2, kFinal = 1, q = 6, e = 44, mJ = 2, η = 1 / 16, t = 3`).**
    Certifies `2 * 44 + 4 = 92 > 64` and `badStmtGF ∉ paramsGF.batchProximityLang 3 44`, evaluates
    `friBatchJohnsonRound0Bound paramsGF 2 = 85996339200`, and instantiates
-   `batchRound0GapBound_of_johnson`, `batchRound0Escape_of_johnson` (`E⁽⁰⁾ < 1 / 10 ^ 8`), and
-   `batchRound0Escape_of_johnson_eta` (`E⁽⁰⁾ < 1 / 100`) over `𝔽_{65537^4}`.
+   `batchRound0GapBound_of_johnson`, `batchRound0Escape_of_johnson` (`< 1 / 10 ^ 8`), and
+   `batchRound0Escape_of_johnson_eta` (`< 1 / 100`) over `𝔽_{65537^4}`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -66,38 +70,18 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Crypto.FRIBatchSoundness
 
 open scoped BigOperators NNReal ENNReal
-open Finset Polynomial
+open Finset
 open Cslib Cslib.Code Cslib.OracleComp Cslib.Probability
 open Cslib.Crypto.Protocols.BCS Cslib.Crypto.Protocols.FRI
+open CslibFrontierTests.Crypto.FRIJohnson
 
-/-! ### Reusable Root-of-Unity, False-Tuple, and Cost-Bounded Batched Cheater Helpers -/
+/-! ### Reusable False-Tuple Projection and Cost-Bounded Batched Cheater Helpers -/
 
 section Helpers
 
-/-- Over any field with `(2 : F) ≠ 0`, `ω ^ (2 ^ k) = -1` certifies
-`IsPrimitiveRoot ω (2 ^ (k + 1))` via `IsPrimitiveRoot.iff_orderOf` and `Nat.dvd_prime_pow`. -/
-private theorem isPrimitiveRoot_two_pow_succ {F : Type*} [Field F] {ω : F} {k : ℕ}
-    (h2 : (2 : F) ≠ 0) (hneg : ω ^ (2 ^ k) = -1) :
-    IsPrimitiveRoot ω (2 ^ (k + 1)) := by
-  have hsq : ω ^ (2 ^ (k + 1)) = 1 := by
-    rw [pow_succ, pow_mul, hneg, neg_one_sq]
-  have hne : ω ^ (2 ^ k) ≠ 1 := by
-    rw [hneg]
-    intro h1
-    exact h2 (by simpa only [one_add_one_eq_two] using
-      (congrArg (1 + ·) h1).symm.trans (add_neg_cancel (1 : F)))
-  rw [IsPrimitiveRoot.iff_orderOf]
-  obtain ⟨j, hj_le, hj_eq⟩ :=
-    (Nat.dvd_prime_pow Nat.prime_two).mp (orderOf_dvd_of_pow_eq_one hsq)
-  rcases eq_or_lt_of_le hj_le with rfl | hj_lt
-  · exact hj_eq
-  · exfalso
-    apply hne
-    rw [← orderOf_dvd_iff_pow_eq_one, hj_eq]
-    exact Nat.pow_dvd_pow 2 (Nat.le_of_lt_succ hj_lt)
-
 /-- If the `j`-th generator word of `stmt` equals the degree-`dim 0` monomial evaluation on `L_0`
-and `e + dim 0 < 2 ^ d`, then `stmt ∉ params.batchProximityLang t e`. -/
+and `e + dim 0 < 2 ^ d`, then `stmt ∉ params.batchProximityLang t e` by projecting any common
+batched agreement witness onto word `j` and applying `monomial_far_not_mem_proximityLang`. -/
 private theorem not_mem_batchProximityLang_of_monomial_term {F : Type} [Field F]
     (params : FRIParams F) {t e : ℕ} (stmt : FRIBatchStmt F params.d t) (j : Fin t)
     (hterm : stmt.terms j = fun idx => (params.eval 0 idx) ^ params.dim 0)
@@ -105,32 +89,18 @@ private theorem not_mem_batchProximityLang_of_monomial_term {F : Type} [Field F]
     stmt ∉ params.batchProximityLang t e := by
   classical
   rintro ⟨D', hD'_card, _, _, v, hv, hagree⟩
-  obtain ⟨p, hp_deg, hpeq⟩ := mem_reedSolomon.mp (hv j)
-  set k₀ : ℕ := params.dim 0
-  have hmonic : (X ^ k₀ - p : F[X]).Monic := monic_X_pow_sub hp_deg
-  have hdeg : (X ^ k₀ - p : F[X]).natDegree = k₀ :=
-    natDegree_eq_of_degree_eq_some
-      ((degree_sub_eq_left_of_degree_lt (by simpa only [degree_X_pow] using hp_deg)).trans
-        (degree_X_pow k₀))
-  have hα : Function.Injective (params.eval 0) :=
-    cosetEval_injective params.hg params.hω (Nat.zero_le _)
-  have hroots : D'.image (params.eval 0) ⊆ (X ^ k₀ - p).roots.toFinset := by
-    intro y hy
-    obtain ⟨s, hs, rfl⟩ := Finset.mem_image.mp hy
-    have hval : (params.eval 0 s) ^ k₀ = p.eval (params.eval 0 s) := by
-      have h1 := (hagree s hs).2 j
-      rw [hterm] at h1
-      exact h1.trans (congrFun hpeq s).symm
-    rw [Multiset.mem_toFinset, mem_roots hmonic.ne_zero, IsRoot.def, eval_sub, eval_pow, eval_X,
-      sub_eq_zero]
-    exact hval
-  have hle : D'.card ≤ k₀ := by
-    calc D'.card
-        = (D'.image (params.eval 0)).card := (Finset.card_image_of_injective D' hα).symm
-      _ ≤ (X ^ k₀ - p).roots.toFinset.card := Finset.card_le_card hroots
-      _ ≤ (X ^ k₀ - p).roots.card := Multiset.toFinset_card_le _
-      _ ≤ (X ^ k₀ - p).natDegree := card_roots' _
-      _ = k₀ := hdeg
+  apply monomial_far_not_mem_proximityLang params hgap
+  refine ⟨v j, hv j, ?_⟩
+  have hsub : D' ⊆ Finset.univ.filter (fun s : Fin (2 ^ params.d) =>
+      (params.eval 0 s) ^ params.dim 0 = v j s) := fun s hs =>
+    Finset.mem_filter.mpr ⟨Finset.mem_univ s,
+      (congrFun hterm s).symm.trans ((hagree s hs).2 j)⟩
+  have hle : D'.card ≤ (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
+      (params.eval 0 s) ^ params.dim 0 = v j s).card :=
+    Finset.card_le_card hsub
+  have htot := card_filter_eq_add_hammingDist
+    (fun s : Fin (2 ^ params.d) => (params.eval 0 s) ^ params.dim 0) (v j)
+  simp only [Fintype.card_fin] at htot
   omega
 
 /-- Parametric adaptive batched cheating prover (`t_FS = 1`, `t_MT = 1`,
@@ -191,7 +161,7 @@ theorem isCostBounded_soundnessProg_mkBatchCheater {F : Type} [Field F] [Decidab
 
 end Helpers
 
-/-! ### Suite 1: Invariant, Marginals & Sharp Unique-Decoding Batched FRI (`ZMod 257`) -/
+/-! ### Suite 1: Invariant, Marginals & Unique-Decoding Batched FRI (`ZMod 257`) -/
 
 section Unique257
 
@@ -218,7 +188,7 @@ theorem badStmt257Zero_not_mem : badStmt257Zero ∉ params257.batchProximityLang
   (mem_batchProximityLang_zero_iff params257 2 badStmt257Zero).not.mpr farWord_not_mem_proximityLang
 
 -- Direct checks on `friBatchTailTranscript`, `friBatchDoomed`, `friBatchGoodStep`, and
--- `friBatchIOP_rbrSound` (all three fields).
+-- `friBatchIOP_rbrSound` (initialization, preservation on good transitions, terminal rejection).
 example (π : OracleTable 3 (ZMod 257)) (c : FRIBatchChal (ZMod 257) 3 6 2) :
     friBatchTailTranscript ([] : List (OracleTable 3 (ZMod 257) × FRIBatchChal (ZMod 257) 3 6 2)) =
       [] ∧
@@ -246,11 +216,16 @@ example (π : OracleTable params257.d (ZMod 257))
 
 example :
     friBatchDoomed params257 2 5 badStmt257 [] ∧
+    (∀ pref π c,
+      friBatchDoomed params257 2 5 badStmt257 pref →
+      friBatchGoodStep params257 2 5 badStmt257 pref π c →
+      friBatchDoomed params257 2 5 badStmt257 (pref ++ [(π, c)])) ∧
     (∀ oracles chals,
       friBatchDoomed params257 2 5 badStmt257
         (List.ofFn fun j : Fin 4 => (oracles j, chals j)) →
       iopVerify (friBatchIOP params257 2) badStmt257 chals oracles = false) :=
   ⟨(friBatchIOP_rbrSound params257 2 2).init_doomed badStmt257 badStmt257_not_mem,
+    (friBatchIOP_rbrSound params257 2 2).step_doomed badStmt257,
     (friBatchIOP_rbrSound params257 2 2).reject_of_doomed badStmt257⟩
 
 -- Direct checks on marginal challenge projections and 1-line tail escape lifts.
@@ -299,9 +274,9 @@ example (π₀ π₁ π₂ π₃ : OracleTable params257.d (ZMod 257))
     simp only [params257]
     norm_num
 
--- Sharp unique-decoding `BatchRound0GapBound` & `BatchRound0Escape` (`8 / 257`, both `t = 2` and
--- `t = 0`), plus `.mono`, `batchRound0Escape_of_gapBound`, and
--- `friBatchRound0_escape_le_of_escape`.
+-- Unique-decoding `BatchRound0GapBound` & `BatchRound0Escape` upper bounds (`≤ 8 / 257` for both
+-- `t = 2` and `t = 0`), exact zero round-`0` escape probability at `t = 0`, plus `.mono`,
+-- `batchRound0Escape_of_gapBound`, and `friBatchRound0_escape_le_of_escape`.
 theorem round0Gap257_t2 : BatchRound0GapBound params257 2 2 8 :=
   batchRound0GapBound_of_unique params257 2 (by decide)
 
@@ -312,6 +287,27 @@ theorem round0Escape257_t2 : BatchRound0Escape params257 2 2 ((8 : ℝ≥0∞) /
 theorem round0Escape257_t0 : BatchRound0Escape params257 0 2 ((8 : ℝ≥0∞) / 257) := by
   simpa only [params257, ZMod.card, Nat.cast_ofNat, (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8)] using
     batchRound0Escape_of_unique params257 0 (e := 2) (by decide)
+
+/-- At batch size `t = 0`, `badStmt257Zero.eval c.batchCoeffs = farWord` is independent of the
+challenge, so the round-`0` escape event is empty and its probability is `0` (`8 / 257` in
+`round0Escape257_t0` is a `t`-uniform upper bound). -/
+theorem round0Escape257_t0_eq_zero (π : OracleTable params257.d (ZMod 257)) :
+    (PMF.uniformOfFintype (FRIBatchChal (ZMod 257) params257.d params257.q 0)).toOuterMeasure
+      {c | ¬ friBatchGoodStep params257 0 (2 ^ params257.d - 2 - 1) badStmt257Zero [] π c} =
+    0 := by
+  have hempty :
+      {c : FRIBatchChal (ZMod 257) params257.d params257.q 0 |
+        ¬ friBatchGoodStep params257 0 (2 ^ params257.d - 2 - 1) badStmt257Zero [] π c} =
+      ∅ := by
+    ext c
+    simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, not_not,
+      friBatchGoodStep_nil_iff, FRIBatchStmt.eval_zero]
+    intro c' hc'
+    refine (card_agree_farWord_le_four hc' fun s hs => ?_).trans (by decide)
+    rw [Finset.mem_filter] at hs
+    exact hs.2
+  rw [hempty]
+  exact MeasureTheory.OuterMeasure.empty _
 
 example (π : OracleTable params257.d (ZMod 257)) :
     BatchRound0GapBound params257 2 2 9 ∧
@@ -478,7 +474,7 @@ def params786 : FRIParams (ZMod 786433) where
   hkLe := by omega
   hg := one_ne_zero
   h2 := by decide
-  hω := isPrimitiveRoot_two_pow_succ (k := 3) (by decide) (by decide)
+  hω := isPrimitiveRoot_two_pow_of_neg_one (by decide) (by decide) (by decide)
 
 -- Strictly beyond unique decoding (`2 * 7 + 4 = 18 > 16`).
 theorem params786_beyond_unique : ¬ (2 * 7 + params786.dim 0 ≤ 2 ^ params786.d) := by
@@ -606,7 +602,7 @@ def params26M : FRIParams (ZMod 26214401) where
   hkLe := by omega
   hg := one_ne_zero
   h2 := by decide
-  hω := isPrimitiveRoot_two_pow_succ (k := 3) (by decide) (by decide)
+  hω := isPrimitiveRoot_two_pow_of_neg_one (by decide) (by decide) (by decide)
 
 -- Certify BOTH beyond-unique-decoding (`2 * 8 + 4 = 20 > 16`) AND Sudan `m₀ = 1` impossibility
 -- (`∀ D₀ < 1 * (16 - 8), #(Sudan.monomials 3 D₀) ≤ 16`).
@@ -752,7 +748,7 @@ noncomputable def paramsGF : FRIParams GF65537_4 where
   hkLe := by omega
   hg := one_ne_zero
   h2 := gf65537_4_two_ne_zero
-  hω := isPrimitiveRoot_two_pow_succ gf65537_4_two_ne_zero gf65537_4_omega_pow32
+  hω := isPrimitiveRoot_two_pow_of_neg_one (by decide) gf65537_4_two_ne_zero gf65537_4_omega_pow32
 
 -- Strictly beyond unique decoding (`2 * 44 + 4 > 64`) and explicit `friBatchJohnsonRound0Bound`.
 example : ¬ (2 * 44 + paramsGF.dim 0 ≤ 2 ^ paramsGF.d) := by decide

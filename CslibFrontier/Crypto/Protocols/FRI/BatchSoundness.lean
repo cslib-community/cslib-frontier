@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
-public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
+import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -20,27 +21,27 @@ import Mathlib.Tactic.Positivity
 # Batched FRI Round-0 Soundness, Affine Correlated Agreement, and BCS Composition
 
 This module proves unconditional round-by-round soundness
-(`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`), marginal challenge projections, and
-unconditional round-`0` batching escape bounds (`E⁽⁰⁾`) for the `(params.m + 2)`-round batched FRI
-IOP `Cslib.Crypto.Protocols.FRI.friBatchIOP` ([BenSassonCarmonIshaiKoppartySaraf2020], accepted
-*Journal of the ACM* 2023 manuscript, Section 8.2 on printed pp. 36–40, Lemma 8.2 on pp. 38–39
-proved via the bad-event bound `E⁽⁰⁾` of Section 8.2.1 Eq. (8.8) on printed p. 42, and Theorem 8.3
-on p. 39 proved on p. 40), together with conditional multi-round uniform escape and two-channel BCS
-random-oracle composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
+(`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness` — initialization on false tuples,
+preservation on good transitions, and terminal rejection), marginal challenge projections, and
+unconditional round-`0` unweighted affine-word escape upper bounds for the `(params.m + 2)`-round
+batched FRI IOP `Cslib.Crypto.Protocols.FRI.friBatchIOP`
+([BenSassonCarmonIshaiKoppartySaraf2020], accepted *Journal of the ACM* 2023 manuscript,
+Section 8.2 on printed pp. 36–40 and Section 8.2.1 on printed pp. 41–43), together with conditional
+whole-protocol uniform escape and two-channel BCS random-oracle composition steps
+([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
 
-## Overview of the round-0 factoring and affine correlated-agreement bridge
+## Summary of the round-by-round invariant and round-0 probability bounds
 
-1. **Pre-oracle round-0 factoring (`friBatchDoomed`, `friBatchGoodStep`, `friBatchIOP_rbrSound`).**
-   On the empty prefix `[]` (before sampling the verifier's batching challenge
-   `x = c₀.batchCoeffs : Fin t → F`), `friBatchDoomed params t B stmt []` asserts that no shared
-   coordinate set `D' ⊆ Fin (2 ^ d)` of cardinality `> B` admits codewords in `params.initialCode`
-   simultaneously agreeing with `stmt.base` and `stmt.terms`. After round `0` (`(_, c₀) :: rest`),
-   `friBatchDoomed` delegates directly to the single-word `friDoomed` predicate on the pre-oracle
-   affine combination `stmt.eval c₀.batchCoeffs` and projected challenge tail
-   `friBatchTailTranscript rest`. Defining the round-`0` transition on `stmt.eval c₀.batchCoeffs`
-   makes the batching bad event `E⁽⁰⁾` (Section 8.2.1, printed p. 42, Eq. (8.8)) independent of an
-   adaptive prover's subsequent choice of committed oracle `f⁽⁰⁾`, while `friDoomed` absorbs any
-   discrepancy `f⁽⁰⁾ ≠ stmt.eval x` in round `1` via `sum_agree_friOracleFilterWeight_le`.
+1. **Round-by-round invariant (`friBatchDoomed`, `friBatchGoodStep`, `friBatchIOP_rbrSound`).**
+   `friBatchIOP_rbrSound` establishes initialization on any false tuple
+   `stmt ∉ params.batchProximityLang t e` (`init_doomed`), preservation of `friBatchDoomed` on good
+   round transitions (`step_doomed`), and terminal verifier rejection (`iopVerify = false`) of any
+   complete doomed transcript (`reject_of_doomed`). In this Lean ordering, the uniform round-`0`
+   batching challenge `x = c₀.batchCoeffs : Fin t → F` selects the affine word `stmt.eval x` first,
+   and an adaptive prover can choose its next oracle (`f⁽⁰⁾`, round `1`) after seeing `c₀`. After
+   round `0` (`(_, c₀) :: rest`), `friBatchDoomed` delegates to single-word `friDoomed` on
+   `stmt.eval c₀.batchCoeffs` and `friBatchTailTranscript rest`, absorbing any discrepancy between
+   the reported oracle `f⁽⁰⁾` and `stmt.eval x` via `sum_agree_friOracleFilterWeight_le`.
 2. **Marginal challenge projections and 1-line tail reuse.**
    Via `FRIBatchChal.equivProd`, uniform sampling on `FRIBatchChal F d q t` projects to uniform
    `Fin t → F` under `batchCoeffs` (`toOuterMeasure_uniform_friBatchChal_batchCoeffs`) and to
@@ -49,39 +50,48 @@ random-oracle composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]
    query-round escape (`friBatchQueryRound_escape_le`), and folding-round escape
    (`friBatchCommitRound_escape_le_of_weightedLineGap`) directly to
    `CslibFrontier/Crypto/Protocols/FRI/Soundness.lean` with zero duplicated folding or query proofs.
-3. **Unconditional round-0 (`E⁽⁰⁾`) discharges from affine correlated agreement.**
-   For every batch size `t : ℕ` (`t = 0` included) and false tuple
-   `stmt ∉ params.batchProximityLang t e`, `BatchRound0GapBound` and `BatchRound0Escape` are
-   discharged unconditionally with exact denominator `|F|` and no list-size premise:
-   * **Unique-decoding regime (`2 * e + dim 0 ≤ 2 ^ d`):** `batchRound0GapBound_of_unique` and
-     `batchRound0Escape_of_unique` achieve the sharp bound `(2 ^ params.d : ℝ≥0∞) / |F|` via
-     `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line` (`W ≡ 1`, list bound
-     `L = 1 < |F|`, and `Cslib.Code.exists_correlatedAgreement_unique`).
-   * **Explicit-parameter Johnson regime (`(m₀, D₀)`):** `batchRound0GapBound_of_johnson_discrete`
-     and `batchRound0Escape_of_johnson_discrete` apply
-     `Cslib.Code.exists_correlatedAgreement_affine_johnson` with `johnsonCurveBound` budget
-     independent of `t`.
-   * **Closed-form Johnson & `η`-gap regimes:** `batchRound0GapBound_of_johnson`,
-     `batchRound0Escape_of_johnson`, and `batchRound0Escape_of_johnson_eta` apply
-     `Cslib.Code.exists_correlatedAgreement_affine_johnson_of_multiplicity` and
-     `Cslib.Code.exists_correlatedAgreement_affine_johnson_of_eta`.
+3. **Round-0 probability upper bounds from affine correlated agreement, and whole-protocol steps.**
+   The unique-decoding (`batchRound0GapBound_of_unique`, `batchRound0Escape_of_unique`), discrete
+   Johnson (`batchRound0GapBound_of_johnson_discrete`, `batchRound0Escape_of_johnson_discrete`), and
+   closed-form Johnson / `η`-gap (`batchRound0GapBound_of_johnson`, `batchRound0Escape_of_johnson`,
+   `batchRound0Escape_of_johnson_eta`) results supply round-`0` probability upper bounds (with exact
+   denominator `|F|` and no list-size premise) on the chance that the affine word `stmt.eval x` is
+   within Hamming distance `e` of `params.initialCode` for a false tuple under their respective
+   parameter conditions. At batch size `t = 0`, the false word `stmt.eval x = stmt.base` is
+   independent of the challenge and its actual round-`0` escape probability is `0` (while the
+   `t`-uniform theorems still supply valid upper bounds). Whole-protocol bounds in Section 4
+   (`friBatchRBREscape_of_escape`, `friBatchBCS_romSoundness_bound_of_escape`,
+   `friBatchBCS_romSoundness_bound_of_prover_verifier_of_escape`) still require escape estimates
+   (`WeightedLineGapBound`) for the remaining `m` folding rounds alongside the query-round bound.
 
 ## Scope and relationship to the source theorems
 
-* The closed-form round-`0` bounds (`friBatchJohnsonRound0Bound`,
-  `1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|)`, and
+* **Round-`0` event vs. Section 8.2.1 Eq. (8.8) (printed pp. 41–42):** In
+  [BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1 defines the round-`0` bad event `E⁽⁰⁾`
+  using `μ⁽⁰⁾`-**weighted agreement of the reported oracle** `f⁽⁰⁾`, where `μ⁽⁰⁾(s) = 1` only where
+  `f⁽⁰⁾(s)` matches the affine evaluation `stmt.eval x s` and `0` otherwise. High weighted agreement
+  of `f⁽⁰⁾` therefore implies high unweighted agreement of the affine word `stmt.eval x`, whereas a
+  prover that reports a value different from `stmt.eval x` everywhere makes `μ⁽⁰⁾ ≡ 0` and shows why
+  the reverse implication can fail. The cutoffs differ as well: for `n = 2 ^ d` and
+  `B = n - e - 1`, Lean's round-`0` event (`BatchRound0GapBound`, `BatchRound0Escape`,
+  `¬ friBatchGoodStep ... [] π c`) tests unweighted agreement strictly above `B / n`, whereas the
+  paper's `E⁽⁰⁾` uses the cutoff `max(α, √ρ · (1 + 1 / (2 * m)))` (for example, with
+  `n = 16, k = 4, e = 7, α = 1 / 2, m = 3`, Lean's cutoff `8 / 16` admits nine agreeing positions
+  while the paper's cutoff `7 / 12` starts at ten). Consequently, for a tuple with common agreement
+  at most `B / n` (`stmt ∉ params.batchProximityLang t e`), **the Lean round-`0` event contains the
+  paper's event `E⁽⁰⁾` whenever the paper's cutoff `max(α, √ρ · (1 + 1 / (2 * m)))` is at least
+  `B / n`**.
+* **Explicit Siegel constants and direct `η`:** The closed-form round-`0` upper bounds
+  (`friBatchJohnsonRound0Bound`, `1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|)`, and
   `115200 * (2 ^ d) ^ 2 / (ρ * η ^ 6 * |F|)`) are this library's original explicit Siegel finite
   bounds from `CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean`, not the paper's
   displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))` expression (not uniformly smaller at small `mJ`,
   and Eq. (1.3) uses `min(η, √ρ / 20)` whereas `batchRound0Escape_of_johnson_eta` uses `η`
   directly).
-* Full summed interactive batched FRI soundness (in the setting of JACM Lemma 8.2 on pp. 38–39,
-  proved via the bad-event sum in Section 8.2.1 on p. 42, and Theorem 8.3 on p. 39, proved from
-  Lemma 8.2 on p. 40) and closed-form batched FRI / BCS ROM instantiations remain tracked in
-  `#5968`. The conditional theorems in Section 4 (`friBatchRBREscape_of_escape`,
-  `friBatchBCS_romSoundness_bound_of_escape`, and
-  `friBatchBCS_romSoundness_bound_of_prover_verifier_of_escape`) are uniform-budget composition
-  steps over `BatchRound0Escape` and `WeightedLineGapBound`.
+* **Whole-protocol summed IOP soundness:** Full summed interactive batched FRI soundness (in the
+  setting of JACM Lemma 8.2 on pp. 38–39, proved via the commit-phase bad-event sum in
+  Section 8.2.1 on pp. 41–43, and Theorem 8.3 on p. 39, proved from Lemma 8.2 on p. 40) and
+  unconditional closed-form batched FRI / BCS ROM instantiations remain tracked in `#5968`.
 
 ## Main definitions
 
@@ -91,14 +101,15 @@ random-oracle composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]
   doomed / good-step predicates for `friBatchIOP`.
 * `Cslib.Crypto.Protocols.FRI.BatchRound0GapBound`,
   `Cslib.Crypto.Protocols.FRI.BatchRound0Escape`,
-  `Cslib.Crypto.Protocols.FRI.friBatchJohnsonRound0Bound`: integer and `ℝ≥0∞` round-`0` batching
-  contracts (`E⁽⁰⁾`) and explicit-constant Johnson round-`0` budget.
+  `Cslib.Crypto.Protocols.FRI.friBatchJohnsonRound0Bound`: integer and `ℝ≥0∞` round-`0` unweighted
+  affine-word escape contracts and explicit-constant Johnson round-`0` budget.
 * `Cslib.Crypto.Protocols.FRI.friBatchRBRError`: uniform per-round escape error combining round-`0`
   batching escape `ε_batch` with `friRBRError`.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.FRI.friBatchIOP_rbrSound`: unconditional `IOPRoundByRoundSoundness` for
+* `Cslib.Crypto.Protocols.FRI.friBatchIOP_rbrSound`: unconditional `IOPRoundByRoundSoundness`
+  (initialization, preservation on good transitions, and terminal rejection) for
   `friBatchIOP params t` with respect to `params.batchProximityLang t e`.
 * `Cslib.Crypto.Protocols.FRI.uniformOfFintype_friBatchChal_map_batchCoeffs`,
   `Cslib.Crypto.Protocols.FRI.uniformOfFintype_friBatchChal_map_toFRIChal`,
@@ -189,9 +200,7 @@ theorem length_friBatchTailTranscript {d q t : ℕ}
   agreement set `D' ⊆ Fin (2 ^ d)` on which `(stmt.base, stmt.terms)` matches codewords in
   `params.initialCode` has cardinality at most `B`.
 * On any non-empty prefix `(_, c₀) :: rest`, delegates directly to single-word `friDoomed` on the
-  pre-oracle affine combination `stmt.eval c₀.batchCoeffs` and projected tail
-  `friBatchTailTranscript rest` ([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1, printed
-  p. 42, Eq. (8.8)). -/
+  affine evaluation `stmt.eval c₀.batchCoeffs` and projected tail `friBatchTailTranscript rest`. -/
 @[expose] def friBatchDoomed [DecidableEq F] (params : FRIParams F) (t B : ℕ)
     (stmt : FRIBatchStmt F params.d t) :
     List (OracleTable params.d F × FRIBatchChal F params.d params.q t) → Prop
@@ -431,17 +440,19 @@ theorem friBatchCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableE
 
 end MarginalProjectionsAndTailEscape
 
-/-! ### Section 3: Round-0 (`E⁽⁰⁾`) Contracts and Unconditional Affine CA Discharges -/
+/-! ### Section 3: Round-0 Unweighted Affine-Word Escape Contracts and Discharges -/
 
 section Round0ContractsAndDischarges
 
 variable {F : Type} [Field F]
 
-/-- **Polymorphic integer round-0 batching proximity-gap contract** (`E⁽⁰⁾`,
-[BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1, printed p. 42, Eq. (8.8)): for every false
-tuple `stmt ∉ params.batchProximityLang t e`, any set `T` of batching vectors `x : Fin t → F`
-whose affine combination `stmt.eval x` achieves agreement `> 2 ^ d - e - 1` with
-`params.initialCode` satisfies `|F| * #T ≤ B_batch * |F| ^ t`. -/
+/-- **Polymorphic integer round-0 batching proximity-gap contract**: for every false tuple
+`stmt ∉ params.batchProximityLang t e`, any set `T` of batching vectors `x : Fin t → F` whose
+affine evaluation `stmt.eval x` achieves unweighted agreement `> 2 ^ d - e - 1` (strictly above
+`B / n` for `n = 2 ^ d` and `B = n - e - 1`) with `params.initialCode` satisfies
+`|F| * #T ≤ B_batch * |F| ^ t` (containing the `μ⁽⁰⁾`-weighted oracle event `E⁽⁰⁾` of
+[BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1, printed pp. 41–42, Eq. (8.8), whenever the
+paper's cutoff is at least `B / n`). -/
 @[expose] def BatchRound0GapBound [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e B_batch : ℕ) : Prop :=
   ∀ stmt ∉ params.batchProximityLang t e, ∀ T : Finset (Fin t → F),
@@ -455,11 +466,13 @@ theorem BatchRound0GapBound.mono [Fintype F] [DecidableEq F] {params : FRIParams
     BatchRound0GapBound params t e B₂ :=
   fun stmt hnot T hT => (h stmt hnot T hT).trans (Nat.mul_le_mul_right _ hle)
 
-/-- **Polymorphic `ℝ≥0∞` round-0 batching escape contract** (`E⁽⁰⁾`,
-[BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1, printed p. 42, Eq. (8.8)): for every false
-tuple `stmt ∉ params.batchProximityLang t e`, a uniformly sampled batching vector `x : Fin t → F`
-lands at agreement `> 2 ^ d - e - 1` with `params.initialCode` with probability at most `ε_batch`.
-Accepts real-valued error densities directly without integer-floor rounding. -/
+/-- **Polymorphic `ℝ≥0∞` round-0 batching escape contract**: for every false tuple
+`stmt ∉ params.batchProximityLang t e`, a uniformly sampled batching vector `x : Fin t → F` lands at
+unweighted agreement `> 2 ^ d - e - 1` (strictly above `B / n` for `n = 2 ^ d` and `B = n - e - 1`)
+with `params.initialCode` with probability at most `ε_batch`. Accepts real-valued error densities
+directly without integer-floor rounding (and contains the `μ⁽⁰⁾`-weighted oracle event `E⁽⁰⁾` of
+[BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2.1, printed pp. 41–42, Eq. (8.8), whenever the
+paper's cutoff is at least `B / n`). -/
 @[expose] def BatchRound0Escape [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e : ℕ) (ε_batch : ℝ≥0∞) : Prop :=
   ∀ stmt ∉ params.batchProximityLang t e,
@@ -515,23 +528,14 @@ theorem friBatchRound0_escape_le_of_escape [Fintype F] [DecidableEq F] (params :
   exact hescape stmt hnot
 
 omit [Field F] in
-/-- Private helper: agreeing coordinates plus Hamming distance sum to `2 ^ d`. -/
-private theorem card_filter_eq_add_hammingDist_oracle [DecidableEq F] {d : ℕ}
-    (w c : OracleTable d F) :
-    (Finset.univ.filter fun s : Fin (2 ^ d) => w s = c s).card + hammingDist w c = 2 ^ d := by
-  rw [hammingDist]
-  simpa only [Finset.card_univ, Fintype.card_fin] using
-    Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin (2 ^ d))))
-      (fun s => w s = c s)
-
-omit [Field F] in
 /-- Private helper: for `e < 2 ^ d`, agreement `> 2 ^ d - e - 1` is equivalent to Hamming distance
 `≤ e`. -/
 private theorem lt_card_filter_eq_iff_hammingDist_le [DecidableEq F] {d e : ℕ} (he : e < 2 ^ d)
     (w c : OracleTable d F) :
     2 ^ d - e - 1 < (Finset.univ.filter fun s : Fin (2 ^ d) => w s = c s).card ↔
       hammingDist w c ≤ e := by
-  have htot := card_filter_eq_add_hammingDist_oracle w c
+  have htot := card_filter_eq_add_hammingDist w c
+  simp only [Fintype.card_fin] at htot
   omega
 
 /-- Private helper: converts any real-density affine correlated-agreement step on `params.eval 0`
@@ -557,9 +561,7 @@ private theorem batchRound0Escape_of_real_density [Fintype F] [DecidableEq F]
   have hα : Function.Injective (params.eval 0) :=
     cosetEval_injective params.hg params.hω (Nat.zero_le params.d)
   have hk_le_n : params.dim 0 ≤ Fintype.card (Fin (2 ^ (params.d - 0))) := by
-    simp only [Fintype.card_fin, Nat.sub_zero]
-    exact (Nat.mul_le_mul_right (2 ^ params.m) params.hkLe).trans_eq
-      (by rw [← pow_add, Nat.sub_add_cancel params.hm])
+    simpa only [Fintype.card_fin] using params.dim_le_domainSize (Nat.zero_le params.m)
   set S : Set (Fin t → F) := {x | ∃ c ∈ params.initialCode,
     2 ^ params.d - e - 1 <
       (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c s).card}
@@ -588,13 +590,12 @@ private theorem batchRound0Escape_of_real_density [Fintype F] [DecidableEq F]
   rw [← ENNReal.ofReal_toReal hne_top, htoReal]
   exact ENNReal.ofReal_le_ofReal hle_R
 
-/-- **Unconditional sharp unique-decoding `BatchRound0GapBound`** for `(t + 1)`-word batched FRI
-(in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorems 1.6, 4.1, and Section 8.2.1
-Eq. (8.8) on printed p. 42).
+/-- **Unconditional unique-decoding `BatchRound0GapBound`** for `(t + 1)`-word batched FRI
+(applying [BenSassonCarmonIshaiKoppartySaraf2020], Theorems 1.6 and 4.1).
 
 Applies `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line` with constant weight `1`,
 unique-decoding list bound `L = 1 < |F|`, and `Cslib.Code.exists_correlatedAgreement_unique` to
-obtain the exact threshold `|F| * #T ≤ 2 ^ d * |F| ^ t` (exact denominator `|F|` rather than
+obtain the upper bound `|F| * #T ≤ 2 ^ d * |F| ^ t` (exact denominator `|F|` rather than
 `|F| - 1`) uniformly for all `t : ℕ` with no list-size premise. -/
 theorem batchRound0GapBound_of_unique [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {e : ℕ}
@@ -652,7 +653,8 @@ theorem batchRound0GapBound_of_unique [Fintype F] [DecidableEq F]
       intro z hz
       obtain ⟨c, hc, hge⟩ := hcl z hz
       simp only [Finset.sum_const, smul_eq_mul, mul_one] at hge
-      have htot := card_filter_eq_add_hammingDist_oracle (a + z • b) c
+      have htot := card_filter_eq_add_hammingDist (a + z • b) c
+      simp only [Fintype.card_fin] at htot
       exact ⟨c, hc, by omega⟩
     obtain ⟨D', hD'_card, w₀, hw₀, w₁, hw₁, hag⟩ :=
       exists_correlatedAgreement_unique hα huniq' a b S
@@ -679,9 +681,11 @@ theorem batchRound0GapBound_of_unique [Fintype F] [DecidableEq F]
   simp only [Finset.sum_const, smul_eq_mul, mul_one] at hD'_sum
   exact hnot ⟨D', hD'_sum, v₀, hv₀, v, hv, hagree⟩
 
-/-- **Unconditional sharp unique-decoding `BatchRound0Escape`** for `(t + 1)`-word batched FRI:
-bounds the round-`0` batching escape probability `E⁽⁰⁾` by `(2 ^ params.d : ℝ≥0∞) / |F|` uniformly
-for all `t : ℕ` whenever `2 * e + params.dim 0 ≤ 2 ^ params.d`. -/
+/-- **Unconditional unique-decoding `BatchRound0Escape` upper bound** for `(t + 1)`-word batched
+FRI: bounds the round-`0` unweighted affine-word escape probability by
+`(2 ^ params.d : ℝ≥0∞) / |F|` uniformly for all `t : ℕ` whenever `2 * e + params.dim 0 ≤ 2 ^ d`
+(at batch size `t = 0`, `stmt.eval x = stmt.base` is independent of `x` and the actual round-`0`
+escape probability is `0`). -/
 theorem batchRound0Escape_of_unique [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {e : ℕ}
     (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
@@ -690,8 +694,7 @@ theorem batchRound0Escape_of_unique [Fintype F] [DecidableEq F]
     batchRound0Escape_of_gapBound params (batchRound0GapBound_of_unique params t huniq)
 
 /-- **Unconditional explicit-parameter Johnson `BatchRound0GapBound`** for `(t + 1)`-word batched
-FRI (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
-Section 8.2.1 Eq. (8.8) on printed p. 42).
+FRI (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6).
 
 Given Guruswami–Sudan parameters `(m₀, D₀)` at round `0` satisfying the interpolation and
 root-divisibility conditions, discharges `BatchRound0GapBound params t e B_batch` directly from
@@ -732,8 +735,9 @@ theorem batchRound0GapBound_of_johnson_discrete [Fintype F] [DecidableEq F]
   simp only [Fintype.card_fin, Nat.sub_zero] at hD'_card
   exact hnot ⟨D', hD'_card, v₀, hv₀, v, hv, hagree⟩
 
-/-- **Unconditional explicit-parameter Johnson `BatchRound0Escape`** for `(t + 1)`-word batched
-FRI, bounding `E⁽⁰⁾` by `B_batch / |F|` uniformly for all `t : ℕ` with no list-size premise. -/
+/-- **Unconditional explicit-parameter Johnson `BatchRound0Escape` upper bound** for `(t + 1)`-word
+batched FRI, bounding the round-`0` unweighted affine-word escape probability by `B_batch / |F|`
+uniformly for all `t : ℕ` with no list-size premise. -/
 theorem batchRound0Escape_of_johnson_discrete [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {e m₀ D₀ B_batch : ℕ}
     (hm₀ : 1 ≤ m₀)
@@ -755,8 +759,7 @@ abbrev friBatchJohnsonRound0Bound (params : FRIParams F) (mJ : ℕ) : ℕ :=
 
 /-- **Original explicit-constant Johnson `BatchRound0GapBound`** for `(t + 1)`-word batched FRI up
 to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
-[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and Section 8.2.1 Eq. (8.8) on
-printed p. 42).
+[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6).
 
 Instantiates `ProximityGap.johnson_line_params_bound` and `batchRound0GapBound_of_johnson_discrete`
 with this library's explicit Siegel budget `friBatchJohnsonRound0Bound params mJ`, uniformly for all
@@ -771,9 +774,8 @@ theorem batchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
   set n₀ : ℕ := 2 ^ params.d
   set k₀ : ℕ := params.dim 0
   have hk₀_pos : 0 < k₀ := params.one_le_dim 0
-  have hk₀_le_n₀ : k₀ ≤ n₀ :=
-    (Nat.mul_le_mul_right (2 ^ params.m) params.hkLe).trans_eq
-      (by rw [← pow_add, Nat.sub_add_cancel params.hm])
+  have hk₀_le_n₀ : k₀ ≤ n₀ := by
+    simpa only [Nat.sub_zero] using params.dim_le_domainSize (Nat.zero_le params.m)
   obtain ⟨hk_sub, hinterp, hroot, hjb⟩ :=
     ProximityGap.johnson_line_params_bound (n := n₀) (k := k₀) (e := e) (m := mJ)
       hk₀_pos hk₀_le_n₀ hmJ (by simpa only [n₀, k₀, Nat.cast_pow, Nat.cast_ofNat] using he)
@@ -796,15 +798,15 @@ theorem batchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
     (Nat.le_div_iff_mul_le hk₀_pos).mpr (by exact_mod_cast hmulR)
   exact batchRound0GapBound_of_johnson_discrete params t (by omega) hk_sub hinterp hroot hbound
 
-/-- **Original explicit-constant Johnson `BatchRound0Escape`** for `(t + 1)`-word batched FRI up to
-`(e : ℝ) / 2 ^ d ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
-[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and Section 8.2.1 Eq. (8.8) on
-printed p. 42).
+/-- **Original explicit-constant Johnson `BatchRound0Escape` upper bound** for `(t + 1)`-word
+batched FRI up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6).
 
-Bounds `E⁽⁰⁾` by `ENNReal.ofReal (1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|))` uniformly for all
-`t : ℕ` with no list-size premise via
-`Cslib.Code.exists_correlatedAgreement_affine_johnson_of_multiplicity` (this library's original
-Siegel constant, not uniformly smaller at small `mJ` than the paper's displayed constant). -/
+Bounds the round-`0` unweighted affine-word escape probability by
+`ENNReal.ofReal (1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|))` uniformly for all `t : ℕ` with no
+list-size premise via `Cslib.Code.exists_correlatedAgreement_affine_johnson_of_multiplicity` (this
+library's original Siegel constant, not uniformly smaller at small `mJ` than the paper's displayed
+constant). -/
 theorem batchRound0Escape_of_johnson [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {e mJ : ℕ} (hmJ : 1 ≤ mJ)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
@@ -822,15 +824,14 @@ theorem batchRound0Escape_of_johnson [Fintype F] [DecidableEq F]
         (by simpa only [Fintype.card_fin, Nat.sub_zero, Nat.cast_pow, Nat.cast_ofNat] using he)
         stmt.base stmt.terms T hT hclose
 
-/-- **Original explicit-constant `η`-gap Johnson `BatchRound0Escape`** for `(t + 1)`-word batched
-FRI up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η` (in the setting of
-[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and Section 8.2.1 Eq. (8.8) on
-printed p. 42).
+/-- **Original explicit-constant `η`-gap Johnson `BatchRound0Escape` upper bound** for
+`(t + 1)`-word batched FRI up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η` (in the setting of
+[BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6).
 
-Bounds `E⁽⁰⁾` by `ENNReal.ofReal (115200 * (2 ^ d) ^ 2 / (ρ * η ^ 6 * |F|))` uniformly for all
-`t : ℕ` with no list-size premise via
-`Cslib.Code.exists_correlatedAgreement_affine_johnson_of_eta` (an original finite bound using `η`
-directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
+Bounds the round-`0` unweighted affine-word escape probability by
+`ENNReal.ofReal (115200 * (2 ^ d) ^ 2 / (ρ * η ^ 6 * |F|))` uniformly for all `t : ℕ` with no
+list-size premise via `Cslib.Code.exists_correlatedAgreement_affine_johnson_of_eta` (an original
+finite bound using `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
 theorem batchRound0Escape_of_johnson_eta [Fintype F] [DecidableEq F]
     (params : FRIParams F) (t : ℕ) {e : ℕ} {η : ℝ} (hη : 0 < η)
     (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
