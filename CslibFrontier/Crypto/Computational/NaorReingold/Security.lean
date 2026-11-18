@@ -54,8 +54,9 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
    queried by an `OracleDistinguisher` and evaluates the remaining suffix via
    `naorReingoldWordSuffix`. Choosing `k ← sampleDyadicIndex (inLen n)` yields the uniform strict
    PPT DDH distinguisher `naorReingoldToDDHDistinguisher`, proving both quantitative single-
-   distinguisher bounds and asymptotic security (`DDH.negligible_naorReingoldWordGame`,
-   `DDH.negligible_naorReingoldProbGame`) under `F.DDH setup` alone.
+   distinguisher bounds and asymptotic security under `F.DDH setup` alone: for the keys drawn with
+   the fair-coin sampler `sampleNaorReingoldExp` (`DDH.negligible_naorReingoldProbGame`), through
+   the ideal-sampling step with exactly uniform keys (`DDH.negligible_naorReingoldWordGame_ideal`).
 3. **Universal-hash bit-string Naor–Reingold PRF (paraphrase of [NaorReingold2004], Section 4.1,
    Construction 4.2, Theorem 4.3, and Remark 4.2, using Lemma 4.2):** composing
    `naorReingoldWordEval` with `linearHashKDF` under a public universal-hash seed (`F.withSeed` and
@@ -90,18 +91,23 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_naorReingoldDescToDDHDistinguisher`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_naorReingoldToDDHDistinguisher`: uniform strict PPT
   certificates for both distinguishers from any oracle PPT distinguisher.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldWordGame_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldProbRealGame_wordRealGame_le`:
-  quantitative single-distinguisher DDH reduction and modular-sampling bounds for the group-PRF.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldWordGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldProbGame`: asymptotic adaptive
-  security of the Naor–Reingold group-PRF under `F.DDH setup`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldProbRealGame_wordRealGame_le`:
+  modular-sampling bound between the fair-coin and the exactly uniform keys of the group-PRF.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldProbGame`: asymptotic adaptive
+  security of the Naor–Reingold group-PRF with fair-coin keys under `F.DDH setup`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_naorReingoldHashedWordEval`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldHashedIdeal_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedProbGame`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldHashedGame_const`: polynomial-time
   evaluation, multi-query Leftover Hash Lemma bound, and asymptotic bit-string PRF security.
+
+## Ideal-sampling steps
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldWordGame_le_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_naorReingoldWordGame_ideal`: the quantitative
+  DDH reduction bound and asymptotic security for `naorReingoldWordRealGame`, whose keys are drawn
+  exactly uniformly. `DDH.negligible_naorReingoldProbGame` consumes them.
 
 ## References
 
@@ -1411,13 +1417,14 @@ private theorem advantage_naorReingoldDescGame_le (F : PrimeOrderGroupFamily)
     using [hEqReal, hAdvRealApprox, le_rfl, hAdvRandomApprox,
       advantage_exactDDHRandom_le F setup m (adv n) n]
 
-/-- **Quantitative single-distinguisher DDH security bound for the Naor–Reingold group-PRF**
-([BonehShoup2023], Exercises 10.4 & 10.11; [NaorReingold2004], Theorem 4.1): if `adversary` makes at
-most `Q d` queries on `d ∈ (setup n).support` with modular-sampling slack bounded by `ε`, then its
-PRF distinguishing advantage is at most `dyadicSize (inLen n)` times the single-challenge DDH
-advantage of `naorReingoldToDDHDistinguisher` plus `2 * ε` plus the setup-averaged inverse group
-order. -/
-theorem advantage_naorReingoldWordGame_le (setup : ℕ → PMF F.Desc) (inLen : ℕ → ℕ)
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 10.4 (p. 424), not the cited result:
+in `naorReingoldWordRealGame`, whose keys are drawn exactly uniformly from `ZMod (F.order d)`, if
+`adversary` makes at most `Q d` queries on `d ∈ (setup n).support` with modular-sampling slack
+bounded by `ε`, then its PRF distinguishing advantage is at most `dyadicSize (inLen n)` times the
+single-challenge DDH advantage of `naorReingoldToDDHDistinguisher` plus `2 * ε` plus the
+setup-averaged inverse group order. With the fair-coin keys of `naorReingoldProbRealGame` the bound
+gains the term of `advantage_naorReingoldProbRealGame_wordRealGame_le`. -/
+theorem advantage_naorReingoldWordGame_le_ideal (setup : ℕ → PMF F.Desc) (inLen : ℕ → ℕ)
     (adversary : OracleDistinguisher) (n : ℕ) (Q : F.Desc → ℕ) {ε : ℝ≥0}
     (hQ : ∀ d ∈ (setup n).support, (adversary n (F.encDesc d)).IsQueryBounded (Q d))
     (hε : ∀ d ∈ (setup n).support,
@@ -1651,11 +1658,13 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
   simpa only [mul_comm (dyadicSize (inLen n) : ℝ≥0)] using
     advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (hQ_supp n) (hε_supp n)
 
-/-- **Asymptotic DDH security of the Naor–Reingold group-PRF (`naorReingoldWordRealGame`)**
-([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1): if `F.DDH setup` holds and
-`inLen` is computable in polynomial time in unary, no `IsOraclePPT` adversary can distinguish
-`naorReingoldWordRealGame` from `naorReingoldWordIdealGame` with non-negligible advantage. -/
-theorem DDH.negligible_naorReingoldWordGame {F : PrimeOrderGroupFamily}
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 10.4 (p. 424), not the cited result: if
+`F.DDH setup` holds and `inLen` is computable in polynomial time in unary, no `IsOraclePPT`
+adversary can distinguish `naorReingoldWordRealGame`, whose keys are drawn exactly uniformly from
+`ZMod (F.order d)`, from `naorReingoldWordIdealGame` with non-negligible advantage. The theorem for
+the keys drawn with the fair-coin sampler `sampleNaorReingoldExp` is
+`DDH.negligible_naorReingoldProbGame`, which uses this one. -/
+theorem DDH.negligible_naorReingoldWordGame_ideal {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {inLen : ℕ → ℕ}
     (hDDH : F.DDH setup) (hinLen : ComputableInPolyTime inLen encUnary encUnary)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
@@ -1698,7 +1707,7 @@ theorem DDH.negligible_naorReingoldProbGame {F : PrimeOrderGroupFamily}
         (F.naorReingoldWordIdealGame setup inLen adversary n) := by
   refine negligible_of_le
     ((negligible_add_one_div_two_pow hinLen).add
-      (hDDH.negligible_naorReingoldWordGame hinLen hadversary)) fun n => ?_
+      (hDDH.negligible_naorReingoldWordGame_ideal hinLen hadversary)) fun n => ?_
   game_trans [F.naorReingoldWordRealGame setup inLen adversary n]
     using [F.advantage_naorReingoldProbRealGame_wordRealGame_le setup inLen adversary n, le_rfl]
 

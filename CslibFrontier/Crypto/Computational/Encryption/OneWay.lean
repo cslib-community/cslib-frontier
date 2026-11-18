@@ -23,7 +23,8 @@ drawn from `sampleMsg`; `PKE.owAdvantage` is the adversary's success probability
 `x` uniformly from the message space; a sampler lets a client choose the message law, for example
 the uniform law on a cyclic group through a generator. The book's `x̂ ∈ ℛ` is read as `x̂ ∈ 𝒳`.
 Definition 12.5 (one way: negligible advantage for every efficient adversary) is not stated here
-as a predicate; `CDH.elGamal_oneWay` states it for multiplicative ElGamal and typed adversaries.
+as a predicate; `CDH.elGamal_oneWay_ideal` states it for multiplicative ElGamal with exactly
+uniform exponents and typed adversaries.
 
 ## Main definitions
 
