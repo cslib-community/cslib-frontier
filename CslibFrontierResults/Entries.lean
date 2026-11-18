@@ -6456,8 +6456,8 @@ register_result "ofb-mode-cpa" where
     running time."
 
 register_result "iv-stream-cipher-malleability" where
-  title := "XORing a mask into the body of a random-IV stream ciphertext gives an encryption of \
-    the masked message"
+  title := "XORing a mask at least as long as the message into the body of a random-IV stream \
+    ciphertext gives an encryption of the masked message"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -6572,8 +6572,9 @@ register_result "luby-rackoff-prp" where
     entry."
 
 register_result "linear-cryptanalysis-majority-vote" where
-  title := "Linear cryptanalysis: with a linear relation of bias ε, a majority vote over t known \
-    plaintexts recovers a key parity bit with probability at least 1 − e^(−2tε²)"
+  title := "Linear cryptanalysis: with a linear relation of bias ε ≥ 0, a majority vote over t \
+    independent uniform known plaintexts recovers a key parity bit with probability at least \
+    1 − e^(−2tε²)"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Lemma 4.3, with a sharper exponent",
@@ -6584,9 +6585,11 @@ register_result "linear-cryptanalysis-majority-vote" where
   ]
   scope := "For any keyed function E : {0,1}^h × {0,1}^n → {0,1}^n (the book: a block cipher; \
     neither invertibility nor decryption is used), masks S₀, S₁ ⊆ {0, …, n − 1} and \
-    S₂ ⊆ {0, …, h − 1}, and ε ≥ 0 (the book assumes ε > 0). HasLinearRelation is (4.14): for \
+    S₂ ⊆ {0, …, h − 1}, and ε ≥ 0: the book's bias is positive and non-negligible, and the \
+    finite bound here also holds, trivially, at ε = 0. HasLinearRelation is (4.14): for \
     every key k, m[S₀] ⊕ E(k, m)[S₁] = k[S₂] for at least a 1/2 + ε fraction of the messages m. \
-    For every key k and every t, if m₁, …, m_t are independent and uniform, the majority of the \
+    For every key k and every t, if the known plaintexts m₁, …, m_t are independent and \
+    uniform, with c_i = E(k, m_i), the majority of the \
     bits m_i[S₀] ⊕ E(k, m_i)[S₁] equals k[S₂] with probability at least 1 − exp(−2tε²), which \
     implies the printed bound 1 − exp(−tε²/2) of (4.15). The book does not say how a tied vote \
     is resolved; linearKeyBitEstimate returns the first vote on a tie and false for t = 0. \
@@ -7021,8 +7024,9 @@ register_result "prf-mac-suf-cma" where
     1/2^n = 1/|Y|."
 
 register_result "prepend-key-prf-random-oracle" where
-  title := "Prepending the key to a random oracle gives a secure PRF, with advantage at most \
-    Q_ro/|K| for Q_ro oracle queries"
+  title := "Prepending the key to a random oracle gives a PRF with advantage at most Q_ro/|K| \
+    for every nonempty finite key space, and a secure PRF when 1/|K| is negligible in the \
+    security parameter"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Theorem 8.9",
@@ -7040,13 +7044,15 @@ register_result "prepend-key-prf-random-oracle" where
     answer oracle queries with O. The advantage is |Pr[W₀] − Pr[W₁]|. Adversaries are adaptive \
     programs with private coins that make at most Q oracle queries on every path, with no bound \
     on F-queries or running time; the book notes that the theorem constrains only the number of \
-    oracle queries. roAdvantage_prependKey_le: for any pairing encode : Key → X → M that is \
-    injective in the pair (in place of k ‖ x), the advantage is at most Q/|Key|. \
+    oracle queries. roAdvantage_prependKey_le: for every nonempty finite key set and any pairing \
+    encode : Key → X → M that is injective in the pair (in place of k ‖ x), the advantage is at \
+    most Q/|Key|; this finite bound needs no growth of the key space. \
     roAdvantage_prependKey_keyAppend_le is the book's instance K = {0,1}^κ and \
     X = {0,1}^(≤L), with bound Q/2^κ; there M is exactly the words of length at most κ + L, \
     while the book allows M to contain more, which the general theorem covers for any finite \
-    M. negligible_roAdvantage_prependKey and negligible_roAdvantage_prependKey_keyAppend: when \
-    1/|Key n| is negligible (for bit strings, keys of at least n bits), every family of \
+    M. negligible_roAdvantage_prependKey and negligible_roAdvantage_prependKey_keyAppend: under \
+    the key-growth condition that 1/|Key n| is negligible (for bit strings, keys of at least n \
+    bits), the book's 'if K is large', every family of \
     adversaries with polynomially many oracle queries has negligible advantage; efficient \
     adversaries are such families, so this gives Definition 8.5. The proof is not the book's \
     and does not assume that F-queries are distinct. Not formalized: the insecurity of F_pre \
@@ -7085,8 +7091,9 @@ register_result "merkle-damgard-collision-resistance" where
     part of this entry."
 
 register_result "davies-meyer-ideal-cipher-collision-resistance" where
-  title := "Davies–Meyer is collision resistant in the ideal cipher model: a Q-query adversary \
-    finds a collision with probability at most (Q + 1)(Q + 2)/|X|"
+  title := "Davies–Meyer is collision resistant in the ideal cipher model: a deterministic \
+    adaptive finder making Q queries finds a collision with probability at most \
+    (Q + 1)(Q + 2)/|X|"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Theorem 8.4",
@@ -7098,17 +7105,21 @@ register_result "davies-meyer-ideal-cipher-collision-resistance" where
   ]
   scope := "The ideal cipher is a family of independent uniform permutations Π_k of a finite \
     nonempty block set X, one for each key of a finite key set K. A CollisionFinder is an \
-    adaptive oracle program with private coins that makes forward queries Π_k(a) and inverse \
-    queries Π_k⁻¹(b) and outputs two inputs; IsQueryBounded A Q bounds its queries of both \
-    kinds by Q on every path, with no bound on running time. collisionGame evaluates the \
-    compression function on both outputs, with two further queries, and accepts distinct inputs \
-    with equal outputs. daviesMeyer Π (k, x) = Π_k(x) + x is the book's \
+    oracle program (OracleComp) over the cipher's forward replies Π_k(a) and inverse replies \
+    Π_k⁻¹(b) that outputs two inputs. It is adaptive but has no private sampling operation, so \
+    the declarations quantify over deterministic adaptive finders; IsQueryBounded A Q bounds \
+    its queries of both kinds by Q on every path, with no bound on running time. The book's \
+    adversary may be randomized; averaging the bound over its coins would extend it, but no \
+    private-coin version is proved. collisionGame samples the cipher, runs the finder, and \
+    evaluates the compression function on its two outputs directly with the sampled \
+    permutations, accepting distinct inputs with equal digests; these two digest evaluations \
+    are not queries of the finder. The proof's program daviesMeyerCollisionProgram instead \
+    appends two forward queries on the outputs, which gives Q + 2 queries (the book's \
+    'reasonable' adversary with q′ = q + 2). daviesMeyer Π (k, x) = Π_k(x) + x is the book's \
     h_DM(x, y) = E(y, x) ⊕ x with its arguments swapped, which is a bijection of the input \
     space, for any group structure + on X: XOR on {0,1}^n, and also modular addition as in \
     SHA256 (p. 304). daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, \
-    and daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|. The \
-    docstrings of both theorems cite Katz and Lindell, Theorem 7.5, which states the same \
-    bound."
+    and daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|."
 
 register_result "davies-meyer-insecure-variants" where
   title := "The Davies–Meyer variants h₄ and h₅ have two-query collision finders that always \
@@ -7124,19 +7135,24 @@ register_result "davies-meyer-insecure-variants" where
     Cslib.IdealCipher.exists_collisionFinder_keyMasked,
     Cslib.IdealCipher.exists_collisionFinder_keyMaskedInput
   ]
-  scope := "Keys and blocks are the same finite set X with a group structure + (XOR on {0,1}^n), \
-    and the cipher is ideal, as in davies-meyer-ideal-cipher-collision-resistance. \
+  scope := "Keys and blocks are the same finite set X with a group structure + (XOR on {0,1}^n). \
     keyMasked Π (k, x) = Π_k(x) + k is h₄(x, y) = E(y, x) ⊕ y with its arguments swapped, and \
-    keyMaskedInput Π (k, x) = Π_k(k + x) + k is h₅(x, y) = E(x, x ⊕ y) ⊕ x. For distinct keys \
-    k₁ ≠ k₂ and any target y, keyMaskedAdversary and keyMaskedInputAdversary make the two \
-    inverse queries Π_k₁⁻¹(y − k₁) and Π_k₂⁻¹(y − k₂) and output two distinct inputs that both \
-    hash to y; they win collisionGame with probability exactly 1 (keyMaskedAdversary_wins, \
-    keyMaskedInputAdversary_wins) with at most 2 queries (isQueryBounded_keyMaskedAdversary and \
-    isQueryBounded_keyMaskedInputAdversary, in the same module). The exists_ forms state this \
-    for every X with at least two elements. The book's 'constant time' (p. 301) is the count of \
-    two queries here; no running time is claimed. The exercise asks to show that h₄ and h₅ are \
-    not collision resistant. The attacks use the cipher only as an oracle for its inverse, but \
-    the statement for a concrete block cipher is not formalized."
+    keyMaskedInput Π (k, x) = Π_k(k + x) + k is h₅(x, y) = E(x, x ⊕ y) ⊕ x. Two kinds of result \
+    exist. For any fixed family of permutations F, which covers a concrete block cipher, \
+    BlockCipherCompression.keyMasked_collision and keyMaskedInput_collision \
+    (Hash/BlockCipherCompression.lean, not listed, since an entry has one defining module) are \
+    pointwise algebraic facts: for keys k₁ ≠ k₂ and any target y, the inputs built from \
+    F_k₁⁻¹(y − k₁) and F_k₂⁻¹(y − k₂) are distinct and collide. They make no cost claim. The \
+    listed theorems are the cost claim in the ideal cipher game of \
+    davies-meyer-ideal-cipher-collision-resistance: keyMaskedAdversary and \
+    keyMaskedInputAdversary make the two inverse queries Π_k₁⁻¹(y − k₁) and Π_k₂⁻¹(y − k₂) and \
+    output those inputs; they win collisionGame with probability exactly 1 \
+    (keyMaskedAdversary_wins, keyMaskedInputAdversary_wins) with at most 2 queries \
+    (isQueryBounded_keyMaskedAdversary and isQueryBounded_keyMaskedInputAdversary, in the same \
+    module). The exists_ forms state this for every X with at least two elements. The book's \
+    'constant time' (p. 301) is the count of two queries here; no running time, of the finder \
+    or of a concrete cipher's inverse, is claimed. This exercise is kept separate from \
+    Theorem 8.4."
 
 register_result "second-preimage-counting-and-inversion" where
   title := "At most a 1/s fraction of inputs lack a second preimage, and inverting is at most \
@@ -8078,7 +8094,9 @@ register_result "partial-tag-encrypt-then-mac" where
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
 register_result "ghash-gcm-length-block-xor-duf" where
-  title := "GHASH on GCM's zero-padded input with its length block is an ℓ/2^128-XOR-DUF"
+  title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
+    length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
+    included"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -8093,18 +8111,20 @@ register_result "ghash-gcm-length-block-xor-duf" where
     additive bijection e between F and {0,1}^128; GF(2^128) with the modulus \
     X^128 + X^7 + X^2 + X + 1 and the standard's bit order is such a field but is not \
     constructed. The key is uniform in {0,1}^128 (in GCM it is E(k, 0^128)). gcmHashInput d c \
-    is the input of line (∗): d and c padded with zeros to 128-bit blocks, then one block \
-    holding their two lengths as 64-bit numbers. For any family of inputs x determined by the \
+    is the bit-length version of the input of line (∗): d and c padded with zeros to 128-bit \
+    blocks, then one block holding their lengths in bits as two 64-bit numbers, where the \
+    book's length fields count bytes; a one-byte input contributes 8 to the length field here \
+    and 1 in the book. For any family of inputs x determined by the \
     pair (d x, c x), with both lengths below 2^64 and at most ℓ blocks hashed, the length block \
     included, GHASH is an ℓ/2^128-XOR-DUF in the sense of Remark 7.3: for x ≠ x′ and every \
-    δ, Pr_k[GHASH(k, x) ⊕ GHASH(k, x′) = δ] ≤ ℓ/2^128. Deviations: the length fields count \
-    bits, where the book's count bytes, so that arbitrary bit strings are separated after \
-    padding; the book's limit ℓ = 2^32 − 1 on the number of blocks keeps both lengths below \
-    2^64 bits; and the book gives no ε for GHASH, while Remark 7.4 gives (ℓ + 1)/2^n for \
-    H_xpoly, which has the extra leading term k^(v+1). Without the length block GHASH is not \
-    even universal on inputs of at most ℓ blocks, since [] and [0] collide under every key \
-    (not_isUniversalHash_ghash, in the same module, not listed). Only the hash is formalized, \
-    not GCM's encryption or its AEAD security."
+    δ, Pr_k[GHASH(k, x) ⊕ GHASH(k, x′) = δ] ≤ ℓ/2^128, where ℓ counts the length block among \
+    the blocks. Deviations: the bit lengths separate arbitrary bit strings after padding, which \
+    byte lengths would not; the book's limit ℓ = 2^32 − 1 on the number of blocks keeps both \
+    lengths below 2^64 bits; and the book gives no ε for GHASH, while Remark 7.4 gives \
+    (ℓ + 1)/2^n for H_xpoly, which has the extra leading term k^(v+1). Without the length \
+    block GHASH is not even universal on inputs of at most ℓ blocks, since [] and [0] collide \
+    under every key (not_isUniversalHash_ghash, in the same module, not listed). Only the hash \
+    is formalized, not GCM's encryption or its AEAD security."
 
 register_result "rsa-half-predicate-inversion" where
   title := "Baby Bleichenbacher: an oracle for the half predicate inverts RSA"
