@@ -37,7 +37,7 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 /-- Does a terminal signing request hash to the public-key hash on the original SHAKE256
 stream? The search includes requests that returned an expansion error. -/
-def Xofs.terminalRepresentativeMatch (H : Xofs) {s : Level} (pk : List Byte)
+@[expose] def Xofs.terminalRepresentativeMatch (H : Xofs) {s : Level} (pk : List Byte)
     (writes : List (TerminalSigningWrite s)) : Bool :=
   let tr := H.h256.readBytes pk 64
   writes.any fun w =>
