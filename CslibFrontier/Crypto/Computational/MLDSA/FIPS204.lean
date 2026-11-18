@@ -57,7 +57,8 @@ abbrev Level.params (s : Level) : Params :=
 def digestBytes : Level → ℕ
   | .mlDSA44 => 32 | .mlDSA65 => 48 | .mlDSA87 => 64
 
-private def hintLimit : Level → ℕ
+/-- Maximum Hamming weight of the complete hint vector (Table 1). -/
+def hintLimit : Level → ℕ
   | .mlDSA44 => 80 | .mlDSA65 => 55 | .mlDSA87 => 75
 
 /-- A coefficient polynomial in the FIPS 204 negacyclic ring. -/
@@ -66,7 +67,8 @@ abbrev Poly := Fin 256 → ZMod 8380417
 /-- The coefficient representation of the public module matrix for the selected parameter set. -/
 abbrev PublicMatrix (s : Level) := Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly
 
-private def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 → ℕ) : List Byte :=
+/-- Pack fixed-width nonnegative coefficients in row-major, low-bit-first order. -/
+def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 → ℕ) : List Byte :=
   let bits := (List.finRange rows).flatMap fun i =>
     (List.finRange 256).flatMap fun j => BitString.lowBits width (coeff i j)
   (bits.toChunks 8).map Keccak.bitsToByteLE
@@ -198,9 +200,20 @@ def encodePublic (s : Level) (rho : List Byte) (t : Fin s.params.k → Poly) : L
     (encodePublic s rho.toList t).take 32 = rho.toList := by
   simp [encodePublic]
 
-/-- Algorithm 6, public-key output. The 32-byte seed expands into the matrix seed and the
-secret-polynomial seed in a single SHAKE256 call. Rejection exhaustion yields `none`. -/
-def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) := do
+/-- Algorithm 6's two encoded output keys. -/
+structure KeyPair where
+  /-- The public key, including the matrix seed. -/
+  publicKey : List Byte
+  /-- The private key containing the signing seed, public-key hash and three short vectors. -/
+  secretKey : List Byte
+
+/-- Algorithms 17 and 24: pack signed coefficients as fixed-width offsets from their upper bound. -/
+def packSigned {rows : ℕ} (width upper : ℕ) (v : Fin rows → Poly) : List Byte :=
+  packCoeffs width fun i j => ((upper : ℤ) - (v i j).valMinAbs).toNat
+
+/-- Algorithm 6, from the 32-byte seed to both encoded keys (Algorithms 22, 24).
+Rejection exhaustion during the matrix or short-vector expansion yields an error. -/
+def keyGen (s : Level) (seed : FixedBytes 32) : Option KeyPair := do
   let expanded := Keccak.shake256
     (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128
   let rho := expanded.take 32
@@ -208,8 +221,18 @@ def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) := do
   let matrix ← expandA s rho
   let s₁ ← tabulate _ fun i : Fin s.params.ℓ => secretPoly s rho' i.val
   let s₂ ← tabulate _ fun i : Fin s.params.k => secretPoly s rho' (s.params.ℓ + i.val)
-  let t := moduleSISMap matrix s₁ + s₂
-  return encodePublic s rho t
+  let full := Vector.ofFn fun i => Vector.ofFn ((moduleSISMap matrix s₁ + s₂) i)
+  let t := fun i => (full.get i).get
+  let pk := encodePublic s rho t
+  let width := (2 * s.params.η).log2 + 1
+  let sk := rho ++ expanded.drop 96 ++ Keccak.shake256 pk 64 ++
+    packSigned width s.params.η s₁ ++ packSigned width s.params.η s₂ ++
+    packSigned 13 4096 (fun i j => ((power2Round 8380417 13 (t i j)).2 : ZMod 8380417))
+  return ⟨pk, sk⟩
+
+/-- The encoded public key from Algorithm 6. -/
+def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) :=
+  KeyPair.publicKey <$> keyGen s seed
 
 private def swaps (first count : ℕ) (bytes : List Byte) :
     Option (Equiv.Perm (Fin 256)) :=
@@ -567,11 +590,15 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
   simp only [publicKey, publicKeyHighTerm, power2RoundVec, Vector.getElem_ofFn]
   exact coef (decodeRounded s bytes i j)
 
+/-- The 64-byte representative of a formatted bit string given the public-key hash tr. -/
+def representativeFromTr (tr : List Byte) (formatted : List Bool) : List Bool :=
+  Keccak.bytesToBitsLE (Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
+    (Keccak.bytesToBitsLE tr ++ formatted) 64)
+
 /-- SHAKE256 on `BytesToBits(H(pk,64)) || M'`. In particular a formatted message may end
 between two byte boundaries (Algorithm 8, lines 6–7). -/
 def messageRepresentative (pk : List Byte) (formatted : List Bool) : List Bool :=
-  Keccak.bytesToBitsLE (Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
-    (Keccak.bytesToBitsLE (Keccak.shake256 pk 64) ++ formatted) 64)
+  representativeFromTr (Keccak.shake256 pk 64) formatted
 
 /-- SHAKE256 input in Algorithm 8, line 12, including the message representative and
 the fixed-width packing of the recovered high bits. -/
@@ -599,7 +626,7 @@ theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 �
   have := (hv i j).1
   omega
 
-/-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
+/-- The commitment digest in Algorithms 7 and 8 hashes the message representative and high bits. -/
 def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
     List Byte :=
   Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
@@ -626,6 +653,10 @@ private def verifyInternalWith (s : Level) (expand : List Byte → Option (Publi
   let c ← sampleInBall s σ.digest
   return check s (publicKey s pk matrix) (messageRepresentative pk formatted) σ c
 
+/-- The pure-mode prefix in Algorithms 2 and 3, including the context length. -/
+@[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
+  Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
+
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
 uniform Appendix C error for an exhausted SHAKE rejection stream is `none`. -/
 def verifyInternal (s : Level) := verifyInternalWith s (expandA s)
@@ -636,8 +667,7 @@ with the concrete verifier. -/
 def verifyWithExpansion (s : Level) (expand : List Byte → Option (PublicMatrix s))
     (pk : List Byte) (message : List Bool) (ctx signature : List Byte) : Option Bool := do
   guard (ctx.length ≤ 255)
-  let formatted := Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
-  verifyInternalWith s expand pk formatted signature
+  verifyInternalWith s expand pk (formatMessage message ctx) signature
 
 /-- On freshly encoded public bytes, the verifier reads exactly the published seed. Once its
 matrix has been obtained from the shared oracle it can be reused in the digest check. -/
@@ -680,10 +710,11 @@ structure Forgery where
   message : List Bool
   /-- Byte encoding of the purported signature. -/
   signature : List Byte
+deriving DecidableEq
 
 /-- Algorithm 3 frames the context before the bit-string message. -/
 @[expose] def formattedMessage (f : Forgery) : List Bool :=
-  Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 f.context.length :: f.context) ++ f.message
+  formatMessage f.message f.context
 
 private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
     (σ : Signature s) (c : Poly) : SelfTargetCandidate s.params :=
@@ -783,24 +814,25 @@ theorem solves_extract_of_verify {s : Level} {bytes : List Byte} {f : Forgery}
   have hs := solution_of_compressed (compressedVerify_of_check hc hcheck)
   simpa [solves, hA, extract, hσ, hc] using hs
 
-/-- Run the supplied byte-key forger after generating the published key from a uniform 32-byte
-seed, treating a key-generation failure as an unsuccessful trial. -/
-private noncomputable def withForgery (s : Level) (adv : List Byte → ProbComp Forgery)
-    (wins : List Byte → Forgery → Bool) : Game :=
+/-- Draw one uniform 32-byte seed and run an experiment under the resulting Algorithm 6
+key pair. A key-generation failure is an unsuccessful trial. -/
+noncomputable def keyExperiment (s : Level) (run : KeyPair → Game) : Game :=
   (PMF.uniformOfFintype (FixedBytes 32)).bind fun seed =>
-    match keyGenPublic s seed with
+    match keyGen s seed with
     | none => PMF.pure false
-    | some pk => (adv pk).eval.map (wins pk)
+    | some keys => run keys
 
 /-- FIPS 204 key-only forgery: draw the uniform key-generation seed, give the generated
 public-key bytes to the adversary, and run Algorithm 3 on its context, message and signature. -/
-noncomputable def keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) : Game :=
-  withForgery s adv fun pk f => (verify s pk f.message f.context f.signature).getD false
+@[expose] noncomputable def keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) : Game :=
+  keyExperiment s fun keys => (adv keys.publicKey).eval.map fun f =>
+    (verify s keys.publicKey f.message f.context f.signature).getD false
 
 /-- Self-target success for the solver extracted from the byte-key forger, on the seeded
 matrix and lifted public vector that the verifier can compute from the published key. -/
 noncomputable def extractedSelfTargetGame (s : Level) (adv : List Byte → ProbComp Forgery) : Game :=
-  withForgery s adv fun pk f => solves s pk fun matrix => extract s pk matrix f
+  keyExperiment s fun keys => (adv keys.publicKey).eval.map fun f =>
+    solves s keys.publicKey fun matrix => extract s keys.publicKey matrix f
 
 /-- The finite success bound under the Algorithm 6 seed law and Algorithm 3 verification.
 The right-hand game tests the actual extracted candidate under that same seeded public key.
@@ -809,16 +841,16 @@ theorem succProbability_verify_le_seededSelfTarget (s : Level)
     (adv : List Byte → ProbComp Forgery) :
     (keyOnlyGame s adv).succProbability ≤ (extractedSelfTargetGame s adv).succProbability := by
   apply Game.succProbability_mono
-  unfold keyOnlyGame extractedSelfTargetGame withForgery
+  unfold keyOnlyGame extractedSelfTargetGame keyExperiment
   apply Probability.PMF.bind_apply_mono_on_support
   intro seed _
-  cases hk : keyGenPublic s seed with
+  cases hk : keyGen s seed with
   | none => exact le_rfl
-  | some pk =>
+  | some keys =>
     simp only [PMF.map]
     apply Probability.PMF.bind_apply_mono_on_support
     intro f _
-    cases hv : verify s pk f.message f.context f.signature with
+    cases hv : verify s keys.publicKey f.message f.context f.signature with
     | none => simp [hv]
     | some b =>
       cases b

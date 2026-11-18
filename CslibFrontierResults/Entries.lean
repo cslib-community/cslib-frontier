@@ -110,9 +110,11 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
+import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
+import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
@@ -143,6 +145,7 @@ import CslibFrontier.Computability.Complexity.Parameterized.WHierarchy.XP
 import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -193,6 +196,8 @@ import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -200,6 +205,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
+import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
@@ -237,6 +243,7 @@ import CslibFrontier.Crypto.Protocols.PIR.Shamir
 import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
 import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.LinearEquivalence
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
+import CslibFrontier.Crypto.Computational.ElGamal.Homomorphism
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
@@ -485,6 +492,31 @@ register_result "pcp" where
     uses O(log n + 1) random bits and O(1) queries, with perfect completeness and soundness at \
     most one half. NP is the library's deterministic-verifier class. Construction constants \
     are large."
+
+register_result "goldreich-pcp-effective-length" where
+  title := "Effective length of adaptive PCP proofs"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.15 (adaptive bound)",
+      locator := "r5.pdf; PDF pp. 66–67 / printed pp. 448–449" }
+  ]
+  theorems := [Cslib.DecisionTree.card_biUnion_allQueries_le]
+  scope := "Bound 2^(q+r) for a fixed input, with the verifier given as its family of decision \
+    trees of depth at most q indexed by the r-bit coin sequences (all answer sequences \
+    counted; no compiler from adaptive machines to trees is asserted). Outside-fleet six-point \
+    source check: review 5953164508 on PR #6392."
+
+register_result "goldreich-pcp-effective-length-nonadaptive" where
+  title := "Effective length of non-adaptive PCP proofs"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.15 (non-adaptive bound)",
+      locator := "r5.pdf; PDF p. 67 / printed p. 449" }
+  ]
+  theorems := [Cslib.Complexity.IsPCPVerifier.card_toFinset_queryTable_le]
+  scope := "Bound 2^r(n)·q(n) on the distinct queryTable addresses of the library's \
+    PCPVerifier, n the encoded length. Outside-fleet six-point source check: review \
+    5953164508 on PR #6392."
 
 register_result "gap-two-csp-promise-pcp" where
   title := "Constant-gap gapCSP is in PCP(log, O(1))"
@@ -2421,6 +2453,20 @@ register_result "goldreich-nonnegative-permanent-reduction" where
     (encIntTable) with entries in I and permanent c^m * #3SAT on every formula with clauses of \
     at most three literals. Negates more than the source requires (c need not be even or \
     positive). Outside-fleet source check: PR #6261, pullrequestreview-5947014802."
+
+register_result "goldreich-approx-counting-np-hard-oracle" where
+  title := "Approximate counting for a PC relation with an NP-hard S_R oracle"
+  topic := "counting complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.39 (approximate-counting half)",
+      locator := "February 2007 draft r3.pdf, PDF p. 62; printed p. 264" }
+  ]
+  theorems := [Cslib.Complexity.FNP.exists_approxCount_of_npHard]
+  scope := "Every R in FNP (Goldreich's PC) whose language searchDomain R is NP-hard, hence \
+    every PC-complete R; oracle enc '' searchDomain R; factor 1 ± 1/q(n), failure probability \
+    2^(-n), natural-number output. The uniform-generation half is not covered. Outside-fleet \
+    six-point source check: review 5953505829 on PR #6392."
+
 register_result "gap-p-spp-lowness" where
   title := "GapP and SPP lowness characterize SPP"
   topic := "counting classes"
@@ -6106,6 +6152,39 @@ register_result "prp-iff-prf" where
     PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
     BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
+register_result "merkle-tree-position-binding" where
+  title := "Merkle trees are position binding under collision resistance of the hash's domain"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.8",
+      locator := "Version 0.6, Section 8.9.1, p. 324; the hash's domain X ∪ Y² in Section 8.9, \
+        p. 320" }
+  ]
+  theorems := [
+    Cslib.Crypto.CollisionResistantOn.merklePositionBinding
+  ]
+  scope := "The Merkle tree of Figure 8.12 over a polynomial-time keyed hash H with digests of \
+    the key's length, so Y = {0,1}^n, and a leaf space leafSpace (the source's X, which any \
+    predicate on words may be; the source's finite, efficiently recognizable and polynomially \
+    bounded leaf spaces of Definition 2.9, p. 30, are instances). If H is collision resistant \
+    (CollisionResistantOn, Attack Game 8.1 and Definitions 8.1–8.2, p. 290, against uniform \
+    strict PPT finders) on merkleHashDomain leafSpace, the leaves and the pairs encPair (l, r) \
+    of two n-bit digests, then every uniform strict PPT adversary breaks position binding \
+    (MerklePositionBinding, Attack Game 8.2 and Definition 8.4) with negligible probability. \
+    The verifier merkleVerify checks the path length, the position range, that every label has \
+    the root's length (a Merkle proof is a list of digests, p. 321) and the recomputed root; \
+    both opened leaves must lie in leafSpace. Deviations: (1) the hash takes a uniform n-bit key \
+    given to the adversary, which footnote 1 on p. 290 identifies with the source's system \
+    parameter; (2) digests have exactly n bits; (3) the adversary chooses the depth of the tree, \
+    the length of its first path, so the game is stronger than the source's for a fixed number \
+    of leaves, and MerklePositionBinding is listed as novel in the assumptions inventory for \
+    that reason; (4) positions are 0 ≤ i < 2^d, padding positions included, and are written in \
+    unary, which covers polynomially bounded positions but not trees indexed by \
+    superpolynomially many positions. The reduction merkleCollisionFinder loses nothing \
+    (succProbability_merkleBindingGame_le) and is certified strict PPT from the adversary's \
+    certificate (isPPT_merkleCollisionFinder). Collision resistance on all words implies the \
+    premise (merklePositionBinding_of_hashFamily, through CollisionResistantOn.mono)."
+
 register_result "ajtai-collision-sis" where
   title := "Ajtai's hash family is collision resistant under SIS"
   topic := "cryptography"
@@ -6489,11 +6568,73 @@ register_result "elgamal-ddh-ind-cpa" where
     (elGamalKeyGenProb, elGamalEncryptProb), which draw each exponent with sampleExp, within \
     statistical distance 1/2^n of uniform on Z_q. The notion is single-challenge IND-CPA \
     (INDCPAOn: Attack Game 11.1 and Definition 11.2, pp. 436–437) against uniform strict PPT \
-    two-stage adversaries reading 1^n. A challenge pair is admissible when both words encode \
-    elements of the group d n (elGamalGroupValid), in place of the equal-length rule and \
-    without requiring equal lengths; an inadmissible pair makes both experiments output false. \
-    Decryption correctness on the same programs is elGamalDecryptDet_elGamalEncryptProb. \
-    Asymptotic; the exercise's concrete bound 2ε is not stated."
+    two-stage adversaries reading 1^n. Equipping each public group F.Carrier (d n) with a \
+    constant effective-length function (Section 2.3.2, Definition 2.9 and Example 2.13(4), \
+    pp. 30–31; Definition 11.3(2), pp. 437–438), a challenge pair is admissible under Attack \
+    Game 11.1's equal-effective-length condition whenever both words encode elements of d n \
+    (elGamalGroupValid), as distinguished from equality of serialized bit lengths; an \
+    inadmissible pair makes both experiments output false. Decryption correctness on the same \
+    programs is elGamalDecryptDet_elGamalEncryptProb. Asymptotic; the exercise's exact concrete \
+    forward bound 2ε remains open."
+
+register_result "elgamal-ind-cpa-iff-ddh" where
+  title := "Multiplicative ElGamal is semantically secure if and only if DDH holds"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 11.5(a)–(b)",
+      locator := "Section 11.8, p. 459" }
+  ]
+  theorems := [
+    Cslib.Crypto.DecodablePrimeOrderGroupFamily.indcpaOn_elGamalGroupEncryptProb_iff_ddh,
+    Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_indcpaOn_elGamalGroupEncryptProb
+  ]
+  scope := "The scheme E_MEG of Exercise 11.5 in additive group notation ((β·g, β·u + m) under \
+    public key u = α·g) at a deterministic polynomial-time group schedule d : ℕ → F.Desc, with \
+    fair-coin strict PPT key generation and encryption (elGamalKeyGenProb, elGamalEncryptProb, \
+    drawing exponents with sampleExp) and deterministic decryption correctness \
+    elGamalDecryptDet_elGamalEncryptProb. Equipping each public group F.Carrier (d n) with a \
+    constant effective-length function (Section 2.3.2, Definition 2.9 and Example 2.13(4), \
+    pp. 30–31; Definition 11.3(2), pp. 437–438), Attack Game 11.1's equal-effective-length \
+    condition (pp. 436–437) admits every pair of encoded group elements at d n—distinguishing \
+    constant effective length on the group from equality of serialized wire lengths, so the \
+    reverse reduction's pair (encode 0, encode (c·g)) is admissible even when serialized wire \
+    lengths differ. In ddh_of_indcpaOn_elGamalGroupEncryptProb (part (b), whose contrapositive mt \
+    gives ¬ DDH → ¬ INDCPAOn), single-challenge IND-CPA (INDCPAOn) against uniform strict PPT \
+    two-stage adversaries for any admissibility predicate admitting all encoded group-element \
+    pairs at d n implies DDH (Attack Game 10.6 and Definition 10.8, pp. 410–411) on the \
+    point-mass setup PMF.pure (d n), via the certified strict-PPT reduction \
+    ddhWordToElGamalAdversary (isPPT_ddhWordToElGamalAdversary) and quantitative bound \
+    advantage_ddhGame_le_gameOn (+ 5/2^n from fair-coin sampleExp). Combining with \
+    DDH.indcpaOn_elGamalGroupEncryptProb (part (a)) yields \
+    indcpaOn_elGamalGroupEncryptProb_iff_ddh over any DecodablePrimeOrderGroupFamily with \
+    admissibility elGamalGroupValid. Asymptotic; the exact concrete forward bound 2ε of \
+    Exercise 11.5(a) remains open."
+
+register_result "elgamal-multiplicative-homomorphism" where
+  title := "Multiplicative ElGamal ciphertexts combine homomorphically"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 11.5(c)", locator := "Section 11.8, p. 459" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.elGamalAddCiphertext_mem_support_elGamalEncryptProb,
+    Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecryptDet_elGamalAddCiphertext,
+    Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_elGamalAddCiphertext,
+    Cslib.Crypto.PrimeOrderGroupFamily.elGamalEncrypt_add,
+    Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecrypt_add
+  ]
+  scope := "The scheme E_MEG of Exercise 11.5 in additive group notation over a \
+    PrimeOrderGroupFamily F. Algebraically, componentwise addition on F.Carrier d × F.Carrier d \
+    sends encryptions under u with plaintexts m₁, m₂ and exponents β₁, β₂ to the encryption of \
+    m₁ + m₂ with exponent β₁ + β₂ (elGamalEncrypt_add) and commutes with decryption \
+    (elGamalDecrypt_add). On framed bit-word ciphertexts encPair encBits encBits (encode v, \
+    encode e), elGamalAddCiphertext applies F.add to both components in deterministic polynomial \
+    time (computableInPolyTime_elGamalAddCiphertext). For any honest key pair in the support of \
+    elGamalKeyGenProb d n and any ciphertexts ct₁, ct₂ in the supports of elGamalEncryptProb for \
+    encode m₁ and encode m₂, elGamalAddCiphertext (d n) ct₁ ct₂ lies in the support of \
+    elGamalEncryptProb for encode (m₁ + m₂) (elGamalAddCiphertext_mem_support_elGamalEncryptProb) \
+    and decrypts via elGamalDecryptDet to encode (m₁ + m₂) \
+    (elGamalDecryptDet_elGamalAddCiphertext)."
 
 register_result "hashed-elgamal-ddh-kdf-cpa" where
   title := "Hashed ElGamal (the variant E′_EG) is semantically secure under DDH and a secure KDF"
@@ -7123,6 +7264,19 @@ register_result "np-eq-conp-iff-threesat-tautology" where
     NPComplete.NP_eq_coNP_iff_reducible, which holds for any NP-complete and coNP-complete \
     pair."
 
+register_result "arora-barak-exact-indset-dp" where
+  title := "EXACT INDSET is in DP"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 5 §8(a)",
+      locator := "January 2007 draft, PDF p. 116; p. 5.10 (printed 100)" }
+  ]
+  theorems := [Cslib.Complexity.ExactIndependentSet_mem_DP]
+  scope := "EXACT INDSET = instances ⟨G, k⟩ (library Graph with declared vertices, framed \
+    graph and binary k) whose independence number is exactly k; DP = intersections of an NP \
+    and a coNP language. DP-hardness (part (b)) is not included. Outside-fleet six-point \
+    source check: review 5953416411 on PR #6402."
+
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
     NP = coNP"
@@ -7523,3 +7677,48 @@ register_result "owf-iterate-not-one-way" where
     that is at least 2 for all large n. The draft's parametric Definition 10.1 is read \
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
+
+register_result "deterministic-cipher-not-indcpa" where
+  title := "Deterministic and zero-expansion symmetric ciphers are not CPA-secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 5.1; Exercise 5.10(a)",
+      locator := "Section 5.3, p. 182; Section 5.8, p. 211" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic,
+    Cslib.Crypto.SymmetricCipher.advantage_cpaGame_detCPAAdversary,
+    Cslib.Crypto.SymmetricCipher.not_indcpa_of_ciphertext_length_eq
+  ]
+  scope := "SymmetricCipher on n-bit plaintexts at security parameter n (Section 5.3, Attack \
+    Game 5.2 and Definition 5.2, against uniform strict oracle-PPT distinguishers, with the \
+    scheme's own keyGen and encrypt evaluated exactly and decryption completeness \
+    decrypt_encrypt). In not_indcpa_of_deterministic and advantage_cpaGame_detCPAAdversary \
+    (Example 5.1), encryption is assumed deterministic only on 0^n under supported keys from some \
+    n₀ onward, and the certified two-query distinguisher detCPAAdversary ctBound queries (0^n, \
+    1^n) and (0^n, 0^n) for n ≥ 1 with replies truncated to ctBound n bits (the identity on \
+    supported ciphertexts under CiphertextLengthLE), achieving CPA advantage 1 and refuting \
+    INDCPA. In not_indcpa_of_ciphertext_length_eq (Exercise 5.10(a)), zero ciphertext expansion \
+    (CiphertextLength n n on supported keys and n-bit messages) forces deterministic encryption by \
+    finiteness of {0,1}^n and therefore refutes INDCPA. Malformed query pairs in cpaGame are \
+    answered with []. Outside check: PR #6337, review 5951220815."
+
+register_result "indcpa-no-repeating-ciphertexts" where
+  title := "CPA-secure symmetric ciphers have negligible probability of repeating ciphertexts"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 5.12", locator := "Section 5.8, p. 211" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.INDCPA.negligible_repeatCiphertextGame,
+    Cslib.Crypto.SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage
+  ]
+  scope := "SymmetricCipher on n-bit plaintexts at security parameter n (equal-length messages of \
+    size |M| = 2^n ≥ 2 for n ≥ 1, with uniform message generation via fair-coin \
+    BitString.sampleList n). In repeatCiphertextGame, any adversary A with polymorphic encodable \
+    return type α queries E.ciEncryptionOracle n k on n-bit plaintexts (non-n-bit queries return \
+    [] without logging) and wins iff two logged ciphertexts are equal. The reduction \
+    repeatToCPAAdversary ctBound A is certified IsOraclePPT encBool from IsOraclePPT encOut A, \
+    truncates oracle replies to ctBound n bits (the identity on supported ciphertexts under \
+    CiphertextLengthLE), and proves RepeatAdv[A, E] ≤ 2 · CPAadv[B, E] for all n ≥ 1 and \
+    negligible winning probability under E.INDCPA. Outside check: PR #6337, review 5951220815."

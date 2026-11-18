@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import Batteries.Data.Fin.Lemmas
+import Batteries.Data.Vector.Lemmas
 import Mathlib.Tactic.Ring
 
 /-!
@@ -22,8 +23,8 @@ existing semantic ML-DSA surface and gives executable bounded-loop semantics.
 The source-shaped loop takes an explicit mask schedule. Attempt `i` uses the counter
 `κ + i ℓ`, matching Algorithm 7 line 31. Exhausting the supplied attempt limit returns `none`.
 This pure result represents the standard's single error result, but does not model destruction
-of intermediate state or side-channel behavior. The model does not identify its explicit mask
-schedule with FIPS 204's seeded `ExpandMask`; that requires its distribution and counter behavior.
+of intermediate state or side-channel behavior. The byte signer in `MLDSA.FIPS204Signing` supplies
+the concrete seeded mask and challenge and uses the same response calculation.
 
 Appendix C, Table 3 of the published FIPS 204 gives `814` as the minimum permitted bounded
 signing limit under its stated hash/XOF distribution assumptions. This module does not derive
@@ -71,6 +72,38 @@ instance (ct₀ : Fin P.k → Fin P.n → ZMod P.q) :
     Decidable (LowProductShort P ct₀) :=
   inferInstanceAs (Decidable (∀ _ _, _))
 
+/-- Store the coefficients of a polynomial vector once, for repeated access during signing. -/
+@[expose] def tabulateRingVector {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
+    Vector (Vector (ZMod q) n) rows :=
+  Vector.ofFn fun i => Vector.ofFn (f i)
+
+/-- Read the coefficient polynomials of a stored vector. -/
+@[expose] def ringVectorCoeffs {rows n q : ℕ} (values : Vector (Vector (ZMod q) n) rows) :
+    Fin rows → Fin n → ZMod q :=
+  fun i => (values.get i).get
+
+/-- Reading the materialized vector returns the original coefficients. -/
+theorem tabulateRingVector_eq {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
+    ringVectorCoeffs (tabulateRingVector f) = f := by
+  funext i j
+  simp only [tabulateRingVector, ringVectorCoeffs, Vector.get_ofFn]
+
+/-- Algorithm 7 lines 18--30. Given the signer's low public-key term and sampled challenge,
+return the response and hint precisely when both rejection stages pass. -/
+@[expose] def compressedResponse (ω : ℕ) (s₁ : Fin P.ℓ → Fin P.n → ZMod P.q)
+    (s₂ t₀ : Fin P.k → Fin P.n → ZMod P.q) (y : Fin P.ℓ → Fin P.n → ZMod P.q)
+    (w : Fin P.k → Fin P.n → ZMod P.q) (c : Fin P.n → ZMod P.q) :
+    Option (CompressedSignature P) :=
+  let z := ringVectorCoeffs (tabulateRingVector (y + fun j => negacyclicMul c (s₁ j)))
+  let r₀ := ringVectorCoeffs (tabulateRingVector (w - fun i => negacyclicMul c (s₂ i)))
+  if ResponseShort P z ∧ LowBitsShort P r₀ then
+    let ct₀ := ringVectorCoeffs (tabulateRingVector fun i => negacyclicMul c (t₀ i))
+    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r₀ i + ct₀ i)
+    if LowProductShort P ct₀ ∧ hintWeight P h ≤ ω then
+      some ⟨z, h, c⟩
+    else none
+  else none
+
 /-- One semantic execution of FIPS 204 Algorithm 7 lines 11--30.
 
 The hash and mask are still the abstract values used by `Basic.lean`; seed expansion, the message
@@ -80,15 +113,7 @@ representative, byte encodings and malformed-input behavior are not modeled here
     (msg : List Bool) (y : Fin P.ℓ → Fin P.n → ZMod P.q) : Option (CompressedSignature P) :=
   let w := moduleSISMap sk.A y
   let c := H (highBitsVec P w, msg)
-  let z := y + fun j => negacyclicMul c (sk.s₁ j)
-  let r₀ := w - fun i => negacyclicMul c (sk.s₂ i)
-  if ResponseShort P z ∧ LowBitsShort P r₀ then
-    let ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d sk.publicKey i)
-    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r₀ i + ct₀ i)
-    if LowProductShort P ct₀ ∧ hintWeight P h ≤ ω then
-      some ⟨z, h, c⟩
-    else none
-  else none
+  compressedResponse P ω sk.s₁ sk.s₂ (publicKeyLowPart P d sk.publicKey) y w c
 
 /-- Every compressed attempt output is also the corresponding output of the uncompressed
 `signAttempt`; the compressed attempt only adds the second-stage checks and the hint. -/
@@ -96,7 +121,7 @@ theorem signAttempt_eq_some_of_compressedSignAttempt_eq_some (d ω : ℕ) (H : H
     (sk : SecretKey P) (msg : List Bool) (y : Fin P.ℓ → Fin P.n → ZMod P.q)
     {σ : CompressedSignature P} (hout : compressedSignAttempt P d ω H sk msg y = some σ) :
     signAttempt P H sk msg y = some (⟨σ.z, σ.c⟩ : Signature P) := by
-  simp only [compressedSignAttempt] at hout
+  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq] at hout
   split_ifs at hout with hshort hfinal
   cases hout
   unfold signAttempt
@@ -114,7 +139,7 @@ theorem compressedVerify_compressedSignAttempt (hP : P.Valid) (hγq : 4 * P.γ�
     compressedVerify P d H sk.publicKey msg σ = true := by
   have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
   have hsign := signAttempt_eq_some_of_compressedSignAttempt_eq_some P d ω H sk msg y hout
-  simp only [compressedSignAttempt] at hout
+  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq] at hout
   split_ifs at hout with hshort hfinal
   cases hout
   obtain ⟨hct₀, _⟩ := hfinal
