@@ -50,14 +50,19 @@ intermediate step:
   `advantage_chvzkRealGame_chaumPedersenProbFamily_le`,
   `advantage_chvzkGame_chaumPedersenProbFamily_le`,
   `computationalSpecialHVZK_chaumPedersen`, Theorem 19.10 with Definitions 19.5 and 20.6):
-  Boneh and Shoup's simulator samples a uniform response `z` and outputs
-  `((z • g - c • v, z • u - c • w), z)`. The typed simulator `chaumPedersenSimulator` (certified
-  strict PPT by `chaumPedersenSimulateWord`) samples `z` with `sampleExp`, incurring `1 / 2 ^ n`
-  against the ideal-nonce prover (`efficientSpecialHVZK_chaumPedersen_ideal`) and `2 / 2 ^ n`
-  against the fair-coin prover `chaumPedersenProbFamily` at every challenge on valid triples, with
-  Attack Game 20.4 advantage at most `2 / 2 ^ n` against arbitrary adversaries and exact zero
-  acceptance error (`accepts_chaumPedersenSimulator`, `δ = fun _ => 0`) along any group-description
-  setup.
+  Theorem 19.10 states exact special HVZK (Definition 19.5(ii), identical transcript distribution,
+  which relies on Definition 2.8, p. 30, permitting negligible runtime-overflow probability and
+  exact rejection sampling on `ZMod q`); in the strict-PPT fair-coin model exact simulation is
+  impossible when `q` is not a power of two, so this module establishes the `2 / 2 ^ n` statistical
+  form (`closeTo_transcript_chaumPedersenProbFamily_simulator`) and Definition 20.6
+  (`computationalSpecialHVZK_chaumPedersen`). Boneh and Shoup's simulator samples a uniform response
+  `z` and outputs `((z • g - c • v, z • u - c • w), z)`. The typed simulator
+  `chaumPedersenSimulator` (certified strict PPT by `chaumPedersenSimulateWord`) samples `z` with
+  `sampleExp`, incurring `1 / 2 ^ n` against the ideal-nonce prover
+  (`efficientSpecialHVZK_chaumPedersen_ideal`) and `2 / 2 ^ n` against the fair-coin prover
+  `chaumPedersenProbFamily` at every challenge on valid triples, with Attack Game 20.4 advantage at
+  most `2 / 2 ^ n` against arbitrary adversaries and exact zero acceptance error
+  (`accepts_chaumPedersenSimulator`, `δ = fun _ => 0`) along any group-description setup.
 
 ## Main definitions
 
@@ -581,9 +586,13 @@ theorem advantage_chvzkGame_chaumPedersenProbFamily_le {σ : Type} (setup : ℕ 
   ring
 
 /-- **The fair-coin Chaum–Pedersen protocol satisfies computational special HVZK**
-([BonehShoup2023], Theorem 19.10 with Definition 20.6, Section 20.4.2, p. 840): against the
-fair-coin honest prover of `chaumPedersenProbFamily`, the strict PPT simulator
-`chaumPedersenSimulator` satisfies Definition 20.6 with exact zero acceptance error
+([BonehShoup2023], Theorem 19.10, Section 19.5.2, p. 777, with Definition 20.6, Section 20.4.2,
+p. 840): Theorem 19.10 states exact special HVZK (Definition 19.5(ii), under Definition 2.8's
+negligible-overflow runtime convention, p. 30); in the strict-PPT fair-coin model exact simulation
+is impossible when `q` is not a power of two, so Definition 19.5(ii) is relaxed here to the
+`2 / 2 ^ n` statistical form (`closeTo_transcript_chaumPedersenProbFamily_simulator`) and
+Definition 20.6. Against the fair-coin honest prover of `chaumPedersenProbFamily`, the strict PPT
+simulator `chaumPedersenSimulator` satisfies Definition 20.6 with exact zero acceptance error
 (`δ = fun _ => 0`) over any group-description setup `setup : ℕ → PMF F.Desc` paired with the
 security parameter. Derived from `computationalSpecialHVZK_chaumPedersen_ideal` and
 `advantage_chvzkRealGame_chaumPedersenProbFamily_le`. -/
