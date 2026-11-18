@@ -19,28 +19,12 @@ import CslibFrontier.Probability.PMF.Map
 /-!
 # Fully polynomial almost uniform samplers
 
-A **fully polynomial almost uniform sampler** (FPAUS) for a finite set of witnesses `W x` of each
-instance `x` is a randomized algorithm that, given `x` and a tolerance `ε`, outputs a witness
-whose law is within total-variation distance `ε` of the uniform law on `W x`, in time polynomial
-in the length of `x` and in `log (1 / ε)` [Sinclair and Jerrum][SinclairJerrum1989],
-[Jerrum, Valiant and Vazirani][JerrumValiantVazirani1986],
-[Sinclair, Lecture 4, Section 4.2][Sinclair2025].
-
-`Cslib.Complexity.IsFPAUS enc W S` parameterizes the tolerance as `ε = 2 ^ (-q)` for a natural
-number `q` written in unary, so a running time polynomial in the length of the encoded input
-`(x, q)` is exactly a running time polynomial in `|x|` and `log (1 / ε)`. Witnesses are bit
-strings, and the sampler returns an `Option (List Bool)`: the target law
-(`Cslib.Complexity.uniformWitness`) is uniform on `some w` for `w ∈ W x`, and is `none` with
-probability one when `W x` is empty, so an instance without witnesses is reported rather than
-left unconstrained. The requirements stay separate:
-
-* **runtime**: `S` is a strict probabilistic polynomial-time program (`Cslib.Probability.IsPPTOn`)
-  on the encoded input `(x, q)`, with the result encoded by `encOption encBits`;
-* **output-distribution error**: for every event `E`, the probability of `E` under `S x q` exceeds
-  its probability under the target law by at most `(1 / 2) ^ q` (`Cslib.Probability.CloseTo`,
-  which quantifies over all events and is therefore symmetric). This is the total-variation
-  distance `max_E |μ E - ν E|`; `Cslib.Probability.CloseTo.abs_toReal_sub_le` gives the real,
-  two-sided form.
+Jerrum, Valiant and Vazirani's generator may return `none`. Every successful output belongs to
+the witness set. Its individual probability approximates a common positive reference mass
+`φ(x)` multiplicatively, and the probability of success is at least one half on nonempty
+instances [JerrumValiantVazirani1986, §6, p. 181]. Time is polynomial in the instance length
+and the unary precision `q`. The total-variation estimates below are used in the reductions
+between this generator and approximate counting.
 
 ## Main definitions
 
@@ -78,17 +62,22 @@ none. -/
 noncomputable def uniformWitness (W : Finset (List Bool)) : PMF (Option (List Bool)) :=
   if h : W.Nonempty then (PMF.uniformOfFinset W h).map some else PMF.pure none
 
-/-- **A fully polynomial almost uniform sampler** for the witness sets `W`, on instances encoded
-by `enc`. The sampler `S x q` receives the instance `x` and the accuracy `q` (so the tolerance is
-`ε = 2 ^ (-q)`), with `q` in unary. It is a strict probabilistic polynomial-time program on the
-encoded pair `(x, q)`, outputs an optional bit string, and its output law is within
-total-variation distance `(1 / 2) ^ q` of `uniformWitness (W x)` (`Cslib.Probability.CloseTo`). -/
-@[expose]
-def IsFPAUS (enc : α ↪ List Bool) (W : α → Finset (List Bool))
-    (S : α → ℕ → ProbComp (Option (List Bool))) : Prop :=
-  IsPPTOn (encPair enc encUnary) (encOption encBits) (Function.uncurry S) ∧
-    ∀ x q, Probability.CloseTo (ProbComp.eval (S x q)) (uniformWitness (W x))
-      (ENNReal.ofReal ((1 / 2 : ℝ) ^ q))
+/-- A fully polynomial almost uniform generator in the sense of Jerrum, Valiant and Vazirani
+[JerrumValiantVazirani1986, §6, p. 181]. The unary input `q` asks for dyadic relative error
+`ε = 2 ^ (-(q+1))`. Every positive tolerance below one admits a smaller such tolerance with
+`q = O(log (1/ε))`. The common reference mass may depend on the instance. -/
+structure IsFPAUS (enc : α ↪ List Bool) (W : α → Finset (List Bool))
+    (S : α → ℕ → ProbComp (Option (List Bool))) : Prop where
+  /-- The sampler runs in strict polynomial time on the encoded instance and unary precision. -/
+  isPPTOn : IsPPTOn (encPair enc encUnary) (encOption encBits) (Function.uncurry S)
+  /-- A successful run always outputs a witness. -/
+  valid : ∀ x q w, w ∉ W x → ProbComp.eval (S x q) (some w) = 0
+  /-- On a nonempty instance the probability of failure is at most one half. -/
+  failure : ∀ x q, (W x).Nonempty → (ProbComp.eval (S x q) none).toReal ≤ 1 / 2
+  /-- Every individual witness has the prescribed relative accuracy at every precision. -/
+  pointwise : ∀ x, ∃ φ : ℝ, φ ∈ Set.Ioc 0 1 ∧ ∀ q w, w ∈ W x →
+    φ / (1 + (1 / 2 : ℝ) ^ (q + 1)) ≤ (ProbComp.eval (S x q) (some w)).toReal ∧
+    (ProbComp.eval (S x q) (some w)).toReal ≤ (1 + (1 / 2 : ℝ) ^ (q + 1)) * φ
 
 /-- The witness families with a fully polynomial almost uniform sampler, on instances encoded by
 `enc`. -/
@@ -103,6 +92,21 @@ theorem uniformWitness_of_nonempty {W : Finset (List Bool)} (h : W.Nonempty) :
 @[simp]
 theorem uniformWitness_empty : uniformWitness ∅ = PMF.pure none :=
   dite_eq_right Finset.not_nonempty_empty
+
+/-- Point masses of the ideal law on successful outputs. -/
+theorem uniformWitness_some_toReal (W : Finset (List Bool)) (w : List Bool) :
+    (uniformWitness W (some w)).toReal = if w ∈ W then 1 / (W.card : ℝ) else 0 := by
+  rcases W.eq_empty_or_nonempty with rfl | h
+  · simp
+  · rw [uniformWitness_of_nonempty h,
+      Probability.PMF.map_apply_of_injective _ (Option.some_injective _)]
+    by_cases hw : w ∈ W <;> simp [Probability.PMF.uniformOfFinset_apply, hw, one_div]
+
+/-- Nonempty witness sets have no ideal failure mass. -/
+theorem uniformWitness_none {W : Finset (List Bool)} (h : W.Nonempty) :
+    uniformWitness W none = 0 := by
+  rw [uniformWitness_of_nonempty h]
+  simp [PMF.map_apply]
 
 /-- The probability that the uniform witness lies in `E` is the relative number of witnesses
 in `E`. -/

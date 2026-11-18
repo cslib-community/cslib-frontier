@@ -12,7 +12,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security
 /-!
 # Hybrid games for the ROM IND-CCA security of `FO-notbot`
 
-This module fixes the intermediate games of the IND-CCA proof for the domain-separated
+This module fixes the intermediate games of the IND-CCA proof for the
 implicit-rejection transform `FO-notbot = U-notbot ∘ T` of [HofheinzHoevelmannsKiltz2017]
 (IACR ePrint 2017/604, full version dated 2 November 2021, §3.1 and §3.2.2). The proof follows
 the structure of the paper's proofs of the §3.1 theorem for `T` (OW-PCA case, with the
@@ -23,7 +23,7 @@ Starting from the eager game `Scheme.eagerIndCcaGame` of
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security`, the hybrids are:
 
 1. `Scheme.eagerFbGame`: decapsulation of invalid ciphertexts uses an independent table
-   `Hfb : CT → K` instead of `H(true, s, ·)` for the secret seed `s`.
+   `Hfb : CT → K` instead of `H(false, s, ·)` for the secret seed `s`.
 2. `Scheme.eagerCoupledGame`: the oracles are computed from independent tables
    `G`, `Hq : CT → K` and `Hraw : Bool × M × CT → K`; a key-derivation query `H(false, m, c)` reads
    `Hq c` exactly when `c = Enc(pk, m; G(m))` and `Dec(sk, c) = some m`
@@ -77,7 +77,7 @@ variable [DecidableEq M] [DecidableEq CT]
 
 /-- Stateless oracle of `eagerFbGame`: as `eagerHandler`, except that a decapsulation query
 `c ≠ cStar` that `decT` rejects is answered by an independent table `Hfb c` rather than by
-`H(true, dk.fallback, c)`. -/
+`H(false, dk.fallback, c)`. -/
 noncomputable def eagerFbHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (Hfb : CT → K) (dk : ImplicitSK PK SK M) (cStar : CT)
     (q : ROQuery M CT) : PMF (ROResp R K q) :=
@@ -91,14 +91,14 @@ noncomputable def eagerFbHandler (S : Scheme PK SK M R CT K) (G : M → R)
     cStar q
 
 /-- The eager IND-CCA game of `FO-notbot` with implicit-rejection keys drawn from an independent
-table `Hfb : CT → K` instead of `H(true, s, ·)`. -/
+table `Hfb : CT → K` instead of `H(false, s, ·)`. -/
 noncomputable def eagerFbGame [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) : Game := do
   let (pk, dk) ← ProbComp.eval S.keyGenNotBot
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
   let Hfb ← S.keyTable CT
-  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   OracleComp.interpret (S.eagerFbHandler G H Hfb dk cStar)
     (A ⟨pk, cStar, if b then kRand else kReal⟩)

@@ -108,7 +108,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) {f : BinOp} (hf : Supported f)
         · change 0 = f.eval 0 0
           rcases hf with rfl | rfl | rfl <;>
             simp only [BinOp.eval, Nat.zero_and, Nat.zero_or, Nat.zero_xor]
-        · exact ⟨rfl, fun i _ _ _ => by simp⟩
+        · exact frame_set_carry x (x.regs carry) []
         · intro i _
           simp
   | cons a as ih =>

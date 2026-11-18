@@ -8,16 +8,16 @@ import CslibFrontier.Crypto.Protocols.UC.Composition
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
-# Tests for subroutine replacement and the UC composition theorem
+# Tests for subroutine replacement and call-bounded UC composition
 
 The one-party hybrid protocol `relay` answers every input by asking its subroutine. Composed with
 the functionality `bitFunc b`, which answers every input with `b`, the environment `askParty` sees
 `b` whatever the adversary (`eval_exec_compose_relay`): the composed protocol really runs the
 subroutine. Consequently, `relay` composed with `bitFunc true` does not emulate `relay` composed
-with `bitFunc false` (`not_emulatesDummyWithin_compose_relay`), so the conclusion of the composition
-theorem is not trivially true. The composition theorem itself is instantiated on self-emulation,
-with the explicit simulator budget and error it produces, and the budgets of the composed protocol
-and of the absorbed environment are checked on `relay`.
+with `bitFunc false` (`not_emulatesDummyWithin_compose_relay`), so the conclusion of the
+call-bounded composition theorem (`UC.Emulates.compose`, #6043) is not trivially true. That theorem
+is instantiated on self-emulation, with the explicit simulator budget and error it produces, and the
+budgets of the composed protocol and of the absorbed environment are checked on `relay`.
 -/
 
 namespace CslibFrontierTests.Crypto.UCComposition
@@ -74,11 +74,11 @@ theorem eval_exec_compose_relay (b : Bool) {AdvQ AdvR : Type}
   simp only [exec, Machine.run, Machine.link, askParty, execMachine, Machine.comp,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
-  simp only [liftAdversary, StateT.run, compose, Machine.comp, corruptRouter, hybridWrap, relay,
-    bitFunc, IdealFunctionality.toProtocol, interp_norm, ProbOracleComp.sample_pure,
-    Finset.notMem_empty, ↓reduceIte, bind_pure_comp, map_pure, Fin.isValue, StateT.lift,
-    Machine.runFrom_map, Machine.runFrom_query, Prod.map_apply, id_eq, Machine.closeProgram_pure,
-    ProbComp.eval_map, liftParty]
+  simp only [liftAdversary, Machine.liftRight, StateT.run, compose, Machine.comp, corruptRouter,
+    hybridWrap, relay, bitFunc, IdealFunctionality.toProtocol, interp_norm,
+    ProbOracleComp.sample_pure, Finset.notMem_empty, ↓reduceIte, bind_pure_comp, map_pure,
+    Fin.isValue, StateT.lift, Machine.runFrom_map, Machine.runFrom_query, Prod.map_apply, id_eq,
+    Machine.closeProgram_pure, ProbComp.eval_map, liftParty]
   calc _ = PMF.map (Function.const _ b) _ := by congr 1 with a : 1; cases b <;> rfl
     _ = PMF.pure b := PMF.map_const _ _
 
