@@ -83,7 +83,8 @@ private theorem computableInPolyTime_decodePattern :
     (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
   unfold decodePattern
   exact (he.comp (ComputableInPolyTime.fst encBits encBits)).ite (ComputableInPolyTime.const false)
-    ((hh.comp (ComputableInPolyTime.fst encBits encBits)).ite (hh.comp (ComputableInPolyTime.snd encBits encBits)) (ComputableInPolyTime.const true))
+    ((hh.comp (ComputableInPolyTime.fst encBits encBits)).ite
+      (hh.comp (ComputableInPolyTime.snd encBits encBits)) (ComputableInPolyTime.const true))
 
 private theorem decodePattern_code (c : Fin 3) (x : List Bool) :
     decodePattern (patternCode c, x) =
