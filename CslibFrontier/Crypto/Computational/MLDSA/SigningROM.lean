@@ -29,6 +29,8 @@ atom times the number of pairs of queries that could collide. The bound covers a
 interleavings and early termination of the signing loop. Erasing the writes of rejected trials
 costs at most the number of trial/direct-query pairs times the same largest atom. Replacing the
 remaining accepted responses with the full-public-key simulator preserves their joint law.
+For a partial digest expander the simulator also records the terminal failed attempt, with a
+fresh commitment drawn from the public matrix. This preserves expansion errors exactly.
 -/
 
 public section
@@ -49,19 +51,25 @@ and the compressed algebraic signature, and a bounded signing loop may return `n
 abbrev SigningROMSpec (Digest : Type) :=
   ForgerSpec (List Bool) (SigningHashPoint P) (Option (Digest × CompressedSignature P)) Digest
 
-variable {Digest α : Type}
+variable {Digest Reply α : Type}
+
+/-- The primitive trial interface. `none` asks for another trial. A terminal value of type
+`Reply` may itself report a fatal error from a partial digest expansion. -/
+abbrev SigningTrialSpec (Digest Reply : Type) :=
+  ForgerSpec (List Bool) (SigningHashPoint P) (Option Reply) Digest
 
 /-- Expand each signing request into up to `K` attempts on its message, stopping at the first
-accepted signature. Direct digest requests pass through unchanged. -/
-@[expose] def expandSigningRetries (K : ℕ) (program : OracleComp (SigningROMSpec P Digest) α) :
-    OracleComp (SigningROMSpec P Digest) α :=
+terminal trial. Direct digest requests pass through unchanged. -/
+@[expose] def expandSigningRetries (K : ℕ)
+    (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
+    OracleComp (SigningTrialSpec P Digest Reply) α :=
   interpret (sumHandler
     (fun msg => (List.range K).findSomeM? fun _ =>
-      query (spec := SigningROMSpec P Digest) (.inl msg))
+      query (spec := SigningTrialSpec P Digest Reply) (.inl msg))
     (fun point => query (.inr point))) program
 
 private theorem cost_expandSigningRetries (K s h : ℕ)
-    {program : OracleComp (SigningROMSpec P Digest) α}
+    {program : OracleComp (SigningTrialSpec P Digest Reply) α}
     {bound : ℕ}
     (hb : IsCostBounded (Sum.elim (fun _ => K * s) (fun _ => h)) program bound) :
     IsCostBounded (Sum.elim (fun _ => s) (fun _ => h))
@@ -72,13 +80,13 @@ private theorem cost_expandSigningRetries (K s h : ℕ)
     simp only [Sum.elim_inl]
     simpa only [List.length_range] using
       (IsCostBounded.findSomeM? (xs := List.range K) (n := s)
-        (f := fun _ => query (spec := SigningROMSpec P Digest) (.inl msg))
+        (f := fun _ => query (spec := SigningTrialSpec P Digest Reply) (.inl msg))
         (cost := Sum.elim (fun _ => s) (fun _ => h))
-        (fun _ _ => IsCostBounded.query (spec := SigningROMSpec P Digest) (.inl msg)))
+        (fun _ _ => IsCostBounded.query (spec := SigningTrialSpec P Digest Reply) (.inl msg)))
   | inr point => exact IsCostBounded.query _
 
 private theorem costs_expandSigningRetries (K : ℕ)
-    {program : OracleComp (SigningROMSpec P Digest) α}
+    {program : OracleComp (SigningTrialSpec P Digest Reply) α}
     {S H : ℕ} (hS : IsCostBounded signingCost program S) (hH : IsCostBounded hashCost program H) :
     IsCostBounded (Sum.elim (fun _ => 1) (fun _ => 0)) (expandSigningRetries P K program) (S * K) ∧
     IsCostBounded (Sum.elim (fun _ => 0) (fun _ => 1)) (expandSigningRetries P K program) H := by
@@ -105,10 +113,150 @@ private theorem trialPoint_le (hγ : 0 < P.γ₁) (sk : SecretKey P) (m q) :
     (fun w => le_iSup (fun w => ((signingMaskLaw P hγ).map fun y =>
       highBitsVec P (moduleSISMap sk.A y)) w) w) q
 
-private def trialReply (d ω : ℕ) (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
-    (msg : List Bool) (y : Fin P.ℓ → Fin P.n → ZMod P.q) (c : Digest) (_ : Unit) :
-    Option (Digest × CompressedSignature P) × Unit :=
-  ((compressedSignAttempt P d ω (fun _ => expand c) sk msg y).map (Prod.mk c), ())
+/-- The underlying trial experiment for either form of challenge expansion. -/
+private noncomputable def runTrials (overwrite : Bool) (K : ℕ) (hγ : 0 < P.γ₁)
+    (dist : PMF Digest) (sk : SecretKey P)
+    (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
+    PMF (α × List (SigningHashPoint P × Digest)) :=
+  let handler := if overwrite then
+    RandomOracle.overwriteProgramHandler dist (fun _ : List Bool => true)
+      (fun _ h _ => Bool.noConfusion h) (fun _ => signingMaskLaw P hγ)
+      (trialPoint P sk) (fun _ y c _ => (result y c, ()))
+  else
+    RandomOracle.lazyProgramHandler dist (fun _ : List Bool => true)
+      (fun _ h _ => Bool.noConfusion h) (fun _ => signingMaskLaw P hγ)
+      (trialPoint P sk) (fun _ y c _ => (result y c, ()))
+  ((interpret handler (expandSigningRetries P K program)).run ([], ())).map (Prod.map id Prod.fst)
+
+/-- For `S` adaptive signing queries and `H` direct hash queries, at most `T = S K` trial
+commitments are programmed. The honest and fresh-overwrite executions, including the final
+table, are within `(T H + choose(T,2))` times the largest commitment atom for the actual matrix. -/
+private theorem closeTo_runTrials_overwrite (K : ℕ) (hγ : 0 < P.γ₁)
+    (dist : PMF Digest) (sk : SecretKey P)
+    (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    {program : OracleComp (SigningTrialSpec P Digest Reply) α} {S H : ℕ}
+    (hS : IsCostBounded signingCost program S) (hH : IsCostBounded hashCost program H) :
+    CloseTo (runTrials P false K hγ dist sk result program)
+      (runTrials P true K hγ dist sk result program)
+      (((S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P hγ sk.A) := by
+  obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
+  have hop := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two
+    dist (fun _ : List Bool => true) (fun _ h _ => Bool.noConfusion h)
+    (fun _ => signingMaskLaw P hγ) (trialPoint P sk) (fun _ y c _ => (result y c, ()))
+    (fun msg _ => trialPoint_le P hγ sk msg)
+    hs hh [] ()
+  simpa only [List.length_nil, Nat.mul_zero, zero_add, runTrials, Bool.false_eq_true,
+    ↓reduceIte] using hop.map (Prod.map id Prod.fst)
+
+/-- Only terminal trials write their point. A terminal reply can be a signature or an error. -/
+private noncomputable def runTerminalTrials (K : ℕ) (dist : PMF Digest)
+    (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × Reply)))
+    (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
+    PMF (α × List (SigningHashPoint P × Digest)) :=
+  let handler : (q : List Bool ⊕ SigningHashPoint P) →
+      StateT (List (SigningHashPoint P × Digest)) PMF (SigningTrialSpec P Digest Reply q) :=
+    sumHandler (fun msg cache => do
+      let c ← dist
+      let out ← attempt c
+      match out with
+      | none => return (none, cache)
+      | some t => return (some t.2, ((t.1, msg), c) :: cache))
+      (memoize fun _ => dist)
+  (interpret handler (expandSigningRetries P K program)).run []
+
+private noncomputable def trialCoins (hγ : 0 < P.γ₁) (dist : PMF Digest) :=
+  dist.bind fun c => (signingMaskLaw P hγ).map (c, ·)
+
+private noncomputable def programmedTrial (aborts : Bool) (hγ : 0 < P.γ₁)
+    (dist : PMF Digest) (sk : SecretKey P)
+    (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply) :
+    (q : List Bool ⊕ SigningHashPoint P) →
+      StateT (List (SigningHashPoint P × Digest)) PMF (SigningTrialSpec P Digest Reply q) :=
+  fun q st => (trialCoins P hγ dist).map fun x =>
+    RandomOracle.programmedTrialStep aborts (fun m x => trialPoint P sk m x.2)
+      Prod.fst (fun _ x => result x.2 x.1) q x st
+
+private theorem trial_hash (aborts : Bool) (hγ : 0 < P.γ₁)
+    (dist : PMF Digest) (sk : SecretKey P)
+    (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    (q : SigningHashPoint P) (st : List (SigningHashPoint P × Digest)) :
+    programmedTrial P aborts hγ dist sk result (.inr q) st = memoize (fun _ => dist) q st := by
+  cases e : st.lookup q <;>
+    simp [programmedTrial, trialCoins, RandomOracle.programmedTrialStep, memoize, e,
+      Function.comp_def, PMF.map, PMF.bind_const,
+      PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind]
+
+private theorem run_overwrite (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
+    (sk : SecretKey P) (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
+    runTrials P true K hγ dist sk result program =
+      (interpret (programmedTrial P true hγ dist sk result)
+        (expandSigningRetries P K program)).run [] := by
+  simp only [runTrials, ↓reduceIte]
+  apply run_interpret_map_state _ _ Prod.fst
+  intro q ⟨cache, log⟩
+  cases q with
+  | inr k =>
+    rw [trial_hash]
+    simp only [RandomOracle.overwriteProgramHandler, PMF.map_comp, Function.comp_def, Prod.mk.eta]
+    apply PMF.map_id
+  | inl m =>
+    simp only [RandomOracle.overwriteProgramHandler, ↓reduceDIte, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, programmedTrial, trialCoins,
+      PMF.map_comp, Function.comp_def, RandomOracle.programmedTrialStep, Bool.true_or, ↓reduceIte]
+    rw [PMF.bind_comm]
+    rfl
+
+private theorem run_accepted (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
+    (sk : SecretKey P) (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
+    runTerminalTrials P K dist (fun c => (signingMaskLaw P hγ).map fun y =>
+      (result y c).map (Prod.mk (trialPoint P sk [] y).1)) program =
+      (interpret (programmedTrial P false hγ dist sk result)
+        (expandSigningRetries P K program)).run [] := by
+  unfold runTerminalTrials
+  apply congrArg (fun h : (q : List Bool ⊕ SigningHashPoint P) →
+    StateT (List (SigningHashPoint P × Digest)) PMF (SigningTrialSpec P Digest Reply q) =>
+      (interpret h (expandSigningRetries P K program)).run [])
+  funext q cache
+  cases q with
+  | inr k => exact (trial_hash P false hγ dist sk result k cache).symm
+  | inl m =>
+    simp only [sumHandler, programmedTrial, trialCoins, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.map_comp,
+      RandomOracle.programmedTrialStep, Bool.false_or, trialPoint, Function.comp_def]
+    congr 1 with c : 1
+    rw [PMF.map]
+    congr 1 with y : 1
+    simp only [Function.comp_apply]
+    cases result y c <;> rfl
+
+private theorem closeTo_terminalTrials (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
+    (sk : SecretKey P) (result : (Fin P.ℓ → Fin P.n → ZMod P.q) → Digest → Option Reply)
+    {program : OracleComp (SigningTrialSpec P Digest Reply) α} {S H : ℕ}
+    (hS : IsCostBounded signingCost program S) (hH : IsCostBounded hashCost program H) :
+    CloseTo ((runTrials P false K hγ dist sk result program).map Prod.fst)
+      ((runTerminalTrials P K dist (fun c => (signingMaskLaw P hγ).map fun y =>
+        (result y c).map (Prod.mk (trialPoint P sk [] y).1)) program).map Prod.fst)
+      ((2 * (S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P hγ sk.A) := by
+  have first := (closeTo_runTrials_overwrite P K hγ dist sk result hS hH).map
+    Prod.fst
+  rw [run_overwrite] at first
+  rw [run_accepted]
+  obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
+  have hmass (m q) : ((trialCoins P hγ dist).map (fun x => trialPoint P sk m x.2)) q ≤
+      commitmentGuessProbability P hγ sk.A := by
+    simp only [trialCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
+    exact trialPoint_le P hγ sk m q
+  have erased := RandomOracle.closeTo_eraseRejectedTrialWrites (trialCoins P hγ dist)
+    (fun m x => trialPoint P sk m x.2) Prod.fst
+    (fun _ x => result x.2 x.1) hs hh hmass []
+  exact (first.trans erased).mono (by push_cast; ring_nf; rfl)
+
+private def totalResult (d ω : ℕ) (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
+    (y : Fin P.ℓ → Fin P.n → ZMod P.q) (c : Digest) : Option (Digest × CompressedSignature P) :=
+  (compressedSignAttempt P d ω (fun _ => expand c) sk [] y).map (Prod.mk c)
 
 /-- Run an adaptive program from an empty digest table. Under `overwrite = false` the signer
 reads the ordinary lazy hash at every trial commitment. Under `overwrite = true` it samples a
@@ -118,15 +266,7 @@ noncomputable def runBoundedSigningROM (overwrite : Bool) (d ω K : ℕ) (hγ : 
     (dist : PMF Digest) (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
     (program : OracleComp (SigningROMSpec P Digest) α) :
     PMF (α × List (SigningHashPoint P × Digest)) :=
-  let handler := if overwrite then
-    RandomOracle.overwriteProgramHandler dist (fun _ : List Bool => true)
-      (fun _ h _ => Bool.noConfusion h) (fun _ => signingMaskLaw P hγ)
-      (trialPoint P sk) (trialReply P d ω expand sk)
-  else
-    RandomOracle.lazyProgramHandler dist (fun _ : List Bool => true)
-      (fun _ h _ => Bool.noConfusion h) (fun _ => signingMaskLaw P hγ)
-      (trialPoint P sk) (trialReply P d ω expand sk)
-  ((interpret handler (expandSigningRetries P K program)).run ([], ())).map (Prod.map id Prod.fst)
+  runTrials P overwrite K hγ dist sk (totalResult P d ω expand sk) program
 
 /-- For `S` adaptive signing queries and `H` direct hash queries, at most `T = S K` trial
 commitments are programmed. The honest and fresh-overwrite executions, including the final
@@ -137,15 +277,8 @@ theorem closeTo_runBoundedSigningROM_overwrite (d ω K : ℕ) (hγ : 0 < P.γ₁
     (hS : IsCostBounded signingCost program S) (hH : IsCostBounded hashCost program H) :
     CloseTo (runBoundedSigningROM P false d ω K hγ dist expand sk program)
       (runBoundedSigningROM P true d ω K hγ dist expand sk program)
-      (((S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P hγ sk.A) := by
-  obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
-  have hop := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two
-    dist (fun _ : List Bool => true) (fun _ h _ => Bool.noConfusion h)
-    (fun _ => signingMaskLaw P hγ) (trialPoint P sk) (trialReply P d ω expand sk)
-    (fun msg _ => trialPoint_le P hγ sk msg)
-    hs hh [] ()
-  simpa only [List.length_nil, Nat.mul_zero, zero_add, runBoundedSigningROM, Bool.false_eq_true,
-    ↓reduceIte] using hop.map (Prod.map id Prod.fst)
+      (((S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P hγ sk.A) :=
+  closeTo_runTrials_overwrite P K hγ dist sk (totalResult P d ω expand sk) hS hH
 
 /-- Run a signer that samples a digest and an optional transcript independently of the cache
 at each attempt. Only accepted commitments are written. Direct hash queries use the same table,
@@ -154,16 +287,8 @@ noncomputable def runAcceptedSigningROM (K : ℕ) (dist : PMF Digest)
     (attempt : Digest → PMF (Option (AttemptTranscript P)))
     (program : OracleComp (SigningROMSpec P Digest) α) :
     PMF (α × List (SigningHashPoint P × Digest)) :=
-  let handler : (q : List Bool ⊕ SigningHashPoint P) →
-      StateT (List (SigningHashPoint P × Digest)) PMF (SigningROMSpec P Digest q) :=
-    sumHandler (fun msg cache => do
-      let c ← dist
-      let out ← attempt c
-      match out with
-      | none => return (none, cache)
-      | some t => return (some (c, t.signature), ((t.commitment, msg), c) :: cache))
-      (memoize fun _ => dist)
-  (interpret handler (expandSigningRetries P K program)).run []
+  runTerminalTrials P K dist (fun c => (attempt c).map fun out =>
+    out.map fun t => (t.commitment, c, t.signature)) program
 
 /-- For every adaptive signing and hash program, the accepted-write hybrid using the real
 masked response has exactly the law of the simulator using only the full public key. The
@@ -181,72 +306,6 @@ theorem runAcceptedSigningROM_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q
   exact congrArg (fun attempt => runAcceptedSigningROM P K dist attempt program)
     (funext fun c => freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c))
 
-private noncomputable def trialCoins (hγ : 0 < P.γ₁) (dist : PMF Digest) :=
-  dist.bind fun c => (signingMaskLaw P hγ).map (c, ·)
-
-private noncomputable def programmedTrial (aborts : Bool) (d ω : ℕ) (hγ : 0 < P.γ₁)
-    (dist : PMF Digest) (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P) :
-    (q : List Bool ⊕ SigningHashPoint P) →
-      StateT (List (SigningHashPoint P × Digest)) PMF (SigningROMSpec P Digest q) :=
-  fun q st => (trialCoins P hγ dist).map fun x =>
-    RandomOracle.programmedTrialStep aborts (fun m x => trialPoint P sk m x.2)
-      Prod.fst (fun m x => (trialReply P d ω expand sk m x.2 x.1 ()).1) q x st
-
-private theorem trial_hash (aborts : Bool) (d ω : ℕ) (hγ : 0 < P.γ₁)
-    (dist : PMF Digest) (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
-    (q : SigningHashPoint P) (st : List (SigningHashPoint P × Digest)) :
-    programmedTrial P aborts d ω hγ dist expand sk (.inr q) st = memoize (fun _ => dist) q st := by
-  cases e : st.lookup q <;>
-    simp [programmedTrial, trialCoins, RandomOracle.programmedTrialStep, memoize, e,
-      Function.comp_def, PMF.map, PMF.bind_const,
-      PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind]
-
-private theorem run_overwrite (d ω K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
-    (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
-    (program : OracleComp (SigningROMSpec P Digest) α) :
-    runBoundedSigningROM P true d ω K hγ dist expand sk program =
-      (interpret (programmedTrial P true d ω hγ dist expand sk)
-        (expandSigningRetries P K program)).run [] := by
-  simp only [runBoundedSigningROM, ↓reduceIte]
-  apply run_interpret_map_state _ _ Prod.fst
-  intro q ⟨cache, log⟩
-  cases q with
-  | inr k =>
-    rw [trial_hash]
-    simp only [RandomOracle.overwriteProgramHandler, PMF.map_comp, Function.comp_def, Prod.mk.eta]
-    apply PMF.map_id
-  | inl m =>
-    simp only [RandomOracle.overwriteProgramHandler, ↓reduceDIte, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, programmedTrial, trialCoins,
-      PMF.map_comp, Function.comp_def, RandomOracle.programmedTrialStep, Bool.true_or, ↓reduceIte]
-    rw [PMF.bind_comm]
-    rfl
-
-private theorem run_accepted (d ω K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
-    (expand : Digest → Fin P.n → ZMod P.q) (sk : SecretKey P)
-    (program : OracleComp (SigningROMSpec P Digest) α) :
-    runAcceptedSigningROM P K dist (fun c => freshSigningAttempt P d ω hγ sk (expand c)) program =
-      (interpret (programmedTrial P false d ω hγ dist expand sk)
-        (expandSigningRetries P K program)).run [] := by
-  unfold runAcceptedSigningROM
-  apply congrArg (fun h : (q : List Bool ⊕ SigningHashPoint P) →
-    StateT (List (SigningHashPoint P × Digest)) PMF (SigningROMSpec P Digest q) =>
-      (interpret h (expandSigningRetries P K program)).run [])
-  funext q cache
-  cases q with
-  | inr k => exact (trial_hash P false d ω hγ dist expand sk k cache).symm
-  | inl m =>
-    simp only [sumHandler, freshSigningAttempt, programmedTrial, trialCoins,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.map_comp,
-      RandomOracle.programmedTrialStep, Bool.false_or, trialPoint, trialReply, Function.comp_def]
-    congr 1 with c : 1
-    rw [PMF.map]
-    congr 1 with y : 1
-    have he : compressedSignAttempt P d ω (fun _ => expand c) sk m y =
-        compressedSignAttempt P d ω (fun _ => expand c) sk [] y := rfl
-    simp only [Function.comp_apply, he]
-    cases compressedSignAttempt P d ω (fun _ => expand c) sk [] y <;> rfl
-
 /-- Adaptive classical-ROM simulation of bounded ML-DSA signing with ideal masks, for a fixed
 key and a digest law whose expansion is sparse. The simulator uses the full public key. For
 `T = S K` internal attempts and `H` direct queries, prior hash collisions cost
@@ -263,19 +322,94 @@ theorem closeTo_runBoundedSigningROM_simulate (hP : P.Valid) (hq : 2 * P.γ₁ <
         (fun c => simulateFreshSigningAttempt P d ω hβ sk.publicKey (expand c)) program).map
           Prod.fst)
       ((2 * (S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P (by lia) sk.A) := by
+  rw [← runAcceptedSigningROM_eq_simulate P hP hq hβ d ω K dist expand sk hs₁ hs₂ hc]
+  simpa only [runBoundedSigningROM, runAcceptedSigningROM, totalResult, freshSigningAttempt,
+    PMF.map_comp, Function.comp_def, Option.map_map, trialPoint] using
+    closeTo_terminalTrials P K (by lia) dist sk (totalResult P d ω expand sk) hS hH
+
+/-- Route a signing request to the bounded trial loop. A terminal trial carries either a
+signature or an expansion error. After the loop the caller gets the signature, or one error
+value for either expansion failure or exhaustion of the trial budget. -/
+@[expose] def partialSigningProgram (program : OracleComp (SigningROMSpec P Digest) α) :
+    OracleComp (SigningTrialSpec P Digest (Option (Digest × CompressedSignature P))) α :=
+  interpret (sumHandler
+    (fun m => Option.join <$> query
+      (spec := SigningTrialSpec P Digest (Option (Digest × CompressedSignature P))) (.inl m))
+    (fun q => query (.inr q))) program
+
+private theorem partialSigningProgram_cost {cost : List Bool ⊕ SigningHashPoint P → ℕ}
+    {n : ℕ} {program : OracleComp (SigningROMSpec P Digest) α} (h : IsCostBounded cost program n) :
+    IsCostBounded cost (partialSigningProgram P program) n := by
+  refine h.interpret fun q => ?_
+  cases q with
+  | inl m => exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query _)
+  | inr q => exact IsCostBounded.query _
+
+private def partialResult (d ω : ℕ) (expand : Digest → Option (Fin P.n → ZMod P.q))
+    (sk : SecretKey P) (y : Fin P.ℓ → Fin P.n → ZMod P.q) (c : Digest) :
+    Option (Option (Digest × CompressedSignature P)) :=
+  match expand c with
+  | none => some none
+  | some poly => ((compressedSignAttempt P d ω (fun _ => poly) sk [] y).map (Prod.mk c)).map some
+
+/-- Honest signing in the classical digest ROM with a partial challenge expander. An
+expansion error stops this signing request, even when further retries remain. A norm or
+hint rejection advances to the next fresh ideal mask. -/
+noncomputable def runPartialSigningROM (d ω K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (sk : SecretKey P)
+    (program : OracleComp (SigningROMSpec P Digest) α) :
+    PMF (α × List (SigningHashPoint P × Digest)) :=
+  runTrials P false K hγ dist sk (partialResult P d ω expand sk) (partialSigningProgram P program)
+
+private def terminalTranscript (c : Digest) (out : Option (AttemptTranscript P)) :=
+  out.map fun t => (t.commitment, some (c, t.signature))
+
+/-- Simulate bounded signing against the public matrix and full public vector with the same
+partial digest expander. On an expansion error, independently sample a mask, program the
+terminal trial's commitment, and return the public error. Successful expansions use the
+fresh-transcript simulator. -/
+noncomputable def simulatePartialSigningROM (d ω K : ℕ) (hβ : P.β < P.γ₁) (dist : PMF Digest)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (program : OracleComp (SigningROMSpec P Digest) α) :
+    PMF (α × List (SigningHashPoint P × Digest)) :=
+  runTerminalTrials P K dist (fun c => match expand c with
+    | none => (signingMaskLaw P (by lia)).map fun y =>
+        some (highBitsVec P (moduleSISMap pk.A y), none)
+    | some poly => (simulateFreshSigningAttempt P d ω hβ pk poly).map (terminalTranscript P c))
+    (partialSigningProgram P program)
+
+/-- The adaptive signing-oracle simulation bound for partial challenge expansion. Expansions
+may fail with arbitrary probability. Both experiments propagate that stopping event exactly
+in the fresh-digest hybrid, including the attempted commitment written to the hash table.
+Only queries colliding with earlier or erased commitments contribute to the error bound. -/
+theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
+    (hβ : P.β < P.γ₁) (d ω K : ℕ) (dist : PMF Digest)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (sk : SecretKey P)
+    (hs₁ : ∀ i j, |(sk.s₁ i j).valMinAbs| ≤ P.η) (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η)
+    (hc : ∀ c poly, expand c = some poly → InBall P.τ poly)
+    {program : OracleComp (SigningROMSpec P Digest) α} {S H : ℕ}
+    (hS : IsCostBounded signingCost program S) (hH : IsCostBounded hashCost program H) :
+    CloseTo ((runPartialSigningROM P d ω K (by lia) dist expand sk program).map Prod.fst)
+      ((simulatePartialSigningROM P d ω K hβ dist expand sk.publicKey program).map Prod.fst)
+      ((2 * (S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P (by lia) sk.A) := by
   have hγ : 0 < P.γ₁ := by lia
-  have first := (closeTo_runBoundedSigningROM_overwrite P d ω K hγ dist expand sk hS hH).map
-    Prod.fst
-  rw [run_overwrite] at first
-  rw [← runAcceptedSigningROM_eq_simulate P hP hq hβ d ω K dist expand sk hs₁ hs₂ hc, run_accepted]
-  obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
-  have hmass (m q) : ((trialCoins P hγ dist).map (fun x => trialPoint P sk m x.2)) q ≤
-      commitmentGuessProbability P hγ sk.A := by
-    simp only [trialCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
-    exact trialPoint_le P hγ sk m q
-  have erased := RandomOracle.closeTo_eraseRejectedTrialWrites (trialCoins P hγ dist)
-    (fun m x => trialPoint P sk m x.2) Prod.fst
-    (fun m x => (trialReply P d ω expand sk m x.2 x.1 ()).1) hs hh hmass []
-  exact (first.trans erased).mono (by push_cast; ring_nf; rfl)
+  have erased := closeTo_terminalTrials P K hγ dist sk (partialResult P d ω expand sk)
+    (partialSigningProgram_cost P hS) (partialSigningProgram_cost P hH)
+  suffices he : simulatePartialSigningROM P d ω K hβ dist expand sk.publicKey program =
+      runTerminalTrials P K dist (fun c => (signingMaskLaw P hγ).map fun y =>
+        (partialResult P d ω expand sk y c).map (Prod.mk (trialPoint P sk [] y).1))
+        (partialSigningProgram P program) by
+    rw [he]
+    exact erased
+  unfold simulatePartialSigningROM
+  apply congrArg (fun a => runTerminalTrials P K dist a (partialSigningProgram P program))
+  funext c
+  cases e : expand c with
+  | none => simp [partialResult, e, trialPoint, SecretKey.publicKey]
+  | some poly =>
+    dsimp only
+    rw [← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e)]
+    simp only [freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript,
+      Option.map_map, partialResult, e, trialPoint]
 
 end Cslib.Crypto.MLDSA
