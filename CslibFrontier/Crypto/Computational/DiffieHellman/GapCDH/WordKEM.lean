@@ -424,7 +424,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
           have hv := hval a e v (by simpa [OracleComp.support, hrem] using hr)
           simp only [Option.isSome_some, ↓reduceIte]
           enc_len [encSearchState_apply, encDHKEMSimEntry_apply, hrem, hf]
-  refine (hloop.map' (f := SearchState.found)
+  refine (IsOraclePPTOn.map hloop (f := SearchState.found)
       (encSearchState_found_polyTime ComputableInPolyTime.id')).congr fun a State oracle s => ?_
   rw [iterate_searchStep_eq_findSomeM?]
 
@@ -574,7 +574,7 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
     | decaps =>
       exact IsOraclePPTOn.cond (by polytime)
         (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime))
-        (hdecLookup.map' (f := fun (key, nextTable) =>
+        (IsOraclePPTOn.map hdecLookup (f := fun (key, nextTable) =>
           (encOption encBits (some key), nextTable)) (by polytime))
   exact hsimCall.preprocess
     (prepare := fun call : ReductionCaller F.toPrimeOrderGroupFamily ×
