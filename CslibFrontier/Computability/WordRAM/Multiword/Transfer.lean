@@ -72,7 +72,7 @@ theorem exec_copy {w : ℕ} (as ds : List (Fin (r + 4)))
     | nil =>
       refine ⟨x.set carry (x.regs carry), Exec.copy, ?_, ?_, ?_⟩
       · rfl
-      · exact ⟨rfl, fun i _ _ _ => by simp⟩
+      · exact frame_set_carry x (x.regs carry) []
       · intro i _; simp
   | cons a as ih =>
     cases ds with
@@ -150,7 +150,7 @@ theorem exec_constants {w : ℕ} (ds : List (Fin (r + 4))) (cs : List ℕ)
     | cons => simp_all
     | nil =>
       refine ⟨x.set carry (x.regs carry), Exec.copy, rfl, ?_, ?_⟩
-      · exact ⟨rfl, fun i _ _ _ => by simp⟩
+      · exact frame_set_carry x (x.regs carry) []
       · intro i _; simp
   | cons d ds ih =>
     cases cs with

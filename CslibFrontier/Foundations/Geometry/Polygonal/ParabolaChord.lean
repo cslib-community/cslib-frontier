@@ -30,6 +30,8 @@ Mathlib's affine images of real segments. They make no general-position claim fo
 
 ## Main results
 
+* `Cslib.Polygonal.parabolaChord_slope_ne_of_mem_inter`: a common interior point forces
+  distinct supporting slopes for two different supporting chords.
 * `Cslib.Polygonal.parabolaPoint_mem_segment_iff`: a chord contains no third parabola point.
 * `Cslib.Polygonal.parabolaChord_inter_subsingleton`: distinct supporting chords have at most
   one common interior point.
@@ -229,6 +231,23 @@ private theorem openChord_inter_nonempty_iff {a b c d : ℝ}
     refine ⟨z, ?_, hcdz⟩
     exact (mem_openChord_iff hab z).mpr ⟨(residual_pos_iff a b z.re).mp hpos, hline⟩
 
+/-- Supporting slopes differ when two nondegenerate parabola chords have a common open
+point and the first endpoint of the second differs from both endpoints of the first. -/
+theorem parabolaChord_slope_ne_of_mem_inter {a b c d : ℝ}
+    (hab : a ≠ b) (hcd : c ≠ d) (hac : a ≠ c) (hbc : b ≠ c) {z : ℂ}
+    (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b))
+    (hz' : z ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d)) :
+    a + b ≠ c + d := by
+  have hza := ((mem_openChord_iff hab z).mp hz).2
+  have hzc := ((mem_openChord_iff hcd z).mp hz').2
+  apply sub_ne_zero.mp
+  intro hsum
+  have hsumz : (a + b - (c + d)) * z.re = 0 := by rw [hsum, zero_mul]
+  have hsumc : (a + b - (c + d)) * c = 0 := by rw [hsum, zero_mul]
+  have hprod : (c - a) * (c - b) = 0 := by
+    nlinarith only [hsumz, hsumc, hza, hzc]
+  exact (mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)) hprod
+
 /-- Two nondegenerate parabola chords have at most one common interior point when the
 first endpoint of the second chord differs from both endpoints of the first. The other
 endpoint may be shared. In particular the claim includes parallel supporting lines. -/
@@ -241,13 +260,8 @@ theorem parabolaChord_inter_subsingleton {a b c d : ℝ}
   have hzc := ((mem_openChord_iff hcd z).mp hz.2).2
   have hwa := ((mem_openChord_iff hab w).mp hw.1).2
   have hwc := ((mem_openChord_iff hcd w).mp hw.2).2
-  have hslope : a + b - (c + d) ≠ 0 := by
-    intro hsum
-    have hsumz : (a + b - (c + d)) * z.re = 0 := by rw [hsum, zero_mul]
-    have hsumc : (a + b - (c + d)) * c = 0 := by rw [hsum, zero_mul]
-    have hprod : (c - a) * (c - b) = 0 := by
-      nlinarith only [hsumz, hsumc, hza, hzc]
-    exact (mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)) hprod
+  have hslope : a + b - (c + d) ≠ 0 := sub_ne_zero.mpr
+    (parabolaChord_slope_ne_of_mem_inter hab hcd hac hbc hz.1 hz.2)
   have hprod : (a + b - (c + d)) * (z.re - w.re) = 0 := by
     nlinarith only [hza, hzc, hwa, hwc]
   have hre : z.re = w.re := sub_eq_zero.mp ((mul_eq_zero.mp hprod).resolve_left hslope)

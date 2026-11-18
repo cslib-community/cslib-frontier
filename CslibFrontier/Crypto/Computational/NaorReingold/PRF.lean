@@ -599,7 +599,7 @@ private theorem eval_prfTapeDistinguisher (F : PrimeOrderGroupFamily)
   rw [hH, OracleComp.run_interpret_lift, ← PMF.monad_map_eq_map, Functor.map_map]
   exact id_map _
 
-private theorem negligible_naorReingoldHashedGame_pure {F : PrimeOrderGroupFamily}
+private theorem negligible_naorReingoldHashedGame_ideal_pure {F : PrimeOrderGroupFamily}
     {desc : ℕ → F.Desc} {bound : F.Desc → ℕ}
     (hDDH : F.DDH (fun n => PMF.pure (desc n)))
     (hdesc : ComputableInPolyTime desc encUnary F.encDesc)
@@ -619,7 +619,7 @@ private theorem negligible_naorReingoldHashedGame_pure {F : PrimeOrderGroupFamil
   obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le
   have hdesc_poly : PolynomiallyBounded (fun n => cD * (n + 1) ^ eD) :=
     (PolynomiallyBounded.const cD).mul ((PolynomiallyBounded.id.add (.const 1)).pow eD)
-  exact hDDH.negligible_naorReingoldHashedGame
+  exact hDDH.negligible_naorReingoldHashedGame_ideal
     (inLen := id) (outLen := id) (qMin := fun n => F.order (desc n))
     ComputableInPolyTime.id' ComputableInPolyTime.id' hbound_poly hdesc_poly
     (fun n d hd => by
@@ -656,7 +656,7 @@ theorem DDH.pseudorandomFunction_naorReingoldSeeded {F : PrimeOrderGroupFamily}
   let D_tape := prfTapeDistinguisher F desc bound expWidth adversary
   have hprg_neg := hexpand.indistinguishable D_tape
     (isPPT_prfTapeDistinguisher F hdesc hbound_poly hexpWidth_poly hadversary)
-  have hnr_neg := negligible_naorReingoldHashedGame_pure hDDH hdesc hbound_poly hbound hneg
+  have hnr_neg := negligible_naorReingoldHashedGame_ideal_pure hDDH hdesc hbound_poly hbound hneg
     hadversary
   have hexp_neg : Negligible fun n => ((n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by negligible
   refine negligible_of_le ((hprg_neg.add hexp_neg).add hnr_neg) fun n => ?_
@@ -872,7 +872,7 @@ private theorem isOraclePPT_ddhPRGAdv {inBits seedLen : ℕ → ℕ} {D : Distin
         (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)).prod
         (ComputableInPolyTime.snd (encPair encUnary encBits) encBits))).isOraclePPTOn)).isOraclePPT
 
-private theorem negligible_naorReingoldHashedGame_const_pure {F : PrimeOrderGroupFamily}
+private theorem negligible_naorReingoldHashedGame_ideal_const_pure {F : PrimeOrderGroupFamily}
     {inBits : ℕ → ℕ} {desc : ℕ → F.Desc} {bound : F.Desc → ℕ}
     (hDDH : F.DDH (fun n => PMF.pure (desc n)))
     (hinBits : ComputableInPolyTime inBits encUnary encUnary)
@@ -893,7 +893,7 @@ private theorem negligible_naorReingoldHashedGame_const_pure {F : PrimeOrderGrou
   obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le
   have hdesc_poly : PolynomiallyBounded (fun n => cD * (n + 1) ^ eD) :=
     (PolynomiallyBounded.const cD).mul ((PolynomiallyBounded.id.add (.const 1)).pow eD)
-  exact hDDH.negligible_naorReingoldHashedGame_const 1 hinBits hbound_poly hdesc_poly
+  exact hDDH.negligible_naorReingoldHashedGame_ideal_const 1 hinBits hbound_poly hdesc_poly
     (fun n d hd => by
       rw [PMF.mem_support_pure_iff] at hd; subst hd
       simpa only [encUnary_apply, List.length_replicate] using hdesc_b n)
@@ -950,7 +950,7 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
       let word ← KabanetsCai.queryTable (queries n)
       ProbOracleComp.sample (D n word)
     have hadv : IsOraclePPT encBool adv := isOraclePPT_ddhPRGAdv hinBits_poly hcnt hD
-    have hnr_neg := negligible_naorReingoldHashedGame_const_pure hDDH hinBits_poly
+    have hnr_neg := negligible_naorReingoldHashedGame_ideal_const_pure hDDH hinBits_poly
       hdesc hbound_poly hbound hadv
     have hexp_neg : Negligible fun n => ((inBits n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
       negligible
