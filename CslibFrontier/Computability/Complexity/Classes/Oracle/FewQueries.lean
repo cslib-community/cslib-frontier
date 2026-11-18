@@ -27,7 +27,7 @@ If a search problem `R` in `FNP` (Goldreich's `PC`) is solved in polynomial time
 oracle language `O` by a machine that makes at most `c log₂ n + c` requests on instances of encoded
 length `n`, then `R` is in `FPSearch` (Goldreich's `PF`)
 (`Cslib.Complexity.mem_FPSearch_of_computableInPolyTimeWithOracleQueries_log`,
-[Goldreich, Exercise 2.10][Goldreich2007DraftR5]). The oracle is arbitrary: it need not be a
+[Goldreich, Exercise 2.10][Goldreich2006DraftR1]). The oracle is arbitrary: it need not be a
 decision problem in `NP`, nor have anything to do with `R`. Contrapositively, a search problem in
 `PC \ PF` is not solved by any polynomial-time oracle machine with that many requests, which is
 why the self-reductions of the source make more than logarithmically many requests.
@@ -69,8 +69,8 @@ as the program, not merely the same number of them.
 
 ## References
 
-* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*][Goldreich2007DraftR5],
-  Exercise 2.10 (draft of May 2007).
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*][Goldreich2006DraftR1],
+  Exercise 2.10 (draft r1.pdf of December 2006, printed p. 106).
 -/
 
 @[expose] public section
@@ -498,10 +498,12 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
       simp only [hj, Option.elim_some] at hw
       simp [ok, hw] at hokj
 
-/-- **Goldreich, Exercise 2.10.** A search problem in `PC` (`FNP`) solved in polynomial time
-relative to any oracle language `O` with at most `c log₂ n + c` requests on instances of encoded
-length `n` is in `PF` (`FPSearch`). Contrapositively, if `R ∈ PC \ PF`, no such oracle machine
-solves the search problem of `R`, whatever decision oracle it consults. -/
+/-- **Logarithmically many queries do not help**
+[Goldreich, Exercise 2.10][Goldreich2006DraftR1]. A search problem in `PC` (`FNP`) solved in
+polynomial time relative to any oracle language `O` with at most `c log₂ n + c` requests on
+instances of encoded length `n` is in `PF` (`FPSearch`). Contrapositively, if `R ∈ PC \ PF`, no
+such oracle machine solves the search problem of `R`, whatever decision oracle it consults, for
+any constant `c`: it makes more than logarithmically many requests. -/
 theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_log (hR : R ∈ FNP enc)
     {O : Set (List Bool)} {c : ℕ} {f : α → Option (List Bool)}
     (hf : ComputableInPolyTimeWithOracleQueries O (fun n => c * Nat.log 2 n + c) f enc
