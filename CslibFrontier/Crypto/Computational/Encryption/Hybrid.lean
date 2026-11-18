@@ -199,7 +199,8 @@ key and the encapsulation, as nested framed pairs. -/
 abbrev encKEMChallenge : List Bool × List Bool × List Bool ↪ List Bool :=
   encPair encBits (encPair encBits encBits)
 
-/-- The real KEM IND-CPA experiment ([BonehShoup2023], Exercise 11.9, Experiment `0`):
+/-- The real experiment of `KEMINDCPA`, the KEM game of [CramerShoup2003] §7.1.2 without
+decryption queries (Exercise 11.9's Experiment `0` of [BonehShoup2023] with `pk` also given):
 sample `(pk, sk) ← keyGen n` and `(k, ctKem) ← encaps n pk`, and pass the encoded triple
 `(pk, (k, ctKem))` to `distinguisher n`. -/
 def kemRealGame (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -208,7 +209,8 @@ def kemRealGame (keyGen : ℕ → ProbComp (List Bool × List Bool))
   kemRealGameWith keyGen encaps (fun n _ pk k ct =>
     distinguisher n (encKEMChallenge (pk, (k, ct)))) n
 
-/-- The ideal KEM IND-CPA experiment ([BonehShoup2023], Exercise 11.9, Experiment `1`):
+/-- The ideal experiment of `KEMINDCPA`, the KEM game of [CramerShoup2003] §7.1.2 without
+decryption queries (Exercise 11.9's Experiment `1` of [BonehShoup2023] with `pk` also given):
 sample `(pk, sk) ← keyGen n`, `(k, ctKem) ← encaps n pk`, and an independent uniform
 `keyLen n`-bit key `kIdeal ← BitString.sampleList (keyLen n)`,
 and pass `(pk, (kIdeal, ctKem))` to `distinguisher n`. -/
@@ -715,9 +717,9 @@ theorem hybridDecrypt_hybridEncrypt {Msg : Type}
 
 /-- Direct per-bit KEM distinguisher $D_{\mathrm{kem}, b}$ constructed from an
 `Encryption.AdversaryOf Msg` and DEM encryption `encryptSym` (for the two-distinguisher variant of
-[BonehShoup2023], Exercise 11.9(b)): given an encoded KEM challenge `(pk, (k, ctKem))`, run
-`adversary.choose n pk`, encrypt the `bit`-selected message under `k`, and run `adversary.guess` on
-`(ctKem, ctDem)`. -/
+the corrected [BonehShoup2023], Exercise 11.9(b)): given an encoded KEM challenge
+`(pk, (k, ctKem))`, run `adversary.choose n pk`, encrypt the `bit`-selected message under `k`, and
+run `adversary.guess` on `(ctKem, ctDem)`. -/
 def hybridToKEMDistinguisher {Msg : Type}
     (encryptSym : ℕ → List Bool → Msg → ProbComp (List Bool))
     (adversary : AdversaryOf Msg) (bit : Bool) : Distinguisher := fun n challenge => do
@@ -730,7 +732,7 @@ def hybridToKEMDistinguisher {Msg : Type}
     (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
   adversary.guess n choice.2 (encPair encBits encBits (ctKem, ctDem))
 
-/-- Single hidden-bit KEM distinguisher $\mathcal{B}_{\mathrm{kem}}$ for
+/-- Single hidden-bit KEM distinguisher $\mathcal{B}_{\mathrm{kem}}$ for the corrected
 [BonehShoup2023], Exercise 11.9(b): given an encoded KEM challenge `(pk, (k, ctKem))`, run
 `adversary.choose n pk`, sample a fair challenge bit `bit ← ProbComp.uniform Bool`, encrypt the
 selected message under `k`, run `adversary.guess`, and return `guess ^^ bit`. -/
@@ -749,9 +751,9 @@ noncomputable def hybridToKEMHiddenBitDistinguisher {Msg : Type}
   return guess ^^ bit
 
 /-- Two-stage DEM adversary $\mathcal{B}_{\mathrm{s}}$ constructed from `keyGen`, `encaps`, and a
-hybrid `Encryption.AdversaryOf Msg` for [BonehShoup2023], Exercise 11.9(b): stage 1 samples
-`(pk, sk) ← keyGen n` and `(k, ctKem) ← encaps n pk`, runs `adversary.choose n pk`, and saves
-`encPair encBits encBits (ctKem, choice.2)`; stage 2 combines `ctKem` with the DEM challenge
+hybrid `Encryption.AdversaryOf Msg` for the corrected [BonehShoup2023], Exercise 11.9(b): stage 1
+samples `(pk, sk) ← keyGen n` and `(k, ctKem) ← encaps n pk`, runs `adversary.choose n pk`, and
+saves `encPair encBits encBits (ctKem, choice.2)`; stage 2 combines `ctKem` with the DEM challenge
 ciphertext `ctDem` and runs `adversary.guess`. -/
 def hybridToDEMAdversary {Msg : Type} (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encaps : ℕ → List Bool → ProbComp (List Bool × List Bool))
