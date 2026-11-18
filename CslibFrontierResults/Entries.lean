@@ -4777,7 +4777,7 @@ register_result "gap-mcsp-oracle-circuits" where
     the source's constructive s(n) ≤ 2^n/poly(n)."
 
 register_result "arora-barak-uniform-restriction-largeness" where
-  title := "A random Boolean function remains nonconstant under all sufficiently large subcube restrictions"
+  title := "Random Boolean functions remain nonconstant on all large subcubes"
   topic := "circuit complexity"
   sources := [
     { paper := AroraBarak07, theorem := "Chapter 22, Exercise §2",
