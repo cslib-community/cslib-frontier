@@ -22,8 +22,8 @@ private key, a bit-string message, a byte context and 32 bytes of randomness. A 
 string selects deterministic signing. The bounded loop uses the 814-attempt option of Appendix C.
 The adaptive strong-unforgeability experiment draws fresh hedging randomness for each signature
 and records the context, message and exact bytes of every successful reply. Its sole external
-service is signing. Both signing and final verification evaluate the concrete FIPS 202 SHAKE
-functions. Its zero-signing-query lemma recovers the byte-level key-only experiment.
+service is signing. The `sufCmaGame` specialization evaluates FIPS 202 SHAKE in both signing and
+verification. Its zero-signing-query lemma recovers the byte-level key-only experiment.
 
 `verify_of_sign` proves that every successful signature under a generated key passes
 Algorithm 3. On a fresh verifying triple whose digest occurs in the log, the extractor
@@ -67,19 +67,21 @@ private def Xofs.prepareAttempt (H : Xofs) (s : Level) (A : PublicMatrix s) (mas
   let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
   ⟨y, ringVectorCoeffs (tabulateRingVector (moduleSISMap A y))⟩
 
-private def attemptResult {s : Level} (sk : PrivateKey s) (prep : AttemptCommitment s)
-    (digest : List Byte) (expanded : Option Poly) : Option (Option (List Byte)) := do
-  let c ← expanded
-  let challenge := Vector.ofFn c
-  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ prep.mask prep.product
-    challenge.get
+/-- Complete Algorithm 7 using the sampled challenge and digest. XOF exhaustion is fatal,
+a failed norm or hint check rejects the mask, and success returns the encoded signature. -/
+def finishSigningAttempt (s : Level) (sk : PrivateKey s) (y : Fin s.params.ℓ → Poly)
+    (w : Fin s.params.k → Poly) (digest : List Byte) (challenge : Option Poly) :
+    Option (Option (List Byte)) := do
+  let c ← challenge
+  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w
+    (Vector.ofFn c).get
   return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
 
 private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : PublicMatrix s)
     (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) :=
   let prep := H.prepareAttempt s matrix maskSeed κ
   let digest := H.commitmentDigest s (highBitsVec s.params prep.product) μ
-  attemptResult sk prep digest (H.sampleInBall s digest)
+  finishSigningAttempt s sk prep.mask prep.product digest (H.sampleInBall s digest)
 
 private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte))) :
     ℕ → ℕ → Option (List Byte)
@@ -157,14 +159,14 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     funext (Vector.get_ofFn g)
   cases hc : H.sampleInBall s digest with
   | none =>
-    simp only [Xofs.attempt, attemptResult, Xofs.prepareAttempt, tabulateRingVector_eq] at hs
+    simp only [Xofs.attempt, finishSigningAttempt, Xofs.prepareAttempt, tabulateRingVector_eq] at hs
     change (H.sampleInBall s digest).bind _ = _ at hs
     simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [Xofs.attempt, attemptResult, Xofs.prepareAttempt, tabulateRingVector_eq,
+      simp only [Xofs.attempt, finishSigningAttempt, Xofs.prepareAttempt, tabulateRingVector_eq,
         vecGet] at hs
       change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
@@ -449,7 +451,8 @@ noncomputable def Xofs.refreshFirstSign (H : Xofs) (s : Level) (seen : List Bool
         let updated := Function.update table key fresh
         let K := H.withExpansionRows s seen updated
         let tape := (H.h256.read key (seen key) ++ List.ofFn fresh).take 221
-        let result := attemptResult st.sk prep d (sampleInBallBytes s tape)
+        let result :=
+          finishSigningAttempt s st.sk prep.mask prep.product d (sampleInBallBytes s tape)
         (updated, afterAttempt K st result)
   else PMF.pure (table, none)
 
@@ -501,15 +504,16 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
       apply congrArg (post updated)
       symm
       change K.sign s keys.secretKey q.message q.context rnd = afterAttempt K st
-        (attemptResult st.sk prep d (sampleInBallBytes s
+        (finishSigningAttempt s st.sk prep.mask prep.product d (sampleInBallBytes s
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221)))
       simp only [Xofs.sign, hc, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
         Option.bind_some, Xofs.signInternal, start]
       rw [firstAccepted_initial]
       unfold Xofs.attempt
       rw [prepared]
-      change afterAttempt K st (attemptResult st.sk prep (K.commitmentDigest s w st.μ)
-        (K.sampleInBall s (K.commitmentDigest s w st.μ))) = _
+      change afterAttempt K st
+        (finishSigningAttempt s st.sk prep.mask prep.product (K.commitmentDigest s w st.μ)
+          (K.sampleInBall s (K.commitmentDigest s w st.μ))) = _
       rw [dg, sample]
   · apply congrArg (PMF.bind _)
     funext t
