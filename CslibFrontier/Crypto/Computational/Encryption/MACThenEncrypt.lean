@@ -133,8 +133,14 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
       else
         none
   keyGen_ppt := by
-    have hpt := hptLenPoly
-    ppt
+    have hke := E.keyGen_ppt.preprocess hptLenPoly
+    have hkm : IsPPTOn (encPair encUnary encBits) encBits
+        (fun p : ℕ × List Bool => M.keyGen p.1) :=
+      M.keyGen_ppt.preprocess (ComputableInPolyTime.fst encUnary encBits)
+    have hencode : ComputableInPolyTime
+        (fun p : (ℕ × List Bool) × List Bool => encPair encBits encBits (p.1.2, p.2))
+        (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
+    exact hke.bind_with (hkm.bind_with hencode.isPPTOn)
   encrypt_ppt := by
     have hpt := hptLenPoly
     ppt
@@ -345,9 +351,9 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
   have houterCond : ComputableInPolyTime
       (fun caller : ℕ × List Bool => ptLen (GeneratorReindex.parameter ptLen caller.1) == caller.1)
       ECaller encBool := by
-    have hptT := hptLenPoly
-    dsimp only [ECaller]
-    exact (by fun_prop : ComputableInPolyTime _ ECaller encBool)
+    exact ComputableInPolyTime.unary_beq
+      (hptLenPoly.comp (hparam.comp (ComputableInPolyTime.fst encUnary encBits)))
+      (ComputableInPolyTime.fst encUnary encBits)
   have houterNo : IsOraclePPTOn (Operation := Unit) ECaller encBool
       (fun _ : ℕ × List Bool => (pure false : WordOracleComp Unit Bool)) :=
     (ComputableInPolyTime.const false).isOraclePPTOn (Operation := Unit)

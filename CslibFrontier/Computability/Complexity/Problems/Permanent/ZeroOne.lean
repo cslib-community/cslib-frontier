@@ -230,6 +230,7 @@ theorem computableInPolyTime_intTableAbsSum :
 
 theorem computableInPolyTime_permanentModulus :
     ComputableInPolyTime permanentModulus encIntTable encNat := by
+  change ComputableInPolyTime (fun A => permanentModulus A) _ _
   have hlength := length_list (encList encIntBin)
   have hfactorial := binary_factorial.comp hlength
   have hpower := binary_pow' computableInPolyTime_intTableAbsSum hlength
@@ -251,7 +252,10 @@ theorem computableInPolyTime_recoverPermanent :
       encIntTable by fun_prop)
   have hresidue := binary_mod' (snd encIntTable encNat) hQ
   unfold recoverPermanent
-  fun_prop
+  exact ComputableInPolyTime.ite_decide
+    (binary_lt' (binary_mul' (const 2) hresidue) hQ)
+    (intBin_natCast.comp hresidue)
+    (intBin_sub.comp ((intBin_natCast.comp hresidue).prod (intBin_natCast.comp hQ)))
 
 /-- The permanent of a table of natural numbers. -/
 def NatPermanent (A : List (List ℕ)) : ℕ :=

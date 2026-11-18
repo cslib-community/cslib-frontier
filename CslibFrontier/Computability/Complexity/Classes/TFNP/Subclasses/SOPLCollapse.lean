@@ -912,6 +912,7 @@ theorem computableInPolyTime_plsPpadsSucc
           (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest))
       ((ComputableInPolyTime.bool_and' (hk.decide_eq' hM)
         (ComputableInPolyTime.binary_lt' hα hK)).ite hjump hrest)) hrest
+  change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
   simpa only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
     decide_eq_true_eq] using hresult
 
@@ -967,6 +968,7 @@ theorem computableInPolyTime_plsPpadsPred
         (hin.ite hactive ((ComputableInPolyTime.bool_not.comp hout).ite hshift hrest))
         (ComputableInPolyTime.ite_decide
           (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest)) hrest)
+  change ComputableInPolyTime (fun p => plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
   simpa only [plsPpadsPred, plsPpadsPredCore, Function.comp_def, decide_eq_true_eq] using hresult
 
 theorem computableInPolyTime_plsPpadsPotential

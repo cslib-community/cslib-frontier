@@ -191,7 +191,11 @@ theorem computableInPolyTime_condUniversalTMRunFor :
   have hclock := hinput.snd'
   have hcode := computableInPolyTime_condUniversalTMProgram.comp
     (hprogram.prod hcondition)
-  exact computableInPolyTime_universalTMRunFor.comp (hcode.prod hclock)
+  exact computableInPolyTime_universalTMRunFor.comp
+    (f := fun pt : List Bool × ℕ => universalTMRunFor pt.1 pt.2)
+    (g := fun pyt : List Bool × (List Bool × ℕ) =>
+      (condUniversalTMProgram pyt.1 pyt.2.1, pyt.2.2))
+    (hcode.prod hclock)
 
 /-! ### Clock-preserving conditional simulation of every binary `MultiTapeTM` -/
 

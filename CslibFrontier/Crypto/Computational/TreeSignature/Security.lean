@@ -604,10 +604,18 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     encPlantedCert
   let encMid := encPair encIn (encPair encUnary encNodeCache)
   let encEnd := encPair encMid (encPair encBits encEdgeCache)
+  have hnode : ComputableInPolyTime
+      (fun q : CertStepIn => q.2.1.1) encIn encBits := by fun_prop
+  have hleaf : ComputableInPolyTime
+      (fun q : CertStepIn => q.1.2.2) encIn encBits := by fun_prop
+  have hbit := hleaf.bitsGetDWithInput
+    (ComputableInPolyTime.length_bits.comp hnode) false
+  have hpath := ComputableInPolyTime.bitsAppend hnode
+    (ComputableInPolyTime.bitsCons hbit (.const []))
   have hvisit := isOraclePPTOn_visitNodeM (enc := encIn)
     (cap := fun (((keys, _, _), _) : CertStepIn) => keys.length)
     (path := fun ((_, _, leaf), ((node, _, _), _)) => node ++ [leaf.getD node.length false])
-    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) (by fun_prop) (by fun_prop)
+    (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) hpath (by fun_prop)
   have hsign := isOraclePPTOn_signEdgeM S (enc := encMid)
     (keys := fun ((((keys, _, _), _), _) : CertVisitIn) => keys)
     (target := fun (((_, (target, _), _), _), _) => target)
@@ -1176,7 +1184,15 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
               (t.2.1.2.1.getD t.2.2 ([], [])).2)
           else
             ((t.2.1.1.getD t.2.2 false).toNat, t.1.2.1.1, t.2.1.2.2))
-        encMid (encPair encUnary (encPair encBits encBits)) := by fun_prop
+        encMid (encPair encUnary (encPair encBits encBits)) := by
+      apply ComputableInPolyTime.ite_decide
+      · fun_prop
+      · apply ComputableInPolyTime.prod
+        · fun_prop
+        · apply ComputableInPolyTime.prod <;> fun_prop
+      · apply ComputableInPolyTime.prod
+        · fun_prop
+        · apply ComputableInPolyTime.prod <;> fun_prop
     exact Eq.mp
       (congrArg (ComputableInPolyTime · encEx (encPair encUnary (encPair encBits encBits)))
         (funext fun pair => by dsimp only [Function.comp_apply, extractForgery]))

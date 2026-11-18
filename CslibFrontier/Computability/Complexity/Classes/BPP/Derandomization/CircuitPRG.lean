@@ -229,7 +229,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
         (encPair enc encBits) encUnary :=
       (ComputableInPolyTime.unary_eval p).comp
         ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
-    exact .of_tidy (ComputableTidilyInPolyTime.bitsTakeWithInput h₁.tidy h₂.tidy)
+    exact ComputableInPolyTime.bitsTakeWithInput h₁ h₂
   have hseed : ComputableInPolyTime seed enc encUnary := by
     have hlen := ComputableInPolyTime.encoding_length enc
     simp only [seed, rootFloor]
@@ -376,7 +376,7 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     rw [h]
     exact ComputableInPolyTime.length_bits.comp
       (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
-  have hℓpoly : PolynomiallyBounded ℓ := ComputableTidilyInPolyTime.polynomiallyBounded hℓ.tidy
+  have hℓpoly : PolynomiallyBounded ℓ := ComputableInPolyTime.polynomiallyBounded hℓ
   have hadvice : PolynomiallyBounded fun k => (advice k).length := by
     have hlen : (fun k => (advice k).length) = fun k => certLength (ℓ k) (k ^ c) :=
       funext fun k => length_certificate_code (C k) (hCsize k)

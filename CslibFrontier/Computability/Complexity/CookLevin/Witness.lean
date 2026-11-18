@@ -133,8 +133,12 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
       (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
     (computableInPolyTime_trackedRun tm).comp
       ((bitsAppend (((fst _ _).fst').fst') (((fst _ _).fst').snd')).prod (snd _ _))
-  have hfeatures := computableInPolyTime_trueFeatures.comp
-    (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
+  have hfeatures : ComputableInPolyTime
+      (fun p : ((List Bool × List Bool) × ℕ) × ℕ =>
+        trueFeatures p.1.2 (trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2)))
+      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) (encList encFeature) :=
+    computableInPolyTime_trueFeatures.comp
+      (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
   have hholds : ComputableInPolyTime
       (fun p : (((List Bool × List Bool) × ℕ) × ℕ) × Feature k State => Var.holds p.1.2 p.2)
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encFeature)
@@ -142,7 +146,8 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
     computableInPolyTime_holds.comp (((snd _ _).comp (fst _ _)).prod (snd _ _))
   have htimes := range.comp
     (unary_add' (snd (encPair encBits encBits) encUnary) (const 1))
-  refine listAppend' (flatMapWithInput htimes (mapWithInput hfeatures hholds)) ?_
+  refine listAppend' (flatMapWithInput (encA := encUnary) (encB := encVar) htimes
+    (mapWithInput (encA := encFeature) (encB := encVar) hfeatures hholds)) ?_
   refine flatMapWithInput (range.comp (length_bits.comp ((fst _ _).snd'))) ?_
   fun_prop
 

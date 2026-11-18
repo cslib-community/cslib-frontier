@@ -71,10 +71,13 @@ theorem labelWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → �
     {key t : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hkey : ComputableInPolyTime key encIn encBits) (ht : ComputableInPolyTime t encIn encBits) :
     ComputableInPolyTime (fun a => labelWord family (k a) (key a) (t a)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
-      labelWord family p.1 p.2.1 p.2.2) (encPair encUnary (encPair encBits encBits)) encBits := by
-    polytime [labelWord]
-  exact h.comp (hk.prod (hkey.prod ht))
+  have hwidth : ComputableInPolyTime (fun a => k a + 1) encIn encUnary := by fun_prop
+  have hfalse := hf.comp (hkey.prod (ComputableInPolyTime.bitsCons (.const false) ht))
+  have htrue := hf.comp (hkey.prod (ComputableInPolyTime.bitsCons (.const true) ht))
+  exact ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.bitsAppend hfalse
+      ((ComputableInPolyTime.bitsReplicate false).comp hwidth)).bitsTakeWithInput hwidth)
+    (ComputableInPolyTime.bitsCons (htrue.bitsGetDWithInput (.const 0) false) (.const []))
 
 /-- Tweaks are computed in polynomial time. -/
 theorem tweak_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g i a : γ → ℕ}
@@ -106,12 +109,15 @@ theorem keyOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k wires v : γ �
     (hcoins : ComputableInPolyTime coins encIn encBits) (hv : ComputableInPolyTime v encIn encUnary)
     (hc : ComputableInPolyTime c encIn encBool) :
     ComputableInPolyTime (fun a => keyOf (k a) (wires a) (coins a) (v a) (c a)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool × ℕ × Bool =>
-      keyOf p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
-      (encPair encUnary (encPair encUnary (encPair encBits
-        (encPair encUnary encBool)))) encBits := by
-    polytime [keyOf, BitString.listRow]
-  exact h.comp (hk.prod (hwires.prod (hcoins.prod (hv.prod hc))))
+  have hwidth : ComputableInPolyTime (fun a => k a + 1) encIn encUnary := by fun_prop
+  have hrow : ComputableInPolyTime
+      (fun a => if c a then 2 * v a + 1 else 2 * v a) encIn encUnary := by fun_prop
+  have hoffset : ComputableInPolyTime
+      (fun a => (if c a then 2 * v a + 1 else 2 * v a) * (k a + 1))
+      encIn encUnary := by fun_prop
+  exact (ComputableInPolyTime.bitsAppend
+    ((hcoins.bitsDropWithInput hwires).bitsDropWithInput hoffset)
+    ((ComputableInPolyTime.bitsReplicate false).comp hwidth)).bitsTakeWithInput hwidth
 
 /-- Labels are read in polynomial time. -/
 theorem labelOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k wires v : γ → ℕ}
