@@ -553,7 +553,22 @@ experiment to its distribution. Instantiate these experiments for a new inversio
 instead of writing another sampling block. The inner product of bit lists is
 [`BitString.listDot`](../../CslibFrontier/Foundations/Data/BitString/List/Dot.lean), which is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
-`ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
+`ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity. For
+simultaneous Goldreich–Levin list decoding without an image test (Goldreich Theorem 7.8),
+[`GoldreichLevin/ListDecoding.lean`](../../CslibFrontier/Crypto/Computational/GoldreichLevin/ListDecoding.lean)
+proves the Parseval bound `card_filter_agreement_ge_le` ($\le 1 / (4 \varepsilon^2)$ strings with
+agreement $\ge 1 / 2 + \varepsilon$), the simultaneous list-decoding bound
+`decode_listMaskCount_simultaneous_success_ge_half` at `listMaskCount n precision`, and the
+two-stage Chernoff-pruned decoder `decodePruned` (`decodePruned_simultaneous_success_ge_half`,
+which retains all $(1/2 + 1/p)$-agreed strings, excludes strings below $1/2 + 1/(2p)$, and bounds
+the list cardinality by $p^2$ with probability $\ge 1/2$);
+[`GoldreichLevin/WordListDecoder.lean`](../../CslibFrontier/Crypto/Computational/GoldreichLevin/WordListDecoder.lean)
+realizes both as duplicate-free polynomial-time word algorithms (`wordListDecode`,
+`wordListDecodePruned`) and as uniform strict oracle-PPT algorithms (`oracleListDecode`,
+`oracleListDecodePruned` on unary `encListDecodeParams`) against arbitrary Boolean oracles
+`B : BitString n → Bool` (`oracleListDecode_bitStringOracle_simultaneous_success_ge_half`,
+`oracleListDecodePruned_bitStringOracle_simultaneous_success_ge_half`, checked in
+[`CslibFrontierTests/GoldreichLevinListDecoding.lean`](../../CslibFrontierTests/GoldreichLevinListDecoding.lean)).
 
 For offline dictionary attacks against a hash oracle `H` ([bs23][bs23], §18.3.1.2–§18.3.1.3,
 (18.1)–(18.3), pp. 721–723, and §18.4.1–§18.4.2, pp. 724–726), import
