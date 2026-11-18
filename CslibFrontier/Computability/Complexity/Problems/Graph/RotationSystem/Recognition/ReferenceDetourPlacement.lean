@@ -239,19 +239,10 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     intro hab
     have hn := (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e)
     exact hn (congrArg parabolaPoint hab)
-  obtain ⟨_, rad, hrad, _, hav⟩ := exists_reference_crossing_neighborhoods hI
-  have hzC : z ∈ {w : ℂ | ∃ e f : E, e ≠ f ∧
-      w ∈ openSegment ℝ (D.route e).start (D.route e).finish ∧
-      w ∈ openSegment ℝ (D.route f).start (D.route f).finish} := hz
-  have hzv : ∀ v ∈ (subdivisionGraph I).vertices, z ≠ D.vertex v := by
-    intro v hv heq
-    apply (hav z hzC).1 v hv
-    rw [← heq]
-    exact Metric.mem_closedBall_self (hrad z hzC).le
   have hopen (e : X) : z ∈ openSegment ℝ (D.route e.val).start (D.route e.val).finish := by
     have hend (tag : Bool) : z ≠ (D.route e.val).endpoint tag := by
       rw [D.endpoint_eq]
-      apply hzv
+      apply referenceDrawing_crossing_ne_vertex hI hz
       exact ((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e.val).1 tag)
     apply mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     exact (Route.support_line _ _) ▸ e.property

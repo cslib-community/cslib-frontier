@@ -73,8 +73,13 @@ private theorem crossingPoints_finite {I : FixedRotationInput} (hI : Valid I) :
   rw [hC]
   exact Set.finite_iUnion hS
 
-private theorem crossing_ne_vertex {I : FixedRotationInput} (hI : Valid I)
-    {z : ℂ} (hz : z ∈ crossingPoints I) {v : ℕ}
+/-- A strict-interior crossing of actual reference routes avoids every declared vertex. -/
+theorem referenceDrawing_crossing_ne_vertex {I : FixedRotationInput} (hI : Valid I)
+    {z : ℂ} (hz : ∃ e f : Fin (subdivisionGraph I).edges.length, e ≠ f ∧
+      z ∈ openSegment ℝ ((referenceDrawing I).route e).start
+        ((referenceDrawing I).route e).finish ∧
+      z ∈ openSegment ℝ ((referenceDrawing I).route f).start
+        ((referenceDrawing I).route f).finish) {v : ℕ}
     (hv : v ∈ (subdivisionGraph I).vertices) : z ≠ (referenceDrawing I).vertex v := by
   intro hzv
   obtain ⟨e, _, _, he, _⟩ := hz
@@ -111,7 +116,7 @@ private theorem exists_crossing_ball {I : FixedRotationInput} (hI : Valid I)
       simp [a, b, hj]
     have hzseg := hsep (Sum.inr j) (D.vertex v) hw hseg
     have hzv : z = D.vertex v := by simpa [a, b, hj] using hzseg
-    exact crossing_ne_vertex hI hz hv hzv
+    exact referenceDrawing_crossing_ne_vertex hI hz hv hzv
   · intro e hze
     apply Set.disjoint_left.mpr
     intro w hw hwe

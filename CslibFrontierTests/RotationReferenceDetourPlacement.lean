@@ -121,14 +121,6 @@ theorem frozen_reversed_local_cut : ∃ I : FixedRotationInput, Valid I ∧
   obtain ⟨r, hr, d, α, β, hcuts, hkeep, hpair, hcontact, _⟩ :=
     exists_reference_detour_placement valid_input hzc (hrad z hzc)
   let X := {e : E // z ∈ (D.route e).support}
-  let S : X → ℝ := fun e => (D.route e.val).start.re + (D.route e.val).finish.re
-  let F : E → Bool := fun e => ((subdivide input)[e.val]'(by
-    simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen
-  let R : X → Route := fun e => if F e.val then
-    Route.line ⟨-r, -r * S e⟩ ⟨r, r * S e⟩ else Route.slopeDetour r (S e) (d e)
-  let P : X → Route := fun e =>
-    (if decide ((D.route e.val).finish.re < (D.route e.val).start.re)
-      then (R e).reverse else R e).translate z
   let ef : X := ⟨edge 2,
     (Route.support_line (D.route (edge 2)).start (D.route (edge 2)).finish).symm ▸
       openSegment_subset_segment ℝ _ _ hz.1⟩
@@ -149,7 +141,7 @@ theorem frozen_reversed_local_cut : ∃ I : FixedRotationInput, Valid I ∧
     have hclosed : w ∈ Metric.closedBall z (radius z) := Metric.ball_subset_closedBall hball
     exact Set.disjoint_left.mp ((hav z hzc).2 (edge 0) hnot0) hclosed h
   refine ⟨input, valid_input, edge 2, edge 7, edge 0, edge 3, he2, hdec,
-    z, z', hzz, hz.1, hz.2, hz'.1, hz'.2, ρ, α ef, β ef, P ef, P ff,
+    z, z', hzz, hz.1, hz.2, hz'.1, hz'.2, ρ, α ef, β ef, _, _,
     hrad z hzc, hαe, hαβe, hβe, hline, hse, hsf, hbe, hbf,
     w, hw.1, hw.2, hw0, ?_⟩
   exact hcontact ef ff hef w hw.1 hw.2
