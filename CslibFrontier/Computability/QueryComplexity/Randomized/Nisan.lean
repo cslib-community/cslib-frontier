@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.QueryComplexity.ApproximateDegree
 public import CslibFrontier.Computability.QueryComplexity.Randomized
 public import Cslib.Computability.QueryComplexity.Measures
 import CslibFrontier.Computability.QueryComplexity.Relations
+import CslibFrontier.Computability.QueryComplexity.Threshold
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -29,6 +30,8 @@ disjoint, so `t` queries variables of at most `depth t` of them, and errs on `x`
 `Bⱼ` flipped for every other block. Averaging over `t` drawn from `μ`,
 `b ≤ depth μ + ∑ⱼ (ε + ε)`, that is `(1 - 2ε) bs(f) ≤ R_ε(f)`; for `ε = 1/3`, `bs(f) ≤ 3 R(f)`.
 With `D(f) ≤ bs(f)³` [BealsBuhrmanCleveMoscaDeWolf2001] this gives `D(f) ≤ 27 R(f)³`.
+Majority has block sensitivity `⌊n/2⌋ + 1`, so deciding it with error `1/3` takes at least
+`(⌊n/2⌋ + 1) / 3` queries, a linear lower bound [Goldreich, Exercise 10.8][Goldreich2007DraftR5].
 
 **Approximate degree** (`QueryComplexity.approxDegree_le_randomizedComplexity`). The probability
 that a tree drawn from `μ` outputs `1` on `x` is an average of functions of degree at most the
@@ -42,6 +45,8 @@ within `ε` of `f` when `μ` computes `f` with error `ε`. So `adeg_ε(f) ≤ R_
   `(1 - 2ε) bs(f) ≤ R_ε(f)` for `ε ≥ 0`.
 * `Cslib.QueryComplexity.blockSensitivity_le_three_mul_randomizedComplexity`: `bs(f) ≤ 3 R(f)`.
 * `Cslib.QueryComplexity.approxDegree_le_randomizedComplexity`: `adeg_ε(f) ≤ R_ε(f)`.
+* `Cslib.QueryComplexity.div_two_add_one_le_three_mul_randomizedComplexity_majority`:
+  `⌊n/2⌋ + 1 ≤ 3 R(MAJ_n)` [Goldreich, Exercise 10.8][Goldreich2007DraftR5].
 * `Cslib.RandomizedDecisionTree.Computes.one_sub_two_mul_mul_blockSensitivity_le_depth`,
   `Cslib.RandomizedDecisionTree.Computes.approxDegree_le_depth`: the same bounds for the depth of
   one randomized decision tree computing `f` with error `ε`.
@@ -56,6 +61,8 @@ within `ε` of `f` when `μ` computes `f` with error `ε`. So `adeg_ε(f) ≤ R_
   polynomials*][BealsBuhrmanCleveMoscaDeWolf2001]
 * [H. Buhrman, R. de Wolf, *Complexity measures and decision tree complexity:
   a survey*][BuhrmanDeWolf2002]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, Draft `r5.pdf`,
+  Exercise 10.8][Goldreich2007DraftR5]
 -/
 
 public section
@@ -201,6 +208,20 @@ theorem blockSensitivity_le_three_mul_randomizedComplexity (f : BooleanFunction 
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
   have h : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f := by linarith
   exact_mod_cast h
+
+/-- **Deciding majority requires linearly many probes** ([Goldreich, Exercise 10.8, draft `r5.pdf`
+p. 498][Goldreich2007DraftR5]): every randomized decision tree that computes `majority n` with error
+at most `1/3` on every input makes at least `(⌊n/2⌋ + 1) / 3` queries on some input and coin
+outcome, for `n ≥ 1`. Decision trees are the direct-access model with adaptive probes, with the
+tree drawn by the coins, and the number of probes bounds the running time below. The proof composes
+Nisan's bound `bs(f) ≤ 3 R(f)` with `bs(MAJ_n) ≥ s(MAJ_n) = ⌊n/2⌋ + 1`; it does not follow the
+exercise's guideline, which bounds the statistical distance between the restrictions to the probed
+positions of uniform strings with `⌊n/2⌋` and `⌊n/2⌋ + 1` zeros. -/
+theorem div_two_add_one_le_three_mul_randomizedComplexity_majority (hn : 1 ≤ n) :
+    n / 2 + 1 ≤ 3 * randomizedComplexity (1 / 3) (majority n) :=
+  (BitString.sensitivity_majority hn).symm.trans_le
+    ((sensitivity_le_blockSensitivity _).trans
+      (blockSensitivity_le_three_mul_randomizedComplexity _))
 
 /-- **Approximate degree is at most randomized complexity**: `adeg_ε(f) ≤ R_ε(f)`. -/
 theorem approxDegree_le_randomizedComplexity (ε : ℝ≥0) (f : BooleanFunction n) :
