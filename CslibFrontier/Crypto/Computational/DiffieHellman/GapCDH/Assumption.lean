@@ -120,7 +120,8 @@ def queryDDHWord (u v : List Bool) : WordOracleComp Unit Bool :=
   Decoder.bool.decode <$> ProbOracleComp.query ((), encDDHOracleQuery ⟨u, v⟩)
 
 /-- `queryDDHWord` is uniform strict oracle-PPT whenever its two word arguments are computable in
-polynomial time: reading the first symbol of the reply requires only a 1-bit prefix (`IsOraclePPTOn.query_take`
+polynomial time: reading the first symbol of the reply requires only a 1-bit prefix
+(`IsOraclePPTOn.query_take`
 with limit `1`). -/
 @[fun_prop]
 theorem isOraclePPTOn_queryDDHWord {α : Type} {input : α ↪ List Bool} {u v : α → List Bool}
