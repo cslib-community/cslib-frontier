@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 
@@ -101,8 +102,7 @@ theorem correctOn_toROM {S : Scheme PK SK M Sig} {adm : M → Prop}
     S.toROM.CorrectOn adm := by
   dsimp only [ROMSignature.Scheme.CorrectOn, toROM]
   intro keys hkeys m hm σ hσ cache signed hsigned verified hverified
-  simp only [interpret_pure, StateT.run_pure, PMF.monad_pure_eq_pure,
-    PMF.mem_support_pure_iff] at hsigned hverified
+  simp only [interp_norm, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hsigned hverified
   subst hsigned hverified
   exact h keys hkeys m hm σ hσ
 
@@ -147,18 +147,17 @@ private theorem runWith_runLoggedForger_toROM (S : Scheme PK SK M Sig) (A : Forg
     congr 1 with q : 1
     cases q with
     | inl k =>
-      simp [sumHandler, ProbOracleComp.sample, ProbComp.unifFin, interpret_query]
+      simp [sumHandler, ProbOracleComp.sample, ProbComp.unifFin]
     | inr m =>
-      simp [sumHandler, ProbOracleComp.query, interpret_query]
+      simp [sumHandler, ProbOracleComp.query]
   rw [hcomp, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
   exact ProbOracleComp.runWith_map_state _
     (fun m log => ProbComp.eval (ProbOracleComp.logOracle (Signer.ofSign S.sign sk) m log))
     (fun (state : List (M × Sig) × List (Empty × Unit)) => state.1.reverse)
     (fun m ⟨pairs, cache⟩ => by
-      simp only [ROMSignature.forgerWorldImpl, toROM, StateT.run, interpret_pure,
-        PMF.monad_bind_eq_bind, ROMSignature.logSigning, bind_pure_comp,
-        ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, sumHandler, PMF.map_bind,
-        PMF.map_comp, Function.comp_def]
+      simp only [ROMSignature.forgerWorldImpl, toROM, StateT.run, interp_norm, pmf_norm,
+        ROMSignature.logSigning, bind_pure_comp, ProbOracleComp.runWith_map,
+        ProbOracleComp.runWith_query]
       have hpure : ∀ σ : Sig, (pure σ : StateT (List (Empty × Unit)) PMF Sig) cache =
           PMF.pure (σ, cache) := fun _ => rfl
       simp only [Prod.map_fst, List.reverse_cons, hpure, PMF.pure_map, ProbOracleComp.logOracle,
@@ -180,8 +179,8 @@ theorem worldGame_toROM (S : Scheme PK SK M Sig) (fresh : M → Sig → List (M 
   refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
   dsimp only
   rw [ROMSignature.eval_world_worldRealize, ← runWith_runLoggedForger_toROM, PMF.bind_map]
-  simp only [toROM_verify, interpret_pure, StateT.run_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind]
+  simp only [toROM_verify, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.pure_bind]
   rfl
 
 /-- The random-oracle EUF-CMA experiment of `S.toROM` is `S.eufCmaExperiment`. -/

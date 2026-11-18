@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort.FiatShamir
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort.View
 public import CslibFrontier.Probability.IID
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Bounded aborting Fiat–Shamir signing in the shared random oracle
@@ -94,8 +95,7 @@ theorem fiatShamirAbortSign_fixedHash (P : SigmaProtocol X Y T C (Option Z))
   induction K with
   | zero => simp [fiatShamirAbortSign]
   | succ K ih =>
-    simp only [pmf_norm, fiatShamirAbortSign, interpret_bind, interpret_map, interpret_query, ih,
-      interpret_pure, List.ofFn_succ, List.map_cons]
+    simp only [interp_norm, pmf_norm, fiatShamirAbortSign, ih, List.ofFn_succ, List.map_cons]
     simp only [show Fin.tail coins = (fun i => coins i.succ) from rfl]
     cases hr : P.respond x y (coins 0).2 (hash (msg, (coins 0).1)) <;>
       simp [fsAbortSignStep, hr]
@@ -133,7 +133,7 @@ theorem fiatShamir_sign_run_eq_of_transcript_eq {Query R : Type}
           OracleComp.query (hashPoint (msg, coin.1)))).run state := by
   have hk := bind_respond_challenge_eq_of_transcript_eq P h
     (fun w => (answer (hashPoint (msg, w))).run state)
-  simpa only [pmf_norm, interpret_map, interpret_query, StateT.run_map] using
+  simpa only [interp_norm, pmf_norm] using
     congrArg (PMF.map fun view => ((view.1, view.2.2.1), view.2.2.2)) hk
 
 variable {R : Type} (P : SigmaProtocol X Y T C (Option Z))
@@ -153,8 +153,7 @@ theorem fiatShamirAbortSign_run_succ (x : X) (y : Y) (msg : M) (K : ℕ) (state 
       (interpret answer (fiatShamirAbortSign P (x, y) msg K coins)).run state').map
       fun later =>
         ((response.map fun z => (w, z)).orElse (fun _ => later.1), later.2) := by
-  simp only [pmf_norm, iid, Fin.cons_zero, Fin.tail_cons, fiatShamirAbortSign, run_interpret_bind,
-    run_interpret_pure, PMF.map]
+  simp only [interp_norm, pmf_norm, iid, Fin.cons_zero, Fin.tail_cons, fiatShamirAbortSign, PMF.map]
   congr 1 with coin : 1
   exact PMF.bind_comm _ _ _
 

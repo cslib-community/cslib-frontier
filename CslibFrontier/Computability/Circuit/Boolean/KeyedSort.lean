@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Sorting
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Sorting records by a computed key
@@ -72,8 +73,7 @@ theorem eval_keyedSortCircuit (key : Circuit signature r k) (depth : ℕ) (ascen
       BitString.block ((bitonicSortCircuit (Fin.castAdd r) depth ascending).eval interpretation
         ((keyedSortCircuit.pack key depth).eval interpretation x)) j ∘ Fin.natAdd k := by
   funext b
-  simp only [keyedSortCircuit, Circuit.eval_comp, Circuit.eval_wiring,
-    BitString.block, Function.comp_apply, Equiv.symm_apply_apply]
+  simp only [circuit_simps, keyedSortCircuit, BitString.block, Equiv.symm_apply_apply]
 
 /-- Sorting by computed keys preserves the multiset of complete records. -/
 theorem keyedSortCircuit_perm (key : Circuit signature r k) (depth : ℕ) (ascending : Bool)
@@ -125,9 +125,8 @@ theorem cost_program_keyedSortCircuit (key : Circuit signature r k) (depth : ℕ
       BitonicSort.arity depth * key.program.cost cost +
         (bitonicSortCircuit (Fin.castAdd r : Fin k → Fin (k + r)) depth ascending).program.cost
           cost := by
-  simp only [keyedSortCircuit, keyedSortCircuit.pack, Circuit.cost_program_comp,
-    Circuit.cost_program_replicate, Circuit.cost_program_append, Circuit.id,
-    Circuit.cost_program_wiring, Nat.add_zero]
+  simp only [circuit_simps, keyedSortCircuit, keyedSortCircuit.pack, Circuit.cost_program_replicate,
+    Nat.add_zero]
 
 /-- Exact weighted cost, including all temporary key gates and comparisons. The factor four
 avoids natural division and includes depth zero, empty keys, and empty records. -/

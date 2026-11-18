@@ -119,8 +119,7 @@ private theorem time_initAdjTableM (n : ℕ) (adj : Fin n → Fin n → Bool) :
 
 private theorem ret_initAdjTableM (n : ℕ) (adj : Fin n → Fin n → Bool) (u w : Fin n) :
     (initAdjTableM n adj).ret[u.1][w.1] = adj u w := by
-  unfold initAdjTableM
-  simp [ret_vectorOfFnM]
+  time_spec initAdjTableM
 
 private theorem time_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin n → β) :
     (initCostTableM n cost).time = n ^ 2 := by
@@ -129,8 +128,7 @@ private theorem time_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin
 
 private theorem ret_initCostTableM {β : Type*} (n : ℕ) (cost : Fin n → Fin n → β) (u w : Fin n) :
     (initCostTableM n cost).ret[u.1][w.1] = cost u w := by
-  unfold initCostTableM
-  simp [ret_vectorOfFnM]
+  time_spec initCostTableM
 
 /-- Scan `List.finRange n` for the first minimizer of `val` satisfying `pred`, charging one tick
 per scanned index (`n` ticks total). -/
@@ -142,8 +140,7 @@ per scanned index (`n` ticks total). -/
 
 private theorem time_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) : (argMinFinM n pred val).time = n := by
-  unfold argMinFinM
-  rw [time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp), List.length_finRange, mul_one]
+  time_spec argMinFinM [List.length_finRange]
 
 private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [DecidableRel r]
     (pred : α → Bool) (l : List α) (acc : Option α) :
@@ -160,12 +157,13 @@ private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [Decidab
       simp only [List.foldl_cons, h, ↓reduceIte]
       exact ih (List.argAux r acc i)
 
+@[time_simps]
 private theorem ret_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) :
     (argMinFinM n pred val).ret = ((List.finRange n).filter pred).argmin val := by
   unfold argMinFinM
   rw [ret_foldlM]
-  simp only [ret_bind, ret_pure]
+  simp only [time_simps]
   exact foldl_argAux_skip (fun x y => val x < val y) pred (List.finRange n) none
 
 /-! ### Per-level subroutines -/
@@ -210,7 +208,7 @@ private theorem ret_selectParentsM (a : AdjTable n) (c : CostTable β n) (r : Fi
     simp only [Vector.getElem_ofFn, optFn]
     split_ifs <;> simp [ret_argMinFinM]
   unfold selectParentsM
-  simp only [ret_bind, ret_pure, hopts, ret_foldlM, ret_vectorOfFnM]
+  simp only [time_simps, hopts]
   congr 1
   · have hvec : ∀ v : Fin n, (Vector.ofFn optFn)[v.1] = optFn v := fun v => by simp
     have hfold : ∀ (l : List (Fin n)) (b : Bool),
@@ -263,17 +261,16 @@ structure CycleSearchState (n : ℕ) where
     ({ current := x, hit := false } : CycleSearchState n)
   pure st.hit
 
+@[time_simps]
 private theorem time_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).time = n := by
-  unfold hasCycleFromM
-  simp only [time_bind, time_pure, add_zero]
-  rw [time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp), List.length_range, mul_one]
+  time_spec hasCycleFromM [List.length_range]
 
 private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).ret =
       (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x := by
   unfold hasCycleFromM
-  simp only [ret_bind, ret_pure, ret_foldlM]
+  simp only [time_simps]
   have hinv : ∀ m : ℕ,
       (List.range m).foldl
         (fun (st : CycleSearchState n) _ =>
@@ -308,50 +305,13 @@ private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
 private theorem time_findCycleM (r : Fin n) (f : ParentTable n) :
     (findCycleM r f).time ≤ n ^ 2 + n := by
   unfold findCycleM
-  have hstep : ∀ (l : List (Fin n)) (acc : Option (Fin n)),
-      (l.foldlM
-        (fun acc x => do
-          ✓
-          match acc with
-          | some x0 => pure (some x0)
-          | none =>
-            if x == r then pure none
-            else do
-              let hit ← hasCycleFromM x f
-              pure (if hit then some x else none))
-        acc).time ≤ l.length * (n + 1) := by
-    intro l
-    induction l with
-    | nil => intro acc; simp
-    | cons x l ih =>
-      intro acc
-      rw [List.foldlM_cons, time_bind]
-      let inner : TimeM ℕ (Option (Fin n)) := do
-        ✓
-        match acc with
-        | some x0 => pure (some x0)
-        | none =>
-          if x == r then pure none
-          else do
-            let hit ← hasCycleFromM x f
-            pure (if hit then some x else none)
-      have hhd : inner.time ≤ n + 1 := by
-        dsimp only [inner]
-        cases acc with
-        | some x0 => simp
-        | none =>
-          by_cases hxr : (x == r) = true
-          · simp [hxr]
-          · simp only [hxr, Bool.false_eq_true, ↓reduceIte, time_bind, time_tick,
-              time_hasCycleFromM, time_pure, add_zero]
-            omega
-      have htl := ih inner.ret
-      have hle : inner.time + _ ≤ _ := Nat.add_le_add hhd htl
-      simp only [List.length_cons, Nat.succ_mul, Nat.add_comm (l.length * (n + 1))] at hle ⊢
-      exact hle
-  have h := hstep (List.finRange n) none
-  rw [List.length_finRange] at h
-  exact h.trans_eq (by ring)
+  refine (time_foldlM_le (c := n + 1) _ _ _ fun acc x _ => ?_).trans_eq ?_
+  · cases acc with
+    | some _ => simp only [time_simps]; omega
+    | none =>
+      simp only [time_simps]
+      split <;> simp only [time_simps] <;> omega
+  · rw [List.length_finRange]; ring
 
 private def findStep {α : Type*} (p : α → Bool) (a : Option α) (x : α) : Option α :=
   match a with
@@ -417,13 +377,7 @@ structure CycleMaskState (n : ℕ) where
 
 private theorem time_cycleMaskM (f : ParentTable n) (x0 : Fin n) :
     (cycleMaskM f x0).time = 2 * n := by
-  unfold cycleMaskM
-  simp only [time_bind, time_pure, add_zero]
-  rw [time_vectorOfFnM, time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => by simp),
-    List.length_range]
-  simp only [time_bind, time_tick, time_pure, add_zero, Finset.sum_const, Finset.card_fin,
-    smul_eq_mul, mul_one]
-  omega
+  time_spec cycleMaskM [Finset.sum_const, Finset.card_fin]
 
 private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
     ∀ (m : ℕ) (init : Vector Bool n),
@@ -468,7 +422,7 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
 private theorem ret_cycleMaskM (f : ParentTable n) (x0 : Fin n) (y : Fin n) :
     (cycleMaskM f x0).ret[y.1] = true ↔ ∃ k < n, (fun i : Fin n => f[i.1])^[k] x0 = y := by
   unfold cycleMaskM
-  simp only [ret_bind, ret_pure, ret_foldlM]
+  simp only [time_simps]
   have hspec := (cycleMask_loop_spec f x0 n
     (Vector.ofFnM fun _ : Fin n => do ✓ pure false).ret).2 y
   have hinit : ((Vector.ofFnM fun _ : Fin n => do ✓ pure false).ret)[y.1] = false := by
@@ -492,8 +446,7 @@ private theorem ret_bestEntryTableM (a : AdjTable n) (c : CostTable β n)
     (bestEntryTableM a c inCycle).ret[u.1] =
       ((List.finRange n).filter fun y => inCycle[y.1] && a[u.1][y.1]).argmin
         (fun y => c[u.1][y.1]) := by
-  unfold bestEntryTableM
-  rw [ret_vectorOfFnM, Vector.getElem_ofFn, ret_argMinFinM]
+  time_spec bestEntryTableM
 
 section AddMonoidLevel
 
@@ -546,7 +499,7 @@ private theorem ret_otherCycleCostM (c : CostTable β n) (f : ParentTable n)
   unfold otherCycleCostM
   rw [ret_vectorOfFnM, Vector.getElem_ofFn]
   have hxin : inCycle[x.1] = true := (hC x).mpr hx
-  simp only [hxin, ↓reduceIte, ret_foldlM, ret_bind, ret_pure]
+  simp only [hxin, ↓reduceIte, time_simps]
   rw [foldl_add_filter (fun y => inCycle[y.1] && y != x) (fun y => c[y.1][f[y.1].1])]
   rw [zero_add]
   have hnd : ((List.finRange n).filter (fun y => inCycle[y.1] && y != x)).Nodup :=
@@ -576,8 +529,7 @@ private theorem ret_bestExitTableM (a : AdjTable n) (c : CostTable β n)
     (bestExitTableM a c inCycle otherCycleCost).ret[w.1] =
       ((List.finRange n).filter fun x => inCycle[x.1] && a[x.1][w.1]).argmin
         (fun x => c[x.1][w.1] + otherCycleCost[x.1]) := by
-  unfold bestExitTableM
-  rw [ret_vectorOfFnM, Vector.getElem_ofFn, ret_argMinFinM]
+  time_spec bestExitTableM
 
 end AddMonoidLevel
 
@@ -694,8 +646,7 @@ private theorem ret_expandParentTableM (f : ParentTable n) (inCycle : Vector Boo
         | none => f[v.1]
       else if q[v.1] == x0 then (bestEntry[v.1]).getD v
       else q[v.1] := by
-  unfold expandParentTableM
-  simp [ret_vectorOfFnM]
+  time_spec expandParentTableM
 
 end Level
 

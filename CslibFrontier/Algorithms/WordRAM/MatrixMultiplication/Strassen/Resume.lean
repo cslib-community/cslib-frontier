@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Pending
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Next
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Finish
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real parent resumption after a native Strassen child
@@ -70,8 +71,7 @@ theorem exec_step_resume_next {w p k A B a b out scratch frames frame : ℕ}
     exec_stage_next phase z u v zh zc hl hu hv
       (by simpa only [zm] using originalA) (by simpa only [zm] using originalB)
       (by simpa only [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = selected.val :=
-    (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = selected.val := by regs_frame
   have dispatched := exec_dispatch selected r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by
@@ -133,7 +133,7 @@ theorem exec_step_resume_finish {w p k A B a b out scratch frames frame : ℕ}
       intro he; subst i; contradiction))
   obtain ⟨y, stageRun, result⟩ := exec_stage_finish z u v zh zc hl hu hv
     (by simpa [zm] using partialWords) (by simpa only [zm] using productWords) hmag haddr
-  have rphase : r.regs Reg.phase = 7 := (rr Reg.phase (by decide)).trans sphase
+  have rphase : r.regs Reg.phase = 7 := by regs_frame
   have dispatched := exec_dispatch 7 r y rh.zero_eq rphase
     (haddr.of_le (by unfold addressBound; omega)) stageRun
   have depthTest : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by

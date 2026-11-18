@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.AhoCorasick.Basic
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Aho–Corasick Multi-Pattern String Matching
@@ -157,21 +158,7 @@ theorem ret_stepM {P : List (List α)} {f : List α → List α} {u : List α} (
 theorem time_stepM_le (P : List (List α)) (f : List α → List α) (u : List α) (a : α) :
     (stepM P f u a).time + (stepM P f u a).ret.length ≤ u.length + 2 ∧
       (stepM P f u a).time ≤ u.length + 1 := by
-  induction h : u.length using Nat.strongRecOn generalizing u with
-  | ind n ih =>
-    rw [stepM]
-    split_ifs with hnode hnil hlt
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure, List.length_append, List.length_singleton]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-        TimeM.ret_pure, List.length_nil]
-      omega
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.ret_bind]
-      have := ih _ (h ▸ hlt) _ rfl
-      omega
-    · simp only [TimeM.time_pure, TimeM.ret_pure, List.length_nil]
-      omega
+  time_spec stepM
 
 /-! ## Algorithm 1: the scan -/
 
@@ -201,7 +188,7 @@ theorem ret_scanLoopM {P : List (List α)} {M : Machine α} (hM : M.IsValid P) (
         (stepM P M.fail (longestNodeSuffix P w) a).ret = longestNodeSuffix P (w ++ [a]) := by
       rw [ret_stepM a (fun v hv _ => (hM v hv).1) (isNode_longestNodeSuffix P w),
         longestNodeSuffix_append_singleton_eq_nextMove]
-    simp only [scanLoopM, TimeM.ret_bind, TimeM.ret_pure, hstep]
+    simp only [scanLoopM, time_simps, hstep]
     have hout : M.out (longestNodeSuffix P (w ++ [a])) = output P (w ++ [a]) := by
       rw [(hM _ (isNode_longestNodeSuffix P _)).2, output_longestNodeSuffix]
     have := ih (w ++ [a])
@@ -225,10 +212,9 @@ theorem time_scanLoopM_le (P : List (List α)) (M : Machine α) (t : List α) (i
   | nil => exact absurd rfl ht
   | cons a t ih =>
     have hs := time_stepM_le P M.fail u a
-    simp only [scanLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-      TimeM.ret_pure, List.length_append, List.length_cons, List.length_map]
+    simp only [scanLoopM, time_simps, List.length_append, List.length_map]
     rcases t with _ | ⟨b, t⟩
-    · simp only [scanLoopM, TimeM.time_pure, TimeM.ret_pure, List.length_nil]
+    · simp only [scanLoopM, time_simps]
       omega
     · have := ih (i + 1) (stepM P M.fail u a).ret (List.cons_ne_nil b t)
       simp only [List.length_cons] at this ⊢
@@ -270,10 +256,7 @@ theorem time_scanM_eq (P : List (List α)) (M : Machine α) (t : List α) :
 
 private theorem ret_scanLoopM_silent (P : List (List α)) (f : List α → List α) (t : List α)
     (i : ℕ) (u : List α) : (scanLoopM P ⟨f, fun _ => []⟩ t i u).ret = [] := by
-  induction t generalizing i u with
-  | nil => rfl
-  | cons a t ih =>
-    simp only [scanLoopM, TimeM.ret_bind, TimeM.ret_pure, List.map_nil, List.nil_append, ih]
+  time_spec scanLoopM
 
 /-- `[AhoCorasick1975]`, Theorem 2: on a nonempty text of length `n`, Algorithm 1 makes fewer than
 `2n` goto and failure transitions. This holds for any failure table, because the failure loop of

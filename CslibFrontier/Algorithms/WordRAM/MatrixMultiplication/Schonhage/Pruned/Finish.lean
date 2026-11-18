@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Node
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual return after all ten child terms
@@ -42,11 +43,11 @@ theorem exec_node_finish {w L f a0 b0 d : ℕ} (x : Data registers)
   have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
     hureg i hi
   have hut' : u.regs term = 10 := hut.trans hterm
-  have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-  have hu1 := (fixed one (by decide)).trans hregs.one_eq
-  have hu10 := (fixed ten (by decide)).trans hregs.ten_eq
-  have hum : u.regs mode = 1 := (fixed mode (by decide)).trans hm
-  have hud : u.regs level = d := (fixed level (by decide)).trans hd
+  have hu0 : u.regs nil = 0 := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
+  have hu10 : u.regs ten = 10 := by regs_frame
+  have hum : u.regs mode = 1 := by regs_frame
+  have hud : u.regs level = d := by regs_frame
   obtain ⟨y, hy, hymem, hyl, hym, hya, _⟩ := exec_pop u hu0 hu1
     (hw.of_le (by rw [hud]; nlinarith only [hL, hdL]))
   have hcall : ExecWithin w dispatch u y 6 := hy.branch_neg
@@ -60,6 +61,6 @@ theorem exec_node_finish {w L f a0 b0 d : ℕ} (x : Data registers)
   exact ⟨y, he, hregs.of_step he, hymem.trans humem,
     by simpa only [hud] using hyl, by simpa only [hud, hum] using hym,
     by simpa only [hud, fixed active (by decide)] using hya,
-    (hy.regs_eq (by decide : pop.Preserves epoch)).trans (fixed epoch (by decide))⟩
+    by regs_frame⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

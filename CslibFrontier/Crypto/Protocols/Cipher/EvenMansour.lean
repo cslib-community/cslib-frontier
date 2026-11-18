@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomPermutation
 public import CslibFrontier.Languages.Probabilistic.Sum
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
@@ -557,8 +558,7 @@ theorem pure_evalTwoPerms {α : Type} (E π : Equiv.Perm G)
         (sumHandler (fun q => PMF.pure (evalPerm E q)) (fun q => PMF.pure (evalPerm π q)))
         (OracleComp.query q >>= cont)
     cases q <;>
-      · simp only [evalTwoPerms, sumHandler, OracleComp.interpret_bind, OracleComp.interpret_query,
-          Id.run_bind, PMF.monad_bind_eq_bind, PMF.pure_bind]
+      · simp only [evalTwoPerms, interp_norm, pmf_norm, Id.run_bind]
         exact ih _
 
 omit [AddGroup G] in

@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Crypto.Game
 public import Mathlib.Algebra.Field.ZMod
 public import Mathlib.Algebra.Module.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
 import CslibFrontier.Probability.PMF
 import Mathlib.SetTheory.Cardinal.Finite
@@ -52,6 +53,12 @@ are public, and an adversary's running time may depend on their encoded length.
 
 ## Main results
 
+* `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_order_comp`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encode_generator`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_add_comp`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_smul_comp`: `fun_prop` rules for the
+  order, encoded generator, word-level addition and word-level scalar multiplication on computed
+  group parameters.
 * `Cslib.Crypto.PrimeOrderGroupFamily.smul_generator_injective`: a discrete logarithm modulo `q`
   is unique.
 * `Cslib.Crypto.PrimeOrderGroupFamily.smul_generator_surjective`,
@@ -131,6 +138,39 @@ instance (d : F.Desc) : NeZero (F.order d) := ⟨(F.prime_order d).ne_zero⟩
 /-- Equality of group elements, decided on their injective encodings. -/
 instance (d : F.Desc) : DecidableEq (F.Carrier d) := fun x y =>
   decidable_of_iff (F.encode d x = F.encode d y) (F.encode_injective d).eq_iff
+
+variable {F} in
+/-- The order of computed group parameters is computable in polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_order_comp {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
+    ComputableInPolyTime (fun a => F.order (d a)) enc encNat :=
+  F.computableInPolyTime_order.comp hd
+
+variable {F} in
+/-- The encoded generator of computed group parameters. -/
+@[fun_prop] theorem computableInPolyTime_encode_generator {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
+    ComputableInPolyTime (fun a => F.encode (d a) (F.generator (d a))) enc encBits :=
+  F.computableInPolyTime_generator.comp hd
+
+variable {F} in
+/-- Word-level addition of computed group-element words is computable in polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_add_comp {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {x y : α → List Bool} (hd : ComputableInPolyTime d enc F.encDesc)
+    (hx : ComputableInPolyTime x enc encBits)
+    (hy : ComputableInPolyTime y enc encBits) :
+    ComputableInPolyTime (fun a => F.add (d a, x a, y a)) enc encBits :=
+  F.computableInPolyTime_add.comp (hd.prod (hx.prod hy))
+
+variable {F} in
+/-- Word-level scalar multiplication of a computed group-element word by a computed natural
+number is computable in polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_smul_comp {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {k : α → ℕ} {x : α → List Bool}
+    (hd : ComputableInPolyTime d enc F.encDesc) (hk : ComputableInPolyTime k enc encNat)
+    (hx : ComputableInPolyTime x enc encBits) :
+    ComputableInPolyTime (fun a => F.smul (d a, k a, x a)) enc encBits :=
+  F.computableInPolyTime_smul.comp (hd.prod (hk.prod hx))
 
 /-- A discrete logarithm modulo `q` is unique: `α ↦ α • g` is injective. -/
 theorem smul_generator_injective (d : F.Desc) :

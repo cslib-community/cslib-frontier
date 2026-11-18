@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.BasicOps
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Consolidation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Degree-indexed root consolidation and `extractMin` for a Fibonacci heap
@@ -440,8 +441,7 @@ theorem scatterRootCode_exec {n sz base w maxDeg₀ : ℕ} {x : Data rFib}
       (by subst hx1; wram_simp) (by subst hx1; wram_simp)
       (by subst hx1; wram_simp [hst1])
   rw [hst1] at hback
-  have hmd_lp : z_lp.regs maxDegReg = maxDeg₀ :=
-    (hlow_lp maxDegReg (by decide)).trans (by subst hx1; wram_simp [hx_md])
+  have hmd_lp : z_lp.regs maxDegReg = maxDeg₀ := by subst hx1; regs_frame
   have hdf_bds := hP_f.deg_bounds
   rw [hdeg_f] at hdf_bds
   have hdf_le_n : curD_f ≤ n := by omega
@@ -604,10 +604,8 @@ private theorem scatterChildrenLoop_exec {n sz base w : ℕ} {z : Fin n} :
         scatterRootCode_exec hb_mid hbr_mid (by rw [hst_mid]; exact h₁.placing hT₁) hmid_ic hmid_md
       rw [hst_mid] at hc₁
       obtain ⟨h₂, hback₂⟩ := h₁.step hc₁
-      have hsc_nxt : a_sc.regs iterNxt = st.right T_u.root :=
-        (hlow_sc iterNxt (by decide)).trans hmid_nxt
-      have hsc_rem : a_sc.regs remReg = c_tl.length + 1 :=
-        (hlow_sc remReg (by decide)).trans hmid_rem
+      have hsc_nxt : a_sc.regs iterNxt = st.right T_u.root := by regs_frame
+      have hsc_rem : a_sc.regs remReg = c_tl.length + 1 := by regs_frame
       apply WP.seq
       refine WP.of_execWithin he3 ?_
       refine WP.bounded hb_sc ?_
@@ -715,10 +713,8 @@ private theorem scatterRootsLoop_exec {n sz base w : ℕ} {z : Fin n} :
           (by subst ha1; wram_simp [hu_ic]) (by subst ha1; wram_simp [hmd])
       rw [hst1] at hc₁
       obtain ⟨h₂, hback₂⟩ := h.step hc₁
-      have hsc_nxt : a_sc.regs iterNxt = st.right T_u.root :=
-        (hlow_sc iterNxt (by decide)).trans (by subst ha1; wram_simp)
-      have hsc_rem : a_sc.regs remReg = r_tl.length + 1 :=
-        (hlow_sc remReg (by decide)).trans (by subst ha1; wram_simp [hrem, List.length_cons])
+      have hsc_nxt : a_sc.regs iterNxt = st.right T_u.root := by subst ha1; regs_frame
+      have hsc_rem : a_sc.regs remReg = r_tl.length + 1 := by subst ha1; regs_frame
       have hmod_a_asc : Modifies (Block.mk base (space n)).footprint a.mem a_sc.mem := by
         subst ha1; exact hmod2
       refine WP.of_execWithin he2 ?_
@@ -1022,10 +1018,8 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
         refine ⟨slotTrees_1, maxDeg_1,
           by simp only [slotCredit, List.length_nil] at ht_sc1 ⊢; omega,
           hb_A1, hbr_A1, modifies_block_trans hmod_pre hmod_sc1,
-          (hregs_sc1 outFlag (by decide) (by decide)).trans (by subst hx_c0; wram_simp),
-          (hregs_sc1 outV (by decide) (by decide)).trans (by subst hx_c0; wram_simp),
-          (hregs_sc1 outK (by decide) (by decide)).trans (by subst hx_c0; wram_simp),
-          (hregs_sc1 pReg (by decide) (by decide)).trans (by subst hx_c0; wram_simp),
+          by subst hx_c0; regs_frame, by subst hx_c0; regs_frame,
+          by subst hx_c0; regs_frame, by subst hx_c0; regs_frame,
           hmd_sc1, hc_sc1⟩
     rintro x_A1 t_A1 ⟨slotTrees_1, maxDeg_1, ht_A1, hb_A1, hbr_A1, hmod_A1,
       hA1_of, hA1_ov, hA1_ok, hA1_pr, hmd_A1, hc₁⟩
@@ -1053,12 +1047,9 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
     rw [hst_tr] at hc₂
     have hmod_xA1_xA2 : Modifies (Block.mk base (space n)).footprint x_A1.mem x_A2.mem := by
       subst hx_tr; exact hmod_A2
-    have hA2_of : x_A2.regs outFlag = 1 :=
-      (hregs_A2 outFlag (by decide)).trans (by subst hx_tr; wram_simp [hA1_of])
-    have hA2_ov : x_A2.regs outV = z.val :=
-      (hregs_A2 outV (by decide)).trans (by subst hx_tr; wram_simp [hA1_ov])
-    have hA2_ok : x_A2.regs outK = st.key z :=
-      (hregs_A2 outK (by decide)).trans (by subst hx_tr; wram_simp [hA1_ok])
+    have hA2_of : x_A2.regs outFlag = 1 := by subst hx_tr; regs_frame
+    have hA2_ov : x_A2.regs outV = z.val := by subst hx_tr; regs_frame
+    have hA2_ok : x_A2.regs outK = st.key z := by subst hx_tr; regs_frame
     refine WP.of_execWithin he_A2 ?_
     -- Phase B preamble + `gatherSlotsLoop`.
     have hmd2_le_n : maxDeg_2 + 1 ≤ n := by
@@ -1079,15 +1070,9 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
     obtain ⟨hfin, hnm_le, hmd2_log⟩ := hD.finish hc₁ hc₂ hG
     have hmod_xA2_y : Modifies (Block.mk base (space n)).footprint x_A2.mem y.mem := by
       subst hx_B0; exact hmod_B
-    have hy_of : y.regs outFlag = 1 :=
-      (hregs_B outFlag (by decide) (by decide) (by decide)).trans
-        (by subst hx_B0; wram_simp [hA2_of])
-    have hy_ov : y.regs outV = z.val :=
-      (hregs_B outV (by decide) (by decide) (by decide)).trans
-        (by subst hx_B0; wram_simp [hA2_ov])
-    have hy_ok : y.regs outK = st.key z :=
-      (hregs_B outK (by decide) (by decide) (by decide)).trans
-        (by subst hx_B0; wram_simp [hA2_ok])
+    have hy_of : y.regs outFlag = 1 := by subst hx_B0; regs_frame
+    have hy_ov : y.regs outV = z.val := by subst hx_B0; regs_frame
+    have hy_ok : y.regs outK = st.key z := by subst hx_B0; regs_frame
     refine WP.of_execWithin he_B ?_
     refine ⟨?_, ?_, modifies_block_trans hmod_A1 (modifies_block_trans hmod_xA1_xA2 hmod_xA2_y),
       ?_⟩

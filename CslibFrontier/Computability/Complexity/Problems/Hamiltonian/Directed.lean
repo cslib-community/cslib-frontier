@@ -185,9 +185,7 @@ namespace SAT
 /-- The detours of the diamond graph are computable in polynomial time. -/
 private theorem computableInPolyTime_diamondDetours :
     ComputableInPolyTime diamondDetours encCNF (encList Diamond.encDetour) := by
-  have hvars := computableInPolyTime_vars
-  unfold diamondDetours encCNF
-  fun_prop
+  fun_prop [diamondDetours]
 
 /-- The diamond graph is computable in polynomial time: node labels are computed in unary from
 diamond, row, clause and first-occurrence indices, then converted to binary. -/
@@ -203,11 +201,7 @@ theorem computableInPolyTime_diamondGraph :
 @[fun_prop]
 theorem computableInPolyTime_toDirHamPath :
     ComputableInPolyTime toDirHamPath encCNF encPathInstance := by
-  have hvars := computableInPolyTime_vars
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.vars.length) encCNF encUnary :=
-    (length_list encNat).comp hvars
-  unfold toDirHamPath
-  fun_prop
+  fun_prop [toDirHamPath]
 
 /-- **Correctness of the cycle construction.** A formula is satisfiable exactly when its closed
 diamond graph has a Hamiltonian cycle. -/
