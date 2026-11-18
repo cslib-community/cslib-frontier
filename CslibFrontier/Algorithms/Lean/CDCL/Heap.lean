@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import Batteries.Data.BinaryHeap
 -- `import all` only to unfold `heapifyUp` and `heapifyDown`, whose bodies Batteries does not
 -- expose, and to use its unfolding lemmas for `heapifyDown`, in the proofs that the structurally
@@ -160,9 +161,8 @@ theorem popMaxF_eq (heap : BinaryHeap α) : heap.popMaxF = heap.popMax := by
 /-- The maximum is the first element. -/
 theorem eq_getElem_zero_of_max {heap : BinaryHeap α} {x : α} (h : heap.maxF = some x) :
     ∃ hpos : 0 < heap.size, x = heap.arr[0] := by
-  simp only [maxF] at h
-  obtain ⟨hpos, hx⟩ := Array.getElem?_eq_some_iff.1 h
-  exact ⟨hpos, hx.symm⟩
+  rw [maxF_eq] at h
+  exact ⟨size_pos_of_max h, max_eq_arr_zero h⟩
 
 theorem mem_of_max {heap : BinaryHeap α} {x : α} (h : heap.maxF = some x) : x ∈ heap := by
   obtain ⟨hpos, rfl⟩ := eq_getElem_zero_of_max h
@@ -182,11 +182,6 @@ theorem mem_popMaxF {heap : BinaryHeap α} {x y : α} (hx : heap.maxF = some x) 
 /-- Removing the maximum adds no element. -/
 theorem mem_of_mem_popMaxF {heap : BinaryHeap α} {y : α} (hy : y ∈ heap.popMaxF) : y ∈ heap := by
   rw [popMaxF_eq] at hy
-  by_cases hpos : 0 < heap.size
-  · exact Array.mem_toList_iff.1
-      ((popMax_perm hpos).mem_iff.1 (List.mem_cons_of_mem _ (Array.mem_toList_iff.2 hy)))
-  · have : heap.size = 0 := by omega
-    simp only [popMax, this, ↓reduceDIte] at hy
-    exact hy
+  exact mem_of_mem_popMax hy
 
 end Batteries.BinaryHeap

@@ -75,8 +75,10 @@ example : (VarOrder.pop act [] 10 order).1 = some 1 := by decide +kernel
 /-- An assigned variable is skipped. -/
 example : (VarOrder.pop act [⟨(1, true), true⟩] 10 order).1 = some 2 := by decide +kernel
 
-/-- A stale entry, keyed below the variable's activity, is skipped: variable `3`, inserted at `0`,
-now has activity `9`, and its fresh entry comes first. -/
+/-- A fresh entry has priority: variable `3`, inserted at activity `0`, now has activity `9` and
+is inserted again, and its fresh entry comes out first. (Its stale entry, at `0`, stays below; for
+an unassigned variable a stale entry is never on top of a covering heap, so this does not exercise
+discarding one.) -/
 example : (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ [] 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
     some 3 := by
   decide +kernel
