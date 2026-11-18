@@ -213,7 +213,7 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       (fun out : α × List (List Bool × List Bool) => hasDistinctCollision out.2)
       (encPair encOut EState) encBool :=
     computableInPolyTime_hasDistinctCollision.comp (ComputableInPolyTime.snd _ _)
-  simpa only [bind_pure_comp] using (hrun.map' hpost).isOraclePPT
+  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun hpost).isOraclePPT
 
 /-- In Experiment `true` (`b = 1`), every recorded entry `(c, r)` in `repeatToCPAAdversary`
 satisfies `c ∈ support(E.encrypt n k r)` when `ctBound n` bounds ciphertext lengths on `n`-bit

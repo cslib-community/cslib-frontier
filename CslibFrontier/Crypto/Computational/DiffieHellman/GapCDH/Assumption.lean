@@ -134,7 +134,8 @@ theorem isOraclePPTOn_queryDDHWord {α : Type} {input : α ↪ List Bool} {u v :
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), encDDHOracleQuery ⟨u a, v a⟩)) :=
     IsOraclePPTOn.query_take () hreq (ComputableInPolyTime.const 1)
-  refine (htake.map' Decoder.bool.computableInPolyTime).congr fun a State oracle s => ?_
+  refine (IsOraclePPTOn.map htake Decoder.bool.computableInPolyTime).congr
+    fun a State oracle s => ?_
   have hhead : ∀ w : List Bool, Decoder.bool.decode (List.take 1 w) = Decoder.bool.decode w := by
     intro w; cases w <;> rfl
   simp only [queryDDHWord, Functor.map_map, hhead]

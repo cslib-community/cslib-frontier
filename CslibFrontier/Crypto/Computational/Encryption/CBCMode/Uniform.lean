@@ -599,7 +599,8 @@ private theorem isOraclePPTOn_cbcBodyQueries :
       have htake := List.length_take_le a.1 reply
       simp only [EState, length_encPair, encBits_apply, List.length_append]
       omega)
-  exact hloop.map' (f := fun (_, _, acc) => acc) (by dsimp only [EState]; fun_prop)
+  exact IsOraclePPTOn.map hloop (f := fun (_, _, acc) => acc)
+    (by dsimp only [EState]; fun_prop)
 
 /-- Every supported output of `cbcBodyQueries n iv msg` has at most `msg.length` bits. -/
 private theorem length_le_of_mem_support_cbcBodyQueries (n : ℕ) (iv msg reply : List Bool)
