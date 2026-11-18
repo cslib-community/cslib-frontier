@@ -7757,6 +7757,7 @@ public import CslibFrontier.Logics.Propositional.SigmaThree
 public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
+public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential

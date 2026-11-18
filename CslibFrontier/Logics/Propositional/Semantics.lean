@@ -27,6 +27,11 @@ transformation (`Cslib.Logic.PL.Proposition.tseitinCNF`) are stated with the `Bo
 ## Main definitions
 
 * `Cslib.Logic.PL.Proposition.eval`: the value of a proposition under a valuation of its atoms.
+
+## Main results
+
+* `Cslib.Logic.PL.Proposition.eval_prop_of_forall_eval_bool`: a truth-table tautology holds
+  under every valuation in `Prop`.
 -/
 
 @[expose] public section
@@ -63,5 +68,41 @@ variable (v : Atom → Bool) (A B : Proposition Atom)
   simp only [eval, himp_eq, Bool.compl_eq_bnot, Bool.sup_eq_bor, Bool.or_comm]
 
 end Bool
+
+/-! ### Propositions -/
+
+section PropValued
+
+variable (v : Atom → Prop) (A B : Proposition Atom)
+
+@[simp] theorem eval_atom_prop (x : Atom) : (atom x).eval v = v x := rfl
+
+@[simp] theorem eval_falsum_prop : (falsum : Proposition Atom).eval v = False := rfl
+
+@[simp] theorem eval_and_prop : (and A B).eval v = (A.eval v ∧ B.eval v) := rfl
+
+@[simp] theorem eval_or_prop : (or A B).eval v = (A.eval v ∨ B.eval v) := rfl
+
+@[simp] theorem eval_imp_prop : (imp A B).eval v = (A.eval v → B.eval v) := rfl
+
+/-- **Truth tables decide propositions over `Prop`**, classically: a proposition holds under a
+valuation in `Prop` exactly when it is true under the Boolean valuation that decides each atom. -/
+theorem eval_prop_iff_eval_bool [DecidablePred v] :
+    A.eval v ↔ A.eval (fun x => decide (v x)) = true := by
+  induction A with
+  | atom x => simp
+  | falsum => simp
+  | and A B ihA ihB => simp [ihA, ihB]
+  | or A B ihA ihB => simp [ihA, ihB]
+  | imp A B ihA ihB => simp [ihA, ihB, Bool.or_eq_true, imp_iff_not_or]
+
+/-- **A truth-table tautology holds under every valuation in `Prop`.** The proof decides each
+atom classically, so this is a statement about classical logic. -/
+theorem eval_prop_of_forall_eval_bool (h : ∀ w : Atom → Bool, A.eval w = true) (v : Atom → Prop) :
+    A.eval v := by
+  classical
+  exact (eval_prop_iff_eval_bool v A).2 (h _)
+
+end PropValued
 
 end Cslib.Logic.PL.Proposition
