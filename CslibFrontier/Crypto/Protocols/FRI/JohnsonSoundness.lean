@@ -33,10 +33,12 @@ soundness provider `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_weig
 
 ## Scope and relationship to the source theorems
 
-* Lemma 8.2 and Theorem 8.3 of the accepted *Journal of the ACM* (2023) manuscript
-  ([BenSassonCarmonIshaiKoppartySaraf2020, Section 8.2, pp. 36–40; Section 8.2.1, pp. 41–43]) are
-  interactive IOP soundness theorems for *batched* FRI establishing correlated agreement of the
-  initial functions; BCS random-oracle soundness bounds are separate compositions.
+* Lemma 8.2 (printed pp. 38–39, proved via the commit-phase bad-event sum in Section 8.2.1,
+  printed pp. 41–43, p. 42) and Theorem 8.3 (printed p. 39, proved on printed p. 40 by applying
+  Lemma 8.2) of the accepted *Journal of the ACM* (2023) manuscript
+  ([BenSassonCarmonIshaiKoppartySaraf2020]) are interactive IOP soundness theorems for *batched*
+  FRI establishing correlated agreement of the initial functions; BCS random-oracle soundness bounds
+  are separate compositions.
 * Folding in `friIOP` is binary (`l⁽ⁱ⁾ = 2`). Across the `m` folding rounds, the active coset size
   halves each round (`2 ^ (d - (i + 1))`), so both the shrinking unique-decoding budgets
   `2 ^ (d - (i + 1))` and the geometric Siegel-interpolation Johnson budgets

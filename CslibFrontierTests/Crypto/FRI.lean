@@ -49,7 +49,8 @@ and `Soundness`) from an ordinary `module` client (no `import all`) over the pri
    * an explicit out-of-order adaptive cheating prover `friCheater257` (`t_FS = 2`, `t_MT = 2`,
      `L_path = 3`) certified strictly `< 1 / 2 < 1` at `σ = 20` via
      `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`.
-5. **Per-round shrinking budgets, `iopInteractiveGame`, and `friCommitGame` (`Soundness.lean`).**
+5. **Per-round shrinking budgets, `iopInteractiveGame`, and `friCommitGame` (`BCS.Interactive` and
+   `Soundness.lean`).**
    Certifies `iopInteractiveGame_ofCausal_eq` (`= PMF.pure true` on `honestWord`), shrinking
    unique-decoding round budgets `(4, 2)` summing to `6 < 2 * 4 = 8` via
    `weightedLineGapPerRound_of_uniqueLineGap` and `FRIParams.sum_domainSize_succ`, commit-phase

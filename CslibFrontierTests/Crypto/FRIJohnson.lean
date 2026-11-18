@@ -50,9 +50,9 @@ ordinary `module` client (no `import all`, zero gap-assumption premises) across 
    `friJohnsonRoundBound` (`5374771200, 2687385600`), and directly exercises
    `weightedLineGapPerRound_of_johnson`, `weightedLineGapBound_of_johnson`,
    `friCommitGame_le_of_johnson` (`< 1 / 10 ^ 9`), `friIOP_interactiveGame_le_of_johnson`
-   (`< 1 / 140` on both universal and randomized adaptive provers), `friIOP_rbrSound_of_johnson`,
-   `friBCS_romSoundness_bound_of_johnson` (`< 1 / 25`), and
-   `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` (`< 1 / 3`).
+   (`< 1 / 140` on universal, randomized transcript-ignoring, and prefix-dependent adaptive
+   randomized provers), `friIOP_rbrSound_of_johnson`, `friBCS_romSoundness_bound_of_johnson`
+   (`< 1 / 25`), and `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` (`< 1 / 3`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -1242,8 +1242,9 @@ theorem friGoldilocks_interactiveGame_lt_one_140th
     (by norm_num : ((2 ^ 5 - 17 - 1 : ℕ) : ℝ≥0∞) = 14),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32)] using ENNReal.coe_lt_coe.mpr hlt
 
-/-- Explicit genuinely randomized adaptive `InteractiveIOPProver` (mixing `farWordGoldilocks` and
-`0` uniformly each round) certified `< 1 / 140` in `iopInteractiveGame` over Goldilocks. -/
+/-- Randomized transcript-ignoring `InteractiveIOPProver` (mixing `farWordGoldilocks` and `0`
+uniformly each round independently of the prefix) certified `< 1 / 140` in `iopInteractiveGame`
+over Goldilocks. -/
 noncomputable def randProverGoldilocks :
     InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6) :=
   fun _ => (PMF.uniformOfFintype Bool).map fun b => if b then farWordGoldilocks else fun _ => 0
@@ -1252,6 +1253,50 @@ example :
     iopInteractiveGame (friIOP paramsGoldilocks) farWordGoldilocks randProverGoldilocks true <
       1 / 140 :=
   friGoldilocks_interactiveGame_lt_one_140th randProverGoldilocks
+
+/-- Prefix-dependent (adaptive) randomized `InteractiveIOPProver` over Goldilocks: in round `0`
+(`pref = []`), mixes `farWordGoldilocks` and `0` uniformly; after receiving `(π₀, c₀)` in round `0`,
+adapts its committed oracle distribution to the observed verifier scalar `c₀.foldScalar` and prior
+oracle `π₀` (shifting `π₀` by `c₀.foldScalar` vs. the constant table `fun _ => c₀.foldScalar + 1`).
+-/
+noncomputable def adaptiveProverGoldilocks :
+    InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6)
+  | [] =>
+    (PMF.uniformOfFintype Bool).map fun b =>
+      if b then farWordGoldilocks else fun _ => 0
+  | (π₀, c₀) :: _ =>
+    (PMF.uniformOfFintype Bool).map fun b =>
+      if b then fun idx => π₀ idx + c₀.foldScalar else fun _ => c₀.foldScalar + 1
+
+/-- Witness that `adaptiveProverGoldilocks` genuinely depends on the transcript prefix: at
+`pref = []`, the constant-zero table is in its support, whereas after observing challenge scalar
+`c₀.foldScalar = 1` on `π₀ = 0`, every supported table evaluates to `1` or `2` (never `0`). -/
+theorem adaptiveProverGoldilocks_prefix_dependent :
+    let c₀ : FRIChal (ZMod goldilocksP) 5 6 := ⟨1, fun _ => ⟨0, by decide⟩⟩
+    adaptiveProverGoldilocks [] ≠ adaptiveProverGoldilocks [(fun _ => 0, c₀)] := by
+  intro c₀ heq
+  have hmem_nil : (fun _ : Fin 32 => (0 : ZMod goldilocksP)) ∈
+      (adaptiveProverGoldilocks []).support := by
+    rw [adaptiveProverGoldilocks, PMF.mem_support_map_iff]
+    exact ⟨false, PMF.mem_support_uniformOfFintype false, rfl⟩
+  have hmem_cons : (fun _ : Fin 32 => (0 : ZMod goldilocksP)) ∈
+      (adaptiveProverGoldilocks [(fun _ => 0, c₀)]).support := heq ▸ hmem_nil
+  rw [adaptiveProverGoldilocks, PMF.mem_support_map_iff] at hmem_cons
+  obtain ⟨b, _, hb⟩ := hmem_cons
+  have h0 := congrFun hb ⟨0, by decide⟩
+  cases b
+  · exact absurd h0 (by decide)
+  · exact absurd h0 (by decide)
+
+example :
+    friCommitGame paramsGoldilocks (2 ^ paramsGoldilocks.d - 17 - 1) farWordGoldilocks
+      adaptiveProverGoldilocks true < 1 / 1000000000 :=
+  friGoldilocks_commitGame_lt_billionth adaptiveProverGoldilocks
+
+example :
+    iopInteractiveGame (friIOP paramsGoldilocks) farWordGoldilocks adaptiveProverGoldilocks true <
+      1 / 140 :=
+  friGoldilocks_interactiveGame_lt_one_140th adaptiveProverGoldilocks
 
 end JohnsonGoldilocks
 
