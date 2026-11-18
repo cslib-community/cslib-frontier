@@ -374,8 +374,9 @@ example {H : schnorrGroups.Desc × List Bool → List Bool}
    schnorrGroups.isPPTOn_cramerShoupToCollisionFinder hH hisElem hA bit,
    isPPT_ddhSampleKey hkeyLen hD⟩
 
-/-- Concrete instantiation of Theorem 12.9 / Exercise 12.27 with associated data
-(`advantage_cramerShoupADGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23` (`q = 11`). -/
+/-- Concrete instantiation of the ideal-sampling step toward Theorem 12.9 / Exercise 12.27 with
+associated data (`advantage_cramerShoupADGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23`
+(`q = 11`); not the cited result. -/
 example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (Q₁ Q₂ : ℕ → ℕ)
     (hQ : adversary.IsQueryBounded Q₁ Q₂) (n : ℕ) :
     Game.advantage
@@ -417,8 +418,9 @@ example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (Q₁ Q₂ : �
   exact schnorrGroups.advantage_cramerShoupADGroupCCA2Game_le_ideal encBits (fun _ => PMF.pure d23)
     testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
-/-- Concrete instantiation of Theorem 12.9 / Exercise 12.27
-(`advantage_cramerShoupGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23` (`q = 11`). -/
+/-- Concrete instantiation of the ideal-sampling step toward Theorem 12.9 / Exercise 12.27
+(`advantage_cramerShoupGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23` (`q = 11`); not the
+cited result. -/
 example (adversary : Encryption.WordCCA2Adversary) (Q₁ Q₂ : ℕ → ℕ)
     (hQ : adversary.IsQueryBounded Q₁ Q₂) (n : ℕ) :
     Game.advantage
