@@ -13,6 +13,7 @@ public import CslibFrontier.DataStructure.BTree.PredSucc
 public import CslibFrontier.DataStructure.BTree.Rank
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Algebra.Group.Nat.Defs
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Node-visit costs of B-tree point queries
@@ -80,12 +81,12 @@ theorem maxT_def : maxT tr = maxM (tick 1) tr := (rfl)
 
 /-- The value of `minT` is `min?`. -/
 @[simp] theorem ret_minT : (minT tr).ret = min? tr := by
-  simpa only [min?_def, minT, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [min?_def, minT, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_minM (tick 1) tr)
 
 /-- The value of `maxT` is `max?`. -/
 @[simp] theorem ret_maxT : (maxT tr).ret = max? tr := by
-  simpa only [max?_def, maxT, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [max?_def, maxT, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_maxM (tick 1) tr)
 
 /-- The minimum search visits at most `height` nodes. -/
@@ -97,7 +98,7 @@ theorem time_minT {tr : BTree α β} : (minT tr).time ≤ tr.height := by
     have e := height_first_succ_le (first := first) (rest := rest)
     simp only [minT] at h ⊢
     generalize (node first rest).height = H at e ⊢
-    simp only [minM, TimeM.time_bind, TimeM.time_tick]
+    simp only [minM, time_simps]
     split <;> simp <;> omega
 
 /-- The maximum search visits at most `height` nodes. -/
@@ -117,7 +118,7 @@ theorem time_maxT {tr : BTree α β} : (maxT tr).time ≤ tr.height := by
       height_succ_le_of_mem_rest (List.mem_singleton_self (k, v, c))
     simp only [maxT] at h ⊢
     generalize (node first [(k, v, c)]).height = H at e ⊢
-    simp only [maxM_node_singleton, TimeM.time_bind, TimeM.time_tick]
+    simp only [maxM_node_singleton, time_simps]
     split <;> simp <;> omega
   | .node first ((k, v, c) :: e :: rest) =>
     have h := time_maxT (tr := .node c (e :: rest))
@@ -168,27 +169,27 @@ theorem rankT_def (k : α) : rankT k tr = rankM leT (tick 1) k tr := (rfl)
 
 /-- The value of `lookupT` is `lookup`. -/
 @[simp] theorem ret_lookupT (k : α) : (lookupT k tr).ret = lookup k tr := by
-  simpa only [lookup_def, lookupT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [lookup_def, lookupT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_lookupM leT (tick 1) k tr)
 
 /-- The value of `containsT` is `contains`. -/
 @[simp] theorem ret_containsT (k : α) : (containsT k tr).ret = contains k tr := by
-  simpa only [contains_def, containsT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [contains_def, containsT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_containsM leT (tick 1) k tr)
 
 /-- The value of `predT` is `pred?`. -/
 @[simp] theorem ret_predT (k : α) : (predT k tr).ret = pred? k tr := by
-  simpa only [pred?_def, predT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [pred?_def, predT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_predM leT (tick 1) k tr)
 
 /-- The value of `succT` is `succ?`. -/
 @[simp] theorem ret_succT (k : α) : (succT k tr).ret = succ? k tr := by
-  simpa only [succ?_def, succT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [succ?_def, succT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_succM leT (tick 1) k tr)
 
 /-- The value of `rankT` is `rank`. -/
 @[simp] theorem ret_rankT (k : α) : (rankT k tr).ret = rank k tr := by
-  simpa only [rank_def, rankT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [rank_def, rankT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_rankM leT (tick 1) k tr)
 
 /-! ### Node-visit bounds -/

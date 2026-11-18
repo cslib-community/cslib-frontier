@@ -13,6 +13,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # The re-encryption check of `FO-notbot` is load-bearing
@@ -29,7 +30,7 @@ encryption algorithm, and hence the two-stage IND-CPA experiment, is unchanged
 (`leakyPKE_cpaAdvantage`), and so are `δ`-correctness and `γ`-spreadness
 (`leakyPKE_deltaCorrect`, `leakyPKE_gammaSpread`). With the re-encryption check in place, a tagged
 ciphertext `(c, some i)` is never an encryption of any message (`encT_leakyPKE`), so `decT`
-rejects it and `Scheme.decapsNotBot` outputs the fallback key `H(true, dk.fallback, (c, some i))`
+rejects it and `Scheme.decapsNotBot` outputs the fallback key `H(dk.fallback, (c, some i))`
 (`decapsNotBot_leakyPKE_some`).
 
 Without the check (`Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`), the adversary `leakAdv`
@@ -141,16 +142,16 @@ theorem leakyPKE_dec_some {P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT} {sk 
   simp [leakyPKE, h]
 
 /-- With the re-encryption check of `T`, `Scheme.decapsNotBot` over `leakyPKE P` rejects every
-tagged ciphertext `(c, some i)` and returns the fallback key `H(true, dk.fallback, (c, some i))`. -/
+tagged ciphertext `(c, some i)` and returns the fallback key `H(dk.fallback, (c, some i))`. -/
 theorem decapsNotBot_leakyPKE_some [DecidableEq CT]
     (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT)
     (sampleMsg : ProbComp (Fin n → Bool)) (sampleKey : ProbComp K)
     (G : (Fin n → Bool) → R)
-    (H : Bool × (Fin n → Bool) × (CT × Option (Fin n)) → K)
+    (H : (Fin n → Bool) × (CT × Option (Fin n)) → K)
     (dk : ImplicitSK PK SK (Fin n → Bool)) (c : CT) (i : Fin n) :
     (⟨leakyPKE P, sampleMsg, sampleKey⟩ :
       Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).decapsNotBot G H dk (c, some i) =
-      H (true, dk.fallback, (c, some i)) :=
+      H (dk.fallback, (c, some i)) :=
   Scheme.decapsNotBot_of_reencrypt_ne _ G H dk (c, some i) fun _ _ henc => by
     simpa [encT_leakyPKE] using congrArg Prod.snd henc
 
@@ -163,12 +164,12 @@ namespace Scheme
 variable [DecidableEq M] [DecidableEq CT]
 
 /-- `FO-notbot` decapsulation without the re-encryption check: `H(false, m', c)` whenever
-`Dec(sk, c) = some m'`, and the implicit-rejection key `H(true, s, c)` otherwise. -/
+`Dec(sk, c) = some m'`, and the implicit-rejection key `H(false, s, c)` otherwise. -/
 def decapsNoCheck (S : Scheme PK SK M R CT K) (H : Bool × M × CT → K)
     (dk : ImplicitSK PK SK M) (c : CT) : K :=
   match S.pke.dec dk.sk c with
   | some m' => H (false, m', c)
-  | none => H (true, dk.fallback, c)
+  | none => H (false, dk.fallback, c)
 
 omit [DecidableEq M] [DecidableEq CT] in
 /-- Without the check, a ciphertext that decrypts to `m'` decapsulates to `H(false, m', c)`. -/
@@ -193,7 +194,7 @@ noncomputable def eagerNoCheckGame [Fintype M] [Finite R] [Fintype CT] [Finite K
   let (pk, dk) ← ProbComp.eval S.keyGenNotBot
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   OracleComp.interpret (S.eagerNoCheckOracle G H dk cStar)
     (A ⟨pk, cStar, if b then kRand else kReal⟩)
@@ -331,11 +332,7 @@ private theorem le_advantage_of_apply_le {g₀ g₁ : Game} {n k : ℕ} (hk : k 
     (h₀ : g₀ false ≤ n * (k : ℝ≥0∞)⁻¹) (h₁ : g₁ true ≤ (k : ℝ≥0∞)⁻¹) :
     1 - ((n : ℝ) + 1) / k ≤ (Game.advantage g₀ g₁ : ℝ) := by
   have hk' : (k : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.2 (by exact_mod_cast hk)
-  have hr₀ := ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) hk') h₀
-  have hr₁ := ENNReal.toReal_mono hk' h₁
-  rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast]
-    at hr₀
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hr₁
+  ennreal_to_real at h₀ h₁
   have hsum := toReal_true_add_toReal_false g₀
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
   refine le_trans ?_ (le_abs_self _)

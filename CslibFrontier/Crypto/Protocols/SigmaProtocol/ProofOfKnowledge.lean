@@ -15,6 +15,7 @@ import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.Rewinding
+import CslibFrontier.Tactic.PPT
 
 /-!
 # Sigma protocols are proofs of knowledge with a strict PPT rewinding extractor
@@ -180,30 +181,14 @@ theorem isPPTOn_knowledgeExtractor {enc : Encoding I Y T C Z}
     {A : MaliciousProver I} (hA : A.IsPPT enc.index) :
     IsPPTOn (encPair enc.index encBits) encBits (knowledgeExtractor enc sampleChallenge
       extractWord A) := by
-  let encIn := encPair enc.index encBits
-  have hcommit : IsPPTOn encIn (encPair encBits encBits)
-      fun p : I × List Bool => A.commit p.1 p.2 := hA.commit
-  have hrespond : IsPPTOn (encPair enc.index (encPair encBits encBits)) encBits
-      fun p : I × List Bool × List Bool => A.respond p.1 p.2.1 p.2.2 := hA.respond
-  change IsPPTOn encIn encBits fun p : I × List Bool => do
+  change IsPPTOn (encPair enc.index encBits) encBits fun p : I × List Bool => do
     let ts ← A.commit p.1 p.2
     let c ← enc.challenge p.1 <$> sampleChallenge p.1
     let c' ← enc.challenge p.1 <$> sampleChallenge p.1
     let z ← A.respond p.1 ts.2 c
     let z' ← A.respond p.1 ts.2 c'
     return extractWord (p.1, p.2, ts.1, c, z, c', z')
-  refine hcommit.bind_with ?_
-  refine (hchallenge.preprocess (prepare := fun q : (I × List Bool) × List Bool × List Bool =>
-    q.1.1) (by fun_prop)).bind_with ?_
-  refine (hchallenge.preprocess (prepare := fun q : ((I × List Bool) × List Bool × List Bool) ×
-    List Bool => q.1.1.1) (by fun_prop)).bind_with ?_
-  refine (hrespond.preprocess (prepare := fun q : (((I × List Bool) × List Bool × List Bool) ×
-    List Bool) × List Bool => (q.1.1.1.1, q.1.1.2.2, q.1.2)) (by fun_prop)).bind_with ?_
-  refine (hrespond.preprocess (prepare := fun q : ((((I × List Bool) × List Bool × List Bool) ×
-    List Bool) × List Bool) × List Bool => (q.1.1.1.1.1, q.1.1.1.2.2, q.1.2))
-    (by fun_prop)).bind_with ?_
-  refine (ComputableInPolyTime.isPPTOn ?_)
-  exact hextract.comp (by fun_prop)
+  ppt
 
 /-! ### Success probability -/
 

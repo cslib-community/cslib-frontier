@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native ten-child accumulation
@@ -71,10 +72,9 @@ theorem exec_childLoop {w D V c e T p R C : ℕ} (x : Data registers)
     have hchildrank := hrange _ hlt
     obtain ⟨z, hz, hza, hzd, hzm, hzf⟩ := exec_addChild
       (hsigned.of_natAbs_le (hsum _ hlt.le)) (hsigned.of_natAbs_le hchildmag) y
-      ((hregs _ (by decide)).trans hD) ((hregs _ (by decide)).trans hV)
-      ((hregs _ (by decide)).trans hc) ((hregs _ (by decide)).trans he)
-      ((hregs _ (by decide)).trans hT) hTpos ((hregs _ (by decide)).trans hp)
-      rfl hsumy ((hregs _ (by decide)).trans h9) ((hregs _ (by decide)).trans h1)
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      (by regs_frame) hTpos (by regs_frame)
+      rfl hsumy (by regs_frame) (by regs_frame)
       (by simpa only [hmem] using hrank _ hlt)
       (by simpa only [hmem] using hvalue _ hlt)
       (hfit.of_le (by omega))

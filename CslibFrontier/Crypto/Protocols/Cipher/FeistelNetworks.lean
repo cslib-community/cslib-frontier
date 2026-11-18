@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Foundations.Data.BitString.HalfSplit
 public import CslibFrontier.Languages.Probabilistic.RandomPermutation.ExtPermsCard
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
@@ -677,9 +678,8 @@ omit [Fintype G] in
 theorem eval_feistel2_feistel2CPAAttack (f₁ f₂ : G → G) (l₀ l₁ r₀ : G) :
     OracleComp.interpret (fun p => PMF.pure (feistelNetwork [f₁, f₂] p))
       (feistel2CPAAttack l₀ l₁ r₀) = PMF.pure true := by
-  simp only [pmf_norm, feistel2CPAAttack, feistelNetwork_cons, feistelNetwork_nil,
+  simp only [interp_norm, pmf_norm, feistel2CPAAttack, feistelNetwork_cons, feistelNetwork_nil,
     Equiv.trans_apply, feistelRoundEquiv_apply, feistelRound, Equiv.refl_apply,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
     add_sub_add_right_eq_sub, decide_true]
 
 /-- Against `idealPermGame`, when `l₀ ≠ l₁` and `2 ≤ Fintype.card G`, `feistel2CPAAttack l₀ l₁ r₀`

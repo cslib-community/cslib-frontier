@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Computational.MLDSA.Signing
+import CslibFrontier.Crypto.Computational.MLDSA.SigningROM
+import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 
@@ -131,6 +132,27 @@ example {σ : CompressedSignature correctnessToy}
   compressedVerify_compressedSignAttempt correctnessToy correctnessToy_valid (by decide)
     correctnessHash_inBall correctnessSk_short hout
 
+-- A nonzero secret shifts the mask by one. With A = 0 and s₂ = 0 the remaining checks
+-- always pass. Of the sixteen masks -7 through 8, precisely -7 through 5 give |z| < 7.
+private def shiftedSk : SecretKey correctnessToy :=
+  ⟨0, fun _ => ![1], 0⟩
+
+example : ((List.range 16).filter fun i =>
+    (compressedSignAttempt correctnessToy 2 1 correctnessHash shiftedSk []
+      (fun _ => ![(8 : ZMod 17) - i])).isSome).length = 13 := by decide +kernel
+
+example :
+    freshSigningAttempt correctnessToy 2 1 (by decide) shiftedSk ![1] =
+      simulateFreshSigningAttempt correctnessToy 2 1 (by decide) shiftedSk.publicKey ![1] := by
+  apply freshSigningAttempt_eq_simulate correctnessToy correctnessToy_valid (by decide)
+  · intro i j
+    fin_cases i; fin_cases j
+    decide +kernel
+  · intro i j
+    fin_cases i; fin_cases j
+    decide +kernel
+  · decide +kernel
+
 private def acceptImmediately (_ : ℕ) : Fin toy.ℓ → Fin toy.n → ZMod toy.q :=
   acceptingMask
 
@@ -165,5 +187,43 @@ example {σ : CompressedSignature correctnessToy}
     compressedVerify correctnessToy 2 correctnessHash correctnessSk.publicKey [] σ = true :=
   compressedVerify_compressedSignBounded correctnessToy correctnessToy_valid (by decide)
     correctnessHash_inBall correctnessSk_short hout
+
+open Cslib Cslib.OracleComp
+
+-- The first internal trial rejects. The second accepts. Direct hash queries on either side
+-- see the same state, while the outer program receives only the final signing reply.
+private def interleaved : OracleComp (SigningROMSpec toy Bool) Bool := do
+  let before ← query (spec := SigningROMSpec toy Bool) (.inr (0, []))
+  let sig ← query (spec := SigningROMSpec toy Bool) (.inl [])
+  let after ← query (spec := SigningROMSpec toy Bool) (.inr (0, []))
+  return !before && sig.isSome && after
+
+private def countTrials : (q : List Bool ⊕ SigningHashPoint toy) →
+    StateM ℕ (SigningROMSpec toy Bool q) :=
+  sumHandler (fun _ n =>
+    (if n == 0 then none else
+      some (true, ⟨0, fun _ _ => false, 0⟩), n + 1))
+    (fun _ n => (n != 0, n))
+
+-- Four permitted attempts stop after the second, and the following direct query sees both.
+example : (interpret countTrials (expandSigningRetries toy 4 interleaved)).run 0 = (true, 2) := by
+  have hr : List.range 4 = [0, 1, 2, 3] := by decide
+  simp only [expandSigningRetries, interleaved, hr, List.findSomeM?_cons, List.findSomeM?_nil,
+    sumHandler, interpret_bind, interpret_query, countTrials, StateT.run, bind_pure_comp]
+  rfl
+
+-- The rejected point is the first coin, and its digest equals that coin. Among the four
+-- equiprobable two-coin tapes, reading `false` returns true once if the rejected write is kept,
+-- twice if it is erased. Comparing only the response of the signing attempt misses this effect.
+private def readAfterRejection (keep : Bool) (coins : Bool × Bool) : Bool :=
+  let step := RandomOracle.programmedTrialStep keep (fun (_ : Unit) x => x) id
+    (fun _ _ => (none : Option Unit))
+  let rejected := step (.inl ()) coins.1 []
+  (step (.inr false) coins.2 rejected.2).1
+
+example :
+    let tapes := [(false, false), (false, true), (true, false), (true, true)]
+    (tapes.countP (readAfterRejection true), tapes.countP (readAfterRejection false)) = (1, 2) := by
+  decide +kernel
 
 end MLDSASigningTests

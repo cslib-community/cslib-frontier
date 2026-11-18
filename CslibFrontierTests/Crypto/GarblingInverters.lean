@@ -12,7 +12,8 @@ import CslibFrontier.Crypto.Primitives.Garbling.CircuitInverters
 
 Concrete conventional circuits separate `phiSize`, `phiTopo` and `phiCirc`; executable `decide`
 checks verify that `mTopo` and `mSize` preserve topology and shape and evaluate to target outputs
-on `0^n`; a concrete circuit scheme instantiates Proposition 1 and Corollaries 1 and 2 of
+on `0^n`; a concrete circuit scheme instantiates the inverter correctness lemmas and the
+fixed-parameter advantage relations behind Proposition 1 and Corollaries 1 and 2 of
 [BellareHoangRogaway2012]; and the `prv.sim`-to-`prv1` reduction of [BellareHoangRogaway2012b] is
 instantiated.
 -/

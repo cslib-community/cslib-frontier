@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalPending
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalOutput
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalResources
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalTime
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Concrete worklist invariant for the native Chan–He traversal
@@ -81,12 +82,9 @@ theorem Arena.Controls.congr {a : Arena} {x y : Data 128} (h : a.Controls x)
     (hp : ∀ i : Fin 128, i.val ∈ [71, 72, 73, 74, 75, 76, 78, 80, 81, 82, 83] →
       y.regs i = x.regs i) : a.Controls y := by
   rcases h with ⟨hm, hΛ, hU, hN, hb, hc, ht, hs, hcap, hz, ho⟩
-  exact ⟨(hp _ (by decide)).trans hm, (hp _ (by decide)).trans hΛ,
-    (hp _ (by decide)).trans hU, (hp _ (by decide)).trans hN,
-    (hp _ (by decide)).trans hb, (hp _ (by decide)).trans hc,
-    (hp _ (by decide)).trans ht, (hp _ (by decide)).trans hs,
-    (hp _ (by decide)).trans hcap, (hp _ (by decide)).trans hz,
-    (hp _ (by decide)).trans ho⟩
+  exact ⟨by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame⟩
 
 /-- Preserving registers `71`–`95` preserves all persistent caller parameters. -/
 theorem Arena.Controls.of_regs_71_96 {a : Arena} {x y : Data 128} (h : a.Controls x)

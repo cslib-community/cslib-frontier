@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Lifting
-import all CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Dual
 
 /-!
 # Boolean cycles as boundaries of face colors
@@ -65,11 +64,6 @@ theorem faceBoundary_dart (q : r.Face → Bool) (d : Dart G) :
   · rfl
   · exact Bool.xor_comm _ _
 
-/-- The canonical face/dual-vertex equivalence sends a dart's face to its actual face ID. -/
-@[simp] theorem faceDualVertexEquiv_mk (d : Dart G) :
-    (r.faceDualVertexEquiv (Quotient.mk _ d)).val = r.faceId d := by
-  rfl
-
 /-- Dual-face parity is original vertex parity, with the reversal required by the actual
 dual face successor. No Euler or endpoint declaration assumption is needed. -/
 theorem dual_faceParity_eq_vertexParity (x : Fin G.2.length → Bool) (d : Dart G) :
@@ -116,14 +110,11 @@ theorem dual_edgeGradient_faceColors (q : r.Face → Bool) :
   let spin (v : ℕ) := if hv : v ∈ r.dualGraph.1 then
     q (r.faceDualVertexEquiv.symm ⟨v, hv⟩) else false
   have hs (d : Dart G) : spin (r.faceId d) = q (Quotient.mk _ d) := by
-    have hv : r.faceId d ∈ r.dualGraph.1 := by
-      simpa only [r.vertex_dualDartEquiv] using r.dual_vertex_mem (r.dualDartEquiv d)
+    have hv : r.faceId d ∈ r.dualGraph.1 :=
+      r.faceDualVertexEquiv_mk d ▸ (r.faceDualVertexEquiv (Quotient.mk _ d)).2
     dsimp only [spin]
-    rw [dite_eq_left hv]
-    congr 1
-    apply r.faceDualVertexEquiv.injective
-    simp only [Equiv.apply_symm_apply]
-    exact Subtype.ext (r.faceDualVertexEquiv_mk d).symm
+    rw [dite_eq_left hv, r.faceDualVertexEquiv.symm_apply_eq.mpr
+      (Subtype.ext (r.faceDualVertexEquiv_mk d).symm)]
   refine ⟨spin, funext fun i => ?_⟩
   let j := Fin.cast r.dualGraph_length i
   have hd := r.dualGraph.edgeGradient_dart spin (r.dualDartEquiv (j, false))

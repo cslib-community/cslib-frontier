@@ -11,6 +11,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
@@ -547,8 +548,7 @@ theorem map_fst_interpret_bidirDedupStep_evalPerm {β : Type} (π : Equiv.Perm �
     simp [PMF.pure_map]
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
     change (((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
       (bidirDedupStep q cache)).bind fun p =>
         OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
@@ -557,13 +557,11 @@ theorem map_fst_interpret_bidirDedupStep_evalPerm {β : Type} (π : Equiv.Perm �
     cases h : cachedAnswer cache q with
     | some a =>
       rw [bidirDedupStep_of_cachedAnswer_eq_some h]
-      simp only [OracleComp.interpret_pure, Probability.PMF.monad_pure_eq_pure,
-        PMF.pure_bind, hcache.evalPerm_eq_of_cachedAnswer_eq_some h]
+      simp only [interp_norm, pmf_norm, hcache.evalPerm_eq_of_cachedAnswer_eq_some h]
       exact ih a hcache
     | none =>
       rw [bidirDedupStep_of_cachedAnswer_eq_none h]
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure]
+      simp only [interp_norm, pmf_norm]
       exact ih (evalPerm π q) (agreesWith_cons_toCacheEntry_iff.mpr ⟨rfl, hcache⟩)
 
 /-- **Exact `evalPerm` equivalence for `bidirDedup`**: deduplicating a bidirectional permutation
@@ -592,7 +590,7 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
     exact ⟨rfl, List.nodup_nil, fun _ h => False.elim (List.not_mem_nil h)⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind] at hmem
+    simp only [interp_norm] at hmem
     change ((result, cache'), (s', transcript)) ∈
       (((OracleComp.interpret (OracleComp.withTranscript oracle) (bidirDedupStep q cache)).run
         (s, [])).bind fun p =>
@@ -601,8 +599,7 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
     cases hq : cachedAnswer cache q with
     | some a =>
       rw [bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
-      simp only [OracleComp.interpret_pure, StateT.run_pure,
-        Probability.PMF.monad_pure_eq_pure, PMF.pure_bind] at hmem
+      simp only [interp_norm, pmf_norm] at hmem
       exact ih a hmem
     | none =>
       rw [bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
@@ -740,8 +737,7 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
     exact ⟨hπ, hp1, hπ.pairwise_snd_of_pairwise_fst hp1⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind] at hmem
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind] at hmem
     change (result, cache') ∈
       ((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
         (bidirDedupStep q cache)).bind fun p =>
@@ -750,13 +746,11 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
     cases hq : cachedAnswer cache q with
     | some a =>
       rw [bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
-      simp only [OracleComp.interpret_pure, Probability.PMF.monad_pure_eq_pure,
-        PMF.pure_bind] at hmem
+      simp only [interp_norm, pmf_norm] at hmem
       exact ih a hπ hp1 hmem
     | none =>
       rw [bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure] at hmem
+      simp only [interp_norm, pmf_norm] at hmem
       have hx : cache.lookup (PermQuery.toCacheEntry ⟨q, evalPerm π q⟩).1 = none := by
         cases q with
         | forward x => exact hq
@@ -1198,7 +1192,7 @@ theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}
   | pure a => rfl
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [interp_norm]
     change ((OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
       (bidirDedupStep q cache)).bind fun p =>
         OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
@@ -1208,12 +1202,11 @@ theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}
     cases h : cachedAnswer cache q with
     | some a =>
       rw [bidirDedupStep_of_cachedAnswer_eq_some h, forgetfulAnswer_of_cachedAnswer_eq_some h]
-      simp only [OracleComp.interpret_pure, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+      simp only [interp_norm, pmf_norm]
       exact ih a cache
     | none =>
       rw [bidirDedupStep_of_cachedAnswer_eq_none h, forgetfulAnswer_of_cachedAnswer_eq_none h]
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure]
+      simp only [interp_norm, pmf_norm]
       exact congrArg (PMF.bind _) (funext fun a => ih a (PermQuery.toCacheEntry ⟨q, a⟩ :: cache))
 
 /-- Interpreting `bidirDedup program` against i.i.d. uniform answers from `α` produces the exact

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.Complex.Basic
 public import Mathlib.Analysis.Convex.Segment
+public import Mathlib.Analysis.SpecialFunctions.Complex.Arg
+import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -33,6 +35,8 @@ Mathlib's affine images of real segments. They make no general-position claim fo
   one common interior point.
 * `Cslib.Polygonal.existsUnique_parabolaChord_inter_iff`: endpoint alternation is exactly one
   common interior point of two chords with four distinct endpoints.
+* `Cslib.Polygonal.arg_parabolaChord_lt_iff`: rays to the right of a nonnegative parabola
+  parameter have strictly increasing arguments in their other endpoint.
 -/
 
 public section
@@ -45,6 +49,27 @@ namespace Cslib.Polygonal
 /-- Distinct real parameters name distinct parabola points. -/
 theorem parabolaPoint_injective : Function.Injective parabolaPoint :=
   fun _ _ h => congrArg Complex.re h
+
+/-- Chords leaving a nonnegative parabola parameter toward larger parameters have arguments
+in increasing endpoint order. The comparison includes equal other endpoints. -/
+theorem arg_parabolaChord_lt_iff {a b c : ℝ} (ha : 0 ≤ a) (hab : a < b) (hac : a < c) :
+    (parabolaPoint b - parabolaPoint a).arg <
+      (parabolaPoint c - parabolaPoint a).arg ↔ b < c := by
+  have him {x : ℝ} (hx : a < x) : 0 < (parabolaPoint x - parabolaPoint a).im := by
+    change 0 < x ^ 2 - a ^ 2
+    have hsum : 0 < x + a := by linarith
+    nlinarith only [mul_pos (sub_pos.mpr hx) hsum]
+  have hb := him hab
+  have hc := him hac
+  rw [arg_lt_arg_iff_det_pos hb.ne' hc.ne'
+    (iff_of_false (not_lt.mpr hb.le) (not_lt.mpr hc.le))]
+  have hdet :
+      (parabolaPoint b - parabolaPoint a).re * (parabolaPoint c - parabolaPoint a).im -
+        (parabolaPoint b - parabolaPoint a).im * (parabolaPoint c - parabolaPoint a).re =
+          ((b - a) * (c - a)) * (c - b) := by
+    simp only [parabolaPoint, Complex.sub_re, Complex.sub_im]
+    ring
+  rw [hdet, mul_pos_iff_of_pos_left (mul_pos (sub_pos.mpr hab) (sub_pos.mpr hac)), sub_pos]
 
 private noncomputable def chordMap (a b : ℝ) : ℝ →ᵃ[ℝ] ℂ :=
   AffineMap.lineMap (⟨0, -a * b⟩ : ℂ) ⟨1, a + b - a * b⟩

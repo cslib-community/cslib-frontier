@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Words
 import CslibFrontier.Foundations.Relation.Transport
 import CslibFrontier.Logics.FirstOrder.Ordered.FullTuple.Composition
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Native NL membership and unconditional first-order NL-completeness of REACH
@@ -406,15 +407,11 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
           · simp only [shift] at hu0
             omega
           · have ha_eq : a = a' := by
-              apply Fin.ext
-              simp only [shift] at ha'
-              omega
+              fin_index [shift]
             subst ha_eq
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
           · have ha_eq : a = I.t := by
-              apply Fin.ext
-              simp only [shift] at ht
-              omega
+              fin_index [shift]
             subst ha_eq
             exact Or.inr (Or.inr ⟨hw, hsa⟩)
         · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩
@@ -573,9 +570,6 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
     have hI : I ∈ STCON := by
       rw [mem_STCON]
       have hsub : I.s = I.t := by
-        apply Fin.ext
-        have hs := I.s.isLt
-        have ht := I.t.isLt
         omega
       rw [hsub]
     exact iff_of_true yesSTEncoded_mem_STReach hI

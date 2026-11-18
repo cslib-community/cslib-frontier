@@ -220,25 +220,24 @@ theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
 
 theorem length_stage (s : ℕ) :
     (s + 1) / 2 ≤ (stage s).1.length ∧ s / 2 ≤ (stage s).2.length := by
-  induction s with
-  | zero => simp
-  | succ s ih =>
-    simp only [stage]
-    split_ifs with h
-    · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
-      have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
-      rw [hb, List.length_append]
-      simp only [List.length_singleton]
-      omega
-    · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-      have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
-      have h1 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.1.length =
-        (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).2.length := rfl
-      have h2 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.2.length =
-        (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).1.length := rfl
-      rw [h1, h2, hb, List.length_append]
-      simp only [List.length_singleton]
-      omega
+  fun_induction stage s with
+  | case1 => simp
+  | case2 s h ih =>
+    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
+    have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
+    rw [hb, List.length_append]
+    simp only [List.length_singleton]
+    omega
+  | case3 s h ih =>
+    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
+    have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
+    have h1 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.1.length =
+      (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).2.length := rfl
+    have h2 : (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).swap.2.length =
+      (step (ofNat Code (s / 2)) (stage s).2 (stage s).1).1.length := rfl
+    rw [h1, h2, hb, List.length_append]
+    simp only [List.length_singleton]
+    omega
 
 /-- The first limit sequence: its value at `n` is fixed by stage `2 * n + 2`. -/
 @[expose]

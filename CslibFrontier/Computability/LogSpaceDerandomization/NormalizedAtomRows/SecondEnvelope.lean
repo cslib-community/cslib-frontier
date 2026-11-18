@@ -90,7 +90,7 @@ theorem secondMeanEnvelope_moment (R : RoleProfile J) (D : ZMod P)
     (U := retainedMask R.terminal (side P ku) D st)
     (Y := retainedMask R.terminal (side P k) D st) hNu
     (fun σ x y => A σ x y - G x y) (preparationError R D st k Lh Lρ A G)
-    (ζ := ζ) (div_nonneg (add_nonneg hLh hLρ) (rate_pos k).le)
+    (ζ := ζ) (by positivity)
     (fun σ x y => by
       unfold preparationError
       exact div_nonneg
@@ -242,15 +242,10 @@ theorem actualEstimatedResidual_second_envelope_moment
           (16 * P * (estimatedResidualBound HP P km kt n kb (estimatedBinCap cap)) ^ 4) +
           rowNormPow 4 P (rate ks) (retainedMask R.source (side P ks) D ss)
             (retainedMask R.terminal (side P kt) D st) (fun _ => cost))) := by
-  have hHPK : 0 < HP.K := by
-    have hg := HP.gate
-    have hn : 0 ≤ 32 * (HP.k : ℝ) / HP.η :=
-      div_nonneg (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) HP.η_pos.le
-    have hk : (0 : ℝ) < HP.K := by linarith
-    exact_mod_cast hk
+  have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
   extract_lets cutoff bounded source mid terminal estimated canonical channelsV input G F cost
   refine le_trans (secondMeanEnvelope_walk_moment R D ss st ks kt ku (steps (j + 1))
-    husage hLh hLρ ζ (input (j + 1)) G cost ?_ (mul_nonneg (Nat.cast_nonneg P) (rate_pos ks).le)) ?_
+    husage hLh hLρ ζ (input (j + 1)) G cost ?_ (by positivity)) ?_
   · intro x y
     have he := estimated_residual_bins_mean_error HP D id hD Function.injective_id
       H R l ks km kt n ksH hms ss sm st kb hbH C hC hC1 hCf χ hχ h ρ K hkh
@@ -354,7 +349,7 @@ theorem actualCompletedSecondSignal_envelope_payment {q : ℕ}
             (retainedMask R.terminal (side P k) D st) (fun _ => error))) := by
   dsimp only
   exact (secondMeanEnvelope_moment R D ss st ks k ku husage hLh hLρ ζ _ G
-    (mul_nonneg (Nat.cast_nonneg P) (rate_pos ks).le)).trans
+    (by positivity)).trans
     (mul_le_mul_of_nonneg_left
       (actualCompletedRaw_absolute_moment_le_payment HP hK D R H l bin ks km k kb
         hks hkm ss sm st Kc hKc binCutoff hCB hbin raw prep maximum steps G error he)

@@ -267,11 +267,8 @@ theorem card_dual_faces : Nat.card r.dualRotation.Face = Nat.card (IncidentVerte
 
 private def faceDualVertex : r.Face → {v // v ∈ r.dualGraph.vertices} :=
   Quotient.lift
-    (fun d => ⟨r.faceId d, by
-      simpa only [vertex_dualDartEquiv] using r.dual_vertex_mem (r.dualDartEquiv d)⟩)
-    (by
-      intro d e h
-      exact Subtype.ext ((r.faceId_eq_iff d e).mpr h))
+    (fun d => ⟨r.faceId d, r.vertex_dualDartEquiv d ▸ r.dual_vertex_mem (r.dualDartEquiv d)⟩)
+    (fun d e h => Subtype.ext ((r.faceId_eq_iff d e).mpr h))
 
 /-- Canonical names identify every source face with exactly one declared dual vertex. -/
 noncomputable def faceDualVertexEquiv : r.Face ≃ {v // v ∈ r.dualGraph.vertices} :=
@@ -285,9 +282,12 @@ noncomputable def faceDualVertexEquiv : r.Face ≃ {v // v ∈ r.dualGraph.verti
       rintro ⟨v, hv⟩
       obtain ⟨d, hd⟩ := r.dualGraph_no_isolates v hv
       obtain ⟨d, rfl⟩ := r.dualDartEquiv.surjective d
-      exact ⟨Quotient.mk _ d, Subtype.ext (by
-        change r.faceId d = v
-        simpa only [vertex_dualDartEquiv] using hd)⟩⟩
+      exact ⟨Quotient.mk _ d, Subtype.ext ((r.vertex_dualDartEquiv d).symm.trans hd)⟩⟩
+
+/-- The canonical face/dual-vertex equivalence sends a dart's face to its actual face ID. -/
+@[simp] theorem faceDualVertexEquiv_mk (d : Dart G) :
+    (r.faceDualVertexEquiv (Quotient.mk _ d)).val = r.faceId d := by
+  rfl
 
 /-- Distinct declared dual names count every source face once. -/
 theorem card_dual_vertices : r.dualGraph.distinctVertices.length = Nat.card r.Face := by

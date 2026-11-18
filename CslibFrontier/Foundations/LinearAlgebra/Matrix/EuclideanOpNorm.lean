@@ -27,10 +27,15 @@ Bilinear operator-norm characterization, Schur's test, and entry bounds for the 
 
 ## Main results
 
+* `EuclideanSpace.norm_le_one_iff_sum_sq_le_one`: unit-ball characterization
+  `‖u‖ ≤ 1 ↔ ∑ x, u.ofLp x ^ 2 ≤ 1` in `EuclideanSpace ℝ κ`.
 * `Matrix.absVec_apply`, `Matrix.norm_absVec_le`, `Matrix.inner_toEuclideanCLM_le_absVec`:
   entrywise nonnegativity and absolute-value comparison for bilinear forms.
 * `Matrix.opNorm_toEuclideanCLM_le_of_inner`: `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ ≤ C` from
   unit-ball bilinear evaluations `inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v) ≤ C`.
+* `Matrix.abs_inner_toEuclideanCLM_le_opNorm`:
+  `|inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v)| ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖`
+  for vectors of norm at most `1`.
 * `Matrix.opNorm_toEuclideanCLM_le_sqrt`: Schur's test, bounding
   `‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖` by `√(R · C)` from row and column `ℓ¹` bounds `R` and `C`.
 * `Matrix.abs_sum_mul_le_sqrt_mul_sqrt`: Cauchy–Schwarz for bilinear forms.
@@ -41,6 +46,13 @@ Bilinear operator-norm characterization, Schur's test, and entry bounds for the 
 -/
 
 public section
+
+/-- A vector in `EuclideanSpace ℝ κ` lies in the closed unit ball iff its squared coordinates sum
+to at most `1`. -/
+theorem EuclideanSpace.norm_le_one_iff_sum_sq_le_one {κ : Type*} [Fintype κ]
+    (u : EuclideanSpace ℝ κ) :
+    ‖u‖ ≤ 1 ↔ ∑ x, u.ofLp x ^ 2 ≤ 1 := by
+  rw [← sq_le_one_iff₀ (norm_nonneg _), EuclideanSpace.real_norm_sq_eq]
 
 namespace Matrix
 
@@ -57,8 +69,9 @@ open Finset
 
 theorem norm_absVec_le {κ : Type*} [Fintype κ] {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
     ‖absVec u‖ ≤ 1 := by
-  rw [← sq_le_one_iff₀ (norm_nonneg _), EuclideanSpace.real_norm_sq_eq]
-  simpa [EuclideanSpace.real_norm_sq_eq] using pow_le_one₀ (n := 2) (norm_nonneg u) hu
+  rw [EuclideanSpace.norm_le_one_iff_sum_sq_le_one]
+  simp only [absVec_apply, sq_abs]
+  exact (EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu
 
 theorem inner_toEuclideanCLM_le_absVec {κ : Type*} [Fintype κ] [DecidableEq κ]
     {Γ : Matrix κ κ ℝ} (hnonneg : ∀ x y, 0 ≤ Γ x y) (u v : EuclideanSpace ℝ κ) :
@@ -84,6 +97,16 @@ theorem opNorm_toEuclideanCLM_le_of_inner {κ : Type*} [Fintype κ] [DecidableEq
   rw [RCLike.re_to_real, real_inner_comm]
   exact h u v hu.le hv.le
 
+/-- Absolute bilinear evaluation of a real matrix on vectors of norm at most `1` is at most its
+Euclidean operator norm. -/
+theorem abs_inner_toEuclideanCLM_le_opNorm {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (A : Matrix κ κ ℝ) {u v : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) (hv : ‖v‖ ≤ 1) :
+    |inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) A v)| ≤
+      ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ :=
+  (abs_real_inner_le_norm _ _).trans <|
+    (mul_le_mul hu ((Matrix.toEuclideanCLM (𝕜 := ℝ) A).unit_le_opNorm _ hv)
+      (norm_nonneg _) zero_le_one).trans_eq (one_mul _)
+
 private theorem sum_abs_mul_sq_le_of_row_le {κ : Type*} [Fintype κ]
     (A : Matrix κ κ ℝ) {R : ℝ} (hR : 0 ≤ R) (hrow : ∀ x, ∑ y, |A x y| ≤ R)
     {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
@@ -98,10 +121,8 @@ private theorem sum_abs_mul_sq_le_of_row_le {κ : Type*} [Fintype κ]
     _ ≤ ∑ x, u.ofLp x ^ 2 * R :=
           sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hrow x) (sq_nonneg _)
     _ = (∑ x, u.ofLp x ^ 2) * R := (sum_mul _ _ _).symm
-    _ ≤ 1 * R := by
-          refine mul_le_mul_of_nonneg_right ?_ hR
-          rw [← EuclideanSpace.real_norm_sq_eq]
-          exact pow_le_one₀ (norm_nonneg _) hu
+    _ ≤ 1 * R :=
+          mul_le_mul_of_nonneg_right ((EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu) hR
     _ = R := one_mul R
 
 /-- **Schur's test** for Euclidean operator norms: if row `ℓ¹` norms are at most `R` and column
@@ -156,12 +177,8 @@ theorem abs_entry_le_norm_toEuclideanCLM {κ : Type*} [Fintype κ] [DecidableEq 
   have hxy : inner ℝ ex (Matrix.toEuclideanCLM (𝕜 := ℝ) A ey) = A x y := by
     rw [Matrix.inner_toEuclideanCLM]
     simp [ex, ey, dotProduct, Matrix.mulVec]
-  calc |A x y| = |inner ℝ ex (Matrix.toEuclideanCLM (𝕜 := ℝ) A ey)| := by rw [hxy]
-    _ ≤ ‖ex‖ * ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A ey‖ := abs_real_inner_le_norm _ _
-    _ ≤ 1 * (‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ * ‖ey‖) := by
-          rw [hex]
-          exact mul_le_mul_of_nonneg_left (ContinuousLinearMap.le_opNorm _ _) zero_le_one
-    _ = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ := by rw [hey, mul_one, one_mul]
+  rw [← hxy]
+  exact abs_inner_toEuclideanCLM_le_opNorm A hex.le hey.le
 
 /-- Cauchy–Schwarz for a finite real matrix bilinear form. Extracted from Samuel Schlesinger's
 Forster proof, and shared by the operator-norm and Hadamard-matrix bounds. -/

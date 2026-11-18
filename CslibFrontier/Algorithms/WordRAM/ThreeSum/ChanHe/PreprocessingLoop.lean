@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.PreprocessingLoad
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Internal forest invariant and execution proof
@@ -159,8 +160,7 @@ private theorem execute_next_root {a : Traversal.Arena} {w U : ℕ} {l : Fronten
   obtain ⟨p, hp, hloaded, hmem, hpr⟩ := loadRoot_exec x h.bounded hi h.current
     h.descriptors h.levels h.stride h.one hfit h.frontend
   have pheap : p.regs Traversal.heap = x.regs Traversal.heap := hpr _ (by decide) (by decide)
-  have pcount : p.regs Traversal.outputCount = s.nodes.length :=
-    (hpr _ (by decide) (by decide)).trans h.count
+  have pcount : p.regs Traversal.outputCount = s.nodes.length := by regs_frame
   have hb : b.Separated := by
     refine ⟨ha.1, ha.2.1, ?_, ha.2.2.2⟩
     have hg := ha.2.2.1
@@ -227,8 +227,8 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     simpa only [Cond.holds_lt, h.current, h.roots] using hc
   obtain ⟨out, y, he, hy, hout, hprefix, hregs⟩ :=
     execute_next_root ha hw h hc hn hU hfront hkeys hnd hcard hvalues
-  have yi : y.regs current = s.index := (hregs _ (by decide) (by decide)).trans h.current
-  have yo : y.regs one = 1 := (hregs _ (by decide) (by decide)).trans h.one
+  have yi : y.regs current = s.index := by regs_frame
+  have yo : y.regs one = 1 := by regs_frame
   have hfit : Fits (w + 2) (s.index + 1) := (h.bounded.1 roots).of_le (by
     rw [h.roots]
     omega)
@@ -237,8 +237,6 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     ram_eval [z, yi, yo, hfit]
   have zreg (i : Fin 128) (hi : i ≠ current) : z.regs i = y.regs i := by
     simp only [z, Data.set_regs, Function.update_of_ne hi]
-  have zouter (i : Fin 128) (hi : 109 ≤ i.val) (hc : i ≠ current) (ha : i ≠ address) :
-      z.regs i = x.regs i := (zreg i hc).trans (hregs i hi ha)
   have hheap := h.heapBudget
   have htable := h.tableBudget
   have hrem : l.count - s.index = (l.count - (s.index + 1)) + 1 := by omega
@@ -254,12 +252,12 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     · exact hy.controls.of_regs_71_96 fun i _ hi => zreg i (by
         simp only [ne_eq, Fin.ext_iff, current]; omega)
     · exact h.frontend.frame hcard (fun p hp => hprefix p (hp.trans_le hfront))
-    · exact (zouter _ (by decide) (by decide) (by decide)).trans h.descriptors
-    · exact (zouter _ (by decide) (by decide) (by decide)).trans h.roots
+    · regs_frame
+    · regs_frame
     · rfl
-    · exact (zouter _ (by decide) (by decide) (by decide)).trans h.levels
-    · exact (zouter _ (by decide) (by decide) (by decide)).trans h.stride
-    · exact (zouter _ (by decide) (by decide) (by decide)).trans h.one
+    · regs_frame
+    · regs_frame
+    · regs_frame
     · dsimp only [s']; omega
     · exact hy.bitmap
     · simpa only [rootArena, zreg Traversal.heap (by decide)] using hy.floor
@@ -270,7 +268,7 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
       change z.regs Traversal.heap + (l.count - (s.index + 1)) * _ ≤ _
       rw [zreg _ (by decide)]
       omega
-    · exact (zreg _ (by decide)).trans hy.count
+    · regs_frame
     · have ht : out.length ≤ s.nodes.length + Traversal.Math.work a.fuel := by
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
           Traversal.Math.potential, List.sum_nil, Nat.add_zero] using hy.tableBudget
