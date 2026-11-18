@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Game.Order
+import Mathlib.Data.List.Sort
 import Mathlib.Order.Interval.Finset.Fin
 import CslibFrontier.Foundations.Data.BitString.List
 import all Batteries.Data.List.Basic
@@ -298,17 +299,167 @@ structure Signature (s : Level) where
   /-- The decoded hint bits. -/
   h : Fin s.params.k → Fin 256 → Bool
 
+private def hintEnd (ω : ℕ) (bytes : List Byte) : ℕ → ℕ
+  | 0 => 0
+  | i + 1 => ((bytes.drop ω)[i]?.getD 0).val
+
+private def hintRow (ω : ℕ) (bytes : List Byte) (i : ℕ) : List Byte :=
+  (bytes.drop (hintEnd ω bytes i)).take (hintEnd ω bytes (i + 1) - hintEnd ω bytes i)
+
 private def unpackHint (s : Level) (bytes : List Byte) :
-    Option (Fin s.params.k → Fin 256 → Bool) := do
+    Option (Fin s.params.k → Fin 256 → Bool) :=
+  let endAt := hintEnd (hintLimit s) bytes
+  let row := hintRow (hintLimit s) bytes
+  if ((List.range s.params.k).all fun i =>
+      decide (endAt i ≤ endAt (i + 1) ∧ endAt (i + 1) ≤ hintLimit s ∧ (row i).Pairwise (· < ·))) &&
+      ((bytes.take (hintLimit s)).drop (endAt s.params.k)).all (· == 0) then
+    some fun i j => (row i.val).contains j
+  else none
+
+private theorem unpackHint_inj {s : Level} {a b : List Byte} {h : Fin s.params.k → Fin 256 → Bool}
+    (la : a.length = hintLimit s + s.params.k) (lb : b.length = a.length)
+    (ha : unpackHint s a = some h) (hb : unpackHint s b = some h) : a = b := by
   let ω := hintLimit s
-  let ends := bytes.drop ω
-  let bound := fun i : ℕ => (ends[i]?.getD 0).val
-  let start := fun i : ℕ => if i = 0 then 0 else bound (i - 1)
-  let indices := fun i : ℕ => (bytes.drop (start i)).take (bound i - start i)
-  guard ((List.range s.params.k).all fun i =>
-    decide (start i ≤ bound i ∧ bound i ≤ ω ∧ (indices i).Pairwise (· < ·)))
-  guard (((bytes.take ω).drop (bound (s.params.k - 1))).all (· == 0))
-  return fun i j => (indices i.val).contains j
+  let k := s.params.k
+  have parsed {x : List Byte} (hx : unpackHint s x = some h) :
+      (∀ i < k, hintEnd ω x i ≤ hintEnd ω x (i + 1) ∧ hintEnd ω x (i + 1) ≤ ω ∧
+        (hintRow ω x i).Pairwise (· < ·)) ∧
+      (∀ u ∈ (x.take ω).drop (hintEnd ω x k), u = 0) ∧
+      (∀ (i : Fin k) j, ((hintRow ω x i).contains j) = h i j) := by
+    dsimp only [unpackHint] at hx
+    split_ifs at hx with ok
+    · simp only [Bool.decide_and, Fin.isValue, Bool.and_eq_true, List.all_eq_true, List.mem_range,
+        decide_eq_true_eq, beq_iff_eq] at ok
+      exact ⟨ok.1, ok.2, fun i j => congrFun (congrFun (Option.some.inj hx) i) j⟩
+  obtain ⟨va, pa, da⟩ := parsed ha
+  obtain ⟨vb, pb, db⟩ := parsed hb
+  have rowEq (i : ℕ) (hi : i < k) : hintRow ω a i = hintRow ω b i := by
+    apply (va i hi).2.2.eq_of_mem_iff (vb i hi).2.2
+    intro u
+    exact (by simpa using congrArg (· = true) ((da ⟨i, hi⟩ u).trans (db ⟨i, hi⟩ u).symm))
+  have pref (n : ℕ) (hn : n ≤ k) : hintEnd ω a n = hintEnd ω b n ∧
+      a.take (hintEnd ω a n) = b.take (hintEnd ω b n) := by
+    induction n with
+    | zero => exact ⟨rfl, by simp [hintEnd]⟩
+    | succ i ih =>
+      have hi : i < k := hn
+      obtain ⟨prev, before⟩ := ih (by omega)
+      obtain ⟨am, aw, _⟩ := va i hi
+      obtain ⟨bm, bw, _⟩ := vb i hi
+      have rowLen (x : List Byte) (hx : ω ≤ x.length) (he : hintEnd ω x (i + 1) ≤ ω) :
+          (hintRow ω x i).length = hintEnd ω x (i + 1) - hintEnd ω x i := by
+        simp only [hintRow, List.length_take, List.length_drop]
+        exact Nat.min_eq_left (by omega)
+      have rows := rowEq i hi
+      have lens := congrArg List.length rows
+      rw [rowLen a (by dsimp [ω]; omega) aw, rowLen b (by dsimp [ω]; omega) bw] at lens
+      refine ⟨by omega, ?_⟩
+      have recov (x : List Byte) (hm : hintEnd ω x i ≤ hintEnd ω x (i + 1)) :
+          x.take (hintEnd ω x (i + 1)) = x.take (hintEnd ω x i) ++ hintRow ω x i := by
+        rw [hintRow, ← List.take_add]
+        congr 1
+        omega
+      rw [recov a am, recov b bm, before, rows]
+  obtain ⟨lastEq, used⟩ := pref k le_rfl
+  have left : a.take ω = b.take ω := by
+    have leω : hintEnd ω a k ≤ ω := by
+      cases hk : k with
+      | zero => simp [hintEnd]
+      | succ i => exact (va i (by omega)).2.1
+    have pads : (a.take ω).drop (hintEnd ω a k) = (b.take ω).drop (hintEnd ω b k) := by
+      rw [List.eq_replicate_of_mem pa, List.eq_replicate_of_mem pb]
+      simp [lb, lastEq]
+    rw [← List.take_append_drop (hintEnd ω a k) (a.take ω),
+      ← List.take_append_drop (hintEnd ω b k) (b.take ω)]
+    simpa only [List.take_take, Nat.min_eq_left leω, Nat.min_eq_left (lastEq ▸ leω)] using
+      congrArg₂ (· ++ ·) used pads
+  have ends : a.drop ω = b.drop ω := by
+    apply List.ext_getElem (by simp [lb])
+    intro i hi hj
+    have hik : i < k := by simpa [la, ω, k] using hi
+    have eqEnd := (pref (i + 1) hik).1
+    simpa [hintEnd, List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj, Fin.ext_iff]
+      using eqEnd
+  exact (List.take_append_drop ω a).symm.trans <| (congrArg₂ (· ++ ·) left ends).trans
+    (List.take_append_drop ω b)
+
+private theorem takeBytes_eq_of_bits {x y : List Byte} (n : ℕ) (hx : n ≤ x.length)
+    (hy : n ≤ y.length)
+    (he : (Keccak.bytesToBitsLE x).take (8 * n) = (Keccak.bytesToBitsLE y).take (8 * n)) :
+    x.take n = y.take n := by
+  induction n generalizing x y with
+  | zero => simp
+  | succ n ih =>
+    cases x with
+    | nil => simp at hx
+    | cons a x =>
+      cases y with
+      | nil => simp at hy
+      | cons b y =>
+        have step (c : Byte) (l : List Byte) :
+            (Keccak.bytesToBitsLE (c :: l)).take (8 * (n + 1)) =
+              Keccak.byteBitsLE c ++ (Keccak.bytesToBitsLE l).take (8 * n) := by
+          change ((Keccak.byteBitsLE c) ++ Keccak.bytesToBitsLE l).take _ = _
+          rw [List.take_append, List.take_of_length_le (by simp [Keccak.byteBitsLE])]
+          simp [Keccak.byteBitsLE, Nat.mul_succ]
+        rw [step, step] at he
+        obtain ⟨head, tail⟩ := List.append_inj he (by simp [Keccak.byteBitsLE])
+        have hab : a = b := by simpa using congrArg Keccak.bitsToByteLE head
+        simpa [hab] using ih (by simpa using hx) (by simpa using hy) tail
+
+private theorem responseBytes_inj {s : Level} {x y : List Byte}
+    (w : ℕ) (hw : w = s.params.γ₁.log2 + 1)
+    (hx : 32 * w * s.params.ℓ ≤ x.length) (hy : 32 * w * s.params.ℓ ≤ y.length)
+    (he : ∀ (i : Fin s.params.ℓ) (j : Fin 256),
+      ((unpackCoeff (Keccak.bytesToBitsLE x) w (256 * i.val + j.val) : ℕ) : ZMod 8380417) =
+        ↑(unpackCoeff (Keccak.bytesToBitsLE y) w (256 * i.val + j.val))) :
+    x.take (32 * w * s.params.ℓ) = y.take (32 * w * s.params.ℓ) := by
+  let n := 256 * s.params.ℓ
+  have bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8 * l.length := by
+    induction l with
+    | nil => rfl
+    | cons a l ih =>
+      change (Keccak.byteBitsLE a ++ Keccak.bytesToBitsLE l).length = _
+      simp only [List.length_append, Keccak.byteBitsLE, BitString.length_lowBits, ih,
+        List.length_cons, Nat.mul_succ]
+      omega
+  have cover (l : List Byte) (hl : 32 * w * s.params.ℓ ≤ l.length) :
+      w * n ≤ (Keccak.bytesToBitsLE l).length := by
+    rw [bitsLength]
+    convert Nat.mul_le_mul_left 8 hl using 1
+    dsimp [n]
+    ring
+  have eqBlock (u : ℕ) (hu : u < n) :
+      ((Keccak.bytesToBitsLE x).drop (w * u)).take w =
+        ((Keccak.bytesToBitsLE y).drop (w * u)).take w := by
+    let i : Fin s.params.ℓ := ⟨u / 256, by change u < 256 * s.params.ℓ at hu; omega⟩
+    let j : Fin 256 := ⟨u % 256, by omega⟩
+    have index : 256 * i.val + j.val = u := by dsimp [i, j]; omega
+    have len (l : List Byte) (hl : 32 * w * s.params.ℓ ≤ l.length) :
+        (((Keccak.bytesToBitsLE l).drop (w * u)).take w).length = w := by
+      have hn := cover l hl
+      have hm := Nat.mul_le_mul_left w (Nat.succ_le_of_lt hu)
+      rw [Nat.mul_succ] at hm
+      simp only [List.length_take, List.length_drop]
+      exact Nat.min_eq_left (by omega)
+    have bound (l : List Byte) (hl : 32 * w * s.params.ℓ ≤ l.length) :
+        unpackCoeff (Keccak.bytesToBitsLE l) w u < 8380417 := by
+      have small : 2 ^ w ≤ 8380417 := by rw [hw]; cases s <;> decide
+      apply Nat.lt_of_lt_of_le _ small
+      simpa only [unpackCoeff, len l hl] using
+        BitString.lsbValue_lt (((Keccak.bytesToBitsLE l).drop (w * u)).take w)
+    have valEq := congrArg ZMod.val (he i j)
+    simp only [index, ZMod.val_natCast, Nat.mod_eq_of_lt (bound x hx),
+      Nat.mod_eq_of_lt (bound y hy)] at valEq
+    exact BitString.lsbValue_injective ((len x hx).trans (len y hy).symm) valEq
+  have words (n' : ℕ) (hn' : n' ≤ n) :
+      (Keccak.bytesToBitsLE x).take (w * n') = (Keccak.bytesToBitsLE y).take (w * n') := by
+    induction n' with
+    | zero => simp
+    | succ u ih =>
+      rw [Nat.mul_succ, List.take_add, List.take_add, ih (by omega), eqBlock u hn']
+  apply takeBytes_eq_of_bits _ hx hy
+  convert words n le_rfl using 2 <;> dsimp [n] <;> ring
 
 /-- Algorithm 27, including the prescribed total length, increasing hint indices within each
 row, monotone row ends, the hint-weight bound, and zero padding (Algorithm 21). -/
@@ -320,7 +471,62 @@ def sigDecode (s : Level) (bytes : List Byte) : Option (Signature s) := do
   let bits := Keccak.bytesToBitsLE (bytes.drop (digestBytes s))
   let response := Vector.ofFn fun i : Fin s.params.ℓ => Vector.ofFn fun j : Fin 256 =>
     (s.params.γ₁ : ZMod 8380417) - ↑(unpackCoeff bits width (256 * i.val + j.val))
-  return ⟨bytes.take (digestBytes s), fun i => (response.get i).get, hints⟩
+  return ⟨bytes.take (digestBytes s), fun i j => response[i.val][j.val], hints⟩
+
+private theorem sigDecode_parts {s : Level} {x : List Byte} {σ : Signature s}
+    (hx : sigDecode s x = some σ) :
+    let d := digestBytes s
+    let w := s.params.γ₁.log2 + 1
+    let r := 32 * w * s.params.ℓ
+    let t := d + r
+    x.length = t + hintLimit s + s.params.k ∧
+      x.take d = σ.digest ∧ unpackHint s (x.drop t) = some σ.h ∧
+      ∀ (i : Fin s.params.ℓ) (j : Fin 256),
+        (s.params.γ₁ : ZMod 8380417) -
+          ↑(unpackCoeff (Keccak.bytesToBitsLE (x.drop d)) w (256 * i.val + j.val)) = σ.z i j := by
+  intro d w r t
+  have hl : x.length = t + hintLimit s + s.params.k := by
+    by_contra hn
+    simp [sigDecode, guard, show x.length ≠ _ from hn, t, d, r, w] at hx
+  dsimp only [t, d, r, w] at hl
+  cases hh : unpackHint s (x.drop t) with
+  | none =>
+    dsimp only [t, d, r, w] at hh
+    simp [sigDecode, guard, hl, hh] at hx
+  | some h =>
+    dsimp only [t, d, r, w] at hh
+    simp only [sigDecode, guard, hl, BEq.rfl, ↓reduceIte, Option.pure_def, hh, Vector.getElem_ofFn,
+      Option.bind_eq_bind, Option.bind_some, Option.some.injEq] at hx
+    subst σ
+    exact ⟨hl, rfl, rfl, fun i j => by simp [d, w]⟩
+
+/-- The commitment digest occupies the first bytes of a successfully decoded signature. -/
+theorem digest_of_sigDecode {s : Level} {x : List Byte} {σ : Signature s}
+    (hx : sigDecode s x = some σ) : x.take (digestBytes s) = σ.digest :=
+  (sigDecode_parts hx).2.1
+
+/-- FIPS 204 Algorithms 21 and 27 give each successfully decoded signature exactly one byte
+representation. The hint rows determine their cumulative ends and their zero padding. -/
+theorem eq_of_sigDecode {s : Level} {a b : List Byte} {σ : Signature s}
+    (ha : sigDecode s a = some σ) (hb : sigDecode s b = some σ) : a = b := by
+  let d := digestBytes s
+  let w := s.params.γ₁.log2 + 1
+  let r := 32 * w * s.params.ℓ
+  let t := d + r
+  obtain ⟨la, da, ha', za⟩ := sigDecode_parts ha
+  obtain ⟨lb, db, hb', zb⟩ := sigDecode_parts hb
+  change a.length = t + hintLimit s + s.params.k at la
+  change b.length = t + hintLimit s + s.params.k at lb
+  have hints := unpackHint_inj (a := a.drop t) (b := b.drop t)
+    (by rw [List.length_drop, la]; omega) (by simp [la, lb]) ha' hb'
+  have resp := responseBytes_inj (x := a.drop d) (y := b.drop d) w rfl
+    (by rw [List.length_drop, la]; change r ≤ d + r + _ + _ - d; omega)
+    (by rw [List.length_drop, lb]; change r ≤ d + r + _ + _ - d; omega)
+    (fun i j => sub_right_inj.mp ((za i j).trans (zb i j).symm))
+  have hdr : a.take t = b.take t := by
+    rw [show t = d + r from rfl, List.take_add, List.take_add, da.trans db.symm, resp]
+  exact (List.take_append_drop t a).symm.trans <| (congrArg₂ (· ++ ·) hdr hints).trans
+    (List.take_append_drop t b)
 
 private def decodeRounded (s : Level) (bytes : List Byte) (i : Fin s.params.k) (j : Fin 256) :
     Fin 1024 :=
@@ -394,13 +600,37 @@ between two byte boundaries (Algorithm 8, lines 6–7). -/
 def messageRepresentative (pk : List Byte) (formatted : List Bool) : List Bool :=
   representativeFromTr (Keccak.shake256 pk 64) formatted
 
-/-- The full commitment digest of Algorithms 7 and 8. -/
+/-- SHAKE256 input in Algorithm 8, line 12, including the message representative and
+the fixed-width packing of the recovered high bits. -/
+def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) : List Bool :=
+  let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
+  μ ++ Keccak.bytesToBitsLE (packCoeffs width fun i j => (w i j).toNat)
+
+/-- Fixed-width packing distinguishes all high-bit vectors in the range of UseHint. -/
+theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 → ℤ} {μ : List Bool}
+    (hw : ∀ i j, 0 ≤ w i j ∧ w i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ))
+    (hv : ∀ i j, 0 ≤ v i j ∧ v i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ))
+    (he : commitmentInput s w μ = commitmentInput s v μ) : w = v := by
+  let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
+  have size : (s.params.q - 1) / (2 * s.params.γ₂) ≤ 2 ^ width := by cases s <;> decide
+  funext i j
+  have strict {z : ℤ} (hz : z < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ)) :
+      z.toNat < 2 ^ width := by
+    have pos : 0 < 2 ^ width := by positivity
+    omega
+  have values := congrArg (fun bits => unpackCoeff bits width (256 * i.val + j.val))
+    (List.append_cancel_left he)
+  rw [unpack_packCoeffs _ (fun i j => strict (hw i j).2),
+    unpack_packCoeffs _ (fun i j => strict (hv i j).2)] at values
+  have := (hw i j).1
+  have := (hv i j).1
+  omega
+
+/-- The commitment digest in Algorithms 7 and 8 hashes the message representative and high bits. -/
 def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
     List Byte :=
-  let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
-  let packed := packCoeffs width (fun i j => (w i j).toNat)
   Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
-    (μ ++ Keccak.bytesToBitsLE packed) (digestBytes s)
+    (commitmentInput s w μ) (digestBytes s)
 
 private def hintedCommitment (s : Level) (pk : MLDSA.PublicKey s.params)
     (σ : Signature s) (c : Poly) : Fin s.params.k → Fin 256 → ℤ :=
@@ -424,7 +654,7 @@ private def verifyInternalWith (s : Level) (expand : List Byte → Option (Publi
   return check s (publicKey s pk matrix) (messageRepresentative pk formatted) σ c
 
 /-- The pure-mode prefix in Algorithms 2 and 3, including the context length. -/
-def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
+@[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
 
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
@@ -483,7 +713,7 @@ structure Forgery where
 deriving DecidableEq
 
 /-- Algorithm 3 frames the context before the bit-string message. -/
-def formattedMessage (f : Forgery) : List Bool :=
+@[expose] def formattedMessage (f : Forgery) : List Bool :=
   formatMessage f.message f.context
 
 private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)

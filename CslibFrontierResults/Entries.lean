@@ -112,6 +112,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
+import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
@@ -187,6 +188,7 @@ import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
+import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
@@ -315,6 +317,7 @@ import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.ExponentialDesign
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
@@ -1236,6 +1239,28 @@ register_result "bpp-proper-subset-ppoly" where
     No efficient separator or uniform circuit-family construction. Strictness is not asserted \
     for arbitrary encoded finite instance domains, where the two classes coincide."
 
+register_result "goldreich-coin-split-promise-corp" where
+  title := "Splitting the coins of a very-low-error BPP algorithm gives a one-sided reduction \
+    to promise-coRP"
+  topic := "randomized complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.11",
+      locator := "February 2007 draft r3.pdf, PDF p. 53; printed p. 255 (illustration in the \
+        proof of Theorem 6.9: PDF p. 14; printed p. 216)" }
+  ]
+  theorems := [
+    Cslib.Complexity.PromiseProblem.half_lt_toOuterMeasure_coinSplit_yes,
+    Cslib.Complexity.PromiseProblem.rpReducibleWithError_coinSplit,
+    Cslib.Complexity.PromiseProblem.coinSplit_mem_PromiseCoRP
+  ]
+  scope := "Instances x of any encoded type, |x| = (encA x).length; A' is a function of the \
+    instance and the coin string, polynomial-time on encPair encA encBits for item 2, with \
+    error below 2^-(p'(|x|)+1) over 2 p'(|x|) coins, stated by counting. Item 1 is \
+    the explicit sampler hits Pi'_yes with probability > 1/2 on members of S \
+    (half_lt_toOuterMeasure_coinSplit_yes), giving RPReducibleWithError with threshold 1/2 \
+    between the complements (the RP orientation). Only the illustrative route, not Theorem 6.9. \
+    Outside-fleet six-point source check: review 5951585789 on PR #6380."
+
 register_result "arora-barak-ma-eq-np-of-hardness" where
   title := "Average-case hardness in E gives MA = NP"
   topic := "derandomization"
@@ -1536,6 +1561,25 @@ register_result "goldreich-stretch-amplification-last-bits" where
     satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
     identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
     six-point source check: review 5947783297 on PR #6287."
+
+register_result "goldreich-exponential-time-design" where
+  title := "An exponential-time set system with small pairwise intersections"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.19 (Condition 2 of Theorem 8.18)",
+      locator := "March 2007 draft r4.pdf, PDF p. 110; printed p. 374" }
+  ]
+  theorems := [Cslib.Crypto.PRG.NisanWigderson.exists_computableInExpTime_design]
+  scope := "For every real γ > 0: S(k, i) ⊆ [k] is given by a characteristic word of length k \
+    (read by maskBlock), with |S(k, i)| = m(k) and |S(k, i) ∩ S(k, j)| ≤ γ m(k) for distinct \
+    zero-based indices below ℓ(k), and m(k) ≥ c k and ℓ(k) ≥ 2 ^ (c k) for k ≥ k₀. The witness \
+    is the deterministic greedy design with B = 10 q² + 1, q = max 2 ⌈1/γ⌉, t = ⌊k / B⌋, blocks \
+    of q t elements, overlaps at most t and ℓ(k) = 2 ^ (t + 1) for k ≥ B (no blocks below B); \
+    its size comes from a counting bound instead of the probabilistic method. Exponential time \
+    is ComputableInExpTime in the parameter k on multi-tape machines, with k in unary and i in \
+    binary: time O(2 ^ (δ k) (L + 1) ^ e). On the indices i < ℓ(k) the whole input has length \
+    O(k + 1), so the time is 2 ^ O(k); the guideline's exponent 2 is a cost estimate for its \
+    implementation. Outside-fleet six-point source check: review 5951520101 on PR #6378."
 
 register_result "goldreich-low-degree-extension-individual-degree" where
   title := "Low-degree extensions of individual degree |H| - 1"
@@ -6051,6 +6095,34 @@ register_result "ajtai-collision-sis" where
     for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
+
+register_result "cbc-mode-cpa" where
+  title := "CBC mode with a random IV is CPA-secure for a block cipher"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 5.4", locator := "Section 5.4.3, p. 195" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.PRP.indcpa_cbcEncrypt
+  ]
+  scope := "Cipher block chaining with a random IV (BlockCipher.cbcEncrypt: a uniform \
+    E.blockLen n-bit initial value c[0], then ciphertext blocks c[j + 1] = E.encrypt n k \
+    (c[j] ⊕ m[j])) for any uniform BlockCipher E with key space {0,1}^{E.keyLen n}, block \
+    space X = {0,1}^{E.blockLen n}, E.PRP (Attack Game 4.1 and Definition 4.1, p. 98), and \
+    super-polynomial block space Negligible (fun n => (2 ^ E.blockLen n)⁻¹). The notion is \
+    many-query left-or-right CPA security (SymmetricINDCPAOn, Attack Game 5.2 and \
+    Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard model, on \
+    equal-length pairs of whole E.blockLen n-bit blocks. The source fixes a poly-bounded cap \
+    ℓ on the number of blocks; here any number is admitted, which implies the statement for \
+    every ℓ. The block-cipher reductions BlockCipher.cbcToPrpDistinguisher are certified \
+    oracle PPT, and BlockCipher.cbcDecrypt_cbcEncrypt proves round-trip decryption \
+    correctness. Concrete bounds: BlockCipher.advantage_cbcEncrypt_le, in the same module, \
+    bounds the advantage by the PRP advantages of the two fixed-bit reductions plus \
+    4 * ((Q * L).choose 2 / 2 ^ E.blockLen n) for Q requests of at most L bits, a cruder \
+    collision term than (5.22). advantage_cbcCpaGame_le, in CBCMode.lean, gives the typed \
+    bound of two PRP advantages plus 4 * (K.choose 2 / 2 ^ n) (≤ 2 Q² ℓ² / 2 ^ n) for \
+    block-mode adversaries asking at most K blocks over a finite key set; it charges no \
+    running time. Outside check: PR #6325, review 5951248027."
 
 register_result "ctr-mode-cpa" where
   title := "CTR mode is CPA-secure for a pseudorandom function"
