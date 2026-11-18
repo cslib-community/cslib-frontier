@@ -6432,7 +6432,8 @@ register_result "lcg-one-step-distinguisher" where
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "insecurity of the one-step generator G_lcg (unnumbered)",
+      theorem := "seed-recovery distinguisher for G_lcg (unnumbered), with a correction: \
+        the book's 'clearly insecure' fails at w = q",
       locator := "Section 3.7.1, p. 70" }
   ]
   theorems := [
@@ -6454,22 +6455,24 @@ register_result "lcg-one-step-distinguisher" where
     (pp. 71–73) are not formalized."
 
 register_result "lcg-java8-seed-recovery" where
-  title := "Three outputs of the Java 8 Math.random generator determine its seed, found by a \
-    search over 2^22 candidates"
+  title := "In Boneh–Shoup's Java 8 LCG model, three integer outputs determine the seed, found \
+    by a search over 2^22 candidates"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "exhaustive seed search for Java 8 Math.random (unnumbered)",
+      theorem := "exhaustive seed search in the book's Java 8 Math.random model (unnumbered)",
       locator := "Section 3.7.1, pp. 70–71" }
   ]
   theorems := [
     Cslib.Crypto.PRG.LinearCongruential.seedSearch_java8,
     Cslib.Crypto.PRG.LinearCongruential.computableInPolyTime_seedSearch
   ]
-  scope := "java8 has the book's parameters q = 2^48, a = 0x5DEECE66D, b = 0x0B and w = 2^22 \
-    (pp. 70–71). seedSearch r₁ r₂ r₃ tries the w candidates r₁·w + e with e < w below q and \
-    returns the greatest one whose next two outputs are r₂ and r₃, or r₁·w if none is; the \
-    book tests the candidates against r₁, r₂, r₃ and states no order or fallback. \
+  scope := "java8 has the parameters that the book gives for Java 8 Math.random, q = 2^48, \
+    a = 0x5DEECE66D, b = 0x0B and w = 2^22 (pp. 70–71); the entry concerns that model and its \
+    integer outputs ⌊s_i/w⌋. Java's Math.random returns a double, and no correspondence with \
+    that interface is formalized. seedSearch r₁ r₂ r₃ tries the w candidates r₁·w + e with \
+    e < w below q and returns the greatest one whose next two outputs are r₂ and r₃, or r₁·w \
+    if none is; the book tests the candidates against r₁, r₂, r₃ and states no order or fallback. \
     seedSearch_java8: for every seed s < 2^48, the search on the first three outputs \
     ⌊s_i/w⌋ of the iterated generator returns s, from which all later outputs follow. \
     computableInPolyTime_seedSearch: the search runs in time polynomial in w, given in unary, \
@@ -6505,7 +6508,8 @@ register_result "perfect-security-characterizations" where
     S ⊆ C, the book's predicate φ, has the same probability under any two messages. \
     Theorem 2.4 (pp. 11–12), ciphertextIndist_iff_jointDist_eq_mul: for a message law that \
     gives every message nonzero probability and a key drawn independently, perfect security \
-    holds exactly when Pr[m = m ∧ c = c] = Pr[m = m]·Pr[c = c] for all m and c, the \
+    holds exactly when Pr[𝐦 = m ∧ 𝐜 = c] = Pr[𝐦 = m]·Pr[𝐜 = c] for all fixed values m and c, \
+    where 𝐦 and 𝐜 are the random message and ciphertext, as in the book; this is the \
     factorization the book's proof uses. Its first half holds for every message law, as in the \
     book; that is indep_of_ciphertextIndist in the pinned cslib, another module. Theorems 2.3 \
     and 2.4 are stated for every EncScheme, randomized and with any key law, of which the \
@@ -6513,8 +6517,9 @@ register_result "perfect-security-characterizations" where
     pinned cslib converts to the posterior notion PerfectlySecret. Information-theoretic."
 
 register_result "shannon-cipher-examples" where
-  title := "The additive one-time pad is perfectly secure; the variable-length one-time pad and \
-    the substitution cipher are not"
+  title := "The additive one-time pad is perfectly secure, the variable-length one-time pad is \
+    perfectly secure only for L = 0, and the substitution cipher is not on words of length at \
+    least 2 over at least two symbols"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Examples 2.5, 2.6 and 2.7",
