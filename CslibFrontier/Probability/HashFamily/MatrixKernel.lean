@@ -11,7 +11,6 @@ public import CslibFrontier.Probability.HashFamily.Matrix
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.LinearAlgebra.Matrix.ToLin
 import CslibFrontier.Foundations.Data.Finset.Expect
-import CslibFrontier.Probability.KWiseIndependent
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.FieldTheory.Finiteness
 
@@ -120,10 +119,7 @@ theorem expect_sqrt_card_joint_kernel_le (r : ℕ) :
       Real.sqrt_prod _ (fun _ _ => Nat.cast_nonneg _)]
     rfl
   simp_rw [factor]
-  have independent := (isKWiseIndependentHash_id (X := Fin r) (Y := Matrix ι ι F) r).expect_prod
-    (T := univ) (by simp) (fun _ A => weight A)
-  simp only [id_eq, prod_const, card_univ, Fintype.card_fin] at independent
-  rw [independent]
+  rw [← Fintype.piFinset_univ, ← Finset.expect_pow]
   exact pow_le_pow_left₀ (expect_nonneg fun _ _ => Real.sqrt_nonneg _)
     expect_sqrt_card_ker_mulVecLin_le r
 
