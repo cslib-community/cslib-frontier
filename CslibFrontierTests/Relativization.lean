@@ -8,6 +8,7 @@ import CslibFrontier.Computability.Complexity.Classes.Hierarchy
 import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Collapse
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
+import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 
 /-! Requests of adaptive word-query programs under language oracles, locality, membership in the
 oracle classes, the unary length language, candidate deciders, the diagonal oracle, the
@@ -123,6 +124,14 @@ example (B : Set (List Bool)) :
     {x : List Bool | true :: x ∈ unaryLengthLanguage B} ∈ NPWithOracle B encBits :=
   PolyTimeReducible.mem_NPWithOracle ⟨List.cons true, by fun_prop, fun _ => Iff.rfl⟩
     (unaryLengthLanguage_mem_NPWithOracle B)
+
+/-- Arora–Barak Exercise 3 §6: some language in relativized NP has no reduction to ordinary
+3SAT, even if the reduction itself can query the oracle. -/
+example : ∃ (A : Set (List Bool)) (L : Set (List Bool)), L ∈ NPWithOracle A encBits ∧
+    ¬∃ f : List Bool → CNF ℕ, ComputableInPolyTimeWithOracle A f encBits encCNF ∧
+      ∀ x, x ∈ L ↔ f x ∈ ThreeSAT := by
+  obtain ⟨A, hA⟩ := exists_unaryLengthLanguage_not_reducibleWithOracle encCNF ThreeSAT
+  exact ⟨A, unaryLengthLanguage A, hA⟩
 
 /-! ### The diagonal oracle -/
 
