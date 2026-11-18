@@ -26,8 +26,8 @@ Attack Game 20.4 and Definition 20.6, p. 840) on concrete instances and two-side
 * **Boolean and infinite-type `CloseTo`/`Game` bridges.** Check `Game.closeTo_iff_advantage_le` on
   concrete `PMF Bool` laws and `Game.advantage_bind_le_of_closeTo` across `PMF ℕ` without
   `Fintype`.
-* **Schnorr in `schnorrGroups`.** Instantiate
-  `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr` with exact zero acceptance error
+* **Schnorr in `schnorrGroups`.** Instantiate the ideal-sampling step
+  `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr_ideal` with exact zero acceptance error
   (`δ = fun _ => 0`), exercising both `accepts_schnorrSimulator` and Attack Game 20.4
   indistinguishability.
 * **`SpecialHVZK` does not imply `ComputationalSpecialHVZK` (under discrete log).** The protocol
@@ -88,14 +88,15 @@ example (μ ν : PMF ℕ) (h : CloseTo μ ν ((1 / 8 : ℝ≥0) : ℝ≥0∞)) (
 
 /-! ### Schnorr in `schnorrGroups` -/
 
-/-- Schnorr's Sigma protocol in `schnorrGroups` satisfies `ComputationalSpecialHVZK` with exact zero
-acceptance error (`δ = fun _ => 0`) for any group-description setup `setup`. -/
+/-- Schnorr's Sigma protocol in `schnorrGroups`, with its ideal-sampling honest prover, satisfies
+`ComputationalSpecialHVZK` with exact zero acceptance error (`δ = fun _ => 0`) for any
+group-description setup `setup`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) :
     ComputationalSpecialHVZK schnorrGroups.schnorrFamily
       (fun i α u => α • schnorrGroups.generator i.2 = u)
       schnorrGroups.schnorrEncoding (fun i => schnorrGroups.encScalar i.2)
       (fun n => (setup n).map (n, ·)) schnorrGroups.schnorrSimulator (fun _ => 0) :=
-  schnorrGroups.computationalSpecialHVZK_schnorr setup
+  schnorrGroups.computationalSpecialHVZK_schnorr_ideal setup
 
 /-! ### Word simulators -/
 

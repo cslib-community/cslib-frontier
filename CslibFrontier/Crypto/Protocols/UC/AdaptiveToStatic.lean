@@ -37,7 +37,9 @@ section AdaptiveToStatic
 variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
 variable {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ : Type}
 
-private theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
+/-- Lifting a private uniform-choice query past `adaptivePartySpec n In Out` yields the
+corresponding `ProbOracleComp.sample`. -/
+theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
     Machine.liftRightProgram (adaptivePartySpec n In Out)
         (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
       ProbOracleComp.sample (ProbComp.unifFin k) := by
@@ -420,7 +422,9 @@ private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     exact corrupted_rel_of_mem_support_router P κ (A.initial κ) _ InvC R hR_refl hR_trans
       (hadv a sA') hcor rs' (x := ((r, sA''), rs'')) hz
 
-private theorem corrupted_subset_of_mem_support_router {α : Type}
+/-- Any support state of `adaptiveRouter .adaptive P κ C₀` run on `liftAdaptiveNet netProg`
+contains the starting corruption set `rs.corrupted`. -/
+theorem corrupted_subset_of_mem_support_router {α : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
     (netProg : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α)
     (rs : AdaptiveRouterState (P.machine κ).State View n)

@@ -33,7 +33,8 @@ via the Leftover Hash Lemma, without any computational assumptions on the hash f
 * **Paraphrase of [BonehShoup2023], Section 8.10.4, Theorem 8.11 (p. 334, Leftover Hash Lemma):**
   for a $(1 + \alpha)/N$-universal keyed hash function $H$ over $(\mathcal{K}, \mathcal{S},
   \mathcal{T})$ with $N = |\mathcal{T}|$, if $k$ is uniform on $\mathcal{K}$ and $s_1, \dots, s_m$
-  are independent of $k$ and of each other with guessing/collision probability at most $\gamma$,
+  are independent of $k$ and of each other, each with guessing probability (maximum point
+  probability $\max_x \Pr[s_i = x]$) at most $\gamma$,
   the statistical distance $\delta$ between $(k, H(k, s_1), \dots, H(k, s_m))$ and the uniform
   distribution on $\mathcal{K} \times \mathcal{T}^m$ satisfies
   $\delta \le \frac{1}{2} m \sqrt{N \gamma + \alpha}$.
@@ -60,7 +61,8 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
    Because `padWord` is injective on words of length at most `bound d`
    (`Cslib.BitString.word_eq_of_paddedBits_eq`) and `F.encode d` is injective on `F.Carrier d`, a
    uniform group element `γ • g` maps injectively into `BitString (2 * bound d + 1)` with collision
-   probability `(F.order d)⁻¹`.
+   probability `(F.order d)⁻¹`, which for this uniform element equals its maximum point
+   probability, Theorem 8.11's `γ`.
 3. Applying the Leftover Hash Lemma for two-universal binary matrix hashing
    (`Cslib.BitString.LinearHash.isTwoUniversal_flat` and `IsTwoUniversal.leftover_hash`),
    `advantage_kdfGame_linearHashKDF_le` bounds the distinguishing advantage between `kdfRealGame`
