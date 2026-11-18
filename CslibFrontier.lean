@@ -7553,6 +7553,7 @@ public import CslibFrontier.Logics.Propositional.CNF.Johnson.PolyTime
 public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent
 public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent.Trinomial
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 public import CslibFrontier.Logics.Propositional.CNF.LocalLemma
 public import CslibFrontier.Logics.Propositional.CNF.Majority
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
