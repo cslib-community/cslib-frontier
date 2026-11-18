@@ -170,4 +170,25 @@ example : (CDCL.Reduction.init 27 3).max = 9000 ∧
 /-- Deleting no clause leaves the log, and so the certificate, unchanged. -/
 example (φ : CNF ℕ) : (CNF.LRATLog.init φ).delete [] = CNF.LRATLog.init φ := rfl
 
+/-- The trail below the newest decision of a level-3 conflict, newest first: level 2 (`x₅` implied
+over the decision `x₄`), level 1 (`x₃` implied over the decision `x₂`), and
+the root (`x₁` implied). -/
+private abbrev below : CDCL.XTrail :=
+  [.implied (5, true) 9, .decision (4, true), .implied (3, true) 9, .decision (2, true),
+    .implied (1, true) 9]
+
+/-- A learned clause with the variable `x₃` of level 1, implied there, and none of level 2: the
+backjump drops level 2 and keeps the whole of level 1, with the root below it. -/
+example : ((CDCL.XTrail.dropLevels (· == 3) below).1.map CDCL.XEntry.entry =
+      [⟨(5, true), false⟩, ⟨(4, true), true⟩]) ∧
+    (CDCL.XTrail.dropLevels (· == 3) below).2.map CDCL.XEntry.entry =
+      [⟨(3, true), false⟩, ⟨(2, true), true⟩, ⟨(1, true), false⟩] := by
+  decide
+
+/-- A unit learned clause marks no variable below the current level: the backjump keeps just the
+root, with its implied literal. -/
+example : (CDCL.XTrail.dropLevels (fun _ => false) below).2.map CDCL.XEntry.entry =
+    [⟨(1, true), false⟩] := by
+  decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

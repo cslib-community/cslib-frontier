@@ -975,6 +975,33 @@ current level cleared, which leaves no value. -/
   ⟨L.marks.unassign (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])),
     Assign.value_unassign_eq_none L.marks_none⟩
 
+/-- The marks for the backjump: the variables of the learned clause, marked in the array the
+analysis returned once its level is cleared. -/
+@[expose] def jumpMarks {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
+    Assign :=
+  (clearedMarks sp L).1.markVars (L.clause.map Prod.fst)
+
+/-- Whether a variable is marked for the backjump. -/
+@[expose] def jumpMarked {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
+    (v : ℕ) : Bool :=
+  (jumpMarks sp L).assigned v
+
+theorem jumpMarked_of_mem {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
+    ∀ v ∈ L.clause.map Prod.fst, jumpMarked sp L v = true := fun v hv => by
+  simp [jumpMarked, jumpMarks, Assign.assigned, Assign.value_markVars, hv]
+
+/-- The marks after the backjump: those of the learned clause cleared again, which leaves no
+value. -/
+@[expose] def afterJumpMarks {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
+    {A : Assign // ∀ v, A.value v = none} :=
+  ⟨(jumpMarks sp L).unassign (L.clause.map Prod.fst), Assign.value_unassign_eq_none fun v hv => by
+    rw [jumpMarks, Assign.value_markVars, ite_eq_right_iff.2 fun h => absurd h hv]
+    exact (clearedMarks sp L).2 v⟩
+
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. The entries undone are those of `Exec.jump`. The variables met by the analysis are bumped
@@ -982,25 +1009,29 @@ and, with those undone, put back in the variable order, and the phases of the li
 saved; the statistics count `k₀` literals before minimization. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
     WExec φ :=
-  let U := (S.exec.jump sp L).1
+  let j := S.exec.jump sp (jumpMarked sp L)
+  let U := j.1
   if 2 ≤ L.clause.dedup.length then
-    ⟨S.exec.afterConflict sp L, S.backjumped U L.lit,
+    ⟨S.exec.afterConflictWith L j.2, S.backjumped U L.lit,
       S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
       S.short, S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup U, S.saved U,
-      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length, clearedMarks sp L⟩
-  else ⟨S.exec.afterConflict sp L, S.backjumped U L.lit, S.store, [L.lit],
+      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L⟩
+  else ⟨S.exec.afterConflictWith L j.2, S.backjumped U L.lit, S.store, [L.lit],
     (L.id, L.clause) :: S.short,
     S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup U, S.saved U,
-    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length, clearedMarks sp L⟩
+    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
     (hsp : XTrail.split S.exec.trail = some sp) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
     (S.afterConflict sp L k₀).Inv ∧ (S.afterConflict sp L k₀).measure < S.measure := by
-  have hspec := Exec.afterConflict_spec hS.exec he hconf hsp L
-  obtain ⟨hUK, ⟨J, d', hJ⟩, -, hundefK⟩ := Exec.jump_spec hsp L
-  set U := (S.exec.jump sp L).1 with hUdef
-  set K := (S.exec.jump sp L).2 with hKdef
+  have hspec : (S.exec.afterConflictWith L (S.exec.jump sp (jumpMarked sp L)).2).Inv ∧
+      rank φ.vars (S.exec.afterConflictWith L (S.exec.jump sp (jumpMarked sp L)).2).state <
+        rank φ.vars S.exec.state :=
+    Exec.afterConflict_spec hS.exec he hconf hsp L (jumpMarked_of_mem sp L)
+  obtain ⟨hUK, ⟨J, d', hJ⟩, -, hundefK⟩ := Exec.jump_spec hsp L (jumpMarked_of_mem sp L)
+  set U := (S.exec.jump sp (jumpMarked sp L)).1 with hUdef
+  set K := (S.exec.jump sp (jumpMarked sp L)).2 with hKdef
   have hsplit : S.M = XTrail.trail J ++ ⟨d', true⟩ :: XTrail.trail K := by
     change XTrail.trail S.exec.trail = _
     conv_lhs => rw [hUK, hJ]
@@ -1009,9 +1040,9 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     change XTrail.trail S.exec.trail = _
     conv_lhs => rw [hUK]
     exact XTrail.trail_append _ _
-  have hM' : XTrail.trail (S.exec.afterConflict sp L).trail =
+  have hM' : XTrail.trail (S.exec.afterConflictWith L K).trail =
       ⟨L.lit, false⟩ :: XTrail.trail K := rfl
-  have hdb' : (S.exec.afterConflict sp L).db = (L.id, L.clause) :: S.exec.db := rfl
+  have hdb' : (S.exec.afterConflictWith L K).db = (L.id, L.clause) :: S.exec.db := rfl
   have hnodup' := hspec.1.run.nodup
   rw [hM'] at hnodup'
   have hlitM' : L.lit ∈ Trail.lits (⟨L.lit, false⟩ :: XTrail.trail K) :=
@@ -1047,7 +1078,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   -- bumping did not raise their activities
   have horder : S.opts.vsids = true → ∀ T : WExec φ,
       T.order = S.reordered (S.bumped L.seen) L.seen.dedup U → T.act = S.bumped L.seen →
-      T.exec = S.exec.afterConflict sp L → T.OrderInv := by
+      T.exec = S.exec.afterConflict sp L (jumpMarked sp L) → T.OrderInv := by
     intro hv T hTo hTa hTe
     have hS' := hS.order hv
     simp only [WExec.reordered, WExec.bumped, hv, ↓reduceIte] at hTo hTa
@@ -1084,7 +1115,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     rw [hMUK, vars_append] at hnd
     exact (hA.drop fun v hv => List.disjoint_of_nodup_append hnd hv).cons
       (List.nodup_cons.1 hnodup').1 false
-  have hmeasure : rank φ.vars (S.exec.afterConflict sp L).state * (nvars φ + 2) + 1 <
+  have hmeasure : rank φ.vars (S.exec.afterConflictWith L K).state * (nvars φ + 2) + 1 <
       S.measure := by
     have := hspec.2
     simp only [WExec.measure]
