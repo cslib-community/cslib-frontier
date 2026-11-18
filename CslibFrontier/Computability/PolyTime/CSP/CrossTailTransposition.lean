@@ -338,7 +338,8 @@ theorem wellFormed_transposeTail_iff (I : State Rel) :
       cases ps using List.reverseRecOn with
       | nil => simp at hs
       | append_singleton L x =>
-        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by simp only [List.append_assoc]]
+        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+          simp only [List.append_assoc, List.cons_append, List.nil_append]]
         rw [(long_fields g w F L x y c).1, hrel, hrel, wellFormed_insert_iff]
 
 /-- Long-branch rows are exactly the old rows plus the fixed actual gadget rows. -/

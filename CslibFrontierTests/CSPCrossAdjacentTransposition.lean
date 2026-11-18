@@ -31,7 +31,10 @@ private abbrev w := figureOneBBoundary
 
 private def unused : State Unit := ⟨[], [10, 20, 30, 40], ⟨[0, 3, 2, 5, 4, 7, 6, 1]⟩⟩
 
-example : unused.Accepted := by decide +kernel
+/-- The literal production boundary fixture passes both full input checks. -/
+theorem four_port_source_accepted :
+    (⟨[], [10, 20, 30, 40], ⟨[0, 3, 2, 5, 4, 7, 6, 1]⟩⟩ : State Unit).Accepted := by
+  decide +kernel
 
 example : (transposeAdjacent g w unused 1).Accepted :=
   accepted_transposeAdjacent g w unused 1 (by decide +kernel)
@@ -63,7 +66,7 @@ example : ∃ τ : ℕ → Bool, (transposeAdjacent g w unused 1).body.eval near
     (transposeAdjacent g w unused 1).ports.map τ = [false, true, false, true] := by
   obtain ⟨τ, ht, he, hv⟩ :=
     (eval_transposeAdjacent_iff g w [] [10] 20 30 [40] unused.rotation sigma).mp rfl
-  exact ⟨τ, ht, he, by simpa [sigma] using he 123456, by simpa [sigma] using hv⟩
+  exact ⟨τ, ht, he, by simpa [sigma] using he 123456, by simpa [sigma, unused] using hv⟩
 
 example : ¬∃ τ : ℕ → Bool, (transposeAdjacent g w unused 1).body.eval nearSem τ = true ∧
     (∀ z, τ (2 * z) = sigma z) ∧
@@ -71,6 +74,7 @@ example : ¬∃ τ : ℕ → Bool, (transposeAdjacent g w unused 1).body.eval ne
   rintro ⟨τ, ht, he, hv⟩
   have h := (recover_transposeAdjacent g w [] [10] 20 30 [40] unused.rotation τ ht).2
   simp only [he] at h
+  change (transposeAdjacent g w unused 1).ports.map τ = _ at h
   rw [hv] at h
   simp [sigma] at h
 
@@ -83,7 +87,8 @@ example : (transposeAdjacent g w repeated 1).ports = [2 * 2 ^ 250, 5, 7, 2 * 2 ^
 example : ∃ τ : ℕ → Bool, (transposeAdjacent g w repeated 1).body.eval nearSem τ = true ∧
     (∀ z, τ (2 * z) = false) ∧
     (transposeAdjacent g w repeated 1).ports.map τ = [false, false, false, false] := by
-  simpa only [List.map_cons, List.map_nil, List.cons_append, List.nil_append] using
+  simpa only [repeated, List.length_cons, List.length_nil,
+    List.map_cons, List.map_nil, List.cons_append, List.nil_append] using
     (eval_transposeAdjacent_iff g w [] [2 ^ 250] 17 17 [2 ^ 250] repeated.rotation
       (fun _ => false)).mp rfl
 
@@ -113,6 +118,9 @@ example : ¬(transposeAdjacent g w malformed 0).body.WellFormed (fun _ => 4) := 
 example : (transposeAdjacent g w unused 1).rotation.successor =
     [0, 3, 14, 5, 12, 7, 10, 1, 20, 11, 18, 13,
       4, 15, 2, 9, 16, 19, 6, 21, 8, 23, 22, 17] := by
+  unfold transposeAdjacent unused transposeTail rotateLeft rotateRight fuseHead hideHead
+    CrossInsertion.insert g w
+  rw [figureOneBBoundary_certificate]
   decide +kernel
 
 example : ¬∃ τ : ℕ → Bool, (transposeAdjacent g w malformed 0).body.eval nearSem τ = true := by
@@ -125,18 +133,24 @@ example : ¬∃ τ : ℕ → Bool, (transposeAdjacent g w malformed 0).body.eval
 example (c : Graph.RotationCertificate) :
     transposeAdjacent g w (⟨malformed.body, [], c⟩ : State Unit) 0 =
       ⟨malformed.body, [], c⟩ :=
-  transposeAdjacent_invalid g w _ _ (by decide)
+  transposeAdjacent_invalid g w _ _ (by change (0 : ℕ) ≤ 1; omega)
 
 example (c : Graph.RotationCertificate) :
     transposeAdjacent g w (⟨malformed.body, [2 ^ 250], c⟩ : State Unit) 0 =
       ⟨malformed.body, [2 ^ 250], c⟩ :=
-  transposeAdjacent_invalid g w _ _ (by decide)
+  transposeAdjacent_invalid g w _ _ (by change (1 : ℕ) ≤ 1; omega)
 
 -- A positive raw full cycle need not be identity: never reduce the executed loop count mod P.
 example : (rotateLeft (rotateLeft (⟨[], [10, 20], ⟨[]⟩⟩ : State Unit))).rotation.successor =
     [0, 0, 0, 0] ∧
     rotateLeft (rotateLeft (⟨[], [10, 20], ⟨[]⟩⟩ : State Unit)) ≠ ⟨[], [10, 20], ⟨[]⟩⟩ := by
-  decide +kernel
+  have htable : (rotateLeft (rotateLeft (⟨[], [10, 20], ⟨[]⟩⟩ : State Unit))).rotation.successor =
+      [0, 0, 0, 0] := by decide +kernel
+  refine ⟨htable, ?_⟩
+  intro h
+  have hnil := congrArg (fun I : State Unit => I.rotation.successor) h
+  rw [htable] at hnil
+  cases hnil
 
 example {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
     (g : PPGadget ar sem cross) (w : GadgetWitness g) (encRel : Rel ↪ List Bool) :

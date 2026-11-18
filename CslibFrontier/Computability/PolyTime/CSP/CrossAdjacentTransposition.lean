@@ -13,6 +13,11 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 import Mathlib.Data.List.Rotate
+import CslibFrontier.Tactic.EncLen
+import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Foundations.Data.Nat.Bits
 
 /-!
 # A bounded positioned adjacent value transposition
@@ -61,7 +66,7 @@ rotation loops. Invalid positions preserve the entire raw input before insertion
 /-- Out-of-range binary positions preserve every row, name and raw table entry. -/
 theorem transposeAdjacent_invalid (I : State Rel) (j : ℕ)
     (h : I.ports.length ≤ j + 1) : transposeAdjacent g w I j = I := by
-  rw [transposeAdjacent, if_neg (by omega)]
+  rw [transposeAdjacent, ite_eq_right (by omega)]
 
 private theorem left_body (I : State Rel) (n : ℕ) :
     ((rotateLeft^[n]) I).body = I.body := by
@@ -128,21 +133,40 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hJ : J.ports = (R ++ L) ++ [x, y] := by
     rw [right_ports]
     simp only [I, List.reverse_append]
-    rw [← List.length_reverse R, List.rotate_append_length_eq]
+    rw [← List.length_reverse (as := R), List.rotate_append_length_eq]
     simp only [List.reverse_reverse, List.reverse_append, List.append_assoc]
   have hb : J.body = F := right_body I R.length
   have hstate : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    cases J
-    simp_all
-  have hvalid : L.length + 1 < I.ports.length := by simp [I]; omega
-  have hr : I.ports.length - (L.length + 2) = R.length := by simp [I]
+    calc
+      J = ⟨J.body, J.ports, J.rotation⟩ := rfl
+      _ = _ := by rw [hb, hJ]
+  have hvalid : L.length + 1 < I.ports.length := by
+    simp only [I, List.length_append, List.length_cons, List.length_nil]
+    omega
+  have hr : I.ports.length - (L.length + 2) = R.length := by
+    simp only [I, List.length_append, List.length_cons, List.length_nil]
+    omega
   have hp := ports_transposeTail g w F (R ++ L) x y J.rotation
   rw [← hstate] at hp
-  rw [transposeAdjacent, if_pos hvalid, hr]
+  rw [transposeAdjacent, ite_eq_left hvalid, hr]
   refine ⟨left_body _ _, hb, hJ, ?_⟩
   rw [left_ports, hp, List.map_append]
   rw [show R.length = (R.map (2 * ·)).length from (List.length_map _).symm]
   rw [List.append_assoc, List.rotate_append_length_eq]
+
+-- Reuse the same literal intermediate State in the semantic/count/width callers.
+include g w in
+private theorem positioned_state (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
+    (R : List ℕ) (c : RotationCertificate) :
+    (rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel) =
+      ⟨F, (R ++ L) ++ [x, y],
+        ((rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel)).rotation⟩ := by
+  have hf := positioned_fields g w F L x y R c
+  let J := (rotateRight^[R.length]) (⟨F, L ++ [x, y] ++ R, c⟩ : State Rel)
+  calc
+    J = ⟨J.body, J.ports, J.rotation⟩ := rfl
+    _ = _ := by rw [show J.body = F from hf.2.1,
+      show J.ports = (R ++ L) ++ [x, y] from hf.2.2.1]
 
 /-- The actual directed port word has fresh middle names carrying reversed values.
 Repeated names and malformed tables need no premise. -/
@@ -157,7 +181,7 @@ theorem transposeAdjacent_tail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : RotationCertificate) :
     transposeAdjacent g w (⟨F, L ++ [x, y], c⟩ : State Rel) L.length =
       transposeTail g w ⟨F, L ++ [x, y], c⟩ := by
-  simp [transposeAdjacent, show L.length + 1 < (L ++ [x, y]).length by simp]
+  simp [transposeAdjacent]
 
 /-- Recover the source assignment on EVERY old even name from one satisfying output,
 and recover the complete directed swapped word. No checker or syntax premise is needed. -/
@@ -173,18 +197,21 @@ theorem recover_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    cases J
-    simp_all
+  have hj := positioned_state g w F L x y R c
   have ht' : (transposeTail g w J).body.eval sem τ = true := by
     rw [← hf.1]
     exact ht
+  dsimp only [J, I] at ht'
   rw [hj] at ht'
   have hrec := recover_transposeTail g w F (R ++ L) x y J.rotation τ ht'
   refine ⟨hrec.1, ?_⟩
-  have hvalid : L.length + 1 < I.ports.length := by simp [I]; omega
-  have hr : I.ports.length - (L.length + 2) = R.length := by simp [I]
-  rw [transposeAdjacent, if_pos hvalid, hr, left_ports, List.map_rotate, hj, hrec.2]
+  have hvalid : L.length + 1 < I.ports.length := by
+    simp only [I, List.length_append, List.length_cons, List.length_nil]
+    omega
+  have hr : I.ports.length - (L.length + 2) = R.length := by
+    simp only [I, List.length_append, List.length_cons, List.length_nil]
+    omega
+  rw [transposeAdjacent, ite_eq_left hvalid, hr, left_ports, List.map_rotate, hj, hrec.2]
   rw [List.map_append, List.append_assoc,
     show R.length = (R.map (fun z => τ (2 * z))).length from (List.length_map _).symm,
     List.rotate_append_length_eq]
@@ -202,9 +229,7 @@ theorem eval_transposeAdjacent_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    cases J
-    simp_all
+  have hj := positioned_state g w F L x y R c
   constructor
   · intro hσ
     obtain ⟨τ, ht, he, _⟩ :=
@@ -238,9 +263,7 @@ theorem counts_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    cases J
-    simp_all
+  have hj := positioned_state g w F L x y R c
   constructor
   · rw [hf.1, hj, length_transposeTail_body]
   constructor
@@ -260,9 +283,7 @@ theorem name_width_transposeAdjacent_le (F : CSP Rel ℕ) (L : List ℕ) (x y : 
   let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
-  have hj : J = ⟨F, (R ++ L) ++ [x, y], J.rotation⟩ := by
-    cases J
-    simp_all
+  have hj := positioned_state g w F L x y R c
   have hW' : ∀ z ∈ F.vars ++ ((R ++ L) ++ [x, y]), z.size ≤ W := by
     intro z hz
     apply hW z
@@ -287,9 +308,9 @@ private theorem turn_body (b : Bool) (I : State Rel) : (turn b I).body = I.body 
 private theorem turn_ports_perm (b : Bool) (I : State Rel) :
     (turn b I).ports.Perm I.ports := by
   cases b
-  · rw [turn, if_neg (by decide), rotateLeft_ports]
+  · rw [turn, ite_eq_right (by decide), rotateLeft_ports]
     exact List.rotate_perm _ _
-  · rw [turn, if_pos rfl, rotateRight_ports]
+  · rw [turn, ite_eq_left rfl, rotateRight_ports]
     exact (List.reverse_perm _).trans
       ((List.rotate_perm _ _).trans (List.reverse_perm _))
 
@@ -312,7 +333,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
   rcases I with ⟨F, ports, c⟩
   cases ports with
   | nil =>
-    simpa only [turn, rotateLeft, rotateRight, ite_self] using
+    simpa only [turn, rotateLeft, rotateRight, ite_self, List.length_nil, Nat.add_zero] using
       (show c.successor.length ≤ max c.successor.length (2 * F.occurrences.length) ∧
         ∀ v ∈ c.successor, v.size ≤ B from ⟨le_max_left _ _, he⟩)
   | cons x ps =>
@@ -325,16 +346,18 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
       let M := F.occurrences.length
       have hN : 1 < N := by simp [N]
       have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
-        rcases List.getD_mem_or c.successor i 0 with h | h
-        · exact he _ h
-        · rw [h]; simp
+        by_cases hi : i < c.successor.length
+        · rw [List.getD_eq_getElem _ _ hi]
+          exact he _ (List.getElem_mem hi)
+        · rw [List.getD_eq_default _ _ (by omega)]
+          simp
       have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
           (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
         (window_size M N shift hs _).trans (max_le (hread i) hd)
       cases b <;>
         simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
           rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
-          show ¬N ≤ 1 from by omega, ↓reduceIte]
+          show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
       all_goals
         constructor
         · rw [RotationCertificate.length_reindex]
@@ -347,7 +370,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
-  (h.flatMap (frame ∘ encNat)).length_eq
+  (h.flatMap_right (frame ∘ encNat)).length_eq
 
 private theorem loop_components (encRel : Rel ↪ List Bool) (b : Bool) (I : State Rel) (n : ℕ) :
     ((turn b)^[n] I).body = I.body ∧
@@ -361,10 +384,11 @@ private theorem loop_components (encRel : Rel ↪ List Bool) (b : Bool) (I : Sta
   | zero =>
     refine ⟨rfl, .refl _, le_max_left _ _, ?_⟩
     intro v hv
-    have := SizedListEncoding.length_elem_le (encA := encNat) I.rotation.successor v hv
-    rw [encNat_apply, ← Nat.size_eq_bits_len] at this
-    enc_len [encState] at *
-    omega
+    have := SizedListEncoding.length_elem_le (encA := encNat) (encL := encList encNat)
+      I.rotation.successor v hv
+    rw [encNat_apply, Nat.size_eq_bits_len] at this
+    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+      Graph.encRotationCertificateFields] at *
   | succ n ih =>
     rw [Function.iterate_succ_apply']
     have hp := ih.2.1.length_eq
@@ -400,18 +424,22 @@ private theorem loop_size (encRel : Rel ↪ List Bool) (b : Bool) (I : State Rel
     have hwidth : ∀ v ∈ ((turn b)^[n] I).rotation.successor,
         (encNat v).length ≤ S + D := by
       intro v hv
-      rw [encNat_apply, ← Nat.size_eq_bits_len]
+      rw [encNat_apply, Nat.size_eq_bits_len]
       exact (h.2.2.2 v hv).trans (by dsimp only [S, D]; omega)
     exact (length_encList_le encNat _ hwidth).trans
       (Nat.mul_le_mul_right _ (h.2.2.1.trans (max_le (by omega) (by omega))))
   have hbody : (encCSP encRel encNat I.body).length ≤ S := by
     dsimp only [S]
-    enc_len [encState]
+    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+      Graph.encRotationCertificateFields]
   have hports : (encList encNat I.ports).length ≤ S := by
     dsimp only [S]
-    enc_len [encState]
-  dsimp only [rotationBudget]
-  enc_len [encState] at *
+    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+      Graph.encRotationCertificateFields]
+  change (encState encRel ((turn b)^[n] I)).length ≤
+    4 * S + 4 + D * (2 * (S + D) + 1)
+  simp only [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+    Graph.encRotationCertificateFields, length_encPair]
   rw [h.1, hp]
   omega
 
@@ -466,7 +494,8 @@ private theorem tail_ports_length (I : State Rel) :
     cases ps using List.reverseRecOn with
     | nil => rfl
     | append_singleton L x =>
-      rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by simp only [List.append_assoc],
+      rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+        simp only [List.append_assoc, List.cons_append, List.nil_append],
         length_transposeTail_ports]
       simp only [List.length_append, List.length_cons, List.length_nil]
 
@@ -498,10 +527,10 @@ theorem computableInPolyTime_transposeAdjacent (encRel : Rel ↪ List Bool) :
   have hr : I.ports.length - min I.ports.length (j + 2) = I.ports.length - (j + 2) := by omega
   have hle : I.ports.length - (j + 2) ≤ I.ports.length := Nat.sub_le _ _
   have hp := (loop_components encRel true I (I.ports.length - (j + 2))).2.1.length_eq
-  simp only [transposeAdjacent, boundedTurn, hr, Nat.min_eq_right hle, turn,
-    ↓reduceIte, Function.comp_def]
+  simp only [transposeAdjacent, boundedTurn, hr, Nat.min_eq_right hle, Function.comp_def]
   split_ifs
   · rw [tail_ports_length, hp, Nat.min_eq_right hle]
+    rfl
   · rfl
 
 end Cslib.Complexity.CSP.CrossInsertion
