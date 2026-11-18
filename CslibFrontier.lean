@@ -291,6 +291,25 @@ public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Coefficient
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Correctness
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Defs
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Phases
+public import CslibFrontier.Algorithms.PlantedClique.Algorithm
+public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborAsymptotics
+public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborFinal
+public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborPolyTime
+public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborProgram
+public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborRecovery
+public import CslibFrontier.Algorithms.PlantedClique.Correctness
+public import CslibFrontier.Algorithms.PlantedClique.Eigenvector
+public import CslibFrontier.Algorithms.PlantedClique.EigenvectorFinal
+public import CslibFrontier.Algorithms.PlantedClique.Encoding
+public import CslibFrontier.Algorithms.PlantedClique.Final
+public import CslibFrontier.Algorithms.PlantedClique.Indicator
+public import CslibFrontier.Algorithms.PlantedClique.IntegerPower
+public import CslibFrontier.Algorithms.PlantedClique.PolyTime
+public import CslibFrontier.Algorithms.PlantedClique.PowerSearch
+public import CslibFrontier.Algorithms.PlantedClique.Program
+public import CslibFrontier.Algorithms.PlantedClique.RandomGraph
+public import CslibFrontier.Algorithms.PlantedClique.Representation
+public import CslibFrontier.Algorithms.PlantedClique.Selection
 public import CslibFrontier.Algorithms.Quantum.PeriodFinding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst
 public import CslibFrontier.Algorithms.Reachability.InductiveCounting
@@ -3583,6 +3602,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Lex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.Sort
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.ListsUpTo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -4235,6 +4255,7 @@ public import CslibFrontier.Computability.PolyTime.GreedySlotScore
 public import CslibFrontier.Computability.PolyTime.Int.DotProduct
 public import CslibFrontier.Computability.PolyTime.Int.ExactDiv
 public import CslibFrontier.Computability.PolyTime.Int.Jet
+public import CslibFrontier.Computability.PolyTime.Int.MatrixPower
 public import CslibFrontier.Computability.PolyTime.Int.Negacyclic
 public import CslibFrontier.Computability.PolyTime.Int.Table
 public import CslibFrontier.Computability.PolyTime.JetArray
@@ -4261,6 +4282,7 @@ public import CslibFrontier.Computability.Probabilistic.CenteredBinomial
 public import CslibFrontier.Computability.Probabilistic.CoinOfDigits
 public import CslibFrontier.Computability.Probabilistic.CoinTape
 public import CslibFrontier.Computability.Probabilistic.CoinTape.Bounds
+public import CslibFrontier.Computability.Probabilistic.DistributionalSearch
 public import CslibFrontier.Computability.Probabilistic.ExponentialIterate
 public import CslibFrontier.Computability.Probabilistic.Finite
 public import CslibFrontier.Computability.Probabilistic.Fold
@@ -5226,6 +5248,8 @@ public import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
 public import CslibFrontier.Crypto.Game.CloseTo.UniformNat
 public import CslibFrontier.Crypto.Game.CloseTo.UntilBad
 public import CslibFrontier.Crypto.Game.Concrete
+public import CslibFrontier.Crypto.Game.Distributional
+public import CslibFrontier.Crypto.Game.DistributionalSearch
 public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Game.Forgery
 public import CslibFrontier.Crypto.Game.FourHop
@@ -5987,10 +6011,12 @@ public import CslibFrontier.Foundations.Analysis.Fourier.ZModProd
 public import CslibFrontier.Foundations.Analysis.HarmonicMean
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.Basic
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.CHSH
+public import CslibFrontier.Foundations.Analysis.InnerProductSpace.EigenvectorPerturbation
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.GramSchmidtOrtho
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.MetricProjection
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.NearlyOrthogonal
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
+public import CslibFrontier.Foundations.Analysis.InnerProductSpace.RankOnePerturbation
 public import CslibFrontier.Foundations.Analysis.Lattice.Covolume
 public import CslibFrontier.Foundations.Analysis.Lattice.Dual
 public import CslibFrontier.Foundations.Analysis.Lattice.Fourier
@@ -6002,6 +6028,7 @@ public import CslibFrontier.Foundations.Analysis.Lattice.Schwartz
 public import CslibFrontier.Foundations.Analysis.LpNorm
 public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
+public import CslibFrontier.Foundations.Analysis.Normed.FiniteNet
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.RateExponent
@@ -6272,7 +6299,10 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Berge
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueCover
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueRecovery
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueUniqueness
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ColorRefinement
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CommonNeighborhood
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Bridges
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Connected
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.EdgeConnectivity
@@ -6533,6 +6563,7 @@ public import CslibFrontier.Foundations.Data.Finset.Quotient
 public import CslibFrontier.Foundations.Data.Finset.Sampling
 public import CslibFrontier.Foundations.Data.Finset.SubsetSum
 public import CslibFrontier.Foundations.Data.Finset.SymmDiff
+public import CslibFrontier.Foundations.Data.Finset.TopSelection
 public import CslibFrontier.Foundations.Data.Finset.Tournament
 public import CslibFrontier.Foundations.Data.Finset.UniqueTail
 public import CslibFrontier.Foundations.Data.Finset.Variance
@@ -6586,6 +6617,7 @@ public import CslibFrontier.Foundations.Data.List.Lex
 public import CslibFrontier.Foundations.Data.List.ListsUpTo
 public import CslibFrontier.Foundations.Data.List.Lookup
 public import CslibFrontier.Foundations.Data.List.MaskSelect
+public import CslibFrontier.Foundations.Data.List.MergeSort
 public import CslibFrontier.Foundations.Data.List.ModifyLast
 public import CslibFrontier.Foundations.Data.List.OfFn
 public import CslibFrontier.Foundations.Data.List.OfFnGetD
@@ -7933,6 +7965,7 @@ public import CslibFrontier.Probability.BitString.List.Vote
 public import CslibFrontier.Probability.BitString.Massart
 public import CslibFrontier.Probability.BitString.Parity
 public import CslibFrontier.Probability.BitString.Rademacher
+public import CslibFrontier.Probability.BitString.Rademacher.Tail
 public import CslibFrontier.Probability.BitString.SubsetSum
 public import CslibFrontier.Probability.BitString.SubsetSum.Matrix
 public import CslibFrontier.Probability.BitString.ToeplitzHash
@@ -7953,6 +7986,8 @@ public import CslibFrontier.Probability.DDGTree.Biased
 public import CslibFrontier.Probability.DDGTree.Digits
 public import CslibFrontier.Probability.DDGTree.KnuthYao
 public import CslibFrontier.Probability.DDGTree.Rejection
+public import CslibFrontier.Probability.Distributional.Distinguishing
+public import CslibFrontier.Probability.Distributional.Search
 public import CslibFrontier.Probability.Divergence
 public import CslibFrontier.Probability.Entropy
 public import CslibFrontier.Probability.Entropy.BitString
@@ -8092,6 +8127,7 @@ public import CslibFrontier.Probability.PMF.UniformBound
 public import CslibFrontier.Probability.PMF.UniformCollisionInsert
 public import CslibFrontier.Probability.PMF.UniformExtend
 public import CslibFrontier.Probability.PMF.UniformIndex
+public import CslibFrontier.Probability.PMF.UniformPattern
 public import CslibFrontier.Probability.PMF.UniformPoint
 public import CslibFrontier.Probability.PMF.UniformPowerset
 public import CslibFrontier.Probability.PMF.UniformSubset
@@ -8115,6 +8151,14 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.Toeplitz
 public import CslibFrontier.Probability.PairwiseIndependentHash.Universal
 public import CslibFrontier.Probability.PairwiseIndependentHash.ValidatedWords
 public import CslibFrontier.Probability.Pinsker
+public import CslibFrontier.Probability.PlantedClique.CommonNeighborSize
+public import CslibFrontier.Probability.PlantedClique.CommonNeighbors
+public import CslibFrontier.Probability.PlantedClique.Degree
+public import CslibFrontier.Probability.PlantedClique.Model
+public import CslibFrontier.Probability.PlantedClique.Problem
+public import CslibFrontier.Probability.PlantedClique.RandomMatrix
+public import CslibFrontier.Probability.PlantedClique.Recovery
+public import CslibFrontier.Probability.PlantedClique.Uniqueness
 public import CslibFrontier.Probability.PoissonBinomial
 public import CslibFrontier.Probability.PoissonBinomial.Reflection
 public import CslibFrontier.Probability.Product
