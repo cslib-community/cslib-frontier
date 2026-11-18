@@ -202,7 +202,6 @@ import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
-import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -7615,44 +7614,51 @@ register_result "cdh-inverse-order-negligible" where
     module labels both original, and they are not listed here."
 
 register_result "malleable-encryption-not-1cca" where
-  title := "A malleable public-key encryption scheme is not 1CCA secure"
+  title := "A public-key scheme with an efficient transformation whose decryption reveals the \
+    challenge bit is not 1CCA secure"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "CCA adversary with advantage 1 against a malleable scheme (unnumbered)",
+      theorem := "malleability example with a CCA adversary of advantage 1 (unnumbered)",
       locator := "Section 12.2.1, pp. 469–470" }
   ]
   theorems := [
     Cslib.Crypto.Encryption.not_indcca2On_of_maulAdversary,
     Cslib.Crypto.Encryption.advantage_cca2GameOn_maulAdversary
   ]
-  scope := "Any public-key scheme (keyGen, encrypt, decrypt) on words, with a message type Msg \
-    and a predicate valid that admits challenge pairs. Hypotheses: choices msg₀ and msg₁, \
-    computed from the public key in polynomial time, whose pair is admissible under every \
-    honest public key; a polynomial-time transformation maul with maul(pk, c) ≠ c for every \
-    honest challenge ciphertext c; and a polynomial-time target word such that the decryption \
-    of maul(pk, c) encodes to the target exactly when c encrypts msg₁. The transformation plays \
-    the part of Molly's algorithm on p. 470, which changes the header of a ciphertext but not \
-    its body. maulAdversary is the book's adversary A: with no Phase 1 query it submits the \
-    pair, makes the single Phase 2 query maul(pk, c), and compares the reply with the target. \
-    It is certified strict oracle PPT (isPPT_maulAdversary), and \
-    advantage_cca2GameOn_maulAdversary states that its advantage is exactly 1 at every n where \
-    the hypotheses hold. Conclusion: the scheme is not INDCCA2On valid (Attack Game 12.1 and \
-    Definition 12.2, pp. 467–468, one encryption query, against uniform strict oracle-PPT \
-    adversaries). The library's 1CCA game decrypts every word other than the challenge and \
-    admits the pairs that valid admits, where the source's decryption queries lie in the \
-    ciphertext space C and its challenge messages lie in M and have the same length. Because \
-    the adversary's only query is maul(pk, c), when maul maps honest ciphertexts into C, as \
-    Molly's transformation does, and msg₀ and msg₁ are such messages, maulAdversary is an \
-    adversary of Attack Game 12.1 with advantage 1 there. The library applies these theorems \
-    to ElGamal, Goldwasser–Micali and Paillier encryption, so their hypotheses can hold."
+  scope := "The book gives an example: the scheme E_TDF with a stream cipher, where Molly changes \
+    the header of a ciphertext but not its body (p. 470), and a CCA adversary A with advantage \
+    1 against any scheme that allows such a change. These theorems prove a conditional \
+    criterion behind that example, for any public-key scheme (keyGen, encrypt, decrypt) on \
+    words, with a message type Msg and a predicate valid that admits challenge pairs. \
+    Criterion: (i) messages msg₀ and msg₁, computed from the public key in polynomial time, \
+    form a pair that valid admits under every honest public key; (ii) a transformation maul \
+    and a target word are computable in polynomial time; (iii) for every honest key pair and \
+    every ciphertext c in the support of the encryption of msg₀ or msg₁, maul(pk, c) ≠ c, and \
+    the decryption of maul(pk, c) encodes to the target exactly when c encrypts msg₁. \
+    maulAdversary plays the book's A: with no Phase 1 query it submits the pair, makes the \
+    single Phase 2 query maul(pk, c) and compares the reply with the target. It is certified \
+    strict oracle PPT (isPPT_maulAdversary). advantage_cca2GameOn_maulAdversary states that \
+    its advantage is exactly 1 at every n where (i) and (iii) hold, and \
+    not_indcca2On_of_maulAdversary concludes that the scheme is not INDCCA2On valid (Attack \
+    Game 12.1 and Definition 12.2, pp. 467–468, one encryption query, against uniform strict \
+    oracle-PPT adversaries). Validity condition: the library's 1CCA game decrypts every word \
+    other than the challenge and admits whatever pairs valid admits, whereas the source's \
+    decryption queries lie in the ciphertext space C and its challenge messages lie in M and \
+    have the same length. The conclusion is the source's only when the derived query \
+    maul(pk, c) lies in C for every honest challenge ciphertext c, as Molly's ciphertext does, \
+    and msg₀ and msg₁ are such messages; then maulAdversary is an adversary of Attack \
+    Game 12.1 with advantage 1 there. The theorems do not state that condition, so each \
+    application has to check it. The library applies them to ElGamal, Goldwasser–Micali and \
+    Paillier encryption, so (i)–(iii) can hold."
 
 register_result "partial-tag-encrypt-then-mac" where
-  title := "Encrypt-then-MAC that leaves the IV unauthenticated loses ciphertext integrity"
+  title := "Encrypt-then-MAC over a one-block PRF cipher with an unauthenticated IV loses \
+    ciphertext integrity (an analogue of the randomized-CBC example)"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "encrypt-then-MAC with the tag on part of the ciphertext (unnumbered example)",
+      theorem := "unauthenticated-IV example for randomized CBC mode (unnumbered); an analogue",
       locator := "Section 9.4.1.1, pp. 368–369" }
   ]
   theorems := [
@@ -7660,26 +7666,27 @@ register_result "partial-tag-encrypt-then-mac" where
     Cslib.Crypto.not_authenticatedEncryption_prfCipherPartialTag,
     Cslib.Crypto.PseudorandomFunction.prfCipherPartialTag_counterexample
   ]
-  scope := "prfCipherPartialTag is encrypt-then-MAC whose tag covers only the ciphertext body. \
-    The cipher is prfCipher for a keyed family F with n-bit keys, inputs and outputs: a uniform \
-    n-bit IV r and the ciphertext r ‖ (F(k, r) ⊕ m) for an n-bit message m. The MAC is any \
-    MACScheme on n-bit messages, applied to the body alone (partialTagMAC), so the IV is not \
-    authenticated. The book's example uses randomized CBC mode, which this one-block \
-    PRF-based cipher replaces. The attack on ciphertext integrity does not depend on the mode; \
-    the CBC effect m′[0] = m[0] ⊕ Δ (p. 369) is not formalized. The adversary \
-    partialTagCIAdversary makes one encryption query, on 0^n, flips the first bit of the IV and \
-    keeps the body and the tag: from (r, c, t) it makes the valid ciphertext (r′, c, t) with \
-    r′ ≠ r of p. 368. It is certified strict oracle PPT (isOraclePPT_partialTagCIAdversary) and \
+  scope := "An analogue of the book's example, not the example itself. The book applies \
+    encrypt-then-MAC to randomized CBC mode and computes the tag on the body c alone, leaving \
+    the IV r unauthenticated (pp. 368–369). The construction here is prfCipherPartialTag. Its \
+    cipher is the one-block PRF cipher prfCipher for a keyed family F with n-bit keys, inputs \
+    and outputs, computable in polynomial time: the ciphertext of an n-bit message m is \
+    r ‖ (F(k, r) ⊕ m) for a uniform n-bit IV r. Its MAC is any MACScheme on n-bit messages, \
+    applied to the body alone (partialTagMAC), so the IV is not authenticated. CBC mode is \
+    not part of this entry, and neither is its plaintext shift m′[0] = m[0] ⊕ Δ (p. 369). \
+    The adversary partialTagCIAdversary makes one encryption query, on 0^n, flips the first \
+    bit of the IV and keeps the body and the tag, giving a ciphertext (r′, c, t) with r′ ≠ r \
+    as on p. 368. It is certified strict oracle PPT (isOraclePPT_partialTagCIAdversary) and \
     wins with probability 1 for n ≥ 1 \
     (eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary). Its query is an n-bit \
-    message and its forgery has the form of an honest ciphertext, so it is also an adversary in \
-    the source's game. Hence, for every MAC and with no assumption, the scheme provides neither \
-    ciphertext integrity (Attack Game 9.1 and Definition 9.1, pp. 358–359), nor its one-time \
-    form (Definition 9.3, p. 360), nor authenticated encryption (Definition 9.2, p. 359). \
-    prfCipherPartialTag_counterexample adds that when F is a PseudorandomFunction (Attack \
-    Game 4.2 and Definition 4.2, pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and \
-    Definition 5.2, pp. 181–182, on n-bit messages) while it lacks one-time ciphertext \
-    integrity."
+    message and its forgery has the form of an honest ciphertext of this scheme, so it also \
+    wins Attack Game 9.1 for this scheme. Hence, for every such F and every MAC, with no \
+    assumption, the scheme provides neither ciphertext integrity (Attack Game 9.1 and \
+    Definition 9.1, pp. 358–359), nor its one-time form (Definition 9.3, p. 360), nor \
+    authenticated encryption (Definition 9.2, p. 359). prfCipherPartialTag_counterexample \
+    adds that when F is a PseudorandomFunction (Attack Game 4.2 and Definition 4.2, \
+    pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
+    pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
 register_result "rsa-half-predicate-inversion" where
   title := "Baby Bleichenbacher: an oracle for the half predicate inverts RSA"
@@ -7713,34 +7720,3 @@ register_result "rsa-half-predicate-inversion" where
     and polynomial-time recovery are explicit. \
     RSAOneWay.not_frequently_alwaysCorrect_halfPredictor, in the same module, is a hardness \
     corollary that is not part of the exercise and is not listed."
-
-register_result "nested-encryption-semantic-security" where
-  title := "Nested encryption is semantically secure when all keys but one are revealed"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 2.12", locator := "Section 2.4, p. 37" }
-  ]
-  theorems := [
-    Cslib.Crypto.indistinguishable_nestedExperiment_of_oneTimeExperiment,
-    Cslib.Crypto.advantage_nestedExperiment_eq
-  ]
-  scope := "A family of ciphers E sec : Cipher K M M, whose ciphertexts lie in the message type \
-    so that the n-way nested cipher E_n of p. 37 (Cipher.nested) is defined for every n. Keys \
-    are indexed 0, …, n − 1 with key 0 innermost, where the book has k_1, …, k_n with k_1 \
-    innermost. Keys come from a sampler sampleKey and challenge pairs are admitted by a \
-    predicate valid; the hypothesis and the conclusion use the same sampleKey and valid, so the \
-    book's uniform keys (bit strings of a fixed length, say) and equal-length rule are an \
-    instance. Hypotheses: one-time semantic security of E (Attack Game 2.1 and Definition 2.2, \
-    p. 16), stated inline as Game.Indistinguishable for oneTimeExperiment against uniform \
-    strict PPT two-stage adversaries with any encodable state; strict PPT key sampling and \
-    encryption and polynomial-time valid; and PreservesValid: the encryptions of an admissible \
-    pair under a supported key form an admissible pair. The book leaves that condition \
-    implicit; it holds for the equal-length rule when the length of a ciphertext is determined \
-    by the length of its message. Conclusion: for every n, the experiment of p. 37, in which \
-    the adversary chooses (m₀, m₁, d) and receives the nested encryption of m_b with every key \
-    except k_d, is indistinguishable against uniform strict PPT two-stage adversaries; n = 0 is \
-    vacuous. The keys are drawn before the adversary's choice, which gives the same law. \
-    advantage_nestedExperiment_eq is the theorem's NE^(n)adv[A, E] = SSadv[B, E], with \
-    B = nestedToSingleAdversary, certified strict PPT (isPPT_nestedToSingleAdversary). \
-    Cipher.nested_correct, in the same module, proves that E_n is correct when E is; it is not \
-    part of Theorem 2.12 and is not listed."
