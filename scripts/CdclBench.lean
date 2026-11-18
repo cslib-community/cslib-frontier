@@ -12,9 +12,10 @@ import CslibFrontier.Logics.Propositional.Pigeonhole
 Runs the CDCL solver under each combination of its options (VSIDS or the first unassigned
 variable; phase saving or always `false`) on pigeonhole formulas, seeded random 3-SAT at the
 threshold ratio 4.26, and the `n`-queens problem. For each run it prints the answer, the conflicts,
-decisions and propagations, and the time. It checks every answer: a model must satisfy the
-formula, a certificate must be accepted by the verified LRAT checker, and every combination must
-agree.
+decisions and propagations (literals taken from the propagation queue, as MiniSat counts them),
+the time to solve (`solve_ms`), and separately the time to check the answer (`check_ms`). It
+checks every answer: a model must satisfy the formula, a certificate must be accepted by the
+verified LRAT checker, and every combination must agree.
 
 Conflicts and decisions measure the heuristics independently of the machine; times are those of
 Lean's interpreter, so they compare runs with each other only.
@@ -76,15 +77,18 @@ def bench (name : String) (φ : CNF ℕ) : IO Unit := do
   let mut answers : List Bool := []
   for (cname, o) in configs do
     let t₀ ← IO.monoMsNow
-    let (r, s) := solveWith o φ
+    let (r, s) ← (pure (solveWith o φ) : IO _)
+    -- Read the answer before stopping the clock, so the solve is not deferred past it.
+    let isSat := r.isSat
+    let t₁ ← IO.monoMsNow
     let ok := match r with
       | .sat σ => φ.eval σ
       | .unsat cert => φ.checkLRAT cert
-    let t₁ ← IO.monoMsNow
+    let t₂ ← IO.monoMsNow
     unless ok do throw <| IO.userError s!"{name} {cname}: answer rejected"
-    answers := r.isSat :: answers
-    IO.println s!"{name},{cname},{if r.isSat then "SAT" else "UNSAT"},{s.conflicts},\
-      {s.decisions},{s.propagations},{t₁ - t₀}"
+    answers := isSat :: answers
+    IO.println s!"{name},{cname},{if isSat then "SAT" else "UNSAT"},{s.conflicts},\
+      {s.decisions},{s.propagations},{t₁ - t₀},{t₂ - t₁}"
     (← IO.getStdout).flush
   unless answers.all (· == answers.head!) do
     throw <| IO.userError s!"{name}: the combinations disagree"
@@ -94,7 +98,7 @@ end CdclBench
 open CdclBench in
 def main (args : List String) : IO Unit := do
   let quick := args.contains "quick"
-  IO.println "instance,options,answer,conflicts,decisions,propagations,ms"
+  IO.println "instance,options,answer,conflicts,decisions,propagations,solve_ms,check_ms"
   -- PHP(7, 6) takes over an hour in the interpreter.
   for n in [4, 5] do
     bench s!"php-{n + 1}-{n}" (php n)

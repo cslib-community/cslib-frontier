@@ -86,6 +86,12 @@ example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
     (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.decisions = 0 := by
   decide
 
+/-- Propagations count the literals taken from the queue, decisions included, as MiniSat counts
+them: on `x₀ ∨ x₁`, the decision `¬x₀` and the implied `x₁` are both processed. -/
+example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
+    (CDCL.solveWith {} [[(0, true), (1, true)]]).2.propagations = 2 := by
+  decide
+
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide
 

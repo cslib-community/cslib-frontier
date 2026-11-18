@@ -111,11 +111,12 @@ structure Stats where
   conflicts : ℕ := 0
   /-- Decisions. -/
   decisions : ℕ := 0
-  /-- Unit propagations. -/
+  /-- Propagations, counted as MiniSat counts them: the literals taken from the propagation queue
+  for processing, decisions and implied literals alike. -/
   propagations : ℕ := 0
   deriving Repr
 
-/-- One more unit propagation. -/
+/-- One more literal taken from the propagation queue. -/
 @[expose] def Stats.propagation (s : Stats) : Stats := { s with propagations := s.propagations + 1 }
 
 /-- One more decision. -/
@@ -232,8 +233,9 @@ structure WExec.ProcInv (S : WExec φ) (t : Literal ℕ) (L : List Watcher) : Pr
 
 /-- Starting to process `t`: its negation's watch list is emptied and becomes the list to visit. -/
 @[expose] def WExec.start (S : WExec φ) (t : Literal ℕ) : WExec φ :=
-  { S with store := { S.store with
-      watches := setWatch S.store.watches (watchIndex t.negate) [] } }
+  { S with
+    store := { S.store with watches := setWatch S.store.watches (watchIndex t.negate) [] }
+    stats := S.stats.propagation }
 
 theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t ∈ S.queue) :
     (S.start t).ProcInv t (watchList S.store.watches (watchIndex t.negate)) where
@@ -569,7 +571,7 @@ theorem not_mem_vars_of_undef {M : Trail} {l : Literal ℕ} (h₁ : l ∉ Trail.
 numbered `id` as its reason, and queued. -/
 @[expose] def WExec.propagateUnit (S : WExec φ) (l : Literal ℕ) (id : ℕ) : WExec φ :=
   { S with
-    exec := S.exec.propagate (id, []) l, queue := l :: S.queue, stats := S.stats.propagation }
+    exec := S.exec.propagate (id, []) l, queue := l :: S.queue }
 
 /-- **A unit clause**: its other watched literal is propagated and queued, and its watcher goes
 back on the watch list with that literal as blocker. -/
@@ -912,7 +914,7 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 /-- **UnitPropagate from a short clause**, at an empty queue. -/
 @[expose] def WExec.propagateShort (S : WExec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : WExec φ :=
   { S with
-    exec := S.exec.propagate e l, queue := [l], stats := S.stats.propagation }
+    exec := S.exec.propagate e l, queue := [l] }
 
 /-- The polarity of a decision on `x`: its saved phase, or `false` without phase saving. -/
 @[expose] def WExec.polarity (S : WExec φ) (x : ℕ) : Bool := S.opts.phaseSaving && S.phase.get x
