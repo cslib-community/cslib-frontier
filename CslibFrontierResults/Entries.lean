@@ -6261,8 +6261,9 @@ register_result "ecb-distinct-blocks-cpa" where
     blockLen n-bit blocks and concatenates their encryptions under a uniform keyLen n-bit key \
     sampled with BitString.sampleList; correctness is proved on the underlying typed cipher \
     Cipher.ecb (Cipher.ecb_correct) via flatMap_ofFn_ecbKeyPerm. For every block-count bound ℓ \
-    computable in polynomial time in unary (strengthening Theorem 4.1's poly-bounded ℓ ≥ 1 so the \
-    uniform reduction can test admissibility, while also covering ℓ n = 0), E.ecbEncrypt is \
+    computable in polynomial time in unary (Theorem 4.1's poly-bounded ℓ ≥ 1, made computable by \
+    Definition 2.10's requirement, p. 31, that the message space X_*^{≤ℓ} be efficiently \
+    recognizable; ℓ n = 0 is also covered), E.ecbEncrypt is \
     one-time semantically secure (DEMOneTimeKeyINDCPAOn, Attack Game 2.1, p. 16, against uniform \
     strict PPT two-stage adversaries, with inadmissible challenge pairs returning false in both \
     worlds) on E.ecbValid ℓ: equal-length multiples of blockLen n of at most ℓ n distinct blocks \
@@ -6270,7 +6271,8 @@ register_result "ecb-distinct-blocks-cpa" where
     (isOraclePPT_ecbToPrpDistinguisher) satisfies the exact equation (4.3) \
     SSadv[A, E'] = 2 · BCadv[B, E] (advantage_demKeyGameOn_ecbEncrypt). At ℓ = 1, distinctness is \
     automatic (ecbValid_eq_ecbAdmissible_of_le_one), giving single-block semantic security on \
-    E.ecbAdmissible (fun _ => 1) (PRP.ecb_demOneTimeKeyINDCPAOn_one, pp. 102, 104)."
+    E.ecbAdmissible (fun _ => 1) (PRP.ecb_demOneTimeKeyINDCPAOn_one, pp. 102, 104). Outside \
+    check: PR #6394, review 5953812058."
 
 register_result "ecb-two-block-not-cpa" where
   title := "ECB mode on multi-block messages is not one-time semantically secure"
@@ -6292,7 +6294,7 @@ register_result "ecb-two-block-not-cpa" where
     advantage 1 against E.ecbEncrypt on E.ecbAdmissible ℓ (equal-length multiples of blockLen n of \
     at most ℓ n blocks, X^{≤ℓ}; advantage_demKeyGameOn_ecbTwoBlockAdversary), so E.ecbEncrypt \
     fails DEMOneTimeKeyINDCPAOn whenever 2 ≤ ℓ n and 1 ≤ E.blockLen n hold infinitely often \
-    (not_demOneTimeKeyINDCPAOn_ecbEncrypt)."
+    (not_demOneTimeKeyINDCPAOn_ecbEncrypt). Outside check: PR #6394, review 5953812058."
 
 register_result "pedersen-commitment-hiding" where
   title := "Pedersen commitments are uniformly distributed at every non-identity key"

@@ -42,10 +42,9 @@ one-time semantic security, Attack Game 2.1 with a uniform `keyLen n`-bit key
   twice the block-cipher advantage of that reduction
   (`BlockCipher.advantage_demKeyGameOn_ecbEncrypt`), from the typed equation (4.3).
 * Single-block security (pp. 102, 104): when `ℓ n ≤ 1`, every admissible message has at most one
-  block,
-  so `ecbValid` coincides with `ecbAdmissible` (`BlockCipher.ecbValid_eq_ecbAdmissible_of_le_one`),
-  and at `ℓ = 1` a secure block cipher gives semantically secure ECB encryption on `X^{≤1}`
-  (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one`).
+  block, so `ecbValid` coincides with `ecbAdmissible`
+  (`BlockCipher.ecbValid_eq_ecbAdmissible_of_le_one`), and at `ℓ = 1` a secure block cipher gives
+  semantically secure ECB encryption on `X^{≤1}` (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one`).
 * Two-block attack (pp. 103–104): on `X^{≤ℓ}`, the uniform strict PPT adversary
   `BlockCipher.ecbTwoBlockAdversary` (`BlockCipher.isPPT_ecbTwoBlockAdversary`) submits
   `0^{2 · blockLen n}` and `0^{blockLen n} ‖ 1^{blockLen n}` and tests whether the two
@@ -462,8 +461,7 @@ theorem PRP.ecb_demOneTimeKeyINDCPAOn {E : BlockCipher} (hE : E.PRP) {ℓ : ℕ 
   exact (congrArg Negligible heq).mpr h
 
 /-- **Single-block ECB semantic security** ([BonehShoup2023], §4.1.4, pp. 102, 104): if `E` is a
-secure
-block cipher, its ECB cipher on messages of at most one `blockLen n`-bit block
+secure block cipher, its ECB cipher on messages of at most one `blockLen n`-bit block
 (`ecbAdmissible E (fun _ => 1)`) is semantically secure. Here `X^{≤1}` admits pairs of empty
 messages (which are equal) and pairs of single `blockLen n`-bit blocks (the data block space). -/
 theorem PRP.ecb_demOneTimeKeyINDCPAOn_one {E : BlockCipher} (hE : E.PRP) :

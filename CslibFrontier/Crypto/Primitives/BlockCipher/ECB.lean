@@ -19,15 +19,19 @@ import Mathlib.GroupTheory.GroupAction.MultipleTransitivity
 
 The `ℓ`-wise ECB cipher derived from a block cipher `E` encrypts a sequence of at most `ℓ` data
 blocks block by block, `E′(k, m) = (E(k, m[0]), …, E(k, m[v-1]))` ([BonehShoup2023], §4.1.4,
-pp. 102–106). This file gives the two facts the book proves about it.
+pp. 102–106). This file gives the concrete single-cipher analysis underlying Section 4.1.4; the
+asymptotic statements for a uniform block cipher are in
+`CslibFrontier.Crypto.Computational.Encryption.ECB`.
 
-* ECB is not semantically secure: on two-block messages, `m₀` with two equal blocks and `m₁` with
-  two distinct blocks, the adversary that checks whether the two ciphertext blocks are equal has
-  advantage `1` (`ECB.advantage_twoBlockAdversary`), for every block cipher and key law.
-* Theorem 4.1: with the message space restricted to sequences of at most `ℓ` distinct blocks,
-  every adversary `A` in Attack Game 2.1 against ECB has advantage exactly twice the block-cipher
-  advantage of the explicit adversary `ECB.reduction ℓ A` (equation (4.3),
-  `ECB.advantage_eq_two_mul_prpAdvantage`), which makes at most `ℓ` queries
+* Concrete two-block attack: on two-block messages, `m₀` with two equal blocks and `m₁` with two
+  distinct blocks, the adversary that checks whether the two ciphertext blocks are equal has
+  advantage `1` (`ECB.advantage_twoBlockAdversary`) against the ECB cipher of every fixed block
+  cipher and key law (the attack of [BonehShoup2023], §4.1.4, pp. 103–104 for one fixed cipher;
+  the asymptotic statement is `BlockCipher.not_demOneTimeKeyINDCPAOn_ecbEncrypt`).
+* Theorem 4.1, equation (4.3): with the message space restricted to sequences of at most `ℓ`
+  distinct blocks, every adversary `A` in Attack Game 2.1 against ECB has advantage exactly twice
+  the block-cipher advantage of the explicit adversary `ECB.reduction ℓ A`
+  (`ECB.advantage_eq_two_mul_prpAdvantage`), which makes at most `ℓ` queries
   (`ECB.isQueryBounded_reduction`).
 
 ## Main definitions
@@ -51,10 +55,12 @@ pp. 102–106). This file gives the two facts the book proves about it.
   `B = ECB.reduction ℓ A`, equation (4.3).
 * `Cslib.Crypto.ECB.isQueryBounded_reduction`: `ECB.reduction ℓ A` makes at most `ℓ` queries.
 
-The statements are for a fixed block cipher over finite types (the concrete bound (4.3)); the
-asymptotic statement "if `E` is a secure block cipher then `E′` is semantically secure" is not
-derived here. The block-cipher advantage is `PRP.advantage` (Attack Game 4.1), against a uniform
-key and a uniform permutation.
+The statements are for a fixed block cipher (the concrete attack and equation (4.3)); the
+asymptotic statements (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`,
+`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one`, and
+`BlockCipher.not_demOneTimeKeyINDCPAOn_ecbEncrypt`) are proved in
+`CslibFrontier.Crypto.Computational.Encryption.ECB`. The block-cipher advantage is `PRP.advantage`
+(Attack Game 4.1), against a uniform key and a uniform permutation.
 
 ## References
 
@@ -108,9 +114,11 @@ def twoBlockAdversary [DecidableEq D] (x y : D) :
   choose _ := pure (⟨[x, x], [x, y]⟩, ())
   guess _ c := pure (decide (c[0]? = c[1]?))
 
-/-- ECB is not semantically secure ([BonehShoup2023], §4.1.4, pp. 103–104): for `2 ≤ ℓ` and two
-distinct blocks, the two-block attack has advantage `1` against the ECB cipher of every block
-cipher, whatever the key law. -/
+/-- The typed two-block attack has advantage `1` against the ECB cipher of every fixed block
+cipher and key law, for `2 ≤ ℓ` and distinct blocks: the attack of [BonehShoup2023] §4.1.4
+(pp. 103–104) for one fixed cipher; the asymptotic statement is
+`BlockCipher.not_demOneTimeKeyINDCPAOn_ecbEncrypt` in
+`CslibFrontier.Crypto.Computational.Encryption.ECB`. -/
 theorem advantage_twoBlockAdversary [DecidableEq D] (E : Key → Equiv.Perm D)
     (sampleKey : ProbComp Key) {ℓ : ℕ} (hℓ : 2 ≤ ℓ) {x y : D} (hxy : x ≠ y) :
     Experiment.advantage
@@ -247,7 +255,8 @@ block cipher `E` over finite types, with challenge pairs restricted to sequences
 distinct blocks, every one-time adversary `A` has semantic-security advantage exactly twice the
 block-cipher advantage of `ECB.reduction ℓ A`, which makes at most `ℓ` queries
 (`ECB.isQueryBounded_reduction`). Keys are uniform. This is the concrete identity for a fixed
-block cipher; the asymptotic statement is not derived here. -/
+block cipher; the asymptotic statement is `BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn` in
+`CslibFrontier.Crypto.Computational.Encryption.ECB`. -/
 theorem advantage_eq_two_mul_prpAdvantage [Fintype Key] [Nonempty Key] [Fintype D]
     (E : Key → Equiv.Perm D) (ℓ : ℕ)
     {σ : Type} (A : TwoStage Unit (MessagePair (List D)) (List D) Bool σ) :
