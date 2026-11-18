@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+
 import CslibFrontier.Algorithms.Lean.DyadicRecovery
+meta import CslibFrontier.Algorithms.Lean.DyadicRecovery
 import Mathlib.Tactic.NormNum
 
 /-! Checked clients for exact-precision rational recovery. -/
