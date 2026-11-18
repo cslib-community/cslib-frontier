@@ -78,11 +78,6 @@ the loops at labels `6`, `11` and `16` write the unary header; the nested loops 
 
 variable {numV src tgt guard₁ pos₁ guard₂ pos₂ test : Expr} (I : STCONInstance) {B : ℕ}
 
-private theorem bounded5 {a₀ a₁ a₂ a₃ a₄ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B)
-    (h₃ : a₃ ≤ B) (h₄ : a₄ ≤ B) : ∀ x ∈ [a₀, a₁, a₂, a₃, a₄], x ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 local notation "W" => stconWriter numV src tgt guard₁ pos₁ guard₂ pos₂ test
 
 /-- Writing the entry `(r, c)` of the matrix. -/
@@ -135,10 +130,8 @@ private theorem reachesOut_rows {N : ℕ}
       ((List.range N).flatMap fun r =>
         (List.range N).map (entryOf guard₁ pos₁ guard₂ pos₂ test I r)) ∧
       ∀ x ∈ regs, x ≤ B := by
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hreg : ∀ {r c : ℕ}, r ≤ B → c ≤ B → ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), r, c], z ≤ B :=
-    fun hr hc => bounded5 hnB (by omega) (by omega) hr hc
+    fun hr hc => I.regs_le hnB hr hc
   have hcode₁ : (W).CodeAt 21 (forCode 21 3 numV 24 34) := codeAt_of_prefix ⟨_, rfl⟩
   have hcode₂ : (W).CodeAt 24 (forCode 24 4 numV 27 23) := codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨regs, hreach, x, rfl, -, hx⟩ := reachesOut_forCode (w := I.encode)
@@ -172,10 +165,8 @@ private theorem reachesOut_ones {b M : ℕ} {e : Expr} (hc : (W).CodeAt b (forCo
     (hi : i ≤ B) :
     (W).ReachesOut I.encode ((W).Active B) (b, [I.n, I.s, I.t, i, 0])
       (b + 4, [I.n, I.s, I.t, M, 0]) (List.replicate M true) := by
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hreg : ∀ {u : ℕ}, u ≤ B → ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, 0], z ≤ B :=
-    fun hu => bounded5 hnB (by omega) (by omega) hu (Nat.zero_le _)
+    fun hu => I.regs_le hnB hu (Nat.zero_le _)
   obtain ⟨_, hr, rfl, -⟩ := reachesOut_forCode (w := I.encode) (N := M)
     (o := fun _ => [true]) hc (fun u regs => regs = [I.n, I.s, I.t, u, 0] ∧ u ≤ M) hM
     (by
@@ -215,10 +206,8 @@ theorem computableInLogSpace_of_entryExprs {F : STCONInstance → STCONInstance}
     calc I.n ≤ I.encode.length + 1 := by omega
       _ = (I.encode.length + 1) ^ 1 := (pow_one _).symm
       _ ≤ B := Nat.pow_le_pow_right (by omega) (by omega)
-  have hs := I.s.isLt
-  have ht := I.t.isLt
   have hreg : ∀ {u : ℕ}, u ≤ B → ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, 0], z ≤ B :=
-    fun hu => bounded5 hn (by omega) (by omega) hu (Nat.zero_le _)
+    fun hu => I.regs_le hn hu (Nat.zero_le _)
   have hheader := I.reachesOut_headerCode (P := W) (b := 0) (codeAt_of_prefix ⟨_, rfl⟩) hn
     (rest := [0, 0]) (by simp)
   have hc₁ : (W).CodeAt 6 (forCode 6 3 numV 9 10) := codeAt_of_prefix ⟨_, rfl⟩
