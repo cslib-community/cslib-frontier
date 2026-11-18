@@ -678,17 +678,17 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
     simp only [Exec.propagate, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
 
-/-- **Decide**: add the variable `x` as a decision, `true` first. -/
-def Exec.decide (S : Exec φ) (x : ℕ) : Exec φ :=
-  ⟨.decision (x, true) :: S.trail, S.db, S.log⟩
+/-- **Decide**: add the literal of the variable `x` with polarity `b` as a decision. -/
+def Exec.decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ :=
+  ⟨.decision (x, b) :: S.trail, S.db, S.log⟩
 
 theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
     (hnoconf : ∀ c ∈ S.clauses, ¬ Trail.Falsifies (XTrail.trail S.trail) c) {x : ℕ}
-    (hx : x ∈ S.clauses.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) :
-    (S.decide x).Inv ∧ rank φ.vars (S.decide x).state < rank φ.vars S.state := by
+    (hx : x ∈ S.clauses.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) (b : Bool) :
+    (S.decide x b).Inv ∧ rank φ.vars (S.decide x b).state < rank φ.vars S.state := by
   have hstep : BasicStep (.run (XTrail.trail S.trail) S.clauses)
-      (.run (⟨(x, true), true⟩ :: XTrail.trail S.trail) S.clauses) :=
-    .decide (l := (x, true)) hundef hx
+      (.run (⟨(x, b), true⟩ :: XTrail.trail S.trail) S.clauses) :=
+    .decide (l := (x, b)) hundef hx
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
     .decision _ hS.reasons, hS.db_log, ?_⟩, hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'

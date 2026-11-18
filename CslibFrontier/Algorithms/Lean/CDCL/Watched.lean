@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
+public import CslibFrontier.Algorithms.Lean.CDCL.Phase
 public import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
 public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 import Mathlib.Tactic.Linarith
@@ -48,10 +49,12 @@ first literal. A conflict with no decision on the trail ends with a certificate;
 analysed, followed by Backjump and Learn, and the variables met by the analysis are bumped
 (`Cslib.Algorithms.Lean.CDCL.Activity.bump`). With the queue empty, it checks the short clauses for
 a conflict or a unit, then decides an unassigned variable of the database of greatest activity
-(VSIDS, `Cslib.Algorithms.Lean.CDCL.Activity.pick`), `true` first, or returns the trail as a
-model. Every move lowers the measure: the rank of the abstract system, times
-the number of variables plus two, plus the length of the queue. Recursion is structural on a bound
-on the measure, which provably never runs out, so the kernel can run the solver.
+(VSIDS, `Cslib.Algorithms.Lean.CDCL.Activity.pick`) with its saved phase
+(`Cslib.Algorithms.Lean.CDCL.Phases.get`), or returns the trail as a model. Backjump saves the
+phases of the literals it undoes (`Cslib.Algorithms.Lean.CDCL.Phases.save`). Every move lowers
+the measure: the rank of the abstract system, times the number of variables plus two, plus the
+length of the queue. Recursion is structural on a bound on the measure, which provably never runs
+out, so the kernel can run the solver.
 
 ## Main definitions
 
@@ -89,7 +92,7 @@ variable {φ : CNF ℕ}
 
 /-- The state of the solver with watched literals: the state `Exec`, the watch store, the queue
 of trail literals whose watch lists are still to be visited, the clauses with fewer than two
-different literals, and the variable activities. -/
+different literals, the variable activities, and the saved phases. -/
 structure WExec (φ : CNF ℕ) where
   /-- The trail, database and log. -/
   exec : Exec φ
@@ -99,8 +102,10 @@ structure WExec (φ : CNF ℕ) where
   queue : List (Literal ℕ)
   /-- The clauses with fewer than two different literals. -/
   short : List (ℕ × Clause ℕ)
-  /-- The variable activities of VSIDS, which choose the decisions. -/
+  /-- The variable activities of VSIDS, which choose the decision variables. -/
   act : Activity
+  /-- The saved phases, which choose the polarities of the decisions. -/
+  phase : Phases
 
 /-- The abstract trail. -/
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
@@ -124,7 +129,7 @@ variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 /-- The initial state. -/
 @[expose] def WExec.init (φ : CNF ℕ) : WExec φ :=
   ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
-    Activity.init (varSlots φ)⟩
+    Activity.init (varSlots φ), Phases.init (varSlots φ)⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) : (WExec.init φ).Inv where
   exec := Exec.init_inv φ
@@ -727,13 +732,14 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
 
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
-queued. -/
+queued. The variables met by the analysis are bumped, and the phases of the literals undone are
+saved. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
-      S.short, S.act.bump L.seen⟩
+      S.short, S.act.bump L.seen, S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])⟩
   else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
-    S.act.bump L.seen⟩
+    S.act.bump L.seen, S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -859,7 +865,7 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 
 /-- **Decide**, at an empty queue. -/
 @[expose] def WExec.decide (S : WExec φ) (x : ℕ) : WExec φ :=
-  { S with exec := S.exec.decide x, queue := [(x, true)] }
+  { S with exec := S.exec.decide x (S.phase.get x), queue := [(x, S.phase.get x)] }
 
 /-- With the queue empty, no clause of the database is false if no short clause is. -/
 theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
@@ -935,6 +941,7 @@ is decided, or the trail is returned as a model. -/
           | some x =>
             have hundef : x ∉ Trail.vars S.M := (Activity.pick_some hx).2
             have hspec := Exec.decide_spec hS.exec hnoconf (Activity.pick_some hx).1 hundef
+              (S.phase.get x)
             loop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
               (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
           | none =>
