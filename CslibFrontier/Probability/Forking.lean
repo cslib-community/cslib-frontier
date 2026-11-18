@@ -91,6 +91,17 @@ noncomputable def accept (first : PMF S) (A : S → (Fin q → H) → Option (Fi
   let h ← PMF.uniformOfFintype (Fin q → H)
   return (A s h).1.isSome
 
+/-- Replay on two supplied tapes with shared coins and the first tape's prefix. Both the
+finite program and its probability law use this deterministic fork. -/
+def onTapes [DecidableEq H] (A : S → (Fin q → H) → Option (Fin q) × β)
+    (s : S) (h h' : Fin q → H) : Option (Fin q × β × β) :=
+  let (index, first) := A s h
+  match index with
+  | none => none
+  | some j =>
+    let (index', second) := A s (splice j h h')
+    if index' = some j ∧ h j ≠ h' j then some (j, first, second) else none
+
 /-- The forking algorithm ([BellareNeven2006]): run `A` on coins `s` and answers `h`; if it
 outputs an index `j`, rerun it on `s` and on `splice j h h'` for fresh answers `h'`, and succeed
 with both results when the rerun outputs `j` too and `h j ≠ h' j`. -/
@@ -99,10 +110,7 @@ noncomputable def fork [DecidableEq H] (first : PMF S)
   let s ← first
   let h ← PMF.uniformOfFintype (Fin q → H)
   let h' ← PMF.uniformOfFintype (Fin q → H)
-  return match (A s h).1 with
-    | none => none
-    | some j => if (A s (splice j h h')).1 = some j ∧ h j ≠ h' j then
-        some (j, (A s h).2, (A s (splice j h h')).2) else none
+  return onTapes A s h h'
 
 /-! ### Splitting the answers at an index -/
 
@@ -255,7 +263,7 @@ private theorem toReal_fork (first : PMF S) (A : S → (Fin q → H) → Option 
       (PMF.uniformOfFintype (Fin q → H)).map (s, h, ·))
     (fun x => (A x.1 x.2.1).1)
     (fun j x => (A x.1 (splice j x.2.1 x.2.2)).1 = some j ∧ x.2.1 j ≠ x.2.2 j)
-  simp only [fork, pmf_norm] at h ⊢
+  simp only [fork, onTapes, pmf_norm] at h ⊢
   refine Eq.trans (congrArg (fun p : PMF Bool => (p true).toReal) ?_) h
   pmf_swap with s h h'
   cases (A s h).1 with
@@ -327,7 +335,7 @@ theorem mem_support_fork {first : PMF S} {A : S → (Fin q → H) → Option (Fi
     {j : Fin q} {out out' : β} (hfork : some (j, out, out') ∈ (fork first A).support) :
     ∃ s ∈ first.support, ∃ h h' : Fin q → H, (∀ i < j, h i = h' i) ∧ h j ≠ h' j ∧
       A s h = (some j, out) ∧ A s h' = (some j, out') := by
-  supp_cases hfork [fork] with ⟨s, hs, h, h', hres⟩
+  supp_cases hfork [fork, onTapes] with ⟨s, hs, h, h', hres⟩
   refine ⟨s, hs, h, splice j h h', fun i hi => by simp [splice, hi], ?_⟩
   cases hA : (A s h).1 with
   | none => simp [hA] at hres

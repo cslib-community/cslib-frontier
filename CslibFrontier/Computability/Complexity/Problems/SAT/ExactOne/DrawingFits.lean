@@ -35,6 +35,8 @@ The explicit coordinate and finite-output bounds are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 private def Rect (W H : ℕ) (p : Point) : Prop :=

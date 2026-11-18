@@ -21,9 +21,14 @@ import CslibFrontier.Probability.Rewinding
 A Sigma protocol together with a key generator for its relation is an identification scheme
 ([BonehShoup2023], Section 19.6): the key generator samples a witness-statement pair `(x, y)`,
 the statement `y` is the public verification key, and the prover proves knowledge of `x`. This
-module states the exact, finite security reductions of Boneh and Shoup's Chapter 19 for such
-schemes. There is no efficiency claim here: the reductions are explicit programs, and the
-theorems relate the success probabilities of explicit experiments at a fixed security level.
+module proves the concrete bounds and the identity behind Boneh and Shoup's Theorems 19.3, 19.14
+and 19.15 for one such scheme. They are steps toward those theorems, not the cited results. There
+is no efficiency claim here: the reductions are explicit programs, and the theorems relate the
+success probabilities of explicit experiments for one protocol and key generator at a fixed
+security level. The asymptotic theorems for a generic Sigma protocol are open (#5293). For
+Schnorr identification over a `PrimeOrderGroupFamily`, they are
+`PrimeOrderGroupFamily.negligible_schnorrDirectProbGame` and
+`PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame`.
 
 An `Impersonator` commits from what it sees, keeps a private state, and answers the verifier's
 challenge from that state, possibly with fresh randomness. In a direct attack it sees only the
@@ -31,18 +36,19 @@ verification key (`directAttack`, Attack Game 18.1); in an eavesdropping attack 
 honest conversations (`eavesdropAttack`, Attack Game 18.2). `oneWayGame` is the one-way key
 generation experiment (Attack Game 19.2).
 
-* **Extraction** (Theorem 19.14). If `extract` is a witness extractor for the statements the key
-  generator produces (`SpecialSoundOn`, implied by `SpecialSoundness`), rewinding an impersonator
-  with direct-attack success probability `ε` recovers a witness for the key with probability at
-  least `ε ^ 2 - ε / N`, where `N` is the number of challenges; consequently `ε ≤ 1 / N + √ε'`.
-  The generated pairs need not be in the relation.
-* **Simulation** (Theorems 19.3 and 19.15). If the protocol is special HVZK, an eavesdropper
-  succeeds with exactly the probability of the direct impersonator that simulates the
+* **Extraction** (the bounds (19.17) and (19.18) of Theorem 19.14). If `extract` is a witness
+  extractor for the statements the key generator produces (`SpecialSoundOn`, implied by
+  `SpecialSoundness`), rewinding an impersonator with direct-attack success probability `ε`
+  recovers a witness for the key with probability at least `ε ^ 2 - ε / N`, where `N` is the
+  number of challenges; consequently `ε ≤ 1 / N + √ε'`. The generated pairs need not be in the
+  relation.
+* **Simulation** (the equality of Theorems 19.3 and 19.15). If the protocol is special HVZK, an
+  eavesdropper succeeds with exactly the probability of the direct impersonator that simulates the
   conversations itself, provided the key generator only outputs pairs in the relation.
 
 Both reductions only run the given impersonator and the simulator or extractor. Their
-efficiency, and the corresponding asymptotic statements under a hardness assumption, are
-separate obligations.
+efficiency, which Theorems 19.3, 19.14 and 19.15 state, and the corresponding asymptotic
+statements under a hardness assumption are separate obligations (#5293).
 
 The experiments are `Game`s, that is `PMF Bool`, written in `do` notation; the `PMF` monad lives
 in a single universe, so the protocol's types and the impersonator's state are in `Type` here,
@@ -58,18 +64,18 @@ although `SigmaProtocol` itself is universe-polymorphic.
 * `SigmaProtocol.simulateConversation`, `SigmaProtocol.Impersonator.withSimulatedViews`: replace
   eavesdropped conversations by simulated ones.
 
-## Main results
+## Steps toward Theorems 19.3, 19.14 and 19.15
 
-* `SigmaProtocol.sq_sub_le_oneWayGame_rewind`: `ε ^ 2 - ε / N ≤ ε'` (Theorem 19.14).
-* `SigmaProtocol.succProbability_directAttack_le`: `ε ≤ 1 / N + √ε'` (Theorem 19.14).
-* `SigmaProtocol.eavesdropAttack_eq_directAttack`: eavesdropping is no stronger than a direct
-  attack (Theorems 19.3 and 19.15).
+* `SigmaProtocol.sq_sub_le_oneWayGame_rewind`: `ε ^ 2 - ε / N ≤ ε'` (the bound (19.17)).
+* `SigmaProtocol.succProbability_directAttack_le`: `ε ≤ 1 / N + √ε'` (the bound (19.18)).
+* `SigmaProtocol.eavesdropAttack_eq_directAttack`: an eavesdropper succeeds exactly as often as
+  the direct impersonator that simulates its views (the equality of Theorems 19.3 and 19.15).
 * `SigmaProtocol.succProbability_eavesdropAttack_le`: the two combined.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 18.2, 19.1 and 19.6.
+  Version 0.6][BonehShoup2023], Sections 18.2, 18.3, 18.5, 19.1 and 19.6.
 -/
 
 @[expose] public section
@@ -192,10 +198,12 @@ private theorem twice_le_oneWayGame [DecidableEq C] {keyGen : PMF (X × Y)}
       _ = _ := by simp [hR]
   · simp [Bool.eq_false_iff.mpr hwin]
 
-/-- **Extraction from an impersonator** ([BonehShoup2023], Theorem 19.14, Equation 19.17): with
-special soundness on the generated statements, the rewinding extractor recovers a witness with
-probability at least `ε ^ 2 - ε / N`, where `ε` is the direct-attack success probability and `N`
-the number of challenges. -/
+/-- Concrete bound (19.17) for one Sigma protocol and key generator, a step of the proof of
+[BonehShoup2023], Theorem 19.14, not the cited result: with special soundness on the generated
+statements, the rewinding extractor recovers a witness with probability at least `ε ^ 2 - ε / N`,
+where `ε` is the direct-attack success probability and `N` the number of challenges. Theorem 19.14
+also says that the extractor is efficient, running in about twice the impersonator's time; nothing
+here certifies `A.rewind extract` as efficient (#5293). -/
 theorem sq_sub_le_oneWayGame_rewind {keyGen : PMF (X × Y)}
     (hP : P.SpecialSoundOn keyGen R extract) (A : Impersonator Y T C Z) :
     (Game.succProbability (P.directAttack keyGen A) : ℝ) ^ 2 -
@@ -207,10 +215,15 @@ theorem sq_sub_le_oneWayGame_rewind {keyGen : PMF (X × Y)}
   exact (Rewinding.sq_sub_le_twice _ _ _).trans
     (ENNReal.toReal_mono (PMF.apply_ne_top _ _) (twice_le_oneWayGame hP A))
 
-/-- **Security against direct attacks** ([BonehShoup2023], Theorem 19.14, Equation 19.18): with
-special soundness on the generated statements, the direct-attack success probability is at most
-`1 / N + √ε'`, where `ε'` is the success probability of the rewinding extractor in the one-way
-game. -/
+/-- Concrete bound (19.18) for one Sigma protocol and key generator, a step toward
+[BonehShoup2023], Theorem 19.14, not the cited result: with special soundness on the generated
+statements, the direct-attack success probability is at most `1 / N + √ε'`, where `ε'` is the
+success probability of the rewinding extractor `A.rewind extract` in the one-way game.
+Theorem 19.14 states that this extractor is efficient and concludes security against direct
+attacks for every efficient impersonator when the key generator is one-way. This lemma has no
+efficiency claim and fixes one instance; the generic asymptotic theorem is open (#5293). For
+Schnorr identification over a `PrimeOrderGroupFamily` it is
+`PrimeOrderGroupFamily.negligible_schnorrDirectProbGame`. -/
 theorem succProbability_directAttack_le {keyGen : PMF (X × Y)}
     (hP : P.SpecialSoundOn keyGen R extract) (A : Impersonator Y T C Z) :
     (Game.succProbability (P.directAttack keyGen A) : ℝ) ≤
@@ -243,9 +256,15 @@ noncomputable def Impersonator.withSimulatedViews (simulate : Y → C → PMF (T
   respond := A.respond
 
 omit [∀ x y, Decidable (R x y)] in
-/-- **Eavesdropping does not help** ([BonehShoup2023], Theorems 19.3 and 19.15): for a special
-HVZK protocol and a key generator whose pairs are in the relation, an eavesdropper succeeds with
-exactly the probability of the direct impersonator that simulates its views. -/
+/-- Exact identity for one Sigma protocol and key generator, a step toward [BonehShoup2023],
+Theorems 19.3 and 19.15, not the cited results: for a special HVZK protocol and a key generator
+whose pairs are in the relation, an eavesdropper succeeds with exactly the probability of the
+direct impersonator `A.withSimulatedViews simulate` that simulates its `Q` views (the equality
+`ID2adv[A, I] = ID1adv[B, I]`). The theorems state that this impersonator is an elementary
+wrapper around `A` and conclude security against eavesdropping from security against direct
+attacks. Nothing here certifies the simulating impersonator as efficient, and the protocol is one
+instance; the generic asymptotic theorem is open (#5293). For Schnorr identification over a
+`PrimeOrderGroupFamily` it is `PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame`. -/
 theorem eavesdropAttack_eq_directAttack {simulate : Y → C → PMF (T × Z)}
     (hP : P.SpecialHVZK R simulate) {keyGen : PMF (X × Y)}
     (hkey : ∀ key ∈ keyGen.support, R key.1 key.2) {Q : ℕ}
@@ -256,9 +275,13 @@ theorem eavesdropAttack_eq_directAttack {simulate : Y → C → PMF (T × Z)}
   rw [hP.conversation_eq (hkey key hk)]
   rfl
 
-/-- Security of a special-sound, special-HVZK identification scheme against eavesdropping
-([BonehShoup2023], Theorems 19.14 and 19.15 combined): `ε ≤ 1 / N + √ε'`, for the rewinding
-extractor of the simulating direct impersonator. -/
+/-- Concrete bound for one special-sound, special-HVZK Sigma protocol and key generator, the
+steps toward [BonehShoup2023], Theorems 19.14 and 19.15, combined, not the cited results: an
+eavesdropper's success probability is at most `1 / N + √ε'`, where `ε'` is the success
+probability of the rewinding extractor of the simulating direct impersonator. This lemma has no
+efficiency claim for that composed reduction and fixes one instance; the generic asymptotic
+theorem is open (#5293). For Schnorr identification over a `PrimeOrderGroupFamily` it is
+`PrimeOrderGroupFamily.negligible_schnorrEavesdropProbGame`. -/
 theorem succProbability_eavesdropAttack_le {simulate : Y → C → PMF (T × Z)}
     (hsound : P.SpecialSoundness R extract) (hzk : P.SpecialHVZK R simulate)
     {keyGen : PMF (X × Y)} (hkey : ∀ key ∈ keyGen.support, R key.1 key.2) {Q : ℕ}
