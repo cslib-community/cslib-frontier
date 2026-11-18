@@ -4651,6 +4651,7 @@ public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
+public import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 public import CslibFrontier.Crypto.Computational.CollisionResistant.GenericAttacks
 public import CslibFrontier.Crypto.Computational.CollisionResistantToOneWay
 public import CslibFrontier.Crypto.Computational.Commitment
@@ -4951,6 +4952,7 @@ public import CslibFrontier.Crypto.Computational.LubyRackoff
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter
 public import CslibFrontier.Crypto.Computational.MLDSA.Basic
+public import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Decompose
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204

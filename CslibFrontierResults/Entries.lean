@@ -189,6 +189,8 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
+import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
@@ -202,6 +204,7 @@ import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.ECB
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 import CslibFrontier.Crypto.Computational.Encryption.Nested
@@ -6214,6 +6217,66 @@ register_result "prp-iff-prf" where
     PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
     BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
+register_result "brute-force-collision-search" where
+  title := "Brute-force collision search finds a collision in 2^ℓ + 1 hash evaluations"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Section 8.3 brute-force collision search",
+      locator := "Section 8.3, pp. 293–294" }
+  ]
+  theorems := [
+    Cslib.Crypto.isQueryBounded_bruteForceHashFinder,
+    Cslib.Crypto.bruteForceHashFinder_success,
+    Cslib.Crypto.bruteForceFinder_two_pow_succ_success,
+    Cslib.Crypto.isQueryBounded_bruteForceFinder,
+    Cslib.Crypto.bruteForceFinder_success
+  ]
+  scope := "For any s distinct messages ms : Fin s → M and oracle program digest making at most \
+    c external oracle calls per message, bruteForceFinder digest ms makes at most s·c oracle \
+    calls on every path (isQueryBounded_bruteForceFinder) and, against any deterministic oracle \
+    realizing f : M → T with digests in a finite set D of cardinality D.card < s, outputs a \
+    collision in collisionOutputs f with probability 1 (bruteForceFinder_success); every \
+    non-none output is a collision (bruteForceFinder_sound). Specializing to ℓ-bit digests \
+    (D = BitString.wordsOfLength ℓ, of size 2^ℓ < 2^ℓ + 1) for any ℓ : ℕ gives probability-1 \
+    collision finding on any 2^ℓ + 1 distinct messages (bruteForceFinder_two_pow_succ_success), \
+    and bruteForceHashFinder ℓ queries a hash H : List Bool → List Bool once on each of the \
+    first 2^ℓ + 1 binary words of length ℓ + 1 (BitString.lowBits (ℓ + 1)), finding a collision \
+    with probability 1 whenever H maps (ℓ + 1)-bit words to ℓ-bit digests \
+    (bruteForceHashFinder_success) in at most 2^ℓ + 1 hash evaluations \
+    (isQueryBounded_bruteForceHashFinder). Deviations: (1) costs count external oracle calls \
+    (ProbOracleComp.IsQueryBounded), not Turing-machine steps for message enumeration or \
+    searching the 2^ℓ + 1 digests in collidingPair? (the polynomial-time Turing-machine \
+    refutation of CollisionResistantOn when 2^ℓ(n) is polynomial in n is \
+    not_collisionResistantOn_of_bruteForce in CollisionResistant/GenericAttacks.lean); \
+    (2) the 2^ℓ + 1 theorems hold for every ℓ : ℕ, whereas the book illustrates small ℓ \
+    (such as ℓ = 16, 2^16 + 1 = 65537). Outside check: PR #6415, review 5953780402."
+
+register_result "birthday-collision-finder" where
+  title := "The birthday collision finder finds a collision with probability at least 1/2 in \
+    ⌈2√|D|⌉ + 1 hash evaluations"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 8.2", locator := "Section 8.3, p. 294" }
+  ]
+  theorems := [
+    Cslib.Crypto.birthdayFinder_success_book,
+    Cslib.Crypto.birthdayFinder_success
+  ]
+  scope := "For any finite nonempty message space M, oracle program digest making at most c \
+    external oracle calls per message, and deterministic oracle realizing f : M → T with values \
+    in a finite set D, birthdayFinder digest (ProbComp.uniform M) s samples s i.i.d. uniform \
+    messages and runs bruteForceFinder digest on them, making at most s·c oracle calls on every \
+    path (isQueryBounded_birthdayFinder) and never outputting a non-collision \
+    (birthdayFinder_sound). In birthdayFinder_success, the probability of outputting a \
+    collision in collisionOutputs f is at least 1 − exp(−s(s − 1)/(2|D|)) − C(s, 2)/|M|; \
+    in birthdayFinder_success_book, when |M| ≥ 100|D| and s = ⌈2√|D|⌉ + 1, this probability is \
+    at least 1/2. Deviations: (1) stated for the output of the oracle program birthdayFinder \
+    rather than the sampled messages alone, with no running-time claim (sampling and the search \
+    in collidingPair? are not charged); (2) |D| replaces the codomain size N = |T|, allowing any \
+    finite D containing the range of f; (3) birthdayFinder_success keeps explicit error terms \
+    and uses the union bound C(s, 2)/|M| in place of Theorem B.1(ii); (4) digest may be any \
+    oracle program. Outside check: PR #6415, review 5953780402."
+
 register_result "merkle-tree-position-binding" where
   title := "Merkle trees are position binding under collision resistance of the hash's domain"
   topic := "cryptography"
@@ -6502,6 +6565,61 @@ register_result "luby-rackoff-prp" where
     theorem number and locator were not checked: no copy is recorded in the manual's sources. \
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
+
+register_result "ecb-distinct-blocks-cpa" where
+  title := "ECB mode of a pseudorandom permutation is one-time semantically secure on messages of \
+    distinct blocks"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 4.1",
+      locator := "Section 4.1.4, pp. 102, 104–106" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn,
+    Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbEncrypt,
+    Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one
+  ]
+  scope := "Over any uniform BlockCipher E (deterministic polynomial-time encryption and \
+    decryption on keyLen n-bit keys and blockLen n-bit blocks, mutual inverses) that satisfies \
+    E.PRP (Attack Game 4.1 and Definition 4.1, pp. 97–98, against uniform strict oracle-PPT \
+    distinguishers). Word-level ECB encryption E.ecbEncrypt slices a message word into \
+    blockLen n-bit blocks and concatenates their encryptions under a uniform keyLen n-bit key \
+    sampled with BitString.sampleList; correctness is proved on the underlying typed cipher \
+    Cipher.ecb (Cipher.ecb_correct) via flatMap_ofFn_ecbKeyPerm. For every block-count bound ℓ \
+    computable in polynomial time in unary (Theorem 4.1's poly-bounded ℓ ≥ 1, made computable by \
+    Definition 2.10's requirement, p. 31, that the message space X_*^{≤ℓ} be efficiently \
+    recognizable; ℓ n = 0 is also covered), E.ecbEncrypt is \
+    one-time semantically secure (DEMOneTimeKeyINDCPAOn, Attack Game 2.1, p. 16, against uniform \
+    strict PPT two-stage adversaries, with inadmissible challenge pairs returning false in both \
+    worlds) on E.ecbValid ℓ: equal-length multiples of blockLen n of at most ℓ n distinct blocks \
+    each (X_*^{≤ℓ}). The certified strict oracle-PPT reduction E.ecbToPrpDistinguisher ℓ A \
+    (isOraclePPT_ecbToPrpDistinguisher) satisfies the exact equation (4.3) \
+    SSadv[A, E'] = 2 · BCadv[B, E] (advantage_demKeyGameOn_ecbEncrypt). At ℓ = 1, distinctness is \
+    automatic (ecbValid_eq_ecbAdmissible_of_le_one), giving single-block semantic security on \
+    E.ecbAdmissible (fun _ => 1) (PRP.ecb_demOneTimeKeyINDCPAOn_one, pp. 102, 104). Outside \
+    check: PR #6394, review 5953812058."
+
+register_result "ecb-two-block-not-cpa" where
+  title := "ECB mode on multi-block messages is not one-time semantically secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Section 4.1.4 (two-block attack)",
+      locator := "Section 4.1.4, pp. 103–104" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.not_demOneTimeKeyINDCPAOn_ecbEncrypt,
+    Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbTwoBlockAdversary
+  ]
+  scope := "For every uniform BlockCipher E (even a secure PRP) and block-count schedule ℓ, the \
+    certified uniform strict PPT two-stage adversary E.ecbTwoBlockAdversary \
+    (isPPT_ecbTwoBlockAdversary) submits m₀ = 0^(2 · blockLen n) (two equal blocks) and \
+    m₁ = 0^(blockLen n) ‖ 1^(blockLen n) (two distinct blocks when 1 ≤ blockLen n) and checks \
+    whether the first and second blockLen n-bit halves of the challenge ciphertext coincide. At \
+    every parameter n with 2 ≤ ℓ n and 1 ≤ E.blockLen n, it achieves exact Attack Game 2.1 \
+    advantage 1 against E.ecbEncrypt on E.ecbAdmissible ℓ (equal-length multiples of blockLen n of \
+    at most ℓ n blocks, X^{≤ℓ}; advantage_demKeyGameOn_ecbTwoBlockAdversary), so E.ecbEncrypt \
+    fails DEMOneTimeKeyINDCPAOn whenever 2 ≤ ℓ n and 1 ≤ E.blockLen n hold infinitely often \
+    (not_demOneTimeKeyINDCPAOn_ecbEncrypt). Outside check: PR #6394, review 5953812058."
 
 register_result "pedersen-commitment-hiding" where
   title := "Pedersen commitments are uniformly distributed at every non-identity key"
