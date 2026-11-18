@@ -26,7 +26,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.LinearityGame
 
 open Cslib Cslib.PCP Cslib.Quantum Finset Matrix
-open scoped BigOperators MatrixOrder
+open scoped BigOperators MatrixOrder Matrix.Norms.L2Operator
 
 /-- The acceptance probability as an average of correlations. -/
 example {n 𝒜 : Type} [Fintype n] [DecidableEq n] [Ring 𝒜] [StarRing 𝒜] [PartialOrder 𝒜]
@@ -65,9 +65,28 @@ noncomputable def constTrue (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
     simp only [Measurement.const]
     split_ifs <;> simp [Commute, SemiconjBy]
 
-/-- **Regression for coinciding queries**: the verifier runs only the sampled check, so the constant
-answers are accepted with probability `2/3` on one-bit queries. -/
-example (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) : (constTrue φ).linearityTestProb = 2 / 3 := by
+/-- The linearity test as a seeded game wins with the acceptance probability of the test. -/
+example {n 𝒜 : Type} [Fintype n] [DecidableEq n] [CStarAlgebra 𝒜] [PartialOrder 𝒜]
+    [StarOrderedRing 𝒜]
+    (S : CommutingStrategy (n → Bool) ((n → Bool) × (n → Bool)) Bool (Bool × Bool) 𝒜) :
+    (linearityGame n).commutingWinProb S = S.linearityTestProb :=
+  commutingWinProb_linearityGame S
+
+/-- At `a = b = 0`, all three seeds produce the same questions. The first two accept the
+all-true answers and the third rejects them. -/
+example :
+    let G := linearityGame (Fin 1)
+    G.query (0, 0, 0) = G.query (1, 0, 0) ∧
+      G.query (0, 0, 0) = G.query (2, 0, 0) ∧
+      G.accepts (0, 0, 0) true (true, true) ∧
+      G.accepts (1, 0, 0) true (true, true) ∧
+      ¬ G.accepts (2, 0, 0) true (true, true) := by
+  decide
+
+/-- The constant all-true strategy wins the seeded linearity game with probability `2/3`. -/
+example (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
+    (linearityGame (Fin 1)).commutingWinProb (constTrue φ) = 2 / 3 := by
+  rw [commutingWinProb_linearityGame]
   simp only [CommutingStrategy.linearityTestProb, CommutingStrategy.prob, constTrue,
     Measurement.const, Fintype.sum_bool, Fintype.sum_prod_type, linearityCheck]
   simp [Fintype.expect_eq_sum_div_card, φ.map_one]

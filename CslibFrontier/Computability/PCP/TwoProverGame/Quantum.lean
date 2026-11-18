@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame
+public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded.Basic
 public import CslibFrontier.Foundations.Quantum.POVM
 import CslibFrontier.Probability.PMF.Event
 
@@ -163,41 +163,32 @@ namespace TwoProverGame
 variable {X Y A B : Type*} (G : TwoProverGame X Y A B) [Fintype A] [Fintype B]
 
 /-- The verdict of `G` on a round with questions `(x, y)` and answers `(a, b)`. -/
-def AcceptsRound : (X × Y) × A × B → Prop
-  | ((x, y), (a, b)) => G.accepts x y a b
+def AcceptsRound : (X × Y) × A × B → Prop :=
+  G.toSeeded.AcceptsRound
 
 /-- The probability of winning `G` when the answers to questions `(x, y)` are drawn from
 `ans x y`: the winning probability of any strategy, classical or quantum, with these answer
 distributions. -/
 noncomputable def answersWinProb (ans : X → Y → PMF (A × B)) : ℝ :=
-  ((G.questions.bind fun q => (ans q.1 q.2).map fun ab => (q, ab)).toOuterMeasure
-    {z | G.AcceptsRound z}).toReal
+  G.toSeeded.answersWinProb ans
 
 omit [Fintype A] [Fintype B] in
 theorem answersWinProb_nonneg (ans : X → Y → PMF (A × B)) : 0 ≤ G.answersWinProb ans :=
-  ENNReal.toReal_nonneg
+  G.toSeeded.answersWinProb_nonneg ans
 
 omit [Fintype A] [Fintype B] in
 theorem answersWinProb_le_one (ans : X → Y → PMF (A × B)) : G.answersWinProb ans ≤ 1 :=
-  (ENNReal.toReal_mono ENNReal.one_ne_top
-    (Cslib.Probability.PMF.toOuterMeasure_le_one _ _)).trans_eq ENNReal.toReal_one
+  G.toSeeded.answersWinProb_le_one ans
 
 /-- The winning probability `∑_{x,y} π(x,y) ∑_{a,b} V(a,b|x,y) Pr[(a, b) | x, y]`. -/
-theorem answersWinProb_eq_sum [Fintype X] [Fintype Y] [∀ x y a b, Decidable (G.accepts x y a b)]
-    (ans : X → Y → PMF (A × B)) :
+theorem answersWinProb_eq_sum [Fintype X] [Fintype Y]
+    [dec : ∀ x y a b, Decidable (G.accepts x y a b)] (ans : X → Y → PMF (A × B)) :
     G.answersWinProb ans = ∑ x, ∑ y, (G.questions (x, y)).toReal * ∑ a, ∑ b,
       if G.accepts x y a b then (ans x y (a, b)).toReal else 0 := by
-  rw [answersWinProb, PMF.toOuterMeasure_bind_apply, tsum_fintype, ENNReal.toReal_sum
-    fun q _ => ENNReal.mul_ne_top (PMF.apply_ne_top _ _)
-      (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _), ← Finset.univ_product_univ,
-    Finset.sum_product]
-  refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun y _ => ?_
-  rw [ENNReal.toReal_mul, PMF.toOuterMeasure_map_apply,
-    Cslib.Probability.PMF.toOuterMeasure_apply_toReal, ← Finset.univ_product_univ,
-    Finset.sum_product]
-  congr 1
-  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, AcceptsRound]
+  let (q : X × Y) (a : A) (b : B) : Decidable (G.toSeeded.accepts q a b) :=
+    dec q.1 q.2 a b
+  simpa only [answersWinProb, Fintype.sum_prod_type, toSeeded, id] using
+    G.toSeeded.answersWinProb_eq_sum ans
 
 /-- The winning probability of answer distributions with nonnegative real probabilities
 `p x y a b`. -/
@@ -251,8 +242,8 @@ end WinProb
 /-- The quantum embedding of a deterministic strategy wins with its classical probability. -/
 theorem quantumWinProb_ofDeterministic [DecidableEq A] [DecidableEq B] (ha : X → A)
     (hb : Y → B) : G.quantumWinProb (QuantumStrategy.ofDeterministic ha hb) = G.winProb ha hb := by
-  rw [quantumWinProb, answersWinProb, winProb]
-  simp_rw [QuantumStrategy.answers_ofDeterministic, PMF.pure_map]
+  rw [quantumWinProb, answersWinProb, SeededGame.answersWinProb, winProb]
+  simp_rw [toSeeded, id, QuantumStrategy.answers_ofDeterministic, PMF.pure_map]
   rw [show (fun q => PMF.pure (q, ha q.1, hb q.2)) =
       PMF.pure ∘ fun q : X × Y => (q, ha q.1, hb q.2) from rfl, PMF.bind_pure_comp,
     PMF.toOuterMeasure_map_apply]

@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
+public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
 public import CslibFrontier.Foundations.Quantum.Algebra.LinearityTest
 public import CslibFrontier.Foundations.Quantum.Algebra.CStar
 public import CslibFrontier.Foundations.Data.BitString.Sign
@@ -21,11 +21,10 @@ the pair `(a, b)` to the *pair player* (Bob), and sends the point `c = a`, `b` o
 `γ`, Bob answers bits `(α, β)`, and the verifier runs the single check selected by `k`:
 `γ = α`, `γ = β` or `γ = α ⊕ β` (`Cslib.PCP.linearityCheck`). The verifier's choice `k` is private,
 and when the queries coincide (for instance `a = b`) several values of `k` produce the same
-questions but different checks. The acceptance probability of a commuting-operator strategy is
-therefore defined with the sampled check (`Cslib.PCP.CommutingStrategy.linearityTestProb`) rather
-than as a `Cslib.PCP.TwoProverGame`, whose acceptance predicate sees only the questions; extending
-that structure with private verifier randomness is tracked in
-cslib-community/cslib-frontier#6149.
+questions but different checks. So the test is a seeded game (`Cslib.PCP.linearityGame`, a
+`Cslib.PCP.SeededGame`) rather than a `Cslib.PCP.TwoProverGame`, whose acceptance predicate sees
+only the questions. Its winning probability is the acceptance probability with the sampled check
+(`Cslib.PCP.CommutingStrategy.linearityTestProb`, `Cslib.PCP.commutingWinProb_linearityGame`).
 
 The acceptance probability is an average of correlations
 (`Cslib.PCP.CommutingStrategy.linearityTestProb_eq`), by
@@ -43,26 +42,31 @@ is the parity observable. Linearity from consistency
 
 This is the test of [Natarajan and Vidick, §3, Figure 1][NatarajanVidick2017]
 (arXiv:1610.03574v1) in an **asymmetric variant**, and the estimate is the commuting-operator,
-point-player form of their Theorem 11. The variant differs from the source in two ways:
+point-player form of their Theorem 11. The variant differs from the source in three ways:
 
 * one player always gets the point and the other the pair, whereas the source labels the players
   at random and sends Bob a second, uniformly random query so that symmetric strategies apply;
+* the pair is sent in sampled order `(a, b)`. Figure 1 sends it in lexicographic order, so
+  a strategy for this variant can distinguish the two sampled orders;
 * the conclusion concerns the point player's own observables, whereas the source rounds the
   Naimark dilation of the averaged pair marginals.
 
 As in the source, the strategy's measurements are assumed projective here. The source's symmetric
-game and the remaining steps toward Pauli rigidity are tracked in #6149.
+game, a seeded game whose seed also picks the players' roles and the dummy query, and the remaining
+steps toward Pauli rigidity are tracked in #6149.
 
 ## Main definitions
 
 * `Cslib.PCP.linearityQuery`, `Cslib.PCP.linearityCheck`: the point query and the check of each
   test.
 * `Cslib.PCP.CommutingStrategy.linearityTestProb`: the probability that the verifier accepts.
+* `Cslib.PCP.linearityGame`: the linearity test as a seeded game.
 
 ## Main results
 
 * `Cslib.PCP.CommutingStrategy.linearityTestProb_eq`: the acceptance probability as an average of
   correlations.
+* `Cslib.PCP.commutingWinProb_linearityGame`: it is the winning probability of the seeded game.
 * `Cslib.PCP.CommutingStrategy.one_sub_le_expect_re_apply_mul_mul_of_linearityTest`: acceptance
   makes the point player's observables linear on average.
 
@@ -196,5 +200,43 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
 end CStar
 
 end CommutingStrategy
+
+/-- The **two-player linearity test as a seeded game**: the verifier's seed `(k, a, b)` is uniform,
+the questions are `linearityQuery k a b` and `(a, b)`, and the verifier accepts when the point
+player's bit equals `linearityCheck k` of the pair player's bits. The seed `k` stays private. -/
+noncomputable def linearityGame (n : Type*) [Fintype n] [DecidableEq n] :
+    SeededGame (Fin 3 × (n → Bool) × (n → Bool)) (n → Bool) ((n → Bool) × (n → Bool)) Bool
+      (Bool × Bool) where
+  seed := Probability.PMF.uniformOfFintype _
+  query | (k, a, b) => (linearityQuery k a b, (a, b))
+  accepts | (k, _, _), γ, r => γ = linearityCheck k r
+
+instance (s : Fin 3 × (n → Bool) × (n → Bool)) (γ : Bool) (r : Bool × Bool) :
+    Decidable ((linearityGame n).accepts s γ r) :=
+  inferInstanceAs (Decidable (γ = _))
+
+/-- The winning probability of the seeded linearity game is the acceptance probability of the
+linearity test. -/
+theorem commutingWinProb_linearityGame {𝒜 : Type*} [Ring 𝒜] [StarRing 𝒜] [PartialOrder 𝒜]
+    [StarOrderedRing 𝒜] [Algebra ℂ 𝒜] [TopologicalSpace 𝒜]
+    [ContinuousFunctionalCalculus ℝ 𝒜 IsSelfAdjoint] [NonnegSpectrumClass ℝ 𝒜]
+    (S : CommutingStrategy (n → Bool) ((n → Bool) × (n → Bool)) Bool (Bool × Bool) 𝒜) :
+    (linearityGame n).commutingWinProb S = S.linearityTestProb := by
+  have hw : ∀ s, ((linearityGame n).seed s).toReal =
+      (Fintype.card (Fin 3 × (n → Bool) × (n → Bool)) : ℝ)⁻¹ := fun s => by
+    change (Probability.PMF.uniformOfFintype _ s).toReal = _
+    rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+  rw [SeededGame.commutingWinProb_eq_sum, CommutingStrategy.linearityTestProb]
+  simp only [hw, ← mul_sum, Fintype.sum_prod_type, Fintype.expect_eq_sum_div_card,
+    Fintype.card_prod, Fintype.card_fin, ← sum_div]
+  have hK : (Fintype.card (n → Bool) : ℝ) ≠ 0 := by positivity
+  simp only [linearityGame]
+  push_cast
+  field_simp
+  refine sum_congr rfl fun k _ => sum_congr rfl fun a _ => sum_congr rfl fun b _ =>
+    sum_congr rfl fun γ _ => sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
+  by_cases h : γ = linearityCheck k (x, y)
+  · simp only [h, ite_true]
+  · simp only [h, ite_false]
 
 end Cslib.PCP
