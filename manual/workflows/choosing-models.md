@@ -185,8 +185,9 @@ Register an existing embedding or parameterized encoding with
 `attribute [scoped encoding_rule] encName` in the policy's namespace, and activate it with
 `open scoped PolicyNamespace`. Scoped rules are active within that namespace and when it is
 reopened; an importing client must reactivate them. Opening a parent namespace does not activate
-its children's rules. Use `[local encoding_rule]` for a section-local choice, or plain
-`[encoding_rule]` for an intentionally global rule. A successful `derive_encoding` automatically
+its children's rules. Use `[local encoding_rule]` for a section-local choice. Plain global
+`[encoding_rule]` registrations are rejected, so imports cannot silently add choices or ambiguity.
+A successful `derive_encoding` automatically
 registers its encoding as a scoped rule in its declaring namespace, so `encFormula` above reuses
 `encTerm` without repeating its parameters or scalar choices. Clients reactivate both with
 `open scoped Arithmetic`; importing the module alone does not activate those choices. Local

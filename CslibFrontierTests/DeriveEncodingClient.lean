@@ -8,6 +8,7 @@ module
 -- upstream: local-only (derive_encoding importing client)
 
 public import CslibFrontierTests.DeriveEncoding
+import CslibFrontierTests.DeriveEncodingErrors
 import Lean.Util.CollectAxioms
 
 /-! Imported generated APIs retain scalar selection, native rules and strict decoding. -/
@@ -17,6 +18,18 @@ namespace CslibFrontierTests.DeriveEncodingClient
 
 open Turing.MultiTapeTM
 open scoped CslibFrontierTests.DeriveEncoding
+
+-- Importing rejected registrations and inactive policies does not choose a Nat encoding.
+/-- A family whose scalar encoding must be selected explicitly by this client. -/
+inductive UnselectedNatural where
+  | value : ℕ → UnselectedNatural
+
+/--
+error: derive_encoding: no encoding rule for ℕ; supply a local embedding, activate a scoped
+encoding_rule, or use enc_inductive
+-/
+#guard_msgs (whitespace := lax) in
+derive_encoding badImportedGlobal : UnselectedNatural
 
 -- The bare nonrecursive form exposes the original sum-view certificate after import.
 example : ComputableInDegree DeriveEncoding.encMessage_toSum DeriveEncoding.encMessage

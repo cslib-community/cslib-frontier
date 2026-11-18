@@ -23,7 +23,7 @@ matching local embeddings are an error. Otherwise exactly one active registered 
 Rule parameters are inferred from the field type; unresolved embedding parameters are resolved
 recursively, and instance parameters use Lean's instance synthesis. Other uninferred parameters,
 cyclic searches, missing rules and multiple applicable rules are errors. Rules have no priorities.
-The attribute accepts Lean's global, local and scoped registration forms on public embeddings.
+The attribute accepts only local and scoped registrations on public embeddings.
 Successful derivations register their embedding scoped to their namespace.
 Importing alone does not activate scoped entries; `open scoped N` activates namespace `N`.
 
@@ -71,6 +71,8 @@ initialize registerBuiltinAttribute {
   descr := "an explicit encoding choice for policy-driven inductive derivation"
   applicationTime := .afterCompilation
   add := fun name _ kind => do
+    if kind == .global then
+      throwError "encoding_rule: global registration is not supported; use local or scoped"
     if isPrivateName name then
       throwError "encoding_rule: registered embeddings must be public; use local or scoped \
         registration to limit their activation"
@@ -146,6 +148,7 @@ generated public interface agree with `enc_inductive`. Constructors and recursio
 syntax (name := deriveEncoding) (docComment)? "derive_encoding " ident
   (" (" ident " : " term ")")* " : " term : command
 
+/-- Resolve the explicit field policy before invoking the checked inductive encoding generator. -/
 @[command_elab deriveEncoding] def elabDeriveEncoding : CommandElab := fun stx => do
   let `($[$doc:docComment]? derive_encoding $eT:ident $[($ps:ident : $pts:term)]* : $T:term) := stx
     | throwUnsupportedSyntax

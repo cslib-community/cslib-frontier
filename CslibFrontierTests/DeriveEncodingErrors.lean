@@ -263,14 +263,22 @@ run_cmd do
         Lean.Name.mkSimple base).appendAfter suffix
       if env.contains name then throwError "failed derive_encoding emitted {name}"
 
--- An intentionally global registration survives the section that declares it.
+-- Neither attribute spelling can introduce an import-active global choice.
 section
+/-- error: encoding_rule: global registration is not supported; use local or scoped -/
+#guard_msgs in
 attribute [encoding_rule] encNat
+
+/-- error: encoding_rule: global registration is not supported; use local or scoped -/
+#guard_msgs in
+@[encoding_rule] def rejectedGlobalNatural : ℕ ↪ List Bool := encUnary
 end
 
-derive_encoding encGlobalNatural : NatTree
-
-example (n : ℕ) : encGlobalNatural (.leaf n) = frame (false :: encNat n) := by
-  simp [encGlobalNaturalTokenEncoding]
+/--
+error: derive_encoding: no encoding rule for ℕ; supply a local embedding, activate a scoped
+encoding_rule, or use enc_inductive
+-/
+#guard_msgs (whitespace := lax) in
+derive_encoding badGlobalNatural : NatTree
 
 end CslibFrontierTests.DeriveEncodingErrors
