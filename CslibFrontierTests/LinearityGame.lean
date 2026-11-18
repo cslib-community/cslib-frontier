@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.Linearity
+import CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearity
 
 /-! # The two-player linearity test
 
@@ -18,7 +18,8 @@ point player's observables from acceptance. Two concrete instances:
 * the sampled check (regression for coinciding queries): the constant answers `γ = α = β = true`
   pass the two consistency checks and fail the linearity check, so they are accepted with
   probability exactly `2/3`, also when the queries coincide. A verifier that ran every applicable
-  check would reject them whenever `c = a = b`.
+  check would reject them whenever `c = a = b`;
+* the symmetric verifier sorts and decodes both questions and handles either role assignment.
 -/
 
 set_option linter.privateModule false
@@ -91,5 +92,32 @@ example (φ : AlgState (Matrix (Fin 1) (Fin 1) ℂ)) :
     Measurement.const, Fintype.sum_bool, Fintype.sum_prod_type, linearityCheck]
   simp [Fintype.expect_eq_sum_div_card, φ.map_one]
   norm_cast
+
+/-- Both questions arrive in sorted order, with their order across players determined by the
+sampled roles. The checked coordinate is the second in both questions. -/
+example :
+    let G := symmetricLinearityGame 2
+    let high : Fin 2 → Bool := fun i => decide (i = 0)
+    let low : Fin 2 → Bool := fun i => decide (i = 1)
+    let dummy : Fin 2 → Bool := fun _ => false
+    let seed : SymmetricLinearitySeed 2 :=
+      { swapRoles := false, check := 0, first := high, second := low, dummy := dummy }
+    let swapped := { seed with swapRoles := true }
+    G.query seed = ((low, high), (dummy, high)) ∧
+      G.query swapped = ((dummy, high), (low, high)) ∧
+      G.accepts seed (false, true) (true, true) ∧
+      G.accepts swapped (true, true) (false, true) ∧
+      ¬ G.accepts seed (false, true) (true, false) := by
+  decide
+
+/-- Even with identical visible queries, the sampled xor check can reject answers that pass
+the equality check. -/
+example :
+    let G := symmetricLinearityGame 1
+    let zero : Fin 1 → Bool := fun _ => false
+    G.query ⟨false, 0, zero, zero, zero⟩ = G.query ⟨false, 2, zero, zero, zero⟩ ∧
+      G.accepts ⟨false, 0, zero, zero, zero⟩ (true, true) (true, true) ∧
+      ¬ G.accepts ⟨false, 2, zero, zero, zero⟩ (true, true) (true, true) := by
+  decide
 
 end CslibFrontierTests.LinearityGame

@@ -51,9 +51,11 @@ point-player form of their Theorem 11. The variant differs from the source in th
 * the conclusion concerns the point player's own observables, whereas the source rounds the
   Naimark dilation of the averaged pair marginals.
 
-As in the source, the strategy's measurements are assumed projective here. The source's symmetric
-game, a seeded game whose seed also picks the players' roles and the dummy query, and the remaining
-steps toward Pauli rigidity are tracked in #6149.
+As in the source, the strategy's measurements are assumed projective here. The
+`CslibFrontier.Computability.PCP.TwoProverGame.SymmetricLinearity` module defines the source's
+symmetric verifier as `Cslib.PCP.symmetricLinearityGame`. Its seed also assigns the players' roles
+and samples the dummy query. Quantum soundness of the symmetric verifier and the remaining steps
+toward Pauli rigidity are tracked in #6149.
 
 ## Main definitions
 
