@@ -2769,6 +2769,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Undire
 public import CslibFrontier.Computability.Complexity.Problems.HornSAT
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
+public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 public import CslibFrontier.Computability.Complexity.Problems.JobSequencing
