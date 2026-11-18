@@ -660,17 +660,18 @@ theorem friBatchIOP_complete [DecidableEq F] (params : FRIParams F) (t : ℕ) :
   exact friIOP_complete params (stmt.eval (chals 0).batchCoeffs) ()
     (params.eval_mem_initialCode hrel (chals 0).batchCoeffs) (friTailChals chals)
 
-/-- **Perfect deterministic BCS completeness for batched FRI**: for any hash function `H k`, any
-Fiat–Shamir function `hFS`, and any symbol encoding `encSym`, `bcsVerify` accepts `bcsProve` on
-every honest tuple satisfying `params.batchCompletenessRel t`. -/
+/-- **Perfect deterministic BCS completeness for batched FRI**: for any hash function `H k` whose
+digests all have one length, any Fiat–Shamir function `hFS`, and any symbol encoding `encSym`,
+`bcsVerify` accepts `bcsProve` on every honest tuple satisfying `params.batchCompletenessRel t`. -/
 theorem friBatchBCS_verify_prove_eq_true [DecidableEq F] (params : FRIParams F) (t : ℕ)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : F → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : F → List Bool)
     (hFS : FRIBatchStmt F params.d t → List (List Bool) →
       FRIBatchChal F params.d params.q t)
     {stmt : FRIBatchStmt F params.d t} (hrel : params.batchCompletenessRel t stmt ()) :
     bcsVerify (friBatchIOP params t) H k encSym hFS stmt
       (bcsProve (friBatchIOP params t) H k encSym hFS stmt ()) = true :=
-  bcsVerify_bcsProve_eq_true (friBatchIOP_complete params t) H k encSym hFS hrel
+  bcsVerify_bcsProve_eq_true (friBatchIOP_complete params t) H k hlen encSym hFS hrel
 
 /-- **Perfect BCS ROM completeness for batched FRI**: in the lazy two-channel random-oracle model
 with any digest length `σ`, the honest BCS-compiled batched FRI game outputs `PMF.pure true` for

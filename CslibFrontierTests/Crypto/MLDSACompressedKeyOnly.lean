@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 
 /-!
 # Tests for the ML-DSA compressed key-only reduction
@@ -133,5 +133,26 @@ example : compressedVerify standard 13 hash publicKey [] changedSignature = fals
   have hdball : decide (InBall standard.τ changedSignature.c) = true := decide_eq_true hball
   rw [compressedVerify, hdshort, hdball]
   simp [hash, changedSignature, signature, hints, useHintVec, hne'', hcne]
+
+-- With A = 0 the all-one response has exactly the same recovered commitment as the zero
+-- response. The extractor must still produce a nonzero integer kernel vector.
+private def secondResponse : CompressedSignature standard :=
+  { signature with z := fun _ _ => 1 }
+
+example : ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix publicKey.A)
+    (max (2 * (standard.γ₁ - standard.β)) (4 * standard.γ₂ + 2))
+    (responseDifference 13 publicKey signature secondResponse) := by
+  apply isSolution_responseDifference Params.valid_mldsa44 (by decide) 13 publicKey
+  · intro heq
+    have := congrArg (fun σ : CompressedSignature standard => σ.z ⟨0, by decide⟩ coeff0) heq
+    exact (by decide : (0 : ZMod standard.q) ≠ 1) this
+  · rfl
+  · funext i j
+    simp [CompressedSignature.recover, compressedVerifierCommitment, publicKey, signature,
+      secondResponse, moduleSISMap]
+  · exact responseShort
+  · intro _ _
+    change |(1 : ZMod 8380417).valMinAbs| < 131072 - 78
+    decide
 
 end MLDSACompressedKeyOnlyTests
