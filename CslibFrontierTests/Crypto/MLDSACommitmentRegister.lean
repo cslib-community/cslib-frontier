@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
+import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 
 /-!
 # ML-DSA digest-register clients
@@ -155,3 +156,64 @@ example (s : Level) (H : Xofs) (keys : KeyPair) (q : SigningQuery) (fresh replay
         .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0)
   let score (G : Xofs) := (C.freshMaskSigning s G keys).map (·.any (·.trial.newDigestWin))
   exact h.trans (congrArg score (H.withDigestRegister_readDigestRegister s))
+
+-- The first signature and one measured SHAKE256 query choose the message of a second request.
+-- Select its last attempt. Both a returned signature and a signing error have a continuation.
+private def twoRequestForger (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    QuantumSigningForger :=
+  ⟨s.commitmentInputBits, 1, 0, fun _ => .liftBind (.inr (.inr first)) fun sig =>
+    .liftBind (.inr (.inl (.gate (false, false, 0, [])))) fun _ =>
+      .liftBind (.inr (.inl (.gate (false, false, 1, [])))) fun _ =>
+        .liftBind (.inr (.inl (.gate (false, true, 2, [])))) fun _ =>
+          .liftBind (.inr (.inl .query)) fun _ =>
+            .liftBind (.inr (.inl (.measure ⟨s.commitmentInputBits + 2, by lia⟩))) fun bits =>
+              .liftBind (.inr (.inr ⟨[], sig.isSome :: bits⟩)) fun r =>
+                .pure (if r.isSome then fresh else replay)⟩
+
+private theorem twoRequestForger_hash (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    (twoRequestForger s first fresh replay).XofCallsLe 1 := fun _ =>
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+      .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ =>
+        .liftBind _ _ 0 fun _ => .pure _ 0
+
+example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
+    (hg : H.keyGen s seed = some keys) (A : PublicMatrix s)
+    (hm : H.expandA s (keys.publicKey.take 32) = some A) (first : SigningQuery)
+    (fresh replay : Forgery) (row₁ row₂ : FixedBytes 2 → FixedBytes (maskPolyBytes s)) :
+    let C := twoRequestForger s first fresh replay
+    let p w := Game.succProbability (C.commitmentTrialGame s H keys 1 813 [row₁, row₂] w)
+    let δ := (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal
+    |(p true : ℝ) - (p false : ℝ)| ≤ 2 * (4 * √δ + 1629 * δ) := by
+  intro C p δ
+  obtain ⟨rho, pair, ha, pk, sk, _⟩ := privateKey_of_keyGen hg
+  rw [pk, take_encodePublic, ha] at hm
+  cases hm
+  have hash := twoRequestForger_hash s first fresh replay
+  have h := C.abs_commitmentTrialGame_write_sub_read_le s H keys 1 813 [row₁, row₂] hash
+  simpa [p, δ, sk, ha, show (815 : ℝ) + (1 + 813) = 1629 by norm_num] using h
+
+-- The digest write is in the second of two adaptive requests, at the cap. Compare directly
+-- with the original experiment's seeded keys, retained state, verifier and random nonce rows.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let a := s.commitmentInputBits
+    let b := 894
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    let win := Game.succProbability (C.expansionTrialGame s base a b (1 : Fin 2) 813 true)
+    let orig := Game.succProbability (C.freshExpansionGame s base a b)
+    |(win : ℝ) - (orig : ℝ)| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        2 * (4 * √δ + 1629 * δ)) := by
+  intro C a b matrices win orig
+  have sig : C.SigningCallsLe 2 := fun _ =>
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+      .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+        .liftBind _ _ 0 fun _ => .pure _ 0
+  have hash := twoRequestForger_hash s first fresh replay
+  simpa [matrices, win, orig, show (815 : ℝ) + (1 + 813) = 1629 by norm_num] using
+    C.abs_expansionTrialGame_write_sub_freshExpansionGame_le s base (a := a) (b := b)
+      le_rfl (by cases s <;> decide) sig hash (1 : Fin 2) 813

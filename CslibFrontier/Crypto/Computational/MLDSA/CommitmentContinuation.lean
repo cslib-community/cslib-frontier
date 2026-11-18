@@ -65,6 +65,24 @@ private theorem query_change_event (H : Xofs) (s : Level) (A : PublicMatrix s)
   dsimp only
   rw [Function.update_of_ne ne]
 
+private theorem mean_query_sqrt_le {ι κ σ α : Type} [Fintype ι] [Fintype κ] [DecidableEq κ]
+    [Fintype α] {a b w : ℕ} (μ : PMF ι) (base : Xofs) (write : ι → Xofs)
+    (st : DeviceState (a + 2 + 8 * b + w) κ σ)
+    (M : ι → POVM α ((Fin (a + 2 + 8 * b + w) → Bool) × κ)) (outcome : α) {δ : ℝ}
+    (hit : ∀ x, (μ.toOuterMeasure
+      {y | (write y).queryTable a b x ≠ base.queryTable a b x}).toReal ≤ δ) :
+    let p y (H : Xofs) := (M y).densityProb
+      (st.instruction (H.queryTable a b) .query).density outcome
+    ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ := by
+  intro p
+  apply (st.mean_sq_sqrt_query_readout_sub_le μ M outcome _ _).trans
+  apply mean_xorQueryDisturbance_le μ _ _ _ st.isDensityMatrix
+  intro x
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  convert hit x using 4
+  ext y
+  exact decide_eq_true_iff
+
 /-- Mean squared change of the square root of an observable probability after one coherent
 SHAKE query when a fresh ML-DSA mask selects the digest to change. The final measurement may
 depend on the mask and the input device may carry an arbitrary entangled reference. -/
@@ -84,15 +102,15 @@ theorem Xofs.sq_sqrt_readout_after_maskCommitment_le
       4 * (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal := by
   classical
   intro μ base write p
-  apply (st.mean_sq_sqrt_query_readout_sub_le μ M outcome write base).trans
-  apply mean_xorQueryDisturbance_le μ write base _ st.isDensityMatrix
+  apply mean_query_sqrt_le μ (H.withDigestRegister s D)
+    (fun y => H.withDigestRegister s (Function.update D (maskCommitmentAddress s A m y)
+      (replacement y))) st M outcome
   intro x
   have finite : commitmentGuessProbability s.params (by cases s <;> decide) A ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
   apply ENNReal.toReal_mono finite
-  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   apply le_trans (μ.toOuterMeasure.mono ?_) (query_change_event H s A m D a b x)
-  exact fun y hy => ⟨replacement y, of_decide_eq_true hy⟩
+  exact fun y hy => ⟨replacement y, hy⟩
 
 namespace QuantumSigningForger
 
@@ -148,24 +166,39 @@ private noncomputable abbrev stepState {C : QuantumSigningForger} (H : Xofs) (d 
 private noncomputable abbrev observe {C : QuantumSigningForger} (M : Test C) (d : Device C) :=
   M.measureDensity d.density d.isDensityMatrix
 
+private theorem mean_query_gap_of_root {C : QuantumSigningForger} {ι : Type} [Fintype ι]
+    (μ : PMF ι) (base : Xofs) (write : ι → Xofs) (d : Device C) (M : ι → Test C)
+    {δ : ℝ} (hn : 0 ≤ δ)
+    (bound : let p y (H : Xofs) := (M y).densityProb (stepState H d).density true
+      ∑ y, (μ y).toReal * (√(p y (write y)) - √(p y base)) ^ 2 ≤ 4 * δ) :
+    PMF.meanAbsDiffAt μ true (fun y => observe (M y) (stepState (write y) d))
+      (fun y => observe (M y) (stepState base d)) ≤ 4 * √δ := by
+  apply (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq
+  · ring
+  · have born (T : Xofs) (y) : prob (observe (M y) (stepState T d)) =
+        (M y).densityProb (stepState T d).density true := by
+      rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
+        ((M y).densityProb_nonneg (stepState T d).isDensityMatrix.posSemidef true)]
+    simpa only [born, mul_pow, Real.sq_sqrt hn, show (2 : ℝ) ^ 2 = 4 by norm_num] using bound
+
 private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Zero V] [Fintype ι]
     (μ : PMF ι) (base : Xofs) (write : ι → Xofs)
     (sign : V → SigningQuery → Option (List Byte))
     (sign' : ι → V → SigningQuery → Option (List Byte))
-    (test : α → List Forgery → List V → Test C) (test' : ι → α → List Forgery → List V → Test C)
+    (test test' : ι → α → List Forgery → List V → Test C)
     {Q S T : ℝ} (nonQ : 0 ≤ Q) (nonS : 0 ≤ S)
     (coherent : ∀ (d : Device C) (M : ι → Test C),
       PMF.meanAbsDiffAt μ true (fun y => observe (M y) (stepState (write y) d))
         (fun y => observe (M y) (stepState base d)) ≤ Q)
     (signing : ∀ v q, (μ.toOuterMeasure {y | sign' y v q ≠ sign v q}).toReal ≤ S)
     (terminal : ∀ x log tape d, PMF.meanAbsDiffAt μ true (fun y => observe (test' y x log tape) d)
-      (fun _ => observe (test x log tape) d) ≤ T)
+      (fun y => observe (test y x log tape) d) ≤ T)
     {prog : Program C α} {m n : ℕ}
     (cost : OracleComp.IsCostBounded (fun q => (isXofQuery q).toNat) prog m)
     (calls : OracleComp.IsCostBounded (fun q => (isSigningCall q).toNat) prog n)
     (d : Device C) (log : List Forgery) (tape : List V) :
     PMF.meanAbsDiffAt μ true (fun y => scored prog (write y) (sign' y) (test' y) d log tape)
-      (fun _ => scored prog base sign test d log tape) ≤ m * Q + n * S + T := by
+      (fun y => scored prog base sign (test y) d log tape) ≤ m * Q + n * S + T := by
   classical
   induction cost generalizing n d log tape with
   | pure x m =>
@@ -275,7 +308,7 @@ theorem mean_expansionContinuation_gap_le (C : QuantumSigningForger) (s : Level)
   have bound := scored_meanGap_le (C := C) μ base write
     (fun row q => base.signWithExpansionRow s keys.secretKey q row)
     (fun y row q => (write y).signWithExpansionRow s keys.secretKey q row)
-    (fun f history _ => POVM.const (SignedMatrixTrial.newDigestWin
+    (fun _ f history _ => POVM.const (SignedMatrixTrial.newDigestWin
       ⟨base, A, keys.publicKey, f, history⟩))
     (fun y f history _ => POVM.const (SignedMatrixTrial.newDigestWin
       ⟨write y, A, keys.publicKey, f, history⟩))
@@ -285,17 +318,9 @@ theorem mean_expansionContinuation_gap_le (C : QuantumSigningForger) (s : Level)
   · ring_nf
     rfl
   · intro dev M
-    apply (mean_abs_of_root μ _ _ (2 * √δ) (by positivity) ?_).trans_eq
-    · ring
-    · have born (T : Xofs) (y) : prob (observe (M y) (stepState T dev)) =
-          (M y).densityProb (stepState T dev).density true := by
-        rw [prob, observe, POVM.measureDensity_apply, ENNReal.toReal_ofReal
-          ((M y).densityProb_nonneg (stepState T dev).isDensityMatrix.posSemidef true)]
-      simp only [born]
-      rw [mul_pow, Real.sq_sqrt (show 0 ≤ δ from ENNReal.toReal_nonneg)]
-      rw [show (2 : ℝ) ^ 2 = 4 by norm_num]
-      exact H.sq_sqrt_readout_after_maskCommitment_le s A m D replacement C.addressBits
-        C.responseBytes C.workQubits dev M true
+    exact mean_query_gap_of_root μ base write dev M ENNReal.toReal_nonneg
+      (H.sq_sqrt_readout_after_maskCommitment_le s A m D replacement C.addressBits
+        C.responseBytes C.workQubits dev M true)
   · intro row q
     have h := prob_row_changes H s A m D keys.secretKey q row
     have le : μ.toOuterMeasure {y | (write y).signWithExpansionRow s keys.secretKey q row ≠

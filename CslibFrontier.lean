@@ -4981,6 +4981,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Decompose
 public import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
 public import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
+public import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
@@ -4991,6 +4992,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
+public import CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
