@@ -38,6 +38,14 @@ most `m` calls, linked against a machine making at most `t` per activation, make
   forwarding machine is a unit.
 * `Cslib.Crypto.Protocols.UC.Machine.IsBounded.comp`,
   `Cslib.Crypto.Protocols.UC.Machine.isQueryBounded_link`: budgets of compositions and links.
+* `Cslib.Crypto.Protocols.UC.Machine.liftRightProgram`,
+  `Cslib.Crypto.Protocols.UC.Machine.liftRight`,
+  `Cslib.Crypto.Protocols.UC.Machine.runFrom_liftRight_liftRightProgram`,
+  `Cslib.Crypto.Protocols.UC.Machine.liftRight_id`,
+  `Cslib.Crypto.Protocols.UC.Machine.liftRight_comp`,
+  `Cslib.Crypto.Protocols.UC.Machine.isQueryBounded_liftRightProgram`,
+  `Cslib.Crypto.Protocols.UC.Machine.isBounded_liftRight`: lifting a right-port program or machine
+  past an arbitrary left-port interface.
 
 ## References
 
@@ -217,5 +225,147 @@ theorem IsBounded.comp {A : Machine J E} {P : Machine I J} {u t : ℕ} (hA : A.I
     omega
   · refine ((OracleComp.isCostBounded_map_iff _ _ _).mpr
       (isQueryBounded_runFrom hP (hA.2 q s.1) s.2)).mono (Nat.le_add_right _ _)
+
+/-! ### Lifting right-port programs and machines over an arbitrary left port -/
+
+section LiftRight
+
+variable {ιL ιR ιR₁ ιR₂ : Type} (L : ιL → Type)
+  {R : ιR → Type} {R₁ : ιR₁ → Type} {R₂ : ιR₂ → Type} {β : Type}
+
+/-- Lift a program on `R` to a program on `L ⊕ₒ R`, preserving private samples. -/
+@[expose] def liftRightProgram (program : ProbOracleComp R α) : ProbOracleComp (L ⊕ₒ R) α :=
+  OracleComp.interpret
+    (sumHandler
+      (fun k => OracleComp.query (spec := probOracleSpec (L ⊕ₒ R)) (Sum.inl k))
+      fun q => ProbOracleComp.query (Sum.inr q))
+    program
+
+@[simp] theorem liftRightProgram_pure (a : α) :
+    liftRightProgram L (pure a : ProbOracleComp R α) = pure a := rfl
+
+@[simp] theorem liftRightProgram_bind (program : ProbOracleComp R α)
+    (next : α → ProbOracleComp R β) :
+    liftRightProgram L (program >>= next) =
+      liftRightProgram L program >>= fun a => liftRightProgram L (next a) :=
+  OracleComp.interpret_bind _ _ _
+
+@[simp] theorem liftRightProgram_map (f : α → β) (program : ProbOracleComp R α) :
+    liftRightProgram L (f <$> program) = f <$> liftRightProgram L program :=
+  OracleComp.interpret_map _ _ _
+
+/-- A right-port query becomes a query on the right branch of `L ⊕ₒ R`. -/
+@[simp] theorem liftRightProgram_query (q : ιR) :
+    liftRightProgram L (ProbOracleComp.query (spec := R) q) =
+      ProbOracleComp.query (spec := L ⊕ₒ R) (.inr q) :=
+  OracleComp.interpret_query _ _
+
+/-- Private samples are unchanged by lifting. -/
+@[simp] theorem liftRightProgram_sample (program : ProbComp α) :
+    liftRightProgram L (ProbOracleComp.sample (spec := R) program) =
+      ProbOracleComp.sample program := by
+  simp only [liftRightProgram, ProbOracleComp.interpret_sample]
+  exact (OracleComp.substitute_eq_interpret _ _).symm
+
+/-- Lifting past `L` preserves the call budget of a program. -/
+theorem isQueryBounded_liftRightProgram {program : ProbOracleComp R α} {m : ℕ}
+    (h : program.IsQueryBounded m) :
+    (liftRightProgram L program).IsQueryBounded m := by
+  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
+  cases q with
+  | inl k => exact OracleComp.IsCostBounded.query _
+  | inr q => exact OracleComp.IsCostBounded.query _
+
+/-- Lift a machine `M` from `R → E` to `L ⊕ₒ R → L ⊕ₒ E`, forwarding left-port queries
+unchanged and running right-port activations through `liftRightProgram`. -/
+@[expose] def liftRight (M : Machine R E) : Machine (L ⊕ₒ R) (L ⊕ₒ E) where
+  State := M.State
+  init := M.init
+  handle
+    | .inl p => StateT.lift (ProbOracleComp.query (spec := L ⊕ₒ R) (Sum.inl p))
+    | .inr q => fun s => liftRightProgram L ((M.handle q).run s)
+
+/-- Running a lifted program against a lifted machine equals lifting the run against the inner
+machine. -/
+theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
+    (program : ProbOracleComp R₁ α) (s : S.State) :
+    (liftRight L S).runFrom (liftRightProgram L program) s =
+      liftRightProgram L (S.runFrom program s) := by
+  induction program using OracleComp.induction generalizing s with
+  | pure a => rfl
+  | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
+    cases q with
+    | inl k =>
+      have h₁ : liftRightProgram L
+          (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) =
+          ProbOracleComp.sample (ProbComp.unifFin k) := by
+        rw [← liftRightProgram_sample L (R := R₁)]
+        rfl
+      have h₂ : S.runFrom (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) s =
+          (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) :=
+        S.runFrom_sample (ProbComp.unifFin k) s
+      rw [liftRightProgram_bind, h₁, Machine.runFrom_bind, h₂, liftRightProgram_bind,
+        liftRightProgram_map, liftRightProgram_sample, bind_map_left]
+      erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
+      exact bind_congr fun a => ih a s
+    | inr e =>
+      rw [liftRightProgram_bind, Machine.runFrom_bind, liftRightProgram_bind]
+      erw [Machine.runFrom_bind]
+      have h₁ : (liftRight L S).runFrom
+          (liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e))) s =
+          liftRightProgram L (S.runFrom
+            (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e)) s) := by
+        erw [liftRightProgram_query, Machine.runFrom_query, Machine.runFrom_query]
+        rfl
+      exact (congrArg (fun m => m >>= _) h₁).trans
+        (bind_congr fun (x : R₁ e × S.State) => ih x.1 x.2)
+
+/-- Lifting the forwarding machine yields the forwarding machine on the combined interface. -/
+@[simp] theorem liftRight_id :
+    liftRight L (Machine.id R) = Machine.id (L ⊕ₒ R) := by
+  simp only [liftRight, Machine.id]
+  congr 1 with q s : 2
+  cases q with
+  | inl p => rfl
+  | inr q =>
+    change liftRightProgram L ((fun a => (a, s)) <$> ProbOracleComp.query q) = _
+    rw [liftRightProgram_map, liftRightProgram_query]
+    rfl
+
+/-- Lifting a composition is composing the lifted machines. -/
+theorem liftRight_comp (A : Machine R₁ E) (S : Machine R₂ R₁) :
+    liftRight L (A.comp S) = (liftRight L A).comp (liftRight L S) := by
+  simp only [liftRight, Machine.comp]
+  congr 1 with q s : 2
+  cases q with
+  | inl p =>
+    change (StateT.lift (ProbOracleComp.query (spec := L ⊕ₒ R₂) (Sum.inl p))) s =
+      Equiv.prodAssoc _ _ _ <$> (liftRight L S).runFrom
+        ((StateT.lift (ProbOracleComp.query (spec := L ⊕ₒ R₁) (Sum.inl p))).run s.1) s.2
+    simp only [StateT.lift, StateT.run, bind_pure_comp]
+    erw [Machine.runFrom_map, Machine.runFrom_query]
+    simp only [liftRight, StateT.lift, StateT.run, bind_pure_comp, Functor.map_map]
+    rfl
+  | inr e =>
+    change liftRightProgram L (Equiv.prodAssoc _ _ _ <$> S.runFrom ((A.handle e).run s.1) s.2) =
+      Equiv.prodAssoc _ _ _ <$> (liftRight L S).runFrom
+        (liftRightProgram L ((A.handle e).run s.1)) s.2
+    rw [runFrom_liftRight_liftRightProgram, liftRightProgram_map]
+    rfl
+
+/-- Lifting a machine with per-activation call budget `t` yields budget `t + 1`: left-port queries
+forward with one call. -/
+theorem isBounded_liftRight {M : Machine R E} {t : ℕ} (h : M.IsBounded t) :
+    (liftRight L M).IsBounded (t + 1) := by
+  refine ⟨h.1.mono (Nat.le_succ t), fun q s => ?_⟩
+  cases q with
+  | inl p =>
+    change ((fun a => (a, s)) <$> ProbOracleComp.query _).IsQueryBounded _
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+      ((OracleComp.IsCostBounded.query _).mono (by omega))
+  | inr q => exact (isQueryBounded_liftRightProgram L (h.2 q s)).mono (Nat.le_succ t)
+
+end LiftRight
 
 end Cslib.Crypto.Protocols.UC.Machine
