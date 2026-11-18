@@ -15,10 +15,10 @@ import Mathlib.Tactic.Linarith
 
 An executable instance of abstract DPLL with learning, which returns a model or an LRAT certificate
 (`Cslib.Algorithms.Lean.CDCL.solve`). Its moves are those of `Cslib.Algorithms.Lean.CDCL.Exec`;
-this module finds conflicts and unit clauses with two watched literals per clause, as MiniSat
-does, instead of scanning the database. Each trail literal is queued when it is assigned;
-processing it visits the clauses watching its negation, which either find another watch, are
-satisfied by their other watch, become unit, or are false.
+this module finds conflicts and unit clauses among the clauses of at least two literals with two
+watched literals per clause, as MiniSat does, instead of scanning them. Each trail literal is
+queued when it is assigned; processing it visits the clauses watching its negation, which either
+find another watch, are satisfied by their other watch, become unit, or are false.
 
 The state `WExec` extends `Exec` with the watch store, the queue, and the clauses with fewer than
 two different literals, which cannot be watched and are scanned when the queue is empty. Its
@@ -67,7 +67,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
-/-- The state of the solver with watched literals: the state of the naive solver, the watch store,
+/-- The state of the solver with watched literals: the state `Exec`, the watch store,
 the queue of trail literals whose watch lists are still to be visited, and the clauses with fewer
 than two different literals. -/
 structure WExec (φ : CNF ℕ) where
@@ -83,7 +83,7 @@ structure WExec (φ : CNF ℕ) where
 /-- The abstract trail. -/
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
 
-/-- **The invariant of the solver with watched literals**: the invariant of the naive solver, the
+/-- **The invariant of the solver with watched literals**: the invariant `Exec.Inv`, the
 invariant of the watch store, the short clauses, and a queue of distinct trail literals above the
 newest decision. -/
 structure WExec.Inv (S : WExec φ) : Prop where
