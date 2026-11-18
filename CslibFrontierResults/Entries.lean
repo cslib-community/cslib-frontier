@@ -1625,7 +1625,7 @@ register_result "goldreich-circuit-agreement-limit" where
     and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
 
 register_result "goldreich-no-universal-hard-core" where
-  title := "There is no universal hard-core predicate"
+  title := "If one-way functions exist, there is no universal hard-core predicate"
   topic := "cryptography"
   sources := [
     { paper := Goldreich2007DraftR4, theorem := "Exercise 7.8",
