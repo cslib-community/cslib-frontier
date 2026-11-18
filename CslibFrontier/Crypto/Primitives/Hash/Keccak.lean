@@ -320,6 +320,16 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
 @[expose] def bytesToBitsLE (bytes : List (Fin 256)) : List Bool :=
   bytes.flatMap byteBitsLE
 
+/-- Each serialized FIPS 202 byte contributes exactly eight bits. -/
+theorem length_bytesToBitsLE (bytes : List (Fin 256)) :
+    (bytesToBitsLE bytes).length = 8 * bytes.length := by
+  induction bytes with
+  | nil => rfl
+  | cons b tail ih =>
+    change (byteBitsLE b ++ bytesToBitsLE tail).length = _
+    simp only [List.length_append, byteBitsLE, BitString.length_lowBits, ih, List.length_cons]
+    lia
+
 /-- FIPS 202 Algorithm 9, `pad10*1(x, m)`. -/
 @[expose] def pad10star1 (x m : ℕ) : List Bool :=
   true :: List.replicate ((x - (m + 2) % x) % x) false ++ [true]

@@ -234,15 +234,29 @@ def keyGen (s : Level) (seed : FixedBytes 32) : Option KeyPair := do
 def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) :=
   KeyPair.publicKey <$> keyGen s seed
 
-private def swaps (first count : ℕ) (bytes : List Byte) :
-    Option (Equiv.Perm (Fin 256)) :=
-  match count with
-  | 0 => some (Equiv.refl _)
-  | count + 1 => do
-    let choices := bytes.dropWhile (fun b => decide (first < b.val))
-    let b ← choices.head?
-    let rest ← swaps (first + 1) count (choices.drop 1)
-    return (Equiv.swap (Fin.ofNat 256 first) b).trans rest
+namespace ChallengeRow
+
+-- Retaining each rejected byte and the unconsumed suffix also permits programming the raw row.
+private inductive Trace : ℕ → ℕ → Type where
+  | done {i : ℕ} (tail : List Byte) : Trace i 0
+  | reject {i n : ℕ} (b : Byte) (h : i < b.val) (rest : Trace i (n + 1)) : Trace i (n + 1)
+  | accept {i n : ℕ} (b : Byte) (h : b.val ≤ i) (rest : Trace (i + 1) n) : Trace i (n + 1)
+
+private def Trace.perm {i n : ℕ} : Trace i n → Equiv.Perm Byte
+  | .done _ => Equiv.refl _
+  | .reject _ _ t => t.perm
+  | .accept (i := j) b _ t => (Equiv.swap (Fin.ofNat 256 j) b).trans t.perm
+
+private def parse (i n : ℕ) (bytes : List Byte) : Option (Trace i n) :=
+  match n, bytes with
+  | 0, tail => some (.done tail)
+  | _ + 1, [] => none
+  | k + 1, b :: rest =>
+    if h : i < b.val then (parse i (k + 1) rest).map (.reject b h)
+    else (parse (i + 1) k rest).map (.accept b (Nat.le_of_not_gt h))
+termination_by bytes.length
+
+end ChallengeRow
 
 private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380417 :=
   if i.val < 256 - s.params.τ then 0
@@ -250,11 +264,14 @@ private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380
 
 /-- Algorithm 29. Preload the last τ positions with the SHAKE sign bits and exchange each
 with its chosen position in increasing order. Future sign positions remain untouched because an
-accepted index is at most the current position. The SHAKE256 limit is 221 bytes. -/
-def sampleInBall (s : Level) (digest : List Byte) : Option Poly := do
-  let bytes := Keccak.shake256 digest 221
-  let e ← swaps (256 - s.params.τ) s.params.τ (bytes.drop 8)
-  return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ e.symm
+accepted index is at most the current position. The caller supplies the SHAKE256 bytes. -/
+def sampleInBallBytes (s : Level) (bytes : List Byte) : Option Poly := do
+  let t ← ChallengeRow.parse (256 - s.params.τ) s.params.τ (bytes.drop 8)
+  return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ t.perm.symm
+
+/-- Algorithm 29 reads its 221-byte SHAKE256 row at the challenge digest. -/
+def sampleInBall (s : Level) (digest : List Byte) : Option Poly :=
+  sampleInBallBytes s (Keccak.shake256 digest 221)
 
 private theorem inBall_signedTail (s : Level) (signs : List Bool) (e : Equiv.Perm (Fin 256)) :
     InBall s.params.τ (signedTail s signs ∘ e.symm) := by
@@ -281,14 +298,19 @@ private theorem inBall_signedTail (s : Level) (signs : List Bool) (e : Equiv.Per
     rw [hs, Finset.card_map, Fin.card_Ici]
     cases s <;> rfl
 
+/-- Every successful Algorithm 29 byte row yields a signed challenge of weight τ. -/
+theorem inBall_of_sampleInBallBytes {s : Level} {bytes : List Byte} {c : Poly}
+    (h : sampleInBallBytes s bytes = some c) : InBall s.params.τ c := by
+  cases ht : ChallengeRow.parse (256 - s.params.τ) s.params.τ (bytes.drop 8) with
+  | none => simp [sampleInBallBytes, ht] at h
+  | some t =>
+    rw [sampleInBallBytes, ht] at h
+    exact (Option.some.inj h) ▸ inBall_signedTail s _ t.perm
+
 /-- Every successful FIPS expansion gives exactly τ signed unit coefficients. -/
 theorem inBall_of_sampleInBall {s : Level} {digest : List Byte} {c : Poly}
-    (h : sampleInBall s digest = some c) : InBall s.params.τ c := by
-  cases he : swaps (256 - s.params.τ) s.params.τ ((Keccak.shake256 digest 221).drop 8) with
-  | none => simp [sampleInBall, he] at h
-  | some e =>
-    rw [sampleInBall, he] at h
-    exact (Option.some.inj h) ▸ inBall_signedTail s _ e
+    (h : sampleInBall s digest = some c) : InBall s.params.τ c :=
+  inBall_of_sampleInBallBytes h
 
 /-- The components of a FIPS 204 signature after Algorithm 27 has checked its encoding. -/
 structure Signature (s : Level) where
@@ -415,17 +437,9 @@ private theorem responseBytes_inj {s : Level} {x y : List Byte}
         ↑(unpackCoeff (Keccak.bytesToBitsLE y) w (256 * i.val + j.val))) :
     x.take (32 * w * s.params.ℓ) = y.take (32 * w * s.params.ℓ) := by
   let n := 256 * s.params.ℓ
-  have bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8 * l.length := by
-    induction l with
-    | nil => rfl
-    | cons a l ih =>
-      change (Keccak.byteBitsLE a ++ Keccak.bytesToBitsLE l).length = _
-      simp only [List.length_append, Keccak.byteBitsLE, BitString.length_lowBits, ih,
-        List.length_cons, Nat.mul_succ]
-      omega
   have cover (l : List Byte) (hl : 32 * w * s.params.ℓ ≤ l.length) :
       w * n ≤ (Keccak.bytesToBitsLE l).length := by
-    rw [bitsLength]
+    rw [Keccak.length_bytesToBitsLE]
     convert Nat.mul_le_mul_left 8 hl using 1
     dsimp [n]
     ring
