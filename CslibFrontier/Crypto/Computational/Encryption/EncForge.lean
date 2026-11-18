@@ -127,36 +127,12 @@ theorem isPPTOn_run_encForgeOracle (E : SymmetricCipher) {adversary : CIAdversar
   obtain ⟨c, d, hlen⟩ := E.encrypt_ppt.length_le
   let EIn := encPair (encPair encUnary encBits)
     (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  have hcond : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        p.2.1.2.length == p.1.1)
-      EIn encBool :=
-    ComputableInPolyTime.unary_beq'
-      (by dsimp only [EIn]; fun_prop) (by dsimp only [EIn]; fun_prop)
-  have hencArg : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        (p.1.1, p.1.2, p.2.1.2))
-      EIn (encPair encUnary (encPair encBits encBits)) := by
-    dsimp only [EIn]; fun_prop
-  have hyes : IsPPTOn EIn (encPair encBits (encList encBits))
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) => do
-        let ct ← E.encrypt p.1.1 p.1.2 p.2.1.2
-        return (ct, p.2.1.2 :: p.2.2)) :=
-    (E.encrypt_ppt.preprocess hencArg).bind_with
-      ((by dsimp only [EIn]; fun_prop : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × ((Unit × List Bool) × List (List Bool))) × List Bool =>
-          (q.2, q.1.2.1.2 :: q.1.2.2))
-        (encPair EIn encBits) (encPair encBits (encList encBits))).isPPTOn)
-  have hno : IsPPTOn EIn (encPair encBits (encList encBits))
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        pure ([], p.2.2)) :=
-    (ComputableInPolyTime.prod (ComputableInPolyTime.const [])
-      (by dsimp only [EIn]; fun_prop)).isPPTOn
+  have henc := E.encrypt_ppt
   have hhandler : IsPPTOn EIn (encPair encBits (encList encBits))
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         E.encForgeOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
-    unfold encForgeOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    dsimp only [EIn, encForgeOracle]
+    ppt
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))

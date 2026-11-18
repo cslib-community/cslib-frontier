@@ -12,7 +12,7 @@ public import CslibFrontier.Init
 /-!
 # Parsing constructor tokens in prefix order
 
-A token describes a leaf, a unary constructor, or a binary constructor. `parseFuel` reads one
+A token describes a constructor of any fixed arity. `parseFuel` reads one
 value and returns the unconsumed suffix, or `none` on an invalid token, missing operand, or
 exhausted fuel. No default value or inhabitance assumption is needed. `parse` uses the input
 length as fuel, and `decode` additionally rejects trailing tokens.
@@ -26,7 +26,7 @@ public section
 
 namespace Cslib.PrefixParser
 
-/-- The constructor represented by a token, with zero, one, or two operands. -/
+/-- The constructor represented by a token. Operands are read in prefix order. -/
 inductive Step (α : Type*) where
   /-- A leaf value. -/
   | atom (value : α)
@@ -34,6 +34,42 @@ inductive Step (α : Type*) where
   | unary (make : α → α)
   /-- A constructor with two operands, in input order. -/
   | binary (make : α → α → α)
+  /-- A constructor of arbitrary arity, without a default operand or inhabitance assumption. -/
+  | node (arity : ℕ) (make : (Fin arity → α) → α)
+
+/-- Read a fixed number of operands from left to right, preserving the remaining suffix.
+The supplied parser handles one operand; this helper does not consume constructor tokens. -/
+@[expose] def parseOperands {α τ : Type*} (read : List τ → Option (α × List τ)) :
+    (arity : ℕ) → List τ → Option ((Fin arity → α) × List τ)
+  | 0, rest => some (Fin.elim0, rest)
+  | arity + 1, rest => do
+    let (first, rest) ← read rest
+    let (others, rest) ← parseOperands read arity rest
+    return ((fun | ⟨0, _⟩ => first
+                 | ⟨index + 1, h⟩ => others ⟨index, Nat.lt_of_succ_lt_succ h⟩), rest)
+
+/-- Fixed-count operand parsing preserves every following token when each operand parser
+preserves its suffix. This is the induction step for arbitrary-arity prefix round trips. -/
+theorem parseOperands_ofFn {α τ : Type*} {read : List τ → Option (α × List τ)}
+    {tokens : α → List τ} {arity : ℕ} (values : Fin arity → α)
+    (roundtrip : ∀ i rest, read (tokens (values i) ++ rest) = some (values i, rest))
+    (rest : List τ) :
+    parseOperands read arity ((List.ofFn values).flatMap tokens ++ rest) =
+      some (values, rest) := by
+  induction arity with
+  | zero =>
+    simp only [List.ofFn_zero, List.flatMap_nil, List.nil_append, parseOperands]
+    congr 2
+    funext i
+    exact Fin.elim0 i
+  | succ arity ih =>
+    rw [List.ofFn_succ, List.flatMap_cons, List.append_assoc]
+    simp only [parseOperands, roundtrip, Option.bind_eq_bind, Option.bind_some]
+    rw [ih (fun i => values i.succ) (fun i => roundtrip i.succ)]
+    simp only [Option.bind_some, Option.pure_def]
+    congr 2
+    funext i
+    exact Fin.cases rfl (fun _ => rfl) i
 
 /-- Read one prefix-coded value, with fuel bounding the depth of recursive parsing. -/
 @[expose] def parseFuel {α τ : Type*} (readToken : τ → Option (Step α)) :
@@ -51,6 +87,9 @@ inductive Step (α : Type*) where
       let (left, rest) ← parseFuel readToken fuel rest
       let (right, rest) ← parseFuel readToken fuel rest
       return (make left right, rest)
+    | some (.node arity make) => do
+      let (operands, rest) ← parseOperands (parseFuel readToken fuel) arity rest
+      return (make operands, rest)
 
 /-- Read a prefix and its remainder, using the number of input tokens as sufficient fuel. -/
 @[expose] def parse {α τ : Type*} (readToken : τ → Option (Step α)) (tokens : List τ) :
@@ -70,10 +109,11 @@ theorem append_injective {α τ : Type*} {readToken : τ → Option (Step α)}
       parseFuel readToken fuel (tokens value ++ rest) = some (value, rest))
     {left right : α} {rest rest' : List τ}
     (h : tokens left ++ rest = tokens right ++ rest') : left = right ∧ rest = rest' := by
-  have hparse := congrArg
-    (parseFuel readToken ((tokens left).length + (tokens right).length)) h
-  rw [roundtrip _ _ _ (Nat.le_add_right _ _),
-    roundtrip _ _ _ (Nat.le_add_left _ _)] at hparse
+  let fuel := (tokens left).length + (tokens right).length
+  have hparse : some (left, rest) = some (right, rest') :=
+    (roundtrip left rest fuel (Nat.le_add_right _ _)).symm.trans
+      ((congrArg (parseFuel readToken fuel) h).trans
+        (roundtrip right rest' fuel (Nat.le_add_left _ _)))
   have hp := Option.some.inj hparse
   exact ⟨congrArg Prod.fst hp, congrArg Prod.snd hp⟩
 

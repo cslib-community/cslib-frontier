@@ -115,11 +115,11 @@ example (chals : Fin 2 → Bool) :
 def toyExtract (_ : Bool) (oracles : Fin 2 → OracleTable 1 Bool) : Bool :=
   oracles ⟨0, by decide⟩ ⟨0, by decide⟩
 
--- 1. Perfect completeness applied to `toyIOP`.
-example (H : List Bool → List Bool → List Bool) (k : List Bool)
-    (hFS : Bool → List (List Bool) → Bool) (x : Bool) :
+-- 1. Perfect completeness applied to `toyIOP`, for a hash whose digests have one length.
+example (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (hFS : Bool → List (List Bool) → Bool) (x : Bool) :
     bcsVerify toyIOP H k encSym hFS x (bcsProve toyIOP H k encSym hFS x x) = true :=
-  bcsVerify_bcsProve_eq_true toyIOP_complete H k encSym hFS rfl
+  bcsVerify_bcsProve_eq_true toyIOP_complete H k hlen encSym hFS rfl
 
 -- 2. Concrete evaluation of `bcsProve` and `bcsVerify`.
 example :
@@ -191,12 +191,6 @@ def ksIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
 /-- Straight-line knowledge extractor for `ksIOP` reading entry `0` of round `0`. -/
 def ksExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
   oracles ⟨0, by decide⟩ ⟨0, by decide⟩
-
-theorem ksIOP_knowledgeSound : IOPKnowledgeSoundness ksIOP toyRel ksExtract := by
-  intro x chals oracles hver
-  simp only [iopVerify, iopAnswers, ksIOP, List.map_cons, List.map_nil, beq_iff_eq,
-    List.cons.injEq, and_true] at hver
-  exact hver.symm
 
 theorem computableInPolyTime_constHash :
     ComputableInPolyTime (fun p : List Bool × List Bool => constHash p.1 p.2)
@@ -290,7 +284,7 @@ example :
   isPPT_bcsTableCollisionFinder computableInPolyTime_constHash (fun _ _ => rfl)
     computableInPolyTime_ksIOP_queries computableInPolyTime_constFS isPPTOn_cheatingTableAdversary
 
--- Concrete probability reductions under the colliding toy hash `constHash` (without assuming
+-- Concrete probability reduction under the colliding toy hash `constHash` (without assuming
 -- `CollisionResistant constHash`).
 example (n : ℕ) :
     Game.succProbability (ProbComp.eval
@@ -303,20 +297,9 @@ example (n : ℕ) :
   succProbability_bcsTableBindingGame_le ksIOP constHash encBool.injective constFS
     cheatingTableAdversary n
 
-example (n : ℕ) :
-    Game.succProbability (ProbComp.eval
-      (bcsTableKnowledgeGame ksIOP toyRel ksExtract constHash (fun b => encBool b) constFS
-        cheatingTableAdversary n)) ≤
-    Game.succProbability (ProbComp.eval
-      (collisionGame constHash (fun _ _ => true)
-        (bcsTableCollisionFinder ksIOP constHash (fun b => encBool b) constFS
-          cheatingTableAdversary) n)) :=
-  succProbability_bcsTableKnowledgeGame_le ksIOP_knowledgeSound constHash encBool.injective
-    constFS cheatingTableAdversary n
-
--- 6. Standard-model reductions from BCS table binding and knowledge soundness to
--- `CollisionResistant H` and `HashFamily H` for any efficient length-preserving keyed hash `H` and
--- uniform strict-PPT `adversary`.
+-- 6. Standard-model reductions from BCS table binding to `CollisionResistant H` and
+-- `HashFamily H` for any efficient length-preserving keyed hash `H` and uniform strict-PPT
+-- `adversary`.
 example (H : List Bool → List Bool → List Bool) (hCR : CollisionResistant H)
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits)
@@ -336,9 +319,8 @@ example (H : List Bool → List Bool → List Bool) (hf : HashFamily H)
       (encBCSTableCommitOutput 1 1 Bool Bool encBool encBool)
       (fun ⟨n, k⟩ => adversary n k)) :
     Negligible (fun n => Game.succProbability (ProbComp.eval
-      (bcsTableKnowledgeGame ksIOP toyRel ksExtract H (fun b => encBool b) constFS
-        adversary n))) :=
-  HashFamily.bcsTableKnowledge_negligible ksIOP_knowledgeSound hf
-    computableInPolyTime_ksIOP_queries computableInPolyTime_constFS hadv
+      (bcsTableBindingGame ksIOP H (fun b => encBool b) constFS adversary n))) :=
+  HashFamily.bcsTableBinding_negligible hf computableInPolyTime_ksIOP_queries
+    computableInPolyTime_constFS hadv
 
 end CslibFrontierTests.Crypto.BCSTransform

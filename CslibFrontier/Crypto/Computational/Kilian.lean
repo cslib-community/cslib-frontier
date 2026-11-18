@@ -47,7 +47,8 @@ table has polynomially many entries.
 `V.tableVerifier` as its witness, normalizes it to the length of `V.queryTable x`, commits to its
 bits as one-bit leaves `[b]`, and opens the queried positions with `merklePath`. Every repetition
 then passes (`kilianVerify_kilianRespond`), so the honest execution (`kilianHonestGame`) accepts
-with probability one (`eval_kilianHonestGame`): perfect completeness. The tables accepted by
+with probability one when `H k` returns `k.length` bits (`eval_kilianHonestGame`): perfect
+completeness. The tables accepted by
 `V.tableVerifier` are exactly the witnesses of `PCP_log_subset_NP`, so for a PCP verifier for `L`
 this is the NP relation of `L` on which the prover is efficient.
 
@@ -199,10 +200,11 @@ theorem getD_kilianTable {x : α} {table : List Bool} {i : ℕ}
   simp [kilianTable, hi]
 
 /-- **Honest openings pass**: for a table accepted by `V.tableVerifier`, the honest openings for
-a random string of the right length pass `kilianCheck`. -/
+a random string of the right length pass `kilianCheck`, when all digests of `H k` have one
+length. -/
 theorem kilianCheck_kilianOpen {x : α} {table : List Bool}
-    (htable : V.tableVerifier (x, table) = true) (k : List Bool) {ρ : List Bool}
-    (hρ : ρ.length = V.coins x) :
+    (htable : V.tableVerifier (x, table) = true) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) {ρ : List Bool} (hρ : ρ.length = V.coins x) :
     kilianCheck H V k x (kilianCommit H V k x table) ρ (kilianOpen H V k x table ρ) = true := by
   have hverdict := List.all_eq_true.mp htable ρ (BitString.mem_enumList.mpr hρ)
   have hzip (g : ℕ → MerkleOpening Bool) : (V.queries (x, ρ)).zip ((V.queries (x, ρ)).map g) =
@@ -216,17 +218,18 @@ theorem kilianCheck_kilianOpen {x : α} {table : List Bool}
         [(kilianTable V x table).getD (kilianPosition V x a) false] := by
       simp [kilianLeaves, hpos]
     rw [kilianCommit, ← hleaf]
-    exact merkleVerify_merklePath_of_clog_eq (by simp [kilianLeaves, kilianDepth])
+    exact merkleVerify_merklePath_of_clog_eq hlen (by simp [kilianLeaves, kilianDepth])
       (hpos.trans_le (Nat.le_pow_clog (by norm_num) _))
   · convert hverdict using 3
     refine List.map_congr_left fun a ha => ?_
     exact getD_kilianTable (kilianPosition_lt hρ ha)
 
 /-- **Honest responses are accepted**: for a table accepted by `V.tableVerifier`, the honest
-prover's commitment and openings are accepted on every list of random strings of the right length.
--/
+prover's commitment and openings are accepted on every list of random strings of the right length,
+when all digests of `H k` have one length. -/
 theorem kilianVerify_kilianRespond {x : α} {table : List Bool}
-    (htable : V.tableVerifier (x, table) = true) (k : List Bool) {ρs : List (List Bool)}
+    (htable : V.tableVerifier (x, table) = true) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) {ρs : List (List Bool)}
     (hρs : ∀ ρ ∈ ρs, ρ.length = V.coins x) :
     kilianVerify H V k x (kilianCommit H V k x table) ρs (kilianRespond H V k x table ρs) =
       true := by
@@ -236,20 +239,20 @@ theorem kilianVerify_kilianRespond {x : α} {table : List Bool}
       List.zip_map' (f := id) (g := kilianOpen H V k x table) (l := ρs)
   simp only [kilianVerify, kilianRespond, hzip, List.length_map, beq_self_eq_true,
     Bool.true_and, List.all_map, List.all_eq_true, Function.comp_def]
-  exact fun ρ hρ => kilianCheck_kilianOpen htable k (hρs ρ hρ)
+  exact fun ρ hρ => kilianCheck_kilianOpen htable k hlen (hρs ρ hρ)
 
 variable (H V) in
-/-- **Perfect completeness of Kilian's protocol**: on a statement `x` with a table accepted by
-`V.tableVerifier`, the honest execution accepts with probability one, at every security
-parameter. -/
-theorem eval_kilianHonestGame {x : α} {table : List Bool}
-    (htable : V.tableVerifier (x, table) = true) (n : ℕ) :
+/-- **Perfect completeness of Kilian's protocol**: for a hash whose digests have the length of
+the key, on a statement `x` with a table accepted by `V.tableVerifier`, the honest execution
+accepts with probability one, at every security parameter. -/
+theorem eval_kilianHonestGame (hlen : ∀ k y, (H k y).length = k.length) {x : α}
+    {table : List Bool} (htable : V.tableVerifier (x, table) = true) (n : ℕ) :
     ProbComp.eval (kilianHonestGame H V x table n) = PMF.pure true := by
   simp only [kilianHonestGame, ProbComp.eval_bind, ProbComp.eval_pure]
   conv_rhs => rw [← PMF.bind_const (ProbComp.eval (BitString.sampleList n)) (PMF.pure true),
     ← PMF.bind_const (ProbComp.eval (kilianChallenges V n x)) (PMF.pure true)]
   refine congrArg _ (funext fun k => Probability.PMF.bind_congr_on_support _ _ _ fun ρs hρs => ?_)
-  rw [kilianVerify_kilianRespond htable k fun ρ hρ => ?_]
+  rw [kilianVerify_kilianRespond htable k (hlen k) fun ρ hρ => ?_]
   rw [kilianChallenges, ProbComp.mem_support_replicate_iff] at hρs
   exact BitString.length_of_mem_support_uniformList (by simpa using hρs.2 ρ hρ)
 
