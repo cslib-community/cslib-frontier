@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
+import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
@@ -90,3 +91,72 @@ example (base : Xofs) (s : Level) (seed : FixedBytes 32) {a b : ℕ} (ha : 1024 
   · rintro p ⟨keys, hg, hne⟩
     exact ⟨keys, hg, formattedMessage (choose p keys), hne⟩
   · norm_num
+
+-- With no signing calls, the two full games agree even when the forger uses the quantum device.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 64 ≤ b) (hn : C.SigningCallsLe 0) :
+    C.maskSeedGame s base ha hb hn (by decide) false SignedMatrixTrial.newDigestWin =
+      C.privateMaskSeedGame s base a b := by
+  apply dist_le_zero.mp
+  simpa using C.dist_maskSeedGame_privateMaskSeedGame s base ha hb hn (by decide)
+
+-- The mask-seed replacement in the scored game costs at most 2⁻¹⁹² at 2⁶⁴ signing calls,
+-- for every FIPS level, including adaptive signing and interleaved coherent queries.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 64 ≤ b) (hn : C.SigningCallsLe (2 ^ 64)) :
+    dist (C.maskSeedGame s base ha hb hn (by decide) false SignedMatrixTrial.newDigestWin)
+      (C.privateMaskSeedGame s base a b) ≤ 1 / 2 ^ 192 := by
+  exact (C.dist_maskSeedGame_privateMaskSeedGame s base ha hb hn (by decide)).trans (by norm_num)
+
+-- The second probe follows an observed signing result. It stops before the second query,
+-- and a failed signature ends this branch without measuring the address.
+open Cslib.Quantum QuantumSigningForger in
+example (C : QuantumSigningForger) (q : SigningQuery) :
+    queryPrefix (C := C) (α := Unit) (do
+      let _ ← OracleComp.query (.inr (.inl .query))
+      let sig ← (OracleComp.query (Sum.inr (Sum.inr q) : ℕ ⊕
+        DeviceRequest (Width C) Empty ⊕ SigningQuery) : Program C (Option (List Byte)))
+      match sig with
+      | none => pure ()
+      | some _ =>
+        let _ ← OracleComp.query (.inr (.inl (.gate (false, true, 0, []))))
+        let _ ← OracleComp.query (.inr (.inl .query))
+        pure ()) 1 = (do
+      let _ ← OracleComp.query (.inr (.inl .query))
+      let sig ← (OracleComp.query (Sum.inr (Sum.inr q) : ℕ ⊕
+        DeviceRequest (Width C) Empty ⊕ SigningQuery) : Program C (Option (List Byte)))
+      match sig with
+      | none => pure false
+      | some _ =>
+        let _ ← OracleComp.query (.inr (.inl (.gate (false, true, 0, []))))
+        pure true) := by
+  change (.liftBind _ _ : Program C Bool) = .liftBind _ _
+  congr 1
+  funext _
+  change (.liftBind _ _ : Program C Bool) = .liftBind _ _
+  congr 1
+  funext sig
+  cases sig <;> rfl
+
+-- For any pre-query density, including a superposition correlated with the response or work
+-- wires, the observed address is the marginal of its computational-basis Born distribution.
+open Cslib.Quantum QuantumSigningForger in
+example (C : QuantumSigningForger) (st : C.State) :
+    C.addressRead (true, st) =
+      (st.1.measure (fun z => fun i : Fin (C.addressBits + 2) =>
+        z ⟨i.val, i.isLt.trans_le (by dsimp only [Width]; lia)⟩)).map (some ∘ Prod.fst) := by
+  unfold addressRead
+  simp only [ite_true]
+  rw [← PMF.map_comp, DeviceState.measure_map_fst, PMF.map_comp]
+  congr 1
+  funext z
+  simp only [Function.comp_apply, Option.some.injEq]
+  rw [queryRegisters_apply (a := C.addressBits + 2) (b := 8 * C.responseBytes)]
+  rfl
+
+-- A per-query detection probability, at any of the three FIPS levels.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 64 ≤ b) (hn : C.SigningCallsLe (2 ^ 64)) (j : ℕ) :
+    (Game.succProbability (C.maskSeedQueryHit s base (n := 2 ^ 64) ha hb (by decide) j) : ℝ) ≤
+      1 / 2 ^ 191 :=
+  (C.maskSeedQueryHit_le s base ha hb hn (by decide) j).trans (by norm_num)

@@ -107,7 +107,8 @@ open scoped NNReal ENNReal
 /-- **MAC-then-Encrypt symmetric cipher**: signs `n`-bit messages under `km ← M.keyGen n` and
 encrypts the framed pair `encPair encBits encBits (msg, tag)` under `ke ← E.keyGen (ptLen n)` at
 security parameter `ptLen n`. Because `hpairLen` guarantees the framed `(msg, tag)` pair has length
-`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. -/
+`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. Its
+ciphertext space is `E`'s at parameter `ptLen n`. -/
 @[expose]
 noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
@@ -132,6 +133,10 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         some msg
       else
         none
+  ctSpace n := E.ctSpace (ptLen n)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    rw [E.decrypt_eq_none_of_ctSpace_eq_false _ _ _ h]
+    rfl
   keyGen_ppt := by
     have hpt := hptLenPoly.tidy
     ppt
@@ -488,7 +493,8 @@ theorem indcpa_macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
 namespace SymmetricCipher
 
 /-- Trailing-bit malleable extension of `E`: appends `false` to every ciphertext on encryption and
-ignores the final bit (`ct.take (ct.length - 1)`) during decryption. -/
+ignores the final bit (`ct.take (ct.length - 1)`) during decryption. Its ciphertext space is the
+nonempty words whose prefix without the final bit lies in `E.ctSpace`. -/
 @[expose]
 noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
   keyGen := E.keyGen
@@ -497,6 +503,11 @@ noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
     return c ++ [false]
   decrypt n k ct :=
     if ct.length == 0 then none else E.decrypt n k (ct.take (ct.length - 1))
+  ctSpace n ct := !(ct.length == 0) && E.ctSpace n (ct.take (ct.length - 1))
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    split_ifs with hlen
+    · rfl
+    · exact E.decrypt_eq_none_of_ctSpace_eq_false n k _ (by simpa [hlen] using h)
   keyGen_ppt := E.keyGen_ppt
   encrypt_ppt := by ppt
   decrypt_polyTime := by polytime
