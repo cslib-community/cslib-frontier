@@ -198,12 +198,17 @@ private def asPoly (coeffs : List (ZMod 8380417)) : Option Poly :=
   let a := coeffs.toArray
   if a.size < 256 then none else some (fun j => a[j.val]!)
 
+/-- Reverse the eight bits of the FIPS evaluation index (§§2.5 and 7.5). -/
+@[expose] def bitRev8 (i : Fin 256) : Fin 256 :=
+  ⟨BitString.lsbValue (BitString.lowBits 8 i.val).reverse, by
+    simpa using BitString.lsbValue_lt (BitString.lowBits 8 i.val).reverse⟩
+
 /-- The coefficient of degree `j` in the inverse NTT, using the evaluation points
 `ζ^(2 BitRev8(i)+1)` (FIPS 204 §2.5, equation (2.1)). The inverse of 256 modulo q is 8347681. -/
 @[expose] def fromNTT (values : Poly) : Vector (ZMod 8380417) 256 :=
   let roots := Vector.ofFn fun a : Fin 512 => (1753 : ZMod 8380417) ^ a.val
   let inversePowers := Vector.ofFn fun i : Fin 256 =>
-    511 - 2 * BitString.lsbValue (BitString.lowBits 8 i.val).reverse
+    511 - 2 * (bitRev8 i).val
   Vector.ofFn fun j : Fin 256 =>
     8347681 * ∑ i, values i * roots.get (Fin.ofNat 512 (inversePowers.get i * j.val))
 
