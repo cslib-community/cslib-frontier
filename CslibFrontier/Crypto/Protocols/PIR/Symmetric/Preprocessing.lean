@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game.Experiment
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Support
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Symmetric private information retrieval with client preprocessing
@@ -639,11 +640,7 @@ private theorem correct_le_card_div_two_pow_of_onlineDownload_eq [Fintype St] {�
   have hsum_real :
       (∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal) ≤
         (Fintype.card St : ℝ) := by
-    have hne_top : ∀ y ∈ (Finset.univ : Finset (Fin k → Bool)),
-        ProbComp.eval (P.run (padDB y) Q) y ≠ ⊤ :=
-      fun y _ => ne_top_of_le_ne_top ENNReal.one_ne_top (PMF.coe_le_one _ _)
-    rw [← ENNReal.toReal_sum hne_top, ← ENNReal.toReal_natCast (Fintype.card St)]
-    exact ENNReal.toReal_mono (ENNReal.natCast_ne_top _) hsum_ennreal
+    ennreal_to_real using hsum_ennreal
   have h2k_mul : (2 : ℝ) ^ k * ε ≤ (Fintype.card St : ℝ) := by
     calc
       (2 : ℝ) ^ k * ε

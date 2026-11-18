@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Coupling
 
@@ -70,8 +71,7 @@ theorem IsQueryBounded.run_interpret_bind_comm_of_invariant {σ₁ σ₂ γ : Ty
   induction hq generalizing s with
   | pure a rem =>
     refine ⟨?_, fun res s' hm => ?_⟩
-    · simp only [OracleComp.run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
-        PMF.pure_bind, PMF.map, Function.comp_def]
+    · simp only [interp_norm, pmf_norm, PMF.map]
     · simp only [OracleComp.run_interpret_pure, Probability.PMF.monad_pure_eq_pure] at hm
       obtain ⟨_, rfl⟩ := Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hm)
       exact hzero rem _ hinv
@@ -100,8 +100,7 @@ theorem IsQueryBounded.run_interpret_bind_comm_of_invariant {σ₁ σ₂ γ : Ty
       | inr q =>
         simp only [Sum.elim_inr] at hinv
         exact hstep rem q s hinv
-    simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-      Probability.PMF.monad_bind_eq_bind]
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind]
     refine (fun h => ⟨h.1, fun res s' hm => h.2 (res, s') hm⟩)
       (Probability.PMF.bind_bind_comm_of_invariant _ (fun x => exp x.2) (fun x => (x.1, rep x.2))
         (fun k => OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k) q

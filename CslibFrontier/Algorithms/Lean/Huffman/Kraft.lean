@@ -85,9 +85,7 @@ def natOfBits (bs : List Bool) : ℕ :=
   bs.foldl (fun acc b => 2 * acc + cond b 1 0) 0
 
 @[simp] theorem length_bitsOfNat (k q : ℕ) : (bitsOfNat k q).length = k := by
-  induction k generalizing q with
-  | zero => rfl
-  | succ k ih => simp [bitsOfNat, ih]
+  fun_induction bitsOfNat k q <;> simp_all
 
 private theorem foldl_bitStep_eq (bs : List Bool) (acc : ℕ) :
     bs.foldl (fun a b => 2 * a + cond b 1 0) acc = acc * 2 ^ bs.length + natOfBits bs := by
@@ -163,9 +161,7 @@ def kraftAssign {α : Type*} (L : ℕ) (ℓ : α → ℕ) :
 
 @[simp] theorem map_fst_kraftAssign {α : Type*} (L : ℕ) (ℓ : α → ℕ) (offset : ℕ) (xs : List α) :
     (kraftAssign L ℓ offset xs).map Prod.fst = xs := by
-  induction xs generalizing offset with
-  | nil => rfl
-  | cons a xs ih => simp [kraftAssign, ih]
+  fun_induction kraftAssign L ℓ offset xs <;> simp_all
 
 theorem length_snd_of_mem_kraftAssign {α : Type*} {L : ℕ} {ℓ : α → ℕ} {offset : ℕ} {xs : List α}
     {p : α × List Bool} (hp : p ∈ kraftAssign L ℓ offset xs) :

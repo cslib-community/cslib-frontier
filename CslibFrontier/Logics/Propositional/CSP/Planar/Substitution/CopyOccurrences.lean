@@ -30,7 +30,7 @@ variable {Src Rel : Type} {arity : Rel → ℕ} {sem : Rel → List Bool → Boo
   {srcArity : Src → ℕ} {srcSem : Src → List Bool → Bool}
 
 /-- The local occurrence after the two existing variable renamings, at unchanged positions. -/
-@[expose] def instantiatedOccurrence {n : ℕ} {R : Set (Fin n → Bool)}
+private def instantiatedOccurrence {n : ℕ} {R : Set (Fin n → Bool)}
     (g : PPGadget arity sem R) (B index : ℕ) (scope : List ℕ) (o : g.body.Occurrence) :
     (instantiate B index scope g.template).Occurrence :=
   CSP.relabelOccurrence g.template
@@ -39,7 +39,7 @@ variable {Src Rel : Type} {arity : Rel → ℕ} {sem : Rel → List Bool → Boo
       (Sum.elim (fun i => (false, i.val)) (fun j => (true, j.val))) o)
 
 /-- The existing template and instantiation renamings keep literal positive argument order. -/
-theorem argumentSuccessor_instantiatedOccurrence {n : ℕ} {R : Set (Fin n → Bool)}
+private theorem argumentSuccessor_instantiatedOccurrence {n : ℕ} {R : Set (Fin n → Bool)}
     (g : PPGadget arity sem R) (B index : ℕ) (scope : List ℕ) (o : g.body.Occurrence) :
     argumentSuccessor (instantiatedOccurrence g B index scope o) =
       instantiatedOccurrence g B index scope (argumentSuccessor o) := by

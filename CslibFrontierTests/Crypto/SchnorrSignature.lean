@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Computational.SchnorrSignature
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Tactic.NormNum.Prime
 
@@ -142,9 +143,7 @@ noncomputable def replayROMForger (F : PrimeOrderGroupFamily) (d : F.Desc) :
 example (F : PrimeOrderGroupFamily) (d : F.Desc) (hm : 2 ^ 3 ≤ F.order d) :
     eufCmaGame (schnorrROMScheme (M := List Bool) (F.challengeEmbedding d hm) (F.generator d))
       (replayROMForger F d) = PMF.pure false := by
-  simp only [eufCmaGame, replayROMForger, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure, StateT.run_bind,
-    StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind]
+  simp only [eufCmaGame, replayROMForger, interp_norm, pmf_norm]
   simp [handler, StateT.run, PMF.bind_bind]
 
 end CslibFrontierTests.Crypto.SchnorrSignature

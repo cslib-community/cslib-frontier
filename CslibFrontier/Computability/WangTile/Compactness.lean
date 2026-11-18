@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Basic
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Combinatorics.Compactness
 import Mathlib.Data.Finset.Lattice.Fold
 import Mathlib.Data.Int.NatAbs
@@ -95,20 +96,14 @@ theorem tilesPlane_iff_squares (τ : List WangTile) :
             dsimp only [ix]
             omega
           have hy : iy p = iy r := by
-            apply Fin.ext
-            have hfirst := congrArg Prod.fst hr
             have hsecond := congrArg Prod.snd hr
-            dsimp only [iy]
-            omega
+            fin_index [iy]
           simpa only [hy, Fin.ext_iff, hx] using
             q.horizontal (ix p) (iy p) (by omega : (ix p).val + 1 < 2 * N + 1)
         · intro p r hr
           have hx : ix p = ix r := by
-            apply Fin.ext
             have hfirst := congrArg Prod.fst hr
-            have hsecond := congrArg Prod.snd hr
-            dsimp only [ix]
-            omega
+            fin_index [ix]
           have hy : (iy p).val + 1 = (iy r).val := by
             have := bounds p
             have := bounds r

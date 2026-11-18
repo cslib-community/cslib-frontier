@@ -15,6 +15,7 @@ public import CslibFrontier.Algorithms.Lean.Karger.Contraction
 public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Workspace-relocatable randomized contraction on the word RAM
@@ -423,14 +424,8 @@ private theorem KargerFrame.congr {wb db str k t : ℕ} {y z : Data 16}
     (hf : KargerFrame wb db str k t y)
     (hr : ∀ i ∈ ({Reg.zero, Reg.one, Reg.wBase, Reg.dBase, Reg.stride,
       Reg.activeK, Reg.targetT} : Finset (Fin 16)), z.regs i = y.regs i) :
-    KargerFrame wb db str k t z where
-  zero_eq := (hr Reg.zero (by decide)).trans hf.zero_eq
-  one_eq := (hr Reg.one (by decide)).trans hf.one_eq
-  wBase_eq := (hr Reg.wBase (by decide)).trans hf.wBase_eq
-  dBase_eq := (hr Reg.dBase (by decide)).trans hf.dBase_eq
-  stride_eq := (hr Reg.stride (by decide)).trans hf.stride_eq
-  activeK_eq := (hr Reg.activeK (by decide)).trans hf.activeK_eq
-  targetT_eq := (hr Reg.targetT (by decide)).trans hf.targetT_eq
+    KargerFrame wb db str k t z := by
+  regs_frame
 
 local macro "karger_frame " hf:term : tactic => `(tactic| (
   refine KargerFrame.congr $hf (fun i hi => ?_)
@@ -1000,10 +995,8 @@ theorem uScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
       (by have ⟨h_1, h_2, h_3, h_4⟩ := hr; wram_simp)
   have hu_lt : u.val < k := u.isLt
   exact ⟨by omega, hym,
-    (keep zero (by decide)).trans h0, (keep one (by decide)).trans h1,
-    (keep wBase (by decide)).trans hwBase, (keep dBase (by decide)).trans hdBase,
-    (keep stride (by decide)).trans hstride, (keep activeK (by decide)).trans hactiveK,
-    keep targetT (by decide), (keep totS (by decide)).trans htotS,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    keep targetT (by decide), by regs_frame,
     hy_u, degBefore_eq_prefixSum W u ▸ hy_rem⟩
 
 /-- Deterministic execution of `vScan` locating column `v` along row `u`. -/
@@ -1058,11 +1051,8 @@ theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
       (by have ⟨h_1, h_2, h_3, h_4, h_5, h_6⟩ := hr; wram_simp)
   have hv_lt : v.val < k := v.isLt
   exact ⟨by omega, hym,
-    (keep zero (by decide)).trans h0, (keep one (by decide)).trans h1,
-    (keep wBase (by decide)).trans hwBase, (keep dBase (by decide)).trans hdBase,
-    (keep stride (by decide)).trans hstride, (keep activeK (by decide)).trans hactiveK,
-    keep targetT (by decide), (keep totS (by decide)).trans htotS,
-    (keep uReg (by decide)).trans huReg, hy_v, hy_a2, hy_v1⟩
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    keep targetT (by decide), by regs_frame, by regs_frame, hy_v, hy_a2, hy_v1⟩
 
 /-! #### Execution of `phaseADegrees`, `phaseAPtrs`, and `mergeLoop` -/
 

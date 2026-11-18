@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.IP.CoinFixing
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -420,8 +421,7 @@ private theorem run_eq_bind_piPresample [Fintype ι] [DecidableEq ι]
       (piPresample P L (BitString.shortWords L).toList d s).bind fun f =>
         ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
           (pure a)).run f).map Prod.fst
-    simp only [OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.pure_map, PMF.bind_const]
+    simp only [interp_norm, pmf_norm, PMF.bind_const]
   | @liftBind k q next hq htake _ ih =>
     obtain ⟨i₀, m⟩ := q
     have hm : m ∈ (BitString.shortWords L).toList :=
@@ -433,8 +433,7 @@ private theorem run_eq_bind_piPresample [Fintype ι] [DecidableEq ι]
       (piPresample P L (BitString.shortWords L).toList d s).bind fun f =>
         ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
           (OracleComp.query (i₀, m) >>= next)).run f).map Prod.fst
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind]
+    simp only [interp_norm, pmf_norm]
     have hrhs (f : ι → Sigma TreeStrategy) :
         (((Prover.independent (fun _ : ι => treeProver)).respond (i₀, m)).run f).bind
           (fun x => ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
@@ -646,9 +645,8 @@ theorem acceptFrom_truncate_eq [DecidableEq ι] {p : WordQueryComp ι Bool} {L k
         (some (OracleComp.query (i₀, m) >>= next)) =
       acceptFrom (Prover.independent fun i => (D i).toProver) s
         (some (OracleComp.query (i₀, m) >>= next))
-    simp only [acceptFrom, OracleComp.interpret_bind, OracleComp.interpret_query,
-      StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-      DetProver.toProver, DetProver.truncate, StateT.run_mk, PMF.pure_map, PMF.pure_bind]
+    simp only [acceptFrom, interp_norm, pmf_norm, DetProver.toProver, DetProver.truncate,
+      StateT.run_mk]
     rw [(htake ((D i₀).respond m (s i₀)).1).symm]
     simpa only [acceptFrom, DetProver.toProver, DetProver.truncate, StateT.run_mk,
       PMF.pure_map] using

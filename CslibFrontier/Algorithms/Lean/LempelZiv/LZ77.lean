@@ -486,12 +486,9 @@ theorem decode_encode (W : ℕ) (x : List α) : decode (encode W x) = x := by
 
 private theorem length_encodeAux {W : ℕ} :
     ∀ (h : List α) (ws : List (List α)), (∀ u ∈ ws, u ≠ []) →
-      (encodeAux W h ws).length = ws.length
-  | h, [], _ => rfl
-  | h, u :: ws, hne => by
-    rw [encodeAux, List.getLast?_eq_some_getLast (hne u List.mem_cons_self), List.length_cons,
-      length_encodeAux (h ++ u) ws (fun v hv => hne v (List.mem_cons_of_mem _ hv)),
-      List.length_cons]
+      (encodeAux W h ws).length = ws.length := by
+  intro h ws h1
+  fun_induction encodeAux W h ws <;> simp_all
 
 /-- The phrases of the greedy parse are nonempty. -/
 theorem ne_nil_of_mem_parse {W : ℕ} {x u : List α} (hu : u ∈ parse W x) : u ≠ [] := by

@@ -19,9 +19,12 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 /-!
 # Zero knowledge for NP relations through Levin reductions
 
-`Cslib.Crypto.PseudorandomGenerator.levinSingleZKProof` is the
-Goldreich–Micali–Wigderson zero-knowledge proof system for the language of an NP relation `R`,
-given a Levin reduction `r` of `R` to the NP relation of 3SAT. Its bundled witness check is `R`'s
+`Cslib.Crypto.PseudorandomGenerator.levinSingleZKProof` builds a single-session masked-3SAT
+`ZKProof` with uniform `GenerableZeroKnowledge` only (zero knowledge restricted to
+`(instance, witness)` families generated from `1^n` in deterministic polynomial time, #6044, rather
+than auxiliary-input GMW zero knowledge of [Goldreich1998Fragments], Definition 4.3.8 and
+Theorem 4.4.10) for the language of an NP relation `R`, given a Levin reduction `r` of `R` to the
+NP relation of 3SAT. Its bundled witness check is `R`'s
 own (`decide (R.IsWitness a w)`): the honest prover receives a witness of `R` and maps it through
 the forward witness map of `r` to a 3SAT witness for the reduced formula `r.toFun a`, on which it
 runs the masked-3SAT protocol. The verifier, the simulator and the soundness argument are those of
@@ -48,8 +51,9 @@ GMW theorem for NP relations is `Cslib.Crypto.NonuniformOneWay.exists_zkProof_of
 
 * `Cslib.Crypto.ZKProof.withRelationWitness`: a proof system for `R.language` with the witnesses
   of `R`, through the forward witness map of a Levin reduction.
-* `Cslib.Crypto.PseudorandomGenerator.levinSingleZKProof`: the single-session GMW proof system for
-  the language of an NP relation, with the relation's own witnesses.
+* `Cslib.Crypto.PseudorandomGenerator.levinSingleZKProof`: the single-session masked-3SAT `ZKProof`
+  builder with uniform `GenerableZeroKnowledge` only (#6044) for the language of an NP relation,
+  using the relation's own witnesses.
 
 ## Main results
 
@@ -162,13 +166,13 @@ end ZKProof
 
 /-! ### The single-session system -/
 
-/-- **GMW zero knowledge with the relation's own witnesses.** The single-session
-Goldreich–Micali–Wigderson proof system, with soundness `1 / 3`, for the language of the NP relation
-`R`, from a pseudorandom generator with stretch at least `3 * k + 1` and a Levin reduction `r` of
-`R` to the NP relation of 3SAT: `PseudorandomGenerator.singleZKProofOfReduction` for the instance
-map of `r`, with witnesses changed by `ZKProof.withRelationWitness`. The honest prover maps a
-witness `w` of `R` for `a` to the 3SAT witness `r.forwardWitness (a, w)` of `r.toFun a`; the
-bundled witness check is `decide (R.IsWitness a w)`. -/
+/-- Single-session masked-3SAT `ZKProof` builder for the language of an NP relation `R` with
+uniform `GenerableZeroKnowledge` only (#6044; see `GenerableZeroKnowledge`) and soundness `1 / 3`,
+from a pseudorandom generator with stretch at least `3 * k + 1` and a Levin reduction `r` of `R`
+to `ThreeSAT.npRelation`. Built as `PseudorandomGenerator.singleZKProofOfReduction` for the
+instance map of `r` with witnesses changed by `ZKProof.withRelationWitness`: the honest prover maps
+a witness `w` of `R` for `a` to `r.forwardWitness (a, w)`, and the bundled witness check is
+`decide (R.IsWitness a w)`. -/
 noncomputable def PseudorandomGenerator.levinSingleZKProof
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
