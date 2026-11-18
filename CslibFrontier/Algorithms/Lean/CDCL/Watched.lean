@@ -255,6 +255,10 @@ structure WExec (φ : CNF ℕ) where
   opts : Options
   /-- The statistics so far. -/
   stats : Stats
+  /-- An assignment array with no value, kept between conflicts: conflict analysis marks the
+  current level in it, as MiniSat marks variables `seen`, and it is cleared afterwards, so no array
+  is allocated per conflict. -/
+  marks : {A : Assign // ∀ v, A.value v = none}
 
 /-- The abstract trail. -/
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
@@ -297,7 +301,8 @@ variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
       VarOrder.insertVars Batteries.BinaryHeap.emptyF (Activity.init (varSlots φ))
         φ.vars.dedup
     else Batteries.BinaryHeap.emptyF,
-    Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, o, {}⟩
+    Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, o, {},
+    ⟨⟨#[]⟩, fun v => by simp [Assign.value]⟩⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv where
   exec := Exec.init_inv φ
@@ -963,6 +968,14 @@ variables undone are unassigned, then `l` is assigned. -/
   { s with
     conflicts := s.conflicts + 1, maxLiterals := s.maxLiterals + k₀, literals := s.literals + k }
 
+/-- The marks after an analysis: the array the analysis returns, with the variables of the
+current level cleared, which leaves no value. -/
+@[expose] def clearedMarks {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
+    {A : Assign // ∀ v, A.value v = none} :=
+  ⟨L.marks.unassign (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])),
+    Assign.value_unassign_eq_none L.marks_none⟩
+
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. The variables met by the analysis are bumped and, with those undone, put back in the
@@ -974,11 +987,11 @@ literals before minimization. -/
     ⟨S.exec.afterConflict sp L, S.backjumped sp L.lit,
       S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
       S.short, S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup sp, S.saved sp,
-      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
+      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length, clearedMarks sp L⟩
   else ⟨S.exec.afterConflict sp L, S.backjumped sp L.lit, S.store, [L.lit],
     (L.id, L.clause) :: S.short,
     S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup sp, S.saved sp,
-    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
+    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length, clearedMarks sp L⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -1477,8 +1490,8 @@ database, or returns the trail as a model. -/
       | some sp =>
         let L₀ := analyze S.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
-          (Assign.ofTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
-          (Assign.agrees_ofTrail _ (hS.exec.split_level_nodup hsp)) S.exec.log
+          (S.marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
+          (Assign.agrees_assignTrail S.marks.2 _ (hS.exec.split_level_nodup hsp)) S.exec.log
           (LRATLog.Extends.refl _) e.1 e.2 (hS.exec.db_log e he) (hS.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)

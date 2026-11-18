@@ -335,6 +335,10 @@ structure Learned (log₀ : LRATLog φ) (A M₀ : Trail) where
   undef : lit.1 ∉ Trail.vars M₀
   above : lit.negate ∈ Trail.lits A
   ext : log₀.Extends log
+  /-- The assignment array the analysis was reading when it stopped, returned so that the solver
+  can clear it and use it again: it has values only for variables of `A`. -/
+  marks : Assign
+  marks_none : ∀ v, v ∉ Trail.vars A → marks.value v = none
 
 /-- **First-UIP conflict analysis.** Above the newest decision `d`, with the implied literals `N`
 over it and the trail `M₀` below it, the clause numbered `i` is false and has a literal false at
@@ -364,6 +368,11 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
         exact ⟨this.1, (hcurA.holds_iff _).1 this.2⟩
       if hall : rest.all (· == u) then
         { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, used := [i],
+          marks := cur
+          marks_none := fun v hv => by
+            cases h : cur.value v with
+            | none => rfl
+            | some b => exact absurd (Trail.mem_vars_of_mem_lits (hA ((hcurA v b).1 h))) hv
           seen_mem := vars_mem_map_of_clause? hC, clause?_eq := hC,
           mem := hu.1,
           false_below := fun y hy hne => by

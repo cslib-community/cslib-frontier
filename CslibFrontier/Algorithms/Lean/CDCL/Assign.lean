@@ -69,14 +69,21 @@ def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v none⟩
 /-- Unassigning the variables `vs`. It never grows the array. -/
 def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A
 
-/-- The assignment of the literals of a trail, assigning them oldest first so that the newest
-occurrence of a variable wins, with a left fold, which uses constant stack. -/
-def ofTrail (M : Trail) : Assign := M.reverse.foldl (fun A e => A.assign e.lit) ⟨#[]⟩
+/-- Assigning the literals of a trail on top of `A`, oldest first so that the newest occurrence of
+a variable wins, with a left fold, which uses constant stack. -/
+def assignTrail (A : Assign) (M : Trail) : Assign := M.reverse.foldl (fun A e => A.assign e.lit) A
+
+theorem assignTrail_cons (A : Assign) (e : Entry) (M : Trail) :
+    A.assignTrail (e :: M) = (A.assignTrail M).assign e.lit := by
+  simp [assignTrail, List.foldl_append]
+
+/-- The assignment of the literals of a trail. -/
+def ofTrail (M : Trail) : Assign := assignTrail ⟨#[]⟩ M
 
 theorem ofTrail_nil : ofTrail [] = ⟨#[]⟩ := rfl
 
-theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit := by
-  simp [ofTrail, List.foldl_append]
+theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit :=
+  assignTrail_cons _ e M
 
 theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
     (A.set v x).value w = if w = v then x else A.value w := by
@@ -208,6 +215,24 @@ def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.holds l.n
 theorem Agrees.falsifies_iff (h : A.Agrees M) (c : Clause ℕ) :
     A.falsifies c = true ↔ Trail.Falsifies M c := by
   simp only [falsifies, List.all_eq_true, h.holds_iff]
+
+/-- **Assigning a trail** without repeated variables on top of an empty array, one with no value
+anywhere, gives an array agreeing with the trail. -/
+theorem agrees_assignTrail {A : Assign} (hA : ∀ v, A.value v = none) :
+    ∀ M : Trail, (Trail.vars M).Nodup → (A.assignTrail M).Agrees M
+  | [], _ => fun v b => by simp [assignTrail, hA, Trail.lits]
+  | e :: M, hnd => by
+    simp only [Trail.vars, List.map_cons, List.nodup_cons] at hnd
+    rw [assignTrail_cons]
+    exact (agrees_assignTrail hA M hnd.2).cons hnd.1 e.decision
+
+/-- Unassigning every variable that has a value leaves no value. -/
+theorem value_unassign_eq_none {A : Assign} {vs : List ℕ} (h : ∀ v, v ∉ vs → A.value v = none)
+    (v : ℕ) : (A.unassign vs).value v = none := by
+  rw [value_unassign]
+  split
+  · rfl
+  · exact h v ‹_›
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail : ∀ M : Trail, (Trail.vars M).Nodup → (ofTrail M).Agrees M
