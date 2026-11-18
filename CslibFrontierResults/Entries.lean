@@ -6250,9 +6250,9 @@ register_result "prp-birthday-distinguisher" where
     block-cipher-birthday-not-prf."
 
 register_result "block-cipher-birthday-not-prf" where
-  title := "A polynomial-time birthday distinguisher has PRF advantage at least \
-    min(Q(Q − 1)/4N, 0.63), so a block cipher whose block space is not super-polynomial is not \
-    a PRF"
+  title := "A polynomial-time birthday distinguisher with q = min(Q(n), N) distinct queries has \
+    PRF advantage at least min(q(q − 1)/4N, 0.63), so a block cipher with eventually positive \
+    block length whose block space is not super-polynomial is not a PRF"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -6275,8 +6275,11 @@ register_result "block-cipher-birthday-not-prf" where
     BlockCipher.min_le_prfAdvantage_wordBirthdayDistinguisher gives PRF advantage at least \
     min(q(q − 1)/4N, 0.63) at every n, and \
     BlockCipher.half_le_prfAdvantage_wordBirthdayDistinguisher gives at least 1/2 when N ≥ 2 \
-    and Q(n) ≥ N, the book's 1 − N!/N^N ≥ 1/2. The book's 'N small' is \
-    read asymptotically as N not super-poly, that is, 1/N not negligible. \
+    and Q(n) ≥ N, the book's 1 − N!/N^N ≥ 1/2. The cap q ≤ N matters: at N = 2 a budget of \
+    Q(n) = 4 queries gives advantage exactly 1/2, below min(Q(Q − 1)/4N, 0.63) = 0.63. At \
+    N = 1 a random permutation and a random function coincide, so the asymptotic statements \
+    need positive block length. The book's 'N small' is read asymptotically as N not \
+    super-poly, that is, 1/N not negligible. \
     BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame: for any key length, if 1/N over \
     the n with nonzero block length is not negligible, a uniform oracle-PPT adversary \
     distinguishes E.prpRealGame from prfIdealGame. \
@@ -6682,8 +6685,10 @@ register_result "lagrange-interpolation-in-the-exponent" where
     efficiency clause (computableInPolyTime_lagrangeWeightNat): when q is the order of the group \
     with description d in a PrimeOrderGroupFamily, λ_j is computable in polynomial time from d, \
     J, j and j*, with no hypothesis on the nodes. The time is polynomial in the length of the \
-    encoded description, which bounds that of q; the clause is not stated for a bare prime given \
-    in binary, while in Chapter 22 q is the order of the group. Corollary 22.2, written \
+    whole encoded input: the group description, the nodes, the index and the point. The length \
+    of the encoded description bounds that of the modulus q. The clause is stated for the \
+    orders of a family's groups, not for a bare prime given in binary; in Chapter 22, q is the \
+    order of the group. Corollary 22.2, written \
     additively (lagrangeCombine_eval_smul): from the pairs (j, ω(j)·h) for j ∈ J, lagrangeCombine \
     returns ω(j*)·h, for every group element h and every ω of degree less than t. \
     computableInPolyTime_encode_lagrangeCombine: the encoding of that combination is computable \
@@ -6995,19 +7000,30 @@ register_result "projective-hash-games" where
   scope := "Attack Games 12.4 and 12.5 in the adaptive form of Exercise 12.26, over a group of a \
     PrimeOrderGroupFamily of prime order q: the adversary chooses u, receives h (or (h₁, h₂)), \
     makes evaluation queries, chooses (v, w) (and ρ), receives z, and makes more evaluation \
-    queries. A second stage that ignores h and makes no query gives the book's non-adaptive \
-    game. Adversaries are randomized oracle programs with no bound on their computation, and \
-    the keys σ, τ (or σ₁, τ₁, σ₂, τ₂) are uniform on Z_q. universalDistExperiment_false_eq_true \
-    (Lemma 12.6 and Exercise 12.26(a)): for every admissible adversary, the experiment with \
-    z = f(v, w) and the one with z uniform on G have the same output law. \
-    succProbability_universal2GuessGame_le \
-    (Lemma 12.8 and Exercise 12.26(b)): an admissible adversary that outputs at most Q tuples \
-    wins with probability at most Q/q. Admissibility asks that every evaluation query lie in \
-    L_u, that the challenge (v, w) of the first game lie outside L_u, and that the output list \
-    have at most Q tuples. Deviations: (1) evaluation queries must lie in L_u on every execution \
-    path, whatever the oracle replies, where the book (p. 486) assumes this of the queries made \
-    in the game; (2) the second game does not require (v, w) ∉ L_u, so it admits more \
-    adversaries than the book's. Information-theoretic: no assumption."
+    queries. The book's non-adaptive games are the case in which the second stage makes no \
+    query, chooses (v, w) (and ρ) independently of h (or (h₁, h₂)), and keeps h in its state \
+    for the last stage. Adversaries are randomized oracle programs with no bound on their \
+    computation, and the keys σ, τ (or σ₁, τ₁, σ₂, τ₂) are uniform on Z_q. \
+    universalDistExperiment_false_eq_true (Lemma 12.6 and Exercise 12.26(a)): for every \
+    admissible adversary, the experiment with z = f(v, w) and the one with z uniform on G have \
+    the same output law. Admissibility for this game: for every u and state the first stage can \
+    output, the second stage's evaluation queries lie in L_u for every h, and after every \
+    second-stage output (v, w, st) reachable with honest keys, (v, w) ∉ L_u and the last \
+    stage's queries lie in L_u for every z. succProbability_universal2GuessGame_le (Lemma 12.8 \
+    and Exercise 12.26(b)): an admissible adversary wins with probability at most Q/q, where it \
+    wins if some output tuple (ẑ, v̂, ŵ, ρ̂) has (v̂, ŵ) ∉ L_u, ρ̂ ≠ ρ and \
+    ẑ = f′(v̂, ŵ, ρ̂), as in Attack Game 12.5. Admissibility for this game: the second stage's \
+    queries lie in L_u for \
+    every (h₁, h₂); after every second-stage state reachable with honest keys, for every z, the \
+    last stage's queries lie in L_u, and its output list has at most Q tuples when it runs \
+    against any keys σ₁′, τ₁′, σ₂′, τ₂′, chosen independently of those of the run. Deviations: \
+    (1) evaluation queries must lie in L_u on every execution path, whatever the oracle replies, \
+    where the book (p. 486) assumes this of the queries made in the game; (2) the list bound is \
+    required for every z and every final-stage keys, where the book counts the tuples output in \
+    the game; truncating the list to its first Q tuples leaves every play of the game unchanged, \
+    so a book adversary that outputs at most Q tuples meets the bound after truncation; (3) the \
+    second game does not require (v, w) ∉ L_u, so it admits more adversaries than the book's. \
+    Information-theoretic: no assumption."
 
 register_result "hashed-elgamal-ddh-kdf-cpa" where
   title := "Hashed ElGamal (the variant E′_EG) is semantically secure under DDH and a secure KDF"
@@ -7177,11 +7193,12 @@ register_result "xor-tcr-from-second-preimage" where
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
 
 register_result "rsa-common-root-shamir-trick" where
-  title := "Shamir's trick: from w^e = y^f modulo n with coprime natural exponents, an e-th root \
-    of y in polynomial time"
+  title := "Shamir's trick: for a unit w modulo n with w^e ≡ y^f and coprime natural exponents \
+    e and f, an e-th root of y in polynomial time"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 10.6", locator := "Section 10.6.2, p. 416" }
+    { paper := BonehShoup2023, theorem := "Theorem 10.6, natural-exponent case",
+      locator := "Section 10.6.2, p. 416" }
   ]
   theorems := [
     Cslib.Crypto.commonRoot_pow_modEq_right,
@@ -7198,7 +7215,9 @@ register_result "rsa-common-root-shamir-trick" where
     computable in polynomial time on binary natural numbers, with no condition on its inputs \
     (computableInPolyTime_commonRoot). Deviations: the book's e and f are integers, and here \
     they are natural numbers, so negative exponents are not covered; w and y are natural \
-    numbers, not necessarily below n, and the root congruence needs only w coprime to n. \
+    numbers, not necessarily below n, and the root congruence needs only w coprime to n. The \
+    unit hypothesis on w cannot be dropped: modulo 4, w = y = 2, e = 2 and f = 3 give \
+    w^e ≡ y^f ≡ 0 with coprime exponents, but 2 has no square root modulo 4. \
     commonRoot_pow_modEq_left, in the same module, also gives x^f ≡ w (mod n), which the \
     theorem does not state. Deterministic; no assumption."
 
@@ -8036,9 +8055,10 @@ register_result "baby-step-giant-step" where
     (queriesSatisfy_babyStepGiantStep), and table lookups, the search and arithmetic on indices \
     are not counted, as in the book's count. evalPure_babyStepGiantStep: for every q ≠ 0, prime \
     or not as in Section 16.1.1, every injective labeling L, every α and all m, n with q ≤ mn, \
-    the output is α. isQueryBounded_babyStepGiantStep: at most (m − 1) + (n − 1) queries on \
-    every run, whatever the oracle answers; varying m with mn ≥ q is the book's time/space \
-    trade-off. babyStepGiantStep_sqrt: at the book's m = n = ⌈√q⌉, written \
+    the output is α. isQueryBounded_babyStepGiantStep: at most m + n − 2 queries on every run, \
+    whatever the oracle answers. The program stores all m baby and n giant labels, so it does \
+    not realize the book's time/space trade-off, which keeps a table of size O(m); no space \
+    bound is claimed. babyStepGiantStep_sqrt: at the book's m = n = ⌈√q⌉, written \
     Nat.sqrt (q − 1) + 1, the output is α after at most 2⌊√(q − 1)⌋ < 2√q queries, the book's \
     'about 2q^(1/2) group operations in the worse case'. \
     evalPure_groupAnswer_babyStepGiantStep: run on a ZMod q-module with g of order q, on g and \
@@ -8048,8 +8068,9 @@ register_result "baby-step-giant-step" where
     associative array is not formalized."
 
 register_result "recursive-discrete-log" where
-  title := "Algorithm RDL computes discrete logarithms in a group of order q^e with at most \
-    e·T + 6e⌈log₂ e⌉⌈log₂ q⌉ group operations, given a base case of T operations"
+  title := "Algorithm RDL computes discrete logarithms in a cyclic group of order q^e, generated \
+    by the given base, with at most e·T + 6e⌈log₂ e⌉⌈log₂ q⌉ group operations, given a base \
+    case of T operations"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Algorithm RDL (unnumbered)",
@@ -8071,7 +8092,8 @@ register_result "recursive-discrete-log" where
     O(e·T_base + e log e log q) with this library's constants. evalPure_recursiveDlog: in a \
     group of order n given by an oracle that multiplies the labels of L, for s of order q^e \
     (e ≥ 1) and a base case correct on every element of order q, the output on L(s) and L(αs) \
-    is α for every α < q^e; q need not be prime, as in the book. \
+    is α for every α < q^e, so logarithms are taken in the cyclic subgroup generated by s, the \
+    book's G; q need not be prime, as in the book. \
     evalPure_groupAnswer_recursiveDlog: on a ZMod n-module with g of order n = q^e and \
     baby-step/giant-step as the base case, the output on g and α·g is α. The Pohlig–Hellman \
     algorithm for several primes (Algorithm PH, Section 16.1.2.2) is not formalized."
