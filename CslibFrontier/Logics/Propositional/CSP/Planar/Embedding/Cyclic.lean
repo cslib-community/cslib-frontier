@@ -94,12 +94,10 @@ section
 open Cslib.Logic.PL.CSP
 
 private theorem window_coordinates (M N : ℕ) (shift : ℕ → ℕ) :
-    let f := fun i => if 2 * M ≤ i ∧ i < 2 * (M + N) then
-      2 * (M + shift (i / 2 - M)) + i % 2 else i
-    (∀ i, i < 2 * M → f i = i) ∧
-      (∀ (j : Fin N) (b : Bool), f (2 * (M + j.val) + b.toNat) =
-        2 * (M + shift j.val) + b.toNat) := by
-  dsimp only
+    (∀ i, i < 2 * M → boundaryIndexMap M N shift i = i) ∧
+      (∀ (j : Fin N) (b : Bool), boundaryIndexMap M N shift
+        (2 * (M + j.val) + b.toNat) = 2 * (M + shift j.val) + b.toNat) := by
+  unfold boundaryIndexMap
   constructor
   · intro i hi
     rw [ite_eq_right (by omega)]
@@ -270,10 +268,8 @@ theorem Witness.rotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → 
       have hv : values.length = 2 * (M + n) := by simpa only [hcert] using hc
       rw [← hv]
       exact List.map_getD_range _ 0
-  · let f := fun i => if 2 * M ≤ i ∧ i < 2 * (M + n) then
-        2 * (M + ((i / 2 - M + 1) % n)) + i % 2 else i
-    let b := fun i => if 2 * M ≤ i ∧ i < 2 * (M + n) then
-        2 * (M + ((i / 2 - M + n - 1) % n)) + i % 2 else i
+  · let f := boundaryIndexMap M n (fun j => (j + 1) % n)
+    let b := boundaryIndexMap M n (fun j => (j + n - 1) % n)
     have hf := window_coordinates M n (fun j => (j + 1) % n)
     have hb := window_coordinates M n (fun j => (j + n - 1) % n)
     have hm := scope_index_maps B none x q f b

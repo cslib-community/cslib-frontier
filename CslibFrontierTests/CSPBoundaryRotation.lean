@@ -8,7 +8,6 @@ module
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryDeletion
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.AtomBoundary
-import Mathlib.Data.List.Rotate
 
 /-!
 # Forward boundary-table clients
@@ -50,12 +49,8 @@ example : (Graph.RotationCertificate.reindex ⟨[]⟩ 6
 example : (rotateBoundaryCertificate 1 2 ⟨[]⟩).successor = [0, 0, 0, 0, 0, 0] := by
   decide +kernel
 
-example : ([10, 20, 30] : List ℕ).rotate 1 = [20, 30, 10] ∧
-    ([10, 20, 30] : List ℕ).rotate 1 ≠ [30, 10, 20] := by decide
-
 -- Raw counts retain repeated body occurrences and repeated sparse port names.
-example : ([2 ^ 250, 7, 2 ^ 250] : List ℕ).rotate 1 = [7, 2 ^ 250, 2 ^ 250] ∧
-    (rotateBoundaryCertificate
+example : (rotateBoundaryCertificate
       (CSP.occurrences ([⟨(), [2 ^ 250, 2 ^ 250]⟩] : CSP Unit ℕ)).length
       ([2 ^ 250, 7, 2 ^ 250] : List ℕ).length ⟨[2 ^ 300]⟩).successor =
       [2 ^ 300, 0, 0, 0, 0, 0, 0, 0, 0, 0] := by
@@ -85,8 +80,5 @@ def closedStar : Witness ([⟨(), []⟩] : CSP Unit ℕ) [10, 20, 30] :=
 example : (closedStar.rotateCons (by decide)).certificate.successor = [0, 3, 2, 5, 4, 1] := by
   rw [Witness.rotateCons_certificate]
   decide +kernel
-
-example (σ : ℕ → Bool) :
-    Cslib.Logic.PL.CSP.eval (fun _ _ => false) σ ([⟨(), []⟩] : CSP Unit ℕ) = false := rfl
 
 end CslibFrontierTests.CSPBoundaryRotation
