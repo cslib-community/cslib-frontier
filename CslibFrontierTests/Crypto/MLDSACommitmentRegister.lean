@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import CslibFrontier.Crypto.Computational.MLDSA.ProgrammedContinuation
+import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveSigningSimulation
 
 /-!
 # ML-DSA digest-register clients
@@ -265,3 +265,32 @@ example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
   simpa only [win, μ, δ, Nat.cast_one, mul_one, Nat.cast_ofNat, show (2 : ℝ) + 2 = 4 by norm_num]
     using C.mean_publicPairSigning_gap_le s H rho pair h₁ h₂ m D (fun _ => 0)
       (twoRequestForger_hash s first fresh replay) (twoRequestForger_calls s first fresh replay)
+
+-- Simulate both adaptive signing requests and evaluate the contributions from indices zero and one.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let R := base.uniformPrefixes s.commitmentInputBits 894
+    let matrices := R.bind fun H => (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+      let keys ← H.keyGen s seed
+      H.expandA s (keys.publicKey.take 32)
+    let sim := R.bind fun H => H.fullPairExperiment s fun rho pair =>
+      (C.publicPairSigning s H rho pair).map (·.trial.newDigestWin)
+    let orig := Game.succProbability (C.freshExpansionGame s base s.commitmentInputBits 894)
+    |(orig : ℝ) - Game.succProbability sim| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        19536 * √δ + 3983716 * δ) := by
+  intro C R matrices sim orig
+  apply (C.abs_freshExpansionGame_sub_publicPairSigning_le s base le_rfl (by cases s <;> decide)
+    (twoRequestForger_calls s first fresh replay)
+    (twoRequestForger_hash s first fresh replay)).trans_eq
+  unfold QuantumSigningForger.adaptiveSigningLoss
+  apply Finset.sum_congr rfl
+  intro A _
+  congr 1
+  cases A with
+  | none => rfl
+  | some M =>
+    simp only [Option.elim_some, Finset.sum_range_succ, Finset.sum_range_zero, Nat.cast_zero,
+      Nat.cast_one, Nat.cast_ofNat]
+    ring

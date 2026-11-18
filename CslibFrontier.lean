@@ -4975,6 +4975,7 @@ public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveCommitmentCall
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
+public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveSigningSimulation
 public import CslibFrontier.Crypto.Computational.MLDSA.Basic
 public import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation

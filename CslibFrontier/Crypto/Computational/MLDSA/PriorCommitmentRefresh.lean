@@ -307,6 +307,10 @@ private inductive Boundary (C : QuantumSigningForger) where
   | finished (f : Forgery)
   | signing (q : SigningQuery) (next : Option (List Byte) → C.Program Forgery)
 
+private def resumeProgram {C : QuantumSigningForger} : Boundary C → C.Program Forgery
+  | .finished f => .pure f
+  | .signing q k => .liftBind (.inr (.inr q)) k
+
 -- Stop immediately before the indexed signing call. Private coins, measurements, coherent
 -- queries and earlier complete signing requests are still executed by the native controller.
 private def cut {C : QuantumSigningForger} : C.Program Forgery → ℕ → C.Program (Boundary C)
