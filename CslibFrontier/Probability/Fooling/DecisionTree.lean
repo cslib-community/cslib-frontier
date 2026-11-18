@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.DecisionTree.Basic
+public import CslibFrontier.Probability.Fooling.DecisionTree.Separation
 public import CslibFrontier.Probability.KWiseIndependent
 public import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.Fooling
@@ -15,8 +16,6 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Probability.PMF.Union
-import CslibFrontier.Probability.StatisticalDistance.Coupling
 import CslibFrontier.Probability.StatisticalDistance.Event
 
 /-!
@@ -46,11 +45,8 @@ in Exercises 8.29 and 8.32(2) of the March 2007 draft [Goldreich2007DraftR4]:
   randomized test that inspects `t` positions adaptively has distinguishing gap at most `2 ^ t ε`
   (`Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le`).
 
-The pointer construction is a step toward Exercise 8.32(1). It follows the guideline's length
-of `(t - 1) + 2 ^ (t - 1)` bits, leaving the stated length of `2 ^ (t - 1)` bits open. It
-exhibits an adaptive gap of `1 / 2` alongside marginal distance at most `t / 2 ^ t`, showing
-that the gap can exceed the marginal bound by a factor of at least `2 ^ (t - 1) / t` for
-`t ≥ 3`.
+The companion separation module proves that adaptive tests can detect distributions
+whose fixed-coordinate marginals are close to uniform.
 
 ## Main results
 
@@ -59,8 +55,8 @@ that the gap can exceed the marginal bound by a factor of at least `2 ^ (t - 1) 
   `Cslib.Probability.IsKWiseIndependentHash.bind_map_eval_eq`: Exercise 8.29.
 * `Cslib.DecisionTree.abs_map_eval_apply_sub_le`,
   `Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le`: Exercise 8.32(2).
-* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`: separation at the length in
-  the pointer guideline.
+* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length`:
+  separation at the printed length in Exercise 8.32(1).
 
 ## References
 
@@ -203,19 +199,6 @@ private theorem map_eval_apply_toReal_sub [DecidableEq β] (X Y : PMF (ι → Bo
   refine sum_congr rfl fun z _ => ?_
   by_cases h : b = t.eval z <;> simp [h]
 
-/-- Under the uniform distribution, the subcube of a set `Q` of coordinates has probability
-`2 ^ (-#Q)`. -/
-private theorem toOuterMeasure_uniformOfFintype_cube (Q : Finset ι) (c : ι → Bool) :
-    ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {z | ∀ i ∈ Q, z i = c i}).toReal =
-      ((2 : ℝ) ^ #Q)⁻¹ := by
-  have hset : {z : ι → Bool | ∀ i ∈ Q, z i = c i} =
-      Q.restrict ⁻¹' ({Q.restrict c} : Set (Q → Bool)) := by
-    ext z
-    simp [funext_iff, Finset.restrict]
-  rw [hset, ← PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_pi_map_restrict,
-    PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
-  simp
-
 /-- If the marginal of `X` on every `t` coordinates is `ε`-close to uniform, then so is the
 probability of every subcube spanned by at most `t` coordinates. -/
 private theorem abs_sum_filter_sub_le_of_dist_map_restrict_le {X : PMF (ι → Bool)} {t : ℕ}
@@ -280,141 +263,6 @@ theorem abs_bind_map_eval_apply_sub_le {R : Type*} [Finite R] {X : PMF (ι → B
         exact mul_le_mul_of_nonneg_left (abs_map_eval_apply_sub_le ht hX (T r) (hT r))
           ENNReal.toReal_nonneg
     _ = 2 ^ t * ε := by rw [← sum_mul, Probability.PMF.sum_toReal, one_mul]
-
-section Pointer
-
-/-! ### The pointer distribution from the guideline to Exercise 8.32(1)
-
-Positions are `m` index bits `Sum.inl j` and `2 ^ m` data bits `Sum.inr v`, one for each value
-`v : Fin m → Bool` of the index bits. -/
-
-variable {m : ℕ}
-
-/-- The data position named by the index bits of `z`. -/
-private def pointer (z : Fin m ⊕ (Fin m → Bool) → Bool) : Fin m ⊕ (Fin m → Bool) :=
-  .inr fun j => z (.inl j)
-
-private theorem pointer_update (z : Fin m ⊕ (Fin m → Bool) → Bool) (v : Bool) :
-    pointer (Function.update z (pointer z) v) = pointer z := by
-  simp [pointer]
-
-/-- The test reading the index bits and accepting when the named data bit is `0`. -/
-private def pointerTest (m : ℕ) : DecisionTree (Fin m ⊕ (Fin m → Bool)) Bool :=
-  graft ((List.finRange m).map Sum.inl) (fun a => node (pointer a) (leaf true) (leaf false))
-    fun _ => false
-
-private theorem eval_pointerTest (z : Fin m ⊕ (Fin m → Bool) → Bool) :
-    (pointerTest m).eval z = !z (pointer z) := by
-  rw [pointerTest, eval_graft]
-  simp only [eval_node, eval_leaf, pointer, List.mem_map, List.mem_finRange, true_and,
-    exists_eq, reduceIte, Sum.inl.injEq]
-  cases z (.inr fun j => z (.inl j)) <;> rfl
-
-private theorem depth_pointerTest : (pointerTest m).depth ≤ m + 1 := by
-  unfold pointerTest
-  simpa using depth_graft_le ((List.finRange m).map Sum.inl)
-    (fun a => node (pointer a) (leaf true) (leaf false)) (fun _ => false) (d := 1)
-    fun _ => by simp
-
-/-- The uniform distribution with the data bit named by the index bits set to `0`. -/
-private noncomputable def pointerZeroed (m : ℕ) : PMF (Fin m ⊕ (Fin m → Bool) → Bool) :=
-  (PMF.uniformOfFintype _).map fun z => Function.update z (pointer z) false
-
-/-- Every `m + 1` positions of `pointerZeroed m` are `(m + 1) 2 ^ (-(m + 1))`-close to uniform. -/
-private theorem dist_map_restrict_pointerZeroed_le (S : Finset (Fin m ⊕ (Fin m → Bool)))
-    (hS : #S = m + 1) :
-    dist ((pointerZeroed m).map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤
-      ((m + 1 : ℕ) : ℝ) / 2 ^ (m + 1) := by
-  let U := PMF.uniformOfFintype (Fin m ⊕ (Fin m → Bool) → Bool)
-  let zap (z : Fin m ⊕ (Fin m → Bool) → Bool) := Function.update z (pointer z) false
-  -- closeness: the restrictions differ only if the named data bit is in `S` and is `1`
-  rw [show PMF.uniformOfFintype (S → Bool) = U.map S.restrict from
-    (Probability.PMF.uniformOfFintype_pi_map_restrict (π := fun _ => Bool) S).symm, pointerZeroed,
-    PMF.map_comp]
-  refine (Probability.PMF.dist_map_map_le U _ _).trans ?_
-  let B (i : Fin m ⊕ (Fin m → Bool)) : Set (Fin m ⊕ (Fin m → Bool) → Bool) :=
-    {z | pointer z = i ∧ z i = true}
-  have hsub : {z | (S.restrict ∘ zap) z ≠ S.restrict z} ⊆ ⋃ i ∈ S, B i := by
-    intro z hz
-    simp only [Set.mem_ofPred_eq, Function.comp_apply, ne_eq, funext_iff, Finset.restrict,
-      not_forall] at hz
-    obtain ⟨⟨i, hi⟩, hne⟩ := hz
-    have hpi : i = pointer z := by
-      by_contra h
-      exact hne (Function.update_of_ne h _ _)
-    subst hpi
-    simp only [zap, Function.update_self] at hne
-    simp only [Set.mem_iUnion]
-    exact ⟨pointer z, hi, rfl, by simpa using Ne.symm hne⟩
-  have hB (i : Fin m ⊕ (Fin m → Bool)) :
-      (U.toOuterMeasure (B i)).toReal ≤ ((2 : ℝ) ^ (m + 1))⁻¹ := by
-    cases i with
-    | inl j => simp [B, pointer]
-    | inr v =>
-      let Q : Finset (Fin m ⊕ (Fin m → Bool)) :=
-        insert (.inr v) (univ.map ⟨Sum.inl, Sum.inl_injective⟩)
-      let c : Fin m ⊕ (Fin m → Bool) → Bool := Sum.elim v fun _ => true
-      have hQ : #Q = m + 1 := by
-        rw [card_insert_of_notMem (by simp), card_map, card_univ, Fintype.card_fin]
-      have hBQ : B (.inr v) = {z | ∀ i ∈ Q, z i = c i} := by
-        ext z
-        simp [B, Q, c, pointer, funext_iff, and_comm]
-      rw [hBQ, toOuterMeasure_uniformOfFintype_cube, hQ]
-  calc (U.toOuterMeasure {z | (S.restrict ∘ zap) z ≠ S.restrict z}).toReal
-      ≤ (U.toOuterMeasure (⋃ i ∈ S, B i)).toReal :=
-        ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-          (U.toOuterMeasure.mono hsub)
-    _ ≤ ∑ i ∈ S, (U.toOuterMeasure (B i)).toReal :=
-        Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le U S B
-    _ ≤ ∑ _i ∈ S, ((2 : ℝ) ^ (m + 1))⁻¹ := sum_le_sum fun i _ => hB i
-    _ = ((m + 1 : ℕ) : ℝ) / 2 ^ (m + 1) := by
-        rw [sum_const, hS, nsmul_eq_mul, div_eq_mul_inv]
-
-private theorem map_eval_pointerTest_pointerZeroed :
-    (pointerZeroed m).map (pointerTest m).eval = PMF.pure true := by
-  have h : (pointerTest m).eval ∘ (fun z => Function.update z (pointer z) false) =
-      Function.const _ true := by
-    funext z
-    simp [eval_pointerTest, pointer_update]
-  rw [pointerZeroed, PMF.map_comp, h]
-  simp
-
-private theorem map_eval_pointerTest_uniformOfFintype :
-    (PMF.uniformOfFintype (Fin m ⊕ (Fin m → Bool) → Bool)).map (pointerTest m).eval =
-      PMF.uniformOfFintype Bool := by
-  -- the named data bit of a uniform string is a fresh uniform bit
-  have h := Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate (pointer (m := m))
-    pointer_update fun z => PMF.pure (!z (pointer z))
-  simp only [pointer_update, Function.update_self] at h
-  rw [PMF.bind_const] at h
-  rw [show (pointerTest m).eval = fun z => !z (pointer z) from funext eval_pointerTest,
-    ← PMF.bind_pure_comp, Function.comp_def, ← h]
-  exact (PMF.bind_pure_comp _ _).trans (Probability.PMF.uniformOfFintype_map_equiv
-    (Function.Involutive.toPerm _ Bool.not_not))
-
-/-- **Pointer construction at the guideline length**, a step toward
-[Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4] (March 2007, printed pp. 377–378). The
-printed `2 ^ (t - 1)`-bit endpoint remains open. On strings of `t - 1` index bits followed by
-`2 ^ (t - 1)` data bits, one for each value of the index bits, let `X` be uniform except that the
-data bit named by the index bits is set to `0`. Every `t` fixed positions of `X` are
-`t 2 ^ (-t)`-close to uniform, yet the test of depth `t` that reads the index bits and then the
-named data bit accepts `X` with probability `1` and the uniform distribution with probability
-`1 / 2`, a gap of `1 / 2`.
-
-The positions are `Fin (t - 1) ⊕ (Fin (t - 1) → Bool)`, a type with `(t - 1) + 2 ^ (t - 1)`
-elements. -/
-theorem exists_dist_map_restrict_le_and_map_eval_eq (t : ℕ) (ht : 1 ≤ t) :
-    ∃ X : PMF (Fin (t - 1) ⊕ (Fin (t - 1) → Bool) → Bool),
-      (∀ S : Finset (Fin (t - 1) ⊕ (Fin (t - 1) → Bool)), #S = t →
-        dist (X.map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤ t / 2 ^ t) ∧
-      ∃ T : DecisionTree (Fin (t - 1) ⊕ (Fin (t - 1) → Bool)) Bool, T.depth ≤ t ∧
-        X.map T.eval = PMF.pure true ∧
-        (PMF.uniformOfFintype _).map T.eval = PMF.uniformOfFintype Bool := by
-  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' ht
-  exact ⟨pointerZeroed m, dist_map_restrict_pointerZeroed_le, pointerTest m, depth_pointerTest,
-    map_eval_pointerTest_pointerZeroed, map_eval_pointerTest_uniformOfFintype⟩
-
-end Pointer
 
 end Cslib.DecisionTree
 

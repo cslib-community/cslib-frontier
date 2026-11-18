@@ -6,13 +6,13 @@ Authors: Mayank Rathee
 
 module
 
-import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
-import CslibFrontierTests.Crypto.FRI
-import CslibFrontierTests.Crypto.FRIJohnson
+public import CslibFrontierTests.Crypto.FRI
+public import CslibFrontierTests.Crypto.FRIJohnson
 import Mathlib.Analysis.Real.Sqrt
-import Mathlib.Data.ZMod.Basic
+public import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.FieldTheory.Finite.GaloisField
 import Mathlib.Tactic.NormNum.Prime
@@ -64,9 +64,6 @@ Exercises every public definition and theorem of
    `batchRound0Escape_of_johnson_eta` (`< 1 / 100`) over `𝔽_{65537^4}`.
 -/
 
--- This regression module checks ordinary imports and exports no test fixtures.
-set_option linter.privateModule false
-
 namespace CslibFrontierTests.Crypto.FRIBatchSoundness
 
 open scoped BigOperators NNReal ENNReal
@@ -82,7 +79,7 @@ section Helpers
 /-- If the `j`-th generator word of `stmt` equals the degree-`dim 0` monomial evaluation on `L_0`
 and `e + dim 0 < 2 ^ d`, then `stmt ∉ params.batchProximityLang t e` by projecting any common
 batched agreement witness onto word `j` and applying `monomial_far_not_mem_proximityLang`. -/
-private theorem not_mem_batchProximityLang_of_monomial_term {F : Type} [Field F]
+public theorem not_mem_batchProximityLang_of_monomial_term {F : Type} [Field F]
     (params : FRIParams F) {t e : ℕ} (stmt : FRIBatchStmt F params.d t) (j : Fin t)
     (hterm : stmt.terms j = fun idx => (params.eval 0 idx) ^ params.dim 0)
     (hgap : e + params.dim 0 < 2 ^ params.d) :
@@ -105,7 +102,7 @@ private theorem not_mem_batchProximityLang_of_monomial_term {F : Type} [Field F]
 
 /-- Parametric adaptive batched cheating prover (`t_FS = 1`, `t_MT = 1`,
 `params.proofOracleQueries` depth-`params.d` openings) for `friBatchIOP params t`. -/
-def mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
+@[expose] public def mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
     (badStmt : FRIBatchStmt F params.d t) :
     OracleComp
       (BCSROMSpec (FRIBatchStmt F params.d t) (FRIBatchChal F params.d params.q t))
@@ -120,21 +117,21 @@ def mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
     { roots := fun _ => rootBit
       openings := List.replicate params.proofOracleQueries ⟨0, List.replicate params.d rootBit⟩ })
 
-theorem isCostBounded_FS_mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
+public theorem isCostBounded_FS_mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
     (badStmt : FRIBatchStmt F params.d t) :
     IsCostBounded bcsFSCost (mkBatchCheater params badStmt) 1 :=
   IsCostBounded.liftBind (cost := bcsFSCost) (Sum.inl [true]) _ 1 fun rootBit =>
     IsCostBounded.liftBind (cost := bcsFSCost) (Sum.inr (badStmt, [rootBit], [])) _ 0 fun _ =>
       IsCostBounded.pure (cost := bcsFSCost) _ 0
 
-theorem isCostBounded_MT_mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
+public theorem isCostBounded_MT_mkBatchCheater {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
     (badStmt : FRIBatchStmt F params.d t) :
     IsCostBounded bcsMTCost (mkBatchCheater params badStmt) 1 :=
   IsCostBounded.liftBind (cost := bcsMTCost) (Sum.inl [true]) _ 0 fun rootBit =>
     IsCostBounded.liftBind (cost := bcsMTCost) (Sum.inr (badStmt, [rootBit], [])) _ 0 fun _ =>
       IsCostBounded.pure (cost := bcsMTCost) _ 0
 
-theorem mkBatchCheater_openings_le {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
+public theorem mkBatchCheater_openings_le {F : Type} [Field F] (params : FRIParams F) {t : ℕ}
     (badStmt : FRIBatchStmt F params.d t)
     (x : FRIBatchStmt F params.d t) (prf : BCSProof (params.m + 2) F)
     (hmem : (x, prf) ∈ (mkBatchCheater params badStmt).support) :
@@ -146,18 +143,29 @@ theorem mkBatchCheater_openings_le {F : Type} [Field F] (params : FRIParams F) {
   intro op hop
   rw [(List.mem_replicate.mp hop).2, List.length_replicate]
 
-theorem isCostBounded_soundnessProg_mkBatchCheater {F : Type} [Field F] [DecidableEq F]
+public theorem isCostBounded_soundnessProg_mkBatchCheater_lang {F : Type} [Field F] [DecidableEq F]
+    (params : FRIParams F) {t : ℕ} (encSym : F → List Bool)
+    (lang : Set (FRIBatchStmt F params.d t))
+    (badStmt : FRIBatchStmt F params.d t) {Q_MT : ℕ}
+    (hQ : 1 + params.proofOracleQueries * (params.d + 1) ≤ Q_MT) :
+    IsCostBounded bcsMTCost
+      (bcsSoundnessProg (friBatchIOP params t) encSym lang
+        (mkBatchCheater params badStmt)) Q_MT :=
+  (isCostBounded_bcsMTCost_bcsSoundnessProg (friBatchIOP params t) encSym
+    lang (isCostBounded_MT_mkBatchCheater params badStmt)
+    fun x prf hmem =>
+      isCostBounded_bcsMTCost_friBatchVerifyROM params t encSym x prf
+        (mkBatchCheater_openings_le params badStmt x prf hmem)).mono hQ
+
+public theorem isCostBounded_soundnessProg_mkBatchCheater {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) {t : ℕ} (encSym : F → List Bool) (e : ℕ)
     (badStmt : FRIBatchStmt F params.d t) {Q_MT : ℕ}
     (hQ : 1 + params.proofOracleQueries * (params.d + 1) ≤ Q_MT) :
     IsCostBounded bcsMTCost
       (bcsSoundnessProg (friBatchIOP params t) encSym (params.batchProximityLang t e)
         (mkBatchCheater params badStmt)) Q_MT :=
-  (isCostBounded_bcsMTCost_bcsSoundnessProg (friBatchIOP params t) encSym
-    (params.batchProximityLang t e) (isCostBounded_MT_mkBatchCheater params badStmt)
-    fun x prf hmem =>
-      isCostBounded_bcsMTCost_friBatchVerifyROM params t encSym x prf
-        (mkBatchCheater_openings_le params badStmt x prf hmem)).mono hQ
+  isCostBounded_soundnessProg_mkBatchCheater_lang params encSym (params.batchProximityLang t e)
+    badStmt hQ
 
 end Helpers
 
@@ -169,22 +177,22 @@ open CslibFrontierTests.Crypto.FRI
 
 /-- Nonvacuous false `3`-word (`t = 2`) statement over `ZMod 257` reusing the shared `params257`,
 `honestWord`, and `farWord` fixtures from `CslibFrontierTests.Crypto.FRI`. -/
-def badStmt257 : FRIBatchStmt (ZMod 257) params257.d 2 where
+@[expose] public def badStmt257 : FRIBatchStmt (ZMod 257) params257.d 2 where
   base := honestWord
   terms := ![0, farWord]
 
-theorem badStmt257_not_mem : badStmt257 ∉ params257.batchProximityLang 2 2 := by
+public theorem badStmt257_not_mem : badStmt257 ∉ params257.batchProximityLang 2 2 := by
   rintro ⟨D', hcard, _, _, v, hv, hagree⟩
   have hle : D'.card ≤ 4 := card_agree_farWord_le_four (hv 1) fun s hs => (hagree s hs).2 1
   change 2 ^ 3 - 2 ≤ D'.card at hcard
   omega
 
 /-- Nonvacuous false `1`-word (`t = 0`) statement over `ZMod 257` (`base = farWord`). -/
-def badStmt257Zero : FRIBatchStmt (ZMod 257) params257.d 0 where
+@[expose] public def badStmt257Zero : FRIBatchStmt (ZMod 257) params257.d 0 where
   base := farWord
   terms := Fin.elim0
 
-theorem badStmt257Zero_not_mem : badStmt257Zero ∉ params257.batchProximityLang 0 2 :=
+public theorem badStmt257Zero_not_mem : badStmt257Zero ∉ params257.batchProximityLang 0 2 :=
   (mem_batchProximityLang_zero_iff params257 2 badStmt257Zero).not.mpr farWord_not_mem_proximityLang
 
 -- Direct checks on `friBatchTailTranscript`, `friBatchDoomed`, `friBatchGoodStep`, and
@@ -458,11 +466,11 @@ end Unique257
 
 section DiscreteJohnson786433
 
-instance instPrime786433 : Fact (Nat.Prime 786433) := ⟨by norm_num⟩
+public instance instPrime786433 : Fact (Nat.Prime 786433) := ⟨by norm_num⟩
 
 /-- `2`-folding-round (`4` total batched rounds), depth-`4` (`|L_0| = 16`), rate-`1/4`
 (`dim 0 = 4`), `q = 8` batched FRI parameters over `ZMod 786433`. -/
-def params786 : FRIParams (ZMod 786433) where
+@[expose] public def params786 : FRIParams (ZMod 786433) where
   d := 4
   m := 2
   kFinal := 1
@@ -480,11 +488,12 @@ def params786 : FRIParams (ZMod 786433) where
 theorem params786_beyond_unique : ¬ (2 * 7 + params786.dim 0 ≤ 2 ^ params786.d) := by
   decide
 
-def badStmt786 : FRIBatchStmt (ZMod 786433) 4 2 where
+/-- False batched statement over `ZMod 786433` placing `X ^ 4` in generator slot `1`. -/
+@[expose] public def badStmt786 : FRIBatchStmt (ZMod 786433) 4 2 where
   base := 0
   terms := ![0, fun idx => (params786.eval 0 idx) ^ 4]
 
-theorem badStmt786_not_mem : badStmt786 ∉ params786.batchProximityLang 2 7 :=
+public theorem badStmt786_not_mem : badStmt786 ∉ params786.batchProximityLang 2 7 :=
   not_mem_batchProximityLang_of_monomial_term params786 badStmt786 ⟨1, by omega⟩ rfl (by decide)
 
 /-- Unconditional round-`0` `BatchRound0GapBound` over `ZMod 786433` at radius `e = 7` via
@@ -494,13 +503,15 @@ theorem round0Gap786 : BatchRound0GapBound params786 2 7 33008 :=
     (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- Unconditional round-`0` `BatchRound0Escape` (`≤ 33008 / 786433 < 1 / 20`) over `ZMod 786433`. -/
-theorem round0Escape786 : BatchRound0Escape params786 2 7 ((33008 : ℝ≥0∞) / 786433) := by
+public theorem round0Escape786 : BatchRound0Escape params786 2 7 ((33008 : ℝ≥0∞) / 786433) := by
   simpa only [ZMod.card, Nat.cast_ofNat] using
     batchRound0Escape_of_johnson_discrete params786 2 (e := 7) (m₀ := 1) (D₀ := 8)
       (B_batch := 33008) (by decide) (by decide) (by decide) (by decide) (by decide)
 
-private def mRound786 : Fin 2 → ℕ := ![1, 1]
-private def DRound786 : Fin 2 → ℕ := ![4, 2]
+/-- Per-round Sudan multiplicities for `params786` at `e = 7`. -/
+@[expose] public def mRound786 : Fin 2 → ℕ := ![1, 1]
+/-- Per-round weighted interpolation degrees for `params786` at `e = 7`. -/
+@[expose] public def DRound786 : Fin 2 → ℕ := ![4, 2]
 
 theorem weightedLineGap786 : WeightedLineGapBound params786 8 17476 := by
   refine weightedLineGapBound_of_johnson_discrete params786 (e := 7) (B_commit := 17476)
@@ -586,11 +597,11 @@ end DiscreteJohnson786433
 
 section BeyondSudan26214401
 
-instance instPrime26214401 : Fact (Nat.Prime 26214401) := ⟨by norm_num⟩
+public instance instPrime26214401 : Fact (Nat.Prime 26214401) := ⟨by norm_num⟩
 
 /-- `2`-folding-round (`4` total batched rounds), depth-`4` (`|L_0| = 16`), rate-`1/4`
 (`dim 0 = 4`), `q = 8` batched FRI parameters over `ZMod 26214401`. -/
-def params26M : FRIParams (ZMod 26214401) where
+@[expose] public def params26M : FRIParams (ZMod 26214401) where
   d := 4
   m := 2
   kFinal := 1
@@ -611,11 +622,12 @@ theorem params26M_beyond_sudan_m1 :
       ∀ D₀ : Fin 8, #(Sudan.monomials (params26M.dim 0 - 1) D₀.val) ≤ 2 ^ params26M.d := by
   decide
 
-def badStmt26M : FRIBatchStmt (ZMod 26214401) 4 2 where
+/-- False batched statement over `ZMod 26214401` placing `X ^ 4` in generator slot `1`. -/
+@[expose] public def badStmt26M : FRIBatchStmt (ZMod 26214401) 4 2 where
   base := 0
   terms := ![0, fun idx => (params26M.eval 0 idx) ^ 4]
 
-theorem badStmt26M_not_mem : badStmt26M ∉ params26M.batchProximityLang 2 8 :=
+public theorem badStmt26M_not_mem : badStmt26M ∉ params26M.batchProximityLang 2 8 :=
   not_mem_batchProximityLang_of_monomial_term params26M badStmt26M ⟨1, by omega⟩ rfl (by decide)
 
 /-- Unconditional beyond-Sudan (`m₀ = 2, D₀ = 15`) `BatchRound0GapBound` over `ZMod 26214401` at
@@ -625,13 +637,15 @@ theorem round0Gap26M : BatchRound0GapBound params26M 2 8 1923030 :=
     (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- Unconditional beyond-Sudan `BatchRound0Escape` (`≤ 1923030 / 26214401 < 1 / 13`). -/
-theorem round0Escape26M : BatchRound0Escape params26M 2 8 ((1923030 : ℝ≥0∞) / 26214401) := by
+public theorem round0Escape26M : BatchRound0Escape params26M 2 8 ((1923030 : ℝ≥0∞) / 26214401) := by
   simpa only [ZMod.card, Nat.cast_ofNat] using
     batchRound0Escape_of_johnson_discrete params26M 2 (e := 8) (m₀ := 2) (D₀ := 15)
       (B_batch := 1923030) (by decide) (by decide) (by decide) (by decide) (by decide)
 
-private def mRound26M : Fin 2 → ℕ := ![1, 2]
-private def DRound26M : Fin 2 → ℕ := ![3, 3]
+/-- Per-round Guruswami–Sudan multiplicities for `params26M` at `e = 8`. -/
+@[expose] public def mRound26M : Fin 2 → ℕ := ![1, 2]
+/-- Per-round weighted interpolation degrees for `params26M` at `e = 8`. -/
+@[expose] public def DRound26M : Fin 2 → ℕ := ![3, 3]
 
 theorem weightedLineGap26M : WeightedLineGapBound params26M 7 21270 := by
   refine weightedLineGapBound_of_johnson_discrete params26M (e := 8) (B_commit := 21270)

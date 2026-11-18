@@ -44,15 +44,17 @@ soundness provider `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_weig
   `2 ^ (d - (i + 1))` and the geometric Siegel-interpolation Johnson budgets
   `friJohnsonRoundBound params mJ i` sum over all `m` rounds without an `O(m)` union-bound factor
   (mirroring the geometric telescoping on printed p. 43 of [BenSassonCarmonIshaiKoppartySaraf2020]).
-* In the Johnson regime, `friJohnsonRoundBound`, `friJohnsonCommitBound`, and
-  `friJohnsonCommitError` use this library's original explicit Siegel-interpolation constants for
-  all `mJ ≥ 1` (`1800 * (mJ + 1) ^ 6 * …`), which are not uniformly smaller at small `mJ` than the
-  constants displayed in JACM Lemma 8.2 / Theorem 8.3 (and eq. 1.3 uses `min(η, √ρ / 20)` in its
-  denominator). Batched initial-function correlated agreement and exact correspondence with JACM
-  Theorem 8.3's displayed error expression remain open on `#5968`.
+* In the Johnson regime, `friJohnsonRoundBound`, `friJohnsonCommitBound`,
+  `friJohnsonEtaCommitBound`, and `friJohnsonCommitError` use this library's original explicit
+  Siegel-interpolation constants for all `mJ ≥ 1` (`1800 * (mJ + 1) ^ 6 * …` and `57600 * … / η ^ 6`
+  using `η` directly rather than `min(η, √ρ / 20)` in eq. 1.3), which are not uniformly smaller at
+  small `mJ` than the constants displayed in JACM Lemma 8.2 / Theorem 8.3. Batched initial-function
+  correlated agreement and exact correspondence with JACM Theorem 8.3's displayed error expression
+  remain open on `#5968`.
 * All uniform `WeightedLineGapBound` theorems (`weightedLineGapBound_of_unique`,
-  `weightedLineGapBound_of_johnson_discrete`, `weightedLineGapBound_of_johnson`) are derived as
-  thin monotonicity corollaries of the per-round `WeightedLineGapPerRound` theorems.
+  `weightedLineGapBound_of_johnson_discrete`, `weightedLineGapBound_of_johnson`,
+  `weightedLineGapBound_of_johnson_eta`) are derived as thin monotonicity corollaries of the
+  per-round `WeightedLineGapPerRound` / `weightedLineGapBound_of_johnson` theorems.
 
 ## Main definitions
 
@@ -63,6 +65,8 @@ soundness provider `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_weig
   (equal to `friJohnsonCommitBound params mJ` at `i = 0`, halving each round).
 * `Cslib.Crypto.Protocols.FRI.friJohnsonCommitBound`: uniform commit-round bad-scalar budget
   `(900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) / params.dim 0`.
+* `Cslib.Crypto.Protocols.FRI.friJohnsonEtaCommitBound`: uniform `η`-gap commit-round bad-scalar
+  budget `⌊57600 * (2 ^ params.d) ^ 3 / (params.dim 0 * η ^ 6)⌋₊`.
 * `Cslib.Crypto.Protocols.FRI.friJohnsonCommitError`: closed-form geometric Siegel commit-phase
   error `(1 - 1 / 2 ^ m) * (1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / ((dim 0 / 2 ^ d) * |F|))`
   (`< 1800 * (mJ + 1) ^ 6 * (2 ^ d) ^ 2 / (ρ * |F|)` independently of `m`).
@@ -85,9 +89,11 @@ soundness provider `Cslib.Crypto.Protocols.FRI.friBCS_romSoundness_bound_of_weig
   `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson_discrete`: unconditional per-round
   and uniform discrete `johnsonCurveBound` discharges, plus
   `friCommitGame_le_of_johnson_discrete` and `friIOP_interactiveGame_le_of_johnson_discrete`.
-* `Cslib.Crypto.Protocols.FRI.weightedLineGapPerRound_of_johnson` &
-  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson`: unconditional geometric per-round
-  (`friJohnsonRoundBound`) and uniform (`friJohnsonCommitBound`) Johnson discharges.
+* `Cslib.Crypto.Protocols.FRI.weightedLineGapPerRound_of_johnson`,
+  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson`, &
+  `Cslib.Crypto.Protocols.FRI.weightedLineGapBound_of_johnson_eta`: unconditional geometric
+  per-round (`friJohnsonRoundBound`) and uniform (`friJohnsonCommitBound`,
+  `friJohnsonEtaCommitBound`) Johnson and `η`-gap discharges.
 * `Cslib.Crypto.Protocols.FRI.friCommitGame_le_of_johnson` &
   `Cslib.Crypto.Protocols.FRI.friIOP_interactiveGame_le_of_johnson`: unconditional summed
   commit-phase and full interactive soundness bounds for single-word `friIOP` up to the Johnson
@@ -734,6 +740,45 @@ theorem weightedLineGapBound_of_johnson [DecidableEq F]
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
     WeightedLineGapBound params (2 ^ params.d - e - 1) (friJohnsonCommitBound params mJ) :=
   (weightedLineGapPerRound_of_johnson params hmJ he).mono (friJohnsonRoundBound_le_commitBound _ _)
+
+/-- Conservative uniform per-round commit-phase exceptional-scalar budget for 2-to-1 FRI in the
+`η`-gap Johnson regime (`(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η`, `0 < η`):
+`⌊57600 * (2 ^ d) ^ 3 / (dim 0 * η ^ 6)⌋₊` (using this library's original explicit Siegel constant
+`900 * 64 = 57600` and `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
+@[expose] noncomputable def friJohnsonEtaCommitBound (params : FRIParams F) (η : ℝ) : ℕ :=
+  ⌊57600 * ((2 ^ params.d : ℝ) ^ 3) / ((params.dim 0 : ℝ) * (η ^ 6))⌋₊
+
+/-- **Original explicit-constant `η`-gap uniform `WeightedLineGapBound`** across all `m` FRI
+folding rounds up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η` (`0 < η`), derived from
+`weightedLineGapBound_of_johnson` and `ProximityGap.exists_multiplicity_of_eta` (using `η` directly
+rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
+theorem weightedLineGapBound_of_johnson_eta [DecidableEq F]
+    (params : FRIParams F) {e : ℕ} {η : ℝ} (hη : 0 < η)
+    (he : (e : ℝ) / (2 ^ params.d : ℝ) ≤
+      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) - η) :
+    WeightedLineGapBound params (2 ^ params.d - e - 1)
+      (friJohnsonEtaCommitBound params η) := by
+  have hk₀_pos : 0 < params.dim 0 := params.one_le_dim 0
+  have hk₀_le : params.dim 0 ≤ 2 ^ params.d := by
+    simpa only [Nat.sub_zero] using params.dim_le_domainSize (Nat.zero_le params.m)
+  obtain ⟨mJ, hmJ, he_mJ, hpow_mJ⟩ :=
+    ProximityGap.exists_multiplicity_of_eta hk₀_pos hk₀_le hη
+      (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he)
+  refine (weightedLineGapBound_of_johnson params hmJ
+    (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he_mJ)).mono fun _ => ?_
+  refine Nat.le_floor ?_
+  have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast hk₀_pos
+  have hdiv_le :
+      ((friJohnsonCommitBound params mJ : ℕ) : ℝ) ≤
+        (900 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := by
+    refine (le_div_iff₀ hk₀R).mpr ?_
+    exact_mod_cast Nat.div_mul_le_self (900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3) (params.dim 0)
+  calc ((friJohnsonCommitBound params mJ : ℕ) : ℝ)
+      ≤ (900 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := hdiv_le
+    _ ≤ (900 * (64 / (η ^ 6)) * ((2 ^ params.d : ℝ) ^ 3)) / (params.dim 0 : ℝ) := by gcongr
+    _ = 57600 * ((2 ^ params.d : ℝ) ^ 3) / ((params.dim 0 : ℝ) * (η ^ 6)) := by
+        field_simp
+        ring
 
 /-- **Unconditional summed commit-phase soundness of single-word `friIOP` up to the Johnson bound**
 (using this library's explicit geometric Siegel commit error `friJohnsonCommitError params mJ`,

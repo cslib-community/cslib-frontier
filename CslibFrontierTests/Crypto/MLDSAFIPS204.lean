@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
+import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 
@@ -134,6 +134,21 @@ private def matrixAddressChecks : Bool := Id.run do
     H.h128.read (x ++ [false]) 1 == [77] && H.h256.read x 1 == [88]
 
 #guard matrixAddressChecks
+
+-- One expansion samples 16, 30 or 56 entries at the respective FIPS levels.
+open Cslib.Probability in
+example (H : Xofs) (s : Level) (rho : List Byte) :
+    ((PMF.uniformOfFintype (MatrixPrefixes s)).toOuterMeasure
+      {t | (H.withMatrixPrefixes s rho t).expandA s rho = none}).toReal <
+      1 / (2 : ℝ) ^ (match s with | .mlDSA44 => 252 | .mlDSA65 => 251 | .mlDSA87 => 250) := by
+  apply (prob_expandA_exhaustion H s rho).trans_le
+  cases s
+  · change (16 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 252
+    norm_num
+  · change (30 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 251
+    norm_num
+  · change (56 : ℝ) / 2 ^ 256 ≤ 1 / 2 ^ 250
+    norm_num
 
 private def markedNonce : Xofs :=
   let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])

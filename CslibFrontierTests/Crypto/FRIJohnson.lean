@@ -982,7 +982,7 @@ theorem prime_goldilocks : Nat.Prime goldilocksP := by
           (by decide)]
       decide
 
-instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
+public instance instPrimeGoldilocks : Fact (Nat.Prime goldilocksP) := ⟨prime_goldilocks⟩
 
 private theorem omegaGoldilocks_pow_16 : (64 : ZMod goldilocksP) ^ 16 = -1 := by
   rw [show (64 : ZMod goldilocksP) = ((64 : ℕ) : ZMod goldilocksP) from rfl,
@@ -1012,6 +1012,27 @@ theorem paramsGoldilocks_beyond_unique :
 
 -- Exact evaluation of the closed-form uniform Johnson commit budget (`mJ = 2`).
 example : friJohnsonCommitBound paramsGoldilocks 2 = 5374771200 := rfl
+
+-- Direct check of `friJohnsonEtaCommitBound` and `weightedLineGapBound_of_johnson_eta`
+-- (`η = 1 / 16` at `e = 17`, since `17 / 32 ≤ 1 - √(1 / 8) - 1 / 16`).
+example : friJohnsonEtaCommitBound paramsGoldilocks (1 / 16) = 7916483719987200 := by
+  simp only [friJohnsonEtaCommitBound, paramsGoldilocks, FRIParams.dim]
+  exact (Nat.floor_eq_iff (by norm_num)).mpr ⟨by norm_num, by norm_num⟩
+
+example :
+    WeightedLineGapBound paramsGoldilocks 14
+      (friJohnsonEtaCommitBound paramsGoldilocks (1 / 16)) := by
+  refine weightedLineGapBound_of_johnson_eta paramsGoldilocks (e := 17) (by norm_num) ?_
+  have hsq : Real.sqrt ((1 : ℝ) / 8) ≤ (13 : ℝ) / 32 := by
+    rw [Real.sqrt_le_iff]
+    constructor <;> norm_num
+  have hrate :
+      ((paramsGoldilocks.dim 0 : ℝ) / (2 ^ paramsGoldilocks.d : ℝ)) = (1 : ℝ) / 8 := by
+    norm_num [paramsGoldilocks, FRIParams.dim]
+  have h17 : ((17 : ℕ) : ℝ) / (2 ^ paramsGoldilocks.d : ℝ) = (17 : ℝ) / 32 := by
+    norm_num [paramsGoldilocks]
+  rw [hrate, h17]
+  linarith
 
 -- Honest completeness over Goldilocks holds simultaneously with Johnson soundness.
 example (σ : ℕ) :
