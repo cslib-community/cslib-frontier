@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.ExpandMemory
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native expansion of one query prefix
@@ -78,17 +79,17 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
   have hdecode : Fits w ((PrunedQuery.queryIndex η).val + xs.length +
       10 * 10 ^ xs.length + 16) := hfit.of_le (by rw [pow_succ]; omega)
   obtain ⟨a, ha, ad, ak, ap, am, af⟩ := exec_expandSetup x hq hdepth hp h1 h10 hdecode
-  have aF : a.regs Reg.stack = F := (af _ (by decide)).trans hF
-  have an : a.regs Reg.top = rest.length := (af _ (by decide)).trans hn
-  have ac : a.regs Reg.code = prefixCode xs := (af _ (by decide)).trans hc
-  have au : a.regs Reg.used = usedFrom η 0 xs := (af _ (by decide)).trans hu
-  have ae : a.regs Reg.stars = starsFrom η 0 xs := (af _ (by decide)).trans he
-  have app : a.regs Reg.power = 10 ^ xs.length := (af _ (by decide)).trans hp
-  have a5 : a.regs Reg.five = 5 := (af _ (by decide)).trans h5
-  have a1 : a.regs BoxTable.Reg.one = 1 := (af _ (by decide)).trans h1
-  have a9 : a.regs BoxTable.Reg.nine = 9 := (af _ (by decide)).trans h9
-  have a0 : a.regs BoxTable.Reg.nil = 0 := (af _ (by decide)).trans h0
-  have athreshold : a.regs BoxTable.Reg.threshold = t := (af _ (by decide)).trans ht
+  have aF : a.regs Reg.stack = F := by regs_frame
+  have an : a.regs Reg.top = rest.length := by regs_frame
+  have ac : a.regs Reg.code = prefixCode xs := by regs_frame
+  have au : a.regs Reg.used = usedFrom η 0 xs := by regs_frame
+  have ae : a.regs Reg.stars = starsFrom η 0 xs := by regs_frame
+  have app : a.regs Reg.power = 10 ^ xs.length := by regs_frame
+  have a5 : a.regs Reg.five = 5 := by regs_frame
+  have a1 : a.regs BoxTable.Reg.one = 1 := by regs_frame
+  have a9 : a.regs BoxTable.Reg.nine = 9 := by regs_frame
+  have a0 : a.regs BoxTable.Reg.nil = 0 := by regs_frame
+  have athreshold : a.regs BoxTable.Reg.threshold = t := by regs_frame
   have adigit : a.regs Reg.digit = (PrunedQuery.outputDigits.symm
       (outAt η xs.length)).val := ad.trans (query_digit_at η hk)
   have apow : a.regs Reg.childPower = 10 ^ (xs.length + 1) := by
@@ -104,17 +105,17 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
         (e := starsFrom η 0 xs) (p := 10 ^ xs.length) (cp := 10 ^ (xs.length + 1))
         a aF an ak ac au ae app apow a5 a1
         (hcommon.of_le (by omega))
-      have bF : b.regs Reg.stack = F := (bf _ (by decide)).trans aF
-      have bk : b.regs Reg.depth = xs.length + 1 := (bf _ (by decide)).trans ak
-      have bc : b.regs Reg.code = prefixCode xs := (bf _ (by decide)).trans ac
-      have bu : b.regs Reg.used = usedFrom η 0 xs := (bf _ (by decide)).trans au
-      have be : b.regs Reg.stars = starsFrom η 0 xs := (bf _ (by decide)).trans ae
-      have bp : b.regs Reg.power = 10 ^ xs.length := (bf _ (by decide)).trans app
-      have bcp : b.regs Reg.childPower = 10 ^ (xs.length + 1) := (bf _ (by decide)).trans apow
-      have b5 : b.regs Reg.five = 5 := (bf _ (by decide)).trans a5
-      have b1 : b.regs BoxTable.Reg.one = 1 := (bf _ (by decide)).trans a1
-      have b9 : b.regs BoxTable.Reg.nine = 9 := (bf _ (by decide)).trans a9
-      have b0 : b.regs BoxTable.Reg.nil = 0 := (bf _ (by decide)).trans a0
+      have bF : b.regs Reg.stack = F := by regs_frame
+      have bk : b.regs Reg.depth = xs.length + 1 := by regs_frame
+      have bc : b.regs Reg.code = prefixCode xs := by regs_frame
+      have bu : b.regs Reg.used = usedFrom η 0 xs := by regs_frame
+      have be : b.regs Reg.stars = starsFrom η 0 xs := by regs_frame
+      have bp : b.regs Reg.power = 10 ^ xs.length := by regs_frame
+      have bcp : b.regs Reg.childPower = 10 ^ (xs.length + 1) := by regs_frame
+      have b5 : b.regs Reg.five = 5 := by regs_frame
+      have b1 : b.regs BoxTable.Reg.one = 1 := by regs_frame
+      have b9 : b.regs BoxTable.Reg.nine = 9 := by regs_frame
+      have b0 : b.regs BoxTable.Reg.nil = 0 := by regs_frame
       obtain ⟨y, hy, yn, ym, _⟩ := exec_p0Child (F := F) (n := rest.length + 9)
         (k := xs.length + 1) (c := prefixCode xs) (u := usedFrom η 0 xs)
         (e := starsFrom η 0 xs) (p := 10 ^ xs.length) (cp := 10 ^ (xs.length + 1))
@@ -152,17 +153,12 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
     · let b := a.set Reg.temporary (a.regs Reg.temporary)
       have hb : ExecWithin (B := .standard) w
           (ram[ Reg.temporary ← Reg.temporary ]) a b 1 := ExecWithin.copy
-      have bframe (i : Fin registers) (h : i ≠ Reg.temporary) : b.regs i = a.regs i := by
-        simp only [b, Data.set_regs, Function.update_of_ne h]
       obtain ⟨y, hy, yn, ym, _⟩ := exec_p0Child (F := F) (n := rest.length)
         (k := xs.length + 1) (c := prefixCode xs) (u := usedFrom η 0 xs)
         (e := starsFrom η 0 xs) (p := 10 ^ xs.length) (cp := 10 ^ (xs.length + 1)) b
-        ((bframe _ (by decide)).trans aF) ((bframe _ (by decide)).trans an)
-        ((bframe _ (by decide)).trans ak) ((bframe _ (by decide)).trans ac)
-        ((bframe _ (by decide)).trans au) ((bframe _ (by decide)).trans ae)
-        ((bframe _ (by decide)).trans app) ((bframe _ (by decide)).trans apow)
-        ((bframe _ (by decide)).trans a5) ((bframe _ (by decide)).trans a1)
-        ((bframe _ (by decide)).trans a9) ((bframe _ (by decide)).trans a0)
+        (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+        (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+        (by regs_frame) (by regs_frame)
         (hcommon.of_le (by omega))
       have hsparecond : ¬(Cond.lt Reg.used BoxTable.Reg.threshold).Holds a := by
         simp only [Cond.holds_lt, au, athreshold]

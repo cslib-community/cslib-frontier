@@ -209,14 +209,11 @@ theorem IsLeafWord.eq_of_getD_eq {s : σ} {w w' : List Bool} (hw : T.IsLeafWord 
 /-- Following a branch sequence ends at the state of some node word. -/
 theorem exists_isNodeWord_walkSeq (n : ℕ) (s : σ) (f : ℕ → Bool) :
     ∃ w, T.IsNodeWord s w ∧ T.walkSeq n s f = T.walk s w := by
-  induction n generalizing s f with
-  | zero => exact ⟨[], trivial, rfl⟩
-  | succ n ih =>
-    unfold walkSeq
-    split_ifs with hs
-    · exact ⟨[], trivial, rfl⟩
-    · obtain ⟨w, hw, heq⟩ := ih (T.next s (f 0)) fun i => f (i + 1)
-      exact ⟨f 0 :: w, ⟨hs, hw⟩, heq⟩
+  fun_induction T.walkSeq n s f with
+  | case1 | case2 => exact ⟨[], trivial, rfl⟩
+  | case3 n s f hs ih =>
+    obtain ⟨w, hw, heq⟩ := ih
+    exact ⟨f 0 :: w, ⟨hs, hw⟩, heq⟩
 
 /-- Following a branch sequence that agrees with a leaf word, for at least as many steps, ends at
 that leaf. -/

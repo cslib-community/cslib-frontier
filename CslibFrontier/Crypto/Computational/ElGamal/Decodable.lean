@@ -76,12 +76,7 @@ private theorem computableInPolyTime_elemGuard {F : PrimeOrderGroupFamily}
       (fun p : ℕ × F.Desc × List Bool × List Bool × List Bool =>
         isElem (p.2.1, p.2.2.2.1) && isElem (p.2.1, p.2.2.2.2))
       (F.encElGamalMsgGuardInput encBits) encBool := by
-  have hp := ComputableInPolyTime.id' (encIn := F.encElGamalMsgGuardInput encBits)
-  have hd := hp.snd'.fst'
-  have hm₀ := hp.snd'.snd'.snd'.fst'
-  have hm₁ := hp.snd'.snd'.snd'.snd'
-  exact ComputableInPolyTime.bool_and.comp
-    ((hisElem.comp (hd.prod hm₀)).prod (hisElem.comp (hd.prod hm₁)))
+  fun_prop
 
 private theorem computableInPolyTime_groupValidHelper {F : PrimeOrderGroupFamily}
     {isElem : F.Desc × List Bool → Bool} {d : ℕ → F.Desc}
@@ -90,12 +85,7 @@ private theorem computableInPolyTime_groupValidHelper {F : PrimeOrderGroupFamily
     ComputableInPolyTime
       (fun ⟨n, _pk, m₀, m₁⟩ => isElem (d n, m₀) && isElem (d n, m₁))
       (encChallengePairInput encBits) encBool := by
-  have hp := ComputableInPolyTime.id' (encIn := encChallengePairInput encBits)
-  have hdn := hd.comp hp.fst'
-  have hm₀ := hp.snd'.snd'.fst'
-  have hm₁ := hp.snd'.snd'.snd'
-  exact ComputableInPolyTime.bool_and.comp
-    ((hisElem.comp (hdn.prod hm₀)).prod (hisElem.comp (hdn.prod hm₁)))
+  fun_prop
 
 namespace DecodablePrimeOrderGroupFamily
 

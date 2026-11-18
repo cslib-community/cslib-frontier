@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Keep
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Trial
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Frame
 import all CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Minimum
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native minimum and candidate-advance steps
@@ -102,7 +103,7 @@ private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standar
       simpa only [Cond.holds_lt, hfour, hD] using hlo
     obtain ⟨z, ht, hflag, hm, hr⟩ := exec_trial x hp hfit
     have hzSource : Source z.mem := by simpa only [hm] using hSource
-    have hzOne : z.regs Reg.one = 1 := (hr Reg.one (by decide)).trans ho
+    have hzOne : z.regs Reg.one = 1 := by regs_frame
     have hmeta : ∀ i, 128 ≤ i.val → z.regs i = x.regs i :=
       fun i hi => hr i (by omega)
     by_cases hprime : (x.regs Reg.cursor).Prime
@@ -121,7 +122,7 @@ private theorem exec_candidate_bestBefore {w D T : ℕ} (counter : Code .standar
         simpa only [hameta Reg.cursor (by decide), hameta Reg.best (by decide),
           hameta Reg.bestCount (by decide), hameta Reg.found (by decide)] using hbest
       obtain ⟨y, hy, hybest, hym, hyr⟩ := exec_keep_bestBefore score a
-        ((hameta Reg.zero (by decide)).trans hz) ((hameta Reg.one (by decide)).trans ho)
+        (by regs_frame) (by regs_frame)
         haBest (by simpa only [hameta Reg.cursor (by decide)] using hwindow)
         (by simpa only [hameta Reg.cursor (by decide)] using hscore)
       refine ⟨y, ?_, ?_, ?_, ?_⟩

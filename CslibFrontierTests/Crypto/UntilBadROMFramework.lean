@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Crypto.Game.CloseTo.RandomOracle
 public import CslibFrontier.Crypto.Game.UntilBad
 public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Event
 
 /-!
@@ -428,8 +429,7 @@ theorem birthday_bound_twoDistinctBoolQueries_sharp :
         (PMF.uniformOfFintype Bool).bind
           (fun d₁ => PMF.pure (d₁, [(true, d₁), (false, d₀)])) :=
     memoize_of_none _ true [(false, d₀)] rfl
-  simp only [twoDistinctBoolQueries, run_interpret_bind, run_interpret_query, run_interpret_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [twoDistinctBoolQueries, interp_norm, pmf_norm]
   change ((memoize (fun _ : Bool => PMF.uniformOfFintype Bool) false []).bind fun x₀ =>
     (memoize (fun _ : Bool => PMF.uniformOfFintype Bool) true x₀.2).bind fun x₁ =>
       PMF.pure ((x₀.1, x₁.1), x₁.2)).toOuterMeasure {x | HasOutputCollision x.2} = _

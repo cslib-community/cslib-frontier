@@ -64,8 +64,6 @@ theorem computableInPolyTime_boundedTable (B : ℕ) {w : α → ℕ} {f : α →
     (hw : ComputableInPolyTime w inp encUnary)
     (hf : ∀ idx, ComputableInPolyTime (fun a => f a idx) inp encNat) :
     ComputableInPolyTime (fun a => boundedTable B (w a) (f a)) inp (encList encNat) := by
-  unfold boundedTable
-  exact mapFilterConst _ (fun idx _ => binary_lt' (const idx) (binary_pow' (const 2) hw))
-    fun idx _ => hf idx
+  fun_prop [boundedTable]
 
 end Cslib.Circuits.Frontier.ExplicitTensorNetwork

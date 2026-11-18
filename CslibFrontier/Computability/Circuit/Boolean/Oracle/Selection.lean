@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Comparison
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle
 public import CslibFrontier.Computability.Circuit.Boolean.Substitution
 public import CslibFrontier.Computability.Circuit.Pi
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Selecting an accepted candidate with oracle gates
@@ -122,8 +123,7 @@ def selectFirst (dflt : Fin w → Fin K) :
   induction N with
   | zero => rfl
   | succ N ih =>
-    rw [selectFirst, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_append,
-      Circuit.eval_wiring, Circuit.eval_wiring, ih]
+    simp only [circuit_simps, selectFirst, ih]
     exact eval_muxCircuit (x (acc 0)) _ _
 
 @[simp] theorem size_selectFirst (dflt : Fin w → Fin K) (acc : Fin N → Fin K)
@@ -131,8 +131,7 @@ def selectFirst (dflt : Fin w → Fin K) :
   induction N with
   | zero => rw [Nat.zero_mul]; rfl
   | succ N ih =>
-    rw [selectFirst, Circuit.size_comp, Circuit.size_append, Circuit.size_append,
-      Circuit.size_wiring, Circuit.size_wiring, ih, size_muxCircuit]
+    simp only [circuit_simps, selectFirst, ih, size_muxCircuit]
     ring
 
 /-! ### Sources, constants and oracle gates -/
@@ -167,8 +166,7 @@ def constLayer (K : ℕ) : Circuit oracleSignature K (K + 2) :=
 
 @[simp] theorem cost_program_constLayer (K : ℕ) :
     (constLayer K).program.cost OracleOp.queryWeight = 0 := by
-  rw [constLayer, Circuit.cost_program_append, Circuit.cost_program_append,
-    Circuit.cost_program_oneGate, Circuit.cost_program_oneGate]
+  simp only [circuit_simps, constLayer]
   rfl
 
 @[simp] theorem depthWith_constLayer (K : ℕ) :
@@ -191,8 +189,7 @@ def queryLayer (src : Fin N → Fin q → Source K) : Circuit oracleSignature (K
     (x : BitString K) (i : Fin N) :
     (queryLayer src).eval (oracleInterpretation O) ((constLayer K).eval (oracleInterpretation O) x)
         i = O.slice q (substitute (src i) x) := by
-  simp only [queryLayer, Circuit.eval_pi, Circuit.eval_oneGate, eval_constLayer_idx,
-    oracleInterpretation_query]
+  simp only [circuit_simps, queryLayer, eval_constLayer_idx]
   rfl
 
 @[simp] theorem size_queryLayer (src : Fin N → Fin q → Source K) : (queryLayer src).size = N := by
@@ -200,10 +197,9 @@ def queryLayer (src : Fin N → Fin q → Source K) : Circuit oracleSignature (K
 
 @[simp] theorem cost_program_queryLayer (src : Fin N → Fin q → Source K) :
     (queryLayer src).program.cost OracleOp.queryWeight = N := by
-  simp only [queryLayer, Circuit.cost_program_pi, Circuit.cost_program_oneGate,
-    OracleOp.queryWeight_query, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-    mul_one]
+  simp only [circuit_simps, queryLayer, OracleOp.queryWeight_query, mul_one]
 
+@[circuit_bound]
 theorem depthWith_queryLayer_le (src : Fin N → Fin q → Source K) :
     (queryLayer src).depthWith OracleOp.queryWeight ≤ 1 :=
   Circuit.depthWith_pi_le _ _ fun _ => by simp
@@ -236,9 +232,8 @@ noncomputable def selectedWord (O : Language Bool) (src : Fin N → Fin q → So
     (x : BitString K) :
     (selectionRound src word dflt).eval (oracleInterpretation O) x =
       Fin.append x (selectedWord O src word dflt x) := by
-  rw [selectionRound, Circuit.eval_append, Circuit.eval_wiring, Circuit.eval_comp,
-    Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring,
-    Circuit.eval_mapOp (I := interpretation), eval_selectFirst]
+  simp only [circuit_simps, selectionRound, Circuit.eval_mapOp (I := interpretation),
+    eval_selectFirst]
   simp only [selectedWord, Function.comp_def, Fin.append_left, Fin.append_right, id,
     eval_constLayer_idx, eval_queryLayer]
   rfl
@@ -274,21 +269,14 @@ theorem selectedWord_prop {P : BitString w → Prop} (O : Language Bool)
 @[simp] theorem cost_program_selectionRound (src : Fin N → Fin q → Source K)
     (word : Fin N → Fin w → Source K) (dflt : Fin w → Source K) :
     (selectionRound src word dflt).program.cost OracleOp.queryWeight = N := by
-  rw [selectionRound, Circuit.cost_program_append, Circuit.cost_program_comp,
-    Circuit.cost_program_comp, Circuit.cost_program_append, cost_program_queryLayer,
-    cost_program_constLayer, Circuit.cost_program_wiring, Circuit.cost_program_wiring]
+  simp only [circuit_simps, selectionRound, cost_program_queryLayer, cost_program_constLayer]
   simp
 
 /-- A round has at most one oracle gate on any path. -/
 theorem depthWith_selectionRound_le (src : Fin N → Fin q → Source K)
     (word : Fin N → Fin w → Source K) (dflt : Fin w → Source K) :
     (selectionRound src word dflt).depthWith OracleOp.queryWeight ≤ 1 := by
-  refine (Circuit.depthWith_append_le _ _ _).trans (max_le (by simp) ?_)
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [depthWith_mapOp_toOracle, Nat.zero_add]
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [depthWith_constLayer, Nat.add_zero]
-  exact (Circuit.depthWith_append_le _ _ _).trans (max_le (by simp) (depthWith_queryLayer_le src))
+  circuit_bound [selectionRound, depthWith_mapOp_toOracle, depthWith_constLayer]
 
 /-- A round has fan-in at most `max q 2`. -/
 theorem fanInAtMost_selectionRound (src : Fin N → Fin q → Source K)

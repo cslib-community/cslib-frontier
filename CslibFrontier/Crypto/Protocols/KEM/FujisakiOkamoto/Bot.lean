@@ -36,7 +36,10 @@ oracle (`RandomizedROAdversary.FullQueryBounds A qG qH qD`),
   + 2 (qG + qH + qD) 2^{-γ}`,
 
 where `B = romBotCpaReduction A` is one two-stage IND-CPA adversary that draws its own challenge
-messages. Unlike the
+messages. This concrete bound is the per-parameter step of the asymptotic theorem for the
+word-level family, `WordPKE.INDCPA.romINDCCABot` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity`, which applies the IND-CPA
+assumption to the certified word-level reduction `WordPKE.romBotCpaReductionWord`. Unlike the
 implicit-rejection transform `FO-notbot` (module
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot`), `FO^⊥` has no secret fallback seed
 and therefore no `2 qH / |M|` seed-guessing term; conversely, because `decapsBot` explicitly
@@ -108,9 +111,10 @@ Def. 2.4 / Fig. 4.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.advantage_eagerIndCcaBotGame_simBotGame_le`: the
   eager `FO^⊥` IND-CCA game and the keyless simulator game `simBotGame` differ by at most
   `(qG + qH + 1) δ + qD · 2^{-γ}`.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le`: ROM IND-CCA security of
-  `FO^⊥` from two-stage IND-CPA security, `δ`-correctness and `γ`-spreadness, through the one
-  reduction `romBotCpaReduction A`.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le`: the concrete ROM IND-CCA
+  bound for `FO^⊥` over one scheme, from the two-stage IND-CPA advantage of the one reduction
+  `romBotCpaReduction A`, `δ`-correctness and `γ`-spreadness; the per-parameter step of
+  `WordPKE.INDCPA.romINDCCABot`.
 
 ## References
 
@@ -694,11 +698,12 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_le [Fintype M] [Nonempty M] [Fin
     _ ≤ qD * (2 : ℝ) ^ (-γ) + ((qG + qH + 1 : ℕ) : ℝ) * δ := add_le_add h₁ h₂
     _ = ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := add_comm _ _
 
-/-- **ROM IND-CCA security of `FO^⊥ = U^⊥ ∘ T` from two-stage IND-CPA**
-(after [HofheinzHoevelmannsKiltz2017], Theorems 3.2 and 3.3, whose bound it does not reproduce).
-Let the messages be uniform, the PKE `δ`-correct and `γ`-spread, and let every coin value of the
-randomized adversary `A` make at most `qG` queries to `G`, `qH` queries to `H` and `qD` queries to
-`decaps`. Then the single IND-CPA reduction `romBotCpaReduction A` satisfies
+/-- The concrete ROM IND-CCA bound for `FO^⊥ = U^⊥ ∘ T` over one fixed scheme, the step at each
+parameter of `WordPKE.INDCPA.romINDCCABot`; it is not the bound of
+[HofheinzHoevelmannsKiltz2017], whose Theorems 3.2 and 3.3 it follows. Let the messages be
+uniform, the PKE `δ`-correct and `γ`-spread, and let every coin value of the randomized adversary
+`A` make at most `qG` queries to `G`, `qH` queries to `H` and `qD` queries to `decaps`. Then the
+single IND-CPA reduction `romBotCpaReduction A` satisfies
 `Adv^{IND-CCA}_{FO^⊥}(A) ≤ 2 · Adv^{IND-CPA}(romBotCpaReduction A)
   + 2 (qG + qH) / |M| + 2 (qG + qH + 1) δ + 2 (qG + qH + qD) 2^{-γ}`.
 Both advantages are two-world differences, twice HHK17's hidden-bit advantages. Both real `H`
@@ -706,7 +711,7 @@ replies and the independent ideal challenge key in `roIndCcaBotGame` and `eagerI
 drawn from the arbitrary key sampler `S.sampleKey : ProbComp K`; taking `S.sampleKey` uniform on
 `K` recovers the standard uniform-ideal-key experiment of [HofheinzHoevelmannsKiltz2017], §2.2,
 Def. 2.4 / Fig. 4. This is a concrete bound for one fixed scheme; it says nothing about the running
-time of the reduction.
+time of the reduction, which the word-level reduction `WordPKE.romBotCpaReductionWord` certifies.
 
 *Relation to the source* (IACR ePrint 2017/604, version of 2 November 2021). The proof follows the
 game hops of Theorem 3.2 (`T`, p. 12) and Theorem 3.3 (`U^⊥`, p. 14) but composes them directly,

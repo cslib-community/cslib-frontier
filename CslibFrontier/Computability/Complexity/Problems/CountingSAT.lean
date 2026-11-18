@@ -289,12 +289,7 @@ private theorem computableInPolyTime_shiftOdd :
 @[local fun_prop]
 private theorem computableInPolyTime_dummyClauses :
     ComputableInPolyTime dummyClauses encUnary encCNF := by
-  have hj : ComputableInPolyTime (fun j : ℕ => j + j + 2) encUnary encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  unfold dummyClauses encCNF
-  exact (ComputableInPolyTime.map (encA := encUnary)
-    (encB := encList (encPair encNat encBool)) (by fun_prop)).comp
-    ComputableInPolyTime.range
+  fun_prop [dummyClauses]
 
 /-- Padding a formula to a majority instance is computable in polynomial time, with `Q` in unary. -/
 @[fun_prop]

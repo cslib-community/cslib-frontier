@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Add
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native selection and accumulation of one query
@@ -99,20 +100,15 @@ theorem exec_accumulateStep {w : ℕ} {a b : ℤ}
   have hload : ExecWithin (w + 2) scanLoad x z 3 := by
     ram_eval [scanLoad, z, hq, h10, hr, hmod, address, listBase, index, query, digit, ten,
       Fin.mk.injEq]
-  have hzreg (i : Fin registers) (ha : i ≠ address) (hq' : i ≠ query) (hd : i ≠ digit) :
-      z.regs i = x.regs i := by simp [z, ha, hq', hd]
   obtain ⟨u, hu, hm, hf⟩ := exec_accumulateDispatch ha hb z q
     (by simp [z, query, digit]) (by simp [z])
-    ((hzreg nine (by decide) (by decide) (by decide)).trans h9)
-    ((hzreg ten (by decide) (by decide) (by decide)).trans h10)
+    (by regs_frame) (by regs_frame)
     (by simpa +decide [z, term, address, query, digit, valueBase] using hleft)
     (by simpa +decide [z, term, address, query, digit, childValues] using hright)
     (by simpa +decide [z, address, query, digit, valueBase] using hp)
     (by simpa +decide [z, address, query, digit, childValues] using hc)
-  have hui : u.regs index = x.regs index :=
-    (hf index (by decide)).trans (hzreg index (by decide) (by decide) (by decide))
-  have huo : u.regs one = 1 :=
-    (hf one (by decide)).trans ((hzreg one (by decide) (by decide) (by decide)).trans h1)
+  have hui : u.regs index = x.regs index := by regs_frame
+  have huo : u.regs one = 1 := by regs_frame
   let y := u.set index (x.regs index + 1)
   have hinc : ExecWithin (w + 2) (ram[ index ← index + one ]) u y 1 := by
     ram_eval [y, hui, huo, hi]

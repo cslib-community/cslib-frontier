@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Static
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -127,9 +128,8 @@ private theorem eval_ofStep_threeStep (kl : ℕ → ℕ)
         (.deliver, encPair encBits encBits ([], msg))
         ⟨[], [⟨[], []⟩], [], [⟨[], [], .left, [], .running, [], [], none, none⟩],
           [LogEntry.init 0 .left]⟩)).map (fun res => k n (res.1.take (m n))) := by
-  simp only [Protocol.run, Protocol.ofStep, OracleComp.interpret_bind, OracleComp.interpret_map,
-    OracleComp.interpret_pure, ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map,
-    StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
+  simp only [Protocol.run, Protocol.ofStep, interp_norm, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure]
   dsimp only [StateT.run, OracleComp.sumHandler]
   rw [PMF.pure_bind, challenger_registerHonest]
   have hreg : (⟨[], [], [], [], []⟩ : Challenger).isRegistered [] = false := rfl

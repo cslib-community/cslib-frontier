@@ -14,6 +14,7 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.ObliviousSequence
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Word-RAM-to-Cell-Probe Data-Structure Simulation Bridges and Lower-Bound Transfer
@@ -221,6 +222,27 @@ private theorem initFresh_zeroMem (C : WordRAM.StateTransitionImpl P D w base pa
     C.initFresh_exec (x := { regs := d₀.regs, mem := fun _ => 0 }) hd₀' hfr hpar (fun _ _ => rfl)
   exact ⟨y₀, he, hr₀, hpot₀⟩
 
+omit [∀ o, Inhabited (D.Result o)] in
+private theorem rep_potential_unpack_pack_zero
+    (C : WordRAM.StateTransitionImpl P D w base params s₀)
+    {regCells wCell : ℕ} (L : RegLayout r_ds P.input base C.space w regCells wCell)
+    {s : D.State} {y : Data r_ds} (hy : C.rep s y) :
+    C.rep s (L.unpack (fun _ => 0) (L.pack y)) ∧
+      C.potential (L.unpack (fun _ => 0) (L.pack y)) = C.potential y := by
+  have hy_bdd : y.Bounded w := C.bounded hy
+  have hpers : ∀ i, P.input i = false →
+      (L.unpack (fun _ => 0) (L.pack y)).regs i = y.regs i := by
+    intro i hi
+    have h := L.unpack_pack_regs (fun _ => 0) hy_bdd i
+    simp only [hi, Bool.false_eq_true, ↓reduceIte] at h
+    exact h
+  have hmem : ∀ a ∈ (Block.mk base C.space).footprint,
+      (L.unpack (fun _ => 0) (L.pack y)).mem a = y.mem a := fun a ha => by
+    rw [L.unpack_pack_mem (fun _ => 0) hy_bdd a]
+    exact zeroOutside_mem_of_mem_footprint y ha
+  exact ⟨C.rep_supported hpers hmem (L.unpack_bounded (fun _ _ => fits_zero w) _) hy,
+    C.potential_supported hpers hmem hy⟩
+
 /-- Unified deterministic `WordRAM.StateTransitionImpl` → `CellProbe.StateTransitionImpl` simulation
 over an arbitrary `RegLayout`: uses `rep_supported` and `potential_supported` with `zeroOutside` so
 no extra read-footprint hypothesis is needed on `C`. -/
@@ -250,26 +272,8 @@ noncomputable def toCellProbeLayout (C : WordRAM.StateTransitionImpl P D w base 
     init_potential := ?_
     step_exec := ?_
   }, ⟨rfl, fun _ _ => rfl⟩⟩⟩
-  · have hy₀_bdd : y₀.Bounded w := C.bounded hy₀_spec.2.1
-    refine ⟨L.validMem_pack y₀, C.rep_supported (fun i hi => ?_) (fun a ha => ?_)
-      (L.unpack_bounded (fun _ _ => fits_zero w) _) hy₀_spec.2.1⟩
-    · have h := L.unpack_pack_regs (fun _ => 0) hy₀_bdd i
-      simp only [hi, Bool.false_eq_true, ↓reduceIte] at h
-      exact h
-    · rw [L.unpack_pack_mem (fun _ => 0) hy₀_bdd a]
-      exact zeroOutside_mem_of_mem_footprint y₀ ha
-  · have hy₀_bdd : y₀.Bounded w := C.bounded hy₀_spec.2.1
-    have hpot_eq : C.potential (L.unpack (fun _ => 0) (L.pack y₀)) = C.potential y₀ :=
-      C.potential_supported
-        (fun i hi => by
-          have h := L.unpack_pack_regs (fun _ => 0) hy₀_bdd i
-          simp only [hi, Bool.false_eq_true, ↓reduceIte] at h
-          exact h)
-        (fun a ha => by
-          rw [L.unpack_pack_mem (fun _ => 0) hy₀_bdd a]
-          exact zeroOutside_mem_of_mem_footprint y₀ ha)
-        hy₀_spec.2.1
-    exact hpot_eq.le.trans hy₀_spec.2.2
+  · exact ⟨L.validMem_pack y₀, (C.rep_potential_unpack_pack_zero L hy₀_spec.2.1).1⟩
+  · exact (C.rep_potential_unpack_pack_zero L hy₀_spec.2.1).2.le.trans hy₀_spec.2.2
   · intro s m o ⟨hm_val, hr_can⟩ hv
     let x_op := L.unpack (C.encode o) m
     have harg_fit : ∀ i, P.input i = true → Fits w (C.encode o i) := C.arguments_fit o hv
@@ -306,27 +310,7 @@ noncomputable def toCellProbeLayout (C : WordRAM.StateTransitionImpl P D w base 
     change (P_cp.step o).run m = _ at hrun_sim
     change (P_cp.step o).probes m ≤ _ at hpr_sim
     rw [hdec, Option.getD_some] at hrun_sim
-    have hy_bdd : y.Bounded w := C.bounded hr_y
-    have hr_pack : C.rep s' (L.unpack (fun _ => 0) (L.pack y)) :=
-      C.rep_supported
-        (fun i hi => by
-          have h := L.unpack_pack_regs (fun _ => 0) hy_bdd i
-          simp only [hi, Bool.false_eq_true, ↓reduceIte] at h
-          exact h)
-        (fun addr ha => by
-          rw [L.unpack_pack_mem (fun _ => 0) hy_bdd addr]
-          exact zeroOutside_mem_of_mem_footprint y ha)
-        (L.unpack_bounded (fun _ _ => fits_zero w) _) hr_y
-    have hpot_pack : C.potential (L.unpack (fun _ => 0) (L.pack y)) = C.potential y :=
-      C.potential_supported
-        (fun i hi => by
-          have h := L.unpack_pack_regs (fun _ => 0) hy_bdd i
-          simp only [hi, Bool.false_eq_true, ↓reduceIte] at h
-          exact h)
-        (fun addr ha => by
-          rw [L.unpack_pack_mem (fun _ => 0) hy_bdd addr]
-          exact zeroOutside_mem_of_mem_footprint y ha)
-        hr_y
+    obtain ⟨hr_pack, hpot_pack⟩ := C.rep_potential_unpack_pack_zero L hr_y
     refine ⟨s', ?_, ?_, ?_⟩
     · rw [hrun_sim]
       exact hdstep
@@ -479,6 +463,11 @@ private theorem ne_top_of_mem_support_of_tsum_ne_top {α : Type*} {ν : PMF α} 
   rw [htop, ENNReal.mul_top hν_ne, top_le_iff] at hle_sum
   exact hsum hle_sum
 
+private theorem mem_support_bind_map {α β γ : Type*} {ν : PMF α} {μ : α → PMF β}
+    {f : α → β → γ} {a : α} {b : β} (ha : a ∈ ν.support) (hb : b ∈ (μ a).support) :
+    f a b ∈ (ν.bind fun a' => (μ a').map (f a')).support :=
+  (PMF.mem_support_bind_iff _ _ _).mpr ⟨a, ha, (PMF.mem_support_map_iff _ _ _).mpr ⟨b, hb, rfl⟩⟩
+
 private theorem bounded_zeroOutside_bind_map {α : Type*} {β : Type*} {r w base space : ℕ}
     (ν : PMF α) (μ_step : α → PMF β) (stepState : α → β → α)
     (dataOf : α → Data r) (dataStep : β → Data r)
@@ -515,6 +504,25 @@ private theorem mem_support_runFrom_cons_fst {Op : Type*} {Result : Op → Type}
   rw [PMF.mem_support_map_iff] at htm_rem
   obtain ⟨tm_rem, htm_rem_mem, rfl⟩ := htm_rem
   exact ⟨z_full, hz_full, tm_rem, htm_rem_mem, rfl⟩
+
+private theorem mem_support_map_fst_runSeq_of_map {Op : Type*} {Result : Op → Type}
+    {cells wCell : ℕ} {α : Type*}
+    (P_cp : Cslib.CellProbe.Randomized.Scheme Op Result cells wCell)
+    {ν₀ : PMF α} {packOf : α → Mem cells wCell} (hinit : P_cp.init = ν₀.map packOf)
+    {ops : List Op} {tr : List (Sigma Result)}
+    (htr : tr ∈ ((P_cp.runSeq ops).map Prod.fst).support) :
+    ∃ a ∈ ν₀.support, ∃ m_fin,
+      (tr, m_fin) ∈ ((P_cp.runFrom (packOf a) ops).map Prod.fst).support := by
+  rw [Cslib.CellProbe.Randomized.Scheme.runSeq, hinit, PMF.map_bind, PMF.mem_support_bind_iff]
+    at htr
+  obtain ⟨m₀, hm₀, htr_from⟩ := htr
+  rw [PMF.mem_support_map_iff] at hm₀
+  obtain ⟨a, ha, rfl⟩ := hm₀
+  rw [PMF.map_comp, PMF.mem_support_map_iff] at htr_from
+  obtain ⟨⟨⟨tr', m_fin⟩, pr⟩, htm, htr_eq⟩ := htr_from
+  dsimp only [Function.comp_apply] at htr_eq
+  subst htr_eq
+  exact ⟨a, ha, m_fin, (PMF.mem_support_map_iff _ _ _).mpr ⟨((tr', m_fin), pr), htm, rfl⟩⟩
 
 private theorem tsum_expectedProbesFrom_cons_le {Op : Type*} {Result : Op → Type}
     {cells wCell : ℕ} {α : Type*} {β : Type*}
@@ -560,68 +568,83 @@ private theorem tsum_expectedProbesFrom_cons_le {Op : Type*} {Result : Op → Ty
         simp only [List.length_cons, Nat.cast_add, Nat.cast_one]
         ring
 
-private theorem lasVegas_step_expectedProbesFrom_le {B : Basis}
-    {r regCells wCell w base space : ℕ} {input : Fin r → Bool}
-    {Op : Type*} {Result : Op → Type} {o : Op}
+private theorem lasVegas_cons_step {B : Basis} {r regCells wCell w base space : ℕ}
+    {input : Fin r → Bool} {Op : Type*} {Result : Op → Type} {o : Op}
     (L : RegLayout r input base space w regCells wCell)
     (P_cp : Cslib.CellProbe.Randomized.Scheme Op Result (space + regCells) wCell)
-    (p_op : Program B r) (argRegs : Fin r → ℕ)
-    (decode : ℕ → (Fin r → ℕ) → Option (Result o)) (dflt : Result o)
-    (K M_corr : ℕ) (η : ℝ≥0∞) {ops_rem : List Op}
-    (hstep_eq : P_cp.step o = simProgRand (w := w) L p_op argRegs decode dflt K)
+    (p_op : Program B r) (encode : Op → Fin r → ℕ)
+    (decode : ℕ → (Fin r → ℕ) → Option (Result o)) (dflt : Result o) (K M_corr : ℕ) (η : ℝ≥0∞)
+    (hstep_eq : P_cp.step o = simProgRand (w := w) L p_op (encode o) decode dflt K)
     (hW_step : ∀ o' m, (P_cp.step o').expectedProbes m ≤
       ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞))
-    (hlen_rem : ops_rem.length ≤ M_corr)
+    {ops_rem : List Op} (hlen_rem : ops_rem.length ≤ M_corr)
     {x : Data r} {μ_vy : PMF (ℕ × Data r)} {T_p : ℝ≥0∞}
-    (harg : ∀ i, input i = true → Fits w (argRegs i))
-    (hpdist : ExecProgramDist w p_op (L.unpack argRegs (L.pack x)) μ_vy (T_p + 1))
-    (htail :
-      (evalRand w p_op K ⟨0, L.unpack argRegs (L.pack x)⟩).toOuterMeasure (RandCfg.runningSet r) *
+    (hx_bdd : x.Bounded w) (hx_out : ∀ a ∉ (Block.mk base space).footprint, x.mem a = 0)
+    (harg : ∀ i, input i = true → Fits w (encode o i))
+    (hTp_fin : T_p ≠ ⊤)
+    (hpdist : ExecProgramDist w p_op (prepareFlatRegs input encode o x) μ_vy (T_p + 1))
+    (hK_tail_o : ∀ m : Mem (space + regCells) wCell,
+      (∃ μ_p : PMF (ℕ × Data r), ∃ T' : ℝ≥0∞, T' ≠ ⊤ ∧
+        ExecProgramDist w p_op (L.unpack (encode o) m) μ_p (T' + 1)) →
+      (evalRand w p_op K ⟨0, L.unpack (encode o) m⟩).toOuterMeasure (RandCfg.runningSet r) *
         ((((2 * space + regCells) + M_corr * (2 * space + regCells + L.overhead) : ℕ) : ℝ≥0∞) +
           (M_corr : ℝ≥0∞) * (K : ℝ≥0∞)) ≤ η) :
+    (∀ tm ∈ ((P_cp.runFrom (L.pack x) (o :: ops_rem)).map Prod.fst).support,
+      ∃ vy ∈ μ_vy.support, ∃ tm_rem ∈ ((P_cp.runFrom (L.pack vy.2) ops_rem).map Prod.fst).support,
+        tm = (⟨o, (decode vy.1 vy.2.regs).getD dflt⟩ :: tm_rem.1, tm_rem.2)) ∧
     P_cp.expectedProbesFrom (L.pack x) (o :: ops_rem) ≤
       T_p + ((L.overhead : ℝ≥0∞) + η) +
         ∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem := by
-  set W_step : ℝ≥0∞ := ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞)
-  set B_rem : ℝ≥0∞ := (M_corr : ℝ≥0∞) * W_step
-  have hB_rem_eq :
-      ((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem =
-        (((2 * space + regCells) + M_corr * (2 * space + regCells + L.overhead) : ℕ) : ℝ≥0∞) +
-          (M_corr : ℝ≥0∞) * (K : ℝ≥0∞) := by
-    dsimp only [B_rem, W_step]
-    push_cast
-    ring
-  obtain ⟨_, hexp_sim, hcoupl⟩ :=
-    simProgRand_lasVegas_spec L p_op argRegs decode dflt K (L.validMem_pack x) harg hpdist
-  rw [← hstep_eq] at hexp_sim hcoupl
-  have hcont_le := continuing_sum_le_of_almostSurelyHalts hpdist.almostSurelyHalts hpdist.1 K
-  have hg_bound : ∀ om ∈ (((P_cp.step o).run (L.pack x)).map Prod.fst).support,
-      P_cp.expectedProbesFrom om.2 ops_rem ≤ B_rem := fun om _ =>
-    (expectedProbesFrom_le_mul P_cp W_step hW_step ops_rem om.2).trans
-      (mul_le_mul' (Nat.cast_le.mpr hlen_rem) le_rfl)
-  have hcoupl_rem := hcoupl (fun om => P_cp.expectedProbesFrom om.2 ops_rem) B_rem hg_bound
-  have hcons_eq := P_cp.expectedProbesFrom_cons (L.pack x) o ops_rem
-  have htail_le :
-      (evalRand w p_op K ⟨0, L.unpack argRegs (L.pack x)⟩).toOuterMeasure (RandCfg.runningSet r) *
-        (((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem) ≤ η := by
-    rwa [hB_rem_eq]
-  rw [hcons_eq]
-  set p_run :=
-    (evalRand w p_op K ⟨0, L.unpack argRegs (L.pack x)⟩).toOuterMeasure (RandCfg.runningSet r)
-  calc (P_cp.step o).expectedProbes (L.pack x) +
-        ∑' om, (((P_cp.step o).run (L.pack x)).map Prod.fst) om *
-          P_cp.expectedProbesFrom om.2 ops_rem
-    _ ≤ (T_p + (L.overhead : ℝ≥0∞) + p_run * ((2 * space + regCells : ℕ) : ℝ≥0∞)) +
-          ((∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem) + p_run * B_rem) :=
-        add_le_add (hexp_sim.trans (add_le_add (add_le_add hcont_le le_rfl) le_rfl)) hcoupl_rem
-    _ = T_p + (L.overhead : ℝ≥0∞) +
-          (∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem) +
-          p_run * (((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem) := by ring
-    _ ≤ T_p + (L.overhead : ℝ≥0∞) +
-          (∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem) + η :=
-        add_le_add le_rfl htail_le
-    _ = T_p + ((L.overhead : ℝ≥0∞) + η) +
-          ∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem := by ac_rfl
+  have hunp : L.unpack (encode o) (L.pack x) = prepareFlatRegs input encode o x :=
+    unpack_pack_eq_prepareFlatRegs L encode o hx_bdd hx_out
+  rw [← hunp] at hpdist
+  obtain ⟨hsup_sim, hexp_sim, hcoupl⟩ :=
+    simProgRand_lasVegas_spec L p_op (encode o) decode dflt K (L.validMem_pack x) harg hpdist
+  rw [← hstep_eq] at hsup_sim hexp_sim hcoupl
+  refine ⟨fun tm htm => ?_, ?_⟩
+  · obtain ⟨z_full, hz_full, tm_rem, htm_rem, rfl⟩ := mem_support_runFrom_cons_fst P_cp htm
+    obtain ⟨vy, hvy, hz_eq⟩ := hsup_sim z_full hz_full
+    have hz_mem : z_full.1.2 = L.pack vy.2 := congrArg Prod.snd hz_eq
+    rw [hz_mem] at htm_rem
+    exact ⟨vy, hvy, tm_rem, htm_rem, by rw [congrArg Prod.fst hz_eq]⟩
+  · set W_step : ℝ≥0∞ := ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞)
+    set B_rem : ℝ≥0∞ := (M_corr : ℝ≥0∞) * W_step
+    have hB_rem_eq :
+        ((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem =
+          (((2 * space + regCells) + M_corr * (2 * space + regCells + L.overhead) : ℕ) : ℝ≥0∞) +
+            (M_corr : ℝ≥0∞) * (K : ℝ≥0∞) := by
+      dsimp only [B_rem, W_step]
+      push_cast
+      ring
+    have hcont_le := continuing_sum_le_of_almostSurelyHalts hpdist.almostSurelyHalts hpdist.1 K
+    have hg_bound : ∀ om ∈ (((P_cp.step o).run (L.pack x)).map Prod.fst).support,
+        P_cp.expectedProbesFrom om.2 ops_rem ≤ B_rem := fun om _ =>
+      (expectedProbesFrom_le_mul P_cp W_step hW_step ops_rem om.2).trans
+        (mul_le_mul' (Nat.cast_le.mpr hlen_rem) le_rfl)
+    have hcoupl_rem := hcoupl (fun om => P_cp.expectedProbesFrom om.2 ops_rem) B_rem hg_bound
+    have htail_le :
+        (evalRand w p_op K ⟨0, L.unpack (encode o) (L.pack x)⟩).toOuterMeasure
+            (RandCfg.runningSet r) *
+          (((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem) ≤ η := by
+      rw [hB_rem_eq]
+      exact hK_tail_o (L.pack x) ⟨μ_vy, T_p, hTp_fin, hpdist⟩
+    rw [P_cp.expectedProbesFrom_cons]
+    set p_run :=
+      (evalRand w p_op K ⟨0, L.unpack (encode o) (L.pack x)⟩).toOuterMeasure
+        (RandCfg.runningSet r)
+    calc (P_cp.step o).expectedProbes (L.pack x) +
+          ∑' om, (((P_cp.step o).run (L.pack x)).map Prod.fst) om *
+            P_cp.expectedProbesFrom om.2 ops_rem
+      _ ≤ (T_p + (L.overhead : ℝ≥0∞) + p_run * ((2 * space + regCells : ℕ) : ℝ≥0∞)) +
+            ((∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem) +
+              p_run * B_rem) :=
+          add_le_add (hexp_sim.trans (add_le_add (add_le_add hcont_le le_rfl) le_rfl)) hcoupl_rem
+      _ = T_p + (L.overhead : ℝ≥0∞) +
+            (∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem) +
+            p_run * (((2 * space + regCells : ℕ) : ℝ≥0∞) + B_rem) := by ring
+      _ ≤ T_p + ((L.overhead : ℝ≥0∞) + η) +
+            ∑' vy, μ_vy vy * P_cp.expectedProbesFrom (L.pack vy.2) ops_rem :=
+          (add_le_add le_rfl htail_le).trans_eq (by ac_rfl)
 
 private theorem exists_uniform_cutoff_singleProg {B : Basis}
     {r regCells wCell w base space : ℕ} {input : Fin r → Bool} {Op : Type*}
@@ -677,9 +700,9 @@ private theorem simFlatOps_induction {B : Basis} {r regCells wCell w base space 
     (∑' p, ν p * P_cp.expectedProbesFrom (L.pack p.2) ops) ≤
       T_ops + ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
   intro P_cp
-  set W_step : ℝ≥0∞ := ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞)
-  have hW_step : ∀ o m, (P_cp.step o).expectedProbes m ≤ W_step := fun o m =>
-    simProgRand_expectedProbes_le_worstCase L p_op (encode o) (decode o) default K m
+  have hW_step : ∀ o' m, (P_cp.step o').expectedProbes m ≤
+      ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞) := fun o' m =>
+    simProgRand_expectedProbes_le_worstCase L p_op (encode o') (decode o') default K m
   induction hex with
   | nil s ν =>
     refine ⟨fun p _ tm htm => ?_, ?_⟩
@@ -688,59 +711,31 @@ private theorem simFlatOps_induction {B : Basis} {r regCells wCell w base space 
       rw [htm, StateTransitionSpec.run_nil]
     · simp [Cslib.CellProbe.Randomized.Scheme.expectedProbesFrom]
   | @cons s o ops_rem ν ν_final μ_step T_step T_rest hstep _ ih =>
-    have ho_alph : o ∈ opsAlphabet := halph o List.mem_cons_self
-    have halph_rem : ∀ o' ∈ ops_rem, o' ∈ opsAlphabet :=
-      fun o' ho' => halph o' (List.mem_cons_of_mem o ho')
-    have hlen_rem : ops_rem.length ≤ M_corr := Nat.le_of_succ_le hlen
-    have hsum_fin : (∑' p, ν p * T_step p) ≠ ⊤ :=
-      ne_top_of_le_ne_top hT_fin le_self_add
-    have hT_rest_fin : T_rest ≠ ⊤ :=
-      ne_top_of_le_ne_top hT_fin le_add_self
+    have hsum_fin : (∑' p, ν p * T_step p) ≠ ⊤ := ne_top_of_le_ne_top hT_fin le_self_add
     have hsupp₁ := bounded_zeroOutside_bind_map ν μ_step (fun _ q => (q.1, q.2.2)) Prod.snd
       (fun q => q.2.2) (fun _ _ => rfl) hsupp fun p hp q hq => by
         obtain ⟨hq_bdd, _, hmod⟩ := (hstep p hp).2.2 q.1 q.2.1 q.2.2 hq
         exact ⟨hq_bdd, hmod⟩
-    obtain ⟨hcorr_rem, hexp_rem⟩ := ih hlen_rem halph_rem hT_rest_fin hsupp₁
+    obtain ⟨hcorr_rem, hexp_rem⟩ := ih (Nat.le_of_succ_le hlen)
+      (fun o' ho' => halph o' (List.mem_cons_of_mem o ho'))
+      (ne_top_of_le_ne_top hT_fin le_add_self) hsupp₁
+    have hstep_cp := fun p (hp : p ∈ ν.support) =>
+      lasVegas_cons_step L P_cp p_op encode (decode o) (default : D.Result o) K M_corr η rfl
+        hW_step (Nat.le_of_succ_le hlen) (hsupp p hp).1 (hsupp p hp).2 (hstep p hp).1
+        (ne_top_of_mem_support_of_tsum_ne_top hsum_fin hp) (hstep p hp).2.1
+        (hK_tail o (halph o List.mem_cons_self))
     refine ⟨?_, ?_⟩
     · intro p hp tm htm
-      obtain ⟨z_full, hz_full, tm_rem, htm_rem_mem, rfl⟩ := mem_support_runFrom_cons_fst P_cp htm
-      obtain ⟨hp_bdd, hp_out⟩ := hsupp p hp
-      obtain ⟨harg, hpdist, hq_all⟩ := hstep p hp
-      have hunp : L.unpack (encode o) (L.pack p.2) = prepareFlatRegs input encode o p.2 :=
-        unpack_pack_eq_prepareFlatRegs L encode o hp_bdd hp_out
-      rw [← hunp] at hpdist
-      obtain ⟨hsup_sim, _, _⟩ :=
-        simProgRand_lasVegas_spec L p_op (encode o) (decode o) (default : D.Result o) K
-          (L.validMem_pack p.2) harg hpdist
-      obtain ⟨vy, hvy, hz₁_eq⟩ := hsup_sim z_full hz_full
+      obtain ⟨vy, hvy, tm_rem, htm_rem, rfl⟩ := (hstep_cp p hp).1 tm htm
       rw [PMF.mem_support_map_iff] at hvy
       obtain ⟨q, hq, rfl⟩ := hvy
-      obtain ⟨_, hdec_q, _⟩ := hq_all q.1 q.2.1 q.2.2 hq
-      have hz₁_ans : z_full.1.1 = (D.stepFn s o).2 := by
-        have h1 := congrArg Prod.fst hz₁_eq
-        simpa [hdec_q] using h1
-      have hz₁_mem : z_full.1.2 = L.pack q.2.2 := congrArg Prod.snd hz₁_eq
-      rw [hz₁_mem] at htm_rem_mem
-      have hp₁_mem :
-          (q.1, q.2.2) ∈ (ν.bind fun p' => (μ_step p').map fun q' => (q'.1, q'.2.2)).support := by
-        rw [PMF.mem_support_bind_iff]
-        exact ⟨p, hp, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
-      have htr_rem := hcorr_rem (q.1, q.2.2) hp₁_mem tm_rem htm_rem_mem
-      simp only [StateTransitionSpec.run_cons, hz₁_ans, htr_rem]
+      obtain ⟨_, hdec_q, _⟩ := (hstep p hp).2.2 q.1 q.2.1 q.2.2 hq
+      have htr_rem := hcorr_rem (q.1, q.2.2) (mem_support_bind_map hp hq) tm_rem htm_rem
+      simp [StateTransitionSpec.run_cons, hdec_q, htr_rem]
     · refine tsum_expectedProbesFrom_cons_le P_cp ν μ_step (fun _ q => (q.1, q.2.2))
         (fun p => L.pack p.2) T_step ((L.overhead : ℝ≥0∞) + η) T_rest o ops_rem hexp_rem
         fun p hp => ?_
-      obtain ⟨hp_bdd, hp_out⟩ := hsupp p hp
-      obtain ⟨harg, hpdist, _⟩ := hstep p hp
-      have hTp_fin : T_step p ≠ ⊤ := ne_top_of_mem_support_of_tsum_ne_top hsum_fin hp
-      have hunp : L.unpack (encode o) (L.pack p.2) = prepareFlatRegs input encode o p.2 :=
-        unpack_pack_eq_prepareFlatRegs L encode o hp_bdd hp_out
-      rw [← hunp] at hpdist
-      have hstep_le :=
-        lasVegas_step_expectedProbesFrom_le L P_cp p_op (encode o) (decode o) (default : D.Result o)
-          K M_corr η rfl hW_step hlen_rem harg hpdist
-          (hK_tail o ho_alph (L.pack p.2) ⟨(μ_step p).map Prod.snd, T_step p, hTp_fin, hpdist⟩)
-      rwa [Probability.PMF.tsum_map_mul (μ_step p) Prod.snd] at hstep_le
+      simpa only [Probability.PMF.tsum_map_mul (μ_step p) Prod.snd] using (hstep_cp p hp).2
 
 /-- Uniform layout-parametric cell-probe simulation of a flat `(ν₀, p_op)` Las Vegas Word-RAM
 program pair: constructs a single `P_cp` **outside** `∀ ops` that is 100% zero-error on all
@@ -779,17 +774,9 @@ theorem exists_cellProbeLayout_of_flatPrograms {B : Basis} {r regCells wCell w b
       hlen halph hT_fin hsupp₀
   refine ⟨?_, ?_⟩
   · rw [D.toObliviousSequenceSpec_contract_iff_of_hasStepFn s₀ hv]
-    intro out hout
-    rw [Cslib.CellProbe.Randomized.Scheme.runSeq, PMF.map_bind, PMF.mem_support_bind_iff] at hout
-    obtain ⟨m₀, hm₀, hout_from⟩ := hout
-    rw [PMF.mem_support_map_iff] at hm₀
-    obtain ⟨p, hp, rfl⟩ := hm₀
-    rw [PMF.map_comp, PMF.mem_support_map_iff] at hout_from
-    obtain ⟨z_fin, htm, hout_eq⟩ := hout_from
-    rcases z_fin with ⟨⟨tr, m_fin⟩, pr⟩
-    dsimp only [Function.comp_apply] at hout_eq
-    subst hout_eq
-    exact hcorr p hp (tr, m_fin) ((PMF.mem_support_map_iff _ _ _).mpr ⟨((tr, m_fin), pr), htm, rfl⟩)
+    intro tr htr
+    obtain ⟨p, hp, m_fin, htm⟩ := mem_support_map_fst_runSeq_of_map P_cp rfl htr
+    exact hcorr p hp (tr, m_fin) htm
   · rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_eq_init_tsum]
     dsimp only [P_cp]
     rw [Probability.PMF.tsum_map_mul]
@@ -819,12 +806,9 @@ theorem exists_cellProbe_of_flatPrograms {B : Basis} {r w base space : ℕ} {inp
         (D.toObliviousSequenceSpec s₀).Contract ops ((P_cp.runSeq ops).map Prod.fst) ∧
           P_cp.expectedSeqProbes ops ≤
             T_ops + (((2 * persCount input : ℕ) : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
-  obtain ⟨P_cp, hP⟩ := exists_cellProbeLayout_of_flatPrograms s₀
-    (standardLayout input base space w) p_op encode decode ν₀ hsupp₀ opsAlphabet M_corr hη
-  refine ⟨P_cp, fun ops {ν_final T_ops} hv hlen halph hT hex => ?_⟩
-  obtain ⟨hc, he⟩ := hP ops hv hlen halph hT hex
-  rw [standardLayout_overhead] at he
-  exact ⟨hc, he⟩
+  simpa only [standardLayout_overhead] using
+    exists_cellProbeLayout_of_flatPrograms s₀ (standardLayout input base space w) p_op encode
+      decode ν₀ hsupp₀ opsAlphabet M_corr hη
 
 /-- Wide-cell (`space + 1` cells of width `wideWidth input w`) simulation of a flat `(ν₀, p_op)`
 Las Vegas Word-RAM program pair (`≤ 2` additive probes per operation regardless of `r`). -/
@@ -852,57 +836,44 @@ theorem exists_cellProbeWide_of_flatPrograms {B : Basis} {r w base space : ℕ}
           P_cp.expectedSeqProbes ops ≤
             T_ops + (((if persCount input = 0 then 0 else 2 : ℕ) : ℝ≥0∞) + η) *
               (ops.length : ℝ≥0∞) := by
-  obtain ⟨P_cp, hP⟩ := exists_cellProbeLayout_of_flatPrograms s₀
-    (wideLayout input base space w) p_op encode decode ν₀ hsupp₀ opsAlphabet M_corr hη
-  refine ⟨P_cp, fun ops {ν_final T_ops} hv hlen halph hT hex => ?_⟩
-  obtain ⟨hc, he⟩ := hP ops hv hlen halph hT hex
-  rw [wideLayout_overhead] at he
-  exact ⟨hc, he⟩
+  simpa only [wideLayout_overhead] using
+    exists_cellProbeLayout_of_flatPrograms s₀ (wideLayout input base space w) p_op encode decode
+      ν₀ hsupp₀ opsAlphabet M_corr hη
 
-private theorem flat_lower_bound_layout {B : Basis} {r regCells wCell w base space S_max : ℕ}
-    {input : Fin r → Bool}
+private theorem lower_bound_of_exists_cellProbeLayout
     {D : StateTransitionSpec.{u, v, 0}}
     {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
-    {Latent : Type z} (s₀ : D.State)
-    (L : RegLayout r input base space w regCells wCell)
-    (hspace : space + regCells ≤ S_max)
-    (p_op : Program B r) (encode : D.Op → Fin r → ℕ)
-    (decode : (o : D.Op) → ℕ → (Fin r → ℕ) → Option (D.Result o))
-    (ν₀ : PMF (Latent × Data r))
-    (hsupp₀ : ∀ p ∈ ν₀.support,
-      p.2.Bounded w ∧ ∀ a ∉ (Block.mk base space).footprint, p.2.mem a = 0)
+    (s₀ : D.State) {cells wCell S_max : ℕ} (hspace : cells ≤ S_max)
     (opsAlphabet : Finset D.Op) (M_corr : ℕ)
     (correctSeqs : Set (List D.Op))
     (hcorrectSeqs : ∀ ops ∈ correctSeqs,
       D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    (hex_corr : ∀ ops ∈ correctSeqs, ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
-      ExecFlatProgramOps D Latent w base space p_op input encode decode s₀ ops ν₀ ν_final T_ops)
     (hardDist : PMF (List D.Op))
     (hhardDist : ∀ ops ∈ hardDist.support,
       D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    (timeBound : List D.Op → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ hardDist.support, ∃ ν_final T_ops,
-      T_ops ≤ timeBound ops ∧ T_ops ≠ ⊤ ∧
-      ExecFlatProgramOps D Latent w base space p_op input encode decode s₀ ops ν₀ ν_final T_ops)
+    (initPot : ℝ≥0∞) (timeBound : List D.Op → ℝ≥0∞) (ovBound : ℝ≥0∞)
+    (hsim : ∀ [∀ o, Inhabited (D.Result o)] (η : ℝ≥0∞), 0 < η →
+      ∃ P_raw : Cslib.CellProbe.Randomized.Scheme D.Op D.Result cells wCell,
+        (∀ ops ∈ correctSeqs,
+          (D.toObliviousSequenceSpec s₀).Contract ops ((P_raw.runSeq ops).map Prod.fst)) ∧
+        (∀ ops ∈ hardDist.support,
+          P_raw.expectedSeqProbes ops ≤
+            initPot + timeBound ops + (ovBound + η) * (ops.length : ℝ≥0∞)))
     {LB : ℝ≥0∞}
     (hlb : ∀ D_det : IndexedScheme D.Op D.Result S_max wCell,
       (∀ ops ∈ correctSeqs, (D_det.runSeq ops).1 = (D.run s₀ ops).2) →
       LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
-    LB ≤ ∑' ops, hardDist ops *
-      (timeBound ops + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
+    LB ≤ initPot + ∑' ops, hardDist ops * (timeBound ops + ovBound * (ops.length : ℝ≥0∞)) := by
   classical
   have _ : ∀ o, Inhabited (D.Result o) := fun o => ⟨(f s₀ o).2⟩
   refine le_of_forall_pos_le_add_mul (M := M_corr) fun {η} hη => ?_
-  obtain ⟨P_raw, hP_raw⟩ :=
-    exists_cellProbeLayout_of_flatPrograms s₀ L p_op encode decode ν₀ hsupp₀ opsAlphabet M_corr hη
+  obtain ⟨P_raw, hcorr_raw, hexp_raw⟩ := hsim η hη
   let P_pad := P_raw.padCells hspace
   have hcorr_pad : ∀ ops ∈ correctSeqs,
       (D.toObliviousSequenceSpec s₀).Contract ops ((P_pad.runSeq ops).map Prod.fst) := by
     intro ops hops
-    obtain ⟨hv, hlen, halph⟩ := hcorrectSeqs ops hops
-    obtain ⟨ν_final, T_ops, hT_fin, hex⟩ := hex_corr ops hops
     rw [Cslib.CellProbe.Randomized.Scheme.runSeq_padCells]
-    exact (hP_raw ops hv hlen halph hT_fin hex).1
+    exact hcorr_raw ops hops
   obtain ⟨D_det, _, hD_corr, hD_probes⟩ :=
     Cslib.DataStructure.CellProbe.Randomized.exists_det_indexedScheme_le_expectedSeqProbes
       s₀ P_pad opsAlphabet M_corr correctSeqs hcorrectSeqs hcorr_pad hardDist
@@ -910,31 +881,29 @@ private theorem flat_lower_bound_layout {B : Basis} {r regCells wCell w base spa
   refine (hlb D_det hD_corr).trans (hD_probes.trans ?_)
   have hpt : ∀ ops,
       hardDist ops * P_pad.expectedSeqProbes ops ≤
-        hardDist ops * (timeBound ops + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
+        hardDist ops * initPot +
+          hardDist ops * (timeBound ops + ovBound * (ops.length : ℝ≥0∞)) +
           hardDist ops * (η * (M_corr : ℝ≥0∞)) := by
     intro ops
     by_cases hops : ops ∈ hardDist.support
-    · obtain ⟨hv, hlen, halph⟩ := hhardDist ops hops
-      obtain ⟨ν_final, T_ops, hT_le, hT_fin, hex⟩ := hex_hard ops hops
+    · obtain ⟨_, hlen, _⟩ := hhardDist ops hops
       rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_padCells]
-      have hexp := (hP_raw ops hv hlen halph hT_fin hex).2
       have h1 :
           P_raw.expectedSeqProbes ops ≤
-            (timeBound ops + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
-              η * (M_corr : ℝ≥0∞) := by
+            initPot + (timeBound ops + ovBound * (ops.length : ℝ≥0∞)) + η * (M_corr : ℝ≥0∞) := by
         calc P_raw.expectedSeqProbes ops
-          _ ≤ T_ops + ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := hexp
-          _ = (T_ops + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
+          _ ≤ initPot + timeBound ops + (ovBound + η) * (ops.length : ℝ≥0∞) := hexp_raw ops hops
+          _ = initPot + (timeBound ops + ovBound * (ops.length : ℝ≥0∞)) +
                 η * (ops.length : ℝ≥0∞) := by ring
-          _ ≤ (timeBound ops + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
+          _ ≤ initPot + (timeBound ops + ovBound * (ops.length : ℝ≥0∞)) +
                 η * (M_corr : ℝ≥0∞) :=
-              add_le_add (add_le_add hT_le le_rfl)
-                (mul_le_mul' le_rfl (Nat.cast_le.mpr hlen))
-      simpa only [mul_add] using mul_le_mul' le_rfl h1
+              add_le_add le_rfl (mul_le_mul' le_rfl (Nat.cast_le.mpr hlen))
+      simpa only [mul_add, add_assoc] using mul_le_mul' le_rfl h1
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hops]
       simp
   refine (tsum_le_tsum hpt).trans ?_
-  rw [tsum_add, ENNReal.tsum_mul_right, hardDist.tsum_coe, one_mul]
+  rw [tsum_add, tsum_add, ENNReal.tsum_mul_right, ENNReal.tsum_mul_right, hardDist.tsum_coe,
+    one_mul, one_mul, add_assoc]
 
 /-- **Contrapositive Word-RAM lower-bound transfer for flat `(ν₀, p_op)` programs** (standard
 `w`-bit cell layout over `S_max ≥ space + persCount input` cells, `0` `η`-loss, no
@@ -969,10 +938,20 @@ theorem flat_wordRAM_lower_bound_of_det_cellProbe {B : Basis} {r w base space S_
       LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
     LB ≤ ∑' ops, hardDist ops *
       (timeBound ops + ((2 * persCount input : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  simpa only [standardLayout_overhead] using
-    flat_lower_bound_layout s₀ (standardLayout input base space w) hspace p_op encode decode ν₀
-      hsupp₀ opsAlphabet M_corr correctSeqs hcorrectSeqs hex_corr hardDist hhardDist timeBound
-      hex_hard hlb
+  rw [← zero_add (∑' ops, _)]
+  exact lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs
+    hcorrectSeqs hardDist hhardDist 0 timeBound _ (fun _ hη =>
+      let ⟨P_raw, hP⟩ := exists_cellProbe_of_flatPrograms s₀ p_op encode decode ν₀ hsupp₀
+        opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => by
+          obtain ⟨hv, hl, ha⟩ := hcorrectSeqs ops h
+          obtain ⟨_, _, hf, hx⟩ := hex_corr ops h
+          exact (hP ops hv hl ha hf hx).1,
+        fun ops h => by
+          obtain ⟨hv, hl, ha⟩ := hhardDist ops h
+          obtain ⟨_, _, hT, hf, hx⟩ := hex_hard ops h
+          simpa only [zero_add] using (hP ops hv hl ha hf hx).2.trans (add_le_add hT le_rfl)⟩) hlb
 
 /-- **Wide-cell contrapositive Word-RAM lower-bound transfer for flat `(ν₀, p_op)` programs**
 (`S_max ≥ space + 1` cells of width `wideWidth input w`, `≤ 2` additive probes per operation
@@ -1008,10 +987,20 @@ theorem flat_wordRAM_lower_bound_of_det_cellProbe_wide {B : Basis} {r w base spa
     LB ≤ ∑' ops, hardDist ops *
       (timeBound ops +
         ((if persCount input = 0 then 0 else 2 : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  simpa only [wideLayout_overhead] using
-    flat_lower_bound_layout s₀ (wideLayout input base space w) hspace p_op encode decode ν₀
-      hsupp₀ opsAlphabet M_corr correctSeqs hcorrectSeqs hex_corr hardDist hhardDist timeBound
-      hex_hard hlb
+  rw [← zero_add (∑' ops, _)]
+  exact lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs
+    hcorrectSeqs hardDist hhardDist 0 timeBound _ (fun _ hη =>
+      let ⟨P_raw, hP⟩ := exists_cellProbeWide_of_flatPrograms s₀ p_op encode decode ν₀ hsupp₀
+        opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => by
+          obtain ⟨hv, hl, ha⟩ := hcorrectSeqs ops h
+          obtain ⟨_, _, hf, hx⟩ := hex_corr ops h
+          exact (hP ops hv hl ha hf hx).1,
+        fun ops h => by
+          obtain ⟨hv, hl, ha⟩ := hhardDist ops h
+          obtain ⟨_, _, hT, hf, hx⟩ := hex_hard ops h
+          simpa only [zero_add] using (hP ops hv hl ha hf hx).2.trans (add_le_add hT le_rfl)⟩) hlb
 
 end Cslib.DataStructure.CellProbe
 
@@ -1093,13 +1082,9 @@ private theorem exists_init_and_flat_steps
   · have hrep₀ : ∀ p ∈ ν₀.support, C.rep p.1 s₀ p.2 := fun p hp => (hsupp₀ p hp).2.1
     obtain ⟨ν_final, T_ops, hex, _, _, hamort⟩ :=
       C.steps_expected_amortized_ofFn ops ν₀ hv hseed₀ hrep₀
-    have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) := by
-      refine (tsum_le_tsum (g := fun p => ν₀ p * (C.initPotential : ℝ≥0∞)) fun p => ?_).trans ?_
-      · by_cases hp : p ∈ ν₀.support
-        · exact mul_le_mul' le_rfl (Nat.cast_le.mpr (hsupp₀ p hp).2.2.1)
-        · rw [(PMF.apply_eq_zero_iff _ _).mpr hp, zero_mul]
-          exact zero_le
-      · rw [ENNReal.tsum_mul_right, ν₀.tsum_coe, one_mul]
+    have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) :=
+      Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
+        Nat.cast_le.mpr (hsupp₀ p hp).2.2.1
     have hT_le : T_ops ≤ (C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞) := by
       calc T_ops
         _ ≤ T_ops + ∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞) := le_self_add
@@ -1112,6 +1097,31 @@ private theorem exists_init_and_flat_steps
       ne_top_of_le_ne_top
         (ENNReal.add_ne_top.mpr ⟨ENNReal.natCast_ne_top _, ENNReal.natCast_ne_top _⟩) hT_le
     exact ⟨ν_final, T_ops, hT_le, hT_fin, hex.toExecFlatProgramOps C hv⟩
+
+private theorem exists_cellProbeLayout_lasVegas [∀ o, Inhabited (D.Result o)]
+    (C : WordRAM.Randomized.StateTransitionImpl P D w base params s₀)
+    {regCells wCell : ℕ} (L : RegLayout r_ds P.input base C.space w regCells wCell)
+    {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
+    (hfr : d₀.regs P.frontierReg = base)
+    (hpar : ∀ j, d₀.regs (P.initParams j) = params j)
+    (opsAlphabet : Finset D.Op) (M_corr : ℕ) {η : ℝ≥0∞} (hη : 0 < η) :
+    ∃ P_cp : Cslib.CellProbe.Randomized.Scheme D.Op D.Result (C.space + regCells) wCell,
+      ∀ ops : List D.Op,
+        D.ValidHistory s₀ ops →
+        ops.length ≤ M_corr →
+        (∀ o ∈ ops, o ∈ opsAlphabet) →
+        (D.toObliviousSequenceSpec s₀).Contract ops ((P_cp.runSeq ops).map Prod.fst) ∧
+          P_cp.expectedSeqProbes ops ≤
+            (C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞) +
+              ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
+  obtain ⟨ν₀, hsupp₀, hsteps⟩ := C.exists_init_and_flat_steps hd₀ hfr hpar
+  obtain ⟨P_cp, hP⟩ :=
+    exists_cellProbeLayout_of_flatPrograms (input := P.input) s₀ L (P.code.program P.output)
+      C.encode (fun o _ regs => C.decode o regs) ν₀ hsupp₀ opsAlphabet M_corr hη
+  refine ⟨P_cp, fun ops hv hlen halph => ?_⟩
+  obtain ⟨_, _, hT_le, hT_fin, hex⟩ := hsteps ops hv
+  obtain ⟨hc, he⟩ := hP ops hv hlen halph hT_fin hex
+  exact ⟨hc, he.trans (add_le_add hT_le le_rfl)⟩
 
 /-- **Bridge 3 (Las Vegas `WordRAM.Randomized.StateTransitionImpl` → `CellProbe.Randomized.Scheme`,
 standard `w`-bit layout):**
@@ -1136,16 +1146,10 @@ theorem exists_cellProbe_lasVegas [∀ o, Inhabited (D.Result o)]
           P_cp.expectedSeqProbes ops ≤
             (C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞) +
               (((2 * persistentRegCount P : ℕ) : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
-  obtain ⟨ν₀, hsupp₀, hsteps⟩ := C.exists_init_and_flat_steps hd₀ hfr hpar
-  obtain ⟨P_cp, hP⟩ :=
-    exists_cellProbe_of_flatPrograms (input := P.input) s₀ (P.code.program P.output) C.encode
-      (fun o _ regs => C.decode o regs) ν₀ hsupp₀ opsAlphabet M_corr hη
-  refine ⟨P_cp, fun ops hv hlen halph => ?_⟩
-  obtain ⟨ν_final, T_ops, hT_le, hT_fin, hex⟩ := hsteps ops hv
-  obtain ⟨hc, he⟩ := hP ops hv hlen halph hT_fin hex
-  refine ⟨hc, he.trans ?_⟩
   rw [persistentRegCount_eq_persCount]
-  exact add_le_add hT_le le_rfl
+  simpa only [standardLayout_overhead] using
+    C.exists_cellProbeLayout_lasVegas (standardLayout P.input base C.space w)
+      hd₀ hfr hpar opsAlphabet M_corr hη
 
 /-- **Wide-Cell Las Vegas Bridge (`exists_cellProbeWide_lasVegas`):**
 Packs all persistent registers into `1` cell of width `wideSubroutineWidth P w` over `C.space + 1`
@@ -1167,16 +1171,12 @@ theorem exists_cellProbeWide_lasVegas [∀ o, Inhabited (D.Result o)]
             (C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞) +
               (((if persistentRegCount P = 0 then 0 else 2 : ℕ) : ℝ≥0∞) + η) *
                 (ops.length : ℝ≥0∞) := by
-  obtain ⟨ν₀, hsupp₀, hsteps⟩ := C.exists_init_and_flat_steps hd₀ hfr hpar
-  obtain ⟨P_cp, hP⟩ :=
-    exists_cellProbeWide_of_flatPrograms (input := P.input) s₀ (P.code.program P.output) C.encode
-      (fun o _ regs => C.decode o regs) ν₀ hsupp₀ opsAlphabet M_corr hη
+  obtain ⟨P_cp, hP⟩ := C.exists_cellProbeLayout_lasVegas (wideLayout P.input base C.space w)
+    hd₀ hfr hpar opsAlphabet M_corr hη
   refine ⟨P_cp, fun ops hv hlen halph => ?_⟩
-  obtain ⟨ν_final, T_ops, hT_le, hT_fin, hex⟩ := hsteps ops hv
-  obtain ⟨hc, he⟩ := hP ops hv hlen halph hT_fin hex
-  refine ⟨hc, he.trans ?_⟩
-  rw [persistentRegCount_eq_persCount]
-  exact add_le_add hT_le le_rfl
+  obtain ⟨hc, he⟩ := hP ops hv hlen halph
+  rw [wideLayout_overhead, ← persistentRegCount_eq_persCount] at he
+  exact ⟨hc, he⟩
 
 end Cslib.DataStructure.WordRAM.Randomized.StateTransitionImpl
 
@@ -1184,92 +1184,10 @@ namespace Cslib.DataStructure.CellProbe
 
 universe u v
 
-private theorem wordRAM_lower_bound_of_det_cellProbeLayout
-    {B : Basis} {r_ds k_init regCells wCell w base S_max : ℕ}
-    {P : SubroutineCode B r_ds k_init}
-    {D : StateTransitionSpec.{u, v, 0}}
-    {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
-    {params : Fin k_init → ℕ} {s₀ : D.State}
-    (C : WordRAM.Randomized.StateTransitionImpl P D w base params s₀)
-    (L : RegLayout r_ds P.input base C.space w regCells wCell)
-    {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
-    (hfr : d₀.regs P.frontierReg = base)
-    (hpar : ∀ j, d₀.regs (P.initParams j) = params j)
-    (hspace : C.space + regCells ≤ S_max)
-    (opsAlphabet : Finset D.Op) (M_corr : ℕ)
-    (correctSeqs : Set (List D.Op))
-    (hcorrectSeqs : ∀ ops ∈ correctSeqs,
-      D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    (hardDist : PMF (List D.Op))
-    (hhardDist : ∀ ops ∈ hardDist.support,
-      D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    {ovBound : ℝ≥0∞} (hov : (L.overhead : ℝ≥0∞) ≤ ovBound)
-    {LB : ℝ≥0∞}
-    (hlb : ∀ D_det : IndexedScheme D.Op D.Result S_max wCell,
-      (∀ ops ∈ correctSeqs, (D_det.runSeq ops).1 = (D.run s₀ ops).2) →
-      LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
-    LB ≤ (C.initPotential : ℝ≥0∞) +
-      ∑' ops, hardDist ops *
-        ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + ovBound * (ops.length : ℝ≥0∞)) := by
-  obtain ⟨ν₀, hsupp₀, hsteps⟩ := C.exists_init_and_flat_steps hd₀ hfr hpar
-  have hraw :=
-    flat_lower_bound_layout s₀ L hspace (P.code.program P.output) C.encode
-      (fun o _ regs => C.decode o regs) ν₀ hsupp₀ opsAlphabet M_corr correctSeqs hcorrectSeqs
-      (fun ops hops => by
-        obtain ⟨ν_f, T_ops, _, hT_fin, hex⟩ := hsteps ops (hcorrectSeqs ops hops).1
-        exact ⟨ν_f, T_ops, hT_fin, hex⟩)
-      hardDist hhardDist
-      (fun ops => (C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞))
-      (fun ops hops => hsteps ops (hhardDist ops hops).1)
-      hlb
-  refine hraw.trans ?_
-  have hpt : ∀ ops,
-      hardDist ops *
-          (((C.initPotential : ℝ≥0∞) + (D.totalCost C.charge s₀ ops : ℝ≥0∞)) +
-            (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) ≤
-        hardDist ops * (C.initPotential : ℝ≥0∞) +
-          hardDist ops *
-            ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + ovBound * (ops.length : ℝ≥0∞)) := by
-    intro ops
-    rw [add_assoc, mul_add]
-    exact add_le_add le_rfl
-      (mul_le_mul' le_rfl (add_le_add le_rfl (mul_le_mul' hov le_rfl)))
-  refine (tsum_le_tsum hpt).trans ?_
-  rw [tsum_add, ENNReal.tsum_mul_right, hardDist.tsum_coe, one_mul]
-
-private theorem wordRAM_lower_bound_of_det_cellProbeLayout_of_finite
-    {B : Basis} {r_ds k_init regCells wCell w base S_max : ℕ}
-    {P : SubroutineCode B r_ds k_init}
-    {D : StateTransitionSpec.{u, v, 0}} [Finite D.Op]
-    {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
-    {params : Fin k_init → ℕ} {s₀ : D.State}
-    (C : WordRAM.Randomized.StateTransitionImpl P D w base params s₀)
-    (L : RegLayout r_ds P.input base C.space w regCells wCell)
-    {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
-    (hfr : d₀.regs P.frontierReg = base)
-    (hpar : ∀ j, d₀.regs (P.initParams j) = params j)
-    (hspace : C.space + regCells ≤ S_max)
-    (M_corr : ℕ) (correctSeqs : Set (List D.Op))
-    (hcorrectSeqs : ∀ ops ∈ correctSeqs, D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr)
-    (hardDist : PMF (List D.Op))
-    (hhardDist : ∀ ops ∈ hardDist.support, D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr)
-    {ovBound : ℝ≥0∞} (hov : (L.overhead : ℝ≥0∞) ≤ ovBound)
-    {LB : ℝ≥0∞}
-    (hlb : ∀ D_det : IndexedScheme D.Op D.Result S_max wCell,
-      (∀ ops ∈ correctSeqs, (D_det.runSeq ops).1 = (D.run s₀ ops).2) →
-      LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
-    LB ≤ (C.initPotential : ℝ≥0∞) +
-      ∑' ops, hardDist ops *
-        ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + ovBound * (ops.length : ℝ≥0∞)) := by
-  cases nonempty_fintype D.Op
-  exact wordRAM_lower_bound_of_det_cellProbeLayout C L hd₀ hfr hpar hspace Finset.univ M_corr
-    correctSeqs
-    (fun ops hops => ⟨(hcorrectSeqs ops hops).1, (hcorrectSeqs ops hops).2,
-      fun _ _ => Finset.mem_univ _⟩)
-    hardDist
-    (fun ops hops => ⟨(hhardDist ops hops).1, (hhardDist ops hops).2,
-      fun _ _ => Finset.mem_univ _⟩)
-    hov hlb
+private theorem hist_mem_univ {Op : Type*} [Fintype Op] {P : List Op → Prop} {M_corr : ℕ}
+    {S : Set (List Op)} (h : ∀ ops ∈ S, P ops ∧ ops.length ≤ M_corr) :
+    ∀ ops ∈ S, P ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ Finset.univ :=
+  fun ops hops => ⟨(h ops hops).1, (h ops hops).2, fun _ _ => Finset.mem_univ _⟩
 
 /-- **Contrapositive Deterministic-Cell-Probe-to-Word-RAM Lower-Bound Transfer
 (`wordRAM_lower_bound_of_det_cellProbe_lower_bound`, standard `w`-bit layout):**
@@ -1305,12 +1223,15 @@ theorem wordRAM_lower_bound_of_det_cellProbe_lower_bound
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, hardDist ops *
         ((D.totalCost C.charge s₀ ops : ℝ≥0∞) +
-          ((2 * persistentRegCount P : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  have hspace' : C.space + persCount P.input ≤ S_max := by
-    rwa [← persistentRegCount_eq_persCount]
-  exact wordRAM_lower_bound_of_det_cellProbeLayout C (standardLayout P.input base C.space w)
-    hd₀ hfr hpar hspace' opsAlphabet M_corr correctSeqs hcorrectSeqs hardDist hhardDist
-    (by simp [standardLayout_overhead, persistentRegCount_eq_persCount]) hlb
+          ((2 * persistentRegCount P : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) :=
+  lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs hcorrectSeqs
+    hardDist hhardDist _ _ _ (fun _ hη =>
+      let ⟨P_raw, hP⟩ := C.exists_cellProbe_lasVegas hd₀ hfr hpar opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => (hP ops (hcorrectSeqs ops h).1 (hcorrectSeqs ops h).2.1
+          (hcorrectSeqs ops h).2.2).1,
+        fun ops h => (hP ops (hhardDist ops h).1 (hhardDist ops h).2.1
+          (hhardDist ops h).2.2).2⟩) hlb
 
 /-- `[Finite D.Op]` convenience specialization of
 `wordRAM_lower_bound_of_det_cellProbe_lower_bound`, instantiating `opsAlphabet := Finset.univ`. -/
@@ -1337,11 +1258,9 @@ theorem wordRAM_lower_bound_of_det_cellProbe_of_fintype
       ∑' ops, hardDist ops *
         ((D.totalCost C.charge s₀ ops : ℝ≥0∞) +
           ((2 * persistentRegCount P : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  have hspace' : C.space + persCount P.input ≤ S_max := by
-    rwa [← persistentRegCount_eq_persCount]
-  exact wordRAM_lower_bound_of_det_cellProbeLayout_of_finite C
-    (standardLayout P.input base C.space w) hd₀ hfr hpar hspace' M_corr correctSeqs hcorrectSeqs
-    hardDist hhardDist (by simp [standardLayout_overhead, persistentRegCount_eq_persCount]) hlb
+  cases nonempty_fintype D.Op
+  exact wordRAM_lower_bound_of_det_cellProbe_lower_bound C hd₀ hfr hpar hspace Finset.univ M_corr
+    correctSeqs (hist_mem_univ hcorrectSeqs) hardDist (hist_mem_univ hhardDist) hlb
 
 /-- **Wide-Cell Contrapositive Word-RAM Lower-Bound Transfer
 (`wordRAM_lower_bound_of_det_cellProbe_wide`):**
@@ -1374,10 +1293,16 @@ theorem wordRAM_lower_bound_of_det_cellProbe_wide
       LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, hardDist ops *
-        ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + (2 : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  exact wordRAM_lower_bound_of_det_cellProbeLayout C (wideLayout P.input base C.space w)
-    hd₀ hfr hpar hspace opsAlphabet M_corr correctSeqs hcorrectSeqs hardDist hhardDist
-    (by rw [wideLayout_overhead]; split_ifs <;> norm_num) hlb
+        ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + (2 : ℝ≥0∞) * (ops.length : ℝ≥0∞)) :=
+  lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs hcorrectSeqs
+    hardDist hhardDist _ _ (2 : ℝ≥0∞) (fun _ hη =>
+      let ⟨P_raw, hP⟩ := C.exists_cellProbeWide_lasVegas hd₀ hfr hpar opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => (hP ops (hcorrectSeqs ops h).1 (hcorrectSeqs ops h).2.1
+          (hcorrectSeqs ops h).2.2).1,
+        fun ops h => (hP ops (hhardDist ops h).1 (hhardDist ops h).2.1
+          (hhardDist ops h).2.2).2.trans (add_le_add le_rfl (mul_le_mul'
+            (add_le_add (by split_ifs <;> norm_num) le_rfl) le_rfl))⟩) hlb
 
 /-- `[Finite D.Op]` convenience specialization of `wordRAM_lower_bound_of_det_cellProbe_wide`. -/
 theorem wordRAM_lower_bound_of_det_cellProbe_wide_of_fintype
@@ -1402,9 +1327,9 @@ theorem wordRAM_lower_bound_of_det_cellProbe_wide_of_fintype
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, hardDist ops *
         ((D.totalCost C.charge s₀ ops : ℝ≥0∞) + (2 : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  exact wordRAM_lower_bound_of_det_cellProbeLayout_of_finite C
-    (wideLayout P.input base C.space w) hd₀ hfr hpar hspace M_corr correctSeqs hcorrectSeqs
-    hardDist hhardDist (by rw [wideLayout_overhead]; split_ifs <;> norm_num) hlb
+  cases nonempty_fintype D.Op
+  exact wordRAM_lower_bound_of_det_cellProbe_wide C hd₀ hfr hpar hspace Finset.univ M_corr
+    correctSeqs (hist_mem_univ hcorrectSeqs) hardDist (hist_mem_univ hhardDist) hlb
 
 end Cslib.DataStructure.CellProbe
 
@@ -1488,6 +1413,28 @@ finite `ExecRand` computation trees (`ExecStepsRand`). -/
       S.Contract ops (ν_final.map SeqOutcome.transcript) ∧
       T_ops ≤ (C.initPotential : ℝ≥0∞) + ((ops.map C.charge).sum : ℝ≥0∞)
 
+private theorem ObliviousSequenceImpl.initFresh_seqOutcome
+    {B : Basis} {r_ds k_init w base : ℕ}
+    {P : SubroutineCode B r_ds k_init}
+    {S : DataStructure.ObliviousSequenceSpec.{u, 0}}
+    {params : Fin k_init → ℕ}
+    (C : ObliviousSequenceImpl.{u, 0, z} P S w base params)
+    {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
+    (hfr : d₀.regs P.frontierReg = base)
+    (hpar : ∀ j, d₀.regs (P.initParams j) = params j) :
+    ∃ ν₀ : PMF (LatentState C.Latent r_ds),
+      C.initInv ν₀ ∧
+      ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState (Result := S.Result))).support,
+        t.data.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, t.data.mem a = 0 := by
+  let d₀' : Data r_ds := { regs := d₀.regs, mem := fun _ => 0 }
+  have hd₀' : d₀'.Bounded w := ⟨hd₀.1, fun _ => fits_zero w⟩
+  obtain ⟨ν₀, _, hinv₀, hsupp₀⟩ := C.initFresh_exec hd₀' hfr hpar (fun _ _ => rfl)
+  refine ⟨ν₀, hinv₀, fun t ht => ?_⟩
+  rw [PMF.mem_support_map_iff] at ht
+  obtain ⟨z₀, hz₀, rfl⟩ := ht
+  obtain ⟨hbdd, _, hmod⟩ := hsupp₀ z₀ hz₀
+  exact ⟨hbdd, fun a ha => hmod a ha⟩
+
 private theorem simExecStepsRand_induction {B : Basis} {r_ds k_init regCells wCell w base space : ℕ}
     {P : SubroutineCode B r_ds k_init}
     {S : DataStructure.ObliviousSequenceSpec.{u, 0}} [∀ o, Inhabited (S.Result o)]
@@ -1515,8 +1462,7 @@ private theorem simExecStepsRand_induction {B : Basis} {r_ds k_init regCells wCe
   | nil ν =>
     refine ⟨?_, by simp [Cslib.CellProbe.Randomized.Scheme.expectedProbesFrom]⟩
     simp only [Cslib.CellProbe.Randomized.Scheme.runFrom, PMF.pure_map, List.append_nil]
-    ext tr
-    simp [PMF.bind_apply, PMF.map_apply]
+    exact PMF.bind_pure_comp SeqOutcome.transcript ν
   | @cons o ops_rem ν ν_final mc μ_step T_rest hstep _ ih =>
     have hsupp₁ := bounded_zeroOutside_bind_map ν μ_step (fun t q => t.appendStep o q)
       SeqOutcome.data StepOutcome.data (fun _ _ => rfl) hsupp fun t ht q hq => by
@@ -1531,8 +1477,7 @@ private theorem simExecStepsRand_induction {B : Basis} {r_ds k_init regCells wCe
       intro t ht
       obtain ⟨ht_bdd, ht_out⟩ := hsupp t ht
       obtain ⟨_, harg, hexec_t, hmc_eq, hq_all⟩ := hstep t ht
-      have hunp : L.unpack (encode o) (L.pack t.data) =
-          P.prepare encode o t.data :=
+      have hunp : L.unpack (encode o) (L.pack t.data) = P.prepare encode o t.data :=
         unpack_pack_eq_prepareFlatRegs L encode o ht_bdd ht_out
       rw [← hunp] at hexec_t
       obtain ⟨hlaw_sim, hexp_sim⟩ :=
@@ -1546,49 +1491,16 @@ private theorem simExecStepsRand_induction {B : Basis} {r_ds k_init regCells wCe
         rw [PMF.map_comp]
         rfl
       rw [hlaw_sim, hpush, hmc_eq, PMF.map_comp]
-      ext am
-      simp only [PMF.map_apply]
-      dsimp only [Function.comp_apply]
-      refine tsum_congr fun q => ?_
-      by_cases hq : q ∈ (μ_step t).support
-      · have hdec_eq : (decode o q.data.regs).getD default = q.result := by
-          simp [(hq_all q hq).2.1]
-        by_cases ham : am = (q.result, L.pack q.data)
-        · have ham' : am = ((decode o q.data.regs).getD default, L.pack q.data) := by
-            rwa [hdec_eq]
-          rw [ite_eq_left ham', ite_eq_left ham]
-        · have ham' : am ≠ ((decode o q.data.regs).getD default, L.pack q.data) := by
-            rwa [hdec_eq]
-          rw [ite_eq_right ham', ite_eq_right ham]
-      · have hq0 : μ_step t q = 0 := (PMF.apply_eq_zero_iff _ _).mpr hq
-        simp [hq0]
+      exact Cslib.Probability.PMF.map_congr_on_support (μ_step t) _ _ fun q hq => by
+        simp [(hq_all q hq).2.1]
     refine ⟨?_, ?_⟩
     · rw [← hlaw_rem, PMF.bind_bind]
-      ext tr_out
-      simp only [PMF.bind_apply]
-      refine tsum_congr fun t => ?_
-      by_cases ht : t ∈ ν.support
-      · refine congrArg (ν t * ·) ?_
-        have h1 :
-            (((P_cp.runFrom (L.pack t.data) (o :: ops_rem)).map Prod.fst).map
-                (fun tm => t.transcript ++ tm.1)) =
-              (((P_cp.step o).run (L.pack t.data)).map Prod.fst).bind fun am =>
-                ((P_cp.runFrom am.2 ops_rem).map Prod.fst).map
-                  (fun tm_r => t.transcript ++ (⟨o, am.1⟩ :: tm_r.1)) := by
-          rw [P_cp.runFrom_cons_fst, PMF.map_bind]
-          refine congrArg ((((P_cp.step o).run (L.pack t.data)).map Prod.fst).bind ·)
-            (funext fun ⟨a, m'⟩ => ?_)
-          rw [PMF.map_comp]
-          rfl
-        rw [h1, (hstep_law t ht).1, PMF.bind_map, PMF.bind_apply,
-          Probability.PMF.tsum_map_mul (μ_step t) (t.appendStep o)]
-        refine tsum_congr fun q => congrArg (μ_step t q * ·) ?_
-        dsimp only [Function.comp_def, SeqOutcome.appendStep]
-        refine congrArg (fun f =>
-            (PMF.map f ((P_cp.runFrom (L.pack q.data) ops_rem).map Prod.fst)) tr_out)
-          (funext fun tm_r => ?_)
-        simp [List.append_assoc]
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr ht, zero_mul, zero_mul]
+      refine Cslib.Probability.PMF.bind_congr_on_support ν _ _ fun t ht => ?_
+      rw [P_cp.runFrom_cons_fst, PMF.map_bind, (hstep_law t ht).1, PMF.bind_map, PMF.bind_map]
+      refine congrArg ((μ_step t).bind ·) (funext fun q => ?_)
+      dsimp only [Function.comp_def, SeqOutcome.appendStep]
+      rw [PMF.map_comp]
+      simp only [Function.comp_def, List.append_assoc, List.cons_append, List.nil_append]
     · refine tsum_expectedProbesFrom_cons_le P_cp ν μ_step (fun t q => t.appendStep o q)
         (fun t => L.pack t.data) (fun t => ProbComp.expect (mc t) (fun z => (z.2 : ℝ≥0∞)))
         (L.overhead : ℝ≥0∞) T_rest o ops_rem hexp_rem fun t ht => ?_
@@ -1620,17 +1532,8 @@ theorem ObliviousSequenceImpl.exists_cellProbe_of_execRand
         (∀ o, C_cp.charge o = C.charge o + 2 * persistentRegCount P) := by
   rw [persistentRegCount_eq_persCount]
   let L := standardLayout P.input base C.space w
-  let d₀' : Data r_ds := { regs := d₀.regs, mem := fun _ => 0 }
-  have hd₀' : d₀'.Bounded w := ⟨hd₀.1, fun _ => fits_zero w⟩
-  obtain ⟨ν₀, _, hinv₀, hsupp₀⟩ := C.initFresh_exec hd₀' hfr hpar (fun _ _ => rfl)
+  obtain ⟨ν₀, hinv₀, hsupp_seq⟩ := C.initFresh_seqOutcome hd₀ hfr hpar
   set ν₀_seq := ν₀.map (SeqOutcome.ofLatentState (Result := S.Result))
-  have hsupp_seq : ∀ t ∈ ν₀_seq.support,
-      t.data.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, t.data.mem a = 0 := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨z₀, hz₀, rfl⟩ := ht
-    obtain ⟨hbdd, _, hmod⟩ := hsupp₀ z₀ hz₀
-    exact ⟨hbdd, fun a ha => hmod a ha⟩
   let P_cp : Cslib.CellProbe.Randomized.Scheme S.Op S.Result (C.space + persCount P.input) w :=
     { init := ν₀_seq.map fun t => L.pack t.data
       step := fun o =>
@@ -1652,21 +1555,9 @@ theorem ObliviousSequenceImpl.exists_cellProbe_of_execRand
       rw [← hlaw, Cslib.CellProbe.Randomized.Scheme.runSeq]
       dsimp only [P_cp]
       rw [PMF.map_bind, PMF.bind_map]
-      ext out_tr
-      simp only [PMF.bind_apply, Function.comp_apply]
-      refine tsum_congr fun t => ?_
-      by_cases ht : t ∈ ν₀_seq.support
-      · have hnil : t.transcript = [] := by
-          dsimp only [ν₀_seq] at ht
-          rw [PMF.mem_support_map_iff] at ht
-          obtain ⟨_, _, rfl⟩ := ht
-          rfl
-        rw [hnil]
-        simp only [PMF.map_comp]
-        refine congrArg (_ * ·)
-          (congrArg (fun f => (PMF.map f _) out_tr)
-            (funext fun ⟨⟨_, _⟩, _⟩ => rfl))
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr ht, zero_mul, zero_mul]
+      refine Cslib.Probability.PMF.bind_congr_on_support ν₀_seq _ _ fun t ht => ?_
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+      simp [SeqOutcome.ofLatentState, PMF.map_comp, Function.comp_def]
     exact hrun_eq ▸ hcontract
   · intro ops hv
     obtain ⟨ν_final, T_ops, hex, _, hcost⟩ := hfin ops ν₀ hv hinv₀
@@ -1732,10 +1623,10 @@ private theorem simExecStepsLasVegas_induction
       T_ops + ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
   intro P_cp
   set p_op := P.code.program P.output
-  set W_step : ℝ≥0∞ := ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞)
-  have hW_step : ∀ o m, (P_cp.step o).expectedProbes m ≤ W_step := fun o m =>
-    simProgRand_expectedProbes_le_worstCase L p_op (encode o) (fun _ regs => decode o regs)
-      default K m
+  have hW_step : ∀ o' m, (P_cp.step o').expectedProbes m ≤
+      ((K + 2 * space + regCells + L.overhead : ℕ) : ℝ≥0∞) := fun o' m =>
+    simProgRand_expectedProbes_le_worstCase L p_op (encode o')
+      (fun _ regs => decode o' regs) default K m
   induction hex with
   | nil ν =>
     refine ⟨fun t ht tm htm => ?_, by simp [Cslib.CellProbe.Randomized.Scheme.expectedProbesFrom]⟩
@@ -1744,65 +1635,38 @@ private theorem simExecStepsLasVegas_induction
     rw [htm, List.append_nil]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
   | @cons o ops_rem ν ν_final μ_step T_step T_rest hstep _ ih =>
-    have ho_alph : o ∈ opsAlphabet := halph o List.mem_cons_self
-    have halph_rem : ∀ o' ∈ ops_rem, o' ∈ opsAlphabet :=
-      fun o' ho' => halph o' (List.mem_cons_of_mem o ho')
-    have hlen_rem : ops_rem.length ≤ M_corr := Nat.le_of_succ_le hlen
     have hsum_fin : (∑' t, ν t * T_step t) ≠ ⊤ := ne_top_of_le_ne_top hT_fin le_self_add
-    have hT_rest_fin : T_rest ≠ ⊤ := ne_top_of_le_ne_top hT_fin le_add_self
     have hsupp₁ := bounded_zeroOutside_bind_map ν μ_step (fun t q => t.appendStep o q)
       SeqOutcome.data StepOutcome.data (fun _ _ => rfl) hsupp fun t ht q hq => by
         obtain ⟨hq_bdd, _, hmod⟩ := (hstep t ht).2.2.2.2 q hq
         exact ⟨hq_bdd, hmod⟩
-    obtain ⟨hcorr_rem, hexp_rem⟩ := ih hlen_rem halph_rem hT_rest_fin hsupp₁
+    obtain ⟨hcorr_rem, hexp_rem⟩ := ih (Nat.le_of_succ_le hlen)
+      (fun o' ho' => halph o' (List.mem_cons_of_mem o ho'))
+      (ne_top_of_le_ne_top hT_fin le_add_self) hsupp₁
+    have hstep_cp := fun t (ht : t ∈ ν.support) =>
+      let hpdist : ExecProgramDist w p_op (prepareFlatRegs P.input encode o t.data)
+          ((μ_step t).map fun q => (q.data.regs P.output, q.data)) (T_step t + 1) := by
+        have hp := execProgramDist_of_execCodeDist (hstep t ht).2.2.2.1 P.output
+        rw [PMF.map_comp] at hp
+        exact hp
+      lasVegas_cons_step L P_cp p_op encode (fun _ regs => decode o regs) (default : S.Result o)
+        K M_corr η rfl hW_step (Nat.le_of_succ_le hlen) (hsupp t ht).1 (hsupp t ht).2
+        (hstep t ht).2.1 (ne_top_of_mem_support_of_tsum_ne_top hsum_fin ht) hpdist
+        (hK_tail o (halph o List.mem_cons_self))
     refine ⟨?_, ?_⟩
     · intro t ht tm htm
-      obtain ⟨z_full, hz_full, tm_rem, htm_rem_mem, rfl⟩ := mem_support_runFrom_cons_fst P_cp htm
-      obtain ⟨ht_bdd, ht_out⟩ := hsupp t ht
-      obtain ⟨_, harg, _, hcdist, hq_all⟩ := hstep t ht
-      have hunp : L.unpack (encode o) (L.pack t.data) =
-          P.prepare encode o t.data :=
-        unpack_pack_eq_prepareFlatRegs L encode o ht_bdd ht_out
-      rw [← hunp] at hcdist
-      have hpdist := execProgramDist_of_execCodeDist hcdist P.output
-      obtain ⟨hsup_sim, _, _⟩ :=
-        simProgRand_lasVegas_spec L p_op (encode o) (fun _ regs => decode o regs)
-          (default : S.Result o) K (L.validMem_pack t.data) harg hpdist
-      obtain ⟨vy, hvy, hz₁_eq⟩ := hsup_sim z_full hz_full
+      obtain ⟨vy, hvy, tm_rem, htm_rem, rfl⟩ := (hstep_cp t ht).1 tm htm
       rw [PMF.mem_support_map_iff] at hvy
-      obtain ⟨y, hy_mem, rfl⟩ := hvy
-      rw [PMF.mem_support_map_iff] at hy_mem
-      obtain ⟨q, hq, rfl⟩ := hy_mem
-      obtain ⟨_, hdec_q, _⟩ := hq_all q hq
-      have hz₁_ans : z_full.1.1 = q.result := by
-        have h1 := congrArg Prod.fst hz₁_eq
-        simpa [hdec_q] using h1
-      have hz₁_mem : z_full.1.2 = L.pack q.data := congrArg Prod.snd hz₁_eq
-      rw [hz₁_mem] at htm_rem_mem
-      have ht₁_mem : t.appendStep o q ∈
-          (ν.bind fun t' => (μ_step t').map (t'.appendStep o)).support := by
-        rw [PMF.mem_support_bind_iff]
-        exact ⟨t, ht, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
-      have hmem_fin := hcorr_rem (t.appendStep o q) ht₁_mem tm_rem htm_rem_mem
-      simpa only [SeqOutcome.appendStep, List.append_assoc, List.singleton_append, hz₁_ans]
-        using hmem_fin
+      obtain ⟨q, hq, rfl⟩ := hvy
+      obtain ⟨_, hdec_q, _⟩ := (hstep t ht).2.2.2.2 q hq
+      have hmem_fin := hcorr_rem (t.appendStep o q) (mem_support_bind_map ht hq) tm_rem htm_rem
+      simpa only [SeqOutcome.appendStep, List.append_assoc, List.singleton_append, hdec_q,
+        Option.getD_some] using hmem_fin
     · refine tsum_expectedProbesFrom_cons_le P_cp ν μ_step (fun t q => t.appendStep o q)
         (fun t => L.pack t.data) T_step ((L.overhead : ℝ≥0∞) + η) T_rest o ops_rem hexp_rem
         fun t ht => ?_
-      obtain ⟨ht_bdd, ht_out⟩ := hsupp t ht
-      obtain ⟨_, harg, _, hcdist, _⟩ := hstep t ht
-      have hTt_fin : T_step t ≠ ⊤ := ne_top_of_mem_support_of_tsum_ne_top hsum_fin ht
-      have hunp : L.unpack (encode o) (L.pack t.data) =
-          P.prepare encode o t.data :=
-        unpack_pack_eq_prepareFlatRegs L encode o ht_bdd ht_out
-      rw [← hunp] at hcdist
-      have hpdist := execProgramDist_of_execCodeDist hcdist P.output
-      have hstep_le :=
-        lasVegas_step_expectedProbesFrom_le L P_cp p_op (encode o) (fun _ regs => decode o regs)
-          (default : S.Result o) K M_corr η rfl hW_step hlen_rem harg hpdist
-          (hK_tail o ho_alph (L.pack t.data) ⟨_, T_step t, hTt_fin, hpdist⟩)
-      rwa [Probability.PMF.tsum_map_mul ((μ_step t).map StepOutcome.data),
-        Probability.PMF.tsum_map_mul (μ_step t) StepOutcome.data] at hstep_le
+      have h2 := (hstep_cp t ht).2
+      rwa [Probability.PMF.tsum_map_mul (μ_step t) (fun q => (q.data.regs P.output, q.data))] at h2
 
 end Cslib.DataStructure.WordRAM.Randomized
 
@@ -1835,17 +1699,8 @@ theorem exists_cellProbeLayout_lasVegas
           P_cp.expectedSeqProbes ops ≤
             (C.initPotential : ℝ≥0∞) + ((ops.map C.charge).sum : ℝ≥0∞) +
               ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
-  let d₀' : Data r_ds := { regs := d₀.regs, mem := fun _ => 0 }
-  have hd₀' : d₀'.Bounded w := ⟨hd₀.1, fun _ => fits_zero w⟩
-  obtain ⟨ν₀, _, hinv₀, hsupp₀⟩ := C.initFresh_exec hd₀' hfr hpar (fun _ _ => rfl)
+  obtain ⟨ν₀, hinv₀, hsupp_seq⟩ := C.initFresh_seqOutcome hd₀ hfr hpar
   let ν₀_seq := ν₀.map (SeqOutcome.ofLatentState (Result := D.Result))
-  have hsupp_seq : ∀ t ∈ ν₀_seq.support,
-      t.data.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, t.data.mem a = 0 := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨z₀, hz₀, rfl⟩ := ht
-    obtain ⟨hbdd, _, hmod⟩ := hsupp₀ z₀ hz₀
-    exact ⟨hbdd, fun a ha => hmod a ha⟩
   set p_op := P.code.program P.output
   obtain ⟨K, hK_tail⟩ := exists_uniform_cutoff_singleProg L opsAlphabet p_op C.encode M_corr hη
   let P_cp : Cslib.CellProbe.Randomized.Scheme D.Op D.Result (C.space + regCells) wCell :=
@@ -1861,22 +1716,12 @@ theorem exists_cellProbeLayout_lasVegas
     simExecStepsLasVegas_induction L (ν₀_seq.map fun t => L.pack t.data) opsAlphabet M_corr K η
       hK_tail hex hlen halph hT_fin hsupp_seq
   refine ⟨?_, ?_⟩
-  · intro out hout
-    rw [Cslib.CellProbe.Randomized.Scheme.runSeq, PMF.map_bind, PMF.mem_support_bind_iff] at hout
-    obtain ⟨m₀, hm₀, hout_from⟩ := hout
-    rw [PMF.mem_support_map_iff] at hm₀
-    obtain ⟨t, ht, rfl⟩ := hm₀
-    rw [PMF.map_comp, PMF.mem_support_map_iff] at hout_from
-    obtain ⟨z_fin, htm, hout_eq⟩ := hout_from
-    rcases z_fin with ⟨⟨tr, m_fin⟩, pr⟩
-    dsimp only [Function.comp_apply] at hout_eq
-    subst hout_eq
+  · intro tr htr
+    obtain ⟨t, ht, m_fin, htm⟩ := mem_support_map_fst_runSeq_of_map P_cp rfl htr
     have hnil : t.transcript = [] := by
-      rw [PMF.mem_support_map_iff] at ht
-      obtain ⟨_, _, rfl⟩ := ht
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
       rfl
-    have hmem_ideal :=
-      hcorr t ht (tr, m_fin) ((PMF.mem_support_map_iff _ _ _).mpr ⟨((tr, m_fin), pr), htm, rfl⟩)
+    have hmem_ideal := hcorr t ht (tr, m_fin) htm
     rw [hnil, List.nil_append] at hmem_ideal
     exact hcontract tr hmem_ideal
   · rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_eq_init_tsum]
@@ -1906,95 +1751,16 @@ theorem exists_cellProbe_lasVegas
           P_cp.expectedSeqProbes ops ≤
             (C.initPotential : ℝ≥0∞) + ((ops.map C.charge).sum : ℝ≥0∞) +
               (((2 * persistentRegCount P : ℕ) : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := by
-  obtain ⟨P_cp, hP⟩ := C.exists_cellProbeLayout_lasVegas (standardLayout P.input base C.space w)
-    hd₀ hfr hpar opsAlphabet M_corr hη
-  refine ⟨P_cp, fun ops hv hlen halph => ?_⟩
-  obtain ⟨hc, he⟩ := hP ops hv hlen halph
-  refine ⟨hc, he.trans ?_⟩
-  rw [standardLayout_overhead, ← persistentRegCount_eq_persCount]
+  rw [persistentRegCount_eq_persCount]
+  simpa only [standardLayout_overhead] using
+    C.exists_cellProbeLayout_lasVegas (standardLayout P.input base C.space w)
+      hd₀ hfr hpar opsAlphabet M_corr hη
 
 end Cslib.DataStructure.WordRAM.Randomized.ObliviousSequenceImpl
 
 namespace Cslib.DataStructure.CellProbe
 
 universe u v z
-
-private theorem oblivious_lower_bound_layout
-    {B : Basis} {r_ds k_init regCells wCell w base S_max : ℕ}
-    {P : SubroutineCode B r_ds k_init}
-    {D : StateTransitionSpec.{u, v, 0}}
-    {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
-    {params : Fin k_init → ℕ} {s₀ : D.State}
-    (C : WordRAM.Randomized.ObliviousSequenceImpl.{v, 0, z}
-      P (D.toObliviousSequenceSpec s₀) w base params)
-    (L : RegLayout r_ds P.input base C.space w regCells wCell)
-    (hspace : C.space + regCells ≤ S_max)
-    {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
-    (hfr : d₀.regs P.frontierReg = base)
-    (hpar : ∀ j, d₀.regs (P.initParams j) = params j)
-    (opsAlphabet : Finset D.Op) (M_corr : ℕ)
-    (correctSeqs : Set (List D.Op))
-    (hcorrectSeqs : ∀ ops ∈ correctSeqs,
-      D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    (hardDist : PMF (List D.Op))
-    (hhardDist : ∀ ops ∈ hardDist.support,
-      D.ValidHistory s₀ ops ∧ ops.length ≤ M_corr ∧ ∀ o ∈ ops, o ∈ opsAlphabet)
-    {LB : ℝ≥0∞}
-    (hlb : ∀ D_det : IndexedScheme D.Op D.Result S_max wCell,
-      (∀ ops ∈ correctSeqs, (D_det.runSeq ops).1 = (D.run s₀ ops).2) →
-      LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
-    LB ≤ (C.initPotential : ℝ≥0∞) +
-      ∑' ops, hardDist ops *
-        (((ops.map C.charge).sum : ℝ≥0∞) + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  classical
-  have _ : ∀ o, Inhabited (D.Result o) := fun o => ⟨(f s₀ o).2⟩
-  refine le_of_forall_pos_le_add_mul (M := M_corr) fun {η} hη => ?_
-  obtain ⟨P_raw, hP_raw⟩ :=
-    C.exists_cellProbeLayout_lasVegas L hd₀ hfr hpar opsAlphabet M_corr hη
-  let P_pad := P_raw.padCells hspace
-  have hcorr_pad : ∀ ops ∈ correctSeqs,
-      (D.toObliviousSequenceSpec s₀).Contract ops ((P_pad.runSeq ops).map Prod.fst) := by
-    intro ops hops
-    obtain ⟨hv, hlen, halph⟩ := hcorrectSeqs ops hops
-    rw [Cslib.CellProbe.Randomized.Scheme.runSeq_padCells]
-    exact (hP_raw ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv) hlen halph).1
-  obtain ⟨D_det, _, hD_corr, hD_probes⟩ :=
-    Cslib.DataStructure.CellProbe.Randomized.exists_det_indexedScheme_le_expectedSeqProbes
-      s₀ P_pad opsAlphabet M_corr correctSeqs hcorrectSeqs hcorr_pad hardDist
-      (fun ops hops => (hhardDist ops hops).2)
-  refine (hlb D_det hD_corr).trans (hD_probes.trans ?_)
-  have hpt : ∀ ops,
-      hardDist ops * P_pad.expectedSeqProbes ops ≤
-        hardDist ops * (C.initPotential : ℝ≥0∞) +
-          hardDist ops *
-            (((ops.map C.charge).sum : ℝ≥0∞) + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
-          hardDist ops * (η * (M_corr : ℝ≥0∞)) := by
-    intro ops
-    by_cases hops : ops ∈ hardDist.support
-    · obtain ⟨hv, hlen, halph⟩ := hhardDist ops hops
-      rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_padCells]
-      have hexp := (hP_raw ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv) hlen halph).2
-      have h1 :
-          P_raw.expectedSeqProbes ops ≤
-            (C.initPotential : ℝ≥0∞) +
-              (((ops.map C.charge).sum : ℝ≥0∞) + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
-              η * (M_corr : ℝ≥0∞) := by
-        calc P_raw.expectedSeqProbes ops
-          _ ≤ (C.initPotential : ℝ≥0∞) + ((ops.map C.charge).sum : ℝ≥0∞) +
-                ((L.overhead : ℝ≥0∞) + η) * (ops.length : ℝ≥0∞) := hexp
-          _ = (C.initPotential : ℝ≥0∞) +
-                (((ops.map C.charge).sum : ℝ≥0∞) + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
-                η * (ops.length : ℝ≥0∞) := by ring
-          _ ≤ (C.initPotential : ℝ≥0∞) +
-                (((ops.map C.charge).sum : ℝ≥0∞) + (L.overhead : ℝ≥0∞) * (ops.length : ℝ≥0∞)) +
-                η * (M_corr : ℝ≥0∞) :=
-              add_le_add le_rfl (mul_le_mul' le_rfl (Nat.cast_le.mpr hlen))
-      simpa only [mul_add, add_assoc] using mul_le_mul' le_rfl h1
-    · rw [(PMF.apply_eq_zero_iff _ _).mpr hops]
-      simp
-  refine (tsum_le_tsum hpt).trans ?_
-  rw [tsum_add, tsum_add, ENNReal.tsum_mul_right, ENNReal.tsum_mul_right, hardDist.tsum_coe,
-    one_mul, one_mul, add_assoc]
 
 /-- **Contrapositive Word-RAM lower-bound transfer for certified resource budgets of zero-error
 `ObliviousSequenceImpl`s** (standard `w`-bit layout, `0` `η`-loss, no `[Fintype D.Op]`). -/
@@ -2024,10 +1790,15 @@ theorem oblivious_wordRAM_lower_bound_of_det_cellProbe
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, hardDist ops *
         (((ops.map C.charge).sum : ℝ≥0∞) +
-          ((2 * persistentRegCount P : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  simpa only [standardLayout_overhead, ← persistentRegCount_eq_persCount] using
-    oblivious_lower_bound_layout C (standardLayout P.input base C.space w) hspace hd₀ hfr hpar
-      opsAlphabet M_corr correctSeqs hcorrectSeqs hardDist hhardDist hlb
+          ((2 * persistentRegCount P : ℕ) : ℝ≥0∞) * (ops.length : ℝ≥0∞)) :=
+  lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs hcorrectSeqs
+    hardDist hhardDist _ _ _ (fun _ hη =>
+      let ⟨P_raw, hP⟩ := C.exists_cellProbe_lasVegas hd₀ hfr hpar opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => (hP ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr (hcorrectSeqs ops h).1)
+          (hcorrectSeqs ops h).2.1 (hcorrectSeqs ops h).2.2).1,
+        fun ops h => (hP ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr (hhardDist ops h).1)
+          (hhardDist ops h).2.1 (hhardDist ops h).2.2).2⟩) hlb
 
 /-- **Wide-cell contrapositive Word-RAM lower-bound transfer for certified resource budgets of
 zero-error `ObliviousSequenceImpl`s** (`S_max ≥ C.space + 1` cells of width
@@ -2058,13 +1829,17 @@ theorem oblivious_wordRAM_lower_bound_of_det_cellProbe_wide
       LB ≤ ∑' ops, hardDist ops * (D_det.seqProbes ops : ℝ≥0∞)) :
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, hardDist ops *
-        (((ops.map C.charge).sum : ℝ≥0∞) + (2 : ℝ≥0∞) * (ops.length : ℝ≥0∞)) := by
-  have hraw :=
-    oblivious_lower_bound_layout C (wideLayout P.input base C.space w) hspace hd₀ hfr hpar
-      opsAlphabet M_corr correctSeqs hcorrectSeqs hardDist hhardDist hlb
-  refine hraw.trans (add_le_add le_rfl (tsum_le_tsum fun ops => mul_le_mul' le_rfl ?_))
-  refine add_le_add le_rfl (mul_le_mul' ?_ le_rfl)
-  rw [wideLayout_overhead]
-  split_ifs <;> norm_num
+        (((ops.map C.charge).sum : ℝ≥0∞) + (2 : ℝ≥0∞) * (ops.length : ℝ≥0∞)) :=
+  lower_bound_of_exists_cellProbeLayout s₀ hspace opsAlphabet M_corr correctSeqs hcorrectSeqs
+    hardDist hhardDist _ _ (2 : ℝ≥0∞) (fun _ hη =>
+      let ⟨P_raw, hP⟩ := C.exists_cellProbeLayout_lasVegas (wideLayout P.input base C.space w)
+        hd₀ hfr hpar opsAlphabet M_corr hη
+      ⟨P_raw,
+        fun ops h => (hP ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr (hcorrectSeqs ops h).1)
+          (hcorrectSeqs ops h).2.1 (hcorrectSeqs ops h).2.2).1,
+        fun ops h => (hP ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr (hhardDist ops h).1)
+          (hhardDist ops h).2.1 (hhardDist ops h).2.2).2.trans (add_le_add le_rfl (mul_le_mul'
+            (add_le_add (by rw [wideLayout_overhead]; split_ifs <;> norm_num) le_rfl) le_rfl))⟩)
+    hlb
 
 end Cslib.DataStructure.CellProbe

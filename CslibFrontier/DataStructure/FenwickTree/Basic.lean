@@ -15,6 +15,7 @@ public import Mathlib.Algebra.BigOperators.Group.List.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.List.GetD
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Fenwick Trees (Binary Indexed Trees)
@@ -342,6 +343,7 @@ theorem ret_addM {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).ret = add t pos δ := rfl
 
+@[time_simps]
 private theorem addLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).time = (upChain n m).length := by
@@ -350,12 +352,12 @@ private theorem addLoopM_time_eq {α : Type*} [AddCommMonoid α]
   | ind rem ih =>
     rw [addLoopM, upChain]
     split_ifs with hm
-    · simp only [TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    · simp only [time_simps]
       have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
       have hsub := @ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
         (tree.modify (m - 1) (· + δ)) rfl
       omega
-    · simp only [TimeM.time_pure, List.length_nil]
+    · simp only [time_simps]
 
 /-- Exact tick count of `addM`: `(upChain t.size (pos + 1)).length` in bounds, `0` out of
 bounds. -/
@@ -373,7 +375,7 @@ theorem addM_time_le_clog {α : Type*} [AddCommMonoid α]
     (addM t pos δ).time ≤ Nat.clog 2 (t.size + 1) := by
   unfold addM
   split_ifs with hpos
-  · simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero, addLoopM_time_eq]
+  · simp only [time_simps]
     exact length_upChain_le_clog t.size (pos + 1)
   · simp only [TimeM.time_pure, Nat.zero_le]
 
@@ -383,24 +385,16 @@ theorem addM_time_le_log {α : Type*} [AddCommMonoid α]
     (addM t pos δ).time ≤ Nat.log 2 t.size + 1 := by
   unfold addM
   split_ifs with hpos
-  · simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero, addLoopM_time_eq]
+  · simp only [time_simps]
     exact length_upChain_le_log (by omega) (Nat.succ_le_of_lt hpos)
   · simp only [TimeM.time_pure]
     omega
 
+@[time_simps]
 private theorem addLoopM_size {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).ret.size = tree.size := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing m tree with
-  | ind rem ih =>
-    rw [addLoopM]
-    split_ifs with hm
-    · simp only [TimeM.ret_bind]
-      have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
-      rw [@ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
-        (tree.modify (m - 1) (· + δ)) rfl, Array.size_modify]
-    · simp only [TimeM.ret_pure]
+  time_spec addLoopM [Array.size_modify]
 
 private theorem addLoopM_getElem {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α)
@@ -448,7 +442,7 @@ theorem valid_add {α : Type*} [AddCommMonoid α]
     Valid (add t pos δ) (PrefixSums.addAt s pos δ) := by
   unfold add addM
   split_ifs with hpos
-  · simp only [TimeM.ret_bind, TimeM.ret_pure]
+  · simp only [time_simps]
     have hpos_s : pos < s.length := hv.1 ▸ hpos
     rw [valid_iff_sum_Ico] at hv ⊢
     refine ⟨by rw [addLoopM_size, hv.1, PrefixSums.length_addAt], fun idx hidx1 hidx_sz => ?_⟩
@@ -491,7 +485,7 @@ theorem size_add {α : Type*} [AddCommMonoid α]
     (add t pos δ).size = t.size := by
   unfold add addM size
   split_ifs with hpos
-  · simp only [TimeM.ret_bind, TimeM.ret_pure, addLoopM_size]
+  · simp only [time_simps]
   · simp only [TimeM.ret_pure]
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]
@@ -540,35 +534,20 @@ def ofListM {α : Type*} [AddCommMonoid α] (s : List α) : TimeM ℕ (FenwickTr
 private theorem buildLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) {tree : Array α} (hsz : tree.size = n) (hm1 : 1 ≤ m) (hmn : m ≤ n + 1) :
     (buildLoopM n m tree).time = n + 1 - m := by
-  generalize hrem : n + 1 - m = rem
-  induction rem generalizing m tree with
-  | zero =>
-    rw [buildLoopM]
-    have hnot : ¬ (1 ≤ m ∧ m ≤ n ∧ tree.size = n) := by omega
-    simp only [hnot, ↓reduceDIte, TimeM.time_pure]
-  | succ rem ih =>
-    have hms : m ≤ n := by omega
-    rw [buildLoopM]
-    simp only [hm1, hms, hsz, and_self, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick]
-    set p := m + lowbit m
-    set tree' :=
-      if p ≤ n then tree.modify (p - 1) (· + tree[m - 1]'(by omega)) else tree
-    have hsz' : tree'.size = n := by grind
-    have hsub := ih (m + 1) hsz' (by omega) (by omega) (by omega)
-    omega
+  time_spec buildLoopM
 
 /-- `ofArrayM a` performs exactly `a.size` parent-propagation steps (`0` on `#[]`). -/
+@[time_simps]
 theorem ofArrayM_time_eq {α : Type*} [AddCommMonoid α] (a : Array α) :
     (ofArrayM a).time = a.size := by
   unfold ofArrayM
-  simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
+  simp only [time_simps]
   have h := buildLoopM_time_eq a.size 1 rfl (Nat.le_refl 1) (by omega)
   omega
 
 theorem ofListM_time_eq {α : Type*} [AddCommMonoid α] (s : List α) :
     (ofListM s).time = s.length := by
-  unfold ofListM
-  rw [ofArrayM_time_eq, List.size_toArray]
+  time_spec ofListM
 
 private structure BuildInv {α : Type*} [AddCommMonoid α]
     (s : List α) (m : ℕ) (tree : Array α) : Prop where
@@ -684,7 +663,7 @@ private theorem buildLoopM_spec {α : Type*} [AddCommMonoid α]
 theorem valid_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
     Valid (ofArray a) a.toList := by
   unfold ofArray ofArrayM
-  simp only [TimeM.ret_bind, TimeM.ret_pure, ← Array.length_toList (xs := a)]
+  simp only [time_simps, ← Array.length_toList (xs := a)]
   have hinv0 : BuildInv a.toList 1 a := by
     refine ⟨Array.length_toList.symm, fun idx h1 hlt _ => by omega,
       fun idx hidx1 _ hidx_sz => ?_⟩
@@ -744,7 +723,7 @@ theorem rangeSum_eq {α : Type*} [AddCommGroup α]
     rangeSum t l r = ((s.take r).drop l).sum := by
   unfold rangeSum rangeSumM
   split_ifs with hlt
-  · simp only [TimeM.ret_bind, TimeM.ret_pure, ret_prefixSumM_eq hv]
+  · simp only [time_simps, ret_prefixSumM_eq hv]
     have hsplit : s.take r = s.take l ++ (s.take r).drop l := by
       have h := (List.take_append_drop l (s.take r)).symm
       rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
@@ -765,7 +744,7 @@ theorem rangeSumM_time_le_clog {α : Type*} [AddCommGroup α]
     (rangeSumM t l r).time ≤ 2 * Nat.clog 2 (t.size + 1) := by
   unfold rangeSumM
   split_ifs with hlt
-  · simp only [TimeM.time_bind, TimeM.time_pure]
+  · simp only [time_simps]
     have h1 := prefixSumM_time_le_clog t r
     have h2 := prefixSumM_time_le_clog t l
     omega
