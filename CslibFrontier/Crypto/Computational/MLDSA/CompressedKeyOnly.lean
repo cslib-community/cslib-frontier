@@ -293,7 +293,7 @@ theorem succProbability_compressedKoaGame_le_selfTargetGame (hP : P.Valid)
   · rw [Bool.not_eq_true] at hv
     simp [hv]
 
-/-- **Compressed key-only unforgeability from Module-LWE and self-target MSIS.** Against honest
+/-- **Finite key-only bound in the compressed, polynomial-challenge model.** Against honest
 keys, success is at most the short-law Module-LWE advantage of the explicit distinguisher plus
 the uniform-key success probability of the explicit self-target solver. This semantic finite-game
 inequality supplies neither executable resource bounds nor an asymptotic/negligible corollary. -/

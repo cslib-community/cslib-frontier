@@ -20,7 +20,7 @@ roundtrips (`decodeCramerShoupSK_encCramerShoupSK`), challenge admissibility (`c
 a keyed native roundtrip showing that the hash key travels from the public key to encryption and
 from the secret key to decryption, and concrete `example` instantiations of the polynomial-time
 certificates, Games 3–5 transition theorems, and end-to-end IND-CCA2 theorems
-(`advantage_cramerShoupGroupCCA2Game_le`, `DDH.indcca2On_cramerShoup`,
+(`advantage_cramerShoupGroupCCA2Game_le_ideal`, `DDH.indcca2On_cramerShoup`,
 `DDH.indcca2MultiOn_cramerShoup`).
 -/
 
@@ -374,8 +374,9 @@ example {H : schnorrGroups.Desc × List Bool → List Bool}
    schnorrGroups.isPPTOn_cramerShoupToCollisionFinder hH hisElem hA bit,
    isPPT_ddhSampleKey hkeyLen hD⟩
 
-/-- Concrete instantiation of Theorem 12.9 / Exercise 12.27 with associated data
-(`advantage_cramerShoupADGroupCCA2Game_le`) on `schnorrGroups` at `d23` (`q = 11`). -/
+/-- Concrete instantiation of the ideal-sampling step toward Theorem 12.9 / Exercise 12.27 with
+associated data (`advantage_cramerShoupADGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23`
+(`q = 11`); not the cited result. -/
 example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (Q₁ Q₂ : ℕ → ℕ)
     (hQ : adversary.IsQueryBounded Q₁ Q₂) (n : ℕ) :
     Game.advantage
@@ -414,11 +415,12 @@ example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (Q₁ Q₂ : �
     simp only [PMF.support_pure, Set.mem_singleton_iff] at hd
     subst hd
     decide
-  exact schnorrGroups.advantage_cramerShoupADGroupCCA2Game_le encBits (fun _ => PMF.pure d23)
+  exact schnorrGroups.advantage_cramerShoupADGroupCCA2Game_le_ideal encBits (fun _ => PMF.pure d23)
     testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
-/-- Concrete instantiation of Theorem 12.9 / Exercise 12.27
-(`advantage_cramerShoupGroupCCA2Game_le`) on `schnorrGroups` at `d23` (`q = 11`). -/
+/-- Concrete instantiation of the ideal-sampling step toward Theorem 12.9 / Exercise 12.27
+(`advantage_cramerShoupGroupCCA2Game_le_ideal`) on `schnorrGroups` at `d23` (`q = 11`); not the
+cited result. -/
 example (adversary : Encryption.WordCCA2Adversary) (Q₁ Q₂ : ℕ → ℕ)
     (hQ : adversary.IsQueryBounded Q₁ Q₂) (n : ℕ) :
     Game.advantage
@@ -451,7 +453,7 @@ example (adversary : Encryption.WordCCA2Adversary) (Q₁ Q₂ : ℕ → ℕ)
     simp only [PMF.support_pure, Set.mem_singleton_iff] at hd
     subst hd
     decide
-  exact schnorrGroups.advantage_cramerShoupGroupCCA2Game_le (fun _ => PMF.pure d23)
+  exact schnorrGroups.advantage_cramerShoupGroupCCA2Game_le_ideal (fun _ => PMF.pure d23)
     testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
 /-- Conditional API client over `schnorrDecodableGroups` (`INDCCA2ADOn` with associated data,
