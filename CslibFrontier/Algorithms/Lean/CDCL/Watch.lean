@@ -135,8 +135,9 @@ structure WatchStore where
 
 /-- A literal `b` of a clause with watched literals `w₁` and `w₂` is *supported* on the trail `M`
 when it is true and stays true after any backjump that keeps both watched literals false: for
-every newest-decision split `M = N ++ dᵈ :: M₀` with `w₁` and `w₂` false in `M₀`, `b` is true in
-`M₀`. -/
+every split `M = N ++ dᵈ :: M₀` at a decision `d`, not only the newest, with `w₁` and `w₂` false in
+`M₀`, `b` is true in `M₀`. Quantifying over every decision lets support survive repeated
+backjumps. -/
 @[expose] def Supported (M : Trail) (b w₁ w₂ : Literal ℕ) : Prop :=
   b ∈ Trail.lits M ∧ ∀ N d M₀, M = N ++ ⟨d, true⟩ :: M₀ →
     w₁.negate ∈ Trail.lits M₀ → w₂.negate ∈ Trail.lits M₀ → b ∈ Trail.lits M₀
