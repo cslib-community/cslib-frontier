@@ -69,13 +69,14 @@ def queens (n : ℕ) : CNF ℕ := Id.run do
             φ := [nq r₁ c₁, nq r₂ c₂] :: φ
   return φ
 
-/-- The default options, each heuristic off in turn, and all of them off. -/
+/-- The default options, each heuristic off in turn, basic minimization, and all heuristics off. -/
 def configs : List (String × Options) :=
   [("default", {}), ("no-vsids", { vsids := false }), ("no-phase", { phaseSaving := false }),
     ("no-restarts", { restarts := false }), ("geometric", { luby := false, restartInc := 2 }),
-    ("no-minimize", { minimize := false }), ("no-reduce", { reduce := false }),
+    ("no-minimize", { ccminMode := 0 }), ("ccmin-1", { ccminMode := 1 }),
+    ("no-reduce", { reduce := false }),
     ("none",
-      { vsids := false, phaseSaving := false, restarts := false, minimize := false
+      { vsids := false, phaseSaving := false, restarts := false, ccminMode := 0
         reduce := false })]
 
 /-- Runs every configuration on `φ`, checks the answers, and prints a line for each. -/

@@ -21,10 +21,10 @@ The kernel runs the watched solver with `decide` on the pigeonhole formula PHP(3
 unsatisfiable, and on satisfiable formulas, checking the model. The formulas exercise the short
 clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
 the options decides correctly, and the statistics count conflicts, propagations and decisions.
-Restarts happen when allowed, minimization shortens the learned clauses of PHP(4, 3), and the kernel
-refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
-accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
-them forgotten, and whose intermediate resolvents are deleted.
+Restarts happen when allowed, minimization, recursive or basic, shortens the learned clauses of
+PHP(4, 3), and the kernel refutes PHP(4, 3) through a reduction of the learned clauses. At
+runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned
+clauses are minimized, some of them forgotten, and whose intermediate resolvents are deleted.
 -/
 
 set_option linter.privateModule false
@@ -128,8 +128,14 @@ example :
 
 /-- Minimization removes literals from the clauses learned on PHP(4, 3); without it, none are. -/
 example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.maxLiterals ∧
-    (CDCL.solveWith { minimize := false } php43).2.literals =
-      (CDCL.solveWith { minimize := false } php43).2.maxLiterals := by
+    (CDCL.solveWith { ccminMode := 0 } php43).2.literals =
+      (CDCL.solveWith { ccminMode := 0 } php43).2.maxLiterals := by
+  decide +kernel
+
+/-- Basic minimization (MiniSat's `ccmin_mode = 1`) also refutes PHP(4, 3), and removes literals. -/
+example : (CDCL.solveWith { ccminMode := 1 } php43).1.isSat = false ∧
+    (CDCL.solveWith { ccminMode := 1 } php43).2.literals <
+      (CDCL.solveWith { ccminMode := 1 } php43).2.maxLiterals := by
   decide +kernel
 
 /-- With the limit on learned clauses starting at `0`, and restarting after every conflict, the

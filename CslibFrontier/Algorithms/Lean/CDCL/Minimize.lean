@@ -11,10 +11,12 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 
 /-! # Minimizing learned clauses
 
-MiniSat's recursive minimization of learned clauses (`ccmin_mode = 2`, Sörensson and Biere). A
-literal `y` of a learned clause, false below the backjump point, is *redundant* when the literal
-`¬y` of the trail is implied and every other literal of its reason is either in the learned clause
-or, recursively, redundant (`Cslib.Algorithms.Lean.CDCL.derived`). Removing every redundant literal
+MiniSat's minimization of learned clauses. In its recursive mode (`ccmin_mode = 2`, Sörensson and
+Biere), a literal `y` of a learned clause, false below the backjump point, is *redundant* when the
+literal `¬y` of the trail is implied and every other literal of its reason is either in the learned
+clause or, recursively, redundant (`Cslib.Algorithms.Lean.CDCL.derived`). In its basic mode
+(`ccmin_mode = 1`, MiniSat 1.13), the recursion goes only into the literals implied without any
+decision, which MiniSat's test of level `0` admits. Removing every redundant literal
 gives a clause that follows from the rest by unit propagation: assuming its negation, the reasons
 of the redundant literals, oldest first, propagate the negations of the removed literals, and then
 the learned clause is false.
@@ -60,10 +62,11 @@ def XTrail.reasons (T : XTrail) (n : ℕ) : Array (Option ℕ) :=
 
 /-- **Whether the literal of the trail on `v` is derived** from the literals of the learned clause,
 whose variables are marked by `inC`: its reason, looked up in `log` through `reason`, has every
-other literal either on a variable of the learned clause or, recursively, derived. Decisions and
-literals without a reason are not derived. The results are memoized in `memo`; `fuel` bounds the
-depth of the search, and running out of it counts as not derived. -/
-def derived (log : LRATLog φ) (reason : Array (Option ℕ)) (inC : Array Bool) :
+other literal either on a variable of the learned clause or, on a variable where `deep` allows the
+recursion, derived. Decisions and literals without a reason are not derived. The results are
+memoized in `memo`; `fuel` bounds the depth of the search, and running out of it counts as not
+derived. -/
+def derived (log : LRATLog φ) (reason : Array (Option ℕ)) (inC : Array Bool) (deep : ℕ → Bool) :
     (fuel : ℕ) → (memo : Array (Option Bool)) → (v : ℕ) → Bool × Array (Option Bool)
   | 0, memo, _ => (false, memo)
   | fuel + 1, memo, v =>
@@ -76,18 +79,19 @@ def derived (log : LRATLog φ) (reason : Array (Option ℕ)) (inC : Array Bool) 
         let r := R.foldl (fun (acc : Bool × Array (Option Bool)) z =>
           if !acc.1 then acc
           else if z.1 == v || inC.getD z.1 false then acc
-          else derived log reason inC fuel acc.2 z.1) (true, memo)
+          else if deep z.1 then derived log reason inC deep fuel acc.2 z.1
+          else (false, acc.2)) (true, memo)
         (r.1, r.2.setIfInBounds v (some r.1))
 
 /-- The literals of the clause `C`, other than `lit`, whose negations are derived, and the
 memoized search. -/
-def redundant (log : LRATLog φ) (reason : Array (Option ℕ)) (inC : Array Bool) (fuel : ℕ)
-    (lit : Literal ℕ) (C : Clause ℕ) (memo : Array (Option Bool)) :
+def redundant (log : LRATLog φ) (reason : Array (Option ℕ)) (inC : Array Bool) (deep : ℕ → Bool)
+    (fuel : ℕ) (lit : Literal ℕ) (C : Clause ℕ) (memo : Array (Option Bool)) :
     List (Literal ℕ) × Array (Option Bool) :=
   C.foldl (fun (acc : List (Literal ℕ) × Array (Option Bool)) y =>
     if y == lit then acc
     else
-      let r := derived log reason inC fuel acc.2 y.1
+      let r := derived log reason inC deep fuel acc.2 y.1
       (if r.1 then y :: acc.1 else acc.1, r.2)) ([], memo)
 
 /-- The reasons of the derived literals of the trail `T`, oldest first: the hints that propagate
@@ -99,16 +103,23 @@ def derivedHints (T : XTrail) (memo : Array (Option Bool)) : List ℕ :=
 
 variable {log₀ : LRATLog φ} {A M₀ : Trail}
 
-/-- **Minimizing a learned clause**, whose false literals are on the trail `T`: the learned clause
-without its redundant literals, added to the log as a RUP step hinting the reasons of the derived
-literals and then the learned clause. The learned clause is kept if nothing is redundant, or if
-the RUP check fails. -/
-def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) : Learned log₀ A M₀ :=
+/-- **Minimizing a learned clause**, whose false literals are on the trail `T`, recursively if
+`recursive` (MiniSat's `ccmin_mode = 2`) and otherwise in the basic way (`ccmin_mode = 1`): the
+learned clause without its redundant literals, added to the log as a RUP step hinting the reasons
+of the derived literals and then the learned clause. The learned clause is kept if nothing is
+redundant, or if the RUP check fails. -/
+def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool := true) :
+    Learned log₀ A M₀ :=
   let C := L.clause.dedup
   let n := max T.varBound (C.foldl (fun m y => max m (y.1 + 1)) 0)
   let reason := T.reasons n
   let inC := C.foldl (fun a y => a.setIfInBounds y.1 true) (Array.replicate n false)
-  let r := redundant L.log reason inC (T.length + 1) L.lit C (Array.replicate n none)
+  let deep : ℕ → Bool :=
+    if recursive then fun _ => true
+    else
+      let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
+      fun v => root.assigned v
+  let r := redundant L.log reason inC deep (T.length + 1) L.lit C (Array.replicate n none)
   if r.1.isEmpty then L
   else
     let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
