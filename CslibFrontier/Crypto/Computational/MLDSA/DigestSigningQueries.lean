@@ -101,6 +101,13 @@ theorem Xofs.retryDigestQueries_bounded (H : Xofs) (s : Level) (sk A μ mask) (f
   exact OracleComp.IsCostBounded.bind (n := fuel) (m := 0)
     (terminalDigestQueries_bounded ..) (fun _ => .pure _ _)
 
+private theorem eval_attemptQuery (H : Xofs) (s : Level) (D) (sk A) (m : List Bool)
+    (len : m.length = 512) (y) :
+    OracleComp.evalPure D (attemptQuery H s sk A m y) =
+      terminalReply ((H.withDigestRegister s D).attemptWithMask s sk A m y) := by
+  simp only [attemptQuery, OracleComp.evalPure_bind, OracleComp.evalPure_query,
+    OracleComp.evalPure_pure, Xofs.attemptWithMask, digest_at H s D _ len, challenge_off]
+
 private theorem eval_terminalDigestQueries (H : Xofs) (s : Level) (D) (sk A)
     (μ : List.Vector Bool 512) (mask) (fuel nonce : ℕ) :
     OracleComp.evalPure D (terminalDigestQueries H s sk A μ mask fuel nonce) =
@@ -108,9 +115,7 @@ private theorem eval_terminalDigestQueries (H : Xofs) (s : Level) (D) (sk A)
         ((H.withDigestRegister s D).attemptWithMask s sk A μ.toList
           (ringVectorCoeffs (mask (nonce + i.val * s.params.ℓ)))) := by
   rw [terminalDigestQueries, OracleComp.evalPure_findSomeM?]
-  simp only [attemptQuery, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-    OracleComp.evalPure_pure, Xofs.attemptWithMask, digest_at H s D _ μ.toList_length,
-    challenge_off]
+  simp only [eval_attemptQuery H s D sk A μ.toList μ.toList_length]
 
 private theorem eval_retries (H : Xofs) (s : Level) (D) (sk A) (μ : List.Vector Bool 512)
     (mask) (fuel nonce : ℕ) :

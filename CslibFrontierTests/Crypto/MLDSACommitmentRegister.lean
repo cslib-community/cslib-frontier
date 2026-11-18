@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
+import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveCommitmentCall
 
 /-!
 # ML-DSA digest-register clients
@@ -176,6 +176,12 @@ private theorem twoRequestForger_hash (s : Level) (first : SigningQuery) (fresh 
       .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ =>
         .liftBind _ _ 0 fun _ => .pure _ 0
 
+private theorem twoRequestForger_calls (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    (twoRequestForger s first fresh replay).SigningCallsLe 2 := fun _ =>
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+      .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+        .liftBind _ _ 0 fun _ => .pure _ 0
+
 example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
     (hg : H.keyGen s seed = some keys) (A : PublicMatrix s)
     (hm : H.expandA s (keys.publicKey.take 32) = some A) (first : SigningQuery)
@@ -209,11 +215,30 @@ example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery
         let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
         2 * (4 * √δ + 1629 * δ)) := by
   intro C a b matrices win orig
-  have sig : C.SigningCallsLe 2 := fun _ =>
-    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
-      .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
-        .liftBind _ _ 0 fun _ => .pure _ 0
+  have sig := twoRequestForger_calls s first fresh replay
   have hash := twoRequestForger_hash s first fresh replay
   simpa [matrices, win, orig, show (815 : ℝ) + (1 + 813) = 1629 by norm_num] using
     C.abs_expansionTrialGame_write_sub_freshExpansionGame_le s base (a := a) (b := b)
       le_rfl (by cases s <;> decide) sig hash (1 : Fin 2) 813
+
+-- Simulate the entire second request, whose message depends on the first reply and a measurement.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let a := s.commitmentInputBits
+    let b := 894
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    let win := Game.succProbability (C.refreshedCallGame s base a b (1 : Fin 2))
+    let orig := Game.succProbability (C.freshExpansionGame s base a b)
+    |(win : ℝ) - (orig : ℝ)| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        814 * (4 * √δ + 1632 * δ) + 814 * (2 * (4 * √δ + 1629 * δ))) := by
+  intro C a b matrices win orig
+  simpa [matrices, win, orig, show (815 : ℝ) * 2 + 2 = 1632 by norm_num,
+    show (815 : ℝ) + 814 = 1629 by norm_num] using
+    C.abs_refreshedCallGame_sub_freshExpansionGame_le s base (a := a) (b := b) le_rfl
+      (by cases s <;> decide) (twoRequestForger_calls s first fresh replay)
+      (twoRequestForger_hash s first fresh replay) (1 : Fin 2)

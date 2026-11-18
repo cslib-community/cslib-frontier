@@ -343,30 +343,61 @@ private theorem cut_signing {C : QuantumSigningForger} (prog : C.Program Forgery
       | zero => exact .pure _ _
       | succ j => exact .liftBind _ _ j fun r => ih r j
 
-private def probeTrials {C : QuantumSigningForger} (s : Level) (H : Xofs) (A : PublicMatrix s)
-    (sk : PrivateKey s) (j : Fin 814) : Probe s (Boundary C)
-  | .finished _, _ => pure (.answered none)
-  | .signing q _, rows => do
+private def probePrefix {C : QuantumSigningForger} (s : Level) (H : Xofs) (tr : List Byte)
+    (scan : List.Vector Bool 512 → DigestReads s (Option (Option (List Byte)))) :
+    Boundary C → DigestReads s Preparation
+  | .finished _ => pure (.answered none)
+  | .signing q _ => do
     if 255 < q.context.length then return .answered none
-    let m ← representativeQuery H s sk.tr (formatMessage q.message q.context)
-    let r ← terminalDigestQueries H s sk A m (maskFromRow s (rows.headD 0)) j 0
+    let m ← representativeQuery H s tr (formatMessage q.message q.context)
+    let r ← scan m
     return match r with
       | some reply => .answered reply
       | none => .ready (BitString.ofList 512 m.toList)
 
-private theorem probeTrials_bounded {C : QuantumSigningForger} (s : Level) (H : Xofs) (A)
-    (sk : PrivateKey s) (j : Fin 814) (x : Boundary C) (rows) :
-    (probeTrials s H A sk j x rows).IsQueryBounded (1 + j.val) := by
+private theorem probePrefix_bounded {C : QuantumSigningForger} (s : Level) (H : Xofs) (tr)
+    {scan} {n : ℕ} (bound : ∀ m, (scan m).IsQueryBounded n) (x : Boundary C) :
+    (probePrefix s H tr scan x).IsQueryBounded (1 + n) := by
   cases x with
   | finished => exact .pure _ _
   | signing q k =>
-    simp only [probeTrials]
+    simp only [probePrefix]
     split
     · exact .pure _ _
-    · apply OracleComp.IsCostBounded.bind (n := 1) (m := j.val) (rep_bounded ..)
-      intro m
-      exact OracleComp.IsCostBounded.bind (n := j.val) (m := 0) (terminalDigestQueries_bounded ..)
-        (fun _ => .pure _ _)
+    · exact OracleComp.IsCostBounded.bind (n := 1) (m := n) (rep_bounded ..) (fun m =>
+        OracleComp.IsCostBounded.bind (n := n) (m := 0) (bound m) (fun _ => .pure _ _))
+
+private def preparedPrefix {C : QuantumSigningForger} (G : Xofs) (tr : List Byte)
+    (scan : List Bool → Option (Option (List Byte))) : Boundary C → Preparation
+  | .finished _ => .answered none
+  | .signing q _ =>
+    if 255 < q.context.length then .answered none else
+      let m := G.representativeFromTr tr (formatMessage q.message q.context)
+      match scan m with
+      | some reply => .answered reply
+      | none => .ready (BitString.ofList 512 m)
+
+private theorem eval_probePrefix {C : QuantumSigningForger} (s : Level) (H : Xofs)
+    (tr : List Byte) (D : Register s) (scan native)
+    (eq : ∀ m, OracleComp.evalPure D (scan m) = native m.toList) (x : Boundary C) :
+    OracleComp.evalPure D (probePrefix s H tr scan x) =
+      preparedPrefix (H.withDigestRegister s D) tr native x := by
+  cases x with
+  | finished => rfl
+  | signing q _ =>
+    by_cases h : 255 < q.context.length <;>
+      simp [probePrefix, preparedPrefix, h, OracleComp.evalPure_bind, OracleComp.evalPure_pure,
+        eq, eval_rep]
+
+private def probeTrials {C : QuantumSigningForger} (s : Level) (H : Xofs) (A : PublicMatrix s)
+    (sk : PrivateKey s) (j : Fin 814) : Probe s (Boundary C) := fun x rows =>
+  probePrefix s H sk.tr (fun m => terminalDigestQueries H s sk A m
+    (maskFromRow s (rows.headD 0)) j 0) x
+
+private theorem probeTrials_bounded {C : QuantumSigningForger} (s : Level) (H : Xofs) (A)
+    (sk : PrivateKey s) (j : Fin 814) (x : Boundary C) (rows) :
+    (probeTrials s H A sk j x rows).IsQueryBounded (1 + j.val) :=
+  probePrefix_bounded s H sk.tr (fun _ => terminalDigestQueries_bounded ..) x
 
 -- Decode the nonce row into a vector once before the signing attempt looks up its coefficients.
 private def rowAttempt (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
@@ -375,26 +406,18 @@ private def rowAttempt (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : Private
 
 -- On the public game side the earlier attempts read their digests through the actual XOF.
 private def nativePreparation {C : QuantumSigningForger} (s : Level) (G : Xofs) (A : PublicMatrix s)
-    (sk : PrivateKey s) (j : Fin 814) : Boundary C → List (Row s) → Preparation
-  | .finished _, _ => .answered none
-  | .signing q _, rows =>
-    if 255 < q.context.length then .answered none else
-      let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
-      match (List.finRange j.val).findSome? (fun i => terminalReply
-        (rowAttempt s G A sk m (rows.headD 0) (i.val * s.params.ℓ))) with
-      | some reply => .answered reply
-      | none => .ready (BitString.ofList 512 m)
+    (sk : PrivateKey s) (j : Fin 814) : Boundary C → List (Row s) → Preparation := fun x rows =>
+  preparedPrefix G sk.tr (fun m => (List.finRange j.val).findSome? fun i => terminalReply
+    (rowAttempt s G A sk m (rows.headD 0) (i.val * s.params.ℓ))) x
 
 private theorem eval_probe {C : QuantumSigningForger} (s : Level) (H : Xofs) (D : Register s)
     (A sk j) (x : Boundary C) (rows) :
     OracleComp.evalPure D (probeTrials s H A sk j x rows) =
       nativePreparation s (H.withDigestRegister s D) A sk j x rows := by
-  cases x with
-  | finished => rfl
-  | signing q k =>
-    by_cases h : 255 < q.context.length <;>
-      simp [probeTrials, nativePreparation, rowAttempt, h, OracleComp.evalPure_bind,
-        OracleComp.evalPure_pure, eval_terminalDigestQueries, eval_rep]
+  apply eval_probePrefix
+  intro m
+  simpa only [rowAttempt, Nat.zero_add] using
+    eval_terminalDigestQueries H s D sk A m (maskFromRow s (rows.headD 0)) j 0
 
 -- Everything after the cut, including all remaining retries, sees the table selected at the
 -- distinguished attempt. The FIPS error and successful signing log are handled before resuming.

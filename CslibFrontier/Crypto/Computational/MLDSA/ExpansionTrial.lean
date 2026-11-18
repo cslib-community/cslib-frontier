@@ -180,10 +180,11 @@ private theorem afterTrial_read {C : QuantumSigningForger} (s : Level) (G : Xofs
       (k reply, q.logReply reply log, rows) := by
   intro m reply
   by_cases over : 255 < q.context.length
-  · simp [afterTrial, nativePreparation, reply, over]
+  · simp [afterTrial, nativePreparation, preparedPrefix, reply, over]
   · have bits : List.ofFn (BitString.ofList 512 m) = m := BitString.ofFn_ofList
       (by simp only [m, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read])
-    simp only [afterTrial, nativePreparation, rowAttempt, reply, over, ↓reduceIte, List.headD_cons,
+    simp only [afterTrial, nativePreparation, preparedPrefix, rowAttempt, reply, over, ↓reduceIte,
+      List.headD_cons,
       List.tail_cons, find_updated]
     cases done : (List.finRange j.val).findSome? (fun i => terminalReply
       (G.attemptWithMask s sk A m (ringVectorCoeffs (maskFromRow s r (i.val * s.params.ℓ))))) with
@@ -193,66 +194,58 @@ private theorem afterTrial_read {C : QuantumSigningForger} (s : Level) (G : Xofs
       simp only [bits]
       rfl
 
-private noncomputable def readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs)
-    (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)
-    (i : ℕ) (j : Fin 814) (dev : C.Device) (log : List Forgery) (rows : List (Row s))
-    (y : Fin s.params.ℓ → Poly) : Game :=
-  ((OracleComp.interpret (OracleComp.withSampleListWhen isSigningCall (0 : Row s)
+private abbrev Resume (C : QuantumSigningForger) (s : Level) :=
+  Boundary C → C.Device → List Forgery → List (Row s) → Game
+
+-- Pause the actual controller immediately before the indexed signing call and pass the full
+-- remaining state to the specified continuation. Early termination passes the final forgery.
+private noncomputable def prefixInteraction (C : QuantumSigningForger) (s : Level) (G : Xofs)
+    (keys : KeyPair) (prog : C.Program Forgery) (i : ℕ) (dev : C.Device) (l : List Forgery)
+    (t : List (Row s)) :=
+  (OracleComp.interpret (OracleComp.withSampleListWhen isSigningCall (0 : Row s)
     (fun row => C.signingCommand G (fun q => G.signWithExpansionRow s keys.secretKey q row)))
-    (cut (C := C) prog i)).run ((dev, log), rows)).bind fun (x, (d, l), t) =>
-      let (next, signed, rest) :=
-        afterTrial s G A sk j y x (nativePreparation s G A sk j x t) l t
-      C.expansionContinuation s G A keys next d signed rest
+    (cut (C := C) prog i)).run ((dev, l), t)
 
-private theorem readUntil_pure (C : QuantumSigningForger) (s : Level) (G A keys sk)
-    (f : Forgery) (i j dev log rows y) :
-    C.readUntil s G A keys sk (.pure f) i j dev log rows y =
-      C.expansionContinuation s G A keys (.pure f) dev log rows := by
-  simp only [readUntil, cut, PFunctor.FreeM.pure_eq_pure, OracleComp.run_interpret_pure,
-    PMF.monad_pure_eq_pure, PMF.pure_bind]
-  rfl
+private noncomputable def prefixRun (C : QuantumSigningForger) (s : Level) (G : Xofs)
+    (keys : KeyPair) (prog : C.Program Forgery) (i : ℕ) (dev : C.Device) (l : List Forgery)
+    (t : List (Row s)) (resume : Resume C s) : Game :=
+  (C.prefixInteraction s G keys prog i dev l t).bind fun (x, (d, log), rest) => resume x d log rest
 
--- All commands before the boundary retain the ordinary state and tape. This equation covers
--- private coins, gates, coherent queries and measurements with the same stateful handler.
-private theorem readUntil_step (C : QuantumSigningForger) (s : Level) (G A keys sk)
+private theorem prefixRun_step (C : QuantumSigningForger) (s : Level) (G keys)
     {cmd : Request C} (k : _ → C.Program Forgery) (i i' : ℕ)
     (push : cut (C := C) (.liftBind cmd k) i =
-      .liftBind cmd (fun b => cut (C := C) (k b) i')) (j dev log rows y) :
-    C.readUntil s G A keys sk (.liftBind cmd k) i j dev log rows y =
+      .liftBind cmd (fun b => cut (C := C) (k b) i')) (dev log rows) (resume : Resume C s) :
+    C.prefixRun s G keys (.liftBind cmd k) i dev log rows resume =
     ((OracleComp.withSampleListWhen isSigningCall (0 : Row s)
       (fun row => C.signingCommand G (fun q => G.signWithExpansionRow s keys.secretKey q row))
       cmd).run ((dev, log), rows)).bind fun (b, (d, l), t) =>
-        C.readUntil s G A keys sk (k b) i' j d l t y := by
-  simp only [readUntil, push, show PFunctor.FreeM.liftBind cmd (fun b => cut (C := C) (k b) i') =
+        C.prefixRun s G keys (k b) i' d l t resume := by
+  simp only [prefixRun, prefixInteraction, push,
+    show PFunctor.FreeM.liftBind cmd (fun b => cut (C := C) (k b) i') =
     (OracleComp.query cmd >>= fun b => cut (C := C) (k b) i') from rfl,
     OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
     PMF.monad_bind_eq_bind, PMF.bind_bind]
   rfl
 
-private theorem readUntil_sign (C : QuantumSigningForger) (s : Level) (G A keys sk)
-    (q : SigningQuery) (k : _ → C.Program Forgery) (j dev log r rows y) :
-    let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
-    let reply := if 255 < q.context.length then none else
-      tupleReply s G A sk m (Function.update (rowMasks s r) j y)
-    C.readUntil s G A keys sk (.liftBind (.inr (.inr q)) k) 0 j dev log (r :: rows) y =
-      C.expansionContinuation s G A keys (k reply) dev (q.logReply reply log) rows := by
-  simp only [readUntil, cut, PFunctor.FreeM.pure_eq_pure, OracleComp.run_interpret_pure,
-    PMF.monad_pure_eq_pure, PMF.pure_bind,
-    afterTrial_read]
-
-private theorem readUntil_eq (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
-    (sk : PrivateKey s) (A : PublicMatrix s) (key : decodePrivate s keys.secretKey = some sk)
-    (mat : G.expandA s sk.rho = some A) (prog : C.Program Forgery)
-    (j : Fin 814) (dev : C.Device) (log : List Forgery) (pre rows : List (Row s)) :
+private theorem prefixRun_eq {V : Type} (C : QuantumSigningForger) (s : Level) (G : Xofs)
+    (keys : KeyPair) (A : PublicMatrix s) (μ : PMF V) (resume : V → Resume C s)
+    (finish : ∀ y f d l t, resume y (.finished f) d l t =
+      C.expansionContinuation s G A keys (.pure f) d l t)
+    (sign : ∀ q k d l t, ((PMF.uniformOfFintype (Row s)).bind fun r =>
+        μ.bind fun y => resume y (.signing q k) d l (r :: t)) =
+      (PMF.uniformOfFintype (Row s)).bind fun r =>
+        let sig := G.signWithExpansionRow s keys.secretKey q r
+        C.expansionContinuation s G A keys (k sig) d (q.logReply sig l) t)
+    (prog : C.Program Forgery) (dev : C.Device) (log : List Forgery) (pre rows : List (Row s)) :
     let U := PMF.uniformOfFintype (Row s)
-    let μ := signingMaskLaw s.params (by cases s <;> decide)
     (U.bind fun r => μ.bind fun y =>
-      C.readUntil s G A keys sk prog pre.length j dev log (pre ++ r :: rows) y) =
+      C.prefixRun s G keys prog pre.length dev log (pre ++ r :: rows) (resume y)) =
     U.bind fun r => C.expansionContinuation s G A keys prog dev log (pre ++ r :: rows) := by
-  intro U μ
+  intro U
   induction prog generalizing pre dev log with
   | pure f =>
-    simp only [readUntil_pure, PMF.bind_const]
+    simp only [prefixRun, prefixInteraction, cut, PFunctor.FreeM.pure_eq_pure,
+      OracleComp.run_interpret_pure, PMF.monad_pure_eq_pure, PMF.pure_bind, finish, PMF.bind_const]
   | liftBind cmd k ih =>
     have step (c : Request C) (next : _ → C.Program Forgery) (d : C.Device) (l t) :
         C.expansionContinuation s G A keys (.liftBind c next) d l t =
@@ -265,10 +258,10 @@ private theorem readUntil_eq (C : QuantumSigningForger) (s : Level) (G : Xofs) (
     have off (skip : isSigningCall cmd = false) (push : ∀ i, cut (C := C) (.liftBind cmd k) i =
         .liftBind cmd (fun b => cut (C := C) (k b) i)) :
         (U.bind fun r => μ.bind fun y =>
-          C.readUntil s G A keys sk (.liftBind cmd k) pre.length j dev log (pre ++ r :: rows) y) =
+          C.prefixRun s G keys (.liftBind cmd k) pre.length dev log (pre ++ r :: rows) (resume y)) =
         U.bind fun r => C.expansionContinuation s G A keys (.liftBind cmd k)
           dev log (pre ++ r :: rows) := by
-      simp only [readUntil_step _ _ _ _ _ _ _ _ _ (push _), step, OracleComp.withSampleListWhen,
+      simp only [prefixRun_step _ _ _ _ _ _ _ (push _), step, OracleComp.withSampleListWhen,
         skip, Bool.false_eq_true, ↓reduceIte, StateT.run, PMF.bind_map, Function.comp_def]
       let p := handler 0 cmd (dev, log)
       conv_rhs => rw [PMF.bind_comm U p]
@@ -287,42 +280,62 @@ private theorem readUntil_eq (C : QuantumSigningForger) (s : Level) (G : Xofs) (
         scored_sign (ask := q) (k := k) ..
       cases pre with
       | nil =>
-        let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
-        let reply v := if 255 < q.context.length then none else tupleReply s G A sk m v
-        let score v := C.expansionContinuation s G A keys (k (reply v)) dev
-          (q.logReply (reply v) log) rows
-        have native (r : Row s) : G.signWithExpansionRow s keys.secretKey q r =
-            reply (rowMasks s r) := by
-          by_cases large : 255 < q.context.length
-          · simp [Xofs.signWithExpansionRow, reply, large, Nat.not_le.mpr large]
-          · simp [Xofs.signWithExpansionRow, reply, large, Nat.le_of_not_gt large, key, mat, m,
-              tupleReply_row]
-        simp only [List.length_nil, List.nil_append, readUntil_sign]
-        simp only [ordinary, native]
-        exact replace_row_mask s j score
+        simp only [List.length_nil, List.nil_append, prefixRun, prefixInteraction, cut,
+          PFunctor.FreeM.pure_eq_pure, OracleComp.run_interpret_pure, PMF.monad_pure_eq_pure,
+          PMF.pure_bind, ordinary]
+        exact sign q k dev log rows
       | cons p pre =>
         have push : cut (C := C) (.liftBind (.inr (.inr q)) k) (pre.length + 1) =
             .liftBind (.inr (.inr q)) (fun b => cut (C := C) (k b) pre.length) := rfl
-        simp only [List.length_cons, List.cons_append, readUntil_step _ _ _ _ _ _ _ _ _ push,
+        simp only [List.length_cons, List.cons_append, prefixRun_step _ _ _ _ _ _ _ push,
           ordinary, OracleComp.withSampleListWhen, isSigningCall, Sum.elim_inr, ↓reduceIte,
           OracleComp.withSampleList,
           List.headD_cons, List.tail_cons, signingCommand, OracleComp.sumHandler, StateT.run,
           pmf_norm]
         exact ih _ _ _ pre
 
-private theorem uniform_readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
+private noncomputable def readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs)
+    (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)
+    (i : ℕ) (j : Fin 814) (dev : C.Device) (log : List Forgery) (rows : List (Row s))
+    (y : Mask s) : Game :=
+  C.prefixRun s G keys prog i dev log rows fun x d l t =>
+    let (next, signed, rest) := afterTrial s G A sk j y x (nativePreparation s G A sk j x t) l t
+    C.expansionContinuation s G A keys next d signed rest
+
+private theorem readUntil_eq (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
     (sk : PrivateKey s) (A : PublicMatrix s) (key : decodePrivate s keys.secretKey = some sk)
-    (mat : G.expandA s sk.rho = some A) {n : ℕ} (i : Fin n) (j : Fin 814) :
-    let U := PMF.uniformOfFintype (Fin n → Row s)
+    (mat : G.expandA s sk.rho = some A) (prog : C.Program Forgery)
+    (j : Fin 814) (dev : C.Device) (log : List Forgery) (pre rows : List (Row s)) :
+    let U := PMF.uniformOfFintype (Row s)
     let μ := signingMaskLaw s.params (by cases s <;> decide)
-    let prog := C.program keys.publicKey
-    (U.bind fun rs => μ.bind fun y =>
-      C.readUntil s G A keys sk prog i j C.initialDevice [] (List.ofFn rs) y) =
-    U.bind fun rs => C.expansionContinuation s G A keys prog C.initialDevice [] (List.ofFn rs) := by
-  intro U μ prog
-  let left (t : List (Row s)) := μ.bind fun y =>
-    C.readUntil s G A keys sk prog i j C.initialDevice [] t y
-  let right (t : List (Row s)) := C.expansionContinuation s G A keys prog C.initialDevice [] t
+    (U.bind fun r => μ.bind fun y =>
+      C.readUntil s G A keys sk prog pre.length j dev log (pre ++ r :: rows) y) =
+    U.bind fun r => C.expansionContinuation s G A keys prog dev log (pre ++ r :: rows) := by
+  apply prefixRun_eq
+  · intros
+    rfl
+  · intro q k dev log rows
+    let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
+    let reply v := if 255 < q.context.length then none else tupleReply s G A sk m v
+    let score v := C.expansionContinuation s G A keys (k (reply v)) dev
+      (q.logReply (reply v) log) rows
+    have native (r : Row s) : G.signWithExpansionRow s keys.secretKey q r =
+        reply (rowMasks s r) := by
+      by_cases large : 255 < q.context.length
+      · simp [Xofs.signWithExpansionRow, reply, large, Nat.not_le.mpr large]
+      · simp [Xofs.signWithExpansionRow, reply, large, Nat.le_of_not_gt large, key, mat, m,
+          tupleReply_row]
+    simp only [afterTrial_read, native]
+    exact replace_row_mask s j score
+
+private theorem uniform_tape_eq (s : Level) {n : ℕ} (i : Fin n)
+    (left right : List (Row s) → Game)
+    (same : ∀ pre rows, pre.length = i.val →
+      ((PMF.uniformOfFintype (Row s)).bind fun r => left (pre ++ r :: rows)) =
+      (PMF.uniformOfFintype (Row s)).bind fun r => right (pre ++ r :: rows)) :
+    let U := PMF.uniformOfFintype (Fin n → Row s)
+    (U.bind fun v => left (List.ofFn v)) = U.bind fun v => right (List.ofFn v) := by
+  intro U
   have split (v : Fin n → Row s) (r : Row s) : List.ofFn (Function.update v i r) =
       (List.ofFn v).take i.val ++ r :: (List.ofFn v).drop (i.val + 1) := by
     rw [← show (List.ofFn v).set i.val r = _ from List.set_eq_take_append_cons_drop.trans
@@ -347,8 +360,24 @@ private theorem uniform_readUntil (C : QuantumSigningForger) (s : Level) (G : Xo
   funext v
   simp only [split]
   have len : ((List.ofFn v).take i.val).length = i.val := by simp
-  simpa only [len] using C.readUntil_eq s G keys sk A key mat prog j C.initialDevice []
-    ((List.ofFn v).take i.val) ((List.ofFn v).drop (i.val + 1))
+  exact same _ _ len
+
+private theorem uniform_readUntil (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
+    (sk : PrivateKey s) (A : PublicMatrix s) (key : decodePrivate s keys.secretKey = some sk)
+    (mat : G.expandA s sk.rho = some A) {n : ℕ} (i : Fin n) (j : Fin 814) :
+    let U := PMF.uniformOfFintype (Fin n → Row s)
+    let μ := signingMaskLaw s.params (by cases s <;> decide)
+    let prog := C.program keys.publicKey
+    (U.bind fun rs => μ.bind fun y =>
+      C.readUntil s G A keys sk prog i j C.initialDevice [] (List.ofFn rs) y) =
+    U.bind fun rs => C.expansionContinuation s G A keys prog C.initialDevice [] (List.ofFn rs) := by
+  intro U μ prog
+  let left (t : List (Row s)) := μ.bind fun y =>
+    C.readUntil s G A keys sk prog i j C.initialDevice [] t y
+  let right (t : List (Row s)) := C.expansionContinuation s G A keys prog C.initialDevice [] t
+  apply uniform_tape_eq s i left right
+  intro pre rows len
+  simpa only [len] using C.readUntil_eq s G keys sk A key mat prog j C.initialDevice [] pre rows
 
 private theorem read_at_generated (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (seed : FixedBytes 32) (keys : KeyPair) (kg : H.keyGen s seed = some keys)
@@ -428,6 +457,28 @@ private def generatedMatrix (s : Level) (H : Xofs) (seed : FixedBytes 32) :
   let keys ← H.keyGen s seed
   H.expandA s (keys.publicKey.take 32)
 
+private theorem seeded_gap_le (s : Level) (base : Xofs) (a b : ℕ)
+    (test : Bool → Xofs → FixedBytes 32 → Game) (cost : Option (PublicMatrix s) → ℝ)
+    (point : ∀ H seed, |prob (test true H seed) - prob (test false H seed)| ≤
+      cost (generatedMatrix s H seed)) :
+    let law := PMF.uniformOfFintype (FixedBytes 32)
+    let matrices := (base.uniformPrefixes a b).bind fun H => law.map (generatedMatrix s H)
+    |prob ((base.uniformPrefixes a b).bind fun H => law.bind (test true H)) -
+      prob ((base.uniformPrefixes a b).bind fun H => law.bind (test false H))| ≤
+      ∑ A, (matrices A).toReal * cost A := by
+  classical
+  intro law matrices
+  unfold matrices Xofs.uniformPrefixes
+  simp only [PMF.bind_map, Function.comp_def, PMF.sum_bind_mul, PMF.sum_map_mul]
+  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
+  apply Finset.sum_le_sum
+  intro table _
+  apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
+  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
+  apply Finset.sum_le_sum
+  intro seed _
+  exact mul_le_mul_of_nonneg_left (point _ seed) ENNReal.toReal_nonneg
+
 /-- At one attempt in the original private-expansion experiment, persistent reprogramming costs
 the average of the prior-query bound under the actual seeded matrix distribution. Failed key
 generation contributes zero. The same sampled streams are used for setup, signing, verification
@@ -478,16 +529,7 @@ theorem abs_expansionTrialGame_write_sub_freshExpansionGame_le (C : QuantumSigni
   change |prob ((base.uniformPrefixes a b).bind fun H => law.bind (test true H)) -
     prob ((base.uniformPrefixes a b).bind fun H => law.bind (test false H))| ≤
     ∑ A, (matrices A).toReal * cost A
-  unfold matrices Xofs.uniformPrefixes
-  simp only [PMF.bind_map, Function.comp_def, PMF.sum_bind_mul, PMF.sum_map_mul]
-  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
-  apply Finset.sum_le_sum
-  intro table _
-  apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
-  apply Finset.sum_le_sum
-  intro seed _
-  exact mul_le_mul_of_nonneg_left (point _ seed) ENNReal.toReal_nonneg
+  exact seeded_gap_le s base a b test cost point
 
 end QuantumSigningForger
 
