@@ -22,9 +22,12 @@ the learned clause is false.
 That is exactly a RUP step of LRAT. So the minimized clause enters the certificate as one RUP step
 hinting those reasons and then the learned clause (`Cslib.Logic.PL.CNF.LRATLog.addRup`), and its
 correctness needs no proof about the search for redundant literals: the solver runs the checker's
-unit propagation on the hints, and keeps the minimized clause only if it succeeds
-(`Cslib.Algorithms.Lean.CDCL.Learned.minimize`), which it always does. The minimized clause is a
-subset of the learned one containing its asserting literal, so it is again a learned clause.
+unit propagation on the hints, and keeps the minimized clause only if it succeeds, and the learned
+clause otherwise (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`). What is certified is the checked
+candidate: `Learned.minimize` accepts any trail, with no proof that its reasons are those of the
+learned clause, so nothing here proves that the check succeeds; when it fails, the answer is
+still correct, with the unminimized clause. The minimized clause is a subset of the learned one
+containing its asserting literal once, at its head, so it is again a learned clause.
 
 ## Main definitions
 
@@ -108,7 +111,7 @@ def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) : Learned log₀ A
   let r := redundant L.log reason inC (T.length + 1) L.lit C (Array.replicate n none)
   if r.1.isEmpty then L
   else
-    let D := L.lit :: C.filter fun y => !r.1.contains y
+    let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
     let hints := derivedHints T r.2 ++ [L.id]
     have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy

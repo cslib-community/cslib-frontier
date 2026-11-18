@@ -124,6 +124,20 @@ example :
     ({ beforeRestart with opts := { phaseSaving := false } }).restart.phase.get 1 = false := by
   decide +kernel
 
+/-- The minimization steps of a certificate: the RUP steps hinting at least three clauses, which
+resolution steps, hinting two, cannot be. Each comes with whether its clause repeats no literal. -/
+private def minimizationSteps (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) : List Bool :=
+  cert.toList.filterMap fun
+    | .addRup _ c hints => if 3 ≤ hints.size then some (decide c.toList.Nodup) else none
+    | _ => none
+
+/-- On PHP(4, 3) minimization removes literals, and its clause repeats no literal: the asserting
+literal is not kept in the tail as well as at the head. -/
+example : (match (CDCL.solveWith {} php43).1 with
+    | .unsat cert => !(minimizationSteps cert).isEmpty && (minimizationSteps cert).all id
+    | .sat _ => false) = true := by
+  decide +kernel
+
 /-- Minimization removes literals from the clauses learned on PHP(4, 3); without it, none are. -/
 example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.maxLiterals ∧
     (CDCL.solveWith { minimize := false } php43).2.literals =

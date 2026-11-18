@@ -111,32 +111,6 @@ theorem eval_of_clause? {log : LRATLog φ} {i : ℕ} {c : Clause ℕ} (h : log.c
     {σ : ℕ → Bool} (hσ : φ.eval σ = true) : c.eval σ = true :=
   log.implied σ hσ (i, c) (List.mem_of_find?_eq_some (find?_of_clause? h))
 
-/-- Adding the resolvent of the clauses numbered `i₁` and `i₂` on `v`, given those clauses. -/
-def addResolvent (log : LRATLog φ) (i₁ i₂ v : ℕ) (c₁ c₂ : Clause ℕ)
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) : LRATLog φ where
-  steps := .addRup log.next (c₁.resolvent c₂ v).toDIMACS #[i₁, i₂] :: log.steps
-  db := (log.next, c₁.resolvent c₂ v) :: log.db
-  next := log.next + 1
-  run rest := by
-    have hprop := propagateHints_resolvent (v := v) (find?_of_clause? h₁) (find?_of_clause? h₂)
-    simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
-    rw [log.run]
-    simp only [checkLRATAux, Clause.ofDIMACS_toDIMACS, hprop, Bool.true_and]
-  lt_next e he := by
-    rcases List.mem_cons.1 he with rfl | he
-    · simp
-    · have := log.lt_next e he; omega
-  implied σ hσ e he := by
-    rcases List.mem_cons.1 he with rfl | he
-    · exact Clause.eval_resolvent v (eval_of_clause? h₁ hσ) (eval_of_clause? h₂ hσ)
-    · exact log.implied σ hσ e he
-  vars_mem e he l hl := by
-    rcases List.mem_cons.1 he with rfl | he
-    · rcases Clause.mem_resolvent.1 hl with ⟨hl, -⟩ | ⟨hl, -⟩
-      · exact log.vars_mem _ (List.mem_of_find?_eq_some (find?_of_clause? h₁)) l hl
-      · exact log.vars_mem _ (List.mem_of_find?_eq_some (find?_of_clause? h₂)) l hl
-    · exact log.vars_mem e he l hl
-
 /-- A log extends another if every number of the other still names the same clause. -/
 def Extends (log log' : LRATLog φ) : Prop :=
   ∀ i c, log.clause? i = some c → log'.clause? i = some c
@@ -150,22 +124,6 @@ theorem Extends.trans {log₁ log₂ log₃ : LRATLog φ} (h₁ : log₁.Extends
 theorem lt_next_of_clause? {log : LRATLog φ} {i : ℕ} {c : Clause ℕ} (h : log.clause? i = some c) :
     i < log.next :=
   log.lt_next (i, c) (List.mem_of_find?_eq_some (find?_of_clause? h))
-
-/-- After adding a resolvent, the new number names it. -/
-theorem clause?_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
-    (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂).clause? log.next = some (c₁.resolvent c₂ v) := by
-  simp [clause?, addResolvent]
-
-/-- Adding a resolvent extends the log. -/
-theorem extends_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
-    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
-    log.Extends (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂) := by
-  intro i c h
-  have hi := lt_next_of_clause? h
-  simp only [clause?, addResolvent, List.find?_cons] at h ⊢
-  rw [show (log.next == i) = false by simp; omega]
-  exact h
 
 /-- **Adding a RUP clause**: `c`, over variables of `φ`, under the next number, hinting `hints`,
 given that unit propagation along the hints from the negation of `c` reaches a conflict. -/
@@ -209,6 +167,29 @@ theorem extends_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
   rw [show (log.next == i) = false by simp; omega]
   exact h
 
+/-- Adding the resolvent of the clauses numbered `i₁` and `i₂` on `v`, given those clauses: a RUP
+step hinting the two clauses (`Cslib.Logic.PL.CNF.LRATLog.addRup`). -/
+def addResolvent (log : LRATLog φ) (i₁ i₂ v : ℕ) (c₁ c₂ : Clause ℕ)
+    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) : LRATLog φ :=
+  log.addRup (c₁.resolvent c₂ v) [i₁, i₂]
+    (propagateHints_resolvent (v := v) (find?_of_clause? h₁) (find?_of_clause? h₂))
+    fun l hl => by
+      rcases Clause.mem_resolvent.1 hl with ⟨hl, -⟩ | ⟨hl, -⟩
+      · exact vars_mem_of_clause? h₁ l hl
+      · exact vars_mem_of_clause? h₂ l hl
+
+/-- After adding a resolvent, the new number names it. -/
+theorem clause?_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
+    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
+    (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂).clause? log.next = some (c₁.resolvent c₂ v) :=
+  clause?_addRup
+
+/-- Adding a resolvent extends the log. -/
+theorem extends_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
+    (h₁ : log.clause? i₁ = some c₁) (h₂ : log.clause? i₂ = some c₂) :
+    log.Extends (log.addResolvent i₁ i₂ v c₁ c₂ h₁ h₂) :=
+  extends_addRup
+
 /-- **Resolving two clauses of the log**: the resolvent of the clauses numbered `i₁` and `i₂` on
 `v`, added under the next number, which is returned with the new log; `none` if a number names no
 clause. -/
@@ -229,7 +210,7 @@ theorem clause?_resolve {log log' : LRATLog φ} {i₁ i₂ v j : ℕ} {c₁ c₂
     cases h₁'
     cases h₂'
     cases h
-    simp [clause?, addResolvent]
+    simp [clause?, addResolvent, addRup]
   · simp at h
 
 /-- After resolving, the older numbers name the same clauses. -/
@@ -239,7 +220,7 @@ theorem clause?_resolve_of_lt {log log' : LRATLog φ} {i₁ i₂ v j i : ℕ}
   unfold resolve at h
   split at h
   · cases h
-    simp only [clause?, addResolvent, List.find?_cons]
+    simp only [clause?, addResolvent, addRup, List.find?_cons]
     rw [show (log.next == i) = false by simp; omega]
   · simp at h
 
