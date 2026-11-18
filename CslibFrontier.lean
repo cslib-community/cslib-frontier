@@ -2339,6 +2339,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Sparse.Prune
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Turing
 public import CslibFrontier.Computability.Complexity.Classes.TFNP
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.SearchToDecision
+public import CslibFrontier.Computability.Complexity.Classes.TFNP.SelfReducibility
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Completeness
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PPADS
