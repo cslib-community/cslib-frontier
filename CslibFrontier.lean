@@ -4975,6 +4975,7 @@ public import CslibFrontier.Crypto.Computational.OneWay.NP
 public import CslibFrontier.Crypto.Computational.OneWay.Normalize
 public import CslibFrontier.Crypto.Computational.OneWay.Repeated
 public import CslibFrontier.Crypto.Computational.OneWay.Weak
+public import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 public import CslibFrontier.Crypto.Computational.OneWayToPRF
 public import CslibFrontier.Crypto.Computational.OneWayToPRG
 public import CslibFrontier.Crypto.Computational.OneWayToSignature
