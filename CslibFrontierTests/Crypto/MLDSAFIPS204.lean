@@ -134,3 +134,35 @@ private def repeatedAcrossMessages : Bool := Id.run do
     y == representativeInput tr (formattedMessage signed) && H.h256.read x 32 == H.h256.read y 32
 
 #guard repeatedAcrossMessages
+
+-- Different 32-byte seeds can expand to the same sparse polynomial. Preserve their
+-- eight exposed sign bytes while filling each rejection tape with zero bytes.
+private def collidingExpansionRows : Option Bool := do
+  let a := List.replicate 32 (0 : Byte)
+  let b := (1 : Byte) :: List.replicate 31 0
+  let rows : Finset (List Bool) := {Keccak.bytesToBitsLE a, Keccak.bytesToBitsLE b}
+  let background := constantStream (fun _ => 247)
+  let H : Xofs := ⟨background, background.fill (rows := rows) (width := 221)
+    (fun _ => 8) (fun _ _ => 0)⟩
+  let c ← H.sampleInBall .mlDSA44 a
+  let c' ← H.sampleInBall .mlDSA44 b
+  return a != b && c == c' && H.h256.readBytes a 9 == List.replicate 8 247 ++ [0] &&
+    H.h256.readBytes [] 9 == List.replicate 9 247
+
+#guard collidingExpansionRows == some true
+
+-- Once all 221 input bytes have been read, reprogramming the suffix cannot alter
+-- the actual signature challenge, including exhaustion.
+example (H : Xofs) (s : Level) (d : List Byte) (seen : List Bool → ℕ)
+    (table : digestRows s → FixedBytes 221) (h : 221 ≤ seen (Keccak.bytesToBitsLE d)) :
+    (H.withExpansionRows s seen table).sampleInBall s d = H.sampleInBall s d := by
+  apply congrArg (sampleInBallBytes s)
+  exact H.h256.read_fill_of_le seen table h
+
+-- The first reply is actually passed to the continuation. Returning exactly those bytes as
+-- the forgery is rejected, even when they verify, because the genuine reply was logged.
+example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List Byte) :
+    K.continueFirstSigning s keys q (some sig) (fun _ _ ans =>
+      pure ⟨q.context, q.message, ans.getD []⟩) = PMF.pure false := by
+  simp [Xofs.continueFirstSigning, Xofs.winsForgery, SigningQuery.logReply,
+    Cslib.ProbOracleComp.runWith_pure]
