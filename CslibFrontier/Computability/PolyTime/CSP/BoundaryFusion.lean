@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryFusion
+import CslibFrontier.Computability.PolyTime.CSP.Boundary
 import CslibFrontier.Computability.PolyTime.Graph.RotationSystem.Reindex
 import CslibFrontier.Computability.PolyTime.CSP.Vars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
@@ -45,45 +46,6 @@ namespace Cslib.Complexity.CSP.CrossInsertion
 open Cslib.Logic.PL Cslib.Logic.PL.CSP OrderedBoundary Graph Turing.MultiTapeTM
 
 variable {Rel : Type}
-
--- The outer range is funded by the computed unary retained-dart count. Each inner range
--- and each successor walk use only the actual table length, even on malformed tables.
-private theorem restrictPrefix_polyTime {α : Type} {input : α ↪ List Bool}
-    {table : α → RotationCertificate} {count : α → ℕ}
-    (hc : ComputableInPolyTime table input encRotationCertificate)
-    (hn : ComputableInPolyTime count input encUnary) :
-    ComputableInPolyTime (fun a => restrictPrefix (count a) (table a))
-      input encRotationCertificate := by
-  have hs := RotationCertificate.computableInPolyTime_successor.comp hc
-  have hsteps := (ComputableInPolyTime.length_list encNat).comp hs
-  have hbound := ComputableInPolyTime.unary_to_binary.comp hn
-  have hout : ComputableInPolyTime (fun a => (List.range (count a)).map fun i =>
-      (((List.range (table a).successor.length).map fun k =>
-        RotationCertificate.walk (table a).successor (k + 1) i).find?
-          (fun j => decide (j < count a))).getD 0) input (encList encNat) := by
-    apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-      (ComputableInPolyTime.range.comp hn)
-    have hp := ComputableInPolyTime.fst input encUnary
-    have hi := ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.snd input encUnary)
-    have hwalks : ComputableInPolyTime (fun p : α × ℕ =>
-        (List.range (table p.1).successor.length).map fun k =>
-          RotationCertificate.walk (table p.1).successor (k + 1) p.2)
-        (encPair input encUnary) (encList encNat) := by
-      apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-        (ComputableInPolyTime.range.comp (hsteps.comp hp))
-      have hq := ComputableInPolyTime.fst (encPair input encUnary) encUnary
-      have hk := ComputableInPolyTime.snd (encPair input encUnary) encUnary
-      exact RotationCertificate.computableInPolyTime_walk.comp
-        ((((hs.comp hp).comp hq).prod (ComputableInPolyTime.unary_succ.comp hk)).prod
-          (hi.comp hq))
-    have hfind := ComputableInPolyTime.findWithInput
-      (test := fun (p : α × ℕ) j => decide (j < count p.1)) hwalks
-      (ComputableInPolyTime.binary_lt'
-        (ComputableInPolyTime.snd (encPair input encUnary) encNat)
-        ((hbound.comp hp).comp (ComputableInPolyTime.fst (encPair input encUnary) encNat)))
-    exact ComputableInPolyTime.optionGetDWithInput hfind (ComputableInPolyTime.const 0)
-  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hout
 
 /-- Fuse the first two boundary wires in native polynomial time on every raw state.
 Names and table entries are binary; all counts are computed in unary from actual lists.
@@ -147,7 +109,7 @@ theorem computableInPolyTime_fuseHead (encRel : Rel ↪ List Bool) :
       equalDropCertificate I.body (I.ports.tail.tail.length) I.rotation)
       input encRotationCertificate := by
     simpa only [equalDropCertificate, m, n, Function.comp_def] using
-      restrictPrefix_polyTime hswap hcount
+      OrderedBoundary.computableInPolyTime_restrictPrefix hswap hcount
   have houtput := encState_mk_polyTime encRel hrenamed hsurvivors hcertificate
   have hshort := ComputableInPolyTime.binary_lt'
     (ComputableInPolyTime.unary_to_binary.comp

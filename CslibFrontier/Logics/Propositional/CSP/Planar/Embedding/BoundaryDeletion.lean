@@ -41,6 +41,15 @@ noncomputable def Witness.rotateCons {F : CSP Rel V} {p : V} {ports : List V}
   rw [← hout]
   exact h.accepted
 
+/-- Moving the first boundary marker to the end uses exactly the shared raw cyclic table.
+The original constructor and its distinctness premise are unchanged. -/
+theorem Witness.rotateCons_certificate {F : CSP Rel V} {p : V} {ports : List V}
+    (w : Witness F (p :: ports)) (hn : (p :: ports).Nodup) :
+    (w.rotateCons hn).certificate =
+      rotateBoundaryCertificate F.occurrences.length (ports.length + 1) w.certificate := by
+  unfold Witness.rotateCons
+  rw [Witness.rotateOfFn_certificate]
+
 /-- Move the final distinct boundary marker to the front by the inverse cyclic shift. -/
 noncomputable def Witness.unrotateSnoc {F : CSP Rel V} {p : V} {ports : List V}
     (w : Witness F (ports ++ [p])) (hn : (ports ++ [p]).Nodup) : Witness F (p :: ports) := by

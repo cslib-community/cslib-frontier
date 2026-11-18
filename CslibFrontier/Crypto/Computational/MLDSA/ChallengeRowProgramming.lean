@@ -486,8 +486,6 @@ theorem uniform_exchangeSampleInBall (s : Level) :
       ((exchangeSampleInBall s (row, d)).1, (sampleInBallBytes s row.toList).map fun _ => d.val)) =
     (Probability.PMF.uniformOfFintype (FixedBytes 221)).map (fun row =>
       (row, sampleInBallBytes s row.toList)) := by
-  rw [← Probability.PMF.uniformOfFintype_prod_map_fst (α := FixedBytes 221) (β := Target s),
-    PMF.map_comp]
   apply Probability.PMF.uniformOfFintype_map_exchange_option
     (exchangeSampleInBall s) (fun row => sampleInBallBytes s row.toList) Subtype.val
   · exact fun h d => by rw [exchangeSampleInBall_of_none h d]; exact h

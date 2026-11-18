@@ -30,6 +30,9 @@ Mathlib's affine images of real segments. They make no general-position claim fo
 
 ## Main results
 
+* `Cslib.Polygonal.mem_openChord_iff`: actual open-chord membership is the strict horizontal
+  interval together with the supporting-line equation.
+
 * `Cslib.Polygonal.parabolaChord_slope_ne_of_mem_inter`: a common interior point forces
   distinct supporting slopes for two different supporting chords.
 * `Cslib.Polygonal.parabolaPoint_mem_segment_iff`: a chord contains no third parabola point.
@@ -93,7 +96,9 @@ private theorem openChord_eq_image (a b : ℝ) :
       chordMap a b '' openSegment ℝ a b := by
   rw [image_openSegment, chordMap_left, chordMap_right]
 
-private theorem mem_openChord_iff {a b : ℝ} (hab : a ≠ b) (z : ℂ) :
+/-- A nondegenerate parabola chord is exactly its strict horizontal interval on its
+supporting line. This characterization supplies actual horizontal cut margins and coordinates. -/
+theorem mem_openChord_iff {a b : ℝ} (hab : a ≠ b) (z : ℂ) :
     z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) ↔
       z.re ∈ Set.Ioo (min a b) (max a b) ∧ z.im = (a + b) * z.re - a * b := by
   rw [openChord_eq_image, openSegment_eq_Ioo' hab]

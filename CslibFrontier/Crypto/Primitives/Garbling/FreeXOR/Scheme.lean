@@ -343,32 +343,6 @@ theorem ofFn_slotTweak_garbledRowOf (f : ValidCircuit) (k : ℕ) (g : Fin (toCir
   rw [PointPermute.rowIndex_testBit_of_eq_two harity hi,
     BitString.ofFn_ofList (by simp [PointPermute.tweak])]
 
-private theorem wires_toCircuit_zero (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.A (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 0) =
-      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
-private theorem wires_toCircuit_one (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.B (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 1) =
-      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
 /-- A base label read from the coins, as a word, is `baseWord`. -/
 theorem labelBits_baseLabels {n s : ℕ} (k : ℕ) (coins : List Bool) (w : Wire n s) :
     labelBits (baseLabels k coins w) = baseWord k coins w.toNat :=
