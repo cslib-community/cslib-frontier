@@ -24,18 +24,16 @@ import Mathlib.Data.Nat.Choose.Basic
 Checks for `CslibFrontier/Crypto/Computational/Encryption/CBCMode/Uniform.lean`:
 - concrete CBC encryption/decryption and round-trip inversion for a non-involution `BlockCipher`
   (`revXorCipher`, XORing the key and reversing each block);
-- `isPPTOn_cbcWordEncrypt`, `computableInPolyTime_cbcWordDecrypt`,
-  `BlockCipher.isPPTOn_cbcEncrypt`, `BlockCipher.computableInPolyTime_cbcDecrypt`,
-  `isOraclePPT_cbcToPrfDistinguisher` and `BlockCipher.isOraclePPT_cbcToPrpDistinguisher`
-  certificates;
-- non-vacuous concrete PRF and block-cipher `(5.22)` bounds at `n = 16` with additive term strictly
-  below `1`;
-- asymptotic CPA security theorems (`PseudorandomFunction.indcpa_cbcWordEncrypt` and
-  `BlockCipher.PRP.indcpa_cbcEncrypt`), instantiated on `lubyRackoffCipher` (`keyLen n = 3 * n`,
-  `blockLen n = 2 * n`);
-- a negative/non-vacuity witness showing that with the identity block cipher `E(k, x) = x`,
-  random-IV CBC is **not** CPA-secure (`not_indcpa_cbcWordEncrypt_id`), via an explicit 2-block
-  chosen-plaintext distinguisher (`(0ⁿ ++ 0ⁿ, 0ⁿ ++ 1ⁿ)`).
+- `BlockCipher.isPPTOn_cbcEncrypt`, `BlockCipher.computableInPolyTime_cbcDecrypt` and
+  `BlockCipher.isOraclePPT_cbcToPrpDistinguisher` certificates;
+- non-vacuous concrete block-cipher CPA bound at `n = 16` with additive term strictly below `1`;
+- asymptotic CPA security theorem (`BlockCipher.PRP.indcpa_cbcEncrypt`), instantiated on
+  `lubyRackoffCipher` (`keyLen n = 3 * n`, `blockLen n = 2 * n`);
+- a negative/non-vacuity witness showing that with the identity `BlockCipher` `idBlockCipher`
+  (`encrypt _ _ x = x`, which has super-polynomial block space `2 ^ n` but is not a `PRP`),
+  random-IV CBC (`idBlockCipher.cbcEncrypt`) is **not** CPA-secure
+  (`not_indcpa_cbcEncrypt_idBlockCipher`), via an explicit 2-block chosen-plaintext distinguisher
+  (`(0ⁿ ++ 0ⁿ, 0ⁿ ++ 1ⁿ)`).
 -/
 
 public section
@@ -113,49 +111,14 @@ example :
       (encKeyedInput encBits) (encOption encBits) :=
   revXorCipher.computableInPolyTime_cbcDecrypt
 
-/-- `cbcWordEncrypt` and `cbcWordDecrypt` are efficient for a poly-time family. -/
+/-- The block-cipher reduction built from `oneBlockAdversary` is uniform strict oracle PPT. -/
 example :
-    IsPPTOn (encKeyedInput encBits) encBits
-      (fun ((n, k, msg) : ℕ × List Bool × List Bool) =>
-        cbcWordEncrypt (fun key block => List.zipWith xor key block) n k msg) ∧
-    ComputableInPolyTime
-      (fun ((n, k, ct) : ℕ × List Bool × List Bool) =>
-        cbcWordDecrypt (fun key block => List.zipWith xor key block) n k ct)
-      (encKeyedInput encBits) (encOption encBits) :=
-  ⟨isPPTOn_cbcWordEncrypt (by polytime), computableInPolyTime_cbcWordDecrypt (by polytime)⟩
-
-/-- Both PRF and block-cipher reductions built from `oneBlockAdversary` are uniform strict oracle
-PPT. -/
-example :
-    IsOraclePPT encBool (cbcToPrfDistinguisher oneBlockAdversary false) ∧
     IsOraclePPT encBool (revXorCipher.cbcToPrpDistinguisher oneBlockAdversary false) :=
-  ⟨isOraclePPT_cbcToPrfDistinguisher isOraclePPT_oneBlockAdversary false,
-   revXorCipher.isOraclePPT_cbcToPrpDistinguisher isOraclePPT_oneBlockAdversary false⟩
+  revXorCipher.isOraclePPT_cbcToPrpDistinguisher isOraclePPT_oneBlockAdversary false
 
-/-! ### Non-vacuous concrete bounds at `n = 16` -/
+/-! ### Non-vacuous concrete bound at `n = 16` -/
 
-/-- At `n = 16`, the concrete PRF CPA bound for `oneBlockAdversary` (`Q = 1`, `L = 50`) has
-collision term `2 * (50.choose 2 / 2 ^ 16) = 2450 / 65536 < 1`. -/
-example {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length) :
-    (Game.advantage
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt family) oneBlockAdversary false 16))
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt family) oneBlockAdversary true 16)) : ℝ) ≤
-      (Game.advantage
-        (ProbComp.eval (prfRealGame id family (cbcToPrfDistinguisher oneBlockAdversary false) 16))
-        (ProbComp.eval
-          (prfIdealGame id id (cbcToPrfDistinguisher oneBlockAdversary false) 16)) : ℝ) +
-      (Game.advantage
-        (ProbComp.eval (prfRealGame id family (cbcToPrfDistinguisher oneBlockAdversary true) 16))
-        (ProbComp.eval
-          (prfIdealGame id id (cbcToPrfDistinguisher oneBlockAdversary true) 16)) : ℝ) +
-      2 * (((1 * 50).choose 2 : ℝ) / 2 ^ 16) :=
-  advantage_cbcWordCPAGame_prf_le hlen oneBlockAdversary (isQueryBounded_oneBlockAdversary 16)
-    (queriesSatisfy_oneBlockAdversary 16)
-
-/-- At `n = 16`, the concrete block-cipher `(5.22)` CPA bound for `revXorCipher` and
+/-- At `n = 16`, the concrete block-cipher CPA bound for `revXorCipher` and
 `oneBlockAdversary` (`Q = 1`, `L = 50`) has additive term
 `4 * (50.choose 2 / 2 ^ 16) = 4900 / 65536 < 1`. -/
 example :
@@ -186,12 +149,7 @@ example :
       (isQueryBounded_oneBlockAdversary 16) (queriesSatisfy_oneBlockAdversary 16),
     by norm_num [revXorCipher, Nat.choose]⟩
 
-/-! ### Asymptotic security theorems (including non-`id` Luby–Rackoff instantiation) -/
-
-/-- Random-IV CBC mode is CPA-secure for every `PseudorandomFunction`. -/
-example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
-    SymmetricINDCPAOn blockPairValid BitString.sampleList (cbcWordEncrypt family) :=
-  hprf.indcpa_cbcWordEncrypt
+/-! ### Asymptotic security theorem (including non-`id` Luby–Rackoff instantiation) -/
 
 open scoped NNReal in
 /-- Random-IV CBC mode is CPA-secure for every `BlockCipher.PRP` with super-polynomial block space
@@ -214,7 +172,25 @@ example {family : List Bool → List Bool → List Bool} (hfamily : Pseudorandom
 
 /-! ### Insecurity of random-IV CBC with the identity block cipher -/
 
-/-- Two-block CPA distinguisher against random-IV CBC with `E(k, x) = x`: submit
+/-- The identity `BlockCipher` (`keyLen = id`, `blockLen = id`, `encrypt _ _ x = x`,
+`decrypt _ _ y = y`), which has super-polynomial block space `2 ^ n` (`Negligible (2 ^ n)⁻¹`) but
+is not a `PRP`. -/
+@[expose]
+def idBlockCipher : BlockCipher where
+  keyLen := id
+  blockLen := id
+  keyLen_polyTime := ComputableInPolyTime.id'
+  blockLen_polyTime := ComputableInPolyTime.id'
+  encrypt _ _ x := x
+  decrypt _ _ y := y
+  encrypt_polyTime := by polytime
+  decrypt_polyTime := by polytime
+  length_encrypt _ _ _ _ hx := hx
+  length_decrypt _ _ _ _ hy := hy
+  decrypt_encrypt _ _ _ _ _ := rfl
+  encrypt_decrypt _ _ _ _ _ := rfl
+
+/-- Two-block CPA distinguisher against random-IV CBC with `idBlockCipher`: submit
 `(0ⁿ ++ 0ⁿ, 0ⁿ ++ 1ⁿ)` and test whether the two ciphertext blocks `c₁` and `c₂` after the IV are
 equal. Under `E(k, x) = x`, `0ⁿ ++ 0ⁿ` always gives `c₁ = iv = c₂`, whereas `0ⁿ ++ 1ⁿ` gives
 `c₁ = iv` and `c₂ = iv ⊕ 1ⁿ ≠ c₁` for every `n ≥ 1`. -/
@@ -349,18 +325,26 @@ private theorem eval_cpaGame_id_twoBlockIdAttack {n : ℕ} (hn : 0 < n) (bit : B
     rw [ite_eq_left rfl, hbody, htake3, hdrop1, hdrop2]
     exact beq_eq_false_iff_ne.mpr (ne_zipWith_xor_replicate_true hn hivLen)
 
-/-- **Non-vacuity of the PRP/PRF hypothesis:** with the identity block cipher `E(k, x) = x`,
-random-IV CBC mode is **not** CPA-secure (`twoBlockIdAttack` achieves advantage `1` for every
-`n ≥ 1`). -/
-theorem not_indcpa_cbcWordEncrypt_id :
-    ¬ SymmetricINDCPAOn blockPairValid BitString.sampleList (cbcWordEncrypt fun _ x => x) := by
+/-- **Non-vacuity of the `BlockCipher.PRP` hypothesis:** with `idBlockCipher` (`encrypt _ _ x = x`),
+random-IV CBC mode `idBlockCipher.cbcEncrypt` is **not** CPA-secure (`twoBlockIdAttack` achieves
+advantage `1` for every `n ≥ 1`). -/
+theorem not_indcpa_cbcEncrypt_idBlockCipher :
+    ¬ SymmetricINDCPAOn (fun n => blockPairValid (idBlockCipher.blockLen n))
+      (fun n => BitString.sampleList (idBlockCipher.keyLen n)) idBlockCipher.cbcEncrypt := by
   intro hsec
   have hneg := (hsec twoBlockIdAttack isOraclePPT_twoBlockIdAttack).shift 1
   have hadv (n : ℕ) : Game.advantage
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (idBlockCipher.blockLen m))
+        (fun m => BitString.sampleList (idBlockCipher.keyLen m))
+        idBlockCipher.cbcEncrypt twoBlockIdAttack false (n + 1)))
+      (ProbComp.eval (symmetricCPAGameOn (fun m => blockPairValid (idBlockCipher.blockLen m))
+        (fun m => BitString.sampleList (idBlockCipher.keyLen m))
+        idBlockCipher.cbcEncrypt twoBlockIdAttack true (n + 1))) = 1 := by
+    change Game.advantage
       (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
         (cbcWordEncrypt fun _ x => x) twoBlockIdAttack false (n + 1)))
       (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt fun _ x => x) twoBlockIdAttack true (n + 1))) = 1 := by
+        (cbcWordEncrypt fun _ x => x) twoBlockIdAttack true (n + 1))) = 1
     rw [eval_cpaGame_id_twoBlockIdAttack (Nat.succ_pos n) false,
       eval_cpaGame_id_twoBlockIdAttack (Nat.succ_pos n) true]
     simp [Game.succProbability]

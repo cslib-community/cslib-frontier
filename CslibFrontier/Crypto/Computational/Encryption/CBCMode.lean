@@ -61,7 +61,8 @@ The proof:
    (`advantage_cbcCpaGame_le`).
 
 The bounds hold for every adversary. The query bound of the reduction is proved
-(`isQueryBounded_cbcReduction`); no running-time certificate is claimed here.
+(`isQueryBounded_cbcReduction`); no running-time certificate is claimed here (tracked in #4894 and
+#5293 section 2).
 
 Comparison with the book:
 * `K` counts the blocks of all queries. With `Q` queries of at most `ℓ` blocks, `K ≤ Q ℓ`, so the
@@ -352,7 +353,7 @@ theorem advantage_cbcCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
   linarith
 
 /-- **Keyed PRF step of [BonehShoup2023], Theorem 5.4, not the asymptotic theorem** (typed
-reduction without a running-time certificate; see
+reduction without a running-time certificate, tracked in #4894 and #5293 section 2; see
 `CslibFrontier/Crypto/Computational/Encryption/CBCMode/Uniform.lean` for the certified uniform
 theorem). If the queries of `adversary` ask at most `K` blocks in total, its left-or-right
 advantage against CBC mode with the keyed function `F` is at most the PRF advantages of
@@ -374,7 +375,7 @@ theorem advantage_cbcCpaGame_prf_le {Key : Type} [Fintype Key] [Nonempty Key]
   linarith
 
 /-- **Keyed block-cipher step (5.22) of [BonehShoup2023], Theorem 5.4, not the asymptotic theorem**
-(typed reduction without a running-time certificate; see
+(typed reduction without a running-time certificate, tracked in #4894 and #5293 section 2; see
 `CslibFrontier/Crypto/Computational/Encryption/CBCMode/Uniform.lean` for the certified uniform
 theorem). If the queries of `adversary` ask at most `K` blocks in total, its left-or-right
 advantage against CBC mode with the keyed permutation `E` is at most the PRP advantages of

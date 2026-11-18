@@ -27,44 +27,37 @@ import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
 /-!
-# Cipher block chaining with a random IV from a uniform block cipher or PRF
+# Cipher block chaining with a random IV from a uniform block cipher
 
 Cipher block chaining (CBC) with a random initialization vector ([BonehShoup2023], Section 5.4.3,
-printed pp. 194–195) encrypts a message of `v` blocks `m[0], …, m[v - 1]` under a key `k` by
-drawing a uniform initial value `c[0] = iv` and computing `c[j + 1] = E(k, c[j] ⊕ m[j])`,
-outputting `c[0] ++ c[1] ++ … ++ c[v]`; decryption recovers `m[j] = c[j] ⊕ D(k, c[j + 1])`.
-Unlike CTR and OFB modes, CBC decryption applies the block cipher's inverse `D`, so the primary
-cipher (`BlockCipher.cbcEncrypt`, `BlockCipher.cbcDecrypt`) is parameterized by an arbitrary
-uniform `E : BlockCipher` with key length `E.keyLen n` and block length `E.blockLen n` (with no
-`id` restriction on either schedule). For a parameter-free family `family` with `n`-bit keys and
-`n`-bit blocks, `cbcWordEncrypt` and `cbcWordDecrypt` provide the `PseudorandomFunction`
-counterpart matching `CslibFrontier/Crypto/Computational/Encryption/CTRMode/Uniform.lean` and
-`CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`. Both share `ivModeEncrypt`
-and `ivModeDecrypt` with the chained bodies `cbcWordBody` and `cbcWordDecBody` (truncating each
-step output to the block width so encryption and decryption are polynomial-time on arbitrary keys
-and families, which changes nothing on valid outputs).
+printed p. 194) encrypts a message of `v` blocks `m[0], …, m[v - 1]` under a key `k` by drawing a
+uniform initial value `c[0] = iv` and computing `c[j + 1] = E(k, c[j] ⊕ m[j])`, outputting
+`c[0] ++ c[1] ++ … ++ c[v]`; decryption recovers `m[j] = c[j] ⊕ D(k, c[j + 1])`. Unlike CTR and OFB
+modes, CBC decryption applies the block cipher's inverse `D`, so the cipher
+(`BlockCipher.cbcEncrypt`, `BlockCipher.cbcDecrypt`) is parameterized by an arbitrary uniform
+`E : BlockCipher` with key length `E.keyLen n` and block length `E.blockLen n` (with no `id`
+restriction on either schedule), built from the width-parameterized core `cbcWordEncrypt` and
+`cbcWordDecrypt` via `ivModeEncrypt` and `ivModeDecrypt` with the chained bodies `cbcWordBody` and
+`cbcWordDecBody` (truncating each step output to the block width so encryption and decryption are
+polynomial-time on arbitrary keys, which changes nothing on valid outputs).
 
 Security is many-query left-or-right CPA security (`SymmetricINDCPAOn`, Attack Game 5.2 and
 Definition 5.2) on equal-length pairs of whole blocks (`blockPairValid`), in the standard model,
 against uniform strict oracle-PPT adversaries. For a `BlockCipher` `E`, the distinguisher
-`E.cbcToPrpDistinguisher adversary bit` runs `cbcToPrfDistinguisher` (`ivModeToPrfDistinguisher
-cbcBodyQueries`) at block width `E.blockLen n` on `adversary n []`, answering each admissible pair
-by drawing a uniform `E.blockLen n`-bit initial value and querying its encryption oracle
-sequentially on `c[j] ⊕ m[j]`.
+`E.cbcToPrpDistinguisher adversary bit` runs `ivModeToPrfDistinguisher cbcBodyQueries` at block
+width `E.blockLen n` on `adversary n []`, answering each admissible pair by drawing a uniform
+`E.blockLen n`-bit initial value and querying its encryption oracle sequentially on `c[j] ⊕ m[j]`.
 
-1. Both `cbcToPrfDistinguisher` and `E.cbcToPrpDistinguisher` are uniform strict oracle PPT
-   whenever the adversary is (`isOraclePPT_cbcToPrfDistinguisher`,
-   `BlockCipher.isOraclePPT_cbcToPrpDistinguisher`).
-2. Against the keyed oracle, they have the exact output law of the adversary in the CBC CPA game
-   with challenge bit `bit` (`eval_prfRealGame_cbcToPrfDistinguisher`,
-   `BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`).
-3. Against a uniform random function or permutation, for an adversary whose requests have at most
-   `L` bits, they have the output law of the typed CBC experiment (`CBCMode.lean`), giving the
-   concrete PRF bound `advantage_cbcWordCPAGame_prf_le`, the concrete block-cipher bound
-   `BlockCipher.advantage_cbcEncrypt_le` corresponding to equation (5.22), and the asymptotic CPA
-   security theorems `PseudorandomFunction.indcpa_cbcWordEncrypt` and
-   `BlockCipher.PRP.indcpa_cbcEncrypt` ([BonehShoup2023], Theorem 5.4, for any `E : BlockCipher`
-   with `E.PRP` and super-polynomial block space
+1. `E.cbcToPrpDistinguisher adversary bit` is uniform strict oracle PPT whenever the adversary is
+   (`BlockCipher.isOraclePPT_cbcToPrpDistinguisher`).
+2. Against `E.prpRealGame`, it has the exact output law of `adversary` in the random-IV CBC CPA
+   game for `E.cbcEncrypt` with challenge bit `bit`
+   (`BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`).
+3. Against a uniform random permutation, for an adversary whose requests have at most `L` bits, it
+   has the output law of the typed CBC experiment (`CBCMode.lean`), giving the concrete block-cipher
+   bound `BlockCipher.advantage_cbcEncrypt_le` (after Theorem 5.4, (5.22)) and the asymptotic CPA
+   security theorem `BlockCipher.PRP.indcpa_cbcEncrypt` ([BonehShoup2023], Theorem 5.4, for any
+   `E : BlockCipher` with `E.PRP` and super-polynomial block space
    `Negligible fun n => ((2 : ℝ≥0) ^ E.blockLen n)⁻¹`).
 
 ## Deviations from Theorem 5.4
@@ -73,13 +66,14 @@ sequentially on `c[j] ⊕ m[j]`.
   `X^{≤ℓ}`. Here `blockPairValid` admits equal-length pairs of any number of whole
   `E.blockLen n`-bit blocks, which implies the statement for every `ℓ` (a PPT adversary can only
   write polynomially long requests).
-* **Two fixed-bit distinguishers and bit-length query cap.** As in
+* **Two fixed-bit distinguishers and a cruder collision term.** As in
   `CslibFrontier/Crypto/Computational/Encryption/CTRMode/Uniform.lean` and
-  `CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`, the concrete bounds sum the
-  advantages of the `false` and `true` distinguishers instead of one coin-flipping distinguisher
-  with factor `2`, and bound the total encrypted blocks of `Q` requests of at most `L` bits by
-  `Q * L`, giving the additive term `4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)`
-  (`≤ 2 * (Q * L) ^ 2 / 2 ^ E.blockLen n`, matching `(5.22)`'s `2 Q² ℓ² / N` when `ℓ = L`).
+  `CslibFrontier/Crypto/Computational/Encryption/OFBMode/Uniform.lean`,
+  `BlockCipher.advantage_cbcEncrypt_le` sums the PRP advantages of the `false` and `true`
+  distinguishers instead of one coin-flipping distinguisher with factor `2`, and bounds the total
+  encrypted blocks of `Q` requests of at most `L` bits by `Q * L`, giving the additive term
+  `4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)` rather than `(5.22)`'s `2 Q ^ 2 ℓ ^ 2 / N` for `ℓ`
+  blocks per request.
 * **Uniform strict oracle-PPT adversaries** in place of concrete/circuit adversaries, following the
   asymptotic reading of [BonehShoup2023], Sections 2.3 and 4.1.5.
 
@@ -87,35 +81,30 @@ sequentially on `c[j] ⊕ m[j]`.
 
 * `Cslib.Crypto.cbcWordBody`, `Cslib.Crypto.cbcWordDecBody`: the CBC encryption and decryption
   bodies after the initial value.
-* `Cslib.Crypto.cbcWordEncrypt`, `Cslib.Crypto.cbcWordDecrypt`: random-IV CBC encryption and
-  decryption for `n`-bit-block families.
+* `Cslib.Crypto.cbcWordEncrypt`, `Cslib.Crypto.cbcWordDecrypt`: width-parameterized random-IV CBC
+  encryption and decryption core.
 * `Cslib.Crypto.BlockCipher.cbcEncrypt`, `Cslib.Crypto.BlockCipher.cbcDecrypt`: random-IV CBC
   encryption and decryption for an arbitrary `BlockCipher`.
 * `Cslib.Crypto.cbcBodyStep`, `Cslib.Crypto.cbcBodyQueries`: the CBC body computed from a word
   oracle.
-* `Cslib.Crypto.cbcToPrfDistinguisher`, `Cslib.Crypto.BlockCipher.cbcToPrpDistinguisher`: the
-  certified word-oracle reductions.
+* `Cslib.Crypto.BlockCipher.cbcToPrpDistinguisher`: the certified word-oracle block-cipher
+  reduction.
 
 ## Main results
 
 * `Cslib.Crypto.cbcWordDecrypt_cbcWordEncrypt`,
   `Cslib.Crypto.BlockCipher.cbcDecrypt_cbcEncrypt`: round-trip decryption correctness.
-* `Cslib.Crypto.isPPTOn_cbcWordEncrypt`, `Cslib.Crypto.computableInPolyTime_cbcWordDecrypt`,
-  `Cslib.Crypto.BlockCipher.isPPTOn_cbcEncrypt`,
+* `Cslib.Crypto.BlockCipher.isPPTOn_cbcEncrypt`,
   `Cslib.Crypto.BlockCipher.computableInPolyTime_cbcDecrypt`: efficiency of the honest algorithms.
-* `Cslib.Crypto.isOraclePPT_cbcToPrfDistinguisher`,
-  `Cslib.Crypto.BlockCipher.isOraclePPT_cbcToPrpDistinguisher`: the reductions are uniform strict
+* `Cslib.Crypto.run_cbcBodyQueries`: `cbcBodyQueries` computes `cbcWordBody` against any
+  deterministic oracle.
+* `Cslib.Crypto.BlockCipher.isOraclePPT_cbcToPrpDistinguisher`: the reduction is uniform strict
   oracle PPT.
-* `Cslib.Crypto.eval_prfRealGame_cbcToPrfDistinguisher`,
-  `Cslib.Crypto.eval_prfIdealGame_cbcToPrfDistinguisher`,
-  `Cslib.Crypto.BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`: exact real- and ideal-game
-  bridges.
-* `Cslib.Crypto.advantage_cbcWordCPAGame_prf_le`,
-  `Cslib.Crypto.BlockCipher.advantage_cbcEncrypt_le`: concrete word-level CPA bounds (PRF form and
-  block-cipher form `(5.22)`).
-* `Cslib.Crypto.PseudorandomFunction.indcpa_cbcWordEncrypt`,
-  `Cslib.Crypto.BlockCipher.PRP.indcpa_cbcEncrypt`: CBC mode with a random IV is CPA-secure
-  ([BonehShoup2023], Theorem 5.4).
+* `Cslib.Crypto.BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher`: exact real-game bridge.
+* `Cslib.Crypto.BlockCipher.advantage_cbcEncrypt_le`: concrete word-level CPA bound (after
+  Theorem 5.4, (5.22)).
+* `Cslib.Crypto.BlockCipher.PRP.indcpa_cbcEncrypt`: CBC mode with a random IV is CPA-secure for any
+  `BlockCipher.PRP` with super-polynomial block space ([BonehShoup2023], Theorem 5.4).
 
 ## References
 
@@ -163,7 +152,7 @@ def cbcWordDecBody (decFamily : List Bool → List Bool → List Bool) (n : ℕ)
       (block, acc ++ List.zipWith xor prev ((decFamily k block).take n)))
     (iv, [])).2
 
-/-- Random-IV CBC decryption ([BonehShoup2023], Section 5.4.3, printed p. 195): accept an `n`-bit
+/-- Random-IV CBC decryption ([BonehShoup2023], Section 5.4.3, printed p. 194): accept an `n`-bit
 initial value followed by whole `n`-bit ciphertext blocks (`ivModeDecrypt`), and recover the
 plaintext blocks via `cbcWordDecBody`. Malformed ciphertexts (shorter than `n` bits, or whose body
 is not a multiple of `n` bits) return `none`. -/
@@ -265,35 +254,30 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
     {msg : List Bool} (hmsg : msg.length % n = 0)
     {ct : List Bool} (hct : ct ∈ (ProbComp.eval (cbcWordEncrypt encFamily n k msg)).support) :
     cbcWordDecrypt decFamily n k ct = some msg := by
-  refine ivModeDecrypt_ivModeEncrypt ?_ ?_ hmsg hct
-  · intro iv hivLen
-    set ms := BitString.listRows (msg.length / n) n msg
-    have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+  set ms := BitString.listRows (msg.length / n) n msg
+  have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+  have hbodyLen (iv : List Bool) (hivLen : iv.length = n) :
+      (cbcWordBody encFamily n k iv msg).length = msg.length := by
     set cs := cbcChainWords (encFamily k) n iv ms
     have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
-    have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
     rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten, List.map_congr_left hcs,
-      List.map_const', List.sum_replicate_nat, hcsLen,
+      List.map_const', List.sum_replicate_nat, length_cbcChainWords, BitString.length_listRows,
       Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
-  · intro iv hivLen
-    set ms := BitString.listRows (msg.length / n) n msg
-    have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
-    set cs := cbcChainWords (encFamily k) n iv ms
-    have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
-    have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
-    have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
-      cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
-    have hbodyLen : cs.flatten.length = msg.length := by
-      rw [List.length_flatten, List.map_congr_left hcs, List.map_const', List.sum_replicate_nat,
-        hcsLen, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
-    rw [hbodyEq, cbcWordDecBody, hbodyLen, ← hcsLen,
-      BitString.listRows_flatten cs hcs, foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms,
-      List.nil_append]
-    exact BitString.flatten_listRows_of_length
-      (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
+  refine ivModeDecrypt_ivModeEncrypt hbodyLen (fun iv hivLen => ?_) hmsg hct
+  set cs := cbcChainWords (encFamily k) n iv ms
+  have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
+  have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
+  have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
+    cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
+  have hflatLen : cs.flatten.length = msg.length := hbodyEq ▸ hbodyLen iv hivLen
+  rw [hbodyEq, cbcWordDecBody, hflatLen, ← hcsLen,
+    BitString.listRows_flatten cs hcs, foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms,
+    List.nil_append]
+  exact BitString.flatten_listRows_of_length
+    (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
 /-- Random-IV CBC encryption for an arbitrary uniform `BlockCipher` `E` ([BonehShoup2023],
-Section 5.4.3, printed pp. 194–195): at parameter `n`, draw a uniform `E.blockLen n`-bit initial
+Section 5.4.3, printed p. 194): at parameter `n`, draw a uniform `E.blockLen n`-bit initial
 value `iv` and output `iv` followed by `cbcWordBody (E.encrypt n) (E.blockLen n) k iv msg`. -/
 @[expose]
 noncomputable def BlockCipher.cbcEncrypt (E : BlockCipher) (n : ℕ) (k msg : List Bool) :
@@ -301,7 +285,7 @@ noncomputable def BlockCipher.cbcEncrypt (E : BlockCipher) (n : ℕ) (k msg : Li
   ivModeEncrypt (cbcWordBody (E.encrypt n)) (E.blockLen n) k msg
 
 /-- Random-IV CBC decryption for an arbitrary uniform `BlockCipher` `E` ([BonehShoup2023],
-Section 5.4.3, printed p. 195): accept an `E.blockLen n`-bit initial value followed by whole
+Section 5.4.3, printed p. 194): accept an `E.blockLen n`-bit initial value followed by whole
 `E.blockLen n`-bit ciphertext blocks (`ivModeDecrypt`), and recover the plaintext blocks via
 `cbcWordDecBody (E.decrypt n)`. -/
 @[expose]
@@ -442,29 +426,6 @@ private theorem computableInPolyTime_cbcWordDecBody_param
       omega)
   exact (ComputableInPolyTime.snd encBits encBits).comp hfold
 
-/-- Random-IV CBC encryption is uniformly strict PPT in `(n, k, msg)`. -/
-theorem isPPTOn_cbcWordEncrypt {encFamily : List Bool → List Bool → List Bool}
-    (hpoly : ComputableInPolyTime (fun pair => encFamily pair.1 pair.2)
-      (encPair encBits encBits) encBits) :
-    IsPPTOn (encKeyedInput encBits) encBits
-      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => cbcWordEncrypt encFamily n k msg) :=
-  isPPTOn_ivModeEncrypt
-    (computableInPolyTime_cbcWordBody_param (encFamily := fun _ => encFamily)
-      (hpoly.comp (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const 0)
-      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
-
-/-- Random-IV CBC decryption is computable in polynomial time on `(n, k, ct)`. -/
-theorem computableInPolyTime_cbcWordDecrypt {decFamily : List Bool → List Bool → List Bool}
-    (hpoly : ComputableInPolyTime (fun pair => decFamily pair.1 pair.2)
-      (encPair encBits encBits) encBits) :
-    ComputableInPolyTime
-      (fun ((n, k, ct) : ℕ × List Bool × List Bool) => cbcWordDecrypt decFamily n k ct)
-      (encKeyedInput encBits) (encOption encBits) :=
-  computableInPolyTime_ivModeDecrypt (decBody := cbcWordDecBody decFamily)
-    (computableInPolyTime_cbcWordDecBody_param (decFamily := fun _ => decFamily)
-      (hpoly.comp (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const 0)
-      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
-
 /-- For every `BlockCipher` `E`, `E.cbcEncrypt` is uniformly strict PPT in `(n, k, msg)`. -/
 theorem BlockCipher.isPPTOn_cbcEncrypt (E : BlockCipher) :
     IsPPTOn (encKeyedInput encBits) encBits
@@ -535,12 +496,12 @@ def cbcBodyQueries (n : ℕ) (iv msg : List Bool) : WordOracleComp Unit (List Bo
   let blocks := BitString.listRows (msg.length / n) n msg
   (fun (_, _, acc) => acc) <$> OracleComp.iterate blocks.length (cbcBodyStep n) (blocks, iv, [])
 
-/-- The word-oracle distinguisher built from a left-or-right CPA adversary against random-IV CBC
-mode ([BonehShoup2023], proof of Theorem 5.4, adversary `B`): run the adversary and answer each
-admissible whole-block pair `(m₀, m₁)` by drawing a uniform `n`-bit initial value `iv` and
-computing the CBC ciphertext body of the selected message via `cbcBodyQueries`; inadmissible
-requests are answered with `[]` and no query. -/
-noncomputable abbrev cbcToPrfDistinguisher (adversary : OracleDistinguisher) (bit : Bool) :
+/-- The width-parameterized word-oracle distinguisher built from a left-or-right CPA adversary
+against random-IV CBC mode: run the adversary and answer each admissible whole-block pair
+`(m₀, m₁)` by drawing a uniform `n`-bit initial value `iv` and computing the CBC ciphertext body of
+the selected message via `cbcBodyQueries`; inadmissible requests are answered with `[]` and no
+query. -/
+private noncomputable abbrev cbcToPrfDistinguisher (adversary : OracleDistinguisher) (bit : Bool) :
     OracleDistinguisher :=
   ivModeToPrfDistinguisher cbcBodyQueries adversary bit
 
@@ -580,33 +541,6 @@ private theorem cbcChainWords_congr_of_length {g₁ g₂ : List Bool → List Bo
     simp only [cbcChainWords, heq _ hxor]
     congr 1
     exact ih (by simp [← heq _ hxor, hgLen]) fun b hb => hms b (List.mem_cons_of_mem _ hb)
-
-/-- Answered by `prfOracle family n k` under an `n`-bit key and `n`-bit initial value,
-`cbcBodyQueries` computes `cbcWordBody family n k iv msg`. -/
-theorem run_cbcBodyQueries_prfOracle {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    {n : ℕ} {k : List Bool} (hk : k.length = n) {iv : List Bool} (hiv : iv.length = n)
-    (msg : List Bool) :
-    (cbcBodyQueries n iv msg).run (fun request => pure (prfOracle family n k request.2)) =
-      pure (cbcWordBody family n k iv msg) := by
-  rw [run_cbcBodyQueries, cbcWordBody_eq_flatten_cbcChainWords,
-    cbcWordBody_eq_flatten_cbcChainWords]
-  congr 2
-  exact cbcChainWords_congr_of_length
-    (fun x hx => by simp [prfOracle, hx, hlen k x (hx.trans hk.symm), hk])
-    (fun x hx => by simp [prfOracle, hx])
-    hiv (fun _ hm => BitString.length_of_mem_listRows hm)
-
-/-- **Real game.** Against the keyed oracle, `cbcToPrfDistinguisher adversary bit` has the output
-law of `adversary` in the random-IV CBC CPA game with challenge bit `bit`. -/
-theorem eval_prfRealGame_cbcToPrfDistinguisher {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    (adversary : OracleDistinguisher) (bit : Bool) (n : ℕ) :
-    ProbComp.eval (prfRealGame id family (cbcToPrfDistinguisher adversary bit) n) =
-      ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt family) adversary bit n) :=
-  eval_prfRealGame_ivModeToPrfDistinguisher
-    (fun _ hk _ hiv msg _ => run_cbcBodyQueries_prfOracle hlen hk hiv msg) adversary bit
 
 /-- `cbcBodyQueries` is strict oracle PPT on `(1ⁿ, iv, msg)`: each step makes one `n`-truncated
 oracle query and grows the encoded state by at most `3 n` bits. -/
@@ -687,14 +621,6 @@ private theorem length_le_of_mem_support_cbcBodyQueries (n : ℕ) (iv msg reply 
   simp only [BitString.length_listRows] at hinv
   exact hinv.trans (Nat.div_mul_le_self msg.length n)
 
-/-- **Efficiency of the reduction.** For every uniform strict oracle-PPT adversary,
-`cbcToPrfDistinguisher adversary bit` is uniform strict oracle PPT. -/
-theorem isOraclePPT_cbcToPrfDistinguisher {adversary : OracleDistinguisher}
-    (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
-    IsOraclePPT encBool (cbcToPrfDistinguisher adversary bit) :=
-  isOraclePPT_ivModeToPrfDistinguisher isOraclePPTOn_cbcBodyQueries
-    length_le_of_mem_support_cbcBodyQueries hadversary bit
-
 /-! ### Ideal games and concrete CPA bounds -/
 
 private theorem cbcChainWords_randomFunction_map_ofFn {n : ℕ} (f : BitString n → BitString n)
@@ -718,30 +644,6 @@ private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → B
       (cbcEncryptBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn := by
   rw [cbcWordBody_eq_flatten_cbcChainWords, listRows_eq_map_ofFn_padBlocks,
     cbcChainWords_randomFunction_map_ofFn, ← List.flatMap_def]
-
-private theorem run_cbcBodyQueries_randomFunction {n : ℕ} (f : BitString n → BitString n)
-    (iv : BitString n) (m : List Bool) :
-    (cbcBodyQueries n (List.ofFn iv) m).run
-        (fun request => pure (randomFunctionOracle n f request.2)) =
-      pure ((cbcEncryptBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn) := by
-  rw [run_cbcBodyQueries, cbcWordBody_randomFunction_ofFn]
-
-/-- **Ideal PRF game.** Against a uniform random function, the word reduction for an adversary
-whose requests have at most `L` bits has the exact output law of the typed reduction
-`cbcReduction L bit` on `blockModeWordAdversary adversary n`. -/
-theorem eval_prfIdealGame_cbcToPrfDistinguisher (adversary : OracleDistinguisher)
-    (bit : Bool) {n L : ℕ}
-    (hL : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ L) :
-    ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary bit) n) =
-      ProbComp.eval (PRF.idealExperiment
-        (cbcReduction L bit (blockModeWordAdversary adversary n))) :=
-  eval_prfIdealGame_ivModeToPrfDistinguisher (ℓ := L)
-    (program := cbcQueryProgram L bit) (bodyBlocks := cbcEncryptBlocks)
-    (fun f q => by
-      simp only [cbcQueryProgram, blockModeOracle, ProbOracleComp.run_bind,
-        ProbOracleComp.run_sample, run_cbcChainQueries, pure_bind, ProbOracleComp.run_pure])
-    (fun f iv m _ => run_cbcBodyQueries_randomFunction f iv m)
-    adversary (hL.mono fun _ h => (Nat.div_le_self _ _).trans ((length_unframe_le _).trans h))
 
 /-- Running `cbcToPrfDistinguisher` against a fixed table `f` agrees in distribution with running
 `blockModeWordAdversary` against `blockModeOracle (cbcEncryptBlocks f) L bit`, when requests have
@@ -803,43 +705,9 @@ private theorem eval_prpIdealGame_cbcToPrfDistinguisher (adversary : OracleDisti
     ProbComp.eval_bind]
   exact congrArg _ (funext fun π => eval_run_cbcToPrfDistinguisher_table adversary bit hL ⇑π)
 
-/-- **Concrete word-level PRF CPA bound for random-IV CBC mode**, after [BonehShoup2023],
-Theorem 5.4. At parameter `n`, an adversary making at most `Q` requests of at most `L` bits has
-CPA advantage against `cbcWordEncrypt family` at most the PRF advantages of
-`cbcToPrfDistinguisher adversary false` and `cbcToPrfDistinguisher adversary true` plus
-`2 * ((Q * L).choose 2 / 2 ^ n)`. -/
-theorem advantage_cbcWordCPAGame_prf_le {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    (adversary : OracleDistinguisher) {n Q L : ℕ} (hQ : (adversary n []).IsQueryBounded Q)
-    (hL : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ L) :
-    (Game.advantage
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt family) adversary false n))
-      (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
-        (cbcWordEncrypt family) adversary true n)) : ℝ) ≤
-      (Game.advantage
-        (ProbComp.eval (prfRealGame id family (cbcToPrfDistinguisher adversary false) n))
-        (ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary false) n)) : ℝ) +
-      (Game.advantage
-        (ProbComp.eval (prfRealGame id family (cbcToPrfDistinguisher adversary true) n))
-        (ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary true) n)) : ℝ) +
-      2 * (((Q * L).choose 2 : ℝ) / 2 ^ n) := by
-  rw [← eval_prfRealGame_cbcToPrfDistinguisher hlen adversary false n,
-    ← eval_prfRealGame_cbcToPrfDistinguisher hlen adversary true n]
-  have hcost := isCostBounded_blockModeWordAdversary hQ L
-  have h₀ := advantage_idealExperiment_cbcReduction_le L false hcost
-  have h₁ := advantage_idealExperiment_cbcReduction_le L true hcost
-  rw [← eval_prfIdealGame_cbcToPrfDistinguisher adversary false hL] at h₀
-  rw [← eval_prfIdealGame_cbcToPrfDistinguisher adversary true hL] at h₁
-  refine (advantage_le_four _
-    (ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary false) n))
-    (ProbComp.eval (blockModeIdealExperiment L (blockModeWordAdversary adversary n)))
-    (ProbComp.eval (prfIdealGame id id (cbcToPrfDistinguisher adversary true) n)) _).trans ?_
-  linarith
-
 /-- The block-cipher distinguisher built from a left-or-right CPA adversary against `E.cbcEncrypt`
-([BonehShoup2023], proof of Theorem 5.4, adversary `B`): run `cbcToPrfDistinguisher` at block width
-`E.blockLen n` on `adversary n []`. -/
+([BonehShoup2023], proof of Theorem 5.4, adversary `B`): run `ivModeToPrfDistinguisher
+cbcBodyQueries` at block width `E.blockLen n` on `adversary n []`. -/
 noncomputable def BlockCipher.cbcToPrpDistinguisher (E : BlockCipher)
     (adversary : OracleDistinguisher) (bit : Bool) : OracleDistinguisher :=
   fun n aux => cbcToPrfDistinguisher (fun _ _ => adversary n []) bit (E.blockLen n) aux
@@ -895,12 +763,14 @@ theorem BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher (E : BlockCipher)
     BitString.eval_sampleList, PMF.bind_const] at hreal
   exact hreal
 
-/-- **Concrete word-level block-cipher CPA bound for random-IV CBC mode** ([BonehShoup2023],
-Theorem 5.4, equation (5.22)). For any `BlockCipher` `E`, an adversary at parameter `n` making at
-most `Q` requests of at most `L` bits has CPA advantage against `E.cbcEncrypt` at most the PRP
-advantages of `E.cbcToPrpDistinguisher adversary false` and `E.cbcToPrpDistinguisher adversary true`
-plus `4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)` (`≤ 2 * (Q * L) ^ 2 / 2 ^ E.blockLen n`, matching
-`(5.22)`'s `2 Q² ℓ² / N` with two fixed-bit distinguishers and `ℓ = L`). -/
+/-- **Concrete word-level CPA bound for random-IV CBC mode**, after [BonehShoup2023], Theorem 5.4,
+(5.22). For any `BlockCipher` `E`, an adversary at parameter `n` making at most `Q` requests of at
+most `L` bits has CPA advantage against `E.cbcEncrypt` at most the PRP advantages of
+`E.cbcToPrpDistinguisher adversary false` and `E.cbcToPrpDistinguisher adversary true` plus
+`4 * ((Q * L).choose 2 / 2 ^ E.blockLen n)`. Requests of `L` bits ask for at most `L` blocks, so
+`Q * L` bounds the blocks encrypted in total. This is not the bound (5.22), which has one
+distinguisher with a factor `2` and the collision term `2 Q ^ 2 ℓ ^ 2 / N` for `ℓ` blocks per
+request; see the module's deviations. -/
 theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : OracleDistinguisher)
     {n Q L : ℕ} (hQ : (adversary n []).IsQueryBounded Q)
     (hL : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ L) :
@@ -948,27 +818,6 @@ theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : Oracl
   linarith
 
 /-! ### Asymptotic CPA security (Theorem 5.4) -/
-
-/-- **Random-IV CBC mode is CPA-secure for a pseudorandom function** (PRF step of
-[BonehShoup2023], Section 5.4.3, Theorem 5.4): if `family` is a `PseudorandomFunction`, random-IV
-CBC mode with `n`-bit blocks at security parameter `n` has negligible many-query left-or-right CPA
-advantage on equal-length pairs of whole blocks, against every uniform strict oracle-PPT
-adversary. -/
-theorem PseudorandomFunction.indcpa_cbcWordEncrypt {family : List Bool → List Bool → List Bool}
-    (hprf : PseudorandomFunction family) :
-    SymmetricINDCPAOn blockPairValid BitString.sampleList (cbcWordEncrypt family) := by
-  intro adversary hadversary
-  obtain ⟨c, d, hbounds⟩ := hadversary.query_bounds
-  let P : ℕ → ℕ := fun n => c * (n + 2) ^ d
-  have hq (n : ℕ) : (adversary n []).IsQueryBounded (P n) := by
-    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).1
-  have hl (n : ℕ) : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ P n := by
-    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).2
-  have hprf₀ := hprf.secure (cbcToPrfDistinguisher adversary false)
-    (isOraclePPT_cbcToPrfDistinguisher hadversary false)
-  have hprf₁ := hprf.secure (cbcToPrfDistinguisher adversary true)
-    (isOraclePPT_cbcToPrfDistinguisher hadversary true)
-  negligible using fun n => advantage_cbcWordCPAGame_prf_le hprf.length_eq adversary (hq n) (hl n)
 
 open scoped NNReal in
 /-- **Random-IV CBC mode is CPA-secure for a pseudorandom permutation** ([BonehShoup2023],
