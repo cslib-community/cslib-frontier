@@ -1445,26 +1445,19 @@ theorem cutoffStmt17_clears_paper_m3_cutoff_and_misses_unique_cutoff
       omega
     · have hinj : Function.Injective (params17.eval 0) :=
         cosetEval_injective params17.hg params17.hω (Nat.zero_le _)
-      have hsub : (S ∩ T).image (params17.eval 0) ⊆ p.roots.toFinset := by
-        intro x hx
-        obtain ⟨s, hs, rfl⟩ := Finset.mem_image.mp hx
+      have hsub : S ∩ T ⊆ Finset.univ.filter fun s => p.eval (params17.eval 0 s) = 0 := by
+        intro s hs
         obtain ⟨hsS, hsT⟩ := Finset.mem_inter.mp hs
         have hlt10 : s.val < 10 := (Finset.mem_filter.mp hsT).2
         have hbase0 : cutoffStmt17.base s = 0 := by simp only [cutoffStmt17, hlt10, ↓reduceIte]
-        have heval : p.eval (params17.eval 0 s) = 0 := by
-          have heq := (Finset.mem_filter.mp hsS).2
-          exact heq.symm.trans hbase0
-        exact Multiset.mem_toFinset.mpr ((Polynomial.mem_roots hp0).mpr heval)
-      have hcard_roots : 5 ≤ p.roots.card := by
-        calc 5 ≤ (S ∩ T).card := hinter_ge
-          _ = ((S ∩ T).image (params17.eval 0)).card := (Finset.card_image_of_injective _ hinj).symm
-          _ ≤ p.roots.toFinset.card := Finset.card_le_card hsub
-          _ ≤ p.roots.card := Multiset.toFinset_card_le _
+        exact Finset.mem_filter.mpr
+          ⟨Finset.mem_univ _, (Finset.mem_filter.mp hsS).2.symm.trans hbase0⟩
+      have hle_deg : (S ∩ T).card ≤ p.natDegree :=
+        (Finset.card_le_card hsub).trans (card_filter_eval_eq_zero_le hinj hp0)
       have hdeg_lt : p.natDegree < 4 := by
         have hd0 : params17.dim 0 = 4 := by decide
         rw [hd0] at hp_deg
         exact (Polynomial.natDegree_lt_iff_degree_lt hp0).mpr hp_deg
-      have hle_deg : p.roots.card ≤ p.natDegree := Polynomial.card_roots' p
       omega
 
 end CutoffCounterexample17
