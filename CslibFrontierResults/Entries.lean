@@ -6012,6 +6012,27 @@ register_result "random-walk-edge-hitting-time" where
     deg v * E_v[tau+_v] = 2|E|, and E_u[tau_v] <= 2|E| dist(u,v). Proposition 6.13's cover-time \
     bound and the log-space USTCON algorithm are not included."
 
+register_result "goldreich-modular-square-root-descent" where
+  title := "Square roots modulo a prime from a quadratic non-residue"
+  topic := "randomized algorithms"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.16, items 1-3",
+      locator := "February 2007 draft r3.pdf, PDF p. 55; printed p. 257, with footnote 23" }
+  ]
+  theorems := [
+    Cslib.Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq,
+    Cslib.Complexity.ModularSquareRoot.sq_eq_of_pow_mul_pow_eq_one,
+    Cslib.Complexity.ModularSquareRoot.descentExponents_spec,
+    Cslib.Complexity.ModularSquareRoot.computableInPolyTime_descentExponents,
+    Cslib.Complexity.ModularSquareRoot.sqrtMod_sq,
+    Cslib.Complexity.ModularSquareRoot.computableInPolyTime_sqrtMod
+  ]
+  scope := "Deterministic items only. Inputs are a prime P, a quadratic residue s modulo P and, \
+    for P ≡ 1 (mod 4), a supplied quadratic non-residue t (t ^ (P / 2) = -1 in ZMod P); \
+    primality, squareness and the non-residue condition are input promises. The descent \
+    (footnote 23) computes an odd e and an even e' with s ^ e * t ^ e' = 1 for non-zero s, \
+    and sqrtMod returns a square root of s (zero included); both are native polynomial-time \
+    on binary naturals. The randomized search for t (item 4) is not included."
 register_result "regular-random-walk-hitting-times" where
   title := "Random walks on regular multigraphs: unique stationary law, return and hitting times"
   topic := "randomized complexity"
@@ -6248,25 +6269,3 @@ register_result "owp-iterate-one-way" where
     asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
     concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
     bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."
-
-register_result "goldreich-modular-square-root-descent" where
-  title := "Square roots modulo a prime from a quadratic non-residue"
-  topic := "randomized algorithms"
-  sources := [
-    { paper := Goldreich2007Draft, theorem := "Exercise 6.16, items 1-3",
-      locator := "February 2007 draft r3.pdf, PDF p. 55; printed p. 257, with footnote 23" }
-  ]
-  theorems := [
-    Cslib.Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq,
-    Cslib.Complexity.ModularSquareRoot.sq_eq_of_pow_mul_pow_eq_one,
-    Cslib.Complexity.ModularSquareRoot.descentExponents_spec,
-    Cslib.Complexity.ModularSquareRoot.computableInPolyTime_descentExponents,
-    Cslib.Complexity.ModularSquareRoot.sqrtMod_sq,
-    Cslib.Complexity.ModularSquareRoot.computableInPolyTime_sqrtMod
-  ]
-  scope := "Deterministic items only. Inputs are a prime P, a quadratic residue s modulo P and, \
-    for P ≡ 1 (mod 4), a supplied quadratic non-residue t (t ^ (P / 2) = -1 in ZMod P); \
-    primality, squareness and the non-residue condition are input promises. The descent \
-    (footnote 23) computes an odd e and an even e' with s ^ e * t ^ e' = 1 for non-zero s, \
-    and sqrtMod returns a square root of s (zero included); both are native polynomial-time \
-    on binary naturals. The randomized search for t (item 4) is not included."
