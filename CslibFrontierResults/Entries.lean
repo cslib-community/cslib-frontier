@@ -37,6 +37,7 @@ import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
 import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
+import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
 import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 import CslibFrontier.Computability.Complexity.Problems.StronglyConnected.Completeness
@@ -1052,6 +1053,24 @@ register_result "majority-three-zero-error-expected-cost" where
     six-order short-circuit algorithm has expected cost 2 on constants and 8/3 otherwise. \
     The uniform law on six nonconstant inputs forces cost at least 8/3 on all correct \
     adaptive deterministic trees, including arbitrary repeats. Local computation is free."
+
+register_result "goldreich-majority-randomized-probes" where
+  title := "Deciding majority requires linearly many randomized probes"
+  topic := "query complexity"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 10.8",
+      locator := "April 2007 draft r5.pdf, PDF p. 116; printed p. 498" }
+  ]
+  theorems := [
+    Cslib.RandomizedDecisionTree.Computes.exists_div_two_add_one_le_three_mul_cost_majority
+  ]
+  scope := "Outside check: PR #6397, review 5953634105. For n ≥ 1, every finitely supported \
+    mixture of adaptive decision trees computing majority (at least ⌈n/2⌉ ones) on n bits \
+    with error ≤ 1/3 on every input has an input x and a tree t it can draw with \
+    ⌊n/2⌋ + 1 ≤ 3 · t.cost x, where cost counts executed probes, repeats included. The \
+    strict convention follows the same way from blockSensitivity_threshold (checked client). \
+    Proved via Nisan's block-sensitivity bound on executed queries and s(MAJ_n) = ⌊n/2⌋ + 1, \
+    not via the guideline's statistical-distance bound."
 
 register_result "yao-zero-error-expected-cost" where
   title := "Expected-cost Yao minimax with optimal algorithm and hardest input law"
