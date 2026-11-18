@@ -1070,7 +1070,7 @@ theorem closeTo_sampler (R : SelfReducible enc W) {A : α → ℕ → ℕ → Pr
           exact le_eval_retry R hA' (fun _ => hsupp) he hv
   · exact R.sampler_eq_zero_of_notMem A x q (by simp [hW])
 
-/-- **An FPRAS gives the output law of an FPAUS.** The sampler built from a fully polynomial
+/-- **Additive approximation to uniform sampling.** The sampler built from a fully polynomial
 randomized approximation scheme for the number of witnesses has output law within statistical
 distance `2 ^ (-q)` of the uniform law on the witnesses, for every instance and accuracy `q`. This
 additive estimate gives pointwise relative accuracy at increased precision. -/
