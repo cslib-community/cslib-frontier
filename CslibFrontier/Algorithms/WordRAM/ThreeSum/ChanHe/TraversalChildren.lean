@@ -101,7 +101,7 @@ private theorem firstState_comap (x : Data 128) :
 
 /-- Child pushes preserve every persistent controller parameter outside the record and stack. -/
 theorem pushChildren_preserves : ∀ i : Fin 128,
-    ((71 ≤ i.val ∧ i.val < 96) ∨ 109 ≤ i.val) → pushChildren.Preserves i := by decide
+    ((71 ≤ i.val ∧ i.val < 96) ∨ 109 ≤ i.val) → pushChildren.Preserves i := by decide +kernel
 
 private def words (x : Data 128) : List ℕ :=
   [x.regs (slot 0), x.regs (slot 1), x.regs (slot 2), x.regs (slot 3),

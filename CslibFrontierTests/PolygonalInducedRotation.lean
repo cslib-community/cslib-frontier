@@ -5,6 +5,7 @@ Authors: Erik Demaine
 -/
 
 module
+-- upstream: local-only (ordinary module regression tests)
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Equivalence
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
