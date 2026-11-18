@@ -386,7 +386,8 @@ theorem map_eval_schnorrForkingAdversary {k : ℕ} {Control : Type}
   simp only [schnorrForkingAdversary, ProbComp.eval_bind, ProbComp.eval_pure,
     BitString.eval_sampleList, eval_replicate_schnorrSimulatedTranscript,
     ProbComp.eval_replicate_sampleList, PMF.bind_map]
-  simp only [FiatShamir.reduction, Probability.Forking.fork, FiatShamir.coins,
+  simp only [FiatShamir.reduction, Probability.Forking.fork, Probability.Forking.onTapes,
+    FiatShamir.coins,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
     PMF.bind_map, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun tape => congrArg _ (funext fun transcripts =>

@@ -100,13 +100,15 @@ theorem twoQueryAdaptiveTree_admissible : CBCAdmissible 2 twoQueryAdaptiveTree :
     · exact not_isPrefix_of_head_ne (cbcInputBlocks_ne_nil _) head_cbcInputBlocks_zero_ne_two
     · exact not_isPrefix_of_head_ne (cbcInputBlocks_ne_nil _) head_cbcInputBlocks_zero_ne_two.symm
     · exact absurd rfl hxy
-/-- Non-vacuous instantiation of the adaptive PRF bound for `PMF.pure twoQueryAdaptiveTree` at
-  `n = 8, q = 2, ℓ = 2` (advantage bound `16 / 256 = 1 / 16 < 1`). -/
+/-- Non-vacuous instantiation of the adaptive uniform-random-function step (#6046) for
+  `PMF.pure twoQueryAdaptiveTree` at `n = 8, q = 2, ℓ = 2` (advantage bound `16 / 256 = 1 / 16 <
+  1`). -/
 noncomputable example :
-    |cbcRealSuccess 8 2 (PMF.pure twoQueryAdaptiveTree) -
+    |cbcUniformFunctionSuccess 8 2 (PMF.pure twoQueryAdaptiveTree) -
         cbcIdealSuccess 8 2 (PMF.pure twoQueryAdaptiveTree)| ≤
       (2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 : ℝ) ^ 8 := by
-  simpa using abs_cbcRealSuccess_sub_cbcIdealSuccess_le 8 2 2 (PMF.pure twoQueryAdaptiveTree)
+  simpa using
+    abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le 8 2 2 (PMF.pure twoQueryAdaptiveTree)
     (fun tree htree => by
       have hEq : tree = twoQueryAdaptiveTree := (PMF.mem_support_pure_iff _ _).1 htree
       subst hEq; exact twoQueryAdaptiveTree_admissible)

@@ -40,11 +40,14 @@ import Mathlib.Data.List.OfFn
 This module lifts the multi-round Ben-Sasson–Chiesa–Spooner (BCS) transformation
 (`CslibFrontier/Crypto/Protocols/BCS/Basic.lean`) to an explicit two-channel random-oracle model
 ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1, Remark 25.1.3, and
-Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289,
+Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291,
 Chapter 31, Definitions 31.1.1–31.1.2, Definition 31.1.6, Construction 31.1.8, Theorem 31.2.1, and
 Theorem 31.3.1, composed with Merkle trace extraction from Chapter 18, Construction 18.5.3 and
-Lemma 18.5.7, printed pp. 199 and 207) and proves unconditional adaptive soundness and straight-line
-knowledge soundness bounds:
+Lemma 18.5.7, printed pp. 199 and 204–207), proving adaptive round-by-round ROM soundness and
+straight-line knowledge-soundness bounds (`bcsROMSoundness_bound`,
+`bcsROMKnowledgeSoundness_bound`; state-restoration BCS knowledge soundness as in
+[ChiesaYogev2024], Theorem 26.1.1, is open in #6042) alongside standard-model Merkle trace-binding
+reductions:
 
 1. **Straight-line multi-round oracle-table reconstruction (`bcsExtractTable`, `bcsExtractOracles`,
    `bcsExtractWitness`).** Given a symbol decoder `decSym : List Bool → Sym` with
@@ -145,9 +148,8 @@ knowledge soundness bounds:
   `Cslib.Crypto.Protocols.BCS.BCSTraceAdversary`,
   `Cslib.Crypto.Protocols.BCS.bcsTraceCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.bcsBreaksTraceBinding`,
-  `Cslib.Crypto.Protocols.BCS.bcsTraceBindingGame`,
-  `Cslib.Crypto.Protocols.BCS.bcsTraceKnowledgeGame`: standard-model trace-extraction collision
-  reduction and binding/knowledge-soundness experiments.
+  `Cslib.Crypto.Protocols.BCS.bcsTraceBindingGame`: standard-model trace-extraction collision
+  reduction and binding experiment.
 * `Cslib.Crypto.Protocols.BCS.BCSFSQuery`, `Cslib.Crypto.Protocols.BCS.BCSFSSpec`,
   `Cslib.Crypto.Protocols.BCS.BCSROMSpec`, `Cslib.Crypto.Protocols.BCS.bcsOracle`,
   `Cslib.Crypto.Protocols.BCS.chainedFSChallenges`, `Cslib.Crypto.Protocols.BCS.chainedFS`:
@@ -205,9 +207,8 @@ knowledge soundness bounds:
   `Cslib.Crypto.Protocols.BCS.bcsROMKnowledgeSoundness_bound_of_prover_verifier`: adaptive
   straight-line ROM knowledge soundness bounds without rewinding.
 * `Cslib.Crypto.Protocols.BCS.bcs_trace_sound_or_collision`,
-  `Cslib.Crypto.Protocols.BCS.isCollision_bcsExtractTraceCollision`,
-  `Cslib.Crypto.Protocols.BCS.bcs_trace_knowledge_or_collision`: deterministic trace-extraction
-  soundness and knowledge reductions.
+  `Cslib.Crypto.Protocols.BCS.isCollision_bcsExtractTraceCollision`: deterministic trace-extraction
+  binding and collision extraction.
 * `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTable`,
   `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractOracles`,
   `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractWitness`,
@@ -215,12 +216,9 @@ knowledge soundness bounds:
   `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTraceCollision`,
   `Cslib.Crypto.Protocols.BCS.isPPT_bcsTraceCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.succProbability_bcsTraceBindingGame_le`,
-  `Cslib.Crypto.Protocols.BCS.succProbability_bcsTraceKnowledgeGame_le`,
   `Cslib.Crypto.Protocols.BCS.CollisionResistant.bcsTraceBinding_negligible`,
-  `Cslib.Crypto.Protocols.BCS.CollisionResistant.bcsTraceKnowledge_negligible`,
-  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTraceBinding_negligible`,
-  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTraceKnowledge_negligible`: polynomial-time
-  certificates for straight-line trace extraction and standard-model reductions to
+  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTraceBinding_negligible`: polynomial-time certificates
+  for straight-line trace extraction and standard-model trace-binding reductions to
   `CollisionResistant H`.
 
 ## References
@@ -438,29 +436,6 @@ theorem isCollision_bcsExtractTraceCollision
   · rw [hrej] at hacc
     cases hacc
   · exact hcol
-
-/-- **Straight-line BCS trace knowledge extraction under IOP knowledge soundness**: if
-`IOPKnowledgeSoundness iop rel iopExtract` holds, then any accepting BCS proof whose opened paths
-are recorded in a consistent trace `tr_MT` either yields a valid witness via `bcsExtractWitness` or
-yields an explicit hash collision via `bcsExtractTraceCollision`. -/
-theorem bcs_trace_knowledge_or_collision
-    {H : List Bool → List Bool → List Bool} {k : List Bool}
-    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
-    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    {encSym : Sym → List Bool} {decSym : List Bool → Sym}
-    (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
-    {hFS : Stmt → List (List Bool) → Chal} {tr_MT : List (List Bool × List Bool)}
-    {x : Stmt} {prf : BCSProof r Sym}
-    (hcons : TraceConsistentWith (H k) tr_MT)
-    (hpaths : BCSOpeningsQueriedInTrace H k iop encSym tr_MT x (bcsChallenge hFS x prf.roots) prf)
-    (hver : bcsVerify iop H k encSym hFS x prf = true)
-    (hks : IOPKnowledgeSoundness iop rel iopExtract) (n : ℕ) :
-    rel x (bcsExtractWitness iopExtract decSym defaultSym tr_MT x prf.roots) ∨
-      let col := bcsExtractTraceCollision iop H k encSym hFS tr_MT x prf
-      isCollision H (fun _ _ => true) n k col.1 col.2 = true := by
-  rcases bcs_trace_sound_or_collision hdec defaultSym hcons hpaths hver n with hiop | hcol
-  · exact Or.inl (hks x _ _ hiop)
-  · exact Or.inr hcol
 
 /-- Prepending `(q, ans)` to `tr_MT` leaves `bcsExtractTable` at `rt` unchanged whenever `ans ≠ rt`
 and `ans` does not equal `unframe p.1` or `dropFrame p.1` for any `p ∈ tr_MT`. -/
@@ -793,16 +768,18 @@ theorem evalPure_bcsVerifyROM (hTree : List Bool → List Bool)
   simp [bcsVerifyROM, bcsVerify]
 
 /-- **Perfect completeness of the BCS ROM programs (`OracleComp` simulation form)**: under any
-deterministic Merkle hash `hTree` and transcript-chained Fiat–Shamir function `f`, `bcsVerifyROM`
-accepts `bcsProveROM` on every `(x, w)` satisfying `rel x w`. -/
+deterministic Merkle hash `hTree` whose digests all have one length and any transcript-chained
+Fiat–Shamir function `f`, `bcsVerifyROM` accepts `bcsProveROM` on every `(x, w)` satisfying
+`rel x w`. -/
 theorem bcsVerifyROM_bcsProveROM_eq_true {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
-    (hTree : List Bool → List Bool) (f : BCSFSQuery Stmt Chal → Chal)
+    (hTree : List Bool → List Bool) {ℓ : ℕ} (hlen : ∀ y, (hTree y).length = ℓ)
+    (f : BCSFSQuery Stmt Chal → Chal)
     (encSym : Sym → List Bool) {x : Stmt} {w : Wit} (hrel : rel x w) :
     OracleComp.evalPure (bcsOracle hTree f) (do
       let prf ← bcsProveROM iop encSym x w
       bcsVerifyROM iop encSym x prf) = true := by
-  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] encSym (chainedFS f) hrel]
+  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] hlen encSym (chainedFS f) hrel]
 
 /-- Per-query distribution of the two-channel BCS random oracle with `σ`-bit Merkle digests and
 uniform challenges over `Chal`: Merkle hash queries (`Sum.inl`) sample `BitString.uniformList σ`,
@@ -840,12 +817,13 @@ theorem bcsHonestROMGame_eq_pure_true [DecidableEq Stmt] [DecidableEq Chal]
     bcsHonestROMGame iop encSym x w σ = PMF.pure true := by
   unfold bcsHonestROMGame
   refine OracleComp.map_fst_runWith_answer_eq_pure (bcsOracleDist Stmt Chal σ)
-    (bcsHonestROMProg iop encSym x w) true fun h _ => ?_
+    (bcsHonestROMProg iop encSym x w) true fun h hh => ?_
   have hsplit : h = bcsOracle (fun msg => h (.inl msg)) (fun fsq => h (.inr fsq)) := by
     funext q
     cases q <;> rfl
   rw [hsplit]
-  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _ _ encSym hrel
+  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _
+    (fun y => BitString.length_of_mem_support_uniformList (hh (.inl y))) _ encSym hrel
 
 end ROMProtocol
 
@@ -2329,7 +2307,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_sticky [BEq Stmt] [BEq Chal]
 
 /-- **Adaptive straight-line BCS ROM knowledge soundness theorem** (compare state-restoration
 knowledge soundness and direct extraction in [BenSassonChiesaSpooner2016] and [ChiesaYogev2024],
-Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289, and the round-by-round reduction in
+Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291, and the round-by-round reduction in
 [ChiesaYogev2024], Chapter 31, Definition 31.1.6 and Theorem 31.3.1): under
 `IOPRoundByRoundKnowledgeSoundness iop rel iopExtract doomed goodStep` with per-round challenge
 escape probability `≤ ε_rbr`, for any adaptive cheating prover `P` making at most `t_FS`
@@ -2701,26 +2679,6 @@ noncomputable def bcsTraceBindingGame (iop : PublicCoinIOP r d Stmt Wit Sym Chal
   let out ← adversary n k
   return bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out
 
-open Classical in
-/-- The trace-extraction BCS knowledge-soundness experiment at security parameter `n`: sample a
-uniform `n`-bit hash key `k`, run `adversary n k`, and accept when `out.trace` is consistent with
-`H k` and covers all opened paths of `out.proof`, `bcsVerify` accepts `out.proof`, and
-`bcsExtractWitness` fails to produce a valid witness for `out.stmt`. -/
-noncomputable def bcsTraceKnowledgeGame (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
-    (rel : Stmt → Wit → Prop) (iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit)
-    (H : List Bool → List Bool → List Bool) (encSym : Sym → List Bool)
-    (decSym : List Bool → Sym) (defaultSym : Sym)
-    (hFS : Stmt → List (List Bool) → Chal)
-    (adversary : BCSTraceAdversary r Stmt Sym) (n : ℕ) : ProbComp Bool := do
-  let k ← BitString.sampleList n
-  let out ← adversary n k
-  return (decide (TraceConsistentWith (H k) out.trace) &&
-    decide (BCSOpeningsQueriedInTrace H k iop encSym out.trace out.stmt
-      (bcsChallenge hFS out.stmt out.proof.roots) out.proof) &&
-    bcsVerify iop H k encSym hFS out.stmt out.proof &&
-    decide (¬ rel out.stmt
-      (bcsExtractWitness iopExtract decSym defaultSym out.trace out.stmt out.proof.roots)))
-
 /-- **A trace-extraction BCS binding break yields a hash collision**: if `bcsBreaksTraceBinding`
 holds and `Function.LeftInverse decSym encSym`, then `bcsExtractTraceCollision` outputs a valid
 collision for `H k`. -/
@@ -2759,39 +2717,6 @@ theorem succProbability_bcsTraceBindingGame_le (iop : PublicCoinIOP r d Stmt Wit
   cases hbreak : bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out
   · simp
   · rw [isCollision_of_bcsBreaksTraceBinding hdec defaultSym hbreak n]
-
-/-- **Tight reduction from trace-extraction BCS knowledge soundness to collision finding**: under
-`IOPKnowledgeSoundness iop rel iopExtract`, a trace-recording adversary breaks straight-line
-knowledge soundness at most as often as `bcsTraceCollisionFinder` finds a hash collision. -/
-theorem succProbability_bcsTraceKnowledgeGame_le {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
-    {rel : Stmt → Wit → Prop} {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    (H : List Bool → List Bool → List Bool) {encSym : Sym → List Bool}
-    {decSym : List Bool → Sym} (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
-    (hFS : Stmt → List (List Bool) → Chal)
-    (adversary : BCSTraceAdversary r Stmt Sym) (n : ℕ) :
-    Game.succProbability (ProbComp.eval
-        (bcsTraceKnowledgeGame iop rel iopExtract H encSym decSym defaultSym hFS adversary n)) ≤
-      Game.succProbability (ProbComp.eval
-        (collisionGame H (fun _ _ => true)
-          (bcsTraceCollisionFinder iop H encSym hFS adversary) n)) := by
-  refine le_trans ?_ (succProbability_bcsTraceBindingGame_le iop H hdec defaultSym hFS adversary n)
-  apply Game.succProbability_mono
-  simp only [pmf_norm, bcsTraceKnowledgeGame, bcsTraceBindingGame]
-  apply PMF.bind_apply_mono_on_support
-  intro k _
-  apply PMF.bind_apply_mono_on_support
-  intro out _
-  by_cases hrel : rel out.stmt
-      (bcsExtractWitness iopExtract decSym defaultSym out.trace out.stmt out.proof.roots)
-  · simp [hrel]
-  · unfold bcsBreaksTraceBinding
-    cases decide (TraceConsistentWith (H k) out.trace) <;>
-      cases decide (BCSOpeningsQueriedInTrace H k iop encSym out.trace out.stmt
-        (bcsChallenge hFS out.stmt out.proof.roots) out.proof) <;>
-      cases hver : bcsVerify iop H k encSym hFS out.stmt out.proof <;>
-      simp [hrel,
-        Bool.eq_false_iff.mpr fun hiop => hrel (hks out.stmt _ _ hiop)]
 
 /-- **Efficiency of `bcsTraceCollisionFinder`**: for a polynomial-time hash `H` with `k.length`-bit
 digests, polynomial-time `iop.queries`, and polynomial-time `hFS`, the collision finder of any
@@ -2838,34 +2763,6 @@ theorem CollisionResistant.bcsTraceBinding_negligible
     (hcr.negligible _ (isPPT_bcsTraceCollisionFinder hH hlen hqueries hhFS hadversary))
     (succProbability_bcsTraceBindingGame_le iop H hdec defaultSym hFS adversary)
 
-/-- **Standard-model trace-extraction BCS knowledge soundness from collision resistance**: under
-`IOPKnowledgeSoundness iop rel iopExtract` and `CollisionResistant H`, every uniform strict PPT
-trace-recording BCS adversary breaks straight-line knowledge soundness (`bcsExtractWitness`) with
-negligible probability. -/
-theorem CollisionResistant.bcsTraceKnowledge_negligible
-    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
-    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
-    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    {H : List Bool → List Bool → List Bool} {decSym : List Bool → Sym}
-    (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
-    {hFS : Stmt → List (List Bool) → Chal}
-    (hcr : CollisionResistant H)
-    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
-      (encPair encBits encBits) encBits)
-    (hlen : ∀ k x, (H k x).length = k.length)
-    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
-      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
-    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
-      (encFSTranscript encStmt) encChal)
-    {adversary : BCSTraceAdversary r Stmt Sym}
-    (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
-    Negligible fun n => Game.succProbability (ProbComp.eval
-      (bcsTraceKnowledgeGame iop rel iopExtract H encSym decSym defaultSym hFS adversary n)) :=
-  negligible_of_le
-    (hcr.negligible _ (isPPT_bcsTraceCollisionFinder hH hlen hqueries hhFS hadversary))
-    (succProbability_bcsTraceKnowledgeGame_le hks H hdec defaultSym hFS adversary)
-
 /-- **Collision-resistant `HashFamily` corollary for trace-extraction BCS binding**. -/
 theorem HashFamily.bcsTraceBinding_negligible
     {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
@@ -2883,27 +2780,6 @@ theorem HashFamily.bcsTraceBinding_negligible
       (ProbComp.eval (bcsTraceBindingGame iop H encSym decSym defaultSym hFS adversary n)) :=
   CollisionResistant.bcsTraceBinding_negligible hdec defaultSym hH.collisionResistant hH.polyTime
     (fun k x => hH.length_eq k x) hqueries hhFS hadversary
-
-/-- **Collision-resistant `HashFamily` corollary for trace-extraction BCS knowledge soundness**. -/
-theorem HashFamily.bcsTraceKnowledge_negligible
-    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
-    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
-    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    {H : List Bool → List Bool → List Bool} {decSym : List Bool → Sym}
-    (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
-    {hFS : Stmt → List (List Bool) → Chal}
-    (hH : HashFamily H)
-    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
-      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
-    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
-      (encFSTranscript encStmt) encChal)
-    {adversary : BCSTraceAdversary r Stmt Sym}
-    (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
-    Negligible fun n => Game.succProbability (ProbComp.eval
-      (bcsTraceKnowledgeGame iop rel iopExtract H encSym decSym defaultSym hFS adversary n)) :=
-  CollisionResistant.bcsTraceKnowledge_negligible hks hdec defaultSym hH.collisionResistant
-    hH.polyTime (fun k x => hH.length_eq k x) hqueries hhFS hadversary
 
 end TraceReduction
 

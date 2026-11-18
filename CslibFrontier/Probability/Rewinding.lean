@@ -50,6 +50,8 @@ since they return a `PMF Bool`, the outcome, challenge and answer types are in `
 ## Main results
 
 * `Cslib.Probability.Rewinding.sq_sub_mul_le_twice`: `ε² − κ * ε ≤ δ` for bounded challenge atoms.
+* `Cslib.Probability.Rewinding.le_add_sqrt_of_sq_sub_mul_le`: solving `ε² − κ * ε ≤ δ` for
+  `ε ≤ κ + √δ`.
 * `Cslib.Probability.Rewinding.le_add_sqrt_twice`: `ε ≤ κ + √δ` for bounded challenge atoms.
 * `Cslib.Probability.Rewinding.sq_sub_le_twice`: `ε² − ε / N ≤ δ` ([BonehShoup2023], Lemma 19.2).
 * `Cslib.Probability.Rewinding.le_inv_add_sqrt_twice`: `ε ≤ 1 / N + √δ`.
@@ -253,6 +255,18 @@ theorem sq_sub_mul_le_twice [Finite T] {κ : ℝ}
     _ ≤ ∑' s, (first s).toReal * h s :=
         (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint hsumh
 
+omit [Fintype T] [DecidableEq T] in
+/-- Solving a quadratic rewinding bound `ε ^ 2 - κ * ε ≤ δ` for `ε` gives `ε ≤ κ + √δ` when
+`0 ≤ κ`. -/
+theorem le_add_sqrt_of_sq_sub_mul_le {ε δ κ : ℝ} (hκ0 : 0 ≤ κ) (h : ε ^ 2 - κ * ε ≤ δ) :
+    ε ≤ κ + √δ := by
+  by_cases hε : ε ≤ κ
+  · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
+  · have hsq : (ε - κ) ^ 2 ≤ δ := by
+      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
+    have := Real.abs_le_sqrt hsq
+    linarith [le_abs_self (ε - κ)]
+
 omit [Fintype T] in
 /-- The bounded-atom rewinding inequality solved for one-run success: `ε ≤ κ + √δ`.
 The conditional atom hypothesis implies `κ ≥ 0`; no separate sign assumption is needed. -/
@@ -263,14 +277,7 @@ theorem le_add_sqrt_twice [Finite T] {κ : ℝ}
   obtain ⟨s, hs⟩ := first.support_nonempty
   obtain ⟨t, -⟩ := (challenge s).support_nonempty
   have hκ0 : 0 ≤ κ := ENNReal.toReal_nonneg.trans (hκ s hs t)
-  set ε := (once first challenge answer ok true).toReal
-  have hδ := sq_sub_mul_le_twice first challenge answer ok hκ
-  by_cases hε : ε ≤ κ
-  · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
-  · have hsq : (ε - κ) ^ 2 ≤ (twice first challenge answer ok true).toReal := by
-      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
-    have := Real.abs_le_sqrt hsq
-    linarith [le_abs_self (ε - κ)]
+  exact le_add_sqrt_of_sq_sub_mul_le hκ0 (sq_sub_mul_le_twice first challenge answer ok hκ)
 
 /-! ### Uniform challenges -/
 

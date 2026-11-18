@@ -31,12 +31,16 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
    (`isSISSolution_extractSISFromRelaxedWitness`, `lyubashevskyForkToSIS`). For a single secret
    column `s` and integer challenge difference `Δc`, `isSISSolution_sub_smul_secret` gives the
    corresponding `2 γ + |Δc| η` reduction directly.
-2. **Identification security from the relaxed `[A | T]` relation.** For any key generator, the
-   generic rewinding reduction of `Identification.lean` bounds direct impersonation attacks
-   against `lyubashevsky` by `1 / 2 ^ k + √ε'`, where `ε'` is the probability that rewinding finds
-   a short integer solution for `[A | T]` (`lyubashevsky_succProbability_directAttack_le`). This
-   module does not compose that bound with the reduction of item 1 from `[A | T]` to `A`, so it
-   gives no impersonation bound in terms of a SIS solver for `A`.
+2. **A concrete direct-attack bound, a step toward [BonehShoup2023], Theorem 19.14.** For one
+   choice of parameters and any key generator, the generic rewinding reduction of
+   `Identification.lean` bounds direct impersonation attacks against `lyubashevsky` by
+   `1 / 2 ^ k + √ε'`, the bound (19.18), where `ε'` is the probability that rewinding finds a short
+   integer solution for `[A | T]` (`lyubashevsky_succProbability_directAttack_le`). This is not
+   Theorem 19.14 for Lyubashevsky identification: nothing certifies the rewinding extractor as
+   efficient, the parameters are fixed rather than a family, no hardness assumption is applied,
+   and the asymptotic theorem is open (#5293). This module also does not compose the bound with
+   the reduction of item 1 from `[A | T]` to `A`, so it gives no impersonation bound in terms of a
+   SIS solver for `A`.
 3. **Fiat–Shamir with aborts (`FiatShamirWithAborts`).** The generic API is publicly reexported
    from `Abort.FiatShamir`. For any aborting Sigma protocol
    `P : SigmaProtocol X Y T C (Option Z)` and random-oracle hash function `h : M × T → C`, a
@@ -77,8 +81,6 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
 * `Cslib.Crypto.Protocols.SigmaProtocol.isSISSolution_extractSISFromRelaxedWitness`,
   `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevskyForkToSIS`: matrix-challenge SIS collision
   reduction for `lyubashevsky`.
-* `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevsky_succProbability_directAttack_le`: direct
-  impersonation bound for Lyubashevsky identification.
 * `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortVerify_of_fsAbortSignAttempt_eq_some`,
   `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortVerify_of_fsAbortSignBounded_eq_some`,
   `Cslib.Crypto.Protocols.SigmaProtocol.fsAbortSignBounded_apply_none`: correctness and exact
@@ -88,8 +90,15 @@ Short Integer Solution (`SIS`) problem and to Fiat–Shamir-with-aborts signatur
   `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevskySignatureForkToSIS`: forking extraction for
   Fiat–Shamir-with-aborts and Lyubashevsky signatures.
 
+## Step toward Theorem 19.14
+
+* `Cslib.Crypto.Protocols.SigmaProtocol.lyubashevsky_succProbability_directAttack_le`: the
+  concrete direct-attack bound (19.18) for one instance of Lyubashevsky identification.
+
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 19.6, Theorem 19.14, p. 783.
 * [V. Lyubashevsky, *Fiat-Shamir with Aborts: Applications to Lattice and Factoring-Based
   Signatures*][Lyubashevsky2009]
 * [V. Lyubashevsky, *Lattice Signatures without Trapdoors*][Lyubashevsky2012]
@@ -324,10 +333,21 @@ theorem mem_support_lyubashevskyKeyGen [NeZero q] {η : ℕ}
   rw [mem_support_uniformOfFinset_iff, mem_intBox] at hj
   simpa using hj i
 
-/-- **Lyubashevsky identification against direct attacks.** For any key generator and direct
-impersonator `A`, the impersonator's success probability against `lyubashevsky n m k q γ β` is at
-most `1 / 2 ^ k + √ε'`, where `ε'` is the probability that rewinding `A` extracts a short integer
-solution for `[A | T]` with bound `max (2 (γ - β)) 1`. -/
+/-- Concrete bound (19.18) for Lyubashevsky's identification protocol at one choice of
+parameters, a step toward [BonehShoup2023], Theorem 19.14, p. 783, not the cited result. For any
+key generator and direct impersonator `A`, the impersonator's success probability against
+`lyubashevsky n m k q γ β` is at most `1 / 2 ^ k + √ε'`, where `ε'` is the probability that the
+rewinding extractor `A.rewind (lyubashevskyExtract n m k q)` finds a short integer solution for
+`[A | T]` with bound `max (2 (γ - β)) 1`.
+
+Theorem 19.14 states that this extractor is efficient, running in about twice the impersonator's
+time, and concludes security against direct attacks for every efficient impersonator when the key
+generator is one-way. This lemma has no efficiency claim for the extractor, fixes `n`, `m`, `k`,
+`q`, `γ` and `β` rather than a parameter family, and applies no hardness assumption; the
+one-wayness it would need is for the relaxed relation of short kernel vectors of `[A | T]`, not
+SIS for `A`. The asymptotic theorem is open (#5293); the library has none for this protocol. A
+uniform strict-PPT rewinding extractor for the protocol family `lyubashevskyFamily` exists
+separately (`isPPTOn_lyubashevskyKnowledgeExtractor`). -/
 theorem lyubashevsky_succProbability_directAttack_le {γ β : ℕ}
     (keyGen : PMF (Matrix (Fin m) (Fin k) ℤ ×
       (Matrix (Fin n) (Fin m) (ZMod q) × Matrix (Fin n) (Fin k) (ZMod q))))
