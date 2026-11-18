@@ -582,25 +582,12 @@ private theorem fnWord_polyTime :
   simp only [fnWord_eq]
   exact henc.comp (hhead.prod hbody)
 
+/-- The encoding information is computed in polynomial time. -/
 private theorem encInfoWord_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
-      HalfGates.encInfoWord x.1 x.2.1.1 x.2.2) encGbInput encBits := by
-  have hrange : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool =>
-      ((List.range (2 * p.2.1)).map fun j => List.zipWith xor
-        (HalfGates.inputWord p.1 p.2.2 (j / 2))
-        (HalfGates.maskWord p.1 (HalfGates.offsetWord p.1 p.2.2) (j.testBit 0))).flatten)
-      (encPair encUnary (encPair encUnary encBits)) encBits := by
-    polytime [HalfGates.inputWord, HalfGates.maskWord, HalfGates.offsetWord, BitString.listRow]
-  have heq : (fun x : ℕ × ValidCircuit × List Bool =>
-      HalfGates.encInfoWord x.1 x.2.1.1 x.2.2) =
-      fun x => ((List.range (2 * x.2.1.1.n)).map fun j =>
-        List.zipWith xor (HalfGates.inputWord x.1 x.2.2 (j / 2))
-          (HalfGates.maskWord x.1 (HalfGates.offsetWord x.1 x.2.2) (j.testBit 0))).flatten := by
-    funext x
-    rw [HalfGates.encInfoWord, List.map_range_eq_ofFn]
-  rw [heq]
-  exact hrange.comp ((ComputableInPolyTime.fst _ _).prod (data_polyTime.fst'.prod
-    (ComputableInPolyTime.snd encUnary (encPair encValidCircuit encBits)).snd'))
+      HalfGates.encInfoWord x.1 x.2.1.1 x.2.2) encGbInput encBits :=
+  HalfGates.encInfoWord_polyTime_of (ComputableInPolyTime.fst _ _) data_polyTime.fst'
+    (ComputableInPolyTime.snd encUnary (encPair encValidCircuit encBits)).snd'
 
 private theorem decInfoWord_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool =>
