@@ -56,6 +56,9 @@ private def hintLimit : Level → ℕ
 /-- A coefficient polynomial in the FIPS 204 negacyclic ring. -/
 abbrev Poly := Fin 256 → ZMod 8380417
 
+/-- The coefficient representation of the public module matrix for the selected parameter set. -/
+abbrev PublicMatrix (s : Level) := Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly
+
 private def packCoeffs {rows : ℕ} (width : ℕ) (coeff : Fin rows → Fin 256 → ℕ) : List Byte :=
   let bits := (List.finRange rows).flatMap fun i =>
     (List.finRange 256).flatMap fun j => BitString.lowBits width (coeff i j)
@@ -89,7 +92,7 @@ private def tabulate {α : Type} (n : ℕ) (f : Fin n → Option α) : Option (F
 /-- Algorithms 30 and 32, returning the matrix in coefficient representation. Each SHAKE128
 stream absorbs `ρ || column || row` and may consume 894 bytes (Appendix C, Table 3). -/
 def expandA (s : Level) (rho : List Byte) :
-    Option (Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly) := do
+    Option (PublicMatrix s) := do
   let matrix ← Vector.ofFnM fun row : Fin s.params.k =>
     Vector.ofFnM fun col : Fin s.params.ℓ =>
       fromNTT <$> asPoly (uniformCoeffs (Keccak.shake128
@@ -106,6 +109,16 @@ private def secretPoly (s : Level) (seed : List Byte) (nonce : ℕ) : Option Pol
   asPoly (bytes.flatMap fun b =>
     ([b.val % 16, b.val / 16].filterMap (boundedCoeff s.params.η)))
 
+/-- Public-key bytes of Algorithm 6, lines 6–8: concatenate the matrix seed and the ten
+high bits of each coefficient of the full public vector, in row and coefficient order. -/
+def encodePublic (s : Level) (rho : List Byte) (t : Fin s.params.k → Poly) : List Byte :=
+  rho ++ packCoeffs 10 (fun i j => (power2Round 8380417 13 (t i j)).1.toNat)
+
+/-- The seed used to expand the matrix can be read from the published bytes. -/
+@[simp] theorem take_encodePublic (s : Level) (rho : FixedBytes 32) (t : Fin s.params.k → Poly) :
+    (encodePublic s rho.toList t).take 32 = rho.toList := by
+  simp [encodePublic]
+
 /-- Algorithm 6, public-key output. The 32-byte seed expands into the matrix seed and the
 secret-polynomial seed in a single SHAKE256 call. Rejection exhaustion yields `none`. -/
 def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) := do
@@ -117,7 +130,7 @@ def keyGenPublic (s : Level) (seed : FixedBytes 32) : Option (List Byte) := do
   let s₁ ← tabulate _ fun i : Fin s.params.ℓ => secretPoly s rho' i.val
   let s₂ ← tabulate _ fun i : Fin s.params.k => secretPoly s rho' (s.params.ℓ + i.val)
   let t := moduleSISMap matrix s₁ + s₂
-  return rho ++ packCoeffs 10 (fun i j => (power2Round 8380417 13 (t i j)).1.toNat)
+  return encodePublic s rho t
 
 private def swaps (first count : ℕ) (bytes : List Byte) :
     Option (Equiv.Perm (Fin 256)) :=
@@ -213,7 +226,7 @@ private def decodeRounded (s : Level) (bytes : List Byte) (i : Fin s.params.k) (
   Fin.ofNat 1024 (unpackCoeff (Keccak.bytesToBitsLE (bytes.drop 32)) 10 (256 * i.val + j.val))
 
 private def publicKey (s : Level) (bytes : List Byte)
-    (matrix : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly) : MLDSA.PublicKey s.params :=
+    (matrix : PublicMatrix s) : MLDSA.PublicKey s.params :=
   let t := Vector.ofFn fun i : Fin s.params.k => Vector.ofFn fun j : Fin 256 =>
     ((decodeRounded s bytes i j).val : ZMod 8380417) * 8192
   ⟨matrix, fun i j => t[i.val][j.val]⟩
@@ -267,23 +280,40 @@ private def check (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
   decide (ResponseShort s.params σ.z) &&
     decide (commitmentDigest s (hintedCommitment s pk σ c) μ = σ.digest)
 
-/-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
-uniform Appendix C error for an exhausted SHAKE rejection stream is `none`. -/
-def verifyInternal (s : Level) (pk : List Byte) (formatted : List Bool) (signature : List Byte) :
+private def verifyInternalWith (s : Level) (expand : List Byte → Option (PublicMatrix s))
+    (pk : List Byte) (formatted : List Bool) (signature : List Byte) :
     Option Bool := do
   if pk.length != 32 + 320 * s.params.k then return false
   let some σ := sigDecode s signature | return false
-  let matrix ← expandA s (pk.take 32)
+  let matrix ← expand (pk.take 32)
   let c ← sampleInBall s σ.digest
   return check s (publicKey s pk matrix) (messageRepresentative pk formatted) σ c
 
-/-- Pure ML-DSA verification (Algorithm 3): format the context and the bit-string message,
-then run Algorithm 8. Contexts longer than 255 bytes return the specified error. -/
-def verify (s : Level) (pk : List Byte) (message : List Bool) (ctx signature : List Byte) :
-    Option Bool := do
+/-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
+uniform Appendix C error for an exhausted SHAKE rejection stream is `none`. -/
+def verifyInternal (s : Level) := verifyInternalWith s (expandA s)
+
+/-- Algorithm 3 with the public matrix expansion supplied at its call site. The context and
+signature checks, message hashing, challenge expansion, and full digest comparison are shared
+with the concrete verifier. -/
+def verifyWithExpansion (s : Level) (expand : List Byte → Option (PublicMatrix s))
+    (pk : List Byte) (message : List Bool) (ctx signature : List Byte) : Option Bool := do
   guard (ctx.length ≤ 255)
   let formatted := Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
-  verifyInternal s pk formatted signature
+  verifyInternalWith s expand pk formatted signature
+
+/-- On freshly encoded public bytes, the verifier reads exactly the published seed. Once its
+matrix has been obtained from the shared oracle it can be reused in the digest check. -/
+theorem verifyWithExpansion_encodePublic (s : Level) (expand : List Byte → Option (PublicMatrix s))
+    (rho : FixedBytes 32) (t : Fin s.params.k → Poly) (A : PublicMatrix s)
+    (hA : expand rho.toList = some A) (msg : List Bool) (ctx sig : List Byte) :
+    verifyWithExpansion s expand (encodePublic s rho.toList t) msg ctx sig =
+      verifyWithExpansion s (fun _ => some A) (encodePublic s rho.toList t) msg ctx sig := by
+  simp only [verifyWithExpansion, verifyInternalWith, take_encodePublic, hA]
+
+/-- Pure ML-DSA verification (Algorithm 3): format the context and the bit-string message,
+then run Algorithm 8. Contexts longer than 255 bytes return the specified error. -/
+def verify (s : Level) := verifyWithExpansion s (expandA s)
 
 private def algebraicHash (s : Level) : Hash s.params :=
   fun ⟨w, μ⟩ => (sampleInBall s (commitmentDigest s w μ)).getD 0
@@ -322,7 +352,7 @@ private def candidate (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Boo
 /-- For each fixed published byte key, the solver parses the forgery and extracts a self-target
 candidate. The hash input contains its actual public-key-bound message representative. -/
 def extract (s : Level) (bytes : List Byte)
-    (matrix : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly)
+    (matrix : PublicMatrix s)
     (f : Forgery) : Option (SelfTargetCandidate s.params) := do
   let σ ← sigDecode s f.signature
   let c ← sampleInBall s σ.digest
@@ -332,7 +362,7 @@ def extract (s : Level) (bytes : List Byte)
 /-- Self-target acceptance for a solver on a published byte key. The experiment constructs its
 own challenge matrix from that key's seed and rounded coefficients. -/
 def solves (s : Level) (bytes : List Byte)
-    (solver : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly →
+    (solver : PublicMatrix s →
       Option (SelfTargetCandidate s.params)) : Bool :=
   (do
     let matrix ← expandA s (bytes.take 32)
@@ -345,24 +375,25 @@ candidate on the same published key, including its matrix seed. -/
 theorem solves_extract_of_verify {s : Level} {bytes : List Byte} {f : Forgery}
     (hv : verify s bytes f.message f.context f.signature = some true) :
     solves s bytes (fun matrix => extract s bytes matrix f) = true := by
+  simp only [verify, verifyWithExpansion, verifyInternalWith] at hv
   have hctx : f.context.length ≤ 255 := by
     by_contra h
-    simp [verify, guard, h] at hv
+    simp [guard, h] at hv
   have hlen : bytes.length = 32 + 320 * s.params.k := by
     by_contra h
-    simp [verify, verifyInternal, guard, hctx, h] at hv
+    simp [guard, hctx, h] at hv
   cases hσ : sigDecode s f.signature with
-  | none => simp [verify, verifyInternal, guard, hctx, hlen, hσ] at hv
+  | none => simp [guard, hctx, hlen, hσ] at hv
   | some σ =>
     cases hmatrix : expandA s (bytes.take 32) with
-    | none => simp [verify, verifyInternal, guard, hctx, hlen, hσ, hmatrix] at hv
+    | none => simp [guard, hctx, hlen, hσ, hmatrix] at hv
     | some matrix =>
       cases hc : sampleInBall s σ.digest with
-      | none => simp [verify, verifyInternal, guard, hctx, hlen, hσ, hmatrix, hc] at hv
+      | none => simp [guard, hctx, hlen, hσ, hmatrix, hc] at hv
       | some c =>
         have hcheck : check s (publicKey s bytes matrix)
             (messageRepresentative bytes (formattedMessage f)) σ c := by
-          simpa [verify, verifyInternal, guard, hctx, hlen, hσ, hmatrix, hc,
+          simpa [guard, hctx, hlen, hσ, hmatrix, hc,
             formattedMessage] using hv
         have hvalid : s.params.Valid := by
           cases s
