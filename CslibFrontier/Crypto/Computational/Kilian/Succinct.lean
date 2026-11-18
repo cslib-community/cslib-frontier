@@ -155,7 +155,7 @@ theorem kilianCommunication_honest_le (hlen : ∀ k x, (H k x).length = k.length
         (Nat.clog 2 (kilianLeaves (kilianTable V x table)).length) with
     | nil => simp
     | cons y ys =>
-      rw [List.headD_cons, length_of_mem_merkleLevel hlen (h ▸ List.mem_cons_self), hk]
+      rw [List.headD_cons, length_of_mem_merkleLevel (hlen _) (h ▸ List.mem_cons_self), hk]
   have hresponse := kilianResponseBits_kilianRespond_le hlen (k := k) (table := table) hq hρs
   have hchallenges : (ρs.map List.length).sum ≤ n * V.coins x := by
     refine (List.sum_le_length_nsmul _ (V.coins x) fun m hm => ?_).trans (by simp [hn])
@@ -226,7 +226,7 @@ theorem length_kilianVerifierInput_honest_le {enc : α ↪ List Bool}
         (Nat.clog 2 (kilianLeaves (kilianTable V x table)).length) with
     | nil => simp
     | cons y ys =>
-      rw [List.headD_cons, length_of_mem_merkleLevel hlen (h ▸ List.mem_cons_self), hk]
+      rw [List.headD_cons, length_of_mem_merkleLevel (hlen _) (h ▸ List.mem_cons_self), hk]
   have hopening (ρ : List Bool) (o : MerkleOpening Bool) (ho : o ∈ kilianOpen H V k x table ρ) :
       (encKilianOpening o).length ≤ 3 + d * (2 * n + 1) := by
     obtain ⟨a, -, rfl⟩ := List.mem_map.mp ho

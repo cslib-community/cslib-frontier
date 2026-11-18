@@ -9,6 +9,7 @@ module
 import CslibFrontier.Crypto.Protocols.BCS.ROM
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.UniformBound
+import CslibFrontierTests.Crypto.MerkleTestHash
 
 /-!
 # Tests for BCS ROM soundness and straight-line knowledge soundness
@@ -20,7 +21,8 @@ two-channel BCS random-oracle transform (`CslibFrontier.Crypto.Protocols.BCS.ROM
    deterministic channels, verifies agreement with `bcsProve` / `bcsVerify` under `chainedFS`, and
    instantiates `bcsHonestROMGame_eq_pure_true`.
 2. **Straight-line multi-round extraction, extension invariance, and dual collision extraction.**
-   On a full prover Merkle trace `trProver` under an injective hash `idTreeHash`,
+   On a full prover Merkle trace `trProver` under a sixteen-bit hash `idTreeHash` with no
+   collisions on the words involved,
    `bcsExtractWitness` recovers the committed witness `(true, true)` straight-line with
    `defaultSym = false` (whereas an empty trace falls back to `(false, false)`),
    `iopVerify_bcsExtractOracles_of_bcsVerify` certifies acceptance of the extracted tables, and
@@ -46,6 +48,7 @@ namespace CslibFrontierTests.Crypto.BCSROM
 
 open Cslib Cslib.Crypto Cslib.Crypto.Protocols.BCS Cslib.Probability Cslib.OracleComp
 open Turing.MultiTapeTM
+open CslibFrontierTests.Crypto.MerkleTestHash
 open scoped NNReal ENNReal
 
 /-! ### Protocol Setup: Concrete 2-Round, Depth-1 Public-Coin IOP -/
@@ -96,8 +99,8 @@ theorem romIOP_complete : IOPCompleteness romIOP romRel := by
 
 /-! ### Part 1: Transcript-Chained Fiat–Shamir Bridge, Pure Simulation & ROM Completeness -/
 
-/-- Injective deterministic Merkle hash on bitstrings. -/
-def idTreeHash (msg : List Bool) : List Bool := msg
+/-- A deterministic Merkle hash with sixteen-bit digests and no collisions among the words below. -/
+abbrev idTreeHash : List Bool → List Bool := polyHash
 
 /-- Deterministic transcript-chained Fiat–Shamir oracle inspecting statement, root count, and
 previous challenge history. -/
@@ -128,7 +131,8 @@ example :
 example :
     OracleComp.evalPure (bcsOracle idTreeHash xorChainedFS)
       (bcsHonestROMProg romIOP encSym (true, true) (true, true)) = true :=
-  bcsVerifyROM_bcsProveROM_eq_true romIOP_complete idTreeHash xorChainedFS encSym ⟨rfl, rfl, rfl⟩
+  bcsVerifyROM_bcsProveROM_eq_true romIOP_complete idTreeHash length_polyHash xorChainedFS encSym
+    ⟨rfl, rfl, rfl⟩
 
 -- Perfect completeness in the lazy two-channel random-oracle model for every digest length `σ`.
 example (σ : ℕ) :
@@ -158,13 +162,13 @@ def fullTableTrace (hTree : List Bool → List Bool) (b₀ b₁ : Bool) :
 abbrev trProver : List (List Bool × List Bool) :=
   (fullTableTrace idTreeHash true true ++ fullTableTrace idTreeHash false false).eraseDups
 
-example : TraceConsistentWith idTreeHash trProver := by decide
+example : TraceConsistentWith idTreeHash trProver := by decide +kernel
 
-example : TraceCollisionFree trProver := by decide
+example : TraceCollisionFree trProver := by decide +kernel
 
 example : BCSOpeningsQueriedInTrace (fun _ => idTreeHash) [] romIOP encSym trProver (true, true)
     (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) honestProof := by
-  decide
+  decide +kernel
 
 -- Boundary case: on the empty trace `[]`, straight-line extraction falls back to
 -- `defaultSym = false`.
@@ -177,7 +181,7 @@ example :
 example :
     bcsExtractWitness romExtract decSym false trProver (true, true) honestProof.roots =
       (true, true) := by
-  decide
+  decide +kernel
 
 -- Fixed-trace consistency: `iopVerify` accepts `bcsExtractOracles` on `trProver`.
 example :
@@ -185,7 +189,7 @@ example :
       (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots)
       (bcsExtractOracles decSym false trProver 1 honestProof.roots) = true :=
   iopVerify_bcsExtractOracles_of_bcsVerify (H := fun _ => idTreeHash) (k := []) decSym_encSym false
-    (by decide) (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
 -- Trace-extension invariance: prepending a Merkle query whose digest avoids existing roots and
 -- child digests leaves `bcsExtractOracles` unchanged across both rounds.
@@ -194,11 +198,11 @@ example :
       1 honestProof.roots =
     bcsExtractOracles decSym false trProver 1 honestProof.roots :=
   bcsExtractOracles_cons_of_ne decSym false trProver [true, true, false]
-    (by intro j; fin_cases j <;> decide) (by decide)
+    (by intro j; fin_cases j <;> decide +kernel) (by decide +kernel)
 
-/-- Leaf-colliding hash mapping `[true]` to `[false]` and acting as identity elsewhere. -/
+/-- Leaf-colliding hash hashing `[true]` as `[false]` and acting as `idTreeHash` elsewhere. -/
 def collideLeafHash (msg : List Bool) : List Bool :=
-  if msg == [true] then [false] else msg
+  polyHash (if msg == [true] then [false] else msg)
 
 /-- Forged BCS proof for `(true, true)` committed to the rejected `(false, false)` round-`0` table
 under `collideLeafHash`, but opening round `0` as `true`. -/
@@ -221,20 +225,21 @@ abbrev trCollide : List (List Bool × List Bool) :=
 
 example : bcsVerify romIOP (fun _ => collideLeafHash) [] encSym (chainedFS xorChainedFS)
     (true, true) forgedROMProof = true := by
-  decide
+  decide +kernel
 
 example :
     iopVerify romIOP (true, true)
       (bcsChallenge (chainedFS xorChainedFS) (true, true) forgedROMProof.roots)
       (bcsExtractOracles decSym false trCollide 1 forgedROMProof.roots) = false := by
-  decide
+  decide +kernel
 
 -- Dual collision extraction witnesses a concrete hash collision in `trCollide`.
 example : ∃ q₁ ∈ trCollide.map Prod.fst, ∃ q₂ ∈ trCollide.map Prod.fst,
     q₁ ≠ q₂ ∧ collideLeafHash q₁ = collideLeafHash q₂ :=
   exists_collision_of_bcsVerify_of_iopVerify_eq_false (H := fun _ => collideLeafHash) (k := [])
     (iop := romIOP) (hFS := chainedFS xorChainedFS) (tr_MT := trCollide) (x := (true, true))
-    (prf := forgedROMProof) decSym_encSym false (by decide) (by decide) (by decide) (by decide)
+    (prf := forgedROMProof) decSym_encSym false (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel)
 
 /-! ### Part 3: Adaptive Cheating Prover & Two-Channel ROM Soundness / Knowledge Soundness -/
 
@@ -308,11 +313,11 @@ example :
     romRel (true, true) (romExtract (true, true) oracles) := by
   intro oracles
   refine romIOP_rbrKS.rel_iopExtract_of_goodSteps (true, true) oracles
-    (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) ?_ (by decide)
+    (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) ?_ (by decide +kernel)
   intro j
   fin_cases j
   · intro _
-    exact Or.inl ⟨rfl, by decide, by decide⟩
+    exact Or.inl ⟨rfl, by decide +kernel, by decide +kernel⟩
   · intro hnil
     nomatch hnil
 
@@ -672,7 +677,7 @@ theorem isPPTOn_cheatingTraceAdversary :
 example :
     bcsExtractTraceCollision romIOP (fun _ => idTreeHash) [] encSym
       (chainedFS xorChainedFS) trProver (true, true) honestProof = ([], []) := by
-  decide
+  decide +kernel
 
 -- On `cheatingTraceOutput [false, true]`, `bcsBreaksTraceBinding` holds under `keyProjHash`,
 -- `bcsExtractWitness` fails to satisfy `Eq`, and `bcsExtractTraceCollision` extracts a valid

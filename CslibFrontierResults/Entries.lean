@@ -193,6 +193,7 @@ import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.LubyRackoff
+import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneWay.Iterate
@@ -6019,6 +6020,39 @@ register_result "prp-iff-prf" where
     as a PRF over (K, X, X), from prfIdealGame blockLen blockLen; the library's named PRF notion \
     PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
     BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
+
+register_result "merkle-tree-position-binding" where
+  title := "Merkle trees are position binding under collision resistance of the hash's domain"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 8.8",
+      locator := "Version 0.6, Section 8.9.1, p. 324; the hash's domain X ∪ Y² in Section 8.9, \
+        p. 320" }
+  ]
+  theorems := [
+    Cslib.Crypto.CollisionResistantOn.merklePositionBinding
+  ]
+  scope := "The Merkle tree of Figure 8.12 over a polynomial-time keyed hash H with digests of \
+    the key's length, so Y = {0,1}^n, and a leaf space leafSpace (the source's X, which any \
+    predicate on words may be; the source's finite, efficiently recognizable and polynomially \
+    bounded leaf spaces of Definition 2.9, p. 30, are instances). If H is collision resistant \
+    (CollisionResistantOn, Attack Game 8.1 and Definitions 8.1–8.2, p. 290, against uniform \
+    strict PPT finders) on merkleHashDomain leafSpace, the leaves and the pairs encPair (l, r) \
+    of two n-bit digests, then every uniform strict PPT adversary breaks position binding \
+    (MerklePositionBinding, Attack Game 8.2 and Definition 8.4) with negligible probability. \
+    The verifier merkleVerify checks the path length, the position range, that every label has \
+    the root's length (a Merkle proof is a list of digests, p. 321) and the recomputed root; \
+    both opened leaves must lie in leafSpace. Deviations: (1) the hash takes a uniform n-bit key \
+    given to the adversary, which footnote 1 on p. 290 identifies with the source's system \
+    parameter; (2) digests have exactly n bits; (3) the adversary chooses the depth of the tree, \
+    the length of its first path, so the game is stronger than the source's for a fixed number \
+    of leaves, and MerklePositionBinding is listed as novel in the assumptions inventory for \
+    that reason; (4) positions are 0 ≤ i < 2^d, padding positions included, and are written in \
+    unary, which covers polynomially bounded positions but not trees indexed by \
+    superpolynomially many positions. The reduction merkleCollisionFinder loses nothing \
+    (succProbability_merkleBindingGame_le) and is certified strict PPT from the adversary's \
+    certificate (isPPT_merkleCollisionFinder). Collision resistance on all words implies the \
+    premise (merklePositionBinding_of_hashFamily, through CollisionResistantOn.mono)."
 
 register_result "ajtai-collision-sis" where
   title := "Ajtai's hash family is collision resistant under SIS"
