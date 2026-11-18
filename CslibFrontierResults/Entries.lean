@@ -199,6 +199,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.RSAHash
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
@@ -5733,22 +5734,47 @@ register_result "cgks-pir-multi-interactive-lower-bound" where
     Multi-round lower bounds below full collusion (t < |S|) are not proved."
 
 register_result "prp-prf-switching" where
-  title := "PRP/PRF switching lemma: a pseudorandom permutation is a pseudorandom function"
+  title := "PRP/PRF switching lemma: PRP and PRF advantages differ by at most a birthday term"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 4.4 and Corollary 4.5",
-      locator := "Section 4.4.3" }
+    { paper := BonehShoup2023, theorem := "Theorems 4.4 and 4.6",
+      locator := "Section 4.4.3, pp. 134–135" }
   ]
   theorems := [
     Cslib.Crypto.PRP.advantage_idealExperiment_prfIdealExperiment_le,
+    Cslib.Crypto.PRP.abs_advantage_sub_prfAdvantage_le,
     Cslib.Crypto.PRP.prfAdvantage_le_advantage_add
   ]
   scope := "Finite block set D and key set Key, block ciphers E : Key → Equiv.Perm D, and \
     adaptive oracle adversaries with private coins (PRF.Adversary D D) making at most Q queries \
-    (IsQueryBounded Q). A uniform permutation and a uniform function of D are distinguished \
-    with advantage at most Q.choose 2 / |D|, so the PRF advantage of E is at most its PRP \
-    advantage plus Q.choose 2 / |D|. Concrete information-theoretic bounds; no running time is \
-    charged and no asymptotic form is stated."
+    on every path (IsQueryBounded Q), with no bound on running time, as in the source. \
+    Theorem 4.6 (advantage_idealExperiment_prfIdealExperiment_le): a uniform permutation and a \
+    uniform function of D are distinguished with advantage at most Q.choose 2 / |D|. \
+    Theorem 4.4 (abs_advantage_sub_prfAdvantage_le): the PRP and PRF advantages of E differ in \
+    absolute value by at most Q.choose 2 / |D|; prfAdvantage_le_advantage_add is its PRP-to-PRF \
+    half. The bound Q (Q - 1) / 2|D| is at most the source's Q² / 2N, so each statement implies \
+    the source's. Concrete information-theoretic bounds; the asymptotic Corollary 4.5 is the \
+    entry prp-iff-prf."
+
+register_result "prp-iff-prf" where
+  title := "A block cipher with a super-polynomial block space is a PRP iff it is a PRF"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 4.5", locator := "Section 4.4.3, p. 135" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame
+  ]
+  scope := "Every uniform block cipher (BlockCipher: polynomial-time key and block lengths, and \
+    deterministic polynomial-time encryption and decryption, mutually inverse on blockLen n-bit \
+    blocks under keyLen n-bit keys), with any key length, against uniform oracle-PPT \
+    distinguishers (IsOraclePPT) in the adaptive word-oracle forms of Attack Games 4.1 and 4.2, \
+    where a query of the wrong length is answered with the empty word in both games. The \
+    source's super-poly N is the hypothesis that (2 ^ blockLen n)⁻¹ is negligible. The PRF side \
+    is stated as indistinguishability of E.prpRealGame, which is the real experiment of E viewed \
+    as a PRF over (K, X, X), from prfIdealGame blockLen blockLen; the library's named PRF notion \
+    PseudorandomFunctionOver draws n-bit keys, and the keyLen = id case in that notion is \
+    BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id, in the same module."
 
 register_result "ajtai-collision-sis" where
   title := "Ajtai's hash family is collision resistant under SIS"
