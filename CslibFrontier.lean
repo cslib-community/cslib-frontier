@@ -4273,6 +4273,7 @@ public import CslibFrontier.Computability.QueryComplexity.Quantum.BitQuery
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Composition
 public import CslibFrontier.Computability.QueryComplexity.Quantum.DeutschJozsa
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Grover
+public import CslibFrontier.Computability.QueryComplexity.Quantum.MeasuredPrefix
 public import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 public import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Polynomial
@@ -4901,6 +4902,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
+public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigningPrefix
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningROM

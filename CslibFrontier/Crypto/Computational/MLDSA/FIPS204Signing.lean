@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+public import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
+public import CslibFrontier.Languages.Probabilistic.QueryCount
 import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
@@ -33,78 +35,170 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability
 
-/-- ExpandMask (Algorithm 34). Each mask polynomial absorbs the same seed and its own
-two-byte little-endian counter, and decodes 256 coefficients in [1 − γ₁, γ₁]. -/
-def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :
-    Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
+/-- ExpandMask (Algorithm 34). Each of the ℓ rows queries the same seed with its own
+two-byte little-endian counter. All rows share their raw XOF with every other signing role. -/
+@[expose] def expandMaskReads (s : Level) (seed : List Byte) (κ : ℕ) :
+    ExtendableOutput.Reads (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) :=
   let width := s.params.γ₁.log2 + 1
-  Vector.ofFn fun i : Fin s.params.ℓ =>
+  Vector.ofFnM fun i : Fin s.params.ℓ => do
     let nonce := κ + i.val
-    let bytes := H.h256.readBytes (nonceInput seed nonce) (32 * width)
-    (unpackSigned 1 width s.params.γ₁ bytes).get 0
+    let addr := Keccak.bytesToBitsLE (nonceInput seed nonce)
+    let bytes ← OracleComp.query ⟨addr, 32 * width⟩
+    return (unpackSigned 1 width s.params.γ₁ bytes).get 0
+
+/-- Algorithm 34 evaluated against the selected SHAKE256 stream. -/
+@[expose] def Xofs.expandMask (H : Xofs) (s : Level) (seed : List Byte) (κ : ℕ) :=
+  OracleComp.evalPure (ExtendableOutput.Request.answer H.h256) (expandMaskReads s seed κ)
 
 /-- FIPS 202 specialization of `Xofs.expandMask`. -/
 abbrev expandMask := Xofs.expandMask Xofs.shake
 
-private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s)
-    (matrix : Matrix (Fin s.params.k) (Fin s.params.ℓ) Poly)
-    (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) := do
-  let y := ringVectorCoeffs (H.expandMask s maskSeed κ)
-  let w := ringVectorCoeffs (tabulateRingVector (moduleSISMap matrix y))
-  let digest := H.commitmentDigest s (highBitsVec s.params w) μ
-  let c ← H.sampleInBall s digest
-  let challenge := Vector.ofFn c
-  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w challenge.get
+/-- Complete Algorithm 7 using the sampled challenge and digest. XOF exhaustion is fatal,
+a failed norm or hint check rejects the mask, and success returns the encoded signature. -/
+def finishSigningAttempt (s : Level) (sk : PrivateKey s) (y : Fin s.params.ℓ → Poly)
+    (w : Fin s.params.k → Poly) (digest : List Byte) (challenge : Option Poly) :
+    Option (Option (List Byte)) := do
+  let c ← challenge
+  let response := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂ sk.t₀ y w
+    (Vector.ofFn c).get
   return response.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩)
 
-private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List Byte))) :
-    ℕ → ℕ → Option (List Byte)
-  | 0, _ => none
-  | fuel + 1, κ => do
-    let result ← tryAt κ
-    match result with
-    | some sig => return sig
-    | none => firstAccepted stride tryAt fuel (κ + stride)
+/-- The length of every successful reply, including for decoded keys outside KeyGen's image. -/
+theorem length_finishSigningAttempt {s : Level} {sk : PrivateKey s} {y w digest challenge sig}
+    (hd : digest.length = digestBytes s)
+    (h : finishSigningAttempt s sk y w digest challenge = some (some sig)) :
+    sig.length = signatureBytes s := by
+  unfold finishSigningAttempt at h
+  cases challenge with
+  | none => contradiction
+  | some c =>
+    simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq] at h
+    dsimp only [compressedResponse] at h
+    split_ifs at h with hz hh
+    · simp only [Option.map_some, Option.some.injEq] at h
+      obtain rfl := h
+      exact length_encodeSignature _ _ hd hh.2
+    · contradiction
+    · contradiction
 
-/-- Algorithm 7 on encoded secret keys, formatted bit-string messages and 32 hedging bytes.
-The signer distinguishes a rejected attempt (advance κ by ℓ) from XOF exhaustion (abort).
-After 814 rejected attempts it returns the single error of Appendix C. -/
-def Xofs.signInternal (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
-    (rnd : FixedBytes 32) : Option (List Byte) := do
-  let sk ← decodePrivate s bytes
-  let matrix ← H.expandA s sk.rho
-  let μ := H.representativeFromTr sk.tr formatted
-  let maskSeed := H.h256.read
-    (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ) 64
-  firstAccepted s.params.ℓ (H.attempt s sk matrix μ maskSeed) 814 0
+private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : PublicMatrix s)
+    (μ : List Bool) (seed : List Byte) (κ : ℕ) : Option (Option (List Byte)) :=
+  let y := ringVectorCoeffs (H.expandMask s seed κ)
+  let w := ringVectorCoeffs (tabulateRingVector (moduleSISMap matrix y))
+  let digest := H.commitmentDigest s (highBitsVec s.params w) μ
+  finishSigningAttempt s sk y w digest (H.sampleInBall s digest)
+
+/-- The capped signing loop. Each attempt reads all ExpandMask rows, the commitment digest
+and the 221 SampleInBall bytes. Every request goes to one raw SHAKE256 interface. -/
+@[expose] def signingQueries {R : Type} (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
+    (μ : List Bool) (seed : List Byte) (reply : Option (List Byte) → R) :
+    ℕ → ℕ → ExtendableOutput.Reads R
+  | 0, _ => pure (reply none)
+  | fuel + 1, κ => do
+    let masks ← expandMaskReads s seed κ
+    let y := ringVectorCoeffs masks
+    let w := ringVectorCoeffs (tabulateRingVector (moduleSISMap A y))
+    let digest ← OracleComp.query ⟨commitmentInput s (highBitsVec s.params w) μ, digestBytes s⟩
+    let stream ← OracleComp.query ⟨Keccak.bytesToBitsLE digest, 221⟩
+    match finishSigningAttempt s sk y w digest (sampleInBallBytes s stream) with
+    | none => pure (reply none)
+    | some (some sig) => pure (reply (some sig))
+    | some none => signingQueries s sk A μ seed reply fuel (κ + s.params.ℓ)
+
+/-- The full internal signer. Matrix expansion uses SHAKE128; every use of SHAKE256, from
+the message representative and masking seed through the rejection loop, is an oracle call. -/
+@[expose] def Xofs.signInternalReads {R : Type} (H : Xofs) (s : Level) (key : List Byte)
+    (formatted : List Bool) (rnd : FixedBytes 32) (reply : Option (List Byte) → R) :
+    ExtendableOutput.Reads R :=
+  match decodePrivate s key with
+  | none => pure (reply none)
+  | some sk =>
+    match H.expandA s sk.rho with
+    | none => pure (reply none)
+    | some A => do
+      let representative ← OracleComp.query ⟨Keccak.bytesToBitsLE sk.tr ++ formatted, 64⟩
+      let μ := Keccak.bytesToBitsLE representative
+      let seed ← OracleComp.query ⟨Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ, 64⟩
+      signingQueries s sk A μ seed reply 814 0
+
+/-- Algorithm 7 on encoded keys, formatted message and 32 hedging bytes, with Appendix C's
+814-attempt limit. -/
+@[expose] def Xofs.signInternal (H : Xofs) (s : Level) (key : List Byte) (formatted : List Bool)
+    (rnd : FixedBytes 32) : Option (List Byte) :=
+  OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+    (H.signInternalReads s key formatted rnd id)
 
 /-- FIPS 202 specialization of `Xofs.signInternal`. -/
 abbrev signInternal := Xofs.signInternal Xofs.shake
 
-/-- Pure ML-DSA.Sign (Algorithm 2) with explicit hedging randomness. The deterministic
-variant uses 32 zero bytes. Contexts longer than 255 bytes return an error. -/
-def Xofs.sign (H : Xofs) (s : Level) (sk : List Byte) (message : List Bool) (ctx : List Byte)
-    (rnd : FixedBytes 32) : Option (List Byte) := do
+/-- Algorithm 2, including the 255-byte context bound and explicit randomness. -/
+@[expose] def Xofs.sign (H : Xofs) (s : Level) (key : List Byte) (message : List Bool)
+    (ctx : List Byte) (rnd : FixedBytes 32) : Option (List Byte) := do
   guard (ctx.length ≤ 255)
-  H.signInternal s sk (formatMessage message ctx) rnd
+  H.signInternal s key (formatMessage message ctx) rnd
 
 /-- FIPS 202 specialization of `Xofs.sign`. -/
 abbrev sign := Xofs.sign Xofs.shake
 
-private theorem attempt_of_firstAccepted {stride fuel start : ℕ}
-    {f : ℕ → Option (Option (List Byte))} {sig : List Byte}
-    (h : firstAccepted stride f fuel start = some sig) : ∃ κ, f κ = some (some sig) := by
-  induction fuel generalizing start with
-  | zero => simp [firstAccepted] at h
-  | succ fuel ih =>
-    cases hf : f start with
-    | none => simp [firstAccepted, hf] at h
-    | some v =>
-      cases v with
-      | none => exact ih (by simpa [firstAccepted, hf] using h)
-      | some bytes =>
-        have he : bytes = sig := by simpa [firstAccepted, hf] using h
-        exact ⟨start, he ▸ hf⟩
+private theorem bounded_vector_reads {α : Type} {n : ℕ} (f : Fin n → ExtendableOutput.Reads α)
+    (h : ∀ i, (f i).IsQueryBounded 1) : (Vector.ofFnM f).IsQueryBounded n := by
+  induction n with
+  | zero => rw [Vector.ofFnM_zero]; exact .pure _ _
+  | succ n ih =>
+    rw [Vector.ofFnM_succ]
+    apply (ih _ (fun i => h i.castSucc)).bind
+    intro _
+    simpa only [Nat.add_zero] using (h (Fin.last n)).bind (m := 0) (fun _ => .pure _ _)
+
+/-- Each FIPS trial uses ℓ mask-row reads, one commitment read and one challenge-expansion read.
+Rejection and fatal expansion consume these reads before the result is examined. -/
+theorem signingQueries_bounded {R : Type} (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
+    (μ : List Bool) (seed : List Byte) (reply : Option (List Byte) → R) (fuel κ : ℕ) :
+    (signingQueries s sk A μ seed reply fuel κ).IsQueryBounded ((s.params.ℓ + 2) * fuel) := by
+  induction fuel generalizing κ with
+  | zero => exact .pure _ _
+  | succ n ih =>
+    have masks : (expandMaskReads s seed κ).IsQueryBounded s.params.ℓ := by
+      apply bounded_vector_reads
+      intro i
+      exact .liftBind _ _ 0 fun _ => .pure _ _
+    rw [show (s.params.ℓ + 2) * (n + 1) = s.params.ℓ + ((s.params.ℓ + 2) * n + 1 + 1) by ring]
+    apply masks.bind
+    intro y
+    apply OracleComp.IsCostBounded.liftBind
+    intro d
+    apply OracleComp.IsCostBounded.liftBind
+    intro stream
+    split <;> first | exact .pure _ _ | apply ih
+
+/-- Two prelude reads for the representative and hedging seed, followed by at most 814 trials. -/
+theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : List Byte)
+    (formatted : List Bool) (rnd : FixedBytes 32) (reply : Option (List Byte) → R) :
+    (H.signInternalReads s key formatted rnd reply).IsQueryBounded
+      ((s.params.ℓ + 2) * 814 + 2) := by
+  unfold signInternalReads
+  split <;> first | exact .pure _ _ | split
+  all_goals try exact .pure _ _
+  apply OracleComp.IsCostBounded.liftBind
+  intro _
+  apply OracleComp.IsCostBounded.liftBind
+  intro _
+  apply signingQueries_bounded
+
+private theorem attempt_of_signingQueries (H : Xofs) (s : Level) (sk : PrivateKey s)
+    (A : PublicMatrix s) (μ : List Bool) (seed : List Byte) (fuel κ : ℕ) {sig : List Byte}
+    (hs : OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+      (signingQueries s sk A μ seed id fuel κ) = some sig) :
+    ∃ nonce, H.attempt s sk A μ seed nonce = some (some sig) := by
+  induction fuel generalizing κ with
+  | zero => contradiction
+  | succ n ih =>
+    simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query, id_eq] at hs
+    split at hs
+    · contradiction
+    · rename_i bytes he
+      exact ⟨κ, (Option.some.inj hs) ▸ he⟩
+    · exact ih _ hs
 
 private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey s.params)
     (rho : FixedBytes 32) {key tr maskSeed : List Byte} {κ : ℕ} {f : Forgery}
@@ -123,14 +217,15 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
     funext (Vector.get_ofFn g)
   cases hc : H.sampleInBall s digest with
   | none =>
-    simp only [Xofs.attempt, tabulateRingVector_eq] at hs
+    simp only [Xofs.attempt, finishSigningAttempt, tabulateRingVector_eq] at hs
     change (H.sampleInBall s digest).bind _ = _ at hs
     simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [Xofs.attempt, tabulateRingVector_eq, vecGet] at hs
+      simp only [Xofs.attempt, finishSigningAttempt, tabulateRingVector_eq,
+        vecGet] at hs
       change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
     cases he : resp with
@@ -163,8 +258,9 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     by_contra h
     simp [Xofs.sign, guard, h] at hs
   simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
-    Option.bind_some, Xofs.signInternal, decoded, hA] at hs
-  obtain ⟨κ, htry⟩ := attempt_of_firstAccepted hs
+    Option.bind_some, Xofs.signInternal, Xofs.signInternalReads, decoded, hA,
+    OracleComp.evalPure_bind, OracleComp.evalPure_query] at hs
+  obtain ⟨κ, htry⟩ := attempt_of_signingQueries _ _ _ _ _ _ _ _ hs
   rw [pk] at htry ⊢
   exact verified_of_attempt sk rho hA ctx short htry
 

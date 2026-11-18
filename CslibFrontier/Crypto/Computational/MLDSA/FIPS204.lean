@@ -43,7 +43,7 @@ open Cslib.Probability
 
 /-- The two XOFs used by FIPS 204. Each SHAKE variant has a single raw-bit input space,
 shared by key generation, signing, verification and external queries. -/
-structure Xofs where
+@[ext] structure Xofs where
   /-- The XOF used to expand the public matrix. -/
   h128 : ExtendableOutput
   /-- The XOF used for secret expansion, masks, message representatives and challenges. -/
@@ -219,6 +219,15 @@ def Xofs.expandA (H : Xofs) (s : Level) (rho : List Byte) :
       fromNTT <$> asPoly (uniformCoeffs (H.h128.readBytes
         (rho ++ [Fin.ofNat 256 col.val, Fin.ofNat 256 row.val]) 894))
   return fun i j => ((matrix.get i).get j).get
+
+/-- Keeping the SHAKE128 component fixes every ExpandA coefficient and exhaustion result. -/
+theorem Xofs.expandA_congr {H G : Xofs} (same : H.h128 = G.h128) (s : Level) (rho : List Byte) :
+    H.expandA s rho = G.expandA s rho := by
+  obtain ⟨a, b⟩ := H
+  obtain ⟨c, d⟩ := G
+  change a = c at same
+  subst c
+  rfl
 
 /-- FIPS 202 specialization of `Xofs.expandA`. -/
 abbrev expandA := Xofs.expandA Xofs.shake
@@ -520,11 +529,14 @@ private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380
 
 /-- Algorithm 29. Preload the last τ positions with the SHAKE sign bits and exchange each
 with its chosen position in increasing order. Future sign positions remain untouched because an
-accepted index is at most the current position. The SHAKE256 limit is 221 bytes. -/
-def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly := do
-  let bytes := H.h256.readBytes digest 221
+accepted index is at most the current position. The caller supplies the SHAKE256 bytes. -/
+def sampleInBallBytes (s : Level) (bytes : List Byte) : Option Poly := do
   let e ← swaps (256 - s.params.τ) s.params.τ (bytes.drop 8)
   return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ e.symm
+
+/-- Algorithm 29 reads one 221-byte stream at the raw challenge digest. -/
+@[expose] def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly :=
+  sampleInBallBytes s (H.h256.readBytes digest 221)
 
 /-- FIPS 202 specialization of `Xofs.sampleInBall`. -/
 abbrev sampleInBall := Xofs.sampleInBall Xofs.shake
@@ -558,9 +570,9 @@ private theorem inBall_signedTail (s : Level) (signs : List Bool) (e : Equiv.Per
 theorem inBall_of_sampleInBall {H : Xofs} {s : Level} {digest : List Byte} {c : Poly}
     (h : H.sampleInBall s digest = some c) : InBall s.params.τ c := by
   cases he : swaps (256 - s.params.τ) s.params.τ ((H.h256.readBytes digest 221).drop 8) with
-  | none => simp [Xofs.sampleInBall, he] at h
+  | none => simp [Xofs.sampleInBall, sampleInBallBytes, he] at h
   | some e =>
-    rw [Xofs.sampleInBall, he] at h
+    rw [Xofs.sampleInBall, sampleInBallBytes, he] at h
     exact (Option.some.inj h) ▸ inBall_signedTail s _ e
 
 /-- The components of a FIPS 204 signature after Algorithm 27 has checked its encoding. -/
@@ -761,6 +773,31 @@ private theorem takeBytes_eq_of_bits {x y : List Byte} (n : ℕ) (hx : n ≤ x.l
         have hab : a = b := by simpa using congrArg Keccak.bitsToByteLE head
         simpa [hab] using ih (by simpa using hx) (by simpa using hy) tail
 
+/-- Consecutive little-endian bytes in a commitment digest register. -/
+def registerBytes (s : Level) (d : BitString (8 * digestBytes s)) : List Byte :=
+  ((List.ofFn d).toChunks 8).map Keccak.bitsToByteLE
+
+/-- A coherent commitment digest register supplies exactly the required number of bytes. -/
+@[simp] theorem length_registerBytes (s : Level) (d : BitString (8 * digestBytes s)) :
+    (registerBytes s d).length = digestBytes s := by
+  have h := congrArg List.length (bitsOfChunks (bits := List.ofFn d) (by simp))
+  rw [bitsLength, List.length_ofFn] at h
+  change 8 * (registerBytes s d).length = 8 * digestBytes s at h
+  lia
+
+/-- A literal digest of the prescribed length round-trips through the XOR register. -/
+theorem registerBytes_ofList (s : Level) (bytes : List Byte) (h : bytes.length = digestBytes s) :
+    registerBytes s (BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE bytes)) =
+      bytes := by
+  let d := BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE bytes)
+  have round : List.ofFn d = Keccak.bytesToBitsLE bytes :=
+    BitString.ofFn_ofList (by rw [bitsLength, h])
+  have bits := (bitsOfChunks (bits := List.ofFn d) (by simp)).trans round
+  change Keccak.bytesToBitsLE (registerBytes s d) = _ at bits
+  have words := takeBytes_eq_of_bits (digestBytes s) (length_registerBytes s d).ge h.ge
+    (congrArg (List.take (8 * digestBytes s)) bits)
+  simpa [List.take_of_length_le, h] using words
+
 private theorem responseBytes_inj {s : Level} {x y : List Byte}
     (w : ℕ) (hw : w = s.params.γ₁.log2 + 1)
     (hx : 32 * w * s.params.ℓ ≤ x.length) (hy : 32 * w * s.params.ℓ ≤ y.length)
@@ -878,6 +915,16 @@ theorem eq_of_sigDecode {s : Level} {a b : List Byte} {σ : Signature s}
 def encodeSignature (s : Level) (σ : Signature s) : List Byte :=
   σ.digest ++ packSigned (s.params.γ₁.log2 + 1) s.params.γ₁ σ.z ++ encodeHint σ.h
 
+/-- Length in bytes of an encoded signature (FIPS 204, Table 2). -/
+def signatureBytes (s : Level) : ℕ :=
+  digestBytes s + 32 * (s.params.γ₁.log2 + 1) * s.params.ℓ + hintLimit s + s.params.k
+
+/-- Encoding a signature satisfying the hint and digest bounds has its prescribed length. -/
+theorem length_encodeSignature (s : Level) (σ : Signature s)
+    (hd : σ.digest.length = digestBytes s) (hh : hintWeight s.params σ.h ≤ hintLimit s) :
+    (encodeSignature s σ).length = signatureBytes s := by
+  simp [encodeSignature, signatureBytes, packSigned, hd, length_encodeHint σ.h hh, Nat.add_assoc]
+
 /-- Algorithms 26 and 27 round-trip every signature with the prescribed digest length,
 an accepted response norm, and at most `ω` hint bits. -/
 theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
@@ -890,10 +937,8 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
   have plen : resp.length = 32 * w * s.params.ℓ := length_packCoeffs ..
   have tlen : (σ.digest ++ resp).length = digestBytes s + 32 * w * s.params.ℓ := by
     rw [List.length_append, hd, plen]
-  have len : (encodeSignature s σ).length =
-      digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k := by
-    change ((σ.digest ++ resp) ++ hints).length = _
-    simp only [List.length_append, tlen, length_encodeHint σ.h hh, hints, Nat.add_assoc]
+  have len := length_encodeSignature s σ hd hh
+  change _ = digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k at len
   have hdr : (encodeSignature s σ).take (digestBytes s) = σ.digest := by
     change ((σ.digest ++ resp) ++ hints).take _ = _
     rw [List.append_assoc, ← hd, List.take_left]
@@ -1004,12 +1049,18 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
   exact coef (decodeRounded s bytes i j)
 
 /-- The 64-byte representative of a formatted bit string given the public-key hash tr. -/
-def Xofs.representativeFromTr (H : Xofs) (tr : List Byte) (formatted : List Bool) : List Bool :=
+@[expose] def Xofs.representativeFromTr (H : Xofs) (tr : List Byte) (formatted : List Bool) :
+    List Bool :=
   Keccak.bytesToBitsLE (H.h256.read
     (Keccak.bytesToBitsLE tr ++ formatted) 64)
 
 /-- FIPS 202 specialization of `Xofs.representativeFromTr`. -/
 abbrev representativeFromTr := Xofs.representativeFromTr Xofs.shake
+
+/-- The message representative fits exactly in the 512-bit measured register. -/
+@[simp] theorem length_representativeFromTr {H : Xofs} (tr : List Byte) (formatted : List Bool) :
+    (H.representativeFromTr tr formatted).length = 512 := by
+  rw [Xofs.representativeFromTr, bitsLength, H.h256.length_read]
 
 /-- SHAKE256 on `BytesToBits(H(pk,64)) || M'`. In particular a formatted message may end
 between two byte boundaries (Algorithm 8, lines 6–7). -/
@@ -1047,7 +1098,7 @@ theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 �
   omega
 
 /-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
-def Xofs.commitmentDigest (H : Xofs) (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
+@[expose] def Xofs.commitmentDigest (H : Xofs) (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
     (μ : List Bool) : List Byte :=
   H.h256.read
     (commitmentInput s w μ) (digestBytes s)

@@ -9,7 +9,6 @@ module
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
 import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import CslibFrontier.Crypto.Computational.MLDSA.SplitMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
