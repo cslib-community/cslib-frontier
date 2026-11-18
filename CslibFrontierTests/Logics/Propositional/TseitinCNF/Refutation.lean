@@ -60,9 +60,9 @@ example (a b : Prop) : (a → b) → ¬b → ¬a := by
 example (v : Fin 2 → Bool) : contraposition.eval v = true :=
   eval_of_checkLRAT cert_ok v
 
-/-- A certificate with a wrong hint is rejected. -/
+/-- The accepted certificate with one wrong hint, 20 for 19 in its first step, is rejected. -/
 example : (neg contraposition).tseitinNumberedCNF.checkLRAT
-    #[.addRup 23 #[-5, -2] #[18, 20], .addEmpty 24 #[1, 23]] = false := by
+    (cert.set! 0 (.addRup 23 #[-5, -2] #[18, 20])) = false := by
   decide
 
 end CslibFrontierTests.Logics.Propositional.TseitinCNF.Refutation
