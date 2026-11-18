@@ -45,10 +45,10 @@ Combined with a discrete-logarithm assumption, this yields the average-key proof
 reduction `succProbability_schnorrPoKGame_le` / `DiscreteLog.negligible_schnorrPoKGame` (any
 uniform strict PPT prover succeeds in `schnorrPoKGame` with negligible probability under
 `DiscreteLog`) and is the extraction step behind the security of Schnorr identification;
-`CslibFrontier.Crypto.Computational.SchnorrIdentification` proves that security with `k`-bit
-challenges. This module also instantiates the `andProof`, `orProof`, and `parallelRepetition`
-efficiency transfer theorems of `CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient` for
-`schnorrFamily`.
+`negligible_schnorrDirectProbGame` in
+`CslibFrontier.Crypto.Computational.SchnorrEavesdrop` proves that security with `k`-bit challenges.
+This module also instantiates the `andProof`, `orProof`, and `parallelRepetition` efficiency
+transfer theorems of `CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient` for `schnorrFamily`.
 
 ## Main definitions
 

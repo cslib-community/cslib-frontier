@@ -429,6 +429,75 @@ class MirrorTests(unittest.TestCase):
                                      ["0000000000000002.art"])
                     self.assertFalse(any(old_base in req for req in self.requests))
 
+    def pin_mathlib(self, revision, message, timestamp):
+        manifest = {"version": "1.1.0", "packages": [
+            {"name": "cslib", "rev": "c" * 40}, {"name": "mathlib", "rev": revision}]}
+        (self.root / "lake-manifest.json").write_text(json.dumps(manifest))
+        self.git("add", "lake-manifest.json")
+        self.git("commit", "-qm", message, timestamp=timestamp)
+        return self.git("rev-parse", "HEAD")
+
+    def test_ancestors_pinning_another_mathlib_are_not_restored(self):
+        # The incident of 17 November 2026: after a Mathlib bump, the nearest published ancestor
+        # predates the bump, so its complete output set was downloaded and matched nothing.
+        # An orphan history, so that every candidate has a manifest (the fixture's root has none).
+        self.git("checkout", "-q", "--orphan", "main")
+        before = self.pin_mathlib("a" * 40, "published before the bump", 1_700_001_000)
+        self.revision_mappings = {
+            before: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n'}
+        bump = self.pin_mathlib("b" * 40, "unpublished Mathlib bump", 1_700_002_000)
+        for missing in (False, True):
+            with self.subTest(published="before the bump only", missing=missing):
+                self.requests.clear()
+                result = self.fetch("/by-rev", "/by-rev-403", missing=missing)
+                self.assertIn("Skipping 1 of 2 candidate ancestors", result.stdout)
+                # Only the bump itself is looked up, at both origins; nothing is downloaded.
+                self.assertEqual(len(self.requests), 2)
+                self.assertTrue(all(bump in request for request in self.requests))
+                self.assertFalse(self.artifacts.exists() and any(self.artifacts.iterdir()))
+        # A pin changed in the working tree but not yet committed matches no ancestor at all:
+        # the first origin attempt settles that without a request, and no other origin is tried.
+        self.requests.clear()
+        committed = (self.root / "lake-manifest.json").read_text()
+        (self.root / "lake-manifest.json").write_text(committed.replace("b" * 40, "e" * 40))
+        result = self.fetch("/by-rev", "/by-rev-403")
+        self.assertIn("no candidate ancestor shares this checkout's Mathlib revision", result.stdout)
+        self.assertIn("origin 1/2: skipped", result.stdout)
+        self.assertNotIn("origin 2/2", result.stdout)
+        self.assertEqual(self.requests, [])
+        (self.root / "lake-manifest.json").write_text(committed)
+        # Once the bump is published it is restored, and the older set is still never requested.
+        self.revision_mappings[bump] = b'"2026-03-17"\n["0000000000000002","0000000000000002.ltar"]\n'
+        (self.root / "work.txt").write_text("work\n")
+        self.git("add", "work.txt")
+        self.git("commit", "-qm", "work after the bump", timestamp=1_700_003_000)
+        result = self.fetch("/by-rev")
+        self.assertIn(f"Remote cache: {bump}", result.stdout)
+        self.assertEqual(sorted(p.name for p in self.artifacts.iterdir()), ["0000000000000002.art"],
+                         result.stdout + result.stderr)
+        self.assertFalse(any(before in request for request in self.requests))
+
+    def test_other_manifest_changes_and_unreadable_pins_keep_the_ancestor(self):
+        # A bump of cslib alone left 52% to 99.8% of outputs reusable, so it must not be skipped;
+        # the fixture's first commit has no manifest at all and is kept as well.
+        self.git("checkout", "-qb", "main")
+        published = self.pin_mathlib("a" * 40, "published", 1_700_001_000)
+        self.revision_mappings = {
+            published: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n'}
+        manifest = json.loads((self.root / "lake-manifest.json").read_text())
+        manifest["packages"][0]["rev"] = "d" * 40
+        (self.root / "lake-manifest.json").write_text(json.dumps(manifest, indent=1))
+        self.git("add", "lake-manifest.json")
+        self.git("commit", "-qm", "bump cslib only", timestamp=1_700_002_000)
+        result = self.fetch("/by-rev")
+        self.assertIn(f"Remote cache: {published}", result.stdout)
+        self.assertNotIn("Skipping", result.stdout)
+        self.assertEqual(restore.same_mathlib(self.root, restore.candidate_revisions(self.root)),
+                         restore.candidate_revisions(self.root))
+        # An unreadable manifest in the checkout disables the comparison instead of the restore.
+        (self.root / "lake-manifest.json").write_text("not json")
+        self.assertEqual(len(restore.same_mathlib(self.root, [published])), 1)
+
     def test_explicit_empty_legacy_override_disables_configured_mirrors(self):
         self.fetch("/primary", "/fallback", COMPLEXITYLIB_CACHE_URL="")
         self.assertEqual(self.events(), [])
