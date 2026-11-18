@@ -106,7 +106,8 @@ def maskAddress (seed : FixedBytes 64) (nonce : ℕ) : BitString 528 :=
 
 private theorem raw_length (seed : FixedBytes 64) (nonce : ℕ) :
     (Keccak.bytesToBitsLE (nonceInput seed.toList nonce)).length = 528 := by
-  simp [bitsLength, nonceInput]
+  rw [Keccak.length_bytesToBitsLE, nonceInput, List.length_append, FixedBytes.length_toList seed]
+  rfl
 
 private theorem maskAddress_bits (seed : FixedBytes 64) (nonce : ℕ) :
     List.ofFn (maskAddress seed nonce) = Keccak.bytesToBitsLE (nonceInput seed.toList nonce) :=
@@ -230,7 +231,7 @@ private theorem schedule_injective (s : Level) (seed : FixedBytes 64) :
   intro p q h
   have raw := congrArg List.ofFn h
   simp only [maskAddress_bits] at raw
-  have bs := bytes_eq_of_bits_eq raw
+  have bs := Keccak.bytesToBitsLE_injective raw
   simp only [nonceInput, List.append_cancel_left_eq, List.cons.injEq, and_true] at bs
   obtain ⟨lo, hi⟩ := bs
   have low := congrArg Fin.val lo

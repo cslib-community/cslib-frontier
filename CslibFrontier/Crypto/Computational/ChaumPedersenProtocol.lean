@@ -24,17 +24,27 @@ description `d`, with challenges in `ZMod q` for the group order `q`. A statemen
 ([BonehShoup2023], (19.12), in additive notation). Statements and commitments are framed tuples of
 the family's element encoding, and scalars are binary (`chaumPedersenEncoding`).
 
+The honest prover of `chaumPedersenFamily` draws its commitment nonce `βₜ` exactly uniformly on
+`ZMod q` at the `PMF` level (`SigmaProtocol.linear`). A strict PPT machine with fair coins cannot
+do this when `q` is not a power of two, and the library defines no fair-coin Chaum–Pedersen
+prover. The two zero-knowledge results compare the fair-coin simulator with this ideal-sampling
+prover. They are therefore steps toward special HVZK of the protocol ([BonehShoup2023],
+Theorem 19.10), not the cited result, which stays open (#5293). Special soundness involves no
+sampling.
+
 * **Efficient special soundness** (`efficientSpecialSoundness_chaumPedersen`, Theorem 19.10 with
   Definition 19.4): the extractor `chaumPedersenExtract` computes `(c - c')⁻¹ (z - z')` with
   `extractNat`. It reads neither the statement nor the commitment, so its polynomial-time word
   function is Schnorr's `schnorrExtractWord`.
-* **Efficient special HVZK** (`efficientSpecialHVZK_chaumPedersen`, Theorem 19.10 with
-  Definition 19.5): Boneh and Shoup's simulator samples a uniform response `z` and outputs
+* **Efficient special HVZK against the ideal-sampling prover**
+  (`efficientSpecialHVZK_chaumPedersen_ideal`, a step toward Theorem 19.10 with Definition 19.5):
+  Boneh and Shoup's simulator samples a uniform response `z` and outputs
   `((z • g - c • v, z • u - c • w), z)`. The typed simulator `chaumPedersenSimulator` samples `z`
   with `sampleExp`, which is within statistical distance `1 / 2 ^ n` of uniform on `ZMod q`. Its
   strict PPT certificate is the word program `chaumPedersenSimulateWord`.
-* **Computational special HVZK** (`computationalSpecialHVZK_chaumPedersen`, Definition 20.6):
-  every output of `chaumPedersenSimulator` is an accepting conversation
+* **Computational special HVZK against the ideal-sampling prover**
+  (`computationalSpecialHVZK_chaumPedersen_ideal`, a step toward Theorem 19.10 with
+  Definition 20.6): every output of `chaumPedersenSimulator` is an accepting conversation
   (`accepts_chaumPedersenSimulator`), so it satisfies Definition 20.6 with zero acceptance error
   along any group-description setup.
 
@@ -50,8 +60,11 @@ the family's element encoding, and scalars are binary (`chaumPedersenEncoding`).
 ## Main results
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_chaumPedersen`
-* `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_chaumPedersen`
-* `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_chaumPedersen`
+
+## Ideal-sampling steps toward Theorem 19.10
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_chaumPedersen_ideal`
+* `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_chaumPedersen_ideal`
 
 ## References
 
@@ -69,7 +82,10 @@ open scoped ENNReal NNReal
 variable (F : PrimeOrderGroupFamily)
 
 /-- The Chaum–Pedersen protocol ([BonehShoup2023], Section 19.5.2) in the group described by
-`i.2`, with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. -/
+`i.2`, with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. The
+honest prover draws its commitment nonce exactly uniformly on `ZMod q` at the `PMF` level, an
+ideal sampler that no fair-coin machine with a strict polynomial time bound realizes exactly when
+`q` is not a power of two; no fair-coin prover is defined (#5293). -/
 @[expose] noncomputable def chaumPedersenFamily (i : ℕ × F.Desc) :
     SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
       (F.Carrier i.2 × F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) :=
@@ -239,10 +255,14 @@ theorem simulatorRealizedBy_chaumPedersenSimulator :
       F.chaumPedersenSimulator (fun i => 1 / 2 ^ i.1) :=
   fun i ⟨_, _, _⟩ _ => F.closeTo_map_uniform_sampleExp i.1 i.2 _
 
-/-- **The Chaum–Pedersen protocol has efficient special HVZK** ([BonehShoup2023], Theorem 19.10
-with Definition 19.5), with statistical error `1 / 2 ^ n` at security parameter `n`: the perfect
-simulator `linearSimulate` is realized by the strict PPT simulator `chaumPedersenSimulator`. -/
-theorem efficientSpecialHVZK_chaumPedersen :
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.10 (special HVZK, Definition 19.5),
+not the cited result: against the honest prover of `chaumPedersenFamily`, which draws its
+commitment nonce exactly uniformly on `ZMod q` at the `PMF` level, `linearSimulate` is a perfect
+simulator, and the strict PPT simulator `chaumPedersenSimulator` realizes it with statistical
+error `1 / 2 ^ n` at security parameter `n`. In the source the prover of Figure 19.7 is an
+algorithm; the library has no fair-coin Chaum–Pedersen prover, so the cited result is open
+(#5293). -/
+theorem efficientSpecialHVZK_chaumPedersen_ideal :
     EfficientSpecialHVZK F.chaumPedersenFamily
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w) F.chaumPedersenEncoding
       (fun i => linearSimulate
@@ -267,10 +287,14 @@ theorem accepts_chaumPedersenSimulator (i : ℕ × F.Desc)
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, chaumPedersenFamily, chaumPedersen_accepts_iff,
     Function.Embedding.refl_apply, sub_add_cancel, and_self]
 
-/-- **The Chaum–Pedersen protocol has computational special HVZK** ([BonehShoup2023],
-Definition 20.6) with zero acceptance error (`δ = fun _ => 0`) over any group-description setup
-`setup : ℕ → PMF F.Desc` paired with the security parameter. -/
-theorem computationalSpecialHVZK_chaumPedersen (setup : ℕ → PMF F.Desc) :
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.10 with Definition 20.6 (special
+computational HVZK), not the cited result: Experiment 0 of Attack Game 20.4 runs the honest prover
+of `chaumPedersenFamily`, which draws its commitment nonce exactly uniformly on `ZMod q` at the
+`PMF` level, and against it the strict PPT simulator `chaumPedersenSimulator` satisfies
+Definition 20.6 with zero acceptance error (`δ = fun _ => 0`) over any group-description setup
+`setup : ℕ → PMF F.Desc` paired with the security parameter. The statement for a fair-coin prover
+is open (#5293). -/
+theorem computationalSpecialHVZK_chaumPedersen_ideal (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.chaumPedersenFamily
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
       F.chaumPedersenEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
