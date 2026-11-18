@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Framed arithmetic on multiword register banks
@@ -72,11 +73,7 @@ private theorem register_bounds {start len r : ℕ} {h : start + len ≤ r}
 private theorem register_nodup (start len r : ℕ) (h : start + len ≤ r) :
     (registers start len h).Nodup := by
   apply List.nodup_ofFn_ofInjective
-  intro i j hij
-  apply Fin.ext
-  have := congrArg Fin.val hij
-  dsimp at this
-  omega
+  fin_index
 
 private theorem product_bounds {i : Fin (capacity n + 4)}
     (hi : i ∈ productLow n ++ productHigh n) : 8 ≤ i.val ∧ i.val < 44 := by

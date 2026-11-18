@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Computational.MLDSA.Signing
+import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 
@@ -130,6 +130,27 @@ example {σ : CompressedSignature correctnessToy}
     compressedVerify correctnessToy 2 correctnessHash correctnessSk.publicKey [] σ = true :=
   compressedVerify_compressedSignAttempt correctnessToy correctnessToy_valid (by decide)
     correctnessHash_inBall correctnessSk_short hout
+
+-- A nonzero secret shifts the mask by one. With A = 0 and s₂ = 0 the remaining checks
+-- always pass. Of the sixteen masks -7 through 8, precisely -7 through 5 give |z| < 7.
+private def shiftedSk : SecretKey correctnessToy :=
+  ⟨0, fun _ => ![1], 0⟩
+
+example : ((List.range 16).filter fun i =>
+    (compressedSignAttempt correctnessToy 2 1 correctnessHash shiftedSk []
+      (fun _ => ![(8 : ZMod 17) - i])).isSome).length = 13 := by decide +kernel
+
+example :
+    freshSigningAttempt correctnessToy 2 1 (by decide) shiftedSk ![1] =
+      simulateFreshSigningAttempt correctnessToy 2 1 (by decide) shiftedSk.publicKey ![1] := by
+  apply freshSigningAttempt_eq_simulate correctnessToy correctnessToy_valid (by decide)
+  · intro i j
+    fin_cases i; fin_cases j
+    decide +kernel
+  · intro i j
+    fin_cases i; fin_cases j
+    decide +kernel
+  · decide +kernel
 
 private def acceptImmediately (_ : ℕ) : Fin toy.ℓ → Fin toy.n → ZMod toy.q :=
   acceptingMask

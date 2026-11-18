@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.BasicOps
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.DecreaseKey
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fibonacci Heap: `decreaseKey` and Cascading Cuts
@@ -165,8 +166,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
       wram_simp [ofData_write_child, ofData_write_left, ofData_write_right,
         ofData_write_deg, ofData_set_scratch, ← hst_def]
   rintro x2 t2 ⟨ht2, hb2, hbr2, hmod2, hx2_reg, left₁, right₁, child₁, hunlink, hst2⟩
-  have hx2_z : x2.regs zReg = cur.val :=
-    (hx2_reg zReg (by decide) (by decide) (by decide) (by decide) (by decide)).trans hz_reg
+  have hx2_z : x2.regs zReg = cur.val := by regs_frame
   have hmin_x2 : x2.regs minRootReg = m.val + 1 := by
     change (RawState.ofData n base x2).minRoot = _
     rw [hst2]
@@ -186,8 +186,7 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
       (h4 : r ≠ s4) : x4.regs r = x.regs r := by
     rw [he4.regs_eq (insertIntoNonEmptyList_preserves h0 h2)]
     wram_simp [hx2_reg r h0 h1 h2 h3 h4]
-  have hx4_z : x4.regs zReg = cur.val :=
-    (hx4_reg zReg (by decide) (by decide) (by decide) (by decide) (by decide)).trans hz_reg
+  have hx4_z : x4.regs zReg = cur.val := by regs_frame
   have hp4 : (RawState.ofData n base x4).par = st.par := by rw [hst4, hst2]
   have hmk4 : (RawState.ofData n base x4).mark = st.mark := by rw [hst4, hst2]
   have hnm4 : (RawState.ofData n base x4).numMarked = st.numMarked := by rw [hst4, hst2]
@@ -463,15 +462,9 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
           · have h1 := hpot_cut0.1 hmk_v
             dsimp only [unitCredit] at h1 ⊢
             omega
-        have hx7_p : x7.regs pReg = p₀.val :=
-          (hx7_reg pReg (by decide) (by decide) (by decide) (by decide) (by decide)
-            (by decide) (by decide)).trans hx6_p
-        have hx7_v : x7.regs argV = v.val :=
-          (hx7_reg argV (by decide) (by decide) (by decide) (by decide) (by decide)
-            (by decide) (by decide)).trans hx6_v
-        have hx7_k : x7.regs argK = k :=
-          (hx7_reg argK (by decide) (by decide) (by decide) (by decide) (by decide)
-            (by decide) (by decide)).trans hx6_k
+        have hx7_p : x7.regs pReg = p₀.val := by regs_frame
+        have hx7_v : x7.regs argV = v.val := by regs_frame
+        have hx7_k : x7.regs argK = k := by regs_frame
         refine WP.of_execWithin he_cut0 ?_
         wram_exec [hx7_p]
         refine WP.name fun x8 hx8 => ?_
@@ -515,12 +508,9 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
               if (RawState.ofData n base a).par cur ≠ 0 ∧ (RawState.ofData n base a).mark cur ≠ 0
               then 1 else 0
         have hx9_inv : loopInv x9 := by
-          have h9_v : x9.regs argV = v.val :=
-            (hx9_reg argV (by decide) (by decide) (by decide) (by decide)).trans hx8_v
-          have h9_k : x9.regs argK = k :=
-            (hx9_reg argK (by decide) (by decide) (by decide) (by decide)).trans hx8_k
-          have h9_z : x9.regs zReg = p₀.val :=
-            (hx9_reg zReg (by decide) (by decide) (by decide) (by decide)).trans hx8_z
+          have h9_v : x9.regs argV = v.val := by regs_frame
+          have h9_k : x9.regs argK = k := by regs_frame
+          have h9_z : x9.regs zReg = p₀.val := by regs_frame
           have hst97 : RawState.ofData n base x9 = RawState.ofData n base x7 := hst9.trans hst8
           refine ⟨hb9, hbr9, hmod9, h9_v, h9_k, by rw [hst97, hcut0.key, hst6], p₀, ts₁, h9_z,
             by rw [hst97]; exact hc₁, hv₁, hpv₁, hp₁, ?_⟩
@@ -578,15 +568,9 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
             have hmk_a3 : (RawState.ofData n base a3).mark cur ≠ 0 := by
               rw [hst_a3]; exact hcond_true.2
             exact (hpot_a4.1 hmk_a3).trans hpot_a3
-          have ha4_p : a4.regs pReg = p_c.val :=
-            (ha4_reg pReg (by decide) (by decide) (by decide) (by decide) (by decide)
-              (by decide) (by decide)).trans ha3_p
-          have ha4_v : a4.regs argV = v.val :=
-            (ha4_reg argV (by decide) (by decide) (by decide) (by decide) (by decide)
-              (by decide) (by decide)).trans ha3_v
-          have ha4_k : a4.regs argK = k :=
-            (ha4_reg argK (by decide) (by decide) (by decide) (by decide) (by decide)
-              (by decide) (by decide)).trans ha3_k
+          have ha4_p : a4.regs pReg = p_c.val := by regs_frame
+          have ha4_v : a4.regs argV = v.val := by regs_frame
+          have ha4_k : a4.regs argK = k := by regs_frame
           refine WP.of_execWithin b4 ?_
           -- `zReg ← pReg`, then the guard of the next iteration.
           wram_exec [ha4_p]
@@ -608,12 +592,9 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
             (potential_supported fun i hi =>
               ha6_reg i (fun e => by subst e; cases hi) (fun e => by subst e; cases hi)
                 (fun e => by subst e; cases hi) (fun e => by subst e; cases hi)).trans hpot_a5
-          have ha6_v : a6.regs argV = v.val :=
-            (ha6_reg argV (by decide) (by decide) (by decide) (by decide)).trans ha5_v
-          have ha6_k : a6.regs argK = k :=
-            (ha6_reg argK (by decide) (by decide) (by decide) (by decide)).trans ha5_k
-          have ha6_z : a6.regs zReg = p_c.val :=
-            (ha6_reg zReg (by decide) (by decide) (by decide) (by decide)).trans ha5_z
+          have ha6_v : a6.regs argV = v.val := by regs_frame
+          have ha6_k : a6.regs argK = k := by regs_frame
+          have ha6_z : a6.regs zReg = p_c.val := by regs_frame
           have hst64 : RawState.ofData n base a6 = RawState.ofData n base a4 :=
             hst_a6.trans hst_a5
           refine ⟨⟨b6.bounded hb_a5, hbr_a6,

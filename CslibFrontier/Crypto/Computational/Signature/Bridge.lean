@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Crypto.Computational.WordSignature
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
@@ -373,8 +374,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run] at h
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap] at h
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query] at h
+      simp only [interp_norm, ProbOracleComp.query] at h
       dsimp only [OracleComp.sumHandler, StateT.run] at h
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         PMF.monad_map_eq_map, PMF.map_comp, PMF.mem_support_map_iff, Function.comp_apply] at h
@@ -383,7 +383,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
       obtain ⟨-, rfl, rfl⟩ := h
       simp
     · rw [ite_eq_right hcap] at h
-      simp only [OracleComp.interpret_pure, StateT.run_pure] at h
+      simp only [interp_norm] at h
       simp_all [PMF.monad_pure_eq_pure]
   case step =>
     rintro q ⟨j, log⟩ (rfl : j = log.length)
@@ -391,8 +391,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run]
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap]
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query, counterSigningOracle, hcap, ite_true]
+      simp only [interp_norm, ProbOracleComp.query, counterSigningOracle, hcap, ite_true]
       dsimp only [OracleComp.sumHandler, StateT.run]
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_map_eq_map, PMF.map_comp]

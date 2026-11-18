@@ -156,10 +156,7 @@ theorem computableInPolyTime_toCircuitWitness :
 /-- The backward witness map is polynomial-time. -/
 theorem computableInPolyTime_ofCircuitWitness :
     ComputableInPolyTime ofCircuitWitness (encPair encCNF encBits) encBits := by
-  have hn : ComputableInPolyTime (fun x : CNF ℕ × List Bool => x.1.vars.length)
-      (encPair encCNF encBits) encUnary :=
-    (length_list _).comp (computableInPolyTime_vars.comp (fst _ _))
-  exact computableInPolyTime_padCertificate (fst _ _) (bitsTakeWithInput (snd _ _) hn)
+  fun_prop [ofCircuitWitness]
 
 /-- **SAT Levin-reduces to circuit satisfiability.** The instance map is `toCircuit`; both
 witness maps keep the bits read for the literal occurrences and pad with `false`. -/

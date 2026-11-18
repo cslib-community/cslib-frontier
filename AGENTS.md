@@ -147,8 +147,8 @@ says "locator not verified" until a reviewer has confirmed the locator at the so
 claiming a cited result rests on the source's assumption, on one review accepts as the same in
 another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
 assumption may support a result presented as original and named for it.
-`scripts/check_security_premises.py`, `scripts/check_reduction_witnesses.py` and
-`scripts/check_hardness_assumptions.py` supplement these rules; they do not replace semantic review.
+`scripts/check_hardness_assumptions.py` checks the inventory; the premise and reduction-witness
+scans are advisory. None replaces semantic review.
 
 ## Review cycle
 
@@ -207,10 +207,10 @@ A non-authoring agent may review work from the same coordinator or account, in a
 review context, reaching its own verdict. Anyone who took part in the implementation or its
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. Before a published theorem enters the
-[results inventory](results/README.md), its statement is checked against the source by a
-reviewer, human or agent, from outside the authoring fleet, who records the check in a comment
-that says who made it ([policy/review.md](policy/review.md#review-cycle)).
+never presented as human review. A headline for a cited result is presented as a step or is
+registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
+outside the authoring fleet checks its statement against the source, opens the definitions it
+names and records the check ([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
@@ -441,6 +441,11 @@ Full text, including the file template: [policy/build-and-files.md](policy/build
 Keep the cslib pin on an upstream `main` SHA and coordinate bumps in focused dependency PRs.
 When the pin adopts merged work, the same commit replaces the superseded local file with its
 deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstream)).
+
+Every pin bump lists the upstream PRs labelled `cslib-frontier-adaptation` that merged in the
+range it crosses. These are design changes, such as new or more general definitions, that need
+more than repaired proofs: adapt to each in the bump, or defer it as the cleanup rule allows
+([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
 
 ## Design commitments (do not re-litigate casually)
 

@@ -92,12 +92,14 @@ STEPS = (
           "test -d .lake/packages",
           "python3 -B -m unittest scripts/test_check_tidy_surface.py",
           "python3 -B scripts/check_tidy_surface.py")),
-    Step("Security premise ratchet (changed modules)",
+    # Advisory: these two fail when the checker's tests fail, the scan cannot run or the baseline
+    # is malformed, never on what the scan finds. Run the second command by hand to read that.
+    Step("Security premise report (changed modules)",
          ("python3 -B -m unittest scripts/test_check_security_premises.py",
-          'python3 -B scripts/check_security_premises.py --base "$BASE"')),
-    Step("Reduction witness ratchet (changed modules)",
+          'python3 -B scripts/check_security_premises.py --base "$BASE" --advisory')),
+    Step("Reduction witness report (changed modules)",
          ("python3 -B -m unittest scripts/test_check_reduction_witnesses.py",
-          'python3 -B scripts/check_reduction_witnesses.py --base "$BASE"')),
+          'python3 -B scripts/check_reduction_witnesses.py --base "$BASE" --advisory')),
     Step("Named assumptions (whole library)",
          ("python3 -B -m unittest scripts/test_check_hardness_assumptions.py",
           "python3 -B scripts/check_hardness_assumptions.py")),

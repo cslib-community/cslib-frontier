@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
 public import CslibFrontier.Computability.WordRAM.Multiword.Sub
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Framed checked multiword arithmetic
@@ -188,9 +189,7 @@ private theorem exec_borrow_framed {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (
   let z := ((x.set base (radix w)).set one 1).set borrow 0
   have hz (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     have hne : i ≠ borrow ∧ i ≠ base ∧ i ≠ one := by
-      dsimp only [IsDigit] at hi
-      simp only [ne_eq, Fin.ext_iff, borrow, base, one]
-      omega
+      fin_index [IsDigit]
     simp only [z, Data.set_regs, Function.update_apply, hne.1, hne.2.1, hne.2.2,
       ↓reduceIte]
   have hzvalue (es : List (Fin (r + 4))) (hes : ∀ i ∈ es, IsDigit i) :
@@ -226,9 +225,7 @@ theorem preserves_truncatingProgram (w : ℕ) (bs ds : List (Fin (r + 4)))
     (truncatingProgram w bs ds).Preserves i := by
   refine ⟨preserves_program w bs ds i hi hid, Schoolbook.preserves_clear ds i hi hid, ?_⟩
   have hc : i ≠ borrow := by
-    dsimp only [IsDigit] at hi
-    simp only [ne_eq, Fin.ext_iff, borrow]
-    omega
+    fin_index [IsDigit]
   simpa only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq] using Ne.symm hc
 
 /-- Exact static size of truncating subtraction, including both branch bodies. -/

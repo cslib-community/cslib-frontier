@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Zer
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Prepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Control
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Dispatch
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual positive-depth Strassen entry
@@ -109,8 +110,7 @@ theorem exec_step_entry {w p k A B a b out scratch frames frame : ℕ}
   have sh : NodeHeader p (k + 1) a b out scratch frames frame s :=
     hx.toNodeHeader.of_regs_eq_cursors (fun i hi _ => sr i hi)
   obtain ⟨r, hr, rh, rc, rm, rr⟩ := exec_locateChild_header s sh hl haddr
-  have rphase : r.regs Reg.phase = 0 :=
-    (rr Reg.phase (by decide)).trans ((sr Reg.phase (by decide)).trans hx.phase_eq)
+  have rphase : r.regs Reg.phase = 0 := by regs_frame
   obtain ⟨y, hy, ready, valuesA, valuesB, zeros, parentPhase, memory⟩ :=
     exec_stage_zero r u v rh rc hl hu hv
       (by simpa only [rm, sm] using hleft) (by simpa only [rm, sm] using hright) hmag haddr

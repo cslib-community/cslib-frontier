@@ -1032,6 +1032,20 @@ private meta partial def isEfficiencyGoal (type : Expr) : Bool :=
         fn.isConstOf `Cslib.Probability.IsOraclePPTOn ||
         fn.isConstOf `Cslib.Probability.IsOraclePPT
 
+open Lean in
+/-- Whether `type` is a closed PPT goal (possibly under binders or conjunctions) whose encoded
+samplers `enc _ <$> sample _` must not be fused by monad-map `@[simp]` lemmas. -/
+private meta partial def hasClosedPPTGoal (type : Expr) : Bool :=
+  match type.consumeMData with
+  | .forallE _ _ body _ => hasClosedPPTGoal body
+  | .letE _ _ _ body _ => hasClosedPPTGoal body
+  | e =>
+    if e.isAppOfArity ``And 2 then
+      hasClosedPPTGoal e.getAppArgs[0]! || hasClosedPPTGoal e.getAppArgs[1]!
+    else
+      let fn := e.getAppFn
+      fn.isConstOf `Cslib.Probability.IsPPTOn || fn.isConstOf `Cslib.Probability.IsPPT
+
 open Lean Meta Elab Tactic in
 /-- Run Aesop-style `simp_all` with the default and `PolyTime` simp sets, failing when nothing
 changes or when a metavariable from the goal or context would be dropped. When
@@ -1046,9 +1060,13 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
     unless decl.isImplementationDetail do
       for m in ← getMVars decl.type do goalMVars := goalMVars.insert m
   let (_, _, simpExt, _, simprocExt) ← Aesop.Frontend.getGlobalRuleSetData `PolyTime
+  let closedPPT := hasClosedPPTGoal (← instantiateMVars (← goal.getType))
   let config : Simp.Config :=
     if preserveDefinitions then
-      { dsimp := false, proj := false, iota := false, zeta := false, zetaDelta := false }
+      if closedPPT then
+        { zetaDelta := false }
+      else
+        { dsimp := false, proj := false, iota := false, zeta := false, zetaDelta := false }
     else
       {}
   let ctx ← Simp.mkContext
@@ -1063,6 +1081,18 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
       if decl.hasValue && !decl.isImplementationDetail then
         thms := thms.modify 0 (·.addLetDeclToUnfold decl.fvarId)
     pure (ctx.setSimpTheorems thms)
+  let ctx ←
+    if closedPPT then
+      -- Note: `eraseCore` silently ignores names that are not in the simp theorem set.
+      let erased := #[
+        `bind_map_left, `LawfulMonad.bind_pure_comp,
+        `Functor.map_map, `LawfulMonad.map_map, `map_bind,
+        `PFunctor.FreeM.bind_pure_comp, `PFunctor.FreeM.map_bind]
+      let thms := ctx.simpTheorems.map fun t =>
+        erased.foldl (init := t) fun acc nm => acc.eraseCore (.decl nm)
+      pure (ctx.setSimpTheorems thms)
+    else
+      pure ctx
   let simprocs := #[← simprocExt.getSimprocs, ← Simp.getSimprocs]
   let preState ← saveState
   match ← Lean.Meta.simpAll goal ctx simprocs with
@@ -1074,7 +1104,47 @@ private meta def polytimeSimpAll (preserveDefinitions : Bool) : TacticM Unit := 
   | (some newGoal, _) =>
     if newGoal == goal then
       throwError "polytime simp left goal unchanged"
-    replaceMainGoal [newGoal]
+    if closedPPT then
+      -- `Lean.Meta.simpAll` cannot clear a rewritten hypothesis whose fvar still sits in an
+      -- unassigned metavariable's local context, so it leaves the old hypothesis and appends a
+      -- simplified copy; drop newly appended duplicates and detect no-op passes.
+      let collectDecls (m : MVarId) : MetaM (Array (FVarId × Expr × Option Expr)) :=
+        m.withContext do
+          let mut out := #[]
+          for d in ← getLCtx do
+            unless d.isImplementationDetail do
+              let t ← instantiateMVars d.type
+              let v ← d.value?.mapM instantiateMVars
+              out := out.push (d.fvarId, t, v)
+          return out
+      let oldDecls ← collectDecls goal
+      let oldPairs := oldDecls.map fun (_, t, v) => (t, v)
+      let mut cleanedGoal := newGoal
+      let mut seenNew : Array (Expr × Option Expr) := #[]
+      let mut dupIds : Array FVarId := #[]
+      for (fid, t, v) in ← collectDecls newGoal do
+        let pair := (t, v)
+        let oldCount := oldPairs.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        let seenCount := seenNew.foldl (init := (0 : Nat)) fun c p => if p == pair then c + 1 else c
+        if seenCount < max 1 oldCount then
+          seenNew := seenNew.push pair
+        else
+          dupIds := dupIds.push fid
+      for fid in dupIds.reverse do
+        cleanedGoal ← cleanedGoal.tryClear fid
+      let oldType ← instantiateMVars (← goal.getType)
+      let newType ← cleanedGoal.withContext do instantiateMVars (← cleanedGoal.getType)
+      if oldType == newType then
+        let newPairs := (← collectDecls cleanedGoal).map fun (_, t, v) => (t, v)
+        let sameSet :=
+          newPairs.all (fun p => oldPairs.any (· == p)) &&
+          oldPairs.all (fun p => newPairs.any (· == p))
+        if sameSet then
+          preState.restore
+          throwError "polytime simp left goal unchanged"
+      replaceMainGoal [cleanedGoal]
+    else
+      replaceMainGoal [newGoal]
 
 open Lean Meta Elab Tactic in
 /-- Normalize side goals with full `simp_all`, while preserving reducible wrappers, projections,

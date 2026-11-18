@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Substituting external calls in saved-coin replay
@@ -45,9 +46,8 @@ theorem interpret_runConfigFromCoins_substitute {Query' : Type}
   induction coins generalizing cfg with
   | nil => rfl
   | cons bit coins ih =>
-    simp only [runConfigFromCoins_cons, OracleComp.interpret_bind, runConfigFrom,
-      MultiTapeMachine.interpret_runConfigFrom, OracleComp.interpret_map,
-      OracleComp.interpret_pure, ih]
+    simp only [runConfigFromCoins_cons, interp_norm, runConfigFrom,
+      MultiTapeMachine.interpret_runConfigFrom, ih]
 
 /-- Substituting external calls preserves the output and all effects of fixed-coin replay. -/
 theorem interpret_runCoins {Query' : Type} {target : OracleSpec Query'}

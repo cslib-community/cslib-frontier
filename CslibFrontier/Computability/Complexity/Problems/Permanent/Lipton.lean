@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.Plurality
 public import CslibFrontier.Probability.Uniform.AffineLine
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Lipton's permanent random self-reduction in the `ProbOracleComp` query-complexity model
@@ -298,12 +299,8 @@ theorem toOuterMeasure_run_liptonPermanentTrial_ne_toReal_le (ν : Fin (n + 1) �
         {y | y ≠ A.permanent}).toReal ≤
       ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) := by
   have hle := toOuterMeasure_run_liptonPermanentTrial_ne_le ν hν O A
-  have htop : (((n + 1) * #{M | O M ≠ M.permanent} : ℕ) : ℝ≥0∞) /
-      (Fintype.card F ^ (n * n) : ℕ) ≠ ⊤ :=
-    ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by positivity)
-  have hreal := ENNReal.toReal_mono htop hle
-  rw [ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast] at hreal
-  exact_mod_cast hreal
+  ennreal_to_real at hle
+  exact_mod_cast hle
 
 /-- Real-valued single-trial success probability bound in terms of the oracle's error count. -/
 theorem one_sub_le_eval_run_liptonPermanentTrial_toReal (ν : Fin (n + 1) ↪ F)
