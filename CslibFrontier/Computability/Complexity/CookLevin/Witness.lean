@@ -136,6 +136,21 @@ private theorem computableInPolyTime_featuresAt (tm : MultiTapeTM k Bool State) 
   exact computableInPolyTime_trueFeatures.comp
       (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
 
+-- The certificate-only tail uses the same framed input as the run-feature traversal.
+private theorem computableInPolyTime_certificateVars :
+    ComputableInPolyTime
+      (fun x : (List Bool × List Bool) × ℕ =>
+        (List.range x.1.2.length).flatMap fun j =>
+          if x.1.2.getD j false then [Var.cert (k := k) (State := State) j] else [])
+      (encPair (encPair encBits encBits) encUnary) (encList encVar) := by
+  have hword := (fst (encPair encBits encBits) encUnary).snd'
+  have hp := id' (encIn := encPair (encPair (encPair encBits encBits) encUnary) encUnary)
+  have hbit := (hword.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hcert := computableInPolyTime_cert.comp hp.snd'
+  exact flatMapWithInput (encA := encUnary) (encB := encVar)
+    (range.comp (length_bits.comp hword))
+    (hbit.ite (cons' hcert (const [])) (const []))
+
 /-- **The listed variables are polynomial-time** in the input prefix `u`, the certificate `w`
 and the unary bound `T`, for a fixed machine. -/
 theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
@@ -152,7 +167,6 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
     (unary_add' (snd (encPair encBits encBits) encUnary) (const 1))
   refine listAppend' (flatMapWithInput (encA := encUnary) (encB := encVar) htimes
     (mapWithInput (encA := encFeature) (encB := encVar) hfeatures hholds)) ?_
-  refine flatMapWithInput (range.comp (length_bits.comp ((fst _ _).snd'))) ?_
-  fun_prop
+  exact computableInPolyTime_certificateVars
 
 end Cslib.Complexity.CookLevin

@@ -104,6 +104,21 @@ namespace Cslib.Crypto
 open Cslib.Probability ProbComp OracleComp BitString Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
+private theorem macThenEncrypt_keyGen_ppt (E : SymmetricCipher) (M : MACScheme)
+    (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary) :
+    IsPPTOn encUnary encBits (fun n => do
+      let ke ← E.keyGen (ptLen n)
+      let km ← M.keyGen n
+      return encPair encBits encBits (ke, km)) := by
+  have hke := E.keyGen_ppt.preprocess hptLenPoly
+  have hkm : IsPPTOn (encPair encUnary encBits) encBits
+      (fun p : ℕ × List Bool => M.keyGen p.1) :=
+    M.keyGen_ppt.preprocess (ComputableInPolyTime.fst encUnary encBits)
+  have hencode : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool => encPair encBits encBits (p.1.2, p.2))
+      (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
+  simpa only [bind_pure_comp] using IsPPTOn.bind_with hke (IsPPTOn.map_with hkm hencode)
+
 /-- **MAC-then-Encrypt symmetric cipher**: signs `n`-bit messages under `km ← M.keyGen n` and
 encrypts the framed pair `encPair encBits encBits (msg, tag)` under `ke ← E.keyGen (ptLen n)` at
 security parameter `ptLen n`. Because `hpairLen` guarantees the framed `(msg, tag)` pair has length
@@ -132,15 +147,7 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         some msg
       else
         none
-  keyGen_ppt := by
-    have hke := E.keyGen_ppt.preprocess hptLenPoly
-    have hkm : IsPPTOn (encPair encUnary encBits) encBits
-        (fun p : ℕ × List Bool => M.keyGen p.1) :=
-      M.keyGen_ppt.preprocess (ComputableInPolyTime.fst encUnary encBits)
-    have hencode : ComputableInPolyTime
-        (fun p : (ℕ × List Bool) × List Bool => encPair encBits encBits (p.1.2, p.2))
-        (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
-    simpa only [bind_pure_comp] using IsPPTOn.bind_with hke (IsPPTOn.map_with hkm hencode)
+  keyGen_ppt := macThenEncrypt_keyGen_ppt E M ptLen hptLenPoly
   encrypt_ppt := by
     have hpt := hptLenPoly
     ppt

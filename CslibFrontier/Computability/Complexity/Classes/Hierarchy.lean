@@ -242,6 +242,8 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
 
 end Diagonal
 
+-- Report the expensive reductions on timeout while diagnosing this migrated certificate.
+set_option diagnostics true in
 -- Keep the existential machine realization opaque while composing the named resource contracts.
 attribute [local irreducible] ComputableInO in
 open Diagonal in

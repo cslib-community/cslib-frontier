@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
+import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Support

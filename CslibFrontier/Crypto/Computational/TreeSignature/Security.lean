@@ -642,7 +642,19 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
           CertSignIn) =>
         ((node ++ [leaf.getD node.length false], childIdx,
           certs ++ [((keys.getD childIdx ([], [])).1, σ)]), (visited, edges)))
-      encEnd encPlantedCert := by fun_prop
+      encEnd encPlantedCert := by
+    have hp := ComputableInPolyTime.fst encMid (encPair encBits encEdgeCache)
+    have hinput := (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)).comp hp
+    have hpathEnd := hpath.comp hinput
+    have hchildEnd := hchild.comp hp
+    have hmsgEnd := hmsg.comp hp
+    have hcerts : ComputableInPolyTime (fun q : CertSignIn => q.1.1.2.1.2.2)
+        encEnd (encList (encPair encBits encBits)) := by fun_prop
+    have hsig : ComputableInPolyTime (fun q : CertSignIn => q.2.1)
+        encEnd encBits := by fun_prop
+    have hcertsEnd := ComputableInPolyTime.listAppend' hcerts
+      (ComputableInPolyTime.cons' (hmsgEnd.prod hsig) (.const []))
+    exact (hpathEnd.prod (hchildEnd.prod hcertsEnd)).prod (by fun_prop)
   exact hvisit.bind_with
     (second := fun ((keys, (target, sigCap), leaf), ((node, idx, certs), (_, edges)))
         (childIdx, visited) => do

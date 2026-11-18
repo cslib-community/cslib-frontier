@@ -220,6 +220,15 @@ private theorem boolTableMatrix_ne_zero_iff_rowEntry {rows : List (List Bool)}
   rw [boolTableMatrix_eq_rowEntry, Matrix.of_apply]
   cases rowEntry rows i j <;> simp
 
+-- Read rows as a framed list and each row as an unframed bit string.
+private theorem rowEntry_polyTime {γ : Type} {input : γ ↪ List Bool}
+    {rows : γ → List (List Bool)} {i j : γ → ℕ}
+    (hrows : ComputableInPolyTime rows input (encList encBits))
+    (hi : ComputableInPolyTime i input encUnary)
+    (hj : ComputableInPolyTime j input encUnary) :
+    ComputableInPolyTime (fun a => rowEntry (rows a) (i a) (j a)) input encBool :=
+  (listGetDWithInput hrows hi []).bitsGetDWithInput hj false
+
 -- Certify the two constraint traversals separately, fixing unary variable indices throughout.
 private theorem permanentRow_polyTime :
     ComputableInPolyTime
@@ -227,8 +236,13 @@ private theorem permanentRow_polyTime :
         ((List.range p.1.length).filter (rowEntry p.1 p.2)).map
           fun j => p.2 * p.1.length + j⟩ : Constraint Unit ℕ))
       (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
-  unfold rowEntry
-  fun_prop
+  have hlength := (length_list encBits).comp (fst (encList encBits) encUnary)
+  have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
+  have htest := rowEntry_polyTime hp.fst'.fst' hp.fst'.snd' hp.snd'
+  have hfiltered := filterWithInput (range.comp hlength) htest
+  have hn := hlength.comp hp.fst'
+  have hindex := unary_add' (unary_mul' hp.fst'.snd' hn) hp.snd'
+  exact encConstraint_mk_polyTime (const ()) (mapWithInput hfiltered hindex)
 
 private theorem permanentColumn_polyTime :
     ComputableInPolyTime
@@ -236,8 +250,13 @@ private theorem permanentColumn_polyTime :
         ((List.range p.1.length).filter fun i => rowEntry p.1 i p.2).map
           fun i => i * p.1.length + p.2⟩ : Constraint Unit ℕ))
       (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
-  unfold rowEntry
-  fun_prop
+  have hlength := (length_list encBits).comp (fst (encList encBits) encUnary)
+  have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
+  have htest := rowEntry_polyTime hp.fst'.fst' hp.snd' hp.fst'.snd'
+  have hfiltered := filterWithInput (range.comp hlength) htest
+  have hn := hlength.comp hp.fst'
+  have hindex := unary_add' (unary_mul' hp.snd' hn) hp.fst'.snd'
+  exact encConstraint_mk_polyTime (const ()) (mapWithInput hfiltered hindex)
 
 /-- Building the permanent instance of the matrix with rows `rows` is polynomial-time. -/
 theorem computableInPolyTime_permanentInstance :

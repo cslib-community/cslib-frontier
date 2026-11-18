@@ -329,15 +329,26 @@ private theorem rowCapped_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => rowCapped (family := family) (k x) (n x) (q x) (coins x) (a x)
       (b x) (t x) (g x) (i x)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ × List Bool) × (ℕ × ℕ × List Bool) × ℕ × ℕ =>
-        rowCapped (family := family) p.1.1 p.1.2.1 p.1.2.2.1 p.1.2.2.2 p.2.1.1 p.2.1.2.1
-          p.2.1.2.2 p.2.2.1 p.2.2.2)
-      (encPair (encPair encUnary (encPair encUnary (encPair encUnary encBits)))
-        (encPair (encPair encUnary (encPair encUnary encBits)) (encPair encUnary encUnary)))
-      encBits := by
-    polytime [rowCapped, labelOf]
-  exact h.comp ((hk.prod (hn.prod (hq.prod hcoins))).prod ((ha.prod (hb.prod ht)).prod
-    (hg.prod hi)))
+  have hwires := ComputableInPolyTime.unary_add' hn hq
+  have houtput := ComputableInPolyTime.unary_add' hn hg
+  have hbit1 : ComputableInPolyTime (fun x => (i x).testBit 1) encIn encBool := by fun_prop
+  have hbit0 : ComputableInPolyTime (fun x => (i x).testBit 0) encIn encBool := by fun_prop
+  have hleft := ComputableInPolyTime.bool_xor.comp
+    (hbit1.prod (permOf_polyTime hcoins ha))
+  have hright := ComputableInPolyTime.bool_xor.comp
+    (hbit0.prod (permOf_polyTime hcoins hb))
+  have hoffset := ComputableInPolyTime.unary_add'
+    (hleft.ite (.const 2) (.const 0)) (hright.ite (.const 1) (.const 0))
+  have hbit := ht.bitsGetDWithInput hoffset false
+  have hchoice := ComputableInPolyTime.bool_xor.comp
+    (hbit.prod (permOf_polyTime hcoins houtput))
+  exact ComputableInPolyTime.bitsZipWithInput xor
+    (labelOf_polyTime hk hwires hcoins houtput hchoice)
+    (ComputableInPolyTime.bitsZipWithInput xor
+      (labelWord_polyTime hf hk (keyOf_polyTime hk hwires hcoins ha hbit1)
+        (tweak_polyTime hk hg hi (.const 0)))
+      (labelWord_polyTime hf hk (keyOf_polyTime hk hwires hcoins hb hbit0)
+        (tweak_polyTime hk hg hi (.const 1))))
 
 /-- The input `(1^k, f, r)` of the garbler. -/
 private abbrev encGbInput : (ℕ × ValidCircuit × List Bool) ↪ List Bool :=

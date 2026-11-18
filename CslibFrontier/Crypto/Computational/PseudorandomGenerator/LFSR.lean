@@ -182,7 +182,8 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
   have hloop : ComputableInPolyTime
       (fun seed : List Bool => (clock (taps seed.length))^[ℓ seed.length] ([], seed))
       encBits (encPair encBits encBits) :=
-    ComputableInPolyTime.iterateWith_of_bounded_growth (par := fun seed => taps seed.length)
+    ComputableInPolyTime.iterateWith_of_bounded_growth
+      (encPar := encBits) (encState := encPair encBits encBits) (par := fun seed => taps seed.length)
       (count := fun seed => ℓ seed.length) (init := fun seed => ([], seed)) (step := clock)
       (htaps.comp ComputableInPolyTime.length_bits)
       (hℓ.comp ComputableInPolyTime.length_bits)
