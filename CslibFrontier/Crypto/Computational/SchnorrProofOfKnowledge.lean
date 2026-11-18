@@ -49,6 +49,12 @@ uniform strict PPT prover succeeds in `schnorrPoKGame` with negligible probabili
 `CslibFrontier.Crypto.Computational.SchnorrEavesdrop` proves that security with `k`-bit challenges.
 This module also instantiates the `andProof`, `orProof`, and `parallelRepetition` efficiency
 transfer theorems of `CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient` for `schnorrFamily`.
+The honest prover of `schnorrFamily` draws its commitment nonce exactly uniformly on `ZMod q` at
+the `PMF` level, so the three special-HVZK instances inherit that ideal sampler from
+`efficientSpecialHVZK_schnorr_ideal` (the honest OR prover also samples its simulated side
+ideally). They are ideal-sampling steps toward [BonehShoup2023], Theorems 19.18 and 19.19 and
+Exercise 19.6(c) for Schnorr's protocol, not the cited results (#5293). The special-soundness
+instances involve no sampling.
 
 ## Main definitions
 
@@ -71,13 +77,18 @@ transfer theorems of `CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient` fo
   `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.negligible_schnorrPoKGame`: average-key
   proof-of-knowledge security under `DiscreteLog`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_andProof_schnorr`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_andProof_schnorr`,
   `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_orProof_schnorr`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_orProof_schnorr`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_parallelRepetition_schnorr`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_parallelRepetition_schnorr`:
-  efficiency transfer of Schnorr's protocol through `andProof`, `orProof`, and
+  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_parallelRepetition_schnorr`:
+  efficient special soundness of Schnorr's protocol through `andProof`, `orProof`, and
   `parallelRepetition`.
+
+## Ideal-sampling steps
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_andProof_schnorr_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_orProof_schnorr_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_parallelRepetition_schnorr_ideal`:
+  efficient special HVZK of `andProof`, `orProof`, and `parallelRepetition` of Schnorr's
+  protocol, against its ideal-sampling honest prover.
 
 ## References
 
@@ -339,8 +350,12 @@ theorem efficientSpecialSoundness_andProof_schnorr :
   EfficientSpecialSoundness.andProof rfl (fun _ => rfl)
     F.efficientSpecialSoundness_schnorr F.efficientSpecialSoundness_schnorr
 
-/-- **Efficient special HVZK of the conjunction of two Schnorr protocols.** -/
-theorem efficientSpecialHVZK_andProof_schnorr :
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.18 (special HVZK) for two Schnorr
+protocols, not the cited result: the AND-proof of two copies of `schnorrFamily`, whose honest
+provers draw their commitment nonces exactly uniformly on `ZMod q` at the `PMF` level, has
+efficient special HVZK with error `1 / 2 ^ n + 1 / 2 ^ n`. No statement for fair-coin provers
+exists yet (#5293). -/
+theorem efficientSpecialHVZK_andProof_schnorr_ideal :
     EfficientSpecialHVZK
       (fun i => (F.schnorrFamily i).andProof (F.schnorrFamily i))
       (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
@@ -352,7 +367,7 @@ theorem efficientSpecialHVZK_andProof_schnorr :
           (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)))
       (fun i => 1 / 2 ^ i.1 + 1 / 2 ^ i.1) :=
   EfficientSpecialHVZK.andProof rfl (fun _ => rfl)
-    F.efficientSpecialHVZK_schnorr F.efficientSpecialHVZK_schnorr
+    F.efficientSpecialHVZK_schnorr_ideal F.efficientSpecialHVZK_schnorr_ideal
 
 /-- **Efficient special soundness of the disjunction of two Schnorr protocols.** -/
 theorem efficientSpecialSoundness_orProof_schnorr :
@@ -371,8 +386,14 @@ theorem efficientSpecialSoundness_orProof_schnorr :
     F.computableInPolyTime_schnorrSubChallengeWord F.schnorrSubChallengeWord_eq
     F.efficientSpecialSoundness_schnorr F.efficientSpecialSoundness_schnorr
 
-/-- **Efficient special HVZK of the disjunction of two Schnorr protocols.** -/
-theorem efficientSpecialHVZK_orProof_schnorr :
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.19 (special HVZK) for two Schnorr
+protocols, not the cited result: the OR-proof of two copies of `schnorrFamily` with the perfect
+simulators `linearSimulate`, whose honest prover draws its commitment nonce, the simulated side's
+challenge and the simulated response exactly uniformly on `ZMod q` at the `PMF` level, has
+efficient special HVZK with error `1 / 2 ^ n + (1 / 2 ^ n + 1 / 2 ^ n)`. The constructed
+simulator splits the challenge with the fair-coin `schnorrSampleChallenge`. No statement for a
+fair-coin prover exists yet (#5293). -/
+theorem efficientSpecialHVZK_orProof_schnorr_ideal :
     EfficientSpecialHVZK
       (fun i => SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
         (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
@@ -391,7 +412,7 @@ theorem efficientSpecialHVZK_orProof_schnorr :
   EfficientSpecialHVZK.orProof rfl (fun _ => rfl)
     F.isPPTOn_schnorrSampleChallenge F.closeTo_schnorrSampleChallenge
     F.computableInPolyTime_schnorrSubChallengeWord F.schnorrSubChallengeWord_eq
-    F.efficientSpecialHVZK_schnorr F.efficientSpecialHVZK_schnorr
+    F.efficientSpecialHVZK_schnorr_ideal F.efficientSpecialHVZK_schnorr_ideal
 
 /-- **Efficient special soundness of the `k`-fold parallel repetition of Schnorr's protocol.** -/
 theorem efficientSpecialSoundness_parallelRepetition_schnorr (k : ℕ × F.Desc → ℕ) :
@@ -410,8 +431,11 @@ theorem efficientSpecialSoundness_parallelRepetition_schnorr (k : ℕ × F.Desc 
   rw [hdef]
   exact ComputableInPolyTime.const _
 
-/-- **Efficient special HVZK of the `k`-fold parallel repetition of Schnorr's protocol.** -/
-theorem efficientSpecialHVZK_parallelRepetition_schnorr (k : ℕ × F.Desc → ℕ) :
+/-- Ideal-sampling step toward [BonehShoup2023], Exercise 19.6(c) for Schnorr's protocol, not the
+cited result: the `k`-fold parallel repetition of `schnorrFamily`, whose honest prover draws its
+commitment nonces exactly uniformly on `ZMod q` at the `PMF` level, has efficient special HVZK
+with error `k * (1 / 2 ^ n)`. No statement for a fair-coin prover exists yet (#5293). -/
+theorem efficientSpecialHVZK_parallelRepetition_schnorr_ideal (k : ℕ × F.Desc → ℕ) :
     EfficientSpecialHVZK
       (fun i => (F.schnorrFamily i).parallelRepetition (k i))
       (fun i α u => α • F.generator i.2 = u)
@@ -420,6 +444,6 @@ theorem efficientSpecialHVZK_parallelRepetition_schnorr (k : ℕ × F.Desc → �
         (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
           (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
       (fun i => (k i : ℝ≥0∞) * (1 / 2 ^ i.1)) :=
-  EfficientSpecialHVZK.parallelRepetition k F.efficientSpecialHVZK_schnorr
+  EfficientSpecialHVZK.parallelRepetition k F.efficientSpecialHVZK_schnorr_ideal
 
 end Cslib.Crypto.PrimeOrderGroupFamily

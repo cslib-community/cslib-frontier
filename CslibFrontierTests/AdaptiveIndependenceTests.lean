@@ -14,9 +14,8 @@ import Mathlib.Algebra.Field.ZMod
 
 /-! Checked instances for adaptive tests of `t`-wise independence (Goldreich, Exercises 8.29 and
 8.32): the pairwise independent line hash `x ↦ c₀ + c₁ x` over `ZMod 2`, with one-bit blocks,
-satisfies the hypotheses of Exercise 8.29 for an adaptive test reading both blocks; the uniform
-distribution meets the hypothesis of Exercise 8.32(2) with `ε = 0`; and the separating example of
-Exercise 8.32(1) exists for `t = 3`. -/
+satisfies the hypotheses of Exercise 8.29 for an adaptive test reading both blocks. The uniform
+distribution meets the hypothesis of Exercise 8.32(2) with `ε = 0`. -/
 
 set_option linter.privateModule false
 
@@ -53,13 +52,5 @@ example (t : ℕ) (ht : t ≤ 3) (T : DecisionTree (Fin 3) Bool) (hT : ∀ z, #(
         (((PMF.uniformOfFintype (Fin 3 → Bool)).map T.eval) true).toReal| ≤ 2 ^ t * 0 :=
   DecisionTree.abs_map_eval_apply_sub_le (by simpa using ht)
     (fun S _ => by rw [Probability.PMF.uniformOfFintype_pi_map_restrict, dist_self]) T hT
-
-example : ∃ X : PMF (Fin 2 ⊕ (Fin 2 → Bool) → Bool),
-    (∀ S : Finset (Fin 2 ⊕ (Fin 2 → Bool)), #S = 3 →
-      dist (X.map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤ (3 : ℕ) / 2 ^ 3) ∧
-    ∃ T : DecisionTree (Fin 2 ⊕ (Fin 2 → Bool)) Bool, T.depth ≤ 3 ∧
-      X.map T.eval = PMF.pure true ∧
-      (PMF.uniformOfFintype _).map T.eval = PMF.uniformOfFintype Bool :=
-  DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq 3 (by norm_num)
 
 end CslibFrontierTests.AdaptiveIndependence

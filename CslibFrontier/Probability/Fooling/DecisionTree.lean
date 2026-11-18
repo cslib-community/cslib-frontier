@@ -34,8 +34,8 @@ input makes at most `k` queries and `|g| ≤ C` at the outputs
 partial assignment fixed by the queries so far; a query whose answer is already fixed follows a
 single branch, so repeated queries cost nothing.
 
-With `d` the difference of a distribution and the uniform distribution, this gives Goldreich's
-two exercises on adaptive tests [Goldreich, Exercises 8.29 and 8.32][Goldreich2007DraftR4]:
+With `d` the difference of a distribution and the uniform distribution, this gives the bounds
+in Exercises 8.29 and 8.32(2) of the March 2007 draft [Goldreich2007DraftR4]:
 
 * **Exercise 8.29**: a `t`-wise independent generator with blocks of `κ → Bool`, as in
   `Cslib.Probability.IsKWiseIndependentHash`, is perfectly indistinguishable from uniform by any
@@ -45,11 +45,12 @@ two exercises on adaptive tests [Goldreich, Exercises 8.29 and 8.32][Goldreich20
 * **Exercise 8.32(2)**: if every `t` positions of `X` are `ε`-close to uniform, then every
   randomized test that inspects `t` positions adaptively has distinguishing gap at most `2 ^ t ε`
   (`Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le`).
-* **Exercise 8.32(1)**: for `t ≥ 3` the factor `2 ^ t` cannot be dropped. On strings of `t - 1`
-  index bits followed by `2 ^ (t - 1)` data bits, uniform except that the data bit named by the
-  index bits is zero, every `t` positions are `t 2 ^ (-t)`-close to uniform. The test that reads
-  the index bits and then the named data bit accepts this distribution always and the uniform one
-  with probability `1 / 2` (`Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`).
+
+The pointer construction is a step toward Exercise 8.32(1). It follows the guideline's length
+of `(t - 1) + 2 ^ (t - 1)` bits, leaving the stated length of `2 ^ (t - 1)` bits open. It
+exhibits an adaptive gap of `1 / 2` alongside marginal distance at most `t / 2 ^ t`, showing
+that the gap can exceed the marginal bound by a factor of at least `2 ^ (t - 1) / t` for
+`t ≥ 3`.
 
 ## Main results
 
@@ -58,7 +59,8 @@ two exercises on adaptive tests [Goldreich, Exercises 8.29 and 8.32][Goldreich20
   `Cslib.Probability.IsKWiseIndependentHash.bind_map_eval_eq`: Exercise 8.29.
 * `Cslib.DecisionTree.abs_map_eval_apply_sub_le`,
   `Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le`: Exercise 8.32(2).
-* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`: Exercise 8.32(1).
+* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`: separation at the length in
+  the pointer guideline.
 
 ## References
 
@@ -257,10 +259,10 @@ theorem abs_map_eval_apply_sub_le {X : PMF (ι → Bool)} {t : ℕ} {ε : ℝ}
 /-- **Adaptive tests of almost `t`-wise independence** [Goldreich, Exercise 8.32(2)]
 [Goldreich2007DraftR4]. If every `t` fixed positions of `X` are `ε`-close to uniform, then every
 randomized test that inspects `t` positions adaptively distinguishes `X` from the uniform
-distribution with gap at most `2 ^ t ε`. The test draws coins `r` from `ρ` and runs the decision
-tree `T r`, which inspects at most `t` positions on every input; its gap is the difference of its
-acceptance probabilities. The source leaves the string length `n ≥ t` implicit; it is the
-hypothesis `t ≤ Fintype.card ι`. -/
+distribution with gap at most `2 ^ t ε`. The test draws coins `r` from `ρ` on a finite type and
+runs the decision tree `T r`, which inspects at most `t` positions on every input. Its gap is the
+absolute difference of its acceptance probabilities. The source leaves the string length `n ≥ t`
+implicit. It appears here as `t ≤ Fintype.card ι`. -/
 theorem abs_bind_map_eval_apply_sub_le {R : Type*} [Finite R] {X : PMF (ι → Bool)} {t : ℕ}
     {ε : ℝ} (ht : t ≤ Fintype.card ι)
     (hX : ∀ S : Finset ι, #S = t → dist (X.map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤ ε)
@@ -281,7 +283,7 @@ theorem abs_bind_map_eval_apply_sub_le {R : Type*} [Finite R] {X : PMF (ι → B
 
 section Pointer
 
-/-! ### The pointer distribution of Exercise 8.32(1)
+/-! ### The pointer distribution from the guideline to Exercise 8.32(1)
 
 Positions are `m` index bits `Sum.inl j` and `2 ^ m` data bits `Sum.inr v`, one for each value
 `v : Fin m → Bool` of the index bits. -/
@@ -390,17 +392,16 @@ private theorem map_eval_pointerTest_uniformOfFintype :
   exact (PMF.bind_pure_comp _ _).trans (Probability.PMF.uniformOfFintype_map_equiv
     (Function.Involutive.toPerm _ Bool.not_not))
 
-/-- **A distribution fooling every `t` fixed positions but not adaptive tests**
-[Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4]. On strings of `t - 1` index bits followed by
+/-- **Pointer construction at the guideline length**, a step toward
+[Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4] (March 2007, printed pp. 377–378). The
+printed `2 ^ (t - 1)`-bit endpoint remains open. On strings of `t - 1` index bits followed by
 `2 ^ (t - 1)` data bits, one for each value of the index bits, let `X` be uniform except that the
 data bit named by the index bits is set to `0`. Every `t` fixed positions of `X` are
 `t 2 ^ (-t)`-close to uniform, yet the test of depth `t` that reads the index bits and then the
 named data bit accepts `X` with probability `1` and the uniform distribution with probability
 `1 / 2`, a gap of `1 / 2`.
 
-Deviation from the source: the exercise statement speaks of `2 ^ (t - 1)`-bit strings, while its
-guideline (followed here) modifies the uniform distribution on `(t - 1) + 2 ^ (t - 1)`-bit strings;
-the positions are `Fin (t - 1) ⊕ (Fin (t - 1) → Bool)`, a type with `(t - 1) + 2 ^ (t - 1)`
+The positions are `Fin (t - 1) ⊕ (Fin (t - 1) → Bool)`, a type with `(t - 1) + 2 ^ (t - 1)`
 elements. -/
 theorem exists_dist_map_restrict_le_and_map_eval_eq (t : ℕ) (ht : 1 ≤ t) :
     ∃ X : PMF (Fin (t - 1) ⊕ (Fin (t - 1) → Bool) → Bool),

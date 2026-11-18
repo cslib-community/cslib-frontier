@@ -60,11 +60,12 @@ private def setup23 (_n : ℕ) : PMF schnorrGroups.Desc := PMF.pure d23
 example : (schnorrGroups.dhKeyExchange setup23).Correct :=
   schnorrGroups.dhKeyExchange_correct setup23
 
-/-- Under DDH for `setup`, Diffie–Hellman key exchange is secure against eavesdroppers. -/
+/-- Under DDH for `setup`, the ideal-sampling Diffie–Hellman key exchange is secure against
+eavesdroppers. -/
 example {setup : ℕ → PMF schnorrGroups.Desc} (h : schnorrGroups.DDH setup) :
     (schnorrGroups.dhKeyExchange setup).EavSecure schnorrGroups.encDHTranscript
       schnorrGroups.encDHKey fun _ => schnorrGroups.dhIdealKey :=
-  PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure h
+  PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal h
 
 /-! The typed eavesdropper class contains every word-level eavesdropper that reads the encoded
 transcript `(d, hA, hB)` and key, so the typed theorem gives the word-level statement. -/
@@ -118,7 +119,7 @@ private def wordIdealGame (setup : ℕ → PMF F.Desc)
     F.encode d (z • F.generator d)))
 
 /-- Under DDH, every word-level PPT eavesdropper on the encoded transcript and key has negligible
-advantage. -/
+advantage between the ideal-sampling word games. -/
 example {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
     {adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool}
     (hA : IsPPTOn (encPair encUnary (encPair (encPair F.encDesc (encPair encBits encBits)) encBits))
@@ -138,7 +139,8 @@ example {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
         PrimeOrderGroupFamily.dhIdealKey, ofWords, PMF.monad_bind_eq_bind,
         PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
   simpa only [hreal, hideal] using
-    PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure hDDH (ofWords adversary) (isPPT_ofWords hA)
+    PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal hDDH (ofWords adversary)
+      (isPPT_ofWords hA)
 
 end WordLevel
 
