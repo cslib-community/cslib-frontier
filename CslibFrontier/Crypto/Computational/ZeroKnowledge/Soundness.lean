@@ -75,9 +75,9 @@ bound.
 condition with the negligible bound `s(m) = soundness m`.
 
 *Why it is plausible.* Sequential repetition gives it: `ZKProof.negligibleSoundness_one_third_pow`
-proves it for soundness `(1/3)^(k n)` with `n ≤ k n`, and the library's Goldreich–Micali–Wigderson
-theorems `OneWay.exists_zkProof_of_mem_NP` and `NonuniformOneWay.exists_zkProof_of_mem_NP` build
-proof systems with it for every language in NP. -/
+proves it for soundness `(1/3)^(k n)` with `n ≤ k n`, and `OneWay.exists_generableZKProof_of_mem_NP`
+and the library's Goldreich–Micali–Wigderson theorem `NonuniformOneWay.exists_zkProof_of_mem_NP`
+build proof systems with it for every language in NP. -/
 def NegligibleSoundness (_zk : ZKProof enc A soundness) : Prop :=
   (∀ n, soundness n ≠ ⊤) ∧ Negligible (fun n => (soundness n).toNNReal)
 

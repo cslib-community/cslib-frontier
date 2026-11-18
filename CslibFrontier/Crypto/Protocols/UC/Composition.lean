@@ -241,7 +241,7 @@ theorem exec_compose_dummy (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) (κ : ℕ) (z : List Bool) :
     exec (compose ρ π) (dummyAdversary n _ _) C Z κ z =
       exec π (dummyAdversary n _ _) C (absorbHybrid C ρ Z) κ z := by
-  simp only [exec, execMachine, dummyAdversary, liftAdversary_id, Machine.run_comp,
+  simp only [exec, execMachine, dummyAdversary, Machine.liftRight_id, Machine.run_comp,
     Machine.link_id, compose, corruptRouter_comp, absorbHybrid]
 
 /-! ### The composed simulator -/
@@ -350,7 +350,7 @@ private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
 private theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (q : AdvQ) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inr q)).run s =
-      liftNet ((A.handle q).run s) := rfl
+      Machine.liftRightProgram (partySpec n In Out) ((A.handle q).run s) := rfl
 
 private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
@@ -474,7 +474,9 @@ private theorem runFrom_routeCorrupt_liftNet_liftSubNet
         (hybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) M)).runFrom
         (liftNet (liftSubNet program)) s =
       (fun a => (a, s)) <$> liftNet program := by
-  rw [liftNet, liftSubNet, OracleComp.interpret_interpret, liftNet]
+  dsimp only [liftNet]
+  rw [Machine.liftRightProgram, liftSubNet, OracleComp.interpret_interpret,
+    Machine.liftRightProgram]
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (hybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
@@ -520,9 +522,9 @@ private theorem handle_swap
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inl,
-      routeCorrupt_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
     by_cases hi : i ∈ C
     · simp only [hi, ↓reduceIte]
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
@@ -531,14 +533,15 @@ private theorem handle_swap
       rfl
     · simp only [hi, ↓reduceIte]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inr,
-      routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl, hybridWrap_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl,
+      hybridWrap_handle_inr_inl]
     repeat erw [Functor.map_map]
     erw [Machine.runFrom_map, runFrom_liftAdversary_liftParty]
     repeat erw [Functor.map_map]
     rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, liftNet_map,
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, Machine.liftRightProgram_map,
       Machine.runFrom_map, runFrom_routeCorrupt_liftNet_liftSubNet, routeCorrupt_handle_inr_inr,
       hybridWrap_handle_inr_inr]
     repeat erw [Functor.map_map]
