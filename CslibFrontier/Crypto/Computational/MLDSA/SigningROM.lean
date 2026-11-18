@@ -364,6 +364,41 @@ noncomputable def runPartialSigningROM (d ω K : ℕ) (hγ : 0 < P.γ₁) (dist 
 private def terminalTranscript (c : Digest) (out : Option (AttemptTranscript P)) :=
   out.map fun t => (t.commitment, some (c, t.signature))
 
+/-- One attempt of the partial-expansion signing simulator. An outer `none` requests another
+mask. A terminal outcome records the programmed commitment and either the error or the
+digest and signature returned to the adversary. -/
+noncomputable def simulatePartialTrial (d ω : ℕ) (hβ : P.β < P.γ₁)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P) (raw : Digest) :
+    PMF (Option ((Fin P.k → Fin P.n → ℤ) × Option (Digest × CompressedSignature P))) :=
+  match expand raw with
+  | none => (signingMaskLaw P (by lia)).map fun y =>
+      some (highBitsVec P (moduleSISMap pk.A y), none)
+  | some poly => (simulateFreshSigningAttempt P d ω hβ pk poly).map (terminalTranscript P raw)
+
+/-- A fresh verifying response at a commitment written by the partial signing simulator
+yields Dilithium's ordinary MSIS witness (v3.1, §6.2.2, equation (8)). Successful expansion
+of the programmed raw digest rules out a terminal signing error. The simulator's own response
+supplies the second short witness, including for arbitrary uniform public vectors. -/
+theorem isSolution_of_forgery_at_simulated_digest (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
+    (hγq : 4 * P.γ₂ < P.q) (d ω : ℕ) (hβ : P.β < P.γ₁) (pk : PublicKey P)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (raw : Digest)
+    {w : Fin P.k → Fin P.n → ℤ} {sent : Option (Digest × CompressedSignature P)}
+    (ht : some (w, sent) ∈ (simulatePartialTrial P d ω hβ expand pk raw).support)
+    {σ : CompressedSignature P} (hfresh : sent ≠ some (raw, σ))
+    (hexpand : expand raw = some σ.c) (hz : ResponseShort P σ.z) (hw : σ.recover d pk = w) :
+    ∃ other, sent = some (raw, other) ∧ ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix pk.A)
+      (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2)) (responseDifference d pk σ other) := by
+  simp only [simulatePartialTrial, hexpand] at ht
+  obtain ⟨out, hout, he⟩ := (PMF.mem_support_map_iff ..).1 ht
+  rcases out with _ | t
+  · cases he
+  change some (t.commitment, some (raw, t.signature)) = some (w, sent) at he
+  cases he
+  obtain ⟨hc, hshort, _, hrec⟩ :=
+    simulateFreshSigningAttempt_support P hP hq hγq d ω hβ pk σ.c hout
+  exact ⟨t.signature, rfl, isSolution_responseDifference hP hγq d pk
+    (fun h => hfresh (by rw [h])) hc.symm (hw.trans hrec.symm) hz hshort⟩
+
 /-- Simulate bounded signing against the public matrix and full public vector with the same
 partial digest expander. On an expansion error, independently sample a mask, program the
 terminal trial's commitment, and return the public error. Successful expansions use the
@@ -372,10 +407,7 @@ noncomputable def simulatePartialSigningROM (d ω K : ℕ) (hβ : P.β < P.γ₁
     (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
     (program : OracleComp (SigningROMSpec P Digest) α) :
     PMF (α × List (SigningHashPoint P × Digest)) :=
-  runTerminalTrials P K dist (fun c => match expand c with
-    | none => (signingMaskLaw P (by lia)).map fun y =>
-        some (highBitsVec P (moduleSISMap pk.A y), none)
-    | some poly => (simulateFreshSigningAttempt P d ω hβ pk poly).map (terminalTranscript P c))
+  runTerminalTrials P K dist (simulatePartialTrial P d ω hβ expand pk)
     (partialSigningProgram P program)
 
 /-- The adaptive signing-oracle simulation bound for partial challenge expansion. Expansions
@@ -401,7 +433,7 @@ theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
         (partialSigningProgram P program) by
     rw [he]
     exact erased
-  unfold simulatePartialSigningROM
+  unfold simulatePartialSigningROM simulatePartialTrial
   apply congrArg (fun a => runTerminalTrials P K dist a (partialSigningProgram P program))
   funext c
   cases e : expand c with
