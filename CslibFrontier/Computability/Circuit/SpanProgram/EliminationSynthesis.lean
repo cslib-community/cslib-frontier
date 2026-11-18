@@ -16,8 +16,10 @@ import CslibFrontier.Tactic.Synthesis
 # Circuits for `Lin` and `P_L`
 
 [Boneh and Shoup, Theorem 22.14, p. 981][BonehShoup2023] calls the algorithm `Lin` efficient and
-the program `P_L` efficiently computable. In the book an efficient algorithm (Definition 2.8,
-p. 30) is one algorithm on bit-string inputs whose running time is polynomially bounded. This file
+the program `P_L` efficiently computable. For the deterministic algorithms `Lin` and `P_L`, the
+book's efficiency requirement (Definition 2.8, p. 30) is one algorithm on bit-string inputs whose
+running time is polynomially bounded uniformly across inputs; Definition 2.8 additionally permits a
+negligible running-time tail for probabilistic algorithms. This file
 bounds the circuits that compute `MonotoneSpanProgram.recombination`,
 `MonotoneSpanProgram.nullVector` and `MonotoneSpanProgram.normalForm` themselves, with the program
 and the coalition as inputs. The bounds are a step toward the efficiency claims of Theorem 22.14,
