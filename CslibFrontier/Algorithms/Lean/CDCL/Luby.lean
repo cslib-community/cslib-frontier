@@ -58,7 +58,7 @@ def luby (y x : ℕ) : ℕ :=
 
 /-- From a complete subsequence of exponent `s`, the search for the position `2 ^ (m + 1) - 2`
 reaches the complete subsequence of exponent `m`, given `m - s` fuel. -/
-theorem lubyFind_pow (m : ℕ) : ∀ (d s size fuel : ℕ), s + d = m → size = 2 ^ (s + 1) - 1 →
+private theorem lubyFind_pow (m : ℕ) : ∀ (d s size fuel : ℕ), s + d = m → size = 2 ^ (s + 1) - 1 →
     d ≤ fuel → lubyFind (2 ^ (m + 1) - 2) fuel size s = (2 ^ (m + 1) - 1, m)
   | 0, s, size, fuel, h, hsize, _ => by
     have hm : s = m := by omega

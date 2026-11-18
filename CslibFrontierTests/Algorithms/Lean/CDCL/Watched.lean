@@ -191,4 +191,10 @@ example : (CDCL.XTrail.dropLevels (fun _ => false) below).2.map CDCL.XEntry.entr
     [⟨(1, true), false⟩] := by
   decide
 
+/-- Option values MiniSat rejects count as its least allowed ones: a first budget of `0` as `1`,
+and a growth of `1` as `2`, so the geometric budgets still grow. -/
+example : ({ restartFirst := 0 } : CDCL.Options).restartBudget 0 = 1 ∧
+    ({ luby := false, restartFirst := 1, restartInc := 1 } : CDCL.Options).restartBudget 3 = 8 := by
+  decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched
