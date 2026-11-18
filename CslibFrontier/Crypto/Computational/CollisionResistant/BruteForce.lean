@@ -33,15 +33,15 @@ polynomial-time Turing-machine refutation when `2 ^ ℓ(n)` is polynomial in `n`
   `bruteForceHashFinder ℓ` makes at most `2 ^ ℓ + 1` hash evaluations, for every digest length
   `ℓ : ℕ` (`isQueryBounded_bruteForceHashFinder`). Generating the messages and comparing pairs of
   digests in `collidingPair?` are not counted: this is an oracle-call count, not a running time.
-* **Success.** By pigeonhole (`isSome_collidingPair?_of_card_lt`,
-  `collidingPair?_mem_collisionOutputs_of_card_lt`), if the `s` messages are distinct and their
-  digests under `f` lie in a finite set `D` with `D.card < s`, `bruteForceFinder` run against a
-  deterministic oracle realizing `f` returns a collision in `collisionOutputs f` with probability
-  `1` (`bruteForceFinder_success`). For `ℓ`-bit digests (`D = BitString.wordsOfLength ℓ`, of size
-  `2 ^ ℓ < 2 ^ ℓ + 1`), any `2 ^ ℓ + 1` distinct messages give a collision with probability `1`
-  (`bruteForceFinder_two_pow_succ_success`), and `bruteForceHashFinder ℓ` finds one for every hash
-  mapping `(ℓ + 1)`-bit words to `ℓ`-bit digests (`bruteForceHashFinder_success`). Whatever `s` and
-  `ms`, every output other than `none` is a collision (`bruteForceFinder_sound`).
+* **Success.** By pigeonhole (`isSome_collidingPair?_of_card_lt`), if the `s` messages are distinct
+  and their digests under `f` lie in a finite set `D` with `D.card < s`, `bruteForceFinder` run
+  against a deterministic oracle realizing `f` returns a collision in `collisionOutputs f` with
+  probability `1` (`bruteForceFinder_success`). For `ℓ`-bit digests
+  (`D = BitString.wordsOfLength ℓ`, of size `2 ^ ℓ < 2 ^ ℓ + 1`), any `2 ^ ℓ + 1` distinct messages
+  give a collision with probability `1` (`bruteForceFinder_two_pow_succ_success`), and
+  `bruteForceHashFinder ℓ` finds one for every hash mapping `(ℓ + 1)`-bit words to `ℓ`-bit digests
+  (`bruteForceHashFinder_success`). Whatever `s` and `ms`, every output other than `none` is a
+  collision (`bruteForceFinder_sound`).
 
 ## Differences from [BonehShoup2023]
 
@@ -58,14 +58,15 @@ polynomial-time Turing-machine refutation when `2 ^ ℓ(n)` is polynomial in `n`
 
 ## Main definitions
 
+* `Cslib.Crypto.collidingPair?`: the first pair of different messages with equal digests.
+* `Cslib.Crypto.collisionOutputs`: the outputs that are collisions of a function.
 * `Cslib.Crypto.bruteForceFinder`: the brute-force collision finder as an oracle program.
 * `Cslib.Crypto.bruteForceHashFinder`: single-query brute-force search on `2 ^ ℓ + 1` binary words
   of length `ℓ + 1`.
 
 ## Main results
 
-* `Cslib.Crypto.isSome_collidingPair?_of_card_lt`,
-  `Cslib.Crypto.collidingPair?_mem_collisionOutputs_of_card_lt`: pigeonhole collision guarantees for
+* `Cslib.Crypto.isSome_collidingPair?_of_card_lt`: pigeonhole collision guarantee for
   `collidingPair?`.
 * `Cslib.Crypto.isQueryBounded_bruteForceFinder`,
   `Cslib.Crypto.isQueryBounded_bruteForceHashFinder`: worst-case oracle-call bounds `s * c` and
@@ -141,14 +142,6 @@ theorem isSome_collidingPair?_of_card_lt {s : ℕ} {ms : Fin s → M} (hms : Fun
     Finset.exists_ne_map_eq_of_card_lt_of_maps_to hcard fun i _ => hds i
   exact ⟨i, j, heq, hms.ne hij⟩
 
-/-- When `s` distinct messages have digests under `f` in a finite set `D` with `D.card < s`,
-`collidingPair?` outputs a collision of `f`. -/
-theorem collidingPair?_mem_collisionOutputs_of_card_lt {s : ℕ} {ms : Fin s → M}
-    (hms : Function.Injective ms) {f : M → T} {D : Finset T} (hf : ∀ i, f (ms i) ∈ D)
-    (hlt : D.card < s) :
-    collidingPair? ms (fun i => f (ms i)) ∈ collisionOutputs f :=
-  collidingPair?_mem_collisionOutputs_of_isSome (isSome_collidingPair?_of_card_lt hms hf hlt)
-
 end Search
 
 section Finder
@@ -207,7 +200,8 @@ theorem bruteForceFinder_success {digest : M → ProbOracleComp spec T} (O : (q 
     (ProbComp.eval ((bruteForceFinder digest ms).run fun x => pure (O x))).toOuterMeasure
       (collisionOutputs f) = 1 := by
   rw [eval_run_bruteForceFinder O f hdigest, PMF.toOuterMeasure_pure_apply,
-    ite_eq_left (collidingPair?_mem_collisionOutputs_of_card_lt hms hf hlt)]
+    ite_eq_left (collidingPair?_mem_collisionOutputs_of_isSome
+      (isSome_collidingPair?_of_card_lt hms hf hlt))]
 
 end Finder
 

@@ -19,9 +19,9 @@ client with ordinary imports:
   `2`-bit hash: the first four digests are distinct and the fifth collides with the first.
 * Sharpness of `D.card < s`: `s = 2 ^ ℓ` evaluations do not suffice for any `ℓ : ℕ`, witnessed by
   the identity map on the `2 ^ ℓ` binary words of length `ℓ`.
-* Pigeonhole (`isSome_collidingPair?_of_card_lt`, `collidingPair?_mem_collisionOutputs_of_card_lt`),
-  soundness (`bruteForceFinder_sound`), and deterministic run characterization
-  (`eval_run_bruteForceFinder`), including a non-bit-string domain and a multi-query digest.
+* Pigeonhole (`isSome_collidingPair?_of_card_lt`), soundness (`bruteForceFinder_sound`), and
+  deterministic run characterization (`eval_run_bruteForceFinder`), including a non-bit-string
+  domain and a multi-query digest.
 * The edge case `ℓ = 0` (`2 ^ 0 + 1 = 2` evaluations on a `0`-bit hash).
 * The explicit example of [BonehShoup2023], §8.3, printed p. 294: `ℓ = 16` requires at most
   `2 ^ 16 + 1 = 65537` hash evaluations and finds a collision with probability `1` for every
@@ -77,18 +77,14 @@ example (ℓ : ℕ) :
 
 /-! ## General domain (`Fin n`), soundness, and multi-query digests -/
 
-/-- General pigeonhole (`isSome_collidingPair?_of_card_lt`,
-`collidingPair?_mem_collisionOutputs_of_card_lt`, and `bruteForceFinder_success`) on `n + 1`
-natural numbers mapped into `Fin n`. -/
+/-- General pigeonhole (`isSome_collidingPair?_of_card_lt` and `bruteForceFinder_success`) on
+`n + 1` natural numbers mapped into `Fin n`. -/
 example {n : ℕ} (f : ℕ → Fin n) :
     (collidingPair? (s := n + 1) Fin.val (fun i => f i.val)).isSome ∧
-      collidingPair? (s := n + 1) Fin.val (fun i => f i.val) ∈ collisionOutputs f ∧
       (ProbComp.eval ((bruteForceFinder
         (spec := fun _ : ℕ => Fin n) ProbOracleComp.query (s := n + 1) Fin.val).run
           fun x => pure (f x))).toOuterMeasure (collisionOutputs f) = 1 :=
   ⟨isSome_collidingPair?_of_card_lt Fin.val_injective (fun _ => Finset.mem_univ _)
-      (by simp),
-    collidingPair?_mem_collisionOutputs_of_card_lt Fin.val_injective (fun _ => Finset.mem_univ _)
       (by simp),
     bruteForceFinder_success f f Fin.val_injective (fun _ => ProbOracleComp.run_query _ _)
       Finset.univ (fun _ => Finset.mem_univ _) (by simp)⟩

@@ -52,9 +52,9 @@ function.
 
 ## Main definitions
 
-* `Cslib.Crypto.collidingPair?`: the first pair of different messages with equal digests.
-* `Cslib.Crypto.birthdayFinder`: the birthday collision finder.
-* `Cslib.Crypto.collisionOutputs`: the outputs that are collisions of a function.
+* `Cslib.Crypto.birthdayFinder`: the birthday collision finder (`collidingPair?`,
+  `collisionOutputs`, and `bruteForceFinder` are defined in
+  `CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce`).
 
 ## Main results
 
