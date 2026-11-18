@@ -309,4 +309,13 @@ original body is unchanged, including repeated body variables and closed compone
     (restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate)
     (verifyRotationCertificate_restrictPrefix_probe_cons F p ports w.certificate w.probe_accepted)
 
+/-- First-marker deletion emits exactly the prefix restriction for the original body and
+remaining probe positions. The hypotheses are those of the existing constructor. -/
+theorem Witness.forgetHead_certificate {F : CSP Rel V} {p : V} {ports : List V}
+    (w : Witness F (p :: ports)) (hn : ports.Nodup) :
+    (w.forgetHead hn).certificate =
+      restrictPrefix (2 * (F.occurrences.length + ports.length)) w.certificate := by
+  change restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate = _
+  rw [length_occurrences_probeBody]
+
 end Cslib.Complexity.CSP.OrderedBoundary
