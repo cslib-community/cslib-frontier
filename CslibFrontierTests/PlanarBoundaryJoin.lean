@@ -6,7 +6,7 @@ Authors: OpenAI
 
 -- upstream: candidate
 
-import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryAppend
+import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryIdentify
 
 /-! Actual boundary appends and adjacent joins retain unused ports and a degree-six cutvertex. -/
@@ -25,8 +25,8 @@ private def w : Witness F (List.ofFn ![0, 1]) :=
 private def v : Witness ([] : CSP Unit ℕ) (List.ofFn ![2]) :=
   Witness.ofProbe (by decide) ⟨[0, 1]⟩ (by decide)
 
-private noncomputable def joined : Witness F (List.ofFn ![0, 1] ++ List.ofFn ![2]) :=
-  w.appendOfFn v (by simp [F, CSP.vars, List.ofFn_succ]) (by decide)
+private def joined : Witness F (List.ofFn ![0, 1] ++ List.ofFn ![2]) :=
+  w.appendComputed v (by simp [F, CSP.vars, List.ofFn_succ]) (by decide)
 
 example : verify F [0, 1, 2] joined.certificate = true := joined.accepted
 

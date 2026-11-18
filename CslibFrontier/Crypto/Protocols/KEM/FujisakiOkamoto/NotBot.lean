@@ -18,7 +18,7 @@ import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Pushforward
 # Concrete ROM IND-CCA advantage bound for `FO-notbot`
 
 `Scheme.indCcaRomAdvantage_le` is the concrete per-instance ROM IND-CCA advantage bound for the
-domain-separated implicit-rejection transform `FO-notbot = U-notbot ∘ T` of
+implicit-rejection transform `FO-notbot = U-notbot ∘ T` of
 [HofheinzHoevelmannsKiltz2017] (IACR ePrint 2017/604, full version dated 2 November 2021, §3.2.2,
 Fig. 12), after Theorems 3.2 and 3.4 of that paper. It holds for one fixed finite scheme, with no
 security parameter and no running-time bound on the reduction `romCpaReduction A`; it is the step
@@ -37,7 +37,7 @@ form without spreadness from the remark on p. 13) with Theorem 3.4 for `U-notbot
 proof composes the corresponding game hops directly:
 
 1. `advantage_eagerIndCcaGame_eagerFbGame_le` (module `NotBot.Fallback`): replacing the
-   implicit-rejection keys `H(true, s, ·)` by an independent table costs `qH / |M|` (game G1 of the
+   implicit-rejection keys `H(s, ·)` by an independent table costs `qH / |M|` (game G1 of the
    proof of Theorem 3.4).
 2. `eagerCoupledGame_eq_eagerFbGame` (`NotBot.Pushforward`) and
    `eval_coupledGame_eq_eagerCoupledGame` (`NotBot.Lazy`): re-indexing the random oracles so that

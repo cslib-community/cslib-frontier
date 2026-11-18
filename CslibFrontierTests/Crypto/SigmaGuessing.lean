@@ -75,8 +75,8 @@ example (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ) (n : ℕ) :
 example : (F.schnorrGuessingImpersonator fun _ => 1).IsPPT :=
   PrimeOrderGroupFamily.isPPT_schnorrGuessingImpersonator (by fun_prop)
 
--- Probe: checks necessity of `hchallenge` in `negligible_schnorrDirectGame` at `k n = 1` inside
--- the uniform strict-PPT class.
+-- Probe: checks that negligible `1 / 2 ^ k n` is necessary for direct-attack security in the
+-- ideal-key game at `k n = 1` inside the uniform strict-PPT class.
 example (setup : ℕ → PMF F.Desc) :
     ¬ ∀ A : F.SchnorrImpersonator, A.IsPPT →
       Negligible fun n => Game.succProbability (F.schnorrDirectGame setup (fun _ => 1) A n) :=

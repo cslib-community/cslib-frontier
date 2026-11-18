@@ -25,8 +25,9 @@ import CslibFrontier.Crypto.Game.Order
 `Cslib.Crypto.merkleRoot` hashes a list of leaves and `Cslib.Crypto.merklePath` opens one position.
 This module adds the verifier and the security notion of an authenticated data structure scheme
 ([BonehShoup2023], Section 8.9.1): a verifier `merkleVerify` with completeness, binding and a
-polynomial-time certificate, the game of Attack Game 8.2, and the security of Theorem 8.8,
-reduced to collision resistance with no loss.
+polynomial-time certificate, the game of Attack Game 8.2, and position binding under collision
+resistance of the hash on all words, with no loss. That last result is a step toward Theorem 8.8,
+not the cited result (see "Differences from [BonehShoup2023]" below).
 
 * **The verifier.** `merkleVerify H k d root i leaf path` accepts when `path` has `d` labels,
   `i < 2 ^ d`, and the root recomputed from `leaf` at position `i` along `path` is `root`
@@ -44,13 +45,17 @@ reduced to collision resistance with no loss.
   wins when both openings are accepted at the depth of the first path and their leaves differ
   (`merkleBreaksBinding`).
   `MerklePositionBinding H` asks that every uniform strict PPT adversary win with negligible
-  probability.
+  probability. It is novel to this library, and stronger than Definition 8.4, since leaves and
+  path labels may be any words (see the differences below).
 * **The reduction.** `merkleCollisionFinder` runs the adversary and applies
   `extractMerkleCollision` to its two openings. Every win yields a collision, so the binding
   advantage is at most the collision advantage at every parameter
   (`succProbability_merkleBindingGame_le`), and the reduction is strict PPT
-  (`isPPT_merkleCollisionFinder`). Hence every collision-resistant `HashFamily` gives position
-  binding (`HashFamily.merklePositionBinding`).
+  (`isPPT_merkleCollisionFinder`). Hence collision resistance of `H` on all words (`HashFamily`)
+  gives position binding for leaves and path labels of any length
+  (`merklePositionBinding_of_hashFamily`). This is a step toward Theorem 8.8, not the cited
+  result: the source assumes collision resistance only on the hash's domain, as explained
+  below.
 
 **Differences from [BonehShoup2023].** Attack Game 8.2 is stated for a scheme over `(X^n, Y)`
 with a fixed number `n` of items; here:
@@ -61,7 +66,19 @@ with a fixed number `n` of items; here:
 * positions are `0 ≤ i < 2 ^ d`, the padding positions included, rather than `1 ≤ i ≤ n`;
 * the adversary writes its position in unary (`encMerkleBindingOutput`), so the game covers
   polynomially bounded positions: enough for trees with polynomially many leaves, but not for
-  trees whose leaves are indexed by superpolynomially many positions.
+  trees whose leaves are indexed by superpolynomially many positions;
+* leaves are words of any length, where the source's leaf space `X` is finite with a polynomial
+  bound on the length of its words ([BonehShoup2023], Definition 2.9, p. 30);
+* `merkleVerify` does not check that path labels are digests, where the source's proof consists
+  of elements of `Y` (Section 8.9, p. 321).
+
+The last two differences change the assumption that the reduction needs. The source's `h` takes
+"either a single element in `X`, or a pair of elements in `Y`" (Section 8.9, p. 320), and
+Theorem 8.8 (p. 324) assumes collision resistance of `h` on that domain `X ∪ Y²` only. Here a
+binding break can use leaves outside any fixed leaf space, or labels that are not digests, and
+the collision extracted from it then lies outside `X ∪ Y²`. So
+`merklePositionBinding_of_hashFamily` assumes collision resistance on all words. The faithful
+statement needs a leaf space in the game and a label-length check in the verifier (#5293).
 
 **Kilian's construction.** Kilian's succinct arguments commit to a PCP proof with a hash tree and
 open the queried positions ([Barak and Goldreich][BarakGoldreich2001], Construction 3.4, steps
@@ -99,13 +116,14 @@ circuits.
   `Cslib.Crypto.isPPT_merkleCollisionFinder`: the certified reduction, with no loss.
 * `Cslib.Crypto.MerklePositionBinding.negligible`,
   `Cslib.Crypto.MerklePositionBinding.of_negligible`: position binding as negligible success.
-* `Cslib.Crypto.HashFamily.merklePositionBinding`: collision-resistant hash families give
-  position binding.
+* `Cslib.Crypto.merklePositionBinding_of_hashFamily`: position binding under collision
+  resistance on all words, a step toward Theorem 8.8.
 
 ## References
 
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 8.9.1,
-  Definitions 8.3 and 8.4, Attack Game 8.2 and Theorem 8.8.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
+  Definition 2.9, Section 8.9, and Section 8.9.1 with Definitions 8.3 and 8.4, Attack Game 8.2
+  and Theorem 8.8.
 * [B. Barak, O. Goldreich, *Universal Arguments and their Applications*][BarakGoldreich2001],
   Construction 3.4.
 -/
@@ -378,9 +396,14 @@ noncomputable def merkleBindingGame (adversary : MerkleBindingAdversary) (n : �
   let out ← adversary n k
   return merkleBreaksBinding H k out
 
-/-- Position binding of Merkle trees over `H` ([BonehShoup2023], Definition 8.4): every uniform
-strict PPT adversary breaks binding with negligible probability. Adversaries write positions in
-unary, so this covers polynomially bounded positions. -/
+/-- Position binding of Merkle trees over `H`, a notion novel to this library: every uniform
+strict PPT adversary breaks binding with negligible probability, where its leaves and path labels
+may be any words. This is stronger than [BonehShoup2023], Definition 8.4 and Attack Game 8.2
+(p. 324), where the two leaves lie in a finite leaf space `X` and a proof consists of digests in
+`Y` (Section 8.9, pp. 320–321). It follows from collision resistance on all words
+(`merklePositionBinding_of_hashFamily`), but not from collision resistance on `X ∪ Y²` alone (see
+the module documentation). Adversaries write positions in unary, so this covers polynomially
+bounded positions. -/
 def MerklePositionBinding : Prop :=
   Game.Indistinguishable (fun adversary n => ProbComp.eval (merkleBindingGame H adversary n))
     (fun _ _ => PMF.pure false) (IsPPT encMerkleBindingOutput)
@@ -458,12 +481,21 @@ theorem MerklePositionBinding.of_negligible
 
 end Binding
 
-/-- **Collision-resistant hash families give position-binding Merkle trees**
-([BonehShoup2023], Theorem 8.8, for keyed families and uniform adversaries): no uniform strict
-PPT adversary can open a position of a Merkle tree over a `HashFamily` to two different leaves,
-except with negligible probability. The reduction is `merkleCollisionFinder`, with no loss
-(`succProbability_merkleBindingGame_le`). -/
-theorem HashFamily.merklePositionBinding {H : List Bool → List Bool → List Bool}
+/-- **Position binding of `merkleVerify` under all-word collision resistance**: for leaves and
+path labels of any length, no uniform strict PPT adversary opens a position of a Merkle tree over
+`H` to two different leaves except with negligible probability, when `H` is collision resistant on
+all words (`HashFamily`). This is a step toward [BonehShoup2023], Theorem 8.8 (Section 8.9.1,
+p. 324), not the cited result.
+
+Theorem 8.8 assumes collision resistance of `h` only on its domain `X ∪ Y²`, single leaves or
+pairs of digests (Section 8.9, p. 320), with `X` finite and polynomially bounded (Definition 2.9,
+p. 30).
+Here `merkleBindingGame` admits leaves of any length, and `merkleVerify` does not check that path
+labels lie in `Y`, so the collision extracted from a break can lie outside `X ∪ Y²`. The faithful
+statement needs a leaf space in the game and a label-length check in the verifier (#5293).
+
+The reduction is `merkleCollisionFinder`, with no loss (`succProbability_merkleBindingGame_le`). -/
+theorem merklePositionBinding_of_hashFamily {H : List Bool → List Bool → List Bool}
     (hH : HashFamily H) : MerklePositionBinding H :=
   MerklePositionBinding.of_negligible fun adversary hadversary =>
     negligible_of_le (hH.collisionResistant.negligible _
