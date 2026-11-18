@@ -160,8 +160,7 @@ private theorem exec_row {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
       · simp [Bounded]
       · simpa using hc
       · simp [value]
-      · exact ⟨rfl, fun i _ _ hi => by
-          simp only [Data.set_regs, Function.update_apply, hi, ↓reduceIte]⟩
+      · exact frame_set_carry x (x.regs carry) []
     | cons => simp_all
   | cons b bs ih =>
     cases ds with
@@ -268,17 +267,6 @@ theorem rowCost_le (m n : ℕ) : rowCost m n ≤ 5 * m * (n + m) + 3 * m + 1 := 
     simp only [rowCost]
     nlinarith
 
-private theorem frame_carry (x : Data (r + 4)) (v : ℕ) (ds : List (Fin (r + 4))) :
-    Frame x (x.set carry v) ds := by
-  refine ⟨rfl, fun i _ _ hi => ?_⟩
-  simp only [Data.set_regs, Function.update_apply, hi, ↓reduceIte]
-
-private theorem frame_digit (x : Data (r + 4)) (d : Fin (r + 4)) (v : ℕ) :
-    Frame x (x.set d v) [d] := by
-  refine ⟨rfl, fun i hi _ _ => ?_⟩
-  simp only [List.mem_singleton] at hi
-  simp only [Data.set_regs, Function.update_apply, hi, ↓reduceIte]
-
 private theorem frame_input {x y : Data (r + 4)} {I : Set (Fin (r + 4))}
     {ds : List (Fin (r + 4))} (hf : Frame x y ds)
     (hI : ∀ i ∈ I, i ≠ total ∧ i ≠ carry) (hd : ∀ d ∈ ds, d ∉ I)
@@ -307,7 +295,7 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
     have hos' : os = [] := by simpa using hos
     subst os
     let y := x.set carry 0
-    have hf := frame_carry x 0 ds
+    have hf := frame_set_carry x 0 ds
     have hy (i : Fin (r + 4)) (hi : i ∈ ds) : y.regs i = x.regs i := by
       simp only [y, Data.set_regs, Function.update_apply,
         (digit_ne (hds i (by simpa using hi)).1).2.1, ↓reduceIte]
@@ -329,7 +317,7 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
         intro hm
         exact (List.nodup_append.mp hnd).2.2 d hm d (by simp) rfl
       let x₀ := x.set carry 0
-      have hx₀ : Frame x x₀ ds := frame_carry x 0 ds
+      have hx₀ : Frame x x₀ ds := frame_set_carry x 0 ds
       have hx₀i (i : Fin (r + 4)) (hi : i ≠ carry) : x₀.regs i = x.regs i := by
         simp only [x₀, Data.set_regs, Function.update_apply, hi, ↓reduceIte]
       obtain ⟨z, hez, hzd, hzc, hzeq, hzf⟩ := exec_row hw I hI a (has a (by simp))
@@ -344,7 +332,7 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
           omega)
       have hfxz : Frame x z ds := frame_trans hx₀ hzf
       let u := z.set d (z.regs carry)
-      have hfzu : Frame z u [d] := frame_digit z d (z.regs carry)
+      have hfzu : Frame z u [d] := frame_set_mem z (z.regs carry)
       have hfxu : Frame x u (ds ++ [d]) := frame_trans
         (frame_mono hfxz (by intro i hi; simp [hi]))
         (frame_mono hfzu (by intro i hi; simp [hi]))
@@ -458,7 +446,7 @@ theorem exec_clear {w : ℕ} (ds : List (Fin (r + 4)))
       (∀ i ∈ ds, y.regs i = 0) ∧ Frame x y ds := by
   induction ds generalizing x with
   | nil =>
-    refine ⟨x.set carry (x.regs carry), ?_, by simp, frame_carry _ _ _⟩
+    refine ⟨x.set carry (x.regs carry), ?_, by simp, frame_set_carry _ _ _⟩
     ram_eval [clear]
   | cons d ds ih =>
     let z := x.set d 0
@@ -474,9 +462,7 @@ theorem exec_clear {w : ℕ} (ds : List (Fin (r + 4)))
           (digit_ne (hds i (by simp))).2.1]
         simp [z]
       · exact hy i hi
-    · exact frame_trans
-        (frame_mono (frame_digit x d 0) (by simp))
-        (frame_mono hyf (by intro i hi; simp [hi]))
+    · exact frame_trans (frame_set_mem x 0) (frame_mono hyf (by intro i hi; simp [hi]))
 
 /-- Complete multiplication: initialize the radix and zero, clear the initial accumulator,
 and execute all rows. Operand and output register lists are fixed at code construction time. -/
