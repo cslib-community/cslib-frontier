@@ -63,3 +63,10 @@ private def digest44 : List Byte := (List.finRange 32).map (fun i => Fin.ofNat 2
 
 #guard verify .mlDSA44 [] [] [] [] == some false
 #guard verify .mlDSA44 [] [] (List.replicate 256 0) [] == none
+
+-- The ten-bit coefficients 0, 1, 1023 and 2 cross byte boundaries. The first two
+-- distinguish the rounding tie at 4096 from its successor.
+#guard ((encodePublic .mlDSA44 (List.replicate 32 0) fun _ i =>
+    match i.val with
+    | 0 => 4096 | 1 => 4097 | 2 => -1 | 3 => 16384 | _ => 0).drop 32).take 5 ==
+  [0, 4, 240, 191, 0]

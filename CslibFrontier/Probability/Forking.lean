@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Probability.Rewinding
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Algebra.Order.Chebyshev
@@ -111,6 +113,35 @@ noncomputable def fork [DecidableEq H] (first : PMF S)
   let h ← PMF.uniformOfFintype (Fin q → H)
   let h' ← PMF.uniformOfFintype (Fin q → H)
   return onTapes A s h h'
+
+/-- A predicate of the two replies in a successful fork costs at most its largest probability
+against a fresh uniform reply. The first run may choose its index after seeing all its answers.
+The output's recorded reply must be the answer at the index it names. -/
+theorem bad_reply_le [DecidableEq H] (first : PMF S)
+    (A : S → (Fin q → H) → Option (Fin q) × β) (reply : β → H)
+    (named : ∀ s h j, (A s h).1 = some j → reply (A s h).2 = h j)
+    (bad : H → H → Bool) :
+    ((fork first A).map (fun r => r.any fun (_, a, b) => bad (reply a) (reply b)) true) ≤
+      Finset.univ.sup (fun c => (PMF.uniformOfFintype H).map (bad c) true) := by
+  simp only [fork, onTapes, pmf_norm]
+  apply Probability.PMF.bind_apply_le_on_support
+  intro s _
+  apply Probability.PMF.bind_apply_le_on_support
+  intro h _
+  cases hj : (A s h).1 with
+  | none => simp
+  | some j =>
+    have eval : (PMF.uniformOfFintype (Fin q → H)).map (fun h' => h' j) =
+        PMF.uniformOfFintype H := by
+      rw [← Probability.PMF.pi_uniformOfFintype, Probability.PMF.pi_map_eval]
+    refine le_trans ?_ (Finset.le_sup (f := fun c => (PMF.uniformOfFintype H).map (bad c) true)
+      (Finset.mem_univ (h j)))
+    rw [← eval, PMF.map_comp, ← PMF.bind_pure_comp]
+    apply Probability.PMF.bind_apply_mono_on_support
+    intro h' _
+    by_cases hf : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j
+    · simp [hf, named s h j hj, named s (splice j h h') j hf.1, splice, Function.comp_def]
+    · simp [hf]
 
 /-! ### Splitting the answers at an index -/
 

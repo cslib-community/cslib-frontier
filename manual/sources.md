@@ -1702,6 +1702,11 @@ OpenAI. *The Exponential Time Hypothesis is False*. Manuscript dated 17 October 
 
 Christos H. Papadimitriou. "On the Complexity of the Parity Argument and Other Inefficient Proofs of Existence." *Journal of Computer and System Sciences* 48(3), 498–532, 1994. https://doi.org/10.1016/S0022-0000(05)80063-7 . Bibliographic metadata checked against `references.bib` (`Papadimitriou1994PPAD`); the journal text was not inspected, so internal theorem numbers are not claimed. Cited for the complexity class `PPAD`, canonical `EndOfLine` completeness, and containment of two-player Nash equilibrium.
 
+<a id="pedersen1991"></a>
+## pedersen1991
+
+Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing." *Advances in Cryptology — CRYPTO '91*, LNCS 576, 129–140, Springer, 1992. https://doi.org/10.1007/3-540-46766-1_9 . Publisher's PDF, https://link.springer.com/content/pdf/10.1007/3-540-46766-1_9.pdf , fetched on 2026-11-18 UTC (SHA-256 `79c0634a04b7bc869715770519eca9dcfcb3011012dbff054b9487b187558b18`): a 12-page scan of the complete printed pp. 129–140 (PDF page = printed page − 128). Read on 2026-11-18: Section 2 (p. 130: primes `q | p − 1`, `G_q` the order-`q` subgroup of `Z_p^*`, `g` a generator) and all of Section 3 (p. 131): `g` and `h` are chosen so that nobody knows `log_g h`, by a trusted center or a coin-flipping protocol; the commitment is `E(s, t) = g^s h^t` for `s ∈ Z_q` and random `t ∈ Z_q`; Theorem 3.1 states that for uniform `t` the commitment is uniform on `G_q` (first sentence) and that `s ≠ s'` with `E(s, t) = E(s', t')` gives `t ≠ t' mod q` and `log_g h = (s − s')/(t' − t) mod q` (second sentence). The theorem states no game or computational assumption, and the first sentence needs `h ≠ 1`, which the condition on `log_g h` implies. Sections 4–6 were not checked.
+
 <a id="pighizzini2009"></a>
 ## pighizzini2009
 
