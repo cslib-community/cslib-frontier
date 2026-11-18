@@ -33,7 +33,7 @@ namespace Real
 theorem hasSum_choose_mul_pow {a x : ℝ} (hx : |x| < 1) :
     HasSum (fun n : ℕ => Ring.choose a n * x ^ n) ((1 + x) ^ a) := by
   have h := (Real.one_add_rpow_hasFPowerSeriesOnBall_zero (a := a)).hasSum (y := x)
-    (by simpa [enorm_eq_nnnorm, ← NNReal.coe_lt_coe] using hx)
+    (by simpa [eNorm_eq_nnNorm, ← NNReal.coe_lt_coe] using hx)
   simpa [binomialSeries, FormalMultilinearSeries.ofScalars_apply_eq, mul_comm] using h
 
 end Real
