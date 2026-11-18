@@ -33,6 +33,12 @@ open Lean Elab Command Term Meta
 
 private def suffix (name : Name) (s : String) : Ident := mkIdent (name.appendAfter s)
 
+/-- Give internal binders a fresh scope while keeping declaration names and user parameters. -/
+private def freshBinders : CommandElabM (Name → Ident) := do
+  let scope ← liftMacroM <| withFreshMacroScope do getCurrMacroScope
+  let moduleName ← getMainModule
+  return fun name => mkIdent (addMacroScope moduleName name scope)
+
 private def tuple (ts : Array Term) : MacroM Term := do
   if ts.isEmpty then return ← `(())
   let mut r := ts.back!
@@ -67,8 +73,9 @@ private structure RecursiveSpec where
   payloadEncs : Array Term
 
 private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit := do
-  let gamma := mkIdent `γ
-  let encoder := mkIdent `encIn
+  let binder ← freshBinders
+  let gamma := binder `γ
+  let encoder := binder `encIn
   let eT := spec.eT
   let ps := spec.ps
   let params := spec.params
@@ -88,7 +95,7 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
   for p in payloadEncs.pop.reverse do
     rests := #[← `(encSum $p $(rests[0]!))] ++ rests
   for i in [0:n] do
-    let xs := (Array.range recs[i]!.size).map fun j => mkIdent (Name.mkSimple s!"x{j}")
+    let xs := (Array.range recs[i]!.size).map fun j => binder (Name.mkSimple s!"x{j}")
     let args : Array Term := xs.map (⟨·.raw⟩)
     let ctor := mkIdent (root ++ cs[i]!.getId)
     let value := Syntax.mkApp ctor args
@@ -110,10 +117,10 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
           2 * ($(ref "TokenEncoding") $token).length + 1 + ($tail : List Bool).length := by
       rw [$equation:ident]
       simp only [List.length_append, length_frame]))
-    let fn (j : Nat) := mkIdent (Name.mkSimple s!"f{j}")
-    let hn (j : Nat) := mkIdent (Name.mkSimple s!"h{j}")
-    let tn (j : Nat) := mkIdent (Name.mkSimple s!"T{j}")
-    let sn (j : Nat) := mkIdent (Name.mkSimple s!"S{j}")
+    let fn (j : Nat) := binder (Name.mkSimple s!"f{j}")
+    let hn (j : Nat) := binder (Name.mkSimple s!"h{j}")
+    let tn (j : Nat) := binder (Name.mkSimple s!"T{j}")
+    let sn (j : Nat) := binder (Name.mkSimple s!"S{j}")
     let fieldEncs ← (Array.range xs.size).mapM fun j =>
       if (recs[i]!)[j]! then pure (applied eT) else pure (encss[i]!)[j]!
     let mut rb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
@@ -158,7 +165,7 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
     let matcher := suffix eT.getId s!"_{cs[i]!.getId}_matches"
     let mut matchAlts : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
     for j in [0:n] do
-      let ys := (Array.range recs[j]!.size).map fun k => mkIdent (Name.mkSimple s!"y{k}")
+      let ys := (Array.range recs[j]!.size).map fun k => binder (Name.mkSimple s!"y{k}")
       let pat := Syntax.mkApp (mkIdent (root ++ cs[j]!.getId)) (ys.map (⟨·.raw⟩))
       let b : Term ← if i == j then `(true) else `(false)
       matchAlts := matchAlts.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $b))
@@ -177,7 +184,7 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
       let outTy := if field == 0 then payloadTy else fieldTypes[field - 1]!
       let mut pas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
       for j in [0:n] do
-        let ys := (Array.range recs[j]!.size).map fun k => mkIdent (Name.mkSimple s!"y{k}")
+        let ys := (Array.range recs[j]!.size).map fun k => binder (Name.mkSimple s!"y{k}")
         let pat := Syntax.mkApp (mkIdent (root ++ cs[j]!.getId)) (ys.map (⟨·.raw⟩))
         let rhs ← if i == j then do
           let v ← if field == 0 then liftMacroM (tuple (ys.map (⟨·.raw⟩)))
@@ -237,8 +244,8 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
       exact $ofInO ho))
     let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
     let mut clocks : TSyntaxArray `tactic := #[]
-    let dn (j : Nat) := mkIdent (Name.mkSimple s!"d{j}")
-    let en (j : Nat) := mkIdent (Name.mkSimple s!"e{j}")
+    let dn (j : Nat) := binder (Name.mkSimple s!"d{j}")
+    let en (j : Nat) := binder (Name.mkSimple s!"e{j}")
     let mut proofs : Array Term := #[]
     for j in [0:xs.size] do
       pb := pb.push (← `(bracketedBinder| {$(fn j) : $gamma → $((checked.fieldTypes[i]!)[j]!)}))
@@ -264,6 +271,7 @@ private def elabRecursiveConstructors (spec : RecursiveSpec) : CommandElabM Unit
       exact ho.computableInPolyTime $polyBound $polyBound))
 
 private def elabRecursiveChildren (spec : RecursiveSpec) (tokenTy : Term) : CommandElabM Unit := do
+  let binder ← freshBinders
   let eT := spec.eT
   let ps := spec.ps
   let params := spec.params
@@ -275,7 +283,7 @@ private def elabRecursiveChildren (spec : RecursiveSpec) (tokenTy : Term) : Comm
   let ref (s : String) := applied (suffix eT.getId s)
   let streamEnc : Term ← `(encList $(ref "TokenEncoding"))
   for i in [0:cs.size] do
-    let xs := (Array.range recs[i]!.size).map fun j => mkIdent (Name.mkSimple s!"x{j}")
+    let xs := (Array.range recs[i]!.size).map fun j => binder (Name.mkSimple s!"x{j}")
     let args : Array Term := xs.map (⟨·.raw⟩)
     let ctor := mkIdent (checked.typeName ++ cs[i]!.getId)
     let value := Syntax.mkApp ctor args
@@ -353,6 +361,7 @@ Explicit parameters are section variables during checking and explicit binders i
 def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComment))
     (eT : Ident) (ps : Array Ident) (pts : Array Term) (T : Term)
     (cs : Array Ident) (encss : Array (Array Term)) : CommandElabM Unit := do
+  let binder ← freshBinders
   let params ← ps.zip pts |>.mapM fun (p, t) => `(bracketedBinder| ($p:ident : $t))
   elabCommand (← `(section))
   try
@@ -390,7 +399,7 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
     let mut leafAlts : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
     let mut arityAlts : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
     for i in [0:n] do
-      let xs := (Array.range recs[i]!.size).map fun j => mkIdent (Name.mkSimple s!"x{j}")
+      let xs := (Array.range recs[i]!.size).map fun j => binder (Name.mkSimple s!"x{j}")
       let args : Array Term := xs.map (⟨·.raw⟩)
       let ctor := mkIdent (root ++ cs[i]!.getId)
       let pat := Syntax.mkApp ctor args
@@ -409,9 +418,9 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
       for c in children do leaves ← `($leaves + $(ref "_leafSize") $c)
       nodeAlts := nodeAlts.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $nodes))
       leafAlts := leafAlts.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $leaves))
-      let sp := (Array.range scalar.size).map fun j => mkIdent (Name.mkSimple s!"s{j}")
+      let sp := (Array.range scalar.size).map fun j => binder (Name.mkSimple s!"s{j}")
       let tokenPattern ← liftMacroM <| inject (← liftMacroM <| tuple (sp.map (⟨·.raw⟩))) i n
-      let operands := mkIdent (if children.isEmpty then `_operands else `operands)
+      let operands := binder (if children.isEmpty then `_operands else `operands)
       let mut ctorArgs : Array Term := #[]
       let mut rj := 0
       let mut sj := 0
@@ -580,7 +589,7 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
       let mut ds : Array Term := #[]
       for j in [0:recs[i]!.size] do
         unless (recs[i]!)[j]! do
-          let d := mkIdent (Name.mkSimple s!"decode{i}_{j}")
+          let d := binder (Name.mkSimple s!"decode{i}_{j}")
           db := db.push (← `(bracketedBinder| ($d : PartialDecoder $((encss[i]!)[j]!))))
           ds := ds.push (⟨d.raw⟩)
       let mut payloadD : Term ← `(PartialDecoder.unit)

@@ -194,4 +194,15 @@ set_option linter.hashCommand false in
 #guard let word := encTree Bool encBool (.fork .empty false .empty true .empty);
   (treeCodec.decode (word.take (word.length - 3))).isNone
 
+namespace BinderHygiene
+
+-- Uniform parameters may use the generator's customary operand and resource-binder names.
+enc_inductive encCollision (x0 : ℕ) (γ : ℕ) (encIn : ℕ) : Term (x0 + γ + encIn) where
+  | const : encIntBin
+  | var : (encFinEnum (Fin (x0 + γ + encIn)))
+  | add : _, _
+  | mul : _, _
+
+end BinderHygiene
+
 end CslibFrontierTests.RecursiveInductiveEncoding
