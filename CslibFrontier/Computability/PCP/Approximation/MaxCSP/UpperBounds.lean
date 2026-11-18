@@ -38,8 +38,10 @@ Exercises 9.24 and 9.25 (printed p. 452). Its `gapCSP^Σ_τ`, for `τ : ℕ → 
 edge a constraint `Σ² → {0, 1}`. The yes-instances satisfy `vlt(G, Φ) = 0`. The no-instances
 satisfy `vlt(G, Φ) ≥ τ(|E|)`, where `vlt` is the least proportion of violated constraints over all
 assignments `V → Σ`. Here, an instance is a `Graph (Σ → Σ → Bool)`. `vlt` is
-`(g.toGraph id).unsatVal`, which equals the minimum over labellings of the declared vertices
-(`Cslib.PCP.Encoded.Graph.unsatVal_toFiniteGraph`). Edges are counted with multiplicity.
+`(g.toGraph id).unsatVal`. For a well-formed graph (`g.WellFormed`) over a nonempty alphabet, this
+equals the minimum over labellings of the declared vertices
+(`Cslib.PCP.Encoded.Graph.unsatVal_toFiniteGraph`). Exercise 9.24 also admits malformed graphs, so
+there `unsatVal` is only used through its definition. Edges are counted with multiplicity.
 `GapTwoCSP Σ (1 - c)` is `gapCSP^Σ_c` for a constant `c`. Its value is `1 - vlt`, and its
 soundness `1 - c`.
 
@@ -96,11 +98,14 @@ as no-instances. This is Goldreich's `gapCSP^α_c`, and a polynomial-time verifi
 randomness and constantly many queries decides it.
 
 Restricting to well-formed graphs (`Cslib.PCP.Encoded.Graph.WellFormed`, every endpoint a declared
-vertex) is the source's `G = (V, E)`. The verifier is the one of the guideline. It samples edges
-and reads the labels of both endpoints from a proof that writes one fixed-width block per
-vertex. To bring the soundness error to one half, the check is repeated a constant number of times
-that depends on `c`. Nonemptiness of `α` is implicit in the source, whose `vlt` is a minimum over
-the assignments `V → α`. -/
+vertex) is the source's `G = (V, E)`. The verifier is the one of the guideline. Each round draws
+an index from a power-of-two range of fair bits; an index below the number of edges selects that
+edge, and the remaining padding indices accept (with three edges, one of the four indices is
+padding). It then reads the two endpoint labels, each a one-hot block of width `|α|` in a proof
+with one block per vertex, so a round makes `2 |α|` queries. On a no-instance a round rejects
+with probability at least `c / 2`, and a constant number of rounds, depending on `c`, brings the
+soundness error to one half. Nonemptiness of `α` is implicit in the source, whose `vlt` is a
+minimum over the assignments `V → α`. -/
 theorem GapTwoCSP_restrict_mem_PromisePCP {α : Type} [Fintype α] [Nonempty α] {c : ℝ}
     (hc : 0 < c) :
     (GapTwoCSP α (1 - c)).restrict {g | g.WellFormed} ∈
