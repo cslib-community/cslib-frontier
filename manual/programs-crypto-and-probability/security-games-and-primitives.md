@@ -2551,9 +2551,10 @@ proves that semantic security gives security against message recovery ([bs23][bs
 Game 2.2, p. 18; Theorem 2.7, p. 19). For `E : Cipher K M C` with `M` finite and nonempty,
 `messageRecoveryAdvantage E sampleKey A` is `|Pr[W] - 1 / |M||`, and
 `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction` equates it with the one-time
-advantage of `messageRecoveryReduction` when `valid` admits every pair. For a
-`DEMOneTimeKeyWordINDCPA` cipher with messages in `{0, 1}^{msgLen n}`,
-`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` shows that
+advantage of `messageRecoveryReduction` when `valid` admits every pair. For a cipher with message
+space `{0, 1}^{msgLen n}` that is semantically secure on that space (`DEMOneTimeKeyINDCPAOn` for
+the challenge pairs of two `msgLen n`-bit messages),
+`DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage` shows that
 `messageRecoveryWordAdvantage` is negligible for every PPT `A` whose outputs have length
 `msgLen n`, when `msgLen` is polynomial-time computable in unary;
 `isPPT_messageRecoveryWordToDEMAdversary` certifies the reduction. The
