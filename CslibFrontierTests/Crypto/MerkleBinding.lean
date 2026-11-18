@@ -17,7 +17,9 @@ pair of child labels posing as a leaf one level up. Under a toy XOR hash, which
 reads only a prefix of its input, an honest path also opens a position to a wrong leaf; this
 binding break yields a collision through the reduction. Under a hash that ignores its message, an
 efficient adversary breaks position binding at every parameter, so `MerklePositionBinding` is not
-vacuous.
+vacuous. Finally, `merkleVerify` accepts path labels that are not digests, and a binding break
+with one-bit leaves and such labels yields a collision outside the leaf and child-pair domain of
+[BonehShoup2023], Section 8.9.
 -/
 
 namespace CslibFrontierTests.Crypto.MerkleBinding
@@ -151,13 +153,40 @@ theorem not_merklePositionBinding_constHash : ¬ MerklePositionBinding constHash
   exact not_negligible_const one_ne_zero
     (negligible_of_le (h.negligible constBreaker isPPT_constBreaker) hwin)
 
+/-! ### Path labels are not checked to be digests -/
+
+/-- A toy hash with digests of the key's length: it returns words of the key's length and maps
+every other word to zeros. -/
+def keyLengthHash (k x : List Bool) : List Bool :=
+  if x.length = k.length then x else List.replicate k.length false
+
+/-- Under the one-bit key `[true]`, position `0` of a depth-one tree opened to the one-bit leaves
+`[false]` and `[true]`, each with the two-bit label `[true, true]`. -/
+abbrev labelBreak : MerkleBindingOutput :=
+  { root := [false], position := 0, first := ⟨[false], [[true, true]]⟩,
+    second := ⟨[true], [[true, true]]⟩ }
+
+-- Both openings are accepted although their label is not a one-bit digest.
+example : merkleBreaksBinding keyLengthHash [true] labelBreak = true := by decide
+
+-- The reduction extracts the two root inputs, five-bit words: neither a one-bit leaf nor a pair
+-- of one-bit digests, which has `3 * 1 + 1 = 4` bits. So it is not a collision on the leaf and
+-- child-pair domain of [BonehShoup2023], Section 8.9.
+example : extractMerkleCollision keyLengthHash [true] [false] [true] 0 [[true, true]]
+    [[true, true]] =
+      (encPair encBits encBits ([false], [true, true]),
+        encPair encBits encBits ([true], [true, true])) := by decide
+
+example : (encPair encBits encBits ([false], [true, true])).length = 5 ∧
+    (encPair encBits encBits ([true], [true, true])).length = 5 := by decide
+
 -- Compression families give position-binding Merkle trees and PPT collision finders
 -- through Merkle–Damgård.
 example {h : List Bool → List Bool → List Bool} (hh : CompressionFamily h) :
     MerklePositionBinding (merkleDamgard h) ∧
       IsPPT (encPair encBits encBits)
         (merkleCollisionFinder (merkleDamgard h) constBreaker) :=
-  ⟨hh.hashFamily_merkleDamgard.merklePositionBinding,
+  ⟨merklePositionBinding_of_hashFamily hh.hashFamily_merkleDamgard,
     isPPT_merkleCollisionFinder hh.hashFamily_merkleDamgard.polyTime
       hh.hashFamily_merkleDamgard.length_eq isPPT_constBreaker⟩
 
