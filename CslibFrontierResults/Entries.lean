@@ -10,6 +10,8 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
+import CslibFrontier.Probability.PairwiseIndependentHash.Retention
+import CslibFrontier.Probability.SmallBias.Code
 import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
@@ -143,6 +145,7 @@ import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialL
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
+import CslibFrontier.Computability.Complexity.Classes.Time.LasVegas
 import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -171,6 +174,7 @@ import CslibFrontier.Computability.Complexity.Problems.Primes
 import CslibFrontier.Computability.Complexity.Problems.TMSAT
 import CslibFrontier.Computability.Complexity.Problems.ThreeExactCover
 import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
+import CslibFrontier.Computability.Complexity.Problems.XSAT
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Nonnegative
 import CslibFrontier.Computability.Kolmogorov.Incompleteness
@@ -196,7 +200,9 @@ import CslibFrontier.Computability.MCSP.MultiNPHard
 import CslibFrontier.Computability.MCSP.PartialETH
 import CslibFrontier.Computability.MCSP.PartialHardness.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 import CslibFrontier.Computability.PCP.Approximation.FGLSS
+import CslibFrontier.Computability.PCP.Approximation.GapLin
 import CslibFrontier.Computability.PCP.Approximation.MaxCSP.UpperBounds
 import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 import CslibFrontier.Computability.PCP.Completeness
@@ -9761,3 +9767,101 @@ register_result "rsa-half-predicate-inversion" where
     and polynomial-time recovery are explicit. \
     RSAOneWay.not_frequently_alwaysCorrect_halfPredictor, in the same module, is a hardness \
     corollary that is not part of the exercise and is not listed."
+
+register_result "arora-barak-expected-time-zpp" where
+  title := "Expected-polynomial-time zero-error computation equals RP ∩ coRP"
+  topic := "randomized complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Theorem 7.8",
+      locator := "Section 7.3 (printed p. 121, PDF p. 137)" }
+  ]
+  theorems := [Cslib.Complexity.iUnion_ZTIME_pow_eq_RP_inter_coRP]
+  scope := "The draft defines ZPP as the union of expected-time classes ZTIME(n^d). \
+    The Lean class uses one closed fair-coin machine, almost-sure termination with the correct \
+    answer, and polynomial expected runtime in the encoded input length. \
+    Arbitrary injective input encodings. Outside check: PR #6144, review 5938376225."
+
+register_result "goldreich-xsat-promise-np-conp" where
+  title := "xSAT belongs to both promise-NP and promise-coNP"
+  topic := "promise problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.36(1)",
+      locator := "Chapter 2 (printed p. 114, PDF p. 139)" }
+  ]
+  theorems := [Cslib.Complexity.xSAT_mem_PromiseNP_inter_promiseClass_coNP]
+  scope := "Pairs of CNFs under encPair encCNF encCNF. The promise is that exactly one \
+    formula is satisfiable, and the yes case is when it is the first. Each promise class \
+    requires a separating language in the corresponding ordinary class. \
+    Outside check: PR #6169, review 5939821895."
+
+register_result "goldreich-pairwise-independent-hitting" where
+  title := "Pairwise independent samples hit dense sets"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.23",
+      locator := "Chapter 7 (printed p. 310, PDF p. 46)" }
+  ]
+  theorems := [
+    Cslib.Probability.IsPairwiseIndependentHash.min_mul_div_two_le_dens_filter_exists_apply_mem,
+    Cslib.Probability.IsPairwiseIndependentHash.three_quarters_mul_le_dens_filter_exists_apply_mem
+  ]
+  scope := "For a uniform finite seed, any m distinct positions with uniform pairwise \
+    independent outputs and any target of density p, the probability of at least one hit is \
+    at least min(m p, 1)/2, and at least 3 m p/4 when 2 m p ≤ 1. \
+    Outside check: PR #6152, review 5938810997."
+
+register_result "goldreich-small-bias-linear-codes" where
+  title := "Small-bias sample spaces correspond to balanced binary linear codes"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.41",
+      locator := "Chapter 8 (printed pp. 380–381, PDF pp. 116–117)" }
+  ]
+  theorems := [
+    Cslib.BitString.sampleCode_ofCode,
+    Cslib.BitString.sampleCode_injective,
+    Cslib.BitString.isSmallBias_map_iff_hammingDist_sampleCode
+  ]
+  scope := "The linear encoding maps a message to its parity against each sample. For any \
+    nonempty finite seed set of size N, ε-bias of the uniform seed's output is equivalent to \
+    distances between the encodings of distinct messages lying in [(1−ε)N/2, (1+ε)N/2]. \
+    The statement concerns the output distribution. Outside check: PR #6167, review 5939796761."
+
+register_result "goldreich-ip-cook-reduction" where
+  title := "IP is closed under polynomial-time Cook reductions"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.2(2)",
+      locator := "Chapter 9 (printed p. 445, PDF p. 63)" }
+  ]
+  theorems := [Cslib.Complexity.PolyTimeTuringReducible.mem_IP]
+  scope := "Adaptive polynomial-time Turing reductions to a bitstring language in IP. \
+    The complement-membership hypothesis in the exercise is redundant. Lean uses \
+    completeness 2/3 and soundness 1/3, equivalent to the perfectly complete class. \
+    Outside check: PR #6158, review 5939165280."
+
+register_result "goldreich-gap-linear-equations-np-hard" where
+  title := "Approximating the maximum satisfied fraction of binary linear equations is NP-hard"
+  topic := "hardness of approximation"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 10.5",
+      locator := "Chapter 10 (printed p. 496, PDF p. 114)" }
+  ]
+  theorems := [Cslib.Complexity.exists_GapLin_npHard, Cslib.Complexity.GapLin_npHard]
+  scope := "For some constants 1/2 < s < L < 1, distinguishing systems over GF(2) with \
+    optimum at least L from those with optimum strictly below s is NP-hard under \
+    polynomial-time many-one reductions. The concrete witness has L = 4/7 and \
+    s = (4/7)(1 − 1/(6·2^77)). Equations count with multiplicity under XORSAT.encoding. \
+    Outside check: PR #6157, review 5939142909."
+
+register_result "goldreich-countably-many-computable-functions" where
+  title := "There are only countably many computable bitstring functions"
+  topic := "computability"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Theorem 1.4",
+      locator := "Section 1.2.3 (printed p. 29, PDF p. 54)" }
+  ]
+  theorems := [Turing.MultiTapeTM.countable_setOf_isComputable_and_mk_eq_continuum]
+  scope := "Total functions from bit strings to bit strings. The functions computable by a \
+    native deterministic multitape Turing machine form a countable set, while the set of all \
+    such functions has cardinality continuum. Outside check: PR #6080, review 5935290068."
