@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Leaf
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual leaf iteration of the explicit Strassen controller
@@ -55,7 +56,7 @@ theorem exec_step_leaf {w p A B : ℕ} (x : Data 64) (u v : ℕ → ℤ)
         y.regs i = x.regs i := by
   obtain ⟨s, hs, hm, hr⟩ := exec_loadCurrent x h1 hptr hframe
   obtain ⟨y, hy, values, frame, hyf, hya, hyr⟩ := exec_leaf s u v
-    ((hr Reg.modulus (by decide)).trans hlen) hbound hu hv
+    (by regs_frame) hbound hu hv
     (by simpa only [hm, hr Reg.inputA (by decide)] using hA)
     (by simpa only [hm, hr Reg.inputB (by decide)] using hB) h2p
     (by simpa only [hr Reg.inputA (by decide)] using ha)
@@ -63,7 +64,7 @@ theorem exec_step_leaf {w p A B : ℕ} (x : Data 64) (u v : ℕ → ℤ)
     (by simpa only [hr Reg.output (by decide)] using hout)
     (by simpa only [hr Reg.inputA (by decide), hr Reg.output (by decide)] using hdisjA)
     (by simpa only [hr Reg.inputB (by decide), hr Reg.output (by decide)] using hdisjB)
-    ((hr Reg.frameWidth (by decide)).trans h7)
+    (by regs_frame)
     (by rw [hr Reg.frame (by decide)]; exact hptr.of_le (by omega))
   have he : ExecWithin (w + 2) step x y (42 * p * p + 9 * p + 26) := by
     have hc : (Cond.eq Reg.depth Reg.zero).Holds s := by

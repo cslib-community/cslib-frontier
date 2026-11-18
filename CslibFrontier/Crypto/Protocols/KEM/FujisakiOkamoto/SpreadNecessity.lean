@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.ToReal
 
@@ -263,8 +264,7 @@ theorem eval_simBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (m₀ 
   let S := unspreadScheme P m₀ sampleMsg sampleKey
   change ProbComp.eval (S.simBotGame probeDecapsAdv b) = PMF.pure false
   dsimp only [Scheme.simBotGame, Scheme.simFilterGame, probeDecapsAdv]
-  simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [interp_norm, ProbComp.eval_bind, ProbComp.eval_pure]
   rw [← PMF.bind_const (ProbComp.eval S.pke.keyGen) (PMF.pure false)]
   congr 1 with ⟨pk, sk⟩ : 1
   rw [← PMF.bind_const (ProbComp.eval S.sampleMsg) (PMF.pure false)]
@@ -302,8 +302,7 @@ theorem eval_roIndCcaBotGame_probeDecapsAdv (P : ExplicitCoinPKE PK SK M R CT) (
   change ProbComp.eval (S.roIndCcaBotGame probeDecapsAdv b) =
     (ProbComp.eval S.sampleMsg).map (fun mStar => decide (mStar ≠ m₀))
   dsimp only [Scheme.roIndCcaBotGame, probeDecapsAdv]
-  simp only [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, pmf_norm]
+  simp only [interp_norm, pmf_norm]
   rw [← PMF.bind_const (ProbComp.eval S.pke.keyGen)
     ((ProbComp.eval S.sampleMsg).map (fun mStar => decide (mStar ≠ m₀)))]
   congr 1 with ⟨pk, sk⟩ : 1

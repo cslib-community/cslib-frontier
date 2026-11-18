@@ -28,7 +28,7 @@ run_cmd do
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.AttachmentLabels,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BinaryAttachment,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BinaryMeet,
-     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryAppend,
+     `CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryAppendAcceptance,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryIdentify,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryTransport,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.ConstraintJoin,

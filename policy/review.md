@@ -60,9 +60,10 @@ orâ€”when the conditional statement is a useful, non-vacuous intermediate stepâ€
 [Faithful headlines](statements.md#faithful-headlines): such a helper is permitted provided the published
 theorem stays open and the helper never occupies its name, PR title or
 [results inventory](../results/README.md) entry. Also check that the change removes or demotes any
-stand-in it supersedes (rule 4). In `Cslib.Crypto`, `scripts/check_security_premises.py`
-supplements this gate on elaborated premise shapes ([Security theorems](statements.md#security-theorems)),
-without replacing semantic review.
+stand-in it supersedes (rule 4). In `Cslib.Crypto`, read what the advisory reports of
+`scripts/check_security_premises.py` and `scripts/check_reduction_witnesses.py` print for the
+changed modules ([Security theorems](statements.md#security-theorems)): each item is a prompt to
+open a statement, a baseline entry does not clear one, and a clean report is not evidence.
 
 **Ask what should not exist.** For each new public declaration, definition, file and test, ask
 whether the library is better with it ([taste.md](taste.md)). Is it used by a caller in this PR, by
@@ -82,15 +83,28 @@ output is close to the real view) and whether this PR proves it. Unfoldings, `rf
 listed under "Main results". If the property is missing, request it, or have the PR title, body
 and module documentation say plainly that the change provides definitions only.
 
+**Read the statement before the prose, and open what it names.** For each headline, first read the
+Lean statement without its docstring and say what it proves; open the games, schemes and
+predicates it mentions, since a clean list of hypotheses can sit on a game that samples ideally or
+a scheme that is a stand-in. Then read the docstring. An unresolved gap the docstring admits is
+still a finding: it is tracked by an issue or a baseline entry and shows in the name
+([taste.md](taste.md#a-stated-limitation-is-tracked)), or the review asks for that. A source's own
+hypothesis or a deliberate model boundary is not a gap.
+
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
 checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the
-definitions the statement rests on, and records the check in a comment that says who made it,
-what was read, which deviations were accepted and what was not checked. An agent's check says
-that it is an agent's and is never presented as a human one. The check is a step of its own,
-separate from the ordinary independent review, which is still required. A maintainer may require
-a human check for entries from their own fleet by saying so on the entry's PR or tracking issue;
-that requirement then holds for those entries.
+definitions the statement names, as the step "Read the statement before the prose, and open what
+it names" asks of every headline, and records the check in a comment that says who made it, what
+was read, which deviations were accepted and what was not checked. The comment answers each point
+listed under
+[The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
+and the affected points are checked again, as a delta, when the statement or a definition it names
+changes in meaning. A headline for a cited result is registered after this check, or is presented
+as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
+human one. The check is a step of its own, separate from the ordinary independent review, which
+is still required. A maintainer may require a human check for entries from their own fleet by
+saying so on the entry's PR or tracking issue; that requirement then holds for those entries.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both

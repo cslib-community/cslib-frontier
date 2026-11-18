@@ -13,12 +13,12 @@ public import Mathlib.Analysis.InnerProductSpace.Basic
 /-!
 # The CHSH inequality for vectors
 
-For vectors `u₀, u₁, v₀, v₁` of norm at most `1` in an inner product space,
+For vectors `u₀, u₁, v₀, v₁` of norm at most `1` in a (semi-)inner product space,
 `Re⟨u₀, v₀⟩ + Re⟨u₀, v₁⟩ + Re⟨u₁, v₀⟩ - Re⟨u₁, v₁⟩ ≤ 2√2` (`chsh_re_inner_le`). The first two terms
 are at most `‖v₀ + v₁‖` and the last two at most `‖v₀ - v₁‖` by Cauchy–Schwarz, and the
 parallelogram law bounds `‖v₀ + v₁‖ + ‖v₀ - v₁‖` by `2√2`. Applied to the vectors `(A_x ⊗ 1) ψ`
-and `(1 ⊗ B_y) ψ` of a quantum strategy, this is Tsirelson's inequality
-[Cirel'son][Cirelson1980].
+and `(1 ⊗ B_y) ψ` of a quantum strategy, or to the observables themselves in the GNS
+pre-inner product space of a state, this is Tsirelson's inequality [Cirel'son][Cirelson1980].
 
 Mathlib's `tsirelson_inequality` (`Mathlib.Algebra.Star.CHSH`) is the operator form of the same
 bound, for a CHSH tuple of self-adjoint involutions in an ordered `*`-algebra.
@@ -36,7 +36,8 @@ public section
 
 /-- The **CHSH inequality for vectors**: for vectors `u₀, u₁, v₀, v₁` of norm at most `1` in an
 inner product space, `Re⟨u₀,v₀⟩ + Re⟨u₀,v₁⟩ + Re⟨u₁,v₀⟩ - Re⟨u₁,v₁⟩ ≤ 2√2`. -/
-theorem chsh_re_inner_le {𝕜 E : Type*} [RCLike 𝕜] [NormedAddCommGroup E] [InnerProductSpace 𝕜 E]
+theorem chsh_re_inner_le {𝕜 E : Type*} [RCLike 𝕜] [SeminormedAddCommGroup E]
+    [InnerProductSpace 𝕜 E]
     {u₀ u₁ v₀ v₁ : E} (hu₀ : ‖u₀‖ ≤ 1) (hu₁ : ‖u₁‖ ≤ 1) (hv₀ : ‖v₀‖ ≤ 1) (hv₁ : ‖v₁‖ ≤ 1) :
     RCLike.re (inner 𝕜 u₀ v₀) + RCLike.re (inner 𝕜 u₀ v₁) + RCLike.re (inner 𝕜 u₁ v₀) -
       RCLike.re (inner 𝕜 u₁ v₁) ≤ 2 * √2 := by
