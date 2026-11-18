@@ -7,7 +7,9 @@ Authors: Erik Demaine
 module
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryDeletion
+public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.AtomBoundary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import Mathlib.Data.List.Rotate
 
 /-!
@@ -88,5 +90,106 @@ example : (closedStar.rotateCons (by decide)).certificate.successor = [0, 3, 2, 
 
 example (σ : ℕ → Bool) :
     Cslib.Logic.PL.CSP.eval (fun _ _ => false) σ ([⟨(), []⟩] : CSP Unit ℕ) = false := rfl
+
+-- State-level clients retain the earlier static and numeric tests above unchanged.
+open CrossInsertion Turing.MultiTapeTM
+
+private def atomState : State Unit :=
+  ⟨[⟨(), [0, 1, 2]⟩], [0, 1, 2], atomSource.certificate⟩
+
+example : (rotateLeft atomState).Accepted :=
+  accepted_rotateLeft atomState ⟨by decide, atomSource.accepted⟩
+
+example : (rotateLeft atomState).ports = [1, 2, 0] ∧
+    (rotateLeft atomState).body = atomState.body ∧
+    (rotateLeft atomState).rotation.successor = [6, 3, 10, 5, 8, 1, 0, 9, 4, 11, 2, 7] := by
+  decide +kernel
+
+private def closedState : State Unit :=
+  ⟨[⟨(), []⟩], [10, 20, 30], closedStar.certificate⟩
+
+example : (rotateLeft closedState).Accepted :=
+  accepted_rotateLeft closedState ⟨by decide, closedStar.accepted⟩
+
+example : (rotateLeft closedState).ports = [20, 30, 10] ∧
+    (rotateLeft closedState).ports ≠ [30, 10, 20] ∧
+    (rotateLeft closedState).rotation.successor = [0, 3, 2, 5, 4, 1] := by
+  decide +kernel
+
+example (σ : ℕ → Bool) :
+    (rotateLeft closedState).body.eval (fun _ _ => false) σ = false := by
+  rw [eval_rotateLeft]
+  rfl
+
+-- Short raw states preserve the complete malformed/surplus input, not just its fields' sizes.
+example : rotateLeft (⟨[⟨(), []⟩], [], ⟨[2 ^ 300, 7, 9]⟩⟩ : State Unit) =
+    ⟨[⟨(), []⟩], [], ⟨[2 ^ 300, 7, 9]⟩⟩ := rfl
+
+example : rotateLeft (⟨[⟨(), []⟩], [2 ^ 250], ⟨[2 ^ 300, 7, 9]⟩⟩ : State Unit) =
+    ⟨[⟨(), []⟩], [2 ^ 250], ⟨[2 ^ 300, 7, 9]⟩⟩ := rfl
+
+example : (rotateLeft (⟨[], [17, 5], ⟨[]⟩⟩ : State Unit)).rotation.successor =
+    [2, 2, 2, 2] := by decide +kernel
+
+example : (rotateLeft (⟨[], [17, 5, 7], ⟨[]⟩⟩ : State Unit)).rotation.successor =
+    [2, 2, 2, 2, 2, 2] ∧
+    (rotateLeft (⟨[], [17, 5, 7], ⟨[]⟩⟩ : State Unit)).rotation.successor ≠
+      [4, 4, 4, 4, 4, 4] := by decide +kernel
+
+example : (rotateLeft (⟨[⟨(), [17]⟩], [17, 5], ⟨[]⟩⟩ : State Unit)).rotation.successor =
+    [0, 0, 0, 0, 0, 0] := by decide +kernel
+
+private def malformedState : State Unit :=
+  ⟨[⟨(), [2 ^ 250, 2 ^ 250]⟩, ⟨(), []⟩], [2 ^ 250, 7, 2 ^ 250], ⟨[2 ^ 300]⟩⟩
+
+example : ¬malformedState.Accepted := by decide +kernel
+
+example : (rotateLeft malformedState).body = malformedState.body ∧
+    (rotateLeft malformedState).ports = [7, 2 ^ 250, 2 ^ 250] ∧
+    (rotateLeft malformedState).rotation.successor =
+      [2 ^ 300, 0, 0, 0, 0, 0, 0, 0, 0, 0] := by decide +kernel
+
+-- Existential transport is nonvacuous even with repeated raw names and a rejected table.
+example : ∃ σ : ℕ → Bool,
+    (rotateLeft (⟨[], [5, 5, 9], ⟨[2 ^ 300]⟩⟩ : State Unit)).body.eval
+      (fun _ _ => true) σ = true ∧
+    (rotateLeft (⟨[], [5, 5, 9], ⟨[2 ^ 300]⟩⟩ : State Unit)).ports.map σ =
+      [true, false, true] := by
+  have h := (boundary_rotateLeft_iff (fun _ _ => true)
+    (⟨[], [5, 5, 9], ⟨[2 ^ 300]⟩⟩ : State Unit) [true, true, false]).mpr
+    ⟨fun z => decide (z = 5), rfl, by decide +kernel⟩
+  simpa only [List.rotate_cons_succ, List.rotate_zero] using h
+
+example : ¬∃ σ : ℕ → Bool,
+    (rotateLeft (⟨[], [5, 5, 9], ⟨[]⟩⟩ : State Unit)).ports.map σ =
+      [false, false, true] := by
+  rintro ⟨σ, h⟩
+  change [σ 5, σ 9, σ 5] = [false, false, true] at h
+  have hfirst := (List.cons.inj h).1
+  have hlast := (List.cons.inj (List.cons.inj (List.cons.inj h).2).2).1
+  cases hfirst.symm.trans hlast
+
+-- Plain all-raw certificates compose through generated field projections, with no Finite Rel.
+example {Rel : Type} (encRel : Rel ↪ List Bool) :
+    ComputableInPolyTime (fun I : State Rel => (rotateLeft I).rotation.successor)
+      (encState encRel) (encList encNat) :=
+  Graph.RotationCertificate.computableInPolyTime_successor.comp
+    (encState_rotation_polyTime encRel (computableInPolyTime_rotateLeft encRel))
+
+-- Varying raw boundary lengths fund the clock, even with a fixed huge malformed table.
+example : ComputableInPolyTime (fun ports : List ℕ =>
+      rotateLeft (⟨[⟨(), []⟩], ports, ⟨[2 ^ 300]⟩⟩ : State Unit))
+      (encList encNat) (encState encUnit) :=
+  (computableInPolyTime_rotateLeft encUnit).comp
+    (encState_mk_polyTime encUnit (ComputableInPolyTime.const ([⟨(), []⟩] : CSP Unit ℕ))
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.const (⟨[2 ^ 300]⟩ : Graph.RotationCertificate)))
+
+-- The existing domain encoding and its generated projections remain directly usable.
+example {Rel : Type} (encRel : Rel ↪ List Bool) (I : State Rel) :
+    encState encRel (rotateLeft I) =
+      encPair (encCSP encRel encNat)
+        (encPair (encList encNat) Graph.encRotationCertificate)
+        ((rotateLeft I).body, (rotateLeft I).ports, (rotateLeft I).rotation) := rfl
 
 end CslibFrontierTests.CSPBoundaryRotation
