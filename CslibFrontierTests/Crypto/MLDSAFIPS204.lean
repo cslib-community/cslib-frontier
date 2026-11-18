@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -255,13 +256,33 @@ private def signingProbe (q : SigningQuery) : QuantumSigningForger where
       (Sum.inr q)
     return ⟨[], [answer.isNone], []⟩
 
+-- Every candidate byte exceeds Algorithm 29's initial acceptance threshold 217 at ML-DSA-44.
+private theorem allOnesExhausts (other : ExtendableOutput) (d : List Byte) :
+    (Xofs.mk other allOnesXof).sampleInBall .mlDSA44 d = none := by
+  have rejected (n : ℕ) : ChallengeRow.parse 217 39 (List.replicate n 255) = none := by
+    induction n with
+    | zero => rw [List.replicate_zero, ChallengeRow.parse]
+    | succ n ih =>
+      rw [List.replicate_succ, ChallengeRow.parse, dite_eq_left (by decide), ih]
+      rfl
+  unfold Xofs.sampleInBall sampleInBallBytes
+  change (ChallengeRow.parse 217 39 (List.replicate 213 255)).bind _ = none
+  rw [rejected]
+  rfl
+
 -- Every digest on the all-255 stream exhausts Algorithm 29, independently of the public pair.
 private theorem fatalDraw (other : ExtendableOutput) (pair : MLDSA.PublicKey Level.mlDSA44.params) :
     publicDraw .mlDSA44 pair ⟨other, allOnesXof⟩ =
       (PMF.uniformOfFintype (FixedBytes (digestBytes .mlDSA44))).bind fun d =>
       (signingMaskLaw Level.mlDSA44.params (by decide)).bind fun y =>
         PMF.pure (some ⟨highBitsVec Level.mlDSA44.params (moduleSISMap pair.A y), d, none,
-          fun _ => rfl, by simp⟩) := by rfl
+          fun _ => allOnesExhausts other d.toList, by simp⟩) := by
+  unfold publicDraw draw
+  congr 1
+  funext d
+  split
+  · rfl
+  · next h => simp [allOnesExhausts] at h
 
 example (other : ExtendableOutput) (rho : FixedBytes 32)
     (pair : MLDSA.PublicKey Level.mlDSA44.params) :
