@@ -130,9 +130,12 @@ theorem heapifyDownF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fi
       · rename_i hlt
         rw [heapifyDown_eq_of_not_lt_child hj hlt]
 
-/-- **Insertion** by structural recursion. -/
-def insertF (heap : BinaryHeap α) (x : α) : BinaryHeap α where
-  arr := heapifyUpF (heap.size + 1) (heap.vector.push x) ⟨_, Nat.lt_succ_self _⟩ |>.toArray
+/-- **Insertion** by structural recursion. The size is read before the push, so that the array is
+updated in place when the heap is not shared. -/
+def insertF (heap : BinaryHeap α) (x : α) : BinaryHeap α :=
+  let n := heap.size
+  let v := heap.vector.push x
+  ⟨heapifyUpF (n + 1) v ⟨n, Nat.lt_succ_self _⟩ |>.toArray⟩
 
 theorem insertF_eq (heap : BinaryHeap α) (x : α) : heap.insertF x = heap.insert x := by
   simp only [insertF, insert]
@@ -143,19 +146,21 @@ def popMaxF (heap : BinaryHeap α) : BinaryHeap α :=
   if h0 : heap.size = 0 then heap else
     have hs : heap.size - 1 < heap.size := Nat.pred_lt h0
     have h0 : 0 < heap.size := Nat.zero_lt_of_ne_zero h0
+    -- the size is read before the swap, so that the array is updated in place
+    let n := heap.size
     let v := heap.vector.swap _ _ h0 hs |>.pop
-    if h : 0 < heap.size - 1 then
-      ⟨heapifyDownF heap.size v ⟨0, h⟩ |>.toArray⟩
+    if h : 0 < n - 1 then
+      ⟨heapifyDownF n v ⟨0, h⟩ |>.toArray⟩
     else
       ⟨v.toArray⟩
 
 theorem popMaxF_eq (heap : BinaryHeap α) : heap.popMaxF = heap.popMax := by
   unfold popMaxF popMax
+  dsimp only
   split
   · rfl
   · split
-    · simp only
-      rw [heapifyDownF_eq heap.size _ _ (by simp only [size] at *; omega)]
+    · rw [heapifyDownF_eq heap.size _ _ (by simp only [size] at *; omega)]
     · rfl
 
 /-- The maximum is the first element. -/

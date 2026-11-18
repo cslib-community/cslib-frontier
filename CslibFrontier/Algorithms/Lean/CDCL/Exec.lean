@@ -204,41 +204,33 @@ theorem Reasons.lt_next {log : LRATLog φ} {M : XTrail} (h : Reasons log M) :
     · exact ih r' h'
 
 /-- Deleting clauses other than the reasons keeps the reasons. -/
-theorem Reasons.delete {log : LRATLog φ} {ids : List ℕ} {M : XTrail} (h : Reasons log M)
-    (hids : ∀ r ∈ XTrail.reasonIds M, r ∉ ids) : Reasons (log.delete ids) M := by
+theorem Reasons.deleteWith {log : LRATLog φ} {ids : List ℕ} {db' : List (ℕ × Clause ℕ)}
+    {hdb : db' = log.db.filter fun e => !ids.contains e.1} {M : XTrail} (h : Reasons log M)
+    (hids : ∀ r ∈ XTrail.reasonIds M, r ∉ ids) : Reasons (log.deleteWith ids db' hdb) M := by
   induction h with
   | nil => exact .nil
   | decision l _ ih => exact .decision l (ih (by simpa using hids))
   | implied l r _ hr hl hfalse ih =>
     have hr' : r ∉ ids := hids r (by simp)
     exact .implied l r (ih fun r' h' => hids r' (by simp [h']))
-      ((LRATLog.clause?_delete hr').trans hr) hl hfalse
+      ((LRATLog.clause?_deleteWith hr').trans hr) hl hfalse
 
-/-- **The resolvent of `c₁` and `c₂` on `v` without repeating the literals of `c₁`** in the part
-from `c₂`: the literals of `Clause.resolvent`, so that conflict analysis does not accumulate copies
-of a literal shared by the two premises. A literal repeated within one premise stays repeated. -/
-def mergeResolvent (c₁ c₂ : Clause ℕ) (v : ℕ) : Clause ℕ :=
-  let a := c₁.filter (· != (v, true))
-  a ++ c₂.filter fun y => y != (v, false) && !a.contains y
+/-- Deleting clauses other than the reasons keeps the reasons. -/
+theorem Reasons.delete {log : LRATLog φ} {ids : List ℕ} {M : XTrail} (h : Reasons log M)
+    (hids : ∀ r ∈ XTrail.reasonIds M, r ∉ ids) : Reasons (log.delete ids) M :=
+  h.deleteWith hids
+
+/-- **The resolvent of `c₁` and `c₂` on `v` without repeated literals**: the literals of
+`Clause.resolvent`, each once. Conflict analysis then does not accumulate copies of a literal,
+and every clause it adds to the certificate is free of repetitions, as LRAT checkers that count
+each copy of a literal (such as `lrat-check` of drat-trim) require. -/
+def mergeResolvent (c₁ c₂ : Clause ℕ) (v : ℕ) : Clause ℕ := dedupLits (c₁.resolvent c₂ v)
 
 theorem mem_mergeResolvent {c₁ c₂ : Clause ℕ} {v : ℕ} {y : Literal ℕ} :
-    y ∈ mergeResolvent c₁ c₂ v ↔ y ∈ c₁.resolvent c₂ v := by
-  rw [Clause.mem_resolvent]
-  simp only [mergeResolvent, List.mem_append, List.mem_filter, bne_iff_ne, ne_eq,
-    Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem, decide_eq_false_iff_not]
-  constructor
-  · rintro (h | ⟨h, hne, -⟩)
-    · exact .inl h
-    · exact .inr ⟨h, hne⟩
-  · rintro (h | ⟨h, hne⟩)
-    · exact .inl h
-    · by_cases ha : y ∈ c₁ ∧ ¬y = (v, true)
-      · exact .inl ha
-      · exact .inr ⟨h, hne, ha⟩
+    y ∈ mergeResolvent c₁ c₂ v ↔ y ∈ c₁.resolvent c₂ v := mem_dedupKey litKey_injective
 
 /-- The resolvent on the variable of `l` of a clause containing the negation of `l` and a clause
-containing `l`, as `Clause.resolvent` orders them, without a literal of the clause repeated from
-the reason (repetitions within one of them may remain). -/
+containing `l`, as `Clause.resolvent` orders them, without repeated literals. -/
 def resolveOn (l : Literal ℕ) (C R : Clause ℕ) : Clause ℕ :=
   if l.2 then mergeResolvent R C l.1 else mergeResolvent C R l.1
 
@@ -249,23 +241,27 @@ theorem mem_resolveOn {l y : Literal ℕ} {C R : Clause ℕ} (h : y ∈ resolveO
     rcases Clause.mem_resolvent.1 h with ⟨h, hne⟩ | ⟨h, hne⟩ <;>
     simp_all [Std.Sat.Literal.negate]
 
-/-- Adding to the log the resolvent of the clause numbered `i`, containing the negation of `l`, and
-the reason numbered `r` of `l`. -/
+/-- Adding to the log the resolvent `D` of the clause numbered `i`, containing the negation of `l`,
+and the reason numbered `r` of `l`, computed once by the caller. -/
 def resolveLog (log : LRATLog φ) (l : Literal ℕ) (i r : ℕ) (C R : Clause ℕ)
-    (hC : log.clause? i = some C) (hR : log.clause? r = some R) : LRATLog φ :=
-  if l.2 then log.addResolventAs r i l.1 R C hR hC (mergeResolvent R C l.1) fun _ =>
-    mem_mergeResolvent
-  else log.addResolventAs i r l.1 C R hC hR (mergeResolvent C R l.1) fun _ => mem_mergeResolvent
+    (hC : log.clause? i = some C) (hR : log.clause? r = some R) (D : Clause ℕ)
+    (hD : D = resolveOn l C R) : LRATLog φ :=
+  if h : l.2 then
+    log.addResolventAs r i l.1 R C hR hC D fun _ => by
+      rw [hD, resolveOn, ite_eq_left h, mem_mergeResolvent]
+  else
+    log.addResolventAs i r l.1 C R hC hR D fun _ => by
+      rw [hD, resolveOn, ite_eq_right h, mem_mergeResolvent]
 
 theorem resolveLog_spec {log : LRATLog φ} {l : Literal ℕ} {i r : ℕ} {C R : Clause ℕ}
-    (hC : log.clause? i = some C) (hR : log.clause? r = some R) :
-    (resolveLog log l i r C R hC hR).clause? log.next = some (resolveOn l C R) ∧
-      log.Extends (resolveLog log l i r C R hC hR) := by
-  cases hl : l.2
-  · simp only [resolveLog, resolveOn, hl, Bool.false_eq_true, ↓reduceIte]
-    exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
-  · simp only [resolveLog, resolveOn, hl, ↓reduceIte]
-    exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
+    (hC : log.clause? i = some C) (hR : log.clause? r = some R) {D : Clause ℕ}
+    (hD : D = resolveOn l C R) :
+    (resolveLog log l i r C R hC hR D hD).clause? log.next = some D ∧
+      log.Extends (resolveLog log l i r C R hC hR D hD) := by
+  unfold resolveLog
+  split
+  · exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
+  · exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
 
 /-- The negation is injective. -/
 theorem negate_inj {l l' : Literal ℕ} (h : l.negate = l'.negate) : l = l' := by
@@ -302,9 +298,12 @@ def refute : (T : XTrail) → (log : LRATLog φ) → (i : ℕ) → (C : Clause �
       have hT := hreasons.tail
       have hRfalse := (hreasons.reason hR).2
       if hmem : l.negate ∈ C then
-        let log' := resolveLog log l i r C R hC hR
-        have hspec := resolveLog_spec (l := l) hC hR
-        refute T log' log.next (resolveOn l C R) hspec.1 (hT.mono hspec.2)
+        -- the number is read and the resolvent computed before the log grows
+        let id := log.next
+        let D := resolveOn l C R
+        let log' := resolveLog log l i r C R hC hR D rfl
+        have hspec := resolveLog_spec (l := l) hC hR (D := D) rfl
+        refute T log' id D hspec.1 (hT.mono hspec.2)
           (fun x hx => hdec x (List.mem_cons_of_mem _ hx)) fun y hy => by
             rcases mem_resolveOn hy with ⟨hy, hne⟩ | ⟨hy, hne⟩
             · have := hfalse y hy
@@ -515,12 +514,13 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                 · exact absurd (negate_inj (by simpa [Std.Sat.Literal.negate] using h)) hne
                 · exact h
             if hmem : l.negate ∈ C then
-              let log' := resolveLog log l i r C R hC hR
-              have hspec := resolveLog_spec (l := l) hC hR
+              -- the number is read and the resolvent computed before the log grows
+              let id := log.next
+              let D := resolveOn l C R
+              let log' := resolveLog log l i r C R hC hR D rfl
+              have hspec := resolveLog_spec (l := l) hC hR (D := D) rfl
               let L' := analyze log₀ d M₀ A N' hA' (cur.unassign [l.1]) hcurA' log'
-                (hext.trans hspec.2) log.next
-                (resolveOn l C R)
-                hspec.1 (hT.mono hspec.2) hdec'
+                (hext.trans hspec.2) id D hspec.1 (hT.mono hspec.2) hdec'
                 (fun y hy => by
                   rcases mem_resolveOn hy with ⟨hy, hne⟩ | ⟨hy, hne⟩
                   · exact hfalse' y hy hne
@@ -886,10 +886,11 @@ abbrev Exec.LearnedAt (S : Exec φ) (sp : Split) : Type :=
 
 /-- The numbers of the intermediate resolvents of an analysis: the numbers from `n` to below `next`
 other than `id`, the learned clause's. -/
-def resolventIds (n next id : ℕ) : List ℕ := (List.range' n (next - n)).filter (· != id)
+abbrev resolventIds (n next id : ℕ) : List ℕ := LRATLog.recentIds n next id
 
 theorem mem_resolventIds {n next id i : ℕ} (h : i ∈ resolventIds n next id) : n ≤ i ∧ i ≠ id := by
-  simp only [resolventIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq] at h
+  simp only [resolventIds, LRATLog.recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne,
+    ne_eq] at h
   exact ⟨h.1.1, h.2⟩
 
 /-- Walking down the trail for `XTrail.dropLevels`: `acc` holds the entries of the current level
@@ -1047,7 +1048,7 @@ theorem Exec.jump_kept {S : Exec φ} (sp : Split) {marked : ℕ → Bool} :
 the learned clause, the intermediate resolvents deleted from the log. -/
 def Exec.afterConflictWith {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) (K : XTrail) : Exec φ :=
   ⟨.implied L.lit L.id :: K, (L.id, L.clause) :: S.db,
-    L.log.delete (resolventIds S.log.next L.log.next L.id)⟩
+    L.log.deleteRecent S.log.next L.id S.log.next_gt⟩
 
 /-- The learned clause of a conflict, and the state after Backjump and Learn: back to the trail
 kept by `Exec.jump`, with the asserting literal implied by the learned clause. The intermediate
@@ -1117,13 +1118,17 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
       have := hS.reasons
       rw [hUK] at this
       exact this.append_right
-    refine .implied L.lit L.id ((hbelow.mono L.ext).delete fun r hr => hold r (hbelow.lt_next r hr))
-      ((LRATLog.clause?_delete hid).trans L.clause?_eq) L.mem hfalseK
+    refine .implied L.lit L.id
+      ((hbelow.mono L.ext).deleteWith
+        (hdb := LRATLog.dropRecent_eq S.log.next_gt L.log.ordered L.log.lt_next)
+        fun r hr => hold r (hbelow.lt_next r hr))
+      ((LRATLog.clause?_deleteRecent (hn := S.log.next_gt) hid).trans L.clause?_eq) L.mem hfalseK
   · intro e' he'
     rcases List.mem_cons.1 he' with rfl | he'
-    · exact (LRATLog.clause?_delete hid).trans L.clause?_eq
+    · exact (LRATLog.clause?_deleteRecent (hn := S.log.next_gt) hid).trans L.clause?_eq
     · have hlog := hS.db_log e' he'
-      exact (LRATLog.clause?_delete (hold _ (LRATLog.lt_next_of_clause? hlog))).trans
+      exact (LRATLog.clause?_deleteRecent (hn := S.log.next_gt)
+        (hold _ (LRATLog.lt_next_of_clause? hlog))).trans
         (L.ext _ _ hlog)
   · intro N d M₁ hN c hc'
     -- a split of the new trail is below the asserting literal, so a split of the old trail

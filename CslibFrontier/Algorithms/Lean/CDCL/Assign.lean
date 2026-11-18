@@ -266,4 +266,119 @@ theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agr
 
 end Assign
 
+/-! ### Removing repetitions in linear time -/
+
+/-- The elements of `xs` not yet marked in `m` by their keys, in order, after `acc` reversed. -/
+def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
+  | [], _, acc => acc.reverse
+  | x :: xs, m, acc =>
+    if m.getD (key x) false then dedupKeyGo key xs m acc
+    else dedupKeyGo key xs (m.setIfInBounds (key x) true) (x :: acc)
+
+/-- **Removing repetitions** from `xs`, keeping first occurrences: an element is kept unless its
+key is already marked, in an array sized to the greatest key. For keys computed in constant time
+this takes time and space `O(xs.length + greatest key + 1)`: linear in the list when the keys are
+dense, as they are for literals once `solveCompact` has renamed the variables to `0, …, k - 1`, but
+not for sparse keys. With an injective key, the elements are those of `xs` (`mem_dedupKey`), each
+once (`nodup_dedupKey`). -/
+def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
+  dedupKeyGo key xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
+
+theorem lt_foldl_max {α : Type} (key : α → ℕ) :
+    ∀ (xs : List α) (a : ℕ), (∀ x ∈ xs, key x < xs.foldl (fun a x => max a (key x)) a + 1) ∧
+      a ≤ xs.foldl (fun a x => max a (key x)) a
+  | [], a => ⟨by simp, le_rfl⟩
+  | x :: xs, a => by
+    obtain ⟨h₁, h₂⟩ := lt_foldl_max key xs (max a (key x))
+    refine ⟨fun y hy => ?_, le_trans (le_max_left _ _) h₂⟩
+    rcases List.mem_cons.1 hy with rfl | hy
+    · have := le_trans (le_max_right a (key y)) h₂
+      simp only [List.foldl_cons]; omega
+    · exact h₁ y hy
+
+theorem dedupKeyGo_spec {α : Type} {key : α → ℕ} (hkey : Function.Injective key) :
+    ∀ (xs : List α) (m : Array Bool) (acc : List α), (∀ x ∈ xs, key x < m.size) →
+      (∀ y, m.getD (key y) false = true ↔ y ∈ acc) → acc.Nodup →
+      (∀ y, y ∈ dedupKeyGo key xs m acc ↔ y ∈ acc ∨ y ∈ xs) ∧ (dedupKeyGo key xs m acc).Nodup
+  | [], m, acc, _, _, hnd => ⟨fun y => by simp [dedupKeyGo], by simpa [dedupKeyGo] using hnd⟩
+  | x :: xs, m, acc, hsize, hm, hnd => by
+    have hx : key x < m.size := hsize x List.mem_cons_self
+    have hsize' : ∀ y ∈ xs, key y < m.size := fun y hy => hsize y (List.mem_cons_of_mem _ hy)
+    rw [dedupKeyGo]
+    by_cases hmark : m.getD (key x) false = true
+    · rw [ite_eq_left hmark]
+      obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec hkey xs m acc hsize' hm hnd
+      refine ⟨fun y => ?_, h₂⟩
+      rw [h₁]
+      have hxa : x ∈ acc := (hm x).1 hmark
+      simp only [List.mem_cons]
+      constructor
+      · rintro (h | h)
+        · exact .inl h
+        · exact .inr (.inr h)
+      · rintro (h | rfl | h)
+        · exact .inl h
+        · exact .inl hxa
+        · exact .inr h
+    · rw [ite_eq_right hmark]
+      have hm' : ∀ y, (m.setIfInBounds (key x) true).getD (key y) false = true ↔ y ∈ x :: acc :=
+        fun y => by
+          simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.mem_cons]
+          by_cases hyx : key x = key y
+          · have := hkey hyx
+            subst this
+            simp [hx]
+          · rw [ite_eq_right hyx]
+            have := hm y
+            simp only [Array.getD_eq_getD_getElem?] at this
+            rw [this]
+            exact ⟨.inr, fun h => h.resolve_left fun h' => hyx (h' ▸ rfl)⟩
+      have hnd' : (x :: acc).Nodup := List.nodup_cons.2 ⟨fun h => hmark ((hm x).2 h), hnd⟩
+      obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec hkey xs _ (x :: acc)
+        (fun y hy => by simpa using hsize' y hy) hm' hnd'
+      refine ⟨fun y => ?_, h₂⟩
+      rw [h₁]
+      simp only [List.mem_cons]
+      tauto
+
+theorem dedupKey_spec {α : Type} {key : α → ℕ} (hkey : Function.Injective key) (xs : List α) :
+    (∀ y, y ∈ dedupKey key xs ↔ y ∈ [] ∨ y ∈ xs) ∧ (dedupKey key xs).Nodup :=
+  dedupKeyGo_spec hkey xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
+    (fun x hx => by simpa using (lt_foldl_max key xs 0).1 x hx)
+    (fun y => by
+      simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, List.not_mem_nil,
+        iff_false]
+      split <;> simp)
+    List.nodup_nil
+
+/-- With an injective key, removing repetitions keeps the elements. -/
+theorem mem_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective key) {xs : List α}
+    {y : α} : y ∈ dedupKey key xs ↔ y ∈ xs := by
+  simpa using (dedupKey_spec hkey xs).1 y
+
+/-- With an injective key, removing repetitions leaves each element once. -/
+theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective key) (xs : List α) :
+    (dedupKey key xs).Nodup :=
+  (dedupKey_spec hkey xs).2
+
+/-- **The index of a literal**: `2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of
+repeated literals (`dedupLits`) and indexes the watch lists. -/
+def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+
+theorem litKey_injective : Function.Injective litKey := by
+  intro ⟨v, x⟩ ⟨w, y⟩ h
+  simp only [litKey] at h
+  cases x <;> cases y <;> simp at h ⊢ <;> omega
+
+/-- Removing repeated literals, in linear time. -/
+abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litKey c
+
+/-- Removing repeated literals keeps as many as `List.dedup`. -/
+theorem length_dedupLits (c : Clause ℕ) : (dedupLits c).length = c.dedup.length :=
+  ((List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
+    fun _ => by rw [mem_dedupKey litKey_injective, List.mem_dedup]).length_eq
+
+/-- Removing repeated variables, in linear time. -/
+abbrev dedupVars (vs : List ℕ) : List ℕ := dedupKey id vs
+
 end Cslib.Algorithms.Lean.CDCL

@@ -56,55 +56,144 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-- Setting the entry `i` of an array of options to `x`, growing the array with `none` if needed. -/
 def optSet {α : Type} (a : Array (Option α)) (i : ℕ) (x : Option α) : Array (Option α) :=
-  if i < a.size then a.set! i x else (a ++ Array.replicate (i - a.size) none).push x
+  if i < a.size then a.set! i x
+  -- pushing directly at the end, so that the array is updated in place
+  else if i = a.size then a.push x
+  else (a ++ Array.replicate (i - a.size) none).push x
 
 theorem getD_optSet {α : Type} (a : Array (Option α)) (i j : ℕ) (x : Option α) :
     (optSet a i x).getD j none = if j = i then x else a.getD j none := by
   unfold optSet
-  split
-  · rename_i hi
+  by_cases hi : i < a.size
+  · rw [ite_eq_left hi]
     simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
       Array.getElem?_setIfInBounds]
     by_cases hj : j = i
     · subst hj; simp [hi]
     · simp [hj, Ne.symm hj]
-  · rename_i hi
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-      Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-    by_cases hj : j = i
-    · subst hj; simp only [↓reduceIte]; split <;> first | rfl | omega
-    · have : ¬ j = a.size + (i - a.size) := by omega
-      simp only [hj, this, ↓reduceIte]
-      by_cases hlt : j < a.size
-      · simp [hlt]
-      · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : a.size ≤ j)]
-        split <;> rfl
+  rw [ite_eq_right hi]
+  by_cases he : i = a.size
+  · rw [ite_eq_left he]
+    subst he
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push]
+    by_cases hj : j = a.size <;> simp [hj]
+  rw [ite_eq_right he]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
+    Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
+  by_cases hj : j = i
+  · subst hj; simp only [↓reduceIte]; split <;> first | rfl | omega
+  · have h' : ¬ j = a.size + (i - a.size) := by omega
+    simp only [hj, h', ↓reduceIte]
+    by_cases hlt : j < a.size
+    · simp [hlt]
+    · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : a.size ≤ j)]
+      split <;> rfl
 
-/-- Clearing the entries `is` within the bounds of the array. -/
-theorem getD_foldl_setIfInBounds_none {α : Type} (is : List ℕ) (a : Array (Option α)) (j : ℕ) :
-    (is.foldl (fun a i => a.setIfInBounds i none) a).getD j none =
-      if j ∈ is then none else a.getD j none := by
+/-- **An index in chunks**: the entries by number, in arrays of `256`, so that updating a shared
+index copies the array of chunks and one chunk rather than every entry. -/
+abbrev Chunks (α : Type) := Array (Array (Option α))
+
+/-- The entry `i` of a chunked index, `none` past the end. -/
+def chunkGet {α : Type} (a : Chunks α) (i : ℕ) : Option α :=
+  (a.getD (i / 256) #[]).getD (i % 256) none
+
+/-- Setting the entry `i` of a chunked index, growing it if needed. -/
+def chunkSet {α : Type} (a : Chunks α) (i : ℕ) (x : Option α) : Chunks α :=
+  let k := i / 256
+  let a := if k < a.size then a else a ++ Array.replicate (k + 1 - a.size) #[]
+  a.modify k fun c => optSet c (i % 256) x
+
+theorem chunkGet_empty {α : Type} (j : ℕ) : chunkGet (#[] : Chunks α) j = none := by
+  simp [chunkGet]
+
+theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α) :
+    chunkGet (chunkSet a i x) j = if j = i then x else chunkGet a j := by
+  unfold chunkGet chunkSet
+  dsimp only
+  generalize ha' : (if i / 256 < a.size then a else a ++ Array.replicate (i / 256 + 1 - a.size) #[])
+    = a'
+  have hgrow : ∀ k, a'.getD k #[] = a.getD k #[] := fun k => by
+    rw [← ha']
+    split
+    · rfl
+    · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_append, Array.getElem?_replicate]
+      split
+      · rfl
+      · split <;> simp [Array.getElem?_eq_none (by omega : a.size ≤ k)]
+  have hsize : i / 256 < a'.size := by
+    rw [← ha']
+    split
+    · assumption
+    · simp; omega
+  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
+    constructor
+    · rintro rfl; exact ⟨rfl, rfl⟩
+    · rintro ⟨h₁, h₂⟩
+      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
+  by_cases hk : i / 256 = j / 256
+  · rw [ite_eq_left hk, ← hk, Array.getElem?_eq_getElem hsize]
+    simp only [Option.map_some, Option.getD_some]
+    rw [show (a'[i / 256]'hsize) = a'.getD (i / 256) #[] by
+      simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize], hgrow,
+      ← Array.getD_eq_getD_getElem?, getD_optSet]
+    by_cases hj : j = i
+    · subst hj; simp
+    · have : ¬ j % 256 = i % 256 := fun h => hj (hdecomp.2 ⟨hk.symm, h⟩)
+      simp only [hj, this, ↓reduceIte, Array.getD_eq_getD_getElem?, hk]
+  · rw [ite_eq_right hk]
+    have hj : ¬ j = i := fun h => hk (by rw [h])
+    simp only [hj, ↓reduceIte]
+    have := hgrow (j / 256)
+    simp only [Array.getD_eq_getD_getElem?] at this
+    rw [this]
+
+/-- Clearing the entry `i` of a chunked index, in place: nothing changes if `i` is past the end. -/
+def chunkClear {α : Type} (a : Chunks α) (i : ℕ) : Chunks α :=
+  a.modify (i / 256) fun c => c.setIfInBounds (i % 256) none
+
+theorem chunkGet_chunkClear {α : Type} (a : Chunks α) (i j : ℕ) :
+    chunkGet (chunkClear a i) j = if j = i then none else chunkGet a j := by
+  unfold chunkGet chunkClear
+  have hdecomp : j = i ↔ j / 256 = i / 256 ∧ j % 256 = i % 256 := by
+    constructor
+    · rintro rfl; exact ⟨rfl, rfl⟩
+    · rintro ⟨h₁, h₂⟩
+      rw [← Nat.div_add_mod j 256, ← Nat.div_add_mod i 256, h₁, h₂]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
+  by_cases hk : i / 256 = j / 256
+  · rw [ite_eq_left hk, ← hk]
+    cases ha : a[i / 256]? with
+    | none => split <;> rfl
+    | some c =>
+      simp only [Option.map_some, Option.getD_some, Array.getElem?_setIfInBounds]
+      by_cases hj : j = i
+      · subst hj; simp only [↓reduceIte]; split <;> rfl
+      · have : ¬ i % 256 = j % 256 := fun h => hj (hdecomp.2 ⟨hk.symm, h.symm⟩)
+        simp [hj, this]
+  · rw [ite_eq_right hk]
+    have hj : ¬ j = i := fun h => hk (by rw [h])
+    simp [hj]
+
+/-- Clearing the entries `is` of a chunked index, in place. -/
+theorem chunkGet_foldl_chunkClear {α : Type} (is : List ℕ) (a : Chunks α) (j : ℕ) :
+    chunkGet (is.foldl chunkClear a) j = if j ∈ is then none else chunkGet a j := by
   induction is generalizing a with
   | nil => simp
   | cons i is ih =>
-    rw [List.foldl_cons, ih]
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.mem_cons]
-    by_cases h₁ : j ∈ is <;> by_cases h₂ : j = i
-    · simp [h₁]
-    · simp [h₁]
-    · subst h₂; simp [h₁]; split <;> rfl
-    · simp [h₁, h₂, Ne.symm h₂]
+    rw [List.foldl_cons, ih, chunkGet_chunkClear]
+    by_cases h₁ : j ∈ is <;> by_cases h₂ : j = i <;> simp [h₁, h₂]
 
-/-- The index of numbered clauses: the clause of each number, the first one listed. -/
-def indexOf {α : Type} : List (ℕ × α) → Array (Option α)
+/-- The chunked index of numbered clauses: the clause of each number, the first one listed. -/
+def chunkIndexOf {α : Type} : List (ℕ × α) → Chunks α
   | [] => #[]
-  | e :: db => optSet (indexOf db) e.1 (some e.2)
+  | e :: db => chunkSet (chunkIndexOf db) e.1 (some e.2)
 
-theorem getD_indexOf {α : Type} : ∀ (db : List (ℕ × α)) (i : ℕ),
-    (indexOf db).getD i none = (db.find? (·.1 == i)).map (·.2)
-  | [], i => by simp [indexOf]
+theorem chunkGet_chunkIndexOf {α : Type} : ∀ (db : List (ℕ × α)) (i : ℕ),
+    chunkGet (chunkIndexOf db) i = (db.find? (·.1 == i)).map (·.2)
+  | [], i => chunkGet_empty i
   | e :: db, i => by
-    rw [indexOf, getD_optSet, getD_indexOf db i, List.find?_cons]
+    rw [chunkIndexOf, chunkGet_chunkSet, chunkGet_chunkIndexOf db i, List.find?_cons]
     by_cases h : i = e.1
     · subst h; simp
     · simp only [h, ↓reduceIte]
@@ -128,9 +217,13 @@ structure LRATLog (φ : CNF ℕ) where
   /-- Every clause of the database uses variables of `φ`. -/
   vars_mem : ∀ e ∈ db, ∀ l ∈ e.2, l.1 ∈ φ.vars
   /-- The clauses of the database by number, `none` past the end. -/
-  index : Array (Option (Clause ℕ))
+  index : Chunks (Clause ℕ)
   /-- The index names the clauses of the database. -/
-  index_eq : ∀ i, index.getD i none = (db.find? (·.1 == i)).map (·.2)
+  index_eq : ∀ i, chunkGet index i = (db.find? (·.1 == i)).map (·.2)
+  /-- The next number is beyond the clauses of `φ`. -/
+  next_gt : φ.length < next
+  /-- The added clauses come newest first, before the clauses of `φ`. -/
+  ordered : db.Pairwise fun a b => φ.length < b.1 → b.1 < a.1
 
 namespace LRATLog
 
@@ -154,11 +247,17 @@ def init (φ : CNF ℕ) : LRATLog φ where
   vars_mem e he l hl := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
     exact CNF.mem_vars.2 ⟨_, List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp), l.2, hl⟩
-  index := indexOf φ.lratDB
-  index_eq := getD_indexOf φ.lratDB
+  index := chunkIndexOf φ.lratDB
+  index_eq := chunkGet_chunkIndexOf φ.lratDB
+  next_gt := Nat.lt_succ_self _
+  ordered := List.pairwise_of_forall_mem_list fun a _ b hb h => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hb
+    have := List.snd_lt_add_of_mem_zipIdx hp
+    simp only at h this
+    omega
 
 /-- **The clause numbered `i`**, if any, read from the index. -/
-def clause? (log : LRATLog φ) (i : ℕ) : Option (Clause ℕ) := log.index.getD i none
+def clause? (log : LRATLog φ) (i : ℕ) : Option (Clause ℕ) := chunkGet log.index i
 
 /-- The clause numbered `i` is the first of that number in the database. -/
 theorem clause?_eq (log : LRATLog φ) (i : ℕ) :
@@ -221,13 +320,15 @@ def addRup (log : LRATLog φ) (c : Clause ℕ) (hints : List ℕ)
     rcases List.mem_cons.1 he with rfl | he
     · exact hvars l hl
     · exact log.vars_mem e he l hl
-  index := optSet log.index log.next (some c)
+  index := chunkSet log.index log.next (some c)
   index_eq i := by
-    rw [getD_optSet, log.index_eq, List.find?_cons]
+    rw [chunkGet_chunkSet, log.index_eq, List.find?_cons]
     by_cases h : i = log.next
     · subst h; simp
     · simp only [h, ↓reduceIte]
       rw [show (log.next == i) = false by simpa using Ne.symm h]
+  next_gt := by have := log.next_gt; omega
+  ordered := List.pairwise_cons.2 ⟨fun b hb _ => log.lt_next b hb, log.ordered⟩
 
 /-- After adding a RUP clause, the new number names it. -/
 theorem clause?_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
@@ -344,24 +445,28 @@ theorem isSome_resolve {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Claus
   · rename_i hne
     exact absurd h₂ (hne c₁ c₂ h₁)
 
-/-- **Deleting** the clauses numbered `ids`, with a deletion step. An empty list deletes nothing
-and adds no step. The index entries are cleared in place, so deleting a number that names no
-clause does not grow the index. -/
-def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
+/-- **Deleting clauses** from the log, given the database `db'` without them, which the caller
+may compute faster than by filtering (`Cslib.Logic.PL.CNF.LRATLog.dropRecent`). An empty list
+deletes nothing and adds no step. The index entries are cleared in place (`chunkClear`), so
+deleting a number that names no clause does not grow the index. -/
+def deleteWith (log : LRATLog φ) (ids : List ℕ) (db' : List (ℕ × Clause ℕ))
+    (hdb : db' = log.db.filter fun e => !ids.contains e.1) : LRATLog φ :=
   if ids.isEmpty then log else
   { steps := .del ids.toArray :: log.steps
-    db := log.db.filter fun e => !ids.contains e.1
+    db := db'
     next := log.next
     run := fun rest => by
+      subst hdb
       simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
       rw [log.run]
       simp [checkLRATAux]
-    lt_next := fun e he => log.lt_next e (List.mem_filter.1 he).1
-    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 he).1
-    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 he).1
-    index := ids.foldl (fun a i => a.setIfInBounds i none) log.index
+    lt_next := fun e he => log.lt_next e (List.mem_filter.1 (hdb ▸ he)).1
+    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 (hdb ▸ he)).1
+    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 (hdb ▸ he)).1
+    index := ids.foldl chunkClear log.index
     index_eq := fun i => by
-      rw [getD_foldl_setIfInBounds_none, log.index_eq, List.find?_filter]
+      subst hdb
+      rw [chunkGet_foldl_chunkClear, log.index_eq, List.find?_filter]
       split
       · rename_i hi
         symm
@@ -375,14 +480,21 @@ def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
         refine (List.find?_congr fun e _ => ?_).symm
         by_cases he : e.1 = i
         · subst he; simp [hi]
-        · simp [he] }
+        · simp [he]
+    next_gt := log.next_gt
+    ordered := hdb ▸ log.ordered.filter _ }
+
+/-- **Deleting clauses** from the log. -/
+def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ := log.deleteWith ids _ rfl
 
 /-- Deleting clauses keeps the clauses of the numbers not deleted. -/
-theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
-    (log.delete ids).clause? i = log.clause? i := by
-  unfold delete
+theorem clause?_deleteWith {log : LRATLog φ} {ids : List ℕ} {db' : List (ℕ × Clause ℕ)}
+    {hdb : db' = log.db.filter fun e => !ids.contains e.1} {i : ℕ} (hi : i ∉ ids) :
+    (log.deleteWith ids db' hdb).clause? i = log.clause? i := by
+  unfold deleteWith
   split
   · rfl
+  subst hdb
   simp only [clause?_eq, List.find?_filter]
   congr 1
   refine List.find?_congr fun e _ => ?_
@@ -390,6 +502,69 @@ theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉
   · subst he
     simp [hi]
   · simp [he]
+
+/-- Deleting clauses keeps the clauses of the numbers not deleted. -/
+theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
+    (log.delete ids).clause? i = log.clause? i :=
+  clause?_deleteWith hi
+
+/-- The numbers from `n` to below `next` other than `id`: the intermediate resolvents of a conflict
+analysis whose learned clause is numbered `id`. -/
+def recentIds (n next id : ℕ) : List ℕ := (List.range' n (next - n)).filter (· != id)
+
+/-- The database without the clauses numbered from `n` up other than `id`, read from the start
+only as long as the numbers are at least `n`: the newest clauses come first. -/
+def dropRecent (n id : ℕ) : List (ℕ × Clause ℕ) → List (ℕ × Clause ℕ)
+  | [] => []
+  | e :: rest =>
+    if e.1 < n then e :: rest
+    else if e.1 = id then e :: dropRecent n id rest
+    else dropRecent n id rest
+
+/-- **Deleting the newest clauses by reading only them**: with the added clauses newest first,
+before the clauses of `φ`, and `n` beyond those, `dropRecent` filters out `recentIds`. -/
+theorem dropRecent_eq {m n next id : ℕ} (hmn : m < n) :
+    ∀ {db : List (ℕ × Clause ℕ)}, db.Pairwise (fun a b => m < b.1 → b.1 < a.1) →
+      (∀ e ∈ db, e.1 < next) →
+      dropRecent n id db = db.filter fun e => !(recentIds n next id).contains e.1
+  | [], _, _ => rfl
+  | e :: rest, hord, hlt => by
+    obtain ⟨hhead, hrest⟩ := List.pairwise_cons.1 hord
+    have hnot : ∀ i, i < n → i ∉ recentIds n next id := fun i hi h => by
+      simp only [recentIds, List.mem_filter, List.mem_range'_1] at h
+      omega
+    unfold dropRecent
+    by_cases he : e.1 < n
+    · rw [ite_eq_left he, List.filter_cons, ite_eq_left (by simpa using hnot _ he)]
+      congr 1
+      symm
+      refine List.filter_eq_self.2 fun b hb => ?_
+      have : b.1 < n := by
+        by_cases hb' : m < b.1
+        · exact lt_trans (hhead b hb hb') he
+        · omega
+      simpa using hnot _ this
+    · rw [ite_eq_right he]
+      have ih := dropRecent_eq (id := id) hmn hrest fun b hb => hlt b (List.mem_cons_of_mem _ hb)
+      have hmem : e.1 ∈ recentIds n next id ↔ e.1 ≠ id := by
+        have := hlt e List.mem_cons_self
+        simp only [recentIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq]
+        omega
+      by_cases hid : e.1 = id
+      · rw [ite_eq_left hid, List.filter_cons, ite_eq_left (by simpa [hmem] using hid), ih]
+      · rw [ite_eq_right hid, List.filter_cons, ite_eq_right (by simpa [hmem] using hid), ih]
+
+/-- **Deleting the intermediate resolvents** of an analysis that started at the number `n`, beyond
+the clauses of `φ`, and learned the clause numbered `id`: as `delete`, reading only the newest
+clauses of the database. -/
+def deleteRecent (log : LRATLog φ) (n id : ℕ) (hn : φ.length < n) : LRATLog φ :=
+  log.deleteWith (recentIds n log.next id) (dropRecent n id log.db)
+    (dropRecent_eq hn log.ordered log.lt_next)
+
+/-- Deleting the intermediate resolvents keeps the clauses of the other numbers. -/
+theorem clause?_deleteRecent {log : LRATLog φ} {n id : ℕ} {hn : φ.length < n} {i : ℕ}
+    (hi : i ∉ recentIds n log.next id) : (log.deleteRecent n id hn).clause? i = log.clause? i :=
+  clause?_deleteWith hi
 
 /-- **Unit propagation along hints on the log's database**, as `propagateHints`, reading the
 hinted clauses from the index: the same worker (`Cslib.Logic.PL.CNF.propagateWith`) with another

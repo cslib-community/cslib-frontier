@@ -126,7 +126,7 @@ of the derived literals and then the learned clause. The learned clause is kept 
 redundant, or if the RUP check fails. -/
 def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool := true) :
     Learned log₀ A M₀ :=
-  let C := L.clause.dedup
+  let C := dedupLits L.clause
   let r := minimizeRedundant L.log T C L.lit recursive
   if r.1.isEmpty then L
   else
@@ -135,7 +135,7 @@ def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool 
     have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy
       · exact L.mem
-      · exact List.mem_dedup.1 (List.mem_filter.1 hy).1
+      · exact (mem_dedupKey litKey_injective).1 (List.mem_filter.1 hy).1
     if hprop : L.log.propagate (D.map Std.Sat.Literal.negate) hints = true then
       { log := L.log.addRup D hints (L.log.propagate_eq _ _ ▸ hprop) fun l hl =>
           LRATLog.vars_mem_of_clause? L.clause?_eq l (hsub l hl)

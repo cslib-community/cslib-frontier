@@ -110,7 +110,14 @@ def Activity.bumpVar (A : Activity) (v : ℕ) : Activity :=
 `inc + inc / decay`, with integer division (by default `decay = 19`): at most the factor
 `1 + 1 / decay` (`1 / 0.95` by default), and less by the truncation. -/
 def Activity.bump (A : Activity) (vs : List ℕ) (decay : ℕ := 19) : Activity :=
-  let A := vs.dedup.foldl Activity.bumpVar A
+  let A := (dedupVars vs).foldl Activity.bumpVar A
+  ⟨A.score, A.inc + A.inc / decay⟩
+
+/-- **Bumping each index of `is`**, which has no repetitions, then growing the increment as
+`Activity.bump` does. For the activities of clauses, whose numbers grow with the run: removing
+repetitions in linear time would cost as much as the greatest number. -/
+def Activity.bumpEach (A : Activity) (is : List ℕ) (decay : ℕ := 19) : Activity :=
+  let A := is.foldl Activity.bumpVar A
   ⟨A.score, A.inc + A.inc / decay⟩
 
 /-- The activities with room for the indices below `n`, the new ones `0`. -/
@@ -178,7 +185,7 @@ theorem Activity.get_foldl_bumpVar_le {v : ℕ} :
 /-- **Bumping does not raise the activity of the variables not bumped.** -/
 theorem Activity.get_bump_le {A : Activity} {vs : List ℕ} {d : ℕ} {v : ℕ} (hv : v ∉ vs) :
     (A.bump vs d).get v ≤ A.get v :=
-  Activity.get_foldl_bumpVar_le fun h => hv (List.mem_dedup.1 h)
+  Activity.get_foldl_bumpVar_le fun h => hv ((mem_dedupKey Function.injective_id).1 h)
 
 /-! ### The variable order -/
 
@@ -259,6 +266,20 @@ theorem VarOrder.mem_insertVars {H : VarOrder} {A : Activity} {vs : List ℕ} {e
     rw [ih, Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert]
     simp only [List.mem_cons, exists_eq_or_imp]
     tauto
+
+/-- **All the variables of `V` inserted** in an empty order, with their activities: an order
+satisfying the invariant whatever the trail. -/
+theorem VarOrder.inv_insertVars_empty (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) :
+    (VarOrder.insertVars Batteries.BinaryHeap.emptyF A (dedupVars V)).Inv A V M occ := by
+  have hempty : (Batteries.BinaryHeap.emptyF : VarOrder).WF := by
+    rw [Batteries.BinaryHeap.emptyF_eq]; exact Batteries.BinaryHeap.empty_wf
+  refine ⟨VarOrder.insertVars_wf hempty, fun e he => ?_, fun v hv _ _ =>
+    ⟨_, le_rfl, VarOrder.mem_insertVars.2 (.inr ⟨v, (mem_dedupKey Function.injective_id).2 hv,
+      rfl⟩)⟩⟩
+  rcases VarOrder.mem_insertVars.1 he with he | ⟨v, hv, rfl⟩
+  · rw [Batteries.BinaryHeap.emptyF_eq] at he
+    exact absurd he Batteries.BinaryHeap.mem_empty
+  · exact (mem_dedupKey Function.injective_id).1 hv
 
 /-- **Popping the decision variable**: the entries at the top are removed until one is of an
 unassigned variable admitted by `occ`, with its current activity. An entry of an assigned or

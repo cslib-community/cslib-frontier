@@ -13,7 +13,7 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 
 The watch store of the CDCL solver: an array of numbered clauses without repetitions, each with
 at least two literals, whose first two literals are its watches, and an array of watch lists
-indexed by literal (`watchIndex`). A watch list holds *watchers* (`Watcher`): the position of a
+indexed by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position of a
 clause and a *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is
 skipped without reading its clause.
 
@@ -39,9 +39,6 @@ public section
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
-
-/-- The index of the watch list of a literal: `2 * v` for `¬v` and `2 * v + 1` for `v`. -/
-@[expose] def watchIndex (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
 
 /-- **A watcher**: a clause of the store, by position, and its *blocker*, a literal of the clause.
 When the blocker is true, the clause is satisfied and is skipped without being read. -/
@@ -129,7 +126,7 @@ first, and the watch lists, giving for each literal the clauses that may watch i
 structure WatchStore where
   /-- The numbered clauses, watched literals first. -/
   clauses : Array (ℕ × Clause ℕ)
-  /-- The watch lists, by `watchIndex`. -/
+  /-- The watch lists, by `litKey`. -/
   watches : Array (List Watcher)
 
 /-- A literal is *processed* if it is on the trail and no longer in the propagation queue. -/
@@ -183,7 +180,7 @@ structure WatchStore.Inv (F : List (ℕ × Clause ℕ)) (M : Trail) (Q : List (L
   long : ∀ e ∈ S.clauses, 2 ≤ e.2.length
   covers : ∀ e ∈ F, 2 ≤ e.2.dedup.length → ∃ e' ∈ S.clauses, e'.1 = e.1 ∧ ∀ l, l ∈ e'.2 ↔ l ∈ e.2
   listed : ∀ (k : ℕ) (hk : k < S.clauses.size), ∀ w ∈ S.clauses[k].2.take 2,
-    k ∈ clauseIds (watchList S.watches (watchIndex w))
+    k ∈ clauseIds (watchList S.watches (litKey w))
   blocker_mem : ∀ i, ∀ x ∈ watchList S.watches i, ∃ (hk : x.clause < S.clauses.size),
     x.blocker ∈ S.clauses[x.clause].2
   covered : ∀ e ∈ S.clauses, ∀ w₁ w₂ rest, e.2 = w₁ :: w₂ :: rest →
@@ -215,8 +212,9 @@ inductive Visit
   /-- The other watched literal `b` is true: the clause stays on the watch list of `u`, with `b` as
   blocker. -/
   | keep (b : Literal ℕ)
-  /-- A literal that is not false replaces `u` as a watched literal. -/
-  | move (S : WatchStore)
+  /-- A literal `x` that is not false replaces `u` as a watched literal: the clause becomes `c`,
+  watching `x` with the blocker `b` (`Cslib.Algorithms.Lean.CDCL.WatchStore.moveTo`). -/
+  | move (c : ℕ × Clause ℕ) (x b : Literal ℕ)
   /-- Every literal but the other watched literal `l` is false, and `l` is undefined: the clause
   numbered `id` is unit. -/
   | unit (l : Literal ℕ) (id : ℕ)
@@ -238,13 +236,20 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watche
         if A.holds other then .keep other
         else
           match rest.find? (fun x => !A.holds x.negate) with
-          | some x =>
-            .move ⟨S.clauses.setIfInBounds w.clause (id, other :: x :: u :: rest.erase x),
-              addWatch S.watches (watchIndex x) ⟨w.clause, other⟩⟩
+          | some x => .move (id, other :: x :: u :: rest.erase x) x other
           | none =>
             if A.holds other.negate then .conflict id else .unit other id
       else .drop
     | _ => .drop
+
+/-- **Moving a watch**: the clause at position `k` becomes `c`, and the watch list of `x` gets a
+watcher of it with the blocker `b`. The two arrays are taken out of the store first, so that they
+are updated in place when the store is not shared. -/
+@[expose] def WatchStore.moveTo (S : WatchStore) (k : ℕ) (c : ℕ × Clause ℕ) (x b : Literal ℕ) :
+    WatchStore :=
+  let clauses := S.clauses
+  let watches := S.watches
+  ⟨clauses.setIfInBounds k c, addWatch watches (litKey x) ⟨k, b⟩⟩
 
 /-- The other watched literal of a clause watching `u` with watched literals `w₁` and `w₂`. -/
 @[expose] def otherWatch (u w₁ w₂ : Literal ℕ) : Literal ℕ := if w₁ = u then w₂ else w₁
@@ -255,13 +260,11 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watche
   | .keep b => ∃ (hk : w.clause < S.clauses.size) (w₁ w₂ : Literal ℕ) (rest : Clause ℕ),
       S.clauses[w.clause].2 = w₁ :: w₂ :: rest ∧ (w₁ = u ∨ w₂ = u) ∧ b = otherWatch u w₁ w₂ ∧
       b ∈ Trail.lits M
-  | .move S' => ∃ (hk : w.clause < S.clauses.size) (id : ℕ) (w₁ w₂ x : Literal ℕ)
+  | .move c x b => ∃ (hk : w.clause < S.clauses.size) (id : ℕ) (w₁ w₂ : Literal ℕ)
       (rest : Clause ℕ),
       S.clauses[w.clause] = (id, w₁ :: w₂ :: rest) ∧ (w₁ = u ∨ w₂ = u) ∧ x ∈ rest ∧
-      x.negate ∉ Trail.lits M ∧
-      S' = ⟨S.clauses.setIfInBounds w.clause
-          (id, otherWatch u w₁ w₂ :: x :: u :: rest.erase x),
-        addWatch S.watches (watchIndex x) ⟨w.clause, otherWatch u w₁ w₂⟩⟩
+      x.negate ∉ Trail.lits M ∧ c = (id, otherWatch u w₁ w₂ :: x :: u :: rest.erase x) ∧
+      b = otherWatch u w₁ w₂
   | .unit l id => ∃ (hk : w.clause < S.clauses.size) (w₁ w₂ : Literal ℕ) (rest : Clause ℕ),
       S.clauses[w.clause] = (id, w₁ :: w₂ :: rest) ∧ (w₁ = u ∨ w₂ = u) ∧
       l = otherWatch u w₁ w₂ ∧ l ∉ Trail.lits M ∧ l.negate ∉ Trail.lits M ∧
@@ -294,8 +297,8 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
         · rename_i x hx
           have hxmem := List.mem_of_find?_eq_some hx
           have hxval := List.find?_some hx
-          exact ⟨hk', id, w₁, w₂, x, rest, hget, hu, hxmem,
-            fun h => by simp [(hA.holds_iff _).2 h] at hxval, rfl⟩
+          exact ⟨hk', id, w₁, w₂, rest, hget, hu, hxmem,
+            fun h => by simp [(hA.holds_iff _).2 h] at hxval, rfl, rfl⟩
         · rename_i hnone
           have hall : ∀ x ∈ rest, x.negate ∈ Trail.lits M := fun x hx => by
             simpa [hA.holds_iff] using List.find?_eq_none.1 hnone x hx
@@ -349,8 +352,8 @@ the other as blocker. -/
 @[expose] def WatchStore.addClause (S : WatchStore) (id : ℕ) (c : Clause ℕ) : WatchStore :=
   match c with
   | w₁ :: w₂ :: _ =>
-    ⟨S.clauses.push (id, c), addWatch (addWatch S.watches (watchIndex w₁) ⟨S.clauses.size, w₂⟩)
-      (watchIndex w₂) ⟨S.clauses.size, w₁⟩⟩
+    ⟨S.clauses.push (id, c), addWatch (addWatch S.watches (litKey w₁) ⟨S.clauses.size, w₂⟩)
+      (litKey w₂) ⟨S.clauses.size, w₁⟩⟩
   | _ => S
 
 /-- Adding a clause of the database, without repetitions, whose first watched literal is not

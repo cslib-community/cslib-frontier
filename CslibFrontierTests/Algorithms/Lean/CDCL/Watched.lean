@@ -227,4 +227,9 @@ example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
     (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
   decide
 
+/-- When the learned clause is the conflict clause, its number is both the learned one and among
+the clauses met: it is bumped once, by the increment `2 ^ 100`, not twice. -/
+example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 100 := by
+  decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched
