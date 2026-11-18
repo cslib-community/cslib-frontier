@@ -321,12 +321,14 @@ theorem freshSigningAttempt_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
   · by_cases hl : LowBitsShort P r
     · have hh := highBitsVec_sub_challenge hP hc hs₂ hl
       dsimp only [v, r, w] at hz hl hh ⊢
-      simp only [compressedSignAttempt, mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
+      simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq,
+        mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
         Option.bind_some, finishSimulated, he, guard, pure_bind, hh]
       split_ifs <;> rfl
     · dsimp only [v, r, w] at hz hl ⊢
-      simp [compressedSignAttempt, finishSimulated, mem_response_iff P hq, hz, he, hl, guard]
+      simp [compressedSignAttempt, compressedResponse, finishSimulated, mem_response_iff P hq,
+        hz, he, hl, guard]
   · dsimp only [v] at hz ⊢
-    simp [compressedSignAttempt, mem_response_iff P hq, hz]
+    simp [compressedSignAttempt, compressedResponse, mem_response_iff P hq, hz]
 
 end Cslib.Crypto.MLDSA

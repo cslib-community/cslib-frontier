@@ -732,6 +732,31 @@ private theorem takeBytes_eq_of_bits {x y : List Byte} (n : ℕ) (hx : n ≤ x.l
         have hab : a = b := by simpa using congrArg Keccak.bitsToByteLE head
         simpa [hab] using ih (by simpa using hx) (by simpa using hy) tail
 
+/-- Consecutive little-endian bytes in a commitment digest register. -/
+def registerBytes (s : Level) (d : BitString (8 * digestBytes s)) : List Byte :=
+  ((List.ofFn d).toChunks 8).map Keccak.bitsToByteLE
+
+/-- A coherent commitment digest register supplies exactly the required number of bytes. -/
+@[simp] theorem length_registerBytes (s : Level) (d : BitString (8 * digestBytes s)) :
+    (registerBytes s d).length = digestBytes s := by
+  have h := congrArg List.length (bitsOfChunks (bits := List.ofFn d) (by simp))
+  rw [bitsLength, List.length_ofFn] at h
+  change 8 * (registerBytes s d).length = 8 * digestBytes s at h
+  lia
+
+/-- A literal digest of the prescribed length round-trips through the XOR register. -/
+theorem registerBytes_ofList (s : Level) (bytes : List Byte) (h : bytes.length = digestBytes s) :
+    registerBytes s (BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE bytes)) =
+      bytes := by
+  let d := BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE bytes)
+  have round : List.ofFn d = Keccak.bytesToBitsLE bytes :=
+    BitString.ofFn_ofList (by rw [bitsLength, h])
+  have bits := (bitsOfChunks (bits := List.ofFn d) (by simp)).trans round
+  change Keccak.bytesToBitsLE (registerBytes s d) = _ at bits
+  have words := takeBytes_eq_of_bits (digestBytes s) (length_registerBytes s d).ge h.ge
+    (congrArg (List.take (8 * digestBytes s)) bits)
+  simpa [List.take_of_length_le, h] using words
+
 private theorem responseBytes_inj {s : Level} {x y : List Byte}
     (w : ℕ) (hw : w = s.params.γ₁.log2 + 1)
     (hx : 32 * w * s.params.ℓ ≤ x.length) (hy : 32 * w * s.params.ℓ ≤ y.length)
@@ -849,6 +874,16 @@ theorem eq_of_sigDecode {s : Level} {a b : List Byte} {σ : Signature s}
 def encodeSignature (s : Level) (σ : Signature s) : List Byte :=
   σ.digest ++ packSigned (s.params.γ₁.log2 + 1) s.params.γ₁ σ.z ++ encodeHint σ.h
 
+/-- Length in bytes of an encoded signature (FIPS 204, Table 2). -/
+def signatureBytes (s : Level) : ℕ :=
+  digestBytes s + 32 * (s.params.γ₁.log2 + 1) * s.params.ℓ + hintLimit s + s.params.k
+
+/-- Encoding a signature satisfying the hint and digest bounds has its prescribed length. -/
+theorem length_encodeSignature (s : Level) (σ : Signature s)
+    (hd : σ.digest.length = digestBytes s) (hh : hintWeight s.params σ.h ≤ hintLimit s) :
+    (encodeSignature s σ).length = signatureBytes s := by
+  simp [encodeSignature, signatureBytes, packSigned, hd, length_encodeHint σ.h hh, Nat.add_assoc]
+
 /-- Algorithms 26 and 27 round-trip every signature with the prescribed digest length,
 an accepted response norm, and at most `ω` hint bits. -/
 theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
@@ -861,10 +896,8 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
   have plen : resp.length = 32 * w * s.params.ℓ := length_packCoeffs ..
   have tlen : (σ.digest ++ resp).length = digestBytes s + 32 * w * s.params.ℓ := by
     rw [List.length_append, hd, plen]
-  have len : (encodeSignature s σ).length =
-      digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k := by
-    change ((σ.digest ++ resp) ++ hints).length = _
-    simp only [List.length_append, tlen, length_encodeHint σ.h hh, hints, Nat.add_assoc]
+  have len := length_encodeSignature s σ hd hh
+  change _ = digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k at len
   have hdr : (encodeSignature s σ).take (digestBytes s) = σ.digest := by
     change ((σ.digest ++ resp) ++ hints).take _ = _
     rw [List.append_assoc, ← hd, List.take_left]
@@ -979,6 +1012,11 @@ def representativeFromTr (tr : List Byte) (formatted : List Bool) : List Bool :=
   Keccak.bytesToBitsLE (Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
     (Keccak.bytesToBitsLE tr ++ formatted) 64)
 
+/-- The message representative fits exactly in the 512-bit measured register. -/
+@[simp] theorem length_representativeFromTr (tr : List Byte) (formatted : List Bool) :
+    (representativeFromTr tr formatted).length = 512 := by
+  rw [representativeFromTr, bitsLength, Keccak.length_bitSponge]
+
 /-- SHAKE256 on `BytesToBits(H(pk,64)) || M'`. In particular a formatted message may end
 between two byte boundaries (Algorithm 8, lines 6–7). -/
 @[expose] def messageRepresentative (pk : List Byte) (formatted : List Bool) : List Bool :=
@@ -1011,7 +1049,7 @@ theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 �
   omega
 
 /-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
-def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
+@[expose] def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
     List Byte :=
   Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
     (commitmentInput s w μ) (digestBytes s)
