@@ -105,11 +105,13 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
     `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_johnson_of_eta` give closed-form
     correlated agreement with explicit Siegel constants
     `1800 * [M *] (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` and
-    `115200 * [M *] n ^ 2 / (ρ * η ^ 6 * |F|)`. These are this library's original finite bounds:
-    they do not imply the source cutoffs (for example eq. (1.3) at `q = 11 ^ 10`, `n = 16`,
-    `ρ = 1 / 4`, radius `7 / 16`, `η = 1 / 16`, `m = 4` admits a density-one line that the
-    multiplicity corollary does not cover), they omit Theorem 1.6's uniqueness clause in the
-    unique-decoding regime, and they do not impose the source cap `η ≤ √ρ / 20`. The exact cited
+    `115200 * [M *] n ^ 2 / (ρ * η ^ 6 * |F|)`. These are this library's original finite bounds.
+    Eq. (1.3) uses `min(η, √ρ / 20)` in its denominator, whereas these formulas use the gap `η`
+    directly, so a density sufficient for (1.3) can fall below the Lean cutoff: for example at
+    `q = 11 ^ 10`, `n = 16`, `ρ = 1 / 4`, radius `7 / 16`, `η = 1 / 16` (`> √ρ / 20 = 1 / 40`),
+    `m = 4`, a line of codewords has close density one and clears the (1.3) cutoff
+    `20,480,000,000 / q < 1`, but not the multiplicity corollary's `28,800,000,000 / q > 1`. They
+    also omit Theorem 1.6's uniqueness clause in the unique-decoding regime. The exact cited
     endpoints, including the displayed constants `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`,
     `(2 * m + 1) * (M * n + 1) / √ρ`, and `ρ ^ 2 / (2 * η) ^ 7`, remain tracked in `#5968`.
   - `Cslib.Code.proximityGap_affine_johnson_exact`,
