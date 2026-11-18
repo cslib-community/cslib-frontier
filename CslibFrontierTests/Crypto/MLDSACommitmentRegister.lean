@@ -8,7 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveCommitmentCall
+import CslibFrontier.Crypto.Computational.MLDSA.ProgrammedContinuation
 
 /-!
 # ML-DSA digest-register clients
@@ -242,3 +242,26 @@ example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery
     C.abs_refreshedCallGame_sub_freshExpansionGame_le s base (a := a) (b := b) le_rfl
       (by cases s <;> decide) (twoRequestForger_calls s first fresh replay)
       (twoRequestForger_hash s first fresh replay) (1 : Fin 2)
+
+-- Both requests now use the public-pair simulator. An initial digest change can affect the
+-- second message through the measured response, and the verifier sees both terminal writes.
+example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
+    (kg : H.keyGen s seed = some keys) (m : BitString 512)
+    (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s))
+    (first : SigningQuery) (fresh replay : Forgery) :
+    ∃ (rho : FixedBytes 32) (pair : MLDSA.SecretKey s.params),
+      H.expandA s rho.toList = some pair.A ∧
+      keys.publicKey = encodePublic s rho.toList pair.publicKey.t ∧
+      let C := twoRequestForger s first fresh replay
+      let win T := Game.succProbability ((C.publicPairSigning s (H.withDigestRegister s T)
+        rho pair.publicKey).map (·.trial.newDigestWin))
+      let μ := signingMaskLaw s.params (by cases s <;> decide)
+      let δ := (commitmentGuessProbability s.params (by cases s <;> decide) pair.A).toReal
+      ∑ y, (μ y).toReal * |(win (Function.update D (maskCommitmentAddress s pair.A m y) 0) : ℝ) -
+        win D| ≤ 4 * √δ + 4 * δ := by
+  obtain ⟨rho, pair, mat, pk, _, h₁, h₂⟩ := privateKey_of_keyGen kg
+  refine ⟨rho, pair, mat, pk, ?_⟩
+  intro C win μ δ
+  simpa only [win, μ, δ, Nat.cast_one, mul_one, Nat.cast_ofNat, show (2 : ℝ) + 2 = 4 by norm_num]
+    using C.mean_publicPairSigning_gap_le s H rho pair h₁ h₂ m D (fun _ => 0)
+      (twoRequestForger_hash s first fresh replay) (twoRequestForger_calls s first fresh replay)

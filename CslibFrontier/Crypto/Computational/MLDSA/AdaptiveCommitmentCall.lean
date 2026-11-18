@@ -98,11 +98,11 @@ private theorem retries_readout (C : QuantumSigningForger) (s : Level) (H : Xofs
     (A : PublicMatrix s) (sk : PrivateKey s) (m : BitString 512)
     (done : Register s → Option (List Byte) → C.Device → Game)
     (test : ∀ T r, ∃ M : Test C, ∀ d, done T r d = observe M d)
-    (fuel : ℕ) (D : Register s) :
+    (keep : Bool) (fuel : ℕ) (D : Register s) :
     ∃ M : Test C, ∀ d, runRegisterRetries
         (signingMaskLaw s.params (by cases s <;> decide)) (PMF.uniformOfFintype _)
         (maskCommitmentAddress s A m) (installedAttempt s H A sk m)
-        (fun T r => done T r d) true fuel D = observe M d := by
+        (fun T r => done T r d) keep fuel D = observe M d := by
   classical
   induction fuel generalizing D with
   | zero => exact test D none
@@ -114,14 +114,15 @@ private theorem retries_readout (C : QuantumSigningForger) (s : Level) (H : Xofs
         ∃ M : Test C, ∀ d, (match installedAttempt s H A sk m D y v with
           | some r => done T r d
           | none => runRegisterRetries μ V (maskCommitmentAddress s A m)
-              (installedAttempt s H A sk m) (fun T r => done T r d) true fuel T) = observe M d := by
+              (installedAttempt s H A sk m) (fun T r => done T r d) keep fuel
+                (if keep then T else D)) = observe M d := by
       intro T
       cases installedAttempt s H A sk m D y v with
       | some r => exact test T r
-      | none => exact ih T
+      | none => exact ih _
     choose M law using branch
     refine ⟨POVM.mixture V (fun v => POVM.mixture μ (M v)), fun d => ?_⟩
-    simp only [runRegisterRetries, ↓reduceIte, PMF.monad_bind_eq_bind,
+    simp only [runRegisterRetries, PMF.monad_bind_eq_bind,
       observe, POVM.measureDensity_mixture]
     apply congrArg (PMF.bind V ·)
     funext v
@@ -161,7 +162,7 @@ private theorem resume_readout (C : QuantumSigningForger) (s : Level) (H A keys 
     | ready m =>
       exact retries_readout C s H A sk m (fun T r d => C.expansionContinuation s
         (H.withDigestRegister s T) A keys (k r) d (q.logReply r l) t.tail)
-        (fun T r => score (k r) T (q.logReply r l) t.tail) fuel D
+        (fun T r => score (k r) T (q.logReply r l) t.tail) true fuel D
 
 private noncomputable abbrev cutInteraction (C : QuantumSigningForger) (s : Level) (G : Xofs)
     (keys : KeyPair) (i : ℕ) (rows : List (Row s)) :=
@@ -397,8 +398,7 @@ private theorem write_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs
   | signing q k =>
     by_cases large : 255 < q.context.length <;>
       simp only [freshDigestSigningCall, key, mat, ↓reduceIte, scanned, preparedPrefix,
-        resumeRetries, retryCall,
-        large, List.findSome?_nil]
+        resumeRetries, retryCall, registerRequest, large, List.findSome?_nil]
 
 private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → ℕ}
     {prog : C.Program Forgery} {K : ℕ} (bounded : OracleComp.IsCostBounded cost prog K)
