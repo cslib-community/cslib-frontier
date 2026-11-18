@@ -192,6 +192,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
+import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
@@ -1622,6 +1623,20 @@ register_result "goldreich-circuit-agreement-limit" where
     f : {0,1}^n → {0,1} and every t with 2 t ≤ 2 ^ n, some function of complexity at most \
     t (2 n + 3) + 1 agrees with f on at least a 1/2 + t/2^n fraction of the inputs. For t = 1 \
     and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
+
+register_result "goldreich-no-universal-hard-core" where
+  title := "There is no universal hard-core predicate"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.8",
+      locator := "March 2007 draft r4.pdf, PDF p. 42; printed p. 306" }
+  ]
+  theorems := [Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq]
+  scope := "Given a one-way function f and a polynomial-time predicate b, the function g \
+    that appends b(x) to f(x) is one-way. Its last bit is b(x) and is computable in \
+    deterministic polynomial time from the image alone, as required by Definition 7.6. \
+    The uniform strict PPT inverters receive the unary length and the image of a uniform \
+    input, and any preimage counts. Outside-fleet source check: review 5954067975 on PR #6409."
 
 register_result "random-functions-average-case-hard" where
   title := "Random functions are hard on average"

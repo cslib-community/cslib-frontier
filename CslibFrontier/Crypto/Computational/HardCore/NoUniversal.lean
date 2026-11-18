@@ -41,7 +41,8 @@ parameter, so it also refutes Goldreich's Definition 7.6, whose predictor receiv
 * `Cslib.Crypto.OneWay.appendPredicate`: appending a polynomial-time bit preserves one-wayness.
 * `Cslib.Crypto.not_hardCore_appendPredicate`: `b` is not a hard-core of `f'`.
 * `Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq`: Goldreich, Exercise 7.8, in the source's terms.
-* `Cslib.Crypto.OneWay.not_exists_universal_hardCore`: Goldreich, Exercise 7.8, for `HardCore`.
+* `Cslib.Crypto.OneWay.not_exists_universal_hardCore`: the impossibility for the library's
+  `HardCore`.
 
 ## References
 
@@ -133,21 +134,16 @@ theorem OneWay.appendPredicate {f : List Bool → List Bool} {b : List Bool → 
       ((hf.inversion_negligible _ (isPPT_guessBitInverter ha)).const_mul 2)
       (succProbability_inversionGame_appendPredicate_le f b adversary)
 
-/-- The last bit of a word, `false` for the empty word. -/
-def lastBit (word : List Bool) : Bool :=
-  word.reverse.headD false
-
+/-- Reading the last bit, with default `false`, is computable in polynomial time. -/
 @[fun_prop]
-theorem computableInPolyTime_lastBit : ComputableInPolyTime lastBit encBits encBool := by
+theorem computableInPolyTime_getLastD :
+    ComputableInPolyTime (List.getLastD · false) encBits encBool := by
+  simp only [List.getLastD_eq_getLast?, List.getLast?_eq_head?_reverse, ← List.headD_eq_head?_getD]
   exact (ComputableInPolyTime.headD false).comp ComputableInPolyTime.bitsReverse
-
-@[simp]
-theorem lastBit_append_singleton (word : List Bool) (bit : Bool) : lastBit (word ++ [bit]) = bit :=
-  by simp [lastBit]
 
 /-- The predictor that outputs the last bit of the image and ignores the length parameter. -/
 def lastBitPredictor : Distinguisher :=
-  fun _ image => pure (lastBit image)
+  fun _ image => pure (image.getLastD false)
 
 /-- The last-bit predictor always predicts `b` from `appendPredicate f b`. -/
 theorem predictionAdvantage_lastBitPredictor (f : List Bool → List Bool) (b : List Bool → Bool)
@@ -155,7 +151,7 @@ theorem predictionAdvantage_lastBitPredictor (f : List Bool → List Bool) (b : 
   have hgame : ProbComp.eval (predictionGame (appendPredicate f b) b lastBitPredictor n) =
       PMF.pure true := by
     simp only [predictionGame, predictionExperiment, lastBitPredictor, appendPredicate,
-      lastBit_append_singleton, bind_pure_comp, map_pure, BEq.rfl, ProbComp.eval_map,
+      List.getLastD_concat, bind_pure_comp, map_pure, BEq.rfl, ProbComp.eval_map,
       BitString.eval_sampleList]
     exact PMF.map_const _ _
   apply NNReal.coe_injective
@@ -168,7 +164,7 @@ of [Goldreich, Definition 7.6][Goldreich2007DraftR4], whose predictor receives o
 theorem not_hardCore_appendPredicate (f : List Bool → List Bool) (b : List Bool → Bool) :
     ¬ HardCore (appendPredicate f b) b := fun h => by
   have hneg := h.unpredictable lastBitPredictor
-    computableInPolyTime_lastBit.isPPT
+    computableInPolyTime_getLastD.isPPT
   have hconst : predictionAdvantage (appendPredicate f b) b lastBitPredictor = fun _ => 1 / 2 :=
     funext (predictionAdvantage_lastBitPredictor f b)
   rw [hconst] at hneg
@@ -178,24 +174,24 @@ theorem not_hardCore_appendPredicate (f : List Bool → List Bool) (b : List Boo
 source's terms.** If a one-way function exists, then for every polynomial-time predicate `b` some
 one-way function `g` (`OneWay`, Definition 7.1) has `b x` as the last bit of `g x`. The last bit
 is computed from `g x` alone by a deterministic polynomial-time algorithm
-(`Cslib.Crypto.computableInPolyTime_lastBit`), which therefore guesses `b x` from `g x` with
+(`Cslib.Crypto.computableInPolyTime_getLastD`), which therefore guesses `b x` from `g x` with
 probability one. So `b` is not a hard-core of `g` in the sense of Definition 7.6, where the
 predictor receives only `g x` and must have success below `1/2 + 1/p(n)`. The library's
 `HardCore` also gives the predictor `n`; `Cslib.Crypto.OneWay.not_exists_universal_hardCore`
 states the conclusion for it. -/
 theorem OneWay.exists_oneWay_lastBit_eq {f : List Bool → List Bool} (hf : OneWay f)
     {b : List Bool → Bool} (hb : ComputableInPolyTime b encBits encBool) :
-    ∃ g : List Bool → List Bool, OneWay g ∧ ∀ x, lastBit (g x) = b x :=
-  ⟨Cslib.Crypto.appendPredicate f b, hf.appendPredicate hb, fun _ => lastBit_append_singleton _ _⟩
+    ∃ g : List Bool → List Bool, OneWay g ∧ ∀ x, (g x).getLastD false = b x :=
+  ⟨Cslib.Crypto.appendPredicate f b, hf.appendPredicate hb, fun _ => List.getLastD_concat⟩
 
-/-- **[Goldreich, Exercise 7.8][Goldreich2007DraftR4] for the library's `HardCore`.** If a one-way
-function exists, then no predicate `b` is a hard-core (`HardCore`) of every one-way function
+/-- **No universal predicate for the library's `HardCore`.** If a one-way function exists,
+then no predicate `b` is a hard-core (`HardCore`) of every one-way function
 (`OneWay`). For polynomial-time `b` the witness is `f'(x) = (f(x), b(x))`
 (`Cslib.Crypto.OneWay.appendPredicate`, `Cslib.Crypto.not_hardCore_appendPredicate`); `HardCore`
 includes polynomial-time computability of `b`. `HardCore` gives its predictors the length `n` as
 well, so it is stronger than Definition 7.6 and this conclusion is formally weaker than the
-source's; `Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq` states the source's form. As in the
-source, the statement assumes that one-way functions exist. -/
+source's. The constructive theorem `Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq` matches
+Goldreich's exercise. -/
 theorem OneWay.not_exists_universal_hardCore {f : List Bool → List Bool} (hf : OneWay f) :
     ¬ ∃ b : List Bool → Bool, ∀ g : List Bool → List Bool, OneWay g → HardCore g b := by
   rintro ⟨b, hb⟩
