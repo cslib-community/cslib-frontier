@@ -28,7 +28,10 @@ latter, so that a new reduction costs only its semantic argument.
   finite conjunctions and disjunctions, pullback and composition. It searches the Aesop rule set
   `FirstOrder`. A concrete interpretation or projection, defined as a structure instance, is
   split into its domain and relation definitions, with a case for each relation symbol of a
-  concrete vocabulary.
+  concrete vocabulary. `fo_qf [defs, lemmas]` normalizes each search goal with the supplied
+  definitions and lemmas, including relation formulas after their symbol is split. Imported
+  ordered-projection modules register the stronger `FullTupleInterpretation.IsQFProjection`
+  certificates and their numeric-guard combinators in the same rule set.
 * `fo_iso_closed` runs the same search on closure of a class under isomorphism (`IsoClosed`),
   whose lemmas are registered in the rule set `FirstOrder` too.
 * `fo_simp`, defined in `CslibFrontier.Tactic.FirstOrder.Simp` and re-exported here, simplifies
@@ -71,10 +74,11 @@ definition of the relations are unaffected.
 The simprocs unfold a projection of `Interpretation` or `Projection` only when its argument
 unfolds to a structure instance, and a relation definition only when the match on the relation
 symbol reduces, so they never expose auxiliary matchers; for quantifier-freeness, composites are
-unfolded too. `fo_qf` and `fo_iso_closed` run one search and differ only in the note added to
-its error on failure. Aesop's simplifier is disabled in it: the default simp set would rewrite the
-formulas whose shape the rules inspect. Relation symbols are split by a safe rule, as Aesop's
-normalisation rules may not produce several goals.
+unfolded too. `fo_qf` and `fo_iso_closed` share one search. The optional `fo_qf` hints add a local
+normalization rule without changing the globally registered rules. Aesop's general simplifier is
+disabled: the default simp set would rewrite the formulas whose shape the rules inspect.
+Relation symbols are split by a safe rule, as Aesop's normalisation rules may not produce several
+goals.
 
 ## References
 
@@ -195,15 +199,22 @@ private meta def casesRelationSymbol : TacticM Unit := withMainContext do
 
 /-- The search shared by `fo_qf` and `fo_iso_closed`: the Aesop rule set `FirstOrder` alone,
 without Aesop's simplifier, appending `note` to its error when it fails. -/
-private meta def searchFirstOrder (note : MessageData) : TacticM Unit :=
+private meta def searchFirstOrder (note : MessageData)
+    (normalize? : Option (TSyntax `tactic) := none) : TacticM Unit :=
   Cslib.Tactic.withFailureNote note do
-    evalTactic (← `(tactic| aesop (config := { terminal := true, enableSimp := false })
-      (rule_sets := [-default, FirstOrder])))
+    match normalize? with
+    | none => evalTactic (← `(tactic| aesop (config := { terminal := true, enableSimp := false })
+        (rule_sets := [-default, FirstOrder])))
+    | some normalize =>
+      evalTactic (← `(tactic| aesop (config := { terminal := true, enableSimp := false })
+        (rule_sets := [-default, FirstOrder]) (add norm tactic (by $normalize:tactic))))
 
 /-- `fo_qf` proves that a formula, interpretation, projection formula or projection built from the
-usual constructors is quantifier-free, searching the Aesop rule set `FirstOrder`. It fails if it
-cannot close the goal. -/
-syntax (name := foQF) "fo_qf" : tactic
+usual constructors is quantifier-free, searching the Aesop rule set `FirstOrder`.
+`fo_qf [defs, lemmas]` simplifies each search goal only with the supplied definitions and lemmas.
+It fails if it cannot close the goal. In particular, ordered `IsQFProjection` goals retain their
+stronger projection condition, including the restriction on numeric guards. -/
+syntax (name := foQF) "fo_qf" (simpArgs)? : tactic
 
 /-- `fo_iso_closed` proves that a class of structures is closed under isomorphism from a lemma
 registered in the Aesop rule set `FirstOrder` or a hypothesis. It runs the same search as `fo_qf`
@@ -211,11 +222,16 @@ and fails if it cannot close the goal. -/
 syntax (name := foIsoClosed) "fo_iso_closed" : tactic
 
 /-- Elaborate `fo_qf`: the shared search, with a note on failure. -/
-@[tactic foQF] meta def evalFoQF : Tactic := fun _ =>
+@[tactic foQF] meta def evalFoQF : Tactic := fun stx => do
+  let normalize? ← match stx with
+    | `(tactic| fo_qf [$args,*]) =>
+      pure (some (← `(tactic| simp only [$args,*])))
+    | `(tactic| fo_qf) => pure none
+    | _ => throwUnsupportedSyntax
   searchFirstOrder m!"fo_qf proves quantifier-freeness from the rules of the Aesop rule set \
-    `FirstOrder` and hypotheses. Unfold a local definition first, assume `IsQF` for an abstract \
-    formula or interpretation, or register a lemma for a new combinator with \
-    `@[aesop safe apply (rule_sets := [FirstOrder])]`."
+    `FirstOrder` and hypotheses. Use `fo_qf [defs]` to unfold a local definition, assume `IsQF` \
+    for an abstract formula or interpretation, or register a lemma for a new combinator with \
+    `@[aesop safe apply (rule_sets := [FirstOrder])]`." normalize?
 
 /-- Elaborate `fo_iso_closed`: the shared search, with a note on failure. -/
 @[tactic foIsoClosed] meta def evalFoIsoClosed : Tactic := fun _ =>

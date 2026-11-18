@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
 import CslibFrontier.Logics.FirstOrder.Problems.SizedGraph
 import CslibFrontier.Logics.FirstOrder.Projection.Graph
 import CslibFrontier.Logics.FirstOrder.Subformula
@@ -70,6 +71,45 @@ example : ¬ (∀' R.boundedFormula₂ &0 &0 : L.Sentence).IsQF := by
   exact BoundedFormula.not_all_isQF _
 
 end QF
+
+/-! ### Ordered projection certificates -/
+
+open Ordered in
+example {L L' : Language} {k : ℕ}
+    (q : ∀ {r}, L'.Relations r → ProjectionFormula qfNumericLanguage L (Fin r × Fin k))
+    (hq : ∀ {r} (R : L'.Relations r), (q R).IsQF) :
+    (FullTupleInterpretation.ofQFProjection q).IsQFProjection := by
+  fo_qf
+
+open Ordered in
+example {L : Language} {r d m : ℕ} (bs : Fin d → Bool) (a : Fin r)
+    (c : Prop) [Decidable c]
+    (p q : ProjectionFormula qfNumericLanguage L (Fin r × Fin (d + m)))
+    (hp : p.IsQF) (hq : q.IsQF) :
+    (if c then ProjectionFormula.guardAnd (hasBinaryTag m bs a) p else q).IsQF := by
+  fo_qf
+
+private def namedGuard {L : Language} (R : L.Relations 2) : L.Formula (Fin 2) :=
+  rel₂ R 0 1 ⊓ ∼(varEq 0 1)
+
+example {L : Language} (R : L.Relations 2) : (namedGuard R).IsQF := by
+  fo_qf [namedGuard]
+
+-- Local normalization applies only to this invocation's goal.
+example {L : Language} (R : L.Relations 2) :
+    (namedGuard R).IsQF ∧ (namedGuard R).IsQF := by
+  constructor
+  · fo_qf [namedGuard]
+  · fo_qf [namedGuard]
+
+-- A semantically harmless quantified guard is still excluded by the syntactic certificate.
+example {N L : Language} (R : N.Relations 2) :
+    ¬ (ProjectionFormula.guardAnd (∀' R.boundedFormula₂ &0 &0 : N.Sentence)
+      (.const false) : ProjectionFormula N L Empty).IsQF := by
+  fail_if_success
+    have : (ProjectionFormula.guardAnd (∀' R.boundedFormula₂ &0 &0 : N.Sentence)
+      (.const false) : ProjectionFormula N L Empty).IsQF := by fo_qf
+  exact fun h => BoundedFormula.not_all_isQF _ h.1
 
 /-- Concrete interpretations are split by relation symbol and unfolded, and closure under
 isomorphism is registered in the same rule set. -/

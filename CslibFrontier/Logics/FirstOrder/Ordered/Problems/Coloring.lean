@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.Reachability
 public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
+import CslibFrontier.Tactic.FirstOrder
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -234,6 +235,11 @@ private theorem isQF_gateG0OutFormula : gateG0OutFormula.IsQF :=
       ProjectionFormula.IsQF.guardAnd (QFNumeric.isQF_varSucc _ _)
         (ProjectionFormula.isQF_const true)⟩
 
+attribute [local aesop safe apply (rule_sets := [FirstOrder])]
+  isQF_guardOrigin0 isQF_guardOriginBoth isQF_guardOriginToVar isQF_guardOriginToZero1
+  isQF_guardOriginToMax1 isQF_guardSameVar0 isQF_guardVarToAct isQF_guardSameCell
+  isQF_guardBridgeLink isQF_gateG0OutFormula
+
 /-- Strictly upper-triangular edge specification (`colorTagRank t₁ < colorTagRank t₂`). -/
 private def upperColorEdge : ColorTag → ColorTag →
     Option (ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (4 + 2)))
@@ -282,22 +288,11 @@ private theorem asym_upperColorEdge (t₁ t₂ : ColorTag)
 private theorem isQF_upperColorEdge (t₁ t₂ : ColorTag)
     (p : ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (4 + 2)))
     (h : upperColorEdge t₁ t₂ = some p) : p.IsQF := by
-  have htrue := ProjectionFormula.isQF_const (N := qfNumericLanguage) (L := FO.cnf)
-    (α := Fin 2 × Fin (4 + 2)) true
   cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h
   all_goals cases h
-  all_goals first
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginBoth htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 (ProjectionFormula.isQF_negLit _ _)
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToVar htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToZero1 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToMax1 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardSameVar0 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardVarToAct htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardSameCell htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardBridgeLink htrue
-    | exact isQF_gateG0OutFormula
+  all_goals fo_qf
+
+attribute [local aesop unsafe 50% apply (rule_sets := [FirstOrder])] isQF_upperColorEdge
 
 /-- Quantifier-free projection formulas for the dimension-6 `SAT → SimpleThreeColorable`
 reduction. -/
@@ -314,9 +309,7 @@ noncomputable def satToColoringInterpretation :
 
 theorem isQFProjection_satToColoringInterpretation :
     satToColoringInterpretation.IsQFProjection := by
-  refine FullTupleInterpretation.isQFProjection_ofQFProjection satToColoringFormula fun R => ?_
-  cases R
-  exact isQF_symmPairBinaryTag (m := 2) colorCode allColorTags isQF_upperColorEdge
+  fo_qf [satToColoringInterpretation, satToColoringFormula]
 
 /-! ### Simple-graph property and 3-coloring equivalence -/
 

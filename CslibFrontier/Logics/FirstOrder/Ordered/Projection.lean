@@ -151,6 +151,7 @@ theorem isProjection_ofProjection
   fun R => ⟨p R, rel_ofProjection p R⟩
 
 /-- Quantifier-free projection formulas define a quantifier-free projection. -/
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQFProjection_ofQFProjection
     (q : ∀ {r : ℕ}, L'.Relations r → ProjectionFormula qfNumericLanguage L (Fin r × Fin k))
     (hq : ∀ {r : ℕ} (R : L'.Relations r), (q R).IsQF) : (ofQFProjection q).IsQFProjection :=

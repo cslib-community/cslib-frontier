@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.SizedGraph
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
+import CslibFrontier.Tactic.FirstOrder
 import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
@@ -114,6 +115,10 @@ private theorem isQF_anchorToClauseFormula : anchorToClauseFormula.IsQF :=
     ⟨QFNumeric.isQF_isMax _, ProjectionFormula.isQF_negLit _ _,
       ProjectionFormula.isQF_const true⟩⟩
 
+attribute [local aesop safe apply (rule_sets := [FirstOrder])]
+  isQF_isAnchor0 isQF_conflictGuard isQF_sizeClauseGuard isQF_sizeAnchorGuard
+  isQF_anchorToClauseFormula
+
 /-- Quantifier-free projection formulas for the dimension-4 `SAT → IndependentSet` reduction. -/
 def satToIndependentSetFormula :
     ∀ {r : ℕ}, FO.sizedGraph.Relations r →
@@ -139,19 +144,7 @@ noncomputable def satToIndependentSetInterpretation :
 
 theorem isQFProjection_satToIndependentSetInterpretation :
     satToIndependentSetInterpretation.IsQFProjection := by
-  refine FullTupleInterpretation.isQFProjection_ofQFProjection satToIndependentSetFormula
-    fun R => ?_
-  cases R
-  · exact ⟨QFNumeric.isQF_isZero _,
-      ⟨QFNumeric.isQF_isZero _,
-        ⟨QFNumeric.isQF_varEq _ _, ProjectionFormula.isQF_const true,
-          ProjectionFormula.IsQF.guardAnd isQF_conflictGuard (ProjectionFormula.isQF_const true)⟩,
-        ProjectionFormula.isQF_const false⟩,
-      ⟨QFNumeric.isQF_isZero _,
-        ⟨isQF_isAnchor0, isQF_anchorToClauseFormula, ProjectionFormula.isQF_const true⟩,
-        ProjectionFormula.isQF_const true⟩⟩
-  · exact ⟨isQF_sizeClauseGuard, ProjectionFormula.isQF_const true,
-      ProjectionFormula.IsQF.guardAnd isQF_sizeAnchorGuard (ProjectionFormula.isQF_const true)⟩
+  fo_qf [satToIndependentSetInterpretation, satToIndependentSetFormula]
 
 /-! ### Tuple-level structure and clique-partition proof -/
 

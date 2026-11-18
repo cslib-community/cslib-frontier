@@ -85,17 +85,21 @@ variable {N L : Language} {α : Type*}
 @[expose] def guardAnd (g : N.Formula α) (p : ProjectionFormula N L α) : ProjectionFormula N L α :=
   .branch g p (.leaf (.const false))
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_const (b : Bool) : (const b : ProjectionFormula N L α).IsQF :=
   trivial
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_posLit {r : ℕ} (R : L.Relations r) (args : Fin r → α) :
     (posLit R args : ProjectionFormula N L α).IsQF :=
   trivial
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_negLit {r : ℕ} (R : L.Relations r) (args : Fin r → α) :
     (negLit R args : ProjectionFormula N L α).IsQF :=
   trivial
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem IsQF.guardAnd {g : N.Formula α} {p : ProjectionFormula N L α}
     (hg : g.IsQF) (hp : p.IsQF) : (guardAnd g p).IsQF :=
   ⟨hg, hp, trivial⟩
@@ -160,15 +164,19 @@ variable {α : Type*}
 @[expose] def varSucc (a b : α) : qfNumericLanguage.Formula α :=
   succ (.var a) (.var b)
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_varEq (a b : α) : (varEq a b).IsQF :=
   (BoundedFormula.IsAtomic.equal _ _).isQF
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_isZero (a : α) : (isZero a).IsQF :=
   (BoundedFormula.IsAtomic.equal _ _).isQF
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_isMax (a : α) : (isMax a).IsQF :=
   (BoundedFormula.IsAtomic.equal _ _).isQF
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_varSucc (a b : α) : (varSucc a b).IsQF :=
   (isAtomic_succ _ _).isQF
 
@@ -363,6 +371,7 @@ noncomputable def hasBinaryTag {r d : ℕ} (m : ℕ) (bs : Fin d → Bool) (a : 
     if bs i then QFNumeric.isMax (a, Fin.castAdd m i)
     else QFNumeric.isZero (a, Fin.castAdd m i)
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_hasBinaryTag {r d : ℕ} (m : ℕ) (bs : Fin d → Bool) (a : Fin r) :
     (hasBinaryTag m bs a).IsQF := by
   refine Formula.isQF_iInf _ fun i => ?_
@@ -388,6 +397,7 @@ noncomputable def dispatchBinaryTag {L : Language} {T : Type*} {r d m : ℕ}
     ProjectionFormula qfNumericLanguage L (Fin r × Fin (d + m)) :=
   tags.foldr (fun t acc => .branch (hasBinaryTag m (code t) a) (body t) acc) fallback
 
+@[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_dispatchBinaryTag {L : Language} {T : Type*} {r d m : ℕ}
     (a : Fin r) (code : T → Fin d → Bool) (tags : List T)
     {body : T → ProjectionFormula qfNumericLanguage L (Fin r × Fin (d + m))}
@@ -473,6 +483,9 @@ noncomputable def symmPairBinaryTag {L : Language} {T : Type*} {d m : ℕ}
       (.const false))
     (.const false)
 
+-- A concrete output dimension may already have reduced `d + m` to a numeral. Index by the
+-- certificate predicate so that arithmetic in the variable type does not hide this rule.
+@[aesop safe apply (rule_sets := [FirstOrder]) (index := [target ProjectionFormula.IsQF _])]
 theorem isQF_symmPairBinaryTag {L : Language} {T : Type*} {d m : ℕ}
     (code : T → Fin d → Bool) (tags : List T)
     {upper : T → T → Option (ProjectionFormula qfNumericLanguage L (Fin 2 × Fin (d + m)))}

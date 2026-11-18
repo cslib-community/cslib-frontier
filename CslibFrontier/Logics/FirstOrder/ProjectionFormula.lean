@@ -295,6 +295,13 @@ theorem IsQF.branch {guard : N.Formula α} {yes no : ProjectionFormula N L α} (
     (hyes : yes.IsQF) (hno : no.IsQF) : (branch guard yes no).IsQF :=
   ⟨hguard, hyes, hno⟩
 
+/-- A structure-independent choice between quantifier-free projection formulas stays
+quantifier-free. -/
+@[aesop safe apply (rule_sets := [FirstOrder])]
+theorem IsQF.ite (c : Prop) [Decidable c] {yes no : ProjectionFormula N L α}
+    (hyes : yes.IsQF) (hno : no.IsQF) : (if c then yes else no).IsQF := by
+  split_ifs <;> assumption
+
 /-- Quantifier-free numeric tests give a quantifier-free ordinary formula. Quantifier-freeness
 of an arbitrary ordinary formula does not ensure it is a projection: it can mix input bits. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]

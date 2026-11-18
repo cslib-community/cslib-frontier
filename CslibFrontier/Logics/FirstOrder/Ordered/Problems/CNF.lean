@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Reduction
 public import CslibFrontier.Logics.FirstOrder.Problems.CNF
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
+import CslibFrontier.Tactic.FirstOrder
 
 /-!
 # Canonical ordered CNF satisfiability and the `SAT ≤_qfp 3SAT` projection
@@ -188,6 +189,11 @@ private noncomputable def tautHalf :
 private theorem isQF_tautHalf : tautHalf.IsQF :=
   ProjectionFormula.IsQF.guardAnd isQF_isVarXZero (ProjectionFormula.isQF_const true)
 
+attribute [local aesop safe apply (rule_sets := [FirstOrder])]
+  isQF_isVarXZero isQF_isVarXSucc isQF_isVarPosZero isQF_isVarPosSame isQF_isVarPosSucc
+  isQF_isVarPosMax isQF_isVarNegZero isQF_isVarNegSame isQF_isVarNegSucc isQF_isVarNegMax
+  isQF_tautHalf
+
 private noncomputable def posBranch : ThreeSATTag →
     ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (3 + 2))
   | .posStart =>
@@ -253,42 +259,8 @@ noncomputable def satToThreeSATInterpretation : FullTupleInterpretation FO.cnf F
 theorem isQFProjection_satToThreeSATInterpretation :
     satToThreeSATInterpretation.IsQFProjection := by
   refine FullTupleInterpretation.isQFProjection_ofQFProjection satToThreeSATFormula fun R => ?_
-  cases R
-  · refine isQF_dispatchBinaryTag (m := 2) 0 tagCode allThreeSATTags (fun t _ => ?_) isQF_tautHalf
-    cases t
-    · exact ⟨QFNumeric.isQF_isZero _,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarXZero (ProjectionFormula.isQF_posLit _ _),
-        isQF_tautHalf⟩
-    · exact ⟨(QFNumeric.isQF_isMax _).not,
-        ⟨isQF_isVarPosSame, ProjectionFormula.isQF_const true,
-          ProjectionFormula.IsQF.guardAnd isQF_isVarXSucc (ProjectionFormula.isQF_posLit _ _)⟩,
-        isQF_tautHalf⟩
-    · exact ⟨QFNumeric.isQF_isZero _,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarPosMax (ProjectionFormula.isQF_const true),
-        isQF_tautHalf⟩
-    · exact ⟨(QFNumeric.isQF_isMax _).not,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarNegSame (ProjectionFormula.isQF_const true),
-        isQF_tautHalf⟩
-    · exact ⟨QFNumeric.isQF_isZero _,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarNegMax (ProjectionFormula.isQF_const true),
-        isQF_tautHalf⟩
-  · refine isQF_dispatchBinaryTag (m := 2) 0 tagCode allThreeSATTags (fun t _ => ?_) isQF_tautHalf
-    cases t
-    · exact ⟨QFNumeric.isQF_isZero _,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarPosZero (ProjectionFormula.isQF_const true),
-        isQF_tautHalf⟩
-    · exact ⟨(QFNumeric.isQF_isMax _).not,
-        ProjectionFormula.IsQF.guardAnd isQF_isVarPosSucc (ProjectionFormula.isQF_const true),
-        isQF_tautHalf⟩
-    · exact ⟨QFNumeric.isQF_isZero _,
-        ⟨isQF_isVarNegZero, ProjectionFormula.isQF_const true,
-          ProjectionFormula.IsQF.guardAnd isQF_isVarXZero (ProjectionFormula.isQF_posLit _ _)⟩,
-        isQF_tautHalf⟩
-    · exact ⟨(QFNumeric.isQF_isMax _).not,
-        ⟨isQF_isVarNegSucc, ProjectionFormula.isQF_const true,
-          ProjectionFormula.IsQF.guardAnd isQF_isVarXSucc (ProjectionFormula.isQF_posLit _ _)⟩,
-        isQF_tautHalf⟩
-    · exact ⟨QFNumeric.isQF_isZero _, ProjectionFormula.isQF_const false, isQF_tautHalf⟩
+  cases R <;> refine isQF_dispatchBinaryTag _ _ _ (fun t _ => ?_) (by fo_qf)
+  all_goals cases t <;> fo_qf [posBranch, negBranch]
 
 /-! ### Tuple-level variable and clause semantics -/
 
