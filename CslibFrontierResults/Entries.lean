@@ -6880,46 +6880,31 @@ register_result "two-point-blinded-cdh-hard" where
     success probability by the reduction's CDH success plus 1/2^n. The PAKE₂ protocol and its \
     random-oracle analysis are not formalized."
 
-register_result "kem-dem-hybrid-ind-cpa" where
-  title := "KEM–DEM hybrid encryption is correct, and semantically secure when the KEM and the \
-    DEM are"
+register_result "kem-dem-hybrid-correctness" where
+  title := "KEM–DEM hybrid encryption is correct"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 11.9(a)–(b)",
+    { paper := BonehShoup2023, theorem := "Exercise 11.9(a)",
       locator := "Section 11.8, pp. 460–461" }
   ]
   theorems := [
-    Cslib.Crypto.Encryption.KEMINDCPA.hybrid_indcpaOn,
     Cslib.Crypto.Encryption.hybridDecrypt_hybridEncrypt
   ]
-  scope := "The hybrid scheme of the exercise: hybridEncrypt encaps encryptSym draws \
+  scope := "The hybrid scheme of the exercise (p. 461): hybridEncrypt encaps encryptSym draws \
     (k, c_kem) ← encaps n pk and c ← encryptSym n k m and outputs the framed pair (c_kem, c); \
-    hybridDecrypt decaps decryptSym rejects a malformed pair, then decapsulates and decrypts, \
-    propagating rejection. Part (a) (hybridDecrypt_hybridEncrypt): every ciphertext in the \
-    support of encryption under pk decrypts under sk to its message, when decapsulation under \
-    sk recovers every encapsulation under pk and the DEM decrypts its ciphertexts under every \
-    encapsulated key. Part (b) (KEMINDCPA.hybrid_indcpaOn). Hypotheses: KEMINDCPA keyLen keyGen \
-    encaps, the exercise's KEM semantic security against uniform strict PPT distinguishers, \
-    with K the keyLen n-bit words; DEMOneTimeKeyINDCPAOn valid encMsg keyLen encryptSym, \
-    semantic security of the DEM (Attack Game 2.1 and Definition 2.2, p. 16) under a uniform \
-    keyLen n-bit key against uniform strict PPT adversaries, for challenge pairs admitted by \
-    valid; valid is polynomial-time computable and ignores the public key; key generation, \
-    encapsulation and DEM encryption are uniform strict PPT. Conclusion: INDCPAOn valid \
-    encMsg, semantic security (Attack Game 11.1 and Definition 11.2, pp. 436–437) of the hybrid \
-    scheme against uniform strict PPT two-stage adversaries, for the same valid. Messages are \
-    a type Msg with an encoding, restricted by valid: taking valid to admit pairs of messages \
-    of M of equal length, which is polynomial time because M is efficiently recognizable \
-    (Definition 2.10, p. 31), gives the source's games; a wider valid is a stronger assumption \
-    on the DEM. Deviation: the KEM distinguisher also receives pk, which the exercise's \
-    challenger does not list (p. 460). Part (b) fails without it: a KEM whose key is its \
-    public key and whose encapsulation is empty is then secure, and its hybrid with the \
-    one-time pad is not. The assumptions inventory lists KEMINDCPA as standard with this \
-    deviation. The reductions hybridToKEMDistinguisher and hybridToDEMAdversary are certified \
-    strict PPT (isPPT_hybridToKEMDistinguisher, isPPT_hybridToDEMAdversary). Asymptotic; \
-    advantage_hybridGame_le_two_mul, in the same module, is the exercise's bound \
-    SSadv[A, E] ≤ 2 · SSadv[B_kem, E_kem] + SSadv[B_s, E_s], with the single hidden-bit \
-    distinguisher hybridToKEMHiddenBitDistinguisher. KEMINDCPA.hybrid_indcpa is the case in \
-    which every challenge pair is admissible."
+    hybridDecrypt decaps decryptSym rejects a word that is not such a pair, then decapsulates \
+    and decrypts, propagating either rejection. The theorem fixes n, pk, sk and a message m. \
+    It assumes that decapsulation under sk recovers the key of every encapsulation in the \
+    support of encaps n pk, the KEM correctness requirement of p. 460 at that key pair, and \
+    that the DEM decrypts each of its ciphertexts of m under every key so encapsulated, cipher \
+    correctness (Definition 2.10, p. 31) at those keys. Conclusion: every ciphertext in the \
+    support of hybrid encryption of m under pk decrypts under sk to m. Applied to every key \
+    pair in the support of key generation, this is the correctness requirement of \
+    Definition 11.1 (p. 436) for the hybrid scheme; the hypotheses are needed only at the given \
+    key pair and its encapsulated keys. Messages may have any type. Part (b), semantic \
+    security, is not part of this entry: KEMINDCPA.hybrid_indcpaOn, in the same module, \
+    assumes a KEM notion whose distinguisher also receives pk, which the exercise's KEM game \
+    (p. 460) does not give it."
 
 register_result "rsa-unit-preimage-variant" where
   title := "The RSA assumption implies its variant with a uniform unit preimage"
