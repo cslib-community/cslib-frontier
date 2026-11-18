@@ -627,24 +627,34 @@ private theorem fnWord_polyTime :
   simp only [fnWord_eq]
   exact henc.comp (hhead.prod hbody)
 
-/-- The encoding information is computed in polynomial time. -/
-private theorem encInfoWord_polyTime :
-    ComputableInPolyTime (fun x : ℕ × XorAndCircuit × List Bool =>
-      encInfoWord x.1 x.2.1.circuit x.2.2) encGbInput encBits := by
+/-- Encoding information `encInfoWord` is computed in polynomial time from the security
+parameter, the input count `f.n`, and the coins. -/
+theorem encInfoWord_polyTime_of {γ : Type} {encIn : γ ↪ List Bool}
+    {k : γ → ℕ} {f : γ → ConventionalCircuit} {coins : γ → List Bool}
+    (hk : ComputableInPolyTime k encIn encUnary)
+    (hn : ComputableInPolyTime (fun x => (f x).n) encIn encUnary)
+    (hcoins : ComputableInPolyTime coins encIn encBits) :
+    ComputableInPolyTime (fun x => encInfoWord (k x) (f x) (coins x)) encIn encBits := by
   have hrange : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool =>
       ((List.range (2 * p.2.1)).map fun j => List.zipWith xor (inputWord p.1 p.2.2 (j / 2))
         (maskWord p.1 (offsetWord p.1 p.2.2) (j.testBit 0))).flatten)
       (encPair encUnary (encPair encUnary encBits)) encBits := by
     polytime [inputWord, maskWord, offsetWord, BitString.listRow]
-  have heq : (fun x : ℕ × XorAndCircuit × List Bool => encInfoWord x.1 x.2.1.circuit x.2.2) =
-      fun x => ((List.range (2 * x.2.1.circuit.n)).map fun j =>
-        List.zipWith xor (inputWord x.1 x.2.2 (j / 2))
-          (maskWord x.1 (offsetWord x.1 x.2.2) (j.testBit 0))).flatten := by
+  have heq : (fun x => encInfoWord (k x) (f x) (coins x)) =
+      fun x => ((List.range (2 * (f x).n)).map fun j =>
+        List.zipWith xor (inputWord (k x) (coins x) (j / 2))
+          (maskWord (k x) (offsetWord (k x) (coins x)) (j.testBit 0))).flatten := by
     funext x
     rw [encInfoWord, List.map_range_eq_ofFn]
   rw [heq]
-  exact hrange.comp ((ComputableInPolyTime.fst _ _).prod (data_polyTime.fst'.prod
-    (ComputableInPolyTime.snd encUnary (encPair encXorAndCircuit encBits)).snd'))
+  exact hrange.comp (hk.prod (hn.prod hcoins))
+
+/-- The encoding information is computed in polynomial time. -/
+private theorem encInfoWord_polyTime :
+    ComputableInPolyTime (fun x : ℕ × XorAndCircuit × List Bool =>
+      encInfoWord x.1 x.2.1.circuit x.2.2) encGbInput encBits :=
+  encInfoWord_polyTime_of (ComputableInPolyTime.fst _ _) data_polyTime.fst'
+    (ComputableInPolyTime.snd encUnary (encPair encXorAndCircuit encBits)).snd'
 
 include hf in
 /-- The decoding information is computed in polynomial time. -/

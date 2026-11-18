@@ -164,16 +164,17 @@ theorem freshSigningAttempt_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
   let w := moduleSISMap sk.A y
   let r := w - fun i => negacyclicMul c (sk.s₂ i)
   have he := verifierCommitment_publicKey sk y c
+  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq]
   by_cases hz : ResponseShort P (y + v)
   · by_cases hl : LowBitsShort P r
     · have hh := highBitsVec_sub_challenge hP hc hs₂ hl
       dsimp only [v, r, w] at hz hl hh ⊢
-      simp only [compressedSignAttempt, mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
+      simp only [mem_response_iff P hq, hz, hl, and_self, ↓reduceIte,
         Option.bind_some, finishSimulated, he, guard, pure_bind, hh]
       split_ifs <;> rfl
     · dsimp only [v, r, w] at hz hl ⊢
-      simp [compressedSignAttempt, finishSimulated, mem_response_iff P hq, hz, he, hl, guard]
+      simp [finishSimulated, mem_response_iff P hq, hz, he, hl, guard]
   · dsimp only [v] at hz ⊢
-    simp [compressedSignAttempt, mem_response_iff P hq, hz]
+    simp [mem_response_iff P hq, hz]
 
 end Cslib.Crypto.MLDSA

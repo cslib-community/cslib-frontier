@@ -21,8 +21,9 @@ Exercises `CslibFrontier.Crypto.Protocols.SigmaProtocol.Interactive` on:
 
 * `SigmaProtocol.schnorr`: completeness, round-by-round soundness, plain-model soundness, and
   perfect HVZK.
-* `PrimeOrderGroupFamily.schnorrFamily`: `Interactive.Reduction.EfficientHVZK` with simulation
-  error `0` and realization error `1 / 2 ^ n + 1 / 2 ^ n`.
+* `PrimeOrderGroupFamily.schnorrFamily`, with its ideal-sampling honest prover:
+  `Interactive.Reduction.EfficientHVZK` with simulation error `0` and realization error
+  `1 / 2 ^ n + 1 / 2 ^ n`.
 * `SigmaProtocol.andProof`: completeness, round-by-round soundness, soundness, and perfect HVZK
   for the AND composition of two Sigma protocols.
 * `SigmaProtocol.orProof`: completeness, round-by-round soundness, soundness, and perfect HVZK for
@@ -81,9 +82,10 @@ section SchnorrFamily
 
 variable (F : PrimeOrderGroupFamily)
 
-/-- **Schnorr's interactive reduction family is `EfficientHVZK`** with simulation error `0` and
+/-- Schnorr's interactive reduction family, whose honest prover draws its commitment nonce exactly
+uniformly on `ZMod q` at the `PMF` level, is `EfficientHVZK` with simulation error `0` and
 realization error `1 / 2 ^ n + 1 / 2 ^ n`. -/
-theorem schnorrFamily_interactive_efficientHVZK :
+theorem schnorrFamily_interactive_efficientHVZK_ideal :
     Interactive.Reduction.EfficientHVZK
       (fun i => (F.schnorrFamily i).toInteractiveReduction
         (schnorrCommit (F.generator i.2)))
@@ -92,7 +94,7 @@ theorem schnorrFamily_interactive_efficientHVZK :
       (fun i => (F.schnorrFamily i).interactiveSim
         (schnorrSimComp (Function.Embedding.refl _) (F.generator i.2)))
       (fun _ => 0) (fun i => 1 / 2 ^ i.1 + 1 / 2 ^ i.1) :=
-  F.efficientSpecialHVZK_schnorr.efficientHVZK F.schnorrFamily
+  F.efficientSpecialHVZK_schnorr_ideal.efficientHVZK F.schnorrFamily
     (fun i => commitRealizedBy_schnorr (Function.Embedding.refl _) (F.generator i.2))
     (fun i => eval_schnorrSimComp (Function.Embedding.refl _) (F.generator i.2))
     F.isPPTOn_schnorrSampleChallenge fun i => by

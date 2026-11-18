@@ -215,6 +215,7 @@ private theorem rowCoinIndex_lt (f : ValidCircuit)
   simp only [rowCoinIndex]
   omega
 
+/-- A simulated base label read from the coins at wire `w`. -/
 @[expose] def simBaseLabels {n s : ℕ} (k : ℕ) (coins : List Bool) (w : Wire n s) :
     BitString (k + 1) × Bool :=
   labelOfWord k (PointPermute.simLabel k coins w.toNat)
@@ -376,6 +377,7 @@ private theorem simPropWords_eq (k : ℕ) (f : ValidCircuit) (coins : List Bool)
         simBaseLabels, Wire.toNat_gate, hg,
         labelBits_labelOfWord (PointPermute.length_simLabel k coins _)]
 
+/-- The simulated propagated words after all `q` gates match the typed propagated base labels. -/
 theorem simPropWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
     simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins f.1.q =
       List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
@@ -620,6 +622,7 @@ private theorem nonXorRank_eq_countP (free : List Bool) (g : ℕ) :
   rw [nonXorRank, List.count_eq_countP]
   rfl
 
+/-- After `s ≤ t.q` gates, `simPropWords` holds `t.n + s` label words. -/
 theorem length_simPropWords (k : ℕ) (t : Topo) (free : List Bool) (coins : List Bool)
     {s : ℕ} (hs : s ≤ t.q) : (simPropWords k t free coins s).length = t.n + s := by
   induction s with
@@ -776,6 +779,8 @@ private theorem simPropStep_polyTime :
         (encList encBits)) (encPair encNat encNat)) (encList encBits) := by
   polytime [simPropStep, PointPermute.simLabel, BitString.listRow]
 
+/-- `simPropWords` is computed in polynomial time for any polynomial-time topology satisfying the
+circuit ordering bounds. -/
 theorem simPropWords_polyTime_of {γ : Type} {encIn : γ ↪ List Bool}
     {k : γ → ℕ} {t : γ → Topo} {free coins : γ → List Bool}
     (hk : ComputableInPolyTime k encIn encUnary)
@@ -831,6 +836,7 @@ private theorem simPropWords_polyTime :
     (fun p g => p.1.2.2.topo.2.one_le_A g) (fun p g => p.1.2.2.topo.2.A_lt_B g)
     (fun p g => p.1.2.2.topo.2.B_lt_gate g)
 
+/-- The number of non-XOR gates in the first `g` gates is computed in polynomial time. -/
 theorem nonXorCount_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     {free : γ → List Bool} {g : γ → ℕ}
     (hfree : ComputableInPolyTime free encIn encBits)

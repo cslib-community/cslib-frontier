@@ -14,7 +14,6 @@ import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.StrongRSA
-import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
@@ -86,69 +85,19 @@ theorem not_gapCDH_const (F : DecodablePrimeOrderGroupFamily) (d : F.Desc) :
 
 /-! ### DDH -/
 
-/-- Accept when the first and third elements are both the identity. -/
-noncomputable def identityTest : F.DDHDistinguisher :=
-  fun _ _ u _ w => pure (decide (u = 0) && decide (w = 0))
-
-theorem identityTest_isPPT : (identityTest F).IsPPT := by
-  refine (ComputableInPolyTime.isPPTOn (f := fun x : F.DDHInput =>
-    decide (F.encode x.groupParameters x.leftPublic = F.encode x.groupParameters 0) &&
-      decide (F.encode x.groupParameters x.candidateShared = F.encode x.groupParameters 0))
-    (by fun_prop)).congr fun x => ?_
-  simp only [identityTest, (F.encode_injective _).eq_iff]
-
-/-- In the real game, the test succeeds exactly when `α = 0`, with probability `1 / q`. -/
-theorem succProbability_ddhRealGame_identityTest (n : ℕ) :
-    Game.succProbability (F.ddhRealGame (fun _ => PMF.pure d) (identityTest F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  simp only [ddhRealGame, Game.withSetup_pure, eval_ddhRealExperiment, identityTest,
-    ProbComp.eval_pure, smul_eq_zero, F.generator_ne_zero, or_false,
-    mul_eq_zero, ← Bool.decide_and, and_or_left, and_self, or_iff_left_of_imp And.left,
-    PMF.bind_const]
-  rw [Game.succProbability, PMF.bind_pure_decide_eq_apply_true', PMF.uniformOfFintype_apply,
-    ZMod.card, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
-
-/-- In the random game, the test succeeds exactly when `α = γ = 0`, with probability `1 / q²`. -/
-theorem succProbability_ddhRandomGame_identityTest (n : ℕ) :
-    Game.succProbability (F.ddhRandomGame (fun _ => PMF.pure d) (identityTest F) n) =
-      (F.order d : ℝ≥0)⁻¹ ^ 2 := by
-  simp only [ddhRandomGame, Game.withSetup_pure, eval_ddhRandomExperiment, identityTest,
-    ProbComp.eval_pure, smul_eq_zero, F.generator_ne_zero, or_false,
-    PMF.bind_const]
-  rw [Game.succProbability, ← ENNReal.toNNReal_natCast, ← ENNReal.toNNReal_inv,
-    ← ENNReal.toNNReal_pow]
-  congr 1
-  simp [PMF.bind_apply, tsum_fintype, PMF.uniformOfFintype_apply, PMF.pure_apply, ite_and,
-    Finset.sum_ite_eq', sq]
-
-/-- The fixed-group experiments keep the distinct real and random probabilities. -/
+-- `identityTest`, its experiment/game acceptance probabilities (`1 / q` and `1 / q²`), and
+-- `not_ddh_const` are exported by `CslibFrontierTests.Crypto.PrimeOrderGroupFixture`.
 example (n : ℕ) :
     Game.succProbability (ProbComp.eval
       (ddhRealExperiment (F.order d) (F.generator d) (identityTest F n d))) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  simpa only [ddhRealGame, Game.withSetup_pure] using succProbability_ddhRealGame_identityTest F d n
-
-example (n : ℕ) :
+      (F.order d : ℝ≥0)⁻¹ ∧
     Game.succProbability (ProbComp.eval
       (ddhRandomExperiment (F.order d) (F.generator d) (identityTest F n d))) =
-      (F.order d : ℝ≥0)⁻¹ ^ 2 := by
-  simpa only [ddhRandomGame, Game.withSetup_pure] using
-    succProbability_ddhRandomGame_identityTest F d n
-
-/-- **DDH fails for a fixed group.** -/
-theorem not_ddh_const : ¬ F.DDH fun _ => PMF.pure d := by
-  intro h
-  have hneg := h (identityTest F) (identityTest_isPPT F)
-  simp only [Game.advantage, succProbability_ddhRealGame_identityTest,
-    succProbability_ddhRandomGame_identityTest] at hneg
-  refine not_negligible_const ?_ hneg
-  rw [ne_eq, nndist_eq_zero]
-  intro heq
-  have hq : (2 : ℝ) ≤ F.order d := by exact_mod_cast (F.prime_order d).two_le
-  have hr : ((F.order d : ℝ))⁻¹ = ((F.order d : ℝ))⁻¹ ^ 2 := by
-    simpa using congrArg (fun x : ℝ≥0 => (x : ℝ)) heq
-  field_simp at hr
-  nlinarith
+      (F.order d : ℝ≥0)⁻¹ ^ 2 ∧
+    ¬ F.DDH (fun _ => PMF.pure d) :=
+  ⟨succProbability_ddhRealExperiment_identityTest F d n,
+   succProbability_ddhRandomExperiment_identityTest F d n,
+   not_ddh_const F d⟩
 
 /-! ### IND-CPA and IND-CCA2 -/
 

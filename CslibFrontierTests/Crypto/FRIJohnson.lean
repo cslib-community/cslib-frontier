@@ -6,7 +6,7 @@ Authors: Mayank Rathee
 
 module
 
-import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Analysis.Real.Sqrt
@@ -24,37 +24,39 @@ Exercises every public declaration of `CslibFrontier.Crypto.Protocols.FRI.Johnso
 ordinary `module` client (no `import all`, zero gap-assumption premises) across four prime fields:
 
 1. **Unconditional unique-decoding (`ZMod 257`, `d = 3, m = 2, kFinal = 1, q = 6, e = 2`).**
-   Directly instantiates `weightedLineGapBound_of_unique`, `friIOP_rbrSound_of_unique`,
-   `friBCS_romSoundness_bound_of_unique` (`< 1 / 3` at feasible whole-game budget `t_FS = 2,
+   Directly instantiates `weightedLineGapPerRound_of_unique`, `weightedLineGapBound_of_unique`,
+   `friCommitGame_le_of_unique` (`< 1 / 40`), `friIOP_interactiveGame_le_of_unique` (`< 1 / 11`),
+   `friIOP_rbrSound_of_unique`, `friBCS_romSoundness_bound_of_unique` (`< 1 / 3` at `t_FS = 2,
    Q_MT = 1000, σ = 32`, instantiated on an explicit accepting-shaped client of whole-game cost
    `198 ≤ 1000`), and `friBCS_romSoundness_bound_of_prover_verifier_of_unique` (`< 1 / 2` at
    `t_MT = 2, t_FS = 2, L_path = 3, σ = 20`), with zero hand-rolled proximity-gap proof.
 2. **Beyond-unique-decoding 3-round FRI (`ZMod 65537`, `d = 4, m = 3, kFinal = 1, q = 7, e = 5`).**
    Certifies `2 * 5 + 8 > 16` (strictly beyond unique decoding), exhibits a far word `X ^ 8` outside
-   `params65537.proximityLang 5`, discharges `weightedLineGapBound_of_johnson_discrete` with exact
-   `johnsonCurveBound` budgets `(2610, 2204, 85)`, and proves adaptive BCS-FRI ROM soundness
-   strictly `< 1 / 4` (`t_FS = 2, Q_MT = 1000, σ = 32`, instantiated on an explicit
-   accepting-shaped client of whole-game cost `392 ≤ 1000`).
+   `params65537.proximityLang 5`, discharges `weightedLineGapPerRound_of_johnson_discrete` and
+   `weightedLineGapBound_of_johnson_discrete` with exact `johnsonCurveBound` budgets
+   `(2610, 2204, 85)` (whose sum `4899` beats uniform `3 * 2610 = 7830`, certifying
+   `friCommitGame < 2 / 25` and `iopInteractiveGame < 1 / 8`), and proves adaptive BCS-FRI ROM
+   soundness strictly `< 1 / 4` (`t_FS = 2, Q_MT = 1000, σ = 32`).
 3. **Beyond-Sudan (`m = 2` required) 2-round FRI (`ZMod 998244353`, `d = 4, m = 2, kFinal = 1,
    q = 6, e = 8`).** Certifies `δ = 1 / 2 = 1 - √(1 / 4)` strictly beyond both unique decoding and
    Sudan `m = 1` in round 1, exhibits a far word `X ^ 4` outside `params998.proximityLang 8`,
-   discharges `weightedLineGapBound_of_johnson_discrete` with `(mRound, DRound) = [(1, 3), (2, 3)]`
-   and exact `johnsonCurveBound` budgets `(21270, 16065)`, and proves adaptive BCS-FRI ROM
-   soundness strictly `< 1 / 25` (`t_FS = 2, Q_MT = 1000, σ = 32`, instantiated on an explicit
-   accepting-shaped client of whole-game cost `247 ≤ 1000`).
+   discharges `weightedLineGapPerRound_of_johnson_discrete` with `(mRound, DRound) =`
+   `[(1, 3), (2, 3)]` and exact `johnsonCurveBound` budgets `(21270, 16065)` (`iopInteractiveGame <
+   1 / 140`), and proves adaptive BCS-FRI ROM soundness strictly `< 1 / 25`.
 4. **Closed-form asymptotic Johnson FRI over the Goldilocks field (`ZMod (2 ^ 64 - 2 ^ 32 + 1)`,
    `d = 5, m = 2, kFinal = 1, q = 6, e = 17, mJ = 2`).** Certifies `2 * 17 + 4 > 32` and
    `17 / 32 ≤ 1 - √(1 / 8) - √(1 / 8) / 4`, exhibits a far word `X ^ 4` outside
-   `paramsGoldilocks.proximityLang 17` alongside honest completeness, and directly exercises
-   `weightedLineGapBound_of_johnson`, `friIOP_rbrSound_of_johnson`,
-   `friBCS_romSoundness_bound_of_johnson` (`< 1 / 25` at `t_FS = 2, Q_MT = 1000, σ = 32`,
-   instantiated on `friCheaterGoldilocks` of whole-game cost `296 ≤ 1000`), and
-   `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` on the explicit adaptive out-of-order
-   cheating prover `friCheaterGoldilocks` (`< 1 / 3` at `t_MT = 2, t_FS = 2, L_path = 5, σ = 20`).
+   `paramsGoldilocks.proximityLang 17` alongside honest completeness, verifies geometric halving of
+   `friJohnsonRoundBound` (`5374771200, 2687385600`), and directly exercises
+   `weightedLineGapPerRound_of_johnson`, `weightedLineGapBound_of_johnson`,
+   `friCommitGame_le_of_johnson` (`< 1 / 10 ^ 9`), `friIOP_interactiveGame_le_of_johnson`
+   (`< 1 / 140` on universal, randomized transcript-ignoring, and prefix-dependent adaptive
+   randomized provers), `friIOP_rbrSound_of_johnson`, `friBCS_romSoundness_bound_of_johnson`
+   (`< 1 / 25`), and `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` (`< 1 / 3`).
 -/
 
--- This regression module checks ordinary imports and exports no test fixtures.
-set_option linter.privateModule false
+-- Exports the primitive-root and monomial far-word helpers shared with
+-- `CslibFrontierTests/Crypto/FRIBatchSoundness.lean`.
 
 namespace CslibFrontierTests.Crypto.FRIJohnson
 
@@ -143,7 +145,7 @@ private theorem zmod_pow_chunks16 {p a b16 b32 b48 e : ℕ}
 
 /-- Over any field of characteristic `≠ 2`, `ω ^ (2 ^ (d - 1)) = -1` implies `ω` is a primitive
 `2 ^ d`-th root of unity. -/
-private theorem isPrimitiveRoot_two_pow_of_neg_one {F : Type*} [Field F]
+public theorem isPrimitiveRoot_two_pow_of_neg_one {F : Type*} [Field F]
     {ω : F} {d : ℕ} (hd : 1 ≤ d) (h2 : (2 : F) ≠ 0) (hneg : ω ^ (2 ^ (d - 1)) = -1) :
     IsPrimitiveRoot ω (2 ^ d) := by
   have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
@@ -172,7 +174,7 @@ private theorem card_filter_congr_decidable {α : Type*} (s : Finset α) (p : α
 /-- Evaluating `X ^ (params.dim 0)` on the initial coset `L_0` yields a word at Hamming distance at
 least `2 ^ d - params.dim 0` from every codeword in `params.initialCode`, hence outside
 `params.proximityLang e` whenever `e + params.dim 0 < 2 ^ d`. -/
-private theorem monomial_far_not_mem_proximityLang {F : Type} [Field F] [DecidableEq F]
+public theorem monomial_far_not_mem_proximityLang {F : Type} [Field F] [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (hgap : e + params.dim 0 < 2 ^ params.d) :
     (fun idx : Fin (2 ^ params.d) => (params.eval 0 idx) ^ params.dim 0) ∉
       params.proximityLang e := by
@@ -473,6 +475,51 @@ example :
     (isCostBounded_FS_mkAcceptingCheater params257 _)
     (mkAcceptingCheater_openings_le params257 _)
 
+-- Exact geometric unique-decoding commit error identity `∑ (2 ^ (d - (i + 1)) / 257) = ofReal ...`.
+example :
+    (∑ i : Fin params257.m,
+      ((2 ^ (params257.d - (i.val + 1)) : ℕ) : ℝ≥0∞) /
+        (Fintype.card (ZMod 257) : ℝ≥0∞)) =
+    ENNReal.ofReal (friUniqueCommitError params257) :=
+  sum_friUniqueRoundEscape_eq params257
+
+/-- Unconditional shrinking unique-decoding commit-phase bound (`≤ 6 / 257 < 1 / 40`) via
+`friCommitGame_le_of_unique`. -/
+theorem fri257_commitGame_unique_lt_one_40th
+    (P : InteractiveIOPProver 3 (ZMod 257) (FRIChal (ZMod 257) 3 6)) :
+    friCommitGame params257 (2 ^ params257.d - 2 - 1)
+      (fun idx => (params257.eval 0 idx) ^ 4) P true < 1 / 40 := by
+  refine lt_of_le_of_lt
+    (friCommitGame_le_of_unique params257 (by decide) farWord257_not_mem P) ?_
+  simp only [ZMod.card, params257]
+  have hlt : (6 / 257 : ℝ≥0) < 1 / 40 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (40 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((2 ^ 3 - 2 ^ (3 - 2) : ℕ) : ℝ≥0∞) = 6),
+    (by norm_num : ((257 : ℕ) : ℝ≥0∞) = 257)] using ENNReal.coe_lt_coe.mpr hlt
+
+/-- Unconditional summed interactive soundness (`< 1 / 11`) via
+`friIOP_interactiveGame_le_of_unique`. -/
+theorem fri257_interactiveGame_unique_lt_one_11th
+    (P : InteractiveIOPProver 3 (ZMod 257) (FRIChal (ZMod 257) 3 6)) :
+    iopInteractiveGame (friIOP params257)
+      (fun idx => (params257.eval 0 idx) ^ 4) P true < 1 / 11 := by
+  refine lt_of_le_of_lt
+    (friIOP_interactiveGame_le_of_unique params257 (by decide) farWord257_not_mem P) ?_
+  simp only [ZMod.card, params257]
+  have hlt : (6 / 257 + (5 / 8) ^ 6 : ℝ≥0) < 1 / 11 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_add, ENNReal.coe_pow,
+    ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (8 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (11 : ℝ≥0) ≠ 0),
+    ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((2 ^ 3 - 2 ^ (3 - 2) : ℕ) : ℝ≥0∞) = 6),
+    (by norm_num : ((257 : ℕ) : ℝ≥0∞) = 257),
+    (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
+    (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8)] using ENNReal.coe_lt_coe.mpr hlt
+
 end Unique257
 
 /-! ### Suite 2: Beyond-Unique-Decoding 3-Round FRI (`ZMod 65537`, `e = 5 > e_uniq = 4`) -/
@@ -621,6 +668,63 @@ example :
     (isCostBounded_FS_mkAcceptingCheater params65537 _)
     (isCostBounded_soundnessProg_mkAcceptingCheater params65537 (encZMod (p := 65537)) 5 _
       (by decide : 2 + params65537.proofOracleQueries * (params65537.d + 1) ≤ 1000))
+
+private theorem sum_johnsonCurveBound_65537 :
+    (∑ i : Fin params65537.m,
+      ProximityGap.johnsonCurveBound (2 ^ (params65537.d - (i.val + 1))) (mRound65537 i)
+        (params65537.dim (i.val + 1) - 1) (DRound65537 i) 1 (2 ^ params65537.d)) = 4899 := by
+  decide
+
+/-- Discrete per-round Johnson commit-phase bound (`4899 / 65537 < 2 / 25`, strictly tighter than
+uniform `3 * 2610 / 65537 = 7830 / 65537 > 2 / 25`) over `ZMod 65537`. -/
+theorem fri65537_commitGame_lt_two_25ths
+    (P : InteractiveIOPProver 4 (ZMod 65537) (FRIChal (ZMod 65537) 4 7)) :
+    friCommitGame params65537 (2 ^ params65537.d - 5 - 1)
+      (fun idx => (params65537.eval 0 idx) ^ 8) P true < 2 / 25 := by
+  refine lt_of_le_of_lt
+    (friCommitGame_le_of_johnson_discrete params65537 (e := 5) (by decide) mRound65537 DRound65537
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      farWord65537_not_mem P) ?_
+  rw [sum_johnsonCurveBound_65537]
+  simp only [ZMod.card]
+  have hlt : (4899 / 65537 : ℝ≥0) < 2 / 25 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_div (by norm_num : (65537 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (25 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat,
+    (by norm_num : ((4899 : ℕ) : ℝ≥0∞) = 4899),
+    (by norm_num : ((65537 : ℕ) : ℝ≥0∞) = 65537)] using
+    ENNReal.coe_lt_coe.mpr hlt
+
+/-- Discrete per-round Johnson summed interactive soundness (`< 1 / 8`, from
+`4899 / 65537 + (10 / 16) ^ 7 ≈ 0.1120 < 1 / 8`) over `ZMod 65537`. -/
+theorem fri65537_interactiveGame_lt_eighth
+    (P : InteractiveIOPProver 4 (ZMod 65537) (FRIChal (ZMod 65537) 4 7)) :
+    iopInteractiveGame (friIOP params65537)
+      (fun idx => (params65537.eval 0 idx) ^ 8) P true < 1 / 8 := by
+  refine lt_of_le_of_lt
+    (friIOP_interactiveGame_le_of_johnson_discrete params65537 (e := 5) (by decide)
+      mRound65537 DRound65537
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      farWord65537_not_mem P) ?_
+  rw [sum_johnsonCurveBound_65537]
+  simp only [ZMod.card, params65537]
+  have hlt : (4899 / 65537 + (10 / 16) ^ 7 : ℝ≥0) < 1 / 8 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_add, ENNReal.coe_pow,
+    ENNReal.coe_div (by norm_num : (65537 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (16 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (8 : ℝ≥0) ≠ 0),
+    ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((4899 : ℕ) : ℝ≥0∞) = 4899),
+    (by norm_num : ((65537 : ℕ) : ℝ≥0∞) = 65537),
+    (by norm_num : ((2 ^ 4 - 5 - 1 : ℕ) : ℝ≥0∞) = 10),
+    (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16)] using ENNReal.coe_lt_coe.mpr hlt
 
 end Johnson65537
 
@@ -788,6 +892,40 @@ example :
     (isCostBounded_soundnessProg_mkAcceptingCheater params998 (encZMod (p := 998244353)) 8 _
       (by decide : 2 + params998.proofOracleQueries * (params998.d + 1) ≤ 1000))
 
+private theorem sum_johnsonCurveBound_998 :
+    (∑ i : Fin params998.m,
+      ProximityGap.johnsonCurveBound (2 ^ (params998.d - (i.val + 1))) (mRound998 i)
+        (params998.dim (i.val + 1) - 1) (DRound998 i) 1 (2 ^ params998.d)) = 37335 := by
+  decide
+
+/-- Beyond-Sudan (`m = 2`) discrete Johnson summed interactive soundness (`< 1 / 140`, from
+`(21270 + 16065) / 998244353 + (7 / 16) ^ 6 ≈ 0.00705 < 1 / 140`) over `ZMod 998244353`. -/
+theorem fri998_interactiveGame_lt_one_140th
+    (P : InteractiveIOPProver 4 (ZMod 998244353) (FRIChal (ZMod 998244353) 4 6)) :
+    iopInteractiveGame (friIOP params998)
+      (fun idx => (params998.eval 0 idx) ^ 4) P true < 1 / 140 := by
+  refine lt_of_le_of_lt
+    (friIOP_interactiveGame_le_of_johnson_discrete params998 (e := 8) (by decide)
+      mRound998 DRound998
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      (fun i => by fin_cases i <;> decide)
+      farWord998_not_mem P) ?_
+  rw [sum_johnsonCurveBound_998]
+  simp only [ZMod.card, params998]
+  have hlt : (37335 / 998244353 + (7 / 16) ^ 6 : ℝ≥0) < 1 / 140 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_add, ENNReal.coe_pow,
+    ENNReal.coe_div (by norm_num : (998244353 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (16 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (140 : ℝ≥0) ≠ 0),
+    ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((37335 : ℕ) : ℝ≥0∞) = 37335),
+    (by norm_num : ((998244353 : ℕ) : ℝ≥0∞) = 998244353),
+    (by norm_num : ((2 ^ 4 - 8 - 1 : ℕ) : ℝ≥0∞) = 7),
+    (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16)] using ENNReal.coe_lt_coe.mpr hlt
+
 end Johnson998244353
 
 /-! ### Suite 4: Closed-Form Asymptotic Johnson FRI over Goldilocks (`2 ^ 64 - 2 ^ 32 + 1`) -/
@@ -795,7 +933,7 @@ end Johnson998244353
 section JohnsonGoldilocks
 
 /-- The 64-bit Goldilocks prime `p = 2 ^ 64 - 2 ^ 32 + 1 = 18446744069414584321`. -/
-abbrev goldilocksP : ℕ := 18446744069414584321
+public abbrev goldilocksP : ℕ := 18446744069414584321
 
 private theorem goldilocks_seven_pow16 :
     (7 : ZMod goldilocksP) ^ (2 ^ 16) = ((11156834669773791359 : ℕ) : ZMod goldilocksP) := by
@@ -1044,6 +1182,121 @@ theorem friCheaterGoldilocks_romSoundness_lt_one_third :
     (by norm_num :
       ((3 * (2 + (1 + 6 * (3 * 2 + 2)) * (5 + 1)) + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 903),
     (by norm_num : (2 : ℝ≥0∞) ^ 20 = 1048576)] using hcast
+
+-- Geometric halving of `friJohnsonRoundBound` across Goldilocks folding rounds (`mJ = 2`):
+-- round 0 = 5374771200 (= `friJohnsonCommitBound`), round 1 = 2687385600, sum = 8062156800.
+example : friJohnsonRoundBound paramsGoldilocks 2 ⟨0, by decide⟩ = 5374771200 :=
+  friJohnsonRoundBound_zero paramsGoldilocks 2 (by decide)
+example : friJohnsonRoundBound paramsGoldilocks 2 ⟨1, by decide⟩ = 2687385600 := rfl
+example :
+    (∑ i : Fin paramsGoldilocks.m, friJohnsonRoundBound paramsGoldilocks 2 i) ≤ 8062156800 :=
+  sum_friJohnsonRoundBound_le paramsGoldilocks 2
+
+private theorem friGoldilocks_commitError_lt :
+    friJohnsonCommitError paramsGoldilocks 2 < (1 : ℝ) / 1000000000 := by
+  simp only [friJohnsonCommitError, ZMod.card, paramsGoldilocks, FRIParams.dim, goldilocksP]
+  norm_num
+
+/-- Closed-form geometric Johnson commit-phase bound (`< 1 / 10 ^ 9`) over Goldilocks via
+`friCommitGame_le_of_johnson`. -/
+theorem friGoldilocks_commitGame_lt_billionth
+    (P : InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6)) :
+    friCommitGame paramsGoldilocks (2 ^ paramsGoldilocks.d - 17 - 1) farWordGoldilocks P true <
+      1 / 1000000000 := by
+  refine lt_of_le_of_lt
+    (friCommitGame_le_of_johnson paramsGoldilocks (by omega) goldilocks_johnson_slack
+      farWordGoldilocks_not_mem P) ?_
+  have hof :
+      ENNReal.ofReal (friJohnsonCommitError paramsGoldilocks 2) <
+        ENNReal.ofReal ((1 : ℝ) / 1000000000) :=
+    (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr friGoldilocks_commitError_lt
+  have hrhs : ENNReal.ofReal ((1 : ℝ) / 1000000000) = (1 : ℝ≥0∞) / 1000000000 := by
+    rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one]
+    norm_num
+  rwa [hrhs] at hof
+
+/-- Closed-form geometric Johnson summed interactive soundness (`< 1 / 140`) over Goldilocks via
+`friIOP_interactiveGame_le_of_johnson`. -/
+theorem friGoldilocks_interactiveGame_lt_one_140th
+    (P : InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6)) :
+    iopInteractiveGame (friIOP paramsGoldilocks) farWordGoldilocks P true < 1 / 140 := by
+  refine lt_of_le_of_lt
+    (friIOP_interactiveGame_le_of_johnson paramsGoldilocks (by omega) goldilocks_johnson_slack
+      farWordGoldilocks_not_mem P) ?_
+  have hcommit :
+      ENNReal.ofReal (friJohnsonCommitError paramsGoldilocks 2) ≤ (1 : ℝ≥0∞) / 1000000000 := by
+    have hof := ENNReal.ofReal_le_ofReal friGoldilocks_commitError_lt.le
+    have hrhs : ENNReal.ofReal ((1 : ℝ) / 1000000000) = (1 : ℝ≥0∞) / 1000000000 := by
+      rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one]
+      norm_num
+    rwa [hrhs] at hof
+  refine lt_of_le_of_lt (add_le_add hcommit le_rfl) ?_
+  simp only [paramsGoldilocks]
+  have hlt : (1 / 1000000000 + (14 / 32) ^ 6 : ℝ≥0) < 1 / 140 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_add, ENNReal.coe_pow,
+    ENNReal.coe_div (by norm_num : (1000000000 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (32 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (140 : ℝ≥0) ≠ 0),
+    ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((2 ^ 5 - 17 - 1 : ℕ) : ℝ≥0∞) = 14),
+    (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32)] using ENNReal.coe_lt_coe.mpr hlt
+
+/-- Randomized transcript-ignoring `InteractiveIOPProver` (mixing `farWordGoldilocks` and `0`
+uniformly each round independently of the prefix) certified `< 1 / 140` in `iopInteractiveGame`
+over Goldilocks. -/
+noncomputable def randProverGoldilocks :
+    InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6) :=
+  fun _ => (PMF.uniformOfFintype Bool).map fun b => if b then farWordGoldilocks else fun _ => 0
+
+example :
+    iopInteractiveGame (friIOP paramsGoldilocks) farWordGoldilocks randProverGoldilocks true <
+      1 / 140 :=
+  friGoldilocks_interactiveGame_lt_one_140th randProverGoldilocks
+
+/-- Prefix-dependent (adaptive) randomized `InteractiveIOPProver` over Goldilocks: in round `0`
+(`pref = []`), mixes `farWordGoldilocks` and `0` uniformly; after receiving `(π₀, c₀)` in round `0`,
+adapts its committed oracle distribution to the observed verifier scalar `c₀.foldScalar` and prior
+oracle `π₀` (shifting `π₀` by `c₀.foldScalar` vs. the constant table `fun _ => c₀.foldScalar + 1`).
+-/
+noncomputable def adaptiveProverGoldilocks :
+    InteractiveIOPProver 5 (ZMod goldilocksP) (FRIChal (ZMod goldilocksP) 5 6)
+  | [] =>
+    (PMF.uniformOfFintype Bool).map fun b =>
+      if b then farWordGoldilocks else fun _ => 0
+  | (π₀, c₀) :: _ =>
+    (PMF.uniformOfFintype Bool).map fun b =>
+      if b then fun idx => π₀ idx + c₀.foldScalar else fun _ => c₀.foldScalar + 1
+
+/-- Witness that `adaptiveProverGoldilocks` genuinely depends on the transcript prefix: at
+`pref = []`, the constant-zero table is in its support, whereas after observing challenge scalar
+`c₀.foldScalar = 1` on `π₀ = 0`, every supported table evaluates to `1` or `2` (never `0`). -/
+theorem adaptiveProverGoldilocks_prefix_dependent :
+    let c₀ : FRIChal (ZMod goldilocksP) 5 6 := ⟨1, fun _ => ⟨0, by decide⟩⟩
+    adaptiveProverGoldilocks [] ≠ adaptiveProverGoldilocks [(fun _ => 0, c₀)] := by
+  intro c₀ heq
+  have hmem_nil : (fun _ : Fin 32 => (0 : ZMod goldilocksP)) ∈
+      (adaptiveProverGoldilocks []).support := by
+    rw [adaptiveProverGoldilocks, PMF.mem_support_map_iff]
+    exact ⟨false, PMF.mem_support_uniformOfFintype false, rfl⟩
+  have hmem_cons : (fun _ : Fin 32 => (0 : ZMod goldilocksP)) ∈
+      (adaptiveProverGoldilocks [(fun _ => 0, c₀)]).support := heq ▸ hmem_nil
+  rw [adaptiveProverGoldilocks, PMF.mem_support_map_iff] at hmem_cons
+  obtain ⟨b, _, hb⟩ := hmem_cons
+  have h0 := congrFun hb ⟨0, by decide⟩
+  cases b
+  · exact absurd h0 (by decide)
+  · exact absurd h0 (by decide)
+
+example :
+    friCommitGame paramsGoldilocks (2 ^ paramsGoldilocks.d - 17 - 1) farWordGoldilocks
+      adaptiveProverGoldilocks true < 1 / 1000000000 :=
+  friGoldilocks_commitGame_lt_billionth adaptiveProverGoldilocks
+
+example :
+    iopInteractiveGame (friIOP paramsGoldilocks) farWordGoldilocks adaptiveProverGoldilocks true <
+      1 / 140 :=
+  friGoldilocks_interactiveGame_lt_one_140th adaptiveProverGoldilocks
 
 end JohnsonGoldilocks
 

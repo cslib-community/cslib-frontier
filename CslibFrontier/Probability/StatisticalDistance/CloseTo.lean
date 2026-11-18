@@ -47,11 +47,13 @@ distance.
   on every event by `ε`.
 * `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) ν` is
   `ε`-close to `ν`.
+* `Cslib.Probability.CloseTo.toReal_apply_le_of_uniformOfFintype`: a distribution `δ`-close to
+  `PMF.uniformOfFintype α` assigns mass at most `1 / Fintype.card α + δ` to every atom.
 -/
 
 public section
 
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 namespace Cslib.Probability
 
@@ -202,5 +204,23 @@ theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤
           one_mul]
     _ ≤ μ.toOuterMeasure E + ENNReal.ofReal ε :=
         add_le_add hle (mul_le_of_le_one_right zero_le hν)
+
+/-- If `ν` is within statistical distance `δ` of the uniform distribution on a finite nonempty
+type `α`, every atom of `ν` has real probability at most `1 / Fintype.card α + δ`. -/
+theorem CloseTo.toReal_apply_le_of_uniformOfFintype {α : Type} [Fintype α] [Nonempty α]
+    {ν : PMF α} {δ : ℝ≥0} (h : CloseTo (PMF.uniformOfFintype α) ν δ) (a : α) :
+    (ν a).toReal ≤ 1 / Fintype.card α + δ := by
+  have ha := h.symm {a}
+  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
+    PMF.uniformOfFintype_apply] at ha
+  have hinv_ne : (Fintype.card α : ℝ≥0∞)⁻¹ ≠ ⊤ :=
+    ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
+  have hne : (Fintype.card α : ℝ≥0∞)⁻¹ + (δ : ℝ≥0∞) ≠ ⊤ :=
+    ENNReal.add_ne_top.mpr ⟨hinv_ne, ENNReal.coe_ne_top⟩
+  calc (ν a).toReal
+      ≤ ((Fintype.card α : ℝ≥0∞)⁻¹ + δ).toReal := ENNReal.toReal_mono hne ha
+    _ = 1 / Fintype.card α + δ := by
+      rw [ENNReal.toReal_add hinv_ne ENNReal.coe_ne_top,
+        ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, one_div]
 
 end Cslib.Probability
