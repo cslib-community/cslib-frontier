@@ -18,9 +18,9 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 
 For an oracle language `B`, the unary length language `Cslib.Complexity.unaryLengthLanguage B`
 consists of the words `1ⁿ` such that `B` has a word of length `n`. Baker, Gill and Solovay
-construct an oracle `B` for which this language is not in `P` relative to `B`, while it is in `NP`
-relative to every oracle (a certificate is a word of length `n` in `B`) [BakerGillSolovay1975]; we
-follow the proof of [Arora and Barak, Theorem 3.7][AroraBarak09].
+construct an oracle `B` for which this language is not in `P` relative to `B`. For every `B`, its
+unary length language is in `NP` relative to that same `B` (a certificate is a word of length `n`
+in `B`) [BakerGillSolovay1975]. We follow [Arora and Barak, Theorem 3.7][AroraBarak09].
 
 The oracle diagonalizes against all candidate deciders at once
 (`Cslib.Complexity.exists_oracle_diagonal`). The candidates are the fair-coin tables with one
@@ -97,12 +97,7 @@ def Candidate.output (candidate : Candidate) (n : ℕ) : WordQueryComp Unit (Lis
   candidate.2.2.1.run (pure false)
     (fun op word => OracleComp.query (op, word)) (candidate.clock n) (List.replicate n true)
 
-/-- The verdict of a candidate on `1ⁿ`: its clocked run with every coin fixed to `false`, accepting
-exactly with output `[true]`. -/
-def Candidate.verdict (candidate : Candidate) (n : ℕ) : WordQueryComp Unit Bool :=
-  (fun output => decide (output = [true])) <$> Candidate.output candidate n
-
-/-- A candidate makes at most one request per instruction. Testing its output adds no requests. -/
+/-- A candidate makes at most one request per instruction. -/
 private theorem Candidate.length_queriesWith_output_le (candidate : Candidate) (n : ℕ)
     (A : Set (List Bool)) :
     (OracleComp.queriesWith (languageOracle A) (candidate.output n)).length ≤
@@ -154,8 +149,8 @@ in `NPWithOracle B encBits`. Taking 3SAT as the target gives Exercise 3 §6 of [
 theorem exists_unaryLengthLanguage_not_reducibleWithOracle {α : Type}
     (enc : α ↪ List Bool) (L : Set α) :
     ∃ B : Set (List Bool), unaryLengthLanguage B ∈ NPWithOracle B encBits ∧
-      ¬∃ f : List Bool → α, ComputableInPolyTimeWithOracle B f encBits enc ∧
-        ∀ x, x ∈ unaryLengthLanguage B ↔ f x ∈ L := by
+      ¬ManyOneReducibleBy (ComputableInPolyTimeWithOracle B · encBits enc)
+        (unaryLengthLanguage B) L := by
   let test (w : List Bool) := decide (w ∈ enc '' L)
   obtain ⟨B, hB⟩ := exists_oracle_diagonal (fun c n => test <$> Candidate.output c n)
     Candidate.clock Candidate.eventually_clock_lt

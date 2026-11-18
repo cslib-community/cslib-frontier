@@ -126,6 +126,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Converse
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
@@ -985,6 +986,16 @@ register_result "dip-eq-np" where
   scope := "dIP is the coin-free case of the IP model: a deterministic word-query verifier run \
     against every randomized stateful prover, strict oracle PPT (one machine, one polynomial \
     clock), completeness 1 and soundness 0; arbitrary injective encodings."
+
+register_result "arora-barak-oracle-counterexample-to-3sat" where
+  title := "Some language in relativized NP has no oracle-aided polynomial-time reduction to 3SAT"
+  topic := "relativization"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 3 §6",
+      locator := "January 2007 draft, printed p. 74; PDF p. 90" }
+  ]
+  theorems := [Cslib.Complexity.exists_unaryLengthLanguage_not_reducibleWithOracle]
+  scope := "For every fixed encoded target, an oracle B has a unary length language in NP     relative to B with no many-one reduction computable in polynomial time with access to B.     The 3SAT client in CslibFrontierTests/Relativization.lean takes the fixed target     encCNF '' ThreeSAT with the identity encoding of words. The disallowed reductions can     output any word, including malformed CNF codes on negative inputs. The witness language     asks whether its unary input length occurs among words in B. The diagonal test checks     the encoded target after the candidate has finished its queries. Outside-fleet source     check: https://github.com/cslib-community/cslib-frontier/pull/6463#pullrequestreview-5958790305"
 
 register_result "arora-barak-perfectly-complete-set-lower-bound" where
   title := "A perfectly complete AM protocol for set lower bounds"
