@@ -119,51 +119,6 @@ private theorem isPPT_ofWords
     (input.1, ((input.2.transcript.groupParameters, F.encode _ input.2.transcript.aliceShare,
       F.encode _ input.2.transcript.bobShare), F.encode _ input.2.key))) (by fun_prop)
 
-/-- The word-level real experiment: the encoded transcript with Alice's encoded key `x • hB`. -/
-private def wordRealGame (setup : ℕ → PMF F.Desc)
-    (adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool) (n : ℕ) :
-    Game := do
-  let d ← setup n
-  let x ← PMF.uniformOfFintype (ZMod (F.order d))
-  let y ← PMF.uniformOfFintype (ZMod (F.order d))
-  ProbComp.eval (adversary n ((d, F.encode d (x • F.generator d), F.encode d (y • F.generator d)),
-    F.encode d (x • y • F.generator d)))
-
-/-- The word-level ideal experiment: the encoded transcript with an encoded uniform element. -/
-private def wordIdealGame (setup : ℕ → PMF F.Desc)
-    (adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool) (n : ℕ) :
-    Game := do
-  let d ← setup n
-  let x ← PMF.uniformOfFintype (ZMod (F.order d))
-  let y ← PMF.uniformOfFintype (ZMod (F.order d))
-  let z ← PMF.uniformOfFintype (ZMod (F.order d))
-  ProbComp.eval (adversary n ((d, F.encode d (x • F.generator d), F.encode d (y • F.generator d)),
-    F.encode d (z • F.generator d)))
-
-/-- Under DDH, every word-level PPT eavesdropper on the encoded transcript and key has negligible
-advantage between the ideal-sampling word games. -/
-example {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
-    {adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool}
-    (hA : IsPPTOn (encPair encUnary (encPair (encPair F.encDesc (encPair encBits encBits)) encBits))
-      encBool fun input => adversary input.1 input.2) :
-    Negligible fun n =>
-      Game.advantage (wordRealGame setup adversary n) (wordIdealGame setup adversary n) := by
-  have hreal : ∀ n, wordRealGame setup adversary n =
-      (F.dhKeyExchange setup).realGame (ofWords adversary) n := fun n => by
-    simp only [wordRealGame, KeyExchange.realGame, Game.withSetup, KeyExchange.realView,
-      PrimeOrderGroupFamily.dhKeyExchange, PrimeOrderGroupFamily.dhExecution, ofWords,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-  have hideal : ∀ n, wordIdealGame setup adversary n =
-      (F.dhKeyExchange setup).idealGame (fun _ => F.dhIdealKey) (ofWords adversary) n :=
-    fun n => by
-      simp only [wordIdealGame, KeyExchange.idealGame, Game.withSetup, KeyExchange.idealView,
-        PrimeOrderGroupFamily.dhKeyExchange, PrimeOrderGroupFamily.dhExecution,
-        PrimeOrderGroupFamily.dhIdealKey, ofWords, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
-  simpa only [hreal, hideal] using
-    PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal hDDH (ofWords adversary)
-      (isPPT_ofWords hA)
-
 /-- The word-level real experiment with fair-coin exponents `sampleExp n d`. -/
 private def wordRealGameProb (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → (F.Desc × List Bool × List Bool) × List Bool → ProbComp Bool) (n : ℕ) :

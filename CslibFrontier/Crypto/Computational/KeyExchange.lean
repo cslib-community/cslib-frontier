@@ -41,9 +41,9 @@ independently drawn ideal key. Saying that an adversary guesses a hidden uniform
 probability at most `1 / 2 + negl(n)` is the same as requiring negligible advantage between the
 real and the ideal experiment. Both experiments are "draw a view, then run the eavesdropper on it"
 (`Game.withSetup`), for the view laws `realView` and `idealView` of an execution law. The ideal key
-may depend on the transcript through `idealKey : ℕ → (t : T) → PMF (K t)`; `EavSecureBits` draws a
-uniform `n`-bit word, while Diffie–Hellman uses a uniform element of the group named in the
-transcript (`dhIdealKey`).
+may depend on the transcript through `idealKey : ℕ → (t : T) → PMF (K t)`; Definition 11.1 draws a
+uniform `n`-bit word (`EavSecureBits`), while [KatzLindell2020], Theorem 11.3 (p. 394, locator not
+verified) uses a uniform element of the group named in the transcript (`dhIdealKey`).
 
 Eavesdroppers are typed: an `Eavesdropper T K` receives the security parameter and a `View T K`.
 Encodings appear only in its efficiency predicate `Eavesdropper.IsPPT`, which reads the view
@@ -52,13 +52,16 @@ through `encView`, and in `encOutcome` for certifying honest execution programs.
 We formalize:
 
 * the Diffie–Hellman protocol ([BonehShoup2023], Section 10.4.1, Figure 10.2, pp. 407–408;
-  [KatzLindell2020], Construction 11.2, pp. 392–393) over a `PrimeOrderGroupFamily`, in two forms:
+  [KatzLindell2020], Construction 11.2, pp. 392–393, locator not verified) over a
+  `PrimeOrderGroupFamily`, in two forms:
   * the fair-coin execution `dhExecutionProb` and protocol `dhKeyExchangeProb`, whose parties
     sample their exponents with `PrimeOrderGroupFamily.sampleExp` (`isPPTOn_dhExecutionProb`),
     always agree on the shared key (`dhKeyExchangeProb_correct`), stay within statistical distance
     `2 / 2 ^ n` of exact-uniform execution (`advantage_bind_dhKeyExchangeProb_le`), satisfy the
     explicit `4 / 2 ^ n` passive-eavesdropping bound `advantage_eavGame_dhKeyExchangeProb_le`, and
-    are `EavSecure` under `DDH` (`DDH.dhKeyExchangeProb_eavSecure`);
+    are `EavSecure` against `dhIdealKey` under `DDH` (`DDH.dhKeyExchangeProb_eavSecure`,
+    [KatzLindell2020], Theorem 11.3, p. 394, locator not verified; registration pending source
+    check, #5657);
   * the ideal-sampling execution `dhExecution` and protocol `dhKeyExchange`, whose parties draw
     exponents from `PMF.uniformOfFintype (ZMod q)`, giving exact game identities with `ddhRealGame`
     and `ddhRandomGame` via `dhEavToDDH` and the ideal-sampling step
@@ -92,7 +95,8 @@ efficiency on `(1ⁿ, d)` (or on `1ⁿ` along a polynomial-time group schedule) 
   `Cslib.Crypto.PrimeOrderGroupFamily.dhExecution`,
   `Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange`,
   `Cslib.Crypto.PrimeOrderGroupFamily.dhIdealKey`: the fair-coin and ideal-sampling Diffie–Hellman
-  protocols and their group-element ideal key.
+  protocols and their group-element ideal key ([KatzLindell2020], Construction 11.2, Theorem 11.3,
+  locators not verified).
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhEavToDDH`: the reduction to DDH.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhMitmExecution`: the man-in-the-middle attack
   (Exercise 11.3).
@@ -112,7 +116,8 @@ efficiency on `(1ⁿ, d)` (or on `1ⁿ` along a polynomial-time group schedule) 
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_eavGame_dhKeyExchangeProb_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.dhKeyExchangeProb_eavSecure`: explicit `2 / 2 ^ n` and
   `4 / 2 ^ n` exponent-sampling bounds and passive eavesdropper security of `dhKeyExchangeProb`
-  under `DDH`.
+  under `DDH` ([KatzLindell2020], Theorem 11.3, p. 394, locator not verified; registration pending
+  source check, #5657).
 * `Cslib.Crypto.PrimeOrderGroupFamily.withSetup_realView_dhExecution`,
   `Cslib.Crypto.PrimeOrderGroupFamily.withSetup_idealView_dhExecution`: at a fixed group the
   ideal-sampling experiments are the DDH experiments; `realGame_dhKeyExchange` and
@@ -126,7 +131,8 @@ efficiency on `(1ⁿ, d)` (or on `1ⁿ` along a polynomial-time group schedule) 
 ## Ideal-sampling steps
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal`: DDH implies security of
-  the ideal-sampling protocol `dhKeyExchange` against eavesdroppers, consumed by
+  the ideal-sampling protocol `dhKeyExchange` against eavesdroppers, a step toward
+  [KatzLindell2020], Theorem 11.3 (locator not verified) consumed by
   `DDH.dhKeyExchangeProb_eavSecure`.
 
 ## References
@@ -426,12 +432,12 @@ theorem isPPT_dhEavToDDH {adversary : Eavesdropper F.DHTranscript F.DHKey}
       View F.DHTranscript F.DHKey)))
     (by fun_prop)
 
-/-- Ideal-sampling step toward [KatzLindell2020], Theorem 11.3, p. 394, not the cited result: if
-the Decisional Diffie–Hellman assumption holds for `setup`, then no uniform strict PPT eavesdropper
-distinguishes the transcript and Alice's key of `dhKeyExchange setup`, whose parties draw their
-exponents exactly uniformly on `ZMod q` at the `PMF` level, from the transcript and a uniform
-element of the same group. Consumed by `DDH.dhKeyExchangeProb_eavSecure`, which replaces exact
-uniform exponent draws with the fair-coin sampler `sampleExp`. -/
+/-- Ideal-sampling step toward [KatzLindell2020], Theorem 11.3, p. 394 (locator not verified), not
+the cited result: if the Decisional Diffie–Hellman assumption holds for `setup`, then no uniform
+strict PPT eavesdropper distinguishes the transcript and Alice's key of `dhKeyExchange setup`,
+whose parties draw their exponents exactly uniformly on `ZMod q` at the `PMF` level, from the
+transcript and a uniform element of the same group. Consumed by `DDH.dhKeyExchangeProb_eavSecure`,
+which replaces exact uniform exponent draws with the fair-coin sampler `sampleExp`. -/
 theorem DDH.dhKeyExchange_eavSecure_ideal {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hDDH : F.DDH setup) :
     (F.dhKeyExchange setup).EavSecure F.encDHTranscript F.encDHKey fun _ => F.dhIdealKey := by
@@ -552,12 +558,14 @@ theorem advantage_eavGame_dhKeyExchangeProb_le (setup : ℕ → PMF F.Desc)
   push_cast
   ring
 
-/-- Fair-coin Diffie–Hellman key exchange (`dhKeyExchangeProb`) is secure against passive
-eavesdroppers (`KeyExchange.EavSecure` with ideal key `dhIdealKey`) whenever `F.DDH setup` holds
-(original in this fair-coin `KeyExchange.EavSecure` formulation; motivated by the session-key
-indistinguishability remark of [BonehShoup2023], Section 10.1, p. 400, and the DDH PRG of
-Exercise 10.3, p. 424). Proved from `DDH.dhKeyExchange_eavSecure_ideal` and
-`advantage_bind_dhKeyExchangeProb_le`. -/
+/-- **Under DDH, Diffie–Hellman key exchange is secure against passive eavesdroppers**
+([KatzLindell2020], Section 11.3, Theorem 11.3, p. 394, locator not verified; registration pending
+a source check against [KatzLindell2020] Chapter 11, #5657; compare the session-key
+indistinguishability remark of [BonehShoup2023], Section 10.1, p. 400): if `F.DDH setup` holds,
+then the fair-coin protocol `dhKeyExchangeProb setup` satisfies `KeyExchange.EavSecure` against
+uniform strict PPT eavesdroppers when the ideal key is the uniform group element `dhIdealKey`.
+Derived from `DDH.dhKeyExchange_eavSecure_ideal` and `advantage_bind_dhKeyExchangeProb_le` with
+fair-coin sampling loss at most `4 / 2 ^ n`. -/
 theorem DDH.dhKeyExchangeProb_eavSecure {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hDDH : F.DDH setup) :
     (F.dhKeyExchangeProb setup).EavSecure F.encDHTranscript F.encDHKey fun _ => F.dhIdealKey := by
