@@ -211,6 +211,7 @@ import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
+import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
@@ -6796,6 +6797,41 @@ register_result "elgamal-ddh-ind-cpa" where
     inadmissible pair makes both experiments output false. Decryption correctness on the same \
     programs is elGamalDecryptDet_elGamalEncryptProb. Asymptotic; the exercise's exact concrete \
     forward bound 2ε remains open."
+
+register_result "dh-anonymous-key-exchange-iff-cdh" where
+  title := "Diffie–Hellman anonymous key exchange is key-guessing secure if and only if CDH holds"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "security of Diffie–Hellman key exchange (unnumbered)",
+      locator := "Section 10.4.2, p. 408; Attack Game 10.1 and Definition 10.1, Section 10.1, \
+        p. 400" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchangeProb_anonKESecure_iff_cdh,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le
+  ]
+  scope := "Over any PrimeOrderGroupFamily F and setup law setup : ℕ → PMF F.Desc, \
+    F.dhKeyExchangeProb setup draws group parameters d from setup n and runs dhExecutionProb n d \
+    (Figure 10.2, pp. 407–408), written additively: Alice and Bob sample exponents x, y with \
+    F.sampleExp n d (within statistical distance 1/2^n of uniform on ZMod q), exchange \
+    hA = x·g and hB = y·g, and output x·hB and y·hA. Correctness and honest-party efficiency \
+    are proved on the same protocol in KeyExchange.lean (dhKeyExchangeProb_correct and \
+    isPPTOn_dhExecutionProb). AnonKESecure (Attack Game 10.1 and Definition 10.1, p. 400, \
+    called 'secure against an eavesdropper' in the book) requires every uniform strict PPT \
+    KeyGuesser reading (1^n, transcript) to guess Alice's key with negligible probability; \
+    F.CDH setup is Attack Game 10.5 and Definition 10.7 (pp. 409–410, asymptotic form with \
+    Section 10.5.2, pp. 413–414). advantage_anonKEGame_dhKeyExchangeProb_cdhGame_le bounds \
+    |AnonKEadv[A, dhKeyExchangeProb] − CDHadv[dhToCDHAdversary A, F]| ≤ 2/2^n (and conversely \
+    via cdhToDHKeyGuesser, since dhToCDHAdversary (cdhToDHKeyGuesser B) = B is definitional; \
+    both conversions preserve strict PPT via isPPT_dhToCDHAdversary and \
+    isPPT_cdhToDHKeyGuesser). Deviations: (1) Correct and honest-party efficiency are unbundled \
+    from KeyExchange rather than built into protocol syntax (Correct.anonKEGame_eq_bobKey \
+    identifies guessing Alice's key with guessing Bob's key); (2) honest parties sample \
+    exponents from fair coins with sampleExp rather than exact uniform ZMod q draws, incurring \
+    at most 2/2^n statistical loss against cdhGame; (3) DHTranscript carries \
+    groupParameters : F.Desc and setup need not be efficiently samplable, matching F.CDH setup \
+    (agrees with Definition 10.9, p. 413, when setup is efficiently samplable). Asymptotic."
 
 register_result "elgamal-ind-cpa-iff-ddh" where
   title := "Multiplicative ElGamal is semantically secure if and only if DDH holds"
