@@ -190,6 +190,7 @@ import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.ECB
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
@@ -6239,6 +6240,59 @@ register_result "luby-rackoff-prp" where
     theorem number and locator were not checked: no copy is recorded in the manual's sources. \
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
+
+register_result "ecb-distinct-blocks-cpa" where
+  title := "ECB mode of a pseudorandom permutation is one-time semantically secure on messages of \
+    distinct blocks"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 4.1",
+      locator := "Section 4.1.4, pp. 102, 104–106" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn,
+    Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbEncrypt,
+    Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one
+  ]
+  scope := "Over any uniform BlockCipher E (deterministic polynomial-time encryption and \
+    decryption on keyLen n-bit keys and blockLen n-bit blocks, mutual inverses) that satisfies \
+    E.PRP (Attack Game 4.1 and Definition 4.1, pp. 97–98, against uniform strict oracle-PPT \
+    distinguishers). Word-level ECB encryption E.ecbEncrypt slices a message word into \
+    blockLen n-bit blocks and concatenates their encryptions under a uniform keyLen n-bit key \
+    sampled with BitString.sampleList; correctness is proved on the underlying typed cipher \
+    Cipher.ecb (Cipher.ecb_correct) via flatMap_ofFn_ecbKeyPerm. For every block-count bound ℓ \
+    computable in polynomial time in unary (strengthening Theorem 4.1's poly-bounded ℓ ≥ 1 so the \
+    uniform reduction can test admissibility, while also covering ℓ n = 0), E.ecbEncrypt is \
+    one-time semantically secure (DEMOneTimeKeyINDCPAOn, Attack Game 2.1, p. 16, against uniform \
+    strict PPT two-stage adversaries, with inadmissible challenge pairs returning false in both \
+    worlds) on E.ecbValid ℓ: equal-length multiples of blockLen n of at most ℓ n distinct blocks \
+    each (X_*^{≤ℓ}). The certified strict oracle-PPT reduction E.ecbToPrpDistinguisher ℓ A \
+    (isOraclePPT_ecbToPrpDistinguisher) satisfies the exact equation (4.3) \
+    SSadv[A, E'] = 2 · BCadv[B, E] (advantage_demKeyGameOn_ecbEncrypt). At ℓ = 1, distinctness is \
+    automatic (ecbValid_eq_ecbAdmissible_of_le_one), giving single-block semantic security on \
+    E.ecbAdmissible (fun _ => 1) (PRP.ecb_demOneTimeKeyINDCPAOn_one, pp. 102, 104)."
+
+register_result "ecb-two-block-not-cpa" where
+  title := "ECB mode on multi-block messages is not one-time semantically secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Section 4.1.4 (two-block attack)",
+      locator := "Section 4.1.4, pp. 103–104" }
+  ]
+  theorems := [
+    Cslib.Crypto.BlockCipher.not_demOneTimeKeyINDCPAOn_ecbEncrypt,
+    Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbTwoBlockAdversary
+  ]
+  scope := "For every uniform BlockCipher E (even a secure PRP) and block-count schedule ℓ, the \
+    certified uniform strict PPT two-stage adversary E.ecbTwoBlockAdversary \
+    (isPPT_ecbTwoBlockAdversary) submits m₀ = 0^(2 · blockLen n) (two equal blocks) and \
+    m₁ = 0^(blockLen n) ‖ 1^(blockLen n) (two distinct blocks when 1 ≤ blockLen n) and checks \
+    whether the first and second blockLen n-bit halves of the challenge ciphertext coincide. At \
+    every parameter n with 2 ≤ ℓ n and 1 ≤ E.blockLen n, it achieves exact Attack Game 2.1 \
+    advantage 1 against E.ecbEncrypt on E.ecbAdmissible ℓ (equal-length multiples of blockLen n of \
+    at most ℓ n blocks, X^{≤ℓ}; advantage_demKeyGameOn_ecbTwoBlockAdversary), so E.ecbEncrypt \
+    fails DEMOneTimeKeyINDCPAOn whenever 2 ≤ ℓ n and 1 ≤ E.blockLen n hold infinitely often \
+    (not_demOneTimeKeyINDCPAOn_ecbEncrypt)."
 
 register_result "pedersen-commitment-hiding" where
   title := "Pedersen commitments are uniformly distributed at every non-identity key"
