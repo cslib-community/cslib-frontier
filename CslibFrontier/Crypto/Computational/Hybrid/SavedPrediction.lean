@@ -162,7 +162,8 @@ theorem isPPTOn_save {Param : Type} {input : Param ↪ List Bool}
     have hf := hfront.comp (ComputableInPolyTime.fst input encBits)
     have hb := hback.comp (ComputableInPolyTime.fst input encBits)
     unfold Description.encoding
-    exact ComputableInPolyTime.encoding_comp (by fun_prop)
+    exact ((ComputableInPolyTime.const (encOut := encBool) true).prod
+      (ht.prod (hf.prod (hb.prod (ComputableInPolyTime.snd input encBits))))).encoding_comp
   simpa only [save, bind_pure_comp] using
     (ComputableInPolyTime.sampleList hbudget).map_with hresult
 

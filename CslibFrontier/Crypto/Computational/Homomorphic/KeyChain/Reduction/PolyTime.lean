@@ -120,12 +120,15 @@ theorem isPPTOn_guessLink {n : α → ℕ} {state challengeCiphertext : α → L
           ((linkStateDecoder.decode (state a)).2.2.2.1,
             List.replicate (linkStateDecoder.decode (state a)).2.2.1.2.length false) ::
           (linkStateDecoder.decode (state a)).2.2.2.2.1)
-        input (encList (encPair encBits encBits)) := by fun_prop
+        input (encList (encPair encBits encBits)) :=
+      (ComputableInPolyTime.listAppend (encPair encBits encBits)).comp
+        (hbefore.prod (ComputableInPolyTime.cons' hpredecessor
+          (ComputableInPolyTime.cons' htarget hafter)))
     exact (ComputableInPolyTime.map
       (ComputableInPolyTime.fst encBits encBits)).comp hlist
   unfold guessLink
   have hcond := hcontext.fst'
-  apply IsPPTOn.cond (by polytime)
+  apply IsPPTOn.cond hcond
   · apply hlinks.bind_with
     exact htest.preprocess
       ((hn.comp (ComputableInPolyTime.fst _ _)).prod

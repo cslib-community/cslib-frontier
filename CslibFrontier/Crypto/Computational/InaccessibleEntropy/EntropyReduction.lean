@@ -582,19 +582,21 @@ theorem computableInPolyTime_inputHashEvalWord {α : Type} {encode : α ↪ List
     ComputableInPolyTime
       (fun a => inputHashEvalWord (n₁ a) (m₁ a) (evalWord₁ (n a)) (j a) (u a))
       encode encBits := by
-  have hz : ComputableInPolyTime
-      (fun a => Cslib.BitString.listRow (n₁ a) 0 ((u a).take (n₁ a))) encode encBits := by
-    fun_prop
-  have heval := heval₁.comp (hn.prod hz)
-  have hseed : ComputableInPolyTime
-      (fun a => Cslib.BitString.listRow (n₁ a * n₁ a) 0
-        (((u a).drop (n₁ a)).take (n₁ a * n₁ a))) encode encBits := by fun_prop
-  have hbase : ComputableInPolyTime
-      (fun a => Cslib.BitString.listRow (m₁ a) 0
-        (evalWord₁ (n a) (Cslib.BitString.listRow (n₁ a) 0 ((u a).take (n₁ a)))))
-      encode encBits := by fun_prop
-  simp only [inputHashEvalWord]
-  fun_prop
+  have hz := ComputableInPolyTime.bitsRowWithInput hn₁ (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hu hn₁)
+  have hsize := ComputableInPolyTime.unary_mul' hn₁ hn₁
+  have hseed := ComputableInPolyTime.bitsRowWithInput hsize (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hu hn₁) hsize)
+  have hbase := ComputableInPolyTime.bitsRowWithInput hm₁ (.const 0)
+    (heval₁.comp (hn.prod hz))
+  have hdigest := computableInPolyTime_wordHash hn₁ hseed hz
+  have hr := ComputableInPolyTime.unary_sub' hn₁
+    (ComputableInPolyTime.unary_sub' hn₁ hj)
+  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hbase hseed)
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsTakeWithInput hdigest hr)
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (ComputableInPolyTime.unary_sub' hn₁ hr)))
 
 /-- Plain polynomial-time certificate for `shrunkHashEvalWord`. -/
 @[fun_prop]
@@ -700,12 +702,16 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ : ℕ → ℕ}
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList
     (by unfold outHashLen inputHashOutLen inputHashInLen; fun_prop)).bind_with ?_
-  have hparameter : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × List Bool => q.1.1.1)
-      (encPair (encPair (encPair encUnary encBits) encBits) encBits) encUnary := by fun_prop
-  have hprepare : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
-      Cslib.BitString.listRow (n₁ q.1.1.1) 0 q.1.1.2 ++ q.1.2 ++ q.2) (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits := by fun_prop
-  have hresult : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool => q.2.take (n₁ q.1.1.1.1))
-      (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits := by fun_prop
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
+  have hparameter := hp.fst'.fst'.fst'
+  have hwidth := hn₁.comp hparameter
+  have hword := ComputableInPolyTime.bitsRowWithInput hwidth (.const 0) hp.fst'.fst'.snd'
+  have hprepare := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hword hp.fst'.snd') hp.snd'
+  have hresult := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.snd _ encBits)
+    (hwidth.comp (ComputableInPolyTime.fst _ encBits))
   simpa only [bind_pure_comp] using
     (hA.preprocess hparameter hprepare).map_with hresult
 

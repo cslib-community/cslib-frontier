@@ -122,17 +122,21 @@ theorem isPPT_wordInverter {f : List Bool → List Bool}
           degree p.1.1.1.1 p.1.1.1.2 p.2)
       (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
       encBits := by
-    have hprepare : ComputableInPolyTime
-        (fun q : ((((ℕ × List Bool) × Bool) × List Bool) × List Bool) × List Bool =>
-          ((q.1.1.1.1.1, q.1.1.1.1.2 ++ q.2), q.1.1.2))
-        (encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits)
-          encBits) encBits) (encPair (encPair encUnary encBits) encBits) := by fun_prop
-    have hpredict := hevaluate.comp hprepare
-    apply polyTime_wordDecode degree hf
-    · fun_prop
-    · fun_prop
-    · fun_prop
-    · exact ComputableInPolyTime.snd _ _
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool)
+        encBits) encBits) encBits)
+    have hn := hp.fst'.fst'.fst'.fst'.fst'
+    have himage := hp.fst'.fst'.fst'.fst'.snd'
+    have hcoins := hp.fst'.fst'.snd'
+    have hflip := hp.fst'.fst'.fst'.snd'
+    have hprepare := (hn.prod
+      (ComputableInPolyTime.bitsAppend himage hp.snd')).prod hcoins
+    have hpredict := ComputableInPolyTime.bool_xor.comp
+      ((hevaluate.comp hprepare).prod hflip)
+    have hinput := ComputableInPolyTime.id'
+      (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
+    exact polyTime_wordDecode degree hf hpredict
+      hinput.fst'.fst'.fst'.fst' hinput.fst'.fst'.fst'.snd' hinput.snd'
   unfold wordInverter
   apply IsPPTOn.isPPT
   apply (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with

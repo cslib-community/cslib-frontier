@@ -173,8 +173,13 @@ theorem verify_sign (hlen : ∀ s msg, (H s msg).length = s.length) (n : ℕ)
 @[program_certificate]
 theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) (keyGen S) := by
   have hkg := S.keyGen_ppt
-  unfold keyGen
-  ppt
+  have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary (encPair encBits encBits)) encBits)
+  have hout := (hp.fst'.snd'.fst'.prod hp.snd').encoding_comp.prod
+    (hp.fst'.snd'.snd'.prod hp.snd').encoding_comp
+  simpa only [keyGen, bind_pure_comp] using
+    hkg.bind_with ((ComputableInPolyTime.sampleList hn).map_with hout)
 
 @[program_certificate]
 theorem isPPTOn_sign

@@ -162,15 +162,29 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
       (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
     have hfeedback : ComputableInPolyTime
         (fun p : List Bool × (List Bool × List Bool) => listDot p.1 p.2.2)
-        (encPair encBits (encPair encBits encBits)) encBool := by fun_prop
-    unfold clock step
-    fun_prop
+        (encPair encBits (encPair encBits encBits)) encBool :=
+      ComputableInPolyTime.bitsListDot
+        (ComputableInPolyTime.fst encBits (encPair encBits encBits))
+        (ComputableInPolyTime.snd encBits (encPair encBits encBits)).snd'
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encBits (encPair encBits encBits))
+    have hstate := hp.snd'.snd'
+    have houtput := ComputableInPolyTime.bitsAppend hp.snd'.fst'
+      (ComputableInPolyTime.bitsCons
+        ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstate)
+        (.const []))
+    have hnext := ComputableInPolyTime.bitsTail.comp
+      (ComputableInPolyTime.bitsAppend hstate
+        (ComputableInPolyTime.bitsCons hfeedback (.const [])))
+    exact houtput.prod hnext
   have hloop : ComputableInPolyTime
       (fun seed : List Bool => (clock (taps seed.length))^[ℓ seed.length] ([], seed))
       encBits (encPair encBits encBits) :=
     ComputableInPolyTime.iterateWith_of_bounded_growth (par := fun seed => taps seed.length)
       (count := fun seed => ℓ seed.length) (init := fun seed => ([], seed)) (step := clock)
-      (by fun_prop) (by fun_prop) (by fun_prop) hstep
+      (htaps.comp ComputableInPolyTime.length_bits)
+      (hℓ.comp ComputableInPolyTime.length_bits)
+      ((ComputableInPolyTime.const []).prod ComputableInPolyTime.id') hstep
       (growth := fun _ => 2) (.const 2) (fun seed state => by
         simp only [clock, step, encPair_apply, encBits_apply, List.length_append, length_frame,
           List.length_cons, List.length_nil, zero_add, List.length_tail, add_tsub_cancel_right]
@@ -180,6 +194,6 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
     funext seed
     simp only [wordGenerator, iterate_clock, List.nil_append]
   rw [h]
-  fun_prop
+  exact hloop.fst'
 
 end Cslib.Crypto.PRG.LFSR

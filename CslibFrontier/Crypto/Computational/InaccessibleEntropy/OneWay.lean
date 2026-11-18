@@ -439,21 +439,27 @@ theorem computableInPolyTime_rompelBaseEvalWord {g : List Bool → List Bool} {o
   have hz := ComputableInPolyTime.snd encUnary encBits
   have hm := houtLen.comp hn
   have hs : ComputableInPolyTime (fun p : ℕ × List Bool => rompelSeedWidth p.1 (outLen p.1))
-      (encPair encUnary encBits) encUnary := by unfold rompelSeedWidth; fun_prop
-  have hx : ComputableInPolyTime
-      (fun p : ℕ × List Bool => BitString.listRow p.1 0 (p.2.take p.1))
-      (encPair encUnary encBits) encBits := by fun_prop
-  have hgx := hg.comp hx
-  have hseed : ComputableInPolyTime
-      (fun p : ℕ × List Bool => BitString.listRow (rompelSeedWidth p.1 (outLen p.1)) 0
-        ((p.2.drop p.1).take (rompelSeedWidth p.1 (outLen p.1))))
-      (encPair encUnary encBits) encBits := by fun_prop
-  have hrBits : ComputableInPolyTime
-      (fun p : ℕ × List Bool => BitString.listRow (rompelTruncWidth p.1) 0
-        ((p.2.drop p.1).drop (rompelSeedWidth p.1 (outLen p.1))))
-      (encPair encUnary encBits) encBits := by fun_prop
-  simp only [rompelBaseEvalWord]
-  fun_prop
+      (encPair encUnary encBits) encUnary :=
+    ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_mul' hn hm) hn
+  have hx := ComputableInPolyTime.bitsRowWithInput hn (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hz hn)
+  have hrest := ComputableInPolyTime.bitsDropWithInput hz hn
+  have hseed := ComputableInPolyTime.bitsRowWithInput hs (.const 0)
+    (ComputableInPolyTime.bitsTakeWithInput hrest hs)
+  have ht : ComputableInPolyTime (fun p : ℕ × List Bool => rompelTruncWidth p.1)
+      (encPair encUnary encBits) encUnary :=
+    ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_log_two.comp hn) (.const 1)
+  have hrBits := ComputableInPolyTime.bitsRowWithInput ht (.const 0)
+    (ComputableInPolyTime.bitsDropWithInput hrest hs)
+  have hr := ComputableInPolyTime.bitsBoundedBinaryValueWithInput hn hrBits
+  have hgx := ComputableInPolyTime.bitsRowWithInput hm (.const 0) (hg.comp hx)
+  have hhash := computableInPolyTime_wordAffineHash hn hseed hgx
+  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hseed hrBits)
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsTakeWithInput hhash hr)
+      ((ComputableInPolyTime.bitsReplicate false).comp
+        (ComputableInPolyTime.unary_sub' hn hr)))
 
 /-! ### Accessible preimage sets $L_{0, c}$ and the OWF inverter reduction (Claim 4.6) -/
 
@@ -544,12 +550,20 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by unfold rompelSeedWidth; fun_prop)).bind_with ?_
-  have hparameter : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool => q.1.1.1.1)
-      (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encUnary := by fun_prop
-  have hprepare : ComputableInPolyTime (fun q : (((ℕ × List Bool) × List Bool) × List Bool) × List Bool =>
-      q.1.1.2 ++ wordAdjustAffineSeed q.1.1.1.1 (outLen q.1.1.1.1) (Cslib.BitString.boundedBinaryValue q.1.1.1.1 q.1.2) q.1.1.1.2 (g q.1.1.2) q.2 ++ q.1.2) (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits := by fun_prop
-  have hresult : ComputableInPolyTime (fun q : ((((ℕ × List Bool) × List Bool) × List Bool) × List Bool) × List Bool => q.2.take (q.1.1.1.1.1))
-      (encPair (encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits) encBits) encBits := by fun_prop
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBits)
+  have hparameter := hp.fst'.fst'.fst'.fst'
+  have hm := houtLen.comp hparameter
+  have hx := hp.fst'.fst'.snd'
+  have hrBits := hp.fst'.snd'
+  have hadjust := computableInPolyTime_wordAdjustAffineSeed hparameter hm
+    (ComputableInPolyTime.bitsBoundedBinaryValueWithInput hparameter hrBits)
+    hp.fst'.fst'.fst'.snd' (hg.comp hx) hp.snd'
+  have hprepare := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend hx hadjust) hrBits
+  have hresult := ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.snd _ encBits)
+    (hparameter.comp (ComputableInPolyTime.fst _ encBits))
   simpa only [bind_pure_comp] using
     (hA.preprocess hparameter hprepare).map_with hresult
 

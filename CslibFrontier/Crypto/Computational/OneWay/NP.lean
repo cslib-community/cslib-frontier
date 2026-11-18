@@ -150,7 +150,9 @@ theorem computableInPolyTime_preimagePrefixVerifier
   have hrest := ComputableInPolyTime.bitsTakeWithInput hp.snd'
     (ComputableInPolyTime.unary_sub' hn hlength)
   have himage := hf.comp (ComputableInPolyTime.bitsAppend hprefix hrest)
-  fun_prop
+  exact ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.unary_le.comp (hlength.prod hn))
+    (himage.beq hp.fst'.snd'.fst')
 
 /-- **The preimage-prefix problem is in `NP`** for every function computable in polynomial
 time. -/
