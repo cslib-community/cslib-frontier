@@ -73,10 +73,10 @@ def queens (n : ℕ) : CNF ℕ := Id.run do
 def configs : List (String × Options) :=
   [("default", {}), ("no-vsids", { vsids := false }), ("no-phase", { phaseSaving := false }),
     ("no-restarts", { restarts := false }), ("geometric", { luby := false, restartInc := 2 }),
-    ("no-minimize", { ccminMode := 0 }), ("ccmin-1", { ccminMode := 1 }),
+    ("no-minimize", { ccminMode := .none }), ("ccmin-1", { ccminMode := .basic }),
     ("no-reduce", { reduce := false }),
     ("none",
-      { vsids := false, phaseSaving := false, restarts := false, ccminMode := 0
+      { vsids := false, phaseSaving := false, restarts := false, ccminMode := .none
         reduce := false })]
 
 /-- Runs every configuration on `φ`, checks the answers, and prints a line for each. -/

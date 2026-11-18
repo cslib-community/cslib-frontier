@@ -997,51 +997,84 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
 
 /-! ### Restarts -/
 
+/-- The root of a trail, and whether the trail has a decision, in one pass. -/
+def XTrail.rootGo : XTrail → XTrail × Bool
+  | [] => ([], false)
+  | x :: M =>
+    let r := XTrail.rootGo M
+    if r.2 then r else if x.entry.decision then (M, true) else (x :: M, false)
+
 /-- **The root of a trail**: the part below its oldest decision, the literals implied without any
-decision. -/
-def XTrail.root : XTrail → XTrail
-  | [] => []
-  | x :: M => if (x :: M).all (fun e => !e.entry.decision) then x :: M else XTrail.root M
+decision. It is found in one pass over the trail. -/
+def XTrail.root (M : XTrail) : XTrail := (XTrail.rootGo M).1
+
+theorem XTrail.rootGo_snd : ∀ M : XTrail, (XTrail.rootGo M).2 = M.any (·.entry.decision)
+  | [] => rfl
+  | x :: M => by
+    simp only [rootGo, List.any_cons]
+    have ih := XTrail.rootGo_snd M
+    split
+    · rename_i h; rw [h] at ih; simp [h, ← ih]
+    · split
+      · rename_i h₁ h₂; simp [h₂]
+      · rename_i h₁ h₂; rw [Bool.not_eq_true] at h₁ h₂; simp [h₂, ← ih, h₁]
+
+theorem XTrail.root_cons (x : XEntry) (M : XTrail) :
+    XTrail.root (x :: M) = if M.any (·.entry.decision) then XTrail.root M
+      else if x.entry.decision then M else x :: M := by
+  simp only [root, rootGo, ← XTrail.rootGo_snd]
+  split
+  · rfl
+  · split <;> rfl
 
 theorem XTrail.root_no_decision : ∀ (M : XTrail), ∀ x ∈ XTrail.root M, x.entry.decision = false
-  | [] => by simp [XTrail.root]
+  | [] => by simp [XTrail.root, XTrail.rootGo]
   | x :: M => by
-    unfold XTrail.root
+    rw [XTrail.root_cons]
     split
-    · rename_i h
-      intro y hy
-      simpa using List.all_eq_true.1 h y hy
     · exact XTrail.root_no_decision M
+    · rename_i hM
+      have hM' : ∀ y ∈ M, y.entry.decision = false := fun y hy => by
+        simpa using List.any_eq_false.1 (by simpa using hM) y hy
+      split
+      · exact hM'
+      · rename_i hx
+        intro y hy
+        rcases List.mem_cons.1 hy with rfl | hy
+        · simpa using hx
+        · exact hM' y hy
 
 theorem XTrail.root_suffix : ∀ (M : XTrail), ∃ A, M = A ++ XTrail.root M
   | [] => ⟨[], rfl⟩
   | x :: M => by
-    unfold XTrail.root
+    rw [XTrail.root_cons]
     split
-    · exact ⟨[], rfl⟩
     · obtain ⟨A, hA⟩ := XTrail.root_suffix M
       exact ⟨x :: A, by rw [List.cons_append, ← hA]⟩
+    · split
+      · exact ⟨[x], rfl⟩
+      · exact ⟨[], rfl⟩
 
 /-- The root is the whole trail, or the part below a decision. -/
 theorem XTrail.root_split : ∀ (M : XTrail), XTrail.root M = M ∨
     ∃ N d, XTrail.trail M = N ++ ⟨d, true⟩ :: XTrail.trail (XTrail.root M)
   | [] => .inl rfl
   | x :: M => by
-    unfold XTrail.root
+    rw [XTrail.root_cons]
     split
-    · exact .inl rfl
-    · rename_i hall
+    · rename_i hM
       rcases XTrail.root_split M with h | ⟨N, d, hN⟩
-      · right
-        have hM : ∀ y ∈ M, y.entry.decision = false := h ▸ XTrail.root_no_decision M
-        cases x with
-        | decision l => exact ⟨[], l, by rw [h]; rfl⟩
-        | implied l r =>
-          exact absurd (List.all_eq_true.2 fun y hy => by
-            rcases List.mem_cons.1 hy with rfl | hy
-            · rfl
-            · simpa using hM y hy) hall
+      · exfalso
+        obtain ⟨y, hy, hyd⟩ := List.any_eq_true.1 hM
+        have := XTrail.root_no_decision M y (by rw [h]; exact hy)
+        simp_all
       · exact .inr ⟨x.entry :: N, d, by rw [XTrail.trail_cons, hN]; rfl⟩
+    · split
+      · rename_i hx
+        cases x with
+        | decision l => exact .inr ⟨[], l, rfl⟩
+        | implied l r => simp [XEntry.entry] at hx
+      · exact .inl rfl
 
 /-- **Restart**: going back to the root of the trail, keeping the database and the log. -/
 def Exec.restart (S : Exec φ) : Exec φ := ⟨XTrail.root S.trail, S.db, S.log⟩

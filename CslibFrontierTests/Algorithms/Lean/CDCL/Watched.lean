@@ -128,14 +128,14 @@ example :
 
 /-- Minimization removes literals from the clauses learned on PHP(4, 3); without it, none are. -/
 example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.maxLiterals ∧
-    (CDCL.solveWith { ccminMode := 0 } php43).2.literals =
-      (CDCL.solveWith { ccminMode := 0 } php43).2.maxLiterals := by
+    (CDCL.solveWith { ccminMode := .none } php43).2.literals =
+      (CDCL.solveWith { ccminMode := .none } php43).2.maxLiterals := by
   decide +kernel
 
 /-- Basic minimization (MiniSat's `ccmin_mode = 1`) also refutes PHP(4, 3), and removes literals. -/
-example : (CDCL.solveWith { ccminMode := 1 } php43).1.isSat = false ∧
-    (CDCL.solveWith { ccminMode := 1 } php43).2.literals <
-      (CDCL.solveWith { ccminMode := 1 } php43).2.maxLiterals := by
+example : (CDCL.solveWith { ccminMode := .basic } php43).1.isSat = false ∧
+    (CDCL.solveWith { ccminMode := .basic } php43).2.literals <
+      (CDCL.solveWith { ccminMode := .basic } php43).2.maxLiterals := by
   decide +kernel
 
 /-- With the limit on learned clauses starting at `0`, and restarting after every conflict, the

@@ -68,4 +68,16 @@ private def php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val
   | .unsat cert => !(minimizationSteps cert).isEmpty && (minimizationSteps cert).all id
   | .sat _ => false
 
+-- Basic and recursive minimization differ on PHP(5, 4), from the same learned clauses: the mode
+-- is selected, and recursive minimization removes a literal basic minimization keeps. Both
+-- certificates are accepted.
+#guard (solveWith { ccminMode := .basic } php54).2.maxLiterals ==
+    (solveWith { ccminMode := .recursive } php54).2.maxLiterals &&
+  (solveWith { ccminMode := .recursive } php54).2.literals <
+    (solveWith { ccminMode := .basic } php54).2.literals
+#guard [CcminMode.none, .basic, .recursive].all fun m =>
+  match (solveWith { ccminMode := m } php54).1 with
+  | .unsat cert => php54.checkLRAT cert
+  | .sat _ => false
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Compact

@@ -138,6 +138,18 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
+/-- **The minimization of the learned clauses**, MiniSat's `ccmin_mode`: none (`0`), basic (`1`),
+or recursive (`2`). -/
+inductive CcminMode where
+  /-- No minimization (`ccmin_mode = 0`). -/
+  | none
+  /-- Basic minimization (`ccmin_mode = 1`): a literal goes if the reason of its negation has only
+  literals of the clause or implied at level `0`. -/
+  | basic
+  /-- Recursive minimization (`ccmin_mode = 2`). -/
+  | recursive
+  deriving DecidableEq, Repr
+
 /-- **Options** of the solver, after MiniSat's: VSIDS for the decision variable (otherwise the
 first unassigned variable of the database); phase saving for its polarity (MiniSat's
 `phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`); and restarts, the `i`-th
@@ -162,9 +174,8 @@ structure Options where
   (`Options.restartBudget`). With the Luby sequence, the peaks are `restartInc ^ m`
   (`Cslib.Algorithms.Lean.CDCL.luby_pow`), unbounded from base `2`. -/
   restartInc : ℕ := 2
-  /-- The minimization of the learned clauses (MiniSat's `ccmin_mode`): `0` none, `1` basic, `2`
-  (or more) recursive. -/
-  ccminMode : ℕ := 2
+  /-- The minimization of the learned clauses (MiniSat's `ccmin_mode`). -/
+  ccminMode : CcminMode := .recursive
   /-- Forget learned clauses of low activity. -/
   reduce : Bool := true
   /-- The limit on the learned clauses starts at the clauses of the formula divided by this
@@ -1624,8 +1635,10 @@ most `bound` conflicts. -/
           (LRATLog.Extends.refl _) e.1 e.2 (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
-        let L := if T.opts.ccminMode = 0 then L₀
-          else L₀.minimize sp.below (recursive := 2 ≤ T.opts.ccminMode)
+        let L := match T.opts.ccminMode with
+          | .none => L₀
+          | .basic => L₀.minimize sp.below (recursive := false)
+          | .recursive => L₀.minimize sp.below (recursive := true)
         let k₀ := L₀.clause.dedup.length
         have hspec := WExec.afterConflict_spec hT he hconf hsp L k₀
         loop φ limit bound fuel (T.afterConflict sp L k₀) hspec.1 (by omega) (by
