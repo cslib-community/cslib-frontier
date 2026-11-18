@@ -3986,6 +3986,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Linearity
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearitySoundness
 public import CslibFrontier.Computability.PCP.TwoProverGame.MagicSquare
 public import CslibFrontier.Computability.PCP.TwoProverGame.Naimark
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy
 public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
@@ -6157,6 +6158,7 @@ public import CslibFrontier.Foundations.Data.BitString.HalfSplit
 public import CslibFrontier.Foundations.Data.BitString.Hamming
 public import CslibFrontier.Foundations.Data.BitString.InitialTests
 public import CslibFrontier.Foundations.Data.BitString.Isolation
+public import CslibFrontier.Foundations.Data.BitString.Lex
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Foundations.Data.BitString.List.Binary.Clock

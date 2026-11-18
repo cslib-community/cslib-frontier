@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Linearity
-import Mathlib.Data.List.Lex
+public import CslibFrontier.Foundations.Data.BitString.Lex
 
 /-!
 # The symmetric linearity game
@@ -63,21 +63,19 @@ by the sampled choice even when candidate query strings coincide. -/
     SeededGame (SymmetricLinearitySeed n)
       ((Fin n → Bool) × (Fin n → Bool)) ((Fin n → Bool) × (Fin n → Bool))
       (Bool × Bool) (Bool × Bool) :=
-  -- Use the same comparison for sending questions and restoring the answer coordinates.
-  let lexSwap (a b : Fin n → Bool) : Bool := decide (List.ofFn b < List.ofFn a)
   { seed := Probability.PMF.uniformOfFintype _
     query := fun
     | ⟨swapRoles, k, a, b, dummy⟩ =>
       let c := linearityQuery k a b
-      let pair := cond (lexSwap a b) Prod.swap id (a, b)
-      let point := cond (lexSwap c dummy) Prod.swap id (c, dummy)
+      let pair := cond (BitString.lexSwap a b) Prod.swap id (a, b)
+      let point := cond (BitString.lexSwap c dummy) Prod.swap id (c, dummy)
       cond swapRoles Prod.swap id (pair, point)
     accepts := fun
     | ⟨swapRoles, k, a, b, dummy⟩, alice, bob =>
       let (pair, point) := cond swapRoles Prod.swap id (alice, bob)
       let c := linearityQuery k a b
-      (cond (lexSwap c dummy) Prod.swap id point).1 =
-        linearityCheck k (cond (lexSwap a b) Prod.swap id pair) }
+      (cond (BitString.lexSwap c dummy) Prod.swap id point).1 =
+        linearityCheck k (cond (BitString.lexSwap a b) Prod.swap id pair) }
 
 instance {n : ℕ} (seed : SymmetricLinearitySeed n)
     (alice bob : Bool × Bool) : Decidable ((symmetricLinearityGame n).accepts seed alice bob) := by
@@ -97,8 +95,8 @@ theorem symmetricLinearityGame_accepts_linear {n : ℕ} (seed : SymmetricLineari
   have hcheck : f (linearityQuery k a b) = linearityCheck k (f a, f b) := by
     fin_cases k <;> simp [linearityQuery, linearityCheck, map_add, ← Bool.add_eq_xor]
   simp only [symmetricLinearityGame]
-  generalize decide (List.ofFn b < List.ofFn a) = swapPair
-  generalize decide (List.ofFn dummy < List.ofFn (linearityQuery k a b)) = swapPoint
+  generalize BitString.lexSwap a b = swapPair
+  generalize BitString.lexSwap (linearityQuery k a b) dummy = swapPoint
   cases roles <;> cases swapPair <;> cases swapPoint <;> exact hcheck
 
 end Cslib.PCP

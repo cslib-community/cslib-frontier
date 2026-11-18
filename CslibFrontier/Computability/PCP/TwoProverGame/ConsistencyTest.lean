@@ -138,6 +138,12 @@ structure PauliConsistencyQuestion (ι : Type*) where
     (q : PauliConsistencyQuestion ι) (bits : Bool × Bool) : Bool :=
   if q.basis then bits.2 else bits.1
 
+/-- Form the question in X–Z coordinate order from the basis, checked string and dummy string. -/
+@[expose] def PauliConsistencyQuestion.ofChecked {ι : Type*} (basis : Bool)
+    (checked dummy : ι → Bool) :
+    PauliConsistencyQuestion ι :=
+  if basis then ⟨dummy, checked, basis⟩ else ⟨checked, dummy, basis⟩
+
 section Pauli
 open BitString
 

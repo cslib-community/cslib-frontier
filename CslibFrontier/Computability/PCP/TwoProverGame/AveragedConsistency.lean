@@ -43,15 +43,6 @@ namespace Cslib.PCP
 open Finset Quantum
 open scoped BigOperators
 
-namespace PauliConsistencyQuestion
-
-/-- Form the question in X–Z coordinate order from the basis, checked string and dummy string. -/
-@[expose] def ofChecked {ι : Type*} (basis : Bool) (checked dummy : ι → Bool) :
-    PauliConsistencyQuestion ι :=
-  if basis then ⟨dummy, checked, basis⟩ else ⟨checked, dummy, basis⟩
-
-end PauliConsistencyQuestion
-
 variable {ι 𝒜 : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- Ask both players for the bit associated with a shared uniform string, each with an independent
