@@ -28,15 +28,20 @@ We define the collision-resistance game (`collisionGame`) for a compression func
 ideal block cipher over `Key` and `Block`, played by a `CollisionFinder`, record the inverse-query
 break of `cipherOutput` ([KatzLindell2020], Exercise 7.23(a)), and prove the Ideal-Cipher
 collision-resistance upper bound for the Davies–Meyer construction `daviesMeyer`
-([KatzLindell2020], Section 7.3.1, Figure 7.11, Theorem 7.5).
+([KatzLindell2020], Section 7.3.1, Figure 7.11, Theorem 7.5). The bound proved is that of
+[BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302.
 
-Specifically, for any `Q`-query adaptive adversary `A` making forward and inverse ideal-cipher
-queries, `daviesMeyer_collisionGame_le` reduces `collisionGame daviesMeyer A` to the forgetful
-ideal-cipher oracle via `abs_sub_uniformPerm_forgetful_le` and bounds the forgetful collision
-probability via `OracleComp.toOuterMeasure_bad_choose_two_le`, yielding
+Specifically, for every deterministic adaptive finder `A` making at most `Q` forward and inverse
+ideal-cipher queries, `daviesMeyer_collisionGame_le` reduces `collisionGame daviesMeyer A` to the
+forgetful ideal-cipher oracle via `abs_sub_uniformPerm_forgetful_le` and bounds the forgetful
+collision probability via `OracleComp.toOuterMeasure_bad_choose_two_le`, yielding
 `Pr[collisionGame daviesMeyer A] ≤ 2 * ((Q + 2).choose 2 : ℝ) * (Fintype.card Block)⁻¹`
-(equivalently `((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block)⁻¹`). The `+ 2` reflects the two
-compression-function evaluations on the adversary's output pair.
+(equivalently `((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block)⁻¹`), Boneh–Shoup's
+`(q + 1)(q + 2)/|X|` with `q = Q`. The `+ 2` counts the two forward queries on the finder's
+output pair that `daviesMeyerCollisionProgram` appends. `daviesMeyer F (k, x) = F k x + x` is
+Boneh–Shoup's `h_DM(x, y) = E(y, x) ⊕ x` (Section 8.5.2, p. 300) with its arguments swapped, over
+any finite additive group of blocks in place of `{0, 1}ⁿ` under XOR. The docstring of
+`daviesMeyer_collisionGame_le` says how its finders differ from Boneh–Shoup's adversaries.
 
 ## Main definitions
 
@@ -59,12 +64,15 @@ compression-function evaluations on the adversary's output pair.
   ideal cipher and the forgetful sampler on `daviesMeyerCollisionProgram`.
 * `Cslib.IdealCipher.daviesMeyer_collisionGame_le`,
   `Cslib.IdealCipher.daviesMeyer_collisionGame_mul_le`: Davies–Meyer collision-resistance upper
-  bounds in the Ideal Cipher Model ([KatzLindell2020], Theorem 7.5).
+  bounds in the Ideal Cipher Model ([KatzLindell2020], Theorem 7.5), with the bound of
+  [BonehShoup2023], Theorem 8.4.
 
 ## References
 
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020], Section 7.3.1,
   Figure 7.11, Theorem 7.5, Exercises 7.23 and 7.24.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
+  Section 8.5.2 (p. 300) and Section 8.5.3, Theorem 8.4 (p. 302).
 -/
 
 public section
@@ -484,9 +492,18 @@ variable {Key Block : Type} [DecidableEq Key] [Fintype Key] [DecidableEq Block]
   [Fintype Block] [Nonempty Block]
 
 /-- **Davies–Meyer Ideal-Cipher Collision Resistance** ([KatzLindell2020], Section 7.3.1,
-Theorem 7.5): any `Q`-query adaptive adversary making forward and inverse ideal-cipher queries
-finds a collision in `daviesMeyer` with probability at most
-`2 * ((Q + 2).choose 2) * (Fintype.card Block)⁻¹`. -/
+Theorem 7.5): every deterministic adaptive collision finder `A` making at most `Q` forward and
+inverse ideal-cipher queries on every path (`IsQueryBounded A Q`) finds a collision in
+`daviesMeyer` with probability at most `2 * ((Q + 2).choose 2) * (Fintype.card Block)⁻¹`. This is
+the bound `(q + 1)(q + 2)/|X|` of [BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302, with
+`q = Q`, written as `2 · C(Q + 2, 2)/|X|`; `daviesMeyer_collisionGame_mul_le` writes it as a
+product.
+
+`collisionGame` evaluates the two digests itself, without charging them to `A`. The `Q + 2` is
+the query count of the proof's `daviesMeyerCollisionProgram`, which appends two forward queries on
+`A`'s outputs: Boneh–Shoup's "reasonable" adversary, with `q' = q + 2` queries. A
+`CollisionFinder` has no private coins, so `A` is deterministic, with no bound on running time;
+Boneh–Shoup's adversary may be randomized, and no private-coin version is proved. -/
 theorem daviesMeyer_collisionGame_le [AddGroup Block]
     {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
     Pr[collisionGame (daviesMeyer (K := Key) (B := Block)) A] ≤
@@ -497,7 +514,9 @@ theorem daviesMeyer_collisionGame_le [AddGroup Block]
   linarith
 
 /-- Equivalent product form `((Q + 2) * (Q + 1) : ℝ) * (Fintype.card Block)⁻¹` of
-`daviesMeyer_collisionGame_le` ([KatzLindell2020], Theorem 7.5). -/
+`daviesMeyer_collisionGame_le` ([KatzLindell2020], Theorem 7.5), for the same deterministic
+adaptive finders making at most `Q` queries. It is the bound `(q + 1)(q + 2)/|X|` of
+[BonehShoup2023], Section 8.5.3, Theorem 8.4, p. 302, with `q = Q`. -/
 theorem daviesMeyer_collisionGame_mul_le [AddGroup Block]
     {A : CollisionFinder Key Block} {Q : ℕ} (hQ : IsQueryBounded A Q) :
     Pr[collisionGame (daviesMeyer (K := Key) (B := Block)) A] ≤
