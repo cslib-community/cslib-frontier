@@ -197,7 +197,6 @@ import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
 import CslibFrontier.Crypto.Computational.DiffieHellman.SelfReduction.Family
 import CslibFrontier.Crypto.Computational.ElGamal.KDF
 import CslibFrontier.Crypto.Computational.SchnorrGuessing
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Guessing
 import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
@@ -6747,8 +6746,7 @@ register_result "dlog-from-two-representations" where
     computableInPolyTime_extractNat, in DiscreteLog/Extract.lean, certifies that it is \
     polynomial time in the group description and the four binary numbers, which is the book's \
     'efficiently compute'. It is not listed because the theorems of one entry share a defining \
-    module. Theorem 10.4, which applies this fact to the hash H_dl, is the entry \
-    pedersen-commitment-binding."
+    module."
 
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
@@ -6820,32 +6818,6 @@ register_result "schnorr-identification-eavesdropping-dl" where
     stated, not the source's exact finite equality. No concrete running-time statement is made. \
     The setup law is arbitrary, as in schnorr-identification-direct-dl. Asymptotic."
 
-register_result "sigma-protocol-guessing-prover" where
-  title := "A prover without the witness makes the verifier of a special-HVZK Sigma protocol \
-    accept with probability at least 1/|C|"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 19.7", locator := "Section 19.12, p. 811" }
-  ]
-  theorems := [
-    Cslib.Crypto.Protocols.SigmaProtocol.SpecialHVZK.inv_card_le_succProbability_directAttack
-  ]
-  scope := "A Sigma protocol (SigmaProtocol, Definition 19.3, p. 772) with a finite nonempty \
-    challenge set C, stated with distributions and no cost model. The dishonest prover \
-    guessingImpersonator simulate is given only the statement y: it draws a uniform challenge \
-    c₀ and a simulated conversation (t, z) for it, sends t, and answers every challenge with z. \
-    SpecialHVZK.inv_card_le_succProbability_directAttack: if the protocol is special HVZK with \
-    the simulator simulate (SpecialHVZK, Definition 19.5, p. 774), this prover wins the direct \
-    attack (Attack Game 18.1, p. 720, with the protocol's verifier and a uniform challenge in C) \
-    with probability at least 1/|C|, for every distribution of witness–statement pairs, a fixed \
-    statement as in the exercise included; it never sees the witness. The exercise says 'with \
-    probability 1/|C|'; the bound is a lower bound, because a commitment and response may be \
-    accepted for several challenges. The lemma it specializes, in the same module, needs only \
-    that simulated conversations are accepting. SpecialHVZK does not require the simulator to \
-    be efficient, as Definition 19.5 does, so its premise is weaker than the book's. No \
-    efficiency is stated for the prover, which runs the simulator once; the Schnorr instance \
-    with a certified strict PPT prover is schnorr-identification-guessing-attack."
-
 register_result "schnorr-identification-guessing-attack" where
   title := "Schnorr identification with k n-bit challenges: an efficient guessing impersonator \
     succeeds with probability at least 2^(−k n), so security requires 2^(−k n) negligible"
@@ -6877,9 +6849,10 @@ register_result "schnorr-identification-guessing-attack" where
     isPPT_schnorrGuessingImpersonator: it is uniform strict PPT when m is computable in \
     polynomial time in unary. negligible_inv_two_pow_of_negligible_schnorrDirectGame: if every \
     uniform strict PPT impersonator wins schnorrDirectGame with negligible probability, then \
-    2^(−k n) is negligible, the book's conclusion that |C| must be super-poly; no condition on k \
-    is needed. The general form for special-HVZK Sigma protocols is \
-    sigma-protocol-guessing-prover."
+    2^(−k n) is negligible, the book's conclusion that |C| must be super-poly; it uses the \
+    impersonator with m = 0, so no condition on k is needed. The generic Sigma-protocol bound \
+    SpecialHVZK.inv_card_le_succProbability_directAttack (Exercise 19.7) has no cost model and \
+    is not part of this entry."
 
 register_result "elgamal-ddh-ind-cpa" where
   title := "Multiplicative ElGamal is semantically secure under DDH"
@@ -7992,41 +7965,15 @@ register_result "dlog-self-reduction-iterated" where
     the adversary is. eq_nil_or_encode_smul_eq_of_mem_support_dlSelfReduceRetryAdversary: on \
     every input word it outputs fail or a discrete logarithm of the input, Theorem 10.2's 'B \
     either outputs fail or Dlog_g(u)'. dlSelfReduceRetryAdversary_error_le_pow, in the same \
-    module, bounds the error by (1/2)^n at each n, where the book has exp(−n). Theorem 10.2 \
-    itself is not part of this entry: for one fair-coin attempt the module proves success at \
-    least ε − 1/2^n (le_toOuterMeasure_dlSelfReduceRetryAdversary_one), and the exact ε is \
-    eval_dlSelfReduce_one_smul_some in SelfReduction.lean, which has uniform masks and no cost \
-    model. discreteLog_of_worstCase, the library's formulation of the book's 'if it is hard in \
-    the worst case, then it must be hard on average' (p. 412), is not listed."
-
-register_result "cdh-random-self-reduction" where
-  title := "Random self-reduction for CDH: an efficient CDH algorithm yields an efficient \
-    algorithm that solves every instance with its average-case success probability, up to 2/2^n"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 10.6, with a 2/2^n sampling loss",
-      locator := "Section 10.11, p. 425; the map of Exercise 10.5, p. 424" }
-  ]
-  theorems := [
-    Cslib.Crypto.PrimeOrderGroupFamily.advantage_cdhSelfReduceAdversary_le,
-    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhSelfReduceAdversary
-  ]
-  scope := "Over a PrimeOrderGroupFamily, in the group of any parameters d at security parameter \
-    n, of prime order q with generator g, written additively. A is a CDH adversary of the \
-    family (CDHAdversary, typed group elements in and out), and ε is its success probability on \
-    two uniform elements of d (cdhExperiment, Attack Game 10.5 in a fixed group). \
-    cdhSelfReduceAdversary A masks both inputs, as u + ρ·g and v + τ·g, runs A and subtracts \
-    τ·u + ρ·v + (ρτ)·g: Exercise 10.5's one-sided map applied to both inputs. The exercise \
-    gives no construction, and this one is the library's. advantage_cdhSelfReduceAdversary_le: \
-    on every input pair (α·g, β·g), which covers every pair of elements, the probability that \
-    it outputs (αβ)·g differs from ε by at most 2/2^n, where the exercise asks for equality: \
-    the masks come from the fair-coin sampler sampleExp, each within 1/2^n of uniform. With \
-    exactly uniform masks the equality holds (eval_cdhSelfReduce_smul_apply, in \
-    SelfReduction.lean, which has no cost model). isPPT_cdhSelfReduceAdversary: the reduction \
-    is uniform strict PPT whenever A is (CDHAdversary.IsPPT). cdh_of_worstCase, in the same \
-    module, derives CDH from a worst-case hardness hypothesis on instances (α d·g, β d·g); its \
-    docstring labels that formulation the library's, and it is not listed. The remark after the \
-    exercise, on iterating B, is not formalized."
+    module, bounds the error by (1/2)^n at each n at which the success probability is at least \
+    1/invEps n and 1/2^n ≤ 1/(2·invEps n); under the hypotheses above both hold for all \
+    sufficiently large n, so the error is at most (1/2)^n for all large n, where the book has \
+    exp(−n). Theorem 10.2 itself is not part of this entry: for one fair-coin attempt the \
+    module proves success at least ε − 1/2^n (le_toOuterMeasure_dlSelfReduceRetryAdversary_one), \
+    and the exact ε is eval_dlSelfReduce_one_smul_some in SelfReduction.lean, which has uniform \
+    masks and no cost model. discreteLog_of_worstCase, the library's formulation of the book's \
+    'if it is hard in the worst case, then it must be hard on average' (p. 412), is not \
+    listed."
 
 register_result "ddh-fixed-first-coordinate-rerandomization" where
   title := "With u fixed, (v, w) ↦ (g^σ v^τ, u^σ w^τ) sends a DH-triple to a uniform DH-triple \
@@ -8071,19 +8018,20 @@ register_result "ddh-worst-case-decider" where
     large n the distinguisher's advantage in the group d n (ddhAdvantage: |Pr[real] − \
     Pr[random]| for uniform exponents, Attack Game 10.6 in a fixed group) is at least \
     1/invEps n, and invEps n > 0, where invEps is computable in polynomial time in unary. The \
-    exercise assumes that the signed difference equals ε with 1/ε poly-bounded; a polynomial \
-    above 1/ε serves as invEps, and the absolute value admits either sign. \
-    ddhAmplifiedDecider runs N = (n + 3)·(7·invEps n)² trials of the DDH self-reduction \
-    ddhSelfReduceDistinguisher (Exercises 10.8–10.9, with exponents from the fair-coin sampler \
-    sampleExp) on the input triple, on the DH-triple (0, 0, 0) and on the non-DH-triple \
-    (0, 0, g), and answers according to which reference count the input's count is closer to, \
-    which handles either sign of the advantage. negligible_ddhAmplifiedDecider_error: on every \
-    sequence of inputs (α n·g, β n·g, γ n·g), which covers every triple of elements, the \
-    probability that its answer differs from [γ n = α n·β n] is negligible; this holds for any \
-    distinguisher. isPPT_ddhAmplifiedDecider: the decider is uniform strict PPT whenever the \
-    distinguisher is (DDHDistinguisher.IsPPT). ddhAmplifiedDecider_error_le_pow, in the same \
-    module, bounds the error by (1/2)^n at each n with 3/2^n ≤ 1/(12·invEps n); the exercise \
-    states no bound."
+    exercise assumes that this absolute difference equals ε with 1/ε poly-bounded; a polynomial \
+    above 1/ε serves as invEps. ddhAmplifiedDecider runs N = (n + 3)·(7·invEps n)² trials of \
+    the DDH self-reduction ddhSelfReduceDistinguisher (Exercises 10.8–10.9, with exponents from \
+    the fair-coin sampler sampleExp) on the input triple, on the DH-triple (0, 0, 0) and on the \
+    non-DH-triple (0, 0, g), and answers according to which reference count the input's count \
+    is closer to, so it need not know which probability is larger. \
+    negligible_ddhAmplifiedDecider_error: on every sequence of inputs (α n·g, β n·g, γ n·g), \
+    which covers every triple of elements, the probability that its answer differs from \
+    [γ n = α n·β n] is negligible; this holds for any distinguisher. isPPT_ddhAmplifiedDecider: \
+    the decider is uniform strict PPT whenever the distinguisher is (DDHDistinguisher.IsPPT). \
+    ddhAmplifiedDecider_error_le_pow, in the same module, bounds the error by (1/2)^n at each n \
+    at which the advantage is at least 1/invEps n > 0 and 3/2^n ≤ 1/(12·invEps n); under the \
+    hypotheses above both hold for all sufficiently large n, so the error is at most (1/2)^n \
+    for all large n. The exercise states no bound."
 
 register_result "multi-ddh-from-ddh" where
   title := "Under DDH, the Multi-DDH (I) distributions D and R are computationally \
