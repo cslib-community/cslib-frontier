@@ -5578,12 +5578,12 @@ register_result "sigma-composition-efficient-extraction" where
   title := "Polynomial-time special-soundness extraction under Sigma-protocol composition"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 19.18 (special soundness)",
-      locator := "Version 0.6, Section 19.7.1, pp. 787–788" },
-    { paper := BonehShoup2023, theorem := "Theorem 19.19 (special soundness)",
-      locator := "Version 0.6, Section 19.7.2, p. 789" },
-    { paper := BonehShoup2023, theorem := "Exercise 19.6(b)",
-      locator := "Version 0.6, pp. 810–811" }
+    { paper := BonehShoup2023,
+      theorem := "Theorem 19.18 (special soundness); Theorem 19.19 (special soundness); \
+        Exercise 19.6(b)",
+      locator := "Theorem 19.18: Version 0.6, Section 19.7.1, pp. 787–788; \
+        Theorem 19.19: Version 0.6, Section 19.7.2, p. 789; \
+        Exercise 19.6(b): Version 0.6, pp. 810–811" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialSoundness.andProof,
@@ -5604,12 +5604,11 @@ register_result "sigma-composition-exact-efficient-simulation" where
   title := "Exact strict-PPT special-HVZK simulation under Sigma-protocol composition"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 19.18 (special HVZK)",
-      locator := "Version 0.6, Section 19.7.1, pp. 787–788" },
-    { paper := BonehShoup2023, theorem := "Theorem 19.19 (special HVZK)",
-      locator := "Version 0.6, Section 19.7.2, p. 789" },
-    { paper := BonehShoup2023, theorem := "Exercise 19.6(c)",
-      locator := "Version 0.6, pp. 810–811" }
+    { paper := BonehShoup2023,
+      theorem := "Theorem 19.18 (special HVZK); Theorem 19.19 (special HVZK); Exercise 19.6(c)",
+      locator := "Theorem 19.18: Version 0.6, Section 19.7.1, pp. 787–788; \
+        Theorem 19.19: Version 0.6, Section 19.7.2, p. 789; \
+        Exercise 19.6(c): Version 0.6, pp. 810–811" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.andProof,
