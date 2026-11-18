@@ -7470,6 +7470,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Affine
 public import CslibFrontier.Logics.Propositional.CSP.AffineTemplate
 public import CslibFrontier.Logics.Propositional.CSP.BinaryDigits
 public import CslibFrontier.Logics.Propositional.CSP.Boolean
+public import CslibFrontier.Logics.Propositional.CSP.Boolean.FiniteSignature
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Augmenting
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAG
