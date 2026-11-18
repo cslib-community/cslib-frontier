@@ -1611,7 +1611,9 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   let chosen := (sorted.take half).filter (2 < ·.2.length) ++
     (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 * sorted.length < act.inc
   let locked := XTrail.reasonIds S.exec.trail
-  (chosen.map Prod.fst).filter fun i =>
+  -- a number may be listed twice (a learned clause can be one of the database), and LRAT checkers
+  -- such as drat-trim's `lrat-check` reject a number deleted twice
+  dedupVars <| (chosen.map Prod.fst).filter fun i =>
     φ.length < i && !locked.contains i && !S.short.any (·.1 == i)
 
 /-- The invariant does not read the bookkeeping of reduction and simplification, nor the
@@ -1676,7 +1678,9 @@ rebuilt and the certificate gets no deletion step. -/
 
 theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
-  simp only [WExec.reduceIds, List.mem_filter, Bool.and_eq_true, Bool.not_eq_true',
+  unfold WExec.reduceIds at h
+  rw [mem_dedupKey Function.injective_id] at h
+  simp only [ List.mem_filter, Bool.and_eq_true, Bool.not_eq_true',
     decide_eq_true_eq, List.contains_eq_mem, decide_eq_false_iff_not, List.any_eq_false,
     beq_iff_eq] at h
   exact ⟨h.2.1.1, h.2.1.2, fun e he => h.2.2 e he⟩
@@ -1726,14 +1730,17 @@ trail, except the reasons of the trail. -/
 @[expose] def WExec.simplifyIds (S : WExec φ) : List ℕ :=
   let root := Assign.ofTrail (XTrail.trail (XTrail.root S.exec.trail))
   let locked := Assign.marks (XTrail.reasonIds S.exec.trail)
-  (S.exec.db.filter fun e =>
+  -- without repetitions, as in `reduceIds`
+  dedupVars <| (S.exec.db.filter fun e =>
     (S.opts.removeSatisfied || φ.length < e.1) && e.2.any root.holds && !locked.assigned e.1).map
       Prod.fst
 
 theorem WExec.mem_simplifyIds {S : WExec φ} (hS : S.Inv) {i : ℕ} (h : i ∈ S.simplifyIds) :
     i ∉ XTrail.reasonIds S.exec.trail ∧ ∃ e ∈ S.exec.db, e.1 = i ∧
       ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.exec.trail)) := by
-  simp only [simplifyIds, List.mem_map, List.mem_filter, Bool.and_eq_true, List.any_eq_true,
+  unfold simplifyIds at h
+  rw [mem_dedupKey Function.injective_id] at h
+  simp only [List.mem_map, List.mem_filter, Bool.and_eq_true, List.any_eq_true,
     Bool.not_eq_true'] at h
   obtain ⟨e, ⟨he, ⟨-, l, hl, hroot⟩, hlock⟩, rfl⟩ := h
   have hnd : (Trail.vars (XTrail.trail (XTrail.root S.exec.trail))).Nodup :=
