@@ -154,20 +154,6 @@ theorem Supported.cons {M : Trail} {b w₁ w₂ : Literal ℕ} (h : Supported M 
     simp only [List.cons_append, List.cons.injEq] at hN
     exact h.2 N d M₀ hN.2 h₁ h₂
 
-/-- Support survives a backjump below a decision that keeps both watched literals false. -/
-theorem Supported.backjump {M M₀ N : Trail} {d : Literal ℕ} {b w₁ w₂ : Literal ℕ}
-    (h : Supported M b w₁ w₂) (hM : M = N ++ ⟨d, true⟩ :: M₀) (h₁ : w₁.negate ∈ Trail.lits M₀)
-    (h₂ : w₂.negate ∈ Trail.lits M₀) (x : Entry) : Supported (x :: M₀) b w₁ w₂ := by
-  have hb := h.2 N d M₀ hM h₁ h₂
-  refine ⟨List.mem_cons_of_mem _ hb, fun N' d' M₁ hN' h₁' h₂' => ?_⟩
-  cases N' with
-  | nil =>
-    simp only [List.nil_append, List.cons.injEq] at hN'
-    exact hN'.2 ▸ hb
-  | cons y N' =>
-    simp only [List.cons_append, List.cons.injEq] at hN'
-    exact h.2 (N ++ ⟨d, true⟩ :: N') d' M₁ (by rw [hM, hN'.2]; simp) h₁' h₂'
-
 /-- Support survives going back below a decision, to a trail where both watched literals are
 false. -/
 theorem Supported.truncate {M M₀ N : Trail} {d : Literal ℕ} {b w₁ w₂ : Literal ℕ}
@@ -175,6 +161,12 @@ theorem Supported.truncate {M M₀ N : Trail} {d : Literal ℕ} {b w₁ w₂ : L
     (h₂ : w₂.negate ∈ Trail.lits M₀) : Supported M₀ b w₁ w₂ :=
   ⟨h.2 N d M₀ hM h₁ h₂, fun N' d' M₁ hN' h₁' h₂' =>
     h.2 (N ++ ⟨d, true⟩ :: N') d' M₁ (by rw [hM, hN']; simp) h₁' h₂'⟩
+
+/-- Support survives a backjump below a decision that keeps both watched literals false. -/
+theorem Supported.backjump {M M₀ N : Trail} {d : Literal ℕ} {b w₁ w₂ : Literal ℕ}
+    (h : Supported M b w₁ w₂) (hM : M = N ++ ⟨d, true⟩ :: M₀) (h₁ : w₁.negate ∈ Trail.lits M₀)
+    (h₂ : w₂.negate ∈ Trail.lits M₀) (x : Entry) : Supported (x :: M₀) b w₁ w₂ :=
+  (h.truncate hM h₁ h₂).cons x
 
 /-- **The invariant of the watch store** for the numbered clauses `F`, the trail `M` and the
 queue `Q`: its clauses are the clauses of `F` with at least two different literals, without

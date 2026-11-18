@@ -965,10 +965,14 @@ theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   · exact (hq ▸ hS.store).not_falsifies hS.exec.run.nodup he hlen
   · exact hshort e (hS.short_covers e he (by omega))
 
-/-- **Restart**, at an empty queue: back to the root of the trail. -/
+/-- **Restart**, at an empty queue: back to the root of the trail. With phase saving on, the
+phases of the trail's literals are saved first, as MiniSat's `cancelUntil(0)` saves those it
+undoes; the root's literals stay assigned, so only the saved phases of the undone ones are read
+later. -/
 @[expose] def WExec.restart (S : WExec φ) : WExec φ :=
   { S with
     exec := S.exec.restart
+    phase := if S.opts.phaseSaving then S.phase.save S.M else S.phase
     stats := { S.stats with restarts := S.stats.restarts + 1 } }
 
 /-- Restart keeps the invariant: the processed literals kept were processed, and the clauses with

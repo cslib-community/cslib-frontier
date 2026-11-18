@@ -95,13 +95,29 @@ example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
 /-- PHP(4, 3), with pigeon `i` in hole `j` as `3 * i + j`. -/
 private abbrev php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val + x.2.val
 
-/-- Restarting after every conflict, the solver still refutes PHP(4, 3), and restarts. -/
+/-- With a first restart budget of one conflict, scaled by the Luby sequence `1, 1, 2, 1, 1, 2, 4,
+…`, the solver still refutes PHP(4, 3), and restarts. -/
 example : (CDCL.solveWith { restartFirst := 1 } php43).1.isSat = false ∧
     0 < (CDCL.solveWith { restartFirst := 1 } php43).2.restarts := by
   decide +kernel
 
 /-- Without restarts, it never restarts. -/
 example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide +kernel
+
+/-- A state on `¬x₀ ∨ x₁` with the decision `¬x₀`, whose saved phase is `false`, and then `x₁`,
+whose saved phase is also `false`: the value of `x₁` differs from its saved phase. -/
+private def beforeRestart : CDCL.WExec [[(0, false), (1, true)]] :=
+  let S := (CDCL.WExec.init [[(0, false), (1, true)]] {}).decide 0
+  { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
+
+/-- Restart saves the phase of the literals it undoes: `x₁` is saved as `true`. -/
+example : beforeRestart.phase.get 1 = false ∧ beforeRestart.restart.phase.get 1 = true := by
+  decide +kernel
+
+/-- Without phase saving, restart keeps the phases. -/
+example :
+    ({ beforeRestart with opts := { phaseSaving := false } }).restart.phase.get 1 = false := by
+  decide +kernel
 
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide
