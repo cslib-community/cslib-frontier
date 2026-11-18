@@ -28,7 +28,9 @@ decision, and survives extending the trail (`Supported.cons`) and backjumping
 (`WatchStore.Inv.not_falsifies`).
 
 `WatchStore.visit` is the step of visiting one watcher on the watch list of a falsified literal,
-with its specification `WatchStore.visit_spec`.
+with its specification `WatchStore.visit_spec`. `WatchStore.build` builds a store on a trail,
+watching literals that are not false, so that it satisfies the invariant with every literal of the
+trail processed as long as no clause is false (`WatchStore.build_inv`).
 -/
 
 public section
@@ -421,24 +423,61 @@ theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
   ⟨by simp, by simp, by simp, fun e he => by simp at he, fun k hk => by simp at hk,
     fun i x hx => by simp [watchList] at hx, by simp⟩
 
-/-- The watch store of the numbered clauses `F`: every clause with at least two different literals,
-without repetitions, watching its first two literals. It adds the clauses with
-`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does. -/
-@[expose] def WatchStore.build : List (ℕ × Clause ℕ) → WatchStore
-  | [] => ⟨#[], #[]⟩
-  | e :: F => (WatchStore.build F).addClause e.1 e.2.dedup
+/-- A clause with its literals that are not false on the trail `M` first, so that they are the
+ones watched. -/
+@[expose] def watchOrder (M : Trail) (c : Clause ℕ) : Clause ℕ :=
+  c.filter (fun l => !(Trail.lits M).contains l.negate) ++
+    c.filter (fun l => !!(Trail.lits M).contains l.negate)
 
-/-- The watch store built from `F` satisfies the invariant with the empty trail. -/
-theorem WatchStore.build_inv : ∀ F : List (ℕ × Clause ℕ), (WatchStore.build F).Inv F [] []
-  | [] => WatchStore.inv_empty [] []
-  | ⟨id, c⟩ :: F => by
-    have ih := build_inv F
+theorem watchOrder_perm (M : Trail) (c : Clause ℕ) : (watchOrder M c).Perm c :=
+  List.filter_append_perm _ _
+
+/-- If the first literal of `watchOrder M c` is false, every literal of `c` is. -/
+theorem falsifies_of_watchOrder {M : Trail} {c rest : Clause ℕ} {w : Literal ℕ}
+    (h : watchOrder M c = w :: rest) (hw : w.negate ∈ Trail.lits M) : Trail.Falsifies M c := by
+  intro l hl
+  by_contra hne
+  have hmem : l ∈ c.filter (fun l => !(Trail.lits M).contains l.negate) :=
+    List.mem_filter.2 ⟨hl, by simpa using hne⟩
+  obtain ⟨x, xs, hx⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
+  rw [watchOrder, hx, List.cons_append, List.cons.injEq] at h
+  obtain ⟨rfl, -⟩ := h
+  have := (List.mem_filter.1 (hx ▸ List.mem_cons_self : x ∈ _)).2
+  simp_all
+
+/-- **The watch store** of the numbered clauses `F` on the trail `M`: every clause with at least
+two different literals, without repetitions, watching its first two literals once those that are
+not false on `M` are put first. It adds the clauses with
+`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
+unchanged for fewer than two literals. -/
+@[expose] def WatchStore.build (M : Trail) : List (ℕ × Clause ℕ) → WatchStore
+  | [] => ⟨#[], #[]⟩
+  | e :: F => (build M F).addClause e.1 (watchOrder M e.2.dedup)
+
+/-- The watch store built from `F` on the trail `M`, none of whose clauses `M` falsifies, satisfies
+the invariant with every literal of `M` processed: a clause whose **first** watched literal is
+false has every literal false. (Its second watched literal may be false while the clause is still
+open, as in a binary clause with one false and one unassigned literal.) -/
+theorem WatchStore.build_inv (M : Trail) : ∀ F : List (ℕ × Clause ℕ),
+    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) → (WatchStore.build M F).Inv F M []
+  | [], _ => WatchStore.inv_empty M []
+  | e :: F, hF => by
+    have ih := build_inv M F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
+    have hperm := watchOrder_perm M e.2.dedup
     simp only [build]
-    match hc : c.dedup with
+    match hc : watchOrder M e.2.dedup with
     | w₁ :: w₂ :: rest =>
-      exact ih.addClause (hc ▸ List.nodup_dedup c) (fun l => by rw [← hc, List.mem_dedup])
-        (by simp [Processed, Trail.lits])
-    | [] => exact ih.consShort (id, c) (by simp [hc])
-    | [_] => exact ih.consShort (id, c) (by simp [hc])
+      rw [hc] at hperm
+      have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
+      refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
+        (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
+      exact hF e List.mem_cons_self hlen fun l hl =>
+        falsifies_of_watchOrder hc hp.1 l (List.mem_dedup.2 hl)
+    | [] =>
+      rw [hc] at hperm
+      exact ih.consShort e (by simp [← hperm.length_eq])
+    | [_] =>
+      rw [hc] at hperm
+      exact ih.consShort e (by simp [← hperm.length_eq])
 
 end Cslib.Algorithms.Lean.CDCL

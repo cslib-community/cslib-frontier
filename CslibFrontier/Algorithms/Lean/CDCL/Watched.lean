@@ -58,6 +58,14 @@ the measure: the rank of the abstract system, times the number of variables plus
 length of the queue. Recursion is structural on a bound on the measure, which provably never runs
 out, so the kernel can run the solver.
 
+**Reducing the learned clauses** (`Cslib.Algorithms.Lean.CDCL.WExec.maybeReduce`). As in
+MiniSat's `reduceDB`, once the learned clauses exceed the assigned variables by a limit, which
+grows on a schedule, the less active half of them is forgotten
+(`Cslib.Algorithms.Lean.CDCL.Exec.forget`), except the reasons of the trail and the clauses of at
+most two literals, and the watch store is rebuilt on the trail
+(`Cslib.Algorithms.Lean.CDCL.WatchStore.build`). This happens with the queue empty and no clause
+false, and keeps the measure.
+
 **Restarts** (`Cslib.Algorithms.Lean.CDCL.search`). As in MiniSat, once a run of the loop has had
 its budget of conflicts (`restartFirst` times the Luby sequence, `Options.restartBudget`), at the
 next point with an empty queue and no conflict it goes back to the root of the trail, the literals
@@ -71,6 +79,8 @@ longer restarts; termination is structural on both.
 * `Cslib.Algorithms.Lean.CDCL.WExec`, `Cslib.Algorithms.Lean.CDCL.WExec.Inv`: the state and its
   invariant.
 * `Cslib.Algorithms.Lean.CDCL.WExec.processList`: visiting a watch list.
+* `Cslib.Algorithms.Lean.CDCL.Reduction`, `Cslib.Algorithms.Lean.CDCL.WExec.reduce`: the reduction
+  of the learned clauses.
 * `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.search`,
   `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
 * `Cslib.Algorithms.Lean.CDCL.Options`, `Cslib.Algorithms.Lean.CDCL.Stats`,
@@ -109,8 +119,9 @@ variable {φ : CNF ℕ}
 first unassigned variable of the database); phase saving for its polarity (MiniSat's
 `phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`); and restarts, the `i`-th
 after `restartFirst * luby restartInc i` more conflicts (MiniSat's `luby_restart`), or
-`restartFirst * restartInc ^ i` without `luby`; and the minimization of learned clauses
-(MiniSat's `ccmin_mode = 2`; otherwise `0`). None affects correctness. -/
+`restartFirst * restartInc ^ i` without `luby`; the minimization of learned clauses (MiniSat's
+`ccmin_mode = 2`; otherwise `0`); and the reduction of the learned clauses (MiniSat's `reduceDB`;
+otherwise they are kept). None affects correctness. -/
 structure Options where
   /-- Choose decision variables by VSIDS. -/
   vsids : Bool := true
@@ -126,6 +137,8 @@ structure Options where
   restartInc : ℕ := 2
   /-- Minimize the learned clauses. -/
   minimize : Bool := true
+  /-- Forget learned clauses of low activity. -/
+  reduce : Bool := true
   deriving Repr
 
 /-- The conflicts allowed before the restart numbered `i`, at least one. -/
@@ -148,6 +161,8 @@ structure Stats where
   maxLiterals : ℕ := 0
   /-- Different literals of the learned clauses (MiniSat's `tot_literals`). -/
   literals : ℕ := 0
+  /-- Learned clauses forgotten. -/
+  removed : ℕ := 0
   deriving Repr
 
 /-- One more literal taken from the propagation queue. -/
@@ -156,10 +171,43 @@ structure Stats where
 /-- One more decision. -/
 @[expose] def Stats.decision (s : Stats) : Stats := { s with decisions := s.decisions + 1 }
 
+/-- **The reduction of the learned clauses**, after MiniSat: the clause activities, by number,
+bumped for the clauses met by each analysis and decaying by `1 / 0.999` (MiniSat's
+`clause_decay`); the number of learned clauses in the watch store; their limit (MiniSat's
+`max_learnts`, a third of the clauses of the formula to begin with); and the conflicts between
+increases of the limit by a tenth, which grow by half each time, and the conflicts left before the
+next one (MiniSat's `learntsize_adjust_confl` and `learntsize_adjust_cnt`). -/
+structure Reduction where
+  /-- The clause activities, by number. -/
+  act : Activity
+  /-- The learned clauses in the watch store. -/
+  learnts : ℕ
+  /-- The limit on the learned clauses, beyond the assigned variables. -/
+  max : ℕ
+  /-- The conflicts between increases of the limit. -/
+  adjust : ℕ
+  /-- The conflicts left before the next increase. -/
+  countdown : ℕ
+
+/-- The reduction for a formula of `m` clauses. -/
+@[expose] def Reduction.init (m : ℕ) : Reduction := ⟨Activity.init 0, 0, m / 3, 100, 100⟩
+
+/-- After a conflict whose analysis met the clauses `used` and learned the clause numbered `id`,
+the log's next number being `next`: the clause activities are bumped and decay, the learned clause
+is counted if it is `stored`, and the limit grows on schedule. -/
+@[expose]
+def Reduction.learn (R : Reduction) (used : List ℕ) (id next : ℕ) (stored : Bool) : Reduction :=
+  let act := (R.act.grow next).bump (id :: used) 999
+  let learnts := if stored then R.learnts + 1 else R.learnts
+  if R.countdown ≤ 1 then
+    let adjust := R.adjust + R.adjust / 2
+    ⟨act, learnts, R.max + R.max / 10, adjust, adjust⟩
+  else ⟨act, learnts, R.max, R.adjust, R.countdown - 1⟩
+
 /-- The state of the solver with watched literals: the state `Exec`, the watch store, the queue
 of trail literals whose watch lists are still to be visited, the clauses with fewer than two
-different literals, the variable activities, the saved phases, the options and the
-statistics. -/
+different literals, the variable activities, the saved phases, the reduction of the learned
+clauses, the options and the statistics. -/
 structure WExec (φ : CNF ℕ) where
   /-- The trail, database and log. -/
   exec : Exec φ
@@ -173,6 +221,8 @@ structure WExec (φ : CNF ℕ) where
   act : Activity
   /-- The saved phases, which choose the polarities of the decisions. -/
   phase : Phases
+  /-- The reduction of the learned clauses. -/
+  red : Reduction
   /-- The options. -/
   opts : Options
   /-- The statistics so far. -/
@@ -199,12 +249,15 @@ variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
-  ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
-    Activity.init (varSlots φ), Phases.init (varSlots φ), o, {}⟩
+  ⟨Exec.init φ, WatchStore.build [] φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
+    Activity.init (varSlots φ), Phases.init (varSlots φ),
+    Reduction.init φ.length, o, {}⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv where
   exec := Exec.init_inv φ
-  store := WatchStore.build_inv φ.lratDB
+  store := WatchStore.build_inv [] φ.lratDB fun e _ hlen hf => by
+    obtain ⟨l, hl⟩ := List.exists_mem_of_length_pos (by omega : 0 < e.2.dedup.length)
+    simpa [Trail.lits] using hf l (List.mem_dedup.1 hl)
   short_mem e he := (List.mem_filter.1 he).1
   short_covers e he hlen := List.mem_filter.2 ⟨he, by simpa using hlen⟩
   queue_nodup := List.nodup_nil
@@ -816,6 +869,11 @@ are saved, if phase saving is on. -/
 /-- One more conflict. -/
 @[expose] def Stats.conflict (s : Stats) : Stats := { s with conflicts := s.conflicts + 1 }
 
+/-- The reduction after a conflict learning `L`, stored if `stored`: updated, if reduction is on. -/
+@[expose] def WExec.reduced (S : WExec φ) {sp : Split} (L : S.exec.LearnedAt sp) (stored : Bool) :
+    Reduction :=
+  if S.opts.reduce then S.red.learn L.used L.id L.log.next stored else S.red
+
 /-- One more conflict, learning a clause of `k` different literals, `k₀` before minimization. -/
 @[expose] def Stats.learn (s : Stats) (k₀ k : ℕ) : Stats :=
   { s with
@@ -829,9 +887,11 @@ saved; the statistics count `k₀` literals before minimization. -/
     WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
-      S.short, S.bumped L.seen, S.saved sp, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
+      S.short, S.bumped L.seen, S.saved sp, S.reduced L true, S.opts,
+      S.stats.learn k₀ L.clause.dedup.length⟩
   else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
-    S.bumped L.seen, S.saved sp, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
+    S.bumped L.seen, S.saved sp, S.reduced L false, S.opts,
+    S.stats.learn k₀ L.clause.dedup.length⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -1009,6 +1069,106 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     exact this ▸ hs
   · exact hs.truncate hN h₁.1 h₂.1
 
+/-- Merging two lists sorted by `le`, in at most `fuel` steps. -/
+@[expose] def mergeBy {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α → List α
+  | 0, xs, ys => xs ++ ys
+  | _ + 1, [], ys => ys
+  | _ + 1, xs, [] => xs
+  | n + 1, x :: xs, y :: ys =>
+    if le x y then x :: mergeBy le n xs (y :: ys) else y :: mergeBy le n (x :: xs) ys
+
+/-- The elements of a list at even positions, and those at odd positions. -/
+@[expose] def splitAlternate {α : Type} : List α → List α × List α
+  | [] => ([], [])
+  | x :: xs => let p := splitAlternate xs; (x :: p.2, p.1)
+
+/-- **Merge sort by `le`**, to depth `fuel`, which the length of the list makes enough. Unlike
+`List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
+@[expose] def sortBy {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
+  | 0, xs => xs
+  | _ + 1, [] => []
+  | _ + 1, [x] => [x]
+  | n + 1, xs =>
+    let p := splitAlternate xs
+    mergeBy le xs.length (sortBy le n p.1) (sortBy le n p.2)
+
+/-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
+of the store, those of more than two literals first by increasing activity; of the less active
+half, those of more than two literals, and of the other half, those of more than two literals and
+activity below the increment divided by their number. Kept in any case are the clauses of `φ`, the
+reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
+@[expose] def WExec.reduceIds (S : WExec φ) : List ℕ :=
+  let act := S.red.act
+  let learnts := S.store.clauses.toList.filter fun e => φ.length < e.1
+  let sorted := sortBy (fun a b =>
+    if (a.2.length ≤ 2) == (b.2.length ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2.length ≤ 2)
+    learnts.length learnts
+  let half := sorted.length / 2
+  let extra := act.inc / max 1 sorted.length
+  let chosen := (sorted.take half).filter (2 < ·.2.length) ++
+    (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 < extra
+  let locked := XTrail.reasonIds S.exec.trail
+  (chosen.map Prod.fst).filter fun i =>
+    φ.length < i && !locked.contains i && !S.short.any (·.1 == i)
+
+/-- **Reducing the learned clauses**, at an empty queue: the clauses chosen are forgotten, and the
+watch store is rebuilt on the current trail. -/
+@[expose] def WExec.reduce (S : WExec φ) : WExec φ :=
+  let ids := S.reduceIds
+  { S with
+    exec := S.exec.forget ids
+    store := WatchStore.build S.M (S.exec.forget ids).db
+    red := { S.red with learnts := S.red.learnts - ids.length }
+    stats := { S.stats with removed := S.stats.removed + ids.length } }
+
+theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
+    φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
+  simp only [WExec.reduceIds, List.mem_filter, Bool.and_eq_true, Bool.not_eq_true',
+    decide_eq_true_eq, List.contains_eq_mem, decide_eq_false_iff_not, List.any_eq_false,
+    beq_iff_eq] at h
+  exact ⟨h.2.1.1, h.2.1.2, fun e he => h.2.2 e he⟩
+
+/-- Reducing at an empty queue with no false clause keeps the invariant and the measure, and no
+clause becomes false. -/
+theorem WExec.Inv.reduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
+    (hnoconf : ∀ c ∈ S.exec.clauses, ¬ Trail.Falsifies S.M c) :
+    S.reduce.Inv ∧ (∀ c ∈ S.reduce.exec.clauses, ¬ Trail.Falsifies S.reduce.M c) ∧
+      S.reduce.measure = S.measure := by
+  have hexec : (S.exec.forget S.reduceIds).Inv :=
+    Exec.forget_inv hS.exec (fun e he hi => by
+      have := (WExec.mem_reduceIds hi).1
+      have := le_length_of_mem_lratDB he
+      omega) fun r hr hi => (WExec.mem_reduceIds hi).2.1 hr
+  have hdb : ∀ e ∈ (S.exec.forget S.reduceIds).db, e ∈ S.exec.db := fun e he =>
+    (List.mem_filter.1 he).1
+  have hsub : ∀ c ∈ S.reduce.exec.clauses, c ∈ S.exec.clauses := fun c hc => by
+    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
+    exact List.mem_map.2 ⟨e, hdb e he, rfl⟩
+  refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => hS.short_covers e (hdb e he) hlen,
+    hS.queue_nodup, hS.queue_trail, hS.queue_above⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
+  · change (WatchStore.build S.M (S.exec.forget S.reduceIds).db).Inv _ S.M S.queue
+    rw [hq]
+    exact WatchStore.build_inv S.M _ fun e he _ => hnoconf e.2 (List.mem_map.2 ⟨e, hdb e he, rfl⟩)
+  · refine List.mem_filter.2 ⟨hS.short_mem e he, ?_⟩
+    have : ¬ e.1 ∈ S.reduceIds := fun hi => (WExec.mem_reduceIds hi).2.2 e he rfl
+    simpa using this
+
+/-- **MiniSat's `reduceDB`, when due**: if reduction is on and the learned clauses in the store
+exceed the assigned variables by the limit, reduce. -/
+@[expose] def WExec.maybeReduce (S : WExec φ) : WExec φ :=
+  if S.opts.reduce && S.red.max + S.exec.trail.length ≤ S.red.learnts then S.reduce else S
+
+theorem WExec.Inv.maybeReduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
+    (hnoconf : ∀ c ∈ S.exec.clauses, ¬ Trail.Falsifies S.M c) :
+    S.maybeReduce.Inv ∧ S.maybeReduce.queue = [] ∧
+      (∀ c ∈ S.maybeReduce.exec.clauses, ¬ Trail.Falsifies S.maybeReduce.M c) ∧
+      S.maybeReduce.measure = S.measure := by
+  unfold WExec.maybeReduce
+  split
+  · have ⟨h₁, h₂, h₃⟩ := hS.reduce hq hnoconf
+    exact ⟨h₁, hq, h₂, h₃⟩
+  · exact ⟨hS, hq, hnoconf, rfl⟩
+
 /-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
 the checker. -/
 inductive Answer (φ : CNF ℕ) : Type
@@ -1082,19 +1242,22 @@ database, or returns the trail as a model. -/
             (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
-          match hr : limit.any (· ≤ S.stats.conflicts) with
-          | true => .restart S.restart (hS.restart hq) (by cases limit <;> simp_all)
+          have ⟨hS₁, hq₁, hnoconf₁, hm₁⟩ := hS.maybeReduce hq hnoconf
+          let S₁ := S.maybeReduce
+          match hr : limit.any (· ≤ S₁.stats.conflicts) with
+          | true => .restart S₁.restart (hS₁.restart hq₁) (by cases limit <;> simp_all)
           | false =>
-          match hx : S.decisionActivity.pick S.M S.exec.clauses.vars with
+          match hx : S₁.decisionActivity.pick S₁.M S₁.exec.clauses.vars with
           | some x =>
-            have hundef : x ∉ Trail.vars S.M := (Activity.pick_some hx).2
-            have hspec := Exec.decide_spec hS.exec hnoconf (Activity.pick_some hx).1 hundef
-              (S.polarity x)
-            loop φ limit fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
-              (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
+            have hundef : x ∉ Trail.vars S₁.M := (Activity.pick_some hx).2
+            have hspec := Exec.decide_spec hS₁.exec hnoconf₁ (Activity.pick_some hx).1 hundef
+              (S₁.polarity x)
+            loop φ limit fuel (S₁.decide x) (hS₁.push hq₁ hspec.1 rfl rfl rfl rfl rfl hundef)
+              (by have := WExec.measure_push_lt (S' := S₁.decide x) hq₁ rfl hspec.2; omega)
           | none =>
-            .done (.sat (Trail.assignment S.M)
-              (hS.exec.run.eval_model hnoconf fun x hxV => Activity.pick_none hx x hxV), S.stats)
+            .done (.sat (Trail.assignment S₁.M)
+              (hS₁.exec.run.eval_model hnoconf₁ fun x hxV => Activity.pick_none hx x hxV),
+              S₁.stats)
 
 /-- **Search with restarts**: runs of the loop, each restarting after its budget of conflicts, at
 most `k` of them; the last run does not restart. -/

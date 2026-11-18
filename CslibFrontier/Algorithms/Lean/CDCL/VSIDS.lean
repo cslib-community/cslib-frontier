@@ -30,6 +30,8 @@ different activities into ties, so decisions can differ from those of floating-p
 
 The choice of variable does not affect correctness: the solver only needs an unassigned variable
 of the database (`Activity.pick_some`), or the fact that there is none (`Activity.pick_none`).
+The same structure, indexed by clause number and decaying by `1 / 0.999`, holds MiniSat's clause
+activities.
 `Activity.pick_max` states that the choice is of greatest activity. MiniSat keeps the variables in
 a binary heap ordered by activity; here the unassigned variables are scanned.
 
@@ -38,6 +40,7 @@ a binary heap ordered by activity; here the unassigned variables are scanned.
 * `Cslib.Algorithms.Lean.CDCL.Activity`: activities and the increment.
 * `Cslib.Algorithms.Lean.CDCL.Activity.bump`: bumping the variables met by an analysis, then
   decaying.
+* `Cslib.Algorithms.Lean.CDCL.Activity.grow`: making room for more indices.
 * `Cslib.Algorithms.Lean.CDCL.Activity.pick`: an unassigned variable of greatest activity.
 
 ## Main results
@@ -79,11 +82,15 @@ def Activity.bumpVar (A : Activity) (v : ℕ) : Activity :=
   else ⟨score, A.inc⟩
 
 /-- **After a conflict**: bump each variable met by the analysis once, then set the increment to
-`inc + inc / 19`, with integer division: at most the factor `1 + 1 / 19 = 1 / 0.95`, and less by the
-truncation. -/
-def Activity.bump (A : Activity) (vs : List ℕ) : Activity :=
+`inc + inc / decay`, with integer division (by default `decay = 19`): at most the factor
+`1 + 1 / decay` (`1 / 0.95` by default), and less by the truncation. -/
+def Activity.bump (A : Activity) (vs : List ℕ) (decay : ℕ := 19) : Activity :=
   let A := vs.dedup.foldl Activity.bumpVar A
-  ⟨A.score, A.inc + A.inc / 19⟩
+  ⟨A.score, A.inc + A.inc / decay⟩
+
+/-- The activities with room for the indices below `n`, the new ones `0`. -/
+def Activity.grow (A : Activity) (n : ℕ) : Activity :=
+  if A.score.size < n then ⟨A.score ++ Array.replicate (n - A.score.size) 0, A.inc⟩ else A
 
 /-- **The decision variable**: an unassigned variable of `vs` of greatest activity, the first one
 among ties. -/

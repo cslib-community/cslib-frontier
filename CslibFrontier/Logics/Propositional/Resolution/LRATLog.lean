@@ -252,6 +252,17 @@ def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ where
   implied σ hσ e he := log.implied σ hσ e (List.mem_filter.1 he).1
   vars_mem e he := log.vars_mem e (List.mem_filter.1 he).1
 
+/-- Deleting clauses keeps the clauses of the numbers not deleted. -/
+theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
+    (log.delete ids).clause? i = log.clause? i := by
+  simp only [clause?, delete, List.find?_filter]
+  congr 1
+  refine List.find?_congr fun e _ => ?_
+  by_cases he : e.1 = i
+  · subst he
+    simp [hi]
+  · simp [he]
+
 /-- **Closing the log** at the empty clause, numbered `i`: its steps followed by an empty-clause
 step hinting it. -/
 def finish (log : LRATLog φ) (i : ℕ) (_h : log.clause? i = some []) : Array LRAT.IntAction :=

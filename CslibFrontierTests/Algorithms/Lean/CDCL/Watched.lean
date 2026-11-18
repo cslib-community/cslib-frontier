@@ -21,9 +21,10 @@ The kernel runs the watched solver with `decide` on the pigeonhole formula PHP(3
 unsatisfiable, and on satisfiable formulas, checking the model. The formulas exercise the short
 clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
 the options decides correctly, and the statistics count conflicts, propagations and decisions.
-Restarts happen when allowed, and minimization shortens the learned clauses of PHP(4, 3). At
-runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned
-clauses are minimized.
+Restarts happen when allowed, minimization shortens the learned clauses of PHP(4, 3), and the kernel
+refutes PHP(5, 4) through a reduction of the learned clauses. At runtime, Lean core's checker
+accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
+them forgotten, and whose intermediate resolvents are deleted.
 -/
 
 set_option linter.privateModule false
@@ -144,18 +145,31 @@ example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.max
       (CDCL.solveWith { minimize := false } php43).2.maxLiterals := by
   decide +kernel
 
+/-- PHP(5, 4), with pigeon `i` in hole `j` as `4 * i + j`. -/
+private abbrev php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val + x.2.val
+
+/-- The kernel refutes PHP(5, 4) through a reduction of the learned clauses. -/
+example : (CDCL.solveWith {} php54).1.isSat = false ∧ 0 < (CDCL.solveWith {} php54).2.removed := by
+  decide +kernel
+
+-- Without reduction, no learned clause is forgotten.
+/-- info: 0 -/
+#guard_msgs in
+#eval (CDCL.solveWith { reduce := false } php54).2.removed
+
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide
 
--- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates.
+-- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
+-- delete the intermediate resolvents and the forgotten learned clauses.
 /-- info: (true, true) -/
 #guard_msgs in
 #eval
   let check (n : ℕ) :=
     let φ := (CNF.pigeonhole (n + 1) n).relabel fun x => n * x.1.val + x.2.val
-    match CDCL.solve φ with
-    | .unsat cert => LRAT.check cert φ.toStdSat
-    | .sat _ => false
+    match CDCL.solveWith {} φ with
+    | (.unsat cert, s) => LRAT.check cert φ.toStdSat && 0 < s.removed
+    | (.sat _, _) => false
   (check 4, check 5)
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

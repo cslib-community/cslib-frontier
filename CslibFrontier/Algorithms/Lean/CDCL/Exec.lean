@@ -26,7 +26,8 @@ with:
 * every reason contains its literal, and its other literals are false further down the trail
   (`Cslib.Algorithms.Lean.CDCL.Reasons`);
 * every clause of the database is in the log under its number;
-* no clause of the database is false on the part of the trail below a decision.
+* no clause of the database is false on the part of the trail below a decision;
+* the numbered clauses of the input stay in the database.
 
 **Moves.**
 
@@ -39,20 +40,26 @@ with:
   asserting clause: the analysed clause always has a literal false at the current level, and at
   the decision only the decision's negation can be one. The solver backjumps below the newest
   decision, adds the asserting literal with the learned clause as its reason, and learns the
-  clause (Backjump and Learn, `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict`).
+  clause (Backjump and Learn, `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict`). The intermediate
+  resolvents of the analysis are then deleted from the log.
 * UnitPropagate (`Cslib.Algorithms.Lean.CDCL.Exec.propagate`) and Decide
   (`Cslib.Algorithms.Lean.CDCL.Exec.decide`).
+* Restart (`Cslib.Algorithms.Lean.CDCL.Exec.restart`), back to the literals implied below every
+  decision.
+* Forget (`Cslib.Algorithms.Lean.CDCL.Exec.forget`): deleting clauses other than those of the
+  input and the reasons of the trail from the database and the log
+  (`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`). The remaining clauses contain the input, so they
+  entail the clauses deleted.
 
-Every move is a Basic DPLL step, or Backjump followed by Learn, of the abstract system, and so
-lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`). Every learned clause, and every intermediate
-resolvent of the analysis, enters the certificate as a RUP step hinting the two clauses it
-resolves, so the checker accepts the certificate by construction
-(`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
+Every move other than Restart and Forget is a Basic DPLL step, or Backjump followed by Learn, of
+the abstract system, and so lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`); Forget keeps it.
+Every learned clause, and every intermediate resolvent of the analysis, enters the certificate as a
+RUP step hinting the two clauses it resolves, so the checker accepts the certificate by
+construction (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 
 **Scope.** `Exec` does not choose decisions: the solver with watched literals chooses them
-(`Cslib.Algorithms.Lean.CDCL.Activity`). Backjump returns to just below the newest decision
-rather than to the second-highest level of the learned clause, intermediate resolvents are never
-deleted, and there are no restarts. These are later milestones of the MiniSat port.
+(`Cslib.Algorithms.Lean.CDCL.Activity`). Backjump returns to just below the newest decision rather
+than to the second-highest level of the learned clause.
 
 ## Main definitions
 
@@ -66,6 +73,8 @@ deleted, and there are no restarts. These are later milestones of the MiniSat po
 * `Cslib.Algorithms.Lean.CDCL.Exec.afterConflict_spec`,
   `Cslib.Algorithms.Lean.CDCL.Exec.propagate_spec`, `Cslib.Algorithms.Lean.CDCL.Exec.decide_spec`:
   the moves keep the invariant and lower the rank.
+* `Cslib.Algorithms.Lean.CDCL.Exec.restart_inv`, `Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`:
+  Restart and Forget keep the invariant.
 
 ## References
 
@@ -156,6 +165,45 @@ theorem Reasons.append_right {log : LRATLog φ} {N M : XTrail} (h : Reasons log 
   induction N with
   | nil => simpa using h
   | cons x N ih => exact ih h.tail
+
+/-- The number of the reason of an entry, if it is implied. -/
+def XEntry.reason? : XEntry → Option ℕ
+  | .decision _ => none
+  | .implied _ r => some r
+
+/-- The numbers of the reasons of a trail, MiniSat's *locked* clauses. -/
+def XTrail.reasonIds (M : XTrail) : List ℕ := M.filterMap XEntry.reason?
+
+@[simp] theorem XTrail.reasonIds_nil : XTrail.reasonIds [] = [] := rfl
+
+@[simp] theorem XTrail.reasonIds_decision (l : Literal ℕ) (M : XTrail) :
+    XTrail.reasonIds (.decision l :: M) = XTrail.reasonIds M := rfl
+
+@[simp] theorem XTrail.reasonIds_implied (l : Literal ℕ) (r : ℕ) (M : XTrail) :
+    XTrail.reasonIds (.implied l r :: M) = r :: XTrail.reasonIds M := rfl
+
+/-- The reasons of a trail are numbers of the log, so below its next number. -/
+theorem Reasons.lt_next {log : LRATLog φ} {M : XTrail} (h : Reasons log M) :
+    ∀ r ∈ XTrail.reasonIds M, r < log.next := by
+  induction h with
+  | nil => simp
+  | decision l _ ih => simpa using ih
+  | implied l r _ hr _ _ ih =>
+    intro r' h'
+    rcases List.mem_cons.1 (by simpa using h') with rfl | h'
+    · exact LRATLog.lt_next_of_clause? hr
+    · exact ih r' h'
+
+/-- Deleting clauses other than the reasons keeps the reasons. -/
+theorem Reasons.delete {log : LRATLog φ} {ids : List ℕ} {M : XTrail} (h : Reasons log M)
+    (hids : ∀ r ∈ XTrail.reasonIds M, r ∉ ids) : Reasons (log.delete ids) M := by
+  induction h with
+  | nil => exact .nil
+  | decision l _ ih => exact .decision l (ih (by simpa using hids))
+  | implied l r _ hr hl hfalse ih =>
+    have hr' : r ∉ ids := hids r (by simp)
+    exact .implied l r (ih fun r' h' => hids r' (by simp [h']))
+      ((LRATLog.clause?_delete hr').trans hr) hl hfalse
 
 /-- The resolvent on the variable of `l` of a clause containing the negation of `l` and a clause
 containing `l`, as `Clause.resolvent` orders them. -/
@@ -270,6 +318,9 @@ structure Learned (log₀ : LRATLog φ) (A M₀ : Trail) where
   /-- The variables of the clauses met by the analysis: the conflict clause and the resolvents,
   hence the reasons resolved. Branching heuristics bump them. -/
   seen : List ℕ
+  /-- The numbers of the clauses met by the analysis: the conflict clause, the resolvents and the
+  reasons resolved. Clause activities bump them. -/
+  used : List ℕ
   clause?_eq : log.clause? id = some clause
   mem : lit ∈ clause
   false_below : ∀ y ∈ clause, y ≠ lit → y.negate ∈ Trail.lits M₀
@@ -303,7 +354,8 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
         have := List.mem_filter.1 (hys ▸ List.mem_cons_self : u ∈ C.filter _)
         exact ⟨this.1, by simpa using this.2⟩
       if hall : rest.all (· == u) then
-        { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, clause?_eq := hC,
+        { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, used := [i],
+          clause?_eq := hC,
           mem := hu.1,
           false_below := fun y hy hne => by
             have hyT := hfalse y hy
@@ -411,7 +463,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                   obtain ⟨z, hz, hne, hzc⟩ := hz
                   exact ⟨z, mem_resolveOn_left hz hne, hcur' z hne hzc⟩)
                 hnd'
-              { L' with seen := C.map Prod.fst ++ L'.seen }
+              { L' with seen := C.map Prod.fst ++ L'.seen, used := i :: r :: L'.used }
             else
               analyze log₀ d M₀ A N' hA' log hext i C hC hT hdec'
                 (fun y hy => hfalse' y hy fun h => hmem (h ▸ hy))
@@ -493,6 +545,8 @@ structure Exec.Inv (S : Exec φ) : Prop where
   db_log : ∀ e ∈ S.db, S.log.clause? e.1 = some e.2
   below : ∀ N d M₀, XTrail.trail S.trail = N ++ ⟨d, true⟩ :: M₀ →
     ∀ c ∈ S.clauses, ¬ Trail.Falsifies M₀ c
+  /-- The numbered clauses of `φ` stay in the database. -/
+  orig : ∀ e ∈ φ.lratDB, e ∈ S.db
 
 /-- The initial state: the empty trail, the clauses of `φ` with their numbers, and the empty log. -/
 def Exec.init (φ : CNF ℕ) : Exec φ := ⟨[], φ.lratDB, LRATLog.init φ⟩
@@ -516,7 +570,8 @@ theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
     simp only [Exec.clauses, Exec.init, lratDB, List.map_map]
     conv_rhs => rw [← List.zipIdx_map_fst 0 φ]
     rfl
-  refine ⟨?_, .nil, fun e he => ?_, fun N d M₀ h => by simp [Exec.init, XTrail.trail] at h⟩
+  refine ⟨?_, .nil, fun e he => ?_, fun N d M₀ h => by simp [Exec.init, XTrail.trail] at h,
+    fun e he => he⟩
   · rw [hclauses]
     exact (Inv.init fun c hc l hl => CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩ : RunInv _ _ _ _)
   · simp only [LRATLog.clause?, Exec.init, LRATLog.init, lratDB] at he ⊢
@@ -572,10 +627,20 @@ theorem Exec.Inv.split_cur {S : Exec φ} (hS : S.Inv) {sp : Split}
 abbrev Exec.LearnedAt (S : Exec φ) (sp : Split) : Type :=
   Learned S.log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)
 
-/-- The learned clause of a conflict, and the state after Backjump and Learn. -/
+/-- The numbers of the intermediate resolvents of an analysis: the numbers from `n` to below `next`
+other than `id`, the learned clause's. -/
+def resolventIds (n next id : ℕ) : List ℕ := (List.range' n (next - n)).filter (· != id)
+
+theorem mem_resolventIds {n next id i : ℕ} (h : i ∈ resolventIds n next id) : n ≤ i ∧ i ≠ id := by
+  simp only [resolventIds, List.mem_filter, List.mem_range'_1, bne_iff_ne, ne_eq] at h
+  exact ⟨h.1.1, h.2⟩
+
+/-- The learned clause of a conflict, and the state after Backjump and Learn. The intermediate
+resolvents of the analysis are deleted from the log. -/
 def Exec.afterConflict (S : Exec φ) (sp : Split) (L : S.LearnedAt sp) :
     Exec φ :=
-  ⟨.implied L.lit L.id :: sp.below, (L.id, L.clause) :: S.db, L.log⟩
+  ⟨.implied L.lit L.id :: sp.below, (L.id, L.clause) :: S.db,
+    L.log.delete (resolventIds S.log.next L.log.next L.id)⟩
 
 /-- Backjump and Learn keep the invariant and lower the rank. -/
 theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
@@ -609,13 +674,20 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
         exact .inr this)
   have hrun₁ := Step.inv (.inl hbj) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run)
   have hrun₂ := Step.inv (.inr (.inl hlearn)) hrun₁
-  refine ⟨⟨hrun₂, ?_, ?_, ?_⟩, ?_⟩
-  · exact .implied L.lit L.id ((hS.split_reasons hsp).append_right.tail.mono L.ext)
-      L.clause?_eq L.mem L.false_below
+  -- the deleted numbers are new, other than the learned clause's
+  have hid : L.id ∉ resolventIds S.log.next L.log.next L.id := fun h => (mem_resolventIds h).2 rfl
+  have hold : ∀ i, i < S.log.next → i ∉ resolventIds S.log.next L.log.next L.id :=
+    fun i hi h => by have := (mem_resolventIds h).1; omega
+  refine ⟨⟨hrun₂, ?_, ?_, ?_, fun e' he' => List.mem_cons_of_mem _ (hS.orig e' he')⟩, ?_⟩
+  · have hbelow := (hS.split_reasons hsp).append_right.tail
+    refine .implied L.lit L.id ((hbelow.mono L.ext).delete fun r hr => hold r (hbelow.lt_next r hr))
+      ((LRATLog.clause?_delete hid).trans L.clause?_eq) L.mem L.false_below
   · intro e' he'
     rcases List.mem_cons.1 he' with rfl | he'
-    · exact L.clause?_eq
-    · exact L.ext _ _ (hS.db_log e' he')
+    · exact (LRATLog.clause?_delete hid).trans L.clause?_eq
+    · have hlog := hS.db_log e' he'
+      exact (LRATLog.clause?_delete (hold _ (LRATLog.lt_next_of_clause? hlog))).trans
+        (L.ext _ _ hlog)
   · intro N d M₁ hN c hc'
     -- a split of the new trail is below the asserting literal, so a split of the old trail
     obtain ⟨x, N, rfl⟩ : ∃ x N', N = x :: N' := by
@@ -669,7 +741,7 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
       (.run (⟨l, false⟩ :: XTrail.trail S.trail) S.clauses) :=
     .unitPropagate hc hl hfalse hundef
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
-    .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_⟩,
+    .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_, hS.orig⟩,
     hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'
   cases N with
@@ -690,7 +762,7 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
       (.run (⟨(x, b), true⟩ :: XTrail.trail S.trail) S.clauses) :=
     .decide (l := (x, b)) hundef hx
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
-    .decision _ hS.reasons, hS.db_log, ?_⟩, hstep.rank_lt hS.run⟩
+    .decision _ hS.reasons, hS.db_log, ?_, hS.orig⟩, hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'
   cases N with
   | nil =>
@@ -764,7 +836,7 @@ theorem Exec.restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
   rw [vars_append] at hnodup
   refine ⟨⟨hrun.models, hrun.pmodels, hnodup.of_append_right, fun x hx => hrun.subset x
     (by rw [vars_append]; exact List.mem_append_right _ hx), hrun.db_vars,
-    Trail.entailed_append hrun.entailed⟩, hreasons.append_right, hS.db_log, ?_⟩
+    Trail.entailed_append hrun.entailed⟩, hreasons.append_right, hS.db_log, ?_, hS.orig⟩
   intro N d M₀ hN
   have hd : (⟨d, true⟩ : Entry) ∈ XTrail.trail (XTrail.root S.trail) := by
     change _ ∈ XTrail.trail S.restart.trail
@@ -773,5 +845,58 @@ theorem Exec.restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
   have := XTrail.root_no_decision S.trail x hx
   rw [hxe] at this
   exact absurd this (by simp)
+
+/-! ### Forgetting clauses -/
+
+/-- The numbers of the clauses of `φ` are at most its length. -/
+theorem le_length_of_mem_lratDB {e : ℕ × Clause ℕ} (he : e ∈ φ.lratDB) : e.1 ≤ φ.length := by
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+  have := List.snd_lt_add_of_mem_zipIdx hp
+  simp only at this ⊢
+  omega
+
+/-- Every clause of `φ` has a number. -/
+theorem exists_mem_lratDB {c : Clause ℕ} (hc : c ∈ φ) : ∃ e ∈ φ.lratDB, e.2 = c := by
+  rw [← List.zipIdx_map_fst 0 φ] at hc
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hc
+  exact ⟨(p.2 + 1, p.1), List.mem_map.2 ⟨p, hp, rfl⟩, rfl⟩
+
+/-- **Forget**: deleting the clauses numbered `ids` from the database and the log. -/
+def Exec.forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
+  ⟨S.trail, S.db.filter fun e => !ids.contains e.1, S.log.delete ids⟩
+
+/-- Forgetting clauses other than those of `φ` and the reasons of the trail keeps the invariant:
+the remaining clauses contain `φ`, so they still have the models of `φ`. The removed clauses are
+entailed by them, as Forget requires. -/
+theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
+    (horig : ∀ e ∈ φ.lratDB, e.1 ∉ ids) (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
+    (S.forget ids).Inv := by
+  have hmem : ∀ e ∈ (S.forget ids).db, e ∈ S.db ∧ e.1 ∉ ids := fun e he => by
+    have := List.mem_filter.1 he
+    exact ⟨this.1, by simpa using this.2⟩
+  have hsub : ∀ c ∈ (S.forget ids).clauses, c ∈ S.clauses := fun c hc => by
+    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
+    exact List.mem_map.2 ⟨e, (hmem e he).1, rfl⟩
+  have hkeep : ∀ e ∈ φ.lratDB, e ∈ (S.forget ids).db := fun e he =>
+    List.mem_filter.2 ⟨hS.orig e he, by simpa using horig e he⟩
+  have hφ : ∀ c ∈ φ, c ∈ (S.forget ids).clauses := fun c hc => by
+    obtain ⟨e, he, rfl⟩ := exists_mem_lratDB hc
+    exact List.mem_map.2 ⟨e, hkeep e he, rfl⟩
+  have hrun := hS.run
+  refine ⟨⟨fun σ => ?_, fun ρ hρ c hc => hρ c (hφ c hc), hrun.nodup, hrun.subset,
+    fun c hc => hrun.db_vars c (hsub c hc), hrun.entailed⟩, hS.reasons.delete hreasons,
+    fun e he => ?_, fun N d M₀ hN c hc => hS.below N d M₀ hN c (hsub c hc), hkeep⟩
+  · apply Bool.eq_iff_iff.2
+    rw [CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
+    refine ⟨fun h c hc => h c (hφ c hc), fun h c hc => ?_⟩
+    have hall := (CNF.eval_eq_true_iff σ S.clauses).1
+      (by rw [hrun.models]; exact (CNF.eval_eq_true_iff σ φ).2 h)
+    exact hall c (hsub c hc)
+  · obtain ⟨he, hid⟩ := hmem e he
+    exact (LRATLog.clause?_delete hid).trans (hS.db_log e he)
+
+/-- Forgetting leaves the trail, hence the rank, unchanged. -/
+theorem Exec.rank_forget (S : Exec φ) (ids : List ℕ) :
+    rank φ.vars (S.forget ids).state = rank φ.vars S.state := rfl
 
 end Cslib.Algorithms.Lean.CDCL

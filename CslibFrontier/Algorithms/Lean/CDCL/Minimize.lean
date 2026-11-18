@@ -124,6 +124,7 @@ def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) : Learned log₀ A
         clause := D
         lit := L.lit
         seen := L.seen
+        used := L.used
         clause?_eq := LRATLog.clause?_addRup
         mem := List.mem_cons_self
         false_below := fun y hy hne => L.false_below y (hsub y hy) hne
