@@ -123,11 +123,18 @@ private def collidingExpansionRows : Option Bool := do
   let b := (1 : Byte) :: List.replicate 31 0
   let rows : Finset (List Bool) := {Keccak.bytesToBitsLE a, Keccak.bytesToBitsLE b}
   let background := constantStream (fun _ => 247)
-  let H := (Xofs.mk background background).fill256 (rows := rows) (width := 221)
-    (fun _ => 8) (fun _ _ => 0)
+  let H : Xofs := ⟨background, background.fill (rows := rows) (width := 221)
+    (fun _ => 8) (fun _ _ => 0)⟩
   let c ← H.sampleInBall .mlDSA44 a
   let c' ← H.sampleInBall .mlDSA44 b
   return a != b && c == c' && H.h256.readBytes a 9 == List.replicate 8 247 ++ [0] &&
     H.h256.readBytes [] 9 == List.replicate 9 247
 
 #guard collidingExpansionRows == some true
+
+-- The first reply is actually passed to the continuation. Returning exactly those bytes as
+-- the forgery is rejected, even when they verify, because the genuine reply was logged.
+example (K : Xofs) (s : Level) (keys : KeyPair) (q : SigningQuery) (sig : List Byte) :
+    K.continueFirstSigning s keys q (some sig) (fun _ _ ans =>
+      pure ⟨q.context, q.message, ans.getD []⟩) = PMF.pure false := by
+  simp [Xofs.continueFirstSigning, SigningQuery.logReply, Cslib.ProbOracleComp.runWith_pure]

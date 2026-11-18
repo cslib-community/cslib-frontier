@@ -71,7 +71,7 @@ abbrev Level.params (s : Level) : Params :=
   { p with n := 256, q := 8380417 }
 
 /-- Length in bytes of the FIPS challenge digest for each parameter set (Table 1). -/
-def digestBytes : Level → ℕ
+@[expose] def digestBytes : Level → ℕ
   | .mlDSA44 => 32 | .mlDSA65 => 48 | .mlDSA87 => 64
 
 /-- Maximum Hamming weight of the complete hint vector (Table 1). -/
@@ -127,7 +127,8 @@ private theorem bitsOfChunks {bits : List Bool} (h : 8 ∣ bits.length) :
     simpa [decode, Keccak.bytesToBitsLE] using
       go xs #[x] #[] (by simp) (by simp) (by simpa [Nat.add_comm] using h)
 
-private theorem bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8 * l.length := by
+/-- FIPS byte serialization contributes eight bits per byte. -/
+theorem bitsLength (l : List Byte) : (Keccak.bytesToBitsLE l).length = 8 * l.length := by
   induction l with
   | nil => rfl
   | cons a l ih =>
@@ -219,6 +220,14 @@ def Xofs.expandA (H : Xofs) (s : Level) (rho : List Byte) :
       fromNTT <$> asPoly (uniformCoeffs (H.h128.readBytes
         (rho ++ [Fin.ofNat 256 col.val, Fin.ofNat 256 row.val]) 894))
   return fun i j => ((matrix.get i).get j).get
+
+/-- Algorithm 32 depends only on SHAKE128. -/
+theorem Xofs.expandA_congr {H K : Xofs} (ha : K.h128 = H.h128) (s : Level) (rho : List Byte) :
+    K.expandA s rho = H.expandA s rho := by
+  cases H
+  cases K
+  cases ha
+  rfl
 
 /-- FIPS 202 specialization of `Xofs.expandA`. -/
 abbrev expandA := Xofs.expandA Xofs.shake
@@ -454,6 +463,46 @@ def Xofs.keyGen (H : Xofs) (s : Level) (seed : FixedBytes 32) : Option KeyPair :
   let sk : PrivateKey s := ⟨rho, expanded.drop 96, H.h256.readBytes pk 64, s₁, s₂,
     fun i j => ((power2Round 8380417 13 (t i j)).2 : ZMod 8380417)⟩
   return ⟨pk, sk.encode⟩
+
+/-- Algorithm 6 is unchanged if SHAKE128 is unchanged and the two SHAKE256 streams agree
+on all words outside the parameter set's digest-seed length. The key-seed input is 34 bytes,
+secret nonce inputs are 66 bytes, and every encoded public key is longer than a digest. -/
+theorem Xofs.keyGen_congr_off_digest {H K : Xofs} (s : Level) (seed : FixedBytes 32)
+    (ha : K.h128 = H.h128)
+    (agree : ∀ (x : List Bool), x.length ≠ 8 * digestBytes s →
+      ∀ n, K.h256.read x n = H.h256.read x n) :
+    K.keyGen s seed = H.keyGen s seed := by
+  have raw (x : List Byte) (hx : x.length ≠ digestBytes s) (n : ℕ) :
+      K.h256.readBytes x n = H.h256.readBytes x n := by
+    apply agree
+    rw [bitsLength]
+    omega
+  have init : K.h256.readBytes (seed.toList ++ [Fin.ofNat 256 s.params.k,
+      Fin.ofNat 256 s.params.ℓ]) 128 = H.h256.readBytes
+      (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 := by
+    apply raw
+    simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
+    cases s <;> decide
+  have matrix := Xofs.expandA_congr ha s
+  unfold Xofs.keyGen
+  rw [init]
+  generalize h : H.h256.readBytes
+    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded
+  have len : expanded.length = 128 := by rw [← h]; exact H.h256.length_read ..
+  have secret (i : ℕ) : K.secretPoly s ((expanded.drop 32).take 64) i =
+      H.secretPoly s ((expanded.drop 32).take 64) i := by
+    unfold Xofs.secretPoly
+    rw [raw]
+    simp only [nonceInput, List.length_append, List.length_cons, List.length_nil, List.length_take,
+      List.length_drop, len]
+    cases s <;> decide
+  have pub (t : Fin s.params.k → Poly) :
+      K.h256.readBytes (encodePublic s (expanded.take 32) t) 64 =
+        H.h256.readBytes (encodePublic s (expanded.take 32) t) 64 := by
+    apply raw
+    simp only [encodePublic, List.length_append, List.length_take, len, length_packCoeffs]
+    cases s <;> decide
+  simp only [matrix, secret, pub]
 
 /-- FIPS 202 specialization of `Xofs.keyGen`. -/
 abbrev keyGen := Xofs.keyGen Xofs.shake
@@ -1017,7 +1066,8 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
   exact coef (decodeRounded s bytes i j)
 
 /-- The 64-byte representative of a formatted bit string given the public-key hash tr. -/
-def Xofs.representativeFromTr (H : Xofs) (tr : List Byte) (formatted : List Bool) : List Bool :=
+@[expose] def Xofs.representativeFromTr (H : Xofs) (tr : List Byte) (formatted : List Bool) :
+    List Bool :=
   Keccak.bytesToBitsLE (H.h256.read
     (Keccak.bytesToBitsLE tr ++ formatted) 64)
 
@@ -1111,7 +1161,7 @@ private def Xofs.verifyInternalWith (H : Xofs) (s : Level)
 private abbrev verifyInternalWith := Xofs.verifyInternalWith Xofs.shake
 
 /-- The pure-mode prefix in Algorithms 2 and 3, including the context length. -/
-def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
+@[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
 
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
@@ -1330,7 +1380,8 @@ theorem solves_extract_of_verify {s : Level} {bytes : List Byte} {f : Forgery}
 
 /-- Draw one uniform 32-byte seed and run an experiment under the resulting Algorithm 6
 key pair. A key-generation failure is an unsuccessful trial. -/
-noncomputable def Xofs.keyExperiment (H : Xofs) (s : Level) (run : KeyPair → Game) : Game :=
+@[expose] noncomputable def Xofs.keyExperiment (H : Xofs) (s : Level) (run : KeyPair → Game) :
+    Game :=
   (PMF.uniformOfFintype (FixedBytes 32)).bind fun seed =>
     match H.keyGen s seed with
     | none => PMF.pure false

@@ -67,6 +67,17 @@ theorem ExtendableOutput.read_fill_of_le (H : ExtendableOutput) {rows : Finset (
     simp only [fill, List.getElem_map, List.getElem_range, outside, dite_false]
     split <;> exact H.byte_eq x lt
 
+/-- An input outside the completed rows keeps its entire XOF output. -/
+theorem ExtendableOutput.read_fill_of_notMem (H : ExtendableOutput) {rows : Finset (List Bool)}
+    {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) {x : List Bool}
+    (hx : x ∉ rows) (n : ℕ) : (H.fill seen tape).read x n = H.read x n := by
+  apply List.ext_getElem
+  · rw [ExtendableOutput.length_read, ExtendableOutput.length_read]
+  · intro i hi _
+    have lt : i < n := by simpa only [ExtendableOutput.length_read] using hi
+    simp only [fill, List.getElem_map, List.getElem_range, hx, dite_false]
+    exact H.byte_eq x lt
+
 /-- The new window of a row is exactly its tape. The retained prefix may have any length. -/
 theorem ExtendableOutput.drop_read_fill (H : ExtendableOutput) {rows : Finset (List Bool)}
     {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) (x : rows) :
@@ -90,15 +101,5 @@ theorem ExtendableOutput.read_fill_window (H : ExtendableOutput) {rows : Finset 
   rw [K.take_read x (Nat.le_add_right ..), H.read_fill_of_le seen tape le_rfl,
     H.drop_read_fill seen tape x] at h
   rw [← K.take_read x hn, ← h]
-
-/-- Reading a raw address different from the replaced row returns all the same bytes. -/
-theorem ExtendableOutput.read_fill_update_ne (H : ExtendableOutput) {rows : Finset (List Bool)}
-    {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) (key : rows)
-    (fresh : FixedBytes width) {x : List Bool} (hne : x ≠ key.val) (n : ℕ) :
-    (H.fill seen (Function.update tape key fresh)).read x n = (H.fill seen tape).read x n := by
-  by_cases hx : x ∈ rows
-  · have h : (⟨x, hx⟩ : rows) ≠ key := fun e => hne (congrArg Subtype.val e)
-    simp only [fill, hx, dite_true, Function.update_of_ne h]
-  · simp only [fill, hx, dite_false]
 
 end Cslib.Crypto
