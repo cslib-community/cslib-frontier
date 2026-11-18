@@ -485,18 +485,12 @@ theorem uniform_exchangeSampleInBall (s : Level) :
       ((exchangeSampleInBall s (row, d)).1, (sampleInBallBytes s row.toList).map fun _ => d.val)) =
     (Probability.PMF.uniformOfFintype (FixedBytes 221)).map (fun row =>
       (row, sampleInBallBytes s row.toList)) := by
-  let read := fun (r : FixedBytes 221 × Target s) => (r.1, sampleInBallBytes s r.1.toList)
-  trans (Probability.PMF.uniformOfFintype (FixedBytes 221 × Target s)).map read
-  · conv_rhs => rw [← Probability.PMF.uniformOfFintype_map_equiv (exchangeSampleInBall s),
-      PMF.map_comp]
-    congr 1
-    funext ⟨row, d⟩
-    cases h : sampleInBallBytes s row.toList with
-    | none => simp [read, h, exchangeSampleInBall_of_none h]
-    | some c => simp [read, h, (exchangeSampleInBall_of_some h d).1]
-  · let obs := fun row : FixedBytes 221 => (row, sampleInBallBytes s row.toList)
-    change (Probability.PMF.uniformOfFintype (FixedBytes 221 × Target s)).map (obs ∘ Prod.fst) = _
-    rw [← PMF.map_comp, Probability.PMF.uniformOfFintype_prod_map_fst]
+  rw [← Probability.PMF.uniformOfFintype_prod_map_fst (α := FixedBytes 221) (β := Target s),
+    PMF.map_comp]
+  apply Probability.PMF.uniformOfFintype_map_exchange_option
+    (exchangeSampleInBall s) (fun row => sampleInBallBytes s row.toList) Subtype.val
+  · exact fun h d => by rw [exchangeSampleInBall_of_none h d]; exact h
+  · exact fun h d => (exchangeSampleInBall_of_some h d).1
 
 end ChallengeRow
 
