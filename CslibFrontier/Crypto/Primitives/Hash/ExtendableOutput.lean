@@ -34,4 +34,43 @@ structure ExtendableOutput where
 @[expose] def ExtendableOutput.readBytes (H : ExtendableOutput) (input : List Byte) :=
   H.read (Keccak.bytesToBitsLE input)
 
+/-- Read an XOF with the first bytes of this stream replaced. Requests shorter than the
+replacement are truncations. Longer requests continue with the original tail. -/
+@[expose] def ExtendableOutput.readWithPrefix (H : ExtendableOutput) (x : List Bool) (n : ℕ)
+    (head : List Byte) : List Byte :=
+  head.take n ++ (H.read x n).drop head.length
+
+/-- Overwriting each selected input's prefix gives a single prefix-consistent XOF on raw inputs.
+Every role reading the same input sees the same bytes, including when their counts differ. -/
+@[expose] def ExtendableOutput.withPrefixes (H : ExtendableOutput)
+    (atInput : List Bool → Option (List Byte)) : ExtendableOutput where
+  read x n := match atInput x with
+    | none => H.read x n
+    | some head => H.readWithPrefix x n head
+  length_read x n := by
+    cases h : atInput x with
+    | none => exact H.length_read x n
+    | some p =>
+      simp only [readWithPrefix, List.length_append, List.length_take, List.length_drop,
+        H.length_read]
+      lia
+  take_read x m n h := by
+    cases e : atInput x with
+    | none => exact H.take_read x h
+    | some p =>
+      simp only [readWithPrefix, List.take_append, List.take_take, Nat.min_eq_left h,
+        List.length_take, ← H.take_read x h, List.drop_take]
+      congr 2
+      lia
+
+/-- Replacing a stream prefix by its actual first bytes preserves every read. -/
+theorem ExtendableOutput.readWithPrefix_self (H : ExtendableOutput) (x : List Bool) (n k : ℕ) :
+    H.readWithPrefix x n (H.read x k) = H.read x n := by
+  unfold readWithPrefix
+  rw [H.length_read]
+  by_cases h : n ≤ k
+  · rw [H.take_read x h, List.drop_eq_nil_of_le (by rw [H.length_read]; exact h), List.append_nil]
+  · rw [← H.take_read x (show k ≤ n by lia), List.take_take, Nat.min_eq_right (by lia)]
+    exact List.take_append_drop k (H.read x n)
+
 end Cslib.Crypto

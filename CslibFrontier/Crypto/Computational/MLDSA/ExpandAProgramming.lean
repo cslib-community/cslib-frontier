@@ -66,20 +66,6 @@ private theorem address_of_cellAt {s : Level} {rho : List Byte} {x : List Bool} 
   dsimp only [cellAt] at h
   split_ifs at h; simp_all
 
-private def replacePrefix (replacement stream : List Byte) : List Byte :=
-  replacement.take stream.length ++ stream.drop replacement.length
-
-private theorem length_replacePrefix (p t : List Byte) : (replacePrefix p t).length = t.length := by
-  simp only [replacePrefix, List.length_append, List.length_take, List.length_drop]
-  omega
-
-private theorem take_replacePrefix (p t : List Byte) {m : ℕ} (hm : m ≤ t.length) :
-    (replacePrefix p t).take m = replacePrefix p (t.take m) := by
-  simp only [replacePrefix, List.take_append, List.take_take, List.length_take, List.drop_take,
-    Nat.min_eq_left hm]
-  have hsub : m - min t.length p.length = m - p.length := by omega
-  rw [hsub]
-
 /-- The SHAKE128 prefixes used by Algorithm 32, indexed by matrix row and column. -/
 abbrev MatrixPrefixes (s : Level) := Fin s.params.k → Fin s.params.ℓ → FixedBytes 894
 
@@ -87,21 +73,8 @@ abbrev MatrixPrefixes (s : Level) := Fin s.params.k → Fin s.params.ℓ → Fix
 The suffix at each such address and all reads at other inputs are supplied by the original XOF. -/
 def Xofs.withMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s) :
     Xofs :=
-  let read (x : List Bool) (n : ℕ) :=
-    match cellAt s rho x with
-    | none => H.h128.read x n
-    | some (i, j) => replacePrefix (List.ofFn (t i j)) (H.h128.read x n)
-  { H with h128 := {
-      read := read
-      length_read := fun x n => by
-        dsimp only [read]
-        split <;> simp only [length_replacePrefix, H.h128.length_read]
-      take_read := fun x m n h => by
-        dsimp only [read]
-        split
-        · exact H.h128.take_read _ h
-        · rw [take_replacePrefix _ _ (by simpa only [H.h128.length_read] using h),
-            H.h128.take_read _ h] } }
+  { H with h128 := H.h128.withPrefixes fun x =>
+      (cellAt s rho x).map fun (i, j) => List.ofFn (t i j) }
 
 /-- Reading a programmed matrix address through the production SHAKE128 interface returns its
 full replacement followed by the original suffix, truncated at the requested byte count. -/
@@ -111,11 +84,12 @@ theorem read_withMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte) (t : Ma
         (rho ++ [Fin.ofNat 256 j.val, Fin.ofNat 256 i.val]) n =
       (List.ofFn (t i j)).take n ++
         (H.h128.readBytes (rho ++ [Fin.ofNat 256 j.val, Fin.ofNat 256 i.val]) n).drop 894 := by
-  change (match cellAt s rho (address rho (i, j)) with
+  simp only [Xofs.withMatrixPrefixes, ExtendableOutput.readBytes, ExtendableOutput.withPrefixes]
+  change (match (cellAt s rho (address rho (i, j))).map _ with
     | none => _
-    | some (a, b) => replacePrefix (List.ofFn (t a b)) _) = _
+    | some p => H.h128.readWithPrefix _ n p) = _
   rw [cellAt_address]
-  simp only [replacePrefix, ExtendableOutput.readBytes, H.h128.length_read, List.length_ofFn]
+  simp only [Option.map_some, ExtendableOutput.readWithPrefix, List.length_ofFn]
 
 /-- Every raw input outside the `ρ || column || row` grid retains all its SHAKE128 bytes. -/
 theorem read_withMatrixPrefixes_of_ne (H : Xofs) (s : Level) (rho : List Byte)
@@ -127,7 +101,7 @@ theorem read_withMatrixPrefixes_of_ne (H : Xofs) (s : Level) (rho : List Byte)
     cases ha : cellAt s rho x with
     | none => rfl
     | some p => exact False.elim (h p.1 p.2 (address_of_cellAt ha))
-  simp only [Xofs.withMatrixPrefixes, hnone]
+  simp only [Xofs.withMatrixPrefixes, ExtendableOutput.withPrefixes, hnone, Option.map_none]
 
 private theorem ofFnM_replace {α β : Type*} {n : ℕ} (f : Fin n → Option α) (v : Fin n → β) :
     Vector.ofFnM (fun i => (f i).map fun _ => v i) =
@@ -139,17 +113,8 @@ private theorem ofFnM_replace {α β : Type*} {n : ℕ} (f : Fin n → Option α
     cases Vector.ofFnM (fun i : Fin n => f i.castSucc) <;>
       cases f (Fin.last n) <;> simp [Vector.ofFn_succ, Fin.last]
 
-private def liftEntries (s : Level) (e : Equiv.Perm (FixedBytes 894 × Poly)) :
-    Equiv.Perm (MatrixPrefixes s × PublicMatrix s) :=
-  let applyAt (g : FixedBytes 894 × Poly → FixedBytes 894 × Poly)
-      (z : MatrixPrefixes s × PublicMatrix s) : MatrixPrefixes s × PublicMatrix s :=
-    (fun i j => (g (z.1 i j, z.2 i j)).1, fun i j => (g (z.1 i j, z.2 i j)).2)
-  let undo (g h : FixedBytes 894 × Poly → FixedBytes 894 × Poly) (inv : Function.LeftInverse h g)
-      (z : MatrixPrefixes s × PublicMatrix s) : applyAt h (applyAt g z) = z := by
-    apply Prod.ext <;> funext i j <;> simp [applyAt, inv _]
-  ⟨applyAt e, applyAt e.symm, undo _ _ e.left_inv, undo _ _ e.right_inv⟩
-
-private theorem entry_read (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
+/-- Algorithm 32 receives the installed 894 bytes at this public row and column. -/
+theorem read_matrixEntry (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
     (i : Fin s.params.k) (j : Fin s.params.ℓ) :
     (H.withMatrixPrefixes s rho t).h128.readBytes
         (rho ++ [Fin.ofNat 256 j.val, Fin.ofNat 256 i.val]) 894 = List.ofFn (t i j) := by
@@ -204,7 +169,7 @@ theorem expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte)
   have eval (u : MatrixPrefixes s) : (H.withMatrixPrefixes s rho u).expandA s rho =
       (Vector.ofFnM (rows u)).map unpack := by
     unfold Xofs.expandA
-    simp only [entry_read, bind_pure_comp]
+    simp only [read_matrixEntry, bind_pure_comp]
     rfl
   rw [eval, eval, hm]
   cases Vector.ofFnM (rows t) with
@@ -226,15 +191,19 @@ theorem uniform_expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List
       let G := H.withMatrixPrefixes s rho t
       (G, G.expandA s rho)) := by
   let c := (Equiv.refl (FixedBytes 894)).prodCongr fromNTTEquiv.symm
-  let e := liftEntries s ((c.trans (exchangeRejNTT 894)).trans c.symm)
+  let entry := (c.trans (exchangeRejNTT 894)).trans c.symm
+  let split := Matrix.prodEquiv (Fin s.params.k) (Fin s.params.ℓ) (FixedBytes 894) Poly
+  let e : Equiv.Perm (MatrixPrefixes s × PublicMatrix s) :=
+    (split.symm.trans entry.mapMatrix).trans split
   conv_rhs => rw [← Probability.PMF.uniformOfFintype_prod_map_fst (β := PublicMatrix s),
     PMF.map_comp, ← Probability.PMF.uniformOfFintype_map_equiv e, PMF.map_comp]
   apply congrArg (fun f => (PMF.uniformOfFintype (MatrixPrefixes s × PublicMatrix s)).map f)
   funext ⟨t, A⟩
   have he : (e (t, A)).1 = programMatrixPrefixes s t A := by
     funext i j
-    simp only [e, liftEntries, c, programMatrixPrefixes, Equiv.trans_apply, Equiv.prodCongr_apply,
-      Equiv.prodCongr_symm, Equiv.coe_fn_mk, Equiv.refl_symm, Prod.map, Equiv.refl_apply]
+    change (entry (t i j, A i j)).1 = _
+    simp only [entry, c, programMatrixPrefixes, Equiv.trans_apply, Equiv.prodCongr_apply,
+      Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.refl_apply, Prod.map]
   simp only [Function.comp_apply, he, expandA_programMatrixPrefixes]
 
 end Cslib.Crypto.MLDSA.FIPS204
