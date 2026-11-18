@@ -10,6 +10,8 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
+import CslibFrontier.Probability.PairwiseIndependentHash.Retention
+import CslibFrontier.Probability.SmallBias.Code
 import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
@@ -45,6 +47,7 @@ import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
+import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
 import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 import CslibFrontier.Computability.Complexity.Problems.StronglyConnected.Completeness
@@ -126,6 +129,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Converse
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
@@ -137,11 +141,13 @@ import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Savitch
+import CslibFrontier.Computability.Complexity.Classes.TFNP.SelfReducibility
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
+import CslibFrontier.Computability.Complexity.Classes.Time.LasVegas
 import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -164,12 +170,14 @@ import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
 import CslibFrontier.Computability.Complexity.Problems.TMSAT
 import CslibFrontier.Computability.Complexity.Problems.ThreeExactCover
 import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
+import CslibFrontier.Computability.Complexity.Problems.XSAT
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Nonnegative
 import CslibFrontier.Computability.Kolmogorov.Incompleteness
@@ -195,7 +203,9 @@ import CslibFrontier.Computability.MCSP.MultiNPHard
 import CslibFrontier.Computability.MCSP.PartialETH
 import CslibFrontier.Computability.MCSP.PartialHardness.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 import CslibFrontier.Computability.PCP.Approximation.FGLSS
+import CslibFrontier.Computability.PCP.Approximation.GapLin
 import CslibFrontier.Computability.PCP.Approximation.MaxCSP.UpperBounds
 import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 import CslibFrontier.Computability.PCP.Completeness
@@ -237,6 +247,7 @@ import CslibFrontier.Crypto.Computational.Encryption.Functional
 import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
 import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
+import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
@@ -253,6 +264,7 @@ import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
 import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
+import CslibFrontier.Crypto.Computational.OneWay.WeakNotStrong
 import CslibFrontier.Crypto.Computational.OneWayToPRF
 import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.PedersenCommitment
@@ -380,6 +392,7 @@ import CslibFrontier.Computability.Probabilistic.CoinOfDigits
 import CslibFrontier.Probability.BilinearFingerprint
 import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
+import CslibFrontier.Probability.Fooling.DecisionTree
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
@@ -388,6 +401,7 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
 import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
@@ -513,6 +527,54 @@ register_result "goldreich-three-exact-cover" where
     dummy elements, instead of the draft's chain through 3SC and 3XC'. The remark on Exact \
     Cover with arbitrary set sizes is not covered. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6302#pullrequestreview-5947915507"
+
+register_result "goldreich-pc-not-self-reducible" where
+  title := "If P ≠ NP ∩ coNP, some PC search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.14(1)",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_mem_FNP_not_selfReducible]
+  scope := "Any instance encoding with a polynomial-time Decoder (words: Decoder.bits). The \
+    relation is total, in FNP (PC) and not in FPSearch. Self-reducibility \
+    (SearchSelfReducible) is a SolvesSearch solver computable in polynomial time relative to \
+    the oracle language enc '' searchDomain R (Definitions 2.9 and 2.14). Outside-fleet \
+    six-point source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
+
+register_result "goldreich-divisor-not-self-reducible" where
+  title := "If factoring is hard, the divisor search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.16",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [
+    Cslib.Complexity.divisorSearch_mem_FNP,
+    Cslib.Complexity.not_selfReducible_divisorSearch
+  ]
+  scope := "Numbers in canonical binary (encNat); solutions are the binary digits of a \
+    non-trivial divisor. The relation is in FNP (PC). Factoring hardness: no polynomial-time \
+    function returns a non-trivial divisor of every composite (equivalently divisorSearch is \
+    not in FPSearch). Neither the search problem nor its prefix decision problem S'_R \
+    (PolyTimeTuringReducible) reduces to the composite numbers. Outside-fleet six-point source \
+    check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
+
+register_result "goldreich-self-reducibility-not-decision-property" where
+  title := "Two PC relations with the same domain, one self-reducible and one not"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.17",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_selfReducible_not_selfReducible]
+  scope := "Under the factoring hardness of Exercise 2.16, the assumption the main text names \
+    on printed p. 72. Witnesses: compositeSearch (each composite with itself, in FPSearch) and \
+    divisorSearch, both with the composites as domain; numbers in binary (encNat). \
+    Outside-fleet six-point source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
 
 register_result "goldreich-few-oracle-queries-search" where
   title := "Logarithmically many oracle queries do not help to solve PC search problems"
@@ -986,6 +1048,23 @@ register_result "dip-eq-np" where
     against every randomized stateful prover, strict oracle PPT (one machine, one polynomial \
     clock), completeness 1 and soundness 0; arbitrary injective encodings."
 
+register_result "arora-barak-oracle-counterexample-to-3sat" where
+  title := "Some language in relativized NP has no oracle-aided polynomial-time reduction to 3SAT"
+  topic := "relativization"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 3 §6",
+      locator := "January 2007 draft, printed p. 74; PDF p. 90" }
+  ]
+  theorems := [Cslib.Complexity.exists_unaryLengthLanguage_not_reducibleWithOracle]
+  scope := "For every fixed encoded target, an oracle B has a unary length language in NP \
+    relative to B with no many-one reduction computable in polynomial time with access to B. \
+    The 3SAT client in CslibFrontierTests/Relativization.lean takes the fixed target \
+    encCNF '' ThreeSAT with the identity encoding of words. The disallowed reductions can \
+    output any word, including malformed CNF codes on negative inputs. The witness language \
+    asks whether its unary input length occurs among words in B. The diagonal test checks \
+    the encoded target after the candidate has finished its queries. Outside-fleet source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6463#pullrequestreview-5958790305"
+
 register_result "arora-barak-perfectly-complete-set-lower-bound" where
   title := "A perfectly complete AM protocol for set lower bounds"
   topic := "interactive proofs"
@@ -1208,6 +1287,24 @@ register_result "majority-three-zero-error-expected-cost" where
     six-order short-circuit algorithm has expected cost 2 on constants and 8/3 otherwise. \
     The uniform law on six nonconstant inputs forces cost at least 8/3 on all correct \
     adaptive deterministic trees, including arbitrary repeats. Local computation is free."
+
+register_result "goldreich-majority-randomized-probes" where
+  title := "Deciding majority requires linearly many randomized probes"
+  topic := "query complexity"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 10.8",
+      locator := "April 2007 draft r5.pdf, PDF p. 116; printed p. 498" }
+  ]
+  theorems := [
+    Cslib.RandomizedDecisionTree.Computes.exists_div_two_add_one_le_three_mul_cost_majority
+  ]
+  scope := "Outside check: PR #6397, review 5953955718. For n ≥ 1, every finitely supported \
+    mixture of adaptive decision trees computing majority (at least ⌈n/2⌉ ones) on n bits \
+    with error ≤ 1/3 on every input has an input x and a tree t it can draw with \
+    ⌊n/2⌋ + 1 ≤ 3 · t.cost x, where cost counts executed probes, repeats included. The \
+    strict convention follows the same way from blockSensitivity_threshold (checked client). \
+    Proved via Nisan's block-sensitivity bound on executed queries and s(MAJ_n) = ⌊n/2⌋ + 1, \
+    not via the guideline's statistical-distance bound."
 
 register_result "yao-zero-error-expected-cost" where
   title := "Expected-cost Yao minimax with optimal algorithm and hardest input law"
@@ -1766,6 +1863,21 @@ register_result "goldreich-length-preserving-one-way" where
     self-delimiting padding instead of the guideline's 0 1^k padding; the statement is \
     unchanged. Outside-fleet six-point source check: review 5949710318 on PR #6352."
 
+register_result "goldreich-weak-not-strong-one-way" where
+  title := "If one-way functions exist, a weak one-way function need not be strongly one-way"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.3",
+      locator := "March 2007 draft r4.pdf, PDF p. 41; printed p. 305" }
+  ]
+  theorems := [Cslib.Crypto.OneWay.exists_weakOneWay_not_oneWay]
+  scope := "If a one-way function exists, some weak one-way function is not strongly one-way. \
+    Definitions 7.1 and 7.4 quantify over uniform strict PPT inverters receiving the unary \
+    length and the image of a uniform input; any preimage counts. On the hard branch the \
+    inverter for the tagged construction is called at length n + 1. On the easy branch the \
+    identity inverter succeeds. The weak bound uses the constant polynomial 4. \
+    Outside-fleet source check: review 5954074813 on PR #6412."
+
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
   topic := "circuit complexity"
@@ -1778,6 +1890,20 @@ register_result "goldreich-circuit-agreement-limit" where
     f : {0,1}^n → {0,1} and every t with 2 t ≤ 2 ^ n, some function of complexity at most \
     t (2 n + 3) + 1 agrees with f on at least a 1/2 + t/2^n fraction of the inputs. For t = 1 \
     and n ≥ 1 this is the exercise's first claim, size 2 n + 4 with agreement 1/2 + 2^(-n)."
+
+register_result "goldreich-no-universal-hard-core" where
+  title := "If one-way functions exist, there is no universal hard-core predicate"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.8",
+      locator := "March 2007 draft r4.pdf, PDF p. 42; printed p. 306" }
+  ]
+  theorems := [Cslib.Crypto.OneWay.exists_oneWay_lastBit_eq]
+  scope := "Given a one-way function f and a polynomial-time predicate b, the function g \
+    that appends b(x) to f(x) is one-way. Its last bit is b(x) and is computable in \
+    deterministic polynomial time from the image alone, as required by Definition 7.6. \
+    The uniform strict PPT inverters receive the unary length and the image of a uniform \
+    input, and any preimage counts. Outside-fleet source check: review 5954067975 on PR #6409."
 
 register_result "random-functions-average-case-hard" where
   title := "Random functions are hard on average"
@@ -8786,6 +8912,21 @@ register_result "arora-barak-exact-indset-dp" where
     and a coNP language. DP-hardness (part (b)) is not included. Outside-fleet six-point \
     source check: review 5953416411 on PR #6402."
 
+register_result "arora-barak-exact-indset-dp-hard" where
+  title := "EXACT INDSET is DP-hard and therefore DP-complete"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 5 §8(b)",
+      locator := "January 8, 2007 draft, printed p. 100 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Complexity.ExactIndependentSet_dpHard,
+    Cslib.Complexity.ExactIndependentSet_dpComplete]
+  scope := "Every DP language under an explicit encoding reduces by a deterministic \
+    polynomial-time many-one map to exact independence number on declared graph vertices, \
+    using a framed graph and binary target. The reduction passes through SAT–UNSAT. \
+    Completeness combines the hardness proof with the membership theorem from §8(a). \
+    Outside-fleet source check: review 5958802809 on PR #6462."
+
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
     NP = coNP"
@@ -9012,6 +9153,47 @@ register_result "goldreich-read-once-prg-stretch" where
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
 
+register_result "goldreich-adaptive-t-wise-independence" where
+  title := "Adaptive block tests of t-wise independent generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.29",
+      locator := "March 2007 draft, printed pp. 376–377 / PDF pp. 112–113" }
+  ]
+  theorems := [Cslib.Probability.IsKWiseIndependentHash.bind_map_eval_eq]
+  scope := "With a uniform seed and t-wise independent Boolean blocks, an adaptive test has \
+    the same output law as on uniform bits. A test samples independent coins to select a \
+    decision tree and reads bits from at most t distinct blocks on each input. This includes \
+    whole-block tests. Outside-fleet source check: review 5954380213 on PR #6421."
+
+register_result "goldreich-adaptive-query-separation" where
+  title := "Adaptive t-query tests separate a law with almost uniform t-bit marginals"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.32(1)",
+      locator := "March 2007 draft, printed pp. 377–378 / PDF pp. 113–114" }
+  ]
+  theorems := [Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length]
+  scope := "For each positive t, a law on exactly 2^(t−1) bits has total variation at most \
+    t/2^t from uniform on every fixed t-coordinate marginal. A decision tree of depth at most \
+    t accepts the law surely and uniform input with probability 1/2. The construction shares \
+    data bits across address pairs to attain the printed length. The guideline uses t−1 \
+    additional bits. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6467#pullrequestreview-5958887313"
+
+register_result "goldreich-adaptive-almost-t-wise-independence" where
+  title := "Adaptive bit tests of almost t-wise independent distributions"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.32(2)",
+      locator := "March 2007 draft, printed p. 378 / PDF p. 114" }
+  ]
+  theorems := [Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le]
+  scope := "For a law on n bits with n ≥ t, if every t-bit marginal has statistical distance \
+    at most ε from uniform, an adaptive test reading at most t distinct positions on each \
+    input has distinguishing gap at most 2^t ε. The test uses finitely many random-coin \
+    outcomes. Outside-fleet source check: review 5954380213 on PR #6421."
+
 register_result "arora-barak-nonexplicit-prg" where
   title := "Non-explicit pseudorandom generators: length and indistinguishability properties"
   topic := "pseudorandomness"
@@ -9187,6 +9369,28 @@ register_result "owf-iterate-not-one-way" where
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
 
+register_result "mpda-well-nested-reachability" where
+  title := "Inductive saturation characterizes well-nested reachability"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Lemma 1",
+      locator := "arXiv:2002.05950v2, Section 3, paragraph \"Binary well-nested reachability \
+        for MPDA\"; Algorithm 2 in Appendix B" }
+  ]
+  theorems := [Cslib.Automata.MPDA.wellNestedReach_iff]
+  scope := "For every MPDA, with arbitrary control-state and input types, finitely many \
+    stacks and no finiteness assumption, and all control states s and s': s' is related to s \
+    by WellNestedReach exactly when some well-nested sequence of transitions labels a finite \
+    run of the control from s to s'. WellNestedReach is the least relation containing the \
+    identity pairs, closed under prefixing a nop transition, and closed under pushPop: a push \
+    from s1 to s2, a related pair (s2, s3), the pop of the same stack and symbol from s3 to s4, \
+    and an independently related suffix (s4, s5) give the pair (s1, s5); the suffix supplies \
+    the concatenation needed for consecutive matched pairs. This is the relational \
+    characterization of the table computed by Algorithm 2, which starts from the identity pairs \
+    and the nop transitions; the finite iteration of Algorithm 2, its termination and the \
+    equality of its output with WellNestedReach are not formalized. Source check: outside-fleet \
+    agent review (review_6193_endpoint, codex-coord-20261111-1634) on PR #6474, against \
+    arXiv:2002.05950v2 Section 2 p. 4, Section 3 pp. 7-8 and Appendix B p. 22."
 register_result "offline-dictionary-attack" where
   title := "The offline dictionary attack recovers a password in the dictionary, or one with the \
     same hash, with at most |D| hash evaluations"
@@ -9742,3 +9946,106 @@ register_result "rsa-half-predicate-inversion" where
     and polynomial-time recovery are explicit. \
     RSAOneWay.not_frequently_alwaysCorrect_halfPredictor, in the same module, is a hardness \
     corollary that is not part of the exercise and is not listed."
+
+register_result "arora-barak-expected-time-zpp" where
+  title := "Expected-polynomial-time zero-error computation equals RP ∩ coRP"
+  topic := "randomized complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Theorem 7.8",
+      locator := "Section 7.3 (printed p. 121, PDF p. 137)" }
+  ]
+  theorems := [Cslib.Complexity.iUnion_ZTIME_pow_eq_RP_inter_coRP]
+  scope := "The draft defines ZPP as the union of expected-time classes ZTIME(n^d). \
+    The Lean class uses one closed fair-coin machine, almost-sure termination with the correct \
+    answer, and polynomial expected runtime in the encoded input length. \
+    Arbitrary injective input encodings. Outside check: PR #6144, review 5938376225."
+
+register_result "goldreich-xsat-promise-np-conp" where
+  title := "xSAT belongs to both promise-NP and promise-coNP"
+  topic := "promise problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.36(1)",
+      locator := "Chapter 2 (printed p. 114, PDF p. 139)" }
+  ]
+  theorems := [Cslib.Complexity.xSAT_mem_PromiseNP_inter_promiseClass_coNP]
+  scope := "Pairs of CNFs under encPair encCNF encCNF. The promise is that exactly one \
+    formula is satisfiable, and the yes case is when it is the first. Each promise class \
+    requires a separating language in the corresponding ordinary class. \
+    Outside check: PR #6169, review 5939821895."
+
+register_result "goldreich-pairwise-independent-hitting" where
+  title := "Pairwise independent samples hit dense sets"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.23",
+      locator := "Chapter 7 (printed p. 310, PDF p. 46)" }
+  ]
+  theorems := [
+    Cslib.Probability.IsPairwiseIndependentHash.min_mul_div_two_le_dens_filter_exists_apply_mem,
+    Cslib.Probability.IsPairwiseIndependentHash.three_quarters_mul_le_dens_filter_exists_apply_mem
+  ]
+  scope := "For a uniform finite seed, any m distinct positions with uniform pairwise \
+    independent outputs and any target of density p, the probability of at least one hit is \
+    at least min(m p, 1)/2, and at least 3 m p/4 when 2 m p ≤ 1. \
+    Outside check: PR #6152, review 5938810997."
+
+register_result "goldreich-small-bias-linear-codes" where
+  title := "Small-bias sample spaces correspond to balanced binary linear codes"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.41",
+      locator := "Chapter 8 (printed pp. 380–381, PDF pp. 116–117)" }
+  ]
+  theorems := [
+    Cslib.BitString.sampleCode_ofCode,
+    Cslib.BitString.sampleCode_injective,
+    Cslib.BitString.isSmallBias_map_iff_hammingDist_sampleCode
+  ]
+  scope := "The linear encoding maps a message to its parity against each sample. For any \
+    nonempty finite seed set of size N, ε-bias of the uniform seed's output is equivalent to \
+    distances between the encodings of distinct messages lying in [(1−ε)N/2, (1+ε)N/2]. \
+    The statement concerns the output distribution. Outside check: PR #6167, review 5939796761."
+
+register_result "goldreich-ip-cook-reduction" where
+  title := "IP is closed under polynomial-time Cook reductions"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.2(2)",
+      locator := "Chapter 9 (printed p. 445, PDF p. 63)" }
+  ]
+  theorems := [Cslib.Complexity.PolyTimeTuringReducible.mem_IP]
+  scope := "Adaptive polynomial-time Turing reductions to a bitstring language in IP. \
+    The complement-membership hypothesis in the exercise is redundant. Lean uses \
+    completeness 2/3 and soundness 1/3, equivalent to the perfectly complete class. \
+    Outside check: PR #6158, review 5939165280."
+
+register_result "goldreich-gap-linear-equations-np-hard" where
+  title := "Approximating the maximum satisfied fraction of binary linear equations is NP-hard"
+  topic := "hardness of approximation"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 10.5",
+      locator := "Chapter 10 (printed p. 496, PDF p. 114)" }
+  ]
+  theorems := [Cslib.Complexity.exists_GapLin_npHard, Cslib.Complexity.GapLin_npHard]
+  scope := "For some constants 1/2 < s < L < 1, distinguishing systems over GF(2) with \
+    optimum at least L from those with optimum strictly below s is NP-hard under \
+    polynomial-time many-one reductions. The concrete witness has L = 4/7 and \
+    s = (4/7)(1 − 1/(6·2^77)). Equations count with multiplicity under XORSAT.encoding. \
+    Outside check: PR #6157, review 5939142909."
+
+register_result "goldreich-countably-many-computable-functions" where
+  title := "There are only countably many computable bitstring functions"
+  topic := "computability"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Theorem 1.4",
+      locator := "Section 1.2.3 (printed p. 29, PDF p. 54)" }
+  ]
+  theorems := [Turing.MultiTapeTM.countable_setOf_isComputable_and_mk_eq_continuum]
+  scope := "Total functions from bit strings to bit strings. The functions computable by a \
+    native deterministic multitape Turing machine form a countable set, while the set of all \
+    such functions has cardinality continuum. Outside-fleet clearance: \
+    https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935499657. \
+    Approval: \
+    https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935757026. \
+    The official draft locator was checked in \
+    https://github.com/cslib-community/cslib-frontier/pull/6473#pullrequestreview-5959473706."

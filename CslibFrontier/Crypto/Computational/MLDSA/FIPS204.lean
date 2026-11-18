@@ -459,11 +459,15 @@ private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.
       unpackSigned_packSigned (width := 13) (upper := 4096) c []
       (fun i j => by have := h₀ i j; norm_num at *; omega) i j
 
+/-- Algorithm 6 reads the public matrix seed, the short-vector seed and the signing key
+in one 128-byte SHAKE256 expansion of the seed and the two dimension bytes. -/
+@[expose] def Xofs.expandKeySeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
+  H.h256.readBytes (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128
+
 /-- Algorithm 6, from the 32-byte seed to both encoded keys (Algorithms 22, 24).
 Rejection exhaustion during the matrix or short-vector expansion yields an error. -/
 def Xofs.keyGen (H : Xofs) (s : Level) (seed : FixedBytes 32) : Option KeyPair := do
-  let expanded := H.h256.readBytes
-    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128
+  let expanded := H.expandKeySeed s seed
   let rho := expanded.take 32
   let rho' := (expanded.drop 32).take 64
   let matrix ← H.expandA s rho
@@ -475,6 +479,17 @@ def Xofs.keyGen (H : Xofs) (s : Level) (seed : FixedBytes 32) : Option KeyPair :
   let sk : PrivateKey s := ⟨rho, expanded.drop 96, H.h256.readBytes pk 64, s₁, s₂,
     fun i j => ((power2Round 8380417 13 (t i j)).2 : ZMod 8380417)⟩
   return ⟨pk, sk.encode⟩
+
+/-- The seed recovered from a successful public key is precisely the prefix used to index
+the SHAKE128 matrix streams during this execution of Algorithm 6. -/
+theorem publicSeed_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : KeyPair}
+    (h : H.keyGen s seed = some keys) :
+    keys.publicKey.take 32 = (H.expandKeySeed s seed).take 32 := by
+  simp only [Xofs.keyGen, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq] at h
+  obtain ⟨_, _, _, _, _, _, rfl⟩ := h
+  have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+  rw [encodePublic, List.take_left' (by simp [len])]
 
 /-- Algorithm 6 is unchanged if SHAKE128 is unchanged and the two SHAKE256 streams agree
 on all words outside the parameter set's digest-seed length. The key-seed input is 34 bytes,
@@ -496,7 +511,7 @@ theorem Xofs.keyGen_congr_off_digest {H K : Xofs} (s : Level) (seed : FixedBytes
     simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
     cases s <;> decide
   have matrix := Xofs.expandA_congr ha s
-  unfold Xofs.keyGen
+  unfold Xofs.keyGen Xofs.expandKeySeed
   rw [init]
   generalize h : H.h256.readBytes
     (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded
@@ -529,7 +544,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
       decodePrivate s keys.secretKey = some ⟨rho.toList, key, H.h256.readBytes keys.publicKey 64,
         sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩ ∧
       (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
-  unfold Xofs.keyGen at hg
+  unfold Xofs.keyGen Xofs.expandKeySeed at hg
   generalize hh : H.h256.readBytes
     (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded at hg
   have hex : expanded.length = 128 := by rw [← hh]; exact H.h256.length_read ..

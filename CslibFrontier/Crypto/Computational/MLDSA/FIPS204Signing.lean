@@ -13,6 +13,7 @@ import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Vector
 
 /-!
 # Definitions of FIPS 204 signing and the strong chosen-message forgery experiment
@@ -228,15 +229,59 @@ abbrev SigningForger :=
     (log : List Forgery) : Bool :=
   (H.verify s pk f.message f.context f.signature).getD false && !log.contains f
 
+private def Xofs.signAndLog (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
+    (log : List Forgery) (rnd : FixedBytes 32) : Option (List Byte) × List Forgery :=
+  let sig := H.sign s sk q.message q.context rnd
+  (sig, q.logReply sig log)
+
 /-- Sign with fresh hedging randomness and log the context and message of a successful reply. -/
 noncomputable def Xofs.signingOracle (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
     (log : List Forgery) : PMF (Option (List Byte) × List Forgery) :=
-  (PMF.uniformOfFintype (FixedBytes 32)).map fun rnd =>
-    let sig := H.sign s sk q.message q.context rnd
-    (sig, q.logReply sig log)
+  (PMF.uniformOfFintype (FixedBytes 32)).map (H.signAndLog s sk q log)
+
+/-- Run the forger against the actual signed responses with 32 independent byte draws per
+request. The program returns the adversary's output and the full successful signing log. -/
+def Xofs.runSigningForger (H : Xofs) (s : Level) (keys : KeyPair) (adv : SigningForger) :
+    ProbComp (Forgery × List Forgery) :=
+  let handler (q : SigningQuery) (log : List Forgery) :=
+    H.signAndLog s keys.secretKey q log <$> OracleComp.replicateFin 32 (ProbComp.unifFin 255)
+  (OracleComp.interpret (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n)) handler)
+    (adv keys.publicKey)).run []
+
+/-- The closed program produces the same joint transcript as the signing oracle in the
+strong chosen-message experiment. -/
+theorem eval_runSigningForger (H : Xofs) (s : Level) (keys : KeyPair) (adv : SigningForger) :
+    (H.runSigningForger s keys adv).eval =
+      ProbOracleComp.runWith (H.signingOracle s keys.secretKey) (adv keys.publicKey) [] := by
+  unfold Xofs.runSigningForger
+  rw [ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [ProbComp.eval_map, ProbComp.eval_replicateFin, ProbComp.eval_unifFin,
+    PMF.pi_uniformOfFintype]
+  rfl
 
 /-- Signing service with the FIPS 202 XOFs. -/
 noncomputable abbrev signingOracle := Xofs.signingOracle Xofs.shake
+
+/-- A hedged signing call under a generated key preserves verification of every logged triple. -/
+theorem signingOracle_preserves_verified {H : Xofs} {s : Level} {seed : FixedBytes 32}
+    {keys : KeyPair} (hg : H.keyGen s seed = some keys) (q : SigningQuery) (hist : List Forgery)
+    (ih : ∀ g ∈ hist, H.verify s keys.publicKey g.message g.context g.signature = some true)
+    {reply : Option (List Byte)} {next : List Forgery}
+    (hs : (reply, next) ∈ (H.signingOracle s keys.secretKey q hist).support) :
+    ∀ g ∈ next, H.verify s keys.publicKey g.message g.context g.signature = some true := by
+  obtain ⟨rnd, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
+  dsimp only [Xofs.signAndLog] at hr
+  cases sig : H.sign s keys.secretKey q.message q.context rnd with
+  | none =>
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
+    exact hr.2 ▸ ih
+  | some bytes =>
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
+    rw [← hr.2]
+    intro g hg'
+    rcases List.mem_cons.mp hg' with rfl | htail
+    · exact verify_of_sign hg sig
+    · exact ih g htail
 
 /-- Every signature in the actual adaptive signing transcript passes the FIPS byte verifier
 under the public key returned by the same seed. -/
@@ -250,19 +295,7 @@ theorem verify_of_mem_signingTranscript {H : Xofs} {s : Level} {seed : FixedByte
     H.verify s keys.publicKey g.message g.context g.signature = some true
   suffices maintained : inv log from maintained f hf
   apply ProbOracleComp.runWith_invariant _ inv ?_ _ [] (by simp [inv]) out log hrun
-  intro q hist ih reply next hs
-  obtain ⟨rnd, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
-  cases sig : H.sign s keys.secretKey q.message q.context rnd with
-  | none =>
-    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
-    exact hr.2 ▸ ih
-  | some bytes =>
-    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
-    rw [← hr.2]
-    intro g hg'
-    rcases List.mem_cons.mp hg' with rfl | htail
-    · exact verify_of_sign hg sig
-    · exact ih g htail
+  exact fun q hist ih _ _ hs => signingOracle_preserves_verified hg q hist ih hs
 
 /-- Search the actual signing log for a reply sharing the forgery's digest, then extract from
 the two triples using the public bytes and the matrix supplied to the solver. -/
@@ -270,6 +303,33 @@ def Xofs.extractLoggedDigest (H : Xofs) (s : Level) (bytes : List Byte) (A : Pub
     (f : Forgery) (log : List Forgery) : Option (RepeatedDigestWitness s) := do
   let old ← log.find? fun g => g.signature.take (digestBytes s) == f.signature.take (digestBytes s)
   H.extractRepeatedDigest s bytes A f old
+
+/-- A fresh verifying triple and a verified signing log at the same public matrix give a
+computed witness whenever the full challenge digest occurs in the log. -/
+theorem extractLoggedDigest_of_verifiedLog {H : Xofs} {s : Level} {pk : List Byte}
+    {A : PublicMatrix s} {out : Forgery} {log : List Forgery}
+    (matrix : H.expandA s (pk.take 32) = some A)
+    (logged : ∀ g ∈ log, H.verify s pk g.message g.context g.signature = some true)
+    (fresh : out ∉ log)
+    (repeated : ∃ g ∈ log, g.signature.take (digestBytes s) = out.signature.take (digestBytes s))
+    (valid : H.verify s pk out.message out.context out.signature = some true) :
+    ∃ w, H.extractLoggedDigest s pk A out log = some w ∧ w.Valid H A := by
+  let same (g : Forgery) := g.signature.take (digestBytes s) == out.signature.take (digestBytes s)
+  cases h : log.find? same with
+  | none =>
+    obtain ⟨g, hg', eq⟩ := repeated
+    have bad := List.find?_eq_none.mp h g hg'
+    simp [same, eq] at bad
+  | some old =>
+    have prior := List.mem_of_find?_eq_some h
+    have distinct : out ≠ old := fun e => fresh (e ▸ prior)
+    have digest : old.signature.take (digestBytes s) = out.signature.take (digestBytes s) :=
+      beq_iff_eq.mp (List.find?_some (p := same) h)
+    obtain ⟨w, hw, good⟩ :=
+      extractRepeatedDigest_of_verify matrix distinct digest.symm valid (logged old prior)
+    refine ⟨w, ?_, good⟩
+    change (log.find? same >>= _) = some w
+    rwa [h, Option.bind_eq_bind, Option.bind_some]
 
 /-- Every fresh accepted forgery with a previously signed digest yields a valid computed witness.
 Key generation, the adaptive hedged signing service, verification and extraction use one XOF pair.
@@ -286,22 +346,9 @@ theorem extractLoggedDigest_of_signingTranscript {H : Xofs} {s : Level} {seed : 
   obtain ⟨rho, sk, _, hA, hpk, _, _⟩ := privateKey_of_keyGen hg
   have matrix : H.expandA s (keys.publicKey.take 32) = some sk.A := by
     rwa [hpk, take_encodePublic]
-  let same (g : Forgery) := g.signature.take (digestBytes s) == out.signature.take (digestBytes s)
-  cases h : log.find? same with
-  | none =>
-    obtain ⟨g, hg', eq⟩ := repeated
-    have bad := List.find?_eq_none.mp h g hg'
-    simp [same, eq] at bad
-  | some old =>
-    have prior := List.mem_of_find?_eq_some h
-    have distinct : out ≠ old := fun e => fresh (e ▸ prior)
-    have digest : old.signature.take (digestBytes s) = out.signature.take (digestBytes s) :=
-      beq_iff_eq.mp (List.find?_some (p := same) h)
-    have signed := verify_of_mem_signingTranscript hg hrun prior
-    obtain ⟨w, hw, good⟩ := extractRepeatedDigest_of_verify matrix distinct digest.symm valid signed
-    refine ⟨sk.A, w, matrix, ?_, good⟩
-    change (log.find? same >>= _) = some w
-    rwa [h, Option.bind_eq_bind, Option.bind_some]
+  obtain ⟨w, he, good⟩ := extractLoggedDigest_of_verifiedLog matrix
+    (fun _ h => verify_of_mem_signingTranscript hg hrun h) fresh repeated valid
+  exact ⟨sk.A, w, matrix, he, good⟩
 
 /-- The strong chosen-message forgery experiment for FIPS 204's finite parameter sets:
 generate both keys from one uniform seed, answer adaptive signing calls with the secret key,
@@ -547,7 +594,7 @@ private theorem first_request {State : Type} (K : Xofs) (s : Level)
   apply congrArg (PMF.bind _)
   funext ⟨q, st⟩
   simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, Xofs.signingOracle,
-    PMF.bind_map, PMF.map_bind, Xofs.continueFirstSigning, Function.comp_def]
+    PMF.bind_map, PMF.map_bind, Xofs.continueFirstSigning, Xofs.signAndLog, Function.comp_def]
 
 /-- Refresh the Algorithm 29 row in the first signing request of a chosen-message run.
 The adversary chooses the query from the generated public key and earlier raw SHAKE256
