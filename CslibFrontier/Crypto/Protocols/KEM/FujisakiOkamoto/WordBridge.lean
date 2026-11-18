@@ -188,7 +188,7 @@ parameter `n`. -/
 /-! ### The typed view of a native adversary -/
 
 /-- The `H` request of the typed interface at parameter `n` named by a word: the triple
-`(b, m, c)` that the word encodes, when it is in the `H` domain (`isHQuery`). -/
+`(false, m, c)` that the word encodes, when it is in the `H` domain (`isHQuery`). -/
 def typedHQuery (n : ℕ) (w : List Bool) :
     Option (Bool × BitString (P.msgLen n) × P.Ciphertext n) :=
   match hQueryDecoder.decode w with
@@ -425,10 +425,9 @@ private theorem typedHQuery_of_not_isHQuery {n : ℕ} {w : List Bool}
   rcases hQueryDecoder.decode w with ⟨b, m, c⟩
   simp [h]
 
-/-- The word triple of a typed `H` request is in the `H` domain. -/
-private theorem isHQuery_encHQuery (n : ℕ) (x : Bool × BitString (P.msgLen n) × P.Ciphertext n) :
-    P.isHQuery n (encHQuery (hKeyEmb P n x)) = true := by
-  obtain ⟨b, m, c⟩ := x
+/-- Each key-oracle input has a canonical word in the domain of the word game. -/
+private theorem isHQuery_encHQuery (n : ℕ) (m : BitString (P.msgLen n)) (c : P.Ciphertext n) :
+    P.isHQuery n (encHQuery (hKeyEmb P n (false, m, c))) = true := by
   unfold isHQuery
   rw [hQueryDecoder.decode_enc, hKeyEmb_apply]
   simp [c.2]
@@ -438,9 +437,9 @@ private theorem withRO_queryG (n : ℕ) (m : List Bool) :
       List.take (P.coinLen n) <$> P.roWordOracle keyLen n (.G, m) := by
   simp only [withRO, queryG, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
-private theorem withRO_queryH (n : ℕ) (x : Bool × List Bool × List Bool) :
+private theorem withRO_queryH (n : ℕ) (x : List Bool × List Bool) :
     P.withRO keyLen n (queryH keyLen n x) =
-      List.take (keyLen n) <$> P.roWordOracle keyLen n (.H, encHQuery x) := by
+      List.take (keyLen n) <$> P.roWordOracle keyLen n (.H, encHQuery (false, x)) := by
   simp only [withRO, queryH, OracleComp.interpret_map, ProbOracleComp.interpret_query]
 
 private theorem represents_withRO_queryG (n : ℕ) (m : BitString (P.msgLen n)) :
@@ -452,15 +451,16 @@ private theorem represents_withRO_queryG (n : ℕ) (m : BitString (P.msgLen n)) 
   exact (represents_roHashG n m).map_right.congr_fun fun r =>
     List.take_of_length_le (by simp)
 
-private theorem represents_withRO_queryH (n : ℕ)
-    (x : Bool × BitString (P.msgLen n) × P.Ciphertext n) :
+private theorem represents_withRO_queryH (n : ℕ) (m : BitString (P.msgLen n))
+    (c : P.Ciphertext n) :
     Represents (cacheRep P keyLen n) List.ofFn
       (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
-        (ProbComp.uniform (BitString (keyLen n))) x)
-      (P.withRO keyLen n (queryH keyLen n (hKeyEmb P n x))) := by
-  simp only [withRO_queryH, roWordOracle_H, isHQuery_encHQuery n x, hQueryDecoder.decode_enc,
-    ↓reduceIte]
-  exact (represents_roHashH n x).map_right.congr_fun fun k =>
+        (ProbComp.uniform (BitString (keyLen n))) (false, m, c))
+      (P.withRO keyLen n (queryH keyLen n (List.ofFn m, c.val))) := by
+  have hd := isHQuery_encHQuery (P := P) n m c
+  rw [hKeyEmb_apply] at hd
+  simp only [withRO_queryH, roWordOracle_H, hd, hQueryDecoder.decode_enc, ↓reduceIte]
+  exact (represents_roHashH n (false, m, c)).map_right.congr_fun fun k =>
     List.take_of_length_le (by simp)
 
 /-- Typed `FO-notbot` decapsulation against the typed random oracles represents native
@@ -475,14 +475,14 @@ private theorem represents_decapsNotBotM {n : ℕ}
       ((P.finiteScheme keyLen n).decapsNotBotM
         (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
           (ProbComp.uniform (BitString (P.coinLen n))))
-        (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
-          (ProbComp.uniform (BitString (keyLen n))))
+        (fun mc => roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))) (false, mc))
         dk (P.toCiphertext n w))
       ((P.scheme keyLen n).decapsNotBotM (fun m => P.withRO keyLen n (P.queryG n m))
-        (fun x => P.withRO keyLen n (queryH keyLen n x)) (skRep P n dk) w) := by
-  have hH (b : Bool) (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
-    (b, m, P.toCiphertext n w)
-  simp only [hKeyEmb_apply, toCiphertext_val hw] at hH
+        (fun mc => P.withRO keyLen n (queryH keyLen n mc)) (skRep P n dk) w) := by
+  have hH (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
+    m (P.toCiphertext n w)
+  simp only [toCiphertext_val hw] at hH
   rw [Scheme.decapsNotBotM_eq, Scheme.decapsNotBotM_eq]
   have hdec : (P.finiteScheme keyLen n).pke.dec dk.sk (P.toCiphertext n w) =
       (P.dec n dk.sk w).bind fun m =>
@@ -493,7 +493,7 @@ private theorem represents_decapsNotBotM {n : ℕ}
     rfl
   rw [hdec, hdec']
   cases hD : P.dec n dk.sk w with
-  | none => exact hH true dk.fallback
+  | none => exact hH dk.fallback
   | some m =>
     by_cases hm : m.length = P.msgLen n
     · obtain ⟨m, rfl⟩ : ∃ m', m = List.ofFn m' := ⟨_, (BitString.ofFn_ofList hm).symm⟩
@@ -503,13 +503,13 @@ private theorem represents_decapsNotBotM {n : ℕ}
       have hiff := toCiphertext_inj (P := P) (hfit _ _ (List.length_ofFn (f := m))
         (List.length_ofFn (f := r))) hw
       split_ifs with h₁ h₂ h₂
-      · exact hH false m
+      · exact hH m
       · exact absurd (hiff.mp h₁) h₂
       · exact absurd (hiff.mpr h₂) h₁
-      · exact hH true dk.fallback
+      · exact hH dk.fallback
     · have hm' : (m.length == P.msgLen n) = false := by simpa using hm
       simp only [Option.bind_some, Option.filter_some, hm, hm', ↓reduceIte, Bool.false_eq_true]
-      exact hH true dk.fallback
+      exact hH dk.fallback
 
 /-- Typed `FO^⊥` decapsulation against the typed random oracles represents native decapsulation
 against the word random oracles, for a ciphertext in the ciphertext space and a public key whose
@@ -522,14 +522,14 @@ private theorem represents_decapsBotM {n : ℕ} (pk sk : List Bool)
       ((P.finiteScheme keyLen n).decapsBotM
         (roHashG (CT := P.Ciphertext n) (K := BitString (keyLen n))
           (ProbComp.uniform (BitString (P.coinLen n))))
-        (roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
-          (ProbComp.uniform (BitString (keyLen n))))
+        (fun mc => roHashH (M := BitString (P.msgLen n)) (R := BitString (P.coinLen n))
+          (ProbComp.uniform (BitString (keyLen n))) (false, mc))
         pk sk (P.toCiphertext n w))
       ((P.scheme keyLen n).decapsBotM (fun m => P.withRO keyLen n (P.queryG n m))
         (fun x => P.withRO keyLen n (queryH keyLen n x)) pk sk w) := by
   have hH (m : BitString (P.msgLen n)) := represents_withRO_queryH (keyLen := keyLen) n
-    (false, m, P.toCiphertext n w)
-  simp only [hKeyEmb_apply, toCiphertext_val hw] at hH
+    m (P.toCiphertext n w)
+  simp only [toCiphertext_val hw] at hH
   rw [Scheme.decapsBotM_eq, Scheme.decapsBotM_eq]
   have hdec : (P.finiteScheme keyLen n).pke.dec sk (P.toCiphertext n w) =
       (P.dec n sk w).bind fun m =>
@@ -1085,7 +1085,7 @@ private theorem eval_run_withRO_encaps {n : ℕ} {pk : List Bool}
   congr 1
   funext r
   have hc := hfit _ _ (List.length_ofFn (f := m)) (List.length_ofFn (f := r))
-  have hx := isHQuery_encHQuery (P := P) n (false, m, P.toCiphertext n
+  have hx := isHQuery_encHQuery (P := P) n m (P.toCiphertext n
     (P.encDet n pk (List.ofFn m) (List.ofFn r)))
   rw [hKeyEmb_apply, toCiphertext_val hc] at hx
   simp only [queryH, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, roWordOracle_H,

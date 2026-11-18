@@ -33,8 +33,8 @@ in the soundness argument, never by the polynomial-time verifier.
 
 ## Main results
 
-* `PCPVerifier.isPolyTime_enumList_of_le_mul_log`, `PCPVerifier.isPolyTime_enumCoins`:
-  enumerating logarithmically bounded bit-string tables in polynomial time.
+* `PCPVerifier.isPolyTime_enumCoins`: enumerating logarithmically many coins in polynomial time,
+  by `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList_of_le_mul_log`.
 * `PCPVerifier.isPolyTime_queryTable`: the complete address table is computable in polynomial
   time under the logarithmic coin bound.
 * `PCPVerifier.isPolyTime_tableWordVerdict`, `PCPVerifier.isPolyTime_tableVerifier`: uniform
@@ -74,20 +74,6 @@ def tableVerifier (input : α × List Bool) : Bool :=
 
 variable {V} {enc : α ↪ List Bool} {c : ℕ}
 
-/-- Enumerating all bit strings of length `f a` is polynomial-time whenever `f` is computable in
-polynomial time into `encUnary` and bounded by `c * (Nat.log 2 (enc a).length + 1)`. -/
-theorem isPolyTime_enumList_of_le_mul_log {f : α → ℕ}
-    (hf : ComputableInPolyTime f enc encUnary)
-    (hle : ∀ a, f a ≤ c * (Nat.log 2 (enc a).length + 1)) :
-    ComputableInPolyTime (fun a => BitString.enumList (f a)) enc (encList encBits) := by
-  apply ComputableInPolyTime.bitsEnumList hf
-    (size := fun n => 2 ^ (c * (Nat.log 2 n + 1)) * (2 * (c * (Nat.log 2 n + 1)) + 1))
-  · have hpow := polynomiallyBounded_two_pow_mul_log c
-    fun_prop
-  · intro a
-    have ha := hle a
-    exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) ha) (by lia)
-
 private theorem coins_unary (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.coins enc encUnary :=
@@ -99,7 +85,7 @@ theorem isPolyTime_enumCoins (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime (fun a => BitString.enumList (V.coins a))
       enc (encList encBits) :=
-  isPolyTime_enumList_of_le_mul_log (coins_unary hV hcoins) hcoins
+  ComputableInPolyTime.bitsEnumList_of_le_mul_log (coins_unary hV hcoins) hcoins
 
 /-- The complete address table charges every enumerated word and binary address. -/
 theorem isPolyTime_queryTable (hV : V.PolyTime enc)
