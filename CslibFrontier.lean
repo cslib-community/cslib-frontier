@@ -2866,6 +2866,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Search
+public import CslibFrontier.Computability.Complexity.Problems.STCON.Writer
 public import CslibFrontier.Computability.Complexity.Problems.SetCover
 public import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF
@@ -2910,6 +2911,8 @@ public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Routines
 public import CslibFrontier.Computability.Complexity.Problems.UCONN
+public import CslibFrontier.Computability.Complexity.Problems.UDistance
+public import CslibFrontier.Computability.Complexity.Problems.UDistance.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.UGraph
 public import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
 public import CslibFrontier.Computability.Complexity.Problems.USAT
@@ -6170,6 +6173,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Ramsey.Basic
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Ramsey.Erdos
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Ramsey.FranklWilson
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Ramsey.Nagy
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.RelatesInSteps
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Separator
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ShannonCapacity
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.StrongProduct
