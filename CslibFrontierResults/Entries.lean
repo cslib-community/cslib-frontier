@@ -6008,6 +6008,46 @@ register_result "luby-rackoff-prp" where
     The four-round strong pseudorandom permutation in the same module is not part of this \
     entry."
 
+register_result "pedersen-commitment-hiding" where
+  title := "Pedersen commitments are statistically hiding against unbounded adversaries"
+  topic := "cryptography"
+  sources := [
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (first sentence)",
+      locator := "Section 3, p. 131" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingProbGame
+  ]
+  scope := "The first sentence of Theorem 3.1 says that for any s ∈ Z_q and uniform t ∈ Z_q the \
+    commitment E(s, t) = g^s h^t is uniform on G_q, the order-q subgroup of Z_p^* for primes \
+    q | p − 1 (Section 2, p. 130), where g and h are chosen so that nobody knows log_g h, by a \
+    trusted center or a coin-flipping protocol (p. 131); that condition excludes h = 1, where \
+    E(s, t) = g^s. Here the group is any prime-order group family, written additively, so the \
+    commitment is m·g + r·h, and the conclusion is a negligible game advantage, not an equality \
+    of distributions. The game pedersenHidingProbGame draws the group d from an arbitrary setup \
+    law, with no efficiency condition, then the key h = α·g with α from the fair-coin program \
+    sampleExp (pedersenKeyGenProb), and gives the adversary the encoded key (d, h). The \
+    adversary chooses two words and receives the commitment string, without the opening, for \
+    the word selected by the hidden bit, with r drawn by pedersenCommitProb, again by \
+    sampleExp; each draw is within statistical distance 1/2^n of uniform on Z_q. Messages are \
+    canonical binary words of naturals below q, read as elements of Z_q; if either word is not \
+    one, both worlds commit to the first word. This is the hiding experiment of \
+    [BonehShoup2023], Section 8.12 (p. 344), for a scheme with a public key (Section 8.12's \
+    schemes have none), played against every Encryption.WordAdversary with no efficiency \
+    bound, as in unconditional hiding (p. 346). The key h = 0, drawn with probability about \
+    1/q, is the only loss besides 4/2^n of sampling error: advantage_pedersenHidingProbGame_le \
+    bounds the advantage by 1/m + 4/2^n when every group in the setup's support has order at \
+    least m. The theorem therefore asks that every group in the support at parameter n have \
+    order at least m n > 0 with 1/m n negligible, where Pedersen asks only that q be a large \
+    prime. At a fixed key h ≠ 0 the fair-coin bound is 2/2^n \
+    (advantage_pedersenHidingProbForKey_le_of_ne_zero); with exactly uniform r the commitment \
+    is exactly uniform (pedersenCommitLaw_eq_uniform_of_ne_zero, in PedersenCommitment.lean, \
+    not listed because an entry's theorems come from one module). The samplers in the game are \
+    the ones proved correct (pedersenVerify_of_mem_support_pedersenCommitProb) and strict PPT \
+    (isPPTOn_pedersenCommitProb, isPPTOn_pedersenKeyGenProb). The result is not stated as \
+    CommitmentScheme.StatisticalHiding, whose commitment law takes no security parameter \
+    (#6133)."
+
 register_result "pedersen-commitment-binding" where
   title := "Pedersen commitments are computationally binding under the discrete-logarithm \
     assumption"
@@ -6015,7 +6055,8 @@ register_result "pedersen-commitment-binding" where
   sources := [
     { paper := BonehShoup2023, theorem := "Theorem 10.4 and Fact 10.3",
       locator := "Section 10.6.1, pp. 414–415; binding: Section 8.12, pp. 344 and 346" },
-    { paper := Pedersen1991, theorem := unverified, locator := unverified }
+    { paper := Pedersen1991, theorem := "Theorem 3.1 (second sentence)",
+      locator := "Section 3, p. 131" }
   ]
   theorems := [
     Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb
@@ -6036,8 +6077,12 @@ register_result "pedersen-commitment-binding" where
     certified strict PPT (isPPTOn_pedersenToDLAdversary). The setup law need not be efficiently \
     samplable; the assumption is Boneh–Shoup's when it is. Asymptotic; the per-parameter bound \
     succProbability_pedersenBindingGame_pedersenKeyDistProb_le adds 1/2^n to the \
-    discrete-logarithm success probability. The [Pedersen1991] theorem number and locator were \
-    not checked: no copy is recorded in the manual's sources."
+    discrete-logarithm success probability. The second sentence of [Pedersen1991], \
+    Theorem 3.1, is the extraction identity: if s ≠ s' and E(s, t) = E(s', t'), then \
+    t ≠ t' mod q and log_g h = (s − s')/(t' − t) mod q, which is what pedersenToDLAdversary \
+    computes (extractNat_eq_of_pedersenCommit_eq). Pedersen reads it as binding unless the \
+    committer can find log_g h, for g and h chosen so that nobody knows log_g h (p. 131); the \
+    binding game and the discrete-logarithm assumption are Boneh–Shoup's."
 
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
