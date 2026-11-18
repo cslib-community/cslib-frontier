@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
 public import CslibFrontier.Init
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # SDitH seed expansion
@@ -81,10 +82,7 @@ theorem expandSeedRightTweak_val (idx : Fin (2 ^ 23)) :
 /-- The source's even and odd child tweaks are distinct. -/
 theorem expandSeedLeftTweak_ne_rightTweak (idx : Fin (2 ^ 23)) :
     expandSeedLeftTweak idx ≠ expandSeedRightTweak idx := by
-  intro h
-  have hval := congrArg Fin.val h
-  simp only [expandSeedLeftTweak_val, expandSeedRightTweak_val] at hval
-  omega
+  fin_index [expandSeedLeftTweak_val, expandSeedRightTweak_val]
 
 /-- SDitH v3 Section 3.2.2, `ExpandSeed`, stated by the source for Categories I and V.
 

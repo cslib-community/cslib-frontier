@@ -109,7 +109,7 @@ theorem isPolyTime_proofQueries (width : ℕ) (enc : C ↪ List Bool) :
 theorem isPolyTime_proofVerdict (width : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     ComputableInPolyTime
       (fun p : Edge C × List Bool => p.1.proofVerdict width decode eval p.2)
       (encPair (encoding enc) encBits) encBool := by
@@ -242,7 +242,7 @@ theorem accepts_proofOfLabels (width : ℕ) (encode : α → Fin width → Bool)
 theorem polyTime_edgeVerifier (width : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     (edgeVerifier width decode eval).PolyTime (encoding enc) := by
   constructor
   case coins =>

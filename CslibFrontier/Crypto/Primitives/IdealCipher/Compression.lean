@@ -11,9 +11,11 @@ public import CslibFrontier.Languages.Probabilistic.IdealCipher
 public import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Notation
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Nat.Choose.Cast
 import Mathlib.Tactic.Linarith
@@ -137,7 +139,7 @@ collision for `cipherOutput` with probability `1`. -/
 theorem cipherOutputAdversary_wins {k1 k2 : Key} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (cipherOutput (B := Block)) (cipherOutputAdversary k1 k2 y) = PMF.pure true := by
   unfold collisionGame cipherOutputAdversary lazyEvalPerm
-  simp only [complete_nil, interpret_bind, interpret_query, interpret_pure]
+  simp only [complete_nil, interp_norm]
   simp [bind, StateT.bind, pure, StateT.pure, Cslib.RandomPermutation.evalPerm, collides,
     cipherOutput_symm, hk]
 
@@ -167,8 +169,7 @@ theorem collisionGame_daviesMeyer_eq [DecidableEq Key] [DecidableEq Block] [Add 
     ← PMF.bind_pure_comp]
   apply congrArg
   ext1 p
-  simp only [interpret_bind, interpret_query, interpret_pure,
-    Cslib.RandomPermutation.evalPerm_forward, pmf_norm, daviesMeyer]
+  simp only [Cslib.RandomPermutation.evalPerm_forward, interp_norm, pmf_norm, daviesMeyer]
 
 /-- Switching bound between the real ideal cipher and the forgetful sampler on
 `daviesMeyerCollisionProgram A`. -/
@@ -257,9 +258,7 @@ private theorem hasDMCollision_of_mem_support_daviesMeyerCollisionProgram {Key B
       ((interpret forgetfulAnswer (daviesMeyerCollisionProgram A)).run st₀).support) :
     HasDMCollision st := by
   unfold daviesMeyerCollisionProgram at hmem
-  simp only [StateT.run_bind, StateT.run_pure, interpret_bind, interpret_query, interpret_pure,
-    Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
+  simp only [interp_norm, pmf_norm, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
   obtain ⟨⟨⟨⟨k1, x1⟩, ⟨k2, x2⟩⟩, stA⟩, -, ⟨y1, st1⟩, hy1, ⟨y2, st2⟩, hy2, hres⟩ := hmem
   obtain ⟨hbool, hst⟩ := Prod.mk.inj hres
   subst hst
@@ -475,11 +474,7 @@ private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
   have h_enn : (p.map Prod.fst) true ≤
       ((Q + 2).choose 2 : ℕ) * (Fintype.card Block : ℝ≥0∞)⁻¹ :=
     h_apply.trans hbad
-  have htop : ((Q + 2).choose 2 : ℕ) * (Fintype.card Block : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
-  simpa only [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_inv] using
-    ENNReal.toReal_mono htop h_enn
+  ennreal_to_real using h_enn
 
 end Helpers
 

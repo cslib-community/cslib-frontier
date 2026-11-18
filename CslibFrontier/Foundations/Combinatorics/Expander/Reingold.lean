@@ -299,7 +299,6 @@ theorem exists_neighbor_pow_reingold_eq {V : Type u} [Fintype V] [DecidableEq V]
       have : (Fintype.card C * Fintype.card B ^ ℓ * 4 ^ T : ℝ) ≤
           Fintype.card V * Fintype.card B ^ ℓ * 4 ^ T := by gcongr
       exact this.trans (by exact_mod_cast hT)
-    have hlam₀ := (reingold H e (G.componentGraph x.root) ℓ).spectralExpansion_nonneg
     push_cast
     calc (reingold H e (G.componentGraph x.root) ℓ).spectralExpansion ^ T *
           ((Fintype.card C : ℝ) * Fintype.card B ^ ℓ - 1) ≤

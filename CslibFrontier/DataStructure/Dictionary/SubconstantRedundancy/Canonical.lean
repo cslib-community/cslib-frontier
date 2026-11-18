@@ -136,6 +136,29 @@ theorem four_le_thresholdLogN (q_min p_max : ℕ) :
   have h1 : 1 ≤ (max q_min 1 + p_max + 4) ^ 4 := Nat.one_le_pow 4 _ (by omega)
   omega
 
+theorem four_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    4 ≤ Nat.log 2 n :=
+  (four_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
+
+theorem poly_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ Nat.log 2 n :=
+  (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
+
+theorem mul_param_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) {c : ℕ}
+    (hc : c ≤ 2560000) :
+    c * (q_min + p_max + 4) ≤ Nat.log 2 n := by
+  have hbase : q_min + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
+    (Nat.add_le_add_right (Nat.add_le_add_right (le_max_left q_min 1) p_max) 4).trans
+      (Nat.le_self_pow (by decide) _)
+  exact (Nat.mul_le_mul hc hbase).trans h.poly_le_log
+
+theorem three_hundred_le_log_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    300 ≤ Nat.log 2 (Nat.log 2 n) := by
+  have hL4 := h.four_le_log
+  refine (Nat.le_log_iff_pow_le Nat.one_lt_two (by omega)).mpr ?_
+  rw [show (300 : ℕ) = 250 + 50 by decide, Nat.pow_add 2 250 50]
+  exact (two_pow_300_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
+
 theorem two_le_n (h : ValidRegime U V n R p_min q_min p_max q_max) : 2 ≤ n := by
   have hle1 : 1 ≤ thresholdLogN q_min p_max := by
     have := four_le_thresholdLogN q_min p_max
@@ -161,17 +184,14 @@ theorem n_pow_succ_le_univ_pow (h : ValidRegime U V n R p_min q_min p_max q_max)
 theorem two_mul_n_le_univ (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 * n ≤ U := by
   have hn2 := h.two_le_n
+  have h2n : 2 ^ q_min ≤ n := by
+    have hq : q_min ≤ Nat.log 2 n := by
+      have := h.mul_param_le_log (by decide : 1 ≤ 2560000)
+      omega
+    exact (Nat.pow_le_pow_right Nat.two_pos hq).trans (Nat.pow_log_le_self 2 (by omega))
   have hpow : (2 * n) ^ q_min ≤ U ^ q_min := by
     calc (2 * n) ^ q_min = 2 ^ q_min * n ^ q_min := Nat.mul_pow 2 n q_min
-      _ ≤ n * n ^ q_min := by
-          have h2n : 2 ^ q_min ≤ n := by
-            have hL : q_min ≤ thresholdLogN q_min p_max := by
-              have hp := poly_le_thresholdLogN q_min p_max
-              have hbase : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-                Nat.le_self_pow (by decide) _
-              omega
-            exact (Nat.pow_le_pow_right Nat.two_pos hL).trans h.n_ge_threshold
-          exact Nat.mul_le_mul_right _ h2n
+      _ ≤ n * n ^ q_min := Nat.mul_le_mul_right _ h2n
       _ = n ^ (q_min + 1) := (pow_succ' n q_min).symm
       _ ≤ U ^ q_min := h.n_pow_succ_le_univ_pow
   exact (Nat.pow_le_pow_iff_left (by have := h.q_min_pos; omega)).mp hpow
@@ -182,9 +202,7 @@ theorem log_univ_bounds (h : ValidRegime U V n R p_min q_min p_max q_max) :
   have hUn : n ≤ U := by have := h.two_mul_n_le_univ; omega
   refine ⟨Nat.log_mono_right hUn, ?_⟩
   set L := Nat.log 2 n
-  have hL1 : 1 ≤ L := by
-    have := (two_pow_300_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-    omega
+  have hL4 : 4 ≤ L := h.four_le_log
   have hn_lt : n < 2 ^ (L + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
   have hU_lt : U < 2 ^ (2 * (p_max + 1) * L + 1) := by
     calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
@@ -194,11 +212,25 @@ theorem log_univ_bounds (h : ValidRegime U V n R p_min q_min p_max q_max) :
           Nat.pow_lt_pow_right Nat.one_lt_two (by nlinarith)
   exact Nat.lt_succ_iff.mp ((Nat.log_lt_iff_lt_pow Nat.one_lt_two (by omega)).mpr hU_lt)
 
+theorem four_mul_log_univ_le_sq_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    4 * Nat.log 2 U ≤ (Nat.log 2 n) ^ 2 := by
+  have hp := h.mul_param_le_log (by decide : 8 ≤ 2560000)
+  calc 4 * Nat.log 2 U ≤ 4 * (2 * (p_max + 1) * Nat.log 2 n) :=
+        Nat.mul_le_mul_left 4 h.log_univ_bounds.2
+    _ = (8 * (p_max + 1)) * Nat.log 2 n := by ring
+    _ ≤ Nat.log 2 n * Nat.log 2 n := Nat.mul_le_mul_right _ (by omega)
+    _ = (Nat.log 2 n) ^ 2 := (sq _).symm
+
+theorem log_univ_le_sq_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    Nat.log 2 U ≤ (Nat.log 2 n) ^ 2 := by
+  have := h.four_mul_log_univ_le_sq_log
+  omega
+
 theorem two_pow_logStar_le_log_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 ^ Nat.logStar n ≤ 32 * (Nat.log 2 (Nat.log 2 n) + 1) := by
   set L := Nat.log 2 n
   set t := Nat.log 2 L
-  have hL_ge4 : 4 ≤ L := (four_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
+  have hL_ge4 : 4 ≤ L := h.four_le_log
   have hn_le : n ≤ 2 ^ (L + 1) := (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
   have hcl1 : Nat.clog 2 n ≤ L + 1 := Nat.clog_le_of_le_pow hn_le
   have hL_lt : L < 2 ^ (t + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two L
@@ -226,14 +258,10 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
       (redundancyRatio n R) ^ 10 ≤ Nat.log 2 n := by
   set L := Nat.log 2 n
   set t := Nat.log 2 L
-  have hL_ge4 : 4 ≤ L := (four_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hL_pos : L ≠ 0 := by omega
-  have ht_ge : 250 + 50 ≤ t := by
-    refine (Nat.le_log_iff_pow_le Nat.one_lt_two hL_pos).mpr ?_
-    rw [Nat.pow_add 2 250 50]
-    exact (two_pow_300_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
+  have hL_ge4 : 4 ≤ L := h.four_le_log
+  have ht_ge : 300 ≤ t := h.three_hundred_le_log_log
   have hls_le : 2 ^ Nat.logStar n ≤ 32 * (t + 1) := h.two_pow_logStar_le_log_log
-  have ht_pow : 2 ^ t ≤ L := Nat.pow_log_le_self 2 hL_pos
+  have ht_pow : 2 ^ t ≤ L := Nat.pow_log_le_self 2 (by omega)
   set s := t / 10
   have hs_ge : 30 ≤ s := by omega
   have h704s : 704 * s ≤ 2 ^ s := by
@@ -291,28 +319,29 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
       _ ≤ 2 ^ t := Nat.pow_le_pow_right Nat.two_pos (by omega)
       _ ≤ L := ht_pow
 
+theorem one_le_redundancyRatio (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    1 ≤ redundancyRatio n R :=
+  (by decide : 1 ≤ minRedundancyRatio).trans h.redundancyRatio_bounds.1
+
+theorem redundancyRatio_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    redundancyRatio n R ≤ Nat.log 2 n :=
+  (Nat.le_self_pow (by decide : 10 ≠ 0) _).trans h.redundancyRatio_bounds.2.2
+
 theorem treeDepth_le_logStar_add_four (h : ValidRegime U V n R p_min q_min p_max q_max) :
     treeDepth U (redundancyRatio n R) ≤ Nat.logStar n + 4 := by
-  have hU_le : U ≤ n ^ (p_max + 1) := h.univ_le_pow
   set L := Nat.log 2 n
-  have hL_ge4 : 4 ≤ L := (four_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hpoly : 2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ L :=
-    (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    Nat.le_self_pow (by decide) _
+  have hL_ge4 : 4 ≤ L := h.four_le_log
+  have hp : 2 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 2 ≤ 2560000)
   have hU_tower : U ≤ 2 ^ (2 ^ L) := by
     have hn_lt : n < 2 ^ (L + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
     have hexp_le : (L + 1) * (p_max + 1) ≤ 2 ^ L := by
       have hpL : 2 * (p_max + 1) ≤ L := by omega
-      have hsq : L ^ 2 ≤ 2 ^ L := Nat.sq_le_two_pow hL_ge4
-      have hmulL : (L + 1) * (p_max + 1) ≤ L ^ 2 := by
-        calc (L + 1) * (p_max + 1) ≤ (2 * L) * (p_max + 1) :=
-              Nat.mul_le_mul_right _ (by omega)
-          _ = L * (2 * (p_max + 1)) := by ring
-          _ ≤ L * L := Nat.mul_le_mul_left L hpL
-          _ = L ^ 2 := (sq L).symm
-      exact hmulL.trans hsq
-    calc U ≤ n ^ (p_max + 1) := hU_le
+      calc (L + 1) * (p_max + 1) ≤ (2 * L) * (p_max + 1) := Nat.mul_le_mul_right _ (by omega)
+        _ = L * (2 * (p_max + 1)) := by ring
+        _ ≤ L * L := Nat.mul_le_mul_left L hpL
+        _ = L ^ 2 := (sq L).symm
+        _ ≤ 2 ^ L := Nat.sq_le_two_pow hL_ge4
+    calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
       _ ≤ (2 ^ (L + 1)) ^ (p_max + 1) := Nat.pow_le_pow_left hn_lt.le _
       _ = 2 ^ ((L + 1) * (p_max + 1)) := (Nat.pow_mul 2 _ _).symm
       _ ≤ 2 ^ (2 ^ L) := Nat.pow_le_pow_right Nat.two_pos hexp_le
@@ -332,22 +361,15 @@ theorem treeDepth_le_logStar_add_four (h : ValidRegime U V n R p_min q_min p_max
 
 theorem three_le_logStar (h : ValidRegime U V n R p_min q_min p_max q_max) :
     3 ≤ Nat.logStar n := by
-  have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    Nat.le_self_pow (by decide) _
   by_contra hlt
-  have hle2 : Nat.logStar n ≤ 2 := by omega
   have hn4 : n ≤ 4 := by
-    have := Nat.le_twoTower_logStar n
-    have htw : Nat.twoTower (Nat.logStar n) ≤ Nat.twoTower 2 :=
-      Nat.twoTower_monotone hle2
+    have htw := (Nat.le_twoTower_logStar n).trans
+      (Nat.twoTower_monotone (by omega : Nat.logStar n ≤ 2))
     have h4 : Nat.twoTower 2 = 4 := by decide
     omega
-  have h8 : 8 ≤ n := by
-    have h3_le : 3 ≤ thresholdLogN q_min p_max := by
-      have : 3 ≤ 2560000 * (max q_min 1 + p_max + 4) ^ 4 := by omega
-      exact this.trans (poly_le_thresholdLogN q_min p_max)
-    exact (show 8 = 2 ^ 3 by decide) ▸
-      (Nat.pow_le_pow_right Nat.two_pos h3_le).trans h.n_ge_threshold
+  have h16 : 16 ≤ n :=
+    ((show 16 = 2 ^ 4 by decide) ▸ Nat.pow_le_pow_right Nat.two_pos h.four_le_log).trans
+      (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
   omega
 
 theorem treeDepth_add_one_le_three_mul_logStar
@@ -374,23 +396,12 @@ theorem two_pow_eighteen_mul_log_univ_pow_le
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := by
   set L := Nat.log 2 n
-  have hpoly : 2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ L :=
-    (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-  have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    Nat.le_self_pow (by decide) _
-  obtain ⟨_, hlogU_le⟩ := h.log_univ_bounds
-  have hp_le_L : 8 * (p_max + 1) ≤ L := by omega
-  have h2logU : 4 * Nat.log 2 U ≤ L ^ 2 := by
-    calc 4 * Nat.log 2 U ≤ 4 * (2 * (p_max + 1) * L) := Nat.mul_le_mul_left 4 hlogU_le
-      _ = (8 * (p_max + 1)) * L := by ring
-      _ ≤ L * L := Nat.mul_le_mul_right L hp_le_L
-      _ = L ^ 2 := (sq L).symm
+  have hp : 324 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 324 ≤ 2560000)
   have hpow18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ L ^ 18 := by
     calc 2 ^ 18 * (Nat.log 2 U) ^ 9
         = (4 * Nat.log 2 U) ^ 9 := by
-          have : (2 : ℕ) ^ 18 = 4 ^ 9 := by decide
-          rw [this, ← Nat.mul_pow]
-      _ ≤ (L ^ 2) ^ 9 := Nat.pow_le_pow_left h2logU 9
+          rw [show (2 : ℕ) ^ 18 = 4 ^ 9 by decide, ← Nat.mul_pow]
+      _ ≤ (L ^ 2) ^ 9 := Nat.pow_le_pow_left h.four_mul_log_univ_le_sq_log 9
       _ = L ^ 18 := (Nat.pow_mul L 2 9).symm
   have hL18 : L ^ 18 ≤ 2 ^ L := Nat.pow_le_two_pow (by decide) (by omega)
   exact (hpow18.trans hL18).trans (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
@@ -416,16 +427,23 @@ theorem canonical_target_bounds {U V n R p_min q_min p_max q_max : ℕ}
         1 ≤ targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j) ∧
       (∀ j ≤ treeDepth U (redundancyRatio n R),
         targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j ≤ n) := by
-  have hr256 : minRedundancyRatio ≤ redundancyRatio n R := h.redundancyRatio_bounds.1
-  have h4r : 4 * redundancyRatio n R ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
   have hstep : ∀ i < treeDepth U (redundancyRatio n R),
       2 ^ 18 * targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) (i + 1) ≤
         targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) i :=
-    fun i hi => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hi
-  refine ⟨fun j hj => targetSize_pos (by have := h.two_le_n; omega)
-    (by dsimp [minRedundancyRatio] at hr256; omega) h4r hj rfl,
-    targetSize_le_of_step hstep⟩
+    fun i hi => two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
+      h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hi
+  refine ⟨fun j hj => targetSize_pos (by have := h.two_le_n; omega) h.one_le_redundancyRatio
+    h.four_mul_redundancyRatio_le_log_univ hj rfl, targetSize_le_of_step hstep⟩
+
+theorem canonical_cumBranchBits_add_seventeen_le {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hlt : ℓ < treeDepth U (redundancyRatio n R)) :
+    cumBranchBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ + 17 ≤
+      cumBranchBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) (ℓ + 1) := by
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
+  exact cumBranchBits_add_seventeen_le (hT_pos ℓ hlt.le) (hT_pos (ℓ + 1) hlt) (hT_le ℓ hlt.le)
+    (two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
+      h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hlt)
 
 theorem canonical_nFloor_ge_pow_256 {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
@@ -450,16 +468,12 @@ def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) : TreeSchedule :=
   let r := redundancyRatio n R
   let k := treeDepth U r
-  have hr256 : minRedundancyRatio ≤ r := h.redundancyRatio_bounds.1
-  have h4r : 4 * r ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
-  have hstep : ∀ ℓ < k, 2 ^ 18 * targetSize n U r k (ℓ + 1) ≤ targetSize n U r k ℓ :=
-    fun ℓ hlt => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hlt
-  have hT_pos : ∀ ℓ ≤ k, 1 ≤ targetSize n U r k ℓ := (canonical_target_bounds h).1
-  have hT_le : ∀ ℓ ≤ k, targetSize n U r k ℓ ≤ n := (canonical_target_bounds h).2
   have hS17 : ∀ ℓ < k, cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
-    fun ℓ hlt => cumBranchBits_add_seventeen_le (hT_pos ℓ hlt.le) (hT_pos (ℓ + 1) hlt)
-      (hT_le ℓ hlt.le) (hstep ℓ hlt)
+    fun ℓ hlt => canonical_cumBranchBits_add_seventeen_le h hlt
+  have hstep_nf : ∀ ℓ < k, branchFactor n U r k ℓ * nFloor n U r k (ℓ + 1) ≤ nFloor n U r k ℓ :=
+    fun ℓ hlt => by
+      rw [nFloor_succ_eq_div (by have := hS17 ℓ hlt; omega)]
+      exact Nat.mul_div_le _ _
   have hnF8 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ :=
     fun ℓ hℓ => canonical_nFloor_ge_pow_256 h hℓ
   have h1_le_256 : 1 ≤ 256 ^ 9 := Nat.one_le_pow 9 256 (by decide)
@@ -493,18 +507,11 @@ def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
       have hy8 := h8_le_256.trans (hnF8 ℓ hℓ)
       have h2d := two_mul_delta_le_nFloor_of_eight_le hy8
       omega
-    nFloor_step_le := fun ℓ hlt => by
-      have hle : cumBranchBits n U r k ℓ ≤ cumBranchBits n U r k (ℓ + 1) := by
-        have := hS17 ℓ hlt; omega
-      change branchFactor n U r k ℓ * nFloor n U r k (ℓ + 1) ≤ nFloor n U r k ℓ
-      rw [nFloor_succ_eq_div hle]
-      exact Nat.mul_div_le _ _
+    nFloor_step_le := hstep_nf
     inner_cap_le := fun ℓ h2 hlt => by
       have h10 := ten_mul_delta_le_branchFactor_mul_delta_succ (hS17 ℓ hlt)
         (h8_le_256.trans (hnF8 (ℓ + 1) hlt))
-      have hstep_nf : branchFactor n U r k ℓ * nFloor n U r k (ℓ + 1) ≤ nFloor n U r k ℓ := by
-        rw [nFloor_succ_eq_div (by have := hS17 ℓ hlt; omega)]
-        exact Nat.mul_div_le _ _
+      have hnf := hstep_nf ℓ hlt
       have hd_next := two_mul_delta_le_nFloor_of_eight_le
         (h8_le_256.trans (hnF8 (ℓ + 1) hlt))
       change branchFactor n U r k ℓ * (nFloor n U r k (ℓ + 1) - delta n U r k (ℓ + 1)) ≤
@@ -513,14 +520,11 @@ def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
       omega
     root_cap_le := by
       have hk2 : 2 ≤ k := two_le_treeDepth U r
-      have hstep1 : branchFactor n U r k 1 * nFloor n U r k 2 ≤ nFloor n U r k 1 := by
-        rw [nFloor_succ_eq_div (by have := hS17 1 (by omega); omega)]
-        exact Nat.mul_div_le _ _
       change branchFactor n U r k 1 * (nFloor n U r k 2 - delta n U r k 2) ≤
         nFloor n U r k 1 + delta n U r k 1
       calc branchFactor n U r k 1 * (nFloor n U r k 2 - delta n U r k 2)
           ≤ branchFactor n U r k 1 * nFloor n U r k 2 := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
-        _ ≤ nFloor n U r k 1 := hstep1
+        _ ≤ nFloor n U r k 1 := hstep_nf 1 (by omega)
         _ ≤ nFloor n U r k 1 + delta n U r k 1 := Nat.le_add_right _ _
     idBits_step_le := fun ℓ h1 hlt => by
       have h4 := four_mul_branchBits_add_idBits_succ_le (by have := hS17 ℓ hlt; omega)
@@ -591,21 +595,13 @@ theorem canonicalSchedule_cumBranchBits_eq {U V n R p_min q_min p_max q_max : �
     ∀ ℓ ≤ (canonicalSchedule h).depth,
       (canonicalSchedule h).cumBranchBits ℓ =
         cumBranchBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by
-  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  set r := redundancyRatio n R
-  set k := treeDepth U r
   intro ℓ hℓ
   induction ℓ with
   | zero => simp [TreeSchedule.cumBranchBits, cumBranchBits]
   | succ j ih =>
-    have hj : j < k := Nat.lt_of_succ_le hℓ
-    have hstep := two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
-      h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hj
-    have hS17 := cumBranchBits_add_seventeen_le (hT_pos j hj.le) (hT_pos (j + 1) hj)
-      (hT_le j hj.le) hstep
-    change (canonicalSchedule h).cumBranchBits j + branchBits n U r k j =
-      cumBranchBits n U r k (j + 1)
-    rw [ih hj.le]
+    have hj : j < treeDepth U (redundancyRatio n R) := Nat.lt_of_succ_le hℓ
+    have hS17 := canonical_cumBranchBits_add_seventeen_le h hj
+    rw [TreeSchedule.cumBranchBits, ih hj.le, canonicalSchedule_branchBits]
     dsimp only [branchBits]
     omega
 
@@ -637,6 +633,25 @@ theorem canonicalSchedule_idBits_eq {U V n R p_min q_min p_max q_max : ℕ}
     (canonicalSchedule h).idBits ℓ =
       idBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
 
+theorem canonicalSchedule_two_mul_delta_le_nFloor {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hℓ : ℓ ≤ (canonicalSchedule h).depth) :
+    2 * (canonicalSchedule h).delta ℓ ≤ (canonicalSchedule h).nFloor ℓ :=
+  two_mul_delta_le_nFloor_of_eight_le
+    ((by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hℓ))
+
+theorem canonicalSchedule_childRouterHalfInd_nHigh_zero_le
+    {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    FeistelPerm.childRouterHalfInd ((canonicalSchedule h).nHigh 0) ≤ 3 * Nat.log 2 n + 7 := by
+  have hnh0 : (canonicalSchedule h).nHigh 0 = n := rfl
+  have hn_le : max n 2 ≤ 2 ^ (Nat.log 2 n + 1) := by
+    rw [max_eq_left h.two_le_n]
+    exact (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
+  have hcl : Nat.clog 2 (max n 2) ≤ Nat.log 2 n + 1 := Nat.clog_le_of_le_pow hn_le
+  rw [FeistelPerm.childRouterHalfInd_eq, hnh0]
+  omega
+
 /-- **`canonicalSchedule` concentration readiness**: across the entire `ValidRegime`,
 `canonicalSchedule h` satisfies all six probabilistic concentration conditions in
 `TreeSchedule.ConcentrationReady` (`Section 5.4`, `Claim 5.4`, and `Lemma 5.3`). -/
@@ -649,19 +664,14 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
   set k := treeDepth U r
   have hr256 : minRedundancyRatio ≤ r := h.redundancyRatio_bounds.1
   have h4r : 4 * r ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
-  have hstep : ∀ ℓ < k, 2 ^ 18 * targetSize n U r k (ℓ + 1) ≤ targetSize n U r k ℓ :=
-    fun ℓ hlt => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hlt
   have hS17 : ∀ ℓ < k, cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
-    fun ℓ hlt => cumBranchBits_add_seventeen_le (hT_pos ℓ hlt.le) (hT_pos (ℓ + 1) hlt)
-      (hT_le ℓ hlt.le) (hstep ℓ hlt)
+    fun ℓ hlt => canonical_cumBranchBits_add_seventeen_le h hlt
   have hnF256 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ :=
     fun ℓ hℓ => canonical_nFloor_ge_pow_256 h hℓ
   have h8_le : 8 ≤ 256 ^ 9 := by decide
   refine
     { six_le_nFloor := fun ℓ hℓ => (by decide : 6 ≤ 8).trans (h8_le.trans (hnF256 ℓ hℓ))
-      two_mul_delta_le_nFloor := fun ℓ _ hℓ =>
-        two_mul_delta_le_nFloor_of_eight_le (h8_le.trans (hnF256 ℓ hℓ))
+      two_mul_delta_le_nFloor := fun ℓ _ hℓ => canonicalSchedule_two_mul_delta_le_nFloor h hℓ
       gap_bound := ?_
       conc_bound := ?_
       window_contained := ?_
@@ -726,27 +736,12 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
     set m := FeistelPerm.childRouterHalfInd (P.nHigh ℓ)
     rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
     · set L := Nat.log 2 n
-      have hL_ge4 : 4 ≤ L :=
-        (ValidRegime.four_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-      have hpoly : 2560000 * (max q_min 1 + p_max + 4) ^ 4 ≤ L :=
-        (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
-      have hm_le : m ≤ 3 * L + 7 := by
-        have hnh0 : P.nHigh 0 = n := rfl
-        have hn_le : max n 2 ≤ 2 ^ (L + 1) := by
-          rw [max_eq_left h.two_le_n]
-          exact (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
-        have hcl : Nat.clog 2 (max n 2) ≤ L + 1 := Nat.clog_le_of_le_pow hn_le
-        dsimp only [m]
-        rw [FeistelPerm.childRouterHalfInd_eq, hnh0]
-        omega
+      have hp : 750 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 750 ≤ 2560000)
+      have hm_le : m ≤ 3 * L + 7 := canonicalSchedule_childRouterHalfInd_nHigh_zero_le h
       have h150_le : (150 * m) ^ 3 ≤ L ^ 8 := by
-        have h150 : 150 * m ≤ 750 * L := by omega
-        have h750_L : 750 ≤ L := by
-          have : 1 ≤ (max q_min 1 + p_max + 4) ^ 4 := Nat.one_le_pow 4 _ (by omega)
-          omega
         have hprod : 150 * m ≤ L ^ 2 := by
-          calc 150 * m ≤ 750 * L := h150
-            _ ≤ L * L := Nat.mul_le_mul_right L h750_L
+          calc 150 * m ≤ 750 * L := by omega
+            _ ≤ L * L := Nat.mul_le_mul_right L (by omega)
             _ = L ^ 2 := (sq L).symm
         calc (150 * m) ^ 3 ≤ (L ^ 2) ^ 3 := Nat.pow_le_pow_left hprod 3
           _ = L ^ 6 := (Nat.pow_mul L 2 3).symm
@@ -875,6 +870,10 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
     rw [hμ_def] at hb_lo hb_hi
     have hm_pos : 1 ≤ m := (P.nLow_pos hlt.le).trans hm_lo
     have hμ_pos : 0 < μ := by dsimp only [μ]; positivity
+    have hdiv_r : ((B * d_next / 10 : ℕ) : ℝ) ≤ (B : ℝ) * (d_next : ℝ) / 10 := by
+      rw [le_div_iff₀ (by norm_num)]
+      exact_mod_cast Nat.div_mul_le_self (B * d_next) 10
+    have hB1 : (1 : ℝ) ≤ (B : ℝ) := by exact_mod_cast (Nat.two_pow_pos _ : 1 ≤ B)
     have hμ_hi : μ ≤ (x : ℝ) + (d_next : ℝ) / 10 + 2 := by
       dsimp only [μ]
       rw [div_le_iff₀ hB_pos]
@@ -891,18 +890,13 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
         have h1r : (m : ℝ) ≤ ((B * (x + 1) + (B * d_next / 10 + 1) : ℕ) : ℝ) := by
           exact_mod_cast h1
         linarith
-      have hdiv_r : ((B * d_next / 10 : ℕ) : ℝ) ≤ (B : ℝ) * (d_next : ℝ) / 10 := by
-        rw [le_div_iff₀ (by norm_num)]
-        have : (B * d_next / 10) * 10 ≤ B * d_next := Nat.div_mul_le_self _ 10
-        exact_mod_cast this
-      have hB1 : (1 : ℝ) ≤ (B : ℝ) := by exact_mod_cast (Nat.two_pow_pos _ : 1 ≤ B)
       linarith
     have hμ_lo : (x : ℝ) - (d_next : ℝ) / 10 - 2 ≤ μ := by
       dsimp only [μ]
       rw [le_div_iff₀ hB_pos]
       have hBx_ge : B * d_next / 10 + 1 ≤ B * x := by
         have hd_le_x : 2 * d_next ≤ x := two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
-        have hB1 : 1 ≤ B := Nat.two_pow_pos _
+        have hB1_nat : 1 ≤ B := Nat.two_pow_pos _
         have : B * d_next / 10 + 1 ≤ B * d_next + 1 :=
           Nat.add_le_add_right (Nat.div_le_self _ 10) 1
         nlinarith
@@ -914,11 +908,6 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
             (B : ℝ) * (x : ℝ) - ((B * d_next / 10 : ℕ) : ℝ) - 1 := by
           rw [Nat.cast_sub hBx_ge]; push_cast; ring
         linarith [(by exact_mod_cast h1 : ((B * x - (B * d_next / 10 + 1) : ℕ) : ℝ) ≤ (m : ℝ))]
-      have hdiv_r : ((B * d_next / 10 : ℕ) : ℝ) ≤ (B : ℝ) * (d_next : ℝ) / 10 := by
-        rw [le_div_iff₀ (by norm_num)]
-        have : (B * d_next / 10) * 10 ≤ B * d_next := Nat.div_mul_le_self _ 10
-        exact_mod_cast this
-      have hB1 : (1 : ℝ) ≤ (B : ℝ) := by exact_mod_cast (Nat.two_pow_pos _ : 1 ≤ B)
       linarith
     have hμ_le_2x : μ ≤ 2 * (x : ℝ) := by
       have hd_r : (2 : ℝ) * (d_next : ℝ) ≤ (x : ℝ) := by

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Threshold
 public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Foundations.Data.BitString.Parity.Weight
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Parity in depth two with threshold gates
@@ -81,6 +82,7 @@ private theorem cost_program_negIf (b : Bool) : (negIf b).program.cost threshold
   cases b <;> simp [negIf]
 
 /-- The unweighted depth of `negIf b` is at most `1`. -/
+@[circuit_bound]
 theorem depth_negIf_le (b : Bool) : (negIf b).depth ≤ 1 := by
   cases b <;> simp [negIf]
 
@@ -130,8 +132,8 @@ theorem weight_signedLayer (x : BitString n) :
 theorem computes_parityCircuit : (parityCircuit n).Computes interpretation (single (parity n)) := by
   intro x
   funext o
-  simp only [parityCircuit, Circuit.eval_comp, Circuit.eval_oneGate, Circuit.eval_pi,
-    interpretation_threshold, id, single_apply, eval_signedLayerGate]
+  simp only [circuit_simps, parityCircuit, interpretation_threshold, id, single_apply,
+    eval_signedLayerGate]
   rw [threshold_apply, weight_signedLayer, parity_eq_decide_weight]
   rcases Nat.mod_two_eq_zero_or_one (weight x) with h | h <;> simp [h]
 
@@ -140,8 +142,7 @@ theorem cost_parityCircuit : (parityCircuit n).program.cost thresholdCost = n + 
   have (j : Fin n) : (signedLayerGate n j).program.cost thresholdCost = 1 := by
     rw [signedLayerGate, Circuit.cost_program_comp, Circuit.cost_program_oneGate,
       cost_program_negIf, thresholdCost_threshold]
-  rw [parityCircuit, Circuit.cost_program_comp, Circuit.cost_program_pi,
-    Circuit.cost_program_oneGate, thresholdCost_threshold]
+  simp only [circuit_simps, parityCircuit]
   simp [this]
 
 /-- The odd numbers below `n` are `n / 2`. -/
@@ -156,28 +157,16 @@ private theorem sum_range_toNat_mod_two (n : ℕ) :
 
 /-- The circuit has `n + 1` threshold gates and `n / 2` negations. -/
 theorem size_parityCircuit : (parityCircuit n).size = n + n / 2 + 1 := by
-  simp only [parityCircuit, signedLayerGate, Circuit.size_comp, Circuit.size_pi,
-    Circuit.size_oneGate, size_negIf, sum_add_distrib, sum_const, card_univ, Fintype.card_fin,
-    smul_eq_mul, mul_one]
+  simp only [circuit_simps, parityCircuit, signedLayerGate, size_negIf, sum_add_distrib, mul_one]
   rw [Fin.sum_univ_eq_sum_range (fun j => (decide (j % 2 = 1)).toNat), sum_range_toNat_mod_two]
 
 /-- The circuit has threshold depth two: negations are free. -/
 theorem depthWith_parityCircuit_le : (parityCircuit n).depthWith thresholdCost ≤ 2 := by
-  have (j : Fin n) : (signedLayerGate n j).depthWith thresholdCost ≤ 1 :=
-    (Circuit.depthWith_comp_le _ _ _).trans (by simp)
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  have := Circuit.depthWith_pi_le thresholdCost (signedLayerGate n) this
-  simp only [Circuit.depthWith_oneGate, thresholdCost_threshold]
-  omega
+  circuit_bound [parityCircuit, signedLayerGate, depthWith_negIf, thresholdCost_threshold]
 
 /-- The circuit has depth three, counting the negations. -/
 theorem depth_parityCircuit_le : (parityCircuit n).depth ≤ 3 := by
-  have (j : Fin n) : (signedLayerGate n j).depth ≤ 2 :=
-    (Circuit.depth_comp_le _ _).trans (by simpa using depth_negIf_le _)
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  have := Circuit.depth_pi_le (signedLayerGate n) this
-  simp only [Circuit.depth_oneGate]
-  omega
+  circuit_bound [parityCircuit, signedLayerGate]
 
 /-- **Parity in depth two**: the parity of `n` bits has a circuit of `n + 1` threshold gates and
 threshold depth two, with `n / 2` negations, so of `n + n / 2 + 1` gates and depth three in all.

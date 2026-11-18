@@ -430,14 +430,7 @@ private theorem computableInPolyTime_totientIfFactor {α : Type} {enc : α ↪ L
     ComputableInPolyTime
       (fun x => if 1 < a x ∧ 1 < b x ∧ a x * b x = N x then (a x - 1) * (b x - 1) else 0)
       enc encNat := by
-  have hcond : ComputableInPolyTime
-      (fun x => decide (1 < a x ∧ 1 < b x ∧ a x * b x = N x)) enc encBool := by
-    fun_prop
-  have hprod : ComputableInPolyTime (fun x => (a x - 1) * (b x - 1)) enc encNat := by
-    fun_prop
-  have hzero : ComputableInPolyTime (fun _ : α => 0) enc encNat := by
-    fun_prop
-  simpa only [decide_eq_true_eq] using ComputableInPolyTime.ite hcond hprod hzero
+  fun_prop
 
 /-- `factorToTotient F` is uniform PPT whenever `F` is uniform PPT. -/
 theorem isPPTOn_factorToTotient {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}

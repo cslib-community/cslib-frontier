@@ -59,41 +59,8 @@ theorem computableInPolyTime_chaumPedersenVerifyWord :
     ComputableInPolyTime F.chaumPedersenVerifyWord
       (encPair F.chaumPedersenEncoding.index
         (encPair encBits (encPair encBits (encPair encBits encBits)))) encBool := by
-  let encIn := encPair (encPair encUnary F.encDesc)
-    (encPair encBits (encPair encBits (encPair encBits encBits)))
-  have hd : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool => p.1.2)
-      encIn F.encDesc := by fun_prop
-  have hy : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool => p.2.1)
-      encIn encBits := by fun_prop
-  have ht : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool => p.2.2.1)
-      encIn encBits := by fun_prop
-  have hc : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool => p.2.2.2.1)
-      encIn encBits := by fun_prop
-  have hz : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool => p.2.2.2.2)
-      encIn encBits := by fun_prop
-  have hvw := ComputableInPolyTime.dropFrame.comp hy
-  have hcn := ComputableInPolyTime.bitsToNat.comp hc
-  have hzn := ComputableInPolyTime.bitsToNat.comp hz
-  have hsmul {k : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool → ℕ}
-      {x : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool → List Bool}
-      (hk : ComputableInPolyTime k encIn encNat) (hx : ComputableInPolyTime x encIn encBits) :
-      ComputableInPolyTime (fun p => F.smul (p.1.2, k p, x p)) encIn encBits :=
-    F.computableInPolyTime_smul.comp (hd.prod (hk.prod hx))
-  have hadd {x y : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool → List Bool}
-      (hx : ComputableInPolyTime x encIn encBits) (hy : ComputableInPolyTime y encIn encBits) :
-      ComputableInPolyTime (fun p => F.add (p.1.2, x p, y p)) encIn encBits :=
-    F.computableInPolyTime_add.comp (hd.prod (hx.prod hy))
-  exact ((hsmul hzn (F.computableInPolyTime_generator.comp hd)).decide_eq'
-      (hadd (ComputableInPolyTime.unframe.comp ht)
-        (hsmul hcn (ComputableInPolyTime.unframe.comp hvw)))).bool_and'
-    ((hsmul hzn (ComputableInPolyTime.unframe.comp hy)).decide_eq'
-      (hadd (ComputableInPolyTime.dropFrame.comp ht)
-        (hsmul hcn (ComputableInPolyTime.dropFrame.comp hvw))))
+  unfold chaumPedersenVerifyWord
+  fun_prop
 
 /-- On encodings, `chaumPedersenVerifyWord` is the verifier of `chaumPedersenFamily`. -/
 theorem verifierRealizedBy_chaumPedersenVerifyWord :

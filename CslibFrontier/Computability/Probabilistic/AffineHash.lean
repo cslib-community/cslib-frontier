@@ -48,16 +48,6 @@ namespace Cslib.BitString.LinearHash
 
 open Cslib.Probability Turing.MultiTapeTM
 
-private theorem computableInPolyTime_pairBits {α : Type} {encode : α ↪ List Bool}
-    {u v : α → List Bool}
-    (hu : ComputableInPolyTime u encode encBits)
-    (hv : ComputableInPolyTime v encode encBits) :
-    ComputableInPolyTime (fun a => [u a, v a]) encode (encList encBits) := by
-  simpa only [Function.comp_def, List.nil_append, List.cons_append] using
-    (ComputableInPolyTime.snoc encBits).comp
-      (((ComputableInPolyTime.snoc encBits).comp
-        ((ComputableInPolyTime.const []).prod hu)).prod hv)
-
 /-- Evaluate `wordAffineHash` in plain polynomial time, with output dimension supplied in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_wordAffineHash {α : Type} {encode : α ↪ List Bool}
@@ -67,14 +57,7 @@ theorem computableInPolyTime_wordAffineHash {α : Type} {encode : α ↪ List Bo
     (hinput : ComputableInPolyTime input encode encBits) :
     ComputableInPolyTime (fun a => wordAffineHash (count a) (seed a) (input a))
       encode encBits := by
-  have hmatLen : ComputableInPolyTime (fun a => count a * (input a).length) encode encUnary :=
-    ComputableInPolyTime.unary_mul.comp
-      (hcount.prod (ComputableInPolyTime.length_bits_comp hinput))
-  have hmat := ComputableInPolyTime.bitsTakeWithInput hseed hmatLen
-  have hshift := ComputableInPolyTime.bitsDropWithInput hseed hmatLen
-  have hlin := computableInPolyTime_wordHash hcount hmat hinput
-  exact ComputableInPolyTime.bitsXorWithInput hcount
-    (computableInPolyTime_pairBits hlin hshift)
+  fun_prop [wordAffineHash]
 
 /-- Project an affine seed onto the prefix-collision subgroup in plain polynomial time, with
 dimensions `k`, `n`, and `r` supplied in unary. -/
@@ -90,60 +73,7 @@ theorem computableInPolyTime_wordAdjustAffineSeed {α : Type} {encode : α ↪ L
     ComputableInPolyTime
       (fun a => wordAdjustAffineSeed (k a) (n a) (r a) (y a) (y₀ a) (seed a))
       encode encBits := by
-  have hdiff : ComputableInPolyTime (fun a => listXor (n a) [y a, y₀ a]) encode encBits :=
-    ComputableInPolyTime.bitsXorWithInput hn (computableInPolyTime_pairBits hy hy₀)
-  have hidx : ComputableInPolyTime (fun a => (listXor (n a) [y a, y₀ a]).idxOf true)
-      encode encUnary :=
-    ComputableInPolyTime.idxOfWithInput
-      (ComputableInPolyTime.bitsToList.comp hdiff) (ComputableInPolyTime.const true)
-  have hmask : ComputableInPolyTime
-      (fun a => listSingle (n a) ((listXor (n a) [y a, y₀ a]).idxOf true)) encode encBits :=
-    ComputableInPolyTime.bitsSingle.comp (hn.prod hidx)
-  have hkn : ComputableInPolyTime (fun a => k a * n a) encode encUnary :=
-    ComputableInPolyTime.unary_mul.comp (hk.prod hn)
-  have hmatBits := ComputableInPolyTime.bitsTakeWithInput hseed hkn
-  have hshiftBits := ComputableInPolyTime.bitsDropWithInput hseed hkn
-  have hshift := ComputableInPolyTime.bitsRowWithInput hk (ComputableInPolyTime.const 0) hshiftBits
-  have hfst := ComputableInPolyTime.fst encode encUnary
-  have hsnd := ComputableInPolyTime.snd encode encUnary
-  have hrow : ComputableInPolyTime
-      (fun p : α × ℕ => listRow (n p.1) p.2 ((seed p.1).take (k p.1 * n p.1)))
-      (encPair encode encUnary) encBits :=
-    ComputableInPolyTime.bitsRowWithInput (hn.comp hfst) hsnd (hmatBits.comp hfst)
-  have hdot : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        listDot (listRow (n p.1) p.2 ((seed p.1).take (k p.1 * n p.1)))
-          (listXor (n p.1) [y p.1, y₀ p.1]))
-      (encPair encode encUnary) encBool :=
-    ComputableInPolyTime.bitsListDot hrow (hdiff.comp hfst)
-  have hlt : ComputableInPolyTime (fun p : α × ℕ => decide (p.2 < r p.1))
-      (encPair encode encUnary) encBool :=
-    ComputableInPolyTime.unary_lt.comp (hsnd.prod (hr.comp hfst))
-  have hcond : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        decide (p.2 < r p.1) &&
-          listDot (listRow (n p.1) p.2 ((seed p.1).take (k p.1 * n p.1)))
-            (listXor (n p.1) [y p.1, y₀ p.1]))
-      (encPair encode encUnary) encBool :=
-    ComputableInPolyTime.bool_and.comp (hlt.prod hdot)
-  have hadjRow : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        listXor (n p.1)
-          [listRow (n p.1) p.2 ((seed p.1).take (k p.1 * n p.1)),
-           listSingle (n p.1) ((listXor (n p.1) [y p.1, y₀ p.1]).idxOf true)])
-      (encPair encode encUnary) encBits :=
-    ComputableInPolyTime.bitsXorWithInput (hn.comp hfst)
-      (computableInPolyTime_pairBits hrow (hmask.comp hfst))
-  have hstep := hcond.ite hadjRow hrow
-  have hrows := ComputableInPolyTime.mapWithInput
-    (f := fun a i =>
-      let diff := listXor (n a) [y a, y₀ a]
-      let mask := listSingle (n a) (diff.idxOf true)
-      let row := listRow (n a) i ((seed a).take (k a * n a))
-      let dot := listDot row diff
-      if decide (i < r a) && dot then listXor (n a) [row, mask] else row)
-    (ComputableInPolyTime.range.comp hk) hstep
-  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsFlatten hrows) hshift
+  fun_prop [wordAdjustAffineSeed]
 
 /-- Sample a fresh `(k * n + k)`-bit affine seed and project it onto the prefix-collision subgroup
 of `y` and `y₀` in uniform strict polynomial time. -/

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Pipelin
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Schedule
 public import CslibFrontier.Computability.Circuit.Replication
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # The scheduled recovery circuit
@@ -231,8 +232,8 @@ theorem size_recoveryCircuit (sched : Circuit signature (t * (ℓ * b)) (t * (s 
       (batchLookupCircuit (metadata bits C place) t).size + sched.size +
         (scatterCircuit t p w ℓ b s copies).size + (∑ q, ∑ r, (members q r).size) +
         (gatherCircuit t p w ℓ b s copies).size := by
-  simp only [recoveryCircuit, lookupStage, scheduleStage, bankCircuit, Circuit.size_comp,
-    Circuit.size_append, Circuit.size_wiring, Circuit.size_parallelFamily, Circuit.size_pi]
+  simp only [circuit_simps, recoveryCircuit, lookupStage, scheduleStage, bankCircuit,
+    Circuit.size_parallelFamily]
   ring
 
 variable (t s) in
@@ -288,14 +289,13 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
     congr 1 with k : 1
     simp only [BitString.block, prefixWires, Function.comp_apply, Equiv.symm_apply_apply, ha]
   have h1 : (lookupStage bits C place t w).eval interpretation x = Fin.append M x := by
-    simp only [lookupStage, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring,
-      eval_batchLookupCircuit]
+    simp only [circuit_simps, lookupStage, eval_batchLookupCircuit]
     rfl
   -- Stage two.
   set L := lineBits bits (fun j => (scalar j : K)) targets dirs with hL
   set W := Fin.append L (Fin.append M x) with hW
   have h2 : (scheduleStage sched p w copies).eval interpretation (Fin.append M x) = W := by
-    simp only [scheduleStage, Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring]
+    simp only [circuit_simps, scheduleStage]
     rw [hW, ← hlines]
     congr 2 with y : 1
     obtain ⟨⟨i, k⟩, rfl⟩ := finProdFinEquiv.surjective y
@@ -339,7 +339,7 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
     exact congrFun (hmembers q r _) 0
   have h3 : (((bankCircuit members).comp (scatterCircuit t p w ℓ b s copies)).append
       (Circuit.id signature _)).eval interpretation W = Fin.append B W := by
-    simp only [Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring, hB, hS]
+    simp only [circuit_simps]
     rfl
   -- Stage five.
   have hquery (i : Fin t) (j : Fin s) :
@@ -379,8 +379,7 @@ theorem lineSums_eval_recoveryCircuit (scalar : Fin s ≃ {c : K // c ≠ 0})
       funext _
       simp only [substitute, Sum.elim_inl, Fin.append_left, hbank, hscatter, slotResource,
         Equiv.symm_apply_apply, pointEquiv_coe_symm_pointBits]
-  rw [lineSums, recoveryCircuit, Circuit.eval_comp, Circuit.eval_comp, Circuit.eval_comp, h1, h2,
-    h3]
+  simp only [circuit_simps, recoveryCircuit, h1, h2, h3]
   have hsum := sum_resource bits scalar (C := C) (place := place) (f := f) (a i) (z i) (hdirs i)
   rw [Fin.append_castAdd_natAdd] at hsum
   rw [directProduct, ← hsum]

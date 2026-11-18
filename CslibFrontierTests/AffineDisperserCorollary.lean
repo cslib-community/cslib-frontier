@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 import CslibFrontier.Computability.Complexity.AffineDisperser
 
 /-!
@@ -22,6 +23,8 @@ polynomials of degrees `5` and `7` are `X ^ 5 + X ^ 2 + 1` and `X ^ 7 + X + 1`, 
 multiplication is commutative and associative on pseudorandom elements, `a ^ (2 ^ 35 - 1) = 1` for
 a pseudorandom `a ≠ 0` while `a ^ (2 ^ 5 - 1) ≠ 1`, and the trace of `1` is `35 mod 2 = 1`.
 -/
+
+open Cslib.BinaryField
 
 namespace CslibFrontierTests.AffineDisperserCorollary
 

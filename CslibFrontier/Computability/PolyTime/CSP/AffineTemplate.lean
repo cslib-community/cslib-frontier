@@ -39,16 +39,7 @@ private theorem computable_equation (encRel : Rel ↪ List Bool) :
         p.2.relabel (fun i => p.1.scope.getD i 0))
       (encPair (encConstraint encRel encNat) (encAffineEquation encUnary))
       (encAffineEquation encNat) := by
-  have hvars : ComputableInPolyTime
-      (fun p : Constraint Rel ℕ × AffineEquation ℕ =>
-        p.2.vars.map (fun i => p.1.scope.getD i 0))
-      (encPair (encConstraint encRel encNat) (encAffineEquation encUnary))
-      (encList encNat) := by
-    refine mapWithInput (encA := encUnary) ?_ ?_
-    · fun_prop
-    · fun_prop
-  unfold AffineEquation.relabel
-  exact encAffineEquation_mk_polyTime encNat hvars (by fun_prop)
+  fun_prop [AffineEquation.relabel]
 
 private theorem computable_constraint [Finite Rel] (encRel : Rel ↪ List Bool)
     (template : Rel → AffineSystem ℕ) :

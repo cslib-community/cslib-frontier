@@ -13,8 +13,12 @@ public import CslibFrontier.Probability.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.GameHop
+import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Key exchange secure against eavesdroppers
@@ -44,12 +48,12 @@ through `encView`.
 We formalize:
 
 * the Diffie–Hellman protocol ([KatzLindell2020], Construction 11.2, pp. 392–393) over a
-  `PrimeOrderGroupFamily`, its correctness, and Theorem 11.3 (p. 394): under the Decisional
-  Diffie–Hellman assumption the protocol is secure against eavesdroppers when the ideal key is a
-  uniform group element. At a fixed group, the real and ideal experiments are exactly the real and
-  random DDH experiments run on the typed distinguisher `dhEavToDDH`, which passes the three group
-  elements to the eavesdropper as its view; the family statements follow by drawing the group
-  first, so the reduction is tight;
+  `PrimeOrderGroupFamily`, its correctness, and an ideal-sampling step toward Theorem 11.3
+  (p. 394): under the Decisional Diffie–Hellman assumption the protocol is secure against
+  eavesdroppers when the ideal key is a uniform group element. At a fixed group, the real and
+  ideal experiments are exactly the real and random DDH experiments run on the typed distinguisher
+  `dhEavToDDH`, which passes the three group elements to the eavesdropper as its view; the family
+  statements follow by drawing the group first, so the reduction is tight;
 * the man-in-the-middle attack of Exercise 11.3 (p. 399): at a fixed group, an active adversary
   that replaces both public shares shares Alice's key with Alice and Bob's key with Bob, while
   each party's view has exactly the law of the eavesdropper's view of an honest execution;
@@ -59,7 +63,11 @@ We formalize:
 
 Honest-party efficiency is not part of `KeyExchange`: the Diffie–Hellman parties compute their
 messages and keys with the polynomial-time group operations of the family, and the XOR parties
-compute pointwise XOR, but no theorem here depends on it.
+compute pointwise XOR, but no theorem here depends on it. The Diffie–Hellman parties of
+`dhExecution` draw their exponents exactly uniformly on `ZMod q` at the `PMF` level, which a
+strict PPT machine with fair coins cannot do when `q` is not a power of two. Security theorems
+about `dhKeyExchange` are therefore ideal-sampling steps; no version of the protocol whose parties
+sample with fair coins (`PrimeOrderGroupFamily.sampleExp`) exists yet (#5293).
 
 ## Main definitions
 
@@ -93,13 +101,17 @@ compute pointwise XOR, but no theorem here depends on it.
   `Cslib.Crypto.PrimeOrderGroupFamily.withSetup_idealView_dhExecution`: at a fixed group the
   experiments are the DDH experiments; `realGame_dhKeyExchange` and `idealGame_dhKeyExchange` are
   the family versions.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure`: DDH implies security against
-  eavesdroppers ([KatzLindell2020], Theorem 11.3).
 * `Cslib.Crypto.PrimeOrderGroupFamily.dhMitmExecution_keys`,
   `Cslib.Crypto.PrimeOrderGroupFamily.map_aliceView_dhMitmExecution`,
   `Cslib.Crypto.PrimeOrderGroupFamily.map_bobView_dhMitmExecution`: the attack of Exercise 11.3.
 * `Cslib.Crypto.KeyExchange.xorKeyExchange_correct`,
   `Cslib.Crypto.KeyExchange.not_eavSecureBits_xorKeyExchange`: the analysis of Exercise 11.4.
+
+## Ideal-sampling steps
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.dhKeyExchange_eavSecure_ideal`: DDH implies security of
+  the ideal-sampling protocol `dhKeyExchange` against eavesdroppers, a step toward
+  [KatzLindell2020], Theorem 11.3.
 
 ## References
 
@@ -224,7 +236,7 @@ theorem withSetup_realView_bind {P : Type} (setup : PMF P) (execution : P → PM
     (exp : View T K → Experiment) :
     Game.withSetup (realView (setup.bind execution)) exp =
       setup.bind fun p => Game.withSetup (realView (execution p)) exp := by
-  simp only [Game.withSetup, realView, PMF.monad_bind_eq_bind, PMF.bind_bind]
+  simp only [pmf_norm, Game.withSetup, realView]
 
 /-- For a protocol that first draws public parameters `p` from `setup`, then runs the execution
 `execution p`, the ideal experiment draws `p` and then runs the fixed ideal experiment of
@@ -233,7 +245,7 @@ theorem withSetup_idealView_bind {P : Type} (setup : PMF P) (execution : P → P
     (idealKey : (t : T) → PMF (K t)) (exp : View T K → Experiment) :
     Game.withSetup (idealView idealKey (setup.bind execution)) exp =
       setup.bind fun p => Game.withSetup (idealView idealKey (execution p)) exp := by
-  simp only [Game.withSetup, idealView, PMF.monad_bind_eq_bind, PMF.bind_bind]
+  simp only [pmf_norm, Game.withSetup, idealView]
 
 end KeyExchange
 
@@ -287,7 +299,10 @@ variable {F} in
 
 /-- The honest Diffie–Hellman execution in the group `d` ([KatzLindell2020], Construction 11.2,
 pp. 392–393). Alice draws a uniform exponent `x` and sends `d` and `hA = x • g`; Bob draws a
-uniform exponent `y` and sends `hB = y • g`. Alice outputs `x • hB` and Bob outputs `y • hA`. -/
+uniform exponent `y` and sends `hB = y • g`. Alice outputs `x • hB` and Bob outputs `y • hA`.
+Both exponents are drawn exactly uniformly on `ZMod q` at the `PMF` level, an ideal sampler that
+no fair-coin machine with a strict polynomial time bound realizes exactly when `q` is not a power of
+two (#5293). -/
 @[expose]
 noncomputable def dhExecution (d : F.Desc) : PMF (KeyExchange.Outcome F.DHTranscript F.DHKey) := do
   let x ← PMF.uniformOfFintype (ZMod (F.order d))
@@ -311,16 +326,13 @@ theorem mem_support_dhExecution {d : F.Desc} {outcome : KeyExchange.Outcome F.DH
       transcript := ⟨d, x • F.generator d, y • F.generator d⟩
       aliceKey := (x * y) • F.generator d
       bobKey := (x * y) • F.generator d } := by
-  simp only [dhExecution, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
-  obtain ⟨x, -, y, -, rfl⟩ := h
-  refine ⟨x, y, ?_⟩
-  rw [smul_smul, smul_smul, mul_comm y x]
+  supp_cases h [dhExecution] with ⟨x, y, rfl⟩
+  exact ⟨x, y, by rw [smul_smul, smul_smul, mul_comm y x]⟩
 
 /-- Alice and Bob output the same key, `(x * y) • g` ([KatzLindell2020], p. 393). -/
 theorem dhKeyExchange_correct (setup : ℕ → PMF F.Desc) : (F.dhKeyExchange setup).Correct := by
   intro n outcome h
-  obtain ⟨d, -, h⟩ := (PMF.mem_support_bind_iff _ _ _).1 h
+  supp_cases h [dhKeyExchange] with ⟨d, -, h⟩
   obtain ⟨x, y, rfl⟩ := F.mem_support_dhExecution h
   rfl
 
@@ -344,8 +356,8 @@ theorem withSetup_realView_dhExecution (adversary : Eavesdropper F.DHTranscript 
     Game.withSetup (realView (F.dhExecution d)) (adversary n) =
       ProbComp.eval
         (ddhRealExperiment (F.order d) (F.generator d) (F.dhEavToDDH adversary n d)) := by
-  simp only [Game.withSetup, realView, dhExecution, eval_ddhRealExperiment, dhEavToDDH,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, smul_smul]
+  simp only [pmf_norm, Game.withSetup, realView, dhExecution, eval_ddhRealExperiment, dhEavToDDH,
+    smul_smul]
 
 /-- At a fixed group and with the uniform group element as ideal key, the ideal eavesdropping
 experiment on Diffie–Hellman is the random DDH experiment. -/
@@ -354,9 +366,8 @@ theorem withSetup_idealView_dhExecution (adversary : Eavesdropper F.DHTranscript
     Game.withSetup (idealView F.dhIdealKey (F.dhExecution d)) (adversary n) =
       ProbComp.eval
         (ddhRandomExperiment (F.order d) (F.generator d) (F.dhEavToDDH adversary n d)) := by
-  simp only [Game.withSetup, idealView, dhExecution, dhIdealKey, eval_ddhRandomExperiment,
-    dhEavToDDH, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
-    PMF.bind_map, Function.comp_def]
+  simp only [pmf_norm, Game.withSetup, idealView, dhExecution, dhIdealKey, eval_ddhRandomExperiment,
+    dhEavToDDH]
 
 /-- The real eavesdropping experiment on Diffie–Hellman is the real DDH experiment. -/
 theorem realGame_dhKeyExchange (setup : ℕ → PMF F.Desc)
@@ -387,11 +398,13 @@ theorem isPPT_dhEavToDDH {adversary : Eavesdropper F.DHTranscript F.DHKey}
       View F.DHTranscript F.DHKey)))
     (by fun_prop)
 
-/-- **Diffie–Hellman key exchange is secure against eavesdroppers under DDH**
-([KatzLindell2020], Theorem 11.3, p. 394): if the Decisional Diffie–Hellman assumption holds for
-`setup`, then no uniform strict PPT eavesdropper distinguishes the transcript and Alice's key from
-the transcript and a uniform element of the same group. -/
-theorem DDH.dhKeyExchange_eavSecure {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step toward [KatzLindell2020], Theorem 11.3, p. 394, not the cited result: if
+the Decisional Diffie–Hellman assumption holds for `setup`, then no uniform strict PPT eavesdropper
+distinguishes the transcript and Alice's key of `dhKeyExchange setup`, whose parties draw their
+exponents exactly uniformly on `ZMod q` at the `PMF` level, from the transcript and a uniform
+element of the same group. No version of the protocol whose parties sample with fair coins exists
+yet, so the cited result is open (#5293). -/
+theorem DDH.dhKeyExchange_eavSecure_ideal {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hDDH : F.DDH setup) :
     (F.dhKeyExchange setup).EavSecure F.encDHTranscript F.encDHKey fun _ => F.dhIdealKey := by
   intro adversary hA
@@ -441,28 +454,22 @@ theorem dhMitmExecution_keys (d : F.Desc) :
       outcome.adversaryAliceKey = outcome.aliceView.key ∧
         outcome.adversaryBobKey = outcome.bobView.key := by
   intro outcome h
-  simp only [dhMitmExecution, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
-  obtain ⟨x, -, y, -, x', -, y', -, rfl⟩ := h
+  supp_cases h [dhMitmExecution]
   exact ⟨smul_comm _ _ _, smul_comm _ _ _⟩
 
 /-- Alice cannot detect the attack: her view has exactly the law of the eavesdropper's view of an
 honest Diffie–Hellman execution. -/
 theorem map_aliceView_dhMitmExecution (d : F.Desc) :
     (F.dhMitmExecution d).map DHMitmOutcome.aliceView = realView (F.dhExecution d) := by
-  simp only [dhMitmExecution, realView, dhExecution, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, PMF.bind_const, PMF.bind_bind,
-    PMF.pure_bind]
+  simp only [pmf_norm, dhMitmExecution, realView, dhExecution, PMF.bind_const]
 
 /-- Bob cannot detect the attack: his view has exactly the law of the eavesdropper's view of an
 honest Diffie–Hellman execution. -/
 theorem map_bobView_dhMitmExecution (d : F.Desc) :
     (F.dhMitmExecution d).map DHMitmOutcome.bobView = realView (F.dhExecution d) := by
-  simp only [dhMitmExecution, realView, dhExecution, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, PMF.bind_const, PMF.bind_bind,
-    PMF.pure_bind]
-  refine (PMF.bind_comm _ _ _).trans ?_
-  refine congrArg (PMF.bind _) (funext fun x => congrArg (PMF.bind _) (funext fun y => ?_))
+  simp only [pmf_norm, dhMitmExecution, realView, dhExecution, PMF.bind_const]
+  pmf_hoist (occ := 2) (PMF.uniformOfFintype (ZMod (F.order d)))
+  pmf_swap with x y
   rw [smul_comm y x]
 
 end PrimeOrderGroupFamily
@@ -531,9 +538,7 @@ theorem mem_support_xorKeyExchange {n : ℕ} {outcome : Outcome XorTranscript fu
         aliceKey := k
         bobKey := List.zipWith Bool.xor
           (List.zipWith Bool.xor (List.zipWith Bool.xor (List.zipWith Bool.xor k r) t) r) t } := by
-  simp only [xorKeyExchange, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
-  obtain ⟨k, hk, r, hr, t, ht, rfl⟩ := h
+  supp_cases h [xorKeyExchange] with ⟨k, hk, r, hr, t, ht, rfl⟩
   exact ⟨k, r, t, BitString.length_of_mem_support_uniformList hk,
     BitString.length_of_mem_support_uniformList hr,
     BitString.length_of_mem_support_uniformList ht, rfl⟩
@@ -553,11 +558,10 @@ def xorEavesdropper : Eavesdropper XorTranscript fun _ => List Bool :=
 /-- On the real key the eavesdropper always accepts. -/
 theorem realGame_xorEavesdropper (n : ℕ) :
     xorKeyExchange.realGame xorEavesdropper n = PMF.pure true := by
-  simp only [realGame, Game.withSetup, realView, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm, realGame, Game.withSetup, realView]
   rw [← PMF.bind_const (xorKeyExchange.execute n) (PMF.pure true)]
-  refine PMF.bind_congr_on_support _ _ _ fun outcome h => ?_
-  obtain ⟨k, r, t, hk, hr, ht, rfl⟩ := mem_support_xorKeyExchange h
+  peel_binds outcome
+  obtain ⟨k, r, t, hk, hr, ht, rfl⟩ := mem_support_xorKeyExchange outcome_mem
   simp only [xorEavesdropper, XorTranscript.xorAll, ProbComp.eval_pure,
     (xor_identities k r t (hr.trans hk.symm) (ht.trans hk.symm)).2, decide_true]
 
@@ -565,8 +569,7 @@ theorem realGame_xorEavesdropper (n : ℕ) :
 theorem idealGame_xorEavesdropper_true_le (n : ℕ) :
     xorKeyExchange.idealGame (fun n _ => BitString.uniformList n) xorEavesdropper n true ≤
       1 / 2 ^ n := by
-  simp only [idealGame, Game.withSetup, idealView, xorEavesdropper, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_apply,
+  simp only [pmf_norm, idealGame, Game.withSetup, idealView, xorEavesdropper, PMF.bind_apply,
     PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq, mul_ite, mul_one, mul_zero,
     tsum_ite_eq]
   calc ∑' outcome, xorKeyExchange.execute n outcome *

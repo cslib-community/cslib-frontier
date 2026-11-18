@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.GenericGroup.Relabel
 public import CslibFrontier.Crypto.Game
 import CslibFrontier.Foundations.Data.List.SortedAssoc
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
 import CslibFrontier.Languages.Probabilistic.Simulation
@@ -219,8 +220,7 @@ private theorem interpret_tabulateM_pure {I K R : Type} {spec : OracleSpec I} [D
   induction l with
   | nil => simp only [tabulateM, OracleComp.interpret_pure, List.not_mem_nil, ite_false]; rfl
   | cons k l ih =>
-    simp only [tabulateM, OracleComp.interpret_bind, OracleComp.interpret_pure, hact, ih,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+    simp only [tabulateM, interp_norm, pmf_norm, hact, ih]
     congr 1 with k' : 1
     by_cases hk : k' = k
     · subst hk
@@ -254,14 +254,13 @@ private theorem map_run_tabulateM {I I' K R R' Q Q' : Type} {spec : OracleSpec I
       (OracleComp.interpret h' (tabulateM act' l)).run (r s) := by
   induction l generalizing s with
   | nil =>
-    simp only [tabulateM, OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure, PMF.pure_map]
+    simp only [tabulateM, interp_norm, pmf_norm]
     congr 2
     funext k
     exact hφ
   | cons k l ih =>
-    simp only [tabulateM, OracleComp.interpret_bind, OracleComp.interpret_pure, StateT.run_bind,
-      StateT.run_pure, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+    simp only [tabulateM, interp_norm, Probability.PMF.monad_bind_eq_bind,
+      Probability.PMF.monad_pure_eq_pure]
     refine map_bind_eq_of_step φ (fun (t : K → R) k => φ (t k)) r I (hstep k s hs)
       (fun x hx => OracleComp.run_interpret_invariant h I hpres (act k) s hs x.1 x.2 hx) _ _ ?_
     intro a s₁ hs₁
@@ -929,9 +928,8 @@ private theorem interpret_evalPerm_permGame (σ : Equiv.Perm (ZMod q)) (x : ι �
       (fun k => OracleComp.query (spec := RandomPermutation.PermOracleSpec (ZMod q))
         (.inverse (out.2 k))) (fun k => σ.symm (out.2 k)) (fun k => by simp)
       (Finset.univ : Finset κ).toList
-  simp only [permGame, OracleComp.interpret_bind, OracleComp.interpret_pure, hu, hv,
-    OracleComp.interpret_interpret, interpret_evalPerm_toPerm, Probability.PMF.monad_bind_eq_bind,
-    Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+  simp only [permGame, interp_norm, pmf_norm, hu, hv, OracleComp.interpret_interpret,
+    interpret_evalPerm_toPerm]
   simp only [Finset.mem_toList, Finset.mem_univ, ite_true, startVal]
   exact PMF.bind_pure_comp _ _
 
@@ -979,9 +977,8 @@ private theorem realGroup_step (x : ι → ZMod q) (query : GroupQuery q (ZMod q
     rw [ev_zero_left] at h
     simpa only [toPrim, toPerm, OracleComp.interpret_query] using h
   | op ℓ₁ ℓ₂ c₁ c₂ =>
-    simp only [toPrim, toPerm, OracleComp.interpret_bind, OracleComp.interpret_query,
-      OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+    simp only [toPrim, toPerm, interp_norm, Probability.PMF.monad_bind_eq_bind,
+      Probability.PMF.monad_pure_eq_pure]
     refine map_bind_eq_of_step (ev x) id (fun s : Tab ι q × Bool => rep x s.1)
       (fun s : Tab ι q × Bool => Consistent x s.1) (realFl_inv_map hs ℓ₁)
       (fun y hy => consistent_of_mem_support_withBadFlag hs _ hy) _ _ ?_
@@ -1020,8 +1017,7 @@ private theorem real_eq_lazy (x : ι → ZMod q)
         OracleComp.run_interpret_invariant _ _ hpres (toPrim query) s hs a s' h)
       (fun query s hs => realGroup_step x query s hs) (D g u) s hs
   have h0 : Consistent x ([] : Tab ι q) := ⟨List.nodup_nil, List.nodup_nil⟩
-  simp only [primGame, permGame, OracleComp.interpret_bind, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, Probability.PMF.monad_bind_eq_bind,
+  simp only [primGame, permGame, interp_norm, Probability.PMF.monad_bind_eq_bind,
     Probability.PMF.monad_pure_eq_pure]
   refine map_bind_eq_of_step (fun (t : Option ι → ZMod q) o => id (t o))
     (fun b : γ × (κ → (ι → ZMod q) × ZMod q) => (b.1, fun k => ev x (b.2 k)))

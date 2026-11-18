@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Query
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryTake
 import CslibFrontier.Foundations.Control.Monad.IsMonadHom.StateT
 import Cslib.Foundations.Control.Monad.IsMonadHom.List
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Fixing the coins of a verifier machine
@@ -107,8 +108,7 @@ private theorem run_interpret_finiteStep_pure (t : ℕ)
     cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
     | step => rfl
     | query op next =>
-      simp only [bind_map_left, OracleComp.interpret_bind, ProbOracleComp.interpret_query,
-        OracleComp.interpret_query, OracleComp.interpret_pure]
+      simp only [bind_map_left, interp_norm]
 
 /-- Instructions with fixed coins make the requests of `coinStep`. -/
 private theorem run_interpret_foldlM_pure (t : ℕ) (r : List Bool)
@@ -120,8 +120,7 @@ private theorem run_interpret_foldlM_pure (t : ℕ) (r : List Bool)
   induction r generalizing cfg s with
   | nil => rfl
   | cons b r ih =>
-    simp only [List.foldlM_cons, OracleComp.interpret_bind, StateT.run_bind,
-      run_interpret_finiteStep_pure, ih]
+    simp only [List.foldlM_cons, interp_norm, run_interpret_finiteStep_pure, ih]
 
 /-- An instruction drawing a fair coin averages the instructions with fixed coins. -/
 private theorem run_interpret_finiteStep_sample
@@ -136,8 +135,7 @@ private theorem run_interpret_finiteStep_sample
   unfold MultiTapeMachine.finiteStep
   cases cfg.tapes.state with
   | none =>
-    simp only [OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.bind_const]
+    simp only [interp_norm, Probability.PMF.monad_pure_eq_pure, PMF.bind_const]
   | some c =>
     simp only [map_pure, pure_bind, bind_map_left, OracleComp.interpret_bind, StateT.run_bind,
       ProbOracleComp.run_interpret_sample, ProbComp.eval_uniform,
@@ -162,8 +160,7 @@ private theorem run_interpret_iterate_eq_coins
       Probability.PMF.monad_bind_eq_bind, run_interpret_finiteStep_sample,
       BitString.uniformList_succ, PMF.bind_bind, PMF.bind_bind]
     congr 1 with b : 1
-    simp only [ih, PMF.bind_map, Function.comp_def, List.foldlM_cons, OracleComp.interpret_bind,
-      StateT.run_bind, Probability.PMF.monad_bind_eq_bind]
+    simp only [ih, List.foldlM_cons, interp_norm, pmf_norm]
     exact PMF.bind_comm _ _ _
 
 /-- **The run averages the programs of fixed coins**, against every stateful prover, retaining its
@@ -258,8 +255,7 @@ private theorem replay_coinStep (t : ℕ) (cfg : FiniteConfig k Bool Control Uni
     cases M.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
     | step => rfl
     | query op next =>
-      simp only [replay, bind_map_left, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure, StateT.run_bind]
+      simp only [replay, bind_map_left, interp_norm]
       cases h with
       | nil => rfl
       | cons x h =>
