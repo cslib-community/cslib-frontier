@@ -12,7 +12,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryDe
 import Mathlib.Data.List.Rotate
 
 /-!
-# One executed forward rotation of an ordered boundary
+# Executed one-step rotations of an ordered boundary
 
 `CrossInsertion.rotateLeft` moves the first port to the end and transports the actual
 successor table with `OrderedBoundary.rotateBoundaryCertificate`. The full input is retained
@@ -28,11 +28,14 @@ operations, transposition, iteration bounds and the full compiler remain open th
 ## Main definitions
 
 * `CrossInsertion.rotateLeft`: one forward rotation on raw states.
+* `CrossInsertion.rotateRight`: one backward word rotation with the executed RIGHT table.
 
 ## Main results
 
 * `CrossInsertion.accepted_rotateLeft`: complete checker preservation for the emitted table.
 * `CrossInsertion.boundary_rotateLeft_iff`: exact ordered assignment-value transport.
+* `CrossInsertion.accepted_rotateRight`: full checker preservation for RIGHT transport.
+* `CrossInsertion.boundary_rotateRight_iff`: exact rightward assignment-value transport.
 -/
 
 public section
@@ -102,5 +105,73 @@ theorem boundary_rotateLeft_iff (sem : Rel → List Bool → Bool) (I : State Re
       (rotateLeft I).ports.map σ = values.rotate 1) ↔
       ∃ σ : ℕ → Bool, I.body.eval sem σ = true ∧ I.ports.map σ = values := by
   simp only [eval_rotateLeft, map_ports_rotateLeft, List.rotate_eq_rotate]
+
+/-- Move the last port to the front with the literal RIGHT table transport. Empty and
+singleton raw boundaries retain the entire original state, including malformed entries. -/
+@[expose] def rotateRight (I : State Rel) : State Rel :=
+  match I.ports with
+  | _ :: _ :: _ =>
+    ⟨I.body, (I.ports.reverse.tail ++ [I.ports.reverse.headD 0]).reverse,
+      rotateBoundaryCertificateRight I.body.occurrences.length I.ports.length I.rotation⟩
+  | _ => I
+
+private theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
+    (c : Graph.RotationCertificate) :
+    rotateRight (⟨F, ps ++ [p], c⟩ : State Rel) =
+      ⟨F, p :: ps, rotateBoundaryCertificateRight F.occurrences.length (ps.length + 1) c⟩ := by
+  cases ps with
+  | nil => simp [rotateRight, rotateBoundaryCertificateRight]
+  | cons x xs =>
+    cases xs <;> simp [rotateRight, List.reverse_append, List.reverse_cons]
+
+private theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by
+  rcases I with ⟨F, ports, c⟩
+  induction ports using List.reverseRecOn with
+  | nil => rfl
+  | append_singleton ps p _ih => rw [rotateRight_snoc]
+
+private theorem rotateRight_ports (I : State Rel) :
+    (rotateRight I).ports = (I.ports.reverse.rotate 1).reverse := by
+  rcases I with ⟨F, ports, c⟩
+  induction ports using List.reverseRecOn with
+  | nil => simp [rotateRight]
+  | append_singleton ps p _ih =>
+    rw [rotateRight_snoc]
+    simp [List.reverse_append, List.rotate_cons_succ]
+
+/-- The actual last-to-first static constructor supplies full acceptance of the computed
+RIGHT table. No target rotation, genus, order agreement or recognition provider is input. -/
+theorem accepted_rotateRight (I : State Rel) (hI : I.Accepted) :
+    (rotateRight I).Accepted := by
+  rcases I with ⟨F, ports, c⟩
+  induction ports using List.reverseRecOn with
+  | nil => exact hI
+  | append_singleton ps p _ih =>
+    rw [rotateRight_snoc]
+    let w : Witness F (ps ++ [p]) := ⟨c, hI.2⟩
+    have h := (w.unrotateSnoc hI.1).accepted
+    rw [Witness.unrotateSnoc_certificate] at h
+    exact ⟨hI.1.perm (List.perm_append_comm (l₁ := ps) (l₂ := [p])), h⟩
+
+/-- RIGHT boundary movement leaves every body evaluation unchanged under every assignment. -/
+theorem eval_rotateRight (sem : Rel → List Bool → Bool) (I : State Rel) (σ : ℕ → Bool) :
+    (rotateRight I).body.eval sem σ = I.body.eval sem σ := by
+  rw [rotateRight_body]
+
+/-- The complete mapped word moves right, including repeated and unused raw port names.
+The two word reversals do not reflect a constraint scope or its rotation. -/
+theorem map_ports_rotateRight (I : State Rel) (σ : ℕ → Bool) :
+    (rotateRight I).ports.map σ = ((I.ports.map σ).reverse.rotate 1).reverse := by
+  rw [rotateRight_ports, List.map_reverse, List.map_rotate, List.map_reverse]
+
+/-- Exact rightward ordered-value transport for arbitrary raw states and value words.
+The same body assignments work on both sides; no checker, distinctness, arity or word-length
+premise is required. This makes no raw full-cycle cancellation assertion. -/
+theorem boundary_rotateRight_iff (sem : Rel → List Bool → Bool) (I : State Rel)
+    (values : List Bool) :
+    (∃ σ : ℕ → Bool, (rotateRight I).body.eval sem σ = true ∧
+      (rotateRight I).ports.map σ = (values.reverse.rotate 1).reverse) ↔
+      ∃ σ : ℕ → Bool, I.body.eval sem σ = true ∧ I.ports.map σ = values := by
+  simp only [eval_rotateRight, map_ports_rotateRight, List.reverse_inj, List.rotate_eq_rotate]
 
 end Cslib.Complexity.CSP.CrossInsertion

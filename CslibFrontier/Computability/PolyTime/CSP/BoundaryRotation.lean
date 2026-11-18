@@ -16,7 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
-# Plain polynomial time for one raw boundary rotation
+# Plain polynomial time for raw boundary rotations
 
 The existing state encoding is unchanged: the binary-named body and binary port word
 are framed, followed by the binary successor table. Actual body occurrences and boundary
@@ -34,6 +34,8 @@ one step; accumulated iteration and the CROSS compiler remain open in
 
 * `CrossInsertion.computableInPolyTime_rotateLeft`: all-raw plain polynomial time with the
   unchanged state encoding.
+* `CrossInsertion.computableInPolyTime_rotateRight`: all-raw RIGHT transport using the same
+  private arithmetic pair in the opposite order.
 -/
 
 public section
@@ -48,12 +50,10 @@ private theorem boundary_index_maps_polyTime {α : Type} {input : α ↪ List Bo
     {m n : α → ℕ} (hm : ComputableInPolyTime m input encNat)
     (hn : ComputableInPolyTime n input encNat) :
     ComputableInPolyTime (fun p : α × ℕ =>
-      if 2 * m p.1 ≤ p.2 ∧ p.2 < 2 * (m p.1 + n p.1) then
-        2 * (m p.1 + ((p.2 / 2 - m p.1 + 1) % n p.1)) + p.2 % 2 else p.2)
+      boundaryIndexMap (m p.1) (n p.1) (fun j => (j + 1) % n p.1) p.2)
       (encPair input encNat) encNat ∧
     ComputableInPolyTime (fun p : α × ℕ =>
-      if 2 * m p.1 ≤ p.2 ∧ p.2 < 2 * (m p.1 + n p.1) then
-        2 * (m p.1 + ((p.2 / 2 - m p.1 + n p.1 - 1) % n p.1)) + p.2 % 2 else p.2)
+      boundaryIndexMap (m p.1) (n p.1) (fun j => (j + n p.1 - 1) % n p.1) p.2)
       (encPair input encNat) encNat := by
   have hx := ComputableInPolyTime.fst input encNat
   have hi := ComputableInPolyTime.snd input encNat
@@ -100,22 +100,24 @@ private theorem boundary_index_maps_polyTime {α : Type} {input : α ↪ List Bo
     (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 2)
       (ComputableInPolyTime.binary_add' hM hprevious)) hside
   have hforward : ComputableInPolyTime (fun p : α × ℕ =>
-      if 2 * m p.1 ≤ p.2 ∧ p.2 < 2 * (m p.1 + n p.1) then
-        2 * (m p.1 + ((p.2 / 2 - m p.1 + 1) % n p.1)) + p.2 % 2 else p.2)
+      boundaryIndexMap (m p.1) (n p.1) (fun j => (j + 1) % n p.1) p.2)
       (encPair input encNat) encNat :=
-    ComputableInPolyTime.ite_decide hwindow hforwardValue hi
+    by simpa only [boundaryIndexMap] using
+      ComputableInPolyTime.ite_decide hwindow hforwardValue hi
   have hback : ComputableInPolyTime (fun p : α × ℕ =>
-      if 2 * m p.1 ≤ p.2 ∧ p.2 < 2 * (m p.1 + n p.1) then
-        2 * (m p.1 + ((p.2 / 2 - m p.1 + n p.1 - 1) % n p.1)) + p.2 % 2 else p.2)
+      boundaryIndexMap (m p.1) (n p.1) (fun j => (j + n p.1 - 1) % n p.1) p.2)
       (encPair input encNat) encNat :=
-    ComputableInPolyTime.ite_decide hwindow hbackValue hi
+    by simpa only [boundaryIndexMap] using
+      ComputableInPolyTime.ite_decide hwindow hbackValue hi
   exact ⟨hforward, hback⟩
 
-/-- Execute one forward boundary rotation on every raw encoded state in plain polynomial
-time. Unary counts come from the actual lists; arbitrary binary names and table entries
-remain data. Empty and singleton states retain their entire original encoding. -/
-theorem computableInPolyTime_rotateLeft (encRel : Rel ↪ List Bool) :
-    ComputableInPolyTime (rotateLeft (Rel := Rel)) (encState encRel) (encState encRel) := by
+private theorem state_tables_polyTime (encRel : Rel ↪ List Bool) :
+    ComputableInPolyTime (fun I : State Rel => rotateBoundaryCertificate
+      I.body.occurrences.length I.ports.length I.rotation)
+      (encState encRel) encRotationCertificate ∧
+    ComputableInPolyTime (fun I : State Rel => rotateBoundaryCertificateRight
+      I.body.occurrences.length I.ports.length I.rotation)
+      (encState encRel) encRotationCertificate := by
   let input := encState encRel
   have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
   have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
@@ -135,16 +137,35 @@ theorem computableInPolyTime_rotateLeft (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime.unary_to_binary.comp hn
   have hmaps := boundary_index_maps_polyTime hmBinary hnBinary
   have hreindex := RotationCertificate.computableInPolyTime_reindex
-    (forward := fun I i => if 2 * m I ≤ i ∧ i < 2 * (m I + n I) then
-      2 * (m I + ((i / 2 - m I + 1) % n I)) + i % 2 else i)
-    (back := fun I i => if 2 * m I ≤ i ∧ i < 2 * (m I + n I) then
-      2 * (m I + ((i / 2 - m I + n I - 1) % n I)) + i % 2 else i)
+    (forward := fun I => boundaryIndexMap (m I) (n I) (fun j => (j + 1) % n I))
+    (back := fun I => boundaryIndexMap (m I) (n I) (fun j => (j + n I - 1) % n I))
     hrot hcount hmaps.1 hmaps.2
   have hshort := ComputableInPolyTime.unary_le' hn (ComputableInPolyTime.const 1)
-  have htable : ComputableInPolyTime (fun I : State Rel =>
+  have hleft : ComputableInPolyTime (fun I : State Rel =>
       rotateBoundaryCertificate (m I) (n I) I.rotation) input encRotationCertificate := by
     simpa only [rotateBoundaryCertificate] using
       ComputableInPolyTime.ite_decide hshort hrot hreindex
+  have hreindexRight := RotationCertificate.computableInPolyTime_reindex
+    (forward := fun I => boundaryIndexMap (m I) (n I) (fun j => (j + n I - 1) % n I))
+    (back := fun I => boundaryIndexMap (m I) (n I) (fun j => (j + 1) % n I))
+    hrot hcount hmaps.2 hmaps.1
+  have hright : ComputableInPolyTime (fun I : State Rel =>
+      rotateBoundaryCertificateRight (m I) (n I) I.rotation) input encRotationCertificate := by
+    simpa only [rotateBoundaryCertificateRight_eq_reindex_mod] using
+      ComputableInPolyTime.ite_decide hshort hrot hreindexRight
+  exact ⟨hleft, hright⟩
+
+/-- Execute one forward boundary rotation on every raw encoded state in plain polynomial
+time. Unary counts come from the actual lists; arbitrary binary names and table entries
+remain data. Empty and singleton states retain their entire original encoding. -/
+theorem computableInPolyTime_rotateLeft (encRel : Rel ↪ List Bool) :
+    ComputableInPolyTime (rotateLeft (Rel := Rel)) (encState encRel) (encState encRel) := by
+  let input := encState encRel
+  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have htable := (state_tables_polyTime encRel).1
+  have hshort := ComputableInPolyTime.unary_le'
+    ((ComputableInPolyTime.length_list encNat).comp hports) (ComputableInPolyTime.const 1)
   have htail := (ComputableInPolyTime.tail (encA := encNat)).comp hports
   have hhead := (ComputableInPolyTime.headD (encA := encNat) 0).comp hports
   have hword := ComputableInPolyTime.listAppend' htail
@@ -158,6 +179,34 @@ theorem computableInPolyTime_rotateLeft (encRel : Rel ↪ List Bool) :
   rcases I with ⟨F, ports, c⟩
   cases ports with
   | nil => rfl
-  | cons x ps => cases ps <;> simp [rotateLeft, m, n]
+  | cons x ps => cases ps <;> simp [rotateLeft]
+
+/-- One RIGHT rotation is plain polynomial time on EVERY raw state with the unchanged
+encoding. Unary clocks use actual lists; binary names/entries have no magnitude bound.
+This is one step and does not cancel arbitrary raw full cycles. -/
+theorem computableInPolyTime_rotateRight (encRel : Rel ↪ List Bool) :
+    ComputableInPolyTime (rotateRight (Rel := Rel)) (encState encRel) (encState encRel) := by
+  let input := encState encRel
+  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have htable := (state_tables_polyTime encRel).2
+  have hshort := ComputableInPolyTime.unary_le'
+    ((ComputableInPolyTime.length_list encNat).comp hports) (ComputableInPolyTime.const 1)
+  have hrev := ComputableInPolyTime.listReverseWithInput hports
+  have htail := (ComputableInPolyTime.tail (encA := encNat)).comp hrev
+  have hhead := (ComputableInPolyTime.headD (encA := encNat) 0).comp hrev
+  have hword := ComputableInPolyTime.listReverseWithInput
+    (ComputableInPolyTime.listAppend' htail
+      (ComputableInPolyTime.cons' hhead (ComputableInPolyTime.const [])))
+  have houtput := encState_mk_polyTime encRel hbody hword htable
+  have hbranch := ComputableInPolyTime.ite_decide hshort
+    (ComputableInPolyTime.id' (encIn := input)) houtput
+  apply hbranch.of_enc_eq
+  intro I
+  apply congrArg (encState encRel)
+  rcases I with ⟨F, ports, c⟩
+  cases ports with
+  | nil => rfl
+  | cons x ps => cases ps <;> simp [rotateRight]
 
 end Cslib.Complexity.CSP.CrossInsertion
