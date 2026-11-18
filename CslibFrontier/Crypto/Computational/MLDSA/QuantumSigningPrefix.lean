@@ -288,9 +288,10 @@ inductive TrialRefresh where
 
 /-- Final decision after a measured interaction, one distinguished fresh-mask trial,
 the remaining capped signing trials and an adaptive measured continuation. Only the complete
-signing reply reaches the adversary. The mode selects the table for retries and later queries. -/
+signing reply reaches the adversary. The distinguished trial uses the key recorded by its prefix.
+The mode selects the table for retries and later queries. -/
 noncomputable def signingAttemptRefreshProbability {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (refresh : TrialRefresh) (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
+    [Fintype O] (refresh : TrialRefresh) (base : Xofs) (A : PublicMatrix s) (sk : B → PrivateKey s)
     (p : SigningInteraction s extra W B)
     (ψ : ValueState (commitmentAddresses s extra) (DigestRegister s) W)
     (msg : B → BitString 512) (seed : B → List Byte) (fuel nonce : ℕ)
@@ -302,15 +303,15 @@ noncomputable def signingAttemptRefreshProbability {B W O : Type} [Fintype B] [F
       let w := moduleSISMap A y
       let i := commitmentAddress s extra (msg b) w
       let H := if refresh = .ambient then hv.1 else Function.update hv.1 i hv.2
-      let result := trialResult s extra base sk A H (msg b) y
+      let result := trialResult s extra base (sk b) A H (msg b) y
       let resume := if refresh = .eraseRejected ∧ result = some none then hv.1 else H
       MeasuredPrefix.serviceAcceptance addStep
-        (finishRequest s extra base sk A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+        (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
         (next b) (accept b)
         resume (p.state addStep ψ hv.1 b)
 
 private theorem abs_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
+    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : B → PrivateKey s)
     (p ψ msg seed fuel nonce next accept) (hψ : ‖ψ‖ = 1) :
     |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .persistent base A sk p ψ
       msg seed fuel nonce next accept -
@@ -322,8 +323,8 @@ private theorem abs_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fint
   let addr (b : B) (y : Fin s.params.ℓ → Poly) :=
     commitmentAddress s extra (msg b) (moduleSISMap A y)
   let reply (H : commitmentAddresses s extra → DigestRegister s) (b : B) (y : Fin s.params.ℓ → Poly)
-      := OracleComp.evalPure H (finishRequest s extra base sk A (msg b) (seed b) fuel
-        (nonce + s.params.ℓ) (trialResult s extra base sk A H (msg b) y))
+      := OracleComp.evalPure H (finishRequest s extra base (sk b) A (msg b) (seed b) fuel
+        (nonce + s.params.ℓ) (trialResult s extra base (sk b) A H (msg b) y))
   let mass := commitmentGuessProbability s.params (by cases s <;> decide) A
   have finite : mass ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
@@ -338,7 +339,7 @@ private theorem abs_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fint
     (fun H b y => accept b (reply H b y))
 
 private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
+    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : B → PrivateKey s)
     (p ψ msg seed fuel nonce next accept) {F : ℝ} (hψ : ‖ψ‖ = 1)
     (future : ∀ b r, (next b r).updateCost ≤ F) :
     |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .eraseRejected base A sk p
@@ -366,15 +367,15 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
   calc
     _ ≤ ∑ b, ‖u b‖ ^ 2 * C := by
       refine sum_le_sum fun b _ => ?_
-      let run := finishRequest s extra base sk A (msg b) (seed b) fuel
+      let run := finishRequest s extra base (sk b) A (msg b) (seed b) fuel
         (nonce + s.params.ℓ) (some none)
       let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
           DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
-        (finishRequest s extra base sk A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+        (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
         (next b) (accept b)
           T (u b)
       let result (y : Fin s.params.ℓ → Poly) :=
-        trialResult s extra base sk A (G (addr b y)) (msg b) y
+        trialResult s extra base (sk b) A (G (addr b y)) (msg b) y
       have row (y : Fin s.params.ℓ → Poly) :
           |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
             (mask y).toReal * score (result y) (G (addr b y))| ≤
@@ -403,7 +404,7 @@ On mask rejection the digest is restored before the signer retries. Earlier meas
 calls, coherent reads, the remaining retries and the actual adaptive continuation all contribute
 to the bound. The coefficient matrix is uniformly sampled at the designated FIPS level. -/
 theorem abs_mean_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (base : PublicMatrix s → Xofs) (sk : PublicMatrix s → PrivateKey s)
+    [Fintype O] (base : PublicMatrix s → Xofs) (sk : PublicMatrix s → B → PrivateKey s)
     (p : PublicMatrix s → SigningInteraction s extra W B)
     (ψ : PublicMatrix s → ValueState (commitmentAddresses s extra) (DigestRegister s) W)
     (msg : PublicMatrix s → B → BitString 512) (seed : PublicMatrix s → B → List Byte)

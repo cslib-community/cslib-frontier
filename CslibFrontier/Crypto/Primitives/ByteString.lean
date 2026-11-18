@@ -64,7 +64,7 @@ def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
   simp [toList]
 
 /-- Reading a fixed byte through its list representation preserves the byte. -/
-@[simp] theorem getD_toList {n : ℕ} (v : FixedBytes n) (i : Fin n) (fallback : Byte) :
+theorem getD_toList {n : ℕ} (v : FixedBytes n) (i : Fin n) (fallback : Byte) :
     v.toList.getD i.val fallback = v i := by simp [toList]
 
 /-- A byte string of length `n` is the list view of a fixed-length byte string. -/

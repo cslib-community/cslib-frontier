@@ -37,6 +37,9 @@ inductive MeasuredPrefix (ι D V W : Type) [Fintype ι] [Fintype V] [Fintype W] 
     (B : Type) → [Fintype B] → Type 1
   /-- The empty prefix acting on the supplied quantum register. -/
   | start : MeasuredPrefix ι D V W Unit
+  /-- A table-independent isometry selected by the observed classical history. -/
+  | localGate {B} [history : Fintype B] (prior : MeasuredPrefix ι D V W B)
+      (applyGate : B → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) : MeasuredPrefix ι D V W B
   /-- Conditional coherent query followed by a branch-dependent isometry. -/
   | coherent {B} [history : Fintype B] (prior : MeasuredPrefix ι D V W B) (enabled : B → Bool)
       (gate : B → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W) : MeasuredPrefix ι D V W B
@@ -61,6 +64,7 @@ noncomputable def state (step : D → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] Eucli
     (ψ : ValueState ι V W) {B} [Fintype B] :
     MeasuredPrefix ι D V W B → (ι → D) → B → ValueState ι V W
   | .start, _, _ => ψ
+  | .localGate (history := _) p g, H, b => g b (p.state step ψ H b)
   | .coherent (history := _) p enabled gate, H, b =>
     gate b (if enabled b then valueOracle step H (p.state step ψ H b) else p.state step ψ H b)
   | .measure (history := _) (labels := _) (eqLabel := _) p read, H, (b, m) =>
@@ -69,9 +73,11 @@ noncomputable def state (step : D → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] Eucli
     if evalPure H (run b) = r then p.state step ψ H b else 0
 
 /-- The sum of the per-call disturbance factors. A coherent call contributes two and a
-classical service inspecting at most K table entries contributes `√(2K)`. -/
+classical service inspecting at most K table entries contributes `√(2K)`. Local gates and
+measurements have zero cost. -/
 noncomputable def updateCost {B} [Fintype B] : MeasuredPrefix ι D V W B → ℝ
   | .start => 0
+  | .localGate (history := _) p _ => p.updateCost
   | .coherent (history := _) p _ _ => p.updateCost + 2
   | .measure (history := _) (labels := _) (eqLabel := _) p _ => p.updateCost
   | .service (history := _) (labels := _) (eqLabel := _) p _ K _ => p.updateCost + Real.sqrt (2 * K)
@@ -92,6 +98,7 @@ theorem sum_sq_state {B} [Fintype B] (p : MeasuredPrefix ι D V W B)
     ∑ b, ‖p.state step ψ H b‖ ^ 2 = ‖ψ‖ ^ 2 := by
   induction p with
   | start => simp [state]
+  | localGate p g ih => simpa [state] using ih
   | coherent p enabled gate ih =>
     simpa [state, apply_ite] using ih
   | measure p read ih =>
@@ -112,6 +119,7 @@ private theorem state_add {B} [Fintype B] (p : MeasuredPrefix ι D V W B) (H : �
     p.state step (x + y) H b = p.state step x H b + p.state step y H b := by
   induction p with
   | start => rfl
+  | localGate p g ih => simp [state, ih, map_add]
   | coherent p enabled gate ih => cases hv : enabled b <;> simp [state, hv, ih, map_add]
   | measure p read ih => obtain ⟨b, m⟩ := b; simp [state, ih, map_add]
   | service p run K budget ih =>
@@ -124,6 +132,7 @@ private theorem state_smul {B} [Fintype B] (p : MeasuredPrefix ι D V W B) (H : 
     p.state step (z • x) H b = z • p.state step x H b := by
   induction p with
   | start => rfl
+  | localGate p g ih => simp [state, ih, map_smul]
   | coherent p enabled gate ih => cases hv : enabled b <;> simp [state, hv, ih, map_smul]
   | measure p read ih => obtain ⟨b, m⟩ := b; simp [state, ih, map_smul]
   | service p run K budget ih =>
@@ -150,6 +159,7 @@ theorem updateCost_nonneg {B} [Fintype B] (p : MeasuredPrefix ι D V W B) :
     0 ≤ p.updateCost := by
   induction p with
   | start => exact (le_rfl : (0 : ℝ) ≤ 0)
+  | localGate p g ih => exact ih
   | coherent p enabled gate ih => exact add_nonneg ih (by norm_num)
   | measure p read ih => exact ih
   | service p run K hb ih => exact add_nonneg ih (Real.sqrt_nonneg _)
@@ -230,6 +240,7 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
       p.updateCost ^ 2 := by
   induction p with
   | start => simp [state, updateCost]
+  | localGate p g ih => simpa only [state, updateCost, ← map_sub, LinearIsometry.norm_map] using ih
   | @coherent B _ p enabled gate ih =>
     let move (G : ι → D) (x : B → ValueState ι V W) (b : B) :=
       gate b (if enabled b then valueOracle step G (x b) else x b)

@@ -57,7 +57,7 @@ def commitmentAddress (extra : Finset (List Bool)) (μ : BitString 512)
   ⟨rawCommitment s (μ, r), mem_extra_union_image extra (rawCommitment s) (μ, r)⟩
 
 /-- The coherent and classical signers use the same raw message and packed high bits. -/
-@[simp] theorem val_commitmentAddress (extra : Finset (List Bool)) (μ : BitString 512)
+theorem val_commitmentAddress (extra : Finset (List Bool)) (μ : BitString 512)
     (w : Fin s.params.k → Poly) :
     (commitmentAddress s extra μ w).val =
       commitmentInput s (highBitsVec s.params w) (List.ofFn μ) := by
