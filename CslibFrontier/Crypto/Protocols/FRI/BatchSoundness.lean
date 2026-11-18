@@ -23,9 +23,10 @@ This module proves unconditional round-by-round soundness
 (`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`), marginal challenge projections, and
 unconditional round-`0` batching escape bounds (`E⁽⁰⁾`) for the `(params.m + 2)`-round batched FRI
 IOP `Cslib.Crypto.Protocols.FRI.friBatchIOP` ([BenSassonCarmonIshaiKoppartySaraf2020], accepted
-*Journal of the ACM* 2023 manuscript, Section 8.2 on printed pp. 36–40 and Section 8.2.1 on printed
-pp. 41–43), together with conditional multi-round uniform escape and two-channel BCS random-oracle
-composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
+*Journal of the ACM* 2023 manuscript, Section 8.2 on printed pp. 36–40, Lemma 8.2 on pp. 38–39
+proved via the bad-event bound `E⁽⁰⁾` of Section 8.2.1 Eq. (8.8) on printed p. 42, and Theorem 8.3
+on p. 39 proved on p. 40), together with conditional multi-round uniform escape and two-channel BCS
+random-oracle composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
 
 ## Overview of the round-0 factoring and affine correlated-agreement bridge
 
@@ -74,10 +75,12 @@ composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
   displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))` expression (not uniformly smaller at small `mJ`,
   and Eq. (1.3) uses `min(η, √ρ / 20)` whereas `batchRound0Escape_of_johnson_eta` uses `η`
   directly).
-* Full summed interactive batched FRI soundness (in the setting of JACM Lemma 8.2 and Theorem 8.3)
-  and closed-form batched FRI / BCS ROM instantiations remain tracked in `#5968`. The conditional
-  theorems in Section 4 (`friBatchRBREscape_of_escape`, `friBatchBCS_romSoundness_bound_of_escape`,
-  and `friBatchBCS_romSoundness_bound_of_prover_verifier_of_escape`) are uniform-budget composition
+* Full summed interactive batched FRI soundness (in the setting of JACM Lemma 8.2 on pp. 38–39,
+  proved via the bad-event sum in Section 8.2.1 on p. 42, and Theorem 8.3 on p. 39, proved from
+  Lemma 8.2 on p. 40) and closed-form batched FRI / BCS ROM instantiations remain tracked in
+  `#5968`. The conditional theorems in Section 4 (`friBatchRBREscape_of_escape`,
+  `friBatchBCS_romSoundness_bound_of_escape`, and
+  `friBatchBCS_romSoundness_bound_of_prover_verifier_of_escape`) are uniform-budget composition
   steps over `BatchRound0Escape` and `WeightedLineGapBound`.
 
 ## Main definitions
@@ -106,9 +109,8 @@ composition steps ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]).
   `Cslib.Crypto.Protocols.FRI.friBatchCommitRound_escape_le_of_weightedLineGap`: marginal challenge
   laws and 1-line tail escape reductions.
 * `Cslib.Crypto.Protocols.FRI.batchRound0Escape_of_gapBound`,
-  `Cslib.Crypto.Protocols.FRI.friBatchRound0_escape_le_of_escape`,
-  `Cslib.Crypto.Protocols.FRI.friBatchRound0_escape_le_of_gapBound`: conditional round-`0` escape
-  steps from `BatchRound0Escape` / `BatchRound0GapBound`.
+  `Cslib.Crypto.Protocols.FRI.friBatchRound0_escape_le_of_escape`: integer-to-`ℝ≥0∞` round-`0`
+  budget lift and conditional round-`0` escape step from `BatchRound0Escape`.
 * `Cslib.Crypto.Protocols.FRI.batchRound0GapBound_of_unique`,
   `Cslib.Crypto.Protocols.FRI.batchRound0Escape_of_unique`,
   `Cslib.Crypto.Protocols.FRI.batchRound0GapBound_of_johnson_discrete`,
@@ -512,18 +514,6 @@ theorem friBatchRound0_escape_le_of_escape [Fintype F] [DecidableEq F] (params :
   rw [hset, toOuterMeasure_uniform_friBatchChal_batchCoeffs]
   exact hescape stmt hnot
 
-/-- **Conditional step (round-0 batching escape bound assuming `BatchRound0GapBound`)**:
-integer-budget specialization of `friBatchRound0_escape_le_of_escape` yielding `B_batch / |F|`;
-discharging `BatchRound0GapBound` is left to the caller. -/
-theorem friBatchRound0_escape_le_of_gapBound [Fintype F] [DecidableEq F] (params : FRIParams F)
-    (t : ℕ) {e B_batch : ℕ} (hgap : BatchRound0GapBound params t e B_batch)
-    {stmt : FRIBatchStmt F params.d t} (hnot : stmt ∉ params.batchProximityLang t e)
-    (π : OracleTable params.d F) :
-    (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
-        {c | ¬ friBatchGoodStep params t (2 ^ params.d - e - 1) stmt [] π c} ≤
-      (B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
-  friBatchRound0_escape_le_of_escape params t (batchRound0Escape_of_gapBound params hgap) hnot π
-
 omit [Field F] in
 /-- Private helper: agreeing coordinates plus Hamming distance sum to `2 ^ d`. -/
 private theorem card_filter_eq_add_hammingDist_oracle [DecidableEq F] {d : ℕ}
@@ -901,13 +891,7 @@ theorem friBatchRBREscape_of_escape (params : FRIParams F) (t : ℕ) {e B_commit
       · exact (friBatchQueryRound_escape_le params t (2 ^ params.d - e - 1) stmt (head :: rest)
           heq π hdoomed).trans ((le_max_right _ _).trans (le_max_right _ _))
       · have hgt : ¬ (head :: rest).length ≤ params.m + 1 := by omega
-        have hempty :
-            {c : FRIBatchChal F params.d params.q t |
-              ¬ friBatchGoodStep params t (2 ^ params.d - e - 1) stmt (head :: rest) π c} = ∅ := by
-          ext c
-          simp only [Set.mem_ofPred_eq, friBatchGoodStep, hgt, ↓reduceIte, not_true_eq_false,
-            Set.mem_empty_iff_false]
-        rw [hempty]
+        simp only [friBatchGoodStep, hgt, ↓reduceIte, not_true_eq_false, Set.ofPred_false]
         exact (MeasureTheory.OuterMeasure.empty _).trans_le zero_le
 
 /-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness for `friBatchIOP` assuming

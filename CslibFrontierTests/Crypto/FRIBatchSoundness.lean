@@ -300,8 +300,8 @@ example (π₀ π₁ π₂ π₃ : OracleTable params257.d (ZMod 257))
     norm_num
 
 -- Sharp unique-decoding `BatchRound0GapBound` & `BatchRound0Escape` (`8 / 257`, both `t = 2` and
--- `t = 0`), plus `.mono`, `batchRound0Escape_of_gapBound`, `friBatchRound0_escape_le_of_gapBound`,
--- and `friBatchRound0_escape_le_of_escape`.
+-- `t = 0`), plus `.mono`, `batchRound0Escape_of_gapBound`, and
+-- `friBatchRound0_escape_le_of_escape`.
 theorem round0Gap257_t2 : BatchRound0GapBound params257 2 2 8 :=
   batchRound0GapBound_of_unique params257 2 (by decide)
 
@@ -325,8 +325,8 @@ example (π : OracleTable params257.d (ZMod 257)) :
   refine ⟨round0Gap257_t2.mono (by omega),
     round0Escape257_t2.mono (ENNReal.div_le_div_right (by norm_num) 257), ?_,
     friBatchRound0_escape_le_of_escape params257 0 round0Escape257_t0 badStmt257Zero_not_mem π⟩
-  refine (friBatchRound0_escape_le_of_gapBound params257 2 round0Gap257_t2 badStmt257_not_mem
-    π).trans_eq ?_
+  refine (friBatchRound0_escape_le_of_escape params257 2
+    (batchRound0Escape_of_gapBound params257 round0Gap257_t2) badStmt257_not_mem π).trans_eq ?_
   simp only [ZMod.card, Nat.cast_ofNat]
 
 -- Uniform RBR error & escape for batched FRI over `ZMod 257`.
