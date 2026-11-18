@@ -147,6 +147,7 @@ import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -8233,6 +8234,21 @@ register_result "arora-barak-exact-indset-dp" where
     graph and binary k) whose independence number is exactly k; DP = intersections of an NP \
     and a coNP language. DP-hardness (part (b)) is not included. Outside-fleet six-point \
     source check: review 5953416411 on PR #6402."
+
+register_result "arora-barak-exact-indset-dp-hard" where
+  title := "EXACT INDSET is DP-hard and therefore DP-complete"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 5 §8(b)",
+      locator := "January 8, 2007 draft, printed p. 100 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Complexity.ExactIndependentSet_dpHard,
+    Cslib.Complexity.ExactIndependentSet_dpComplete]
+  scope := "Every DP language under an explicit encoding reduces by a deterministic \
+    polynomial-time many-one map to exact independence number on declared graph vertices, \
+    using a framed graph and binary target. The reduction passes through SAT–UNSAT. \
+    Completeness combines the hardness proof with the membership theorem from §8(a). \
+    Outside-fleet source check: review 5958802809 on PR #6462."
 
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
