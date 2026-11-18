@@ -6128,12 +6128,14 @@ register_result "cgks-pir-multi-interactive-lower-bound" where
     Multi-round lower bounds below full collusion (t < |S|) are not proved."
 
 register_result "generic-access-structure-secret-sharing" where
-  title := "The generic secret-sharing construction implements every monotone access structure \
-    in which the empty coalition is unauthorized"
+  title := "In the generic secret-sharing construction, every authorized coalition reconstructs \
+    the secret and, over a finite group with uniform pads, every unauthorized coalition sees a \
+    uniform view, when the empty coalition is unauthorized"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "Construction 22.1 (correctness and security), with a correction",
+      theorem := "Construction 22.1: correctness and the secret-independence of unauthorized \
+        views, with a correction",
       locator := "Section 22.5.1, p. 977; Definitions 22.17–22.20, pp. 975–976" }
   ]
   theorems := [
@@ -6147,16 +6149,19 @@ register_result "generic-access-structure-secret-sharing" where
     additive sharing of the secret from |J| − 1 pads of the key, and party i holds one element \
     for each J ∈ A^(i) = {J ∈ A : i ∈ J}. genericReconstruct sums the J-coordinates of the \
     members of J. genericReconstruct_genericShare: every authorized coalition reconstructs the \
-    secret, for every key (the correctness of Definition 22.19). genericUniform_viewDist_eq: \
-    for finite G and uniform pads, the view of every unauthorized coalition is uniform, so its \
-    law does not depend on the secret (Definition 22.20). Correction: both theorems assume that \
-    ∅ is not authorized. Definition 22.18 allows ∅ ∈ A, but then the empty coalition's view, \
-    which carries no information, would have to determine the secret, and no scheme over a \
-    secret space with at least two elements is correct \
-    (not_perfectlyCorrect_of_authorized_empty, in AccessStructure/Recognition.lean). The model \
-    is information-theoretic: no running time is claimed, and reconstruction is total, \
-    returning 0 on unauthorized coalitions. The smaller shares of Example 22.1, which shares \
-    only over minimal authorized sets, are not formalized."
+    secret, for every key (the correctness condition of Definition 22.19). \
+    genericUniform_viewDist_eq: for finite G and uniform pads, the view of every unauthorized \
+    coalition is uniform, so its law does not depend on the secret (the condition of \
+    Definition 22.20). Definition 22.19 also asks for efficient sharing and combining \
+    algorithms; the model is information-theoretic and claims no running time, so the entry \
+    does not say that the construction implements the access structure in that sense. \
+    Reconstruction is total, returning 0 on unauthorized coalitions. Correction: both theorems \
+    assume that ∅ is not authorized. Definition 22.18 allows ∅ ∈ A, but then the empty \
+    coalition's view, which carries no information, would have to determine the secret: no \
+    scheme over a secret space with at least two elements and a nonempty key space is correct \
+    (not_perfectlyCorrect_of_authorized_empty, in AccessStructure/Recognition.lean; a key \
+    space carrying a key distribution is nonempty). The smaller shares of Example 22.1, which \
+    shares only over minimal authorized sets, are not formalized."
 
 open Cslib.Crypto.Protocols.SecretSharing in
 register_result "access-structure-recognition-test" where
@@ -6190,47 +6195,51 @@ register_result "access-structure-recognition-test" where
     coalitions only, while its test runs it on any J; here reconstruction is total."
 
 register_result "beaver-multiplication-gate-honest-but-curious" where
-  title := "Beaver's multiplication gate with dealer triples, for m parties, is correct and \
-    perfectly private against every honest-but-curious coalition of fewer than m parties"
+  title := "Beaver's multiplication gate with dealer triples, for m ≥ 1 parties, outputs shares \
+    of the product and gives exact joint simulation of the corrupted views and all outputs for \
+    every proper static coalition (simulator without an efficiency certificate)"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "the multiplication-gate protocol of Figure 23.3 and its honest-but-curious \
-        privacy (unnumbered)",
+      theorem := "the multiplication-gate protocol of Figure 23.3: output correctness, and its \
+        honest-but-curious privacy (unnumbered) as exact joint simulation of the corrupted views \
+        and all outputs",
       locator := "Section 23.2.2, pp. 1007–1009" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.MPC.Beaver.sum_output_beaverMulProtocol,
     Cslib.Crypto.Protocols.MPC.Beaver.perfectSemiHonestPrivateProper_beaverMul
   ]
-  scope := "Over ZMod p for any p > 0 (the book: a prime q) and for any number m of parties (the \
-    book: two, P₁ and P₂, with a dealer). The dealer functionality beaverTripleFunctionality \
+  scope := "Over ZMod p for any p > 0 (the book: a prime q) and for any number m ≥ 1 of parties \
+    (the book: two, P₁ and P₂, with a dealer); the correctness theorem assumes m ≥ 1, and for \
+    m = 0 there is no proper coalition. The dealer functionality beaverTripleFunctionality \
     gives party i the triple share (a_i, b_i, c_i), where a and b are uniform share vectors and \
     c is a uniform additive sharing of (Σa)(Σb); for m = 2 this is the book's Beaver triple \
     sharing (p. 1007). beaverMulProtocol is Figure 23.3 for m parties: each party broadcasts \
     (x_i − a_i, y_i − b_i), all parties sum the openings to (u, v), and party i outputs \
     [i = 0]·uv + u·b_i + v·a_i + c_i. sum_output_beaverMulProtocol: on every execution the \
-    output shares sum to (Σx)(Σy). perfectSemiHonestPrivateProper_beaverMul: for every \
-    coalition I other than the set of all parties and all inputs, the joint law of I's views \
-    and all parties' outputs equals the law obtained from the explicit simulator beaverMulSim, \
-    given I's inputs and outputs, with outputs from the ideal functionality \
-    sharedMulFunctionality (a fresh uniform additive sharing of (Σx)(Σy)). The equality is \
-    exact, so it holds against unbounded distinguishers, as in the book's remark that \
-    honest-but-curious security is unconditional (p. 1009); no efficiency certificate is proved \
-    for the simulator. The dealer is the ideal triple functionality, as in the book. Only one \
-    multiplication gate is formalized: input sharing, the other gates, output opening and the \
-    whole circuit protocol of Section 23.2.3 are not. The tampered-opening game in the same \
-    module (le_advantage_tamperedOpeningBitGame) is the module's own illustration, motivated by \
+    output shares sum to (Σx)(Σy). perfectSemiHonestPrivateProper_beaverMul: for every proper \
+    static coalition I (any set of parties other than all of them) and all inputs, the joint \
+    law of I's views and all parties' outputs equals the law obtained by drawing the outputs \
+    from the ideal functionality sharedMulFunctionality (a fresh uniform additive sharing of \
+    (Σx)(Σy)) and the views from the explicit simulator beaverMulSim, given I's inputs and \
+    outputs. The equality is exact, so it holds against unbounded distinguishers, as in the \
+    book's remark that honest-but-curious security is unconditional (p. 1009). The simulator \
+    has no efficiency certificate, so no efficient simulation is claimed. The dealer is the \
+    ideal triple functionality, as in the book. Only one multiplication gate is formalized: \
+    input sharing, the other gates, output opening and the whole circuit protocol of \
+    Section 23.2.3 are not. The tampered-opening game in the same module \
+    (le_advantage_tamperedOpeningBitGame) is the module's own illustration, motivated by \
     Section 23.2.4, and is not part of this entry."
 
 register_result "oprf-dh-blinding-laws" where
-  title := "Protocols OPRF1 and OPRF2: correctness, and the laws of the receiver's message and \
-    of a deviating sender's error term, with two corrections"
+  title := "Protocols OPRF1 and OPRF2: group-element correctness and the blinding laws of the \
+    receiver's message and of a deviating sender's error, with two corrections"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "Protocols OPRF1 and OPRF2: correctness, what the sender sees, and the effect \
-        of a wrong answer (unnumbered), with two corrections",
+      theorem := "Protocols OPRF1 and OPRF2 (unnumbered): correctness on group elements, what \
+        the sender sees, and the effect of a wrong answer, with two corrections",
       locator := "Section 11.6.3, pp. 454–456" }
   ]
   theorems := [
@@ -6241,25 +6250,30 @@ register_result "oprf-dh-blinding-laws" where
     Cslib.Crypto.Protocols.OPRF.uniformOfFintype_bind_units_smul_of_ne_zero
   ]
   scope := "The group G is written additively as a ZMod q-module with a generator g (every \
-    element is c • g), the hashed input H(x) is an element h of G, and ρ is uniform on the \
-    units of ZMod q, which for prime q are the book's nonzero exponents. Each law is an exact \
-    equality of distributions through an arbitrary continuation, so it holds against \
-    unbounded observers. OPRF2 (p. 456): maskedBlind g ρ τ h = ρ • h + τ • g is \
-    v = H(x)^ρ · g^τ, and maskedUnblind u ρ τ w = ρ⁻¹ • (w − τ • u) is (w/u^τ)^(1/ρ). \
-    maskedUnblind_smul_maskedBlind: with u = k • g and the honest reply w = k • v, the \
-    receiver obtains k • h = H(x)^k. maskedUnblind_smul_maskedBlind_add: a reply k • v + d \
-    gives k • h + ρ⁻¹ • d, the book's H(x)^k · d^(1/ρ). uniformOfFintype_bind_maskedBlind: for \
-    every h and every ρ, v has the law of τ • g under uniform τ, so it reveals nothing about x \
-    or ρ. uniformOfFintype_bind_maskedUnblind_add_of_ne_zero (q prime): against a sender who \
-    answers v with k • v + d(v), d(v) ≠ 0 for every v, the pair of v and the unblinded value \
-    has the law of (τ • g, k • h + ρ • g) for independent uniform τ and ρ. Correction 1: the \
-    error term ρ⁻¹ • d(v) is never 0, so it is not uniform over G as p. 456 says. OPRF1 \
-    (pp. 454–455): uniformOfFintype_bind_units_smul_of_ne_zero (q prime): for h ≠ 0, ρ • h has \
-    the law of ρ • g. Correction 2: the book's claim that v = H(x)^ρ is independent of x needs \
-    H(x) ≠ 1, since ρ • 0 = 0. OPRF1 correctness, ρ⁻¹ • (k • (ρ • h)) = k • h, is not a \
-    separate theorem. Not formalized: interactive executions, the hash functions H and H′ and \
-    the function F′ of (11.21), that a wrong OPRF2 output is uniform in Y, Exercise 11.3, and \
-    security against a malicious receiver under the one-more Diffie–Hellman assumption."
+    element is c • g), the hashed input H(x) is a fixed element h of G, and ρ is uniform on the \
+    units of ZMod q, which for prime q are the book's nonzero exponents. OPRF2 (p. 456): \
+    maskedBlind g ρ τ h = ρ • h + τ • g is v = H(x)^ρ · g^τ, and \
+    maskedUnblind u ρ τ w = ρ⁻¹ • (w − τ • u) is (w/u^τ)^(1/ρ). The first two theorems are \
+    identities of group elements. maskedUnblind_smul_maskedBlind: with u = k • g and the honest \
+    reply w = k • v, the receiver obtains k • h = H(x)^k. At τ = 0 the message is ρ • h and the \
+    unblinding is ρ⁻¹ • w, so this identity is also OPRF1's correctness (pp. 454–455). \
+    maskedUnblind_smul_maskedBlind_add: a reply k • v + d gives k • h + ρ⁻¹ • d, the book's \
+    H(x)^k · d^(1/ρ). The other three theorems are exact equalities of distributions, through \
+    an arbitrary continuation, so they hold against unbounded observers. \
+    uniformOfFintype_bind_maskedBlind: for every h and every ρ, v has the law of τ • g under \
+    uniform τ, so it reveals nothing about x or ρ. \
+    uniformOfFintype_bind_maskedUnblind_add_of_ne_zero (q prime): against a sender who answers \
+    v with k • v + d(v), d(v) ≠ 0 for every v, the pair of v and the unblinded value has the law \
+    of (τ • g, k • h + ρ • g) for independent uniform τ and ρ. Correction 1: the error term \
+    ρ⁻¹ • d(v) is never 0, so it is not uniform over G as p. 456 says. \
+    uniformOfFintype_bind_units_smul_of_ne_zero (q prime), for OPRF1: for h ≠ 0, ρ • h has the \
+    law of ρ • g. Correction 2: for a fixed public hash function H, the law of the OPRF1 message \
+    v = H(x)^ρ is the same for all inputs x with H(x) ≠ 1, but an input with H(x) = 1 always \
+    gives v = 1, so the book's claim that v is independent of x needs H(x) ≠ 1 (for a random \
+    oracle H, H(x) = 1 has probability 1/q). Outside the registered statements: the \
+    interactive executions, the final hash y = H′(x, ·) and the function F′ of (11.21), that a \
+    wrong OPRF2 output is uniform in Y, Exercise 11.3, and security against a malicious \
+    receiver under the one-more Diffie–Hellman assumption."
 
 register_result "sigma-composition-efficient-extraction" where
   title := "Polynomial-time special-soundness extraction under Sigma-protocol composition"
@@ -6345,33 +6359,35 @@ register_result "sigma-language-reduction-correctness-hvzk" where
     not listed."
 
 register_result "sigma-language-reduction-soundness" where
-  title := "A language reduction transfers soundness of a Sigma protocol; from special soundness \
-    the error is 1/|C| against every prover"
+  title := "A language reduction transfers statistical soundness of a Sigma protocol, and from \
+    special soundness gives soundness error at most 1/|C| against every prover"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
-      theorem := "language reductions: inheritance of soundness (unnumbered), with Theorem 20.1",
+      theorem := "language reductions: inheritance of soundness (unnumbered), in its statistical \
+        form, with Theorem 20.1",
       locator := "Section 20.2, p. 829; Theorem 20.1 and Remark 20.1, Section 20.1, p. 824" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.SigmaProtocol.LanguageReduction.sound,
     Cslib.Crypto.Protocols.SigmaProtocol.sound_comap
   ]
-  scope := "Soundness is Verifier.Sound World.plain (language R) langOut ε: for every false \
-    statement y (one with no witness) and every prover strategy, unbounded in time and \
-    randomness, the verifier accepts with probability at most ε (langOut is all outputs by \
-    default). This is Attack Game 20.1 (p. 824) with the false statement fixed in advance; as \
-    the bound holds for every false statement and every prover, it also bounds a prover that \
-    chooses y* first, and it is statistical soundness in the sense of Remark 20.1. sound_comap: \
-    if the verifier of P′ is sound for L_R′ with error ε, the derived verifier (that of P′ run \
-    on g(y)) is sound for L_R with the same ε; it uses only condition (ii) and nothing about f. \
-    LanguageReduction.sound: if P′ has special soundness (Definition 19.4 without the \
-    efficiency of the extractor, which soundness does not use) and the challenge space C is \
-    finite and nonempty, the derived protocol is sound with error 1/|C|, which is Theorem 20.1 \
-    for P′ carried through the reduction. Computational soundness (Definition 20.2) follows \
-    when |C| is super-poly; the transfer of computational soundness from a P′ that is only \
-    computationally sound is not formalized. Language reductions and the derived protocol are \
-    as in the entry sigma-language-reduction-correctness-hvzk."
+  scope := "Soundness is statistical soundness, Verifier.Sound World.plain (language R) langOut ε: \
+    for every false statement y (one with no witness) and every prover strategy, unbounded in \
+    time and randomness, the verifier accepts with probability at most ε (langOut is all \
+    outputs by default). This is Attack Game 20.1 (p. 824) with the false statement fixed in \
+    advance; as the bound holds for every false statement and every prover, it also bounds a \
+    prover that chooses y* first, and it is statistical soundness in the sense of Remark 20.1. \
+    sound_comap: if the verifier of P′ is statistically sound for L_R′ with error at most ε, \
+    the derived verifier (that of P′ run on g(y)) is statistically sound for L_R with error at \
+    most ε; it uses only condition (ii) and nothing about f. LanguageReduction.sound: if P′ has \
+    special soundness (Definition 19.4 without the efficiency of the extractor, which soundness \
+    does not use) and the challenge space C is finite and nonempty, the derived protocol is \
+    statistically sound with error at most 1/|C|, which is Theorem 20.1 for P′ carried through \
+    the reduction. Computational soundness (Definition 20.2) follows when |C| is super-poly; \
+    the transfer of computational soundness from a P′ that is only computationally sound is not \
+    formalized. Language reductions and the derived protocol are as in the entry \
+    sigma-language-reduction-correctness-hvzk."
 
 register_result "sigma-language-reduction-efficient-transfer" where
   title := "A polynomial-time statement map transfers efficient special-HVZK simulation and \
@@ -6392,21 +6408,27 @@ register_result "sigma-language-reduction-efficient-transfer" where
     gw is computable in polynomial time and agrees with g on encodings; the derived family \
     (P′ i).comap (f i) (g i) is encoded with a new statement encoding. \
     EfficientSpecialHVZK.comap: under condition (i) of the language reduction, if P′ is special \
-    HVZK with a simulator family that one uniform strict PPT program realizes up to statistical \
-    distance δ i (EfficientSpecialHVZK, Definition 19.5 with an efficient simulator, up to δ), \
-    then so is the derived family, with the same δ: the derived simulator computes g and runs \
-    the simulator of P′, and its certificate is built from that of P′. \
-    EfficientVerifier.comap: the derived verifier, which computes g and runs the verifier of P′, \
-    is computable in polynomial time when that of P′ is. The witness map f need not be \
-    efficient, and the efficiency of the derived honest prover is not formalized, since the \
-    library has no efficiency predicate for honest Sigma-protocol provers. \
-    EfficientSpecialSoundness.comap and EfficientSpecialSoundness.mapWitness, in the same \
-    module, concern the extraction of a witness for g(y) and its mapping back, that is, \
-    knowledge soundness, which the book says need not be inherited; they are not listed."
+    HVZK with a typed simulator family satisfying both clauses of Definition 19.5 exactly, which \
+    one uniform strict PPT program realizes up to statistical distance δ i \
+    (EfficientSpecialHVZK), then so is the derived family, with the same δ: the derived \
+    simulator computes g and runs the simulator of P′, and its certificate is built from that \
+    of P′. The instance δ = 0 is the one in which the efficient simulator itself satisfies \
+    Definition 19.5's exact laws; a positive δ bounds the program's distance from the exact \
+    simulator, such as an implementation's sampling error. EfficientVerifier.comap: the \
+    derived verifier's deterministic acceptance test on a transcript (statement, commitment, \
+    challenge, response), which computes g and runs that of P′, is computable in polynomial time \
+    when that of P′ is; the certificate covers this test only and supplies no challenge \
+    sampler. The witness map f need not be efficient, and the efficiency of the derived honest \
+    prover is not formalized, since the library has no efficiency predicate for honest \
+    Sigma-protocol provers. EfficientSpecialSoundness.comap and \
+    EfficientSpecialSoundness.mapWitness, in the same module, concern the extraction of a \
+    witness for g(y) and its mapping back, that is, knowledge soundness, which the book says \
+    need not be inherited; they are not listed."
 
 register_result "sigma-unique-responses-strong-special-soundness" where
-  title := "Schnorr's, Chaum–Pedersen's and the generic linear Sigma protocols have unique \
-    responses, and unique responses with special soundness give strong special soundness"
+  title := "Schnorr's and Chaum–Pedersen's Sigma protocols have unique responses, the generic \
+    linear protocol has them exactly when its homogeneous system has only the zero solution, \
+    and unique responses with special soundness give strong special soundness"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Exercises 19.14(a)–(c) and 19.15(a)",
@@ -6427,14 +6449,16 @@ register_result "sigma-unique-responses-strong-special-soundness" where
     require efficiency). The protocols are over an additive ZMod q-module G, with challenges \
     embedded in Z_q. schnorr_uniqueResponses (19.14(a)) and chaumPedersen_uniqueResponses \
     (19.14(b), at every statement, Diffie–Hellman triple or not) assume that r ↦ r • g is \
-    injective, which holds for a generator g of a group of prime order q, as in the book. \
-    linearSystem_uniqueResponsesAt_iff (19.14(c)): for a nonempty challenge set, the generic \
-    linear protocol (Figure 19.8 on formulas (19.13)) has unique responses at a system exactly \
-    when its homogenized system has only the zero solution. The exercise asks for the 'if' \
-    direction, and prints the unique solution as α_j = 1; the trivial solution, in which every \
-    exponent α_j is 0, is what the theorem states. schnorr_strongSpecialSoundness, in the same \
-    module, combines 19.14(a) and 19.15(a) for prime q and g ≠ 0. Exercises 19.14(d), 19.15(b) \
-    and 19.16 are not formalized."
+    injective, which holds for the generator g of the book's groups of prime order q, so in the \
+    book's setting these hold without further condition. linearSystem_uniqueResponsesAt_iff \
+    (19.14(c)): for a nonempty challenge set, the generic linear protocol (Figure 19.8 on \
+    formulas (19.13)) has unique responses at a system exactly when its homogenized system has \
+    only the zero solution. Without that condition it does not have them: over Z_2, a single \
+    equation whose coefficient is the identity accepts both responses 0 and 1. The exercise \
+    asks for the 'if' direction, and prints the unique solution as α_j = 1; the trivial \
+    solution, in which every exponent α_j is 0, is what the theorem states. \
+    schnorr_strongSpecialSoundness, in the same module, combines 19.14(a) and 19.15(a) for prime \
+    q and g ≠ 0. Exercises 19.14(d), 19.15(b) and 19.16 are not formalized."
 
 register_result "prp-prf-switching" where
   title := "PRP/PRF switching lemma: PRP and PRF advantages differ by at most a birthday term"
@@ -6993,8 +7017,9 @@ register_result "schnorr-identification-direct-dl" where
 
 open Cslib.Crypto.PrimeOrderGroupFamily in
 register_result "schnorr-leaked-nonce-key-recovery" where
-  title := "Leaked Schnorr signing randomness reveals the signing key, except with probability \
-    2^(−m) for an m-bit random-oracle challenge"
+  title := "Leaked Schnorr signing randomness reveals the signing key: for an m-bit random-oracle \
+    challenge with 2^m ≤ q, the attack fails with probability at most 2^(−m), and only on the \
+    zero challenge"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -7017,14 +7042,15 @@ register_result "schnorr-leaked-nonce-key-recovery" where
     determine; it does not receive the public key. It wins if it outputs the word of the secret \
     key α. schnorrLeakedNonceWordAdversary makes one oracle query, to recompute c, and outputs \
     (z − r)/c; it is uniform strict oracle PPT, with m in unary \
-    (isOraclePPTOn_schnorrLeakedNonceWordAdversary). It wins with probability at least \
-    1 − 2^(−m) (one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame). It fails \
-    only on the all-zero challenge, where z = r carries no information about α, so the book's \
-    'trivially compute' holds except on that event. \
-    schnorrRelatedNonceExtractWord_schnorrSignCoins is the recovery of the key from an honest \
-    signature whose challenge is nonzero modulo q. The game signs one fixed message. The remark \
-    appears in the book's discussion of key exchange; only its claim about Schnorr signatures \
-    is formalized."
+    (isOraclePPTOn_schnorrLeakedNonceWordAdversary). \
+    one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame: it wins with probability \
+    at least 1 − 2^(−m), that is, it fails with probability at most 2^(−m); no equality is \
+    claimed. schnorrRelatedNonceExtractWord_schnorrSignCoins: from an honest signature whose \
+    challenge is nonzero modulo q, the recovery always returns the key. Since 2^m ≤ q, only the \
+    all-zero challenge word is zero modulo q, so failure can occur only on that challenge, where \
+    z = r carries no information about α; the book's 'trivially compute' holds except on that \
+    event. The game signs one fixed message. The remark appears in the book's discussion of key \
+    exchange; only its claim about Schnorr signatures is formalized."
 
 register_result "schnorr-identification-eavesdropping-dl" where
   title := "Schnorr identification is secure against eavesdropping attacks under the \
