@@ -53,8 +53,9 @@ verification checks the leaf length and the certificate count explicitly. The co
 signature depend on the node and the index only, not on what is signed.
 
 The coin function is a parameter with a polynomial-time certificate. This module provides the
-scheme, its completeness and its efficiency; its security ([BonehShoup2023], Theorem 14.6)
-instantiates the coins with a pseudorandom function and is a separate development.
+scheme, its completeness and its efficiency. Its security, [BonehShoup2023], Theorem 14.6, p. 600,
+in the binary case `q = 2`, instantiates the coins with a pseudorandom function and is proved in
+`CslibFrontier.Crypto.Computational.TreeSignature.Security`, which lists its deviations.
 
 ## Main definitions
 

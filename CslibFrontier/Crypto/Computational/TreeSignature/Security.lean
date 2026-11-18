@@ -50,9 +50,32 @@ import CslibFrontier.Tactic.EncLen
 /-!
 # Security of stateless tree signatures
 
-Stateless EUF-CMA security ([BonehShoup2023], Section 14.6.3, Theorem 14.6) for
-`TreeSignature.scheme`: combining an indexed EUF-CMA secure signature scheme `S` of capacity at
-least `2` with a pseudorandom function `F` yields a stateless many-time signature scheme.
+Stateless EUF-CMA security of `TreeSignature.scheme`: [BonehShoup2023], Section 14.6.3,
+Theorem 14.6, p. 600, in the binary case `q = 2`. An indexed EUF-CMA secure signature scheme `S`
+of capacity at least `2`, used at indices `0` and `1` only, and a pseudorandom function yield a
+stateless many-time signature scheme.
+
+Theorem 14.6 covers a `q`-ary tree of depth `d` for poly-bounded `d` and `q` with `q ^ d`
+super-poly. The tree here is binary, so `2 ^ depth n` must be super-poly: the asymptotic theorems
+assume that `1 / 2 ^ depth n` is negligible, with `depth` computable in polynomial time. The
+source's term `Q ^ 2 / (2 q ^ d)` becomes `Q ^ 2 / 2 ^ (depth n + 1)`, and its factor `Q d`
+becomes `dyadicSize (Q * depth n)`, a power of two in `(Q d, 2 Q d]` when `Q d ≥ 1`. The tree
+for general `q` is not formalized (#5293). Besides the construction's deviations, listed in
+`CslibFrontier.Crypto.Computational.TreeSignature`, the theorems differ from the source in two ways.
+
+* The outer messages are `n`-bit, `SignatureScheme`'s message space.
+* The coins of node keys and signatures are `prfCoins family`: a length-preserving
+  `PseudorandomFunction` `family`, keyed at `coinParam budget n` bits, evaluated at the padded
+  request and truncated. The source assumes a PRF `F` defined over
+  `(K, {1, …, q} ^ {≤ d}, {0, 1} ^ w)` whose outputs are the coins (Sections 14.6.2 and 14.6.3,
+  p. 600).
+
+Using `family` at the rescaled parameter `coinParam budget n ≥ n` adds no assumption: the proof
+turns its security there into a bound negligible in `n` (`exists_negligible_treeGame_le`). The
+premise that `family` is a length-preserving PRF is, however, not the source's. It implies that the
+coins `prfCoins family` are pseudorandom (`PseudorandomFunction.coinIndistinguishable`), but the
+converse is not proved, so these theorems are not shown to cover every PRF `F` that the source
+admits.
 
 Starting from `treeGame` (`TreeSignature.scheme`'s `eufCmaGame`), the reduction proceeds in two
 steps after replacing `prfCoins F` with a uniform random function (`treeIdealGame`, proved in
@@ -96,11 +119,12 @@ function yields a stateless many-time `SignatureScheme` satisfying `EUFCMA`
 * `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le_lazy`,
   `Cslib.Crypto.TreeSignature.succProbability_lazyTreeGame_le`,
   `Cslib.Crypto.TreeSignature.succProbability_treeIdealGame_le`,
-  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: concrete Theorem 14.6
-  security bounds for `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
+  `Cslib.Crypto.TreeSignature.succProbability_eufCmaGame_scheme_le`: the concrete bounds of
+  Theorem 14.6 with `q = 2` for `treeIdealGame`, `lazyTreeGame`, and `TreeSignature.scheme`.
 * `Cslib.Crypto.TreeSignature.eufCMA_scheme_of_inv`,
   `Cslib.Crypto.TreeSignature.eufCMA_scheme`: stateless EUF-CMA security of `TreeSignature.scheme`
-  from `IndexedEUFCMA` and `PseudorandomFunction`.
+  from `IndexedEUFCMA` and `PseudorandomFunction`, Theorem 14.6 with `q = 2` and the deviations
+  above.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`,
   `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`,
   `Cslib.Crypto.OneWay.exists_eufCMA_of_hashFamily`: existential upgrades from indexed signatures
@@ -109,7 +133,7 @@ function yields a stateless many-time `SignatureScheme` satisfying `EUFCMA`
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 14.6.3, Theorem 14.6.
+  Section 14.6.3, Theorem 14.6, p. 600.
 * [J. Rompel, *One-Way Functions are Necessary and Sufficient for Secure Signatures*][Rompel1990].
 -/
 
@@ -4031,11 +4055,12 @@ theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.See
         adversary hq) le_rfl)
 
 /-- **Theorem 14.6 concrete security bound for `TreeSignature.scheme`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): the forging probability of any `Q`-query forger
-against `TreeSignature.scheme` with `prfCoins family` is bounded by the PRF distinguishing
-advantage of `coinDistinguisher (treeCoinAdversary …)` at `N n`, plus `dyadicSize (slotBound n)`
-times `indexedForger`'s indexed forging probability against `S`, plus
-`(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. -/
+([BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`): the forging
+probability of any `Q`-query forger against `TreeSignature.scheme` with `prfCoins family` is
+bounded by the PRF distinguishing advantage of `coinDistinguisher (treeCoinAdversary …)` at `N n`,
+plus `dyadicSize (slotBound n)` times `indexedForger`'s indexed forging probability against `S`,
+plus `(Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1)`. The source's terms are `Q d · iSIGadv` and
+`Q ^ 2 / (2 q ^ d)`; general `q` is not formalized (#5293). -/
 theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S.Seeded)
     (family : List Bool → List Bool → List Bool)
     (depth N inv slotBound sigCap : ℕ → ℕ)
@@ -4093,10 +4118,14 @@ private theorem exists_sigCap_polyTime (S : IndexedSignatureScheme) :
         (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (hlenB n keys hkeys u hu msg hmsg) ds))⟩
 
 /-- **Stateless EUF-CMA security of `TreeSignature.scheme` with an explicit left inverse**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): if `S` is indexed EUF-CMA secure with capacity
-at least `2`, `family` is a pseudorandom function, `N` covers all tree coin requests and has a
-polynomial-time left inverse `inv`, and `(1 : ℝ≥0) / 2 ^ depth n` is negligible, then
-`TreeSignature.scheme` is stateless EUF-CMA secure. -/
+([BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`): if `S` is
+indexed EUF-CMA secure with capacity at least `2`, `family` is a length-preserving pseudorandom
+function, `N` covers all tree coin requests and has a polynomial-time left inverse `inv`, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` is stateless EUF-CMA secure.
+
+With `q = 2`, the source's condition that `q ^ d` is super-poly is `hdepthNeg`; general `q` is not
+formalized (#5293). The deviations are those of `eufCMA_scheme`, with `N` in place of
+`coinParam budget`. -/
 theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth N inv : ℕ → ℕ}
@@ -4155,9 +4184,23 @@ theorem eufCMA_scheme_of_inv (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
     exact (hprfLe n).trans (add_le_add hideal le_rfl)
   negligible using hbound
 
-/-- **Stateless EUF-CMA security of `TreeSignature.scheme` at `coinParam budget`**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): instantiating the PRF parameter at
-`coinParam budget` eliminates the separate left-inverse hypothesis. -/
+/-- **Stateless EUF-CMA security of `TreeSignature.scheme` at `coinParam budget`**:
+[BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`. If `S` is
+indexed EUF-CMA secure with capacity at least `2`, used at indices `0` and `1` only, `family` is a
+length-preserving pseudorandom function, `budget` covers all tree coin requests, and
+`(1 : ℝ≥0) / 2 ^ depth n` is negligible, then `TreeSignature.scheme` is stateless EUF-CMA secure.
+Instantiating the PRF parameter at `coinParam budget` eliminates the left-inverse hypothesis of
+`eufCMA_scheme_of_inv`.
+
+Theorem 14.6 covers `q`-ary trees for poly-bounded `d` and `q` with `q ^ d` super-poly. Here
+`q = 2`, so `2 ^ depth n` must be super-poly (`hdepthNeg`); general `q` is not formalized (#5293).
+The other deviations: the outer messages are `n`-bit, and the coins are `prfCoins family`, a
+length-preserving PRF keyed at `coinParam budget n` bits, evaluated at the padded request and
+truncated, where the source assumes a PRF `F` into the coins directly. The rescaled parameter adds
+no assumption, since the proof turns the PRF's security at `coinParam budget n ≥ n` into a bound
+negligible in `n`. The premise `hF` is not the source's, however: it implies that
+`prfCoins family` is pseudorandom (`PseudorandomFunction.coinIndistinguishable`), but the converse
+is not proved, so this theorem is not shown to cover every PRF `F` that the source admits. -/
 theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S.Seeded)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {depth budget : ℕ → ℕ}
@@ -4182,10 +4225,13 @@ theorem eufCMA_scheme (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA) (T : S
       (hsgBudget n keys hk u hu msg hm).trans (lt_coinParam budget n).le)
     hdepthNeg
 
-/-- **Stateless many-time signatures from indexed signatures and PRFs**
-([BonehShoup2023], Section 14.6.3, Theorem 14.6): any indexed EUF-CMA secure signature scheme of
-capacity at least `2` and any pseudorandom function yield a stateless EUF-CMA secure signature
-scheme. -/
+/-- **Stateless many-time signatures from indexed signatures and PRFs**: [BonehShoup2023],
+Section 14.6.3, Theorem 14.6, p. 600, in the binary case `q = 2`. Any indexed EUF-CMA secure
+signature scheme of capacity at least `2` and any length-preserving pseudorandom function yield a
+stateless EUF-CMA secure signature scheme on `n`-bit messages: `TreeSignature.scheme` with depth
+`n + 1`, so that `2 ^ (n + 1)` is super-poly, and coins `prfCoins family` (`eufCMA_scheme`).
+General `q` is not formalized (#5293). As in `eufCMA_scheme`, the premise `hF` implies the
+source's PRF premise for the derived coins, but the converse is not proved. -/
 theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf
     {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA) (hcap : ∀ n, 2 ≤ S.capacity n)
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
