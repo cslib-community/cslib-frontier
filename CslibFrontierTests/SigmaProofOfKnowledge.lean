@@ -112,7 +112,7 @@ private theorem xorSimulator_isPPT : Simulator.IsPPT xorEncoding xorSimulator :=
   · intro i y c
     simp [xorSimulator, xorEncoding, ProbComp.eval_pure]
 
-private def xorEfficientHVZK :
+private theorem xorEfficientHVZK :
     EfficientSpecialHVZK (fun _ => xorProtocol) (fun _ x y => x = y) xorEncoding
       (fun _ y c => PMF.pure ((), xor c y)) (fun _ => 0) where
   specialHVZK _ := {
@@ -125,8 +125,7 @@ private def xorEfficientHVZK :
       intro x y hxy c
       subst y
       simp [SigmaProtocol.transcript, xorProtocol] }
-  realized := ⟨xorSimulator, xorSimulator_isPPT, fun _ y c => by
-    simpa [xorSimulator] using (CloseTo.refl (PMF.pure ((), xor c y)))⟩
+  realized := ⟨xorSimulator, xorSimulator_isPPT, fun _ _ _ => by simp [xorSimulator]⟩
 
 /-- The exact, zero-error specialization has a concrete efficient component and preserves its
 actual transcript law: two challenges produce the two XOR responses. -/
@@ -143,7 +142,7 @@ example :
   · simp only [parallelSimulator, xorSimulator, ProbComp.eval_map, ProbComp.eval_pi_pure,
       PMF.pure_map]
     congr 1
-    ext j <;> fin_cases j <;> rfl
+    ext j; fin_cases j <;> rfl
 
 /-- The honest prover of `xorProtocol` on words. The witness is the statement bit `y`, so it
 commits to the empty word, keeps the statement word as its state, and answers the challenge word
@@ -364,6 +363,10 @@ example :
     specialSoundness _ := xorProtocol_specialSoundness
     polyTime := ⟨xorExtractWord, by unfold xorExtractWord xorEncoding; fun_prop,
       xorExtractorRealizedBy⟩ }
-  exact ⟨⟨EfficientSpecialSoundness.parallelRepetition (fun _ => by decide) h⟩, by decide⟩
+  refine ⟨⟨EfficientSpecialSoundness.parallelRepetition (fun _ => by decide) h⟩, ?_⟩
+  have hpar := extractorRealizedBy_parallelExtractWord (enc := xorEncoding) (k := fun _ => 2)
+    (defaultWord := fun _ => [false]) (fun _ _ => rfl) xorExtractorRealizedBy
+  rw [hpar () true (fun _ => ()) ![true, false] ![false, true] ![true, false] ![false, true]]
+  decide
 
 end CslibFrontierTests.SigmaProofOfKnowledge
