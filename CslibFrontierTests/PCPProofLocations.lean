@@ -8,10 +8,12 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
+import CslibFrontier.Computability.DecisionTree.Leaves
 
 /-! Checked instances of the effective-length bounds of Goldreich, Exercise 9.15: an adaptive
-verifier whose second query depends on its coin and on the first answer meets the `2 ^ (q + r)`
-bound with equality, and the non-adaptive bound applies to every `IsPCPVerifier`. -/
+verifier with `r = 1` coin and `q = 2` queries, whose second query depends on its coin and on the
+first answer, examines six distinct locations: it attains `2 ^ r * (2 ^ q - 1) = 6`, within the
+bound `2 ^ (q + r) = 8`. The non-adaptive bound applies to every `IsPCPVerifier`. -/
 
 set_option linter.privateModule false
 
@@ -27,8 +29,8 @@ def adaptive (ρ : BitString 1) : DecisionTree ℕ Bool :=
 example (ρ : BitString 1) : (adaptive ρ).depth ≤ 2 := by
   cases h : ρ 0 <;> simp [adaptive, h]
 
-/-- The six examined locations `0, …, 5` fill the bound `2 ^ (2 + 1) = 8` up to the unreachable
-leaves; each tree examines `2 ^ 2 - 1 = 3` of them. -/
+/-- The two trees examine six distinct locations `0, …, 5`, three each (`2 ^ 2 - 1`), which
+attains `2 ^ r * (2 ^ q - 1) = 6`; the bound `2 ^ (q + r)` is `8`. -/
 example : (Finset.univ.biUnion fun ρ => (adaptive ρ).allQueries).card = 6 := by
   decide
 

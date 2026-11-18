@@ -49,6 +49,8 @@ of native weighted-threshold circuits.
 * `Cslib.DecisionTree.queries_subset_allQueries`,
   `Cslib.DecisionTree.card_allQueries_le_nodeCount`: every input's queries are among the variables
   at the internal nodes, of which there are at most `nodeCount`.
+* `Cslib.DecisionTree.card_biUnion_allQueries_le`: a family of `2 ^ r` trees of depth at most `q`
+  queries at most `2 ^ (q + r)` variables in all (Goldreich, Exercise 9.15).
 * `Cslib.DecisionTree.leafCount_le_sum_choose_rank`: a tree of depth `d` and rank `r` has at most
   `∑ j ≤ r, d.choose j` leaves.
 * `Cslib.DecisionTree.two_pow_rank_le_leafCount`: a tree of rank `r` has at least `2 ^ r` leaves.
@@ -60,6 +62,8 @@ of native weighted-threshold circuits.
 
 ## References
 
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft of April 2007,
+  Exercise 9.15][Goldreich2007DraftR5]
 * [*Threshold Circuits as Decision Trees and Finite-State Programs*, Section 2.2 and the
   ordered-tree construction in the proof of Theorem 4.1][ThresholdCircuitRepresentations2026]
 -/
@@ -219,6 +223,27 @@ theorem card_allQueries_le_nodeCount (t : DecisionTree ι β) :
     simp only [allQueries, nodeCount_node]
     exact (Finset.card_insert_le _ _).trans
       (Nat.add_le_add_right ((Finset.card_union_le _ _).trans (Nat.add_le_add ihl ihr)) 1)
+
+/-- **The effective length of adaptive PCP proofs**
+[Goldreich, Exercise 9.15][Goldreich2007DraftR5]: an oracle machine with `r` coins that makes at
+most `q` queries examines, over all its coin sequences and all answers it may receive, at most
+`2 ^ (q + r)` locations of its oracle. On coins `ρ` the machine is the decision tree `T ρ`, of
+depth at most `q`, over the oracle's locations; the locations it may examine are the variables at
+its internal nodes. -/
+theorem card_biUnion_allQueries_le {r q : ℕ}
+    (T : BitString r → DecisionTree ι β) (hT : ∀ ρ, (T ρ).depth ≤ q) :
+    (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card ≤ 2 ^ (q + r) := by
+  have hnode (ρ : BitString r) : (T ρ).allQueries.card ≤ 2 ^ q := by
+    -- a tree has one leaf more than internal nodes, and at most `2 ^ depth` leaves
+    have hleaf := (T ρ).leafCount_le_two_pow_depth
+    rw [leafCount_eq_nodeCount_add_one] at hleaf
+    have := Nat.pow_le_pow_right Nat.two_pos (hT ρ)
+    have := (T ρ).card_allQueries_le_nodeCount
+    omega
+  calc (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card
+      ≤ ∑ ρ : BitString r, (T ρ).allQueries.card := Finset.card_biUnion_le
+    _ ≤ ∑ _ρ : BitString r, 2 ^ q := Finset.sum_le_sum fun ρ _ => hnode ρ
+    _ = 2 ^ (q + r) := by simp [pow_add, mul_comm]
 
 end AllQueries
 

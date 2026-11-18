@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Relation
 public import CslibFrontier.Computability.Complexity.Problems.SAT
-public import CslibFrontier.Computability.Complexity.Reduction.Levin
 public import CslibFrontier.Computability.Complexity.AcceptCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Probability.BitString.AffineHash.Word
@@ -92,10 +91,10 @@ independent.
   `#R(a) / q(n)` with probability at most `2 ^ (-n)`.
 * Exercise 6.39 asks, for every PC-complete `R`, that `(1 - 1 / p)`-approximate counting (the
   factor `1 ± 1 / p` of Theorem 6.27) and uniform generation randomly reduce to deciding
-  `S_R`. Its counting half is `LevinHard.exists_approxCount`: PC-completeness is `LevinHard` on
-  an `NPRelation` (witnesses of exactly the prescribed length; every NP relation Levin-reduces to
-  it, as in `SAT.paddedRelation_levinHard`), and the oracle is the set `enc '' R.language` of
-  encoded instances with a solution. The uniform-generation half is not formalized.
+  `S_R`. Its counting half is `FNP.exists_approxCount_of_npHard`, for every `R ∈ FNP` whose
+  language `searchDomain R` is `NP`-hard, which every PC-complete relation satisfies; the oracle
+  is the set `enc '' searchDomain R` of encoded instances with a solution. The
+  uniform-generation half is not formalized.
 * Exercise 6.34 asks that `{(a, i, h, 1 ^ t) : ∃ distinct y₁, …, y_t ∈ R(a), h(y_j) = 0 ^ i}` be in
   `NP`. Here `h` ranges over the affine hashes given by a seed (the rows of the matrix, then the
   offset) and `t` is written in unary (`NPRelation.sieveQuery`,
@@ -138,8 +137,9 @@ independent.
   functions with the `SAT` oracle.
 * `Cslib.Complexity.FNP.exists_approxCount_SAT`: **Stockmeyer's approximate counting** for every
   polynomially balanced PC relation (Goldreich, Theorem 6.27).
-* `Cslib.Complexity.LevinHard.exists_approxCount`: for a PC-complete relation `R`, approximate
-  counting with an oracle for `S_R` (the counting half of Goldreich's Exercise 6.39).
+* `Cslib.Complexity.FNP.exists_approxCount_of_npHard`: for a PC relation `R` with `NP`-hard
+  `S_R`, approximate counting with an oracle for `S_R` (the counting half of Goldreich's
+  Exercise 6.39).
 * `Cslib.Complexity.SharpP.exists_approx_of_NP_subset_P`: approximate counting under `NP ⊆ P`.
 * `Cslib.Complexity.SharpP.exists_deterministic_approxCount_of_NP_subset_P`,
   `Cslib.Complexity.SharpP.exists_deterministic_approx_of_NP_subset_P`: deterministic
@@ -1112,26 +1112,29 @@ theorem exists_approxCount_SAT {R : α → List Bool → Prop} (hR : R ∈ FNP e
 end FNP
 
 /-- **Approximate counting with an `S_R` oracle** [Goldreich, Exercise 6.39][Goldreich2007Draft],
-its approximate-counting half: for every PC-complete search problem `R` (an NP relation to which
-every NP relation Levin-reduces, `LevinHard`) and every positive polynomial `q`, approximating
-`#R(a) = searchCount R.IsWitness a` within `#R(a) / q(n)` randomly reduces to deciding
-`S_R = R.language`. A polynomial-time oracle algorithm with the oracle `enc '' R.language`,
-reading `ℓ(n)` random bits for a polynomial `ℓ`, misses `#R(a)` by more than `#R(a) / q(n)` with
-probability at most `2 ^ (-n)`, `n` the encoded length of `a`. Following the source's guideline,
-the `SAT` oracle of Stockmeyer's algorithm (`FNP.exists_approxCount_SAT`) is replaced by `S_R`
-through the Karp reduction that `LevinHard.npHard` gives. The exercise's uniform-generation half
-is not proved here. -/
-theorem LevinHard.exists_approxCount {enc : α ↪ List Bool} {R : NPRelation enc}
-    (hR : LevinHard R) (q : Polynomial ℕ) (hq : ∀ n, q.eval n ≠ 0) :
+its approximate-counting half: for every polynomially balanced, polynomial-time checkable search
+relation `R` (Goldreich's `PC`, here `FNP`) whose solution-existence language
+`S_R = searchDomain R` is `NP`-hard, and every positive polynomial `q`, approximating the number
+`#R(a) = searchCount R a` of solutions within `#R(a) / q(n)` randomly reduces to deciding `S_R`.
+A polynomial-time oracle algorithm with the oracle `enc '' searchDomain R`, reading `ℓ(n)` random
+bits for a polynomial `ℓ`, misses `#R(a)` by more than `#R(a) / q(n)` with probability at most
+`2 ^ (-n)`, `n` the encoded length of `a`. Every PC-complete `R` qualifies: a Levin reduction of
+another relation to `R` is a Karp reduction of the languages (`LevinHard.npHard`). Following the
+source's guideline, the `SAT` oracle of Stockmeyer's algorithm (`FNP.exists_approxCount_SAT`)
+is replaced by `S_R` through a Karp reduction of `SAT` to `S_R`. The exercise's
+uniform-generation half is not proved here. -/
+theorem FNP.exists_approxCount_of_npHard {enc : α ↪ List Bool} {R : α → List Bool → Prop}
+    (hR : R ∈ FNP enc) (hS : NPHard enc (searchDomain R)) (q : Polynomial ℕ)
+    (hq : ∀ n, q.eval n ≠ 0) :
     ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
-      ComputableInPolyTimeWithOracle (enc '' R.language) E (encPair enc encBits) encNat ∧
+      ComputableInPolyTimeWithOracle (enc '' searchDomain R) E (encPair enc encBits) encNat ∧
       ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
-        (searchCount R.IsWitness a : ℚ) / q.eval (enc a).length <
-          |(E (a, List.ofFn r) : ℚ) - searchCount R.IsWitness a|} ≤ (2 ^ (enc a).length)⁻¹ := by
-  obtain ⟨ℓ, E, hE, hacc⟩ := FNP.exists_approxCount_SAT R.isWitness_mem_FNP q hq
+        (searchCount R a : ℚ) / q.eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - searchCount R a|} ≤ (2 ^ (enc a).length)⁻¹ := by
+  obtain ⟨ℓ, E, hE, hacc⟩ := FNP.exists_approxCount_SAT hR q hq
   refine ⟨ℓ, E, hE.of_polyTimeReducible ?_, hacc⟩
   -- a satisfiable formula's word goes to the encoding of an instance with a solution
-  obtain ⟨f, hf, hfR⟩ := hR.npHard encBits (encCNF '' SAT) image_SAT_mem_NP
+  obtain ⟨f, hf, hfR⟩ := hS encBits (encCNF '' SAT) image_SAT_mem_NP
   have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
   exact ⟨fun w => enc (f w), henc.comp hf, fun w => by
     rw [hfR w, enc.injective.mem_set_image]⟩

@@ -8,8 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.PCP.NP
-public import CslibFrontier.Computability.DecisionTree.Leaves
-public import CslibFrontier.Foundations.Data.BitString.Basic
 
 /-!
 # The effective length of PCP proofs
@@ -25,8 +23,9 @@ Goldreich's verifier is a probabilistic polynomial-time oracle machine, so it ma
 from the answers to the previous ones. On a fixed input `x` and a fixed coin sequence `ρ`, such a
 machine is a decision tree over the locations of the proof: its root is the first query, the two
 subtrees are the continuations after the answers `0` and `1`, and the leaves are its verdicts. A
-query complexity of `q` makes the depth at most `q`, on every answer sequence. The adaptive bound
-(`DecisionTree.card_biUnion_allQueries_le`) is therefore stated for a family `T ρ`, indexed by the
+query complexity of `q` makes the depth at most `q`, on every answer sequence. The adaptive bound,
+`Cslib.DecisionTree.card_biUnion_allQueries_le` in `DecisionTree/Leaves`, is therefore stated for
+a family `T ρ`, indexed by the
 `r`-bit coin sequences `ρ`, of decision trees of depth at most `q`; the locations examined "for all
 possible answers" are the variables at the internal nodes (`DecisionTree.allQueries`), which
 contain the locations queried on any proof (`DecisionTree.queries_subset_allQueries`). The input
@@ -40,15 +39,8 @@ queried locations is a function of the input and the random string. For them the
 length (`PCPVerifier.mem_queryTable`). The randomness and query bounds of `IsPCPVerifier` are the
 functions `r` and `q` of the encoded length `n` of the instance.
 
-## Main definitions
-
-* `Cslib.DecisionTree.allQueries` (in `CslibFrontier.Computability.DecisionTree.Leaves`): the
-  variables at the internal nodes of a decision tree.
-
 ## Main results
 
-* `Cslib.DecisionTree.card_biUnion_allQueries_le`: an adaptive verifier with `r` coins and `q`
-  queries examines at most `2 ^ (q + r)` locations on a fixed input.
 * `Cslib.Complexity.IsPCPVerifier.card_toFinset_queryTable_le`: a non-adaptive verifier examines at
   most `2 ^ r(n) · q(n)` locations on an instance of encoded length `n`.
 
@@ -61,31 +53,6 @@ functions `r` and `q` of the encoded length `n` of the instance.
 public section
 
 namespace Cslib
-
-namespace DecisionTree
-
-/-- **The effective length of adaptive PCP proofs**
-[Goldreich, Exercise 9.15][Goldreich2007DraftR5]: an oracle machine with `r` coins that makes at
-most `q` queries examines, over all its coin sequences and all answers it may receive, at most
-`2 ^ (q + r)` locations of its oracle. On coins `ρ` the machine is the decision tree `T ρ`, of
-depth at most `q`, over the oracle's locations; the locations it may examine are the variables at
-its internal nodes. -/
-theorem card_biUnion_allQueries_le {ι β : Type*} [DecidableEq ι] {r q : ℕ}
-    (T : BitString r → DecisionTree ι β) (hT : ∀ ρ, (T ρ).depth ≤ q) :
-    (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card ≤ 2 ^ (q + r) := by
-  have hnode (ρ : BitString r) : (T ρ).allQueries.card ≤ 2 ^ q := by
-    -- a tree has one leaf more than internal nodes, and at most `2 ^ depth` leaves
-    have hleaf := (T ρ).leafCount_le_two_pow_depth
-    rw [leafCount_eq_nodeCount_add_one] at hleaf
-    have := Nat.pow_le_pow_right Nat.two_pos (hT ρ)
-    have := (T ρ).card_allQueries_le_nodeCount
-    omega
-  calc (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card
-      ≤ ∑ ρ : BitString r, (T ρ).allQueries.card := Finset.card_biUnion_le
-    _ ≤ ∑ _ρ : BitString r, 2 ^ q := Finset.sum_le_sum fun ρ _ => hnode ρ
-    _ = 2 ^ (q + r) := by simp [pow_add, mul_comm]
-
-end DecisionTree
 
 namespace Complexity
 
