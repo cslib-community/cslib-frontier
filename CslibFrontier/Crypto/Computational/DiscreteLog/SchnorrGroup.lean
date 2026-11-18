@@ -214,7 +214,7 @@ theorem computableInPolyTime_add :
   have hd := computableInPolyTime_val.comp hp.fst'
   have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
   have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
-  simpa only [add, Desc.modulus, rawModulus, encNat_apply] using
+  simpa only [add, Desc.modulus, rawModulus, encNat_apply, Function.comp_def] using
     (ComputableInPolyTime.binary_mod'
       (ComputableInPolyTime.binary_mul' hx hy) hd.fst').encoding_comp
 

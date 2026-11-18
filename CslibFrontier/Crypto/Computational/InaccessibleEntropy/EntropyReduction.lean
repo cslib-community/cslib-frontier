@@ -712,7 +712,7 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ : ℕ → ℕ}
   have hresult := ComputableInPolyTime.bitsTakeWithInput
     (ComputableInPolyTime.snd _ encBits)
     (hwidth.comp (ComputableInPolyTime.fst _ encBits))
-  simpa only [bind_pure_comp] using
+  simpa only [bind_pure_comp, Function.comp_def] using
     (hA.preprocess hparameter hprepare).map_with hresult
 
 private def shrunkTupleEquiv (n₁ m₁ : ℕ) :

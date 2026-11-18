@@ -456,7 +456,8 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
           have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'
           have hy := ComputableInPolyTime.binary_mod'
             (ComputableInPolyTime.binary_mul' hx hx) hp.fst'.snd'
-          simpa only [pow_two] using hp.fst'.fst'.prod (hp.fst'.snd'.prod hy))) ?_
+          simpa only [pow_two, Function.comp_def] using
+            hp.fst'.fst'.prod (hp.fst'.snd'.prod hy))) ?_
     have hno : ComputableInPolyTime
         (fun x : ((ℕ × ℕ) × List Bool) × ℕ => rabinFactorPair (ofBits x.1.2 + x.2) x.1.1.2)
         (encPair (encPair (encPair encUnary encNat) encBits) encNat) (encPair encNat encNat) :=

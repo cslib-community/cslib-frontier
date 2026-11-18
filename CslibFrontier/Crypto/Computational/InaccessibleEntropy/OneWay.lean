@@ -564,7 +564,7 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   have hresult := ComputableInPolyTime.bitsTakeWithInput
     (ComputableInPolyTime.snd _ encBits)
     (hparameter.comp (ComputableInPolyTime.fst _ encBits))
-  simpa only [bind_pure_comp] using
+  simpa only [bind_pure_comp, Function.comp_def] using
     (hA.preprocess hparameter hprepare).map_with hresult
 
 private def rompelTupleEquiv (n m : ℕ) :

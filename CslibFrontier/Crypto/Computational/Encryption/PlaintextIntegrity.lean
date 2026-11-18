@@ -285,8 +285,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       (fun r : (((ℕ × List Bool) × List Bool) × (List Bool × (ℕ × List (List Bool)))) × List Bool =>
         r.2.drop 1)
       (encPair (encPair ECaller (encPair encBits EState)) encBits) encBits :=
-    ComputableInPolyTime
-      (ComputableInPolyTime.dropUnary (encA := encBool) (encL := encBits)) |>.comp
+    (ComputableInPolyTime.dropUnary (encA := encBool) (encL := encBits)).comp
       ((by dsimp only [ECaller]; fun_prop : ComputableInPolyTime
         (fun r : (((ℕ × List Bool) × List Bool) ×
             (List Bool × (ℕ × List (List Bool)))) × List Bool => r.2)
