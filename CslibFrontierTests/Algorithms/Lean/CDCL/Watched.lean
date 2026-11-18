@@ -92,6 +92,17 @@ example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
     (CDCL.solveWith {} [[(0, true), (1, true)]]).2.propagations = 2 := by
   decide
 
+/-- PHP(4, 3), with pigeon `i` in hole `j` as `3 * i + j`. -/
+private abbrev php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val + x.2.val
+
+/-- Restarting after every conflict, the solver still refutes PHP(4, 3), and restarts. -/
+example : (CDCL.solveWith { restartFirst := 1 } php43).1.isSat = false ∧
+    0 < (CDCL.solveWith { restartFirst := 1 } php43).2.restarts := by
+  decide +kernel
+
+/-- Without restarts, it never restarts. -/
+example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide +kernel
+
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide
 

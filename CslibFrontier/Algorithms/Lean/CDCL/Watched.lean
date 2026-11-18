@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 public import CslibFrontier.Algorithms.Lean.CDCL.Phase
+public import CslibFrontier.Algorithms.Lean.CDCL.Luby
 public import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
 public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 import Mathlib.Tactic.Linarith
@@ -56,12 +57,21 @@ the measure: the rank of the abstract system, times the number of variables plus
 length of the queue. Recursion is structural on a bound on the measure, which provably never runs
 out, so the kernel can run the solver.
 
+**Restarts** (`Cslib.Algorithms.Lean.CDCL.search`). As in MiniSat, once a run of the loop has had
+its budget of conflicts (`restartFirst` times the Luby sequence, `Options.restartBudget`), at the
+next point with an empty queue and no conflict it goes back to the root of the trail, the literals
+implied below every decision (`WExec.restart`), keeping the learned clauses, the activities and
+the phases. Restarts raise the measure, so each run is bounded by its own measure, and the runs
+are bounded by an allowance of `2 ^ 64` restarts (`restartAllowance`), after which the solver no
+longer restarts; termination is structural on both.
+
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.WExec`, `Cslib.Algorithms.Lean.CDCL.WExec.Inv`: the state and its
   invariant.
 * `Cslib.Algorithms.Lean.CDCL.WExec.processList`: visiting a watch list.
-* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
+* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.search`,
+  `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
 * `Cslib.Algorithms.Lean.CDCL.Options`, `Cslib.Algorithms.Lean.CDCL.Stats`,
   `Cslib.Algorithms.Lean.CDCL.solveWith`: the solver with options, returning its statistics.
 
@@ -95,15 +105,28 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 variable {φ : CNF ℕ}
 
 /-- **Options** of the solver, after MiniSat's: VSIDS for the decision variable (otherwise the
-first unassigned variable of the database), and phase saving for its polarity (MiniSat's
-`phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`). Neither affects
-correctness. -/
+first unassigned variable of the database); phase saving for its polarity (MiniSat's
+`phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`); and restarts, the `i`-th
+after `restartFirst * luby restartInc i` more conflicts (MiniSat's `luby_restart`), or
+`restartFirst * restartInc ^ i` without `luby`. None affects correctness. -/
 structure Options where
   /-- Choose decision variables by VSIDS. -/
   vsids : Bool := true
   /-- Choose polarities by phase saving. -/
   phaseSaving : Bool := true
+  /-- Restart. -/
+  restarts : Bool := true
+  /-- Space the restarts by the Luby sequence, rather than geometrically. -/
+  luby : Bool := true
+  /-- The conflicts before the first restart (MiniSat's `restart_first`). -/
+  restartFirst : ℕ := 100
+  /-- The growth of the conflicts between restarts (MiniSat's `restart_inc`). -/
+  restartInc : ℕ := 2
   deriving Repr
+
+/-- The conflicts allowed before the restart numbered `i`, at least one. -/
+@[expose] def Options.restartBudget (o : Options) (i : ℕ) : ℕ :=
+  max 1 (o.restartFirst * if o.luby then CDCL.luby o.restartInc i else o.restartInc ^ i)
 
 /-- **Statistics** of a run, as MiniSat reports them. -/
 structure Stats where
@@ -114,6 +137,8 @@ structure Stats where
   /-- Propagations, counted as MiniSat counts them: the literals taken from the propagation queue
   for processing, decisions and implied literals alike. -/
   propagations : ℕ := 0
+  /-- Restarts. -/
+  restarts : ℕ := 0
   deriving Repr
 
 /-- One more literal taken from the propagation queue. -/
@@ -940,6 +965,31 @@ theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   · exact (hq ▸ hS.store).not_falsifies hS.exec.run.nodup he hlen
   · exact hshort e (hS.short_covers e he (by omega))
 
+/-- **Restart**, at an empty queue: back to the root of the trail. -/
+@[expose] def WExec.restart (S : WExec φ) : WExec φ :=
+  { S with
+    exec := S.exec.restart
+    stats := { S.stats with restarts := S.stats.restarts + 1 } }
+
+/-- Restart keeps the invariant: the processed literals kept were processed, and the clauses with
+both watched literals false keep their support, which is below the oldest decision. -/
+theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.restart.Inv := by
+  obtain ⟨A, hA⟩ := XTrail.root_suffix S.exec.trail
+  have hM : S.M = XTrail.trail A ++ S.restart.M := by
+    change XTrail.trail S.exec.trail = _ ++ XTrail.trail (XTrail.root S.exec.trail)
+    conv_lhs => rw [hA]
+    exact XTrail.trail_append _ _
+  have hproc : ∀ x, Processed S.restart.M S.restart.queue x → Processed S.M S.queue x :=
+    fun x ⟨hx, _⟩ => ⟨by rw [hM, lits_append]; exact List.mem_append_right _ hx, by simp [hq]⟩
+  refine ⟨Exec.restart_inv hS.exec, hS.store.weaken hproc fun b w₁ w₂ h₁ h₂ hs => ?_,
+    hS.short_mem, hS.short_covers, by simp [WExec.restart, hq], by simp [WExec.restart, hq],
+    by simp [WExec.restart, hq]⟩
+  rcases XTrail.root_split S.exec.trail with h | ⟨N, d, hN⟩
+  · have : S.restart.M = S.M := by
+      change XTrail.trail (XTrail.root S.exec.trail) = _; rw [h]
+    exact this ▸ hs
+  · exact hs.truncate hN h₁.1 h₂.1
+
 /-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
 the checker. -/
 inductive Answer (φ : CNF ℕ) : Type
@@ -948,23 +998,32 @@ inductive Answer (φ : CNF ℕ) : Type
   /-- An accepted certificate. -/
   | unsat (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) (h : φ.checkLRAT cert = true)
 
-/-- **The CDCL loop with watched literals.** While the queue is not empty, the watch list of the
-negation of its first literal is visited; a conflict is analysed, followed by Backjump and Learn,
-or ends with a certificate when there is no decision. With the queue empty, the short clauses are
-checked for a conflict or a unit, then an unassigned variable of the database of greatest activity
-is decided, or the trail is returned as a model. -/
-@[expose]
-def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ × Stats
+/-- The outcome of a run of the loop: the answer with the statistics, or a restarted state, which
+only a run allowed to restart returns. -/
+inductive Outcome (φ : CNF ℕ) (allowed : Bool) : Type
+  /-- The answer, with the statistics. -/
+  | done (r : Answer φ × Stats)
+  /-- A restarted state. -/
+  | restart (S : WExec φ) (h : S.Inv) (ha : allowed = true)
+
+/-- **The CDCL loop with watched literals**, restarting once the number of conflicts reaches
+`limit`, if any. While the queue is not empty, the watch list of the negation of its first literal
+is visited; a conflict is analysed, followed by Backjump and Learn, or ends with a certificate when
+there is no decision. With the queue empty, the short clauses are checked for a conflict or a
+unit; then the loop restarts if the limit is reached, decides an unassigned variable of the
+database, or returns the trail as a model. -/
+@[expose] def loop (φ : CNF ℕ) (limit : Option ℕ) :
+    (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Outcome φ limit.isSome
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
     -- a conflict on a database clause
     let onConflict (S : WExec φ) (hS : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
-        (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ fuel) : Answer φ × Stats :=
+        (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ fuel) : Outcome φ limit.isSome :=
       match hsp : XTrail.split S.exec.trail with
       | none =>
         let r := refute S.exec.trail S.exec.log e.1 e.2 (hS.exec.db_log e he) hS.exec.reasons
           (XTrail.split_eq_none hsp) hconf
-        (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
+        .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
       | some sp =>
         let L := analyze S.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h) S.exec.log
@@ -972,7 +1031,7 @@ def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measur
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)
         have hspec := WExec.afterConflict_spec hS he hconf hsp L
-        loop φ fuel (S.afterConflict sp L) hspec.1 (by omega)
+        loop φ limit fuel (S.afterConflict sp L) hspec.1 (by omega)
     match hq : S.queue with
     | t :: _ =>
       have ht : t ∈ S.queue := hq ▸ List.mem_cons_self
@@ -980,7 +1039,7 @@ def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measur
           (WExec.start_procInv hS ht) with
       | .done S' h hm =>
         have hfin := WExec.finish_inv h
-        loop φ fuel (S'.finish t) hfin.1 (by
+        loop φ limit fuel (S'.finish t) hfin.1 (by
           have : (S.start t).measure = S.measure := rfl
           omega)
       | .conflict S' h e he hconf hm =>
@@ -998,25 +1057,46 @@ def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measur
         | some (e, l) =>
           have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hu
           have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
-          loop φ fuel (S.propagateShort e l) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
+          loop φ limit fuel (S.propagateShort e l)
+            (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
+          match hr : limit.any (· ≤ S.stats.conflicts) with
+          | true => .restart S.restart (hS.restart hq) (by cases limit <;> simp_all)
+          | false =>
           match hx : S.decisionActivity.pick S.M S.exec.clauses.vars with
           | some x =>
             have hundef : x ∉ Trail.vars S.M := (Activity.pick_some hx).2
             have hspec := Exec.decide_spec hS.exec hnoconf (Activity.pick_some hx).1 hundef
               (S.polarity x)
-            loop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
+            loop φ limit fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
               (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
           | none =>
-            (.sat (Trail.assignment S.M)
+            .done (.sat (Trail.assignment S.M)
               (hS.exec.run.eval_model hnoconf fun x hxV => Activity.pick_none hx x hxV), S.stats)
+
+/-- **Search with restarts**: runs of the loop, each restarting after its budget of conflicts, at
+most `k` of them; the last run does not restart. -/
+@[expose] def search (φ : CNF ℕ) : (k : ℕ) → (S : WExec φ) → S.Inv → Answer φ × Stats
+  | 0, S, hS =>
+    match loop φ none (S.measure + 1) S hS (Nat.lt_succ_self _) with
+    | .done r => r
+    | .restart _ _ ha => absurd ha (by decide)
+  | k + 1, S, hS =>
+    let limit := if S.opts.restarts then
+      some (S.stats.conflicts + S.opts.restartBudget S.stats.restarts) else none
+    match loop φ limit (S.measure + 1) S hS (Nat.lt_succ_self _) with
+    | .done r => r
+    | .restart S' h _ => search φ k S' h
+
+/-- The number of restarts allowed: never reached in practice, it makes termination
+structural. -/
+@[expose] def restartAllowance : ℕ := 2 ^ 64
 
 /-- **The CDCL solver with options**: a model, or an LRAT certificate of unsatisfiability, with the
 statistics of the run. -/
 @[expose] def solveWith (o : Options) (φ : CNF ℕ) : DPLL.Result × Stats :=
-  match loop φ ((WExec.init φ o).measure + 1) (WExec.init φ o) (WExec.init_inv φ o)
-      (Nat.lt_succ_self _) with
+  match search φ restartAllowance (WExec.init φ o) (WExec.init_inv φ o) with
   | (.sat σ _, s) => (.sat σ, s)
   | (.unsat cert _, s) => (.unsat cert, s)
 

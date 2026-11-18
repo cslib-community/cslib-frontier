@@ -701,4 +701,77 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
     simp only [Exec.decide, XTrail.trail_cons, List.cons_append, List.cons.injEq] at hN
     exact hS.below N d M₁ hN.2 c hc'
 
+
+/-! ### Restarts -/
+
+/-- **The root of a trail**: the part below its oldest decision, the literals implied without any
+decision. -/
+def XTrail.root : XTrail → XTrail
+  | [] => []
+  | x :: M => if (x :: M).all (fun e => !e.entry.decision) then x :: M else XTrail.root M
+
+theorem XTrail.root_no_decision : ∀ (M : XTrail), ∀ x ∈ XTrail.root M, x.entry.decision = false
+  | [] => by simp [XTrail.root]
+  | x :: M => by
+    unfold XTrail.root
+    split
+    · rename_i h
+      intro y hy
+      simpa using List.all_eq_true.1 h y hy
+    · exact XTrail.root_no_decision M
+
+theorem XTrail.root_suffix : ∀ (M : XTrail), ∃ A, M = A ++ XTrail.root M
+  | [] => ⟨[], rfl⟩
+  | x :: M => by
+    unfold XTrail.root
+    split
+    · exact ⟨[], rfl⟩
+    · obtain ⟨A, hA⟩ := XTrail.root_suffix M
+      exact ⟨x :: A, by rw [List.cons_append, ← hA]⟩
+
+/-- The root is the whole trail, or the part below a decision. -/
+theorem XTrail.root_split : ∀ (M : XTrail), XTrail.root M = M ∨
+    ∃ N d, XTrail.trail M = N ++ ⟨d, true⟩ :: XTrail.trail (XTrail.root M)
+  | [] => .inl rfl
+  | x :: M => by
+    unfold XTrail.root
+    split
+    · exact .inl rfl
+    · rename_i hall
+      rcases XTrail.root_split M with h | ⟨N, d, hN⟩
+      · right
+        have hM : ∀ y ∈ M, y.entry.decision = false := h ▸ XTrail.root_no_decision M
+        cases x with
+        | decision l => exact ⟨[], l, by rw [h]; rfl⟩
+        | implied l r =>
+          exact absurd (List.all_eq_true.2 fun y hy => by
+            rcases List.mem_cons.1 hy with rfl | hy
+            · rfl
+            · simpa using hM y hy) hall
+      · exact .inr ⟨x.entry :: N, d, by rw [XTrail.trail_cons, hN]; rfl⟩
+
+/-- **Restart**: going back to the root of the trail, keeping the database and the log. -/
+def Exec.restart (S : Exec φ) : Exec φ := ⟨XTrail.root S.trail, S.db, S.log⟩
+
+/-- Restart keeps the invariant. -/
+theorem Exec.restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
+  obtain ⟨A, hA⟩ := XTrail.root_suffix S.trail
+  have hrun := hS.run
+  have hreasons := hS.reasons
+  rw [hA] at hrun hreasons
+  rw [XTrail.trail_append] at hrun
+  have hnodup := hrun.nodup
+  rw [vars_append] at hnodup
+  refine ⟨⟨hrun.models, hrun.pmodels, hnodup.of_append_right, fun x hx => hrun.subset x
+    (by rw [vars_append]; exact List.mem_append_right _ hx), hrun.db_vars,
+    Trail.entailed_append hrun.entailed⟩, hreasons.append_right, hS.db_log, ?_⟩
+  intro N d M₀ hN
+  have hd : (⟨d, true⟩ : Entry) ∈ XTrail.trail (XTrail.root S.trail) := by
+    change _ ∈ XTrail.trail S.restart.trail
+    rw [hN]; simp
+  obtain ⟨x, hx, hxe⟩ := List.mem_map.1 hd
+  have := XTrail.root_no_decision S.trail x hx
+  rw [hxe] at this
+  exact absurd this (by simp)
+
 end Cslib.Algorithms.Lean.CDCL
