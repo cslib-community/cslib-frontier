@@ -216,6 +216,7 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
 import CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce
 import CslibFrontier.Crypto.Computational.CramerShoup.Decodable
@@ -6629,6 +6630,60 @@ register_result "sigma-unique-responses-strong-special-soundness" where
     solution, in which every exponent α_j is 0, is what the theorem states. \
     schnorr_strongSpecialSoundness, in the same module, combines 19.14(a) and 19.15(a) for prime \
     q and g ≠ 0. Exercises 19.14(d), 19.15(b) and 19.16 are not formalized."
+
+register_result "chaum-pedersen-sigma-protocol" where
+  title := "The Chaum–Pedersen Sigma protocol for Diffie–Hellman triples is complete and \
+    efficiently special sound, with 2/2^n statistical closeness and computational special HVZK"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 19.10",
+      locator := "Section 19.5.2, pp. 777–778 (with Figure 19.7 and (19.12)); Definitions \
+        19.3–19.5, Section 19.4, pp. 772–774; Attack Game 20.4 and Definition 20.6, \
+        Section 20.4.2, p. 840" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.chaumPedersenProbFamily_complete,
+    Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_chaumPedersenProb,
+    Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_chaumPedersenProbFamily_simulator,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkGame_chaumPedersenProbFamily_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_chaumPedersen
+  ]
+  scope := "Over any PrimeOrderGroupFamily F at index i = (n, d) with prime order q = F.order d, \
+    statement (u, v, w) : F.Carrier d × F.Carrier d × F.Carrier d, witness β : ZMod q for the \
+    Diffie–Hellman triple relation β • g = v ∧ β • u = w ((19.12), written additively), and \
+    challenges in ZMod q, encoded by chaumPedersenEncoding (framed element tuples and binary \
+    scalars). In F.chaumPedersenProbFamily i (Figure 19.7, p. 777), the honest prover samples its \
+    commitment nonce with F.sampleExp n d (chaumPedersenCommit, certified uniform strict PPT on \
+    encodings by chaumPedersenCommitWord, eval_chaumPedersenCommitWord and \
+    isPPTOn_chaumPedersenCommitWord) and computes r + c * β (certified deterministic polynomial \
+    time on encodings by schnorrRespondBits, computableInPolyTime_schnorrRespondBits and \
+    schnorrRespondBits_chaumPedersen), while the verifier checks z • g = t₁ + c • v and \
+    z • u = t₂ + c • w (certified deterministic polynomial time in \
+    CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier by \
+    efficientVerifier_chaumPedersenProb). \
+    chaumPedersenProbFamily_complete proves completeness (Definition 19.3). \
+    efficientSpecialSoundness_chaumPedersenProb proves efficient special soundness \
+    (Definition 19.4) via chaumPedersenExtract and schnorrExtractWord. The simulator \
+    chaumPedersenSimulator samples z with F.sampleExp n d and outputs \
+    ((z • g − c • v, z • u − c • w), z), certified uniform strict PPT by \
+    chaumPedersenSimulateWord (isPPT_chaumPedersenSimulator) and outputting an accepting \
+    conversation with probability 1 on every statement and challenge \
+    (accepts_chaumPedersenSimulator, Definition 19.5(i)). On every valid witness-statement pair \
+    and challenge c, closeTo_transcript_chaumPedersenProbFamily_simulator bounds the statistical \
+    distance between honest and simulated transcripts by 2/2^n (1/2^n from each sampleExp draw); \
+    advantage_chvzkGame_chaumPedersenProbFamily_le bounds Attack Game 20.4 advantage by 2/2^n \
+    against arbitrary (even computationally unbounded) two-stage adversaries; and \
+    computationalSpecialHVZK_chaumPedersen establishes Definition 20.6 with exact zero acceptance \
+    error (δ = fun _ => 0) along (setup n).map (n, ·) against all uniform strict PPT \
+    CHVZKAdversary families (with no computational hardness assumption). Deviations: (1) in the \
+    uniform strict-PPT fair-coin model, neither the prover nor the simulator can sample ZMod q \
+    with zero error when q is not a power of two (unlike Definition 2.8, p. 30, which permits \
+    negligible runtime-overflow probability and exact rejection sampling), so Definition 19.5(ii) \
+    identical transcript distribution is relaxed to 2/2^n statistical closeness and Definition \
+    20.6 ComputationalSpecialHVZK with exact Definition 19.5(i) acceptance; (2) the challenge \
+    space is C = ZMod q (the 2/2^n transcript bound holds pointwise at every c : ZMod q and thus \
+    for any subset C ⊆ ZMod q, while Attack Game 20.4 draws c uniformly from ZMod q); (3) groups \
+    are written additively and setup : ℕ → PMF F.Desc is arbitrary."
 
 register_result "prp-prf-switching" where
   title := "PRP/PRF switching lemma: PRP and PRF advantages differ by at most a birthday term"
