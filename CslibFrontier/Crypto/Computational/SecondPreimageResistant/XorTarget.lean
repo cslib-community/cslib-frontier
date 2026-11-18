@@ -111,11 +111,7 @@ theorem computableInPolyTime_xorTargetHash {H : List Bool → List Bool}
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool => xorTargetHash H p.1 p.2.1 p.2.2)
       (encKeyedInput encBits) encBits := by
-  have hid := ComputableInPolyTime.id' (encIn := encKeyedInput encBits)
-  have hxor := ComputableInPolyTime.bitsXorWithInput hid.fst'
-    (ComputableInPolyTime.cons' hid.snd'.fst'
-      (ComputableInPolyTime.cons' hid.snd'.snd' (.const [])))
-  exact hH.comp hxor
+  fun_prop [xorTargetHash]
 
 /-- The second-preimage finder `B` of [BonehShoup2023], Theorem 8.12 (pp. 338–339): given unary
 `n` and a uniform `n`-bit input `m`, run `adversary.choose n` to obtain `(m₀, state)`, plant the

@@ -7,10 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
-public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Crypto.Computational.WordSignature
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
@@ -39,8 +40,9 @@ of answered pairs, oldest first, and the two agree up to that representation.
 * `Cslib.Crypto.SignatureScheme.toScheme`, `Cslib.Crypto.WordSignatureScheme.toScheme`,
   `Cslib.Crypto.IndexedSignatureScheme.toScheme`: the typed scheme of a word-level scheme at
   parameter `n`.
-* `Cslib.Crypto.Forger.toTyped`, `Cslib.Crypto.IndexedForger.toTyped`,
-  `Cslib.Crypto.Forger.toCounter`: the typed forger of a word-level forger at parameter `n`.
+* `Cslib.Crypto.IndexedForger.toTyped`, `Cslib.Crypto.Forger.toCounter`: the typed indexed and
+  counter forgers of a word-level forger at parameter `n` (alongside `Cslib.Crypto.Forger.toTyped`
+  from `ForgerBridge`).
 
 ## Main results
 
@@ -65,15 +67,6 @@ namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
 open OracleComp (sumHandler)
-
-/-- The typed forger played by the word forger `adversary` at parameter `n` on the public key
-`pk`: each signing request `((), m)` becomes the query `m`, and private sampling is unchanged. -/
-def Forger.toTyped (adversary : Forger) (n : ℕ) : Signature.Forger (List Bool) (List Bool)
-    (List Bool) := fun pk =>
-  OracleComp.interpret
-    (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : List Bool => List Bool)
-      (.inl k)) (fun request => ProbOracleComp.query request.2))
-    (adversary n pk)
 
 /-- The typed indexed forger played by the word forger `adversary` at parameter `n`: each request
 word is decoded to the pair `(u, m)` that the word oracle reads from it, and the candidate
@@ -130,22 +123,9 @@ private theorem eval_runLogWith_rename {Q α : Type} (program : WordOracleComp U
         program) signer)).map
         (fun (a, log) => (a, (log.map Prod.fst).reverse)) =
       ProbComp.eval ((OracleComp.interpret
-        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) := by
-  have hhandler : (fun q => OracleComp.interpret
-      (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) (ProbOracleComp.logOracle signer))
-      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec fun _ : Q => List Bool)
-          (.inl k)) (fun request : Unit × List Bool => ProbOracleComp.query (decode request.2))
-        q)) =
-      sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-        (fun request : Unit × List Bool => ProbOracleComp.logOracle signer (decode request.2)) := by
-    funext q
-    cases q <;> simp [ProbOracleComp.query]
-  rw [ProbOracleComp.runLogWith, ProbOracleComp.runState, OracleComp.interpret_interpret,
-    hhandler, ProbOracleComp.eval_run_interpret, ProbOracleComp.eval_run_interpret]
-  exact ProbOracleComp.run_interpret_map_state
-    (fun request log => ProbComp.eval (ProbOracleComp.logOracle signer (decode request.2) log))
-    (fun request queried => ProbComp.eval (oracle request queried))
-    (fun log => (log.map Prod.fst).reverse) step program []
+        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) oracle) program).run []) :=
+  Forger.eval_runLogWith_rename_state program decode signer oracle
+    (fun log => (log.map Prod.fst).reverse) step
 
 /-- The EUF-CMA experiment of a typed scheme on words, played by `adversary.toTyped n`, is the
 word-level game: run the word forger against the signing oracle that records the queried messages,
@@ -394,8 +374,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run] at h
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap] at h
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query] at h
+      simp only [interp_norm, ProbOracleComp.query] at h
       dsimp only [OracleComp.sumHandler, StateT.run] at h
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         PMF.monad_map_eq_map, PMF.map_comp, PMF.mem_support_map_iff, Function.comp_apply] at h
@@ -404,7 +383,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
       obtain ⟨-, rfl, rfl⟩ := h
       simp
     · rw [ite_eq_right hcap] at h
-      simp only [OracleComp.interpret_pure, StateT.run_pure] at h
+      simp only [interp_norm] at h
       simp_all [PMF.monad_pure_eq_pure]
   case step =>
     rintro q ⟨j, log⟩ (rfl : j = log.length)
@@ -412,8 +391,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run]
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap]
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query, counterSigningOracle, hcap, ite_true]
+      simp only [interp_norm, ProbOracleComp.query, counterSigningOracle, hcap, ite_true]
       dsimp only [OracleComp.sumHandler, StateT.run]
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_map_eq_map, PMF.map_comp]

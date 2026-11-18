@@ -84,7 +84,7 @@ def program : Code .standard 15 :=
 theorem program_fixed : program.size ≤ 64 ∧ ¬program.ReadsWidth := by decide
 
 private theorem squareRoot_preserves : ∀ i : Fin 15,
-    6 ≤ i.val → squareRoot.Preserves i := by decide
+    6 ≤ i.val → squareRoot.Preserves i := by decide +kernel
 
 /-- Compute the finite splitting parameters from actual runtime dimensions. The two explicit
 ceiling-addition fits cover their temporary sums, and the fourth-power bound covers the square

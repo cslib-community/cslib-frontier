@@ -29,17 +29,29 @@ family indexed by a unary security parameter `n` and a group description `d`, wi
 `ZMod q` for the group order `q`. Group elements are encoded by the family's encoding and scalars
 in binary (`schnorrEncoding`).
 
+The honest prover of `schnorrFamily` draws its commitment nonce `αₜ` exactly uniformly on
+`ZMod q` at the `PMF` level (`SigmaProtocol.linear`). A strict PPT machine with fair coins cannot
+do this when `q` is not a power of two. The two zero-knowledge results below compare the fair-coin
+simulator with this ideal-sampling prover. They are therefore steps toward special HVZK of
+Schnorr's protocol ([BonehShoup2023], Example 19.3), not the cited result. The fair-coin
+counterpart for single conversations with `m`-bit challenges is
+`closeTo_schnorrRealTranscript_simulated` in `CslibFrontier.Crypto.Computational.SchnorrEavesdrop`;
+no `EfficientSpecialHVZK` or `ComputationalSpecialHVZK` statement for a fair-coin prover exists
+yet (#5293). Special soundness involves no sampling.
+
 * **Efficient special soundness** (`efficientSpecialSoundness_schnorr`, Example 19.2): the
   extractor `schnorrExtract` computes `(c - c')⁻¹ (z - z')` with `extractNat`, inverting by
   Fermat's little theorem, in polynomial time.
-* **Efficient special HVZK** (`efficientSpecialHVZK_schnorr`, Example 19.3): Boneh and Shoup's
-  simulator samples a uniform response `z` and outputs `(z • g - c • u, z)`. The typed simulator
+* **Efficient special HVZK against the ideal-sampling prover**
+  (`efficientSpecialHVZK_schnorr_ideal`, a step toward Example 19.3): Boneh and Shoup's simulator
+  samples a uniform response `z` and outputs `(z • g - c • u, z)`. The typed simulator
   `schnorrSimulator` samples `z` with `sampleExp`, which is within statistical distance
   `1 / 2 ^ n` of uniform on `ZMod q`, so it realizes the simulator up to `1 / 2 ^ n`. Its strict
   PPT certificate is the word program `schnorrSimulateWord`, which computes it on encodings
   (`eval_schnorrSimulateWord`).
-* **Computational special HVZK** (`computationalSpecialHVZK_schnorr`, Definition 20.6): because
-  every output of `schnorrSimulator` satisfies `z • g = (z • g - c • u) + c • u` exactly
+* **Computational special HVZK against the ideal-sampling prover**
+  (`computationalSpecialHVZK_schnorr_ideal`, a step toward Example 19.3 with Definition 20.6):
+  because every output of `schnorrSimulator` satisfies `z • g = (z • g - c • u) + c • u` exactly
   (`accepts_schnorrSimulator`, acceptance error `0`), and `1 / 2 ^ n` is negligible along any
   group-description setup `(setup n).map (n, ·)`, `schnorrSimulator` satisfies Definition 20.6
   with zero acceptance error.
@@ -81,11 +93,7 @@ The protocol does not depend on the security parameter; only the simulator's sam
   `Cslib.Crypto.PrimeOrderGroupFamily.simulatorRealizedBy_schnorrSimulator`: the word program is
   strict PPT and computes `schnorrSimulator` on encodings, so `schnorrSimulator` is strict PPT; it
   realizes Boneh and Shoup's simulator up to `1 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_schnorr`: efficient special HVZK with
-  statistical error `1 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.accepts_schnorrSimulator`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr`: exact acceptance (`δ = 0`)
-  and computational special HVZK (Definition 20.6).
+* `Cslib.Crypto.PrimeOrderGroupFamily.accepts_schnorrSimulator`: exact acceptance (`δ = 0`).
 * `Cslib.Crypto.PrimeOrderGroupFamily.eval_schnorrSigKeyGen`,
   `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_schnorrSigKeyGen`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_schnorrSigKeyGen_le`,
@@ -98,6 +106,13 @@ The protocol does not depend on the security parameter; only the simulator's sam
   `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodeSchnorrVerify`: strict-PPT and
   polynomial-time certificates and canonical-key characterizations for the shared bit-encoded
   Schnorr operations.
+
+## Ideal-sampling steps toward Example 19.3
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialHVZK_schnorr_ideal`: efficient special HVZK
+  with statistical error `1 / 2 ^ n`, against the ideal-sampling prover.
+* `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr_ideal`: computational
+  special HVZK (Definition 20.6) with zero acceptance error, against the ideal-sampling prover.
 
 ## References
 
@@ -125,7 +140,12 @@ def encScalar (d : F.Desc) : ZMod (F.order d) ↪ List Bool :=
   ⟨fun a => encNat a.val, encNat.injective.comp (ZMod.val_injective _)⟩
 
 /-- Schnorr's Sigma protocol ([BonehShoup2023], Example 19.1) in the group described by `i.2`,
-with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. -/
+with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. The honest
+prover draws its commitment nonce exactly uniformly on `ZMod q` at the `PMF` level, an ideal
+sampler that no fair-coin machine with a strict polynomial time bound realizes exactly when `q` is
+not a power of two. Fair-coin honest conversations with `m`-bit
+challenges are `schnorrRealTranscript` in `CslibFrontier.Crypto.Computational.SchnorrEavesdrop`
+(#5293). -/
 noncomputable def schnorrFamily (i : ℕ × F.Desc) :
     SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2) (F.Carrier i.2) (ZMod (F.order i.2))
       (ZMod (F.order i.2)) :=
@@ -391,10 +411,15 @@ theorem simulatorRealizedBy_schnorrSimulator :
       F.schnorrSimulator (fun i => 1 / 2 ^ i.1) :=
   fun i _ _ => F.closeTo_map_uniform_sampleExp i.1 i.2 _
 
-/-- **Schnorr's protocol has efficient special HVZK** ([BonehShoup2023], Example 19.3), with
-statistical error `1 / 2 ^ n` at security parameter `n`: the perfect simulator `linearSimulate` is
-realized by the strict PPT simulator `schnorrSimulator`. -/
-theorem efficientSpecialHVZK_schnorr :
+/-- Ideal-sampling step toward [BonehShoup2023], Example 19.3 (special HVZK, Definition 19.5),
+not the cited result: against the honest prover of `schnorrFamily`, which draws its commitment
+nonce exactly uniformly on `ZMod q` at the `PMF` level, `linearSimulate` is a perfect simulator,
+and the strict PPT simulator `schnorrSimulator` realizes it with statistical error `1 / 2 ^ n` at
+security parameter `n`. In the source the prover of Figure 19.1 is an algorithm. The fair-coin
+counterpart for single conversations with `m`-bit challenges is
+`closeTo_schnorrRealTranscript_simulated`; no `EfficientSpecialHVZK` statement for a fair-coin
+prover exists yet (#5293). -/
+theorem efficientSpecialHVZK_schnorr_ideal :
     EfficientSpecialHVZK F.schnorrFamily (fun i α u => α • F.generator i.2 = u) F.schnorrEncoding
       (fun i => linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
         (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
@@ -413,10 +438,15 @@ theorem accepts_schnorrSimulator (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, schnorrFamily, schnorr_accepts_iff,
     Function.Embedding.refl_apply, sub_add_cancel]
 
-/-- **Schnorr's protocol has computational special HVZK** ([BonehShoup2023], Definition 20.6) with
-zero acceptance error (`δ = fun _ => 0`) over any group-description setup `setup : ℕ → PMF F.Desc`
-paired with the security parameter. -/
-theorem computationalSpecialHVZK_schnorr (setup : ℕ → PMF F.Desc) :
+/-- Ideal-sampling step toward [BonehShoup2023], Example 19.3 with Definition 20.6 (special
+computational HVZK), not the cited result: Experiment 0 of Attack Game 20.4 runs the honest prover
+of `schnorrFamily`, which draws its commitment nonce exactly uniformly on `ZMod q` at the `PMF`
+level, and against it the strict PPT simulator `schnorrSimulator` satisfies Definition 20.6 with
+zero acceptance error (`δ = fun _ => 0`) over any group-description setup
+`setup : ℕ → PMF F.Desc` paired with the security parameter. The fair-coin counterpart for single
+conversations with `m`-bit challenges is `closeTo_schnorrRealTranscript_simulated`; no
+`ComputationalSpecialHVZK` statement for a fair-coin prover exists yet (#5293). -/
+theorem computationalSpecialHVZK_schnorr_ideal (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
       F.schnorrEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
       F.schnorrSimulator (fun _ => 0) :=
@@ -520,13 +550,8 @@ def schnorrCommitBits (input : F.Desc × List Bool) : List Bool :=
 /-- **Bit-level Schnorr commitment is computable in polynomial time**. -/
 theorem computableInPolyTime_schnorrCommitBits :
     ComputableInPolyTime F.schnorrCommitBits (encPair F.encDesc encBits) encBits := by
-  let encIn := encPair F.encDesc encBits
-  have hd : ComputableInPolyTime (fun p : F.Desc × List Bool => p.1) encIn F.encDesc := by fun_prop
-  have hr : ComputableInPolyTime (fun p : F.Desc × List Bool => p.2) encIn encBits := by fun_prop
-  have hr_nat : ComputableInPolyTime (fun p : F.Desc × List Bool => ofBits p.2) encIn encNat :=
-    (ComputableInPolyTime.bitsToNat.comp hr)
-  have hg := F.computableInPolyTime_generator.comp hd
-  exact F.computableInPolyTime_smul.comp (hd.prod (hr_nat.prod hg))
+  unfold schnorrCommitBits
+  fun_prop
 
 /-- `schnorrCommitBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrCommitBits :

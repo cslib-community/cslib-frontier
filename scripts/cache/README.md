@@ -50,15 +50,36 @@ enable publication. GCS remains the preferred origin. MIT fallback is enabled so
 shutdown does not force an otherwise cacheable build to compile from source.
 
 `COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT` bounds each Complexitylib origin attempt (default 180
-seconds; accepted range 0.1–600). Mapping lookups made by the missing-only helper also have
-five-second connection and twenty-second request limits, within that origin's overall budget.
-These limits cover lookup and transfer work together, including a stalled server.
+seconds; accepted range 0.1–600). Both `scripts/cache/get.sh` and `scripts/cache/get-missing.sh`
+resolve candidate ancestors through `scripts/cache/restore.py`, deepening shallow clones up to
+100 commits when possible and searching up to 100 commits in topological breadth-first order
+across all parents of `HEAD` (with a small fallback for stalled merge bases). After a branch
+merges `main`, newer published ancestors on the merged parent are tried strictly before the
+branch's older base regardless of commit timestamps or side-branch length. Mapping lookups have
+five-second connection and twenty-second request limits within that origin's overall budget,
+advancing to the next candidate on HTTP 404 or HTTP 403 and failing fast to the next configured
+origin on transport errors, timeouts or 5xx responses. (On November 17, 2026 the public GCS
+bucket answered 404 for a missing mapping; it answers 403 for every object while the kill switch
+has removed public read.) The fetched mapping is then passed directly to `lake cache get` for
+syntax verification and artifact downloads.
 
-Each origin reports its elapsed time and whether the native request completed, failed or timed
-out. Completion means that request succeeded, not that the checkout is fully built or that all
-artifacts were downloaded anew. Missing-only lookups retain the revision/module counts and
-report the final HTTP/curl status when no usable mapping was found; a denied lookup is not
-evidence that no uploaded artifacts exist.
+Candidates whose `lake-manifest.json` pins a different Mathlib commit than the checkout's are
+skipped before any lookup. A module's input hash covers the outputs of its imports, so outputs
+built against another Mathlib match nothing: across the three Mathlib bumps on `main` up to
+November 17, 2026, at most one of the 3,880 to 10,469 published modules was reusable afterwards.
+Before this rule, each restore after such a bump downloaded a complete set and then compiled
+everything; on November 17 those downloads sent 25 GB from GCS in an hour, which fired the kill
+switch, and drew HTTP 429 from MIT. Only Mathlib's pin is compared: bumps of cslib alone kept
+52% to 99.8% of outputs reusable and other `lakefile.toml` changes 96% to 100%, and the toolchain
+is already part of the mapping's path. A candidate whose manifest cannot be read is kept. When
+no candidate remains, the first origin attempt reports `skipped`, no other origin is tried and
+the build compiles from source, as it would have after the download.
+
+Each origin reports its elapsed time and whether the request completed, failed or timed out.
+Completion means that request succeeded, not that the checkout is fully built or that all
+artifacts were downloaded anew. Both helpers print the matched revision and module counts
+(plus uncached module count for `get-missing.sh`) and report the final HTTP/curl status when no
+usable mapping was found; a denied lookup is not evidence that no uploaded artifacts exist.
 
 CI reads the cache too. After restoring `.lake` from the GitHub Actions cache, Lean CI runs
 `scripts/cache/get-missing.sh`, which downloads the same outputs except those of modules whose
@@ -131,6 +152,24 @@ deletion on larger runners that already have ample space; it is not an exact bui
 Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if
 it fails.
+
+## Runner for `main` builds
+
+The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
+`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`). Pull
+requests, merge groups and manual runs always use the standard `ubuntu-24.04` runner, as does
+`main` while the variable is unset. The `main` run saves the `.lake` snapshot and stages the
+remote-cache publication, so a faster one publishes caches for more landed commits; the cache
+keys depend on the operating system and architecture, not the runner size, so standard runners
+restore what it saves.
+
+Larger runners are billed per minute even in public repositories. If the organization's Actions
+budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
+`main` shows a failed run and publishes no cache, while merging continues. Delete the variable
+(`gh variable delete MAIN_BUILD_RUNNER`) to return `main` to the standard runner without a
+commit. A pull request from a branch of this repository runs its own copy of the workflow, so
+this expression does not stop a branch from naming a billed runner; restrict the runner group in
+the organization's settings for that.
 
 ## Merge-queue handoff
 

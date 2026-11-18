@@ -192,7 +192,7 @@ example {generator : List Bool → List Bool} {length : ℕ → ℕ}
 -- Weakening the soundness bound: an amplified proof system is in particular `1 / 3`-sound.
 example {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty (ZKProof encCNF ThreeSAT (fun _ => 1 / 3)) :=
-  let ⟨zk, _⟩ := hf.exists_zkProof_of_mem_NP ThreeSAT.mem_NP
+  let ⟨zk, _⟩ := hf.exists_generableZKProof_of_mem_NP ThreeSAT.mem_NP
   ⟨zk.mono one_third_pow_succ_le⟩
 
 -- `ZKProof.mono` keeps the witness check and auxiliary-input zero knowledge, so the strongest
@@ -363,8 +363,8 @@ example {f : List Bool → List Bool} (hf : OneWay f) :
     (∃ zk : ZKProof encCNF ThreeSAT.npRelation.language (fun n => (1 / 3 : ENNReal) ^ (n + 1)),
       (∀ a w, zk.isWitness a w = true ↔ ThreeSAT.npRelation.IsWitness a w) ∧
       zk.NegligibleSoundness) :=
-  ⟨hf.exists_zkProof_of_mem_NP ThreeSAT.mem_NP,
-    hf.exists_zkProof_of_npRelation ThreeSAT.npRelation⟩
+  ⟨hf.exists_generableZKProof_of_mem_NP ThreeSAT.mem_NP,
+    hf.exists_generableZKProof_of_npRelation ThreeSAT.npRelation⟩
 
 example {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)

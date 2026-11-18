@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Comparison
 public import CslibFrontier.Computability.Circuit.Boolean.WordConstant
 import Cslib.Foundations.Data.Fin.Tuple
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Collision correction for support sampling
@@ -57,9 +58,7 @@ theorem eval_collisionStepCircuit (bits offset : ℕ) (a b : BitString bits) :
   have hs : Fin.append a b ∘ Fin.append (Fin.natAdd bits) (Fin.castAdd bits) =
       Fin.append b a := by
     rw [Fin.comp_append, Fin.append_comp_natAdd, Fin.append_comp_castAdd]
-  rw [collisionStepCircuit, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_comp,
-    Circuit.eval_append, eval_leCircuit, Circuit.eval_comp, Circuit.eval_wiring, hs,
-    eval_leCircuit, Circuit.eval_append, eval_wordConstCircuit, Circuit.eval_wiring,
+  simp only [circuit_simps, collisionStepCircuit, eval_leCircuit, hs, eval_wordConstCircuit,
     Fin.append_comp_castAdd]
   have he : (Circuit.oneGate Op.and (id : Fin 2 → Fin 2)).eval interpretation
       (Fin.append (fun _ : Fin 1 => decide (equivFin bits a ≤ equivFin bits b))
@@ -76,8 +75,7 @@ theorem eval_collisionStepCircuit (bits offset : ℕ) (a b : BitString bits) :
 `3 * bits + 1` multiplexer. Wiring has no Boolean gate cost. -/
 theorem size_collisionStepCircuit (bits offset : ℕ) :
     (collisionStepCircuit bits offset).size = 13 * bits + 6 := by
-  simp only [collisionStepCircuit, Circuit.size_comp, Circuit.size_append,
-    Circuit.size_oneGate, Circuit.size_wiring, size_leCircuit, size_muxCircuit,
+  simp only [circuit_simps, collisionStepCircuit, size_leCircuit, size_muxCircuit,
     size_wordConstCircuit]
   omega
 

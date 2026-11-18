@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BitString.Block
 public import CslibFrontier.MachineLearning.Replicable.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.IID.Event
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.EventBind
@@ -47,7 +48,10 @@ algorithms:
 ## Main results
 
 * `Cslib.MachineLearning.Replicable.iid_map_splitSample`,
-  `Cslib.MachineLearning.Replicable.iid_map_block`: independent block decompositions of `iid`.
+  `Cslib.MachineLearning.Replicable.iid_bind_splitSample`,
+  `Cslib.MachineLearning.Replicable.iid_map_block`,
+  `Cslib.MachineLearning.Replicable.iid_bind_piFin_block`: independent block decompositions of
+  `iid`.
 * `Cslib.MachineLearning.Replicable.IsReplicableFor.pad`,
   `Cslib.MachineLearning.Replicable.IsAccurateFor.pad`: padding invariance.
 * `Cslib.MachineLearning.Replicable.IsReplicableFor.seqPair`,
@@ -105,6 +109,20 @@ theorem iid_map_splitSample (D : PMF X) (m₁ m₂ : ℕ) :
     Fin.append_right]
   rw [Probability.PMF.bind_map_prodMk_apply, Probability.PMF.iid_apply, Probability.PMF.iid_apply]
 
+/-- Binding `m₁ + m₂` i.i.d. draws along `splitSample m₁ m₂` factors into two independent
+i.i.d. draws of sizes `m₁` and `m₂`. -/
+theorem iid_bind_splitSample {β : Type*} (D : PMF X) (m₁ m₂ : ℕ)
+    (f : (Fin m₁ → X) → (Fin m₂ → X) → PMF β) :
+    ((Probability.PMF.iid D (m₁ + m₂)).bind fun S =>
+      f (splitSample m₁ m₂ S).1 (splitSample m₁ m₂ S).2) =
+      (Probability.PMF.iid D m₁).bind fun S₁ =>
+        (Probability.PMF.iid D m₂).bind fun S₂ => f S₁ S₂ := by
+  have hm := (PMF.bind_map (Probability.PMF.iid D (m₁ + m₂)) (splitSample m₁ m₂)
+    (fun p => f p.1 p.2)).symm
+  dsimp only [Function.comp_def] at hm
+  rw [hm, iid_map_splitSample]
+  simp only [pmf_norm]
+
 /-- Taking only the first `m` coordinates of `m'` i.i.d. draws (`m ≤ m'`) recovers `iid D m`. -/
 theorem iid_map_castLE (D : PMF X) {m m' : ℕ} (h : m ≤ m') :
     (Probability.PMF.iid D m').map (fun S i => S (Fin.castLE h i)) = Probability.PMF.iid D m := by
@@ -136,6 +154,19 @@ theorem iid_map_block (D : PMF X) (k m : ℕ) :
   rw [hprod, Fintype.prod_prod_type]
   refine Finset.prod_congr rfl fun j _ => ?_
   rw [Probability.PMF.iid_apply]
+
+/-- Binding `k * m` i.i.d. draws into a `PMF.piFin` product over `k` blocks of size `m` factors
+into the `PMF.piFin` product of `k` independent `iid D m` binds. -/
+theorem iid_bind_piFin_block {β : Type*} (D : PMF X) (k m : ℕ)
+    (f : Fin k → (Fin m → X) → PMF β) :
+    ((Probability.PMF.iid D (k * m)).bind fun S =>
+      PMF.piFin fun j => f j (BitString.block (m := k) (k := m) S j)) =
+      PMF.piFin fun j => (Probability.PMF.iid D m).bind (f j) := by
+  have hm := (PMF.bind_map (Probability.PMF.iid D (k * m))
+    (BitString.block (α := X) (m := k) (k := m))
+    (fun B => PMF.piFin fun j => f j (B j))).symm
+  dsimp only [Function.comp_def] at hm
+  rw [hm, iid_map_block, ← PMF.piFin_const, PMF.piFin_bind]
 
 end SampleSplitting
 
@@ -195,32 +226,6 @@ samples with an independent shared seed `r₂ ~ seed₂`. -/
     Algorithm X (Ω₁ × Ω₂) γ (m₁ + m₂) :=
   (A₁.seqPair seed₂ run₂).map Prod.snd
 
-private theorem iid_splitSample_bind {X δ : Type*} (D : PMF X) (m₁ m₂ : ℕ)
-    (f : (Fin m₁ → X) × (Fin m₂ → X) → PMF δ) :
-    (Probability.PMF.iid D (m₁ + m₂)).bind (fun S => f (splitSample m₁ m₂ S)) =
-      (Probability.PMF.iid D m₁).bind fun Spre =>
-        (Probability.PMF.iid D m₂).bind fun Ssuf => f (Spre, Ssuf) := by
-  calc (Probability.PMF.iid D (m₁ + m₂)).bind (fun S => f (splitSample m₁ m₂ S))
-      = ((Probability.PMF.iid D (m₁ + m₂)).map (splitSample m₁ m₂)).bind f :=
-        (PMF.bind_map (Probability.PMF.iid D (m₁ + m₂)) (splitSample m₁ m₂) f).symm
-    _ = ((Probability.PMF.iid D m₁).bind fun Spre =>
-          (Probability.PMF.iid D m₂).map fun Ssuf => (Spre, Ssuf)).bind f := by
-        rw [iid_map_splitSample]
-    _ = (Probability.PMF.iid D m₁).bind fun Spre =>
-          (Probability.PMF.iid D m₂).bind fun Ssuf => f (Spre, Ssuf) := by
-        simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
-
-private theorem seqPair_inner_comm {α δ ω σ τ : Type*}
-    (seed₂ : PMF ω) (p₁ : PMF σ) (p₂ : PMF τ)
-    (q₁ q₂ : σ → PMF α) (K : α → α → τ → τ → ω → PMF δ) :
-    (seed₂.bind fun r₂ => p₁.bind fun s₁ => p₂.bind fun t₁ =>
-      p₁.bind fun s₂ => p₂.bind fun t₂ =>
-        (q₁ s₁).bind fun a₁ => (q₂ s₂).bind fun a₂ => K a₁ a₂ t₁ t₂ r₂) =
-      p₁.bind fun s₁ => p₁.bind fun s₂ =>
-        (q₁ s₁).bind fun a₁ => (q₂ s₂).bind fun a₂ =>
-          seed₂.bind fun r₂ => p₂.bind fun t₁ => p₂.bind fun t₂ => K a₁ a₂ t₁ t₂ r₂ := by
-  pmf_swap
-
 private theorem pairedOutput_seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
     (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
     (run₂ : α → (Fin m₂ → X) → Ω₂ → PMF γ) (D : PMF X) :
@@ -231,50 +236,22 @@ private theorem pairedOutput_seqPair {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
             (Probability.PMF.iid D m₂).bind fun S₂' =>
               (run₂ aa.1 S₁' r₂).bind fun b₁ =>
                 (run₂ aa.2 S₂' r₂).map fun b₂ => ((aa.1, b₁), (aa.2, b₂)) := by
-  simp only [pairedOutput, seqPair, PMF.bind_bind, PMF.bind_map, PMF.map_bind, PMF.map_comp,
-    Function.comp_def]
-  refine PMF.bind_congr_on_support _ _ _ fun r₁ _ => ?_
-  have h1 :
-      (seed₂.bind fun r₂ =>
-        (Probability.PMF.iid D (m₁ + m₂)).bind fun S₁ =>
-          (Probability.PMF.iid D (m₁ + m₂)).bind fun S₂ =>
-            (A₁.run (splitSample m₁ m₂ S₁).1 r₁).bind fun a₁ =>
-              (run₂ a₁ (splitSample m₁ m₂ S₁).2 r₂).bind fun b₁ =>
-                (A₁.run (splitSample m₁ m₂ S₂).1 r₁).bind fun a₂ =>
-                  (run₂ a₂ (splitSample m₁ m₂ S₂).2 r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂))) =
-      seed₂.bind fun r₂ =>
-        (Probability.PMF.iid D m₁).bind fun S₁pre =>
-          (Probability.PMF.iid D m₂).bind fun S₁' =>
-            (Probability.PMF.iid D m₁).bind fun S₂pre =>
-              (Probability.PMF.iid D m₂).bind fun S₂' =>
-                (A₁.run S₁pre r₁).bind fun a₁ =>
-                  (A₁.run S₂pre r₁).bind fun a₂ =>
-                    (run₂ a₁ S₁' r₂).bind fun b₁ =>
-                      (run₂ a₂ S₂' r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂)) := by
-    refine PMF.bind_congr_on_support _ _ _ fun r₂ _ => ?_
-    rw [iid_splitSample_bind D m₁ m₂ (fun p =>
+  simp only [pairedOutput, seqPair, pmf_norm]
+  have hS₁ (r₁ : Ω₁) (r₂ : Ω₂) :=
+    iid_bind_splitSample D m₁ m₂ fun S₁pre S₁' =>
       (Probability.PMF.iid D (m₁ + m₂)).bind fun S₂ =>
-        (A₁.run p.1 r₁).bind fun a₁ =>
-          (run₂ a₁ p.2 r₂).bind fun b₁ =>
+        (A₁.run S₁pre r₁).bind fun a₁ =>
+          (run₂ a₁ S₁' r₂).bind fun b₁ =>
             (A₁.run (splitSample m₁ m₂ S₂).1 r₁).bind fun a₂ =>
-              (run₂ a₂ (splitSample m₁ m₂ S₂).2 r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂)))]
-    refine PMF.bind_congr_on_support _ _ _ fun S₁pre _ =>
-      PMF.bind_congr_on_support _ _ _ fun S₁' _ => ?_
-    rw [iid_splitSample_bind D m₁ m₂ (fun p =>
+              (run₂ a₂ (splitSample m₁ m₂ S₂).2 r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂))
+  have hS₂ (r₁ : Ω₁) (r₂ : Ω₂) (S₁pre : Fin m₁ → X) (S₁' : Fin m₂ → X) :=
+    iid_bind_splitSample D m₁ m₂ fun S₂pre S₂' =>
       (A₁.run S₁pre r₁).bind fun a₁ =>
         (run₂ a₁ S₁' r₂).bind fun b₁ =>
-          (A₁.run p.1 r₁).bind fun a₂ =>
-            (run₂ a₂ p.2 r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂)))]
-    refine PMF.bind_congr_on_support _ _ _ fun S₂pre _ =>
-      PMF.bind_congr_on_support _ _ _ fun S₂' _ => ?_
-    refine PMF.bind_congr_on_support _ _ _ fun a₁ _ => ?_
-    exact PMF.bind_comm (run₂ a₁ S₁' r₂) (A₁.run S₂pre r₁) _
-  rw [h1]
-  exact seqPair_inner_comm seed₂ (Probability.PMF.iid D m₁) (Probability.PMF.iid D m₂)
-    (fun S => A₁.run S r₁) (fun S => A₁.run S r₁)
-    (fun a₁ a₂ S₁' S₂' r₂ =>
-      (run₂ a₁ S₁' r₂).bind fun b₁ =>
-        (run₂ a₂ S₂' r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂)))
+          (A₁.run S₂pre r₁).bind fun a₂ =>
+            (run₂ a₂ S₂' r₂).map fun b₂ => ((a₁, b₁), (a₂, b₂))
+  simp_rw [hS₁, hS₂]
+  pmf_swap
 
 theorem disagreeProb_seqPair_le {Ω₁ Ω₂ : Type*} {m₁ m₂ : ℕ}
     (A₁ : Algorithm X Ω₁ α m₁) (seed₂ : PMF Ω₂)
@@ -320,22 +297,11 @@ theorem marginal_pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) 
     (pi A).marginal D = PMF.piFin fun j => (A j).marginal D := by
   rw [marginal_eq_seed_bind]
   simp only [pi]
-  have hblocks (r : Fin k → Ω) :
-      (Probability.PMF.iid D (k * m)).bind
-        (fun S => PMF.piFin fun j => (A j).run (BitString.block (m := k) (k := m) S j) (r j)) =
-      PMF.piFin fun j => (Probability.PMF.iid D m).bind fun S => (A j).run S (r j) := by
-    have hm := (PMF.bind_map (Probability.PMF.iid D (k * m))
-      (BitString.block (α := X) (m := k) (k := m))
-      (fun B => PMF.piFin fun j => (A j).run (B j) (r j))).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_block, ← PMF.piFin_const]
-    exact PMF.piFin_bind (fun _ : Fin k => Probability.PMF.iid D m)
-      (fun j S => (A j).run S (r j))
+  have hblocks (r : Fin k → Ω) := iid_bind_piFin_block D k m fun j S => (A j).run S (r j)
   simp_rw [hblocks]
   rw [PMF.piFin_bind (fun j => (A j).seed)
     (fun j rj => (Probability.PMF.iid D m).bind fun S => (A j).run S rj)]
-  refine congrArg PMF.piFin (funext fun j => ?_)
-  exact (marginal_eq_seed_bind (A j) D).symm
+  exact congrArg PMF.piFin (funext fun j => (marginal_eq_seed_bind (A j) D).symm)
 
 theorem marginal_replicate {k m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
     (replicate A k).marginal D = Probability.PMF.iid (A.marginal D) k := by

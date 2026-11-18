@@ -715,6 +715,16 @@ theorem deleteAndGetQuotient_spec
         dsimp only
         refine ⟨hq_z_cur, hv_rec, storeLvl', ?_⟩
         set st_fin := res_z.1.removeWaitAtNode (m + 2) h2 hℓ u_cur z_id
+        have hsl_eq_iff : ∀ {w}, w ∈ (P.paddedDom d).erase z →
+            (storeLvl' w = m + 2 ↔ storeLvl w = m + 2) := fun {w} hw => by
+          by_cases hle_p : storeLvl w ≤ m + 1
+          · have hb := hpost_z.storeLvl_le_bounds w hw hle_p; omega
+          · rw [hpost_z.storeLvl_gt_eq w hw (by omega)]
+        have hsl_lt_iff : ∀ {w}, w ∈ (P.paddedDom d).erase z →
+            (storeLvl' w < m + 2 ↔ storeLvl w < m + 2) := fun {w} hw => by
+          by_cases hle_p : storeLvl w ≤ m + 1
+          · have hb := hpost_z.storeLvl_le_bounds w hw hle_p; omega
+          · rw [hpost_z.storeLvl_gt_eq w hw (by omega)]
         refine
           { seeds_eq := (res_z.1.seeds_removeWaitAtNode h2 hℓ ..).trans hpost_z.seeds_eq
             sentCount_eq :=
@@ -746,16 +756,10 @@ theorem deleteAndGetQuotient_spec
                 simp only [mem_filter, SeedAssignment.mem_activeAt_iff, mem_erase]
                 by_cases hwz : w = z
                 · rw [hwz]; simp [show storeLvl z ≠ m + 2 by omega]
-                · constructor
-                  · rintro ⟨⟨hwin, hnw⟩, hslw⟩
-                    exact ⟨⟨⟨hwz, hwin⟩, hnw⟩,
-                      (hpost_z.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)).trans hslw⟩
-                  · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hslw⟩
-                    refine ⟨⟨hwin, hnw⟩, ?_⟩
-                    by_cases hle_p : storeLvl w ≤ m + 1
-                    · have hb := hpost_z.storeLvl_le_bounds w (mem_erase.mpr ⟨hwz, hwin⟩) hle_p
-                      omega
-                    · rwa [hpost_z.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)] at hslw
+                · exact ⟨fun ⟨⟨hwin, hnw⟩, hslw⟩ =>
+                    ⟨⟨⟨hwz, hwin⟩, hnw⟩, (hsl_eq_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mpr hslw⟩,
+                    fun ⟨⟨⟨_, hwin⟩, hnw⟩, hslw⟩ =>
+                    ⟨⟨hwin, hnw⟩, (hsl_eq_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mp hslw⟩⟩
               · exact hpost_z.le_dom_eq j hj1 (by omega) u
             le_query_eq := fun j hj1 hjℓ u w vw hdw hnw hslw => by
               rw [res_z.1.nodeQuery_removeWaitAtNode scheme h2 hℓ u_cur z_id hj1 (hjℓ.trans hℓ) u]
@@ -764,11 +768,7 @@ theorem deleteAndGetQuotient_spec
                 have hwz : w ≠ z := fun h => by subst h; simp at hdw
                 rw [Function.update_of_ne hwz] at hdw
                 have hwin : w ∈ P.paddedDom d := (P.mem_paddedDom_iff d w).mpr (by simp [hdw])
-                have hslw_orig : storeLvl w = m + 2 := by
-                  by_cases hle_p : storeLvl w ≤ m + 1
-                  · have hb := hpost_z.storeLvl_le_bounds w (mem_erase.mpr ⟨hwz, hwin⟩) hle_p
-                    omega
-                  · rwa [hpost_z.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)] at hslw
+                have hslw_orig := (hsl_eq_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mp hslw
                 rw [hpost_z.above_query_eq (m + 2) hj1 hℓ (by omega) u]
                 exact hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u w vw hdw hnw hslw_orig
               · exact hpost_z.le_query_eq j hj1 (by omega) u w vw hdw hnw hslw
@@ -794,23 +794,16 @@ theorem deleteAndGetQuotient_spec
               rw [res_z.1.nodeWait_removeWaitAtNode_same h2 hℓ u_cur z_id,
                 hpost_z.above_wait_eq (m + 2) h2 hℓ (by omega) u_cur,
                 WaitingList.dom_remove, hwf.wait_dom_eq (m + 2) h2 hℓ u_cur]
-              have herase_img := image_erase_of_injOn
-                (filter_subset (fun w => storeLvl w < m + 2) _) hinj_cur hz_act
-              rw [herase_img]
+              rw [image_erase_of_injOn (filter_subset (fun w => storeLvl w < m + 2) _)
+                hinj_cur hz_act]
               congr 1; ext w
               simp only [mem_erase, mem_filter, SeedAssignment.mem_activeAt_iff]
               by_cases hwz : w = z
               · rw [hwz]; simp
-              · constructor
-                · rintro ⟨_, ⟨hwin, hnw⟩, hlt_w⟩
-                  refine ⟨⟨⟨hwz, hwin⟩, hnw⟩, ?_⟩
-                  have hb := hpost_z.storeLvl_le_bounds w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)
-                  omega
-                · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩
-                  refine ⟨hwz, ⟨hwin, hnw⟩, ?_⟩
-                  by_contra hge
-                  rw [hpost_z.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)] at hlt_w
-                  omega
+              · exact ⟨fun ⟨_, ⟨hwin, hnw⟩, hlt_w⟩ =>
+                  ⟨⟨⟨hwz, hwin⟩, hnw⟩, (hsl_lt_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mpr hlt_w⟩,
+                  fun ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩ =>
+                  ⟨hwz, ⟨hwin, hnw⟩, (hsl_lt_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mp hlt_w⟩⟩
             · have hne_u : ∀ h_eq : m + 2 = m + 2, h_eq ▸ u ≠ u_cur := fun _ => hu
               dsimp only [st_fin]
               rw [res_z.1.nodeWait_removeWaitAtNode_other h2 hℓ u_cur z_id h2 hℓ u hne_u,
@@ -822,16 +815,10 @@ theorem deleteAndGetQuotient_spec
               · rw [hwz]
                 have hnu : st.seeds.nodeAt (m + 2) hℓ z ≠ u := fun h => hu (h.symm.trans hnz)
                 simp [hnu]
-              · constructor
-                · rintro ⟨⟨hwin, hnw⟩, hlt_w⟩
-                  refine ⟨⟨⟨hwz, hwin⟩, hnw⟩, ?_⟩
-                  have hb := hpost_z.storeLvl_le_bounds w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)
-                  omega
-                · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩
-                  refine ⟨⟨hwin, hnw⟩, ?_⟩
-                  by_contra hge
-                  rw [hpost_z.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hwin⟩) (by omega)] at hlt_w
-                  omega
+              · exact ⟨fun ⟨⟨hwin, hnw⟩, hlt_w⟩ =>
+                  ⟨⟨⟨hwz, hwin⟩, hnw⟩, (hsl_lt_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mpr hlt_w⟩,
+                  fun ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩ =>
+                  ⟨⟨hwin, hnw⟩, (hsl_lt_iff (mem_erase.mpr ⟨hwz, hwin⟩)).mp hlt_w⟩⟩
           · have hne_j : ∀ h_eq : j = m + 2, h_eq ▸ u ≠ u_cur := fun h_eq => by omega
             dsimp only [st_fin]
             rw [res_z.1.nodeWait_removeWaitAtNode_other h2 hℓ u_cur z_id hj2 (hjℓ.trans hℓ) u hne_j]
@@ -840,12 +827,8 @@ theorem deleteAndGetQuotient_spec
           · subst hj_top
             obtain ⟨hw_er, hnw⟩ := SeedAssignment.mem_activeAt_iff.mp hw
             obtain ⟨hwz, hwin⟩ := mem_erase.mp hw_er
-            have hslw_orig : storeLvl w < m + 2 := by
-              by_contra hge
-              rw [hpost_z.storeLvl_gt_eq w hw_er (by omega)] at hslw
-              omega
             have hlk_old := hwf.wait_lookup_eq (m + 2) h2 hℓ u w
-              (SeedAssignment.mem_activeAt_iff.mpr ⟨hwin, hnw⟩) hslw_orig
+              (SeedAssignment.mem_activeAt_iff.mpr ⟨hwin, hnw⟩) ((hsl_lt_iff hw_er).mp hslw)
             by_cases hu : u = u_cur
             · rw [hu] at hnw hlk_old ⊢
               dsimp only [st_fin]

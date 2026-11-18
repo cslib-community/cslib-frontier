@@ -61,7 +61,7 @@ example (n : ℕ) (d : schnorrGroups.Desc) (u : schnorrGroups.Carrier d)
     1 - 1 / 2 ^ n ≤ (ProbComp.eval (schnorrGroups.schnorrSimulator (n, d) u c)).toOuterMeasure
       {tz | (schnorrGroups.schnorrFamily (n, d)).Accepts u tz.1 c tz.2} :=
   schnorrGroups.simulatorRealizedBy_schnorrSimulator.one_sub_le_accepts
-    schnorrGroups.efficientSpecialHVZK_schnorr.specialHVZK (n, d) u c
+    schnorrGroups.efficientSpecialHVZK_schnorr_ideal.specialHVZK (n, d) u c
 
 /-! ### Discrete logarithms -/
 

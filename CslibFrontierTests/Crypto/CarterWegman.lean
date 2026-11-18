@@ -207,18 +207,6 @@ example :
           (fun _ _ t => pure ([true], t)))) :=
   isOraclePPT_prfPadDistinguisher_wordProbPadTest (by ppt) (by polytime) (by ppt) (by ppt)
 
-/-- Two-slot `n`-bit nonce schedule: slot `0` has leading bit `false` and slot `1` has leading bit
-`true`, padded with `n - 1` `false` bits. For every `n ≥ 1`, both nonces have length `n` and are
-distinct on `{0, 1}`. -/
-def twoSlotNonce (n i : ℕ) : List Bool :=
-  decide (i = 1) :: List.replicate (n - 1) false
-
--- Concrete `IsOraclePPT` admissibility check for `prfMultiPadDistinguisher` with `twoSlotNonce`.
-example :
-    IsOraclePPT Turing.MultiTapeTM.encBool
-      (prfMultiPadDistinguisher (fun _ => 2) twoSlotNonce (fun _ _ => pure false)) :=
-  isOraclePPT_prfMultiPadDistinguisher (by polytime) (by unfold twoSlotNonce; polytime) (by ppt)
-
 -- Concrete `checkNonceSUF` and `checkRandomNonceSUF` checks over `ZMod 7`:
 -- issued nonce `0` with `m₀ = [2, 4]`, `t₀ = 5`, pad function `fun x => if x = 0 then 4 else 1`.
 -- Unissued nonce `1` with `m' = [2, 4]` and `t' = xpolyHash 3 [2, 4] + 1 = 1 + 1 = 2` is accepted
