@@ -17,7 +17,7 @@ import Mathlib.Data.Fintype.Sort
 # Programming the raw challenge-expansion row of ML-DSA
 
 This implementation chooses the 221-byte minimum permitted by [FIPS 204][NISTFIPS204],
-Appendix C, Table 4, for bounded Algorithm 29. The insertion positions on a successful
+Appendix C, Table 3, for bounded Algorithm 29. The insertion positions on a successful
 bounded row encode an ordered support. Transporting their final positions backward through the
 swaps changes only accepted candidate bytes. Sorting the source and target supports gives an
 invertible relabeling. The used sign bits are set from the target at each label’s destination.
