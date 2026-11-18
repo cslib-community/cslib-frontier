@@ -72,8 +72,7 @@ theorem queryTable_queryAddress (H : Xofs) (a bytes : ℕ) (strength : Bool) (x 
   apply BitString.ofFn_ofList
   let stream := if strength then H.h256 else H.h128
   change (Keccak.bytesToBitsLE (stream.read x bytes)).length = 8 * bytes
-  have lenRead := stream.length_read x bytes
-  simp [Keccak.bytesToBitsLE, Keccak.byteBitsLE, lenRead, Nat.mul_comm]
+  rw [Keccak.length_bytesToBitsLE, stream.length_read]
 
 /-- Sample one finite prefix table for both raw XOFs before the execution. Each raw input of
 at most `a` bits receives `bytes` independent uniform bytes for each SHAKE variant. The
