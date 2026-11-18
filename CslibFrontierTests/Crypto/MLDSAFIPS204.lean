@@ -22,6 +22,10 @@ set_option linter.hashCommand false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204
 
+-- At every FIPS level, a nonzero vector of multiples of q exceeds the fork's doubled radius.
+example (s : Level) : 2 * MLDSA.compressedSelfTargetRadius s.params 13 < 8380417 := by
+  cases s <;> decide
+
 -- NIST ACVP-Server, ML-DSA-keyGen-FIPS204/internalProjection.json, tgId 1, tcId 1
 -- (commit 975de31eb83d87039ec88934fdc47d8c312b892d). Compare a SHAKE256 fingerprint of
 -- the complete expected public-key bytes to keep the 1312-byte fixture out of the source.

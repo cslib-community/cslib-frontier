@@ -429,14 +429,19 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
     List (Fin 256) :=
   bitSponge layout suffix (bytesToBitsLE input) outputBytes
 
-/-- A byte-aligned sponge returns exactly the requested byte count. -/
-@[simp] theorem length_byteSponge (layout : SpongeLayout) (suffix : List Bool)
-    (input : List (Fin 256)) (outputBytes : ℕ) :
-    (byteSponge layout suffix input outputBytes).length = outputBytes := by
-  rw [byteSponge, bitSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
+/-- Squeezing after an arbitrary bit string returns exactly the requested number of bytes. -/
+@[simp] theorem length_bitSponge (layout : SpongeLayout) (suffix input : List Bool)
+    (outputBytes : ℕ) : (bitSponge layout suffix input outputBytes).length = outputBytes := by
+  rw [bitSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
   exact le_smul_ceilDiv (a := 8 * layout.rateLanes) (b := outputBytes) (by
     have hr := layout.rate_pos
     omega)
+
+/-- A byte-aligned sponge returns exactly the requested byte count. -/
+@[simp] theorem length_byteSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List (Fin 256)) (outputBytes : ℕ) :
+    (byteSponge layout suffix input outputBytes).length = outputBytes :=
+  length_bitSponge layout suffix (bytesToBitsLE input) outputBytes
 
 /-- For a fixed suffix, byte-aligned sponge output is prefix-consistent across requested lengths. -/
 theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
