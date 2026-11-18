@@ -266,6 +266,9 @@ structure Learned (log₀ : LRATLog φ) (A M₀ : Trail) where
   clause : Clause ℕ
   /-- The asserting literal. -/
   lit : Literal ℕ
+  /-- The variables of the clauses met by the analysis: the conflict clause and the resolvents,
+  hence the reasons resolved. Branching heuristics bump them. -/
+  seen : List ℕ
   clause?_eq : log.clause? id = some clause
   mem : lit ∈ clause
   false_below : ∀ y ∈ clause, y ≠ lit → y.negate ∈ Trail.lits M₀
@@ -299,7 +302,8 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
         have := List.mem_filter.1 (hys ▸ List.mem_cons_self : u ∈ C.filter _)
         exact ⟨this.1, by simpa using this.2⟩
       if hall : rest.all (· == u) then
-        { log := log, id := i, clause := C, lit := u, clause?_eq := hC, mem := hu.1,
+        { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, clause?_eq := hC,
+          mem := hu.1,
           false_below := fun y hy hne => by
             have hyT := hfalse y hy
             simp only [XTrail.trail_append, XTrail.trail_cons, lits_append, List.mem_append]
@@ -395,7 +399,8 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
             if hmem : l.negate ∈ C then
               let log' := resolveLog log l i r C R hC hR
               have hspec := resolveLog_spec (l := l) hC hR
-              analyze log₀ d M₀ A N' hA' log' (hext.trans hspec.2) log.next (resolveOn l C R)
+              let L' := analyze log₀ d M₀ A N' hA' log' (hext.trans hspec.2) log.next
+                (resolveOn l C R)
                 hspec.1 (hT.mono hspec.2) hdec'
                 (fun y hy => by
                   rcases mem_resolveOn hy with ⟨hy, hne⟩ | ⟨hy, hne⟩
@@ -405,6 +410,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                   obtain ⟨z, hz, hne, hzc⟩ := hz
                   exact ⟨z, mem_resolveOn_left hz hne, hcur' z hne hzc⟩)
                 hnd'
+              { L' with seen := C.map Prod.fst ++ L'.seen }
             else
               analyze log₀ d M₀ A N' hA' log hext i C hC hT hdec'
                 (fun y hy => hfalse' y hy fun h => hmem (h ▸ hy))

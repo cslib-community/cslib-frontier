@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
+public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 import Mathlib.Tactic.Linarith
 
 /-! # A CDCL solver with watched literals and LRAT certificates
@@ -42,9 +43,11 @@ searches the variables of the database (`CNF.vars`), which can traverse every li
 
 **The loop** (`Cslib.Algorithms.Lean.CDCL.loop`). While the queue is not empty, it processes its
 first literal. A conflict with no decision on the trail ends with a certificate; otherwise it is
-analysed, followed by Backjump and Learn. With the queue empty, it checks the short clauses for a
-conflict or a unit, then decides the first unassigned variable of the database, `true` first, or
-returns the trail as a model. Every move lowers the measure: the rank of the abstract system, times
+analysed, followed by Backjump and Learn, and the variables met by the analysis are bumped
+(`Cslib.Algorithms.Lean.CDCL.Activity.bump`). With the queue empty, it checks the short clauses for
+a conflict or a unit, then decides an unassigned variable of the database of greatest activity
+(VSIDS, `Cslib.Algorithms.Lean.CDCL.Activity.pick`), `true` first, or returns the trail as a
+model. Every move lowers the measure: the rank of the abstract system, times
 the number of variables plus two, plus the length of the queue. Recursion is structural on a bound
 on the measure, which provably never runs out, so the kernel can run the solver.
 
@@ -70,9 +73,9 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
-/-- The state of the solver with watched literals: the state `Exec`, the watch store,
-the queue of trail literals whose watch lists are still to be visited, and the clauses with fewer
-than two different literals. -/
+/-- The state of the solver with watched literals: the state `Exec`, the watch store, the queue
+of trail literals whose watch lists are still to be visited, the clauses with fewer than two
+different literals, and the variable activities. -/
 structure WExec (φ : CNF ℕ) where
   /-- The trail, database and log. -/
   exec : Exec φ
@@ -82,6 +85,8 @@ structure WExec (φ : CNF ℕ) where
   queue : List (Literal ℕ)
   /-- The clauses with fewer than two different literals. -/
   short : List (ℕ × Clause ℕ)
+  /-- The variable activities of VSIDS, which choose the decisions. -/
+  act : Activity
 
 /-- The abstract trail. -/
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
@@ -100,7 +105,8 @@ structure WExec.Inv (S : WExec φ) : Prop where
 
 /-- The initial state. -/
 @[expose] def WExec.init (φ : CNF ℕ) : WExec φ :=
-  ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2⟩
+  ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
+    Activity.init (φ.vars.foldl max 0 + 1)⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) : (WExec.init φ).Inv where
   exec := Exec.init_inv φ
@@ -707,8 +713,9 @@ queued. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
-      S.short⟩
-  else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short⟩
+      S.short, S.act.bump L.seen⟩
+  else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
+    S.act.bump L.seen⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -857,8 +864,8 @@ inductive Answer (φ : CNF ℕ) : Type
 /-- **The CDCL loop with watched literals.** While the queue is not empty, the watch list of the
 negation of its first literal is visited; a conflict is analysed, followed by Backjump and Learn,
 or ends with a certificate when there is no decision. With the queue empty, the short clauses are
-checked for a conflict or a unit, then the first unassigned variable of the database is decided,
-or the trail is returned as a model. -/
+checked for a conflict or a unit, then an unassigned variable of the database of greatest activity
+is decided, or the trail is returned as a model. -/
 @[expose] def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
@@ -906,15 +913,15 @@ or the trail is returned as a model. -/
           loop φ fuel (S.propagateShort e l) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
-          match hx : S.exec.clauses.vars.find? (fun x => !(Trail.vars S.M).contains x) with
+          match hx : S.act.pick S.M S.exec.clauses.vars with
           | some x =>
-            have hundef : x ∉ Trail.vars S.M := by simpa using List.find?_some hx
-            have hspec := Exec.decide_spec hS.exec hnoconf (List.mem_of_find?_eq_some hx) hundef
+            have hundef : x ∉ Trail.vars S.M := (Activity.pick_some hx).2
+            have hspec := Exec.decide_spec hS.exec hnoconf (Activity.pick_some hx).1 hundef
             loop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
               (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
           | none =>
-            .sat (Trail.assignment S.M) (hS.exec.run.eval_model hnoconf fun x hxV => by
-              simpa using List.find?_eq_none.1 hx x hxV)
+            .sat (Trail.assignment S.M)
+              (hS.exec.run.eval_model hnoconf fun x hxV => Activity.pick_none hx x hxV)
 
 /-- **The CDCL solver**: a model, or an LRAT certificate of unsatisfiability. -/
 @[expose] def solve (φ : CNF ℕ) : DPLL.Result :=

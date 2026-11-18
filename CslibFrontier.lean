@@ -45,6 +45,7 @@ public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
 public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.Watched
 public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
