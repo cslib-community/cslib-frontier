@@ -242,6 +242,8 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
 
 end Diagonal
 
+-- Keep the existential machine realization opaque while composing the named resource contracts.
+attribute [local irreducible] ComputableInO in
 open Diagonal in
 /-- **The diagonal is decidable in exponential time**, within time `O(2 ^ (4 * n))` and space
 `O(2 ^ (2 * n))` on inputs of length `n`, charging decoding, the symbols, the clock, the universal

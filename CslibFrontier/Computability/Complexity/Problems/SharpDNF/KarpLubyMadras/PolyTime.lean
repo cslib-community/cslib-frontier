@@ -182,7 +182,9 @@ theorem computableInPolyTime_consistent :
       (encPair encNat encBool) := (ComputableInPolyTime.fst _ _).snd'
   have hr := ComputableInPolyTime.snd
     (encPair encTerm (encPair encNat encBool)) (encPair encNat encBool)
-  fun_prop
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (hl.fst'.beq hr.fst'))
+    (hl.snd'.beq hr.snd')
 
 attribute [local fun_prop] computableInPolyTime_consistent
 
@@ -192,7 +194,12 @@ private def belowWidths (φ : DNF ℕ) (k : ℕ) : Bool :=
 private theorem computableInPolyTime_belowWidths : ComputableInPolyTime
     (fun p : DNF ℕ × ℕ => belowWidths p.1 p.2) (encPair encDNF encUnary) encBool := by
   unfold belowWidths
-  fun_prop
+  refine ComputableInPolyTime.allWithInput (ComputableInPolyTime.fst encDNF encUnary) ?_
+  have hterm := ComputableInPolyTime.snd (encPair encDNF encUnary) encTerm
+  have hbound := (ComputableInPolyTime.fst (encPair encDNF encUnary) encTerm).snd'
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (computableInPolyTime_consistent.comp hterm))
+    (ComputableInPolyTime.unary_lt' hbound (computableInPolyTime_width.comp hterm))
 
 attribute [local fun_prop] computableInPolyTime_belowWidths
 
