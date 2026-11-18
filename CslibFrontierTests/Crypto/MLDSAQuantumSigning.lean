@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
 meta import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 
@@ -54,3 +55,29 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) (sk : List Byte) (q : 
       (H.signingOracle s sk q st.2).map (fun r => (r.1, st.1, r.2)) := by
   simp [commands, OracleComp.sumHandler, deviceHandler_query,
     Function.comp_def, unquery, PMF.map]
+
+-- Even when the empty string is the only permitted input, the two SHAKE variants return
+-- independent bytes. Equating the variants would give a distribution supported on the diagonal.
+example (base : Xofs) : ((base.uniformPrefixes 0 1).map fun H =>
+    (H.h128.byteAt [] 0, H.h256.byteAt [] 0)) = PMF.uniformOfFintype (Byte × Byte) := by
+  let empty := word (a := 0) [] (by decide)
+  have unique (w : RawWord 0) : w = empty := by
+    obtain ⟨⟨n, hn⟩, bits⟩ := w
+    obtain rfl : n = 0 := by lia
+    have eq : bits = BitString.ofList 0 [] := Subsingleton.elim _ _
+    cases eq
+    rfl
+  let e : Table 0 1 ≃ Byte := {
+    toFun := fun t => t (empty, 0)
+    invFun := fun b _ => b
+    left_inv := by
+      intro t
+      funext ⟨w, i⟩
+      rw [unique w, Subsingleton.elim i 0]
+    right_inv := fun _ => rfl }
+  have eq := PMF.uniformOfFintype_map_equiv ((Equiv.prodCongr e e).trans (Equiv.prodComm _ _))
+  rw [independent_tables, PMF.uniformOfFintype_bind_map, PMF.map_comp]
+  refine Eq.trans ?_ eq
+  congr 1
+  funext ⟨t₂, t₁⟩
+  simp [byteAt_install, e, empty]

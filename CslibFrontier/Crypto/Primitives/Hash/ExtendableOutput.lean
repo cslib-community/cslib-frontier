@@ -103,4 +103,49 @@ theorem ExtendableOutput.read_fill_of_le (H : ExtendableOutput) {rows : Finset (
     simp [List.take_append, H.length_read, Nat.sub_eq_zero_of_le hn, H.take_read x hn]
   · exact H.read_fill_of_notMem seen tape hx n
 
+namespace ExtendableOutput
+
+/-- The byte at a fixed offset of a raw XOF input stream. -/
+def byteAt (H : ExtendableOutput) (x : List Bool) (i : ℕ) : Byte :=
+  (H.read x (i + 1))[i]'(by rw [H.length_read]; exact Nat.lt_succ_self _)
+
+/-- All reads long enough to contain an offset agree on its byte. -/
+theorem getElem_read (H : ExtendableOutput) (x : List Bool) {i n : ℕ} (hi : i < n) :
+    (H.read x n)[i]'(by rwa [H.length_read]) = byteAt H x i := by
+  unfold byteAt
+  have h := H.take_read x (show i + 1 ≤ n by lia)
+  have hlen : i < ((H.read x n).take (i + 1)).length := by simp [H.length_read, hi]
+  simpa only [List.getElem_take] using List.getElem_of_eq h hlen
+
+/-- A prefix update affects exactly the byte offsets present in the replacement row. -/
+theorem byteAt_withPrefixes (H : ExtendableOutput) (f : List Bool → Option (List Byte))
+    (x : List Bool) (i : ℕ) :
+    byteAt (H.withPrefixes f) x i = ((f x).bind (fun row => row[i]?)).getD (byteAt H x i) := by
+  cases h : f x with
+  | none => simp [byteAt, ExtendableOutput.withPrefixes, h]
+  | some row =>
+    by_cases hi : i < row.length
+    · simp [byteAt, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix, h, hi,
+        List.getElem_append_left, List.getElem_take]
+    · have le : row.length ≤ i := Nat.le_of_not_gt hi
+      simp [byteAt, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix, h, hi,
+        List.take_of_length_le (by lia : row.length ≤ i + 1), List.getElem_append_right le,
+        List.getElem_drop, Nat.add_sub_of_le le]
+
+/-- Two XOFs agree on all finite reads if their individual bytes agree. -/
+theorem ext_byteAt {H G : ExtendableOutput}
+    (same : ∀ x i, byteAt H x i = byteAt G x i) : H = G := by
+  have hr : H.read = G.read := by
+    funext x n
+    apply List.ext_getElem
+    · rw [H.length_read, G.length_read]
+    · intro i hi _
+      have h : i < n := hi.trans_le (H.length_read ..).le
+      rw [getElem_read H x h, getElem_read G x h, same]
+  cases H
+  cases G
+  congr
+
+end ExtendableOutput
+
 end Cslib.Crypto
