@@ -346,7 +346,7 @@ private theorem read_off_rows (H : Xofs) {s : Level} (seen : List Bool → ℕ)
   apply H.h256.read_fill_of_notMem
   intro h
   obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp h
-  exact hx (by rw [bitsLength, FixedBytes.length_toList])
+  exact hx (by rw [Keccak.length_bytesToBitsLE, FixedBytes.length_toList])
 
 private theorem setup_off_rows (H : Xofs) (s : Level) (seen : List Bool → ℕ)
     (table : digestRows s → FixedBytes 221) (seed : FixedBytes 32) :
@@ -367,18 +367,22 @@ private theorem startSigning_off_rows {H : Xofs} {s : Level} {seed : FixedBytes 
   have trlen : tr.length = 64 := H.h256.length_read ..
   have bound : 8 * digestBytes s ≤ 512 := by cases s <;> decide
   have formatted : 16 ≤ fmt.length := by
-    simp only [fmt, formatMessage, List.length_append, bitsLength, List.length_cons]
+    simp only [fmt, formatMessage, List.length_append, Keccak.length_bytesToBitsLE,
+      List.length_cons]
     omega
   have rep : K.representativeFromTr tr fmt = H.representativeFromTr tr fmt := by
     unfold Xofs.representativeFromTr
-    rw [read_off_rows H seen table _ (by rw [List.length_append, bitsLength, trlen]; omega)]
+    rw [read_off_rows H seen table _ (by
+      rw [representativeInput, List.length_append, Keccak.length_bytesToBitsLE, trlen]; omega)]
   let μ := H.representativeFromTr tr fmt
   have mlen : μ.length = 512 := by
-    simp only [μ, Xofs.representativeFromTr, bitsLength, ExtendableOutput.length_read]
+    simp only [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE]
+    rw [H.h256.length_read]
   have mask : K.h256.read (Keccak.bytesToBitsLE (key ++ rnd.toList) ++ μ) 64 =
       H.h256.read (Keccak.bytesToBitsLE (key ++ rnd.toList) ++ μ) 64 := by
     apply read_off_rows
-    rw [List.length_append, bitsLength, List.length_append, FixedBytes.length_toList, mlen]
+    rw [List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
+      FixedBytes.length_toList, mlen]
     omega
   have matrix : K.expandA s rho.toList = some sk.A :=
     (Xofs.expandA_congr (K := K) (H := H) rfl s rho.toList).trans hA
@@ -445,7 +449,7 @@ noncomputable def Xofs.refreshFirstSign (H : Xofs) (s : Level) (seen : List Bool
         let updated := Function.update table key fresh
         let K := H.withExpansionRows s seen updated
         let tape := (H.h256.read key (seen key) ++ List.ofFn fresh).take 221
-        let result := attemptResult st.sk prep d (sampleInBallFromBytes s tape)
+        let result := attemptResult st.sk prep d (sampleInBallBytes s tape)
         (updated, afterAttempt K st result)
   else PMF.pure (table, none)
 
@@ -488,16 +492,16 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
       have prepared : K.prepareAttempt s st.A st.maskSeed 0 = prep :=
         prepare_off_rows H seen updated st.A hmask 0
       have dg : K.commitmentDigest s w st.μ = d := digest_off_rows H seen updated w hμ
-      have sample : K.sampleInBall s d = sampleInBallFromBytes s
+      have sample : K.sampleInBall s d = sampleInBallBytes s
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221) := by
-        apply congrArg (sampleInBallFromBytes s)
+        apply congrArg (sampleInBallBytes s)
         have h := H.h256.read_fill_window seen updated key (n := 221) (Nat.le_add_left ..)
         rw [show updated key = fresh from Function.update_self ..] at h
         exact h
       apply congrArg (post updated)
       symm
       change K.sign s keys.secretKey q.message q.context rnd = afterAttempt K st
-        (attemptResult st.sk prep d (sampleInBallFromBytes s
+        (attemptResult st.sk prep d (sampleInBallBytes s
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221)))
       simp only [Xofs.sign, hc, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
         Option.bind_some, Xofs.signInternal, start]
