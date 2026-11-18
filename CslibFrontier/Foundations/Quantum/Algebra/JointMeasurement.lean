@@ -104,7 +104,7 @@ theorem jointProd_eq_noncommProd :
   exact Finset.map_noncommProd _ _ _ (jointAlg O).val
 
 omit [DecidableEq ι] in
-/-- A star-algebra homomorphism carries the joint product to the joint product of the images. -/
+/-- An algebra homomorphism carries the joint product to the joint product of the images. -/
 theorem map_jointProd {B F : Type*} [Ring B] [Algebra ℂ B] [FunLike F A B]
     [AlgHomClass F ℂ A B] (f : F) :
     f (jointProd O hO) = jointProd (fun i => f (O i)) fun i j => (hO i j).map f := by
