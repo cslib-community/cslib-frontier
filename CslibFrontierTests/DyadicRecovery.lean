@@ -5,6 +5,7 @@ Authors: Christian Reitwiessner
 -/
 
 module
+-- upstream: candidate
 
 import CslibFrontier.Algorithms.Lean.DyadicRecovery
 meta import CslibFrontier.Algorithms.Lean.DyadicRecovery
@@ -37,7 +38,3 @@ example : (Rat.recoverDyadic 7 45).map (fun q => (q.num, q.den)) = some (5, 7) :
 /-- info: true -/
 #guard_msgs in
 #eval Rat.recoverDyadic 1 0 == some 0 && Rat.recoverDyadic 7 (64 + 45) == some (12 / 7)
-
-/-- info: 'Rat.recoverDyadic_eq_some' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Rat.recoverDyadic_eq_some

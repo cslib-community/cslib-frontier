@@ -219,23 +219,13 @@ private theorem eq_of_mem_cell {N M k : ℕ} {q r : ℚ} (hscale : N ^ 2 ≤ M)
   obtain ⟨hrd, hrl, hru⟩ := of_decide_eq_true hr
   by_contra hne
   have hsep := one_div_sq_le_abs_sub_of_den_le hqd hrd hne
-  have hloq : (k : ℝ) / M ≤ q := by
-    simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
-      (Rat.cast_le (K := ℝ)).2 hql
-  have hlor : (k : ℝ) / M ≤ r := by
-    simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
-      (Rat.cast_le (K := ℝ)).2 hrl
-  have hhiq : (q : ℝ) < (k + 1 : ℝ) / M := by
-    simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
-      (Rat.cast_lt (K := ℝ)).2 hqu
-  have hhir : (r : ℝ) < (k + 1 : ℝ) / M := by
-    simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
-      (Rat.cast_lt (K := ℝ)).2 hru
-  have hwidth : |(q : ℝ) - r| < 1 / (M : ℝ) := by
-    have hupper : (k + 1 : ℝ) / M = (k : ℝ) / M + 1 / M := add_div _ _ _
-    rw [hupper] at hhiq hhir
+  have hwidthRat : |q - r| < 1 / (M : ℚ) := by
+    rw [add_div] at hqu hru
     rw [abs_lt]
     constructor <;> linarith
+  have hwidth : |(q : ℝ) - r| < 1 / (M : ℝ) := by
+    simpa only [Rat.cast_abs, Rat.cast_sub, Rat.cast_div, Rat.cast_one, Rat.cast_natCast] using
+      (Rat.cast_lt (K := ℝ)).2 hwidthRat
   have hN : (0 : ℝ) < N := Nat.cast_pos.2 (q.den_pos.trans_le hqd)
   exact (hwidth.trans_le (one_div_le_one_div_of_le (pow_pos hN _)
     (by exact_mod_cast hscale))).not_ge hsep
