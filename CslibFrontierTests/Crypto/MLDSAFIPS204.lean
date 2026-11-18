@@ -87,3 +87,31 @@ private def digest44 : List Byte := (List.finRange 32).map (fun i => Fin.ofNat 2
     match i.val with
     | 0 => 4096 | 1 => 4097 | 2 => -1 | 3 => 16384 | _ => 0).drop 32).take 5 ==
   [0, 4, 240, 191, 0]
+
+-- Under this XOF, seed expansion makes ρ′ all zero, and a single SHAKE256 address
+-- returns 0x01 throughout. A swapped nonce byte or an extra role tag changes the two
+-- coefficients below. Both are read through the actual protocol algorithms.
+private def constantStream (value : List Bool → Byte) : ExtendableOutput where
+  read x n := List.replicate n (value x)
+  length_read _ _ := List.length_replicate
+  take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+private def markedNonce : Xofs :=
+  let address := Keccak.bytesToBitsLE (List.replicate 64 0 ++ [1, 0])
+  ⟨constantStream (fun _ => 0), constantStream (fun x => if x = address then 1 else 0)⟩
+
+private def secretAtNonceOne : Option (ZMod 8380417) := do
+  let keys ← markedNonce.keyGen .mlDSA44 (fun _ => 0)
+  let sk ← decodePrivate .mlDSA44 keys.secretKey
+  return sk.s₁ ⟨1, by decide⟩ 0
+
+#guard secretAtNonceOne == some 1
+#guard ((markedNonce.expandMask .mlDSA44 (List.replicate 64 0) 1).get ⟨0, by decide⟩).get 0 ==
+  65279
+
+-- An XOF returning 0xff on every stream makes the matrix and the Algorithm 29 sampler
+-- exhaust their bounded reads. Both failures must propagate through the FIPS code.
+private def allOnesXof := constantStream (fun _ => 255)
+
+#guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
+#guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
