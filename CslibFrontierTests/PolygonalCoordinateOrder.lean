@@ -1,0 +1,107 @@
+/-
+Copyright (c) 2026 Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Erik Demaine
+-/
+
+module
+-- upstream: local-only (ordinary coordinate-order clients)
+
+public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
+import CslibFrontier.Foundations.Geometry.Polygonal.Join
+import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+import Mathlib.Order.Fin.Basic
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Linarith
+
+/-!
+Ordinary clients derive continuum simplicity from coordinate order, test a shared knot
+and source reversal, and retain the essential closed-parameter restriction. Node heights
+may make large excursions. Routes have at least one segment; the no-patch case is a line.
+-/
+
+public section
+
+namespace Cslib.Tests.PolygonalCoordinateOrder
+
+open Cslib.Polygonal Cslib.Polygonal.Route
+
+private theorem simple_of_order {p : Route}
+    (h : StrictMono fun k => (p.point k).re) : p.IsSimple := by
+  have hn (i j : Fin p.segments) (s t : ℝ)
+      (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) (he : p.eval i s = p.eval j t) :
+      ¬p.position i s < p.position j t := by
+    intro hp
+    have hr := (eval_re_lt_iff_position_lt_of_strictMono p h i j s t hs ht).mpr hp
+    exact (ne_of_lt hr) (congrArg Complex.re he)
+  intro i j s t hs ht he
+  left
+  exact le_antisymm (le_of_not_gt (hn j i t s ht hs he.symm))
+    (le_of_not_gt (hn i j s t hs ht he))
+
+private def bent : Route := (line (⟨0, 3⟩ : ℂ) ⟨1, -100⟩).append ⟨4, 7⟩
+
+private theorem bent_increasing : StrictMono fun k => (bent.point k).re := by
+  apply Fin.strictMono_iff_lt_succ.mpr
+  intro i
+  fin_cases i <;> norm_num [bent, line, append]
+
+-- Large height excursions do not create self-contact in a strictly ordered x-chain.
+example : bent.IsSimple := simple_of_order bent_increasing
+
+-- Adjacent descriptions of one knot coincide; neither comparison is strict.
+example : bent.eval 0 1 = bent.eval 1 0 ∧
+    bent.position 0 1 = bent.position 1 0 ∧
+    ¬(bent.eval 0 1).re < (bent.eval 1 0).re ∧
+    ((bent.eval 0 1).re < (bent.eval 1 0).re ↔ bent.position 0 1 < bent.position 1 0) := by
+  refine ⟨?_, ?_, ?_, eval_re_lt_iff_position_lt_of_strictMono bent bent_increasing
+    0 1 1 0 (by norm_num) (by norm_num)⟩ <;>
+    norm_num [bent, eval, position, line, append, AffineMap.lineMap_apply_module]
+
+example : StrictAnti fun k => (bent.reverse.point k).re := by
+  intro i j hij
+  change (bent.point j.rev).re < (bent.point i.rev).re
+  exact bent_increasing (Fin.rev_lt_rev.mpr hij)
+
+-- Complementary positions reverse the order; no second affine interpolation proof.
+example (i j : Fin bent.reverse.segments) (s t : ℝ)
+    (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) :
+    (bent.reverse.eval i s).re < (bent.reverse.eval j t).re ↔
+      bent.reverse.position j t < bent.reverse.position i s := by
+  rw [eval_reverse, eval_reverse, position_reverse, position_reverse]
+  rw [eval_re_lt_iff_position_lt_of_strictMono bent bent_increasing i.rev j.rev
+    (1 - s) (1 - t) (Set.Icc.one_sub_mem hs) (Set.Icc.one_sub_mem ht)]
+  constructor <;> intro h <;> linarith
+
+example : bent.reverse.IsSimple := (simple_of_order bent_increasing).reverse
+
+-- A single nonvertical segment is the no-patch case, not a zero-segment route.
+example : (line (0 : ℂ) ⟨2, 5⟩).IsSimple := by
+  apply simple_of_order
+  apply Fin.strictMono_iff_lt_succ.mpr
+  intro i
+  fin_cases i
+  norm_num [line]
+
+-- A degenerate first segment cannot satisfy strict node order.
+example : ¬StrictMono fun k => (((line (0 : ℂ) 0).append 1).point k).re := by
+  intro h
+  have hh := (Fin.strictMono_iff_lt_succ.mp h) (0 : Fin 2)
+  norm_num [line, append] at hh
+
+private def unequalSteps : Route := (line (0 : ℂ) 1).append 100
+
+private theorem unequalSteps_increasing : StrictMono fun k => (unequalSteps.point k).re := by
+  apply Fin.strictMono_iff_lt_succ.mpr
+  intro i
+  fin_cases i <;> norm_num [unequalSteps, line, append]
+
+-- Outside [0,1] evaluation order can disagree with position order despite strict nodes.
+example : StrictMono (fun k => (unequalSteps.point k).re) ∧
+    (unequalSteps.eval 0 2).re < (unequalSteps.eval 1 (1 / 2)).re ∧
+    ¬unequalSteps.position 0 2 < unequalSteps.position 1 (1 / 2) := by
+  refine ⟨unequalSteps_increasing, ?_, ?_⟩ <;>
+    norm_num [unequalSteps, eval, position, line, append, AffineMap.lineMap_apply_module]
+
+end Cslib.Tests.PolygonalCoordinateOrder
