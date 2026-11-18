@@ -11,7 +11,7 @@ public import CslibFrontier.Crypto.Computational.ZeroKnowledge.Amplification
 /-!
 # Zero knowledge with the relation's own witnesses
 
-Checked clients of `Cslib.Crypto.OneWay.exists_zkProof_of_npRelation` and of the
+Checked clients of `Cslib.Crypto.OneWay.exists_generableZKProof_of_npRelation` and of the
 Levin-reduction proof system: the honest prover convinces the verifier with probability `1` from
 a witness of the original NP relation.
 -/
@@ -22,13 +22,13 @@ namespace CslibFrontierTests.ZeroKnowledgeLevin
 
 open Cslib.Complexity Cslib.Crypto Cslib.Probability
 
-/-- From a one-way function, the GMW proof system for an NP relation accepts the honest prover
-running on any witness of the relation with probability `1`. -/
+/-- From a one-way function, the soundness-amplified `ZKProof` system (#6044) for an NP relation
+accepts the honest prover running on any witness of the relation with probability `1`. -/
 example {f : List Bool → List Bool} (hf : OneWay f) {α : Type} {enc : α ↪ List Bool}
     (R : NPRelation enc) :
     ∃ zk : ZKProof enc R.language (fun n => (1 / 3 : ENNReal) ^ (n + 1)), ∀ n a w,
       R.IsWitness a w → acceptProb (zk.verifier n a) (zk.prover n a w) = 1 := by
-  obtain ⟨zk, hzk, -⟩ := hf.exists_zkProof_of_npRelation R
+  obtain ⟨zk, hzk, -⟩ := hf.exists_generableZKProof_of_npRelation R
   exact ⟨zk, fun n a w hw => zk.complete n a w ((hzk a w).2 hw)⟩
 
 /-- The Levin-reduction proof system for SAT's own relation, through the explicit SAT → 3SAT

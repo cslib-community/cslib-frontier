@@ -18,6 +18,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -730,6 +731,21 @@ theorem bitsEnumList {count : α → ℕ}
     (size := size)
     (hsize := hsize)
     (hbudget := hbudget))
+
+/-- Enumerate the words of a computed length `count a` that is at most logarithmic in the input
+length, `count a ≤ c * (Nat.log 2 (input a).length + 1)`. -/
+theorem bitsEnumList_of_le_mul_log {count : α → ℕ} {c : ℕ}
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hle : ∀ a, count a ≤ c * (Nat.log 2 (input a).length + 1)) :
+    ComputableInPolyTime (fun a => Cslib.BitString.enumList (count a)) input
+      (encList encBits) := by
+  apply bitsEnumList hcount
+    (size := fun n => 2 ^ (c * (Nat.log 2 n + 1)) * (2 * (c * (Nat.log 2 n + 1)) + 1))
+  · have hpow := Cslib.polynomiallyBounded_two_pow_mul_log c
+    fun_prop
+  · intro a
+    have ha := hle a
+    exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) ha) (by lia)
 
 /-- Enumerate the words of a computed length `count x` when `2 ^ count x` is polynomially
 bounded. -/
