@@ -331,6 +331,11 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
+import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
+import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
+import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
+import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 
 /-!
 # Collected results
@@ -6367,6 +6372,174 @@ register_result "prg-from-prf" where
     advantage_prgFromPRF_eq is the theorem's exact equality PRGadv[A, G] = PRFadv[B, F] at every \
     n and for every distinguisher A, with the explicit wrapper B = prgFromPRFReduction, which is \
     certified oracle PPT (isOraclePPT_prgFromPRFReduction)."
+
+register_result "statistical-implies-computational-indistinguishability" where
+  title := "Statistically indistinguishable distributions are computationally indistinguishable"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 3.12", locator := "Section 3.11, p. 85" }
+  ]
+  theorems := [
+    Cslib.Crypto.StatisticallyIndistinguishable.computationallyIndistinguishable
+  ]
+  scope := "Ensembles X and Y : ℕ → PMF (List Bool) of words, in the asymptotic reading of \
+    Section 3.11.1 (p. 87). Neither needs to be efficiently samplable, as the book allows, and \
+    their supports need not be finite or of polynomially bounded length, so the book's finite \
+    sets R_λ of polynomially long bit strings are a special case. Hypothesis: \
+    StatisticallyIndistinguishable X Y, one negligible ε with CloseTo (X n) (Y n) (ε n) for \
+    every n. CloseTo μ ν ε says that no event is more than ε likelier under μ than under ν, \
+    which by Theorem 3.10 (p. 83) is the statistical distance bound Δ[μ, ν] ≤ ε of \
+    Definition 3.5, so on the book's finite sets the hypothesis is Definition 3.6 (p. 85). \
+    Conclusion: \
+    ComputationallyIndistinguishable X Y, Attack Game 3.3 and Definition 3.4 (p. 82) against \
+    uniform strict PPT distinguishers given 1^n and the sample. The proof applies \
+    StatisticallyIndistinguishable.indistinguishable, which bounds every randomized test, \
+    efficient or not. Theorems 3.11 and 3.13 themselves, the per-instance inequalities \
+    Distadv ≤ Δ and Δ[f(X), f(Y)] ≤ Δ[X, Y], are Game.advantage_bind_le_of_closeTo and \
+    CloseTo.map in other modules and are not part of this entry."
+
+register_result "prg-output-mod-m-pseudorandom" where
+  title := "A pseudorandom L-bit word reduced modulo m is a pseudorandom residue when m/2^L is \
+    negligible"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 3.3", locator := "Section 3.11, pp. 86–87" }
+  ]
+  theorems := [
+    Cslib.Crypto.ComputationallyIndistinguishable.map_modWord
+  ]
+  scope := "Hypotheses: an ensemble X of words that is computationally indistinguishable from \
+    uniform words of L = length n bits (ComputationallyIndistinguishable: Attack Game 3.3 and \
+    Definition 3.4, p. 82, against uniform strict PPT distinguishers). For X the output G(s) of \
+    a generator on a uniform seed, this is the security of G (Attack Game 3.1 and \
+    Definition 3.1, pp. 46–47), as p. 82 restates it. A modulus m n ≥ 1 computable in \
+    polynomial time from unary n, and m n / 2^(length n) negligible, the book's m/N with \
+    N = 2^L. Conclusion: the residue modulo m n of the word, read most significant bit first \
+    and written in binary (modWord), is computationally indistinguishable from a uniform \
+    residue in {0, …, m n − 1} written the same way. The book's B, which reduces its challenge \
+    modulo m and runs A, is modDistinguisher, certified strict PPT (isPPT_modDistinguisher); \
+    computing it is what the hypothesis on m is for. The statistical step is Example 3.2 \
+    (p. 86) at N = 2^L, closeTo_uniformList_map_modWord, with the bound ≤ m/2^L in place of \
+    the book's < m/N, and without the book's N ≥ m. advantage_generatorEnsemble_map_modWord_le, \
+    in the same module, is the book's inequality Distadv[A, P₀, P₁] ≤ PRGadv[B, G] + m/N for \
+    any generator. PseudorandomGenerator.indistinguishable_map_modWord, in the same module, is \
+    the corollary for a PseudorandomGenerator, whose definition adds the strict expansion that \
+    Definition 3.1 does not require; it is not listed."
+
+register_result "lcg-one-step-distinguisher" where
+  title := "Recovering the seed distinguishes the one-step linear congruential generator with \
+    advantage 1 − 1/|R|"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "insecurity of the one-step generator G_lcg (unnumbered)",
+      locator := "Section 3.7.1, p. 70" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRG.LinearCongruential.advantage_generator_test,
+    Cslib.Crypto.PRG.LinearCongruential.computableInPolyTime_test
+  ]
+  scope := "The generator G_lcg(s) = (⌊s/w⌋, a·s + b mod q) from S_q = {0, …, q − 1} to \
+    R × S_q with R = {0, …, ⌊(q − 1)/w⌋} (generator), for parameters with q ≥ 1 and a coprime \
+    to q; the book's a, b < q and 0 < w ≤ q are not assumed. The book calls G_lcg clearly \
+    insecure, since s can be recovered from a·s + b mod q and ⌊s/w⌋ then distinguished from \
+    random. test is that distinguisher: it computes s = a⁻¹(s′ − b) mod q and accepts when \
+    ⌊s/w⌋ = r. It is deterministic and runs in time polynomial in the binary lengths of the \
+    parameters and the challenge (computableInPolyTime_test). advantage_generator_test: in \
+    Attack Game 3.1 (p. 46) for this finite generator, the advantage of test is exactly \
+    1 − 1/|R|, at least 1/2 when 0 < w < q. At w = q, which the book allows, |R| = 1, \
+    G_lcg(s) = (0, a·s + b mod q) is exactly uniform and the advantage is 0, so the book's \
+    claim fails in that boundary case; the entry claims only the stated advantage. Concrete, \
+    for fixed parameters, as in the book. The iterated generator G_lcg^(n) and Lemma 3.7 \
+    (pp. 71–73) are not formalized."
+
+register_result "lcg-java8-seed-recovery" where
+  title := "Three outputs of the Java 8 Math.random generator determine its seed, found by a \
+    search over 2^22 candidates"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "exhaustive seed search for Java 8 Math.random (unnumbered)",
+      locator := "Section 3.7.1, pp. 70–71" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRG.LinearCongruential.seedSearch_java8,
+    Cslib.Crypto.PRG.LinearCongruential.computableInPolyTime_seedSearch
+  ]
+  scope := "java8 has the book's parameters q = 2^48, a = 0x5DEECE66D, b = 0x0B and w = 2^22 \
+    (pp. 70–71). seedSearch r₁ r₂ r₃ tries the w candidates r₁·w + e with e < w below q and \
+    returns the greatest one whose next two outputs are r₂ and r₃, or r₁·w if none is; the \
+    book tests the candidates against r₁, r₂, r₃ and states no order or fallback. \
+    seedSearch_java8: for every seed s < 2^48, the search on the first three outputs \
+    ⌊s_i/w⌋ of the iterated generator returns s, from which all later outputs follow. \
+    computableInPolyTime_seedSearch: the search runs in time polynomial in w, given in unary, \
+    and in the binary lengths of the other inputs, which is the book's 2^22 trials. \
+    seedSearch_eq, in the same module, proves the search correct for any parameters under a \
+    condition the book does not state (no nonzero d with |d| < w has a·d within w of a \
+    multiple of q); the module documents parameters within the book's conditions \
+    (q = 16, a = b = 1, w = 4) where two seeds share three outputs. The running time 'under a \
+    second' and the lattice attack of Lemma 3.7 are not formalized."
+
+register_result "perfect-security-characterizations" where
+  title := "Perfect security is equivalent to equal key counts, to equal event probabilities and \
+    to independence of message and ciphertext"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorems 2.1, 2.3 and 2.4",
+      locator := "Section 2.1.2, pp. 8–12" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.PerfectSecrecy.EncScheme.ciphertextIndist_ofPure_uniformOfFintype_iff,
+    Cslib.Crypto.Protocols.PerfectSecrecy.EncScheme.ciphertextIndist_iff_forall_toOuterMeasure,
+    Cslib.Crypto.Protocols.PerfectSecrecy.EncScheme.ciphertextIndist_iff_jointDist_eq_mul
+  ]
+  scope := "A Shannon cipher (E, D) over (K, M, C) with a uniform key (Section 2.1.1, p. 5) is \
+    EncScheme.ofPure (uniformOfFintype K) enc dec h, where h is the correctness property \
+    D(k, E(k, m)) = m. CiphertextIndist, equal ciphertext laws for any two messages, is \
+    Definition 2.1 (p. 8). K is finite and nonempty; M and C are arbitrary types, where the \
+    book takes them finite. Theorem 2.1 (pp. 8–9), \
+    ciphertextIndist_ofPure_uniformOfFintype_iff: (i) ⇔ (ii), perfect security holds exactly \
+    when for each c the number of keys with E(k, m) = c is one natural number N_c for all m; \
+    (iii) is CiphertextIndist itself. Theorem 2.3 (pp. 10–11), \
+    ciphertextIndist_iff_forall_toOuterMeasure: equal ciphertext laws exactly when every event \
+    S ⊆ C, the book's predicate φ, has the same probability under any two messages. \
+    Theorem 2.4 (pp. 11–12), ciphertextIndist_iff_jointDist_eq_mul: for a message law that \
+    gives every message nonzero probability and a key drawn independently, perfect security \
+    holds exactly when Pr[m = m ∧ c = c] = Pr[m = m]·Pr[c = c] for all m and c, the \
+    factorization the book's proof uses. Its first half holds for every message law, as in the \
+    book; that is indep_of_ciphertextIndist in the pinned cslib, another module. Theorems 2.3 \
+    and 2.4 are stated for every EncScheme, randomized and with any key law, of which the \
+    book's case is ofPure with a uniform key. perfectlySecret_iff_ciphertextIndist in the \
+    pinned cslib converts to the posterior notion PerfectlySecret. Information-theoretic."
+
+register_result "shannon-cipher-examples" where
+  title := "The additive one-time pad is perfectly secure; the variable-length one-time pad and \
+    the substitution cipher are not"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Examples 2.5, 2.6 and 2.7",
+      locator := "Section 2.1.2, pp. 9–10" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.PerfectSecrecy.additiveOTP_ciphertextIndist,
+    Cslib.Crypto.Protocols.PerfectSecrecy.variableLengthOTP_ciphertextIndist_iff,
+    Cslib.Crypto.Protocols.PerfectSecrecy.not_ciphertextIndist_substitutionCipher
+  ]
+  scope := "Each cipher is EncScheme.ofPure with a uniform key, and CiphertextIndist is \
+    Definition 2.1 (p. 8). additiveOTP_ciphertextIndist (Example 2.7, p. 10): the additive \
+    one-time pad E(k, m) = m + k, D(k, c) = c − k is perfectly secure over every finite \
+    additive group G; the book's cipher (Example 2.4, p. 7) is G = ZMod n with n positive. \
+    variableLengthOTP_ciphertextIndist_iff (Example 2.5, p. 9): the variable-length one-time \
+    pad of Example 2.2 (p. 6), with keys {0,1}^L and messages and ciphertexts {0,1}^{≤L}, is \
+    perfectly secure exactly when L = 0. The book's counterexample uses messages of lengths 1 \
+    and 2, so it assumes L ≥ 2; here every L ≥ 1 is covered. \
+    not_ciphertextIndist_substitutionCipher (Example 2.6, p. 10, first paragraph): the \
+    substitution cipher of Example 2.3 (p. 7) on words of L symbols of a finite alphabet is \
+    not perfectly secure when L ≥ 2 and the alphabet has at least two symbols, hypotheses the \
+    book leaves implicit and which cannot be dropped. additiveOTP_perfectlySecret, \
+    not_perfectlySecret_variableLengthOTP and not_perfectlySecret_substitutionCipher, in the \
+    same module, are the same statements for the posterior notion PerfectlySecret. \
+    Information-theoretic."
 
 register_result "luby-rackoff-prp" where
   title := "Luby–Rackoff: three Feistel rounds of a pseudorandom function give a pseudorandom \
