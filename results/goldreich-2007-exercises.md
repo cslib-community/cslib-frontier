@@ -75,10 +75,8 @@ now C; 10.6 is unchanged. Chapter 6 totals are recounted from its current rows.
 
 The 2026-11-17 integer-programming update moves 2.23 from T to C.
 
-The 2026-11-17 non-negative permanent update moves 6.25 from T to C; the Chapter 6 totals are
-
-The 2026-11-17 modular square-root update moves 6.16(1–3) from T to C; the Chapter 6 totals are
-recounted from its rows.
+The 2026-11-17 modular square-root and non-negative permanent updates move 6.16(1–3) and 6.25
+from T to C; the Chapter 6 totals are recounted from its rows.
 
 The 2026-11-17 pairwise-independent hitting bound moves 7.23 from T to C; the Chapter 7 totals
 are recounted from its rows.
