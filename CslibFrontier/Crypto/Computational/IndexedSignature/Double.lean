@@ -45,8 +45,10 @@ Both results are steps toward construction `(14.4)` (printed p. 597) and Exercis
 p. 575), not those results: the source takes any number `q` of keys, with loss `q`, and only
 `q = 2` is formalized here (#5293). The security theorem also assumes `S.IndexedEUFCMA`, whose game
 counts a forgery at an index `u ≥ S.capacity n`, which the message space `{1, …, q} × M` of
-[BonehShoup2023], Definition 14.6, excludes (#5686). The reduction forges only at index `0`, so
-the proof does not use that extra strength.
+[BonehShoup2023], Definition 14.6, excludes (#5686). The concrete bound survives restricting
+forgeries to that domain: on its left, `doubleVerify` rejects every index `u ≥ 2`, and on its
+right, `doubleForgerAt` forges at index `0`. The asymptotic theorem still states the stronger
+general premise.
 
 ## Main definitions
 
@@ -426,7 +428,9 @@ number `q` of keys with loss `q`, where this fixes `q = 2` (#5293).
 For every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
 length of every supported `S`-signature at index `0` on an `L`-bit message, the forging probability
 against `S.double hcap` is at most `2` times the forging probability of `S.doubleForger` against
-`S`. -/
+`S`. Both winning probabilities are unchanged if forgeries must name an index below the capacity,
+as Definition 14.6 requires (#5686): `doubleVerify` rejects every index `u ≥ 2` on the left, and
+`doubleForgerAt` forges at index `0` on the right. -/
 theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     (hcap : ∀ n, 1 ≤ S.capacity n) {bound : ℕ → ℕ → ℕ} {n : ℕ}
     (hbound : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ msg,
@@ -790,8 +794,10 @@ space `{1, …, q} × M` excludes (#5686).
 
 The source gives construction `(14.4)` from a one-time signature (Section 14.6.1, printed p. 597)
 and proves it secure by the plug-and-pray argument of Exercise 13.2 (printed p. 575). Here the base
-scheme is any indexed scheme of capacity at least `1`, used at index `0`. The reduction
-`doubleForger` forges only at index `0`, so the proof does not use the premise's extra strength. -/
+scheme is any indexed scheme of capacity at least `1`, used at index `0`. The concrete bound
+`succProbability_indexedEufCmaGame_double_le` survives restricting forgeries to the source's index
+domain, since `doubleVerify` rejects every index `u ≥ 2` and `doubleForgerAt` forges at index `0`,
+but this theorem still states the stronger general premise. -/
 theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by
