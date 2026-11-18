@@ -27,6 +27,8 @@ says that it stores `n`, `s` and `t` in the registers `0`, `1` and `2`, emitting
 
 * `Cslib.Complexity.STCONInstance.reachesOut_headerCode`: the header is read into the registers
   `0`, `1` and `2`.
+* `Cslib.Complexity.STCONInstance.regs_le`: the registers `[n, s, t, r, c]` of such a writer are
+  bounded once `n`, the row and the column are.
 -/
 
 @[expose] public section
@@ -50,6 +52,15 @@ def headerCode (b : ℕ) : List Instr :=
    assign 2 (add (reg 2) (const 1)) (b + 4)]
 
 variable (I : STCONInstance) {P : CounterProgram} {B : ℕ}
+
+/-- **The registers `[n, s, t, r, c]` of a writer are bounded** by `B` once `n`, the row `r` and
+the column `c` are, since the terminals are below `n`. -/
+theorem regs_le {r c : ℕ} (hn : I.n ≤ B) (hr : r ≤ B) (hc : c ≤ B) :
+    ∀ x ∈ [I.n, (I.s : ℕ), (I.t : ℕ), r, c], x ≤ B := by
+  have := I.s.isLt
+  have := I.t.isLt
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  omega
 
 /-- **The header is read**: from the registers `0, 0, 0` followed by `rest`, the code stores `n`,
 `s` and `t` in the registers `0`, `1` and `2`, emitting nothing, while every register stays at

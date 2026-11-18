@@ -19,13 +19,17 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 /-!
-# CBC-MAC Finite Security Bounds and Forgery Separations
+# CBC-MAC Finite Uniform-Random-Function Bounds and Forgery Separations
 
 Formalizes the Cipher Block Chaining Message Authentication Code (CBC-MAC) over `BitString n`, its
-prefix-free smoothness and information-theoretic adaptive decision-tree PRF bound
-([KatzLindell2020], Section 4.4, Construction 4.9, Theorem 4.12, and Claim 4.13), and explicit
-forgery counterexamples for each of the six relaxations in [KatzLindell2020], Exercises
-4.13–4.16.
+prefix-free smoothness, the information-theoretic uniform-random-function step
+`abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le` (#6046) toward prefix-free CBC-MAC PRF
+security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229; [KatzLindell2020], Section
+4.4.2, pp. 123–127) bounding `cbcMacFinite g` for a uniform random function
+`g : BitString n → BitString n` rather than a keyed computational PRF, and explicit forgery
+counterexamples for six relaxations of basic CBC-MAC ([KatzLindell2020], Section 4.4, pp. 120–127,
+and Chapter 4 Exercises, p. 140ff.; interior [KatzLindell2020] numbering from the existing module
+notes, see `manual/sources.md`).
 
 ## Main definitions
 
@@ -33,10 +37,11 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   bounded nonempty block-vector domain.
 * `CBCPrefixFree`, `CBCSmooth`: prefix-free query-list predicate and `(q, ℓ, δ)`-smoothness for
   random-function CBC-MAC.
-* `CBCOracleSpec`, `cbcQueryRun`, `CBCAdmissible`, `cbcRealSuccess`, `cbcIdealSuccess`: adaptive
-  oracle distinguishers as `OracleComp (CBCOracleSpec n ℓ) Bool` programs, their query-logging run
-  through `OracleComp.interpret`, the execution-based prefix-free query budget, and real/ideal
-  acceptance probabilities for the information-theoretic step of Theorem 4.12.
+* `CBCOracleSpec`, `cbcQueryRun`, `CBCAdmissible`, `cbcUniformFunctionSuccess`, `cbcIdealSuccess`:
+  adaptive oracle distinguishers as `OracleComp (CBCOracleSpec n ℓ) Bool` programs, their
+  query-logging run through `OracleComp.interpret`, the execution-based prefix-free query budget,
+  and uniform-block-function vs. ideal-MAC acceptance probabilities for the information-theoretic
+  step (#6046).
 * `ForgeryTrace`, `ForgeryTrace.Valid`, `cbcTwoToFourAttack`, `cbcToThreeAttack`, `cbcAllTagsTwo`,
   `cbcLeakedTagsAttack`, `cbcRandomIVMac`, `cbcRandomIVAttack`, `lengthAppendedCBC`,
   `cbcLengthSuffixAttack`, `zeroPadCBC`, `zeroPadAttack`: explicit CBC-MAC forgery constructions
@@ -49,8 +54,12 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
   and equivalence between the final block of `cbcEncryptBlocks` and `cbcMacBlocks`.
 * `cbcSmooth_iff`, `cbcSmooth_of_prefixFree`: counting characterization and `(q, ℓ, q^2 * ℓ^2 /
   2^n)`-smoothness of prefix-free CBC-MAC ([KatzLindell2020], Claim 4.13).
-* `abs_cbcRealSuccess_sub_cbcIdealSuccess_le`: adaptive oracle-program PRF bound
-  `|cbcRealSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` ([KatzLindell2020], Theorem 4.12).
+* `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le`: information-theoretic
+  uniform-random-function step
+  `|cbcUniformFunctionSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` (#6046) toward prefix-free
+  CBC-MAC PRF security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229;
+  [KatzLindell2020], Section 4.4.2), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF.
 * `cbcTwoToFourAttack_valid`, `cbcToThreeAttack_valid`, `cbcLeakedTagsAttack_valid`,
   `cbcRandomIVAttack_valid`, `cbcLengthSuffixAttack_valid_any_encoding`,
   `cbcLengthSuffixAttack_valid`, `rightpad_false_true_collide`, `zeroPadAttack_valid`:
@@ -59,8 +68,11 @@ forgery counterexamples for each of the six relaxations in [KatzLindell2020], Ex
 
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229.
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, 3rd ed.][KatzLindell2020],
-  Section 4.4 (pp. 121–127) and Exercises 4.13–4.16 (p. 142).
+  Section 4.4 (pp. 120–127) and Chapter 4 Exercises (p. 140ff.; interior theorem/exercise numbers
+  not re-audited against the Chapter 4 body, see `manual/sources.md`).
 -/
 @[expose] public section
 namespace Cslib.Crypto
@@ -526,7 +538,7 @@ theorem cbcSmooth_of_prefixFree (n q ℓ : ℕ) :
       ((1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * N) / ((2 : ℝ) ^ n) ^ q by ring,
     div_le_iff₀ hY]
   nlinarith
-/-! ### Section 3: Adaptive Oracle-Program PRF Bound ([KatzLindell2020], Theorem 4.12) -/
+/-! ### Section 3: Uniform-Random-Function Step Toward [KatzLindell2020], Theorem 4.12 (#6046) -/
 /-- The oracle interface of CBC-MAC distinguishers: a query is a bounded nonempty block input
   `CBCInput n ℓ`, answered by an `n`-bit tag. -/
 abbrev CBCOracleSpec (n ℓ : ℕ) : OracleSpec (CBCInput n ℓ) := fun _ => BitString n
@@ -562,10 +574,11 @@ theorem cbcQueryRun_fst {ℓ : ℕ} {α : Type} (oracle : CBCInput n ℓ → Bit
 def CBCAdmissible {ℓ : ℕ} (q : ℕ) (tree : OracleComp (CBCOracleSpec n ℓ) Bool) : Prop :=
   ∀ oracle, CBCPrefixFree (cbcQueryRun oracle tree).2 ∧
     (cbcQueryRun oracle tree).2.length ≤ q
-/-- Real-world acceptance probability of a distribution `D` over adaptive oracle programs when
-  interacting with `cbcMacFinite g` for a uniform random function `g : BitString n → BitString
-  n`. -/
-noncomputable def cbcRealSuccess (n ℓ : ℕ) (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool)) : ℝ :=
+/-- Acceptance probability of a distribution `D` over adaptive oracle programs when interacting with
+  `cbcMacFinite g` over a uniform random block function `g : BitString n → BitString n` (not a
+  keyed computational PRF; #6046). -/
+noncomputable def cbcUniformFunctionSuccess (n ℓ : ℕ)
+    (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool)) : ℝ :=
   ((do
     let g ← PMF.uniformOfFintype (BitString n → BitString n)
     let tree ← D
@@ -829,18 +842,20 @@ private theorem uniformOfFintype_bind_comm {ℓ : ℕ} {G : Type} [Fintype G] [N
       let g ← PMF.uniformOfFintype G let T ← D return h g T) =
       D.bind (fun T => (PMF.uniformOfFintype G).map (fun g => h g T)) :=
   PMF.bind_comm _ D fun g T => PMF.pure (h g T)
-/-- **Prefix-Free CBC-MAC Adaptive PRF Security Bound ([KatzLindell2020], Section 4.4, Theorem
-  4.12, p. 124)**: for every block width `n`, query budget `q`, maximum block length `ℓ`, and
-  distribution `D` over `q`-admissible adaptive oracle programs, the distinguishing advantage
-  between `cbcMacFinite g` (for uniform `g : BitString n → BitString n`) and a uniform random
+/-- Information-theoretic uniform-random-function step (#6046) toward prefix-free CBC-MAC PRF
+  security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229; [KatzLindell2020], Section
+  4.4.2, pp. 123–127), bounding `cbcMacFinite g` for a uniform random function
+  `g : BitString n → BitString n` rather than a keyed computational PRF: for every block width `n`,
+  query budget `q`, maximum block length `ℓ`, and distribution `D` over `q`-admissible adaptive
+  oracle programs, the distinguishing advantage between `cbcMacFinite g` and a uniform random
   function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / 2^n`. -/
-theorem abs_cbcRealSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
+theorem abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
     (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool))
     (hD : ∀ tree, D tree ≠ 0 → CBCAdmissible q tree) :
-    |cbcRealSuccess n ℓ D - cbcIdealSuccess n ℓ D| ≤
+    |cbcUniformFunctionSuccess n ℓ D - cbcIdealSuccess n ℓ D| ≤
       (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   have hδ : (0 : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by positivity
-  unfold cbcRealSuccess cbcIdealSuccess
+  unfold cbcUniformFunctionSuccess cbcIdealSuccess
   rw [uniformOfFintype_bind_comm D (fun g T => (cbcQueryRun (cbcMacFinite g) T).1),
     uniformOfFintype_bind_comm D
       (fun (f : CBCInput n ℓ → BitString n) T => (cbcQueryRun f T).1),
