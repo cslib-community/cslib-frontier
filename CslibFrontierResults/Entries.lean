@@ -271,6 +271,7 @@ import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
+import CslibFrontier.Crypto.Computational.SchnorrProtocol
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation.BirthdayAttack
@@ -7531,6 +7532,57 @@ register_result "dlog-from-two-representations" where
     polynomial time in the group description and the four binary numbers, which is the book's \
     'efficiently compute'. It is not listed because the theorems of one entry share a defining \
     module."
+
+register_result "schnorr-sigma-protocol" where
+  title := "Schnorr's Sigma protocol for discrete logarithms is complete and efficiently special \
+    sound, with 2/2^n statistical closeness and computational special HVZK"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Examples 19.1–19.3",
+      locator := "Section 19.4, pp. 772–774 (Definitions 19.3–19.5 and Examples 19.1–19.3); \
+        Figure 19.1, Section 19.1, p. 756; Attack Game 20.4 and Definition 20.6, Section 20.4.2, \
+        p. 840" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.schnorrProbFamily_complete,
+    Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_schnorrProb,
+    Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_schnorrProbFamily_simulator,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkGame_schnorrProbFamily_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr
+  ]
+  scope := "Over any PrimeOrderGroupFamily F at index i = (n, d) with prime order q = F.order d, \
+    statement u : F.Carrier d, witness α : ZMod q for the discrete-logarithm relation α • g = u \
+    (Example 19.1, p. 773, written additively), and challenges in ZMod q, encoded by \
+    schnorrEncoding (group elements via F.encode d and scalars in binary). In \
+    F.schnorrProbFamily i (Figure 19.1, p. 756, and Example 19.1, p. 773), the honest prover \
+    samples its commitment nonce with F.sampleExp n d (schnorrProbCommit, certified uniform \
+    strict PPT on encodings by schnorrSigKeyGen via eval_schnorrSigKeyGen_eq_schnorrProbCommit \
+    and isPPTOn_schnorrSigKeyGen) and computes r + c * α (certified deterministic polynomial \
+    time on encodings by schnorrRespondBits, computableInPolyTime_schnorrRespondBits and \
+    schnorrRespondBits_schnorrProbFamily), while the verifier checks z • g = t + c • u \
+    (certified deterministic polynomial time by encodeSchnorrVerify and \
+    efficientVerifier_schnorrProb). schnorrProbFamily_complete proves completeness \
+    (Definition 19.3). efficientSpecialSoundness_schnorrProb proves efficient special soundness \
+    (Example 19.2 and Definition 19.4, p. 773) via schnorrExtract and schnorrExtractWord. The \
+    simulator schnorrSimulator (Example 19.3, p. 774) samples z with F.sampleExp n d and outputs \
+    (z • g − c • u, z), certified uniform strict PPT by schnorrSimulateWord \
+    (isPPT_schnorrSimulator) and outputting an accepting conversation with probability 1 on \
+    every statement and challenge (accepts_schnorrSimulator, Definition 19.5(i)). On every valid \
+    pair α • g = u and challenge c, closeTo_transcript_schnorrProbFamily_simulator bounds the \
+    statistical distance between honest and simulated transcripts by 2/2^n (1/2^n from each \
+    sampleExp draw); advantage_chvzkGame_schnorrProbFamily_le bounds Attack Game 20.4 advantage \
+    by 2/2^n against arbitrary (even computationally unbounded) two-stage adversaries; and \
+    computationalSpecialHVZK_schnorr establishes Definition 20.6 with exact zero acceptance \
+    error (δ = fun _ => 0) along (setup n).map (n, ·) against all uniform strict PPT \
+    CHVZKAdversary families (with no computational hardness assumption). Deviations: (1) in the \
+    uniform strict-PPT fair-coin model, neither the prover nor the simulator can sample ZMod q \
+    with zero error when q is not a power of two (unlike Definition 2.8, p. 30, which permits \
+    negligible runtime-overflow probability and exact rejection sampling), so Definition 19.5(ii) \
+    identical transcript distribution is relaxed to 2/2^n statistical closeness and Definition \
+    20.6 ComputationalSpecialHVZK with exact Definition 19.5(i) acceptance; (2) the challenge \
+    space is C = ZMod q (the 2/2^n transcript bound holds pointwise at every c : ZMod q and thus \
+    for any subset C ⊆ ZMod q, while Attack Game 20.4 draws c uniformly from ZMod q); (3) groups \
+    are written additively and setup : ℕ → PMF F.Desc is arbitrary."
 
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
