@@ -2571,6 +2571,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryFusion
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryHiding
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotateProgram
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotation
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Certificate
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ConstraintParity
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Darts
@@ -4142,6 +4143,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.Boundary
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryAppend
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
+public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts

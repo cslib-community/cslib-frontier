@@ -158,7 +158,8 @@ example : ∃ σ : ℕ → Bool,
   have h := (boundary_rotateLeft_iff (fun _ _ => true)
     (⟨[], [5, 5, 9], ⟨[2 ^ 300]⟩⟩ : State Unit) [true, true, false]).mpr
     ⟨fun z => decide (z = 5), rfl, by decide +kernel⟩
-  simpa only [List.rotate_cons_succ, List.rotate_zero] using h
+  simpa only [List.rotate_cons_succ, List.rotate_zero, List.cons_append, List.nil_append]
+    using h
 
 example : ¬∃ σ : ℕ → Bool,
     (rotateLeft (⟨[], [5, 5, 9], ⟨[]⟩⟩ : State Unit)).ports.map σ =
