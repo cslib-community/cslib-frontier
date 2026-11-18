@@ -73,7 +73,8 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
   `(m + 1) ^ 6 / ρ` is asymptotically smaller in `m` and `1 / ρ` than the paper's displayed
   `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`, the bound is not uniformly smaller at small finite `m`
   (tracked in `#5968`).
-* **Johnson-bound affine spaces without list-size premises (Theorems 1.6, 7.3, and 7.4 shape):**
+* **Johnson-bound affine spaces without list-size premises (original finite bounds toward
+  Theorems 1.6 and 7.4):**
   - `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_divergence` and
     `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line` formalize the Section 6.3
     (printed pp. 29–31) and Section 7.3 (printed p. 34) line-to-affine correlated-agreement
@@ -85,9 +86,10 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
     that Section 6.3 applies verbatim breaks because equal `W`-weight no longer forces `D' = D'_i`
     on zero-weight coordinates—the proof intersects each candidate agreement set with
     `supp W = {i | W i ≠ 0}` and models the parameter fiber directly as an `F`-submodule via `C`'s
-    restriction image (avoiding printed p. 31's `#D' ≥ k` unique-extension assumption as well),
-    establishing the full unweighted and weighted conclusions without restricting `W` or `μ` away
-    from zero.
+    restriction image (so the generic linear-code lemma never uses the unique extension from `D'`
+    on printed p. 31; for Reed–Solomon codes under Theorem 7.4's `α > ρ` that extension is
+    available, so this is a generality gain rather than a source repair), establishing the full
+    unweighted and weighted conclusions without restricting `W` or `μ` away from zero.
   - Because `maxYDeg (k - 1) D ≤ johnsonCurveBound |ι| m (k - 1) D 1 W_tot < |F|` holds
     automatically under `B_line * |F| ^ ℓ < |F| * #T`, the Reed–Solomon affine correlated-agreement
     theorems require **no extra list-size / field-size premise**:
@@ -103,10 +105,13 @@ Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
     `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_johnson_of_eta` give closed-form
     correlated agreement with explicit Siegel constants
     `1800 * [M *] (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` and
-    `115200 * [M *] n ^ 2 / (ρ * η ^ 6 * |F|)` (matching the quantifier structure and exact `|F|`
-    denominator of Theorems 1.6, 7.3, and 7.4; matching the paper's exact displayed finite
-    constants `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`, `(2 * m + 1) * (M * n + 1) / √ρ`, and
-    `ρ ^ 2 / (2 * η) ^ 7` remains tracked in `#5968`).
+    `115200 * [M *] n ^ 2 / (ρ * η ^ 6 * |F|)`. These are this library's original finite bounds:
+    they do not imply the source cutoffs (for example eq. (1.3) at `q = 11 ^ 10`, `n = 16`,
+    `ρ = 1 / 4`, radius `7 / 16`, `η = 1 / 16`, `m = 4` admits a density-one line that the
+    multiplicity corollary does not cover), they omit Theorem 1.6's uniqueness clause in the
+    unique-decoding regime, and they do not impose the source cap `η ≤ √ρ / 20`. The exact cited
+    endpoints, including the displayed constants `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`,
+    `(2 * m + 1) * (M * n + 1) / √ρ`, and `ρ ^ 2 / (2 * η) ^ 7`, remain tracked in `#5968`.
   - `Cslib.Code.proximityGap_affine_johnson_exact`,
     `Cslib.Code.weighted_proximityGap_affine_johnson_exact`,
     `Cslib.Code.ratWeighted_proximityGap_affine_johnson_exact`,
@@ -1278,6 +1283,18 @@ private theorem lt_card_field_of_affine_threshold
     nlinarith
   omega
 
+/-- Private helper: the exact affine density threshold `K * |F| ^ ℓ < |F| * #T` for
+`T ⊆ (Fin ℓ → F)` forces `K < |F|`. -/
+private theorem lt_card_field_of_density_threshold
+    {F : Type*} [Fintype F] {K ℓ : ℕ} {T : Finset (Fin ℓ → F)}
+    (hT : K * (Fintype.card F) ^ ℓ < Fintype.card F * T.card) :
+    K < Fintype.card F := by
+  have hT_le : T.card ≤ (Fintype.card F) ^ ℓ := by
+    calc T.card ≤ Fintype.card (Fin ℓ → F) := Finset.card_le_univ T
+      _ = (Fintype.card F) ^ ℓ := by
+          rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  exact Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ hT_le))
+
 /-- Private helper: in the unique-decoding regime with `|ι| < |F|`, if every point of an affine
 space `u₀ + ∑ j, z j • u j` lies within Hamming distance `e` of `reedSolomon α k`, then the unique
 nearest codeword varies affinely as `v₀ + ∑ j, z j • v j`. -/
@@ -1979,10 +1996,7 @@ private theorem all_close_affine_of_line_correlatedAgreement
       _ = (Fintype.card F) ^ ℓ := by
           rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
   have hpow_pos : 0 < (Fintype.card F) ^ ℓ := Nat.pow_pos Fintype.card_pos
-  have hB_lt_q : B_line < Fintype.card F := by
-    have hlt : B_line * (Fintype.card F) ^ ℓ < Fintype.card F * (Fintype.card F) ^ ℓ :=
-      hT.trans_le (Nat.mul_le_mul_left _ hT_le)
-    exact Nat.lt_of_mul_lt_mul_right hlt
+  have hB_lt_q : B_line < Fintype.card F := lt_card_field_of_density_threshold hT
   have hdir : ∀ d : Fin ℓ → F, ∃ c ∈ C,
       B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => (∑ j : Fin ℓ, d j • u j) i = c i), W i :=
     all_close_dir_of_line_correlatedAgreement hline u₀ u T hT hclose
@@ -2096,9 +2110,11 @@ agreement for every threshold `B' ≥ B_W`: if every point of `u₀ + ∑ j : Fi
 `u₀, u_j` on `D'`.
 
 Intersecting candidate agreement sets at the minimal-agreement point `u*` with `supp W` repairs
-Section 7.3's "verbatim" claim on printed p. 34 when `W` has zero entries, while defining the
-direction subspace directly via `C`'s restriction image avoids printed p. 31's `#D' ≥ k`
-unique-extension assumption. -/
+Section 7.3's "verbatim" claim on printed p. 34 when `W` has zero entries. Defining the direction
+subspace directly via `C`'s restriction image lets this generic linear-code lemma avoid the unique
+extension from `D'` used on printed p. 31 (for Reed–Solomon codes under Theorem 7.4, `α > ρ` makes
+that extension available). The support guarantee `∀ i ∈ D', W i ≠ 0` is exported here and dropped
+by the Reed–Solomon specializations. -/
 theorem exists_weighted_correlatedAgreement_affine_of_divergence
     {F : Type*} [Field F] [Fintype F] [DecidableEq F]
     {ι : Type*} [Fintype ι]
@@ -2361,12 +2377,7 @@ theorem exists_weighted_correlatedAgreement_affine_of_line
       u₀ u T hT hclose
   exact exists_weighted_correlatedAgreement_affine_of_divergence hlist
     (fun hB' a b hcl =>
-      have hB_lt_q : B_line < Fintype.card F := by
-        have hT_le : T.card ≤ (Fintype.card F) ^ ℓ := by
-          calc T.card ≤ Fintype.card (Fin ℓ → F) := Finset.card_le_univ T
-            _ = (Fintype.card F) ^ ℓ := by
-                rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-        exact Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ hT_le))
+      have hB_lt_q : B_line < Fintype.card F := lt_card_field_of_density_threshold hT
       hline hB' a b Finset.univ (by rwa [Finset.card_univ]) (fun t _ => hcl t))
     hL u₀ u hall
 
@@ -3109,9 +3120,10 @@ characteristic and any affine dimension `ℓ : ℕ`, if `B_line * |F| ^ ℓ < |F
 `z ∈ T` has a codeword in `reedSolomon α k` achieving `W`-weighted agreement at least `B_W` with
 `u₀ + ∑ j, z j • u j`, then there exist a single shared coordinate subset `D' : Finset ι` of
 `W`-weight at least `B_W` and codewords `v₀, v_j ∈ reedSolomon α k` agreeing with `u₀, u_j` on
-`D'`. Because `maxYDeg (k - 1) D ≤ B_line < |F|` holds unconditionally, no extra list-size /
-field-size premise is needed, and zero coordinate weights (`W i = 0`) are permitted via the
-`supp W` refinement of `Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line`. -/
+`D'`. The density premise forces `B_line < |F|`, and `maxYDeg (k - 1) D ≤ B_line` always holds, so
+no extra list-size / field-size premise is needed, and zero coordinate weights (`W i = 0`) are
+permitted via the `supp W` refinement of
+`Cslib.Code.exists_weighted_correlatedAgreement_affine_of_line`. -/
 theorem exists_weighted_correlatedAgreement_affine_johnson
     {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
     {α : ι → F} (hα : Function.Injective α)
@@ -3132,12 +3144,8 @@ theorem exists_weighted_correlatedAgreement_affine_johnson
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
   have hB_lt_q :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot < Fintype.card F := by
-    have hT_le : T.card ≤ (Fintype.card F) ^ ℓ := by
-      calc T.card ≤ Fintype.card (Fin ℓ → F) := Finset.card_le_univ T
-        _ = (Fintype.card F) ^ ℓ := by
-            rw [Fintype.card_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-    exact Nat.lt_of_mul_lt_mul_right (hT.trans_le (Nat.mul_le_mul_left _ hT_le))
+      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot < Fintype.card F :=
+    lt_card_field_of_density_threshold hT
   have hL_lt_q : 2 ≤ ℓ → ProximityGap.maxYDeg (k - 1) D < Fintype.card F := fun _ =>
     (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt hB_lt_q
   obtain ⟨D', _, hD'_ge, v₀, hv₀, v, hvRS, hagree⟩ :=
@@ -3483,6 +3491,35 @@ theorem exists_ratWeighted_correlatedAgreement_affine_johnson_of_eta
     exists_weighted_correlatedAgreement_affine_johnson_of_eta hα hk hkn hM hη hW_le hB
       u₀ u T hT hclW
 
+/-- Private helper: an affine proximity-gap dichotomy follows from correlated agreement. If every
+`Dense` set of close affine parameters yields generators agreeing with codewords on a `Good` shared
+coordinate set, and such shared agreement makes every affine point close, then either every affine
+point is close or the close parameter set is not dense. -/
+private theorem affine_dichotomy_of_correlatedAgreement
+    {F ι : Type*} [Field F] [Fintype F] {ℓ : ℕ} {C : Submodule F (ι → F)}
+    {u₀ : ι → F} {u : Fin ℓ → (ι → F)}
+    (Close : (ι → F) → (ι → F) → Prop) (Good : Finset ι → Prop)
+    (hgood : ∀ {D' : Finset ι}, Good D' → ∀ {v₀ : ι → F} {v : Fin ℓ → (ι → F)},
+      (∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i) →
+      ∀ z : Fin ℓ → F, Close (u₀ + ∑ j : Fin ℓ, z j • u j) (v₀ + ∑ j : Fin ℓ, z j • v j))
+    (Dense : Finset (Fin ℓ → F) → Prop) {Small : Prop}
+    [DecidablePred fun z : Fin ℓ → F => ∃ c ∈ C, Close (u₀ + ∑ j : Fin ℓ, z j • u j) c]
+    (hsmall : ¬ Dense (Finset.univ.filter fun z : Fin ℓ → F =>
+      ∃ c ∈ C, Close (u₀ + ∑ j : Fin ℓ, z j • u j) c) → Small)
+    (hca : ∀ T : Finset (Fin ℓ → F), Dense T →
+      (∀ z ∈ T, ∃ c ∈ C, Close (u₀ + ∑ j : Fin ℓ, z j • u j) c) →
+      ∃ D' : Finset ι, Good D' ∧ ∃ v₀ ∈ C, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ C) ∧
+        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i) :
+    (∀ z : Fin ℓ → F, ∃ c ∈ C, Close (u₀ + ∑ j : Fin ℓ, z j • u j) c) ∨ Small := by
+  by_cases hdense : Dense (Finset.univ.filter fun z : Fin ℓ → F =>
+      ∃ c ∈ C, Close (u₀ + ∑ j : Fin ℓ, z j • u j) c)
+  · obtain ⟨D', hD', v₀, hv₀, v, hv, hagree⟩ :=
+      hca _ hdense fun _ hz => (Finset.mem_filter.1 hz).2
+    exact Or.inl fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
+      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hv j)),
+      hgood hD' hagree z⟩
+  · exact Or.inr (hsmall hdense)
+
 /-- **Explicit-parameter proximity-gap dichotomy on affine spaces up to the Johnson bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM
 2023 manuscript).
@@ -3508,19 +3545,16 @@ theorem proximityGap_affine_johnson_exact
           hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e).card ≤
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (Fintype.card ι) *
           (Fintype.card F) ^ ℓ := by
-  set T := Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-    hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e
-  by_cases hgt :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (Fintype.card ι) *
-        (Fintype.card F) ^ ℓ < Fintype.card F * T.card
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-      exists_correlatedAgreement_affine_johnson hα hk hm hk_le hinterp hroot u₀ u T hgt
-        fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hammingDist_affine_le_of_eq_on hD' hagree z⟩
-  · exact Or.inr (Nat.le_of_not_lt hgt)
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => hammingDist x c ≤ e)
+    (fun D' => Fintype.card ι - e ≤ D'.card)
+    (fun hD' _ _ hag z => hammingDist_affine_le_of_eq_on hD' hag z)
+    (fun T' =>
+        ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (Fintype.card ι) *
+          (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
+    Nat.le_of_not_lt
+    fun T' hT' hcl =>
+      exists_correlatedAgreement_affine_johnson hα hk hm hk_le hinterp hroot u₀ u T' hT' hcl
 
 /-- **Explicit-parameter `ℕ`-weighted proximity-gap dichotomy on affine spaces up to the Johnson
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
@@ -3550,20 +3584,17 @@ theorem weighted_proximityGap_affine_johnson_exact
             (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i).card ≤
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot *
           (Fintype.card F) ^ ℓ := by
-  set T := Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-    B_W ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-      (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i
-  by_cases hgt :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot *
-        (Fintype.card F) ^ ℓ < Fintype.card F * T.card
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => x i = c i), W i)
+    (fun D' => B_W ≤ ∑ i ∈ D', W i)
+    (fun hD' _ _ hag z => hD'.trans (weightedAgree_affine_ge_of_eq_on W hag z))
+    (fun T' =>
+        ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot *
+          (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
+    Nat.le_of_not_lt
+    fun T' hT' hcl =>
       exists_weighted_correlatedAgreement_affine_johnson hα hk hm hM hW_le hW_sum hk_le_t hinterp
-        hroot u₀ u T hgt fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hD'.trans (weightedAgree_affine_ge_of_eq_on W hagree z)⟩
-  · exact Or.inr (Nat.le_of_not_lt hgt)
+        hroot u₀ u T' hT' hcl
 
 /-- **Explicit-parameter `ℚ`-weighted proximity-gap dichotomy on affine spaces up to the Johnson
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
@@ -3595,20 +3626,17 @@ theorem ratWeighted_proximityGap_affine_johnson_exact
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (M * Fintype.card ι) *
           (Fintype.card F) ^ ℓ := by
   obtain ⟨_, hμ_nn, _, _, _, _⟩ := rat_weights_to_nat hM hμ_le hμ_den θ
-  set T := Finset.univ.filter fun z : Fin ℓ → F => ∃ c ∈ reedSolomon α k,
-    θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-      (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i
-  by_cases hgt :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (M * Fintype.card ι) *
-        (Fintype.card F) ^ ℓ < Fintype.card F * T.card
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => θ ≤ ∑ i ∈ Finset.univ.filter (fun i => x i = c i), μ i)
+    (fun D' => θ ≤ ∑ i ∈ D', μ i)
+    (fun hD' _ _ hag z => hD'.trans (ratWeightedAgree_affine_ge_of_eq_on hμ_nn hag z))
+    (fun T' =>
+        ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (M * Fintype.card ι) *
+          (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
+    Nat.le_of_not_lt
+    fun T' hT' hcl =>
       exists_ratWeighted_correlatedAgreement_affine_johnson hα hk hm hM hμ_le hμ_den hk_le hinterp
-        hroot u₀ u T hgt fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hD'.trans (ratWeightedAgree_affine_ge_of_eq_on hμ_nn hagree z)⟩
-  · exact Or.inr (Nat.le_of_not_lt hgt)
+        hroot u₀ u T' hT' hcl
 
 /-- **Original explicit-constant proximity-gap dichotomy on affine spaces up to the Johnson bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM
@@ -3639,20 +3667,17 @@ theorem proximityGap_affine_johnson
         ((Fintype.card F : ℝ) ^ ℓ)) ≤
         1800 * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) := by
-  set T := Finset.univ.filter fun z : Fin ℓ → F =>
-    ∃ c ∈ reedSolomon α k, hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e
-  by_cases hgt :
-      1800 * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-        (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
-      (#T : ℝ) / ((Fintype.card F : ℝ) ^ ℓ)
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-      exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm he u₀ u T hgt
-        fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hammingDist_affine_le_of_eq_on hD' hagree z⟩
-  · exact Or.inr (le_of_not_gt hgt)
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => hammingDist x c ≤ e)
+    (fun D' => Fintype.card ι - e ≤ D'.card)
+    (fun hD' _ _ hag z => hammingDist_affine_le_of_eq_on hD' hag z)
+    (fun T' =>
+        1800 * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
+          (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
+        (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
+    le_of_not_gt
+    fun T' hT' hcl =>
+      exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm he u₀ u T' hT' hcl
 
 /-- **Original explicit-constant proximity-gap dichotomy on affine spaces up to `1 - √ρ - η`**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM
@@ -3677,20 +3702,17 @@ theorem proximityGap_affine_johnson_of_eta
         ((Fintype.card F : ℝ) ^ ℓ)) ≤
         115200 * ((Fintype.card ι : ℝ) ^ 2) /
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) := by
-  set T := Finset.univ.filter fun z : Fin ℓ → F =>
-    ∃ c ∈ reedSolomon α k, hammingDist (u₀ + ∑ j : Fin ℓ, z j • u j) c ≤ e
-  by_cases hgt :
-      115200 * ((Fintype.card ι : ℝ) ^ 2) /
-        (((k : ℝ) / (Fintype.card ι : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) <
-      (#T : ℝ) / ((Fintype.card F : ℝ) ^ ℓ)
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
-      exists_correlatedAgreement_affine_johnson_of_eta hα hk hkn hη he u₀ u T hgt
-        fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hammingDist_affine_le_of_eq_on hD' hagree z⟩
-  · exact Or.inr (le_of_not_gt hgt)
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => hammingDist x c ≤ e)
+    (fun D' => Fintype.card ι - e ≤ D'.card)
+    (fun hD' _ _ hag z => hammingDist_affine_le_of_eq_on hD' hag z)
+    (fun T' =>
+        115200 * ((Fintype.card ι : ℝ) ^ 2) /
+          (((k : ℝ) / (Fintype.card ι : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) <
+        (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
+    le_of_not_gt
+    fun T' hT' hcl =>
+      exists_correlatedAgreement_affine_johnson_of_eta hα hk hkn hη he u₀ u T' hT' hcl
 
 /-- **Original explicit-constant `ℕ`-weighted proximity-gap dichotomy on affine spaces up to the
 Johnson bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4],
@@ -3721,21 +3743,18 @@ theorem weighted_proximityGap_affine_johnson
         ((Fintype.card F : ℝ) ^ ℓ)) ≤
         1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) := by
-  set T := Finset.univ.filter fun z : Fin ℓ → F =>
-    ∃ c ∈ reedSolomon α k, B_W ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-      (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), W i
-  by_cases hgt :
-      1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-        (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
-      (#T : ℝ) / ((Fintype.card F : ℝ) ^ ℓ)
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => x i = c i), W i)
+    (fun D' => B_W ≤ ∑ i ∈ D', W i)
+    (fun hD' _ _ hag z => hD'.trans (weightedAgree_affine_ge_of_eq_on W hag z))
+    (fun T' =>
+        1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
+          (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
+        (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
+    le_of_not_gt
+    fun T' hT' hcl =>
       exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hW hB
-        u₀ u T hgt fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hD'.trans (weightedAgree_affine_ge_of_eq_on W hagree z)⟩
-  · exact Or.inr (le_of_not_gt hgt)
+        u₀ u T' hT' hcl
 
 /-- **Original explicit-constant `ℚ`-weighted proximity-gap dichotomy on affine spaces up to the
 Johnson bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4],
@@ -3769,20 +3788,17 @@ theorem ratWeighted_proximityGap_affine_johnson
         1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) := by
   obtain ⟨_, hμ_nn, _, _, _, _⟩ := rat_weights_to_nat hM hμ_le hμ_den θ
-  set T := Finset.univ.filter fun z : Fin ℓ → F =>
-    ∃ c ∈ reedSolomon α k, θ ≤ ∑ i ∈ Finset.univ.filter (fun i =>
-      (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i
-  by_cases hgt :
-      1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-        (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
-      (#T : ℝ) / ((Fintype.card F : ℝ) ^ ℓ)
-  · left
-    obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ :=
+  exact affine_dichotomy_of_correlatedAgreement (C := reedSolomon α k)
+    (fun x c => θ ≤ ∑ i ∈ Finset.univ.filter (fun i => x i = c i), μ i)
+    (fun D' => θ ≤ ∑ i ∈ D', μ i)
+    (fun hD' _ _ hag z => hD'.trans (ratWeightedAgree_affine_ge_of_eq_on hμ_nn hag z))
+    (fun T' =>
+        1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
+          (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
+        (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
+    le_of_not_gt
+    fun T' hT' hcl =>
       exists_ratWeighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hμ_le
-        hμ_den hθ u₀ u T hgt fun _ hz => (mem_filter.1 hz).2
-    exact fun z => ⟨v₀ + ∑ j : Fin ℓ, z j • v j,
-      Submodule.add_mem _ hv₀ (Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (hvRS j)),
-      hD'.trans (ratWeightedAgree_affine_ge_of_eq_on hμ_nn hagree z)⟩
-  · exact Or.inr (le_of_not_gt hgt)
+        hμ_den hθ u₀ u T' hT' hcl
 
 end Cslib.Code
