@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
 import Mathlib.Data.List.Nodup
+import Mathlib.Data.List.GetD
+import Mathlib.Analysis.Convex.Segment
 
 /-!
 # Distinct slopes at actual reference crossings
@@ -64,7 +66,7 @@ theorem referenceDrawing_slope_ne_of_interior_contact {I : FixedRotationInput} (
     intro h
     apply hef
     apply subdivisionGraph_edge_injective hI
-    simpa only [a, b, c, d, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true,
+    simpa only [a, b, c, d, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, Fin.getElem_fin,
       ↓reduceIte, List.getD_eq_getElem _ _ e.isLt, List.getD_eq_getElem _ _ f.isLt] using h
   have hout : ¬(c ∈ (s(a, b) : Sym2 ℕ) ∧ d ∈ (s(a, b) : Sym2 ℕ)) := by
     intro h
@@ -81,7 +83,7 @@ theorem referenceDrawing_slope_ne_of_interior_contact {I : FixedRotationInput} (
     have hbd : r b ≠ r d :=
       Nat.cast_injective.ne ((List.idxOf_inj (he'.1 true)).not.mpr hd.2.symm)
     have hswap : z ∈ openSegment ℝ (parabolaPoint (r d)) (parabolaPoint (r c)) := by
-      simpa only [openSegment_comm] using hf
+      simpa only [openSegment_symm] using hf
     simpa only [add_comm (r d) (r c)] using
       parabolaChord_slope_ne_of_mem_inter hab hcd.symm had hbd he hswap
   · have hc' : c ≠ a ∧ c ≠ b := by simpa only [Sym2.mem_iff, not_or] using hc

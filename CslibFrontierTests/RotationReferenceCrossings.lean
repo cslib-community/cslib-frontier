@@ -92,13 +92,15 @@ theorem parallel_reference_chords : ∃ I : FixedRotationInput, Valid I ∧
         z ∈ openSegment ℝ ((referenceDrawing I).route f).start
           ((referenceDrawing I).route f).finish := by
   have hne : edge 1 ≠ edge 5 := by decide +kernel
+  have hord : referenceOrder input = [0, 1, 2, 3, 4, 5, 6, 7, 8] := by decide +kernel
   have heq : ((referenceDrawing input).route (edge 1)).start.re +
       ((referenceDrawing input).route (edge 1)).finish.re =
       ((referenceDrawing input).route (edge 5)).start.re +
         ((referenceDrawing input).route (edge 5)).finish.re := by
-    norm_num [referenceDrawing, referencePoint, referenceOrder, centerBlocks, input,
-      subdivisionGraph, subdivide, Dart.vertex, Cslib.Complexity.Graph.edgeEndpoint,
-      Route.start_line, Route.finish_line, parabolaPoint, edge]
+    change ((referenceOrder input).idxOf 3 : ℝ) + (referenceOrder input).idxOf 4 =
+      ((referenceOrder input).idxOf 6 : ℝ) + (referenceOrder input).idxOf 1
+    rw [hord]
+    norm_num
   refine ⟨input, valid_input, edge 1, edge 5, hne, heq, ?_⟩
   rintro ⟨z, hz, hz'⟩
   exact (referenceDrawing_slope_ne_of_interior_contact valid_input (edge 1) (edge 5)

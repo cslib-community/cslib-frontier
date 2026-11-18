@@ -80,7 +80,8 @@ private theorem subdivision_edge_cases (I : FixedRotationInput)
   refine ⟨i, k, hindex.symm, ?_⟩
   change ((subdivide I).map Segment.endpoints)[e.val] = _
   rw [List.getElem_map, hget]
-  fin_cases k <;> rfl
+  generalize k = k'
+  fin_cases k' <;> rfl
 
 /-- Unordered endpoints identify the actual indexed subdivision occurrence. Original loops,
 parallel edges and reversed occurrences retain their distinct fresh vertices. -/
