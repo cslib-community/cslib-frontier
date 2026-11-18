@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.GroupTheory.OrderOfElement
+import Mathlib.Tactic.NormNum
 
 /-!
 # The roots used by the FIPS 204 number-theoretic transform
