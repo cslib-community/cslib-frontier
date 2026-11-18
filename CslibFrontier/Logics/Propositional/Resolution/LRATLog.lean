@@ -239,23 +239,28 @@ theorem isSome_resolve {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ : Claus
   · rename_i hne
     exact absurd h₂ (hne c₁ c₂ h₁)
 
-/-- **Deleting clauses** from the log. -/
-def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ where
-  steps := .del ids.toArray :: log.steps
-  db := log.db.filter fun e => !ids.contains e.1
-  next := log.next
-  run rest := by
-    simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
-    rw [log.run]
-    simp [checkLRATAux]
-  lt_next e he := log.lt_next e (List.mem_filter.1 he).1
-  implied σ hσ e he := log.implied σ hσ e (List.mem_filter.1 he).1
-  vars_mem e he := log.vars_mem e (List.mem_filter.1 he).1
+/-- **Deleting** the clauses numbered `ids`, with a deletion step. An empty list deletes nothing
+and adds no step. -/
+def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
+  if ids.isEmpty then log else
+  { steps := .del ids.toArray :: log.steps
+    db := log.db.filter fun e => !ids.contains e.1
+    next := log.next
+    run := fun rest => by
+      simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
+      rw [log.run]
+      simp [checkLRATAux]
+    lt_next := fun e he => log.lt_next e (List.mem_filter.1 he).1
+    implied := fun σ hσ e he => log.implied σ hσ e (List.mem_filter.1 he).1
+    vars_mem := fun e he => log.vars_mem e (List.mem_filter.1 he).1 }
 
 /-- Deleting clauses keeps the clauses of the numbers not deleted. -/
 theorem clause?_delete {log : LRATLog φ} {ids : List ℕ} {i : ℕ} (hi : i ∉ ids) :
     (log.delete ids).clause? i = log.clause? i := by
-  simp only [clause?, delete, List.find?_filter]
+  unfold delete
+  split
+  · rfl
+  simp only [clause?, List.find?_filter]
   congr 1
   refine List.find?_congr fun e _ => ?_
   by_cases he : e.1 = i

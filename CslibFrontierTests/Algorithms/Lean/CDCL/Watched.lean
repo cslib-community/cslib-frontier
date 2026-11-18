@@ -172,4 +172,15 @@ example : (CDCL.solve []).isSat = true := by decide
     | (.sat _, _) => false
   (check 4, check 5)
 
+/-- With `27` clauses the limit on the learned clauses starts at `9` and grows by a tenth at each
+adjustment, kept in thousandths: `9000`, `9900`, `10890`, as MiniSat's `9`, `9.9`, `10.89`. -/
+example : (CDCL.Reduction.init 27).max = 9000 ∧
+    ({ CDCL.Reduction.init 27 with countdown := 1 }.learn [] 0 0 false).max = 9900 ∧
+    ({ { CDCL.Reduction.init 27 with countdown := 1 }.learn [] 0 0 false with countdown := 1 }.learn
+      [] 0 0 false).max = 10890 := by
+  decide
+
+/-- Deleting no clause leaves the log, and so the certificate, unchanged. -/
+example (φ : CNF ℕ) : (CNF.LRATLog.init φ).delete [] = CNF.LRATLog.init φ := rfl
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

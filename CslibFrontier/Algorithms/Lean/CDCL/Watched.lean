@@ -176,13 +176,18 @@ bumped for the clauses met by each analysis and decaying by `1 / 0.999` (MiniSat
 `clause_decay`); the number of learned clauses in the watch store; their limit (MiniSat's
 `max_learnts`, a third of the clauses of the formula to begin with); and the conflicts between
 increases of the limit by a tenth, which grow by half each time, and the conflicts left before the
-next one (MiniSat's `learntsize_adjust_confl` and `learntsize_adjust_cnt`). -/
+next one (MiniSat's `learntsize_adjust_confl` and `learntsize_adjust_cnt`).
+
+MiniSat keeps the limit and the interval as floating-point numbers. Here they are natural numbers,
+the limit in thousandths of a clause, so that growing it by a tenth keeps growing it: with `27`
+clauses it goes `9000`, `9900`, `10890`, … thousandths, as MiniSat's goes `9`, `9.9`, `10.89`, ….
+Divisions truncate, so the values can fall below MiniSat's by less than one unit at each step. -/
 structure Reduction where
   /-- The clause activities, by number. -/
   act : Activity
   /-- The learned clauses in the watch store. -/
   learnts : ℕ
-  /-- The limit on the learned clauses, beyond the assigned variables. -/
+  /-- The limit on the learned clauses beyond the assigned variables, in thousandths. -/
   max : ℕ
   /-- The conflicts between increases of the limit. -/
   adjust : ℕ
@@ -190,7 +195,7 @@ structure Reduction where
   countdown : ℕ
 
 /-- The reduction for a formula of `m` clauses. -/
-@[expose] def Reduction.init (m : ℕ) : Reduction := ⟨Activity.init 0, 0, m / 3, 100, 100⟩
+@[expose] def Reduction.init (m : ℕ) : Reduction := ⟨Activity.init 0, 0, m * 1000 / 3, 100, 100⟩
 
 /-- After a conflict whose analysis met the clauses `used` and learned the clause numbered `id`,
 the log's next number being `next`: the clause activities are bumped and decay, the learned clause
@@ -1104,22 +1109,28 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
     if (a.2.length ≤ 2) == (b.2.length ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2.length ≤ 2)
     learnts.length learnts
   let half := sorted.length / 2
-  let extra := act.inc / max 1 sorted.length
+  -- MiniSat's `activity < cla_inc / learnts.size()`, without rounding the quotient
   let chosen := (sorted.take half).filter (2 < ·.2.length) ++
-    (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 < extra
+    (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 * sorted.length < act.inc
   let locked := XTrail.reasonIds S.exec.trail
   (chosen.map Prod.fst).filter fun i =>
     φ.length < i && !locked.contains i && !S.short.any (·.1 == i)
 
-/-- **Reducing the learned clauses**, at an empty queue: the clauses chosen are forgotten, and the
-watch store is rebuilt on the current trail. -/
-@[expose] def WExec.reduce (S : WExec φ) : WExec φ :=
-  let ids := S.reduceIds
+/-- Forgetting the learned clauses numbered `ids` and rebuilding the watch store on the current
+trail. -/
+@[expose] def WExec.forgetChosen (S : WExec φ) (ids : List ℕ) : WExec φ :=
   { S with
     exec := S.exec.forget ids
     store := WatchStore.build S.M (S.exec.forget ids).db
     red := { S.red with learnts := S.red.learnts - ids.length }
     stats := { S.stats with removed := S.stats.removed + ids.length } }
+
+/-- **Reducing the learned clauses**, at an empty queue: the clauses chosen are forgotten, and the
+watch store is rebuilt on the current trail. If none is chosen, nothing changes: the store is not
+rebuilt and the certificate gets no deletion step. -/
+@[expose] def WExec.reduce (S : WExec φ) : WExec φ :=
+  let ids := S.reduceIds
+  if ids.isEmpty then S else S.forgetChosen ids
 
 theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
@@ -1134,29 +1145,35 @@ theorem WExec.Inv.reduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     (hnoconf : ∀ c ∈ S.exec.clauses, ¬ Trail.Falsifies S.M c) :
     S.reduce.Inv ∧ (∀ c ∈ S.reduce.exec.clauses, ¬ Trail.Falsifies S.reduce.M c) ∧
       S.reduce.measure = S.measure := by
-  have hexec : (S.exec.forget S.reduceIds).Inv :=
-    Exec.forget_inv hS.exec (fun e he hi => by
-      have := (WExec.mem_reduceIds hi).1
-      have := le_length_of_mem_lratDB he
-      omega) fun r hr hi => (WExec.mem_reduceIds hi).2.1 hr
-  have hdb : ∀ e ∈ (S.exec.forget S.reduceIds).db, e ∈ S.exec.db := fun e he =>
-    (List.mem_filter.1 he).1
-  have hsub : ∀ c ∈ S.reduce.exec.clauses, c ∈ S.exec.clauses := fun c hc => by
-    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
-    exact List.mem_map.2 ⟨e, hdb e he, rfl⟩
-  refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => hS.short_covers e (hdb e he) hlen,
-    hS.queue_nodup, hS.queue_trail, hS.queue_above⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
-  · change (WatchStore.build S.M (S.exec.forget S.reduceIds).db).Inv _ S.M S.queue
-    rw [hq]
-    exact WatchStore.build_inv S.M _ fun e he _ => hnoconf e.2 (List.mem_map.2 ⟨e, hdb e he, rfl⟩)
-  · refine List.mem_filter.2 ⟨hS.short_mem e he, ?_⟩
-    have : ¬ e.1 ∈ S.reduceIds := fun hi => (WExec.mem_reduceIds hi).2.2 e he rfl
-    simpa using this
+  unfold WExec.reduce
+  dsimp only
+  split
+  · exact ⟨hS, hnoconf, rfl⟩
+  · have hexec : (S.exec.forget S.reduceIds).Inv :=
+      Exec.forget_inv hS.exec (fun e he hi => by
+        have := (WExec.mem_reduceIds hi).1
+        have := le_length_of_mem_lratDB he
+        omega) fun r hr hi => (WExec.mem_reduceIds hi).2.1 hr
+    have hdb : ∀ e ∈ (S.exec.forget S.reduceIds).db, e ∈ S.exec.db := fun e he =>
+      (List.mem_filter.1 he).1
+    have hsub : ∀ c ∈ (S.forgetChosen S.reduceIds).exec.clauses, c ∈ S.exec.clauses :=
+      fun c hc => by
+      obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
+      exact List.mem_map.2 ⟨e, hdb e he, rfl⟩
+    refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => hS.short_covers e (hdb e he) hlen,
+      hS.queue_nodup, hS.queue_trail, hS.queue_above⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
+    · change (WatchStore.build S.M (S.exec.forget S.reduceIds).db).Inv _ S.M S.queue
+      rw [hq]
+      exact WatchStore.build_inv S.M _ fun e he _ => hnoconf e.2 (List.mem_map.2 ⟨e, hdb e he, rfl⟩)
+    · refine List.mem_filter.2 ⟨hS.short_mem e he, ?_⟩
+      have : ¬ e.1 ∈ S.reduceIds := fun hi => (WExec.mem_reduceIds hi).2.2 e he rfl
+      simpa using this
 
 /-- **MiniSat's `reduceDB`, when due**: if reduction is on and the learned clauses in the store
 exceed the assigned variables by the limit, reduce. -/
 @[expose] def WExec.maybeReduce (S : WExec φ) : WExec φ :=
-  if S.opts.reduce && S.red.max + S.exec.trail.length ≤ S.red.learnts then S.reduce else S
+  if S.opts.reduce && S.red.max + 1000 * S.exec.trail.length ≤ 1000 * S.red.learnts then S.reduce
+  else S
 
 theorem WExec.Inv.maybeReduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     (hnoconf : ∀ c ∈ S.exec.clauses, ¬ Trail.Falsifies S.M c) :
@@ -1166,7 +1183,10 @@ theorem WExec.Inv.maybeReduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   unfold WExec.maybeReduce
   split
   · have ⟨h₁, h₂, h₃⟩ := hS.reduce hq hnoconf
-    exact ⟨h₁, hq, h₂, h₃⟩
+    refine ⟨h₁, ?_, h₂, h₃⟩
+    unfold WExec.reduce
+    dsimp only
+    split <;> exact hq
   · exact ⟨hS, hq, hnoconf, rfl⟩
 
 /-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
