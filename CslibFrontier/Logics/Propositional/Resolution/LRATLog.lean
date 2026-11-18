@@ -22,7 +22,9 @@ of the database is added under the next number, as a RUP step hinting the two
 (`Cslib.Logic.PL.CNF.propagateHints_resolvent`). A resolvent of any two clauses is a RUP clause of
 them, whether or not the variable occurs in them with opposite signs, so every resolution step
 keeps the log correct, and a solver that learns clauses by resolution needs no further proof that
-its certificate is accepted. Clauses can be deleted
+its certificate is accepted. Any RUP clause can be added with its hints, once the checker's
+unit propagation has succeeded on them (`Cslib.Logic.PL.CNF.LRATLog.addRup`). Clauses can be
+deleted
 (`Cslib.Logic.PL.CNF.LRATLog.delete`). Once the database contains the empty clause, closing the
 log with an empty-clause step hinting it gives a certificate that the checker accepts
 (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
@@ -31,8 +33,9 @@ log with an empty-clause step hinting it gives a certificate that the checker ac
 
 * `Cslib.Logic.PL.CNF.LRATLog`: a certificate under construction.
 * `Cslib.Logic.PL.CNF.LRATLog.init`, `Cslib.Logic.PL.CNF.LRATLog.resolve`,
-  `Cslib.Logic.PL.CNF.LRATLog.delete`, `Cslib.Logic.PL.CNF.LRATLog.finish`: starting, resolving,
-  deleting and closing.
+  `Cslib.Logic.PL.CNF.LRATLog.addRup`, `Cslib.Logic.PL.CNF.LRATLog.delete`,
+  `Cslib.Logic.PL.CNF.LRATLog.finish`: starting, resolving, adding a RUP clause, deleting and
+  closing.
 
 ## Main results
 
@@ -161,6 +164,48 @@ theorem extends_addResolvent {log : LRATLog φ} {i₁ i₂ v : ℕ} {c₁ c₂ :
   intro i c h
   have hi := lt_next_of_clause? h
   simp only [clause?, addResolvent, List.find?_cons] at h ⊢
+  rw [show (log.next == i) = false by simp; omega]
+  exact h
+
+/-- **Adding a RUP clause**: `c`, over variables of `φ`, under the next number, hinting `hints`,
+given that unit propagation along the hints from the negation of `c` reaches a conflict. -/
+def addRup (log : LRATLog φ) (c : Clause ℕ) (hints : List ℕ)
+    (hprop : propagateHints log.db (c.map Std.Sat.Literal.negate) hints = true)
+    (hvars : ∀ l ∈ c, l.1 ∈ φ.vars) : LRATLog φ where
+  steps := .addRup log.next c.toDIMACS hints.toArray :: log.steps
+  db := (log.next, c) :: log.db
+  next := log.next + 1
+  run rest := by
+    simp only [List.reverse_cons, List.append_assoc, List.singleton_append]
+    rw [log.run]
+    simp only [checkLRATAux, Clause.ofDIMACS_toDIMACS, hprop, Bool.true_and]
+  lt_next e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    · simp
+    · have := log.lt_next e he; omega
+  implied σ hσ e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    · exact eval_of_propagateHints (log.implied σ hσ) hprop
+    · exact log.implied σ hσ e he
+  vars_mem e he l hl := by
+    rcases List.mem_cons.1 he with rfl | he
+    · exact hvars l hl
+    · exact log.vars_mem e he l hl
+
+/-- After adding a RUP clause, the new number names it. -/
+theorem clause?_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
+    {hprop : propagateHints log.db (c.map Std.Sat.Literal.negate) hints = true}
+    {hvars : ∀ l ∈ c, l.1 ∈ φ.vars} :
+    (log.addRup c hints hprop hvars).clause? log.next = some c := by
+  simp [clause?, addRup]
+
+/-- Adding a RUP clause extends the log. -/
+theorem extends_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
+    {hprop : propagateHints log.db (c.map Std.Sat.Literal.negate) hints = true}
+    {hvars : ∀ l ∈ c, l.1 ∈ φ.vars} : log.Extends (log.addRup c hints hprop hvars) := by
+  intro i c' h
+  have hi := lt_next_of_clause? h
+  simp only [clause?, addRup, List.find?_cons] at h ⊢
   rw [show (log.next == i) = false by simp; omega]
   exact h
 

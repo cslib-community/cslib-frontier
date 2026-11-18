@@ -20,8 +20,10 @@ public meta import Std.Tactic.BVDecide.LRAT.Checker
 The kernel runs the watched solver with `decide` on the pigeonhole formula PHP(3, 2), proving it
 unsatisfiable, and on satisfiable formulas, checking the model. The formulas exercise the short
 clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
-the options decides correctly, and the statistics count conflicts, propagations and decisions. At
-runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5).
+the options decides correctly, and the statistics count conflicts, propagations and decisions.
+Restarts happen when allowed, and minimization shortens the learned clauses of PHP(4, 3). At
+runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned
+clauses are minimized.
 -/
 
 set_option linter.privateModule false
@@ -120,6 +122,12 @@ example : beforeRestart.phase.get 1 = false ∧ beforeRestart.restart.phase.get 
 /-- Without phase saving, restart keeps the phase of `x₁` at `false`. -/
 example :
     ({ beforeRestart with opts := { phaseSaving := false } }).restart.phase.get 1 = false := by
+  decide +kernel
+
+/-- Minimization removes literals from the clauses learned on PHP(4, 3); without it, none are. -/
+example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.maxLiterals ∧
+    (CDCL.solveWith { minimize := false } php43).2.literals =
+      (CDCL.solveWith { minimize := false } php43).2.maxLiterals := by
   decide +kernel
 
 /-- The empty formula. -/

@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.CDCL.Exec
+public import CslibFrontier.Algorithms.Lean.CDCL.Minimize
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 public import CslibFrontier.Algorithms.Lean.CDCL.Phase
@@ -47,7 +47,8 @@ searches the variables of the database (`CNF.vars`), which can traverse every li
 
 **The loop** (`Cslib.Algorithms.Lean.CDCL.loop`). While the queue is not empty, it processes its
 first literal. A conflict with no decision on the trail ends with a certificate; otherwise it is
-analysed, followed by Backjump and Learn, and the variables met by the analysis are bumped
+analysed, the learned clause is minimized (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`), and
+Backjump and Learn follow; the variables met by the analysis are bumped
 (`Cslib.Algorithms.Lean.CDCL.Activity.bump`). With the queue empty, it checks the short clauses for
 a conflict or a unit, then decides an unassigned variable of the database of greatest activity
 (VSIDS, `Cslib.Algorithms.Lean.CDCL.Activity.pick`) with its saved phase
@@ -108,7 +109,8 @@ variable {φ : CNF ℕ}
 first unassigned variable of the database); phase saving for its polarity (MiniSat's
 `phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`); and restarts, the `i`-th
 after `restartFirst * luby restartInc i` more conflicts (MiniSat's `luby_restart`), or
-`restartFirst * restartInc ^ i` without `luby`. None affects correctness. -/
+`restartFirst * restartInc ^ i` without `luby`; and the minimization of learned clauses
+(MiniSat's `ccmin_mode = 2`; otherwise `0`). None affects correctness. -/
 structure Options where
   /-- Choose decision variables by VSIDS. -/
   vsids : Bool := true
@@ -122,6 +124,8 @@ structure Options where
   restartFirst : ℕ := 100
   /-- The growth of the conflicts between restarts (MiniSat's `restart_inc`). -/
   restartInc : ℕ := 2
+  /-- Minimize the learned clauses. -/
+  minimize : Bool := true
   deriving Repr
 
 /-- The conflicts allowed before the restart numbered `i`, at least one. -/
@@ -139,6 +143,11 @@ structure Stats where
   propagations : ℕ := 0
   /-- Restarts. -/
   restarts : ℕ := 0
+  /-- Different literals of the learned clauses before minimization (MiniSat's
+  `max_literals`). -/
+  maxLiterals : ℕ := 0
+  /-- Different literals of the learned clauses (MiniSat's `tot_literals`). -/
+  literals : ℕ := 0
   deriving Repr
 
 /-- One more literal taken from the propagation queue. -/
@@ -807,21 +816,27 @@ are saved, if phase saving is on. -/
 /-- One more conflict. -/
 @[expose] def Stats.conflict (s : Stats) : Stats := { s with conflicts := s.conflicts + 1 }
 
+/-- One more conflict, learning a clause of `k` different literals, `k₀` before minimization. -/
+@[expose] def Stats.learn (s : Stats) (k₀ k : ℕ) : Stats :=
+  { s with
+    conflicts := s.conflicts + 1, maxLiterals := s.maxLiterals + k₀, literals := s.literals + k }
+
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. The variables met by the analysis are bumped, and the phases of the literals undone are
-saved. -/
-@[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
+saved; the statistics count `k₀` literals before minimization. -/
+@[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
+    WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
-      S.short, S.bumped L.seen, S.saved sp, S.opts, S.stats.conflict⟩
+      S.short, S.bumped L.seen, S.saved sp, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
   else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
-    S.bumped L.seen, S.saved sp, S.opts, S.stats.conflict⟩
+    S.bumped L.seen, S.saved sp, S.opts, S.stats.learn k₀ L.clause.dedup.length⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
-    (hsp : XTrail.split S.exec.trail = some sp) (L : S.exec.LearnedAt sp) :
-    (S.afterConflict sp L).Inv ∧ (S.afterConflict sp L).measure < S.measure := by
+    (hsp : XTrail.split S.exec.trail = some sp) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
+    (S.afterConflict sp L k₀).Inv ∧ (S.afterConflict sp L k₀).measure < S.measure := by
   have hspec := Exec.afterConflict_spec hS.exec he hconf hsp L
   have hsplit := XTrail.trail_of_split hsp
   have hM' : XTrail.trail (S.exec.afterConflict sp L).trail =
@@ -1029,13 +1044,15 @@ database, or returns the trail as a model. -/
           (XTrail.split_eq_none hsp) hconf
         .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
       | some sp =>
-        let L := analyze S.exec.log sp.decision sp.below
+        let L₀ := analyze S.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h) S.exec.log
           (LRATLog.Extends.refl _) e.1 e.2 (hS.exec.db_log e he) (hS.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)
-        have hspec := WExec.afterConflict_spec hS he hconf hsp L
-        loop φ limit fuel (S.afterConflict sp L) hspec.1 (by omega)
+        let L := if S.opts.minimize then L₀.minimize sp.below else L₀
+        let k₀ := L₀.clause.dedup.length
+        have hspec := WExec.afterConflict_spec hS he hconf hsp L k₀
+        loop φ limit fuel (S.afterConflict sp L k₀) hspec.1 (by omega)
     match hq : S.queue with
     | t :: _ =>
       have ht : t ∈ S.queue := hq ▸ List.mem_cons_self
