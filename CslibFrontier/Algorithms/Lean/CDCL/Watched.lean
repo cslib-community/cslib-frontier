@@ -81,9 +81,15 @@ false, and keeps the measure.
 its budget of conflicts (`restartFirst` times the Luby sequence, `Options.restartBudget`), at the
 next point with an empty queue and no conflict it goes back to the root of the trail, the literals
 implied below every decision (`WExec.restart`), keeping the learned clauses, the activities and
-the phases. Restarts raise the measure, so each run is bounded by its own measure, and the runs
-are bounded by an allowance of `2 ^ 64` restarts (`restartAllowance`), after which the solver no
-longer restarts; termination is structural on both.
+the phases. Restarts raise the measure, so each run is bounded by its own measure: each move of
+the loop counts at most one conflict and lowers the measure, so a run that restarts has had fewer
+conflicts than the bound `restartBound φ` on the measure of every state, which depends only on the
+number of variables. The budgets are unbounded (`luby_pow`): the budget of restart
+`Options.restartRuns (restartBound φ)` exceeds the bound (`Options.lt_restartBudget`), so that run
+does not restart, and the search ends there. Termination is structural on the measure within a
+run, and on the runs left before that one. This adapts Theorem 2.16 of Nieuwenhuis, Oliveras and
+Tinelli, which asks the number of steps between restarts to increase: it is enough that some run's
+budget exceeds the conflicts any run can have, with Forget keeping the measure.
 
 ## Main definitions
 
@@ -105,6 +111,10 @@ longer restarts; termination is structural on both.
 * `Cslib.Algorithms.Lean.CDCL.isSat_solveWith_iff`: so it does whatever the options.
 * `Cslib.Algorithms.Lean.CDCL.WExec.Inv.pickVar_max`: with VSIDS, every decision is of greatest
   activity among the unassigned variables.
+* `Cslib.Algorithms.Lean.CDCL.Options.lt_restartBudget`,
+  `Cslib.Algorithms.Lean.CDCL.WExec.Inv.measure_lt_restartBound`: some restart budget exceeds the
+  conflicts of any run, so the search with restarts and Forget terminates, with no limit on the
+  restarts.
 * `Cslib.Algorithms.Lean.CDCL.solveCompactWith_sat`,
   `Cslib.Algorithms.Lean.CDCL.solveCompactWith_unsat`,
   `Cslib.Algorithms.Lean.CDCL.isSat_solveCompactWith_iff`: the same for the solver on renamed
@@ -157,9 +167,31 @@ structure Options where
   learntsDivisor : ℕ := 3
   deriving Repr
 
-/-- The conflicts allowed before the restart numbered `i`, at least one. -/
+/-- The conflicts allowed before the restart numbered `i`. As MiniSat requires `restart_first ≥ 1`
+and `restart_inc > 1`, `restartFirst` counts as at least `1` and `restartInc` as at least `2`, so
+that the budgets are unbounded. -/
 @[expose] def Options.restartBudget (o : Options) (i : ℕ) : ℕ :=
-  max 1 (o.restartFirst * if o.luby then CDCL.luby o.restartInc i else o.restartInc ^ i)
+  max 1 o.restartFirst *
+    if o.luby then CDCL.luby (max 2 o.restartInc) i else max 2 o.restartInc ^ i
+
+/-- **A restart whose budget exceeds `B`**: its index. With Luby restarts it ends a complete
+subsequence of the Luby sequence (`luby_pow`). -/
+@[expose] def Options.restartRuns (o : Options) (B : ℕ) : ℕ :=
+  if o.luby then 2 ^ (B.log2 + 2) - 2 else B.log2 + 1
+
+theorem Options.lt_restartBudget (o : Options) (B : ℕ) : B < o.restartBudget (o.restartRuns B) := by
+  have hB : B < 2 ^ (B.log2 + 1) := Nat.lt_log2_self
+  have hy : 2 ^ (B.log2 + 1) ≤ max 2 o.restartInc ^ (B.log2 + 1) :=
+    Nat.pow_le_pow_left (Nat.le_max_left _ _) _
+  have hf : 1 ≤ max 1 o.restartFirst := Nat.le_max_left _ _
+  unfold restartBudget restartRuns
+  cases o.luby
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    calc B < max 2 o.restartInc ^ (B.log2 + 1) := by omega
+      _ ≤ _ := Nat.le_mul_of_pos_left _ hf
+  · simp only [↓reduceIte, luby_pow]
+    calc B < max 2 o.restartInc ^ (B.log2 + 1) := by omega
+      _ ≤ _ := Nat.le_mul_of_pos_left _ hf
 
 /-- **Statistics** of a run, as MiniSat reports them. -/
 structure Stats where
@@ -867,44 +899,47 @@ theorem WExec.ProcInv.conflict_clause {S : WExec φ} {t : Literal ℕ} {w : Watc
       · exact h₂ ▸ hu'
     · exact hrest y hy
 
-/-- The result of visiting a watch list from the state `S₀`: done, or a conflict. -/
+/-- The result of visiting a watch list from the state `S₀`: done, or a conflict, with no more
+conflicts counted. -/
 inductive ProcResult (φ : CNF ℕ) (S₀ : WExec φ) (t : Literal ℕ) : Type
   /-- Every watcher on the list was visited. -/
   | done (S : WExec φ) (h : S.ProcInv t []) (hm : S.measure ≤ S₀.measure)
+      (hc : S.stats.conflicts = S₀.stats.conflicts)
   /-- A clause of the database is false. -/
   | conflict (S : WExec φ) (h : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
       (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ S₀.measure)
+      (hc : S.stats.conflicts = S₀.stats.conflicts)
 
-/-- A result from a state of smaller measure is a result from `S₀`. -/
-@[expose] def ProcResult.weaken {S₀ S₁ : WExec φ} {t : Literal ℕ} (hle : S₁.measure ≤ S₀.measure) :
-    ProcResult φ S₁ t → ProcResult φ S₀ t
-  | .done S h hm => .done S h (hm.trans hle)
-  | .conflict S h e he hc hm => .conflict S h e he hc (hm.trans hle)
+/-- A result from a state of smaller measure and as many conflicts is a result from `S₀`. -/
+@[expose] def ProcResult.weaken {S₀ S₁ : WExec φ} {t : Literal ℕ} (hle : S₁.measure ≤ S₀.measure)
+    (hc : S₁.stats.conflicts = S₀.stats.conflicts) : ProcResult φ S₁ t → ProcResult φ S₀ t
+  | .done S h hm hc' => .done S h (hm.trans hle) (hc'.trans hc)
+  | .conflict S h e he hconf hm hc' => .conflict S h e he hconf (hm.trans hle) (hc'.trans hc)
 
 /-- **Visiting a watch list**: every watcher on `L` is visited in turn, until a conflict. -/
 @[expose]
 def WExec.processList (t : Literal ℕ) : (L : List Watcher) → (S : WExec φ) → S.ProcInv t L →
     ProcResult φ S t
-  | [], S, h => .done S h le_rfl
+  | [], S, h => .done S h le_rfl rfl
   | w :: L, S, h =>
     match hv : S.store.visit S.assign t.negate w with
     | .skip =>
       have hs : VisitSpec S.store S.M t.negate w .skip :=
         hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processList t L _ (h.skip hs)).weaken (S₀ := S) (by exact le_rfl)
+      (WExec.processList t L _ (h.skip hs)).weaken (S₀ := S) (by exact le_rfl) (by exact rfl)
     | .keep b =>
       have hs : VisitSpec S.store S.M t.negate w (.keep b) :=
         hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processList t L _ (h.keep hs)).weaken (S₀ := S) (by exact le_rfl)
+      (WExec.processList t L _ (h.keep hs)).weaken (S₀ := S) (by exact le_rfl) (by exact rfl)
     | .move S' =>
       have hs : VisitSpec S.store S.M t.negate w (.move S') :=
         hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processList t L _ (h.move hs)).weaken (S₀ := S) (by exact le_rfl)
+      (WExec.processList t L _ (h.move hs)).weaken (S₀ := S) (by exact le_rfl) (by exact rfl)
     | .unit l id =>
       have hs : VisitSpec S.store S.M t.negate w (.unit l id) :=
         hv ▸ S.store.visit_spec h.assign t.negate w
       have hu := h.unit hs
-      (WExec.processList t L _ hu.1).weaken hu.2.le
+      (WExec.processList t L _ hu.1).weaken hu.2.le (by exact rfl)
     | .conflict id =>
       have hs : VisitSpec S.store S.M t.negate w (.conflict id) :=
         hv ▸ S.store.visit_spec h.assign t.negate w
@@ -914,12 +949,12 @@ def WExec.processList (t : Literal ℕ) : (L : List Watcher) → (S : WExec φ) 
         have hr := h.restore_inv
         .conflict (S.restore t (w :: L)) hr.1 (id, c)
           (by obtain ⟨c', hc', hlog, -⟩ := hcc; rw [hlog] at hc; cases hc; exact hc')
-          (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hc; cases hc; exact hf) hr.2.le
+          (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hc; cases hc; exact hf) hr.2.le rfl
       | none => absurd hc (by obtain ⟨c', -, hlog, -⟩ := h.conflict_clause hs; simp [hlog])
     | .drop =>
       have hs : VisitSpec S.store S.M t.negate w .drop :=
         hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processList t L S (h.drop hs)).weaken le_rfl
+      (WExec.processList t L S (h.drop hs)).weaken le_rfl rfl
 
 /-! ### Moves at the top level -/
 
@@ -1510,6 +1545,33 @@ theorem WExec.Inv.maybeReduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
     split <;> exact hq
   · exact ⟨hS, hq, hnoconf, rfl⟩
 
+theorem WExec.maybeReduce_conflicts (S : WExec φ) :
+    S.maybeReduce.stats.conflicts = S.stats.conflicts := by
+  unfold WExec.maybeReduce WExec.reduce
+  dsimp only
+  split
+  · split <;> rfl
+  · rfl
+
+/-- A conflict counts one. -/
+theorem WExec.afterConflict_conflicts (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp)
+    (k₀ : ℕ) : (S.afterConflict sp L k₀).stats.conflicts = S.stats.conflicts + 1 := by
+  unfold WExec.afterConflict; split <;> rfl
+
+/-- **A bound on the measure** of every state, plus one; so on the conflicts of a run of the loop.
+-/
+@[expose] def restartBound (φ : CNF ℕ) : ℕ :=
+  (nvars φ * (nvars φ + 1) ^ nvars φ + 1) * (nvars φ + 2) + nvars φ + 1
+
+theorem WExec.Inv.measure_lt_restartBound {S : WExec φ} (hS : S.Inv) :
+    S.measure < restartBound φ := by
+  have hq := hS.queue_length_le
+  have hr : rank φ.vars S.exec.state ≤ nvars φ * (nvars φ + 1) ^ nvars φ + 1 := by
+    simp only [Exec.state, rank, nvars]; omega
+  have := Nat.mul_le_mul_right (nvars φ + 2) hr
+  simp only [WExec.measure, restartBound]
+  omega
+
 /-- The answer of the solver, with its correctness: a model, or an LRAT certificate accepted by
 the checker. -/
 inductive Answer (φ : CNF ℕ) : Type
@@ -1518,63 +1580,79 @@ inductive Answer (φ : CNF ℕ) : Type
   /-- An accepted certificate. -/
   | unsat (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) (h : φ.checkLRAT cert = true)
 
-/-- The outcome of a run of the loop: the answer with the statistics, or a restarted state, which
-only a run allowed to restart returns. -/
-inductive Outcome (φ : CNF ℕ) (allowed : Bool) : Type
+/-- The outcome of a run of the loop with the restart limit `limit`: the answer with the
+statistics, or a restarted state, which only a run reaching its limit within `bound` conflicts
+returns. -/
+inductive Outcome (φ : CNF ℕ) (limit : Option ℕ) (bound : ℕ) : Type
   /-- The answer, with the statistics. -/
   | done (r : Answer φ × Stats)
   /-- A restarted state. -/
-  | restart (S : WExec φ) (h : S.Inv) (ha : allowed = true)
+  | restart (S : WExec φ) (h : S.Inv) (hr : ∃ n, limit = some n ∧ n ≤ bound)
+
+/-- An outcome within a smaller bound. -/
+@[expose] def Outcome.weaken {limit : Option ℕ} {b b' : ℕ} (hb : b ≤ b') :
+    Outcome φ limit b → Outcome φ limit b'
+  | .done r => .done r
+  | .restart S h hr => .restart S h (hr.imp fun _ h => ⟨h.1, h.2.trans hb⟩)
 
 /-- **The CDCL loop with watched literals**, restarting once the number of conflicts reaches
 `limit`, if any. While the queue is not empty, the watch list of the negation of its first literal
 is visited; a conflict is analysed, followed by Backjump and Learn, or ends with a certificate when
 there is no decision. With the queue empty, the short clauses are checked for a conflict or a
 unit; then the loop restarts if the limit is reached, decides an unassigned variable of the
-database, or returns the trail as a model. -/
+database, or returns the trail as a model. Each move counts at most one conflict and uses one
+`fuel`, so a restart happens within `fuel` conflicts. -/
 @[expose] def loop (φ : CNF ℕ) (limit : Option ℕ) :
-    (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Outcome φ limit.isSome
+    (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel →
+      Outcome φ limit (S.stats.conflicts + fuel)
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
-    -- a conflict on a database clause
-    let onConflict (S : WExec φ) (hS : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
-        (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ fuel) : Outcome φ limit.isSome :=
-      match hsp : XTrail.split S.exec.trail with
+    -- a conflict on a database clause, with as many conflicts counted as `S`
+    let onConflict (T : WExec φ) (hT : T.Inv) (e : ℕ × Clause ℕ) (he : e ∈ T.exec.db)
+        (hconf : Trail.Falsifies T.M e.2) (hm : T.measure ≤ fuel)
+        (hc : T.stats.conflicts = S.stats.conflicts) :
+        Outcome φ limit (S.stats.conflicts + (fuel + 1)) :=
+      match hsp : XTrail.split T.exec.trail with
       | none =>
-        let r := refute S.exec.trail S.exec.log e.1 e.2 (hS.exec.db_log e he) hS.exec.reasons
+        let r := refute T.exec.trail T.exec.log e.1 e.2 (hT.exec.db_log e he) hT.exec.reasons
           (XTrail.split_eq_none hsp) hconf
-        .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
+        .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), T.stats.conflict)
       | some sp =>
-        let L₀ := analyze S.exec.log sp.decision sp.below
+        let L₀ := analyze T.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
-          (S.marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
-          (Assign.agrees_assignTrail S.marks.2 _ (hS.exec.split_level_nodup hsp)) S.exec.log
-          (LRATLog.Extends.refl _) e.1 e.2 (hS.exec.db_log e he) (hS.exec.split_reasons hsp)
+          (T.marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
+          (Assign.agrees_assignTrail T.marks.2 _ (hT.exec.split_level_nodup hsp)) T.exec.log
+          (LRATLog.Extends.refl _) e.1 e.2 (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
-          (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)
-        let L := if S.opts.minimize then L₀.minimize sp.below else L₀
+          (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
+        let L := if T.opts.minimize then L₀.minimize sp.below else L₀
         let k₀ := L₀.clause.dedup.length
-        have hspec := WExec.afterConflict_spec hS he hconf hsp L k₀
-        loop φ limit fuel (S.afterConflict sp L k₀) hspec.1 (by omega)
+        have hspec := WExec.afterConflict_spec hT he hconf hsp L k₀
+        (loop φ limit fuel (T.afterConflict sp L k₀) hspec.1 (by omega)).weaken (by
+          have := T.afterConflict_conflicts sp L k₀
+          omega)
     match hq : S.queue with
     | t :: _ =>
       have ht : t ∈ S.queue := hq ▸ List.mem_cons_self
       match (S.start t).processList t (watchList S.store.watches (watchIndex t.negate))
           (WExec.start_procInv hS ht) with
-      | .done S' h hm =>
+      | .done S' h hm hc =>
         have hfin := WExec.finish_inv h
-        loop φ limit fuel (S'.finish t) hfin.1 (by
+        (loop φ limit fuel (S'.finish t) hfin.1 (by
           have : (S.start t).measure = S.measure := rfl
+          omega)).weaken (by
+          have : (S'.finish t).stats.conflicts = S'.stats.conflicts := rfl
+          have : (S.start t).stats.conflicts = S.stats.conflicts := rfl
           omega)
-      | .conflict S' h e he hconf hm =>
-        onConflict S' h e he hconf (by have : (S.start t).measure = S.measure := rfl; omega)
+      | .conflict S' h e he hconf hm hc =>
+        onConflict S' h e he hconf (by have : (S.start t).measure = S.measure := rfl; omega) hc
     | [] =>
       match hc : S.short.find? (fun e => S.assign.falsifies e.2) with
       | some e =>
         onConflict S hS e (hS.short_mem e (List.mem_of_find?_eq_some hc))
           ((hS.assign.falsifies_iff e.2).1
             (List.find?_some (p := fun e : ℕ × Clause ℕ => S.assign.falsifies e.2) hc))
-          (by omega)
+          (by omega) rfl
       | none =>
         have hshort : ∀ e ∈ S.short, ¬ Trail.Falsifies S.M e.2 := fun e he hf =>
           List.find?_eq_none.1 hc e he ((hS.assign.falsifies_iff _).2 hf)
@@ -1583,49 +1661,76 @@ database, or returns the trail as a model. -/
         | some (e, l) =>
           have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hS.assign hu
           have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
-          loop φ limit fuel (S.propagateShort e l)
+          (loop φ limit fuel (S.propagateShort e l)
             (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef (fun hv =>
               (hS.order hv).extend rfl rfl fun v hv => List.mem_cons_of_mem _ hv) rfl)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
+            ).weaken (by
+              have : (S.propagateShort e l).stats.conflicts = S.stats.conflicts := rfl
+              omega)
         | none =>
           have ⟨hS₁, hq₁, hnoconf₁, hm₁⟩ := hS.maybeReduce hq hnoconf
           let S₁ := S.maybeReduce
+          have hc₁ : S₁.stats.conflicts = S.stats.conflicts := S.maybeReduce_conflicts
           match hr : limit.any (· ≤ S₁.stats.conflicts) with
-          | true => .restart S₁.restart (hS₁.restart hq₁) (by cases limit <;> simp_all)
+          | true => .restart S₁.restart (hS₁.restart hq₁) (by
+              cases hl : limit with
+              | none => simp [hl] at hr
+              | some n =>
+                simp only [hl, Option.any_some, decide_eq_true_eq] at hr
+                exact ⟨n, rfl, by omega⟩)
           | false =>
           match hx : S₁.pickVar with
           | (some x, H) =>
             have ⟨hxV, hundef⟩ := hS₁.pickVar_some hx
             have hspec := Exec.decide_spec hS₁.exec hnoconf₁ hxV hundef (S₁.polarity x)
-            loop φ limit fuel (S₁.decide x H)
+            (loop φ limit fuel (S₁.decide x H)
               (hS₁.push hq₁ hspec.1 rfl rfl rfl rfl rfl hundef (hS₁.pickVar_order hx) rfl)
               (by have := WExec.measure_push_lt (S' := S₁.decide x H) hq₁ rfl hspec.2; omega)
+              ).weaken (by
+                have : (S₁.decide x H).stats.conflicts = S₁.stats.conflicts := rfl
+                omega)
           | (none, _) =>
             .done (.sat (Trail.assignment S₁.M)
               (hS₁.exec.run.eval_model hnoconf₁ (hS₁.pickVar_none hx)), S₁.stats)
 
-/-- **Search with restarts**: runs of the loop, each restarting after its budget of conflicts, at
-most `k` of them; the last run does not restart. -/
-@[expose] def search (φ : CNF ℕ) : (k : ℕ) → (S : WExec φ) → S.Inv → Answer φ × Stats
-  | 0, S, hS =>
-    match loop φ none (S.measure + 1) S hS (Nat.lt_succ_self _) with
-    | .done r => r
-    | .restart _ _ ha => absurd ha (by decide)
-  | k + 1, S, hS =>
-    let limit := if S.opts.restarts then
-      some (S.stats.conflicts + S.opts.restartBudget S.stats.restarts) else none
+/-- **Search with restarts**: runs of the loop, the `i`-th restarting after `o.restartBudget i`
+conflicts, if restarts are on. A run has fewer conflicts than `restartBound φ`, so a run whose
+budget exceeds it does not restart; one comes within `k` runs, so the search ends there. -/
+@[expose] def search (φ : CNF ℕ) (o : Options) : (i k : ℕ) → (S : WExec φ) → S.Inv →
+    (∃ j, i ≤ j ∧ j ≤ i + k ∧ restartBound φ < o.restartBudget j) → Answer φ × Stats
+  | i, k, S, hS, hk =>
+    let limit := if o.restarts then some (S.stats.conflicts + o.restartBudget i) else none
     match loop φ limit (S.measure + 1) S hS (Nat.lt_succ_self _) with
     | .done r => r
-    | .restart S' h _ => search φ k S' h
-
-/-- The number of restarts allowed: never reached in practice, it makes termination
-structural. -/
-@[expose] def restartAllowance : ℕ := 2 ^ 64
+    | .restart S' h hr =>
+      -- the run restarted, so its budget is within the bound
+      have hi : o.restartBudget i ≤ restartBound φ := by
+        obtain ⟨n, hn, hle⟩ := hr
+        have := hS.measure_lt_restartBound
+        cases ho : o.restarts
+        · simp [limit, ho] at hn
+        · simp only [limit, ho, ↓reduceIte, Option.some.injEq] at hn
+          omega
+      match k, hk with
+      | 0, hk => absurd hk (by
+          rintro ⟨j, h₁, h₂, h₃⟩
+          have : j = i := by omega
+          subst this
+          omega)
+      | k + 1, hk => search φ o (i + 1) k S' h (by
+          obtain ⟨j, h₁, h₂, h₃⟩ := hk
+          refine ⟨j, ?_, by omega, h₃⟩
+          by_contra hj
+          have : j = i := by omega
+          subst this
+          omega)
 
 /-- **The CDCL solver with options**: a model, or an LRAT certificate of unsatisfiability, with the
 statistics of the run. -/
 @[expose] def solveWith (o : Options) (φ : CNF ℕ) : DPLL.Result × Stats :=
-  match search φ restartAllowance (WExec.init φ o) (WExec.init_inv φ o) with
+  match search φ o 0 (o.restartRuns (restartBound φ)) (WExec.init φ o) (WExec.init_inv φ o)
+      ⟨_, Nat.zero_le _, by omega, o.lt_restartBudget _⟩ with
   | (.sat σ _, s) => (.sat σ, s)
   | (.unsat cert _, s) => (.unsat cert, s)
 

@@ -23,6 +23,12 @@ tests check on its prefix.
 ## Main definitions
 
 * `luby`: the `x`-th term of the Luby sequence with base `y`.
+
+## Main results
+
+* `Cslib.Algorithms.Lean.CDCL.luby_pow`: the term at the end of each complete subsequence, at
+  position `2 ^ (m + 1) - 2`, is `y ^ m`, so the sequence is unbounded for `y ≥ 2`; the solver's
+  termination with restarts rests on it.
 -/
 
 @[expose] public section
@@ -49,5 +55,36 @@ def luby.down : (fuel size seq x : ℕ) → ℕ
 def luby (y x : ℕ) : ℕ :=
   let p := luby.find x (x + 1) 1 0
   y ^ luby.down (p.2 + 1) p.1 p.2 x
+
+/-- From a complete subsequence of exponent `s`, the search for the position `2 ^ (m + 1) - 2`
+reaches the complete subsequence of exponent `m`, given `m - s` fuel. -/
+theorem lubyFind_pow (m : ℕ) : ∀ (d s size fuel : ℕ), s + d = m → size = 2 ^ (s + 1) - 1 →
+    d ≤ fuel → lubyFind (2 ^ (m + 1) - 2) fuel size s = (2 ^ (m + 1) - 1, m)
+  | 0, s, size, fuel, h, hsize, _ => by
+    have hm : s = m := by omega
+    subst hm hsize
+    have : 2 ≤ 2 ^ (s + 1) := by
+      rw [Nat.pow_succ]; have := Nat.one_le_two_pow (n := s); omega
+    cases fuel with
+    | zero => rfl
+    | succ fuel =>
+      rw [lubyFind, ite_eq_right (by omega)]
+  | d + 1, s, size, fuel, h, hsize, hfuel => by
+    obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
+    have hlt : 2 ^ (s + 1) < 2 ^ (m + 1) := Nat.pow_lt_pow_right (by decide) (by omega)
+    have h2 : 2 ^ (s + 1 + 1) = 2 * 2 ^ (s + 1) := by rw [Nat.pow_succ]; omega
+    have h1 := Nat.one_le_two_pow (n := s + 1)
+    rw [lubyFind, ite_eq_left (by omega)]
+    exact lubyFind_pow m d (s + 1) _ fuel (by omega) (by omega) (by omega)
+
+/-- **The Luby sequence is unbounded**: its term at position `2 ^ (m + 1) - 2`, the end of a
+complete subsequence, is `y ^ m`. -/
+theorem luby_pow (y m : ℕ) : luby y (2 ^ (m + 1) - 2) = y ^ m := by
+  have h2 : 2 ^ (m + 1) = 2 * 2 ^ m := by rw [Nat.pow_succ]; omega
+  have hm : m < 2 ^ m := Nat.lt_two_pow_self
+  have hfind := lubyFind_pow m m 0 1 (2 ^ (m + 1) - 2 + 1) (by omega) (by simp) (by omega)
+  unfold luby
+  simp only [hfind]
+  rw [lubyDown, ite_eq_left (by omega)]
 
 end Cslib.Algorithms.Lean.CDCL
