@@ -31,6 +31,7 @@ of native weighted-threshold circuits.
 
 * `Cslib.DecisionTree.leafCount`: the number of structural leaves.
 * `Cslib.DecisionTree.nodeCount`: the number of internal query nodes.
+* `Cslib.DecisionTree.allQueries`: the variables at the internal nodes.
 * `Cslib.DecisionTree.path`: the answers along the path taken by an input.
 * `Cslib.DecisionTree.rank`: the Ehrenfeucht–Haussler rank of a binary decision tree.
 * `Cslib.DecisionTree.IsDecisionList`: trees in which every internal node has a leaf child.
@@ -45,6 +46,9 @@ of native weighted-threshold circuits.
 * `Cslib.DecisionTree.leafCount_eq_nodeCount_add_one`: a binary tree has one more leaf than
   internal nodes.
 * `Cslib.DecisionTree.leafCount_le_two_pow_depth`: a tree of depth `d` has at most `2 ^ d` leaves.
+* `Cslib.DecisionTree.queries_subset_allQueries`,
+  `Cslib.DecisionTree.card_allQueries_le_nodeCount`: every input's queries are among the variables
+  at the internal nodes, of which there are at most `nodeCount`.
 * `Cslib.DecisionTree.leafCount_le_sum_choose_rank`: a tree of depth `d` and rank `r` has at most
   `∑ j ≤ r, d.choose j` leaves.
 * `Cslib.DecisionTree.two_pow_rank_le_leafCount`: a tree of rank `r` has at least `2 ^ r` leaves.
@@ -184,6 +188,39 @@ theorem nodeCount_mapQueries {κ : Type*} (f : ι → κ) (t : DecisionTree ι �
   induction t with
   | leaf => rfl
   | node i left right ihl ihr => simp [mapQueries, nodeCount, ihl, ihr]
+
+section AllQueries
+
+variable [DecidableEq ι]
+
+/-- The variables at the internal nodes of a decision tree: every variable it queries along some
+branch, including unreachable branches. -/
+def allQueries : DecisionTree ι β → Finset ι
+  | .leaf _ => ∅
+  | .node i left right => insert i (left.allQueries ∪ right.allQueries)
+
+/-- The variables queried on any input are among the variables at the internal nodes. -/
+theorem queries_subset_allQueries (t : DecisionTree ι β) (x : ι → Bool) :
+    t.queries x ⊆ t.allQueries := by
+  induction t with
+  | leaf => simp [queries]
+  | node i left right ihl ihr =>
+    refine Finset.insert_subset_insert i ?_
+    cases x i
+    · exact ihl.trans Finset.subset_union_left
+    · exact ihr.trans Finset.subset_union_right
+
+/-- A decision tree queries at most as many variables as it has internal nodes. -/
+theorem card_allQueries_le_nodeCount (t : DecisionTree ι β) :
+    t.allQueries.card ≤ t.nodeCount := by
+  induction t with
+  | leaf => simp [allQueries]
+  | node i left right ihl ihr =>
+    simp only [allQueries, nodeCount_node]
+    exact (Finset.card_insert_le _ _).trans
+      (Nat.add_le_add_right ((Finset.card_union_le _ _).trans (Nat.add_le_add ihl ihr)) 1)
+
+end AllQueries
 
 private theorem sum_choose_succ_add (r d : ℕ) :
     (∑ j ∈ Finset.range (r + 1 + 1), d.choose j) + (∑ j ∈ Finset.range (r + 1), d.choose j) =
