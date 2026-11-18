@@ -19,8 +19,8 @@ import CslibFrontier.Probability.PMF.UniformPoint
 
 This module formalizes only the multi-query universal-hash game
 (`Cslib.Crypto.UHF.multiQueryExperiment`, Attack Game 7.2 of [BonehShoup2023], Section 7.1.1,
-p. 254) for finite key types and the statistical collision union bound for `ε`-universal hash
-(`Cslib.Crypto.UHF.eval_multiQueryExperiment_le`, the statistical finite case of Lemma 7.1).
+p. 254) for finite key types and the collision union bound for an `ε`-bounded UHF
+(`Cslib.Crypto.UHF.eval_multiQueryExperiment_le`, the `ε`-bounded case of Lemma 7.1).
 
 Attack Game 7.1 (`UHFadv`), computational UHFs (Definition 7.2), multi-query UHFs against
 efficient adversaries (Definition 7.3), the difference-unpredictability game (Attack Game 7.3), and
@@ -34,8 +34,8 @@ list of messages.
 
 ## Main results
 
-* `Cslib.Crypto.UHF.eval_multiQueryExperiment_le`: statistical `C(Q, 2) * ε` bound on winning
-  Attack Game 7.2 with lists of at most `Q` messages against an `ε`-universal hash family.
+* `Cslib.Crypto.UHF.eval_multiQueryExperiment_le`: `C(Q, 2) * ε` bound on winning Attack Game 7.2
+  with lists of at most `Q` messages against an `ε`-bounded UHF.
 
 ## References
 
@@ -63,8 +63,14 @@ and rewards only pairs with `m ≠ m'` and `H k m = H k m'`, so duplicate messag
   let k ← ProbComp.uniform K
   return decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ H k m = H k m')
 
-/-- Lemma 7.1 for a statistical `ε`-UHF on finite types: an adversary whose supported output lists
-have length at most `Q` wins Attack Game 7.2 with probability at most `Q.choose 2 * ε`. -/
+/-- The `ε`-bounded case of [BonehShoup2023], Lemma 7.1, a step toward the lemma, not the cited
+result: against an `ε`-bounded UHF (`IsUniversalHash` for the uniform key, the `ε`-UHF of
+Definition 7.2), an adversary whose supported output lists have length at most `Q` wins Attack
+Game 7.2 with probability at most `Q.choose 2 * ε`. Only the key type has to be finite. Lemma 7.1
+assumes only a computational UHF and bounds the multi-query advantage by `Q ^ 2 / 2` times the
+advantage of an efficient wrapper in Attack Game 7.1; here the hash is `ε`-bounded against every
+adversary, efficient or not, for one fixed instance, with any `ε` (Definition 7.2 calls it
+statistical only when `ε` is negligible), and no wrapper is built (#5790). -/
 theorem eval_multiQueryExperiment_le [Fintype K] [Nonempty K] [DecidableEq M] [DecidableEq Y]
     {H : K → M → Y} {ε : ℝ≥0∞} (hH : IsUniversalHash (PMF.uniformOfFintype K) H ε)
     {B : ProbComp (List M)} {Q : ℕ} (hB : ∀ ms ∈ (ProbComp.eval B).support, ms.length ≤ Q) :

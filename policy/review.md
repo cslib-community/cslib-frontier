@@ -117,6 +117,10 @@ truncated reports. Resolve skipped or incomplete scans, or record their coverage
 perform targeted source checks. A successful exit, an empty report or a private declaration is
 not evidence of uniqueness; the tools supplement source search and semantic review.
 
+For a PR that moves the cslib pin, rerun the query for upstream PRs labelled
+`cslib-frontier-adaptation` and check that the description accounts for each
+([Upstream changes labelled for adaptation](build-and-files.md#upstream-changes-labelled-for-adaptation)).
+
 Check the writing where a change explains itself: the docstring's mapping from statement to
 source and the PR description. When a change alters a procedure, a role or a registry-backed fact,
 check the procedure page or registry it updates
