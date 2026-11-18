@@ -127,8 +127,10 @@ theorem isPPT_schnorrGuessingImpersonator {m : ℕ → ℕ}
 `schnorrDirectGame setup k` with negligible probability, then `1 / 2 ^ k n` is negligible. The
 proof instantiates the universal quantifier at `schnorrGuessingImpersonator fun _ => 0` using
 `inv_two_pow_le_succProbability_schnorrDirectGame` and `isPPT_schnorrGuessingImpersonator` (no
-efficiency condition on `k` is needed). The converse, under the discrete-logarithm assumption, is
-`negligible_schnorrDirectGame`. -/
+efficiency condition on `k` is needed). The game here draws the key ideally; the converse for the
+native-key game `schnorrDirectProbGame`, under the discrete-logarithm assumption, is
+`negligible_schnorrDirectProbGame`, and the two games differ by at most `1 / 2 ^ n`
+(`advantage_schnorrDirectProbGame_schnorrDirectGame_le`). -/
 theorem negligible_inv_two_pow_of_negligible_schnorrDirectGame (setup : ℕ → PMF F.Desc) {k : ℕ → ℕ}
     (h : ∀ A : F.SchnorrImpersonator, A.IsPPT →
       Negligible fun n => Game.succProbability (F.schnorrDirectGame setup k A n)) :

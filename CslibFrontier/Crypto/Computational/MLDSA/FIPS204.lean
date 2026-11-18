@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
+public import CslibFrontier.Crypto.Computational.SIS.SelfTargetFork
 public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Probability.PMF
@@ -32,7 +33,7 @@ The key-only reduction retains the matrix seed and the verifier's SHAKE-derived 
 representative. Its setup samples the Algorithm 6 key-generation seed. The resulting
 self-target experiment has that same seeded setup. For challenges supplying a full vector and a
 matrix at the published seed, `decode_encodePublic` recovers the rounded high term, and
-`extractFull_of_verifyWithExpansion` constructs the candidate for the full vector.
+`verifiedSignature_of_verifyWithExpansion` recovers the full digest check for that vector.
 -/
 
 public section
@@ -54,7 +55,7 @@ abbrev Level.params (s : Level) : Params :=
     | .mlDSA87 => Params.mldsa87
   { p with n := 256, q := 8380417 }
 
-/-- Length in bytes of the FIPS challenge digest for each parameter set (Table 1). -/
+/-- Byte length of the commitment digest (FIPS 204, Table 1, `2λ` bits). -/
 def digestBytes : Level → ℕ
   | .mlDSA44 => 32 | .mlDSA65 => 48 | .mlDSA87 => 64
 
@@ -1010,7 +1011,7 @@ theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 �
   have := (hv i j).1
   omega
 
-/-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
+/-- The commitment digest in Algorithms 7 and 8 hashes the message representative and high bits. -/
 def commitmentDigest (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : List Bool) :
     List Byte :=
   Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
@@ -1043,7 +1044,7 @@ private def verifyInternalWith (s : Level) (expand : List Byte → Option (Publi
   return check s (publicKey s pk matrix) (messageRepresentative pk formatted) σ c
 
 /-- The pure-mode prefix in Algorithms 2 and 3, including the context length. -/
-def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
+@[expose] def formatMessage (message : List Bool) (ctx : List Byte) : List Bool :=
   Keccak.bytesToBitsLE (0 :: Fin.ofNat 256 ctx.length :: ctx) ++ message
 
 /-- Algorithm 8 for a formatted message. Invalid encodings return `some false`, and the
@@ -1073,7 +1074,7 @@ then run Algorithm 8. Contexts longer than 255 bytes return the specified error.
 
 /-- Expand the concrete FIPS commitment digest to a sparse challenge. The zero value on
 exhaustion is outside the challenge ball for every standard set. -/
-def algebraicHash (s : Level) : Hash s.params :=
+private def algebraicHash (s : Level) : Hash s.params :=
   fun ⟨w, μ⟩ => (sampleInBall s (commitmentDigest s w μ)).getD 0
 
 private theorem compressedVerify_of_check {s : Level} {bytes : List Byte} {matrix}
@@ -1195,33 +1196,6 @@ private theorem solution_of_compressed {s : Level} {pk : MLDSA.PublicKey s.param
   exact isSelfTargetSolution_of_compressedVerify hvalid
     (by cases s <;> decide : 4 * s.params.γ₂ < s.params.q) (by decide : 0 < 13) hv
 
-/-- Extraction for a full challenge `(A,t)`. The published bytes and message representative
-use the rounded key, while the witness computed from the full key includes the term `c t₀`
-in the low vector (Dilithium v3.1, §6.2.1, equation (10)). -/
-def extractFull (s : Level) (rho : FixedBytes 32) (A : PublicMatrix s)
-    (t : Fin s.params.k → Poly) (f : Forgery) : Option (SelfTargetCandidate s.params) := do
-  let σ ← sigDecode s f.signature
-  let c ← sampleInBall s σ.digest
-  return candidate s ⟨A, t⟩ (messageRepresentative (encodePublic s rho.toList t)
-    (formattedMessage f)) σ c
-
-/-- Every accepted byte forgery yields a solution on the full vector supplied by the challenge. -/
-theorem extractFull_of_verifyWithExpansion {s : Level}
-    {expand : List Byte → Option (PublicMatrix s)} {rho : FixedBytes 32}
-    {A : PublicMatrix s} {t : Fin s.params.k → Poly} {f : Forgery}
-    (hA : expand rho.toList = some A)
-    (hv : verifyWithExpansion s expand (encodePublic s rho.toList t)
-      f.message f.context f.signature = some true) :
-    ∃ y, extractFull s rho A t f = some y ∧
-      IsSelfTargetSolution s.params (selfTargetHash s.params (algebraicHash s))
-        (compressedSelfTargetRadius s.params 13) ⟨A, t⟩ y := by
-  obtain ⟨σ, c, hσ, hc, hz, hd⟩ := verifiedSignature_of_verifyWithExpansion hA hv
-  let μ := messageRepresentative (encodePublic s rho.toList t) (formattedMessage f)
-  have hv' : compressedVerify s.params 13 (algebraicHash s) ⟨A, t⟩ μ ⟨σ.z, σ.h, c⟩ := by
-    simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨hz, inBall_of_sampleInBall hc⟩, by simp [algebraicHash, μ, hd, hc]⟩
-  exact ⟨_, by simp [extractFull, hσ, hc, μ], solution_of_compressed hv'⟩
-
 /-- For each fixed published byte key, the solver parses the forgery and extracts a self-target
 candidate. The hash input contains its actual public-key-bound message representative. -/
 def extract (s : Level) (bytes : List Byte)
@@ -1294,5 +1268,31 @@ theorem succProbability_verify_le_seededSelfTarget (s : Level)
       cases b
       · simp [hv]
       · simp [hv, solves_extract_of_verify hv]
+
+/-- Expand an oracle's fixed-length commitment digest by Algorithm 29, including XOF
+exhaustion at the Appendix C limit. -/
+def expandDigest (s : Level) (digest : FixedBytes (digestBytes s)) : Option Poly :=
+  sampleInBall s digest.toList
+
+open ModuleSIS.SelfTarget in
+/-- Classical self-target forking for the three FIPS parameter sets, in the model where a fresh
+commitment query returns a uniform digest. Algorithm 29 acts on those digest bytes. The
+collision term is the largest distinct-digest collision probability of the fixed SHAKE256
+expansion; the library gives it only the trivial bound of one. -/
+theorem selfTarget_digest_fork (s : Level) (Q : ℕ) {Coins : Type}
+    (matrices : PMF (Matrix (Fin s.params.k) (Fin (s.params.k + s.params.ℓ + 1)) Poly))
+    (coins : PMF Coins) (adv : Adversary s.params.k (s.params.k + s.params.ℓ) 256 8380417
+      (FixedBytes (digestBytes s)) Coins)
+    (hQ : ∀ A r, (adv A r).IsQueryBounded Q) :
+    let radius := compressedSelfTargetRadius s.params 13
+    ((matrices.bind (game (expandDigest s) radius coins adv)) true).toReal ≤
+      (Q + 1 : ℕ) / ((256 : ℝ) ^ digestBytes s) + Real.sqrt ((Q + 1 : ℕ) *
+        ((matrices.bind fun A => (reductionLaw 0 (expandDigest s) radius Q coins adv A).map
+          fun w => decide (ModuleSIS.IsSolution A (2 * radius) w)) true +
+            collisionMass (expandDigest s)).toReal) := by
+  have hbyte : (2 : ℝ) ^ 8 = 256 := by norm_num
+  simpa only [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, hbyte] using
+    success_le_fork_digest (expandDigest s) (compressedSelfTargetRadius s.params 13) Q
+      matrices coins adv hQ 0
 
 end Cslib.Crypto.MLDSA.FIPS204

@@ -9,19 +9,18 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Bipartite
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
-public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Boolean
+public import CslibFrontier.Computability.Complexity.Problems.UGraph
+import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
 
 /-!
 # Bipartiteness is in logarithmic space
 
 The copies of the double cover (`Cslib.Complexity.Bipartite.oddCycleInstance`) are written in
-logarithmic space by a counter program with output (`Cslib.Complexity.Bipartite.writer`). It
-counts the unary header `1^n 0` of the encoded graph, writes the header of the instance of
-undirected connectivity, and writes its matrix entry by entry. An entry within a copy reads the
-one entry of the input matrix that it depends on; every other entry is arithmetic in `n` and the
-two vertex numbers (`Cslib.Complexity.Bipartite.computableInLogSpace_oddCycleInstance`). The
-registers hold `n` and two vertex numbers, at most `2 n² + 2`.
+logarithmic space by the shared counter program `Cslib.Complexity.UGraphInstance.ustconWriter`.
+An entry within a copy reads the one entry of the input matrix that it depends on; every other
+entry is arithmetic in `n` and the two vertex numbers
+(`Cslib.Complexity.Bipartite.computableInLogSpace_oddCycleInstance`). The registers hold `n` and
+two vertex numbers, at most `2 n² + 2`.
 
 This is a logarithmic-space many-one reduction from non-bipartiteness to undirected connectivity
 (`Cslib.Complexity.Bipartite.compl_logSpaceReducible_USTCON`). With Reingold's theorem
@@ -38,11 +37,6 @@ reduction of Goldreich's guideline, which adds edges to the double cover, is not
 Together, bipartiteness and the complement of undirected connectivity reduce to each other
 (`Cslib.Complexity.Bipartite.logSpaceReducible_compl_USTCON`,
 `Cslib.Complexity.Bipartite.compl_USTCON_logSpaceReducible`).
-
-## Main definitions
-
-* `Cslib.Complexity.Bipartite.writer`: the counter program writing the copies of the double
-  cover.
 
 ## Main results
 
@@ -67,7 +61,7 @@ namespace Cslib.Complexity
 
 namespace Bipartite
 
-/-! ### The writer -/
+/-! ### The entries as expressions -/
 
 section Writer
 
@@ -75,59 +69,35 @@ open _root_.Turing _root_.Turing.CounterProgram _root_.Turing.CounterProgram.Ins
   _root_.Turing.CounterProgram.Expr _root_.Turing.MultiTapeTM
 
 /-- The number of vertices, from `n` in register `0`. -/
-def numVerticesExpr : Expr := add (mul (const 2) (mul (reg 0) (reg 0))) (const 2)
+private def numVerticesExpr : Expr := add (mul (const 2) (mul (reg 0) (reg 0))) (const 2)
 
 /-- The copy of the vertex in a register. -/
-def copyExpr (i : ℕ) : Expr := div (sub (reg i) (const 2)) (mul (const 2) (reg 0))
+private def copyExpr (i : ℕ) : Expr := div (sub (reg i) (const 2)) (mul (const 2) (reg 0))
 
 /-- The vertex of the graph that the vertex in a register stands for. -/
-def vertExpr (i : ℕ) : Expr := div (mod (sub (reg i) (const 2)) (mul (const 2) (reg 0))) (const 2)
+private def vertExpr (i : ℕ) : Expr :=
+  div (mod (sub (reg i) (const 2)) (mul (const 2) (reg 0))) (const 2)
 
 /-- The side of the vertex in a register. -/
-def sideExpr (i : ℕ) : Expr := mod (sub (reg i) (const 2)) (const 2)
+private def sideExpr (i : ℕ) : Expr := mod (sub (reg i) (const 2)) (const 2)
 
 /-- The row `1` and the column `2` lie in one copy, on different sides. -/
-def withinExpr : Expr :=
+private def withinExpr : Expr :=
   andB (ltB (const 1) (reg 1)) (andB (ltB (const 1) (reg 2))
     (andB (eqB (copyExpr 1) (copyExpr 2)) (notB (eqB (sideExpr 1) (sideExpr 2)))))
 
 /-- The position of the input entry that an entry within a copy reads. -/
-def positionExpr : Expr := add (add (reg 0) (const 1)) (add (mul (vertExpr 1) (reg 0)) (vertExpr 2))
+private def positionExpr : Expr :=
+  add (add (reg 0) (const 1)) (add (mul (vertExpr 1) (reg 0)) (vertExpr 2))
 
 /-- The entries at the source and the target. -/
-def endpointExpr : Expr :=
+private def endpointExpr : Expr :=
   orB (andB (ltB (reg 1) (const 2)) (andB (ltB (const 1) (reg 2))
       (andB (eqB (vertExpr 2) (copyExpr 2)) (eqB (sideExpr 2) (reg 1)))))
     (andB (ltB (const 1) (reg 1)) (andB (ltB (reg 2) (const 2))
       (andB (eqB (vertExpr 1) (copyExpr 1)) (eqB (sideExpr 1) (reg 2)))))
 
-/-- **The writer** of the copies of the double cover, on the encoded graph. Register `0` receives
-`n`, register `1` counts the unary header and then runs over the rows, register `2` over the
-columns. Labels `0` and `1` count the header of the input; the loop at label `2` and labels `6`
-to `9` write the header `1^N 0 0 1 0` of the instance, with source `0` and target `1`; the nested
-loops at labels `10` and `13` write the matrix, the entry at labels `16` to `20`; label `21`
-halts. -/
-def writer : CounterProgram where
-  code := List.flatten [
-    [read (reg 0) 1 2 2,
-     assign 0 (add (reg 0) (const 1)) 0],
-    forCode 2 1 numVerticesExpr 5 6,
-    [emit true 4, emit false 7, emit false 8, emit true 9, emit false 10],
-    forCode 10 1 numVerticesExpr 13 21, forCode 13 2 numVerticesExpr 16 12,
-    [lt (const 0) withinExpr 17 18,
-     read positionExpr 19 20 20,
-     lt (const 0) endpointExpr 19 20,
-     emit true 15,
-     emit false 15,
-     halt []]]
-  registers := 3
-
-variable (G : UGraphInstance) {B : ℕ}
-
-private theorem bounded3 {a₀ a₁ a₂ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B) :
-    ∀ x ∈ [a₀, a₁, a₂], x ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
+variable (G : UGraphInstance)
 
 private theorem eval_numVerticesExpr (r c : ℕ) :
     numVerticesExpr.eval [G.n, r, c] = numVertices G.n := by
@@ -171,144 +141,38 @@ private theorem eval_endpointExpr (r c : ℕ) :
     eval_sideExpr_two]
   congr 1
 
-/-- Writing the entry `(r, c)` of the matrix. -/
-private theorem reachesOut_entry (hB : numVertices G.n ≤ B) {r c : ℕ}
-    (hr : r < numVertices G.n) (hc : c < numVertices G.n) :
-    writer.ReachesOut G.encode (writer.Active B) (16, [G.n, r, c]) (15, [G.n, r, c])
-      [entry G r c] := by
-  have hb : ∀ z ∈ [G.n, r, c], z ≤ B :=
-    bounded3 ((le_numVertices G.n).trans hB) (by omega) (by omega)
-  have hemit : ∀ (b : Bool) (l : ℕ),
-      writer.instr l = (if b then emit true 15 else emit false 15) →
-      writer.ReachesOut G.encode (writer.Active B) (l, [G.n, r, c]) (15, [G.n, r, c]) [b] := by
-    rintro (_ | _) l hl
-    · exact ReachesOut.emit hl hb (ReachesOut.refl _)
-    · exact ReachesOut.emit hl hb (ReachesOut.refl _)
-  refine ReachesOut.lt (show writer.instr 16 = _ from rfl) hb ?_
-  rw [eval_const, eval_withinExpr]
-  by_cases hw : 2 ≤ r ∧ 2 ≤ c ∧ copy G.n r = copy G.n c ∧ side r ≠ side c
-  · -- an entry within a copy reads the input
-    obtain ⟨-, hvr, -, -⟩ := eq_copyVertex hw.1 hr
-    obtain ⟨-, hvc, -, -⟩ := eq_copyVertex hw.2.1 hc
-    simp only [hw, ne_eq, not_false_eq_true, and_self, decide_true, Bool.toNat_true,
-      ↓reduceIte, zero_lt_one]
-    refine ReachesOut.read (show writer.instr 17 = _ from rfl) hb ?_
+/-- The entry `(r, c)` of the copies of the double cover, as computed from the expressions: the
+input bit at `positionExpr` within a copy, `endpointExpr` otherwise. -/
+private theorem entry_eq_exprs (G : UGraphInstance) (r c : Fin (oddCycleInstance G).n) :
+    (oddCycleInstance G).adj r c =
+      if 0 < withinExpr.eval [G.n, r, c] then G.encode[positionExpr.eval [G.n, r, c]]?.getD false
+      else decide (0 < endpointExpr.eval [G.n, r, c]) := by
+  rw [eval_withinExpr]
+  by_cases hw : 2 ≤ (r : ℕ) ∧ 2 ≤ (c : ℕ) ∧ copy G.n r = copy G.n c ∧ side r ≠ side c
+  · obtain ⟨-, hvr, -, -⟩ := eq_copyVertex hw.1 r.isLt
+    obtain ⟨-, hvc, -, -⟩ := eq_copyVertex hw.2.1 c.isLt
     have hpos : positionExpr.eval [G.n, r, c] = G.n + 1 + (vert G.n r * G.n + vert G.n c) := by
       simp only [positionExpr, eval_add, eval_mul, eval_reg, eval_const, List.getD_cons_zero,
         eval_vertExpr_one, eval_vertExpr_two]
-    have hentry : entry G r c = G.adj ⟨vert G.n r, hvr⟩ ⟨vert G.n c, hvc⟩ := by
-      rw [entry, ite_eq_left hw, UGraphInstance.adjN, dite_eq_left ⟨hvr, hvc⟩]
-    have hm : G.toDigraph.encode[G.n + 1 + (vert G.n r * G.n + vert G.n c)]? =
-        some (G.adj ⟨vert G.n r, hvr⟩ ⟨vert G.n c, hvc⟩) :=
-      G.toDigraph.getElem?_encode_matrix hvr hvc
-    rw [hpos, UGraphInstance.encode, hm, hentry]
-    cases G.adj ⟨vert G.n r, hvr⟩ ⟨vert G.n c, hvc⟩
-    · exact hemit false 20 rfl
-    · exact hemit true 19 rfl
-  · -- every other entry is arithmetic
-    simp only [hw, decide_false, Bool.toNat_false, lt_irrefl, ↓reduceIte]
-    refine ReachesOut.lt (show writer.instr 18 = _ from rfl) hb ?_
-    rw [eval_const, eval_endpointExpr]
-    have hentry : entry G r c =
-        (decide (r < 2 ∧ 2 ≤ c ∧ vert G.n c = copy G.n c ∧ side c = r) ||
-          decide (2 ≤ r ∧ c < 2 ∧ vert G.n r = copy G.n r ∧ side r = c)) := by
-      rw [entry, ite_eq_right hw]
-    rw [hentry]
-    cases (decide (r < 2 ∧ 2 ≤ c ∧ vert G.n c = copy G.n c ∧ side c = r) ||
-      decide (2 ≤ r ∧ c < 2 ∧ vert G.n r = copy G.n r ∧ side r = c))
-    · exact hemit false 20 rfl
-    · exact hemit true 19 rfl
-
-/-- **The matrix row by row**, by the nested loops at labels `10` and `13`. -/
-private theorem reachesOut_rows (hB : numVertices G.n ≤ B) {i₀ : ℕ} (hi₀ : i₀ ≤ B) :
-    ∃ regs, writer.ReachesOut G.encode (writer.Active B) (10, [G.n, i₀, 0]) (21, regs)
-      ((List.range (numVertices G.n)).flatMap fun r =>
-        (List.range (numVertices G.n)).map (entry G r)) ∧ ∀ x ∈ regs, x ≤ B := by
-  have hn : G.n ≤ B := (le_numVertices G.n).trans hB
-  have hreg : ∀ {r c : ℕ}, r ≤ numVertices G.n → c ≤ numVertices G.n →
-      ∀ z ∈ [G.n, r, c], z ≤ B := fun hr hc => bounded3 hn (hr.trans hB) (hc.trans hB)
-  have hcode₁ : writer.CodeAt 10 (forCode 10 1 numVerticesExpr 13 21) :=
-    codeAt_of_prefix ⟨_, rfl⟩
-  have hcode₂ : writer.CodeAt 13 (forCode 13 2 numVerticesExpr 16 12) :=
-    codeAt_of_prefix ⟨_, rfl⟩
-  obtain ⟨regs, hreach, x, rfl, -, hx⟩ := reachesOut_forCode (w := G.encode)
-    (N := numVertices G.n) (o := fun r => (List.range (numVertices G.n)).map (entry G r)) hcode₁
-    (fun r regs => ∃ x, regs = [G.n, r, x] ∧ r ≤ numVertices G.n ∧ x ≤ numVertices G.n) hB
-    (by
-      rintro r regs ⟨x, rfl, hr, hx⟩
-      exact ⟨rfl, eval_numVerticesExpr G r x, by simp, hreg hr hx⟩)
-    (by
-      rintro r hr regs ⟨x, rfl, -, hx⟩
-      obtain ⟨regs', hreach, rfl, -⟩ := reachesOut_forCode (w := G.encode)
-        (N := numVertices G.n) (o := fun c => [entry G r c]) hcode₂
-        (fun c regs => regs = [G.n, r, c] ∧ c ≤ numVertices G.n) hB
-        (by
-          rintro c regs ⟨rfl, hc⟩
-          exact ⟨rfl, eval_numVerticesExpr G r c, by simp, hreg hr.le hc⟩)
-        (by
-          rintro c hc regs ⟨rfl, -⟩
-          exact ⟨_, reachesOut_entry G hB hr hc, rfl, hreg hr.le hc.le, by simp, by omega⟩)
-        [G.n, r, x] (hreg hr.le hx) ⟨by simp, by omega⟩
-      refine ⟨_, ?_, rfl, hreg hr.le le_rfl, numVertices G.n, by simp, by omega, le_rfl⟩
-      rwa [← List.map_eq_flatMap] at hreach)
-    [G.n, i₀, 0] (bounded3 hn hi₀ (Nat.zero_le _)) ⟨0, by simp, by omega, by omega⟩
-  exact ⟨_, hreach, hreg le_rfl hx⟩
+    simp only [hw, ne_eq, not_false_eq_true, and_self, decide_true, Bool.toNat_true,
+      zero_lt_one, ↓reduceIte, hpos, G.getElem?_encode_matrix hvr hvc, Option.getD_some]
+    change entry G r c = _
+    rw [entry, ite_eq_left hw, UGraphInstance.adjN, dite_eq_left ⟨hvr, hvc⟩]
+  · simp only [hw, decide_false, Bool.toNat_false, lt_irrefl, ↓reduceIte, eval_endpointExpr]
+    change entry G r c = _
+    rw [entry, ite_eq_right hw]
+    cases (decide ((r : ℕ) < 2 ∧ 2 ≤ (c : ℕ) ∧ vert G.n c = copy G.n c ∧ side c = r) ||
+      decide (2 ≤ (r : ℕ) ∧ (c : ℕ) < 2 ∧ vert G.n r = copy G.n r ∧ side r = c)) <;> simp
 
 /-- **The copies of the double cover are computed in logarithmic space** from the encoded
-graph. -/
+graph, by `UGraphInstance.ustconWriter`. -/
 theorem computableInLogSpace_oddCycleInstance :
-    ComputableInLogSpace oddCycleInstance encUGraph encUSTCON := by
-  refine writer.computableInLogSpace_of_reachesOut 2 fun G => ?_
-  simp only [encUGraph_apply]
-  have hlen : G.encode.length = G.n + 1 + G.n * G.n := G.toDigraph.length_encode
-  set B := (G.encode.length + 1) ^ 2
-  have hB : numVertices G.n ≤ B := by
-    simp only [B, numVertices, hlen]
-    nlinarith
-  have hn : G.n ≤ B := (le_numVertices G.n).trans hB
-  have hreg : ∀ {u : ℕ}, u ≤ numVertices G.n → ∀ z ∈ [G.n, u, 0], z ≤ B :=
-    fun hu => bounded3 hn (hu.trans hB) (Nat.zero_le _)
-  -- the header of the input
-  have hcount := reachesOut_count (P := writer) (w := G.encode) (n := G.n) (fun j => [j, 0, 0])
-    (u := 0)
-    (show writer.instr 0 = _ from rfl) (show writer.instr 1 = _ from rfl) (fun _ _ => by simp)
-    (fun j hj => bounded3 (hj.trans hn) (Nat.zero_le _) (Nat.zero_le _))
-    (fun j hj => by
-      rw [eval_reg, List.getD_cons_zero, UGraphInstance.encode,
-        G.toDigraph.getElem?_encode_n hj.le]
-      simp [UGraphInstance.toDigraph, hj])
-    (by
-      have h := G.toDigraph.getElem?_encode_n (i := G.toDigraph.n) le_rfl
-      rw [eval_reg, List.getD_cons_zero, UGraphInstance.encode]
-      simp only [UGraphInstance.toDigraph] at h ⊢
-      simp [h]) 0 (Nat.zero_le _)
-  -- the unary header `1^N` of the output
-  have hcode : writer.CodeAt 2 (forCode 2 1 numVerticesExpr 5 6) := codeAt_of_prefix ⟨_, rfl⟩
-  obtain ⟨regs₁, hones, rfl, -⟩ := reachesOut_forCode (w := G.encode) (N := numVertices G.n)
-    (o := fun _ => [true]) hcode
-    (fun u regs => regs = [G.n, u, 0] ∧ u ≤ numVertices G.n) hB
-    (by
-      rintro u regs ⟨rfl, hu⟩
-      exact ⟨rfl, eval_numVerticesExpr G u 0, by simp, hreg hu⟩)
-    (by
-      rintro u hu regs ⟨rfl, -⟩
-      exact ⟨_, ReachesOut.emit (show writer.instr 5 = _ from rfl) (hreg hu.le)
-        (ReachesOut.refl _), rfl, hreg hu.le, by simp, by omega⟩)
-    [G.n, 0, 0] (hreg (Nat.zero_le _)) ⟨by simp, by omega⟩
-  rw [List.flatMap_def, List.map_const', List.length_range,
-    List.flatten_replicate_singleton] at hones
-  obtain ⟨regs, hrows, hregs⟩ := reachesOut_rows G hB (i₀ := numVertices G.n) hB
-  have hr := hreg le_rfl
-  have hchain := hcount.trans (hones.trans
-    (ReachesOut.emit (show writer.instr 6 = _ from rfl) hr
-      (ReachesOut.emit (show writer.instr 7 = _ from rfl) hr
-        (ReachesOut.emit (show writer.instr 8 = _ from rfl) hr
-          (ReachesOut.emit (show writer.instr 9 = _ from rfl) hr hrows)))))
-  refine ⟨(21, regs), _, [], hchain, rfl, ?_, hregs⟩
-  rw [encUSTCON, Function.Embedding.coeFn_mk, USTCONInstance.encode,
-    USTCONInstance.toSTCONInstance, STCONInstance.encode,
-    STCONInstance.matrix_eq_flatMap _ (entry G) (fun _ _ => rfl)]
-  simp [oddCycleInstance]
+    ComputableInLogSpace oddCycleInstance encUGraph encUSTCON :=
+  UGraphInstance.computableInLogSpace_of_entryExprs 2 (fun G r c => eval_numVerticesExpr G r c)
+    (fun G => by
+      simp only [oddCycleInstance, numVertices, G.length_encode]
+      nlinarith)
+    (fun _ => rfl) (fun _ => rfl) entry_eq_exprs
 
 end Writer
 

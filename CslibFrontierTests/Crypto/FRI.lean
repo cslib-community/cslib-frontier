@@ -13,6 +13,7 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.InformationTheory.Hamming
 import Mathlib.Tactic.NormNum.Prime
+import CslibFrontierTests.Crypto.MerkleTestHash
 
 /-!
 # Concrete Nonvacuous Tests for Multi-Round FRI and BCS-FRI ROM Soundness
@@ -59,6 +60,7 @@ namespace CslibFrontierTests.Crypto.FRI
 open scoped BigOperators NNReal ENNReal
 open Polynomial
 open Cslib Cslib.Code Cslib.OracleComp Cslib.Probability
+open CslibFrontierTests.Crypto.MerkleTestHash
 open Cslib.Crypto.Protocols.BCS Cslib.Crypto.Protocols.FRI
 
 /-! ### Part 1: Concrete `ZMod 257` FRI Parameters & Folding Checks -/
@@ -201,8 +203,8 @@ example :
       (iopProverOracles (friIOP params257) honestWord () sampleChals) = true :=
   friIOP_complete params257 honestWord () honestWord_mem_initialCode sampleChals
 
-/-- Injective deterministic Merkle hash on bitstrings. -/
-def idHash (msg : List Bool) : List Bool := msg
+/-- A deterministic Merkle hash with sixteen-bit digests. -/
+abbrev idHash : List Bool → List Bool := polyHash
 
 /-- Deterministic Fiat–Shamir oracle returning `sampleChals` by root-list length. -/
 def constFRIFS (_ : OracleTable 3 (ZMod 257)) (rts : List (List Bool)) :
@@ -214,8 +216,8 @@ example :
     bcsVerify (friIOP params257) (fun _ => idHash) [] (encZMod (p := 257)) constFRIFS honestWord
       (bcsProve (friIOP params257) (fun _ => idHash) [] (encZMod (p := 257)) constFRIFS
         honestWord ()) = true :=
-  friBCS_verify_prove_eq_true params257 (fun _ => idHash) [] (encZMod (p := 257)) constFRIFS
-    honestWord_mem_initialCode
+  friBCS_verify_prove_eq_true params257 (fun _ => idHash) [] length_polyHash (encZMod (p := 257))
+    constFRIFS honestWord_mem_initialCode
 
 -- Perfect completeness in the two-channel lazy BCS random-oracle model for every digest length `σ`.
 example (σ : ℕ) :

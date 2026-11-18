@@ -37,6 +37,34 @@ example : PrefixParser.decode ArithQBF.readToken [(.or, 0), (.var, 2)] = none :=
 example : PrefixParser.decode (fun (_ : Unit) => (none : Option (PrefixParser.Step Empty))) [] =
     none := rfl
 
+namespace ArbitraryArity
+
+-- The arity belongs to the token grammar, rather than being bounded by the parser API.
+private def readToken : ℕ → Option (PrefixParser.Step ℕ)
+  | 0 => some (.atom 5)
+  | 1 => some (.node 3 fun xs => xs 0 + xs 1 + xs 2)
+  | 2 => some (.node 0 fun _ => 7)
+  | _ => none
+
+example : PrefixParser.decode readToken [1, 0, 2, 0] = some 17 := by decide
+example : PrefixParser.parse readToken [1, 0, 2, 0, 2] = some (17, [2]) := by decide
+example : PrefixParser.decode readToken [1, 0, 2] = none := by decide
+example : PrefixParser.decode readToken [1, 0, 2, 3] = none := by decide
+example : PrefixParser.decode readToken [1, 0, 2, 0, 2] = none := by decide
+example : PrefixParser.decode readToken [2] = some 7 := by decide
+example : PrefixParser.parseFuel readToken 1 [1, 0, 2, 0] = none := by decide
+
+-- A generic client uses the operand law without unfolding the parser's Fin construction.
+example {α : Type} {arity : ℕ} (values : Fin arity → α) (rest : List α) :
+    PrefixParser.parseOperands (fun input => match input with
+      | [] => none
+      | value :: tail => some (value, tail)) arity (List.ofFn values ++ rest) =
+      some (values, rest) := by
+  simpa using
+    (PrefixParser.parseOperands_ofFn (tokens := fun a => [a]) values (by intros; rfl) rest)
+
+end ArbitraryArity
+
 -- Keep prefix injectivity independent of arithmetic tactics that add quotient axioms.
 /-- info: 'Cslib.PrefixParser.append_injective' does not depend on any axioms -/
 #guard_msgs in
