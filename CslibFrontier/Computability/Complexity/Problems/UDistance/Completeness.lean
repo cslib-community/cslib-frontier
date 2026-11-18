@@ -20,6 +20,10 @@ Exercise 5.24 of Goldreich's January 2007 draft (printed p. 198, PDF p. 82) asks
 deciding whether an undirected graph has a path of length at most `K` between two designated
 vertices (`Cslib.Complexity.UDistanceAtMost`), respectively whether their distance is exactly `K`
 (`Cslib.Complexity.UDistanceEq`), is `NL`-complete under logarithmic-space many-one reductions.
+The first is the literal question. The second is the shortest-distance reading of "a path of length
+exactly `K`" (the distance is `K`), which the exercise's title and `NL = coNL` guideline support;
+the literal simple-path question differs (see `Cslib.Complexity.UDistanceEq`).
+
 Both are proved here for the native classes: `NL` is decided by one finite-state
 nondeterministic machine within visited work space `c * (Nat.log2 n + 1)`, and reductions are
 computed by deterministic machines within such space.
@@ -226,7 +230,8 @@ theorem logSpaceHard : LogSpaceHard NL encUDistance UDistanceEq :=
   fun _ _ _ hA => (STCON.logSpaceReducible_of_mem_NL hA).trans logSpaceReducible_STCON
 
 /-- **Distance exactly `K` in undirected graphs is `NL`-complete** under logspace many-one
-reductions (Goldreich's January 2007 draft, Exercise 5.24, "exactly"). -/
+reductions: the shortest-distance reading of Goldreich's January 2007 draft, Exercise 5.24,
+"exactly", not the literal simple-path question. -/
 theorem logSpaceComplete : LogSpaceComplete NL encUDistance UDistanceEq :=
   ⟨mem_NL, logSpaceHard⟩
 

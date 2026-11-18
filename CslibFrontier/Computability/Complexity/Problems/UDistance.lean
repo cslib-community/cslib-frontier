@@ -19,11 +19,14 @@ symmetric loopless adjacency matrix with two terminals) together with a natural 
 5.24 of Goldreich's January 2007 draft ("determining distances in undirected graphs", printed
 p. 198) asks whether there is a path of length at most `K` from `s` to `t`
 (`Cslib.Complexity.UDistanceAtMost`), respectively exactly `K` (`Cslib.Complexity.UDistanceEq`).
-Following the exercise's title and its guideline for the exact version (which uses `NL = coNL`),
-"exactly `K`" is read as "the distance is `K`". Both sets are stated with Mathlib's extended
-distance `SimpleGraph.edist`, which is `⊤` between disconnected vertices, so disconnected pairs
-belong to neither. A walk of length at most `K` shortens to a path of length at most `K`, so the
-first set is literally the source's.
+**The second set is an interpretation, not the literal question.** Read literally, "a path of
+length exactly `K`" asks for a simple path with `K` edges: on a triangle with adjacent terminals
+there is one for `K = 2`, while the distance is `1`. The exercise's title, its guideline for the
+exact version (which uses `NL = coNL`, needed only for a lower bound on the distance) and
+Exercise 5.27 support the shortest-distance reading, which `UDistanceEq` formalizes: the distance
+is exactly `K`. Both sets are stated with Mathlib's extended distance `SimpleGraph.edist`, which is
+`⊤` between disconnected vertices, so disconnected pairs belong to neither. A walk of length at
+most `K` shortens to a path of length at most `K`, so the first set is literally the source's.
 
 Instances are encoded (`Cslib.Complexity.encUDistance`) as a framed `encUSTCON` word followed by
 the binary digits of `K`; this is the layout of `Cslib.Complexity.encBoundedSTCON` on the directed
@@ -88,8 +91,9 @@ enc_structure encUDistance : UDistanceInstance where
 @[expose] def UDistanceAtMost : Set UDistanceInstance :=
   {I | I.graph.graph.edist I.graph.s I.graph.t ≤ I.bound}
 
-/-- **Distance exactly `K`**: the instances whose terminals are at distance `bound` (Goldreich's
-January 2007 draft, Exercise 5.24, "exactly"). -/
+/-- **Distance exactly `K`**: the instances whose terminals are at distance `bound`. This is the
+shortest-distance reading of Goldreich's January 2007 draft, Exercise 5.24, "exactly", not the
+literal "a path of exactly `bound` edges" (see the module docstring). -/
 @[expose] def UDistanceEq : Set UDistanceInstance :=
   {I | I.graph.graph.edist I.graph.s I.graph.t = I.bound}
 
@@ -209,7 +213,7 @@ theorem encUDistance_eq_encPair :
   rfl
 
 /-- The distance is at most `K` exactly when the directed graph has a walk of at most `K` arcs. -/
-theorem edist_le_iff (k : ℕ) :
+private theorem edist_le_iff (k : ℕ) :
     I.graph.graph.edist I.graph.s I.graph.t ≤ k ↔
       Relation.RelatesWithinSteps I.graph.toSTCONInstance.Adj I.graph.s I.graph.t k :=
   SimpleGraph.edist_le_iff_relatesWithinSteps

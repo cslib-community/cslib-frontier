@@ -15,7 +15,9 @@ import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
+import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.Membership
 import CslibFrontier.Computability.Complexity.Problems.UCONN
+import CslibFrontier.Computability.Complexity.Problems.UDistance.Completeness
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
@@ -628,6 +630,54 @@ register_result "bipartite-in-logspace" where
     double cover, one USTCON query) and USTCON ≤ non-bipartiteness, the latter the trivial \
     reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
     ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
+
+register_result "bounded-stcon-in-nl" where
+  title := "Length-bounded directed s–t connectivity is in NL"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.19",
+      locator := "January 2007 r2.pdf, printed p. 197; PDF p. 81" }
+  ]
+  theorems := [
+    Cslib.Complexity.BoundedSTCON.mem_NL
+  ]
+  scope := "Directed adjacency-matrix graphs (encSTCON, framed) followed by a natural bound in \
+    binary (encBoundedSTCON); walks of at most bound arcs, zero-length walks allowed. Negative \
+    integer bounds are outside the encoding (they are always no-instances). Native visited-cell \
+    NL. Outside-fleet six-point check on PR #6364."
+
+register_result "undirected-distance-at-most-nl-complete" where
+  title := "Undirected s–t paths of length at most K: NL-complete"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.24 (at most)",
+      locator := "January 2007 r2.pdf, printed p. 198; PDF p. 82" }
+  ]
+  theorems := [
+    Cslib.Complexity.UDistanceAtMost.logSpaceComplete
+  ]
+  scope := "The literal 'at most K' question. Undirected graphs as symmetric loopless adjacency \
+    matrices with terminals (encUSTCON), framed and followed by the natural bound K in binary \
+    (encUDistance); the language is edist s t ≤ K, equivalently a path of at most K edges. \
+    Native visited-cell NL and logspace many-one reductions; hardness uses the guideline's \
+    layered graph with n + 1 layers and bound n. Outside-fleet six-point check on PR #6364."
+
+register_result "undirected-shortest-distance-nl-complete" where
+  title := "Undirected s–t distance exactly K: NL-complete (shortest-distance reading)"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Exercise 5.24 (exactly), interpreted",
+      locator := "January 2007 r2.pdf, printed p. 198; PDF p. 82" }
+  ]
+  theorems := [
+    Cslib.Complexity.UDistanceEq.logSpaceComplete
+  ]
+  scope := "An interpretation, not the literal question: 'a path of length exactly K' is read \
+    as 'the distance is K' (edist s t = K), following the exercise title, its NL = coNL \
+    guideline and Exercise 5.27. The literal question differs: a triangle with adjacent \
+    terminals has a simple path of exactly 2 edges but distance 1. Same encoding and classes \
+    as the 'at most' entry; disconnected pairs are in neither language. Outside-fleet \
+    six-point check on PR #6364."
 
 
 register_result "uconn-in-logspace" where
