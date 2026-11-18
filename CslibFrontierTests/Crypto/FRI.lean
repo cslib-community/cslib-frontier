@@ -6,11 +6,11 @@ Authors: Mayank Rathee
 
 module
 
-import CslibFrontier.Crypto.Protocols.FRI.Soundness
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import Mathlib.Algebra.Polynomial.Roots
-import Mathlib.Data.ZMod.Basic
-import Mathlib.FieldTheory.Finite.Basic
+public import Mathlib.Data.ZMod.Basic
+public import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.InformationTheory.Hamming
 import Mathlib.Tactic.NormNum.Prime
 
@@ -51,8 +51,8 @@ and `Soundness`) from an ordinary `module` client (no `import all`) over the pri
      `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`.
 -/
 
--- This regression module checks ordinary imports and exports no test fixtures.
-set_option linter.privateModule false
+-- Exports the concrete `ZMod 257` fixture and degree-4 root-count helper shared with
+-- `CslibFrontierTests/Crypto/FRIBatch.lean`.
 
 namespace CslibFrontierTests.Crypto.FRI
 
@@ -63,9 +63,9 @@ open Cslib.Crypto.Protocols.BCS Cslib.Crypto.Protocols.FRI
 
 /-! ### Part 1: Concrete `ZMod 257` FRI Parameters & Folding Checks -/
 
-instance instPrime257 : Fact (Nat.Prime 257) := ⟨by norm_num⟩
+public instance instPrime257 : Fact (Nat.Prime 257) := ⟨by norm_num⟩
 
-theorem isPrimitiveRoot_four_eight : IsPrimitiveRoot (4 : ZMod 257) (2 ^ 3) := by
+public theorem isPrimitiveRoot_four_eight : IsPrimitiveRoot (4 : ZMod 257) (2 ^ 3) := by
   refine IsPrimitiveRoot.mk (by decide : (4 : ZMod 257) ^ 8 = 1) ?_
   intro l hl
   have h8 : (4 : ZMod 257) ^ 8 = 1 := by decide
@@ -83,7 +83,7 @@ theorem isPrimitiveRoot_four_eight : IsPrimitiveRoot (4 : ZMod 257) (2 ^ 3) := b
 
 /-- Concrete 2-folding-round (`m = 2`, 3 total IOP rounds), depth-3 (`|L_0| = 8`), rate-`1/2`
 (`kFinal = 1`, `dim 0 = 4`), `q = 6` batched-query FRI instance over `ZMod 257`. -/
-def params257 : FRIParams (ZMod 257) where
+@[expose] public def params257 : FRIParams (ZMod 257) where
   d := 3
   m := 2
   kFinal := 1
@@ -115,7 +115,7 @@ noncomputable def honestPoly : Polynomial (ZMod 257) :=
   C 5 + C 3 * X + C 7 * X ^ 2 + C 2 * X ^ 3
 
 /-- Concrete degree-`< 4` Reed–Solomon codeword on `L_0` (`|L_0| = 8`). -/
-def honestWord : OracleTable 3 (ZMod 257) :=
+@[expose] public def honestWord : OracleTable 3 (ZMod 257) :=
   fun idx =>
     let x := params257.eval 0 idx
     5 + 3 * x + 7 * x ^ 2 + 2 * x ^ 3
@@ -124,16 +124,17 @@ theorem honestPoly_eval (x : ZMod 257) :
     honestPoly.eval x = 5 + 3 * x + 7 * x ^ 2 + 2 * x ^ 3 := by
   simp only [honestPoly, eval_add, eval_mul, eval_pow, eval_C, eval_X]
 
-theorem honestPoly_degree_lt : honestPoly.degree < (4 : WithBot ℕ) := by
-  have h0 : (C (5 : ZMod 257)).degree < (4 : WithBot ℕ) :=
+public theorem poly_cubic_degree_lt (c0 c1 c2 c3 : ZMod 257) :
+    (C c0 + C c1 * X + C c2 * X ^ 2 + C c3 * X ^ 3).degree < (4 : WithBot ℕ) := by
+  have h0 : (C c0).degree < (4 : WithBot ℕ) :=
     lt_of_le_of_lt degree_C_le (by decide)
-  have h1 : (C (3 : ZMod 257) * X).degree < (4 : WithBot ℕ) := by
+  have h1 : (C c1 * X).degree < (4 : WithBot ℕ) := by
     refine lt_of_le_of_lt (degree_mul_le _ _) ?_
     refine lt_of_le_of_lt (add_le_add degree_C_le degree_X_le) (by decide)
-  have h2 : (C (7 : ZMod 257) * X ^ 2).degree < (4 : WithBot ℕ) := by
+  have h2 : (C c2 * X ^ 2).degree < (4 : WithBot ℕ) := by
     refine lt_of_le_of_lt (degree_mul_le _ _) ?_
     refine lt_of_le_of_lt (add_le_add degree_C_le (degree_X_pow_le 2)) (by decide)
-  have h3 : (C (2 : ZMod 257) * X ^ 3).degree < (4 : WithBot ℕ) := by
+  have h3 : (C c3 * X ^ 3).degree < (4 : WithBot ℕ) := by
     refine lt_of_le_of_lt (degree_mul_le _ _) ?_
     refine lt_of_le_of_lt (add_le_add degree_C_le (degree_X_pow_le 3)) (by decide)
   have hadd : ∀ {p q : Polynomial (ZMod 257)},
@@ -142,12 +143,15 @@ theorem honestPoly_degree_lt : honestPoly.degree < (4 : WithBot ℕ) := by
     fun hp hq => lt_of_le_of_lt (degree_add_le _ _) (max_lt hp hq)
   exact hadd (hadd (hadd h0 h1) h2) h3
 
-theorem honestWord_mem_initialCode : honestWord ∈ params257.initialCode := by
+theorem honestPoly_degree_lt : honestPoly.degree < (4 : WithBot ℕ) :=
+  poly_cubic_degree_lt 5 3 7 2
+
+public theorem honestWord_mem_initialCode : honestWord ∈ params257.initialCode := by
   refine mem_reedSolomon.mpr ⟨honestPoly, honestPoly_degree_lt, ?_⟩
   ext idx
   exact honestPoly_eval (params257.eval 0 idx)
 
-theorem honestWord_mem_proximityLang : honestWord ∈ params257.proximityLang 2 := by
+public theorem honestWord_mem_proximityLang : honestWord ∈ params257.proximityLang 2 := by
   refine ⟨honestWord, honestWord_mem_initialCode, ?_⟩
   change hammingDist honestWord honestWord ≤ 2
   rw [hammingDist_self]
@@ -177,7 +181,7 @@ example :
 /-! ### Part 2: Multi-Round `PublicCoinIOP` Execution, Completeness & BCS Composition -/
 
 /-- Concrete challenge vector for the 3 rounds of `friIOP params257`. -/
-def sampleChals : Fin 3 → FRIChal (ZMod 257) 3 6
+@[expose] public def sampleChals : Fin 3 → FRIChal (ZMod 257) 3 6
   | ⟨0, _⟩ => ⟨11, fun a => ⟨(a.val + 1) % 8, Nat.mod_lt _ (by omega)⟩⟩
   | ⟨1, _⟩ => ⟨19, fun a => ⟨(a.val + 2) % 8, Nat.mod_lt _ (by omega)⟩⟩
   | ⟨2, _⟩ => ⟨23, fun a => ⟨(a.val + 1) % 8, Nat.mod_lt _ (by omega)⟩⟩
@@ -202,7 +206,7 @@ example :
   friIOP_complete params257 honestWord () honestWord_mem_initialCode sampleChals
 
 /-- Injective deterministic Merkle hash on bitstrings. -/
-def idHash (msg : List Bool) : List Bool := msg
+@[expose] public def idHash (msg : List Bool) : List Bool := msg
 
 /-- Deterministic Fiat–Shamir oracle returning `sampleChals` by root-list length. -/
 def constFRIFS (_ : OracleTable 3 (ZMod 257)) (rts : List (List Bool)) :
@@ -239,7 +243,7 @@ example (j : Fin 2) :
 /-! ### Part 3: Far-from-Reed–Solomon Word & Concrete Rejection -/
 
 /-- Non-codeword evaluating `X ^ 4` on `L_0` (taking alternating values `1, -1, 1, -1, ...`). -/
-def farWord : OracleTable 3 (ZMod 257) :=
+@[expose] public def farWord : OracleTable 3 (ZMod 257) :=
   fun idx => (params257.eval 0 idx) ^ 4
 
 private theorem farWord_eq_neg_one_pow (idx : Fin 8) :
@@ -253,11 +257,12 @@ private theorem card_filter_congr_decidable {α : Type*} (s : Finset α) (p : α
     (@Finset.filter α p h₁ s).card = (@Finset.filter α p h₂ s).card :=
   congrArg (fun h => (@Finset.filter α p h s).card) (Subsingleton.elim h₁ h₂)
 
-/-- `farWord` has Hamming distance at least `4` from every degree-`< 4` codeword, hence lies
-outside `params257.proximityLang 2`. -/
-theorem farWord_not_mem_proximityLang : farWord ∉ params257.proximityLang 2 := by
+/-- `farWord` agrees with any degree-`< 4` codeword on at most `4` points of the `8`-point coset. -/
+public theorem card_agree_farWord_le_four {c : OracleTable params257.d (ZMod 257)}
+    (hc_rs : c ∈ params257.initialCode) {D' : Finset (Fin (2 ^ params257.d))}
+    (hagree : ∀ s ∈ D', farWord s = c s) :
+    D'.card ≤ 4 := by
   classical
-  rintro ⟨c, hc_rs, hdist⟩
   obtain ⟨p, hp_deg, hpeq⟩ := mem_reedSolomon.mp hc_rs
   let q : Polynomial (ZMod 257) := X ^ 4 - p
   have hp_lt : p.degree < (X ^ 4 : Polynomial (ZMod 257)).degree := by
@@ -271,27 +276,33 @@ theorem farWord_not_mem_proximityLang : farWord ∉ params257.proximityLang 2 :=
     rw [h0, degree_zero] at hq_deg
     exact absurd hq_deg (by decide)
   have hq_natDeg : q.natDegree = 4 := natDegree_eq_of_degree_eq_some hq_deg
-  let S_eq : Finset (Fin (2 ^ params257.d)) :=
-    Finset.univ.filter (fun j : Fin (2 ^ params257.d) => farWord j = c j)
   have hα_inj : Function.Injective (params257.eval 0) :=
     cosetEval_injective params257.hg params257.hω (by omega)
-  have himg_sub : S_eq.image (params257.eval 0) ⊆ q.roots.toFinset := by
+  have himg_sub : D'.image (params257.eval 0) ⊆ q.roots.toFinset := by
     intro x hx
     obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hx
-    have hEq : farWord j = c j := (Finset.mem_filter.mp hj).2
     have hroot : q.eval (params257.eval 0 j) = 0 := by
       have hcval : c j = p.eval (params257.eval 0 j) := (congrFun hpeq j).symm
       dsimp only [q]
       rw [eval_sub, eval_pow, eval_X, ← hcval]
-      exact sub_eq_zero.mpr hEq
+      exact sub_eq_zero.mpr (hagree j hj)
     exact Multiset.mem_toFinset.mpr ((mem_roots hq_ne).mpr hroot)
-  have hS_le : S_eq.card ≤ 4 := by
-    calc S_eq.card
-        = (S_eq.image (params257.eval 0)).card := (Finset.card_image_of_injective S_eq hα_inj).symm
-      _ ≤ q.roots.toFinset.card := Finset.card_le_card himg_sub
-      _ ≤ q.roots.card := Multiset.toFinset_card_le q.roots
-      _ ≤ q.natDegree := card_roots' q
-      _ = 4 := hq_natDeg
+  calc D'.card
+      = (D'.image (params257.eval 0)).card := (Finset.card_image_of_injective D' hα_inj).symm
+    _ ≤ q.roots.toFinset.card := Finset.card_le_card himg_sub
+    _ ≤ q.roots.card := Multiset.toFinset_card_le q.roots
+    _ ≤ q.natDegree := card_roots' q
+    _ = 4 := hq_natDeg
+
+/-- `farWord` has Hamming distance at least `4` from every degree-`< 4` codeword, hence lies
+outside `params257.proximityLang 2`. -/
+public theorem farWord_not_mem_proximityLang : farWord ∉ params257.proximityLang 2 := by
+  classical
+  rintro ⟨c, hc_rs, hdist⟩
+  let S_eq : Finset (Fin (2 ^ params257.d)) :=
+    Finset.univ.filter (fun j : Fin (2 ^ params257.d) => farWord j = c j)
+  have hS_le : S_eq.card ≤ 4 :=
+    card_agree_farWord_le_four hc_rs fun j hj => (Finset.mem_filter.mp hj).2
   have hpart : S_eq.card + hammingDist farWord c = 8 := by
     have h := Finset.card_filter_add_card_filter_not
       (s := (Finset.univ : Finset (Fin (2 ^ params257.d)))) (fun j => farWord j = c j)
@@ -314,7 +325,7 @@ private theorem fold2Fiber_same (y x z : ZMod 257) : fold2Fiber y y x z = y := b
 /-- Concrete verifier rejection: the multi-round FRI verifier rejects `farWord` on `sampleChals`
 (since folding `X ^ 4` twice yields the alternating word `(1, -1)` on `L_2`, which fails the
 constant-polynomial Lagrange check at query index `1`). -/
-theorem farWord_iopVerify_eq_false :
+public theorem farWord_iopVerify_eq_false :
     iopVerify (friIOP params257) farWord sampleChals
       (iopProverOracles (friIOP params257) farWord () sampleChals) = false := by
   by_contra hne

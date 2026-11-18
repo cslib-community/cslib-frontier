@@ -23,9 +23,10 @@ of [BenSassonCarmonIshaiKoppartySaraf2020] (accepted *Journal of the ACM* 2023 m
 p. 38) directly as a `(params.m + 2)`-round `Cslib.Crypto.Protocols.BCS.PublicCoinIOP` delegating
 its folding and query phases to `Cslib.Crypto.Protocols.FRI.friIOP`
 ([BenSassonBentovHoreshRiabzev2018]; [BenSassonChiesaSpooner2016]), proves perfect IOP / BCS /
-random-oracle completeness and exact query accounting, and defines the tuple correlated-agreement
-languages and real-to-integer threshold bridges used in the setting of Lemma 8.2 and Theorem 8.3
-(printed pp. 38–39; soundness of batched FRI remains tracked in #5968).
+random-oracle completeness together with exact committed-opening counts and direct-read schedule
+locality, and defines the tuple correlated-agreement languages and real-to-integer threshold
+bridges used in the setting of Lemma 8.2 and Theorem 8.3 (printed pp. 38–39; soundness of batched
+FRI remains tracked in #5968).
 
 ## Protocol layout and causal delegation
 
@@ -45,19 +46,21 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
   - **Rounds `1, …, m + 1`:** the protocol delegates `proveRound`, `queries` (shifted by
     `Fin.succ`), and `decide` directly to `friIOP params` evaluated on the combined word
     `stmt.eval (chals 0).batchCoeffs` and challenge tail `friTailChals chals`.
-* **Batched query check and query accounting.** By `iopVerify_friBatchIOP_eq_iopVerify_friIOP` and
-  `iopVerify_friBatchIOP_eq_true_iff`, for each of the `q` queried starting positions
-  `s : Fin (2 ^ d)` the verifier checks:
-  1. the affine batching equation `oracles 1 s = stmt.base s + ∑ j, x j * stmt.terms j s`
-     (Section 8.2, p. 38, step (2)),
-  2. all `m` 2-to-1 coset folding equations along the squaring path of `s` (step (3)), and
-  3. agreement of the final oracle `oracles (m + 1)` with `friFinalCodeword`.
-  The committed-proof-oracle opening count exposed via `PublicCoinIOP.queries` remains
-  `params.proofOracleQueries = kFinal + q * (3 * m + 2)` (with zero openings against round `0`),
-  while evaluating `stmt.eval (chals 0).batchCoeffs` at the `q` positions in
-  `friBatchInputQueries` performs `params.batchInputWordReads t = (t + 1) * q` direct input-word
-  reads (certified by `friBatchDecide_congr_inputQueries`), for
-  `params.batchTotalWordQueries t = kFinal + q * (3 * m + t + 3)` total word queries.
+* **Batched query check, committed-opening count, and direct-read schedule.** By
+  `iopVerify_friBatchIOP_eq_iopVerify_friIOP` and `iopVerify_friBatchIOP_eq_true_iff`,
+  `friBatchSingleAccepts` delegates directly to `friSingleAccepts` on the evaluated batch
+  `stmt.eval (chals 0).batchCoeffs`, challenge tail `friTailChals chals`, and shifted oracle family
+  `fun j => oracles j.succ` (checking the round-`1` batching equation, all `m` 2-to-1 folding steps,
+  and final codeword consistency; Section 8.2, p. 38, steps (2)–(4)). The committed-proof-oracle
+  opening list exposed via `PublicCoinIOP.queries` has **exact** length
+  `params.proofOracleQueries = kFinal + q * (3 * m + 2)` (`length_friBatchIOP_queries`, with zero
+  openings against round `0`). Outside `PublicCoinIOP.queries`, `friBatchInputQueries` schedules `q`
+  input positions at which `t + 1` input symbols suffice (`friBatchDecide_congr_inputQueries`
+  proves that agreement at these scheduled positions determines `friBatchDecide`). Because a
+  wrong-length answer list or an unsuccessful earlier repetition can reject before inspecting later
+  positions, `params.batchInputWordReads t = (t + 1) * q` records the full direct-read schedule /
+  budget, giving the combined word-query budget
+  `params.batchTotalWordQueries t = kFinal + q * (3 * m + t + 3)`.
 * **Tuple correlated-agreement languages and real-to-integer threshold bridges.**
   `FRIParams.batchProximityLang` expresses simultaneous correlated agreement of `(stmt.base,
   stmt.terms)` with `params.initialCode` on at least `2 ^ d - e` coordinates (matching the witness
@@ -84,12 +87,13 @@ homogeneous linear batching `f₀⁽⁰⁾ = 0` given by `FRIBatchStmt.linear`):
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchCorrAgreeLang`,
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchInputWordReads`,
   `Cslib.Crypto.Protocols.FRI.FRIParams.batchTotalWordQueries`: batched completeness relation,
-  integer and real-density tuple correlated-agreement languages, and query-count abbreviations.
+  integer and real-density tuple correlated-agreement languages, and direct-read / combined
+  word-query budget abbreviations.
 * `Cslib.Crypto.Protocols.FRI.friBatchQueries`, `Cslib.Crypto.Protocols.FRI.friBatchInputQueries`,
   `Cslib.Crypto.Protocols.FRI.friBatchDecide`, `Cslib.Crypto.Protocols.FRI.friBatchSingleAccepts`,
-  `Cslib.Crypto.Protocols.FRI.friBatchIOP`: committed-oracle query list, input-word query positions,
-  verifier decision procedure, single-repetition acceptance predicate, and `(m + 2)`-round
-  `PublicCoinIOP` instantiation of batched FRI.
+  `Cslib.Crypto.Protocols.FRI.friBatchIOP`: committed-oracle query list, scheduled input-word
+  positions, verifier decision procedure, single-repetition acceptance predicate, and
+  `(m + 2)`-round `PublicCoinIOP` instantiation of batched FRI.
 
 ## Main results
 
@@ -283,15 +287,16 @@ domain `D' ⊆ Fin (2 ^ d)` of relative density `α ≤ (#D' : ℝ) / 2 ^ d`
       (∀ j, v j ∈ params.initialCode) ∧
       ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s}
 
-/-- Number of direct input-word symbol reads across `stmt.base` and `stmt.terms 0, …,
-stmt.terms (t - 1)` performed by the batched FRI verifier (`(t + 1) * q`, reading `(t + 1)` input
-words at each of the `q` positions in `friBatchInputQueries`, outside `PublicCoinIOP.queries`). -/
+/-- Full direct-read schedule / input-symbol budget `(t + 1) * q` across `stmt.base` and
+`stmt.terms 0, …, stmt.terms (t - 1)`: `friBatchInputQueries` schedules `q` positions, with `t + 1`
+input symbols sufficient at each (`friBatchDecide_congr_inputQueries`). A call with a wrong-length
+answer list or an unsuccessful earlier repetition can reject before inspecting later positions. -/
 abbrev batchInputWordReads (params : FRIParams F) (t : ℕ) : ℕ :=
   (t + 1) * params.q
 
-/-- Total number of word queries made by the batched FRI verifier across the `(t + 1)` input words
-and the committed prover oracles:
-`batchInputWordReads t + proofOracleQueries = kFinal + q * (3 * m + t + 3)`. -/
+/-- Combined word-query budget `batchInputWordReads t + proofOracleQueries =
+kFinal + q * (3 * m + t + 3)`, pairing the full `(t + 1) * q` direct-read schedule with the exact
+committed-proof-oracle opening list length `proofOracleQueries`. -/
 abbrev batchTotalWordQueries (params : FRIParams F) (t : ℕ) : ℕ :=
   params.batchInputWordReads t + params.proofOracleQueries
 
@@ -514,8 +519,9 @@ theorem length_friBatchQueries (params : FRIParams F) (t : ℕ)
     (friBatchQueries params t chals).length = params.proofOracleQueries := by
   simp only [friBatchQueries, List.length_map, length_friQueries]
 
-/-- List of `q` evaluation positions at which the batched FRI verifier reads each of the `(t + 1)`
-input words `(stmt.base, stmt.terms 0, …, stmt.terms (t - 1))` outside `PublicCoinIOP.queries`. -/
+/-- Schedule of `q` evaluation positions at which agreement of the `t + 1` input words
+`(stmt.base, stmt.terms 0, …, stmt.terms (t - 1))` suffices to determine `friBatchDecide` outside
+`PublicCoinIOP.queries`. -/
 @[expose] def friBatchInputQueries (params : FRIParams F) (t : ℕ)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) :
     List (Fin (2 ^ params.d)) :=
@@ -533,9 +539,9 @@ combination `stmt.eval (chals 0).batchCoeffs` and challenge tail `friTailChals c
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t) (answers : List F) : Bool :=
   friDecide params (stmt.eval (chals 0).batchCoeffs) (friTailChals chals) answers
 
-/-- Input-query locality: `friBatchDecide` depends on `(stmt.base, stmt.terms)` solely at the `q`
-positions in `friBatchInputQueries params t chals` (`(t + 1) * q = params.batchInputWordReads t`
-input-word symbol reads in total). -/
+/-- Input-query locality: agreement of `(stmt.base, stmt.terms)` at the `q` scheduled positions in
+`friBatchInputQueries params t chals` (full direct-read budget `(t + 1) * q =
+params.batchInputWordReads t`) guarantees the same decision in `friBatchDecide`. -/
 theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F) (t : ℕ)
     {stmt₁ stmt₂ : FRIBatchStmt F params.d t}
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t)
@@ -553,9 +559,10 @@ theorem friBatchDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F)
 ([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, printed pp. 37–38):
 * Round `0` commits the zero announcement table (`0` openings in `queries`) and samples the random
   batching vector `(chals 0).batchCoeffs : Fin t → F`.
-* Rounds `1, …, m + 1` run `friIOP params` on `stmt.eval (chals 0).batchCoeffs`, opening
-  `params.proofOracleQueries = kFinal + q * (3 * m + 2)` prover-oracle entries via `queries` and
-  reading `(t + 1)` input words at `q` positions (`params.batchInputWordReads t = (t + 1) * q`). -/
+* Rounds `1, …, m + 1` run `friIOP params` on `stmt.eval (chals 0).batchCoeffs`, issuing an exact
+  list of `params.proofOracleQueries = kFinal + q * (3 * m + 2)` committed-oracle openings via
+  `queries`, with direct input access scheduled at the `q` positions of `friBatchInputQueries`
+  (budget `params.batchInputWordReads t = (t + 1) * q`). -/
 @[expose] def friBatchIOP [DecidableEq F] (params : FRIParams F) (t : ℕ) :
     PublicCoinIOP (params.m + 2) params.d (FRIBatchStmt F params.d t) Unit F
       (FRIBatchChal F params.d params.q t) where
@@ -610,26 +617,15 @@ theorem iopVerify_friBatchIOP_eq_iopVerify_friIOP [DecidableEq F] (params : FRIP
 
 /-- Pointwise acceptance predicate for a single batched FRI query repetition starting at
 `s : Fin (2 ^ d)` ([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, printed p. 38, steps
-(2)–(4)):
-1. **Batching check (step (2)):** `oracles 1 s = stmt.base s + ∑ j, x j * stmt.terms j s`,
-2. **Folding checks (step (3)):** all `m` 2-to-1 coset folding equations across `oracles 1, …,
-   oracles (m + 1)`, and
-3. **Final codeword check:** `oracles (m + 1)` agrees with `friFinalCodeword` at `friFinalFin`. -/
+(2)–(4)), expressed directly via `friSingleAccepts` on the evaluated batch
+`stmt.eval (chals 0).batchCoeffs`, challenge tail `friTailChals chals`, and shifted oracle family
+`fun j => oracles j.succ`. -/
 @[expose] def friBatchSingleAccepts (params : FRIParams F) (t : ℕ)
     (stmt : FRIBatchStmt F params.d t)
     (chals : Fin (params.m + 2) → FRIBatchChal F params.d params.q t)
     (oracles : Fin (params.m + 2) → OracleTable params.d F) (s : Fin (2 ^ params.d)) : Prop :=
-  oracles ⟨1, by omega⟩ s =
-      stmt.base s + ∑ j : Fin t, (chals 0).batchCoeffs j * stmt.terms j s ∧
-    (∀ i : Fin params.m,
-      fold2Fiber
-        (oracles i.castSucc.succ (friRoundPosIdx params i s))
-        (oracles i.castSucc.succ (friRoundNegIdx params i s))
-        (params.eval i.val (friRoundPosFin params i s))
-        (chals i.castSucc.succ).foldScalar =
-      oracles i.succ.succ (friRoundPosIdx params i s)) ∧
-    oracles (Fin.last (params.m + 1)) (friFinalIdx params s) =
-      friFinalCodeword params (oracles (Fin.last (params.m + 1))) (friFinalFin params s)
+  friSingleAccepts params (stmt.eval (chals 0).batchCoeffs) (friTailChals chals)
+    (fun j => oracles j.succ) s
 
 /-- **Exact characterization of batched FRI IOP verification**: `iopVerify (friBatchIOP params t)`
 accepts `oracles` on `(stmt, chals)` if and only if every queried starting position
@@ -642,13 +638,9 @@ theorem iopVerify_friBatchIOP_eq_true_iff [DecidableEq F] (params : FRIParams F)
       ∀ a : Fin params.q,
         friBatchSingleAccepts params t stmt chals oracles
           ((chals (Fin.last (params.m + 1))).queryIdxs a) := by
-  rw [iopVerify_friBatchIOP_eq_iopVerify_friIOP, iopVerify_friIOP_eq_true_iff]
-  have hlast : (Fin.last params.m).succ = Fin.last (params.m + 1) := Fin.succ_last params.m
-  have hzero_succ : (⟨0, Nat.zero_lt_succ params.m⟩ : Fin (params.m + 1)).succ =
-      (⟨1, by omega⟩ : Fin (params.m + 2)) := rfl
-  refine forall_congr' fun a => ?_
-  simp only [friSingleAccepts, friBatchSingleAccepts, friTailChals, FRIBatchChal.toFRIChal,
-    FRIBatchStmt.eval_apply, hlast, hzero_succ]
+  rw [iopVerify_friBatchIOP_eq_iopVerify_friIOP, iopVerify_friIOP_eq_true_iff,
+    ← Fin.succ_last params.m]
+  rfl
 
 /-- **Perfect completeness of the batched FRI IOP**: whenever `stmt.base` and all `t` words
 `stmt.terms j` belong to `params.initialCode`, the batched FRI verifier accepts the honest prover's
@@ -692,8 +684,8 @@ theorem friBatchBCS_honestROMGame_eq_pure_true [DecidableEq F] [Fintype F]
 /-- **Succinct verifier Merkle query cost bound for BCS-compiled batched FRI**: for any proof `prf`
 whose opening paths have length at most `L_path`, `bcsVerifyROM` makes at most
 `params.proofOracleQueries * (L_path + 1) = (kFinal + q * (3 * m + 2)) * (L_path + 1)` Merkle hash
-queries (independent of batch size `t`, since the `(t + 1) * q` direct input-word reads of `stmt`
-are not Merkle-authenticated through `PublicCoinIOP.queries`). -/
+queries (independent of batch size `t`, since direct access to `stmt` along the `(t + 1) * q` input
+schedule is not Merkle-authenticated through `PublicCoinIOP.queries`). -/
 theorem isCostBounded_bcsMTCost_friBatchVerifyROM [DecidableEq F] (params : FRIParams F) (t : ℕ)
     (encSym : F → List Bool) (stmt : FRIBatchStmt F params.d t)
     (prf : BCSProof (params.m + 2) F) {L_path : ℕ}
