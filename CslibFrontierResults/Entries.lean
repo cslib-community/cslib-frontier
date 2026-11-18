@@ -6753,7 +6753,8 @@ register_result "cramer-shoup-ddh-cca" where
     Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
 
 register_result "elgamal-strongly-unpredictable-ciphertexts" where
-  title := "ElGamal encryption has strongly unpredictable ciphertexts"
+  title := "Multiplicative ElGamal, and hybrid ElGamal hashing the shared secret alone, have \
+    strongly unpredictable ciphertexts"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -6768,8 +6769,9 @@ register_result "elgamal-strongly-unpredictable-ciphertexts" where
     Section 21.4.1: one negligible ε such that at every n, for every public key word pk, \
     including malformed or adversarially chosen ones, every message m and every non-error \
     ciphertext c, Pr[E(pk, m) = c] ≤ ε(n). The book's error output is none; these schemes \
-    never produce it. stronglyUnpredictable_iff_forall, in that module, shows that the single \
-    ε is equivalent to negligibility along every sequence (pk, m, c). The schemes are the \
+    never produce it. stronglyUnpredictable_iff_forall, in that module, shows that when the \
+    key, message and ciphertext types are nonempty at each parameter, the single ε is \
+    equivalent to negligibility along every sequence (pk, m, c). The schemes are the \
     library's ElGamal programs over a PrimeOrderGroupFamily with a deterministic group \
     schedule d, the group at n being d n: elGamalEncryptProb, the multiplicative ElGamal \
     scheme E_MEG of Exercise 11.5 (p. 459), for any message encoding; and hybridEncrypt \
@@ -6819,7 +6821,9 @@ register_result "ddh-small-prime-factor-attack" where
   title := "DDH does not hold when the group order has a polynomially small prime factor"
   topic := "cryptography"
   sources := [
-    { paper := BonehShoup2023, theorem := "Exercise 16.2(a)", locator := "Section 16.7, p. 707" }
+    { paper := BonehShoup2023,
+      theorem := "Exercise 16.2(a): the advantage bound and its asymptotic consequence",
+      locator := "Section 16.7, p. 707" }
   ]
   theorems := [
     Cslib.Crypto.CyclicGroupFamily.not_ddh_of_polynomiallyBounded_minFac,
@@ -6838,9 +6842,10 @@ register_result "ddh-small-prime-factor-attack" where
     infinitely many n every group in the support has q > 1 with smallest prime factor at most \
     bound n, for a polynomially bounded bound, then DDH does not hold. This is the exercise's \
     conclusion that DDH is false when the smallest prime factor is small, with small read as \
-    polynomially bounded. The proof's selector finds the greatest prime factor up to \
-    C·(n + 1)^D by bounded search with a primality test, where the exercise uses the smallest; \
-    any prime factor up to bound n gives advantage at least 1/bound n. In one fixed group and \
+    polynomially bounded. The proof's selector finds the greatest prime factor up to a \
+    polynomial majorant C·(n + 1)^D of bound n, by bounded search with a primality test, where \
+    the exercise uses the smallest; that factor can exceed bound n, so the proof's advantage \
+    is at least 1/(C·(n + 1)^D). In one fixed group and \
     for a prime l dividing q, ddhAdvantage_ddhSmallFactorDistinguisher \
     (DiffieHellman/SmallFactor.lean) gives the exact advantage (3l − 2)(l − 1)/l³, at least 1/l \
     (inv_le_ddhAdvantage_ddhSmallFactorDistinguisher), the exercise's 'about 1/ℓ'. \
@@ -6874,7 +6879,7 @@ register_result "rsa-close-prime-factoring" where
     part of this entry."
 
 register_result "rsa-shared-prime-gcd" where
-  title := "RSA moduli that share a prime factor are factored by their gcd"
+  title := "Distinct RSA moduli that share a prime factor are factored by their gcd"
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023,
@@ -6942,8 +6947,8 @@ register_result "generic-group-cdh-lower-bound" where
     XY agrees with a fixed linear form at no more than 2q − 1 of the q² points. \
     le_of_half_le_succProbability_cdhGame: success probability at least 1/2 forces \
     q ≤ (3T + 4)² + 4, so T must be about √q/3 or more. succProbability_cdhGame_le_choose, in \
-    the same module, is the sharp form. The bound is not claimed for composite q. Part (b), \
-    interactive CDH, is not formalized."
+    the same module, is a sharper bound, ((3T + 4) choose 2 + 2)/q. The bound is not claimed \
+    for composite q. Part (b), interactive CDH, is not formalized."
 
 register_result "hors-containment-free" where
   title := "The HORS subset map is a polynomial-time containment-free map into sets of size ℓ"
