@@ -127,6 +127,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Converse
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
+import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
@@ -138,6 +139,7 @@ import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Savitch
+import CslibFrontier.Computability.Complexity.Classes.TFNP.SelfReducibility
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
@@ -165,6 +167,7 @@ import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -381,6 +384,7 @@ import CslibFrontier.Computability.Probabilistic.CoinOfDigits
 import CslibFrontier.Probability.BilinearFingerprint
 import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
+import CslibFrontier.Probability.Fooling.DecisionTree
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
@@ -514,6 +518,54 @@ register_result "goldreich-three-exact-cover" where
     dummy elements, instead of the draft's chain through 3SC and 3XC'. The remark on Exact \
     Cover with arbitrary set sizes is not covered. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6302#pullrequestreview-5947915507"
+
+register_result "goldreich-pc-not-self-reducible" where
+  title := "If P ≠ NP ∩ coNP, some PC search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.14(1)",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_mem_FNP_not_selfReducible]
+  scope := "Any instance encoding with a polynomial-time Decoder (words: Decoder.bits). The \
+    relation is total, in FNP (PC) and not in FPSearch. Self-reducibility \
+    (SearchSelfReducible) is a SolvesSearch solver computable in polynomial time relative to \
+    the oracle language enc '' searchDomain R (Definitions 2.9 and 2.14). Outside-fleet \
+    six-point source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
+
+register_result "goldreich-divisor-not-self-reducible" where
+  title := "If factoring is hard, the divisor search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.16",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [
+    Cslib.Complexity.divisorSearch_mem_FNP,
+    Cslib.Complexity.not_selfReducible_divisorSearch
+  ]
+  scope := "Numbers in canonical binary (encNat); solutions are the binary digits of a \
+    non-trivial divisor. The relation is in FNP (PC). Factoring hardness: no polynomial-time \
+    function returns a non-trivial divisor of every composite (equivalently divisorSearch is \
+    not in FPSearch). Neither the search problem nor its prefix decision problem S'_R \
+    (PolyTimeTuringReducible) reduces to the composite numbers. Outside-fleet six-point source \
+    check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
+
+register_result "goldreich-self-reducibility-not-decision-property" where
+  title := "Two PC relations with the same domain, one self-reducible and one not"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.17",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_selfReducible_not_selfReducible]
+  scope := "Under the factoring hardness of Exercise 2.16, the assumption the main text names \
+    on printed p. 72. Witnesses: compositeSearch (each composite with itself, in FPSearch) and \
+    divisorSearch, both with the composites as domain; numbers in binary (encNat). \
+    Outside-fleet six-point source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6410#pullrequestreview-5953910279"
 
 register_result "goldreich-few-oracle-queries-search" where
   title := "Logarithmically many oracle queries do not help to solve PC search problems"
@@ -986,6 +1038,23 @@ register_result "dip-eq-np" where
   scope := "dIP is the coin-free case of the IP model: a deterministic word-query verifier run \
     against every randomized stateful prover, strict oracle PPT (one machine, one polynomial \
     clock), completeness 1 and soundness 0; arbitrary injective encodings."
+
+register_result "arora-barak-oracle-counterexample-to-3sat" where
+  title := "Some language in relativized NP has no oracle-aided polynomial-time reduction to 3SAT"
+  topic := "relativization"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 3 §6",
+      locator := "January 2007 draft, printed p. 74; PDF p. 90" }
+  ]
+  theorems := [Cslib.Complexity.exists_unaryLengthLanguage_not_reducibleWithOracle]
+  scope := "For every fixed encoded target, an oracle B has a unary length language in NP \
+    relative to B with no many-one reduction computable in polynomial time with access to B. \
+    The 3SAT client in CslibFrontierTests/Relativization.lean takes the fixed target \
+    encCNF '' ThreeSAT with the identity encoding of words. The disallowed reductions can \
+    output any word, including malformed CNF codes on negative inputs. The witness language \
+    asks whether its unary input length occurs among words in B. The diagonal test checks \
+    the encoded target after the candidate has finished its queries. Outside-fleet source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6463#pullrequestreview-5958790305"
 
 register_result "arora-barak-perfectly-complete-set-lower-bound" where
   title := "A perfectly complete AM protocol for set lower bounds"
@@ -8805,6 +8874,21 @@ register_result "arora-barak-exact-indset-dp" where
     and a coNP language. DP-hardness (part (b)) is not included. Outside-fleet six-point \
     source check: review 5953416411 on PR #6402."
 
+register_result "arora-barak-exact-indset-dp-hard" where
+  title := "EXACT INDSET is DP-hard and therefore DP-complete"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Exercise 5 §8(b)",
+      locator := "January 8, 2007 draft, printed p. 100 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Complexity.ExactIndependentSet_dpHard,
+    Cslib.Complexity.ExactIndependentSet_dpComplete]
+  scope := "Every DP language under an explicit encoding reduces by a deterministic \
+    polynomial-time many-one map to exact independence number on declared graph vertices, \
+    using a framed graph and binary target. The reduction passes through SAT–UNSAT. \
+    Completeness combines the hardness proof with the membership theorem from §8(a). \
+    Outside-fleet source check: review 5958802809 on PR #6462."
+
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
     NP = coNP"
@@ -9030,6 +9114,47 @@ register_result "goldreich-read-once-prg-stretch" where
     s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
+
+register_result "goldreich-adaptive-t-wise-independence" where
+  title := "Adaptive block tests of t-wise independent generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.29",
+      locator := "March 2007 draft, printed pp. 376–377 / PDF pp. 112–113" }
+  ]
+  theorems := [Cslib.Probability.IsKWiseIndependentHash.bind_map_eval_eq]
+  scope := "With a uniform seed and t-wise independent Boolean blocks, an adaptive test has \
+    the same output law as on uniform bits. A test samples independent coins to select a \
+    decision tree and reads bits from at most t distinct blocks on each input. This includes \
+    whole-block tests. Outside-fleet source check: review 5954380213 on PR #6421."
+
+register_result "goldreich-adaptive-query-separation" where
+  title := "Adaptive t-query tests separate a law with almost uniform t-bit marginals"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.32(1)",
+      locator := "March 2007 draft, printed pp. 377–378 / PDF pp. 113–114" }
+  ]
+  theorems := [Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length]
+  scope := "For each positive t, a law on exactly 2^(t−1) bits has total variation at most \
+    t/2^t from uniform on every fixed t-coordinate marginal. A decision tree of depth at most \
+    t accepts the law surely and uniform input with probability 1/2. The construction shares \
+    data bits across address pairs to attain the printed length. The guideline uses t−1 \
+    additional bits. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6467#pullrequestreview-5958887313"
+
+register_result "goldreich-adaptive-almost-t-wise-independence" where
+  title := "Adaptive bit tests of almost t-wise independent distributions"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.32(2)",
+      locator := "March 2007 draft, printed p. 378 / PDF p. 114" }
+  ]
+  theorems := [Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le]
+  scope := "For a law on n bits with n ≥ t, if every t-bit marginal has statistical distance \
+    at most ε from uniform, an adaptive test reading at most t distinct positions on each \
+    input has distinguishing gap at most 2^t ε. The test uses finitely many random-coin \
+    outcomes. Outside-fleet source check: review 5954380213 on PR #6421."
 
 register_result "arora-barak-nonexplicit-prg" where
   title := "Non-explicit pseudorandom generators: length and indistinguishability properties"

@@ -2341,6 +2341,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Sparse.Prune
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Turing
 public import CslibFrontier.Computability.Complexity.Classes.TFNP
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.SearchToDecision
+public import CslibFrontier.Computability.Complexity.Classes.TFNP.SelfReducibility
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Completeness
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PPADS
@@ -2769,6 +2770,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Undire
 public import CslibFrontier.Computability.Complexity.Problems.HornSAT
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
+public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 public import CslibFrontier.Computability.Complexity.Problems.JobSequencing
@@ -4967,6 +4969,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
+public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
@@ -5331,6 +5334,7 @@ public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
@@ -7899,6 +7903,8 @@ public import CslibFrontier.Probability.Extractor.Basic
 public import CslibFrontier.Probability.Extractor.LeftoverHash
 public import CslibFrontier.Probability.Extractor.TwoSource
 public import CslibFrontier.Probability.Fooling
+public import CslibFrontier.Probability.Fooling.DecisionTree
+public import CslibFrontier.Probability.Fooling.DecisionTree.Separation
 public import CslibFrontier.Probability.Fooling.OneSided
 public import CslibFrontier.Probability.Forking
 public import CslibFrontier.Probability.Freivalds
