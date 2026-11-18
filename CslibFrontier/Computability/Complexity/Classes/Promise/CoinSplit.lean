@@ -49,6 +49,8 @@ what makes its yes- and no-instances disjoint. Its instances `(x, r′)` are enc
 
 ## Main results
 
+* `Cslib.Complexity.PromiseProblem.half_lt_toOuterMeasure_coinSplit_yes`: Goldreich's sampler
+  hits `Π′_yes` with probability greater than `1 / 2` on members of `S`.
 * `Cslib.Complexity.PromiseProblem.rpReducibleWithError_coinSplit`: Exercise 6.11(1).
 * `Cslib.Complexity.PromiseProblem.coinSplit_mem_PromiseCoRP`: Exercise 6.11(2).
 
@@ -91,8 +93,9 @@ private theorem ofFn_appendCoins (m : ℕ) (r : (Fin m → Bool) × (Fin m → B
 
 /-- A random string of length `m` read from a list of length `m`. -/
 private theorem exists_ofFn_eq {m : ℕ} {l : List Bool} (hl : l.length = m) :
-    ∃ r : Fin m → Bool, List.ofFn r = l :=
-  ⟨fun i => l[i.val]'(by omega), List.ext_getElem (by simp [hl]) fun i _ _ => by simp⟩
+    ∃ r : Fin m → Bool, List.ofFn r = l := by
+  subst hl
+  exact ⟨l.get, List.ofFn_get l⟩
 
 /-- **The error moves to the second half.** If fewer than a `2 ^ (-(m + 1))` fraction of the
 strings of length `2 m` satisfy `f`, then for every first half `r′` fewer than half of the second
@@ -180,44 +183,53 @@ def coinSplit (h : SmallOfflineError encA S p' A') : PromiseProblem (α × List 
     (x, r') ∈ (coinSplit h).no ↔ x ∉ S :=
   Iff.rfl
 
+/-- **Goldreich's sampler on yes-instances** [Goldreich2007Draft, Exercise 6.11(1)]: for
+`x ∈ S`, the pair `(x, r′)` with `r′` uniform in `{0,1}^{p′(|x|)}` is a yes-instance of `Π′` with
+probability strictly greater than `1 / 2`. This is the bound of the illustration in the proof of
+Theorem 6.9, for the explicit reduction of `rpReducibleWithError_coinSplit`. -/
+theorem half_lt_toOuterMeasure_coinSplit_yes (h : SmallOfflineError encA S p' A') {x : α}
+    (hx : x ∈ S) :
+    1 / 2 < ((ProbComp.eval ((fun w => (x, w)) <$>
+      BitString.sampleList (p'.eval (encA x).length))).toOuterMeasure
+        (coinSplit h).yes).toReal := by
+  classical
+  simp only [ProbComp.eval_map, BitString.eval_sampleList]
+  rw [BitString.toOuterMeasure_map_uniformList_toReal, lt_div_iff₀ (by positivity)]
+  have hgood := lt_card_forall_not (fun w => A' (x, w) = false) (reject_bound h hx)
+  have hsub : ({r' : Fin (p'.eval (encA x).length) → Bool |
+      ∀ r'' : Fin (p'.eval (encA x).length) → Bool,
+        ¬A' (x, List.ofFn r' ++ List.ofFn r'') = false} : Finset _) ⊆
+      ({r' | (x, List.ofFn r') ∈ (coinSplit h).yes} : Finset (Fin _ → Bool)) := by
+    intro r' hr'
+    simp only [mem_filter, mem_univ, true_and] at hr' ⊢
+    refine ⟨List.length_ofFn, fun r'' hr'' => ?_⟩
+    obtain ⟨s, rfl⟩ := exists_ofFn_eq (hr''.trans List.length_ofFn)
+    simpa using hr' s
+  have h2 : (2 ^ p'.eval (encA x).length : ℝ) <
+      2 * (#{r' : Fin (p'.eval (encA x).length) → Bool |
+        (x, List.ofFn r') ∈ (coinSplit h).yes} : ℝ) := by
+    exact_mod_cast hgood.trans_le (Nat.mul_le_mul_left 2 (card_le_card hsub))
+  linarith
+
 /-- **Goldreich, Exercise 6.11(1)** [Goldreich2007Draft]: mapping `x` to `(x, r′)`, for `r′`
 uniform in `{0,1}^{p′(|x|)}`, is a one-sided error randomized Karp reduction of `S` to `Π′`. It
 maps every `x ∉ S` to a no-instance of `Π′` with certainty and every `x ∈ S` to a yes-instance
-with probability at least `1 / 2` (the proof gives more than `1 / 2`, as in the source). This is
-the `RP` error orientation, `RPReducibleWithError` between the complements
-(`rpReducibleWithError_compl_iff`). The reduction only samples `r′`, so it needs no assumption on
-the running time of `A′`. -/
+with probability at least `1 / 2`; the strict bound `> 1 / 2` of the source for this sampler is
+`half_lt_toOuterMeasure_coinSplit_yes`. This is the `RP` error orientation,
+`RPReducibleWithError` between the complements (`rpReducibleWithError_compl_iff`). The reduction
+only samples `r′`, so it needs no assumption on the running time of `A′`. -/
 theorem rpReducibleWithError_coinSplit (h : SmallOfflineError encA S p' A') :
     RPReducibleWithError encA (encPair encA encBits) (fun _ => 1 / 2) (ofSet S)ᶜ
       (coinSplit h)ᶜ := by
-  classical
   rw [rpReducibleWithError_compl_iff]
   refine ⟨fun x => (fun w => (x, w)) <$> BitString.sampleList (p'.eval (encA x).length),
     IsPPTOn.of_seeded
       ((ComputableInPolyTime.unary_eval p').comp (ComputableInPolyTime.encoding_length encA))
       ComputableInPolyTime.id',
-    fun x hx q hq => ?_, fun x hx => ?_⟩
-  · supp_cases hq [BitString.eval_sampleList, BitString.mem_support_uniformList_iff] with
-      ⟨w, -, rfl⟩
-    exact hx
-  · simp only [ProbComp.eval_map, BitString.eval_sampleList]
-    rw [BitString.toOuterMeasure_map_uniformList_toReal, le_div_iff₀ (by positivity)]
-    have hgood := lt_card_forall_not (fun w => A' (x, w) = false) (reject_bound h hx)
-    have hsub : ({r' : Fin (p'.eval (encA x).length) → Bool |
-        ∀ r'' : Fin (p'.eval (encA x).length) → Bool,
-          ¬A' (x, List.ofFn r' ++ List.ofFn r'') = false} : Finset _) ⊆
-        ({r' | (x, List.ofFn r') ∈ (coinSplit h).yes} : Finset (Fin _ → Bool)) := by
-      intro r' hr'
-      simp only [mem_filter, mem_univ, true_and] at hr' ⊢
-      refine ⟨List.length_ofFn, fun r'' hr'' => ?_⟩
-      obtain ⟨s, rfl⟩ := exists_ofFn_eq (hr''.trans List.length_ofFn)
-      simpa using hr' s
-    have := card_le_card hsub
-    have h2 : (2 ^ p'.eval (encA x).length : ℝ) <
-        2 * (#{r' : Fin (p'.eval (encA x).length) → Bool |
-          (x, List.ofFn r') ∈ (coinSplit h).yes} : ℝ) := by
-      exact_mod_cast hgood.trans_le (Nat.mul_le_mul_left 2 this)
-    linarith
+    fun x hx q hq => ?_, fun x hx => (half_lt_toOuterMeasure_coinSplit_yes h hx).le⟩
+  supp_cases hq [BitString.eval_sampleList, BitString.mem_support_uniformList_iff] with
+    ⟨w, -, rfl⟩
+  exact hx
 
 /-- **Goldreich, Exercise 6.11(2)** [Goldreich2007Draft]: `Π′` is in the promise version of
 `coRP`. On input `(x, r′)`, the algorithm rejects if `|r′| ≠ p′(|x|)`, and otherwise draws `r″`

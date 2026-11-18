@@ -41,6 +41,13 @@ example : RPReducibleWithError encBits (encPair encBits encBits) (fun _ => 1 / 2
     (coinSplit smallOfflineError)ᶜ :=
   rpReducibleWithError_coinSplit smallOfflineError
 
+/-- Goldreich's sampler, applied to the member `[true]`, hits `Π′_yes` with probability more
+than `1 / 2`. -/
+example : 1 / 2 < ((ProbComp.eval ((fun w => ([true], w)) <$>
+    BitString.sampleList (Polynomial.X.eval (encBits [true]).length))).toOuterMeasure
+      (coinSplit smallOfflineError).yes).toReal :=
+  half_lt_toOuterMeasure_coinSplit_yes smallOfflineError (by simp [S])
+
 /-- Exercise 6.11(2) for this algorithm. -/
 example : coinSplit smallOfflineError ∈ PromiseCoRP (encPair encBits encBits) :=
   coinSplit_mem_PromiseCoRP A'_polyTime smallOfflineError
