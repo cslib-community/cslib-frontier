@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine, OpenAI
 -/
 
-import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+module
+-- upstream: local-only (ordinary straight-observation parity clients)
+
+public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
 import CslibFrontier.Foundations.Geometry.SegmentSign
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
@@ -12,9 +15,11 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
 /-!
-Ordinary-import intersection-parity clients. Source-only draft: no elaboration claimed.
+Ordinary-import intersection-parity clients.
 The configurations retain endpoint-height coincidences and indexed multiplicities.
 -/
+
+public section
 
 namespace CslibFrontierTests.PolygonalRayParityIntersections
 
@@ -28,7 +33,8 @@ example : (0 : ℝ) ∉ openSegment ℝ 1 1 := by
   rw [Cslib.zero_mem_openSegment_iff_xor_pos (by norm_num) (by norm_num)]
   norm_num [Xor]
 
-private theorem vertical_law :
+/-- The ordinary vertical-segment example consumes the public intersection-parity law. -/
+theorem vertical_law :
     rayParity (fun _ : Unit => (⟨0, -2⟩ : ℂ)) (fun _ => ⟨0, 2⟩) (fun _ => true) ⟨1, 1⟩ +
       rayParity (fun _ : Unit => (⟨0, -2⟩ : ℂ)) (fun _ => ⟨0, 2⟩) (fun _ => true) ⟨-1, -1⟩ =
       ∑ _ : Unit, true * decide ((openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
@@ -59,8 +65,6 @@ private theorem vertical_law :
     have him := congrArg Complex.im heq
     norm_num [AffineMap.lineMap_apply_module'] at him
     linarith [hu.2]
-  · intro _ _ _
-    norm_num
   · intro z hz
     rw [segment_eq_image_lineMap] at hz
     obtain ⟨u, hu, rfl⟩ := hz
@@ -142,7 +146,6 @@ private theorem symmetric_events {ι : Type*} [Fintype ι] (k : ι → ℝ)
       have hre := congrArg Complex.re heq
       norm_num [AffineMap.lineMap_apply_module'] at hre
       linarith [hu.2])
-    (by intro i _ _; have := hk i; norm_num; linarith)
     (by
       intro z hz
       rw [segment_eq_image_lineMap] at hz
@@ -248,7 +251,7 @@ example : (0 : ℂ) ∈ segment ℝ (⟨0, -1⟩ : ℂ) ⟨0, 2⟩ ∧
   refine ⟨(1 / 3 : ℝ), by norm_num, ?_⟩
   norm_num [AffineMap.lineMap_apply_module']
 
--- Collinear overlap has zero determinant and is excluded, not counted as a tangency.
+-- Collinear overlap violates the endpoint exclusions; it is not a valid observation.
 example :
     ((⟨0, 2⟩ : ℂ) - ⟨0, -2⟩).re * ((⟨0, 1⟩ : ℂ) - ⟨0, -1⟩).im -
       ((⟨0, 2⟩ : ℂ) - ⟨0, -2⟩).im * ((⟨0, 1⟩ : ℂ) - ⟨0, -1⟩).re = 0 := by
@@ -305,8 +308,6 @@ private theorem diamond_law (once : Bool) :
   · exact fun i _ => diamond_observation_avoids once false i
   · exact fun i _ => diamond_endpoints_avoid once true i
   · exact fun i _ => diamond_endpoints_avoid once false i
-  · intro i _ _
-    cases once <;> fin_cases i <;> norm_num [diamond, diamondStart, finRotate]
   · intro z _
     exact sum_rayParity_endpoint_jumps_eq_zero diamond (fun i => diamond (finRotate 4 i))
       (fun _ => true) (cycle_even diamond) z
@@ -409,8 +410,6 @@ private theorem boundary_law :
   · exact fun i _ => boundary_observation_avoids false i
   · exact fun i _ => boundary_endpoints_avoid true i
   · exact fun i _ => boundary_endpoints_avoid false i
-  · intro i _ _
-    fin_cases i <;> norm_num [boundaryTriangle, boundaryC, boundaryD, finRotate]
   · intro z _
     exact sum_rayParity_endpoint_jumps_eq_zero boundaryTriangle
       (fun i => boundaryTriangle (finRotate 3 i)) (fun _ => true)

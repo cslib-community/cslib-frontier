@@ -16,7 +16,8 @@ import Mathlib.Tactic.Linarith
 # Intersection parity along a straight observation segment
 
 This is original finite coordinate geometry. The observation and listed segments are
-nonhorizontal; their endpoints avoid the other selected supports. Endpoint-height jumps
+nonhorizontal. Observation endpoints avoid selected closed segments, and selected segment
+ends avoid the closed observation. Endpoint-height jumps
 are summed with occurrence multiplicity, including simultaneous events and duplicate
 segments. The intended application is isolated-interior ray-parity transport.
 
@@ -388,8 +389,7 @@ private theorem weighted_sweeps_eq_zero {ι : Type*} [Fintype ι]
 intersections with a straight observation segment when endpoint-height jumps cancel
 throughout its closed support. Occurrences are counted separately, even at simultaneous
 contacts or for duplicate geometric segments. No simplicity or no-triple premise is used.
-The transversality condition is stated for actual common open points; for straight segments
-it is already forced by the closed endpoint exclusions and nonhorizontal hypotheses. -/
+No separate determinant or generic-position premise is needed. -/
 theorem rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
     {ι : Type*} [Fintype ι] (a b : ι → ℂ) (x : ι → Bool) (c d : ℂ)
     (hheight : ∀ i, (a i).im ≠ (b i).im) (hcd : c.im ≠ d.im)
@@ -397,9 +397,6 @@ theorem rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
     (hd : ∀ i, x i = true → d ∉ segment ℝ (a i) (b i))
     (ha : ∀ i, x i = true → a i ∉ segment ℝ c d)
     (hb : ∀ i, x i = true → b i ∉ segment ℝ c d)
-    (_htrans : ∀ i, x i = true →
-      (openSegment ℝ (a i) (b i) ∩ openSegment ℝ c d).Nonempty →
-      ((b i - a i).re * (d - c).im - (b i - a i).im * (d - c).re) ≠ 0)
     (hjump : ∀ z ∈ segment ℝ c d,
       (∑ i, x i * (decide ((a i).im = z.im ∧ z.re < (a i).re) +
         decide ((b i).im = z.im ∧ z.re < (b i).re))) = 0) :

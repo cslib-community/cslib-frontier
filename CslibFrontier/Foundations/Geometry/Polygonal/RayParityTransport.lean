@@ -118,7 +118,7 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
     (fun j hy => havoid _ (right_mem_segment ℝ _ _) j hy)
     (fun j hy hz => havoid _ hz j hy (left_mem_segment ℝ _ _))
     (fun j hy hz => havoid _ hz j hy (right_mem_segment ℝ _ _))
-    (fun j hy hz => (hno j hy hz).elim) hjump
+    hjump
   have hzero : (∑ j, y j * decide
       ((openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point s) (point t)).Nonempty)) = 0 := by
     apply Finset.sum_eq_zero
