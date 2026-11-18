@@ -32,11 +32,14 @@ simulated inside a finitely-branching `ProbComp` adversary.
 
 This finite-type identity is a step toward Theorem 4.8, not the cited result: in the theorem the
 reduction is an elementary wrapper around `A` and the conclusion is that the generator is a secure
-PRG, while nothing here certifies `prgReduction` as efficient. The cited result is
-`Cslib.Crypto.PseudorandomFunctionOver.toPRG`, with the exact identity
-`Cslib.Crypto.advantage_prgFromPRF_eq` for the oracle-PPT word reduction
-`Cslib.Crypto.prgFromPRFReduction`, which runs `prgReduction`
-(`CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG`).
+PRG, while nothing here certifies `prgReduction` as efficient. In
+`CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG`, the theorem's security conclusion
+is `Cslib.Crypto.indistinguishable_prgFromPRF`. The exact identity
+`Cslib.Crypto.advantage_prgFromPRF_eq` explains the reduction: it equates the two advantages for
+the oracle-PPT word reduction `Cslib.Crypto.prgFromPRFReduction`, which runs `prgReduction`.
+`Cslib.Crypto.PseudorandomFunctionOver.toPRG` concludes `PseudorandomGenerator` and so also needs
+strict stretch, `n < ℓ n * outLen n`. For example, one output block as wide as the seed gives
+indistinguishable outputs but no stretch.
 
 ## Main definitions
 
@@ -145,9 +148,9 @@ theorem eval_idealExperiment_prgReduction [Fintype D] [DecidableEq D] [Fintype R
 /-- Finite-type advantage identity, a step toward [BonehShoup2023], Theorem 4.8 (p. 138), not the
 cited result: for any `ProbComp`-valued distinguisher `A` on `Fin ℓ → R`, its PRG distinguishing
 advantage against `toPRG F x` equals the PRF distinguishing advantage of the `ℓ`-query reduction
-`prgReduction x A` against `F`. Nothing here certifies `prgReduction` as efficient; the cited
-result, with an oracle-PPT reduction, is `Cslib.Crypto.PseudorandomFunctionOver.toPRG` and
-`Cslib.Crypto.advantage_prgFromPRF_eq`. -/
+`prgReduction x A` against `F`. Nothing here certifies `prgReduction` as efficient. The theorem's
+security conclusion, with an oracle-PPT reduction, is `Cslib.Crypto.indistinguishable_prgFromPRF`;
+its exact identity is `Cslib.Crypto.advantage_prgFromPRF_eq`. -/
 theorem advantage_toPRG_eq [Fintype Key] [Nonempty Key] [Fintype D] [DecidableEq D]
     [Fintype R] [Nonempty R]
     (F : Key → D → R) (x : Fin ℓ ↪ D) (A : (Fin ℓ → R) → ProbComp Bool) :

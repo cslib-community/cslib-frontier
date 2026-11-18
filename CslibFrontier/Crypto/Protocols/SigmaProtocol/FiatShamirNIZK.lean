@@ -23,7 +23,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# Fiat–Shamir non-interactive zero-knowledge proofs of knowledge in the random-oracle model
+# Fiat–Shamir non-interactive proofs in the random-oracle model: completeness and concrete bounds
 
 The Fiat–Shamir transformation ([FiatShamir1986]; [BonehShoup2023], Sections 20.3.3–20.3.5)
 compiles a public-coin Sigma protocol `P : SigmaProtocol X Y T C Z` for a relation
@@ -36,8 +36,8 @@ in the hash query is essential when statements can be chosen adaptively after qu
 `t` alone fails soundness on protocols such as Schnorr's where a cheating prover can solve the
 verification equation for `y` after seeing `H(t)`.
 
-This module establishes the random-oracle security properties of Fiat–Shamir NIZK proofs as exact
-probability laws over `OracleComp`:
+This module proves completeness of Fiat–Shamir non-interactive proofs and concrete simulation,
+extraction and soundness bounds for them in the `OracleComp` random-oracle model:
 
 1. **Completeness** (`fiatShamirNIZK_complete`, `fiatShamirNIZK_verify_of_prove`; [BonehShoup2023],
    Section 20.3.3): for every `(x, y)` with `R x y` and every initial random-oracle cache `cache`,
@@ -69,7 +69,7 @@ probability laws over `OracleComp`:
      outputs `some w` with `R w y`. On a false statement this gives the soundness bound
      `(Qro + 1) / |C|` (`succProbability_fiatShamirNIZKPokGame_le_of_false`). [BonehShoup2023],
      Section 20.3.4, proves soundness (Theorem 20.2) by guessing the relevant hash query instead.
-   * *Derived adaptive multi-theorem simulation-extractability* (`fiatShamirNIZKSimExtractWith`,
+   * *Derived adaptive simulation-extraction bounds* (`fiatShamirNIZKSimExtractWith`,
      `fiatShamirNIZKSimExtract`, `succProbability_fiatShamirNIZKRealExtGame_le`,
      `succProbability_fiatShamirNIZKSimExtGame_le`): derived here by combining our Attack Game 20.3
      zero-knowledge simulation hop, `SimCoinSource` presampling across forks, and
@@ -83,15 +83,15 @@ probability laws over `OracleComp`:
 
 Specializations are provided for `SigmaProtocol.linear` and `SigmaProtocol.schnorr`, using an
 explicit statement-independent simulator coin source (`linearSimCoinSource`) so that `linear` and
-`schnorr` simulation-extractability require no finiteness assumption on the statement or group
+`schnorr` simulation-extraction bounds require no finiteness assumption on the statement or group
 carrier types.
 
-All results are exact finite probability laws in the `OracleComp` random-oracle model for one
-Sigma protocol. The zero-knowledge, extraction and soundness bounds are steps toward
-[BonehShoup2023], Theorems 20.2 and 20.3, not the cited results: those theorems conclude that the
-proof system is sound (Definition 20.4) and niZK (Definition 20.5, which asks for an efficient
-simulator), while nothing here certifies the simulator `nizkSimProve` or the rewinding extractors
-as efficient. The asymptotic theorems are open (#5293).
+Every result is about one Sigma protocol: completeness is an equality of distributions, and the
+other results are concrete inequalities. The zero-knowledge, extraction and soundness bounds are
+steps toward [BonehShoup2023], Theorems 20.2 and 20.3, not the cited results: those theorems
+conclude that the proof system is sound (Definition 20.4) and niZK (Definition 20.5, which asks
+for an efficient simulator), while nothing here certifies the simulator `nizkSimProve` or the
+rewinding extractors as efficient. The asymptotic theorems are open (#5293).
 
 ## Main definitions
 
