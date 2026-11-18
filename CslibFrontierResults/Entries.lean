@@ -237,6 +237,12 @@ import CslibFrontier.Crypto.Protocols.PIR.Shamir
 import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 import CslibFrontier.Crypto.Computational.ElGamal.Homomorphism
+import CslibFrontier.Crypto.Computational.DiffieHellman.CyclicGroupFamily
+import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
+import CslibFrontier.Crypto.Computational.Factoring.WeakModuli
+import CslibFrontier.Crypto.Computational.GenericGroup.DiffieHellman
+import CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog
+import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
@@ -6745,6 +6751,226 @@ register_result "cramer-shoup-ddh-cca" where
     query on a challenge ciphertext (with its associated data) is answered as a rejection, \
     where the source forbids it. The proof follows Theorem 12.9 for the hybrid scheme E_CS of \
     Section 12.5.3, which is not formalized. Asymptotic; no concrete bound is stated."
+
+register_result "elgamal-strongly-unpredictable-ciphertexts" where
+  title := "ElGamal encryption has strongly unpredictable ciphertexts"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "remark that ElGamal-based encryption meets the requirement (unnumbered)",
+      locator := "Section 21.4.1, p. 872" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.stronglyUnpredictable_elGamalEncryptProb,
+    Cslib.Crypto.PrimeOrderGroupFamily.stronglyUnpredictable_hybrid_hashedElGamal
+  ]
+  scope := "StronglyUnpredictable (Encryption/StronglyUnpredictable.lean) is the definition of \
+    Section 21.4.1: one negligible ε such that at every n, for every public key word pk, \
+    including malformed or adversarially chosen ones, every message m and every non-error \
+    ciphertext c, Pr[E(pk, m) = c] ≤ ε(n). The book's error output is none; these schemes \
+    never produce it. stronglyUnpredictable_iff_forall, in that module, shows that the single \
+    ε is equivalent to negligibility along every sequence (pk, m, c). The schemes are the \
+    library's ElGamal programs over a PrimeOrderGroupFamily with a deterministic group \
+    schedule d, the group at n being d n: elGamalEncryptProb, the multiplicative ElGamal \
+    scheme E_MEG of Exercise 11.5 (p. 459), for any message encoding; and hybridEncrypt \
+    (hashedElGamalEncapsProb H d) encryptSym, the KEM–DEM form of the variant E′_EG of \
+    Remark 11.1 (p. 446), which hashes w alone, for any hash H and any symmetric encryption \
+    algorithm. E_EG itself, which hashes (v, w), is not an instance, although the argument does \
+    not depend on the hash. Hypothesis: 1/q(d n) is negligible, a condition on the parameters \
+    that CDH or DDH at the point-mass setup implies (CDH.negligible_inv_order and \
+    DDH.negligible_expected_inv_order, DiffieHellman/Order.lean). Both schemes draw the \
+    ephemeral exponent β with the fair-coin sampler sampleExp, and the first ciphertext \
+    component β·g determines β mod q, so ciphertextHitBound_elGamalEncryptProb and \
+    ciphertextHitBound_hybrid_hashedElGamal, in the same module, bound every hit probability by \
+    1/q + 1/2^n. The collision bound of Section 21.9.6 (p. 897) is not part of this entry."
+
+register_result "ddh-even-order-parity-attack" where
+  title := "DDH does not hold in cyclic groups of even order"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Exercise 10.24, with the parity test of Section 16.1.3 (Lemmas 16.1–16.2)",
+      locator := "Section 10.11, p. 431; Section 16.1.3, p. 687" }
+  ]
+  theorems := [
+    Cslib.Crypto.CyclicGroupFamily.not_ddh_of_even_order,
+    Cslib.Crypto.CyclicGroupFamily.isPPT_ddhParityDistinguisher
+  ]
+  scope := "CyclicGroupFamily.DDH setup is Attack Game 10.6 (p. 410) with the order not \
+    required to be prime, as Exercise 10.24 specifies: group parameters d from any setup law, \
+    uniform exponents in Z_q, and distinguishers that are uniform strict PPT on the encoding of \
+    (1^n, d, a·g, b·g, w). On a prime-order family it is PrimeOrderGroupFamily.DDH \
+    (ddh_toCyclicGroupFamily_iff). The distinguisher is the test of Section 16.1.3 (p. 687), \
+    written additively: it accepts when (q/2)·w = 0 holds exactly when (q/2)·(a·g) = 0 or \
+    (q/2)·(b·g) = 0, the parity comparison of Lemmas 16.1 and 16.2. It is deterministic and \
+    certified uniform strict PPT on that encoding (isPPT_ddhParityDistinguisher). \
+    not_ddh_of_even_order: if every group the setup law can produce has even order, DDH does \
+    not hold. The proof gives the parity test advantage at least 1/2 at every n \
+    (inv_le_advantage_ddhSmallFactorDistinguisher with the factor 2), and \
+    ddhAdvantage_ddhParityDistinguisher (DiffieHellman/EvenOrder.lean) states that its \
+    advantage is exactly 1/2 in every fixed cyclic group of even order, the exercise's 1/2. \
+    The hypothesis can hold: not_ddh_residueGroups (CslibFrontierTests, \
+    DiffieHellmanEvenOrder.lean) applies the theorem to a family of even-order groups. \
+    Efficiency is polynomial time on encodings, not a count of group operations. The book's \
+    remark that DDH fails in Z_p^* is proved only for one fixed group \
+    (ddhAdvantage_units_ddhParityDistinguisher); no family of the groups Z_p^* is constructed."
+
+register_result "ddh-small-prime-factor-attack" where
+  title := "DDH does not hold when the group order has a polynomially small prime factor"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 16.2(a)", locator := "Section 16.7, p. 707" }
+  ]
+  theorems := [
+    Cslib.Crypto.CyclicGroupFamily.not_ddh_of_polynomiallyBounded_minFac,
+    Cslib.Crypto.CyclicGroupFamily.inv_le_advantage_ddhSmallFactorDistinguisher,
+    Cslib.Crypto.CyclicGroupFamily.isPPT_ddhSmallFactorDistinguisher
+  ]
+  scope := "DDH over a CyclicGroupFamily, as in the entry for Exercise 10.24: Attack Game 10.6 \
+    (p. 410) without the prime-order restriction, any setup law, and uniform strict PPT \
+    distinguishers on encodings. ddhSmallFactorDistinguisher generalizes the parity test of \
+    Section 16.1.3 from 2 to a prime factor l of q: it accepts when (q/l)·w = 0 holds exactly \
+    when (q/l)·(a·g) = 0 or (q/l)·(b·g) = 0. It takes a factor selector and is certified \
+    uniform strict PPT whenever the selector is polynomial time \
+    (isPPT_ddhSmallFactorDistinguisher). inv_le_advantage_ddhSmallFactorDistinguisher: when the \
+    selected factor is a prime divisor of q at most B for every group in the support of \
+    setup n, the advantage at n is at least 1/B. not_ddh_of_polynomiallyBounded_minFac: if for \
+    infinitely many n every group in the support has q > 1 with smallest prime factor at most \
+    bound n, for a polynomially bounded bound, then DDH does not hold. This is the exercise's \
+    conclusion that DDH is false when the smallest prime factor is small, with small read as \
+    polynomially bounded. The proof's selector finds the greatest prime factor up to \
+    C·(n + 1)^D by bounded search with a primality test, where the exercise uses the smallest; \
+    any prime factor up to bound n gives advantage at least 1/bound n. In one fixed group and \
+    for a prime l dividing q, ddhAdvantage_ddhSmallFactorDistinguisher \
+    (DiffieHellman/SmallFactor.lean) gives the exact advantage (3l − 2)(l − 1)/l³, at least 1/l \
+    (inv_le_ddhAdvantage_ddhSmallFactorDistinguisher), the exercise's 'about 1/ℓ'. \
+    Efficiency is polynomial time on encodings; the exercise's O(log q) group operations is not \
+    proved as a count of group operations. Part (b) is not formalized."
+
+register_result "rsa-close-prime-factoring" where
+  title := "An RSA modulus whose prime factors differ by less than 2n^{1/4} is factored in \
+    polynomial time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Lemma 16.4 and the factoring method that follows it",
+      locator := "Section 16.4.2.1, p. 699" }
+  ]
+  theorems := [
+    Cslib.Crypto.abs_add_div_two_sub_sqrt_mul_lt_half,
+    Cslib.Crypto.RSADesc.fermatFactor_eq,
+    Cslib.Crypto.computableInPolyTime_fermatFactor
+  ]
+  scope := "Lemma 16.4, abs_add_div_two_sub_sqrt_mul_lt_half: for positive reals p and q with \
+    |p − q| < 2(pq)^{1/4}, |(p + q)/2 − √(pq)| < 1/2, as printed with n = pq. The factoring \
+    method: fermatFactor n sets A = ⌈√n⌉ (step 1) and solves p + q = 2A, pq = n for the \
+    factors with factorOfTotient (step 2). RSADesc.fermatFactor_eq: for an RSA key description \
+    (distinct primes p and q, modulus n = pq) with p ≠ 2 and q ≠ 2, the book's 'p and q are odd \
+    primes', and |p − q| < 2n^{1/4}, the last bound of (16.11), fermatFactor n is \
+    (max p q, min p q). computableInPolyTime_fermatFactor: fermatFactor runs in polynomial time \
+    on binary naturals. It tries only A = ⌈√n⌉, as on p. 699, not the search over A of \
+    Exercise 16.13; the name fermatFactor is the library's. The generalization to \
+    |ap − bq| < n^{1/4} (Exercise 16.14, p. 710) is in Factoring/LinearRelation.lean and is not \
+    part of this entry."
+
+register_result "rsa-shared-prime-gcd" where
+  title := "RSA moduli that share a prime factor are factored by their gcd"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "gcd attack on moduli that share a prime (unnumbered)",
+      locator := "Section 16.4.2, p. 698" }
+  ]
+  theorems := [
+    Cslib.Crypto.RSADesc.gcd_modulus_eq_of_p_eq
+  ]
+  scope := "For two RSA key descriptions with the same prime p and different second primes, \
+    gcd(n₁, n₂) = p, which factors both moduli. The book's attacker computes gcd(n_i, n_j) for \
+    the moduli of devices that generated the same p from a low-entropy seed; that key \
+    generation is not modelled, and the shared prime is the first prime of both descriptions. \
+    gcd_mul_mul_of_prime_ne, in the same module, is the identity on naturals. The gcd is \
+    polynomial time on binary naturals by Turing.MultiTapeTM.ComputableInPolyTime.binary_gcd, \
+    the library's certificate for Nat.gcd, in another module."
+
+register_result "generic-group-dlog-lower-bound" where
+  title := "A generic algorithm with T group-oracle queries finds a discrete logarithm with \
+    probability at most ((3T + 2)²/2 + 1)/q"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 16.3", locator := "Section 16.3, pp. 693–695" }
+  ]
+  theorems := [
+    Cslib.Crypto.GenericGroup.succProbability_dlogGame_le,
+    Cslib.Crypto.GenericGroup.le_of_half_le_succProbability_dlogGame
+  ]
+  scope := "The generic group model as Boneh–Shoup state it (Section 16.3, p. 693): the oracle \
+    holds a uniformly random injective labeling L : Z_q → S and answers a labeling query β \
+    with L(β), and a group operation (ℓ₁, ℓ₂, κ₁, κ₂) with L(κ₁β₁ + κ₂β₂) when ℓ₁ = L(β₁) and \
+    ℓ₂ = L(β₂), and with reject (none) otherwise (GroupOracleSpec, answer, runLabeled). S is \
+    any finite type with an injection from Z_q, the book's |S| ≥ q, in place of a set of bit \
+    strings; groups are written additively. dlogGame draws L and α uniformly, gives the \
+    adversary L(1) and L(α) without charging it a query, and wins when the adversary outputs α: \
+    Game 0 of the proof. Adversaries are randomized oracle programs, otherwise unbounded as on \
+    p. 695, that make at most T labeling and group-operation queries on every path \
+    (IsQueryBounded; private coins are free). succProbability_dlogGame_le: for prime q, the \
+    success probability is at most ((3T + 2)²/2 + 1)/q, eq. (16.6). \
+    le_of_half_le_succProbability_dlogGame: success probability at least 1/2 forces \
+    q ≤ (3T + 2)² + 2, the remark on p. 695 that T must then be about √q/3 or more. \
+    succProbability_dlogGame_le_choose, in the same module, is the sharper \
+    ((3T + 2) choose 2 + 1)/q that the proof gives before rounding. No computational \
+    assumption: a statement in the idealized model, not about any specific group."
+
+register_result "generic-group-cdh-lower-bound" where
+  title := "A generic algorithm with T group-oracle queries solves CDH with probability at most \
+    ((3T + 4)²/2 + 2)/q"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 16.5(a)", locator := "Section 16.7, p. 708" }
+  ]
+  theorems := [
+    Cslib.Crypto.GenericGroup.succProbability_cdhGame_le,
+    Cslib.Crypto.GenericGroup.le_of_half_le_succProbability_cdhGame
+  ]
+  scope := "The generic group model of Section 16.3 (p. 693), with the oracle, labelings, finite \
+    label type with |S| ≥ q, query budget and otherwise unbounded randomized adversaries of the \
+    entry for Theorem 16.3. cdhGame draws L, α and β uniformly, gives the adversary L(1), L(α) \
+    and L(β), and wins when the adversary outputs the label L(αβ). The exercise asks for a \
+    lower bound, similar to Theorem 16.3, on the time to compute CDH with probability one half, \
+    and prints no bound. succProbability_cdhGame_le: for prime q, the success probability is at \
+    most ((3T + 4)²/2 + 2)/q; the proof's table holds two more linear forms than in \
+    Theorem 16.3 (the challenge L(β) and the output label), and the guess term is 2/q because \
+    XY agrees with a fixed linear form at no more than 2q − 1 of the q² points. \
+    le_of_half_le_succProbability_cdhGame: success probability at least 1/2 forces \
+    q ≤ (3T + 4)² + 4, so T must be about √q/3 or more. succProbability_cdhGame_le_choose, in \
+    the same module, is the sharp form. The bound is not claimed for composite q. Part (b), \
+    interactive CDH, is not formalized."
+
+register_result "hors-containment-free" where
+  title := "The HORS subset map is a polynomial-time containment-free map into sets of size ℓ"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "the injective map P_hors into Sets[n, ℓ] (unnumbered)",
+      locator := "Section 14.4, p. 593" }
+  ]
+  theorems := [
+    Cslib.Crypto.OneTimeSignature.horsSet_containmentFree,
+    Cslib.Crypto.OneTimeSignature.card_horsSet,
+    Cslib.Crypto.OneTimeSignature.horsWord_polyTime
+  ]
+  scope := "ContainmentFree P is Definition 14.3 (p. 587): P(m) ⊄ P(m′) for distinct m and m′, \
+    which implies that P is injective. Section 14.4 needs an injective, efficiently computable \
+    P_hors : {0,1}^v → Sets[n, ℓ], says that such a map is containment free, and refers to \
+    Exercise 14.3 (Section 14.9, pp. 607–608) for one whenever 2^v ≤ (n choose ℓ). horsSet n ℓ \
+    sends a v-bit message to the positions, numbered from 0, of the true bits of \
+    horsWord n ℓ m = unrankCombination n ℓ applied to the value of m read most significant bit \
+    first. card_horsSet: when 2^v ≤ (n choose ℓ), every image has ℓ elements. \
+    horsSet_containmentFree: under the same condition, horsSet n ℓ is containment free. \
+    horsWord_polyTime: horsWord runs in time polynomial in n and ℓ, given in unary, and in the \
+    message. The unranking is the library's unrankCombination, which takes the branches in the \
+    opposite order to the loop printed in Exercise 14.3; that loop is not formalized, so the \
+    entry claims the map of Section 14.4, not the exercise's algorithm. The HORS signature \
+    scheme, its security and the Merkle-tree public key are not part of this entry."
 
 register_result "prf-mac-suf-cma" where
   title := "A secure pseudorandom function is a strongly unforgeable MAC"
