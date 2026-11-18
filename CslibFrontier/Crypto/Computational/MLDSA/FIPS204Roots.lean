@@ -29,7 +29,7 @@ theorem orderOf_zeta : orderOf (1753 : ZMod 8380417) = 512 :=
   orderOf_eq_prime_pow (p := 2) (n := 8) (by decide +kernel) (by decide +kernel)
 
 /-- The odd roots of `X^256 + 1` in exponent order, before the bit reversal in equation (2.1). -/
-def nttNode (i : Fin 256) : ZMod 8380417 := 1753 ^ (2 * i.val + 1)
+@[expose] def nttNode (i : Fin 256) : ZMod 8380417 := 1753 ^ (2 * i.val + 1)
 
 theorem nttNode_pow (i : Fin 256) : nttNode i ^ 256 = -1 := by
   have h : (1753 : ZMod 8380417) ^ 256 = -1 := by decide +kernel
