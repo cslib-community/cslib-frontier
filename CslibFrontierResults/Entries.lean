@@ -189,6 +189,7 @@ import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneWay.Iterate
 import CslibFrontier.Crypto.Computational.OneWay.IterateCounterexample
+import CslibFrontier.Crypto.Computational.OneWay.LengthPreserving
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
 import CslibFrontier.Crypto.Computational.OneWayToPRF
@@ -1418,6 +1419,21 @@ register_result "goldreich-low-degree-extension-individual-degree" where
     degree at most |H| - 1 in each variable that agrees with f on H^m; it is the Lagrange-basis \
     extension of the guideline. Uniqueness and the running time of footnote 12 are not \
     formalized."
+
+register_result "goldreich-length-preserving-one-way" where
+  title := "One-way functions yield length-preserving one-way functions"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.1",
+      locator := "March 2007 draft r4.pdf, PDF p. 41; printed p. 305" }
+  ]
+  theorems := [Cslib.Crypto.OneWay.exists_lengthPreserving]
+  scope := "One-wayness as in Cslib.Crypto.OneWay (Definition 7.1): a uniform strict \
+    probabilistic polynomial-time inverter receives the unary size and the image of a uniform \
+    n-bit input, and any preimage counts. If f is one-way, some one-way f' satisfies \
+    |f'(x)| = |x| for every x. The construction tags the image with the parameter and uses \
+    self-delimiting padding instead of the guideline's 0 1^k padding; the statement is \
+    unchanged. Outside-fleet six-point source check: review 5949710318 on PR #6352."
 
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"

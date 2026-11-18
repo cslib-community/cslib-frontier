@@ -19,7 +19,7 @@ import CslibFrontier.Probability.PMF.Bind
 # Length-preserving one-way functions
 
 If one-way functions exist, then length-preserving one-way functions exist
-[Goldreich, Exercise 7.1][Goldreich2007Draft]: some one-way function `f'` has `|f'(x)| = |x|` for
+[Goldreich, Exercise 7.1][Goldreich2007DraftR4]: some one-way function `f'` has `|f'(x)| = |x|` for
 every `x` (`Cslib.Crypto.OneWay.exists_lengthPreserving`).
 
 The construction follows the guideline of the exercise. Normalize the output length of a one-way
@@ -49,7 +49,7 @@ of different parameters are disjoint and the reindexing reduction of
 ## References
 
 * [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft `r4.pdf` of
-  March 2007][Goldreich2007Draft], Exercise 7.1 (printed page 305, PDF page 41).
+  March 2007][Goldreich2007DraftR4], Exercise 7.1 (printed page 305, PDF page 41).
 -/
 
 @[expose] public section
@@ -205,7 +205,7 @@ theorem OneWayLengthPreserving.oneWay {g : List Bool → List Bool} {L : ℕ →
     exact negligible_of_eventually_le (hreindex.inversion_negligible _ hfit)
       (eventually_ge_atTop (schedule L 0) |>.mono fun M hM => inversion_le hlen adversary hM)
 
-/-- **[Goldreich, Exercise 7.1][Goldreich2007Draft]**: if one-way functions exist, then
+/-- **[Goldreich, Exercise 7.1][Goldreich2007DraftR4]**: if one-way functions exist, then
 length-preserving one-way functions exist. From any one-way function `f` we obtain a one-way
 function `f'` with `|f'(x)| = |x|` for every `x`. One-wayness is `Cslib.Crypto.OneWay`: polynomial
 time evaluation, and negligible inversion probability against uniform strict PPT inverters. -/
