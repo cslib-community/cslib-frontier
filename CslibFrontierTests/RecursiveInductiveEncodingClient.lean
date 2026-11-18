@@ -80,22 +80,27 @@ example : ComputableInPolyTime
     ((encFormula_and_field1?_polyTime 0).comp
       (ComputableInPolyTime.snd encBits (encFormula 0)))
 
--- Audit both generated declarations (which live in the fixture) and the new library helpers.
--- This catches a sorry or an unexpected axiom hidden behind any generated certificate.
+example (x0 γ encIn : ℕ) (value : Term (x0 + γ + encIn)) :
+    BinderHygiene.encCollision_decodeTokens x0 γ encIn
+      (BinderHygiene.encCollision_tokens x0 γ encIn value) = some value :=
+  BinderHygiene.encCollision_decodeTokens_tokens x0 γ encIn value
+
+example {η : Type} {input : η ↪ List Bool} (x0 γ encIn : ℕ)
+    {left right : η → Term (x0 + γ + encIn)}
+    (hl : ComputableInPolyTime left input (BinderHygiene.encCollision x0 γ encIn))
+    (hr : ComputableInPolyTime right input (BinderHygiene.encCollision x0 γ encIn)) :
+    ComputableInPolyTime (fun a => Term.add (left a) (right a)) input
+      (BinderHygiene.encCollision x0 γ encIn) :=
+  BinderHygiene.encCollision_add_polyTime x0 γ encIn hl hr
+
+-- Require the fixture's own generated declarations; the global audit covers library helpers.
 open Lean Elab Command in
 run_cmd do
   let env := (← getEnv).setExporting false
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
   let mut checked := 0
-  let modules := [
-    `CslibFrontierTests.RecursiveInductiveEncoding,
-    `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive,
-    `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser,
-    `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveChild,
-    `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial,
-    `CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPair]
   for moduleName in env.header.moduleNames, data in env.header.moduleData do
-    if modules.contains moduleName then
+    if moduleName == `CslibFrontierTests.RecursiveInductiveEncoding then
       for name in data.constNames do
         checked := checked + 1
         let axioms ← collectAxioms name
