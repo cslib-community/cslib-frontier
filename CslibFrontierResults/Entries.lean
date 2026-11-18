@@ -93,6 +93,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Hastad.Sharp
 import CslibFrontier.Computability.Circuit.Boolean.FormalComplexityMeasure
 import CslibFrontier.Computability.Circuit.Boolean.Khrapchenko
 import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator
+import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Restriction
 import CslibFrontier.Computability.Circuit.Boolean.NonuniformSeparation
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
@@ -4774,6 +4775,20 @@ register_result "gap-mcsp-oracle-circuits" where
     (Definition 11) at input length m with n = log₂ m, the gap condition holding at every n; its \
     size bound has a + 1 for input length 0, which has no instances. The gap condition replaces \
     the source's constructive s(n) ≤ 2^n/poly(n)."
+
+register_result "arora-barak-uniform-restriction-largeness" where
+  title := "A random Boolean function remains nonconstant under all sufficiently large subcube restrictions"
+  topic := "circuit complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 22, Exercise §2",
+      locator := "2007-01-08 public draft, printed p. 443 / PDF p. 459" }
+  ]
+  theorems := [Cslib.Circuits.Boolean.tendsto_prob_no_constant_restriction]
+  scope := "For each fixed real ε in (0, 1), the probability tends to one as the input length n \
+    grows. The truth table is uniform over all Boolean functions on n bits. Every partial \
+    assignment fixing at most n − n^ε coordinates must leave a nonconstant function. The real \
+    cutoff is equivalent to requiring at least ⌈n^ε⌉ free coordinates. This is the largeness \
+    claim for Example 22.5."
 
 register_result "natural-proofs" where
   title := "Razborov–Rudich: subexponentially secure generators rule out natural proofs \
