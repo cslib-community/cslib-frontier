@@ -331,7 +331,8 @@ theorem advantage_kemGame_hashedElGamalEncapsProb_le (keyLen : ℕ → ℕ)
 
 /-- **Key-encapsulation step of Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of
 Remark 11.1** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
-pp. 449–451, with the KEM notion of Exercise 11.9, pp. 460–461): the KEM
+pp. 449–451, with the KEM notion `Encryption.KEMINDCPA`, which strengthens that of Exercise 11.9,
+pp. 460–461, by giving the distinguisher the public key): the KEM
 `(elGamalKeyGenProb d, hashedElGamalEncapsProb H d)`, which derives its key from the
 Diffie–Hellman element `w = b • u` alone (`H (d n, encode w)`, not Theorem 11.5's `H (v, w)`), over
 a deterministic group schedule `d : ℕ → F.Desc`, satisfies `Encryption.KEMINDCPA keyLen` when

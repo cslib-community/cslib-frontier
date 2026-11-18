@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
+import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
@@ -90,3 +90,19 @@ example (base : Xofs) (s : Level) (seed : FixedBytes 32) {a b : ℕ} (ha : 1024 
   · rintro p ⟨keys, hg, hne⟩
     exact ⟨keys, hg, formattedMessage (choose p keys), hne⟩
   · norm_num
+
+-- With no signing calls, the two full games agree even when the forger uses the quantum device.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 64 ≤ b) (hn : C.SigningCallsLe 0) :
+    C.maskSeedGame s base ha hb hn (by decide) false SignedMatrixTrial.newDigestWin =
+      C.privateMaskSeedGame s base a b := by
+  apply dist_le_zero.mp
+  simpa using C.dist_maskSeedGame_privateMaskSeedGame s base ha hb hn (by decide)
+
+-- The mask-seed replacement in the scored game costs at most 2⁻¹⁹² at 2⁶⁴ signing calls,
+-- for every FIPS level, including adaptive signing and interleaved coherent queries.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 64 ≤ b) (hn : C.SigningCallsLe (2 ^ 64)) :
+    dist (C.maskSeedGame s base ha hb hn (by decide) false SignedMatrixTrial.newDigestWin)
+      (C.privateMaskSeedGame s base a b) ≤ 1 / 2 ^ 192 := by
+  exact (C.dist_maskSeedGame_privateMaskSeedGame s base ha hb hn (by decide)).trans (by norm_num)

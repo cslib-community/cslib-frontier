@@ -188,7 +188,8 @@ theorem Xofs.evalPure_signDigestQueries (H : Xofs) (s : Level) (D) (key : List B
   have matrix := Xofs.expandA_congr (K := H.withDigestRegister s D) (H := H) rfl s
   by_cases hc : q.context.length ≤ 255
   · simp only [Xofs.signDigestQueries, Xofs.sign, guard, hc, ↓reduceIte, Option.pure_def,
-      Option.bind_eq_bind, Option.bind_some, Xofs.signInternal, Xofs.startSigning]
+      Option.bind_eq_bind, Option.bind_some, Xofs.signInternal, Xofs.runSigning,
+      Xofs.startSigning, Xofs.startSigningWithSeed]
     cases hd : decodePrivate s key with
     | none => rfl
     | some sk =>

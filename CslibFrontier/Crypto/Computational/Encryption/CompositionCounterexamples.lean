@@ -120,7 +120,8 @@ namespace SymmetricCipher
 
 /-- Modified symmetric cipher `E.tailFallback` ([KatzLindell2020], Exercise 5.10, printed p. 165):
 `keyGen` and `encrypt` are identical to `E`, while `decrypt n k ct` returns `E.decrypt n k ct`
-whenever that succeeds and otherwise falls back to `E.decrypt n k ct.tail` on non-empty `ct`. -/
+whenever that succeeds and otherwise falls back to `E.decrypt n k ct.tail` on non-empty `ct`.
+Its ciphertext space is `E.ctSpace` together with the nonempty words whose tail lies in it. -/
 noncomputable def tailFallback (E : SymmetricCipher) : SymmetricCipher where
   keyGen := E.keyGen
   encrypt := E.encrypt
@@ -131,6 +132,12 @@ noncomputable def tailFallback (E : SymmetricCipher) : SymmetricCipher where
       none
     else
       E.decrypt n k ct.tail
+  ctSpace n ct := E.ctSpace n ct || (!ct.isEmpty && E.ctSpace n ct.tail)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    have hct : E.decrypt n k ct = none := E.decrypt_eq_none_of_ctSpace_eq_false n k ct (by simp_all)
+    cases ct with
+    | nil => simp [hct]
+    | cons b ct => simp [hct, E.decrypt_eq_none_of_ctSpace_eq_false n k ct (by simp_all)]
   keyGen_ppt := E.keyGen_ppt
   encrypt_ppt := E.encrypt_ppt
   decrypt_polyTime := by
