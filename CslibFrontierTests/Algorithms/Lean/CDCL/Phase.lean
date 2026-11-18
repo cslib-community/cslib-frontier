@@ -41,4 +41,8 @@ example :
 example : (((Phases.init 3).save [⟨(1, true), true⟩]).save [⟨(2, true), true⟩]).get 1 = true := by
   decide
 
+-- Saving a variable past the end of the array grows it: the single positive literal for
+-- variable `1`, saved into the phases of one variable, reads back `true`.
+example : ((Phases.init 1).save [⟨(1, true), false⟩]).get 1 = true := by decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.Phase
