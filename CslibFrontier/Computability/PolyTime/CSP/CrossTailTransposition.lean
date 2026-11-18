@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import Mathlib.Data.List.Rotate
 
 /-!
@@ -69,7 +70,7 @@ Short inputs return the ENTIRE original state before any tagging or insertion. -
 The guard is before insertion, so no doubled-name semantic condition is imposed here. -/
 theorem transposeTail_short (I : State Rel) (h : I.ports.length < 2) :
     transposeTail g w I = I := by
-  rw [transposeTail, if_pos h]
+  rw [transposeTail, ite_eq_left h]
 
 /-- Every executed primitive supplies its own full checker theorem from the preceding
 accepted state. No target certificate, rotation, order, genus or recognizer is supplied. -/
@@ -134,8 +135,7 @@ private theorem seam_fields (J : State Rel) (a b : ℕ) (ps : List ℕ)
   rcases J with ⟨F, ports, c⟩
   change ports = a :: b :: ps at hp
   subst ports
-  simp only [fuseHead, hideHead, List.map_cons]
-  exact ⟨rfl, rfl⟩
+  constructor <;> rfl
 
 private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : Graph.RotationCertificate) :
@@ -183,7 +183,9 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     intro z _
     exact he0 z
   have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by
-    rw [show J6.ports = _ from h6.2]
+    have hp := h6.2
+    change J6.ports = ([3, 5, 7] ++ E ++ [X]).map u0 at hp
+    rw [hp]
     simp only [List.map_append, List.map_cons, List.map_nil, hE0]
     simp [u0, X]
   have h7 := right_fields J6 ([3, 5, 7] ++ E) X
@@ -201,9 +203,11 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     intro z _
     exact he1 z
   have hp8 : J8.ports = [5, 7] ++ E := by
-    rw [show J8.ports = _ from h8.2]
+    have hp := h8.2
+    change J8.ports = ([5, 7] ++ E).map u1 at hp
+    rw [hp]
     simp only [List.map_append, List.map_cons, List.map_nil, hE1]
-    simp [u1]
+    rfl
   have hb8 : J8.body = (J0.body.relabel u0).relabel u1 := by
     rw [show J8.body = _ from h8.1, show J7.body = _ from h7.1,
       show J6.body = _ from h6.1, show J5.body = _ from h5.1,
@@ -211,7 +215,7 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       show J2.body = _ from h2.1, show J1.body = _ from h1.1]
   have hlong : ¬I.ports.length < 2 := by simp [I]
   change (transposeTail g w I).body = _ ∧ (transposeTail g w I).ports = _
-  rw [transposeTail, if_neg hlong]
+  rw [transposeTail, ite_eq_right hlong]
   change (rotateLeft (rotateLeft J8)).body = _ ∧
     (rotateLeft (rotateLeft J8)).ports = _
   rw [rotateLeft_body, rotateLeft_body, hb8, rotateLeft_ports, rotateLeft_ports, hp8]
@@ -232,6 +236,7 @@ private theorem eval_long (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       (insert g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.eval sem
         (τ ∘ Function.update id 3 (2 * x) ∘ Function.update id 1 (2 * y)) := by
   rw [(long_fields g w F L x y c).1, CSP.eval_relabel, CSP.eval_relabel]
+  rfl
 
 
 /-- Exact long-branch assignment extension: the output uses fresh tail names carrying
@@ -272,7 +277,7 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     · rw [ports_transposeTail, List.map_append, List.map_map]
       have hL : (L.map (fun z => τ (2 * z))) = L.map σ := by
         exact congrArg (fun f : ℕ → Bool => L.map f) (funext he)
-      simpa only [Function.comp_def, List.map_cons, List.map_nil, hL,
+      simp only [Function.comp_def, List.map_cons, List.map_nil, hL,
         show τ 5 = σ y from by simpa [a] using hf (2 : Fin 4),
         show τ 7 = σ x from by simpa [a] using hf (3 : Fin 4)]
   · rintro ⟨τ, ht, he, _⟩
@@ -349,16 +354,19 @@ private theorem primitive_bounds (J : State Rel) (M P : ℕ)
         K.rotation.successor.length ≤ 2 * (M + P) := by
   rcases J with ⟨F, ports, c⟩
   intro K hK
-  simp only [List.mem_cons, List.mem_singleton] at hK
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
   rcases hK with rfl | rfl | rfl | rfl <;>
     cases ports with
-    | nil => simpa [rotateRight, rotateLeft, fuseHead, hideHead] using ⟨hm, hp, hc⟩
+    | nil => exact ⟨hm, hp, hc⟩
     | cons a ps =>
+      have htail : ps.length ≤ P := by
+        change ps.length + 1 ≤ P at hp
+        exact (Nat.le_succ _).trans hp
       cases ps <;>
         simp_all [rotateRight, rotateLeft, fuseHead, hideHead, rotateBoundaryCertificate,
           rotateBoundaryCertificateRight, equalDropCertificate, length_restrictPrefix,
           Graph.RotationCertificate.length_reindex, CSP.occurrences_relabel,
-          List.length_map, List.length_reverse] <;> omega
+          List.length_map, List.length_reverse]
 
 /-- Every table EMITTED by the long branch has the single-insertion dart bound.
 The original raw table length is separate input data; it is not bounded by this theorem.
@@ -398,42 +406,42 @@ theorem emitted_rotation_lengths_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let J0 := insert g w I
   let J1 := rotateRight J0
   have h1 := step J0 h0 J1
-    (by simp only [J1, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J2 := rotateRight J1
   have h2 := step J1 h1 J2
-    (by simp only [J2, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J3 := rotateRight J2
   have h3 := step J2 h2 J3
-    (by simp only [J3, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J4 := rotateRight J3
   have h4 := step J3 h3 J4
-    (by simp only [J4, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J5 := rotateRight J4
   have h5 := step J4 h4 J5
-    (by simp only [J5, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J6 := fuseHead J5
   have h6 := step J5 h5 J6
-    (by simp only [J6, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inl rfl)))
   let J7 := hideHead J6
   have h7 := step J6 h6 J7
-    (by simp only [J7, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inr (Or.inl rfl))))
   let J8 := rotateRight J7
   have h8 := step J7 h7 J8
-    (by simp only [J8, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inl rfl)
   let J9 := fuseHead J8
   have h9 := step J8 h8 J9
-    (by simp only [J9, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inl rfl)))
   let J10 := hideHead J9
   have h10 := step J9 h9 J10
-    (by simp only [J10, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inr (Or.inl rfl))))
   let J11 := rotateLeft J10
   have h11 := step J10 h10 J11
-    (by simp only [J11, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inl rfl))
   let J12 := rotateLeft J11
   have h12 := step J11 h11 J12
-    (by simp only [J12, List.mem_cons, List.mem_singleton]; tauto)
+    (by simp only [List.mem_cons]; exact Or.inr (Or.inl rfl))
   intro K hK
-  simp only [List.mem_cons, List.mem_singleton] at hK
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
   rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
     first | exact h0.2.2 | exact h1.2.2 | exact h2.2.2 | exact h3.2.2 | exact h4.2.2 |
       exact h5.2.2 | exact h6.2.2 | exact h7.2.2 | exact h8.2.2 | exact h9.2.2 |
@@ -490,7 +498,7 @@ theorem name_width_transposeTail_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   · rcases List.mem_append.mp hz with hz | hz
     · obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hz
       exact heven v (hW v (by simp [hv]))
-    · simp only [List.mem_cons, List.mem_singleton] at hz
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
       rcases hz with rfl | rfl <;>
         exact (Nat.size_le_size (by omega)).trans (le_max_right _ _)
 

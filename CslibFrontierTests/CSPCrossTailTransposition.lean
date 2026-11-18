@@ -5,6 +5,7 @@ Authors: Erik Demaine
 -/
 
 module
+-- upstream: local-only (ordinary CROSS tail-value transposition clients)
 
 public import CslibFrontier.Computability.PolyTime.CSP.CrossTailTransposition
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Crossover
@@ -54,7 +55,7 @@ example : ∃ τ : ℕ → Bool, (transposeTail g w unused).body.eval nearSem τ
     τ (2 * 123456) = false ∧ (transposeTail g w unused).ports.map τ = [true, false] := by
   obtain ⟨τ, ht, he, hv⟩ := (eval_transposeTail_iff g w [] [] 10 20 unused.rotation
     (fun z => decide (z = 20))).mp rfl
-  exact ⟨τ, ht, he, by simpa using he 123456, by simpa using hv⟩
+  exact ⟨τ, ht, he, by simpa using he 123456, by simpa [unused] using hv⟩
 
 example : ¬∃ τ : ℕ → Bool, (transposeTail g w unused).body.eval nearSem τ = true ∧
     (∀ z, τ (2 * z) = decide (z = 20)) ∧
@@ -62,6 +63,7 @@ example : ¬∃ τ : ℕ → Bool, (transposeTail g w unused).body.eval nearSem 
   rintro ⟨τ, ht, he, hv⟩
   have h := values_transposeTail g w [] [] 10 20 unused.rotation τ ht
   simp only [List.map_nil, List.nil_append, he] at h
+  change (transposeTail g w unused).ports.map τ = _ at h
   rw [hv] at h
   contradiction
 
@@ -73,7 +75,8 @@ example : (transposeTail g w repeated).ports = [2 * 2 ^ 250, 5, 7] :=
 example : ∃ τ : ℕ → Bool, (transposeTail g w repeated).body.eval nearSem τ = true ∧
     (∀ z, τ (2 * z) = false) ∧
     (transposeTail g w repeated).ports.map τ = [false, false, false] := by
-  simpa using (eval_transposeTail_iff g w [] [2 ^ 250] 17 17 repeated.rotation
+  simpa only [repeated, List.map_cons, List.map_nil, List.nil_append, List.cons_append]
+    using (eval_transposeTail_iff g w [] [2 ^ 250] 17 17 repeated.rotation
     (fun _ => false)).mp rfl
 
 -- Repeated tail values cannot independently change after fusion, even on rejected data.
@@ -81,6 +84,7 @@ example : ¬∃ τ : ℕ → Bool, (transposeTail g w repeated).body.eval nearSe
     (transposeTail g w repeated).ports.map τ = [false, true, false] := by
   rintro ⟨τ, ht, hv⟩
   have h := values_transposeTail g w [] [2 ^ 250] 17 17 repeated.rotation τ ht
+  change (transposeTail g w repeated).ports.map τ = _ at h
   rw [hv] at h
   simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append] at h
   have h1 := (List.cons.inj (List.cons.inj h).2).1
@@ -116,7 +120,8 @@ example : transposeTail g w
     ⟨[⟨(), []⟩], [2 ^ 250], ⟨[2 ^ 300, 7, 9]⟩⟩ := rfl
 
 -- The raw runtime certificate has neither an accepted-state premise nor a finite alphabet.
-example {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
+/-- The ordinary client retains the all-raw certificate for arbitrary encoded alphabets. -/
+theorem arbitraryRel_runtime {Rel : Type} {ar : Rel → ℕ} {sem : Rel → List Bool → Bool}
     (g : PPGadget ar sem cross) (w : GadgetWitness g) (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (transposeTail g w) (encState encRel) (encState encRel) :=
   computableInPolyTime_transposeTail g w encRel
