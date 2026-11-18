@@ -24,6 +24,12 @@ symmetric cipher's actual key generator. The two KEM hops surround the actual-ke
 Challenge messages have length exactly the security parameter, as in `SymmetricCipher`.
 The conclusion is `INDCCA2On` with this admissibility rule, not unrestricted `WordINDCCA2`.
 
+The results are steps toward [BonehShoup2023], Exercise 12.5(a), printed p. 513, not the exercise
+itself (#5686). Both premises answer queries outside the source's ciphertext spaces: the KEM games
+decapsulate every word other than the challenge encapsulation, where the exercise's decryption
+queries lie in `C_kem`, and `SymmetricCipher.OneTimeINDCCA` decrypts every word other than the
+challenge ciphertext, where Attack Game 9.2 (printed p. 362) takes queries in `C`.
+
 The source's uniform key space is represented by uniform `keyLen n`-bit seeds followed by `F n`.
 An exact sampler identity relates this distribution to `E.keyGen n`; no uniformity of encoded
 symmetric keys is assumed. Both KEM games retain their existing postchallenge decapsulation
@@ -49,8 +55,9 @@ a simple fixed-width key split instead needs a supported real-key length contrac
 * `Cslib.Crypto.Encryption.eval_kemCCARealGame_hybridToKEMCCA`,
   `Cslib.Crypto.Encryption.eval_kemCCAIdealGame_hybridToKEMCCA`: exact actual-game identities.
 * `Cslib.Crypto.Encryption.exists_hybridCCA_reductions`: native `HybridCCAReductions` for every
-  PPT adversary, uniformly for every parameter.
-* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security.
+  PPT adversary, uniformly for every parameter (a step toward Exercise 12.5(a)).
+* `Cslib.Crypto.Encryption.hybrid_indcca2On`: n-bit-message adaptive CCA security (a step toward
+  Exercise 12.5(a)).
 * `Cslib.Crypto.Encryption.isPPTOn_hybridCCAGame`: native honest-game runtime.
 * `Cslib.Crypto.Encryption.hybridDecrypt_postprocessed_hybridEncrypt`: separate supported-key
   correctness.
@@ -689,13 +696,25 @@ private theorem computableInPolyTime_postprocessed_decaps
       (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
   fun_prop
 
-/-- **Adaptive CCA security of KEM–DEM encryption**, for the source symmetric cipher's
-`n`-bit message model ([BonehShoup2023], Exercise 12.5(a)). The same native postprocessor is
-used on the shown KEM key and on every successful decapsulation. Its ideal-key distribution
-is exactly the actual symmetric key sampler, uniformly in the security parameter.
+/-- Adaptive CCA security of KEM–DEM encryption in the symmetric cipher's `n`-bit message model,
+from a KEM CCA premise and `E.OneTimeINDCCA`: a step toward [BonehShoup2023], Exercise 12.5(a),
+not the cited result, because both premises answer decryption queries outside the source's
+ciphertext spaces (#5686).
 
-KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a separate
-supported-output contract; the security statement does not assert unrestricted word-message CCA. -/
+The KEM games `kemCCARealGame` and `kemCCAIdealGame` decapsulate every word other than the
+challenge encapsulation, where the exercise's queries lie in `C_kem` (printed p. 513).
+`E.OneTimeINDCCA` decrypts every word other than the challenge ciphertext, where the source's 1CCA
+security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose queries lie in `C`
+(printed p. 362). A KEM or cipher that is secure on its ciphertext space but leaks on some word
+outside it meets the exercise's premises and not these. The KEM games also give the distinguisher
+`pk`, which the exercise's KEM game does not. The counterexample recorded for Exercise 11.9(b) on
+pull request #6413, a KEM whose key is its public key, shows that the printed statement needs it.
+
+The same native postprocessor is used on the shown KEM key and on every successful decapsulation.
+Its ideal-key distribution is exactly the actual symmetric key sampler, uniformly in the security
+parameter. KEM correctness is needed for the real-game hop. Correctness of hybrid decryption is a
+separate supported-output contract; the security statement does not assert unrestricted
+word-message CCA. -/
 theorem hybrid_indcca2On (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -765,9 +784,14 @@ structure HybridCCAReductions (E : SymmetricCipher) (keyLen : ℕ → ℕ)
       Game.advantage (ProbComp.eval (E.ccaOneTimeGame dem false n))
         (ProbComp.eval (E.ccaOneTimeGame dem true n))
 
-/-- The complete concrete reduction of Exercise 12.5(a), with both native adversaries and the
-actual symmetric CCA game. The reduction code and polynomial clocks are fixed before `n`.
-No security assumption is needed for this quantitative statement. -/
+/-- Native KEM and one-time symmetric CCA reductions for the postprocessed KEM–DEM hybrid, with
+hybrid advantage at most twice the KEM advantage plus the symmetric advantage at every `n`: a
+step toward the concrete bound of [BonehShoup2023], Exercise 12.5(a), not the cited result,
+because the hybrid, KEM and symmetric games it relates all answer decryption queries outside the
+source's ciphertext spaces (#5686).
+
+The reduction code and polynomial clocks are fixed before `n`. No security assumption is needed
+for this quantitative statement. -/
 theorem exists_hybridCCA_reductions (E : SymmetricCipher)
     {keyLen : ℕ → ℕ} {F : ℕ → List Bool → List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
