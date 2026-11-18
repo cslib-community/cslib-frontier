@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
+public import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
+public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 import Mathlib.Tactic.Linarith
 
 /-! # A CDCL solver with watched literals and LRAT certificates
@@ -63,6 +65,17 @@ on the measure, which provably never runs out, so the kernel can run the solver.
 * `Cslib.Algorithms.Lean.CDCL.solve_sat`, `Cslib.Algorithms.Lean.CDCL.solve_unsat`: both answers are
   correct.
 * `Cslib.Algorithms.Lean.CDCL.isSat_solve_iff`: the solver decides satisfiability.
+* `Cslib.Algorithms.Lean.CDCL.solveCompact_sat`, `Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`,
+  `Cslib.Algorithms.Lean.CDCL.isSat_solveCompact_iff`: the same for the solver on renamed
+  variables.
+
+**Variable names.** `solve` keeps arrays indexed by variable, sized by the largest variable of the
+formula, so a formula such as `[[], [(10⁹, true)]]` with one variable allocates `10⁹ + 1` slots.
+`Cslib.Algorithms.Lean.CDCL.solveCompact` first renames the `k` distinct variables to
+`0, …, k - 1` (`Cslib.Logic.PL.CNF.denseRenaming`), solves the renamed formula, and translates the
+answer back: the model through the renaming, and the certificate through the injective map back
+(`Cslib.Logic.PL.CNF.checkLRAT_relabel`). The renaming uses a hash map, which the kernel does not
+evaluate, so `decide +kernel` clients call `solve`.
 -/
 
 public section
@@ -962,5 +975,51 @@ theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfia
     | sat σ => rfl
     | unsat cert =>
       exact absurd h (CNF.not_satisfiable_of_checkLRAT (solve_unsat hs))
+
+/-! ### Renaming the variables first -/
+
+/-- **The CDCL solver on renamed variables**: it renames the variables of `φ` to `0, …, k - 1`,
+solves the renamed formula, and translates the model or certificate back, so its arrays are
+indexed by at most `k` variables. -/
+@[expose] def solveCompact (φ : CNF ℕ) : DPLL.Result :=
+  match solve (φ.relabel φ.denseRenaming.toDense) with
+  | .sat σ => .sat (σ ∘ φ.denseRenaming.toDense)
+  | .unsat cert => .unsat (cert.map (relabelAction φ.denseRenaming.fromDense))
+
+/-- **The models returned on renamed variables are models.** -/
+theorem solveCompact_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveCompact φ = .sat σ) :
+    φ.eval σ = true := by
+  unfold solveCompact at h
+  split at h
+  · rename_i σ' hs
+    cases h
+    simpa using solve_sat hs
+  · cases h
+
+/-- **The certificates returned on renamed variables are accepted by the LRAT checker.** -/
+theorem solveCompact_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
+    (h : solveCompact φ = .unsat cert) : φ.checkLRAT cert = true := by
+  unfold solveCompact at h
+  split at h
+  · cases h
+  · rename_i c hs
+    cases h
+    have := solve_unsat hs
+    rw [← CNF.checkLRAT_relabel (DenseRenaming.fromDense_injective φ),
+      DenseRenaming.relabel_relabel] at this
+    exact this
+
+/-- **The solver on renamed variables decides satisfiability.** -/
+theorem isSat_solveCompact_iff (φ : CNF ℕ) : (solveCompact φ).isSat = true ↔ φ.Satisfiable := by
+  constructor
+  · intro h
+    cases hs : solveCompact φ with
+    | sat σ => exact ⟨σ, solveCompact_sat hs⟩
+    | unsat cert => simp [hs, DPLL.Result.isSat] at h
+  · intro h
+    cases hs : solveCompact φ with
+    | sat σ => rfl
+    | unsat cert =>
+      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveCompact_unsat hs))
 
 end Cslib.Algorithms.Lean.CDCL

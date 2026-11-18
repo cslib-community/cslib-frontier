@@ -53,4 +53,10 @@ example : (Activity.bumpVar ⟨#[2 ^ 200, 5], 1⟩ 0).score = #[2 ^ 100, 0] ∧
     (Activity.bumpVar ⟨#[2 ^ 200, 5], 1⟩ 0).inc = 0 := by
   decide +kernel
 
+-- Bumping a variable beyond the activity array does nothing: its activity stays `0`.
+example : ((Activity.init 0).bumpVar 0).get 0 = 0 := by decide
+
+-- Bumping a variable within the array adds the increment.
+example : ((Activity.init 1).bumpVar 0).get 0 = 2 ^ 100 := by decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS

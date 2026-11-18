@@ -49,7 +49,8 @@ resolvent of the analysis, enters the certificate as a RUP step hinting the two 
 resolves, so the checker accepts the certificate by construction
 (`Cslib.Logic.PL.CNF.LRATLog.checkLRAT_finish`).
 
-**Scope.** Decisions follow a fixed order, Backjump returns to just below the newest decision
+**Scope.** `Exec` does not choose decisions: the solver with watched literals chooses them
+(`Cslib.Algorithms.Lean.CDCL.Activity`). Backjump returns to just below the newest decision
 rather than to the second-highest level of the learned clause, intermediate resolvents are never
 deleted, and there are no restarts. These are later milestones of the MiniSat port.
 
