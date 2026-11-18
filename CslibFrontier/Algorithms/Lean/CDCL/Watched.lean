@@ -31,7 +31,10 @@ queue is empty. Its invariant `WExec.Inv` adds to `Exec.Inv`:
 The last condition makes the invariant survive Backjump without decision levels: the literals
 removed are exactly those above the newest decision, so every processed literal kept was processed
 before. With the queue empty, no clause of the database is false unless a short one is
-(`WExec.Inv.noConflict`), so the loop decides or returns a model with no full scan.
+(`WExec.Inv.noConflict`), so the loop finds conflicts and units among long clauses without
+scanning them. Choosing the next decision variable, or seeing that every variable is assigned and
+returning the model, still searches the variables of the database (`CNF.vars`), which can traverse
+every literal occurrence.
 
 Every move of the loop is a move of the naive solver, so the theorems of `CDCL.Naive` carry over:
 `solveWatched_sat`, `solveWatched_unsat` and `isSat_solveWatched_iff`. Termination uses the naive
@@ -40,7 +43,7 @@ solver's rank, times the number of variables plus two, plus the length of the qu
 Blockers, which need an invariant over decision levels, are not part of this module.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.Lean.CDCL
 
@@ -77,7 +80,7 @@ structure WExec.Inv (S : WExec φ) : Prop where
   queue_above : ∀ x ∈ S.queue, ∀ N d M₀, S.M = N ++ ⟨d, true⟩ :: M₀ → x ∉ Trail.lits M₀
 
 /-- The initial state. -/
-def WExec.init (φ : CNF ℕ) : WExec φ :=
+@[expose] def WExec.init (φ : CNF ℕ) : WExec φ :=
   ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) : (WExec.init φ).Inv where
@@ -94,6 +97,7 @@ abbrev nvars (φ : CNF ℕ) : ℕ := φ.vars.dedup.length
 
 /-- The measure of a state: the rank of its abstract state, weighted above the length of the
 queue. -/
+@[expose]
 def WExec.measure (S : WExec φ) : ℕ := rank φ.vars S.exec.state * (nvars φ + 2) + S.queue.length
 
 theorem WExec.Inv.queue_length_le {S : WExec φ} (h : S.Inv) : S.queue.length ≤ nvars φ := by
@@ -137,7 +141,7 @@ structure WExec.ProcInv (S : WExec φ) (t : Literal ℕ) (L : List ℕ) : Prop w
   t_mem : t ∈ S.queue
 
 /-- Starting to process `t`: its negation's watch list is emptied and becomes the list to visit. -/
-def WExec.start (S : WExec φ) (t : Literal ℕ) : WExec φ :=
+@[expose] def WExec.start (S : WExec φ) (t : Literal ℕ) : WExec φ :=
   { S with store := { S.store with
       watches := setWatch S.store.watches (watchIndex t.negate) [] } }
 
@@ -165,6 +169,7 @@ theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t
   t_mem := ht
 
 /-- Finishing the processing of `t`: removing it from the queue. -/
+@[expose]
 def WExec.finish (S : WExec φ) (t : Literal ℕ) : WExec φ := { S with queue := S.queue.erase t }
 
 theorem WExec.finish_inv {S : WExec φ} {t : Literal ℕ} (h : S.ProcInv t []) :
@@ -209,7 +214,7 @@ theorem WExec.finish_inv {S : WExec φ} {t : Literal ℕ} (h : S.ProcInv t []) :
     have : 0 < S.queue.length := List.length_pos_of_mem h.t_mem
     omega
 
-theorem watchInj_mem {W : Array (List ℕ)} {a b : Literal ℕ} {k : ℕ}
+private theorem watchInj_mem {W : Array (List ℕ)} {a b : Literal ℕ} {k : ℕ}
     (h : watchIndex a = watchIndex b) (hk : k ∈ watchList W (watchIndex a)) :
     k ∈ watchList W (watchIndex b) := h ▸ hk
 
@@ -276,7 +281,7 @@ theorem WExec.ProcInv.drop {S : WExec φ} {t : Literal ℕ} {k : ℕ} {L : List 
       · exact absurd hw.symm h₂
     · exact .inr ⟨rfl, hL⟩
 
-theorem mem_setIfInBounds_cases {α : Type} {a : Array α} {k : ℕ} {x e : α}
+private theorem mem_setIfInBounds_cases {α : Type} {a : Array α} {k : ℕ} {x e : α}
     (he : e ∈ a.setIfInBounds k x) : e = x ∨ e ∈ a := by
   obtain ⟨i, hi, rfl⟩ := Array.mem_iff_getElem.1 he
   have hi' : i < a.size := by simpa using hi
@@ -423,7 +428,7 @@ theorem not_mem_vars_of_undef {M : Trail} {l : Literal ℕ} (h₁ : l ∉ Trail.
 
 /-- **A unit clause**: its other watched literal is propagated, with the clause as its reason, and
 queued; the clause goes back on the watch list. -/
-def WExec.propagateUnit (S : WExec φ) (t l : Literal ℕ) (id k : ℕ) : WExec φ :=
+@[expose] def WExec.propagateUnit (S : WExec φ) (t l : Literal ℕ) (id k : ℕ) : WExec φ :=
   { S with
     exec := S.exec.propagate (id, []) l
     queue := l :: S.queue
@@ -519,7 +524,7 @@ theorem WExec.ProcInv.unit {S : WExec φ} {t l : Literal ℕ} {id k : ℕ} {L : 
 
 /-- Restoring the watch list of `t.negate` after a conflict at position `k`, with `L` still to be
 visited. -/
-def WExec.restore (S : WExec φ) (t : Literal ℕ) (k : ℕ) (L : List ℕ) : WExec φ :=
+@[expose] def WExec.restore (S : WExec φ) (t : Literal ℕ) (k : ℕ) (L : List ℕ) : WExec φ :=
   let i := watchIndex t.negate
   let W := setWatch S.store.watches i (k :: L ++ watchList S.store.watches i)
   { S with store := { S.store with watches := W } }
@@ -571,13 +576,13 @@ inductive ProcResult (φ : CNF ℕ) (S₀ : WExec φ) (t : Literal ℕ) : Type
       (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ S₀.measure)
 
 /-- A result from a state of smaller measure is a result from `S₀`. -/
-def ProcResult.weaken {S₀ S₁ : WExec φ} {t : Literal ℕ} (hle : S₁.measure ≤ S₀.measure) :
+@[expose] def ProcResult.weaken {S₀ S₁ : WExec φ} {t : Literal ℕ} (hle : S₁.measure ≤ S₀.measure) :
     ProcResult φ S₁ t → ProcResult φ S₀ t
   | .done S h hm => .done S h (hm.trans hle)
   | .conflict S h e he hc hm => .conflict S h e he hc (hm.trans hle)
 
 /-- **Visiting a watch list**: every clause on `L` is visited in turn, until a conflict. -/
-def WExec.processList (t : Literal ℕ) : (L : List ℕ) → (S : WExec φ) → S.ProcInv t L →
+@[expose] def WExec.processList (t : Literal ℕ) : (L : List ℕ) → (S : WExec φ) → S.ProcInv t L →
     ProcResult φ S t
   | [], S, h => .done S h le_rfl
   | k :: L, S, h =>
@@ -617,7 +622,7 @@ theorem lits_below {N M₀ : Trail} {d : Literal ℕ} {x : Literal ℕ}
   rw [lits_append]; exact List.mem_append_right _ (List.mem_cons_of_mem _ hx)
 
 /-- The learned clause without repetitions, its asserting literal first. -/
-def learnedWatched (C : Clause ℕ) (l : Literal ℕ) : Clause ℕ := l :: C.dedup.erase l
+@[expose] def learnedWatched (C : Clause ℕ) (l : Literal ℕ) : Clause ℕ := l :: C.dedup.erase l
 
 theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
     (learnedWatched C l).Perm C.dedup :=
@@ -626,7 +631,7 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. -/
-def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
+@[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
       S.short⟩
@@ -747,11 +752,11 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
   nlinarith
 
 /-- **UnitPropagate from a short clause**, at an empty queue. -/
-def WExec.propagateShort (S : WExec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : WExec φ :=
+@[expose] def WExec.propagateShort (S : WExec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : WExec φ :=
   { S with exec := S.exec.propagate e l, queue := [l] }
 
 /-- **Decide**, at an empty queue. -/
-def WExec.decide (S : WExec φ) (x : ℕ) : WExec φ :=
+@[expose] def WExec.decide (S : WExec φ) (x : ℕ) : WExec φ :=
   { S with exec := S.exec.decide x, queue := [(x, true)] }
 
 /-- With the queue empty, no clause of the database is false if no short clause is. -/
@@ -769,7 +774,7 @@ negation of its first literal is visited; a conflict is analysed, followed by Ba
 or ends with a certificate when there is no decision. With the queue empty, the short clauses are
 checked for a conflict or a unit, then the first unassigned variable of the database is decided,
 or the trail is returned as a model. -/
-def wloop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
+@[expose] def wloop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
     -- a conflict on a database clause
@@ -827,7 +832,7 @@ def wloop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measu
               simpa using List.find?_eq_none.1 hx x hxV)
 
 /-- **CDCL with watched literals**: the loop from the initial state, with enough fuel. -/
-def solveWatched (φ : CNF ℕ) : DPLL.Result :=
+@[expose] def solveWatched (φ : CNF ℕ) : DPLL.Result :=
   match wloop φ ((WExec.init φ).measure + 1) (WExec.init φ) (WExec.init_inv φ)
       (Nat.lt_succ_self _) with
   | .sat σ _ => .sat σ

@@ -25,25 +25,25 @@ different literals is false (`WatchStore.Inv.not_falsifies`).
 with its specification `WatchStore.visit_spec`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
 
 /-- The index of the watch list of a literal: `2 * v` for `¬v` and `2 * v + 1` for `v`. -/
-def watchIndex (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+@[expose] def watchIndex (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
 
 /-- The watch list at index `i`, empty past the end of the array. -/
-def watchList (W : Array (List ℕ)) (i : ℕ) : List ℕ := W.getD i []
+@[expose] def watchList (W : Array (List ℕ)) (i : ℕ) : List ℕ := W.getD i []
 
 /-- Adding `k` to the watch list at index `i`, growing the array if needed. -/
-def addWatch (W : Array (List ℕ)) (i k : ℕ) : Array (List ℕ) :=
+@[expose] def addWatch (W : Array (List ℕ)) (i k : ℕ) : Array (List ℕ) :=
   let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
   W'.modify i (k :: ·)
 
 /-- Replacing the watch list at index `i`, growing the array if needed. -/
-def setWatch (W : Array (List ℕ)) (i : ℕ) (L : List ℕ) : Array (List ℕ) :=
+@[expose] def setWatch (W : Array (List ℕ)) (i : ℕ) (L : List ℕ) : Array (List ℕ) :=
   let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
   W'.modify i fun _ => L
 
@@ -103,7 +103,7 @@ structure WatchStore where
   watches : Array (List ℕ)
 
 /-- A literal is *processed* if it is on the trail and no longer in the propagation queue. -/
-def Processed (M : Trail) (Q : List (Literal ℕ)) (x : Literal ℕ) : Prop :=
+@[expose] def Processed (M : Trail) (Q : List (Literal ℕ)) (x : Literal ℕ) : Prop :=
   x ∈ Trail.lits M ∧ x ∉ Q
 
 /-- **The invariant of the watch store** for the numbered clauses `F`, the trail `M` and the
@@ -135,74 +135,6 @@ theorem WatchStore.Inv.not_falsifies {F : List (ℕ × Clause ℕ)} {M : Trail} 
     · exact hfalse w₁ ((hperm w₁).1 (hc ▸ List.mem_cons_self))
     · exact hfalse w₂ ((hperm w₂).1 (hc ▸ List.mem_cons_of_mem _ List.mem_cons_self))
 
-/-- The watch store of the numbered clauses `F`: every clause with at least two different literals,
-without repetitions, watching its first two literals. -/
-def WatchStore.build : List (ℕ × Clause ℕ) → WatchStore
-  | [] => ⟨#[], #[]⟩
-  | e :: F =>
-    let S := WatchStore.build F
-    match e.2.dedup with
-    | w₁ :: w₂ :: rest =>
-      ⟨S.clauses.push (e.1, w₁ :: w₂ :: rest),
-        addWatch (addWatch S.watches (watchIndex w₁) S.clauses.size)
-        (watchIndex w₂) S.clauses.size⟩
-    | _ => S
-
-/-- The watch store built from `F` satisfies the invariant with the empty trail. -/
-theorem WatchStore.build_inv : ∀ F : List (ℕ × Clause ℕ), (WatchStore.build F).Inv F [] []
-  | [] => ⟨by simp [build], by simp [build], by simp [build], fun e he => by simp at he,
-      fun k hk => by simp [build] at hk, by simp [build]⟩
-  | e :: F => by
-    have ih := build_inv F
-    unfold build
-    split
-    · rename_i w₁ w₂ rest hc
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro e' he'
-        rcases Array.mem_push.1 he' with he' | rfl
-        · obtain ⟨c, hc', hp⟩ := ih.sound e' he'
-          exact ⟨c, List.mem_cons_of_mem _ hc', hp⟩
-        · exact ⟨e.2, List.mem_cons_self, fun l => by rw [← hc, List.mem_dedup]⟩
-      · intro e' he'
-        rcases Array.mem_push.1 he' with he' | rfl
-        · exact ih.nodup e' he'
-        · rw [← hc]; exact List.nodup_dedup _
-      · intro e' he'
-        rcases Array.mem_push.1 he' with he' | rfl
-        · exact ih.long e' he'
-        · simp
-      · intro e' he' hlen
-        rcases List.mem_cons.1 he' with rfl | he'
-        · exact ⟨_, Array.mem_push_self, rfl, fun l => by rw [← hc, List.mem_dedup]⟩
-        · obtain ⟨e'', he'', h1, h2⟩ := ih.covers e' he' hlen
-          exact ⟨e'', Array.mem_push_of_mem _ he'', h1, h2⟩
-      · intro k hk w hw
-        simp only [Array.size_push] at hk
-        simp only [watchList_addWatch]
-        by_cases hks : k = (build F).clauses.size
-        · subst hks
-          simp only [Array.getElem_push_eq, List.take_succ_cons, List.take_zero,
-            List.mem_cons, List.not_mem_nil, or_false] at hw
-          rcases hw with rfl | rfl <;> split_ifs <;> simp_all
-        · have hk' : k < (build F).clauses.size := by omega
-          rw [Array.getElem_push_lt hk'] at hw
-          have := ih.listed k hk' w hw
-          split
-          · exact List.mem_cons_of_mem _ (by split <;> simp_all)
-          · split
-            · exact List.mem_cons_of_mem _ (by simp_all)
-            · exact this
-      · intro e' _ w₁ w₂ rest _ hboth
-        simp [Processed, Trail.lits] at hboth
-    · rename_i hc
-      refine ⟨fun e' he' => ?_, ih.nodup, ih.long, fun e' he' hlen => ?_, ih.listed, ih.notBoth⟩
-      · obtain ⟨c, hc', hp⟩ := ih.sound e' he'
-        exact ⟨c, List.mem_cons_of_mem _ hc', hp⟩
-      · rcases List.mem_cons.1 he' with rfl | he'
-        · match h : e'.2.dedup, hlen with
-          | _ :: _ :: _, _ => exact absurd h (hc _ _ _)
-        · exact ih.covers e' he' hlen
-
 /-! ### Visiting a watching clause -/
 
 /-- The outcome of visiting the clause at position `k` of the store when its watched literal `u`
@@ -222,7 +154,7 @@ inductive Visit
 
 /-- **Visiting the clause at position `k`** when its watched literal `u` has become false on the
 trail `M`. -/
-def WatchStore.visit (S : WatchStore) (M : Trail) (u : Literal ℕ) (k : ℕ) : Visit :=
+@[expose] def WatchStore.visit (S : WatchStore) (M : Trail) (u : Literal ℕ) (k : ℕ) : Visit :=
   match S.clauses[k]? with
   | some (id, w₁ :: w₂ :: rest) =>
     if w₁ = u ∨ w₂ = u then
@@ -238,10 +170,10 @@ def WatchStore.visit (S : WatchStore) (M : Trail) (u : Literal ℕ) (k : ℕ) : 
   | _ => .drop
 
 /-- The other watched literal of a clause watching `u` with watched literals `w₁` and `w₂`. -/
-def otherWatch (u w₁ w₂ : Literal ℕ) : Literal ℕ := if w₁ = u then w₂ else w₁
+@[expose] def otherWatch (u w₁ w₂ : Literal ℕ) : Literal ℕ := if w₁ = u then w₂ else w₁
 
 /-- **What a visit finds**, by outcome. -/
-def VisitSpec (S : WatchStore) (M : Trail) (u : Literal ℕ) (k : ℕ) : Visit → Prop
+@[expose] def VisitSpec (S : WatchStore) (M : Trail) (u : Literal ℕ) (k : ℕ) : Visit → Prop
   | .keep => ∃ (hk : k < S.clauses.size) (w₁ w₂ : Literal ℕ) (rest : Clause ℕ),
       S.clauses[k].2 = w₁ :: w₂ :: rest ∧ (w₁ = u ∨ w₂ = u) ∧ otherWatch u w₁ w₂ ∈ Trail.lits M
   | .move S' => ∃ (hk : k < S.clauses.size) (id : ℕ) (w₁ w₂ x : Literal ℕ) (rest : Clause ℕ),
@@ -320,7 +252,7 @@ theorem WatchStore.Inv.consShort {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
     h.listed, h.notBoth⟩
 
 /-- Adding a clause without repetitions to the store, watching its first two literals. -/
-def WatchStore.addClause (S : WatchStore) (id : ℕ) (c : Clause ℕ) : WatchStore :=
+@[expose] def WatchStore.addClause (S : WatchStore) (id : ℕ) (c : Clause ℕ) : WatchStore :=
   match c with
   | w₁ :: w₂ :: _ =>
     ⟨S.clauses.push (id, c), addWatch (addWatch S.watches (watchIndex w₁) S.clauses.size)
@@ -376,5 +308,26 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
     · simp only [List.cons.injEq] at hc'
       obtain ⟨rfl, -, -⟩ := hc'
       exact hw₁ hboth.1
+
+/-- The watch store of the numbered clauses `F`: every clause with at least two different literals,
+without repetitions, watching its first two literals. It adds the clauses with
+`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does. -/
+@[expose] def WatchStore.build : List (ℕ × Clause ℕ) → WatchStore
+  | [] => ⟨#[], #[]⟩
+  | e :: F => (WatchStore.build F).addClause e.1 e.2.dedup
+
+/-- The watch store built from `F` satisfies the invariant with the empty trail. -/
+theorem WatchStore.build_inv : ∀ F : List (ℕ × Clause ℕ), (WatchStore.build F).Inv F [] []
+  | [] => ⟨by simp [build], by simp [build], by simp [build], fun e he => by simp at he,
+      fun k hk => by simp [build] at hk, by simp [build]⟩
+  | ⟨id, c⟩ :: F => by
+    have ih := build_inv F
+    simp only [build]
+    match hc : c.dedup with
+    | w₁ :: w₂ :: rest =>
+      exact ih.addClause (hc ▸ List.nodup_dedup c) (fun l => by rw [← hc, List.mem_dedup])
+        (by simp [Processed, Trail.lits])
+    | [] => exact ih.consShort (id, c) (by simp [hc])
+    | [_] => exact ih.consShort (id, c) (by simp [hc])
 
 end Cslib.Algorithms.Lean.CDCL
