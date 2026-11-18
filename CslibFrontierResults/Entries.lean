@@ -310,6 +310,7 @@ import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
 import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.ExponentialDesign
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
@@ -1531,6 +1532,25 @@ register_result "goldreich-stretch-amplification-last-bits" where
     satisfies n < ℓ n. The output is the sequence of last bits σ₁ ⋯ σ_ℓ of Construction 8.7, \
     identified with Eq. (8.8) by take_forwardIterate_eq_flatten_emitBit. Outside-fleet \
     six-point source check: review 5947783297 on PR #6287."
+
+register_result "goldreich-exponential-time-design" where
+  title := "An exponential-time set system with small pairwise intersections"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.19 (Condition 2 of Theorem 8.18)",
+      locator := "March 2007 draft r4.pdf, PDF p. 110; printed p. 374" }
+  ]
+  theorems := [Cslib.Crypto.PRG.NisanWigderson.exists_computableInExpTime_design]
+  scope := "For every real γ > 0: S(k, i) ⊆ [k] is given by a characteristic word of length k \
+    (read by maskBlock), with |S(k, i)| = m(k) and |S(k, i) ∩ S(k, j)| ≤ γ m(k) for distinct \
+    zero-based indices below ℓ(k), and m(k) ≥ c k and ℓ(k) ≥ 2 ^ (c k) for k ≥ k₀. The witness \
+    is the deterministic greedy design with B = 10 q² + 1, q = max 2 ⌈1/γ⌉, t = ⌊k / B⌋, blocks \
+    of q t elements, overlaps at most t and ℓ(k) = 2 ^ (t + 1) for k ≥ B (no blocks below B); \
+    its size comes from a counting bound instead of the probabilistic method. Exponential time \
+    is ComputableInExpTime in the parameter k on multi-tape machines, with k in unary and i in \
+    binary: time O(2 ^ (δ k) (L + 1) ^ e). On the indices i < ℓ(k) the whole input has length \
+    O(k + 1), so the time is 2 ^ O(k); the guideline's exponent 2 is a cost estimate for its \
+    implementation. Outside-fleet six-point source check: review 5951520101 on PR #6378."
 
 register_result "goldreich-low-degree-extension-individual-degree" where
   title := "Low-degree extensions of individual degree |H| - 1"

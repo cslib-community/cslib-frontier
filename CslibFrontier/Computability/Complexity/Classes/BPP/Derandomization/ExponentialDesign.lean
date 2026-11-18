@@ -11,14 +11,11 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.FineGrained.FunctionRates
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.GreedyDesignSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 
 /-!
 # An exponential-time set system for the Nisan–Wigderson generator
@@ -76,22 +73,7 @@ open Finset Turing.MultiTapeTM
 the greedy design on `[k]` with blocks of `q t` elements sharing at most `t` of them, or the empty
 word when the design has at most `i` masks. -/
 def expDesign (q k i : ℕ) : List Bool :=
-  ((greedyMasks k (q * (k / (10 * q ^ 2 + 1))) (k / (10 * q ^ 2 + 1)))[i]?).getD []
-
-/-- The greedy design keeps at most one mask per candidate, so it has at most `2 ^ ℓ` masks. -/
-theorem length_greedyMasks_le (ℓ n a : ℕ) : (greedyMasks ℓ n a).length ≤ 2 ^ ℓ := by
-  have h (cands kept : List (List Bool)) :
-      (cands.foldl (greedyStep n a) kept).length ≤ kept.length + cands.length := by
-    induction cands generalizing kept with
-    | nil => simp
-    | cons w cands ih =>
-      refine (ih _).trans ?_
-      unfold greedyStep
-      split
-      · simp
-        omega
-      · simp
-  simpa [greedyMasks] using h (BitString.enumList ℓ) []
+  (greedyMasks k (q * (k / (10 * q ^ 2 + 1))) (k / (10 * q ^ 2 + 1))).getD i []
 
 variable {q k i : ℕ}
 
@@ -115,7 +97,7 @@ private theorem mem_of_lt (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
     (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) :
     expDesign q k i = (greedyMasks k (q * (k / (10 * q ^ 2 + 1))) (k / (10 * q ^ 2 + 1)))[i]'
       (hi.trans_le (two_pow_le_length hq hk)) := by
-  rw [expDesign, List.getElem?_eq_getElem, Option.getD_some]
+  rw [expDesign, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem, Option.getD_some]
 
 /-- Every set of `expDesign q k` below `2 ^ (t + 1)` is a mask on `[k]`. -/
 theorem length_expDesign (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
@@ -123,43 +105,41 @@ theorem length_expDesign (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
   rw [mem_of_lt hq hk hi]
   exact length_of_mem_greedyMasks (List.getElem_mem _)
 
+/-- The block of `Design.greedy` at an index below `2 ^ (t + 1)` is the set of `expDesign`. -/
+private theorem block_greedy (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
+    (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) :
+    (Design.greedy k (q * (k / (10 * q ^ 2 + 1))) (k / (10 * q ^ 2 + 1))
+      (2 ^ (k / (10 * q ^ 2 + 1) + 1)) (two_pow_le_length hq hk)).block ⟨i, hi⟩ =
+      maskBlock k (expDesign q k i) := by
+  rw [mem_of_lt hq hk hi]
+  rfl
+
 /-- Every set of `expDesign q k` below `2 ^ (t + 1)` has `q t` elements. -/
 theorem card_maskBlock_expDesign (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
     (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) :
     #(maskBlock k (expDesign q k i)) = q * (k / (10 * q ^ 2 + 1)) := by
-  rw [← count_true_eq_card_maskBlock_of_length (length_expDesign hq hk hi), mem_of_lt hq hk hi]
-  exact count_of_mem_greedyMasks (List.getElem_mem _)
+  rw [← block_greedy hq hk hi]
+  exact Design.card_block _ _
 
 /-- Two distinct sets of `expDesign q k` below `2 ^ (t + 1)` share at most `t` elements. -/
 theorem card_maskBlock_inter_expDesign_le (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k) {j : ℕ}
     (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) (hj : j < 2 ^ (k / (10 * q ^ 2 + 1) + 1))
     (hij : i ≠ j) :
     #(maskBlock k (expDesign q k i) ∩ maskBlock k (expDesign q k j)) ≤ k / (10 * q ^ 2 + 1) := by
-  rw [← overlapCount_eq_card_inter (length_expDesign hq hk hi) (length_expDesign hq hk hj),
-    mem_of_lt hq hk hi, mem_of_lt hq hk hj]
-  have hp := List.pairwise_iff_getElem.1
-    (pairwise_greedyMasks (ℓ := k) (n := q * (k / (10 * q ^ 2 + 1)))
-      (a := k / (10 * q ^ 2 + 1)))
-  rcases lt_or_gt_of_ne hij with hlt | hlt
-  · rw [overlapCount_comm]
-    exact hp i j _ _ hlt
-  · exact hp j i _ _ hlt
+  rw [← block_greedy hq hk hi, ← block_greedy hq hk hj]
+  exact Design.card_inter_le _ (Fin.ne_of_val_ne hij)
 
 /-! ### Exponential time -/
 
-/-- `expDesign q` on inputs padded by a unary `N`: the seed length is cut to `⌊log₂ N⌋` and the
-index to `N`, so that the greedy scan is polynomial in the padded input. -/
+/-- `expDesign q` on inputs padded by a unary `N`: the seed length is cut to `⌊log₂ N⌋`, so that
+the greedy scan is polynomial in the padded input. -/
 private def paddedDesign (q : ℕ) (x : (ℕ × ℕ) × ℕ) : List Bool :=
   let s := min x.1.1 (Nat.log 2 x.2)
-  ((greedyMasks s (q * (s / (10 * q ^ 2 + 1))) (s / (10 * q ^ 2 + 1)))[min x.1.2 x.2]?).getD []
+  (greedyMasks s (q * (s / (10 * q ^ 2 + 1))) (s / (10 * q ^ 2 + 1))).getD x.1.2 []
 
 private theorem paddedDesign_two_pow (q k i : ℕ) :
     paddedDesign q ((k, i), 2 ^ k) = expDesign q k i := by
   simp only [paddedDesign, Nat.log_pow (by norm_num : 1 < 2), min_self, expDesign]
-  rcases le_or_gt i (2 ^ k) with h | h
-  · rw [min_eq_left h]
-  · rw [min_eq_right h.le, List.getElem?_eq_none (length_greedyMasks_le _ _ _),
-      List.getElem?_eq_none ((length_greedyMasks_le _ _ _).trans h.le)]
 
 private theorem computableInPolyTime_paddedDesign (q : ℕ) :
     ComputableInPolyTime (paddedDesign q) (encPair (encPair encUnary encNat) encUnary) encBits := by
@@ -176,13 +156,7 @@ private theorem computableInPolyTime_paddedDesign (q : ℕ) :
   have ht := (ComputableInPolyTime.unary_div_const (10 * q ^ 2 + 1)).comp hs
   have hblock := ComputableInPolyTime.unary_mul' (.const q) ht
   have hmasks := computableInPolyTime_greedyMasks hs hblock ht ?_
-  · have hidx : ComputableInPolyTime (fun x : (ℕ × ℕ) × ℕ => min x.1.2 x.2) enc encUnary :=
-      ComputableInPolyTime.binary_to_unary_bounded
-        (ComputableInPolyTime.binary_min' hi (ComputableInPolyTime.unary_to_binary.comp hN)) hN
-        fun x => min_le_right _ _
-    exact .of_tidy (ComputableTidilyInPolyTime.optionGetDWithInput
-      (ComputableTidilyInPolyTime.getElem? hmasks.tidy hidx.tidy)
-      (ComputableTidilyInPolyTime.const []))
+  · exact ComputableInPolyTime.listGetD_binary (encA := encBits) [] hmasks hi
   · refine PolyBounded.self.mono fun x => ?_
     calc 2 ^ min x.1.1 (Nat.log 2 x.2) ≤ 2 ^ Nat.log 2 x.2 :=
           Nat.pow_le_pow_right (by norm_num) (min_le_right _ _)
