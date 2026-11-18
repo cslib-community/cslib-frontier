@@ -61,13 +61,21 @@ def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
 /-- Assigning the literal `l`. -/
 def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
 
-/-- Unassigning the variables `vs`. -/
-def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.set v none) A
+/-- Unassigning the variable `v`: an update within the array, which is left as it is if `v` is past
+its end, since `v` then has no value. -/
+def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v none⟩
 
-/-- The assignment of the literals of a trail. -/
-def ofTrail : Trail → Assign
-  | [] => ⟨#[]⟩
-  | e :: M => (ofTrail M).assign e.lit
+/-- Unassigning the variables `vs`. It never grows the array. -/
+def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A
+
+/-- The assignment of the literals of a trail, assigning them oldest first so that the newest
+occurrence of a variable wins, with a left fold, which uses constant stack. -/
+def ofTrail (M : Trail) : Assign := M.reverse.foldl (fun A e => A.assign e.lit) ⟨#[]⟩
+
+theorem ofTrail_nil : ofTrail [] = ⟨#[]⟩ := rfl
+
+theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit := by
+  simp [ofTrail, List.foldl_append]
 
 theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
     (A.set v x).value w = if w = v then x else A.value w := by
@@ -91,14 +99,33 @@ theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
       · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
         split <;> rfl
 
+theorem value_clear (A : Assign) (v w : ℕ) :
+    (A.clear v).value w = if w = v then none else A.value w := by
+  unfold clear value
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
+  by_cases hw : w = v
+  · subst hw; simp only [↓reduceIte]; split <;> rfl
+  · simp [hw, Ne.symm hw]
+
+theorem size_clear (A : Assign) (v : ℕ) : (A.clear v).vals.size = A.vals.size := by
+  simp [clear]
+
 theorem value_unassign (A : Assign) (vs : List ℕ) (w : ℕ) :
     (A.unassign vs).value w = if w ∈ vs then none else A.value w := by
   induction vs generalizing A with
   | nil => simp [unassign]
   | cons v vs ih =>
-    change ((A.set v none).unassign vs).value w = _
-    rw [ih, value_set]
+    change ((A.clear v).unassign vs).value w = _
+    rw [ih, value_clear]
     by_cases h₁ : w ∈ vs <;> by_cases h₂ : w = v <;> simp [h₁, h₂]
+
+/-- **Unassigning never grows the array.** -/
+theorem size_unassign (A : Assign) (vs : List ℕ) : (A.unassign vs).vals.size = A.vals.size := by
+  induction vs generalizing A with
+  | nil => rfl
+  | cons v vs ih =>
+    change ((A.clear v).unassign vs).vals.size = _
+    rw [ih, size_clear]
 
 /-- **The array agrees with the trail** `M`: the variable `v` has the value `b` exactly when the
 literal `(v, b)` is on `M`. -/
@@ -181,6 +208,7 @@ theorem agrees_ofTrail : ∀ M : Trail, (Trail.vars M).Nodup → (ofTrail M).Agr
   | [], _ => agrees_nil
   | e :: M, hnd => by
     simp only [Trail.vars, List.map_cons, List.nodup_cons] at hnd
+    rw [ofTrail_cons]
     exact (agrees_ofTrail M hnd.2).cons hnd.1 e.decision
 
 end Assign

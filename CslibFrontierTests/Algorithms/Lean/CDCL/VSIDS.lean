@@ -100,4 +100,11 @@ example : (VarOrder.pop act (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true)
     ⟨(2, true), true⟩, ⟨(3, true), true⟩]) 10 order).1 = none := by
   decide +kernel
 
+/-- Unassigning a variable past the end of the assignment array leaves the array as it is: no
+slot is allocated for it. -/
+example : (Assign.unassign ⟨#[]⟩ [1000000]).vals.size = 0 := by decide
+
+/-- Unassigning a variable within the array clears it and keeps the size. -/
+example : (Assign.unassign ⟨#[some true, some false]⟩ [1]).vals = #[some true, none] := by decide
+
 end CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS

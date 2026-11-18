@@ -1269,9 +1269,10 @@ of the trail back in the variable order. With phase saving on, the phases of the
 are saved first, as MiniSat's `cancelUntil(0)` saves those it undoes; the root's literals stay
 assigned, so only the saved phases of the undone ones are read later. -/
 @[expose] def WExec.restart (S : WExec φ) : WExec φ :=
+  let e := S.exec.restart
   { S with
-    exec := S.exec.restart
-    assign := Assign.ofTrail (XTrail.trail (XTrail.root S.exec.trail))
+    exec := e
+    assign := Assign.ofTrail (XTrail.trail e.trail)
     order := if S.opts.vsids then S.order.insertVars S.act (Trail.vars S.M) else S.order
     phase := if S.opts.phaseSaving then S.phase.save S.M else S.phase
     stats := { S.stats with restarts := S.stats.restarts + 1 } }
