@@ -15,7 +15,10 @@ open OracleComp (IsCostBounded)
 open scoped NNReal
 
 /-- Per-session state tracking the last latched `true` value. -/
-structure RelayState : Type where last : Option Bool := none deriving DecidableEq
+structure RelayState : Type where
+  /-- Last latched Boolean output (`some true` once triggered). -/
+  last : Option Bool := none
+  deriving DecidableEq
 
 private def relayStep (b : Bool) (s : RelayState) : Option Bool × RelayState :=
   if b then (some true, { last := some true }) else (s.last, s)
@@ -41,7 +44,7 @@ def orOuter : MultiHybridProtocol 2 2 Bool Bool Unit Unit Bool Bool := fun _ _ =
       | .inr () => fun s => pure ((), s) }
 
 /-- Distinguisher activating party `p` with `true` and checking if conjunction dropped. -/
-def Z_or (p : Fin 2) : Environment 2 Bool Bool
+def zOr (p : Fin 2) : Environment 2 Bool Bool
     (RoutedNetQ 2 Bool (MultiNetQ 2 Unit (RoutedNetQ 2 Bool Unit)))
     (RoutedNetR Bool (MultiNetR Unit (RoutedNetR Bool Unit))) := fun _ _ =>
   ProbOracleComp.query (Sum.inl (p, true)) >>= fun res => pure (!(res.getD false))
@@ -63,7 +66,7 @@ theorem orOuter_polyBounded : orOuter.PolyBounded 2 := fun _ _ =>
         |>.bind fun _ => IsCostBounded.pure _ 0).mono (by simp)
     | inr _ => exact (IsCostBounded.pure _ 0).mono (by simp)⟩
 
-theorem Z_or_polyBounded (p : Fin 2) : (Z_or p).PolyBounded 1 := fun _ _ =>
+theorem zOr_polyBounded (p : Fin 2) : (zOr p).PolyBounded 1 := fun _ _ =>
   ((IsCostBounded.query (Sum.inr (Sum.inl (p, true)))).bind fun _ =>
     IsCostBounded.pure _ 0).mono (by simp)
 
@@ -79,35 +82,6 @@ example : ((sessionRouter (∅ : Finset (Fin 2)) (fun _ => idealRelay.toProtocol
     pure_bind, ProbComp.eval_map, ProbComp.eval_bind]
   simp [StateT.run, ProbOracleComp.sample_pure, Machine.runFrom_pure, Machine.closeProgram_pure,
     ProbComp.eval_pure, Fin.cons_zero, Function.update_self, Function.update_of_ne]
-
-private theorem unif_step_advantage_le (κ : ℕ) (step : Fin (2 ^ (κ + 1) - 1 + 1) → Game)
-    (ideal : Game) (hrest : ∀ r, r.val ≠ 0 → step r = ideal) : Game.advantage
-      ((ProbComp.unifFin (2 ^ (κ + 1) - 1)).eval.bind step) ideal ≤ (1 : ℝ≥0) / 2 ^ (κ + 1) := by
-  have hN : (2 ^ (κ + 1) - 1) + 1 = 2 ^ (κ + 1) :=
-    Nat.sub_add_cancel (Nat.one_le_pow _ _ (by omega))
-  rw [ProbComp.eval_unifFin, ← NNReal.coe_le_coe]
-  simp only [Game.advantage, Game.succProbability, coe_nndist, NNReal.dist_eq, PMF.bind_apply,
-    Probability.PMF.uniformOfFintype_apply, Fintype.card_fin, hN, tsum_fintype]
-  have hL : (∑ r : Fin (2 ^ (κ + 1) - 1 + 1), (((2 ^ (κ + 1) : ℕ) : ENNReal)⁻¹ *
-      step r true)).toReal = ∑ r : Fin (2 ^ (κ + 1) - 1 + 1),
-      ((2 ^ (κ + 1) : ℕ) : ℝ)⁻¹ * (step r true).toReal := by
-    rw [ENNReal.toReal_sum fun _ _ => ENNReal.mul_ne_top (by simp) (PMF.apply_ne_top _ _)]
-    exact Finset.sum_congr rfl fun r _ => by rw [ENNReal.toReal_mul, ENNReal.toReal_inv]; simp
-  have hR : (ideal true).toReal = ∑ _r : Fin (2 ^ (κ + 1) - 1 + 1),
-      ((2 ^ (κ + 1) : ℕ) : ℝ)⁻¹ * (ideal true).toReal := by
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, hN, nsmul_eq_mul, ← mul_assoc,
-      mul_inv_cancel₀ (by positivity), one_mul]
-  change |(∑ a : Fin (2 ^ (κ + 1) - 1 + 1), ((2 ^ (κ + 1) : ℕ) : ENNReal)⁻¹ *
-      step a true).toReal - (ideal true).toReal| ≤ _
-  rw [hL, hR, ← Finset.sum_sub_distrib, Finset.sum_eq_single (0 : Fin (2 ^ (κ + 1) - 1 + 1))
-      (fun r _ hr => by rw [hrest r (fun h => hr (Fin.ext h)), sub_self]) (by simp),
-    ← mul_sub, abs_mul, abs_of_nonneg (by positivity)]
-  have h1 : ∀ p : Game, (p true).toReal ≤ 1 := fun p =>
-    (ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one p true)).trans_eq ENNReal.toReal_one
-  have hdiff : |(step 0 true).toReal - (ideal true).toReal| ≤ 1 := abs_sub_le_iff.mpr
-    ⟨by linarith [ENNReal.toReal_nonneg (a := ideal true), h1 (step 0)],
-     by linarith [ENNReal.toReal_nonneg (a := step 0 true), h1 ideal]⟩
-  exact (mul_le_mul_of_nonneg_left hdiff (by positivity)).trans_eq (by simp [one_div])
 
 private abbrev faultyR (C : Finset (Fin 2)) (κ : ℕ) := corruptRouter C (faultyRelay κ C)
 private abbrev idealR (C : Finset (Fin 2)) (κ : ℕ) := corruptRouter C (idealRelay.toProtocol κ C)
@@ -152,9 +126,12 @@ private theorem advantage_corruptRouter_faulty_ideal_le (C : Finset (Fin 2)) (κ
       refine (Game.advantage_triangle _ mid _).trans ?_; rw [add_comm ((n : ℝ≥0) * _)]
       refine add_le_add ?_ (hk (out (relayStep pb.2 s).1, (relayStep pb.2 s).2))
       simp only [Machine.closeProgram_bind, Machine.closeProgram_sample, ProbComp.eval_map,
-        map_bind, ProbComp.eval_bind]
-      exact unif_step_advantage_le κ _ mid fun r hr => by
-        dsimp only [mid]; simp only [ite_eq_right hr, ProbComp.eval_map]
+        map_bind, ProbComp.eval_bind, ProbComp.eval_unifFin]
+      refine (Game.advantage_bind_uniformOfFintype_of_ne_le 0 _ mid fun r hr => ?_).trans_eq ?_
+      · have hne : r.val ≠ 0 := by simpa using Fin.val_ne_of_ne hr
+        dsimp only [mid]; simp only [hne, ↓reduceIte, ProbComp.eval_map]
+      · simp [Fintype.card_fin, Nat.sub_add_cancel (Nat.one_le_pow (κ + 1) 2 (by decide)),
+          one_div]
     cases e with
     | inl k =>
       rw [show ((faultyR C κ).runFrom (OracleComp.query (.inl k)) s >>= fun x =>
@@ -170,10 +147,9 @@ private theorem advantage_corruptRouter_faulty_ideal_le (C : Finset (Fin 2)) (κ
           simp [Machine.handler, StateT.run_lift, bind_pure_comp, bind_map_left]]
       simp only [Machine.closeProgram_bind, Machine.closeProgram_sample, ProbComp.eval_map,
         map_bind, ProbComp.eval_bind]
-      refine Game.advantage_bind_le _ _ _ fun a => ?_
-      have h := (ih a s).trans
-        (le_add_of_nonneg_right (by positivity : (0 : ℝ≥0) ≤ 1 / 2 ^ (κ + 1)))
-      rw [ProbComp.eval_map, ProbComp.eval_map] at h; exact NNReal.coe_le_coe.mpr h
+      refine Game.advantage_bind_le_nnreal _ _ _ fun a => ?_
+      simpa [ProbComp.eval_map] using
+        (ih a s).trans (le_add_of_nonneg_right (by positivity : (0 : ℝ≥0) ≤ 1 / 2 ^ (κ + 1)))
     | inr eq =>
       change Game.advantage (Prod.fst <$> Machine.closeProgram ((faultyR C κ).runFrom
         (ProbOracleComp.query eq) s >>= fun x => (faultyR C κ).runFrom (cont x.1) x.2)).eval
@@ -239,29 +215,29 @@ theorem composeMulti_orOuter_emulatesDummyWithin :
 theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p ∉ C) :
     let adv := advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter
       idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _)
-      C (Z_or p) 0 []
+      C (zOr p) 0 []
     adv = 3 / 4 ∧ (1 / 2 : ℝ≥0) < adv ∧ adv ≤ 2 • (1 / 2 : ℝ≥0) := by
-  have habs : absorbMultiHybrid C orOuter (Z_or p) 0 [] = (ProbOracleComp.query ((0 : Fin 2),
+  have habs : absorbMultiHybrid C orOuter (zOr p) 0 [] = (ProbOracleComp.query ((0 : Fin 2),
       Sum.inl (p, true)) >>= fun x₀ => ProbOracleComp.query ((1 : Fin 2), Sum.inl (p, true)) >>=
         fun x₁ => pure (!(x₀.getD false && x₁.getD false))) := by
-    dsimp only [absorbMultiHybrid, Z_or, orOuter, Machine.link, routeCorrupt, multiHybridWrap,
+    dsimp only [absorbMultiHybrid, zOr, orOuter, Machine.link, routeCorrupt, multiHybridWrap,
       liftMultiParty]
     rw [ProbOracleComp.sample_pure, pure_bind, Machine.runFrom_bind, Machine.runFrom_query]
     dsimp only [StateT.run]; simp only [hp, ↓reduceIte, map_bind]
     erw [OracleComp.interpret_bind, OracleComp.interpret_query]
     dsimp only [OracleComp.sumHandler]; erw [bind_assoc]
   have hid : (exec (composeMulti orOuter idealRelay.toProtocol) (multiHybridSim
-      fun _ => dummyAdversary 2 _ _) C (Z_or p) 0 []).eval true = 0 := by
+      fun _ => dummyAdversary 2 _ _) C (zOr p) 0 []).eval true = 0 := by
     rw [eval_exec_composeFamily_multiHybridSim, habs]
-    dsimp only [Machine.run, Machine.link, SSP.parFin, execMachine, dummyAdversary]
-    rw [liftAdversary_id]
+    dsimp only [Machine.run, Machine.link, SSP.parFin, execMachine, dummyAdversary, liftAdversary]
+    rw [Machine.liftRight_id]
     simp only [Machine.comp, Machine.id, corruptRouter, idealRelay, IdealFunctionality.toProtocol,
       relayStep, hp, ↓reduceIte, OracleComp.pi, ProbOracleComp.sample_pure, StateT.run,
       StateT.run_lift, bind_pure_comp, Machine.runFrom_bind, Machine.runFrom_map,
       Machine.runFrom_query, map_pure, Machine.closeProgram_pure, ProbComp.eval_pure,
       Equiv.prodAssoc_apply, Prod.map_apply, id_eq, Function.update_of_ne (Fin.zero_ne_one.symm),
       Option.getD_some, Bool.and_self, Bool.not_true, PMF.pure_apply, Bool.true_eq_false]
-  have hreal : (exec (composeMulti orOuter faultyRelay) (dummyAdversary 2 _ _) C (Z_or p) 0 []).eval
+  have hreal : (exec (composeMulti orOuter faultyRelay) (dummyAdversary 2 _ _) C (zOr p) 0 []).eval
       true = 3 / 4 := by
     rw [exec_composeFamily_dummy, habs]
     simp only [Machine.run, Machine.link, sessionRouter, corruptRouter, faultyRelay, relayStep,
@@ -278,17 +254,17 @@ theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p
         (by norm_num : (2⁻¹ + 2⁻¹ * 2⁻¹ : ℝ≥0) = 3 / 4)
   have hadv : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter
       idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _)
-      C (Z_or p) 0 [] = 3 / 4 := by
+      C (zOr p) 0 [] = 3 / 4 := by
     simp only [advantage, Game.advantage, Game.succProbability, hid, hreal, ENNReal.toNNReal_div,
       ENNReal.toNNReal_ofNat]; norm_num
   exact ⟨hadv, by rw [hadv]; norm_num, by rw [hadv, ← NNReal.coe_le_coe]; norm_num⟩
 
 example : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter idealRelay.toProtocol)
-    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) ∅ (Z_or 0) 0 [] = 3 / 4 :=
+    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) ∅ (zOr 0) 0 [] = 3 / 4 :=
   (composeMulti_orOuter_nonvacuity ∅ 0 (by simp)).1
 
 example : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter idealRelay.toProtocol)
-    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) {0} (Z_or 1) 0 [] =
+    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) {0} (zOr 1) 0 [] =
       3 / 4 :=
   (composeMulti_orOuter_nonvacuity {0} 1 (by simp)).1
 

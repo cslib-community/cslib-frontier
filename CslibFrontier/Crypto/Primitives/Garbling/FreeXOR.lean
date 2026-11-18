@@ -365,7 +365,7 @@ labels. -/
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (x : Fin n → Bool) : Fin m → Bool :=
   decode G.decoding (evaluate τ free H tw G.table (encode G.encoding x))
 
-private theorem isLocal_evalStep {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
+theorem isLocal_evalStep {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
     (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
     (table : GarbledRow τ free → K × Bool) (X : Fin n → K × Bool) :
     IsLocal (evalStep τ free H tw table X) := by
@@ -406,11 +406,11 @@ gate for the bit that the colours encode, masked by the hash of the matching arg
   decoding o := (propagate C.topology free base (C.outputs o)).2
 
 /-- The label of each wire that the evaluator holds on input `x`. -/
-private def activeLabel (free : Fin C.size → Bool) (δ : K) (base : Wire n C.size → K × Bool)
+def activeLabel (free : Fin C.size → Bool) (δ : K) (base : Wire n C.size → K × Bool)
     (w : Wire n C.size) : K × Bool :=
   label δ (propagate C.topology free base w) (C.program.trace I x w)
 
-private theorem evalStep_activeLabel
+theorem evalStep_activeLabel
     (hfree : ∀ g, free g = true → ∀ v, I (C.program.lines g).op v = ∑ k, v k)
     (hK : ∀ k : K, k + k = 0) (δ : K) (base : Wire n C.size → K × Bool) (w : Wire n C.size) :
     evalStep C.topology free H tw (garbleWith C I H tw δ base).table

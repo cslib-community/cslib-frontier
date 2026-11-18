@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.CharP.Algebra
 import Mathlib.Algebra.CharP.Frobenius
+import Mathlib.Algebra.CharP.Reduced
 import Mathlib.Algebra.Polynomial.Expand
 import Mathlib.Algebra.Polynomial.OfFn
 import Mathlib.FieldTheory.IsAlgClosed.AlgebraicClosure
@@ -173,6 +174,9 @@ private noncomputable def degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) : �
 private theorem degZ₂_zero {R : Type*} [CommSemiring R] : degZ₂ (0 : R[X][X]) = 0 := by
   simp [degZ₂]
 
+private theorem degZ₂_one {R : Type*} [CommSemiring R] : degZ₂ (1 : R[X][X]) = 0 := by
+  rw [degZ₂, map_one, natDegree_one]
+
 private theorem degZ₂_neg {R : Type*} [CommRing R] (f : R[X][X]) : degZ₂ (-f) = degZ₂ f := by
   simp [degZ₂]
 
@@ -224,46 +228,6 @@ private theorem degZ₂_X {R : Type*} [CommSemiring R] :
     rw [coeff_X]
     split_ifs <;> simp)]
 
-private theorem degZ₂_sub_le {R : Type*} [CommRing R] (f g : R[X][X]) :
-    degZ₂ (f - g) ≤ max (degZ₂ f) (degZ₂ g) := by
-  rw [sub_eq_add_neg]
-  exact (degZ₂_add_le f (-g)).trans (by rw [degZ₂_neg])
-
-private theorem degZ₂_pow_le {R : Type*} [CommSemiring R] (f : R[X][X]) (n : ℕ) :
-    degZ₂ (f ^ n) ≤ n * degZ₂ f := by
-  induction n with
-  | zero =>
-    rw [pow_zero, zero_mul]
-    exact degZ₂_le_iff.2 fun a => by rw [coeff_one]; split_ifs <;> simp
-  | succ n ih =>
-    rw [pow_succ, Nat.succ_mul]
-    exact (degZ₂_mul_le (f ^ n) f).trans (Nat.add_le_add_right ih _)
-
-private theorem degZ₂_sum_le {R ι : Type*} [CommSemiring R] (s : Finset ι) (f : ι → R[X][X])
-    {B : ℕ} (h : ∀ i ∈ s, degZ₂ (f i) ≤ B) :
-    degZ₂ (∑ i ∈ s, f i) ≤ B := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp [degZ₂_zero]
-  | insert a s ha ih =>
-    rw [sum_insert ha]
-    exact (degZ₂_add_le _ _).trans (max_le (h a (mem_insert_self a s))
-      (ih fun i hi => h i (mem_insert_of_mem hi)))
-
-private theorem degZ₂_derivative_le {R : Type*} [CommSemiring R] (f : R[X][X]) :
-    degZ₂ f.derivative ≤ degZ₂ f := by
-  rw [degZ₂_le_iff]
-  intro a
-  rw [coeff_derivative]
-  have h1 := degZ₂_le_iff.1 (le_refl (degZ₂ f)) (a + 1)
-  have hmul : ((f.coeff (a + 1)) * (↑a + 1 : R[X])).natDegree ≤ (f.coeff (a + 1)).natDegree := by
-    refine natDegree_mul_le.trans ?_
-    have hconst : ((↑a + 1 : R[X])).natDegree = 0 := by
-      rw [show (↑a + 1 : R[X]) = C ((a : R) + 1) by simp]
-      exact natDegree_C _
-    omega
-  exact hmul.trans h1
-
 private theorem degZ₂_hasseDeriv_le {R : Type*} [CommSemiring R] (j : ℕ) (f : R[X][X]) :
     degZ₂ (hasseDeriv j f) ≤ degZ₂ f := by
   rw [degZ₂_le_iff]
@@ -276,6 +240,11 @@ private theorem degZ₂_hasseDeriv_le {R : Type*} [CommSemiring R] (j : ℕ) (f 
     rw [show (((a + j).choose j : ℕ) : R[X]) = C (((a + j).choose j : ℕ) : R) by simp,
       natDegree_C, zero_add]
   exact hmul.trans h1
+
+private theorem degZ₂_derivative_le {R : Type*} [CommSemiring R] (f : R[X][X]) :
+    degZ₂ f.derivative ≤ degZ₂ f := by
+  rw [← hasseDeriv_one']
+  exact degZ₂_hasseDeriv_le 1 f
 
 private theorem natDegree_eval_C_le_degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) (x : R) :
     (f.eval (C x)).natDegree ≤ degZ₂ f := by
@@ -331,49 +300,99 @@ private theorem degZ₂_coeff_le_degZ {R : Type*} [CommSemiring R] (Q : R[X][X][
     degZ₂ (Q.coeff b) ≤ degZ Q :=
   degZ₂_le_iff.2 fun a => degZ_le_iff.1 le_rfl a b
 
-/-- Generic degree bound for `Polynomial.resultant` under any subadditive degree-like measure
-`deg : R → ℕ` (covers `natDegree` in `F[Z]`, `natDegree` in `F[Z][X]`, and `degZ₂` in `F[Z][X]`). -/
-private theorem degree_resultant_le {R : Type*} [CommRing R]
-    (deg : R → ℕ)
-    (hzero : deg 0 = 0)
-    (hone : deg 1 = 0)
-    (hneg : ∀ x, deg (-x) = deg x)
-    (hadd : ∀ x y, deg (x + y) ≤ max (deg x) (deg y))
-    (hmul : ∀ x y, deg (x * y) ≤ deg x + deg y)
-    {f g : R[X]} {m n Bf Bg : ℕ}
-    (hf : ∀ i, deg (f.coeff i) ≤ Bf)
-    (hg : ∀ i, deg (g.coeff i) ≤ Bg) :
-    deg (Polynomial.resultant f g m n) ≤ m * Bg + n * Bf := by
-  have hsum : ∀ {α : Type} (s : Finset α) (u : α → R) (B : ℕ),
-      (∀ i ∈ s, deg (u i) ≤ B) → deg (∑ i ∈ s, u i) ≤ B := by
-    intro α s u B hu
-    classical
-    induction s using Finset.induction_on with
-    | empty => simp [hzero]
-    | insert a s ha ih =>
-      rw [sum_insert ha]
-      exact (hadd _ _).trans (max_le (hu a (mem_insert_self a s))
-        (ih fun i hi => hu i (mem_insert_of_mem hi)))
-  have hprod : ∀ {α : Type} (s : Finset α) (u : α → R) (B : α → ℕ),
-      (∀ i ∈ s, deg (u i) ≤ B i) → deg (∏ i ∈ s, u i) ≤ ∑ i ∈ s, B i := by
-    intro α s u B hu
-    classical
-    induction s using Finset.induction_on with
-    | empty => simp [hone]
-    | insert a s ha ih =>
-      rw [prod_insert ha, sum_insert ha]
-      exact (hmul _ _).trans (Nat.add_le_add (hu a (mem_insert_self a s))
-        (ih fun i hi => hu i (mem_insert_of_mem hi)))
-  have hzsmul : ∀ (s : ℤˣ) (x : R), deg (s • x) = deg x := by
+/-- Bundler for subadditive degree-like measures `deg : R → ℕ` (covers `natDegree` in `R[X]` and
+`degZ₂` in `R[X][X]`). -/
+private structure DegBound (R : Type*) [CommRing R] where
+  deg : R → ℕ
+  zero : deg 0 = 0
+  one : deg 1 = 0
+  neg : ∀ x, deg (-x) = deg x
+  add_le : ∀ x y, deg (x + y) ≤ max (deg x) (deg y)
+  mul_le : ∀ x y, deg (x * y) ≤ deg x + deg y
+
+private noncomputable def DegBound.natDegree (R : Type*) [CommRing R] : DegBound R[X] where
+  deg := Polynomial.natDegree
+  zero := natDegree_zero
+  one := natDegree_one
+  neg := natDegree_neg
+  add_le := natDegree_add_le
+  mul_le := fun _ _ => natDegree_mul_le
+
+private noncomputable def DegBound.degZ₂ (R : Type*) [CommRing R] : DegBound R[X][X] where
+  deg := ProximityGap.degZ₂
+  zero := degZ₂_zero
+  one := degZ₂_one
+  neg := degZ₂_neg
+  add_le := degZ₂_add_le
+  mul_le := degZ₂_mul_le
+
+private theorem DegBound.sub_le {R : Type*} [CommRing R] (db : DegBound R) (x y : R) :
+    db.deg (x - y) ≤ max (db.deg x) (db.deg y) := by
+  rw [sub_eq_add_neg]
+  exact (db.add_le x (-y)).trans (by rw [db.neg])
+
+private theorem DegBound.sum_le {R : Type*} [CommRing R] (db : DegBound R) {α : Type*}
+    (s : Finset α) (u : α → R) {B : ℕ} (h : ∀ i ∈ s, db.deg (u i) ≤ B) :
+    db.deg (∑ i ∈ s, u i) ≤ B := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp [db.zero]
+  | insert a s ha ih =>
+    rw [sum_insert ha]
+    exact (db.add_le _ _).trans (max_le (h a (mem_insert_self a s))
+      (ih fun i hi => h i (mem_insert_of_mem hi)))
+
+private theorem DegBound.pow_le {R : Type*} [CommRing R] (db : DegBound R) (x : R) (n : ℕ) :
+    db.deg (x ^ n) ≤ n * db.deg x := by
+  induction n with
+  | zero => simp [db.one]
+  | succ n ih =>
+    rw [pow_succ, Nat.succ_mul]
+    exact (db.mul_le _ _).trans (Nat.add_le_add_right ih _)
+
+private theorem DegBound.prod_le {R : Type*} [CommRing R] (db : DegBound R) {α : Type*}
+    (s : Finset α) (u : α → R) (B : α → ℕ) (h : ∀ i ∈ s, db.deg (u i) ≤ B i) :
+    db.deg (∏ i ∈ s, u i) ≤ ∑ i ∈ s, B i := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp [db.one]
+  | insert a s ha ih =>
+    rw [prod_insert ha, sum_insert ha]
+    exact (db.mul_le _ _).trans (Nat.add_le_add (h a (mem_insert_self a s))
+      (ih fun i hi => h i (mem_insert_of_mem hi)))
+
+private theorem DegBound.natCast_eq_zero {R : Type*} [CommRing R] (db : DegBound R) (n : ℕ) :
+    db.deg n = 0 := by
+  induction n with
+  | zero => simpa using db.zero
+  | succ n ih =>
+    rw [Nat.cast_succ]
+    exact Nat.eq_zero_of_le_zero
+      ((db.add_le n 1).trans (max_le (by rw [ih]) (by rw [db.one])))
+
+private theorem DegBound.derivative_coeff_le {R : Type*} [CommRing R] (db : DegBound R)
+    {f : R[X]} {B : ℕ} (hf : ∀ b, db.deg (f.coeff b) ≤ B) (b : ℕ) :
+    db.deg (f.derivative.coeff b) ≤ B := by
+  rw [coeff_derivative]
+  refine (db.mul_le _ _).trans ?_
+  rw [← Nat.cast_succ, db.natCast_eq_zero (b + 1), add_zero]
+  exact hf (b + 1)
+
+private theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
+    {f g : R[X]} (m n : ℕ) {Bf Bg : ℕ}
+    (hf : ∀ i, db.deg (f.coeff i) ≤ Bf)
+    (hg : ∀ i, db.deg (g.coeff i) ≤ Bg) :
+    db.deg (Polynomial.resultant f g m n) ≤ m * Bg + n * Bf := by
+  have hzsmul : ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x := by
     intro s x
     rcases Int.units_eq_one_or s with rfl | rfl
     · simp
-    · simp [Units.smul_def, hneg]
+    · simp [Units.smul_def, db.neg]
   rw [Polynomial.resultant, Matrix.det_apply]
-  refine hsum _ _ _ fun σ _ => ?_
+  refine db.sum_le _ _ fun σ _ => ?_
   rw [hzsmul]
   have hentry : ∀ j : Fin (m + n),
-      deg (Polynomial.sylvester f g m n (σ j) j) ≤ j.addCases (fun _ => Bg) (fun _ => Bf) := by
+      db.deg (Polynomial.sylvester f g m n (σ j) j) ≤ j.addCases (fun _ => Bg) (fun _ => Bf) := by
     intro j
     rw [Polynomial.sylvester]
     dsimp only [Matrix.of_apply]
@@ -381,16 +400,72 @@ private theorem degree_resultant_le {R : Type*} [CommRing R]
     · simp only [Fin.addCases_left]
       split_ifs
       · exact hg _
-      · simp [hzero]
+      · simp [db.zero]
     · simp only [Fin.addCases_right]
       split_ifs
       · exact hf _
-      · simp [hzero]
-  have hle := hprod Finset.univ (fun j => Polynomial.sylvester f g m n (σ j) j)
-    (fun j => j.addCases (fun _ => Bg) (fun _ => Bf)) (fun j _ => hentry j)
-  refine hle.trans ?_
+      · simp [db.zero]
+  refine (db.prod_le Finset.univ _ _ fun j _ => hentry j).trans ?_
   rw [Fin.sum_univ_add]
   simp [Fin.addCases_left, Fin.addCases_right]
+
+private theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [CommRing R]
+    (db : DegBound R) {f : R[X]} (hf_deg : 1 ≤ f.natDegree) {B : ℕ}
+    (hf : ∀ b, db.deg (f.coeff b) ≤ B) :
+    db.deg (f.leadingCoeff *
+        Polynomial.resultant f f.derivative f.natDegree f.derivative.natDegree) ≤
+      2 * f.natDegree * B := by
+  have hf'_deg : f.derivative.natDegree ≤ f.natDegree - 1 := Polynomial.natDegree_derivative_le f
+  have hres := db.resultant_le f.natDegree f.derivative.natDegree hf (db.derivative_coeff_le hf)
+  rw [← add_mul] at hres
+  refine (db.mul_le _ _).trans ?_
+  have hlc : db.deg f.leadingCoeff ≤ B := hf f.natDegree
+  have hsum : 1 + (f.natDegree + f.derivative.natDegree) ≤ 2 * f.natDegree := by omega
+  calc db.deg f.leadingCoeff +
+          db.deg (Polynomial.resultant f f.derivative f.natDegree f.derivative.natDegree)
+      ≤ B + (f.natDegree + f.derivative.natDegree) * B := Nat.add_le_add hlc hres
+    _ = (1 + (f.natDegree + f.derivative.natDegree)) * B := by ring
+    _ ≤ 2 * f.natDegree * B := Nat.mul_le_mul_right B hsum
+
+/-- Shared root-counting and resultant helpers. -/
+private theorem card_filter_eval_eq_zero_le {R : Type*} [CommRing R] [IsDomain R]
+    [DecidableEq R] {p : R[X]} (hp : p ≠ 0) (T : Finset R) :
+    #(T.filter fun z => p.eval z = 0) ≤ p.natDegree := by
+  have hsub : T.filter (fun z => p.eval z = 0) ⊆ p.roots.toFinset := by
+    intro z hz
+    rw [Multiset.mem_toFinset, mem_roots hp, IsRoot]
+    exact (mem_filter.1 hz).2
+  exact (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans (Polynomial.card_roots' p))
+
+private theorem exists_eval_ne_zero_of_natDegree_lt_card {R : Type*} [CommRing R] [IsDomain R]
+    {p : R[X]} (hp : p ≠ 0) {T : Finset R} (hlt : p.natDegree < #T) :
+    ∃ x ∈ T, p.eval x ≠ 0 := by
+  by_contra hall
+  push Not at hall
+  exact hp (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' p T hall hlt)
+
+private theorem resultant_ne_zero_of_isCoprime_map {R K : Type*} [CommRing R]
+    [Field K] (φ : R →+* K) (hφ : Function.Injective φ) {f g : R[X]}
+    (hcop : IsCoprime (f.map φ) (g.map φ)) :
+    Polynomial.resultant f g f.natDegree g.natDegree ≠ 0 := by
+  intro h0
+  have hmap : Polynomial.resultant (f.map φ) (g.map φ) = 0 := by
+    change Polynomial.resultant (f.map φ) (g.map φ)
+      (f.map φ).natDegree (g.map φ).natDegree = 0
+    rw [Polynomial.natDegree_map_eq_of_injective hφ,
+      Polynomial.natDegree_map_eq_of_injective hφ,
+      Polynomial.resultant_map_map, h0, map_zero]
+  exact (Polynomial.resultant_eq_zero_iff.1 hmap).2 hcop
+
+private theorem coeff_sum_Icc_C_mul_X_pow {R : Type*} [Semiring R] (a b k : ℕ) (f : ℕ → R) :
+    (∑ j ∈ Icc a b, C (f j) * X ^ j).coeff k = if a ≤ k ∧ k ≤ b then f k else 0 := by
+  rw [finsetSum_coeff]
+  simp only [coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero]
+  have hsum : (∑ j ∈ Icc a b, if k = j then f j else 0) =
+      ∑ j ∈ Icc a b, if j = k then f j else 0 :=
+    Finset.sum_congr rfl fun j _ => if_congr eq_comm rfl rfl
+  rw [hsum, Finset.sum_ite_eq']
+  simp only [mem_Icc]
 
 end SwapAndDegZ
 
@@ -423,44 +498,37 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
         if ht : t < B + 1 then c (⟨(a, b), h⟩, ⟨t, ht⟩) else 0
       else 0 := by
   rw [polyOfTable, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
+  have hterm : ∀ p : M,
+      (((C (C (∑ u : Fin (B + 1), C (c (p, u)) * X ^ (u : ℕ)) * X ^ p.1.1) *
+          X ^ p.1.2).coeff b).coeff a).coeff t =
+        if p.1 = (a, b) then
+          if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0
+        else 0 := by
+    intro p
+    by_cases hpb : p.1.2 = b
+    · by_cases hpa : p.1.1 = a
+      · rw [ite_eq_left (Prod.ext hpa hpb), hpa, hpb, coeff_C_mul, coeff_X_pow_self, mul_one,
+          coeff_C_mul, coeff_X_pow_self, mul_one, finsetSum_coeff]
+        simp only [coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero]
+        by_cases ht : t < B + 1
+        · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩]
+          · simp
+          · intro u _ hne; exact ite_eq_right (fun h => hne (Fin.ext h.symm))
+          · intro h; exact absurd (mem_univ _) h
+        · rw [dite_eq_right ht]
+          exact Finset.sum_eq_zero fun u _ => ite_eq_right (by omega)
+      · rw [ite_eq_right (fun h => hpa (congrArg Prod.fst h)), hpb, coeff_C_mul, coeff_X_pow_self,
+          mul_one, coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hpa), mul_zero, coeff_zero]
+    · rw [ite_eq_right (fun h => hpb (congrArg Prod.snd h)), coeff_C_mul, coeff_X_pow,
+        ite_eq_right (Ne.symm hpb), mul_zero, coeff_zero, coeff_zero]
+  simp_rw [hterm]
   by_cases hab : (a, b) ∈ M
   · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩]
-    · simp only [coeff_C_mul, coeff_X_pow_self, mul_one, finsetSum_coeff]
-      by_cases ht : t < B + 1
-      · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩]
-        · rw [coeff_X_pow_self, mul_one]
-        · intro t' _ hne
-          rw [coeff_X_pow, ite_eq_right (fun h => absurd (Fin.ext h.symm) hne), mul_zero]
-        · intro h
-          exact absurd (mem_univ _) h
-      · rw [dite_eq_right ht]
-        refine Finset.sum_eq_zero fun t' _ => ?_
-        rw [coeff_X_pow, ite_eq_right (by omega), mul_zero]
-    · intro p _ hne
-      have hne' : p.1.1 ≠ a ∨ p.1.2 ≠ b := by
-        by_contra hall
-        push Not at hall
-        exact hne (Subtype.ext (Prod.ext hall.1 hall.2))
-      rcases hne' with ha | hb
-      · rw [coeff_C_mul, coeff_X_pow]
-        split_ifs
-        · rw [mul_one, coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm ha), mul_zero, coeff_zero]
-        · rw [mul_zero, coeff_zero, coeff_zero]
-      · rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hb), mul_zero, coeff_zero, coeff_zero]
-    · intro h
-      exact absurd (mem_attach M _) h
+    · simp
+    · intro p _ hne; exact ite_eq_right fun h => hne (Subtype.ext h)
+    · intro h; exact absurd (mem_attach M _) h
   · rw [dite_eq_right hab]
-    refine Finset.sum_eq_zero fun p _ => ?_
-    have hne : p.1.1 ≠ a ∨ p.1.2 ≠ b := by
-      by_contra hall
-      push Not at hall
-      exact hab (by rw [← hall.1, ← hall.2]; exact p.2)
-    rcases hne with ha | hb
-    · rw [coeff_C_mul, coeff_X_pow]
-      split_ifs
-      · rw [mul_one, coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm ha), mul_zero, coeff_zero]
-      · rw [mul_zero, coeff_zero, coeff_zero]
-    · rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hb), mul_zero, coeff_zero, coeff_zero]
+    exact Finset.sum_eq_zero fun p _ => ite_eq_right (fun (h : p.1 = (a, b)) => hab (h ▸ p.2))
 
 private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) :
@@ -660,10 +728,62 @@ private noncomputable def evZ₁ (z : F) : F[X][X] →+* F[X] := Polynomial.mapR
 /-- Specialization `Z ↦ z` on `F[Z][X][Y]`. -/
 private noncomputable def evZ₂ (z : F) : F[X][X][X] →+* F[X][X] := Polynomial.mapRingHom (evZ₁ z)
 
-private theorem evZ₂_eval_C {Q : F[X][X][X]} {z : F} (hz : Q.natDegree = 0) :
-    evZ₂ z Q = C ((evZ₁ z) (Q.coeff 0)) := by
-  conv_lhs => rw [Polynomial.eq_C_of_natDegree_eq_zero hz]
-  rw [evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C]
+private theorem eval_resultant_eq_zero_of_common_root
+    {f g : F[X][X]} (hf : f.natDegree ≠ 0 ∨ g.natDegree ≠ 0) {z y : F}
+    (hf0 : (f.map (evZ z)).eval y = 0) (hg0 : (g.map (evZ z)).eval y = 0) :
+    (Polynomial.resultant f g f.natDegree g.natDegree).eval z = 0 := by
+  obtain ⟨U, V, _, _, hbez⟩ :=
+    Polynomial.exists_mul_add_mul_eq_C_resultant f g le_rfl le_rfl hf
+  have hmap := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval y) hbez
+  rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_C,
+    eval_add, eval_mul, eval_mul, eval_C, hf0, hg0, zero_mul, zero_mul, add_zero] at hmap
+  exact hmap.symm
+
+private theorem exists_eq_C_mul_prod_irreducible_of_ufd {R : Type*} [CommRing R] [IsDomain R]
+    [UniqueFactorizationMonoid R] {Q : R[X]} (hQ : Q ≠ 0) :
+    ∃ (c : R) (fs : Multiset R[X]),
+      c ≠ 0 ∧
+      (∀ f ∈ fs, Irreducible f ∧ 1 ≤ f.natDegree) ∧
+      Q = C c * fs.prod := by
+  classical
+  let all := UniqueFactorizationMonoid.factors Q
+  obtain ⟨u, hu⟩ := UniqueFactorizationMonoid.factors_prod hQ
+  let fs₀ := all.filter (fun f => f.natDegree = 0)
+  let fs := all.filter (fun f => 1 ≤ f.natDegree)
+  have hsplit : all = fs₀ + fs := by
+    have h1 : fs = all.filter (fun f => ¬ f.natDegree = 0) :=
+      Multiset.filter_congr (fun _ _ => by omega)
+    rw [h1]
+    exact (Multiset.filter_add_not (fun f : R[X] => f.natDegree = 0) all).symm
+  have hirred : ∀ f ∈ all, Irreducible f := UniqueFactorizationMonoid.irreducible_of_factor
+  have hfs₀_deg : fs₀.prod.natDegree = 0 := by
+    have hne : ∀ f ∈ fs₀, f ≠ 0 := fun f hf =>
+      (hirred f (Multiset.mem_of_mem_filter hf)).ne_zero
+    rw [Polynomial.natDegree_multiset_prod fs₀ (fun h0 => hne 0 h0 rfl)]
+    exact Multiset.sum_eq_zero fun n hn => by
+      obtain ⟨f, hf, rfl⟩ := Multiset.mem_map.1 hn
+      exact (Multiset.mem_filter.1 hf).2
+  have hu_deg : (u : R[X]).natDegree = 0 := Polynomial.natDegree_eq_zero_of_isUnit u.isUnit
+  have hQ_eq : Q = C (fs₀.prod.coeff 0 * (u : R[X]).coeff 0) * fs.prod := by
+    rw [C_mul, ← Polynomial.eq_C_of_natDegree_eq_zero hfs₀_deg,
+      ← Polynomial.eq_C_of_natDegree_eq_zero hu_deg, ← hu]
+    change (all.prod * (u : R[X])) = _
+    rw [hsplit, Multiset.prod_add]
+    ring
+  have hc0 : fs₀.prod.coeff 0 * (u : R[X]).coeff 0 ≠ 0 := by
+    intro h0
+    apply hQ
+    rw [hQ_eq, h0, map_zero, zero_mul]
+  exact ⟨_, fs, hc0, fun f hf => ⟨hirred f (Multiset.mem_of_mem_filter hf),
+    (Multiset.mem_filter.1 hf).2⟩, hQ_eq⟩
+
+private theorem exists_mem_eval_map_eq_zero {R S : Type*} [CommRing R] [CommRing S] [IsDomain S]
+    (φ : R →+* S) (ms : Multiset R[X]) (y : S) (h : (ms.prod.map φ).eval y = 0) :
+    ∃ f ∈ ms, (f.map φ).eval y = 0 := by
+  have hprod : (ms.map fun f => (f.map φ).eval y).prod = 0 := by
+    rw [← h, Polynomial.map_multiset_prod, Polynomial.eval_multiset_prod, Multiset.map_map]
+    rfl
+  exact Multiset.mem_map.1 (Multiset.prod_eq_zero_iff.1 hprod)
 
 private theorem weightedDegree_evZ₂_le {d : ℕ} (z : F) (Q : F[X][X][X]) :
     weightedDegree d (evZ₂ z Q) ≤ weightedDegree d Q := by
@@ -681,17 +801,14 @@ private theorem card_filter_evZ₂_eq_zero_le [DecidableEq F] {Q : F[X][X][X]} (
     simpa using hall b a
   rcases hex with ⟨b, a, hab⟩
   set c₀ : F[X] := (Q.coeff b).coeff a
-  have hsub : T.filter (fun z => evZ₂ z Q = 0) ⊆ c₀.roots.toFinset := by
+  have hsub : T.filter (fun z => evZ₂ z Q = 0) ⊆ T.filter (fun z => c₀.eval z = 0) := by
     intro z hz
-    rw [mem_filter] at hz
-    rw [Multiset.mem_toFinset, mem_roots hab, IsRoot]
+    rw [mem_filter] at hz ⊢
+    refine ⟨hz.1, ?_⟩
     have hcoeff := congrArg (fun R : F[X][X] => (R.coeff b).coeff a) hz.2
     simpa [evZ₂, evZ₁, evZ, c₀] using hcoeff
-  calc #(T.filter fun z => evZ₂ z Q = 0)
-      ≤ #c₀.roots.toFinset := card_le_card hsub
-    _ ≤ c₀.roots.card := Multiset.toFinset_card_le _
-    _ ≤ c₀.natDegree := Polynomial.card_roots' c₀
-    _ ≤ degZ Q := degZ_le_iff.1 le_rfl a b
+  exact (card_le_card hsub).trans
+    ((card_filter_eval_eq_zero_le hab T).trans (degZ_le_iff.1 le_rfl a b))
 
 private theorem ceil_div_le_card_of_sum_le {ι : Type*} {W : ι → ℕ} {M B_W : ℕ} (hM : 0 < M)
     (hW_le : ∀ i, W i ≤ M) {A : Finset ι} (hsum : B_W ≤ ∑ i ∈ A, W i) :
@@ -777,40 +894,14 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
   -- Step 1: obtain Siegel interpolant `Q`.
   obtain ⟨Q, hQ0, hQwd, hQdeg, hQdegZ, hQvan⟩ := exists_siegel_interpolant α u hinterp
   -- Factor `Q` in the UFD `F[Z][X][Y]`.
-  let fs := UniqueFactorizationMonoid.factors Q
-  have hfs_prod : Associated fs.prod Q := UniqueFactorizationMonoid.factors_prod hQ0
-  obtain ⟨u_unit, hu_eq⟩ := hfs_prod
-  have hfs_irred : ∀ R ∈ fs, Irreducible R := fun R hR =>
-    UniqueFactorizationMonoid.irreducible_of_factor R hR
-  let fs₀ := fs.filter (fun R => R.natDegree = 0)
-  let fsPos := fs.filter (fun R => 1 ≤ R.natDegree)
-  have hfs_split : fs = fs₀ + fsPos := by
-    have h1 : fsPos = fs.filter (fun R => ¬ R.natDegree = 0) := by
-      dsimp only [fsPos]
-      congr 1
-      funext R
-      exact propext (by omega)
-    rw [h1]
-    exact (Multiset.filter_add_not (fun R : F[X][X][X] => R.natDegree = 0) fs).symm
-  have hQ_eq : Q = fs₀.prod * fsPos.prod * (u_unit : F[X][X][X]) := by
-    rw [← hu_eq, hfs_split, Multiset.prod_add]
-  have hfsPos_ne : ∀ R ∈ fsPos, R ≠ 0 := fun R hR =>
-    (hfs_irred R (Multiset.mem_of_mem_filter hR)).ne_zero
-  have hsum_deg : ∑ R ∈ fsPos.toFinset, R.natDegree ≤ D_Y := by
-    have h1 : ∑ R ∈ fsPos.toFinset, R.natDegree ≤ (fsPos.map Polynomial.natDegree).sum := by
-      have hle : fsPos.toFinset.val ≤ fsPos := Multiset.dedup_le fsPos
-      obtain ⟨rem, hrem⟩ := Multiset.le_iff_exists_add.1 hle
-      change (fsPos.toFinset.val.map Polynomial.natDegree).sum ≤ _
-      conv_rhs => rw [hrem]
-      rw [Multiset.map_add, Multiset.sum_add]
-      exact Nat.le_add_right _ _
-    have h2 : (fsPos.map Polynomial.natDegree).sum = fsPos.prod.natDegree := by
-      symm
-      exact Polynomial.natDegree_multiset_prod fsPos (fun h0 => hfsPos_ne 0 h0 rfl)
-    have h3 : fsPos.prod.natDegree ≤ Q.natDegree := by
-      have hdvd : fsPos.prod ∣ Q := ⟨fs₀.prod * (u_unit : F[X][X][X]), by rw [hQ_eq]; ring⟩
-      exact Polynomial.natDegree_le_of_dvd hdvd hQ0
-    exact (h1.trans h2.le).trans (h3.trans hQdeg)
+  obtain ⟨c, fs, hc0, hfs_prop, hQ_eq⟩ := exists_eq_C_mul_prod_irreducible_of_ufd hQ0
+  have hfs_ne : ∀ R ∈ fs.toFinset, R ≠ 0 := fun R hR =>
+    (hfs_prop R (Multiset.mem_toFinset.1 hR)).1.ne_zero
+  have hsum_deg : ∑ R ∈ fs.toFinset, R.natDegree ≤ D_Y := by
+    rw [← Polynomial.natDegree_prod _ _ hfs_ne]
+    have hdvd : fs.toFinset.prod id ∣ Q :=
+      (Multiset.toFinset_prod_dvd_prod fs).trans ⟨C c, by rw [hQ_eq, mul_comm]⟩
+    exact (Polynomial.natDegree_le_of_dvd hdvd hQ0).trans hQdeg
   -- Non-vanishing specializations `T_nz ⊆ T`.
   let T_nz := T.filter (fun z => evZ₂ z Q ≠ 0)
   have hT_nz_card : #T - B_Z ≤ #T_nz := by
@@ -820,11 +911,11 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
       simpa [T_nz] using h.symm
     have hbad := (card_filter_evZ₂_eq_zero_le hQ0 T).trans hQdegZ
     omega
-  -- Every `z ∈ T_nz` lands in `T_R` for some `R ∈ fsPos.toFinset`.
+  -- Every `z ∈ T_nz` lands in `T_R` for some `R ∈ fs.toFinset`.
   let T_of : F[X][X][X] → Finset F := fun R =>
     T.filter fun z => ∃ P : F[X], P.natDegree ≤ d ∧ (evZ₂ z R).eval P = 0 ∧
       B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i
-  have hcover : T_nz ⊆ fsPos.toFinset.biUnion T_of := by
+  have hcover : T_nz ⊆ fs.toFinset.biUnion T_of := by
     intro z hz
     rw [mem_filter] at hz
     obtain ⟨hzT, hQz_ne⟩ := hz
@@ -854,54 +945,33 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
       simpa [evZ₂, evZ₁, hαi, hwi] using hmap
     have heval0 : (evZ₂ z Q).eval P = 0 :=
       hQz_interp.eval_eq_zero hα hP_natDeg (hroot.trans_le (Nat.mul_le_mul_left m hcard_P))
-    -- Strip `fs₀` and `u_unit`, whose evaluations at `P` are nonzero in `F[X]`.
-    have hu_ev_ne : (evZ₂ z (u_unit : F[X][X][X])).eval P ≠ 0 := by
-      have hisu : IsUnit ((evZ₂ z (u_unit : F[X][X][X])).eval P) :=
-        (u_unit.isUnit.map (evZ₂ z)).map (Polynomial.evalRingHom P)
-      exact hisu.ne_zero
-    have hfs₀_ev_ne : (evZ₂ z fs₀.prod).eval P ≠ 0 := by
-      have hprod_ne : evZ₂ z fs₀.prod ≠ 0 := by
-        intro h0
-        apply hQz_ne
-        rw [hQ_eq, map_mul, map_mul, h0, zero_mul, zero_mul]
-      have hdeg0 : fs₀.prod.natDegree = 0 := by
-        have hfs₀_ne : ∀ R₀ ∈ fs₀, R₀ ≠ 0 := fun R₀ hR₀ =>
-          (hfs_irred R₀ (Multiset.mem_of_mem_filter hR₀)).ne_zero
-        rw [Polynomial.natDegree_multiset_prod fs₀ (fun h0 => hfs₀_ne 0 h0 rfl)]
-        exact Multiset.sum_eq_zero fun n hn => by
-          obtain ⟨R₀, hR₀, rfl⟩ := Multiset.mem_map.1 hn
-          exact (Multiset.mem_filter.1 hR₀).2
-      rw [evZ₂_eval_C hdeg0] at hprod_ne ⊢
-      rw [eval_C]
-      intro hc0
-      exact hprod_ne (by rw [hc0, map_zero])
-    have hfsPos_ev0 : (evZ₂ z fsPos.prod).eval P = 0 := by
-      rw [hQ_eq, map_mul, map_mul, eval_mul, eval_mul] at heval0
-      rcases mul_eq_zero.1 heval0 with h12 | hu0
-      · exact (mul_eq_zero.1 h12).resolve_left hfs₀_ev_ne
-      · exact absurd hu0 hu_ev_ne
-    have hprod_eval : (fsPos.map fun R => (evZ₂ z R).eval P).prod = 0 := by
-      rw [← hfsPos_ev0, map_multiset_prod, Polynomial.eval_multiset_prod, Multiset.map_map]
-      rfl
-    have h0mem : 0 ∈ fsPos.map fun R => (evZ₂ z R).eval P := Multiset.prod_eq_zero_iff.1 hprod_eval
-    obtain ⟨R, hR_mem, hp0⟩ := Multiset.mem_map.1 h0mem
+    -- Strip `C c`, whose specialization `evZ₁ z c` is nonzero in `F[X]`.
+    have hc_ev_ne : evZ₁ z c ≠ 0 := by
+      intro h0
+      apply hQz_ne
+      rw [hQ_eq, map_mul, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C, h0, map_zero, zero_mul]
+    have hfs_ev0 : (fs.prod.map (evZ₁ z)).eval P = 0 := by
+      rw [hQ_eq, map_mul, eval_mul, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C, eval_C]
+        at heval0
+      exact (mul_eq_zero.1 heval0).resolve_left hc_ev_ne
+    obtain ⟨R, hR_mem, hp0⟩ := exists_mem_eval_map_eq_zero (evZ₁ z) fs P hfs_ev0
     exact mem_biUnion.2 ⟨R, Multiset.mem_toFinset.2 hR_mem,
       mem_filter.2 ⟨hzT, P, hP_natDeg, hp0, hW_P⟩⟩
-  -- Pigeonhole across `R ∈ fsPos.toFinset`.
+  -- Pigeonhole across `R ∈ fs.toFinset`.
   let B_of : F[X][X][X] → ℕ := fun R =>
     2 * R.natDegree * (D + B_Z) + W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y)
-  have hsum_B : ∑ R ∈ fsPos.toFinset, B_of R < #T_nz := by
-    have h1 : ∑ R ∈ fsPos.toFinset, B_of R =
-        (∑ R ∈ fsPos.toFinset, R.natDegree) *
+  have hsum_B : ∑ R ∈ fs.toFinset, B_of R < #T_nz := by
+    have h1 : ∑ R ∈ fs.toFinset, B_of R =
+        (∑ R ∈ fs.toFinset, R.natDegree) *
           (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y)) := by
       rw [Finset.sum_mul]
       refine Finset.sum_congr rfl fun R _ => ?_
       dsimp only [B_of]
       ring
-    have h2 : ∑ R ∈ fsPos.toFinset, B_of R ≤
+    have h2 : ∑ R ∈ fs.toFinset, B_of R ≤
         2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y) := by
       rw [h1]
-      calc (∑ R ∈ fsPos.toFinset, R.natDegree) *
+      calc (∑ R ∈ fs.toFinset, R.natDegree) *
               (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y))
           ≤ D_Y * (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y)) :=
             Nat.mul_le_mul_right _ hsum_deg
@@ -909,16 +979,14 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
     have h3 : B_Z + (2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y)) < #T := by
       simpa [johnsonCurveBound, D_Y, B_Z, add_assoc] using hT
     omega
-  have hsum_T : #T_nz ≤ ∑ R ∈ fsPos.toFinset, #(T_of R) :=
+  have hsum_T : #T_nz ≤ ∑ R ∈ fs.toFinset, #(T_of R) :=
     (card_le_card hcover).trans Finset.card_biUnion_le
-  have hex_R : ∃ R ∈ fsPos.toFinset, B_of R < #(T_of R) :=
+  have hex_R : ∃ R ∈ fs.toFinset, B_of R < #(T_of R) :=
     Finset.exists_lt_of_sum_lt (hsum_B.trans_le hsum_T)
   obtain ⟨R, hR_fin, hR_card⟩ := hex_R
-  have hR_mem : R ∈ fsPos := Multiset.mem_toFinset.1 hR_fin
-  have hR_irred : Irreducible R := hfs_irred R (Multiset.mem_of_mem_filter hR_mem)
-  have hR_deg : 1 ≤ R.natDegree := (Multiset.mem_filter.1 hR_mem).2
-  have hR_dvd : R ∣ Q := (Multiset.dvd_prod (Multiset.mem_of_mem_filter hR_mem)).trans
-    ⟨(u_unit : F[X][X][X]), hu_eq.symm⟩
+  have hR_mem : R ∈ fs := Multiset.mem_toFinset.1 hR_fin
+  obtain ⟨hR_irred, hR_deg⟩ := hfs_prop R hR_mem
+  have hR_dvd : R ∣ Q := (Multiset.dvd_prod hR_mem).trans ⟨C c, by rw [hQ_eq, mul_comm]⟩
   have hR_deg_le : R.natDegree ≤ D_Y := (Polynomial.natDegree_le_of_dvd hR_dvd hQ0).trans hQdeg
   have hDY_pos : 1 ≤ D_Y := hR_deg.trans hR_deg_le
   exact ⟨R, T_of R, hR_irred, hR_deg, hR_deg_le, (weightedDegree_le_of_dvd hQ0 hR_dvd).trans hQwd,
@@ -1036,22 +1104,9 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
   -- Resultant `Δ = Res_Y(S, S')` is nonzero in `F[Z][X]`.
   set Δ : F[X][X] := Polynomial.resultant S S.derivative S.natDegree S.derivative.natDegree
   have hΔ_ne : Δ ≠ 0 := by
-    intro hΔ0
-    have hmap0 : Polynomial.resultant S_E S_E.derivative = 0 := by
-      have hdeg1 : S_E.natDegree = S.natDegree := by
-        rw [← hS_map, Polynomial.natDegree_map_eq_of_injective hι_E_inj]
-      have hdeg2 : S_E.derivative.natDegree = S.derivative.natDegree := by
-        rw [← hS_map, Polynomial.derivative_map,
-          Polynomial.natDegree_map_eq_of_injective hι_E_inj]
-      have hres := Polynomial.resultant_map_map (f := S) (g := S.derivative)
-        (m := S.natDegree) (n := S.derivative.natDegree) ι_E
-      rw [hS_map, ← Polynomial.derivative_map, hS_map] at hres
-      change Polynomial.resultant S_E S_E.derivative S_E.natDegree S_E.derivative.natDegree = _
-      rw [hdeg1, hdeg2, hres]
-      change ι_E Δ = 0
-      rw [hΔ0, map_zero]
-    have hnotcop := (Polynomial.resultant_eq_zero_iff.1 hmap0).2
-    exact hnotcop hS_E_sep
+    have hcop : IsCoprime (S.map ι_E) (S.derivative.map ι_E) := by
+      rwa [← Polynomial.derivative_map, hS_map]
+    exact resultant_ne_zero_of_isCoprime_map ι_E hι_E_inj hcop
   obtain ⟨A_bez, B_bez, _, _, hbez⟩ :=
     Polynomial.exists_mul_add_mul_eq_C_resultant S S.derivative le_rfl le_rfl (Or.inl (by omega))
   -- Degree bounds on `S.leadingCoeff * Δ` in both `X` and `Z`.
@@ -1062,53 +1117,12 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     by_contra hne
     have hle := hS_wd a b hne
     omega
-  have hS'_coeff_degX : ∀ b, (S.derivative.coeff b).natDegree ≤ D := by
-    intro b
-    rw [coeff_derivative]
-    refine natDegree_mul_le.trans ?_
-    have hconst : ((↑b + 1 : F[X][X])).natDegree = 0 := by
-      rw [show (↑b + 1 : F[X][X]) = C (C ((b : F) + 1)) by simp, natDegree_C]
-    have h1 := hS_coeff_degX (b + 1)
-    omega
   have hS_coeff_degZ : ∀ b, degZ₂ (S.coeff b) ≤ B_Z := fun b =>
     (degZ₂_coeff_le_degZ S b).trans hS_degZ
-  have hS'_coeff_degZ : ∀ b, degZ₂ (S.derivative.coeff b) ≤ B_Z := by
-    intro b
-    rw [coeff_derivative]
-    refine (degZ₂_mul_le _ _).trans ?_
-    have hconst : degZ₂ (↑b + 1 : F[X][X]) = 0 := by
-      rw [show (↑b + 1 : F[X][X]) = C (C ((b : F) + 1)) by simp, degZ₂_C, natDegree_C]
-    have h1 := hS_coeff_degZ (b + 1)
-    omega
-  have hS'_deg : S.derivative.natDegree ≤ S.natDegree - 1 := Polynomial.natDegree_derivative_le S
-  have hΔ_degX : Δ.natDegree ≤ (S.natDegree + S.derivative.natDegree) * D := by
-    have h := degree_resultant_le (R := F[X][X]) Polynomial.natDegree
-      natDegree_zero natDegree_one natDegree_neg natDegree_add_le
-      (fun _ _ => natDegree_mul_le) (f := S) (g := S.derivative)
-      (m := S.natDegree) (n := S.derivative.natDegree) hS_coeff_degX hS'_coeff_degX
-    linarith
-  have hΔ_degZ : degZ₂ Δ ≤ (S.natDegree + S.derivative.natDegree) * B_Z := by
-    have h := degree_resultant_le (R := F[X][X]) degZ₂
-      degZ₂_zero (by rw [show (1 : F[X][X]) = C 1 by simp, degZ₂_C, natDegree_one])
-      degZ₂_neg degZ₂_add_le degZ₂_mul_le (f := S) (g := S.derivative)
-      (m := S.natDegree) (n := S.derivative.natDegree) hS_coeff_degZ hS'_coeff_degZ
-    linarith
-  have hH_degX : (S.leadingCoeff * Δ).natDegree ≤ 2 * S.natDegree * D := by
-    refine natDegree_mul_le.trans ?_
-    have hlc : S.leadingCoeff.natDegree ≤ D := hS_coeff_degX S.natDegree
-    have hsum : 1 + (S.natDegree + S.derivative.natDegree) ≤ 2 * S.natDegree := by omega
-    calc S.leadingCoeff.natDegree + Δ.natDegree
-        ≤ D + (S.natDegree + S.derivative.natDegree) * D := Nat.add_le_add hlc hΔ_degX
-      _ = (1 + (S.natDegree + S.derivative.natDegree)) * D := by ring
-      _ ≤ 2 * S.natDegree * D := Nat.mul_le_mul_right D hsum
-  have hH_degZ : degZ₂ (S.leadingCoeff * Δ) ≤ 2 * S.natDegree * B_Z := by
-    refine (degZ₂_mul_le _ _).trans ?_
-    have hlc : degZ₂ S.leadingCoeff ≤ B_Z := hS_coeff_degZ S.natDegree
-    have hsum : 1 + (S.natDegree + S.derivative.natDegree) ≤ 2 * S.natDegree := by omega
-    calc degZ₂ S.leadingCoeff + degZ₂ Δ
-        ≤ B_Z + (S.natDegree + S.derivative.natDegree) * B_Z := Nat.add_le_add hlc hΔ_degZ
-      _ = (1 + (S.natDegree + S.derivative.natDegree)) * B_Z := by ring
-      _ ≤ 2 * S.natDegree * B_Z := Nat.mul_le_mul_right B_Z hsum
+  have hH_degX : (S.leadingCoeff * Δ).natDegree ≤ 2 * S.natDegree * D :=
+    (DegBound.natDegree F[X]).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degX
+  have hH_degZ : degZ₂ (S.leadingCoeff * Δ) ≤ 2 * S.natDegree * B_Z :=
+    (DegBound.degZ₂ F).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degZ
   exact ⟨μ, S, A_bez, B_bez, Δ, hμ_char, hμ_pos, hexp_S, hS_deg, hdeg_mul, hμd_le, hS_wd,
     hS_degZ, hΔ_ne, hbez, hH_degX, hH_degZ⟩
 
@@ -1187,28 +1201,20 @@ private theorem exists_good_shift_and_factor
       rw [coeff_coeff_swap]
       have hH0 : H.coeff a = 0 := coeff_eq_zero_of_natDegree_lt (hH_degX.trans_lt ha)
       rw [hH0, coeff_zero]
-    have hroots_lt : #(hj.roots.toFinset) < #T_R := by
-      have h1 : #(hj.roots.toFinset) ≤ hj.natDegree :=
-        (Multiset.toFinset_card_le _).trans (Polynomial.card_roots' hj)
+    have hlt : hj.natDegree < #T_R := by
       have h2 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
       omega
-    have hnot_sub : ¬ T_R ⊆ hj.roots.toFinset := fun hsub =>
-      (card_le_card hsub).not_gt hroots_lt
-    obtain ⟨x₀, hx₀_TR, hx₀_not⟩ := Finset.not_subset.1 hnot_sub
-    refine ⟨x₀, hx₀_TR, fun hH0 => hx₀_not ?_⟩
-    rw [Multiset.mem_toFinset, mem_roots hj_ne, IsRoot]
+    obtain ⟨x₀, hx₀_TR, hx₀_ne⟩ := exists_eval_ne_zero_of_natDegree_lt_card hj_ne hlt
+    refine ⟨x₀, hx₀_TR, fun hH0 => hx₀_ne ?_⟩
     have hc := congrArg (fun p : F[X] => p.coeff j) hH0
     rw [eval_eq_sum_range, finsetSum_coeff, coeff_zero] at hc
     have hhj_le : hj.natDegree ≤ H.natDegree := by
       rw [natDegree_le_iff_coeff_eq_zero]
       intro a ha
       rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
-    have heval_eq : hj.eval x₀ =
-        ∑ a ∈ range (H.natDegree + 1), (H.coeff a * (C x₀) ^ a).coeff j := by
-      rw [eval_eq_sum_range' (Nat.lt_succ_of_le hhj_le)]
-      refine Finset.sum_congr rfl fun a _ => ?_
-      rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
-    rw [heval_eq, hc]
+    rw [eval_eq_sum_range' (Nat.lt_succ_of_le hhj_le), ← hc]
+    refine Finset.sum_congr rfl fun a _ => ?_
+    rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
   obtain ⟨x₀, _, hHx₀_ne⟩ := hx₀
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := by
     intro h0
@@ -1251,61 +1257,24 @@ private theorem exists_good_shift_and_factor
       have h := Finset.card_filter_add_card_filter_not (s := T_R)
         (p := fun z => (H.eval (C x₀)).eval z = 0)
       simpa [T'_R] using h.symm
-    have hbad : #(T_R.filter fun z => (H.eval (C x₀)).eval z = 0) ≤ 2 * s * B_Z := by
-      have hsub : T_R.filter (fun z => (H.eval (C x₀)).eval z = 0) ⊆
-          (H.eval (C x₀)).roots.toFinset := by
-        intro z hz
-        rw [mem_filter] at hz
-        rw [Multiset.mem_toFinset, mem_roots hHx₀_ne, IsRoot]
-        exact hz.2
-      exact (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans
-        ((Polynomial.card_roots' _).trans ((natDegree_eval_C_le_degZ₂ H x₀).trans hH_degZ)))
+    have hbad : #(T_R.filter fun z => (H.eval (C x₀)).eval z = 0) ≤ 2 * s * B_Z :=
+      (card_filter_eval_eq_zero_le hHx₀_ne T_R).trans
+        ((natDegree_eval_C_le_degZ₂ H x₀).trans hH_degZ)
     omega
-  -- Factor `S₀` in the UFD `F[Z][Y]`.
-  set gs := UniqueFactorizationMonoid.factors S₀
-  obtain ⟨u₀, hu₀⟩ := UniqueFactorizationMonoid.factors_prod hS₀_ne
-  have hgs_irred : ∀ G ∈ gs, Irreducible G := fun G hG =>
-    UniqueFactorizationMonoid.irreducible_of_factor G hG
-  let gs₀ := gs.filter (fun G => G.natDegree = 0)
-  let gsPos := gs.filter (fun G => 1 ≤ G.natDegree)
-  have hgs_split : gs = gs₀ + gsPos := by
-    have h1 : gsPos = gs.filter (fun G => ¬ G.natDegree = 0) := by
-      dsimp only [gsPos]
-      congr 1
-      funext G
-      exact propext (by omega)
-    rw [h1]
-    exact (Multiset.filter_add_not (fun G : F[X][X] => G.natDegree = 0) gs).symm
-  have hS₀_eq : S₀ = gs₀.prod * gsPos.prod * (u₀ : F[X][X]) := by
-    rw [← hu₀]
-    change gs.prod * (u₀ : F[X][X]) = _
-    rw [hgs_split, Multiset.prod_add]
-  have hgsPos_ne : ∀ G ∈ gsPos, G ≠ 0 := fun G hG =>
-    (hgs_irred G (Multiset.mem_of_mem_filter hG)).ne_zero
-  have hgs₀_deg : gs₀.prod.natDegree = 0 := by
-    have hne : ∀ G ∈ gs₀, G ≠ 0 := fun G hG =>
-      (hgs_irred G (Multiset.mem_of_mem_filter hG)).ne_zero
-    rw [Polynomial.natDegree_multiset_prod gs₀ (fun h0 => hne 0 h0 rfl)]
-    exact Multiset.sum_eq_zero fun n hn => by
-      obtain ⟨G, hG, rfl⟩ := Multiset.mem_map.1 hn
-      exact (Multiset.mem_filter.1 hG).2
-  have hgsPos_card : #gsPos.toFinset ≤ s := by
-    have h1 : #gsPos.toFinset ≤ ∑ G ∈ gsPos.toFinset, G.natDegree := by
-      have h := Finset.sum_le_sum (s := gsPos.toFinset) (f := fun _ => 1)
-        (g := Polynomial.natDegree)
-        (fun G hG => (Multiset.mem_filter.1 (Multiset.mem_toFinset.1 hG)).2)
-      simpa using h
-    have h2 : ∑ G ∈ gsPos.toFinset, G.natDegree ≤ (gsPos.map Polynomial.natDegree).sum := by
-      obtain ⟨rem, hrem⟩ := Multiset.le_iff_exists_add.1 (Multiset.dedup_le gsPos)
-      change (gsPos.toFinset.val.map Polynomial.natDegree).sum ≤ _
-      conv_rhs => rw [hrem]
-      rw [Multiset.map_add, Multiset.sum_add]
-      exact Nat.le_add_right _ _
-    have h3 : (gsPos.map Polynomial.natDegree).sum = gsPos.prod.natDegree :=
-      (Polynomial.natDegree_multiset_prod gsPos (fun h0 => hgsPos_ne 0 h0 rfl)).symm
-    have h4 : gsPos.prod.natDegree ≤ S₀.natDegree :=
-      Polynomial.natDegree_le_of_dvd ⟨gs₀.prod * (u₀ : F[X][X]), by rw [hS₀_eq]; ring⟩ hS₀_ne
-    omega
+  -- Factor `S₀` in the UFD `F[Z][Y]` via `Polynomial.Bivariate.exists_eq_C_mul_prod_irreducible`.
+  obtain ⟨c₀, gs, hc₀_ne, hgs_prop, hS₀_eq, _⟩ :=
+    Polynomial.Bivariate.exists_eq_C_mul_prod_irreducible hS₀_ne
+  have hgs_ne : ∀ G ∈ gs.toFinset, G ≠ 0 := fun G hG =>
+    (hgs_prop G (Multiset.mem_toFinset.1 hG)).1.ne_zero
+  have hgs_card : #gs.toFinset ≤ s := by
+    calc #gs.toFinset = ∑ _G ∈ gs.toFinset, 1 := by simp
+      _ ≤ ∑ G ∈ gs.toFinset, G.natDegree :=
+        Finset.sum_le_sum fun G hG => (hgs_prop G (Multiset.mem_toFinset.1 hG)).2.2
+      _ = (∏ G ∈ gs.toFinset, G).natDegree := (Polynomial.natDegree_prod _ _ hgs_ne).symm
+      _ ≤ S₀.natDegree :=
+        Polynomial.natDegree_le_of_dvd
+          ((Multiset.toFinset_prod_dvd_prod gs).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩) hS₀_ne
+      _ = s := hS₀_deg
   -- Helper: `(evZ₂ z S).eval (P ^ μ) = 0` gives `(S₀.map (evZ z)).eval ((P ^ μ).eval x₀) = 0`.
   have hS₀_map_evZ : ∀ z, S₀.map (evZ z) = (evZ₂ z S).map (Polynomial.evalRingHom x₀) := by
     intro z
@@ -1317,7 +1286,7 @@ private theorem exists_good_shift_and_factor
         simp [evZ, evZ₁, φx₀]
       · simp [evZ, evZ₁, φx₀]
     · simp [evZ, evZ₁, φx₀]
-  -- Cover `T'_R` by the factors `G ∈ gsPos.toFinset`.
+  -- Cover `T'_R` by the factors `G ∈ gs.toFinset`.
   let T_ofG : F[X][X] → Finset F := fun G =>
     T'_R.filter fun z =>
       ∃ P : F[X], P.natDegree ≤ d ∧
@@ -1325,7 +1294,7 @@ private theorem exists_good_shift_and_factor
         (G.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 ∧
         (γ.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 ∧
         B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i
-  have hcover' : T'_R ⊆ gsPos.toFinset.biUnion T_ofG := by
+  have hcover' : T'_R ⊆ gs.toFinset.biUnion T_ofG := by
     intro z hz
     have hz_mem := mem_filter.1 hz
     obtain ⟨hz_TR, hHz_ne⟩ := hz_mem
@@ -1359,37 +1328,20 @@ private theorem exists_good_shift_and_factor
       intro hγ0
       rw [hγ0, zero_mul] at hmap
       exact hΔ_z_ne hmap.symm
-    -- Show `gs₀.prod * u₀` evaluates to a nonzero scalar at `(z, yz)`.
-    have hgs₀_u₀_ne : ((gs₀.prod * (u₀ : F[X][X])).map (evZ z)).eval yz ≠ 0 := by
-      have hlc_prod : S₀.leadingCoeff =
-          (gs₀.prod.coeff 0) * (u₀ : F[X][X]).leadingCoeff * gsPos.prod.leadingCoeff := by
-        have h1 : S₀ = C (gs₀.prod.coeff 0) * (u₀ : F[X][X]) * gsPos.prod := by
-          rw [← Polynomial.eq_C_of_natDegree_eq_zero hgs₀_deg, hS₀_eq]
-          ring
-        rw [h1, leadingCoeff_mul, leadingCoeff_mul, leadingCoeff_C]
-      have hgs₀_z_ne : (gs₀.prod.coeff 0).eval z ≠ 0 := by
-        intro h0
-        apply hlc_z_ne
-        rw [← hS₀_lc, hlc_prod, eval_mul, eval_mul, h0, zero_mul, zero_mul]
-      have hu₀_z_ne : ((u₀ : F[X][X]).map (evZ z)).eval yz ≠ 0 :=
-        ((u₀.isUnit.map (Polynomial.mapRingHom (evZ z))).map (Polynomial.evalRingHom yz)).ne_zero
-      rw [Polynomial.map_mul, eval_mul, Polynomial.eq_C_of_natDegree_eq_zero hgs₀_deg,
-        Polynomial.map_C, eval_C]
-      exact mul_ne_zero hgs₀_z_ne hu₀_z_ne
-    have hgsPos_eval0 : (gsPos.prod.map (evZ z)).eval yz = 0 := by
-      have hS₀_re : S₀ = (gs₀.prod * (u₀ : F[X][X])) * gsPos.prod := by rw [hS₀_eq]; ring
-      rw [hS₀_re, Polynomial.map_mul, eval_mul] at hS₀_eval0
-      exact (mul_eq_zero.1 hS₀_eval0).resolve_left hgs₀_u₀_ne
-    have hprod_ev : (gsPos.map fun G => (G.map (evZ z)).eval yz).prod = 0 := by
-      rw [← hgsPos_eval0, Polynomial.map_multiset_prod, Polynomial.eval_multiset_prod,
-        Multiset.map_map]
-      rfl
-    have h0mem : 0 ∈ gsPos.map fun G => (G.map (evZ z)).eval yz :=
-      Multiset.prod_eq_zero_iff.1 hprod_ev
-    obtain ⟨G, hG_mem, hv0⟩ := Multiset.mem_map.1 h0mem
+    -- Strip `C c₀`, whose leading-coefficient factor is nonzero at `z`.
+    have hc₀_z_ne : c₀.eval z ≠ 0 := by
+      have hlc_prod : S₀.leadingCoeff = c₀ * gs.prod.leadingCoeff := by
+        rw [hS₀_eq, Polynomial.leadingCoeff_mul, Polynomial.leadingCoeff_C]
+      intro h0
+      apply hlc_z_ne
+      rw [← hS₀_lc, hlc_prod, eval_mul, h0, zero_mul]
+    have hgs_eval0 : (gs.prod.map (evZ z)).eval yz = 0 := by
+      rw [hS₀_eq, Polynomial.map_mul, Polynomial.map_C, eval_mul, eval_C] at hS₀_eval0
+      exact (mul_eq_zero.1 hS₀_eval0).resolve_left hc₀_z_ne
+    obtain ⟨G, hG_mem, hv0⟩ := exists_mem_eval_map_eq_zero (evZ z) gs yz hgs_eval0
     exact mem_biUnion.2 ⟨G, Multiset.mem_toFinset.2 hG_mem,
       mem_filter.2 ⟨hz, P, hP_deg, hS_eval0, hv0, hγ_eval_ne, hW_P⟩⟩
-  -- Pigeonhole over `G ∈ gsPos.toFinset` (`#gsPos.toFinset ≤ s`).
+  -- Pigeonhole over `G ∈ gs.toFinset` (`#gs.toFinset ≤ s`).
   set B_step := W_tot * D_Y * (4 * D * B_Z + r * D_Y)
   have hT'_gt : s * B_step < #T'_R := by
     have h1 : 2 * s * B_Z + s * B_step ≤
@@ -1403,20 +1355,17 @@ private theorem exists_good_shift_and_factor
         exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
       omega
     omega
-  have hsum_G : ∑ _G ∈ gsPos.toFinset, B_step < ∑ G ∈ gsPos.toFinset, #(T_ofG G) := by
-    have h1 : ∑ _G ∈ gsPos.toFinset, B_step ≤ s * B_step := by
+  have hsum_G : ∑ _G ∈ gs.toFinset, B_step < ∑ G ∈ gs.toFinset, #(T_ofG G) := by
+    have h1 : ∑ _G ∈ gs.toFinset, B_step ≤ s * B_step := by
       rw [Finset.sum_const, smul_eq_mul]
-      exact Nat.mul_le_mul_right B_step hgsPos_card
-    have h2 : #T'_R ≤ ∑ G ∈ gsPos.toFinset, #(T_ofG G) :=
+      exact Nat.mul_le_mul_right B_step hgs_card
+    have h2 : #T'_R ≤ ∑ G ∈ gs.toFinset, #(T_ofG G) :=
       (card_le_card hcover').trans Finset.card_biUnion_le
     omega
   obtain ⟨Fstar, hF_fin, hF_card⟩ := Finset.exists_lt_of_sum_lt hsum_G
-  have hF_mem : Fstar ∈ gsPos := Multiset.mem_toFinset.1 hF_fin
-  have hF_irred : Irreducible Fstar := hgs_irred Fstar (Multiset.mem_of_mem_filter hF_mem)
-  have hF_deg1 : 1 ≤ Fstar.natDegree := (Multiset.mem_filter.1 hF_mem).2
-  have hF_prim : Fstar.IsPrimitive := hF_irred.isPrimitive (by omega)
-  have hF_dvd : Fstar ∣ S₀ := (Multiset.dvd_prod (Multiset.mem_of_mem_filter hF_mem)).trans
-    ⟨(u₀ : F[X][X]), hu₀.symm⟩
+  have hF_mem : Fstar ∈ gs := Multiset.mem_toFinset.1 hF_fin
+  obtain ⟨hF_irred, hF_prim, hF_deg1⟩ := hgs_prop Fstar hF_mem
+  have hF_dvd : Fstar ∣ S₀ := (Multiset.dvd_prod hF_mem).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩
   have hF_deg_le : Fstar.natDegree ≤ s :=
     (Polynomial.natDegree_le_of_dvd hF_dvd hS₀_ne).trans hS₀_deg.le
   have hF_degZ : degZ₂ Fstar ≤ B_Z := by
@@ -1632,40 +1581,27 @@ private noncomputable def recPoly (S : F[X][X][X]) (x₀ : F) (s : ℕ) : ℕ �
   | n + 1 =>
     let S₀ := S.map (Polynomial.evalRingHom (C x₀))
     let γ := S₀.derivative
-    let U : (F[X][X])[X] := ∑ k : Fin n, C (recPoly S x₀ s (k.1 + 1)) * X ^ (k.1 + 1)
+    let U : (F[X][X])[X] := ∑ k ∈ (Icc 1 n).attach, C (recPoly S x₀ s k.1) * X ^ k.1
     Neg.neg (∑ a ∈ range (n + 2), ∑ j ∈ range (s + 1),
       if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
       else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
         (U ^ j).coeff (n + 1 - a))
 termination_by n => n
-decreasing_by omega
+decreasing_by
+  have := (Finset.mem_Icc.1 k.2).2
+  omega
 
 /-- Truncated universal series `U_M(T) = ∑_{k=1}^M N_k(Z, Y) T^k ∈ (F[Z][Y])[T]`. -/
 private noncomputable def recU (S : F[X][X][X]) (x₀ : F) (s M : ℕ) : (F[X][X])[X] :=
-  ∑ k : Fin M, C (recPoly S x₀ s (k.1 + 1)) * X ^ (k.1 + 1)
+  ∑ k ∈ Icc 1 M, C (recPoly S x₀ s k) * X ^ k
 
 private theorem coeff_recU_zero (S : F[X][X][X]) (x₀ : F) (s M : ℕ) :
     (recU S x₀ s M).coeff 0 = 0 := by
-  rw [recU, finsetSum_coeff]
-  refine Finset.sum_eq_zero fun k _ => ?_
-  rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
+  rw [recU, coeff_sum_Icc_C_mul_X_pow, ite_eq_right (by omega)]
 
 private theorem coeff_recU (S : F[X][X][X]) (x₀ : F) (s M k : ℕ) :
-    (recU S x₀ s M).coeff k = if 1 ≤ k ∧ k ≤ M then recPoly S x₀ s k else 0 := by
-  rw [recU, finsetSum_coeff]
-  by_cases hk : 1 ≤ k ∧ k ≤ M
-  · rw [ite_eq_left hk, Finset.sum_eq_single ⟨k - 1, by omega⟩]
-    · have hsub : k - 1 + 1 = k := by omega
-      rw [hsub, coeff_C_mul, coeff_X_pow_self, mul_one]
-    · intro j _ hne
-      have hne' : j.1 + 1 ≠ k := fun h => hne (Fin.ext (show j.1 = k - 1 by omega))
-      rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hne'), mul_zero]
-    · intro h
-      exact absurd (mem_univ _) h
-  · rw [ite_eq_right hk]
-    refine Finset.sum_eq_zero fun j _ => ?_
-    have hne' : j.1 + 1 ≠ k := by omega
-    rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hne'), mul_zero]
+    (recU S x₀ s M).coeff k = if 1 ≤ k ∧ k ≤ M then recPoly S x₀ s k else 0 :=
+  coeff_sum_Icc_C_mul_X_pow 1 M k (recPoly S x₀ s)
 
 private theorem recPoly_succ (S : F[X][X][X]) (x₀ : F) (s n : ℕ) :
     recPoly S x₀ s (n + 1) =
@@ -1675,35 +1611,15 @@ private theorem recPoly_succ (S : F[X][X][X]) (x₀ : F) (s n : ℕ) :
           (S.map (Polynomial.evalRingHom (C x₀))).derivative ^ (2 * a + j - 2) *
           ((recU S x₀ s n) ^ j).coeff (n + 1 - a)) := by
   rw [recPoly]
+  rw [Finset.sum_attach (Icc 1 n) (fun k => C (recPoly S x₀ s k) * X ^ k)]
   rfl
 
-/-- Generic degree bound for `recPoly` under any subadditive degree measure `deg : F[Z][Y] → ℕ`. -/
-private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
-    (hzero : deg 0 = 0) (hone : deg 1 = 0)
-    (hneg : ∀ x, deg (-x) = deg x)
-    (hadd : ∀ x y, deg (x + y) ≤ max (deg x) (deg y))
-    (hmul : ∀ x y, deg (x * y) ≤ deg x + deg y)
+/-- Generic degree bound for `recPoly` under any `DegBound` on `F[Z][Y]`. -/
+private theorem deg_recPoly_le (db : DegBound F[X][X])
     {S : F[X][X][X]} {x₀ : F} {s B : ℕ}
-    (hS : ∀ a j, deg (hasseDeriv j (shiftedCoeff S x₀ a)) ≤ B)
-    (hγ : deg (S.map (Polynomial.evalRingHom (C x₀))).derivative ≤ B) :
-    ∀ n, 1 ≤ n → deg (recPoly S x₀ s n) ≤ (2 * n - 1) * B := by
-  have hsum : ∀ {α : Type} (t : Finset α) (f : α → F[X][X]) (K : ℕ),
-      (∀ i ∈ t, deg (f i) ≤ K) → deg (∑ i ∈ t, f i) ≤ K := by
-    intro α t f K hf
-    classical
-    induction t using Finset.induction_on with
-    | empty => simp [hzero]
-    | insert a t ha ih =>
-      rw [sum_insert ha]
-      exact (hadd _ _).trans (max_le (hf a (mem_insert_self a t))
-        (ih fun i hi => hf i (mem_insert_of_mem hi)))
-  have hpow : ∀ (x : F[X][X]) (k : ℕ), deg (x ^ k) ≤ k * deg x := by
-    intro x k
-    induction k with
-    | zero => simp [hone]
-    | succ k ih =>
-      rw [pow_succ, Nat.succ_mul]
-      exact (hmul _ _).trans (Nat.add_le_add_right ih _)
+    (hS : ∀ a j, db.deg (hasseDeriv j (shiftedCoeff S x₀ a)) ≤ B)
+    (hγ : db.deg (S.map (Polynomial.evalRingHom (C x₀))).derivative ≤ B) :
+    ∀ n, 1 ≤ n → db.deg (recPoly S x₀ s n) ≤ (2 * n - 1) * B := by
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -1713,16 +1629,16 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
     | succ m =>
       -- Bound coefficients of `(recU S x₀ s m) ^ j` using the strong IH on `1 ≤ k ≤ m`.
       have hUpow : ∀ j t,
-          (j = 0 → deg (((recU S x₀ s m) ^ j).coeff t) = 0) ∧
+          (j = 0 → db.deg (((recU S x₀ s m) ^ j).coeff t) = 0) ∧
           (1 ≤ j → (((recU S x₀ s m) ^ j).coeff t ≠ 0 →
-            j ≤ t ∧ deg (((recU S x₀ s m) ^ j).coeff t) ≤ (2 * t - j) * B)) := by
+            j ≤ t ∧ db.deg (((recU S x₀ s m) ^ j).coeff t) ≤ (2 * t - j) * B)) := by
         intro j
         induction j with
         | zero =>
           intro t
           refine ⟨fun _ => ?_, fun h => by omega⟩
           rw [pow_zero, coeff_one]
-          split_ifs <;> simp [hzero, hone]
+          split_ifs <;> simp [db.zero, db.one]
         | succ j ihj =>
           intro t
           refine ⟨fun h => by omega, fun _ hne => ?_⟩
@@ -1739,19 +1655,19 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
                 (j + 2) t (by omega))
             refine ⟨ht_ge, ?_⟩
             rw [pow_succ, coeff_mul]
-            refine hsum _ _ _ fun x hx => ?_
+            refine db.sum_le _ _ fun x hx => ?_
             have hxsum : x.1 + x.2 = t := Finset.mem_antidiagonal.1 hx
             by_cases h1 : ((recU S x₀ s m) ^ (j + 1)).coeff x.1 = 0
-            · rw [h1, zero_mul, hzero]; exact Nat.zero_le _
+            · rw [h1, zero_mul, db.zero]; exact Nat.zero_le _
             · by_cases h2 : (recU S x₀ s m).coeff x.2 = 0
-              · rw [h2, mul_zero, hzero]; exact Nat.zero_le _
+              · rw [h2, mul_zero, db.zero]; exact Nat.zero_le _
               · have hIH1 := (ihj x.1).2 (by omega) h1
-                have hIH2 : 1 ≤ x.2 ∧ deg ((recU S x₀ s m).coeff x.2) ≤ (2 * x.2 - 1) * B := by
+                have hIH2 : 1 ≤ x.2 ∧ db.deg ((recU S x₀ s m).coeff x.2) ≤ (2 * x.2 - 1) * B := by
                   rw [coeff_recU] at h2 ⊢
                   split_ifs at h2 ⊢ with hx2
                   · exact ⟨hx2.1, ih x.2 (by omega) hx2.1⟩
                   · exact absurd rfl h2
-                refine (hmul _ _).trans ?_
+                refine (db.mul_le _ _).trans ?_
                 have hadd' := Nat.add_le_add hIH1.2 hIH2.2
                 have heq : (2 * x.1 - (j + 1)) * B + (2 * x.2 - 1) * B =
                     (2 * t - (j + 1 + 1)) * B := by
@@ -1759,12 +1675,12 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
                   congr 1
                   omega
                 exact hadd'.trans_eq heq
-      rw [recPoly_succ, hneg]
-      refine hsum _ _ _ fun a ha => ?_
+      rw [recPoly_succ, db.neg]
+      refine db.sum_le _ _ fun a ha => ?_
       have ha_le : a ≤ m + 1 := Nat.lt_succ_iff.1 (mem_range.1 ha)
-      refine hsum _ _ _ fun j _ => ?_
+      refine db.sum_le _ _ fun j _ => ?_
       split_ifs with hskip
-      · rw [hzero]; exact Nat.zero_le _
+      · rw [db.zero]; exact Nat.zero_le _
       · have h2aj : 2 ≤ 2 * a + j := by omega
         by_cases hj0 : j = 0
         · subst hj0
@@ -1772,9 +1688,9 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
           · subst han
             have hcoeff : ((recU S x₀ s m) ^ 0).coeff 0 = 1 := by simp
             rw [Nat.sub_self, hcoeff, mul_one]
-            refine (hmul _ _).trans ?_
+            refine (db.mul_le _ _).trans ?_
             have h1 := hS (m + 1) 0
-            have h2 := (hpow _ (2 * (m + 1) + 0 - 2)).trans
+            have h2 := (db.pow_le _ (2 * (m + 1) + 0 - 2)).trans
               (Nat.mul_le_mul_left _ hγ)
             have heq : B + (2 * (m + 1) + 0 - 2) * B = (2 * (m + 1) - 1) * B := by
               calc B + (2 * (m + 1) + 0 - 2) * B
@@ -1783,16 +1699,16 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
             omega
           · have hcoeff : ((recU S x₀ s m) ^ 0).coeff (m + 1 - a) = 0 := by
               rw [pow_zero, coeff_one, ite_eq_right (by omega)]
-            rw [hcoeff, mul_zero, hzero]
+            rw [hcoeff, mul_zero, db.zero]
             exact Nat.zero_le _
         · by_cases hU0 : ((recU S x₀ s m) ^ j).coeff (m + 1 - a) = 0
-          · rw [hU0, mul_zero, hzero]
+          · rw [hU0, mul_zero, db.zero]
             exact Nat.zero_le _
           · have hUdeg := (hUpow j (m + 1 - a)).2 (by omega) hU0
-            refine (hmul _ _).trans ?_
-            refine (Nat.add_le_add (hmul _ _) le_rfl).trans ?_
+            refine (db.mul_le _ _).trans ?_
+            refine (Nat.add_le_add (db.mul_le _ _) le_rfl).trans ?_
             have h1 := hS a j
-            have h2 := (hpow _ (2 * a + j - 2)).trans (Nat.mul_le_mul_left _ hγ)
+            have h2 := (db.pow_le _ (2 * a + j - 2)).trans (Nat.mul_le_mul_left _ hγ)
             have h3 := hUdeg.2
             have heq : B + (2 * a + j - 2) * B + (2 * (m + 1 - a) - j) * B =
                 (2 * (m + 1) - 1) * B := by
@@ -1806,23 +1722,17 @@ private theorem deg_recPoly_le (deg : F[X][X] → ℕ)
 
 private theorem degZ₂_recPoly_le {S : F[X][X][X]} {x₀ : F} {s B_Z : ℕ}
     (hS_degZ : degZ S ≤ B_Z) :
-    ∀ n, 1 ≤ n → degZ₂ (recPoly S x₀ s n) ≤ (2 * n - 1) * B_Z := by
-  refine deg_recPoly_le degZ₂ degZ₂_zero
-    (by rw [show (1 : F[X][X]) = C 1 by simp, degZ₂_C, natDegree_one])
-    degZ₂_neg degZ₂_add_le degZ₂_mul_le (B := B_Z) ?_ ?_
-  · intro a j
-    exact (degZ₂_hasseDeriv_le j _).trans ((degZ₂_shiftedCoeff_le S x₀ a).trans hS_degZ)
-  · refine (degZ₂_derivative_le _).trans ?_
-    rw [← shiftedCoeff_zero]
-    exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ
+    ∀ n, 1 ≤ n → degZ₂ (recPoly S x₀ s n) ≤ (2 * n - 1) * B_Z :=
+  deg_recPoly_le (DegBound.degZ₂ F)
+    (fun a j => (degZ₂_hasseDeriv_le j _).trans ((degZ₂_shiftedCoeff_le S x₀ a).trans hS_degZ))
+    ((degZ₂_derivative_le _).trans (by
+      rw [← shiftedCoeff_zero]; exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ))
 
 private theorem natDegree_recPoly_le {S : F[X][X][X]} {x₀ : F} {s : ℕ}
     (hS_deg : S.natDegree ≤ s) :
     ∀ n, 1 ≤ n → (recPoly S x₀ s n).natDegree ≤ (2 * n - 1) * s := by
-  refine deg_recPoly_le Polynomial.natDegree natDegree_zero natDegree_one natDegree_neg
-    natDegree_add_le (fun _ _ => natDegree_mul_le) (B := s) ?_ ?_
-  · intro a j
-    exact (Polynomial.natDegree_hasseDeriv_le _ j).trans
+  refine deg_recPoly_le (DegBound.natDegree F[X]) (fun a j => ?_) ?_
+  · exact (Polynomial.natDegree_hasseDeriv_le _ j).trans
       ((Nat.sub_le _ _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg))
   · refine (Polynomial.natDegree_derivative_le _).trans ?_
     have h1 : (S.map (Polynomial.evalRingHom (C x₀))).natDegree ≤ s :=
@@ -1847,26 +1757,15 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
   set γ := S₀.derivative
   set g : A := φ γ
   -- Define `U_W(T) = ∑_{k=1}^{deg W} g^(2k-1) W_k T^k`, so `W(g² T) = φ(Y) + g U_W(T)`.
-  set U_W : A[X] := ∑ k : Fin W.natDegree, C (g ^ (2 * (k.1 + 1) - 1) * W.coeff (k.1 + 1)) *
-    X ^ (k.1 + 1)
+  set U_W : A[X] := ∑ k ∈ Icc 1 W.natDegree, C (g ^ (2 * k - 1) * W.coeff k) * X ^ k
   have hU_W_zero : U_W.coeff 0 = 0 := by
-    rw [finsetSum_coeff]
-    refine Finset.sum_eq_zero fun k _ => ?_
-    rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
+    rw [coeff_sum_Icc_C_mul_X_pow, ite_eq_right (by omega)]
   have hU_W_coeff : ∀ k, 1 ≤ k → U_W.coeff k = g ^ (2 * k - 1) * W.coeff k := by
     intro k hk1
-    rw [finsetSum_coeff]
-    by_cases hk : k ≤ W.natDegree
-    · rw [Finset.sum_eq_single ⟨k - 1, by omega⟩]
-      · have hsub : k - 1 + 1 = k := by omega
-        rw [hsub, coeff_C_mul, coeff_X_pow_self, mul_one]
-      · intro j _ hne
-        have hne' : j.1 + 1 ≠ k := fun h => hne (Fin.ext (show j.1 = k - 1 by omega))
-        rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hne'), mul_zero]
-      · intro h; exact absurd (mem_univ _) h
+    rw [coeff_sum_Icc_C_mul_X_pow]
+    split_ifs with hk
+    · rfl
     · rw [coeff_eq_zero_of_natDegree_lt (by omega), mul_zero]
-      refine Finset.sum_eq_zero fun j _ => ?_
-      rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hW_comp : W.comp (C (g ^ 2) * X) = C (φ X) + C g * U_W := by
     ext k
     rw [Polynomial.comp_C_mul_X_coeff, coeff_add, coeff_C_mul]
@@ -1912,94 +1811,54 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
     | succ m =>
       have hc0 := congrArg (fun p : A[X] => p.coeff (m + 1)) hcomp0
       rw [coeff_zero, finsetSum_coeff] at hc0
-      have hterm : ∀ a,
+      set term : ℕ → A := fun a =>
+        ∑ j ∈ range (s + 1),
+          φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
+            (U_W ^ j).coeff (m + 1 - a)
+      have hterm : ∀ a ≤ m + 1,
           (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
-            (C (g ^ 2) * X) ^ a).coeff (m + 1) =
-          if a ≤ m + 1 then
-            ∑ j ∈ range (s + 1),
-              φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                (U_W ^ j).coeff (m + 1 - a)
-          else 0 := by
-        intro a
-        rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow']
-        split_ifs with han
-        · have ha_deg : (shiftedCoeff S x₀ a).natDegree ≤ s :=
-            (natDegree_shiftedCoeff_le S x₀ a).trans hS_deg
-          rw [eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) (shiftedCoeff S x₀ a) ha_deg
-            (C (φ X)) (C g * U_W), Finset.sum_mul, finsetSum_coeff]
-          refine Finset.sum_congr rfl fun j _ => ?_
-          have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
-              C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
-            have hhom := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) (φ.comp C)
-              (C : A →+* A[X]) (φ X)
-            rw [← hhom]
-            congr 1
-            have hhom2 := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) C φ X
-            rw [Polynomial.eval₂_C_X] at hhom2
-            exact hhom2.symm
-          rw [hev, mul_pow, ← C_pow]
-          have hre : C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) * (C (g ^ j) * U_W ^ j) *
-              C ((g ^ 2) ^ a) =
-              C (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j)) * U_W ^ j := by
-            rw [pow_add, pow_mul, map_mul, map_mul]
-            ring
-          rw [hre, coeff_C_mul]
-        · rfl
-      have hsum_eq :
-          ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-            φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-              (U_W ^ j).coeff (m + 1 - a) = 0 := by
-        have h1 : ∑ a ∈ range (D + 1),
-              (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
-                (C (g ^ 2) * X) ^ a).coeff (m + 1) =
-            ∑ a ∈ range (max D (m + 1) + 1),
-              if a ≤ m + 1 then
-                ∑ j ∈ range (s + 1),
-                  φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                    (U_W ^ j).coeff (m + 1 - a)
-              else 0 := by
-          rw [Finset.sum_subset (Finset.range_mono (Nat.succ_le_succ (le_max_left D (m + 1))))]
-          · refine Finset.sum_congr rfl fun a _ => hterm a
-          · intro a ha ha_not
-            have haD : D < a := by rw [mem_range] at ha ha_not; omega
-            rw [hterm a]
-            split_ifs
-            · refine Finset.sum_eq_zero fun j _ => ?_
-              rw [shiftedCoeff_eq_zero_of_gt hS_wd haD, map_zero, map_zero, zero_mul, zero_mul]
-            · rfl
-        rw [h1] at hc0
-        have h2 : ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-              φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                (U_W ^ j).coeff (m + 1 - a) =
-            ∑ a ∈ range (max D (m + 1) + 1),
-              if a ≤ m + 1 then
-                ∑ j ∈ range (s + 1),
-                  φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                    (U_W ^ j).coeff (m + 1 - a)
-              else 0 := by
-          calc ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-                φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                  (U_W ^ j).coeff (m + 1 - a)
-              = ∑ a ∈ range (m + 2),
-                  if a ≤ m + 1 then
-                    ∑ j ∈ range (s + 1),
-                      φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                        (U_W ^ j).coeff (m + 1 - a)
-                  else 0 :=
-                Finset.sum_congr rfl fun a ha =>
-                  (ite_eq_left (Nat.lt_succ_iff.1 (mem_range.1 ha))).symm
-            _ = ∑ a ∈ range (max D (m + 1) + 1),
-                  if a ≤ m + 1 then
-                    ∑ j ∈ range (s + 1),
-                      φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                        (U_W ^ j).coeff (m + 1 - a)
-                  else 0 := by
-                refine Finset.sum_subset
-                  (Finset.range_mono (Nat.succ_le_succ (le_max_right D (m + 1)))) ?_
-                intro a _ ha_not
-                rw [mem_range] at ha_not
-                exact ite_eq_right (by omega)
-        rw [h2, hc0]
+            (C (g ^ 2) * X) ^ a).coeff (m + 1) = term a := by
+        intro a han
+        rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow', ite_eq_left han]
+        have ha_deg : (shiftedCoeff S x₀ a).natDegree ≤ s :=
+          (natDegree_shiftedCoeff_le S x₀ a).trans hS_deg
+        rw [eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) (shiftedCoeff S x₀ a) ha_deg
+          (C (φ X)) (C g * U_W), Finset.sum_mul, finsetSum_coeff]
+        refine Finset.sum_congr rfl fun j _ => ?_
+        have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
+            C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
+          have hhom := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) (φ.comp C)
+            (C : A →+* A[X]) (φ X)
+          rw [← hhom]
+          congr 1
+          have hhom2 := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) C φ X
+          rw [Polynomial.eval₂_C_X] at hhom2
+          exact hhom2.symm
+        rw [hev, mul_pow, ← C_pow]
+        have hre : C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) * (C (g ^ j) * U_W ^ j) *
+            C ((g ^ 2) ^ a) =
+            C (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j)) * U_W ^ j := by
+          rw [pow_add, pow_mul, map_mul, map_mul]
+          ring
+        rw [hre, coeff_C_mul]
+      have hmin_eq : ∑ a ∈ range (min D (m + 1) + 1), term a = 0 := by
+        have hsub : ∑ a ∈ range (min D (m + 1) + 1),
+            (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
+              (C (g ^ 2) * X) ^ a).coeff (m + 1) = 0 := by
+          refine (Finset.sum_subset
+            (Finset.range_mono (Nat.succ_le_succ (min_le_left _ _))) ?_).trans hc0
+          intro a ha ha_not
+          rw [mem_range] at ha ha_not
+          rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow', ite_eq_right (by omega)]
+        rw [← hsub]
+        refine Finset.sum_congr rfl fun a ha => (hterm a (by rw [mem_range] at ha; omega)).symm
+      have hsum_eq : ∑ a ∈ range (m + 2), term a = 0 := by
+        refine (Finset.sum_subset
+          (Finset.range_mono (Nat.succ_le_succ (min_le_right _ _))) ?_).symm.trans hmin_eq
+        intro a ha ha_not
+        rw [mem_range] at ha ha_not
+        refine Finset.sum_eq_zero fun j _ => ?_
+        rw [shiftedCoeff_eq_zero_of_gt hS_wd (by omega), map_zero, map_zero, zero_mul, zero_mul]
       -- Match `U_W` with `(recU S x₀ s m).map φ` on coefficients `0..m`.
       set U_map : A[X] := (recU S x₀ s m).map φ
       have hU_map_zero : U_map.coeff 0 = 0 := by
@@ -2050,32 +1909,14 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
             change _ = g ^ 2 * (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j - 2) *
               φ (((recU S x₀ s m) ^ j).coeff (m + 1 - a)))
             ring
-      have hsum2 :
+      have hsum_split :
           (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
             if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
-          g ^ 2 * φ (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-            if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
-            else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
-              ((recU S x₀ s m) ^ j).coeff (m + 1 - a)) = 0 := by
-        calc (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-              if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
-            g ^ 2 * φ (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-              if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
-              else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
-                ((recU S x₀ s m) ^ j).coeff (m + 1 - a))
-            = ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-                ((if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
-                  g ^ 2 * φ (if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
-                    else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
-                      ((recU S x₀ s m) ^ j).coeff (m + 1 - a))) := by
-              rw [map_sum, Finset.mul_sum]
-              simp_rw [map_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-          _ = ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-                φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-                  (U_W ^ j).coeff (m + 1 - a) :=
-              (Finset.sum_congr rfl fun a ha =>
-                Finset.sum_congr rfl fun j hj => hsplit a ha j hj).symm
-          _ = 0 := hsum_eq
+          g ^ 2 * φ (-recPoly S x₀ s (m + 1)) = 0 := by
+        rw [recPoly_succ, neg_neg, map_sum, Finset.mul_sum]
+        simp_rw [map_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+        exact (Finset.sum_congr rfl fun a ha =>
+          Finset.sum_congr rfl fun j hj => hsplit a ha j hj).symm.trans hsum_eq
       have hmain : (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
           if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) =
           g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) := by
@@ -2087,17 +1928,10 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
         · intro a _ ha0
           refine Finset.sum_eq_zero fun j _ => by simp [ha0]
         · intro h; exact absurd (mem_range.2 (by omega)) h
-      have hneg_rec :
-          ∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-            (if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
-            else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
-              ((recU S x₀ s m) ^ j).coeff (m + 1 - a)) =
-          -(recPoly S x₀ s (m + 1)) := by
-        rw [recPoly_succ, neg_neg]
-      rw [hmain, hneg_rec, map_neg] at hsum2
+      rw [hmain, map_neg] at hsum_split
       have hfac : g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1) -
           φ (recPoly S x₀ s (m + 1))) = 0 := by
-        linear_combination hsum2
+        linear_combination hsum_split
       have hg2 : g ^ 2 ≠ 0 := pow_ne_zero 2 hγ_ne
       exact sub_eq_zero.1 ((mul_eq_zero.1 hfac).resolve_left hg2)
 
@@ -2112,15 +1946,8 @@ private theorem coeff_pow_prime_pow_eq_zero_of_not_dvd {R : Type*} [CommRing R] 
     [CharP R p] (hp : p.Prime) (Q : R[X]) {n : ℕ} (hndiv : ¬ p ^ e ∣ n) :
     (Q ^ (p ^ e)).coeff n = 0 := by
   have : Fact p.Prime := ⟨hp⟩
-  induction Q using Polynomial.induction_on' with
-  | add f g hf hg =>
-    have hadd : (f + g) ^ (p ^ e) = f ^ (p ^ e) + g ^ (p ^ e) := by
-      simpa [iterateFrobenius_def] using map_add (iterateFrobenius R[X] p e) f g
-    rw [hadd, coeff_add, hf, hg, add_zero]
-  | monomial k c =>
-    rw [monomial_pow, coeff_monomial]
-    have hne : k * p ^ e ≠ n := fun h => hndiv ⟨k, by rw [← h, mul_comm]⟩
-    exact Finsupp.single_eq_of_ne hne.symm
+  rw [← Polynomial.map_iterateFrobenius_expand p Q e, coeff_map,
+    coeff_expand_eq_zero_of_not_dvd (pow_pos hp.pos e) Q hndiv, map_zero]
 
 /-- In a domain whose characteristic matches `μ`, `a ^ μ = b ^ μ → a = b`. -/
 private theorem eq_of_pow_eq_of_char_pow {A : Type*} [CommRing A] [IsDomain A] {μ : ℕ}
@@ -2129,11 +1956,7 @@ private theorem eq_of_pow_eq_of_char_pow {A : Type*} [CommRing A] [IsDomain A] {
   rcases hμ with rfl | ⟨p, e, hcp, hp, rfl⟩
   · simpa using h
   · have : Fact p.Prime := ⟨hp⟩
-    have hsub : (a - b) ^ (p ^ e) = 0 := by
-      have hmap := map_sub (iterateFrobenius A p e) a b
-      simpa [iterateFrobenius_def, h] using hmap
-    by_contra hne
-    exact pow_ne_zero (p ^ e) (sub_ne_zero.2 hne) hsub
+    exact iterateFrobenius_inj A p e (by simpa only [iterateFrobenius_def] using h)
 
 /-- Evaluation mismatch polynomial `E_i(Z, Y) ∈ F[Z][Y]` capturing
 `P*(α i)^μ - w_i(Z)^μ` cleared by `γ^(2 μ d - 1)` (or `Y - w_i(Z)^μ` when `μ * d = 0`). -/
@@ -2148,94 +1971,50 @@ private noncomputable def evalMismatchPoly (S : F[X][X][X]) (x₀ : F) (s μ d :
         recPoly S x₀ s k * γ ^ (2 * (μ * d - k)) * C (C ((a - x₀) ^ k))) -
       C (w ^ μ) * γ ^ (2 * (μ * d) - 1)
 
-private theorem degZ₂_evalMismatchPoly_le {S : F[X][X][X]} {x₀ : F} {s B_Z μ d r : ℕ}
-    (hS_degZ : degZ S ≤ B_Z) (a : F) {w : F[X]} (hw : w.natDegree ≤ r) :
-    degZ₂ (evalMismatchPoly S x₀ s μ d a w) ≤
-      if μ * d = 0 then μ * r else (2 * (μ * d) - 1) * B_Z + μ * r := by
-  set γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
-  have hγ_degZ : degZ₂ γ ≤ B_Z := by
-    refine (degZ₂_derivative_le _).trans ?_
-    rw [← shiftedCoeff_zero]
-    exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ
-  have hw_pow : (w ^ μ).natDegree ≤ μ * r :=
-    natDegree_pow_le.trans (Nat.mul_le_mul_left μ hw)
+private theorem deg_evalMismatchPoly_le (db : DegBound F[X][X])
+    {S : F[X][X][X]} {x₀ : F} {s μ d Bx B Bw : ℕ}
+    (hX : db.deg X ≤ Bx) (hBx : Bx ≤ B)
+    (hCC : ∀ c : F, db.deg (C (C c)) = 0)
+    (a : F) (w : F[X]) (hw : db.deg (C (w ^ μ)) ≤ Bw)
+    (hγ : db.deg (S.map (Polynomial.evalRingHom (C x₀))).derivative ≤ B)
+    (hrec : ∀ k, 1 ≤ k → db.deg (recPoly S x₀ s k) ≤ (2 * k - 1) * B) :
+    db.deg (evalMismatchPoly S x₀ s μ d a w) ≤
+      if μ * d = 0 then max Bx Bw else 2 * (μ * d) * B + Bw := by
+  let γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
+  change db.deg γ ≤ B at hγ
   rw [evalMismatchPoly]
   split_ifs with h0
-  · refine (degZ₂_sub_le _ _).trans (max_le ?_ ?_)
-    · rw [degZ₂_X]; exact Nat.zero_le _
-    · rw [degZ₂_C]; exact hw_pow
-  · set B₁ := (2 * (μ * d) - 1) * B_Z
-    refine (degZ₂_sub_le _ _).trans (max_le ?_ ?_)
-    · refine (degZ₂_add_le _ _).trans (max_le ?_ ?_)
-      · refine (degZ₂_mul_le _ _).trans ?_
-        rw [degZ₂_X, zero_add]
-        exact (degZ₂_pow_le γ _).trans
-          ((Nat.mul_le_mul_left _ hγ_degZ).trans (Nat.le_add_right _ _))
-      · refine degZ₂_sum_le _ _ fun k hk => ?_
+  · exact (db.sub_le _ _).trans (max_le (hX.trans (le_max_left _ _)) (hw.trans (le_max_right _ _)))
+  · refine (db.sub_le _ _).trans (max_le ?_ ?_)
+    · refine (db.add_le _ _).trans (max_le ?_ ?_)
+      · refine (db.mul_le _ _).trans ?_
+        have h2 : db.deg (γ ^ (2 * (μ * d) - 1)) ≤ (2 * (μ * d) - 1) * B :=
+          (db.pow_le _ _).trans (Nat.mul_le_mul_left _ hγ)
+        have hle : B + (2 * (μ * d) - 1) * B = 2 * (μ * d) * B := by
+          calc B + (2 * (μ * d) - 1) * B = (1 + (2 * (μ * d) - 1)) * B := by ring
+            _ = 2 * (μ * d) * B := by congr 1; omega
+        change db.deg X + db.deg (γ ^ (2 * (μ * d) - 1)) ≤ 2 * (μ * d) * B + Bw
+        omega
+      · refine db.sum_le _ _ fun k hk => ?_
         have hk1 : 1 ≤ k := (mem_Icc.1 hk).1
         have hkle : k ≤ μ * d := (mem_Icc.1 hk).2
-        refine (degZ₂_mul_le _ _).trans ?_
-        have hC0 : degZ₂ (C (C ((a - x₀) ^ k)) : F[X][X]) = 0 := by rw [degZ₂_C, natDegree_C]
-        rw [hC0, add_zero]
-        refine (degZ₂_mul_le _ _).trans ?_
-        have h1 := degZ₂_recPoly_le (x₀ := x₀) (s := s) hS_degZ k hk1
-        have h2 := (degZ₂_pow_le γ (2 * (μ * d - k))).trans (Nat.mul_le_mul_left _ hγ_degZ)
-        have heq : (2 * k - 1) * B_Z + 2 * (μ * d - k) * B_Z = B₁ := by
-          dsimp only [B₁]
+        refine (db.mul_le _ _).trans ?_
+        rw [hCC, add_zero]
+        refine (db.mul_le _ _).trans ?_
+        have h1 := hrec k hk1
+        have h2 := (db.pow_le _ (2 * (μ * d - k))).trans (Nat.mul_le_mul_left _ hγ)
+        have hle : (2 * k - 1) * B + 2 * (μ * d - k) * B ≤ 2 * (μ * d) * B := by
           rw [← add_mul]
-          congr 1
-          omega
-        exact (Nat.add_le_add h1 h2).trans (by rw [heq]; exact Nat.le_add_right _ _)
-    · refine (degZ₂_mul_le _ _).trans ?_
-      rw [degZ₂_C]
-      have h2 := (degZ₂_pow_le γ (2 * (μ * d) - 1)).trans (Nat.mul_le_mul_left _ hγ_degZ)
-      exact (Nat.add_le_add hw_pow h2).trans_eq (add_comm _ _)
-
-private theorem natDegree_evalMismatchPoly_le {S : F[X][X][X]} {x₀ : F} {s μ d : ℕ}
-    (hs1 : 1 ≤ s) (hS_deg : S.natDegree ≤ s) (a : F) (w : F[X]) :
-    (evalMismatchPoly S x₀ s μ d a w).natDegree ≤
-      if μ * d = 0 then 1 else 2 * (μ * d) * s := by
-  set γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
-  have hγ_deg : γ.natDegree ≤ s := by
-    refine (Polynomial.natDegree_derivative_le _).trans ?_
-    have h1 := Polynomial.natDegree_map_le (f := Polynomial.evalRingHom (C x₀)) (p := S)
-    omega
-  rw [evalMismatchPoly]
-  split_ifs with h0
-  · refine (natDegree_sub_le _ _).trans (max_le ?_ ?_)
-    · exact natDegree_X_le
-    · rw [natDegree_C]; exact Nat.zero_le _
-  · refine (natDegree_sub_le _ _).trans (max_le ?_ ?_)
-    · refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-      · refine natDegree_mul_le.trans ?_
-        have hX : (X : F[X][X]).natDegree ≤ 1 := natDegree_X_le
-        have h2 : (γ ^ (2 * (μ * d) - 1)).natDegree ≤ (2 * (μ * d) - 1) * s :=
-          natDegree_pow_le.trans (Nat.mul_le_mul_left _ hγ_deg)
-        have h1s : 1 + (2 * (μ * d) - 1) * s ≤ 2 * (μ * d) * s := by
-          have : 1 + (2 * (μ * d) - 1) * s ≤ s + (2 * (μ * d) - 1) * s := by omega
-          have heq : s + (2 * (μ * d) - 1) * s = 2 * (μ * d) * s := by
-            calc s + (2 * (μ * d) - 1) * s = (1 + (2 * (μ * d) - 1)) * s := by ring
-              _ = 2 * (μ * d) * s := by congr 1; omega
-          omega
-        exact (Nat.add_le_add hX h2).trans h1s
-      · refine (natDegree_sum_le _ _).trans (Finset.sup_le fun k hk => ?_)
-        have hk1 : 1 ≤ k := (mem_Icc.1 hk).1
-        have hkle : k ≤ μ * d := (mem_Icc.1 hk).2
-        refine natDegree_mul_le.trans ?_
-        rw [natDegree_C, add_zero]
-        refine natDegree_mul_le.trans ?_
-        have h1 := natDegree_recPoly_le (x₀ := x₀) hS_deg k hk1
-        have h2 : (γ ^ (2 * (μ * d - k))).natDegree ≤ 2 * (μ * d - k) * s :=
-          natDegree_pow_le.trans (Nat.mul_le_mul_left _ hγ_deg)
-        have heq : (2 * k - 1) * s + 2 * (μ * d - k) * s ≤ 2 * (μ * d) * s := by
-          rw [← add_mul]
-          exact Nat.mul_le_mul_right s (by omega)
-        exact (Nat.add_le_add h1 h2).trans heq
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, zero_add]
-      have h2 : (γ ^ (2 * (μ * d) - 1)).natDegree ≤ (2 * (μ * d) - 1) * s :=
-        natDegree_pow_le.trans (Nat.mul_le_mul_left _ hγ_deg)
-      exact h2.trans (Nat.mul_le_mul_right s (by omega))
+          exact Nat.mul_le_mul_right B (by omega)
+        change db.deg (recPoly S x₀ s k) + db.deg (γ ^ (2 * (μ * d - k))) ≤ 2 * (μ * d) * B + Bw
+        omega
+    · refine (db.mul_le _ _).trans ?_
+      have h2 : db.deg (γ ^ (2 * (μ * d) - 1)) ≤ (2 * (μ * d) - 1) * B :=
+        (db.pow_le _ _).trans (Nat.mul_le_mul_left _ hγ)
+      have hle : (2 * (μ * d) - 1) * B ≤ 2 * (μ * d) * B :=
+        Nat.mul_le_mul_right B (by omega)
+      change db.deg (C (w ^ μ)) + db.deg (γ ^ (2 * (μ * d) - 1)) ≤ 2 * (μ * d) * B + Bw
+      omega
 
 /-- Evaluating `evalMismatchPoly` under any hom `φ : F[Z][Y] →+* A` matching the recurrence
 coefficients of a polynomial `W ∈ A[X]` of degree `≤ μ * d`. -/
@@ -2414,24 +2193,14 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         rw [hW_coeff0, mul_zero] at hrec
         exact hrec.symm
       set Res_n : F[X] := Polynomial.resultant Fstar Nn Fstar.natDegree Nn.natDegree
-      obtain ⟨Un, Vn, _, _, hbez_n⟩ :=
-        Polynomial.exists_mul_add_mul_eq_C_resultant Fstar Nn le_rfl le_rfl (Or.inl (by omega))
-      have hRes_van : ∀ z ∈ T'', Res_n.eval z = 0 := by
-        intro z hz
+      have hRes_van : ∀ z ∈ T'', Res_n.eval z = 0 := fun z hz => by
         obtain ⟨yz, hF0, hN0⟩ := hvan z hz
-        have hmap := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hbez_n
-        rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_C,
-          eval_add, eval_mul, eval_mul, eval_C, hF0, hN0, zero_mul, zero_mul, add_zero] at hmap
-        exact hmap.symm
+        exact eval_resultant_eq_zero_of_common_root (Or.inl (by omega)) hF0 hN0
       have hRes_deg : Res_n.natDegree ≤ 4 * D * D_Y * B_Z := by
         have hNn_degZ : degZ₂ Nn ≤ (2 * n - 1) * B_Z := degZ₂_recPoly_le hS_degZ n hn1
         have hNn_degY : Nn.natDegree ≤ (2 * n - 1) * s := natDegree_recPoly_le le_rfl n hn1
-        have hres := degree_resultant_le (R := F[X]) Polynomial.natDegree
-          natDegree_zero natDegree_one natDegree_neg natDegree_add_le
-          (fun _ _ => natDegree_mul_le) (f := Fstar) (g := Nn)
-          (m := Fstar.natDegree) (n := Nn.natDegree)
-          (fun i => (degZ₂_le_iff.1 hF_degZ i))
-          (fun i => (degZ₂_le_iff.1 hNn_degZ i))
+        have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Nn.natDegree
+          (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hNn_degZ)
         have h1 : Fstar.natDegree * ((2 * n - 1) * B_Z) ≤ (2 * D) * D_Y * B_Z := by
           have ha : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
           have hb : 2 * n - 1 ≤ 2 * D := by omega
@@ -2447,35 +2216,15 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         exact hres.trans (calc Fstar.natDegree * ((2 * n - 1) * B_Z) + Nn.natDegree * B_Z
             ≤ 2 * D * D_Y * B_Z + 2 * D * D_Y * B_Z := Nat.add_le_add h1 h2
           _ = 4 * D * D_Y * B_Z := by ring)
-      have hRes_zero : Res_n = 0 := by
-        by_contra hne
-        have hsub : T'' ⊆ Res_n.roots.toFinset := by
-          intro z hz
-          rw [Multiset.mem_toFinset, mem_roots hne, IsRoot]
-          exact hRes_van z hz
-        have hcard : #T'' ≤ 4 * D * D_Y * B_Z :=
-          (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans
-            ((Polynomial.card_roots' Res_n).trans hRes_deg))
-        have hlt : 4 * D * D_Y * B_Z ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) := by
-          have h1 : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
-          linarith
-        omega
-      have hmap_res : Polynomial.resultant (Fstar.map ι_K) (Nn.map ι_K) = 0 := by
-        have hd1 : (Fstar.map ι_K).natDegree = Fstar.natDegree :=
-          Polynomial.natDegree_map_eq_of_injective hι_K_inj Fstar
-        have hd2 : (Nn.map ι_K).natDegree = Nn.natDegree :=
-          Polynomial.natDegree_map_eq_of_injective hι_K_inj Nn
-        have hrm := Polynomial.resultant_map_map (f := Fstar) (g := Nn)
-          (m := Fstar.natDegree) (n := Nn.natDegree) ι_K
-        change Polynomial.resultant (Fstar.map ι_K) (Nn.map ι_K)
-          (Fstar.map ι_K).natDegree (Nn.map ι_K).natDegree = 0
-        rw [hd1, hd2, hrm]
-        change ι_K Res_n = 0
-        rw [hRes_zero, map_zero]
-      have hnotcop := (Polynomial.resultant_eq_zero_iff.1 hmap_res).2
+      have hlt : Res_n.natDegree < #T'' := by
+        have h1 : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
+          Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
+        linarith
+      have hRes_zero : Res_n = 0 :=
+        Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' Res_n T'' hRes_van hlt
       by_contra hndvd
-      exact hnotcop (hF_K_irred.coprime_iff_not_dvd.2 hndvd)
+      exact resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj
+        (hF_K_irred.coprime_iff_not_dvd.2 hndvd) hRes_zero
   -- Lift into `L := AlgebraicClosure K`.
   let L := AlgebraicClosure K
   let ι_L : K →+* L := algebraMap K L
@@ -2529,28 +2278,13 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       rw [natDegree_C, zero_add, natDegree_X_pow]
       exact (mem_Icc.1 hk).2
   have hΨ_coeff0 : Ψ_trunc.coeff 0 = ystar := by
-    rw [coeff_add, coeff_C_zero, finsetSum_coeff]
-    have h0 : ∑ k ∈ Icc 1 (μ * d),
-        (C (φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1)) * X ^ k).coeff 0 = 0 := by
-      refine Finset.sum_eq_zero fun k hk => ?_
-      have hk1 := (mem_Icc.1 hk).1
-      rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
-    rw [h0, add_zero]
+    rw [coeff_add, coeff_C_zero, coeff_sum_Icc_C_mul_X_pow, ite_eq_right (by omega), add_zero]
   have hΨ_coeff : ∀ k, 1 ≤ k →
       Ψ_trunc.coeff k =
         if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
     intro k hk1
-    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, finsetSum_coeff]
-    by_cases hkle : k ≤ μ * d
-    · rw [ite_eq_left hkle, Finset.sum_eq_single k]
-      · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
-      · intro j _ hne
-        rw [coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hne), mul_zero]
-      · intro h; exact absurd (mem_Icc.2 ⟨hk1, hkle⟩) h
-    · rw [ite_eq_right hkle]
-      refine Finset.sum_eq_zero fun j hj => ?_
-      have hjle := (mem_Icc.1 hj).2
-      rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
+    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, coeff_sum_Icc_C_mul_X_pow]
+    simp [hk1]
   -- Extract Frobenius `μ`-th root `Ptilde ∈ L[X]` with `Ptilde.natDegree ≤ d` and `Ptilde^μ = Ψ`.
   have hΨ_not_dvd : ∀ k, ¬ μ ∣ k → Ψ_trunc.coeff k = 0 := by
     intro k hndiv
@@ -2576,49 +2310,20 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       have hroot_c : ∀ m : Fin (d + 1), ∃ c : L, c ^ μ = Ψ_trunc.coeff (m.1 * μ) := fun m =>
         IsAlgClosed.exists_pow_nat_eq (Ψ_trunc.coeff (m.1 * μ)) (by omega)
       choose c hc using hroot_c
-      refine ⟨∑ m : Fin (d + 1), C (c m) * X ^ (m : ℕ), ?_, ?_⟩
-      · refine (natDegree_sum_le _ _).trans (Finset.sup_le fun m _ => ?_)
-        refine natDegree_mul_le.trans ?_
-        rw [natDegree_C, zero_add, natDegree_X_pow]
-        omega
-      · rw [hμpe]
-        have hsum_pow : (∑ m : Fin (d + 1), C (c m) * X ^ (m : ℕ)) ^ (p ^ e) =
-            ∑ m : Fin (d + 1), (C (c m) * X ^ (m : ℕ)) ^ (p ^ e) := by
-          have hm := map_sum (iterateFrobenius L[X] p e)
-            (fun m : Fin (d + 1) => C (c m) * X ^ (m : ℕ)) Finset.univ
-          simp only [iterateFrobenius_def] at hm
-          exact hm
-        rw [hsum_pow]
-        ext k
-        rw [finsetSum_coeff]
-        by_cases hdiv : μ ∣ k
-        · rcases hdiv with ⟨m, rfl⟩
-          by_cases hm : m < d + 1
-          · rw [Finset.sum_eq_single ⟨m, hm⟩]
-            · rw [mul_pow, ← C_pow, ← pow_mul, ← hμpe, hc ⟨m, hm⟩, mul_comm m μ, coeff_C_mul,
-                coeff_X_pow_self, mul_one]
-            · intro j _ hne
-              rw [mul_pow, ← C_pow, ← pow_mul, ← hμpe, coeff_C_mul, coeff_X_pow]
-              have hne' : j.1 * μ ≠ μ * m := by
-                intro heq
-                have : j.1 = m := Nat.eq_of_mul_eq_mul_right hμ_pos (by linarith)
-                exact hne (Fin.ext this)
-              rw [ite_eq_right (Ne.symm hne'), mul_zero]
-            · intro h; exact absurd (mem_univ _) h
-          · rw [coeff_eq_zero_of_natDegree_lt (by
-              have : μ * d < μ * m := Nat.mul_lt_mul_of_pos_left (by omega) hμ_pos
-              omega)]
-            refine Finset.sum_eq_zero fun j _ => ?_
-            rw [mul_pow, ← C_pow, ← pow_mul, ← hμpe, coeff_C_mul, coeff_X_pow]
-            have hne' : j.1 * μ ≠ μ * m := by
-              have : j.1 * μ < m * μ := Nat.mul_lt_mul_of_pos_right (by omega) hμ_pos
-              linarith
-            rw [ite_eq_right (Ne.symm hne'), mul_zero]
-        · rw [hΨ_not_dvd k hdiv]
-          refine Finset.sum_eq_zero fun j _ => ?_
-          rw [mul_pow, ← C_pow, ← pow_mul, ← hμpe, coeff_C_mul, coeff_X_pow]
-          have hne' : j.1 * μ ≠ k := fun h => hdiv ⟨j.1, by linarith⟩
-          rw [ite_eq_right (Ne.symm hne'), mul_zero]
+      refine ⟨Polynomial.ofFn (d + 1) c,
+        Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos d) c), ?_⟩
+      rw [hμpe, ← Polynomial.map_iterateFrobenius_expand p (Polynomial.ofFn (d + 1) c) e]
+      ext k
+      rw [coeff_map, iterateFrobenius_def, Polynomial.coeff_expand (pow_pos hp.pos e), ← hμpe]
+      split_ifs with hdiv
+      · by_cases hm : k / μ < d + 1
+        · rw [Polynomial.ofFn_coeff_eq_val_of_lt c hm, hc ⟨k / μ, hm⟩, Nat.div_mul_cancel hdiv]
+        · rw [Polynomial.ofFn_coeff_eq_zero_of_ge c (by omega), zero_pow (by omega)]
+          refine (coeff_eq_zero_of_natDegree_lt ?_).symm
+          have hmul : (d + 1) * μ ≤ k := (Nat.le_div_iff_mul_le hμ_pos).1 (by omega)
+          have hadd : μ * d + μ = (d + 1) * μ := by ring
+          omega
+      · rw [zero_pow (by omega), hΨ_not_dvd k hdiv]
   obtain ⟨Ptilde, hPtilde_deg, hPtilde_pow⟩ := hroot_ex
   -- Shift back by `- x₀`.
   set x₀L : L := j_L (C x₀)
@@ -2674,33 +2379,29 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
   have hcop : IsCoprime (Fstar.map ι_K) (Ei.map ι_K) :=
     hF_K_irred.coprime_iff_not_dvd.2 hnot_dvd
   set res_i : F[X] := Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree
-  have hres_ne : res_i ≠ 0 := by
-    intro h0
-    have hmap_res : Polynomial.resultant (Fstar.map ι_K) (Ei.map ι_K) = 0 := by
-      have hd1 : (Fstar.map ι_K).natDegree = Fstar.natDegree :=
-        Polynomial.natDegree_map_eq_of_injective hι_K_inj Fstar
-      have hd2 : (Ei.map ι_K).natDegree = Ei.natDegree :=
-        Polynomial.natDegree_map_eq_of_injective hι_K_inj Ei
-      have hrm := Polynomial.resultant_map_map (f := Fstar) (g := Ei)
-        (m := Fstar.natDegree) (n := Ei.natDegree) ι_K
-      change Polynomial.resultant (Fstar.map ι_K) (Ei.map ι_K)
-        (Fstar.map ι_K).natDegree (Ei.map ι_K).natDegree = 0
-      rw [hd1, hd2, hrm]
-      change ι_K res_i = 0
-      rw [h0, map_zero]
-    exact (Polynomial.resultant_eq_zero_iff.1 hmap_res).2 hcop
+  have hres_ne : res_i ≠ 0 := resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj hcop
   have hres_deg : res_i.natDegree ≤ 4 * D * D_Y * B_Z + r * D_Y ^ 2 := by
-    have hEi_degZ := degZ₂_evalMismatchPoly_le (x₀ := x₀) (s := s) (μ := μ) (d := d) hS_degZ
-      (α i) (w := curveWord u i)
-      (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _))
-    have hEi_degY := natDegree_evalMismatchPoly_le (x₀ := x₀) (μ := μ) (d := d) hS_deg le_rfl
-      (α i) (curveWord u i)
-    have hres := degree_resultant_le (R := F[X]) Polynomial.natDegree
-      natDegree_zero natDegree_one natDegree_neg natDegree_add_le
-      (fun _ _ => natDegree_mul_le) (f := Fstar) (g := Ei)
-      (m := Fstar.natDegree) (n := Ei.natDegree)
-      (fun k => degZ₂_le_iff.1 hF_degZ k)
-      (fun k => degZ₂_le_iff.1 hEi_degZ k)
+    have hw_degZ : degZ₂ (C ((curveWord u i) ^ μ)) ≤ μ * r := by
+      rw [degZ₂_C]
+      exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ
+        (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)))
+    have hγ_degZ : degZ₂ γ ≤ B_Z := (degZ₂_derivative_le _).trans (by
+      change degZ₂ (S.map (Polynomial.evalRingHom (C x₀))) ≤ B_Z
+      rw [← shiftedCoeff_zero]
+      exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ)
+    have hEi_degZ := deg_evalMismatchPoly_le (DegBound.degZ₂ F) (s := s) (μ := μ) (d := d)
+      degZ₂_X.le (Nat.zero_le B_Z)
+      (fun c => by change degZ₂ (C (C c)) = 0; rw [degZ₂_C, natDegree_C])
+      (α i) (curveWord u i) hw_degZ hγ_degZ (degZ₂_recPoly_le hS_degZ)
+    have hγ_degY : γ.natDegree ≤ s :=
+      (Polynomial.natDegree_derivative_le S₀).trans
+        ((Nat.sub_le _ _).trans Polynomial.natDegree_map_le)
+    have hEi_degY := deg_evalMismatchPoly_le (DegBound.natDegree F[X]) (s := s) (μ := μ) (d := d)
+      natDegree_X_le hS_deg (fun c => natDegree_C _) (α i) (curveWord u i)
+      (by change (C (curveWord u i ^ μ)).natDegree ≤ 0; rw [natDegree_C])
+      hγ_degY (natDegree_recPoly_le le_rfl)
+    have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Ei.natDegree
+      (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hEi_degZ)
     have hF_le_DY : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
     have hμs_le_DY : μ * Fstar.natDegree ≤ D_Y := by
       have : μ * Fstar.natDegree ≤ μ * s := Nat.mul_le_mul_left μ hF_deg_le
@@ -2712,32 +2413,29 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
         _ = r * D_Y ^ 2 := by ring
     change (Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree).natDegree ≤ _
     split_ifs at hres hEi_degZ hEi_degY with h0
-    · have h2 : Ei.natDegree * B_Z ≤ 4 * D * D_Y * B_Z := by
+    · rw [Nat.zero_max] at hres
+      rw [Nat.max_zero] at hEi_degY
+      have h2 : Ei.natDegree * B_Z ≤ 4 * D * D_Y * B_Z := by
         have h1 : 1 ≤ 4 * D * D_Y := by
           calc 1 = 1 * 1 := by ring
             _ ≤ (4 * D) * D_Y := Nat.mul_le_mul (by omega) hDY_pos
         exact Nat.mul_le_mul_right B_Z (hEi_degY.trans h1)
       exact hres.trans ((Nat.add_le_add hμF_sq h2).trans_eq (add_comm _ _))
-    · have h1 : Fstar.natDegree * ((2 * (μ * d) - 1) * B_Z + μ * r) ≤
+    · have h1 : Fstar.natDegree * (2 * (μ * d) * B_Z + μ * r) ≤
           2 * D * D_Y * B_Z + r * D_Y ^ 2 := by
         rw [mul_add]
-        have ha : Fstar.natDegree * ((2 * (μ * d) - 1) * B_Z) ≤ 2 * D * D_Y * B_Z := by
-          calc Fstar.natDegree * ((2 * (μ * d) - 1) * B_Z)
+        have ha : Fstar.natDegree * (2 * (μ * d) * B_Z) ≤ 2 * D * D_Y * B_Z := by
+          calc Fstar.natDegree * (2 * (μ * d) * B_Z)
               ≤ D_Y * (2 * D * B_Z) :=
                 Nat.mul_le_mul hF_le_DY (Nat.mul_le_mul_right B_Z (by omega))
             _ = 2 * D * D_Y * B_Z := by ring
         exact Nat.add_le_add ha hμF_sq
       have h2 : Ei.natDegree * B_Z ≤ 2 * D * D_Y * B_Z := by
         have h2a : Ei.natDegree ≤ 2 * D * D_Y := by
-          calc Ei.natDegree ≤ 2 * (μ * d) * s := hEi_degY
-            _ ≤ 2 * D * D_Y := Nat.mul_le_mul (by omega) hs_le_DY
+          calc Ei.natDegree ≤ 2 * (μ * d) * s + 0 := hEi_degY
+            _ ≤ 2 * D * D_Y := by rw [add_zero]; exact Nat.mul_le_mul (by omega) hs_le_DY
         exact Nat.mul_le_mul_right B_Z h2a
-      exact hres.trans (by
-        calc Fstar.natDegree * ((2 * (μ * d) - 1) * B_Z + μ * r) + Ei.natDegree * B_Z
-            ≤ (2 * D * D_Y * B_Z + r * D_Y ^ 2) + 2 * D * D_Y * B_Z := Nat.add_le_add h1 h2
-          _ = 4 * D * D_Y * B_Z + r * D_Y ^ 2 := by ring)
-  obtain ⟨Ui, Vi, _, _, hbez_i⟩ :=
-    Polynomial.exists_mul_add_mul_eq_C_resultant Fstar Ei le_rfl le_rfl (Or.inl (by omega))
+      exact hres.trans (by linarith)
   refine ⟨res_i, hres_ne, hres_deg, fun z _ P hP_deg hS_ev0 hF_ev0 hγ_ev_ne hagree => ?_⟩
   set yz : F := (P ^ μ).eval x₀
   let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) yz
@@ -2759,10 +2457,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
     have hsub : φz (C (C (α i - x₀))) = α i - x₀ := by simp [φz, evZ]
     have hCw : φz (C (curveWord u i)) = (curveWord u i).eval z := by simp [φz, evZ]
     rw [hsub, hCw, Polynomial.taylor_eval, sub_add_cancel, eval_pow, hagree, sub_self, mul_zero]
-  have hmap := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hbez_i
-  rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_C,
-    eval_add, eval_mul, eval_mul, eval_C, hF_ev0, hEi_z0, zero_mul, zero_mul, add_zero] at hmap
-  exact hmap.symm
+  exact eval_resultant_eq_zero_of_common_root (Or.inl (by omega)) hF_ev0 hEi_z0
 
 end Step6ResultantKillAndLift
 
@@ -2847,16 +2542,15 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
       #(T''.filter fun z => agreePred z i) ≤ D_Y * (4 * D * B_Z + r * D_Y) := by
     intro i hi_not
     obtain ⟨res, hres_ne, hres_deg, hres_van⟩ := hIstar_bad i hi_not
-    have hsub : T''.filter (fun z => agreePred z i) ⊆ res.roots.toFinset := by
+    have hvan : ∀ z ∈ T''.filter fun z => agreePred z i, res.eval z = 0 := by
       intro z hz
       obtain ⟨hzT, hagree⟩ := mem_filter.1 hz
-      rw [Multiset.mem_toFinset, mem_roots hres_ne, IsRoot]
       have hagree' : (P_of ⟨z, hzT⟩).eval (α i) = (curveWord u i).eval z := by
         simpa only [agreePred, hPz_eq z hzT] using hagree
       exact hres_van z hzT (P_of ⟨z, hzT⟩) (hP_deg ⟨z, hzT⟩) (hS_ev ⟨z, hzT⟩)
         (hF_ev ⟨z, hzT⟩) (hγ_ev ⟨z, hzT⟩) hagree'
-    have hle := (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans
-      ((Polynomial.card_roots' res).trans hres_deg))
+    have hle := card_filter_eval_eq_zero_le hres_ne (T''.filter fun z => agreePred z i)
+    rw [Finset.filter_true_of_mem hvan] at hle
     have hring : 4 * D * D_Y * B_Z + r * D_Y ^ 2 = D_Y * (4 * D * B_Z + r * D_Y) := by ring
     omega
   have hsum_hi :
@@ -2944,20 +2638,15 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
         ((degree_sub_le _ _).trans_lt (max_lt hPstar_deg_lt hP_L_deg_lt))
     let f_pts : ι → L := fun i => j_L (C (α i))
     have hf_inj : Function.Injective f_pts := hj_L_inj.comp (Polynomial.C_injective.comp hα)
-    have hsub : J.image f_pts ⊆ (Pstar - P_L).roots.toFinset := by
+    have hvan : ∀ x ∈ J.image f_pts, (Pstar - P_L).eval x = 0 := by
       intro x hx
       obtain ⟨i, hiJ, rfl⟩ := mem_image.1 hx
-      rw [Multiset.mem_toFinset, mem_roots hne, IsRoot, eval_sub]
-      rw [hIstar_agree i (hJ_sub hiJ), hP_L_eval i]
+      rw [eval_sub, hIstar_agree i (hJ_sub hiJ), hP_L_eval i]
       have hcw : curveWord u i = curveWord v i :=
         congrArg (Polynomial.ofFn (r + 1)) (funext fun j => (hPj_eval_J j i hiJ).symm)
       rw [hcw, sub_self]
-    have hcard_le : k ≤ (Pstar - P_L).natDegree := by
-      calc k = #J := hJ_card.symm
-        _ = #(J.image f_pts) := (card_image_of_injective J hf_inj).symm
-        _ ≤ #(Pstar - P_L).roots.toFinset := card_le_card hsub
-        _ ≤ (Pstar - P_L).natDegree :=
-          (Multiset.toFinset_card_le _).trans (Polynomial.card_roots' _)
+    have hcard_le := card_filter_eval_eq_zero_le hne (J.image f_pts)
+    rw [Finset.filter_true_of_mem hvan, card_image_of_injective J hf_inj, hJ_card] at hcard_le
     omega
   refine ⟨Istar, hW_Istar, v, hv_rs, fun i hi j => ?_⟩
   have hev := hIstar_agree i hi
@@ -2990,6 +2679,38 @@ private theorem mul_maxYDeg_le (d D : ℕ) : d * maxYDeg d D ≤ D := by
       exact (Nat.le_div_iff_mul_le hd).2 (by linarith)
     exact (Nat.mul_le_mul_left d hle).trans (Nat.mul_div_le D d)
 
+private theorem sqrt_rate_bounds {n k : ℕ} {ρ : ℝ} (hρ : ρ = (k : ℝ) / (n : ℝ))
+    (hk : 1 ≤ k) (hkn : k ≤ n) :
+    0 < ρ ∧ ρ ≤ 1 ∧ 0 < Real.sqrt ρ ∧ Real.sqrt ρ ≤ 1 ∧ Real.sqrt ρ ^ 2 = ρ ∧
+    (1 : ℝ) ≤ 1 / Real.sqrt ρ ∧ 1 / Real.sqrt ρ ≤ 1 / ρ ∧ 1 / Real.sqrt ρ ≤ (n : ℝ) := by
+  subst hρ
+  have hn : 1 ≤ n := hk.trans hkn
+  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
+  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
+  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have h1_le_k : (1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
+  have hρ_pos : 0 < (k : ℝ) / (n : ℝ) := by positivity
+  have hρ_le_one : (k : ℝ) / (n : ℝ) ≤ 1 := (div_le_one hnR).2 (by exact_mod_cast hkn)
+  have hsqρ_pos : 0 < Real.sqrt ((k : ℝ) / (n : ℝ)) := Real.sqrt_pos.2 hρ_pos
+  have hsqρ_le_one : Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ 1 := Real.sqrt_le_one.2 hρ_le_one
+  have hsqρ_sq : Real.sqrt ((k : ℝ) / (n : ℝ)) ^ 2 = (k : ℝ) / (n : ℝ) := Real.sq_sqrt hρ_pos.le
+  have h1_le_invsq : (1 : ℝ) ≤ 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) :=
+    (one_le_div hsqρ_pos).2 hsqρ_le_one
+  have hinvsq_le_invρ : 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ 1 / ((k : ℝ) / (n : ℝ)) := by
+    rw [div_le_div_iff₀ hsqρ_pos hρ_pos, one_mul, one_mul]
+    calc (k : ℝ) / (n : ℝ) = Real.sqrt ((k : ℝ) / (n : ℝ)) * Real.sqrt ((k : ℝ) / (n : ℝ)) := by
+          rw [← sq, hsqρ_sq]
+      _ ≤ Real.sqrt ((k : ℝ) / (n : ℝ)) := mul_le_of_le_one_right hsqρ_pos.le hsqρ_le_one
+  have hinvsq_le_n : 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ (n : ℝ) := by
+    refine le_of_sq_le_sq ?_ hnR.le
+    rw [div_pow, one_pow, hsqρ_sq, one_div_div, div_le_iff₀ hkR]
+    calc (n : ℝ) = (n : ℝ) * 1 := (mul_one _).symm
+      _ ≤ (n : ℝ) * ((n : ℝ) * (k : ℝ)) :=
+        mul_le_mul_of_nonneg_left (one_le_mul_of_one_le_of_one_le h1_le_n h1_le_k) hnR.le
+      _ = (n : ℝ) ^ 2 * (k : ℝ) := by ring
+  exact ⟨hρ_pos, hρ_le_one, hsqρ_pos, hsqρ_le_one, hsqρ_sq,
+    h1_le_invsq, hinvsq_le_invρ, hinvsq_le_n⟩
+
 /-- Quantitative gap and degree bounds for `johnson_curve_params_bound`. -/
 private theorem johnson_curve_params_gap {n k e m r : ℕ}
     (hk : 1 ≤ k) (hkn : k ≤ n) (hm : 1 ≤ m)
@@ -3010,6 +2731,8 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
   set m' : ℕ := m + 1
   set t₀ : ℕ := ⌈(1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ))⌉₊
   set D : ℕ := m' * t₀ - 1
+  obtain ⟨hρ_pos, _, hsqρ_pos, _, hsqρ_sq, _⟩ :=
+    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
   have hn : 1 ≤ n := hk.trans hkn
   have hnR : (0 : ℝ) < (n : ℝ) := by positivity
   have hkR : (0 : ℝ) < (k : ℝ) := by positivity
@@ -3019,9 +2742,6 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
   have h1_le_k : (1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
   have h1_le_m : (1 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
   have h2_le_m' : (2 : ℝ) ≤ (m' : ℝ) := by exact_mod_cast (show 2 ≤ m' by omega)
-  have hρ_pos : 0 < ρ := by positivity
-  have hsqρ_pos : 0 < Real.sqrt ρ := Real.sqrt_pos.2 hρ_pos
-  have hsqρ_sq : Real.sqrt ρ ^ 2 = ρ := Real.sq_sqrt hρ_pos.le
   have hsqnk_eq : Real.sqrt ((n : ℝ) * (k : ℝ)) = (n : ℝ) * Real.sqrt ρ := by
     rw [Real.sqrt_eq_iff_eq_sq (by positivity) (by positivity), mul_pow, hsqρ_sq]
     dsimp only [ρ]
@@ -3117,48 +2837,37 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     exact hcast
   have hgap_R : (R_eq : ℝ) + (5 / 8) * (n : ℝ) < (C_mon : ℝ) := by
     rcases Nat.eq_or_lt_of_le hk with rfl | hk2
-    · have hC_eq : C_mon = (m' * t₀) ^ 2 := by
-        dsimp only [C_mon]
-        rw [Nat.sub_self, card_monomials_zero, hD_succ]
-      have hC_cast : (C_mon : ℝ) = ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
-        rw [hC_eq]
-        push_cast
-        rfl
+    · have hC_cast : (C_mon : ℝ) = ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
+        have hC_eq : C_mon = (m' * t₀) ^ 2 := by
+          dsimp only [C_mon]
+          rw [Nat.sub_self, card_monomials_zero, hD_succ]
+        exact_mod_cast hC_eq
       rw [hC_cast]
       have h1 : ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) < ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
         simpa only [Nat.cast_one, mul_one] using hmt_sq_lower
-      have hReq_nn : (0 : ℝ) ≤ (R_eq : ℝ) := by positivity
       linarith
-    · have hd1 : 1 ≤ k - 1 := by omega
-      have hmon := Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials hd1 D
-      have hsq_lt : (m' * t₀) ^ 2 < 2 * (k - 1) * C_mon := by
-        calc (m' * t₀) ^ 2 = (D + 1) * (D + 1) := by rw [sq, hD_succ]
-          _ < (D + 1) * (D + 2) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
-          _ ≤ 2 * (k - 1) * C_mon := hmon
+    · have hsq_lt : (m' * t₀) ^ 2 < 2 * (k - 1) * C_mon := calc
+        (m' * t₀) ^ 2 = (D + 1) * (D + 1) := by rw [sq, hD_succ]
+        _ < (D + 1) * (D + 2) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
+        _ ≤ 2 * (k - 1) * C_mon :=
+          Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials (by omega) D
       have hsq_ltR : ((m' : ℝ) * (t₀ : ℝ)) ^ 2 < 2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := by
-        have hcast : (((m' * t₀) ^ 2 : ℕ) : ℝ) < ((2 * (k - 1) * C_mon : ℕ) : ℝ) := by
-          exact_mod_cast hsq_lt
-        push_cast at hcast
-        exact hcast
-      have hdR_pos : (0 : ℝ) < ((k - 1 : ℕ) : ℝ) := by positivity
+        exact_mod_cast hsq_lt
+      have hdR_pos : (0 : ℝ) < ((k - 1 : ℕ) : ℝ) := by
+        exact_mod_cast (show 0 < k - 1 by omega)
       have hd_le_k : ((k - 1 : ℕ) : ℝ) ≤ (k : ℝ) := by exact_mod_cast Nat.sub_le k 1
       have hstep :
           (2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ) <
             2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := by
-        have h0 : 0 ≤ ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) := by positivity
-        have h1 : ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) * ((k - 1 : ℕ) : ℝ) ≤
-            ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * ((n : ℝ) * (k : ℝ)) := by
-          have := mul_le_mul_of_nonneg_left hd_le_k h0
-          linarith
-        have h2 : (2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ) ≤
-            ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) * ((k - 1 : ℕ) : ℝ) := by
-          have : 2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ) ≤
-              ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) := by linarith
-          exact mul_le_mul_of_nonneg_right this hdR_pos.le
-        linarith
-      have hcancel : 2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ) < 2 * (C_mon : ℝ) := by
-        refine lt_of_mul_lt_mul_right ?_ hdR_pos.le
-        linarith
+        calc (2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ)
+            ≤ (((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ) := by
+              gcongr; linarith
+          _ ≤ (((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ)) * (k : ℝ) := by gcongr
+          _ = ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * ((n : ℝ) * (k : ℝ)) := by ring
+          _ < ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := hmt_sq_lower
+          _ < 2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := hsq_ltR
+      have hcancel : 2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ) < 2 * (C_mon : ℝ) :=
+        lt_of_mul_lt_mul_right (by linarith) hdR_pos.le
       linarith
   have hinterp : R_eq < C_mon := by
     have hlt : (R_eq : ℝ) < (C_mon : ℝ) := by linarith
@@ -3300,78 +3009,42 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
   set D : ℕ := m' * t₀ - 1
   set D_Y : ℕ := maxYDeg (k - 1) D
   set B_Z : ℕ := siegelZDeg n m' (k - 1) D r
-  have hn : 1 ≤ n := hk.trans hkn
+  obtain ⟨hρ_pos, _, hsqρ_pos, _, hsqρ_sq, h1_le_invsq, hinvsq_le_invρ, hinvsq_le_n⟩ :=
+    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
+  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hk.trans hkn
   have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
   have hrR : (0 : ℝ) < (r : ℝ) := by positivity
-  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
-  have h1_le_k : (1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
   have h1_le_r : (1 : ℝ) ≤ (r : ℝ) := by exact_mod_cast hr
   have h1_le_m' : (1 : ℝ) ≤ (m' : ℝ) := by exact_mod_cast (show 1 ≤ m' by omega)
-  have hρ_pos : 0 < ρ := by positivity
-  have hρ_le_one : ρ ≤ 1 := by
-    rw [div_le_one hnR]
-    exact_mod_cast hkn
-  have hsqρ_pos : 0 < Real.sqrt ρ := Real.sqrt_pos.2 hρ_pos
-  have hsqρ_le_one : Real.sqrt ρ ≤ 1 := by
-    rw [Real.sqrt_le_one]
-    exact hρ_le_one
-  have hsqρ_sq : Real.sqrt ρ ^ 2 = ρ := Real.sq_sqrt hρ_pos.le
-  have h1_le_invsq : (1 : ℝ) ≤ 1 / Real.sqrt ρ := by
-    rw [one_le_div hsqρ_pos]
-    exact hsqρ_le_one
-  have hinvsq_le_invρ : 1 / Real.sqrt ρ ≤ 1 / ρ := by
-    rw [div_le_div_iff₀ hsqρ_pos hρ_pos, one_mul, one_mul]
-    calc ρ = Real.sqrt ρ * Real.sqrt ρ := by rw [← sq, hsqρ_sq]
-      _ ≤ Real.sqrt ρ := mul_le_of_le_one_right hsqρ_pos.le hsqρ_le_one
-  have hinvsq_le_n : 1 / Real.sqrt ρ ≤ (n : ℝ) := by
-    have hsq : (1 / Real.sqrt ρ) ^ 2 ≤ (n : ℝ) ^ 2 := by
-      rw [div_pow, one_pow, hsqρ_sq]
-      dsimp only [ρ]
-      rw [one_div_div, div_le_iff₀ hkR]
-      calc (n : ℝ) = (n : ℝ) * 1 := (mul_one _).symm
-        _ ≤ (n : ℝ) * ((n : ℝ) * (k : ℝ)) :=
-          mul_le_mul_of_nonneg_left (one_le_mul_of_one_le_of_one_le h1_le_n h1_le_k) hnR.le
-        _ = (n : ℝ) ^ 2 * (k : ℝ) := by ring
-    exact le_of_sq_le_sq hsq hnR.le
   have h1_le_invρ : (1 : ℝ) ≤ 1 / ρ := h1_le_invsq.trans hinvsq_le_invρ
-  have h1_le_n2 : (1 : ℝ) ≤ (n : ℝ) ^ 2 := by
-    rw [sq]
-    exact one_le_mul_of_one_le_of_one_le h1_le_n h1_le_n
-  have hn_le_n2 : (n : ℝ) ≤ (n : ℝ) ^ 2 := by
-    rw [sq]
-    exact le_mul_of_one_le_right hnR.le h1_le_n
-  have hm'2_le : (m' : ℝ) ^ 2 ≤ (m' : ℝ) ^ 6 := pow_le_pow_right₀ h1_le_m' (by norm_num)
-  have hm'3_le : (m' : ℝ) ^ 3 ≤ (m' : ℝ) ^ 6 := pow_le_pow_right₀ h1_le_m' (by norm_num)
-  have hm'4_le : (m' : ℝ) ^ 4 ≤ (m' : ℝ) ^ 6 := pow_le_pow_right₀ h1_le_m' (by norm_num)
+  have h1_le_n2 : (1 : ℝ) ≤ (n : ℝ) ^ 2 := one_le_pow₀ h1_le_n
+  have hn_le_n2 : (n : ℝ) ≤ (n : ℝ) ^ 2 := by nlinarith
+  have hm'pow : ∀ a ≤ 6, (m' : ℝ) ^ a ≤ (m' : ℝ) ^ 6 := fun a ha => pow_le_pow_right₀ h1_le_m' ha
   set U : ℝ := (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 / ρ
   have hU_nn : 0 ≤ U := by positivity
-  have hU_eq : U = (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by
-    dsimp only [U]
-    ring
+  have hU_eq : U = (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by dsimp only [U]; ring
   have ht1 : (B_Z : ℝ) ≤ 6 * (r : ℝ) * U := by
     rw [hU_eq]
-    calc (B_Z : ℝ) ≤ 6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ := hBZ_upper
-      _ = 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) := by ring
+    have hm'3 := hm'pow 3 (by norm_num)
+    calc (B_Z : ℝ) ≤ 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) := by
+          linarith [hBZ_upper, show 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) =
+            6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ by ring]
       _ ≤ 6 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
       _ = 6 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by ring
   have ht2 : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * (r : ℝ) * U := by
-    have hbase : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * U := by
-      rw [hU_eq]
-      have hprod : (D_Y : ℝ) * (D : ℝ) ≤
-          (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) :=
-        mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)
-      have hsimp : (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) =
-          (25 / 2) * (m' : ℝ) ^ 2 * (n : ℝ) := by
-        field_simp
-        ring
-      have hstep : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * ((m' : ℝ) ^ 2 * ((n : ℝ) * 1)) := by linarith
-      have hmono : (m' : ℝ) ^ 2 * ((n : ℝ) * 1) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by
-        gcongr
+    rw [hU_eq]
+    have hprod : (D_Y : ℝ) * (D : ℝ) ≤
+        (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) :=
+      mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)
+    have hsimp : (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) =
+        (25 / 2) * (m' : ℝ) ^ 2 * (n : ℝ) := by field_simp; ring
+    have hm'2 := hm'pow 2 (by norm_num)
+    have hmono : (m' : ℝ) ^ 2 * ((n : ℝ) * 1) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by
+      gcongr
+    have hbase : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by
       linarith
-    calc 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * U := hbase
-      _ = 25 * 1 * U := by ring
-      _ ≤ 25 * (r : ℝ) * U := by gcongr
+    calc 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * 1 * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by linarith
+      _ ≤ 25 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
   have ht3 : 2 * (D_Y : ℝ) * (B_Z : ℝ) ≤ 60 * (r : ℝ) * U := by
     rw [hU_eq]
     have hprod : (D_Y : ℝ) * (B_Z : ℝ) ≤
@@ -3379,58 +3052,43 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
       mul_le_mul hDY_upper hBZ_upper (by positivity) (by positivity)
     have hsimp : (5 * (m' : ℝ) / Real.sqrt ρ) * (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) =
         30 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by
-      rw [div_mul_div_comm, ← sq, hsqρ_sq]
-      ring
-    have hstep : 2 * (D_Y : ℝ) * (B_Z : ℝ) ≤
-        60 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by linarith
+      rw [div_mul_div_comm, ← sq, hsqρ_sq]; ring
+    have hm'4 := hm'pow 4 (by norm_num)
     have hmono : (m' : ℝ) ^ 4 * (1 * (1 / ρ)) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by
       gcongr
-    have hscaled := mul_le_mul_of_nonneg_left hmono (show (0 : ℝ) ≤ 60 * (r : ℝ) by positivity)
-    linarith
+    calc 2 * (D_Y : ℝ) * (B_Z : ℝ) ≤ 60 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by linarith
+      _ ≤ 60 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
+      _ = 60 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by ring
   have ht4 : 4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * (D : ℝ) * (B_Z : ℝ) ≤ 1500 * (r : ℝ) * U := by
     have hDY2 : (D_Y : ℝ) ^ 2 ≤ (5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 :=
       pow_le_pow_left₀ (by positivity) hDY_upper 2
     have hDB : (D : ℝ) * (B_Z : ℝ) ≤
-        ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) *
-          (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) :=
+        ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) * (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) :=
       mul_le_mul hD_upper hBZ_upper (by positivity) (by positivity)
-    have hprod : (D_Y : ℝ) ^ 2 * ((D : ℝ) * (B_Z : ℝ)) ≤
-        (5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 *
-          (((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) *
-            (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ)) :=
-      mul_le_mul hDY2 hDB (by positivity) (by positivity)
-    have hmul := mul_le_mul_of_nonneg_left hprod (show (0 : ℝ) ≤ 4 * (n : ℝ) by positivity)
-    have hrhs :
-        4 * (n : ℝ) * ((5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 *
-          (((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) *
-            (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ))) =
-          1500 * (r : ℝ) * U := by
-      dsimp only [U]
-      rw [div_pow, hsqρ_sq]
-      field_simp
-      ring
+    have hmul := mul_le_mul_of_nonneg_left
+      (mul_le_mul hDY2 hDB (by positivity) (by positivity))
+      (show (0 : ℝ) ≤ 4 * (n : ℝ) by positivity)
+    have hrhs : 4 * (n : ℝ) * ((5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 *
+        (((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) *
+          (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ))) = 1500 * (r : ℝ) * U := by
+      dsimp only [U]; rw [div_pow, hsqρ_sq]; field_simp; ring
     linarith
   have ht5 : (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * (D_Y : ℝ)) ≤ 125 * (r : ℝ) * U := by
-    have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by
-      rw [hU_eq]
-      have hDY3 : (D_Y : ℝ) ^ 3 ≤ (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 :=
-        pow_le_pow_left₀ (by positivity) hDY_upper 3
-      have hmul := mul_le_mul_of_nonneg_left hDY3 hnR.le
-      have hsimp : (n : ℝ) * (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 =
-          125 * ((m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ)) := by
-        have hcube : Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ := by
-          rw [pow_succ, hsqρ_sq]
-        rw [div_pow, hcube]
-        field_simp
-        ring
-      have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 := by
-        calc (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) * (n : ℝ) :=
-              mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le
-          _ = (n : ℝ) ^ 2 := by ring
-      have hmono : (m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
-          (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by
-        gcongr
-      linarith
+    have hDY3 : (D_Y : ℝ) ^ 3 ≤ (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 :=
+      pow_le_pow_left₀ (by positivity) hDY_upper 3
+    have hmul := mul_le_mul_of_nonneg_left hDY3 hnR.le
+    have hsimp : (n : ℝ) * (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 =
+        125 * ((m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ)) := by
+      have hcube : Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ := by rw [pow_succ, hsqρ_sq]
+      rw [div_pow, hcube]; field_simp; ring
+    have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 := by
+      calc (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) * (n : ℝ) :=
+            mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le
+        _ = (n : ℝ) ^ 2 := by ring
+    have hm'3 := hm'pow 3 (by norm_num)
+    have hmono : (m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
+        (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by gcongr
+    have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by rw [hU_eq]; linarith
     have hscaled := mul_le_mul_of_nonneg_left hbase hrR.le
     linarith
   have hjb_cast : (johnsonCurveBound n m' (k - 1) D r n : ℝ) =
@@ -3482,15 +3140,8 @@ theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
           Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) ∧
       ((m + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6) := by
   set ρ : ℝ := (k : ℝ) / (n : ℝ)
-  have hn : 1 ≤ n := hk.trans hkn
-  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
-  have hρ_pos : 0 < ρ := by positivity
-  have hρ_le_one : ρ ≤ 1 := by
-    rw [div_le_one hnR]
-    exact_mod_cast hkn
-  have hsqρ_pos : 0 < Real.sqrt ρ := Real.sqrt_pos.2 hρ_pos
-  have hsqρ_le_one : Real.sqrt ρ ≤ 1 := Real.sqrt_le_one.2 hρ_le_one
+  obtain ⟨hρ_pos, _, hsqρ_pos, hsqρ_le_one, _⟩ :=
+    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
   have hη_lt_one : η < 1 := by
     have he_nn : (0 : ℝ) ≤ (e : ℝ) / (n : ℝ) := by positivity
     linarith

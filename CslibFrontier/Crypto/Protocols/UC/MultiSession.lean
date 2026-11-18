@@ -352,7 +352,7 @@ theorem exec_composeFamily_dummy {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ N
     (κ : ℕ) (z : List Bool) :
     exec (composeFamily ρ π) (dummyAdversary n _ _) C Z κ z =
       (sessionRouter C fun j => π j κ C).run (absorbMultiHybrid C ρ Z κ z) := by
-  simp only [exec, execMachine, dummyAdversary, liftAdversary_id, Machine.run_comp,
+  simp only [exec, execMachine, dummyAdversary, Machine.liftRight_id, Machine.run_comp,
     Machine.link_id, composeFamily, corruptRouter_comp, absorbMultiHybrid]
 
 section Swap
@@ -504,7 +504,8 @@ private theorem runFrom_routeCorrupt_liftNet_liftMultiSubNet {m n : ℕ}
         (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) M)).runFrom
         (liftNet (liftMultiSubNet j program)) s =
       (fun a => (a, s)) <$> liftSessionNet j program := by
-  rw [liftNet, liftMultiSubNet, OracleComp.interpret_interpret, liftSessionNet]
+  dsimp only [liftNet]
+  rw [Machine.liftRightProgram, liftMultiSubNet, OracleComp.interpret_interpret, liftSessionNet]
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (multiHybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
@@ -555,9 +556,9 @@ private theorem handle_swap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR�
         runFrom_parLiftAdversary_liftMultiParty]
       repeat erw [Functor.map_map]
       rfl
-  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inl,
-      routeCorrupt_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
     by_cases hi : i ∈ C
     · simp only [hi, ↓reduceIte]
       erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl, Machine.runFrom_map,
@@ -566,17 +567,18 @@ private theorem handle_swap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR�
       rfl
     · simp only [hi, ↓reduceIte]
       rfl
-  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_outer, liftNet_map,
-      liftNet_query, Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inr,
-      routeCorrupt_handle_inr_inr, multiHybridWrap_handle_inr_outer,
-      multiHybridWrap_handle_inr_outer]
+  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_outer,
+      Machine.liftRightProgram_map, Machine.liftRightProgram_query, Machine.runFrom_map,
+      Machine.runFrom_query, routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr,
+      multiHybridWrap_handle_inr_outer, multiHybridWrap_handle_inr_outer]
     repeat erw [Functor.map_map]
     erw [Machine.runFrom_map, runFrom_parLiftAdversary_liftMultiParty]
     repeat erw [Functor.map_map]
     rfl
-  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_sub, liftNet_map,
-      Machine.runFrom_map, runFrom_routeCorrupt_liftNet_liftMultiSubNet,
-      routeCorrupt_handle_inr_inr, multiHybridWrap_handle_inr_sub]
+  · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_sub,
+      Machine.liftRightProgram_map, Machine.runFrom_map,
+      runFrom_routeCorrupt_liftNet_liftMultiSubNet, routeCorrupt_handle_inr_inr,
+      multiHybridWrap_handle_inr_sub]
     repeat erw [Functor.map_map]
     erw [Machine.runFrom_map, Machine.runFrom_query, parLiftAdversary_handle_inr,
       liftSessionNet_map]
@@ -628,8 +630,8 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
         (corruptRouter C (φ j)).runFrom (liftNet program) (s j) := by
   induction program using OracleComp.induction generalizing s with
   | pure a =>
-    simp only [liftSessionNet, liftNet, OracleComp.interpret_pure, Machine.runFrom_pure,
-      map_pure]
+    simp only [liftSessionNet, Machine.liftRightProgram_pure, OracleComp.interpret_pure,
+      Machine.runFrom_pure, map_pure]
     erw [Function.update_eq_self]
     rfl
   | query_bind q cont ih =>
@@ -645,7 +647,7 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
           (OracleComp.query (spec := probOracleSpec (netSpec (RoutedNetQ n SubIn NQ)
             (RoutedNetR SubOut NR))) (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [← liftNet_sample (NetQ := RoutedNetQ n SubIn NQ) (NetR := RoutedNetR SubOut NR)]
+        rw [liftNet, ← Machine.liftRightProgram_sample (partySpec n SubIn SubOut)]
         rfl
       simp only [liftSessionNet, liftNet]
       change (sessionRouter C φ).runFrom
@@ -706,7 +708,8 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
       rw [StateT.run_lift, bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query, SSP.parFin_handle]
       erw [SSP.parFin_handle]
-      simp only [Machine.comp, liftAdversary, StateT.run, StateT.lift, bind_pure_comp]
+      simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run, StateT.lift,
+        bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query]
       repeat erw [Machine.closeProgram_map]
       repeat erw [ProbComp.eval_map]
@@ -735,7 +738,7 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
       rw [liftSessionNet_map]
       erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet]
       erw [SSP.parFin_handle]
-      simp only [Machine.comp, liftAdversary, StateT.run]
+      simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run]
       repeat erw [Machine.closeProgram_map]
       repeat erw [ProbComp.eval_map]
       repeat erw [PMF.map_comp]
@@ -821,7 +824,7 @@ theorem advantage_composeFamily_le_sum {m n : ℕ}
     (absorbMultiHybrid C ρ Z κ z)).trans_eq ?_
   refine Finset.sum_congr rfl fun j _ => ?_
   simp only [advantage, SSP.advantage, sessionHopEnv, exec, execMachine, dummyAdversary,
-    liftAdversary_id, Machine.run_comp, Machine.link_id]
+    Machine.liftRight_id, Machine.run_comp, Machine.link_id]
 
 private theorem isQueryBounded_liftMultiParty {m n : ℕ} {SubIn SubOut NQ NR α : Type}
     {program : ProbOracleComp (multiPartySpec m n SubIn SubOut) α} {t : ℕ}
@@ -976,7 +979,8 @@ theorem sessionHopEnv_polyBounded {m n : ℕ}
     (isBounded_routeCorrupt C (hπ j κ C)).mono (by simp [sessionUnitPoly])
   have hideal : ∀ j : Fin m,
       (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j => by
-    have hcomp := (isBounded_liftAdversary (hS j κ C)).comp (isBounded_routeCorrupt C (hφ j κ C))
+    have hcomp := (Machine.isBounded_liftRight (partySpec n SubIn SubOut) (hS j κ C)).comp
+      (isBounded_routeCorrupt C (hφ j κ C))
     refine hcomp.mono ?_
     simp [sessionUnitPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
   have habs := absorbMultiHybrid_polyBounded C hρ hZ κ z
