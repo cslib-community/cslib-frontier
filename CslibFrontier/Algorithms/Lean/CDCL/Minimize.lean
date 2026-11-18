@@ -24,11 +24,12 @@ the learned clause is false.
 That is exactly a RUP step of LRAT. So the minimized clause enters the certificate as one RUP step
 hinting those reasons and then the learned clause (`Cslib.Logic.PL.CNF.LRATLog.addRup`), and its
 correctness needs no proof about the search for redundant literals: the solver runs the checker's
-unit propagation on the hints, and keeps the minimized clause only if it succeeds, and the learned
-clause otherwise (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`). What is certified is the checked
-candidate: `Learned.minimize` accepts any trail, with no proof that its reasons are those of the
-learned clause, so nothing here proves that the check succeeds; when it fails, the answer is
-still correct, with the unminimized clause. The minimized clause is a subset of the learned one
+unit propagation on the hints (`Cslib.Logic.PL.CNF.LRATLog.propagate`), and keeps the minimized
+clause only if it succeeds, and the learned clause otherwise
+(`Cslib.Algorithms.Lean.CDCL.Learned.minimize`). What is certified is the checked candidate:
+`Learned.minimize` accepts any trail, with no proof that its reasons are those of the learned
+clause, so nothing here proves that the check succeeds; when it fails, the answer is still
+correct, with the unminimized clause. The minimized clause is a subset of the learned one
 containing its asserting literal once, at its head, so it is again a learned clause.
 
 ## Main definitions
@@ -135,8 +136,8 @@ def Learned.minimize (L : Learned log₀ A M₀) (T : XTrail) (recursive : Bool 
       rcases List.mem_cons.1 hy with rfl | hy
       · exact L.mem
       · exact List.mem_dedup.1 (List.mem_filter.1 hy).1
-    if hprop : propagateHints L.log.db (D.map Std.Sat.Literal.negate) hints = true then
-      { log := L.log.addRup D hints hprop fun l hl =>
+    if hprop : L.log.propagate (D.map Std.Sat.Literal.negate) hints = true then
+      { log := L.log.addRup D hints (L.log.propagate_eq _ _ ▸ hprop) fun l hl =>
           LRATLog.vars_mem_of_clause? L.clause?_eq l (hsub l hl)
         id := L.log.next
         clause := D

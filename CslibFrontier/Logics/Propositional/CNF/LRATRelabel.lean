@@ -100,7 +100,8 @@ theorem CNF.propagateHints_relabel (hg : Function.Injective g) (db : List (ℕ �
   induction hs generalizing trail with
   | nil => rfl
   | cons h hs ih =>
-    simp only [CNF.propagateHints, List.find?_map, Function.comp_def]
+    rw [CNF.propagateHints_cons, CNF.propagateHints_cons]
+    simp only [List.find?_map, Function.comp_def]
     cases hf : db.find? (·.1 == h) with
     | none => rfl
     | some e =>

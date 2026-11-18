@@ -214,15 +214,38 @@ theorem Reasons.delete {log : LRATLog φ} {ids : List ℕ} {M : XTrail} (h : Rea
     exact .implied l r (ih fun r' h' => hids r' (by simp [h']))
       ((LRATLog.clause?_delete hr').trans hr) hl hfalse
 
+/-- **The resolvent of `c₁` and `c₂` on `v` without repeating the literals of `c₁`** in the part
+from `c₂`: the literals of `Clause.resolvent`, so that conflict analysis does not accumulate copies
+of a literal shared by the two premises. A literal repeated within one premise stays repeated. -/
+def mergeResolvent (c₁ c₂ : Clause ℕ) (v : ℕ) : Clause ℕ :=
+  let a := c₁.filter (· != (v, true))
+  a ++ c₂.filter fun y => y != (v, false) && !a.contains y
+
+theorem mem_mergeResolvent {c₁ c₂ : Clause ℕ} {v : ℕ} {y : Literal ℕ} :
+    y ∈ mergeResolvent c₁ c₂ v ↔ y ∈ c₁.resolvent c₂ v := by
+  rw [Clause.mem_resolvent]
+  simp only [mergeResolvent, List.mem_append, List.mem_filter, bne_iff_ne, ne_eq,
+    Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem, decide_eq_false_iff_not]
+  constructor
+  · rintro (h | ⟨h, hne, -⟩)
+    · exact .inl h
+    · exact .inr ⟨h, hne⟩
+  · rintro (h | ⟨h, hne⟩)
+    · exact .inl h
+    · by_cases ha : y ∈ c₁ ∧ ¬y = (v, true)
+      · exact .inl ha
+      · exact .inr ⟨h, hne, ha⟩
+
 /-- The resolvent on the variable of `l` of a clause containing the negation of `l` and a clause
-containing `l`, as `Clause.resolvent` orders them. -/
+containing `l`, as `Clause.resolvent` orders them, without a literal of the clause repeated from
+the reason (repetitions within one of them may remain). -/
 def resolveOn (l : Literal ℕ) (C R : Clause ℕ) : Clause ℕ :=
-  if l.2 then R.resolvent C l.1 else C.resolvent R l.1
+  if l.2 then mergeResolvent R C l.1 else mergeResolvent C R l.1
 
 theorem mem_resolveOn {l y : Literal ℕ} {C R : Clause ℕ} (h : y ∈ resolveOn l C R) :
     (y ∈ C ∧ y ≠ l.negate) ∨ (y ∈ R ∧ y ≠ l) := by
   obtain ⟨v, b⟩ := l
-  cases b <;> simp only [resolveOn, Bool.false_eq_true, ↓reduceIte] at h <;>
+  cases b <;> simp only [resolveOn, Bool.false_eq_true, ↓reduceIte, mem_mergeResolvent] at h <;>
     rcases Clause.mem_resolvent.1 h with ⟨h, hne⟩ | ⟨h, hne⟩ <;>
     simp_all [Std.Sat.Literal.negate]
 
@@ -230,7 +253,9 @@ theorem mem_resolveOn {l y : Literal ℕ} {C R : Clause ℕ} (h : y ∈ resolveO
 the reason numbered `r` of `l`. -/
 def resolveLog (log : LRATLog φ) (l : Literal ℕ) (i r : ℕ) (C R : Clause ℕ)
     (hC : log.clause? i = some C) (hR : log.clause? r = some R) : LRATLog φ :=
-  if l.2 then log.addResolvent r i l.1 R C hR hC else log.addResolvent i r l.1 C R hC hR
+  if l.2 then log.addResolventAs r i l.1 R C hR hC (mergeResolvent R C l.1) fun _ =>
+    mem_mergeResolvent
+  else log.addResolventAs i r l.1 C R hC hR (mergeResolvent C R l.1) fun _ => mem_mergeResolvent
 
 theorem resolveLog_spec {log : LRATLog φ} {l : Literal ℕ} {i r : ℕ} {C R : Clause ℕ}
     (hC : log.clause? i = some C) (hR : log.clause? r = some R) :
@@ -238,9 +263,9 @@ theorem resolveLog_spec {log : LRATLog φ} {l : Literal ℕ} {i r : ℕ} {C R : 
       log.Extends (resolveLog log l i r C R hC hR) := by
   cases hl : l.2
   · simp only [resolveLog, resolveOn, hl, Bool.false_eq_true, ↓reduceIte]
-    exact ⟨LRATLog.clause?_addResolvent hC hR, LRATLog.extends_addResolvent hC hR⟩
+    exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
   · simp only [resolveLog, resolveOn, hl, ↓reduceIte]
-    exact ⟨LRATLog.clause?_addResolvent hR hC, LRATLog.extends_addResolvent hR hC⟩
+    exact ⟨LRATLog.clause?_addResolventAs, LRATLog.extends_addResolventAs⟩
 
 /-- The negation is injective. -/
 theorem negate_inj {l l' : Literal ℕ} (h : l.negate = l'.negate) : l = l' := by
@@ -304,7 +329,8 @@ def refute : (T : XTrail) → (log : LRATLog φ) → (i : ℕ) → (C : Clause �
 theorem mem_resolveOn_left {l y : Literal ℕ} {C R : Clause ℕ} (hy : y ∈ C) (hne : y ≠ l.negate) :
     y ∈ resolveOn l C R := by
   obtain ⟨v, b⟩ := l
-  cases b <;> simp_all [resolveOn, Clause.mem_resolvent, Std.Sat.Literal.negate]
+  cases b <;> simp_all [resolveOn, mem_mergeResolvent, Clause.mem_resolvent,
+    Std.Sat.Literal.negate]
 
 theorem lits_append (M N : Trail) : Trail.lits (M ++ N) = Trail.lits M ++ Trail.lits N :=
   List.map_append ..
@@ -793,7 +819,8 @@ theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
     fun e he => .inl he, fun r hr => by simp [Exec.init] at hr⟩
   · rw [hclauses]
     exact (Inv.init fun c hc l hl => CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩ : RunInv _ _ _ _)
-  · simp only [LRATLog.clause?, Exec.init, LRATLog.init, lratDB] at he ⊢
+  · rw [LRATLog.clause?_eq]
+    simp only [Exec.init, LRATLog.init, lratDB] at he ⊢
     rw [find?_zipIdx_map φ 0 he]
     rfl
 

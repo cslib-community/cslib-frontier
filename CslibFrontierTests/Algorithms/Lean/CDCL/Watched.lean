@@ -184,6 +184,11 @@ example : (CDCL.Reduction.init 27 3).max = 9000 ∧
 /-- Deleting no clause leaves the log, and so the certificate, unchanged. -/
 example (φ : CNF ℕ) : (CNF.LRATLog.init φ).delete [] = CNF.LRATLog.init φ := rfl
 
+/-- Deleting a number that names no clause clears nothing past the index: it does not grow. -/
+example : ((CNF.LRATLog.init [[(0, true)]]).delete [1000000]).index.size =
+    (CNF.LRATLog.init [[(0, true)]]).index.size := by
+  decide
+
 /-- The trail below the newest decision of a level-3 conflict, newest first: level 2 (`x₅` implied
 over the decision `x₄`), level 1 (`x₃` implied over the decision `x₂`), and
 the root (`x₁` implied). -/
