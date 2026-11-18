@@ -55,8 +55,8 @@ whose fixed-coordinate marginals are close to uniform.
   `Cslib.Probability.IsKWiseIndependentHash.bind_map_eval_eq`: Exercise 8.29.
 * `Cslib.DecisionTree.abs_map_eval_apply_sub_le`,
   `Cslib.DecisionTree.abs_bind_map_eval_apply_sub_le`: Exercise 8.32(2).
-* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`: separation at the length in
-  the pointer guideline.
+* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length`:
+  separation at the printed length in Exercise 8.32(1).
 
 ## References
 

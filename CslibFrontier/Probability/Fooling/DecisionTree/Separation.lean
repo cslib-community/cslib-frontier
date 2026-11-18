@@ -19,6 +19,7 @@ import Mathlib.Logic.Equiv.Fin.Rotate
 /-!
 # Separation between fixed and adaptive bit queries
 
+Goldreich’s guideline assigns a separate data bit to each address, using `t - 1` extra bits.
 The pointer test reads an address and checks a data bit selected by that address. A sampled
 word with the selected bit forced always passes, while a uniform word passes one half of
 the time. To achieve the printed length of Goldreich's Exercise 8.32(1), pair up selected
@@ -33,8 +34,6 @@ conditional equality on four bits handles the three-query case.
 
 * `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length`: the printed
   separation on exactly `2 ^ (t - 1)` bits for every positive query budget `t`.
-* `Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq`: the longer pointer
-  construction from the guideline, with distinct data bits for all addresses.
 
 ## References
 
@@ -177,10 +176,6 @@ private theorem map_eval_pointerTest {D : Type*} [Fintype D] [DecidableEq D]
   map_eval_forceBit (point key) (target ∘ address) _ (point_update key)
     (fun z v => congrArg target (address_update_point key z v)) (eval_pointerTest key target)
 
-/-- The guideline uses one data bit per address, always forcing the selected bit to zero. -/
-private noncomputable abbrev pointerZeroed (m : ℕ) : PMF (Fin m ⊕ (Fin m → Bool) → Bool) :=
-  pointerLaw id fun _ => false
-
 /-- Couple a transformed word to a uniform word through any permutation of the original
 uniform input. -/
 private theorem dist_restrict_map_uniform_le (S : Finset ι) (f : (ι → Bool) → (ι → Bool))
@@ -252,38 +247,6 @@ private theorem forcePointer_eq_on {D : Type*} [DecidableEq D]
   · have hz := h (hi ▸ i.property)
     simp [Finset.restrict, forcePointer, hi, hz]
   · simp [Finset.restrict, forcePointer, Function.update_of_ne hi]
-
-/-- Every `m + 1` positions of `pointerZeroed m` are `(m + 1) 2 ^ (-(m + 1))`-close to uniform. -/
-private theorem dist_map_restrict_pointerZeroed_le (S : Finset (Fin m ⊕ (Fin m → Bool)))
-    (hS : #S = m + 1) :
-    dist ((pointerZeroed m).map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤
-      ((m + 1 : ℕ) : ℝ) / 2 ^ (m + 1) := by
-  have h := dist_map_restrict_pointerLaw_le id (fun _ => false) S (Equiv.refl _) Sum.inr
-    Sum.inr_injective fun z hz =>
-      not_imp.mp fun h => hz (forcePointer_eq_on id (fun _ => false) S z h)
-  simpa only [hS] using h
-
-/-- **Pointer construction at the guideline length**, a step toward
-[Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4] (March 2007, printed pp. 377–378). On strings of `t - 1` index bits followed by
-`2 ^ (t - 1)` data bits, one for each value of the index bits, let `X` be uniform except that the
-data bit named by the index bits is set to `0`. Every `t` fixed positions of `X` are
-`t 2 ^ (-t)`-close to uniform, yet the test of depth `t` that reads the index bits and then the
-named data bit accepts `X` with probability `1` and the uniform distribution with probability
-`1 / 2`, a gap of `1 / 2`.
-
-The positions are `Fin (t - 1) ⊕ (Fin (t - 1) → Bool)`, a type with `(t - 1) + 2 ^ (t - 1)`
-elements. For the printed length, see `exists_dist_map_restrict_le_and_map_eval_eq_printed_length`.
--/
-theorem exists_dist_map_restrict_le_and_map_eval_eq (t : ℕ) (ht : 1 ≤ t) :
-    ∃ X : PMF (Fin (t - 1) ⊕ (Fin (t - 1) → Bool) → Bool),
-      (∀ S : Finset (Fin (t - 1) ⊕ (Fin (t - 1) → Bool)), #S = t →
-        dist (X.map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤ t / 2 ^ t) ∧
-      ∃ T : DecisionTree (Fin (t - 1) ⊕ (Fin (t - 1) → Bool)) Bool, T.depth ≤ t ∧
-        X.map T.eval = PMF.pure true ∧
-        (PMF.uniformOfFintype _).map T.eval = PMF.uniformOfFintype Bool := by
-  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' ht
-  exact ⟨pointerZeroed m, dist_map_restrict_pointerZeroed_le, pointerTest id (fun _ => false),
-    depth_pointerTest _ _, map_eval_pointerTest _ _⟩
 
 /-- A matching of address-cube edges with one edge in each coordinate direction. -/
 private structure PointerMatching (m : ℕ) where
@@ -393,7 +356,8 @@ private def swapWord (M : PointerMatching m) (i : Fin m) (z : Fin m ⊕ M.Keys �
   Sum.elim (M.endpoint i (z (.inr (M.lowerKey i))))
     (Function.update (z ∘ Sum.inr) (M.lowerKey i) (address z i))
 
-private theorem address_swapWord (M : PointerMatching m) (i : Fin m) (z : Fin m ⊕ M.Keys → Bool) :
+private theorem address_swapWord (M : PointerMatching m) (i : Fin m)
+    (z : Fin m ⊕ M.Keys → Bool) :
     address (M.swapWord i z) = M.endpoint i (z (.inr (M.lowerKey i))) :=
   rfl
 
@@ -445,7 +409,8 @@ private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (
 private noncomputable def compareWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
     (z : Fin m ⊕ M.Keys → Bool) : Fin m ⊕ M.Keys → Bool := by
   classical
-  exact if h : ∃ i, ∃ s, address z = M.endpoint i s ∧ Sum.inl i ∉ S then M.swapWord h.choose z
+  exact if h : ∃ i, ∃ s, address z = M.endpoint i s ∧ Sum.inl i ∉ S then
+    M.swapWord h.choose z
     else z
 
 private theorem compareWord_of_hidden (M : PointerMatching m) {S : Finset (Fin m ⊕ M.Keys)}
@@ -669,7 +634,8 @@ private theorem four_hasSeparation : HasSeparation (Fin 4) 3 := by
   obtain ⟨i, _, hi⟩ := exists_mem_notMem_of_card_lt_card hcard
   let e := (fourCompare_involutive i).toPerm
   refine (dist_restrict_map_uniform_le S fourForce e).trans ?_
-  let E : Set (Fin 4 → Bool) := {z | ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j}
+  let E : Set (Fin 4 → Bool) :=
+    {z | ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j}
   have hsub : {z | (S.restrict ∘ fourForce) z ≠ (S.restrict ∘ e) z} ⊆ E := by
     intro z hz
     change ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j

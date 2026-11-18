@@ -8131,6 +8131,21 @@ register_result "goldreich-adaptive-t-wise-independence" where
     decision tree and reads bits from at most t distinct blocks on each input. This includes \
     whole-block tests. Outside-fleet source check: review 5954380213 on PR #6421."
 
+register_result "goldreich-adaptive-query-separation" where
+  title := "Adaptive t-query tests separate a law with almost uniform t-bit marginals"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.32(1)",
+      locator := "March 2007 draft, printed pp. 377–378 / PDF pp. 113–114" }
+  ]
+  theorems := [Cslib.DecisionTree.exists_dist_map_restrict_le_and_map_eval_eq_printed_length]
+  scope := "For each positive t, a law on exactly 2^(t−1) bits has total variation at most \
+    t/2^t from uniform on every fixed t-coordinate marginal. A decision tree of depth at most \
+    t accepts the law surely and uniform input with probability 1/2. The construction shares \
+    data bits across address pairs to attain the printed length. The guideline uses t−1 \
+    additional bits. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6467#pullrequestreview-5958887313"
+
 register_result "goldreich-adaptive-almost-t-wise-independence" where
   title := "Adaptive bit tests of almost t-wise independent distributions"
   topic := "pseudorandomness"
