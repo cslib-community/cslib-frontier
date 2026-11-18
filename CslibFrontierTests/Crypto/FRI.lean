@@ -50,6 +50,15 @@ and `Soundness`) from an ordinary `module` client (no `import all`) over the pri
    * an explicit out-of-order adaptive cheating prover `friCheater257` (`t_FS = 2`, `t_MT = 2`,
      `L_path = 3`) certified strictly `< 1 / 2 < 1` at `σ = 20` via
      `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`.
+5. **Per-round shrinking budgets, `iopInteractiveGame`, and `friCommitGame` (`BCS.Interactive` and
+   `Soundness.lean`).**
+   Certifies `iopInteractiveGame_ofCausal_eq` (`= PMF.pure true` on `honestWord`), shrinking
+   unique-decoding round budgets `(4, 2)` summing to `6 < 2 * 4 = 8` via
+   `weightedLineGapPerRound_of_uniqueLineGap` and `FRIParams.sum_domainSize_succ`, commit-phase
+   bound `< 1 / 40` via `friCommitGame_le_of_weightedLineGapPerRound`, summed interactive IOP
+   soundness `< 1 / 11` via `friIOP_interactiveGame_le_of_weightedLineGapPerRound`, and `sup`-based
+   BCS ROM soundness via
+   `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineEscapePerRound`.
 -/
 
 -- Exports the concrete `ZMod 257` fixture and degree-4 root-count helper shared with
@@ -719,5 +728,111 @@ theorem friCheater257_romSoundness_lt_half :
       (leftInverse_decZMod_encZMod 257) 20 isCostBounded_MT_friCheater257
       isCostBounded_FS_friCheater257 friCheater257_openings_le)
     fri257_cheater_rhs_lt_half
+
+/-! ### Part 5: Per-Round Shrinking Budgets, `friCommitGame`, and `iopInteractiveGame` -/
+
+-- Exact geometric domain-size sum across the 2 folding rounds of `params257`: `4 + 2 = 6 < 2 * 4`.
+example : (∑ i : Fin params257.m, 2 ^ (params257.d - (i.val + 1))) = 6 :=
+  params257.sum_domainSize_succ
+
+example (r : ℕ) (hr : r ≤ params257.m) : params257.dim r ≤ 2 ^ (params257.d - r) :=
+  params257.dim_le_domainSize hr
+
+/-- Honest causal IOP prover for `honestWord` accepts with probability `1` (`PMF.pure true`) in
+`iopInteractiveGame`. -/
+theorem honestCausal257_interactiveGame_eq_pure_true :
+    iopInteractiveGame (friIOP params257) honestWord
+      (InteractiveIOPProver.ofCausal fun j prev =>
+        (friIOP params257).proveRound j honestWord () prev) =
+      PMF.pure true := by
+  refine (iopInteractiveGame_ofCausal_eq (friIOP params257) honestWord _).trans ?_
+  have hacc :
+      (fun chals : Fin (params257.m + 1) → FRIChal (ZMod 257) params257.d params257.q =>
+        iopVerify (friIOP params257) honestWord chals
+          (fun j => (friIOP params257).proveRound j honestWord ()
+            fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩)) =
+      Function.const _ true := by
+    funext chals
+    exact friIOP_complete params257 honestWord () honestWord_mem_initialCode chals
+  rw [hacc, PMF.map_const]
+
+private theorem sum_uniqueRoundEscape_257 :
+    (∑ i : Fin params257.m,
+      ((2 ^ (params257.d - (i.val + 1)) : ℕ) : ℝ≥0∞) /
+        (Fintype.card (ZMod 257) : ℝ≥0∞)) = (6 : ℝ≥0∞) / 257 := by
+  simp only [div_eq_mul_inv, ← Finset.sum_mul, ← Nat.cast_sum]
+  rw [params257.sum_domainSize_succ]
+  norm_num [ZMod.card, params257]
+
+/-- Shrinking per-round unique-decoding commit-phase bound (`≤ 6 / 257 < 1 / 40`) on `farWord` via
+`friCommitGame_le_of_weightedLineGapPerRound` and `weightedLineGapPerRound_of_uniqueLineGap`. -/
+theorem fri257_commitGame_lt_one_40th
+    (P : InteractiveIOPProver 3 (ZMod 257) (FRIChal (ZMod 257) 3 6)) :
+    friCommitGame params257 (2 ^ params257.d - 2 - 1) farWord P true < 1 / 40 := by
+  refine lt_of_le_of_lt
+    (friCommitGame_le_of_weightedLineGapPerRound params257
+      (weightedLineGapPerRound_of_uniqueLineGap params257
+        (by decide : 2 * 2 + params257.dim 0 ≤ 2 ^ params257.d) uniqueLineGap_params257)
+      farWord_not_mem_proximityLang P) ?_
+  rw [sum_uniqueRoundEscape_257]
+  have hlt : (6 / 257 : ℝ≥0) < 1 / 40 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  simpa only [ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (40 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat, ENNReal.coe_one] using
+    ENNReal.coe_lt_coe.mpr hlt
+
+/-- Summed interactive soundness (`< 1 / 11`, from `6 / 257 + (5 / 8) ^ 6 ≈ 0.08336 < 1 / 11`) for
+any adaptive prover `P` on `farWord ∉ params257.proximityLang 2`. -/
+theorem fri257_interactiveGame_lt_one_11th
+    (P : InteractiveIOPProver 3 (ZMod 257) (FRIChal (ZMod 257) 3 6)) :
+    iopInteractiveGame (friIOP params257) farWord P true < 1 / 11 := by
+  refine lt_of_le_of_lt
+    (friIOP_interactiveGame_le_of_weightedLineGapPerRound params257
+      (weightedLineGapPerRound_of_uniqueLineGap params257
+        (by decide : 2 * 2 + params257.dim 0 ≤ 2 ^ params257.d) uniqueLineGap_params257)
+      farWord_not_mem_proximityLang P) ?_
+  rw [friSumError, sum_uniqueRoundEscape_257]
+  simp only [params257]
+  have hnn : (6 / 257 + (5 / 8) ^ 6 : ℝ≥0) < 1 / 11 := by
+    rw [← NNReal.coe_lt_coe]; push_cast; norm_num
+  have hcast := ENNReal.coe_lt_coe.mpr hnn
+  simpa only [ENNReal.coe_add, ENNReal.coe_pow,
+    ENNReal.coe_div (by norm_num : (257 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (8 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (11 : ℝ≥0) ≠ 0),
+    ENNReal.coe_ofNat, ENNReal.coe_one,
+    (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
+    (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8)] using hcast
+
+/-- Explicit causal cheating prover folding `farWord` honestly in each round, certified `< 1 / 11`
+in `iopInteractiveGame`. -/
+example :
+    iopInteractiveGame (friIOP params257) farWord
+      (InteractiveIOPProver.ofCausal fun j prev =>
+        (friIOP params257).proveRound j farWord () prev) true < 1 / 11 :=
+  fri257_interactiveGame_lt_one_11th _
+
+/-- Per-round `sup` BCS-FRI ROM soundness bound
+(`friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineEscapePerRound`) instantiated directly
+on `friCheater257` (`< 1 / 2` at `σ = 20`). -/
+example :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2)
+      friCheater257 20 true < 1 / 2 := by
+  have hgap := weightedLineGapPerRound_of_uniqueLineGap params257
+    (by decide : 2 * 2 + params257.dim 0 ≤ 2 ^ params257.d) uniqueLineGap_params257
+  have hesc := (weightedLineEscapePerRound_of_gapPerRound params257 hgap).mono
+    fun i => ENNReal.div_le_div_right
+      (Nat.cast_le.mpr (Nat.pow_le_pow_right (by omega)
+        (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _))) _
+  refine lt_of_le_of_lt
+    (friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineEscapePerRound params257
+      hesc (leftInverse_decZMod_encZMod 257) 20 isCostBounded_MT_friCheater257
+      isCostBounded_FS_friCheater257 friCheater257_openings_le) ?_
+  refine lt_of_le_of_lt ?_ fri257_cheater_rhs_lt_half
+  exact add_le_add
+    (mul_le_mul_of_nonneg_left
+      (add_le_add (friSupRBRError_const_le_friRBRError params257 2 (2 ^ (params257.d - 1))) le_rfl)
+      zero_le)
+    le_rfl
 
 end CslibFrontierTests.Crypto.FRI
