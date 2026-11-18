@@ -2222,6 +2222,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PH.Image
 public import CslibFrontier.Computability.Complexity.Classes.PH.Kannan
 public import CslibFrontier.Computability.Complexity.Classes.PH.KarpLipton
 public import CslibFrontier.Computability.Complexity.Classes.PH.Oracle
+public import CslibFrontier.Computability.Complexity.Classes.PH.OracleCollapse
 public import CslibFrontier.Computability.Complexity.Classes.PH.OracleNP
 public import CslibFrontier.Computability.Complexity.Classes.PH.OracleTranscript
 public import CslibFrontier.Computability.Complexity.Classes.PH.Projection

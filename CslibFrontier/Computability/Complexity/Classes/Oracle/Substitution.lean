@@ -1,13 +1,14 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Configuration
@@ -120,21 +121,16 @@ private theorem interpret_id_oracleAnswerStep {k : ℕ} {Control : Type}
     rfl
   · rfl
 
-open Classical in
-/-- **Oracle substitution for polynomial-time Boolean computations**: if an oracle language `O₁`
-belongs to `P^{O₂}` and `f : α → Bool` is computable in polynomial time relative to `O₁`, then
-`f` is computable in polynomial time relative to `O₂`. -/
-theorem ComputableInPolyTimeWithOracle.of_mem_PWithOracle {O₁ O₂ : Set (List Bool)} {f : α → Bool}
-    (hO₁ : O₁ ∈ PWithOracle O₂ encBits)
-    (hf : ComputableInPolyTimeWithOracle O₁ f encA encBool) :
-    ComputableInPolyTimeWithOracle O₂ f encA encBool := by
-  obtain ⟨g, ⟨prog, hprog, hg⟩, hgO₁⟩ := hO₁
-  have hg' : g = fun w => decide (w ∈ O₁) := funext fun w =>
-    Bool.eq_iff_iff.mpr ⟨fun h => decide_eq_true ((hgO₁ w).mpr h),
-      fun h => (hgO₁ w).mp (of_decide_eq_true h)⟩
-  subst hg'
-  obtain ⟨program, hcert, hprogram⟩ := hf
-  obtain ⟨k, m, machine, c, d, hrun⟩ := hcert.exists_fin_run_pure_false
+/-- Interpret a finite machine with a polynomial clock, using a polynomial-time oracle
+computation to supply its replies. The first bit of the output is the Boolean result. -/
+private theorem computableInPolyTimeWithOracle_run {O : Set (List Bool)}
+    {g : List Bool → Bool} (hg : ComputableInPolyTimeWithOracle O g encBits encBool)
+    {k m : ℕ} (machine : Turing.MultiTapePTM k Bool (Fin m) Unit) (c d : ℕ) :
+    ComputableInPolyTimeWithOracle O (fun a =>
+      ((machine.answerStep (fun q => [g q.2]))^[c * ((encA a).length + 1) ^ d]
+        (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output.headD
+          false) encA encBool := by
+  obtain ⟨prog, hprog, hg⟩ := hg
   obtain ⟨cf, hcf⟩ := length_encFiniteConfig_le (k := k) (State := Fin m) (Oracle := Unit)
   have hcount : ComputableInPolyTime (fun a => c * ((encA a).length + 1) ^ d) encA
       encUnary :=
@@ -171,11 +167,48 @@ theorem ComputableInPolyTimeWithOracle.of_mem_PWithOracle {O₁ O₂ : Set (List
     exact hit.map' (by fun_prop)
   · rw [OracleComp.interpret_map, OracleComp.interpret_id_iterate]
     simp only [interpret_id_oracleAnswerStep machine hg]
-    change ((machine.answerStep (languageOracle O₁))^[c * ((encA a).length + 1) ^ d]
-      (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output.headD
-        false = f a
-    rw [← machine.interpret_run_pure_false, hrun a (languageOracle O₁), ← hprogram a]
-    simp
+    rfl
+
+/-- A Boolean oracle program agrees with the first output bit of its clocked machine. -/
+private theorem exists_clocked_bool_run {O : Set (List Bool)} {f : α → Bool}
+    (hf : ComputableInPolyTimeWithOracle O f encA encBool) :
+    ∃ (k m : ℕ) (machine : Turing.MultiTapePTM k Bool (Fin m) Unit) (c d : ℕ),
+      ∀ a, ((machine.answerStep (languageOracle O))^[c * ((encA a).length + 1) ^ d]
+        (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output.headD
+          false = f a := by
+  obtain ⟨program, hcert, hprogram⟩ := hf
+  obtain ⟨k, m, machine, c, d, hrun⟩ := hcert.exists_fin_run_pure_false
+  refine ⟨k, m, machine, c, d, fun a => ?_⟩
+  rw [← machine.interpret_run_pure_false, hrun a (languageOracle O), hprogram a]
+  simp
+
+open Classical in
+/-- **Oracle substitution for polynomial-time Boolean computations**: if an oracle language `O₁`
+belongs to `P^{O₂}` and `f : α → Bool` is computable in polynomial time relative to `O₁`, then
+`f` is computable in polynomial time relative to `O₂`. -/
+theorem ComputableInPolyTimeWithOracle.of_mem_PWithOracle {O₁ O₂ : Set (List Bool)} {f : α → Bool}
+    (hO₁ : O₁ ∈ PWithOracle O₂ encBits)
+    (hf : ComputableInPolyTimeWithOracle O₁ f encA encBool) :
+    ComputableInPolyTimeWithOracle O₂ f encA encBool := by
+  obtain ⟨g, ⟨prog, hprog, hg⟩, hgO₁⟩ := hO₁
+  have hg' : g = fun w => decide (w ∈ O₁) := funext fun w =>
+    Bool.eq_iff_iff.mpr ⟨fun h => decide_eq_true ((hgO₁ w).mpr h),
+      fun h => (hgO₁ w).mp (of_decide_eq_true h)⟩
+  subst hg'
+  obtain ⟨k, m, machine, c, d, hrun⟩ := exists_clocked_bool_run hf
+  have h := computableInPolyTimeWithOracle_run (encA := encA) ⟨prog, hprog, hg⟩ machine c d
+  exact (funext hrun) ▸ h
+
+open Classical in
+/-- A polynomial-time Boolean oracle computation extends to all raw inputs by running its
+machine under the same clock and reading the first output bit. -/
+theorem ComputableInPolyTimeWithOracle.exists_bool_extension {O : Set (List Bool)}
+    {f : α → Bool} (hf : ComputableInPolyTimeWithOracle O f encA encBool) :
+    ∃ g : List Bool → Bool, ComputableInPolyTimeWithOracle O g encBits encBool ∧
+      ∀ a, g (encA a) = f a := by
+  obtain ⟨k, m, machine, c, d, hrun⟩ := exists_clocked_bool_run hf
+  exact ⟨_, computableInPolyTimeWithOracle_run (encA := encBits)
+    (computableInPolyTimeWithOracle_mem O) machine c d, hrun⟩
 
 /-- If `O₁ ∈ P^{O₂}`, then `P^{O₁} ⊆ P^{O₂}`. -/
 theorem PWithOracle_subset_of_mem_PWithOracle {O₁ O₂ : Set (List Bool)}
