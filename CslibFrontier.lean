@@ -7898,6 +7898,7 @@ public import CslibFrontier.Probability.Extractor.LeftoverHash
 public import CslibFrontier.Probability.Extractor.TwoSource
 public import CslibFrontier.Probability.Fooling
 public import CslibFrontier.Probability.Fooling.DecisionTree
+public import CslibFrontier.Probability.Fooling.DecisionTree.Separation
 public import CslibFrontier.Probability.Fooling.OneSided
 public import CslibFrontier.Probability.Forking
 public import CslibFrontier.Probability.Freivalds
