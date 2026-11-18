@@ -19,8 +19,9 @@ public meta import Std.Tactic.BVDecide.LRAT.Checker
 
 The kernel runs the watched solver with `decide` on the pigeonhole formula PHP(3, 2), proving it
 unsatisfiable, and on satisfiable formulas, checking the model. The formulas exercise the short
-clauses: unit clauses, the empty clause and a clause with a repeated literal. At runtime, Lean
-core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5).
+clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
+the options decides correctly, and the statistics count conflicts, propagations and decisions. At
+runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5).
 -/
 
 set_option linter.privateModule false
@@ -67,6 +68,23 @@ example : (CDCL.solve [[(0, true)], [(0, false)]]).isSat = false := by decide
 
 /-- The empty clause. -/
 example : (CDCL.solve [[(0, true), (1, true)], []]).isSat = false := by decide
+
+/-- Every combination of options refutes PHP(3, 2) and finds a model of `units`. -/
+example : (CDCL.solveWith { vsids := false } php).1.isSat = false ∧
+    (CDCL.solveWith { phaseSaving := false } php).1.isSat = false ∧
+    (CDCL.solveWith { vsids := false, phaseSaving := false } php).1.isSat = false := by
+  decide +kernel
+
+example : (match (CDCL.solveWith { vsids := false, phaseSaving := false } units).1 with
+    | .sat σ => units.eval σ
+    | .unsat _ => false) = true := by
+  decide
+
+/-- The statistics of a run: refuting `x₀`, `¬x₀` takes one conflict and one propagation. -/
+example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
+    (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.propagations = 1 ∧
+    (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.decisions = 0 := by
+  decide
 
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide

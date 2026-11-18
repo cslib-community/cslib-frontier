@@ -42,12 +42,12 @@ private abbrev chain : CNF ℕ := [[(1000000000, true)], [(1000000000, false), (
   | .sat σ => chain.eval σ
   | .unsat _ => false
 
-#guard (WExec.init ([] : CNF ℕ)).act.score.size == 0
-#guard (WExec.init ([[]] : CNF ℕ)).act.score.size == 0
+#guard (WExec.init ([] : CNF ℕ) {}).act.score.size == 0
+#guard (WExec.init ([[]] : CNF ℕ) {}).act.score.size == 0
 #guard varSlots big == 1000000001
-#guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ)).act.score.size == 3
-#guard (WExec.init ([] : CNF ℕ)).phase.saved.size == 0
-#guard (WExec.init ([[]] : CNF ℕ)).phase.saved.size == 0
-#guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ)).phase.saved.size == 3
+#guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ) {}).act.score.size == 3
+#guard (WExec.init ([] : CNF ℕ) {}).phase.saved.size == 0
+#guard (WExec.init ([[]] : CNF ℕ) {}).phase.saved.size == 0
+#guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ) {}).phase.saved.size == 3
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Compact

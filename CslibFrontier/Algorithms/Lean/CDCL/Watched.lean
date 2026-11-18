@@ -62,14 +62,18 @@ out, so the kernel can run the solver.
   invariant.
 * `Cslib.Algorithms.Lean.CDCL.WExec.processList`: visiting a watch list.
 * `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
+* `Cslib.Algorithms.Lean.CDCL.Options`, `Cslib.Algorithms.Lean.CDCL.Stats`,
+  `Cslib.Algorithms.Lean.CDCL.solveWith`: the solver with options, returning its statistics.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.CDCL.solve_sat`, `Cslib.Algorithms.Lean.CDCL.solve_unsat`: both answers are
   correct.
 * `Cslib.Algorithms.Lean.CDCL.isSat_solve_iff`: the solver decides satisfiability.
-* `Cslib.Algorithms.Lean.CDCL.solveCompact_sat`, `Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`,
-  `Cslib.Algorithms.Lean.CDCL.isSat_solveCompact_iff`: the same for the solver on renamed
+* `Cslib.Algorithms.Lean.CDCL.isSat_solveWith_iff`: so it does whatever the options.
+* `Cslib.Algorithms.Lean.CDCL.solveCompactWith_sat`,
+  `Cslib.Algorithms.Lean.CDCL.solveCompactWith_unsat`,
+  `Cslib.Algorithms.Lean.CDCL.isSat_solveCompactWith_iff`: the same for the solver on renamed
   variables.
 
 **Variable names.** `solve` keeps arrays indexed by variable, sized by the largest variable of the
@@ -90,9 +94,37 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
+/-- **Options** of the solver, after MiniSat's: VSIDS for the decision variable (otherwise the
+first unassigned variable of the database), and phase saving for its polarity (MiniSat's
+`phase_saving = 2`; otherwise `false`, MiniSat's `phase_saving = 0`). Neither affects
+correctness. -/
+structure Options where
+  /-- Choose decision variables by VSIDS. -/
+  vsids : Bool := true
+  /-- Choose polarities by phase saving. -/
+  phaseSaving : Bool := true
+  deriving Repr
+
+/-- **Statistics** of a run, as MiniSat reports them. -/
+structure Stats where
+  /-- Conflicts, the last one included when the formula is unsatisfiable. -/
+  conflicts : ℕ := 0
+  /-- Decisions. -/
+  decisions : ℕ := 0
+  /-- Unit propagations. -/
+  propagations : ℕ := 0
+  deriving Repr
+
+/-- One more unit propagation. -/
+@[expose] def Stats.propagation (s : Stats) : Stats := { s with propagations := s.propagations + 1 }
+
+/-- One more decision. -/
+@[expose] def Stats.decision (s : Stats) : Stats := { s with decisions := s.decisions + 1 }
+
 /-- The state of the solver with watched literals: the state `Exec`, the watch store, the queue
 of trail literals whose watch lists are still to be visited, the clauses with fewer than two
-different literals, the variable activities, and the saved phases. -/
+different literals, the variable activities, the saved phases, the options and the
+statistics. -/
 structure WExec (φ : CNF ℕ) where
   /-- The trail, database and log. -/
   exec : Exec φ
@@ -106,6 +138,10 @@ structure WExec (φ : CNF ℕ) where
   act : Activity
   /-- The saved phases, which choose the polarities of the decisions. -/
   phase : Phases
+  /-- The options. -/
+  opts : Options
+  /-- The statistics so far. -/
+  stats : Stats
 
 /-- The abstract trail. -/
 abbrev WExec.M (S : WExec φ) : Trail := XTrail.trail S.exec.trail
@@ -126,12 +162,12 @@ structure WExec.Inv (S : WExec φ) : Prop where
 variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
 @[expose] def varSlots (φ : CNF ℕ) : ℕ := φ.vars.foldl (fun m v => max m (v + 1)) 0
 
-/-- The initial state. -/
-@[expose] def WExec.init (φ : CNF ℕ) : WExec φ :=
+/-- The initial state, with the options `o`. -/
+@[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
   ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
-    Activity.init (varSlots φ), Phases.init (varSlots φ)⟩
+    Activity.init (varSlots φ), Phases.init (varSlots φ), o, {}⟩
 
-theorem WExec.init_inv (φ : CNF ℕ) : (WExec.init φ).Inv where
+theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv where
   exec := Exec.init_inv φ
   store := WatchStore.build_inv φ.lratDB
   short_mem e he := (List.mem_filter.1 he).1
@@ -532,7 +568,8 @@ theorem not_mem_vars_of_undef {M : Trail} {l : Literal ℕ} (h₁ : l ∉ Trail.
 /-- **UnitPropagate** during processing: the literal is added to the trail, with the clause
 numbered `id` as its reason, and queued. -/
 @[expose] def WExec.propagateUnit (S : WExec φ) (l : Literal ℕ) (id : ℕ) : WExec φ :=
-  { S with exec := S.exec.propagate (id, []) l, queue := l :: S.queue }
+  { S with
+    exec := S.exec.propagate (id, []) l, queue := l :: S.queue, stats := S.stats.propagation }
 
 /-- **A unit clause**: its other watched literal is propagated and queued, and its watcher goes
 back on the watch list with that literal as blocker. -/
@@ -730,6 +767,19 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
     (learnedWatched C l).Perm C.dedup :=
   (List.perm_cons_erase (List.mem_dedup.2 hl)).symm
 
+/-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
+@[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity :=
+  if S.opts.vsids then S.act.bump vs else S.act
+
+/-- The phases after backjumping below the newest decision of `sp`: those of the literals undone
+are saved, if phase saving is on. -/
+@[expose] def WExec.saved (S : WExec φ) (sp : Split) : Phases :=
+  if S.opts.phaseSaving then S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])
+  else S.phase
+
+/-- One more conflict. -/
+@[expose] def Stats.conflict (s : Stats) : Stats := { s with conflicts := s.conflicts + 1 }
+
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. The variables met by the analysis are bumped, and the phases of the literals undone are
@@ -737,9 +787,9 @@ saved. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) : WExec φ :=
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflict sp L, S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
-      S.short, S.act.bump L.seen, S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])⟩
+      S.short, S.bumped L.seen, S.saved sp, S.opts, S.stats.conflict⟩
   else ⟨S.exec.afterConflict sp L, S.store, [L.lit], (L.id, L.clause) :: S.short,
-    S.act.bump L.seen, S.phase.save (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])⟩
+    S.bumped L.seen, S.saved sp, S.opts, S.stats.conflict⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -861,11 +911,22 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 
 /-- **UnitPropagate from a short clause**, at an empty queue. -/
 @[expose] def WExec.propagateShort (S : WExec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : WExec φ :=
-  { S with exec := S.exec.propagate e l, queue := [l] }
+  { S with
+    exec := S.exec.propagate e l, queue := [l], stats := S.stats.propagation }
+
+/-- The polarity of a decision on `x`: its saved phase, or `false` without phase saving. -/
+@[expose] def WExec.polarity (S : WExec φ) (x : ℕ) : Bool := S.opts.phaseSaving && S.phase.get x
+
+/-- The activities that choose the decision variable: those of VSIDS, or none, which picks the
+first unassigned variable. -/
+@[expose] def WExec.decisionActivity (S : WExec φ) : Activity :=
+  if S.opts.vsids then S.act else Activity.init 0
 
 /-- **Decide**, at an empty queue. -/
 @[expose] def WExec.decide (S : WExec φ) (x : ℕ) : WExec φ :=
-  { S with exec := S.exec.decide x (S.phase.get x), queue := [(x, S.phase.get x)] }
+  { S with
+    exec := S.exec.decide x (S.polarity x), queue := [(x, S.polarity x)]
+    stats := S.stats.decision }
 
 /-- With the queue empty, no clause of the database is false if no short clause is. -/
 theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
@@ -890,17 +951,18 @@ negation of its first literal is visited; a conflict is analysed, followed by Ba
 or ends with a certificate when there is no decision. With the queue empty, the short clauses are
 checked for a conflict or a unit, then an unassigned variable of the database of greatest activity
 is decided, or the trail is returned as a model. -/
-@[expose] def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ
+@[expose]
+def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : WExec φ) → S.Inv → S.measure < fuel → Answer φ × Stats
   | 0, _, _, hfuel => absurd hfuel (Nat.not_lt_zero _)
   | fuel + 1, S, hS, hfuel =>
     -- a conflict on a database clause
     let onConflict (S : WExec φ) (hS : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
-        (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ fuel) : Answer φ :=
+        (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ fuel) : Answer φ × Stats :=
       match hsp : XTrail.split S.exec.trail with
       | none =>
         let r := refute S.exec.trail S.exec.log e.1 e.2 (hS.exec.db_log e he) hS.exec.reasons
           (XTrail.split_eq_none hsp) hconf
-        .unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq)
+        (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
       | some sp =>
         let L := analyze S.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h) S.exec.log
@@ -937,101 +999,137 @@ is decided, or the trail is returned as a model. -/
           loop φ fuel (S.propagateShort e l) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
             (by have := WExec.measure_push_lt (S' := S.propagateShort e l) hq rfl hspec.2; omega)
         | none =>
-          match hx : S.act.pick S.M S.exec.clauses.vars with
+          match hx : S.decisionActivity.pick S.M S.exec.clauses.vars with
           | some x =>
             have hundef : x ∉ Trail.vars S.M := (Activity.pick_some hx).2
             have hspec := Exec.decide_spec hS.exec hnoconf (Activity.pick_some hx).1 hundef
-              (S.phase.get x)
+              (S.polarity x)
             loop φ fuel (S.decide x) (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef)
               (by have := WExec.measure_push_lt (S' := S.decide x) hq rfl hspec.2; omega)
           | none =>
-            .sat (Trail.assignment S.M)
-              (hS.exec.run.eval_model hnoconf fun x hxV => Activity.pick_none hx x hxV)
+            (.sat (Trail.assignment S.M)
+              (hS.exec.run.eval_model hnoconf fun x hxV => Activity.pick_none hx x hxV), S.stats)
 
-/-- **The CDCL solver**: a model, or an LRAT certificate of unsatisfiability. -/
-@[expose] def solve (φ : CNF ℕ) : DPLL.Result :=
-  match loop φ ((WExec.init φ).measure + 1) (WExec.init φ) (WExec.init_inv φ)
+/-- **The CDCL solver with options**: a model, or an LRAT certificate of unsatisfiability, with the
+statistics of the run. -/
+@[expose] def solveWith (o : Options) (φ : CNF ℕ) : DPLL.Result × Stats :=
+  match loop φ ((WExec.init φ o).measure + 1) (WExec.init φ o) (WExec.init_inv φ o)
       (Nat.lt_succ_self _) with
-  | .sat σ _ => .sat σ
-  | .unsat cert _ => .unsat cert
+  | (.sat σ _, s) => (.sat σ, s)
+  | (.unsat cert _, s) => (.unsat cert, s)
 
-/-- **The models returned by the solver are models.** -/
-theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) :
+/-- **The CDCL solver**, with the default options. -/
+@[expose] def solve (φ : CNF ℕ) : DPLL.Result := (solveWith {} φ).1
+
+/-- **The models returned by the solver are models**, whatever the options. -/
+theorem solveWith_sat {o : Options} {φ : CNF ℕ} {σ : ℕ → Bool} (h : (solveWith o φ).1 = .sat σ) :
     φ.eval σ = true := by
-  unfold solve at h
+  unfold solveWith at h
   split at h
-  · rename_i hσ _
+  · rename_i hσ _ _
     cases h
     exact hσ
   · cases h
 
-/-- **The certificates returned by the solver are accepted by the LRAT checker.** -/
-theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
-    (h : solve φ = .unsat cert) : φ.checkLRAT cert = true := by
-  unfold solve at h
+/-- **The certificates returned by the solver are accepted by the LRAT checker**, whatever the
+options. -/
+theorem solveWith_unsat {o : Options} {φ : CNF ℕ}
+    {cert : Array Std.Tactic.BVDecide.LRAT.IntAction} (h : (solveWith o φ).1 = .unsat cert) :
+    φ.checkLRAT cert = true := by
+  unfold solveWith at h
   split at h
   · cases h
-  · rename_i hcert _
+  · rename_i hcert _ _
     cases h
     exact hcert
 
-/-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
+/-- **The solver decides satisfiability**, whatever the options. -/
+theorem isSat_solveWith_iff (o : Options) (φ : CNF ℕ) :
+    (solveWith o φ).1.isSat = true ↔ φ.Satisfiable := by
   constructor
   · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
+    cases hs : (solveWith o φ).1 with
+    | sat σ => exact ⟨σ, solveWith_sat hs⟩
     | unsat cert => simp [hs, DPLL.Result.isSat] at h
   · intro h
-    cases hs : solve φ with
+    cases hs : (solveWith o φ).1 with
     | sat σ => rfl
     | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solve_unsat hs))
+      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveWith_unsat hs))
+
+/-- **The models returned by the solver are models.** -/
+theorem solve_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solve φ = .sat σ) : φ.eval σ = true :=
+  solveWith_sat h
+
+/-- **The certificates returned by the solver are accepted by the LRAT checker.** -/
+theorem solve_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
+    (h : solve φ = .unsat cert) : φ.checkLRAT cert = true :=
+  solveWith_unsat h
+
+/-- **The solver decides satisfiability.** -/
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable :=
+  isSat_solveWith_iff {} φ
 
 /-! ### Renaming the variables first -/
 
-/-- **The CDCL solver on renamed variables**: it renames the variables of `φ` to `0, …, k - 1`,
-solves the renamed formula, and translates the model or certificate back, so its arrays are
-indexed by at most `k` variables. -/
-@[expose] def solveCompact (φ : CNF ℕ) : DPLL.Result :=
-  match solve (φ.relabel φ.denseRenaming.toDense) with
-  | .sat σ => .sat (σ ∘ φ.denseRenaming.toDense)
-  | .unsat cert => .unsat (cert.map (relabelAction φ.denseRenaming.fromDense))
+/-- **The CDCL solver on renamed variables, with options**: it renames the variables of `φ` to
+`0, …, k - 1`, solves the renamed formula, and translates the model or certificate back, so its
+arrays are indexed by at most `k` variables. -/
+@[expose] def solveCompactWith (o : Options) (φ : CNF ℕ) : DPLL.Result × Stats :=
+  match solveWith o (φ.relabel φ.denseRenaming.toDense) with
+  | (.sat σ, st) => (.sat (σ ∘ φ.denseRenaming.toDense), st)
+  | (.unsat cert, st) => (.unsat (cert.map (relabelAction φ.denseRenaming.fromDense)), st)
+
+/-- **The CDCL solver on renamed variables**, with the default options. -/
+@[expose] def solveCompact (φ : CNF ℕ) : DPLL.Result := (solveCompactWith {} φ).1
 
 /-- **The models returned on renamed variables are models.** -/
-theorem solveCompact_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveCompact φ = .sat σ) :
-    φ.eval σ = true := by
-  unfold solveCompact at h
+theorem solveCompactWith_sat {o : Options} {φ : CNF ℕ} {σ : ℕ → Bool}
+    (h : (solveCompactWith o φ).1 = .sat σ) : φ.eval σ = true := by
+  unfold solveCompactWith at h
   split at h
-  · rename_i σ' hs
+  · rename_i σ' st hs
     cases h
-    simpa using solve_sat hs
+    simpa using solveWith_sat (congrArg Prod.fst hs)
   · cases h
 
 /-- **The certificates returned on renamed variables are accepted by the LRAT checker.** -/
-theorem solveCompact_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
-    (h : solveCompact φ = .unsat cert) : φ.checkLRAT cert = true := by
-  unfold solveCompact at h
+theorem solveCompactWith_unsat {o : Options} {φ : CNF ℕ}
+    {cert : Array Std.Tactic.BVDecide.LRAT.IntAction} (h : (solveCompactWith o φ).1 = .unsat cert) :
+    φ.checkLRAT cert = true := by
+  unfold solveCompactWith at h
   split at h
   · cases h
-  · rename_i c hs
+  · rename_i c st hs
     cases h
-    have := solve_unsat hs
+    have := solveWith_unsat (congrArg Prod.fst hs)
     rw [← CNF.checkLRAT_relabel (DenseRenaming.fromDense_injective φ),
       DenseRenaming.relabel_relabel] at this
     exact this
 
-/-- **The solver on renamed variables decides satisfiability.** -/
-theorem isSat_solveCompact_iff (φ : CNF ℕ) : (solveCompact φ).isSat = true ↔ φ.Satisfiable := by
+/-- **The solver on renamed variables decides satisfiability**, whatever the options. -/
+theorem isSat_solveCompactWith_iff (o : Options) (φ : CNF ℕ) :
+    (solveCompactWith o φ).1.isSat = true ↔ φ.Satisfiable := by
   constructor
   · intro h
-    cases hs : solveCompact φ with
-    | sat σ => exact ⟨σ, solveCompact_sat hs⟩
+    cases hs : (solveCompactWith o φ).1 with
+    | sat σ => exact ⟨σ, solveCompactWith_sat hs⟩
     | unsat cert => simp [hs, DPLL.Result.isSat] at h
   · intro h
-    cases hs : solveCompact φ with
+    cases hs : (solveCompactWith o φ).1 with
     | sat σ => rfl
     | unsat cert =>
-      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveCompact_unsat hs))
+      exact absurd h (CNF.not_satisfiable_of_checkLRAT (solveCompactWith_unsat hs))
+
+theorem solveCompact_sat {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveCompact φ = .sat σ) :
+    φ.eval σ = true :=
+  solveCompactWith_sat h
+
+theorem solveCompact_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
+    (h : solveCompact φ = .unsat cert) : φ.checkLRAT cert = true :=
+  solveCompactWith_unsat h
+
+theorem isSat_solveCompact_iff (φ : CNF ℕ) : (solveCompact φ).isSat = true ↔ φ.Satisfiable :=
+  isSat_solveCompactWith_iff {} φ
 
 end Cslib.Algorithms.Lean.CDCL
