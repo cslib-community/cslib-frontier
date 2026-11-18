@@ -2036,6 +2036,7 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP.Separation
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE.Separation
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS
+public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.ExactSampler
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.FPRAS
@@ -2726,6 +2727,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.VertexSplitGenus
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Bounds
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CSPBounds
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CrossingNeighborhoods
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Declarations
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Frame
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference

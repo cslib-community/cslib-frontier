@@ -199,6 +199,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
@@ -309,12 +310,14 @@ import CslibFrontier.Logics.SecondOrder.WordMSO.StarFree
 import CslibFrontier.MachineLearning.Boosting.AdaBoost
 import CslibFrontier.MachineLearning.LossMinimization.RLM
 import CslibFrontier.MachineLearning.LossMinimization.Squared
+import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.VCDimension
 import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
 import CslibFrontier.MachineLearning.PACBayes.Basic
 import CslibFrontier.MachineLearning.PACBayes.KL
 import CslibFrontier.MachineLearning.PACLearning.AgnosticVCSharp
 import CslibFrontier.MachineLearning.PACLearning.FundamentalTheorem
 import CslibFrontier.MachineLearning.PACLearning.MDL
+import CslibFrontier.MachineLearning.PACLearning.NatarajanDimension
 import CslibFrontier.MachineLearning.PACLearning.Nonuniform
 import CslibFrontier.MachineLearning.UniformLearning.CIKK.AC0Mod
 import CslibFrontier.MachineLearning.UniformLearning.CIKK.Amplification
@@ -2664,6 +2667,29 @@ register_result "blum-mansour-swap-regret" where
     With Hedge copies and losses in [-1, 1], swap regret is at most η T + n ln n / η, and \
     2 √(T n ln n) with the tuned rate when n ≥ 2 and T ≥ n ln n. Stationary vectors are \
     chosen classically; no running time is charged."
+
+register_result "littlestone-vc-mistake-bound" where
+  title := "VC dimension lower-bounds the optimal mistake bound"
+  topic := "online learning"
+  sources := [
+    { paper := Littlestone1988, theorem := "Theorem 4", locator := "Section 3, p. 295" }
+  ]
+  theorems := [Cslib.MachineLearning.OnlineLearning.MistakeBound.evcDim_le_optimalMistakeBound]
+  scope := "Every deterministic online learner for a Boolean class can be forced to make at least \
+    the size of any finite shattered set in mistakes. Taking the supremum extends the paper's \
+    finite-class comparison to arbitrary classes. For the empty class the two extended-natural \
+    quantities are both zero, where Littlestone gives both quantities the value −1."
+
+register_result "natarajan-cardinality-bound" where
+  title := "Natarajan's cardinality bound for multiclass hypotheses"
+  topic := "statistical learning"
+  sources := [
+    { paper := ShalevShwartzBenDavid2014, theorem := "Lemma 29.4", locator := "Section 29.2" }
+  ]
+  theorems := [Cslib.MachineLearning.PACLearning.ncard_le_card_pow_natarajanDim]
+  scope := "For any class of functions from a finite domain X to a finite set of k labels, \
+    its cardinality is at most |X|^d k^(2d), where d is its Natarajan dimension. Finiteness \
+    of the domain gives a finite exponent, including for the empty class."
 
 register_result "adaboost-training-error" where
   title := "AdaBoost training-error bound"
@@ -6241,6 +6267,43 @@ register_result "ajtai-collision-sis" where
     for expected time T(n, m, q); (5) the cost of sampling the key and of evaluating the \
     hash is not certified; (6) worst-case lattice hardness (the source's Theorem 1, after \
     Ajtai) is not formalized."
+
+register_result "nested-encryption-semantic-security" where
+  title := "Nested encryption is semantically secure when all keys but one are revealed, \
+    provided encryption preserves challenge admissibility (corrected Theorem 2.12)"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "Theorem 2.12, corrected by the admissibility-preservation hypothesis",
+      locator := "Section 2.4, p. 37" }
+  ]
+  theorems := [
+    Cslib.Crypto.indistinguishable_nestedExperiment_of_oneTimeExperiment,
+    Cslib.Crypto.advantage_nestedExperiment_eq
+  ]
+  scope := "A corrected form of Theorem 2.12. The book's statement omits the hypothesis \
+    PreservesValid (the encryptions of an admissible pair under a supported key form an \
+    admissible pair), and it fails without it: in CslibFrontierTests/Crypto/NestedEncryption.lean, \
+    tagCipher_no_wrapper exhibits a one-time secure cipher (every single-key advantage is zero) \
+    whose two-layer nested advantage is one. PreservesValid holds for the equal-length rule \
+    whenever the length of a ciphertext is determined by the length of its message. Setting: a \
+    family of ciphers E sec : Cipher K M M, whose ciphertexts lie in the message type so that \
+    the n-way nested cipher E_n of p. 37 (Cipher.nested) is defined for every n. Keys are \
+    indexed 0, …, n − 1 with key 0 innermost, where the book has k_1, …, k_n with k_1 innermost. \
+    Keys come from a sampler sampleKey and challenge pairs are admitted by a predicate valid; \
+    the hypothesis and the conclusion use the same sampleKey and valid, so the book's uniform \
+    keys and equal-length rule are an instance. Hypotheses: one-time semantic security of E \
+    (Attack Game 2.1 and Definition 2.2, p. 16), stated inline as Game.Indistinguishable for \
+    oneTimeExperiment against uniform strict PPT two-stage adversaries with any encodable state; \
+    strict PPT key sampling and encryption and polynomial-time valid; and PreservesValid. \
+    Conclusion: for every constant n, the experiment of p. 37, in which the adversary chooses \
+    (m₀, m₁, d) and receives the nested encryption of m_b under every key except k_d revealed, \
+    is indistinguishable against uniform strict PPT two-stage adversaries; n = 0 is vacuous. The \
+    keys are drawn before the adversary's choice, which gives the same law. \
+    advantage_nestedExperiment_eq is NE^(n)adv[A, E] = SSadv[B, E] with \
+    B = nestedToSingleAdversary, certified strict PPT (isPPT_nestedToSingleAdversary). \
+    Cipher.nested_correct, in the same module, proves E_n correct when E is; it is not part of \
+    Theorem 2.12 and is not listed."
 
 register_result "cbc-mode-cpa" where
   title := "CBC mode with a random IV is CPA-secure for a block cipher"
