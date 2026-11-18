@@ -59,8 +59,9 @@ Theorem 4.1, Lemma 4.2, Construction 4.2, Theorem 4.3, and Remark 4.2):
    the ideal-sampling step with exactly uniform keys (`DDH.negligible_naorReingoldWordGame_ideal`).
 3. **Universal-hash bit-string Naor–Reingold PRF (after [NaorReingold2004], not checked):**
    composing `naorReingoldWordEval` with `linearHashKDF` under a public universal-hash seed
-   (`F.withSeed` and `F.seededSetup`) maps group outputs into uniform `outLen n`-bit strings; a
-   multi-query Leftover Hash Lemma bound via `PMF.dist_bind_pair_pi_le_sum` yields adaptive
+   (`F.withSeed` and `F.seededSetup`) maps a uniform group element to an `outLen n`-bit string
+   that is jointly close to uniform with the public seed, with error bounded by the Leftover Hash
+   Lemma; a multi-query Leftover Hash Lemma bound via `PMF.dist_bind_pair_pi_le_sum` yields adaptive
    bit-string PRF security for exponents drawn with the fair-coin sampler
    (`DDH.negligible_naorReingoldHashedProbGame`), through the ideal-key-sampling steps with exactly
    uniform exponents (`DDH.negligible_naorReingoldHashedGame_ideal`,
@@ -2442,13 +2443,15 @@ theorem DDH.negligible_naorReingoldHashedProbGame {F : PrimeOrderGroupFamily}
     using [hprob_le n, le_rfl]
 
 /-- Ideal-key-sampling step with constant output length, not the cited result: for any constant
-output length `c : ℕ` (including `c = 1`), under `F.DDH setup` alone no `IsOraclePPT` adversary can
-distinguish `naorReingoldHashedRealGame`, whose exponents are drawn exactly uniformly from
-`ZMod (F.order d)`, from `naorReingoldHashedIdealGame`. `F.DDH setup` supplies the inverse-order
-decay that the Leftover Hash Lemma needs (`DDH.negligible_expected_inv_order`), so no `qMin`
-hypothesis is needed. The library has no version of this theorem for fair-coin exponents (#5293);
-`DDH.exists_pseudorandomGenerator` in `CslibFrontier/Crypto/Computational/NaorReingold/PRF.lean`
-uses this one. The construction is after [NaorReingold2004], not checked. -/
+output length `c : ℕ` (including `c = 1`), under `F.DDH setup`, the only hardness assumption,
+together with the stated polynomial-time length functions and setup-support encoding bounds, no
+`IsOraclePPT` adversary can distinguish `naorReingoldHashedRealGame`, whose exponents are drawn
+exactly uniformly from `ZMod (F.order d)`, from `naorReingoldHashedIdealGame`. `F.DDH setup`
+supplies the inverse-order decay that the Leftover Hash Lemma needs
+(`DDH.negligible_expected_inv_order`), so no `qMin` hypothesis is needed. The library has no version
+of this theorem for fair-coin exponents (#5293); `DDH.exists_pseudorandomGenerator` in
+`CslibFrontier/Crypto/Computational/NaorReingold/PRF.lean` uses this one. The construction is after
+[NaorReingold2004], not checked. -/
 theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {inLen : ℕ → ℕ} {bound : F.Desc → ℕ} {descBound : ℕ → ℕ}
     (c : ℕ) (hDDH : F.DDH setup)
