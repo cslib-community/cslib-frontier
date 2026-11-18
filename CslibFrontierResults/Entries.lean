@@ -332,6 +332,7 @@ import CslibFrontier.GameTheory.Strategic.Correlated
 import CslibFrontier.GameTheory.Strategic.Nash
 import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
 import CslibFrontier.Logics.Propositional.CNF.TruthTable
+import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.Connectivity
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.FiniteLinearOrder
 import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.GraphProperties
@@ -10049,3 +10050,27 @@ register_result "goldreich-countably-many-computable-functions" where
     https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935757026. \
     The official draft locator was checked in \
     https://github.com/cslib-community/cslib-frontier/pull/6473#pullrequestreview-5959473706."
+
+register_result "plaisted-greenbaum-correctness" where
+  title := "Plaisted–Greenbaum: the polarity-aware clause form is equisatisfiable"
+  topic := "propositional logic"
+  sources := [
+    { paper := PlaistedGreenbaum1986, theorem := "Theorem 1, Lemma 1, Theorem 2 and Corollary",
+      locator := "§1, p. 294 (construction); p. 295 (Theorem 1); p. 297 (Lemma 1, Theorem 2, \
+        Corollary)" }
+  ]
+  theorems := [
+    Cslib.Logic.PL.Proposition.eval_of_eval_plaistedGreenbaumCNF,
+    Cslib.Logic.PL.Proposition.eval_plaistedGreenbaumCNF_tseitinExtend,
+    Cslib.Logic.PL.Proposition.satisfiable_plaistedGreenbaumCNF_iff
+  ]
+  scope := "Propositional correctness only. Inputs are arbitrary propositions over any atom \
+    type with Boolean atom assignments; the deterministic construction asserts the root \
+    positively, flips polarity in implication antecedents and gives equal subformulas one \
+    variable. Every model of the clauses restricts to a model of the proposition, every \
+    model of the proposition extends (by evaluating subformulas) to a model of the clauses, \
+    and the two are equisatisfiable; no other premise is assumed. Conventions differ from the \
+    paper: CNF is a list of clauses that may repeat, there are no quantifiers or \
+    equivalences, and falsum is added (negation is implication to falsum). The size bound of \
+    2 · A.size + 1 clauses and the non-uniqueness of the extension are separate results and \
+    are not part of this entry. Outside check: PR #6181, review 5948254834."

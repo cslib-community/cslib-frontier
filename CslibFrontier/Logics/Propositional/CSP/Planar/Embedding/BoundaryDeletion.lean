@@ -67,6 +67,16 @@ noncomputable def Witness.unrotateSnoc {F : CSP Rel V} {p : V} {ports : List V}
   rw [← hout]
   exact h.accepted
 
+/-- The existing last-to-first constructor emits the complete raw RIGHT table, including
+exact short-boundary identity. Only its original boundary-distinctness premise is used. -/
+theorem Witness.unrotateSnoc_certificate {F : CSP Rel V} {p : V} {ports : List V}
+    (w : Witness F (ports ++ [p])) (hn : (ports ++ [p]).Nodup) :
+    (w.unrotateSnoc hn).certificate =
+      rotateBoundaryCertificateRight F.occurrences.length (ports.length + 1)
+        w.certificate := by
+  unfold Witness.unrotateSnoc
+  rw [Witness.unrotateOfFn_certificate]
+
 /-- Delete any selected distinct boundary position, retaining the precise original order
 of every survivor. The original body, including closed/nullary components, is unchanged.
 The recursion is on the actual valid position; this is static template preprocessing. -/

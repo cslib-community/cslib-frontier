@@ -24,6 +24,9 @@ resampling along an equivalence (`uniformOfFintype_bind_bind_fst_equiv`) applies
 is reduced to the inclusion of its range, pulling the table back along a section
 (`uniformOfFintype_pi_map_comp_embedding`).
 
+For a table-dependent embedding, the same swap works when the replacement preserves the
+embedding (`uniformOfFintype_bind_bind_adaptiveExtend`).
+
 ## Main results
 
 * `Cslib.Probability.PMF.uniformOfFintype_bind_bind_extend`: a uniform function whose values on
@@ -47,18 +50,24 @@ private theorem extend_comp_extend {e : ι' → ι} (he : Function.Injective e) 
     rfl
   · rw [Function.extend_apply' _ _ _ h, Function.extend_apply' _ _ _ h]
 
-/-- The injective case: `(f, t) ↦ (Function.extend e t f, f ∘ e)` is an involution. -/
-private theorem uniformOfFintype_bind_bind_extend_of_injective [Fintype ι] [DecidableEq ι]
-    [Fintype ι'] [DecidableEq ι'] [Fintype κ] [Nonempty κ] {e : ι' → ι}
-    (he : Function.Injective e) (g : (ι → κ) → PMF ε) :
+/-- Resampling along a table-dependent embedding preserves a uniform function when overwriting
+its selected values leaves the embedding fixed. The old values on that image supply the inverse
+of the joint swap. -/
+theorem uniformOfFintype_bind_bind_adaptiveExtend [Fintype ι] [DecidableEq ι]
+    [Fintype ι'] [DecidableEq ι'] [Fintype κ] [Nonempty κ]
+    (e : (ι → κ) → (ι' ↪ ι))
+    (stable : ∀ f t, e (Function.extend (e f) t f) = e f) (g : (ι → κ) → PMF ε) :
     ((uniformOfFintype (ι → κ)).bind fun f =>
-      (uniformOfFintype (ι' → κ)).bind fun t => g (Function.extend e t f)) =
+      (uniformOfFintype (ι' → κ)).bind fun t => g (Function.extend (e f) t f)) =
       (uniformOfFintype (ι → κ)).bind g := by
-  let swap : (ι → κ) × (ι' → κ) → (ι → κ) × (ι' → κ) := fun p =>
-    (Function.extend e p.2 p.1, p.1 ∘ e)
-  have hswap : Function.Involutive swap := fun p =>
-    Prod.ext (extend_comp_extend he p.1 p.2) (Function.extend_comp he p.2 p.1)
-  exact uniformOfFintype_bind_bind_fst_equiv hswap.toPerm g
+  let swap : (ι → κ) × (ι' → κ) → (ι → κ) × (ι' → κ) := fun (f, t) =>
+    (Function.extend (e f) t f, f ∘ e f)
+  have inv : Function.Involutive swap := by
+    rintro ⟨f, t⟩
+    simp only [swap, stable]
+    exact Prod.ext (extend_comp_extend (e f).injective f t)
+      (Function.extend_comp (e f).injective t f)
+  exact uniformOfFintype_bind_bind_fst_equiv inv.toPerm g
 
 /-- **Resampling along a map**: a uniform function whose values on the range of `e` are replaced
 by entries of an independent uniform table is uniform. For injective `e`, the function
@@ -87,6 +96,7 @@ theorem uniformOfFintype_bind_bind_extend [Fintype ι] [DecidableEq ι] [Fintype
     rw [← uniformOfFintype_pi_map_comp_embedding ⟨σ, hσ⟩, PMF.bind_map]
     rfl
   simp only [hext, hpull]
-  exact uniformOfFintype_bind_bind_extend_of_injective Subtype.val_injective g
+  exact uniformOfFintype_bind_bind_adaptiveExtend (fun _ => ⟨Subtype.val, Subtype.val_injective⟩)
+    (fun _ _ => rfl) g
 
 end Cslib.Probability.PMF
