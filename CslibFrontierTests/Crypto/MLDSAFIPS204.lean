@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
-meta import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix

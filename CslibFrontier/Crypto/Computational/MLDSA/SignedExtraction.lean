@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
-import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
@@ -32,73 +31,6 @@ with the literature's independent matrix and sparse challenge oracle requires a 
 public section
 
 namespace Cslib.Crypto.MLDSA.FIPS204
-
-/-- Check a corrected short witness on the original raw FIPS streams. Recover the complete
-commitment digest only when the representative is 512 bits, the product is on the commitment
-grid, the low part and response obey the extraction bound, and Algorithm 29 returns the
-witness challenge. An exhausted expansion fails the check. -/
-def Xofs.openFullWitness (H : Xofs) (s : Level) (pk : MLDSA.PublicKey s.params)
-    (y : SelfTargetCandidate s.params) : Option (List Byte) := do
-  let v := selfTargetMap s.params pk y.u y.z y.c
-  let w := highBitsVec s.params v
-  let radius := compressedSelfTargetRadius s.params 13
-  guard (y.msg.length = 512)
-  guard (ModuleSIS.inInfNormBound radius y.u ∧ ModuleSIS.inInfNormBound radius y.z)
-  guard (SharedDigest.OnCommitmentGrid s v)
-  let digest := H.commitmentDigest s w y.msg
-  guard (H.sampleInBall s digest = some y.c)
-  return digest
-
-/-- A raw opening is equivalent to a short-vector solution on the canonical grid, with
-the exact commitment digest and a successful sparse expansion at that digest. -/
-theorem openFullWitness_eq_some_iff {H : Xofs} {s : Level}
-    {pk : MLDSA.PublicKey s.params} {y : SelfTargetCandidate s.params} {d : List Byte} :
-    H.openFullWitness s pk y = some d ↔
-      let v := selfTargetMap s.params pk y.u y.z y.c
-      y.msg.length = 512 ∧ SharedDigest.OnCommitmentGrid s v ∧
-        H.commitmentDigest s (highBitsVec s.params v) y.msg = d ∧
-        H.sampleInBall s d = some y.c ∧
-        IsSelfTargetSolution s.params (selfTargetHash s.params (H.algebraicHash s))
-          (compressedSelfTargetRadius s.params 13) pk y := by
-  simp only [Xofs.openFullWitness, Option.bind_eq_bind, Option.bind_eq_some_iff,
-    Option.guard_eq_some', Option.pure_def, Option.some.injEq, exists_const]
-  constructor
-  · rintro ⟨len, ⟨hu, hz⟩, grid, hc, rfl⟩
-    refine ⟨len, grid, rfl, hc, hu, hz, inBall_of_sampleInBall hc, ?_⟩
-    exact congrArg (fun x => Option.getD x 0) hc
-  · rintro ⟨len, grid, rfl, hc, sol⟩
-    exact ⟨len, ⟨sol.1, sol.2.1⟩, grid, hc, rfl⟩
-
-/-- An accepting byte signature gives a short witness whose raw opening recovers exactly the
-digest bytes in that signature. The matrix at the public seed and the full public vector are
-those of the lattice pair supplied to the extractor. -/
-theorem opening_extractFull_of_verify {H : Xofs} {s : Level} {rho : FixedBytes 32}
-    {pk : MLDSA.PublicKey s.params} {f : Forgery} (hA : H.expandA s rho.toList = some pk.A)
-    (hv : H.verify s (encodePublic s rho.toList pk.t) f.message f.context f.signature = some true) :
-    ∃ y, H.extractFull s rho pk.A pk.t f = some y ∧
-      H.openFullWitness s pk y = some (f.signature.take (digestBytes s)) := by
-  obtain ⟨y, hy, bounded⟩ := extractFull_of_verifyWithExpansion hA hv
-  obtain ⟨σ, c, hs, hc, _, hd⟩ := verifiedSignature_of_verifyWithExpansion hA hv
-  let μ := H.messageRepresentative (encodePublic s rho.toList pk.t) (formattedMessage f)
-  let sig : CompressedSignature s.params := ⟨σ.z, σ.h, c⟩
-  let u := compressedForgeryLowPart s.params 13 pk sig
-  have ey : candidate s pk μ σ c = y := by
-    simpa only [Xofs.extractFull, hs, hc, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
-      Option.some.injEq, μ] using hy
-  subst y
-  refine ⟨_, hy, ?_⟩
-  have high := highBits_selfTargetMap_compressedForgeryLowPart s.valid
-    (by cases s <;> decide) 13 pk sig
-  have grid : SharedDigest.OnCommitmentGrid s (selfTargetMap s.params pk u σ.z c) := by
-    intro i j
-    rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
-    exact congrFun (congrFun (selfTargetMap_compressedForgeryLowPart 13 pk sig) i) j
-  have digest : H.commitmentDigest s
-      (highBitsVec s.params (selfTargetMap s.params pk u σ.z c)) μ = σ.digest := by
-    rw [show highBitsVec s.params (selfTargetMap s.params pk u σ.z c) = _ from high]
-    exact hd
-  rw [openFullWitness_eq_some_iff, digest_of_sigDecode hs]
-  exact ⟨length_messageRepresentative .., grid, digest, hc, bounded⟩
 
 namespace QuantumSigningForger
 
@@ -129,7 +61,7 @@ private theorem ambient_le_witness (C : QuantumSigningForger) (s : Level) (H : X
       some true := by
     cases h : H.verify s (encodePublic s rho.toList pk.t) f.message f.context f.signature <;>
       simp_all
-  obtain ⟨y, get, opened⟩ := opening_extractFull_of_verify hA good
+  obtain ⟨y, get, opened⟩ := opening_extractFull_of_verifyWithExpansion (pk := pk) hA good
   change ((H.extractFull s rho pk.A pk.t f).bind (H.openFullWitness s pk)).isSome
   rw [get, Option.bind_some, opened]
   rfl
@@ -145,10 +77,8 @@ theorem freshMask_freshDigest_le_openFullWitness (C : QuantumSigningForger) (s :
         fun rho pk => (C.publicPairWitness s H rho pk).map fun o =>
           (o.bind (H.openFullWitness s pk)).isSome) +
       Game.succProbability ((base.uniformPrefixes a b).bind fun H => H.fullPairExperiment s
-        fun rho pk => (C.publicPairSigning s H rho pk).map fun r => r.writes.any fun w =>
-          let tr := H.h256.readBytes r.trial.publicKey 64
-          let m := formatMessage w.request.message w.request.context
-          H.h256.read (representativeInput tr m) 64 == tr) := by
+        fun rho pk => (C.publicPairSigning s H rho pk).map fun r =>
+          H.terminalRepresentativeMatch r.trial.publicKey r.writes) := by
   apply le_trans (C.freshMask_freshDigest_le_ambient s base a b)
   apply add_le_add
   swap
