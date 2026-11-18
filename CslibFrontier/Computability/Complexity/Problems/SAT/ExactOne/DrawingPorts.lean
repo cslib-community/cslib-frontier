@@ -40,6 +40,7 @@ These finite collar-selection and geometric indexing proofs are original.
 namespace Cslib.Complexity.SAT.ExactOne
 
 open Cslib.Logic.PL Orthogonal
+open Graph.OrthogonalDrawing
 
 /-- Collar sides are numbered left, right, bottom, top. -/
 def sideDirection (s : Fin 4) : Point :=

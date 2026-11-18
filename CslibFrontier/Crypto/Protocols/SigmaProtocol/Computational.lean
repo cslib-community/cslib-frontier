@@ -57,7 +57,8 @@ computationally unbounded adversaries at each index
 `EfficientSpecialHVZK.exists_computationalSpecialHVZK`). As in `EfficientSpecialHVZK`, `δ` is an
 explicit parameter of `ComputationalSpecialHVZK` rather than a bundled `Negligible` condition on the
 acceptance error alone; exact Definition 20.6 acceptance corresponds to `δ = fun _ => 0` (which
-Schnorr's simulator achieves in `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr`).
+Schnorr's simulator achieves in the ideal-sampling step
+`PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr_ideal`).
 
 ## Main definitions
 

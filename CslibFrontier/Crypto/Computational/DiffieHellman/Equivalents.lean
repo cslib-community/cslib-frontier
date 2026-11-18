@@ -26,7 +26,9 @@ formalizes explicit deterministic `OracleComp` programs in a fixed `ZMod q`-modu
 correctness under `OracleComp.evalPure` against every solver that is correct on its domain, and
 solver call counts under `OracleComp.IsQueryBounded` (and `OracleComp.QueriesSatisfy` where a
 solver's domain excludes `0`); group operations, scalar multiplications, and running time are
-not counted.
+not counted. The correctness theorems are therefore steps toward Exercise 10.17, not the cited
+result: the exercise's reductions are deterministic algorithms whose running time, apart from the
+solver calls, is polynomial in the input length, and no such bound is proved here (#5293).
 
 For a modulus `q : ℕ` and element `g : G`, written additively (`α • g` for `g ^ α`):
 
@@ -155,8 +157,10 @@ theorem isQueryBounded_cdhFromSqProg [DecidableEq G] (u v : G) :
       (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - v)).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0).mono (by decide)
 
-/-- Correctness of `(a) CDH ≤ (b) Square-DH`: for prime `q`, any Square-DH solver `sq` turns
-`cdhFromSqProg` into a CDH solver. -/
+/-- Correctness of `(a) CDH ≤ (b) Square-DH`, a step toward [BonehShoup2023], Exercise 10.17
+(p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
+are counted, #5293): for prime `q`, any Square-DH solver `sq` turns `cdhFromSqProg` into a CDH
+solver. -/
 theorem solvesCDH_evalPure_cdhFromSqProg [DecidableEq G] [Fact q.Prime] {sq : G → G}
     (hsq : SolvesSqDH q g sq) :
     SolvesCDH q g fun p => OracleComp.evalPure sq (cdhFromSqProg q p.1 p.2) := by
@@ -200,8 +204,9 @@ theorem isQueryBounded_sqFromCDHProg (u : G) :
     OracleComp.IsQueryBounded (sqFromCDHProg u) 1 :=
   OracleComp.IsCostBounded.query (cost := fun _ => 1) (u, u)
 
-/-- Correctness of `(b) Square-DH ≤ (a) CDH`: any CDH solver turns `sqFromCDHProg` into a
-Square-DH solver. -/
+/-- Correctness of `(b) Square-DH ≤ (a) CDH`, a step toward [BonehShoup2023], Exercise 10.17
+(p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
+are counted, #5293): any CDH solver turns `sqFromCDHProg` into a Square-DH solver. -/
 theorem solvesSqDH_evalPure_sqFromCDHProg {cdh : G × G → G} (hcdh : SolvesCDH q g cdh) :
     SolvesSqDH q g fun u => OracleComp.evalPure cdh (sqFromCDHProg u) := by
   intro α
@@ -262,7 +267,9 @@ theorem queriesSatisfy_sqFromInvProg [DecidableEq G] (u : G) :
         exact (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0)
           (sub_ne_zero.mpr hr)).bind fun _ => OracleComp.QueriesSatisfy.pure _
 
-/-- Correctness of `(b) Square-DH ≤ (c) Inverse-DH`: for prime `q`, any Inverse-DH solver turns
+/-- Correctness of `(b) Square-DH ≤ (c) Inverse-DH`, a step toward [BonehShoup2023],
+Exercise 10.17 (p. 429), not the cited result, which also bounds the reduction's running time
+(only solver calls are counted, #5293): for prime `q`, any Inverse-DH solver turns
 `sqFromInvProg` into a Square-DH solver. -/
 theorem solvesSqDH_evalPure_sqFromInvProg [DecidableEq G] [Fact q.Prime] {inv : G → G}
     (hinv : SolvesInvDH q g inv) :
@@ -330,8 +337,10 @@ theorem queriesSatisfy_invFromDivProg [DecidableEq G] (u : G) :
   · simp [hu, OracleComp.QueriesSatisfy.pure]
   · simp [hu, OracleComp.QueriesSatisfy.query]
 
-/-- Correctness of `(c) Inverse-DH ≤ (d) Divisible-DH`: for prime `q`, any Divisible-DH solver
-turns `invFromDivProg` into an Inverse-DH solver. -/
+/-- Correctness of `(c) Inverse-DH ≤ (d) Divisible-DH`, a step toward [BonehShoup2023],
+Exercise 10.17 (p. 429), not the cited result, which also bounds the reduction's running time
+(only solver calls are counted, #5293): for prime `q`, any Divisible-DH solver turns
+`invFromDivProg` into an Inverse-DH solver. -/
 theorem solvesInvDH_evalPure_invFromDivProg [DecidableEq G] [Fact q.Prime] {div : G × G → G}
     (hdiv : SolvesDivDH q g div) :
     SolvesInvDH q g fun u => OracleComp.evalPure div (invFromDivProg g u) := by
@@ -402,8 +411,10 @@ private theorem evalPure_foldlM_invFromCDHStep {cdh : G × G → G} (hcdh : Solv
       congr 1
       ring
 
-/-- Correctness of `(c) Inverse-DH ≤ (a) CDH`: for prime `q`, any CDH solver turns
-`invFromCDHProg` into an Inverse-DH solver. -/
+/-- Correctness of `(c) Inverse-DH ≤ (a) CDH`, a step toward [BonehShoup2023], Exercise 10.17
+(p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
+are counted, #5293): for prime `q`, any CDH solver turns `invFromCDHProg` into an Inverse-DH
+solver. -/
 theorem solvesInvDH_evalPure_invFromCDHProg [Fact q.Prime] {cdh : G × G → G}
     (hcdh : SolvesCDH q g cdh) :
     SolvesInvDH q g fun u => OracleComp.evalPure cdh (invFromCDHProg q g u) := by
@@ -436,8 +447,10 @@ theorem isQueryBounded_divFromCDHProg (u v : G) :
   exact (isQueryBounded_invFromCDHProg q g v).bind fun inv_v =>
     OracleComp.IsCostBounded.query (cost := fun _ => 1) (u, inv_v)
 
-/-- Correctness of `(d) Divisible-DH ≤ (a) CDH`: for prime `q`, any CDH solver turns
-`divFromCDHProg` into a Divisible-DH solver. -/
+/-- Correctness of `(d) Divisible-DH ≤ (a) CDH`, a step toward [BonehShoup2023], Exercise 10.17
+(p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
+are counted, #5293): for prime `q`, any CDH solver turns `divFromCDHProg` into a Divisible-DH
+solver. -/
 theorem solvesDivDH_evalPure_divFromCDHProg [Fact q.Prime] {cdh : G × G → G}
     (hcdh : SolvesCDH q g cdh) :
     SolvesDivDH q g fun p => OracleComp.evalPure cdh (divFromCDHProg q g p.1 p.2) := by

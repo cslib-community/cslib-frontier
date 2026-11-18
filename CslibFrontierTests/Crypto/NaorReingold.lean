@@ -190,7 +190,7 @@ example (n : ℕ) :
           + 2 * (4 / (2 : ℝ≥0) ^ n) +
           (∑' d, (PMF.pure d23 : PMF schnorrGroups.Desc) d *
             (schnorrGroups.order d : ℝ≥0∞)⁻¹).toNNReal) :=
-  schnorrGroups.advantage_naorReingoldWordGame_le
+  schnorrGroups.advantage_naorReingoldWordGame_le_ideal
     (fun _ => PMF.pure d23) (fun _ => 2) singleQueryDistinguisher n (fun _ => 1)
     (fun _ _ => isQueryBounded_singleQueryDistinguisher n _)
     (fun d _ => by

@@ -29,6 +29,8 @@ import CslibFrontier.Computability.Probabilistic.AffineHash
 import CslibFrontier.Foundations.Data.BitString.Block
 import Cslib.Foundations.Data.Polynomial.Monotone
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
+import CslibFrontier.Computability.Complexity.Classes.NP.Image
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Classes.PH.Collapse
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
@@ -87,6 +89,12 @@ independent.
   a special case of Goldreich's rational output.
 * The `(1 / q, μ)`-approximation with `μ(n) = 2 ^ (-n)`: the estimate misses `#R(a)` by more than
   `#R(a) / q(n)` with probability at most `2 ^ (-n)`.
+* Exercise 6.39 asks, for every PC-complete `R`, that `(1 - 1 / p)`-approximate counting (the
+  factor `1 ± 1 / p` of Theorem 6.27) and uniform generation randomly reduce to deciding
+  `S_R`. Its counting half is `FNP.exists_approxCount_of_npHard`, for every `R ∈ FNP` whose
+  language `searchDomain R` is `NP`-hard, which every PC-complete relation satisfies; the oracle
+  is the set `enc '' searchDomain R` of encoded instances with a solution. The
+  uniform-generation half is not formalized.
 * Exercise 6.34 asks that `{(a, i, h, 1 ^ t) : ∃ distinct y₁, …, y_t ∈ R(a), h(y_j) = 0 ^ i}` be in
   `NP`. Here `h` ranges over the affine hashes given by a seed (the rows of the matrix, then the
   offset) and `t` is written in unary (`NPRelation.sieveQuery`,
@@ -129,6 +137,9 @@ independent.
   functions with the `SAT` oracle.
 * `Cslib.Complexity.FNP.exists_approxCount_SAT`: **Stockmeyer's approximate counting** for every
   polynomially balanced PC relation (Goldreich, Theorem 6.27).
+* `Cslib.Complexity.FNP.exists_approxCount_of_npHard`: for a PC relation `R` with `NP`-hard
+  `S_R`, approximate counting with an oracle for `S_R` (the counting half of Goldreich's
+  Exercise 6.39).
 * `Cslib.Complexity.SharpP.exists_approx_of_NP_subset_P`: approximate counting under `NP ⊆ P`.
 * `Cslib.Complexity.SharpP.exists_deterministic_approxCount_of_NP_subset_P`,
   `Cslib.Complexity.SharpP.exists_deterministic_approx_of_NP_subset_P`: deterministic
@@ -1099,5 +1110,33 @@ theorem exists_approxCount_SAT {R : α → List Bool → Prop} (hR : R ∈ FNP e
   SharpP.exists_approxCount_SAT (searchCount_mem_SharpP hR) q hq
 
 end FNP
+
+/-- **Approximate counting with an `S_R` oracle** [Goldreich, Exercise 6.39][Goldreich2007Draft],
+its approximate-counting half: for every polynomially balanced, polynomial-time checkable search
+relation `R` (Goldreich's `PC`, here `FNP`) whose solution-existence language
+`S_R = searchDomain R` is `NP`-hard, and every positive polynomial `q`, approximating the number
+`#R(a) = searchCount R a` of solutions within `#R(a) / q(n)` randomly reduces to deciding `S_R`.
+A polynomial-time oracle algorithm with the oracle `enc '' searchDomain R`, reading `ℓ(n)` random
+bits for a polynomial `ℓ`, misses `#R(a)` by more than `#R(a) / q(n)` with probability at most
+`2 ^ (-n)`, `n` the encoded length of `a`. Every PC-complete `R` qualifies: a Levin reduction of
+another relation to `R` is a Karp reduction of the languages (`LevinHard.npHard`). Following the
+source's guideline, the `SAT` oracle of Stockmeyer's algorithm (`FNP.exists_approxCount_SAT`)
+is replaced by `S_R` through a Karp reduction of `SAT` to `S_R`. The exercise's
+uniform-generation half is not proved here. -/
+theorem FNP.exists_approxCount_of_npHard {enc : α ↪ List Bool} {R : α → List Bool → Prop}
+    (hR : R ∈ FNP enc) (hS : NPHard enc (searchDomain R)) (q : Polynomial ℕ)
+    (hq : ∀ n, q.eval n ≠ 0) :
+    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
+      ComputableInPolyTimeWithOracle (enc '' searchDomain R) E (encPair enc encBits) encNat ∧
+      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
+        (searchCount R a : ℚ) / q.eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - searchCount R a|} ≤ (2 ^ (enc a).length)⁻¹ := by
+  obtain ⟨ℓ, E, hE, hacc⟩ := FNP.exists_approxCount_SAT hR q hq
+  refine ⟨ℓ, E, hE.of_polyTimeReducible ?_, hacc⟩
+  -- a satisfiable formula's word goes to the encoding of an instance with a solution
+  obtain ⟨f, hf, hfR⟩ := hS encBits (encCNF '' SAT) image_SAT_mem_NP
+  have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
+  exact ⟨fun w => enc (f w), henc.comp hf, fun w => by
+    rw [hfR w, enc.injective.mem_set_image]⟩
 
 end Cslib.Complexity
