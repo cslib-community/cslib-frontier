@@ -345,28 +345,9 @@ private theorem simPropWords_eq (k : ℕ) (f : ValidCircuit) (coins : List Bool)
     by_cases hfr : freeCircuit f g = true
     · rw [ite_eq_left hfr, propagate_gate_of_free hτ (simBaseLabels k coins) hfr,
         ← Fin.sum_congr' _ (arity_topology_toCircuit f g).symm, Fin.sum_univ_two, labelBits_add]
-      have hl : (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 0) =
-          Wire.ofNat (f.1.A ⟨s, hsq⟩ - 1) (by omega) := by
-        have harity := arity_topology_toCircuit f g
-        rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
-        refine Wire.toNat_injective ?_
-        have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
-        simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-          show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some,
-          hgcast] at h
-        rw [Wire.toNat_ofNat]
-        exact h
-      have hr : (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 1) =
-          Wire.ofNat (f.1.B ⟨s, hsq⟩ - 1) (by omega) := by
-        have harity := arity_topology_toCircuit f g
-        rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
-        refine Wire.toNat_injective ?_
-        have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
-        simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-          show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some,
-          hgcast] at h
-        rw [Wire.toNat_ofNat]
-        exact h
+      have hl := wires_toCircuit_zero f g (by rw [hgcast]; omega)
+      have hr := wires_toCircuit_one f g (by rw [hgcast]; omega)
+      simp only [hgcast] at hl hr
       rw [hl, hr,
         HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
           (simBaseLabels k coins)) (by omega) (by omega),
@@ -404,24 +385,8 @@ private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
   simp only [ConventionalCircuit.topo, Fin.val_cast] at hA₁ hAB hBg
   have hgs := g.isLt
   set A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
-  have hw₀ : (toCircuit f).topology.wires g (Fin.cast harity.symm 0) =
-      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega) := by
-    rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
-    refine Wire.toNat_injective ?_
-    have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-      show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-    rw [Wire.toNat_ofNat]
-    exact h
-  have hw₁ : (toCircuit f).topology.wires g (Fin.cast harity.symm 1) =
-      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega) := by
-    rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
-    refine Wire.toNat_injective ?_
-    have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-      show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-    rw [Wire.toNat_ofNat]
-    exact h
+  have hw₀ := wires_toCircuit_zero f g (by omega)
+  have hw₁ := wires_toCircuit_one f g (by omega)
   have hc₀ : (Fin.cast harity.symm 0 : Fin ((toCircuit f).topology.arity g)) = ⟨0, by omega⟩ :=
     Fin.ext rfl
   have hc₁ : (Fin.cast harity.symm 1 : Fin ((toCircuit f).topology.arity g)) = ⟨1, by omega⟩ :=
