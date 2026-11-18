@@ -84,8 +84,8 @@ variable (F : PrimeOrderGroupFamily)
 /-- The Chaum–Pedersen protocol ([BonehShoup2023], Section 19.5.2) in the group described by
 `i.2`, with challenges in `ZMod q`. The security parameter `i.1` does not change the protocol. The
 honest prover draws its commitment nonce exactly uniformly on `ZMod q` at the `PMF` level, an
-ideal sampler that no fair-coin machine realizes exactly; no fair-coin prover is defined
-(#5293). -/
+ideal sampler that no fair-coin machine with a strict polynomial time bound realizes exactly when
+`q` is not a power of two; no fair-coin prover is defined (#5293). -/
 @[expose] noncomputable def chaumPedersenFamily (i : ℕ × F.Desc) :
     SigmaProtocol (ZMod (F.order i.2)) (F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
       (F.Carrier i.2 × F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) :=

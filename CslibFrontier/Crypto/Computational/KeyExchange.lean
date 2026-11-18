@@ -301,7 +301,8 @@ variable {F} in
 pp. 392–393). Alice draws a uniform exponent `x` and sends `d` and `hA = x • g`; Bob draws a
 uniform exponent `y` and sends `hB = y • g`. Alice outputs `x • hB` and Bob outputs `y • hA`.
 Both exponents are drawn exactly uniformly on `ZMod q` at the `PMF` level, an ideal sampler that
-no fair-coin machine realizes exactly (#5293). -/
+no fair-coin machine with a strict polynomial time bound realizes exactly when `q` is not a power of
+two (#5293). -/
 @[expose]
 noncomputable def dhExecution (d : F.Desc) : PMF (KeyExchange.Outcome F.DHTranscript F.DHKey) := do
   let x ← PMF.uniformOfFintype (ZMod (F.order d))
