@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Savitch
+import CslibFrontier.Computability.Complexity.Classes.TFNP.SelfReducibility
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
@@ -441,6 +442,51 @@ register_result "goldreich-three-exact-cover" where
     dummy elements, instead of the draft's chain through 3SC and 3XC'. The remark on Exact \
     Cover with arbitrary set sizes is not covered. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6302#pullrequestreview-5947915507"
+
+register_result "goldreich-pc-not-self-reducible" where
+  title := "If P ≠ NP ∩ coNP, some PC search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.14(1)",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_mem_FNP_not_selfReducible]
+  scope := "Any instance encoding with a polynomial-time Decoder (words: Decoder.bits). The \
+    relation is total, in FNP (PC) and not in FPSearch. Self-reducibility \
+    (SearchSelfReducible) is a SolvesSearch solver computable in polynomial time relative to \
+    the oracle language enc '' searchDomain R (Definitions 2.9 and 2.14). Outside-fleet \
+    six-point source check: review 5953910279 on PR #6410."
+
+register_result "goldreich-divisor-not-self-reducible" where
+  title := "If factoring is hard, the divisor search problem is not self-reducible"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.16",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [
+    Cslib.Complexity.divisorSearch_mem_FNP,
+    Cslib.Complexity.not_selfReducible_divisorSearch
+  ]
+  scope := "Numbers in canonical binary (encNat); solutions are the binary digits of a \
+    non-trivial divisor. The relation is in FNP (PC). Factoring hardness: no polynomial-time \
+    function returns a non-trivial divisor of every composite (equivalently divisorSearch is \
+    not in FPSearch). Neither the search problem nor its prefix decision problem S'_R \
+    (PolyTimeTuringReducible) reduces to the composite numbers. Outside-fleet six-point source \
+    check: review 5953910279 on PR #6410."
+
+register_result "goldreich-self-reducibility-not-decision-property" where
+  title := "Two PC relations with the same domain, one self-reducible and one not"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.17",
+      locator := "December 2006 r1.pdf, printed p. 108; PDF p. 133" }
+  ]
+  theorems := [Cslib.Complexity.exists_selfReducible_not_selfReducible]
+  scope := "Under the factoring hardness of Exercise 2.16, the assumption the main text names \
+    on printed p. 72. Witnesses: compositeSearch (each composite with itself, in FPSearch) and \
+    divisorSearch, both with the composites as domain; numbers in binary (encNat). \
+    Outside-fleet six-point source check: review 5953910279 on PR #6410."
 
 register_result "goldreich-few-oracle-queries-search" where
   title := "Logarithmically many oracle queries do not help to solve PC search problems"

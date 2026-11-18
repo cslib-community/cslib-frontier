@@ -39,10 +39,10 @@ the two are computationally equivalent. Self-reducibility is a property of the r
 its domain. These results show it.
 
 * `Cslib.Complexity.exists_mem_FNP_not_selfReducible` (Exercise 2.14(1)): if `P ≠ NP ∩ coNP`, some
-  `R ∈ PC` (`PC` is `Cslib.Complexity.FNP`) is not self-reducible. The witness is the disjoint
-  sum `Cslib.Complexity.searchSum` of witness relations for a set in `NP ∩ coNP \ P` and its
-  complement. Every instance has a solution, so the oracle is trivial, and a self-reduction would
-  solve `R` in polynomial time, deciding the set.
+  `R ∈ PC` (`PC` is `Cslib.Complexity.FNP`) is not self-reducible. A total relation in `FNP`
+  outside `FPSearch` exists by `Cslib.Complexity.NP_inter_coNP_subset_P_of_TFNP_subset_FPSearch`
+  (the guideline's disjoint sum). Every instance has a solution, so the oracle is trivial, and a
+  self-reduction would solve `R` in polynomial time.
 * `Cslib.Complexity.not_selfReducible_divisorSearch` (Exercise 2.16): for the relation
   `Cslib.Complexity.divisorSearch` of numbers and their non-trivial divisors, the domain is the set
   of composite numbers, which is in `P` because primality is. So if no polynomial-time algorithm
@@ -128,19 +128,21 @@ theorem mem_FPSearch_of_polyTimeTuringReducible_prefixSearch (hR : R ∈ FNP enc
 /-- **A search problem in `PC` that is not self-reducible**
 [Goldreich, Exercise 2.14(1)][Goldreich2006DraftR1]. If `P ≠ NP ∩ coNP` for an encoding `enc`
 with a polynomial-time decoder, some `R ∈ FNP enc` (Goldreich's `PC`) is not self-reducible.
-As in the guideline, every instance has a solution (`S_R` is everything) and `R ∉ FPSearch`
-(Goldreich's `PF`). For instances that are words, take `enc = encBits` and `Decoder.bits`. -/
+As in the guideline, every instance has a solution (`S_R` is everything) and `R ∉ FPSearch`.
+`FPSearch` is `PF ∩ PC`, so for this `R ∈ PC` it says that `R` is not in Goldreich's `PF`. For
+instances that are words, take `enc = encBits` and `Decoder.bits`.
+
+The relation comes from `NP_inter_coNP_subset_P_of_TFNP_subset_FPSearch`: some total relation in
+`FNP` is not in `FPSearch`. Its domain is everything, so the oracle is in `P`, and a
+self-reduction would put it in `FPSearch`. -/
 theorem exists_mem_FNP_not_selfReducible (D : Decoder enc)
     (hne : P enc ≠ NP enc ∩ coNP enc) :
     ∃ R ∈ FNP enc, IsTotalSearch R ∧ R ∉ FPSearch enc ∧ ¬SearchSelfReducible enc R := by
-  obtain ⟨A, ⟨hA, hA'⟩, hAP⟩ := Set.exists_of_ssubset
-    ((Set.subset_inter (fun _ h => P_subset_NP h) fun _ h => P_subset_coNP h).ssubset_of_ne hne)
-  obtain ⟨R₁, R₂, hR₁, hR₂, hRS⟩ := exists_searchSum_mem_TFNP hA hA'
-  have hnot : searchSum R₁ R₂ ∉ FPSearch enc := fun h =>
-    hAP (hR₁ ▸ searchDomain_mem_P_of_searchSum_mem_FPSearch h
-      (hR₁ ▸ hR₂ ▸ disjoint_compl_right))
-  refine ⟨searchSum R₁ R₂, hRS.1, hRS.2, hnot, fun h => hnot (h.mem_FPSearch hRS.1 ?_)⟩
-  rw [isTotalSearch_iff_searchDomain_eq_univ.mp hRS.2]
+  obtain ⟨R, ⟨hR, htot⟩, hRP⟩ := Set.not_subset.mp fun h : TFNP enc ⊆ FPSearch enc =>
+    hne ((Set.subset_inter (fun _ h => P_subset_NP h) fun _ h => P_subset_coNP h).antisymm
+      (NP_inter_coNP_subset_P_of_TFNP_subset_FPSearch h))
+  refine ⟨R, hR, htot, hRP, fun h => hRP (h.mem_FPSearch hR ?_)⟩
+  rw [isTotalSearch_iff_searchDomain_eq_univ.mp htot]
   exact mem_P_image D univ_mem_P
 
 /-! ### Exercises 2.16 and 2.17: non-trivial divisors -/
