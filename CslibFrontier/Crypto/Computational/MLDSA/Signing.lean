@@ -127,6 +127,40 @@ theorem signAttempt_eq_some_of_compressedSignAttempt_eq_some (d ω : ℕ) (H : H
   unfold signAttempt
   rw [ite_eq_left hshort]
 
+/-- Every accepted Algorithm 7 response has the prescribed response and hint bounds and
+reconstructs the exact high-bit commitment used by the signer. -/
+theorem recovered_of_compressedResponse (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
+    {d ω : ℕ} {sk : SecretKey P} {y : Fin P.ℓ → Fin P.n → ZMod P.q} {c : Fin P.n → ZMod P.q}
+    (hc : InBall P.τ c) (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {σ : CompressedSignature P}
+    (hout : compressedResponse P ω sk.s₁ sk.s₂ (publicKeyLowPart P d sk.publicKey) y
+      (moduleSISMap sk.A y) c = some σ) :
+    ResponseShort P σ.z ∧ hintWeight P σ.h ≤ ω ∧ σ.c = c ∧
+      (fun i => useHintVec P.q P.γ₂ (σ.h i)
+        (compressedVerifierCommitment P d sk.publicKey σ.z σ.c i)) =
+          highBitsVec P (moduleSISMap sk.A y) := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
+  simp only [compressedResponse, tabulateRingVector_eq] at hout
+  split_ifs at hout with hshort hfinal
+  cases hout
+  obtain ⟨hct₀, weight⟩ := hfinal
+  refine ⟨hshort.1, weight, rfl, ?_⟩
+  set w := moduleSISMap sk.A y
+  set r₀ := w - fun i => negacyclicMul c (sk.s₂ i)
+  set ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d sk.publicKey i)
+  rw [← highBitsVec_sub_challenge hP hc hs₂ hshort.2]
+  funext i
+  rw [compressedVerifierCommitment_eq_verifierCommitment_add_lowPart,
+    verifierCommitment_publicKey]
+  simp only [Pi.add_apply]
+  rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
+    (r := r₀ i + ct₀ i) (fun j => by
+      simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg] using
+        (hct₀ i j).le)]
+  funext j
+  simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
+  congr 1
+  ring
+
 /-- **Correctness of one compressed attempt.** Under the secret-key and hash-to-ball bounds,
 every signature returned by `compressedSignAttempt` passes `compressedVerify` under the matching
 public key. The proof uses the derived compressed/uncompressed commitment bridge and the
@@ -137,37 +171,9 @@ theorem compressedVerify_compressedSignAttempt (hP : P.Valid) (hγq : 4 * P.γ�
     {y : Fin P.ℓ → Fin P.n → ZMod P.q} {σ : CompressedSignature P}
     (hout : compressedSignAttempt P d ω H sk msg y = some σ) :
     compressedVerify P d H sk.publicKey msg σ = true := by
-  have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
-  have hsign := signAttempt_eq_some_of_compressedSignAttempt_eq_some P d ω H sk msg y hout
-  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq] at hout
-  split_ifs at hout with hshort hfinal
-  cases hout
-  obtain ⟨hct₀, _⟩ := hfinal
-  set w := moduleSISMap sk.A y
-  set c := H (highBitsVec P w, msg)
-  set r₀ := w - fun i => negacyclicMul c (sk.s₂ i)
-  set ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d sk.publicKey i)
-  have hverify := verify_signAttempt hP hH hs₂ hsign
-  simp only [verify, Bool.and_eq_true, decide_eq_true_eq] at hverify
-  obtain ⟨⟨hz', hc⟩, hhash⟩ := hverify
+  obtain ⟨hz, _, hc, hw⟩ := recovered_of_compressedResponse P hP hγq (hH _) hs₂ hout
   simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq]
-  refine ⟨⟨hz', hc⟩, ?_⟩
-  conv_rhs => rw [← hhash]
-  congr 1
-  apply Prod.ext
-  · funext i
-    rw [compressedVerifierCommitment_eq_verifierCommitment_add_lowPart,
-      verifierCommitment_publicKey]
-    simp only [Pi.add_apply]
-    rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
-      (r := r₀ i + ct₀ i) (fun j => by
-        simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg] using
-          (hct₀ i j).le)]
-    funext j
-    simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
-    congr 1
-    ring
-  · rfl
+  exact ⟨⟨hz, hc ▸ hH _⟩, hw ▸ hc.symm⟩
 
 /-- Counter supplied to the `i`-th scheduled attempt. Algorithm 7 starts at `κ` and advances it
 by `ℓ` after every rejection. -/

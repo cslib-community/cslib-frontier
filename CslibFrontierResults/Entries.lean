@@ -124,6 +124,7 @@ import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialL
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
+import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
 import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -328,6 +329,7 @@ import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.ExponentialDesign
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
+import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 
 /-!
@@ -468,6 +470,20 @@ register_result "goldreich-few-oracle-queries-search" where
     for any request bound r with 2 ^ r n polynomially bounded. Native multitape oracle \
     machines (ComputableInPolyTimeWithOracle certificates). Outside-fleet six-point source \
     check: review 5950244269 on PR #6358."
+
+register_result "goldreich-pf-not-subset-pc" where
+  title := "PF contains search problems that are not in PC"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.1",
+      locator := "December 2006 r1.pdf, printed p. 105; PDF p. 130" }
+  ]
+  theorems := [Cslib.Complexity.exists_polyTimeSolvable_not_mem_FNP]
+  scope := "Instances and solutions are words (encBits). PF membership is spelled out \
+    (polynomial length bound and a polynomial-time SolvesSearch solver with encOption encBits \
+    output), since the library's FPSearch is PF ∩ PC; PC is FNP. Witness: the guideline \
+    relation for the undecidable self-halting problem. Outside-fleet six-point source check: \
+    review 5953896605 on PR #6407."
 
 register_result "pcp" where
   title := "The PCP theorem"
@@ -907,6 +923,24 @@ register_result "dip-eq-np" where
   scope := "dIP is the coin-free case of the IP model: a deterministic word-query verifier run \
     against every randomized stateful prover, strict oracle PPT (one machine, one polynomial \
     clock), completeness 1 and soundness 0; arbitrary injective encodings."
+
+register_result "arora-barak-perfectly-complete-set-lower-bound" where
+  title := "A perfectly complete AM protocol for set lower bounds"
+  topic := "interactive proofs"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 8, Exercise 3",
+      locator := "web draft 2007-01-08, printed p. 166, PDF p. 182; protocol in Section 8.4.1, \
+        printed p. 152" }
+  ]
+  theorems := [Cslib.Complexity.exists_perfectlyComplete_verifier_of_card_certifiedSet]
+  scope := "Outside check: PR #6400, review 5953960536. One polynomial-time public-coin \
+    two-message verifier (Arthur's random string, then Merlin's reply) for the whole input \
+    family: with S_a the strings of N(n) bits having a c(n)-bit certificate accepted by a \
+    polynomial-time test and K a polynomial-time positive threshold in binary, every random \
+    string has an accepted reply when K(a) ≤ |S_a|, and at least two thirds have none when \
+    2|S_a| ≤ K(a); inputs in between carry no obligation. Proved via amplification, \
+    Lautemann's shifts and two parallel trials, not via the hint's prover-chosen hash \
+    functions and Cartesian powers; arbitrary injective encodings."
 
 register_result "perfect-soundness-ip-subset-np" where
   title := "Interactive proofs with perfect soundness are in NP"
