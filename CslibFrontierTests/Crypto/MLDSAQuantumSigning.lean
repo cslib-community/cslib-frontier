@@ -55,7 +55,7 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) (sk : List Byte) (q : 
       (C.commands H s sk (.inr q) p.2).bind fun r =>
         (C.commands H s sk (.inl .query) r.2).map (fun u => (r.1, u.2))) =
       (H.signingOracle s sk q st.2).map (fun r => (r.1, st.1, r.2)) := by
-  simp [commands, OracleComp.sumHandler, deviceHandler_query,
+  simp [commands, deviceCommand, OracleComp.sumHandler, deviceHandler_query,
     Function.comp_def, unquery, PMF.map]
 
 -- Even when the empty string is the only permitted input, the two SHAKE variants return
@@ -94,6 +94,26 @@ example {base H : Xofs} {s : Level} {a b : ℕ} {ha : 528 ≤ a} {hb : maskPolyB
         ((masks (maskAddress seed nonce) j).val : ZMod 8380417))).take 481 := by
   rw [← Xofs.read_mask_of_mem_sampleWithMasks h seed nonce]
   exact (H.h256.take_read _ (show 481 ≤ maskPolyBytes s by cases s <;> decide)).symm
+
+-- After all retries, an adaptive continuation sees the same returned bytes and signature log.
+example {α : Type} (H : Xofs) (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
+    (q : SigningQuery) (log : List Forgery) (next : Option (List Byte) → List Forgery → PMF α) :
+    let μ := H.representativeFromTr sk.tr (formatMessage q.message q.context)
+    let finish := fun (y : Fin s.params.ℓ → Poly) =>
+      let w := moduleSISMap A y
+      let digest := H.commitmentDigest s (MLDSA.highBitsVec s.params w) μ
+      finishSigningAttempt s sk y w digest (H.sampleInBall s digest)
+    ((PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).bind fun row =>
+      let sig := H.signingRetries s sk A μ (maskFromRow s row)
+      next sig (q.logReply sig log)) =
+      ((List.range 814).findSomeM? fun _ =>
+        (MLDSA.signingMaskLaw s.params (by cases s <;> decide)).map fun y =>
+          (finish y).elim (some none) (Option.map some)).bind fun r =>
+        next r.join (q.logReply r.join log) := by
+  intro μ finish
+  have eq := congrArg (fun p : PMF (Option (List Byte)) =>
+    p.bind fun sig => next sig (q.logReply sig log)) (H.privateMaskRetries_eq_iid s sk A μ)
+  simpa only [PMF.bind_map, Function.comp_def, finish] using eq
 
 -- Request a signature on three bits and submit the reply against a different one-bit message.
 private def switchMessage : QuantumSigningForger where

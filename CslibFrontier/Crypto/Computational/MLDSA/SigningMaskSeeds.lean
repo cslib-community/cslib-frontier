@@ -12,7 +12,10 @@ import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Primitives.ByteString
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformExtend
+import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -265,6 +268,104 @@ theorem Xofs.uniform_shared_sampleSigningMaskSeeds (base : Xofs) (s : Level) (se
   simp only [PMF.bind_map, Function.comp_def] at law
   rw [PMF.bind_comm]
   exact law
+
+/-- A change in any message representative forces a selected hedge to equal the second
+half of the public-key hash. All formatted messages for that hash share the same condition. -/
+private theorem hedge_of_representative_ne {base : Xofs} {s : Level} {seed : FixedBytes 32}
+    {a b n : ℕ} {t : Fin n ↪ FixedBytes 32} {ha : 1024 ≤ a} {hb : 64 ≤ b}
+    {rows : SigningMaskSeeds n} {pair : SigningMaskSeedOracles}
+    (hp : pair ∈ (base.sampleSigningMaskSeeds s seed t ha hb rows).support)
+    (tr : List Byte) (ht : tr.length = 64) (formatted : List Bool)
+    (hne : pair.shared.representativeFromTr tr formatted ≠
+      pair.background.representativeFromTr tr formatted) :
+    ∃ i, (t i).toList = tr.drop 32 := by
+  let key := signingKeyBytes pair.background s seed
+  have hk : key.length = 32 := signingKeyBytes_length ..
+  by_contra! miss
+  apply hne
+  apply congrArg Keccak.bytesToBitsLE
+  apply read_eq_of_byteAt_eq
+  intro j _
+  apply (agree_off_sampleSigningMaskSeeds hp).2 _ _ (.inr _)
+  intro i μ eq
+  have sameLength : (Keccak.bytesToBitsLE (key ++ (t i).toList)).length =
+      (Keccak.bytesToBitsLE tr).length := by
+    rw [Keccak.length_bytesToBitsLE, Keccak.length_bytesToBitsLE, List.length_append,
+      FixedBytes.length_toList, hk, ht]
+  have bytes : key ++ (t i).toList = tr :=
+    Keccak.bytesToBitsLE_injective (List.append_inj eq sameLength).1
+  apply miss i
+  rw [← bytes]
+  simpa only [hk] using (List.drop_left (l₁ := key) (l₂ := (t i).toList)).symm
+
+/-- For each setup seed and supplied table of mask seeds, with a uniformly drawn injective
+hedge tape, the chance that installing the mask seeds changes the message representative for
+*any* formatted input under the generated key is at most `n / 2^256`. This covers messages
+chosen after any number of signing replies or measurements. -/
+theorem Xofs.prob_representative_ne_sampleSigningMaskSeeds (base : Xofs) (s : Level)
+    (seed : FixedBytes 32) {a b n : ℕ} (ha : 1024 ≤ a) (hb : 64 ≤ b)
+    (hn : n ≤ 2 ^ 256) (rows : SigningMaskSeeds n) :
+    letI : Nonempty (Fin n ↪ FixedBytes 32) := Function.Embedding.nonempty_of_card_le
+      (by simpa only [Fintype.card_fin, QuantumSigningForger.card_hedge] using hn)
+    (((PMF.uniformOfFintype (Fin n ↪ FixedBytes 32)).bind fun t =>
+      base.sampleSigningMaskSeeds s seed t ha hb rows).toOuterMeasure
+        {pair | ∃ keys, pair.background.keyGen s seed = some keys ∧ ∃ formatted,
+          pair.shared.messageRepresentative keys.publicKey formatted ≠
+            pair.background.messageRepresentative keys.publicKey formatted}).toReal ≤
+      (n : ℝ) / 2 ^ 256 := by
+  classical
+  let _ : Nonempty (Fin n ↪ FixedBytes 32) := Function.Embedding.nonempty_of_card_le
+    (by simpa only [Fintype.card_fin, QuantumSigningForger.card_hedge] using hn)
+  let tapes := PMF.uniformOfFintype (Fin n ↪ FixedBytes 32)
+  let draw := fun t => base.sampleSigningMaskSeeds s seed t ha hb rows
+  let bad (p : SigningMaskSeedOracles) := ∃ keys, p.background.keyGen s seed = some keys ∧
+    ∃ formatted, p.shared.messageRepresentative keys.publicKey formatted ≠
+      p.background.messageRepresentative keys.publicKey formatted
+  let hit (H : Xofs) (t : Fin n ↪ FixedBytes 32) := ∃ keys, H.keyGen s seed = some keys ∧
+    ∃ i, (t i).toList = (H.h256.readBytes keys.publicKey 64).drop 32
+  let report (H : Xofs) (t : Fin n ↪ FixedBytes 32) := PMF.pure (decide (hit H t))
+  change ((tapes.bind draw).toOuterMeasure {p | bad p}).toReal ≤ _
+  rw [← PMF.bind_pure_decide_apply_true, PMF.bind_bind]
+  apply (ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) (by positivity)).mp
+  calc
+    _ ≤ (tapes.bind fun t => (base.uniformPrefixes a b).bind fun H => report H t) true := by
+      apply PMF.bind_apply_mono_on_support
+      intro t _
+      rw [← base.background_sampleSigningMaskSeeds s seed t ha hb rows, PMF.bind_map]
+      apply PMF.map_true_mono
+      intro p hp hbad
+      obtain ⟨keys, hg, formatted, ne⟩ := of_decide_eq_true hbad
+      have hshared := (keyGen_eq_of_mem_sampleSigningMaskSeeds hp s seed).trans hg
+      obtain ⟨_, _, _, _, dbg, _⟩ := privateKey_of_keyGen hg
+      obtain ⟨_, _, _, _, dsh, _⟩ := privateKey_of_keyGen hshared
+      have tr : p.shared.h256.readBytes keys.publicKey 64 =
+          p.background.h256.readBytes keys.publicKey 64 :=
+        congrArg PrivateKey.tr (Option.some.inj (dsh.symm.trans dbg))
+      rw [Xofs.messageRepresentative, tr] at ne
+      apply decide_eq_true
+      exact ⟨keys, hg, hedge_of_representative_ne hp _ (p.background.h256.length_read ..) _ ne⟩
+    _ ≤ _ := by
+      rw [PMF.bind_comm]
+      apply PMF.bind_apply_le_on_support
+      intro H _
+      change (tapes.bind fun t => PMF.pure (decide (hit H t))) true ≤ _
+      rw [PMF.bind_pure_decide_apply_true]
+      cases hg : H.keyGen s seed with
+      | none => simp [hit, hg]
+      | some keys =>
+        let tr := H.h256.readBytes keys.publicKey 64
+        have ht : tr.length = 64 := H.h256.length_read ..
+        obtain ⟨target, htarget⟩ := FixedBytes.exists_toList
+          (show (tr.drop 32).length = 32 by simp [ht])
+        have eq : {t | hit H t} = {t : Fin n ↪ FixedBytes 32 | target ∈ Set.range t} := by
+          ext t
+          simp only [Set.mem_ofPred_eq, hit, hg, Option.some.injEq, exists_eq_left',
+            Set.mem_range, ← show tr = H.h256.readBytes keys.publicKey 64 from rfl, ← htarget,
+            FixedBytes.toList, List.ofFn_inj]
+        rw [eq, ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity),
+          prob_uniformOfFintype_embedding_mem_range]
+        simp only [Fintype.card_fin, QuantumSigningForger.card_hedge, Nat.cast_pow, Nat.cast_ofNat,
+          le_refl]
 
 namespace QuantumSigningForger
 

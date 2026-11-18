@@ -248,9 +248,11 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
     if halfByte < 15 then some ((2 : ZMod 8380417) - ↑(halfByte % 5)) else none
   else if halfByte < 9 then some (4 - (halfByte : ZMod 8380417)) else none
 
+private def nonceSuffix (i : ℕ) : FixedBytes 2 := ![Fin.ofNat 256 i, Fin.ofNat 256 (i / 256)]
+
 /-- Algorithms 33 and 34 append the two-byte little-endian counter to the 64-byte seed. -/
 def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
-  seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
+  seed ++ [nonceSuffix nonce 0, nonceSuffix nonce 1]
 
 /-- An Algorithm 34 mask row has a 64-byte seed and two counter bytes. It cannot alias
 the SHAKE input at the 32-, 48-, or 64-byte digest consumed by Algorithm 29. -/
@@ -554,6 +556,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
       decodePrivate s keys.secretKey = some ⟨rho.toList, (H.expandKeySeed s seed).drop 96,
         H.h256.readBytes keys.publicKey 64,
         sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩ ∧
+      (∀ i j, |(sk.s₁ i j).valMinAbs| ≤ s.params.η) ∧
       (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
   unfold Xofs.keyGen Xofs.expandKeySeed at hg
   generalize hh : H.h256.readBytes
@@ -587,7 +590,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
         simp only [ha, h₁, h₂, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
           materialized, Option.some.injEq, ht] at hg
         subst keys
-        refine ⟨rho, sk, hrho ▸ ha, ?_, ?_, sb⟩
+        refine ⟨rho, sk, hrho ▸ ha, ?_, ?_, sa, sb⟩
         · rw [hrho]
         · rw [hrho]
           simp only [Xofs.expandKeySeed, hh]
