@@ -557,12 +557,14 @@ private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380
 
 /-- Algorithm 29. Preload the last τ positions with the SHAKE sign bits and exchange each
 with its chosen position in increasing order. Future sign positions remain untouched because an
-accepted index is at most the current position. The caller supplies the SHAKE256 bytes. -/
+accepted index is at most the current position. The caller supplies the SHAKE256 bytes. The FIPS
+wrapper below chooses the minimum permitted 221-byte bound from Appendix C, Table 3. -/
 def sampleInBallBytes (s : Level) (bytes : List Byte) : Option Poly := do
   let t ← ChallengeRow.parse (256 - s.params.τ) s.params.τ (bytes.drop 8)
   return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ t.perm.symm
 
-/-- Algorithm 29 reads its 221-byte SHAKE256 row at the challenge digest. -/
+/-- Bounded Algorithm 29 reads 221 bytes at the challenge digest. This implementation chooses
+the minimum cap permitted by FIPS 204, Appendix C, Table 3. -/
 @[expose] def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly :=
   sampleInBallBytes s (H.h256.readBytes digest 221)
 

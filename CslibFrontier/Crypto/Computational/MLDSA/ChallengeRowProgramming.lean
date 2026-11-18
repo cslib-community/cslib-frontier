@@ -16,7 +16,8 @@ import Mathlib.Data.Fintype.Sort
 /-!
 # Programming the raw challenge-expansion row of ML-DSA
 
-[FIPS 204][NISTFIPS204], Algorithm 29 and Appendix C. The insertion positions on a successful
+This implementation chooses the 221-byte minimum permitted by [FIPS 204][NISTFIPS204],
+Appendix C, Table 3, for bounded Algorithm 29. The insertion positions on a successful
 bounded row encode an ordered support. Transporting their final positions backward through the
 swaps changes only accepted candidate bytes. Sorting the source and target supports gives an
 invertible relabeling. The used sign bits are set from the target at each label’s destination.
@@ -397,6 +398,11 @@ def exchangeSampleInBall (s : Level) :
     FixedBytes 221 × Target s ≃ FixedBytes 221 × Target s :=
   (exchange_involutive s).toPerm _
 
+/-- Two forward exchanges restore the raw bytes and the supplied challenge. -/
+theorem exchangeSampleInBall_involutive (s : Level) :
+    Function.Involutive (exchangeSampleInBall s) :=
+  exchange_involutive s
+
 /-- Exactly the candidate bytes untouched by Algorithm 29 programming. On a successful row,
 accepted positions are holes, while rejected positions and the unused suffix retain their bytes
 at their original offsets. An exhausted row has no successful pattern. -/
@@ -445,7 +451,7 @@ def fiberEquiv {s : Level} (c d : Target s) :
     change (exchangeSampleInBall s ((exchangeSampleInBall s (r.val, b)).1, a)).1 = r.val
     exact (congrArg (fun t =>
       (exchangeSampleInBall s ((exchangeSampleInBall s (r.val, b)).1, t)).1) h.symm).trans
-        (congrArg Prod.fst (exchange_involutive s (r.val, b)))
+        (congrArg Prod.fst (exchangeSampleInBall_involutive s (r.val, b)))
   ⟨forward c d, forward d c, back c d, back d c⟩
 
 /-- Programming preserves the unused sign bits and every rejected or unconsumed candidate byte. -/
