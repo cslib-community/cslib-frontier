@@ -1094,6 +1094,25 @@ register_result "bpp-proper-subset-ppoly" where
     No efficient separator or uniform circuit-family construction. Strictness is not asserted \
     for arbitrary encoded finite instance domains, where the two classes coincide."
 
+register_result "arora-barak-ma-eq-np-of-hardness" where
+  title := "Average-case hardness in E gives MA = NP"
+  topic := "derandomization"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 4",
+      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.7 printed 286 / \
+        PDF 302" }
+  ]
+  theorems := [Cslib.Complexity.MA_eq_NP_of_isAverageCaseHard]
+  scope := "Outside check: PR #6276, review 5947521916. MA enc = NP enc for every injective \
+    instance encoding, assuming L ∈ E encBits whose slices are eventually IsAverageCaseHard \
+    (non-strict, De Morgan gates counted, inputs not) for size 2^⌊n/c⌋, some natural c > 0. \
+    The draft's hypothesis (f ∈ E, strict H_avg(f)(n) ≥ 2^(εn) for every n, Definition 6.1 \
+    counting all nodes) implies this for every natural c > 1/ε: a De Morgan circuit with s \
+    gates on n ≥ 1 inputs becomes a source circuit with O(n + s + 1) nodes and the output as \
+    its only sink (prune unused gates, constants as x1 ∧ ¬x1 or its negation, unused inputs \
+    folded into a dummy zero ORed into the output), which is at most 2^(εn) ≤ S for all \
+    large n, and 1/2 + 1/S ≤ 1/2 + 1/s. MA has two-sided error 1/3."
+
 register_result "one-bit-advice-undecidable" where
   title := "One bit of advice decides a length-dependent undecidable bit language"
   topic := "complexity theory"
@@ -6268,22 +6287,3 @@ register_result "owp-iterate-one-way" where
     asymptotic reading of the draft's Definition 10.1, which bounds inversion time and success \
     concretely; the reduction is exact and adds up to k n - 1 evaluations of f, so concrete \
     bounds transfer with that overhead. Source check: outside-fleet review on PR #6274."
-
-register_result "arora-barak-ma-eq-np-of-hardness" where
-  title := "Average-case hardness in E gives MA = NP"
-  topic := "derandomization"
-  sources := [
-    { paper := AroraBarak07, theorem := "Chapter 16, Exercise 4",
-      locator := "January 8, 2007 draft; printed 318 / PDF 334; Definition 16.7 printed 286 / \
-        PDF 302" }
-  ]
-  theorems := [Cslib.Complexity.MA_eq_NP_of_isAverageCaseHard]
-  scope := "Outside check: PR #6276, review 5947521916. MA enc = NP enc for every injective \
-    instance encoding, assuming L ∈ E encBits whose slices are eventually IsAverageCaseHard \
-    (non-strict, De Morgan gates counted, inputs not) for size 2^⌊n/c⌋, some natural c > 0. \
-    The draft's hypothesis (f ∈ E, strict H_avg(f)(n) ≥ 2^(εn) for every n, Definition 6.1 \
-    counting all nodes) implies this for every natural c > 1/ε: a De Morgan circuit with s \
-    gates on n ≥ 1 inputs becomes a source circuit with O(n + s + 1) nodes and the output as \
-    its only sink (prune unused gates, constants as x1 ∧ ¬x1 or its negation, unused inputs \
-    folded into a dummy zero ORed into the output), which is at most 2^(εn) ≤ S for all \
-    large n, and 1/2 + 1/S ≤ 1/2 + 1/s. MA has two-sided error 1/3."
