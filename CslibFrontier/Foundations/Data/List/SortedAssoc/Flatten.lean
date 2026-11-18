@@ -17,9 +17,8 @@ A sorted association list that is stored as a sequence of non-empty blocks, such
 a B+-tree, is restricted to a closed interval block by block. The blocks that contribute form a
 contiguous run, and every block of the run other than its first and last is kept whole.
 
-## Main results
+## Main result
 
-* `Cslib.SortedAssoc.range_flatten`: range restriction commutes with concatenation.
 * `Cslib.SortedAssoc.exists_run_range_flatten`: the blocks split as a prefix, a run and a suffix;
   the restriction of the concatenation is that of the run, every block of the run contributes,
   and every block of the run other than the first and last is unchanged.
@@ -32,13 +31,6 @@ universe u v
 namespace Cslib.SortedAssoc
 
 variable {α : Type u} {β : Type v} [LinearOrder α] {lo hi : α}
-
-/-- Range restriction commutes with concatenation. -/
-theorem range_flatten (L : List (List (α × β))) :
-    range lo hi L.flatten = (L.map (range lo hi)).flatten := by
-  induction L with
-  | nil => rfl
-  | cons l L ih => simp [ih]
 
 /-- A block with a non-empty restriction has an entry in the interval. -/
 private theorem exists_mem_of_range_ne_nil {l : List (α × β)} (h : range lo hi l ≠ []) :
@@ -113,8 +105,10 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
       List.flatten_eq_nil_iff.2 (by simpa using hpre')
     have h₂ : (post.map (range lo hi)).flatten = [] :=
       List.flatten_eq_nil_iff.2 (by simpa using hpost')
-    rw [hL, range_flatten, List.map_append, List.map_append, List.flatten_append,
-      List.flatten_append, h₁, h₂]
+    have hf : range lo hi (pre ++ (run ++ post)).flatten =
+        ((pre ++ (run ++ post)).map (range lo hi)).flatten := List.filter_flatten ..
+    rw [hL, hf, List.map_append, List.map_append, List.flatten_append, List.flatten_append,
+      h₁, h₂]
     simp
   · intro l hl
     cases hT : run with
