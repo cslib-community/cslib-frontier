@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLog
 public import CslibFrontier.Algorithms.Lean.DPLL
 
@@ -340,9 +341,11 @@ over it and the trail `M₀` below it, the clause numbered `i` is false and has 
 the current level. While it has two different literals false at the current level, it is resolved
 with the reason of the newest implied literal whose negation it contains. It stops with a clause
 having exactly one literal false at the current level, its first unique implication point, which
-is reached at the latest at the decision. -/
+is reached at the latest at the decision. The literals of the current level are read from the
+assignment `cur`, which agrees with them; passing an implied literal unassigns its variable. -/
 def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
     (N : XTrail) → Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A →
+    (cur : Assign) → cur.Agrees (XTrail.trail N ++ [⟨d, true⟩]) →
     (log : LRATLog φ) → log₀.Extends log → (i : ℕ) → (C : Clause ℕ) →
     log.clause? i = some C → Reasons log (N ++ XEntry.decision d :: M₀) →
     (∀ x ∈ N, x.entry.decision = false) →
@@ -350,16 +353,15 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
     (∃ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail N ++ [⟨d, true⟩])) →
     (Trail.vars (XTrail.trail (N ++ XEntry.decision d :: M₀))).Nodup →
     Learned log₀ A (XTrail.trail M₀)
-  | N, hA, log, hext, i, C, hC, hreasons, hdec, hfalse, hcur, hnd =>
-    match hys : C.filter (fun y => (Trail.lits (XTrail.trail N ++ [⟨d, true⟩])).contains
-        y.negate) with
+  | N, hA, cur, hcurA, log, hext, i, C, hC, hreasons, hdec, hfalse, hcur, hnd =>
+    match hys : C.filter (fun y => cur.holds y.negate) with
     | [] => absurd hys (by
         obtain ⟨y, hy, hyc⟩ := hcur
-        exact List.ne_nil_of_mem (List.mem_filter.2 ⟨hy, by simpa using hyc⟩))
+        exact List.ne_nil_of_mem (List.mem_filter.2 ⟨hy, (hcurA.holds_iff _).2 hyc⟩))
     | u :: rest =>
       have hu : u ∈ C ∧ u.negate ∈ Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) := by
         have := List.mem_filter.1 (hys ▸ List.mem_cons_self : u ∈ C.filter _)
-        exact ⟨this.1, by simpa using this.2⟩
+        exact ⟨this.1, (hcurA.holds_iff _).1 this.2⟩
       if hall : rest.all (· == u) then
         { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, used := [i],
           seen_mem := vars_mem_map_of_clause? hC, clause?_eq := hC,
@@ -370,9 +372,9 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
               at hyT
             rcases hyT with h | h
             · refine absurd ?_ hne
-              have : y ∈ C.filter (fun y => (Trail.lits (XTrail.trail N ++ [⟨d, true⟩])).contains
-                  y.negate) := List.mem_filter.2 ⟨hy, List.contains_iff_mem.2 (by
-                rw [lits_append]; exact List.mem_append_left _ h)⟩
+              have : y ∈ C.filter (fun y => cur.holds y.negate) :=
+                List.mem_filter.2 ⟨hy, (hcurA.holds_iff _).2 (by
+                  rw [lits_append]; exact List.mem_append_left _ h)⟩
               rw [hys] at this
               rcases List.mem_cons.1 this with h | h
               · exact h
@@ -380,9 +382,9 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
             · simp only [Trail.lits, List.map_cons, List.mem_cons] at h
               rcases h with h | h
               · refine absurd ?_ hne
-                have : y ∈ C.filter (fun y => (Trail.lits (XTrail.trail N ++ [⟨d, true⟩])).contains
-                  y.negate) := List.mem_filter.2 ⟨hy, List.contains_iff_mem.2 (by
-                  rw [lits_append]; exact List.mem_append_right _ (by simp [Trail.lits, h]))⟩
+                have : y ∈ C.filter (fun y => cur.holds y.negate) :=
+                  List.mem_filter.2 ⟨hy, (hcurA.holds_iff _).2 (by
+                    rw [lits_append]; exact List.mem_append_right _ (by simp [Trail.lits, h]))⟩
                 rw [hys] at this
                 rcases List.mem_cons.1 this with h | h
                 · exact h
@@ -398,19 +400,18 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
           above := hA hu.2
           ext := hext }
       else
-        match N, hA, hreasons, hdec, hfalse, hcur, hnd, hys, hu with
-        | [], _, _, _, _, _, _, hys, _ => absurd (List.all_eq_true.2 fun y hy => by
+        match N, hA, hcurA, hreasons, hdec, hfalse, hcur, hnd, hys, hu with
+        | [], _, hcurA, _, _, _, _, _, hys, _ => absurd (List.all_eq_true.2 fun y hy => by
             have hy' : y ∈ C.filter _ := hys ▸ List.mem_cons_of_mem _ hy
             have hu' : u ∈ C.filter _ := hys ▸ List.mem_cons_self
-            have h₁ := (List.mem_filter.1 hy').2
-            have h₂ := (List.mem_filter.1 hu').2
+            have h₁ := (hcurA.holds_iff _).1 (List.mem_filter.1 hy').2
+            have h₂ := (hcurA.holds_iff _).1 (List.mem_filter.1 hu').2
             simp only [Trail.lits, XTrail.trail_nil, List.nil_append, List.map_cons, List.map_nil,
-              List.contains_eq_mem, List.mem_cons, List.not_mem_nil, or_false,
-              decide_eq_true_eq] at h₁ h₂
+              List.mem_cons, List.not_mem_nil, or_false] at h₁ h₂
             simpa using negate_inj (h₁.trans h₂.symm)) hall
-        | .decision _ :: _, _, _, hdec, _, _, _, _, _ =>
+        | .decision _ :: _, _, _, _, hdec, _, _, _, _, _ =>
           absurd (hdec _ List.mem_cons_self) (by simp)
-        | .implied l r :: N', hA, hreasons, hdec, hfalse, hcur, hnd, hys, hu =>
+        | .implied l r :: N', hA, hcurA, hreasons, hdec, hfalse, hcur, hnd, hys, hu =>
           match hR : log.clause? r with
           | none => absurd hreasons.isSome (by simp [hR])
           | some R =>
@@ -426,6 +427,20 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
               simp only [List.cons_append, XTrail.trail_cons, Trail.vars, List.map_cons,
                 List.nodup_cons] at this
               exact this.2
+            -- passing `l` unassigns its variable, which is not further down the level
+            have hl : l.1 ∉ Trail.vars (XTrail.trail N' ++ [⟨d, true⟩]) := fun h => by
+              have := hnd
+              simp only [List.cons_append, XTrail.trail_cons, XTrail.trail_append,
+                Trail.vars, List.map_cons, List.map_append, List.nodup_cons, List.mem_append,
+                List.mem_cons, not_or] at this
+              simp only [Trail.vars, List.map_append, List.map_cons, List.map_nil,
+                List.mem_append, List.mem_singleton] at h
+              rcases h with h | h
+              · exact this.1.1 h
+              · exact this.1.2.1 h
+            have hcurA' : (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
+              Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
+                rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl
             -- a literal of `C` false at the current level other than the negation of `l`
             have hz : ∃ z ∈ C, z ≠ l.negate ∧
                 z.negate ∈
@@ -436,8 +451,8 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                 exact hall (List.all_eq_true.2 fun y hy => by simpa using hne y hy)
               have hy' : y ∈ C.filter _ := hys ▸ List.mem_cons_of_mem _ hy
               by_cases hul : u = l.negate
-              · exact ⟨y, (List.mem_filter.1 hy').1, hul ▸ hyu, by
-                  simpa using (List.mem_filter.1 hy').2⟩
+              · exact ⟨y, (List.mem_filter.1 hy').1, hul ▸ hyu,
+                  (hcurA.holds_iff _).1 (List.mem_filter.1 hy').2⟩
               · exact ⟨u, hu.1, hul, hu.2⟩
             have hcur' : ∀ z, z ≠ l.negate →
                 z.negate ∈ Trail.lits (XTrail.trail (XEntry.implied l r :: N') ++ [⟨d, true⟩]) →
@@ -459,7 +474,8 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
             if hmem : l.negate ∈ C then
               let log' := resolveLog log l i r C R hC hR
               have hspec := resolveLog_spec (l := l) hC hR
-              let L' := analyze log₀ d M₀ A N' hA' log' (hext.trans hspec.2) log.next
+              let L' := analyze log₀ d M₀ A N' hA' (cur.unassign [l.1]) hcurA' log'
+                (hext.trans hspec.2) log.next
                 (resolveOn l C R)
                 hspec.1 (hT.mono hspec.2) hdec'
                 (fun y hy => by
@@ -476,7 +492,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                 seen_mem := fun v hv =>
                   (List.mem_append.1 hv).elim (vars_mem_map_of_clause? hC v) (L'.seen_mem v) }
             else
-              analyze log₀ d M₀ A N' hA' log hext i C hC hT hdec'
+              analyze log₀ d M₀ A N' hA' (cur.unassign [l.1]) hcurA' log hext i C hC hT hdec'
                 (fun y hy => hfalse' y hy fun h => hmem (h ▸ hy))
                 (by
                   obtain ⟨z, hz, hne, hzc⟩ := hz
@@ -608,6 +624,17 @@ theorem Exec.Inv.split_nodup {S : Exec φ} (hS : S.Inv) {sp : Split}
   rw [← (XTrail.split_eq_some hsp).1]
   exact hS.run.nodup
 
+/-- The variables of the current level, from the newest decision up, are distinct. -/
+theorem Exec.Inv.split_level_nodup {S : Exec φ} (hS : S.Inv) {sp : Split}
+    (hsp : XTrail.split S.trail = some sp) :
+    (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])).Nodup := by
+  have := hS.split_nodup hsp
+  rw [XTrail.trail_append, XTrail.trail_cons, show XTrail.trail sp.above ++
+    XEntry.entry (XEntry.decision sp.decision) :: XTrail.trail sp.below =
+      (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) ++ XTrail.trail sp.below by simp,
+    vars_append] at this
+  exact this.of_append_left
+
 theorem XTrail.falsifies_of_split {M : XTrail} {sp : Split} (hsp : XTrail.split M = some sp)
     {c : Clause ℕ} (hconf : Trail.Falsifies (XTrail.trail M) c) :
     Trail.Falsifies (XTrail.trail (sp.above ++ XEntry.decision sp.decision :: sp.below)) c := by
@@ -722,21 +749,25 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
       rank φ.vars (.run (XTrail.trail S.trail) S.clauses)
     exact (LearnOrForget.rank_eq (.inl hlearn)).trans_lt (hbj.rank_lt hS.run)
 
-/-- A unit clause of the database: a numbered clause with every literal but one false on the trail,
-that literal being undefined. -/
-def findUnit (M : Trail) (db : List (ℕ × Clause ℕ)) : Option ((ℕ × Clause ℕ) × Literal ℕ) :=
+/-- A unit clause of the database under the assignment `A`: a numbered clause with every literal but
+one false, that literal being unassigned. -/
+def findUnit (A : Assign) (db : List (ℕ × Clause ℕ)) : Option ((ℕ × Clause ℕ) × Literal ℕ) :=
   db.findSome? fun e => (e.2.find? fun l =>
-    decide (l.1 ∉ Trail.vars M ∧ ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits M)).map (e, ·)
+    !A.assigned l.1 && e.2.all fun l' => l' == l || A.holds l'.negate).map (e, ·)
 
-theorem findUnit_spec {M : Trail} {db : List (ℕ × Clause ℕ)} {e : ℕ × Clause ℕ} {l : Literal ℕ}
-    (h : findUnit M db = some (e, l)) :
+theorem findUnit_spec {A : Assign} {M : Trail} (hA : A.Agrees M) {db : List (ℕ × Clause ℕ)}
+    {e : ℕ × Clause ℕ} {l : Literal ℕ} (h : findUnit A db = some (e, l)) :
     e ∈ db ∧ l ∈ e.2 ∧ l.1 ∉ Trail.vars M ∧ ∀ l' ∈ e.2, l' ≠ l → l'.negate ∈ Trail.lits M := by
   obtain ⟨e', he', h'⟩ := List.exists_of_findSome?_eq_some h
   obtain ⟨l', hl', hel⟩ := Option.map_eq_some_iff.1 h'
   cases hel
   have := List.find?_some hl'
-  simp only [decide_eq_true_eq] at this
-  exact ⟨he', List.mem_of_find?_eq_some hl', this⟩
+  simp only [Bool.and_eq_true, Bool.not_eq_true', List.all_eq_true, Bool.or_eq_true,
+    beq_iff_eq] at this
+  refine ⟨he', List.mem_of_find?_eq_some hl', fun hv => ?_, fun l' hl' hne => ?_⟩
+  · rw [(hA.assigned_iff _).2 hv] at this
+    exact absurd this.1 (by decide)
+  · exact (hA.holds_iff _).1 ((this.2 l' hl').resolve_left hne)
 
 /-- **UnitPropagate**: add the literal of a unit clause, with that clause as its reason. -/
 def Exec.propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=

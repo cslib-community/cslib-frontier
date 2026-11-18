@@ -15,13 +15,14 @@ The value of each variable on the trail, in an array indexed by variable, as Min
 whether a literal is true, or a variable assigned, is read in constant time instead of by a scan
 of the trail. `Assign.Agrees A M` says that the array `A` holds exactly the literals of the trail
 `M`. It survives assigning a new variable (`Assign.Agrees.cons`), and undoing the newest literals
-of a trail without repeated variables (`Assign.Agrees.drop`), as Backjump does; any trail without
-repeated variables has an array agreeing with it (`Assign.agrees_ofTrail`).
+of a trail, over variables not on the rest (`Assign.Agrees.drop`), as Backjump does; any trail
+without repeated variables has an array agreeing with it (`Assign.agrees_ofTrail`).
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.Assign`: the value of each variable, if any.
-* `Cslib.Algorithms.Lean.CDCL.Assign.holds`: whether a literal is true.
+* `Cslib.Algorithms.Lean.CDCL.Assign.holds`, `Cslib.Algorithms.Lean.CDCL.Assign.falsifies`: whether
+  a literal is true, and whether a clause is false.
 * `Cslib.Algorithms.Lean.CDCL.Assign.Agrees`: the array holds the literals of a trail.
 
 ## Main results
@@ -181,20 +182,18 @@ theorem Agrees.cons (h : A.Agrees M) {l : Literal ℕ} (hl : l.1 ∉ Trail.vars 
       · exact absurd rfl hv
       · exact h'
 
-/-- **Undoing the newest literals `N`** of a trail without repeated variables, by unassigning their
-variables, keeps the agreement with the rest. -/
-theorem Agrees.drop {N M₀ : Trail} (h : A.Agrees (N ++ M₀)) (hnd : (Trail.vars (N ++ M₀)).Nodup) :
-    (A.unassign (Trail.vars N)).Agrees M₀ := by
+/-- **Undoing the newest literals `N`** of a trail, over variables not on the rest `M₀`, by
+unassigning their variables, keeps the agreement with the rest. -/
+theorem Agrees.drop {N M₀ : Trail} (h : A.Agrees (N ++ M₀))
+    (hdisj : ∀ v ∈ Trail.vars N, v ∉ Trail.vars M₀) : (A.unassign (Trail.vars N)).Agrees M₀ := by
   intro v b
   rw [value_unassign]
   have hlits : Trail.lits (N ++ M₀) = Trail.lits N ++ Trail.lits M₀ := List.map_append
-  have hvars : Trail.vars (N ++ M₀) = Trail.vars N ++ Trail.vars M₀ := List.map_append
-  rw [hvars] at hnd
   split
   · rename_i hv
     simp only [reduceCtorEq, false_iff]
     intro hm
-    exact List.disjoint_of_nodup_append hnd hv (Trail.mem_vars_of_mem_lits hm)
+    exact hdisj v hv (Trail.mem_vars_of_mem_lits hm)
   · rename_i hv
     rw [h v b, hlits, List.mem_append]
     constructor
@@ -202,6 +201,13 @@ theorem Agrees.drop {N M₀ : Trail} (h : A.Agrees (N ++ M₀)) (hnd : (Trail.va
       · exact absurd (Trail.mem_vars_of_mem_lits h') hv
       · exact h'
     · exact .inr
+
+/-- **Whether the clause `c` is false**: every literal is false. -/
+def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.holds l.negate
+
+theorem Agrees.falsifies_iff (h : A.Agrees M) (c : Clause ℕ) :
+    A.falsifies c = true ↔ Trail.Falsifies M c := by
+  simp only [falsifies, List.all_eq_true, h.holds_iff]
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail : ∀ M : Trail, (Trail.vars M).Nodup → (ofTrail M).Agrees M

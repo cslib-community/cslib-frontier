@@ -27,9 +27,11 @@ blocker is true is skipped without reading its clause, and otherwise the clause 
 watch, is satisfied by its other watch, becomes unit, or is false.
 
 The state `WExec` extends `Exec` with the value of each variable on the trail in an array indexed by
-variable (`Assign`, MiniSat's `assigns`), read by the visits of watchers and the choice of decision
-variable instead of scanning the trail, the watch store, the queue, and the clauses with fewer than
-two different literals, which cannot be watched and are scanned when the queue is empty. Its
+variable (`Assign`, MiniSat's `assigns`), read by the visits of watchers, the checks of the short
+clauses and the choice of decision variable instead of scanning the trail, the watch store, the
+queue, and the clauses with fewer than two different literals, which cannot be watched and are
+scanned when the queue is empty. Conflict analysis reads the literals of the current level from an
+array of its own. Its
 invariant `WExec.Inv` adds to `Exec.Inv`:
 
 * the watch store's invariant `WatchStore.Inv`: every clause with two different literals is
@@ -1066,7 +1068,9 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     rw [hsplit, show XTrail.trail sp.above ++ ⟨sp.decision, true⟩ ::
       XTrail.trail sp.below = (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) ++
         XTrail.trail sp.below by simp] at hnd
-    exact (hA.drop hnd).cons (List.nodup_cons.1 hnodup').1 false
+    rw [vars_append] at hnd
+    exact (hA.drop fun v hv => List.disjoint_of_nodup_append hnd hv).cons
+      (List.nodup_cons.1 hnodup').1 false
   have hmeasure : rank φ.vars (S.exec.afterConflict sp L).state * (nvars φ + 2) + 1 <
       S.measure := by
     have := hspec.2
@@ -1418,7 +1422,8 @@ theorem WExec.Inv.reduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
 /-- **MiniSat's `reduceDB`, when due**: if reduction is on and the learned clauses in the store
 exceed the assigned variables by the limit, reduce. -/
 @[expose] def WExec.maybeReduce (S : WExec φ) : WExec φ :=
-  if S.opts.reduce && S.red.max + 1000 * S.exec.trail.length ≤ 1000 * S.red.learnts then S.reduce
+  if S.opts.reduce && S.red.max ≤ 1000 * S.red.learnts &&
+      S.red.max + 1000 * S.exec.trail.length ≤ 1000 * S.red.learnts then S.reduce
   else S
 
 theorem WExec.Inv.maybeReduce {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
@@ -1471,7 +1476,9 @@ database, or returns the trail as a model. -/
         .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), S.stats.conflict)
       | some sp =>
         let L₀ := analyze S.exec.log sp.decision sp.below
-          (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h) S.exec.log
+          (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
+          (Assign.ofTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
+          (Assign.agrees_ofTrail _ (hS.exec.split_level_nodup hsp)) S.exec.log
           (LRATLog.Extends.refl _) e.1 e.2 (hS.exec.db_log e he) (hS.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hS.exec.split_cur hsp he hconf) (hS.exec.split_nodup hsp)
@@ -1492,17 +1499,19 @@ database, or returns the trail as a model. -/
       | .conflict S' h e he hconf hm =>
         onConflict S' h e he hconf (by have : (S.start t).measure = S.measure := rfl; omega)
     | [] =>
-      match hc : S.short.find? (fun e => decide (Trail.Falsifies S.M e.2)) with
+      match hc : S.short.find? (fun e => S.assign.falsifies e.2) with
       | some e =>
         onConflict S hS e (hS.short_mem e (List.mem_of_find?_eq_some hc))
-          (by simpa using List.find?_some hc) (by omega)
+          ((hS.assign.falsifies_iff e.2).1
+            (List.find?_some (p := fun e : ℕ × Clause ℕ => S.assign.falsifies e.2) hc))
+          (by omega)
       | none =>
         have hshort : ∀ e ∈ S.short, ¬ Trail.Falsifies S.M e.2 := fun e he hf =>
-          List.find?_eq_none.1 hc e he (decide_eq_true hf)
+          List.find?_eq_none.1 hc e he ((hS.assign.falsifies_iff _).2 hf)
         have hnoconf := hS.noConflict hq hshort
-        match hu : findUnit S.M S.short with
+        match hu : findUnit S.assign S.short with
         | some (e, l) =>
-          have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hu
+          have ⟨he, hl, hundef, hfalse⟩ := findUnit_spec hS.assign hu
           have hspec := Exec.propagate_spec hS.exec (hS.short_mem e he) hl hundef hfalse
           loop φ limit fuel (S.propagateShort e l)
             (hS.push hq hspec.1 rfl rfl rfl rfl rfl hundef (fun hv =>
