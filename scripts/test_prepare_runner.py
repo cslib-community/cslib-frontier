@@ -74,6 +74,14 @@ class PrepareRunnerTests(unittest.TestCase):
                 else:
                     self.assertTrue(any(command.startswith("sudo ") for command in commands))
 
+    def test_operator_threshold_and_invalid_override(self):
+        for override, skip in (("75", True), ("", False), ("0", False), ("07", False),
+                               ("invalid", False)):
+            with self.subTest(override=override):
+                result, commands = self.run_cleanup(SDK_CLEANUP_MIN_GIB=override)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(any(cmd.startswith("sudo ") for cmd in commands), not skip)
+
     def test_unavailable_space_measurement_keeps_cleanup(self):
         for override in ({"CLEANUP_TEST_FREE_KIB": "unknown"},
                          {"CLEANUP_TEST_FREE_KIB": "242221056", "CLEANUP_TEST_DF_EXIT": "1"},
@@ -92,6 +100,19 @@ class PrepareRunnerTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/lean_action_ci.yml").read_text()
         self.assertLess(workflow.index("scripts/ci/prepare-runner.sh"),
                         workflow.index("- name: Restore .lake from the Actions cache"))
+
+    def test_only_pushes_to_main_can_select_the_billed_runner(self):
+        selected = ("${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
+                    "vars.MAIN_BUILD_RUNNER || 'ubuntu-24.04' }}")
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            for line in path.read_text().splitlines():
+                if line.strip().startswith("runs-on:"):
+                    runner = line.split("runs-on:", 1)[1].strip()
+                    with self.subTest(workflow=path.name, runner=runner):
+                        self.assertIn(runner, ("ubuntu-latest", "ubuntu-24.04", selected))
+        lean = (ROOT / ".github/workflows/lean_action_ci.yml").read_text()
+        job = lean.split("  lean-checks:\n", 1)[1].split("\n  ci-checks:\n", 1)[0]
+        self.assertIn(f"    runs-on: {selected}\n", job)
 
 
 if __name__ == "__main__":

@@ -220,7 +220,7 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
   have bytes (x : List Byte) (k : ℕ) (hx : x.length ≠ 128) :
       pair.shared.h256.readBytes x k = pair.background.h256.readBytes x k := by
     apply read_ne_maskSeed_length h
-    rw [bitsLength]
+    rw [Keccak.length_bytesToBitsLE]
     lia
   apply Xofs.keyGen_congr_of_reads level setup (agree_off_sampleSigningMaskSeeds h).1
   · exact bytes _ _ (by simp [FixedBytes.toList])
@@ -304,9 +304,12 @@ private theorem seed_hedge_of_representative_ne {base : Xofs} {s : Level} {seed 
   intro j _
   apply (agree_off_sampleSigningMaskSeeds hp).2 _ _ (.inr _)
   intro i μ eq
-  have bytes : key ++ (t i).toList = tr := bytes_eq_of_bits_eq (List.append_inj eq
-    (by simp only [bitsLength, List.length_append, FixedBytes.length_toList, ht, hk,
-      ← show key = (pair.background.expandKeySeed s seed).drop 96 from rfl])).1
+  have sameLength : (Keccak.bytesToBitsLE (key ++ (t i).toList)).length =
+      (Keccak.bytesToBitsLE tr).length := by
+    rw [Keccak.length_bytesToBitsLE, Keccak.length_bytesToBitsLE, List.length_append,
+      FixedBytes.length_toList, ht, hk]
+  have bytes : key ++ (t i).toList = tr :=
+    Keccak.bytesToBitsLE_injective (List.append_inj eq sameLength).1
   exact miss i bytes.symm
 
 /-- For each setup seed and supplied table of mask seeds, with a uniformly drawn injective

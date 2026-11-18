@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import Cslib.MachineLearning.PACLearning.VCDimension
+public import CslibFrontier.MachineLearning.PACLearning.VCDimension
 public import Mathlib.Data.Fintype.EquivFin
 public import Mathlib.Data.Set.Card
 import Mathlib.Data.Fintype.Powerset
@@ -20,9 +20,9 @@ The *Natarajan dimension* extends the VC dimension from binary to multiclass con
 `C : ConceptClass α β` [ShalevShwartzBenDavid2014, Section 29.1; Natarajan1989]. A set `W` is
 *N-shattered* by `C` if there are two labelings `f₀ f₁ : α → β` that differ at every point of `W`
 such that for every `B ⊆ W` some concept of `C` agrees with `f₀` on `B` and with `f₁` on `W \ B`
-(Definition 29.1). The Natarajan dimension is the largest size of an N-shattered finite set
-(Definition 29.2). With `Bool` labels N-shattering is ordinary shattering, so the Natarajan
-dimension is the VC dimension (`natarajanShatters_iff_setShatters`, `natarajanDim_eq_vcDim`).
+(Definition 29.1). The Natarajan dimension is the supremum in `ℕ∞` of the sizes of finite
+N-shattered sets (Definition 29.2). With `Bool` labels N-shattering is ordinary shattering, so the
+Natarajan dimension is the VC dimension (`natarajanDim_eq_evcDim`).
 
 *Natarajan's lemma* replaces Sauer's lemma in the multiclass fundamental theorem
 [ShalevShwartzBenDavid2014, Lemma 29.4]. With `k` labels, a set of labelings of `n` points whose
@@ -53,7 +53,7 @@ finite type.
 - `NatarajanShatters.subset`, `NatarajanShatters.superset`: (anti)monotonicity.
 - `NatarajanShatters.of_restrict`: N-shattering transfers from the restriction of a class to
   sample points back to the points themselves.
-- `natarajanShatters_iff_setShatters`, `natarajanDim_eq_vcDim`: with `Bool` labels the Natarajan
+- `natarajanShatters_iff_setShatters`, `natarajanDim_eq_evcDim`: with `Bool` labels the Natarajan
   dimension is the VC dimension.
 - `ncard_le_natarajanSum`, `ncard_restriction_le_natarajanSum`: **Natarajan's lemma** for sets of
   labelings and for the labelings a class realizes on sample points.
@@ -81,15 +81,13 @@ with `f₁` on `W \ B` [ShalevShwartzBenDavid2014, Definition 29.1]. -/
   ∃ f₀ f₁ : α → β, (∀ x ∈ W, f₀ x ≠ f₁ x) ∧
     ∀ B ⊆ W, ∃ c ∈ C, (∀ x ∈ B, c x = f₀ x) ∧ ∀ x ∈ W \ B, c x = f₁ x
 
-/-- The *Natarajan dimension* of `C`: the supremum of the sizes of the finite sets N-shattered by
-`C` [ShalevShwartzBenDavid2014, Definition 29.2]. As for `vcDim`, it is `0` when these sizes are
-unbounded, so it is meaningful under `HasFiniteNatarajanDim C`. -/
-noncomputable def natarajanDim (C : ConceptClass α β) : ℕ :=
-  sSup {n : ℕ | ∃ W : Finset α, W.card = n ∧ NatarajanShatters C ↑W}
+/-- The Natarajan dimension is the supremum of the sizes of finite N-shattered sets.
+Unbounded sizes give `⊤` [ShalevShwartzBenDavid2014, Definition 29.2]. -/
+noncomputable def natarajanDim (C : ConceptClass α β) : ℕ∞ :=
+  ⨆ W : Finset α, ⨆ _ : NatarajanShatters C ↑W, (W.card : ℕ∞)
 
-/-- The finite sets N-shattered by `C` have bounded size. -/
-def HasFiniteNatarajanDim (C : ConceptClass α β) : Prop :=
-  BddAbove {n : ℕ | ∃ W : Finset α, W.card = n ∧ NatarajanShatters C ↑W}
+/-- The Natarajan dimension is finite. -/
+@[expose] def HasFiniteNatarajanDim (C : ConceptClass α β) : Prop := natarajanDim C ≠ ⊤
 
 /-- N-shattering is anti-monotone in the shattered set. -/
 theorem NatarajanShatters.subset {C : ConceptClass α β} {W V : Set α}
@@ -184,24 +182,31 @@ theorem natarajanShatters_iff_setShatters {C : ConceptClass α Bool} {W : Set α
     · have : x ∉ c ⁻¹' {true} ∩ W := hcB ▸ hx.2
       simpa [hx.1] using this
 
-/-- With `Bool` labels, the Natarajan dimension is the VC dimension. -/
-theorem natarajanDim_eq_vcDim (C : ConceptClass α Bool) : natarajanDim C = vcDim C := by
-  simp only [natarajanDim, vcDim, natarajanShatters_iff_setShatters]
+/-- With Boolean labels the Natarajan and VC dimensions agree, including at infinity. -/
+theorem natarajanDim_eq_evcDim (C : ConceptClass α Bool) : natarajanDim C = evcDim C := by
+  simp only [natarajanDim, evcDim, natarajanShatters_iff_setShatters]
 
-/-- A class has finite Natarajan dimension iff its N-shattered finite sets have uniformly bounded
-size. -/
+/-- Every finite N-shattered set has size at most the Natarajan dimension. -/
+theorem NatarajanShatters.card_le_natarajanDim {C : ConceptClass α β} {W : Finset α}
+    (hW : NatarajanShatters C ↑W) : (W.card : ℕ∞) ≤ natarajanDim C :=
+  le_iSup₂_of_le W hW le_rfl
+
+/-- Bounding the Natarajan dimension amounts to bounding every finite N-shattered set. -/
+theorem natarajanDim_le_iff {C : ConceptClass α β} {d : ℕ∞} :
+    natarajanDim C ≤ d ↔ ∀ W : Finset α, NatarajanShatters C ↑W → (W.card : ℕ∞) ≤ d :=
+  iSup₂_le_iff
+
+/-- A class has finite Natarajan dimension iff its finite N-shattered sets have bounded size. -/
 theorem hasFiniteNatarajanDim_iff {C : ConceptClass α β} :
     HasFiniteNatarajanDim C ↔
-      ∃ N : ℕ, ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ N :=
-  ⟨fun ⟨N, hN⟩ => ⟨N, fun W hW => hN ⟨W, rfl, hW⟩⟩,
-   fun ⟨N, hN⟩ => ⟨N, fun _ ⟨W, hWc, hW⟩ => hWc ▸ hN W hW⟩⟩
-
-/-- A finite set N-shattered by a class of finite Natarajan dimension has at most
-`natarajanDim C` points. -/
-theorem NatarajanShatters.card_le_natarajanDim {C : ConceptClass α β}
-    (hC : HasFiniteNatarajanDim C) {W : Finset α} (hW : NatarajanShatters C ↑W) :
-    W.card ≤ natarajanDim C :=
-  le_csSup hC ⟨W, rfl, hW⟩
+      ∃ n : ℕ, ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ n := by
+  constructor
+  · intro hC
+    obtain ⟨n, hn⟩ := ENat.ne_top_iff_exists.mp hC
+    exact ⟨n, fun W hW => Nat.cast_le.mp (hn ▸ hW.card_le_natarajanDim)⟩
+  · rintro ⟨n, hn⟩
+    exact ne_top_of_le_ne_top (ENat.natCast_ne_top n)
+      (natarajanDim_le_iff.mpr fun W hW => Nat.cast_le.mpr (hn W hW))
 
 /-- Every class on a finite domain has finite Natarajan dimension. -/
 theorem hasFiniteNatarajanDim_of_finite [Finite α] (C : ConceptClass α β) :
@@ -209,21 +214,16 @@ theorem hasFiniteNatarajanDim_of_finite [Finite α] (C : ConceptClass α β) :
   have := Fintype.ofFinite α
   hasFiniteNatarajanDim_iff.mpr ⟨Fintype.card α, fun W _ => W.card_le_univ⟩
 
-/-- An upper bound on the N-shattered finite sets bounds the Natarajan dimension. -/
-theorem natarajanDim_le {C : ConceptClass α β} {n : ℕ}
-    (h : ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ n) : natarajanDim C ≤ n :=
-  csSup_le' fun _ ⟨W, hWc, hW⟩ => hWc ▸ h W hW
-
-/-- A positive Natarajan dimension of a class of finite Natarajan dimension is attained: some
-finite set of exactly `natarajanDim C` points is N-shattered. -/
-theorem exists_natarajanShatters_card_eq {C : ConceptClass α β} (hC : HasFiniteNatarajanDim C)
-    (hpos : 0 < natarajanDim C) :
-    ∃ W : Finset α, W.card = natarajanDim C ∧ NatarajanShatters C ↑W := by
-  have hne : {n : ℕ | ∃ W : Finset α, W.card = n ∧ NatarajanShatters C ↑W}.Nonempty := by
-    by_contra h
-    rw [Set.not_nonempty_iff_eq_empty] at h
-    simp [natarajanDim, h] at hpos
-  exact Nat.sSup_mem hne hC
+/-- A positive finite Natarajan dimension is attained by an N-shattered set of that size. -/
+theorem exists_natarajanShatters_card_eq {C : ConceptClass α β} {d : ℕ}
+    (hd : natarajanDim C = d) (hpos : 0 < d) :
+    ∃ W : Finset α, W.card = d ∧ NatarajanShatters C ↑W := by
+  obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
+  have hlt : (n : ℕ∞) < natarajanDim C := by rw [hd]; exact_mod_cast Nat.lt_succ_self n
+  simp only [natarajanDim, lt_iSup_iff] at hlt
+  obtain ⟨W, hW, hlt⟩ := hlt
+  exact ⟨W, (Nat.cast_le.mp (hd ▸ hW.card_le_natarajanDim)).antisymm
+    (Nat.cast_lt.mp hlt), hW⟩
 
 /-! ### Natarajan's lemma -/
 
@@ -469,23 +469,26 @@ theorem natarajanSum_le (n d : ℕ) {k : ℕ} (hk : 0 < k) :
 /-- **Natarajan's lemma** in the form of [ShalevShwartzBenDavid2014, Lemma 29.4]: a class on a
 finite domain `α` with `k` labels has at most `|α| ^ Ndim(C) k ^ (2 Ndim(C))` members. -/
 theorem ncard_le_card_pow_natarajanDim [Fintype α] [Fintype β] (C : ConceptClass α β) :
-    C.ncard ≤ Fintype.card α ^ natarajanDim C * Fintype.card β ^ (2 * natarajanDim C) := by
+    let d := (natarajanDim C).untop (hasFiniteNatarajanDim_of_finite C)
+    C.ncard ≤ Fintype.card α ^ d * Fintype.card β ^ (2 * d) := by
   classical
+  intro d
+  have hdC : natarajanDim C = d := (WithTop.coe_untop _ _).symm
   set e := (Fintype.equivFin α).symm
-  have hC : ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ natarajanDim C :=
-    fun W hW => hW.card_le_natarajanDim (hasFiniteNatarajanDim_of_finite C)
+  have hC : ∀ W : Finset α, NatarajanShatters C ↑W → W.card ≤ d :=
+    fun _ hW => Nat.cast_le.mp (hdC ▸ hW.card_le_natarajanDim)
   have hcard : ((· ∘ e) '' C).ncard = C.ncard :=
     Set.ncard_image_of_injective C fun f g hfg => by
       funext a
       simpa using congr_fun hfg (e.symm a)
   have hbound := ncard_restriction_le_natarajanSum hC e
   rw [hcard] at hbound
-  rcases Nat.eq_zero_or_pos (natarajanDim C) with hd | hd
+  rcases Nat.eq_zero_or_pos d with hd | hd
   · rw [hd, natarajanSum_zero_right] at hbound
     rw [hd]
     simpa using hbound
   -- A shattered set of `d ≥ 1` points forces `|α| ≥ 1` and `k ≥ 2`.
-  obtain ⟨W, hWc, hW⟩ := exists_natarajanShatters_card_eq (hasFiniteNatarajanDim_of_finite C) hd
+  obtain ⟨W, hWc, hW⟩ := exists_natarajanShatters_card_eq hdC hd
   obtain ⟨a, ha⟩ : W.Nonempty := card_pos.1 (hWc ▸ hd)
   obtain ⟨f₀, f₁, hne, -⟩ := hW
   have hα : 1 ≤ Fintype.card α := Fintype.card_pos_iff.2 ⟨a⟩
@@ -493,7 +496,6 @@ theorem ncard_le_card_pow_natarajanDim [Fintype α] [Fintype β] (C : ConceptCla
   refine hbound.trans ?_
   set n := Fintype.card α
   set k := Fintype.card β
-  set d := natarajanDim C
   have h2K : 2 * k.choose 2 ≤ k ^ 2 := two_mul_choose_two_le k
   calc natarajanSum n k d ≤ ∑ i ∈ range (d + 1), n.choose i * k.choose 2 ^ d := by
         refine sum_le_sum fun i hi => Nat.mul_le_mul_left _ ?_

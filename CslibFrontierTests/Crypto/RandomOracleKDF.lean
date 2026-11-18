@@ -201,7 +201,7 @@ theorem negligible_roAdvantage_bitString_take {T : ℕ → Type}
     Negligible fun n =>
       roAdvantage (uniformOfFintype (BitString (n + n)))
         (Fin.take n (Nat.le_add_right n n)) (D n) := by
-  refine negligible_roAdvantage_of_negligible_guessAdvantage
+  refine negligible_roAdvantage_of_statisticalGuessHard
     (fun n => uniformOfFintype (BitString (n + n)))
     (fun n => Fin.take n (Nat.le_add_right n n)) hQ hD ?_
   exact fun A => negligible_of_le negligible_one_div_two_pow fun n => by

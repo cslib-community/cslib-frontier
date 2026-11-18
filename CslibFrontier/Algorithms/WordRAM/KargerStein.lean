@@ -117,7 +117,8 @@ private theorem hr24 : 16 ≤ 24 := by decide
 
 /-- Under `2 ≤ n` and `logWidth 4 n ≤ w`, stack workspace end-addresses up to `2 + 27 * (n * n)` fit
 in `w`-bit words. -/
-theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
+private theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n)
+    (hw : logWidth 4 n ≤ w) :
     Fits w (2 + 27 * (n * n)) := by
   by_cases hn5 : 5 ≤ n
   · refine (fits_of_lt_pow (k := 4) (n := n) ?_).mono hw
@@ -132,7 +133,7 @@ theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : 
 
 /-- Under `2 ≤ n` and `logWidth 4 n ≤ w`, `fastCutTrials n = (Nat.log 2 n + 15) * (Nat.log 2 n + 2)`
 fits in `w`-bit words. -/
-theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
+private theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     Fits w (fastCutTrials n) := by
   by_cases hn4 : 4 ≤ n
   · refine (fits_of_lt_pow (k := 4) (n := n) ?_).mono hw
@@ -155,7 +156,7 @@ theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : log
 
 /-- `logWidth 4 n ≤ w` and `Fits w (totalDoubledWeight W)` suffice for
 `InputFits w (n :: flattenMatrix W)`. -/
-theorem inputFits_fastCut {n w : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 ≤ n)
+private theorem inputFits_fastCut {n w : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 ≤ n)
     (hw : logWidth 4 n ≤ w) (htot : Fits w (totalDoubledWeight W)) :
     InputFits w (n :: flattenMatrix W) :=
   inputFits_cons_flattenMatrix (fits_fastCutWorkspace_of_logWidth_four hn hw) (by omega)
@@ -229,7 +230,7 @@ open KSReg
 def ksCopyRegMap : Fin 7 → Fin 24 :=
   ![uReg, wBase, rem, idx, addr1, val1, one]
 
-theorem ksCopyRegMap_injective : Function.Injective ksCopyRegMap := by
+private theorem ksCopyRegMap_injective : Function.Injective ksCopyRegMap := by
   decide
 
 /-- Copy `rem` words from `uReg` to `wBase` via `Cslib.WordRAM.ArrayCopy.program`. -/
@@ -246,7 +247,7 @@ theorem holdsMatrix_of_copyPrefix {mem : ℕ → ℕ} {sb db k : ℕ} {W : Fin k
   rw [haddr_d, ArrayCopy.copyPrefix_read hlt, haddr_s]
   exact hsrc i j
 
-theorem ksCopyCode_exec {w sb db k : ℕ} {W : Fin k → Fin k → ℕ} {x : Data 24}
+private theorem ksCopyCode_exec {w sb db k : ℕ} {W : Fin k → Fin k → ℕ} {x : Data 24}
     (hsb : x.regs uReg = sb) (hdb : x.regs wBase = db) (hlen : x.regs rem = k * k)
     (hdisj : sb + k * k ≤ db) (h1 : Fits w 1) (hdEnd : Fits w (db + k * k))
     (hsrc : HoldsMatrix x.mem sb k W) :
@@ -330,7 +331,7 @@ def thresholdCode : Code .standard 24 := ram[
   while val1 < rem do [ ⟪thresholdLoopBody⟫ ]
 ]
 
-theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
+private theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
     (hactiveK : x.regs activeK = k) (hfit : Fits w (2 * k * (k - 1))) :
     ∃ y : Data 24, ExecWithin w thresholdCode x y (6 * k + 9) ∧
       y.mem = x.mem ∧
@@ -529,7 +530,8 @@ def copySubmatrixCode : Code .standard 24 := ram[
   while uReg < targetT do [ ⟪copySubRowBody⟫ ]
 ]
 
-theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t → ℕ} {x : Data 24}
+private theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t → ℕ}
+    {x : Data 24}
     (hwBase : x.regs wBase = wb) (hstride : x.regs stride = str)
     (htargetT : x.regs targetT = t) (hdst : x.regs addr2 = dstBase) (hone : x.regs one = 1)
     (hstr : t ≤ str) (hdisj : wb + str * t ≤ dstBase)
@@ -1026,7 +1028,7 @@ def fastCutLoop : Code .standard 24 := ram[
   while zero < spReg do [ ⟪fastCutStep⟫ ]
 ]
 
-theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
+private theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
     (hfp : x.regs fpReg = fp) (hmem_k : x.mem (fp + 1) = k)
     (hmem_stg : x.mem (fp + 2 + k * k) = stg)
     (hfit : Fits w (fp + frameSize k)) :
@@ -1119,7 +1121,7 @@ theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
   rcases this with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
     exact hpres _ (by decide)
 
-theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
+private theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     (hk2 : 2 ≤ k) (h0 : x.regs zero = 0) (h1 : x.regs one = 1)
     (ha2 : x.regs addr2 = fp + 2 + k * k)
     (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1) (hr2 : x.regs retVal = r2)
@@ -1213,17 +1215,17 @@ theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
 
 /-- The graph held by a recursive frame at its explicit invariant size. This is a view of the
 existing native memory layout, with no additional graph representation. -/
-def frameGraph (fp k : ℕ) (x : Data 24) : Lean.Karger.Graph :=
+private def frameGraph (fp k : ℕ) (x : Data 24) : Lean.Karger.Graph :=
   ⟨k, fun i j => x.mem (fp + 2 + i.val * k + j.val)⟩
 
 /-- The frame observation equals a typed graph exactly when its existing matrix invariant holds. -/
-theorem frameGraph_eq_iff {fp k : ℕ} {x : Data 24} {W : Fin k → Fin k → ℕ} :
+private theorem frameGraph_eq_iff {fp k : ℕ} {x : Data 24} {W : Fin k → Fin k → ℕ} :
     frameGraph fp k x = ⟨k, W⟩ ↔ HoldsMatrix x.mem (fp + 2) k W := by
   simp only [frameGraph, Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and]
   exact ⟨fun h i j => congrFun (congrFun h i) j, fun h => funext₂ h⟩
 
 /-- The base-case output has exactly the existing contraction-trial answer law. -/
-theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (hk_reg : x.regs activeK = k) (hrem_reg : x.regs rem = k * k)
@@ -1520,7 +1522,7 @@ def ChildMinCutSurvives {n : ℕ} (W₀ : Fin n → Fin n → ℕ) (childFp t : 
     IsNonTrivialCut B₁ ∧
     cutWeight W₀ (pullbackCut part₁ B₁) = minCut W₀
 
-theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
+private theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
     (ht6 : 6 ≤ t) (htk : t ≤ k)
     (hwBase : x.regs wBase = fp + 4 + k * k)
     (hdBase : x.regs dBase = fp + 4 + 2 * (k * k))
@@ -1718,7 +1720,7 @@ theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
     exact hmat_sub i j
 
 /-- Branch setup observes exactly one canonical contraction reply in the child frame. -/
-theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (hk_reg : x.regs activeK = k)
@@ -2034,7 +2036,7 @@ theorem branchContractAndPush_spec {n w fp b k : ℕ} {W₀ : Fin n → Fin n �
     hpb ▸ hBmin⟩
 
 /-- Stage 0 observes one canonical contraction reply in the child frame. -/
-theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2140,7 +2142,7 @@ theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → �
   simpa only [m_out, Functor.map_map] using hlaw_c
 
 /-- Stage 1 observes one canonical contraction reply in the child frame. -/
-theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2297,7 +2299,7 @@ theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n →
     fun z hz => ⟨(hsup_out z hz).2, (hsup_out z hz).1⟩, ?_⟩
   simpa only [m_out, Functor.map_map] using hlaw_c
 
-theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
+private theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
     (hr2 : x.regs retVal = r2)
@@ -2334,7 +2336,7 @@ theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     LoopSegment.detSingle hc_loop hstep, hm_f.trans hm_h, h0_f, hfp_f, hsp_f, hret_f⟩
 
 /-- A leaf loop segment has the exact recursive answer law and its original pathwise budgets. -/
-theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2367,7 +2369,7 @@ theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n
     (Lean.Karger.fastCutLaw_leaf (by omega) _).symm).mono (fun _ h => h) (by omega) le_rfl
 
 /-- A nonrecursive node uses the same law, instruction bound and random-call bound as its leaf. -/
-theorem fastCutNode_base_law {n w d fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutNode_base_law {n w d fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2942,7 +2944,7 @@ private theorem fastCutTime_bound {n : ℕ} (hn : 2 ≤ n) :
   have hov : 7 * n ^ 2 + 25 ≤ 100 * n ^ 2 * (Nat.log 2 n + 2) := by nlinarith
   linarith
 
-theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
+private theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     ∃ y : Data 24, Exec w fastCutSetup (Data.init (n :: flattenMatrix W)) y 3 ∧
       y.mem = (Data.init (r := 24) (n :: flattenMatrix W)).mem ∧
@@ -3138,7 +3140,7 @@ structure KSAmpInv (sb n R i : ℕ) (W : Fin n → Fin n → ℕ) (mem₀ : ℕ 
   modifies_ws : Modifies (Finset.Ico (sb + n * n) (sb + 27 * (n * n))) mem₀ x.mem
   best_cut : 0 < i → ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ x.regs bestVal = cutWeight W C
 
-theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
+private theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
     (hone : x.regs one = 1) (hrem : x.regs rem = n) (hidx : x.regs idx = 0)
     (hnOrig : x.regs nOrig = n)
     (hn_fit : Fits w n) (hlg_fit : Fits w (Nat.log 2 n)) :
@@ -3152,7 +3154,7 @@ theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
   exact ⟨y, he, hm, (hframe one (by decide) (by decide)).trans hone,
     (hframe nOrig (by decide) (by decide)).trans hnOrig, hidx'⟩
 
-theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
+private theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     ∃ y : Data 24,
       ExecWithin w fastCutHighProbSetup (Data.init (n :: flattenMatrix W)) y
@@ -3237,7 +3239,7 @@ theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
       ((p4.within).seq ((p5.within).seq ((p6.within).seq
         ((p7.within).seq p8.within)))))))))))).mono (by omega)
 
-theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
+private theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
     (hti : x.regs trialIdx = i) (hiR : i < R)
     (h1 : Fits w 1) (hR_fit : Fits w R) :
     ∃ y : Data 24, ExecWithin w fastCutAmpPost x y 8 ∧
@@ -3286,7 +3288,8 @@ private theorem ksAmpTrial_step_bound {n t_tree n_p : ℕ} (hn : 2 ≤ n)
   linarith
 
 /-- One native amplification trial observes a fresh recursive answer and updates the minimum. -/
-theorem fastCutAmpBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem₀ : ℕ → ℕ} {x : Data 24}
+private theorem fastCutAmpBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem₀ : ℕ → ℕ}
+    {x : Data 24}
     (hn : 2 ≤ n) (hW : IsMultigraph W) (hiR : i < R)
     (h1 : Fits w 1) (hws_fit : Fits w (sb + 27 * (n * n)))
     (hsp_fit : Fits w (2 * Nat.log 2 n + 1))
