@@ -122,23 +122,27 @@ theorem computableInPolyTime_trueFeatures :
   exact finite_cases (tagEncoding := encOption encBool) hsym fun s =>
     (computableInPolyTime_cell i s).comp hz
 
+-- Separate the tracked-run phase from the traversal so each phase elaborates independently.
+private theorem computableInPolyTime_featuresAt (tm : MultiTapeTM k Bool State) :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List Bool) × ℕ) × ℕ =>
+        trueFeatures p.1.2 (trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2)))
+      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) (encList encFeature) := by
+  have hrun : ComputableInPolyTime
+      (fun p : ((List Bool × List Bool) × ℕ) × ℕ => trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2))
+      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
+    (computableInPolyTime_trackedRun tm).comp
+      ((bitsAppend (((fst _ _).fst').fst') (((fst _ _).fst').snd')).prod (snd _ _))
+  exact computableInPolyTime_trueFeatures.comp
+      (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
+
 /-- **The listed variables are polynomial-time** in the input prefix `u`, the certificate `w`
 and the unary bound `T`, for a fixed machine. -/
 theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
     ComputableInPolyTime (fun x : (List Bool × List Bool) × ℕ => trueVars tm x.1.1 x.1.2 x.2)
       (encPair (encPair encBits encBits) encUnary) (encList encVar) := by
   unfold trueVars
-  have hrun : ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × ℕ) × ℕ => trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2))
-      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encTrackedCfg :=
-    (computableInPolyTime_trackedRun tm).comp
-      ((bitsAppend (((fst _ _).fst').fst') (((fst _ _).fst').snd')).prod (snd _ _))
-  have hfeatures : ComputableInPolyTime
-      (fun p : ((List Bool × List Bool) × ℕ) × ℕ =>
-        trueFeatures p.1.2 (trackedRun tm (p.1.1.1 ++ p.1.1.2, p.2)))
-      (encPair (encPair (encPair encBits encBits) encUnary) encUnary) (encList encFeature) :=
-    computableInPolyTime_trueFeatures.comp
-      (((snd (encPair encBits encBits) encUnary).comp (fst _ encUnary)).prod hrun)
+  have hfeatures := computableInPolyTime_featuresAt tm
   have hholds : ComputableInPolyTime
       (fun p : (((List Bool × List Bool) × ℕ) × ℕ) × Feature k State => Var.holds p.1.2 p.2)
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encFeature)

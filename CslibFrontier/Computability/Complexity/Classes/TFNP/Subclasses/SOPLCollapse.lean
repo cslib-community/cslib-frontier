@@ -914,7 +914,7 @@ theorem computableInPolyTime_plsPpadsSucc
         (ComputableInPolyTime.binary_lt' hα hK)).ite hjump hrest)) hrest
   change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
   simpa only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
-    decide_eq_true_eq] using hresult
+    decide_eq_true_eq, List.append_assoc] using hresult
 
 theorem computableInPolyTime_plsPpadsPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)

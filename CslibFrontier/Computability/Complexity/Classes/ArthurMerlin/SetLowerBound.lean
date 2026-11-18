@@ -176,7 +176,8 @@ theorem computableInPolyTime_verifier {N c m T : Polynomial ℕ} {ℓ : α → �
   have hpadding := ComputableInPolyTime.bitsTakeWithInput
     (ComputableInPolyTime.bitsDropWithInput he hfiveN) (hℓ.comp ha)
   have hzero := ComputableInPolyTime.bool_not.comp
-    (ComputableInPolyTime.anyWithInput hpadding (ComputableInPolyTime.snd _ encBool))
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b) hpadding
+      (ComputableInPolyTime.snd _ encBool))
   have hhash := BitString.LinearHash.computableInPolyTime_hashZero hm hM
     (ComputableInPolyTime.bitsTakeWithInput hword hP) he
   change ComputableInPolyTime (fun x => verifier enc N c m T ℓ R x) _ _

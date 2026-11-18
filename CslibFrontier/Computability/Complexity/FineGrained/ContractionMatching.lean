@@ -220,14 +220,35 @@ private theorem boolTableMatrix_ne_zero_iff_rowEntry {rows : List (List Bool)}
   rw [boolTableMatrix_eq_rowEntry, Matrix.of_apply]
   cases rowEntry rows i j <;> simp
 
+-- Certify the two constraint traversals separately, fixing unary variable indices throughout.
+private theorem permanentRow_polyTime :
+    ComputableInPolyTime
+      (fun p : List (List Bool) × ℕ => (⟨(),
+        ((List.range p.1.length).filter (rowEntry p.1 p.2)).map
+          fun j => p.2 * p.1.length + j⟩ : Constraint Unit ℕ))
+      (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
+  unfold rowEntry
+  fun_prop
+
+private theorem permanentColumn_polyTime :
+    ComputableInPolyTime
+      (fun p : List (List Bool) × ℕ => (⟨(),
+        ((List.range p.1.length).filter fun i => rowEntry p.1 i p.2).map
+          fun i => i * p.1.length + p.2⟩ : Constraint Unit ℕ))
+      (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
+  unfold rowEntry
+  fun_prop
+
 /-- Building the permanent instance of the matrix with rows `rows` is polynomial-time. -/
 theorem computableInPolyTime_permanentInstance :
     ComputableInPolyTime (fun rows : List (List Bool) =>
         CSP.permanentInstance rows.length (rowEntry rows))
       (encList encBits) (encCSP encUnit encNat) := by
   refine (Complexity.CSP.computableInPolyTime_unary_to_binary encUnit).comp ?_
-  unfold rowEntry
-  fun_prop
+  have hindices := range.comp (length_list encBits)
+  exact listAppend'
+    (mapWithInput (encA := encUnary) hindices permanentRow_polyTime)
+    (mapWithInput (encA := encUnary) hindices permanentColumn_polyTime)
 
 open Finset in
 /-- Under the degree promise, every constraint of the permanent instance has at most `d`

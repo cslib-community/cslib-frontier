@@ -109,12 +109,10 @@ theorem keyOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k wires v : γ �
     (hcoins : ComputableInPolyTime coins encIn encBits) (hv : ComputableInPolyTime v encIn encUnary)
     (hc : ComputableInPolyTime c encIn encBool) :
     ComputableInPolyTime (fun a => keyOf (k a) (wires a) (coins a) (v a) (c a)) encIn encBits := by
-  have hwidth : ComputableInPolyTime (fun a => k a + 1) encIn encUnary := by fun_prop
-  have hrow : ComputableInPolyTime
-      (fun a => if c a then 2 * v a + 1 else 2 * v a) encIn encUnary := by fun_prop
-  have hoffset : ComputableInPolyTime
-      (fun a => (if c a then 2 * v a + 1 else 2 * v a) * (k a + 1))
-      encIn encUnary := by fun_prop
+  have hwidth := ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 1)
+  have htwice := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hv
+  have hrow := hc.ite (ComputableInPolyTime.unary_add' htwice (.const 1)) htwice
+  have hoffset := ComputableInPolyTime.unary_mul' hrow hwidth
   exact (ComputableInPolyTime.bitsAppend
     ((hcoins.bitsDropWithInput hwires).bitsDropWithInput hoffset)
     ((ComputableInPolyTime.bitsReplicate false).comp hwidth)).bitsTakeWithInput hwidth

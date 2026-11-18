@@ -149,6 +149,28 @@ private theorem iterate_clock (taps : List Bool) (k : ℕ) (acc state : List Boo
     rw [Function.iterate_succ_apply, clock, ih, output_succ, Function.iterate_succ_apply]
     simp only [List.append_assoc, List.cons_append, List.nil_append]
 
+private theorem computableInPolyTime_clock :
+    ComputableInPolyTime
+      (fun p : List Bool × (List Bool × List Bool) => clock p.1 p.2)
+      (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
+  have hfeedback : ComputableInPolyTime
+      (fun p : List Bool × (List Bool × List Bool) => listDot p.1 p.2.2)
+      (encPair encBits (encPair encBits encBits)) encBool :=
+    ComputableInPolyTime.bitsListDot
+      (ComputableInPolyTime.fst encBits (encPair encBits encBits))
+      (ComputableInPolyTime.snd encBits (encPair encBits encBits)).snd'
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encBits (encPair encBits encBits))
+  have hstate := hp.snd'.snd'
+  have houtput := ComputableInPolyTime.bitsAppend hp.snd'.fst'
+    (ComputableInPolyTime.bitsCons
+      ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstate)
+      (.const []))
+  have hnext := ComputableInPolyTime.bitsTail.comp
+    (ComputableInPolyTime.bitsAppend hstate
+      (ComputableInPolyTime.bitsCons hfeedback (.const [])))
+  exact houtput.prod hnext
+
 /-- The LFSR family is computable in polynomial time when its tap masks and its output length
 are. With `length_wordGenerator` this gives every condition of
 `Cslib.Crypto.PseudorandomGenerator` except security, for every stretching `ℓ`. -/
@@ -157,26 +179,6 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
     (htaps : ComputableInPolyTime taps encUnary encBits)
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
     ComputableInPolyTime (wordGenerator taps ℓ) encBits encBits := by
-  have hstep : ComputableInPolyTime
-      (fun p : List Bool × (List Bool × List Bool) => clock p.1 p.2)
-      (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
-    have hfeedback : ComputableInPolyTime
-        (fun p : List Bool × (List Bool × List Bool) => listDot p.1 p.2.2)
-        (encPair encBits (encPair encBits encBits)) encBool :=
-      ComputableInPolyTime.bitsListDot
-        (ComputableInPolyTime.fst encBits (encPair encBits encBits))
-        (ComputableInPolyTime.snd encBits (encPair encBits encBits)).snd'
-    have hp := ComputableInPolyTime.id'
-      (encIn := encPair encBits (encPair encBits encBits))
-    have hstate := hp.snd'.snd'
-    have houtput := ComputableInPolyTime.bitsAppend hp.snd'.fst'
-      (ComputableInPolyTime.bitsCons
-        ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstate)
-        (.const []))
-    have hnext := ComputableInPolyTime.bitsTail.comp
-      (ComputableInPolyTime.bitsAppend hstate
-        (ComputableInPolyTime.bitsCons hfeedback (.const [])))
-    exact houtput.prod hnext
   have hloop : ComputableInPolyTime
       (fun seed : List Bool => (clock (taps seed.length))^[ℓ seed.length] ([], seed))
       encBits (encPair encBits encBits) :=
@@ -184,7 +186,7 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
       (count := fun seed => ℓ seed.length) (init := fun seed => ([], seed)) (step := clock)
       (htaps.comp ComputableInPolyTime.length_bits)
       (hℓ.comp ComputableInPolyTime.length_bits)
-      ((ComputableInPolyTime.const []).prod ComputableInPolyTime.id') hstep
+      ((ComputableInPolyTime.const []).prod ComputableInPolyTime.id') computableInPolyTime_clock
       (growth := fun _ => 2) (.const 2) (fun seed state => by
         simp only [clock, step, encPair_apply, encBits_apply, List.length_append, length_frame,
           List.length_cons, List.length_nil, zero_add, List.length_tail, add_tsub_cancel_right]

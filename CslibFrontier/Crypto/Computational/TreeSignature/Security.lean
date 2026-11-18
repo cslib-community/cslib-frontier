@@ -616,6 +616,16 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     (cap := fun (((keys, _, _), _) : CertStepIn) => keys.length)
     (path := fun ((_, _, leaf), ((node, _, _), _)) => node ++ [leaf.getD node.length false])
     (visited := fun (_, (_, (visited, _))) => visited) (by fun_prop) hpath (by fun_prop)
+  have hbitNat : ComputableInPolyTime
+      (fun q : CertVisitIn => (q.1.1.2.2.getD q.1.2.1.1.length false).toNat)
+      encMid encUnary :=
+    (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+      (hbit.comp (ComputableInPolyTime.fst encIn (encPair encUnary encNodeCache)))
+  have hkeys : ComputableInPolyTime (fun q : CertVisitIn => q.1.1.1)
+      encMid encKeys := by fun_prop
+  have hchild : ComputableInPolyTime (fun q : CertVisitIn => q.2.1)
+      encMid encUnary := by fun_prop
+  have hmsg := (ComputableInPolyTime.listGetDWithInput hkeys hchild ([], [])).fst'
   have hsign := isOraclePPTOn_signEdgeM S (enc := encMid)
     (keys := fun ((((keys, _, _), _), _) : CertVisitIn) => keys)
     (target := fun (((_, (target, _), _), _), _) => target)
@@ -625,8 +635,8 @@ private theorem isOraclePPTOn_certifyStepPlanted (S : IndexedSignatureScheme) :
     (u := fun (((_, _, leaf), ((node, _, _), _)), _) => (leaf.getD node.length false).toNat)
     (msg := fun (((keys, _, _), _), (childIdx, _)) => (keys.getD childIdx ([], [])).1)
     (edges := fun ((_, (_, (_, edges))), _) => edges)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    hkeys (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop) hbitNat hmsg (by fun_prop)
   have hpost : ComputableInPolyTime
       (fun (((((keys, _, leaf), ((node, _, certs), _)), (childIdx, visited)), (σ, edges)) :
           CertSignIn) =>
@@ -1185,14 +1195,20 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
           else
             ((t.2.1.1.getD t.2.2 false).toNat, t.1.2.1.1, t.2.1.2.2))
         encMid (encPair encUnary (encPair encBits encBits)) := by
+      let T := (ForgerCaller × ((List Bool × List Bool) × PlantedState)) ×
+        (List Bool × List (List Bool × List Bool) × List Bool) × ℕ
+      have hindex : ComputableInPolyTime (fun t : T => t.2.2) encMid encUnary := by fun_prop
+      have hpath : ComputableInPolyTime (fun t : T => t.2.1.1) encMid encBits := by fun_prop
+      have hkeys : ComputableInPolyTime (fun t : T => t.2.1.2.1) encMid encKeys := by fun_prop
+      have hbit := (by fun_prop : ComputableInPolyTime Bool.toNat encBool encUnary).comp
+        (hpath.bitsGetDWithInput hindex false)
+      have hentry := ComputableInPolyTime.listGetDWithInput hkeys hindex ([], [])
       apply ComputableInPolyTime.ite_decide
       · fun_prop
-      · apply ComputableInPolyTime.prod
-        · fun_prop
-        · apply ComputableInPolyTime.prod <;> fun_prop
-      · apply ComputableInPolyTime.prod
-        · fun_prop
-        · apply ComputableInPolyTime.prod <;> fun_prop
+      · exact hbit.prod hentry
+      · exact hbit.prod ((by fun_prop :
+          ComputableInPolyTime (fun t : T => t.1.2.1.1) encMid encBits).prod
+          (by fun_prop : ComputableInPolyTime (fun t : T => t.2.1.2.2) encMid encBits))
     exact Eq.mp
       (congrArg (ComputableInPolyTime · encEx (encPair encUnary (encPair encBits encBits)))
         (funext fun pair => by dsimp only [Function.comp_apply, extractForgery]))
