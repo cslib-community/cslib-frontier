@@ -58,28 +58,42 @@ namespace Cslib.Polygonal.Route
 /-- Reversal swaps endpoints with the opposite original end tag. -/
 @[simp] theorem endpoint_reverse (p : Route) (b : Bool) :
     p.reverse.endpoint b = p.endpoint (!b) := by
-  cases b <;> simp [endpoint, reverse, start, finish, segments]
+  cases b
+  · change p.point (0 : Fin (p.bends + 1 + 1)).rev = p.point (Fin.last (p.bends + 1))
+    rw [Fin.rev_zero]
+  · change p.point (Fin.last (p.bends + 1)).rev = p.point 0
+    rw [Fin.rev_last]
 
 /-- Outgoing germs swap their tags. Both definitions already point into the route,
 so no extra negation is introduced, even at the two ends of a closed route. -/
 @[simp] theorem germ_reverse (p : Route) (b : Bool) :
     p.reverse.germ b = p.germ (!b) := by
-  cases b <;>
-    simp [germ, reverse, start, finish, segments, Fin.rev_succ, Fin.rev_castSucc]
+  cases b
+  · change p.point (0 : Fin (p.bends + 1)).succ.rev -
+      p.point (0 : Fin (p.bends + 1 + 1)).rev =
+        p.point (Fin.last p.bends).castSucc - p.point (Fin.last (p.bends + 1))
+    rw [Fin.rev_succ, Fin.rev_zero, Fin.rev_zero]
+  · change p.point (Fin.last p.bends).castSucc.rev -
+      p.point (Fin.last (p.bends + 1)).rev = p.point (0 : Fin (p.bends + 1)).succ - p.point 0
+    rw [Fin.rev_castSucc, Fin.rev_last, Fin.rev_last]
 
 /-- Every actual reversed segment is the original segment with complementary real time.
 The equation holds for all real parameters, including outside the unit interval. -/
 theorem eval_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
     p.reverse.eval i t = p.eval i.rev (1 - t) := by
-  simp only [eval, reverse, Fin.rev_castSucc, Fin.rev_succ,
-    AffineMap.lineMap_apply_one_sub]
+  change Fin (p.bends + 1) at i
+  change AffineMap.lineMap (p.point i.castSucc.rev) (p.point i.succ.rev) t =
+    AffineMap.lineMap (p.point i.rev.castSucc) (p.point i.rev.succ) (1 - t)
+  rw [Fin.rev_castSucc, Fin.rev_succ, AffineMap.lineMap_apply_one_sub]
 
 /-- Global chain positions sum to the number of segments under the actual parameter map. -/
 theorem position_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
     p.reverse.position i t = (p.segments : ℝ) - p.position i.rev (1 - t) := by
+  change Fin (p.bends + 1) at i
+  change (i.val : ℝ) + t = ((p.bends + 1 : ℕ) : ℝ) - ((i.rev.val : ℝ) + (1 - t))
+  simp only [Nat.cast_add, Nat.cast_one]
   have h : (i.val : ℝ) + (i.rev.val : ℝ) = (p.bends : ℝ) := by
     exact_mod_cast Fin.add_rev_cast i
-  simp only [position, reverse, segments, Nat.cast_add, Nat.cast_one]
   linarith
 
 private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) (b : Bool) :
@@ -101,7 +115,10 @@ private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ)
     obtain ⟨i, t, ht, heq⟩ := (p.mem_support_iff z).mp hz
     refine (p.reverse.mem_support_iff z).mpr
       ⟨i.rev, 1 - t, Set.Icc.one_sub_mem ht, ?_⟩
-    simpa only [eval_reverse, Fin.rev_rev, sub_sub_cancel] using heq
+    have hi : (i.rev : Fin p.reverse.segments).rev = i := Fin.rev_rev i
+    have ht' : 1 - (1 - t) = t := sub_sub_cancel 1 t
+    exact (eval_reverse p i.rev (1 - t)).trans
+      ((congrArg₂ (fun (k : Fin p.segments) (u : ℝ) => p.eval k u) hi ht').trans heq)
 
 /-- Reversal preserves simplicity without excluding the permitted identification of the
 two ends of a closed route. Both closing alternatives are swapped by the end-tag map. -/

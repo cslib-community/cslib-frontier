@@ -8,7 +8,7 @@ module
 -- upstream: local-only (ordinary clients of indexed polygonal reversal)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
-import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour
+public import CslibFrontier.Foundations.Geometry.Polygonal.SlopeDetour
 import Mathlib.Tactic.NormNum
 
 /-!
@@ -31,24 +31,29 @@ private def bent : Route := (line (0 : ℂ) 1).append ⟨1, 2⟩
 -- Reversal retains all three listed nodes, in their opposite order.
 example : bent.reverse.point 0 = (⟨1, 2⟩ : ℂ) ∧
     bent.reverse.point 1 = 1 ∧ bent.reverse.point 2 = 0 := by
-  norm_num [bent, reverse, line, append, Fin.rev]
+  change (⟨1, 2⟩ : ℂ) = ⟨1, 2⟩ ∧ (1 : ℂ) = 1 ∧ (0 : ℂ) = 0
+  exact ⟨rfl, rfl, rfl⟩
 
 example : bent.reverse.reverse = bent := reverse_reverse bent
 
 -- The old first piece is the LAST source piece after reversal.
 example (t : ℝ) : bent.reverse.eval (1 : Fin 2) t = bent.eval 0 (1 - t) := by
-  simpa [Fin.rev] using eval_reverse bent (1 : Fin 2) t
+  have hi : (1 : Fin bent.reverse.segments).rev = (0 : Fin bent.segments) := rfl
+  exact (eval_reverse bent (1 : Fin bent.reverse.segments) t).trans
+    (congrArg (fun i => bent.eval i (1 - t)) hi)
 
 example : bent.reverse.eval (0 : Fin 2) (1 / 4) = (⟨1, 3 / 2⟩ : ℂ) := by
+  change bent.reverse.eval (0 : Fin bent.reverse.segments) _ = _
   rw [eval_reverse]
-  norm_num [bent, eval, line, append, Fin.rev,
-    AffineMap.lineMap_apply_module, Complex.real_smul]
+  change AffineMap.lineMap (1 : ℂ) ⟨1, 2⟩ _ = _
+  apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module, Complex.real_smul]
 
 -- Evaluation transport is not restricted to the closed unit interval.
 example : bent.reverse.eval (0 : Fin 2) 3 = (⟨1, -4⟩ : ℂ) := by
+  change bent.reverse.eval (0 : Fin bent.reverse.segments) _ = _
   rw [eval_reverse]
-  norm_num [bent, eval, line, append, Fin.rev,
-    AffineMap.lineMap_apply_module, Complex.real_smul]
+  change AffineMap.lineMap (1 : ℂ) ⟨1, 2⟩ _ = _
+  apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module, Complex.real_smul]
 
 example (z : ℂ) : z ∈ bent.reverse.support ↔ z ∈ bent.support := by
   rw [support_reverse]
@@ -61,7 +66,10 @@ example : triangle.start = triangle.finish ∧ triangle.germ false = 1 ∧
     triangle.reverse.germ false = (⟨0, 1⟩ : ℂ) ∧ triangle.reverse.germ true = 1 ∧
     triangle.germ false ≠ triangle.germ true := by
   simp only [germ_reverse, Bool.not_false, Bool.not_true]
-  norm_num [triangle, germ, start, finish, line, append, segments]
+  change (0 : ℂ) = 0 ∧ (1 : ℂ) - 0 = 1 ∧ (⟨0, 1⟩ : ℂ) - 0 = ⟨0, 1⟩ ∧
+    (⟨0, 1⟩ : ℂ) - 0 = ⟨0, 1⟩ ∧ (1 : ℂ) - 0 = 1 ∧
+    (1 : ℂ) - 0 ≠ (⟨0, 1⟩ : ℂ) - 0
+  norm_num [Complex.ext_iff]
 
 /-- Checked slope-detour separation supplies genuine simple two-piece routes; reversal
 uses only the public simplicity transport, with no geometric provider assumption. -/
@@ -91,10 +99,11 @@ example : ¬retraced.reverse.IsSimple := by
   intro h
   have hp : retraced.IsSimple := by simpa only [reverse_reverse] using h.reverse
   have heq : retraced.eval (0 : Fin 2) (1 / 2) = retraced.eval (1 : Fin 2) (1 / 2) := by
-    norm_num [retraced, eval, line, append, AffineMap.lineMap_apply_module, Complex.real_smul]
+    change AffineMap.lineMap (0 : ℂ) 1 (1 / 2) = AffineMap.lineMap 1 0 (1 / 2)
+    norm_num [AffineMap.lineMap_apply_module, Complex.real_smul]
   have hc := hp (0 : Fin 2) (1 : Fin 2) (1 / 2) (1 / 2)
     (by constructor <;> norm_num) (by constructor <;> norm_num) heq
   rcases hc with hc | ⟨hc, _⟩ | ⟨hc, _⟩ <;>
-    norm_num [position, AtEnd, retraced, segments] at hc
+    norm_num [position, AtEnd, retraced, segments, line, append] at hc
 
 end Cslib.Tests.PolygonalRouteReverse

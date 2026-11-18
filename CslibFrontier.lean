@@ -6761,6 +6761,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityEven
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityTransport
+public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
