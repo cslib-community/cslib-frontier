@@ -58,13 +58,16 @@ private abbrev State (C : QuantumSigningForger) := Device C × List Forgery
 private noncomputable def initial (C : QuantumSigningForger) : State C :=
   (⟨pureState (ket ((fun _ => false), ())), isDensityMatrix_pureState (norm_ket _), ()⟩, [])
 
+private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) :=
+  deviceHandler (m := Width C) (κ := Unit)
+    (H.queryTable C.addressBits C.responseBytes)
+    (fun p : Empty × List Bool => p.1.elim (C := StateT Unit PMF (Fin 0 → Bool)))
+
 private noncomputable def commands (C : QuantumSigningForger) (H : Xofs) (s : Level)
     (sk : List Byte) := OracleComp.sumHandler (m := StateT (State C) PMF)
     (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
     (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (fun cmd (st : State C) => (deviceHandler (m := Width C) (κ := Unit)
-      (H.queryTable C.addressBits C.responseBytes)
-      (fun p : Empty × List Bool => p.1.elim (C := StateT Unit PMF (Fin 0 → Bool))) cmd st.1).map
+    (fun cmd (st : State C) => (C.deviceCommand H cmd st.1).map
       fun (reply, device) => (reply, device, st.2))
     (fun (q : SigningQuery) (st : State C) => (H.signingOracle s sk q st.2).map
       fun (reply, log) => (reply, st.1, log))
