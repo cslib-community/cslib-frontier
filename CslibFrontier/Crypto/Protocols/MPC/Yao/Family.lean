@@ -66,7 +66,7 @@ garbler's coins.
 
 * **Oblivious transfer.** The transfers are the ideal `batchOTSpec`, one call for all of the
   evaluator's bits; Theorem 7 (p. 15) assumes an oblivious transfer protocol, run for each bit.
-  Composition with a protocol is not formalized here.
+  Composition with a protocol is not formalized here (#6045).
 * **Notion.** `ProtocolFamily.SemiHonestSecure` has uniform PPT environments that choose the inputs
   after seeing the public parameters, drawn from a setup law; Definition 1 (§2.1, p. 5) quantifies
   over all inputs against non-uniform distinguishers, with no setup.
@@ -677,17 +677,17 @@ theorem isPPT_garblerSim {encFn : Fn ↪ List Bool}
   refine Eq.trans ?_ ((encoding G encFn).view.encCoalition_singleton n c 0 _).symm
   rfl
 
-/-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045) against a corrupted
-garbler, towards Theorem 7 of [LindellPinkas2009] (ePrint 2004/175, §4.2, p. 15), not plain-model
-Theorem 7 or its Case 1 (p. 16), which compose with a concrete semi-honest 1-out-of-2
-oblivious-transfer protocol. For every setup law of the public parameters, when `G` is correct, its
-encoding is `projectiveEncode` and its coin count is computed in polynomial time, the PPT simulator
-family `garblerSim` makes the real and ideal games equal at every parameter `n ≥ 1`; no
-computational assumption is needed. Case 1 simulates the garbler's view of the oblivious-transfer
-protocol and then uses correctness; with the ideal `batchOTWorld` (`batchOTSpec`) the garbler's
-view of the transfer is empty, so only the correctness step remains. The other deviations are those
-of the module documentation: uniform environments that choose the inputs, a setup law, and the
-garbling scheme as a parameter, correct from `n = 1` on. -/
+/-- Semi-honest security of `Yao.family G` against a corrupted garbler in the ideal `batchOTWorld`
+oblivious-transfer hybrid model (#6045), with no computational assumption: a step towards Theorem 7
+of [LindellPinkas2009] (ePrint 2004/175, §4.2, p. 15), not plain-model Theorem 7 or its Case 1
+(p. 16), which compose with a concrete semi-honest 1-out-of-2 oblivious-transfer protocol. For
+every setup law of the public parameters, when `G` is correct, its encoding is `projectiveEncode`
+and its coin count is computed in polynomial time, the PPT simulator family `garblerSim` makes the
+real and ideal games equal at every parameter `n ≥ 1`. Case 1 simulates the garbler's view of the
+oblivious-transfer protocol and then uses correctness; with the ideal `batchOTWorld` (`batchOTSpec`)
+the garbler's view of the transfer is empty, so only the correctness step remains. The other
+deviations are those of the module documentation: uniform environments that choose the inputs, a
+setup law, and the garbling scheme as a parameter, correct from `n = 1` on. -/
 theorem hybridSemiHonestSecure_garbler {encFn : Fn ↪ List Bool}
     (hcoins : ComputableInPolyTime (fun (k, f) => G.coins k f) (encPair encUnary encFn) encUnary)
     (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) (setup : ℕ → PMF (Params G)) :
