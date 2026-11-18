@@ -80,7 +80,8 @@ This module formalizes Exercise 5.12 of
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Section 5.3, Example 5.1 (p. 182) and Exercise 5.12 (p. 211).
+  Version 0.6][BonehShoup2023], Section 5.3, Example 5.1 (p. 182) and Section 5.8, Exercise 5.12
+  (p. 211).
 -/
 
 public section

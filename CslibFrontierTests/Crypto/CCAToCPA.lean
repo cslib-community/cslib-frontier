@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.Encryption.CCAToCPA
-import CslibFrontier.Probability.PMF.Support
 
 /-!
 # Tests for `INDCCA → INDCPA`
@@ -44,10 +43,7 @@ example (E : SymmetricCipher) {n : ℕ} (hn : 1 ≤ n) (hlen : E.CiphertextLengt
     fun k hk msg hmsg ct hct => (hlen k hk msg hmsg ct hct).le
   rw [SymmetricCipher.eval_ccaGame_cpaToCCAAdversary E id _ false n hle,
     SymmetricCipher.eval_ccaGame_cpaToCCAAdversary E id _ true n hle]
-  refine E.advantage_cpaGame_detCPAAdversary id hn hle fun ke hke => ?_
-  obtain ⟨c₀, hc₀⟩ := (ProbComp.eval (E.encrypt n ke (List.replicate n false))).support_nonempty
-  refine ⟨c₀, ?_⟩
-  simpa [PMF.map_id] using (PMF.map_eq_pure_iff (f := id) (b := c₀)).mpr fun c hc =>
-    E.encrypt_eq_of_ciphertext_length_eq hke (hlen ke hke) List.length_replicate hc hc₀
+  refine E.advantage_cpaGame_detCPAAdversary id hn hle fun ke hke =>
+    E.exists_eval_encrypt_eq_pure_of_ciphertext_length_eq hlen hke List.length_replicate
 
 end CslibFrontierTests.Crypto.CCAToCPA

@@ -188,6 +188,8 @@ import CslibFrontier.Crypto.Computational.ElGamal.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -6976,3 +6978,48 @@ register_result "owf-iterate-not-one-way" where
     that is at least 2 for all large n. The draft's parametric Definition 10.1 is read \
     asymptotically; the draft's hint only asks for a counterexample, and the construction is \
     the library's own. Source check: independent review on PR #6278."
+
+register_result "deterministic-cipher-not-indcpa" where
+  title := "Deterministic and zero-expansion symmetric ciphers are not CPA-secure"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Example 5.1; Exercise 5.10(a)",
+      locator := "Section 5.3, p. 182; Section 5.8, p. 211" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.not_indcpa_of_deterministic,
+    Cslib.Crypto.SymmetricCipher.advantage_cpaGame_detCPAAdversary,
+    Cslib.Crypto.SymmetricCipher.not_indcpa_of_ciphertext_length_eq
+  ]
+  scope := "SymmetricCipher on n-bit plaintexts at security parameter n (Section 5.3, Attack \
+    Game 5.2 and Definition 5.2, against uniform strict oracle-PPT distinguishers, with the \
+    scheme's own keyGen and encrypt evaluated exactly and decryption completeness \
+    decrypt_encrypt). In not_indcpa_of_deterministic and advantage_cpaGame_detCPAAdversary \
+    (Example 5.1), encryption is assumed deterministic only on 0^n under supported keys from some \
+    n₀ onward, and the certified two-query distinguisher detCPAAdversary ctBound queries (1^n, \
+    0^n) and (0^n, 0^n) for n ≥ 1 with replies truncated to ctBound n bits (the identity on \
+    supported ciphertexts under CiphertextLengthLE), achieving CPA advantage 1 and refuting \
+    INDCPA. In not_indcpa_of_ciphertext_length_eq (Exercise 5.10(a)), zero ciphertext expansion \
+    (CiphertextLength n n on supported keys and n-bit messages) forces deterministic encryption by \
+    finiteness of {0,1}^n and therefore refutes INDCPA. Malformed query pairs in cpaGame are \
+    answered with []. Outside check: PR #6337, review 5951220815."
+
+register_result "indcpa-no-repeating-ciphertexts" where
+  title := "CPA-secure symmetric ciphers have negligible probability of repeating ciphertexts"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 5.12", locator := "Section 5.8, p. 211" }
+  ]
+  theorems := [
+    Cslib.Crypto.SymmetricCipher.INDCPA.negligible_repeatCiphertextGame,
+    Cslib.Crypto.SymmetricCipher.succProbability_repeatCiphertextGame_le_two_mul_advantage
+  ]
+  scope := "SymmetricCipher on n-bit plaintexts at security parameter n (equal-length messages of \
+    size |M| = 2^n ≥ 2 for n ≥ 1, with uniform message generation via fair-coin \
+    BitString.sampleList n). In repeatCiphertextGame, any adversary A with polymorphic encodable \
+    return type α queries E.ciEncryptionOracle n k on n-bit plaintexts (non-n-bit queries return \
+    [] without logging) and wins iff two logged ciphertexts are equal. The reduction \
+    repeatToCPAAdversary ctBound A is certified IsOraclePPT encBool from IsOraclePPT encOut A, \
+    truncates oracle replies to ctBound n bits (the identity on supported ciphertexts under \
+    CiphertextLengthLE), and proves RepeatAdv[A, E] ≤ 2 · CPAadv[B, E] for all n ≥ 1 and \
+    negligible winning probability under E.INDCPA. Outside check: PR #6337, review 5951220815."

@@ -859,6 +859,18 @@ theorem encrypt_eq_of_ciphertext_length_eq (E : SymmetricCipher) {n : ℕ} {ke :
     rw [← hvEq, hcv]
   rw [huniq c₁ hc₁, huniq c₂ hc₂]
 
+/-- Under zero ciphertext expansion (`E.CiphertextLength n n`), encryption of any `n`-bit plaintext
+`msg` under any supported key `ke` evaluates to a point mass `PMF.pure c₀` ([BonehShoup2023],
+Section 5.8, Exercise 5.10(a), printed p. 211). -/
+theorem exists_eval_encrypt_eq_pure_of_ciphertext_length_eq (E : SymmetricCipher) {n : ℕ}
+    (hctLen : E.CiphertextLength n n) {ke : List Bool}
+    (hke : ke ∈ (ProbComp.eval (E.keyGen n)).support) {msg : List Bool} (hmsg : msg.length = n) :
+    ∃ c₀, ProbComp.eval (E.encrypt n ke msg) = PMF.pure c₀ := by
+  obtain ⟨c₀, hc₀⟩ := (ProbComp.eval (E.encrypt n ke msg)).support_nonempty
+  refine ⟨c₀, ?_⟩
+  simpa [PMF.map_id] using (PMF.map_eq_pure_iff (f := id) (b := c₀)).mpr fun c hc =>
+    E.encrypt_eq_of_ciphertext_length_eq hke (hctLen ke hke) hmsg hc hc₀
+
 /-- Two-query CPA distinguisher ([BonehShoup2023], Section 5.3, Example 5.1, printed p. 182):
 queries `(0^n, 1^n)` followed by `(0^n, 0^n)`, truncates each reply to `ctBound n` bits, and
 outputs `true` iff the two truncated replies coincide (`c₁ == c₂`). -/
@@ -950,18 +962,16 @@ theorem not_indcpa_of_deterministic (E : SymmetricCipher) (n₀ : ℕ)
       advantage_cpaGame_detCPAAdversary E ctBound (by lia) (hctLen _) (hdet _ (by lia))
   exact not_negligible_const one_ne_zero hcongr
 
-/-- **No zero-expansion symmetric cipher is CPA-secure** ([BonehShoup2023], Example 5.1 and
-Exercise 5.10(a), printed pp. 182, 211): if for every security parameter `n`, every supported key
-`ke`, and every `n`-bit message `msg`, every supported ciphertext of `msg` has length `n`, then `E`
-cannot satisfy `INDCPA`. -/
+/-- **No zero-expansion symmetric cipher is CPA-secure** ([BonehShoup2023], Section 5.8,
+Exercise 5.10(a), printed p. 211): if for every security parameter `n`, every supported key `ke`,
+and every `n`-bit message `msg`, every supported ciphertext of `msg` has length `n`, then `E`
+cannot satisfy `INDCPA` (proved via Example 5.1's deterministic-cipher attack
+`not_indcpa_of_deterministic`). -/
 theorem not_indcpa_of_ciphertext_length_eq (E : SymmetricCipher)
     (hctLen : ∀ n, E.CiphertextLength n n) :
-    ¬ E.INDCPA := by
-  refine E.not_indcpa_of_deterministic 0 fun n _ ke hke => ?_
-  obtain ⟨c₀, hc₀⟩ := (ProbComp.eval (E.encrypt n ke (List.replicate n false))).support_nonempty
-  refine ⟨c₀, ?_⟩
-  simpa [PMF.map_id] using (PMF.map_eq_pure_iff (f := id) (b := c₀)).mpr fun c hc =>
-    E.encrypt_eq_of_ciphertext_length_eq hke (hctLen n ke hke) List.length_replicate hc hc₀
+    ¬ E.INDCPA :=
+  E.not_indcpa_of_deterministic 0 fun n _ _ hke =>
+    E.exists_eval_encrypt_eq_pure_of_ciphertext_length_eq (hctLen n) hke List.length_replicate
 
 /-! ### Ciphertext Integrity and Authenticated Encryption (`ciGame`, `CiphertextIntegrity`,
 `AuthenticatedEncryption`) -/

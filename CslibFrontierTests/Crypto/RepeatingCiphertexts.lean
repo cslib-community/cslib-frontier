@@ -19,8 +19,8 @@ import CslibFrontier.Tactic.PolyTime
 # Tests for Deterministic Ciphers and Repeating Ciphertexts
 
 Exercises `CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts`
-([BonehShoup2023], Section 5.3, Example 5.1, p. 182; Exercise 5.12, p. 211) as an ordinary
-`module` client:
+([BonehShoup2023], Section 5.3, Example 5.1, p. 182; Section 5.8, Exercise 5.12, p. 211) as an
+ordinary `module` client:
 
 * **Expanding deterministic cipher (`expandingOtpCipher`):** encrypts `m` under `k` as
   `true :: (m ⊕ k)` of length `n + 1`, so `CiphertextLength n n` is false for every `n` (ruling
