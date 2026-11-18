@@ -1892,8 +1892,8 @@ private theorem validHistory_findCluster {w : ℕ} {d : ClusterInput} {s : Memor
     refine validHistory_bind_of_memSafe hms_t (validHistory_readFull hms_t) fun _ _ => ?_
     split_ifs <;> trivial
 
-private theorem validHistory_scanCluster {w : ℕ} {x : ClusterInput × (ℕ × (ℕ × ℕ))} {s : Memory.State}
-    (hms : ClusterMemSafe w x.1 s) :
+private theorem validHistory_scanCluster {w : ℕ} {x : ClusterInput × (ℕ × (ℕ × ℕ))}
+    {s : Memory.State} (hms : ClusterMemSafe w x.1 s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (scanClusterProg x)) := by
   unfold scanClusterProg
   simp only [pure_bind_prog]
