@@ -9864,4 +9864,9 @@ register_result "goldreich-countably-many-computable-functions" where
   theorems := [Turing.MultiTapeTM.countable_setOf_isComputable_and_mk_eq_continuum]
   scope := "Total functions from bit strings to bit strings. The functions computable by a \
     native deterministic multitape Turing machine form a countable set, while the set of all \
-    such functions has cardinality continuum. Outside check: PR #6080, review 5935290068."
+    such functions has cardinality continuum. Outside-fleet clearance: \
+    https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935499657. \
+    Approval: \
+    https://github.com/cslib-community/cslib-frontier/pull/6080#pullrequestreview-5935757026. \
+    The official draft locator was checked in \
+    https://github.com/cslib-community/cslib-frontier/pull/6473#pullrequestreview-5959473706."
