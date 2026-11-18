@@ -13,13 +13,15 @@ import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
-# FIPS 204 signing and the strong chosen-message forgery experiment
+# Definitions of FIPS 204 signing and the strong chosen-message forgery experiment
 
 [FIPS 204][NISTFIPS204], Algorithms 2, 6 and 7. The external signer accepts the encoded
 private key, a bit-string message, a byte context and 32 bytes of randomness. A zero randomness
 string selects deterministic signing. The bounded loop uses the 814-attempt option of Appendix C.
 The adaptive strong-unforgeability experiment draws fresh hedging randomness for each signature
-and records the context, message and exact bytes of every successful reply.
+and records the context, message and exact bytes of every successful reply. Its sole external
+service is signing. Both signing and final verification evaluate the concrete FIPS 202 SHAKE
+functions. Its zero-signing-query lemma recovers the byte-level key-only experiment.
 
 `verify_of_sign` proves that every successful signature under a generated key passes
 Algorithm 3. For a fresh verifying signature that repeats a logged context, message and
@@ -179,14 +181,24 @@ structure SigningQuery where
 abbrev SigningForger :=
   List Byte → ProbOracleComp (fun _ : SigningQuery => Option (List Byte)) Forgery
 
+/-- Keep each successful signature with the exact context and message presented to the signer. -/
+@[expose] def SigningQuery.logReply (q : SigningQuery) (sig : Option (List Byte))
+    (log : List Forgery) : List Forgery :=
+  match sig with
+  | none => log
+  | some bytes => ⟨q.context, q.message, bytes⟩ :: log
+
+/-- FIPS verifies the output triple and no signing call returned that triple. -/
+@[expose] def Xofs.winsForgery (H : Xofs) (s : Level) (pk : List Byte) (f : Forgery)
+    (log : List Forgery) : Bool :=
+  (H.verify s pk f.message f.context f.signature).getD false && !log.contains f
+
 /-- Sign with fresh hedging randomness and log the context and message of a successful reply. -/
 noncomputable def Xofs.signingOracle (H : Xofs) (s : Level) (sk : List Byte) (q : SigningQuery)
     (log : List Forgery) : PMF (Option (List Byte) × List Forgery) :=
   (PMF.uniformOfFintype (FixedBytes 32)).map fun rnd =>
     let sig := H.sign s sk q.message q.context rnd
-    (sig, match sig with
-      | none => log
-      | some bytes => ⟨q.context, q.message, bytes⟩ :: log)
+    (sig, q.logReply sig log)
 
 /-- Signing service with the FIPS 202 XOFs. -/
 noncomputable abbrev signingOracle := Xofs.signingOracle Xofs.shake
@@ -207,10 +219,10 @@ theorem verify_of_mem_signingTranscript {H : Xofs} {s : Level} {seed : FixedByte
   obtain ⟨rnd, _, hr⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
   cases sig : H.sign s keys.secretKey q.message q.context rnd with
   | none =>
-    simp only [sig, Prod.mk.injEq] at hr
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
     exact hr.2 ▸ ih
   | some bytes =>
-    simp only [sig, Prod.mk.injEq] at hr
+    simp only [sig, SigningQuery.logReply, Prod.mk.injEq] at hr
     rw [← hr.2]
     intro g hg'
     rcases List.mem_cons.mp hg' with rfl | htail
@@ -255,20 +267,19 @@ theorem digestCollision_or_msis_of_signingTranscript {s : Level} {seed : FixedBy
     (f := out) hA distinct digest valid signed
   exact ⟨rho, sk.A, sk.publicKey.t, a, b, c, hA, pk, ha, hb, hc, pk ▸ result⟩
 
-/-- The strong chosen-message forgery experiment for FIPS 204's finite parameter sets:
-generate both keys from one uniform seed, answer adaptive signing calls with the secret key,
-and accept a verifying triple precisely when the signer never returned it. -/
+/-- The classical strong chosen-message experiment with concrete SHAKE. Both keys come from one
+uniform seed. The signer answers adaptive requests with the secret key. An accepted forgery
+must be fresh among the returned context, message and signature triples. -/
 noncomputable def sufCmaGame (s : Level) (adv : SigningForger) : Game :=
   keyExperiment s fun keys =>
     (ProbOracleComp.runWith (signingOracle s keys.secretKey) (adv keys.publicKey) []).map
-      fun (f, log) =>
-        (verify s keys.publicKey f.message f.context f.signature).getD false && !log.contains f
+      fun (f, log) => Xofs.shake.winsForgery s keys.publicKey f log
 
 /-- Restricting the strong chosen-message experiment to a forger that makes no signing calls
 recovers the byte-verifier key-only experiment exactly, including key-generation failure. -/
 theorem sufCmaGame_sample_eq_keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) :
     sufCmaGame s (fun pk => ProbOracleComp.sample (adv pk)) = keyOnlyGame s adv := by
-  unfold sufCmaGame keyOnlyGame
+  unfold sufCmaGame keyOnlyGame Xofs.winsForgery
   congr 1
   funext keys
   rw [ProbOracleComp.runWith_sample, PMF.map_comp]

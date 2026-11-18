@@ -33,6 +33,8 @@ These global placement and injectivity arguments are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- The common closed coordinate bounds of a local collared template. -/
