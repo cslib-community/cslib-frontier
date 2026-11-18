@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
+import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
@@ -270,3 +271,55 @@ example (H : Xofs) (msg : List Bool) :
   simp only [Xofs.answerPublicReads, readSignRead, Cslib.ProbOracleComp.simulate_bind,
     Cslib.ProbOracleComp.simulate_pure, Cslib.ProbOracleComp.simulate_query]
   rfl
+
+namespace Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
+open Cslib.Quantum Cslib.Probability
+
+-- The output bit records whether the single signing request returned the public error.
+private def signingProbe (q : SigningQuery) : QuantumSigningForger where
+  addressBits := 2
+  responseBytes := 1
+  workQubits := 0
+  program _ := do
+    let answer ← ProbOracleComp.query (spec := OracleSpec.sum
+      (fun _ : DeviceRequest 12 Empty => List Bool) (fun _ : SigningQuery => Option (List Byte)))
+      (Sum.inr q)
+    return ⟨[], [answer.isNone], []⟩
+
+-- Every digest on the all-255 stream exhausts Algorithm 29, independently of the public pair.
+private theorem fatalDraw (other : ExtendableOutput) (pair : MLDSA.PublicKey Level.mlDSA44.params) :
+    publicDraw .mlDSA44 pair ⟨other, allOnesXof⟩ =
+      (PMF.uniformOfFintype (FixedBytes (digestBytes .mlDSA44))).bind fun d =>
+      (signingMaskLaw Level.mlDSA44.params (by decide)).bind fun y =>
+        PMF.pure (some ⟨highBitsVec Level.mlDSA44.params (moduleSISMap pair.A y), d, none,
+          fun _ => rfl, by simp⟩) := by rfl
+
+example (other : ExtendableOutput) (rho : FixedBytes 32)
+    (pair : MLDSA.PublicKey Level.mlDSA44.params) :
+    let q : SigningQuery := ⟨[], [true]⟩
+    (((signingProbe q).publicPairSigning .mlDSA44 ⟨other, allOnesXof⟩ rho pair).map fun result =>
+      (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
+        result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
+  intro q
+  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
+  rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
+    List.findSomeM?_cons]
+  simp only [fatalDraw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.bind_bind, PMF.pure_bind, PMF.bind_const, PMF.map_bind, PMF.pure_map,
+    SigningQuery.logReply, List.nil_append, List.map_cons, List.map_nil, Option.isNone_none]
+
+-- The context check precedes the first attempt and even the shared raw XOFs stay identical.
+example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.params) :
+    let q : SigningQuery := ⟨List.replicate 256 0, [true]⟩
+    (((signingProbe q).publicPairSigning s H rho pair).map fun result =>
+      (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
+      PMF.pure ([true], [], [], H) := by
+  intro q
+  simp only [publicPairSigning, runProgrammed, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
+    show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
+
+end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

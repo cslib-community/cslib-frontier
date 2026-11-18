@@ -25,7 +25,8 @@ from the full pair `(A,t)`. Here the forger receives the rounded FIPS public-key
 retains its quantum register across queries and classical signing requests. In the compared
 hybrid every attempt draws an independent ideal mask and digest. A norm or hint rejection
 leaves the raw table unchanged. A signature or Algorithm 29 exhaustion writes the new digest
-at the full commitment input. Each request has the 814-attempt cap from [NISTFIPS204], Appendix C.
+at the full commitment input. This implementation chooses the minimum limits permitted by
+[NISTFIPS204], Appendix C, Table 3, of 814 signing attempts and 221 challenge-expansion bytes.
 
 The exact comparison below starts after those replacements. Bounding the cost of refreshing
 actual seeded masks and digests in the device's prior quantum state is a separate game hop.
@@ -414,8 +415,8 @@ private theorem freshMaskSigning_eq_of_decoded (C : QuantumSigningForger) (s : L
   funext G
   exact freshMaskDraw_eq s sk _ key _ G h₁ h₂
 
-/-- At every successful FIPS key generation, the two complete executions have the same law,
-including residual device, successful responses, exhaustion writes and final shared XOFs.
+/-- For a generated FIPS key, both services induce the same joint law of the forgery, residual
+device, successful signing log, terminal writes and final shared XOFs.
 The pair on the public side is the matrix and full public vector of the generated key. -/
 theorem freshMaskSigning_eq_publicPair_of_keyGen (C : QuantumSigningForger) {s : Level} {H : Xofs}
     {seed : FixedBytes 32} {keys : KeyPair} (hg : H.keyGen s seed = some keys) :
