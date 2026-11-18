@@ -131,7 +131,8 @@ theorem uniformOfFintype_map_exchange_option (e : Equiv.Perm (α × β)) (read :
     (value : β → γ) (hnone : ∀ {a}, read a = none → ∀ b, read (e (a, b)).1 = none)
     (hsome : ∀ {a c}, read a = some c → ∀ b, read (e (a, b)).1 = some (value b)) :
     (uniformOfFintype (α × β)).map (fun (a, b) => ((e (a, b)).1, (read a).map fun _ => value b)) =
-    (uniformOfFintype (α × β)).map (fun (a, _) => (a, read a)) := by
+    (uniformOfFintype α).map (fun a => (a, read a)) := by
+  rw [← uniformOfFintype_prod_map_fst (α := α) (β := β), _root_.PMF.map_comp]
   conv_rhs => rw [← uniformOfFintype_map_equiv e, _root_.PMF.map_comp]
   congr 1
   funext ⟨a, b⟩

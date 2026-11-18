@@ -39,10 +39,10 @@ private def matrixStreamCheck : Bool := Id.run do
   let target : Poly := fun _ => 66051
   let (stream, saved) := exchangeRejNTT 894 (matrixStream 894, target)
   let first := (List.ofFn stream).take 9
-  let short := (exchangeRejNTT 768 (matrixStream 768, target)).1
+  let (short, partialSaved) := exchangeRejNTT 768 (matrixStream 768, target)
   return first == [1, 224, 127, 3, 2, 129, 3, 2, 1] && saved 0 == 0 &&
     stream 771 == 99 && (rejNTTPoly (List.ofFn stream)).map (· 255) == some 66051 &&
-    (rejNTTPoly (List.ofFn short)).isNone
+    (rejNTTPoly (List.ofFn short)).isNone && partialSaved 254 == 0 && partialSaved 255 == 66051
 
 #guard matrixStreamCheck
 
