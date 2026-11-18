@@ -50,9 +50,14 @@ to `e - α • v`. This module formalizes parts (b) and (c) of Exercise 11.5:
    `2 / 2 ^ n` in each world for `elGamalKeyGenProb` and `elGamalEncryptProb`). Through
    `ddh_iff_encoded`, semantic security therefore implies `F.DDH`
    (`ddh_of_indcpaOn_elGamalGroupEncryptProb`), yielding the two-sided characterization
-   `indcpaOn_elGamalGroupEncryptProb_iff_ddh` over a `DecodablePrimeOrderGroupFamily`. Callers
-   obtain the contrapositive `¬ DDH → ¬ INDCPAOn` via `mt`, e.g.
-   `mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh hd).mp`.
+   `indcpaOn_elGamalGroupEncryptProb_iff_ddh` over a `DecodablePrimeOrderGroupFamily`. Here each
+   public group `F.Carrier (d n)` carries a constant effective-length function (§2.3.2, Definition
+   2.9 and Example 2.13(4), pp. 30–31; Attack Game 11.1 and Definition 11.3(2), pp. 436–438), so
+   `elGamalGroupValid` admits every encoded group-element pair—including `(encode 0,
+   encode (c • g))` when serialized wire lengths differ—rather than requiring equal serialized bit
+   lengths. The equivalence is asymptotic; the exact forward `2ε` bound of Exercise 11.5(a) remains
+   open. Callers obtain `¬ DDH → ¬ INDCPAOn` via `mt`
+   (`mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh hd).mp`).
 
 ## Main definitions
 
@@ -388,7 +393,12 @@ theorem advantage_ddhGame_le_gameOn
 `d : ℕ → F.Desc` and any admissibility predicate `valid` admitting all pairs of encoded group
 elements at `d n`, `INDCPAOn valid encBits (F.elGamalKeyGenProb d) (F.elGamalEncryptProb
 (fun _ m => m) d)` implies `F.DDH (fun n => PMF.pure (d n))` (without needing a decoder for
-`F.encDesc` or `DecodablePrimeOrderGroupFamily`). Callers obtain `¬ DDH → ¬ INDCPAOn` via `mt`. -/
+`F.encDesc` or `DecodablePrimeOrderGroupFamily`). Admitting every encoded group-element pair—so
+the reduction's `(encode 0, encode (c • g))` is valid even when serialized wire lengths
+differ—models Attack Game 11.1 and Definition 11.3(2) (pp. 436–438) under a constant
+effective-length function on each public group `F.Carrier (d n)` (§2.3.2, Definition 2.9 and
+Example 2.13(4), pp. 30–31), as opposed to equality of serialized bit lengths. Callers obtain
+`¬ DDH → ¬ INDCPAOn` via `mt`. -/
 theorem ddh_of_indcpaOn_elGamalGroupEncryptProb {d : ℕ → F.Desc}
     {valid : ℕ → List Bool → List Bool → List Bool → Bool}
     (hd : ComputableInPolyTime d encUnary F.encDesc)
@@ -417,9 +427,14 @@ variable (F : DecodablePrimeOrderGroupFamily)
 to DDH** ([BonehShoup2023], Exercise 11.5(a)–(b), p. 459): for any `DecodablePrimeOrderGroupFamily`
 and polynomial-time group description family `d : ℕ → F.Desc`, `(F.elGamalKeyGenProb d,
 F.elGamalEncryptProb (fun _ m => m) d)` satisfies `INDCPAOn (F.elGamalGroupValid d) encBits` if and
-only if `F.toPrimeOrderGroupFamily.DDH (fun n => PMF.pure (d n))` holds. When DDH fails in `d`,
-multiplicative ElGamal is not semantically secure (`mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh
-hd).mp`). -/
+only if `F.toPrimeOrderGroupFamily.DDH (fun n => PMF.pure (d n))` holds. Here `elGamalGroupValid`
+accepts every pair of encoded elements of `F.Carrier (d n)`, modeling Attack Game 11.1 and
+Definition 11.3(2) (pp. 436–438) under a constant effective-length function on each public group
+(§2.3.2, Definition 2.9 and Example 2.13(4), pp. 30–31)—so `(encode 0, encode (c • g))` is
+admissible in the reverse reduction even when serialized wire lengths differ—rather than requiring
+equal serialized bit lengths. This equivalence is asymptotic; the exact concrete forward bound `2ε`
+of Exercise 11.5(a) remains open. When DDH fails in `d`, multiplicative ElGamal is not semantically
+secure (`mt (F.indcpaOn_elGamalGroupEncryptProb_iff_ddh hd).mp`). -/
 theorem indcpaOn_elGamalGroupEncryptProb_iff_ddh {d : ℕ → F.Desc}
     (hd : ComputableInPolyTime d encUnary F.encDesc) :
     INDCPAOn (F.elGamalGroupValid d) encBits (F.elGamalKeyGenProb d)

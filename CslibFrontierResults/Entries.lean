@@ -6377,11 +6377,14 @@ register_result "elgamal-ddh-ind-cpa" where
     (elGamalKeyGenProb, elGamalEncryptProb), which draw each exponent with sampleExp, within \
     statistical distance 1/2^n of uniform on Z_q. The notion is single-challenge IND-CPA \
     (INDCPAOn: Attack Game 11.1 and Definition 11.2, pp. 436–437) against uniform strict PPT \
-    two-stage adversaries reading 1^n. A challenge pair is admissible when both words encode \
-    elements of the group d n (elGamalGroupValid), in place of the equal-length rule and \
-    without requiring equal lengths; an inadmissible pair makes both experiments output false. \
-    Decryption correctness on the same programs is elGamalDecryptDet_elGamalEncryptProb. \
-    Asymptotic; the exercise's concrete bound 2ε is not stated."
+    two-stage adversaries reading 1^n. Equipping each public group F.Carrier (d n) with a \
+    constant effective-length function (Section 2.3.2, Definition 2.9 and Example 2.13(4), \
+    pp. 30–31; Definition 11.3(2), pp. 437–438), a challenge pair is admissible under Attack \
+    Game 11.1's equal-effective-length condition whenever both words encode elements of d n \
+    (elGamalGroupValid), as distinguished from equality of serialized bit lengths; an \
+    inadmissible pair makes both experiments output false. Decryption correctness on the same \
+    programs is elGamalDecryptDet_elGamalEncryptProb. Asymptotic; the exercise's exact concrete \
+    forward bound 2ε remains open."
 
 register_result "elgamal-ind-cpa-iff-ddh" where
   title := "Multiplicative ElGamal is semantically secure if and only if DDH holds"
@@ -6398,16 +6401,23 @@ register_result "elgamal-ind-cpa-iff-ddh" where
     public key u = α·g) at a deterministic polynomial-time group schedule d : ℕ → F.Desc, with \
     fair-coin strict PPT key generation and encryption (elGamalKeyGenProb, elGamalEncryptProb, \
     drawing exponents with sampleExp) and deterministic decryption correctness \
-    elGamalDecryptDet_elGamalEncryptProb. In ddh_of_indcpaOn_elGamalGroupEncryptProb (part (b), \
-    whose contrapositive mt gives ¬ DDH → ¬ INDCPAOn), single-challenge IND-CPA (INDCPAOn: \
-    Attack Game 11.1 and Definition 11.2, pp. 436–437) against uniform strict PPT two-stage \
-    adversaries for any admissibility predicate admitting all encoded group-element pairs at d n \
-    implies DDH (Attack Game 10.6 and Definition 10.8, pp. 410–411) on the point-mass setup \
-    PMF.pure (d n), via the certified strict-PPT reduction ddhWordToElGamalAdversary \
-    (isPPT_ddhWordToElGamalAdversary) and quantitative bound advantage_ddhGame_le_gameOn (+ 5/2^n \
-    from fair-coin sampleExp). Combining with DDH.indcpaOn_elGamalGroupEncryptProb (part (a)) \
-    yields indcpaOn_elGamalGroupEncryptProb_iff_ddh over any DecodablePrimeOrderGroupFamily with \
-    admissibility elGamalGroupValid."
+    elGamalDecryptDet_elGamalEncryptProb. Equipping each public group F.Carrier (d n) with a \
+    constant effective-length function (Section 2.3.2, Definition 2.9 and Example 2.13(4), \
+    pp. 30–31; Definition 11.3(2), pp. 437–438), Attack Game 11.1's equal-effective-length \
+    condition (pp. 436–437) admits every pair of encoded group elements at d n—distinguishing \
+    constant effective length on the group from equality of serialized wire lengths, so the \
+    reverse reduction's pair (encode 0, encode (c·g)) is admissible even when serialized wire \
+    lengths differ. In ddh_of_indcpaOn_elGamalGroupEncryptProb (part (b), whose contrapositive mt \
+    gives ¬ DDH → ¬ INDCPAOn), single-challenge IND-CPA (INDCPAOn) against uniform strict PPT \
+    two-stage adversaries for any admissibility predicate admitting all encoded group-element \
+    pairs at d n implies DDH (Attack Game 10.6 and Definition 10.8, pp. 410–411) on the \
+    point-mass setup PMF.pure (d n), via the certified strict-PPT reduction \
+    ddhWordToElGamalAdversary (isPPT_ddhWordToElGamalAdversary) and quantitative bound \
+    advantage_ddhGame_le_gameOn (+ 5/2^n from fair-coin sampleExp). Combining with \
+    DDH.indcpaOn_elGamalGroupEncryptProb (part (a)) yields \
+    indcpaOn_elGamalGroupEncryptProb_iff_ddh over any DecodablePrimeOrderGroupFamily with \
+    admissibility elGamalGroupValid. Asymptotic; the exact concrete forward bound 2ε of \
+    Exercise 11.5(a) remains open."
 
 register_result "elgamal-multiplicative-homomorphism" where
   title := "Multiplicative ElGamal ciphertexts combine homomorphically"
