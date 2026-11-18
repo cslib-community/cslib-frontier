@@ -54,8 +54,8 @@ private def expandMaskFrom (s : Level) (κ : ℕ) (read : ℕ → List Byte) :
 
 /-- The Algorithm 34 mask at counter `κ` from private bytes indexed by its two-byte nonce. -/
 def maskFromRow (s : Level) (row : FixedBytes 2 → FixedBytes (maskPolyBytes s)) (κ : ℕ) :
-    Fin s.params.ℓ → Poly :=
-  ringVectorCoeffs (expandMaskFrom s κ fun nonce => (row (nonceSuffix nonce)).toList)
+    Vector (Vector (ZMod 8380417) 256) s.params.ℓ :=
+  expandMaskFrom s κ fun nonce => (row (nonceSuffix nonce)).toList
 
 /-- ExpandMask (Algorithm 34). Each mask polynomial absorbs the same seed and its own
 two-byte little-endian counter, and decodes 256 coefficients in [1 − γ₁, γ₁]. -/
@@ -115,8 +115,10 @@ private def firstAccepted (stride : ℕ) (tryAt : ℕ → Option (Option (List B
 /-- Algorithm 7's 814-attempt loop with an explicit mask at each retry counter. The ambient XOF
 supplies the commitment digests and sparse challenges. -/
 def Xofs.signingRetries (H : Xofs) (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
-    (μ : List Bool) (mask : ℕ → Fin s.params.ℓ → Poly) : Option (List Byte) :=
-  firstAccepted s.params.ℓ (fun nonce => H.attemptWithMask s sk A μ (mask nonce)) 814 0
+    (μ : List Bool) (mask : ℕ → Vector (Vector (ZMod 8380417) 256) s.params.ℓ) :
+    Option (List Byte) :=
+  firstAccepted s.params.ℓ (fun nonce => H.attemptWithMask s sk A μ
+    (ringVectorCoeffs (mask nonce))) 814 0
 
 private structure SigningState (s : Level) where
   sk : PrivateKey s
@@ -148,7 +150,7 @@ After 814 rejected attempts it returns the single error of Appendix C. -/
 def Xofs.signInternal (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
     (rnd : FixedBytes 32) : Option (List Byte) := do
   let st ← H.startSigning s bytes formatted rnd
-  H.signingRetries s st.sk st.A st.μ fun κ => ringVectorCoeffs (H.expandMask s st.maskSeed κ)
+  H.signingRetries s st.sk st.A st.μ (H.expandMask s st.maskSeed)
 
 /-- FIPS 202 specialization of `Xofs.signInternal`. -/
 abbrev signInternal := Xofs.signInternal Xofs.shake

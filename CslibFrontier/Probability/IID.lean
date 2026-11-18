@@ -299,20 +299,4 @@ theorem iid_card_ge_le {q : PMF Bool} {ε : ℝ}
         rw [hb]
         nlinarith
 
-/-- Searching an IID tape gives the same first terminal answer as drawing on demand and stopping. -/
-theorem iid_map_findSome {α β ι : Type} (p : PMF α) (finish : α → Option β) (xs : List ι) :
-    (iid p xs.length).map (fun v => Fin.findSome? fun i => finish (v i)) =
-      xs.findSomeM? (fun _ => p.map finish) := by
-  induction xs with
-  | nil => simp [PMF.iid]
-  | cons x xs ih =>
-    simp only [List.length_cons, PMF.iid, PMF.monad_bind_eq_bind, PMF.map_bind,
-      List.findSomeM?_cons, PMF.bind_map, Function.comp_def, PMF.map_comp]
-    apply congrArg (PMF.bind p)
-    funext v
-    simp only [Fin.findSome?_succ, Fin.cons_zero, Fin.cons_succ]
-    cases h : finish v with
-    | none => simpa only [Option.none_or] using ih
-    | some a => exact PMF.map_const _ (some a)
-
 end Cslib.Probability.PMF

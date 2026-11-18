@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
-public import CslibFrontier.Probability.IID
+public import CslibFrontier.Probability.IID.FirstSome
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -335,7 +335,8 @@ theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b 
 
 private theorem iid_maskFromRow (s : Level) :
     (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).map
-        (fun row (i : Fin 814) => maskFromRow s row (signingAttemptCounter s.params 0 i)) =
+        (fun row (i : Fin 814) =>
+          ringVectorCoeffs (maskFromRow s row (signingAttemptCounter s.params 0 i))) =
       PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) 814 := by
   let tag : ScheduledRow s ↪ FixedBytes 2 := ⟨fun p => nonceSuffix (schedule s p), by
     intro p q h
@@ -421,8 +422,9 @@ theorem Xofs.privateMaskRetries_eq_iid (H : Xofs) (s : Level) (sk : PrivateKey s
     simp only [Function.comp_apply]
     cases finish y <;> rfl
   simp only [Xofs.signingRetries, native, stop]
-  exact cappedReplay _ (signingMaskLaw s.params (by cases s <;> decide)) (maskFromRow s)
-    finish s.params.ℓ 814 (iid_maskFromRow s)
+  exact cappedReplay _ (signingMaskLaw s.params (by cases s <;> decide))
+    (fun row nonce => ringVectorCoeffs (maskFromRow s row nonce)) finish s.params.ℓ 814
+    (iid_maskFromRow s)
 
 namespace QuantumSigningForger
 
