@@ -74,7 +74,7 @@ def configs : List (String × Options) :=
   [("default", {}), ("no-vsids", { vsids := false }), ("no-phase", { phaseSaving := false }),
     ("no-restarts", { restarts := false }), ("geometric", { luby := false, restartInc := 2 }),
     ("no-minimize", { ccminMode := .none }), ("ccmin-1", { ccminMode := .basic }),
-    ("no-reduce", { reduce := false }),
+    ("no-reduce", { reduce := false }), ("keep-input", { removeSatisfied := false }),
     ("none",
       { vsids := false, phaseSaving := false, restarts := false, ccminMode := .none
         reduce := false })]
@@ -95,7 +95,8 @@ def bench (name : String) (φ : CNF ℕ) : IO Unit := do
     unless ok do throw <| IO.userError s!"{name} {cname}: answer rejected"
     answers := isSat :: answers
     IO.println s!"{name},{cname},{if isSat then "SAT" else "UNSAT"},{s.conflicts},\
-      {s.decisions},{s.propagations},{s.restarts},{s.literals},{s.removed},{t₁ - t₀},{t₂ - t₁}"
+      {s.decisions},{s.propagations},{s.restarts},{s.literals},{s.removed},{s.simplified},\
+      {t₁ - t₀},{t₂ - t₁}"
     (← IO.getStdout).flush
   unless answers.all (· == answers.head!) do
     throw <| IO.userError s!"{name}: the configurations disagree"
@@ -106,7 +107,7 @@ open CdclBench in
 def main (args : List String) : IO Unit := do
   let quick := args.contains "quick"
   IO.println <| "instance,options,answer,conflicts,decisions,propagations,restarts,literals," ++
-    "removed,solve_ms,check_ms"
+    "removed,simplified,solve_ms,check_ms"
   -- PHP(7, 6) takes over an hour in the interpreter.
   for n in [4, 5] do
     bench s!"php-{n + 1}-{n}" (php n)

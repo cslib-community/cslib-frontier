@@ -49,10 +49,12 @@ with:
   (`Cslib.Algorithms.Lean.CDCL.Exec.decide`).
 * Restart (`Cslib.Algorithms.Lean.CDCL.Exec.restart`), back to the literals implied below every
   decision.
-* Forget (`Cslib.Algorithms.Lean.CDCL.Exec.forget`): deleting clauses other than those of the
-  input and the reasons of the trail from the database and the log
-  (`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`). The remaining clauses contain the input, so they
-  entail the clauses deleted.
+* Forget (`Cslib.Algorithms.Lean.CDCL.Exec.forget`): deleting clauses other than the reasons of
+  the trail from the database and the log, input clauses only if a literal of the root of the
+  trail, implied without any decision, satisfies them
+  (`Cslib.Algorithms.Lean.CDCL.Exec.forget_inv`). The reasons kept are in the database and entail
+  the root (`Cslib.Algorithms.Lean.CDCL.Reasons.eval_of_no_decision`), so the remaining clauses
+  entail the input clauses, and with them the clauses deleted.
 
 Every move other than Restart and Forget is a Basic DPLL step, or Backjump followed by Learn, of
 the abstract system, and so lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`); Forget keeps it.
@@ -511,6 +513,188 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                   exact ⟨z, hz, hcur' z hne hzc⟩)
                 hnd'
 
+/-- The root of a trail, in one tail-recursive pass from the newest entry: `acc` is the part below
+the oldest decision seen so far, or the whole trail if there is none. -/
+def XTrail.rootGo : XTrail → XTrail → XTrail
+  | acc, [] => acc
+  | acc, x :: M => XTrail.rootGo (if x.entry.decision then M else acc) M
+
+/-- **The root of a trail**: the part below its oldest decision, the literals implied without any
+decision. It is found in one tail-recursive pass over the trail. -/
+def XTrail.root (M : XTrail) : XTrail := XTrail.rootGo M M
+
+theorem XTrail.rootGo_eq : ∀ (M acc : XTrail),
+    XTrail.rootGo acc M = if M.any (·.entry.decision) then XTrail.root M else acc
+  | [], _ => rfl
+  | x :: M, acc => by
+    have h : XTrail.root (x :: M) =
+        XTrail.rootGo (if x.entry.decision then M else x :: M) M := rfl
+    rw [rootGo, h, XTrail.rootGo_eq M, XTrail.rootGo_eq M]
+    by_cases hM : M.any (·.entry.decision) <;> by_cases hx : x.entry.decision <;> simp [hM, hx]
+
+theorem XTrail.root_cons (x : XEntry) (M : XTrail) :
+    XTrail.root (x :: M) = if M.any (·.entry.decision) then XTrail.root M
+      else if x.entry.decision then M else x :: M := by
+  rw [root, rootGo, XTrail.rootGo_eq]
+
+theorem XTrail.root_no_decision : ∀ (M : XTrail), ∀ x ∈ XTrail.root M, x.entry.decision = false
+  | [] => by simp [XTrail.root, XTrail.rootGo]
+  | x :: M => by
+    rw [XTrail.root_cons]
+    split
+    · exact XTrail.root_no_decision M
+    · rename_i hM
+      have hM' : ∀ y ∈ M, y.entry.decision = false := fun y hy => by
+        simpa using List.any_eq_false.1 (by simpa using hM) y hy
+      split
+      · exact hM'
+      · rename_i hx
+        intro y hy
+        rcases List.mem_cons.1 hy with rfl | hy
+        · simpa using hx
+        · exact hM' y hy
+
+theorem XTrail.root_suffix : ∀ (M : XTrail), ∃ A, M = A ++ XTrail.root M
+  | [] => ⟨[], rfl⟩
+  | x :: M => by
+    rw [XTrail.root_cons]
+    split
+    · obtain ⟨A, hA⟩ := XTrail.root_suffix M
+      exact ⟨x :: A, by rw [List.cons_append, ← hA]⟩
+    · split
+      · exact ⟨[x], rfl⟩
+      · exact ⟨[], rfl⟩
+
+/-- The root is the whole trail, or the part below a decision. -/
+theorem XTrail.root_split : ∀ (M : XTrail), XTrail.root M = M ∨
+    ∃ N d, XTrail.trail M = N ++ ⟨d, true⟩ :: XTrail.trail (XTrail.root M)
+  | [] => .inl rfl
+  | x :: M => by
+    rw [XTrail.root_cons]
+    split
+    · rename_i hM
+      rcases XTrail.root_split M with h | ⟨N, d, hN⟩
+      · exfalso
+        obtain ⟨y, hy, hyd⟩ := List.any_eq_true.1 hM
+        have := XTrail.root_no_decision M y (by rw [h]; exact hy)
+        simp_all
+      · exact .inr ⟨x.entry :: N, d, by rw [XTrail.trail_cons, hN]; rfl⟩
+    · split
+      · rename_i hx
+        cases x with
+        | decision l => exact .inr ⟨[], l, rfl⟩
+        | implied l r => simp [XEntry.entry] at hx
+      · exact .inl rfl
+
+theorem XTrail.root_of_no_decision :
+    ∀ M : XTrail, (∀ x ∈ M, x.entry.decision = false) → XTrail.root M = M
+  | [], _ => rfl
+  | x :: M, h => by
+    have hM : M.any (·.entry.decision) = false :=
+      List.any_eq_false.2 fun y hy => by simp [h y (List.mem_cons_of_mem _ hy)]
+    rw [XTrail.root_cons]
+    simp [hM, h x List.mem_cons_self]
+
+theorem XTrail.root_root (M : XTrail) : XTrail.root (XTrail.root M) = XTrail.root M :=
+  XTrail.root_of_no_decision _ (XTrail.root_no_decision M)
+
+/-- Below a decision, the root is that of the trail below it. -/
+theorem XTrail.root_append_decision (d : Literal ℕ) (K : XTrail) :
+    ∀ J : XTrail, XTrail.root (J ++ .decision d :: K) = XTrail.root K
+  | [] => by
+    rw [List.nil_append, XTrail.root_cons]
+    split
+    · rfl
+    · rename_i hK
+      simp only [XEntry.entry, ite_true]
+      exact (XTrail.root_of_no_decision K fun y hy => by
+        simpa using List.any_eq_false.1 (by simpa using hK) y hy).symm
+  | x :: J => by
+    rw [List.cons_append, XTrail.root_cons, ite_eq_left_iff.2 fun h => absurd (by simp) h]
+    exact XTrail.root_append_decision d K J
+
+/-- The root only grows when an entry is added. -/
+theorem XTrail.lits_root_cons {x : XEntry} {M : XTrail} {l : Literal ℕ}
+    (h : l ∈ Trail.lits (XTrail.trail (XTrail.root M))) :
+    l ∈ Trail.lits (XTrail.trail (XTrail.root (x :: M))) := by
+  rw [XTrail.root_cons]
+  split
+  · exact h
+  · rename_i hM
+    rw [XTrail.root_of_no_decision M fun y hy => by
+      simpa using List.any_eq_false.1 (by simpa using hM) y hy] at h
+    split
+    · exact h
+    · simp only [XTrail.trail_cons, Trail.lits, List.map_cons, List.mem_cons] at h ⊢
+      exact .inr h
+
+theorem XTrail.reasonIds_append (M N : XTrail) :
+    XTrail.reasonIds (M ++ N) = XTrail.reasonIds M ++ XTrail.reasonIds N :=
+  List.filterMap_append
+
+theorem XTrail.mem_reasonIds_root {M : XTrail} {r : ℕ} (h : r ∈ XTrail.reasonIds (XTrail.root M)) :
+    r ∈ XTrail.reasonIds M := by
+  obtain ⟨A, hA⟩ := XTrail.root_suffix M
+  rw [hA, XTrail.reasonIds_append]
+  exact List.mem_append_right _ h
+
+/-- **The reasons entail the root**: on a trail without decisions, in every model of numbered
+clauses containing the reasons, every literal holds. -/
+theorem Reasons.eval_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause ℕ)}
+    (hdb : ∀ e ∈ db, log.clause? e.1 = some e.2) {σ : ℕ → Bool}
+    (hσ : ∀ e ∈ db, e.2.eval σ = true) {M : XTrail} (h : Reasons log M)
+    (hnodec : ∀ x ∈ M, x.entry.decision = false)
+    (hR : ∀ r ∈ XTrail.reasonIds M, ∃ R, (r, R) ∈ db) :
+    ∀ l ∈ Trail.lits (XTrail.trail M), Literal.eval σ l = true := by
+  induction h with
+  | nil => simp [Trail.lits]
+  | decision l _ _ => exact absurd (hnodec _ List.mem_cons_self) (by simp [XEntry.entry])
+  | @implied M l r R _ hr hl hfalse ih =>
+    have ih' := ih (fun x hx => hnodec x (List.mem_cons_of_mem _ hx))
+      (fun r' hr' => hR r' (by simp [hr']))
+    intro l' hl'
+    simp only [XTrail.trail_cons, XEntry.entry_implied, Trail.lits, List.map_cons,
+      List.mem_cons] at hl'
+    rcases hl' with rfl | hl'
+    · obtain ⟨R', hR'⟩ := hR r (by simp)
+      have hRR : R' = R := by have := hdb _ hR'; rw [hr] at this; cases this; rfl
+      subst hRR
+      obtain ⟨z, hz, hzσ⟩ := (Clause.eval_eq_true_iff σ R').1 (hσ _ hR')
+      rw [← Literal.eval_eq_true_iff] at hzσ
+      by_contra hne
+      have hzl : z ≠ l' := fun h => hne (h ▸ hzσ)
+      have := ih' _ (hfalse z hz hzl)
+      simp [hzσ] at this
+    · exact ih' l' hl'
+
+/-- **The reasons make the root true in partial models**: on a trail without decisions, every
+partial model of numbered clauses containing the reasons makes every literal of the trail true. -/
+theorem Reasons.psat_of_no_decision {log : LRATLog φ} {db : List (ℕ × Clause ℕ)}
+    (hdb : ∀ e ∈ db, log.clause? e.1 = some e.2) {ρ : ℕ → Option Bool}
+    (hρ : ∀ e ∈ db, PSat ρ e.2) {M : XTrail} (h : Reasons log M)
+    (hnodec : ∀ x ∈ M, x.entry.decision = false)
+    (hR : ∀ r ∈ XTrail.reasonIds M, ∃ R, (r, R) ∈ db) :
+    ∀ l ∈ Trail.lits (XTrail.trail M), ρ l.1 = some l.2 := by
+  induction h with
+  | nil => simp [Trail.lits]
+  | decision l _ _ => exact absurd (hnodec _ List.mem_cons_self) (by simp [XEntry.entry])
+  | @implied M l r R _ hr hl hfalse ih =>
+    have ih' := ih (fun x hx => hnodec x (List.mem_cons_of_mem _ hx))
+      (fun r' hr' => hR r' (by simp [hr']))
+    intro l' hl'
+    simp only [XTrail.trail_cons, XEntry.entry_implied, Trail.lits, List.map_cons,
+      List.mem_cons] at hl'
+    rcases hl' with rfl | hl'
+    · obtain ⟨R', hR'⟩ := hR r (by simp)
+      have hRR : R' = R := by have := hdb _ hR'; rw [hr] at this; cases this; rfl
+      subst hRR
+      obtain ⟨z, hz, hzρ⟩ := hρ _ hR'
+      by_contra hne
+      have hzl : z ≠ l' := fun h => hne (h ▸ hzρ)
+      have := ih' _ (hfalse z hz hzl)
+      simp [Std.Sat.Literal.negate, hzρ] at this
+    · exact ih' l' hl'
+
 /-! ### The solver state -/
 
 /-- A trail split at its newest decision: the implied literals above it, the decision, and the
@@ -577,15 +761,20 @@ def Exec.clauses (S : Exec φ) : CNF ℕ := S.db.map Prod.snd
 def Exec.state (S : Exec φ) : State := .run (XTrail.trail S.trail) S.clauses
 
 /-- **The invariant of the solver**: the abstract invariant, the reasons of the trail, the numbers
-of the database in the log, and no clause of the database false below a decision. -/
+of the database in the log, no clause of the database false below a decision, the numbered clauses
+of `φ` in the database unless the root satisfies them, and the reasons in the database. -/
 structure Exec.Inv (S : Exec φ) : Prop where
   run : RunInv φ φ.vars (XTrail.trail S.trail) S.clauses
   reasons : Reasons S.log S.trail
   db_log : ∀ e ∈ S.db, S.log.clause? e.1 = some e.2
   below : ∀ N d M₀, XTrail.trail S.trail = N ++ ⟨d, true⟩ :: M₀ →
     ∀ c ∈ S.clauses, ¬ Trail.Falsifies M₀ c
-  /-- The numbered clauses of `φ` stay in the database. -/
-  orig : ∀ e ∈ φ.lratDB, e ∈ S.db
+  /-- The numbered clauses of `φ` stay in the database, unless a literal of the root of the trail
+  satisfies them. -/
+  orig : ∀ e ∈ φ.lratDB,
+    e ∈ S.db ∨ ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail))
+  /-- The reasons of the trail are clauses of the database. -/
+  reasons_db : ∀ r ∈ XTrail.reasonIds S.trail, ∃ R, (r, R) ∈ S.db
 
 /-- The initial state: the empty trail, the clauses of `φ` with their numbers, and the empty log. -/
 def Exec.init (φ : CNF ℕ) : Exec φ := ⟨[], φ.lratDB, LRATLog.init φ⟩
@@ -604,13 +793,16 @@ theorem find?_zipIdx_map {e : ℕ × Clause ℕ} :
       rw [List.find?_cons_of_neg (by simp; omega)]
       exact find?_zipIdx_map φ (n + 1) (List.mem_map.2 ⟨p, hp, rfl⟩)
 
+/-- The clauses of the initial state are those of `φ`. -/
+theorem Exec.clauses_init (φ : CNF ℕ) : (Exec.init φ).clauses = φ := by
+  simp only [Exec.clauses, Exec.init, lratDB, List.map_map]
+  conv_rhs => rw [← List.zipIdx_map_fst 0 φ]
+  rfl
+
 theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
-  have hclauses : (Exec.init φ).clauses = φ := by
-    simp only [Exec.clauses, Exec.init, lratDB, List.map_map]
-    conv_rhs => rw [← List.zipIdx_map_fst 0 φ]
-    rfl
+  have hclauses : (Exec.init φ).clauses = φ := Exec.clauses_init φ
   refine ⟨?_, .nil, fun e he => ?_, fun N d M₀ h => by simp [Exec.init, XTrail.trail] at h,
-    fun e he => he⟩
+    fun e he => .inl he, fun r hr => by simp [Exec.init] at hr⟩
   · rw [hclauses]
     exact (Inv.init fun c hc l hl => CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩ : RunInv _ _ _ _)
   · simp only [LRATLog.clause?, Exec.init, LRATLog.init, lratDB] at he ⊢
@@ -891,7 +1083,21 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
   have hid : L.id ∉ resolventIds S.log.next L.log.next L.id := fun h => (mem_resolventIds h).2 rfl
   have hold : ∀ i, i < S.log.next → i ∉ resolventIds S.log.next L.log.next L.id :=
     fun i hi h => by have := (mem_resolventIds h).1; omega
-  refine ⟨⟨hrun₂, ?_, ?_, ?_, fun e' he' => List.mem_cons_of_mem _ (hS.orig e' he')⟩, ?_⟩
+  have hroot : XTrail.root S.trail = XTrail.root K := by
+    rw [hUK, hJ, List.append_assoc, List.singleton_append, XTrail.root_append_decision]
+  refine ⟨⟨hrun₂, ?_, ?_, ?_, fun e' he' => ?_, fun r hr => ?_⟩, ?_⟩
+  rotate_left 3
+  · rcases hS.orig e' he' with h | ⟨l, hl, hlr⟩
+    · exact .inl (List.mem_cons_of_mem _ h)
+    · exact .inr ⟨l, hl, XTrail.lits_root_cons (hroot ▸ hlr)⟩
+  · simp only [Exec.afterConflict, Exec.afterConflictWith, XTrail.reasonIds_implied,
+      List.mem_cons] at hr
+    rcases hr with rfl | hr
+    · exact ⟨L.clause, List.mem_cons_self⟩
+    · obtain ⟨R, hR⟩ := hS.reasons_db r (by
+        rw [hUK, XTrail.reasonIds_append]; exact List.mem_append_right _ hr)
+      exact ⟨R, List.mem_cons_of_mem _ hR⟩
+  rotate_left 1
   · have hbelow : Reasons S.log K := by
       have := hS.reasons
       rw [hUK] at this
@@ -962,7 +1168,13 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
       (.run (⟨l, false⟩ :: XTrail.trail S.trail) S.clauses) :=
     .unitPropagate hc hl hfalse hundef
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
-    .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_, hS.orig⟩,
+    .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_,
+    fun e' he' => (hS.orig e' he').imp id fun ⟨l', hl', hr⟩ => ⟨l', hl', XTrail.lits_root_cons hr⟩,
+    fun r hr => by
+      simp only [Exec.propagate, XTrail.reasonIds_implied, List.mem_cons] at hr
+      rcases hr with rfl | hr
+      · exact ⟨e.2, he⟩
+      · exact hS.reasons_db r hr⟩,
     hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'
   cases N with
@@ -983,7 +1195,9 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
       (.run (⟨(x, b), true⟩ :: XTrail.trail S.trail) S.clauses) :=
     .decide (l := (x, b)) hundef hx
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
-    .decision _ hS.reasons, hS.db_log, ?_, hS.orig⟩, hstep.rank_lt hS.run⟩
+    .decision _ hS.reasons, hS.db_log, ?_,
+    fun e' he' => (hS.orig e' he').imp id fun ⟨l', hl', hr⟩ => ⟨l', hl', XTrail.lits_root_cons hr⟩,
+    fun r hr => hS.reasons_db r hr⟩, hstep.rank_lt hS.run⟩
   intro N d M₁ hN c hc'
   cases N with
   | nil =>
@@ -996,79 +1210,6 @@ theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
 
 
 /-! ### Restarts -/
-
-/-- The root of a trail, in one tail-recursive pass from the newest entry: `acc` is the part below
-the oldest decision seen so far, or the whole trail if there is none. -/
-def XTrail.rootGo : XTrail → XTrail → XTrail
-  | acc, [] => acc
-  | acc, x :: M => XTrail.rootGo (if x.entry.decision then M else acc) M
-
-/-- **The root of a trail**: the part below its oldest decision, the literals implied without any
-decision. It is found in one tail-recursive pass over the trail. -/
-def XTrail.root (M : XTrail) : XTrail := XTrail.rootGo M M
-
-theorem XTrail.rootGo_eq : ∀ (M acc : XTrail),
-    XTrail.rootGo acc M = if M.any (·.entry.decision) then XTrail.root M else acc
-  | [], _ => rfl
-  | x :: M, acc => by
-    have h : XTrail.root (x :: M) =
-        XTrail.rootGo (if x.entry.decision then M else x :: M) M := rfl
-    rw [rootGo, h, XTrail.rootGo_eq M, XTrail.rootGo_eq M]
-    by_cases hM : M.any (·.entry.decision) <;> by_cases hx : x.entry.decision <;> simp [hM, hx]
-
-theorem XTrail.root_cons (x : XEntry) (M : XTrail) :
-    XTrail.root (x :: M) = if M.any (·.entry.decision) then XTrail.root M
-      else if x.entry.decision then M else x :: M := by
-  rw [root, rootGo, XTrail.rootGo_eq]
-
-theorem XTrail.root_no_decision : ∀ (M : XTrail), ∀ x ∈ XTrail.root M, x.entry.decision = false
-  | [] => by simp [XTrail.root, XTrail.rootGo]
-  | x :: M => by
-    rw [XTrail.root_cons]
-    split
-    · exact XTrail.root_no_decision M
-    · rename_i hM
-      have hM' : ∀ y ∈ M, y.entry.decision = false := fun y hy => by
-        simpa using List.any_eq_false.1 (by simpa using hM) y hy
-      split
-      · exact hM'
-      · rename_i hx
-        intro y hy
-        rcases List.mem_cons.1 hy with rfl | hy
-        · simpa using hx
-        · exact hM' y hy
-
-theorem XTrail.root_suffix : ∀ (M : XTrail), ∃ A, M = A ++ XTrail.root M
-  | [] => ⟨[], rfl⟩
-  | x :: M => by
-    rw [XTrail.root_cons]
-    split
-    · obtain ⟨A, hA⟩ := XTrail.root_suffix M
-      exact ⟨x :: A, by rw [List.cons_append, ← hA]⟩
-    · split
-      · exact ⟨[x], rfl⟩
-      · exact ⟨[], rfl⟩
-
-/-- The root is the whole trail, or the part below a decision. -/
-theorem XTrail.root_split : ∀ (M : XTrail), XTrail.root M = M ∨
-    ∃ N d, XTrail.trail M = N ++ ⟨d, true⟩ :: XTrail.trail (XTrail.root M)
-  | [] => .inl rfl
-  | x :: M => by
-    rw [XTrail.root_cons]
-    split
-    · rename_i hM
-      rcases XTrail.root_split M with h | ⟨N, d, hN⟩
-      · exfalso
-        obtain ⟨y, hy, hyd⟩ := List.any_eq_true.1 hM
-        have := XTrail.root_no_decision M y (by rw [h]; exact hy)
-        simp_all
-      · exact .inr ⟨x.entry :: N, d, by rw [XTrail.trail_cons, hN]; rfl⟩
-    · split
-      · rename_i hx
-        cases x with
-        | decision l => exact .inr ⟨[], l, rfl⟩
-        | implied l r => simp [XEntry.entry] at hx
-      · exact .inl rfl
 
 /-- **Restart**: going back to the root of the trail, keeping the database and the log. -/
 def Exec.restart (S : Exec φ) : Exec φ := ⟨XTrail.root S.trail, S.db, S.log⟩
@@ -1084,7 +1225,12 @@ theorem Exec.restart_inv {S : Exec φ} (hS : S.Inv) : S.restart.Inv := by
   rw [vars_append] at hnodup
   refine ⟨⟨hrun.models, hrun.pmodels, hnodup.of_append_right, fun x hx => hrun.subset x
     (by rw [vars_append]; exact List.mem_append_right _ hx), hrun.db_vars,
-    Trail.entailed_append hrun.entailed⟩, hreasons.append_right, hS.db_log, ?_, hS.orig⟩
+    Trail.entailed_append hrun.entailed⟩, hreasons.append_right, hS.db_log, ?_,
+    fun e' he' => by
+      change e' ∈ S.db ∨
+        ∃ l ∈ e'.2, l ∈ Trail.lits (XTrail.trail (XTrail.root (XTrail.root S.trail)))
+      rw [XTrail.root_root]; exact hS.orig e' he',
+    fun r hr => hS.reasons_db r (XTrail.mem_reasonIds_root hr)⟩
   intro N d M₀ hN
   have hd : (⟨d, true⟩ : Entry) ∈ XTrail.trail (XTrail.root S.trail) := by
     change _ ∈ XTrail.trail S.restart.trail
@@ -1113,34 +1259,77 @@ theorem exists_mem_lratDB {c : Clause ℕ} (hc : c ∈ φ) : ∃ e ∈ φ.lratDB
 def Exec.forget (S : Exec φ) (ids : List ℕ) : Exec φ :=
   ⟨S.trail, S.db.filter fun e => !ids.contains e.1, S.log.delete ids⟩
 
-/-- Forgetting clauses other than those of `φ` and the reasons of the trail keeps the invariant:
-the remaining clauses contain `φ`, so they have the same models as `φ`, and every partial model of
-them is one of `φ`. This does not show that each removed clause is partially entailed by the
-remaining ones, the side condition of the abstract `Forget` rule; the invariant does not need it. -/
+/-- **Forgetting clauses** keeps the invariant, if they are not reasons of the trail, and the
+clauses of `φ` among them are satisfied by the root of the trail. The reasons kept entail the root
+(`Cslib.Algorithms.Lean.CDCL.Reasons.eval_of_no_decision`), so the remaining clauses still have the
+models of `φ`, and their partial models, through the root, satisfy `φ`. This does not show that
+each removed clause is partially entailed by the remaining ones, the side condition of the abstract
+`Forget` rule; the invariant does not need it. -/
 theorem Exec.forget_inv {S : Exec φ} (hS : S.Inv) {ids : List ℕ}
-    (horig : ∀ e ∈ φ.lratDB, e.1 ∉ ids) (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
+    (horig : ∀ e ∈ S.db, e ∈ φ.lratDB → e.1 ∈ ids →
+      ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)))
+    (hreasons : ∀ r ∈ XTrail.reasonIds S.trail, r ∉ ids) :
     (S.forget ids).Inv := by
   have hmem : ∀ e ∈ (S.forget ids).db, e ∈ S.db ∧ e.1 ∉ ids := fun e he => by
     have := List.mem_filter.1 he
     exact ⟨this.1, by simpa using this.2⟩
+  have hmem' : ∀ e ∈ S.db, e.1 ∉ ids → e ∈ (S.forget ids).db := fun e he hid =>
+    List.mem_filter.2 ⟨he, by simpa using hid⟩
   have hsub : ∀ c ∈ (S.forget ids).clauses, c ∈ S.clauses := fun c hc => by
     obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
     exact List.mem_map.2 ⟨e, (hmem e he).1, rfl⟩
-  have hkeep : ∀ e ∈ φ.lratDB, e ∈ (S.forget ids).db := fun e he =>
-    List.mem_filter.2 ⟨hS.orig e he, by simpa using horig e he⟩
-  have hφ : ∀ c ∈ φ, c ∈ (S.forget ids).clauses := fun c hc => by
-    obtain ⟨e, he, rfl⟩ := exists_mem_lratDB hc
-    exact List.mem_map.2 ⟨e, hkeep e he, rfl⟩
+  have hkeep : ∀ e ∈ φ.lratDB, e ∈ (S.forget ids).db ∨
+      ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)) := fun e he => by
+    rcases hS.orig e he with h | h
+    · by_cases hid : e.1 ∈ ids
+      · exact .inr (horig e h he hid)
+      · exact .inl (hmem' e h hid)
+    · exact .inr h
+  have hreasons_db : ∀ r ∈ XTrail.reasonIds S.trail, ∃ R, (r, R) ∈ (S.forget ids).db :=
+    fun r hr => by
+      obtain ⟨R, hR⟩ := hS.reasons_db r hr
+      exact ⟨R, hmem' _ hR (hreasons r hr)⟩
   have hrun := hS.run
-  refine ⟨⟨fun σ => ?_, fun ρ hρ c hc => hρ c (hφ c hc), hrun.nodup, hrun.subset,
+  refine ⟨⟨fun σ => ?_, fun ρ hρ c hc => ?_, hrun.nodup, hrun.subset,
     fun c hc => hrun.db_vars c (hsub c hc), hrun.entailed⟩, hS.reasons.delete hreasons,
-    fun e he => ?_, fun N d M₀ hN c hc => hS.below N d M₀ hN c (hsub c hc), hkeep⟩
+    fun e he => ?_, fun N d M₀ hN c hc => hS.below N d M₀ hN c (hsub c hc), hkeep, hreasons_db⟩
   · apply Bool.eq_iff_iff.2
     rw [CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
-    refine ⟨fun h c hc => h c (hφ c hc), fun h c hc => ?_⟩
-    have hall := (CNF.eval_eq_true_iff σ S.clauses).1
-      (by rw [hrun.models]; exact (CNF.eval_eq_true_iff σ φ).2 h)
-    exact hall c (hsub c hc)
+    refine ⟨fun h c hc => ?_, fun h c hc => ?_⟩
+    · -- the root holds, so the clauses of `φ` it satisfies do too
+      have hroot : ∀ l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)),
+          Literal.eval σ l = true := by
+        obtain ⟨A, hA⟩ := XTrail.root_suffix S.trail
+        have hR := hS.reasons
+        rw [hA] at hR
+        exact Reasons.eval_of_no_decision (db := (S.forget ids).db)
+          (fun e he => hS.db_log e (hmem e he).1)
+          (fun e he => h e.2 (List.mem_map.2 ⟨e, he, rfl⟩)) hR.append_right
+          (XTrail.root_no_decision _)
+          (fun r hr => hreasons_db r (XTrail.mem_reasonIds_root hr))
+      obtain ⟨e, he, rfl⟩ := exists_mem_lratDB hc
+      rcases hkeep e he with h' | ⟨l, hl, hlr⟩
+      · exact h e.2 (List.mem_map.2 ⟨e, h', rfl⟩)
+      · exact (Clause.eval_eq_true_iff σ e.2).2
+          ⟨l, hl, (Literal.eval_eq_true_iff σ l).1 (hroot l hlr)⟩
+    · have hall := (CNF.eval_eq_true_iff σ S.clauses).1
+        (by rw [hrun.models]; exact (CNF.eval_eq_true_iff σ φ).2 h)
+      exact hall c (hsub c hc)
+  · -- a partial model of the remaining clauses makes the root true, so it satisfies the
+    -- clauses of `φ` that the root satisfies
+    have hroot : ∀ l ∈ Trail.lits (XTrail.trail (XTrail.root S.trail)), ρ l.1 = some l.2 := by
+      obtain ⟨A, hA⟩ := XTrail.root_suffix S.trail
+      have hR := hS.reasons
+      rw [hA] at hR
+      exact Reasons.psat_of_no_decision (db := (S.forget ids).db)
+        (fun e he => hS.db_log e (hmem e he).1)
+        (fun e he => hρ e.2 (List.mem_map.2 ⟨e, he, rfl⟩)) hR.append_right
+        (XTrail.root_no_decision _)
+        (fun r hr => hreasons_db r (XTrail.mem_reasonIds_root hr))
+    obtain ⟨e, he, rfl⟩ := exists_mem_lratDB hc
+    rcases hkeep e he with h' | ⟨l, hl, hlr⟩
+    · exact hρ e.2 (List.mem_map.2 ⟨e, h', rfl⟩)
+    · exact ⟨l, hl, hroot l hlr⟩
   · obtain ⟨he, hid⟩ := hmem e he
     exact (LRATLog.clause?_delete hid).trans (hS.db_log e he)
 

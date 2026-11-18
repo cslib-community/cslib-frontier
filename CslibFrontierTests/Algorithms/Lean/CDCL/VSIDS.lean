@@ -16,8 +16,8 @@ The kernel checks the activities: a fresh state picks the first unassigned varia
 variable is picked first; a later bump outweighs an earlier one, because the increment grows;
 assigned variables are never picked; and an activity past the limit scales every activity down.
 It also runs the variable order: popping gives the most active unassigned variable, skipping
-assigned variables and stale entries, and putting back an entry keyed above the activity with the
-current activity.
+assigned variables, variables no longer occurring in the database, and stale entries, and putting
+back an entry keyed above the activity with the current activity.
 -/
 
 set_option linter.privateModule false
@@ -72,32 +72,38 @@ private abbrev act : Activity := ⟨#[0, 5, 3, 0], 1⟩
 private abbrev order : VarOrder :=
   VarOrder.insertVars Batteries.BinaryHeap.emptyF act [0, 1, 2, 3]
 
+/-- Every variable occurs in the database. -/
+private abbrev every : ℕ → Bool := fun _ => true
+
 /-- Popping gives the most active variable. -/
-example : (VarOrder.pop act ⟨#[]⟩ 10 order).1 = some 1 := by decide +kernel
+example : (VarOrder.pop act ⟨#[]⟩ every 10 order).1 = some 1 := by decide +kernel
 
 /-- An assigned variable is skipped. -/
-example : (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) 10 order).1 = some 2 := by
+example : (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) every 10 order).1 = some 2 := by
   decide +kernel
+
+/-- A variable that no longer occurs in the database is skipped. -/
+example : (VarOrder.pop act ⟨#[]⟩ (fun v => v != 1) 10 order).1 = some 2 := by decide +kernel
 
 /-- A fresh entry has priority: variable `3`, inserted at activity `0`, now has activity `9` and
 is inserted again, and its fresh entry comes out first. (Its stale entry, at `0`, stays below; for
 an unassigned variable a stale entry is never on top of a covering heap, so this does not exercise
 discarding one.) -/
 example :
-    (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ ⟨#[]⟩ 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
+    (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ ⟨#[]⟩ every 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
       some 3 := by
   decide +kernel
 
 /-- An entry keyed above the variable's activity, as after a rescaling, is put back with the
 current activity: variable `1`, at `5` in the order, now has activity `2`, below variable `2`.
 Popping `2` leaves three entries, that of `1` among them. -/
-example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ 10 order).1 = some 2 ∧
-    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ 10 order).2.size = 3 := by
+example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ every 10 order).1 = some 2 ∧
+    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ every 10 order).2.size = 3 := by
   decide +kernel
 
 /-- Every variable assigned: nothing to pop. -/
 example : (VarOrder.pop act (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true), true⟩,
-    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) 10 order).1 = none := by
+    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) every 10 order).1 = none := by
   decide +kernel
 
 /-- Unassigning a variable past the end of the assignment array leaves the array as it is: no

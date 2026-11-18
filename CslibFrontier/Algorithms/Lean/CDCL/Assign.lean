@@ -237,16 +237,28 @@ theorem value_unassign_eq_none {A : Assign} {vs : List ℕ} (h : ∀ v, v ∉ vs
 /-- **Marking the variables `vs`** in `A`: each is given the value `true`. Marking on top of an
 array with no value, and clearing the same variables afterwards, reuses the array instead of
 allocating one by the greatest variable. -/
-def markVars (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.set v (some true)) A
+def mark (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.set v (some true)) A
 
-theorem value_markVars (A : Assign) (vs : List ℕ) (v : ℕ) :
-    (A.markVars vs).value v = if v ∈ vs then some true else A.value v := by
+theorem value_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
+    (A.mark vs).value v = if v ∈ vs then some true else A.value v := by
   induction vs generalizing A with
-  | nil => simp [markVars]
+  | nil => simp [mark]
   | cons w vs ih =>
-    change ((A.set w (some true)).markVars vs).value v = _
+    change ((A.set w (some true)).mark vs).value v = _
     rw [ih, value_set]
     by_cases h₁ : v ∈ vs <;> by_cases h₂ : v = w <;> simp [h₁, h₂]
+
+theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
+    (A.mark vs).assigned v = true ↔ v ∈ vs ∨ A.assigned v = true := by
+  simp only [assigned, value_mark]
+  split <;> simp_all
+
+/-- An array in which exactly the variables `vs` are assigned. -/
+def marks (vs : List ℕ) : Assign := (⟨#[]⟩ : Assign).mark vs
+
+theorem assigned_marks (vs : List ℕ) (v : ℕ) : (marks vs).assigned v = true ↔ v ∈ vs := by
+  rw [marks, assigned_mark]
+  simp [assigned, value]
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agrees M :=

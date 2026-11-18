@@ -221,17 +221,20 @@ which are skipped when they come to the top. -/
 abbrev VarOrder : Type := Batteries.BinaryHeap OrderKey
 
 
-/-- **The variable order covers** the variables `V` not on the trail `M`: each has an entry keyed
-at least at its activity. -/
-def VarOrder.Covers (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) : Prop :=
-  ∀ v ∈ V, v ∉ Trail.vars M → ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H
+/-- **The variable order covers** the variables `V` not on the trail `M` that `occ` admits, those
+occurring in the database: each has an entry keyed at least at its activity. -/
+def VarOrder.Covers (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) :
+    Prop :=
+  ∀ v ∈ V, v ∉ Trail.vars M → occ v = true → ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H
 
-/-- **The invariant of the variable order** over the variables `V`, with the activities `A` and the
-trail `M`: a well-formed heap of variables of `V`, covering those not on the trail. -/
-structure VarOrder.Inv (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) : Prop where
+/-- **The invariant of the variable order** over the variables `V`, with the activities `A`, the
+trail `M` and the variables `occ` admits: a well-formed heap of variables of `V`, covering those
+admitted and not on the trail. -/
+structure VarOrder.Inv (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) :
+    Prop where
   wf : H.WF
   vars : ∀ e ∈ H, e.var ∈ V
-  covers : H.Covers A V M
+  covers : H.Covers A V M occ
 
 /-- Inserting the variables `vs` with their activities. -/
 def VarOrder.insertVars (H : VarOrder) (A : Activity) (vs : List ℕ) : VarOrder :=
@@ -258,11 +261,12 @@ theorem VarOrder.mem_insertVars {H : VarOrder} {A : Activity} {vs : List ℕ} {e
     tauto
 
 /-- **Popping the decision variable**: the entries at the top are removed until one is of an
-unassigned variable with its current activity. An entry of an assigned variable, or keyed below
-the variable's activity, is dropped; an entry keyed above it, left by a rescaling of the
-activities, is inserted again with the current activity. `none` if the order runs out, or the
-fuel does. -/
-def VarOrder.pop (A : Activity) (asg : Assign) : (fuel : ℕ) → VarOrder → Option ℕ × VarOrder
+unassigned variable admitted by `occ`, with its current activity. An entry of an assigned or
+unadmitted variable, or keyed below the variable's activity, is dropped; an entry keyed above it,
+left by a rescaling of the activities, is inserted again with the current activity. `none` if the
+order runs out, or the fuel does. -/
+def VarOrder.pop (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
+    (fuel : ℕ) → VarOrder → Option ℕ × VarOrder
   | 0, H => (none, H)
   | fuel + 1, H =>
     match H.maxF with
@@ -271,27 +275,30 @@ def VarOrder.pop (A : Activity) (asg : Assign) : (fuel : ℕ) → VarOrder → O
       let v := e.var
       let k := e.activity
       let H' := H.popMaxF
-      if asg.assigned v then VarOrder.pop A asg fuel H'
+      if asg.assigned v || !occ v then VarOrder.pop A asg occ fuel H'
       else if A.get v = k then (some v, H')
-      else if A.get v < k then VarOrder.pop A asg fuel (H'.insertF (OrderKey.mk (A.get v) v))
-      else VarOrder.pop A asg fuel H'
+      else if A.get v < k then
+        VarOrder.pop A asg occ fuel (H'.insertF (OrderKey.mk (A.get v) v))
+      else VarOrder.pop A asg occ fuel H'
 
 /-- **What popping finds**: the order stays well formed over the variables `V`; a variable found
-is in `V`, unassigned, and of greatest activity among the unassigned variables of `V`; and every
-other unassigned variable of `V` stays covered. -/
-theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} (hasg : asg.Agrees M) :
-    ∀ (fuel : ℕ) (H : VarOrder), H.WF → (∀ e ∈ H, e.var ∈ V) → H.Covers A V M →
-    (VarOrder.pop A asg fuel H).2.WF ∧ (∀ e ∈ (VarOrder.pop A asg fuel H).2, e.var ∈ V) ∧
-    (∀ x, (VarOrder.pop A asg fuel H).1 = some x →
-      x ∈ V ∧ x ∉ Trail.vars M ∧ ∀ y ∈ V, y ∉ Trail.vars M → A.get y ≤ A.get x) ∧
-    (∀ v ∈ V, v ∉ Trail.vars M → (VarOrder.pop A asg fuel H).1 ≠ some v →
-      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A asg fuel H).2)
+is in `V`, unassigned, admitted, and of greatest activity among the unassigned admitted variables
+of `V`; and every other unassigned admitted variable of `V` stays covered. -/
+theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (hasg : asg.Agrees M) :
+    ∀ (fuel : ℕ) (H : VarOrder), H.WF → (∀ e ∈ H, e.var ∈ V) → H.Covers A V M occ →
+    (VarOrder.pop A asg occ fuel H).2.WF ∧
+    (∀ e ∈ (VarOrder.pop A asg occ fuel H).2, e.var ∈ V) ∧
+    (∀ x, (VarOrder.pop A asg occ fuel H).1 = some x →
+      x ∈ V ∧ x ∉ Trail.vars M ∧ occ x = true ∧
+        ∀ y ∈ V, y ∉ Trail.vars M → occ y = true → A.get y ≤ A.get x) ∧
+    (∀ v ∈ V, v ∉ Trail.vars M → occ v = true → (VarOrder.pop A asg occ fuel H).1 ≠ some v →
+      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A asg occ fuel H).2)
   | 0, H, hwf, hV, hcov => ⟨hwf, hV, fun _ h => absurd h (by simp [VarOrder.pop]),
-      fun v hv hvM _ => hcov v hv hvM⟩
+      fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
   | fuel + 1, H, hwf, hV, hcov => by
     unfold VarOrder.pop
     split
-    · exact ⟨hwf, hV, fun _ h => absurd h (by simp), fun v hv hvM _ => hcov v hv hvM⟩
+    · exact ⟨hwf, hV, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
     · rename_i e he
       dsimp only
       have hwf' : H.popMaxF.WF := by
@@ -305,38 +312,44 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} (hasg : asg.Agrees M) :
         simp only [he, Option.get_some] at this
         exact OrderKey.activity_le_of_isGE this
       -- a covering entry other than `e` survives the removal of `e`
-      have hkeep : ∀ v ∈ V, v ∉ Trail.vars M →
+      have hkeep : ∀ v ∈ V, v ∉ Trail.vars M → occ v = true →
           (∀ k, A.get v ≤ k → OrderKey.mk k v = e → False) →
-          ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H.popMaxF := fun v hv hvM hne => by
-        obtain ⟨k, hk, hmem⟩ := hcov v hv hvM
+          ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H.popMaxF := fun v hv hvM hvo hne => by
+        obtain ⟨k, hk, hmem⟩ := hcov v hv hvM hvo
         rcases Batteries.BinaryHeap.mem_popMaxF he hmem with h | h
         · exact absurd h (hne k hk)
         · exact ⟨k, hk, h⟩
       have hother : ∀ v, v ≠ e.var → ∀ k, A.get v ≤ k → OrderKey.mk k v = e → False :=
         fun v hne k _ h => hne (by rw [← h])
       split
-      · rename_i hassigned
-        refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM fun k _ h => ?_
-        exact hvM (by
-          rw [show v = e.var by rw [← h]]; exact (hasg.assigned_iff _).1 hassigned)
-      · rename_i hunassigned
-        have hunassigned : e.var ∉ Trail.vars M := fun h =>
-          hunassigned ((hasg.assigned_iff _).2 h)
+      · rename_i hskip
+        refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM hvo =>
+          hkeep v hv hvM hvo fun k _ h => ?_
+        have hve : v = e.var := by rw [← h]
+        subst hve
+        rcases Bool.or_eq_true_iff.1 hskip with h' | h'
+        · exact hvM ((hasg.assigned_iff _).1 h')
+        · simp [hvo] at h'
+      · rename_i hunskip
+        simp only [Bool.or_eq_true, not_or, Bool.not_eq_true, Bool.not_eq_false'] at hunskip
+        have hunassigned : e.var ∉ Trail.vars M := fun h => by
+          have := hunskip.1; rw [(hasg.assigned_iff _).2 h] at this; exact absurd this (by decide)
+        have hocc : occ e.var = true := by simpa using hunskip.2
         split
         · rename_i hk
-          refine ⟨hwf', hV', fun x hx => ?_, fun v hv hvM hne =>
-            hkeep v hv hvM (hother v fun h => hne (by rw [h]))⟩
+          refine ⟨hwf', hV', fun x hx => ?_, fun v hv hvM hvo hne =>
+            hkeep v hv hvM hvo (hother v fun h => hne (by rw [h]))⟩
           simp only [Option.some.injEq] at hx
           subst hx
-          refine ⟨hV e heH, hunassigned, fun y hy hyM => ?_⟩
-          obtain ⟨k, hk', hmem⟩ := hcov y hy hyM
+          refine ⟨hV e heH, hunassigned, hocc, fun y hy hyM hyo => ?_⟩
+          obtain ⟨k, hk', hmem⟩ := hcov y hy hyM hyo
           exact hk'.trans (hk ▸ hge _ hmem)
         · split
           · rename_i hne hlt
             have hwf'' :
                 (H.popMaxF.insertF (OrderKey.mk (A.get e.var) e.var)).WF := by
               rw [Batteries.BinaryHeap.insertF_eq]; exact Batteries.BinaryHeap.insert_wf hwf'
-            refine VarOrder.pop_spec hasg fuel _ hwf'' (fun f hf => ?_) fun v hv hvM => ?_
+            refine VarOrder.pop_spec hasg fuel _ hwf'' (fun f hf => ?_) fun v hv hvM hvo => ?_
             · rw [Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert] at hf
               rcases hf with hf | rfl
               · exact hV' f hf
@@ -345,10 +358,11 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} (hasg : asg.Agrees M) :
               by_cases hve : v = e.var
               · subst hve
                 exact ⟨_, le_rfl, Batteries.BinaryHeap.mem_insert.2 (.inr rfl)⟩
-              · obtain ⟨k, hk, hmem⟩ := hkeep v hv hvM (hother v hve)
+              · obtain ⟨k, hk, hmem⟩ := hkeep v hv hvM hvo (hother v hve)
                 exact ⟨k, hk, Batteries.BinaryHeap.mem_insert.2 (.inl hmem)⟩
           · rename_i hne hnlt
-            refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM => hkeep v hv hvM ?_
+            refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM hvo =>
+              hkeep v hv hvM hvo ?_
             intro k hk h
             have hv : v = e.var := by rw [← h]
             have hke : k = e.activity := by rw [← h]

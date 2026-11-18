@@ -22,9 +22,10 @@ unsatisfiable, and on satisfiable formulas, checking the model. The formulas exe
 clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
 the options decides correctly, and the statistics count conflicts, propagations and decisions.
 Restarts happen when allowed, minimization, recursive or basic, shortens the learned clauses of
-PHP(4, 3), and the kernel refutes PHP(4, 3) through a reduction of the learned clauses. At
-runtime, Lean core's checker accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned
-clauses are minimized, some of them forgotten, and whose intermediate resolvents are deleted.
+PHP(4, 3), simplification deletes clauses of PHP(4, 3) satisfied at the root, and the kernel
+refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
+accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
+them forgotten, and whose intermediate resolvents are deleted.
 -/
 
 set_option linter.privateModule false
@@ -54,7 +55,7 @@ private abbrev small : CNF ℕ :=
 example : (match CDCL.solve small with
     | .sat σ => small.eval σ
     | .unsat _ => false) = true := by
-  decide
+  decide +kernel
 
 /-- Unit clauses, and a clause `¬a ∨ ¬a` with a repeated literal, which is stored as short. -/
 private abbrev units : CNF ℕ :=
@@ -64,13 +65,13 @@ private abbrev units : CNF ℕ :=
 example : (match CDCL.solve units with
     | .sat σ => units.eval σ
     | .unsat _ => false) = true := by
-  decide
+  decide +kernel
 
 /-- Contradictory unit clauses. -/
-example : (CDCL.solve [[(0, true)], [(0, false)]]).isSat = false := by decide
+example : (CDCL.solve [[(0, true)], [(0, false)]]).isSat = false := by decide +kernel
 
 /-- The empty clause. -/
-example : (CDCL.solve [[(0, true), (1, true)], []]).isSat = false := by decide
+example : (CDCL.solve [[(0, true), (1, true)], []]).isSat = false := by decide +kernel
 
 /-- Every combination of options refutes PHP(3, 2) and finds a model of `units`. -/
 example : (CDCL.solveWith { vsids := false } php).1.isSat = false ∧
@@ -81,13 +82,13 @@ example : (CDCL.solveWith { vsids := false } php).1.isSat = false ∧
 example : (match (CDCL.solveWith { vsids := false, phaseSaving := false } units).1 with
     | .sat σ => units.eval σ
     | .unsat _ => false) = true := by
-  decide
+  decide +kernel
 
 /-- The statistics of a run: refuting `x₀`, `¬x₀` takes one conflict and one propagation. -/
 example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
     (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.propagations = 1 ∧
     (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.decisions = 0 := by
-  decide
+  decide +kernel
 
 /-- Propagations count the literals taken from the queue, decisions included, as MiniSat counts
 them: on `x₀ ∨ x₁`, the decision `¬x₀` and the implied `x₁` are both processed. -/
@@ -132,6 +133,13 @@ example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.max
       (CDCL.solveWith { ccminMode := .none } php43).2.maxLiterals := by
   decide +kernel
 
+/-- Simplification deletes input clauses of PHP(4, 3) satisfied at the root; keeping the input
+clauses (MiniSat's `remove_satisfied = false`), it deletes none here, and the answer is the same. -/
+example : (CDCL.solveWith {} php43).1.isSat = false ∧ 0 < (CDCL.solveWith {} php43).2.simplified ∧
+    (CDCL.solveWith { removeSatisfied := false } php43).1.isSat = false ∧
+    (CDCL.solveWith { removeSatisfied := false } php43).2.simplified = 0 := by
+  decide +kernel
+
 /-- Basic minimization (MiniSat's `ccmin_mode = 1`) also refutes PHP(4, 3), and removes literals. -/
 example : (CDCL.solveWith { ccminMode := .basic } php43).1.isSat = false ∧
     (CDCL.solveWith { ccminMode := .basic } php43).2.literals <
@@ -151,7 +159,7 @@ example : (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).1
   (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000, reduce := false } php43).2.removed
 
 /-- The empty formula. -/
-example : (CDCL.solve []).isSat = true := by decide
+example : (CDCL.solve []).isSat = true := by decide +kernel
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
 -- delete the intermediate resolvents and, for PHP(6, 5), forgotten learned clauses.
