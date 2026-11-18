@@ -59,7 +59,7 @@ private theorem TerminalSigningWrite.History.challenge {s : Level} {base G : Xof
   | @append past G previous q w val r x address ih =>
     subst x
     have hμ : (G.representativeFromTr tr (formatMessage q.message q.context)).length = 512 := by
-      simp [Xofs.representativeFromTr, bitsLength, G.h256.length_read]
+      simp [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read]
     exact (Xofs.sampleInBall_writeCommitment s G _ hμ w val.toList d).trans ih
 
 private theorem TerminalSigningWrite.History.read_digest {s : Level} {base G : Xofs} {tr writes}

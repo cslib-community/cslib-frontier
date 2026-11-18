@@ -39,7 +39,7 @@ private def flatten (s : Level) : MatrixPrefixes s ≃ (MatrixByte s → Byte) w
 
 private theorem address_length (rho : List Byte) {s : Level} (p : Cell s) :
     (address rho p).length = 8 * (rho.length + 2) := by
-  simp [address, Keccak.bytesToBitsLE, Keccak.byteBitsLE, Nat.mul_comm, Nat.mul_add]
+  simp [address, Keccak.length_bytesToBitsLE]
 
 private def point {a b : ℕ} {s : Level} (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a)
     (hb : 894 ≤ b) (p : MatrixByte s) : RawWord a × Fin b :=
@@ -159,7 +159,7 @@ private theorem forgery_from_setup (C : QuantumSigningForger) (s : Level) (H : X
   cases hg : H.keyGen s seed with
   | none => simp [readSetup, hg, runAtSetup]
   | some keys =>
-    obtain ⟨rho, sk, _, hm, pk, _, _⟩ := privateKey_of_keyGen hg
+    obtain ⟨rho, sk, hm, pk, _, _⟩ := privateKey_of_keyGen hg
     have mat : H.expandA s (keys.publicKey.take 32) = some sk.A := by
       rwa [pk, take_encodePublic]
     simp [readSetup, hg, mat, runAtSetup, PMF.map_comp, SignedMatrixTrial.wins, Function.comp_def]

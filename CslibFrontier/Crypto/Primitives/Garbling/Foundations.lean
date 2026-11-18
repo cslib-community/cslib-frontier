@@ -16,20 +16,25 @@ import CslibFrontier.Tactic.PMFSwap
 
 The relations between the indistinguishability and the simulation notions of privacy and
 obliviousness of [BellareHoangRogaway2012], Section 4, by explicit reductions at a fixed security
-parameter.
+parameter. These are the advantage relations (1)–(4) in the proofs of Propositions 2 and 3
+(pp. 13–15), as equalities. They are steps toward the propositions, not the cited results: the
+propositions relate the asymptotic notions, security against every polynomial-time adversary
+(Sections 3.4, 3.5 and 3.7), and need the reductions and simulators to run in polynomial time. The
+library has no asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`),
+and no running-time bound for the reductions and simulators here is proved. The propositions stay
+open (#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
 
-* Simulation security implies indistinguishability security with a factor of two: from a
+* From simulation to indistinguishability, with a factor of two: from a
   `prv.ind` adversary `A` the reduction `prvIndToSim` builds a `prv.sim` adversary that picks a
   hidden bit `c`, submits the query `c` of the pair of `A` and checks whether `A` recovers `c`.
   Against the real garbling it plays the bit-guessing form `Experiment.guessBit` of `PrvInd` with
   `A`; against any simulator its view does not depend on `c`, as the simulator only sees `Φ(f_c)`
   and `ev(f_c, x_c)`, which a valid pair makes the same for both values of `c`, so it outputs a fair
   coin. Hence `Adv^prv.ind(A) = 2 · Adv^prv.sim(prvIndToSim A)` against every simulator.
-* Indistinguishability security implies simulation security when the side information is
-  efficiently invertible: an `ev`-inverter `M` for `Φ` yields a simulator `prvSimFromInverter`
-  that garbles the query `M(Φ(f), ev(f, x))`, and against it the `prv.sim` game on `B` is the
-  `prv.ind` game on the adversary `prvSimToInd` that queries the pair of `M(Φ(f), ev(f, x))` and
-  `(f, x)`.
+* From indistinguishability to simulation, given an `ev`-inverter `M` for `Φ`: `M` yields a
+  simulator `prvSimFromInverter` that garbles the query `M(Φ(f), ev(f, x))`, and against it the
+  `prv.sim` game on `B` is the `prv.ind` game on the adversary `prvSimToInd` that queries the pair
+  of `M(Φ(f), ev(f, x))` and `(f, x)`.
 
 The same reductions, without the output `ev(f, x)` and the decoding information `d`, relate
 `obv.ind` and `obv.sim`, with an inverter of `Φ` in place of an `ev`-inverter.
@@ -43,16 +48,17 @@ The same reductions, without the output `ev(f, x)` and the decoding information 
   `Cslib.Crypto.Garbling.obvSimToInd`, the corresponding reductions from simulation to
   indistinguishability adversaries.
 
-## Main results
+## Steps toward Propositions 2 and 3
 
 * `Cslib.Crypto.Garbling.prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim`,
   `Cslib.Crypto.Garbling.obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim`: the
   indistinguishability advantage is twice the simulation advantage of the reduction, against
-  every simulator ([BellareHoangRogaway2012], Propositions 2 and 3).
+  every simulator (the bounds (1) and (3) in the proofs of [BellareHoangRogaway2012],
+  Propositions 2 and 3, as equalities).
 * `Cslib.Crypto.Garbling.prvSimAdvantage_prvSimFromInverter_eq`,
   `Cslib.Crypto.Garbling.obvSimAdvantage_obvSimFromInverter_eq`: against the simulator built from
   an inverter, the simulation advantage is the indistinguishability advantage of the reduction
-  ([BellareHoangRogaway2012], Propositions 2 and 3).
+  (the bounds (2) and (4) in the same proofs, as equalities).
 
 ## References
 
@@ -196,8 +202,9 @@ private theorem eval_prvSimExperiment_true_prvIndToSim (hCompat : Φ.Compatible 
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
 
-/-- The `prv.ind` advantage of `A` is twice the `prv.sim` advantage of the reduction
-`prvIndToSim` against every simulator ([BellareHoangRogaway2012], Proposition 2). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `prv.ind` advantage of `A` is twice the `prv.sim` advantage of the
+reduction `prvIndToSim` against every simulator (the bound (1) in the proof, as an equality). -/
 theorem prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : PrvSimulator Λ) (A : PrvIndAdversary Fn σ) :
     prvIndAdvantage G Φ k A = 2 * prvSimAdvantage G Φ k S (prvIndToSim G Φ A) := by
@@ -205,8 +212,9 @@ theorem prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Com
     eval_prvSimExperiment_false_prvIndToSim G Φ hCompat k S A,
     eval_prvSimExperiment_true_prvIndToSim G Φ hCompat k S A, Game.advantage_comm]
 
-/-- Simulation privacy implies indistinguishability privacy with a factor of two
-([BellareHoangRogaway2012], Proposition 2). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `prv.ind` advantage of `A` is at most twice the `prv.sim` advantage
+of `prvIndToSim A` against every simulator (the bound (1) in the proof). -/
 theorem prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : PrvSimulator Λ) (A : PrvIndAdversary Fn σ) :
     prvIndAdvantage G Φ k A ≤ 2 * prvSimAdvantage G Φ k S (prvIndToSim G Φ A) :=
@@ -234,9 +242,10 @@ theorem eval_prvSimExperiment_prvSimFromInverter (hCompat : Φ.Compatible G)
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]
 
-/-- Against the simulator built from an `ev`-inverter `M`, the `prv.sim` advantage of `B` is the
-`prv.ind` advantage of the reduction `prvSimToInd` ([BellareHoangRogaway2012],
-Proposition 2). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim`
+advantage of `B` is the `prv.ind` advantage of the reduction `prvSimToInd` (the bound (2) in the
+proof, as an equality). -/
 theorem prvSimAdvantage_prvSimFromInverter_eq (hCompat : Φ.Compatible G)
     {M : Λ → List Bool → Query Fn} (hInv : Φ.IsEvInverter G M) (k : ℕ)
     (B : PrvSimAdversary Fn σ) :
@@ -245,8 +254,10 @@ theorem prvSimAdvantage_prvSimFromInverter_eq (hCompat : Φ.Compatible G)
   simp only [prvSimAdvantage, prvIndAdvantage, Experiment.advantage,
     eval_prvSimExperiment_prvSimFromInverter G Φ hCompat hInv]
 
-/-- Indistinguishability privacy implies simulation privacy for side information with an
-`ev`-inverter ([BellareHoangRogaway2012], Proposition 2). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim`
+advantage of `B` is at most the `prv.ind` advantage of `prvSimToInd` (the bound (2) in the
+proof). -/
 theorem prvSimAdvantage_prvSimFromInverter_le (hCompat : Φ.Compatible G)
     {M : Λ → List Bool → Query Fn} (hInv : Φ.IsEvInverter G M) (k : ℕ)
     (B : PrvSimAdversary Fn σ) :
@@ -306,8 +317,9 @@ private theorem eval_obvSimExperiment_true_obvIndToSim (hCompat : Φ.Compatible 
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
 
-/-- The `obv.ind` advantage of `A` is twice the `obv.sim` advantage of the reduction
-`obvIndToSim` against every simulator ([BellareHoangRogaway2012], Proposition 3). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `obv.ind` advantage of `A` is twice the `obv.sim` advantage of the
+reduction `obvIndToSim` against every simulator (the bound (3) in the proof, as an equality). -/
 theorem obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : ObvSimulator Λ) (A : ObvIndAdversary Fn σ) :
     obvIndAdvantage G Φ k A = 2 * obvSimAdvantage G Φ k S (obvIndToSim G Φ A) := by
@@ -316,8 +328,9 @@ theorem obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Com
     eval_obvSimExperiment_false_obvIndToSim G Φ hCompat k S A,
     eval_obvSimExperiment_true_obvIndToSim G Φ hCompat k S A, Game.advantage_comm]
 
-/-- Simulation obliviousness implies indistinguishability obliviousness with a factor of two
-([BellareHoangRogaway2012], Proposition 3). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `obv.ind` advantage of `A` is at most twice the `obv.sim` advantage
+of `obvIndToSim A` against every simulator (the bound (3) in the proof). -/
 theorem obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : ObvSimulator Λ) (A : ObvIndAdversary Fn σ) :
     obvIndAdvantage G Φ k A ≤ 2 * obvSimAdvantage G Φ k S (obvIndToSim G Φ A) :=
@@ -343,9 +356,10 @@ theorem eval_obvSimExperiment_obvSimFromInverter (hCompat : Φ.Compatible G) {M 
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]
 
-/-- Against the simulator built from an inverter `M` of the side information, the `obv.sim`
-advantage of `B` is the `obv.ind` advantage of the reduction `obvSimToInd`
-([BellareHoangRogaway2012], Proposition 3). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an inverter `M` of the side
+information, the `obv.sim` advantage of `B` is the `obv.ind` advantage of the reduction
+`obvSimToInd` (the bound (4) in the proof, as an equality). -/
 theorem obvSimAdvantage_obvSimFromInverter_eq (hCompat : Φ.Compatible G) {M : Λ → Fn}
     (hInv : Φ.IsInverter M) (k : ℕ) (B : ObvSimAdversary Fn σ) :
     obvSimAdvantage G Φ k (obvSimFromInverter G k M) B =
@@ -353,8 +367,10 @@ theorem obvSimAdvantage_obvSimFromInverter_eq (hCompat : Φ.Compatible G) {M : �
   simp only [obvSimAdvantage, obvIndAdvantage, Experiment.advantage,
     eval_obvSimExperiment_obvSimFromInverter G Φ hCompat hInv]
 
-/-- Indistinguishability obliviousness implies simulation obliviousness for invertible side
-information ([BellareHoangRogaway2012], Proposition 3). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an inverter `M` of the side
+information, the `obv.sim` advantage of `B` is at most the `obv.ind` advantage of `obvSimToInd` (the
+bound (4) in the proof). -/
 theorem obvSimAdvantage_obvSimFromInverter_le (hCompat : Φ.Compatible G) {M : Λ → Fn}
     (hInv : Φ.IsInverter M) (k : ℕ) (B : ObvSimAdversary Fn σ) :
     obvSimAdvantage G Φ k (obvSimFromInverter G k M) B ≤

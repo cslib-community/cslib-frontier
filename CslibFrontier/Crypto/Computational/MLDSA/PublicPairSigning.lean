@@ -50,12 +50,7 @@ theorem Xofs.sampleInBall_writeCommitment (s : Level) (H : Xofs)
     (d : FixedBytes (digestBytes s)) :
     (H.writeCommitment (commitmentInput s w μ) value).sampleInBall s d.toList =
       H.sampleInBall s d.toList := by
-  have sep : Keccak.bytesToBitsLE d.toList ≠ commitmentInput s w μ := by
-    intro eq
-    have len := congrArg List.length eq
-    simp only [commitmentInput, List.length_append, bitsLength, FixedBytes.length_toList,
-      hμ, length_packCoeffs] at len
-    cases s <;> contradiction
+  have sep := (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm
   have row : (H.writeCommitment (commitmentInput s w μ) value).h256.readBytes d.toList 221 =
       H.h256.readBytes d.toList 221 := by
     simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes, sep]
@@ -100,7 +95,8 @@ private theorem keyRead (s : Level) (G : Xofs) (rho : FixedBytes 32)
     intro e
     have len := congrArg List.length e
     simp only [commitmentInput, Xofs.representativeFromTr, List.length_append, encodePublic,
-      bitsLength, FixedBytes.length_toList, length_packCoeffs, G.h256.length_read] at len
+      Keccak.length_bytesToBitsLE, G.h256.length_read] at len
+    rw [FixedBytes.length_toList, length_packCoeffs, length_packCoeffs] at len
     cases s <;> contradiction
   simp [Xofs.writeCommitment, ExtendableOutput.readBytes, ExtendableOutput.withPrefixes, sep]
 
@@ -113,8 +109,8 @@ private theorem repRead (s : Level) (G : Xofs) (tr : List Byte) (ht : tr.length 
   have sep : representativeInput tr other ≠ commitmentInput s w (G.representativeFromTr tr m) := by
     intro overlap
     have hl : (Keccak.bytesToBitsLE tr).length = (G.representativeFromTr tr m).length := by
-      simp only [Xofs.representativeFromTr, bitsLength, ht, G.h256.length_read]
-    exact miss (bytes_eq_of_bits_eq (List.append_inj overlap hl).1.symm)
+      simp only [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, ht, G.h256.length_read]
+    exact miss (Keccak.bytesToBitsLE_injective (List.append_inj overlap hl).1.symm)
   simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, sep]
 
 
@@ -333,7 +329,7 @@ private noncomputable def signingCall (s : Level) {base : Xofs} (tr : List Byte)
   let writes : List (TerminalSigningWrite s) :=
     st.writes ++ [⟨q, w.point, input, w.digest, w.reply⟩]
   have hμ : μ.length = 512 := by
-    simp only [μ, Xofs.representativeFromTr, bitsLength, st.xofs.h256.length_read]
+    simp only [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, st.xofs.h256.length_read]
   have stable (d : FixedBytes (digestBytes s)) : G.sampleInBall s d.toList =
       st.xofs.sampleInBall s d.toList := Xofs.sampleInBall_writeCommitment s st.xofs μ hμ ..
   have exhausted : ∀ v ∈ writes, v.reply = none → G.sampleInBall s v.digest.toList = none := by
@@ -424,8 +420,8 @@ theorem freshMaskSigning_eq_publicPair_of_keyGen (C : QuantumSigningForger) {s :
       H.expandA s rho.toList = some sk.A ∧
       keys.publicKey = encodePublic s rho.toList sk.publicKey.t ∧
       C.freshMaskSigning s H keys = (C.publicPairSigning s H rho sk.publicKey).map some := by
-  obtain ⟨rho, sk, key, ha, hpk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
-  exact ⟨rho, sk, ha, hpk, C.freshMaskSigning_eq_of_decoded s H keys rho sk key ha hpk hd h₁ h₂⟩
+  obtain ⟨rho, sk, ha, hpk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
+  exact ⟨rho, sk, ha, hpk, C.freshMaskSigning_eq_of_decoded s H keys rho sk _ ha hpk hd h₁ h₂⟩
 
 /-- Fresh-digest **winning game** for the ideal-mask, fresh-digest signing hybrid: replace
 its secret-dependent byte signing service by the public-pair simulator. Both sides first sample
@@ -445,11 +441,11 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
   cases hg : H.keyGen s seed with
   | none => rfl
   | some keys =>
-    obtain ⟨ρ, sk, key, ha, pk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
+    obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
     have rho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := by
       funext i
       simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
-    have same := C.freshMaskSigning_eq_of_decoded s H keys ρ sk key ha pk hd h₁ h₂
+    have same := C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂
     dsimp only
     rw [same, _root_.PMF.map_comp]
     simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some,

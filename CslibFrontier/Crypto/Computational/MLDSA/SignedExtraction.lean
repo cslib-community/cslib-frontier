@@ -92,7 +92,7 @@ theorem freshMask_freshDigest_le_openFullWitness (C : QuantumSigningForger) (s :
   cases h : H.keyGen s seed with
   | none => exact le_rfl
   | some keys =>
-    obtain ⟨rho, sk, key, ha, _, hd, _, _⟩ := privateKey_of_keyGen h
+    obtain ⟨rho, sk, ha, _, hd, _, _⟩ := privateKey_of_keyGen h
     have seed_eq : (fun i : Fin 32 => rho.toList[i.val]!) = rho := by
       funext i
       simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]

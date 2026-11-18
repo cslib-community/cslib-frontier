@@ -73,6 +73,36 @@ theorem ExtendableOutput.readWithPrefix_self (H : ExtendableOutput) (x : List Bo
   · rw [← H.take_read x (show k ≤ n by lia), List.take_take, Nat.min_eq_right (by lia)]
     exact List.take_append_drop k (H.read x n)
 
+/-- Fill a finite window of each selected raw row, starting after its previously read prefix.
+All earlier bytes, other rows and bytes past the window come from the original XOF. -/
+def ExtendableOutput.fill (H : ExtendableOutput) {rows : Finset (List Bool)} {width : ℕ}
+    (seen : List Bool → ℕ) (tape : rows → FixedBytes width) : ExtendableOutput :=
+  H.withPrefixes fun x =>
+    if hx : x ∈ rows then some (H.read x (seen x) ++ List.ofFn (tape ⟨x, hx⟩)) else none
+
+/-- An input outside the completed rows keeps its entire XOF output. -/
+theorem ExtendableOutput.read_fill_of_notMem (H : ExtendableOutput) {rows : Finset (List Bool)}
+    {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) {x : List Bool}
+    (hx : x ∉ rows) (n : ℕ) : (H.fill seen tape).read x n = H.read x n := by
+  simp [fill, withPrefixes, hx]
+
+/-- Within the filled window a raw read consists of its old prefix followed by fresh bytes. -/
+theorem ExtendableOutput.read_fill_window (H : ExtendableOutput) {rows : Finset (List Bool)}
+    {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) (x : rows) {n : ℕ}
+    (hn : n ≤ seen x + width) :
+    (H.fill seen tape).read x n = (H.read x (seen x) ++ List.ofFn (tape x)).take n := by
+  simp [fill, withPrefixes, x.property, readWithPrefix, H.length_read,
+    List.drop_eq_nil_of_le (show (H.read x n).length ≤ seen x + width by rwa [H.length_read])]
+
+/-- All previously read prefixes, including repeated reads at different lengths, survive. -/
+theorem ExtendableOutput.read_fill_of_le (H : ExtendableOutput) {rows : Finset (List Bool)}
+    {width : ℕ} (seen : List Bool → ℕ) (tape : rows → FixedBytes width) {x : List Bool} {n : ℕ}
+    (hn : n ≤ seen x) : (H.fill seen tape).read x n = H.read x n := by
+  by_cases hx : x ∈ rows
+  · rw [H.read_fill_window seen tape ⟨x, hx⟩ (hn.trans (Nat.le_add_right ..))]
+    simp [List.take_append, H.length_read, Nat.sub_eq_zero_of_le hn, H.take_read x hn]
+  · exact H.read_fill_of_notMem seen tape hx n
+
 namespace ExtendableOutput
 
 /-- The byte at a fixed offset of a raw XOF input stream. -/
@@ -102,16 +132,21 @@ theorem byteAt_withPrefixes (H : ExtendableOutput) (f : List Bool → Option (Li
         List.take_of_length_le (by lia : row.length ≤ i + 1), List.getElem_append_right le,
         List.getElem_drop, Nat.add_sub_of_le le]
 
+/-- The first `n` bytes at one input determine its `n`-byte read. -/
+theorem read_eq_of_byteAt_eq {H G : ExtendableOutput} {x : List Bool} {n : ℕ}
+    (same : ∀ i < n, H.byteAt x i = G.byteAt x i) : H.read x n = G.read x n := by
+  apply List.ext_getElem
+  · rw [H.length_read, G.length_read]
+  · intro i hi _
+    have h : i < n := hi.trans_le (H.length_read ..).le
+    rw [getElem_read H x h, getElem_read G x h, same i h]
+
 /-- Two XOFs agree on all finite reads if their individual bytes agree. -/
 theorem ext_byteAt {H G : ExtendableOutput}
     (same : ∀ x i, byteAt H x i = byteAt G x i) : H = G := by
   have hr : H.read = G.read := by
     funext x n
-    apply List.ext_getElem
-    · rw [H.length_read, G.length_read]
-    · intro i hi _
-      have h : i < n := hi.trans_le (H.length_read ..).le
-      rw [getElem_read H x h, getElem_read G x h, same]
+    exact read_eq_of_byteAt_eq fun i _ => same x i
   cases H
   cases G
   congr
