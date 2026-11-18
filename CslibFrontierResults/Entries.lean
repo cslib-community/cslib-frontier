@@ -858,7 +858,7 @@ register_result "arora-barak-perfectly-complete-set-lower-bound" where
         printed p. 152" }
   ]
   theorems := [Cslib.Complexity.exists_perfectlyComplete_verifier_of_card_certifiedSet]
-  scope := "Outside check: PR #6400, review 5953530547. One polynomial-time public-coin \
+  scope := "Outside check: PR #6400, review 5953960536. One polynomial-time public-coin \
     two-message verifier (Arthur's random string, then Merlin's reply) for the whole input \
     family: with S_a the strings of N(n) bits having a c(n)-bit certificate accepted by a \
     polynomial-time test and K a polynomial-time positive threshold in binary, every random \

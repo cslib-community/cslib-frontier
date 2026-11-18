@@ -28,18 +28,14 @@ def test (x : List Bool × List Bool) : Bool :=
   x.1.getD 0 false || x.2.getD 0 false || (x.1.getD 1 false && x.2.getD 1 false)
 
 theorem computableInPolyTime_test :
-    ComputableInPolyTime test (encPair encBits encBits) encBool := by
-  have h₁ (i : ℕ) : ComputableInPolyTime (fun x : List Bool × List Bool => x.1.getD i false)
-      (encPair encBits encBits) encBool := by
-    have : ComputableTidilyInPolyTime (fun x : List Bool × List Bool => x.1.getD i false)
-        (encPair encBits encBits) encBool := by fun_prop
-    exact this.computableInPolyTime
-  have h₂ (i : ℕ) : ComputableInPolyTime (fun x : List Bool × List Bool => x.2.getD i false)
-      (encPair encBits encBits) encBool := by
-    have : ComputableTidilyInPolyTime (fun x : List Bool × List Bool => x.2.getD i false)
-        (encPair encBits encBits) encBool := by fun_prop
-    exact this.computableInPolyTime
-  exact ComputableInPolyTime.bool_or' (ComputableInPolyTime.bool_or' (h₁ 0) (h₂ 0))
+    ComputableInPolyTime test (encPair encBits encBits) encBool :=
+  have h₁ (i : ℕ) := ComputableInPolyTime.bitsGetDWithInput
+    (ComputableInPolyTime.fst encBits encBits) (ComputableInPolyTime.const (encOut := encUnary) i)
+    false
+  have h₂ (i : ℕ) := ComputableInPolyTime.bitsGetDWithInput
+    (ComputableInPolyTime.snd encBits encBits) (ComputableInPolyTime.const (encOut := encUnary) i)
+    false
+  ComputableInPolyTime.bool_or' (ComputableInPolyTime.bool_or' (h₁ 0) (h₂ 0))
     (ComputableInPolyTime.bool_and' (h₁ 1) (h₂ 1))
 
 /-- The certified set of `test` at `a`: the two-bit strings `x` with `test (a, x)`. -/
