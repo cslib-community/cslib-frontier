@@ -22,7 +22,7 @@ unsatisfiable, and on satisfiable formulas, checking the model. The formulas exe
 clauses: unit clauses, the empty clause and a clause with a repeated literal. Every combination of
 the options decides correctly, and the statistics count conflicts, propagations and decisions.
 Restarts happen when allowed, minimization shortens the learned clauses of PHP(4, 3), and the kernel
-refutes PHP(5, 4) through a reduction of the learned clauses. At runtime, Lean core's checker
+refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
 accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
 them forgotten, and whose intermediate resolvents are deleted.
 -/
@@ -110,7 +110,8 @@ example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide
 /-- A state on `x₀ ∨ x₁` with the decision `¬x₀`, from the saved phase `false`, which forces `x₁`
 by the clause; the saved phase of `x₁` is still `false`. -/
 private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
-  let S := (CDCL.WExec.init [[(0, true), (1, true)]] {}).decide 0
+  let S₀ := CDCL.WExec.init [[(0, true), (1, true)]] {}
+  let S := S₀.decide 0 S₀.order
   { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
 
 /-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/
@@ -145,39 +146,39 @@ example : (CDCL.solveWith {} php43).2.literals < (CDCL.solveWith {} php43).2.max
       (CDCL.solveWith { minimize := false } php43).2.maxLiterals := by
   decide +kernel
 
-/-- PHP(5, 4), with pigeon `i` in hole `j` as `4 * i + j`. -/
-private abbrev php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val + x.2.val
-
-/-- The kernel refutes PHP(5, 4) through a reduction of the learned clauses. -/
-example : (CDCL.solveWith {} php54).1.isSat = false ∧ 0 < (CDCL.solveWith {} php54).2.removed := by
+/-- With the limit on learned clauses starting at `0`, and restarting after every conflict, the
+kernel refutes PHP(4, 3) through a reduction of the learned clauses. -/
+example : (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).1.isSat = false ∧
+    0 < (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).2.removed := by
   decide +kernel
 
 -- Without reduction, no learned clause is forgotten.
 /-- info: 0 -/
 #guard_msgs in
-#eval (CDCL.solveWith { reduce := false } php54).2.removed
+#eval
+  (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000, reduce := false } php43).2.removed
 
 /-- The empty formula. -/
 example : (CDCL.solve []).isSat = true := by decide
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
--- delete the intermediate resolvents and the forgotten learned clauses.
-/-- info: (true, true) -/
+-- delete the intermediate resolvents and, for PHP(6, 5), forgotten learned clauses.
+/-- info: (true, true, true) -/
 #guard_msgs in
 #eval
+  let φ (n : ℕ) := (CNF.pigeonhole (n + 1) n).relabel fun x => n * x.1.val + x.2.val
   let check (n : ℕ) :=
-    let φ := (CNF.pigeonhole (n + 1) n).relabel fun x => n * x.1.val + x.2.val
-    match CDCL.solveWith {} φ with
-    | (.unsat cert, s) => LRAT.check cert φ.toStdSat && 0 < s.removed
+    match CDCL.solveWith {} (φ n) with
+    | (.unsat cert, _) => LRAT.check cert (φ n).toStdSat
     | (.sat _, _) => false
-  (check 4, check 5)
+  (check 4, check 5, decide (0 < (CDCL.solveWith {} (φ 5)).2.removed))
 
 /-- With `27` clauses the limit on the learned clauses starts at `9` and grows by a tenth at each
 adjustment, kept in thousandths: `9000`, `9900`, `10890`, as MiniSat's `9`, `9.9`, `10.89`. -/
-example : (CDCL.Reduction.init 27).max = 9000 ∧
-    ({ CDCL.Reduction.init 27 with countdown := 1 }.learn [] 0 0 false).max = 9900 ∧
-    ({ { CDCL.Reduction.init 27 with countdown := 1 }.learn [] 0 0 false with countdown := 1 }.learn
-      [] 0 0 false).max = 10890 := by
+example : (CDCL.Reduction.init 27 3).max = 9000 ∧
+    ({ CDCL.Reduction.init 27 3 with countdown := 1 }.learn [] 0 0 false).max = 9900 ∧
+    ({ { CDCL.Reduction.init 27 3 with countdown := 1 }.learn [] 0 0 false with
+      countdown := 1 }.learn [] 0 0 false).max = 10890 := by
   decide
 
 /-- Deleting no clause leaves the log, and so the certificate, unchanged. -/

@@ -15,6 +15,9 @@ import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 The kernel checks the activities: a fresh state picks the first unassigned variable; a bumped
 variable is picked first; a later bump outweighs an earlier one, because the increment grows;
 assigned variables are never picked; and an activity past the limit scales every activity down.
+It also runs the variable order: popping gives the most active unassigned variable, skipping
+assigned variables and stale entries, and putting back an entry keyed above the activity with the
+current activity.
 -/
 
 set_option linter.privateModule false
@@ -58,5 +61,36 @@ example : ((Activity.init 0).bumpVar 0).get 0 = 0 := by decide
 
 -- Bumping a variable within the array adds the increment.
 example : ((Activity.init 1).bumpVar 0).get 0 = 2 ^ 100 := by decide
+
+/-- Activities `0, 5, 3, 0` for the variables `0` to `3`. -/
+private abbrev act : Activity := ⟨#[0, 5, 3, 0], 1⟩
+
+/-- The order with every variable at its activity. -/
+private abbrev order : VarOrder :=
+  VarOrder.insertVars Batteries.BinaryHeap.emptyF act [0, 1, 2, 3]
+
+/-- Popping gives the most active variable. -/
+example : (VarOrder.pop act [] 10 order).1 = some 1 := by decide +kernel
+
+/-- An assigned variable is skipped. -/
+example : (VarOrder.pop act [⟨(1, true), true⟩] 10 order).1 = some 2 := by decide +kernel
+
+/-- A stale entry, keyed below the variable's activity, is skipped: variable `3`, inserted at `0`,
+now has activity `9`, and its fresh entry comes first. -/
+example : (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ [] 10 (order.insertVars ⟨#[0, 5, 3, 9], 1⟩ [3])).1 =
+    some 3 := by
+  decide +kernel
+
+/-- An entry keyed above the variable's activity, as after a rescaling, is put back with the
+current activity: variable `1`, at `5` in the order, now has activity `2`, below variable `2`.
+Popping `2` leaves three entries, that of `1` among them. -/
+example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ [] 10 order).1 = some 2 ∧
+    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ [] 10 order).2.size = 3 := by
+  decide +kernel
+
+/-- Every variable assigned: nothing to pop. -/
+example : (VarOrder.pop act [⟨(0, true), true⟩, ⟨(1, true), true⟩, ⟨(2, true), true⟩,
+    ⟨(3, true), true⟩] 10 order).1 = none := by
+  decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS

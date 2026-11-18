@@ -303,6 +303,12 @@ theorem lits_append (M N : Trail) : Trail.lits (M ++ N) = Trail.lits M ++ Trail.
 theorem vars_append (M N : Trail) : Trail.vars (M ++ N) = Trail.vars M ++ Trail.vars N :=
   List.map_append ..
 
+/-- The variables of a clause of the log are variables of `φ`. -/
+theorem vars_mem_map_of_clause? {log : LRATLog φ} {i : ℕ} {C : Clause ℕ}
+    (hC : log.clause? i = some C) : ∀ v ∈ C.map Prod.fst, v ∈ φ.vars := fun v hv => by
+  obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hv
+  exact LRATLog.vars_mem_of_clause? hC l hl
+
 /-- A learned clause: a log extending `log₀` in which the number `id` names a clause all of whose
 literals but `lit` are false in the trail `M₀`, where `lit` is undefined; its negation is among the
 literals `A` above `M₀`. -/
@@ -321,6 +327,7 @@ structure Learned (log₀ : LRATLog φ) (A M₀ : Trail) where
   /-- The numbers of the clauses met by the analysis: the conflict clause, the resolvents and the
   reasons resolved. Clause activities bump them. -/
   used : List ℕ
+  seen_mem : ∀ v ∈ seen, v ∈ φ.vars
   clause?_eq : log.clause? id = some clause
   mem : lit ∈ clause
   false_below : ∀ y ∈ clause, y ≠ lit → y.negate ∈ Trail.lits M₀
@@ -355,7 +362,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
         exact ⟨this.1, by simpa using this.2⟩
       if hall : rest.all (· == u) then
         { log := log, id := i, clause := C, lit := u, seen := C.map Prod.fst, used := [i],
-          clause?_eq := hC,
+          seen_mem := vars_mem_map_of_clause? hC, clause?_eq := hC,
           mem := hu.1,
           false_below := fun y hy hne => by
             have hyT := hfalse y hy
@@ -463,7 +470,11 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) 
                   obtain ⟨z, hz, hne, hzc⟩ := hz
                   exact ⟨z, mem_resolveOn_left hz hne, hcur' z hne hzc⟩)
                 hnd'
-              { L' with seen := C.map Prod.fst ++ L'.seen, used := i :: r :: L'.used }
+              { L' with
+                seen := C.map Prod.fst ++ L'.seen
+                used := i :: r :: L'.used
+                seen_mem := fun v hv =>
+                  (List.mem_append.1 hv).elim (vars_mem_map_of_clause? hC v) (L'.seen_mem v) }
             else
               analyze log₀ d M₀ A N' hA' log hext i C hC hT hdec'
                 (fun y hy => hfalse' y hy fun h => hmem (h ▸ hy))
