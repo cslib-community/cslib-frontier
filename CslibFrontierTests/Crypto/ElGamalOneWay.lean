@@ -17,7 +17,7 @@ Checks of `CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean` as an ordinar
 group family and transfers the fixed-group equality to the book's literal draws `x ←R 𝔾` and
 `y ←R 𝔾`; one value of the advantage, at `g = 0`, in the one-way game and in the CDH game of `ℬ`;
 with a point setup law the family game is `PKE.owAdvantage` at that group; and
-`CDH.elGamal_oneWay` applies to a named adversary with its efficiency proof.
+`CDH.elGamal_oneWay_ideal` applies to a named adversary with its efficiency proof.
 -/
 
 public section
@@ -83,8 +83,8 @@ example {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q] [Module
 
 /-! ### The family game -/
 
-/-- With a point setup law, the game of `CDH.elGamal_oneWay` is Attack Game 12.6 on the scheme of
-that group: its success probability is `PKE.owAdvantage`. -/
+/-- With a point setup law, the game of `CDH.elGamal_oneWay_ideal` is Attack Game 12.6 on the
+scheme of that group: its success probability is `PKE.owAdvantage`. -/
 example (F : PrimeOrderGroupFamily) (d : F.Desc) (A : F.ElGamalOWAdversary) (n : ℕ) :
     Game.succProbability (F.elGamalOWGame (fun _ => PMF.pure d) A n) =
       PKE.owAdvantage (elGamalExplicitCoinPKE (F.order d) (F.generator d)).toPKE
@@ -105,6 +105,6 @@ theorem isPPT_guessSecond (F : PrimeOrderGroupFamily) : (guessSecond F).IsPPT :=
 /-- Under CDH, `guessSecond` wins Attack Game 12.6 with negligible probability. -/
 example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (hCDH : F.CDH setup) :
     Negligible fun n => Game.succProbability (F.elGamalOWGame setup (guessSecond F) n) :=
-  PrimeOrderGroupFamily.CDH.elGamal_oneWay hCDH (guessSecond F) (isPPT_guessSecond F)
+  PrimeOrderGroupFamily.CDH.elGamal_oneWay_ideal hCDH (guessSecond F) (isPPT_guessSecond F)
 
 end CslibFrontierTests.Crypto.ElGamalOneWay

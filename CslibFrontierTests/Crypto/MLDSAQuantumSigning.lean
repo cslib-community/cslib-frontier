@@ -8,9 +8,10 @@ module
 -- upstream: local-only (test driver)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
-meta import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 
 /-!
 # Quantum access to the ML-DSA signing experiment
@@ -81,3 +82,14 @@ example (base : Xofs) : ((base.uniformPrefixes 0 1).map fun H =>
   congr 1
   funext ⟨t₂, t₁⟩
   simp [byteAt_install, e, empty]
+
+-- Algorithm 33 reads 481 bytes at this same 64-byte seed and little-endian nonce.
+-- Both the secret sampler and Algorithm 34 must see the prefix of the same packed mask.
+example {base H : Xofs} {s : Level} {a b : ℕ} {ha : 528 ≤ a} {hb : maskPolyBytes s ≤ b}
+    {masks : MaskTable s} (h : H ∈ (base.sampleWithMasks ha hb masks).support)
+    (seed : FixedBytes 64) (nonce : ℕ) :
+    H.h256.readBytes (nonceInput seed.toList nonce) 481 =
+      (packSigned (s.params.γ₁.log2 + 1) s.params.γ₁ (fun _ : Fin 1 => fun j =>
+        ((masks (maskAddress seed nonce) j).val : ZMod 8380417))).take 481 := by
+  rw [← Xofs.read_mask_of_mem_sampleWithMasks h seed nonce]
+  exact (H.h256.take_read _ (show 481 ≤ maskPolyBytes s by cases s <;> decide)).symm

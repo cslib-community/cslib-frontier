@@ -92,12 +92,6 @@ private def UniformStreamRecipe.coeffs {Op : Type u} {Struct : Type v}
   coeffC := R.coeffC
   intrinsicCoeff := R.intrinsicCoeff
 
-private theorem UniformStreamRecipe.emits_norm {Op : Type u} {Struct : Type v}
-    (R : UniformStreamRecipe Op Struct) {env : Op → ℕ → ℤ} {sEnv : Struct → Bool}
-    (hV : R.ValidEnv env sEnv) :
-    IsNormSignedStream (fun t => (R.digitProg t).eval env sEnv) :=
-  ⟨R.emits_signed hV, by rw [R.emits_exact hV]; exact R.abs_targetVal_le_one hV⟩
-
 /-- Certified stream recipe pinned to slack `d`, environment validity predicate `V`, and semantic
 function `valFn` in its type. Keeping combinator bodies non-`@[expose]` while exposing
 `FixedRecipe.toRecipe` makes `.slack`, `.ValidEnv`, and `.targetVal` reduce in one step without
@@ -877,6 +871,7 @@ noncomputable def invOneAddScaledFixed {Op : Type u} {Struct : Type v}
   let twoPowInvF := FixedRecipe.const d hd V (1 / (2 : ℚ) ^ m) h2pow_abs κ
   let wNormF := twoPowInvF.pairAvg posQ
   let wNormR := wNormF.toRecipe
+  -- Restate `hm` against `wNormR.slack` so later rewrites avoid unfolding `wNormR`.
   have hmW : m ≤ κ * wNormR.slack := hm
   let swC := dyadicSwitchCoeffs κ wNormR.coeffs
   let oneSubC := oneSubSwitchCoeffs κ wNormR.coeffs

@@ -30,6 +30,17 @@ Here `A` ranges over `ProbComp`-valued tests rather than arbitrary `Cslib.Crypto
 (`(Fin ℓ → R) → PMF Bool`) because general `PMF` values with arbitrary real weights cannot be
 simulated inside a finitely-branching `ProbComp` adversary.
 
+This finite-type identity is a step toward Theorem 4.8, not the cited result: in the theorem the
+reduction is an elementary wrapper around `A` and the conclusion is that the generator is a secure
+PRG, while nothing here certifies `prgReduction` as efficient. In
+`CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG`, the theorem's security conclusion
+is `Cslib.Crypto.indistinguishable_prgFromPRF`. The exact identity
+`Cslib.Crypto.advantage_prgFromPRF_eq` explains the reduction: it equates the two advantages for
+the oracle-PPT word reduction `Cslib.Crypto.prgFromPRFReduction`, which runs `prgReduction`.
+`Cslib.Crypto.PseudorandomFunctionOver.toPRG` concludes `PseudorandomGenerator` and so also needs
+strict stretch, `n < ℓ n * outLen n`. For example, one output block as wide as the seed gives
+indistinguishable outputs but no stretch.
+
 ## Main definitions
 
 * `Cslib.Crypto.PRF.toPRG`: generator obtained by evaluating `F` at `x : Fin ℓ ↪ D`.
@@ -45,8 +56,11 @@ simulated inside a finitely-branching `ProbComp` adversary.
   real experiment.
 * `Cslib.Crypto.PRF.eval_idealExperiment_prgReduction`: ideal PRF experiment agrees with the PRG
   ideal experiment.
-* `Cslib.Crypto.PRF.advantage_toPRG_eq`: exact PRG-to-PRF advantage identity (Theorem 4.8).
 * `Cslib.Crypto.PRF.isExpanding_toPRG`: `PRF.toPRG F x` is expanding when `|Key| < |R| ^ ℓ`.
+
+## Step toward Theorem 4.8
+
+* `Cslib.Crypto.PRF.advantage_toPRG_eq`: exact PRG-to-PRF advantage identity on finite types.
 
 ## References
 
@@ -131,9 +145,12 @@ theorem eval_idealExperiment_prgReduction [Fintype D] [DecidableEq D] [Fintype R
   rw [← PMF.uniformOfFintype_pi_map_comp_embedding x, PMF.bind_map]
   rfl
 
-/-- **PRF-to-PRG reduction** ([BonehShoup2023], Theorem 4.8, p. 138): for any `ProbComp`-valued
-distinguisher `A` on `Fin ℓ → R`, its PRG distinguishing advantage against `toPRG F x` equals the
-PRF distinguishing advantage of the `ℓ`-query reduction `prgReduction x A` against `F`. -/
+/-- Finite-type advantage identity, a step toward [BonehShoup2023], Theorem 4.8 (p. 138), not the
+cited result: for any `ProbComp`-valued distinguisher `A` on `Fin ℓ → R`, its PRG distinguishing
+advantage against `toPRG F x` equals the PRF distinguishing advantage of the `ℓ`-query reduction
+`prgReduction x A` against `F`. Nothing here certifies `prgReduction` as efficient. The theorem's
+security conclusion, with an oracle-PPT reduction, is `Cslib.Crypto.indistinguishable_prgFromPRF`;
+its exact identity is `Cslib.Crypto.advantage_prgFromPRF_eq`. -/
 theorem advantage_toPRG_eq [Fintype Key] [Nonempty Key] [Fintype D] [DecidableEq D]
     [Fintype R] [Nonempty R]
     (F : Key → D → R) (x : Fin ℓ ↪ D) (A : (Fin ℓ → R) → ProbComp Bool) :

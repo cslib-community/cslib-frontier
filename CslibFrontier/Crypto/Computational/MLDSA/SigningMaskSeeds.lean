@@ -137,8 +137,10 @@ private theorem coupled_key {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
   let x := Keccak.bytesToBitsLE
     (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ])
   change pair.shared.h256.read x 128 = pair.background.h256.read x 128
-  have len : x.length = 272 := by simp only [x, bitsLength, List.length_append,
-    FixedBytes.length_toList, List.length_cons, List.length_nil]
+  have len : x.length = 272 := by
+    dsimp only [x]
+    rw [Keccak.length_bytesToBitsLE, List.length_append, FixedBytes.length_toList seed]
+    rfl
   apply read_eq_of_byteAt_eq
   intro i _
   apply coupled_off _ _ _ _ _ _ _ _ _ _ _ (.inr _)
@@ -213,7 +215,7 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
     intro i μ eq
     change seedInput (signingKeyBytes pair.background s seed) t (i, μ) = _ at eq
     have len := congrArg List.length eq
-    rw [seedInput_length (signingKeyBytes_length ..), bitsLength] at len
+    rw [seedInput_length (signingKeyBytes_length ..), Keccak.length_bytesToBitsLE] at len
     lia
   apply Xofs.keyGen_congr_of_reads level setup same128
   · exact bytes _ _ (by simp [FixedBytes.toList])
@@ -286,9 +288,12 @@ private theorem hedge_of_representative_ne {base : Xofs} {s : Level} {seed : Fix
   intro j _
   apply (agree_off_sampleSigningMaskSeeds hp).2 _ _ (.inr _)
   intro i μ eq
-  have bytes : key ++ (t i).toList = tr := bytes_eq_of_bits_eq (List.append_inj eq
-    (by simp only [bitsLength, List.length_append, FixedBytes.length_toList, ht, hk,
-      ← show key = (pair.background.expandKeySeed s seed).drop 96 from rfl])).1
+  have sameLength : (Keccak.bytesToBitsLE (key ++ (t i).toList)).length =
+      (Keccak.bytesToBitsLE tr).length := by
+    rw [Keccak.length_bytesToBitsLE, Keccak.length_bytesToBitsLE, List.length_append,
+      FixedBytes.length_toList, hk, ht]
+  have bytes : key ++ (t i).toList = tr :=
+    Keccak.bytesToBitsLE_injective (List.append_inj eq sameLength).1
   apply miss i
   rw [← bytes]
   simpa only [hk] using (List.drop_left (l₁ := key) (l₂ := (t i).toList)).symm
