@@ -132,6 +132,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
+import CslibFrontier.Computability.Complexity.Classes.PH.OracleCollapse
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
@@ -8871,6 +8872,19 @@ register_result "three-sat-complement-ph-collapse" where
   scope := "Native polynomial-time many-one reduction with encCNF. ThreeSAT has clause width \
     at most three; its complement is inside all CNF Nat, including wider formulas. \
     The conclusion PH enc = NP enc holds for every explicit encoding enc."
+
+register_result "arora-barak-relativized-ph-collapse" where
+  title := "Relative P = NP collapses the polynomial hierarchy for the same oracle"
+  topic := "complexity classes"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 5, Exercise §9",
+      locator := "2007-01-08 public draft, printed p. 100 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Complexity.PHWithOracle_subset_PWithOracle_of_eq_NPWithOracle]
+  scope := "For an arbitrary fixed Boolean-word oracle O, equality of relative P and NP on \
+    Boolean words implies the exercise's inclusion PH^O ⊆ P^O. The Lean conclusion holds on \
+    every explicit instance encoding. A native polynomial-time multitape verifier queries O \
+    after finitely many alternating blocks with polynomial lengths."
 
 register_result "tautology-conp-complete" where
   title := "TAUTOLOGY is coNP-complete"
