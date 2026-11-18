@@ -110,9 +110,11 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.Transi
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
+import CslibFrontier.Computability.Complexity.Classes.PCP.ProofLocations
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
 import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
+import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
@@ -122,6 +124,7 @@ import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialL
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineNormalization
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SOPLCollapse
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.SpernerHardness
+import CslibFrontier.Computability.Complexity.Classes.TFNP.Uncheckable
 import CslibFrontier.Computability.Complexity.Classes.Time.Sublinear
 import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
 import CslibFrontier.Computability.Complexity.Classes.Toda
@@ -467,6 +470,20 @@ register_result "goldreich-few-oracle-queries-search" where
     machines (ComputableInPolyTimeWithOracle certificates). Outside-fleet six-point source \
     check: review 5950244269 on PR #6358."
 
+register_result "goldreich-pf-not-subset-pc" where
+  title := "PF contains search problems that are not in PC"
+  topic := "search problems"
+  sources := [
+    { paper := Goldreich2006DraftR1, theorem := "Exercise 2.1",
+      locator := "December 2006 r1.pdf, printed p. 105; PDF p. 130" }
+  ]
+  theorems := [Cslib.Complexity.exists_polyTimeSolvable_not_mem_FNP]
+  scope := "Instances and solutions are words (encBits). PF membership is spelled out \
+    (polynomial length bound and a polynomial-time SolvesSearch solver with encOption encBits \
+    output), since the library's FPSearch is PF ∩ PC; PC is FNP. Witness: the guideline \
+    relation for the undecidable self-halting problem. Outside-fleet six-point source check: \
+    review 5953896605 on PR #6407."
+
 register_result "pcp" where
   title := "The PCP theorem"
   topic := "interactive proofs"
@@ -482,6 +499,31 @@ register_result "pcp" where
     uses O(log n + 1) random bits and O(1) queries, with perfect completeness and soundness at \
     most one half. NP is the library's deterministic-verifier class. Construction constants \
     are large."
+
+register_result "goldreich-pcp-effective-length" where
+  title := "Effective length of adaptive PCP proofs"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.15 (adaptive bound)",
+      locator := "r5.pdf; PDF pp. 66–67 / printed pp. 448–449" }
+  ]
+  theorems := [Cslib.DecisionTree.card_biUnion_allQueries_le]
+  scope := "Bound 2^(q+r) for a fixed input, with the verifier given as its family of decision \
+    trees of depth at most q indexed by the r-bit coin sequences (all answer sequences \
+    counted; no compiler from adaptive machines to trees is asserted). Outside-fleet six-point \
+    source check: review 5953164508 on PR #6392."
+
+register_result "goldreich-pcp-effective-length-nonadaptive" where
+  title := "Effective length of non-adaptive PCP proofs"
+  topic := "interactive proofs"
+  sources := [
+    { paper := Goldreich2007DraftR5, theorem := "Exercise 9.15 (non-adaptive bound)",
+      locator := "r5.pdf; PDF p. 67 / printed p. 449" }
+  ]
+  theorems := [Cslib.Complexity.IsPCPVerifier.card_toFinset_queryTable_le]
+  scope := "Bound 2^r(n)·q(n) on the distinct queryTable addresses of the library's \
+    PCPVerifier, n the encoded length. Outside-fleet six-point source check: review \
+    5953164508 on PR #6392."
 
 register_result "gap-two-csp-promise-pcp" where
   title := "Constant-gap gapCSP is in PCP(log, O(1))"
@@ -2418,6 +2460,20 @@ register_result "goldreich-nonnegative-permanent-reduction" where
     (encIntTable) with entries in I and permanent c^m * #3SAT on every formula with clauses of \
     at most three literals. Negates more than the source requires (c need not be even or \
     positive). Outside-fleet source check: PR #6261, pullrequestreview-5947014802."
+
+register_result "goldreich-approx-counting-np-hard-oracle" where
+  title := "Approximate counting for a PC relation with an NP-hard S_R oracle"
+  topic := "counting complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.39 (approximate-counting half)",
+      locator := "February 2007 draft r3.pdf, PDF p. 62; printed p. 264" }
+  ]
+  theorems := [Cslib.Complexity.FNP.exists_approxCount_of_npHard]
+  scope := "Every R in FNP (Goldreich's PC) whose language searchDomain R is NP-hard, hence \
+    every PC-complete R; oracle enc '' searchDomain R; factor 1 ± 1/q(n), failure probability \
+    2^(-n), natural-number output. The uniform-generation half is not covered. Outside-fleet \
+    six-point source check: review 5953505829 on PR #6392."
+
 register_result "gap-p-spp-lowness" where
   title := "GapP and SPP lowness characterize SPP"
   topic := "counting classes"

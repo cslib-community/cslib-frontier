@@ -186,9 +186,6 @@ private theorem Target.right_positions {s : Level} (c : Target s) (i : Fin (256 
 private def Target.transfer {s : Level} (c d : Target s) : FixedAbove 256 :=
   ⟨c.positions.symm.trans d.positions, fun j h => by have := j.isLt; lia⟩
 
-private theorem Target.transfer_symm {s : Level} (c d : Target s) :
-    (c.transfer d).symm = d.transfer c := rfl
-
 private theorem Target.transfer_nonzero {s : Level} (c d : Target s) (j : Byte) :
     d.val ((c.transfer d).e j) ≠ 0 ↔ c.val j ≠ 0 := by
   obtain ⟨x, rfl⟩ := c.positions.surjective j
@@ -309,7 +306,7 @@ private def signBytes (signs : Fin 64 → Bool) : List Byte :=
 
 private theorem bits_signBytes (signs : Fin 64 → Bool) :
     Keccak.bytesToBitsLE (signBytes signs) = List.ofFn signs :=
-  bitsOfChunks (by simp)
+  Keccak.bytesToBitsLE_toChunks (by simp)
 
 private theorem length_signBytes (signs : Fin 64 → Bool) : (signBytes signs).length = 8 := by
   have h := congrArg List.length (bits_signBytes signs)
@@ -330,10 +327,8 @@ private theorem bits_readSigns {head : List Byte} (h : head.length = 8) :
   ofFn_read! (by rw [Keccak.length_bytesToBitsLE, h])
 
 private theorem signBytes_readSigns {head : List Byte} (h : head.length = 8) :
-    signBytes (readSigns head) = head := by
-  have eq := (bits_signBytes (readSigns head)).trans (bits_readSigns h)
-  have pref := takeBytes_eq_of_bits 8 (length_signBytes _).ge h.ge (congrArg (List.take 64) eq)
-  rwa [List.take_of_length_le (length_signBytes _).le, List.take_of_length_le h.le] at pref
+    signBytes (readSigns head) = head :=
+  Keccak.bytesToBitsLE_injective ((bits_signBytes (readSigns head)).trans (bits_readSigns h))
 
 private theorem readSigns_signBytes (signs : Fin 64 → Bool) :
     readSigns (signBytes signs) = signs := by
