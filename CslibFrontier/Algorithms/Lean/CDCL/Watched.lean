@@ -1616,6 +1616,14 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   dedupVars <| (chosen.map Prod.fst).filter fun i =>
     φ.length < i && !locked.contains i && !S.short.any (·.1 == i)
 
+/-- The number of learned clauses in the store, those numbered above `n`. Reduction and
+simplification set the count of learned clauses from the rebuilt store: a clause can be stored
+twice under one number (when the clause learned is the conflict clause), and its number is deleted
+once, so subtracting the numbers deleted would let the count drift above the store and trigger
+reduction at every decision. -/
+@[expose] def WatchStore.learntCount (S : WatchStore) (n : ℕ) : ℕ :=
+  S.clauses.foldl (fun k e => if n < e.1 then k + 1 else k) 0
+
 /-- The invariant does not read the bookkeeping of reduction and simplification, nor the
 statistics. -/
 theorem WExec.Inv.withBookkeeping {S : WExec φ} (h : S.Inv) (red : Reduction) (simpAssigns : ℕ)
@@ -1665,8 +1673,9 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
 /-- Forgetting the learned clauses numbered `ids` and rebuilding the watch store on the current
 trail. -/
 @[expose] def WExec.forgetChosen (S : WExec φ) (ids : List ℕ) : WExec φ :=
-  { S.forgetRebuilt ids with
-    red := { S.red with learnts := S.red.learnts - ids.length }
+  let T := S.forgetRebuilt ids
+  { T with
+    red := { S.red with learnts := T.store.learntCount φ.length }
     stats := { S.stats with removed := S.stats.removed + ids.length } }
 
 /-- **Reducing the learned clauses**, at an empty queue: the clauses chosen are forgotten, and the
@@ -1757,8 +1766,9 @@ the database are rebuilt. -/
   let ids := S.simplifyIds
   if ids.isEmpty then { S with simpAssigns := S.exec.trail.length }
   else
-    { S.forgetRebuilt ids with
-      red := { S.red with learnts := S.red.learnts - (ids.filter (φ.length < ·)).length }
+    let T := S.forgetRebuilt ids
+    { T with
+      red := { S.red with learnts := T.store.learntCount φ.length }
       simpAssigns := S.exec.trail.length
       stats := { S.stats with simplified := S.stats.simplified + ids.length } }
 
