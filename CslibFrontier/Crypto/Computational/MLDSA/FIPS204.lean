@@ -232,6 +232,17 @@ private def boundedCoeff (η halfByte : ℕ) : Option (ZMod 8380417) :=
 def nonceInput (seed : List Byte) (nonce : ℕ) : List Byte :=
   seed ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
 
+/-- An Algorithm 34 mask row has a 64-byte seed and two counter bytes. It cannot alias
+the SHAKE input at the 32-, 48-, or 64-byte digest consumed by Algorithm 29. -/
+theorem nonceInput_ne_digestInput {s : Level} (seed : FixedBytes 64) (nonce : ℕ)
+    {d : List Byte} (hd : d.length = digestBytes s) :
+    Keccak.bytesToBitsLE (nonceInput seed.toList nonce) ≠ Keccak.bytesToBitsLE d := by
+  intro he
+  have h := congrArg List.length he
+  simp only [bitsLength, nonceInput, List.length_append, FixedBytes.length_toList,
+    List.length_cons, List.length_nil, hd] at h
+  cases s <;> revert h <;> decide
+
 private def Xofs.secretPoly (H : Xofs) (s : Level) (seed : List Byte) (nonce : ℕ) : Option Poly :=
   let bytes := H.h256.readBytes (nonceInput seed nonce) 481
   asPoly (bytes.flatMap fun b =>
@@ -518,13 +529,15 @@ private def signedTail (s : Level) (signs : List Bool) (i : Fin 256) : ZMod 8380
   if i.val < 256 - s.params.τ then 0
   else if signs[i.val - (256 - s.params.τ)]! then -1 else 1
 
-/-- Algorithm 29. Preload the last τ positions with the SHAKE sign bits and exchange each
-with its chosen position in increasing order. Future sign positions remain untouched because an
-accepted index is at most the current position. The SHAKE256 limit is 221 bytes. -/
-def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly := do
-  let bytes := H.h256.readBytes digest 221
+/-- Algorithm 29's signed sparse polynomial from the bytes read from SHAKE256. Exhaustion
+of the supplied rejection tape is preserved. -/
+def sampleInBallFromBytes (s : Level) (bytes : List Byte) : Option Poly := do
   let e ← swaps (256 - s.params.τ) s.params.τ (bytes.drop 8)
   return signedTail s (Keccak.bytesToBitsLE (bytes.take 8)) ∘ e.symm
+
+/-- Algorithm 29 reads 221 bytes at the literal digest seed and runs the signed swaps. -/
+@[expose] def Xofs.sampleInBall (H : Xofs) (s : Level) (digest : List Byte) : Option Poly :=
+  sampleInBallFromBytes s (H.h256.readBytes digest 221)
 
 /-- FIPS 202 specialization of `Xofs.sampleInBall`. -/
 abbrev sampleInBall := Xofs.sampleInBall Xofs.shake
@@ -558,9 +571,9 @@ private theorem inBall_signedTail (s : Level) (signs : List Bool) (e : Equiv.Per
 theorem inBall_of_sampleInBall {H : Xofs} {s : Level} {digest : List Byte} {c : Poly}
     (h : H.sampleInBall s digest = some c) : InBall s.params.τ c := by
   cases he : swaps (256 - s.params.τ) s.params.τ ((H.h256.readBytes digest 221).drop 8) with
-  | none => simp [Xofs.sampleInBall, he] at h
+  | none => simp [Xofs.sampleInBall, sampleInBallFromBytes, he] at h
   | some e =>
-    rw [Xofs.sampleInBall, he] at h
+    rw [Xofs.sampleInBall, sampleInBallFromBytes, he] at h
     exact (Option.some.inj h) ▸ inBall_signedTail s _ e
 
 /-- The components of a FIPS 204 signature after Algorithm 27 has checked its encoding. -/
@@ -1026,6 +1039,17 @@ def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : L
   let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
   μ ++ Keccak.bytesToBitsLE (packCoeffs width fun i j => (w i j).toNat)
 
+/-- The two SHAKE256 inputs in the FIPS challenge computation have different lengths:
+the 512-bit message representative is followed by a nonempty packed commitment, whereas the
+digest seed for Algorithm 29 occupies at most 512 bits. -/
+theorem commitmentInput_ne_digestInput {s : Level} (w : Fin s.params.k → Fin 256 → ℤ)
+    {μ : List Bool} (hμ : μ.length = 512) {d : List Byte} (hd : d.length = digestBytes s) :
+    commitmentInput s w μ ≠ Keccak.bytesToBitsLE d := by
+  intro he
+  have h := congrArg List.length he
+  simp only [commitmentInput, List.length_append, hμ, bitsLength, length_packCoeffs, hd] at h
+  cases s <;> revert h <;> decide
+
 /-- Fixed-width packing distinguishes all high-bit vectors in the range of UseHint. -/
 theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 → ℤ} {μ : List Bool}
     (hw : ∀ i j, 0 ≤ w i j ∧ w i j < (((s.params.q - 1) / (2 * s.params.γ₂) : ℕ) : ℤ))
@@ -1047,7 +1071,7 @@ theorem eq_of_commitmentInput_eq {s : Level} {w v : Fin s.params.k → Fin 256 �
   omega
 
 /-- The full FIPS hash of the message representative and packed reconstructed commitment. -/
-def Xofs.commitmentDigest (H : Xofs) (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
+@[expose] def Xofs.commitmentDigest (H : Xofs) (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
     (μ : List Bool) : List Byte :=
   H.h256.read
     (commitmentInput s w μ) (digestBytes s)

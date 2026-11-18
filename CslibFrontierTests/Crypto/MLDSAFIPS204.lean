@@ -115,3 +115,19 @@ private def allOnesXof := constantStream (fun _ => 255)
 
 #guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
 #guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
+
+-- Different 32-byte seeds can expand to the same sparse polynomial. Preserve their
+-- eight exposed sign bytes while filling each rejection tape with zero bytes.
+private def collidingExpansionRows : Option Bool := do
+  let a := List.replicate 32 (0 : Byte)
+  let b := (1 : Byte) :: List.replicate 31 0
+  let rows : Finset (List Bool) := {Keccak.bytesToBitsLE a, Keccak.bytesToBitsLE b}
+  let background := constantStream (fun _ => 247)
+  let H := (Xofs.mk background background).fill256 (rows := rows) (width := 221)
+    (fun _ => 8) (fun _ _ => 0)
+  let c ← H.sampleInBall .mlDSA44 a
+  let c' ← H.sampleInBall .mlDSA44 b
+  return a != b && c == c' && H.h256.readBytes a 9 == List.replicate 8 247 ++ [0] &&
+    H.h256.readBytes [] 9 == List.replicate 9 247
+
+#guard collidingExpansionRows == some true
