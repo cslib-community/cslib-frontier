@@ -109,6 +109,7 @@ import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 import CslibFrontier.Computability.Complexity.Classes.Oracle.FewQueries
 import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 import CslibFrontier.Computability.Complexity.Classes.PH.Yap
+import CslibFrontier.Computability.Complexity.Classes.Promise.CoinSplit
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
@@ -1148,6 +1149,28 @@ register_result "bpp-proper-subset-ppoly" where
     machine decider and is obtained nonconstructively using P-selective sets/countability. \
     No efficient separator or uniform circuit-family construction. Strictness is not asserted \
     for arbitrary encoded finite instance domains, where the two classes coincide."
+
+register_result "goldreich-coin-split-promise-corp" where
+  title := "Splitting the coins of a very-low-error BPP algorithm gives a one-sided reduction \
+    to promise-coRP"
+  topic := "randomized complexity"
+  sources := [
+    { paper := Goldreich2007Draft, theorem := "Exercise 6.11",
+      locator := "February 2007 draft r3.pdf, PDF p. 53; printed p. 255 (illustration in the \
+        proof of Theorem 6.9: PDF p. 14; printed p. 216)" }
+  ]
+  theorems := [
+    Cslib.Complexity.PromiseProblem.half_lt_toOuterMeasure_coinSplit_yes,
+    Cslib.Complexity.PromiseProblem.rpReducibleWithError_coinSplit,
+    Cslib.Complexity.PromiseProblem.coinSplit_mem_PromiseCoRP
+  ]
+  scope := "Instances x of any encoded type, |x| = (encA x).length; A' is a function of the \
+    instance and the coin string, polynomial-time on encPair encA encBits for item 2, with \
+    error below 2^-(p'(|x|)+1) over 2 p'(|x|) coins, stated by counting. Item 1 is \
+    the explicit sampler hits Pi'_yes with probability > 1/2 on members of S \
+    (half_lt_toOuterMeasure_coinSplit_yes), giving RPReducibleWithError with threshold 1/2 \
+    between the complements (the RP orientation). Only the illustrative route, not Theorem 6.9. \
+    Outside-fleet six-point source check: review 5951585789 on PR #6380."
 
 register_result "arora-barak-ma-eq-np-of-hardness" where
   title := "Average-case hardness in E gives MA = NP"
