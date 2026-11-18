@@ -47,4 +47,30 @@ theorem sbtw_angle_of_lt_of_span_lt {a b c : ℝ} (hab : a < b) (hbc : b < c)
   rw [hb, ha]
   linarith
 
+/-- Three distinct real representatives in any one turn have exactly their cyclic
+linear order as angles. In particular the cut may cross the principal argument branch. -/
+theorem sbtw_angle_iff_cyclic_lt {cut a b c : ℝ}
+    (ha : a ∈ Set.Ioo cut (cut + 2 * Real.pi))
+    (hb : b ∈ Set.Ioo cut (cut + 2 * Real.pi))
+    (hc : c ∈ Set.Ioo cut (cut + 2 * Real.pi))
+    (hab : a ≠ b) (hbc : b ≠ c) (hac : a ≠ c) :
+    sbtw (a : Real.Angle) (b : Real.Angle) (c : Real.Angle) ↔
+      (a < b ∧ b < c) ∨ (b < c ∧ c < a) ∨ (c < a ∧ a < b) := by
+  have forward {a b c : ℝ} (ha : a ∈ Set.Ioo cut (cut + 2 * Real.pi))
+      (hb : b ∈ Set.Ioo cut (cut + 2 * Real.pi))
+      (hc : c ∈ Set.Ioo cut (cut + 2 * Real.pi))
+      (h : (a < b ∧ b < c) ∨ (b < c ∧ c < a) ∨ (c < a ∧ a < b)) :
+      sbtw (a : Real.Angle) (b : Real.Angle) (c : Real.Angle) := by
+    rcases h with ⟨hab, hbc⟩ | ⟨hbc, hca⟩ | ⟨hca, hab⟩
+    · exact sbtw_angle_of_lt_of_span_lt hab hbc (by linarith [ha.1, hc.2])
+    · exact (sbtw_angle_of_lt_of_span_lt hbc hca (by linarith [hb.1, ha.2])).cyclic_right
+    · exact (sbtw_angle_of_lt_of_span_lt hca hab (by linarith [hc.1, hb.2])).cyclic_left
+  refine ⟨fun h => ?_, forward ha hb hc⟩
+  by_contra hn
+  have hrev : (c < b ∧ b < a) ∨ (b < a ∧ a < c) ∨ (a < c ∧ c < b) := by
+    rcases lt_or_gt_of_ne hab with h | h <;>
+      rcases lt_or_gt_of_ne hbc with k | k <;>
+      rcases lt_or_gt_of_ne hac with l | l <;> tauto
+  exact h.not_sbtw (forward hc hb ha hrev)
+
 end Cslib.Polygonal
