@@ -6895,10 +6895,10 @@ register_result "arora-barak-exact-indset-dp" where
       locator := "January 2007 draft, PDF p. 116; p. 5.10 (printed 100)" }
   ]
   theorems := [Cslib.Complexity.ExactIndependentSet_mem_DP]
-  scope := "EXACT INDSET = instances ⟨G, k⟩ (library Graph with declared vertices, framed graph and \
-    binary k) whose independence number is exactly k; DP = intersections of an NP and a coNP \
-    language. DP-hardness (part (b)) is not included. Outside-fleet six-point source check: \
-    review 5953416411 on PR #6402."
+  scope := "EXACT INDSET = instances ⟨G, k⟩ (library Graph with declared vertices, framed \
+    graph and binary k) whose independence number is exactly k; DP = intersections of an NP \
+    and a coNP language. DP-hardness (part (b)) is not included. Outside-fleet six-point \
+    source check: review 5953416411 on PR #6402."
 
 register_result "goldreich-fixed-proof-system-np-conp" where
   title := "A fixed refutation system for unsatisfiable CNF formulas is polynomially bounded iff \
