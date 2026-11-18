@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
+meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -120,6 +121,14 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- A fatal expansion ends a request with a terminal write and no successful log entry.
+#guard
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, zero⟩
+  let w : TerminalSigningWrite .mlDSA44 := ⟨⟨[], [true]⟩, fun _ _ => 0, [], fun _ => 0, none⟩
+  !(H.terminalRepresentativeMatch (s := .mlDSA44) [] []) &&
+    H.terminalRepresentativeMatch [] [w]
 
 -- The final commitment read is necessary. Under this legitimate XOF and encoded key the
 -- zero response is accepted, writing a different digest rejects it, and a second write at
