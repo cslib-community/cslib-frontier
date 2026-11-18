@@ -29,6 +29,7 @@ remain present, including at arity zero. These are original finite structural co
 
 ## Main results
 
+* `Witness.unrotateOfFn_certificate`: the complete RIGHT table, with its original premises.
 * `Witness.rotateOfFn_certificate`: the complete static output table is the literal
   forward cyclic reindex program, including exact short-boundary identity.
 -/
@@ -216,83 +217,141 @@ private theorem scope_table_reindex {A : Type} (B : CSP A V) (r : A)
       (ht.trans (hm p other).1).symm
     _ = _ := RotationCertificate.getD_ofRotation _ _
 
-/-- The existing static forward rotation emits exactly the raw numeric table program.
-Only the original witness and its existing boundary-distinctness premise are required.
-Short boundaries retain the original table; no target rotation or genus is supplied. -/
-theorem Witness.rotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
-    (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup) :
-    (w.rotateOfFn hn).certificate =
-      rotateBoundaryCertificate F.occurrences.length n w.certificate := by
+private theorem reindexOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
+    (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup)
+    {p q : Equiv.Perm (Fin n)}
+    {hq : ∀ j, q (finRotate n j) = finRotate n (q j)}
+    {hrev : ∀ j, (q j).rev = p j.rev} (f b : ℕ → ℕ)
+    (hf : ∀ i, i < 2 * F.occurrences.length → f i = i)
+    (hb : ∀ i, i < 2 * F.occurrences.length → b i = i)
+    (hfp : ∀ (j : Fin n) (side : Bool),
+      f (2 * (F.occurrences.length + j.val) + side.toNat) =
+        2 * (F.occurrences.length + (q.symm j).val) + side.toNat)
+    (hbp : ∀ (j : Fin n) (side : Bool),
+      b (2 * (F.occurrences.length + (q.symm j).val) + side.toNat) =
+        2 * (F.occurrences.length + j.val) + side.toNat) :
+    (reindexOfFn w hn p q hq hrev).certificate =
+      RotationCertificate.reindex w.certificate (2 * (F.occurrences.length + n)) f b := by
   classical
   let B : CSP (Option Rel) V := F.map (fun c => Constraint.mk (some c.rel) c.scope)
   let x : Fin n → V := fun j => v j.rev
-  let q := (finRotate n).symm
-  let M := F.occurrences.length
-  have hM : B.occurrences.length = M :=
+  have hM : B.occurrences.length = F.occurrences.length :=
     congrArg List.length (CSP.occurrences_mapRelation F some)
   have hs : verifyRotationCertificate (B ++ [Constraint.mk none (List.ofFn x)])
       w.certificate = true := by
     simpa only [B, x, probeBody, List.reverse_ofFn] using w.probe_accepted
   let hr := ((verifyRotationCertificate_eq_true_iff _ _).mp hs).choose
-  have tableLength {u : Fin n → V} (z : Witness F (List.ofFn u)) :
-      z.certificate.successor.length = 2 * (M + n) := by
-    have h := RotationCertificate.length_of_verifyRotation
-      (((verifyRotationCertificate_eq_true_iff _ _).mp z.probe_accepted).choose)
-    simpa only [incidenceGraph_edges, List.length_map, length_occurrences_probeBody,
-      List.length_ofFn] using h
   have hcount : 2 * (incidenceGraph
-      (B ++ [Constraint.mk none (List.ofFn (x ∘ q))])).edges.length = 2 * (M + n) := by
+      (B ++ [Constraint.mk none (List.ofFn (x ∘ q))])).edges.length =
+        2 * (F.occurrences.length + n) := by
     rw [← RotationCertificate.length_ofRotation
       (reindexLastScopeRotation B none x q (RotationCertificate.decode _ w.certificate hr))]
-    change (w.rotateOfFn hn).certificate.successor.length = _
-    exact tableLength (w.rotateOfFn hn)
+    change (reindexOfFn w hn p q hq hrev).certificate.successor.length = _
+    simpa only [List.length_ofFn] using
+      (reindexOfFn w hn p q hq hrev).length_certificate
+  have hm := scope_index_maps B none x q f b
+    (by simpa only [hM] using hf)
+    (by simpa only [hM] using hb)
+    (by simpa only [hM] using hfp)
+    (by simpa only [hM] using hbp)
   change reindexLastScopeCertificate B none x q w.certificate hr = _
+  have ht := scope_table_reindex B none x q w.certificate hr f b hm
+  rw [hcount] at ht
+  exact ht
+
+private theorem reindexOfFn_short_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
+    (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup)
+    {p q : Equiv.Perm (Fin n)}
+    {hq : ∀ j, q (finRotate n j) = finRotate n (q j)}
+    {hrev : ∀ j, (q j).rev = p j.rev} (hshort : n ≤ 1) :
+    (reindexOfFn w hn p q hq hrev).certificate = w.certificate := by
+  have hj : ∀ j : Fin n, (q.symm j).val = j.val := by
+    intro j
+    have h₁ := j.isLt
+    have h₂ := (q.symm j).isLt
+    omega
+  have ht := reindexOfFn_certificate (p := p) (q := q) (hq := hq) (hrev := hrev)
+    w hn id id (fun _ _ => rfl) (fun _ _ => rfl)
+    (by intro j side; simp only [id_eq, hj])
+    (by intro j side; simp only [id_eq, hj])
+  refine ht.trans ?_
+  have hc : w.certificate.successor.length = 2 * (F.occurrences.length + n) := by
+    simpa only [List.length_ofFn] using w.length_certificate
+  cases hcert : w.certificate with
+  | mk values =>
+    apply congrArg RotationCertificate.mk
+    change (List.range (2 * (F.occurrences.length + n))).map
+      (fun i => values.getD i 0) = values
+    have hv : values.length = 2 * (F.occurrences.length + n) := by
+      simpa only [hcert] using hc
+    rw [← hv]
+    exact List.map_getD_range _ 0
+
+/-- The existing static LEFT constructor emits the complete raw table.
+Only its original witness and boundary-distinctness premise are needed; short tables retain
+literal identity and no target rotation, genus or map-agreement provider is input. -/
+theorem Witness.rotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
+    (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup) :
+    (w.rotateOfFn hn).certificate =
+      rotateBoundaryCertificate F.occurrences.length n w.certificate := by
+  unfold Witness.rotateOfFn
+  unfold rotateBoundaryCertificate
   by_cases hshort : n ≤ 1
-  · have hj : ∀ j : Fin n, (q.symm j).val = j.val := by
-      intro j
-      have h₁ := j.isLt
-      have h₂ := (q.symm j).isLt
-      omega
-    have hm := scope_index_maps B none x q id id (fun _ _ => rfl) (fun _ _ => rfl)
-      (by intro j side; simp only [id_eq, hj])
-      (by intro j side; simp only [id_eq, hj])
-    have ht := scope_table_reindex B none x q w.certificate hr id id hm
-    rw [hcount] at ht
-    rw [rotateBoundaryCertificate, ite_eq_left hshort]
-    refine ht.trans ?_
-    have hc := tableLength w
-    cases hcert : w.certificate with
-    | mk values =>
-      apply congrArg RotationCertificate.mk
-      change (List.range (2 * (M + n))).map (fun i => values.getD i 0) = values
-      have hv : values.length = 2 * (M + n) := by simpa only [hcert] using hc
-      rw [← hv]
-      exact List.map_getD_range _ 0
-  · let f := boundaryIndexMap M n (fun j => (j + 1) % n)
+  · rw [ite_eq_left hshort]
+    exact reindexOfFn_short_certificate w hn hshort
+  · rw [ite_eq_right hshort]
+    let M := F.occurrences.length
+    let f := boundaryIndexMap M n (fun j => (j + 1) % n)
     let b := boundaryIndexMap M n (fun j => (j + n - 1) % n)
     have hf := window_coordinates M n (fun j => (j + 1) % n)
     have hb := window_coordinates M n (fun j => (j + n - 1) % n)
-    have hm := scope_index_maps B none x q f b
-      (by intro i hi; exact hf.1 i (by simpa only [hM] using hi))
-      (by intro i hi; exact hb.1 i (by simpa only [hM] using hi))
-      (by
-        intro j side
-        simp only [hM]
-        have hfi : f (2 * (M + j.val) + side.toNat) =
-            2 * (M + (j.val + 1) % n) + side.toNat := hf.2 j side
-        rw [hfi, rotate_mod]
-        rfl)
-      (by
-        intro j side
-        simp only [hM]
-        change b (2 * (M + (finRotate n j).val) + side.toNat) = _
-        have hbi : b (2 * (M + (finRotate n j).val) + side.toNat) =
-            2 * (M + ((finRotate n j).val + n - 1) % n) + side.toNat :=
-          hb.2 (finRotate n j) side
-        rw [hbi, unrotate_mod, Equiv.symm_apply_apply])
-    have ht := scope_table_reindex B none x q w.certificate hr f b hm
-    rw [hcount] at ht
-    simpa only [rotateBoundaryCertificate, ite_eq_right hshort] using ht
+    apply reindexOfFn_certificate w hn f b
+    · exact hf.1
+    · exact hb.1
+    · intro j side
+      have hfi : f (2 * (M + j.val) + side.toNat) =
+          2 * (M + ((j.val + 1) % n)) + side.toNat := hf.2 j side
+      rw [hfi, rotate_mod]
+      rfl
+    · intro j side
+      change b (2 * (M + (finRotate n j).val) + side.toNat) = _
+      have hbi : b (2 * (M + (finRotate n j).val) + side.toNat) =
+          2 * (M + (((finRotate n j).val + n - 1) % n)) + side.toNat :=
+        hb.2 (finRotate n j) side
+      rw [hbi, unrotate_mod, Equiv.symm_apply_apply]
+
+/-- The existing static RIGHT constructor emits the complete raw table.
+Only its original witness and boundary-distinctness premise are needed; short tables retain
+literal identity and no target rotation, genus or map-agreement provider is input. -/
+theorem Witness.unrotateOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
+    (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup) :
+    (w.unrotateOfFn hn).certificate =
+      rotateBoundaryCertificateRight F.occurrences.length n w.certificate := by
+  unfold Witness.unrotateOfFn
+  rw [rotateBoundaryCertificateRight_eq_reindex_mod]
+  by_cases hshort : n ≤ 1
+  · rw [ite_eq_left hshort]
+    exact reindexOfFn_short_certificate w hn hshort
+  · rw [ite_eq_right hshort]
+    let M := F.occurrences.length
+    let f := boundaryIndexMap M n (fun j => (j + n - 1) % n)
+    let b := boundaryIndexMap M n (fun j => (j + 1) % n)
+    have hf := window_coordinates M n (fun j => (j + n - 1) % n)
+    have hb := window_coordinates M n (fun j => (j + 1) % n)
+    apply reindexOfFn_certificate w hn f b
+    · exact hf.1
+    · exact hb.1
+    · intro j side
+      have hfi : f (2 * (M + j.val) + side.toNat) =
+          2 * (M + ((j.val + n - 1) % n)) + side.toNat := hf.2 j side
+      rw [hfi, unrotate_mod]
+    · intro j side
+      change b (2 * (M + ((finRotate n).symm j).val) + side.toNat) = _
+      have hbi : b (2 * (M + ((finRotate n).symm j).val) + side.toNat) =
+          2 * (M + ((((finRotate n).symm j).val + 1) % n)) + side.toNat :=
+        hb.2 ((finRotate n).symm j) side
+      rw [hbi, rotate_mod, Equiv.apply_symm_apply]
+
 
 end
 

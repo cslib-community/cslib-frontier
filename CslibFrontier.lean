@@ -49,6 +49,7 @@ public import CslibFrontier.Algorithms.Lean.CYK.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
+public import CslibFrontier.Algorithms.Lean.DPLL
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
@@ -2574,6 +2575,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryFusion
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryHiding
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotateProgram
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotation
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Certificate
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ConstraintParity
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Darts
@@ -4123,6 +4125,12 @@ public import CslibFrontier.Computability.PointerMachine.Embedding
 public import CslibFrontier.Computability.PointerMachine.Renaming
 public import CslibFrontier.Computability.PointerMachine.Simulation
 public import CslibFrontier.Computability.PointerMachine.Symbols
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Allocation
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Compiler
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Correctness
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Effect
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Encoding
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Memory
 public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.PolyTime.BitString.InitialTestsSearch
 public import CslibFrontier.Computability.PolyTime.BitString.SmallBias
@@ -4147,6 +4155,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.Boundary
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryAppend
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
+public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
@@ -4531,6 +4540,7 @@ public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.ArrayAppend
 public import CslibFrontier.Computability.WordRAM.ArrayNormalize
 public import CslibFrontier.Computability.WordRAM.Basis
+public import CslibFrontier.Computability.WordRAM.Blocks
 public import CslibFrontier.Computability.WordRAM.BoundedExec
 public import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Computability.WordRAM.Compile
@@ -4975,12 +4985,19 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
+public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+public import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
+public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
+public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
+public import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningROM
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
@@ -5240,6 +5257,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.Foundations
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Propagate
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme
@@ -7675,6 +7693,7 @@ public import CslibFrontier.Logics.Propositional.ParitySystem
 public import CslibFrontier.Logics.Propositional.ParitySystem.Tseitin
 public import CslibFrontier.Logics.Propositional.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Pigeonhole.Extension
+public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 public import CslibFrontier.Logics.Propositional.QBF
 public import CslibFrontier.Logics.Propositional.QBF.Arithmetization
 public import CslibFrontier.Logics.Propositional.QBF.Assignment
@@ -7686,6 +7705,7 @@ public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTime
+public import CslibFrontier.Logics.Propositional.Resolution.LRAT
 public import CslibFrontier.Logics.Propositional.Resolution.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Resolution.PigeonholeSpace
 public import CslibFrontier.Logics.Propositional.Resolution.Proof
@@ -7706,6 +7726,7 @@ public import CslibFrontier.Logics.Propositional.Semantics
 public import CslibFrontier.Logics.Propositional.SigmaThree
 public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
+public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential

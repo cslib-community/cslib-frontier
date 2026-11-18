@@ -110,34 +110,12 @@ variable (hash : List Bool → List Bool → List Bool)
 /-! ### Lengths of labels -/
 
 private theorem length_le_of_mem_propagateWords (k : ℕ) (f : ConventionalCircuit)
-    (coins : List Bool) (s : ℕ) : ∀ w ∈ propagateWords k f coins s, w.length ≤ k + 2 := by
-  induction s with
-  | zero =>
-    intro w hw
-    simp only [propagateWords, List.mem_ofFn] at hw
-    obtain ⟨i, rfl⟩ := hw
-    simp [HalfGates.inputWord]
-  | succ s ih =>
-    rw [propagateWords]
-    split
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · exact ih w hw
-      · rw [List.mem_singleton.mp hw]
-        split
-        · have ha := HalfGates.length_getD_le ih (f.A ⟨s, ‹_›⟩ - 1)
-          rw [List.length_zipWith]
-          omega
-        · simp [baseWord]
-    · exact ih
+    (coins : List Bool) (s : ℕ) : ∀ w ∈ propagateWords k f coins s, w.length ≤ k + 2 :=
+  length_le_of_mem_simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) s
 
 private theorem length_propagateWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) {s : ℕ}
-    (hs : s ≤ f.q) : (propagateWords k f coins s).length = f.n + s := by
-  induction s with
-  | zero => simp [propagateWords]
-  | succ s ih =>
-    rw [propagateWords, dite_eq_left (show s < f.q by omega), List.length_append, ih (by omega)]
-    rfl
+    (hs : s ≤ f.q) : (propagateWords k f coins s).length = f.n + s :=
+  length_simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) hs
 
 /-! ### Zero-label propagation as a fold -/
 
@@ -154,18 +132,22 @@ private theorem propagateWords_eq_foldl (k : ℕ) (f : ConventionalCircuit) (coi
       (f.gateList.take s).foldl (propagateWordStep k coins)
         ((List.range f.n).map (HalfGates.inputWord k coins)) := by
   induction s with
-  | zero => simp [propagateWords, List.map_range_eq_ofFn]
+  | zero => simp [propagateWords, simPropWords, List.map_range_eq_ofFn]; rfl
   | succ s ih =>
     have hsq : s < f.q := hs
-    rw [List.take_add_one, List.foldl_append, ← ih hsq.le, propagateWords, dite_eq_left hsq]
+    rw [List.take_add_one, List.foldl_append, ← ih hsq.le,
+      propagateWords_eq_simPropWords, simPropWords, dite_eq_left (show s < f.topo.q from hsq),
+      ← propagateWords_eq_simPropWords]
     have hget : f.gateList[s]? = some (f.A ⟨s, hsq⟩, f.B ⟨s, hsq⟩,
         [f.G ⟨s, hsq⟩ false false, f.G ⟨s, hsq⟩ false true, f.G ⟨s, hsq⟩ true false,
           f.G ⟨s, hsq⟩ true true]) := by
       simp [ConventionalCircuit.gateList, hsq]
     rw [hget]
     simp only [Option.toList_some, List.foldl_cons, List.foldl_nil, propagateWordStep,
-      List.getD_min_length_succ_sub_one, isXorTable_eq]
-    rw [length_propagateWords k f coins hsq.le]
+      List.getD_min_length_succ_sub_one, isXorTable_eq, ConventionalCircuit.topo]
+    rw [length_propagateWords k f coins hsq.le,
+      show (List.ofFn (isXorGate f)).getD s false = isXorGate f ⟨s, hsq⟩ by
+        simp [List.getD_eq_getElem?_getD, hsq]]
     by_cases hxor : isXorGate f ⟨s, hsq⟩ = true
     · have hxor' : decide (f.G ⟨s, hsq⟩ = xor) = true := hxor
       rw [ite_eq_left hxor, ite_eq_left hxor']
@@ -174,6 +156,7 @@ private theorem propagateWords_eq_foldl (k : ℕ) (f : ConventionalCircuit) (coi
       rw [List.take_of_length_le (by rw [List.length_zipWith]; omega)]
     · have hxor' : ¬ decide (f.G ⟨s, hsq⟩ = xor) = true := hxor
       rw [ite_eq_right hxor, ite_eq_right hxor']
+      rfl
 
 /-! ### Evaluator as a fold with bounded growth -/
 
