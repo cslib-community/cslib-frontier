@@ -8,8 +8,8 @@ module
 -- upstream: local-only (test driver)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
-import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import CslibFrontier.Crypto.Computational.MLDSA.SplitMatrix
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigningPrefix
+import all CslibFrontier.Computability.QueryComplexity.Quantum.MeasuredPrefix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
@@ -117,3 +117,45 @@ example (s : Level) :
   have bound : ((22 : ℝ) * 2 ^ queries * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
     exact_mod_cast cert
   nlinarith only [bound]
+
+-- If the ExpandS and ExpandMask seeds and counters coincide, their requests share the
+-- first 481 SHAKE256 bytes at every FIPS level, including nonstandard XOF instances.
+example (H : Xofs) (s : Level) (seed : FixedBytes 64) (nonce : ℕ) :
+    let addr := seed.toList ++ [Fin.ofNat 256 nonce, Fin.ofNat 256 (nonce / 256)]
+    (H.h256.readBytes addr (32 * (s.params.γ₁.log2 + 1))).take 481 =
+      H.h256.readBytes addr 481 := by
+  apply H.h256.take_read
+  cases s <;> decide
+
+-- An XOF returning 0xff on every stream makes the matrix and the Algorithm 29 sampler
+-- exhaust their bounded reads. Both failures must propagate through the FIPS code.
+private def allOnesXof : ExtendableOutput where
+  read _ n := List.replicate n 255
+  length_read _ _ := List.length_replicate
+  take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+#guard ((Xofs.mk allOnesXof allOnesXof).keyGen .mlDSA44 (fun _ => 0)).isNone
+#guard ((Xofs.mk allOnesXof allOnesXof).sampleInBall .mlDSA87 []).isNone
+
+
+-- Reading the actual SHAKE bytes through the common register recovers every byte of Algorithm 2.
+example (s : Level) (extra : Finset (List Bool)) (key : List Byte) (q : SigningQuery)
+    (rnd : FixedBytes 32) :
+    (Cslib.OracleComp.evalPure (Xofs.shake.digestTable s extra)
+      (signingRequestQueries s extra Xofs.shake key q rnd)).map FixedBytes.toList =
+      sign s key q.message q.context rnd := by
+  rw [evalPure_signingRequestQueries, sharedXofs_digestTable]
+
+-- The second measured request consumes the complete returned bytes of the first. Only
+-- the classical signing read budgets and the single intervening coherent XOR call are charged.
+example (s : Level) (extra : Finset (List Bool)) (H : Xofs) (key : List Byte)
+    (q : SigningQuery) (follow : SigningReply s → SigningQuery) (rnd : FixedBytes 32) :
+    let emptyCircuit : SigningInteraction s extra Unit Unit := .start
+    let first := measuredSigningCall s extra emptyCircuit H (fun _ => key) (fun _ => q)
+      (fun _ => rnd)
+    let oracle := first.coherent (fun _ => true) (fun _ => LinearIsometry.id)
+    let second := measuredSigningCall s extra oracle H (fun _ => key) (fun b => follow b.2)
+      (fun _ => rnd)
+    second.updateCost = 2 * Real.sqrt (2 * (((s.params.ℓ + 2) * 814 + 2 : ℕ) : ℝ)) + 2 := by
+  simp [measuredSigningCall, Cslib.Quantum.MeasuredPrefix.updateCost]
+  ring

@@ -17,7 +17,8 @@ import CslibFrontier.Probability.PMF.Expect
 
 The prefix can measure the adversary's state, answer measured signing calls and resume
 coherent XOR queries on the same digest table. Capped signing uses Algorithm 7's actual
-ExpandMask loop. Its internal commitment queries count even when they precede a rejection.
+ExpandMask loop. All SHAKE256 roles read the same prefix-consistent XOF, including calls
+to expand masks and challenges that are eventually rejected.
 
 At the distinguished attempt an independent uniform signing mask is drawn after the
 representative has been chosen. The retained mask and digest go through SampleInBall, the
@@ -25,6 +26,11 @@ response and hint checks, and signature encoding. Refreshing the digest for the 
 and all subsequent operations costs the prefix's query disturbance times the FIPS
 commitment entropy factor. For an erased rejected write, a second bound counts future
 signer queries and the following measured quantum interaction without revealing the rejected mask.
+The numerical estimate averages over a uniform coefficient matrix and a fresh independent mask
+at the distinguished trial. A joint replacement for the seeded key and ExpandMask remains open.
+
+The single-trial bound is an original finite-query estimate. Rejected-transcript oracle entries
+are central to the CMA-to-NMA arguments of [BarbosaEtAl2023] and [FallahpourFehrHuang2025].
 -/
 
 public section
@@ -50,86 +56,130 @@ private theorem recordReply_some {sig : List Byte} (h : sig.length = signatureBy
   funext i
   exact FixedBytes.getD_toList v i 0
 
-/-- The deterministic commitment table obtained by putting the literal SHAKE256 bits at
-every raw address of the quantum register. -/
-def shakeDigestTable (i : commitmentAddresses s extra) : DigestRegister s :=
-  BitString.ofList _ (Keccak.bytesToBitsLE
-    (Keccak.bitSponge Keccak.shake256Layout [true, true, true, true] i.val (digestBytes s)))
+/-- Install one digest-sized prefix per raw input in the finite quantum register. Bytes
+after the installed prefix, raw inputs outside the register and the SHAKE128 component come
+from the supplied XOFs. Requests from different protocol roles share the installed prefix. -/
+@[expose] noncomputable def sharedXofs (base : Xofs)
+    (table : commitmentAddresses s extra → DigestRegister s) : Xofs :=
+  { base with h256 := base.h256.withPrefixes fun x =>
+      if h : x ∈ commitmentAddresses s extra then some (registerBytes s (table ⟨x, h⟩)) else none }
 
-private theorem read_shake (m : BitString 512) (w : Fin s.params.k → Poly) :
-    registerBytes s (shakeDigestTable s extra (commitmentAddress s extra m w)) =
-      commitmentDigest s (highBitsVec s.params w) (List.ofFn m) := by
-  unfold shakeDigestTable
-  rw [registerBytes_ofList _ _ (Keccak.length_bitSponge ..), val_commitmentAddress]
-  rfl
+/-- The literal digest register values of any chosen SHAKE256 stream. -/
+def Xofs.digestTable (base : Xofs) (i : commitmentAddresses s extra) : DigestRegister s :=
+  BitString.ofList _ (Keccak.bytesToBitsLE (base.h256.read i.val (digestBytes s)))
 
-/-- A signing request by context and original message, with explicit hedging coins. The
-returned register contains every signature byte. The commitment oracle is shared with the
-coherent register. All other FIPS SHAKE calls in this service use their literal implementation. -/
-def signingRequestQueries (key : List Byte) (q : SigningQuery) (rnd : FixedBytes 32) :
+/-- Filling the finite register from the underlying stream preserves the entire pair of
+XOFs at every raw input and requested length, including at literal FIPS SHAKE. -/
+theorem sharedXofs_digestTable (base : Xofs) :
+    sharedXofs s extra base (base.digestTable s extra) = base := by
+  apply Xofs.ext
+  · rfl
+  apply ExtendableOutput.ext
+  funext x n
+  unfold sharedXofs ExtendableOutput.withPrefixes
+  by_cases h : x ∈ commitmentAddresses s extra
+  · simp only [h, ↓reduceDIte, Xofs.digestTable,
+      registerBytes_ofList _ _ (base.h256.length_read ..)]
+    exact base.h256.readWithPrefix_self x n _
+  · simp [h]
+
+/-- At the actual commitment input every use of SHAKE256 reads precisely the digest
+in the coherent register, even when another protocol role has used that raw input. -/
+theorem commitmentDigest_sharedXofs (base : Xofs)
+    (T : commitmentAddresses s extra → DigestRegister s) (m : BitString 512)
+    (w : Fin s.params.k → Poly) :
+    (sharedXofs s extra base T).commitmentDigest s (highBitsVec s.params w) (List.ofFn m) =
+      registerBytes s (T (commitmentAddress s extra m w)) := by
+  let i := commitmentAddress s extra m w
+  unfold Xofs.commitmentDigest
+  rw [← val_commitmentAddress s extra m w]
+  change (sharedXofs s extra base T).h256.read i.val _ = registerBytes s (T i)
+  simp [sharedXofs, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix, i.property,
+    List.take_of_length_le, base.h256.length_read]
+
+private noncomputable def read256 (base : Xofs) (q : XofRead) :
+    OracleComp (fun _ : commitmentAddresses s extra => DigestRegister s) (List Byte) :=
+  if h : q.input ∈ commitmentAddresses s extra then do
+    let d ← OracleComp.query ⟨q.input, h⟩
+    return base.h256.readWithPrefix q.input q.count (registerBytes s d)
+  else pure (base.h256.read q.input q.count)
+
+private theorem bounded_read256 (base : Xofs) (q : XofRead) :
+    (read256 s extra base q).IsQueryBounded 1 := by
+  unfold read256
+  split
+  · exact .liftBind _ _ 0 fun _ => .pure _ _
+  · exact .pure _ _
+
+private theorem eval_shared_reads (base : Xofs) (T : commitmentAddresses s extra → DigestRegister s)
+    {R : Type} (run : SigningReads R) :
+    OracleComp.evalPure T (OracleComp.interpret (read256 s extra base) run) =
+      OracleComp.evalPure (XofRead.answer (sharedXofs s extra base T).h256) run := by
+  induction run using OracleComp.induction with
+  | pure r => rfl
+  | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind, OracleComp.interpret_query,
+      OracleComp.evalPure_bind, OracleComp.evalPure_query, ih]
+    congr 1
+    unfold read256 sharedXofs XofRead.answer ExtendableOutput.withPrefixes
+    by_cases h : q.input ∈ commitmentAddresses s extra <;> simp [h]
+
+/-- A signing request on the same raw SHAKE256 table as coherent queries. The finite reply
+register carries the entire encoded signature or the FIPS error. -/
+noncomputable def signingRequestQueries (base : Xofs) (key : List Byte) (q : SigningQuery)
+    (rnd : FixedBytes 32) :
     OracleComp (fun _ : commitmentAddresses s extra => DigestRegister s) (SigningReply s) :=
-  if q.context.length ≤ 255 then
-    match decodePrivate s key with
-    | none => pure none
-    | some sk =>
-      match expandA s sk.rho with
-      | none => pure none
-      | some A =>
-        let μ := representativeFromTr sk.tr (formatMessage q.message q.context)
-        let seed := Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
-          (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ) 64
-        signingQueries s sk A seed (commitmentAddress s extra (BitString.ofList 512 μ))
-          (registerBytes s) (recordReply s) 814 0
+  if q.context.length ≤ 255 then OracleComp.interpret (read256 s extra base)
+    (base.signInternalReads s key (formatMessage q.message q.context) rnd (recordReply s))
   else pure none
 
-private theorem request_bounded (key : List Byte) (q : SigningQuery) (rnd : FixedBytes 32) :
-    (signingRequestQueries s extra key q rnd).IsQueryBounded 814 := by
+private theorem request_bounded (base : Xofs) (key : List Byte) (q : SigningQuery)
+    (rnd : FixedBytes 32) :
+    (signingRequestQueries s extra base key q rnd).IsQueryBounded ((s.params.ℓ + 2) * 814 + 2) := by
   unfold signingRequestQueries
-  split <;> first | exact .pure _ _ | split
-  all_goals first | exact .pure _ _ | split
-  all_goals first | exact .pure _ _ | apply signingQueries_bounded
+  split
+  · exact (base.signInternalReads_bounded ..).interpret (bounded_read256 s extra base)
+  · exact .pure _ _
 
-private theorem eval_loop (sk : PrivateKey s) (A : PublicMatrix s) (m : BitString 512)
+private theorem eval_loop (H : Xofs) (sk : PrivateKey s) (A : PublicMatrix s) (m : List Bool)
     (seed : List Byte) (fuel κ : ℕ) :
-    (OracleComp.evalPure (shakeDigestTable s extra)
-      (signingQueries s sk A seed (commitmentAddress s extra m) (registerBytes s)
-        (recordReply s) fuel κ)).map FixedBytes.toList =
-      OracleComp.evalPure (fun w => commitmentDigest s (highBitsVec s.params w) (List.ofFn m))
-        (signingQueries s sk A seed id id id fuel κ) := by
+    (OracleComp.evalPure (XofRead.answer H.h256) (signingQueries s sk A m seed (recordReply s)
+      fuel κ)).map FixedBytes.toList =
+      OracleComp.evalPure (XofRead.answer H.h256) (signingQueries s sk A m seed id fuel κ) := by
   induction fuel generalizing κ with
   | zero => rfl
   | succ n ih =>
-    simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-      id_eq, read_shake]
+    simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query, id_eq]
     split
     · rfl
     · rename_i sig he
-      exact recordReply_some s (length_finishSigningAttempt (length_commitmentDigest ..) he)
+      exact recordReply_some s (length_finishSigningAttempt (H.h256.length_read ..) he)
     · apply ih
 
-/-- At literal SHAKE every adaptive measured signing call returns exactly the external FIPS
-signer's bytes or its error, including invalid contexts, secret keys and XOF exhaustion. -/
-theorem evalPure_signingRequestQueries (key : List Byte) (q : SigningQuery) (rnd : FixedBytes 32) :
-    (OracleComp.evalPure (shakeDigestTable s extra) (signingRequestQueries s extra key q rnd)).map
-      FixedBytes.toList = sign s key q.message q.context rnd := by
-  unfold signingRequestQueries sign
+/-- At every table, the measured request returns exactly Algorithm 2's bytes under the shared
+pair of XOFs, including malformed inputs, XOF exhaustion and exhausting the retry cap. -/
+theorem evalPure_signingRequestQueries (base : Xofs)
+    (T : commitmentAddresses s extra → DigestRegister s) (key : List Byte) (q : SigningQuery)
+    (rnd : FixedBytes 32) :
+    (OracleComp.evalPure T (signingRequestQueries s extra base key q rnd)).map FixedBytes.toList =
+      (sharedXofs s extra base T).sign s key q.message q.context rnd := by
+  let H := sharedXofs s extra base T
   by_cases hc : q.context.length ≤ 255
-  · simp only [hc, ↓reduceIte, guard, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
-      signInternal]
+  · simp only [signingRequestQueries, hc, ↓reduceIte, eval_shared_reads, Xofs.sign,
+      guard, Option.pure_def, Option.bind_eq_bind, Option.bind_some, Xofs.signInternal]
+    unfold Xofs.signInternalReads
     cases hs : decodePrivate s key with
     | none => rfl
     | some sk =>
-      simp only [Option.bind_some]
-      cases ha : expandA s sk.rho with
+      dsimp only
+      rw [show (sharedXofs s extra base T).expandA s sk.rho = base.expandA s sk.rho from
+        Xofs.expandA_congr (H := sharedXofs s extra base T) (G := base) rfl ..]
+      cases ha : base.expandA s sk.rho with
       | none => rfl
       | some A =>
-        let μ := representativeFromTr sk.tr (formatMessage q.message q.context)
-        let seed := Keccak.bitSponge Keccak.shake256Layout [true, true, true, true]
-          (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ) 64
-        simpa only [μ, seed, Option.bind_some, ha,
-          BitString.ofFn_ofList (length_representativeFromTr ..)]
-          using eval_loop s extra sk A (BitString.ofList 512 μ) seed 814 0
-  · simp [hc, guard]
+        simp only [OracleComp.evalPure_bind, OracleComp.evalPure_query]
+        exact eval_loop s H sk A _ _ 814 0
+  · simp [signingRequestQueries, Xofs.sign, hc, guard]
 
 /-- A retained-state interaction with a finite classical outward history and a coherent FIPS
 digest register over raw bit-string inputs. -/
@@ -140,22 +190,83 @@ abbrev SigningInteraction (W B : Type) [Fintype W] [Fintype B] :=
 can depend on all previous measurements and complete signing replies. The explicit hedging
 tape may be fixed first and averaged independently. -/
 noncomputable def measuredSigningCall {B W : Type} [Fintype B] [Fintype W]
-    (p : SigningInteraction s extra W B) (key : List Byte)
+    (p : SigningInteraction s extra W B) (base : Xofs) (key : B → List Byte)
     (request : B → SigningQuery) (rnd : B → FixedBytes 32) :
     SigningInteraction s extra W (B × SigningReply s) :=
-  p.service (fun b => signingRequestQueries s extra key (request b) (rnd b)) 814
-    (fun b => request_bounded s extra key (request b) (rnd b))
+  p.service (fun b => signingRequestQueries s extra base (key b) (request b) (rnd b))
+    ((s.params.ℓ + 2) * 814 + 2) (fun b => request_bounded s extra base (key b) (request b) (rnd b))
 
 /-- Finishing the request after the distinguished attempt. A rejected mask resumes the
 bounded ExpandMask loop on the selected oracle. Failure aborts and acceptance returns bytes. -/
-private def finishRequest (sk : PrivateKey s) (A : PublicMatrix s) (m : BitString 512)
-    (seed : List Byte) (fuel κ : ℕ) (result : Option (Option (List Byte))) :
+private noncomputable def finishRequest (base : Xofs) (sk : PrivateKey s) (A : PublicMatrix s)
+    (m : BitString 512) (seed : List Byte) (fuel κ : ℕ) (result : Option (Option (List Byte))) :
     OracleComp (fun _ : commitmentAddresses s extra => DigestRegister s) (SigningReply s) :=
   match result with
   | none => pure none
   | some (some sig) => pure (recordReply s (some sig))
-  | some none => signingQueries s sk A seed (commitmentAddress s extra m)
-      (registerBytes s) (recordReply s) fuel κ
+  | some none => OracleComp.interpret (read256 s extra base)
+      (signingQueries s sk A (List.ofFn m) seed (recordReply s) fuel κ)
+
+private theorem retry_bounded (base : Xofs) (sk : PrivateKey s) (A : PublicMatrix s)
+    (m : BitString 512) (seed : List Byte) (fuel κ : ℕ) :
+    (finishRequest s extra base sk A m seed fuel κ (some none)).IsQueryBounded
+      ((s.params.ℓ + 2) * fuel) :=
+  (signingQueries_bounded ..).interpret (bounded_read256 s extra base)
+
+private noncomputable def trialResult (base : Xofs) (sk : PrivateKey s) (A : PublicMatrix s)
+    (T : commitmentAddresses s extra → DigestRegister s) (m : BitString 512)
+    (y : Fin s.params.ℓ → Poly) :=
+  let w := moduleSISMap A y
+  let digest := registerBytes s (T (commitmentAddress s extra m w))
+  finishSigningAttempt s sk y w digest ((sharedXofs s extra base T).sampleInBall s digest)
+
+/-- Finish a signing request from the current mask. The mask determines the commitment;
+the selected XOF table determines the digest, the challenge expansion and all retries. -/
+noncomputable def completeSigningTrial (base : Xofs) (sk : PrivateKey s) (A : PublicMatrix s)
+    (T : commitmentAddresses s extra → DigestRegister s) (m : BitString 512) (seed : List Byte)
+    (fuel nonce : ℕ) (y : Fin s.params.ℓ → Poly) : SigningReply s :=
+  OracleComp.evalPure T (finishRequest s extra base sk A m seed fuel (nonce + s.params.ℓ)
+    (trialResult s extra base sk A T m y))
+
+/-- Supplying the mask derived from the real seed and nonce recovers the entire remaining
+Algorithm 7 loop, including errors and all subsequent retries. The fresh ideal mask in the
+refresh estimate replaces exactly this value. -/
+theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : PublicMatrix s)
+    (T : commitmentAddresses s extra → DigestRegister s) (m : BitString 512) (seed : List Byte)
+    (fuel nonce : ℕ) :
+    let H := sharedXofs s extra base T
+    (completeSigningTrial s extra base sk A T m seed fuel nonce
+      (ringVectorCoeffs (H.expandMask s seed nonce))).map FixedBytes.toList =
+      OracleComp.evalPure (XofRead.answer H.h256)
+        (signingQueries s sk A (List.ofFn m) seed id (fuel + 1) nonce) := by
+  intro H
+  let y := ringVectorCoeffs (H.expandMask s seed nonce)
+  let w := moduleSISMap A y
+  let d := registerBytes s (T (commitmentAddress s extra m w))
+  let raw := H.h256.read (commitmentInput s (highBitsVec s.params w) (List.ofFn m)) (digestBytes s)
+  let expand (bytes : List Byte) :=
+    sampleInBallBytes s (H.h256.read (Keccak.bytesToBitsLE bytes) 221)
+  have dig : raw = d := commitmentDigest_sharedXofs s extra base T m w
+  rw [← eval_loop s H sk A (List.ofFn m) seed (fuel + 1) nonce]
+  apply congrArg (Option.map FixedBytes.toList)
+  unfold completeSigningTrial trialResult
+  simp only [signingQueries, OracleComp.evalPure_bind, OracleComp.evalPure_query,
+    tabulateRingVector_eq, XofRead.answer, Xofs.sampleInBall, ExtendableOutput.readBytes]
+  change OracleComp.evalPure T (finishRequest s extra base sk A m seed fuel (nonce + s.params.ℓ)
+    (finishSigningAttempt s sk y w d (expand d))) =
+    OracleComp.evalPure (XofRead.answer H.h256) (match
+      finishSigningAttempt s sk y w raw (expand raw) with
+      | none => pure (recordReply s none)
+      | some (some sig) => pure (recordReply s (some sig))
+      | some none =>
+        signingQueries s sk A (List.ofFn m) seed (recordReply s) fuel (nonce + s.params.ℓ))
+  rw [dig]
+  cases h : finishSigningAttempt s sk y w d (expand d) with
+  | none => rfl
+  | some reply =>
+    cases reply with
+    | none => exact eval_shared_reads s extra base T _
+    | some => rfl
 
 /-- The three commitment-table treatments for the distinguished trial. -/
 inductive TrialRefresh where
@@ -169,9 +280,9 @@ inductive TrialRefresh where
 
 /-- Final decision after a measured interaction, one distinguished fresh-mask trial,
 the remaining capped signing trials and an adaptive measured continuation. Only the complete
-signing reply is passed to the adversary. The digest table persists across all these stages. -/
+signing reply reaches the adversary. The mode selects the table for retries and later queries. -/
 noncomputable def signingAttemptRefreshProbability {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (refresh : TrialRefresh) (A : PublicMatrix s) (sk : PrivateKey s)
+    [Fintype O] (refresh : TrialRefresh) (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
     (p : SigningInteraction s extra W B)
     (ψ : ValueState (commitmentAddresses s extra) (DigestRegister s) W)
     (msg : B → BitString 512) (seed : B → List Byte) (fuel nonce : ℕ)
@@ -183,26 +294,28 @@ noncomputable def signingAttemptRefreshProbability {B W O : Type} [Fintype B] [F
       let w := moduleSISMap A y
       let i := commitmentAddress s extra (msg b) w
       let H := if refresh = .ambient then hv.1 else Function.update hv.1 i hv.2
-      let result := finishSigningAttempt s sk y w (registerBytes s (H i))
+      let result := trialResult s extra base sk A H (msg b) y
       let resume := if refresh = .eraseRejected ∧ result = some none then hv.1 else H
       MeasuredPrefix.serviceAcceptance addStep
-        (finishRequest s extra sk A (msg b) (seed b) fuel nonce result) (next b) (accept b)
+        (finishRequest s extra base sk A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+        (next b) (accept b)
         resume (p.state addStep ψ hv.1 b)
 
 private theorem abs_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (A : PublicMatrix s) (sk : PrivateKey s) (p ψ msg seed fuel nonce next accept)
-    (hψ : ‖ψ‖ = 1) :
-    |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .persistent A sk p ψ msg
-      seed fuel nonce next accept -
-      signingAttemptRefreshProbability s extra .ambient A sk p ψ msg seed fuel nonce next accept| ≤
+    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
+    (p ψ msg seed fuel nonce next accept) (hψ : ‖ψ‖ = 1) :
+    |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .persistent base A sk p ψ
+      msg seed fuel nonce next accept -
+      signingAttemptRefreshProbability s extra .ambient base A sk p ψ msg seed fuel nonce
+        next accept| ≤
       p.updateCost * Real.sqrt
         (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal := by
   classical
   let addr (b : B) (y : Fin s.params.ℓ → Poly) :=
     commitmentAddress s extra (msg b) (moduleSISMap A y)
   let reply (H : commitmentAddresses s extra → DigestRegister s) (b : B) (y : Fin s.params.ℓ → Poly)
-      := OracleComp.evalPure H (finishRequest s extra sk A (msg b) (seed b) fuel nonce
-        (finishSigningAttempt s sk y (moduleSISMap A y) (registerBytes s (H (addr b y)))))
+      := OracleComp.evalPure H (finishRequest s extra base sk A (msg b) (seed b) fuel
+        (nonce + s.params.ℓ) (trialResult s extra base sk A H (msg b) y))
   let mass := commitmentGuessProbability s.params (by cases s <;> decide) A
   have finite : mass ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
@@ -217,20 +330,21 @@ private theorem abs_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fint
     (fun H b y => accept b (reply H b y))
 
 private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (A : PublicMatrix s) (sk : PrivateKey s) (p ψ msg seed fuel nonce next accept)
-    {F : ℝ} (hψ : ‖ψ‖ = 1) (future : ∀ b r, (next b r).updateCost ≤ F) :
-    |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .eraseRejected A sk p
+    [Fintype O] (base : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
+    (p ψ msg seed fuel nonce next accept) {F : ℝ} (hψ : ‖ψ‖ = 1)
+    (future : ∀ b r, (next b r).updateCost ≤ F) :
+    |signingAttemptRefreshProbability s extra (B := B) (W := W) (O := O) .eraseRejected base A sk p
         ψ msg seed fuel nonce next accept -
-      signingAttemptRefreshProbability s extra .persistent A sk p ψ msg seed fuel nonce
+      signingAttemptRefreshProbability s extra .persistent base A sk p ψ msg seed fuel nonce
         next accept| ≤
-      Real.sqrt (fuel + F ^ 2) * Real.sqrt
+      Real.sqrt (((s.params.ℓ + 2) * fuel : ℕ) + F ^ 2) * Real.sqrt
         (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal := by
   classical
   let mask := signingMaskLaw s.params (by cases s <;> decide)
   let addr (b : B) (y : Fin s.params.ℓ → Poly) :=
     commitmentAddress s extra (msg b) (moduleSISMap A y)
   let mass := (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal
-  let C := Real.sqrt (fuel + F ^ 2) * Real.sqrt mass
+  let C := Real.sqrt (((s.params.ℓ + 2) * fuel : ℕ) + F ^ 2) * Real.sqrt mass
   have finite : commitmentGuessProbability s.params (by cases s <;> decide) A ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (iSup_le fun _ => PMF.coe_le_one _ _)
   unfold signingAttemptRefreshProbability
@@ -244,12 +358,15 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
   calc
     _ ≤ ∑ b, ‖u b‖ ^ 2 * C := by
       refine sum_le_sum fun b _ => ?_
-      let run := finishRequest s extra sk A (msg b) (seed b) fuel nonce (some none)
+      let run := finishRequest s extra base sk A (msg b) (seed b) fuel
+        (nonce + s.params.ℓ) (some none)
       let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
           DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
-        (finishRequest s extra sk A (msg b) (seed b) fuel nonce result) (next b) (accept b) T (u b)
-      let result (y : Fin s.params.ℓ → Poly) := finishSigningAttempt s sk y (moduleSISMap A y)
-        (registerBytes s ((G (addr b y)) (addr b y)))
+        (finishRequest s extra base sk A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+        (next b) (accept b)
+          T (u b)
+      let result (y : Fin s.params.ℓ → Poly) :=
+        trialResult s extra base sk A (G (addr b y)) (msg b) y
       have row (y : Fin s.params.ℓ → Poly) :
           |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
             (mask y).toReal * score (result y) (G (addr b y))| ≤
@@ -263,7 +380,7 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
       rw [← Probability.PMF.sum_map_mul mask (addr b)
         (fun i => |score (some none) (G i) - score (some none) H|)]
       have h := MeasuredPrefix.mean_abs_serviceAcceptance_update_sub_le addStep run
-        (next b) (accept b) H v (u b) (K := fuel) (signingQueries_bounded ..) (mask.map (addr b))
+        (next b) (accept b) H v (u b) (retry_bounded ..) (mask.map (addr b))
         (δ := mass) (fun i => ENNReal.toReal_mono finite (signingAddressLaw_le s extra A (msg b) i))
       refine h.trans (mul_le_mul_of_nonneg_left ?_ (sq_nonneg _))
       rw [Real.sqrt_mul ENNReal.toReal_nonneg, mul_comm]
@@ -278,7 +395,7 @@ On mask rejection the digest is restored before the signer retries. Earlier meas
 calls, coherent reads, the remaining retries and the actual adaptive continuation all contribute
 to the bound. The coefficient matrix is uniformly sampled at the designated FIPS level. -/
 theorem abs_mean_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype B] [Fintype W]
-    [Fintype O] (sk : PublicMatrix s → PrivateKey s)
+    [Fintype O] (base : PublicMatrix s → Xofs) (sk : PublicMatrix s → PrivateKey s)
     (p : PublicMatrix s → SigningInteraction s extra W B)
     (ψ : PublicMatrix s → ValueState (commitmentAddresses s extra) (DigestRegister s) W)
     (msg : PublicMatrix s → B → BitString 512) (seed : PublicMatrix s → B → List Byte)
@@ -287,21 +404,22 @@ theorem abs_mean_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype
       Finset (O × (commitmentAddresses s extra × DigestRegister s × W))) {C F : ℝ}
     (hψ : ∀ A, ‖ψ A‖ = 1) (budget : ∀ A, (p A).updateCost ≤ C)
     (future : ∀ A b r, (next A b r).updateCost ≤ F) :
-    |(𝔼 A, signingAttemptRefreshProbability s extra .eraseRejected A (sk A) (p A) (ψ A) (msg A)
-      (seed A) fuel nonce (next A) (accept A)) -
-      (𝔼 A, signingAttemptRefreshProbability s extra .ambient A (sk A) (p A) (ψ A) (msg A)
+    |(𝔼 A, signingAttemptRefreshProbability s extra .eraseRejected (base A) A (sk A) (p A) (ψ A)
+      (msg A) (seed A) fuel nonce (next A) (accept A)) -
+      (𝔼 A, signingAttemptRefreshProbability s extra .ambient (base A) A (sk A) (p A) (ψ A) (msg A)
         (seed A) fuel nonce (next A) (accept A))| ≤
-      (C + Real.sqrt (fuel + F ^ 2)) * ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) := by
-  let L := C + Real.sqrt (fuel + F ^ 2)
+      (C + Real.sqrt (((s.params.ℓ + 2) * fuel : ℕ) + F ^ 2)) *
+        ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) := by
+  let L := C + Real.sqrt (((s.params.ℓ + 2) * fuel : ℕ) + F ^ 2)
   have hL : 0 ≤ L := add_nonneg ((p 0).updateCost_nonneg.trans (budget 0)) (Real.sqrt_nonneg _)
   rw [← expect_sub_distrib]
   refine (abs_expect_le _ _).trans ((expect_le_expect (g := fun A =>
     L * (Real.sqrt (commitmentKernelSize s A) / Real.sqrt (2 ^ s.commitmentBoxBits)))
     fun A _ => ?_).trans ?_)
-  · have erase := abs_eraseRejected_sub_persistent s extra A (sk A) (p A) (ψ A) (msg A) (seed A)
-      fuel nonce (next A) (accept A) (hψ A) (future A)
-    have persist := abs_signingAttemptRefreshProbability_sub_le s extra A (sk A) (p A) (ψ A)
-      (msg A) (seed A) fuel nonce (next A) (accept A) (hψ A)
+  · have erase := abs_eraseRejected_sub_persistent s extra (base A) A (sk A) (p A) (ψ A) (msg A)
+      (seed A) fuel nonce (next A) (accept A) (hψ A) (future A)
+    have persist := abs_signingAttemptRefreshProbability_sub_le s extra (base A) A (sk A) (p A)
+      (ψ A) (msg A) (seed A) fuel nonce (next A) (accept A) (hψ A)
     refine (abs_sub_le _ _ _).trans ((add_le_add erase persist).trans ?_)
     rw [← add_mul]
     apply mul_le_mul (by dsimp [L]; linarith [budget A]) _ (Real.sqrt_nonneg _) hL
