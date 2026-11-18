@@ -16,10 +16,10 @@ import Mathlib.Tactic.NormNum.Prime
 # Tests for the Chaum–Pedersen family
 
 Checks of `PrimeOrderGroupFamily.chaumPedersenFamily` and its efficiency certificates: the
-headline statements in Schnorr groups (including `efficientVerifier_chaumPedersen`), the word
-verifier agreeing with `Accepts`, concrete verifier evaluations in the Schnorr group of order `11`
-modulo `23`, the extractor on two accepting conversations, the simulator's exact acceptance, and the
-word encodings on a statement.
+certificates and the ideal-sampling HVZK step in Schnorr groups (including
+`efficientVerifier_chaumPedersen`), the word verifier agreeing with `Accepts`, concrete verifier
+evaluations in the Schnorr group of order `11` modulo `23`, the extractor on two accepting
+conversations, the simulator's exact acceptance, and the word encodings on a statement.
 -/
 
 public section
@@ -45,13 +45,14 @@ example :
       schnorrGroups.chaumPedersenExtract :=
   schnorrGroups.efficientSpecialSoundness_chaumPedersen
 
-/-- Definition 20.6 holds in Schnorr groups with zero acceptance error, for any setup. -/
+/-- The ideal-sampling step toward Definition 20.6 holds in Schnorr groups with zero acceptance
+error, for any setup. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) :
     ComputationalSpecialHVZK schnorrGroups.chaumPedersenFamily
       (fun i β (u, v, w) => β • schnorrGroups.generator i.2 = v ∧ β • u = w)
       schnorrGroups.chaumPedersenEncoding (fun i => schnorrGroups.encScalar i.2)
       (fun n => (setup n).map (n, ·)) schnorrGroups.chaumPedersenSimulator (fun _ => 0) :=
-  schnorrGroups.computationalSpecialHVZK_chaumPedersen setup
+  schnorrGroups.computationalSpecialHVZK_chaumPedersen_ideal setup
 
 /-! ### Clients over any family -/
 
@@ -72,13 +73,14 @@ example (i : ℕ × F.Desc) (y y' : F.Carrier i.2 × F.Carrier i.2 × F.Carrier 
     (t t' : F.Carrier i.2 × F.Carrier i.2) (c z c' z' : ZMod (F.order i.2)) :
     F.chaumPedersenExtract i y t c z c' z' = F.chaumPedersenExtract i y' t' c z c' z' := rfl
 
-/-- The simulator is within `1 / 2 ^ n` of the honest prover on every Diffie–Hellman triple. -/
+/-- The simulator is within `1 / 2 ^ n` of the ideal-sampling honest prover on every
+Diffie–Hellman triple. -/
 example (n : ℕ) (d : F.Desc) (β : ZMod (F.order d)) (u : F.Carrier d) (c : ZMod (F.order d)) :
     CloseTo ((F.chaumPedersenFamily (n, d)).transcript β (u, β • F.generator d, β • u) c)
       (ProbComp.eval (F.chaumPedersenSimulator (n, d) (u, β • F.generator d, β • u) c))
       (1 / 2 ^ n) :=
   F.simulatorRealizedBy_chaumPedersenSimulator.closeTo_transcript
-    F.efficientSpecialHVZK_chaumPedersen.specialHVZK (i := (n, d)) ⟨rfl, rfl⟩ c
+    F.efficientSpecialHVZK_chaumPedersen_ideal.specialHVZK (i := (n, d)) ⟨rfl, rfl⟩ c
 
 /-! ### The encodings -/
 
