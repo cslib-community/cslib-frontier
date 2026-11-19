@@ -330,6 +330,11 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
         exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hd (by norm_num)) he)
           (by positivity)
 
+/-- Redraw the selected trial from the prior independently of the remaining transcript. -/
+@[expose] noncomputable def priorTrialAndRest (Q : PMF Transcript) (j : Free) :
+    PMF ((Message × PairQ) × Rest j) :=
+  (law G.questions α).bind fun z => (Q.map (restTranscript C j)).map (z, ·)
+
 /-- Replace the entire selected trial by an independent prior draw, while retaining
 the original winning marginal of the remaining transcript. This controls the change of law
 in the proof of [Bavarian, Vidick and Yuen, equation (48)][BavarianVidickYuen2022],
@@ -344,7 +349,7 @@ theorem sum_dist_trial_rest_independent_given_wins (S : RepeatedStrategy)
     let ε₁ := Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2)
     let ε₂ := Real.sqrt (Fintype.card Free * Real.log (Fintype.card (C → A × B) / p) / 2)
     w * ∑ j : Free, dist (Q.map fun r => (freeTrials C r j, restTranscript C j r))
-      ((law G.questions α).bind fun z => (Q.map (restTranscript C j)).map (z, ·)) ≤
+      (priorTrialAndRest G α C Q j) ≤
       2 * (w * ε₁ + (1 + w) * (2 * ε₁ + ε₂)) := by
   classical
   intro P W Q p w ε₁ ε₂
@@ -352,7 +357,7 @@ theorem sum_dist_trial_rest_independent_given_wins (S : RepeatedStrategy)
   have hw : 0 ≤ w := by dsimp only [w]; positivity
   have hlocal (j : Free) :
       dist (Q.map fun r => (freeTrials C r j, restTranscript C j r))
-        (μ.bind fun z => (Q.map (restTranscript C j)).map (z, ·)) ≤
+        (priorTrialAndRest G α C Q j) ≤
         2 * (dist (Q.map fun r => freeTrials C r j) μ +
           dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)) := by
     let J := Q.map fun r => (freeTrials C r j, restTranscript C j r)
@@ -361,7 +366,7 @@ theorem sum_dist_trial_rest_independent_given_wins (S : RepeatedStrategy)
     let R := Q.map (restTranscript C j)
     let T := μ.bind fun z => (K z.2).map (z, ·)
     let T₀ := μ.bind fun z => K₀.map (z, ·)
-    let U := μ.bind fun z => R.map (z, ·)
+    let U := priorTrialAndRest G α C Q j
     have hJ : (J.map Prod.fst).bind (fun z => (K z.2).map (z, ·)) = J := by
       conv_rhs => rw [← bind_conditionalSnd J]
       apply bind_congr_on_support
@@ -384,10 +389,13 @@ theorem sum_dist_trial_rest_independent_given_wins (S : RepeatedStrategy)
       exact PMF.map_id K₀
     have hlast : dist T₀ U ≤ dist J T₀ := by
       change dist (μ.bind _) (μ.bind _) ≤ _
-      rw [dist_bind_pair, ← Finset.sum_mul, sum_toReal, one_mul, ← hR, ← hT₀]
+      rw [dist_bind_pair, ← Finset.sum_mul, sum_toReal, one_mul]
+      change dist K₀ R ≤ _
+      rw [← hR, ← hT₀]
       rw [dist_comm]
       exact dist_map_le J T₀ Prod.snd
     have htriangle := dist_triangle J T T₀
+    change dist J U ≤ _
     linarith [dist_triangle J T₀ U]
   calc
     _ ≤ w * ∑ j : Free, 2 * (dist (Q.map fun r => freeTrials C r j) μ +

@@ -146,13 +146,20 @@ theorem map_transcriptLaw_eq_checkedAnswersWithLabel (S : RepeatedStrategy) (e :
   congr 1 with y
   simp only [read, completeBobQuestions, Function.comp_def, Equiv.apply_symm_apply]
 
+/-- Retain the shared transcript and a function of the question pair at each unchecked
+coordinate. -/
+@[expose] def questionTranscriptProjection {U : Type*} (read : PairQ → U) (e : Fin m ≃ Free)
+    (z : (Info × (C → A × B)) × (Free → PairQ)) :
+    (Info × Answer) × (Fin m → U) :=
+  let ((t, a), u) := z
+  ((t, (Prod.fst ∘ a, Prod.snd ∘ a)), fun i => read (u (e i)))
+
 /-- The projection of the original transcript to its checked answers and Bob's
 renumbered free questions. -/
 @[expose] def bobTranscriptProjection (e : Fin m ≃ Free)
     (z : (Info × (C → A × B)) × (Free → PairQ)) :
     (Info × Answer) × (Fin m → Option Y) :=
-  let ((t, a), u) := z
-  ((t, (Prod.fst ∘ a, Prod.snd ∘ a)), fun i => (u (e i)).2)
+  questionTranscriptProjection C Prod.snd e z
 
 /-- The Alice side of the coordinate-information estimate after the anchored verifier's
 actual checked wins. The left side is the sum over the free coordinates, weighted by the
@@ -314,8 +321,7 @@ private theorem aliceQuestionsGivenInfo_swap (t : Info) :
 renumbered free questions. -/
 @[expose] def aliceTranscriptProjection (e : Fin m ≃ Free) (z : Raw) :
     (Info × Answer) × (Fin m → Option X) :=
-  let ((t, a), u) := z
-  ((t, (Prod.fst ∘ a, Prod.snd ∘ a)), fun i => (u (e i)).1)
+  questionTranscriptProjection C Prod.fst e z
 
 omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] [Fintype ι] [DecidableEq ι]
   [Fintype κ] [DecidableEq κ] in

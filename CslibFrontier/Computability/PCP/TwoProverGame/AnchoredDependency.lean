@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -83,6 +84,41 @@ theorem conditionalSnd_messagePair (μ : PMF (X × Y)) (α : I)
   · simpa [coin_apply, Option.isNone] using
       (ENNReal.ofReal_ne_zero_iff.mpr (sub_pos.mpr h₁) : ENNReal.ofReal (1 - (α : ℝ)) ≠ 0)
 
+/-- The original anchored pair is dominated by the message-and-other-question law
+with factor `2 / α` for positive `α`. The product form holds also at zero rate. -/
+theorem noise_mul_anchorPair_le_messagePair (μ : PMF (X × Y)) (α : I)
+    (q : Option X × Option Y) :
+    ((α : ℝ) / 2) * (anchorPair μ α α q).toReal ≤ (messagePair μ α q).toReal := by
+  have hα₀ := α.2.1
+  have hα₁ := α.2.2
+  have hden : 0 < 2 - (α : ℝ) := by linarith
+  have hβ₀ : (α : ℝ) / 2 ≤ (messageRate α : ℝ) := by
+    change _ ≤ (α : ℝ) / (2 - α)
+    rw [le_div_iff₀ hden]
+    nlinarith [sq_nonneg (α : ℝ)]
+  have hβ₁ : (messageRate α : ℝ) ≤ α := by
+    change (α : ℝ) / (2 - α) ≤ _
+    rw [div_le_iff₀ hden]
+    nlinarith [mul_nonneg hα₀ (sub_nonneg.mpr hα₁)]
+  have ha : (α : ℝ) / 2 * α ≤ messageRate α :=
+    (mul_le_of_le_one_right (by positivity) hα₁).trans hβ₀
+  have hb : (α : ℝ) / 2 * (1 - α) ≤ 1 - (messageRate α : ℝ) :=
+    (mul_le_of_le_one_left (sub_nonneg.mpr hα₁) (by linarith)).trans (sub_le_sub_left hβ₁ 1)
+  rcases q with ⟨x, y⟩
+  cases x <;> cases y <;>
+    simp only [messagePair, anchorPair_apply, ENNReal.toReal_mul,
+      ENNReal.toReal_ofReal α.2.1, ENNReal.toReal_ofReal (messageRate α).2.1,
+      ENNReal.toReal_ofReal (sub_nonneg.mpr α.2.2),
+      ENNReal.toReal_ofReal (sub_nonneg.mpr (messageRate α).2.2)]
+  all_goals
+    simp only [← mul_assoc]
+    first
+    | exact mul_le_mul_of_nonneg_right ha (by positivity)
+    | exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right ha (by positivity))
+        ENNReal.toReal_nonneg
+    | exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hb (by positivity))
+        ENNReal.toReal_nonneg
+
 /-- Erase the revealed question with the additional noise probability. -/
 @[expose] noncomputable def noisyQuestion (α : I) (m : Option X) : PMF (Option X) :=
   (coin (noise α)).map fun k => if k then none else m
@@ -93,6 +129,12 @@ noncomputable def leftLaw (μ : PMF (X × Y)) (α : I) :
   ((messagePair μ α).map Prod.fst).bind fun m =>
     ((noisyQuestion α m).bind fun x =>
       (conditionalSnd (messagePair μ α) m).map (x, ·)).map (m, ·)
+
+/-- Forgetting the further noisy question leaves the original message and the other question. -/
+theorem map_messageAndBob_leftLaw (μ : PMF (X × Y)) (α : I) :
+    (leftLaw μ α).map (fun (m, _, y) => (m, y)) = messagePair μ α := by
+  conv_rhs => rw [← bind_conditionalSnd (messagePair μ α)]
+  simp only [leftLaw, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.bind_const]
 
 /-- The point-mass factorization in Claim 4.1 for the left reveal. At positive message mass,
 the two kernels therefore give independent questions conditional on the message. -/
@@ -215,6 +257,35 @@ private theorem law_inr_apply (μ : PMF (X × Y)) (α : I) (m : Option Y)
   simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, zero_add,
     Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) false * ·) hmap
 
+/-- Choosing Alice's message tag and reading Bob's question dominates the anchored
+pair for every nonnegative score. The factor `α / 4` includes the fair tag choice. -/
+theorem sum_anchoredPair_le_sum_leftReveal [Fintype X] [Fintype Y]
+    (μ : PMF (X × Y)) (α : I) (score : Option X × Option Y → ℝ)
+    (hscore : ∀ q, 0 ≤ score q) :
+    ((α : ℝ) / 4) * (∑ q, (anchorPair μ α α q).toReal * score q) ≤
+      ∑ z, (law μ α z).toReal *
+        (match z with
+        | (.inl m, _, y) => score (m, y)
+        | (.inr _, _, _) => 0) := by
+  have h : (α : ℝ) / 2 * (∑ q, (anchorPair μ α α q).toReal * score q) ≤
+      ∑ q, (messagePair μ α q).toReal * score q := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum fun q _ => by
+      rw [← mul_assoc]
+      exact mul_le_mul_of_nonneg_right (noise_mul_anchorPair_le_messagePair μ α q) (hscore q)
+  have hleft : ((uniformOfFintype Bool) true).toReal = 1 / 2 := by
+    norm_num [Probability.PMF.uniformOfFintype_apply]
+  have hsum : (∑ z, (law μ α z).toReal *
+        (match z with
+        | (.inl m, _, y) => score (m, y)
+        | (.inr _, _, _) => 0)) =
+      (1 / 2) * ∑ q, (messagePair μ α q).toReal * score q := by
+    rw [← map_messageAndBob_leftLaw, sum_map_mul]
+    simp only [Fintype.sum_prod_type, Fintype.sum_sum_type, law_inl_apply, ENNReal.toReal_mul,
+      hleft, mul_zero, Finset.sum_const_zero, add_zero, Finset.mul_sum, mul_assoc]
+  rw [hsum]
+  linarith
+
 /-- Exchanging both the message tag and the questions gives the reveal law of the exchanged
 question distribution. -/
 theorem map_swap_law (μ : PMF (X × Y)) (α : I) :
@@ -236,6 +307,25 @@ theorem map_swap_law (μ : PMF (X × Y)) (α : I) :
     change law μ α (Sum.inl m, x, y) = law (μ.map Prod.swap) α (Sum.inr m, y, x)
     rw [law_inl_apply, law_inr_apply, hcoin, rightLaw, map_equiv_apply, hμ]
     rfl
+
+/-- Choosing Bob's message tag and reading Alice's question has the corresponding
+domination bound with the players exchanged. -/
+theorem sum_anchoredPair_le_sum_rightReveal [Fintype X] [Fintype Y]
+    (μ : PMF (X × Y)) (α : I) (score : Option X × Option Y → ℝ)
+    (hscore : ∀ q, 0 ≤ score q) :
+    ((α : ℝ) / 4) * (∑ q, (anchorPair μ α α q).toReal * score q) ≤
+      ∑ z, (law μ α z).toReal *
+        (match z with
+        | (.inr m, x, _) => score (x, m)
+        | (.inl _, _, _) => 0) := by
+  have h := sum_anchoredPair_le_sum_leftReveal (μ.map Prod.swap) α (score ∘ Prod.swap)
+    (fun q => hscore q.swap)
+  rw [← map_swap_anchorPair, sum_map_mul, ← map_swap_law, sum_map_mul] at h
+  simp only [Function.comp_apply, Prod.swap_swap] at h
+  convert h using 1
+  refine Finset.sum_congr rfl ?_
+  rintro ⟨m, x, y⟩ _
+  cases m <;> rfl
 
 /-- Given a supported left message, the questions are sampled independently. -/
 theorem conditionalSnd_law_inl (μ : PMF (X × Y)) (α : I) (m : Option X)

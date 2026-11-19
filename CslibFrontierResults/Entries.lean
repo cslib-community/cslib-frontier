@@ -13,6 +13,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
@@ -10994,6 +10995,37 @@ register_result "bvy-independent-prior-trial-after-anchored-wins" where
     summed statistical distance is weighted by half the squared anchor rate. Source check by \
     codex-f4a705f4 at \
     https://github.com/cslib-community/cslib-frontier/pull/6673#issuecomment-7022597318."
+
+register_result "bvy-anchored-trace-deviation-under-prior-redraw" where
+  title := "Transfer of conditional trace deviation under a prior trial redraw"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Prior-draw variant around equation (49)",
+      locator := "arXiv:1509.07466v2, §5.2, printed p. 26" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.priorConditionalTraceNormSq_le]
+  scope := "The selected trial is drawn from its original prior independently of the remaining \
+    winning transcript. Both density states are held fixed under this law change, including \
+    the chosen defaults at null labels. The centered squared full-trace-norm score incurs an \
+    extra four times the summed statistical distance. Source check at \
+    https://github.com/cslib-community/cslib-frontier/pull/6675#issuecomment-7022727335."
+
+register_result "bvy-anchored-tagged-question-trace-comparison" where
+  title := "Transfer of trace deviation to the tagged anchored question pair"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Tagged-question step around equations (50)–(51)",
+      locator := "arXiv:1509.07466v2, §5.2, printed p. 26" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.leftTaggedPairConditionalTraceNormSq_le,
+    Cslib.PCP.AnchoredDependency.rightTaggedPairConditionalTraceNormSq_le
+  ]
+  scope := "For either chosen player, set that message tag to the corresponding question of an \
+    anchored prior pair. The summed squared trace deviation times one quarter of the erasure \
+    rate is at most that under the independent prior trial. The product inequality also allows \
+    zero erasure rate. Source check at \
+    https://github.com/cslib-community/cslib-frontier/pull/6675#issuecomment-7022727335."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"

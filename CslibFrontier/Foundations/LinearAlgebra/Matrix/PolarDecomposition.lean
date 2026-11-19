@@ -160,6 +160,29 @@ theorem traceNorm_eq_max_re_trace (A : Matrix n n ℂ) :
       (trace_conjTranspose_mul_eq_traceNorm_of_polar A U hU h)
   exact ⟨U, hU, he, fun V hV => he ▸ A.re_trace_conjTranspose_mul_le_traceNorm V hV⟩
 
+omit [DecidableEq m] in
+/-- The trace norm is nonnegative. -/
+theorem traceNorm_nonneg (A : Matrix m n ℂ) : 0 ≤ A.traceNorm :=
+  (Complex.nonneg_iff.mp
+    (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg (Aᴴ * A))).trace_nonneg).1
+
+/-- The trace norm of a positive semidefinite matrix is its real trace. -/
+theorem PosSemidef.traceNorm_eq_trace_re {A : Matrix n n ℂ} (hA : A.PosSemidef) :
+    A.traceNorm = A.trace.re := by
+  rw [traceNorm, hA.isHermitian.eq, CFC.sqrt_mul_self _ hA.nonneg]
+
+/-- The triangle inequality for the trace norm of square matrices. -/
+theorem traceNorm_add_le (A B : Matrix n n ℂ) :
+    (A + B).traceNorm ≤ A.traceNorm + B.traceNorm := by
+  obtain ⟨U, hU, hEq, _⟩ := (A + B).traceNorm_eq_max_re_trace
+  rw [← hEq, Matrix.mul_add, trace_add, Complex.add_re]
+  exact add_le_add (A.re_trace_conjTranspose_mul_le_traceNorm U hU)
+    (B.re_trace_conjTranspose_mul_le_traceNorm U hU)
+
+omit [DecidableEq m] in
+@[simp] theorem traceNorm_neg (A : Matrix m n ℂ) : (-A).traceNorm = A.traceNorm := by
+  rw [traceNorm, traceNorm, conjTranspose_neg, Matrix.neg_mul, Matrix.mul_neg, neg_neg]
+
 private theorem traceNorm_adjoint_square (A : Matrix n n ℂ) :
     Aᴴ.traceNorm = A.traceNorm := by
   obtain ⟨U, hU, hA⟩ := A.exists_unitary_polar

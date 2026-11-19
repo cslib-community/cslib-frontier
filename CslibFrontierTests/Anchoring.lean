@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -239,3 +239,37 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   refine ⟨ρ, hρ, ?_⟩
   simpa only [singletonCheckedAnswer_card, Nat.cast_ofNat, acceptingGame_win_mass,
     ENNReal.toReal_one, Real.log_one, sub_zero] using h
+
+/-- With Bob's noisy-message tag fixed to his question, the prior-question trace
+estimate uses the same three-dimensional states as the winning law. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let T := transcriptLaw acceptingGame half C S
+    let W := winsOnChecked acceptingGame half C
+    let Q := T.filter W (acceptingGame_win_supported S)
+    let P := Q.map (aliceTranscriptProjection C e)
+    let w := (half : ℝ) ^ 2 / 2
+    ∃ ρ : _ → Matrix (Fin 3) (Fin 3) ℂ,
+      Cslib.Quantum.sumConditionalTraceNormSq P ρ ≤ 2 * Real.log 4 ∧
+      w * ((half : ℝ) / 4 *
+        taggedPairConditionalTraceNormSq C acceptingGame half Q Prod.fst (Sum.inr ∘ Prod.snd) e ρ) ≤
+          w * (2 * Real.log 4) + 8 * ((1 + w) * Real.sqrt (Real.log 4 / 2)) := by
+  intro C e T W Q P w
+  have hw : 0 ≤ w := by dsimp only [w]; positivity
+  obtain ⟨ρ, hρ, _, hwin⟩ := exists_bob_sum_conditionalTraceNormSq_le_after_wins
+    acceptingGame half C S e (acceptingGame_win_supported S)
+  have hwin' : Cslib.Quantum.sumConditionalTraceNormSq P ρ ≤ 2 * Real.log 4 := by
+    simpa only [C, singletonCheckedAnswer_card, Nat.cast_ofNat, acceptingGame_win_mass,
+      ENNReal.toReal_one, Real.log_one, sub_zero] using hwin
+  have hcard : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  have hprior := priorConditionalTraceNormSq_le C acceptingGame half S
+    (acceptingGame_win_supported S) Prod.fst e hρ
+  dsimp only at hprior
+  simp only [C, hcard, Nat.cast_ofNat, acceptingGame_win_mass, ENNReal.toReal_one, div_one,
+    Real.log_one, Nat.cast_one, one_mul, zero_div, Real.sqrt_zero, mul_zero, zero_add] at hprior
+  refine ⟨ρ, hwin', ?_⟩
+  have htag := rightTaggedPairConditionalTraceNormSq_le C acceptingGame half Q e ρ
+  exact (mul_le_mul_of_nonneg_left htag hw).trans
+    (hprior.trans (add_le_add_left (mul_le_mul_of_nonneg_left hwin' hw) _))
