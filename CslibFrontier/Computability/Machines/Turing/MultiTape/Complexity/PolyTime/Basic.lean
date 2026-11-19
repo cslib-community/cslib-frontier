@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
@@ -24,8 +25,6 @@ rules for `fun_prop`.
 
 * `Turing.MultiTapeTM.PolyBounded.exists_polynomial`: express a resource bound by a polynomial.
 
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.exists_degree`: polynomial-time functions
-  admit explicit time and output degrees.
 * `Turing.MultiTapeTM.ComputableTidilyInPolyTime.polyBounded`: a computed unary value bounds
   resources polynomially in the original input encoding.
 * `Turing.MultiTapeTM.ComputableTidilyInPolyTime.of_enc_eq`: reuse identical encoded outputs.
@@ -105,16 +104,6 @@ theorem sndWithEncoding {γ : Type} {encC : γ ↪ List Bool}
     ComputableTidilyInPolyTime (fun p => (f p).2) encC output :=
   h.comp hf.snd'
 
-/-- Every polynomial-time function admits explicit time and output degrees. -/
-theorem exists_degree {f : α → β} (hf : ComputableTidilyInPolyTime f encA encB) :
-    ∃ d e, ComputableTidilyInDegree f encA encB d e := by
-  obtain ⟨t, s, ht, hs, hf⟩ := hf
-  obtain ⟨ct, dt, ht⟩ := ht.exists_le
-  obtain ⟨cs, ds, hs⟩ := hs.exists_le
-  exact ⟨max dt ds, max dt ds, .of_bounds
-    (DegreeBounded.mono_deg ⟨ct, ht⟩ (le_max_left dt ds))
-    (DegreeBounded.mono_deg ⟨cs, hs⟩ (le_max_right dt ds)) hf⟩
-
 /-- Reuse a computation when the new function emits the same encoded output word. -/
 theorem of_enc_eq {δ : Type} {encD : δ ↪ List Bool} {f : α → β} {g : α → δ}
     (hf : ComputableTidilyInPolyTime f encA encB)
@@ -146,7 +135,7 @@ theorem dropFrame : ComputableTidilyInPolyTime Turing.MultiTapeTM.dropFrame encB
 
 /-- Every function on a finite domain is polynomial-time for any fixed encodings. -/
 theorem of_finite [Finite α] (f : α → β) : ComputableTidilyInPolyTime f encA encB :=
-  (ComputableTidilyInDegree.of_finite f).computableTidilyInPolyTime
+  (ComputableInPolyTime.of_finite f).tidy
 
 @[fun_prop]
 theorem bool_not : ComputableTidilyInPolyTime Bool.not encBool encBool := of_finite _
@@ -203,7 +192,8 @@ theorem ite_decide {condition : α → Prop} [∀ a, Decidable (condition a)] {y
 theorem decide_eq [DecidableEq α] (enc : α ↪ List Bool) :
     ComputableTidilyInPolyTime (fun p : α × α => decide (p.1 = p.2))
       (encPair enc enc) encBool :=
-  (ComputableTidilyInDegree.eq enc).computableTidilyInPolyTime
+  ((ComputableInPolyTime.fst enc enc).decide_eq'
+    (ComputableInPolyTime.snd enc enc)).tidy
 
 /-- Compare computed values for equality, inferring their common encoding from the arguments. -/
 @[fun_prop]

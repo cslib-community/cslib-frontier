@@ -2754,6 +2754,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDetourPlacement
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferencePatchAssembly
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceStar
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Split
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SplitFeasibility
@@ -4175,6 +4176,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
 public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTransposition
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CrossTailTransposition
+public import CslibFrontier.Computability.PolyTime.CSP.CrossTranspositionSchedule
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.FaceParity
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.Native
@@ -5003,6 +5005,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Roots
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
@@ -5025,6 +5028,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
+public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningROM
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Crypto.Computational.MerkleDamgard

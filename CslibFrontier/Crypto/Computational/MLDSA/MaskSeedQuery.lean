@@ -39,7 +39,9 @@ private abbrev Program (C : QuantumSigningForger) := ProbOracleComp (OracleSpec.
   (fun _ : DeviceRequest (Width C) Empty => List Bool)
   (fun _ : SigningQuery => Option (List Byte)))
 
-private def isXofQuery {C : QuantumSigningForger} : Request C → Bool
+/-- A coherent raw XOF query, charged once against the device query budget. -/
+@[expose] def isXofQuery {width : ℕ} :
+    ℕ ⊕ DeviceRequest width Empty ⊕ SigningQuery → Bool
   | .inr (.inl .query) => true
   | _ => false
 
@@ -48,8 +50,8 @@ private def queryPrefix {C : QuantumSigningForger} {α : Type} :
     Program C α → ℕ → Program C Bool
   | .pure _, _ => .pure false
   | .liftBind q k, j =>
-    if isXofQuery (C := C) q && j == 0 then .pure true
-    else .liftBind q fun a => queryPrefix (C := C) (k a) (j - (isXofQuery (C := C) q).toNat)
+    if isXofQuery q && j == 0 then .pure true
+    else .liftBind q fun a => queryPrefix (C := C) (k a) (j - (isXofQuery q).toNat)
 
 private theorem queryPrefix_bounded {C : QuantumSigningForger} {α : Type} {p : Program C α}
     {n : ℕ} (h : OracleComp.IsCostBounded (fun q => (isSigningCall q).toNat) p n) (j : ℕ) :

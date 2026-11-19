@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Game.CloseTo
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 public import CslibFrontier.Languages.Probabilistic.Lift
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
 # Computational special honest-verifier zero knowledge
@@ -101,7 +102,9 @@ a private-state type.
   `SimulatorRealizedBy.closeTo_transcript_of_closeTo`,
   `advantage_chvzkRealGame_le_of_closeTo_transcript`,
   `SimulatorRealizedBy.advantage_chvzkGame_le_of_closeTo_transcript`,
-  `ComputationalSpecialHVZK.of_closeTo_transcript`
+  `ComputationalSpecialHVZK.of_closeTo_transcript`,
+  `closeTo_andProof_transcript`, `closeTo_orProofWith_transcript`,
+  `closeTo_parallelRepetition_transcript`
 * `Cslib.Crypto.Protocols.SigmaProtocol.exists_negligible_inv_two_pow_map`: uniform `1 / 2 ^ n`
   error along any `(setup n).map (n, ·)` distribution is negligibly bounded.
 
@@ -459,6 +462,56 @@ theorem ComputationalSpecialHVZK.of_closeTo_transcript
     refine negligible_of_le (hε.add (h.indistinguishable encσ A hA)) fun n => ?_
     exact (Game.advantage_triangle _ _ _).trans
       (add_le_add (advantage_chvzkRealGame_le_of_closeTo_transcript (hle n) A) le_rfl)
+
+/-- Honest transcripts of `andProof` add their component transcript distances (`δ₀ + δ₁`). -/
+theorem closeTo_andProof_transcript {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ C : Type}
+    {P₀ P₀' : SigmaProtocol X₀ Y₀ T₀ C Z₀} {P₁ P₁' : SigmaProtocol X₁ Y₁ T₁ C Z₁}
+    {x : X₀ × X₁} {y : Y₀ × Y₁} {c : C} {δ₀ δ₁ : ℝ≥0∞}
+    (h₀ : CloseTo (P₀.transcript x.1 y.1 c) (P₀'.transcript x.1 y.1 c) δ₀)
+    (h₁ : CloseTo (P₁.transcript x.2 y.2 c) (P₁'.transcript x.2 y.2 c) δ₁) :
+    CloseTo ((P₀.andProof P₁).transcript x y c) ((P₀'.andProof P₁').transcript x y c)
+      (δ₀ + δ₁) := by
+  rw [andProof_transcript, andProof_transcript]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  exact h₀.bind fun _ _ => h₁.bind_left _
+
+/-- Honest transcripts of `orProofWith` on any valid witness-statement pair (`orRelation R₀ R₁`)
+add the challenge-sampling error `δC`, the simulated-side error `δS`, and the witness-side honest
+transcript error `δP`. -/
+theorem closeTo_orProofWith_transcript {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ C : Type} [AddCommGroup C]
+    {sampleChallenge sampleChallenge' : PMF C}
+    {P₀ P₀' : SigmaProtocol X₀ Y₀ T₀ C Z₀} {P₁ P₁' : SigmaProtocol X₁ Y₁ T₁ C Z₁}
+    {R₀ : X₀ → Y₀ → Prop} {R₁ : X₁ → Y₁ → Prop}
+    {simulate₀ simulate₀' : Y₀ → C → PMF (T₀ × Z₀)}
+    {simulate₁ simulate₁' : Y₁ → C → PMF (T₁ × Z₁)}
+    {x : X₀ ⊕ X₁} {y : Y₀ × Y₁} (hxy : orRelation R₀ R₁ x y) (c : C) {δC δS δP : ℝ≥0∞}
+    (hc : CloseTo sampleChallenge sampleChallenge' δC)
+    (hs₀ : ∀ c₀, CloseTo (simulate₀ y.1 c₀) (simulate₀' y.1 c₀) δS)
+    (hs₁ : ∀ c₁, CloseTo (simulate₁ y.2 c₁) (simulate₁' y.2 c₁) δS)
+    (hp₀ : ∀ x₀, R₀ x₀ y.1 → ∀ c₀,
+      CloseTo (P₀.transcript x₀ y.1 c₀) (P₀'.transcript x₀ y.1 c₀) δP)
+    (hp₁ : ∀ x₁, R₁ x₁ y.2 → ∀ c₁,
+      CloseTo (P₁.transcript x₁ y.2 c₁) (P₁'.transcript x₁ y.2 c₁) δP) :
+    CloseTo ((orProofWith sampleChallenge P₀ P₁ simulate₀ simulate₁).transcript x y c)
+      ((orProofWith sampleChallenge' P₀' P₁' simulate₀' simulate₁').transcript x y c)
+      (δC + (δS + δP)) := by
+  rcases x with x₀ | x₁
+  · rw [orProofWith_transcript_inl, orProofWith_transcript_inl]
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    exact hc.bind fun c₁ _ => (hs₁ c₁).bind fun _ _ => (hp₀ x₀ hxy (c - c₁)).bind_left _
+  · rw [orProofWith_transcript_inr, orProofWith_transcript_inr]
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    exact hc.bind fun c₀ _ => (hs₀ c₀).bind fun _ _ => (hp₁ x₁ hxy (c - c₀)).bind_left _
+
+/-- Honest transcripts of `k`-fold `parallelRepetition` multiply a uniform coordinate transcript
+distance `δ` by `k`. -/
+theorem closeTo_parallelRepetition_transcript {X Y T C Z : Type}
+    {P P' : SigmaProtocol X Y T C Z} {k : ℕ} {x : X} {y : Y} {c : Fin k → C} {δ : ℝ≥0∞}
+    (h : ∀ j, CloseTo (P.transcript x y (c j)) (P'.transcript x y (c j)) δ) :
+    CloseTo ((P.parallelRepetition k).transcript x y c)
+      ((P'.parallelRepetition k).transcript x y c) (k * δ) := by
+  rw [parallelRepetition_transcript, parallelRepetition_transcript]
+  exact (CloseTo.piFin h).map _
 
 end TranscriptTransfer
 

@@ -84,8 +84,10 @@ collisions. Instead, construction `(13.2)` of [BonehShoup2023], Section 13.2.1 (
      `KeyedHashFamily` (`OneWayPermutation.exists_targetCollisionResistant_keyedHashFamily`) proves
      that **every one-way permutation implies the existence of a stateless many-time EUF-CMA secure
      digital signature scheme (`OneWayPermutation.exists_eufCMA`)**, with no separate hash-family
-     assumption. Many-time extension to unrestricted `List Bool` messages (`WordSignatureScheme`)
-     and instantiation from general `OneWay` functions ([Rompel1990]) are proved in
+     assumption. Both results are steps toward [NaorYung1989], not the cited result: no inspection
+     of the primary source is recorded (#5293). Many-time extension to unrestricted `List Bool`
+     messages (`WordSignatureScheme`) and instantiation from general `OneWay` functions
+     ([Rompel1990]) are proved in
      `CslibFrontier.Crypto.Computational.TCRSignature.ManyTime` and
      `CslibFrontier.Crypto.Computational.Rompel`.
 
@@ -115,14 +117,16 @@ collisions. Instead, construction `(13.2)` of [BonehShoup2023], Section 13.2.1 (
   `Cslib.Crypto.TCRSignature.isPPT_tcrAdversary`: uniform strict PPT certificates for both
   reductions.
 * `Cslib.Crypto.TCRSignature.succProbability_indexedEufCmaGame_le_of_machine`,
-  `Cslib.Crypto.TCRSignature.exists_reduction_indexedEufCmaGame_le`: concrete Theorem 13.2 security
-  bound splitting indexed forgeries into one-time signature forgeries and target collisions.
+  `Cslib.Crypto.TCRSignature.exists_reduction_indexedEufCmaGame_le`: the one-time form of the
+  Theorem 13.2 bound, splitting indexed forgeries into one-time signature forgeries and target
+  collisions.
 * `Cslib.Crypto.SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`: `TCRSignature.scheme S H`
-  is `IndexedEUFCMA`-secure whenever `S` is `OneTimeEUFCMA` and `H` is target collision-resistant.
+  is `IndexedEUFCMA`-secure whenever `S` is `OneTimeEUFCMA` and `H` is target collision-resistant
+  (a step: the one-time form of Theorem 13.2, which the source states for many-time schemes).
 * `Cslib.Crypto.OneWay.exists_indexedEUFCMA_of_targetCollisionResistant`,
   `Cslib.Crypto.OneWay.exists_eufCMA_of_targetCollisionResistant`: capacity-`2` indexed and
   stateless many-time `EUFCMA` signatures from a one-way function and a target collision-resistant
-  `KeyedHashFamily`.
+  `KeyedHashFamily` (the second a step toward [NaorYung1989], Section 4).
 * `Cslib.Crypto.OneWayPermutation.exists_eufCMA`: stateless many-time `EUFCMA` signatures from a
   one-way permutation alone.
 
@@ -1361,6 +1365,16 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
 
 /-! ### Security bound and existential upgrades -/
 
+/-- `verify S H` accepts only at index `0`, below the capacity `1` of `scheme S H`, so the index
+guard of the indexed game is redundant for this scheme. -/
+private theorem capacity_guard_verify (S : SignatureScheme) (H : KeyedHashFamily) (n u : ℕ)
+    (b : Bool) (pk msg sig : List Bool) :
+    (decide (u < (scheme S H).capacity n) && b && verify S H pk u msg sig) =
+      (b && verify S H pk u msg sig) := by
+  cases u with
+  | zero => simp
+  | succ u => simp [verify]
+
 /-- **Concrete security bound for `TCRSignature.scheme` with an explicit realizing machine**
 ([BonehShoup2023], Section 13.2.1, Theorem 13.2): at every security parameter `n`, the indexed
 forging probability against `scheme S H` is at most the one-time forging probability of
@@ -1453,7 +1467,8 @@ theorem succProbability_indexedEufCmaGame_le_of_machine {k : ℕ} {Control : Typ
       intro pk
       simp only [Functor.map_map, outDecoder.decode_enc]
       exact (id_map _).symm
-    simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme_keyGen, scheme_verify, keyGen,
+    simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme_keyGen, scheme_verify,
+      capacity_guard_verify, keyGen,
       ProbOracleComp.eval_run_interpret, μ, pmf_norm]
     peel_binds keys
     rw [hdecodeAdv (encPair encUnary encBits (n, keys.1)), OracleComp.interpret_map,
@@ -1487,8 +1502,9 @@ theorem succProbability_indexedEufCmaGame_le_of_machine {k : ℕ} {Control : Typ
     | none =>
       simp only [runWith_norm, pmf_norm]
     | some m₀ =>
-      simp only [SignatureScheme.oneTimeSigningOracle, SignatureScheme.oneTimeSigningOracleOf,
-        List.isEmpty_nil, ↓reduceIte, _root_.PMF.map, runWith_norm, pmf_norm]
+      simp only [SignatureScheme.oneTimeSigningOracle, SignatureScheme.oneTimeSigningOracleOn,
+        length_otsMsg, beq_self_eq_true, List.isEmpty_nil, Bool.and_self, ↓reduceIte,
+        _root_.PMF.map, runWith_norm, pmf_norm]
       peel_binds ots
       have htake : ots.take (sigBound n) = ots :=
         List.take_of_length_le
@@ -1585,10 +1601,10 @@ theorem exists_ots_bounds (S : SignatureScheme) (H : KeyedHashFamily) :
   have hkPair := hkgLen (otsParam H n) keys hkeys
   enc_len at hkPair
 
-/-- **Existential reduction for `TCRSignature.scheme`** ([BonehShoup2023], Section 13.2.1,
-Theorem 13.2): every strict oracle-PPT indexed forger `adversary` induces a strict oracle-PPT
-one-time forger `otForger` and a strict PPT two-stage `TargetCollisionFinder` `tcrAdv` bounding
-`adversary`'s indexed forging probability at every security parameter `n`. -/
+/-- **Existential reduction for `TCRSignature.scheme`**, after the proof of [BonehShoup2023],
+Theorem 13.2, with one signing query: every strict oracle-PPT indexed forger `adversary` induces a
+strict oracle-PPT one-time forger `otForger` and a strict PPT two-stage `TargetCollisionFinder`
+`tcrAdv` bounding `adversary`'s indexed forging probability at every security parameter `n`. -/
 theorem exists_reduction_indexedEufCmaGame_le (S : SignatureScheme) (H : KeyedHashFamily)
     {adversary : IndexedForger}
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
@@ -1630,11 +1646,18 @@ theorem negligible_comp_otsParam {f : ℕ → ℝ≥0} (hf : Negligible f) (H : 
 
 end TCRSignature
 
-/-- **Fresh-key TCR hash-and-sign security** ([BonehShoup2023], Section 13.2.1, Theorem 13.2,
-adapted to capacity-`1` indexed signatures over a one-time signature scheme): if `S` is one-time
-EUF-CMA secure (`OneTimeEUFCMA`) and `H` is target collision-resistant on `List Bool`, then
-`TCRSignature.scheme S H` is an `IndexedEUFCMA`-secure capacity-`1` indexed signature scheme on
-arbitrary-length bit strings. -/
+/-- One-time form of [BonehShoup2023], Theorem 13.2 (Section 13.2.1, p. 534): a step, not the
+cited result. The source states Theorem 13.2 for a many-time secure `S` and concludes many-time
+security of the derived scheme; that statement is `SignatureScheme.EUFCMA.eufCMA_wordScheme`. For
+one-time signatures it only remarks that short messages suffice "as discussed in Section 13.2"
+(p. 584). Here, if `S` is one-time EUF-CMA secure (`OneTimeEUFCMA`, Definition 14.1) and `H` is
+target collision resistant on every word, then construction `(13.2)` over `S`, as the capacity-`1`
+indexed scheme `TCRSignature.scheme S H` on messages of any length, is one-time secure
+(`IndexedEUFCMA` at the single index `0`). The proof is the source's case split with one signing
+query. As in `eufCMA_wordScheme`, `S` runs at the parameter `otsParam H n` on the zero-padded word
+of `(r, H(r, m))`. This is the first step of the route from one-way functions and target collision
+resistant hashing to many-time signatures (`OneWay.exists_eufCMA_of_targetCollisionResistant`;
+#5686). -/
 theorem SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature
     {S : SignatureScheme} (hS : S.OneTimeEUFCMA)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1660,9 +1683,12 @@ theorem OneWay.exists_indexedEUFCMA_of_targetCollisionResistant
     fun _ => rfl,
     (hS₀.indexedEUFCMA_tcrSignature hH).double hcap₁⟩
 
-/-- **Stateless many-time EUF-CMA signatures from one-way functions and target collision-resistant
-hash families** ([NaorYung1989], Section 4; [BonehShoup2023], Sections 13.2.1 and 14.6): any
-one-way function and any unrestricted target collision-resistant `KeyedHashFamily` yield a
+/-- Step toward the signatures of [NaorYung1989], Section 4, not the cited result: no inspection of
+the primary source is recorded (`manual/sources.md` lists the authors' manuscript without a check),
+so this statement has not been checked against it (#5293). [BonehShoup2023], Sections 13.2.1 and
+14.6, give the route but state no theorem of this form.
+
+Any one-way function and any unrestricted target collision-resistant `KeyedHashFamily` yield a
 stateless many-time `SignatureScheme` satisfying `EUFCMA`. -/
 theorem OneWay.exists_eufCMA_of_targetCollisionResistant
     {f : List Bool → List Bool} (hf : OneWay f)
@@ -1671,9 +1697,12 @@ theorem OneWay.exists_eufCMA_of_targetCollisionResistant
   obtain ⟨S, hcapS, hS⟩ := hf.exists_indexedEUFCMA_of_targetCollisionResistant hH
   exact hS.exists_eufCMA_of_oneWay (fun n => by rw [hcapS n]) hf
 
-/-- **Naor–Yung signature theorem** ([NaorYung1989], Theorem 2 / Section 4): every one-way
-permutation implies the existence of a stateless many-time `EUFCMA`-secure digital signature
-scheme, with no separate hash-family assumption. -/
+/-- Step toward the Naor–Yung signature theorem ([NaorYung1989], Theorem 2 / Section 4), not the
+cited result: no inspection of the primary source is recorded (`manual/sources.md` lists the
+authors' manuscript without a check), so this statement has not been checked against it (#5293).
+
+Every one-way permutation implies the existence of a stateless many-time `EUFCMA`-secure digital
+signature scheme, with no separate hash-family assumption. -/
 theorem OneWayPermutation.exists_eufCMA
     {f : List Bool → List Bool} (hf : OneWayPermutation f) :
     ∃ M : SignatureScheme, M.EUFCMA := by

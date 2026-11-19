@@ -226,7 +226,8 @@ example (n : ℕ) : Game.succProbability (ProbComp.eval
     simp only [replayForger, OracleComp.interpret_bind,
       OracleComp.interpret_map, OracleComp.interpret_pure, ProbOracleComp.interpret_query,
       StateT.run_bind, StateT.run_map, StateT.run_pure] at hb
-    simp only [StateT.run, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
+    simp only [StateT.run, SignatureScheme.signingOracleOn, List.length_replicate,
+      beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hb
     obtain ⟨_, -, _, ⟨_, ⟨_, ⟨_, -, rfl⟩, rfl⟩, rfl⟩, htrue⟩ := hb
     simp at htrue

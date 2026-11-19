@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Basic
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Handler
 public import CslibFrontier.Foundations.Quantum.Measurement.Classical
 public import CslibFrontier.Foundations.Quantum.Register
 import all CslibFrontier.Foundations.Quantum.Measurement.Classical
@@ -74,5 +74,31 @@ theorem xorQueryDisturbance_le {a b m : ℕ} {κ : Type*} [Fintype κ] [Decidabl
   have pos := (classicalDensityBranch_posSemidef bad true hρ.posSemidef).trace_nonneg
   rw [map_measureDensity_basis_apply, ENNReal.toReal_ofReal (Complex.nonneg_iff.mp pos).1]
   exact bound
+
+/-- For a native query on the initial address and response wires, the squared change of any
+one outcome's square-root probability is bounded by the query disturbance. The device may be
+entangled with an arbitrary finite reference. -/
+theorem DeviceState.sq_sqrt_query_readout_sub_le {a b w : ℕ} {κ σ : Type} {α : Type*}
+    [Fintype κ] [DecidableEq κ] [Fintype α] (st : DeviceState (a + b + w) κ σ)
+    (M : POVM α ((Fin (a + b + w) → Bool) × κ)) (outcome : α)
+    (G H : (Fin a → Bool) → Fin b → Bool) :
+    let p := fun T => M.densityProb (st.instruction T .query).density outcome
+    (√(p G) - √(p H)) ^ 2 ≤
+      xorQueryDisturbance G H (Fin.castLEEmb (Nat.le_add_right (a + b) w)) st.density := by
+  classical
+  intro p
+  let A := Fin.castLEEmb (Nat.le_add_right (a + b) w)
+  let U := fun (T : (Fin a → Bool) → Fin b → Bool) => (onFirst (κ := κ) (xorQuery T A).matrix).val
+  have born (T) : p T = M.densityProb (densityConj (U T) st.density) outcome := by
+    simp only [p, DeviceState.instruction_apply, OracleGateCode.toPlacedGate?,
+      Nat.le_add_right, ↓reduceDIte, DeviceState.evolve_density, U, coe_onFirst, A]
+  let D := U G - U H
+  have diff := M.abs_sqrt_densityProb_sub_le outcome st.isDensityMatrix.posSemidef (U G) (U H)
+  rw [← born, ← born] at diff
+  have pos := (st.isDensityMatrix.posSemidef.mul_mul_conjTranspose_same D).trace_nonneg
+  change _ ≤ (densityConj D st.density).trace.re
+  rw [← sq_abs, ← Real.sq_sqrt (show 0 ≤ (densityConj D st.density).trace.re by
+    simpa only [densityConj_apply] using (Complex.nonneg_iff.mp pos).1)]
+  exact pow_le_pow_left₀ (abs_nonneg _) diff 2
 
 end Cslib.Quantum

@@ -249,6 +249,7 @@ import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
+import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.EncForge
 import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
 import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 import CslibFrontier.Crypto.Computational.Encryption.ParityPrediction
@@ -260,6 +261,7 @@ import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
+import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
@@ -292,6 +294,7 @@ import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
+import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
@@ -8355,7 +8358,8 @@ register_result "prf-mac-suf-cma" where
     { paper := BonehShoup2023, theorem := "Theorem 6.2", locator := "Section 6.3, p. 224" }
   ]
   theorems := [
-    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC
+    Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC,
+    Cslib.Crypto.succProbability_sufCmaGame_prfMAC_le
   ]
   scope := "Let F be a PseudorandomFunction: n-bit keys, inputs and outputs, deterministic \
     polynomial-time evaluation, secure against adaptive uniform oracle-PPT tests, with queries \
@@ -8367,13 +8371,88 @@ register_result "prf-mac-suf-cma" where
     generation and tagging, polynomial-time verification and correctness on n-bit messages. The \
     notion is SUFCMA (Attack Game 6.1 and Definition 6.2, pp. 218–219), against uniform strict \
     oracle-PPT forgers in the standard model: a forgery wins when it is a valid pair on an n-bit \
-    message that the tagging oracle never returned. Tagging queries may be words of any length, \
-    which prfMAC answers with the empty word unless they have n bits, where the source's \
-    queries lie in the message space; this admits more forgers, so the conclusion implies \
-    Definition 6.2 on n-bit messages. The reduction macToPrfDistinguisher is certified oracle \
-    PPT (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
+    message that the tagging oracle never returned. As in the source, tagging queries and the \
+    forgery lie in the message space of n-bit words: the tagging oracle answers a query of \
+    another length with the empty word, without tagging or recording it, and a candidate tag \
+    that is not an n-bit word never verifies, so the notion is Definition 6.2 for prfMAC on \
+    n-bit messages. The reduction macToPrfDistinguisher forwards each n-bit tagging query to \
+    its PRF oracle, refuses the others itself, and is certified oracle PPT \
+    (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
+
+register_result "encrypt-then-mac-authenticated-encryption" where
+  title := "Encrypt-then-MAC is authenticated encryption, many-time and one-time"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 9.2", locator := "Section 9.4.1, p. 367" }
+  ]
+  theorems := [
+    Cslib.Crypto.ciphertextIntegrity_encryptThenMAC,
+    Cslib.Crypto.authenticatedEncryption_encryptThenMAC,
+    Cslib.Crypto.oneTimeCiphertextIntegrity_encryptThenMAC,
+    Cslib.Crypto.oneTimeAuthenticatedEncryption_encryptThenMAC,
+    Cslib.Crypto.succProbability_ciGame_encryptThenMAC_eq,
+    Cslib.Crypto.succProbability_ciOneTimeGame_encryptThenMAC_eq
+  ]
+  scope := "Both sentences of Theorem 9.2 (proof pp. 367–368) for encryptThenMAC E M, the \
+    encrypt-then-MAC cipher of Section 9.4.1 (p. 367): independent keys (ke, km) from the key \
+    generators of E and M; a ciphertext is the framed pair (c, t) of c ← E(ke, m) and \
+    t ← S(km, c); decryption rejects unless the word is a canonically framed pair whose first \
+    part has msgLen n bits and V(km, c, t) accepts, and then outputs D(ke, c). E is any \
+    SymmetricCipher (n-bit messages at parameter n, as in the authenticated-encryption-cca \
+    entry) and M any MACScheme, under the hypothesis hctLen that E's ciphertexts of n-bit \
+    messages have msgLen n bits: the source asks that I be defined over E's ciphertext space \
+    C, and a MACScheme's message space at parameter n is the msgLen n-bit words. The \
+    ciphertext space is the framed pairs whose first part has msgLen n bits and lies in \
+    E.ctSpace n, with any word as tag: the source's C × T, a MACScheme declaring no tag \
+    space. ciphertextIntegrity_encryptThenMAC and authenticatedEncryption_encryptThenMAC: if \
+    E is CPA-secure (INDCPA, Attack Game 5.2 and Definition 5.2, pp. 181–182) and M is a \
+    secure MAC (SUFCMA, Attack Game 6.1 and Definition 6.2, pp. 218–219, with tagging queries \
+    and forgery in the message space), the cipher has ciphertext integrity (Attack Game 9.1 \
+    and Definition 9.1, pp. 358–359) and is AE-secure (Definition 9.2, p. 359). The one-time \
+    forms: if E is OneTimeINDCPA (Attack Game 5.2 answering one encryption query, standing \
+    for the theorem's semantic security) and M is OneTimeSUFCMA (Attack Game 6.1 with one \
+    tagging query, Section 7.6, p. 275, against efficient forgers), the cipher has one-time \
+    ciphertext integrity and is 1AE-secure (Definitions 9.3–9.4, p. 360). Adversaries are \
+    uniform strict oracle-PPT programs in the standard model, with the game conventions of the \
+    authenticated-encryption-cca entry. succProbability_ciGame_encryptThenMAC_eq and its \
+    one-time form are the theorem's CIadv[Aci, EEtM] = MACadv[Bmac, I], for the reductions \
+    etmToMACForger and etmToOneTimeMACForger, which are certified oracle PPT and make no more \
+    tagging queries than the adversary makes encryption queries \
+    (isQueryBounded_etmToMACForger); advantage_cpaGame_encryptThenMAC_eq, in the same module, \
+    is the theorem's CPA equality."
+
+register_result "mac-then-encrypt-plaintext-integrity" where
+  title := "MAC-then-encrypt has plaintext integrity"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 9.15(a), plaintext-integrity half",
+      locator := "Section 9.13, p. 395" }
+  ]
+  theorems := [
+    Cslib.Crypto.encForge_macThenEncrypt
+  ]
+  scope := "The plaintext-integrity half of Exercise 9.15(a), \"Show that MAC-then-Encrypt is \
+    both CPA and PI secure\", for macThenEncrypt E M, the MAC-then-encrypt cipher of \
+    Section 9.4.2 (p. 369): tag t ← S(km, m), encrypt the framed pair (m, t) under ke, and on \
+    decryption reject unless the plaintext is a canonically framed pair whose first part has \
+    n bits and V(km, m, t) accepts, then output m. M is any MACScheme on n-bit messages \
+    (hmsgLen); E is any SymmetricCipher, run at parameter ptLen n so that it encrypts \
+    ptLen n-bit words, under the hypothesis hpairLen that every framed pair of an n-bit \
+    message and an honest tag has ptLen n bits: the source asks that E be defined over \
+    M × T, and a SymmetricCipher's message space at parameter ptLen n is the ptLen n-bit \
+    words. Plaintext integrity is EncForge, the ciphertext integrity game of Attack Game 9.1 \
+    (pp. 358–359) won, as Exercise 9.15 defines, when the output decrypts to a message that \
+    was never queried; encryption queries other than n-bit messages are answered with the \
+    empty word. The hypothesis is that M is EUFCMA: fresh-message unforgeability with tagging \
+    queries and forgery in the message space, which a secure MAC (SUFCMA, Definition 6.2, \
+    pp. 218–219) implies (MACScheme.SUFCMA.eufCma). Nothing is assumed of E, so the \
+    conclusion holds for every MAC-then-encrypt cipher built from a secure MAC. Adversaries \
+    are uniform strict oracle-PPT programs in the standard model. The reduction \
+    mteToMACForger is certified oracle PPT (isOraclePPT_mteToMACForger), and \
+    succProbability_encForgeGame_macThenEncrypt_le, in the same module, is its concrete \
+    bound."
 
 register_result "authenticated-encryption-cca" where
   title := "Authenticated encryption implies chosen-ciphertext security, many-time and one-time"
@@ -8596,6 +8675,40 @@ register_result "xor-tcr-from-second-preimage" where
     xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
     Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "tcr-hash-and-sign-signature" where
+  title := "Signing a fresh target collision resistant hash key with the message digest extends a \
+    secure signature to messages of any length"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 13.2", locator := "Section 13.2.1, p. 534" }
+  ]
+  theorems := [
+    Cslib.Crypto.SignatureScheme.EUFCMA.eufCMA_wordScheme
+  ]
+  scope := "The derived scheme S′ of construction (13.2) (p. 533), as TCRSignature.wordScheme S \
+    H: to sign m, sample a uniform H.keyLen n-bit key r, sign the pair (r, H(r, m)) under S and \
+    output (r, σ), where the source outputs (σ, r); to verify, check that r has H.keyLen n bits \
+    and that σ verifies on (r, H(r, m)) under S. Hypotheses: S.EUFCMA, Attack Game 13.1 and \
+    Definition 13.2 (pp. 529–530) for a SignatureScheme, whose message space at security \
+    parameter p is the p-bit words, with signing queries and forgeries in that space; and \
+    H.TargetCollisionResistant, Attack Game 8.5 and Definition 8.7 (pp. 337–338) with every \
+    word a message, uniform H.keyLen n-bit keys and H.digestLen n-bit digests. The source's S \
+    signs the pairs of K_H × T at the same security parameter. Here, at parameter n, S runs at \
+    the parameter otsParam H n, injective, computable in polynomial time and above \
+    H.keyLen n + H.digestLen n, on the otsParam H n-bit word of r, then H(r, m), then zero \
+    padding. So the premise is S's security on every otsParam H n-bit word, which includes the \
+    encoded pairs, and the bound at n uses the advantage against S at otsParam H n, negligible \
+    in n since otsParam H n ≥ n. The keys of S′ carry n. Conclusion: WordSignatureScheme.EUFCMA \
+    for S′, Attack Game 13.1 with every word a message. The messages of H and of S′ are all \
+    bit strings, which is security on every message space of polynomially bounded word length \
+    at once. Forgers are uniform strict oracle-PPT machines and target-collision adversaries \
+    uniform strict PPT two-stage machines. The proof's B_S is manyTimeForger and its B_H is \
+    tcrMultiAdversary, both certified (isOraclePPT_manyTimeForger, isPPT_tcrMultiAdversary). \
+    Asymptotic; exists_reduction_wordScheme_eufCmaGame_le, in the same module, is the \
+    theorem's bound SIGadv[A, S′] ≤ SIGadv[B_S, S] + Q · TCRadv[B_H, H], with the term for S \
+    at otsParam H n and a polynomially bounded loss in place of Q. The one-time form over a \
+    one-time S (indexedEUFCMA_tcrSignature) is a step, not part of this entry."
 
 register_result "rsa-common-root-shamir-trick" where
   title := "Shamir's trick: for a unit w modulo n with w^e ≡ y^f and coprime natural exponents \
@@ -8892,6 +9005,37 @@ register_result "optimized-lamport-containment-free" where
     affect containment freeness. Unconditional combinatorics, with no adversary or sampling. \
     The general Lamport signature scheme and Theorem 14.2 are not formalized here. \
     optWord_polyTime, in the same module, computes the encoding in polynomial time."
+
+register_result "indexed-signature-counter-nonce" where
+  title := "A secure indexed signature with a counter as its nonce is a secure stateful signature"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Section 14.6.4 nonce-based signatures, counter nonce",
+      locator := "Section 14.6.4, pp. 602–603" }
+  ]
+  theorems := [
+    Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.counterEUFCMA
+  ]
+  scope := "Premise: IndexedEUFCMA S, Definition 14.6 (p. 597): a q-indexed signature on the \
+    message space {1, …, q} × M, secure against efficient adversaries whose signing queries \
+    use distinct indices and who win with a valid signature on a new pair (u, m). Here \
+    q = capacity n, computed in polynomial time from 1^n; indices run over 0, …, q − 1, in \
+    unary; M is every bit string, which is security on every message space of polynomially \
+    bounded word length at once. Signing may be randomized, where Definition 14.6 \
+    requires deterministic signing: the theorem covers more schemes and is the source's for \
+    deterministic ones. A request with a repeated index or an index u ≥ q is answered with \
+    the empty word and not recorded, instead of being excluded from the adversary class; a \
+    forger can predict these refusals, so the notions agree. A forgery counts only at an \
+    index u < q. Conclusion: CounterEUFCMA S, the nonce-based use of Section 14.6.4 with the \
+    nonce a counter (p. 603): the signing oracle signs its j-th request at index j and \
+    answers the word (j, σ), refuses every request once j = q, and a forger wins with a valid \
+    signature on a message it never had signed, at an index below q read from the signature \
+    word. This is existential unforgeability for a nonce never used twice, as Section 14.6.4 \
+    states it (p. 602). Same message space, refusals and index range as the premise. Forgers \
+    in both games are uniform strict oracle-PPT machines. The proof's reduction \
+    counterForger answers the j-th request by one indexed query at index j and forwards the \
+    forgery with its index; it is certified oracle PPT (isOraclePPT_counterForger) and has \
+    loss 1 (succProbability_counterEufCmaGame_le, in the same module). Asymptotic."
 
 register_result "span-program-change-of-basis-equivalence" where
   title := "Right multiplication by an invertible matrix with top row e₁ gives an equivalent \

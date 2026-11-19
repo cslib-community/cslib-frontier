@@ -250,3 +250,38 @@ example (C : QuantumSigningForger) (s : Level) (seed : FixedBytes 32) (tag : Boo
     lia
   simp only [queriesKeySeed, Xofs.queryAddress, Fin.cons_zero, Fin.cons_succ,
     BitString.ofFn_ofList len, Xofs.unpad_word, x, beq_self_eq_true, Bool.and_true]
+
+-- A single execution can exercise both budgets and return the signing reply after a coherent call.
+example (q : SigningQuery) :
+    let C : QuantumSigningForger := ⟨2, 1, 0, fun _ => do
+      let r ← OracleComp.query (Sum.inr (Sum.inr q) : ℕ ⊕
+        Cslib.Quantum.DeviceRequest 12 Empty ⊕ SigningQuery)
+      let _ ← OracleComp.query (Sum.inr (Sum.inl .query) : ℕ ⊕
+        Cslib.Quantum.DeviceRequest 12 Empty ⊕ SigningQuery)
+      return ⟨q.context, q.message, (r : Option (List Byte)).getD []⟩⟩
+    C.SigningCallsLe 1 ∧ C.XofCallsLe 1 := by
+  constructor
+  · intro pk
+    exact .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0
+  · intro pk
+    exact .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0
+
+-- For 2^64 signing and coherent queries, this is a loss in the square root of the final
+-- success probability, including when the reference game can already forge.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 128 ≤ b) (hn : C.SigningCallsLe (2 ^ 64))
+    (hm : C.XofCallsLe (2 ^ 64)) (score : SignedMatrixTrial s → Bool) :
+    let view := C.maskSeedGame s base ha ((by decide : 64 ≤ 128).trans hb) hn (by decide)
+    √(Game.succProbability (view true score) : ℝ) ≤
+      √(Game.succProbability (view false score) : ℝ) + 1 / 2 ^ 93 := by
+  intro view
+  apply (C.sqrt_maskSeedGame_le s base ha hb hn (by decide) hm score).trans
+  apply add_le_add le_rfl
+  push_cast
+  have root : √(2 / (2 : ℝ) ^ 256) ≤ 2 / 2 ^ 128 := by
+    apply (Real.sqrt_le_left (by positivity)).mpr
+    norm_num
+  apply (mul_le_mul_of_nonneg_left (add_le_add root le_rfl) (by positivity)).trans
+  apply (sq_le_sq₀ (by positivity) (by positivity)).mp
+  simp only [mul_pow]
+  norm_num

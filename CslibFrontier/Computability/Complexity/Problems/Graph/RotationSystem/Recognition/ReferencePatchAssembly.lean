@@ -41,8 +41,11 @@ and preserves outgoing germs up to internally proved positive factors.
   A free local segment has index `3*q+1+j`; a frozen cut uses the original parameter
   `α+(β-α)*t`. Reversal takes the raw first piece to the last source-oriented local piece.
 
-This is original finite coordinate geometry. Global exclusion of extra pair contacts,
-pair-contact correspondence and no triples away from declared vertices remain open under
+This is original finite coordinate geometry. The downstream
+`exists_reference_crossing_regularization` in `ReferenceRegularization` constructs an
+assembly with exact pair-contact correspondence, transverse contacts and no triple supports
+away from declared vertices. Parity, frozen placement, Hanani–Tutte and query/source
+recognition remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 -/
@@ -764,8 +767,10 @@ structure ReferencePatchAssembly (I : FixedRotationInput) where
 
 
 /-- Construct one complete named-field reference patch assembly from `Valid I` alone.
-All selected data and proofs refer to its single drawing; global contact regularization
-and the HT criterion remain open. -/
+All selected data and proofs refer to its single drawing. A global assembly with exact
+pair-contact correspondence, transverse contacts and no triples away from declared vertices
+is provided by `exists_reference_crossing_regularization` in `ReferenceRegularization`.
+Parity, placement, Hanani–Tutte and recognition remain open. -/
 theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) :
     Nonempty (ReferencePatchAssembly I) := by
   classical

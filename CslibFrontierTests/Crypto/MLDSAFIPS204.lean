@@ -8,12 +8,13 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
-import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
+import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
@@ -140,6 +141,22 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- In the independent expansion game the private parser exhausts while the public streams
+-- accept every nibble. The key-seed read and SHAKE128 remain on the ambient table.
+private def independentSecretCheck (s : Level) : Bool :=
+  let ambient := constantStream fun _ => 0
+  let privateRows := constantStream fun _ => 255
+  let H : Xofs := ⟨ambient, ambient⟩
+  let G := H.withExpandSStream ⟨privateRows, privateRows⟩
+  let r := List.replicate 64 (0 : Byte)
+  (H.expandS s r).isSome && (G.expandS s r).isNone &&
+    G.expandKeySeed s (fun _ => 0) == List.replicate 128 0 &&
+    G.h128.read (List.replicate 528 false) 1 == [0]
+
+#guard independentSecretCheck .mlDSA44
+#guard independentSecretCheck .mlDSA65
+#guard independentSecretCheck .mlDSA87
 
 -- At every standard level the bound counts the public-key rounding correction.
 example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =

@@ -105,16 +105,16 @@ lemma length_eProb (a : Prob) : (eProb a).length =
 /-- The test for base problems, in linear time. -/
 lemma isBase_inO : ComputableTidilyInO simDC.isBase eProb encBool (fun a => (eProb a).length)
     (fun a => (eProb a).length) :=
-  (((ComputableTidilyInDegree.unary_isZero.comp ComputableTidilyInDegree.unary_pred).mono
-    (d' := 1) (e' := 1)).inO_one.comp_linear prob_n).of_enc_eq fun a =>
+  (((ComputableInDegree.unary_isZero.comp ComputableInDegree.unary_pred).mono
+    (d' := 1) (e' := 1)).inO_one.tidy.comp_linear prob_n).of_enc_eq fun a =>
     congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
 
 /-- `Option.toList` on symbols, in linear time. -/
 lemma toList_inO : ComputableTidilyInO Option.toList eSym (encList encUnary)
     (fun o => (eSym o).length) (fun o => (eSym o).length) :=
-  ((((ComputableTidilyInDegree.isSome encUnary).inO_one).ite
-    ((ComputableTidilyInDegree.snoc encUnary).inO_one.comp_linear
-      ((const []).prod (ComputableTidilyInDegree.getD (enc₁ := encUnary) 0).inO_one))
+  ((((ComputableInDegree.isSome encUnary).inO_one.tidy).ite
+    ((ComputableInDegree.snoc encUnary).inO_one.tidy.comp_linear
+      ((const []).prod (ComputableInDegree.getD (enc₁ := encUnary) 0).inO_one.tidy))
     (const [])).mono 4 (fun o => by dsimp only [eSym]; split_ifs <;> omega)
       (fun o => by dsimp only [eSym]; split_ifs <;> omega)).of_enc_eq
     fun o => by cases o <;> rfl
@@ -130,7 +130,7 @@ lemma base_inO : ComputableTidilyInO simDC.base eProb eSol Tb Tb := by
   have hstep := wstep_inO.tidy.comp (prob_d.prod prob_w)
   have hlive := hstep.fst'.prod (toList_inO.comp_linear hstep.snd')
   have hidle := prob_w.prod (const (encMid := encList encUnary) [])
-  refine ((((ComputableTidilyInDegree.unary_isZero.inO_one.comp_linear prob_n).ite hidle
+  refine ((((ComputableInDegree.unary_isZero.inO_one.tidy.comp_linear prob_n).ite hidle
     hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_)
   all_goals
     have h₁ := length_dw_le a
@@ -220,7 +220,7 @@ lemma join_inO : ComputableTidilyInO simDC.join (encPair eSaved eSol) eSol Tj Tj
   have hw2 := (fst eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have ho2 := (snd eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have hres := restore_inO.tidy.comp (hr.prod (hs.fst'.prod hw2))
-  have happ := (ComputableTidilyInDegree.listAppend encUnary).inO_one.comp_linear
+  have happ := (ComputableInDegree.listAppend encUnary).inO_one.tidy.comp_linear
     (hs.snd'.prod ho2)
   refine ((hres.prod happ).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq fun q => rfl
   all_goals
@@ -466,9 +466,9 @@ open Windowed ComputableTidilyInO
 lemma post_inO : ComputableTidilyInO (fun s : Sol => (s.2, s.1.1.isNone)) eSol eOut
     (fun s => (eSol s).length) (fun s => (eSol s).length) := by
   have hst := (fst eSym (encList eTape)).comp_linear (fst eWin (encList encUnary))
-  have hnone := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    (fun b : Bool => !b)).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear hst)
+  have hnone := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
+    (fun b : Bool => !b)).inO_one.tidy.comp_linear
+      ((ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear hst)
   exact (((snd eWin (encList encUnary)).prod hnone).mono 2 (fun s => by dsimp only [eSol]; omega)
     (fun s => by dsimp only [eSol]; omega)).of_enc_eq fun ⟨⟨st, ts⟩, o⟩ => by cases st <;> rfl
 

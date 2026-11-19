@@ -247,7 +247,7 @@ private theorem step_size (input : Input) (s : State) :
       next ha =>
         have ha' := length_le_encList_of_mem encRecord ha
         have hp : (encList encRecord (partners input a)).length ≤ B :=
-          ComputableTidilyInDegree.length_encList_filter_le _ _ _
+          ComputableInDegree.length_encList_filter_le _ _ _
         have hs := scan_size (roots input) log a (partners input a) ([], none)
         change (encScanState (scan (roots input) log a [] (partners input a))).length ≤
           (encScanState ([], none)).length + 2 * _ at hs
@@ -259,7 +259,7 @@ private theorem step_size (input : Input) (s : State) :
           omega
         cases event with
         | none =>
-          have hf := ComputableTidilyInDegree.length_encList_filter_le encRecord
+          have hf := ComputableInDegree.length_encList_filter_le encRecord
             (fun b => decide (b ∉ used ((a, os) :: log))) remaining
           simp only [Option.elim_none]
           calc
