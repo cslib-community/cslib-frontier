@@ -6,10 +6,16 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
 import CslibFrontier.Probability.PairwiseIndependentHash.Retention
@@ -48,6 +54,7 @@ import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
+import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -418,6 +425,7 @@ import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExp
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.SetLowerBound
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
+import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -10551,6 +10559,23 @@ register_result "partial-tag-encrypt-then-mac" where
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
 
+register_result "fixed-length-polynomial-universality" where
+  title := "Collision and difference bounds for fixed-length polynomial hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.16(a)–(b)",
+      locator := "v0.6, printed p. 281; Hfpoly in §7.2.1, equation (7.5), p. 257" }
+  ]
+  theorems := [
+    Cslib.Probability.isUniversalHash_coeffPolyHash,
+    Cslib.Probability.isDeltaUniversalHash_mul_coeffPolyHash
+  ]
+  scope := "For length-n coefficient vectors and an exactly uniform field element, the \
+    collision probability is at most (n − 1)/|F|. Multiplying the evaluation by the key bounds \
+    the probability of any specified difference by n/|F|. Both statements quantify over \
+    distinct vectors, extend from prime fields to all finite fields, and apply pointwise in n \
+    without a growth condition. The zero-length vector has no distinct partner."
+
 register_result "ghash-gcm-length-block-xor-duf" where
   title := "GHASH on the bit-length version of GCM's line (∗) input, zero-padded with its \
     length block, is an ℓ/2^128-XOR-DUF for inputs of at most ℓ blocks, the length block \
@@ -10793,6 +10818,44 @@ register_result "abstract-dpll-learning-correctness" where
     Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
     so every step of the source is a step here."
 
+register_result "anchoring-classical-and-entangled-values" where
+  title := "Classical and entangled values after anchoring a two-prover game"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 1.2",
+      locator := "arXiv:1509.07466v2, printed p. 3 (anchoring in Definition 1.1)" }
+  ]
+  theorems := [
+    Cslib.PCP.TwoProverGame.value_anchored,
+    Cslib.PCP.TwoProverGame.quantumValue_anchored
+  ]
+  scope := "Anchoring replaces each player's question independently with probability α and \
+    accepts if either question is replaced. For finite games with nonempty answer alphabets, \
+    the classical and entangled rejection gaps both scale by (1 − α)², including α = 0 and α = 1. \
+    Entangled value is the supremum over finite-dimensional tensor strategies with arbitrary \
+    local POVMs. The strategy maps preserve both local dimensions."
+
+register_result "bvy-anchored-noisy-reveal-laws" where
+  title := "Conditional independence and the anchored marginal of the noisy reveal"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claims 4.1–4.2",
+      locator := "arXiv:1509.07466v2, §4.1, printed pp. 11–12" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.conditionalSnd_messagePair,
+    Cslib.PCP.AnchoredDependency.leftLaw_apply,
+    Cslib.PCP.AnchoredDependency.rightLaw_apply,
+    Cslib.PCP.AnchoredDependency.map_snd_leftLaw,
+    Cslib.PCP.AnchoredDependency.map_snd_rightLaw,
+    Cslib.PCP.AnchoredDependency.map_snd_law
+  ]
+  scope := "For any original joint question PMF, the weighted point masses factor into the message \
+    mass and two local conditional laws. The factorization expresses independence at supported \
+    messages. For either designated player, forgetting the message recovers the anchored question \
+    law, including anchor rates zero and one. Agreement of the left-message conditional with \
+    the original anchored conditional assumes a supported message and an interior anchor rate."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
@@ -10835,3 +10898,73 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     on the closed algebra of left GNS operators. The reverse construction uses commuting GNS \
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
+
+register_result "mpda-one-hole-is-no-hole" where
+  title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Theorem 2",
+      locator := "arXiv:2002.05950v2, Appendix G.1 \"Multi-Producer Consumer\", paragraph \
+        \"Hole Bound\", PDF p. 37; holes as in Definition 1, Section 2.1" }
+  ]
+  theorems := [Cslib.Automata.MPDA.holeBounded_one_iff_wellNested]
+  scope := "For every MPDA and every run of its configuration system from a control state with \
+    all stacks empty to a control state with all stacks empty, the label sequence of the run is \
+    1-hole-bounded exactly when it is well-nested. Open holes are counted through their first \
+    pending push that is not closed by a well-nested continuation, consecutive pending pushes \
+    of one stack separated by a well-nested factor belonging to the same hole. The paper states \
+    the theorem for accepting runs inside its multi-producer consumer example and proves it \
+    informally; the Lean statement is for all complete runs and does not need acceptance. \
+    Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
+    arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."
+
+register_result "quantum-relative-entropy-nonnegative" where
+  title := "Nonnegativity of quantum relative entropy for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.2",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_nonneg]
+  scope := "For arbitrary finite complex positive semidefinite trace-one matrices, including \
+    singular states, quantum relative entropy is nonnegative. The trace formula uses natural \
+    logarithms and requires support containment, stated as reverse kernel inclusion. When that \
+    containment fails, the divergence is positive infinity."
+
+register_result "uhlmann-finite-dimensional-local-overlap" where
+  title := "Uhlmann’s theorem for finite-dimensional purifications"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Theorem 5.11",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.exists_localUnitary_inner_eq_rootFidelity]
+  scope := "Two complex vectors on the same finite bipartite space, with possibly unequal \
+    local dimensions and possibly singular reduced states. A unitary on the right system \
+    gives a complex overlap equal to the real unsquared fidelity of the left reductions. \
+    Unit vectors recover the normalized purifications in the source."
+
+register_result "powers-stormer-finite-matrices" where
+  title := "Powers–Størmer inequality for finite matrices"
+  topic := "matrix analysis"
+  sources := [
+    { paper := SzaboWouters2025, theorem := "Lemma 1.19",
+      locator := "published version, §1, printed p. 1397 (tracial norms on p. 1390)" }
+  ]
+  theorems := [Matrix.trace_sub_mul_self_le_traceNorm_mul_self_sub]
+  scope := "For positive semidefinite complex matrices P and Q, the trace of (P − Q)² is \
+    bounded by the trace norm of P² − Q². Multiplying the tracial form by the dimension gives \
+    ordinary trace, with the empty-dimensional case giving zero on both sides. Singular \
+    matrices are allowed, and there is no trace-one assumption."
+
+register_result "fuchs-van-de-graaf-lower" where
+  title := "Lower Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lower bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.one_sub_rootFidelity_le_traceDistance]
+  scope := "Arbitrary finite-dimensional complex positive semidefinite trace-one matrices, \
+    including singular states. One minus the unsquared fidelity is bounded above by the \
+    trace distance, which is half the trace norm of the difference."
