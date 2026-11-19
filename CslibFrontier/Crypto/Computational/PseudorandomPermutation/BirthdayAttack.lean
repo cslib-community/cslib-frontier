@@ -53,8 +53,9 @@ Formalizes the word-level collision distinguisher of Boneh–Shoup (§4.4.3, p. 
   `Cslib.Crypto.BlockCipher.not_pseudorandomFunctionOver_of_not_negligible`: when
   `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` is not negligible (for eventually nonzero `E.blockLen`), `E`
   cannot be a `PseudorandomFunctionOver` `E.blockLen` `E.blockLen`, showing that the
-  super-polynomial block-size hypothesis in `BlockCipher.prp_iff_pseudorandomFunctionOver` is
-  necessary.
+  super-polynomial block-size hypothesis in
+  `BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame` and
+  `BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id` is necessary.
 
 The deterministic counter-mode birthday attack of §4.4.4.1 is not formalized here.
 
@@ -515,7 +516,8 @@ theorem BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame {E : BlockCip
   exact hfreq.mono fun n ⟨hpos, hQ⟩ =>
     half_le_advantage_wordBirthdayDistinguisher E Q hpos hQ
 
-/-- Necessity of super-polynomial block size in `BlockCipher.prp_iff_pseudorandomFunctionOver`:
+/-- Necessity of super-polynomial block size in
+`BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id`:
 when `E.keyLen = id`, `1 ≤ E.blockLen n` eventually, and `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` is not
 negligible, `E` cannot be a `PseudorandomFunctionOver` `E.blockLen` `E.blockLen`. -/
 theorem BlockCipher.not_pseudorandomFunctionOver_of_not_negligible {E : BlockCipher}

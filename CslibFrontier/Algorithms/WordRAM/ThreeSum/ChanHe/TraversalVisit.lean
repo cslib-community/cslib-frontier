@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalConstruct
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalDeliver
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete charged native work at one live traversal entry
@@ -73,11 +74,11 @@ theorem visit_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → ℤ)
     construct_exec x values hm hmod hbudget hnode hN hcard hbefore hbitmap
       hvalues hbdd hsrc hinput hinj
   have hbp (i : Fin 128) (hi : 64 ≤ i.val) (hne : i ≠ selected) :
-      b.regs i = x.regs i := (hpb i hi).trans (hu i hi hne)
+      b.regs i = x.regs i := by regs_frame
   have hbL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
     rw [nodeState_layout, hpb selected (by decide), hus]
     exact recordLayout_congr x b M hbp
-  have hbOne : b.regs one = 1 := (hbp _ (by decide) (by decide)).trans hone
+  have hbOne : b.regs one = 1 := by regs_frame
   have hbTable : b.regs outputs + b.regs outputCount < b.regs heap := by
     rw [hbp outputs (by decide) (by decide), hbp outputCount (by decide) (by decide),
       hbp heap (by decide) (by decide)]

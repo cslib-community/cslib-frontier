@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Child
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual empty-child transitions
@@ -73,9 +74,8 @@ theorem exec_node_emptyChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
     exact Modifies.write_of_owns (by constructor <;> omega) _
   obtain ⟨hymem, hymod, hbelow⟩ := postScan_memory htable hscanMod hframe (by omega)
   refine ⟨y, he, hregs.of_step he,
-    (hy.regs_eq (by decide : advance.Preserves level)).trans hvl, hym,
-    (hy.regs_eq (by decide : advance.Preserves active)).trans hva,
-    (hy.regs_eq (by decide : advance.Preserves epoch)).trans hve,
+    by regs_frame, hym,
+    by regs_frame, by regs_frame,
     hymem, ?_, by simp only [hmem', Function.update_self], hymod⟩
   intro j hj
   rw [hmem', Function.update_of_ne (by omega : f + 4 * d + j ≠ f + 4 * d + 3)]

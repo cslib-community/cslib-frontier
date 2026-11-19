@@ -420,9 +420,7 @@ private theorem win_cases (hlen : ∀ k m, (H k m).length = k.length) {n : ℕ} 
   simp only [verify, publicKey, encPair_apply, unframe_frame_append, dropFrame_frame_append,
     encBits_apply, hk, Bool.and_eq_true] at hver
   obtain ⟨hopen, hots⟩ := hver
-  have hu : u < 2 ^ depth n := by
-    simp only [merkleVerify, Bool.and_eq_true, decide_eq_true_eq] at hopen
-    exact hopen.1.2
+  have hu : u < 2 ^ depth n := (merkleVerify_eq_true_iff.mp hopen).2.1
   have hdepth : Nat.clog 2 (keys.map Prod.fst).length = depth n := by
     rw [List.length_map, hkeys, Nat.clog_pow _ _ (by norm_num)]
   have hu' : u < keys.length := hkeys ▸ hu
@@ -456,8 +454,7 @@ private theorem win_cases (hlen : ∀ k m, (H k m).length = k.length) {n : ℕ} 
       rw [← hvks, ← hvk]
       exact hots
   · left
-    have hcol := isCollision_of_merkleVerify hopen
-      (merkleVerify_merklePath_of_clog_eq (H := H) (k := k) hdepth hu) hvk n
+    have hcol := isCollision_of_merkleVerify_merklePath hdepth hopen hvk n
     simpa only [collisionOf, beq_iff_eq, hvk, ↓reduceIte] using hcol
 
 /-- **The leaf is exactly uniform** below `2 ^ depth n`, the law of

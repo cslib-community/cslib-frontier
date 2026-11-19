@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.Program
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
@@ -52,17 +53,13 @@ is in `E` (`Cslib.HardnessEncoding.encodedLanguage_mem_E`, by
 
 @[expose] public section
 
+open Cslib.BinaryField
+
 namespace Cslib.HardnessEncoding
 
 open Turing.MultiTapeTM ComputableInPolyTime Cslib.AffineDisperser
 
 /-! ### Field arithmetic -/
-
-/-- The multiplication table of the power basis, from the coefficient list of the modulus. -/
-private theorem computableInPolyTime_powerMulTable :
-    ComputableInPolyTime powerMulTable encBits encTable := by
-  unfold powerMulTable
-  fun_prop
 
 /-- Inverses in coordinates, as a composition rule. -/
 @[fun_prop]

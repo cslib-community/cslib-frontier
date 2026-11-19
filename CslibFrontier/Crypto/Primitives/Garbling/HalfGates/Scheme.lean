@@ -369,7 +369,7 @@ theorem getD_take_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bo
   simp [show i < n + s by omega]
 
 /-- An entry of the label words of a labelling. -/
-private theorem getD_ofFn_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {i : ℕ}
+theorem getD_ofFn_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {i : ℕ}
     (hi : i < n + s) :
     (List.ofFn fun v : Fin (n + s) =>
       labelBits (A (Wire.ofNat v v.isLt))).getD i [] =
@@ -571,9 +571,9 @@ theorem gb_eq_encodeGarbled (k : ℕ) (f : XorAndCircuit) (coins : List Bool) :
 
 /-! ### Evaluation -/
 
-/-- The parts of a gate block followed by more of the body: its two wire numbers, its AND bit, and
-its ciphertexts with the rest. -/
-private theorem block_parts {w : ℕ} {a b cts more : List Bool} (d : Bool) (ha : a.length = w)
+/-- The parts of a gate block followed by more of the body: its two wire numbers, its flag bit,
+and its ciphertexts with the rest. -/
+theorem block_parts {w : ℕ} {a b cts more : List Bool} (d : Bool) (ha : a.length = w)
     (hb : b.length = w) :
     (a ++ b ++ [d] ++ cts ++ more).take w = a ∧
       ((a ++ b ++ [d] ++ cts ++ more).drop w).take w = b ∧

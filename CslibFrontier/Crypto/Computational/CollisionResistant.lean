@@ -77,9 +77,10 @@ per footnote 1 on printed p. 290). `collisionExperiment` is the experiment at a 
   `Cslib.Crypto.not_collisionResistantForOn_of_le_succProbability`,
   `Cslib.Crypto.succProbability_collisionGameFor_map_le`,
   `Cslib.Crypto.CollisionResistantForOn.of_map`,
+  `Cslib.Crypto.CollisionResistantForOn.mono`,
   `Cslib.Crypto.CollisionResistantOn.collisionResistantForOn`: setup-parameterized collision
-  resistance properties and injective-digest reductions (including the specialization from
-  word-level `CollisionResistantOn`).
+  resistance properties, restriction of the valid input domain, and injective-digest reductions
+  (including the specialization from word-level `CollisionResistantOn`).
 * `Cslib.Crypto.isPPTOn_collisionGame`, `Cslib.Crypto.isPPT_collisionGame`: strict PPT certificates
   for the keyed word-level collision experiment.
 * `Cslib.Crypto.CollisionResistantOn.negligible`,
@@ -315,6 +316,23 @@ theorem CollisionResistantForOn.of_map
   filter_upwards [hinj] with n hn
   exact succProbability_collisionGameFor_map_le setup₁ f H₁ H₂ valid₁ valid₂ adversary n hn
 
+/-- Restricting the valid input domain preserves setup-parameterized collision resistance: a
+collision on `valid₁` is a collision on `valid₂` whenever `valid₁ ⊆ valid₂` on supported
+parameters. This is `CollisionResistantForOn.of_map` with the identity parameter map. In
+particular `CollisionResistantFor` gives `CollisionResistantForOn` for every `valid`. -/
+theorem CollisionResistantForOn.mono {Param : Type} {Digest : Param → Type}
+    [∀ d, DecidableEq (Digest d)] {encParam : Param ↪ List Bool}
+    {setup : ℕ → PMF Param} {H : (d : Param) → List Bool → Digest d}
+    {valid₁ valid₂ : ℕ → Param → List Bool → Bool}
+    (hCR : CollisionResistantForOn encParam setup H valid₂)
+    (hsub : ∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, ∀ m,
+      valid₁ n d m = true → valid₂ n d m = true) :
+    CollisionResistantForOn encParam setup H valid₁ := by
+  have h := hCR.of_map (f := fun _ => id) (H₂ := H) (valid₂ := valid₁)
+    (ComputableInPolyTime.snd encUnary encParam)
+    (hsub.mono fun _ hn d hd m₁ m₂ h₁ h₂ hH => ⟨hn d hd m₁ h₁, hn d hd m₂ h₂, hH⟩)
+  simpa only [PMF.map_id] using h
+
 /-! ### Keyed word-level collision-resistant hash families (`Param = List Bool`) -/
 
 /-- A collision finder receives the unary security parameter `n` and public hash key `k` and
@@ -529,11 +547,8 @@ theorem CollisionResistantOn.mono
     {H : List Bool → List Bool → List Bool} {valid₁ valid₂ : ℕ → List Bool → Bool}
     (hCR : CollisionResistantOn H valid₂)
     (hsub : ∀ᶠ n in Filter.atTop, ∀ m, valid₁ n m = true → valid₂ n m = true) :
-    CollisionResistantOn H valid₁ := by
-  refine hCR.of_extract (fun _ _ m₁ m₂ => (m₁, m₂)) (by polytime) ?_
-  filter_upwards [hsub] with n hn k _ m₁ m₂ hcol
-  rw [isCollision_eq_true_iff] at hcol ⊢
-  exact ⟨hn m₁ hcol.1, hn m₂ hcol.2.1, hcol.2.2.1, hcol.2.2.2⟩
+    CollisionResistantOn H valid₁ :=
+  CollisionResistantForOn.mono hCR (hsub.mono fun _ hn _ _ m => hn m)
 
 /-- **Finding collisions with probability bounded away from zero refutes collision resistance**:
 a strict PPT adversary whose success probability is at least a fixed `c > 0` at every security

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Neighborhood
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Foundations.Geometry.Polygonal.LocalSplitRestriction
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Closed neighborhoods and cut ports of polygonal embeddings
@@ -259,10 +260,7 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
     · simp [Route.AtEnd, Route.position, hi, hu0]
     · rw [heval, hpoint, hτs, hsval, cutPort, hv]
   · have hilast : i = Fin.last (D.route e).bends := by
-      apply Fin.ext
-      change i.val = (D.route e).bends
-      dsimp [Route.segments] at hi
-      omega
+      fin_index [Route.segments]
     have htval : t = ρ / ‖D.germ (e, true)‖ := by
       simp only [t, restrictionTime, hv, ↓reduceIte]
     have hhi : (D.route e).cutUpper t i = 1 - t := by simp [Route.cutUpper, hi]

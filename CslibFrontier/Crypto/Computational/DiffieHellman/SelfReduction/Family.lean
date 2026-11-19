@@ -24,6 +24,7 @@ import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Retry
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformPoint
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.Negligible
 
 /-!
@@ -217,36 +218,19 @@ theorem isPPTOn_dlSelfReduceAdversary
   refine ((hA.preprocess (prepare := fun p : (ℕ × F.Desc × List Bool) × ℕ =>
       (p.1.1, p.1.2.1, F.add (p.1.2.1, p.1.2.2,
         F.smul (p.1.2.1, p.2, F.encode p.1.2.1 (F.generator p.1.2.1)))))
-      ?_).map_with
+      (by fun_prop)).map_with
     (f := fun p guess => Nat.bits (ofBits guess + (F.order p.1.2.1 - p.2 % F.order p.1.2.1)))
     ?_).congr fun x => ?_
-  · have hd : ComputableInPolyTime (fun p : (ℕ × F.Desc × List Bool) × ℕ => p.1.2.1)
-        (encPair F.encDiscreteLogInput encNat) F.encDesc := by fun_prop
-    have hsm := F.computableInPolyTime_smul.comp
-      (hd.prod ((show ComputableInPolyTime (fun p : (ℕ × F.Desc × List Bool) × ℕ => p.2)
-        (encPair F.encDiscreteLogInput encNat) encNat by fun_prop).prod
-        (computableInPolyTime_encode_generator hd)))
-    have hadd := F.computableInPolyTime_add.comp
-      (hd.prod ((show ComputableInPolyTime (fun p : (ℕ × F.Desc × List Bool) × ℕ => p.1.2.2)
-        (encPair F.encDiscreteLogInput encNat) encBits by fun_prop).prod
-        hsm))
-    exact (show ComputableInPolyTime (fun p : (ℕ × F.Desc × List Bool) × ℕ => p.1.1)
-        (encPair F.encDiscreteLogInput encNat) encUnary by fun_prop).prod
-      (hd.prod hadd)
   · have hbits : ComputableInPolyTime Nat.bits encNat encBits := .of_eq fun _ => rfl
-    have hq := F.computableInPolyTime_order.comp
-      (show ComputableInPolyTime
-        (fun pair : ((ℕ × F.Desc × List Bool) × ℕ) × List Bool => pair.1.1.2.1)
-        (encPair (encPair F.encDiscreteLogInput encNat) encBits)
-        F.encDesc by fun_prop)
+    have hq : ComputableInPolyTime
+        (fun pair : ((ℕ × F.Desc × List Bool) × ℕ) × List Bool => F.order pair.1.1.2.1)
+        (encPair (encPair F.encDiscreteLogInput encNat) encBits) encNat := by fun_prop
     have hσ : ComputableInPolyTime
         (fun pair : ((ℕ × F.Desc × List Bool) × ℕ) × List Bool => pair.1.2)
-        (encPair (encPair F.encDiscreteLogInput encNat) encBits)
-        encNat := by fun_prop
+        (encPair (encPair F.encDiscreteLogInput encNat) encBits) encNat := by fun_prop
     have hguess : ComputableInPolyTime
         (fun pair : ((ℕ × F.Desc × List Bool) × ℕ) × List Bool => ofBits pair.2)
-        (encPair (encPair F.encDiscreteLogInput encNat) encBits)
-        encNat := by fun_prop
+        (encPair (encPair F.encDiscreteLogInput encNat) encBits) encNat := by fun_prop
     exact hbits.comp (hguess.binary_add' (hq.binary_sub' (hσ.binary_mod' hq)))
   · simp
 
@@ -259,13 +243,6 @@ theorem isPPTOn_dlSelfReduceRetryAdversary
     {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary encUnary) :
     IsPPTOn F.encDiscreteLogInput encBits
       (fun input => F.dlSelfReduceRetryAdversary adversary k input.1 input.2) := by
-  have hd : ComputableInPolyTime (fun pair : (ℕ × F.Desc × List Bool) × List Bool => pair.1.2.1)
-      (encPair F.encDiscreteLogInput encBits) F.encDesc := by fun_prop
-  have hsm := F.computableInPolyTime_smul.comp
-    (hd.prod ((show ComputableInPolyTime
-        (fun pair : (ℕ × F.Desc × List Bool) × List Bool => ofBits pair.2)
-        (encPair F.encDiscreteLogInput encBits) encNat by fun_prop).prod
-      (computableInPolyTime_encode_generator hd)))
   have hattempt : IsPPTOn F.encDiscreteLogInput (encPair encBool encBits)
       (fun input => F.dlSelfReduceAttempt adversary input.1 input.2) :=
     ((F.isPPTOn_dlSelfReduceAdversary hA).map_with
@@ -700,11 +677,7 @@ theorem dlSelfReduceRetryAdversary_error_le_pow
     ext out
     simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_and_or, not_not, ne_eq]
   rw [hset]
-  calc _ ≤ ((1 - (c : ℝ≥0∞)) ^ (n * (2 * invEps n))).toReal :=
-        ENNReal.toReal_mono (ne_top_of_le_ne_top ENNReal.one_ne_top hpow1) herr
-    _ = (1 - (c : ℝ)) ^ (n * (2 * invEps n)) := by
-        rw [ENNReal.toReal_pow, ENNReal.toReal_sub_of_le (by exact_mod_cast hc1)
-          ENNReal.one_ne_top, ENNReal.toReal_one, ENNReal.coe_toReal]
+  calc _ ≤ (1 - (c : ℝ)) ^ (n * (2 * invEps n)) := by ennreal_to_real using herr
     _ ≤ (1 - 1 / (2 * (invEps n : ℝ))) ^ (n * (2 * invEps n)) :=
         pow_le_pow_left₀ (sub_nonneg.mpr (by exact_mod_cast hc1)) (by linarith) _
     _ ≤ Real.exp (-(n : ℝ)) := by

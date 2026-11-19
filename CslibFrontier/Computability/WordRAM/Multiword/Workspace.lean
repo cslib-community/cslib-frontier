@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Digits
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Shared workspace for multiword operations
@@ -56,9 +57,7 @@ def IsDigit (i : Fin (r + 4)) : Prop := 4 ≤ i.val
 /-- Digit registers are disjoint from the four reserved workspace registers. -/
 theorem digit_ne {i : Fin (r + 4)} (hi : IsDigit i) :
     i ≠ total ∧ i ≠ carry ∧ i ≠ base ∧ i ≠ zero := by
-  dsimp [IsDigit] at hi
-  simp only [ne_eq, Fin.ext_iff, total, carry, base, zero]
-  omega
+  fin_index [IsDigit]
 
 /-- A routine changes only its destination digits and the total and carry workspace. -/
 def Frame (x y : Data (r + 4)) (ds : List (Fin (r + 4))) : Prop :=
@@ -105,5 +104,22 @@ theorem setup_digit (w : ℕ) (x : Data (r + 4)) {i : Fin (r + 4)}
     (hi : IsDigit i) : (setupResult w x).regs i = x.regs i := by
   obtain ⟨ht, hc, hb, hz⟩ := digit_ne hi
   simp only [setupResult, Data.set_regs, Function.update_apply, ht, hc, hb, hz, ↓reduceIte]
+
+/-- Setting the `total` workspace register preserves the routine frame. -/
+theorem frame_set_total (x : Data (r + 4)) (v : ℕ) (ds : List (Fin (r + 4))) :
+    Frame x (x.set total v) ds :=
+  ⟨rfl, fun _ _ ht _ => by simp only [Data.set_regs, Function.update_of_ne ht]⟩
+
+/-- Setting the `carry` workspace register preserves the routine frame. -/
+theorem frame_set_carry (x : Data (r + 4)) (v : ℕ) (ds : List (Fin (r + 4))) :
+    Frame x (x.set carry v) ds :=
+  ⟨rfl, fun _ _ _ hc => by simp only [Data.set_regs, Function.update_of_ne hc]⟩
+
+/-- Setting a listed destination register preserves the routine frame. -/
+theorem frame_set_mem {d : Fin (r + 4)} {ds : List (Fin (r + 4))} (x : Data (r + 4)) (v : ℕ)
+    (hd : d ∈ ds := by simp) : Frame x (x.set d v) ds :=
+  ⟨rfl, fun i hi _ _ => by
+    have hne : i ≠ d := fun h => hi (h ▸ hd)
+    simp only [Data.set_regs, Function.update_of_ne hne]⟩
 
 end Cslib.WordRAM.Multiword.Workspace

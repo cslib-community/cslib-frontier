@@ -172,11 +172,7 @@ private theorem exists_check {P : IntegerProgram} (hP : P ∈ Feasible) :
 /-- The integer feasibility verifier runs in native polynomial time. -/
 theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair enc (encList encIntBin)) encBool := by
-  unfold check
-  apply allWithInput (by fun_prop)
-  apply intBin_le' ?_ (by fun_prop)
-  exact listDotProduct.comp (g := fun q : (IntegerProgram × List ℤ) × Inequality =>
-    (q.1.1.numVars, (q.2.coeffs, q.1.2))) (by fun_prop)
+  fun_prop [check]
 
 /-- General integer inequality feasibility is in NP, with unary dimension and signed-binary
 coefficients. Integer coordinates are unrestricted; their certificate length follows from the

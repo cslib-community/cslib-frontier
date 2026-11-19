@@ -83,6 +83,26 @@ jobs:
         with:
           path: ${{ steps.guide-deps.outputs.paths }}
           key: ${{ steps.guide-deps.outputs.key }}
+      - name: Pack Guide dependencies for daytime cache misses
+        id: guide-backup
+        if: >-
+          github.event_name == 'schedule' && github.ref == 'refs/heads/main' &&
+          vars.DISABLE_GUIDE_ARTIFACT != 'true' && vars.DISABLE_GUIDE_ARTIFACT != '1' &&
+          steps.guide-deps.outcome == 'success' && steps.guide-deps.outputs.key != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python3 .github/actions/cache-guide-deps/artifact.py pack "$RUNNER_TEMP/guide-builds.tar.gz"
+      - name: Retain Guide dependencies outside the Actions cache
+        if: steps.guide-backup.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.guide-deps.outputs.key }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/guide-builds.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 7
       - name: Add the guide to the site
         run: cp -R guide/.lake/build/site/html-multi docbuild/.lake/build/doc/guide
       - name: Add source history dashboard to the site

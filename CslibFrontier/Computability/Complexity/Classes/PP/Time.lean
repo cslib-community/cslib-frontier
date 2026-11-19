@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Repla
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Clock
 import CslibFrontier.Computability.Probabilistic.Sampling.Verifier
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Unbounded-error probabilistic time
@@ -166,9 +167,7 @@ theorem BPTIME_subset_PPTIME {enc : α ↪ List Bool} {t : ℕ → ℕ} :
   have hprob := (hA a).2
   set p := ProbComp.eval (machine.runClosed (c₁ * t (enc a).length + c₂) (enc a))
   have hhalf : (1 / 2 : ℝ≥0∞) < 2 / 3 := by
-    refine (ENNReal.toReal_lt_toReal (ENNReal.div_ne_top (by norm_num) (by norm_num))
-      (ENNReal.div_ne_top (by norm_num) (by norm_num))).mp ?_
-    simp only [ENNReal.toReal_div, ENNReal.toReal_one, ENNReal.toReal_ofNat]
+    ennreal_to_real
     norm_num
   by_cases ha : a ∈ A
   · simp only [MultiTapeTM.indicator, ha, ↓reduceIte] at hprob

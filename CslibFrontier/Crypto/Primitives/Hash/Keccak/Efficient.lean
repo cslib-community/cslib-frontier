@@ -335,8 +335,7 @@ polynomial-time in the framed input bytes and the unary requested output length.
     (computableInPolyTime_squeezeBytesFor layout).comp (hblocks.prod hblockCount)
   have htaken := Turing.MultiTapeTM.ComputableInPolyTime.listTakeWithInput
     hsqueezed houtput
-  exact  by
-    simpa only [byteSponge, rate, rateBytes] using htaken
+  simpa only [byteSponge, bitSponge, rate, rateBytes] using htaken
 
 /-- SHA3-512 is uniformly polynomial-time in its framed little-endian input bytes. -/
 @[fun_prop] theorem computableInPolyTime_sha3512 :

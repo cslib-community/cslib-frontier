@@ -36,7 +36,6 @@ uniform halt-inclusive bound is `65 * (d + 1) + 30`.
 
 ## Main definitions
 
-* `setupData`: mathematical description of the twelve charged setup instructions.
 * `Operation`, `Operation.Result`, `spec`, `dynamicProgram`, `SetRep`, `certificate`: the
   stateful finite-set specification and its fixed-program Word-RAM realization.
 
@@ -66,34 +65,6 @@ namespace Cslib.DataStructure.VanEmdeBoas.WordRAM
 open Cslib.WordRAM
 open Cslib.DataStructure Cslib.DataStructure.VanEmdeBoas
 
-/-- The state after the twelve actual setup instructions. -/
-def setupData (s : Data 32) : Data 32 :=
-  let a := (((((s.set zero 0).set one 1).set two 2).set three 3).set four 4).set five 5
-  let b := (((a.set p (s.regs root)).set x (s.regs arg)).set out 0).set found 0
-  (b.set sp (s.regs stackBase)).set runFlag 1
-
-/-- Constant and traversal setup has exactly twelve native instructions. -/
-private theorem setup_exec {w : ℕ} {s : Data 32} (hw : Fits w 5) :
-    Exec w setup s (setupData s) 12 := by
-  ram_eval [setup, setupData]
-
-/-- Setup establishes insertion's entry registers from the caller's root and argument. -/
-private theorem setup_insertEntry (s : Data 32) :
-    InsertEntry (s.regs root) (s.regs arg) (setupData s) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp +decide [setupData]
-
-/-- Setup establishes membership's entry registers from the caller's root and argument. -/
-private theorem setup_memberEntry (s : Data 32) :
-    MemberEntry (s.regs root) (s.regs arg) (setupData s) := by
-  constructor <;> simp +decide [setupData]
-
-/-- Setup establishes strict successor's entry registers from the caller's root, stack base,
-and argument. -/
-private theorem setup_successorEntry (s : Data 32) :
-    SuccessorEntry (s.regs stackBase) (s.regs stackBase) (s.regs root) (s.regs arg)
-      (setupData s) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp +decide [setupData]
-
 /-- The single compiled program contains 212 ordinary instructions and a final halt. -/
 theorem compiled_program_length : (program.program out).length = 213 := by
   simp only [Code.program, List.length_append, Code.length_assemble, program_size,
@@ -121,19 +92,22 @@ theorem insert_dispatch_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       z.regs out = 0 ∧
       (∀ a, a < base ∨ base + span d ≤ a → z.mem a = s.mem a) := by
   have hw : Fits w 5 := ha.of_le (by have := five_le_span d; omega)
-  have hentry : InsertEntry base key (setupData s) := by
-    simpa only [hroot, harg] using setup_insertEntry s
-  obtain ⟨z, hz, hrep, hframe⟩ :=
-    insertLoop_spec hentry ht (by simpa [setupData] using hr) hx ha
-  have h₀ : (Cond.eq tag zero).Holds (setupData s) := by
-    simp +decide [Cond.holds_eq, setupData, htag]
-  have hout : z.regs out = 0 := by
-    rw [hz.regs_eq (by decide : insertLoop.Preserves out)]
-    simp +decide [setupData]
-  refine ⟨z, ?_, hrep, hout, ?_⟩
-  · exact ((setup_exec hw).within.seq (ExecWithin.branch_pos h₀ hz)).mono (by omega)
+  apply WP.exists_execWithin
+  unfold program setup
+  wram_exec [hroot, harg, htag]
+  apply WP.name; intro s₁ hs₁
+  have hentry : InsertEntry base key s₁ := by
+    subst hs₁
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp⟩
+  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
+  obtain ⟨z, hz, hrep, hframe⟩ := insertLoop_spec hentry ht hr₁ hx ha
+  refine WP.of_execWithin hz ⟨by omega, hrep, ?_, ?_⟩
+  · rw [hz.regs_eq (by decide : insertLoop.Preserves out)]
+    subst hs₁; wram_simp
   · intro a ha_out
-    simpa only [setupData, Data.set_mem] using hframe a ha_out
+    rw [hframe a ha_out]
+    subst hs₁; rfl
 
 /-- A bounded caller invoking insertion (`tag = 0`) obtains a bounded state representing
 `tree.insert key`, with unchanged persistent `root` and `stackBase` registers and all memory
@@ -195,17 +169,19 @@ theorem member_dispatch_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32
     ∃ z, ExecWithin w program s z (28 * (d + 1) + 17) ∧
       z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
   have hw : Fits w 5 := ha.of_le (by have := five_le_span d; omega)
-  have hentry : MemberEntry base query (setupData s) := by
-    simpa only [hroot, harg] using setup_memberEntry s
-  obtain ⟨z, hz, hout, hmem⟩ := memberLoop_spec hentry ht (by simpa [setupData] using hr) ha
-  have h₀ : ¬(Cond.eq tag zero).Holds (setupData s) := by
-    simp +decide [Cond.holds_eq, setupData, htag]
-  have h₁ : (Cond.eq tag one).Holds (setupData s) := by
-    simp +decide [Cond.holds_eq, setupData, htag]
-  refine ⟨z, ?_, hout, ?_⟩
-  · exact ((setup_exec hw).within.seq
-      (ExecWithin.branch_neg h₀ (ExecWithin.branch_pos h₁ hz))).mono (by omega)
-  · simpa only [setupData, Data.set_mem] using hmem
+  apply WP.exists_execWithin
+  unfold program setup
+  wram_exec [hroot, harg, htag]
+  apply WP.name; intro s₁ hs₁
+  have hentry : MemberEntry base query s₁ := by
+    subst hs₁
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
+  obtain ⟨z, hz, hout, hmem⟩ := memberLoop_spec hentry ht hr₁ ha
+  refine WP.of_execWithin hz ⟨by omega, hout, ?_⟩
+  rw [hmem]
+  subst hs₁; rfl
 
 /-- A bounded caller obtains a bounded result, identical represented memory and an unchanged
 persistent root. Its query fits the machine word because every caller register does. -/
@@ -272,20 +248,21 @@ theorem successor_dispatch_spec {d w base stackBase₀ query : ℕ} {tree : Tree
       z.regs sp = stackBase₀ ∧
       (∀ a, a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a → z.mem a = s.mem a) := by
   have hw : Fits w 5 := hstk_fit.of_le (by have := five_le_span d; omega)
-  have hentry : SuccessorEntry stackBase₀ stackBase₀ base query (setupData s) := by
-    simpa only [hroot, hstk, harg] using setup_successorEntry s
+  apply WP.exists_execWithin
+  unfold program setup
+  wram_exec [hroot, hstk, harg, htag]
+  apply WP.name; intro s₁ hs₁
+  have hentry : SuccessorEntry stackBase₀ stackBase₀ base query s₁ := by
+    subst hs₁
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp [hstk], by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
   obtain ⟨z, hz, hans, hsp, hrep, hframe⟩ :=
-    successor_loop_spec hentry ht (by simpa [setupData] using hr) hstk_lo hstk_fit
-  have h₀ : ¬(Cond.eq tag zero).Holds (setupData s) := by
-    simp +decide [Cond.holds_eq, setupData, htag]
-  have h₁ : ¬(Cond.eq tag one).Holds (setupData s) := by
-    simp +decide [Cond.holds_eq, setupData, htag]
-  have hrun : ExecWithin w program s z (65 * (d + 1) + 21) :=
-    ((setup_exec hw).within.seq
-      (ExecWithin.branch_neg h₀ (ExecWithin.branch_neg h₁ hz))).mono (by omega)
-  refine ⟨z, hrun, hans, hrep, hsp, ?_⟩
+    successor_loop_spec hentry ht hr₁ hstk_lo hstk_fit
+  refine WP.of_execWithin hz ⟨by omega, hans, hrep, hsp, ?_⟩
   intro a ha_out
-  simpa only [setupData, Data.set_mem] using hframe a ha_out
+  rw [hframe a ha_out]
+  subst hs₁; rfl
 
 /-- A bounded caller invoking strict successor (`tag = 2`) obtains a bounded state with the
 exact optional successor encoded by `(found, out)`, unchanged persistent `root` and `stackBase`

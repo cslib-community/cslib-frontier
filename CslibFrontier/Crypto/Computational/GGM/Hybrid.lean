@@ -105,7 +105,7 @@ theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : Oracl
 
 /-- The final level caches full query answers directly. There is no suffix left to evaluate. -/
 theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :
-    frontierOracle generator n n = cachedRandomFunctionOracle n := by
+    frontierOracle generator n n = cachedRandomFunctionOracle n n := by
   funext query cache
   by_cases h : query.length = n
   · simp [frontierOracle, cachedRandomFunctionOracle, ← h]
