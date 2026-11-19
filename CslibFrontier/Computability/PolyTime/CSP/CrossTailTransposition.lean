@@ -525,4 +525,120 @@ theorem name_width_transposeTail_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
         exact (Nat.size_le_size (by omega)).trans (le_max_right _ _)
 
 
+/-- The original row-symbol word is retained, followed by one fixed template word only
+when insertion actually executes. No finite target alphabet or arity query is used. -/
+theorem relations_transposeTail (I : State Rel) :
+    (transposeTail g w I).body.map Constraint.rel = I.body.map Constraint.rel ++
+      (if I.ports.length < 2 then [] else g.body.map Constraint.rel) := by
+  by_cases hs : I.ports.length < 2
+  · rw [transposeTail_short g w I hs, if_pos hs, List.append_nil]
+  · rcases I with ⟨F, ps, c⟩
+    induction ps using List.reverseRecOn with
+    | nil => simp at hs
+    | append_singleton ps y _ =>
+      cases ps using List.reverseRecOn with
+      | nil => simp at hs
+      | append_singleton L x =>
+        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+          simp only [List.append_assoc, List.cons_append, List.nil_append],
+          (long_fields g w F L x y c).1]
+        simp [insert, CSP.relabel, Constraint.relabel, List.map_map, Function.comp_def]
+
+private theorem left_storage (J : State Rel) (B : ℕ)
+    (hl : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length))
+    (he : ∀ v ∈ J.rotation.successor, v.size ≤ B)
+    (hb : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B) :
+    (rotateLeft J).rotation.successor.length =
+        2 * ((rotateLeft J).body.occurrences.length + (rotateLeft J).ports.length) ∧
+      ∀ v ∈ (rotateLeft J).rotation.successor, v.size ≤ B := by
+  rcases J with ⟨F, ps, c⟩
+  cases ps with
+  | nil => exact ⟨hl, he⟩
+  | cons x ps =>
+    cases ps with
+    | nil => exact ⟨hl, he⟩
+    | cons y ps =>
+      have hn : 0 < (x :: y :: ps).length := by simp
+      constructor
+      · simp [rotateLeft, rotateBoundaryCertificate, Graph.RotationCertificate.length_reindex]
+      · intro v hv
+        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
+        have hr (j : ℕ) : (c.successor.getD j 0).size ≤ B := by
+          by_cases hi : j < c.successor.length
+          · rw [List.getD_eq_getElem _ _ hi]
+            exact he _ (List.getElem_mem hi)
+          · rw [List.getD_eq_default _ _ (by omega)]; simp
+        exact (size_boundaryIndexMap_le _ _ _
+          (fun _ => Nat.mod_lt _ hn) _).trans (max_le (hr _) hb)
+
+/-- Every long raw tail output has exactly its actual dart count and bounded entry widths.
+The last executed hiding restriction supplies this bound even for malformed source data. -/
+theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
+    (transposeTail g w I).rotation.successor.length =
+        2 * ((transposeTail g w I).body.occurrences.length + I.ports.length) ∧
+      ∀ v ∈ (transposeTail g w I).rotation.successor,
+        v.size ≤ (2 * (I.body.occurrences.length + g.body.occurrences.length +
+          I.ports.length + 4)).size := by
+  let H := fuseHead (rotateRight (hideHead (fuseHead
+    (rotateRight (rotateRight (rotateRight (rotateRight (rotateRight (insert g w I)))))))))
+  let J := hideHead H
+  have hout : transposeTail g w I = rotateLeft (rotateLeft J) := by
+    rw [transposeTail, if_neg (by omega)]
+    rfl
+  have hports : (transposeTail g w I).ports.length = I.ports.length := by
+    rcases I with ⟨F, ps, c⟩
+    induction ps using List.reverseRecOn with
+    | nil => simp at h
+    | append_singleton ps y _ =>
+      cases ps using List.reverseRecOn with
+      | nil => simp at h
+      | append_singleton L x =>
+        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+          simp only [List.append_assoc, List.cons_append, List.nil_append],
+          length_transposeTail_ports]
+        simp
+  have hocc : (transposeTail g w I).body.occurrences.length =
+      I.body.occurrences.length + g.body.occurrences.length := by
+    rcases I with ⟨F, ps, c⟩
+    induction ps using List.reverseRecOn with
+    | nil => simp at h
+    | append_singleton ps y _ =>
+      cases ps using List.reverseRecOn with
+      | nil => simp at h
+      | append_singleton L x =>
+        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+          simp only [List.append_assoc, List.cons_append, List.nil_append],
+          length_transposeTail_occurrences]
+  have hpJ : J.ports.length = I.ports.length := by
+    rw [hout, rotateLeft_ports, List.length_rotate, rotateLeft_ports,
+      List.length_rotate] at hports
+    exact hports
+  have hmJ : J.body.occurrences.length =
+      I.body.occurrences.length + g.body.occurrences.length := by
+    rw [hout, rotateLeft_body, rotateLeft_body] at hocc
+    exact hocc
+  let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
+    I.ports.length + 4)).size
+  have hB : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B := by
+    rw [hmJ, hpJ]
+    exact Nat.size_le_size (by omega)
+  have hj : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length) ∧
+      ∀ v ∈ J.rotation.successor, v.size ≤ B := by
+    rcases H with ⟨F, ps, c⟩
+    cases ps with
+    | nil => change 0 = I.ports.length at hpJ; omega
+    | cons x ps =>
+      constructor
+      · exact length_restrictPrefix _ _
+      · intro v hv
+        exact (Nat.size_le_size (entries_restrictPrefix_lt _ _ v hv).le).trans hB
+  have h1 := left_storage J B hj.1 hj.2 hB
+  have hB1 : (2 * ((rotateLeft J).body.occurrences.length +
+      (rotateLeft J).ports.length)).size ≤ B := by
+    simpa only [rotateLeft_body, rotateLeft_ports, List.length_rotate] using hB
+  have h2 := left_storage (rotateLeft J) B h1.1 h1.2 hB1
+  rw [hout]
+  refine ⟨?_, h2.2⟩
+  simpa only [rotateLeft_ports, List.length_rotate, hpJ] using h2.1
+
 end Cslib.Complexity.CSP.CrossInsertion
