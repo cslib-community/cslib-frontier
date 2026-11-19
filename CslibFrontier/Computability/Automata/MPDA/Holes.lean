@@ -71,21 +71,18 @@ variable {n : ℕ} {Γ α β : Type*}
 /-- The net change of the height of stack `i` along a sequence of transitions. -/
 @[expose] def net (i : Fin n) (w : List (α × Op n Γ)) : ℤ := (w.map fun μ => μ.2.net i).sum
 
-/-- The factor of `w` between positions `a` (included) and `b` (excluded). -/
-@[expose] def factor (w : List β) (a b : ℕ) : List β := (w.drop a).take (b - a)
-
 /-- The push at position `p` of `w` is matched by the pop at position `m`: they act on the same
 stack `i`, and the factor strictly between them never pops below its initial height of stack `i`
 and returns to it. -/
 @[expose] def Matches (w : List (α × Op n Γ)) (p m : ℕ) : Prop :=
   p < m ∧ ∃ i : Fin n, (∃ a γ, w[p]? = some (a, .push i γ)) ∧ (∃ b γ, w[m]? = some (b, .pop i γ)) ∧
-    (∀ k, 0 ≤ net i ((factor w (p + 1) m).take k)) ∧ net i (factor w (p + 1) m) = 0
+    (∀ k, 0 ≤ net i ((w.extract (p + 1) m).take k)) ∧ net i (w.extract (p + 1) m) = 0
 
 /-- The push at position `p` of `w` is pending at position `x`: it occurs at or before `x`, and it
 has not been popped by position `x`. -/
 @[expose] def PendingAt (w : List (α × Op n Γ)) (p x : ℕ) : Prop :=
   p ≤ x ∧ x < w.length ∧ ∃ i : Fin n, (∃ a γ, w[p]? = some (a, .push i γ)) ∧
-    ∀ k, 0 ≤ net i ((factor w (p + 1) (x + 1)).take k)
+    ∀ k, 0 ≤ net i ((w.extract (p + 1) (x + 1)).take k)
 
 /-! ## Net effect on a stack -/
 
@@ -153,26 +150,26 @@ theorem WellNested.net_take_nonneg {w : List (α × Op n Γ)} (hw : WellNested w
 
 /-! ## Shifting positions -/
 
-theorem factor_cons_succ (x : β) (w : List β) (a b : ℕ) :
-    factor (x :: w) (a + 1) (b + 1) = factor w a b := by
-  simp [factor]
+theorem extract_cons_succ (x : β) (w : List β) (a b : ℕ) :
+    List.extract (x :: w) (a + 1) (b + 1) = w.extract a b := by
+  simp [List.extract]
 
-theorem factor_append_left (v w : List β) (a b : ℕ) :
-    factor (v ++ w) (v.length + a) (v.length + b) = factor w a b := by
-  unfold factor
+theorem extract_append_left (v w : List β) (a b : ℕ) :
+    List.extract (v ++ w) (v.length + a) (v.length + b) = w.extract a b := by
+  unfold List.extract
   rw [List.drop_append, List.drop_of_length_le (by omega), List.nil_append,
     show v.length + a - v.length = a by omega, show v.length + b - (v.length + a) = b - a by omega]
 
-theorem factor_append_right (w v : List β) {a b : ℕ} (hb : b ≤ w.length) :
-    factor (w ++ v) a b = factor w a b := by
-  unfold factor
+theorem extract_append_right (w v : List β) {a b : ℕ} (hb : b ≤ w.length) :
+    List.extract (w ++ v) a b = w.extract a b := by
+  unfold List.extract
   by_cases ha : a ≤ w.length
   · rw [List.drop_append_of_le_length ha, List.take_append_of_le_length (by simp; omega)]
   · rw [show b - a = 0 by omega, List.take_zero, List.take_zero]
 
 private theorem matches_cons_succ (x : α × Op n Γ) (w : List (α × Op n Γ)) (p m : ℕ) :
     Matches (x :: w) (p + 1) (m + 1) ↔ Matches w p m := by
-  simp only [Matches, List.getElem?_cons_succ, Nat.add_lt_add_iff_right, factor_cons_succ]
+  simp only [Matches, List.getElem?_cons_succ, Nat.add_lt_add_iff_right, extract_cons_succ]
 
 theorem matches_append_left (v w : List (α × Op n Γ)) (p m : ℕ) :
     Matches (v ++ w) (v.length + p) (v.length + m) ↔ Matches w p m := by
@@ -194,9 +191,9 @@ theorem Matches.append_right {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches
   refine ⟨hpm, i, ⟨a, γ, ?_⟩, ⟨b, γ', ?_⟩, ?_, ?_⟩
   · rw [List.getElem?_append_left (by omega), hp]
   · rw [List.getElem?_append_left hm, hm']
-  · rw [factor_append_right _ _ (by omega)]
+  · rw [extract_append_right _ _ (by omega)]
     exact hk
-  · rw [factor_append_right _ _ (by omega)]
+  · rw [extract_append_right _ _ (by omega)]
     exact hnet
 
 /-! ## Hole pushes and open holes -/
@@ -208,7 +205,7 @@ theorem Matches.append_right {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches
 /-- The push at position `p` is closed by a well-nested continuation: it has a matching pop at
 some position `m`, and the factor from `p` to `m` is well-nested. -/
 @[expose] def WellMatched (w : List (α × Op n Γ)) (p : ℕ) : Prop :=
-  ∃ m, Matches w p m ∧ WellNested (factor w p (m + 1))
+  ∃ m, Matches w p m ∧ WellNested (w.extract p (m + 1))
 
 /-- A hole push is a push that is not closed by a well-nested continuation. Hole pushes are the
 pending pushes that make up holes. -/
@@ -223,7 +220,7 @@ pending pushes that make up holes. -/
 on the same stack and the factor strictly between them is well-nested. -/
 @[expose] def SameHole (w : List (α × Op n Γ)) (x p q : ℕ) : Prop :=
   p < q ∧ OpenHolePush w x p ∧ OpenHolePush w x q ∧ (∃ i, IsPushOn w i p ∧ IsPushOn w i q) ∧
-    WellNested (factor w (p + 1) q)
+    WellNested (w.extract (p + 1) q)
 
 /-- The number of holes of `w` open at position `x`. Each open hole is counted through its first
 pending hole push. -/
@@ -253,16 +250,16 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
       rw [List.getElem?_cons_succ] at hp
       obtain ⟨m, hm, hf⟩ := ih hp
       refine ⟨m + 1, (matches_cons_succ _ _ _ _).mpr hm, ?_⟩
-      rw [factor_cons_succ]
+      rw [extract_cons_succ]
       exact hf
   | @pushPop a' b j γ' u u' hu _ ih ih' =>
     have e : u ++ (b, Op.pop j γ') :: u' = (u ++ [(b, Op.pop j γ')]) ++ u' := by simp
     have el : (u ++ [(b, Op.pop j γ')]).length = u.length + 1 := by simp
     cases p with
     | zero =>
-      have hf : factor ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')) 1 (u.length + 1)
+      have hf : List.extract ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')) 1 (u.length + 1)
           = u := by
-        simp [factor]
+        simp [List.extract]
       simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hp
       obtain ⟨rfl, rfl, rfl⟩ := hp
       refine ⟨u.length + 1, ⟨by omega, j, ⟨a', γ', rfl⟩, ⟨b, γ', by simp⟩, ?_, ?_⟩, ?_⟩
@@ -270,9 +267,9 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
         exact hu.net_take_nonneg j
       · rw [hf]
         exact hu.net_eq_zero j
-      · have : factor ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')) 0 (u.length + 1 + 1)
-            = (a', Op.push j γ') :: (u ++ [(b, Op.pop j γ')]) := by
-          simp [factor, List.take_append]
+      · have : ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')).extract 0
+            (u.length + 1 + 1) = (a', Op.push j γ') :: (u ++ [(b, Op.pop j γ')]) := by
+          simp [List.extract, List.take_append]
         rw [this]
         exact .pushPop hu .nil
     | succ p =>
@@ -282,7 +279,7 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
         obtain ⟨m, hm, hf⟩ := ih hp
         have hmu := hm.lt_length
         refine ⟨m + 1, (matches_cons_succ _ _ _ _).mpr (hm.append_right _), ?_⟩
-        rw [factor_cons_succ, factor_append_right _ _ (by omega)]
+        rw [extract_cons_succ, extract_append_right _ _ (by omega)]
         exact hf
       · rcases Nat.eq_or_lt_of_le h with h | h
         · subst h
@@ -298,9 +295,9 @@ private theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : W
             have := (matches_append_left (u ++ [(b, Op.pop j γ')]) u' q m).mpr hm
             rw [el] at this
             exact this
-          · have := factor_append_left (u ++ [(b, Op.pop j γ')]) u' q (m + 1)
+          · have := extract_append_left (u ++ [(b, Op.pop j γ')]) u' q (m + 1)
             rw [el] at this
-            rw [factor_cons_succ, e, show u.length + 1 + m + 1 = u.length + 1 + (m + 1) by omega,
+            rw [extract_cons_succ, e, show u.length + 1 + m + 1 = u.length + 1 + (m + 1) by omega,
               this]
             exact hf
 

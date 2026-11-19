@@ -48,9 +48,9 @@ between is still pending there. -/
 private theorem crossing_crossing : Crossing crossing :=
   ⟨0, 1, 0, 1, 2, by decide, by decide, by decide, ⟨(), (), rfl⟩, ⟨(), (), rfl⟩,
     ⟨by decide, 0, ⟨(), (), rfl⟩, ⟨(), (), rfl⟩,
-      fun k => by rcases k with _ | _ | k <;> simp [crossing, factor, net, Op.net], rfl⟩,
+      fun k => by rcases k with _ | _ | k <;> simp [crossing, List.extract, net, Op.net], rfl⟩,
     by decide, by decide, 1, ⟨(), (), rfl⟩,
-      fun k => by rcases k with _ | _ | k <;> simp [crossing, factor, net, Op.net]⟩
+      fun k => by rcases k with _ | _ | k <;> simp [crossing, List.extract, net, Op.net]⟩
 
 example : ¬HoleBounded 1 crossing := crossing_crossing.not_holeBounded_one
 

@@ -10853,4 +10853,5 @@ register_result "mpda-one-hole-is-no-hole" where
     of one stack separated by a well-nested factor belonging to the same hole. The paper states \
     the theorem for accepting runs inside its multi-producer consumer example and proves it \
     informally; the Lean statement is for all complete runs and does not need acceptance. \
-    Source check: pending independent review on the pull request."
+    Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
+    arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."

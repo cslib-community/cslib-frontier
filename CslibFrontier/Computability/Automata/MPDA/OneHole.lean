@@ -53,31 +53,27 @@ variable {n : ℕ} {Γ α β : Type*}
 
 /-! ## Factors -/
 
-@[simp]
-private theorem factor_self (w : List β) (a : ℕ) : factor w a a = [] := by
-  simp [factor]
-
-private theorem factor_append_factor (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
-    factor w a b ++ factor w b c = factor w a c := by
-  unfold factor
+private theorem extract_append_extract (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
+    w.extract a b ++ w.extract b c = w.extract a c := by
+  unfold List.extract
   rw [show c - a = (b - a) + (c - b) by omega, List.take_add, List.drop_drop,
     show a + (b - a) = b by omega]
 
-private theorem take_factor (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
-    (factor w a c).take (b - a) = factor w a b := by
-  unfold factor
+private theorem take_extract (w : List β) {a b c : ℕ} (hab : a ≤ b) (hbc : b ≤ c) :
+    (w.extract a c).take (b - a) = w.extract a b := by
+  unfold List.extract
   rw [List.take_take, Nat.min_eq_left (by omega)]
 
-private theorem factor_succ {w : List β} {a : ℕ} {μ : β} (h : w[a]? = some μ) :
-    factor w a (a + 1) = [μ] := by
+private theorem extract_succ {w : List β} {a : ℕ} {μ : β} (h : w[a]? = some μ) :
+    w.extract a (a + 1) = [μ] := by
   obtain ⟨ha, rfl⟩ := List.getElem?_eq_some_iff.mp h
-  unfold factor
+  unfold List.extract
   rw [List.drop_eq_getElem_cons ha, Nat.add_sub_cancel_left]
   rfl
 
-private theorem net_factor_succ {w : List (α × Op n Γ)} {a : ℕ} {μ : α × Op n Γ}
-    (h : w[a]? = some μ) (i : Fin n) : net i (factor w a (a + 1)) = μ.2.net i := by
-  rw [factor_succ h, net_cons, net_nil, add_zero]
+private theorem net_extract_succ {w : List (α × Op n Γ)} {a : ℕ} {μ : α × Op n Γ}
+    (h : w[a]? = some μ) (i : Fin n) : net i (w.extract a (a + 1)) = μ.2.net i := by
+  rw [extract_succ h, net_cons, net_nil, add_zero]
 
 /-! ## Unpacking matches and pending pushes -/
 
@@ -92,14 +88,14 @@ private theorem IsPushOn.unique {w : List (α × Op n Γ)} {i j : Fin n} {p : �
 private theorem Matches.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p m : ℕ}
     (h : Matches w p m) (hp : IsPushOn w i p) :
     p < m ∧ (∃ b γ, w[m]? = some (b, .pop i γ)) ∧
-      (∀ k, 0 ≤ net i ((factor w (p + 1) m).take k)) ∧ net i (factor w (p + 1) m) = 0 := by
+      (∀ k, 0 ≤ net i ((w.extract (p + 1) m).take k)) ∧ net i (w.extract (p + 1) m) = 0 := by
   obtain ⟨hpm, j, hj, hm, hk, hnet⟩ := h
   obtain rfl := hp.unique hj
   exact ⟨hpm, hm, hk, hnet⟩
 
 private theorem PendingAt.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p x : ℕ}
     (h : PendingAt w p x) (hp : IsPushOn w i p) :
-    p ≤ x ∧ x < w.length ∧ ∀ k, 0 ≤ net i ((factor w (p + 1) (x + 1)).take k) := by
+    p ≤ x ∧ x < w.length ∧ ∀ k, 0 ≤ net i ((w.extract (p + 1) (x + 1)).take k) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   obtain rfl := hp.unique hj
   exact ⟨hpx, hx, hk⟩
@@ -108,9 +104,9 @@ private theorem PendingAt.of_isPushOn {w : List (α × Op n Γ)} {i : Fin n} {p 
 up to `m'` pops below that height. -/
 private theorem net_neg_of_pop {w : List (α × Op n Γ)} {i : Fin n} {a m m' : ℕ} {b : α} {γ : Γ}
     (ham : a ≤ m) (hmm' : m < m') (hm : w[m]? = some (b, .pop i γ))
-    (hnet : net i (factor w a m) = 0) : net i ((factor w a m').take (m + 1 - a)) < 0 := by
-  rw [take_factor w (by omega) (by omega), ← factor_append_factor w ham (Nat.le_succ m),
-    net_append, hnet, net_factor_succ hm]
+    (hnet : net i (w.extract a m) = 0) : net i ((w.extract a m').take (m + 1 - a)) < 0 := by
+  rw [take_extract w (by omega) (by omega), ← extract_append_extract w ham (Nat.le_succ m),
+    net_append, hnet, net_extract_succ hm]
   simp [Op.net]
 
 /-- A push has at most one matching pop. -/
@@ -144,15 +140,15 @@ private theorem crossing_holePush_left (hpq : p < q) (hqz : q < z) (hp : IsPushO
   obtain rfl := hm.unique hpz
   obtain ⟨-, -, hqk⟩ := hqp.of_isPushOn hq
   have h₁ := hws.net_take_nonneg j (q - p)
-  rw [take_factor w hpq.le (by omega)] at h₁
+  rw [take_extract w hpq.le (by omega)] at h₁
   have h₂ := hqk (m + 1 - (q + 1))
-  rw [take_factor w (by omega) le_rfl] at h₂
+  rw [take_extract w (by omega) le_rfl] at h₂
   have h₃ := hws.net_eq_zero j
-  rw [← factor_append_factor w (show p ≤ q by omega) (show q ≤ m + 1 by omega),
-    ← factor_append_factor w (show q ≤ q + 1 by omega) (show q + 1 ≤ m + 1 by omega),
+  rw [← extract_append_extract w (show p ≤ q by omega) (show q ≤ m + 1 by omega),
+    ← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ m + 1 by omega),
     net_append, net_append] at h₃
   obtain ⟨a, γ, hqa⟩ := hq
-  rw [net_factor_succ hqa] at h₃
+  rw [net_extract_succ hqa] at h₃
   simp only [Op.net, ↓reduceIte] at h₃
   omega
 
@@ -168,19 +164,19 @@ private theorem crossing_holePush_right (hij : i ≠ j) (hpq : p < q) (hqz : q <
     by_contra hcon
     exact absurd (hqk _) (not_le.mpr (net_neg_of_pop (by omega) (by omega) hmpop hmnet))
   have h₁ := hws.net_take_nonneg i (z + 1 - q)
-  rw [take_factor w (by omega) (by omega)] at h₁
+  rw [take_extract w (by omega) (by omega)] at h₁
   obtain ⟨-, ⟨b', γ', hzpop⟩, hpk, hpnet⟩ := hpz.of_isPushOn hp
   have h₂ := hpk (q - (p + 1))
-  rw [take_factor w (by omega) (by omega)] at h₂
-  rw [← factor_append_factor w (show p + 1 ≤ q by omega) (show q ≤ z by omega),
-    ← factor_append_factor w (show q ≤ q + 1 by omega) (show q + 1 ≤ z by omega),
+  rw [take_extract w (by omega) (by omega)] at h₂
+  rw [← extract_append_extract w (show p + 1 ≤ q by omega) (show q ≤ z by omega),
+    ← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ z by omega),
     net_append, net_append] at hpnet
-  rw [← factor_append_factor w (show q ≤ q + 1 by omega) (show q + 1 ≤ z + 1 by omega),
-    ← factor_append_factor w (show q + 1 ≤ z by omega) (show z ≤ z + 1 by omega),
+  rw [← extract_append_extract w (show q ≤ q + 1 by omega) (show q + 1 ≤ z + 1 by omega),
+    ← extract_append_extract w (show q + 1 ≤ z by omega) (show z ≤ z + 1 by omega),
     net_append, net_append] at h₁
   obtain ⟨a, δ, hqa⟩ := hq
-  rw [net_factor_succ hqa] at hpnet h₁
-  rw [net_factor_succ hzpop] at h₁
+  rw [net_extract_succ hqa] at hpnet h₁
+  rw [net_extract_succ hzpop] at h₁
   simp only [Op.net, Ne.symm hij, ↓reduceIte] at hpnet h₁
   omega
 
@@ -213,7 +209,7 @@ private theorem Crossing.two_le_openHoles (hij : i ≠ j) (hpq : p < q) (hqz : q
   have hqx : PendingAt w q (z - 1) := by
     refine ⟨by omega, by omega, j, hq, fun k => ?_⟩
     rw [show z - 1 + 1 = z by omega,
-      ← take_factor w (show q + 1 ≤ z by omega) (Nat.le_succ z), List.take_take]
+      ← take_extract w (show q + 1 ≤ z by omega) (Nat.le_succ z), List.take_take]
     exact hqk _
   obtain ⟨r, hr, hri, hrl⟩ :=
     exists_first_openHolePush ⟨crossing_holePush_left hpq hqz hp hq hpz hqp, hpx⟩ hp
@@ -263,14 +259,14 @@ private theorem PendingAt.append_left (h : PendingAt v p x) (l : List (α × Op 
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.append_left hj l, ?_⟩
   rw [show l.length + p + 1 = l.length + (p + 1) by omega,
-    show l.length + x + 1 = l.length + (x + 1) by omega, factor_append_left]
+    show l.length + x + 1 = l.length + (x + 1) by omega, extract_append_left]
   exact hk
 
 private theorem PendingAt.append_right (h : PendingAt v p x) (r : List (α × Op n Γ)) :
     PendingAt (v ++ r) p x := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨hpx, by simp; omega, j, IsPushOn.append_right hj r, ?_⟩
-  rw [factor_append_right _ _ (by omega)]
+  rw [extract_append_right _ _ (by omega)]
   exact hk
 
 private theorem Crossing.append_left (h : Crossing v) (l : List (α × Op n Γ)) :
@@ -310,8 +306,8 @@ private theorem Op.net_cases (i : Fin n) (op : Op n Γ) :
       exact .inr (.inr ⟨by simp [Op.net], γ, rfl⟩)
     · exact .inl (by simp [Op.net, hj])
 
-private theorem take_eq_factor (w : List β) (b : ℕ) : w.take b = factor w 0 b := by
-  simp [factor]
+private theorem take_eq_extract (w : List β) (b : ℕ) : w.take b = w.extract 0 b := by
+  simp [List.extract]
 
 /-- The first point where the height of stack `i`, starting at `d`, drops below zero is a pop on
 stack `i`. -/
@@ -381,8 +377,8 @@ private theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
       omega
   obtain ⟨μ, hμ⟩ : ∃ μ, u[K]? = some μ := ⟨u[K], List.getElem?_eq_getElem hKlt⟩
   have hstep : net j (u.take (K + 1)) = net j (u.take K) + μ.2.net j := by
-    rw [take_eq_factor, take_eq_factor, ← factor_append_factor u (Nat.zero_le K) (Nat.le_succ K),
-      net_append, net_factor_succ hμ]
+    rw [take_eq_extract, take_eq_extract,
+      ← extract_append_extract u (Nat.zero_le K) (Nat.le_succ K), net_append, net_extract_succ hμ]
   have h1 := hgt (K + 1) (by omega) (by omega)
   rw [hstep, show net j (u.take K) = 0 from hPK] at h1
   obtain ⟨a, op⟩ := μ
@@ -418,7 +414,7 @@ private theorem PendingAt.cons {v : List (α × Op n Γ)} {p x : ℕ} (h : Pendi
     (μ : α × Op n Γ) : PendingAt (μ :: v) (p + 1) (x + 1) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.cons hj μ, ?_⟩
-  rw [factor_cons_succ]
+  rw [extract_cons_succ]
   exact hk
 
 /-- A push pending at `x` stays pending across a transition that does not pop its stack. -/
@@ -428,11 +424,11 @@ private theorem PendingAt.succ {w : List (α × Op n Γ)} {j : Fin n} {p x : ℕ
   obtain ⟨hpx, -, hk⟩ := h.of_isPushOn hp
   have hlen := (List.getElem?_eq_some_iff.mp hμ).1
   refine ⟨by omega, hlen, j, hp, fun k => ?_⟩
-  rw [← factor_append_factor w (show p + 1 ≤ x + 1 by omega) (Nat.le_succ (x + 1)),
-    factor_succ hμ, List.take_append, net_append]
+  rw [← extract_append_extract w (show p + 1 ≤ x + 1 by omega) (Nat.le_succ (x + 1)),
+    extract_succ hμ, List.take_append, net_append]
   have h₁ := hk k
-  have h₂ : 0 ≤ net j (List.take (k - (factor w (p + 1) (x + 1)).length) [μ]) := by
-    rcases k - (factor w (p + 1) (x + 1)).length with _ | m
+  have h₂ : 0 ≤ net j (List.take (k - (w.extract (p + 1) (x + 1)).length) [μ]) := by
+    rcases k - (w.extract (p + 1) (x + 1)).length with _ | m
     · simp
     · simpa using hnet
   omega
@@ -498,39 +494,6 @@ private theorem configLTS_mTr_length {M : MPDA n State α Γ} {c c' : Config n S
     · rw [h, h', List.length_cons]
       push_cast
       omega
-
-/-- If a run never takes stack `i` more than `m` symbols below its initial height, then the bottom
-of stack `i`, without its top `m` symbols, is left untouched. -/
-private theorem configLTS_mTr_drop {M : MPDA n State α Γ} {c c' : Config n State Γ}
-    {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') (i : Fin n) :
-    ∀ m : ℕ, m ≤ (c.contents i).length → (∀ k, -(m : ℤ) ≤ net i (w.take k)) →
-      ∃ t, c'.contents i = t ++ (c.contents i).drop m := by
-  induction h with
-  | refl => exact fun m _ _ => ⟨_, (List.take_append_drop m _).symm⟩
-  | stepL htr _ ih =>
-    intro m hm hk
-    have hk' : ∀ k, -(m : ℤ) ≤ _ + net i (List.take k _) := fun k => by
-      have := hk (k + 1)
-      rwa [List.take_succ_cons, net_cons] at this
-    rcases (configLTS_tr.mp htr).2.cases i with ⟨h, h'⟩ | ⟨γ, h, h'⟩ | ⟨γ, h, h'⟩
-    · obtain ⟨t, ht⟩ := ih m (by rw [h]; exact hm) fun k => by
-        have := hk' k
-        rw [h'] at this
-        omega
-      exact ⟨t, by rw [ht, h]⟩
-    · obtain ⟨t, ht⟩ := ih (m + 1) (by rw [h, List.length_cons]; omega) fun k => by
-        have := hk' k
-        rw [h'] at this
-        omega
-      exact ⟨t, by rw [ht, h, List.drop_succ_cons]⟩
-    · have h₁ := hk 1
-      rw [List.take_succ_cons, List.take_zero, net_cons, net_nil, h'] at h₁
-      obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
-      obtain ⟨t, ht⟩ := ih m' (by rw [h, List.length_cons] at hm; omega) fun k => by
-        have := hk' k
-        rw [h'] at this
-        omega
-      exact ⟨t, by rw [ht, h, List.drop_succ_cons]⟩
 
 /-- The label sequence of a run from empty stacks to empty stacks is balanced. -/
 private theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
@@ -606,13 +569,13 @@ private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
             omega
           obtain ⟨q, hq, hqj, hqk⟩ := exists_pending_push (hupre j) hpos
           apply hcr
-          have hfu : factor ((a, Op.push i γ) :: (u ++ (b, Op.pop i δ) :: u')) 1 (u.length + 1)
-              = u := by
-            simp [factor]
+          have hfu : ((a, Op.push i γ) :: (u ++ (b, Op.pop i δ) :: u')).extract 1
+              (u.length + 1) = u := by
+            simp [List.extract]
           have hqu : PendingAt u q (u.length - 1) := by
             refine ⟨by omega, by omega, j, hqj, fun k => ?_⟩
             rw [show u.length - 1 + 1 = u.length by omega]
-            unfold factor
+            unfold List.extract
             rw [List.take_of_length_le (l := u.drop (q + 1)) (by simp)]
             exact hqk k
           have hqw := (hqu.append_right ((b, .pop i δ) :: u')).cons (a, .push i γ)
@@ -644,32 +607,22 @@ private theorem wellNested_of_not_crossing {M : MPDA n State α Γ} :
       -- The runs on `u` and `u'`.
       obtain ⟨c₂, hrunu, hrest⟩ := LTS.MTr.split hrun'
       obtain ⟨c₃, hν, hrunu'⟩ := LTS.MTr.cons_iff.mp hrest
-      -- The pop matches the symbol of the push.
-      have hδ : δ = γ := by
-        have h₁ : c₁.contents i = γ :: c.contents i := by
-          rcases (configLTS_tr.mp htr).2.cases i with ⟨-, h'⟩ | ⟨γ', h, -⟩ | ⟨-, -, h'⟩
-          · simp [Op.net] at h'
-          · have := (configLTS_tr.mp htr).2
-            rw [Op.apply_push] at this
-            rw [this]
-            simp
-          · simp [Op.net] at h'
-        obtain ⟨t, ht⟩ := configLTS_mTr_drop hrunu i 0 (Nat.zero_le _) (by simpa using huk)
-        have hl := configLTS_mTr_length hrunu i
-        rw [hu0, ht, List.drop_zero, List.length_append] at hl
-        have ht0 : t = [] := List.eq_nil_of_length_eq_zero (by omega)
-        rw [ht0, List.nil_append, List.drop_zero, h₁] at ht
-        have h₂ := (configLTS_tr.mp hν).2
-        rw [Op.apply_pop] at h₂
-        have := congrFun h₂ i
-        rw [ht, Function.update_self] at this
-        exact (List.cons.inj this).1.symm
-      subst hδ
+      -- The interior `u` is well-nested by induction, so it leaves the stacks unchanged.
       have hlu : u.length ≤ N := by simp at hlen; omega
+      have hwu : WellNested u :=
+        wellNested_of_not_crossing N u c₁ c₂ hlu hrunu (fun j => ⟨hunet j, hupre j⟩)
+          fun h => hcr ((h.append_right ((b, .pop i δ) :: u')).append_left [(a, .push i γ)])
+      -- Hence the pop matches the symbol of the push.
+      have hδ : δ = γ := by
+        have h₁ := Op.apply_push.mp (configLTS_tr.mp htr).2
+        have h₂ := Op.apply_pop.mp (configLTS_tr.mp hν).2
+        have := congrFun (hwu.contents_eq hrunu) i
+        rw [h₁, h₂] at this
+        simp only [Function.update_self, List.cons.injEq] at this
+        exact this.1
+      subst hδ
       have hlu' : u'.length ≤ N := by simp at hlen; omega
-      exact .pushPop
-        (wellNested_of_not_crossing N u c₁ c₂ hlu hrunu (fun j => ⟨hunet j, hupre j⟩)
-          fun h => hcr ((h.append_right ((b, .pop i δ) :: u')).append_left [(a, .push i δ)]))
+      exact .pushPop hwu
         (wellNested_of_not_crossing N u' c₃ c' hlu' hrunu' hbal' fun h => by
           apply hcr
           rw [e]
