@@ -13,7 +13,9 @@ import Mathlib.Analysis.Matrix.Spectrum
 /-!
 # The Powers–Størmer inequality
 
-The finite-dimensional case of [Powers and Størmer, Lemma 4.1][PowersStormer1970].
+The Powers–Størmer inequality [Powers and Størmer][PowersStormer1970], specialized
+from the tracial form in [Szabó and Wouters, Lemma 1.19][SzaboWouters2025], printed p. 1397.
+Multiplying by the matrix dimension converts normalized trace to ordinary trace.
 
 For positive matrices `P` and `Q`, the trace of `(P - Q)²` is at most the trace norm of
 `P² - Q²`. In an eigenbasis of `P - Q`, pairing `P² - Q²` with the diagonal sign unitary
