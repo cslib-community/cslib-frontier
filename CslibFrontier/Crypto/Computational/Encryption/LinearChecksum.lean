@@ -68,6 +68,40 @@ namespace Cslib.Crypto
 open Probability OracleComp Turing.MultiTapeTM
 open scoped NNReal
 
+private theorem checksumPrepare_polyTime {checksum : List Bool → List Bool}
+    {csLen : ℕ → ℕ} (hcs : ComputableInPolyTime checksum encBits encBits)
+    (hlen : ComputableInPolyTime csLen encUnary encUnary) :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool =>
+        (p.1 + csLen p.1, p.2.1, p.2.2 ++ checksum p.2.2))
+      (encPair encUnary (encPair encBits encBits))
+      (encPair encUnary (encPair encBits encBits)) := by
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encUnary (encPair encBits encBits))
+  exact (ComputableInPolyTime.unary_add' hp.fst' (hlen.comp hp.fst')).prod
+    (hp.snd'.fst'.prod (ComputableInPolyTime.bitsAppend hp.snd'.snd'
+      (hcs.comp hp.snd'.snd')))
+
+private theorem checksumDecrypt_polyTime (E : SymmetricCipher)
+    {checksum : List Bool → List Bool} {csLen : ℕ → ℕ}
+    (hcs : ComputableInPolyTime checksum encBits encBits)
+    (hlen : ComputableInPolyTime csLen encUnary encUnary) :
+    ComputableInPolyTime
+      (fun a : ℕ × List Bool × List Bool =>
+        (E.decrypt (a.1 + csLen a.1) a.2.1 a.2.2).elim none fun p =>
+          if p.drop a.1 == checksum (p.take a.1) then some (p.take a.1) else none)
+      (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
+  let input := encPair encUnary (encPair encBits encBits)
+  have hp := ComputableInPolyTime.id' (encIn := input)
+  have hdec := E.decrypt_polyTime.comp
+    ((ComputableInPolyTime.unary_add' hp.fst' (hlen.comp hp.fst')).prod hp.snd')
+  have hq := ComputableInPolyTime.id' (encIn := encPair input encBits)
+  have hmsg := hq.snd'.bitsTakeWithInput hq.fst'.fst'
+  have htag := hq.snd'.bitsDropWithInput hq.fst'.fst'
+  exact hdec.optionElimWithInput (ComputableInPolyTime.const none)
+    ((htag.beq (hcs.comp hmsg)).ite'
+      ((ComputableInPolyTime.optionSome encBits).comp hmsg) (ComputableInPolyTime.const none))
+
 /-- The PRF stream cipher over message ‖ checksum, modelling WEP's
 `c = (m, CRC(m)) ⊕ RC4(IV ‖ k)` ([BonehShoup2023], Section 9.10, Attack 3): encrypt
 `msg ++ checksum msg` with `prfCipher` at parameter `n + csLen n`, where `csLen` gives the
@@ -93,12 +127,9 @@ noncomputable def prfChecksumCipher (family : List Bool → List Bool → List B
       (show ComputableInPolyTime (fun n => n + csLen n) encUnary encUnary by fun_prop)
   encrypt_ppt := by
     exact IsPPTOn.preprocess (prfCipher family hpoly hlen).encrypt_ppt
-      (show ComputableInPolyTime
-        (fun p : ℕ × List Bool × List Bool => (p.1 + csLen p.1, p.2.1,
-          p.2.2 ++ checksum p.2.2))
-        (encPair encUnary (encPair encBits encBits))
-        (encPair encUnary (encPair encBits encBits)) by fun_prop)
-  decrypt_polyTime := by polytime
+      (checksumPrepare_polyTime hcsPoly hcsLenPoly)
+  decrypt_polyTime := by
+    exact checksumDecrypt_polyTime (prfCipher family hpoly hlen) hcsPoly hcsLenPoly
   decrypt_encrypt := by
     intro n k hk msg hmsg ct hct
     have hmlen : (msg ++ checksum msg).length = n + csLen n := by
@@ -158,7 +189,21 @@ theorem isOraclePPT_prfChecksumCIAdversary {csLen : ℕ → ℕ} {L : List Bool 
     (hcsLenPoly : ComputableInPolyTime csLen encUnary encUnary)
     (hLPoly : ComputableInPolyTime L encBits encBits) :
     IsOraclePPT encBits (prfChecksumCIAdversary csLen L) := by
-  ppt [prfChecksumCIAdversary]
+  change IsOraclePPTOn (encPair encUnary encBits) encBits
+    (fun p => prfChecksumCIAdversary csLen L p.1 p.2)
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hwidth := ComputableInPolyTime.unary_add' hp.fst' (hcsLenPoly.comp hp.fst')
+  have hquery := IsOraclePPTOn.query_take ()
+    ((ComputableInPolyTime.bitsReplicate false).comp hp.fst')
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hwidth)
+  have hq := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary encBits) encBits)
+  have hdelta := (ComputableInPolyTime.bitsReplicate true).comp hq.fst'.fst'
+  have hout := computableInPolyTime_ivStreamXorBody
+    (hwidth.comp (ComputableInPolyTime.fst _ _))
+    (ComputableInPolyTime.bitsAppend hdelta (hLPoly.comp hdelta)) hq.snd'
+  simpa only [prfChecksumCIAdversary, bind_pure_comp] using hquery.map_with hout
+
 
 /-- `prfChecksumCIAdversary` wins the one-time ciphertext-integrity game against
 `prfChecksumCipher` with probability `1` for every linear checksum and every `1 ≤ n`

@@ -113,9 +113,26 @@ theorem isPPT_finder {H : List Bool → List Bool → List Bool} {adversary : In
       (encPair encBits encBits) encBits)
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (finder H adversary r) := by
-  have hHt := hH
-  unfold finder
-  ppt
+  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
+    (fun p => finder H adversary r p.1 p.2)
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hsample := ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hp.fst')
+      (ComputableInPolyTime.const r))
+  let middle := encPair (encPair encUnary encBits) encBits
+  have hm := ComputableInPolyTime.id' (encIn := middle)
+  have hprepare := (ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 3) hm.fst'.fst')
+    (ComputableInPolyTime.const r)).prod
+    (ComputableInPolyTime.bitsAppend hm.fst'.snd' (hH.comp (hm.fst'.snd'.prod hm.snd')))
+  have hinvert := IsPPTOn.preprocess hadversary hprepare
+  have hq := ComputableInPolyTime.id' (encIn := encPair middle encBits)
+  have hthird := (ComputableInPolyTime.unary_div_const 3).comp
+    (ComputableInPolyTime.length_bits.comp hq.snd')
+  have hreturn := hq.fst'.snd'.prod (hq.snd'.bitsDropWithInput hthird)
+  simpa only [finder, bind_pure_comp] using
+    IsPPTOn.bind_with hsample (IsPPTOn.map_with hinvert hreturn)
 
 /-- On a key followed by a message of length `2 |k| + r` with `r < 3`, the construction outputs
 the key followed by the message's digest. -/

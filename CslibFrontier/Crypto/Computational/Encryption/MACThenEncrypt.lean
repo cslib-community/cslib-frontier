@@ -200,7 +200,7 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         (fun q : (ℕ × List Bool × List Bool) × List Bool =>
           encPair encBits encBits (unframe q.2, dropFrame q.2) == q.2)
         EBIn encBool :=
-      (q_msg.prod q_tag).encoded.beq q_p
+      (q_msg.prod q_tag).encoding_comp.beq q_p
     have hmsgLenPoly : ComputableInPolyTime
         (fun q : (ℕ × List Bool × List Bool) × List Bool =>
           (unframe q.2).length == M.msgLen q.1.1)

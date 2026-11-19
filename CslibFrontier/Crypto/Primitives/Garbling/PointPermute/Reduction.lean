@@ -828,8 +828,8 @@ private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q 
   have hwidth := ComputableInPolyTime.unary_add.comp (hn.prod hq)
   have hindex := ComputableInPolyTime.unary_add.comp
     ((ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_mul.comp ((.const 8).prod hg)).prod
-        (ComputableInPolyTime.unary_mul.comp ((.const 2).prod hi)))).prod hslot)
+      ((ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 8) hg).prod
+        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hi))).prod hslot)
   exact (targetBit_polyTime hws hkc hj hv hc).ite
     (ComputableInPolyTime.listGetDWithInput hrs hindex [])
     (labelWord_polyTime hf hk (keyOf_polyTime hk hwidth hkc hv hc)

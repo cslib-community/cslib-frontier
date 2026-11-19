@@ -377,12 +377,12 @@ private theorem offsets_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k w : �
       ComputableInPolyTime (fun x => 2 * w x + 1 + (k x + 2)) encIn encUnary ∧
       ComputableInPolyTime (fun x => k x + 2) encIn encUnary ∧
       ComputableInPolyTime (fun x => 2 * w x + 1 + 2 * (k x + 2)) encIn encUnary := by
-  have htwice := ComputableInPolyTime.unary_mul.comp ((.const 2).prod hw)
+  have htwice := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hw
   have hstart := ComputableInPolyTime.unary_add.comp (htwice.prod (.const 1))
   have hwidth := ComputableInPolyTime.unary_add.comp (hk.prod (.const 2))
   exact ⟨htwice, hstart, ComputableInPolyTime.unary_add.comp (hstart.prod hwidth), hwidth,
     ComputableInPolyTime.unary_add.comp
-      (hstart.prod (ComputableInPolyTime.unary_mul.comp ((.const 2).prod hwidth)))⟩
+      (hstart.prod (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hwidth))⟩
 
 include hf in
 /-- One gate of `evalGateCut` is computed in polynomial time. -/
@@ -642,7 +642,7 @@ private theorem encInfoWord_polyTime :
       (encPair encUnary (encPair encUnary encBits)) encBits := by
     have hp := ComputableInPolyTime.id'
       (encIn := encPair encUnary (encPair encUnary encBits))
-    have hcount := ComputableInPolyTime.unary_mul.comp ((.const 2).prod hp.snd'.fst')
+    have hcount := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hp.snd'.fst'
     have hlist := ComputableInPolyTime.range.comp hcount
     have hx := ComputableInPolyTime.fst
       (encPair encUnary (encPair encUnary encBits)) encUnary

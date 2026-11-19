@@ -916,7 +916,7 @@ theorem computableInPolyTime_plsPpadsSucc
   convert hresult using 1 <;> funext p <;>
     simp only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
       decide_eq_true_eq, List.append_assoc] <;>
-    split_ifs <;> rfl
+    split_ifs <;> first | rfl | contradiction
 
 theorem computableInPolyTime_plsPpadsPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)

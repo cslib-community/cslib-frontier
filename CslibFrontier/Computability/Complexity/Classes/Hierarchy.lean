@@ -244,9 +244,10 @@ end Diagonal
 
 -- Report the expensive reductions on timeout while diagnosing this migrated certificate.
 set_option diagnostics true in
--- The hosted diagnostics count 77867 decoder unfoldings during composition. Keep the decoder
--- opaque here: only its named computability and length contracts are needed below.
-attribute [local irreducible] ComputableInO Universal.decodeDesc in
+-- Decoder opacity removed its 77867 unfoldings, but the next hosted diagnostics still count
+-- 364160 reductions of Desc.tapes through the description encoding. Keep both implementations
+-- opaque here: only their named computability, encoding-length and resource contracts are used.
+attribute [local irreducible] ComputableInO Universal.decodeDesc Universal.eDesc in
 open Diagonal in
 /-- **The diagonal is decidable in exponential time**, within time `O(2 ^ (4 * n))` and space
 `O(2 ^ (2 * n))` on inputs of length `n`, charging decoding, the symbols, the clock, the universal
