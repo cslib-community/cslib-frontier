@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 import CslibFrontier.Foundations.Quantum.Bell
-import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.Quantum.Pauli
 
 /-! Density matrices, the partial trace, no-signalling and the quantum one-time pad: concrete
@@ -15,7 +15,7 @@ instances and edge cases. -/
 namespace CslibFrontierTests.QuantumDensity
 
 open Cslib.Quantum Cslib.Crypto.Protocols.Quantum.OneTimePad Matrix Finset
-open scoped Kronecker
+open scoped Kronecker MatrixOrder
 
 /-! ### Density matrices -/
 
@@ -136,19 +136,20 @@ example : averageCiphertextWith (pureState (maxEntangled (Unit → Bool))) =
   rw [averageCiphertextWith_eq, partialTraceLeft_pureState_maxEntangled]
   norm_num
 
+private theorem partialTraceRight_ket_pair (i : Bool) (k : Fin 3) :
+    partialTraceRight (pureState (ket (i, k))) = pureState (ket i) := by
+  ext a b
+  cases i <;> cases a <;> cases b <;>
+    simp [partialTraceRight_apply, pureState_apply, ket_apply, Finset.sum_ite_eq']
+
 -- Unequal local dimensions and rank-one reductions are allowed in the overlap theorem.
 example :
     rootFidelity (partialTraceRight (pureState (ket (false, (0 : Fin 3)))))
       (partialTraceRight (pureState (ket (false, (1 : Fin 3))))) = 1 := by
   let ψ := ket (false, (0 : Fin 3))
   let φ := ket (false, (1 : Fin 3))
-  have hreduce (k : Fin 3) :
-      partialTraceRight (pureState (ket (false, k))) = pureState (ket false) := by
-    ext i j
-    cases i <;> cases j <;>
-      simp [partialTraceRight_apply, pureState_apply, ket_apply, Finset.sum_ite_eq']
   have he : partialTraceRight (pureState ψ) = partialTraceRight (pureState φ) :=
-    (hreduce 0).trans (hreduce 1).symm
+    (partialTraceRight_ket_pair false 0).trans (partialTraceRight_ket_pair false 1).symm
   obtain ⟨U, hU, h⟩ := exists_localUnitary_of_partialTraceRight_eq ψ φ he
   change rootFidelity (partialTraceRight (pureState ψ)) (partialTraceRight (pureState φ)) = 1
   have hlo := inner_localUnitary_re_le_rootFidelity ψ φ U hU
@@ -161,5 +162,27 @@ example :
   obtain ⟨_, _, hdist⟩ := exists_localUnitary_norm_sub_sq_eq ψ φ (norm_ket _) hφ
   have hhi := hdist ▸ sq_nonneg _
   linarith
+
+-- Orthogonal rank-one reductions have trace norm difference two, even with a larger purifier.
+example :
+    ∃ U ∈ unitaryGroup (Fin 3) ℂ,
+      ‖WithLp.toLp 2 (((1 : Matrix Bool Bool ℂ) ⊗ₖ U) *ᵥ
+        (ket (false, (0 : Fin 3))).ofLp) - ket (true, (1 : Fin 3))‖ ^ 2 ≤ 2 := by
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_norm_sub_sq_le_traceNorm
+    (ket (false, (0 : Fin 3))) (ket (true, (1 : Fin 3))) (norm_ket _) (norm_ket _)
+  refine ⟨U, hU, h.trans_eq ?_⟩
+  rw [partialTraceRight_ket_pair, partialTraceRight_ket_pair]
+  let D : Matrix Bool Bool ℂ := diagonal fun b => if b then -1 else 1
+  have hD : pureState (ket false) - pureState (ket true) = D := by
+    ext i j
+    cases i <;> cases j <;> simp [D, pureState_apply, ket_apply, diagonal]
+  have hgram : Dᴴ * D = 1 := by
+    unfold D
+    rw [diagonal_conjTranspose, diagonal_mul_diagonal, ← diagonal_one]
+    congr 1
+    funext b
+    cases b <;> simp
+  rw [hD, traceNorm, hgram, CFC.sqrt_one, trace_one]
+  norm_num [Fintype.card_bool]
 
 end CslibFrontierTests.QuantumDensity

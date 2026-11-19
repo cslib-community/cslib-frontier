@@ -92,7 +92,7 @@ theorem exists_localUnitary_of_partialTraceRight_eq (ψ φ : EuclideanSpace ℂ 
 
 /-- Root fidelity, the trace norm of the product of the positive square roots.
 This convention leaves fidelity unsquared. -/
-noncomputable def rootFidelity (ρ σ : Matrix ι ι ℂ) : ℝ :=
+@[expose] noncomputable def rootFidelity (ρ σ : Matrix ι ι ℂ) : ℝ :=
   (CFC.sqrt ρ * CFC.sqrt σ).traceNorm
 
 /-- The trace norm of the rectangular cross pairing equals the root fidelity

@@ -11,6 +11,8 @@ import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
 import CslibFrontier.Probability.PairwiseIndependentHash.Retention
@@ -10869,3 +10871,28 @@ register_result "uhlmann-finite-dimensional-local-overlap" where
     local dimensions and possibly singular reduced states. A unitary on the right system \
     gives a complex overlap equal to the real unsquared fidelity of the left reductions. \
     Unit vectors recover the normalized purifications in the source."
+
+register_result "powers-stormer-finite-matrices" where
+  title := "Powers–Størmer inequality for finite matrices"
+  topic := "matrix analysis"
+  sources := [
+    { paper := SzaboWouters2025, theorem := "Lemma 1.19",
+      locator := "published version, §1, printed p. 1397 (tracial norms on p. 1390)" }
+  ]
+  theorems := [Matrix.trace_sub_mul_self_le_traceNorm_mul_self_sub]
+  scope := "For positive semidefinite complex matrices P and Q, the trace of (P − Q)² is \
+    bounded by the trace norm of P² − Q². Multiplying the tracial form by the dimension gives \
+    ordinary trace, with the empty-dimensional case giving zero on both sides. Singular \
+    matrices are allowed, and there is no trace-one assumption."
+
+register_result "fuchs-van-de-graaf-lower" where
+  title := "Lower Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lower bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.one_sub_rootFidelity_le_traceDistance]
+  scope := "Arbitrary finite-dimensional complex positive semidefinite trace-one matrices, \
+    including singular states. One minus the unsquared fidelity is bounded above by the \
+    trace distance, which is half the trace norm of the difference."
