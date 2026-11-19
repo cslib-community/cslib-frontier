@@ -7,7 +7,7 @@ Authors: Erik Demaine, OpenAI
 module
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.IntervalCases
@@ -170,8 +170,11 @@ example : (⟨3 / 2, 3⟩ : ℂ) ∈
         (((referenceDrawing input).route ⟨0, by decide⟩).finish) ∩
       openSegment ℝ (((referenceDrawing input).route ⟨2, by decide⟩).start)
         (((referenceDrawing input).route ⟨2, by decide⟩).finish) := by
-  change (⟨3 / 2, 3⟩ : ℂ) ∈ openSegment ℝ (parabolaPoint 0) (parabolaPoint 2) ∩
-    openSegment ℝ (parabolaPoint 3) (parabolaPoint 1)
+  change (⟨3 / 2, 3⟩ : ℂ) ∈
+    openSegment ℝ ((referenceDrawing input).vertex 0) ((referenceDrawing input).vertex 2) ∩
+      openSegment ℝ ((referenceDrawing input).vertex 3) ((referenceDrawing input).vertex 1)
+  rw [← drawing_vertices false 0 (by decide), ← drawing_vertices false 2 (by decide),
+    ← drawing_vertices false 3 (by decide), ← drawing_vertices false 1 (by decide)]
   constructor <;> rw [openSegment_eq_image_lineMap]
   all_goals
     refine ⟨3 / 4, by norm_num, ?_⟩
