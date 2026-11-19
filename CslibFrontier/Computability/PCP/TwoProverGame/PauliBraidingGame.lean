@@ -78,15 +78,29 @@ inductive PauliBraidingSeed (n : ℕ) (Q : Type*)
 
 variable {n : ℕ} {Q A : Type*}
 
+/-- The strings of a consistency question in the order sent by the braiding verifier. -/
+@[expose] def PauliConsistencyQuestion.braidingStrings (q : PauliConsistencyQuestion (Fin n)) :
+    (Fin n → Bool) × (Fin n → Bool) :=
+  cond (lexSwap q.xString q.zString) Prod.swap id (q.xString, q.zString)
+
 /-- Send a basis question without exposing the unsorted X–Z coordinate order. -/
 @[expose] def PauliConsistencyQuestion.toBraidingQuestion (q : PauliConsistencyQuestion (Fin n)) :
     PauliBraidingQuestion n Q :=
-  .basis q.basis (cond (lexSwap q.xString q.zString) Prod.swap id (q.xString, q.zString))
+  .basis q.basis q.braidingStrings
 
 /-- Read the bit associated with the checked string from an answer to the sorted basis question. -/
 @[expose] def PauliConsistencyQuestion.braidingCheckedBit (q : PauliConsistencyQuestion (Fin n))
     (answer : Bool × Bool) : Bool :=
   q.checkedBit (cond (lexSwap q.xString q.zString) Prod.swap id answer)
+
+/-- Reading the checked bit after answering both sorted strings agrees with evaluating
+the bit function on the checked string, also when the two strings are equal. -/
+theorem PauliConsistencyQuestion.braidingCheckedBit_braidingStrings
+    (q : PauliConsistencyQuestion (Fin n)) (f : (Fin n → Bool) → Bool) :
+    q.braidingCheckedBit (f q.braidingStrings.1, f q.braidingStrings.2) =
+      f (if q.basis then q.zString else q.xString) := by
+  by_cases h : lexSwap q.xString q.zString <;> cases hb : q.basis <;>
+    simp [braidingStrings, braidingCheckedBit, checkedBit, h, hb]
 
 /-- Away from a Z-basis tie, the consistency and linearity conventions give the same
 sorted question and read the same coordinate. -/

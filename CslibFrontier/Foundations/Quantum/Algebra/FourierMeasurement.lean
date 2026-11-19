@@ -52,6 +52,10 @@ missing mass and the Walsh sums of these unnormalized effects.
   projective.
 * `Cslib.Quantum.one_sub_le_fourierCoeff_moments_of_linear`: lower bounds on the second and
   fourth moments of the Fourier coefficients for near-linear observables.
+* `Cslib.Quantum.fourierMeasurement_isProjective_of_linear`: exact linearity makes the
+  Fourier measurement projective.
+* `Cslib.Quantum.walshSum_fourierMeasurement_of_linear`: the character observables recover
+  the exactly linear family.
 
 ## References
 
@@ -156,6 +160,34 @@ theorem smul_sum_walshSum_mul (A D : (ι → Bool) → R) :
   refine sum_congr rfl fun u _ => sum_congr rfl fun a _ => ?_
   rw [dotProduct_comm]
 
+/-- A Fourier coefficient of an exactly linear family is a right eigenspace
+operator, with the eigenvalue given by its character. -/
+theorem fourierCoeff_mul_of_linear (A : (ι → Bool) → R)
+    (hlin : ∀ a b, A a * A b = A (a + b)) (u a : ι → Bool) :
+    fourierCoeff A u * A a = (signVal (u ⬝ᵥ a) : ℂ) • fourierCoeff A u := by
+  let f (b : ι → Bool) := (signVal (u ⬝ᵥ b) : ℂ) • A (b + a)
+  have hsum : (∑ b, f b) = ∑ b, f (b + a) := (Equiv.sum_comp (Equiv.addRight a) f).symm
+  simp only [fourierCoeff, walshSum, smul_mul_assoc, sum_mul, hlin]
+  change _ • (∑ b, f b) = _
+  rw [hsum]
+  simp only [f, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
+    signVal_xor, Complex.ofReal_mul, ← smul_smul]
+  have hf (x : ι → Bool) : (signVal (u ⬝ᵥ x) : ℂ) • (signVal (u ⬝ᵥ a) : ℂ) • A x =
+      (signVal (u ⬝ᵥ a) : ℂ) • (signVal (u ⬝ᵥ x) : ℂ) • A x := by rw [smul_comm]
+  simp only [hf, ← smul_sum]
+  exact smul_comm _ _ _
+
+/-- The Fourier coefficient at an exact character is idempotent. -/
+theorem fourierCoeff_mul_self_of_linear (A : (ι → Bool) → R)
+    (hlin : ∀ a b, A a * A b = A (a + b)) (u : ι → Bool) :
+    fourierCoeff A u * fourierCoeff A u = fourierCoeff A u := by
+  conv_lhs => arg 2; rw [fourierCoeff, walshSum]
+  simp only [mul_smul_comm, mul_sum, fourierCoeff_mul_of_linear A hlin, smul_smul,
+    ← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one, one_smul,
+    sum_const, card_univ, ← Nat.cast_smul_eq_nsmul ℝ, smul_smul, Fintype.card_fun,
+    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
+  rw [inv_mul_cancel₀ (by positivity : (2 : ℝ) ^ Fintype.card ι ≠ 0), one_smul]
+
 end Ring
 
 section State
@@ -192,6 +224,23 @@ variable (hA : ∀ a, IsSelfAdjoint (A a)) (hA2 : ∀ a, A a * A a = 1)
 theorem fourierMeasurement_effect (u : ι → Bool) :
     (fourierMeasurement A hA hA2).effect u = fourierCoeff A u * fourierCoeff A u :=
   rfl
+
+/-- The Fourier measurement of exactly linear observables is projective. -/
+theorem fourierMeasurement_isProjective_of_linear
+    (hlin : ∀ a b, A a * A b = A (a + b)) : (fourierMeasurement A hA hA2).IsProjective :=
+  fun u => by
+    simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin]
+
+/-- Decoding a character of the Fourier measurement recovers the corresponding
+observable of an exactly linear family. -/
+theorem walshSum_fourierMeasurement_of_linear (hlin : ∀ a b, A a * A b = A (a + b))
+    (a : ι → Bool) : walshSum (fourierMeasurement A hA hA2).effect a = A a := by
+  have hsum := (fourierMeasurement A hA hA2).sum_effect
+  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin] at hsum
+  rw [walshSum]
+  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin]
+  simp_rw [dotProduct_comm a, ← fourierCoeff_mul_of_linear A hlin]
+  rw [← sum_mul, hsum, one_mul]
 
 include hA in
 private theorem fourierCoeff_sq_mul_self_le (u : ι → Bool)

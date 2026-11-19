@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Data.BitString.Sign
+import Mathlib.Analysis.Real.Sqrt
 
 /-!
 # Involutions, their projections and joint measurements
@@ -49,6 +50,22 @@ namespace Cslib.Quantum
 
 open Finset
 open BitString (signVal)
+
+/-- The normalized sum and difference of two anticommuting involutions are
+involutions. These are the tilted operators of the CHSH strategy. -/
+theorem normalized_add_sub_mul_self_of_anticommute {A : Type*} [Ring A] [Algebra ℂ A]
+    {X Y : A} (hX : X * X = 1) (hY : Y * Y = 1) (hXY : Y * X = -(X * Y)) (b : Bool) :
+    let C := ((Real.sqrt 2 / 2 : ℝ) : ℂ) • cond b (X - Y) (X + Y)
+    C * C = 1 := by
+  have hscale : ((Real.sqrt 2 / 2 : ℝ) : ℂ) * ((Real.sqrt 2 / 2 : ℝ) : ℂ) = 2⁻¹ := by
+    rw [← Complex.ofReal_mul, div_mul_div_comm, Real.mul_self_sqrt zero_le_two]
+    norm_num
+  dsimp only
+  cases b
+  · rw [Bool.cond_false, smul_mul_smul_comm, add_mul, mul_add, mul_add, hX, hY, hXY, hscale]
+    module
+  · rw [Bool.cond_true, smul_mul_smul_comm, sub_mul, mul_sub, mul_sub, hX, hY, hXY, hscale]
+    module
 
 section Sign
 

@@ -29,6 +29,8 @@ anticommutation game and also proves honest-strategy completeness.
 
 * `Cslib.PCP.commutingWinProb_pauliBraidingAnticommutation_eq_expect`: the branch score is
   the mean score over odd pairs and role assignments.
+* `Cslib.PCP.commutingWinProb_pauliBraidingAnticommutation_le`: the branch is bounded by
+  the optimal CHSH score.
 * `Cslib.PCP.expect_norm_pauliBraidingSpecial_anticomm_sq_le`: the CHSH deficit controls
   the special observables' averaged squared anticommutation defect.
 * `Cslib.PCP.expect_norm_pauliBraidingBasis_anticomm_sq_le`: transfer of the
@@ -168,6 +170,21 @@ theorem commutingWinProb_pauliBraidingAnticommutation_eq_expect
     (fun (x, y) => .anticommutation roles p x y) S.answers).symm
 
 variable [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜]
+
+/-- The braiding anticommutation branch is bounded by the CHSH optimum. -/
+theorem commutingWinProb_pauliBraidingAnticommutation_le
+    (S : CommutingStrategy (PauliBraidingQuestion n Bool) (PauliBraidingQuestion n Bool)
+      ((Bool × Bool) ⊕ Bool) ((Bool × Bool) ⊕ Bool) 𝒜) :
+    (pauliBraidingBranchGame n TwoProverGame.chsh id (fun _ => id) 1).commutingWinProb S ≤
+      Real.cos (π / 8) ^ 2 := by
+  rw [commutingWinProb_pauliBraidingAnticommutation_eq_expect]
+  let := oddPairs_nonempty (ι := Fin n)
+  rw [← Fintype.expect_const (ι := Bool) (Real.cos (π / 8) ^ 2)]
+  refine Finset.expect_le_expect fun roles _ => ?_
+  rw [← Fintype.expect_const (ι := ↥(oddPairs (Fin n))) (Real.cos (π / 8) ^ 2)]
+  exact Finset.expect_le_expect fun p _ =>
+    (commutingWinProb_pauliBraidingCHSHGame_le S roles p).trans
+      (TwoProverGame.commutingWinProb_chsh_le _)
 
 /-- At a fixed physical role assignment the mean CHSH deficit of the decoded strategies
 is at most twice the deficit of the full anticommutation branch against the CHSH optimum. -/

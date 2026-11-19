@@ -258,7 +258,7 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
         subst basis
         dsimp [consistency, secondBit, PauliConsistencyQuestion.ofChecked,
           PauliConsistencyQuestion.toBraidingQuestion]
-        rw [htie]
+        rw [PauliConsistencyQuestion.braidingStrings, htie]
         congr 2
         funext answer
         cases answer <;> simp [PauliConsistencyQuestion.braidingCheckedBit,

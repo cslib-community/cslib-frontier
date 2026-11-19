@@ -426,13 +426,7 @@ private theorem quantum_branch_deficits_le
   have hupper (i : Fin 3) : (branch i).answersWinProb T.answers ≤ upper i := by
     by_cases hi : i = 1
     · subst i
-      have h := expect_chshDeficit_pauliBraiding_le T false
-      have hn : 0 ≤ 𝔼 p : ↥(oddPairs (Fin n)), (Real.cos (π / 8) ^ 2 -
-          TwoProverGame.chsh.commutingWinProb (pauliBraidingCHSHStrategy T false p)) :=
-        expect_nonneg fun p _ => sub_nonneg.mpr (TwoProverGame.commutingWinProb_chsh_le _)
-      change _ ≤ 2 * (Real.cos (π / 8) ^ 2 - (branch 1).answersWinProb T.answers) at h
-      simp only [upper, ite_true, eq_self]
-      linarith only [h, hn]
+      exact commutingWinProb_pauliBraidingAnticommutation_le T
     · simp only [upper, hi, ite_false]
       exact (branch i).answersWinProb_le_one _
   have hmean : (∑ i, upper i) / 3 = (2 + Real.cos (π / 8) ^ 2) / 3 := by
