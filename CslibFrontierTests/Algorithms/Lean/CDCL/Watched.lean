@@ -104,17 +104,20 @@ example : (CDCL.solveWith { restartFirst := 1 } php43).1.isSat = false ∧
 /-- Without restarts, it never restarts. -/
 example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide +kernel
 
-/-- A state on `¬x₀ ∨ x₁` with the decision `¬x₀`, whose saved phase is `false`, and then `x₁`,
-whose saved phase is also `false`: the value of `x₁` differs from its saved phase. -/
-private def beforeRestart : CDCL.WExec [[(0, false), (1, true)]] :=
-  let S := (CDCL.WExec.init [[(0, false), (1, true)]] {}).decide 0
+/-- A state on `x₀ ∨ x₁` with the decision `¬x₀`, from the saved phase `false`, which forces `x₁`
+by the clause; the saved phase of `x₁` is still `false`. -/
+private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
+  let S := (CDCL.WExec.init [[(0, true), (1, true)]] {}).decide 0
   { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
 
-/-- Restart saves the phase of the literals it undoes: `x₁` is saved as `true`. -/
+/-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/
+example : CDCL.Trail.lits beforeRestart.M = [(1, true), (0, false)] := by decide +kernel
+
+/-- With phase saving, restart saves the phase of `x₁` as `true`. -/
 example : beforeRestart.phase.get 1 = false ∧ beforeRestart.restart.phase.get 1 = true := by
   decide +kernel
 
-/-- Without phase saving, restart keeps the phases. -/
+/-- Without phase saving, restart keeps the phase of `x₁` at `false`. -/
 example :
     ({ beforeRestart with opts := { phaseSaving := false } }).restart.phase.get 1 = false := by
   decide +kernel
