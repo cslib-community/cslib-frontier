@@ -70,7 +70,8 @@ on the measure, which provably never runs out, so the kernel can run the solver.
   variables.
 
 **Variable names.** `solve` keeps arrays indexed by variable, sized by the largest variable of the
-formula, so a formula such as `[[], [(10⁹, true)]]` with one variable allocates `10⁹ + 1` slots.
+formula (`Cslib.Algorithms.Lean.CDCL.varSlots`), so a formula such as `[[], [(10⁹, true)]]` with
+one variable allocates `10⁹ + 1` slots, and a formula with no variables allocates none.
 `Cslib.Algorithms.Lean.CDCL.solveCompact` first renames the `k` distinct variables to
 `0, …, k - 1` (`Cslib.Logic.PL.CNF.denseRenaming`), solves the renamed formula, and translates the
 answer back: the model through the renaming, and the certificate through the injective map back
@@ -116,10 +117,14 @@ structure WExec.Inv (S : WExec φ) : Prop where
   queue_trail : ∀ x ∈ S.queue, x ∈ Trail.lits S.M
   queue_above : ∀ x ∈ S.queue, ∀ N d M₀, S.M = N ++ ⟨d, true⟩ :: M₀ → x ∉ Trail.lits M₀
 
+/-- The number of slots for arrays indexed by the variables of `φ`: one more than the largest
+variable, and `0` when `φ` has no variables (`[]` and `[[]]`). -/
+@[expose] def varSlots (φ : CNF ℕ) : ℕ := φ.vars.foldl (fun m v => max m (v + 1)) 0
+
 /-- The initial state. -/
 @[expose] def WExec.init (φ : CNF ℕ) : WExec φ :=
   ⟨Exec.init φ, WatchStore.build φ.lratDB, [], φ.lratDB.filter fun e => e.2.dedup.length < 2,
-    Activity.init (φ.vars.foldl max 0 + 1)⟩
+    Activity.init (varSlots φ)⟩
 
 theorem WExec.init_inv (φ : CNF ℕ) : (WExec.init φ).Inv where
   exec := Exec.init_inv φ

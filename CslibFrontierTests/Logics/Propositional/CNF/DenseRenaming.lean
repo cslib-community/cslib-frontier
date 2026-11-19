@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
 import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
+public meta import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
 
 /-!
 # Renaming variables to `0, …, k - 1`
@@ -17,6 +21,7 @@ is accepted, and so is its renaming along an injective map, for the renamed form
 -/
 
 set_option linter.hashCommand false
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.CNF.DenseRenaming
 
@@ -27,14 +32,14 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 #guard (CNF.denseRenaming [[], [((1000000000 : ℕ), true)]]).toDense 1000000000 == 0
 #guard (CNF.denseRenaming [[], [((1000000000 : ℕ), true)]]).fromDense 0 == 1000000000
 
-def ψ : CNF ℕ := [[(7, true)], [(7, false), (3, true)]]
+private abbrev ψ : CNF ℕ := [[(7, true)], [(7, false), (3, true)]]
 
 #guard (ψ.relabel (CNF.denseRenaming ψ).toDense) == [[(0, true)], [(0, false), (1, true)]]
 #guard ((ψ.relabel (CNF.denseRenaming ψ).toDense).relabel (CNF.denseRenaming ψ).fromDense) == ψ
 
-def contra : CNF ℕ := [[(5, true)], [(5, false)]]
+private abbrev contra : CNF ℕ := [[(5, true)], [(5, false)]]
 
-def cert : Array LRAT.IntAction := #[.addEmpty 3 #[1, 2]]
+private abbrev cert : Array LRAT.IntAction := #[.addEmpty 3 #[1, 2]]
 
 example : contra.checkLRAT cert = true := by decide
 

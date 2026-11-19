@@ -17,7 +17,7 @@ MiniSat's branching heuristic, *variable state independent decaying sum*. Every 
 *bumped*: the current *increment* is added to their activity. These are all the variables of the
 conflict clause and of the reasons resolved on, including variables assigned at decision level
 `0`. MiniSat bumps a variable only when it is assigned above level `0` (`level(var(q)) > 0` in
-`analyze`), so this rule is a variant of MiniSat's. The increment then grows by the
+`analyze`), so this rule is a variant of MiniSat's. The increment then grows by about the
 factor `1 / 0.95`, so older bumps weigh exponentially less (MiniSat's `var_decay = 0.95`). The
 solver decides an unassigned variable of greatest activity.
 
@@ -78,8 +78,9 @@ def Activity.bumpVar (A : Activity) (v : ℕ) : Activity :=
   if Activity.limit < score.getD v 0 then ⟨score.map (· >>> 100), A.inc >>> 100⟩
   else ⟨score, A.inc⟩
 
-/-- **After a conflict**: bump each variable met by the analysis once, then grow the increment by
-the factor `1 + 1 / 19 = 1 / 0.95`. -/
+/-- **After a conflict**: bump each variable met by the analysis once, then set the increment to
+`inc + inc / 19`, with integer division: at most the factor `1 + 1 / 19 = 1 / 0.95`, and less by the
+truncation. -/
 def Activity.bump (A : Activity) (vs : List ℕ) : Activity :=
   let A := vs.dedup.foldl Activity.bumpVar A
   ⟨A.score, A.inc + A.inc / 19⟩
