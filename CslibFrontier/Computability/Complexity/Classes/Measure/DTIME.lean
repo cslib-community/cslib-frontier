@@ -203,10 +203,12 @@ theorem computableInPolyTime_approx (k : ℕ) :
       (ComputableInPolyTime.snd encBits encUnary).comp (.fst _ _)
     have hj : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.2)
         (encPair (encPair encBits encUnary) encUnary) encUnary := .snd _ _
+    have hbeq : ComputableInPolyTime (fun p : Bool × Bool => p.1 == p.2)
+        (encPair encBool encBool) encBool := ComputableInPolyTime.of_finite _
     exact ComputableInPolyTime.bool_or'
       (ComputableInPolyTime.unary_lt.comp (hj.prod hi))
-      ((ComputableInPolyTime.bitsGetDWithInput hword hj false).beq
-        (hpredicts.comp (hi.prod hj)))
+      (hbeq.comp ((ComputableInPolyTime.bitsGetDWithInput hword hj false).prod
+        (hpredicts.comp (hi.prod hj))))
   have hagrees : ComputableInPolyTime (fun q : List Bool × ℕ => agrees k q.1 q.2)
       (encPair encBits encUnary) encBool :=
     ComputableInPolyTime.allWithInput

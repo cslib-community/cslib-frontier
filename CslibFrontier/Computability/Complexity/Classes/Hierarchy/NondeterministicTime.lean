@@ -212,7 +212,7 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
     refine le_trans ?_ (Nat.mul_le_mul_left K (Nat.le_succ _))
     rw [e]
     have ⟨h₁, h₂⟩ := hbounds q
-    enc_len [Function.comp_apply, enc, hb] at h₁ h₂ ⊢
+    enc_len [Function.comp_apply, enc, hb, clock] at h₁ h₂ ⊢
 
 attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- The brute force at the end of an interval runs within time exponential in the description,
