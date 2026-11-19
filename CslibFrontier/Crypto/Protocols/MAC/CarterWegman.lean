@@ -3213,7 +3213,8 @@ theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
         ProbComp.eval
           (M.signingPairOracle n (encPair encBits encBits (k, prfKey)) request state)) := by
     funext request state
-    dsimp only [cwRandomNonceLogHandler, MACScheme.signingPairOracle, M, carterWegmanRandomMAC]
+    dsimp only [cwRandomNonceLogHandler, MACScheme.signingPairOracle,
+      MACScheme.signingPairOracleOn, M, carterWegmanRandomMAC]
     simp only [encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append,
       hprfLen]
     by_cases hcond : (request.2.length == msgLen n) = true

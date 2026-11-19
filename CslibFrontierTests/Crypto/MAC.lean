@@ -186,7 +186,7 @@ theorem eval_sufCmaGame_randomizedTagMACScheme_sameMessageNewTagForger (n : ℕ)
     Functor.map_map, OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind, PMF.bind_map,
     Function.comp_def]
-  dsimp only [StateT.run, MACScheme.signingPairOracle]
+  dsimp only [StateT.run, MACScheme.signingPairOracle, MACScheme.signingPairOracleOn]
   simp only [List.length_replicate, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   have hcongr : PMF.bind (ProbComp.eval (BitString.sampleList 1))

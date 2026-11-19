@@ -738,7 +738,8 @@ theorem eval_sufOneTimeGame_redundantTag_redundantTagForger (M : MACScheme)
     ProbComp.eval (M.redundantTag.sufOneTimeGame (M.redundantTagForger tagBound) n) =
       PMF.pure true := by
   have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
-  simp only [sufOneTimeGame, redundantTagForger, oneTimeSigningPairOracle, hmsgLen,
+  simp only [sufOneTimeGame, redundantTagForger, oneTimeSigningPairOracle, signingPairOracleOn,
+    hmsgLen,
     List.length_replicate, beq_self_eq_true, List.isEmpty_nil, Bool.and_self, ↓reduceIte,
     runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun sk hsk =>
@@ -758,8 +759,8 @@ theorem eval_sufCmaGame_redundantTag_redundantTagForger (M : MACScheme)
     ProbComp.eval (M.redundantTag.sufCmaGame (M.redundantTagForger tagBound) n) =
       PMF.pure true := by
   have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
-  simp only [sufCmaGame, redundantTagForger, signingPairOracle, hmsgLen, List.length_replicate,
-    beq_self_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+  simp only [sufCmaGame, redundantTagForger, signingPairOracle, signingPairOracleOn, hmsgLen,
+    List.length_replicate, beq_self_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun sk hsk =>
     PMF.bind_eq_pure_of_forall_mem_support fun tag htag => ?_
   have htake : List.take (tagBound n) tag = tag :=

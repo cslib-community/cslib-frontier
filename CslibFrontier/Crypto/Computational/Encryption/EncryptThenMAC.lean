@@ -584,8 +584,8 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-          MACScheme.signingPairOracle, hcLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind,
-          ProbComp.eval_pure]
+          MACScheme.signingPairOracle, MACScheme.signingPairOracleOn, hcLen, beq_self_eq_true,
+          ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
         simp only [PMF.map_bind, PMF.pure_map, PMF.pure_bind, Prod.map_apply, id_eq]
         apply PMF.bind_congr_on_support
         intro tag htag
@@ -865,7 +865,7 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg hmsgLen c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-          MACScheme.oneTimeSigningPairOracle]
+          MACScheme.oneTimeSigningPairOracle, MACScheme.signingPairOracleOn]
         simp only [hcLen, beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte,
           ProbComp.eval_bind, ProbComp.eval_pure,
           Probability.PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, List.isEmpty_cons,
