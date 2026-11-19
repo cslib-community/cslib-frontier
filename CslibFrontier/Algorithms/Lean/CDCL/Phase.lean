@@ -34,8 +34,9 @@ The polarity of a decision does not affect correctness.
   phase.
 
 **Storage.** The phases are an array indexed by variable; setting a variable past its end grows it.
-`WExec.init` sizes it by the largest variable of the formula, so `solveCompact`, which renames the
-variables to `0, …, k - 1` first, keeps it at `k` slots.
+`WExec.init` gives it `varSlots φ` slots, one more than the largest variable of the formula and
+none for a formula without variables, so `solveCompact`, which renames the variables to
+`0, …, k - 1` first, keeps it at `k` slots.
 -/
 
 @[expose] public section
@@ -89,7 +90,7 @@ theorem Phases.get_set (P : Phases) (v : ℕ) (b : Bool) (w : ℕ) :
         rw [Array.getElem?_replicate, Array.getElem?_eq_none (by omega : P.saved.size ≤ w)]
         split <;> rfl
 
-theorem Phases.get_foldl_set_of_not_mem (L : List (Literal ℕ)) (P : Phases) {v : ℕ}
+private theorem Phases.get_foldl_set_of_not_mem (L : List (Literal ℕ)) (P : Phases) {v : ℕ}
     (hv : v ∉ L.map Prod.fst) : (L.foldl (fun P l => P.set l.1 l.2) P).get v = P.get v := by
   induction L generalizing P with
   | nil => rfl
@@ -98,7 +99,7 @@ theorem Phases.get_foldl_set_of_not_mem (L : List (Literal ℕ)) (P : Phases) {v
     simp only [List.foldl_cons]
     rw [ih _ hv.2, Phases.get_set, ite_eq_right_iff.2 fun h => absurd h.symm hv.1]
 
-theorem Phases.get_foldl_set_of_mem (L : List (Literal ℕ)) (P : Phases)
+private theorem Phases.get_foldl_set_of_mem (L : List (Literal ℕ)) (P : Phases)
     (hL : (L.map Prod.fst).Nodup) {l : Literal ℕ} (hl : l ∈ L) :
     (L.foldl (fun P l => P.set l.1 l.2) P).get l.1 = l.2 := by
   induction L generalizing P with
