@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
 import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -11184,3 +11185,32 @@ register_result "fuchs-van-de-graaf-upper" where
   scope := "For finite complex positive semidefinite trace-one matrices, including singular \
     states, trace distance is at most the square root of one minus squared root fidelity. \
     Trace distance is half the trace norm of the difference, and root fidelity is unsquared."
+
+register_result "odonnell-degree-one-weight-one-literals" where
+  title := "Boolean functions with all Fourier weight on degree one are the literals"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 1.19(a)",
+      locator := "arXiv:2105.10386v1, §1.7, printed p. 37" }
+  ]
+  theorems := [Cslib.BitString.levelWeight_one_signVal_eq_one_iff]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), W¹[f] = 1 if and only if f x = b ⊕ x i for some coordinate i \
+    and bit b; these literals are the book's ±χ_S with |S| = 1. The book asks only for the \
+    forward direction; the converse is included. Parts (b) and (c) of the exercise are not \
+    covered by this entry."
+
+register_result "odonnell-unbiased-noise-stability-dictators" where
+  title := "Dictators maximize the noise stability of unbiased Boolean functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 2.50",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_signVal_le_of_expect_eq_zero,
+    Cslib.BitString.noiseStability_signVal_eq_iff_of_expect_eq_zero]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), with 𝔼 x, signVal (f x) = 0: Stab_ρ[f] ≤ ρ for 0 ≤ ρ ≤ 1, \
+    the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
+    and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
+    case fails at both endpoints."

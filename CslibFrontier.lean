@@ -6121,6 +6121,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateSampling
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
+public import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.Fibers
 public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
