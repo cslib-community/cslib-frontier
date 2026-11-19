@@ -165,7 +165,7 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
     H.signInternal s key (formatMessage msg ctx) rnd =
       G.signInternal s key (formatMessage msg ctx) rnd := by
   simp only [Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
-    bind_assoc, pure_bind]
+    Xofs.startDecodedSigning, bind_assoc, pure_bind]
   apply Option.bind_congr
   intro sk hsk
   obtain ⟨hr, hk, ht⟩ := lengths_of_decodePrivate hsk
@@ -244,7 +244,8 @@ private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Lev
     intro q hq
     rcases q with n | dev | req
     · rfl
-    · simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
+    · funext st
+      simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
     · funext st
       change ((H.signingOracle s keys.secretKey req st.2).map _) =
         ((G.signingOracle s keys.secretKey req st.2).map _)

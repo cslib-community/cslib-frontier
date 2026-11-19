@@ -292,7 +292,7 @@ theorem isPPTOn_groupHashToDLAdversary {blockLen : F.Desc → ℕ}
       (encPair (encPair encUnary (encPair F.encDesc encBits)) (encPair encBits encBits))
       encBits := by
     fun_prop
-  exact hextract.tidy.isPPTOn
+  exact hextract.isPPTOn
 
 /-- **Collision resistance of the discrete-logarithm hash family under the discrete-logarithm
 assumption** ([KatzLindell2020], Section 9.4.2, Theorem 9.79, pp. 358–359): if

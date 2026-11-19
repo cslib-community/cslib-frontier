@@ -156,9 +156,9 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
       funext p; simp only [doubleSign, beq_iff_eq]
     rw [heq]
     have h0msg := (ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg
-    exact IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 0))
+    exact IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 0))
       (S.sign_ppt.preprocess (hdec.fst'.prod h0msg))
-      (IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 1))
+      (IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 1))
         (S.sign_ppt.preprocess (hdec.snd'.prod h0msg))
         (ComputableInPolyTime.const []).isPPTOn)
   verify_polyTime := by
@@ -650,10 +650,10 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
           (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
             ProbOracleComp.sample (S.sign pair.1.2.2 0 (requestDecoder.decode pair.2.1.2).2)
       else pure ([], pair.2.2))
-  refine IsOraclePPTOn.ite' hfreshDec (IsOraclePPTOn.ite' hslotDec ?_ ?_)
+  refine IsOraclePPTOn.ite hfreshDec (IsOraclePPTOn.ite hslotDec ?_ ?_)
     (((ComputableInPolyTime.const []).prod hsigned).isOraclePPTOn)
   · have hqword := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hr2).encoding_comp
-    exact (IsOraclePPTOn.query_take' () hqword hb).map_with' hconsLog
+    exact (IsOraclePPTOn.query_take () hqword hb).map_with hconsLog
   · have hsignLocal := (S.sign_ppt.preprocess
       (hotherSk.prod ((ComputableInPolyTime.const 0).prod hr2))).map_with
       (f := fun pair sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) hconsLog

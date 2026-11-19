@@ -149,6 +149,24 @@ theorem cachedHeight_eq_height {t : AVLTree α} (hc : HeightConsistent t) :
     simp only [cachedHeight_node, toBinaryTree_node, BinaryTree.height, hh, ihl hcl, ihr hcr]
     omega
 
+/-- A labelled binary tree has at most one decoration by consistent cached heights. -/
+theorem HeightConsistent.eq_of_toBinaryTree_eq {t u : AVLTree α}
+    (ht : t.HeightConsistent) (hu : u.HeightConsistent) (eq : t.toBinaryTree = u.toBinaryTree) :
+    t = u := by
+  induction t generalizing u with
+  | nil => cases u <;> simp_all [toBinaryTree]
+  | node key height l r il ir =>
+    cases u with
+    | nil => cases eq
+    | node key' height' l' r' =>
+      obtain ⟨rfl, el, er⟩ := BinaryTree.node.inj eq
+      have left := il ht.2.1 hu.2.1 el
+      have right := ir ht.2.2 hu.2.2 er
+      subst l' r'
+      have same : height = height' := ht.1.trans hu.1.symm
+      subst height'
+      rfl
+
 /-- The Fibonacci step of the node-count bound: sibling heights `n`, `m` differing by at most `1`
 give `Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2)`. -/
 private theorem fib_one_add_max_add_two_le {n m : ℕ} (hnm : n ≤ m + 1) (hmn : m ≤ n + 1) :

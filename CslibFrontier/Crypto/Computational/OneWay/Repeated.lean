@@ -302,7 +302,7 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
       return if res.1.1.length = g then res.1.2 else []
     else return []
   have hbody : IsPPT encBits body := by
-    refine (hg.bind_with (IsPPTOn.ite'
+    refine (hg.bind_with (IsPPTOn.ite
       (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.snd encNY encUnary)
         (ht_ny.comp (ComputableInPolyTime.fst encNY encUnary)))
       (hfront.bind_with (hback.bind_with (hrun.bind_with hpost.isPPTOn)))

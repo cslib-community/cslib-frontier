@@ -138,7 +138,7 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
         (List.take (blockLen p.1) <$>
           ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), BitString.lowBits (blockLen p.1) p.2.1.length))) :=
-    (IsOraclePPTOn.query_take' () hq (hblockLen.comp hn)).keep_input
+    (IsOraclePPTOn.query_take () hq (hblockLen.comp hn)).keep_input
   have hmap : ComputableInPolyTime
       (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
         (q.2 :: q.1.2.1, q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2)))
@@ -170,7 +170,7 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
       (ComputableInPolyTime.of_finite (encIn := encPair encBool encBool) (encOut := encBool)
         fun p : Bool × Bool => p.1 || p.2).comp (hqflag.prod hany)
     exact (hr.cons' hqseen).prod hor
-  convert hquery.map' hmap using 1
+  convert hquery.map hmap using 1
   funext pair
   simp [wordBirthdayStep, bind_pure_comp]
 
@@ -202,13 +202,13 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
   have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBool)
       (fun n => OracleComp.iterate (min (Q n) (2 ^ blockLen n))
         (wordBirthdayStep blockLen n) ([], false)) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinit
+    IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinit
       (isOraclePPTOn_wordBirthdayStep hblockLen) hpoly hgrowth
   have hres : IsOraclePPTOn encUnary encBool
       (fun n => Prod.snd <$> OracleComp.iterate (min (Q n) (2 ^ blockLen n))
         (wordBirthdayStep blockLen n) ([], false)) :=
-    hiter.map' (by fun_prop)
-  exact (hres.preprocess' (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+    hiter.map (by fun_prop)
+  exact (hres.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end PolyTime
 

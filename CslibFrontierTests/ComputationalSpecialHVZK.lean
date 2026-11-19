@@ -529,7 +529,7 @@ theorem computationalSpecialHVZK_prgWitnessSigma
               (adversary p.1 p.1).guess out.2 (t, c, ()) := by
         refine hchoose.bind_with ?_
         refine IsPPTOn.bind_with (left := encBits) ?_ ?_
-        · exact IsPPTOn.cond' (by fun_prop) (by ppt) (by fun_prop)
+        · exact IsPPTOn.cond (by fun_prop) (by ppt) (by fun_prop)
         refine IsPPTOn.bind_with (left := encBool) (by ppt) ?_
         exact hguess
       refine hrun.congr fun ⟨n, word⟩ => congrArg ProbComp.eval ?_

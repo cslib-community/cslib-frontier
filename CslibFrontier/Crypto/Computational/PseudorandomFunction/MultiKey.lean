@@ -182,13 +182,13 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
   let hn := h1.fst'.fst'
   let hquery := h2.fst'.snd'
   let hcache := h2.snd'
-  refine IsOraclePPTOn.finite_cases' (tagEncoding := encFinEnum (Fin t))
+  refine IsOraclePPTOn.finite_cases (tagEncoding := encFinEnum (Fin t))
     (tag := fun x : HandlerInput t => x.2.1.1)
     (branch := fun i x => prfMultiHandler family t j x.1.1.1 x.1.2 (i, x.2.1.2) x.2.2)
     h2.fst'.fst' fun i => ?_
   by_cases hlt : i.val < j
   · simp only [prfMultiHandler, hlt, ↓reduceIte]
-    refine IsOraclePPTOn.ite' (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
+    refine IsOraclePPTOn.ite (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
     · exact (IsPPTOn.memoize (input := handlerInputEncoding t)
         (keyEncoding := encPair (encFinEnum (Fin t)) encBits) (valueEncoding := encBits)
         (compute := fun (x : HandlerInput t) (_ : Fin t × List Bool) =>
@@ -199,7 +199,7 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
         (((ComputableInPolyTime.const ([] : List Bool)).prod hcache))).isOraclePPTOn
   by_cases heq : i.val = j
   · simp only [prfMultiHandler, heq, ↓reduceIte, lt_irrefl]
-    exact (IsOraclePPTOn.query_take' () hquery hn).map_with'
+    exact (IsOraclePPTOn.query_take () hquery hn).map_with
       (f := fun (x : HandlerInput t) reply => (reply, x.2.2))
       ((ComputableInPolyTime.snd _ _).prod (hcache.comp (ComputableInPolyTime.fst _ _)))
   · simp only [prfMultiHandler, hlt, heq, ↓reduceIte]
@@ -230,7 +230,7 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
     hres ?_
   · exact (((ComputableInPolyTime.const t).unary_mul'
       (.fst _ _)).sampleList.isOraclePPTOn.bind_with
-      (hrun.map' (ComputableInPolyTime.fst _ _))).isOraclePPT
+      (hrun.map (ComputableInPolyTime.fst _ _))).isOraclePPT
   intro caller ⟨i, query⟩ cache hcache result hresult
   dsimp only [cacheEncoding]
   have hkeyLength : (encPair (encFinEnum (Fin t)) encBits (i, query)).length ≤

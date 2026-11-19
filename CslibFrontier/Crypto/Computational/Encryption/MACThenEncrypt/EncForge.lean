@@ -271,7 +271,7 @@ theorem isOraclePPT_mteToMACForger (E : SymmetricCipher) (M : MACScheme)
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (mteToMACHandler E caller.1.1 (ptLen caller.1.1) (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run ()) :=
-    hrun.map_with' (computableInPolyTime_mteMACPost (encFinEnum Unit) E M hptLen)
+    hrun.map_with (computableInPolyTime_mteMACPost (encFinEnum Unit) E M hptLen)
   unfold mteToMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 

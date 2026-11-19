@@ -296,7 +296,7 @@ private theorem isPPTOn_run_signingPairOracleOn (M : MACScheme)
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
         M.signingPairOracleOn policy pair.1.2 pair.2.1 pair.2.2) := by
     unfold signingPairOracleOn
-    exact IsPPTOn.ite' (hpolicy.comp (by fun_prop))
+    exact IsPPTOn.ite (hpolicy.comp (by fun_prop))
       ((M.isPPTOn_sign_comp (by fun_prop) (by fun_prop)).bind_with
         (ComputableInPolyTime.isPPTOn (by fun_prop)))
       (ComputableInPolyTime.isPPTOn (by fun_prop))

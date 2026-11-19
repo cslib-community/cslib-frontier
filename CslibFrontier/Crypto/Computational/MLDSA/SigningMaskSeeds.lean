@@ -21,7 +21,7 @@ import CslibFrontier.Tactic.PMFSwap
 /-!
 # Coupling the mask-seed reads of all signing requests to the shared SHAKE256 oracle
 
-[FIPS 204][NISTFIPS204], Algorithm 6 line 1 derives the 32-byte signing key component
+[FIPS 204][NISTFIPS204], Algorithm 6 line 1 derives the 32-byte private signing seed
 from a 272-bit input. Algorithm 7 line 7 reads the first 64 bytes from a 1024-bit input
 containing that component, a 32-byte hedge and the message representative. For distinct
 hedges, all such inputs admit independent 64-byte values in the *same* raw oracle. The
@@ -37,12 +37,12 @@ open Cslib.Probability ExtendableOutput
 /-- The 64-byte mask seed for each signing slot and each possible 512-bit representative. -/
 abbrev SigningMaskSeeds (n : ℕ) := Fin n × BitString 512 → FixedBytes 64
 
-private def signingKeyBytes (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
+private def signingSeedBytes (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
   (H.expandKeySeed s seed).drop 96
 
-private theorem signingKeyBytes_length (H : Xofs) (s : Level) (seed : FixedBytes 32) :
-    (signingKeyBytes H s seed).length = 32 := by
-  simp [signingKeyBytes, Xofs.expandKeySeed, ExtendableOutput.readBytes, H.h256.length_read]
+private theorem signingSeedBytes_length (H : Xofs) (s : Level) (seed : FixedBytes 32) :
+    (signingSeedBytes H s seed).length = 32 := by
+  simp [signingSeedBytes, Xofs.expandKeySeed, H.h256.length_read]
 
 private def seedInput {n : ℕ} (key : List Byte) (t : Fin n ↪ FixedBytes 32)
     (p : Fin n × BitString 512) : List Bool :=
@@ -94,7 +94,7 @@ private noncomputable def coupled {a b n : ℕ} (base : Xofs) (s : Level) (seed 
     (t : Fin n ↪ FixedBytes 32) (ha : 1024 ≤ a) (hb : 64 ≤ b) (r : SeedCell n → Byte)
     (T₁ T₂ : Table a b) : SigningMaskSeedOracles :=
   let H := streams base T₁ T₂
-  let e := seedCells t (signingKeyBytes H s seed) (signingKeyBytes_length H s seed) ha hb
+  let e := seedCells t (signingSeedBytes H s seed) (signingSeedBytes_length H s seed) ha hb
   ⟨H, streams base T₁ (Function.extend e r T₂)⟩
 
 /-- Sample raw SHAKE tables, derive the private key component at the Algorithm 6 input, then
@@ -110,7 +110,7 @@ noncomputable def Xofs.sampleSigningMaskSeeds (base : Xofs) (s : Level) (seed : 
 private theorem coupled_off {a b n : ℕ} (base : Xofs) (s : Level) (seed : FixedBytes 32)
     (t : Fin n ↪ FixedBytes 32) (ha : 1024 ≤ a) (hb : 64 ≤ b) (r : SeedCell n → Byte)
     (T₁ T₂ : Table a b) (x : List Bool) (i : ℕ)
-    (miss : 64 ≤ i ∨ ∀ p, seedInput (signingKeyBytes (streams base T₁ T₂) s seed) t p ≠ x) :
+    (miss : 64 ≤ i ∨ ∀ p, seedInput (signingSeedBytes (streams base T₁ T₂) s seed) t p ≠ x) :
     let pair := coupled base s seed t ha hb r T₁ T₂
     pair.shared.h256.byteAt x i = pair.background.h256.byteAt x i := by
   dsimp only [coupled, streams]
@@ -123,7 +123,7 @@ private theorem coupled_off {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
     · have eq : p.2.val = i := congrArg (fun z => z.2.val) hp
       exact (Nat.not_lt_of_ge offset) (eq ▸ p.2.isLt)
     · apply raw p.1
-      apply word_inj (hx := (seedInput_length (signingKeyBytes_length ..) t p.1).le.trans ha)
+      apply word_inj (hx := (seedInput_length (signingSeedBytes_length ..) t p.1).le.trans ha)
         (hy := inside.1)
       exact congrArg Prod.fst hp
   · simp [inside]
@@ -134,19 +134,15 @@ private theorem coupled_key {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
     let pair := coupled base s seed t ha hb r T₁ T₂
     pair.shared.expandKeySeed s seed = pair.background.expandKeySeed s seed := by
   let pair := coupled base s seed t ha hb r T₁ T₂
-  let x := Keccak.bytesToBitsLE
-    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ])
+  let x := keySeedInput s seed
   change pair.shared.h256.read x 128 = pair.background.h256.read x 128
-  have len : x.length = 272 := by
-    dsimp only [x]
-    rw [Keccak.length_bytesToBitsLE, List.length_append, FixedBytes.length_toList seed]
-    rfl
+  have len : x.length = 272 := length_keySeedInput s seed
   apply read_eq_of_byteAt_eq
   intro i _
   apply coupled_off _ _ _ _ _ _ _ _ _ _ _ (.inr _)
   intro p eq
   have he := congrArg List.length eq
-  rw [seedInput_length (signingKeyBytes_length ..), len] at he
+  rw [seedInput_length (signingSeedBytes_length ..), len] at he
   contradiction
 
 /-- Algorithm 7 reads exactly the assigned mask seed at each programmed address. The private
@@ -163,9 +159,9 @@ theorem read_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed : Fix
   obtain ⟨T₁, _, T₂, _, rfl⟩ := h
   rw [coupled_key]
   let H := streams base T₁ T₂
-  let key := signingKeyBytes H s seed
+  let key := signingSeedBytes H s seed
   let x := seedInput key t (i, μ)
-  let e := seedCells t key (signingKeyBytes_length H s seed) ha hb
+  let e := seedCells t key (signingSeedBytes_length H s seed) ha hb
   let G := install base.h256 (Function.extend e (seedBytes n rows) T₂)
   change G.read x 64 = _
   apply List.ext_getElem
@@ -173,7 +169,7 @@ theorem read_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed : Fix
   · intro j hj _
     have small : j < 64 := hj.trans_le (G.length_read ..).le
     let c : SeedCell n := ((i, μ), ⟨j, small⟩)
-    have hx : x.length ≤ a := (seedInput_length (signingKeyBytes_length ..) ..).le.trans ha
+    have hx : x.length ≤ a := (seedInput_length (signingSeedBytes_length ..) ..).le.trans ha
     have loc : e c = (word x hx, ⟨j, small.trans_le hb⟩) := rfl
     rw [getElem_read _ _ small]
     simp only [G, byteAt_install, dite_eq_left (And.intro hx (small.trans_le hb)), ← loc,
@@ -209,8 +205,8 @@ private theorem read_ne_maskSeed_length {base : Xofs} {s : Level} {seed : FixedB
   intro i μ eq
   apply hx
   rw [← eq, length_maskSeedInput, List.length_ofFn]
-  change 8 * ((signingKeyBytes pair.background s seed).length + 32) + 512 = 1024
-  rw [signingKeyBytes_length]
+  change 8 * ((signingSeedBytes pair.background s seed).length + 32) + 512 = 1024
+  rw [signingSeedBytes_length]
 
 /-- The original and the shared oracles produce identical FIPS key bytes, including on
 key-generation failures. The setup seed here can be chosen independently of the one used to
@@ -273,12 +269,12 @@ theorem Xofs.uniform_shared_sampleSigningMaskSeeds (base : Xofs) (s : Level) (se
   simp only [sampleSigningMaskSeeds, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind,
     PMF.pure_map]
   pmf_swap with T₁
-  let e (T₂ : Table a b) := seedCells t (signingKeyBytes (streams base T₁ T₂) s seed)
-    (signingKeyBytes_length ..) ha hb
+  let e (T₂ : Table a b) := seedCells t (signingSeedBytes (streams base T₁ T₂) s seed)
+    (signingSeedBytes_length ..) ha hb
   have stable (f : Table a b) (r : SeedCell n → Byte) : e (Function.extend (e f) r f) = e f := by
     let f' := Function.extend (e f) r f
-    have key : signingKeyBytes (streams base T₁ f') s seed =
-        signingKeyBytes (streams base T₁ f) s seed :=
+    have key : signingSeedBytes (streams base T₁ f') s seed =
+        signingSeedBytes (streams base T₁ f) s seed :=
       congrArg (List.drop 96) (coupled_key base s seed t ha hb r T₁ f)
     change seedCells t _ _ ha hb = seedCells t _ _ ha hb
     exact seedCells_eq t ha hb key
@@ -289,18 +285,18 @@ theorem Xofs.uniform_shared_sampleSigningMaskSeeds (base : Xofs) (s : Level) (se
   rw [PMF.bind_comm]
   exact law
 
-/-- A change in any message representative forces a selected hedge to equal the second
-half of the public-key hash. All formatted messages for that hash share the same condition. -/
-private theorem hedge_of_representative_ne {base : Xofs} {s : Level} {seed : FixedBytes 32}
+/-- A changed representative identifies both halves of the public-key hash as the private
+signing seed `K` followed by one of the selected hedges. -/
+private theorem seed_hedge_of_representative_ne {base : Xofs} {s : Level} {seed : FixedBytes 32}
     {a b n : ℕ} {t : Fin n ↪ FixedBytes 32} {ha : 1024 ≤ a} {hb : 64 ≤ b}
     {rows : SigningMaskSeeds n} {pair : SigningMaskSeedOracles}
     (hp : pair ∈ (base.sampleSigningMaskSeeds s seed t ha hb rows).support)
     (tr : List Byte) (ht : tr.length = 64) (formatted : List Bool)
     (hne : pair.shared.representativeFromTr tr formatted ≠
       pair.background.representativeFromTr tr formatted) :
-    ∃ i, (t i).toList = tr.drop 32 := by
-  let key := signingKeyBytes pair.background s seed
-  have hk : key.length = 32 := signingKeyBytes_length ..
+    ∃ i, tr = (pair.background.expandKeySeed s seed).drop 96 ++ (t i).toList := by
+  let key := signingSeedBytes pair.background s seed
+  have hk : key.length = 32 := signingSeedBytes_length ..
   by_contra! miss
   apply hne
   apply congrArg Keccak.bytesToBitsLE
@@ -311,12 +307,10 @@ private theorem hedge_of_representative_ne {base : Xofs} {s : Level} {seed : Fix
   have sameLength : (Keccak.bytesToBitsLE (key ++ (t i).toList)).length =
       (Keccak.bytesToBitsLE tr).length := by
     rw [Keccak.length_bytesToBitsLE, Keccak.length_bytesToBitsLE, List.length_append,
-      FixedBytes.length_toList, hk, ht]
+      FixedBytes.length_toList, ht, hk]
   have bytes : key ++ (t i).toList = tr :=
     Keccak.bytesToBitsLE_injective (List.append_inj eq sameLength).1
-  apply miss i
-  rw [← bytes]
-  simpa only [hk] using (List.drop_left (l₁ := key) (l₂ := (t i).toList)).symm
+  exact miss i bytes.symm
 
 /-- For each setup seed and supplied table of mask seeds, with a uniformly drawn injective
 hedge tape, the chance that installing the mask seeds changes the message representative for
@@ -355,7 +349,13 @@ theorem Xofs.prob_representative_ne_sampleSigningMaskSeeds (base : Xofs) (s : Le
       obtain ⟨keys, hg, formatted, ne⟩ := of_decide_eq_true hbad
       rw [Xofs.messageRepresentative, publicKeyHash_eq_of_mem_sampleSigningMaskSeeds hp hg] at ne
       apply decide_eq_true
-      exact ⟨keys, hg, hedge_of_representative_ne hp _ (p.background.h256.length_read ..) _ ne⟩
+      obtain ⟨i, eq⟩ := seed_hedge_of_representative_ne hp _ (p.background.h256.length_read ..) _ ne
+      refine ⟨keys, hg, i, ?_⟩
+      change p.background.h256.readBytes keys.publicKey 64 =
+        signingSeedBytes p.background s seed ++ (t i).toList at eq
+      rw [eq]
+      simpa only [signingSeedBytes_length] using
+        (List.drop_left (l₁ := signingSeedBytes p.background s seed) (l₂ := (t i).toList)).symm
     _ ≤ _ := by
       rw [PMF.bind_comm]
       apply PMF.bind_apply_le_on_support

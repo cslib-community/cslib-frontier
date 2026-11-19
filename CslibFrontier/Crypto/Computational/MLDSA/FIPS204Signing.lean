@@ -158,13 +158,17 @@ theorem length_maskSeedInput (key : List Byte) (rnd : FixedBytes 32) (μ : List 
   rw [maskSeedInput, List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
     FixedBytes.length_toList]
 
+private def Xofs.startDecodedSigning (H : Xofs) (s : Level) (sk : PrivateKey s)
+    (formatted : List Bool) (derive : List Bool → List Byte) : Option (SigningState s) := do
+  let matrix ← H.expandA s sk.rho
+  let μ := H.representativeFromTr sk.tr formatted
+  return ⟨sk, matrix, μ, derive μ⟩
+
 private def Xofs.startSigningWithSeed (H : Xofs) (s : Level) (bytes : List Byte)
     (formatted : List Bool) (derive : PrivateKey s → List Bool → List Byte) :
     Option (SigningState s) := do
   let sk ← decodePrivate s bytes
-  let A ← H.expandA s sk.rho
-  let μ := H.representativeFromTr sk.tr formatted
-  return ⟨sk, A, μ, derive sk μ⟩
+  H.startDecodedSigning s sk formatted (derive sk)
 
 private def Xofs.startSigning (H : Xofs) (s : Level) (bytes : List Byte) (formatted : List Bool)
     (rnd : FixedBytes 32) : Option (SigningState s) :=
@@ -267,7 +271,7 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     simp [Xofs.sign, guard, h] at hs
   simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
     Option.bind_some, Xofs.signInternal, Xofs.runSigning, Xofs.signingRetries, Xofs.startSigning,
-    Xofs.startSigningWithSeed, decoded, hA] at hs
+    Xofs.startSigningWithSeed, Xofs.startDecodedSigning, decoded, hA] at hs
   obtain ⟨κ, htry⟩ := attempt_of_firstAccepted hs
   rw [pk] at htry ⊢
   exact verified_of_attempt sk rho hA ctx short htry
@@ -501,7 +505,8 @@ private theorem startSigning_off_rows {H : Xofs} {s : Level} {seed : FixedBytes 
     omega
   have matrix : K.expandA s rho.toList = some sk.A :=
     (Xofs.expandA_congr (K := K) (H := H) rfl s rho.toList).trans hA
-  simp only [Xofs.startSigning, Xofs.startSigningWithSeed, dec, Option.bind_eq_bind,
+  simp only [Xofs.startSigning, Xofs.startSigningWithSeed, Xofs.startDecodedSigning, dec,
+    Option.bind_eq_bind,
     Option.bind_some, matrix, hA,
     Option.pure_def]
   change some _ = some _ ∧ _

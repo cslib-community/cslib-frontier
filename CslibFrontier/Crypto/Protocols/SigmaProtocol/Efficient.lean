@@ -462,7 +462,7 @@ theorem isPPT_andSimulator
       (prepare := fun p : (I × List Bool × List Bool) × List Bool × List Bool =>
         (p.1.1, dropFrame p.1.2.1, p.1.2.2))
       (by fun_prop)).bind_with ?_
-    exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
+    exact ComputableInPolyTime.isPPTOn (by fun_prop)
   · intro i ⟨y₀, y₁⟩ c
     simp only [andSimulator, andSimulateWord, Encoding.andProof, unframe_encPair, dropFrame_encPair,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
@@ -707,7 +707,7 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
       (prepare := fun p : ((I × List Bool × List Bool) × List Bool) × List Bool × List Bool =>
         (p.1.1.1, dropFrame p.1.1.2.1, subWord (p.1.1.1, p.1.1.2.2, p.1.2)))
       (ComputableInPolyTime.of_tidy (by fun_prop))).bind_with ?_
-    exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
+    exact ComputableInPolyTime.isPPTOn (by fun_prop)
   · intro i ⟨y₀, y₁⟩ c
     simp only [orSimulator, orSimulateWord, Encoding.orProof, unframe_encPair, dropFrame_encPair,
       ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map,

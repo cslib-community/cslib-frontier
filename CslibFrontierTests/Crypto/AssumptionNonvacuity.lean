@@ -161,7 +161,7 @@ theorem firstBitZero_isOraclePPT : IsOraclePPT encBool firstBitZero := by
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitZero
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 theorem eval_prfRealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
     (n : ℕ) :

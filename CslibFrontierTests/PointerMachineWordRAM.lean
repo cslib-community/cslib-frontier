@@ -56,12 +56,6 @@ private def condition {L : Layout} (p : Test) (a b : Fin (regCount L)) :
   | .eq => .eq a b
   | .lt => .lt a b
 
-private theorem set_result {L : Layout} (x : Cslib.WordRAM.Data (regCount L))
-    (d : Fin (regCount L)) (v : ℕ) : ScalarResult d v x (x.set d v) where
-  result := by simp [Cslib.WordRAM.Data.set]
-  memory := rfl
-  frame r _ hrd := by simp [Cslib.WordRAM.Data.set, Function.update_of_ne hrd]
-
 private def scalars (L : Layout) : Scalars model L where
   encode := Function.Embedding.refl _
   op := operation
@@ -74,7 +68,7 @@ private def scalars (L : Layout) : Scalars model L where
     change x.regs a = u at hu
     change x.regs b = v at hv
     change Cslib.WordRAM.Fits w (model.evalOp o u v) at hfit
-    refine ⟨x.set d (model.evalOp o u v), ?_, set_result ..⟩
+    refine ⟨x.set d (model.evalOp o u v), ?_, ScalarResult.set ..⟩
     cases o with
     | constant n => exact ExecWithin.const hfit
     | add =>
@@ -88,7 +82,7 @@ private def scalars (L : Layout) : Scalars model L where
   test_spec w p d a b x u v hu hv _ hwidth := by
     change x.regs a = u at hu
     change x.regs b = v at hv
-    refine ⟨x.set d (if model.evalTest p u v then 1 else 0), ?_, set_result ..⟩
+    refine ⟨x.set d (if model.evalTest p u v then 1 else 0), ?_, ScalarResult.set ..⟩
     have heq : (condition p a b).Holds x ↔ model.evalTest p u v = true := by
       cases p <;> simp [condition, Cslib.WordRAM.Cond.holds_eq,
         Cslib.WordRAM.Cond.holds_lt, hu, hv]

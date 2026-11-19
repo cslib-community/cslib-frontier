@@ -189,7 +189,7 @@ theorem Xofs.evalPure_signDigestQueries (H : Xofs) (s : Level) (D) (key : List B
   by_cases hc : q.context.length ≤ 255
   · simp only [Xofs.signDigestQueries, Xofs.sign, guard, hc, ↓reduceIte, Option.pure_def,
       Option.bind_eq_bind, Option.bind_some, Xofs.signInternal, Xofs.runSigning,
-      Xofs.startSigning, Xofs.startSigningWithSeed]
+      Xofs.startSigning, Xofs.startSigningWithSeed, Xofs.startDecodedSigning]
     cases hd : decodePrivate s key with
     | none => rfl
     | some sk =>

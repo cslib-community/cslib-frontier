@@ -198,7 +198,7 @@ def tailCIAdversary (adversary : CIAdversary) : CIAdversary :=
 theorem isOraclePPT_tailCIAdversary {adversary : CIAdversary}
     (hadversary : IsOraclePPT encBits adversary) :
     IsOraclePPT encBits (tailCIAdversary adversary) :=
-  (hadversary.on.map' (by fun_prop)).isOraclePPT
+  (hadversary.on.map (by fun_prop)).isOraclePPT
 
 /-- `tailCIAdversary` preserves any per-input query-count bound `IsQueryBounded Q`. -/
 theorem isQueryBounded_tailCIAdversary (adversary : CIAdversary) (n : ℕ) (aux : List Bool)
@@ -275,7 +275,7 @@ theorem isOraclePPT_prependFalseBitCIAdversary (bit : Bool) {ctBound : ℕ → �
   have hout : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => false :: p.2)
       (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
   unfold prependFalseBitCIAdversary
-  exact ((IsOraclePPTOn.query_take' () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 private theorem decrypt_tailFallback_false_cons_isSome (E : SymmetricCipher) (n : ℕ)
     (k msg ct : List Bool) (hk : k ∈ (ProbComp.eval (E.keyGen n)).support) (hmsg : msg.length = n)
@@ -405,8 +405,8 @@ theorem isOraclePPT_tailFallbackCCAAdversary {ctBound : ℕ → ℕ}
       E2 encBool := by
     dsimp only [E2, E1, E0]; fun_prop
   unfold tailFallbackCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hreq1 hlim1).bind_with
-    ((IsOraclePPTOn.query_take' true hreq2 hlim2).bind_with hout.isOraclePPTOn)).isOraclePPT
+  exact ((IsOraclePPTOn.query_take false hreq1 hlim1).bind_with
+    ((IsOraclePPTOn.query_take true hreq2 hlim2).bind_with hout.isOraclePPTOn)).isOraclePPT
 
 private theorem eval_encForgeGame_prependFalseBitCIAdversary (E : SymmetricCipher)
     (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
@@ -634,7 +634,7 @@ noncomputable def tailTagForger (adversary : Forger) : Forger :=
 theorem isOraclePPT_tailTagForger {adversary : Forger}
     (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     IsOraclePPT (encPair encBits encBits) (tailTagForger adversary) :=
-  (hadversary.on.map' (by fun_prop)).isOraclePPT
+  (hadversary.on.map (by fun_prop)).isOraclePPT
 
 private theorem succProbability_redundantTag_runDist_le (M : MACScheme)
     (oracle :
@@ -725,7 +725,7 @@ theorem isOraclePPT_redundantTagForger (M : MACScheme) {tagBound : ℕ → ℕ}
         (List.replicate (M.msgLen p.1.1) false, false :: p.2))
       (encPair (encPair encUnary encBits) encBits) (encPair encBits encBits) := by fun_prop
   unfold redundantTagForger
-  exact ((IsOraclePPTOn.query_take' () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 /-- In `sufOneTimeGame` against `M.redundantTag`, `M.redundantTagForger tagBound` wins with
 probability `1` at every security parameter `n` where `tagBound n` bounds tag lengths. -/
@@ -817,7 +817,7 @@ theorem isOraclePPT_etmRedundantCIAdversary {ctBound : ℕ → ℕ}
         encPair encBits encBits (unframe p.2, false :: dropFrame p.2))
       (encPair (encPair encUnary encBits) encBits) encBits := by fun_prop
   unfold etmRedundantCIAdversary
-  exact ((IsOraclePPTOn.query_take' () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hreq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 private theorem singleton_encPair_contains_false_cons (c tag : List Bool) :
     ([encPair encBits encBits (c, tag)].contains
@@ -1002,8 +1002,8 @@ theorem isOraclePPT_etmRedundantCCAAdversary {ctBound : ℕ → ℕ}
       E2 encBool := by
     dsimp only [E2, E1, E0]; fun_prop
   unfold etmRedundantCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hreq1 hlim1).bind_with
-    ((IsOraclePPTOn.query_take' true hreq2 hlim2).bind_with hout.isOraclePPTOn)).isOraclePPT
+  exact ((IsOraclePPTOn.query_take false hreq1 hlim1).bind_with
+    ((IsOraclePPTOn.query_take true hreq2 hlim2).bind_with hout.isOraclePPTOn)).isOraclePPT
 
 /-- In `ccaOneTimeGame` against `encryptThenMAC E M.redundantTag hctLen` at challenge bit `bit`,
 `etmRedundantCCAAdversary ctBound` outputs `true` iff `some (List.replicate n bit)` encodes to

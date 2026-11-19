@@ -413,6 +413,14 @@ private def PrivateKey.encode {s : Level} (v : PrivateKey s) : List Byte :=
   v.rho ++ (v.key ++ (v.tr ++ (packSigned width s.params.η v.s₁ ++
     (packSigned width s.params.η v.s₂ ++ packSigned 13 4096 v.t₀))))
 
+private theorem PrivateKey.length_encode {s : Level} (w : PrivateKey s)
+    (hr : w.rho.length = 32) (hk : w.key.length = 32) (ht : w.tr.length = 64) :
+    w.encode.length = 128 +
+      32 * ((2 * s.params.η).log2 + 1) * s.params.ℓ +
+      32 * ((2 * s.params.η).log2 + 1) * s.params.k + 32 * 13 * s.params.k := by
+  simp only [PrivateKey.encode, List.length_append, hr, hk, ht, packSigned, length_packCoeffs]
+  lia
+
 /-- Algorithm 25 decodes the stored private-key fields from their fixed-width encodings. -/
 def decodePrivate (s : Level) (bytes : List Byte) : Option (PrivateKey s) := do
   let width := (2 * s.params.η).log2 + 1
@@ -452,17 +460,12 @@ private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.
     have small : 2 * s.params.η < 2 ^ w := by cases s <;> decide
     obtain ⟨_, _⟩ := abs_le.mp hz
     omega
-  have len : v.encode.length = 128 + 32 * w * s.params.ℓ + 32 * w * s.params.k +
-      32 * 13 * s.params.k := by
-    simp only [PrivateKey.encode, List.length_append, hr, hk, ht, fieldLen]
-    change 32 + (32 + (64 + (32 * w * _ + (32 * w * _ + _)))) = _
-    omega
   have first := List.drop_left' (l₂ := packSigned w s.params.η v.s₂ ++ packSigned 13 4096 v.t₀)
     (fieldLen w s.params.η v.s₁)
   have second := List.drop_left' (l₂ := packSigned 13 4096 v.t₀) (fieldLen w s.params.η v.s₂)
   unfold decodePrivate
   dsimp only
-  rw [len]
+  rw [v.length_encode hr hk ht]
   dsimp only [w] at first second ⊢
   simp only [guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
     Option.bind_some, PrivateKey.encode, List.take_left' hr, List.drop_left' hr, List.take_left' hk,
@@ -478,10 +481,21 @@ private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.
       unpackSigned_packSigned (width := 13) (upper := 4096) c []
       (fun i j => by have := h₀ i j; norm_num at *; omega) i j
 
+/-- Raw SHAKE256 input of FIPS 204 Algorithm 6, line 1. The 32-byte seed is followed by
+the one-byte matrix dimensions in row then column order. -/
+@[expose] def keySeedInput (s : Level) (seed : FixedBytes 32) : List Bool :=
+  Keccak.bytesToBitsLE (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ])
+
+/-- The Algorithm 6 key expansion uses a 272-bit input at each standardized level. -/
+theorem length_keySeedInput (s : Level) (seed : FixedBytes 32) :
+    (keySeedInput s seed).length = 272 := by
+  rw [keySeedInput, Keccak.length_bytesToBitsLE, List.length_append, FixedBytes.length_toList]
+  rfl
+
 /-- Algorithm 6 reads the public matrix seed, the short-vector seed and the signing key
 in one 128-byte SHAKE256 expansion of the seed and the two dimension bytes. -/
 @[expose] def Xofs.expandKeySeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
-  H.h256.readBytes (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128
+  H.h256.read (keySeedInput s seed) 128
 
 /-- Algorithm 6, from the 32-byte seed to both encoded keys (Algorithms 22, 24).
 Rejection exhaustion during the matrix or short-vector expansion yields an error. -/
@@ -574,8 +588,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
       (∀ i j, |(sk.s₁ i j).valMinAbs| ≤ s.params.η) ∧
       (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
   unfold Xofs.keyGen Xofs.expandKeySeed at hg
-  generalize hh : H.h256.readBytes
-    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded at hg
+  generalize hh : H.h256.read (keySeedInput s seed) 128 = expanded at hg
   have hex : expanded.length = 128 := by rw [← hh]; exact H.h256.length_read ..
   have hr : (expanded.take 32).length = 32 := by simp [hex]
   obtain ⟨rho, hrho⟩ := FixedBytes.exists_toList hr

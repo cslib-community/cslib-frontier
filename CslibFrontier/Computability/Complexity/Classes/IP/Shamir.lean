@@ -149,7 +149,7 @@ theorem exists_isInteractiveProof_one_pow_of_mem_IP {A : Set α} (hA : A ∈ IP 
       (∀ a ∉ A, ∀ P : Prover Unit, acceptProb (verifier a) P ≤ (1 / 3 : ENNReal) ^ k a) := by
   obtain ⟨f, hf, hfA⟩ := TQBF_pspaceHard enc A (IP_subset_PSPACE enc hA)
   refine ⟨fun a => sequentialRepeat (k a) (QBFProtocol.verifier (f a)),
-    (QBFProtocol.isOraclePPTOn_verifier.preprocess' hf).sequentialRepeat_count hk,
+    (QBFProtocol.isOraclePPTOn_verifier.preprocess hf).sequentialRepeat_count hk,
     fun a ha => ⟨QBFProtocol.honestProver (f a),
       QBFProtocol.acceptProb_sequentialRepeat_verifier_honestProver ((hfA a).1 ha) (k a)⟩,
     fun a ha P => acceptProb_sequentialRepeat_le
@@ -163,7 +163,7 @@ theorem exists_isInteractiveProof_one_of_mem_IP {A : Set α} (hA : A ∈ IP enc)
       IsOraclePPTOn enc encBool verifier ∧ IsInteractiveProof verifier A 1 (1 / 3) := by
   obtain ⟨f, hf, hfA⟩ := TQBF_pspaceHard enc A (IP_subset_PSPACE enc hA)
   exact ⟨fun a => QBFProtocol.verifier (f a),
-    QBFProtocol.isOraclePPTOn_verifier.preprocess' hf,
+    QBFProtocol.isOraclePPTOn_verifier.preprocess hf,
     QBFProtocol.isInteractiveProof_verifier.comp hfA⟩
 
 /-- A problem is in `IP` if and only if it has a strict oracle-PPT interactive proof with
@@ -215,7 +215,7 @@ open Classical in
 private theorem isOraclePPTOn_patchWord {A : Set α} {w : List Bool}
     {verifier : α → WordOracleComp Unit Bool} (hV : IsOraclePPTOn enc encBool verifier) :
     IsOraclePPTOn enc encBool (patchWord A enc w verifier) :=
-  IsOraclePPTOn.cond'
+  IsOraclePPTOn.cond
     (((ComputableTidilyInPolyTime.encode enc).computableInPolyTime).decide_eq' (.const w))
     (ComputableInPolyTime.const (decide (∃ x ∈ A, enc x = w))).isOraclePPTOn hV
 

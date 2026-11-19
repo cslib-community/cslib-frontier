@@ -573,7 +573,7 @@ private theorem isOraclePPTOn_cbcBodyQueries :
         List.take p.1.1 <$>
           ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), List.zipWith xor p.2.2.1 (p.2.1.headD []))) :=
-    IsOraclePPTOn.query_take' ()
+    IsOraclePPTOn.query_take ()
       (ComputableInPolyTime.bitsZipWithInput xor
         (by dsimp only [EStep, EIn, EState]; fun_prop)
         (by dsimp only [EStep, EIn, EState]; fun_prop))
@@ -581,9 +581,9 @@ private theorem isOraclePPTOn_cbcBodyQueries :
   have hstep : IsOraclePPTOn EStep EState
       (fun p : (ℕ × List Bool × List Bool) × (List (List Bool) × List Bool × List Bool) =>
         cbcBodyStep p.1.1 p.2) :=
-    hquery.map_with' (f := fun p c => (p.2.1.tail, c, p.2.2.2 ++ c))
+    hquery.map_with (f := fun p c => (p.2.1.tail, c, p.2.2.2 ++ c))
       (by dsimp only [EStep, EIn, EState]; fun_prop)
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := EState)
     (initial := fun a : ℕ × List Bool × List Bool =>
       (BitString.listRows (a.2.2.length / a.1) a.1 a.2.2, a.2.1, ([] : List Bool)))
@@ -599,7 +599,8 @@ private theorem isOraclePPTOn_cbcBodyQueries :
       have htake := List.length_take_le a.1 reply
       simp only [EState, length_encPair, encBits_apply, List.length_append]
       omega)
-  exact hloop.map' (f := fun (_, _, acc) => acc) (by dsimp only [EState]; fun_prop)
+  exact IsOraclePPTOn.map hloop (f := fun (_, _, acc) => acc)
+    (by dsimp only [EState]; fun_prop)
 
 /-- Every supported output of `cbcBodyQueries n iv msg` has at most `msg.length` bits. -/
 private theorem length_le_of_mem_support_cbcBodyQueries (n : ℕ) (iv msg reply : List Bool)
