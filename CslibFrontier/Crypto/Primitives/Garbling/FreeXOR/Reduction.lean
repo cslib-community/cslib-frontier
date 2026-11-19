@@ -1727,7 +1727,7 @@ private theorem isOraclePPTOn_replyStep {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime.listAppend' (hrs.comp (ComputableInPolyTime.fst E encBits))
       (ComputableInPolyTime.cons' (ComputableInPolyTime.snd E encBits) hnil)
   unfold replyStep
-  exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () hreq hlim) hpost
+  exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () hreq hlim) hpost
 
 private theorem length_le_of_mem_support_replyStep {k : ℕ} {reqs rs next : List (List Bool)}
     (hnext : next ∈ OracleComp.support (replyStep k reqs rs)) :
@@ -1898,7 +1898,7 @@ private theorem isOraclePPTOn_prvSimLoop_aux {γ : Type} {encIn : γ ↪ List Bo
       (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod
         (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2))))
       (ComputableInPolyTime.const 2)
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth' (Operation := Unit)
+  exact IsOraclePPTOn.iterateWith_of_bounded_growth (Operation := Unit)
     (input := encIn) (stateEncoding := encList encBits) (initial := fun _ => [])
     (count := fun p => (reqs p).length) (step := fun p => replyStep (k p) (reqs p))
     hcount (ComputableInPolyTime.const (encIn := encIn) []) (isOraclePPTOn_replyStep hk hreqs)
@@ -2001,7 +2001,7 @@ private theorem isOraclePPTOn_prvSimBranch :
   have hlen : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       (p.2.1.fn.1.n + p.2.1.fn.1.q) * (p.1.1 + 2)) E encUnary := by polytime
   have hcoins := (isPPTOn_sampleList.preprocess hlen).isOraclePPTOn (Operation := Unit)
-  exact IsOraclePPTOn.ite' hcond (hcoins.bind_with (isOraclePPTOn_prvSimGuess hf hB)) hnone
+  exact IsOraclePPTOn.ite hcond (hcoins.bind_with (isOraclePPTOn_prvSimGuess hf hB)) hnone
 
 include hf hB in
 /-- **Efficiency of the reduction.** For every hash family computed in polynomial time and every
