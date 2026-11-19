@@ -8295,11 +8295,13 @@ register_result "prf-mac-suf-cma" where
     generation and tagging, polynomial-time verification and correctness on n-bit messages. The \
     notion is SUFCMA (Attack Game 6.1 and Definition 6.2, pp. 218–219), against uniform strict \
     oracle-PPT forgers in the standard model: a forgery wins when it is a valid pair on an n-bit \
-    message that the tagging oracle never returned. Tagging queries may be words of any length, \
-    which prfMAC answers with the empty word unless they have n bits, where the source's \
-    queries lie in the message space; this admits more forgers, so the conclusion implies \
-    Definition 6.2 on n-bit messages. The reduction macToPrfDistinguisher is certified oracle \
-    PPT (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
+    message that the tagging oracle never returned. As in the source, tagging queries and the \
+    forgery lie in the message space of n-bit words: the tagging oracle answers a query of \
+    another length with the empty word, without tagging or recording it, and a candidate tag \
+    that is not an n-bit word never verifies, so the notion is Definition 6.2 for prfMAC on \
+    n-bit messages. The reduction macToPrfDistinguisher forwards each n-bit tagging query to \
+    its PRF oracle, refuses the others itself, and is certified oracle PPT \
+    (isOraclePPT_macToPrfDistinguisher). Asymptotic; succProbability_sufCmaGame_prfMAC_le, \
     in the same module, is the theorem's bound MACadv[A, I] ≤ PRFadv[B, F] + 1/2^n, with \
     1/2^n = 1/|Y|."
 

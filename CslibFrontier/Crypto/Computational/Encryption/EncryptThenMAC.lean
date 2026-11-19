@@ -563,7 +563,7 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
     rw [etm_sufCma_win_eq_ci_win E M hctLen n ke km x.1 x.2.2]
   have hsim := ProbOracleComp.runWith_map_state
     (oracle := fun q (state : Unit × List (List Bool × List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingPairOracle km q s))
+      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingPairOracle n km q s))
           (etmToMACHandler E n (tagBound n) ke q state.1) state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (oracle' := fun q s =>
@@ -584,7 +584,8 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-          MACScheme.signingPairOracle, ProbComp.eval_bind, ProbComp.eval_pure]
+          MACScheme.signingPairOracle, hcLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind,
+          ProbComp.eval_pure]
         simp only [PMF.map_bind, PMF.pure_map, PMF.pure_bind, Prod.map_apply, id_eq]
         apply PMF.bind_congr_on_support
         intro tag htag
@@ -840,7 +841,7 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
   have hsim1 := ProbOracleComp.runWith_map_state
     (oracle := etmOneTimeMACIntermediateOracle E M n ke km)
     (oracle' := fun q (state : Bool × List (List Bool × List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle km q s))
+      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle n km q s))
           ((etmToOneTimeMACHandler E n (tagBound n) ke q).run state.1) state.2).map
         (fun result => (result.1.1, result.1.2, result.2)))
     (represent := fun queriedPairs : List (List Bool × List Bool) =>
@@ -849,7 +850,7 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
       intro ⟨⟨⟩, msg⟩ queriedPairs
       change (etmOneTimeMACIntermediateOracle E M n ke km ((), msg) queriedPairs).map
           (fun x => (x.1, !x.2.isEmpty, x.2)) =
-        (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle km q s))
+        (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle n km q s))
             (etmToOneTimeMACHandler E n (tagBound n) ke ((), msg) (!queriedPairs.isEmpty))
             queriedPairs).map
           (fun result => (result.1.1, result.1.2, result.2))
@@ -865,7 +866,8 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg hmsgLen c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           MACScheme.oneTimeSigningPairOracle]
-        simp only [List.isEmpty_nil, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+        simp only [hcLen, beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte,
+          ProbComp.eval_bind, ProbComp.eval_pure,
           Probability.PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, List.isEmpty_cons,
           Bool.not_false, Prod.map_apply, id_eq]
         apply PMF.bind_congr_on_support

@@ -1851,8 +1851,8 @@ signing request `request.2`, it decodes `msg := unframe request.2` and
 `nonce := dropFrame request.2`. When `msg.length == msgLen n` and `nonce.length == n`, it queries
 the external oracle on `((), nonce)` (reading `n` bits `pad`), computes
 `tag := BitString.listXor n [hash n k msg, pad]`, and prepends `((msg, nonce), tag)` to
-`queriedTriples`; otherwise it returns `[]` and prepends `((msg, nonce), [])` without querying the
-external oracle. -/
+`queriedTriples`; otherwise it returns `[]` without querying the external oracle or recording the
+request, as the nonce-based tagging oracle does. -/
 def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
     StateT (List ((List Bool × List Bool) × List Bool)) (WordOracleComp Unit) (List Bool) :=
@@ -1865,7 +1865,7 @@ def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List 
         (tag, ((msg, nonce), tag) :: queriedTriples)) <$>
         (List.take n <$> ProbOracleComp.query ((), nonce))
     else
-      pure ([], ((msg, nonce), []) :: queriedTriples)
+      pure ([], queriedTriples)
 
 /-- Oracle reduction turning an adaptive word-level `NonceMACForger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274):
@@ -1922,8 +1922,7 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
       ((show ComputableInPolyTime
         (fun p : ((ℕ × List Bool) × List Bool) ×
             ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
-          (([] : List Bool),
-            ((unframe p.2.1.2, dropFrame p.2.1.2), ([] : List Bool)) :: p.2.2))
+          (([] : List Bool), p.2.2))
         (encPair (encPair (encPair encUnary encBits) encBits)
           (encPair (encPair (encFinite Unit) encBits)
             (encList (encPair (encPair encBits encBits) encBits))))
@@ -2015,7 +2014,7 @@ theorem eval_prfRealGame_prfNonceToPrfDistinguisher
           (OracleComp.sumHandler ProbComp.unifFin (fun req =>
             pure (prfOracle family n prfKey req.2)))
           (cwNonceLogHandler msgLen hash n k request state)) =
-      M.signingPairOracle (encPair encBits encBits (k, prfKey)) := by
+      M.signingPairOracle n (encPair encBits encBits (k, prfKey)) := by
     funext request state
     simp only [cwNonceLogHandler, NonceMACScheme.signingPairOracle, M, carterWegmanNonceMAC,
       encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, hprfLen]
@@ -2061,7 +2060,7 @@ private def adaptNonceStep (msgLen : ℕ → ℕ) (n : ℕ) (request : Unit × L
         (tag, ((msg, nonce), tag) :: queriedTriples)) <$>
         ProbOracleComp.query (BitString.ofList (msgLen n) msg, BitString.ofList n nonce)
     else
-      pure ([], ((msg, nonce), []) :: queriedTriples)
+      pure ([], queriedTriples)
 
 private def cwNonceIdealCheck (msgLen : ℕ → ℕ)
     (hash : ℕ → List Bool → List Bool → List Bool)
@@ -2222,10 +2221,7 @@ private theorem eval_cwNonceLogHandler_randomFunctionOracle_le
           Bool.eq_false_iff.mpr hcond
         simp only [pmf_norm, hcond', Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure,
           StateT.run_pure]
-        have hsub' : tr.map ofBitTriple <+ (((msg, nonce), []) :: init).reverse := by
-          rw [List.reverse_cons]
-          exact hsub.trans (List.sublist_append_left _ _)
-        exact ih [] (((msg, nonce), []) :: init) tr hsub'
+        exact ih [] init tr hsub
 
 /-- **Ideal-game bound for `prfNonceToPrfDistinguisher`**, a step of the proof of
 [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274): under
@@ -2987,7 +2983,8 @@ noncomputable def carterWegmanRandomMAC (msgLen : ℕ → ℕ)
 `nonce ← BitString.sampleList n`, queries the external oracle on `((), nonce)` (reading `n` bits
 `pad`), computes `tag := BitString.listXor n [hash n k msg, pad]` and
 `fullTag := encPair encBits encBits (nonce, tag)`, and prepends `(msg, fullTag)` to `queriedPairs`;
-otherwise it returns `[]` and prepends `(msg, [])` without querying the external oracle. -/
+otherwise it returns `[]` without querying the external oracle or recording the request, as the
+tagging oracle does. -/
 noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
     (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
@@ -3002,7 +2999,7 @@ noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
         (fullTag, (msg, fullTag) :: queriedPairs)) <$>
         (List.take n <$> ProbOracleComp.query ((), nonce))
     else
-      pure ([], (msg, []) :: queriedPairs)
+      pure ([], queriedPairs)
 
 /-- Oracle reduction turning an adaptive word-level `Forger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270):
@@ -3079,7 +3076,7 @@ private theorem isOraclePPTOn_cwRandomNonceLogHandler
     ((show ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) ×
           ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        (([] : List Bool), (p.2.1.2, ([] : List Bool)) :: p.2.2))
+        (([] : List Bool), p.2.2))
       (encPair (encPair (encPair encUnary encBits) encBits)
         (encPair (encPair (encFinite Unit) encBits)
           (encList (encPair encBits encBits))))
@@ -3214,20 +3211,14 @@ theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
             (cwRandomNonceLogHandler msgLen hash n k request state))) =
       (fun request state =>
         ProbComp.eval
-          (M.signingPairOracle (encPair encBits encBits (k, prfKey)) request state)) := by
+          (M.signingPairOracle n (encPair encBits encBits (k, prfKey)) request state)) := by
     funext request state
     dsimp only [cwRandomNonceLogHandler, MACScheme.signingPairOracle, M, carterWegmanRandomMAC]
     simp only [encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append,
       hprfLen]
     by_cases hcond : (request.2.length == msgLen n) = true
     · simp [hcond, Functor.map_map]
-    · have hcond' : (request.2.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
-      have hconst :
-          PMF.map (fun _ : List Bool => (([] : List Bool), (request.2, []) :: state))
-            (BitString.uniformList n) =
-          PMF.pure (([] : List Bool), (request.2, []) :: state) :=
-        PMF.map_const (BitString.uniformList n) (([] : List Bool), (request.2, []) :: state)
-      simp [hcond', hconst]
+    · simp [Bool.eq_false_iff.mpr hcond]
   rw [hstep]
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   simp only [encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, hprfLen]
@@ -3263,7 +3254,7 @@ private def adaptRandomNonceStep (msgLen : ℕ → ℕ) (n : ℕ) (request : Uni
       (fullTag, (msg, fullTag) :: queriedPairs)) <$>
       ProbOracleComp.query (BitString.ofList (msgLen n) msg)
   else
-    pure ([], (msg, []) :: queriedPairs)
+    pure ([], queriedPairs)
 
 private theorem isQueryBounded_adaptRandomNonceStep (msgLen : ℕ → ℕ) (n : ℕ)
     {α : Type} {prog : WordOracleComp Unit α} {Q : ℕ} (hprog : prog.IsQueryBounded Q)
@@ -3446,10 +3437,7 @@ private theorem eval_cwRandomNonceLogHandler_randomFunctionOracle_le
       · have hcond' : (msg.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
         simp only [pmf_norm, hcond', Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure,
           StateT.run_pure]
-        have hsub' : tr.map ofRandomBitTriple <+ ((msg, []) :: init).reverse := by
-          rw [List.reverse_cons]
-          exact hsub.trans (List.sublist_append_left _ _)
-        exact ih [] ((msg, []) :: init) tr hsub'
+        exact ih [] init tr hsub
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
 [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270): under
