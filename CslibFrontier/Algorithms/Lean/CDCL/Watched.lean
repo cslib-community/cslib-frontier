@@ -982,44 +982,68 @@ analysis returned once its level is cleared. -/
     Assign :=
   (clearedMarks sp L).1.markVars (L.clause.map Prod.fst)
 
-/-- Whether a variable is marked for the backjump. -/
+/-- Whether a variable is marked for the backjump. It reads one array, built once: the function is
+`Assign.assigned` applied to `jumpMarks sp L`. -/
 @[expose] def jumpMarked {log : LRATLog φ} (sp : Split)
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
+    ℕ → Bool :=
+  (jumpMarks sp L).assigned
+
+/-- **The marked variables are those of the learned clause**: the array the analysis returns is
+cleared before the variables of the clause are marked. -/
+theorem jumpMarked_iff {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
-    (v : ℕ) : Bool :=
-  (jumpMarks sp L).assigned v
+    (v : ℕ) : jumpMarked sp L v = true ↔ v ∈ L.clause.map Prod.fst := by
+  by_cases hv : v ∈ L.clause.map Prod.fst
+  · simp [jumpMarked, jumpMarks, Assign.assigned, Assign.value_markVars, hv]
+  · simp only [jumpMarked, jumpMarks, Assign.assigned, Assign.value_markVars, hv, ite_false,
+      (clearedMarks sp L).2 v, Option.isSome_none, Bool.false_eq_true]
 
 theorem jumpMarked_of_mem {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
-    ∀ v ∈ L.clause.map Prod.fst, jumpMarked sp L v = true := fun v hv => by
-  simp [jumpMarked, jumpMarks, Assign.assigned, Assign.value_markVars, hv]
+    ∀ v ∈ L.clause.map Prod.fst, jumpMarked sp L v = true := fun v hv =>
+  (jumpMarked_iff sp L v).2 hv
 
-/-- The marks after the backjump: those of the learned clause cleared again, which leaves no
-value. -/
+/-- **The level kept by the backjump has a variable of the learned clause**: either the trail
+kept has no decision, or its top level, the decision `d` with the entries `N` above it, has the
+variable of `d` or of an entry of `N` in the learned clause. -/
+theorem Exec.jump_kept_learned {S : Exec φ} (sp : Split) (L : S.LearnedAt sp) :
+    (∀ x ∈ (S.jump sp (jumpMarked sp L)).2, x.entry.decision = false) ∨
+      ∃ N d M₀, (S.jump sp (jumpMarked sp L)).2 = N ++ .decision d :: M₀ ∧
+        (∀ x ∈ N, x.entry.decision = false) ∧
+        (d.1 ∈ L.clause.map Prod.fst ∨ ∃ x ∈ N, x.entry.lit.1 ∈ L.clause.map Prod.fst) := by
+  refine (Exec.jump_kept sp).imp id fun ⟨N, d, M₀, h, hN, hm⟩ => ⟨N, d, M₀, h, hN, ?_⟩
+  simpa only [jumpMarked_iff] using hm
+
+/-- The marks after the backjump: the marks `A` of the backjump, those of the learned clause
+cleared again, which leaves no value. -/
 @[expose] def afterJumpMarks {log : LRATLog φ} (sp : Split)
-    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
-    {A : Assign // ∀ v, A.value v = none} :=
-  ⟨(jumpMarks sp L).unassign (L.clause.map Prod.fst), Assign.value_unassign_eq_none fun v hv => by
-    rw [jumpMarks, Assign.value_markVars, ite_eq_right_iff.2 fun h => absurd h hv]
+    (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
+    (A : Assign) (hA : A = jumpMarks sp L) : {A : Assign // ∀ v, A.value v = none} :=
+  ⟨A.unassign (L.clause.map Prod.fst), Assign.value_unassign_eq_none fun v hv => by
+    rw [hA, jumpMarks, Assign.value_markVars, ite_eq_right_iff.2 fun h => absurd h hv]
     exact (clearedMarks sp L).2 v⟩
 
 /-- **Backjump and Learn with watches**: the state after the conflict, with the learned clause in
 the store, watching its asserting literal, or among the short clauses, and the asserting literal
 queued. The entries undone are those of `Exec.jump`. The variables met by the analysis are bumped
 and, with those undone, put back in the variable order, and the phases of the literals undone are
-saved; the statistics count `k₀` literals before minimization. -/
+saved; the statistics count `k₀` literals before minimization. The marks of the backjump are
+built once, read by the backjump and cleared after it. -/
 @[expose] def WExec.afterConflict (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ) :
     WExec φ :=
-  let j := S.exec.jump sp (jumpMarked sp L)
+  let A := jumpMarks sp L
+  let j := S.exec.jump sp A.assigned
   let U := j.1
   if 2 ≤ L.clause.dedup.length then
     ⟨S.exec.afterConflictWith L j.2, S.backjumped U L.lit,
       S.store.addClause L.id (learnedWatched L.clause L.lit), [L.lit],
       S.short, S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup U, S.saved U,
-      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L⟩
+      S.reduced L true, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L A rfl⟩
   else ⟨S.exec.afterConflictWith L j.2, S.backjumped U L.lit, S.store, [L.lit],
     (L.id, L.clause) :: S.short,
     S.bumped L.seen, S.reordered (S.bumped L.seen) L.seen.dedup U, S.saved U,
-    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L⟩
+    S.reduced L false, S.opts, S.stats.learn k₀ L.clause.dedup.length, afterJumpMarks sp L A rfl⟩
 
 theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause ℕ}
     (he : e ∈ S.exec.db) (hconf : Trail.Falsifies S.M e.2) {sp : Split}
@@ -1121,6 +1145,8 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     simp only [WExec.measure]
     nlinarith
   unfold WExec.afterConflict
+  dsimp only
+  rw [show (jumpMarks sp L).assigned = jumpMarked sp L from rfl, ← hUdef, ← hKdef]
   split
   · rename_i hlen
     have hperm := learnedWatched_perm (C := L.clause) L.mem
