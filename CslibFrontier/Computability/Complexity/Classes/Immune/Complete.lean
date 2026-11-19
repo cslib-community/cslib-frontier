@@ -127,7 +127,6 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         (ComputableInPolyTime.bitsReplicate false)
     have himage : ComputableInPolyTime (fun m => f (pw m)) encUnary encBits :=
       hf.comp hpad
-
     obtain ⟨M₁, hM₁⟩ := Filter.eventually_atTop.mp (hG t ht)
     let M := max M₁ L
     have hsim (m : ℕ) (hm : M ≤ m) :

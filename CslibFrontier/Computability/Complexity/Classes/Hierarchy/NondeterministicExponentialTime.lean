@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Time
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
@@ -188,7 +189,7 @@ private theorem exists_computableInO_accepts : ∃ D, ComputableInO
       (fun q : List Bool × List Bool × List Bool =>
         (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, ((frame q.2.1 ++ q.2.2).length + 1) ^ 2))
       enc eIn _ _ := hdesc.prod (hsym.prod hclock)
-  have hU := computableInO_universal.comp (f := universal)
+  have hU := computableInO_universal_polynomialBound.comp (f := universal)
     (g := fun q : List Bool × List Bool × List Bool =>
       (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, ((frame q.2.1 ++ q.2.2).length + 1) ^ 2)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU

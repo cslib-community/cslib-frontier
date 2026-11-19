@@ -191,8 +191,27 @@ theorem computableInPolyTime_approx (k : ℕ) :
     ComputableInPolyTime (approx k) (encPair encUnary encBits) encNat := by
   have hpredicts : ComputableInPolyTime (fun q : ℕ × ℕ => predicts k q.1 q.2)
       (encPair encUnary encUnary) encBool := by fun_prop [predicts]
+  have htest : ComputableInPolyTime
+      (fun q : (List Bool × ℕ) × ℕ =>
+        decide (q.2 < q.1.2) || (q.1.1.getD q.2 false == predicts k q.1.2 q.2))
+      (encPair (encPair encBits encUnary) encUnary) encBool := by
+    have hword : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.1)
+        (encPair (encPair encBits encUnary) encUnary) encBits :=
+      (ComputableInPolyTime.fst encBits encUnary).comp (.fst _ _)
+    have hi : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.2)
+        (encPair (encPair encBits encUnary) encUnary) encUnary :=
+      (ComputableInPolyTime.snd encBits encUnary).comp (.fst _ _)
+    have hj : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.2)
+        (encPair (encPair encBits encUnary) encUnary) encUnary := .snd _ _
+    exact ComputableInPolyTime.bool_or'
+      (ComputableInPolyTime.unary_lt.comp (hj.prod hi))
+      ((ComputableInPolyTime.bitsGetDWithInput hword hj false).beq
+        (hpredicts.comp (hi.prod hj)))
   have hagrees : ComputableInPolyTime (fun q : List Bool × ℕ => agrees k q.1 q.2)
-      (encPair encBits encUnary) encBool := by fun_prop [agrees]
+      (encPair encBits encUnary) encBool :=
+    ComputableInPolyTime.allWithInput
+      (ComputableInPolyTime.range.comp
+        (ComputableInPolyTime.length_bits.comp (.fst encBits encUnary))) htest
   have hterm : ComputableInPolyTime (fun q : List Bool × ℕ => term k q.1 q.2)
       (encPair encBits encUnary) encNat := by fun_prop [term]
   have hnum : ComputableInPolyTime (num k) encBits encNat := by fun_prop [num]

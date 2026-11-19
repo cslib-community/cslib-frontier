@@ -245,14 +245,17 @@ theorem OneWay.exists_far_indistinguishable_of_injective {f : List Bool → List
   have hsample := (ComputableInPolyTime.id' (encIn := encUnary)).sampleList
   have hrealPPT := hsample.map (ComputableInPolyTime.bitsAppend hg
     (ComputableInPolyTime.bitsCons hb (ComputableInPolyTime.const [])))
-  have hbit := isPPTOn_uniform_bool (encPair encUnary encBits)
-  have hp := ComputableInPolyTime.id' (encIn := encPair (encPair encUnary encBits) encBool)
-  have hpost := ComputableInPolyTime.bitsAppend (hg.comp hp.fst'.snd')
-    (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
-  have hidealPPT := hsample.bind_with
-    (second := fun _ seed => (fun bit => GoldreichLevin.paddedFunction f seed ++ [bit]) <$>
-      ProbComp.uniform Bool)
-    (hbit.map_with (f := fun pair bit => GoldreichLevin.paddedFunction f pair.2 ++ [bit]) hpost)
+  have hbit := isPPTOn_uniform_bool encBits
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBool)
+  have hpost : ComputableInPolyTime
+      (fun pair : List Bool × Bool => GoldreichLevin.paddedFunction f pair.1 ++ [pair.2])
+      (encPair encBits encBool) encBits :=
+    ComputableInPolyTime.bitsAppend (hg.comp hp.fst')
+      (ComputableInPolyTime.bitsCons hp.snd' (ComputableInPolyTime.const []))
+  have hcontinue : IsPPTOn encBits encBits (fun seed : List Bool =>
+      (fun bit => GoldreichLevin.paddedFunction f seed ++ [bit]) <$> ProbComp.uniform Bool) :=
+    hbit.map_with (f := fun seed bit => GoldreichLevin.paddedFunction f seed ++ [bit]) hpost
+  have hidealPPT := hsample.bind hcontinue
   refine ⟨fun n => (fun seed => GoldreichLevin.paddedFunction f seed ++
       [GoldreichLevin.paddedPredicate seed]) <$> BitString.sampleList n,
     fun n => do

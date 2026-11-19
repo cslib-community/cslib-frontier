@@ -247,7 +247,6 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
   have hframe := bitsFrame enc
   have hp : ComputableInPolyTime (fun a => p.eval (enc a).length) enc encUnary :=
     (unary_eval p).comp (encoding_length enc)
-  have hd : ComputableInPolyTime (fun _ : α => dummyVar) enc encNat := const _
   have hvars : ComputableInPolyTime (CNF.vars (V := CookLevin.Var kV StateV))
       (encList (encList (encPair CookLevin.encVar encBool))) (encList CookLevin.encVar) :=
     CNF.computableInPolyTime_vars _
@@ -279,14 +278,16 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
     fun_prop
   have hpairs : ComputableInPolyTime
       (fun a => prenexPairs (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
-      enc (encList (encPair encNat encNat)) := by
-    unfold prenexPairs
-    fun_prop
+      enc (encList (encPair encNat encNat)) :=
+    (listAppend (encPair encNat encNat)).comp
+      ((hgamePairs.comp hp).prod
+        ((map ((id' (encIn := encNat)).prod (const (encOut := encNat) dummyVar))).comp
+          (hbase.comp (htableau.prod hp))))
   have hmatrix : ComputableInPolyTime
       (fun a => prenexMatrix (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
-      enc encCNF := by
-    unfold prenexMatrix encCNF
-    fun_prop
+      enc encCNF :=
+    (listAppend (encList (encPair encNat encBool))).comp
+      ((hlinks.comp hp).prod (hrelabel.comp htableau))
   exact hpairs.prod hmatrix
 
 end Reduction
