@@ -780,8 +780,9 @@ theorem computableInPolyTime_encodeSchnorrVerify_comp {γ : Type} {encIn : γ �
 
 /-- The uniform strict PPT program `schnorrSigKeyGen` (`isPPTOn_schnorrSigKeyGen`) computes the
 encoded commitment and scalar private state of `schnorrProbCommit` on encodings (the commitment
-`r • g` does not depend on the witness `α` or statement `u`, as noted in [BonehShoup2023],
-Example 19.1, p. 773). -/
+`r • g` uses neither the witness `α` nor the statement `u`; see [BonehShoup2023], Figure 19.1,
+p. 756, and the remark after Example 19.1, p. 773, that the prover does not use the
+statement). -/
 theorem eval_schnorrSigKeyGen_eq_schnorrProbCommit (i : ℕ × F.Desc) (α : ZMod (F.order i.2))
     (u : F.Carrier i.2) :
     ProbComp.eval (F.schnorrSigKeyGen i.1 i.2) =
@@ -826,7 +827,6 @@ theorem efficientVerifier_schnorr :
 /-- **Schnorr's fair-coin Sigma protocol has a deterministic polynomial-time verifier.** -/
 theorem efficientVerifier_schnorrProb :
     EfficientVerifier F.schnorrProbFamily F.schnorrEncoding :=
-  ⟨fun ((_, d), pk, t, c, z) => F.encodeSchnorrVerify d pk t c z, by fun_prop,
-    fun i u t c z => F.verifierRealizedBy_encodeSchnorrVerify i u t c z⟩
+  F.efficientVerifier_schnorr
 
 end Cslib.Crypto.PrimeOrderGroupFamily
