@@ -181,7 +181,13 @@ private theorem exists_computableInO_accepts : ∃ D, ComputableInO
     (ComputableInO.snd encBits (encPair encBits encBits)).of_enc_eq fun _ => rfl
   have hsym := Universal.computableInO_map_eBit.comp hword
   have hclock := timeConstructible_succ_sq.computableInO.comp hword
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hpre : ComputableInO
+      (fun q : List Bool × List Bool × List Bool =>
+        (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, ((frame q.2.1 ++ q.2.2).length + 1) ^ 2))
+      enc eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal.comp (f := universal)
+    (g := fun q : List Bool × List Bool × List Bool =>
+      (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, ((frame q.2.1 ++ q.2.2).length + 1) ^ 2)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv

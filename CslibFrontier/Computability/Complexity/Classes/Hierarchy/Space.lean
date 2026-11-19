@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
@@ -183,7 +184,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     (fun x => by omega)
   obtain ⟨cC, hCt, -⟩ := Internal.NormalForm.inO hC
   -- the input of the budgeted universal machine, recomputed and never charged
-  obtain ⟨kF, hF⟩ := hAB.append hCt (encOut := eInS) (g := universalInput G) fun x => by
+  obtain ⟨kF, hF⟩ := ComputableTidilyInTimeAndSpace.append hAB hCt
+    (encOut := eInS) (g := universalInput G) fun x => by
     simp only [universalInput, eInS, encPair_apply, encBits_apply, List.append_assoc]; rfl
   -- the budgeted universal run and the verdict
   obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp

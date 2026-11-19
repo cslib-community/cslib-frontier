@@ -170,7 +170,13 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
   have hsym := Universal.computableInO_map_eBit.comp hword
   have hy := (ComputableInO.snd encBits (encPair encBits encBits)).fst'
   have hclock := (timeConstructible_succ_pow (d + 3)).computableInO.comp hy
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hpre : ComputableInO
+      (fun q : List Bool × List Bool × List Bool =>
+        (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, clock d q.2.1.length))
+      enc eIn _ _ := hdesc.prod (hsym.prod hclock)
+  have hU := computableInO_universal.comp (f := universal)
+    (g := fun q : List Bool × List Bool × List Bool =>
+      (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, clock d q.2.1.length)) hpre
   have hv := Diagonal.computableInO_verdict.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv

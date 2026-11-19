@@ -1142,17 +1142,34 @@ def unscaledNonceCTRAdversary : OracleDistinguisher :=
 /-- `unscaledNonceCTRAdversary` is uniform strict oracle PPT (`IsOraclePPT encBool`). -/
 theorem isOraclePPT_unscaledNonceCTRAdversary :
     IsOraclePPT encBool unscaledNonceCTRAdversary := by
-  have hframe : ComputableInPolyTime frame encBits encBits :=
-    ComputableInPolyTime.bitsFrame encBits
-  have hlow0 : ∀ {α : Type} {enc : α ↪ List Bool} {f : α → ℕ},
-      ComputableInPolyTime f enc encUnary →
-      ComputableInPolyTime (fun a => BitString.lowBits (f a) 0) enc encBits :=
-    fun hf => ComputableInPolyTime.bitsLow hf (ComputableInPolyTime.const 0)
-  have hlow1 : ∀ {α : Type} {enc : α ↪ List Bool} {f : α → ℕ},
-      ComputableInPolyTime f enc encUnary →
-      ComputableInPolyTime (fun a => BitString.lowBits (f a) 1) enc encBits :=
-    fun hf => ComputableInPolyTime.bitsLow hf (ComputableInPolyTime.const 1)
-  ppt [unscaledNonceCTRAdversary]
+  let input := encPair encUnary encBits
+  change IsOraclePPTOn input encBool (fun a : ℕ × List Bool =>
+    unscaledNonceCTRAdversary a.1 a.2)
+  have hp := ComputableInPolyTime.id' (encIn := input)
+  have hn := hp.fst'
+  have htwo := ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hn
+  have hz := (ComputableInPolyTime.bitsReplicate false).comp htwo
+  have hm := ComputableInPolyTime.bitsAppend
+    ((ComputableInPolyTime.bitsReplicate true).comp hn)
+    ((ComputableInPolyTime.bitsReplicate false).comp hn)
+  have hframe := ComputableInPolyTime.bitsFrame encBits
+  have hq₀ := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend (hframe.comp hz) (hframe.comp hz))
+    (ComputableInPolyTime.bitsLow hn (ComputableInPolyTime.const 0))
+  have hq₁ := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend (hframe.comp hz) (hframe.comp hm))
+    (ComputableInPolyTime.bitsLow hn (ComputableInPolyTime.const 1))
+  have hlimit := ComputableInPolyTime.unary_add' htwo (ComputableInPolyTime.const 1)
+  have hfirst := IsOraclePPTOn.query_take () hq₀ hlimit
+  have hprepare := ComputableInPolyTime.fst input encBits
+  have hsecond := IsOraclePPTOn.query_take () (hq₁.comp hprepare) (hlimit.comp hprepare)
+  have hr := ComputableInPolyTime.id' (encIn := encPair (encPair input encBits) encBits)
+  have hleft := (hr.snd'.bitsDropWithInput (ComputableInPolyTime.const 1)).bitsTakeWithInput
+    hr.fst'.fst'.fst'
+  have hright := (hr.fst'.snd'.bitsDropWithInput
+    (ComputableInPolyTime.const 1)).bitsDropWithInput hr.fst'.fst'.fst'
+  simpa only [unscaledNonceCTRAdversary, Function.comp_def, bind_pure_comp] using
+    hfirst.bind_with (hsecond.map_with (hleft.beq hright))
 
 private theorem zipWith_xor_replicate_false :
     ∀ w : List Bool, List.zipWith Bool.xor (List.replicate w.length false) w = w

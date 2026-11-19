@@ -72,12 +72,16 @@ private theorem forward_polyTime :
   have hs := RotationCertificate.computableInPolyTime_successor
   have hidx : ComputableInPolyTime (fun p : RotationCertificate × ℕ => 6 * p.2 + 1)
       encTableIndex encNat := by
-    unfold encTableIndex
-    fun_prop
+    exact ComputableInPolyTime.binary_add'
+      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 6)
+        (ComputableInPolyTime.snd encRotationCertificate encNat))
+      (ComputableInPolyTime.const 1)
   have hlookup := ComputableInPolyTime.listGetD_binary (encA := encNat) 0
     (hs.comp (ComputableInPolyTime.fst _ _)) hidx
-  unfold forward encTableIndex at *
-  fun_prop
+  exact hlookup.decide_eq' (ComputableInPolyTime.binary_add'
+    (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 6)
+      (ComputableInPolyTime.snd encRotationCertificate encNat))
+    (ComputableInPolyTime.const 3))
 
 /-- The exact conditional scope exchange is native polynomial time on all raw input lists. -/
 theorem computableInPolyTime_orderedConstraints :
