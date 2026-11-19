@@ -36,8 +36,8 @@ model vs. PPT ITMs).
    fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor query
    for a given `ssid`, keeping distinct `ssid`s independent ([CanettiRabin2003], p. 273).
 3. **Pull-model deviation (stronger ideal).** On p. 273 of [CanettiRabin2003], `F̂` sends `ssid` to
-   the adversary whenever a copy outputs to a party ("Sending `ssid` to the adversary implies
-   that `F̂` does not hide which copy of `F` is being activated within `F̂`"). In the pull execution
+   the adversary whenever a copy outputs to a party ("Sending ssid to the adversary implies
+   that F̂ does not hide which copy of F is being activated within F̂."). In the pull execution
    here, neither `F` nor `F.multiSession` notifies the adversary; party outputs wait until polled,
    so `F.multiSession` hides which copy honest parties activate and reveals an `ssid` only on
    copies the adversary queries itself on the backdoor. Consequently, `F.multiSession` is a
@@ -135,7 +135,6 @@ creates a fresh copy of `F` with `F.init secParam corrupted` on the first party 
 query for `ssid`, and activates that copy ([CanettiRabin2003], p. 273). In this pull-only model,
 `F.multiSession` does not notify the adversary on honest-party activations, making it a stronger
 ideal functionality than the source's `F̂`. -/
--- Design follows `runDynIdealSession` in cf-uc-0035 (separate execution model; no shared code).
 @[expose] def IdealFunctionality.multiSession {n : ℕ} {SubIn SubOut BackQ BackR : Type}
     (SSID : Type) [DecidableEq SSID]
     (F : IdealFunctionality n SubIn SubOut BackQ BackR) :
@@ -222,26 +221,9 @@ private theorem evalSupportPMF_map_val {α : Type} (p : ProbComp α) :
     intro hval
     exact absurd (hval ▸ x.2) ha
 
-private theorem pi_fin_succ {m : ℕ} {α : Fin (m + 1) → Type} [∀ j, Finite (α j)]
-    (p : ∀ j, PMF (α j)) :
-    Probability.PMF.pi p =
-      (p 0).bind fun x₀ =>
-        (Probability.PMF.pi fun j : Fin m => p j.succ).map (Fin.cons x₀) := by
-  ext t
-  rw [Probability.PMF.pi_apply, Fin.prod_univ_succ, PMF.bind_apply, tsum_eq_single (t 0)]
-  · rw [PMF.map_apply, tsum_eq_single (Fin.tail t)]
-    · simp [Probability.PMF.pi_apply, Fin.cons_self_tail, Fin.tail]
-    · intro w hw
-      rw [ite_eq_right]
-      intro hcons
-      exact absurd (by rw [hcons, Fin.tail_cons]) hw
-  · intro a ha
-    rw [PMF.map_apply, tsum_eq_zero_iff.mpr, mul_zero]
-    intro w
-    rw [ite_eq_right]
-    intro hcons
-    exact absurd (by rw [hcons, Fin.cons_zero]) ha
-
+/-- Variant of `ProbComp.eval_pi` without `[∀ j, Finite (α j)]`: restricts each `p j` to its
+finite support subtype `EvalSupport (p j)` so `Probability.PMF.pi` applies to arbitrary state
+types `α j`. Uses `Probability.PMF.pi_fin_succ_dep` in the step case. -/
 private theorem eval_pi_eq_pi_evalSupportPMF :
     ∀ {m : ℕ} {α : Fin m → Type} (p : (j : Fin m) → ProbComp (α j)),
       ProbComp.eval (OracleComp.pi p) =
@@ -260,7 +242,7 @@ private theorem eval_pi_eq_pi_evalSupportPMF :
     · intro b hb
       exact absurd (funext fun j => Fin.elim0 j) hb
   | m + 1, α, p => by
-    rw [pi_fin_succ, PMF.map_bind, OracleComp.pi_succ, ProbComp.eval_bind]
+    rw [Probability.PMF.pi_fin_succ_dep, PMF.map_bind, OracleComp.pi_succ, ProbComp.eval_bind]
     simp_rw [ProbComp.eval_map, eval_pi_eq_pi_evalSupportPMF (fun j => p j.succ)]
     rw [← evalSupportPMF_map_val (p 0)]
     erw [PMF.bind_map]
@@ -655,46 +637,53 @@ theorem jointMux_polyBounded {m n : ℕ}
 section DemuxProof
 
 private def mapRightProg {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R₁ : ιR₁ → Type} {R₂ : ιR₂ → Type} {α : Type}
-    (f : ιR₁ → ιR₂) (hf : ∀ r, R₂ (f r) = R₁ r)
-    (prog : ProbOracleComp (L ⊕ₒ R₁) α) : ProbOracleComp (L ⊕ₒ R₂) α :=
+    {R : ιR₂ → Type} {α : Type} (f : ιR₁ → ιR₂)
+    (prog : ProbOracleComp (L ⊕ₒ (R ∘ f)) α) : ProbOracleComp (L ⊕ₒ R) α :=
   OracleComp.interpret
     (sumHandler
-      (fun k => OracleComp.query (spec := probOracleSpec (L ⊕ₒ R₂)) (Sum.inl k))
+      (fun k => OracleComp.query (spec := probOracleSpec (L ⊕ₒ R)) (Sum.inl k))
       fun q => match q with
-        | .inl p => ProbOracleComp.query (spec := L ⊕ₒ R₂) (Sum.inl p)
-        | .inr r => cast (congrArg (ProbOracleComp (L ⊕ₒ R₂)) (hf r))
-            (ProbOracleComp.query (spec := L ⊕ₒ R₂) (Sum.inr (f r))))
+        | .inl p => ProbOracleComp.query (spec := L ⊕ₒ R) (Sum.inl p)
+        | .inr r => ProbOracleComp.query (spec := L ⊕ₒ R) (Sum.inr (f r)))
     prog
 
 private theorem mapRightProg_pure {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R₁ : ιR₁ → Type} {R₂ : ιR₂ → Type} {α : Type}
-    (f : ιR₁ → ιR₂) (hf : ∀ r, R₂ (f r) = R₁ r) (a : α) :
-    mapRightProg (L := L) f hf (pure a) = pure a := rfl
+    {R : ιR₂ → Type} {α : Type} (f : ιR₁ → ιR₂) (a : α) :
+    mapRightProg (L := L) (R := R) f (pure a) = pure a := rfl
 
 private theorem mapRightProg_bind {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R₁ : ιR₁ → Type} {R₂ : ιR₂ → Type} {α β : Type}
-    (f : ιR₁ → ιR₂) (hf : ∀ r, R₂ (f r) = R₁ r)
-    (p : ProbOracleComp (L ⊕ₒ R₁) α) (k : α → ProbOracleComp (L ⊕ₒ R₁) β) :
-    mapRightProg (L := L) f hf (p >>= k) =
-      mapRightProg (L := L) f hf p >>= fun a => mapRightProg (L := L) f hf (k a) :=
+    {R : ιR₂ → Type} {α β : Type} (f : ιR₁ → ιR₂)
+    (p : ProbOracleComp (L ⊕ₒ (R ∘ f)) α)
+    (k : α → ProbOracleComp (L ⊕ₒ (R ∘ f)) β) :
+    mapRightProg (L := L) (R := R) f (p >>= k) =
+      mapRightProg (L := L) (R := R) f p >>= fun a =>
+        mapRightProg (L := L) (R := R) f (k a) :=
   OracleComp.interpret_bind _ _ _
 
 private theorem mapRightProg_map {ιL ιR₁ ιR₂ : Type} {L : ιL → Type}
-    {R₁ : ιR₁ → Type} {R₂ : ιR₂ → Type} {α β : Type}
-    (f : ιR₁ → ιR₂) (hf : ∀ r, R₂ (f r) = R₁ r) (g : α → β)
-    (p : ProbOracleComp (L ⊕ₒ R₁) α) :
-    mapRightProg (L := L) f hf (g <$> p) = g <$> mapRightProg (L := L) f hf p :=
+    {R : ιR₂ → Type} {α β : Type} (f : ιR₁ → ιR₂) (g : α → β)
+    (p : ProbOracleComp (L ⊕ₒ (R ∘ f)) α) :
+    mapRightProg (L := L) (R := R) f (g <$> p) =
+      g <$> mapRightProg (L := L) (R := R) f p :=
   OracleComp.interpret_map _ _ _
+
+private theorem runFrom_query_inl_coin {ιI ιO : Type} {I : ιI → Type} {O : ιO → Type}
+    (M : Machine I O) (k : ℕ) (s : M.State) :
+    M.runFrom (OracleComp.query (Sum.inl k)) s =
+      (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
+  dsimp only [Machine.runFrom]
+  erw [OracleComp.run_interpret_query]
+  simp only [Machine.handler, sumHandler]
+  exact StateT.run_lift _ s
 
 private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R AdvQ AdvR α : Type}
     (f : NQ₁ → NQ₂) (A : Machine (netSpec NQ₁ R) (netSpec AdvQ AdvR))
     (prog : ProbOracleComp (execSpec n In Out AdvQ AdvR) α) :
     (liftAdversary (n := n) (In := In) (Out := Out) (mapNetMachine f A)).link prog =
-      mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+      mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
         ((liftAdversary (n := n) (In := In) (Out := Out) A).link prog) := by
   simp only [Machine.link, mapRightProg_bind, mapRightProg_map]
-  rw [show mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+  rw [show mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
       (ProbOracleComp.sample (liftAdversary (n := n) (In := In) (Out := Out) A).init) =
       ProbOracleComp.sample
         (liftAdversary (n := n) (In := In) (Out := Out) (mapNetMachine f A)).init by
@@ -709,21 +698,7 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
     erw [Machine.runFrom_bind, Machine.runFrom_bind, mapRightProg_bind]
     cases q with
     | inl k =>
-      have hL : (liftAdversary (n := n) (In := In) (Out := Out)
-          (mapNetMachine f A)).runFrom (OracleComp.query (.inl k)) s =
-          (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
-        dsimp only [Machine.runFrom]
-        erw [OracleComp.run_interpret_query]
-        simp only [Machine.handler, sumHandler]
-        exact StateT.run_lift _ s
-      have hR : (liftAdversary (n := n) (In := In) (Out := Out) A).runFrom
-          (OracleComp.query (.inl k)) s =
-          (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
-        dsimp only [Machine.runFrom]
-        erw [OracleComp.run_interpret_query]
-        simp only [Machine.handler, sumHandler]
-        exact StateT.run_lift _ s
-      rw [hL, hR]
+      rw [runFrom_query_inl_coin, runFrom_query_inl_coin]
       erw [mapRightProg_map]
       simp only [mapRightProg]
       erw [ProbOracleComp.interpret_sample, (OracleComp.substitute_eq_interpret _ _).symm]
@@ -735,9 +710,9 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
         erw [Machine.runFrom_query, Machine.runFrom_query]
         change Prod.fst <$> ((StateT.lift (ProbOracleComp.query (.inl p))).run s >>= fun x =>
             (liftAdversary (mapNetMachine f A)).runFrom (cont x.1) x.2) =
-          Prod.fst <$> (mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+          Prod.fst <$> (mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
             ((StateT.lift (ProbOracleComp.query (.inl p))).run s) >>= fun x =>
-              mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+              mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
                 ((liftAdversary A).runFrom (cont x.1) x.2))
         rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
           mapRightProg_map, bind_map_left, bind_map_left, map_bind, map_bind]
@@ -747,9 +722,9 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
         change Prod.fst <$> (Machine.liftRightProgram (partySpec n In Out)
             (OracleComp.interpret _ ((A.handle adv).run s)) >>= fun x =>
               (liftAdversary (mapNetMachine f A)).runFrom (cont x.1) x.2) =
-          Prod.fst <$> (mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+          Prod.fst <$> (mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
             (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) >>= fun x =>
-              mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+              mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
                 ((liftAdversary A).runFrom (cont x.1) x.2))
         have hint : Machine.liftRightProgram (partySpec n In Out)
             (OracleComp.interpret
@@ -757,7 +732,7 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
                 (fun k => OracleComp.query (spec := probOracleSpec (netSpec NQ₂ R)) (Sum.inl k))
                 fun nq => ProbOracleComp.query (spec := netSpec NQ₂ R) (f nq))
               ((A.handle adv).run s)) =
-            mapRightProg (L := partySpec n In Out) f (fun _ => rfl)
+            mapRightProg (L := partySpec n In Out) (R := netSpec NQ₂ R) f
               (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) := by
           dsimp only [Machine.liftRightProgram, mapRightProg]
           erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
@@ -767,21 +742,6 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
           | inr nq => rfl
         rw [hint, map_bind, map_bind]
         exact bind_congr fun x => ih x.1 x.2
-
-private theorem stateT_map_apply {m : Type → Type} [Monad m] [LawfulMonad m] {σ α β : Type}
-    (f : α → β) (x : StateT σ m α) (s : σ) :
-    (f <$> x) s = (fun p => (f p.1, p.2)) <$> x s :=
-  StateT.run_map f x s
-
-private theorem liftParty_map {n : ℕ} {In Out NetQ NetR α β : Type} (f : α → β)
-    (p : ProbOracleComp (partySpec n In Out) α) :
-    liftParty (NetQ := NetQ) (NetR := NetR) (f <$> p) = f <$> liftParty p :=
-  OracleComp.interpret_map _ _ _
-
-private theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
-    (p : ProbOracleComp (multiPartySpec m n SubIn SubOut) α) :
-    liftMultiParty (NQ := NQ) (NR := NR) (f <$> p) = f <$> liftMultiParty p :=
-  OracleComp.interpret_map _ _ _
 
 private def relabelSessionHandler {m n : ℕ} {SubIn SubOut BackQ BackR : Type} :
     (q : Fin m × ((Fin n × SubIn) ⊕ RoutedNetQ n SubIn BackQ)) →
@@ -854,13 +814,19 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
         ((routeCorrupt C
           (multiHybridWrap (NQ := RoutedNetQ n SubIn BackQ) (NR := RoutedNetR SubOut BackR)
             (ρ κ C))).link
-          (mapRightProg (L := partySpec n In Out) demuxNetQuery (fun _ => rfl) prog)) := by
+          (mapRightProg (L := partySpec n In Out)
+          (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
+            (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
+          demuxNetQuery prog)) := by
   simp only [Machine.link, routeCorrupt, hybridWrap, multiHybridWrap, MultiHybridProtocol.toJoint]
   change (ProbOracleComp.sample (ρ κ C).init >>= fun sρ =>
       Prod.fst <$> (routeCorrupt C (hybridWrap (ρ.toJoint κ C))).runFrom prog sρ) =
     relabelSessionProg (ProbOracleComp.sample (ρ κ C).init >>= fun sρ =>
       Prod.fst <$> (routeCorrupt C (multiHybridWrap (ρ κ C))).runFrom
-        (mapRightProg (L := partySpec n In Out) demuxNetQuery (fun _ => rfl) prog) sρ)
+        (mapRightProg (L := partySpec n In Out)
+          (R := netSpec (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ)))
+            (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut BackR)))
+          demuxNetQuery prog) sρ)
   rw [relabelSessionProg, OracleComp.interpret_bind]
   have hsamp :
       OracleComp.interpret
@@ -888,23 +854,7 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
     cases q with
     | inl k =>
       simp only [OracleComp.interpret_query, sumHandler]
-      have hL : (routeCorrupt C (hybridWrap (NQ := RoutedNetQ n (SubSessionInput (Fin m) SubIn)
-            (SubSessionBackdoor (Fin m) BackQ)) (NR := RoutedNetR SubOut BackR)
-            (ρ.toJoint κ C))).runFrom (OracleComp.query (Sum.inl k)) sρ =
-          (fun a => (a, sρ)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
-        dsimp only [Machine.runFrom]
-        erw [OracleComp.run_interpret_query]
-        simp only [Machine.handler, sumHandler]
-        exact StateT.run_lift _ sρ
-      have hR : (routeCorrupt C (multiHybridWrap (NQ := RoutedNetQ n SubIn BackQ)
-            (NR := RoutedNetR SubOut BackR) (ρ κ C))).runFrom
-            (OracleComp.query (Sum.inl k)) sρ =
-          (fun a => (a, sρ)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
-        dsimp only [Machine.runFrom]
-        erw [OracleComp.run_interpret_query]
-        simp only [Machine.handler, sumHandler]
-        exact StateT.run_lift _ sρ
-      rw [hL, hR]
+      rw [runFrom_query_inl_coin, runFrom_query_inl_coin]
       erw [OracleComp.interpret_map, ProbOracleComp.interpret_sample,
         (OracleComp.substitute_eq_interpret _ _).symm]
       erw [bind_map_left]
@@ -944,7 +894,6 @@ private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
           simp only [routeCorrupt, hybridWrap, multiHybridWrap, MultiHybridProtocol.toJoint]
           repeat erw [StateT.run_map]
           simp only [StateT.run]
-          repeat erw [stateT_map_apply]
           erw [liftParty_map, liftMultiParty_map]
           erw [interpret_liftParty_toJoint (((ρ κ C).handle (.inr q)).run sρ)]
           erw [OracleComp.interpret_map, OracleComp.interpret_map]
@@ -1256,10 +1205,10 @@ private theorem jointDemux_jointMux {m n : ℕ}
 
 end DemuxProof
 
-/-- Fixed-session joint-state execution identity step for this library's call-bounded UC execution
-model: `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with adversary `A` and
-`composeMulti ρ F.toProtocol` with `jointDemux A` have identical output distributions
-([CanettiRabin2003], p. 274). -/
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 274), not that theorem;
+fixed-session joint-state execution identity for this library's call-bounded UC execution model:
+`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with adversary `A` and
+`composeMulti ρ F.toProtocol` with `jointDemux A` have identical output distributions. -/
 theorem exec_compose_toJoint_multiSession {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
@@ -1276,10 +1225,11 @@ theorem exec_compose_toJoint_multiSession {m n : ℕ}
     ← link_liftAdversary_mapNetMachine]
   rfl
 
-/-- Fixed-session reverse joint-state execution identity step for this library's call-bounded UC
-execution model: `composeMulti ρ F.toProtocol` with adversary `A` and
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 274), not that theorem;
+fixed-session reverse joint-state execution identity for this library's call-bounded UC execution
+model: `composeMulti ρ F.toProtocol` with adversary `A` and
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with `jointMux A` have identical output
-distributions ([CanettiRabin2003], p. 274). -/
+distributions. -/
 theorem exec_composeMulti_toJoint {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
@@ -1291,11 +1241,12 @@ theorem exec_composeMulti_toJoint {m n : ℕ}
       (exec (compose ρ.toJoint (F.multiSession (Fin m)).toProtocol) (jointMux A) C Z κ z).eval := by
   rw [exec_compose_toJoint_multiSession, jointDemux_jointMux]
 
-/-- Fixed-session joint-state step for this library's call-bounded `EmulatesWithin` relation:
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 274), not that theorem;
+fixed-session joint-state step for this library's call-bounded `EmulatesWithin` relation:
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` emulates `composeMulti ρ F.toProtocol` with
 overhead `Polynomial.X + 1` and zero distinguishing error via the explicit demultiplexing adversary
 `jointDemux`. Fixed number `m` of sessions chosen in advance; static corruption; pull execution
-where `F.multiSession` hides honest-party activations ([CanettiRabin2003], proof step p. 274). -/
+where `F.multiSession` hides honest-party activations. -/
 theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
@@ -1313,11 +1264,12 @@ theorem EmulatesWithin.toJoint_multiSession {m n : ℕ}
     exact Nat.le_succ_of_le h
   · simp only [advantage, Game.advantage, exec_compose_toJoint_multiSession, nndist_self, le_rfl]
 
-/-- Fixed-session reverse joint-state step for this library's call-bounded `EmulatesWithin`
+/-- A step of the proof of Theorem 1 of [CanettiRabin2003] (p. 274), not that theorem;
+fixed-session reverse joint-state step for this library's call-bounded `EmulatesWithin`
 relation: `composeMulti ρ F.toProtocol` emulates
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` with overhead `Polynomial.X + 1` and zero
 distinguishing error via `jointMux`. Fixed number `m` of sessions chosen in advance; static
-corruption; pull execution ([CanettiRabin2003], proof step p. 274). -/
+corruption; pull execution. -/
 theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
     (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
