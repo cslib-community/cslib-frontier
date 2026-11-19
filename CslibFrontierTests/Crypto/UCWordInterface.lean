@@ -57,8 +57,8 @@ section TruncationWitness
 private def tripleInterface : WordInterface (netSpec Unit (List Bool)) :=
   WordInterface.net bitsPort
 
-private noncomputable def tripleOracle : (q : Unit) → StateT Unit PMF (List Bool) :=
-  fun _ s => PMF.pure ([true, true, true], s)
+private noncomputable def tripleOracle : (q : Unit) → StateT Unit PMF (List Bool)
+  | (), s => PMF.pure ([true, true, true], s)
 
 /-- Lowering with `limit = 2` strictly changes the joint law of `query ()` against `tripleOracle`,
 showing the `hfit` hypothesis of `ProbOracleComp.runWith_lowerWith` cannot be dropped. -/

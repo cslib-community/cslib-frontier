@@ -73,21 +73,31 @@ open Cslib.Probability
 /-- A binary presentation of one typed port `netSpec Q R`: total decoders for its queries and
 replies. -/
 structure WordPort (Q R : Type) : Type where
+  /-- Injection from typed queries to bit words. -/
   query : Q ↪ List Bool
+  /-- Total polynomial-time decoder for queries. -/
   queryDecoder : Decoder query
+  /-- Injection from typed replies to bit words. -/
   reply : R ↪ List Bool
+  /-- Total polynomial-time decoder for replies. -/
   replyDecoder : Decoder reply
 
 /-- A typed interface presented over finitely many word channels. -/
 structure WordInterface {ι : Type} (E : ι → Type) : Type 1 where
+  /-- Finite tag type identifying the interface's word channels. -/
   Channel : Type
   [decEq : DecidableEq Channel]
   [finite : Finite Channel]
+  /-- Channel carrying each typed query. -/
   channel : ι → Channel
+  /-- Encoded request word for each typed query. -/
   request : ι → List Bool
+  /-- Total decoder recovering a typed query from a channel and request word. -/
   decodeQuery : Channel → List Bool → ι
   decodeQuery_request : ∀ q, decodeQuery (channel q) (request q) = q
+  /-- Query-dependent injection from typed replies to bit words. -/
   reply : (q : ι) → E q ↪ List Bool
+  /-- Total decoder recovering a typed reply from a word. -/
   decodeReply : (q : ι) → List Bool → E q
   decodeReply_reply : ∀ q r, decodeReply q (reply q r) = r
   /-- Decoding a reply word and re-encoding it is one polynomial-time word map per channel. -/
