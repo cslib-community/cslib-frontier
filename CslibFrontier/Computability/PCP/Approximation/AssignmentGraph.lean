@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.PCP.Approximation.AssignmentConsistency
 public import CslibFrontier.Computability.PCP.Approximation.IndependentSet
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -59,11 +60,6 @@ clauses) maps to the empty graph, as the lemma requires.
 namespace Cslib.Complexity.SAT
 
 open Cslib.Logic.PL Turing.MultiTapeTM ComputableInPolyTime
-
-/-- Two partial assignments, given as lists of literals `(x, b)` read as `x := b`, are
-**consistent** when they give no variable two different values. -/
-def consistentLits (ρ ρ' : List (Literal ℕ)) : Bool :=
-  ρ.all fun l => ρ'.all fun l' => !(l.1 == l'.1) || l.2 == l'.2
 
 /-- The partial assignment that gives the variables of the literals of `c` the values `bs`,
 position by position. -/
@@ -130,20 +126,6 @@ def assignmentGraph (φ : CNF ℕ) : Graph :=
           (recordVertex r, recordVertex r')⟩
 
 /-! ### Local satisfying assignments -/
-
-theorem consistentLits_eq_true_iff {ρ ρ' : List (Literal ℕ)} :
-    consistentLits ρ ρ' = true ↔ ∀ l ∈ ρ, ∀ l' ∈ ρ', l.1 = l'.1 → l.2 = l'.2 := by
-  simp only [consistentLits, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
-    beq_eq_false_iff_ne, beq_iff_eq]
-  refine forall₂_congr fun l _ => forall₂_congr fun l' _ => ?_
-  constructor
-  · rintro (h | h) he
-    · exact absurd he h
-    · exact h
-  · intro h
-    by_cases he : l.1 = l'.1
-    · exact .inr (h he)
-    · exact .inl he
 
 private theorem consistentLits_comm (ρ ρ' : List (Literal ℕ)) :
     consistentLits ρ ρ' = consistentLits ρ' ρ := by
@@ -508,13 +490,6 @@ theorem indepNum_assignmentGraph {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length ≤
 
 local notation "encLit" => encPair encNat encBool
 
-@[fun_prop]
-private theorem computableInPolyTime_consistentLits :
-    ComputableInPolyTime (fun p : List (Literal ℕ) × List (Literal ℕ) => consistentLits p.1 p.2)
-      (encPair (encList encLit) (encList encLit)) encBool := by
-  unfold consistentLits
-  fun_prop
-
 private theorem computableInPolyTime_assignLits (bs : List Bool) :
     ComputableInPolyTime (fun c : Clause ℕ => assignLits c bs) (encList encLit)
       (encList encLit) := by
@@ -523,7 +498,6 @@ private theorem computableInPolyTime_assignLits (bs : List Bool) :
 @[fun_prop]
 private theorem computableInPolyTime_clauseAssignments :
     ComputableInPolyTime clauseAssignments (encList encLit) (encList (encList encLit)) := by
-  have := computableInPolyTime_consistentLits
   have := computableInPolyTime_assignLits
   unfold clauseAssignments
   fun_prop
@@ -553,7 +527,6 @@ label among the local satisfying assignments of the clause, and tests every pair
 theorem computableInPolyTime_assignmentGraph :
     ComputableInPolyTime assignmentGraph encCNF encGraph := by
   have := computableInPolyTime_assignmentRecords
-  have := computableInPolyTime_consistentLits
   unfold assignmentGraph recordConflict
   fun_prop
 

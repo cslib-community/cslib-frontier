@@ -159,8 +159,11 @@ theorem advantage_bind_ddhOTSenderSimSampleExp_le (n : ℕ) (d : F.Desc)
   simp only [ddhOTSenderSim, ddhOTSenderSimSampleExp, sampleDDHOTSenderCoins, ProbComp.eval_bind,
     ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
   rw [Game.advantage_comm]
-  exact F.advantage_bind_sampleExp_six_le n d fun a r₀ s₀ r₁ s₁ b =>
-    k (ddhOTSenderSimWithCoins (F.generator d) (a, r₀, s₀, r₁, s₁) b xI)
+  have h := F.advantage_bind_iid_sampleExp_le n d 6 fun a =>
+    k (ddhOTSenderSimWithCoins (F.generator d) (a 0, a 1, a 2, a 3, a 4) (a 5) xI)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_ofNat] at h
+  exact h
 
 /-- On every input, no test `k` tells `ddhOTReceiverSimSampleExp` from `ddhOTReceiverSim` with
 advantage more than `6 / 2 ^ n`. -/
@@ -175,8 +178,11 @@ theorem advantage_bind_ddhOTReceiverSimSampleExp_le (n : ℕ) (d : F.Desc)
   simp only [ddhOTReceiverSim, ddhOTReceiverSimSampleExp, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
   rw [Game.advantage_comm]
-  exact F.advantage_bind_sampleExp_six_le n d fun a b r s k' c =>
-    k (ddhOTReceiverSimWithCoins (F.generator d) a b r s k' c xI yI)
+  have h := F.advantage_bind_iid_sampleExp_le n d 6 fun a =>
+    k (ddhOTReceiverSimWithCoins (F.generator d) (a 0) (a 1) (a 2) (a 3) (a 4) (a 5) xI yI)
+  simp only [PMF.iid, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
+    Function.comp_def, Nat.cast_ofNat] at h
+  exact h
 
 /-! ### Efficiency of the simulator families -/
 
@@ -347,10 +353,12 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
 
 /-! ### Security -/
 
-/-- **Statistical security against a corrupted sender**: for every environment, with no efficiency
-requirement, the advantage between the real game and the ideal game with
-`ddhOTSenderSimSampleExp` is at most `6 / 2 ^ n`. The real game is the ideal game with the
-exact-sampling simulator `ddhOTSenderSim` (`idealJoint_ddhOT_sender`). -/
+/-- Ideal-coins step towards [BonehShoup2023], Theorem 23.7, not the cited result: the honest
+parties of `ddhOTFamily` draw exact uniform exponents (`ProbComp.uniform`), and against a corrupted
+sender every environment, with no efficiency requirement, has advantage at most `6 / 2 ^ n`
+between the real game and the ideal game with `ddhOTSenderSimSampleExp`. The real game is the
+ideal game with the exact-sampling simulator `ddhOTSenderSim` (`idealJoint_ddhOT_sender`). The
+statement for parties that derive their exponents from random bit strings is open (#5293). -/
 theorem advantage_ddhOTSenderGame_le (setup : ℕ → PMF F.Desc) (Z : Environment F.ddhOTFamily {0})
     (n : ℕ) :
     Game.advantage (F.ddhOTFamily.realGame setup {0} Z n)

@@ -180,10 +180,10 @@ theorem uniform_programmedMatrixSetup (H : Xofs) (s : Level) :
   exact (PMF.bind_comm _ _ _).trans eq
 
 /-- Every successful programmed setup returns the supplied matrix at the published seed
-and a key pair genuinely generated with its accompanying XOFs. -/
+and a key pair generated with its accompanying XOFs. SHAKE256 remains the original stream. -/
 theorem keyGen_of_mem_programmedMatrixSetup {H G : Xofs} {s : Level} {A B : PublicMatrix s}
     {keys : KeyPair} (h : (G, some (B, keys)) ∈ (programmedMatrixSetup H s A).eval.support) :
-    B = A ∧ (∃ seed, G.keyGen s seed = some keys) ∧
+    G.h256 = H.h256 ∧ B = A ∧ (∃ seed, G.keyGen s seed = some keys) ∧
       G.expandA s (keys.publicKey.take 32) = some A := by
   simp only [programmedMatrixSetup, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
@@ -198,7 +198,7 @@ theorem keyGen_of_mem_programmedMatrixSetup {H G : Xofs} {s : Level} {A B : Publ
     obtain ⟨hA, hkeys⟩ := hk
     subst B
     subst pair
-    exact ⟨rfl, ⟨seed, hg⟩, matrix_of_programmed_keyGen H s seed t A keys hg⟩
+    exact ⟨rfl, rfl, ⟨seed, hg⟩, matrix_of_programmed_keyGen H s seed t A keys hg⟩
 
 /-- Run the adaptive classical forger after sampling the actual random matrix prefixes. -/
 noncomputable def signedMatrixTrial (H : Xofs) (s : Level) (adv : ClassicalForger) :
@@ -269,7 +269,7 @@ private theorem verified_programmedTrial {H : Xofs} {s : Level} {adv : Classical
   | none => simp [runAtSetup] at h
   | some pair =>
     obtain ⟨B, keys⟩ := pair
-    obtain ⟨rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
+    obtain ⟨_, rfl, ⟨seed, hg⟩, hm⟩ := keyGen_of_mem_programmedMatrixSetup hs
     simp only [runAtSetup, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff, Option.some.injEq] at h
     obtain ⟨⟨f, log⟩, hr, rfl⟩ := h

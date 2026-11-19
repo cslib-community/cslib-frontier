@@ -8,14 +8,18 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiffieHellman
+public import CslibFrontier.Probability.IID
+import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
-# Two-, three- and six-draw approximate exponent sampling bounds
+# Approximate exponent sampling bounds for several draws
 
 `Cslib.Crypto.PrimeOrderGroupFamily.sampleExp` samples an exponent modulo `F.order d` within
-statistical distance `1 / 2 ^ n` of exact uniform on `ZMod (F.order d)`. By intermediate hybrid
-hops, replacing two (three, six) independent `sampleExp n d` draws by as many independent exact
-uniform draws changes `Game.advantage` by at most `2 / 2 ^ n` (`3 / 2 ^ n`, `6 / 2 ^ n`).
+statistical distance `1 / 2 ^ n` of exact uniform on `ZMod (F.order d)`. By `CloseTo.piFin`,
+replacing `m` independent `sampleExp n d` draws by as many independent exact uniform draws
+changes `Game.advantage` by at most `m / 2 ^ n`. The two- and three-draw forms state this for
+nested binds, the shape their clients use.
 
 ## Main results
 
@@ -24,8 +28,8 @@ uniform draws changes `Game.advantage` by at most `2 / 2 ^ n` (`3 / 2 ^ n`, `6 /
   `Game.advantage` by at most `2 / 2 ^ n`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_sampleExp_triple_le`: the same for three
   draws, with loss at most `3 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_sampleExp_six_le`: the same for six draws,
-  with loss at most `6 / 2 ^ n`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_iid_sampleExp_le`: the same for `m` draws,
+  as a tuple `PMF.iid`, with loss at most `m / 2 ^ n`.
 -/
 
 public section
@@ -86,46 +90,23 @@ theorem advantage_bind_sampleExp_triple_le (n : ℕ) (d : F.Desc)
   calc _ ≤ (1 : ℝ≥0) / 2 ^ n + 2 / 2 ^ n := add_le_add h1 h2
     _ = 3 / 2 ^ n := by rw [← add_div]; norm_num
 
-/-- Replacing six independent `sampleExp n d` draws by six independent exact uniform draws on
-`ZMod (F.order d)` changes `Game.advantage` by at most `6 / 2 ^ n`. -/
-theorem advantage_bind_sampleExp_six_le (n : ℕ) (d : F.Desc)
-    (k : ZMod (F.order d) → ZMod (F.order d) → ZMod (F.order d) → ZMod (F.order d) →
-      ZMod (F.order d) → ZMod (F.order d) → Game) :
+/-- Replacing `m` independent `sampleExp n d` draws by `m` independent exact uniform draws on
+`ZMod (F.order d)` changes `Game.advantage` by at most `m / 2 ^ n`. -/
+theorem advantage_bind_iid_sampleExp_le (n : ℕ) (d : F.Desc) (m : ℕ)
+    (k : (Fin m → ZMod (F.order d)) → Game) :
     Game.advantage
-      ((ProbComp.eval (F.sampleExp n d)).bind fun a₁ =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun a₂ =>
-          (ProbComp.eval (F.sampleExp n d)).bind fun a₃ =>
-            (ProbComp.eval (F.sampleExp n d)).bind fun a₄ =>
-              (ProbComp.eval (F.sampleExp n d)).bind fun a₅ =>
-                (ProbComp.eval (F.sampleExp n d)).bind fun a₆ =>
-                  k a₁ a₂ a₃ a₄ a₅ a₆)
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₁ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₂ =>
-          (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₃ =>
-            (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₄ =>
-              (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₅ =>
-                (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₆ =>
-                  k α₁ α₂ α₃ α₄ α₅ α₆) ≤
-      6 / 2 ^ n := by
-  let S := ProbComp.eval (F.sampleExp n d)
-  let U := PMF.uniformOfFintype (ZMod (F.order d))
-  have h1 : Game.advantage
-      (S.bind fun a₁ => S.bind fun a₂ => S.bind fun a₃ =>
-        S.bind fun a₄ => S.bind fun a₅ => S.bind fun a₆ =>
-          k a₁ a₂ a₃ a₄ a₅ a₆)
-      (S.bind fun a₁ => S.bind fun a₂ => S.bind fun a₃ =>
-        U.bind fun α₄ => U.bind fun α₅ => U.bind fun α₆ => k a₁ a₂ a₃ α₄ α₅ α₆) ≤ 3 / 2 ^ n :=
-    Game.advantage_bind_le_nnreal _ _ _ fun a₁ => Game.advantage_bind_le_nnreal _ _ _ fun a₂ =>
-      Game.advantage_bind_le_nnreal _ _ _ fun a₃ =>
-        F.advantage_bind_sampleExp_triple_le n d (k a₁ a₂ a₃)
-  have h2 : Game.advantage
-      (S.bind fun a₁ => S.bind fun a₂ => S.bind fun a₃ =>
-        U.bind fun α₄ => U.bind fun α₅ => U.bind fun α₆ => k a₁ a₂ a₃ α₄ α₅ α₆)
-      (U.bind fun α₁ => U.bind fun α₂ => U.bind fun α₃ =>
-        U.bind fun α₄ => U.bind fun α₅ => U.bind fun α₆ => k α₁ α₂ α₃ α₄ α₅ α₆) ≤ 3 / 2 ^ n :=
-    F.advantage_bind_sampleExp_triple_le n d fun α₁ α₂ α₃ =>
-      U.bind fun α₄ => U.bind fun α₅ => U.bind fun α₆ => k α₁ α₂ α₃ α₄ α₅ α₆
-  calc _ ≤ (3 : ℝ≥0) / 2 ^ n + 3 / 2 ^ n := (Game.advantage_triangle _ _ _).trans (add_le_add h1 h2)
-    _ = 6 / 2 ^ n := by rw [← add_div]; norm_num
+      ((PMF.iid (ProbComp.eval (F.sampleExp n d)) m).bind fun a =>
+        k fun i => (a i : ZMod (F.order d)))
+      ((PMF.iid (PMF.uniformOfFintype (ZMod (F.order d))) m).bind k) ≤
+      m / 2 ^ n := by
+  have hone : CloseTo ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d)))
+      (PMF.uniformOfFintype (ZMod (F.order d))) (1 / 2 ^ n : ℝ≥0) :=
+    Game.closeTo_iff_forall_advantage_bind_le.2 fun test => by
+      rw [PMF.bind_map]
+      exact F.advantage_bind_sampleExp_le n d test
+  have h := Game.coe_advantage_bind_le_of_closeTo (CloseTo.piFin (k := m) fun _ => hone) k
+  rw [PMF.piFin_const, PMF.piFin_const, PMF.iid_map, PMF.bind_map, ← ENNReal.coe_natCast,
+    ← ENNReal.coe_mul, mul_one_div] at h
+  exact ENNReal.coe_le_coe.1 h
 
 end Cslib.Crypto.PrimeOrderGroupFamily

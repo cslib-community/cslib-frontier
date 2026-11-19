@@ -227,7 +227,7 @@ private theorem isOraclePPTOn_manyTimeHandler (H : KeyedHashFamily) {sigBound : 
     have hquery : IsOraclePPTOn (Operation := Unit) encMid encBits
         (fun q : Mid => List.take (sigBound q.1.1.1) <$>
           ProbOracleComp.query ((), otsMsg H q.1.1.1 q.2 (H.eval q.1.1.1 q.2 q.1.2.1.2))) :=
-      IsOraclePPTOn.query_take' () (hmOtsReq.of_enc_eq fun _ => rfl)
+      IsOraclePPTOn.query_take () (hmOtsReq.of_enc_eq fun _ => rfl)
         ((hmN.trans hsigBound).of_enc_eq fun _ => rfl)
     have hpack : ComputableInPolyTime
         (fun r : Mid × List Bool => (encPair encBits encBits (r.1.2, r.2), ()))
@@ -332,14 +332,14 @@ theorem isOraclePPT_manyTimeForger (H : KeyedHashFamily) {sigBound : ℕ → ℕ
   have hcond : ComputableInPolyTime
       (fun p : In => decide (otsParam H (otsParamInv H p.1) = p.1)) encIn encBool :=
     ComputableInPolyTime.unary_eq' ((computableInPolyTime_otsParam H).comp hnIn) hM
-  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess'
+  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess
     (hnIn.prod hotvk)
   have hactive := hrunIn.map_pair' (computableInPolyTime_manyTimePost H)
   have hempty : IsOraclePPTOn (Operation := Unit) encIn (encPair encBits encBits)
       (fun _ : In => pure ([], [])) :=
     (ComputableInPolyTime.const (encIn := encIn) (encOut := encPair encBits encBits)
       ([], [])).isOraclePPTOn
-  exact IsOraclePPTOn.ite' hcond hactive hempty
+  exact IsOraclePPTOn.ite hcond hactive hempty
 
 /-! ### Deterministic step replay and bounded-growth trace sampling (`tcrMultiAdversary`) -/
 
@@ -603,7 +603,7 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
         (replayCfg machine (limit a) (word a) (trace a)) (b a)).isSome = true))
       input encBool :=
     hqOpt.optionIsSome.of_enc_eq fun _ => rfl
-  refine (IsPPTOn.ite' hcond hsome hnone).congr fun a => ?_
+  refine (IsPPTOn.ite hcond hsome hnone).congr fun a => ?_
   dsimp only [appendTraceStep]
   cases queryOf machine (replayCfg machine (limit a) (word a) (trace a)) (b a) with
   | none => rfl
@@ -688,7 +688,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
   have hpolyGrowth : PolyBounded (fun a => (input a).length) growth :=
     (((PolyBounded.const 4).mul (H.keyLen_polyTime.comp hn).polyBounded).add
       ((PolyBounded.const 2).mul hpolySig)).add (.const 10)
-  refine IsPPTOn.iterateWith_of_bounded_growth' hcount hinit hstep hpolyGrowth ?_
+  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinit hstep hpolyGrowth ?_
   intro a tr next hnext
   simp only [sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList,
     PMF.mem_support_bind_iff] at hnext
@@ -882,7 +882,7 @@ private theorem isPPTOn_tcrMultiAdversary_choose {k : ℕ} {Control : Type} [Fin
         encSIn encTcrSavedState :=
       encTcrSavedState_mk_polyTime (.const false) hsKeys (.const false) (.const 0) (.const [])
     exact ((ComputableInPolyTime.const []).prod (hsavedFalse.trans hencState)).isPPTOn
-  have hite := IsPPTOn.ite' hsCond hyes hno
+  have hite := IsPPTOn.ite hsCond hyes hno
   exact (hkg.bind_pair (hslot.bind_pair hite)).congr fun _ => rfl
 
 private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finite Control]
@@ -948,7 +948,7 @@ private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finit
   have hyes := hmid.bind_pair (hpostLoop.map_pair hpostOut)
   have hno : IsPPTOn encFIn encBits (fun _ : FIn => pure []) :=
     (ComputableInPolyTime.const []).isPPTOn
-  exact (IsPPTOn.ite' hactive hyes hno).congr fun _ => rfl
+  exact (IsPPTOn.ite hactive hyes hno).congr fun _ => rfl
 
 /-- Both stages of `tcrMultiAdversary` are uniformly strict PPT. -/
 theorem isPPT_tcrMultiAdversary {k : ℕ} {Control : Type} [Finite Control]

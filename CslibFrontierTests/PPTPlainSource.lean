@@ -37,7 +37,6 @@ structure Parameters where
 theorem run_ppt (parameters : Parameters) {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (run parameters callback) := by
-  have hcallback := hcallback.tidy
   fun_prop [run]
 
 /-- The second named program captures one sampled fair bit. -/
@@ -51,7 +50,6 @@ theorem run_ppt (parameters : Parameters) {callback : List Bool → List Bool}
 theorem train_ppt (parameters : Parameters) {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (train parameters callback) := by
-  have hcallback := hcallback.tidy
   fun_prop [train, run]
 
 example (callback : List Bool → List Bool)
@@ -81,7 +79,7 @@ theorem consume_ppt {callback : List Bool → List Bool}
     (hcallback : ComputableInPolyTime callback encBits encBits) :
     IsPPTOn encBits encBits (consume callback) := by
   unfold consume
-  exact hcallback.tidy.isPPTOn
+  exact hcallback.isPPTOn
 
 /-- The global raw certificate cannot satisfy a nested plain callback obligation. -/
 @[irreducible] def rawOnlyReverse (word : List Bool) : List Bool := word.reverse
@@ -112,7 +110,7 @@ abbrev RawAliasFull {α β : Type*} (f : α → β)
     (hcallback : RawAliasFull callback encBits encBits) :
     IsPPTOn encBits encBits (aliasPure callback) := by
   unfold aliasPure
-  exact hcallback.isPPTOn
+  exact (ComputableInPolyTime.of_tidy hcallback).isPPTOn
 
 /-- An opaque plain contract is a legitimate source of a nested deterministic certificate. -/
 @[irreducible] def PlainContract (callback : List Bool → List Bool) : Prop :=

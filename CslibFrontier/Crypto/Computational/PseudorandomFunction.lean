@@ -146,7 +146,27 @@ plain polynomial time and secure against every uniform adaptive oracle test: [Bo
 Attack Game 4.2 and Definition 4.2, pp. 132–133, for a PRF defined over `(K, X, Y)`, read
 asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` bits. A query of
 another length is answered by the empty word in both games, and deterministic polynomial-time
-evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`. -/
+evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`.
+
+The lengths are meant to be polynomially bounded in `n`, as in the book's asymptotic definition
+(Definition 4.4, Section 4.4.5, pp. 139–141), whose `X` and `Y` are families of spaces with strings
+of polynomially bounded length (Definition 2.9, Section 2.3.2, p. 30). The structure does not
+require this, and without it the notion degenerates:
+
+* if `inLen n` grows faster than every polynomial (for example `2 ^ n`), each admitted test
+  eventually writes only queries shorter than `inLen n` (`IsOraclePPT.query_bounds`), so both
+  games answer all of them with the empty word and `secure` holds for every family: every family
+  meeting `polyTime` and `length_eq` qualifies;
+* if `outLen n` is not bounded by a polynomial in `n + inLen n`, `polyTime` and `length_eq`
+  cannot both hold, because a polynomial-time machine writes polynomially many bits
+  (`ComputableInPolyTime.polyBounded_length`), and no family qualifies.
+
+The theorems that use the notion take the bound from their own hypotheses: a `BlockCipher`'s
+`blockLen` is computable in polynomial time from unary `n` (`BlockCipher.blockLen_polyTime`);
+`indistinguishable_prgFromPRF` and `PseudorandomFunctionOver.toPRG` assume the query points
+computable in polynomial time from unary `n`, and the former also `outLen`; and
+`MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith` assumes parameters computable in polynomial time,
+with `n`, `k`, `η₁` and `η₂` encoded in unary. -/
 structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/

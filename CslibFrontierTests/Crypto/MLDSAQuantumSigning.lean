@@ -8,9 +8,11 @@ module
 -- upstream: local-only (test driver)
 
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
-meta import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 
 /-!
 # Quantum access to the ML-DSA signing experiment
@@ -81,3 +83,64 @@ example (base : Xofs) : ((base.uniformPrefixes 0 1).map fun H =>
   congr 1
   funext ⟨t₂, t₁⟩
   simp [byteAt_install, e, empty]
+
+-- Algorithm 33 reads 481 bytes at this same 64-byte seed and little-endian nonce.
+-- Both the secret sampler and Algorithm 34 must see the prefix of the same packed mask.
+example {base H : Xofs} {s : Level} {a b : ℕ} {ha : 528 ≤ a} {hb : maskPolyBytes s ≤ b}
+    {masks : MaskTable s} (h : H ∈ (base.sampleWithMasks ha hb masks).support)
+    (seed : FixedBytes 64) (nonce : ℕ) :
+    H.h256.readBytes (nonceInput seed.toList nonce) 481 =
+      (packSigned (s.params.γ₁.log2 + 1) s.params.γ₁ (fun _ : Fin 1 => fun j =>
+        ((masks (maskAddress seed nonce) j).val : ZMod 8380417))).take 481 := by
+  rw [← Xofs.read_mask_of_mem_sampleWithMasks h seed nonce]
+  exact (H.h256.take_read _ (show 481 ≤ maskPolyBytes s by cases s <;> decide)).symm
+
+-- After all retries, an adaptive continuation sees the same returned bytes and signature log.
+example {α : Type} (H : Xofs) (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
+    (q : SigningQuery) (log : List Forgery) (next : Option (List Byte) → List Forgery → PMF α) :
+    let μ := H.representativeFromTr sk.tr (formatMessage q.message q.context)
+    let finish := fun (y : Fin s.params.ℓ → Poly) =>
+      let w := moduleSISMap A y
+      let digest := H.commitmentDigest s (MLDSA.highBitsVec s.params w) μ
+      finishSigningAttempt s sk y w digest (H.sampleInBall s digest)
+    ((PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).bind fun row =>
+      let sig := H.signingRetries s sk A μ (maskFromRow s row)
+      next sig (q.logReply sig log)) =
+      ((List.range 814).findSomeM? fun _ =>
+        (MLDSA.signingMaskLaw s.params (by cases s <;> decide)).map fun y =>
+          (finish y).elim (some none) (Option.map some)).bind fun r =>
+        next r.join (q.logReply r.join log) := by
+  intro μ finish
+  have eq := congrArg (fun p : PMF (Option (List Byte)) =>
+    p.bind fun sig => next sig (q.logReply sig log)) (H.privateMaskRetries_eq_iid s sk A μ)
+  simpa only [PMF.bind_map, Function.comp_def, finish] using eq
+
+-- Request a signature on three bits and submit the reply against a different one-bit message.
+private def switchMessage : QuantumSigningForger where
+  addressBits := 2
+  responseBytes := 1
+  workQubits := 0
+  program _ := .liftBind (.inr (.inr ⟨[], [true, false, true]⟩)) fun reply =>
+    .pure ⟨[], [false], reply.getD []⟩
+
+private theorem fits_three : switchMessage.MessagesFit 3 := by
+  intro pk
+  constructor
+  · exact OracleComp.QueriesSatisfy.liftBind_iff.mpr
+      ⟨le_rfl, fun _ => OracleComp.QueriesSatisfy.pure _⟩
+  · intro f hf
+    simp only [switchMessage, OracleComp.support, OracleComp.supportWith, Set.mem_iUnion,
+      Set.mem_univ, Set.mem_singleton_iff, exists_prop, true_and] at hf
+    obtain ⟨_, rfl⟩ := hf
+    exact (by decide : 1 ≤ 3)
+
+example : ¬ switchMessage.MessagesFit 2 := fun fit =>
+  (by decide : ¬ 3 ≤ 2) (OracleComp.QueriesSatisfy.liftBind_iff.mp (fit []).1).1
+
+-- The public key determines the cutoff for this forger. Doubling both windows and
+-- changing both background streams preserves its whole ML-DSA-44 winning distribution.
+example (lo hi : Xofs) :
+    switchMessage.randomPrefixGame .mlDSA44 lo 10496 894 =
+      switchMessage.randomPrefixGame .mlDSA44 hi 20992 1788 :=
+  switchMessage.randomPrefixGame_stable .mlDSA44 fits_three (by decide) (by decide)
+    (by decide) (by decide) lo hi

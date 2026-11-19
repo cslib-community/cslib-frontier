@@ -104,11 +104,7 @@ theorem extractRepeatedDigest_of_verify {H : Xofs} {s : Level} {bytes : List Byt
     by_contra diff
     exact msgHash ⟨diff, reps⟩
   refine ⟨.msis (responseDifference 13 pk x y), parsed.trans (by simp [msgHash, addrEq]), ?_⟩
-  have valid : s.params.Valid := by
-    cases s
-    · exact Params.valid_mldsa44
-    · exact Params.valid_mldsa65
-    · exact Params.valid_mldsa87
+  have valid := s.valid
   have gap : 4 * s.params.γ₂ < s.params.q := by cases s <;> decide
   have range (σ : CompressedSignature s.params) (i : Fin s.params.k) (j : Fin 256) :
       0 ≤ σ.recover 13 pk i j ∧

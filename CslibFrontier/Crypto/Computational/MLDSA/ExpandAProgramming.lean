@@ -113,17 +113,8 @@ private theorem ofFnM_replace {α β : Type*} {n : ℕ} (f : Fin n → Option α
     cases Vector.ofFnM (fun i : Fin n => f i.castSucc) <;>
       cases f (Fin.last n) <;> simp [Vector.ofFn_succ, Fin.last]
 
-private def liftEntries (s : Level) (e : Equiv.Perm (FixedBytes 894 × Poly)) :
-    Equiv.Perm (MatrixPrefixes s × PublicMatrix s) :=
-  let applyAt (g : FixedBytes 894 × Poly → FixedBytes 894 × Poly)
-      (z : MatrixPrefixes s × PublicMatrix s) : MatrixPrefixes s × PublicMatrix s :=
-    (fun i j => (g (z.1 i j, z.2 i j)).1, fun i j => (g (z.1 i j, z.2 i j)).2)
-  let undo (g h : FixedBytes 894 × Poly → FixedBytes 894 × Poly) (inv : Function.LeftInverse h g)
-      (z : MatrixPrefixes s × PublicMatrix s) : applyAt h (applyAt g z) = z := by
-    apply Prod.ext <;> funext i j <;> simp [applyAt, inv _]
-  ⟨applyAt e, applyAt e.symm, undo _ _ e.left_inv, undo _ _ e.right_inv⟩
-
-private theorem entry_read (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
+/-- Algorithm 32 receives the installed 894 bytes at this public row and column. -/
+theorem read_matrixEntry (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
     (i : Fin s.params.k) (j : Fin s.params.ℓ) :
     (H.withMatrixPrefixes s rho t).h128.readBytes
         (rho ++ [Fin.ofNat 256 j.val, Fin.ofNat 256 i.val]) 894 = List.ofFn (t i j) := by
@@ -178,7 +169,7 @@ theorem expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte)
   have eval (u : MatrixPrefixes s) : (H.withMatrixPrefixes s rho u).expandA s rho =
       (Vector.ofFnM (rows u)).map unpack := by
     unfold Xofs.expandA
-    simp only [entry_read, bind_pure_comp]
+    simp only [read_matrixEntry, bind_pure_comp]
     rfl
   rw [eval, eval, hm]
   cases Vector.ofFnM (rows t) with
@@ -200,15 +191,19 @@ theorem uniform_expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List
       let G := H.withMatrixPrefixes s rho t
       (G, G.expandA s rho)) := by
   let c := (Equiv.refl (FixedBytes 894)).prodCongr fromNTTEquiv.symm
-  let e := liftEntries s ((c.trans (exchangeRejNTT 894)).trans c.symm)
+  let entry := (c.trans (exchangeRejNTT 894)).trans c.symm
+  let split := Matrix.prodEquiv (Fin s.params.k) (Fin s.params.ℓ) (FixedBytes 894) Poly
+  let e : Equiv.Perm (MatrixPrefixes s × PublicMatrix s) :=
+    (split.symm.trans entry.mapMatrix).trans split
   conv_rhs => rw [← Probability.PMF.uniformOfFintype_prod_map_fst (β := PublicMatrix s),
     PMF.map_comp, ← Probability.PMF.uniformOfFintype_map_equiv e, PMF.map_comp]
   apply congrArg (fun f => (PMF.uniformOfFintype (MatrixPrefixes s × PublicMatrix s)).map f)
   funext ⟨t, A⟩
   have he : (e (t, A)).1 = programMatrixPrefixes s t A := by
     funext i j
-    simp only [e, liftEntries, c, programMatrixPrefixes, Equiv.trans_apply, Equiv.prodCongr_apply,
-      Equiv.prodCongr_symm, Equiv.coe_fn_mk, Equiv.refl_symm, Prod.map, Equiv.refl_apply]
+    change (entry (t i j, A i j)).1 = _
+    simp only [entry, c, programMatrixPrefixes, Equiv.trans_apply, Equiv.prodCongr_apply,
+      Equiv.prodCongr_symm, Equiv.refl_symm, Equiv.refl_apply, Prod.map]
   simp only [Function.comp_apply, he, expandA_programMatrixPrefixes]
 
 end Cslib.Crypto.MLDSA.FIPS204
