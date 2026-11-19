@@ -113,14 +113,14 @@ theorem Fin.exists_le_lt_adjacent {α : Type*} [LinearOrder α] {n : ℕ}
   classical
   by_contra hn
   let R : α → α → Prop := fun a b => a ≤ x → b ≤ x
-  letI : IsTrans α R := ⟨fun _ _ _ hab hbc => hbc ∘ hab⟩
+  let : IsTrans α R := ⟨fun _ _ _ hab hbc => hbc ∘ hab⟩
   have hadj : ∀ i : Fin n, R (f i.castSucc) (f i.succ) := by
     intro i hi
     exact le_of_not_gt (fun hh => hn ⟨i, hi, hh⟩)
   have hall := (Fin.liftFun_iff_succ R).mpr hadj
   by_cases hn0 : n = 0
   · subst n
-    have he : (Fin.last 0 : Fin 1) = 0 := Subsingleton.elim _ _
+    have he : (Fin.last 0 : Fin 1) = 0 := rfl
     exact (not_le_of_gt hlast) (he.symm ▸ hfirst)
   · have hz : (0 : Fin (n + 1)) < Fin.last n := by
       change 0 < n
