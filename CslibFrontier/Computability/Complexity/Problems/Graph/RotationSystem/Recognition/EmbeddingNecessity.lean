@@ -321,11 +321,6 @@ private def mulRoute (u : ℂ) (p : Route) : Route where
   bends := p.bends
   point := fun k => u * p.point k
 
-private theorem mulRoute_eval (u : ℂ) (p : Route) (j : Fin p.segments) (t : ℝ) :
-    (mulRoute u p).eval j t = u * p.eval j t := by
-  let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-  exact (f.toAffineMap.apply_lineMap _ _ t).symm
-
 private theorem mulRoute_support (u : ℂ) (p : Route) :
     (mulRoute u p).support = (fun z => u * z) '' p.support := by
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ

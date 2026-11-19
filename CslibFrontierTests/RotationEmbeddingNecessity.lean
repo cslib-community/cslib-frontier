@@ -4,8 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine, OpenAI
 -/
 
+module
+
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
@@ -13,6 +16,8 @@ import Mathlib.Tactic.NormNum
 
 /-! Ordinary positioned-embedding clients with actual rational contacts and arbitrary
 segment parameters. The horizontal-piece example uses the internally selected axis. -/
+
+public section
 
 namespace CslibFrontierTests.RotationEmbeddingNecessity
 
@@ -310,7 +315,7 @@ example : (Route.line (P 0) (P 2)).IsSimple ∧
 
 -- Three edge supports may meet at their declared star center in a genuine embedding.
 -- Hence no-three-away-from-vertices cannot be strengthened to no-three everywhere.
-example :
+theorem declared_star_has_three_supports :
     (PolygonalDrawing.star 3).IsEmbedding ∧
     (∀ e : Fin (Graph.RotationSystem.starGraph 3).edges.length,
       (0 : ℂ) ∈ ((PolygonalDrawing.star 3).route e).support) := by
