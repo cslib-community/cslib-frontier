@@ -10879,8 +10879,11 @@ register_result "dpll-pigeonhole-refutation-size" where
   title := "The DPLL solver's refutations and certificates of pigeonhole formulas are exponential"
   topic := "SAT algorithms"
   sources := [
-    { paper := BeyersdorffGalesiLauria2010, theorem := "Theorem 2", locator := unverified },
-    { paper := DantchevRiis2001, theorem := unverified, locator := unverified }
+    { paper := BeyersdorffGalesiLauria2010, theorem := "Theorem 2",
+      locator := "White Rose eprint 74432 (manuscript of 2010-07-01), §4, printed p. 4; PDF p. 5; \
+        the bound 2^((n/2) log(n/2 + 1)) at the end of the proof, printed p. 6; PDF p. 7" },
+    { paper := DantchevRiis2001, theorem := "Theorem 1",
+      locator := "CCC 2001 proceedings version (Durham DRO 673), §3, printed p. 72; PDF p. 4" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.DPLL.pow_half_le_size_refutation?_pigeonhole,
