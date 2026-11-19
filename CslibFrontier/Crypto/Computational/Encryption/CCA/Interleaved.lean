@@ -710,7 +710,7 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
       ((computableInPolyTime_ccaQuery_challenge encMsg).comp
         (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
     simpa only [CCA2AdversaryOf.toInterleaved, bind_pure_comp] using
-      (hA.choose.on.preprocess' hprep).map' hpost
+      (hA.choose.on.preprocess hprep).map hpost
   finish := by
     let EIn := encPair encUnary (encPair encBits (encPair encBits encBits))
     have hcond : ComputableInPolyTime
@@ -721,10 +721,10 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
         (fun p : ℕ × List Bool × List Bool × List Bool => (p.1, p.2.2.1, p.2.2.2.tail))
         EIn (encPair encUnary (encPair encBits encBits)) := by
       dsimp only [EIn]; fun_prop
-    have hyes := hA.guess.preprocess' hprep
+    have hyes := hA.guess.preprocess hprep
     have hno : IsOraclePPTOn (Operation := Unit) EIn encBool (fun _ => pure false) :=
       (ComputableInPolyTime.const false).isOraclePPTOn
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   step_length_le := by
     have hpost : ComputableInPolyTime
         (fun choice : (Msg × Msg) × List Bool =>
@@ -738,7 +738,7 @@ theorem isPPT_toInterleaved {Msg : Type} {encMsg : Msg ↪ List Bool}
         (fun p : ℕ × List Bool => do
           let choice ← adversary.choose p.1 p.2
           return (CCAQuery.challenge choice.1.1 choice.1.2, choice.2)) := by
-      simpa only [bind_pure_comp] using hA.choose.on.map' hpost
+      simpa only [bind_pure_comp] using hA.choose.on.map hpost
     obtain ⟨cs, ds, hlen⟩ := hstepOn.length_le
     refine ⟨cs * 2 ^ ds, ds, ?_⟩
     intro n pk state lastReply out hout
@@ -1077,13 +1077,13 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
         (fun reply => (reply, pair.2.2)) <$>
           (List.take (decBound (nOf pair.1) pair.2.1.2) <$>
             ProbOracleComp.query ((), pair.2.1.2))) :=
-    (IsOraclePPTOn.query_take' (Operation := Unit) () hreq hlimit).map_with'
+    (IsOraclePPTOn.query_take (Operation := Unit) () hreq hlimit).map_with
       (ComputableInPolyTime.prod (by fun_prop)
         (by dsimp only [EIn, EState]; fun_prop))
   have hhandler : IsOraclePPTOn (Operation := Unit) EIn (encPair encBits EState)
       (fun pair : Caller × ((Unit × List Bool) × Unit) =>
         multiPhase2FilterHandler (decBound (nOf pair.1)) (ctsOf pair.1) pair.2.1 pair.2.2) :=
-    IsOraclePPTOn.cond' hmemCond hnoReply hqueryReply
+    IsOraclePPTOn.cond hmemCond hnoReply hqueryReply
   have hres : ComputableInPolyTime
       (fun pair : Caller × List Bool => decBound (nOf pair.1) pair.2)
       (encPair ECaller encBits) encUnary :=
@@ -1110,7 +1110,7 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
     · obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawReply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩
-  exact hrun.map' (ComputableInPolyTime.fst _ _)
+  exact hrun.map (ComputableInPolyTime.fst _ _)
 
 private theorem mem_support_of_mem_support_run_interpret {α : Type}
     (handler : Unit × List Bool → StateT Unit (WordOracleComp Unit) (List Bool))
@@ -1368,7 +1368,7 @@ private theorem isOraclePPTOn_interleavedOpenRoundStep_loop {Msg : Type} [Inhabi
       (fun pair : (ℕ × (ℕ × List Bool) × InterleavedLoopState) × InterleavedLoopState =>
         interleavedOpenRoundStep valid encrypt decBound adversary roundBit
           pair.1.2.1.1 pair.1.2.1.2 pair.2) :=
-  IsOraclePPTOn.preprocess'
+  IsOraclePPTOn.preprocess
     (prepare := fun pair : (ℕ × (ℕ × List Bool) × InterleavedLoopState) × InterleavedLoopState =>
       (pair.1.2.1, pair.2))
     (isOraclePPTOn_interleavedOpenRoundStep hvalid hencrypt hdecBound hA roundBit)
@@ -1400,7 +1400,7 @@ private theorem isOraclePPTOn_iterate_interleavedOpenRoundStep {Msg : Type} [Inh
   obtain ⟨cs, ds, hlenStep⟩ := hA.step_length_le
   obtain ⟨ce, de, hlenEnc⟩ := hencrypt.length_le
   obtain ⟨cd, dd, hlenDec⟩ := hdecBound.polyBounded_length.exists_le
-  exact IsOraclePPTOn.iterateWith_of_bounded_growth'
+  exact IsOraclePPTOn.iterateWith_of_bounded_growth
     (initial := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState => q.2.2)
     (count := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState => q.1)
     (step := fun q : ℕ × (ℕ × List Bool) × InterleavedLoopState =>
@@ -1454,14 +1454,14 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
         OracleComp.iterate caller.2
           (interleavedOpenRoundStep valid encrypt decBound adversary true caller.1.1 caller.1.2)
           initInterleavedLoopState) :=
-    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA true).preprocess'
+    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA true).preprocess
       (ComputableInPolyTime.prod (by dsimp only [ECaller]; fun_prop)
         (ComputableInPolyTime.prod (by dsimp only [ECaller]; fun_prop)
           (ComputableInPolyTime.const initInterleavedLoopState)))
   have hstepMid : IsOraclePPTOn (Operation := Unit) E2 EStepOut
       (fun p : ((ℕ × List Bool) × ℕ) × InterleavedLoopState =>
         adversary.step p.1.1.1 p.1.1.2 p.2.1 p.2.2.1) :=
-    hA.step.preprocess'
+    hA.step.preprocess
       (ComputableInPolyTime.prod (by dsimp only [E2, ECaller]; fun_prop)
         (ComputableInPolyTime.prod (by dsimp only [E2, ECaller]; fun_prop)
           (ComputableInPolyTime.prod
@@ -1584,8 +1584,8 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
       (encPair (encPair encMsg encMsg) encBits)
       (fun _ => pure ((default, default), rejectInterleavedSingleState)) :=
     (ComputableInPolyTime.const ((default, default), rejectInterleavedSingleState)).isOraclePPTOn
-  exact IsOraclePPTOn.cond' hltCond
-    (hiter.bind_with (hstepFiltered.bind_with (IsOraclePPTOn.cond' hchalValid3 hyes3 hno3)))
+  exact IsOraclePPTOn.cond hltCond
+    (hiter.bind_with (hstepFiltered.bind_with (IsOraclePPTOn.cond hchalValid3 hyes3 hno3)))
     hnoCaller
 
 /-- Phase 2 (`guess`) of `interleavedToSingleAt` is uniformly strict oracle PPT in
@@ -1671,7 +1671,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
           ((interleavedSingleStateDecoder.decode p.2.1).2.2.2.1,
             true :: p.2.2,
             p.2.2 :: (interleavedSingleStateDecoder.decode p.2.1).2.2.2.2)) :=
-    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA false).preprocess'
+    (isOraclePPTOn_iterate_interleavedOpenRoundStep hvalid hencrypt hdecBound hA false).preprocess
       (ComputableInPolyTime.prod hremRounds
         (ComputableInPolyTime.prod
           (ComputableInPolyTime.prod (by dsimp only [EGuess]; fun_prop) hpk)
@@ -1681,7 +1681,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
         adversary.finish q.1.1
           (interleavedSingleStateDecoder.decode q.1.2.1).2.1
           q.2.1 q.2.2.1) :=
-    hA.finish.preprocess'
+    hA.finish.preprocess
       (ComputableInPolyTime.prod (by dsimp only [E2, EGuess]; fun_prop)
         (ComputableInPolyTime.prod
           (hpk.comp (by dsimp only [E2]; fun_prop))
@@ -1722,7 +1722,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
     simpa only [bind_pure_comp] using hiter.bind_with hfinishFiltered
   have hno : IsOraclePPTOn (Operation := Unit) EGuess encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isOraclePPTOn
-  exact IsOraclePPTOn.cond' hactive hyes hno
+  exact IsOraclePPTOn.cond hactive hyes hno
 
 /-- `interleavedToSingleAt` preserves strict oracle PPT admissibility (`CCA2AdversaryOf.IsPPT`). -/
 theorem isPPT_interleavedToSingleAt {Msg : Type} [Inhabited Msg]
@@ -1742,7 +1742,7 @@ theorem isPPT_interleavedToSingleAt {Msg : Type} [Inhabited Msg]
     (interleavedToSingleAt valid encrypt decBound adversary split).IsPPT encMsg where
   choose := by
     have h := (isOraclePPTOn_interleavedToSingleAt_choose
-      hvalid hencrypt hdecBound hA).preprocess'
+      hvalid hencrypt hdecBound hA).preprocess
       (ComputableInPolyTime.prod ComputableInPolyTime.id' (ComputableInPolyTime.const split))
     exact h.isOraclePPT
   guess :=

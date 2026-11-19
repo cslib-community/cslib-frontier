@@ -26,6 +26,10 @@ every declared vertex, including isolates, and every route support not containin
 center. All stored edge occurrences are retained. Vertices enter the existing finite
 segment-separation argument as degenerate segments.
 
+## Main definitions
+
+* `referenceCrossingPoints`: all actual common strict-interior points of distinct indexed routes.
+
 ## Main results
 
 * `Cslib.Complexity.Graph.RotationRecognition.exists_reference_crossing_neighborhoods`:
@@ -44,15 +48,16 @@ namespace Cslib.Complexity.Graph.RotationRecognition
 
 open Polygonal
 
-private def crossingPoints (I : FixedRotationInput) : Set ℂ :=
+/-- Actual common strict-interior points of distinct indexed reference routes. -/
+@[expose] def referenceCrossingPoints (I : FixedRotationInput) : Set ℂ :=
   {z | ∃ e f : Fin (subdivisionGraph I).edges.length, e ≠ f ∧
     z ∈ openSegment ℝ ((referenceDrawing I).route e).start
       ((referenceDrawing I).route e).finish ∧
     z ∈ openSegment ℝ ((referenceDrawing I).route f).start
       ((referenceDrawing I).route f).finish}
 
-private theorem crossingPoints_finite {I : FixedRotationInput} (hI : Valid I) :
-    (crossingPoints I).Finite := by
+private theorem referenceCrossingPoints_finite {I : FixedRotationInput} (hI : Valid I) :
+    (referenceCrossingPoints I).Finite := by
   let E := Fin (subdivisionGraph I).edges.length
   let P := {p : E × E // p.1 ≠ p.2}
   let S := fun p : P =>
@@ -62,7 +67,7 @@ private theorem crossingPoints_finite {I : FixedRotationInput} (hI : Valid I) :
       ((referenceDrawing I).route p.val.2).finish
   have hS : ∀ p, (S p).Finite := fun p =>
     (referenceDrawing_open_inter_subsingleton hI p.val.1 p.val.2 p.property).finite
-  have hC : crossingPoints I = ⋃ p : P, S p := by
+  have hC : referenceCrossingPoints I = ⋃ p : P, S p := by
     ext z
     constructor
     · rintro ⟨e, f, hef, he, hf⟩
@@ -95,7 +100,7 @@ theorem referenceDrawing_crossing_ne_vertex {I : FixedRotationInput} (hI : Valid
   exact (Route.not_atEnd_of_mem_Ioo _ 0 ht b) hb
 
 private theorem exists_crossing_ball {I : FixedRotationInput} (hI : Valid I)
-    {z : ℂ} (hz : z ∈ crossingPoints I) :
+    {z : ℂ} (hz : z ∈ referenceCrossingPoints I) :
     ∃ ε > 0,
       (∀ v ∈ (subdivisionGraph I).vertices,
         (referenceDrawing I).vertex v ∉ Metric.ball z ε) ∧
@@ -146,18 +151,18 @@ theorem exists_reference_crossing_neighborhoods {I : FixedRotationInput} (hI : V
           z ∉ ((referenceDrawing I).route e).support →
           Disjoint (Metric.closedBall z (ρ z)) ((referenceDrawing I).route e).support)) := by
   classical
-  change (crossingPoints I).Finite ∧ _
-  have hC := crossingPoints_finite hI
+  change (referenceCrossingPoints I).Finite ∧ _
+  have hC := referenceCrossingPoints_finite hI
   obtain ⟨U, hU, hdisj⟩ := hC.t2_separation
-  have hopen : ∀ z : crossingPoints I, ∃ δ > 0, Metric.ball z.val δ ⊆ U z.val := by
+  have hopen : ∀ z : referenceCrossingPoints I, ∃ δ > 0, Metric.ball z.val δ ⊆ U z.val := by
     intro z
     exact Metric.isOpen_iff.mp (hU z.val).2 z.val (hU z.val).1
   choose δ hδ hsub using hopen
-  have hlocal := fun z : crossingPoints I => exists_crossing_ball hI z.property
+  have hlocal := fun z : referenceCrossingPoints I => exists_crossing_ball hI z.property
   choose η hη hvert hsupp using hlocal
   let ρ : ℂ → ℝ := fun z =>
-    if hz : z ∈ crossingPoints I then min (δ ⟨z, hz⟩) (η ⟨z, hz⟩) / 2 else 1
-  have hbounds (z : ℂ) (hz : z ∈ crossingPoints I) :
+    if hz : z ∈ referenceCrossingPoints I then min (δ ⟨z, hz⟩) (η ⟨z, hz⟩) / 2 else 1
+  have hbounds (z : ℂ) (hz : z ∈ referenceCrossingPoints I) :
       0 < ρ z ∧ ρ z < δ ⟨z, hz⟩ ∧ ρ z < η ⟨z, hz⟩ := by
     have hρ : ρ z = min (δ ⟨z, hz⟩) (η ⟨z, hz⟩) / 2 := by
       simp only [ρ, dite_eq_left hz]
@@ -166,7 +171,7 @@ theorem exists_reference_crossing_neighborhoods {I : FixedRotationInput} (hI : V
     have hleft := min_le_left (δ ⟨z, hz⟩) (η ⟨z, hz⟩)
     have hright := min_le_right (δ ⟨z, hz⟩) (η ⟨z, hz⟩)
     refine ⟨by linarith, by linarith, by linarith⟩
-  have hclosed (z : ℂ) (hz : z ∈ crossingPoints I) :
+  have hclosed (z : ℂ) (hz : z ∈ referenceCrossingPoints I) :
       Metric.closedBall z (ρ z) ⊆ U z :=
     (Metric.closedBall_subset_ball (hbounds z hz).2.1).trans (hsub ⟨z, hz⟩)
   refine ⟨hC, ρ, fun z hz => (hbounds z hz).1, ?_, ?_⟩

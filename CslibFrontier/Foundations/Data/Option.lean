@@ -43,4 +43,16 @@ theorem getD_beq_self_eq_true_iff {o : Option Bool} {b : Bool} :
 
 end Option
 
+/-- Replacing every accepted entry in an optional vector with a prescribed value retains
+failure and returns precisely the vector of prescribed values on success. -/
+theorem Vector.ofFnM_option_replace {α β : Type*} {n : ℕ} (f : Fin n → Option α) (v : Fin n → β) :
+    Vector.ofFnM (fun i => (f i).map fun _ => v i) =
+      (Vector.ofFnM f).map fun _ => Vector.ofFn v := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Vector.ofFnM_succ, Vector.ofFnM_succ, ih (fun i => f i.castSucc) (fun i => v i.castSucc)]
+    cases Vector.ofFnM (fun i : Fin n => f i.castSucc) <;>
+      cases f (Fin.last n) <;> simp [Vector.ofFn_succ, Fin.last]
+
 end

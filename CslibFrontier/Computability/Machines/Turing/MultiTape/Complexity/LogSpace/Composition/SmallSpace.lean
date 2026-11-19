@@ -349,9 +349,9 @@ lemma inputPos_inO {α : Type} {enc : α ↪ List Bool} {c : α → SCfg} {T S :
 lemma halted_inO {α : Type} {enc : α ↪ List Bool} {c : α → SCfg} {T S : α → ℕ}
     (h : ComputableTidilyInO c enc eCfg T S) :
     ComputableTidilyInO (fun a => (c a).state.isNone) enc encBool T S :=
-  ((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear
+  ((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
+    fun b : Bool => !b).inO_one.tidy.comp_linear
+      ((ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear
         -- bridge for #862: tidy client of the plain `state_inO`
         (state_inO.tidy.comp_linear h))).of_enc_eq fun a => by
         simp only [Function.comp_apply]
@@ -363,12 +363,12 @@ lemma countSym_inO {α : Type} {enc : α ↪ List Bool} {p k cur : α → ℕ} {
     (hcur : ComputableTidilyInO cur enc encUnary T S) :
     ComputableTidilyInO (fun a => if p a = 0 ∨ k a ≠ 0 then none else some (cur a)) enc eSym
       (fun a => T a + (enc a).length) fun a => S a + (enc a).length := by
-  have hor := (ComputableTidilyInDegree.of_finite (encIn := encPair encBool encBool)
-    (encMid := encBool) fun b : Bool × Bool => b.1 || !b.2).inO_one.comp_linear
+  have hor := (ComputableInDegree.of_finite (encIn := encPair encBool encBool)
+    (encMid := encBool) fun b : Bool × Bool => b.1 || !b.2).inO_one.tidy.comp_linear
       ((ComputableInO.natIsZero.tidy.comp_linear hp).prod
         (ComputableInO.natIsZero.tidy.comp_linear hk))
-  refine (((hor.ite (const none) ((ComputableTidilyInDegree.optionSome (enc₁ := encUnary)
-    (enc := eSym)).inO_one.comp_linear hcur)).of_enc_eq fun a => ?_)).mono 4 (fun a => ?_)
+  refine (((hor.ite (const none) ((ComputableInDegree.optionSome (enc₁ := encUnary)
+    (enc := eSym)).inO_one.tidy.comp_linear hcur)).of_enc_eq fun a => ?_)).mono 4 (fun a => ?_)
     fun a => ?_
   · simp only [Function.comp_apply]
     split_ifs <;> simp_all
@@ -490,8 +490,8 @@ lemma fBranch_inO : ComputableTidilyInO (fun s : CSt =>
   have ho := stepF_inO.snd'
   have hk := hc.snd'.fst'
   have hcur := hc.snd'.snd'
-  have hsome := (ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear ho
-  have hn := (ComputableTidilyInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.comp_linear
+  have hsome := (ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear ho
+  have hn := (ComputableInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.tidy.comp_linear
     ho
   have hk1 := (ComputableInO.eq encNat).tidy.comp (hk.prod (const (encMid := encNat) 1))
   have hsum := ComputableTidilyInO.append (g := fun s : CSt => s.1.2.2 +
@@ -551,13 +551,14 @@ public lemma cEmit_inO : ComputableTidilyInO (fun s : CSt => gEmit s.1) eCSt enc
     (fun s => ((eCSt s).length + 1) ^ 3) fun s => (eCSt s).length + 1 := by
   have hcf := (fst eCtl (encPair encNat encUnary)).fst'.snd'.snd'
   have ho := stepG_inO.snd'
-  have hsome := (ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear ho
-  have hn := (ComputableTidilyInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.comp_linear
+  have hsome := (ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear ho
+  have hn := (ComputableInDegree.getD (enc₁ := encUnary) (enc := eSym) 0).inO_one.tidy.comp_linear
     ho
   have hz : ComputableTidilyInO (fun n => decide (n ≠ 0)) encUnary encBool
       (fun n => (encUnary n).length) fun n => (encUnary n).length :=
-    ((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-      fun b : Bool => !b).inO_one.comp_linear (of_linear (.of_isEmpty (f := fun n => decide (n = 0))
+    ((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
+      fun b : Bool => !b).inO_one.tidy.comp_linear
+        (of_linear (.of_isEmpty (f := fun n => decide (n = 0))
         fun n => by cases n <;> simp))).of_enc_eq fun n => by simp
   have hb := (hz.comp_linear hn).of_enc_eq (encOut := encBits) (g := fun s : CSt =>
       [decide ((stepWith s.1.1.1.1 s.1.1.1.2 (gSym s.1)).2.getD 0 ≠ 0)]) fun _ => rfl
@@ -574,7 +575,7 @@ public lemma cEmit_inO : ComputableTidilyInO (fun s : CSt => gEmit s.1) eCSt enc
 /-- Whether another pass follows: `g` has not halted. -/
 public lemma cCont_inO : ComputableTidilyInO (fun s : CSt => s.1.1.1.2.state.isSome) eCSt encBool
     (fun s => ((eCSt s).length + 1) ^ 3) fun s => (eCSt s).length + 1 :=
-  (((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear
+  (((ComputableInDegree.isSome encUnary).inO_one.tidy.comp_linear
     -- bridge for #862: tidy client of the plain `state_inO`
     (state_inO.tidy.comp_linear (fst eCtl (encPair encNat encUnary)).fst'.fst'.snd'))).mono 1
     (fun s => by
@@ -591,8 +592,8 @@ public lemma cNext_inO : ComputableTidilyInO cNext (encPair eCSt encBool) eCSt
   have hk := hs.snd'.fst'
   have hcur := hs.snd'.snd'
   have hk1 := (ComputableInO.eq encNat).tidy.comp (hk.prod (const (encMid := encNat) 1))
-  have hbit := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encUnary)
-    eBit).inO_one.comp_linear hb
+  have hbit := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encUnary)
+    eBit).inO_one.tidy.comp_linear hb
   refine ((hs.fst'.prod ((ComputableInO.natPred.tidy.comp hk).prod (hk1.ite hbit hcur))).of_enc_eq
     (g := cNext) fun p => ?_).mono 100 (fun p => ?_) fun p => ?_
   · simp only [cNext, bitScan, Function.comp_apply]

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateReindex
 public import CslibFrontier.Foundations.Data.Nat.BlockMove
 
+import Mathlib.Data.Nat.Size
+
 /-!
 # Directed boundary rotation on raw successor tables
 
@@ -34,6 +36,18 @@ Body-prefix and out-of-window indices remain fixed. -/
 @[expose] def boundaryIndexMap (M N : ℕ) (shift : ℕ → ℕ) (i : ℕ) : ℕ :=
   if 2 * M ≤ i ∧ i < 2 * (M + N) then
     2 * (M + shift (i / 2 - M)) + i % 2 else i
+
+/-- A probe-window map changes only bounded indices; arbitrary out-of-window binary data
+keeps its original width. -/
+theorem size_boundaryIndexMap_le (M N : ℕ) (shift : ℕ → ℕ) (h : ∀ j, shift j < N)
+    (v : ℕ) : (boundaryIndexMap M N shift v).size ≤
+      max v.size (2 * (M + N)).size := by
+  unfold boundaryIndexMap
+  split_ifs
+  · have hs := h (v / 2 - M)
+    have hb := Nat.mod_lt v (by decide : 0 < 2)
+    exact (Nat.size_le_size (by omega)).trans (le_max_right _ _)
+  · exact le_max_left _ _
 
 /-- Execute one left boundary-word rotation's numeric table transport. The reversed probe
 moves old argument slots forward by one; lookup uses the inverse shift. No validity check

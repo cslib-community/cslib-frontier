@@ -55,13 +55,15 @@ actual occurrence and port counts. Empty and singleton boundaries retain the ent
       rotateBoundaryCertificate I.body.occurrences.length I.ports.length I.rotation⟩
   | _ => I
 
-private theorem rotateLeft_body (I : State Rel) : (rotateLeft I).body = I.body := by
+/-- LEFT boundary movement retains the entire actual body. -/
+theorem rotateLeft_body (I : State Rel) : (rotateLeft I).body = I.body := by
   rcases I with ⟨F, ports, c⟩
   cases ports with
   | nil => rfl
   | cons x ps => cases ps <;> rfl
 
-private theorem rotateLeft_ports (I : State Rel) :
+/-- LEFT boundary movement rotates the ordered raw port word by one position. -/
+theorem rotateLeft_ports (I : State Rel) :
     (rotateLeft I).ports = I.ports.rotate 1 := by
   rcases I with ⟨F, ports, c⟩
   cases ports with
@@ -115,7 +117,8 @@ singleton raw boundaries retain the entire original state, including malformed e
       rotateBoundaryCertificateRight I.body.occurrences.length I.ports.length I.rotation⟩
   | _ => I
 
-private theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
+/-- Moving the last raw port to the front emits the literal RIGHT table on all inputs. -/
+theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
     (c : Graph.RotationCertificate) :
     rotateRight (⟨F, ps ++ [p], c⟩ : State Rel) =
       ⟨F, p :: ps, rotateBoundaryCertificateRight F.occurrences.length (ps.length + 1) c⟩ := by
@@ -124,13 +127,15 @@ private theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
   | cons x xs =>
     cases xs <;> simp [rotateRight, List.reverse_append, List.reverse_cons]
 
-private theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by
+/-- RIGHT boundary movement retains the entire actual body. -/
+theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by
   rcases I with ⟨F, ports, c⟩
   induction ports using List.reverseRecOn with
   | nil => rfl
   | append_singleton ps p _ih => rw [rotateRight_snoc]
 
-private theorem rotateRight_ports (I : State Rel) :
+/-- RIGHT boundary movement rotates the ordered raw port word by one position. -/
+theorem rotateRight_ports (I : State Rel) :
     (rotateRight I).ports = (I.ports.reverse.rotate 1).reverse := by
   rcases I with ⟨F, ports, c⟩
   induction ports using List.reverseRecOn with

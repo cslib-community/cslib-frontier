@@ -1103,8 +1103,8 @@ theorem gmwView_indistinguishable_gmwSimulator {α : Type} {enc : α ↪ List Bo
   have htest : IsPPTOn (encPair (encPair encUnary (encPair enc encBits)) encBits) encBool
       (fun p => adversary p.1.1 p.2) :=
     hadversary.preprocess
-      ((ComputableInPolyTime.fst (encPair encUnary (encPair enc encBits)) encBits).fst').tidy
-      (ComputableInPolyTime.snd (encPair encUnary (encPair enc encBits)) encBits).tidy
+      ((ComputableInPolyTime.fst (encPair encUnary (encPair enc encBits)) encBits).fst')
+      (ComputableInPolyTime.snd (encPair encUnary (encPair enc encBits)) encBits)
   have hclock := isPPTOn_gmwViewReduction
     (adversary := fun n _ _ view => adversary n view) hG.polyTime hG.length_eq hf hV htest
   let red : Distinguisher := fun n challenge =>

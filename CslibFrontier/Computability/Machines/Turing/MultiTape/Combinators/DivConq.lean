@@ -319,7 +319,7 @@ private lemma roundCall_inO (hisBase : ComputableTidilyInO D.isBase encA encBool
   have hl := (toList_inO (enc := encFrame encA encG)).comp hfst
   have hb := (ComputableInO.inr encA (encSum encB encB)).tidy.comp
     ((ComputableInO.inl encB encB).tidy.comp (hbase.comp hsnd))
-  have hcons := (ComputableTidilyInDegree.cons (encFrame encA encG)).inO_one.comp
+  have hcons := (ComputableInDegree.cons (encFrame encA encG)).inO_one.tidy.comp
     (((ComputableInO.inl encA encG).tidy.comp hsnd).prod hl)
   have hlf := (ComputableInO.inl encA (encSum encB encB)).tidy.comp (hleft.comp hsnd)
   refine (hc.ite (hl.prod hb) (hcons.prod hlf)).mono 8 (fun p => ?_) (fun p => ?_)
@@ -360,7 +360,7 @@ private lemma retSwap_inO
           (fun g => Tj (g, q.1) + Sj (g, q.1) + (encB (D.join (g, q.1))).length))) := by
   -- the middle: the second subproblem is called, the saved data pushed
   have hm := hmid.comp (swap_inO (encS := encB) (encT := encA))
-  have hpush := (ComputableTidilyInDegree.cons (encFrame encA encG)).inO_one.comp
+  have hpush := (ComputableInDegree.cons (encFrame encA encG)).inO_one.tidy.comp
     (((ComputableInO.inr encA encG).tidy.comp ((snd encA encG).comp hm)).prod
       ((const (encMid := encList (encFrame encA encG)) []).comp hm))
   have hcall := (ComputableInO.inl encA (encSum encB encB)).tidy.comp ((fst encA encG).comp hm)
@@ -429,13 +429,13 @@ private lemma halt_inO : ComputableTidilyInO D.loop.halt (encVal encA encB) encB
     (fun v => (encVal encA encB v).length) (fun v => (encVal encA encB v).length) := by
   have hw : ComputableTidilyInO (fun w : List Bool => (w.headD false, w.tail.headD false))
       encBits (encPair encBool encBool) (fun w => w.length) (fun w => w.length) :=
-    ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.prod
-      ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.comp
+    ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.tidy.prod
+      ((ComputableInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.tidy.comp
         (of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
           fun _ => rfl)))).mono 3 (fun w => by simp [encBits]; omega)
       (fun w => by simp [encBits]; omega)
-  refine (((ComputableTidilyInDegree.of_finite (encIn := encPair encBool encBool)
-    (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).inO_one.comp hw).comp
+  refine (((ComputableInDegree.of_finite (encIn := encPair encBool encBool)
+    (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).inO_one.tidy.comp hw).comp
     (of_linear (.of_eq (f := fun v : Val α β => encVal encA encB v) (encIn := encVal encA encB)
       (encMid := encBits) fun _ => rfl))).of_enc_eq (fun v => ?_) |>.mono 4 (fun v => ?_)
       (fun v => ?_)

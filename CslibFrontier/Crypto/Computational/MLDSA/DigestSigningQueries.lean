@@ -230,7 +230,7 @@ theorem Xofs.evalPure_signDigestQueries (H : Xofs) (s : Level) (D) (key : List B
   let G := H.withDigestRegister s D
   simp only [Xofs.signDigestQueries, Xofs.evalPure_signDigestQueriesWithMask, Xofs.sign,
     Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
-    bind_assoc, pure_bind]
+    Xofs.startDecodedSigning, bind_assoc, pure_bind]
   apply Option.bind_congr
   intro _ _
   apply Option.bind_congr

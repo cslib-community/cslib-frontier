@@ -42,7 +42,7 @@ counter thus yields a fully polynomial almost uniform generator
 
 The recursive walk down the self-reduction tree
 (`Cslib.Complexity.SelfReducible.walk`) is run as a bounded loop of `len x` steps
-(`Cslib.Probability.IsPPTOn.iterateWith_spec'`) whose state is the current node, its estimate in
+(`Cslib.Probability.IsPPTOn.iterateWith_spec`) whose state is the current node, its estimate in
 binary, the bits chosen so far, and a running flag. A rejected walk stops and keeps its state.
 The loop invariant: the current node is no longer than `x`, at most `i` bits are recorded after
 `i` steps, and the estimate is the root estimate or one returned at a node no longer than `x`.
@@ -246,7 +246,7 @@ private theorem isPPTOn_nodeEstimate
     ComputableInPolyTime.isPPTOn (by fun_prop)
   have hcall : IsPPTOn input (encPair encNat encNat) (fun b => A (node b) (p b) (t b)) :=
     hA.preprocess (prepare := fun b => (node b, p b, t b)) (hnode.prod (hp.prod ht))
-  refine (IsPPTOn.cond' hzero hbase hcall).congr fun b => ?_
+  refine (IsPPTOn.cond hzero hbase hcall).congr fun b => ?_
   simp only [nodeEstimate, decide_eq_true_eq]
 
 /-- The walk state encoding: node, estimate in binary, recorded bits, running flag. -/
@@ -347,7 +347,7 @@ private theorem isPPTOn_walkStep
     IsPPTOn.bind_with h₀ h₁₂
   have hno : IsPPTOn (encPair input (encState enc)) (encState enc)
       (fun r : β × WalkState α => pure r.2) := hsnd.isPPTOn
-  exact (IsPPTOn.cond' hsnd.snd'.snd'.snd' hyes hno).congr fun r => rfl
+  exact (IsPPTOn.cond hsnd.snd'.snd'.snd' hyes hno).congr fun r => rfl
 
 /-! ### The loop -/
 
@@ -463,7 +463,7 @@ private theorem isPPTOn_trial
       ((((PolyBounded.const 2).mul (h2.add hK)).add (PolyBounded.const 1)).add
         (((PolyBounded.const 2).mul h4).add (PolyBounded.const 2)))
   have hstep := R.isPPTOn_walkStep A hA hP hT hM hT
-  have hloop := IsPPTOn.iterateWith_spec' (input := encLoop enc) (stateEncoding := encState enc)
+  have hloop := IsPPTOn.iterateWith_spec (input := encLoop enc) (stateEncoding := encState enc)
     (step := fun a => R.walkStep A (counterAccuracy (R.len a.1.1)) (precision (R.len a.1.1) a.1.2)
       (damping (R.len a.1.1)) (precision (R.len a.1.1) a.1.2))
     hlen hinitial hstep

@@ -69,12 +69,12 @@ discarded after reading the physical request wires. The continuation depends on 
 private theorem isOraclePPTOn_requestKey {α : Type} (input : α ↪ List Bool) :
     IsOraclePPTOn input encBool (fun _ => requestKey) := by
   unfold requestKey
-  exact (IsOraclePPTOn.query_take' (Operation := Operation) (.inr ())
-    (.const [false, false]) (.const 2)).map' (by fun_prop)
+  exact (IsOraclePPTOn.query_take (Operation := Operation) (.inr ())
+    (.const [false, false]) (.const 2)).map (by fun_prop)
 
 theorem isOraclePPTOn_finish : IsOraclePPTOn encBool encUnit finish := by
   have hkey : IsOraclePPTOn encBool encUnit initializeKey :=
-    IsOraclePPTOn.cond' ComputableInPolyTime.id' (isOraclePPTOn_gate encBool _)
+    IsOraclePPTOn.cond ComputableInPolyTime.id' (isOraclePPTOn_gate encBool _)
       (ComputableInPolyTime.const ()).isOraclePPTOn
   unfold finish
   apply hkey.bind

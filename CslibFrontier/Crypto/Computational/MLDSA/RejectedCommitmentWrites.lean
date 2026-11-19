@@ -434,7 +434,7 @@ private theorem scored_no_sign (C : QuantumSigningForger) (s : Level) (base : Xo
         Function.comp_def, expansionContinuation, scored_step (C := C) (q := .inr (.inl cmd))
           (k := k), OracleComp.withSampleListWhen,
         isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.false_eq_true, ↓reduceIte,
-        signingCommand, StateT.run, pmf_norm]
+        signingCommand, deviceCommand, StateT.run, pmf_norm]
       apply congrArg (PMF.bind _ ·)
       funext ⟨bits, next⟩
       exact ih bits (tail bits) next st

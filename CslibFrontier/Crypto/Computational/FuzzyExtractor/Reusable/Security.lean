@@ -508,7 +508,7 @@ theorem isPPT_commonMatrixSimulator (hm : ComputableInPolyTime m encUnary encUna
         (fun call : Call => decide (call.2.1.2.length = m call.1.secParam * w call.1.secParam))
         encCall encBool :=
       ComputableInPolyTime.unary_eq' hlen (ComputableInPolyTime.unary_mul' (hm.comp hκc) hwc)
-    exact IsPPTOn.ite' hcond hyes (ComputableInPolyTime.const []).isPPTOn
+    exact IsPPTOn.ite hcond hyes (ComputableInPolyTime.const []).isPPTOn
   have hhandler : IsPPTOn encCall (encPair encBits (encFinEnum Unit))
       (fun ⟨x, request, state⟩ => (StateT.lift (simHandler (m x.secParam)
         (k x.secParam + l x.secParam) (w x.secParam) (t x.secParam) (helperWord x.helper)

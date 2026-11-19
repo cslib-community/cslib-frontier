@@ -309,7 +309,7 @@ private theorem seed_hedge_of_representative_ne {base : Xofs} {s : Level} {seed 
   have sameLength : (Keccak.bytesToBitsLE (key ++ (t i).toList)).length =
       (Keccak.bytesToBitsLE tr).length := by
     rw [Keccak.length_bytesToBitsLE, Keccak.length_bytesToBitsLE, List.length_append,
-      FixedBytes.length_toList, hk, ht]
+      FixedBytes.length_toList, ht, hk]
   have bytes : key ++ (t i).toList = tr :=
     Keccak.bytesToBitsLE_injective (List.append_inj eq sameLength).1
   exact miss i bytes.symm

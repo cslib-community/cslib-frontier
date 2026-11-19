@@ -53,8 +53,7 @@ private noncomputable def signingCommand (C : QuantumSigningForger) (device : Xo
     (fun k => StateT.lift (ProbComp.unifOracle k))
     (OracleComp.sumHandler (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
       (spec₂ := fun _ : SigningQuery => Option (List Byte))
-      (fun cmd (st : State C) => (C.deviceCommand device cmd st.1).map
-        fun (reply, next) => (reply, next, st.2))
+      (C.deviceCommand device)
       (fun q st => PMF.pure <| let sig := sign q
         (sig, st.1, q.logReply sig st.2)))
 

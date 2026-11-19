@@ -1683,8 +1683,7 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
       return raw.take n) := by
   apply IsPPTOn.isPPT
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 ```
 

@@ -26,8 +26,10 @@ Attack Game 20.4 and Definition 20.6, p. 840) on concrete instances and two-side
 * **Boolean and infinite-type `CloseTo`/`Game` bridges.** Check `Game.closeTo_iff_advantage_le` on
   concrete `PMF Bool` laws and `Game.advantage_bind_le_of_closeTo` across `PMF ℕ` without
   `Fintype`.
-* **Schnorr in `schnorrGroups`.** Instantiate the ideal-sampling step
-  `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr_ideal` with exact zero acceptance error
+* **Schnorr in `schnorrGroups`.** Instantiate the fair-coin protocol
+  `schnorrGroups.schnorrProbFamily` for completeness, efficient special soundness, polynomial-time
+  verification, `2 / 2 ^ n` transcript closeness, and
+  `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr` with exact zero acceptance error
   (`δ = fun _ => 0`), exercising both `accepts_schnorrSimulator` and Attack Game 20.4
   indistinguishability.
 * **`SpecialHVZK` does not imply `ComputationalSpecialHVZK` (under discrete log).** The protocol
@@ -88,15 +90,35 @@ example (μ ν : PMF ℕ) (h : CloseTo μ ν ((1 / 8 : ℝ≥0) : ℝ≥0∞)) (
 
 /-! ### Schnorr in `schnorrGroups` -/
 
-/-- Schnorr's Sigma protocol in `schnorrGroups`, with its ideal-sampling honest prover, satisfies
+/-- Fair-coin Schnorr Sigma protocol in `schnorrGroups`: completeness, polynomial-time verification,
+efficient special soundness, `2 / 2 ^ n` statistical transcript closeness, and
 `ComputationalSpecialHVZK` with exact zero acceptance error (`δ = fun _ => 0`) for any
 group-description setup `setup`. -/
+example (i : ℕ × schnorrGroups.Desc) :
+    (schnorrGroups.schnorrProbFamily i).Complete
+        (fun α u => α • schnorrGroups.generator i.2 = u) ∧
+      EfficientVerifier schnorrGroups.schnorrProbFamily schnorrGroups.schnorrEncoding ∧
+      EfficientSpecialSoundness schnorrGroups.schnorrProbFamily
+        (fun i α u => α • schnorrGroups.generator i.2 = u)
+        schnorrGroups.schnorrEncoding (fun i => schnorrGroups.encScalar i.2)
+        schnorrGroups.schnorrExtract :=
+  ⟨schnorrGroups.schnorrProbFamily_complete i,
+    schnorrGroups.efficientVerifier_schnorrProb,
+    schnorrGroups.efficientSpecialSoundness_schnorrProb⟩
+
+example (i : ℕ × schnorrGroups.Desc) (α c : ZMod (schnorrGroups.order i.2)) :
+    CloseTo
+      ((schnorrGroups.schnorrProbFamily i).transcript α (α • schnorrGroups.generator i.2) c)
+      (ProbComp.eval (schnorrGroups.schnorrSimulator i (α • schnorrGroups.generator i.2) c))
+      (2 / 2 ^ i.1) :=
+  schnorrGroups.closeTo_transcript_schnorrProbFamily_simulator i rfl c
+
 example (setup : ℕ → PMF schnorrGroups.Desc) :
-    ComputationalSpecialHVZK schnorrGroups.schnorrFamily
+    ComputationalSpecialHVZK schnorrGroups.schnorrProbFamily
       (fun i α u => α • schnorrGroups.generator i.2 = u)
       schnorrGroups.schnorrEncoding (fun i => schnorrGroups.encScalar i.2)
       (fun n => (setup n).map (n, ·)) schnorrGroups.schnorrSimulator (fun _ => 0) :=
-  schnorrGroups.computationalSpecialHVZK_schnorr_ideal setup
+  schnorrGroups.computationalSpecialHVZK_schnorr setup
 
 /-! ### Word simulators -/
 
@@ -529,7 +551,7 @@ theorem computationalSpecialHVZK_prgWitnessSigma
               (adversary p.1 p.1).guess out.2 (t, c, ()) := by
         refine hchoose.bind_with ?_
         refine IsPPTOn.bind_with (left := encBits) ?_ ?_
-        · exact IsPPTOn.cond' (by fun_prop) (by ppt) (by fun_prop)
+        · exact IsPPTOn.cond (by fun_prop) (by ppt) (by fun_prop)
         refine IsPPTOn.bind_with (left := encBool) (by ppt) ?_
         exact hguess
       refine hrun.congr fun ⟨n, word⟩ => congrArg ProbComp.eval ?_

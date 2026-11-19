@@ -9,9 +9,12 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tarfile
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +44,80 @@ class GuideCacheTests(unittest.TestCase):
             target.write_bytes((ROOT / name).read_bytes())
         self.env = {"RUNNER_OS": "Linux", "RUNNER_ARCH": "X64", "ImageOS": "ubuntu24",
                     "ImageVersion": "20261111.370.1", "GUIDE_CACHE_GENERATION": "0"}
+
+    def artifact_helper(self):
+        spec = importlib.util.spec_from_file_location("guide_backup", ACTION / "artifact.py")
+        artifact = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {"key": cache}):
+            spec.loader.exec_module(artifact)
+        return artifact
+
+    def test_backup_restores_only_initialized_package_build_outputs(self):
+        artifact = self.artifact_helper()
+        source = self.root / "writer"
+        for path in cache.PATHS:
+            (source / path).mkdir(parents=True)
+            (source / path / "compiled").write_bytes(path.encode())
+        (self.root / ".lake").mkdir()
+        archive = self.root / "builds.tar.gz"
+        artifact.pack(source, archive)
+        artifact.install(self.root, archive)
+        for path in cache.PATHS:
+            self.assertEqual((self.root / path / "compiled").read_bytes(), path.encode())
+        (source / cache.PATHS[0] / "escape").symlink_to(archive)
+        with self.assertRaises(ValueError):
+            artifact.pack(source, self.root / "bad.tar.gz")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.addfile(tarfile.TarInfo(cache.PATHS[0] + "/../outside"))
+        with self.assertRaises(ValueError):
+            artifact.install(self.root, archive)
+
+    def test_backup_requires_successful_scheduled_docs_producer_on_same_repo(self):
+        artifact = self.artifact_helper()
+        repo = "owner/project"
+        entry = {"id": 42, "name": "key-run-15-attempt-2", "expired": False, "workflow_run": {"id": 15}}
+        run = {"id": 15, "run_attempt": 2, "event": "schedule", "head_branch": "main", "conclusion": "success",
+               "path": ".github/workflows/docs.yml", "head_repository": {"full_name": repo}}
+        for change in ({}, {"id": 16}, {"event": "pull_request"}, {"head_branch": "topic"},
+                       {"path": ".github/workflows/guide.yml"}, {"conclusion": "cancelled"},
+                       {"head_repository": {"full_name": "fork/project"}}):
+            with self.subTest(change=change), patch.object(artifact, "api", side_effect=[
+                    {"workflow_runs": [run | change]}, {"artifacts": [entry]}]):
+                self.assertEqual(artifact.producer(repo, "key"), None if change else (15, 2, 42))
+
+    def test_successful_rerun_cannot_reuse_an_earlier_attempts_backup(self):
+        artifact = self.artifact_helper()
+        run = {"id": 15, "run_attempt": 2, "event": "schedule", "head_branch": "main",
+               "conclusion": "success", "path": ".github/workflows/docs.yml",
+               "head_repository": {"full_name": "owner/project"}}
+        # Attempt 2 succeeded but its optional upload failed. Attempt 1's artifact still
+        # exists, and neither the run id nor a post-download attempt check distinguishes it.
+        for name in ("key", "key-run-15-attempt-1", "key-run-16-attempt-2"):
+            entry = {"id": 42, "name": name, "expired": False, "workflow_run": {"id": 15}}
+            with self.subTest(name=name), patch.object(artifact, "api", side_effect=[
+                    {"workflow_runs": [run]}, {"artifacts": [entry]}]) as api:
+                self.assertIsNone(artifact.producer("owner/project", "key"))
+                self.assertEqual(api.call_args.args[0],
+                                 "repos/owner/project/actions/runs/15/artifacts"
+                                 "?name=key-run-15-attempt-2&per_page=100")
+        docs = (ROOT / ".github/workflows/docs.yml").read_text()
+        self.assertIn("name: ${{ steps.guide-deps.outputs.key }}-run-${{ github.run_id }}"
+                      "-attempt-${{ github.run_attempt }}",
+                      step(docs, "Retain Guide dependencies outside the Actions cache"))
+
+    def test_download_pins_artifact_id_and_refuses_restarted_run(self):
+        artifact = self.artifact_helper()
+        with patch.object(artifact, "producer", return_value=(15, 2, 42)), \
+             patch.object(artifact, "api", return_value={"run_attempt": 3, "conclusion": "success"}), \
+             patch.object(artifact.subprocess, "run") as download, \
+             patch.object(artifact, "install") as install, \
+             patch.dict(os.environ, GITHUB_REPOSITORY="owner/project"), \
+             patch.object(sys, "argv", ["artifact.py", "restore", "exact-key"]):
+            with self.assertRaisesRegex(ValueError, "rerun"):
+                artifact.main()
+            self.assertEqual(download.call_args.args[0],
+                             ["gh", "api", "repos/owner/project/actions/artifacts/42/zip"])
+            install.assert_not_called()
 
     def test_every_compatibility_input_invalidates(self):
         original = cache.cache_key(self.root, self.env)
@@ -127,6 +204,16 @@ class GuideCacheTests(unittest.TestCase):
         self.assertNotIn("actions/cache/save", guide)
         self.assertNotIn("restore-keys:", (ACTION / "action.yml").read_text())
         self.assertLess(docs.index("run: python3 scripts/check_docs.py --trim --guide"), docs.index("- name: Save Guide"))
+
+    def test_backup_switch_is_passed_to_the_composite(self):
+        action = (ACTION / "action.yml").read_text()
+        fallback = step(action, "Recover evicted Guide dependencies from nightly docs")
+        self.assertNotIn("vars.", action)
+        self.assertIn("inputs.disable-artifact != 'true'", fallback)
+        self.assertIn("inputs.disable-artifact != '1'", fallback)
+        guide = (ROOT / ".github/workflows/guide.yml").read_text()
+        self.assertIn("disable-artifact: ${{ vars.DISABLE_GUIDE_ARTIFACT }}",
+                      step(guide, "Restore Guide dependencies"))
 
     def test_cache_never_conditions_guide_validation(self):
         for name in ("guide.yml", "docs.yml"):

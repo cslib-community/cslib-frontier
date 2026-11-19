@@ -1474,7 +1474,7 @@ private theorem isPPTOn_queryWords (hm : ComputableInPolyTime m encUnary encUnar
         (w call.1.1.secParam) (t call.1.1.secParam)
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix call.1.1.matrix call.1.1.target)) call.2.1
         call.2.2) :=
-    (IsPPTOn.ite' hcond hyes hno).congr fun _ => rfl
+    (IsPPTOn.ite hcond hyes hno).congr fun _ => rfl
   -- The view word is computed in polynomial time.
   have hview : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool =>
       (p.1.secParam, viewWordOf (m p.1.secParam) (n p.1.secParam) (l p.1.secParam)

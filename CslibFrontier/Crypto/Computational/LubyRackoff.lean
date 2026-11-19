@@ -427,7 +427,7 @@ private theorem isOraclePPTOn_feistelRoundQuery {α : Type} {input : α ↪ List
     (hblock : ComputableInPolyTime block input encBits) :
     IsOraclePPTOn input encBits (fun a => feistelRoundQuery i (n a) (block a)) :=
   let hfst := ComputableInPolyTime.fst input encBits
-  (IsOraclePPTOn.query_take' i (hblock.bitsDropWithInput hn) hn).map_with'
+  (IsOraclePPTOn.query_take i (hblock.bitsDropWithInput hn) hn).map_with
     (f := fun a reply => (block a).drop (n a) ++
       List.zipWith Bool.xor ((block a).take (n a)) reply)
     (computableInPolyTime_feistelRoundWord (g := fun p : α × List Bool => fun _ => p.2)
@@ -439,7 +439,7 @@ private theorem isOraclePPTOn_feistelInvRoundQuery {α : Type} {input : α ↪ L
     (hblock : ComputableInPolyTime block input encBits) :
     IsOraclePPTOn input encBits (fun a => feistelInvRoundQuery i (n a) (block a)) :=
   let hfst := ComputableInPolyTime.fst input encBits
-  (IsOraclePPTOn.query_take' i (hblock.bitsTakeWithInput hn) hn).map_with'
+  (IsOraclePPTOn.query_take i (hblock.bitsTakeWithInput hn) hn).map_with
     (f := fun a reply => List.zipWith Bool.xor ((block a).drop (n a)) reply ++
       (block a).take (n a))
     (computableInPolyTime_feistelInvRoundWord (g := fun p : α × List Bool => fun _ => p.2)
@@ -554,7 +554,7 @@ theorem isOraclePPT_lubyRackoffAdversary {adversary : OracleDistinguisher}
   have hblock := (ComputableInPolyTime.snd (encPair encUnary encBits)
     (encPair (encFinEnum Unit) encBits)).snd'
   refine isOraclePPT_interpret_handler hadversary
-    (IsOraclePPTOn.ite'
+    (IsOraclePPTOn.ite
       (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
       (isOraclePPTOn_feistelNetworkQuery [0, 1, 2] hn hblock)
@@ -932,10 +932,10 @@ theorem isOraclePPT_strongLubyRackoffAdversary {adversary : StrongPRPDistinguish
     (encPair (encFinEnum Bool) encBits)
   have hblock := hreq.snd'
   refine isOraclePPT_interpret_handler hadversary
-    (IsOraclePPTOn.ite'
+    (IsOraclePPTOn.ite
       (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
-      (IsOraclePPTOn.cond' (hreq.fst'.trans (.of_finite id))
+      (IsOraclePPTOn.cond (hreq.fst'.trans (.of_finite id))
         (isOraclePPTOn_feistelNetworkInvQuery [0, 1, 2, 3] hn hblock)
         (isOraclePPTOn_feistelNetworkQuery [0, 1, 2, 3] hn hblock))
       ((ComputableInPolyTime.const ([] : List Bool)).isPPTOn.isOraclePPTOn (Operation := Fin 4)))

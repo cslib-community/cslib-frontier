@@ -131,7 +131,7 @@ private theorem sign_eq_row {keys : KeyPair} (hg : p.background.keyGen s seed = 
   rw [BitString.ofFn_ofList len] at seedRead
   by_cases ctx : q.context.length ≤ 255
   · simp only [Xofs.sign, Xofs.signWithRow, Xofs.signInternal, Xofs.runSigning, Xofs.startSigning,
-      Xofs.startSigningWithSeed,
+      Xofs.startSigningWithSeed, Xofs.startDecodedSigning,
       guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some, dec,
       ← show m = formatMessage q.message q.context from rfl, rep, rep', seedRead,
       mat, bgMat]
@@ -249,7 +249,7 @@ private theorem uniform_row_reply (H : Xofs) (s : Level) (key : List Byte) (q : 
     cases dec : decodePrivate s key with
     | none => simp [Xofs.signWithRow, Xofs.runSigning, Xofs.startSigningWithSeed, dec]
     | some sk => simp [Xofs.signWithRow, Xofs.runSigning, Xofs.startSigningWithSeed,
-        dec, i, tr]
+        Xofs.startDecodedSigning, dec, i, tr]
   have law : (PMF.uniformOfFintype Row).map (fun row => row i) =
       PMF.uniformOfFintype (FixedBytes 64) := by
     rw [← PMF.pi_uniformOfFintype (ι := BitString 512) (α := fun _ => FixedBytes 64)]

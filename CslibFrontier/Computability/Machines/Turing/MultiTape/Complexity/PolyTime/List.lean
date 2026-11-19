@@ -111,7 +111,7 @@ theorem bitsCons {head : γ → Bool} {tail : γ → List Bool}
 @[fun_prop]
 theorem headD {encL : List α ↪ List Bool} [ListEncoding encA encL] (fallback : α) :
     ComputableTidilyInPolyTime (fun list => list.headD fallback) encL encA :=
-  (ComputableTidilyInDegree.headD fallback).computableTidilyInPolyTime
+  (ComputableInDegree.headD fallback).computableInPolyTime.tidy
 
 /-- Read a computed framed list's head, inferring the element encoding from the list before
 composing with a later field projection. -/
@@ -125,7 +125,7 @@ theorem listHeadDWithInput {list : γ → List α} (fallback : α)
 @[fun_prop]
 theorem tail {encL : List α ↪ List Bool} [ListEncoding encA encL] :
     ComputableTidilyInPolyTime (List.tail (α := α)) encL encL :=
-  (ComputableTidilyInDegree.tail (enc₁ := encA)).computableTidilyInPolyTime
+  (ComputableInDegree.tail (enc₁ := encA)).computableInPolyTime.tidy
 
 /-- Test emptiness without decoding a list element or requiring a default value. -/
 @[fun_prop]
@@ -164,14 +164,14 @@ theorem bitsReverse : ComputableTidilyInPolyTime List.reverse encBits encBits :=
 theorem cons (enc : α ↪ List Bool) :
     ComputableTidilyInPolyTime (fun p : α × List α => p.1 :: p.2)
       (encPair enc (encList enc)) (encList enc) :=
-  (ComputableTidilyInDegree.cons enc).computableTidilyInPolyTime
+  (ComputableInDegree.cons enc).computableInPolyTime.tidy
 
 /-- Concatenating two framed lists is polynomial-time. -/
 @[fun_prop]
 theorem listAppend (enc : α ↪ List Bool) :
     ComputableTidilyInPolyTime (fun p : List α × List α => p.1 ++ p.2)
       (encPair (encList enc) (encList enc)) (encList enc) :=
-  (ComputableTidilyInDegree.listAppend enc).computableTidilyInPolyTime
+  (ComputableInDegree.listAppend enc).computableInPolyTime.tidy
 
 /-- Prepend computed data. The result encoding determines the element encoding before
 `fun_prop` searches for the two component certificates. -/
@@ -218,11 +218,11 @@ theorem findWith {test : π × α → Bool} {par : γ → π} {list : γ → Lis
     (hlist : ComputableTidilyInPolyTime list encIn (encList encA)) :
     ComputableTidilyInPolyTime (fun x => (list x).find? fun a => test (par x, a))
       encIn (encOption encA) := by
-  obtain ⟨d, e, htest⟩ := htest.exists_degree
-  exact (ComputableTidilyInDegree.findWith htest
-    (ComputableTidilyInDegree.fst encP (encList encA))
-    (ComputableTidilyInDegree.snd encP (encList encA))).computableTidilyInPolyTime.comp
-      (hpar.prod hlist)
+  obtain ⟨d, e, htest⟩ := htest.computableInPolyTime.exists_degree
+  exact (ComputableInDegree.findWith htest
+    (ComputableInDegree.fst encP (encList encA))
+    (ComputableInDegree.snd encP (encList encA))).computableInPolyTime.comp
+      (hpar.computableInPolyTime.prod hlist.computableInPolyTime) |>.tidy
 
 /-- Search with a predicate that captures the original input. -/
 @[fun_prop]
@@ -241,11 +241,11 @@ theorem filterWith {test : π × α → Bool} {par : γ → π} {list : γ → L
     (hlist : ComputableTidilyInPolyTime list encIn (encList encA)) :
     ComputableTidilyInPolyTime (fun x => (list x).filter fun a => test (par x, a))
       encIn (encList encA) := by
-  obtain ⟨d, e, htest⟩ := htest.exists_degree
-  exact (ComputableTidilyInDegree.filterWith htest
-    (ComputableTidilyInDegree.fst encP (encList encA))
-    (ComputableTidilyInDegree.snd encP (encList encA))).computableTidilyInPolyTime.comp
-      (hpar.prod hlist)
+  obtain ⟨d, e, htest⟩ := htest.computableInPolyTime.exists_degree
+  exact (ComputableInDegree.filterWith htest
+    (ComputableInDegree.fst encP (encList encA))
+    (ComputableInDegree.snd encP (encList encA))).computableInPolyTime.comp
+      (hpar.computableInPolyTime.prod hlist.computableInPolyTime) |>.tidy
 
 /-- Filter with a predicate that captures the original input. -/
 @[fun_prop]
@@ -270,11 +270,11 @@ theorem mapWith {f : π × α → β} {par : γ → π} {list : γ → List α}
     (hlist : ComputableTidilyInPolyTime list encIn (encList encA)) :
     ComputableTidilyInPolyTime (fun x => (list x).map fun a => f (par x, a))
       encIn (encList encB) := by
-  obtain ⟨d, e, hf⟩ := hf.exists_degree
-  exact (ComputableTidilyInDegree.mapWith hf
-    (ComputableTidilyInDegree.fst encP (encList encA))
-    (ComputableTidilyInDegree.snd encP (encList encA))).computableTidilyInPolyTime.comp
-      (hpar.prod hlist)
+  obtain ⟨d, e, hf⟩ := hf.computableInPolyTime.exists_degree
+  exact (ComputableInDegree.mapWith hf
+    (ComputableInDegree.fst encP (encList encA))
+    (ComputableInDegree.snd encP (encList encA))).computableInPolyTime.comp
+      (hpar.computableInPolyTime.prod hlist.computableInPolyTime) |>.tidy
 
 /-- Map a function that also uses the original input. A single joint certificate in the input
 and list element makes the cost uniform across all elements. The list certificate is supplied
@@ -329,7 +329,7 @@ private theorem length_encList_flatten_le (enc : α ↪ List Bool) (l : List (Li
 theorem flatten (enc : α ↪ List Bool) :
     ComputableTidilyInPolyTime List.flatten (encList (encList enc)) (encList enc) := by
   have h := foldl' (list := id) (step := fun acc a => acc ++ a) id' (const [])
-    (ComputableTidilyInDegree.listAppend enc).computableTidilyInPolyTime
+    (ComputableInDegree.listAppend enc).computableInPolyTime.tidy
     (B := fun l => (encList (encList enc) l).length) .self (fun l i _ => by
       rw [foldl_append, List.nil_append]
       exact (length_encList_flatten_le enc (l.take i)).trans
@@ -387,7 +387,7 @@ theorem length (enc : α ↪ List Bool) {encL : List α ↪ List Bool} [ListEnco
     ComputableTidilyInPolyTime (fun l : List α => l.length) encL encUnary := by
   have h := foldl' (encA := enc) (encL := encL) (list := id)
     (step := fun n _ => n + 1) id' (const 0)
-    (ComputableTidilyInDegree.unary_succ.computableTidilyInPolyTime.comp (fst encUnary enc))
+    (ComputableInDegree.unary_succ.computableInPolyTime.tidy.comp (fst encUnary enc))
     (B := fun l => (encL l).length) .self (fun l i _ => by
       simpa [List.foldl_const] using (Nat.min_le_right i l.length).trans
         (SizedListEncoding.length_le (encA := enc) (encL := encL) l))
@@ -1020,7 +1020,7 @@ theorem bits_encList_polyTime (enc : Bool ↪ List Bool) :
     · exact le_max_right _ _
   have hforward := foldl' (encA := encBool) (encL := encBits) (encB := encList enc)
     (step := fun acc bit => acc ++ [bit]) id' (const [])
-    ((ComputableTidilyInDegree.snoc enc).computableTidilyInPolyTime.comp
+    ((ComputableInDegree.snoc enc).computableInPolyTime.tidy.comp
       ((fst (encList enc) encBool).prod
         ((of_finite (id : Bool → Bool) (encA := encBool) (encB := enc)).comp
           (snd (encList enc) encBool))))
