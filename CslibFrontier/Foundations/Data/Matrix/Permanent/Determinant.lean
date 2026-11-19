@@ -32,4 +32,3 @@ theorem Matrix.det_eq_permanent_of_charTwo {R ι : Type*} [CommRing R] [CharP R 
   rcases Int.units_eq_one_or (Equiv.Perm.sign σ) with h | h
   · rw [h, one_smul]
   · rw [h, Units.neg_smul, one_smul, CharTwo.neg_eq]
-

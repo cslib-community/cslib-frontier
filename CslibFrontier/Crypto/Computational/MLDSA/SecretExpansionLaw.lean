@@ -29,12 +29,10 @@ public section
 
 namespace Cslib.Crypto.MLDSA.FIPS204
 open Cslib.Probability
+open MatrixOracle (shortCoeff)
 
 private abbrev Digit (s : Level) := Fin (2 * s.params.η + 1)
 private abbrev Pos (n : ℕ) := Fin n × Fin 2
-
-private def shortCoeff (s : Level) (d : Digit s) : ZMod 8380417 :=
-  d.val - (s.params.η : ZMod 8380417)
 
 private def accepted (s : Level) (h : Fin 16) : Bool :=
   if s.params.η = 2 then h.val < 15 else h.val < 9

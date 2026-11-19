@@ -33,10 +33,13 @@ namespace Cslib.Crypto.MLDSA.FIPS204.MatrixOracle
 open Cslib.Probability
 open OracleComp
 
+/-- Embed the uniform digit indexing `[-η,η]` as a short coefficient modulo the FIPS modulus. -/
+def shortCoeff (s : Level) (d : Fin (2 * s.params.η + 1)) : ZMod 8380417 :=
+  (d.val : ZMod 8380417) - s.params.η
+
 /-- The short-secret MLWE coefficient law, uniform on the signed interval `[-η,η]`. -/
 noncomputable def shortCoefficientLaw (s : Level) : PMF (ZMod 8380417) :=
-  (PMF.uniformOfFintype (Fin (2 * s.params.η + 1))).map fun i =>
-    (i.val : ZMod 8380417) - s.params.η
+  (PMF.uniformOfFintype (Fin (2 * s.params.η + 1))).map (shortCoeff s)
 
 /-- One short-secret MLWE polynomial. Its 256 coefficients are independent uniform elements
 of the interval `[-η,η]`, reduced modulo 8380417. -/

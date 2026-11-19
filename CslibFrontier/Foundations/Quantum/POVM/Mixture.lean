@@ -62,4 +62,33 @@ theorem POVM.measureDensity_pmf_sum [DecidableEq ι] [Fintype B] (M : POVM B ι)
   intro a _
   rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (p.apply_ne_top a)]
 
+namespace POVM
+
+variable [DecidableEq ι] [Fintype B]
+
+/-- Randomly select a measurement using an independent finite classical draw. -/
+noncomputable def mixture (p : PMF A) (M : A → POVM B ι) : POVM B ι where
+  effect b := ∑ a, (p a).toReal • (M a).effect b
+  posSemidef b := posSemidef_sum _ fun a _ => ((M a).posSemidef b).smul ENNReal.toReal_nonneg
+  sum_effect := by
+    rw [Finset.sum_comm]
+    simp only [← Finset.smul_sum, sum_effect, ← Finset.sum_smul,
+      Probability.PMF.sum_toReal, one_smul]
+
+/-- The randomized measurement produces the exact law of the two-stage experiment. -/
+theorem measureDensity_mixture (p : PMF A) (M : A → POVM B ι)
+    (ρ : Matrix ι ι ℂ) (hρ : IsDensityMatrix ρ) :
+    (mixture p M).measureDensity ρ hρ = p.bind fun a => (M a).measureDensity ρ hρ := by
+  ext b
+  simp only [measureDensity_apply, densityProb, mixture, Finset.sum_mul, Matrix.smul_mul,
+    Matrix.trace_sum, Matrix.trace_smul, Complex.re_sum, Complex.real_smul, Complex.mul_re,
+    Complex.ofReal_re, Complex.ofReal_im, zero_mul, sub_zero, PMF.bind_apply, tsum_fintype]
+  change ENNReal.ofReal (∑ a, (p a).toReal * (M a).densityProb ρ b) =
+    ∑ a, p a * ENNReal.ofReal ((M a).densityProb ρ b)
+  rw [ENNReal.ofReal_sum_of_nonneg (fun a _ => mul_nonneg (ENNReal.toReal_nonneg (a := p a))
+    ((M a).densityProb_nonneg hρ.posSemidef b))]
+  simp [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (p.apply_ne_top _)]
+
+end POVM
+
 end Cslib.Quantum

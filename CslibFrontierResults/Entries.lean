@@ -234,7 +234,9 @@ import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 import CslibFrontier.Crypto.Computational.DiscreteLog.Interpolation
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
+import CslibFrontier.Crypto.Computational.ElGamal.OneWay
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
+import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.ECB
@@ -277,6 +279,7 @@ import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
+import CslibFrontier.Crypto.Computational.SchnorrProtocol
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.Parallel
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation.BirthdayAttack
@@ -414,6 +417,7 @@ import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
 import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
+import CslibFrontier.Algorithms.Lean.CDCL.System
 
 /-!
 # Collected results
@@ -7606,6 +7610,57 @@ register_result "dlog-from-two-representations" where
     'efficiently compute'. It is not listed because the theorems of one entry share a defining \
     module."
 
+register_result "schnorr-sigma-protocol" where
+  title := "Schnorr's Sigma protocol for discrete logarithms is complete and efficiently special \
+    sound, with 2/2^n statistical closeness and computational special HVZK"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Examples 19.1–19.3",
+      locator := "Section 19.4, pp. 772–774 (Definitions 19.3–19.5 and Examples 19.1–19.3); \
+        Figure 19.1, Section 19.1, p. 756; Attack Game 20.4 and Definition 20.6, Section 20.4.2, \
+        p. 840" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.schnorrProbFamily_complete,
+    Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_schnorrProb,
+    Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_schnorrProbFamily_simulator,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_chvzkGame_schnorrProbFamily_le,
+    Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr
+  ]
+  scope := "Over any PrimeOrderGroupFamily F at index i = (n, d) with prime order q = F.order d, \
+    statement u : F.Carrier d, witness α : ZMod q for the discrete-logarithm relation α • g = u \
+    (Example 19.1, p. 773, written additively), and challenges in ZMod q, encoded by \
+    schnorrEncoding (group elements via F.encode d and scalars in binary). In \
+    F.schnorrProbFamily i (Figure 19.1, p. 756, and Example 19.1, p. 773), the honest prover \
+    samples its commitment nonce with F.sampleExp n d (schnorrProbCommit, certified uniform \
+    strict PPT on encodings by schnorrSigKeyGen via eval_schnorrSigKeyGen_eq_schnorrProbCommit \
+    and isPPTOn_schnorrSigKeyGen) and computes r + c * α (certified deterministic polynomial \
+    time on encodings by schnorrRespondBits, computableInPolyTime_schnorrRespondBits and \
+    schnorrRespondBits_schnorrProbFamily), while the verifier checks z • g = t + c • u \
+    (certified deterministic polynomial time by encodeSchnorrVerify and \
+    efficientVerifier_schnorrProb). schnorrProbFamily_complete proves completeness \
+    (Definition 19.3). efficientSpecialSoundness_schnorrProb proves efficient special soundness \
+    (Example 19.2 and Definition 19.4, p. 773) via schnorrExtract and schnorrExtractWord. The \
+    simulator schnorrSimulator (Example 19.3, p. 774) samples z with F.sampleExp n d and outputs \
+    (z • g − c • u, z), certified uniform strict PPT by schnorrSimulateWord \
+    (isPPT_schnorrSimulator) and outputting an accepting conversation with probability 1 on \
+    every statement and challenge (accepts_schnorrSimulator, Definition 19.5(i)). On every valid \
+    pair α • g = u and challenge c, closeTo_transcript_schnorrProbFamily_simulator bounds the \
+    statistical distance between honest and simulated transcripts by 2/2^n (1/2^n from each \
+    sampleExp draw); advantage_chvzkGame_schnorrProbFamily_le bounds Attack Game 20.4 advantage \
+    by 2/2^n against arbitrary (even computationally unbounded) two-stage adversaries; and \
+    computationalSpecialHVZK_schnorr establishes Definition 20.6 with exact zero acceptance \
+    error (δ = fun _ => 0) along (setup n).map (n, ·) against all uniform strict PPT \
+    CHVZKAdversary families (with no computational hardness assumption). Deviations: (1) in the \
+    uniform strict-PPT fair-coin model, neither the prover nor the simulator can sample ZMod q \
+    with zero error when q is not a power of two (unlike Definition 2.8, p. 30, which permits \
+    negligible runtime-overflow probability and exact rejection sampling), so Definition 19.5(ii) \
+    identical transcript distribution is relaxed to 2/2^n statistical closeness and Definition \
+    20.6 ComputationalSpecialHVZK with exact Definition 19.5(i) acceptance; (2) the challenge \
+    space is C = ZMod q (the 2/2^n transcript bound holds pointwise at every c : ZMod q and thus \
+    for any subset C ⊆ ZMod q, while Attack Game 20.4 draws c uniformly from ZMod q); (3) groups \
+    are written additively and setup : ℕ → PMF F.Desc is arbitrary."
+
 register_result "schnorr-identification-direct-dl" where
   title := "Schnorr identification is secure against direct attacks under the discrete-logarithm \
     assumption"
@@ -9902,6 +9957,74 @@ register_result "cdh-inverse-order-negligible" where
     order is negligible, and DDH.negligible_expected_inv_order states the same under DDH; the \
     module labels both original, and they are not listed here."
 
+register_result "elgamal-one-way-cdh" where
+  title := "Multiplicative ElGamal is one-way under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "one-wayness of multiplicative ElGamal under CDH (unnumbered)",
+      locator := "Section 12.6.2, pp. 499–500; Attack Game 12.6 and Definition 12.5, p. 495" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay,
+    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalOWToCDHAdversary,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWProbGame_cdhGame_le,
+    Cslib.Crypto.owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage
+  ]
+  scope := "Over a PrimeOrderGroupFamily with any setup law setup (which need not be efficiently \
+    samplable; the assumption is the book's when an efficient system parameterization algorithm \
+    samples it, Definition 10.9, p. 413), the scheme at security parameter n and group d is \
+    elGamalProbExplicitCoinPKE n d, written additively over F.Carrier d: key generation and \
+    encryption draw their exponents from (Nat.cast : ℕ → ZMod q) <$> sampleExp n d (certified \
+    strict PPT via isPPTOn_elGamalKeyGenProb and isPPTOn_elGamalEncryptProb, which realize it on \
+    encoded group elements by eval_fst_elGamalKeyGenProb and eval_elGamalEncryptProb_encode), \
+    and decryption is correct by elGamalExplicitCoinPKEWith_correct. In Attack Game 12.6 \
+    (elGamalOWProbGame, p. 495), the challenge message is drawn from sampleGroupElem n d \
+    (certified strict PPT via isPPTOn_encode_sampleGroupElem). Typed adversaries A : \
+    ElGamalOWAdversary read (1^n, d, u, v, y) and write an encoded group element in uniform \
+    strict PPT (ElGamalOWAdversary.IsPPT, matching CDHAdversary.IsPPT; a word-level predicate \
+    would need a group decoder, which a general PrimeOrderGroupFamily lacks). The reduction \
+    elGamalOWToCDHAdversary A draws y ← sampleGroupElem n d, runs A on u and (v, y), and outputs \
+    y − x (computed on encodings via decodeElGamal with secret key 1), certified strict PPT by \
+    isPPT_elGamalOWToCDHAdversary. Deviation from Definition 2.8 (p. 30, negligible runtime \
+    overflow): strict fair-coin sampleExp sampling adds 3/2^n from the challenger's three draws \
+    and 1/2^n from the reduction's draw, giving Game.advantage ≤ 4/2^n \
+    (advantage_elGamalOWProbGame_cdhGame_le) and negligible success under F.CDH setup \
+    (CDH.elGamal_oneWay); owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage gives the exact \
+    fixed-group equality under uniform exponents."
+
+register_result "elgamal-unpredictable-cdh" where
+  title := "Multiplicative ElGamal is (1/q + 1/2^n)-unpredictable, and unpredictable under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "1/q-unpredictability and unpredictability under CDH of multiplicative ElGamal \
+        (unnumbered)",
+      locator := "Section 12.6.2, p. 500; Definition 12.6, p. 495" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_unpredictable,
+    Cslib.Crypto.PrimeOrderGroupFamily.epsilonUnpredictable_elGamalProbExplicitCoinPKE,
+    Cslib.Crypto.epsilonUnpredictable_elGamalExplicitCoinPKE
+  ]
+  scope := "Unpredictability is Definition 12.6 (p. 495): PKE.EpsilonUnpredictable and \
+    Encryption.Unpredictable (where rejected ciphertexts are unconstrained; multiplicative \
+    ElGamal never rejects and is correct by elGamalExplicitCoinPKEWith_correct, so this agrees \
+    with the book's default-message convention). Over any fixed ZMod q-module G with injective \
+    β ↦ β·g and exact uniform coins (elGamalExplicitCoinPKE q g), the first ciphertext component \
+    β·g determines β, giving exact 1/q-unpredictability \
+    (epsilonUnpredictable_elGamalExplicitCoinPKE). Over a PrimeOrderGroupFamily at security \
+    parameter n and group d, the fair-coin scheme elGamalProbExplicitCoinPKE n d (realized on \
+    encoded group elements by elGamalKeyGenProb, elGamalEncryptProb and elGamalDecryptDet) draws \
+    its encryption coins via sampleExp n d, relaxing exact 1/q (under Definition 2.8's negligible \
+    runtime-overflow model, p. 30) to (1/q + 1/2^n)-unpredictability \
+    (epsilonUnpredictable_elGamalProbExplicitCoinPKE). Along a deterministic group schedule d \
+    (fixing one scheme per security parameter as Encryption.Unpredictable requires; the CDH \
+    assumption is the book's when d is computable in polynomial time), F.CDH at the point-mass \
+    setup makes 1/q negligible (CDH.negligible_inv_order), so (elGamalProbExplicitCoinPKE n \
+    (d n)).toPKE is unpredictable (CDH.elGamal_unpredictable). Strong unpredictability on all \
+    public-key words (§21.4.1) is in elgamal-strongly-unpredictable-ciphertexts."
+
 open Cslib.Crypto.PrimeOrderGroupFamily in
 register_result "dlog-self-reduction-iterated" where
   title := "If an efficient algorithm finds the discrete logarithm of a random element with \
@@ -10357,3 +10480,52 @@ register_result "plaisted-greenbaum-correctness" where
     equivalences, and falsum is added (negation is implication to falsum). The size bound of \
     2 · A.size + 1 clauses and the non-uniqueness of the extension are separate results and \
     are not part of this entry. Outside check: PR #6181, review 5948254834."
+
+register_result "abstract-dpll-termination" where
+  title := "Abstract Basic DPLL terminates"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorem 2.10",
+      locator := "authors' manuscript, printed p. 14" }
+  ]
+  theorems := [Cslib.Algorithms.Lean.CDCL.wellFounded_basicStep]
+  scope := "Propositional list CNFs over ℕ, from the initial state with the empty trail. Basic \
+    DPLL is UnitPropagate, Decide, Fail and Backjump with the side conditions of Definition 2.4. \
+    Stated as well-foundedness of the converse Basic DPLL step relation on states reachable by \
+    DPLL with learning, which includes every state reachable by Basic DPLL. The proof uses a \
+    single natural-number measure in place of the source's lexicographic order."
+
+register_result "abstract-dpll-learning-termination" where
+  title := "Abstract DPLL with learning terminates without infinite Learn/Forget stretches"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorem 2.11",
+      locator := "authors' manuscript, printed p. 15" }
+  ]
+  theorems := [Cslib.Algorithms.Lean.CDCL.wellFounded_learnOrForget_basicStep]
+  scope := "DPLL with learning is Basic DPLL with Learn and Forget (Definition 2.5); clause sets \
+    are lists, so Learn prepends a clause and Forget removes one occurrence. Forget uses the \
+    entailment of §2.1, by partial models; Backjump and Learn use entailment by total \
+    assignments, which the §2.1 entailment implies, so every step of the source is a step here. \
+    A derivation with no \
+    infinite subderivation of Learn and Forget steps is a sequence of moves, each finitely many \
+    Learn and Forget steps followed by a Basic DPLL step; the theorem is the well-foundedness of \
+    these moves from the initial state."
+
+register_result "abstract-dpll-learning-correctness" where
+  title := "Final states of abstract DPLL with learning decide satisfiability"
+  topic := "SAT algorithms"
+  sources := [
+    { paper := NieuwenhuisOliverasTinelli2006, theorem := "Theorem 2.12",
+      locator := "authors' manuscript, printed p. 15" }
+  ]
+  theorems := [Cslib.Algorithms.Lean.CDCL.final_of_reachable]
+  scope := "For a propositional list CNF φ over ℕ and a state reachable from the initial state \
+    by DPLL with learning (Basic DPLL, Learn and Forget), if no Basic DPLL step applies then the \
+    state is fail exactly when φ is unsatisfiable, and otherwise the trail is a model of φ in the \
+    sense of §2.1: every clause of φ has a literal on the trail. The total assignment that makes \
+    the trail's literals true, and the others false, is then a model as well. Forget uses the \
+    §2.1 entailment, by partial models, which this conclusion needs: with entailment by total \
+    assignments, Forget could remove the tautology b ∨ ¬b from a, b ∨ ¬b and end at the trail a. \
+    Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
+    so every step of the source is a step here."

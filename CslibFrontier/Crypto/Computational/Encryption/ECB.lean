@@ -413,7 +413,8 @@ private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
   have hno : IsOraclePPTOn (Operation := Unit) ecbStateEnc encBool
       (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
         pure (false == q.1.2)) :=
-    ComputableInPolyTime.isOraclePPTOn (by fun_prop)
+    ((ComputableInPolyTime.const (encIn := ecbStateEnc) (encOut := encBool) false).beq
+      (by fun_prop)).isOraclePPTOn
   unfold ecbChallenge
   exact IsOraclePPTOn.cond (E.computableInPolyTime_ecbValid hℓ hn hc0 hc1)
     (hreplies.bind_with hguess) hno
