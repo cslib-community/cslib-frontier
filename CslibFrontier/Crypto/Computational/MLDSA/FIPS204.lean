@@ -1366,7 +1366,7 @@ needs to agree only for a well-formed context and public-key length. -/
 theorem Xofs.verify_congr_of_reads {H G : Xofs} (s : Level) (pk : List Byte)
     (msg : List Bool) (ctx sig : List Byte)
     (matrix : H.expandA s (pk.take 32) = G.expandA s (pk.take 32))
-    (challenge : ∀ d : List Byte, d.length ≤ digestBytes s →
+    (challenge : ∀ d : List Byte, d.length = digestBytes s →
       H.sampleInBall s d = G.sampleInBall s d)
     (rep : ctx.length ≤ 255 → pk.length = 32 + 320 * s.params.k →
       H.messageRepresentative pk (formatMessage msg ctx) =
@@ -1382,7 +1382,9 @@ theorem Xofs.verify_congr_of_reads {H G : Xofs} (s : Level) (pk : List Byte)
       cases hd : sigDecode s sig with
       | none => rfl
       | some σ =>
-        have short : σ.digest.length ≤ digestBytes s := by rw [← digest_of_sigDecode hd]; simp
+        have short : σ.digest.length = digestBytes s := by
+          rw [← digest_of_sigDecode hd, List.length_take, (sigDecode_parts hd).1]
+          exact Nat.min_eq_left (by lia)
         simp only [matrix, challenge _ short, rep hc hk, Xofs.check, digest]
     · simp [hk, bne_iff_ne]
   · simp [Xofs.verify, Xofs.verifyWithExpansion, guard, hc]

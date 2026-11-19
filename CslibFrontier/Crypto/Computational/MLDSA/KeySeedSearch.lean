@@ -466,34 +466,18 @@ theorem signingSeedPredictionGame_zero_le (C : QuantumSigningForger) (s : Level)
   rw [eq]
   exact C.keySeedDeviceGame_false_le s base a b n 0
 
-private def queriesKeySeed {C : QuantumSigningForger} (s : Level) (seed : FixedBytes 32)
-    (addr : Option (Address C)) : Bool :=
-  match addr with
-  | none => false
-  | some v => v 0 && Xofs.unpad (List.ofFn (fun i : Fin (C.addressBits + 1) => v i.succ)) ==
-      some (keySeedInput s seed)
-
 private theorem queriesKeySeed_of_change {C : QuantumSigningForger} (s : Level) (H : Xofs)
     (seed : FixedBytes 32) (out : FixedBytes 128) (addr : Option (Address C))
     (hit : addr.any (fun v => decide ((H.withKeySeedExpansion s seed out).queryTable C.addressBits
       C.responseBytes v ≠ H.queryTable C.addressBits C.responseBytes v)) = true) :
-    queriesKeySeed s seed addr := by
-  cases addr with
-  | none => exact Bool.noConfusion hit
-  | some v =>
-    simp only [Option.any_some, decide_eq_true_eq] at hit
-    simp only [Xofs.queryTable] at hit
-    cases e : Xofs.unpad (List.ofFn fun i : Fin (C.addressBits + 1) => v i.succ) with
-    | none => exact (hit (by rw [e])).elim
-    | some x =>
-      rw [e] at hit
-      cases tag : v 0 with
-      | false => exact (hit (by rw [tag]; rfl)).elim
-      | true =>
-        by_cases h : x = keySeedInput s seed
-        · simp only [queriesKeySeed, tag, e, h, beq_self_eq_true, Bool.and_self]
-        · exact (hit (by simp only [tag, ↓reduceIte, Xofs.withKeySeedExpansion,
-            ExtendableOutput.withPrefixes, ite_eq_right h])).elim
+    Xofs.shake256QueryInput addr = some (keySeedInput s seed) := by
+  obtain ⟨x, decoded, ne⟩ :=
+    Xofs.shake256QueryInput_of_queryTable_ne (H := H.withKeySeedExpansion s seed out)
+      (G := H) rfl hit
+  rw [decoded, Option.some.injEq]
+  by_contra miss
+  exact ne (by simp only [Xofs.withKeySeedExpansion, ExtendableOutput.withPrefixes,
+    ite_eq_right miss])
 
 private theorem changed_keySeed_le (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (out : FixedBytes 128) (addr : Option (Address C)) :
@@ -505,12 +489,8 @@ private theorem changed_keySeed_le (C : QuantumSigningForger) (s : Level) (H : X
   intro x hx y hy
   have hx := queriesKeySeed_of_change (C := C) s _ x _ addr hx
   have hy := queriesKeySeed_of_change (C := C) s _ y _ addr hy
-  cases addr with
-  | none => exact Bool.noConfusion (show false = true from hx)
-  | some v =>
-    simp only [queriesKeySeed, Bool.and_eq_true, beq_iff_eq] at hx hy
-    have eq := Option.some.inj (hx.2.symm.trans hy.2)
-    exact List.ofFn_inj.mp (List.append_cancel_right (Keccak.bytesToBitsLE_injective eq))
+  have eq := Option.some.inj (hx.symm.trans hy)
+  exact List.ofFn_inj.mp (List.append_cancel_right (Keccak.bytesToBitsLE_injective eq))
 
 /-- Measure the selected coherent address of the background device. Test whether the XOR
 response at that address would change if the 128-byte key expansion were installed. -/
