@@ -158,3 +158,16 @@ example (μ : PMF Bool) :
 example (n : ℕ) : (Real.cos (π / 8) ^ 2) ^ n ≤ (chsh.pow n).quantumValue := by
   rw [← quantumValue_chsh]
   exact chsh.pow_quantumValue_le_quantumValue_pow n
+
+/-- Averaging Bob's randomized question agrees with averaging the unnormalized Alice
+marginals in the same checked branch. -/
+example (η : I) :
+    let branch (q : PMF Bool) :=
+      partialTraceRight (pureState (echoStrategy.averagedCheckedVector
+        {0} (PMF.pure true) q (fun _ => true) (fun _ => true)))
+    branch ((coin η).bind PMF.pure) =
+      (η : ℝ) • branch (PMF.pure true) + (1 - (η : ℝ)) • branch (PMF.pure false) := by
+  dsimp only
+  simpa [Fintype.sum_bool, Cslib.Probability.PMF.coin_apply_toReal] using
+    echoStrategy.partialTraceRight_averagedCheckedVector_bind {0} (PMF.pure true)
+      (coin η) PMF.pure (fun _ => true) (fun _ => true)

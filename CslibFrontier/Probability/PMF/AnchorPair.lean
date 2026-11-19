@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.PMF.Coin
 public import CslibFrontier.Probability.Conditioning
+import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # Independent erasure of a pair
@@ -89,6 +90,15 @@ theorem conditionalSnd_anchorPair_left_rate {X Y : Type*} (μ : PMF (X × Y))
         Bool.false_eq_true, ite_false] <;> ac_rfl
   exact conditionalSnd_eq_of_scaled_slices P Q m m d c hm hα' (PMF.apply_ne_top _ _) hscale
 
+/-- The mass with an erased second outcome is the first marginal times the erasure rate. -/
+theorem anchorPair_apply_none_right {X Y : Type*} (μ : PMF (X × Y)) (α β : I) (x : Option X) :
+    anchorPair μ α β (x, none) = ((anchorPair μ α β).map Prod.fst) x * ENNReal.ofReal (β : ℝ) := by
+  cases x with
+  | none => simp only [anchorPair_apply, map_fst_anchorPair_apply]
+  | some x =>
+    simp only [anchorPair_apply, map_fst_anchorPair_apply]
+    ac_rfl
+
 /-- The second erase flag stays independent of any supported first outcome. -/
 theorem conditionalSnd_anchorPair_none {X Y : Type*} (μ : PMF (X × Y)) (α β : I) (m : Option X)
     (hm : m ∈ ((anchorPair μ α β).map Prod.fst).support) :
@@ -96,11 +106,36 @@ theorem conditionalSnd_anchorPair_none {X Y : Type*} (μ : PMF (X × Y)) (α β 
   let P := anchorPair μ α β
   apply (ENNReal.mul_right_inj ((PMF.mem_support_iff _ _).mp hm) (PMF.apply_ne_top _ _)).mp
   change (P.map Prod.fst) m * conditionalSnd P m none = _
-  rw [marginal_mul_conditionalSnd]
-  cases m with
-  | none => simp only [P, anchorPair_apply, map_fst_anchorPair_apply]
-  | some x =>
-    simp only [P, anchorPair_apply, map_fst_anchorPair_apply]
-    ac_rfl
+  rw [marginal_mul_conditionalSnd, anchorPair_apply_none_right]
+
+/-- For a nonnegative score, forcing an erasure of the second outcome increases the
+average by at most the reciprocal of the second erasure rate. -/
+theorem rate_mul_sum_anchorPair_erase_right_le {X Y : Type*} [Fintype X] [Fintype Y]
+    (μ : PMF (X × Y)) (α β : I) (score : Option X × Option Y → ℝ)
+    (hscore : ∀ q, 0 ≤ score q) :
+    (β : ℝ) * (∑ q, (anchorPair μ α β q).toReal * score (q.1, none)) ≤
+      ∑ q, (anchorPair μ α β q).toReal * score q := by
+  let P := anchorPair μ α β
+  change (β : ℝ) * (∑ q, (P q).toReal * score (q.1, none)) ≤ ∑ q, (P q).toReal * score q
+  rw [← sum_map_mul P Prod.fst (fun x => score (x, none)), Finset.mul_sum, Fintype.sum_prod_type]
+  refine Finset.sum_le_sum fun x _ => ?_
+  have hmass : (P (x, none)).toReal = (β : ℝ) * ((P.map Prod.fst) x).toReal := by
+    rw [show P (x, none) = _ from anchorPair_apply_none_right μ α β x, ENNReal.toReal_mul,
+      ENNReal.toReal_ofReal β.2.1, mul_comm]
+  rw [← mul_assoc, ← hmass]
+  exact Finset.single_le_sum (f := fun y : Option Y => (P (x, y)).toReal * score (x, y))
+    (fun y _ => mul_nonneg ENNReal.toReal_nonneg (hscore (x, y))) (Finset.mem_univ none)
+
+/-- The analogous average after forcing an erasure of the first outcome. -/
+theorem rate_mul_sum_anchorPair_erase_left_le {X Y : Type*} [Fintype X] [Fintype Y]
+    (μ : PMF (X × Y)) (α β : I) (score : Option X × Option Y → ℝ)
+    (hscore : ∀ q, 0 ≤ score q) :
+    (α : ℝ) * (∑ q, (anchorPair μ α β q).toReal * score (none, q.2)) ≤
+      ∑ q, (anchorPair μ α β q).toReal * score q := by
+  have h := rate_mul_sum_anchorPair_erase_right_le (μ.map Prod.swap) β α (score ∘ Prod.swap)
+    (fun q => hscore q.swap)
+  rw [← map_swap_anchorPair, sum_map_mul, sum_map_mul] at h
+  simp only [Function.comp_apply, Prod.swap_swap] at h
+  exact h
 
 end Cslib.Probability.PMF

@@ -27,6 +27,8 @@ the marginal and postselection comparisons used in
 ## Main results
 
 * `sum_partialTraceRight_averagedCheckedVector`: forgetting Bob's checked outcomes.
+* `partialTraceRight_averagedCheckedVector_bind` and
+  `partialTraceLeft_averagedCheckedVector_bind`: average the discarded player's questions.
 * `relativeEntropy_normalizedCheckedVector_partialTraceRight_le`: the branch entropy bound.
 -/
 
@@ -50,6 +52,54 @@ noncomputable def averagedCheckedMarginalAlice (p : PMF X) : Matrix ι ι ℂ :=
     (densityConj ((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ (1 : Matrix κ κ ℂ))
       (pureState S.state))
 
+private theorem partialTraceRight_averagedCheckedVector_eq_effect
+    (p : PMF X) (q : PMF Y) (a : C → A) (b : C → B) :
+    partialTraceRight (pureState (S.averagedCheckedVector C p q a b)) =
+      partialTraceRight
+        (densityConj ((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ (1 : Matrix κ κ ℂ))
+          (pureState S.state) *
+          ((1 : Matrix ι ι ℂ) ⊗ₖ (POVM.mixture q (S.checkedBob C)).effect b)) := by
+  let L := (POVM.mixture p (S.checkedAlice C)).sqrtEffect a
+  let N := POVM.mixture q (S.checkedBob C)
+  let ρ := densityConj (L ⊗ₖ (1 : Matrix κ κ ℂ)) (pureState S.state)
+  have hbranch : pureState (S.averagedCheckedVector C p q a b) =
+      densityConj ((1 : Matrix ι ι ℂ) ⊗ₖ N.sqrtEffect b) ρ := by
+    rw [averagedCheckedVector_eq, ← densityConj_mul, ← mul_kronecker_mul, Matrix.one_mul,
+      Matrix.mul_one, densityConj_pureState]
+    rfl
+  change _ = partialTraceRight (ρ * ((1 : Matrix ι ι ℂ) ⊗ₖ N.effect b))
+  rw [hbranch, densityConj_apply, Matrix.mul_assoc, partialTraceRight_one_kronecker_mul,
+    Matrix.mul_assoc, conjTranspose_kronecker, conjTranspose_one, N.conjTranspose_sqrtEffect,
+    ← mul_kronecker_mul, Matrix.one_mul, N.sqrtEffect_mul_self]
+
+/-- Averaging Bob's question distribution before measuring, or averaging the unnormalized
+marginals afterwards, gives the same result on Alice's system. -/
+theorem partialTraceRight_averagedCheckedVector_bind {V : Type*} [Fintype V]
+    (p : PMF X) (r : PMF V) (q : V → PMF Y) (a : C → A) (b : C → B) :
+    partialTraceRight (pureState (S.averagedCheckedVector C p (r.bind q) a b)) =
+      ∑ v, (r v).toReal •
+        partialTraceRight (pureState (S.averagedCheckedVector C p (q v) a b)) := by
+  let ρ := densityConj ((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ (1 : Matrix κ κ ℂ))
+    (pureState S.state)
+  let K := kroneckerBilinear (R := ℝ) (n := κ) (p := κ) (1 : Matrix ι ι ℂ)
+  simp only [partialTraceRight_averagedCheckedVector_eq_effect, POVM.mixture_bind]
+  change partialTraceRight (ρ * K ((POVM.mixture r fun v =>
+      POVM.mixture (q v) (S.checkedBob C)).effect b)) =
+    ∑ v, (r v).toReal • partialTraceRight (ρ * K ((POVM.mixture (q v) (S.checkedBob C)).effect b))
+  rw [POVM.mixture_effect, map_sum, Matrix.mul_sum, partialTraceRight_sum]
+  refine sum_congr rfl fun v _ => ?_
+  rw [map_smul, Matrix.mul_smul]
+  exact partialTraceRight_smul ((r v).toReal : ℂ) _
+
+/-- Averaging Alice's question distribution also commutes with taking Bob's
+unnormalized checked-answer marginal. -/
+theorem partialTraceLeft_averagedCheckedVector_bind {V : Type*} [Fintype V]
+    (r : PMF V) (p : V → PMF X) (q : PMF Y) (a : C → A) (b : C → B) :
+    partialTraceLeft (pureState (S.averagedCheckedVector C (r.bind p) q a b)) =
+      ∑ v, (r v).toReal • partialTraceLeft (pureState (S.averagedCheckedVector C (p v) q a b)) := by
+  simpa only [partialTraceRight_averagedCheckedVector_swap] using
+    S.swap.partialTraceRight_averagedCheckedVector_bind C q r p b a
+
 /-- Summing Bob's checked outcomes leaves Alice's selected marginal, independently
 of the law over Bob's full questions. -/
 theorem sum_partialTraceRight_averagedCheckedVector (p : PMF X) (q : PMF Y) (a : C → A) :
@@ -57,19 +107,15 @@ theorem sum_partialTraceRight_averagedCheckedVector (p : PMF X) (q : PMF Y) (a :
       partialTraceRight
         (densityConj ((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ (1 : Matrix κ κ ℂ))
           (pureState S.state)) := by
-  let L := (POVM.mixture p (S.checkedAlice C)).sqrtEffect a
-  let N := POVM.mixture q (S.checkedBob C)
-  let ρ := densityConj (L ⊗ₖ (1 : Matrix κ κ ℂ)) (pureState S.state)
-  have hbranch (b : C → B) : pureState (S.averagedCheckedVector C p q a b) =
-      densityConj ((1 : Matrix ι ι ℂ) ⊗ₖ N.sqrtEffect b) ρ := by
-    rw [averagedCheckedVector_eq, ← densityConj_mul, ← mul_kronecker_mul, Matrix.one_mul,
-      Matrix.mul_one, densityConj_pureState]
-    rfl
-  have hN : ∑ b, (N.sqrtEffect b)ᴴ * N.sqrtEffect b = 1 := by
-    simp only [N.conjTranspose_sqrtEffect, N.sqrtEffect_mul_self, N.sum_effect]
-  simp_rw [hbranch, densityConj_apply]
-  rw [← partialTraceRight_sum]
-  simpa only [ρ, L, densityConj_apply] using partialTraceRight_kraus univ N.sqrtEffect hN ρ
+  let ρ := densityConj ((POVM.mixture p (S.checkedAlice C)).sqrtEffect a ⊗ₖ (1 : Matrix κ κ ℂ))
+    (pureState S.state)
+  let K := kroneckerBilinear (R := ℝ) (n := κ) (p := κ) (1 : Matrix ι ι ℂ)
+  simp only [partialTraceRight_averagedCheckedVector_eq_effect]
+  change (∑ b, partialTraceRight (ρ * K ((POVM.mixture q (S.checkedBob C)).effect b))) =
+    partialTraceRight ρ
+  rw [← partialTraceRight_sum, ← Matrix.mul_sum, ← map_sum, POVM.sum_effect]
+  change partialTraceRight (ρ * ((1 : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ))) = _
+  rw [one_kronecker_one, Matrix.mul_one]
 
 /-- The total marginal over all checked outcomes is independent of Bob's full
 question distribution. -/

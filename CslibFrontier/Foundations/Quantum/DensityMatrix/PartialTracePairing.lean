@@ -54,6 +54,19 @@ theorem partialTraceRight_mul_kronecker_one (X : Matrix ι ι R)
   rw [sum_comm]
   simp_rw [← sum_mul]
 
+omit [DecidableEq κ] in
+/-- An operator on the discarded system can cycle through a partial trace. -/
+theorem partialTraceRight_one_kronecker_mul [DecidableEq ι] (K : Matrix κ κ R)
+    (A : Matrix (ι × κ) (ι × κ) R) :
+    partialTraceRight (((1 : Matrix ι ι R) ⊗ₖ K) * A) =
+      partialTraceRight (A * ((1 : Matrix ι ι R) ⊗ₖ K)) := by
+  ext i j
+  simp only [partialTraceRight_apply, Matrix.mul_apply, Fintype.sum_prod_type, kroneckerMap_apply,
+    Matrix.one_apply, ite_mul, one_mul, zero_mul, mul_ite, mul_zero, sum_ite_irrel, sum_const_zero,
+    sum_ite_eq, sum_ite_eq', mem_univ, ite_true]
+  rw [sum_comm]
+  simp only [mul_comm]
+
 /-- Tensoring an operator with the identity and taking its trace pairing with a joint
 matrix is equivalent to pairing it with the retained marginal. -/
 theorem trace_kronecker_one_mul (X : Matrix ι ι R) (A : Matrix (ι × κ) (ι × κ) R) :

@@ -19,8 +19,8 @@ Keep the states conditioned under the winning law. Draw the selected question pa
 its tagged message from the prior, independently of the winning remaining transcript.
 The sum of squared trace deviations under this experiment is bounded by its value
 under the winning law plus four times the summed statistical-distance cost. This is
-the prior-draw comparison used around equations (49)–(51) of
-[Bavarian, Vidick and Yuen][BavarianVidickYuen2022] (arXiv:1509.07466v2, §5.2, printed p. 26).
+the prior-draw and anchor comparisons used around equations (49)–(54) of
+[Bavarian, Vidick and Yuen][BavarianVidickYuen2022] (arXiv:1509.07466v2, §5.2, printed pp. 26–27).
 The density families are kept fixed, including the chosen defaults at null observations.
 
 ## Main results
@@ -28,6 +28,8 @@ The density families are kept fixed, including the chosen defaults at null obser
 * `priorConditionalTraceNormSq_le`: the cost of changing the averaging law.
 * `leftTaggedPairConditionalTraceNormSq_le` and `rightTaggedPairConditionalTraceNormSq_le`:
   select the message tag and replace its value by the corresponding question.
+* `leftTaggedPairAnchorTraceNormSq_le` and `rightTaggedPairAnchorTraceNormSq_le`:
+  compare the opposite player’s question with its anchor value.
 -/
 
 public section
@@ -231,5 +233,97 @@ theorem rightTaggedPairConditionalTraceNormSq_le (Q : PMF Transcript) (e : Fin m
   cases m with
   | inl m => exact hs _ _
   | inr m => exact le_rfl
+
+/-- Average the squared trace norm between the winning-law states at the selected prior
+question and at its anchor value. Both states use the same restored transcript. -/
+noncomputable def taggedPairAnchorTraceNormSq (Q : PMF Transcript) (read : PairQ → U)
+    (tag : PairQ → Message) (anchor : U) (e : Fin m ≃ Free)
+    (ρ : Label × (Fin m → U) → Matrix D D ℂ) : ℝ :=
+  let P := Q.map (questionTranscriptProjection C read e)
+  ∑ i : Fin m, ∑ q, ((G.anchored α).questions q).toReal * ∑ r,
+    let t := restoreCheckedTranscript C (e i) r (tag q)
+    let state := quantumMarginalGivenMap (conditionalSnd P t) (fun y => ρ (t, y)) (fun y => y i)
+    ((Q.map (restTranscript C (e i))) r).toReal * (state (read q) - state anchor).traceNorm ^ 2
+
+private theorem traceNorm_sub_sq_le (M N R : Matrix D D ℂ) :
+    (M - N).traceNorm ^ 2 ≤ 2 * ((M - R).traceNorm ^ 2 + (N - R).traceNorm ^ 2) := by
+  have h := traceNorm_add_le (M - R) (-(N - R))
+  rw [show M - R + -(N - R) = M - N by abel, traceNorm_neg] at h
+  have h₀ := traceNorm_nonneg (M - N)
+  have h₁ := traceNorm_nonneg (M - R)
+  have h₂ := traceNorm_nonneg (N - R)
+  have hsq := (sq_le_sq₀ h₀ (add_nonneg h₁ h₂)).mpr h
+  nlinarith [sq_nonneg ((M - R).traceNorm - (N - R).traceNorm)]
+
+private theorem taggedPairAnchorTraceNormSq_le_of_erase
+    (Q : PMF Transcript) (read : PairQ → U) (tag : PairQ → Message) (anchor : U)
+    (e : Fin m ≃ Free) (ρ : Label × (Fin m → U) → Matrix D D ℂ)
+    (erase : PairQ → PairQ) (htag : ∀ q, tag (erase q) = tag q)
+    (hread : ∀ q, read (erase q) = anchor)
+    (hslice : ∀ f : PairQ → ℝ, (∀ q, 0 ≤ f q) →
+      (α : ℝ) * (∑ q, ((G.anchored α).questions q).toReal * f (erase q)) ≤
+        ∑ q, ((G.anchored α).questions q).toReal * f q) :
+    (α : ℝ) * taggedPairAnchorTraceNormSq C G α Q read tag anchor e ρ ≤
+      (2 * (α : ℝ) + 2) * taggedPairConditionalTraceNormSq C G α Q read tag e ρ := by
+  classical
+  let P := Q.map (questionTranscriptProjection C read e)
+  let p := (G.anchored α).questions
+  unfold taggedPairAnchorTraceNormSq taggedPairConditionalTraceNormSq
+  rw [mul_sum, mul_sum]
+  refine sum_le_sum fun i _ => ?_
+  let R := Q.map (restTranscript C (e i))
+  let f (r : Rest (e i)) (q : PairQ) :=
+    conditionalTraceNormSq P ρ (restoreCheckedTranscript C (e i) r (tag q)) i (read q)
+  let g (r : Rest (e i)) (q : PairQ) :=
+    let t := restoreCheckedTranscript C (e i) r (tag q)
+    let state := quantumMarginalGivenMap (conditionalSnd P t) (fun y => ρ (t, y)) (fun y => y i)
+    (state (read q) - state anchor).traceNorm ^ 2
+  change (α : ℝ) * (∑ q, (p q).toReal * ∑ r, (R r).toReal * g r q) ≤
+    (2 * (α : ℝ) + 2) * (∑ q, (p q).toReal * ∑ r, (R r).toReal * f r q)
+  rw [weighted_sum_comm _ _ (fun q r => g r q),
+    weighted_sum_comm _ _ (fun q r => f r q), mul_sum, mul_sum]
+  refine sum_le_sum fun r _ => ?_
+  rw [mul_left_comm (α : ℝ), mul_left_comm (2 * (α : ℝ) + 2)]
+  apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
+  have htri (q : PairQ) : g r q ≤ 2 * (f r q + f r (erase q)) := by
+    simp only [f, htag, hread, g, conditionalTraceNormSq]
+    exact traceNorm_sub_sq_le _ _ _
+  have hsum : (∑ q, (p q).toReal * g r q) ≤
+      2 * ((∑ q, (p q).toReal * f r q) + ∑ q, (p q).toReal * f r (erase q)) := by
+    simp only [mul_add, mul_sum]
+    rw [← sum_add_distrib]
+    refine sum_le_sum fun q _ => ?_
+    exact (mul_le_mul_of_nonneg_left (htri q) ENNReal.toReal_nonneg).trans_eq (by ring)
+  have hsum' := mul_le_mul_of_nonneg_left hsum α.2.1
+  have herase := hslice (f r) (fun q => sq_nonneg _)
+  change (α : ℝ) * (∑ q, (p q).toReal * f r (erase q)) ≤
+    ∑ q, (p q).toReal * f r q at herase
+  linarith
+
+/-- Compare Alice's reduced states at Bob's actual/anchor questions under the prior pair
+and the winning remaining transcript. The message stays set to Alice's question. -/
+theorem leftTaggedPairAnchorTraceNormSq_le (Q : PMF Transcript) (e : Fin m ≃ Free)
+    [DecidableEq Y] (ρ : Label × (Fin m → Option Y) → Matrix D D ℂ) :
+    (α : ℝ) * taggedPairAnchorTraceNormSq C G α Q Prod.snd (Sum.inl ∘ Prod.fst) none e ρ ≤
+      (2 * (α : ℝ) + 2) *
+        taggedPairConditionalTraceNormSq C G α Q Prod.snd (Sum.inl ∘ Prod.fst) e ρ := by
+  apply taggedPairAnchorTraceNormSq_le_of_erase C G α Q Prod.snd (Sum.inl ∘ Prod.fst) none e ρ
+    (fun q => (q.1, none)) (fun _ => rfl) (fun _ => rfl)
+  intro f hf
+  rw [TwoProverGame.anchored_questions]
+  exact rate_mul_sum_anchorPair_erase_right_le G.questions α α f hf
+
+/-- Compare Bob's reduced states at Alice's actual/anchor questions under the prior pair
+and the winning remaining transcript. The message stays set to Bob's question. -/
+theorem rightTaggedPairAnchorTraceNormSq_le (Q : PMF Transcript) (e : Fin m ≃ Free)
+    [DecidableEq X] (ρ : Label × (Fin m → Option X) → Matrix D D ℂ) :
+    (α : ℝ) * taggedPairAnchorTraceNormSq C G α Q Prod.fst (Sum.inr ∘ Prod.snd) none e ρ ≤
+      (2 * (α : ℝ) + 2) *
+        taggedPairConditionalTraceNormSq C G α Q Prod.fst (Sum.inr ∘ Prod.snd) e ρ := by
+  apply taggedPairAnchorTraceNormSq_le_of_erase C G α Q Prod.fst (Sum.inr ∘ Prod.snd) none e ρ
+    (fun q => (none, q.2)) (fun _ => rfl) (fun _ => rfl)
+  intro f hf
+  rw [TwoProverGame.anchored_questions]
+  exact rate_mul_sum_anchorPair_erase_left_le G.questions α α f hf
 
 end Cslib.PCP.AnchoredDependency

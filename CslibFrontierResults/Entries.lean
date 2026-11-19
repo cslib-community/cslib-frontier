@@ -11027,6 +11027,24 @@ register_result "bvy-anchored-tagged-question-trace-comparison" where
     zero erasure rate. Source check at \
     https://github.com/cslib-community/cslib-frontier/pull/6675#issuecomment-7022727335."
 
+register_result "bvy-anchored-actual-versus-anchor-trace-deviation" where
+  title := "Trace deviation between the actual and anchor questions"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Conditioning and triangle step after (53)–(54)",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 26–27" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.leftTaggedPairAnchorTraceNormSq_le,
+    Cslib.PCP.AnchoredDependency.rightTaggedPairAnchorTraceNormSq_le
+  ]
+  scope := "For the fixed winning-law conditional density family, including null-label defaults, \
+    sum over unchecked coordinates and draw an anchored pair independently of the remaining \
+    winning transcript. Keep the restored checked label fixed when replacing the opposite \
+    player's question by its anchor. The squared full-trace-norm loss times the anchor rate is \
+    at most the tagged-question loss times (2α + 2), with α the anchor rate. Source check at \
+    https://github.com/cslib-community/cslib-frontier/pull/6676#issuecomment-7022905617."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
