@@ -3992,6 +3992,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsist
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDiagonal
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingLinearity
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingRounding
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingZero
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.PCP.TwoProverGame.RotationStrategy

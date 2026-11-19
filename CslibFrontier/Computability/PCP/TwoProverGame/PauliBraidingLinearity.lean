@@ -23,6 +23,7 @@ reduction then controls the averaged point observables in each basis and role as
 ## Main definitions
 
 * `Cslib.PCP.pauliBraidingLinearityStrategy`: the decoded strategy on one basis.
+* `Cslib.PCP.pauliBraidingPointMeasurement`: the averaged binary point measurement.
 
 ## Main results
 
@@ -135,6 +136,44 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
   rwa [show 12 * (2 * ε) = 24 * ε by ring, show 24 * (2 * ε) = 48 * ε by ring] at h
 
 open BitString in
+/-- The binary point measurement in one basis, with the checked string sent with a
+uniform dummy and decoded in its original coordinate. -/
+@[expose] noncomputable def pauliBraidingPointMeasurement
+    (M : PauliBraidingQuestion n Q → Measurement ((Bool × Bool) ⊕ A) 𝒜)
+    (basis : Bool) (c : Fin n → Bool) : Measurement Bool 𝒜 :=
+  Measurement.average fun d =>
+    (M (.basis basis (cond (lexSwap c d) Prod.swap id (c, d)))).map
+      (Sum.elim (fun r => (cond (lexSwap c d) Prod.swap id r).1) fun _ => false)
+
+omit [Nonempty (Fin n)] in
+open BitString in
+/-- The observable in the asymmetrized strategy uses that same point measurement. -/
+theorem observable_asymmetricLinearity_eq_pointMeasurement
+    (S : CommutingStrategy (PauliBraidingQuestion n Q) (PauliBraidingQuestion n Q)
+      ((Bool × Bool) ⊕ A) ((Bool × Bool) ⊕ A) 𝒜) (basis roles : Bool) (c : Fin n → Bool) :
+    let R := pauliBraidingLinearityStrategy basis S
+    ((cond roles R R.swap).asymmetricLinearity.alice c).observable =
+      (pauliBraidingPointMeasurement (cond roles S.alice S.bob) basis c).observable := by
+  intro R
+  rw [CommutingStrategy.observable_asymmetricLinearity, pauliBraidingPointMeasurement,
+    Measurement.observable_average]
+  refine expect_congr rfl fun d _ => ?_
+  let read (r : Bool × Bool) := (cond (lexSwap c d) Prod.swap id r).1
+  have hread : read ∘ Sum.elim id (fun _ : A => (false, false)) =
+      Sum.elim read (fun _ => false) := by
+    funext a
+    cases a with
+    | inl r => rfl
+    | inr a =>
+      change (cond (lexSwap c d) Prod.swap id (false, false)).1 = false
+      cases lexSwap c d <;> rfl
+  change (Measurement.map read ((cond roles R R.swap).alice _)).observable =
+    (Measurement.map (Sum.elim read (fun _ => false)) _).observable
+  cases roles <;>
+    simp only [R, Bool.cond_false, Bool.cond_true, pauliBraidingLinearityStrategy,
+      CommutingStrategy.swap, CommutingStrategy.map, Measurement.map_map, hread]
+
+open BitString in
 /-- The averaged point and consistency observables agree in X. In Z, the squared
 state-norm distance is controlled by the linearity rejection probability for general
 measurements. -/
@@ -163,22 +202,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
   let bad (c : Fin n → Bool) := ((tie c).map (fun a => first a ^^ second a)).prob S.state true
   let size := Fintype.card (Fin n → Bool)
   have hpoint (c : Fin n → Bool) : (T.alice c).observable = 𝔼 d, point c d := by
-    dsimp only [T]
-    rw [CommutingStrategy.observable_asymmetricLinearity]
-    refine expect_congr rfl fun d _ => ?_
-    let read (r : Bool × Bool) := (cond (lexSwap c d) Prod.swap id r).1
-    have hread : read ∘ Sum.elim id (fun _ : A => (false, false)) =
-        Sum.elim read (fun _ => false) := by
-      funext a
-      cases a with
-      | inl r => rfl
-      | inr a =>
-        change (cond (lexSwap c d) Prod.swap id (false, false)).1 = false
-        cases lexSwap c d <;> rfl
-    change (Measurement.map read ((cond roles R R.swap).alice _)).observable = point c d
-    cases roles <;>
-      simp only [R, M, point, Bool.cond_false, Bool.cond_true, pauliBraidingLinearityStrategy,
-        CommutingStrategy.swap, CommutingStrategy.map, Measurement.map_map, hread] <;> rfl
+    rw [observable_asymmetricLinearity_eq_pointMeasurement S basis roles c,
+      pauliBraidingPointMeasurement, Measurement.observable_average]
   have hcompare (c d : Fin n → Bool) :
       point c d - pauliBraidingBasisObservable M basis c d =
         if basis then (if d = c then diff c else 0) else 0 := by

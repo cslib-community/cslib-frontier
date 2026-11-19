@@ -54,6 +54,13 @@ theorem norm_sub_sq_le_through (a b c : A) :
       pow_le_pow_left₀ (φ.norm_nonneg _) h 2
     _ ≤ _ := by nlinarith [sq_nonneg (φ.norm (a - b) - φ.norm (b - c))]
 
+/-- Averaged squared state-norm distance through an intermediate family. -/
+theorem expect_norm_sub_sq_le_through (a b c : ι → A) :
+    (𝔼 i ∈ s, φ.norm (a i - c i) ^ 2) ≤
+      2 * (𝔼 i ∈ s, φ.norm (a i - b i) ^ 2) + 2 * (𝔼 i ∈ s, φ.norm (b i - c i) ^ 2) := by
+  have h := expect_le_expect (s := s) fun i _ => φ.norm_sub_sq_le_through (a i) (b i) (c i)
+  rwa [expect_add_distrib, ← mul_expect, ← mul_expect] at h
+
 variable [Module ℚ≥0 A]
 
 theorem norm_nnqsmul (q : ℚ≥0) (a : A) : φ.norm (q • a) = q * φ.norm a := by

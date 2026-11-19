@@ -76,6 +76,11 @@ noncomputable def asymmetricLinearity
     rw [Finset.expect, ← NNRat.cast_smul_eq_nnqsmul ℂ]
     exact (Commute.sum_left _ _ _ fun d _ => (S.withLinearityDummy d).commute c q a b).smul_left _
 
+@[simp] theorem asymmetricLinearity_state
+    (S : CommutingStrategy ((Fin n → Bool) × (Fin n → Bool)) ((Fin n → Bool) × (Fin n → Bool))
+      (Bool × Bool) (Bool × Bool) 𝒜) :
+    S.asymmetricLinearity.state = S.state := by simp [asymmetricLinearity]
+
 /-- The observable on a point query is the uniform average of the observables for the
 decoded point bit. The checked string is the first coordinate before sorting. -/
 theorem observable_asymmetricLinearity
