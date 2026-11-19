@@ -39,7 +39,7 @@ the trail, and never more than the stamp.
 
 namespace Cslib.Algorithms.WordRAM.LRAT
 
-open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Reg
+open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Algorithms.WordRAM.ClauseCode Reg
 
 /-! ### The memory representation -/
 
@@ -152,9 +152,9 @@ theorem scanClause_spec (F : Literal ℕ → Bool) (c : Clause ℕ) (x : Data 28
     (hM : ∀ l ∈ c, litCode l + 1 ≤ M) (hw : Fits w (x.regs tbase + 2 * M + 2))
     (hlw : Fits w (x.regs cl + 1 + c.length)) :
     ∃ y, ExecWithin w scanClause x y (20 * c.length + 9) ∧ y.mem = x.mem ∧
-      y.regs has = (scanOf (c.filter fun l => !F l)).1.toNat ∧
-      y.regs unit = (scanOf (c.filter fun l => !F l)).2.1 ∧
-      y.regs bad = (scanOf (c.filter fun l => !F l)).2.2.toNat ∧
+      y.regs has = (scanOf (c.filter fun l => !F l)).found.toNat ∧
+      y.regs unit = (scanOf (c.filter fun l => !F l)).code ∧
+      y.regs bad = (scanOf (c.filter fun l => !F l)).conflict.toNat ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = x.regs tbase ∧
       y.regs stamp = x.regs stamp := by
   obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp hcl
@@ -162,7 +162,7 @@ theorem scanClause_spec (F : Literal ℕ → Bool) (c : Clause ℕ) (x : Data 28
   refine WP.exists_execWithin ?_
   unfold scanClause
   wram_exec [hlen, hone, hzero]
-  wram_call (litLoop_spec (w := w) F c (false, 0, false) _ M (by wram_simp [hzero])
+  wram_call (litLoop_spec (w := w) F c ⟨false, 0, false⟩ _ M (by wram_simp [hzero])
     (by wram_simp [hone]) (by wram_simp; exact hlits) (by wram_simp)
     (fun l hl => by wram_simp; exact hF l hl) (by wram_simp; rfl) (by wram_simp) (by wram_simp; rfl)
     hM (by wram_simp; exact hw) (by wram_simp; exact hlw))

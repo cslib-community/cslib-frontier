@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Steps
+import CslibFrontier.Foundations.Data.List.Fold
 
 /-!
 # An LRAT checker on the word RAM: correctness and running time
@@ -32,7 +33,7 @@ of the clauses that the hints of the certificate name (`Cslib.Algorithms.WordRAM
 
 namespace Cslib.Algorithms.WordRAM.LRAT
 
-open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Reg
+open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Algorithms.WordRAM.ClauseCode Reg
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-! ### The database of the formula -/
@@ -199,14 +200,6 @@ theorem length_le_length_flatMap_encodeClause (ψ : CNF ℕ) :
   | nil => simp
   | cons c ψ ih => simp [encodeClause]; omega
 
-theorem le_foldr_max {l : List ℕ} {v : ℕ} (hv : v ∈ l) : v ≤ l.foldr max 0 := by
-  induction l with
-  | nil => simp at hv
-  | cons a l ih =>
-    rcases List.mem_cons.mp hv with rfl | hv
-    · exact le_max_left _ _
-    · exact (ih hv).trans (le_max_right _ _)
-
 section Specs
 
 variable {w : ℕ}
@@ -224,7 +217,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   set T := L + 1
   set M := input.foldr max 0 + 1
   have hTL : T = L + 1 := rfl
-  have hM : ∀ v ∈ input, v + 1 ≤ M := fun v hv => by have := le_foldr_max hv; omega
+  have hM : ∀ v ∈ input, v + 1 ≤ M := fun v hv => by have := List.le_foldr_max_of_mem hv; omega
   have hw' : Fits w (T + 2 * M + 2) := hw.of_le (by simp only [wordBound, T, M, L, hinput]; omega)
   set F := φ.flatMap encodeClause
   set C := cert.toList.flatMap encodeAction

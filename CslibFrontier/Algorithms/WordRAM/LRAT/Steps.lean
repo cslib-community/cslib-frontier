@@ -31,7 +31,7 @@ This file proves that the step loop of the word-RAM LRAT checker
 
 namespace Cslib.Algorithms.WordRAM.LRAT
 
-open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Reg
+open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Algorithms.WordRAM.ClauseCode Reg
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-! ### The database under additions and deletions -/

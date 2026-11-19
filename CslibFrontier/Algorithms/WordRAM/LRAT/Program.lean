@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Compile
@@ -21,9 +22,10 @@ This file states the input encoding and the program of a word-RAM LRAT checker t
 
 ## Encoding
 
-A literal `(v, b)` is the word `2 v + b` (`Cslib.Algorithms.WordRAM.LRAT.litCode`), and a clause is
-its length followed by the codes of its literals (`Cslib.Algorithms.WordRAM.LRAT.encodeClause`), as
-in the word-RAM Schöning scan, here over `ℕ` variables. The input is the number of clauses of the
+A literal `(v, b)` is the word `2 v + b` (`Cslib.Algorithms.WordRAM.ClauseCode.litCode`), and a
+clause is its length followed by the codes of its literals
+(`Cslib.Algorithms.WordRAM.ClauseCode.encodeClause`), the encoding the word-RAM Schöning scan
+uses. The input is the number of clauses of the
 formula, the clauses, then the steps of the certificate
 (`Cslib.Algorithms.WordRAM.LRAT.encode`). A step is a tag followed by its fields:
 
@@ -61,16 +63,10 @@ Its correctness and instruction bound are `Cslib.Algorithms.WordRAM.LRAT.program
 
 namespace Cslib.Algorithms.WordRAM.LRAT
 
-open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL
+open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Algorithms.WordRAM.ClauseCode
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-! ### Encoding -/
-
-/-- The word code `2 v + b` of the literal `(v, b)`. -/
-def litCode (l : Literal ℕ) : ℕ := 2 * l.1 + l.2.toNat
-
-/-- A clause is stored as its length followed by the codes of its literals. -/
-def encodeClause (c : Clause ℕ) : List ℕ := c.length :: c.map litCode
 
 /-- A list of numbers is stored as its length followed by its entries. -/
 def encodeNums (l : List ℕ) : List ℕ := l.length :: l

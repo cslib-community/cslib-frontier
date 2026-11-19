@@ -23,63 +23,36 @@ over the clause (`Cslib.Algorithms.WordRAM.LRAT.scanLits`), relates the fold to 
 
 namespace Cslib.Algorithms.WordRAM.LRAT
 
-open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL
-
-/-! ### Literal codes -/
-
-theorem litCode_injective : Function.Injective litCode := by
-  rintro ⟨v, b⟩ ⟨v', b'⟩ h
-  simp only [litCode] at h
-  cases b <;> cases b' <;> simp_all <;> omega
-
-theorem litCode_inj {l l' : Literal ℕ} : litCode l = litCode l' ↔ l = l' :=
-  litCode_injective.eq_iff
-
-theorem two_mul_xor_one (v : ℕ) : (2 * v) ^^^ 1 = 2 * v + 1 := by
-  apply Nat.eq_of_testBit_eq; intro i
-  rw [Nat.testBit_xor]
-  rcases i with _ | i
-  · simp [Nat.testBit_zero]
-  · have : (2 * v + 1) / 2 = v := by omega
-    simp [Nat.testBit_succ, this]
-
-theorem two_mul_add_one_xor_one (v : ℕ) : (2 * v + 1) ^^^ 1 = 2 * v := by
-  apply Nat.eq_of_testBit_eq; intro i
-  rw [Nat.testBit_xor]
-  rcases i with _ | i
-  · simp [Nat.testBit_zero]
-  · have : (2 * v + 1) / 2 = v := by omega
-    simp [Nat.testBit_succ, this]
-
-/-- The code of the negation of a literal flips the low bit. -/
-theorem litCode_xor_one (l : Literal ℕ) : litCode l ^^^ 1 = litCode (Std.Sat.Literal.negate l) := by
-  obtain ⟨v, b⟩ := l
-  cases b
-  · simpa [litCode, Std.Sat.Literal.negate] using two_mul_xor_one v
-  · simpa [litCode, Std.Sat.Literal.negate] using two_mul_add_one_xor_one v
-
-theorem litCode_le (l : Literal ℕ) : litCode l ≤ 2 * l.1 + 1 := by
-  have := Bool.toNat_le l.2
-  simp only [litCode]; omega
+open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Algorithms.WordRAM.ClauseCode
 
 /-! ### The fold of the literal loop -/
 
+/-- The state of the literal loop, held in the registers `has`, `unit` and `bad`. -/
+structure ScanState where
+  /-- Whether a literal that is not false has been found. -/
+  found : Bool
+  /-- The code of the first such literal. -/
+  code : ℕ
+  /-- Whether two different such literals have been found. -/
+  conflict : Bool
+  deriving DecidableEq, Repr
+
 /-- The state of the literal loop after a literal: a false literal is skipped; the first non-false
-literal becomes the unit; a later one different from the unit sets the flag `bad`. -/
-def scanStep (F : Literal ℕ → Bool) (st : Bool × ℕ × Bool) (l : Literal ℕ) : Bool × ℕ × Bool :=
-  if F l then st else if !st.1 then (true, litCode l, st.2.2)
-  else if st.2.1 = litCode l then st else (st.1, st.2.1, true)
+literal is recorded; a later one different from it sets `conflict`. -/
+def scanStep (F : Literal ℕ → Bool) (st : ScanState) (l : Literal ℕ) : ScanState :=
+  if F l then st else if !st.found then ⟨true, litCode l, st.conflict⟩
+  else if st.code = litCode l then st else ⟨st.found, st.code, true⟩
 
 /-- The state of the literal loop after a clause. -/
-def scanLits (F : Literal ℕ → Bool) (st : Bool × ℕ × Bool) (ls : List (Literal ℕ)) :
-    Bool × ℕ × Bool :=
+def scanLits (F : Literal ℕ → Bool) (st : ScanState) (ls : List (Literal ℕ)) :
+    ScanState :=
   ls.foldl (scanStep F) st
 
 /-- The abstract state of the scan after the non-false literals `f`. -/
-def scanOf (f : List (Literal ℕ)) : Bool × ℕ × Bool :=
+def scanOf (f : List (Literal ℕ)) : ScanState :=
   match f with
-  | [] => (false, 0, false)
-  | l :: ls => (true, litCode l, !ls.all (· == l))
+  | [] => ⟨false, 0, false⟩
+  | l :: ls => ⟨true, litCode l, !ls.all (· == l)⟩
 
 theorem scanStep_scanOf (F : Literal ℕ → Bool) (f : List (Literal ℕ)) (l : Literal ℕ) :
     scanStep F (scanOf f) l = scanOf (f ++ (if F l then [] else [l])) := by
@@ -100,7 +73,7 @@ theorem scanStep_scanOf (F : Literal ℕ → Bool) (f : List (Literal ℕ)) (l :
 /-- **The fold computes the filter.** Scanning a clause from the initial state gives the abstract
 state of its non-false literals. -/
 theorem scanLits_eq (F : Literal ℕ → Bool) (ls : List (Literal ℕ)) :
-    scanLits F (false, 0, false) ls = scanOf (ls.filter fun l => !F l) := by
+    scanLits F ⟨false, 0, false⟩ ls = scanOf (ls.filter fun l => !F l) := by
   suffices ∀ f, scanLits F (scanOf f) ls = scanOf (f ++ ls.filter fun l => !F l) by
     simpa [scanOf] using this []
   induction ls with
@@ -120,19 +93,19 @@ section Specs
 variable {w : ℕ}
 
 /-- One literal of the literal loop performs `scanStep F`. -/
-theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : Bool × ℕ × Bool) (x : Data 28)
+theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : ScanState) (x : Data 28)
     (hzero : x.regs zero = 0) (hone : x.regs one = 1)
     (hlit : x.mem (x.regs lptr) = litCode l)
     (hFl : x.mem (x.regs tbase + (litCode (Std.Sat.Literal.negate l) +
       litCode (Std.Sat.Literal.negate l) + 1)) = x.regs stamp ↔ F l = true)
-    (hhas : x.regs has = st.1.toNat) (hunit : x.regs unit = st.2.1)
-    (hbad : x.regs bad = st.2.2.toNat)
+    (hhas : x.regs has = st.found.toNat) (hunit : x.regs unit = st.code)
+    (hbad : x.regs bad = st.conflict.toNat)
     (hfit : Fits w (x.regs tbase + (litCode (Std.Sat.Literal.negate l) +
       litCode (Std.Sat.Literal.negate l) + 1)))
     (hfit' : Fits w (x.regs lptr + 1)) :
     ∃ y, ExecWithin w litBody x y 18 ∧ y.mem = x.mem ∧
-      y.regs has = (scanStep F st l).1.toNat ∧ y.regs unit = (scanStep F st l).2.1 ∧
-      y.regs bad = (scanStep F st l).2.2.toNat ∧ y.regs lptr = x.regs lptr + 1 ∧
+      y.regs has = (scanStep F st l).found.toNat ∧ y.regs unit = (scanStep F st l).code ∧
+      y.regs bad = (scanStep F st l).conflict.toNat ∧ y.regs lptr = x.regs lptr + 1 ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = x.regs tbase ∧
       y.regs stamp = x.regs stamp ∧ y.regs lend = x.regs lend := by
   have : Fits w (litCode l) := hfit.of_le (by
@@ -169,20 +142,20 @@ theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : Bool × 
 
 /-- **The literal loop** computes the fold `scanLits F` of the clause at `lptr`, where `F l` says
 that the cell of the complement of `l` holds the stamp, and leaves memory unchanged. -/
-theorem litLoop_spec (F : Literal ℕ → Bool) (ls : List (Literal ℕ)) (st : Bool × ℕ × Bool)
+theorem litLoop_spec (F : Literal ℕ → Bool) (ls : List (Literal ℕ)) (st : ScanState)
     (x : Data 28) (M : ℕ)
     (hzero : x.regs zero = 0) (hone : x.regs one = 1)
     (hl : HoldsList (x.regs lptr) (ls.map litCode) x.mem)
     (hend : x.regs lend = x.regs lptr + ls.length)
     (hF : ∀ l ∈ ls, (x.mem (x.regs tbase + (litCode (Std.Sat.Literal.negate l) +
       litCode (Std.Sat.Literal.negate l) + 1)) = x.regs stamp ↔ F l = true))
-    (hhas : x.regs has = st.1.toNat) (hunit : x.regs unit = st.2.1)
-    (hbad : x.regs bad = st.2.2.toNat)
+    (hhas : x.regs has = st.found.toNat) (hunit : x.regs unit = st.code)
+    (hbad : x.regs bad = st.conflict.toNat)
     (hM : ∀ l ∈ ls, litCode l + 1 ≤ M)
     (hw : Fits w (x.regs tbase + 2 * M + 2)) (hlw : Fits w (x.regs lend)) :
     ∃ y, ExecWithin w litLoop x y (20 * ls.length + 2) ∧ y.mem = x.mem ∧
-      y.regs has = (scanLits F st ls).1.toNat ∧ y.regs unit = (scanLits F st ls).2.1 ∧
-      y.regs bad = (scanLits F st ls).2.2.toNat ∧ y.regs lptr = x.regs lend ∧
+      y.regs has = (scanLits F st ls).found.toNat ∧ y.regs unit = (scanLits F st ls).code ∧
+      y.regs bad = (scanLits F st ls).conflict.toNat ∧ y.regs lptr = x.regs lend ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = x.regs tbase ∧
       y.regs stamp = x.regs stamp ∧ y.regs lend = x.regs lend := by
   induction ls generalizing x st with
