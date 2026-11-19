@@ -6,11 +6,13 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.PurificationOverlap
+import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 import CslibFrontier.Probability.MarkovChain.RandomWalk
@@ -10797,6 +10799,23 @@ register_result "abstract-dpll-learning-correctness" where
     Backjump and Learn use entailment by total assignments, which the §2.1 entailment implies, \
     so every step of the source is a step here."
 
+register_result "anchoring-classical-and-entangled-values" where
+  title := "Classical and entangled values after anchoring a two-prover game"
+  topic := "nonlocal games"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 1.2",
+      locator := "arXiv:1509.07466v2, printed p. 3 (anchoring in Definition 1.1)" }
+  ]
+  theorems := [
+    Cslib.PCP.TwoProverGame.value_anchored,
+    Cslib.PCP.TwoProverGame.quantumValue_anchored
+  ]
+  scope := "Anchoring replaces each player's question independently with probability α and \
+    accepts if either question is replaced. For finite games with nonempty answer alphabets, \
+    the classical and entangled rejection gaps both scale by (1 − α)², including α = 0 and α = 1. \
+    Entangled value is the supremum over finite-dimensional tensor strategies with arbitrary \
+    local POVMs. The strategy maps preserve both local dimensions."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"
@@ -10858,6 +10877,19 @@ register_result "mpda-one-hole-is-no-hole" where
     informally; the Lean statement is for all complete runs and does not need acceptance. \
     Source check: independent agent review (codex-f4a705f4) on PR #6587, against \
     arXiv:2002.05950v2 Definition 1, PDF pp. 5-6, and Appendix G.1, Theorem 2, PDF p. 37."
+
+register_result "quantum-relative-entropy-nonnegative" where
+  title := "Nonnegativity of quantum relative entropy for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Proposition 5.2",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 19" }
+  ]
+  theorems := [Cslib.Quantum.relativeEntropy_nonneg]
+  scope := "For arbitrary finite complex positive semidefinite trace-one matrices, including \
+    singular states, quantum relative entropy is nonnegative. The trace formula uses natural \
+    logarithms and requires support containment, stated as reverse kernel inclusion. When that \
+    containment fails, the divergence is positive infinity."
 
 register_result "uhlmann-finite-dimensional-local-overlap" where
   title := "Uhlmann’s theorem for finite-dimensional purifications"
