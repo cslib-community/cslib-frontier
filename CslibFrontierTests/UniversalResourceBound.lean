@@ -36,5 +36,30 @@ example : ∃ (c k : ℕ) (State : Type) (_ : Finite State)
     tm.ComputesInTimeAndSpace (eIn (emptyDescription, [], 1)) (eOut ([], true))
       (c * 16385) (c * 129) := by
   obtain ⟨c, ⟨k, State, hfinite, tm, htm⟩, _⟩ := computableInO_universal
-  exact ⟨c, k, State, hfinite, tm, htm (emptyDescription, [], 0),
-    htm (emptyDescription, [], 1)⟩
+  -- One common factor absorbs all four finite resource values; the test does not require
+  -- the implementation's exact resource expressions to be definitionally small numerals.
+  have budgets (t₀ s₀ t₁ s₁ c : ℕ) :
+      c * t₀ ≤ (c * (t₀ + s₀ + t₁ + s₁)) * 2402 ∧
+      c * s₀ ≤ (c * (t₀ + s₀ + t₁ + s₁)) * 50 ∧
+      c * t₁ ≤ (c * (t₀ + s₀ + t₁ + s₁)) * 16385 ∧
+      c * s₁ ≤ (c * (t₀ + s₀ + t₁ + s₁)) * 129 := by
+    simp only [Nat.mul_add, Nat.add_mul]
+    omega
+  have ho0 : universal (emptyDescription, [], 0) = ([], false) := by decide +kernel
+  have ho1 : universal (emptyDescription, [], 1) = ([], true) := by decide +kernel
+  have h0 := htm (emptyDescription, [], 0)
+  have h1 := htm (emptyDescription, [], 1)
+  change tm.ComputesInTimeAndSpace _ _
+    (c * (universalImplementationTime (emptyDescription, [], 0) + 1))
+    (c * (universalImplementationSpace (emptyDescription, [], 0) + 1)) at h0
+  change tm.ComputesInTimeAndSpace _ _
+    (c * (universalImplementationTime (emptyDescription, [], 1) + 1))
+    (c * (universalImplementationSpace (emptyDescription, [], 1) + 1)) at h1
+  obtain ⟨ht0, hs0, ht1, hs1⟩ := budgets
+    (universalImplementationTime (emptyDescription, [], 0) + 1)
+    (universalImplementationSpace (emptyDescription, [], 0) + 1)
+    (universalImplementationTime (emptyDescription, [], 1) + 1)
+    (universalImplementationSpace (emptyDescription, [], 1) + 1) c
+  rw [ho0] at h0
+  rw [ho1] at h1
+  exact ⟨_, k, State, hfinite, tm, h0.mono ht0 hs0, h1.mono ht1 hs1⟩

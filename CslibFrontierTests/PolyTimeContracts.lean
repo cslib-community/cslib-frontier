@@ -17,6 +17,9 @@ namespace CslibFrontierTests.PolyTimeContracts
 
 open Turing.MultiTapeTM
 
+-- Direct FunProp checks use the certificate API without expanding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
+
 -- The size adapter has exactly the original pointwise polynomial contract.
 example {α : Type*} (size cost : α → ℕ) :
     PolyBounded size cost ↔ ∃ c d, ∀ a, cost a ≤ c * (size a + 1) ^ d :=
@@ -168,7 +171,9 @@ private def tagRows (p : TaggedRowsInput) : List (List Bool) :=
 private theorem tagRows_polytime :
     ComputableInPolyTime tagRows taggedRowsInputEncoding (encList encBits) := by
   unfold tagRows taggedRowsInputEncoding
-  refine ComputableInPolyTime.foldlWith_of_bounded_growth (encA := encBits)
+  refine ComputableInPolyTime.foldlWith_of_bounded_growth
+    (encIn := taggedRowsInputEncoding) (encP := encBits)
+    (encA := encBits) (encL := encList encBits) (encB := encList encBits)
     (par := fun p : TaggedRowsInput => p.1.2)
     (step := fun tag rows row => (row ++ tag) :: rows)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)

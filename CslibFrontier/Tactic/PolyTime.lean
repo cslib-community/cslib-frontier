@@ -72,6 +72,10 @@ attribute [aesop unsafe 80% apply (rule_sets := [PolyTime])]
 
 attribute [aesop safe apply (rule_sets := [PolyTime])] ComputableInPolyTime.of_finite
 
+-- A range fixes its element and list encodings before a joint fold certificate checks the
+-- callback and the list interfaces. Keep this assignment as a backtrackable alternative.
+attribute [aesop unsafe 95% apply (rule_sets := [PolyTime])] ComputableInPolyTime.range
+
 -- Boolean scans hide the element encoding in their result. Resolve the list certificate before
 -- searching for a joint callback certificate, including when the callback captures local values.
 attribute [program_certificate hlist]
@@ -380,31 +384,10 @@ private meta def isRawProperty (name : Name) : MetaM Bool := do
       rawTransitionPremise (mkAppN (← mkConstWithLevelParams name) xs))
 
 open Lean Meta Mathlib.Meta.FunProp in
-/-- Shadow global function and composition rules only during public search. Local proof entries
-and the original databases remain available outside it, including explicit raw construction. -/
+/-- Remove raw function properties during public search. Ordinary theorem descriptors remain:
+raw premises can use complete local evidence through the discharger, but their missing property
+metadata prevents recursive raw function-property proof search. -/
 private meta def plainRuleEnvironment (env : Environment) : MetaM Environment := do
-  let mut seen : Std.HashSet Name := {}
-  let mut blocked : Std.HashSet Name := {}
-  for (_, properties) in (functionTheoremsExt.getState env).theorems do
-    for (_, rules) in properties do
-      for rule in rules do
-        if let .decl name := rule.thmOrigin then
-          unless seen.contains name do
-            seen := seen.insert name
-            if ← hasRawPremise name then blocked := blocked.insert name
-  for (_, rules) in (lambdaTheoremsExt.getState env).theorems do
-    for rule in rules do
-      unless seen.contains rule.thmName do
-        seen := seen.insert rule.thmName
-        if ← hasRawPremise rule.thmName then blocked := blocked.insert rule.thmName
-  let env := searchRuleState functionTheoremsExt env fun s =>
-    { s with theorems := s.theorems.map fun _ properties => properties.map fun _ rules =>
-      rules.filter fun rule => match rule.thmOrigin with
-        | .decl name => !blocked.contains name
-        | .fvar _ => true }
-  let env := searchRuleState lambdaTheoremsExt env fun s =>
-    { s with theorems := s.theorems.map fun _ rules =>
-        rules.filter fun rule => !blocked.contains rule.thmName }
   let rawProperties ← (funPropDeclsExt.getState env).decls.foldValuesM
     (init := ({} : Std.HashSet Name)) fun names decl => do
       return if ← isRawProperty decl.funPropName then names.insert decl.funPropName else names
@@ -474,18 +457,10 @@ private meta def preparePlainRuleMemo : MetaM PlainRuleCache := do
   -- With the shared cache, only current-module rules are classified for this invocation.
   let perInvocation (name : Name) := shared.isNone || (env.getModuleIdxFor? name).isNone
   let mut names : Std.HashSet Name := {}
-  for (_, properties) in (functionTheoremsExt.getState env).theorems do
-    for (_, rules) in properties do
-      for rule in rules do
-        if let .decl name := rule.thmOrigin then
-          if perInvocation name then names := names.insert name
-  for (_, rules) in (lambdaTheoremsExt.getState env).theorems do
-    for rule in rules do
-      if perInvocation rule.thmName then names := names.insert rule.thmName
   for (_, entries) in (Cslib.Tactic.certificateExt.getState env) do
     for (name, _) in entries do
       if perInvocation name then names := names.insert name
-  for rules in #[morTheoremsExt.getState env, transitionTheoremsExt.getState env] do
+  for rules in #[morTheoremsExt.getState env] do
     for node in rules.theorems.tries do
       for rule in node.values do
         if perInvocation rule.thmName then names := names.insert rule.thmName
@@ -690,7 +665,10 @@ meta def Internal.funPropWithPlainBoundary (maxSteps : Nat) : TacticM Unit := do
     let env ← getEnv
     let state : Mathlib.Meta.FunProp.State := {
       morTheorems := ← plainGeneralTheorems (morTheoremsExt.getState env)
-      transitionTheorems := ← plainGeneralTheorems (transitionTheoremsExt.getState env) }
+      -- Raw predicates are absent from the scoped property table below. Keeping transition
+      -- descriptors therefore permits supplied raw evidence through `disch`, without starting
+      -- raw function-property search to manufacture that evidence.
+      transitionTheorems := transitionTheoremsExt.getState env }
     let ruleEnv ← plainRuleEnvironment env
     let (result, state) ← withEnv ruleEnv <| (funProp target ctx).run state
     let some result := result | do
@@ -1050,14 +1028,15 @@ private meta def Internal.exposeFieldCertificates : TacticM Unit := withMainCont
   replaceMainGoal [goal]
 
 open Lean Meta Elab Tactic in
-/-- Prepare a certificate goal: unfold the hinted definitions in the goal and inline the `let`s
-they expose, unfold local encoding `let`s, and expose certificates stored in fields of local
-structures. -/
+/-- Prepare a certificate goal: unfold the hinted definitions, inline literal `let`s in the goal,
+unfold local encoding `let`s, and expose certificates stored in fields of local structures.
+Inlining does not unfold named programs or change their certificate lookup. -/
 meta def Internal.prepareGoal (hints : Array Ident) : TacticM Unit := do
   unless hints.isEmpty do
     evalTactic (← `(tactic| unfold $hints*))
-    liftMetaTactic1 fun goal => do
-      goal.replaceTargetDefEq (← zetaReduce (← instantiateMVars (← goal.getType)))
+  liftMetaTactic1 fun goal => do
+    goal.replaceTargetDefEq (← zetaReduce (← instantiateMVars (← goal.getType))
+      (zetaDelta := !hints.isEmpty))
   Internal.unfoldEncodingLets
   Internal.exposeFieldCertificates
 

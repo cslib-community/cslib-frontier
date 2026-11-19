@@ -19,6 +19,9 @@ binary lookup agree on examples outside the list, without expanding an unbounded
 The resource example enlarges workspace independently of the actual time clock.
 -/
 
+-- This ordinary-import regression module exports no fixtures.
+set_option linter.privateModule false
+
 open Turing.MultiTapeTM
 open ComputableInPolyTime
 

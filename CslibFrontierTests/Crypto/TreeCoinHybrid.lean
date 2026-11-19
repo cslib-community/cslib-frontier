@@ -95,7 +95,10 @@ noncomputable def seededToy : IndexedSignatureScheme where
     let decoded := sigDec.decode sig
     (decoded.1 == pk) && (decoded.2.1 == u) && (decoded.2.2.1 == msg)
   capacity_polyTime := ComputableInPolyTime.const 2
-  keyGen_ppt := by ppt
+  keyGen_ppt := by
+    have hsample := (ComputableInPolyTime.const (encIn := encUnary) 2).sampleList
+    have hid := ComputableInPolyTime.id' (encIn := encBits)
+    simpa only [bind_pure_comp] using hsample.map (hid.prod hid)
   sign_ppt := by
     have hcoin := (ComputableInPolyTime.const (encIn := encIndexedSignInput) 1).sampleList
     have hp := ComputableInPolyTime.id' (encIn := encPair encIndexedSignInput encBits)

@@ -11,7 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Tactic.PolyTime
 public import CslibFrontier.Tactic.Negligible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
-import Mathlib.Data.NNReal.Basic
+import Mathlib.Basic.NNReal.Basic
 
 /-! Ordinary automation after deleting the derived tidy calculus: order-sensitive captured
 folds, independent degree certificates and unary negligible parameters. -/
@@ -21,6 +21,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.PolyTimeOrdinaryClosure
 
 open Cslib Turing.MultiTapeTM
+open scoped NNReal
 
 private def tagged (p : List Bool × List Bool) : List Bool :=
   p.2.foldl (fun state bit => p.1 ++ bit :: state) []

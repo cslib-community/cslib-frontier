@@ -12,7 +12,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
 
-/-! Plain polynomial time, `P` and `NP` against upstream plain machines, in both directions: upstream
+/-! Plain polynomial time, `P` and `NP` against upstream plain machines, in both directions:
+upstream
 machines with no tidiness or space guarantees give library certificates, and library certificates,
 including the verifier for SAT, give upstream machines within polynomial time and space. The plain
 predicate `Turing.MultiTapeTM.ComputableInPolyTime` is proved by `fun_prop` and `polytime` from

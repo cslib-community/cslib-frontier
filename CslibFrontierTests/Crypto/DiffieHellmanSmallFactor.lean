@@ -429,8 +429,10 @@ theorem alternatingFactorFamily_not_ddh :
   refine CyclicGroupFamily.not_ddh_of_prime_factor alternatingFactorFamily (fun _ d => altFactor d)
     ?_ (fun _ => 5) (polynomiallyBounded_iff_le.2 ⟨5, 0, fun _ => by simp⟩)
     (Filter.Eventually.of_forall fun n d hd => ?_).frequently
-  · unfold altFactor
-    fun_prop
+  · have hd := ComputableInPolyTime.snd encUnary encNat
+    exact ComputableInPolyTime.binary_add' (ComputableInPolyTime.const 3)
+      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 2)
+        (ComputableInPolyTime.binary_mod' hd (ComputableInPolyTime.const 2)))
   · have hdn : d = n := (PMF.mem_support_pure_iff n d).mp hd
     rw [hdn]
     change (altFactor n).Prime ∧ altFactor n ∣ altOrder n ∧ altFactor n ≤ 5

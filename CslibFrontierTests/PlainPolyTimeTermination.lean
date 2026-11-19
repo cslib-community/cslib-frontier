@@ -16,6 +16,9 @@ The resource statement retains the `rounds + 1` factor covering initialization a
 
 namespace CslibFrontierTests.PlainPolyTimeTermination
 
+-- This ordinary-import regression module exports no fixtures.
+set_option linter.privateModule false
+
 open Turing.MultiTapeTM
 
 private def init (b : Bool) : ℕ := if b then 2 else 0
@@ -41,7 +44,7 @@ example : ∃ c d, ComputableInTimeAndSpace (fun b : Bool => if b then 1 else 0)
       have hn1 : n ≤ 1 := by simpa [rounds] using hn
       have hn01 : n = 0 ∨ n = 1 := by omega
       rcases hn01 with rfl | rfl <;>
-        simp [init, step, Function.iterate_succ_apply', encUnary_apply]
+        simp [init, step, encUnary_apply]
   have hne : ∀ b, ∀ n < rounds b, encUnary (step^[n + 1] (init b)) ≠ [] := by
     intro b n hn
     cases b with
@@ -49,7 +52,7 @@ example : ∃ c d, ComputableInTimeAndSpace (fun b : Bool => if b then 1 else 0)
     | true =>
       have hn0 : n = 0 := by simpa [rounds] using hn
       subst n
-      simp [init, step, Function.iterate_succ_apply', encUnary_apply]
+      simp [init, step, encUnary_apply]
   have hnil : ∀ b, encUnary (step^[rounds b + 1] (init b)) = [] := by
     intro b
     cases b <;> simp [rounds, init, step, Function.iterate_succ_apply', encUnary_apply]

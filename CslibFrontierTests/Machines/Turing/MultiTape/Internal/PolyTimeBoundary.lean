@@ -20,7 +20,8 @@ bodies might make its internal construction lemmas available incidentally. The n
 step has the same nonincreasing fold contract used by the GGM evaluator.
 -/
 
-private section
+-- This source-only test module exports no fixtures.
+set_option linter.privateModule false
 
 open Turing.MultiTapeTM
 
@@ -223,7 +224,7 @@ example (h : ∀ index, RawAliasFull (indexedRawOnly index) encBits encBits →
     fail_if_success (clear hplain; polytime)
     polytime
   · clear h hf hplain
-    fail_if_success polytime
+    fail_if_success (clear htidy; polytime)
     exact htidy index
 
 /-- A named result is opaque to generic decomposition. -/

@@ -25,6 +25,9 @@ namespace CslibFrontierTests.MultiTapePolyTime
 
 open Turing.MultiTapeTM
 
+-- Direct FunProp checks use the certificate API without expanding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
+
 -- Captured bit maps, option fallback, binary/unary logarithms, and arithmetic closure.
 example :
     ComputableInPolyTime

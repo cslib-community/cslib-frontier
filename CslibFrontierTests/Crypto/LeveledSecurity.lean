@@ -358,7 +358,8 @@ private theorem inputSizedAdversary_ppt : inputSizedAdversary.IsPPT := by
     have hsample := (ComputableInPolyTime.length_bits.comp hp.snd').sampleList
     have hq := ComputableInPolyTime.id'
       (encIn := encPair (encPair encUnary encBits) encBits)
-    have hhead := (ComputableInPolyTime.headD false).comp hq.snd'
+    have hhead := (ComputableInPolyTime.headD
+      (encA := encBool) (encL := encBits) false).comp hq.snd'
     simpa only [inputSizedAdversary, bind_pure_comp] using
       hsample.map_with (f := fun p seed => ((seed.headD false, false), p.2 ++ seed))
         ((hhead.prod (ComputableInPolyTime.const false)).prod
@@ -366,8 +367,10 @@ private theorem inputSizedAdversary_ppt : inputSizedAdversary.IsPPT := by
   · have hp := ComputableInPolyTime.id' (encIn := Encryption.encGuessInput)
     have hsample := (ComputableInPolyTime.length_bits.comp hp.snd'.fst').sampleList
     have hq := ComputableInPolyTime.id' (encIn := encPair Encryption.encGuessInput encBits)
-    have hcoin := (ComputableInPolyTime.headD false).comp hq.snd'
-    have hct := (ComputableInPolyTime.headD false).comp hq.fst'.snd'.snd'
+    have hcoin := (ComputableInPolyTime.headD
+      (encA := encBool) (encL := encBits) false).comp hq.snd'
+    have hct := (ComputableInPolyTime.headD
+      (encA := encBool) (encL := encBits) false).comp hq.fst'.snd'.snd'
     simpa only [inputSizedAdversary, bind_pure_comp] using
       hsample.map_with (f := fun p seed => seed.headD false ^^ p.2.2.headD false)
         (ComputableInPolyTime.bool_xor.comp (hcoin.prod hct))
