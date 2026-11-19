@@ -30,6 +30,8 @@ slice then transfers the joint distance estimate to that conditional transcript.
   transcript by its law when both questions are anchors.
 * `sum_dist_trial_rest_independent_given_wins`: replace the selected trial by its prior law
   independently of the winning remaining transcript.
+* `sum_dist_anchorRest_marginal_le`: bound the distance to the winning two-anchor
+  marginal, which `restGivenPair_anchor_eq_filter` identifies with the filtered kernel.
 -/
 
 public section
@@ -416,6 +418,82 @@ and two-anchor remaining transcript kernels. -/
       |(restKernel G α C S j q r).toReal -
         (restKernel G α C S j (none, none) r).toReal|
 
+omit [Fintype A] [Fintype B] in
+private theorem dist_actual_pair_marginal_le (Q : PMF Transcript) (j : Free) :
+    let F := Q.map fun z => ((freeTrials C z j).2, restTranscript C j z)
+    dist (F.map Prod.fst) ((law G.questions α).map Prod.snd) ≤
+      dist (Q.map fun z => freeTrials C z j) (law G.questions α) := by
+  simpa only [PMF.map_comp, Function.comp_def] using
+    dist_map_le (Q.map fun z => freeTrials C z j) (law G.questions α) Prod.snd
+
+private theorem dist_actual_pair_rest_anchored_le (Q : PMF Transcript) (j : Free) :
+    let F := Q.map fun z => ((freeTrials C z j).2, restTranscript C j z)
+    dist F (questionsAndAnchoredRest G α C Q j) ≤
+      dist (Q.map fun z => freeTrials C z j) (law G.questions α) +
+        dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j) := by
+  intro F
+  have hb := dist_bind_le (F.map Prod.fst) ((law G.questions α).map Prod.snd)
+    (fun q => (conditionalSnd F q).map (q, ·))
+  rw [bind_conditionalSnd] at hb
+  change dist F (questionsAndRest G α C Q j) ≤ _ at hb
+  have hc := dist_triangle F (questionsAndRest G α C Q j) (questionsAndAnchoredRest G α C Q j)
+  rw [dist_comm (questionsAndRest G α C Q j)] at hc
+  exact hc.trans (add_le_add_left (hb.trans (dist_actual_pair_marginal_le G α C Q j)) _)
+
+/-- The conditional remaining transcript at two anchors is the two-anchor kernel
+filtered by the winning event on the checked coordinates. -/
+theorem restGivenPair_anchor_eq_filter (S : RepeatedStrategy) (j : Free)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support)
+    (hα : 0 < (α : ℝ))
+    (hwin : ∃ r ∈ winsOnRest G α C j, r ∈ (restKernel G α C S j (none, none)).support) :
+    restGivenPair C ((transcriptLaw G α C S).filter (winsOnChecked G α C) hs) j
+      (none, none) =
+      (restKernel G α C S j (none, none)).filter (winsOnRest G α C j) hwin := by
+  classical
+  obtain ⟨hs', hF, _⟩ := pairRest_filter G α C S j hs
+  unfold restGivenPair
+  rw [hF]
+  exact conditionalSnd_filteredKernel_eq_filter _ _ _ _ (map_pair_restTranscriptLaw G α C S j)
+    hs' (none, none) (by rw [priorAnchorPair_mass G α]; positivity) hwin
+
+/-- The change from the winning remaining-transcript marginal to its two-anchor
+conditional law, summed over unchecked coordinates. This is the comparison used
+in [Bavarian, Vidick and Yuen, equation (68)][BavarianVidickYuen2022]. -/
+theorem sum_dist_anchorRest_marginal_le (S : RepeatedStrategy)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let T := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let Q := T.filter W hs
+    let p := (T.toOuterMeasure W).toReal
+    let w := (α : ℝ) ^ 2 / 2
+    let ε₁ := Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2)
+    let ε₂ := Real.sqrt (Fintype.card Free * Real.log (Fintype.card (C → A × B) / p) / 2)
+    w * (∑ j : Free, dist (Q.map (restTranscript C j)) (restGivenPair C Q j (none, none))) ≤
+      w * ε₁ + (1 + w) * (2 * ε₁ + ε₂) := by
+  classical
+  intro T W Q p w ε₁ ε₂
+  let d (j : Free) := dist (Q.map fun z => freeTrials C z j) (law G.questions α)
+  let a (j : Free) := dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)
+  calc
+    _ ≤ w * (∑ j, (d j + a j)) := by
+      apply mul_le_mul_of_nonneg_left _ (by dsimp only [w]; positivity)
+      refine Finset.sum_le_sum fun j _ => ?_
+      let F := Q.map fun z => ((freeTrials C z j).2, restTranscript C j z)
+      have h := dist_map_le F (questionsAndAnchoredRest G α C Q j) Prod.snd
+      have hmap : (questionsAndAnchoredRest G α C Q j).map Prod.snd =
+          restGivenPair C Q j (none, none) := by
+        simp only [questionsAndAnchoredRest, PMF.map_bind, PMF.map_comp, Function.comp_def,
+          PMF.bind_const]
+        exact PMF.map_id _
+      rw [hmap, show F.map Prod.snd = Q.map (restTranscript C j) from PMF.map_comp _ _ _] at h
+      exact h.trans (dist_actual_pair_rest_anchored_le G α C Q j)
+    _ ≤ _ := by
+      rw [Finset.sum_add_distrib, mul_add]
+      exact add_le_add
+        (mul_le_mul_of_nonneg_left (sum_dist_freeTrials_given_wins_le G α C S hs)
+          (by dsimp only [w]; positivity))
+        (sum_dist_anchoredRest_given_wins G α C S hs).2
+
 private theorem restKernelWinL1_le (S : RepeatedStrategy) (j : Free)
     (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
     let T := transcriptLaw G α C S
@@ -440,17 +518,9 @@ private theorem restKernelWinL1_le (S : RepeatedStrategy) (j : Free)
     rw [show (μ (none, none)).toReal = (α : ℝ) ^ 2 from priorAnchorPair_mass G α]
     dsimp only [w]
     ring
-  have hd : dist (F.map Prod.fst) μ ≤ d := by
-    have h := dist_map_le (Q.map fun z => freeTrials C z j) (law G.questions α) Prod.snd
-    simpa only [F, obs, μ, d, PMF.map_comp, Function.comp_def] using h
-  have hA : dist F (questionsAndAnchoredRest G α C Q j) ≤ d + a := by
-    have hb := dist_bind_le (F.map Prod.fst) μ
-      (fun q => (conditionalSnd F q).map (q, ·))
-    rw [bind_conditionalSnd] at hb
-    change dist F (questionsAndRest G α C Q j) ≤ _ at hb
-    have hc := dist_triangle F (questionsAndRest G α C Q j) (questionsAndAnchoredRest G α C Q j)
-    rw [dist_comm (questionsAndRest G α C Q j)] at hc
-    exact hc.trans (add_le_add_left (hb.trans hd) _)
+  have hd : dist (F.map Prod.fst) μ ≤ d := dist_actual_pair_marginal_le G α C Q j
+  have hA : dist F (questionsAndAnchoredRest G α C Q j) ≤ d + a :=
+    dist_actual_pair_rest_anchored_le G α C Q j
   have hx := restrictedKernelL1_le μ K E (T.map obs) hprior hs' (none, none)
   dsimp only at hx
   rw [hp, ← hF, hμ] at hx

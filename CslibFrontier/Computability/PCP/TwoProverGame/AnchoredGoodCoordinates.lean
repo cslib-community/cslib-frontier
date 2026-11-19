@@ -34,8 +34,8 @@ namespace Cslib.PCP.AnchoredDependency
 
 open Cslib.Probability.PMF
 open Matrix Finset
-open ParallelRepetition (Revealed)
-open scoped unitInterval
+open ParallelRepetition (Revealed Shared)
+open scoped unitInterval Cslib.Probability.PMF
 
 variable {X Y A B ι κ U : Type*} {n m : ℕ}
 variable [Fintype X] [Fintype Y] [Fintype A] [Fintype B]
@@ -47,6 +47,7 @@ local notation "Info" => Revealed (Option X) (Option Y) C
 local notation "Label" => (Info × ((C → A) × (C → B)))
 local notation "PairQ" => (Option X × Option Y)
 local notation "Message" => (Option X ⊕ Option Y)
+local notation "Rest" => Shared (Option X) (Option Y) A B C
 local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
 local notation "RepeatedStrategy" => QuantumStrategy (Fin n → Option X) (Fin n → Option Y)
   (Fin n → A) (Fin n → B) ι κ
@@ -65,22 +66,72 @@ private theorem taggedPairCoordinateScore_le_of_sq (Q : PMF Transcript)
   (2 + (α : ℝ)) * anchoredAlignmentBound α m answers p /
     ((m : ℝ) * ((α : ℝ) * anchoredAlignmentScale α * τ ^ 2))
 
-/-- The three mean alignment comparisons at a single coordinate. -/
+local notation "aliceVector" => fun (S : RepeatedStrategy) (j : Free)
+    (label : Label) (x : Option X) =>
+  checkedVectorGivenAlice G α C S j (Prod.fst label) x
+    (Prod.fst (Prod.snd label)) (Prod.snd (Prod.snd label))
+
+local notation "bobVector" => fun (S : RepeatedStrategy) (j : Free)
+    (label : Label) (y : Option Y) =>
+  checkedVectorGivenBob G α C S j (omitMessage C j (Prod.fst label))
+    (Revealed.halves (Prod.fst label) j) y (Prod.fst (Prod.snd label)) (Prod.snd (Prod.snd label))
+
+/-- The three mean alignment comparisons under a given remaining-transcript law. -/
+@[expose] def AnchorAlignmentOnRestAt (S : RepeatedStrategy)
+    (e : Fin m ≃ Free) (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
+    (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (i : Fin m)
+    (R : PMF (Rest (e i))) (τ : ℝ) : Prop :=
+  let vA := aliceVector S (e i)
+  let vB := bobVector S (e i)
+  taggedPairRestScore C G α (e i) R Prod.fst (fun _ => Sum.inr none)
+    (fun t x => localUnitaryError (VA i t x) (vA t none) (vA t x)) ≤ τ ∧
+  taggedPairRestScore C G α (e i) R Prod.snd (fun _ => Sum.inl none)
+    (fun t y => localUnitaryError (VB i t y) (vB t none) (vB t y)) ≤ τ ∧
+  taggedPairRestScore C G α (e i) R Prod.snd (Sum.inl ∘ Prod.fst)
+    (fun t y => localUnitaryError (VAB i t y) (vB t y) (vB t none)) ≤ τ
+
+/-- The three mean alignment comparisons under the winning remaining-transcript law. -/
 @[expose] def AnchorAlignmentAt (S : RepeatedStrategy) (Q : PMF Transcript)
     (e : Fin m ≃ Free) (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
     (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (i : Fin m) (τ : ℝ) : Prop :=
-  let vA (j : Fin m) (label : Label) (x : Option X) :=
-    let (t, a, b) := label
-    checkedVectorGivenAlice G α C S (e j) t x a b
-  let vB (j : Fin m) (label : Label) (y : Option Y) :=
-    let (t, a, b) := label
-    checkedVectorGivenBob G α C S (e j) (omitMessage C (e j) t) (t.halves (e j)) y a b
-  taggedPairCoordinateScore C G α Q Prod.fst (fun _ => Sum.inr none) e
-    (fun j t x => localUnitaryError (VA j t x) (vA j t none) (vA j t x)) i ≤ τ ∧
-  taggedPairCoordinateScore C G α Q Prod.snd (fun _ => Sum.inl none) e
-    (fun j t y => localUnitaryError (VB j t y) (vB j t none) (vB j t y)) i ≤ τ ∧
-  taggedPairCoordinateScore C G α Q Prod.snd (Sum.inl ∘ Prod.fst) e
-    (fun j t y => localUnitaryError (VAB j t y) (vB j t y) (vB j t none)) i ≤ τ
+  AnchorAlignmentOnRestAt C G α S e VA VB VAB i (Q.map (restTranscript C (e i))) τ
+
+private theorem taggedPairUnitaryError_le_of_dist {D E : Type*}
+    [Fintype D] [DecidableEq D] [Fintype E] [DecidableEq E]
+    (j : Free) {R R' : PMF (Rest j)} (read : PairQ → U) (tag : PairQ → Message)
+    (V : Label → U → Matrix E E ℂ) (v u : Label → U → EuclideanSpace ℂ (D × E))
+    (hV : ∀ t x, V t x ∈ unitaryGroup E ℂ)
+    {τ ξ : ℝ} (hd : dist R R' ≤ ξ)
+    (h : taggedPairRestScore C G α j R read tag
+      (fun t x => localUnitaryError (V t x) (v t x) (u t x)) ≤ τ) :
+    taggedPairRestScore C G α j R' read tag
+      (fun t x => localUnitaryError (V t x) (v t x) (u t x)) ≤ τ + 2 * ξ :=
+  (taggedPairRestScore_le_add_dist C G α j R R' read tag _
+    (fun _ _ => localUnitaryError_nonneg _ _ _)
+    (fun t x => localUnitaryError_le_two (hV t x) _ _)).trans
+    (add_le_add h (mul_le_mul_of_nonneg_left hd (by norm_num)))
+
+/-- Changing the remaining-transcript law increases each mean alignment error by at
+most twice the statistical distance. The local unitary families are the same. -/
+theorem AnchorAlignmentOnRestAt.transfer (S : RepeatedStrategy) (e : Fin m ≃ Free)
+    (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
+    (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (i : Fin m)
+    (hVA : ∀ t x, VA i t x ∈ unitaryGroup ι ℂ)
+    (hVB : ∀ t y, VB i t y ∈ unitaryGroup κ ℂ)
+    (hVAB : ∀ t y, VAB i t y ∈ unitaryGroup κ ℂ)
+    {R R' : PMF (Rest (e i))} {τ ξ : ℝ} (hd : dist R R' ≤ ξ)
+    (h : AnchorAlignmentOnRestAt C G α S e VA VB VAB i R τ) :
+    AnchorAlignmentOnRestAt C G α S e VA VB VAB i R' (τ + 2 * ξ) := by
+  unfold AnchorAlignmentOnRestAt at h ⊢
+  let vA := aliceVector S (e i)
+  let vB := bobVector S (e i)
+  exact ⟨
+    taggedPairUnitaryError_le_of_dist C G α (e i) Prod.fst (fun _ => Sum.inr none)
+      (VA i) (fun t _ => vA t none) vA hVA hd h.1,
+    taggedPairUnitaryError_le_of_dist C G α (e i) Prod.snd (fun _ => Sum.inl none)
+      (VB i) (fun t _ => vB t none) vB hVB hd h.2.1,
+    taggedPairUnitaryError_le_of_dist C G α (e i) Prod.snd (Sum.inl ∘ Prod.fst)
+      (VAB i) vB (fun t _ => vB t none) hVAB hd h.2.2⟩
 
 /-- A single set of unchecked coordinates satisfies the three mean-error bounds with
 threshold `τ`. The failure probability is explicit in the summed alignment bound.
@@ -103,12 +154,8 @@ theorem exists_good_alignment_coordinates [NeZero m] [Nonempty A] [Nonempty B]
       ∀ i ∈ good, AnchorAlignmentAt C G α S Q e VA VB VAB i τ := by
   classical
   intro T W Q p
-  let vA (i : Fin m) (label : Label) (x : Option X) :=
-    let (t, a, b) := label
-    checkedVectorGivenAlice G α C S (e i) t x a b
-  let vB (i : Fin m) (label : Label) (y : Option Y) :=
-    let (t, a, b) := label
-    checkedVectorGivenBob G α C S (e i) (omitMessage C (e i) t) (t.halves (e i)) y a b
+  let vA (i : Fin m) := aliceVector S (e i)
+  let vB (i : Fin m) := bobVector S (e i)
   obtain ⟨VA, hVA, hA⟩ := exists_alice_anchorLocalUnitary_le C G α S e hs
   obtain ⟨VB, hVB, hB⟩ := exists_bob_anchorLocalUnitary_le C G α S e hs
   obtain ⟨VAB, hVAB, hAB⟩ := exists_bob_taggedLocalUnitary_le C G α S e hs
@@ -151,7 +198,7 @@ theorem exists_good_alignment_coordinates [NeZero m] [Nonempty A] [Nonempty B]
       htotal
     simpa only [anchorAlignmentFailureBound, Fintype.card_fin] using h
   · intro i hi
-    unfold AnchorAlignmentAt
+    unfold AnchorAlignmentAt AnchorAlignmentOnRestAt
     have hh := (mem_filter.mp hi).2
     refine ⟨taggedPairCoordinateScore_le_of_sq C G α Q _ _ e fA i hτ.le
       (fun _ _ => localUnitaryError_nonneg _ _ _) ?_,

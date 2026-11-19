@@ -79,6 +79,47 @@ theorem mul_kernelEventProbability_eq (μ : PMF U) (K : U → PMF R) (E : Set R)
   rw [mul_filter_bind_pair_apply_toReal μ K E hE a r]
   split <;> simp
 
+/-- Multiplying the filtered conditional mass by the slice event probability
+recovers the restricted kernel, provided the prior slice has positive mass. -/
+theorem mul_conditionalSnd_filteredKernel_apply_toReal (μ : PMF U) (K : U → PMF R)
+    (E : Set R) [DecidablePred (· ∈ E)] (J : PMF (U × R))
+    (hJ : J = μ.bind fun q => (K q).map (q, ·))
+    (hE : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ J.support) (a : U) (ha : (μ a).toReal ≠ 0) (r : R) :
+    let Q := J.filter (Prod.snd ⁻¹' E) hE
+    ((K a).toOuterMeasure E).toReal * (conditionalSnd Q a r).toReal =
+      if r ∈ E then (K a r).toReal else 0 := by
+  classical
+  subst J
+  let J := μ.bind fun q => (K q).map (q, ·)
+  intro Q
+  apply mul_left_cancel₀ ha
+  have h := congrArg ENNReal.toReal (marginal_mul_conditionalSnd Q a r)
+  rw [ENNReal.toReal_mul] at h
+  have hmass := mul_kernelEventProbability_eq μ K E J rfl hE a
+  dsimp only at hmass
+  rw [← mul_assoc, hmass, mul_assoc, h, mul_filter_bind_pair_apply_toReal μ K E hE a r]
+  split <;> simp
+
+/-- Conditioning the filtered law on a supported prior slice gives the kernel restricted
+to the event, whenever the event has positive probability in that slice. -/
+theorem conditionalSnd_filteredKernel_eq_filter (μ : PMF U) (K : U → PMF R)
+    (E : Set R) (J : PMF (U × R)) (hJ : J = μ.bind fun q => (K q).map (q, ·))
+    (hE : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ J.support) (a : U) (ha : (μ a).toReal ≠ 0)
+    (hEa : ∃ r ∈ E, r ∈ (K a).support) :
+    conditionalSnd (J.filter (Prod.snd ⁻¹' E) hE) a = (K a).filter E hEa := by
+  classical
+  have hp := (toOuterMeasure_toReal_pos_iff (K a) E).mpr hEa
+  ext r
+  apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+  have h := mul_conditionalSnd_filteredKernel_apply_toReal μ K E J hJ hE a ha r
+  dsimp only at h
+  rw [filter_apply_toReal]
+  by_cases hr : r ∈ E
+  · rw [ite_eq_left hr]
+    exact (eq_div_iff hp.ne').mpr (by rw [mul_comm]; simpa only [ite_eq_left hr] using h)
+  · rw [ite_eq_right hr]
+    exact (mul_eq_zero.mp (by simpa only [ite_eq_right hr] using h)).resolve_left hp.ne'
+
 variable [Fintype U]
 
 /-- The deviation of a slice's event probability costs at most the distance of the filtered
@@ -132,7 +173,6 @@ theorem restrictedKernelL1_le (μ : PMF U) (K : U → PMF R) (E : Set R)
       p * (Q (q, r)).toReal = if r ∈ E then (μ q).toReal * (K q r).toReal else 0 := by
     have h := mul_filter_bind_pair_apply_toReal μ K E hE q r
     exact h
-  have ha : b * p₀ = p * (P a).toReal := mul_kernelEventProbability_eq μ K E J rfl hE a
   have htail : b * |p - p₀| ≤ p * dist P μ :=
     weighted_abs_kernelEventProbability_sub_le μ K E J rfl hE a
   change b * _ ≤ p * (2 * b * dist Q Q₀ + dist P μ)
@@ -141,13 +181,8 @@ theorem restrictedKernelL1_le (μ : PMF U) (K : U → PMF R) (E : Set R)
     positivity
   have hanchor (r : R) (hr : r ∈ E) :
       (K a r).toReal = p₀ * (conditionalSnd Q a r).toReal := by
-    apply mul_left_cancel₀ hb0
-    have h := congrArg ENNReal.toReal (marginal_mul_conditionalSnd Q a r)
-    rw [ENNReal.toReal_mul] at h
-    rw [← mul_assoc, ha, mul_assoc]
-    change b * (K a r).toReal = p * ((P a).toReal * (conditionalSnd Q a r).toReal)
-    rw [show (P a).toReal * (conditionalSnd Q a r).toReal = (Q (a, r)).toReal from h,
-      hmass, ite_eq_left hr]
+    have h := mul_conditionalSnd_filteredKernel_apply_toReal μ K E J rfl hE a hb0 r
+    simpa only [ite_eq_left hr] using h.symm
   have hpoint (q : U) (r : R) (hr : r ∈ E) :
       (μ q).toReal * |(K q r).toReal - (K a r).toReal| ≤
         p * |(Q (q, r)).toReal - (Q₀ (q, r)).toReal| + |p - p₀| * (Q₀ (q, r)).toReal := by

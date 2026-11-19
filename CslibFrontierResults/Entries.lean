@@ -11205,6 +11205,32 @@ register_result "anchored-common-alignment-normalization-coordinates" where
     uniform bound covers the union of alignment and normalization failures. The change to \
     the anchor-conditioned transcript law and the strategy construction remain separate."
 
+register_result "anchored-two-anchor-remaining-transcript-distance" where
+  title := "Distance to the winning two-anchor transcript"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Equation (68)",
+      locator := "arXiv:1509.07466v2, §5.4, printed pp. 31–32" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.sum_dist_anchorRest_marginal_le]
+  scope := "Summed statistical distance from the winning remaining-transcript marginal to \
+    its two-anchor conditional law over the unchecked coordinates of the repeated tensor game. \
+    The bound retains the prior anchor weight, with the conditional PMF fallback at null pairs."
+
+register_result "anchored-alignment-under-two-anchor-conditioning" where
+  title := "Alignment and normalization under the winning two-anchor law"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Equations (68)–(73)",
+      locator := "arXiv:1509.07466v2, §5.4, printed pp. 31–32" }
+  ]
+  theorems := [Cslib.PCP.AnchoredDependency.exists_good_conditioned_alignment_coordinates]
+  scope := "For positive anchor rate and thresholds, one explicit uniform failure bound \
+    controls the three mean alignment errors and both conditional squared norm-ratio errors. \
+    The alignment means use the filtered two-anchor kernel, and each alignment threshold \
+    increases by at most twice the selected statistical-distance threshold. This step precedes \
+    constructing the strategy and deriving an exponential decay estimate."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"

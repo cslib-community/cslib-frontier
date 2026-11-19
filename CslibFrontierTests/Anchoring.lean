@@ -401,7 +401,7 @@ example :
     have hmiss (i : Fin 1) (t' : _) (u : Option Bool) : 0 ≤ winningAnchorMiss P none i t' u := by
       unfold winningAnchorMiss
       split <;> norm_num
-    unfold taggedPairAnchorMissMass taggedPairScore taggedPairCoordinateScore
+    unfold taggedPairAnchorMissMass taggedPairScore taggedPairCoordinateScore taggedPairRestScore
     apply sum_pos' (fun i _ => sum_nonneg fun q _ => mul_nonneg ENNReal.toReal_nonneg
       (sum_nonneg fun r' _ => mul_nonneg ENNReal.toReal_nonneg (hmiss _ _ _)))
     refine ⟨0, mem_univ _, ?_⟩
@@ -563,3 +563,32 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   have h0 := zero_mem_of_uniform_failure_lt_one good (hprob.trans_lt hsmall)
   refine ⟨VA, VB, VAB, (hgood 0 h0).1, ?_⟩
   simpa only [C, acceptingGame_win_mass, ENNReal.toReal_one] using (hgood 0 h0).2
+
+/-- The common good coordinate supplies a supported two-anchor draw for the alignment scores. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3))
+    {τ η ξ : ℝ} (hτ : 0 < τ) (hη : 0 < η) (hξ : 0 < ξ)
+    (hsmall : anchorAlignmentFailureBound half 1 4 1 τ +
+      anchorNormalizationFailureBound half 1 4 1 η + anchorRestFailureBound half 1 4 1 ξ < 1) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let Label := Cslib.PCP.ParallelRepetition.Revealed (Option Bool) (Option Bool) C ×
+      ((C → Bool) × (C → Bool))
+    let K := restKernel acceptingGame half C S (e 0) (none, none)
+    let W := winsOnRest acceptingGame half C (e 0)
+    ∃ (VA : Fin 1 → Label → Option Bool → Matrix (Fin 2) (Fin 2) ℂ)
+      (VB VAB : Fin 1 → Label → Option Bool → Matrix (Fin 3) (Fin 3) ℂ),
+      AnchorNormalizationAt C acceptingGame half S (e 0) 1 η ∧
+        ∃ hwin : ∃ r ∈ W, r ∈ K.support,
+          AnchorAlignmentOnRestAt C acceptingGame half S e VA VB VAB 0
+            (K.filter W hwin) (τ + 2 * ξ) := by
+  intro C e Label K W
+  have hα : 0 < (half : ℝ) := by norm_num [half]
+  obtain ⟨VA, VB, VAB, good, _, _, _, hprob, hgood⟩ :=
+    exists_good_conditioned_alignment_coordinates C acceptingGame half S e
+      (acceptingGame_win_supported S) hα hτ hη hξ
+  have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  simp only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one] at hprob
+  have h0 := zero_mem_of_uniform_failure_lt_one good (hprob.trans_lt hsmall)
+  refine ⟨VA, VB, VAB, ?_, (hgood 0 h0).2⟩
+  simpa only [C, acceptingGame_win_mass, ENNReal.toReal_one] using (hgood 0 h0).1

@@ -23,12 +23,16 @@ These are the good-coordinate steps of
 [Bavarian, Vidick and Yuen, Lemmas 5.12 and 5.17][BavarianVidickYuen2022]
 (arXiv:1509.07466v2, §§5.2–5.4, printed pp. 22 and 28–31).
 
+The same coordinates can also control the statistical cost of conditioning on two anchors.
+
 ## Main results
 
 * `exists_good_normalization_coordinates`: positive two-anchor win mass and both
   conditional squared ratio bounds.
 * `exists_good_alignment_normalization_coordinates`: three unitary families and one
   set on which the alignment and normalization estimates hold together.
+* `exists_good_conditioned_alignment_coordinates`: transport all three alignment
+  bounds to the same winning two-anchor law as the normalization bounds.
 -/
 
 public section
@@ -38,7 +42,7 @@ namespace Cslib.PCP.AnchoredDependency
 open Cslib.Probability.PMF
 open Matrix Finset
 open ParallelRepetition (Revealed)
-open scoped unitInterval
+open scoped unitInterval Cslib.Probability.PMF
 
 variable {X Y A B ι κ : Type*} {n m : ℕ}
 variable [Fintype X] [Fintype Y] [Fintype A] [Fintype B]
@@ -50,6 +54,27 @@ local notation "Info" => Revealed (Option X) (Option Y) C
 local notation "Label" => (Info × ((C → A) × (C → B)))
 local notation "RepeatedStrategy" => QuantumStrategy (Fin n → Option X) (Fin n → Option Y)
   (Fin n → A) (Fin n → B) ι κ
+
+private theorem uniform_compl_inter_le [NeZero m] (a b : Finset (Fin m)) :
+    ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ a ∩ b}).toReal ≤
+      ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ a}).toReal +
+      ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ b}).toReal := by
+  let U := uniformOfFintype (Fin m)
+  let A₀ : Set (Fin m) := {i | i ∉ a}
+  let B₀ : Set (Fin m) := {i | i ∉ b}
+  have he : {i | i ∉ a ∩ b} = A₀ ∪ B₀ := by
+    ext i
+    simp only [mem_inter, Set.mem_ofPred_eq, Set.mem_union, A₀, B₀, not_and_or]
+  rw [he]
+  exact ENNReal.toReal_le_add (MeasureTheory.measure_union_le _ _)
+    (toOuterMeasure_ne_top U A₀) (toOuterMeasure_ne_top U B₀)
+
+/-- Failure probability for the remaining-transcript statistical-distance threshold. -/
+@[expose] noncomputable def anchorRestFailureBound (α : I) (m answers : ℕ) (p ξ : ℝ) : ℝ :=
+  let w := (α : ℝ) ^ 2 / 2
+  let ε₁ := Real.sqrt (m * Real.log (1 / p) / 2)
+  let ε₂ := Real.sqrt (m * Real.log (answers / p) / 2)
+  (w * ε₁ + (1 + w) * (2 * ε₁ + ε₂)) / ((m : ℝ) * (w * ξ))
 
 /-- Estimate for the probability of missing a good normalization coordinate. -/
 @[expose] noncomputable def anchorNormalizationFailureBound
@@ -187,20 +212,68 @@ theorem exists_good_alignment_normalization_coordinates [NeZero m] [Nonempty A] 
     exists_good_alignment_coordinates C G α S e hs hα hτ
   obtain ⟨b, hb, hB⟩ := exists_good_normalization_coordinates C G α S e hs hα hη
   refine ⟨VA, VB, VAB, a ∩ b, hVA, hVB, hVAB, ?_, ?_⟩
-  · let U := uniformOfFintype (Fin m)
-    let A₀ : Set (Fin m) := {i | i ∉ a}
-    let B₀ : Set (Fin m) := {i | i ∉ b}
-    have he : {i | i ∉ a ∩ b} = A₀ ∪ B₀ := by
-      ext i
-      simp only [mem_inter, Set.mem_ofPred_eq, Set.mem_union, A₀, B₀, not_and_or]
-    have hu := MeasureTheory.measure_union_le (μ := U.toOuterMeasure) A₀ B₀
-    have htA := toOuterMeasure_ne_top U A₀
-    have htB := toOuterMeasure_ne_top U B₀
-    rw [he]
-    exact ((ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨htA, htB⟩) hu).trans_eq
-      (ENNReal.toReal_add htA htB)).trans (add_le_add ha hb)
+  · exact (uniform_compl_inter_le a b).trans (add_le_add ha hb)
   · intro i hi
     obtain ⟨hia, hib⟩ := mem_inter.mp hi
     exact ⟨hA i hia, hB i hib⟩
+
+/-- Common good coordinates for the winning two-anchor law. Each alignment error
+increases by at most `2 * ξ` from the change of law, and both normalization bounds
+keep their threshold `η`. This combines the good-coordinate selection in
+[Bavarian, Vidick and Yuen, §5.4, equations (68)–(73)][BavarianVidickYuen2022]. -/
+theorem exists_good_conditioned_alignment_coordinates [NeZero m] [Nonempty A] [Nonempty B]
+    (S : RepeatedStrategy) (e : Fin m ≃ Free)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support)
+    (hα : 0 < (α : ℝ)) {τ η ξ : ℝ} (hτ : 0 < τ) (hη : 0 < η) (hξ : 0 < ξ) :
+    let p := ((transcriptLaw G α C S).toOuterMeasure (winsOnChecked G α C)).toReal
+    let answers := Fintype.card (C → A × B)
+    ∃ (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
+      (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (good : Finset (Fin m)),
+      (∀ i t x, VA i t x ∈ unitaryGroup ι ℂ) ∧
+      (∀ i t y, VB i t y ∈ unitaryGroup κ ℂ) ∧
+      (∀ i t y, VAB i t y ∈ unitaryGroup κ ℂ) ∧
+      ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ good}).toReal ≤
+        (anchorAlignmentFailureBound α m answers p τ +
+          anchorNormalizationFailureBound α m answers p η) +
+          anchorRestFailureBound α m answers p ξ ∧
+      ∀ i ∈ good, AnchorNormalizationAt C G α S (e i) p η ∧
+        ∃ hwin : ∃ r ∈ winsOnRest G α C (e i),
+            r ∈ (restKernel G α C S (e i) (none, none)).support,
+          AnchorAlignmentOnRestAt C G α S e VA VB VAB i
+            ((restKernel G α C S (e i) (none, none)).filter (winsOnRest G α C (e i)) hwin)
+            (τ + 2 * ξ) := by
+  classical
+  intro p answers
+  let Q := (transcriptLaw G α C S).filter (winsOnChecked G α C) hs
+  let w := (α : ℝ) ^ 2 / 2
+  let d (j : Free) := dist (Q.map (restTranscript C j)) (restGivenPair C Q j (none, none))
+  let goodRest := univ.filter fun i => d (e i) ≤ ξ
+  obtain ⟨VA, VB, VAB, good, hVA, hVB, hVAB, hgood, h⟩ :=
+    exists_good_alignment_normalization_coordinates C G α S e hs hα hτ hη
+  have hw : 0 < w := by dsimp only [w]; positivity
+  have hcard : Fintype.card Free = m := (Fintype.card_congr e.symm).trans (Fintype.card_fin m)
+  have hsum := sum_dist_anchorRest_marginal_le G α C S hs
+  dsimp only at hsum
+  rw [hcard, ← e.sum_comp d, Finset.mul_sum] at hsum
+  have hrest := uniform_compl_finset_le_of_sum goodRest (fun i => w * d (e i))
+    (mul_pos hw hξ) (fun i => mul_nonneg hw.le dist_nonneg)
+    (fun i hi => by
+      have hlt : ξ < d (e i) := by
+        simpa only [goodRest, mem_filter, mem_univ, true_and, not_le] using hi
+      exact mul_le_mul_of_nonneg_left hlt.le hw.le)
+    hsum
+  refine ⟨VA, VB, VAB, good ∩ goodRest, hVA, hVB, hVAB,
+    (uniform_compl_inter_le good goodRest).trans (add_le_add hgood ?_), ?_⟩
+  · simpa only [anchorRestFailureBound, Fintype.card_fin] using hrest
+  · intro i hi
+    obtain ⟨hiGood, hiRest⟩ := mem_inter.mp hi
+    obtain ⟨hAlign, hNorm⟩ := h i hiGood
+    have hd : d (e i) ≤ ξ := (mem_filter.mp hiRest).2
+    have hwin := (toOuterMeasure_toReal_pos_iff _ _).mp hNorm.2.1
+    have hEq := restGivenPair_anchor_eq_filter G α C S (e i) hs hα hwin
+    refine ⟨hNorm, hwin, ?_⟩
+    rw [← hEq]
+    exact AnchorAlignmentOnRestAt.transfer C G α S e VA VB VAB i
+      (hVA i) (hVB i) (hVAB i) hd hAlign
 
 end Cslib.PCP.AnchoredDependency

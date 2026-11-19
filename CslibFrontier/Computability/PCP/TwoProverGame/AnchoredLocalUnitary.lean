@@ -108,13 +108,22 @@ private theorem norm_normalize_le_one {E : Type*} [NormedAddCommGroup E] [Normed
   · simp [hv]
   · rw [NormedSpace.norm_normalize hv]
 
+/-- A unitary maps the normalized first branch into the closed unit ball. -/
+theorem localUnitaryError_le_two {V : Matrix κ κ ℂ} (hV : V ∈ unitaryGroup κ ℂ)
+    (v u : EuclideanSpace ℂ (ι × κ)) : localUnitaryError V v u ≤ 2 := by
+  let M := (1 : Matrix ι ι ℂ) ⊗ₖ V
+  let f := toEuclideanCLM (n := ι × κ) (𝕜 := ℂ) M
+  have hM : M ∈ unitaryGroup (ι × κ) ℂ := kronecker_mem_unitary (one_mem _) hV
+  change ‖f (NormedSpace.normalize v) - NormedSpace.normalize u‖ ≤ 2
+  refine (norm_sub_le _ _).trans ?_
+  rw [(mem_unitaryGroup_iff_forall_norm_toEuclideanCLM M).mp hM (NormedSpace.normalize v)]
+  exact (add_le_add (norm_normalize_le_one v) (norm_normalize_le_one u)).trans_eq (by norm_num)
+
 private theorem localUnitaryErrorSq_one_le (v u : EuclideanSpace ℂ (ι × κ)) :
     localUnitaryErrorSq 1 v u ≤ 4 := by
-  rw [localUnitaryErrorSq, localUnitaryError, one_kronecker_one, one_mulVec, WithLp.toLp_ofLp]
-  have h := (norm_sub_le (NormedSpace.normalize v) (NormedSpace.normalize u)).trans
-    (add_le_add (norm_normalize_le_one v) (norm_normalize_le_one u))
-  simpa only [show (1 : ℝ) + 1 = 2 by norm_num, show (2 : ℝ) ^ 2 = 4 by norm_num] using
-    pow_le_pow_left₀ (norm_nonneg _) h 2
+  rw [localUnitaryErrorSq, show (4 : ℝ) = 2 ^ 2 by norm_num]
+  exact pow_le_pow_left₀ (localUnitaryError_nonneg _ _ _)
+    (localUnitaryError_le_two (one_mem _) v u) 2
 
 variable (G : TwoProverGame X Y A B) (α : I)
 
