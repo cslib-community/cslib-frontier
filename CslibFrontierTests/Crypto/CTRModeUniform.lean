@@ -64,12 +64,13 @@ example {ct : List Bool}
 
 /-! ### The notion -/
 
-/-- `SymmetricCipher.INDCPA` of `prfCipher` is `SymmetricINDCPAOn` on `n`-bit pairs. -/
+/-- `SymmetricCipher.INDCPA` of `prfCipher` is, by definition, `SymmetricINDCPAOn` on `n`-bit
+pairs. -/
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     SymmetricINDCPAOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
       (prfCipher family hprf.polyTime hprf.length_eq).keyGen
       (prfCipher family hprf.polyTime hprf.length_eq).encrypt :=
-  (SymmetricCipher.indcpa_iff _).mp hprf.indcpa_prfCipher
+  hprf.indcpa_prfCipher
 
 /-! ### A querying adversary -/
 

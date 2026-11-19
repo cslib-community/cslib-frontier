@@ -162,16 +162,14 @@ example (B : OracleDistinguisher) :
       Game.advantage (ProbComp.eval (expandingOtpCipher.cpaGame B false 0))
         (ProbComp.eval (expandingOtpCipher.cpaGame B true 0)) = 0 := by
   refine ⟨succProbability_repeatCiphertextGame_expandingOtpCipher 0, ?_⟩
-  have hsame : expandingOtpCipher.cpaEncryptionOracle 0 = fun k _ request s =>
-      let m0 := unframe request.2
-      let m1 := dropFrame request.2
-      if (m0.length == 0) && (m1.length == 0) then do
-        let ct ← expandingOtpCipher.encrypt 0 k []
-        return (ct, s)
-      else
-        return ([], s) := by
-    funext k bit request s
-    unfold cpaEncryptionOracle
+  have hsame : symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+      expandingOtpCipher.encrypt 0 = fun k _ request =>
+        if ((unframe request.2).length == 0) && ((dropFrame request.2).length == 0) then
+          expandingOtpCipher.encrypt 0 k []
+        else
+          pure [] := by
+    funext k bit request
+    unfold symmetricCPAReplyOn
     by_cases hv : ((unframe request.2).length == 0 && (dropFrame request.2).length == 0) = true
     · simp only [hv, ↓reduceIte]
       simp only [Bool.and_eq_true, beq_iff_eq, List.length_eq_zero_iff] at hv
@@ -179,7 +177,7 @@ example (B : OracleDistinguisher) :
       cases bit <;> simp [hm0, hm1]
     · simp [hv]
   have hgame : expandingOtpCipher.cpaGame B false 0 = expandingOtpCipher.cpaGame B true 0 := by
-    simp only [cpaGame, hsame]
+    simp only [cpaGame, symmetricCPAGameOn, hsame]
   rw [hgame]
   simp [Game.advantage]
 
