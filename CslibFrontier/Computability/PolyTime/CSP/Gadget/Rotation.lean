@@ -331,7 +331,7 @@ theorem computableInPolyTime_certificate (encRel : Rel ↪ List Bool) :
   have hbinary : ComputableInPolyTime (fun p : CSP Rel ℕ × List (List ℕ) =>
       (successorPairs p.1 p.2).flatMap fun q => [q.1, q.2])
       (encTargetCycles encRel) (encList encNat) := by
-    have h := ComputableInPolyTime.mapWithInput hflat
+    have h := ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat) hflat
       (ComputableInPolyTime.unary_to_binary.comp
         (ComputableInPolyTime.snd (encTargetCycles encRel) encUnary))
     simpa only [Function.comp_def, List.map_id'] using h
