@@ -1110,8 +1110,8 @@ private theorem real_le (x : ι → ZMod q) (W : (ι → ZMod q) → γ → (κ 
       HasImageCollision (ev x) y.2.1)).symm)
   refine PMF.toOuterMeasure_mono _ fun y hy => ?_
   exact OracleComp.run_interpret_invariant (withBadFlag (symStep x))
-    (fun s => s.2 = true → HasImageCollision (ev x) s.1) (symFlag_preserve x) (primGame D) ([], false)
-    (by simp) y.1 y.2 hy.2 hy.1
+    (fun s => s.2 = true → HasImageCollision (ev x) s.1) (symFlag_preserve x)
+    (primGame D) ([], false) (by simp) y.1 y.2 hy.2 hy.1
 
 end Games
 
@@ -1156,6 +1156,7 @@ private theorem toOuterMeasure_collides_le [NeZero q] (hq : q.Prime) (tab : Tab 
   have hsub : {x | HasImageCollision (ev x) tab} ⊆
       {x | ∃ K ∈ s, ∃ K' ∈ s, K ≠ K' ∧ ev x K = ev x K'} := by
     intro x hx
+    change ∃ K ∈ s, ∃ K' ∈ s, K ≠ K' ∧ ev x K = ev x K'
     simpa only [s, List.mem_toFinset] using (hasImageCollision_iff (ev x) tab).mp hx
   have hcard : s.card ≤ tab.length :=
     (List.toFinset_card_le (tab.map Prod.fst)).trans_eq (List.length_map _)
@@ -1211,7 +1212,8 @@ private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
         refine add_le_add (PMF.bind_apply_le_on_support _ fun y _ => ?_)
           (PMF.bind_apply_le_on_support _ fun y hy => ?_)
         · exact uniform_bind_apply_true_le (hW y.1.1 y.1.2)
-        · rw [PMF.bind_pure_decide_apply_true _ (fun x : ι → ZMod q => HasImageCollision (ev x) y.2)]
+        · rw [PMF.bind_pure_decide_apply_true _
+            (fun x : ι → ZMod q => HasImageCollision (ev x) y.2)]
           refine (toOuterMeasure_collides_le hq y.2).trans ?_
           gcongr
           exact hlen y hy
