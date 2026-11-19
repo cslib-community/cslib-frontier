@@ -97,6 +97,14 @@ theorem abs_sqrt_densityProb_sub_le {α ι κ : Type*}
     _ = √(M.densityProb (densityConj (U - V) ρ) a) := by rw [born, Matrix.mul_sub]
     _ ≤ _ := Real.sqrt_le_sqrt le
 
+/-- Pulling back a measurement by a unitary gives the Born weights of the evolved input. -/
+theorem densityProb_comap {U : Matrix ι ι ℂ} (hU : U ∈ unitaryGroup ι ℂ) (M : POVM A ι)
+    (ρ : Matrix ι ι ℂ) (a : A) :
+    (M.comap U hU).densityProb ρ a = M.densityProb (densityConj U ρ) a := by
+  simp only [comap, densityProb, densityConj_apply, Matrix.mul_assoc]
+  rw [Matrix.trace_mul_comm]
+  simp only [Matrix.mul_assoc]
+
 /-- POVM probabilities are additive in the state matrix. -/
 theorem densityProb_add (M : POVM A ι) (ρ σ : Matrix ι ι ℂ) (a : A) :
     M.densityProb (ρ + σ) a = M.densityProb ρ a + M.densityProb σ a := by
@@ -118,6 +126,15 @@ noncomputable def measureDensity (M : POVM A ι) (ρ : Matrix ι ι ℂ)
     (hρ : IsDensityMatrix ρ) (a : A) :
     M.measureDensity ρ hρ a = ENNReal.ofReal (M.densityProb ρ a) := by
   rw [measureDensity, PMF.ofFintype_apply]
+
+/-- A fixed-outcome POVM returns that outcome on every density matrix. -/
+@[simp] theorem measureDensity_const [DecidableEq A] (a : A) (ρ : Matrix ι ι ℂ)
+    (hρ : IsDensityMatrix ρ) : (const a).measureDensity ρ hρ = PMF.pure a := by
+  ext b
+  by_cases h : b = a
+  · subst b
+    simp [measureDensity_apply, densityProb, const, hρ.trace_eq_one]
+  · simp [measureDensity_apply, densityProb, const, h, PMF.pure_apply]
 
 /-- The trace pairing with a pure-state projector equals the vector-state probability. -/
 @[simp] theorem densityProb_pureState (M : POVM A ι) (ψ : EuclideanSpace ℂ ι) (a : A) :

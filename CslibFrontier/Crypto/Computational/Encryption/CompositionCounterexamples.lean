@@ -668,11 +668,11 @@ theorem succProbability_eufCmaGame_redundantTag_le (M : MACScheme)
     Game.succProbability (ProbComp.eval (M.redundantTag.eufCmaGame adversary n)) ≤
       Game.succProbability (ProbComp.eval (M.eufCmaGame adversary n)) +
         Game.succProbability (ProbComp.eval (M.eufCmaGame (tailTagForger adversary) n)) := by
-  have horacle (sk : List Bool) : M.redundantTag.signingOracle sk = M.signingOracle sk := rfl
+  have horacle (sk : List Bool) : M.redundantTag.signingOracle n sk = M.signingOracle n sk := rfl
   have hkeyGen : M.redundantTag.keyGen = M.keyGen := rfl
   have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
   simpa only [eufCmaGame, tailTagForger, hkeyGen, horacle, hmsgLen, runWith_norm, pmf_norm] using
-    succProbability_redundantTag_runDist_le M M.signingOracle adversary n
+    succProbability_redundantTag_runDist_le M (M.signingOracle n) adversary n
 
 /-- **Quantitative `OneTimeEUFCMA` bound for `M.redundantTag`**. -/
 theorem succProbability_eufOneTimeGame_redundantTag_le (M : MACScheme)
@@ -681,11 +681,12 @@ theorem succProbability_eufOneTimeGame_redundantTag_le (M : MACScheme)
       Game.succProbability (ProbComp.eval (M.eufOneTimeGame adversary n)) +
         Game.succProbability (ProbComp.eval (M.eufOneTimeGame (tailTagForger adversary) n)) := by
   have horacle (sk : List Bool) :
-      M.redundantTag.oneTimeSigningOracle sk = M.oneTimeSigningOracle sk := rfl
+      M.redundantTag.oneTimeSigningOracle n sk = M.oneTimeSigningOracle n sk := rfl
   have hkeyGen : M.redundantTag.keyGen = M.keyGen := rfl
   have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
   simpa only [eufOneTimeGame, tailTagForger, hkeyGen, horacle, hmsgLen, runWith_norm,
-    pmf_norm] using succProbability_redundantTag_runDist_le M M.oneTimeSigningOracle adversary n
+    pmf_norm] using
+    succProbability_redundantTag_runDist_le M (M.oneTimeSigningOracle n) adversary n
 
 /-- `redundantTag` preserves `EUFCMA` ([KatzLindell2020], Exercise 5.4, printed p. 164). -/
 theorem EUFCMA.redundantTag {M : MACScheme} (h : M.EUFCMA) : M.redundantTag.EUFCMA := by
@@ -736,8 +737,11 @@ theorem eval_sufOneTimeGame_redundantTag_redundantTagForger (M : MACScheme)
       ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support, tag.length ≤ tagBound n) :
     ProbComp.eval (M.redundantTag.sufOneTimeGame (M.redundantTagForger tagBound) n) =
       PMF.pure true := by
-  simp only [sufOneTimeGame, redundantTagForger, oneTimeSigningPairOracle,
-    List.isEmpty_nil, ↓reduceIte, runWith_norm, pmf_norm]
+  have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
+  simp only [sufOneTimeGame, redundantTagForger, oneTimeSigningPairOracle, signingPairOracleOn,
+    hmsgLen,
+    List.length_replicate, beq_self_eq_true, List.isEmpty_nil, Bool.and_self, ↓reduceIte,
+    runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun sk hsk =>
     PMF.bind_eq_pure_of_forall_mem_support fun tag htag => ?_
   have htake : List.take (tagBound n) tag = tag :=
@@ -754,7 +758,9 @@ theorem eval_sufCmaGame_redundantTag_redundantTagForger (M : MACScheme)
       ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support, tag.length ≤ tagBound n) :
     ProbComp.eval (M.redundantTag.sufCmaGame (M.redundantTagForger tagBound) n) =
       PMF.pure true := by
-  simp only [sufCmaGame, redundantTagForger, signingPairOracle, runWith_norm, pmf_norm]
+  have hmsgLen : M.redundantTag.msgLen = M.msgLen := rfl
+  simp only [sufCmaGame, redundantTagForger, signingPairOracle, signingPairOracleOn, hmsgLen,
+    List.length_replicate, beq_self_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun sk hsk =>
     PMF.bind_eq_pure_of_forall_mem_support fun tag htag => ?_
   have htake : List.take (tagBound n) tag = tag :=

@@ -229,6 +229,7 @@ theorem SignatureScheme.eufCmaGame_eq_worldGame_toROM (S : SignatureScheme) (adv
 theorem SignatureScheme.correctOn_toROM (S : SignatureScheme) (n : ℕ) :
     (S.toScheme n).toROM.CorrectOn (fun m => m.length = n) :=
   Signature.Scheme.correctOn_toROM fun keys hkeys m hm σ hσ => by
+    simp only [toScheme_sign, hm, beq_self_eq_true, ↓reduceIte] at hσ
     simpa [hm] using S.verify_sign n keys hkeys m hm σ hσ
 
 /-- At each parameter `n`, the unrestricted word-level EUF-CMA game is the random-oracle EUF-CMA

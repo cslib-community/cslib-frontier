@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
 import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
@@ -204,10 +205,32 @@ example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
       (n := 2 ^ 64) (by decide) 0) : ℝ) ≤ 1 / 2 ^ 446 := by
   have hit := C.maskSeedQueryHit_le_signingSeedPrediction s base ha
     ((by decide : 64 ≤ 128).trans hb) hn (by decide) 0
-  have pred := C.signingSeedPredictionGame_zero_le s base ((by decide : 272 ≤ 1024).trans ha)
-    hb (2 ^ 64)
+  have pred := C.signingSeedPredictionGame_le s base ((by decide : 272 ≤ 1024).trans ha)
+    hb (2 ^ 64) 0
+  simp only [Nat.cast_zero, zero_mul, add_zero,
+    Real.sq_sqrt (show 0 ≤ 2 / (2 : ℝ) ^ 256 by positivity)] at pred
   apply hit.trans (le_trans (mul_le_mul_of_nonneg_left pred (by positivity)) _)
   rw [show (446 : ℕ) = 223 + 223 by decide, pow_add]
+  norm_num
+
+-- With up to 2^64 earlier coherent calls and 2^64 signing calls, the measured query hits a
+-- changed mask-seed response with probability at most 2^-316.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b j : ℕ}
+    (ha : 1024 ≤ a) (hb : 128 ≤ b) (hn : C.SigningCallsLe (2 ^ 64)) (hj : j ≤ 2 ^ 64) :
+    (Game.succProbability (C.maskSeedQueryHit s base ha ((by decide : 64 ≤ 128).trans hb)
+      (n := 2 ^ 64) (by decide) j) : ℝ) ≤ 1 / 2 ^ 316 := by
+  have hit := C.maskSeedQueryHit_le_signingSeedPrediction s base ha
+    ((by decide : 64 ≤ 128).trans hb) hn (by decide) j
+  have pred := C.signingSeedPredictionGame_le s base ((by decide : 272 ≤ 1024).trans ha)
+    hb (2 ^ 64) j
+  have root : √(2 / (2 : ℝ) ^ 256) ≤ 2 / 2 ^ 128 := by
+    apply (Real.sqrt_le_left (by positivity)).mpr
+    norm_num
+  have size : (j : ℝ) * (2 / 2 ^ 128) ≤ (2 : ℝ) ^ 64 * (2 / 2 ^ 128) :=
+    mul_le_mul_of_nonneg_right (by exact_mod_cast hj) (by positivity)
+  have p := pred.trans (pow_le_pow_left₀ (by positivity) (add_le_add root size) 2)
+  apply hit.trans ((mul_le_mul_of_nonneg_left p (by positivity)).trans ?_)
+  rw [show (316 : ℕ) = 158 + 158 by decide, pow_add]
   norm_num
 
 -- Both SHAKE variants parse the same raw word. Only SHAKE256 owns the key-generation row.
@@ -227,3 +250,38 @@ example (C : QuantumSigningForger) (s : Level) (seed : FixedBytes 32) (tag : Boo
     lia
   simp only [queriesKeySeed, Xofs.queryAddress, Fin.cons_zero, Fin.cons_succ,
     BitString.ofFn_ofList len, Xofs.unpad_word, x, beq_self_eq_true, Bool.and_true]
+
+-- A single execution can exercise both budgets and return the signing reply after a coherent call.
+example (q : SigningQuery) :
+    let C : QuantumSigningForger := ⟨2, 1, 0, fun _ => do
+      let r ← OracleComp.query (Sum.inr (Sum.inr q) : ℕ ⊕
+        Cslib.Quantum.DeviceRequest 12 Empty ⊕ SigningQuery)
+      let _ ← OracleComp.query (Sum.inr (Sum.inl .query) : ℕ ⊕
+        Cslib.Quantum.DeviceRequest 12 Empty ⊕ SigningQuery)
+      return ⟨q.context, q.message, (r : Option (List Byte)).getD []⟩⟩
+    C.SigningCallsLe 1 ∧ C.XofCallsLe 1 := by
+  constructor
+  · intro pk
+    exact .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0
+  · intro pk
+    exact .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0
+
+-- For 2^64 signing and coherent queries, this is a loss in the square root of the final
+-- success probability, including when the reference game can already forge.
+example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 1024 ≤ a) (hb : 128 ≤ b) (hn : C.SigningCallsLe (2 ^ 64))
+    (hm : C.XofCallsLe (2 ^ 64)) (score : SignedMatrixTrial s → Bool) :
+    let view := C.maskSeedGame s base ha ((by decide : 64 ≤ 128).trans hb) hn (by decide)
+    √(Game.succProbability (view true score) : ℝ) ≤
+      √(Game.succProbability (view false score) : ℝ) + 1 / 2 ^ 93 := by
+  intro view
+  apply (C.sqrt_maskSeedGame_le s base ha hb hn (by decide) hm score).trans
+  apply add_le_add le_rfl
+  push_cast
+  have root : √(2 / (2 : ℝ) ^ 256) ≤ 2 / 2 ^ 128 := by
+    apply (Real.sqrt_le_left (by positivity)).mpr
+    norm_num
+  apply (mul_le_mul_of_nonneg_left (add_le_add root le_rfl) (by positivity)).trans
+  apply (sq_le_sq₀ (by positivity) (by positivity)).mp
+  simp only [mul_pow]
+  norm_num

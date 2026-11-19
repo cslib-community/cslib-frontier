@@ -412,6 +412,15 @@ theorem dist_maskSeedGame_privateMaskSeedGame (C : QuantumSigningForger) (s : Le
   exact Game.advantage_bind_le seeds _ _ fun seed => Game.advantage_bind_le tables _ _ fun rows =>
     fixed_rows_bound C s base seed ha hb hn hsize rows
 
+private theorem dist_matrixTrial_sharedMaskSeedGame (C : QuantumSigningForger) (s : Level)
+    (base : Xofs) {a b n : ℕ} (ha : 1024 ≤ a) (hb : 894 ≤ b) (hn : C.SigningCallsLe n)
+    (hsize : n ≤ 2 ^ 256) (score : SignedMatrixTrial s → Bool) :
+    dist (((base.uniformPrefixes a b).bind (C.matrixTrial s)).map (·.any score))
+      (C.maskSeedGame s base ha ((by decide : 64 ≤ 894).trans hb) hn hsize true score) ≤
+      ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 := by
+  rw [C.shared_maskSeedGame_eq_distinctHedgeGame]
+  exact C.dist_matrixTrial_distinctHedges s base ((by decide : 272 ≤ 1024).trans ha) hb hn hsize _
+
 /-- A concrete decomposition of the finite random-XOF strong-forgery probability. Its open
 terms are the private-seed fresh-digest game, the effect of coherent access to the programmed
 rows, a raw hash collision and the success of the repeated-digest Hermite Module-SIS solver.
@@ -434,11 +443,8 @@ theorem randomPrefixGame_forgery_le_privateMaskSeedGame (C : QuantumSigningForge
   intro R trial view
   let fresh := trial.map (·.any SignedMatrixTrial.newDigestWin)
   let priv := C.privateMaskSeedGame s base a b
-  have birthday : dist fresh (view true) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 := by
-    dsimp only [view]
-    rw [C.shared_maskSeedGame_eq_distinctHedgeGame]
-    exact C.dist_matrixTrial_distinctHedges s base ((by decide : 272 ≤ 1024).trans ha) hb
-      hn hsize _
+  have birthday : dist fresh (view true) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 :=
+    C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _
   have privateSeed : dist (view false) priv ≤ n / 2 ^ 256 :=
     C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize
   have branch := NNReal.coe_le_coe.mpr

@@ -304,6 +304,7 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
                                 TCRSignature.keyDecoder.decode_enc,
                                 TCRSignature.sigDecoder.decode_enc, beq_self_eq_true,
                                 zeroKeyedHashFamily_keyLen, zeroKeyedHashFamily_eval, hkLen, hv,
+                                TCRSignature.scheme_capacity, Nat.zero_lt_one, decide_true,
                                 Bool.and_self]
                         _ = PMF.pure true := PMF.bind_const _ _
                 _ = PMF.pure true := PMF.bind_const _ _
