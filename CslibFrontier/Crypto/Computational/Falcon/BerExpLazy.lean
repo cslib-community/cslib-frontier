@@ -17,7 +17,6 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.ENNRealToReal
-import Mathlib.Tactic
 
 /-!
 # Falcon v1.2 BerExp lazy-byte trace

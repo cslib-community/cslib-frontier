@@ -180,14 +180,6 @@ theorem decide_and {left right : α → Prop} [∀ a, Decidable (left a)] [∀ a
     ComputableTidilyInPolyTime (fun a => decide (left a ∧ right a)) encA encBool := by
   simpa only [Bool.decide_and, Function.comp_def] using bool_and.comp (hleft.prod hright)
 
-/-- Disjunction of efficiently decidable propositions uses the standard Boolean encoding. -/
-@[fun_prop]
-theorem decide_or {left right : α → Prop} [∀ a, Decidable (left a)] [∀ a, Decidable (right a)]
-    (hleft : ComputableTidilyInPolyTime (fun a => decide (left a)) encA encBool)
-    (hright : ComputableTidilyInPolyTime (fun a => decide (right a)) encA encBool) :
-    ComputableTidilyInPolyTime (fun a => decide (left a ∨ right a)) encA encBool := by
-  simpa only [Bool.decide_or, Function.comp_def] using bool_or.comp (hleft.prod hright)
-
 /-- A Boolean conditional fixes the guard encoding before automation synthesizes its proof. -/
 @[fun_prop]
 theorem cond {condition : α → Bool} {yes no : α → β}
@@ -205,11 +197,6 @@ theorem ite_decide {condition : α → Prop} [∀ a, Decidable (condition a)] {y
     (hno : ComputableTidilyInPolyTime no encA encB) :
     ComputableTidilyInPolyTime (fun a => if condition a then yes a else no a) encA encB := by
   simpa only [decide_eq_true_eq] using hcondition.cond hyes hno
-
-/-- Comparing two Boolean values is a finite-domain computation. -/
-@[fun_prop]
-theorem bool_beq : ComputableTidilyInPolyTime (fun p : Bool × Bool => p.1 == p.2)
-    (encPair encBool encBool) encBool := of_finite _
 
 /-- Equality is polynomial-time for any encoding. -/
 @[fun_prop]
@@ -235,15 +222,6 @@ theorem beq [BEq β] [LawfulBEq β] {left right : α → β}
   classical
   simpa only [beq_eq_decide] using hleft.decide_eq' hright
 
-/-- Compare two computed values using their common encoding. -/
-@[fun_prop]
-theorem decide_ne [DecidableEq β] {left right : α → β}
-    (hleft : ComputableTidilyInPolyTime left encA encB)
-    (hright : ComputableTidilyInPolyTime right encA encB) :
-    ComputableTidilyInPolyTime (fun x => decide (left x ≠ right x)) encA encBool := by
-  simpa only [Function.comp_def, decide_not] using
-    bool_not.comp (hleft.decide_eq' hright)
-
 end Turing.MultiTapeTM.ComputableTidilyInPolyTime
 
 /-! ### Plain polynomial-time automation -/
@@ -252,7 +230,7 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
 
-/-- `Turing.MultiTapeTM.ComputableTidilyInPolyTime.decide_or` for plain certificates. -/
+/-- Disjunction of efficiently decidable propositions uses the standard Boolean encoding. -/
 @[fun_prop]
 theorem decide_or {left right : α → Prop} [∀ a, Decidable (left a)] [∀ a, Decidable (right a)]
     (hleft : ComputableInPolyTime (fun a => decide (left a)) encA encBool)

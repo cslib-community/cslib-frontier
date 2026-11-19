@@ -90,7 +90,8 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
     have := (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha
     simp only [encodePublic, List.length_append, List.length_take, length_packCoeffs]
     lia
-  simp only [Xofs.keyGen, exp, ← show e = G.expandKeySeed s seed from rfl, mat, secret, pk]
+  simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
+    mat, secret, pk]
 
 private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {tr ctx : List Byte} {msg : List Bool} (ht : tr.length ≤ 64)
