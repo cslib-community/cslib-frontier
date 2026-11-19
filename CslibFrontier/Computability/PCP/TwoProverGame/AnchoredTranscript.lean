@@ -152,6 +152,17 @@ theorem map_trial_restTranscriptLaw (S : RepeatedStrategy) (j : Free) :
       simp only [Function.comp_def, read]
       rw [map_rest_complete_update C S j t u m q]
 
+/-- The selected question pair followed by its remaining transcript kernel. -/
+theorem map_pair_restTranscriptLaw (S : RepeatedStrategy) (j : Free) :
+    (transcriptLaw G α C S).map (fun r => ((freeTrials C r j).2, restTranscript C j r)) =
+      ((law G.questions α).map Prod.snd).bind fun q =>
+        (restKernel G α C S j q).map (q, ·) := by
+  let drop : Trial × Rest j → PairQ × Rest j := Prod.map Prod.snd id
+  have h := congrArg (PMF.map drop) (map_trial_restTranscriptLaw G α C S j)
+  simp only [PMF.map_bind, PMF.map_comp, PMF.bind_map, Function.comp_def, drop,
+    Prod.map_apply, id_eq] at h ⊢
+  exact h
+
 /-- The checked questions and the noisy messages other than the selected one. -/
 structure RestQuestions (X Y : Type*) {n : ℕ} (C : Finset (Fin n)) (j : {i : Fin n // i ∉ C}) where
   /-- The pairs on the checked coordinates. -/
@@ -169,6 +180,17 @@ def omitMessage (j : Free) (t : Info) : Saved j :=
 /-- Forget the answers in the remaining transcript. -/
 def restQuestions (j : Free) (r : Rest j) : Saved j :=
   ⟨r.questions, r.halves⟩
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+/-- The retained questions and checked answers determine the remaining transcript. -/
+theorem restQuestions_answers_injective (j : Free) :
+    Function.Injective (fun r : Rest j => (restQuestions C j r, r.answers)) := by
+  rintro ⟨qs, hs, a⟩ ⟨qs', hs', a'⟩ h
+  obtain ⟨hsave, hanswer⟩ := Prod.mk.inj h
+  change RestQuestions.mk qs hs = RestQuestions.mk qs' hs' at hsave
+  cases hanswer
+  cases hsave
+  rfl
 
 /-- Restore the unused message with a dummy value so that the full questions can be recombined. -/
 @[expose] def restoreMessage (j : Free) (t : Saved j) : Info :=

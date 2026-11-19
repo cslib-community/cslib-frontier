@@ -4124,6 +4124,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredDependency
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
+public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
@@ -8187,6 +8188,7 @@ public import CslibFrontier.Probability.PMF.Event
 public import CslibFrontier.Probability.PMF.EventBind
 public import CslibFrontier.Probability.PMF.Expect
 public import CslibFrontier.Probability.PMF.Filter
+public import CslibFrontier.Probability.PMF.FilteredKernel
 public import CslibFrontier.Probability.PMF.Finiteness
 public import CslibFrontier.Probability.PMF.Independence
 public import CslibFrontier.Probability.PMF.Map

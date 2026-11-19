@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
@@ -501,3 +502,31 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
     simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one, Nat.cast_one, one_mul]
       using hprob
   exact (not_le_of_gt ((div_lt_one hdenom).mpr hsmall)) hle
+
+open Finset in
+/-- The ordinary and noisy ratio estimates use the actual winning law of a two-copy
+accepting game with one checked coordinate and unequal local dimensions. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let w := (half : ℝ) ^ 2 / 2
+    let ε₁ := Real.sqrt ((1 : ℝ) * Real.log (1 / 1) / 2)
+    let ε₂ := Real.sqrt ((1 : ℝ) * Real.log (4 / 1) / 2)
+    let B := (2 * w + 1 / 2) * ε₁ + 2 * ((1 + w) * (2 * ε₁ + ε₂))
+    w * (∑ j : {i : Fin 2 // i ∉ C}, restNormalizationRatioLoss acceptingGame half C S j) ≤ B ∧
+      w * ((half : ℝ) * ∑ j : {i : Fin 2 // i ∉ C},
+        leftNoisyNormalizationRatioLoss acceptingGame half C S j) ≤ ((half : ℝ) + 1) * B := by
+  intro C w ε₁ ε₂ B
+  have hcard : Fintype.card {i : Fin 2 // i ∉ ({0} : Finset (Fin 2))} = 1 := by decide
+  have hanswers : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  constructor
+  · have h := sum_restNormalizationRatioLoss_le acceptingGame half C S
+      (acceptingGame_win_supported S)
+    simpa only [C, B, w, ε₁, ε₂, hcard, hanswers, acceptingGame_win_mass,
+      ENNReal.toReal_one, Nat.cast_one,
+      Nat.cast_ofNat, one_mul] using h
+  · have h := sum_leftNoisyNormalizationRatioLoss_le acceptingGame half C S
+      (acceptingGame_win_supported S)
+    simpa only [C, B, w, ε₁, ε₂, hcard, hanswers, acceptingGame_win_mass,
+      ENNReal.toReal_one, Nat.cast_one,
+      Nat.cast_ofNat, one_mul] using h

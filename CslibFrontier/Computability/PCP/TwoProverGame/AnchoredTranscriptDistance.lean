@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.FilteredKernel
+import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.StatisticalDistance
 import Mathlib.Algebra.Order.Chebyshev
 
@@ -329,6 +331,109 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
         rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
         exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hd (by norm_num)) he)
           (by positivity)
+
+
+/-- Average the absolute difference of the unnormalized winning masses in the sampled
+and two-anchor remaining transcript kernels. -/
+@[expose] noncomputable def restKernelWinL1 (S : RepeatedStrategy) (j : Free) : ℝ :=
+  open Classical in
+  ∑ q, (((law G.questions α).map Prod.snd) q).toReal *
+    ∑ r ∈ Finset.univ.filter (· ∈ winsOnRest G α C j),
+      |(restKernel G α C S j q r).toReal -
+        (restKernel G α C S j (none, none) r).toReal|
+
+private theorem restKernelWinL1_le (S : RepeatedStrategy) (j : Free)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let T := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let Q := T.filter W hs
+    let p := (T.toOuterMeasure W).toReal
+    let w := (α : ℝ) ^ 2 / 2
+    let d := dist (Q.map fun z => freeTrials C z j) (law G.questions α)
+    let a := dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)
+    w * restKernelWinL1 G α C S j ≤ p * ((2 * w + 1 / 2) * d + 2 * w * a) := by
+  classical
+  intro T W Q p w d a
+  let μ := (law G.questions α).map Prod.snd
+  let K := restKernel G α C S j
+  let E := winsOnRest G α C j
+  let obs (z : Transcript) := ((freeTrials C z j).2, restTranscript C j z)
+  let F := Q.map obs
+  have hprior : T.map obs = μ.bind fun q => (K q).map (q, ·) :=
+    map_pair_restTranscriptLaw G α C S j
+  have hpre : obs ⁻¹' (Prod.snd ⁻¹' E) = W := preimage_winsOnRest G α C j
+  have hs' : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ (T.map obs).support := by
+    obtain ⟨z, hz, hzt⟩ := hs
+    exact ⟨obs z, show z ∈ obs ⁻¹' (Prod.snd ⁻¹' E) by rwa [hpre],
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨z, hzt, rfl⟩⟩
+  have hF : F = (T.map obs).filter (Prod.snd ⁻¹' E) hs' := by
+    have hw : ∃ z ∈ obs ⁻¹' (Prod.snd ⁻¹' E), z ∈ T.support := hpre.symm ▸ hs
+    rw [filter_map T obs (Prod.snd ⁻¹' E) hs' hw]
+    have heq : T.filter (obs ⁻¹' (Prod.snd ⁻¹' E)) hw = T.filter W hs := by
+      ext z
+      simp only [PMF.filter_apply, hpre]
+    exact congrArg (PMF.map obs) heq.symm
+  have hp : ((T.map obs).toOuterMeasure (Prod.snd ⁻¹' E)).toReal = p := by
+    rw [PMF.toOuterMeasure_map_apply, hpre]
+  have hμ : (μ (none, none)).toReal = 2 * w := by
+    change ((((law G.questions α).map Prod.snd) (none, none))).toReal = _
+    rw [map_snd_law, ← TwoProverGame.anchored_questions, TwoProverGame.anchored_questions_apply,
+      ENNReal.toReal_pow, ENNReal.toReal_ofReal α.2.1]
+    dsimp only [w]
+    ring
+  have hd : dist (F.map Prod.fst) μ ≤ d := by
+    have h := dist_map_le (Q.map fun z => freeTrials C z j) (law G.questions α) Prod.snd
+    simpa only [F, obs, μ, d, PMF.map_comp, Function.comp_def] using h
+  have hA : dist F (questionsAndAnchoredRest G α C Q j) ≤ d + a := by
+    have hb := dist_bind_le (F.map Prod.fst) μ
+      (fun q => (conditionalSnd F q).map (q, ·))
+    rw [bind_conditionalSnd] at hb
+    change dist F (questionsAndRest G α C Q j) ≤ _ at hb
+    have hc := dist_triangle F (questionsAndRest G α C Q j) (questionsAndAnchoredRest G α C Q j)
+    rw [dist_comm (questionsAndRest G α C Q j)] at hc
+    exact hc.trans (add_le_add_left (hb.trans hd) _)
+  have hx := restrictedKernelL1_le μ K E (T.map obs) hprior hs' (none, none)
+  dsimp only at hx
+  rw [hp, ← hF, hμ] at hx
+  change (2 * w) * restKernelWinL1 G α C S j ≤
+    p * (2 * (2 * w) * dist F (questionsAndAnchoredRest G α C Q j) + dist (F.map Prod.fst) μ) at hx
+  have hw : 0 ≤ w := by dsimp only [w]; positivity
+  have hpa : 0 ≤ p := ENNReal.toReal_nonneg
+  have hle := add_le_add (mul_le_mul_of_nonneg_left hA (show 0 ≤ 2 * (2 * w) by positivity)) hd
+  have hh := hx.trans (mul_le_mul_of_nonneg_left hle hpa)
+  linarith only [hh]
+
+/-- Summed unnormalized comparison in BVY Claim 5.18. Both kernels use the same retained
+winning event, and the estimate remains valid at zero anchor rate. -/
+theorem sum_restKernelWinL1_le (S : RepeatedStrategy)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let T := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let p := (T.toOuterMeasure W).toReal
+    let w := (α : ℝ) ^ 2 / 2
+    let ε₁ := Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2)
+    let ε₂ := Real.sqrt (Fintype.card Free * Real.log (Fintype.card (C → A × B) / p) / 2)
+    w * (∑ j : Free, restKernelWinL1 G α C S j) ≤
+      p * ((2 * w + 1 / 2) * ε₁ + 2 * ((1 + w) * (2 * ε₁ + ε₂))) := by
+  classical
+  intro T W p w ε₁ ε₂
+  let Q := T.filter W hs
+  let d (j : Free) := dist (Q.map fun z => freeTrials C z j) (law G.questions α)
+  let a (j : Free) := dist (questionsAndAnchoredRest G α C Q j) (questionsAndRest G α C Q j)
+  have hw : 0 ≤ w := by dsimp only [w]; positivity
+  have hp : 0 ≤ p := ENNReal.toReal_nonneg
+  have hd : (∑ j, d j) ≤ ε₁ := sum_dist_freeTrials_given_wins_le G α C S hs
+  have ha : w * (∑ j, a j) ≤ (1 + w) * (2 * ε₁ + ε₂) :=
+    (sum_dist_anchoredRest_given_wins G α C S hs).2
+  calc
+    _ ≤ ∑ j, p * ((2 * w + 1 / 2) * d j + 2 * w * a j) := by
+      rw [Finset.mul_sum]
+      exact Finset.sum_le_sum fun j _ => restKernelWinL1_le G α C S j hs
+    _ = p * ((2 * w + 1 / 2) * (∑ j, d j) + 2 * (w * ∑ j, a j)) := by
+      rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum, mul_assoc]
+    _ ≤ _ := mul_le_mul_of_nonneg_left
+      (add_le_add (mul_le_mul_of_nonneg_left hd (by positivity))
+        (mul_le_mul_of_nonneg_left ha (by norm_num))) hp
 
 /-- Redraw the selected trial from the prior independently of the remaining transcript. -/
 @[expose] noncomputable def priorTrialAndRest (Q : PMF Transcript) (j : Free) :

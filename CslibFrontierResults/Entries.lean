@@ -14,6 +14,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
@@ -11136,6 +11137,41 @@ register_result "anchored-good-local-alignment-coordinates" where
     summed squared alignment bound divided by the coordinate count, squared threshold and \
     alignment scale, with the fixed-tag and sampled-tag coefficients accounted for. The \
     normalization-weight comparisons and the repeated-game strategy are subsequent steps."
+
+register_result "anchored-unnormalized-winning-kernel-comparison" where
+  title := "Absolute difference of unnormalized winning transcript kernels"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claim 5.18",
+      locator := "arXiv:1509.07466v2, §5.3, printed pp. 29–30" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_restKernelWinL1_le
+  ]
+  scope := "Sum over unchecked coordinates and average the selected prior question pair. \
+    Compare its original remaining-transcript kernel against the two-anchor kernel on the \
+    winning event, before dividing by either conditional win probability. The scaled bound \
+    includes zero anchor rate and zero winning mass in an individual question slice."
+
+register_result "anchored-checked-branch-normalization-weights" where
+  title := "Two-anchor comparisons for ordinary and noisy checked-branch norms"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 5.17 and Claim 5.18",
+      locator := "arXiv:1509.07466v2, §5.3, printed pp. 28–30" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_restNormalizationRatioLoss_le,
+    Cslib.PCP.AnchoredDependency.sum_leftNoisyNormalizationRatioLoss_le,
+    Cslib.PCP.AnchoredDependency.weightedAnchorRestScore_eq_winMass_mul,
+    Cslib.PCP.AnchoredDependency.anchorBranchNorm_pos_of_mem_support
+  ]
+  scope := "Summed bounds for the actual repeated tensor-strategy transcript. Average the \
+    ordinary and noisy squared norm-ratio losses over prior questions, with the unnormalized \
+    two-anchor winning mass on the retained transcript. At positive two-anchor win mass this \
+    is that mass times the conditional expectation, and every sampled denominator is positive. \
+    Selecting common coordinates with conditional ratio bounds and constructing the strategy \
+    remain separate steps."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
