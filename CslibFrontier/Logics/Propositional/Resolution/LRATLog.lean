@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # LRAT certificates built by resolution, step by step
 
@@ -401,7 +402,8 @@ theorem propagate_eq (log : LRATLog φ) (t : List (Literal ℕ)) (hs : List ℕ)
   unfold propagate propagateHints
   congr 1
   funext h
-  rw [log.clause?_eq h, CNF.lookup_eq_find?]
+  rw [log.clause?_eq h, List.lookup_eq_map_find?]
+  exact congrArg _ (congrArg (List.find? · _) (funext fun _ => BEq.comm))
 
 /-- **Closing the log** at the empty clause, numbered `i`: its steps followed by an empty-clause
 step hinting it. -/

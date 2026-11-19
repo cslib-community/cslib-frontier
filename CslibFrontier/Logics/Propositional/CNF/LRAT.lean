@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF
 public import Std.Tactic.BVDecide.LRAT.Actions
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-! # A kernel-reducible LRAT checker
 
@@ -87,20 +88,6 @@ def CNF.propagateWith (lookup : ℕ → Option (Clause ℕ)) : List (Literal ℕ
 def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool :=
   propagateWith (fun h => db.lookup h)
 
-/-- `List.lookup` is the first clause of the number found by `List.find?`. -/
-theorem CNF.lookup_eq_find? (db : List (ℕ × Clause ℕ)) (h : ℕ) :
-    db.lookup h = (db.find? (·.1 == h)).map Prod.snd := by
-  induction db with
-  | nil => rfl
-  | cons e db ih =>
-    obtain ⟨k, c⟩ := e
-    rw [List.lookup_cons, List.find?_cons]
-    by_cases hk : h = k
-    · subst hk; simp
-    · have h₁ : (h == k) = false := by simpa using hk
-      have h₂ : (k == h) = false := by simpa using Ne.symm hk
-      simp only [h₁, h₂, ih]
-
 theorem CNF.propagateHints_nil (db : List (ℕ × Clause ℕ)) (t : List (Literal ℕ)) :
     propagateHints db t [] = false := rfl
 
@@ -114,7 +101,8 @@ theorem CNF.propagateHints_cons (db : List (ℕ × Clause ℕ)) (t : List (Liter
         match e.2.filter (fun l => !t.contains (Std.Sat.Literal.negate l)) with
         | [] => true
         | l :: ls => if ls.all (· == l) then propagateHints db (l :: t) hs else false := by
-  simp only [propagateHints, propagateWith, lookup_eq_find?]
+  have hk : (fun e : ℕ × Clause ℕ => h == e.1) = (·.1 == h) := funext fun _ => BEq.comm
+  simp only [propagateHints, propagateWith, List.lookup_eq_map_find?, hk]
   cases db.find? (·.1 == h) <;> rfl
 
 /-- The checker on a database of numbered clauses. -/
