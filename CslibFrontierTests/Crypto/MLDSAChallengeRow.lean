@@ -7,14 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
+import all CslibFrontier.Crypto.Computational.MLDSA.SparseDigestChallenges
 meta import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
 
 /-!
 # Bounded Algorithm 29 row programming
 
 A row with discarded candidate bytes, mixed sign bits and an unused suffix is programmed to a
-different signed support. The all-255 candidate row exhausts the byte budget.
+different signed support. Two digest addresses exercise success and exhaustion in the actual
+SHAKE256 interface, including the first byte beyond the programmed prefix.
 -/
 
 set_option linter.privateModule false
@@ -41,3 +42,22 @@ private def checkRows (s : Level) : Bool :=
 #guard checkRows .mlDSA44
 #guard checkRows .mlDSA65
 #guard checkRows .mlDSA87
+
+-- Once expansion is complete, every longer raw read at every address has the background suffix.
+example (H : Xofs) (s : Level) (rows challenges) (x : List Bool) (j : ℕ) (hj : 221 ≤ j) :
+    (H.withSparseDigestChallenges s rows challenges).h256.byteAt x j = H.h256.byteAt x j := by
+  simp only [Xofs.withSparseDigestChallenges, Xofs.withPrefixRegister,
+    ExtendableOutput.byteAt_withPrefixes]
+  have beyond (r : FixedBytes 221) : r.toList[j]? = none :=
+    List.getElem?_eq_none (by simpa only [FixedBytes.length_toList] using hj)
+  split <;> simp only [Option.bind_some, beyond, Option.bind_none, Option.getD_none]
+
+-- On a single shared device a successful digest and an exhausted one retain different outcomes.
+example (H : Xofs) (s : Level) (rows challenges) (d e : FixedBytes (digestBytes s)) (p : Poly)
+    (hd : sampleInBallBytes s (rows (Keccak.fixedBytesEquivBitsLE _ d)).toList = some p)
+    (he : sampleInBallBytes s (rows (Keccak.fixedBytesEquivBitsLE _ e)).toList = none) :
+    let G := H.withSparseDigestChallenges s rows challenges
+    G.sampleInBall s d.toList = some (challenges (Keccak.fixedBytesEquivBitsLE _ d)).val ∧
+      G.sampleInBall s e.toList = none := by
+  simp only [Xofs.sampleInBall_withSparseDigestChallenges, hd, he, Option.map_some,
+    Option.map_none, and_self]

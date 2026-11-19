@@ -41,7 +41,7 @@ abbrev DigestReads (s : Level) :=
 private theorem read_off (H : Xofs) (s : Level) (D) (x : List Bool) (n : ℕ)
     (h : x.length ≠ s.commitmentInputBits) :
     (H.withDigestRegister s D).h256.read x n = H.h256.read x n := by
-  simp [Xofs.withDigestRegister, ExtendableOutput.withPrefixes, h]
+  simp [Xofs.withDigestRegister, Xofs.withPrefixRegister, ExtendableOutput.withPrefixes, h]
 
 private theorem challenge_off (H : Xofs) (s : Level) (D) (v : FixedBytes (digestBytes s)) :
     (H.withDigestRegister s D).sampleInBall s v.toList = H.sampleInBall s v.toList := by
@@ -126,7 +126,7 @@ private theorem eval_rep (H : Xofs) (s : Level) (D) (tr fmt) :
       (H.withDigestRegister s D).representativeFromTr tr fmt := by
   by_cases hx : (representativeInput tr fmt).length = s.commitmentInputBits <;>
     simp only [representativeQuery, Xofs.representativeFromTr, Xofs.withDigestRegister,
-      ExtendableOutput.withPrefixes, hx, ↓reduceIte, digestBytesAt] <;> rfl
+      Xofs.withPrefixRegister, ExtendableOutput.withPrefixes, hx, ↓reduceIte, digestBytesAt] <;> rfl
 
 /-- A full hedged signing query on the digest register. The representative may use a raw
 commitment address. In that case its 64-byte read includes any suffix supplied by SHAKE256. -/
