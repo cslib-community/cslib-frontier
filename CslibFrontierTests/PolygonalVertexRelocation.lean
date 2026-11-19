@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Relocation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
@@ -22,7 +22,7 @@ import Mathlib.Tactic.Positivity
 /-!
 Ordinary MODULE clients use only public APIs. The off-center star and loop tests really
 move a named point. No numerical value of the internally selected radius is assumed.
-All new terms in this source checkpoint are UNELABORATED pending authorized validation.
+These examples check the actual relocation through ordinary public imports.
 -/
 
 public section
@@ -57,7 +57,8 @@ private theorem realizes_transport {G : Graph} {D D' : PolygonalDrawing G}
       (hR.clockwise x y z hxy hyz hne hne' hne'')
 
 -- Twenty incident routes, without a degree bound or a caller-selected cut radius.
-example : ∃ ρ > 0,
+/-- A twenty-valent embedded vertex admits actual nontrivial local movement. -/
+theorem star_twenty_relocation : ∃ ρ > 0,
     let D := PolygonalDrawing.star 20
     let a := D.vertex 20 + (ρ / 4 : ℝ)
     (D.relocateVertex 20 ρ a).vertex 20 ≠ D.vertex 20 ∧
@@ -75,7 +76,7 @@ example : ∃ ρ > 0,
 example : ∃ ρ > 0,
     let D := PolygonalDrawing.star 5
     let D' := D.relocateVertex 5 ρ (D.vertex 5 + (ρ / 4 : ℝ))
-    let x := (starDartEquiv 5 (0, true))
+    let x := (starDartEquiv 5 (⟨0, by decide⟩, true))
     let y := (starDartEquiv 5 (1, true))
     let z := (starDartEquiv 5 (2, true))
     sbtw (D'.direction z) (D'.direction y) (D'.direction x) ∧
@@ -87,11 +88,14 @@ example : ∃ ρ > 0,
   have hold : sbtw
       (D.direction (starDartEquiv 5 (2, true)))
       (D.direction (starDartEquiv 5 (1, true)))
-      (D.direction (starDartEquiv 5 (0, true))) := by
-    change sbtw ((⟨3, 1⟩ : ℂ).arg : Real.Angle) ((⟨2, 1⟩ : ℂ).arg : Real.Angle)
-      ((⟨1, 1⟩ : ℂ).arg : Real.Angle)
-    exact clockwise_ports (by norm_num) (by norm_num) (by norm_num)
-  have hnew := (horder (starDartEquiv 5 (0, true)) (starDartEquiv 5 (1, true))
+      (D.direction (starDartEquiv 5 (⟨0, by decide⟩, true))) := by
+    dsimp only [D, direction, PolygonalDrawing.germ, PolygonalDrawing.star,
+      starDartEquiv, Route.germ, Route.line, Route.start, Route.finish, Route.segments]
+    convert clockwise_ports (by norm_num : (0 : ℝ) < 1)
+      (by norm_num : (1 : ℝ) < 2) (by norm_num : (2 : ℝ) < 3) using 1 <;>
+      norm_num [D, direction, PolygonalDrawing.germ, PolygonalDrawing.star,
+        starDartEquiv, Route.germ, Route.line, Route.start, Route.finish, Route.segments]
+  have hnew := (horder (starDartEquiv 5 (⟨0, by decide⟩, true)) (starDartEquiv 5 (1, true))
     (starDartEquiv 5 (2, true)) (by decide) (by decide) (by decide) (by decide)
     (by decide)).mpr hold
   exact ⟨ρ, hρ, hnew, hnew.not_sbtw⟩
@@ -113,16 +117,19 @@ example : ∃ ρ > 0,
     let a := loops.vertex 17 + (ρ / 4 : ℝ)
     let D' := loops.relocateVertex 17 ρ a
     D'.IsEmbedding ∧ D'.vertex 17 ≠ loops.vertex 17 ∧
-    D'.germ (0, false) = loops.cutPort ρ (0, false) - a ∧
-    D'.germ (0, true) = loops.cutPort ρ (0, true) - a ∧
-    loops.cutPort ρ (0, false) ≠ loops.cutPort ρ (0, true) := by
+    D'.germ (⟨0, by decide⟩, false) =
+      loops.cutPort ρ (⟨0, by decide⟩, false) - a ∧
+    D'.germ (⟨0, by decide⟩, true) = loops.cutPort ρ (⟨0, by decide⟩, true) - a ∧
+    loops.cutPort ρ (⟨0, by decide⟩, false) ≠ loops.cutPort ρ (⟨0, by decide⟩, true) := by
   obtain ⟨ρ, hρ, hmove⟩ := loops_embedding.exists_vertex_relocation_radius 17 (by decide)
   obtain ⟨hD', hg, _, _⟩ := hmove _ (offset_mem (z := loops.vertex 17) hρ)
-  refine ⟨ρ, hρ, hD', ?_, hg (0, false) (by decide), hg (0, true) (by decide), ?_⟩
+  refine ⟨ρ, hρ, hD', ?_, hg (⟨0, by decide⟩, false) (by decide),
+    hg (⟨0, by decide⟩, true) (by decide), ?_⟩
   · simpa only [relocateVertex, Function.update_self] using
       offset_ne (z := loops.vertex 17) hρ
   · intro h
-    have hd := loops_embedding.cutPort_injective hρ (0, false) (0, true) (by decide) h
+    have hd := loops_embedding.cutPort_injective hρ (⟨0, by decide⟩, false)
+      (⟨0, by decide⟩, true) (by decide) h
     exact Bool.false_ne_true (congrArg Prod.snd hd)
 
 -- Moving the isolate leaves the entire unrelated loop component LITERALLY unchanged.
@@ -135,7 +142,7 @@ example : ∃ ρ > 0,
   intro e
   have hends : Dart.vertex (e, false) ≠ 42 ∧ Dart.vertex (e, true) ≠ 42 := by
     fin_cases e <;> decide
-  simp only [relocateVertex, if_pos hends]
+  simp only [relocateVertex, ite_eq_left hends]
 
 -- A separate genuine nonloop parallel example obtains its embedding from a checked
 -- numerical certificate, before any geometric relocation is invoked.
@@ -160,45 +167,49 @@ example : ∃ (D : PolygonalDrawing parallelGraph) (ρ : ℝ), 0 < ρ ∧
 -- preservation is asserted merely because the name of that endpoint stays fixed.
 example :
     let D := PolygonalDrawing.star 1
-    (D.relocateVertex 1 (1 / 8) 0).germ (0, false) ≠ D.germ (0, false) := by
+    (D.relocateVertex 1 (1 / 8) 0).germ (⟨0, by decide⟩, false) ≠
+      D.germ (⟨0, by decide⟩, false) := by
+  dsimp only
   let D := PolygonalDrawing.star 1
-  let t : ℝ := (1 / 8) / ‖D.germ (0, true)‖
+  let t : ℝ := (1 / 8) / ‖D.germ (⟨0, by decide⟩, true)‖
   have ht : 0 < t := div_pos (by norm_num)
-    (norm_pos_iff.mpr ((PolygonalDrawing.star_isEmbedding 1).germ_ne_zero (0, true)))
-  have hg : (D.relocateVertex 1 (1 / 8) 0).germ (0, false) =
-      (1 - t) • D.germ (0, false) := by
-    change (((D.outsideRoute 1 (1 / 8) 0).append 0).germ false) = _
+    (norm_pos_iff.mpr ((PolygonalDrawing.star_isEmbedding 1).germ_ne_zero (⟨0, by decide⟩, true)))
+  have hg : (D.relocateVertex 1 (1 / 8) 0).germ (⟨0, by decide⟩, false) =
+      (1 - t) • D.germ (⟨0, by decide⟩, false) := by
+    change (((D.outsideRoute 1 (1 / 8) ⟨0, by decide⟩).append 0).germ false) = _
     rw [Route.germ_append]
     simp only [Bool.false_eq_true, ↓reduceIte]
     rw [outsideRoute, Route.germ_cutEnds]
     simp only [restrictionTime, Route.cutUpper, Route.cutLower, Route.endSegment]
-    norm_num [Dart.vertex, Graph.edgeEndpoint, starGraph, t]
+    norm_num [D, PolygonalDrawing.star, PolygonalDrawing.germ, Route.line,
+      Route.segments, Dart.vertex, Graph.edgeEndpoint, starGraph, t]
   intro h
   rw [hg] at h
   have him := congrArg Complex.im h
-  norm_num [D, PolygonalDrawing.germ, PolygonalDrawing.star, Route.germ, Route.line,
-    Route.start, Route.finish, Route.segments, Complex.smul_im, smul_eq_mul] at him
+  dsimp only [D, PolygonalDrawing.germ, PolygonalDrawing.star, Route.germ, Route.line,
+    Route.start, Route.finish, Route.segments] at him
+  norm_num [Complex.smul_im, smul_eq_mul] at him
   linarith
 
 -- A boundary target equal to its own cut port gives a ZERO actual outgoing spoke.
 -- Thus the open-ball conclusion cannot be changed to a closed-ball conclusion.
 example (ρ : ℝ) (hρ : 0 < ρ) :
     let D := PolygonalDrawing.star 1
-    let a := D.cutPort ρ (0, true)
+    let a := D.cutPort ρ (⟨0, by decide⟩, true)
     a ∈ Metric.sphere (D.vertex 1) ρ ∧ ¬(D.relocateVertex 1 ρ a).IsEmbedding := by
   let D := PolygonalDrawing.star 1
-  let a := D.cutPort ρ (0, true)
-  have hg : (D.relocateVertex 1 ρ a).germ (0, true) = 0 := by
-    change ((D.outsideRoute 1 ρ 0).append a).germ true = 0
+  let a := D.cutPort ρ (⟨0, by decide⟩, true)
+  have hg : (D.relocateVertex 1 ρ a).germ (⟨0, by decide⟩, true) = 0 := by
+    change ((D.outsideRoute 1 ρ ⟨0, by decide⟩).append a).germ true = 0
     rw [Route.germ_append]
     simp only [↓reduceIte]
-    have hp := D.endpoint_outsideRoute 1 ρ 0 true
-    change (D.outsideRoute 1 ρ 0).finish = _ at hp
+    have hp := D.endpoint_outsideRoute 1 ρ ⟨0, by decide⟩ true
+    change (D.outsideRoute 1 ρ ⟨0, by decide⟩).finish = _ at hp
     norm_num [Dart.vertex, Graph.edgeEndpoint, starGraph] at hp
     rw [hp, sub_self]
-  refine ⟨?_, fun hD' => hD'.germ_ne_zero (0, true) hg⟩
+  refine ⟨?_, fun hD' => hD'.germ_ne_zero (⟨0, by decide⟩, true) hg⟩
   rw [Metric.mem_sphere]
-  exact (PolygonalDrawing.star_isEmbedding 1).dist_cutPort hρ.le (0, true)
+  exact (PolygonalDrawing.star_isEmbedding 1).dist_cutPort hρ.le (⟨0, by decide⟩, true)
 
 open Graph.RotationRecognition
 
@@ -237,7 +248,7 @@ private theorem local_query {I : FixedRotationInput} (hI : Valid I)
       (he : ((subdivide I)[e.val]'(by
         simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen = true) :
       D'.route e = (referenceDrawing I).route e := by
-    simp only [D', relocateVertex, if_pos (haway e he)]
+    simp only [D', relocateVertex, ite_eq_left (haway e he)]
     exact hkeep e he
   have hquery := query_eq_true_of_positioned_frozen_embedding hI D' hD'
     hV hF
@@ -259,7 +270,9 @@ example : query pointInput = true := by
     (by intro e; exact Fin.elim0 e) (by intro e; exact Fin.elim0 e)
     hD.rotation hD.realizes_rotation
   apply (hcall ?_).1
-  simpa [D, pointInput, referenceDrawing, referencePoint, referenceOrder, centerBlocks,
-    PolygonalDrawing.points, parabolaPoint] using Metric.mem_ball_self hρ
+  have hmem : D.vertex 0 ∈ Metric.ball (D.vertex 0) ρ := Metric.mem_ball_self hρ
+  convert hmem using 1
+  norm_num [D, pointInput, referenceDrawing, referencePoint, referenceOrder, centerBlocks,
+      PolygonalDrawing.points, parabolaPoint, Complex.norm_def, Complex.ext_iff]
 
 end CslibFrontierTests.PolygonalVertexRelocation

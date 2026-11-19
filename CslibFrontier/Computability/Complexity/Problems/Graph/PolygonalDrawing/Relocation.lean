@@ -37,14 +37,18 @@ private theorem relocatedRoute_endpoint {G : Graph} (D : PolygonalDrawing G)
       (restoreFirst v v (Dart.vertex (e, false)) a a (D.outsideRoute v ρ e))).endpoint b =
       Function.update D.vertex v a (Dart.vertex (e, b)) := by
   by_cases h : Dart.vertex (e, false) ≠ v ∧ Dart.vertex (e, true) ≠ v
-  · rw [if_pos h, D.endpoint_eq]
-    cases b <;> simp only [Function.update_of_ne, h.1, h.2]
-  · rw [if_neg h]
+  · rw [ite_eq_left h, D.endpoint_eq]
+    cases b
+    · exact (Function.update_of_ne h.1 a D.vertex).symm
+    · exact (Function.update_of_ne h.2 a D.vertex).symm
+  · rw [ite_eq_right h]
     have hfirst (p : Route) :
         (restoreFirst v v (Dart.vertex (e, false)) a a p).start =
           if Dart.vertex (e, false) = v then a else p.start := by
-      simpa only [↓reduceIte, ite_self] using
-        endpoint_restoreFirst v v (Dart.vertex (e, false)) a a p false
+      by_cases he : Dart.vertex (e, false) = v
+      · simpa only [restoreFirst, he, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using
+          Route.endpoint_prepend a p false
+      · simp only [restoreFirst, he, ↓reduceIte]
     have hlast (p : Route) :
         (restoreFirst v v (Dart.vertex (e, false)) a a p).finish = p.finish :=
       endpoint_restoreFirst v v (Dart.vertex (e, false)) a a p true
@@ -54,16 +58,16 @@ private theorem relocatedRoute_endpoint {G : Graph} (D : PolygonalDrawing G)
         (D.outsideRoute v ρ e)).start = _
       rw [hfirst]
       by_cases he : Dart.vertex (e, false) = v
-      · simp only [if_pos he, he, Function.update_self]
-      · rw [if_neg he, Function.update_of_ne he]
-        simpa only [if_neg he, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using
+      · simp [he]
+      · rw [ite_eq_right he, Function.update_of_ne he]
+        simpa only [ite_eq_right he, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using
           D.endpoint_outsideRoute v ρ e false
     · rw [endpoint_restoreLast]
       simp only [↓reduceIte, hlast]
       by_cases he : Dart.vertex (e, true) = v
-      · simp only [if_pos he, he, Function.update_self]
-      · rw [if_neg he, Function.update_of_ne he]
-        simpa only [if_neg he, Route.endpoint, ↓reduceIte] using
+      · simp [he]
+      · rw [ite_eq_right he, Function.update_of_ne he]
+        simpa only [ite_eq_right he, Route.endpoint, ↓reduceIte] using
           D.endpoint_outsideRoute v ρ e true
 
 /-- Move one named vertex, keeping every nonincident route literally unchanged. Incident
@@ -75,7 +79,7 @@ The constructor has no geometric validity premise; its preservation theorem choo
   route := fun e => if Dart.vertex (e, false) ≠ v ∧ Dart.vertex (e, true) ≠ v then D.route e else
     restoreLast v v (Dart.vertex (e, true)) a a
       (restoreFirst v v (Dart.vertex (e, false)) a a (D.outsideRoute v ρ e))
-  endpoint_eq := relocatedRoute_endpoint D v ρ a
+  endpoint_eq := by exact relocatedRoute_endpoint D v ρ a
 
 private noncomputable abbrev relocatedRoute {G : Graph} (D : PolygonalDrawing G)
     (v : ℕ) (ρ : ℝ) (a : ℂ) (e : Fin G.edges.length) : Route :=
@@ -85,20 +89,21 @@ private theorem outsideRoute_unaffected {G : Graph} (D : PolygonalDrawing G)
     (v : ℕ) (ρ : ℝ) (e : Fin G.edges.length)
     (h₀ : Dart.vertex (e, false) ≠ v) (h₁ : Dart.vertex (e, true) ≠ v) :
     D.outsideRoute v ρ e = D.route e := by
-  simp only [outsideRoute, restrictionTime, if_neg h₀, if_neg h₁]
+  simp only [outsideRoute, restrictionTime, ite_eq_right h₀, ite_eq_right h₁]
   cases hp : D.route e with
   | mk n point =>
+    change Route.mk n _ = Route.mk n point
     congr 1
     funext i
     by_cases hz : i.val = 0
     · have hi : i = 0 := Fin.ext hz
       subst i
-      simp [Route.cutEnds, Route.eval]
+      simp [Route.eval]
     · by_cases hl : i.val = n + 1
       · have hi : i = Fin.last (n + 1) := Fin.ext hl
         subst i
-        simp [Route.cutEnds, Route.eval, Route.segments]
-      · simp [Route.cutEnds, hz, hl, Route.segments]
+        simp [Route.eval, Route.segments]
+      · simp [hz, hl, Route.segments]
 
 private theorem relocatedRoute_attachments {G : Graph} (D : PolygonalDrawing G)
     (v : ℕ) (ρ : ℝ) (a : ℂ) (e : Fin G.edges.length) :
@@ -108,7 +113,7 @@ private theorem relocatedRoute_attachments {G : Graph} (D : PolygonalDrawing G)
   change (if _ then _ else _) = _
   split_ifs with h
   · rw [outsideRoute_unaffected D v ρ e h.1 h.2]
-    simp only [restoreFirst, restoreLast, if_neg h.1, if_neg h.2]
+    simp only [restoreFirst, restoreLast, ite_eq_right h.1, ite_eq_right h.2]
   · rfl
 
 -- This actual-constructor classification records only the position bridges needed below.
@@ -128,43 +133,62 @@ private theorem relocated_cases {G : Graph} (D : PolygonalDrawing G)
   let p := D.outsideRoute v ρ e
   have hp₀ := D.endpoint_outsideRoute v ρ e false
   have hp₁ := D.endpoint_outsideRoute v ρ e true
+  have hroute := relocatedRoute_attachments D v ρ a e
   revert i
-  rw [relocatedRoute_attachments]
-  intro i
+  generalize hq : relocatedRoute D v ρ a e = q
+  have hq' := hq.symm.trans hroute
+  clear hq hroute
   by_cases h₀ : Dart.vertex (e, false) = v <;>
     by_cases h₁ : Dart.vertex (e, true) = v
-  · simp only [restoreFirst, restoreLast, if_pos h₀, if_pos h₁] at i ⊢
+  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
+    subst q
+    intro i
     rcases Route.attach_eval_cases a p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
     · refine Or.inr ⟨false, h₀, ?_, ?_⟩
-      · simpa only [Route.endpoint, h₀, ↓reduceIte] using heq.trans
+      · simpa only [Route.endpoint, Route.endTime, Bool.false_eq_true, h₀, ↓reduceIte] using
+          heq.trans
           (congrArg (fun z => AffineMap.lineMap a z t) hp₀)
-      · intro ht; simpa [Route.AtEnd, Route.endTime, ht] using hpos
+      · intro ht
+        change t = 0 at ht
+        simpa [Route.AtEnd, ht] using hpos
     · refine Or.inr ⟨true, h₁, ?_, ?_⟩
-      · rw [AffineMap.lineMap_apply_one_sub]
+      · simp only [Route.endTime, ↓reduceIte]
+        rw [AffineMap.lineMap_apply_one_sub]
         simpa only [Route.endpoint, h₁, ↓reduceIte] using heq.trans
           (congrArg (fun z => AffineMap.lineMap z a t) hp₁)
       · intro ht
         have ht1 : t = 1 := by change 1 - t = 0 at ht; linarith
-        simpa [Route.AtEnd, Route.segments, ht1, Nat.cast_add, add_assoc] using hpos
-  · simp only [restoreFirst, restoreLast, if_pos h₀, if_neg h₁] at i ⊢
+        norm_num [p, Route.AtEnd, Route.segments, ht1, Nat.cast_add] at hpos ⊢
+        linarith
+  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
+    subst q
+    intro i
     rcases Route.prepend_eval_cases a p i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
     · refine Or.inr ⟨false, h₀, ?_, ?_⟩
-      · simpa only [Route.endpoint, h₀, ↓reduceIte] using heq.trans
+      · simpa only [Route.endpoint, Route.endTime, Bool.false_eq_true, h₀, ↓reduceIte] using
+          heq.trans
           (congrArg (fun z => AffineMap.lineMap a z t) hp₀)
-      · intro ht; simpa [Route.AtEnd, Route.endTime, ht] using hpos
-  · simp only [restoreFirst, restoreLast, if_neg h₀, if_pos h₁] at i ⊢
+      · intro ht
+        change t = 0 at ht
+        simpa [Route.AtEnd, ht] using hpos
+  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
+    subst q
+    intro i
     rcases Route.append_eval_cases p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
     · refine Or.inr ⟨true, h₁, ?_, ?_⟩
-      · rw [AffineMap.lineMap_apply_one_sub]
+      · simp only [Route.endTime, ↓reduceIte]
+        rw [AffineMap.lineMap_apply_one_sub]
         simpa only [Route.endpoint, h₁, ↓reduceIte] using heq.trans
           (congrArg (fun z => AffineMap.lineMap z a t) hp₁)
       · intro ht
         have ht1 : t = 1 := by change 1 - t = 0 at ht; linarith
         simpa [Route.AtEnd, Route.segments, ht1, Nat.cast_add] using hpos
-  · simp only [restoreFirst, restoreLast, if_neg h₀, if_neg h₁] at i ⊢
+  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
+    subst q
+    intro i
     exact Or.inl ⟨i, rfl, by simp [attachmentCount, or_self, h₀]⟩
 
 private theorem relocated_outside_end {G : Graph} (D : PolygonalDrawing G)
@@ -184,12 +208,14 @@ private theorem relocated_outside_end {G : Graph} (D : PolygonalDrawing G)
   cases b
   · change (D.outsideRoute v ρ e).position j t = 0 at hat
     change (relocatedRoute D v ρ a e).position i t = 0
-    simpa only [attachmentCount, or_self, if_neg hinactive, Nat.cast_zero, zero_add, hat] using hpos
+    simpa only [attachmentCount, or_self, ite_eq_right hinactive, Nat.cast_zero,
+      zero_add, hat] using hpos
   · change (D.outsideRoute v ρ e).position j t =
       ((D.outsideRoute v ρ e).segments : ℝ) at hat
     change (relocatedRoute D v ρ a e).position i t = _
-    rw [hn, if_neg hinactive, Nat.add_zero, Nat.cast_add]
+    rw [hn, ite_eq_right hinactive, Nat.add_zero, Nat.cast_add]
     rw [hpos, hat, add_comm]
+    simp only [↓reduceIte]
 
 private theorem relocated_simple {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
@@ -203,7 +229,7 @@ private theorem relocated_simple {G : Graph} {D : PolygonalDrawing G}
   by_cases h₀ : Dart.vertex (e, false) = v <;>
     by_cases h₁ : Dart.vertex (e, true) = v
   · rw [relocatedRoute_attachments]
-    simp only [restoreLast, restoreFirst, if_pos h₀, if_pos h₁]
+    simp only [restoreLast, restoreFirst, ite_eq_left h₀, ite_eq_left h₁]
     apply hD.attach_outsideRoute_simple v hρ hcut ha ha e h₀ h₁ (hsimple e)
     intro s t hs ht heq
     apply fan_contact ha _ _ _ hs ht heq
@@ -213,12 +239,13 @@ private theorem relocated_simple {G : Graph} {D : PolygonalDrawing G}
       have hd := hD.cutPort_injective hρ (e, false) (e, true) (h₀.trans h₁.symm) heq
       exact Bool.false_ne_true (congrArg Prod.snd hd)
   · rw [relocatedRoute_attachments]
-    simp only [restoreLast, restoreFirst, if_pos h₀, if_neg h₁]
+    simp only [restoreLast, restoreFirst, ite_eq_left h₀, ite_eq_right h₁]
     exact hD.prepend_outsideRoute_simple v hρ hcut ha e h₀ (hsimple e)
   · rw [relocatedRoute_attachments]
-    simp only [restoreLast, restoreFirst, if_neg h₀, if_pos h₁]
+    simp only [restoreLast, restoreFirst, ite_eq_right h₀, ite_eq_left h₁]
     exact hD.append_outsideRoute_simple v hρ hcut ha e h₁ (hsimple e)
-  · simpa only [relocatedRoute, relocateVertex, if_pos ⟨h₀, h₁⟩] using hD.simple e
+  · have hn : Dart.vertex (e, false) ≠ v ∧ Dart.vertex (e, true) ≠ v := ⟨h₀, h₁⟩
+    simpa only [relocatedRoute, relocateVertex, ite_eq_left hn] using hD.simple e
 
 private theorem relocated_active_germ {G : Graph} (D : PolygonalDrawing G)
     (v : ℕ) (ρ : ℝ) (a : ℂ) (d : Dart G) (hd : d.vertex = v) :
@@ -227,13 +254,13 @@ private theorem relocated_active_germ {G : Graph} (D : PolygonalDrawing G)
   change (relocatedRoute D v ρ a e).germ b = _
   rw [relocatedRoute_attachments]
   have hp := D.endpoint_outsideRoute v ρ e b
-  rw [if_pos hd] at hp
+  rw [ite_eq_left hd] at hp
   cases b
   · rw [germ_restoreLast_false]
-    simp only [restoreFirst, if_pos hd, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte]
+    simp only [restoreFirst, ite_eq_left hd, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte]
     simpa only [Route.endpoint, Bool.false_eq_true, ↓reduceIte] using
       congrArg (fun z => z - a) hp
-  · simp only [restoreLast, if_pos hd, Route.germ_append, ↓reduceIte]
+  · simp only [restoreLast, ite_eq_left hd, Route.germ_append, ↓reduceIte]
     have hf := endpoint_restoreFirst v v (Dart.vertex (e, false)) a a
       (D.outsideRoute v ρ e) true
     simp only [Route.endpoint, ↓reduceIte] at hf hp
@@ -276,10 +303,10 @@ private theorem outside_contact_inactive {G : Graph} {D : PolygonalDrawing G}
   have hne : Dart.vertex (e, b) ≠ v := by
     intro hactive
     have hactive' : Dart.vertex (f, c) = v := hv.symm.trans hactive
-    have he := (D.outsideRoute v ρ e).at_eq_endpoint i hs hb
-    have hf := (D.outsideRoute v ρ f).at_eq_endpoint j ht hc
-    rw [D.endpoint_outsideRoute, if_pos hactive] at he
-    rw [D.endpoint_outsideRoute, if_pos hactive'] at hf
+    have he := (D.outsideRoute v ρ e).at_eq_endpoint i hs b hb
+    have hf := (D.outsideRoute v ρ f).at_eq_endpoint j ht c hc
+    rw [D.endpoint_outsideRoute, ite_eq_left hactive] at he
+    rw [D.endpoint_outsideRoute, ite_eq_left hactive'] at hf
     have hports := hD.cutPort_injective hρ (e, b) (f, c) hv
       (he.symm.trans (heq.trans hf))
     exact hef (congrArg Prod.fst hports)

@@ -2669,6 +2669,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Neighborhood
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Relocation
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restoration
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RestorationContacts
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RestorationEdges
