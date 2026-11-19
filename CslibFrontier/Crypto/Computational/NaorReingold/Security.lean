@@ -540,7 +540,7 @@ private theorem isPPTOn_naorReingoldFrontierOracle (F : PrimeOrderGroupFamily)
           (αs a) ((query a).drop (k a + 1)), cache')) :=
     hmemo.bind_with (ComputableInPolyTime.isPPTOn hpost)
   unfold naorReingoldFrontierOracle
-  refine (IsPPTOn.ite' hbranch hvalid (ComputableInPolyTime.isPPTOn
+  refine (IsPPTOn.ite hbranch hvalid (ComputableInPolyTime.isPPTOn
     ((ComputableInPolyTime.const ([] : List Bool)).prod hcache))).congr fun a => ?_
   by_cases h : (query a).length = m a <;> simp [h]
 
@@ -790,7 +790,7 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
       (fun p : DDHLevelInput F => decide (p.2 < inLen p.1.secParam))
       (ddhLevelInputEncoding F) encBool :=
     ComputableInPolyTime.unary_lt.comp (hk_poly.prod hm_poly)
-  refine hdyadic.bind_with ((IsPPTOn.ite' hguard hvalidK
+  refine hdyadic.bind_with ((IsPPTOn.ite hguard hvalidK
     (ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const false))).congr fun p => ?_)
   by_cases h : p.2 < inLen p.1.secParam <;>
     simp [h, runFrontier]
@@ -809,7 +809,7 @@ theorem isPPT_naorReingoldToDDHDistinguisher {inLen : ℕ → ℕ}
       (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.snd encUnary F.encDesc))
   have hadv : IsOraclePPTOn (encPair encUnary F.encDesc) encBool
       (fun p => adversary p.1 (F.encDesc p.2)) :=
-    hadversary.on.preprocess' henc
+    hadversary.on.preprocess henc
   exact isPPT_naorReingoldDescToDDHDistinguisher F
     (adv := fun n d => adversary n (F.encDesc d)) hinLen hadv
 
@@ -1685,7 +1685,7 @@ theorem DDH.negligible_naorReingoldWordGame_ideal {F : PrimeOrderGroupFamily}
       (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.snd encUnary F.encDesc))
   have hadv : IsOraclePPTOn (encPair encUnary F.encDesc) encBool
       (fun p => adversary p.1 (F.encDesc p.2)) :=
-    hadversary.on.preprocess' henc
+    hadversary.on.preprocess henc
   exact hDDH.negligible_naorReingoldDescGame hinLen hadv
 
 private theorem negligible_add_one_div_two_pow {inLen : ℕ → ℕ}
@@ -2134,7 +2134,7 @@ private theorem isOraclePPTOn_hashedAdvGroup (F : PrimeOrderGroupFamily) {inLen 
         List.take (bound pair.1.2.1) <$>
           ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), pair.2.1.2)) :=
-    IsOraclePPTOn.query_take' ()
+    IsOraclePPTOn.query_take ()
       (request := fun pair : (ℕ × F.withSeed.Desc) × (Unit × List Bool) × Unit => pair.2.1.2)
       (limit := fun pair => bound pair.1.2.1)
       (by dsimp only [EHandler]; fun_prop)
@@ -2168,14 +2168,14 @@ private theorem isOraclePPTOn_hashedAdvGroup (F : PrimeOrderGroupFamily) {inLen 
           (List.take (bound pair.1.2.1) <$>
             ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
               ((), pair.2.1.2))) :=
-    htake.map_with' hhash_post
+    htake.map_with hhash_post
   have hinvalid : IsOraclePPTOn EHandler (encPair encBits (encFinEnum Unit))
       (fun _ => (pure ([], ()) : WordOracleComp Unit (List Bool × Unit))) := by
     simpa only [ProbOracleComp.sample_pure] using
       (ComputableInPolyTime.const ([], ())).isPPTOn.isOraclePPTOn (Operation := Unit)
   have hhandler : IsOraclePPTOn EHandler (encPair encBits (encFinEnum Unit))
       (fun pair => handler pair.1 pair.2.1 pair.2.2) := by
-    refine (IsOraclePPTOn.cond' hguard hvalid hinvalid).congr
+    refine (IsOraclePPTOn.cond hguard hvalid hinvalid).congr
       fun pair State oracle s => ?_
     by_cases h : pair.2.1.2.length = inLen pair.1.1 <;> simp [handler, h]
   have hres : ComputableInPolyTime
@@ -2200,7 +2200,7 @@ private theorem isOraclePPTOn_hashedAdvGroup (F : PrimeOrderGroupFamily) {inLen 
       · simp only [hq, ↓reduceIte] at hresult
         obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
         exact ⟨trivial, by simp, Nat.le_add_right _ _⟩)
-  exact hsub.map' (ComputableInPolyTime.fst encBool (encFinEnum Unit))
+  exact hsub.map (ComputableInPolyTime.fst encBool (encFinEnum Unit))
 
 private theorem naorReingoldWordRun_hashedAdvGroup (F : PrimeOrderGroupFamily)
     (inLen outLen : ℕ → ℕ) (bound : F.Desc → ℕ) (adversary : OracleDistinguisher)

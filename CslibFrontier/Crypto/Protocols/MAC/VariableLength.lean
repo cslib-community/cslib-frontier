@@ -1424,7 +1424,7 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
   unfold blockwiseBoundedSimulator
   simpa only [bind_pure_comp] using
     hsample.bind_with
-      (htags.map_with'
+      (htags.map_with
         (f := fun p tags => (encTag (p.2, tags), (p.1.2.1.2, (p.2, tags)) :: p.1.2.2))
         (by fun_prop))
 
@@ -1486,7 +1486,7 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
       (by fun_prop) (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound) (by fun_prop)
       (fun _ _ => True) (fun _ => trivial) (by fun_prop)
       (fun c request log _ result hresult =>
-        ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)).map_with'
+        ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)).map_with
     (by fun_prop)).isOraclePPT
 
 private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : ℕ → ℕ}
@@ -1700,7 +1700,7 @@ theorem isOraclePPT_toForger_swapBlocksAdversary {replyBound : ℕ → ℕ → �
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
+  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
     (by fun_prop)).isOraclePPT
 
 variable (M) in
@@ -1727,7 +1727,7 @@ theorem isOraclePPT_toForger_truncateAdversary {replyBound : ℕ → ℕ → ℕ
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
+  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
     (by fun_prop)).isOraclePPT
 
 variable (M) in
@@ -1772,7 +1772,7 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
           ProbOracleComp.query
             ((), List.replicate (fieldWidth (M.msgLen p.1)) false ++
               List.replicate (fieldWidth (M.msgLen p.1)) false)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   have hq2 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take
@@ -1782,8 +1782,8 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
           ProbOracleComp.query
             ((), List.replicate (fieldWidth (M.msgLen q.1.1)) true ++
               List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
-  exact (hq1.bind_with (hq2.map_with' (by fun_prop))).isOraclePPT
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
+  exact (hq1.bind_with (hq2.map_with (by fun_prop))).isOraclePPT
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/

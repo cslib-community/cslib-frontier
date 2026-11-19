@@ -543,8 +543,7 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList (by unfold rompelSeedWidth; fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 private def rompelTupleEquiv (n m : ℕ) :

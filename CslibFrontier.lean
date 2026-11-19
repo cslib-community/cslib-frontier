@@ -61,6 +61,7 @@ public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Memory
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Source
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+public import CslibFrontier.Algorithms.Lean.DyadicRecovery
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Arms
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Attachment
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Contraction
@@ -1332,6 +1333,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.NativeEvaluation
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.ConstDepth
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator
+public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Restriction
 public import CslibFrontier.Computability.Circuit.Boolean.Nechiporuk
 public import CslibFrontier.Computability.Circuit.Boolean.NegationNormalForm
 public import CslibFrontier.Computability.Circuit.Boolean.NonconstantCost
@@ -4015,9 +4017,11 @@ public import CslibFrontier.Computability.PCP.Amplification
 public import CslibFrontier.Computability.PCP.Amplification.Arithmetic
 public import CslibFrontier.Computability.PCP.Amplification.Family
 public import CslibFrontier.Computability.PCP.Amplifier
+public import CslibFrontier.Computability.PCP.Approximation.AssignmentConsistency
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Computability.PCP.Approximation.BinPacking
 public import CslibFrontier.Computability.PCP.Approximation.FGLSS
+public import CslibFrontier.Computability.PCP.Approximation.FGLSSRuntime
 public import CslibFrontier.Computability.PCP.Approximation.GapLin
 public import CslibFrontier.Computability.PCP.Approximation.Hastad
 public import CslibFrontier.Computability.PCP.Approximation.Hastad.LinearTest
@@ -4121,9 +4125,11 @@ public import CslibFrontier.Computability.Pebbling.ReversiblePath
 public import CslibFrontier.Computability.Pebbling.ReversiblePathReachable
 public import CslibFrontier.Computability.Pebbling.Words
 public import CslibFrontier.Computability.PointerMachine.Basic
+public import CslibFrontier.Computability.PointerMachine.Blocks
 public import CslibFrontier.Computability.PointerMachine.Data
 public import CslibFrontier.Computability.PointerMachine.Defs
 public import CslibFrontier.Computability.PointerMachine.Embedding
+public import CslibFrontier.Computability.PointerMachine.Frame
 public import CslibFrontier.Computability.PointerMachine.Renaming
 public import CslibFrontier.Computability.PointerMachine.Simulation
 public import CslibFrontier.Computability.PointerMachine.Symbols
@@ -4133,6 +4139,8 @@ public import CslibFrontier.Computability.PointerMachine.WordRAM.Correctness
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Effect
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Encoding
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Memory
+public import CslibFrontier.Computability.PointerMachine.WordRAM.Natural
+public import CslibFrontier.Computability.PointerMachine.WordRAM.NaturalSimulation
 public import CslibFrontier.Computability.PolyTime.BinaryField
 public import CslibFrontier.Computability.PolyTime.BitString.InitialTestsSearch
 public import CslibFrontier.Computability.PolyTime.BitString.SmallBias
@@ -4159,6 +4167,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryHiding
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.PolyTime.CSP.CNFTemplate
+public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTransposition
 public import CslibFrontier.Computability.PolyTime.CSP.CrossInsertion
 public import CslibFrontier.Computability.PolyTime.CSP.CrossTailTransposition
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.BlackCounts
@@ -4981,6 +4990,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.Basic
 public import CslibFrontier.Crypto.Computational.MLDSA.ChallengeRowProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Decompose
+public import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
 public import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
@@ -4989,6 +4999,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Roots
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
+public import CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 public import CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
@@ -5563,6 +5574,13 @@ public import CslibFrontier.Crypto.Protocols.VOLE.World
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.AVLTree.Erase
 public import CslibFrontier.DataStructure.AVLTree.Impl
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Balance
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Context
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Insert
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Representation
+public import CslibFrontier.DataStructure.AVLTree.PointerMachine.Rotation
+public import CslibFrontier.DataStructure.AVLTree.WordRAM
 public import CslibFrontier.DataStructure.AdjacencyList.Memory
 public import CslibFrontier.DataStructure.AdjacencyList.Spec
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Basic
@@ -5853,6 +5871,19 @@ public import CslibFrontier.DataStructure.SearchTree.Basic
 public import CslibFrontier.DataStructure.SearchTree.Cost
 public import CslibFrontier.DataStructure.SearchTree.Erase
 public import CslibFrontier.DataStructure.SearchTree.Impl
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Allocation
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Child
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Context
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Graft
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Height
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.InsertLeaf
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Reconnect
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.ReconnectContext
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Representation
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Rotation
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Search
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Seek
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Update
 public import CslibFrontier.DataStructure.SplayTree.AccessLemma
 public import CslibFrontier.DataStructure.SplayTree.Basic
 public import CslibFrontier.DataStructure.SplayTree.Impl
@@ -7733,6 +7764,7 @@ public import CslibFrontier.Logics.Propositional.SigmaThree
 public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
+public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential

@@ -102,22 +102,22 @@ theorem triangle_separates_cycleGraph_six_sum (a : Fin 3 → Fin 6)
 
 /-- At least `m` vertices: a `C²` sentence of quantifier rank `1`. -/
 def atLeastVertices (m : ℕ) : FiniteVariable.CountingFormula Language.graph 2 :=
-  .atLeast m 0 ⊤
+  FiniteVariable.CountingFormula.atLeast m 0 ⊤
 
 theorem quantifierRank_atLeastVertices (m : ℕ) : (atLeastVertices m).quantifierRank = 1 := by
   rw [atLeastVertices, FiniteVariable.CountingFormula.quantifierRank_atLeast,
-    FiniteVariable.CountingFormula.quantifierRank_top]
+    FiniteVariable.GenFormula.quantifierRank_top]
 
 theorem freeVars_atLeastVertices (m : ℕ) : (atLeastVertices m).freeVars = ∅ := by
   rw [atLeastVertices, FiniteVariable.CountingFormula.freeVars_atLeast,
-    FiniteVariable.CountingFormula.freeVars_top, Finset.erase_empty]
+    FiniteVariable.GenFormula.freeVars_top, Finset.erase_empty]
 
 theorem realize_atLeastVertices {V : Type*} [Fintype V] (G : SimpleGraph V) (m : ℕ)
     (a : Fin 2 → V) :
     (letI := G.structure; (atLeastVertices m).Realize a) ↔ m ≤ Fintype.card V := by
   let := G.structure
   rw [atLeastVertices, FiniteVariable.CountingFormula.realize_atLeast]
-  simp only [FiniteVariable.CountingFormula.realize_top, Set.ofPred_true, Set.encard_univ,
+  simp only [FiniteVariable.GenFormula.realize_top, Set.ofPred_true, Set.encard_univ,
     ENat.card_eq_coe_fintype_card, Nat.cast_le]
 
 /-- `P₃` and `P₂` have different round-`0` histograms, so Immerman–Lander guarantees a separating
@@ -150,17 +150,17 @@ theorem pathGraph_four_iff_starGraph_le_one
 
 /-- "Some vertex has degree at least `3`": a `C²` sentence of quantifier rank `2`. -/
 def existsDegAtLeastThree : FiniteVariable.CountingFormula Language.graph 2 :=
-  .ex 0 (.atLeast 3 1 (.rel adj ![0, 1]))
+  .ex 0 (FiniteVariable.CountingFormula.atLeast 3 1 (.rel adj ![0, 1]))
 
 theorem quantifierRank_existsDegAtLeastThree :
     existsDegAtLeastThree.quantifierRank = 2 := by
-  rw [existsDegAtLeastThree, FiniteVariable.CountingFormula.quantifierRank_ex,
+  rw [existsDegAtLeastThree, FiniteVariable.GenFormula.quantifierRank_ex,
     FiniteVariable.CountingFormula.quantifierRank_atLeast,
-    FiniteVariable.CountingFormula.quantifierRank_rel]
+    FiniteVariable.GenFormula.quantifierRank_rel]
 
 theorem freeVars_existsDegAtLeastThree : existsDegAtLeastThree.freeVars = ∅ := by
-  rw [existsDegAtLeastThree, FiniteVariable.CountingFormula.freeVars_ex,
-    FiniteVariable.CountingFormula.freeVars_atLeast, FiniteVariable.CountingFormula.freeVars_rel]
+  rw [existsDegAtLeastThree, FiniteVariable.GenFormula.freeVars_ex,
+    FiniteVariable.CountingFormula.freeVars_atLeast, FiniteVariable.GenFormula.freeVars_rel]
   decide
 
 /-- Round `1` separates `P₄` and `K₁,₃`, so Immerman–Lander refutes rank-`2` `C²`-equivalence, and
@@ -187,14 +187,14 @@ theorem round_one_separates_pathGraph_four_starGraph :
     decide
   refine ⟨hne, fun b => ?_, fun a => ?_⟩
   · let := (starGraph (0 : Fin 4)).structure
-    rw [existsDegAtLeastThree, FiniteVariable.CountingFormula.realize_ex]
+    rw [existsDegAtLeastThree, FiniteVariable.GenFormula.realize_ex]
     refine ⟨0, ?_⟩
     rw [FiniteVariable.CountingFormula.realize_atLeast]
     have hset : {c : Fin 4 |
-        (FiniteVariable.CountingFormula.rel adj ![0, 1]).Realize
+        (.rel adj ![0, 1] : FiniteVariable.CountingFormula Language.graph 2).Realize
           (Function.update (Function.update b 0 0) 1 c)} = ({1, 2, 3} : Finset (Fin 4)) := by
       ext c
-      simp only [FiniteVariable.CountingFormula.realize_rel, comp_vec_two,
+      simp only [FiniteVariable.GenFormula.realize_rel, comp_vec_two,
         Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide)]
       change (starGraph (0 : Fin 4)).Adj 0 c ↔ c ∈ ({1, 2, 3} : Finset (Fin 4))
       revert c
@@ -202,15 +202,15 @@ theorem round_one_separates_pathGraph_four_starGraph :
     rw [hset, Set.encard_coe_eq_coe_finsetCard]
     decide
   · let := (pathGraph 4).structure
-    rw [existsDegAtLeastThree, FiniteVariable.CountingFormula.realize_ex]
+    rw [existsDegAtLeastThree, FiniteVariable.GenFormula.realize_ex]
     rintro ⟨v, hv⟩
     rw [FiniteVariable.CountingFormula.realize_atLeast] at hv
     have hsub : {c : Fin 4 |
-        (FiniteVariable.CountingFormula.rel adj ![0, 1]).Realize
+        (.rel adj ![0, 1] : FiniteVariable.CountingFormula Language.graph 2).Realize
           (Function.update (Function.update a 0 v) 1 c)} =
         ((pathGraph 4).neighborFinset v : Set (Fin 4)) := by
       ext c
-      simp only [Set.mem_ofPred_eq, FiniteVariable.CountingFormula.realize_rel, comp_vec_two,
+      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, comp_vec_two,
         Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
         Finset.mem_coe, mem_neighborFinset]
       rfl
@@ -223,15 +223,15 @@ theorem round_one_separates_pathGraph_four_starGraph :
 
 /-- "Vertex `x₀` has degree at least `2`": a `C²` formula of quantifier rank `1` in `{0}`. -/
 def degAtLeastTwo : FiniteVariable.CountingFormula Language.graph 2 :=
-  .atLeast 2 1 (.rel adj ![0, 1])
+  FiniteVariable.CountingFormula.atLeast 2 1 (.rel adj ![0, 1])
 
 theorem quantifierRank_degAtLeastTwo : degAtLeastTwo.quantifierRank = 1 := by
   rw [degAtLeastTwo, FiniteVariable.CountingFormula.quantifierRank_atLeast,
-    FiniteVariable.CountingFormula.quantifierRank_rel]
+    FiniteVariable.GenFormula.quantifierRank_rel]
 
 theorem freeVars_degAtLeastTwo : degAtLeastTwo.freeVars ⊆ {0} := by
   rw [degAtLeastTwo, FiniteVariable.CountingFormula.freeVars_atLeast,
-    FiniteVariable.CountingFormula.freeVars_rel]
+    FiniteVariable.GenFormula.freeVars_rel]
   decide
 
 /-- On `P₃`, endpoint `0` and middle vertex `1` receive different colors after one round and are
@@ -254,11 +254,11 @@ theorem vertex_round_one_separates_pathGraph_three :
     intro v
     rw [degAtLeastTwo, FiniteVariable.CountingFormula.realize_atLeast]
     have hset : {c : Fin 3 |
-        (FiniteVariable.CountingFormula.rel adj ![0, 1]).Realize
+        (.rel adj ![0, 1] : FiniteVariable.CountingFormula Language.graph 2).Realize
           (Function.update (fun _ : Fin 2 => v) 1 c)} =
         ((pathGraph 3).neighborFinset v : Set (Fin 3)) := by
       ext c
-      simp only [Set.mem_ofPred_eq, FiniteVariable.CountingFormula.realize_rel, comp_vec_two,
+      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, comp_vec_two,
         Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
         Finset.mem_coe, mem_neighborFinset]
       rfl

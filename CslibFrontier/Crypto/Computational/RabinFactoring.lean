@@ -432,7 +432,7 @@ theorem isPPTOn_rabinToFactor {A : ℕ → ℕ × ℕ → ProbComp ℕ}
         (encPair (encPair (encPair encUnary encNat) encBits) encNat) (encPair encNat encNat) :=
       hpair (by fun_prop) (by fun_prop)
     exact hno.isPPTOn
-  exact (IsPPTOn.cond' hcond hyes.isPPTOn hno_branch).congr
+  exact (IsPPTOn.cond hcond hyes.isPPTOn hno_branch).congr
     (fun _ => by simp only [decide_eq_true_eq])
 
 /-- On a nontrivial factorization `a * b = N` of a Blum modulus, `crtSqrt` returns a square root of

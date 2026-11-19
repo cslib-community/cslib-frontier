@@ -252,8 +252,8 @@ theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : Inde
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
     IsPPTOn encUnary encBool (S.indexedEufCmaGame adversary) := by
   have hrun := S.isPPTOn_run_indexedSigningOracle hadversary
-  have hverify := S.verify_polyTime.tidy
-  have hpost : ComputableTidilyInPolyTime
+  have hverify := S.verify_polyTime
+  have hpost : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) ×
           ((ℕ × List Bool × List Bool) × List (ℕ × List Bool)) =>
         !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&

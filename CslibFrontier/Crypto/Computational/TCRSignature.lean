@@ -371,7 +371,7 @@ theorem sign_ppt (S : SignatureScheme) (H : KeyedHashFamily) :
         (ComputableInPolyTime.snd (encPair encIn encBits) encBits)).trans henc).of_enc_eq
           fun _ => rfl
     exact hots.map_pair hencSig
-  exact IsPPTOn.ite' huZero (hsampleK.bind_pair hsignStep)
+  exact IsPPTOn.ite huZero (hsampleK.bind_pair hsignStep)
     (ComputableInPolyTime.const (encIn := encIn) (encOut := encBits) []).isPPTOn
 
 theorem verify_polyTime (S : SignatureScheme) (H : KeyedHashFamily) :
@@ -1216,7 +1216,7 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
             (H.eval (otsParamInv H q.1.1.1) q.2
               ((simRun machine (simWordOf (otsParamInv H q.1.1.1) q.1.1.2)
                 [] q.1.2).2.getD [])))) :=
-    IsOraclePPTOn.query_take' () (hmOtsReq.of_enc_eq fun _ => rfl)
+    IsOraclePPTOn.query_take () (hmOtsReq.of_enc_eq fun _ => rfl)
       ((hmN.trans hsigBound).of_enc_eq fun _ => rfl)
   have hpostSome : ComputableInPolyTime
       (fun r : Mid × List Bool =>
@@ -1253,7 +1253,7 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
           let r1 := simRun machine word reply q.1.2
           let out := outDecoder.decode r1.1
           return otsForgeryOf H n out.2.1 out.2.2) := by
-    have hite := IsOraclePPTOn.cond' hmR0.snd'.optionIsSome hbranchSome hbranchNone
+    have hite := IsOraclePPTOn.cond hmR0.snd'.optionIsSome hbranchSome hbranchNone
     refine hite.congr fun q State oracle s => ?_
     dsimp only
     cases hopt : (simRun machine (simWordOf (otsParamInv H q.1.1.1) q.1.1.2) [] q.1.2).2 with
@@ -1265,7 +1265,7 @@ theorem isOraclePPT_oneTimeForger {k : ℕ} {Control : Type} [Finite Control]
       (fun _ : In => pure ([], [])) :=
     (ComputableInPolyTime.const (encIn := encIn) (encOut := encPair encBits encBits)
       ([], [])).isOraclePPTOn
-  exact (IsOraclePPTOn.ite' hcond hactive hempty).congr fun _ _ _ _ => rfl
+  exact (IsOraclePPTOn.ite hcond hactive hempty).congr fun _ _ _ _ => rfl
 
 /-- Both stages of `tcrAdversary` are uniformly strict PPT. -/
 theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
@@ -1349,7 +1349,7 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
           [] (stateDecoder.decode p.2.1).2).2.isSome = true))
         encFIn encBool :=
       hisSome.of_enc_eq fun _ => rfl
-    have hite := IsPPTOn.ite' hcondFIn hbranchSome hbranchNone
+    have hite := IsPPTOn.ite hcondFIn hbranchSome hbranchNone
     refine hite.congr fun p => ?_
     dsimp only [tcrAdversary]
     cases hopt : (simRun machine

@@ -40,7 +40,7 @@ instance, which is no longer than `x`, with accuracy `M` in unary, where `M` and
 polynomial in `len x`, `p` and `t`. Its state is the current instance with a numerator and
 denominator in binary, each at most `N ^ i` after `i` levels, so every reachable state has
 encoded length polynomial in that of `(x, p, t)`
-(`Cslib.Probability.IsPPTOn.iterateWith_spec'`).
+(`Cslib.Probability.IsPPTOn.iterateWith_spec`).
 
 ## Main results
 
@@ -185,7 +185,7 @@ theorem isPPTOn_estimate
   have hsize : PolyBounded (fun a => (encInput enc a).length)
       (fun a => 3 * (encInput enc a).length + 4 * (encNat (N a ^ R.len a.1)).length + 2) := by
     growth_poly
-  have hloop := IsPPTOn.iterateWith_spec' (input := encInput enc) (stateEncoding := encState enc)
+  have hloop := IsPPTOn.iterateWith_spec (input := encInput enc) (stateEncoding := encState enc)
     (step := fun a => R.step S (R.len a.1) a.2.1 a.2.2) hcount hinitial (R.isPPTOn_step hS)
     (fun a i s => R.len s.1 + i = R.len a.1 ∧ (enc s.1).length ≤ (enc a.1).length ∧
       s.2.1 ≤ N a ^ i ∧ s.2.2 ≤ N a ^ i)

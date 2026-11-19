@@ -1022,10 +1022,19 @@ theorem isPPT_bcsTableCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
       (encFSTranscript encStmt) encChal)
     {adversary : BCSTableCommitAdversary r d Stmt Sym}
     (hadversary : IsPPT (encBCSTableCommitOutput r d Stmt Sym encStmt encSym) adversary) :
-    IsPPT (encPair encBits encBits) (bcsTableCollisionFinder iop H encSym hFS adversary) :=
-  IsPPTOn.bind_with hadversary
-    (computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
-      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+    IsPPT (encPair encBits encBits) (bcsTableCollisionFinder iop H encSym hFS adversary) := by
+  let encOut := encBCSTableCommitOutput r d Stmt Sym encStmt encSym
+  have hfst := ComputableInPolyTime.fst (encPair encUnary encBits) encOut
+  have hsnd := ComputableInPolyTime.snd (encPair encUnary encBits) encOut
+  have hk := (ComputableInPolyTime.snd encUnary encBits).comp hfst
+  have hstmt := encBCSTableCommitOutput_stmt_polyTime r d Stmt Sym encStmt encSym hsnd
+  have horacles := encBCSTableCommitOutput_oracles_polyTime r d Stmt Sym encStmt encSym hsnd
+  have hprf := encBCSTableCommitOutput_proof_polyTime r d Stmt Sym encStmt encSym hsnd
+  have hpost := computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
+    hk hstmt horacles hprf
+  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
+    (fun p => bcsTableCollisionFinder iop H encSym hFS adversary p.1 p.2)
+  exact hadversary.bind_with hpost.isPPTOn
 
 /-- **Standard-model committed-table BCS binding from collision resistance**: if `H` is
 collision-resistant (`CollisionResistant H`), every uniform strict PPT committed-table BCS adversary

@@ -482,7 +482,7 @@ theorem isPPTOn_sign :
       (fun p => sign S T coins depth p.1 p.2) := by
   have hk := (ComputableInPolyTime.fst encBits encBits).trans keyDecoder.computableInPolyTime
   have hp1 := ComputableInPolyTime.fst (encPair encBits encBits) encBits
-  exact IsPPTOn.ite'
+  exact IsPPTOn.ite
     ((ComputableInPolyTime.snd encBits encBits).length_bits_comp.unary_eq' hk.fst')
     (IsPPTOn.bind_with (left := encBits)
       (ComputableInPolyTime.sampleList (hk.fst'.trans hdepth))

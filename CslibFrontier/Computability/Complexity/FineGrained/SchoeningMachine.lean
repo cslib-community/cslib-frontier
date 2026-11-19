@@ -477,7 +477,7 @@ private theorem isPPTOn_walkStepBits :
         (ComputableInPolyTime.listGetDWithInput hc_q hidx (0, false))
     exact computableInPolyTime_flipBitAt.comp
       (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)).prod hv)
-  refine IsPPTOn.cond' hempty (ComputableInPolyTime.snd _ _).isPPTOn ?_
+  refine IsPPTOn.cond hempty (ComputableInPolyTime.snd _ _).isPPTOn ?_
   simpa only [bind_pure_comp] using hmod.map_with hpost
 
 private theorem length_eq_of_mem_support_walkStepBits {ψ : CNF ℕ} {w : ℕ} {bits next : List Bool}
@@ -525,7 +525,7 @@ private theorem isPPTOn_iterateBitsOfStep {P : Type} (encP : P ↪ List Bool)
   have hstep : IsPPTOn (encPair encIn encBits) encBits
       (fun q : In × List Bool => stepFn (getParam q.1) q.2) :=
     hstepFn.preprocess hparam
-  refine (IsPPTOn.iterateWith_spec'
+  refine (IsPPTOn.iterateWith_spec
     (α := In) (State := List Bool)
     (input := encIn) (stateEncoding := encBits)
     (initial := fun x : In => x.2)
@@ -614,7 +614,7 @@ private theorem isPPTOn_schoeningBodyProg (k : ℕ) :
 /-- **Strict PPT certificate for one Schöning trial on `CNF ℕ` (`encCNF`).** -/
 theorem isPPTOn_schoeningTrialProg (k : ℕ) :
     IsPPTOn encCNF encBool (schoeningTrialProg k) :=
-  IsPPTOn.cond' (computableInPolyTime_guardKSAT k) (isPPTOn_schoeningBodyProg k)
+  IsPPTOn.cond (computableInPolyTime_guardKSAT k) (isPPTOn_schoeningBodyProg k)
     (ComputableInPolyTime.const (encIn := encCNF) false).isPPTOn
 
 /-! ### Connecting `schoeningTrialProg` to `fairTrial` on `CNF (Fin φ.numVars)` -/

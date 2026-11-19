@@ -237,7 +237,7 @@ theorem isPPTOn_cheatingTableAdversary :
     IsPPTOn (encPair encUnary encBits) (encBCSTableCommitOutput 1 1 Bool Bool encBool encBool)
       (fun ⟨n, k⟩ => cheatingTableAdversary n k) :=
   (computableInPolyTime_cheatingTableOutput.comp
-    (ComputableInPolyTime.snd encUnary encBits)).tidy.isPPTOn
+    (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
 
 -- 5. Poly-time certificate for `bcsExtractTableCollision`, concrete extraction and edge case, and
 -- `isPPT_bcsTableCollisionFinder`.

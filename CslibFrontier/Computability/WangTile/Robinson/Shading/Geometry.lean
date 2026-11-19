@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Basic
 import Mathlib.Data.Nat.Find
-import Mathlib.Data.Fintype.Option
 
 /-!
 # Outward-facing light boundaries of Robinson boards
@@ -163,99 +162,187 @@ private theorem neg_one_le_upWeight (quadrant : Quadrant)
     (state : ShadeState) : (-1 : Int) ≤ upWeight quadrant state :=
   neg_one_le_edgeWeight _ _
 
+private def allThick : List Thick :=
+  [.a, .b, .c, .d, .e, .f, .g, .h, .i, .j, .k, .l, .m, .n, .o, .p, .q, .r, .s, .t]
+
+private theorem mem_allThick (component : Thick) : component ∈ allThick := by
+  cases component <;> simp [allThick]
+
+private def edgeOptions (present : Bool) : List (Option Shade) :=
+  if present then [some .light, some .dark] else [none]
+
+private theorem mem_edgeOptions {value : Option Shade} {present : Bool}
+    (h : value.isSome = present) : value ∈ edgeOptions present := by
+  cases value with
+  | none => simp [← h, edgeOptions]
+  | some shade => cases shade <;> simp [← h, edgeOptions]
+
+/-- Combined Boolean check of all ten local flow, turn, and selected-boundary properties
+at one quarter tile. -/
+private def localGeometryOk (component : Thick) (quadrant : Quadrant)
+    (state : ShadeState) : Bool :=
+  !allowedFor component quadrant state ||
+    let r := rightWeight quadrant state
+    let l := leftWeight quadrant state
+    let u := upWeight quadrant state
+    let d := downWeight quadrant state
+    (r - l == u - d) &&
+    !(r == -1 && u == -1) &&
+    (match selectedHorizontalFor component quadrant state with
+      | none => r == 0 && l == 0
+      | some .south => r == -1 || l == -1
+      | some .north => r == 1 || l == 1) &&
+    (match selectedVerticalFor component quadrant state with
+      | none => u == 0 && d == 0
+      | some .west => u == -1 || d == -1
+      | some .east => u == 1 || d == 1) &&
+    (match state.west, state.east with
+      | some .light, some .light => u == 0
+      | _, _ => true) &&
+    (match state.south, state.north with
+      | some .light, some .light => r == 0
+      | _, _ => true)
+
+private theorem localGeometryOk_all :
+    (allThick.all fun component =>
+      Quadrant.all.all fun quadrant =>
+        (edgeOptions (hasWest component quadrant)).all fun w =>
+          (edgeOptions (hasEast component quadrant)).all fun e =>
+            (edgeOptions (hasSouth component quadrant)).all fun s =>
+              (edgeOptions (hasNorth component quadrant)).all fun n =>
+                localGeometryOk component quadrant ⟨w, e, s, n⟩) = true := by
+  decide +kernel
+
+private theorem localGeometryOk_of_allowed (component : Thick) (quadrant : Quadrant)
+    (state : ShadeState) (allowed : allowedFor component quadrant state = true) :
+    localGeometryOk component quadrant state = true := by
+  have hrules := allowedFor_iff.mp allowed
+  rcases state with ⟨w, e, s, n⟩
+  have h1 := List.all_eq_true.mp localGeometryOk_all component (mem_allThick component)
+  have h2 := List.all_eq_true.mp h1 quadrant (Quadrant.mem_all quadrant)
+  have h3 := List.all_eq_true.mp h2 w (mem_edgeOptions hrules.west_present)
+  have h4 := List.all_eq_true.mp h3 e (mem_edgeOptions hrules.east_present)
+  have h5 := List.all_eq_true.mp h4 s (mem_edgeOptions hrules.south_present)
+  exact List.all_eq_true.mp h5 n (mem_edgeOptions hrules.north_present)
+
+private theorem localGeometry_unpack {component : Thick} {quadrant : Quadrant}
+    {state : ShadeState} (allowed : allowedFor component quadrant state = true) :
+    (rightWeight quadrant state - leftWeight quadrant state =
+        upWeight quadrant state - downWeight quadrant state) ∧
+      ¬ (rightWeight quadrant state = -1 ∧ upWeight quadrant state = -1) ∧
+      (match selectedHorizontalFor component quadrant state with
+        | none => rightWeight quadrant state = 0 ∧ leftWeight quadrant state = 0
+        | some .south => rightWeight quadrant state = -1 ∨ leftWeight quadrant state = -1
+        | some .north => rightWeight quadrant state = 1 ∨ leftWeight quadrant state = 1) ∧
+      (match selectedVerticalFor component quadrant state with
+        | none => upWeight quadrant state = 0 ∧ downWeight quadrant state = 0
+        | some .west => upWeight quadrant state = -1 ∨ downWeight quadrant state = -1
+        | some .east => upWeight quadrant state = 1 ∨ downWeight quadrant state = 1) ∧
+      (state.west = some .light → state.east = some .light → upWeight quadrant state = 0) ∧
+      (state.south = some .light → state.north = some .light → rightWeight quadrant state = 0) := by
+  have h := localGeometryOk_of_allowed component quadrant state allowed
+  simp only [localGeometryOk, allowed, Bool.not_true, Bool.false_or, Bool.and_eq_true,
+    Bool.not_eq_true', Bool.and_eq_false_iff, beq_iff_eq, beq_eq_false_iff_ne] at h
+  obtain ⟨⟨⟨⟨⟨hbal, hturn⟩, hhor⟩, hver⟩, hup⟩, hright⟩ := h
+  refine ⟨hbal, ?_, ?_, ?_, ?_, ?_⟩
+  · rintro ⟨hr, hu⟩
+    rcases hturn with hne | hne <;> exact hne (by assumption)
+  · cases hsh : selectedHorizontalFor component quadrant state with
+    | none => rw [hsh] at hhor; simpa only [Bool.and_eq_true, beq_iff_eq] using hhor
+    | some dir =>
+      rw [hsh] at hhor
+      cases dir <;> simpa only [Bool.or_eq_true, beq_iff_eq] using hhor
+  · cases hsv : selectedVerticalFor component quadrant state with
+    | none => rw [hsv] at hver; simpa only [Bool.and_eq_true, beq_iff_eq] using hver
+    | some dir =>
+      rw [hsv] at hver
+      cases dir <;> simpa only [Bool.or_eq_true, beq_iff_eq] using hver
+  · intro hw he
+    rw [hw, he] at hup
+    simpa only [beq_iff_eq] using hup
+  · intro hs hn
+    rw [hs, hn] at hright
+    simpa only [beq_iff_eq] using hright
+
 /-- The signed light flow has zero divergence at every allowed quarter tile. -/
 private theorem balance_of_allowed (component : Thick) (quadrant : Quadrant)
     (state : ShadeState)
     (allowed : allowedFor component quadrant state = true) :
     rightWeight quadrant state - leftWeight quadrant state =
-      upWeight quadrant state - downWeight quadrant state := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+      upWeight quadrant state - downWeight quadrant state :=
+  (localGeometry_unpack allowed).1
 
 /-- A west-pointing bottom edge and a north-pointing left edge would be a
 right turn, so they cannot meet at an allowed quarter tile. -/
 private theorem not_right_negative_and_up_negative_of_allowed
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true) :
-    ¬ (rightWeight quadrant state = -1 ∧ upWeight quadrant state = -1) := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+    ¬ (rightWeight quadrant state = -1 ∧ upWeight quadrant state = -1) :=
+  (localGeometry_unpack allowed).2.1
 
 private theorem horizontal_none_weights_zero
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = none) :
     rightWeight quadrant state = 0 ∧ leftWeight quadrant state = 0 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.1
+  rwa [hselected] at h
 
 private theorem vertical_none_weights_zero
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = none) :
     upWeight quadrant state = 0 ∧ downWeight quadrant state = 0 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.2.1
+  rwa [hselected] at h
 
 private theorem horizontal_south_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .south) :
     rightWeight quadrant state = -1 ∨ leftWeight quadrant state = -1 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.1
+  rwa [hselected] at h
 
 private theorem horizontal_north_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedHorizontalFor component quadrant state = some .north) :
     rightWeight quadrant state = 1 ∨ leftWeight quadrant state = 1 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.1
+  rwa [hselected] at h
 
 private theorem vertical_west_has_negative_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .west) :
     upWeight quadrant state = -1 ∨ downWeight quadrant state = -1 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.2.1
+  rwa [hselected] at h
 
 private theorem vertical_east_has_positive_weight
     (component : Thick) (quadrant : Quadrant) (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (hselected : selectedVerticalFor component quadrant state = some .east) :
     upWeight quadrant state = 1 ∨ downWeight quadrant state = 1 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+  have h := (localGeometry_unpack allowed).2.2.2.1
+  rwa [hselected] at h
 
 /-- A horizontal light wire leaves no vertical light edge in the same quarter. -/
 private theorem up_zero_of_horizontal_light (component : Thick) (quadrant : Quadrant)
     (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (west : state.west = some .light) (east : state.east = some .light) :
-    upWeight quadrant state = 0 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+    upWeight quadrant state = 0 :=
+  (localGeometry_unpack allowed).2.2.2.2.1 west east
 
 /-- A vertical light wire leaves no horizontal light edge in the same quarter. -/
 private theorem right_zero_of_vertical_light (component : Thick) (quadrant : Quadrant)
     (state : ShadeState)
     (allowed : allowedFor component quadrant state = true)
     (south : state.south = some .light) (north : state.north = some .light) :
-    rightWeight quadrant state = 0 := by
-  rcases state with ⟨w, e, s, n⟩
-  revert w e s n
-  cases component <;> cases quadrant <;> decide
+    rightWeight quadrant state = 0 :=
+  (localGeometry_unpack allowed).2.2.2.2.2 south north
 
 private def rightWeightAt (stateGrid : Nat → Nat → ShadeState)
     (x y : Nat) : Int :=

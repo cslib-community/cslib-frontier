@@ -288,7 +288,7 @@ theorem eufCMA_toSignatureScheme_leakNonNScheme {S : SignatureScheme} (hS : S.EU
         (fun p : ℕ × List Bool => (p.1, encPair encUnary encBits (p.1, p.2)))
         (encPair encUnary encBits) (encPair encUnary encBits) :=
       (ComputableInPolyTime.fst _ _).prod henc
-    exact hadversary.on.preprocess' hprep
+    exact hadversary.on.preprocess hprep
   have heq : ∀ n,
       ProbComp.eval ((leakNonNScheme S).toSignatureScheme.eufCmaGame adversary n) =
         ProbComp.eval (S.eufCmaGame wrapped n) := by

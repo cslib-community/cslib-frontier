@@ -518,7 +518,7 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
           ctrKeystreamQueries x.1.1.1
             (nonceCTRCounter x.1.1.1 (nonceLen x.1.1.1) (dropFrame (dropFrame x.2.1.2)) 0)
             ((unframe x.2.1.2).length / x.1.1.1)) := by
-    refine hks.map_with' ?_
+    refine hks.map_with ?_
     let fstP := ComputableInPolyTime.fst encHandlerCallNonceCTR encBits
     let sndP := ComputableInPolyTime.snd encHandlerCallNonceCTR encBits
     have hsel : ComputableInPolyTime
@@ -584,7 +584,7 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
           pure ([], x.2.2) :=
     funext fun x => nonceCTRHandler_eq_ite nonceLen x.1.1.1 x.1.2 x.2.1 x.2.2
   rw [heq]
-  exact IsOraclePPTOn.cond' hcondOuter (IsOraclePPTOn.cond' hcondInner hyesInner hnoInner)
+  exact IsOraclePPTOn.cond hcondOuter (IsOraclePPTOn.cond hcondInner hyesInner hnoInner)
     hnoOuter
 
 /-- **Efficiency of the Theorem 5.6 reduction.** When `nonceLen` is computable in polynomial time

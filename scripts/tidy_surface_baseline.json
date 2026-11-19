@@ -42,11 +42,6 @@
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Universal/Machine.lean": 2,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Universal/PolyTime.lean": 4,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Universal/SpaceBudget.lean": 2,
- "CslibFrontier/Computability/Probabilistic/Adaptive.lean": 5,
  "CslibFrontier/Computability/Probabilistic/Oracle.lean": 1,
- "CslibFrontier/Computability/Probabilistic/Oracle/Composition.lean": 8,
- "CslibFrontier/Computability/Probabilistic/PPT.lean": 1,
- "CslibFrontier/Computability/Probabilistic/PPT/Capture.lean": 4,
- "CslibFrontier/Computability/Probabilistic/Parameter.lean": 1,
  "CslibFrontier/Tactic/PolyTime.lean": 3
 }

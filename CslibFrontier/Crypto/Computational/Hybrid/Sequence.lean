@@ -241,7 +241,7 @@ theorem isPPTOn_sequenceTest {Param : Type} {input : Param ↪ List Bool} {sampl
   have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
   have hfalse : IsPPTOn (encPair input encUnary) encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hsplice hfalse
+  have hbranch := IsPPTOn.ite hcond hsplice hfalse
   simpa only [sequenceTest, Function.comp_def] using hfirst.bind_with hbranch
 
 attribute [program_certificate] isPPTOn_sequenceTest
