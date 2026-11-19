@@ -210,4 +210,24 @@ theorem traceNorm_conjTranspose (A : Matrix m n ℂ) : Aᴴ.traceNorm = A.traceN
       (posSemidef_conjTranspose_mul_self A), CFC.sqrt_zero, CFC.sqrt_zero] at h
   simpa [Matrix.trace, Fintype.sum_sum_type, fromBlocks] using h
 
+/-- Trace is invariant under unitary conjugation. -/
+theorem trace_conjStarAlgAut (U : unitary (Matrix n n ℂ)) (A : Matrix n n ℂ) :
+    (Unitary.conjStarAlgAut ℂ _ U A).trace = A.trace := by
+  rw [Unitary.conjStarAlgAut_apply, trace_mul_cycle, Unitary.coe_star_mul_self, Matrix.one_mul]
+
+/-- Trace norm is invariant under unitary conjugation. -/
+theorem traceNorm_conjStarAlgAut (U : unitary (Matrix n n ℂ)) (A : Matrix n n ℂ) :
+    (Unitary.conjStarAlgAut ℂ _ U A).traceNorm = A.traceNorm := by
+  let F := Unitary.conjStarAlgAut ℂ _ U
+  let H := CFC.sqrt (Aᴴ * A)
+  have hH : H.PosSemidef := Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)
+  have hpos : (F H).PosSemidef := hH.mul_mul_conjTranspose_same (U : Matrix n n ℂ)
+  have hroot : CFC.sqrt ((F A)ᴴ * F A) = F H := by
+    apply CFC.sqrt_unique _ hpos.nonneg
+    rw [← map_mul, ← star_eq_conjTranspose (F A), ← map_star, ← map_mul]
+    change F (CFC.sqrt (Aᴴ * A) * CFC.sqrt (Aᴴ * A)) = F (Aᴴ * A)
+    rw [CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
+  change (CFC.sqrt ((F A)ᴴ * F A)).trace.re = H.trace.re
+  rw [hroot, trace_conjStarAlgAut]
+
 end Matrix
