@@ -41,6 +41,15 @@ probability `1 / 2`, losing at most a factor of `2` (`succProbability_indexedEuf
 In particular, doubling upgrades any capacity-`1` indexed signature scheme to the `2 ≤ capacity n`
 hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 
+Both results are steps toward construction `(14.4)` (printed p. 597) and Exercise 13.2 (printed
+p. 575), not those results: the source takes any number `q` of keys, with loss `q`, and only
+`q = 2` is formalized here (#5293). The security theorem also assumes `S.IndexedEUFCMA`, whose game
+counts a forgery at an index `u ≥ S.capacity n`, which the message space `{1, …, q} × M` of
+[BonehShoup2023], Definition 14.6, excludes (#5686). The concrete bound survives restricting
+forgeries to that domain: on its left, `doubleVerify` rejects every index `u ≥ 2`, and on its
+right, `doubleForgerAt` forges at index `0`. The asymptotic theorem still states the stronger
+general premise.
+
 ## Main definitions
 
 * `Cslib.Crypto.IndexedSignatureScheme.doubleKeyDecoder`: pair decoder for bundled public and secret
@@ -57,11 +66,12 @@ hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 ## Main results
 
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_indexedEufCmaGame_double_le`: forging
-  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`.
+  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`
+  (a step).
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_doubleForger`: `doubleForger` is uniformly strict
   oracle PPT.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.double`: `IndexedEUFCMA` is preserved by
-  `S.double hcap`.
+  `S.double hcap` (a step).
 
 ## References
 
@@ -146,9 +156,9 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
       funext p; simp only [doubleSign, beq_iff_eq]
     rw [heq]
     have h0msg := (ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg
-    exact IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 0))
+    exact IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 0))
       (S.sign_ppt.preprocess (hdec.fst'.prod h0msg))
-      (IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 1))
+      (IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 1))
         (S.sign_ppt.preprocess (hdec.snd'.prod h0msg))
         (ComputableInPolyTime.const []).isPPTOn)
   verify_polyTime := by
@@ -411,11 +421,16 @@ private theorem eval_indexedEufCmaGame_doubleForgerAt (S : IndexedSignatureSchem
   simp only [indexedEufCmaGame, doubleForgerAt, runWith_norm, pmf_norm]
   rfl
 
-/-- **Plug-and-pray bound for `S.double hcap`** ([BonehShoup2023], Section 14.6.1, Exercise 13.2):
-for every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
+/-- Plug-and-pray bound with loss `2` for `S.double hcap`: a step toward the `q`-key bound behind
+[BonehShoup2023], construction `(14.4)` and Exercise 13.2, not the cited result, which takes any
+number `q` of keys with loss `q`, where this fixes `q = 2` (#5293).
+
+For every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
 length of every supported `S`-signature at index `0` on an `L`-bit message, the forging probability
 against `S.double hcap` is at most `2` times the forging probability of `S.doubleForger` against
-`S`. -/
+`S`. Both winning probabilities are unchanged if forgeries must name an index below the capacity,
+as Definition 14.6 requires (#5686): `doubleVerify` rejects every index `u ≥ 2` on the left, and
+`doubleForgerAt` forges at index `0` on the right. -/
 theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     (hcap : ∀ n, 1 ≤ S.capacity n) {bound : ℕ → ℕ → ℕ} {n : ℕ}
     (hbound : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ msg,
@@ -635,10 +650,10 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
           (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
             ProbOracleComp.sample (S.sign pair.1.2.2 0 (requestDecoder.decode pair.2.1.2).2)
       else pure ([], pair.2.2))
-  refine IsOraclePPTOn.ite' hfreshDec (IsOraclePPTOn.ite' hslotDec ?_ ?_)
+  refine IsOraclePPTOn.ite hfreshDec (IsOraclePPTOn.ite hslotDec ?_ ?_)
     (((ComputableInPolyTime.const []).prod hsigned).isOraclePPTOn)
   · have hqword := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hr2).encoding_comp
-    exact (IsOraclePPTOn.query_take' () hqword hb).map_with' hconsLog
+    exact (IsOraclePPTOn.query_take () hqword hb).map_with hconsLog
   · have hsignLocal := (S.sign_ppt.preprocess
       (hotherSk.prod ((ComputableInPolyTime.const 0).prod hr2))).map_with
       (f := fun pair sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) hconsLog
@@ -771,9 +786,18 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
 
 /-! ### Security preservation -/
 
-/-- **Doubling preserves `IndexedEUFCMA`** ([BonehShoup2023], Section 14.6.1, construction `(14.4)`
-at `q = 2`): if `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then `S.double hcap`
-is indexed EUF-CMA secure of capacity `2`. -/
+/-- If `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then so is the capacity-`2`
+scheme `S.double hcap`: a step toward [BonehShoup2023], construction `(14.4)`, not the cited
+result, since it fixes `q = 2` where the source takes any `q` (#5293), and its premise
+`S.IndexedEUFCMA` also counts forgeries at an index `u ≥ S.capacity n`, which the source's message
+space `{1, …, q} × M` excludes (#5686).
+
+The source gives construction `(14.4)` from a one-time signature (Section 14.6.1, printed p. 597)
+and proves it secure by the plug-and-pray argument of Exercise 13.2 (printed p. 575). Here the base
+scheme is any indexed scheme of capacity at least `1`, used at index `0`. The concrete bound
+`succProbability_indexedEufCmaGame_double_le` survives restricting forgeries to the source's index
+domain, since `doubleVerify` rejects every index `u ≥ 2` and `doubleForgerAt` forges at index `0`,
+but this theorem still states the stronger general premise. -/
 theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by

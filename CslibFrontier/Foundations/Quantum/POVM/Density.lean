@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.POVM
-public import CslibFrontier.Foundations.Quantum.DensityMatrix
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
+import all Mathlib.Analysis.Matrix.Order
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
 
 /-!
@@ -66,6 +67,35 @@ theorem sum_densityProb (M : POVM A ι) (ρ : Matrix ι ι ℂ) :
     ∑ a, M.densityProb ρ a = ρ.trace.re := by
   simp only [densityProb, ← Complex.re_sum, ← Matrix.trace_sum, ← Matrix.sum_mul,
     M.sum_effect, Matrix.one_mul]
+
+open scoped MatrixOrder in
+/-- For any two linear maps applied to the same positive input, the square roots of the
+weights of any final measurement outcome differ by at most the input-weighted norm of the
+difference of the maps. The input may be mixed or subnormalized. -/
+theorem abs_sqrt_densityProb_sub_le {α ι κ : Type*}
+    [Fintype α] [Fintype ι] [Fintype κ] [DecidableEq κ] (M : POVM α κ) (a : α)
+    {ρ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef) (U V : Matrix κ ι ℂ) :
+    |√(M.densityProb (densityConj U ρ) a) - √(M.densityProb (densityConj V ρ) a)| ≤
+      √(densityConj (U - V) ρ).trace.re := by
+  classical
+  obtain ⟨L, hL⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (M.posSemidef a).nonneg
+  let _ := Matrix.toMatrixSeminormedAddCommGroup κ ρ hρ
+  have born (W : Matrix κ ι ℂ) :
+      √(M.densityProb (densityConj W ρ) a) = ‖L * W‖ := by
+    rw [densityConj_apply]
+    change √(M.effect a * (W * ρ * Wᴴ)).trace.re =
+      √((L * W) * ρ * (L * W)ᴴ).trace.re
+    rw [hL, star_eq_conjTranspose, conjTranspose_mul, Matrix.mul_assoc Lᴴ L, trace_mul_comm Lᴴ]
+    simp only [Matrix.mul_assoc]
+  have psd := hρ.mul_mul_conjTranspose_same (U - V)
+  have le : M.densityProb (densityConj (U - V) ρ) a ≤ (densityConj (U - V) ρ).trace.re := by
+    rw [← M.sum_densityProb, densityConj_apply]
+    exact Finset.single_le_sum (fun i _ => M.densityProb_nonneg psd i) (Finset.mem_univ a)
+  calc
+    _ = |‖L * U‖ - ‖L * V‖| := by rw [born, born]
+    _ ≤ ‖L * U - L * V‖ := abs_norm_sub_norm_le ..
+    _ = √(M.densityProb (densityConj (U - V) ρ) a) := by rw [born, Matrix.mul_sub]
+    _ ≤ _ := Real.sqrt_le_sqrt le
 
 /-- POVM probabilities are additive in the state matrix. -/
 theorem densityProb_add (M : POVM A ι) (ρ σ : Matrix ι ι ℂ) (a : A) :

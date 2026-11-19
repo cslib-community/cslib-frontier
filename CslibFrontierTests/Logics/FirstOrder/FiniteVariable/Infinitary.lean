@@ -21,9 +21,8 @@ Covers:
 3. `EVEN` cardinality (`evenCardInfinitary` in `C^1_{∞ω}`) evaluated positively on `Fin 2`,
    `Fin 4` and negatively on `Fin 1`, `Fin 3`, contrasted with non-definability in `L^k_{∞ω}` and
    `PebbleWinsForever` between `Fin (k + 1)` and `Fin (k + 2)`.
-4. Embeddings (`Formula.toInfinitary`, `CountingFormula.toInfinitary`,
-   `InfinitaryFormula.toCounting`), `k = 0` edge cases, and finite-model collapse instances
-   (`L^k_{∞ω} ≡ FO^k`, `C^k_{∞ω} ≡ C^k`).
+4. Embeddings (`GenFormula.toInfinitary`, `InfinitaryFormula.toCounting`), `k = 0` edge cases,
+   and finite-model collapse instances (`L^k_{∞ω} ≡ FO^k`, `C^k_{∞ω} ≡ C^k`).
 -/
 
 open FirstOrder Language Structure Cslib.Logic.FO Cslib.Logic.FO.FiniteVariable
@@ -143,7 +142,8 @@ example : (⊥ : SimpleGraph Empty).Preconnected ∧ ¬(⊥ : SimpleGraph Empty)
 
 /-- Strict order `v_i < v_j` in `L^2_{∞ω}` over `Language.order`. -/
 def ltAtom (i j : Fin 2) : InfinitaryFormula.{0, 0, 0} Language.order 2 :=
-  (InfinitaryFormula.rel leSymb ![i, j]) ⊓ (InfinitaryFormula.equal i j).not
+  (.rel leSymb ![i, j] : InfinitaryFormula.{0, 0, 0} Language.order 2) ⊓
+    (.equal i j : InfinitaryFormula.{0, 0, 0} Language.order 2).not
 
 mutual
 /-- Two-pebble alternating formula asserting a strictly increasing chain of `d` steps starting
@@ -166,20 +166,20 @@ def infiniteAscChain : InfinitaryFormula.{0, 0, 0} Language.order 2 :=
 
 mutual
 theorem freeVars_ascFromZero : ∀ d : ℕ, (ascFromZero d).freeVars ⊆ ({0} : Set (Fin 2))
-  | 0 => by simp only [ascFromZero, InfinitaryFormula.freeVars_top_inst, Set.empty_subset]
+  | 0 => by simp only [ascFromZero, InfinitaryGenFormula.freeVars_top_inst, Set.empty_subset]
   | d + 1 => by
-    simp only [ascFromZero, InfinitaryFormula.freeVars_ex, InfinitaryFormula.freeVars_min,
-      ltAtom, InfinitaryFormula.freeVars_not, InfinitaryFormula.freeVars_equal,
-      InfinitaryFormula.freeVars_rel, Set.sdiff_subset_iff]
+    simp only [ascFromZero, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
+      ltAtom, InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_equal,
+      InfinitaryGenFormula.freeVars_rel, Set.sdiff_subset_iff]
     intro x _
     fin_cases x <;> simp
 
 theorem freeVars_ascFromOne : ∀ d : ℕ, (ascFromOne d).freeVars ⊆ ({1} : Set (Fin 2))
-  | 0 => by simp only [ascFromOne, InfinitaryFormula.freeVars_top_inst, Set.empty_subset]
+  | 0 => by simp only [ascFromOne, InfinitaryGenFormula.freeVars_top_inst, Set.empty_subset]
   | d + 1 => by
-    simp only [ascFromOne, InfinitaryFormula.freeVars_ex, InfinitaryFormula.freeVars_min,
-      ltAtom, InfinitaryFormula.freeVars_not, InfinitaryFormula.freeVars_equal,
-      InfinitaryFormula.freeVars_rel, Set.sdiff_subset_iff]
+    simp only [ascFromOne, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
+      ltAtom, InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_equal,
+      InfinitaryGenFormula.freeVars_rel, Set.sdiff_subset_iff]
     intro x _
     fin_cases x <;> simp
 end
@@ -187,25 +187,27 @@ end
 theorem freeVars_infiniteAscChain : infiniteAscChain.freeVars = ∅ := by
   rw [Set.eq_empty_iff_forall_notMem]
   intro x hx
-  simp only [infiniteAscChain, InfinitaryFormula.freeVars_ex, InfinitaryFormula.freeVars_iInf,
-    Set.mem_sdiff, Set.mem_iUnion, Set.mem_singleton_iff] at hx
+  simp only [infiniteAscChain, InfinitaryGenFormula.freeVars_ex,
+    InfinitaryGenFormula.freeVars_iInf, Set.mem_sdiff, Set.mem_iUnion, Set.mem_singleton_iff] at hx
   obtain ⟨⟨d, hd⟩, hx0⟩ := hx
   exact hx0 (Set.mem_singleton_iff.1 (freeVars_ascFromZero d hd))
 
 mutual
 theorem not_quantifierRankLE_ascFromZero : ∀ n : ℕ, ¬(ascFromZero (n + 1)).QuantifierRankLE n
-  | 0 => by simp only [ascFromZero, InfinitaryFormula.quantifierRankLE_ex_zero, not_false_eq_true]
+  | 0 => by
+    simp only [ascFromZero, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
   | n + 1 => by
-    simp only [ascFromZero, InfinitaryFormula.quantifierRankLE_ex_succ,
-      InfinitaryFormula.quantifierRankLE_min]
+    simp only [ascFromZero, InfinitaryGenFormula.quantifierRankLE_ex_succ,
+      InfinitaryGenFormula.quantifierRankLE_min]
     rintro ⟨-, h⟩
     exact not_quantifierRankLE_ascFromOne n h
 
 theorem not_quantifierRankLE_ascFromOne : ∀ n : ℕ, ¬(ascFromOne (n + 1)).QuantifierRankLE n
-  | 0 => by simp only [ascFromOne, InfinitaryFormula.quantifierRankLE_ex_zero, not_false_eq_true]
+  | 0 => by
+    simp only [ascFromOne, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
   | n + 1 => by
-    simp only [ascFromOne, InfinitaryFormula.quantifierRankLE_ex_succ,
-      InfinitaryFormula.quantifierRankLE_min]
+    simp only [ascFromOne, InfinitaryGenFormula.quantifierRankLE_ex_succ,
+      InfinitaryGenFormula.quantifierRankLE_min]
     rintro ⟨-, h⟩
     exact not_quantifierRankLE_ascFromZero n h
 end
@@ -214,18 +216,18 @@ end
 theorem not_quantifierRankLE_infiniteAscChain (n : ℕ) : ¬infiniteAscChain.QuantifierRankLE n := by
   cases n with
   | zero =>
-    simp only [infiniteAscChain, InfinitaryFormula.quantifierRankLE_ex_zero, not_false_eq_true]
+    simp only [infiniteAscChain, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
   | succ m =>
-    simp only [infiniteAscChain, InfinitaryFormula.quantifierRankLE_ex_succ,
-      InfinitaryFormula.quantifierRankLE_iInf]
+    simp only [infiniteAscChain, InfinitaryGenFormula.quantifierRankLE_ex_succ,
+      InfinitaryGenFormula.quantifierRankLE_iInf]
     intro hall
     exact not_quantifierRankLE_ascFromZero m (hall (m + 1))
 
 theorem realize_ltAtom {M : Type*} [LinearOrder M] [Language.order.Structure M]
     [Language.order.OrderedStructure M] (i j : Fin 2) (a : Fin 2 → M) :
     (ltAtom i j).Realize a ↔ a i < a j := by
-  simp only [ltAtom, InfinitaryFormula.realize_min, InfinitaryFormula.realize_rel,
-    InfinitaryFormula.realize_not, InfinitaryFormula.realize_equal]
+  simp only [ltAtom, InfinitaryGenFormula.realize_min, InfinitaryGenFormula.realize_rel,
+    InfinitaryGenFormula.realize_not, InfinitaryGenFormula.realize_equal]
   have hle : RelMap (leSymb : Language.order.Relations 2) (a ∘ ![i, j]) ↔ a i ≤ a j :=
     (relMap_leSymb (L := Language.order) _).trans ⟨fun h => h, fun h => h⟩
   rw [hle, lt_iff_le_and_ne]
@@ -236,11 +238,11 @@ theorem realize_ascFromZero_nat : ∀ (d : ℕ) (a : Fin 2 → ℕ),
       (ascFromZero d).Realize a)
   | 0, _ => by
     let _ : Language.order.Structure ℕ := orderStructure ℕ
-    simp only [ascFromZero, InfinitaryFormula.realize_top_inst]
+    simp only [ascFromZero, InfinitaryGenFormula.realize_top_inst]
   | d + 1, a => by
     let _ : Language.order.Structure ℕ := orderStructure ℕ
     have _ : Language.order.OrderedStructure ℕ := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromZero, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min]
+    simp only [ascFromZero, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
     refine ⟨a 0 + 1, ?_, realize_ascFromOne_nat d _⟩
     rw [realize_ltAtom]
     simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
@@ -251,11 +253,11 @@ theorem realize_ascFromOne_nat : ∀ (d : ℕ) (a : Fin 2 → ℕ),
       (ascFromOne d).Realize a)
   | 0, _ => by
     let _ : Language.order.Structure ℕ := orderStructure ℕ
-    simp only [ascFromOne, InfinitaryFormula.realize_top_inst]
+    simp only [ascFromOne, InfinitaryGenFormula.realize_top_inst]
   | d + 1, a => by
     let _ : Language.order.Structure ℕ := orderStructure ℕ
     have _ : Language.order.OrderedStructure ℕ := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromOne, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min]
+    simp only [ascFromOne, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
     refine ⟨a 1 + 1, ?_, realize_ascFromZero_nat d _⟩
     rw [realize_ltAtom]
     simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)]
@@ -270,7 +272,7 @@ theorem bound_of_realize_ascFromZero {n : ℕ} : ∀ (d : ℕ) (a : Fin 2 → Fi
   | d + 1, a, h => by
     let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
     have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromZero, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min] at h
+    simp only [ascFromZero, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min] at h
     obtain ⟨c, hlt, hd⟩ := h
     rw [realize_ltAtom] at hlt
     simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)] at hlt
@@ -286,7 +288,7 @@ theorem bound_of_realize_ascFromOne {n : ℕ} : ∀ (d : ℕ) (a : Fin 2 → Fin
   | d + 1, a, h => by
     let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
     have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromOne, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_min] at h
+    simp only [ascFromOne, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min] at h
     obtain ⟨c, hlt, hd⟩ := h
     rw [realize_ltAtom] at hlt
     simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)] at hlt
@@ -301,7 +303,7 @@ example :
     (letI : Language.order.Structure ℕ := orderStructure ℕ;
       infiniteAscChain.Realize (fun _ => (0 : ℕ))) := by
   let _ : Language.order.Structure ℕ := orderStructure ℕ
-  simp only [infiniteAscChain, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_iInf]
+  simp only [infiniteAscChain, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_iInf]
   exact ⟨0, fun d => realize_ascFromZero_nat d _⟩
 
 /-- `infiniteAscChain` fails on every finite linear order `(Fin n, ≤)`. -/
@@ -309,7 +311,7 @@ example (n : ℕ) (a : Fin 2 → Fin n) :
     ¬(letI : Language.order.Structure (Fin n) := orderStructure (Fin n);
       infiniteAscChain.Realize a) := by
   let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
-  simp only [infiniteAscChain, InfinitaryFormula.realize_ex, InfinitaryFormula.realize_iInf]
+  simp only [infiniteAscChain, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_iInf]
   rintro ⟨c, hall⟩
   have h := bound_of_realize_ascFromZero n (Function.update a 0 c) (hall n)
   omega
@@ -377,19 +379,23 @@ example :
 example (φ : InfinitaryFormula.{0, 0, 0} Language.graph 0) : φ.freeVars = ∅ :=
   Set.eq_empty_of_isEmpty _
 
-/-- Embedding `Formula.toInfinitary` commutes with `InfinitaryFormula.toCounting` and preserves
-realization and quantifier rank. -/
+/-- Embedding `GenFormula.toInfinitary` composes with `InfinitaryFormula.toCounting` and preserves
+realization and quantifier rank (and likewise for `CountingFormula`). -/
 example (G : SimpleGraph (Fin 4)) (φ : FiniteVariable.Formula Language.graph 2)
-    (a : Fin 2 → Fin 4) :
+    (ψ : FiniteVariable.CountingFormula Language.graph 2) (a : Fin 2 → Fin 4) :
     (letI := G.structure;
-      ((φ.toInfinitary : InfinitaryFormula.{0, 0, 0} Language.graph 2).toCounting.Realize a ↔
-        φ.Realize a)) ∧
-      ((φ.toInfinitary : InfinitaryFormula.{0, 0, 0} Language.graph 2).toCounting.QuantifierRankLE
-        φ.quantifierRank) := by
+      ((show InfinitaryFormula.{0, 0, 0} Language.graph 2 from φ.toInfinitary).toCounting.Realize
+          a ↔ φ.Realize a)) ∧
+      ((show InfinitaryFormula.{0, 0, 0} Language.graph 2 from
+          φ.toInfinitary).toCounting.QuantifierRankLE φ.quantifierRank) ∧
+      (letI := G.structure;
+        ((ψ.toInfinitary : InfinitaryCountingFormula.{0, 0, 0} Language.graph 2).Realize a ↔
+          ψ.Realize a)) := by
   let _ := G.structure
-  refine ⟨by rw [InfinitaryFormula.realize_toCounting, Formula.realize_toInfinitary], ?_⟩
+  refine ⟨by rw [InfinitaryFormula.realize_toCounting, GenFormula.realize_toInfinitary], ?_,
+    GenFormula.realize_toInfinitary ψ a⟩
   rw [InfinitaryFormula.quantifierRankLE_toCounting]
-  exact (Formula.quantifierRankLE_toInfinitary φ φ.quantifierRank).2 le_rfl
+  exact (GenFormula.quantifierRankLE_toInfinitary φ φ.quantifierRank).2 le_rfl
 
 /-- Finite-model collapse (`L^k_{∞ω} ≡ FO^k` and `C^k_{∞ω} ≡ C^k`) instantiated on finite graphs:
 two finite graphs agree on all `C^2_{∞ω}` sentences iff they agree on finitary `C^2`. -/

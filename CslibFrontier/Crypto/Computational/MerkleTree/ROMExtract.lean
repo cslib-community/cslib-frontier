@@ -555,8 +555,7 @@ theorem extractLeafFromTrace_eq_some_of_merkleVerify {tr : List (List Bool × Li
     (hfree : TraceCollisionFree tr) (hpath : PathQueriedInTrace H k tr i leaf path)
     (hver : merkleVerify H k d rt i leaf path = true) :
     extractLeafFromTrace tr d rt i = some leaf := by
-  simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-  obtain ⟨⟨hlen, -⟩, hroot⟩ := hver
+  obtain ⟨hlen, -, -, hroot⟩ := merkleVerify_eq_true_iff.mp hver
   rw [← hlen, ← hroot]
   exact extractLeafFromTrace_eq_some_of_merkleRootOfPath hfree hpath
 
@@ -567,9 +566,7 @@ theorem getD_extractTableFromTrace_eq_of_merkleVerify {tr : List (List Bool × L
     (hfree : TraceCollisionFree tr) (hpath : PathQueriedInTrace H k tr i leaf path)
     (hver : merkleVerify H k d rt i leaf path = true) :
     (extractTableFromTrace tr d rt defaultLeaf).getD i defaultLeaf = leaf := by
-  have hi : i < 2 ^ d := by
-    simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-    exact hver.1.2
+  have hi : i < 2 ^ d := (merkleVerify_eq_true_iff.mp hver).2.1
   rw [getD_extractTableFromTrace hi,
     extractLeafFromTrace_eq_some_of_merkleVerify hfree hpath hver, Option.getD_some]
 
@@ -621,8 +618,7 @@ theorem extractTraceCollision_spec {tr : List (List Bool × List Bool)} {d : ℕ
     (hne : extractLeafFromTrace tr d rt i ≠ some leaf) :
     let col := extractTraceCollision H k tr i leaf path
     (col.1, H k col.1) ∈ tr ∧ (col.2, H k col.1) ∈ tr ∧ col.1 ≠ col.2 ∧ H k col.1 = H k col.2 := by
-  simp only [merkleVerify, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hver
-  obtain ⟨⟨hlen, -⟩, hroot⟩ := hver
+  obtain ⟨hlen, -, -, hroot⟩ := merkleVerify_eq_true_iff.mp hver
   have hnot_all : ¬ ∀ q ∈ merkleInputs H k leaf i path, findQueryInTrace tr (H k q) = some q := by
     intro hall
     apply hne

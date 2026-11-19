@@ -361,8 +361,8 @@ private theorem isOraclePPTOn_counterHandler {bound : ℕ → ℕ → ℕ}
         M.counterHandler pair.1.1 bound pair.2.1 pair.2.2) := by
   have hnonce := M.nonceLen_polyTime
   unfold counterHandler
-  exact IsOraclePPTOn.ite' (by fun_prop)
-    ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop))
+  exact IsOraclePPTOn.ite (by fun_prop)
+    ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
     (ComputableInPolyTime.isOraclePPTOn (by fun_prop))
 
 /-- The counter handler's reply and counter growth are bounded by the truncation bound and the

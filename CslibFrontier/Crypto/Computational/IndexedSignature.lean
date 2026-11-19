@@ -37,10 +37,11 @@ The definition here differs from [BonehShoup2023], Definition 14.6, in four labe
 * Instead of forbidding the adversary to repeat an index, the signing oracle refuses a repeated
   index, and an index `u ≥ q`, by returning the empty word and recording nothing. Every oracle
   adversary is therefore admissible.
-* A forgery may name any index, whereas the source's message space is `{1, …, q} × M`. The
-  structure does not require verification to reject an index `u ≥ q`; the game does. The oracle
-  never signs at such an index, so a forger that finds a valid signature there wins. This
-  strengthens the source notion.
+* A forgery may name any index, whereas the source's message space is `{1, …, q} × M`. Neither
+  the structure nor the game requires rejection at an index `u ≥ q`: the signing oracle refuses
+  such a query, but the winning test checks only freshness and verification, with no index guard.
+  The oracle never signs at such an index, so a forger that finds a valid signature there wins.
+  This strengthens the source notion (#5686).
 
 A request to the signing oracle is the word `encPair encUnary encBits (u, msg)`. The oracle reads
 every word with the total decoder `requestDecoder`.
@@ -169,7 +170,7 @@ def indexedSigningOracle (S : IndexedSignatureScheme) (n : ℕ) (sk : List Bool)
 
 /-- The indexed EUF-CMA experiment: sample `(pk, sk) ← keyGen n`, run the forger on `(n, pk)`
 with the indexed signing oracle, and accept a valid signature on a pair `(u, msg)` that was never
-signed. -/
+signed. There is no index guard: a forgery at `u ≥ capacity n` counts (#5686). -/
 def indexedEufCmaGame (S : IndexedSignatureScheme) (adversary : IndexedForger) (n : ℕ) :
     ProbComp Bool := do
   let keys ← S.keyGen n
@@ -251,8 +252,8 @@ theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : Inde
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
     IsPPTOn encUnary encBool (S.indexedEufCmaGame adversary) := by
   have hrun := S.isPPTOn_run_indexedSigningOracle hadversary
-  have hverify := S.verify_polyTime.tidy
-  have hpost : ComputableTidilyInPolyTime
+  have hverify := S.verify_polyTime
+  have hpost : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) ×
           ((ℕ × List Bool × List Bool) × List (ℕ × List Bool)) =>
         !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.NodeInitialize
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Complete charged native rounds of a Chan–He node
@@ -114,18 +115,14 @@ theorem exec_prepare {w : ℕ} (x y : Data 64) (j : Fin 3)
   dsimp only [L] at *
   fin_cases j <;> simp only [Fin.mk_zero, Fin.mk_one]
   all_goals
-    refine ⟨?_, ?_, ?_, ?_⟩
-    rotate_left
-    · ram_eval [prepare, descriptorCode, tagCode, distanceCode, Fin.val_zero, Fin.val_one,
-        hk, hh, hp, hg, h1, h4, hl, hs, hb, hm, f0, f1, f2, f3,
-        fb₀, fb₁, fb₂, fb₃, fo₁, fo₂, ft₁, ft₂, fd]
-    · constructor <;>
-        simp +decide [CountPlace.len, CountPlace.src, CountPlace.scratch,
-          CountPlace.hist, CountPlace.heavy, CountPlace.packed, CountPlace.modulus,
-          CountPlace.tag, CountPlace.column, CountPlace.distance, CountPlace.negative,
-          CountPlace.descriptor, Layout.heavy, Layout.descriptor, Layout.tag, layout,
-          source, length] <;> omega
-    · rfl
+    refine WP.exists_execWithin ?_
+    unfold prepare descriptorCode tagCode distanceCode
+    simp +decide only [↓reduceIte]
+    wram_exec [hk, hh, hp, hg, h1, h4, hl, hs, hb, hm, f0, f1, f2, f3,
+      fb₀, fb₁, fb₂, fb₃, fo₁, fo₂, ft₁, ft₂, fd]
+    refine ⟨?_, by wram_simp⟩
+    constructor <;> wram_simp [Layout.heavy, Layout.descriptor, Layout.tag, layout] <;>
+      simp +decide <;> omega
 
 /-- A complete native round, with all actual counting calls discharged and all pointer,
 tag, duplicate-store and count-descriptor work charged. -/

@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Complex.Basic
 public import Mathlib.Analysis.Convex.Segment
 public import Mathlib.Analysis.SpecialFunctions.Complex.Arg
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
+import CslibFrontier.Foundations.Geometry.SegmentSign
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -30,6 +31,11 @@ Mathlib's affine images of real segments. They make no general-position claim fo
 
 ## Main results
 
+* `Cslib.Polygonal.mem_openChord_iff`: actual open-chord membership is the strict horizontal
+  interval together with the supporting-line equation.
+
+* `Cslib.Polygonal.parabolaChord_slope_ne_of_mem_inter`: a common interior point forces
+  distinct supporting slopes for two different supporting chords.
 * `Cslib.Polygonal.parabolaPoint_mem_segment_iff`: a chord contains no third parabola point.
 * `Cslib.Polygonal.parabolaChord_inter_subsingleton`: distinct supporting chords have at most
   one common interior point.
@@ -91,7 +97,9 @@ private theorem openChord_eq_image (a b : ℝ) :
       chordMap a b '' openSegment ℝ a b := by
   rw [image_openSegment, chordMap_left, chordMap_right]
 
-private theorem mem_openChord_iff {a b : ℝ} (hab : a ≠ b) (z : ℂ) :
+/-- A nondegenerate parabola chord is exactly its strict horizontal interval on its
+supporting line. This characterization supplies actual horizontal cut margins and coordinates. -/
+theorem mem_openChord_iff {a b : ℝ} (hab : a ≠ b) (z : ℂ) :
     z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) ↔
       z.re ∈ Set.Ioo (min a b) (max a b) ∧ z.im = (a + b) * z.re - a * b := by
   rw [openChord_eq_image, openSegment_eq_Ioo' hab]
@@ -155,25 +163,6 @@ private theorem residual_pos_iff (a b x : ℝ) :
       · exact ⟨h.2, h.1⟩
     · exact fun h => Or.inr ⟨h.2, h.1⟩
 
-private theorem zero_mem_openSegment_iff_xor_pos {u v : ℝ} (hu : u ≠ 0) (hv : v ≠ 0) :
-    0 ∈ openSegment ℝ u v ↔ Xor (0 < u) (0 < v) := by
-  have ordered {s t : ℝ} (hst : s ≤ t) (hs : s ≠ 0) :
-      0 ∈ openSegment ℝ s t ↔ Xor (0 < s) (0 < t) := by
-    by_cases he : s = t
-    · subst t
-      simp [openSegment_same, Xor, hs.symm]
-    · rw [openSegment_eq_Ioo (lt_of_le_of_ne hst he)]
-      constructor
-      · intro h
-        exact Or.inr ⟨h.2, not_lt_of_ge h.1.le⟩
-      · rintro (⟨h, hnot⟩ | ⟨h, hnot⟩)
-        · exact False.elim (hnot (h.trans_le hst))
-        · exact ⟨lt_of_le_of_ne (le_of_not_gt hnot) hs, h⟩
-  rcases le_total u v with huv | huv
-  · exact ordered huv hu
-  · rw [openSegment_symm, xor_comm (0 < u) (0 < v)]
-    exact ordered huv hv
-
 private theorem im_gt_sq_of_mem_openChord {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b)) : z.re ^ 2 < z.im := by
   obtain ⟨hbetween, hline⟩ := (mem_openChord_iff hab z).mp hz
@@ -198,7 +187,7 @@ private theorem openChord_inter_nonempty_iff {a b c d : ℝ}
   have hd0 : f d ≠ 0 := by rw [hd]; exact residual_ne_zero had hbd
   have hsign : 0 ∈ openSegment ℝ (f c) (f d) ↔
       Xor (c ∈ Set.Ioo (min a b) (max a b)) (d ∈ Set.Ioo (min a b) (max a b)) := by
-    rw [zero_mem_openSegment_iff_xor_pos hc0 hd0, hc, hd, residual_pos_iff,
+    rw [Cslib.zero_mem_openSegment_iff_xor_pos hc0 hd0, hc, hd, residual_pos_iff,
       residual_pos_iff]
   constructor
   · rintro ⟨z, hz, hw⟩
@@ -229,6 +218,23 @@ private theorem openChord_inter_nonempty_iff {a b c d : ℝ}
     refine ⟨z, ?_, hcdz⟩
     exact (mem_openChord_iff hab z).mpr ⟨(residual_pos_iff a b z.re).mp hpos, hline⟩
 
+/-- Supporting slopes differ when two nondegenerate parabola chords have a common open
+point and the first endpoint of the second differs from both endpoints of the first. -/
+theorem parabolaChord_slope_ne_of_mem_inter {a b c d : ℝ}
+    (hab : a ≠ b) (hcd : c ≠ d) (hac : a ≠ c) (hbc : b ≠ c) {z : ℂ}
+    (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b))
+    (hz' : z ∈ openSegment ℝ (parabolaPoint c) (parabolaPoint d)) :
+    a + b ≠ c + d := by
+  have hza := ((mem_openChord_iff hab z).mp hz).2
+  have hzc := ((mem_openChord_iff hcd z).mp hz').2
+  apply sub_ne_zero.mp
+  intro hsum
+  have hsumz : (a + b - (c + d)) * z.re = 0 := by rw [hsum, zero_mul]
+  have hsumc : (a + b - (c + d)) * c = 0 := by rw [hsum, zero_mul]
+  have hprod : (c - a) * (c - b) = 0 := by
+    nlinarith only [hsumz, hsumc, hza, hzc]
+  exact (mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)) hprod
+
 /-- Two nondegenerate parabola chords have at most one common interior point when the
 first endpoint of the second chord differs from both endpoints of the first. The other
 endpoint may be shared. In particular the claim includes parallel supporting lines. -/
@@ -241,13 +247,8 @@ theorem parabolaChord_inter_subsingleton {a b c d : ℝ}
   have hzc := ((mem_openChord_iff hcd z).mp hz.2).2
   have hwa := ((mem_openChord_iff hab w).mp hw.1).2
   have hwc := ((mem_openChord_iff hcd w).mp hw.2).2
-  have hslope : a + b - (c + d) ≠ 0 := by
-    intro hsum
-    have hsumz : (a + b - (c + d)) * z.re = 0 := by rw [hsum, zero_mul]
-    have hsumc : (a + b - (c + d)) * c = 0 := by rw [hsum, zero_mul]
-    have hprod : (c - a) * (c - b) = 0 := by
-      nlinarith only [hsumz, hsumc, hza, hzc]
-    exact (mul_ne_zero (sub_ne_zero.mpr hac.symm) (sub_ne_zero.mpr hbc.symm)) hprod
+  have hslope : a + b - (c + d) ≠ 0 := sub_ne_zero.mpr
+    (parabolaChord_slope_ne_of_mem_inter hab hcd hac hbc hz.1 hz.2)
   have hprod : (a + b - (c + d)) * (z.re - w.re) = 0 := by
     nlinarith only [hza, hzc, hwa, hwc]
   have hre : z.re = w.re := sub_eq_zero.mp ((mul_eq_zero.mp hprod).resolve_left hslope)

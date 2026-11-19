@@ -205,10 +205,13 @@ theorem rangeTest_generator (P : LinearCongruential) (ha : P.a.Coprime P.q)
   obtain rfl := hinj ht
   rfl
 
-/-- **`G_lcg` is insecure** ([BonehShoup2023], Section 3.7.1, p. 70): the test that recovers the
-state `s` from `a * s + b mod q` and compares `⌊s / w⌋`, run on a challenge in `R × S_q`, has
-advantage exactly `1 - 1 / |R|`, where `|R| = ⌊(q - 1) / w⌋ + 1`. The advantage is at least `1 / 2`
-when `0 < w < q`; otherwise `R` has one element and the advantage is `0`. -/
+/-- **The seed-recovery test has advantage exactly `1 - 1 / |R|` against `G_lcg`**
+([BonehShoup2023], Section 3.7.1, p. 70): the test that recovers the state `s` from
+`a * s + b mod q` and compares `⌊s / w⌋`, run on a challenge in `R × S_q`, has advantage exactly
+`1 - 1 / |R|`, where `|R| = ⌊(q - 1) / w⌋ + 1`. The advantage is at least `1 / 2` when
+`0 < w < q`; otherwise `R` has one element and the advantage is `0`. Boneh–Shoup call `G_lcg`
+clearly insecure for every positive `w ≤ q`; that fails at `w = q`, where `G_lcg(s)` is exactly
+uniform. -/
 theorem advantage_generator_test (P : LinearCongruential) [NeZero P.q] (ha : P.a.Coprime P.q) :
     P.generator.advantage (fun y => PMF.pure (P.test y.1 y.2)) =
       1 - 1 / (((P.q - 1) / P.w + 1 : ℕ) : ℝ) := by
@@ -326,8 +329,11 @@ theorem computableInPolyTime_seedSearch {α : Type} {enc : α ↪ List Bool}
 @[expose] def java8 : LinearCongruential :=
   ⟨2 ^ 48, 0x5DEECE66D, 0x0B, 2 ^ 22⟩
 
-/-- **Seed recovery for Java 8 `Math.random`** ([BonehShoup2023], p. 71): the search over the
-`2 ^ 22` candidates returns the seed, for every seed. The proof uses the first two outputs only. -/
+/-- **Seed recovery in Boneh–Shoup's Java 8 LCG model** ([BonehShoup2023], p. 71): with the
+parameters that the book gives for Java 8 `Math.random`, the search over the `2 ^ 22` candidates
+returns the seed from the model's integer outputs `⌊s_i / w⌋`, for every seed. Java's
+`Math.random` returns a `double`; no correspondence with that interface is formalized here. The
+proof uses the first two outputs only. -/
 theorem seedSearch_java8 {s : ℕ} (hs : s < java8.q) :
     java8.seedSearch (s / java8.w) (java8.next s / java8.w)
       (java8.next (java8.next s) / java8.w) = s := by

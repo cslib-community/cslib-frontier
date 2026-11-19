@@ -338,8 +338,8 @@ private theorem distinctOneBitQuery_isOraclePPT : IsOraclePPT encBool distinctOn
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
     polytime
   unfold distinctOneBitQuery
-  exact ((IsOraclePPTOn.query_take' () hq₀ hlim₀).bind_with
-    ((IsOraclePPTOn.query_take' () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq₀ hlim₀).bind_with
+    ((IsOraclePPTOn.query_take () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
 
 private def funOneBitEquiv : (BitString 1 → BitString 1) ≃ Bool × Bool where
   toFun t := (t (BitString.ofList 1 [false]) 0, t (BitString.ofList 1 [true]) 0)

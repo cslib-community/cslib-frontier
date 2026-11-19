@@ -537,7 +537,7 @@ theorem isPPT_elGamalMsgToDDHDistinguisherWith {Msg : Type} {encMsg : Msg ↪ Li
     · exact hm₁
   have hguardStep := (hguard.comp (hn.prod (hd.prod
     ((hpk.comp (ComputableInPolyTime.fst F.encDDHInput (Encryption.encChoiceOut encMsg))).prod
-      (hm₀.prod hm₁))))).tidy
+      (hm₀.prod hm₁)))))
   have hguessStep := hA.guess.preprocess
     (prepare := fun p : F.DDHInput × Encryption.ChoiceOut Msg =>
       (p.1.secParam, p.2.2, encPair encBits encBits
@@ -552,7 +552,7 @@ theorem isPPT_elGamalMsgToDDHDistinguisherWith {Msg : Type} {encMsg : Msg ↪ Li
       (x.secParam, encPair F.encDesc encBits (x.groupParameters, F.encode _ x.leftPublic)))
     ((show ComputableInPolyTime (fun x : F.DDHInput => x.secParam) _ encUnary by fun_prop).prod
       hpk)).bind_with ?_
-  exact IsPPTOn.cond hguardStep hguessStep (ComputableTidilyInPolyTime.const false).isPPTOn
+  exact IsPPTOn.cond hguardStep hguessStep (ComputableInPolyTime.const false).isPPTOn
 
 /-- Ideal-sampling step toward `DDH.indcpaOn_elGamalEncryptProb`, not the cited result: under DDH
 for any setup law, when `guard` is computable in polynomial time and admits only group elements

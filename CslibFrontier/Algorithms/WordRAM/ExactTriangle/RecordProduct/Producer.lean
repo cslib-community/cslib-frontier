@@ -27,6 +27,49 @@ open Cslib.WordRAM Cslib.Algorithms.ExactTriangle Cslib.Matrix
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
+/-- Postcondition of executing per-record backend `B` on an occupied `Instances.Output` record,
+retaining exact matrix-product answers, caller memory/register frames and query sparsity. -/
+abbrev RecordBackend.OutputPost (B : RecordBackend) {W m n g p : ℕ} (hD : 16 ≤ D m)
+    (hN : D m ^ 18 ≤ n) (values : ℕ → ℤ) (x : Data 320) (idx : InstanceIndex p) : Prop :=
+  let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
+    ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
+  let qs := decodedQueries hn x.mem (recordQueries n (D m) p idx)
+    (recordQueryCount n (D m) p values idx)
+  ∃ y, ExecWithin W B.program x y (B.timeBound m qs) ∧
+    y.regs Reg.result = x.regs 42 + QueriedProduct.outputBase (B.level m) m n qs.length ∧
+    (∀ j : Fin qs.length,
+      y.mem (x.regs 42 + (QueriedProduct.outputBase (B.level m) m n qs.length + j.val)) =
+        Signed.encode ((leftMatrix m n g p values idx * rightMatrix m n g p values idx)
+          (qs.get j).1 (qs.get j).2)) ∧
+    (∀ a, a < x.regs 42 ∨ x.regs 42 + CallableProduct.windowSize n qs.length ≤ a →
+      y.mem a = x.mem a) ∧
+    (∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j) ∧
+    qs.length * 2 ^ m ≤ n ^ 2
+
+/-- Generic producer-to-backend execution for any `RecordBackend`. -/
+theorem RecordBackend.exec_of_output (B : RecordBackend) {W m n g p : ℕ} (values : ℕ → ℤ)
+    (initial : Data 64) (x : Data 320)
+    (h : Instances.Output n (D m) g p values initial (x.comap producerBank))
+    (hD : 16 ≤ D m) (hg : 1 ≤ g) (hp : p ≠ 0) (hN : D m ^ 18 ≤ n)
+    (hheaderD : initial.mem 1 = D m) (hheaderN : initial.mem 3 = n)
+    (idx : InstanceIndex p)
+    (hidx : idx ∈ instanceIndices (fun a b : Fin n => values (pairIndex (a, b))) (D m) g p)
+    (hi : x.regs Reg.ordinal = recordOrdinal n (D m) g p values idx)
+    (hfit : Fits W (2 * x.regs 42 +
+      4 * CallableProduct.windowSize n (recordQueryCount n (D m) p values idx) + 1024)) :
+    B.OutputPost (W := W) (g := g) hD hN values x idx := by
+  obtain ⟨hDmem, hnmem, hrec, hdr, hs, ht, hq, hl, hr, hqs, hQ⟩ :=
+    producer_readback values initial x h hD hg hp hN hheaderD hheaderN idx hidx
+  obtain ⟨y, hy, yr, yv, yf, yg⟩ := B.exec (b := x.regs 42)
+    (i := recordOrdinal n (D m) g p values idx) (out := x.regs 39)
+    (rho := idx.residue.val) (piece := idx.piece)
+    (leftMatrix m n g p values idx) (rightMatrix m n g p values idx) _ x
+    hDmem hnmem hi rfl rfl hrec hdr hs ht hq hl hr hqs
+    (matrices_zero_one m n g p values idx).1
+    (matrices_zero_one m n g p values idx).2 hN
+    (by simpa only [decodedQueries_length] using hfit)
+  exact ⟨y, hy, yr, yv, yf, yg, hQ⟩
+
 /-- Full adapter execution over a genuine producer output. Every descriptor and source-span
 premise of `exec` is derived here from the actual output; none remains an independent caller
 certificate. A following initialized client obtains this output by executing the producer. -/
@@ -40,30 +83,7 @@ theorem exec_of_output {W m n g p : ℕ} (values : ℕ → ℤ)
     (hi : x.regs Reg.ordinal = recordOrdinal n (D m) g p values idx)
     (hfit : Fits W (2 * x.regs 42 +
       4 * CallableProduct.windowSize n (recordQueryCount n (D m) p values idx) + 1024)) :
-    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
-    let qs := decodedQueries hn x.mem (recordQueries n (D m) p idx)
-      (recordQueryCount n (D m) p values idx)
-    ∃ y, ExecWithin W program x y (timeBound (m := m) qs) ∧
-      y.regs Reg.result = x.regs 42 + QueriedProduct.outputBase (19 * m) m n qs.length ∧
-      (∀ j : Fin qs.length,
-        y.mem (x.regs 42 + (QueriedProduct.outputBase (19 * m) m n qs.length + j.val)) =
-          Signed.encode ((leftMatrix m n g p values idx * rightMatrix m n g p values idx)
-            (qs.get j).1 (qs.get j).2)) ∧
-      (∀ a, a < x.regs 42 ∨ x.regs 42 + CallableProduct.windowSize n qs.length ≤ a →
-        y.mem a = x.mem a) ∧
-      (∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j) ∧
-      qs.length * 2 ^ m ≤ n ^ 2 := by
-  obtain ⟨hDmem, hnmem, hrec, hdr, hs, ht, hq, hl, hr, hqs, hQ⟩ :=
-    producer_readback values initial x h hD hg hp hN hheaderD hheaderN idx hidx
-  obtain ⟨y, hy, yr, yv, yf, yg⟩ := exec (b := x.regs 42)
-    (i := recordOrdinal n (D m) g p values idx) (out := x.regs 39)
-    (rho := idx.residue.val) (piece := idx.piece)
-    (leftMatrix m n g p values idx) (rightMatrix m n g p values idx) _ x
-    hDmem hnmem hi rfl rfl hrec hdr hs ht hq hl hr hqs
-    (matrices_zero_one m n g p values idx).1
-    (matrices_zero_one m n g p values idx).2 hN
-    (by simpa only [decodedQueries_length] using hfit)
-  exact ⟨y, hy, yr, yv, yf, yg, hQ⟩
+    backend.OutputPost (W := W) (g := g) hD hN values x idx :=
+  backend.exec_of_output values initial x h hD hg hp hN hheaderD hheaderN idx hidx hi hfit
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

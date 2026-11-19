@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.MachineLearning.PACLearning.Realizable
-public import Cslib.MachineLearning.PACLearning.VCDimension
+public import CslibFrontier.MachineLearning.PACLearning.VCDimension
 import CslibFrontier.Foundations.MeasureTheory.MeasurableSpace.Embedding
 import CslibFrontier.MachineLearning.PACLearning.SampleComplexityLower
 import CslibFrontier.MachineLearning.PACLearning.RealizableSample
@@ -39,10 +39,10 @@ pushforward to `α × Bool` assign the same errors and the same optimal error. O
 Consequently PAC learnability over the realizable distributions, and *a fortiori* agnostic PAC
 learnability, forces finite VC dimension on every domain with measurable singletons
 (`IsRPACLearnable.hasFiniteVCDim`, `IsPACLearnable.hasFiniteVCDim`), with
-`vcDim C ≤ 32 ε m + 1` for each learner (`vcDim_le_of_isRPACLearnerFor`). The measurable-singleton
-hypothesis cannot be dropped entirely: on a domain with the trivial σ-algebra the error of any
-nonconstant hypothesis is one under every distribution, so the class of all Boolean functions is
-learned agnostically by a majority vote although it shatters every finite set.
+`evcDim C ≤ ⌊32 ε m + 1⌋` for each learner (`evcDim_le_of_isRPACLearnerFor`). The
+measurable-singleton hypothesis matters here. On a domain with the trivial σ-algebra the error of
+any nonconstant hypothesis is one under every distribution, so majority vote learns the class of
+all Boolean functions agnostically although it shatters every finite set.
 
 ## Main definitions
 
@@ -57,7 +57,7 @@ learned agnostically by a majority vote although it shatters every finite set.
   along the inclusion gives a distribution realizable by `C`.
 - `card_le_of_isRPACLearnerFor`, `card_le_of_isPACLearnerFor`: **the EHKV lower bound** for
   arbitrary binary classes on domains with measurable singletons.
-- `vcDim_le_of_isRPACLearnerFor`: the corresponding bound on the VC dimension.
+- `evcDim_le_of_isRPACLearnerFor`: the corresponding bound on the VC dimension.
 - `IsRPACLearnable.hasFiniteVCDim`, `IsPACLearnable.hasFiniteVCDim`: PAC learnability over a family
   containing the realizable distributions implies finite VC dimension.
 
@@ -220,17 +220,13 @@ theorem card_le_of_isPACLearnerFor {C : ConceptClass α Bool} {W : Finset α}
 
 /-- The VC dimension of a class with a randomized `(ε, δ)`-PAC learner from `m` examples, `ε ≤ 1/8`
 and `δ < 1/14`, over a family containing the realizable distributions is at most `32 ε m + 1`. -/
-theorem vcDim_le_of_isRPACLearnerFor.{u} {C : ConceptClass α Bool} {m : ℕ}
+theorem evcDim_le_of_isRPACLearnerFor.{u} {C : ConceptClass α Bool} {m : ℕ}
     {ε δ : Set.Ioo (0 : ℝ≥0) 1} (hε : (ε : ℝ) ≤ 1 / 8) (hδ : (δ : ℝ) < 1 / 14)
     {𝒟 : Set (Measure (α × Bool))} (h𝒟 : realizableDistributions C ⊆ 𝒟)
     (hlearn : IsRPACLearnerFor.{_, _, u} m ε δ C 𝒟) :
-    (vcDim C : ℝ) ≤ 32 * ε * m + 1 := by
-  have hpos : (0 : ℝ) ≤ 32 * ε * m + 1 := by positivity
-  have hle : vcDim C ≤ ⌊32 * (ε : ℝ) * m + 1⌋₊ := by
-    refine csSup_le' ?_
-    rintro _ ⟨W, rfl, hW⟩
-    exact Nat.le_floor (card_le_of_isRPACLearnerFor hW hε hδ h𝒟 hlearn)
-  exact (Nat.cast_le.2 hle).trans (Nat.floor_le hpos)
+    evcDim C ≤ (⌊32 * (ε : ℝ) * m + 1⌋₊ : ℕ) :=
+  evcDim_le_iff.mpr fun _ hW =>
+    Nat.cast_le.mpr (Nat.le_floor (card_le_of_isRPACLearnerFor hW hε hδ h𝒟 hlearn))
 
 private noncomputable def eighth : Set.Ioo (0 : ℝ≥0) 1 := ⟨1 / 8, by norm_num, by norm_num⟩
 
@@ -242,10 +238,9 @@ VC dimension. -/
 theorem IsRPACLearnable.hasFiniteVCDim {C : ConceptClass α Bool} {𝒟 : Set (Measure (α × Bool))}
     (h : IsRPACLearnable C 𝒟) (h𝒟 : realizableDistributions C ⊆ 𝒟) : HasFiniteVCDim C := by
   obtain ⟨m, hm⟩ := h eighth fifteenth
-  refine hasFiniteVCDim_iff.2 ⟨4 * m + 1, fun W hW => ?_⟩
-  have := card_le_of_isRPACLearnerFor hW (by norm_num [eighth]) (by norm_num [fifteenth]) h𝒟 hm
-  norm_num [eighth] at this
-  exact_mod_cast (by linarith : (W.card : ℝ) ≤ 4 * m + 1)
+  have hle := evcDim_le_of_isRPACLearnerFor (by norm_num [eighth]) (by norm_num [fifteenth]) h𝒟 hm
+  by_contra h
+  exact ne_top_of_le_ne_top (ENat.natCast_ne_top _) hle (evcDim_eq_top_iff.mpr h)
 
 /-- **Learnability implies finite VC dimension** on every domain with measurable singletons, for
 deterministic learners; in particular agnostic PAC learnability (`𝒟 = Set.univ`) implies finite VC

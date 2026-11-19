@@ -443,7 +443,7 @@ theorem isOraclePPT_liftForwardDistinguisher {blockLen : ℕ → ℕ}
   have hsnd := ComputableInPolyTime.snd caller
     (encPair (encPair (encFinEnum Unit) encBits) (encFinEnum Unit))
   have hhandler :=
-    (IsOraclePPTOn.query_take' false hsnd.fst'.snd' (hfst.fst'.trans hblockLen)).map'
+    (IsOraclePPTOn.query_take false hsnd.fst'.snd' (hfst.fst'.trans hblockLen)).map
       (ComputableInPolyTime.id'.prod (ComputableInPolyTime.const (encOut := encFinEnum Unit) ()))
   have hrun := hadversary.run_interpret_preprocess_open (External := Bool) (State := Unit)
     (input := caller) (operationEncoding := encFinEnum Unit) (stateEncoding := encFinEnum Unit)
@@ -457,7 +457,7 @@ theorem isOraclePPT_liftForwardDistinguisher {blockLen : ℕ → ℕ}
       simp only [OracleComp.mem_supportWith_map_iff] at hresult
       obtain ⟨reply, ⟨raw, _, rfl⟩, rfl⟩ := hresult
       exact ⟨trivial, List.length_take_le _ _, by simp [encFinEnum]⟩)
-  exact (hrun.map' (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
+  exact (hrun.map (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
 
 /-- Running `liftForwardDistinguisher` against a bidirectional table `oracle` is running the
 forward adversary against the cut encryption channel of `oracle`. -/

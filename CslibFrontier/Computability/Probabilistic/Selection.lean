@@ -81,7 +81,7 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ List Bool}
             encUnary)
         simpa only [decide_eq_true_eq] using hc.ite (by fun_prop) (by fun_prop)
     exact hupd.of_enc_eq fun ⟨⟨_, ⟨_, _, _⟩⟩, _⟩ => rfl
-  have hloop := (IsPPTOn.iterateWith_spec'
+  have hloop := (IsPPTOn.iterateWith_spec
     (stateEncoding := stateEncoding) (initial := fun _ => (0, 0, 0))
     (step := fun a s => OracleComp.selectStep (trials a) (test a) s)
     hcount (by dsimp only [stateEncoding]; fun_prop) hstep

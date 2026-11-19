@@ -512,24 +512,6 @@ widths/lengths/indices and bit-string identifier/block inputs. -/
       E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
     encEncoderInput encBits
 
-/-- Unfolded characterization of `IsPolyTimeEncoder`. -/
-theorem isPolyTimeEncoder_iff (E : Encoder) :
-    IsPolyTimeEncoder E ↔
-      ComputableInPolyTime
-        (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
-          E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
-        encEncoderInput encBits :=
-  Iff.rfl
-
-/-- Construct `IsPolyTimeEncoder` from a `ComputableInPolyTime` certificate on `encEncoderInput`. -/
-theorem IsPolyTimeEncoder.of_computableInPolyTime {E : Encoder}
-    (hE : ComputableInPolyTime
-      (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
-        E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
-      encEncoderInput encBits) :
-    IsPolyTimeEncoder E :=
-  hE
-
 /-- Composition rule for a polynomial-time block `Encoder`. -/
 theorem IsPolyTimeEncoder.comp {E : Encoder} (hE : IsPolyTimeEncoder E)
     {γ : Type} {encIn : γ ↪ List Bool}
@@ -1195,19 +1177,6 @@ theorem computableInPolyTime_blockwiseVerify (hE : IsPolyTimeEncoder E) :
   unfold blockwiseVerify
   fun_prop
 
-/-- Composition rule for `blockwiseVerify E`. -/
-@[fun_prop]
-theorem computableInPolyTime_blockwiseVerify_comp (hE : IsPolyTimeEncoder E)
-    {γ : Type} {encIn : γ ↪ List Bool}
-    {n : γ → ℕ} {sk m : γ → List Bool} {tag : γ → Tag}
-    (hn : ComputableInPolyTime n encIn encUnary)
-    (hsk : ComputableInPolyTime sk encIn encBits)
-    (hm : ComputableInPolyTime m encIn encBits)
-    (htag : ComputableInPolyTime tag encIn encTag) :
-    ComputableInPolyTime (fun a => M.blockwiseVerify E (n a) (sk a) (m a) (tag a))
-      encIn encBool :=
-  (M.computableInPolyTime_blockwiseVerify hE).comp (hn.prod (hsk.prod (hm.prod htag)))
-
 /-- `blockwiseSigningOracle E` is strict PPT in `(n, sk, m)` and the signing log `log`. -/
 @[program_certificate]
 theorem isPPTOn_blockwiseSigningOracle (hE : IsPolyTimeEncoder E) :
@@ -1424,7 +1393,7 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
   unfold blockwiseBoundedSimulator
   simpa only [bind_pure_comp] using
     hsample.bind_with
-      (htags.map_with'
+      (htags.map_with
         (f := fun p tags => (encTag (p.2, tags), (p.1.2.1.2, (p.2, tags)) :: p.1.2.2))
         (by fun_prop))
 
@@ -1486,7 +1455,7 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
       (by fun_prop) (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound) (by fun_prop)
       (fun _ _ => True) (fun _ => trivial) (by fun_prop)
       (fun c request log _ result hresult =>
-        ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)).map_with'
+        ⟨trivial, M.blockwiseBoundedSimulator_bound c request log hresult⟩)).map_with
     (by fun_prop)).isOraclePPT
 
 private theorem runWith_mapM_query_take {n : ℕ} {sk : List Bool} {tagBound : ℕ → ℕ}
@@ -1617,10 +1586,10 @@ theorem BlockwiseEUFCMA.negligible (h : M.BlockwiseEUFCMA E) (F : BlockwiseMACFo
 
 /-- **Uniform security of the blockwise variable-length MAC** ([KatzLindell2020], Theorem 4.8):
 if `M` is an `EUFCMA`-secure fixed-length MAC whose message-length schedule `M.msgLen` is
-polynomially lower-bounded (which holds automatically when `M.msgLen = id`), then the blockwise
+polynomially lower-bounded (as it is when `M.msgLen = id`), then the blockwise
 variable-length MAC with `fullEncoder` is `BlockwiseEUFCMA`-secure. -/
 theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
-    (hmsgLen : PolynomiallyLowerBounded M.msgLen := by fun_prop) :
+    (hmsgLen : PolynomiallyLowerBounded M.msgLen) :
     M.BlockwiseEUFCMA fullEncoder := by
   obtain ⟨tagBound, htagBoundPoly, htagBound⟩ := M.exists_tag_length_bound_of_length_eq
   apply Game.Indistinguishable.of_negligible_succProbability
@@ -1700,7 +1669,7 @@ theorem isOraclePPT_toForger_swapBlocksAdversary {replyBound : ℕ → ℕ → �
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
+  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
     (by fun_prop)).isOraclePPT
 
 variable (M) in
@@ -1727,7 +1696,7 @@ theorem isOraclePPT_toForger_truncateAdversary {replyBound : ℕ → ℕ → ℕ
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
       map_eq_bind_pure_comp, Function.comp_def]
   rw [heq]
-  exact ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
+  exact ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
     (by fun_prop)).isOraclePPT
 
 variable (M) in
@@ -1772,7 +1741,7 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
           ProbOracleComp.query
             ((), List.replicate (fieldWidth (M.msgLen p.1)) false ++
               List.replicate (fieldWidth (M.msgLen p.1)) false)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   have hq2 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take
@@ -1782,8 +1751,8 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
           ProbOracleComp.query
             ((), List.replicate (fieldWidth (M.msgLen q.1.1)) true ++
               List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
-  exact (hq1.bind_with (hq2.map_with' (by fun_prop))).isOraclePPT
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
+  exact (hq1.bind_with (hq2.map_with (by fun_prop))).isOraclePPT
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/
