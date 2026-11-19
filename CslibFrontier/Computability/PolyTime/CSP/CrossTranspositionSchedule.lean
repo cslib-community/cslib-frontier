@@ -272,7 +272,9 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
     simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
       from funext ha] using hr
 
-private theorem prefix_width (I : State Rel) (js : List ℕ) (W : ℕ)
+/-- Every successful request increases the maximum binary name width by at most one;
+invalid requests preserve the whole State. The bound includes unused boundary names. -/
+theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ)
     (hW : ∀ z ∈ I.body.vars ++ I.ports, z.size ≤ W) :
     ∀ z ∈ (transposeSchedule g w I js).body.vars ++ (transposeSchedule g w I js).ports,
       z.size ≤ max W (2*g.numAux+7).size +
@@ -512,7 +514,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
   have hpad : K ≤ L := by rw [hL]; omega
   have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := by
     intro z hz
-    have hx := prefix_width g w I s S hb.2.2.2.2 z hz
+    have hx := name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
     have hmax : max S (2*g.numAux+7).size ≤ K :=
       max_le (hSU.trans hUK) (hC.2.2.2.1.trans hCK)
     change z.size ≤ max S (2*g.numAux+7).size + k at hx
