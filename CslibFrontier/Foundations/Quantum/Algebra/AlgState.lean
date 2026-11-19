@@ -187,6 +187,12 @@ theorem re_apply_star_mul_le (φ : AlgState A) (a b : A) :
     (φ (star a * b)).re ≤ φ.norm a * φ.norm b :=
   (Complex.re_le_norm _).trans (φ.norm_apply_star_mul_le a b)
 
+/-- A bound `x⋆x ≤ y` bounds the state norm: `‖x‖²_φ ≤ Re φ(y)`. -/
+theorem norm_sq_le_of_star_mul_le (φ : AlgState A) {x y : A} (h : star x * x ≤ y) :
+    φ.norm x ^ 2 ≤ (φ y).re := by
+  rw [norm_sq]
+  exact φ.re_apply_mono h
+
 /-- A contraction, `a⋆a ≤ 1`, has state norm at most `1`. -/
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]

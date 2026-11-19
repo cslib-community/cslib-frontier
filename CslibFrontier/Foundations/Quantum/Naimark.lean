@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
 public import Mathlib.LinearAlgebra.UnitaryGroup
@@ -24,7 +25,7 @@ So measuring `ψ` with `E` and measuring `ψ ⊗ |a₀⟩` with `P` give the sam
 
 The construction: `V ψ = ∑_a √E_a ψ ⊗ |a⟩` is an isometry, because `∑_a E_a = 1`; a unitary `U`
 on `ℂ^ι ⊗ ℂ^A` with `U J = V` exists, by extending the orthonormal columns of `V` to an orthonormal
-basis (`Cslib.Quantum.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩⟨a|) U`.
+basis (`Matrix.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩⟨a|) U`.
 
 ## Main definitions
 
@@ -33,7 +34,6 @@ basis (`Cslib.Quantum.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩�
 
 ## Main results
 
-* `Cslib.Quantum.exists_unitary_extension`: an isometry extends to a unitary.
 * `Cslib.Quantum.POVM.isProjective_dilate`: the dilation is projective.
 * `Cslib.Quantum.POVM.compress_dilate`: the dilation compresses to the POVM.
 
@@ -48,38 +48,6 @@ namespace Cslib.Quantum
 
 open Matrix
 open scoped Kronecker
-
-/-- **Unitary extension of an isometry**: if the columns of `V : n × ι` are orthonormal and
-`j : ι → n` is injective, some unitary `U` has the columns of `V` at the positions `j i`. -/
-theorem exists_unitary_extension {n ι : Type*} [Fintype n] [DecidableEq n] [DecidableEq ι]
-    (V : Matrix n ι ℂ) (hV : Vᴴ * V = 1) {j : ι → n}
-    (hj : Function.Injective j) : ∃ U ∈ unitaryGroup n ℂ, ∀ k i, U k (j i) = V k i := by
-  classical
-  set v : n → EuclideanSpace ℂ n := fun m =>
-    if h : ∃ i, j i = m then WithLp.toLp 2 fun k => V k h.choose else 0
-  have hvj : ∀ i, v (j i) = WithLp.toLp 2 fun k => V k i := fun i => by
-    have h : ∃ i', j i' = j i := ⟨i, rfl⟩
-    have hc : h.choose = i := hj h.choose_spec
-    simp only [v, h, ↓reduceDIte, hc]
-  have hv' : Orthonormal ℂ fun i => v (j i) := by
-    rw [orthonormal_iff_ite]
-    intro i i'
-    have h : ∑ k, star (V k i) * V k i' = if i = i' then 1 else 0 := by
-      have := congrFun (congrFun hV i) i'
-      simpa [Matrix.mul_apply, Matrix.one_apply] using this
-    rw [hvj, hvj, ← h]
-    simp only [PiLp.inner_apply, RCLike.inner_apply]
-    exact Finset.sum_congr rfl fun k _ => mul_comm _ _
-  have hv : Orthonormal ℂ ((Set.range j).domRestrict v) := by
-    convert hv'.comp _ (Equiv.ofInjective j hj).symm.injective
-    ext1 ⟨m, hm⟩
-    simp [Equiv.apply_ofInjective_symm]
-  obtain ⟨b, hb⟩ := hv.exists_orthonormalBasis_extension_of_card_eq
-    (by rw [finrank_euclideanSpace])
-  refine ⟨(EuclideanSpace.basisFun n ℂ).toBasis.toMatrix b,
-    OrthonormalBasis.toMatrix_orthonormalBasis_mem_unitary _ _, fun k i => ?_⟩
-  rw [Module.Basis.toMatrix_apply, OrthonormalBasis.coe_toBasis_repr_apply,
-    EuclideanSpace.basisFun_repr, hb (j i) (Set.mem_range_self i), hvj]
 
 variable {ι A : Type*} [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A]
 

@@ -6,8 +6,10 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
+import CslibFrontier.Computability.PCP.TwoProverGame.AlmostSynchronous
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+import CslibFrontier.Foundations.Quantum.Orthogonalization
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
 import CslibFrontier.Probability.PairwiseIndependentHash.Retention
@@ -5384,6 +5386,44 @@ register_result "goemans-williamson-maxdicut" where
     Real.goemansWilliamsonDicutConstant (0.79607 < β < 0.79608), plus the balanced-digraph \
     reduction recovering α > 0.87856 on p. 1138. No SDP solver, finite-precision sampler, or \
     derandomization is formalized."
+
+register_result "measurement-orthogonalization-full-matrix" where
+  title := "De la Salle: orthogonalization of measurements in a full matrix algebra"
+  topic := "quantum information"
+  sources := [
+    { paper := delaSalle2022, theorem := "Theorem 1.2",
+      locator := "arXiv:2103.14126v2, §1, p. 2" }
+  ]
+  theorems := [
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le,
+    Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le
+  ]
+  scope := "Finite-outcome measurements in full complex matrix algebras, with any normalized \
+    positive state. The projective measurement uses the same algebra and outcomes. Its sum of \
+    squared state distances is at most nine times the exact defect, giving the source's strict \
+    bound when the defect is strictly below epsilon. Normality is automatic here. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6198#issuecomment-6994351157."
+
+register_result "almost-synchronous-projective-spectral-mixture" where
+  title := "Vidick: finite projective mixture of almost-synchronous symmetric strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := Vidick2022, theorem := "Theorem 3.1",
+      locator := "arXiv:2103.02468v3, pp. 11 and 14–16, equations (19)–(20)" }
+  ]
+  theorems := [
+    Cslib.PCP.QuantumStrategy.exists_projective_spectral_mixture,
+    Cslib.PCP.QuantumStrategy.partialTraceRight_pureState_ofSpectralCut,
+    Cslib.PCP.QuantumStrategy.spectralCutDensity_isDensityMatrix
+  ]
+  scope := "A finite symmetric tensor-product strategy in its joint Schmidt basis, with arbitrary \
+    finite outcome and question sets and a question law given by a PMF. The cut probabilities and \
+    totally mixed component densities depend only on the original spectrum. The weighted reduced \
+    densities recover the original reduced state exactly. The projective components are \
+    synchronous. Their average squared state-dependent error is at most 9δ + 10√(2δ). The defect δ \
+    is one minus the average diagonal answer agreement. The finite convex sum follows the remark \
+    after Theorem 3.1. This entry covers the symmetric-strategy theorem."
 
 register_result "binary-linear-constraint-operator-solution-perfect" where
   title := "Cleve–Mittal: finite-dimensional operator solutions of binary linear constraint \
