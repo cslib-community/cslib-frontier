@@ -22,6 +22,10 @@ This is the conditional independence used in the proof of
 pp. 14–15. The winning event depends only on the rest of the transcript, so the
 independence survives conditioning on the checked wins.
 
+## Main definitions
+
+* `swapInfo`: exchange the players in the checked questions and noisy messages.
+
 ## Main results
 
 * `map_trial_restTranscriptLaw`: the remaining transcript uses only the selected question pair.
@@ -52,6 +56,14 @@ local notation "Free" => {i : Fin n // i ∉ C}
 local notation "Info" => Revealed (Option X) (Option Y) C
 local notation "Rest" => Shared (Option X) (Option Y) A B C
 local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
+
+/-- Exchange the players in the checked questions and noisy messages. -/
+@[expose] def swapInfo : Revealed X Y C ≃ Revealed Y X C := by
+  refine ⟨fun t => ⟨Prod.swap ∘ t.questions, Sum.swap ∘ t.halves⟩,
+    fun t => ⟨Prod.swap ∘ t.questions, Sum.swap ∘ t.halves⟩, ?_, ?_⟩
+  all_goals
+    rintro ⟨qs, ms⟩
+    exact congrArg (Revealed.mk qs) (funext fun i => Sum.swap_swap (ms i))
 
 /-- Keep the checked questions and answers and the messages at all other unchecked trials. -/
 @[expose] def restTranscript (j : Free) (r : Transcript) : Rest j :=
@@ -180,7 +192,9 @@ the retained information. -/
   (questionsGivenRest G α C j t q).bind (checkedAnswerLaw C S)
 
 omit [Fintype A] [Fintype B] in
-private theorem questionsGivenRest_omit (j : Free) (t : Info) (q : PairQ) :
+/-- Omitting the selected message and setting the selected question pair is equivalent
+to replacing just that coordinate in the product of conditional question laws. -/
+theorem questionsGivenRest_omit (j : Free) (t : Info) (q : PairQ) :
     questionsGivenRest G α C j (omitMessage C j t) q =
       (pi (Function.update (fun i => pairGiven G α C i t) j (PMF.pure q))).map t.combine := by
   have hk : Function.update (fun i => pairGiven G α C i (restoreMessage C j (omitMessage C j t)))
@@ -194,6 +208,48 @@ private theorem questionsGivenRest_omit (j : Free) (t : Info) (q : PairQ) :
   dsimp only
   rw [hk]
   congr 1
+
+/-- Reassemble the checked and free parts of a full question tuple. -/
+@[expose] def appendQuestions {Q : Type*} (checked : C → Q) (free : Free → Q) : Fin n → Q :=
+  (Equiv.piEquivPiSubtypeProd (· ∈ C) fun _ => Q).symm (checked, free)
+
+omit [Fintype X] [Fintype Y] in
+/-- Applying a function to a completed question tuple applies it to both parts. -/
+theorem project_combine {Q : Type*} (f : PairQ → Q) (t : Info) (u : Free → PairQ) :
+    f ∘ t.combine u = appendQuestions C (f ∘ t.questions) (f ∘ u) := by
+  funext i
+  by_cases hi : i ∈ C <;>
+    simp [appendQuestions, Revealed.combine, Equiv.piEquivPiSubtypeProd_symm_apply, hi]
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+/-- Projecting a completed question tuple projects the checked questions and each free factor. -/
+theorem map_pi_combine {U : Type*} [Finite U] [Finite PairQ] (f : PairQ → U)
+    (t : Info) (p : Free → PMF PairQ) :
+    ((pi p).map t.combine).map (fun q => f ∘ q) =
+      (pi fun i => (p i).map f).map (appendQuestions C (f ∘ t.questions)) := by
+  have h : (fun q => f ∘ q) ∘ t.combine =
+      appendQuestions C (f ∘ t.questions) ∘ (fun q : Free → PairQ => f ∘ q) :=
+    funext (project_combine C f t)
+  rw [PMF.map_comp, h, ← PMF.map_comp]
+  have hp := pi_map p (fun _ => f)
+  change _ = (pi p).map (fun q => f ∘ q) at hp
+  rw [← hp]
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+/-- Projection also commutes with setting the selected coordinate to a fixed question. -/
+theorem map_pi_update_combine {U : Type*} [Finite U] [Finite PairQ] (f : PairQ → U)
+    (t : Info) (p : Free → PMF PairQ) (j : Free) (z : PairQ) :
+    ((pi (Function.update p j (PMF.pure z))).map t.combine).map (fun q => f ∘ q) =
+      (pi (Function.update (fun i => (p i).map f) j (PMF.pure (f z)))).map
+        (appendQuestions C (f ∘ t.questions)) := by
+  rw [map_pi_combine]
+  apply congrArg (fun q : PMF (Free → U) => q.map (appendQuestions C (f ∘ t.questions)))
+  apply congrArg pi
+  funext i
+  by_cases hi : i = j
+  · subst i
+    simp only [Function.update_self, PMF.pure_map]
+  · simp only [Function.update_of_ne hi]
 
 omit [Fintype A] [Fintype B] in
 /-- Each retained message in a supported observation is itself possible under the prior. -/

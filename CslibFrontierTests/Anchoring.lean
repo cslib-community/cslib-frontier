@@ -326,3 +326,29 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   have hn := congrArg Complex.re htrace
   exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp
     (by simpa only [Complex.ofReal_re, Complex.one_re, one_pow] using hn)
+
+/-- The noisy vector at a supported Alice question purifies Bob's state with Bob's
+three-dimensional system first and Alice's two-dimensional system second. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let P := ((transcriptLaw acceptingGame half C S).filter (winsOnChecked acceptingGame half C)
+      (acceptingGame_win_supported S)).map (aliceTranscriptProjection C e)
+    ∃ ρ : _ → Matrix (Fin 3) (Fin 3) ℂ,
+      ∀ label (_ : label ∈ (P.map Prod.fst).support) (u : Option Bool),
+        u ∈ ((conditionalSnd P label).map (fun x => x 0)).support →
+        let (t, a, b) := label
+        let v : EuclideanSpace ℂ (Fin 3 × Fin 2) :=
+          checkedVectorGivenAlice acceptingGame half C S (e 0) t u a b
+        let ψ := ‖v‖⁻¹ • v
+        ‖ψ‖ = 1 ∧
+          Cslib.Quantum.quantumMarginalGivenMap (conditionalSnd P label) (fun x => ρ (label, x))
+            (fun x => x 0) u = Cslib.Quantum.partialTraceRight (Cslib.Quantum.pureState ψ) := by
+  intro C e P
+  obtain ⟨ρ, hρ, hbranch, _⟩ := exists_bob_anchored_coordinateInformation_le_after_wins
+    acceptingGame half C S e (acceptingGame_win_supported S)
+  refine ⟨ρ, ?_⟩
+  rintro ⟨t, a, b⟩ ht u hu
+  exact checkedVectorGivenAlice_purifies_winningMarginal acceptingGame half C S e
+    (acceptingGame_win_supported S) hρ hbranch t a b 0 u ht hu

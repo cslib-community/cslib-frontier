@@ -111,30 +111,17 @@ theorem questionsGivenRest_eq_bind (j : Free) (t : Saved j) (q : PairQ)
   have hsplit : (pi p).map split = priorX.bind (fun x => priorY.map (x, ·)) := by
     simpa only [hp, split, priorX, priorY, Function.comp_def] using
       (pi_bind_pair (fun i => (p i).map Prod.fst) (fun i _ => (p i).map Prod.snd))
-  let appendX (u : Free → Option X) :=
-    (Equiv.piEquivPiSubtypeProd (· ∈ C) fun _ => Option X).symm (Prod.fst ∘ t.questions, u)
-  let appendY (u : Free → Option Y) :=
-    (Equiv.piEquivPiSubtypeProd (· ∈ C) fun _ => Option Y).symm (Prod.snd ∘ t.questions, u)
+  let appendX := appendQuestions C (Prod.fst ∘ full.questions)
+  let appendY := appendQuestions C (Prod.snd ∘ full.questions)
   have hcombine (u : Free → PairQ) :
       full.combine u = fun i => (appendX (Prod.fst ∘ u) i, appendY (Prod.snd ∘ u) i) := by
-    unfold Revealed.combine
-    funext i
-    by_cases hi : i ∈ C <;>
-      simp [Equiv.piEquivPiSubtypeProd_symm_apply, hi, appendX, appendY, full, restoreMessage]
-  have hx : aliceQuestionsGivenRest G α C j t q = priorX.map appendX := by
-    unfold aliceQuestionsGivenRest questionsGivenRest
-    rw [PMF.map_comp, show priorX = _ from pi_map p (fun _ => Prod.fst), PMF.map_comp]
-    congr 1
-    funext u
-    rw [Function.comp_apply, hcombine]
+    dsimp only [appendX, appendY]
+    rw [← project_combine C Prod.fst full u, ← project_combine C Prod.snd full u]
     rfl
-  have hy : bobQuestionsGivenRest G α C j t q = priorY.map appendY := by
-    unfold bobQuestionsGivenRest questionsGivenRest
-    rw [PMF.map_comp, show priorY = _ from pi_map p (fun _ => Prod.snd), PMF.map_comp]
-    congr 1
-    funext u
-    rw [Function.comp_apply, hcombine]
-    rfl
+  have hx : aliceQuestionsGivenRest G α C j t q = priorX.map appendX :=
+    map_pi_combine C Prod.fst full p
+  have hy : bobQuestionsGivenRest G α C j t q = priorY.map appendY :=
+    map_pi_combine C Prod.snd full p
   rw [hx, hy]
   change (pi p).map full.combine = _
   have h := congrArg (PMF.map fun (x, y) i => (appendX x i, appendY y i)) hsplit

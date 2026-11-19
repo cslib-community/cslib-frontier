@@ -226,6 +226,14 @@ theorem pi_bind_update_pair [DecidableEq ι] (p : ∀ i, PMF (α i)) (i : ι) :
   simp only [Function.update_self, PMF.mem_support_pure_iff] at h
   rw [h]
 
+/-- Conditioning an independent tuple on a supported coordinate fixes that coordinate
+and preserves the other factors. -/
+theorem conditionalSnd_pi_eval [DecidableEq ι] (p : ∀ i, PMF (α i)) (i : ι)
+    (u : α i) (hu : u ∈ (p i).support) :
+    conditionalSnd ((pi p).map fun y => (y i, y)) u =
+      pi (Function.update p i (PMF.pure u)) := by
+  rw [← pi_bind_update_pair p i, conditionalSnd_bind_pair _ _ _ hu]
+
 /-- Sampling one coordinate `v ← p i` and completing the remaining coordinates via
 `pi (Function.update p i (PMF.pure v))` equals sampling `G ← pi p` and reading `(G i, G)`. -/
 theorem bind_pi_update {γ : Type*} [DecidableEq ι] (p : ∀ i, PMF (α i)) (i : ι)

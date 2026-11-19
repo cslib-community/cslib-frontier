@@ -11062,6 +11062,23 @@ register_result "anchored-supported-winning-conditional-marginals" where
     the observation. This covers supported observations before the specialization to the \
     noisy-anchor vectors and the treatment of null observations under prior redraw."
 
+register_result "anchored-noisy-question-purifications" where
+  title := "Noisy checked-answer purifications for supported selected questions"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Claims 5.15–5.16",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 27–28" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.checkedVectorGivenBob_purifies_winningMarginal,
+    Cslib.PCP.AnchoredDependency.checkedVectorGivenAlice_purifies_winningMarginal
+  ]
+  scope := "Fix the winning transcript label with its noisy messages and observe one question \
+    of either player at an unchecked coordinate. On support, the unit normalization of \
+    the noisy checked-answer vector purifies the other player's reduced conditional state. \
+    Each vector places the retained player first. Null observations under the independent \
+    prior redraw and the ensuing averaged local-unitary estimates are outside this result."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"

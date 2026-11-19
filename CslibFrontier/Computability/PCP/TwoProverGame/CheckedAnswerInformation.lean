@@ -104,6 +104,27 @@ theorem checkedWinTranscriptLaw_apply_toReal (h : (0 : ℝ) < ((Law).toOuterMeas
   rw [map_equiv_apply, Equiv.symm_apply_apply, filter_apply_toReal]
   rfl
 
+omit [Fintype X] [Fintype Y] [Fintype Ω] [∀ i, DecidableEq (V i)] in
+/-- The winning law has support only where the original shared label and prior tuple
+have positive mass. -/
+theorem prior_mem_support_of_checkedWinTranscriptLaw
+    (h : (0 : ℝ) < ((Law).toOuterMeasure Win).toReal)
+    (ω : Ω) (a : C → A) (b : C → B) (y : ∀ i, V i)
+    (hz : ((ω, a, b), y) ∈ (S.checkedWinTranscriptLaw C V p r s q W h).support) :
+    ω ∈ r.support ∧ y ∈ (pi (s ω)).support := by
+  classical
+  have hn := (ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hz)
+    (PMF.apply_ne_top _ _)).ne'
+  rw [checkedWinTranscriptLaw_apply_toReal, checkedAnswersWithLabel_apply, bind_map_prodMk_apply,
+    ENNReal.toReal_mul, ENNReal.toReal_mul] at hn
+  split at hn
+  · have hprod := left_ne_zero_of_mul (div_ne_zero_iff.mp hn).1
+    exact ⟨(PMF.mem_support_iff _ _).mpr
+        (fun hzero => (left_ne_zero_of_mul hprod) (by rw [hzero, ENNReal.toReal_zero])),
+      (PMF.mem_support_iff _ _).mpr
+        (fun hzero => (right_ne_zero_of_mul hprod) (by rw [hzero, ENNReal.toReal_zero]))⟩
+  · exact (hn rfl).elim
+
 omit [Fintype Ω] in
 /-- After observing a function of the free question tuple, the conditional Alice marginal
 is obtained by averaging Bob's question law in that prior fiber and then normalizing the
