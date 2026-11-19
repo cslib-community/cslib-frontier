@@ -256,8 +256,10 @@ structure WExec (φ : CNF ℕ) where
   /-- The statistics so far. -/
   stats : Stats
   /-- An assignment array with no value, kept between conflicts: conflict analysis marks the
-  current level in it, as MiniSat marks variables `seen`, and it is cleared afterwards, so no array
-  is allocated per conflict. -/
+  current level in it, as MiniSat marks variables `seen`, in place of searching the trail, and it
+  is cleared afterwards. Whether compiled code updates it in place is not established: the caller
+  still holds the state while the marks are built from it, and marking a variable past the end
+  grows the array, so it can be copied. -/
   marks : {A : Assign // ∀ v, A.value v = none}
 
 /-- The abstract trail. -/

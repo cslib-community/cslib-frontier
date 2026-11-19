@@ -235,12 +235,8 @@ theorem value_unassign_eq_none {A : Assign} {vs : List ℕ} (h : ∀ v, v ∉ vs
   · exact h v ‹_›
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
-theorem agrees_ofTrail : ∀ M : Trail, (Trail.vars M).Nodup → (ofTrail M).Agrees M
-  | [], _ => agrees_nil
-  | e :: M, hnd => by
-    simp only [Trail.vars, List.map_cons, List.nodup_cons] at hnd
-    rw [ofTrail_cons]
-    exact (agrees_ofTrail M hnd.2).cons hnd.1 e.decision
+theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agrees M :=
+  agrees_assignTrail (fun v => by simp [Assign.value]) M hM
 
 end Assign
 
