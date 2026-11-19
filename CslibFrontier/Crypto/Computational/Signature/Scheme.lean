@@ -162,20 +162,20 @@ variable {PK SK M Sig : Type} [Inhabited Sig] [DecidableEq M]
 
 /-- The indexed forgery experiment ([BonehShoup2023], Definition 14.6): the forger chooses the index
 of each signing query, a query at a used index or at an index `≥ capacity` is refused, and the
-forger wins with a valid signature on any pair `(u, m)` that was never signed. -/
+forger wins with a valid signature on a pair `(u, m)` with `u < capacity` that was never signed. -/
 abbrev eufCmaExperiment (S : IndexedScheme PK SK M Sig) (A : Forger PK (ℕ × M) Sig) :
     Experiment :=
-  forgeExperiment S.keyGen (.indexed S.capacity S.sign) (fun pk _ (u, m) => S.verify pk u m)
-    freshMessage A
+  forgeExperiment S.keyGen (.indexed S.capacity S.sign)
+    (fun pk _ (u, m) σ => decide (u < S.capacity) && S.verify pk u m σ) freshMessage A
 
 /-- The counter forgery experiment ([BonehShoup2023], Section 14.6.4): the signer keeps a counter,
 signs its `i`-th message at index `i` and publishes `i` with the signature; it refuses once the
-capacity is used up. The forger wins with a valid signature on any message that was never
-signed. -/
+capacity is used up. The forger wins with a valid signature, at an index `u < capacity`, on any
+message that was never signed. -/
 abbrev counterEufCmaExperiment (S : IndexedScheme PK SK M Sig) (A : Forger PK M (ℕ × Sig)) :
     Experiment :=
-  forgeExperiment S.keyGen (.counter S.capacity S.sign) (fun pk _ m (u, σ) => S.verify pk u m σ)
-    freshMessage A
+  forgeExperiment S.keyGen (.counter S.capacity S.sign)
+    (fun pk _ m (u, σ) => decide (u < S.capacity) && S.verify pk u m σ) freshMessage A
 
 end IndexedScheme
 

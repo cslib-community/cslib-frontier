@@ -35,15 +35,14 @@ the signed messages. While `j < capacity n` it signs the request at index `j`, a
 `encPair encUnary encBits (j, σ)` and advances; once the capacity is exhausted it answers the empty
 word and records nothing. A signature word is verified by `counterVerify`, which reads `(u, σ)` and
 runs the indexed verifier at `u`. The game `counterEufCmaGame` is the EUF-CMA experiment with this
-oracle; the forger wins with a valid signature on any message it never had signed, of any length.
-This is stronger than `SignatureScheme.eufCmaGame`, which only counts `n`-bit forgeries.
+oracle; the forger wins with a valid signature on any message it never had signed, of any length,
+at an index `u < capacity n`. This is stronger than `SignatureScheme.eufCmaGame`, which only counts
+`n`-bit forgeries.
 
-The game is not the source's, so the results here are steps toward Section 14.6.4, not that
-result (#5686). From `j = capacity n` on, the signing oracle refuses every request, but a fresh
-forgery at an index `u ≥ capacity n` still wins whenever `S.verify` accepts it, as in
-`indexedEufCmaGame`. Definition 14.6 (printed p. 597) has message space `{1, …, q} × M`, and in
-the nonce example of Section 14.6.4 the counter runs from `1` to `q` (printed p. 603), so both use
-bounded indices.
+From `j = capacity n` on, the signing oracle refuses every request, and a forgery counts only at an
+index below the capacity, as in `indexedEufCmaGame`. Definition 14.6 (printed p. 597) has message
+space `{1, …, q} × M`, and in the nonce example of Section 14.6.4 the counter runs from `1` to `q`
+(printed p. 603); here indices run from `0` to `q - 1`.
 
 The security reduction is exact. `counterForger` runs a counter forger, answering its `j`-th
 signing query through the indexed signing oracle at index `j` and forwarding the forgery with its
@@ -114,8 +113,8 @@ def counterVerify (pk msg sig : List Bool) : Bool :=
   S.verify pk (requestDecoder.decode sig).1 msg (requestDecoder.decode sig).2
 
 /-- The counter EUF-CMA experiment: sample `(pk, sk) ← keyGen n`, run the forger on `(n, pk)` with
-the counter signing oracle started at `(0, [])`, and accept a valid counter signature on a message
-that was never signed, of any length. -/
+the counter signing oracle started at `(0, [])`, and accept a valid counter signature, at an index
+below `capacity n`, on a message that was never signed, of any length. -/
 def counterEufCmaGame (adversary : Forger) (n : ℕ) : ProbComp Bool := do
   let keys ← S.keyGen n
   let out ← (OracleComp.interpret
@@ -123,7 +122,8 @@ def counterEufCmaGame (adversary : Forger) (n : ℕ) : ProbComp Bool := do
       (S.counterSigningOracle n keys.2)) (adversary n keys.1)).run (0, [])
   let msig := out.1
   let state := out.2
-  return !state.2.contains msig.1 && S.counterVerify keys.1 msig.1 msig.2
+  return decide ((requestDecoder.decode msig.2).1 < S.capacity n) && !state.2.contains msig.1 &&
+    S.counterVerify keys.1 msig.1 msig.2
 
 variable {S}
 
@@ -383,9 +383,10 @@ private theorem map_run_jointOracle {n : ℕ} {sk : List Bool} {bound : ℕ → 
 
 variable (S) in
 /-- The indexed forger's win, read off the joint run. -/
-private def indexedWin (pk : List Bool)
+private def indexedWin (n : ℕ) (pk : List Bool)
     (r : (List Bool × List Bool) × ℕ × List (ℕ × List Bool)) : Bool :=
-  !r.2.2.contains ((requestDecoder.decode r.1.2).1, r.1.1) &&
+  decide ((requestDecoder.decode r.1.2).1 < S.capacity n) &&
+    !r.2.2.contains ((requestDecoder.decode r.1.2).1, r.1.1) &&
     S.verify pk (requestDecoder.decode r.1.2).1 r.1.1 (requestDecoder.decode r.1.2).2
 
 /-- The indexed game against `counterForger` is the joint run, judged by `indexedWin`. -/
@@ -396,7 +397,7 @@ private theorem eval_indexedEufCmaGame_counterForger (bound : ℕ → ℕ → �
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (jointOracle S n keys.2 bound)) (adversary n keys.1)).run (0, [])).map
-              (indexedWin S keys.1) := by
+              (indexedWin S n keys.1) := by
   simp only [indexedEufCmaGame, counterForger, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbOracleComp.eval_run_interpret, OracleComp.interpret_bind, OracleComp.interpret_pure,
     StateT.run_bind, StateT.run_pure, ProbOracleComp.run_interpret_run_interpret, PMF.bind_map,
@@ -414,8 +415,8 @@ private theorem eval_counterEufCmaGame_eq {bound : ℕ → ℕ → ℕ} {n : ℕ
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (jointOracle S n keys.2 bound)) (adversary n keys.1)).run (0, [])).map
-              (fun r => !(r.2.2.map Prod.snd).contains r.1.1 &&
-                S.counterVerify keys.1 r.1.1 r.1.2) := by
+              (fun r => decide ((requestDecoder.decode r.1.2).1 < S.capacity n) &&
+                !(r.2.2.map Prod.snd).contains r.1.1 && S.counterVerify keys.1 r.1.1 r.1.2) := by
   simp only [counterEufCmaGame, ProbComp.eval_bind, ProbComp.eval_pure]
   refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
   rw [← map_run_jointOracle (hbound keys hkeys), PMF.bind_map]
@@ -442,8 +443,8 @@ theorem succProbability_counterEufCmaGame_le {bound : ℕ → ℕ → ℕ} {n : 
   refine PMF.map_true_mono _ fun r _ hwin => ?_
   simp only [indexedWin, counterVerify, Bool.and_eq_true, Bool.not_eq_eq_eq_not,
     Bool.not_true] at hwin ⊢
-  obtain ⟨hfresh, hverify⟩ := hwin
-  refine ⟨?_, hverify⟩
+  obtain ⟨⟨hcap, hfresh⟩, hverify⟩ := hwin
+  refine ⟨⟨hcap, ?_⟩, hverify⟩
   rw [← Bool.not_eq_true, List.contains_iff_mem] at hfresh ⊢
   exact fun hmem => hfresh (List.mem_map.mpr ⟨_, hmem, rfl⟩)
 
@@ -518,16 +519,15 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
 
 /-- Indexed EUF-CMA security gives counter EUF-CMA security, so the signer of an indexed EUF-CMA
 secure scheme may choose its indices with a counter: a step toward [BonehShoup2023],
-Section 14.6.4, not the cited result, because both games count a fresh forgery at an index
-`u ≥ capacity n` whenever `S.verify` accepts it, where the source's indices are bounded (#5686).
+Section 14.6.4, presented as a step until its statement has been checked against the source for
+registration.
 
-The indexed signing oracle refuses a request at an index `u ≥ capacity n`, and the counter signing
-oracle refuses every request once `j = capacity n`, but neither winning test has an index guard.
-Definition 14.6 (printed p. 597) and the nonce example of Section 14.6.4 (printed p. 603) use
-bounded indices. The reduction `counterForger` has loss `1`
-(`succProbability_counterEufCmaGame_le`) and remains valid for the library's games: it forwards
-the forgery with its index, so a counter forgery at any index is an indexed forgery at that
-index. -/
+The indexed signing oracle refuses a request at an index `u ≥ capacity n`, the counter signing
+oracle refuses every request once `j = capacity n`, and both winning tests count a forgery only at
+an index below the capacity, as Definition 14.6 (printed p. 597) and the nonce example of
+Section 14.6.4 (printed p. 603) bound the indices. The reduction `counterForger` has loss `1`
+(`succProbability_counterEufCmaGame_le`): it forwards the forgery with its index, so a counter
+forgery at an admissible index is an indexed forgery at that index. -/
 theorem IndexedEUFCMA.counterEUFCMA (h : S.IndexedEUFCMA) : S.CounterEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
   apply CounterEUFCMA.of_negligible

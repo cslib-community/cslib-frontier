@@ -335,6 +335,7 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
   obtain ⟨⟨u, msg, sig⟩, log⟩ := x
   simp only [Function.comp_apply, Prod.map, id, toScheme_verify, freshMessage,
     List.contains_reverse]
+  rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
   cases S.verify pk u msg sig <;> simp
 
 /-- Running the typed counter forger against the logging counter signer, and keeping only the
@@ -415,7 +416,8 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
   obtain ⟨pk, sk⟩ := keys
   dsimp only
   let post : (List Bool × ℕ × List Bool) × List (List Bool) → PMF Bool :=
-    fun ((m, u, σ), signed) => PMF.pure (!signed.contains m && S.verify pk u m σ)
+    fun ((m, u, σ), signed) =>
+      PMF.pure (decide (u < S.capacity n) && !signed.contains m && S.verify pk u m σ)
   symm
   calc _ = ((ProbComp.eval (ProbOracleComp.runLogWith (adversary.toCounter (S.capacity n) n pk)
           (Signer.counter (S.capacity n) S.sign sk))).map
@@ -425,6 +427,7 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
         funext ⟨⟨m, u, σ⟩, log⟩
         simp only [Function.comp_apply, post, toScheme_verify, freshMessage,
           List.contains_reverse]
+        rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
         cases S.verify pk u m σ <;> simp
     _ = _ := by
         rw [eval_runLogWith_toCounter, PMF.bind_map]

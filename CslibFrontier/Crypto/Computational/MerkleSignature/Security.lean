@@ -375,7 +375,7 @@ private theorem eval_indexedEufCmaGame_eq
     (adversary : IndexedForger) (n : ℕ) :
     ProbComp.eval ((scheme S H depth hH hlen hcap).indexedEufCmaGame adversary n) =
       (realExp S H depth hH hlen hcap adversary n).map fun t =>
-        !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
+        decide (t.2.2.1.1 < 2 ^ depth n) && !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
           verify S H depth (publicKey H t.1 t.2.1) t.2.2.1.1 t.2.2.1.2.1 t.2.2.1.2.2 := by
   simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme, keyGen, realExp, realRun,
     ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
@@ -527,7 +527,8 @@ theorem succProbability_indexedEufCmaGame_le
         (fun i t => otsWin S H n i t.1 t.2.1 t.2.2)).trans ?_))
     · intro t ht hwin
       obtain ⟨hk, hkeys⟩ := hsupp t ht
-      exact win_cases hlen hk hkeys t.2.2 hwin
+      rw [Bool.and_assoc, Bool.and_eq_true] at hwin
+      exact win_cases hlen hk hkeys t.2.2 hwin.2
     · refine Finset.sum_le_sum fun i hi => ?_
       rw [map_otsWin_realExp hH hlen hcap hbound adversary (Finset.mem_range.mp hi)]
   have havg : ((2 ^ depth n : ℕ) : ℝ≥0∞) *

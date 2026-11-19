@@ -1361,6 +1361,16 @@ theorem isPPT_tcrAdversary {k : ℕ} {Control : Type} [Finite Control]
 
 /-! ### Security bound and existential upgrades -/
 
+/-- `verify S H` accepts only at index `0`, below the capacity `1` of `scheme S H`, so the index
+guard of the indexed game is redundant for this scheme. -/
+private theorem capacity_guard_verify (S : SignatureScheme) (H : KeyedHashFamily) (n u : ℕ)
+    (b : Bool) (pk msg sig : List Bool) :
+    (decide (u < (scheme S H).capacity n) && b && verify S H pk u msg sig) =
+      (b && verify S H pk u msg sig) := by
+  cases u with
+  | zero => simp
+  | succ u => simp [verify]
+
 /-- **Concrete security bound for `TCRSignature.scheme` with an explicit realizing machine**
 ([BonehShoup2023], Section 13.2.1, Theorem 13.2): at every security parameter `n`, the indexed
 forging probability against `scheme S H` is at most the one-time forging probability of
@@ -1453,7 +1463,8 @@ theorem succProbability_indexedEufCmaGame_le_of_machine {k : ℕ} {Control : Typ
       intro pk
       simp only [Functor.map_map, outDecoder.decode_enc]
       exact (id_map _).symm
-    simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme_keyGen, scheme_verify, keyGen,
+    simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme_keyGen, scheme_verify,
+      capacity_guard_verify, keyGen,
       ProbOracleComp.eval_run_interpret, μ, pmf_norm]
     peel_binds keys
     rw [hdecodeAdv (encPair encUnary encBits (n, keys.1)), OracleComp.interpret_map,
