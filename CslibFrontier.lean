@@ -6832,6 +6832,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityEven
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityGerms
+public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityTransport
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
@@ -6845,6 +6846,7 @@ public import CslibFrontier.Foundations.Geometry.Polyhedra.Complex
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseLinear
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseQuadratic
 public import CslibFrontier.Foundations.Geometry.Polyhedra.Polytope
+public import CslibFrontier.Foundations.Geometry.SegmentSign
 public import CslibFrontier.Foundations.GroupTheory.Perm.CycleSurgery
 public import CslibFrontier.Foundations.GroupTheory.Perm.Doubled
 public import CslibFrontier.Foundations.GroupTheory.Perm.Fin

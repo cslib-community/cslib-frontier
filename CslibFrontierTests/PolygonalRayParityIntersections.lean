@@ -33,6 +33,7 @@ example : (0 : ℝ) ∉ openSegment ℝ 1 1 := by
   rw [Cslib.zero_mem_openSegment_iff_xor_pos (by norm_num) (by norm_num)]
   norm_num [Xor]
 
+open Classical in
 /-- The ordinary vertical-segment example consumes the public intersection-parity law. -/
 theorem vertical_law :
     rayParity (fun _ : Unit => (⟨0, -2⟩ : ℂ)) (fun _ => ⟨0, 2⟩) (fun _ => true) ⟨1, 1⟩ +
@@ -73,7 +74,7 @@ theorem vertical_law :
     have him : (AffineMap.lineMap (⟨-1, -1⟩ : ℂ) ⟨1, 1⟩ u).im = -1 + u * 2 := by
       rw [lineMap_im]
       ring
-    simp [him, hlow, hhigh]
+    simp [him, hlow, hhigh, Bool.add_eq_xor, Bool.mul_eq_and, Bool.zero_eq_false]
 
 -- A selected segment with odd endpoint incidence is admitted: jump cancellation is local.
 example : ¬(∀ z : ℂ, (∑ _ : Unit,
@@ -81,15 +82,17 @@ example : ¬(∀ z : ℂ, (∑ _ : Unit,
         (if (⟨0, 2⟩ : ℂ) = z then true else 0))) = false) ∧
     (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
       openSegment ℝ (⟨-1, -1⟩ : ℂ) ⟨1, 1⟩).Nonempty := by
+  classical
   constructor
   · intro h
     have hz := h ⟨0, -2⟩
     norm_num at hz
   · have h := vertical_law
-    norm_num [rayParity, RayCrosses, horizontalIntercept] at h
-    exact of_decide_eq_true h.symm
+    norm_num [rayParity, RayCrosses, horizontalIntercept, Bool.mul_eq_and] at h
+    exact h
 
 -- Each orientation reversal preserves the actual indexed event equation.
+open Classical in
 example :
     rayParity (fun _ : Unit => (⟨0, 2⟩ : ℂ)) (fun _ => ⟨0, -2⟩) (fun _ => true) ⟨1, 1⟩ +
       rayParity (fun _ : Unit => (⟨0, 2⟩ : ℂ)) (fun _ => ⟨0, -2⟩) (fun _ => true) ⟨-1, -1⟩ =
@@ -97,6 +100,7 @@ example :
         openSegment ℝ (⟨-1, -1⟩ : ℂ) ⟨1, 1⟩).Nonempty) := by
   simpa only [rayParity, rayCrosses_reverse, openSegment_symm] using vertical_law
 
+open Classical in
 example :
     rayParity (fun _ : Unit => (⟨0, -2⟩ : ℂ)) (fun _ => ⟨0, 2⟩) (fun _ => true) ⟨-1, -1⟩ +
       rayParity (fun _ : Unit => (⟨0, -2⟩ : ℂ)) (fun _ => ⟨0, 2⟩) (fun _ => true) ⟨1, 1⟩ =
@@ -104,6 +108,7 @@ example :
         openSegment ℝ (⟨1, 1⟩ : ℂ) ⟨-1, -1⟩).Nonempty) := by
   simpa [openSegment_symm, add_comm] using vertical_law
 
+open Classical in
 private theorem symmetric_events {ι : Type*} [Fintype ι] (k : ι → ℝ)
     (hk : ∀ i, 2 ≤ k i) (x : ι → Bool) :
     (∑ i, x i * decide ((openSegment ℝ (⟨-1, -k i⟩ : ℂ) ⟨1, k i⟩ ∩
@@ -158,10 +163,14 @@ private theorem symmetric_events {ι : Type*} [Fintype ι] (k : ι → ℝ)
           ⟨1 / 2, 1 / 2⟩ u).im = -(1 / 2 : ℝ) + u := by
         rw [lineMap_im]
         ring
-      simp [him, hlo, hhi])
+      rw [him]
+      simp only [hlo, hhi, false_and, decide_false, Bool.add_eq_xor, Bool.xor_false,
+      Bool.mul_eq_and, Bool.and_false, Bool.zero_eq_false])
   have hleft (i : ι) : RayCrosses (⟨-1, -k i⟩ : ℂ) ⟨1, k i⟩
       ⟨-(1 / 2 : ℝ), -(1 / 2 : ℝ)⟩ := by
     have hden : 0 < k i - -k i := by linarith [hk i]
+    simp only [RayCrosses, horizontalIntercept]
+    norm_num only [show (1 : ℝ) - -1 = 2 by norm_num]
     change min (-k i) (k i) ≤ -(1 / 2 : ℝ) ∧
       -(1 / 2 : ℝ) < max (-k i) (k i) ∧
       -(1 / 2 : ℝ) < -1 + (-(1 / 2 : ℝ) - -k i) / (k i - -k i) * 2
@@ -176,33 +185,38 @@ private theorem symmetric_events {ι : Type*} [Fintype ι] (k : ι → ℝ)
       ⟨1 / 2, 1 / 2⟩ := by
     intro hi
     have hx := hi.2.2
-    change (1 / 2 : ℝ) < -1 + (1 / 2 + k i) / (k i - -k i) * 2 at hx
+    change (1 / 2 : ℝ) < -1 + (1 / 2 - -k i) / (k i - -k i) * (1 - -1) at hx
+    rw [sub_neg_eq_add, show (1 : ℝ) - -1 = 2 by norm_num] at hx
     have hden : 0 < k i - -k i := by linarith [hk i]
     have hq : (3 / 4 : ℝ) < (1 / 2 + k i) / (k i - -k i) := by linarith
     have hm := (lt_div_iff₀ hden).mp hq
     nlinarith [hk i]
-  simpa only [rayParity, hleft, hright, ↓reduceIte, Finset.sum_const_zero, zero_add] using h.symm
+  simpa only [rayParity, hleft, hright, ↓reduceIte, Finset.sum_const_zero, zero_add,
+      Bool.mul_eq_and, Bool.and_true] using h.symm
 
 -- Three indexed segments meet at one point: no no3 hypothesis may be smuggled in.
+open Classical in
 example : (∑ i : Fin 3, true * decide
     ((openSegment ℝ (⟨-1, -((i.val : ℝ) + 2)⟩ : ℂ) ⟨1, (i.val : ℝ) + 2⟩ ∩
       openSegment ℝ (⟨-(1 / 2 : ℝ), -(1 / 2 : ℝ)⟩ : ℂ) ⟨1 / 2, 1 / 2⟩).Nonempty)) = true := by
   have h := symmetric_events (fun i : Fin 3 => (i.val : ℝ) + 2)
     (fun i => by have hi : (0 : ℝ) ≤ i.val := Nat.cast_nonneg _; linarith) (fun _ => true)
-  simpa [Fin.sum_univ_succ, Bool.add_eq_xor] using h
+  exact h.trans (by decide)
 
 -- Geometrically identical segments are separate occurrences and cancel.
+open Classical in
 example : (∑ _ : Fin 2, true * decide
     ((openSegment ℝ (⟨-1, -2⟩ : ℂ) ⟨1, 2⟩ ∩
       openSegment ℝ (⟨-(1 / 2 : ℝ), -(1 / 2 : ℝ)⟩ : ℂ) ⟨1 / 2, 1 / 2⟩).Nonempty)) = false := by
   have h := symmetric_events (fun _ : Fin 2 => (2 : ℝ)) (by intro _; norm_num) (fun _ => true)
-  simpa [Fin.sum_univ_succ, Bool.add_eq_xor] using h
+  exact h.trans (by decide)
 
-example : (∑ i : Fin 0, true * decide
+open Classical in
+example : (∑ _i : Fin 0, true * decide
     ((openSegment ℝ (⟨-1, -(2 : ℝ)⟩ : ℂ) ⟨1, 2⟩ ∩
       openSegment ℝ (⟨-(1 / 2 : ℝ), -(1 / 2 : ℝ)⟩ : ℂ) ⟨1 / 2, 1 / 2⟩).Nonempty)) = false := by
   have h := symmetric_events (fun _ : Fin 0 => (2 : ℝ)) (by intro _; norm_num) (fun _ => true)
-  simpa using h
+  exact h.trans (by decide)
 
 -- The common point in the three-event fixture really is the origin.
 private theorem symmetric_origin_mem (k : ℝ) :
@@ -213,7 +227,8 @@ private theorem symmetric_origin_mem (k : ℝ) :
   rw [← himage]
   refine ⟨(1 / 2 : ℝ), ?_, ?_⟩
   · norm_num [openSegment_eq_Ioo]
-  · ext <;> simp [AffineMap.lineMap_apply_module'] <;> ring
+  · apply Complex.ext <;> simp [AffineMap.lineMap_apply_module']
+    <;> ring
 
 -- Without jump cancellation parity changes despite no geometric intersection.
 example : rayParity (fun _ : Unit => (⟨0, 0⟩ : ℂ)) (fun _ => ⟨2, 2⟩)
@@ -225,22 +240,23 @@ example : rayParity (fun _ : Unit => (⟨0, 0⟩ : ℂ)) (fun _ => ⟨2, 2⟩)
 example : ¬(segment ℝ (⟨0, 0⟩ : ℂ) ⟨2, 2⟩ ∩
     segment ℝ (⟨-1, -1⟩ : ℂ) ⟨-1, 1⟩).Nonempty := by
   rintro ⟨z, hz⟩
-  rw [segment_eq_image_lineMap] at hz
+  rw [segment_eq_image_lineMap, segment_eq_image_lineMap] at hz
   obtain ⟨s, hs, hsx⟩ := hz.1
   obtain ⟨t, _, htx⟩ := hz.2
   have hre := congrArg Complex.re (hsx.trans htx.symm)
   norm_num [AffineMap.lineMap_apply_module'] at hre
   linarith [hs.1]
 
+open Classical in
 example : (∑ _ : Unit, true *
     (decide ((0 : ℝ) = 0 ∧ (-1 : ℝ) < 0) + decide ((2 : ℝ) = 0 ∧ (-1 : ℝ) < 2))) ≠ 0 := by
-  norm_num
+  norm_num [Bool.mul_eq_and, Bool.add_eq_xor, Bool.zero_eq_false]
 
 -- Starting on a selected support violates the CLOSED endpoint exclusion.
 example : (0 : ℂ) ∈ segment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ := by
   rw [segment_eq_image_lineMap]
   refine ⟨(1 / 2 : ℝ), by norm_num, ?_⟩
-  norm_num [AffineMap.lineMap_apply_module']
+  apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module']
 
 -- A star center on the observation is an arrangement ENDPOINT, not a transverse event.
 example : (0 : ℂ) ∈ segment ℝ (⟨0, -1⟩ : ℂ) ⟨0, 2⟩ ∧
@@ -249,7 +265,7 @@ example : (0 : ℂ) ∈ segment ℝ (⟨0, -1⟩ : ℂ) ⟨0, 2⟩ ∧
   refine ⟨?_, left_mem_segment ℝ _ _, left_mem_segment ℝ _ _⟩
   rw [segment_eq_image_lineMap]
   refine ⟨(1 / 3 : ℝ), by norm_num, ?_⟩
-  norm_num [AffineMap.lineMap_apply_module']
+  apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module']
 
 -- Collinear overlap violates the endpoint exclusions; it is not a valid observation.
 example :
@@ -260,14 +276,16 @@ example :
 private theorem cycle_even {n : ℕ} (v : Fin n → ℂ) (p : ℂ) :
     (∑ i : Fin n, ((if v i = p then (true : Bool) else 0) +
       (if v (finRotate n i) = p then true else 0))) = false := by
-  rw [Finset.sum_add_distrib, Equiv.sum_comp (finRotate n)]
-  simp
+  rw [Finset.sum_add_distrib,
+    Equiv.sum_comp (finRotate n) (fun i => if v i = p then (true : Bool) else 0)]
+  simpa only [Bool.zero_eq_false] using BooleanRing.add_self (∑ i,
+      if v i = p then (true : Bool) else 0)
 
 private def diamond (i : Fin 4) : ℂ :=
   if i = 0 then ⟨0, 2⟩ else if i = 1 then ⟨2, 0⟩ else
     if i = 2 then ⟨0, -2⟩ else ⟨-2, 0⟩
 
-private def diamondStart (once : Bool) : ℂ :=
+private noncomputable def diamondStart (once : Bool) : ℂ :=
   if once then 0 else ⟨-3, -(1 / 2 : ℝ)⟩
 
 private theorem diamond_observation_avoids (once endpoint : Bool) (i : Fin 4) :
@@ -279,7 +297,8 @@ private theorem diamond_observation_avoids (once endpoint : Bool) (i : Fin 4) :
   have hre := congrArg Complex.re heq
   have him := congrArg Complex.im heq
   cases once <;> cases endpoint <;> fin_cases i <;>
-    norm_num [diamondStart, diamond, finRotate, AffineMap.lineMap_apply_module'] at hre him <;>
+    norm_num [diamondStart, diamond, finRotate_apply,
+      AffineMap.lineMap_apply_module'] at hre him <;>
     linarith [hu.1, hu.2]
 
 private theorem diamond_endpoints_avoid (once endpoint : Bool) (i : Fin 4) :
@@ -291,9 +310,11 @@ private theorem diamond_endpoints_avoid (once endpoint : Bool) (i : Fin 4) :
   have hre := congrArg Complex.re heq
   have him := congrArg Complex.im heq
   cases once <;> cases endpoint <;> fin_cases i <;>
-    norm_num [diamondStart, diamond, finRotate, AffineMap.lineMap_apply_module'] at hre him <;>
+    norm_num [diamondStart, diamond, finRotate_apply,
+      AffineMap.lineMap_apply_module'] at hre him <;>
     linarith
 
+open Classical in
 private theorem diamond_law (once : Bool) :
     rayParity diamond (fun i => diamond (finRotate 4 i)) (fun _ => true) ⟨3, 1 / 2⟩ +
       rayParity diamond (fun i => diamond (finRotate 4 i)) (fun _ => true) (diamondStart once) =
@@ -302,7 +323,7 @@ private theorem diamond_law (once : Bool) :
           openSegment ℝ (diamondStart once) (⟨3, 1 / 2⟩ : ℂ)).Nonempty) := by
   apply rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
   · intro i
-    fin_cases i <;> norm_num [diamond, finRotate]
+    fin_cases i <;> norm_num [diamond, finRotate_apply]
   · cases once <;> norm_num [diamondStart]
   · exact fun i _ => diamond_observation_avoids once true i
   · exact fun i _ => diamond_observation_avoids once false i
@@ -313,24 +334,26 @@ private theorem diamond_law (once : Bool) :
       (fun _ => true) (cycle_even diamond) z
 
 -- The first observation begins inside; the second passes through the whole even cycle.
+open Classical in
 example : (∑ i : Fin 4, true * decide
     ((openSegment ℝ (diamond i) (diamond (finRotate 4 i)) ∩
       openSegment ℝ 0 (⟨3, 1 / 2⟩ : ℂ)).Nonempty)) = true := by
   have hcolors : rayParity diamond (fun i => diamond (finRotate 4 i)) (fun _ => true)
       ⟨3, 1 / 2⟩ + rayParity diamond (fun i => diamond (finRotate 4 i))
       (fun _ => true) (diamondStart true) = true := by
-    norm_num [rayParity, Fin.sum_univ_succ, diamondStart, diamond, finRotate,
-      RayCrosses, horizontalIntercept]
+    norm_num [rayParity, Fin.sum_univ_succ, diamondStart, diamond, finRotate_apply,
+      RayCrosses, horizontalIntercept, Bool.add_eq_xor, Bool.zero_eq_false]
   exact (diamond_law true).symm.trans hcolors
 
+open Classical in
 example : (∑ i : Fin 4, true * decide
     ((openSegment ℝ (diamond i) (diamond (finRotate 4 i)) ∩
       openSegment ℝ (⟨-3, -(1 / 2 : ℝ)⟩ : ℂ) ⟨3, 1 / 2⟩).Nonempty)) = false := by
   have hcolors : rayParity diamond (fun i => diamond (finRotate 4 i)) (fun _ => true)
       ⟨3, 1 / 2⟩ + rayParity diamond (fun i => diamond (finRotate 4 i))
       (fun _ => true) (diamondStart false) = false := by
-    norm_num [rayParity, Fin.sum_univ_succ, diamondStart, diamond, finRotate,
-      RayCrosses, horizontalIntercept]
+    norm_num [rayParity, Fin.sum_univ_succ, diamondStart, diamond, finRotate_apply,
+      RayCrosses, horizontalIntercept, Bool.add_eq_xor, Bool.zero_eq_false]
   exact (diamond_law false).symm.trans hcolors
 
 -- Two distinct actual events justify the description "twice", independently of parity.
@@ -343,13 +366,13 @@ example :
     have h := image_openSegment ℝ (AffineMap.lineMap (diamond 0) (diamond 1)) (0 : ℝ) 1
     rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
     rw [← h]
-    exact ⟨6 / 7, by norm_num [openSegment_eq_Ioo], by norm_num [diamond,
+    exact ⟨6 / 7, by norm_num [openSegment_eq_Ioo], by apply Complex.ext <;> norm_num [diamond,
       AffineMap.lineMap_apply_module']⟩
   have hsecond : (⟨-12 / 7, -2 / 7⟩ : ℂ) ∈ openSegment ℝ (diamond 2) (diamond 3) := by
     have h := image_openSegment ℝ (AffineMap.lineMap (diamond 2) (diamond 3)) (0 : ℝ) 1
     rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
     rw [← h]
-    exact ⟨6 / 7, by norm_num [openSegment_eq_Ioo], by norm_num [diamond,
+    exact ⟨6 / 7, by norm_num [openSegment_eq_Ioo], by apply Complex.ext <;> norm_num [diamond,
       AffineMap.lineMap_apply_module']⟩
   have hobs (v : ℝ) (hv : v ∈ Set.Ioo (0 : ℝ) 1) :
       AffineMap.lineMap (⟨-3, -(1 / 2 : ℝ)⟩ : ℂ) ⟨3, 1 / 2⟩ v ∈
@@ -360,8 +383,14 @@ example :
     rw [← h]
     exact ⟨v, by simpa only [openSegment_eq_Ioo (by norm_num : (0 : ℝ) < 1)] using hv, rfl⟩
   refine ⟨⟨⟨12 / 7, 2 / 7⟩, hfirst, ?_⟩, ⟨⟨-12 / 7, -2 / 7⟩, hsecond, ?_⟩⟩
-  · simpa [AffineMap.lineMap_apply_module'] using hobs (11 / 14) (by norm_num)
-  · simpa [AffineMap.lineMap_apply_module'] using hobs (3 / 14) (by norm_num)
+  · have heq : AffineMap.lineMap (⟨-3, -(1 / 2 : ℝ)⟩ : ℂ) ⟨3, 1 / 2⟩ (11 / 14 : ℝ) =
+        (⟨12 / 7, 2 / 7⟩ : ℂ) := by
+      apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module']
+    simpa only [heq] using hobs (11 / 14) (by norm_num)
+  · have heq : AffineMap.lineMap (⟨-3, -(1 / 2 : ℝ)⟩ : ℂ) ⟨3, 1 / 2⟩ (3 / 14 : ℝ) =
+        (⟨-12 / 7, -2 / 7⟩ : ℂ) := by
+      apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module']
+    simpa only [heq] using hobs (3 / 14) (by norm_num)
 
 private def boundaryTriangle (i : Fin 3) : ℂ :=
   if i = 0 then ⟨-3, -5⟩ else if i = 1 then ⟨1, 5⟩ else ⟨4, -6⟩
@@ -378,7 +407,7 @@ private theorem boundary_observation_avoids (endpoint : Bool) (i : Fin 3) :
   have hre := congrArg Complex.re heq
   have him := congrArg Complex.im heq
   cases endpoint <;> fin_cases i <;>
-    norm_num [boundaryTriangle, boundaryC, boundaryD, finRotate,
+    norm_num [boundaryTriangle, boundaryC, boundaryD, finRotate_apply,
       AffineMap.lineMap_apply_module'] at hre him <;> linarith
 
 private theorem boundary_endpoints_avoid (endpoint : Bool) (i : Fin 3) :
@@ -390,10 +419,11 @@ private theorem boundary_endpoints_avoid (endpoint : Bool) (i : Fin 3) :
   have hre := congrArg Complex.re heq
   have him := congrArg Complex.im heq
   cases endpoint <;> fin_cases i <;>
-    norm_num [boundaryTriangle, boundaryC, boundaryD, finRotate,
+    norm_num [boundaryTriangle, boundaryC, boundaryD, finRotate_apply,
       AffineMap.lineMap_apply_module'] at hre him <;> linarith [hu.1, hu.2]
 
 -- A genuine closed arrangement admits the coincident UPPER endpoint height.
+open Classical in
 private theorem boundary_law :
     rayParity boundaryTriangle (fun i => boundaryTriangle (finRotate 3 i))
         (fun _ => true) boundaryD +
@@ -404,7 +434,7 @@ private theorem boundary_law :
           openSegment ℝ boundaryC boundaryD).Nonempty) := by
   apply rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
   · intro i
-    fin_cases i <;> norm_num [boundaryTriangle, finRotate]
+    fin_cases i <;> norm_num [boundaryTriangle, finRotate_apply]
   · norm_num [boundaryC, boundaryD]
   · exact fun i _ => boundary_observation_avoids true i
   · exact fun i _ => boundary_observation_avoids false i
@@ -415,6 +445,7 @@ private theorem boundary_law :
       (fun i => boundaryTriangle (finRotate 3 i)) (fun _ => true)
       (cycle_even boundaryTriangle) z
 
+open Classical in
 example : (∑ i : Fin 3, true * decide
     ((openSegment ℝ (boundaryTriangle i) (boundaryTriangle (finRotate 3 i)) ∩
       openSegment ℝ boundaryC boundaryD).Nonempty)) = false := by
@@ -423,9 +454,11 @@ example : (∑ i : Fin 3, true * decide
       rayParity boundaryTriangle (fun i => boundaryTriangle (finRotate 3 i))
         (fun _ => true) boundaryC = false := by
     norm_num [rayParity, Fin.sum_univ_succ, boundaryTriangle, boundaryC, boundaryD,
-      finRotate, RayCrosses, horizontalIntercept]
+      finRotate_apply, RayCrosses, horizontalIntercept, Bool.add_eq_xor, Bool.zero_eq_false]
+    rfl
   exact boundary_law.symm.trans hcolors
 
+open Classical in
 example : (boundaryTriangle 1).im = max boundaryC.im boundaryD.im ∧
     (∑ i : Fin 3, true *
       (decide ((boundaryTriangle i).im = boundaryC.im ∧ boundaryC.re < (boundaryTriangle i).re) +
@@ -446,14 +479,15 @@ private theorem boundary_first_contact :
     rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
     rw [← h]
     exact ⟨29 / 33, by norm_num [openSegment_eq_Ioo], by
-      norm_num [boundaryTriangle, AffineMap.lineMap_apply_module']⟩
+      apply Complex.ext <;> norm_num [boundaryTriangle, AffineMap.lineMap_apply_module']⟩
   · have h := image_openSegment ℝ (AffineMap.lineMap boundaryC boundaryD) (0 : ℝ) 1
     rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
     rw [← h]
     exact ⟨10 / 33, by norm_num [openSegment_eq_Ioo], by
-      norm_num [boundaryC, boundaryD, AffineMap.lineMap_apply_module']⟩
+      apply Complex.ext <;> norm_num [boundaryC, boundaryD, AffineMap.lineMap_apply_module']⟩
 
 -- Replacing the sweep's Ioc by Ico gives a FALSE per-segment identity here.
+open Classical in
 example : decide (RayCrosses (boundaryTriangle 0) (boundaryTriangle 1) boundaryD) +
       decide (RayCrosses (boundaryTriangle 0) (boundaryTriangle 1) boundaryC) ≠
     decide ((openSegment ℝ (boundaryTriangle 0) (boundaryTriangle 1) ∩
@@ -480,7 +514,7 @@ example (i : Fin 3) : (0 : ℂ) ∈
   rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
   rw [← h]
   exact ⟨1 / 2, by norm_num [openSegment_eq_Ioo], by
-    norm_num [AffineMap.lineMap_apply_module']⟩
+    apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module']⟩
 
 example : (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
     openSegment ℝ (⟨0, -1⟩ : ℂ) ⟨0, 1⟩).Nonempty := by
@@ -489,7 +523,8 @@ example : (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
     rw [AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h
     rw [← h]
     refine ⟨1 / 2, by norm_num [openSegment_eq_Ioo], ?_⟩
-    ext <;> simp [AffineMap.lineMap_apply_module'] <;> ring
+    apply Complex.ext <;> simp [AffineMap.lineMap_apply_module']
+    ring
   exact ⟨0, hzero 2, hzero 1⟩
 
 end CslibFrontierTests.PolygonalRayParityIntersections

@@ -52,13 +52,15 @@ private theorem heightMap_im {a b : ℂ} (hab : a.im ≠ b.im) (h : ℝ) :
   change (AffineMap.lineMap a b ((b.im - a.im)⁻¹ * (h - a.im))).im = h
   rw [lineMap_im]
   field_simp [sub_ne_zero.mpr hab.symm]
-  <;> ring
+  ring
 
 private theorem heightMap_re (a b : ℂ) (h : ℝ) :
     (heightMap a b h).re = horizontalIntercept a b h := by
   change Complex.reCLM.toLinearMap.toAffineMap
     (AffineMap.lineMap a b ((b.im - a.im)⁻¹ * (h - a.im))) = _
-  rw [AffineMap.apply_lineMap, AffineMap.lineMap_apply_ring']
+  rw [AffineMap.apply_lineMap]
+  change AffineMap.lineMap a.re b.re ((b.im - a.im)⁻¹ * (h - a.im)) = _
+  rw [AffineMap.lineMap_apply_ring']
   simp only [horizontalIntercept, div_eq_mul_inv]
   ring
 
@@ -67,7 +69,9 @@ private theorem mem_heightMap_image_iff {a b : ℂ} (hab : a.im ≠ b.im)
     z ∈ heightMap a b '' S ↔ z.im ∈ S ∧ z.re = horizontalIntercept a b z.im := by
   constructor
   · rintro ⟨h, hh, rfl⟩
-    simpa only [heightMap_im hab, heightMap_re] using ⟨hh, (heightMap_re a b h)⟩
+    constructor
+    · simpa only [heightMap_im hab] using hh
+    · rw [heightMap_im hab, heightMap_re]
   · rintro ⟨hz, hre⟩
     refine ⟨z.im, hz, Complex.ext ?_ (heightMap_im hab _)⟩
     exact (heightMap_re a b z.im).trans hre.symm
@@ -135,7 +139,7 @@ private theorem interval_boundary_parity (A B C D : ℝ) (hAB : A < B) (hCD : C 
       · have hCB : C < B := hCA.trans_lt hAB
         by_cases hCA' : C < A
         · by_cases hDB' : D < B
-          · simp [hCA', not_le.mpr hCA', hDB', not_le.mpr hDB', hAD, hAD.le]
+          · simp [hCA', not_le.mpr hCA', hDB', not_le.mpr hDB', hAD, hAD.le, add_comm]
           · have heq : D = B := le_antisymm hDB (le_of_not_gt hDB')
             subst D
             simp [hCA', not_le.mpr hCA', hAB, hAB.le, hCB]
@@ -148,7 +152,7 @@ private theorem interval_boundary_parity (A B C D : ℝ) (hAB : A < B) (hCD : C 
             simp [hAB]
       · subst D
         have hCA' : C < A := hCD
-        simp [hCA', not_le.mpr hCA', hAB, not_le.mpr hAB]
+        simp [hCA', not_le.mpr hCA', hAB, not_le.mpr hAB, Bool.add_eq_xor, Bool.zero_eq_false]
       · have hAC : ¬A ≤ C := not_le.mpr (hCD.trans hDA)
         have hAD : ¬A ≤ D := not_le.mpr hDA
         have hBD : ¬B ≤ D := not_le.mpr (hDA.trans hAB)
@@ -211,6 +215,7 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
   · rw [heq, heightMap_right hcd.ne] at hmAB
     exact hd hmAB
 
+open Classical in
 private theorem common_open_indicator {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
     (ha : a ∉ segment ℝ c d) (hb : b ∉ segment ℝ c d)
@@ -243,16 +248,18 @@ private theorem common_open_indicator {a b c d : ℂ}
       rw [← image_openSegment ℝ (differenceMap a b c d) L H]
       simp only [Set.mem_image, openSegment_eq_Ioo hLH]
     rw [common_open_iff hab hcd, hroot, Cslib.zero_mem_openSegment_iff_xor_pos hL hH,
-      if_pos hLH]
+      ite_eq_left hLH]
     by_cases hposL : 0 < differenceMap a b c d L <;>
       by_cases hposH : 0 < differenceMap a b c d H <;>
-      simp [hposL, hposH, Xor, L, H]
+      simp [hposL, hposH, Xor, L, H, Bool.add_eq_xor]
   · have hno : ¬(openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty := by
       rintro hz
       obtain ⟨h, hh, _⟩ := (common_open_iff hab hcd).mp hz
       exact hLH (hh.1.trans hh.2)
-    simp only [hno, decide_false, if_neg hLH]
+    dsimp only [L, H] at hLH
+    simp only [hno, decide_false, ite_eq_right hLH, Bool.zero_eq_false]
 
+open Classical in
 private theorem sweep_identity_ordered {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
     (ha : a ∉ segment ℝ c d) (hb : b ∉ segment ℝ c d)
@@ -270,7 +277,7 @@ private theorem sweep_identity_ordered {a b c d : ℂ}
     rw [show RayCrosses a b c ↔ (a.im ≤ c.im ∧ c.im < b.im) ∧
         0 < differenceMap a b c d c.im by
       simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hsign, and_assoc]]
-    by_cases h : a.im ≤ c.im ∧ c.im < b.im <;> simp [h, f]
+    by_cases h : a.im ≤ c.im ∧ c.im < b.im <;> simp [h, f, Bool.zero_eq_false]
   have hD : decide (RayCrosses a b d) =
       if a.im ≤ d.im ∧ d.im < b.im then f d.im else 0 := by
     have hsign : d.re < horizontalIntercept a b d.im ↔
@@ -279,28 +286,29 @@ private theorem sweep_identity_ordered {a b c d : ℂ}
     rw [show RayCrosses a b d ↔ (a.im ≤ d.im ∧ d.im < b.im) ∧
         0 < differenceMap a b c d d.im by
       simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hsign, and_assoc]]
-    by_cases h : a.im ≤ d.im ∧ d.im < b.im <;> simp [h, f]
+    by_cases h : a.im ≤ d.im ∧ d.im < b.im <;> simp [h, f, Bool.zero_eq_false]
   have hA : decide (Sweep c d a) =
       if c.im < a.im ∧ a.im ≤ d.im then f a.im else 0 := by
     have hsign : horizontalIntercept c d a.im < a.re ↔
         0 < differenceMap a b c d a.im := by
       rw [differenceMap_apply, horizontalIntercept_left, sub_pos]
     by_cases h : c.im < a.im ∧ a.im ≤ d.im <;>
-      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f]
+      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f, Bool.zero_eq_false]
   have hB : decide (Sweep c d b) =
       if c.im < b.im ∧ b.im ≤ d.im then f b.im else 0 := by
     have hsign : horizontalIntercept c d b.im < b.re ↔
         0 < differenceMap a b c d b.im := by
       rw [differenceMap_apply, horizontalIntercept_right hab.ne, sub_pos]
     by_cases h : c.im < b.im ∧ b.im ≤ d.im <;>
-      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f]
+      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f, Bool.zero_eq_false]
   have hboundary := interval_boundary_parity a.im b.im c.im d.im hab hcd f
   rw [← hC, ← hD, ← hA, ← hB,
     ← common_open_indicator hab hcd ha hb hc hd] at hboundary
   have h := congrArg (fun z : Bool => z + (decide (Sweep c d a) + decide (Sweep c d b)))
     hboundary
-  simpa [add_assoc, add_comm, add_left_comm] using h
+  simpa [add_assoc, add_comm, add_left_comm, BooleanRing.add_self] using h
 
+open Classical in
 private theorem sweep_identity {a b c d : ℂ}
     (hab : a.im ≠ b.im) (hcd : c.im ≠ d.im)
     (ha : a ∉ segment ℝ c d) (hb : b ∉ segment ℝ c d)
@@ -328,6 +336,7 @@ private theorem sweep_identity {a b c d : ℂ}
         simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using h
     simpa [rayCrosses_reverse, openSegment_symm, add_comm, add_left_comm, add_assoc] using h
 
+open Classical in
 private theorem weighted_sweeps_ordered {ι : Type*} [Fintype ι]
     (a b : ι → ℂ) (x : ι → Bool) {c d : ℂ} (hcd : c.im < d.im)
     (hjump : ∀ z ∈ segment ℝ c d,
@@ -363,16 +372,18 @@ private theorem weighted_sweeps_ordered {ι : Type*} [Fintype ι]
           by_cases heq : (endpoint j).im = h
           · simp [heq, Sweep, min_eq_left hcd.le, max_eq_right hcd.le,
               hwindow.1, hwindow.2, heightMap_re]
-          · simp [heq]
+          · simp [heq, Bool.mul_eq_and, Bool.zero_eq_false]
         _ = 0 := hJ
     · apply Finset.sum_eq_zero
       intro j _
       by_cases heq : (endpoint j).im = h
-      · simp [heq, Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hwindow]
-      · simp [heq]
+      · simp [heq, Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hwindow,
+          Bool.mul_eq_and, Bool.zero_eq_false]
+      · simp [heq, Bool.zero_eq_false]
   simpa only [Fintype.sum_prod_type, Fintype.sum_bool, endpoint,
     Bool.false_eq_true, ↓reduceIte, ← mul_add, add_comm] using hsum
 
+open Classical in
 private theorem weighted_sweeps_eq_zero {ι : Type*} [Fintype ι]
     (a b : ι → ℂ) (x : ι → Bool) {c d : ℂ} (hcd : c.im ≠ d.im)
     (hjump : ∀ z ∈ segment ℝ c d,
@@ -385,6 +396,7 @@ private theorem weighted_sweeps_eq_zero {ι : Type*} [Fintype ι]
         hjump z (by simpa only [segment_symm] using hz))
     simpa only [sweep_reverse hcd.ne.symm] using h
 
+open Classical in
 /-- Endpoint ray-parity difference equals the indexed Boolean sum of actual open
 intersections with a straight observation segment when endpoint-height jumps cancel
 throughout its closed support. Occurrences are counted separately, even at simultaneous
@@ -411,7 +423,7 @@ theorem rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
     · rw [sweep_identity (hheight i) hcd (ha i hx) (hb i hx) (hc i hx) (hd i hx)]
       simp only [mul_add, add_assoc]
     · have hx' : x i = false := Bool.eq_false_iff.mpr hx
-      simp [hx', Bool.zero_eq_false]
+      simp [hx', Bool.mul_eq_and, Bool.zero_eq_false]
   calc
     rayParity a b x d + rayParity a b x c =
         ∑ i, x i * (decide (RayCrosses (a i) (b i) d) +
@@ -421,7 +433,7 @@ theorem rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
       intro i _
       by_cases hD : RayCrosses (a i) (b i) d <;>
         by_cases hC : RayCrosses (a i) (b i) c <;>
-        simp [hD, hC]
+        simp [hD, hC, Bool.add_eq_xor, Bool.mul_eq_and, Bool.zero_eq_false]
     _ = (∑ i, x i * decide
         ((openSegment ℝ (a i) (b i) ∩ openSegment ℝ c d).Nonempty)) +
         ∑ i, x i * (decide (Sweep c d (a i)) + decide (Sweep c d (b i))) := by

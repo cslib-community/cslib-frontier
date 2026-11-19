@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Analysis.Convex.Segment
+public import Mathlib.Basic.Real.Basic
 
 /-!
 # Zero in an open real segment

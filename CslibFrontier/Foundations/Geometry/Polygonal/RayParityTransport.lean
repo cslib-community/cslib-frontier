@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import Mathlib.Analysis.Convex.Basic
 
 /-!
 # Transport of ray parity along isolated segment interiors
@@ -110,8 +111,8 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
   have hno (j : ι) (hy : y j = true) :
       ¬(openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point s) (point t)).Nonempty := by
     rintro ⟨z, hz⟩
-    exact havoid z (openSegment_subset_segment hz.2) j hy
-      (openSegment_subset_segment hz.1)
+    exact havoid z (openSegment_subset_segment ℝ _ _ hz.2) j hy
+      (openSegment_subset_segment ℝ _ _ hz.1)
   have h := rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
     a b y (point s) (point t) hheight hcd
     (fun j hy => havoid _ (left_mem_segment ℝ _ _) j hy)
@@ -124,9 +125,9 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
     apply Finset.sum_eq_zero
     intro j _
     by_cases hy : y j = true
-    · simp only [hno j hy, decide_false, mul_zero]
+    · simp only [hno j hy, decide_false, Bool.mul_eq_and, Bool.and_false, Bool.zero_eq_false]
     · have hy' : y j = false := Bool.eq_false_iff.mpr hy
-      simp [hy', Bool.zero_eq_false]
+      simp [hy', Bool.zero_eq_false, Bool.mul_eq_and]
   rw [hzero] at h
   rw [hremove s, hremove t]
   exact ((BooleanRing.add_eq_zero' _ _).mp h).symm
