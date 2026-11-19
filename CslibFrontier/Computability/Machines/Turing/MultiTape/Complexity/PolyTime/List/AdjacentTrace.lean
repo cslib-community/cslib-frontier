@@ -46,14 +46,14 @@ private theorem insert_polyTime :
   have hp : ComputableInPolyTime
       (fun p : (Result × ℕ) × ℕ => decide (p.2 < p.1.2))
       (encPair (encPair encResult encNat) encNat) encBool := by fun_prop
-  have ht := ComputableInPolyTime.takeWhileWithInput hk hp
-  have hd := ComputableInPolyTime.dropWhileWithInput hk hp
+  have ht := ComputableInPolyTime.takeWhileWithInput (pred := fun p b => decide (b < p.2)) hk hp
+  have hd := ComputableInPolyTime.dropWhileWithInput (pred := fun p b => decide (b < p.2)) hk hp
   have ho : ComputableInPolyTime
       (fun p : Result × ℕ => List.orderedInsert (· ≤ ·) p.2 p.1.sortedKeys)
       (encPair encResult encNat) (encList encNat) := by
     convert ComputableInPolyTime.listAppend' ht (ComputableInPolyTime.cons' ha hd) using 1
     funext p
-    simp [List.orderedInsert_eq_take_drop, Nat.not_le]
+    simp [List.orderedInsert_eq_take_drop]
   have hn : ComputableInPolyTime
       (fun p : Result × ℕ => (p.1.sortedKeys.takeWhile (fun b => b<p.2)).length)
       (encPair encResult encNat) encUnary := by fun_prop
@@ -61,10 +61,11 @@ private theorem insert_polyTime :
   have hnew : ComputableInPolyTime
       (fun p : Result × ℕ => List.range (p.1.sortedKeys.takeWhile (fun b => b<p.2)).length)
       (encPair encResult encNat) (encList encNat) := by
-    simpa only [List.map_id_fun] using
-      (ComputableInPolyTime.mapWithInput hru
+    convert (ComputableInPolyTime.mapWithInput (f := fun (_ : Result × ℕ) (n : ℕ) => n) hru
         (ComputableInPolyTime.unary_to_binary.comp
-          (ComputableInPolyTime.snd (encPair encResult encNat) encUnary)))
+          (ComputableInPolyTime.snd (encPair encResult encNat) encUnary))) using 1
+    funext p
+    simp
   have hold : ComputableInPolyTime
       (fun p : Result × ℕ => p.1.requests.map Nat.succ)
       (encPair encResult encNat) (encList encNat) := by
@@ -81,7 +82,7 @@ private theorem prefix_size (keys consumed : List ℕ) (hp : consumed <+: keys.r
     (encResult (compute consumed.reverse)).length ≤ budget keys := by
   let S := (encList encNat keys).length
   let P := keys.length
-  have hPS : P ≤ S := SizedListEncoding.length_le keys
+  have hPS : P ≤ S := SizedListEncoding.length_le encNat keys
   have hq : consumed.length ≤ P := by simpa only [List.length_reverse] using hp.length_le
   have hc := components_compute consumed.reverse
   have hmass : (encList encNat (compute consumed.reverse).sortedKeys).length ≤ S := by
@@ -103,7 +104,7 @@ private theorem prefix_size (keys consumed : List ℕ) (hp : consumed <+: keys.r
   have hwidth : ∀ j ∈ (compute consumed.reverse).requests, (encNat j).length ≤ P := by
     intro j hj
     have hv := hc.2.2 j hj
-    rw [encNat_apply, ← Nat.size_eq_bits_len]
+    rw [encNat_apply, Nat.size_eq_bits_len]
     have hs := Nat.size_le_self j
     simp only [List.length_reverse] at hv
     omega
@@ -112,6 +113,7 @@ private theorem prefix_size (keys consumed : List ℕ) (hp : consumed <+: keys.r
       (S*S)*(2*S+1) :=
     hrequests.trans ((Nat.mul_le_mul_right _ hcount).trans
       (Nat.mul_le_mul (Nat.mul_le_mul hPS hPS) (by omega)))
+  rw [encResult_apply, encResultFields, length_encPair]
   change 2*(encList encNat (compute consumed.reverse).sortedKeys).length+1+
     (encList encNat (compute consumed.reverse).requests).length ≤ budget keys
   apply (Nat.add_le_add_right (Nat.add_le_add_right

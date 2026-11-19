@@ -173,9 +173,6 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
         js.foldl swap (I.ports.map (fun z => τ (2^k*z))) := by
   dsimp only
   simp_rw [← List.swap_adjacent_eq_take_drop]
-  change I.body.eval sem (fun z => τ (2^(_)*z)) = true ∧
-    (transposeSchedule g w I js).ports.map τ =
-      js.foldl (fun ps j => ps.swap j (j+1)) (I.ports.map (fun z => τ (2^(_)*z)))
   induction js using List.reverseRecOn generalizing τ with
   | nil =>
     simp only [transposeSchedule, List.foldl_nil, List.countP_nil, pow_zero, one_mul] at ht ⊢
@@ -272,7 +269,6 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
       from funext ha] using hr
   · rintro ⟨τ, ht, ha, _⟩
     have hr := (recover_transposeSchedule g w I js τ ht).1
-    simp_rw [← List.swap_adjacent_eq_take_drop] at hr
     simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
       from funext ha] using hr
 

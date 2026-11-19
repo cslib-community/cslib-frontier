@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.List.Swap
 public import Mathlib.Data.List.Sort
 import CslibFrontier.Foundations.Data.List.Blocks
-import Mathlib.Data.Nat.Choose.Basic
+public import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Data.List.Range
 
 /-!
@@ -27,6 +27,8 @@ permutation. This is original trace instrumentation, reusing the library's sorti
 -/
 
 public section
+
+open List
 
 namespace Cslib.AdjacentSortTrace
 
@@ -90,7 +92,8 @@ theorem components_compute (keys : List ℕ) :
     have ht : ((compute keys).sortedKeys.takeWhile (fun b => b<a)).length ≤ keys.length :=
       (List.takeWhile_sublist _).length_le.trans hs.le
     refine ⟨?_, ?_, ?_⟩
-    · simp only [insert, ih.1, List.insertionSort_cons]
+    · change List.orderedInsert (· ≤ ·) a (compute keys).sortedKeys = _
+      rw [ih.1, List.insertionSort_cons]
     · simp only [insert, List.length_append, List.length_map, List.length_range,
         List.length_cons]
       have hc : (keys.length+1).choose 2 = keys.length.choose 2 + keys.length := by
@@ -168,8 +171,10 @@ theorem requests_eq_nil_of_pairwise (keys : List ℕ) (h : keys.Pairwise (· ≤
     obtain ⟨ha, hk⟩ := List.pairwise_cons.mp h
     have hs := hk.insertionSort_eq
     rw [compute_cons]
-    simp only [insert, ih hk, List.map_nil, List.nil_append,
-      (components_compute keys).1, hs]
+    change (compute keys).requests.map Nat.succ ++
+      List.range ((compute keys).sortedKeys.takeWhile (fun b => b<a)).length = []
+    rw [ih hk, (components_compute keys).1, hs]
+    simp only [List.map_nil, List.nil_append]
     cases keys with
     | nil => rfl
     | cons b keys =>

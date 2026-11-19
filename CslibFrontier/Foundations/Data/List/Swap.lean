@@ -41,7 +41,7 @@ theorem swap_adjacent_eq_take_drop {α : Type*} (xs : List α) (j : ℕ) :
     | cons x xs =>
       rw [List.swap_cons, ih]
       by_cases h : j+1<xs.length <;>
-        simp [h, Nat.succ_eq_add_one, List.take_succ_cons, List.drop_succ_cons]
+        simp [h, List.take_succ_cons, List.drop_succ_cons]
 
 /-- Mapping a payload commutes with the existing total exchange, including its invalid
 index identity branches. -/

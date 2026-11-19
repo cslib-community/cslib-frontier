@@ -25,25 +25,25 @@ namespace CslibFrontierTests.CSPMetadataSort
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Logic.PL.CSP.Crossover
 open Cslib.Complexity Cslib.Complexity.CSP OrderedBoundary CrossInsertion
-open Cslib.AdjacentSortTrace Turing.MultiTapeTM Cslib.BitString
+open Cslib.AdjacentSortTrace Turing.MultiTapeTM Cslib.BitString List
 
 example : (compute [3,2,1]).requests = [1,0,1] ∧
     (compute [3,2,1]).sortedKeys = [1,2,3] ∧
     (compute [3,2,1]).requests.foldl (fun xs j => xs.swap j (j+1)) [0,1,2] = [2,1,0] := by
-  decide +kernel
+  simp [compute, Cslib.AdjacentSortTrace.insert, List.range_succ, List.swap]
 
 example : (compute [2,1,2,1]).requests = [2,0,1] ∧
     (compute [2,1,2,1]).sortedKeys = [1,1,2,2] ∧
     (compute [2,1,2,1]).requests.foldl (fun xs j => xs.swap j (j+1)) [0,1,2,3] =
-      [1,3,0,2] := by decide +kernel
+      [1,3,0,2] := by simp [compute, Cslib.AdjacentSortTrace.insert, List.range_succ, List.swap]
 
 example {α : Type} (a b c d : α) :
     (compute [2,1,2,1]).requests.foldl (fun xs j => xs.swap j (j+1)) [a,b,c,d] =
-      [b,d,a,c] := by rfl
+      [b,d,a,c] := by simp [compute, Cslib.AdjacentSortTrace.insert, List.range_succ, List.swap]
 
 example : [1,3] <+ (compute [2,1,2,1]).requests.foldl
     (fun xs j => xs.swap j (j+1)) [0,1,2,3] :=
-  (indices_payload [2,1,2,1]).2.2 1 3 (by decide +kernel) (by rfl)
+  (indices_payload.{0} [2,1,2,1]).2.2 1 3 (by decide +kernel) (by rfl)
 
 -- The generic replay theorem compares only original keys, even on decorated payloads.
 example (a b : Bool) :
@@ -51,11 +51,14 @@ example (a b : Bool) :
       [(2,false),(1,a),(2,true),(1,b)] = [(1,a),(1,b),(2,false),(2,true)] := by
   have h := replay_compute (fun p : ℕ × Bool => p.1)
     [(2,false),(1,a),(2,true),(1,b)]
-  simpa [List.insertionSort, List.orderedInsert] using h
+  simpa [List.insertionSort_cons, List.insertionSort_nil] using h
 
 private abbrev g := figureOneB
 private abbrev w := figureOneBBoundary
 private def keys : List ℕ := [2,1,2,1]
+
+private theorem computed_keys : compute keys = ⟨[1,1,2,2],[2,0,1]⟩ := by
+  simp [keys, compute, Cslib.AdjacentSortTrace.insert, List.range_succ]
 
 -- Only this small State wrapper is new; the actual certificate and gadget are production APIs.
 private def atom : State Unit :=
@@ -70,16 +73,20 @@ example : OrderedBoundary.verify (sortBoundaryMetadata g w atom keys).body
       true := (accepted_sortBoundaryMetadata g w atom keys (by decide +kernel)).2
 
 -- Literal emitted names differ from the sorted original metadata and its value permutation.
-example : (sortBoundaryMetadata g w atom keys).ports = [10,5,7,28] := by decide +kernel
+example : (sortBoundaryMetadata g w atom keys).ports = [10,5,7,28] := by
+  rw [sortBoundaryMetadata, computed_keys]
+  decide +kernel
 
 example : (sortBoundaryMetadata g w atom keys).body.length = 7 ∧
     (sortBoundaryMetadata g w atom keys).body.occurrences.length = 28 ∧
     (sortBoundaryMetadata g w atom keys).ports.length = 4 := by
   have h := components_sortBoundaryMetadata g w atom keys rfl
-  simpa [atom, keys, compute, insert, g, figureOneB, figureOneBBody,
-    CSP.length_occurrences] using ⟨h.1,h.2.1,h.2.2.1⟩
+  have hc := And.intro h.1 (And.intro h.2.1 h.2.2.1)
+  simp only [computed_keys] at hc
+  simpa [atom, g, figureOneB, figureOneBBody, CSP.length_occurrences] using hc
 
 example : (sortBoundaryMetadata g w atom keys).rotation.successor.length = 64 := by
+  rw [sortBoundaryMetadata, computed_keys]
   decide +kernel
 
 example : ∃ τ : ℕ → Bool, (sortBoundaryMetadata g w atom keys).body.eval nearSem τ = true ∧
@@ -87,6 +94,7 @@ example : ∃ τ : ℕ → Bool, (sortBoundaryMetadata g w atom keys).body.eval 
     (sortBoundaryMetadata g w atom keys).ports.map τ = [true,true,false,false] := by
   obtain ⟨τ,ht,he,hv⟩ :=
     (eval_sortBoundaryMetadata_iff g w atom keys rfl sigma).mp (by decide +kernel)
+  simp only [computed_keys] at he hv
   change ∀ z, τ (8*z)=sigma z at he
   change _ = [sigma 20,sigma 40,sigma 10,sigma 30] at hv
   exact ⟨τ,ht,he,by simpa [sigma] using he 123456,by simpa [sigma] using hv⟩
@@ -95,7 +103,9 @@ example (τ : ℕ → Bool) (ht : (sortBoundaryMetadata g w atom keys).body.eval
     atom.body.eval nearSem (fun z => τ (8*z)) = true ∧
       (sortBoundaryMetadata g w atom keys).ports.map τ =
         [τ (8*20),τ (8*40),τ (8*10),τ (8*30)] := by
-  exact recover_sortBoundaryMetadata g w atom keys rfl τ ht
+  have hr := recover_sortBoundaryMetadata g w atom keys rfl τ ht
+  simp only [computed_keys] at hr
+  exact hr
 
 -- A different noncommuting order is impossible under the SAME original-name extension.
 example : ¬∃ τ : ℕ → Bool, (sortBoundaryMetadata g w atom keys).body.eval nearSem τ = true ∧
@@ -103,6 +113,7 @@ example : ¬∃ τ : ℕ → Bool, (sortBoundaryMetadata g w atom keys).body.eva
     (sortBoundaryMetadata g w atom keys).ports.map τ = [true,false,true,false] := by
   rintro ⟨τ,ht,he,hv⟩
   have h := (recover_sortBoundaryMetadata g w atom keys rfl τ ht).2
+  simp only [computed_keys] at h
   change _ = [τ (8*20),τ (8*40),τ (8*10),τ (8*30)] at h
   simp only [he] at h
   rw [hv] at h
@@ -116,6 +127,7 @@ example : ∃ τ : ℕ → Bool,
     (sortBoundaryMetadata g w independent keys).ports.map τ = [true,false,false,false] := by
   obtain ⟨τ,ht,he,hv⟩ :=
     (eval_sortBoundaryMetadata_iff g w independent keys rfl (fun z => decide (z=20))).mp rfl
+  simp only [computed_keys] at he hv
   exact ⟨τ,ht,he,hv.trans (by decide +kernel)⟩
 
 private def repeated : State Unit := ⟨[],[2^250,17,17,2^250],⟨[2^300]⟩⟩
@@ -124,18 +136,20 @@ example : ¬∃ τ : ℕ → Bool,
     (sortBoundaryMetadata g w repeated keys).ports.map τ = [false,false,true,true] := by
   rintro ⟨τ,ht,hv⟩
   have hr := (recover_sortBoundaryMetadata g w repeated keys rfl τ ht).2
+  simp only [computed_keys] at hr
   change _ = [τ (8*17),τ (8*(2^250)),τ (8*(2^250)),τ (8*17)] at hr
   rw [hv] at hr
-  simp only [List.cons.injEq, List.nil.injEq, and_true] at hr
-  tauto
+  simp only [List.cons.injEq, and_true] at hr
+  have hbad : true = false := hr.2.2.1.trans hr.2.1.symm
+  cases hbad
 
 -- Distinct metadata with huge binary keys has the same bounded trace, not a huge clock.
-example (H : ℕ) (h : 7<H) : (compute [H,7,H,7]).requests = [2,0,1] := by
-  simp [compute, insert, List.orderedInsert, h, h.le, Nat.not_le.mpr h]
+private theorem requests_large (H : ℕ) (h : 7 < H) :
+    (compute [H,7,H,7]).requests = [2,0,1] := by
+  simp [compute, Cslib.AdjacentSortTrace.insert, List.range_succ, h, Nat.not_le.mpr h]
 
-example : (compute [2^300,7,2^300,7]).requests = [2,0,1] := by
-  have h : 7<(2^300 : ℕ) := by decide +kernel
-  simp [compute, insert, List.orderedInsert, h, h.le, Nat.not_le.mpr h]
+example : (compute [2^300,7,2^300,7]).requests = [2,0,1] :=
+  requests_large _ (by decide +kernel)
 
 private def broken : State Unit :=
   ⟨[⟨(),[]⟩,⟨(),[17,17]⟩,⟨(),[17,17]⟩], [2^250,17,17,2^250], ⟨[2^300,9,9]⟩⟩
@@ -145,10 +159,14 @@ example : sortBoundaryMetadata g w broken [0,1,2,3] = broken :=
   sortBoundaryMetadata_eq_self g w broken _ (by decide +kernel)
 
 example (H : ℕ) : sortBoundaryMetadata g w broken [H,H,H,H] = broken :=
-  sortBoundaryMetadata_eq_self g w broken _ (by simp)
+  sortBoundaryMetadata_eq_self g w broken _ (by
+    change (List.replicate 4 _).Pairwise (· ≤ ·)
+    exact List.pairwise_replicate.mpr (Or.inr (le_refl _)))
 
 example : sortBoundaryMetadata g w broken [2^300,2^300,2^300,2^300] = broken :=
-  sortBoundaryMetadata_eq_self g w broken _ (by simp)
+  sortBoundaryMetadata_eq_self g w broken _ (by
+    change (List.replicate 4 _).Pairwise (· ≤ ·)
+    exact List.pairwise_replicate.mpr (Or.inr (le_refl _)))
 
 -- Mismatch is checked before trace generation, even on unsorted metadata.
 example : sortBoundaryMetadata g w broken [3,2,1] = broken :=
@@ -160,15 +178,17 @@ example : sortBoundaryMetadata g w (⟨broken.body,[],broken.rotation⟩ : State
 
 example : sortBoundaryMetadata g w (⟨broken.body,[],broken.rotation⟩ : State Unit) [] =
     ⟨broken.body,[],broken.rotation⟩ :=
-  sortBoundaryMetadata_eq_self g w _ _ (by simp)
+  sortBoundaryMetadata_eq_self g w _ _ (by constructor)
 
 example : sortBoundaryMetadata g w (⟨broken.body,[17],broken.rotation⟩ : State Unit) [2^300] =
     ⟨broken.body,[17],broken.rotation⟩ :=
-  sortBoundaryMetadata_eq_self g w _ _ (by simp)
+  sortBoundaryMetadata_eq_self g w _ _ (by simp only [List.pairwise_singleton])
 
 -- Duplicate indexed rows and closed false/nullary constraints survive in the old prefix.
 example : ((sortBoundaryMetadata g w broken keys).body.take 3).map Constraint.scope =
-    [[],[136,136],[136,136]] := by decide +kernel
+    [[],[136,136],[136,136]] := by
+  rw [sortBoundaryMetadata, computed_keys]
+  decide +kernel
 
 example : ¬∃ τ : ℕ → Bool, (sortBoundaryMetadata g w broken keys).body.eval nearSem τ = true := by
   rintro ⟨τ,ht⟩
