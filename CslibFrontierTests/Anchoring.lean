@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormalization
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
@@ -449,6 +449,22 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
   simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one] using hbound
 
+private theorem zero_mem_of_uniform_failure_lt_one (good : Finset (Fin 1))
+    (h : ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure
+      {i | i ∉ good}).toReal < 1) :
+    (0 : Fin 1) ∈ good := by
+  by_contra hn
+  have he : {i : Fin 1 | i ∉ good} = Set.univ := by
+    ext i
+    have hi : i = 0 := Subsingleton.elim _ _
+    simp [hi, hn]
+  rw [he] at h
+  have hm : ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure Set.univ) = 1 :=
+    ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure_apply_eq_one_iff
+      Set.univ).mpr (Set.subset_univ _)
+  rw [hm, ENNReal.toReal_one] at h
+  exact (lt_irrefl _ h)
+
 /-- With a failure bound below one, the sole unchecked coordinate admits all three
 unitary choices on the original, unequal-dimensional local systems. -/
 example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
@@ -483,25 +499,15 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
     exists_good_alignment_coordinates C acceptingGame half S e
       (acceptingGame_win_supported S) hα hτ
   refine ⟨VA, VB, VAB, hmean 0 ?_⟩
-  by_contra hn
-  have he : {i : Fin 1 | i ∉ good} = Set.univ := by
-    ext i
-    have hi : i = 0 := Subsingleton.elim _ _
-    simp [hi, hn]
-  rw [he] at hprob
-  have hm : ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure Set.univ) = 1 :=
-    ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure_apply_eq_one_iff
-      Set.univ).mpr (Set.subset_univ _)
-  rw [hm, ENNReal.toReal_one] at hprob
+  apply zero_mem_of_uniform_failure_lt_one good
   have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
   have hdenom : 0 < (half : ℝ) * anchoredAlignmentScale half * τ ^ 2 := by
     unfold anchoredAlignmentScale
     positivity
-  have hle : 1 ≤ (2 + (half : ℝ)) * anchoredAlignmentBound half 1 4 1 /
-      ((half : ℝ) * anchoredAlignmentScale half * τ ^ 2) := by
-    simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one, Nat.cast_one, one_mul]
-      using hprob
-  exact (not_le_of_gt ((div_lt_one hdenom).mpr hsmall)) hle
+  have hle := hprob
+  simp only [anchorAlignmentFailureBound, C, hc, acceptingGame_win_mass, ENNReal.toReal_one,
+    Nat.cast_one, one_mul] at hle
+  exact hle.trans_lt ((div_lt_one hdenom).mpr hsmall)
 
 open Finset in
 /-- The ordinary and noisy ratio estimates use the actual winning law of a two-copy
@@ -530,3 +536,30 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
     simpa only [C, B, w, ε₁, ε₂, hcard, hanswers, acceptingGame_win_mass,
       ENNReal.toReal_one, Nat.cast_one,
       Nat.cast_ofNat, one_mul] using h
+
+/-- The sole unchecked coordinate satisfies the alignment and conditional normalization
+estimates together when their combined failure bound is below one. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) {τ η : ℝ} (hτ : 0 < τ) (hη : 0 < η)
+    (hsmall : anchorAlignmentFailureBound half 1 4 1 τ +
+      anchorNormalizationFailureBound half 1 4 1 η < 1) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let Q := (transcriptLaw acceptingGame half C S).filter (winsOnChecked acceptingGame half C)
+      (acceptingGame_win_supported S)
+    let Label := Cslib.PCP.ParallelRepetition.Revealed (Option Bool) (Option Bool) C ×
+      ((C → Bool) × (C → Bool))
+    ∃ (VA : Fin 1 → Label → Option Bool → Matrix (Fin 2) (Fin 2) ℂ)
+      (VB VAB : Fin 1 → Label → Option Bool → Matrix (Fin 3) (Fin 3) ℂ),
+      AnchorAlignmentAt C acceptingGame half S Q e VA VB VAB 0 τ ∧
+        AnchorNormalizationAt C acceptingGame half S (e 0) 1 η := by
+  intro C e Q Label
+  have hα : 0 < (half : ℝ) := by norm_num [half]
+  obtain ⟨VA, VB, VAB, good, _, _, _, hprob, hgood⟩ :=
+    exists_good_alignment_normalization_coordinates C acceptingGame half S e
+      (acceptingGame_win_supported S) hα hτ hη
+  have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  simp only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one] at hprob
+  have h0 := zero_mem_of_uniform_failure_lt_one good (hprob.trans_lt hsmall)
+  refine ⟨VA, VB, VAB, (hgood 0 h0).1, ?_⟩
+  simpa only [C, acceptingGame_win_mass, ENNReal.toReal_one] using (hgood 0 h0).2

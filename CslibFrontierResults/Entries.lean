@@ -13,6 +13,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodNormalization
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNormalizationWeights
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
@@ -11172,6 +11173,37 @@ register_result "anchored-checked-branch-normalization-weights" where
     is that mass times the conditional expectation, and every sampled denominator is positive. \
     Selecting common coordinates with conditional ratio bounds and constructing the strategy \
     remain separate steps."
+
+register_result "anchored-two-anchor-win-probability-deviation" where
+  title := "Deviation of the two-anchor win probability"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Equation (61) and the step after Claim 5.18",
+      locator := "arXiv:1509.07466v2, §5.3, printed pp. 29–30" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.sum_abs_anchorWinProbability_sub_le
+  ]
+  scope := "Sum the absolute deviations of the two-anchor conditional win probability from \
+    the original checked-win probability over all free coordinates. The prior two-anchor mass \
+    remains a factor on the left, so the estimate covers zero anchor rate and null slices."
+
+register_result "anchored-common-alignment-normalization-coordinates" where
+  title := "Common good coordinates for alignment and conditional normalization"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemmas 5.12 and 5.17, common good coordinates",
+      locator := "arXiv:1509.07466v2, §§5.2–5.4, printed pp. 22 and 28–31" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.exists_good_normalization_coordinates,
+    Cslib.PCP.AnchoredDependency.exists_good_alignment_normalization_coordinates
+  ]
+  scope := "At positive anchor rate and thresholds, the common coordinate set retains three \
+    mean alignment estimates and two conditional mean squared norm-ratio estimates. Each \
+    two-anchor win probability is at least half the overall win probability. The explicit \
+    uniform bound covers the union of alignment and normalization failures. The change to \
+    the anchor-conditioned transcript law and the strategy construction remain separate."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"

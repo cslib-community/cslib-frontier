@@ -103,6 +103,14 @@ private theorem sq_ratio_le_abs_sq_sub (x y : ℝ) (hx : 0 ≤ x) (hy : 0 ≤ y)
     ∑ r ∈ univ.filter (· ∈ winsOnRest G α C j),
       (restKernel G α C S j (none, none) r).toReal * score q r
 
+/-- A nonnegative score has nonnegative two-anchor winning weight. -/
+theorem weightedAnchorRestScore_nonneg (S : RepeatedStrategy) (j : Free)
+    (score : PairQ → Rest j → ℝ) (h : ∀ q r, 0 ≤ score q r) :
+    0 ≤ weightedAnchorRestScore G α C S j score := by
+  unfold weightedAnchorRestScore
+  exact sum_nonneg fun q _ => mul_nonneg ENNReal.toReal_nonneg
+    (sum_nonneg fun r _ => mul_nonneg ENNReal.toReal_nonneg (h q r))
+
 /-- Recover the conditional expectation by dividing by the two-anchor win probability,
 when this conditioning is supported. -/
 theorem weightedAnchorRestScore_eq_winMass_mul (S : RepeatedStrategy) (j : Free)
@@ -132,6 +140,21 @@ theorem weightedAnchorRestScore_eq_winMass_mul (S : RepeatedStrategy) (j : Free)
   by_cases hr : r ∈ W
   · rw [ite_eq_left hr, ite_eq_left hr, ← mul_assoc, mul_comm p, div_mul_cancel₀ _ hp.ne']
   · simp only [hr, ite_false, zero_mul, mul_zero]
+
+/-- Dividing by positive two-anchor win mass gives the ordinary conditional mean. -/
+theorem weightedAnchorRestScore_div_winMass (S : RepeatedStrategy) (j : Free)
+    (hwin : ∃ r ∈ winsOnRest G α C j, r ∈ (restKernel G α C S j (none, none)).support)
+    (score : PairQ → Rest j → ℝ) :
+    let K := restKernel G α C S j (none, none)
+    let W := winsOnRest G α C j
+    weightedAnchorRestScore G α C S j score / anchorWinProbability G α C S j =
+      ∑ q, (((law G.questions α).map Prod.snd) q).toReal *
+        ∑ r, ((K.filter W hwin) r).toReal * score q r := by
+  intro K W
+  have hp : 0 < anchorWinProbability G α C S j := (toOuterMeasure_toReal_pos_iff K W).mpr hwin
+  apply (div_eq_iff hp.ne').mpr
+  rw [mul_comm]
+  exact weightedAnchorRestScore_eq_winMass_mul G α C S j hwin score
 
 /-- A sampled two-anchor winning transcript has a nonzero anchor branch norm. -/
 theorem anchorBranchNorm_pos_of_mem_support (S : RepeatedStrategy) (j : Free)

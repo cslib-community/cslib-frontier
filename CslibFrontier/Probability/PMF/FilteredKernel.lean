@@ -58,7 +58,53 @@ theorem mul_filter_bind_pair_apply_toReal (μ : PMF U) (K : U → PMF R) (E : Se
   · have hmem : (q, r) ∉ Prod.snd ⁻¹' E := hr
     simp only [hmem, hr, ite_false, mul_zero]
 
-variable [Fintype U] [Fintype R]
+variable [Finite R]
+
+/-- The filtered first-coordinate mass records the kernel's event probability. -/
+theorem mul_kernelEventProbability_eq (μ : PMF U) (K : U → PMF R) (E : Set R)
+    (J : PMF (U × R))
+    (hJ : J = μ.bind fun q => (K q).map (q, ·))
+    (hE : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ J.support) (a : U) :
+    let p := (J.toOuterMeasure (Prod.snd ⁻¹' E)).toReal
+    let Q := J.filter (Prod.snd ⁻¹' E) hE
+    (μ a).toReal * ((K a).toOuterMeasure E).toReal = p * ((Q.map Prod.fst) a).toReal := by
+  classical
+  subst J
+  let := Fintype.ofFinite R
+  intro p Q
+  rw [toOuterMeasure_apply_toReal, map_fst_apply, tsum_fintype,
+    ENNReal.toReal_sum (fun r _ => PMF.apply_ne_top Q (a, r)), mul_sum, mul_sum]
+  apply sum_congr rfl
+  intro r _
+  rw [mul_filter_bind_pair_apply_toReal μ K E hE a r]
+  split <;> simp
+
+variable [Fintype U]
+
+/-- The deviation of a slice's event probability costs at most the distance of the filtered
+first-coordinate marginal from its prior, with the appropriate prior and event weights. -/
+theorem weighted_abs_kernelEventProbability_sub_le (μ : PMF U) (K : U → PMF R)
+    (E : Set R) (J : PMF (U × R))
+    (hJ : J = μ.bind fun q => (K q).map (q, ·))
+    (hE : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ J.support) (a : U) :
+    let p := (J.toOuterMeasure (Prod.snd ⁻¹' E)).toReal
+    let Q := J.filter (Prod.snd ⁻¹' E) hE
+    (μ a).toReal * |p - ((K a).toOuterMeasure E).toReal| ≤ p * dist (Q.map Prod.fst) μ := by
+  intro p Q
+  let p₀ := ((K a).toOuterMeasure E).toReal
+  let P := Q.map Prod.fst
+  let b := (μ a).toReal
+  have hb : 0 ≤ b := ENNReal.toReal_nonneg
+  have hp : 0 ≤ p := ENNReal.toReal_nonneg
+  have ha : b * p₀ = p * (P a).toReal := mul_kernelEventProbability_eq μ K E J hJ hE a
+  have h := abs_toOuterMeasure_toReal_sub_le_dist P μ {a}
+  simp only [PMF.toOuterMeasure_apply_singleton] at h
+  change b * |p - p₀| ≤ p * dist P μ
+  rw [← abs_of_nonneg hb, ← abs_mul, mul_sub, ha, mul_comm b p, ← mul_sub,
+    abs_mul, abs_of_nonneg hp, abs_sub_comm]
+  exact mul_le_mul_of_nonneg_left h hp
+
+variable [Fintype R]
 
 /-- Compare the original kernels on the retained event. The factor `μ a` pays for
 using the filtered conditional law of one particular first coordinate. The weight of
@@ -86,20 +132,9 @@ theorem restrictedKernelL1_le (μ : PMF U) (K : U → PMF R) (E : Set R)
       p * (Q (q, r)).toReal = if r ∈ E then (μ q).toReal * (K q r).toReal else 0 := by
     have h := mul_filter_bind_pair_apply_toReal μ K E hE q r
     exact h
-  have ha : b * p₀ = p * (P a).toReal := by
-    change (μ a).toReal * ((K a).toOuterMeasure E).toReal = p * ((Q.map Prod.fst) a).toReal
-    rw [toOuterMeasure_apply_toReal, map_fst_apply, tsum_fintype,
-      ENNReal.toReal_sum (fun r _ => PMF.apply_ne_top Q (a, r)), mul_sum, mul_sum]
-    apply sum_congr rfl
-    intro r _
-    rw [hmass]
-    split <;> simp
-  have htail : b * |p - p₀| ≤ p * dist P μ := by
-    have h := abs_toOuterMeasure_toReal_sub_le_dist P μ {a}
-    simp only [PMF.toOuterMeasure_apply_singleton] at h
-    rw [← abs_of_nonneg hb, ← abs_mul, mul_sub, ha, mul_comm b p, ← mul_sub,
-      abs_mul, abs_of_nonneg hp, abs_sub_comm]
-    exact mul_le_mul_of_nonneg_left h hp
+  have ha : b * p₀ = p * (P a).toReal := mul_kernelEventProbability_eq μ K E J rfl hE a
+  have htail : b * |p - p₀| ≤ p * dist P μ :=
+    weighted_abs_kernelEventProbability_sub_le μ K E J rfl hE a
   change b * _ ≤ p * (2 * b * dist Q Q₀ + dist P μ)
   by_cases hb0 : b = 0
   · rw [hb0, zero_mul]

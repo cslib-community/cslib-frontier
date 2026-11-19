@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
-import CslibFrontier.Foundations.Data.Finset.Markov
+import CslibFrontier.Probability.PMF.FiniteMarkov
 public import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -60,18 +60,27 @@ private theorem taggedPairCoordinateScore_le_of_sq (Q : PMF Transcript)
   (sq_le_sq₀ (taggedPairCoordinateScore_nonneg C G α Q read tag e f i hf) hτ).mp
     ((taggedPairCoordinateScore_sq_le C G α Q read tag e f i).trans hs)
 
-private theorem uniform_bad_coordinates_le [NeZero m] (good : Finset (Fin m))
-    (f : Fin m → ℝ) {threshold bound : ℝ} (ht : 0 < threshold)
-    (hf : ∀ i, 0 ≤ f i) (hbad : ∀ i ∉ good, threshold ≤ f i)
-    (hbound : ∑ i, f i ≤ bound) :
-    ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ good}).toReal ≤
-      bound / ((m : ℝ) * threshold) := by
-  classical
-  have hm : 0 < (m : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne _))
-  rw [toOuterMeasure_uniformOfFintype_toReal, Fintype.card_fin, le_div_iff₀ (mul_pos hm ht)]
-  rw [← mul_assoc, div_mul_cancel₀ _ hm.ne']
-  exact (card_filter_mul_le_sum univ (fun i => i ∉ good) f (fun i _ => hf i)
-    (fun i _ => hbad i)).trans hbound
+/-- Uniform failure bound from the summed alignment estimate and the mean-error threshold. -/
+@[expose] noncomputable def anchorAlignmentFailureBound (α : I) (m answers : ℕ) (p τ : ℝ) : ℝ :=
+  (2 + (α : ℝ)) * anchoredAlignmentBound α m answers p /
+    ((m : ℝ) * ((α : ℝ) * anchoredAlignmentScale α * τ ^ 2))
+
+/-- The three mean alignment comparisons at a single coordinate. -/
+@[expose] def AnchorAlignmentAt (S : RepeatedStrategy) (Q : PMF Transcript)
+    (e : Fin m ≃ Free) (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
+    (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (i : Fin m) (τ : ℝ) : Prop :=
+  let vA (j : Fin m) (label : Label) (x : Option X) :=
+    let (t, a, b) := label
+    checkedVectorGivenAlice G α C S (e j) t x a b
+  let vB (j : Fin m) (label : Label) (y : Option Y) :=
+    let (t, a, b) := label
+    checkedVectorGivenBob G α C S (e j) (omitMessage C (e j) t) (t.halves (e j)) y a b
+  taggedPairCoordinateScore C G α Q Prod.fst (fun _ => Sum.inr none) e
+    (fun j t x => localUnitaryError (VA j t x) (vA j t none) (vA j t x)) i ≤ τ ∧
+  taggedPairCoordinateScore C G α Q Prod.snd (fun _ => Sum.inl none) e
+    (fun j t y => localUnitaryError (VB j t y) (vB j t none) (vB j t y)) i ≤ τ ∧
+  taggedPairCoordinateScore C G α Q Prod.snd (Sum.inl ∘ Prod.fst) e
+    (fun j t y => localUnitaryError (VAB j t y) (vB j t y) (vB j t none)) i ≤ τ
 
 /-- A single set of unchecked coordinates satisfies the three mean-error bounds with
 threshold `τ`. The failure probability is explicit in the summed alignment bound.
@@ -84,29 +93,22 @@ theorem exists_good_alignment_coordinates [NeZero m] [Nonempty A] [Nonempty B]
     let W := winsOnChecked G α C
     let Q := T.filter W hs
     let p := (T.toOuterMeasure W).toReal
-    let vA (i : Fin m) (label : Label) (x : Option X) :=
-      let (t, a, b) := label
-      checkedVectorGivenAlice G α C S (e i) t x a b
-    let vB (i : Fin m) (label : Label) (y : Option Y) :=
-      let (t, a, b) := label
-      checkedVectorGivenBob G α C S (e i) (omitMessage C (e i) t) (t.halves (e i)) y a b
     ∃ (VA : Fin m → Label → Option X → Matrix ι ι ℂ)
       (VB VAB : Fin m → Label → Option Y → Matrix κ κ ℂ) (good : Finset (Fin m)),
       (∀ i t x, VA i t x ∈ unitaryGroup ι ℂ) ∧
       (∀ i t y, VB i t y ∈ unitaryGroup κ ℂ) ∧
       (∀ i t y, VAB i t y ∈ unitaryGroup κ ℂ) ∧
       ((uniformOfFintype (Fin m)).toOuterMeasure {i | i ∉ good}).toReal ≤
-        (2 + (α : ℝ)) * anchoredAlignmentBound α m (Fintype.card (C → A × B)) p /
-          ((m : ℝ) * ((α : ℝ) * anchoredAlignmentScale α * τ ^ 2)) ∧
-      ∀ i ∈ good,
-        taggedPairCoordinateScore C G α Q Prod.fst (fun _ => Sum.inr none) e
-          (fun j t x => localUnitaryError (VA j t x) (vA j t none) (vA j t x)) i ≤ τ ∧
-        taggedPairCoordinateScore C G α Q Prod.snd (fun _ => Sum.inl none) e
-          (fun j t y => localUnitaryError (VB j t y) (vB j t none) (vB j t y)) i ≤ τ ∧
-        taggedPairCoordinateScore C G α Q Prod.snd (Sum.inl ∘ Prod.fst) e
-          (fun j t y => localUnitaryError (VAB j t y) (vB j t y) (vB j t none)) i ≤ τ := by
+        anchorAlignmentFailureBound α m (Fintype.card (C → A × B)) p τ ∧
+      ∀ i ∈ good, AnchorAlignmentAt C G α S Q e VA VB VAB i τ := by
   classical
-  intro T W Q p vA vB
+  intro T W Q p
+  let vA (i : Fin m) (label : Label) (x : Option X) :=
+    let (t, a, b) := label
+    checkedVectorGivenAlice G α C S (e i) t x a b
+  let vB (i : Fin m) (label : Label) (y : Option Y) :=
+    let (t, a, b) := label
+    checkedVectorGivenBob G α C S (e i) (omitMessage C (e i) t) (t.halves (e i)) y a b
   obtain ⟨VA, hVA, hA⟩ := exists_alice_anchorLocalUnitary_le C G α S e hs
   obtain ⟨VB, hVB, hB⟩ := exists_bob_anchorLocalUnitary_le C G α S e hs
   obtain ⟨VAB, hVAB, hAB⟩ := exists_bob_taggedLocalUnitary_le C G α S e hs
@@ -139,15 +141,17 @@ theorem exists_good_alignment_coordinates [NeZero m] [Nonempty A] [Nonempty B]
     change scale * (∑ i, ab i) ≤ (α : ℝ) * bound at h
     linarith only [hA, hB, h]
   refine ⟨VA, VB, VAB, good, hVA, hVB, hVAB, ?_, ?_⟩
-  · apply uniform_bad_coordinates_le good (fun i => scale * (a i + b i + ab i))
+  · have h := uniform_compl_finset_le_of_sum good (fun i => scale * (a i + b i + ab i))
       (mul_pos hscale (sq_pos_of_pos hτ))
-    · exact fun i => mul_nonneg hscale.le (add_nonneg (add_nonneg (ha i) (hb i)) (hab i))
-    · intro i hi
-      have hh : τ ^ 2 < a i + b i + ab i := by
-        simpa only [good, mem_filter, mem_univ, true_and, not_le] using hi
-      exact mul_le_mul_of_nonneg_left hh.le hscale.le
-    · exact htotal
+      (fun i => mul_nonneg hscale.le (add_nonneg (add_nonneg (ha i) (hb i)) (hab i)))
+      (fun i hi => by
+        have hh : τ ^ 2 < a i + b i + ab i := by
+          simpa only [good, mem_filter, mem_univ, true_and, not_le] using hi
+        exact mul_le_mul_of_nonneg_left hh.le hscale.le)
+      htotal
+    simpa only [anchorAlignmentFailureBound, Fintype.card_fin] using h
   · intro i hi
+    unfold AnchorAlignmentAt
     have hh := (mem_filter.mp hi).2
     refine ⟨taggedPairCoordinateScore_le_of_sq C G α Q _ _ e fA i hτ.le
       (fun _ _ => localUnitaryError_nonneg _ _ _) ?_,

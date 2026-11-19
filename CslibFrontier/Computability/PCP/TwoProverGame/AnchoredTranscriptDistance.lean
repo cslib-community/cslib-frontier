@@ -333,6 +333,80 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
           (by positivity)
 
 
+private theorem pairRest_filter (S : RepeatedStrategy) (j : Free)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let T := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let E := winsOnRest G α C j
+    let obs (z : Transcript) := ((freeTrials C z j).2, restTranscript C j z)
+    ∃ hs' : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ (T.map obs).support,
+      (T.filter W hs).map obs = (T.map obs).filter (Prod.snd ⁻¹' E) hs' ∧
+      ((T.map obs).toOuterMeasure (Prod.snd ⁻¹' E)).toReal = (T.toOuterMeasure W).toReal := by
+  intro T W E obs
+  let F := (T.filter W hs).map obs
+  have hpre : obs ⁻¹' (Prod.snd ⁻¹' E) = W := preimage_winsOnRest G α C j
+  have hs' : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ (T.map obs).support := by
+    obtain ⟨z, hz, hzt⟩ := hs
+    exact ⟨obs z, show z ∈ obs ⁻¹' (Prod.snd ⁻¹' E) by rwa [hpre],
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨z, hzt, rfl⟩⟩
+  have hF : F = (T.map obs).filter (Prod.snd ⁻¹' E) hs' := by
+    have hw : ∃ z ∈ obs ⁻¹' (Prod.snd ⁻¹' E), z ∈ T.support := hpre.symm ▸ hs
+    rw [filter_map T obs (Prod.snd ⁻¹' E) hs' hw]
+    have heq : T.filter (obs ⁻¹' (Prod.snd ⁻¹' E)) hw = T.filter W hs := by
+      ext z
+      simp only [PMF.filter_apply, hpre]
+    exact congrArg (PMF.map obs) heq.symm
+  have hp : ((T.map obs).toOuterMeasure (Prod.snd ⁻¹' E)).toReal = (T.toOuterMeasure W).toReal := by
+    rw [PMF.toOuterMeasure_map_apply, hpre]
+  exact ⟨hs', hF, hp⟩
+
+omit [Fintype X] [Fintype Y] [Fintype A] [Fintype B] in
+private theorem priorAnchorPair_mass :
+    (((law G.questions α).map Prod.snd) (none, none)).toReal = (α : ℝ) ^ 2 := by
+  rw [map_snd_law, ← TwoProverGame.anchored_questions, TwoProverGame.anchored_questions_apply,
+    ENNReal.toReal_pow, ENNReal.toReal_ofReal α.2.1]
+
+/-- Probability of the checked wins in the remaining transcript kernel with both
+selected questions anchored. -/
+@[expose] noncomputable def anchorWinProbability (S : RepeatedStrategy) (j : Free) : ℝ :=
+  ((restKernel G α C S j (none, none)).toOuterMeasure (winsOnRest G α C j)).toReal
+
+/-- Compare the conditional win probabilities at two anchors with the overall win
+probability. The summed bound preserves the prior two-anchor mass as a factor. -/
+theorem sum_abs_anchorWinProbability_sub_le (S : RepeatedStrategy)
+    (hs : ∃ z ∈ winsOnChecked G α C, z ∈ (transcriptLaw G α C S).support) :
+    let T := transcriptLaw G α C S
+    let W := winsOnChecked G α C
+    let p := (T.toOuterMeasure W).toReal
+    let ε := Real.sqrt (Fintype.card Free * Real.log (1 / p) / 2)
+    (α : ℝ) ^ 2 * (∑ j : Free, |p - anchorWinProbability G α C S j|) ≤ p * ε := by
+  classical
+  intro T W p ε
+  let Q := T.filter W hs
+  let μ := (law G.questions α).map Prod.snd
+  have hp₀ : 0 ≤ p := ENNReal.toReal_nonneg
+  calc
+    _ ≤ ∑ j : Free, p * dist (Q.map fun z => freeTrials C z j) (law G.questions α) := by
+      rw [Finset.mul_sum]
+      refine Finset.sum_le_sum fun j _ => ?_
+      let K := restKernel G α C S j
+      let E := winsOnRest G α C j
+      let obs (z : Transcript) := ((freeTrials C z j).2, restTranscript C j z)
+      have hprior : T.map obs = μ.bind fun q => (K q).map (q, ·) :=
+        map_pair_restTranscriptLaw G α C S j
+      obtain ⟨hs', hF, hp⟩ := pairRest_filter G α C S j hs
+      have h := weighted_abs_kernelEventProbability_sub_le μ K E (T.map obs) hprior
+        hs' (none, none)
+      dsimp only at h
+      rw [hp, ← hF, show (μ (none, none)).toReal = (α : ℝ) ^ 2 from priorAnchorPair_mass G α]
+        at h
+      refine h.trans (mul_le_mul_of_nonneg_left ?_ hp₀)
+      have hd := dist_map_le (Q.map fun z => freeTrials C z j) (law G.questions α) Prod.snd
+      simpa only [μ, obs, Q, PMF.map_comp, Function.comp_def] using hd
+    _ ≤ _ := by
+      rw [← Finset.mul_sum]
+      exact mul_le_mul_of_nonneg_left (sum_dist_freeTrials_given_wins_le G α C S hs) hp₀
+
 /-- Average the absolute difference of the unnormalized winning masses in the sampled
 and two-anchor remaining transcript kernels. -/
 @[expose] noncomputable def restKernelWinL1 (S : RepeatedStrategy) (j : Free) : ℝ :=
@@ -361,24 +435,9 @@ private theorem restKernelWinL1_le (S : RepeatedStrategy) (j : Free)
   let F := Q.map obs
   have hprior : T.map obs = μ.bind fun q => (K q).map (q, ·) :=
     map_pair_restTranscriptLaw G α C S j
-  have hpre : obs ⁻¹' (Prod.snd ⁻¹' E) = W := preimage_winsOnRest G α C j
-  have hs' : ∃ z ∈ Prod.snd ⁻¹' E, z ∈ (T.map obs).support := by
-    obtain ⟨z, hz, hzt⟩ := hs
-    exact ⟨obs z, show z ∈ obs ⁻¹' (Prod.snd ⁻¹' E) by rwa [hpre],
-      (PMF.mem_support_map_iff _ _ _).mpr ⟨z, hzt, rfl⟩⟩
-  have hF : F = (T.map obs).filter (Prod.snd ⁻¹' E) hs' := by
-    have hw : ∃ z ∈ obs ⁻¹' (Prod.snd ⁻¹' E), z ∈ T.support := hpre.symm ▸ hs
-    rw [filter_map T obs (Prod.snd ⁻¹' E) hs' hw]
-    have heq : T.filter (obs ⁻¹' (Prod.snd ⁻¹' E)) hw = T.filter W hs := by
-      ext z
-      simp only [PMF.filter_apply, hpre]
-    exact congrArg (PMF.map obs) heq.symm
-  have hp : ((T.map obs).toOuterMeasure (Prod.snd ⁻¹' E)).toReal = p := by
-    rw [PMF.toOuterMeasure_map_apply, hpre]
+  obtain ⟨hs', hF, hp⟩ := pairRest_filter G α C S j hs
   have hμ : (μ (none, none)).toReal = 2 * w := by
-    change ((((law G.questions α).map Prod.snd) (none, none))).toReal = _
-    rw [map_snd_law, ← TwoProverGame.anchored_questions, TwoProverGame.anchored_questions_apply,
-      ENNReal.toReal_pow, ENNReal.toReal_ofReal α.2.1]
+    rw [show (μ (none, none)).toReal = (α : ℝ) ^ 2 from priorAnchorPair_mass G α]
     dsimp only [w]
     ring
   have hd : dist (F.map Prod.fst) μ ≤ d := by
