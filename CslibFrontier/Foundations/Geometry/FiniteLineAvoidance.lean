@@ -37,7 +37,7 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
     (a b : ι → ℂ) (hab : ∀ i, a i ≠ b i) (z : ℂ) {ρ : ℝ} (hρ : 0 < ρ) :
     ∃ w ∈ Metric.ball z ρ, ∀ i (t : ℝ), AffineMap.lineMap (a i) (b i) t ≠ w := by
   classical
-  letI := Fintype.ofFinite ι
+  let _ := Fintype.ofFinite ι
   let endpoints := Finset.univ.image a ∪ Finset.univ.image b
   obtain ⟨u, hu, hinj⟩ := Polygonal.exists_mul_im_injOn endpoints
   have hheight (i : ι) : (u * a i).im ≠ (u * b i).im := by
@@ -53,7 +53,6 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
   have huw : u * w = u * z + (t : ℂ) := by
     dsimp only [w]
     field_simp [hu]
-    <;> ring
   refine ⟨w, ?_, ?_⟩
   · rw [Metric.mem_ball, dist_eq_norm,
       show w - z = (t : ℂ) / u by dsimp only [w]; ring,
@@ -63,7 +62,10 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
     let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
     have hm : AffineMap.lineMap (u * a i) (u * b i) s = u * w := by
       change AffineMap.lineMap (f (a i)) (f (b i)) s = f w
-      rw [← AffineMap.apply_lineMap, heq]
+      calc
+        _ = f (AffineMap.lineMap (a i) (b i) s) :=
+          (f.toAffineMap.apply_lineMap _ _ _).symm
+        _ = f w := congrArg f heq
     have him := congrArg Complex.im hm
     rw [Polygonal.lineMap_im, huw, Complex.add_im, Complex.ofReal_im, add_zero] at him
     have hden : (u * b i).im - (u * a i).im ≠ 0 := sub_ne_zero.mpr (hheight i).symm
@@ -86,6 +88,6 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
           dsimp only [Polygonal.horizontalIntercept]
           ring
     apply hnot
-    exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, by dsimp only; linarith⟩
+    exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, by linarith⟩
 
 end Cslib

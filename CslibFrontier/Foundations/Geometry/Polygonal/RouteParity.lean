@@ -48,6 +48,7 @@ theorem sum_segment_endpoint_incidence (p : Route) (weight : Bool) (u z : ℂ) :
         (f 0 + f (Fin.last p.segments)) := by ac_rfl
     _ = _ := by rw [BooleanRing.add_self, zero_add]
 
+open Classical in
 /-- Observation along an actual route counts indexed open segment-pair events. Its nodes
 avoid the selected arrangement supports, and selected arrangement ends avoid its whole
 support. Even incidence cancels endpoint-height jumps; remote equal heights are allowed.
@@ -86,11 +87,12 @@ theorem rayParity_endpoints_add_eq_sum_intersections {ι : Type*} [Fintype ι]
   have hterm (j : Fin p.segments) :
       f (j.val + 1) - f j.val =
         rayParity a b x (p.point j.succ) + rayParity a b x (p.point j.castSucc) := by
-    simp only [f, dif_pos (by omega : j.val + 1 < p.segments + 1),
-      dif_pos (by omega : j.val < p.segments + 1), sub_eq_add_neg, BooleanRing.neg_eq]
+    simp only [f, dite_eq_left (by omega : j.val + 1 < p.segments + 1),
+      dite_eq_left (by omega : j.val < p.segments + 1), sub_eq_add_neg, BooleanRing.neg_eq]
+    rfl
   rw [Finset.sum_range] at hsum
-  simp only [hterm, hpiece, f, dif_pos (by omega : p.segments < p.segments + 1),
-    dif_pos (by omega : 0 < p.segments + 1), sub_eq_add_neg, BooleanRing.neg_eq] at hsum
+  simp only [hterm, hpiece, f, dite_eq_left (by omega : p.segments < p.segments + 1),
+    dite_eq_left (by omega : 0 < p.segments + 1), sub_eq_add_neg, BooleanRing.neg_eq] at hsum
   exact hsum.symm
 
 end Cslib.Polygonal.Route
