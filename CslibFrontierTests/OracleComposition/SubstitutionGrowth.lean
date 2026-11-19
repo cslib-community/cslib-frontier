@@ -15,21 +15,18 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 # Tests for open stateful oracle substitution with state-dependent replies
 
 Non-degenerate witnesses for
-`Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_growth`:
+`Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`:
 
 * an echo handler that flips a private coin, forwards the request to an external stateful oracle,
-  appends the coin and bounded external reply to its state, and echoes its entire prior state as the
-  reply;
+  appends the coin and bounded external reply to its state, and replies with twice its prior
+  state (`state ++ state`), exercising a non-identity `reply` bound (`2 * k`);
 * a fixed-request multi-call client (`echoRun`) certified with non-identity `prepare`, non-constant
   initial state, and a non-trivial invariant, together with an explicit calculation of its joint law
   against a stateful external counter oracle;
 * a variable-request multi-call client (`varEchoRun`) whose per-call state growth depends on the
   request length (`|w| + 1`);
-* a multi-field caller `(n, tag)` whose handler replies with twice its prior state (`2 * |state|`),
-  exercising a non-identity polynomial `reply` bound, non-trivial `prepare`, and `tag`-dependent
-  initial state;
-* a separation example showing that under the natural state invariant `n ≤ |state|`, no
-  state-independent allowance satisfies the `hpreserve` hypothesis of
+* a separation example showing that for every invariant containing `initial` and preserved by
+  `echoHandler`, no state-independent allowance satisfies the `hpreserve` hypothesis of
   `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`.
 -/
 
@@ -41,14 +38,16 @@ open Cslib Cslib.Probability Turing Turing.MultiTapeTM
 
 /-- An open stateful handler with private randomness and an external oracle call: on each call it
 samples a private coin `b`, queries the external oracle on `request.2` (reading at most
-`request.2.length` bits), appends `b :: ext` to its private state, and echoes the entire prior state
-as its reply. -/
+`request.2.length` bits), appends `b :: ext` to its private state, and replies with twice its prior
+state (`state ++ state`), exercising a non-identity polynomial `reply` bound (`2 * k`). -/
 private noncomputable def echoHandler (_ : ℕ) (request : Unit × List Bool) (state : List Bool) :
     WordOracleComp Unit (List Bool × List Bool) := do
   let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
   let ext ← List.take request.2.length <$> ProbOracleComp.query ((), request.2)
-  return (state, state ++ (b :: ext))
+  return (state ++ state, state ++ (b :: ext))
 
+/-- Certify `echoHandler` as strict oracle PPT using the uniform-coin primitive, external call,
+and polynomial-time postprocessing. -/
 private theorem echoHandler_isOraclePPTOn :
     IsOraclePPTOn
       (encHandlerCall encUnary (encFinEnum Unit) encBits)
@@ -91,15 +90,17 @@ private theorem echoHandler_isOraclePPTOn :
     have hextq : ComputableInPolyTime extFn EStep encBits :=
       ComputableInPolyTime.snd _ _
     have hpost : ComputableInPolyTime
-        (fun q => (stFn q, stFn q ++ (coinFn q :: extFn q))) EStep (encPair encBits encBits) := by
+        (fun q => (stFn q ++ stFn q, stFn q ++ (coinFn q :: extFn q)))
+        EStep (encPair encBits encBits) := by
       fun_prop
     exact hpost.isOraclePPTOn
 
+/-- Preservation, doubled-state reply length, and additive state growth for `echoHandler`. -/
 private theorem echoHandler_preserve {k n : ℕ} (request : Unit × List Bool) (state : List Bool)
     (hstate : k ≤ state.length) (result : List Bool × List Bool)
     (hresult : result ∈ OracleComp.support (echoHandler n request state)) :
     k ≤ result.2.length ∧
-      result.1.length ≤ state.length ∧
+      result.1.length ≤ 2 * state.length ∧
       result.2.length ≤ state.length + (request.2.length + 1) := by
   simp only [echoHandler, OracleComp.mem_supportWith_bind_iff,
     OracleComp.mem_supportWith_map_iff] at hresult
@@ -107,7 +108,7 @@ private theorem echoHandler_preserve {k n : ℕ} (request : Unit × List Bool) (
   obtain ⟨reply, -, rfl⟩ := hex
   simp only [List.length_append, List.length_cons]
   have htake := List.length_take_le request.2.length reply
-  exact ⟨by omega, le_rfl, by omega⟩
+  exact ⟨by omega, by omega, by omega⟩
 
 /-! ### Multi-call client with non-identity preparation and growing initial state -/
 
@@ -131,18 +132,19 @@ private noncomputable def echoRun (n : ℕ) : WordOracleComp Unit (List Bool × 
       (echoHandler n))
     (echoClient (n + 1))).run (List.replicate n false)
 
-/-- `echoRun` is strict oracle PPT by `run_interpret_preprocess_open_of_growth`. -/
+/-- `echoRun` is strict oracle PPT by `run_interpret_preprocess_open_of_bounded_growth`. -/
 example : IsOraclePPTOn encUnary (encPair encBits encBits) echoRun := by
   unfold echoRun
-  refine echoClient_isOraclePPTOn.run_interpret_preprocess_open_of_growth
+  refine echoClient_isOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     (operationEncoding := encFinEnum Unit)
     (prepare := fun n => n + 1)
     (initial := fun n => List.replicate n false)
-    (reply := fun _ _ k => k)
+    (reply := fun _ _ k => 2 * k)
     (growth := fun _ w => w.length + 1)
     (by fun_prop) echoHandler_isOraclePPTOn (ComputableInPolyTime.bitsReplicate false)
     (fun n state => n ≤ state.length) (fun n => by simp)
-    (PolyBounded.self.mono fun ⟨_, _, k⟩ => by simp)
+    ((PolyBounded.const 2).mul PolyBounded.self |>.mono fun ⟨_, _, k⟩ => by
+      dsimp only; omega)
     (PolyBounded.self.mono fun ⟨_, w⟩ => by simp only [length_encPair, encBits_apply]; omega)
     (fun n request state hstate result hresult => by
       simpa only [encBits_apply] using
@@ -157,7 +159,7 @@ private noncomputable def parityOracle (_ : Unit × List Bool) : StateT ℕ PMF 
 private theorem run_echoHandler_one (c : ℕ) (state : List Bool) :
     ProbOracleComp.runWith parityOracle (StateT.run (echoHandler 1 ((), [true])) state) c =
       (PMF.uniformOfFintype Bool).map fun coin =>
-        ((state, state ++ [coin, decide (c % 2 = 0)]), c + 1) := by
+        ((state ++ state, state ++ [coin, decide (c % 2 = 0)]), c + 1) := by
   simp only [StateT.run, echoHandler, parityOracle, runWith_norm, pmf_norm,
     ProbComp.eval_uniform, List.length_singleton, List.take_succ_cons, List.take_zero]
   rfl
@@ -207,131 +209,56 @@ private noncomputable def varEchoRun (n : ℕ) : WordOracleComp Unit (List Bool 
 /-- `varEchoRun` is strict oracle PPT even with `O(n²)` accumulated state and echoed replies. -/
 example : IsOraclePPTOn encUnary (encPair encBits encBits) varEchoRun := by
   unfold varEchoRun
-  refine varEchoClient_isOraclePPTOn.run_interpret_preprocess_open_of_growth
+  refine varEchoClient_isOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     (operationEncoding := encFinEnum Unit)
     (prepare := id) (initial := fun _ => [])
-    (reply := fun _ _ k => k) (growth := fun _ w => w.length + 1)
+    (reply := fun _ _ k => 2 * k) (growth := fun _ w => w.length + 1)
     ComputableInPolyTime.id' echoHandler_isOraclePPTOn (.const [])
     (fun _ state => 0 ≤ state.length) (fun _ => Nat.zero_le _)
-    (PolyBounded.self.mono fun ⟨_, _, k⟩ => by simp)
+    ((PolyBounded.const 2).mul PolyBounded.self |>.mono fun ⟨_, _, k⟩ => by
+      dsimp only; omega)
     (PolyBounded.self.mono fun ⟨_, w⟩ => by simp only [length_encPair, encBits_apply]; omega)
     (fun n request state _ result hresult => by
       simpa only [encBits_apply] using
         echoHandler_preserve (k := 0) (n := n) request state (Nat.zero_le _) result hresult)
 
-/-! ### Multi-field caller with doubled-state replies -/
-
-/-- A tagged stateful handler that appends a private fair coin and a bounded external answer to its
-state while replying with twice the prior state (`state ++ state`), exercising a non-identity
-polynomial `reply` bound (`2 * k`). -/
-private noncomputable def twiceEchoHandler (_ : ℕ × List Bool) (request : Unit × List Bool)
-    (state : List Bool) : WordOracleComp Unit (List Bool × List Bool) := do
-  let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
-  let ext ← List.take request.2.length <$> ProbOracleComp.query ((), request.2)
-  return (state ++ state, state ++ (b :: ext))
-
-private theorem twiceEchoHandler_isOraclePPTOn :
-    IsOraclePPTOn
-      (encHandlerCall (encPair encUnary encBits) (encFinEnum Unit) encBits)
-      (encPair encBits encBits)
-      (fun ⟨caller, request, state⟩ => twiceEchoHandler caller request state) := by
-  unfold twiceEchoHandler
-  let EIn := encHandlerCall (encPair encUnary encBits) (encFinEnum Unit) encBits
-  apply (isPPTOn_uniform_bool EIn).isOraclePPTOn.bind_with
-  apply IsOraclePPTOn.bind_with (middle := encBits)
-  · have hcall : ComputableInPolyTime
-        (fun p : ((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool => p.1.2)
-        (encPair EIn encBool) (encPair (encPair (encFinEnum Unit) encBits) encBits) := by
-      dsimp only [EIn, encHandlerCall]
-      exact (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-    let reqFn : ((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool → List Bool :=
-      fun ⟨⟨_, ⟨_, word⟩, _⟩, _⟩ => word
-    have hreq : ComputableInPolyTime reqFn (encPair EIn encBool) encBits :=
-      (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.fst _ _).comp hcall)
-    have hlim : ComputableInPolyTime (fun p => (reqFn p).length) (encPair EIn encBool)
-        encUnary :=
-      ComputableInPolyTime.length_bits.comp hreq
-    exact IsOraclePPTOn.query_take () hreq hlim
-  · let EStep := encPair (encPair EIn encBool) encBits
-    have hcall : ComputableInPolyTime
-        (fun q : (((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool) × List Bool =>
-          q.1.1.2)
-        EStep (encPair (encPair (encFinEnum Unit) encBits) encBits) := by
-      dsimp only [EStep, EIn, encHandlerCall]
-      exact (ComputableInPolyTime.snd _ _).comp
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _))
-    let stFn : (((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool) × List Bool →
-        List Bool :=
-      fun ⟨⟨⟨_, _, state⟩, _⟩, _⟩ => state
-    let coinFn : (((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool) × List Bool →
-        Bool :=
-      fun ⟨⟨_, coin⟩, _⟩ => coin
-    let extFn : (((ℕ × List Bool) × (Unit × List Bool) × List Bool) × Bool) × List Bool →
-        List Bool :=
-      fun ⟨_, ext⟩ => ext
-    have hst : ComputableInPolyTime stFn EStep encBits :=
-      (ComputableInPolyTime.snd _ _).comp hcall
-    have hcoinq : ComputableInPolyTime coinFn EStep encBool :=
-      (ComputableInPolyTime.snd EIn encBool).comp (ComputableInPolyTime.fst _ _)
-    have hextq : ComputableInPolyTime extFn EStep encBits :=
-      ComputableInPolyTime.snd _ _
-    have hpost : ComputableInPolyTime
-        (fun q => (stFn q ++ stFn q, stFn q ++ (coinFn q :: extFn q)))
-        EStep (encPair encBits encBits) := by
-      fun_prop
-    exact hpost.isOraclePPTOn
-
-/-- Run `echoClient (p.1 + p.2.length)` against `twiceEchoHandler p` initialized with `p.2`. -/
-private noncomputable def twiceEchoRun (p : ℕ × List Bool) :
-    WordOracleComp Unit (List Bool × List Bool) :=
-  (OracleComp.interpret
-    (OracleComp.sumHandler
-      (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-      (twiceEchoHandler p))
-    (echoClient (p.1 + p.2.length))).run p.2
-
-/-- `twiceEchoRun` certifies a compound caller, non-trivial `prepare`, `tag`-dependent initial
-state, invariant `tag.length ≤ state.length`, and reply length `2 * |state|`. -/
-example : IsOraclePPTOn (encPair encUnary encBits) (encPair encBits encBits) twiceEchoRun := by
-  unfold twiceEchoRun
-  refine echoClient_isOraclePPTOn.run_interpret_preprocess_open_of_growth
-    (operationEncoding := encFinEnum Unit)
-    (prepare := fun p : ℕ × List Bool => p.1 + p.2.length)
-    (initial := fun p : ℕ × List Bool => p.2)
-    (reply := fun _ _ k => 2 * k)
-    (growth := fun _ w => w.length + 1)
-    (by fun_prop) twiceEchoHandler_isOraclePPTOn (ComputableInPolyTime.snd _ _)
-    (fun p state => p.2.length ≤ state.length) (fun _ => le_rfl)
-    ((PolyBounded.const 2).mul PolyBounded.self |>.mono fun ⟨⟨_, _⟩, _, k⟩ => by
-      dsimp only; omega)
-    (PolyBounded.self.mono fun ⟨_, w⟩ => by simp only [length_encPair, encBits_apply]; omega)
-    (fun p request state hstate result hresult => by
-      simp only [twiceEchoHandler, OracleComp.mem_supportWith_bind_iff,
-        OracleComp.mem_supportWith_map_iff] at hresult
-      obtain ⟨b, -, ext, hex, rfl⟩ := hresult
-      obtain ⟨reply, -, rfl⟩ := hex
-      simp only [encBits_apply, List.length_append, List.length_cons]
-      have htake := List.length_take_le request.2.length reply
-      exact ⟨by omega, by omega, by omega⟩)
-
 /-! ### Separation from state-independent allowances -/
 
--- Under the local state invariant `n ≤ state.length`, no state-independent allowance
--- `resources : ℕ → List Bool → ℕ` can satisfy the reply inequality of
--- `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` for `echoHandler`.
-example (resources : ℕ → List Bool → ℕ) :
+/-- One empty-request step on `echoHandler 0` appends `[true]` to `state` and replies with
+`state ++ state`. -/
+private theorem echoHandler_step_mem_support (state : List Bool) :
+    (state ++ state, state ++ [true]) ∈ OracleComp.support (echoHandler 0 ((), []) state) := by
+  simp only [echoHandler, OracleComp.mem_supportWith_bind_iff,
+    OracleComp.mem_supportWith_map_iff]
+  refine ⟨true, by simp, [], ⟨[], by simp, rfl⟩, rfl⟩
+
+-- No preserved invariant containing `initial` admits a state-independent allowance
+-- `resources : ℕ → List Bool → ℕ` satisfying the reply inequality of
+-- `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` for `echoHandler`, because each call
+-- strictly lengthens the handler state and doubles it in the reply.
+example (invariant : ℕ → List Bool → Prop)
+    (hinit : ∀ n, invariant n (List.replicate n false))
+    (hpres : ∀ n request state, invariant n state →
+      ∀ result ∈ OracleComp.support (echoHandler n request state), invariant n result.2)
+    (resources : ℕ → List Bool → ℕ) :
     ¬ (∀ (n : ℕ) (request : Unit × List Bool) (state : List Bool),
-        n ≤ state.length →
+        invariant n state →
         ∀ result ∈ OracleComp.support (echoHandler n request state),
           result.1.length ≤ resources n request.2) := by
   intro h
-  let state := List.replicate (resources 0 [] + 1) false
-  have hmem : (state, state ++ [true]) ∈ OracleComp.support (echoHandler 0 ((), []) state) := by
-    simp only [echoHandler, OracleComp.mem_supportWith_bind_iff,
-      OracleComp.mem_supportWith_map_iff]
-    refine ⟨true, by simp, [], ⟨[], by simp, rfl⟩, rfl⟩
-  have hle := h 0 ((), []) state (Nat.zero_le _) (state, state ++ [true]) hmem
-  simp only [state, List.length_replicate] at hle
+  have hreach : ∀ k : ℕ, ∃ state : List Bool, invariant 0 state ∧ k ≤ state.length := by
+    intro k
+    induction k with
+    | zero => exact ⟨[], hinit 0, Nat.zero_le _⟩
+    | succ k ih =>
+      obtain ⟨state, hinv, hk⟩ := ih
+      refine ⟨state ++ [true],
+        hpres 0 ((), []) state hinv _ (echoHandler_step_mem_support state), ?_⟩
+      simp only [List.length_append, List.length_cons, List.length_nil]
+      omega
+  obtain ⟨state, hinv, hk⟩ := hreach (resources 0 [] + 1)
+  have hle := h 0 ((), []) state hinv _ (echoHandler_step_mem_support state)
+  simp only [List.length_append] at hle
   omega
 
 end CslibFrontierTests.OracleSubstitutionGrowth

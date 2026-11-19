@@ -35,7 +35,7 @@ that the cap never triggers along executions of the program.
 
 ## Main results
 
-* `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_growth`: open stateful
+* `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`: open stateful
   substitution when the reply allowance is polynomial in the caller, request and current state
   length, and the state growth is additive and polynomial in the caller and request alone.
 -/
@@ -241,7 +241,7 @@ the caller and the request alone. Because the outer program's query bound caps b
 calls and every request length, the handler's encoded state stays polynomially bounded in the
 caller's input along every execution, reducing the certificate to
 `Cslib.Probability.IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded`. -/
-theorem IsOraclePPTOn.run_interpret_preprocess_open_of_growth
+theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     {Operation External α β Caller State : Type} [DecidableEq Operation] [DecidableEq External]
     {source : α ↪ List Bool} {input : Caller ↪ List Bool} {output : β ↪ List Bool}
     {operationEncoding : Operation ↪ List Bool} {stateEncoding : State ↪ List Bool}
