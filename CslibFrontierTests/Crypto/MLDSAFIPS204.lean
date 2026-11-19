@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
+import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
@@ -30,6 +31,19 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204
+
+-- Check low-before-high nibble order, the last accepted coefficient, and exhaustion with
+-- 255 accepted coefficients after the final high nibble is rejected.
+private def secretPrefixChecks (s : Level) : Bool :=
+  let sample : Option (ZMod 8380417 × ZMod 8380417 × ZMod 8380417) :=
+    (rejBoundedPoly s (16 :: List.replicate 127 0)).map fun p => (p 0, p 1, p 255)
+  let eta : ZMod 8380417 := s.params.η
+  sample == some (eta, eta - 1, eta) &&
+    (rejBoundedPoly s (List.replicate 127 0 ++ [240])).isNone
+
+#guard secretPrefixChecks .mlDSA44
+#guard secretPrefixChecks .mlDSA65
+#guard secretPrefixChecks .mlDSA87
 
 -- Start with q itself (rejected), then accept a high-bit-set zero. The byte after the
 -- last swapped triple is a sentinel. The shorter prefix contains only 255 accepted triples.

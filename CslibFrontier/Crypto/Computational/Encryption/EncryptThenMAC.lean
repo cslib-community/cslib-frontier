@@ -914,7 +914,7 @@ theorem succProbability_ciOneTimeGame_encryptThenMAC_eq (E : SymmetricCipher) (M
 
 /-! #### IND-CPA Reduction for Theorem 9.2 -/
 
-/-- Open stateful handler that simulates the `cpaEncryptionOracle` of `encryptThenMAC E M` inside
+/-- Open stateful handler that simulates the CPA oracle of `encryptThenMAC E M` inside
 `E.cpaGame` ([BonehShoup2023], Section 9.4.1, Theorem 9.2, Part 2): on a valid pair of `n`-bit
 messages `request.2`, it forwards `request` to the external CPA encryption oracle of `E`
 (truncating the returned ciphertext `c` to `M.msgLen n` bits), computes `tag ← M.sign km c`, and
@@ -1041,41 +1041,34 @@ theorem eval_cpaGame_etmToCPAAdversary (E : SymmetricCipher) (M : MACScheme)
         let ke ← E.keyGen n
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
-  simp only [SymmetricCipher.cpaGame, etmToCPAAdversary, hkeyGen, runWith_norm, pmf_norm]
+  simp only [SymmetricCipher.cpaGame, symmetricCPAGameOn, ProbOracleComp.run, etmToCPAAdversary,
+    hkeyGen, runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km _ => ?_
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q (state : Unit × Unit) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.cpaEncryptionOracle n ke bit q s))
-          (etmToCPAHandler M n km q state.1) state.2).map
-        (fun result => (result.1.1, result.1.2, result.2)))
-    (oracle' := fun q s =>
-      ProbComp.eval ((encryptThenMAC E M hctLen).cpaEncryptionOracle n
-        (encPair encBits encBits (ke, km)) bit q s))
-    (represent := fun _ : Unit × Unit => ())
-    (step := by
-      intro ⟨⟨⟩, payload⟩ ⟨⟨⟩, ⟨⟩⟩
-      unfold etmToCPAHandler SymmetricCipher.cpaEncryptionOracle
-      dsimp only [encryptThenMAC]
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-      by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
-      · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-          ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, ProbComp.eval_bind,
-          ProbComp.eval_pure]
-        simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
-        have hmbLen : (if bit then dropFrame payload else unframe payload).length = n := by
-          cases bit <;> simp [hlenEq]
-        simp only [PMF.map_comp, PMF.map_bind, Function.comp_def,
-          PMF.pure_map, PMF.pure_bind, PMF.bind_bind, Prod.map_apply, id_eq]
-        apply PMF.bind_congr_on_support
-        intro c hc
-        rw [List.take_of_length_le (le_of_eq (hctLen n ke hke _ hmbLen c hc))]
-        rfl
-      · simp [hlenEq, ProbOracleComp.runWith_pure, ProbComp.eval_pure])
-    (adversary n []) ((), ())
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simp only [PMF.map_comp, Function.comp_def] at hsim'
-  exact hsim'
+  have hmemoryless := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_memoryless
+    (fun q => ProbComp.eval (symmetricCPAReplyOn
+      (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+      (encryptThenMAC E M hctLen).encrypt n (encPair encBits encBits (ke, km)) bit q))
+    (adversary n []) ())
+  rw [PMF.map_comp, show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id]
+    at hmemoryless
+  rw [← hmemoryless]
+  refine congrArg (PMF.map Prod.fst)
+    (congrFun (congrFun (congrArg ProbOracleComp.runWith ?_) (adversary n [])) ())
+  funext ⟨⟨⟩, payload⟩ ⟨⟩
+  unfold etmToCPAHandler symmetricCPAReplyOn
+  dsimp only [encryptThenMAC, StateT.run]
+  rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
+  by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
+  · simp only [hlenEq, ↓reduceIte, runWith_norm, pmf_norm]
+    simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
+    have hmbLen : (if bit then dropFrame payload else unframe payload).length = n := by
+      cases bit <;> simp [hlenEq]
+    apply PMF.bind_congr_on_support
+    intro c hc
+    rw [List.take_of_length_le (le_of_eq (hctLen n ke hke _ hmbLen c hc)), ← PMF.bind_pure_comp]
+    rfl
+  · simp [hlenEq, runWith_norm, pmf_norm]
 
 /-- **Quantitative IND-CPA equality for Encrypt-then-MAC** ([BonehShoup2023], Section 9.4.1,
 Theorem 9.2, Part 2, printed pp. 367–368): the CPA distinguishing advantage of `adversary` against
@@ -1642,7 +1635,7 @@ theorem prfCipher_ciphertext_length (family : List Bool → List Bool → List B
 
 /-! #### CPA-to-PRF Reduction and Game Hops for Theorem 5.2 -/
 
-/-- Open stateful handler that simulates the `cpaEncryptionOracle` of `prfCipher` inside the PRF
+/-- Open stateful handler that simulates the CPA oracle of `prfCipher` inside the PRF
 distinguishing experiment ([BonehShoup2023], Section 5.4.1, Theorem 5.2, Figure 5.1, printed
 pp. 185–186): on a pair of `n`-bit messages `(m0, m1)`, it samples a random nonce
 `r ← BitString.sampleList n`, queries the external PRF/random-function oracle at `((), r)`
@@ -1745,15 +1738,22 @@ theorem eval_prfRealGame_cpaToPrfDistinguisher (family : List Bool → List Bool
     ProbComp.eval (prfRealGame id family (cpaToPrfDistinguisher adversary bit) n) =
       ProbComp.eval ((prfCipher family hpoly hlen).cpaGame adversary bit n) := by
   have hkeyGen : (prfCipher family hpoly hlen).keyGen = BitString.sampleList := rfl
-  simp only [prfRealGame, id_eq, ProbOracleComp.run, SymmetricCipher.cpaGame, cpaToPrfDistinguisher,
-    hkeyGen, runWith_norm, pmf_norm]
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, SymmetricCipher.cpaGame, symmetricCPAGameOn,
+    cpaToPrfDistinguisher, hkeyGen, runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   rw [BitString.eval_sampleList] at hk
   have hkLen : k.length = n := BitString.length_of_mem_support_uniformList hk
+  have hmemoryless := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_memoryless
+    (fun q => ProbComp.eval (symmetricCPAReplyOn
+      (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+      (prfCipher family hpoly hlen).encrypt n k bit q)) (adversary n []) ())
+  rw [PMF.map_comp, show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id]
+    at hmemoryless
+  rw [← hmemoryless]
   refine congrArg (PMF.map Prod.fst)
     (congrFun (congrFun (congrArg ProbOracleComp.runWith ?_) (adversary n [])) ())
   funext ⟨⟨⟩, payload⟩ ⟨⟩
-  unfold cpaToPrfHandler SymmetricCipher.cpaEncryptionOracle
+  unfold cpaToPrfHandler symmetricCPAReplyOn
   dsimp only [prfCipher, StateT.run]
   by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
   · simp only [hlenEq, ↓reduceIte, runWith_norm, pmf_norm, BitString.eval_sampleList]

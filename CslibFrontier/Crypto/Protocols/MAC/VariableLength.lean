@@ -512,24 +512,6 @@ widths/lengths/indices and bit-string identifier/block inputs. -/
       E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
     encEncoderInput encBits
 
-/-- Unfolded characterization of `IsPolyTimeEncoder`. -/
-theorem isPolyTimeEncoder_iff (E : Encoder) :
-    IsPolyTimeEncoder E ↔
-      ComputableInPolyTime
-        (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
-          E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
-        encEncoderInput encBits :=
-  Iff.rfl
-
-/-- Construct `IsPolyTimeEncoder` from a `ComputableInPolyTime` certificate on `encEncoderInput`. -/
-theorem IsPolyTimeEncoder.of_computableInPolyTime {E : Encoder}
-    (hE : ComputableInPolyTime
-      (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
-        E p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2)
-      encEncoderInput encBits) :
-    IsPolyTimeEncoder E :=
-  hE
-
 /-- Composition rule for a polynomial-time block `Encoder`. -/
 theorem IsPolyTimeEncoder.comp {E : Encoder} (hE : IsPolyTimeEncoder E)
     {γ : Type} {encIn : γ ↪ List Bool}
@@ -1195,19 +1177,6 @@ theorem computableInPolyTime_blockwiseVerify (hE : IsPolyTimeEncoder E) :
   unfold blockwiseVerify
   fun_prop
 
-/-- Composition rule for `blockwiseVerify E`. -/
-@[fun_prop]
-theorem computableInPolyTime_blockwiseVerify_comp (hE : IsPolyTimeEncoder E)
-    {γ : Type} {encIn : γ ↪ List Bool}
-    {n : γ → ℕ} {sk m : γ → List Bool} {tag : γ → Tag}
-    (hn : ComputableInPolyTime n encIn encUnary)
-    (hsk : ComputableInPolyTime sk encIn encBits)
-    (hm : ComputableInPolyTime m encIn encBits)
-    (htag : ComputableInPolyTime tag encIn encTag) :
-    ComputableInPolyTime (fun a => M.blockwiseVerify E (n a) (sk a) (m a) (tag a))
-      encIn encBool :=
-  (M.computableInPolyTime_blockwiseVerify hE).comp (hn.prod (hsk.prod (hm.prod htag)))
-
 /-- `blockwiseSigningOracle E` is strict PPT in `(n, sk, m)` and the signing log `log`. -/
 @[program_certificate]
 theorem isPPTOn_blockwiseSigningOracle (hE : IsPolyTimeEncoder E) :
@@ -1617,10 +1586,10 @@ theorem BlockwiseEUFCMA.negligible (h : M.BlockwiseEUFCMA E) (F : BlockwiseMACFo
 
 /-- **Uniform security of the blockwise variable-length MAC** ([KatzLindell2020], Theorem 4.8):
 if `M` is an `EUFCMA`-secure fixed-length MAC whose message-length schedule `M.msgLen` is
-polynomially lower-bounded (which holds automatically when `M.msgLen = id`), then the blockwise
+polynomially lower-bounded (as it is when `M.msgLen = id`), then the blockwise
 variable-length MAC with `fullEncoder` is `BlockwiseEUFCMA`-secure. -/
 theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
-    (hmsgLen : PolynomiallyLowerBounded M.msgLen := by fun_prop) :
+    (hmsgLen : PolynomiallyLowerBounded M.msgLen) :
     M.BlockwiseEUFCMA fullEncoder := by
   obtain ⟨tagBound, htagBoundPoly, htagBound⟩ := M.exists_tag_length_bound_of_length_eq
   apply Game.Indistinguishable.of_negligible_succProbability

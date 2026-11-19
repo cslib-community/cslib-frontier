@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.ElGamal
+public import CslibFrontier.Crypto.Computational.ElGamal.ExplicitCoin
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Encoding
@@ -73,8 +74,10 @@ in `CslibFrontier/Crypto/Computational/ElGamal.lean` directly to `Encryption.KEM
   KEM distinguisher; the DDH reduction derives the key from the candidate shared element and runs
   the KDF reduction (`kdfToDDHDistinguisher`).
 * `Cslib.Crypto.PrimeOrderGroupFamily.elGamalEncryptProb`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecryptDet`: uniform strict-PPT multiplicative ElGamal
-  encryption and deterministic polynomial-time decryption.
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecryptDet`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalProbExplicitCoinPKE`: uniform strict-PPT
+  multiplicative ElGamal encryption, deterministic polynomial-time decryption, and the typed
+  fair-coin `ExplicitCoinPKE` they realize on encoded group elements.
 
 ## Main results
 
@@ -627,5 +630,43 @@ theorem DDH.indcpa_elGamalBitEncryptProb {F : PrimeOrderGroupFamily} {d : ℕ �
   hDDH.indcpaOn_elGamalEncryptProb
     (ComputableInPolyTime.const true)
     F.admitsGroupElements_encodeBit F.computableInPolyTime_encodeBit
+
+/-- Fair-coin multiplicative ElGamal ([BonehShoup2023], Section 12.6.2, pp. 499–500) at security
+parameter `n` and group description `d`: `elGamalExplicitCoinPKEWith` drawing both the secret key
+and the encryption coins from `(Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d`. Correctness
+holds by `elGamalExplicitCoinPKEWith_correct`, and `elGamalKeyGenProb`, `elGamalEncryptProb`, and
+`elGamalDecryptDet` realize it on encoded group elements (`eval_fst_elGamalKeyGenProb`,
+`eval_elGamalEncryptProb_encode`). -/
+noncomputable abbrev elGamalProbExplicitCoinPKE (n : ℕ) (d : F.Desc) :
+    Protocols.ExplicitCoinPKE (F.Carrier d) (ZMod (F.order d)) (F.Carrier d)
+      (ZMod (F.order d)) (F.Carrier d × F.Carrier d) :=
+  elGamalExplicitCoinPKEWith (F.order d) (F.generator d)
+    ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)
+
+/-- The public-key output distribution of `elGamalKeyGenProb d n` equals the `(d n, encode ·)`
+image of the public key drawn by `(elGamalProbExplicitCoinPKE n (d n)).keyGen`. -/
+theorem eval_fst_elGamalKeyGenProb (d : ℕ → F.Desc) (n : ℕ) :
+    ProbComp.eval (Prod.fst <$> F.elGamalKeyGenProb d n) =
+      ProbComp.eval ((fun keys =>
+        encPair F.encDesc encBits (d n, F.encode (d n) keys.1)) <$>
+          (F.elGamalProbExplicitCoinPKE n (d n)).keyGen) := by
+  simp only [elGamalKeyGenProb, elGamalExplicitCoinPKEWith, encodeElGamalPublicKey_eq_encode,
+    ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map,
+    PMF.bind_map, Function.comp_def]
+
+/-- On an encoded public key `(d n, encode u)` and encoded group element `encode x`,
+`elGamalEncryptProb (fun _ w => w)` has the same output distribution as encoding both components of
+`(elGamalProbExplicitCoinPKE n (d n)).encrypt u x`. -/
+theorem eval_elGamalEncryptProb_encode (d : ℕ → F.Desc) (n : ℕ)
+    (u x : F.Carrier (d n)) :
+    ProbComp.eval (F.elGamalEncryptProb (fun _ w => w) d n
+        (encPair F.encDesc encBits (d n, F.encode (d n) u)) (F.encode (d n) x)) =
+      ProbComp.eval ((fun ct =>
+        encPair encBits encBits (F.encode (d n) ct.1, F.encode (d n) ct.2)) <$>
+          (F.elGamalProbExplicitCoinPKE n (d n)).encrypt u x) := by
+  simp only [elGamalEncryptProb, elGamalExplicitCoinPKEWith, Protocols.ExplicitCoinPKE.encrypt,
+    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, ProbComp.eval_map,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, PMF.bind_map,
+    Function.comp_def]
 
 end Cslib.Crypto.PrimeOrderGroupFamily
