@@ -27,7 +27,6 @@ This original finite PL component does not position all vertices or straighten a
 forest. Finite parking, frozen literal placement, moves/parity, HT and the full query/source
 recognition criterion remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
-AUTHOR SOURCE DRAFT: all new terms remain UNELABORATED.
 -/
 
 public section
@@ -52,11 +51,16 @@ private theorem chart_embedding {G : Graph} {D : PolygonalDrawing G} (hD : D.IsE
   · intro e
     exact (hD.simple e).mulComplex hu
   · intro e i t ht v hv he
-    rw [Route.eval_mulComplex] at he
-    exact hD.vertex_contacts e i t ht v hv (mul_left_cancel₀ hu he)
+    change Fin (D.route e).segments at i
+    have heq : u * (D.route e).eval i t = u * D.vertex v :=
+      (Route.eval_mulComplex u (D.route e) i t).symm.trans he
+    exact hD.vertex_contacts e i t ht v hv (mul_left_cancel₀ hu heq)
   · intro e f hef i j s t hs ht he
-    rw [Route.eval_mulComplex, Route.eval_mulComplex] at he
-    exact hD.edge_contacts e f hef i j s t hs ht (mul_left_cancel₀ hu he)
+    change Fin (D.route e).segments at i
+    change Fin (D.route f).segments at j
+    have heq := (Route.eval_mulComplex u (D.route e) i s).symm.trans
+      (he.trans (Route.eval_mulComplex u (D.route f) j t))
+    exact hD.edge_contacts e f hef i j s t hs ht (mul_left_cancel₀ hu heq)
 
 -- Off-line witnesses are ALL-real. The only scalar inverse characterization here is the
 -- offered Complex.inv_im formula; no parallel public collinearity notion is introduced.
@@ -84,7 +88,6 @@ private theorem first_height {a p z : ℂ} (hpa : p ≠ a) (hza : z ≠ a)
   apply hn
   have hid : ((z - a) / (p - a))⁻¹ = (z - a)⁻¹ * (p - a) := by
     field_simp [sub_ne_zero.mpr hpa, sub_ne_zero.mpr hza]
-    ring
   rw [hid, mul_sub, Complex.sub_im, he, sub_self]
 
 private theorem second_height {q p z : ℂ} (hpq : p ≠ q) (hzq : z ≠ q)
@@ -123,13 +126,13 @@ private theorem transport_leg {G : Graph} {D : PolygonalDrawing G} (hD : D.IsEmb
     rw [hpoints w hw]
     by_cases he : w = v
     · subst w
-      rw [ite_eq_left rfl]
+      simp only [ite_true]
       change u⁻¹ * (u * D.vertex v + 1) = b
       calc
         _ = D.vertex v + u⁻¹ := by
           rw [mul_add, ← mul_assoc, inv_mul_cancel₀ hu, one_mul, mul_one]
         _ = b := by dsimp only [u]; rw [inv_inv]; ring
-    · rw [ite_eq_right he]
+    · simp only [ite_eq_right he]
       change u⁻¹ * (u * D.vertex w) = D.vertex w
       rw [← mul_assoc, inv_mul_cancel₀ hu, one_mul]
   · intro a
@@ -206,7 +209,7 @@ theorem IsEmbedding.exists_single_vertex_transport {G : Graph} {D : PolygonalDra
       hlines (Sum.inl (⟨w, hp⟩, true)) t
   obtain ⟨D₁, hD₁, hpoint₁, hgerm₁, hcount₁⟩ := transport_leg hD hG v hv z hxz.symm
     (fun w hw hwv => first_height (hD.vertex_ne hw hv hwv) hxz.symm (hfirst w hw hwv))
-  have hcenter : D₁.vertex v = z := by simpa only [ite_eq_left rfl] using hpoint₁ v hv
+  have hcenter : D₁.vertex v = z := by simpa only [ite_true] using hpoint₁ v hv
   have hother (w : ℕ) (hw : w ∈ G.vertices) (hwv : w ≠ v) : D₁.vertex w = D.vertex w := by
     simpa only [ite_eq_right hwv] using hpoint₁ w hw
   obtain ⟨D₂, hD₂, hpoint₂, hgerm₂, hcount₂⟩ := transport_leg hD₁ hG v hv q

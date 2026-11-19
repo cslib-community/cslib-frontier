@@ -23,7 +23,7 @@ an intervening leaf, obstructing a single directly aligned horizontal chart. Ano
 places a leaf on an OLD nonincident edge interior; only the new route must avoid it. The
 bouquet has two indexed loops and one declared name. Coheight isolates and an occupied-target
 negative separate the input premises. No internally chosen intermediate point or width is
-assigned numerical coordinates. All terms are UNELABORATED author source drafts.
+assigned numerical coordinates.
 -/
 
 public section
@@ -49,7 +49,7 @@ theorem star_twenty_arbitrary_target : ∃ E : PolygonalDrawing (starGraph 20),
   obtain ⟨E, hE, hv, _, ho, hc, _⟩ := hD.exists_single_vertex_transport
     (by decide) 20 (by decide) _ htarget
   refine ⟨E, hE, ?_, ?_, ?_, ?_⟩
-  · simpa only [ite_eq_left rfl] using hv 20 (by decide)
+  · simpa only [ite_true] using hv 20 (by decide)
   · intro w hw
     have hw' : w ∈ (starGraph 20).vertices := by simp [starGraph]; omega
     simpa only [ite_eq_right (Nat.ne_of_lt hw)] using hv w hw'
@@ -77,14 +77,16 @@ example : ∃ E : PolygonalDrawing (starGraph 3), E.IsEmbedding ∧
     intro w _ _ he
     have hi := congrArg Complex.im he
     by_cases hw : w = 3 <;> norm_num [PolygonalDrawing.star, starPoint, hw] at hi
-  obtain ⟨E, hE, hv, _, _, _, _⟩ := (PolygonalDrawing.star_isEmbedding 3).
-    exists_single_vertex_transport (by decide) 0 (by decide) _ hq
+  obtain ⟨E, hE, hv, _, _, _, _⟩ :=
+    (PolygonalDrawing.star_isEmbedding 3).exists_single_vertex_transport
+      (by decide) 0 (by decide) _ hq
   have hv0 : E.vertex 0 = (⟨1, 1 / 2⟩ : ℂ) := by
-    simpa only [ite_eq_left rfl] using hv 0 (by decide)
+    simpa only [ite_true] using hv 0 (by decide)
   refine ⟨E, hE, hv0, ?_, ?_⟩
-  · apply (Route.mem_support_iff _ _).mpr
+  · change (⟨1, 1 / 2⟩ : ℂ) ∈
+      (Route.line (⟨((1 : ℕ) : ℝ) + 1, 1⟩ : ℂ) 0).support
+    apply (Route.mem_support_iff _ _).mpr
     refine ⟨0, 1 / 2, by constructor <;> norm_num, ?_⟩
-    dsimp only [PolygonalDrawing.star]
     rw [Route.eval_line]
     apply Complex.ext <;> norm_num [AffineMap.lineMap_apply_module', Complex.smul_re,
       Complex.smul_im]
@@ -123,7 +125,7 @@ example : ∃ (D E : PolygonalDrawing loopGraph), D.IsEmbedding ∧ E.IsEmbeddin
   obtain ⟨E, hE, hv, hg, ho, _, _⟩ := hD.exists_single_vertex_transport
     (by decide) 7 (by decide) _ hq
   refine ⟨D, E, hD, hE, ?_, hg, ?_⟩
-  · simpa only [ite_eq_left rfl] using hv 7 (by decide)
+  · simpa only [ite_true] using hv 7 (by decide)
   · refine ⟨hE.germ_ne_zero, hE.directions_injective, ?_⟩
     intro x y z hxy hyz hne hne' hne''
     exact (ho x y z hxy hyz hne hne' hne'').trans
@@ -146,12 +148,14 @@ example : ∃ E : PolygonalDrawing ⟨[7, 8], []⟩, E.IsEmbedding ∧
     intro w _ _ he
     have hi := congrArg Complex.im he
     norm_num [PolygonalDrawing.points] at hi
-  obtain ⟨E, hE, hv, _, _, _, _⟩ := (PolygonalDrawing.points_isEmbedding [7, 8]).
-    exists_single_vertex_transport (by simp [Graph.incidenceVertices]) 7 (by simp) _ hq
+  obtain ⟨E, hE, hv, _, _, _, _⟩ :=
+    (PolygonalDrawing.points_isEmbedding [7, 8]).exists_single_vertex_transport
+      (by simp [Graph.incidenceVertices]) 7 (by simp) _ hq
   refine ⟨E, hE, ?_, ?_⟩
-  · simpa only [ite_eq_left rfl] using hv 7 (by simp)
-  · simpa only [ite_eq_right (by decide : (8 : ℕ) ≠ 7), PolygonalDrawing.points] using
-      hv 8 (by simp)
+  · simpa only [ite_true] using hv 7 (by simp)
+  · have h := hv 8 (by simp)
+    norm_num [PolygonalDrawing.points] at h
+    exact h
 
 -- Occupying the other CURRENT declared vertex is mathematically impossible while fixing it.
 example : ¬∃ E : PolygonalDrawing ⟨[7, 8], []⟩,
@@ -170,9 +174,16 @@ example (u : ℂ) :
       (Route.mulComplex u triangle).eval i t = u * triangle.eval i t := by
   refine ⟨?_, ?_, fun i t => Route.eval_mulComplex u triangle i t⟩
   · rw [Route.germ_mulComplex]
-    simp [triangle, Route.germ_append, Route.germ, Route.line, Route.start, Route.finish]
+    simp only [triangle,Route.germ_append,Bool.false_eq_true,↓reduceIte]
+    have h : (Route.line 0 1).germ false = 1 := by
+      change (1 : ℂ) - 0 = 1
+      exact sub_zero 1
+    rw [h,mul_one]
   · rw [Route.germ_mulComplex]
-    simp [triangle, Route.germ_append, Route.finish, Route.append, Route.segments, Route.line]
+    simp only [triangle,Route.germ_append,↓reduceIte]
+    have h : ((Route.line 0 1).append Complex.I).finish = Complex.I :=
+      Route.endpoint_append _ _ true
+    rw [h,sub_zero]
 
 -- The nonzero factor is necessary for simplicity, not for the total constructor/support law.
 example : ¬(Route.mulComplex 0 (Route.line 0 1)).IsSimple := by
@@ -180,6 +191,8 @@ example : ¬(Route.mulComplex 0 (Route.line 0 1)).IsSimple := by
   exact hp.segment_ne 0 (by simp [Route.mulComplex, Route.line])
 
 -- Conjugation is not the inverse of a similarity of nonunit norm.
-example : starRingEnd ℂ (2 : ℂ) * ((2 : ℂ) * 1) ≠ (1 : ℂ) := by norm_num
+example : starRingEnd ℂ (2 : ℂ) * ((2 : ℂ) * 1) ≠ (1 : ℂ) := by
+  rw [map_ofNat]
+  norm_num
 
 end CslibFrontierTests.PolygonalVertexTransport

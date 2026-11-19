@@ -20,7 +20,6 @@ preserves continuum simplicity, including the two-end identification of a closed
 `mulComplex` and `support_mulComplex` are extracted once from the positioned-embedding
 necessity construction. The low API is also used by actual conjugated vertex transport.
 This is original finite geometry, not an arbitrary affine-map or ambient-extension framework.
-All new terms in this author SOURCE checkpoint are UNELABORATED.
 
 ## Interface laws
 
@@ -53,8 +52,8 @@ theorem endpoint_mulComplex (u : ℂ) (p : Route) (b : Bool) :
 /-- Outgoing germs are multiplied, without swapping their tags or adding a sign. -/
 theorem germ_mulComplex (u : ℂ) (p : Route) (b : Bool) :
     (mulComplex u p).germ b = u * p.germ b := by
-  cases b <;> simp only [germ, endpoint, start, finish, mulComplex,
-    Bool.false_eq_true, ↓reduceIte, mul_sub]
+  cases b <;> simp only [germ, start, finish, mulComplex,
+    Bool.false_eq_true, ↓reduceIte, mul_sub]; rfl
 
 /-- Complex multiplication carries the complete continuous support to its image,
 including degenerate or closed routes and the zero factor. -/
@@ -72,7 +71,9 @@ theorem support_mulComplex (u : ℂ) (p : Route) :
 theorem IsSimple.mulComplex {p : Route} (hp : p.IsSimple) {u : ℂ} (hu : u ≠ 0) :
     (mulComplex u p).IsSimple := by
   intro i j s t hs ht he
-  rw [eval_mulComplex, eval_mulComplex] at he
-  exact hp i j s t hs ht (mul_left_cancel₀ hu he)
+  change Fin p.segments at i j
+  have heq := (eval_mulComplex u p i s).symm.trans
+    (he.trans (eval_mulComplex u p j t))
+  exact hp i j s t hs ht (mul_left_cancel₀ hu heq)
 
 end Cslib.Polygonal.Route
