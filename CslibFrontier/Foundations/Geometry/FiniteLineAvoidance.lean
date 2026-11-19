@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.RayParity
 import Mathlib.Order.Interval.Set.Infinite
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.Ring
 
 /-!
 # Choosing a point away from finitely many proper lines
