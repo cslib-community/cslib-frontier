@@ -56,6 +56,7 @@ import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
@@ -10559,6 +10560,25 @@ register_result "partial-tag-encrypt-then-mac" where
     adds that when F is a PseudorandomFunction (Attack Game 4.2 and Definition 4.2, \
     pp. 132–133), the same scheme is INDCPA (Attack Game 5.2 and Definition 5.2, \
     pp. 181–182, on n-bit messages) while it lacks one-time ciphertext integrity."
+
+register_result "single-pair-hash-game-bounds" where
+  title := "Pairwise and game bounds for universal hashing and difference unpredictability"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Definitions 7.2 and 7.5, Exercise 7.3",
+      locator := "v0.6, §§7.1 and 7.4, printed pp. 253–254 and 268–269; Exercise 7.3, p. 277" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.isUniversalHash_iff_eval_collisionExperiment_le,
+    Cslib.Crypto.UHF.isDeltaUniversalHash_iff_eval_differenceExperiment_le,
+    Cslib.Crypto.UHF.bestCollisionGuess_wins
+  ]
+  scope := "One keyed hash family with a uniform finite key space. Attack Games 7.1 and 7.3 \
+    give the adversary no key information and reject repeated messages. The difference game \
+    uses additive group subtraction. The pointwise bounds for all adversaries are equivalent \
+    to the pairwise bounds for distinct messages. Given a complete message enumeration, the \
+    exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
+    a maximizer independently of the challenge key and the violating pair."
 
 register_result "fixed-length-polynomial-universality" where
   title := "Collision and difference bounds for fixed-length polynomial hashing"
