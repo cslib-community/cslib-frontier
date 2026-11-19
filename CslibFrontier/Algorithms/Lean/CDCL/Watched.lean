@@ -77,19 +77,19 @@ most two literals, and the watch store is rebuilt on the trail
 (`Cslib.Algorithms.Lean.CDCL.WatchStore.build`). This happens with the queue empty and no clause
 false, and keeps the measure.
 
-**Restarts** (`Cslib.Algorithms.Lean.CDCL.search`). As in MiniSat, once a run of the loop has had
-its budget of conflicts (`restartFirst` times the Luby sequence, `Options.restartBudget`), at the
-next point with an empty queue and no conflict it goes back to the root of the trail, the literals
-implied below every decision (`WExec.restart`), keeping the learned clauses, the activities and
-the phases. Restarts raise the measure, so each run is bounded by its own measure: each move of
+**Restarts** (`Cslib.Algorithms.Lean.CDCL.solveWith.search`). As in MiniSat, once a run of the loop
+has had its budget of conflicts (`restartFirst` times the Luby sequence, `Options.restartBudget`),
+at the next point with an empty queue and no conflict it goes back to the root of the trail, the
+literals implied below every decision (`WExec.restart`), keeping the learned clauses, the activities
+and the phases. Restarts raise the measure, so each run is bounded by its own measure: each move of
 the loop counts at most one conflict and lowers the measure, so a run that restarts has had fewer
 conflicts than the bound `restartBound φ` on the measure of every state, which depends only on the
 number of variables. The budgets are unbounded (`luby_pow`): the budget of restart
 `Options.restartRuns (restartBound φ)` exceeds the bound (`Options.lt_restartBudget`), so that run
-does not restart, and the search ends there. Termination is structural on the measure within a
-run, and on the runs left before that one. This adapts Theorem 2.16 of Nieuwenhuis, Oliveras and
-Tinelli, which asks the number of steps between restarts to increase: it is enough that some run's
-budget exceeds the conflicts any run can have, with Forget keeping the measure.
+does not restart, and the search ends there. Termination is structural on the measure within a run,
+and on the runs left before that one. This adapts Theorem 2.16 of Nieuwenhuis, Oliveras and Tinelli,
+which asks the number of steps between restarts to increase: it is enough that some run's budget
+exceeds the conflicts any run can have, with Forget keeping the measure.
 
 ## Main definitions
 
@@ -98,7 +98,7 @@ budget exceeds the conflicts any run can have, with Forget keeping the measure.
 * `Cslib.Algorithms.Lean.CDCL.WExec.processList`: visiting a watch list.
 * `Cslib.Algorithms.Lean.CDCL.Reduction`, `Cslib.Algorithms.Lean.CDCL.WExec.reduce`: the reduction
   of the learned clauses.
-* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.search`,
+* `Cslib.Algorithms.Lean.CDCL.loop`, `Cslib.Algorithms.Lean.CDCL.solveWith.search`,
   `Cslib.Algorithms.Lean.CDCL.solve`: the solver.
 * `Cslib.Algorithms.Lean.CDCL.Options`, `Cslib.Algorithms.Lean.CDCL.Stats`,
   `Cslib.Algorithms.Lean.CDCL.solveWith`: the solver with options, returning its statistics.
@@ -159,8 +159,8 @@ structure Options where
   restartFirst : ℕ := 100
   /-- The growth of the conflicts between restarts (MiniSat's `restart_inc`). MiniSat requires it to
   exceed `1`; here `0` and `1` count as `2`, so that the budgets are unbounded
-  (`Options.restartBudget`). With the Luby sequence, the peaks `restartInc ^ m` grow with any
-  base, and are unbounded from base `2`. -/
+  (`Options.restartBudget`). With the Luby sequence, the peaks are `restartInc ^ m`
+  (`Cslib.Algorithms.Lean.CDCL.luby_pow`), unbounded from base `2`. -/
   restartInc : ℕ := 2
   /-- Minimize the learned clauses. -/
   minimize : Bool := true
@@ -1560,7 +1560,7 @@ theorem WExec.maybeReduce_conflicts (S : WExec φ) :
 /-- A conflict counts one. -/
 theorem WExec.afterConflict_conflicts (S : WExec φ) (sp : Split) (L : S.exec.LearnedAt sp)
     (k₀ : ℕ) : (S.afterConflict sp L k₀).stats.conflicts = S.stats.conflicts + 1 := by
-  unfold WExec.afterConflict; split <;> rfl
+  unfold WExec.afterConflict; dsimp only; split <;> rfl
 
 /-- **A bound on the measure** of every state, plus one; so on the conflicts of a run of the loop.
 -/
@@ -1695,8 +1695,9 @@ most `bound` conflicts. -/
 
 /-- **Search with restarts**: runs of the loop, the `i`-th restarting after `o.restartBudget i`
 conflicts, if restarts are on. A run has fewer conflicts than `restartBound φ`, so a run whose
-budget exceeds it does not restart; one comes within `k` runs, so the search ends there. -/
-@[expose] def search (φ : CNF ℕ) (o : Options) : (i k : ℕ) → (S : WExec φ) → S.Inv →
+budget exceeds it does not restart; one comes within `k` runs, so the search ends there. A loop
+of `solveWith`, which starts it from `WExec.init φ o`, at the first run, with enough runs. -/
+@[expose] def solveWith.search (φ : CNF ℕ) (o : Options) : (i k : ℕ) → (S : WExec φ) → S.Inv →
     (∃ j, i ≤ j ∧ j ≤ i + k ∧ restartBound φ < o.restartBudget j) → Answer φ × Stats
   | i, k, S, hS, hk =>
     let limit := if o.restarts then some (S.stats.conflicts + o.restartBudget i) else none
@@ -1718,7 +1719,7 @@ budget exceeds it does not restart; one comes within `k` runs, so the search end
           have : j = i := by omega
           subst this
           omega)
-      | k + 1, hk => search φ o (i + 1) k S' h (by
+      | k + 1, hk => solveWith.search φ o (i + 1) k S' h (by
           obtain ⟨j, h₁, h₂, h₃⟩ := hk
           refine ⟨j, ?_, by omega, h₃⟩
           by_contra hj
@@ -1729,7 +1730,8 @@ budget exceeds it does not restart; one comes within `k` runs, so the search end
 /-- **The CDCL solver with options**: a model, or an LRAT certificate of unsatisfiability, with the
 statistics of the run. -/
 @[expose] def solveWith (o : Options) (φ : CNF ℕ) : DPLL.Result × Stats :=
-  match search φ o 0 (o.restartRuns (restartBound φ)) (WExec.init φ o) (WExec.init_inv φ o)
+  match solveWith.search φ o 0 (o.restartRuns (restartBound φ)) (WExec.init φ o)
+      (WExec.init_inv φ o)
       ⟨_, Nat.zero_le _, by omega, o.lt_restartBudget _⟩ with
   | (.sat σ _, s) => (.sat σ, s)
   | (.unsat cert _, s) => (.unsat cert, s)
