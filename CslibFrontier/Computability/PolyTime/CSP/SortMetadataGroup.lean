@@ -46,12 +46,6 @@ private theorem intermediate (I : State Rel) (keys : List ℕ)
   simp only [sortAndCloseFirstMetadataRun, sortBoundaryMetadata,
     ite_eq_right (not_not.mpr hl), ite_eq_left hl]
 
-private theorem sorted_alignment (I : State Rel) (keys : List ℕ)
-    (hl : keys.length = I.ports.length) :
-    (compute keys).sortedKeys.length = (sortBoundaryMetadata g w I keys).ports.length := by
-  rw [(components_compute keys).1,List.length_insertionSort,
-    (components_sortBoundaryMetadata g w I keys hl).2.2.1,hl]
-
 /-- Mismatch and the zero-port empty case retain the entire original raw State. -/
 theorem sortAndCloseFirstMetadataRun_eq_self (I : State Rel) (keys : List ℕ)
     (h : keys.length ≠ I.ports.length ∨ keys = []) :
@@ -98,7 +92,7 @@ theorem components_sortAndCloseFirstMetadataRun (I : State Rel) (keys : List ℕ
   have hs := components_sortBoundaryMetadata g w I keys hl
   have hg := components_closeFirstMetadataRun (sortBoundaryMetadata g w I keys)
     (compute keys).sortedKeys
-  have ha := sorted_alignment g w I keys hl
+  have ha := sortedKeys_length_sortBoundaryMetadata g w I keys hl
   dsimp only at hs hg ⊢
   rw [intermediate g w I keys hl]
   simp only [ha, ↓reduceIte] at hg
@@ -135,7 +129,7 @@ private theorem sorted_cons (I : State Rel) (keys : List ℕ)
     (hl : keys.length = I.ports.length) (hne : keys ≠ []) :
     ∃ a ks, (compute keys).sortedKeys = a::ks ∧
       (a::ks).length = (sortBoundaryMetadata g w I keys).ports.length := by
-  have hal := sorted_alignment g w I keys hl
+  have hal := sortedKeys_length_sortBoundaryMetadata g w I keys hl
   cases hks : (compute keys).sortedKeys with
   | nil =>
     have hs := congrArg List.length (components_compute keys).1
