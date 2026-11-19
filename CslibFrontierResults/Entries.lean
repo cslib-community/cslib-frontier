@@ -39,6 +39,7 @@ import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
 import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
 import CslibFrontier.Algorithms.Lean.DFS.SCC
+import CslibFrontier.Algorithms.Lean.DyadicRecovery
 import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
@@ -5565,6 +5566,21 @@ register_result "gap-two-csp-boolean-promise-p" where
     Graph.unsatVal_toFiniteGraph identifies the library unsatVal with the minimum over \
     assignments of the declared vertices. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/6367#pullrequestreview-5950754049"
+
+register_result "arora-barak-dyadic-prefix-recovery" where
+  title := "Polynomial-time rational recovery from a binary prefix"
+  topic := "algorithms"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 20, Exercise §11",
+      locator := "2007-01-08 public draft, printed p. 432 / PDF p. 448" }
+  ]
+  theorems := [Rat.recoverDyadicLogSq_eq_some, Rat.recoverDyadicLogSq_polyTime]
+  scope := "Rounds upward after doubling the logarithm. For positive denominator bound N, \
+    the precision is Nat.clog 2 (N ^ 2) fractional bits. The binary input encodes N and \
+    the half-open dyadic cell index, including the integer part for improper fractions. \
+    Terminating binary expansions use trailing zeros. The optional rational output uses \
+    a reduced binary numerator and denominator. The native multitape polynomial-time \
+    certificate covers the same decoder used in the recovery theorem."
 
 register_result "bareiss-rational-elimination" where
   title := "Exact rational Bareiss–Jordan Gaussian elimination and entry bounds"
