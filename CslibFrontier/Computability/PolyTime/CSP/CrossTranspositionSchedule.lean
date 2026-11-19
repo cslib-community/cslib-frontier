@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PolyTime.CSP.CrossAdjacentTranspositio
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.Nat.BinarySize
+import CslibFrontier.Foundations.Data.List.Swap
 
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -85,15 +86,6 @@ theorem wellFormed_transposeSchedule_iff (I : State Rel) (js : List ℕ) :
       wellFormed_transposeAdjacent_iff]
     exact ih
 
-private def valueStep {α : Type} (ps : List α) (j : ℕ) : List α :=
-  if h : j+1 < ps.length then
-    ps.take j ++ [ps[j+1], ps[j]'(by omega)] ++ ps.drop (j+2)
-  else ps
-
-private theorem valueStep_pair {α : Type} (L : List α) (x y : α) (R : List α) :
-    valueStep (L ++ [x,y] ++ R) L.length = L ++ [y,x] ++ R := by
-  simp [valueStep, List.drop_append]
-
 /-- The exact component recurrence counts only successful guards. The symbol word keeps
 all old rows in order and appends one fixed gadget word per successful request. -/
 theorem components_transposeSchedule (I : State Rel) (js : List ℕ) :
@@ -134,7 +126,7 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
     let e := if j+1<I.ports.length then 1 else 0
     I.body.eval sem (fun z => τ (2^e*z)) = true ∧
       (transposeAdjacent g w I j).ports.map τ =
-        valueStep (I.ports.map (fun z => τ (2^e*z))) j := by
+        (I.ports.map (fun z => τ (2^e*z))).swap j (j+1) := by
   dsimp only
   by_cases h : j+1<I.ports.length
   · have hj : j<I.ports.length := by omega
@@ -161,9 +153,10 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
     have hports : I.ports = L ++ [x,y] ++ R := by
       simpa only [L,x,y,R,List.append_assoc,List.cons_append,List.nil_append] using hp.symm
     rw [hports, List.map_append, List.map_append, List.map_cons, List.map_cons,
-      List.map_nil, ← hL, ← List.length_map (f := fun z => τ (2*z)), valueStep_pair]
+      List.map_nil, ← hL, ← List.length_map (f := fun z => τ (2*z))]
+    simp [List.swap_adjacent_eq_take_drop, List.drop_append]
   · rw [transposeAdjacent_invalid g w I j (by omega)] at ht ⊢
-    simp only [h, ↓reduceIte, pow_zero, one_mul, valueStep, List.length_map]
+    simp only [h, ↓reduceIte, pow_zero, one_mul, List.swap_adjacent_eq_take_drop, List.length_map]
     exact ⟨ht, rfl⟩
 
 /-- Recover source satisfaction and the entire scheduled value word from ONE satisfying
@@ -178,9 +171,11 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     I.body.eval sem (fun z => τ (2^k*z)) = true ∧
       (transposeSchedule g w I js).ports.map τ =
         js.foldl swap (I.ports.map (fun z => τ (2^k*z))) := by
+  dsimp only
+  simp_rw [← List.swap_adjacent_eq_take_drop]
   change I.body.eval sem (fun z => τ (2^(_)*z)) = true ∧
     (transposeSchedule g w I js).ports.map τ =
-      js.foldl valueStep (I.ports.map (fun z => τ (2^(_)*z)))
+      js.foldl (fun ps j => ps.swap j (j+1)) (I.ports.map (fun z => τ (2^(_)*z)))
   induction js using List.reverseRecOn generalizing τ with
   | nil =>
     simp only [transposeSchedule, List.foldl_nil, List.countP_nil, pow_zero, one_mul] at ht ⊢
@@ -249,6 +244,7 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
       (∀ z, τ (2^k*z)=σ z) ∧
       (transposeSchedule g w I js).ports.map τ = js.foldl swap (I.ports.map σ) := by
   dsimp only
+  simp_rw [← List.swap_adjacent_eq_take_drop]
   constructor
   · intro hs
     have hext : ∃ τ : ℕ → Bool, (transposeSchedule g w I js).body.eval sem τ = true ∧
@@ -271,10 +267,12 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
     obtain ⟨τ, ht, ha⟩ := hext
     refine ⟨τ, ht, ha, ?_⟩
     have hr := (recover_transposeSchedule g w I js τ ht).2
+    simp_rw [← List.swap_adjacent_eq_take_drop] at hr
     simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
       from funext ha] using hr
   · rintro ⟨τ, ht, ha, _⟩
     have hr := (recover_transposeSchedule g w I js τ ht).1
+    simp_rw [← List.swap_adjacent_eq_take_drop] at hr
     simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
       from funext ha] using hr
 
