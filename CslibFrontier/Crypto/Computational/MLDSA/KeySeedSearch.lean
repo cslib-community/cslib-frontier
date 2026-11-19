@@ -19,7 +19,6 @@ import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Probability.PMF.UniformPoint
 import all CslibFrontier.Languages.Probabilistic.Presample
-import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 
 /-!
 # Private signing-seed prediction and the key-generation query
@@ -32,8 +31,7 @@ only the quantum device can access that programmed input. Signing uses the indep
 mask-seed rows of `signingSeedPredictionGame`, including its fallback after the tape of `n`
 rows is exhausted. The background device predicts `K`
 with probability at most `2 / 2^256` and encounters a changed response at each fixed query
-with probability at most `1 / 2^256`. Before its first coherent query the original device
-also satisfies the prediction bound, with arbitrary prior classical signing requests.
+with probability at most `1 / 2^256`.
 
 For any retained density matrix independent of the hidden input seed, the mean squared
 amplitude displacement of one coherent query by the installed expansion is at most `4 / 2^256`.
@@ -409,63 +407,6 @@ theorem keySeedDeviceGame_false_le (C : QuantumSigningForger) (s : Level) (base 
     (ENNReal.mul_ne_top (by simp) (ENNReal.inv_ne_top.mpr (by positivity))) bound
   simpa only [B, Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
     ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using r
-
-private theorem before_first_query {C : QuantumSigningForger} {α : Type} (p : Program C α) :
-    OracleComp.QueriesSatisfy (fun q => isXofQuery (C := C) q = false)
-      (queryPrefix (C := C) p 0) := by
-  induction p with
-  | pure a => exact .pure _
-  | liftBind q k ih =>
-    cases h : isXofQuery (C := C) q with
-    | true => simp only [queryPrefix, h, beq_self_eq_true, Bool.and_self, ↓reduceIte]; exact .pure _
-    | false =>
-      simp only [queryPrefix, h, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
-        Bool.toNat_false, Nat.sub_zero]
-      exact OracleComp.QueriesSatisfy.liftBind_iff.mpr ⟨h, ih⟩
-
-private theorem first_serviceAddress (C : QuantumSigningForger) (H : Xofs) (s : Level)
-    (seed : FixedBytes 32) (out : FixedBytes 128) (sv : Option RowSigner) {n : ℕ}
-    (rows : SigningMaskSeeds n) :
-    C.serviceAddress (H.withKeySeedExpansion s seed out) s sv rows 0 =
-      C.serviceAddress H s sv rows 0 := by
-  simp only [serviceAddress, addressLaw, withTrialSetup,
-    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s seed out) rfl]
-  cases sv with
-  | none => rfl
-  | some sv =>
-    dsimp only
-    cases H.expandA s (sv.publicKey.take 32) with
-    | none => rfl
-    | some A =>
-      apply congrArg (fun p : StateT (State C × List Row) PMF Bool =>
-        ((p.run (C.initial, List.ofFn fun i μ => rows (i, μ))).map
-          (fun (found, st, _) => (found, st))).bind (addressRead C))
-      apply (before_first_query _).interpret_congr
-      rintro (coin | cmd | sign) h
-      · rfl
-      · cases cmd with
-        | query => exact Bool.noConfusion (show true = false from h)
-        | service op _ => exact op.elim
-        | gate _ | measure _ =>
-          funext st
-          obtain ⟨st, tape⟩ := st
-          simp only [OracleComp.withSampleListWhen, isSigningCall, Sum.elim_inr, Sum.elim_inl,
-            Bool.false_eq_true, ↓reduceIte, signingCommand, deviceCommand, OracleComp.sumHandler,
-            deviceHandler_gate, deviceHandler_measure, DeviceState.instruction_apply,
-            OracleGateCode.toPlacedGate?]
-      · rfl
-
-/-- Even with adaptive signing before the first coherent query, the original predictor
-in the independent-row game has success at most `2 / 2^256` when the oracle covers key expansion. -/
-theorem signingSeedPredictionGame_zero_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
-    {a b : ℕ} (ha : 272 ≤ a) (hb : 128 ≤ b) (n : ℕ) :
-    (Game.succProbability (C.signingSeedPredictionGame s base a b n 0) : ℝ) ≤ 2 / 2 ^ 256 := by
-  rw [← C.keySeedDeviceGame_true s base ha hb]
-  have eq : C.keySeedDeviceGame s base a b n 0 true = C.keySeedDeviceGame s base a b n 0 false := by
-    simp only [keySeedDeviceGame, Bool.false_eq_true, ↓reduceIte, observations,
-      first_serviceAddress]
-  rw [eq]
-  exact C.keySeedDeviceGame_false_le s base a b n 0
 
 private def queriesKeySeed {C : QuantumSigningForger} (s : Level) (seed : FixedBytes 32)
     (addr : Option (Address C)) : Bool :=
