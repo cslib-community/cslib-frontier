@@ -244,8 +244,9 @@ end Diagonal
 
 -- Report the expensive reductions on timeout while diagnosing this migrated certificate.
 set_option diagnostics true in
--- Keep the existential machine realization opaque while composing the named resource contracts.
-attribute [local irreducible] ComputableInO in
+-- The hosted diagnostics count 77867 decoder unfoldings during composition. Keep the decoder
+-- opaque here: only its named computability and length contracts are needed below.
+attribute [local irreducible] ComputableInO Universal.decodeDesc in
 open Diagonal in
 /-- **The diagonal is decidable in exponential time**, within time `O(2 ^ (4 * n))` and space
 `O(2 ^ (2 * n))` on inputs of length `n`, charging decoding, the symbols, the clock, the universal

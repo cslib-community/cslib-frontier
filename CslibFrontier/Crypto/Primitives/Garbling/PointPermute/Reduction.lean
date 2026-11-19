@@ -825,8 +825,15 @@ private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q 
     (hslot : ComputableInPolyTime slot encIn encUnary) :
     ComputableInPolyTime (fun x => maskWord (family := family) (k x) (n x) (q x) (j x) (ws x)
       (kc x) (rs x) (v x) (c x) (g x) (i x) (slot x)) encIn encBits := by
-  unfold maskWord
-  polytime
+  have hwidth := ComputableInPolyTime.unary_add.comp (hn.prod hq)
+  have hindex := ComputableInPolyTime.unary_add.comp
+    ((ComputableInPolyTime.unary_add.comp
+      ((ComputableInPolyTime.unary_mul.comp ((.const 8).prod hg)).prod
+        (ComputableInPolyTime.unary_mul.comp ((.const 2).prod hi)))).prod hslot)
+  exact (targetBit_polyTime hws hkc hj hv hc).ite
+    (ComputableInPolyTime.listGetDWithInput hrs hindex [])
+    (labelWord_polyTime hf hk (keyOf_polyTime hk hwidth hkc hv hc)
+      (tweak_polyTime hk hg hi hslot))
 
 attribute [local fun_prop] maskWord_polyTime
 

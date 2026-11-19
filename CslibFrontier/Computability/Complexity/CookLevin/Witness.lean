@@ -146,7 +146,7 @@ private theorem computableInPolyTime_certificateVars :
   have hword := (fst (encPair encBits encBits) encUnary).snd'
   have hp := id' (encIn := encPair (encPair (encPair encBits encBits) encUnary) encUnary)
   have hbit := (hword.comp hp.fst').bitsGetDWithInput hp.snd' false
-  have hcert := computableInPolyTime_cert.comp hp.snd'
+  have hcert := (computableInPolyTime_cert (k := k) (State := State)).comp hp.snd'
   exact flatMapWithInput (encA := encUnary) (encB := encVar)
     (range.comp (length_bits.comp hword))
     (hbit.ite (cons' hcert (const [])) (const []))

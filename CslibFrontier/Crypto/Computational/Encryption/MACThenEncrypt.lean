@@ -147,10 +147,22 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         some msg
       else
         none
-  keyGen_ppt := macThenEncrypt_keyGen_ppt E M ptLen hptLenPoly
+  keyGen_ppt := by exact macThenEncrypt_keyGen_ppt E M ptLen hptLenPoly
   encrypt_ppt := by
-    have hpt := hptLenPoly
-    ppt
+    let input := encPair encUnary (encPair encBits encBits)
+    have hp := ComputableInPolyTime.id' (encIn := input)
+    have hsign := IsPPTOn.preprocess M.sign_ppt
+      ((ComputableInPolyTime.dropFrame.comp hp.snd'.fst').prod hp.snd'.snd')
+    have houter := ComputableInPolyTime.fst input encBits
+    have hprepare : ComputableInPolyTime
+        (fun q : (ℕ × List Bool × List Bool) × List Bool =>
+          (ptLen q.1.1, unframe q.1.2.1, encPair encBits encBits (q.1.2.2, q.2)))
+        (encPair input encBits) input :=
+      (hptLenPoly.comp (hp.fst'.comp houter)).prod
+        ((ComputableInPolyTime.unframe.comp (hp.snd'.fst'.comp houter)).prod
+          (((hp.snd'.snd'.comp houter).prod
+            (ComputableInPolyTime.snd input encBits)).encoding_comp))
+    exact IsPPTOn.bind_with hsign (IsPPTOn.preprocess E.encrypt_ppt hprepare)
   decrypt_polyTime := by
     let EDecIn := encPair encUnary (encPair encBits encBits)
     let EBIn := encPair EDecIn encBits

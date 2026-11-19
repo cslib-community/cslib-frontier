@@ -239,7 +239,8 @@ private theorem permanentRow_polyTime :
   have hlength := (length_list encBits).comp (fst (encList encBits) encUnary)
   have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
   have htest := rowEntry_polyTime hp.fst'.fst' hp.fst'.snd' hp.snd'
-  have hfiltered := filterWithInput (range.comp hlength) htest
+  have hfiltered := filterWithInput
+    (test := fun (p : List (List Bool) × ℕ) j => rowEntry p.1 p.2 j) (range.comp hlength) htest
   have hn := hlength.comp hp.fst'
   have hindex := unary_add' (unary_mul' hp.fst'.snd' hn) hp.snd'
   exact encConstraint_mk_polyTime (const ()) (mapWithInput hfiltered hindex)
@@ -253,7 +254,8 @@ private theorem permanentColumn_polyTime :
   have hlength := (length_list encBits).comp (fst (encList encBits) encUnary)
   have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
   have htest := rowEntry_polyTime hp.fst'.fst' hp.snd' hp.fst'.snd'
-  have hfiltered := filterWithInput (range.comp hlength) htest
+  have hfiltered := filterWithInput
+    (test := fun (p : List (List Bool) × ℕ) i => rowEntry p.1 i p.2) (range.comp hlength) htest
   have hn := hlength.comp hp.fst'
   have hindex := unary_add' (unary_mul' hp.snd' hn) hp.fst'.snd'
   exact encConstraint_mk_polyTime (const ()) (mapWithInput hfiltered hindex)

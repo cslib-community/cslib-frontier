@@ -915,7 +915,8 @@ theorem computableInPolyTime_plsPpadsSucc
   change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
   convert hresult using 1 <;> funext p <;>
     simp only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
-      decide_eq_true_eq, List.append_assoc]
+      decide_eq_true_eq, List.append_assoc] <;>
+    split_ifs <;> rfl
 
 theorem computableInPolyTime_plsPpadsPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
