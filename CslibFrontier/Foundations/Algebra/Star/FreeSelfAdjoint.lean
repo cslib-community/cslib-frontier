@@ -82,7 +82,7 @@ private theorem reverse_twice (a : FreeAlgebra R X) :
 @[simp] theorem star_of (x : X) : star (of x : FreeSelfAdjoint R X) = of x := by
   exact reverse_of (R := R) x
 
-@[simp] theorem star_algebraMap (r : R) :
+theorem star_algebraMap (r : R) :
     star (algebraMap R (FreeSelfAdjoint R X) r) = algebraMap R _ (star r) := by
   exact reverse_algebraMap (X := X) r
 
