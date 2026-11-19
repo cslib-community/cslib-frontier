@@ -13,8 +13,8 @@ public import CslibFrontier.DataStructure.BPlusTree.TreeMap
 # B+-tree bulk loading examples
 
 Checked examples for bulk loading of `Cslib.DataStructure.BPlusTree`: the sizes of the leaves,
-loads at minimum degrees `2` and `3` of one, two and three levels, the empty list, minimum
-degrees below `2`, a list that is not sorted, and the two output bridges.
+loads of one, two and three levels at minimum degree `2` and of two levels at minimum degree `3`,
+the empty list, minimum degrees below `2`, a list that is not sorted, and the two output bridges.
 -/
 
 public section
@@ -36,6 +36,7 @@ example : chunkSizes 3 7 7 = [5, 2] := by decide
 /-! ### Loads -/
 
 example : ofSortedList 2 ([] : List (ℕ × Unit)) = .leaf [] := rfl
+example : ofSortedList 5 ([] : List (ℕ × Unit)) = .leaf [] := rfl
 example : (ofSortedList 2 (unit 3)).height = 1 := by decide
 example :
     (ofSortedList 2 (unit 7)).leaves = [unit 3, (unit 6).drop 3, (unit 7).drop 6] := by decide
@@ -48,10 +49,8 @@ example : IsWF 2 (ofSortedList 2 (unit 13)) := by decide
 example : IsWF 3 (ofSortedList 3 (unit 13)) := by decide
 
 /-- Below `2` the loader uses minimum degree `2`. -/
-example :
-    (ofSortedList 0 (unit 7)).leaves = (ofSortedList 2 (unit 7)).leaves ∧
-      (ofSortedList 1 (unit 7)).leaves = (ofSortedList 2 (unit 7)).leaves := by
-  decide
+example (l : List (ℕ × Unit)) : ofSortedList 0 l = ofSortedList 2 l := rfl
+example (l : List (ℕ × Unit)) : ofSortedList 1 l = ofSortedList 2 l := rfl
 
 /-- Every list keeps its entries, sorted or not. -/
 example :
@@ -65,8 +64,9 @@ theorem isSortedAssoc_unit_seven : (unit 7).IsSortedAssoc := by decide
 
 example : IsWF 2 (ofSortedList 2 (unit 7)) := isWF_ofSortedList le_rfl isSortedAssoc_unit_seven
 
-example : (ofSortedList 2 (unit 7)).height ≤ Nat.log 2 (unit 7).length + 1 :=
-  height_ofSortedList_le le_rfl isSortedAssoc_unit_seven
+/-- The height bound depends on the shape only, so it needs no sortedness. -/
+example : (ofSortedList 2 (unit 7).reverse).height ≤ Nat.log 2 (unit 7).reverse.length + 1 :=
+  height_ofSortedList_le le_rfl _
 
 /-- Lookup needs no bound on the minimum degree. -/
 example : lookup 4 (ofSortedList 0 (unit 7)) = (unit 7).lookup 4 :=
