@@ -140,8 +140,12 @@ theorem computableInPolyTime_pad :
     ComputableInPolyTime.bitsToNat.comp
       (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.snd encCNF encBits)
         (ComputableInPolyTime.const [true]))
-  unfold pad padClause encCNF
-  fun_prop
+  have htrue := hN.prod (ComputableInPolyTime.const (encOut := encBool) true)
+  have hfalse := hN.prod (ComputableInPolyTime.const (encOut := encBool) false)
+  have hclause := ComputableInPolyTime.cons' htrue
+    (ComputableInPolyTime.cons' hfalse
+      (ComputableInPolyTime.cons' htrue (ComputableInPolyTime.const [])))
+  exact ComputableInPolyTime.cons' hclause (ComputableInPolyTime.fst encCNF encBits)
 
 /-- Reading back the padding is polynomial-time. -/
 theorem computableInPolyTime_unpad : ComputableInPolyTime unpad encCNF encBits := by

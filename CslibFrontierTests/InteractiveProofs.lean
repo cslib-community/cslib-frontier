@@ -189,7 +189,8 @@ example : BitString.increment [true, true, false] = [false, false, true] ∧
 -- Polynomial space is closed under composition and contains polynomial time, through `fun_prop`.
 example : ComputableInPolySpace (fun w => BitString.increment (BitString.increment w))
     encBits encBits :=
-  have h : ComputableInPolySpace BitString.increment encBits encBits := .of_polyTime (by fun_prop)
+  have h : ComputableInPolySpace BitString.increment encBits encBits :=
+    .of_polyTime ComputableInDegree.increment.computableInPolyTime
   h.comp h
 
 -- A Boolean function computable within polynomial space decides a problem in `PSPACE`.

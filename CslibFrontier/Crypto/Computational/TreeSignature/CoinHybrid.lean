@@ -1048,7 +1048,7 @@ theorem coinParamInv_coinParam (budget : ℕ → ℕ) (n : ℕ) :
 theorem computableInPolyTime_coinParam {budget : ℕ → ℕ}
     (hbudget : ComputableInPolyTime budget encUnary encUnary) :
     ComputableInPolyTime (coinParam budget) encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_pair.computableInPolyTime.comp
+  ComputableInPolyTime.unary_pair.comp
     (ComputableInPolyTime.id'.prod (hbudget.unary_add' (.const 1)))
 
 theorem computableInPolyTime_coinParamInv {budget : ℕ → ℕ}

@@ -93,17 +93,17 @@ example :
 /-! ### The certificates -/
 
 /-- The equality of words, as an edge test with a trivial parameter, in the calculus. -/
-private theorem exists_inO_eq : ∃ T S, ComputableTidilyInO
+private theorem exists_inO_eq : ∃ T S, ComputableInO
     (fun q : Unit × List Bool × List Bool => decide (q.2.1 = q.2.2))
     (encPair encUnit (encPair encBits encBits)) encBool T S :=
-  ⟨_, _, ComputableInO.eqWords.tidy.comp (ComputableTidilyInO.snd encUnit _)⟩
+  ⟨_, _, ComputableInO.eqWords.comp (ComputableInO.snd encUnit _)⟩
 
 -- A round of the walk with the equality of words as edge test.
 example : ∃ S, ComputableInSpace (roundStep fun (_ : Unit) u v => decide (u = v))
     (encRound encUnit) (encRound encUnit) S := by
   obtain ⟨Te, Se, hedge⟩ := exists_inO_eq
   exact ⟨_, computableInSpace_roundStep (edge := fun _ u v => decide (u = v))
-    hedge.computableInO⟩
+    hedge⟩
 
 -- Three steps of the run from `0` to the target `1` at level `n`, for a family of depths.
 example : ∃ S, ComputableInSpace
@@ -112,11 +112,11 @@ example : ∃ S, ComputableInSpace
   obtain ⟨Te, Se, hedge⟩ := exists_inO_eq
   have hin : ComputableInSpace (fun n : ℕ => ((), 1, n, [false], [true])) encUnary
       (encArgs encUnit) _ :=
-    .of_inO ((ComputableTidilyInO.const ()).prod ((ComputableTidilyInO.const 1).prod
-      ((ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).prod
-        ((ComputableTidilyInO.const [false]).prod
-          (ComputableTidilyInO.const [true]))))).computableInO
-  exact ⟨_, computableInSpace_run (edge := fun _ u v => decide (u = v)) hedge.computableInO hin
+    .of_inO ((ComputableInO.const ()).prod ((ComputableInO.const 1).prod
+      ((ComputableInO.of_linear (.of_eq fun _ => rfl)).prod
+        ((ComputableInO.const [false]).prod
+          (ComputableInO.const [true])))))
+  exact ⟨_, computableInSpace_run (edge := fun _ u v => decide (u = v)) hedge hin
     (ComputableInSpace.const 3) (fun _ => rfl) fun _ => rfl⟩
 
 end CslibFrontierTests.SavitchWalk

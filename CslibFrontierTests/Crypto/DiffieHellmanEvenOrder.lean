@@ -177,17 +177,24 @@ private def residueGroups : CyclicGroupFamily where
       Nat.mod_mul_mod]
   computableInPolyTime_order := computableInPolyTime_modulus
   computableInPolyTime_generator := by
-    have := computableInPolyTime_modulus
     simp only [ZMod.val_one_eq_one_mod]
-    fun_prop
+    exact (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.const 1)
+      computableInPolyTime_modulus).encoding_comp
   computableInPolyTime_add := by
-    have := computableInPolyTime_modulus
-    unfold modulusAdd
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encModulus (encPair encBits encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_add'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (computableInPolyTime_modulus.comp hp.fst')).encoding_comp
   computableInPolyTime_smul := by
-    have := computableInPolyTime_modulus
-    unfold modulusSMul
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encModulus (encPair encNat encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hp.snd'.fst'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (computableInPolyTime_modulus.comp hp.fst')).encoding_comp
 
 /-- The setup law that, at security parameter `n`, always produces the modulus `2 (n + 1)`. -/
 private noncomputable def evenSetup (n : ℕ) : PMF residueGroups.Desc :=
