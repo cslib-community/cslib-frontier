@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.QuantumRaz
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumConditioning
+import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumPostselection
 import CslibFrontier.Probability.PMF.Event
 import Mathlib.Probability.Distributions.Uniform
 
@@ -102,6 +103,67 @@ theorem checkedWinTranscriptLaw_apply_toReal (h : (0 : ℝ) < ((Law).toOuterMeas
   change ((((Law).filter Win _).map e) (e ((ω, y), a, b))).toReal = _
   rw [map_equiv_apply, Equiv.symm_apply_apply, filter_apply_toReal]
   rfl
+
+omit [Fintype Ω] in
+/-- After observing a function of the free question tuple, the conditional Alice marginal
+is obtained by averaging Bob's question law in that prior fiber and then normalizing the
+checked-answer branch. Both the winning transcript and the fiber must have positive mass. -/
+theorem quantumMarginalGivenMap_checkedWinTranscriptLaw {U : Type*}
+    (h : (0 : ℝ) < ((Law).toOuterMeasure Win).toReal)
+    {ρ : Transcript × (∀ i, V i) → Matrix ι ι ℂ}
+    (hρ : ∀ z, IsDensityMatrix (ρ z))
+    (hbranch : ∀ (ω : Ω) (a : C → A) (b : C → B) (y : ∀ i, V i),
+      ((ω, a, b), y) ∈ (S.checkedWinTranscriptLaw C V p r s q W h).support →
+      ρ ((ω, a, b), y) = normalizeDensity (partialTraceRight (pureState
+        (S.averagedCheckedVector C (p ω) (q ω y) a b))))
+    (ω : Ω) (a : C → A) (b : C → B) (f : (∀ i, V i) → U) (u : U)
+    (ht : (ω, a, b) ∈ ((S.checkedWinTranscriptLaw C V p r s q W h).map Prod.fst).support)
+    (hu : u ∈ ((conditionalSnd (S.checkedWinTranscriptLaw C V p r s q W h)
+      (ω, a, b)).map f).support) :
+    let base := conditionalSnd ((pi (s ω)).map fun y => (f y, y)) u
+    quantumMarginalGivenMap
+        (conditionalSnd (S.checkedWinTranscriptLaw C V p r s q W h) (ω, a, b))
+        (fun y => ρ ((ω, a, b), y)) f u =
+      normalizeDensity (partialTraceRight (pureState
+        (S.averagedCheckedVector C (p ω) (base.bind (q ω)) a b))) := by
+  classical
+  let P := S.checkedWinTranscriptLaw C V p r s q W h
+  let t : Transcript := (ω, a, b)
+  let Q := conditionalSnd P t
+  let M (y : ∀ i, V i) :=
+    partialTraceRight (pureState (S.averagedCheckedVector C (p ω) (q ω y) a b))
+  let c := (r ω).toReal / ((Law).toOuterMeasure Win).toReal / ((P.map Prod.fst) t).toReal
+  have hW : (a, b) ∈ W ω := by
+    by_contra hn
+    obtain ⟨⟨t', y⟩, hy, ht'⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    change t' = t at ht'
+    subst t'
+    have hpos := ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hy) (P.apply_ne_top (t, y))
+    change ((S.checkedWinTranscriptLaw C V p r s q W h) ((ω, a, b), y)).toReal > 0 at hpos
+    rw [S.checkedWinTranscriptLaw_apply_toReal C V p r s q W h, ite_eq_right hn] at hpos
+    exact (lt_irrefl 0) hpos
+  have hweight (y : ∀ i, V i) : (Q y).toReal = c * (pi (s ω) y).toReal * (M y).trace.re := by
+    rw [show Q = conditionalSnd P t from rfl, conditionalSnd_apply _ _ ht, ENNReal.toReal_div]
+    change ((S.checkedWinTranscriptLaw C V p r s q W h) ((ω, a, b), y)).toReal / _ = _
+    rw [S.checkedWinTranscriptLaw_apply_toReal C V p r s q W h, ite_eq_left hW,
+      checkedAnswersWithLabel_apply, bind_map_prodMk_apply, ENNReal.toReal_mul, ENNReal.toReal_mul]
+    change ((r ω).toReal * (pi (s ω) y).toReal *
+      (((p ω).bind fun x => (q ω y).bind fun z => S.checkedAnswers C x z) (a, b)).toReal) /
+        ((Law).toOuterMeasure Win).toReal / ((P.map Prod.fst) t).toReal = _
+    rw [← norm_averagedCheckedVector_sq, show M y = _ from rfl,
+      trace_partialTraceRight, trace_pureState, Complex.ofReal_re]
+    dsimp only [c]
+    ring
+  have hstate (y : ∀ i, V i) (hy : y ∈ Q.support) : ρ (t, y) = normalizeDensity (M y) :=
+    hbranch ω a b y ((mem_support_conditionalSnd_iff P t ht y).mp hy)
+  have he := quantumMarginalGivenMap_eq_normalize_of_weighted (pi (s ω)) Q
+    (fun _ => posSemidef_partialTraceRight (posSemidef_pureState _))
+    (fun y => hρ (t, y)) hstate hweight f hu
+  rw [quantumMarginalGivenMap_eq_sum (pi (s ω))] at he
+  change _ = normalizeDensity (∑ y,
+    (conditionalSnd ((pi (s ω)).map fun y => (f y, y)) u y).toReal • M y) at he
+  rw [← S.partialTraceRight_averagedCheckedVector_bind C (p ω) _ (q ω) a b] at he
+  exact he
 
 /-- The coordinate-information sum of the actual filtered checked-answer experiment.
 On supported outcomes the conditional blocks are the normalized marginals of the

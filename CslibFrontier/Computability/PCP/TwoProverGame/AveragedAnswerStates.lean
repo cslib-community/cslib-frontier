@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.PlayerSwap
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
@@ -142,6 +143,20 @@ noncomputable def normalizedCheckedVector (p : PMF X) (q : PMF Y)
     (a : C → A) (b : C → B) : EuclideanSpace ℂ (ι × κ) :=
   let v := S.averagedCheckedVector C p q a b
   ‖v‖⁻¹ • v
+
+/-- The normalized vector purifies the normalized Alice branch marginal. -/
+theorem partialTraceRight_pureState_normalizedCheckedVector
+    (p : PMF X) (q : PMF Y) (a : C → A) (b : C → B) :
+    partialTraceRight (pureState (S.normalizedCheckedVector C p q a b)) =
+      normalizeDensity (partialTraceRight (pureState (S.averagedCheckedVector C p q a b))) :=
+  (normalizeDensity_partialTraceRight_pureState _).symm
+
+/-- The normalized vector also purifies the normalized Bob branch marginal. -/
+theorem partialTraceLeft_pureState_normalizedCheckedVector
+    (p : PMF X) (q : PMF Y) (a : C → A) (b : C → B) :
+    partialTraceLeft (pureState (S.normalizedCheckedVector C p q a b)) =
+      normalizeDensity (partialTraceLeft (pureState (S.averagedCheckedVector C p q a b))) :=
+  (normalizeDensity_partialTraceLeft_pureState _).symm
 
 /-- Recover an unnormalized branch from its normalized vector and original norm.
 The identity also holds for a zero-weight branch. -/

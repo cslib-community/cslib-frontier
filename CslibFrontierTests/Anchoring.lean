@@ -287,3 +287,42 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
       mul_le_mul_of_nonneg_left hanchor (mul_nonneg hw (by positivity))
     _ = (2 * (half : ℝ) + 2) * (w * ((half : ℝ) / 4 * d)) := by ring
     _ ≤ _ := mul_le_mul_of_nonneg_left hd (by positivity)
+
+/-- A supported observation of Alice's unchecked question gives an actual unit
+checked-answer vector purifying Bob's state on the original three-dimensional system. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let Q := (transcriptLaw acceptingGame half C S).filter (winsOnChecked acceptingGame half C)
+      (acceptingGame_win_supported S)
+    let P := Q.map (aliceTranscriptProjection C e)
+    ∃ ρ : _ → Matrix (Fin 3) (Fin 3) ℂ,
+      ∀ label (_ : label ∈ (P.map Prod.fst).support) (u : Option Bool),
+        u ∈ ((conditionalSnd P label).map (fun x => x 0)).support →
+        let (t, a, b) := label
+        let p := Cslib.Probability.PMF.pi fun j : Fin 1 =>
+          aliceGivenMessage acceptingGame.questions half (t.halves (e j))
+        let q := (conditionalSnd (p.map fun x => (x 0, x)) u).map (completeAliceQuestions C e t)
+        let v := S.normalizedCheckedVector C q (bobQuestionsGivenInfo acceptingGame half C t) a b
+        ‖v‖ = 1 ∧
+          Cslib.Quantum.quantumMarginalGivenMap (conditionalSnd P label)
+            (fun x => ρ (label, x)) (fun x => x 0) u =
+            Cslib.Quantum.partialTraceLeft (Cslib.Quantum.pureState v) := by
+  intro C e Q P
+  obtain ⟨ρ, hρ, hbranch, _⟩ := exists_bob_anchored_coordinateInformation_le_after_wins
+    acceptingGame half C S e (acceptingGame_win_supported S)
+  refine ⟨ρ, ?_⟩
+  rintro ⟨t, a, b⟩ ht u hu
+  have he := quantumMarginalGivenMap_aliceTranscriptProjection acceptingGame half C S e
+    (acceptingGame_win_supported S) hρ hbranch t a b (fun x => x 0) u ht hu
+  change Cslib.Quantum.quantumMarginalGivenMap (conditionalSnd P (t, a, b))
+    (fun x => ρ ((t, a, b), x)) (fun x => x 0) u = _ at he
+  rw [← S.partialTraceLeft_pureState_normalizedCheckedVector] at he
+  refine ⟨?_, he⟩
+  have htrace := (Cslib.Quantum.isDensityMatrix_quantumMarginalGivenMap
+    (conditionalSnd P (t, a, b)) (fun x => hρ ((t, a, b), x)) (fun x => x 0) u).trace_eq_one
+  rw [he, Cslib.Quantum.trace_partialTraceLeft, Cslib.Quantum.trace_pureState] at htrace
+  have hn := congrArg Complex.re htrace
+  exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp
+    (by simpa only [Complex.ofReal_re, Complex.one_re, one_pow] using hn)

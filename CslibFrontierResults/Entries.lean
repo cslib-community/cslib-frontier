@@ -11045,6 +11045,23 @@ register_result "bvy-anchored-actual-versus-anchor-trace-deviation" where
     at most the tagged-question loss times (2α + 2), with α the anchor rate. Source check at \
     https://github.com/cslib-community/cslib-frontier/pull/6676#issuecomment-7022905617."
 
+register_result "anchored-supported-winning-conditional-marginals" where
+  title := "Supported conditional marginals of the anchored winning transcript"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Supported averaging step in Claims 5.15–5.16",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 27–28" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.quantumMarginalGivenMap_bobTranscriptProjection,
+    Cslib.PCP.AnchoredDependency.quantumMarginalGivenMap_aliceTranscriptProjection
+  ]
+  scope := "For either player, group the actual winning law by a supported observation of \
+    the other player's free tuple. The resulting reduced density is the normalized marginal \
+    of the checked-answer vector formed with that player's prior question law conditioned on \
+    the observation. This covers supported observations before the specialization to the \
+    noisy-anchor vectors and the treatment of null observations under prior redraw."
+
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
   topic := "nonlocal games"

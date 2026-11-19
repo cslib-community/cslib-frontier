@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.DensityMatrix
+import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 import Mathlib.Analysis.Matrix.PosDef
 
 /-!
@@ -62,5 +63,23 @@ theorem trace_smul_normalizeDensity {ρ : Matrix ι ι ℂ} (hρ : ρ.PosSemidef
       Complex.ext h (Complex.nonneg_iff.mp hρ.trace_nonneg).2.symm
     simp [hzero, normalizeDensity]
   · rw [normalizeDensity, smul_smul, mul_inv_cancel₀ h, one_smul]
+
+/-- Normalizing the retained marginal of a pure state normalizes its purifying vector. -/
+theorem normalizeDensity_partialTraceRight_pureState {κ : Type*} [Fintype κ]
+    (v : EuclideanSpace ℂ (ι × κ)) :
+    normalizeDensity (partialTraceRight (pureState v)) =
+      partialTraceRight (pureState (‖v‖⁻¹ • v)) := by
+  rw [normalizeDensity_apply, trace_partialTraceRight, trace_pureState, Complex.ofReal_re,
+    pureState_real_smul, inv_pow]
+  rw [← algebraMap_smul ℂ (‖v‖ ^ 2)⁻¹ (pureState v), partialTraceRight_smul, algebraMap_smul]
+
+/-- Normalizing the other retained marginal gives the same normalization of the vector. -/
+theorem normalizeDensity_partialTraceLeft_pureState {κ : Type*} [Fintype κ]
+    (v : EuclideanSpace ℂ (ι × κ)) :
+    normalizeDensity (partialTraceLeft (pureState v)) =
+      partialTraceLeft (pureState (‖v‖⁻¹ • v)) := by
+  rw [normalizeDensity_apply, trace_partialTraceLeft, trace_pureState, Complex.ofReal_re,
+    pureState_real_smul, inv_pow]
+  rw [← algebraMap_smul ℂ (‖v‖ ^ 2)⁻¹ (pureState v), partialTraceLeft_smul, algebraMap_smul]
 
 end Cslib.Quantum

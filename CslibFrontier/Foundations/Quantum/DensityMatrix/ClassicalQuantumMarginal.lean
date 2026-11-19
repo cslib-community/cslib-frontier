@@ -37,7 +37,8 @@ public section
 namespace Cslib.Quantum
 
 open Matrix Finset
-open Cslib.Probability.PMF (map_equiv_apply map_fst_map_prodMk map_apply_of_injective)
+open Cslib.Probability.PMF
+  (conditionalSnd map_equiv_apply map_fst_map_prodMk map_apply_of_injective)
 
 variable {ι κ X Y Z : Type*}
 variable [Fintype X] [DecidableEq Y]
@@ -114,6 +115,14 @@ theorem classicalQuantumMarginal_comp_of_eq [Fintype Y] [DecidableEq Z]
   congr 1
   funext z
   simp only [hblock, sum_fiberwise_eq_sum_filter, Function.comp_apply, mem_filter_univ]
+
+omit [DecidableEq Y] in
+/-- The conditional marginal is the prior average of the blocks at the observed value. -/
+theorem quantumMarginalGivenMap_eq_sum [DecidableEq X] (p : PMF X) (ρ : X → Matrix ι ι ℂ)
+    (f : X → Y) (y : Y) :
+    quantumMarginalGivenMap p ρ f y =
+      ∑ x, (conditionalSnd (p.map fun x => (f x, x)) y x).toReal • ρ x := by
+  rw [quantumMarginalGivenMap, quantumMarginalGiven, partialTraceRight_classicalQuantumState]
 
 variable [Fintype ι]
 

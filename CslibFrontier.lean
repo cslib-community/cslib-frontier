@@ -7170,6 +7170,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEn
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumMarginal
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumPinsker
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumPostselection
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
