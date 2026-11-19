@@ -88,7 +88,7 @@ theorem uniform_transcriptWithHedges (C : QuantumSigningForger) (H : Xofs) (s : 
     · rfl
     · rfl
     · simp only [isSigningCall, Sum.elim_inr, hedgeCommand, signingCommand, Xofs.signAndLog,
-        online, commands, OracleComp.sumHandler,
+        online, commands, statefulSigningCommands, OracleComp.sumHandler,
         Xofs.signingOracle, U, PMF.map_comp, Function.comp_def, ↓reduceIte]
       rfl
   have joint := OracleComp.IsCostBounded.run_interpret_presample_when isSigningCall

@@ -270,12 +270,13 @@ private theorem scoreProgram_congr (C : QuantumSigningForger) {s : Level}
       exact congrArg (PMF.bind _ ·) (funext fun i => ih i dev st₁ st₂ h log writes)
     · have raw : st₁.xofs = TerminalSigningWrite.replay base₁ st₂.writes :=
         st₁.trace.replay_eq.symm.trans (congrArg (TerminalSigningWrite.replay base₁) writes)
-      simp only [programmedCommands, OracleComp.sumHandler, deviceCommand, PMF.bind_map,
-        Function.comp_def, raw]
+      simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, deviceCommand,
+        PMF.bind_map, Function.comp_def, raw]
       apply congrArg (PMF.bind _ ·)
       funext ⟨reply, device⟩
       exact ih reply device st₁ st₂ h log writes
-    · simp only [programmedCommands, OracleComp.sumHandler, PMF.bind_map, Function.comp_def]
+    · simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, PMF.bind_map,
+        Function.comp_def]
       exact publicCall_congr st₁ st₂ h log writes size safe pair ask
         (fun r t => C.scoreProgram s base₁ v.publicSeed pair tr (·.xofs) (k r) dev t)
         (fun r t => C.scoreProgram s base₂ v.publicSeed pair tr

@@ -65,13 +65,18 @@ private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) {�
       (fun p : Empty × List Bool => p.1.elim (C := StateT Unit PMF (Fin 0 → Bool))) cmd st.1).map
       fun (reply, device) => (reply, device, st.2)
 
-private noncomputable def commands (C : QuantumSigningForger) (H : Xofs) (s : Level)
-    (sk : List Byte) := OracleComp.sumHandler (m := StateT (State C) PMF)
+-- The classical service changes its own state and leaves the quantum register untouched.
+private noncomputable abbrev statefulSigningCommands (C : QuantumSigningForger) {σ : Type}
+    (raw : σ → Xofs) (sign : SigningQuery → σ → PMF (Option (List Byte) × σ)) :=
+  OracleComp.sumHandler (m := StateT (Device C × σ) PMF)
     (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
     (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (C.deviceCommand H)
-    (fun (q : SigningQuery) (st : State C) => (H.signingOracle s sk q st.2).map
-      fun (reply, log) => (reply, st.1, log))
+    (fun cmd st => C.deviceCommand (raw st.2) cmd st)
+    (fun q st => (sign q st.2).map fun (r, hist) => (r, st.1, hist))
+
+private noncomputable def commands (C : QuantumSigningForger) (H : Xofs) (s : Level)
+    (sk : List Byte) :=
+  C.statefulSigningCommands (fun _ => H) (H.signingOracle s sk)
 
 /-- The forger receives its classical replies and its conditional post-measurement state.
 The final output and signing log are retained, and the residual device is discarded only

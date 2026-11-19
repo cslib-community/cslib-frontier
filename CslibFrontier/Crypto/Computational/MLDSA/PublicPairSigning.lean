@@ -384,11 +384,7 @@ private noncomputable def signingCall (s : Level) {base : Xofs} (tr : List Byte)
 private noncomputable def programmedCommands (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G)))
     (raw : History s H tr → Xofs := (·.xofs)) :=
-  OracleComp.sumHandler (m := StateT (Device C × History s H tr) PMF)
-    (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
-    (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (fun cmd st => C.deviceCommand (raw st.2) cmd st)
-    (fun q st => (signingCall s tr draw q st.2).map fun (r, history) => (r, st.1, history))
+  C.statefulSigningCommands raw (signingCall s tr draw)
 
 private noncomputable def runSigningProgram (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G))) {α : Type}
