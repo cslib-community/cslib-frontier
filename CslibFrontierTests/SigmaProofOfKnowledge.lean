@@ -308,9 +308,9 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) :
       (fun n => (setup n).map (n, ·))
       (parallelSimulator F.schnorrSimulator fun i => i.1 + 1)
       (fun _ => 0) :=
-  ⟨F.andProof_schnorrProbFamily_complete,
+  ⟨fun i => andProof_complete (F.schnorrProbFamily_complete i) (F.schnorrProbFamily_complete i),
    F.schnorrOrProbFamily_complete,
-   F.parallelRepetition_schnorrProbFamily_complete (fun i => i.1 + 1),
+   fun i => parallelRepetition_complete (F.schnorrProbFamily_complete i),
    F.efficientSpecialSoundness_orProof_schnorr,
    F.computationalSpecialHVZK_andProof_schnorr setup,
    F.computationalSpecialHVZK_orProof_schnorr setup,

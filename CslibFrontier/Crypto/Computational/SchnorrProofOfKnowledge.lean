@@ -81,10 +81,8 @@ closeness and to Definition 20.6 (`ComputationalSpecialHVZK`) with exact zero ac
 * `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_schnorrPoKGame_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.negligible_schnorrPoKGame`: average-key
   proof-of-knowledge security under `DiscreteLog`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.andProof_schnorrProbFamily_complete`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrOrProbFamily_complete`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.parallelRepetition_schnorrProbFamily_complete`: completeness
-  of the fair-coin AND, OR, and `k`-fold parallel-repetition Schnorr protocols.
+* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrOrProbFamily_complete`: completeness of the fair-coin
+  OR-proof of two Schnorr protocols.
 * `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_andProof_schnorr`,
   `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_orProof_schnorr`,
   `Cslib.Crypto.PrimeOrderGroupFamily.efficientSpecialSoundness_parallelRepetition_schnorr`:
@@ -356,24 +354,11 @@ private theorem mem_support_schnorrSimulator_accepts (i : ℕ × F.Desc) (u : F.
     (F.schnorrProbFamily i).Accepts u tz.1 c tz.2 :=
   (PMF.toOuterMeasure_apply_eq_one_iff _ _).mp (F.accepts_schnorrSimulator i u c) htz
 
-private theorem coe_inv_two_pow (n : ℕ) : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
-  rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
-
-private theorem coe_ofNat_div_two_pow (m n : ℕ) [m.AtLeastTwo] :
-    (((ofNat(m) / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = ofNat(m) / 2 ^ n := by
-  rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_ofNat, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
-
-private theorem coe_natCast_div_two_pow (k n : ℕ) :
-    ((((k : ℝ≥0) / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = (k : ℝ≥0∞) / 2 ^ n := by
-  rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_natCast, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
-
 private theorem closeTo_schnorrSampleChallenge_ennreal (i : ℕ × F.Desc) :
     CloseTo (PMF.uniformOfFintype (ZMod (F.order i.2)))
       (ProbComp.eval (F.schnorrSampleChallenge i)) (1 / 2 ^ i.1 : ℝ≥0∞) := by
-  rw [← coe_inv_two_pow i.1]
+  have h1 : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by simp
+  rw [← h1]
   exact F.closeTo_schnorrSampleChallenge i
 
 private theorem closeTo_transcript_schnorrProb (i : ℕ × F.Desc) (α : ZMod (F.order i.2))
@@ -385,13 +370,6 @@ private theorem closeTo_transcript_schnorrProb (i : ℕ × F.Desc) (α : ZMod (F
     (fun _ => id) (fun _ => Function.Embedding.refl _) i α u c
 
 /-! #### Conjunction (`andProof`) -/
-
-/-- **Completeness of the conjunction of two fair-coin Schnorr protocols** (original instantiation
-combining [BonehShoup2023], Example 19.1, p. 773, with Theorem 19.18, p. 787). -/
-theorem andProof_schnorrProbFamily_complete (i : ℕ × F.Desc) :
-    ((F.schnorrProbFamily i).andProof (F.schnorrProbFamily i)).Complete
-      fun x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2 :=
-  andProof_complete (F.schnorrProbFamily_complete i) (F.schnorrProbFamily_complete i)
 
 /-- **Efficient special soundness of the conjunction of two fair-coin Schnorr protocols** (original
 instantiation combining [BonehShoup2023], Example 19.2, p. 773, with Theorem 19.18, pp. 787–788).
@@ -441,7 +419,8 @@ theorem closeTo_transcript_andProof_schnorrProbFamily_simulator (i : ℕ × F.De
   have htrans : CloseTo (((F.schnorrFamily i).andProof (F.schnorrFamily i)).transcript x y c)
       (((F.schnorrProbFamily i).andProof (F.schnorrProbFamily i)).transcript x y c)
       (2 / 2 ^ i.1 : ℝ≥0∞) := by
-    rw [← coe_ofNat_div_two_pow 2 i.1]
+    have h2 : (((2 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 2 / 2 ^ i.1 := by simp
+    rw [← h2]
     exact F.closeTo_transcript_andProof_schnorrProbFamily i x y c
   have h := (simulatorRealizedBy_andSimulator F.simulatorRealizedBy_schnorrSimulator
     F.simulatorRealizedBy_schnorrSimulator).closeTo_transcript_of_closeTo
@@ -486,7 +465,8 @@ theorem advantage_chvzkGame_andProof_schnorrProbFamily_le {σ : Type} (setup : �
     exact F.closeTo_transcript_andProof_schnorrProbFamily (n, d) x y c
   · obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
     dsimp only
-    rw [← ENNReal.add_div, one_add_one_eq_two, coe_ofNat_div_two_pow 2 n]
+    rw [← ENNReal.add_div, one_add_one_eq_two]
+    exact le_of_eq (by simp)
   · ext
     push_cast
     ring
@@ -526,6 +506,19 @@ theorem computationalSpecialHVZK_andProof_schnorr (setup : ℕ → PMF F.Desc) :
 
 /-! #### Disjunction (`schnorrOrProbFamily`) -/
 
+private noncomputable abbrev schnorrIdealSimulate (i : ℕ × F.Desc) :
+    F.Carrier i.2 → ZMod (F.order i.2) → PMF (F.Carrier i.2 × ZMod (F.order i.2)) :=
+  linearSimulate
+    (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2))
+    id (Function.Embedding.refl _)
+
+private noncomputable abbrev schnorrOrIdealFamily (i : ℕ × F.Desc) :
+    SigmaProtocol (ZMod (F.order i.2) ⊕ ZMod (F.order i.2))
+      (F.Carrier i.2 × F.Carrier i.2) (F.Carrier i.2 × F.Carrier i.2)
+      (ZMod (F.order i.2)) (ZMod (F.order i.2) × ZMod (F.order i.2) × ZMod (F.order i.2)) :=
+  SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
+    (F.schnorrIdealSimulate i) (F.schnorrIdealSimulate i)
+
 /-- Fair-coin OR-proof of two Schnorr protocols ([BonehShoup2023], Section 19.7.2, pp. 788–789):
 the honest prover draws the simulated side's challenge with `schnorrSampleChallenge`, simulates the
 other side with `schnorrSimulator`, and commits on its witness side with `schnorrProbFamily`. -/
@@ -559,12 +552,7 @@ theorem efficientSpecialSoundness_orProof_schnorr :
       (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
       (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i)) :=
   (EfficientSpecialSoundness.orProof
-    (simulate₀ := fun i => linearSimulate
-      (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2))
-      id (Function.Embedding.refl _))
-    (simulate₁ := fun i => linearSimulate
-      (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2))
-      id (Function.Embedding.refl _))
+    (simulate₀ := F.schnorrIdealSimulate) (simulate₁ := F.schnorrIdealSimulate)
     rfl (fun _ => rfl) F.computableInPolyTime_schnorrSubChallengeWord F.schnorrSubChallengeWord_eq
     F.efficientSpecialSoundness_schnorrProb F.efficientSpecialSoundness_schnorrProb).of_verify_eq
     fun _ => by funext _ _ _ ⟨_, _, _⟩; rfl
@@ -574,31 +562,23 @@ private theorem closeTo_transcript_schnorrOrProbFamily (i : ℕ × F.Desc)
     (hxy : orRelation (fun α u => α • F.generator i.2 = u)
       (fun α u => α • F.generator i.2 = u) x y)
     (c : ZMod (F.order i.2)) :
-    CloseTo
-      ((SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))).transcript x y c)
+    CloseTo ((F.schnorrOrIdealFamily i).transcript x y c)
       ((F.schnorrOrProbFamily i).transcript x y c)
       (3 / 2 ^ i.1 : ℝ≥0) := by
   have hp : ∀ (α : ZMod (F.order i.2)) (u : F.Carrier i.2) (c₀ : ZMod (F.order i.2)),
       CloseTo ((F.schnorrFamily i).transcript α u c₀)
         ((F.schnorrProbFamily i).transcript α u c₀) (1 / 2 ^ i.1 : ℝ≥0∞) := fun α u c₀ => by
-    rw [← coe_inv_two_pow i.1]
+    have h1 : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by simp
+    rw [← h1]
     exact F.closeTo_transcript_schnorrProb i α u c₀
   have h := closeTo_orProofWith_transcript
     (sampleChallenge := PMF.uniformOfFintype (ZMod (F.order i.2)))
     (sampleChallenge' := ProbComp.eval (F.schnorrSampleChallenge i))
     (P₀ := F.schnorrFamily i) (P₀' := F.schnorrProbFamily i)
     (P₁ := F.schnorrFamily i) (P₁' := F.schnorrProbFamily i)
-    (simulate₀ := linearSimulate
-      (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2))
-      id (Function.Embedding.refl _))
+    (simulate₀ := F.schnorrIdealSimulate i)
     (simulate₀' := fun u c => ProbComp.eval (F.schnorrSimulator i u c))
-    (simulate₁ := linearSimulate
-      (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2))
-      id (Function.Embedding.refl _))
+    (simulate₁ := F.schnorrIdealSimulate i)
     (simulate₁' := fun u c => ProbComp.eval (F.schnorrSimulator i u c))
     hxy c (F.closeTo_schnorrSampleChallenge_ennreal i)
     (fun c₀ => F.simulatorRealizedBy_schnorrSimulator i y.1 c₀)
@@ -606,7 +586,8 @@ private theorem closeTo_transcript_schnorrOrProbFamily (i : ℕ × F.Desc)
     (fun α _ c₀ => hp α y.1 c₀) (fun α _ c₁ => hp α y.2 c₁)
   have h3 : (1 / 2 ^ i.1 : ℝ≥0∞) + (1 / 2 ^ i.1 + 1 / 2 ^ i.1) =
       ((3 / 2 ^ i.1 : ℝ≥0) : ℝ≥0∞) := by
-    rw [coe_ofNat_div_two_pow 3 i.1, ← ENNReal.add_div, ← ENNReal.add_div]
+    have hc3 : (((3 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 3 / 2 ^ i.1 := by simp
+    rw [hc3, ← ENNReal.add_div, ← ENNReal.add_div]
     norm_num
   rwa [h3] at h
 
@@ -627,25 +608,15 @@ theorem closeTo_transcript_schnorrOrProbFamily_simulator (i : ℕ × F.Desc)
       (ProbComp.eval
         (orSimulator F.schnorrSampleChallenge F.schnorrSimulator F.schnorrSimulator i y c))
       (6 / 2 ^ i.1) := by
-  have htrans : CloseTo
-      ((SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))).transcript x y c)
+  have htrans : CloseTo ((F.schnorrOrIdealFamily i).transcript x y c)
       ((F.schnorrOrProbFamily i).transcript x y c) (3 / 2 ^ i.1 : ℝ≥0∞) := by
-    rw [← coe_ofNat_div_two_pow 3 i.1]
+    have hc3 : (((3 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 3 / 2 ^ i.1 := by simp
+    rw [← hc3]
     exact F.closeTo_transcript_schnorrOrProbFamily i hxy c
   have h := (simulatorRealizedBy_orSimulator F.closeTo_schnorrSampleChallenge_ennreal
     F.simulatorRealizedBy_schnorrSimulator
     F.simulatorRealizedBy_schnorrSimulator).closeTo_transcript_of_closeTo
-    (P := fun j => SigmaProtocol.orProof (F.schnorrFamily j) (F.schnorrFamily j)
-      (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order j.2))
-        (F.Carrier j.2) (F.generator j.2)) id (Function.Embedding.refl _))
-      (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order j.2))
-        (F.Carrier j.2) (F.generator j.2)) id (Function.Embedding.refl _)))
-    (P' := F.schnorrOrProbFamily)
-    (δP := fun j => 3 / 2 ^ j.1)
+    (P := F.schnorrOrIdealFamily) (P' := F.schnorrOrProbFamily) (δP := fun j => 3 / 2 ^ j.1)
     (fun j => orProof_specialHVZK (F.efficientSpecialHVZK_schnorr_ideal.specialHVZK j)
       (F.efficientSpecialHVZK_schnorr_ideal.specialHVZK j)) hxy htrans
   have h6 : (3 / 2 ^ i.1 : ℝ≥0∞) + (1 / 2 ^ i.1 + (1 / 2 ^ i.1 + 1 / 2 ^ i.1)) = 6 / 2 ^ i.1 := by
@@ -679,12 +650,8 @@ theorem advantage_chvzkGame_schnorrOrProbFamily_le {σ : Type} (setup : ℕ → 
   refine ((simulatorRealizedBy_orSimulator F.closeTo_schnorrSampleChallenge_ennreal
     F.simulatorRealizedBy_schnorrSimulator
     F.simulatorRealizedBy_schnorrSimulator).advantage_chvzkGame_le_of_closeTo_transcript
-    (P := fun j => SigmaProtocol.orProof (F.schnorrFamily j) (F.schnorrFamily j)
-      (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order j.2))
-        (F.Carrier j.2) (F.generator j.2)) id (Function.Embedding.refl _))
-      (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order j.2))
-        (F.Carrier j.2) (F.generator j.2)) id (Function.Embedding.refl _)))
-    (P' := F.schnorrOrProbFamily) (εP := 3 / 2 ^ n) (εS := 3 / 2 ^ n)
+    (P := F.schnorrOrIdealFamily) (P' := F.schnorrOrProbFamily)
+    (εP := 3 / 2 ^ n) (εS := 3 / 2 ^ n)
     (fun j => orProof_specialHVZK (F.efficientSpecialHVZK_schnorr_ideal.specialHVZK j)
       (F.efficientSpecialHVZK_schnorr_ideal.specialHVZK j))
     (fun i hi _ _ hxy c => ?_) (fun i hi => ?_) A).trans_eq ?_
@@ -692,7 +659,8 @@ theorem advantage_chvzkGame_schnorrOrProbFamily_le {σ : Type} (setup : ℕ → 
     exact F.closeTo_transcript_schnorrOrProbFamily (n, d) hxy c
   · obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
     dsimp only
-    rw [← ENNReal.add_div, ← ENNReal.add_div, coe_ofNat_div_two_pow 3 n]
+    have hc3 : (((3 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 3 / 2 ^ n := by simp
+    rw [← ENNReal.add_div, ← ENNReal.add_div, hc3]
     norm_num
   · ext
     push_cast
@@ -734,14 +702,6 @@ theorem computationalSpecialHVZK_orProof_schnorr (setup : ℕ → PMF F.Desc) :
       F.advantage_chvzkGame_schnorrOrProbFamily_le setup A n
 
 /-! #### `k`-fold parallel repetition (`parallelRepetition`) -/
-
-/-- **Completeness of the `k`-fold parallel repetition of the fair-coin Schnorr protocol**
-(original instantiation combining [BonehShoup2023], Example 19.1, p. 773, with Exercise 19.6(a),
-pp. 810–811, allowing `k = 0`). -/
-theorem parallelRepetition_schnorrProbFamily_complete (k : ℕ × F.Desc → ℕ) (i : ℕ × F.Desc) :
-    ((F.schnorrProbFamily i).parallelRepetition (k i)).Complete
-      fun α u => α • F.generator i.2 = u :=
-  parallelRepetition_complete (F.schnorrProbFamily_complete i)
 
 /-- **Efficient special soundness of the `k`-fold parallel repetition of the fair-coin Schnorr
 protocol** (original instantiation combining [BonehShoup2023], Example 19.2, p. 773, with
@@ -793,7 +753,8 @@ theorem closeTo_transcript_parallelRepetition_schnorrProbFamily_simulator (k : �
   have htrans : CloseTo (((F.schnorrFamily i).parallelRepetition (k i)).transcript α u c)
       (((F.schnorrProbFamily i).parallelRepetition (k i)).transcript α u c)
       ((k i : ℝ≥0∞) / 2 ^ i.1) := by
-    rw [← coe_natCast_div_two_pow (k i) i.1]
+    have hck : ((((k i : ℝ≥0) / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = (k i : ℝ≥0∞) / 2 ^ i.1 := by simp
+    rw [← hck]
     exact F.closeTo_transcript_parallelRepetition_schnorrProbFamily k i α u c
   have h := (simulatorRealizedBy_parallelSimulator k
     F.simulatorRealizedBy_schnorrSimulator).closeTo_transcript_of_closeTo
@@ -841,7 +802,8 @@ theorem advantage_chvzkGame_parallelRepetition_schnorrProbFamily_le {σ : Type}
     exact div_le_div_of_nonneg_right (Nat.cast_le.mpr (hk d hd)) zero_le
   · obtain ⟨d, hd, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
     dsimp only
-    rw [mul_one_div, coe_natCast_div_two_pow K n]
+    have hcK : ((((K : ℝ≥0) / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = (K : ℝ≥0∞) / 2 ^ n := by simp
+    rw [mul_one_div, hcK]
     exact ENNReal.div_le_div_right (Nat.cast_le.mpr (hk d hd)) _
   · ext
     push_cast

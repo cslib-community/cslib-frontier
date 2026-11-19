@@ -109,7 +109,7 @@ theorem encryptedBit_sound :
     (encryptedBit q g).toInteractiveVerifier.Sound World.plain
       (language (Function.swap (bitRel q g))) Set.univ (1 / (Fintype.card (ZMod q) : ℝ≥0∞)) :=
   (languageReduction_bit q g).sound
-    (orProof_specialSoundness chaumPedersen_specialSoundness chaumPedersen_specialSoundness)
+    (orProofWith_specialSoundness chaumPedersen_specialSoundness chaumPedersen_specialSoundness)
 
 /-- Here a witness can be mapped back (by the identity), so the protocol is special sound for the
 relation itself. -/
@@ -117,7 +117,7 @@ theorem encryptedBit_specialSoundness :
     (encryptedBit q g).SpecialSoundness (bitRel q g) fun y t c z c' z' =>
       orExtract (linearExtract (Function.Embedding.refl _))
         (linearExtract (Function.Embedding.refl _)) (bitStmt g y) t c z c' z' :=
-  ((orProof_specialSoundness chaumPedersen_specialSoundness
+  ((orProofWith_specialSoundness chaumPedersen_specialSoundness
     chaumPedersen_specialSoundness).comap (fun x _ => x) (bitStmt g)).mapWitness (fun x' _ => x')
       fun x' y h => (bitRel_iff q g x' y).mp h
 

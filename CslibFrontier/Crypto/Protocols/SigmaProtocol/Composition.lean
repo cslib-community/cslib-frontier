@@ -28,8 +28,9 @@ needs the challenges to form a finite additive group; Boneh and Shoup use `{0, 1
 exclusive or, which is the bit-string group with `+`. A prover with a witness for one statement
 simulates the other side with a challenge of its own choice, and answers the verifier's
 challenge `c` by splitting it as `c₀ + c₁`. A witness for the OR relation is `Sum.inl x₀` or
-`Sum.inr x₁`. The honest OR prover is determined by the two simulators, which are therefore
-parameters of `orProof`. In `k`-fold parallel repetition (`parallelRepetition`), the prover draws
+`Sum.inr x₁`. The honest OR prover is determined by the challenge sampler (`orProofWith`,
+specialized to exact uniform by `orProof`) and the two simulators. In `k`-fold parallel repetition
+(`parallelRepetition`), the prover draws
 `k` independent commitments, answers each coordinate challenge `c j` independently, and extraction
 uses the first coordinate `j : Fin k` where the two challenge tuples differ.
 
@@ -52,7 +53,7 @@ zero-error specializations.
 * `SigmaProtocol.andProof_complete`, `SigmaProtocol.andProof_specialSoundness`,
   `SigmaProtocol.andProof_specialHVZK`: structural AND preservation.
 * `SigmaProtocol.orProofWith_complete`, `SigmaProtocol.orProof_complete`,
-  `SigmaProtocol.orProof_specialSoundness`, `SigmaProtocol.orProof_specialHVZK`: structural OR
+  `SigmaProtocol.orProofWith_specialSoundness`, `SigmaProtocol.orProof_specialHVZK`: structural OR
   preservation.
 * `SigmaProtocol.parallelRepetition_complete`, `SigmaProtocol.parallelRepetition_specialSoundness`,
   `SigmaProtocol.parallelRepetition_specialHVZK`: parallel repetition preserves completeness,
@@ -291,7 +292,7 @@ theorem orProof_complete [Fintype C] (h₀ : P₀.Complete R₀) (h₁ : P₁.Co
 /-- Structural special soundness of `orProofWith` (and hence `orProof`): distinct challenges differ
 on the first side or the second. `EfficientSpecialSoundness.orProof` certifies the constructed
 extractor. -/
-theorem orProof_specialSoundness [DecidableEq C] {W₀ W₁ : Type u}
+theorem orProofWith_specialSoundness [DecidableEq C] {W₀ W₁ : Type u}
     {R₀' : W₀ → Y₀ → Prop} {R₁' : W₁ → Y₁ → Prop}
     {extract₀ : Y₀ → T₀ → C → Z₀ → C → Z₀ → W₀}
     {extract₁ : Y₁ → T₁ → C → Z₁ → C → Z₁ → W₁} (h₀ : P₀.SpecialSoundness R₀' extract₀)

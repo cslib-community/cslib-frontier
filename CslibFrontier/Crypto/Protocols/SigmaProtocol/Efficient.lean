@@ -637,7 +637,8 @@ theorem EfficientSpecialSoundness.orProof
       (fun i => orRelation (R₀ i) (R₁ i))
       (enc₀.orProof enc₁) (fun i => encSum (encW₀ i) (encW₁ i))
       (fun i => orExtract (extract₀ i) (extract₁ i)) where
-  specialSoundness i := orProof_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
+  specialSoundness i :=
+    orProofWith_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
   polyTime := by
     obtain ⟨f₀, hf₀, hreal₀⟩ := h₀.polyTime
     obtain ⟨f₁, hf₁, hreal₁⟩ := h₁.polyTime
