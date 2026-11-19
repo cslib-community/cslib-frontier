@@ -352,7 +352,25 @@ private noncomputable def inputSizedAdversary : Encryption.Adversary where
     pure (seed.headD false ^^ ciphertext.headD false)
 
 private theorem inputSizedAdversary_ppt : inputSizedAdversary.IsPPT := by
-  constructor <;> dsimp only [inputSizedAdversary] <;> ppt
+  constructor
+  · apply IsPPTOn.isPPT
+    have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+    have hsample := (ComputableInPolyTime.length_bits.comp hp.snd').sampleList
+    have hq := ComputableInPolyTime.id'
+      (encIn := encPair (encPair encUnary encBits) encBits)
+    have hhead := (ComputableInPolyTime.headD false).comp hq.snd'
+    simpa only [inputSizedAdversary, bind_pure_comp] using
+      hsample.map_with (f := fun p seed => ((seed.headD false, false), p.2 ++ seed))
+        ((hhead.prod (ComputableInPolyTime.const false)).prod
+          (hq.fst'.snd'.bitsAppend hq.snd'))
+  · have hp := ComputableInPolyTime.id' (encIn := Encryption.encGuessInput)
+    have hsample := (ComputableInPolyTime.length_bits.comp hp.snd'.fst').sampleList
+    have hq := ComputableInPolyTime.id' (encIn := encPair Encryption.encGuessInput encBits)
+    have hcoin := (ComputableInPolyTime.headD false).comp hq.snd'
+    have hct := (ComputableInPolyTime.headD false).comp hq.fst'.snd'.snd'
+    simpa only [inputSizedAdversary, bind_pure_comp] using
+      hsample.map_with (f := fun p seed => seed.headD false ^^ p.2.2.headD false)
+        (ComputableInPolyTime.bool_xor.comp (hcoin.prod hct))
 
 example (word : List Bool) (choice : (Bool × Bool) × List Bool)
     (hchoice : choice ∈ (ProbComp.eval (inputSizedAdversary.choose 0 word)).support) :

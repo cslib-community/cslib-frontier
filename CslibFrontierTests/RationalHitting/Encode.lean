@@ -85,7 +85,7 @@ example : encodeRat (Rat.divInt 5 0) = [false, false, true, false, true] := by
 example : ComputableInPolyTime
     (fun p : ℕ × ℕ => encodeNat (Nat.gcd (p.1 / p.2) (p.1 % p.2)))
     (encPair encNat encNat) encBits := by
-  fun_prop
+  exact encodeNat_polytime.comp (binary_gcd.comp binary_divMod)
 
 example : ComputableInPolyTime
     (fun p : ℕ × ℕ => let qr := (p.1 / p.2, p.1 % p.2); encodeNat (qr.1 + qr.2))

@@ -126,7 +126,7 @@ private abbrev RawAliasFull {α β : Type*} (f : α → β)
     ProbComp (List Bool) := pure (callback word)
 
 /-- This explicit construction theorem remains usable, but is not a public search fallback. -/
-@[fun_prop] theorem aliasPure_raw {callback : List Bool → List Bool}
+@[fun_prop] private theorem aliasPure_raw {callback : List Bool → List Bool}
     (hcallback : RawAliasFull callback encBits encBits) :
     IsPPTOn encBits encBits (aliasPure callback) := by
   unfold aliasPure
@@ -233,7 +233,7 @@ from direct certificate conversion. -/
 
 /-- A global named theorem with a raw premise is an explicit construction API only. -/
 @[program_certificate _h]
-theorem implicationResult_raw (_h : RawAliasFull rawOnlyReverse encBits encBits) :
+private theorem implicationResult_raw (_h : RawAliasFull rawOnlyReverse encBits encBits) :
     IsPPTOn encBits encBits implicationResult := by
   unfold implicationResult
   fun_prop

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 
 /-! # Plain list closure clients
 

@@ -20,7 +20,7 @@ bodies might make its internal construction lemmas available incidentally. The n
 step has the same nonincreasing fold contract used by the GGM evaluator.
 -/
 
-public section
+private section
 
 open Turing.MultiTapeTM
 
@@ -143,7 +143,8 @@ example :
     ComputableInPolyTime (aliasRoutine rawOnlyReverseProbe) encBits encBits := by
   refine ⟨?_, ?_, ?_⟩
   · fail_if_success polytime
-    exact rawOnlyReverseProbe_machine.computableInTimeAndSpace.computableInPolyTime reverseClock_polynomial
+    exact rawOnlyReverseProbe_machine.computableInTimeAndSpace.computableInPolyTime
+      reverseClock_polynomial
   · fail_if_success polytime
     exact aliasRoutine_plain rawOnlyReverseProbe_machine
   · fail_if_success polytime
@@ -248,7 +249,8 @@ theorem namedAlias_plain (h : RawAliasFull rawOnlyReverseProbe encBits encBits) 
   exact h.computableInTimeAndSpace.computableInPolyTime reverseClock_polynomial
 
 /-- Raw machine certificates remain explicit proofs, outside the plain registry. -/
-theorem namedConditional_raw (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits encBits
+theorem namedConditional_raw
+    (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits encBits
       reverseClock reverseClock) :
     ComputableTidilyInTimeAndSpaceOfLength namedConditionalResult encBits encBits
       reverseClock reverseClock := by
@@ -375,7 +377,8 @@ example (h : ComputableTidilyInTimeAndSpaceOfLength rawOnlyReverseProbe encBits 
       Lean.Elab.Tactic.evalTactic (← `(tactic| aesop (rule_sets := [PolyTime])))
   · clear h hf routine hplain hrawAlias hplainAlias hc hcImp
     fail_if_success polytime
-    exact rawOnlyReverseProbe_machine.computableInTimeAndSpace.computableInPolyTime reverseClock_polynomial
+    exact rawOnlyReverseProbe_machine.computableInTimeAndSpace.computableInPolyTime
+      reverseClock_polynomial
   · clear h hf hplain hrawAlias hplainAlias
     fail_if_success (clear hc; polytime)
     polytime

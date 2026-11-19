@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary plain core regression client)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
 
 /-! Ordinary core composition with distinct time/workspace budgets and order-sensitive outputs. -/
 

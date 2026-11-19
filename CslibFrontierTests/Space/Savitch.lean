@@ -110,7 +110,7 @@ example : ∃ T S, ComputableInO
       ((ComputableInO.of_linear (.of_eq fun _ => rfl)).prod
         ((ComputableInO.const [false]).prod
           (ComputableInO.const [true])))))
-  exact ⟨_, _, computableInO_savitch (edge := fun _ u v => decide (u = v)) hedge.computableInO
+  exact ⟨_, _, computableInO_savitch (edge := fun _ u v => decide (u = v)) hedge
     hin (fun _ => rfl) fun _ => rfl⟩
 
 -- The same family, in polynomial space.

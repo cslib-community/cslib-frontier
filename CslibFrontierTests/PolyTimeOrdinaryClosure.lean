@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Tactic.PolyTime
 public import CslibFrontier.Tactic.Negligible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
+import Mathlib.Data.NNReal.Basic
 
 /-! Ordinary automation after deleting the derived tidy calculus: order-sensitive captured
 folds, independent degree certificates and unary negligible parameters. -/
@@ -31,7 +32,7 @@ private theorem tagged_growth (p : List Bool × List Bool) (state : List Bool) (
 example : ComputableInPolyTime tagged (encPair encBits encBits) encBits := by
   have hpoly : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits encBits p).length) (fun p => p.1.length + 1) :=
-    ComputableInPolyTime.polyBounded (by fun_prop)
+    ComputableInPolyTime.polyBounded (input := encPair encBits encBits) (by fun_prop)
   have hgrowth := tagged_growth
   unfold tagged
   polytime

@@ -67,7 +67,6 @@ example (generator : List Bool â†’ List Bool) (adversary : Distinguisher) (n : â
 -- A captured loop may add an input-dependent block at each iteration.
 example : ComputableInPolyTime
     (fun word : List Bool => (fun state => state ++ word)^[word.length] []) encBits encBits := by
-
   apply ComputableInPolyTime.iterateWith_of_bounded_growth
     (par := id) (step := fun word state => state ++ word) (growth := List.length)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)

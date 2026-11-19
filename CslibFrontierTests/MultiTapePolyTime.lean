@@ -126,9 +126,9 @@ run_cmd do
   for name in [`int_natCast, `int_negSucc, `int_natCast_sub, `int_succ, `int_pred,
       `int_pos, `int_neg, `int_toNat, `int_natAbs, `int_sub_sign, `int_abs_le_nat,
       `int_abs_le_nat', `int_equivNat] do
-    let old := `Turing.MultiTapeTM.ComputableInPolyTime ++ name
-    if (← getEnv).contains old then
-      throwError "retired tidy integer certificate remains: {old}"
+    let provider := `Turing.MultiTapeTM.ComputableInPolyTime ++ name
+    unless (← getEnv).contains provider do
+      throwError "ordinary integer certificate missing: {provider}"
 
 -- Negative tape positions retain their existing numbering when emitted in binary.
 example : ComputableInPolyTime

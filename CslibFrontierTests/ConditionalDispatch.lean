@@ -186,6 +186,14 @@ attribute [local fun_prop] rawBranch_certificate
 private abbrev RawBranchAlias {α β : Type} (f : α → β)
     (input : α ↪ List Bool) (output : β ↪ List Bool) :=
   ComputableTidilyInTimeAndSpaceOfLength f input output reverseClock reverseClock
+
+-- Ordinary FunProp has an explicit raw conversion fixture; filtered search must exclude it.
+@[local fun_prop] private theorem rawBranch_toPlain {α β : Type} {f : α → β}
+    {input : α ↪ List Bool} {output : β ↪ List Bool}
+    (h : RawBranchAlias f input output) : ComputableInPolyTime f input output :=
+  ⟨reverseClock, reverseClock, reverseClock_polynomial, reverseClock_polynomial,
+    h.computableInTimeAndSpace⟩
+
 set_option maxHeartbeats 200000 in
 -- Keep the original default budget for this conditional privacy control.
 example (guard : List Bool → Bool)

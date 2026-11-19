@@ -77,7 +77,8 @@ theorem computesTidily_constTM (b : Bool) (w : List Bool) :
 theorem polyTime_const {α : Type} (enc : α ↪ List Bool) (b : Bool) :
     ComputableInPolyTime (fun _ : α => b) enc encBool :=
   ⟨fun _ => 1, fun _ => 0, .const 1, .const 0,
-    0, Unit, inferInstance, constTM b, fun a => (computesTidily_constTM b (enc a)).computesInTimeAndSpace⟩
+    0, Unit, inferInstance, constTM b,
+    fun a => (computesTidily_constTM b (enc a)).computesInTimeAndSpace⟩
 
 example :
     (∅ : Set (List Bool)) ∈ Cslib.Complexity.P encBits ∧

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -532,6 +533,10 @@ meta def Internal.withPlainRuleCache (action : TacticM Unit) : TacticM Unit :=
         return certificates.insert key entries
     let env := searchRuleState Cslib.Tactic.certificateExt env fun _ => certificates
     let env ← plainBuiltinEnvironment env
+    -- Match plain certificates on their programs and encodings, without comparing existential
+    -- machine witnesses when a candidate fails to match one of those arguments.
+    let env := searchRuleState reducibilityExtraExt env fun status =>
+      status.insert ``ComputableInPolyTime .irreducible
     withEnv env action
 
 open Lean Meta in

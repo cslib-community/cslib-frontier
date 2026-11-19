@@ -173,7 +173,7 @@ private theorem tagRows_polytime :
     (step := fun tag rows row => (row ++ tag) :: rows)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (growth := fun p => 2 * ((encList encBits p.1.1).length + p.1.2.length) + 1)
-    (ComputableInPolyTime.polyBounded (by fun_prop)) ?_
+    (ComputableInPolyTime.polyBounded (input := taggedRowsInputEncoding) (by fun_prop)) ?_
   intro p state row hrow
   have hsize := SizedListEncoding.length_elem_le
     (encA := encBits) (encL := encList encBits) p.1.1 row hrow
@@ -204,7 +204,8 @@ private theorem skipCopies_spec :
     (step := fun tag state bit => if bit = tag then state else state ++ state)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (fun p _ state => state = p.2) (by simp) ?_
-    (size := fun p => p.2.length) (ComputableInPolyTime.polyBounded (by fun_prop)) ?_
+    (size := fun p => p.2.length) (ComputableInPolyTime.polyBounded
+      (input := encPair (encPair encBool encUnary) encBits) (by fun_prop)) ?_
   · intro p consumed state bit hprefix hstate
     have hbit : bit = p.1.1 := List.eq_of_mem_replicate (hprefix.subset (by simp))
     simp [hbit, hstate]
@@ -385,7 +386,7 @@ private theorem taggedBits_growth (p : List Bool × List Bool) (state : List Boo
 example : ComputableInPolyTime taggedBits (encPair encBits encBits) encBits := by
   have hpoly : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits encBits p).length) (fun p => p.1.length + 1) :=
-    ComputableInPolyTime.polyBounded (by fun_prop)
+    ComputableInPolyTime.polyBounded (input := encPair encBits encBits) (by fun_prop)
   have hgrowth := taggedBits_growth
   unfold taggedBits
   polytime
@@ -396,7 +397,7 @@ example : ComputableInPolyTime
     (encPair encBits (encList encBool)) encBits := by
   have hpoly : PolyBounded (fun p : List Bool × List Bool =>
       (encPair encBits (encList encBool) p).length) (fun p => p.1.length + 1) :=
-    ComputableInPolyTime.polyBounded (by fun_prop)
+    ComputableInPolyTime.polyBounded (input := encPair encBits (encList encBool)) (by fun_prop)
   have hgrowth := taggedBits_growth
   polytime
 

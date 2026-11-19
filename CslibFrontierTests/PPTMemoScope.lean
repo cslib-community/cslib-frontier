@@ -38,13 +38,15 @@ private noncomputable def rawBudget (n : ℕ) : ℕ := rawFactor * (n + 1) ^ raw
 -- Register only the machine property for this boundary regression.
 attribute [local fun_prop] ComputableTidilyInTimeAndSpace
 
-@[fun_prop] private theorem rawRoutine_raw : ComputableTidilyInTimeAndSpace rawRoutine encBits encBits
+@[fun_prop] private theorem rawRoutine_raw :
+    ComputableTidilyInTimeAndSpace rawRoutine encBits encBits
     (fun a => rawBudget (encBits a).length) (fun a => rawBudget (encBits a).length) := by
   exact Classical.choose_spec (Classical.choose_spec
     (Internal.NormalForm.polyTime rawRoutine_plain))
 
 /-- A complete-arity alias tests fresh local proposition handling inside the memo scope. -/
-private abbrev RawAlias {α β : Type*} (f : α → β) (input : α ↪ List Bool) (output : β ↪ List Bool) :=
+private abbrev RawAlias {α β : Type*} (f : α → β)
+    (input : α ↪ List Bool) (output : β ↪ List Bool) :=
   ComputableTidilyInTimeAndSpace f input output
     (fun a => rawBudget (input a).length) (fun a => rawBudget (input a).length)
 
@@ -56,6 +58,9 @@ private abbrev RawAlias {α β : Type*} (f : α → β) (input : α ↪ List Boo
 
 /-- The result has no global automation certificate. -/
 @[irreducible] def localResult (word : List Bool) : List Bool := word
+
+-- This fixture supplies ordinary Aesop with its raw construction rule independently of FunProp.
+attribute [local aesop safe apply (rule_sets := [PolyTime])] rawRoutine_raw
 
 -- The memo alone filters neither ordinary FunProp nor the builtin local-application descriptor.
 example (h : ComputableTidilyInTimeAndSpace rawRoutine encBits encBits

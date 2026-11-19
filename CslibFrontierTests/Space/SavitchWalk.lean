@@ -103,7 +103,7 @@ example : ∃ S, ComputableInSpace (roundStep fun (_ : Unit) u v => decide (u = 
     (encRound encUnit) (encRound encUnit) S := by
   obtain ⟨Te, Se, hedge⟩ := exists_inO_eq
   exact ⟨_, computableInSpace_roundStep (edge := fun _ u v => decide (u = v))
-    hedge.computableInO⟩
+    hedge⟩
 
 -- Three steps of the run from `0` to the target `1` at level `n`, for a family of depths.
 example : ∃ S, ComputableInSpace
@@ -116,7 +116,7 @@ example : ∃ S, ComputableInSpace
       ((ComputableInO.of_linear (.of_eq fun _ => rfl)).prod
         ((ComputableInO.const [false]).prod
           (ComputableInO.const [true])))))
-  exact ⟨_, computableInSpace_run (edge := fun _ u v => decide (u = v)) hedge.computableInO hin
+  exact ⟨_, computableInSpace_run (edge := fun _ u v => decide (u = v)) hedge hin
     (ComputableInSpace.const 3) (fun _ => rfl) fun _ => rfl⟩
 
 end CslibFrontierTests.SavitchWalk

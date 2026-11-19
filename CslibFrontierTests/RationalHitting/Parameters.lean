@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger, Karn Seth
 
 import CslibFrontier.Computability.Circuit.Rational.Runtime.Parameters
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Polynomial-time parameters of the rational hitting list

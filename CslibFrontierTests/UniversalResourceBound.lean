@@ -28,6 +28,7 @@ example {D N : ℕ} : runBound D N 0 ≤ runBound D N 1 := runBound_mono (by dec
 -- a one-step missing-transition halt, with the advertised finite resource bounds.
 private def emptyDescription : Desc := ⟨0, 0, []⟩
 
+attribute [local irreducible] eDesc in
 example : ∃ (c k : ℕ) (State : Type) (_ : Finite State)
     (tm : Turing.MultiTapeTM k Bool State),
     tm.ComputesInTimeAndSpace (eIn (emptyDescription, [], 0)) (eOut ([], false))
