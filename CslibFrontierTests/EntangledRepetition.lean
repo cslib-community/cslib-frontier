@@ -20,3 +20,8 @@ open scoped Real
 example {n : ℕ} (hn : 0 < n) : (chsh.pow n).quantumValue ≤ Real.cos (π / 8) ^ 2 := by
   rw [← quantumValue_chsh]
   exact chsh.quantumValue_pow_le_of_pos hn
+
+/-- Independent play gives the lower end of the interval for repeated CHSH. -/
+example (n : ℕ) : (Real.cos (π / 8) ^ 2) ^ n ≤ (chsh.pow n).quantumValue := by
+  rw [← quantumValue_chsh]
+  exact chsh.pow_quantumValue_le_quantumValue_pow n
