@@ -95,6 +95,15 @@ theorem map_effect [DecidableEq β] (f : α → β) (M : Measurement α A) (b : 
     (M.map f).effect b = ∑ a with f a = b, M.effect a :=
   rfl
 
+/-- Successive outcome postprocessings compose. -/
+theorem map_map {γ : Type*} [Fintype γ] [DecidableEq β] [DecidableEq γ]
+    (M : Measurement α A) (f : α → β) (g : β → γ) :
+    (M.map f).map g = M.map (g ∘ f) := by
+  ext c
+  simp only [map_effect]
+  rw [sum_fiberwise_eq_sum_filter]
+  exact sum_congr (by ext a; simp) fun _ _ => rfl
+
 /-- A measurement is **projective** when its effects are idempotent. -/
 def IsProjective (M : Measurement α A) : Prop :=
   ∀ a, M.effect a * M.effect a = M.effect a
