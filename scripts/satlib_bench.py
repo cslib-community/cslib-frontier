@@ -4,8 +4,11 @@
 Runs `lake exe cdcl` (build it first with `lake build cdcl`) and MiniSat on the SATLIB `uf`
 (satisfiable) and `uuf` (unsatisfiable) uniform random 3-SAT families at the threshold ratio,
 downloading them from SATLIB if needed. Every answer is checked independently of both solvers:
-a model against the clauses of the file, here in Python, and a certificate of `cdcl` with an
-external LRAT checker (`lrat-check` of drat-trim) when one is given. Both solvers read the same
+a model of `cdcl`, here in Python, for its final `0`, the header's bounds, consistency (no variable
+with both signs) and every clause of the file, and a certificate of `cdcl` with an external LRAT
+checker (`lrat-check` of drat-trim) when one is given. The run fails (exit code `1`) if either
+solver answers wrongly or exits other than with an answer, if a model or certificate is not
+accepted, or if a family has no instances; a timeout is reported, not a failure. Both solvers read the same
 files, with the SATLIB trailer (a line `%` and a line `0`, which MiniSat rejects) removed.
 
 Prints a CSV row per run and, at the end, a Markdown table per family: instances solved within the
@@ -64,14 +67,18 @@ def fetch(cache: Path, family: str) -> list[Path]:
     return sorted(target.rglob("*.cnf"))
 
 
-def clean(src: Path, dst: Path) -> list[list[int]]:
-    """Copies `src` without the SATLIB trailer, and returns its clauses."""
-    lines, clauses, cur = [], [], []
+def clean(src: Path, dst: Path) -> tuple[int, list[list[int]]]:
+    """Copies `src` without the SATLIB trailer, and returns its number of variables (from the
+    header) and its clauses."""
+    lines, clauses, cur, nvars = [], [], [], None
     for line in src.read_text().splitlines():
         if line.strip().startswith("%"):
             break
         lines.append(line)
-        if line.strip().startswith(("c", "p")) or not line.strip():
+        if line.strip().startswith("p"):
+            nvars = int(line.split()[2])
+            continue
+        if line.strip().startswith("c") or not line.strip():
             continue
         for tok in line.split():
             lit = int(tok)
@@ -80,8 +87,10 @@ def clean(src: Path, dst: Path) -> list[list[int]]:
                 cur = []
             else:
                 cur.append(lit)
+    if nvars is None or cur:
+        raise ValueError(f"{src}: no header, or an unterminated clause")
     dst.write_text("\n".join(lines) + "\n")
-    return clauses
+    return nvars, clauses
 
 
 @dataclass
@@ -117,7 +126,7 @@ def run_cdcl(cdcl: str, cnf: Path, proof: Path | None, timeout: float) -> Run:
     if m := re.search(r"c solve time (\d+) ms", out):
         r.solve_ms = int(m.group(1))
     r.model = [int(t) for line in out.splitlines() if line.startswith("v ")
-               for t in line.split()[1:] if t != "0"]
+               for t in line.split()[1:]]
     return r
 
 
@@ -128,8 +137,18 @@ def run_minisat(minisat: str, cnf: Path, timeout: float) -> Run:
     return r
 
 
-def satisfies(model: list[int], clauses: list[list[int]]) -> bool:
-    true = set(model)
+def satisfies(model: list[int], nvars: int, clauses: list[list[int]]) -> bool:
+    """Whether the `v` literals `model` are a model: ended by a single `0`, every other literal
+    within the header's `nvars` variables, no variable with both signs, and every clause with a
+    literal of the model."""
+    if not model or model[-1] != 0:
+        return False
+    lits = model[:-1]
+    if any(lit == 0 or abs(lit) > nvars for lit in lits):
+        return False
+    true = set(lits)
+    if any(-lit in true for lit in true):
+        return False
     return all(any(lit in true for lit in c) for c in clauses)
 
 
@@ -144,14 +163,14 @@ def lrat_ok(lrat_check: str, cnf: Path, proof: Path, timeout: float) -> bool:
 
 def bench_one(args, family: str, src: Path, work: Path) -> dict:
     cnf = work / f"{family}-{src.name}"
-    clauses = clean(src, cnf)
+    nvars, clauses = clean(src, cnf)
     expected = "UNSAT" if family.startswith("uuf") else "SAT"
     proof = work / f"{cnf.name}.lrat" if args.lrat_check else None
     c = run_cdcl(args.cdcl, cnf, proof, args.timeout)
     m = run_minisat(args.minisat, cnf, args.timeout)
     checked = ""
     if c.answer == "SAT":
-        checked = "model ok" if satisfies(c.model, clauses) else "MODEL WRONG"
+        checked = "model ok" if satisfies(c.model, nvars, clauses) else "MODEL WRONG"
     elif c.answer == "UNSAT" and proof is not None:
         checked = "lrat ok" if lrat_ok(args.lrat_check, cnf, proof, 10 * args.timeout) \
             else "LRAT REJECTED"
@@ -202,6 +221,7 @@ def main() -> int:
     args = ap.parse_args()
     cache = Path(args.cache)
     rows: list[dict] = []
+    empty: list[str] = []
     writer = csv.DictWriter(sys.stdout, fieldnames=[
         "family", "instance", "expected", "cdcl", "cdcl_ms", "cdcl_solve_ms", "cdcl_conflicts",
         "checked",
@@ -211,6 +231,9 @@ def main() -> int:
             concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
         for fam in args.families:
             files = fetch(cache, fam)[:args.per_family]
+            if not files:
+                print(f"FAILED: no instances of {fam} in {cache / fam}", file=sys.stderr)
+                empty.append(fam)
             for row in pool.map(lambda f: bench_one(args, fam, f, Path(tmp)), files):
                 writer.writerow(row)
                 sys.stdout.flush()
@@ -221,11 +244,22 @@ def main() -> int:
             w.writeheader()
             w.writerows(rows)
     print(summary(rows, args.timeout), file=sys.stderr)
-    wrong = [r for r in rows if r["cdcl"] in ("SAT", "UNSAT") and r["cdcl"] != r["expected"]
-             or "WRONG" in r["checked"] or "REJECTED" in r["checked"]]
+    wrong = [r for r in rows if failed(r)]
     for r in wrong:
         print(f"FAILED: {r}", file=sys.stderr)
-    return 1 if wrong else 0
+    return 1 if wrong or empty else 0
+
+
+def failed(r: dict) -> bool:
+    """Whether a row is a failure: a solver exiting other than with an answer or a timeout, or a
+    wrong answer from either solver, or a model or certificate of `cdcl` not checked. A timeout is
+    not a failure."""
+    for k in ("cdcl", "minisat"):
+        if r[k] != "TIMEOUT" and r[k] != r["expected"]:
+            return True
+    if r["cdcl"] == "SAT":
+        return r["checked"] != "model ok"
+    return "REJECTED" in r["checked"]
 
 
 if __name__ == "__main__":

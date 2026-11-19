@@ -23,7 +23,9 @@ the literals are within its number of variables and the clauses are as many as i
 the SATLIB benchmarks, a line `%` ends the formula.
 
 `Cslib.Logic.PL.CNF.toDIMACS` writes a formula with Lean's `Std.Sat.CNF.dimacs`, which numbers
-the variables from `1` in the same way, so reading what it writes gives the formula back.
+the variables from `1` in the same way. Reading what it writes gives the formula back on the
+examples of the tests, PHP(4, 3) and a formula with an empty clause and a repeated literal; this is
+checked on those examples, not proved in general.
 
 The parser is not verified: what it reads is the formula the solver's theorems are about, and a
 certificate is checked against it.

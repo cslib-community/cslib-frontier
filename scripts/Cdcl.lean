@@ -3,8 +3,7 @@ Copyright (c) 2026 Matthew Doty. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
-import CslibFrontier.Algorithms.Lean.CDCL.Watched
-import CslibFrontier.Logics.Propositional.CNF.Dimacs
+import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
 import Std.Tactic.BVDecide.LRAT.Checker
 import Std.Tactic.BVDecide.LRAT.Parser
 
@@ -12,13 +11,14 @@ import Std.Tactic.BVDecide.LRAT.Parser
 # The CDCL solver on DIMACS files
 
 `lake exe cdcl [options] INPUT.cnf [PROOF.lrat]` reads a DIMACS CNF file, runs the verified CDCL
-solver on the formula with its variables renamed to `0, …, k - 1`
-(`Cslib.Algorithms.Lean.CDCL.solveCompactWith`), and prints the answer in the format of the SAT
-competitions: `s SATISFIABLE` with the model on `v` lines, or `s UNSATISFIABLE`, and the statistics
-on `c` lines. Like MiniSat, it exits with `10` on a satisfiable formula and `20` on an
-unsatisfiable one. Given `PROOF.lrat`, it writes the LRAT certificate there, with the input
-clauses numbered from `1` in file order, as external LRAT checkers expect. With `--check`, it
-also checks the certificate with Lean core's checker (`Std.Tactic.BVDecide.LRAT.check`).
+solver on the formula with its variables renamed to `0, …, k - 1`, and prints the answer of
+`Cslib.Algorithms.Lean.CDCL.answerFor` in the format of the SAT competitions: `s SATISFIABLE` with
+the model on `v` lines, one literal for each variable occurring in the formula, or
+`s UNSATISFIABLE`, and the statistics on `c` lines. Like MiniSat, it exits with `10` on a
+satisfiable formula and `20` on an unsatisfiable one. Given `PROOF.lrat`, it writes the LRAT
+certificate there, with the input clauses numbered from `1` in file order, as external LRAT
+checkers expect. With `--check`, it also checks the certificate with Lean core's checker
+(`Std.Tactic.BVDecide.LRAT.check`).
 
 The answer is correct by the solver's theorems: a model satisfies the formula read
 (`Cslib.Algorithms.Lean.CDCL.solveCompactWith_sat`), and a certificate is accepted by the library's
@@ -52,18 +52,6 @@ def parseFlags : List String → CDCL.Options × Bool → Except String (CDCL.Op
         | _ => .error s!"bad flag {f}: ccmin_mode is 0, 1 or 2"
       else .error s!"unknown flag {f}"
 
-/-- The model as DIMACS literals on `v` lines, for the variables `0` to `n - 1`. -/
-def modelLines (σ : ℕ → Bool) (n : ℕ) : String := Id.run do
-  let mut out := ""
-  let mut line := "v"
-  for v in List.range n do
-    let lit := if σ v then s!" {v + 1}" else s!" -{v + 1}"
-    if line.length + lit.length > 78 then
-      out := out ++ line ++ "\n"
-      line := "v"
-    line := line ++ lit
-  return out ++ line ++ " 0\n"
-
 def main (args : List String) : IO UInt32 := do
   let (flags, files) := args.partition (·.startsWith "--")
   let (opts, check) ← match parseFlags flags ({}, false) with
@@ -80,20 +68,16 @@ def main (args : List String) : IO UInt32 := do
     | .ok φ => pure φ
     | .error e => IO.eprintln e; return 1
   let t₀ ← IO.monoMsNow
-  let (result, stats) ← (pure (CDCL.solveCompactWith opts φ) : IO _)
+  let a ← (pure (CDCL.answerFor opts φ) : IO _)
   let t₁ ← IO.monoMsNow
-  IO.println s!"c variables {(φ.vars.foldl max 0) + 1}, clauses {φ.length}"
+  let stats := a.stats
+  IO.println s!"c variables {(CDCL.occurringVars φ).length} occurring, clauses {φ.length}"
   IO.println s!"c conflicts {stats.conflicts}, decisions {stats.decisions}, \
     propagations {stats.propagations}, restarts {stats.restarts}"
   IO.println s!"c learned literals {stats.literals} ({stats.maxLiterals} before minimization), \
     forgotten {stats.removed}, simplified {stats.simplified}"
   IO.println s!"c solve time {t₁ - t₀} ms"
-  match result with
-  | .sat σ =>
-    IO.println "s SATISFIABLE"
-    IO.print (modelLines σ ((φ.vars.foldl max 0) + 1))
-    return 10
-  | .unsat cert =>
+  if let some cert := a.cert then
     if let some p := proof? then
       IO.FS.writeFile p (LRAT.lratProofToString cert)
     if check then
@@ -101,5 +85,5 @@ def main (args : List String) : IO UInt32 := do
         IO.eprintln "c Lean core's LRAT checker rejected the certificate"
         return 1
       IO.println "c certificate accepted by Lean core's LRAT checker"
-    IO.println "s UNSATISFIABLE"
-    return 20
+  IO.print a.output
+  return a.code
