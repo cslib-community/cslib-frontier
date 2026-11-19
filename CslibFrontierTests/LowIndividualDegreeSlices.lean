@@ -40,15 +40,27 @@ private theorem not_degree_one : ¬ LineHasDegree square 1 := by
   rw [hEq, natDegree_X_pow] at hp
   omega
 
+private theorem quadratic_accepted_on_lifted_line :
+    lineAgrees 2 (appendLine (0 : F) L) (appendPoint 0 0) (appendLineAnswer 0 ⟨L, square⟩) 0 := by
+  apply (lineAgrees_append_iff 0 0 1 0 2 square 0).mpr
+  refine ⟨rfl, degree_two, ?_⟩
+  have hzero : (0 : Point F 1) ∈ L := by
+    simpa using mem_linePoints (0 : Point F 1) (1 : Point F 1) (0 : F)
+  exact ⟨hzero, by simp [square]⟩
+
 /-- For `d = 1` the two-coordinate cap is two and the one-coordinate cap is one.
 The larger diagonal predicate accepts the quadratic answer, but the smaller one rejects it. -/
 example :
-    lineAgrees 2 (appendLine (0 : F) L) (appendPoint 0 0) (appendLineAnswer 0 ⟨L, square⟩) 0 ∧
-      ¬ lineAgrees 1 L 0 ⟨L, square⟩ 0 := by
-  constructor
-  · apply (lineAgrees_append_iff 0 0 1 0 2 square 0).mpr
-    refine ⟨rfl, degree_two, ?_⟩
-    have hzero : (0 : Point F 1) ∈ L := by
-      simpa using mem_linePoints (0 : Point F 1) (1 : Point F 1) (0 : F)
-    exact ⟨hzero, by simp [square]⟩
-  · exact fun h => not_degree_one h.2.1
+    accepts 1 (.diagonal (appendLine (0 : F) L)) (.point (appendPoint 0 0))
+        (.inr (appendLineAnswer 0 ⟨L, square⟩)) (.inl 0) ∧
+      ¬ accepts 1 (.diagonal L) (.point 0) (.inr ⟨L, square⟩) (.inl 0) := by
+  exact ⟨quadratic_accepted_on_lifted_line, fun h => not_degree_one h.2.1⟩
+
+/-- Holding the diagonal cap at two preserves acceptance of the same quadratic answer,
+including when the point question goes to the first player. -/
+example :
+    acceptsWithDiagonalCap 1 2 (.point (0 : Point F 1)) (.diagonal L)
+      (restrictAnswer (0 : F) (.inl 0))
+      (restrictAnswer 0 (.inr (appendLineAnswer 0 ⟨L, square⟩))) := by
+  exact acceptsWithDiagonalCap_restrict 0 1 2 (.point 0) (.diagonal L) _ _
+    quadratic_accepted_on_lifted_line
