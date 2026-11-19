@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.PropertyTesting.Majority
+import CslibFrontier.Computability.PropertyTesting.Majority.Decision
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Linarith
 
@@ -16,6 +16,20 @@ import Mathlib.Tactic.Linarith
 namespace Cslib.BitString
 
 open scoped BigOperators
+
+-- A three-bit all-ones input returns one at address zero and zero at the padded address three.
+example :
+    (majorityTester 3 1 (1 / 2)).Passes (fun _ => true)
+      (fun _ => (equivFin (Nat.log 2 3 + 1)).symm 0) ∧
+    ¬ (majorityTester 3 1 (1 / 2)).Passes (fun _ => true)
+      (fun _ => (equivFin (Nat.log 2 3 + 1)).symm ⟨3, by decide⟩) := by
+  have hδ : (0 : ℚ) ≤ 1 / 2 := by norm_num
+  have hlog : Nat.log 2 3 = 1 := by decide
+  constructor
+  · rw [majorityTester_passes_iff_sampleAccepts Nat.one_pos hδ]
+    norm_num [majoritySampleAccepts, weight_eq_sum_toNat, zeroExtend, hlog]
+  · rw [majorityTester_passes_iff_sampleAccepts Nat.one_pos hδ]
+    norm_num [majoritySampleAccepts, weight_eq_sum_toNat, zeroExtend, hlog]
 
 -- Two ones suffice at length three. The same probe budget rejects the far all-zero string.
 example :
