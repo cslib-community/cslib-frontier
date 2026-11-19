@@ -549,6 +549,11 @@ public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Algorithms.WordRAM.KargerMinCut
 public import CslibFrontier.Algorithms.WordRAM.KargerStein
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Checker
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Program
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Propagate
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Scan
+public import CslibFrontier.Algorithms.WordRAM.LRAT.Steps
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Coefficient
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Exec
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Flat
