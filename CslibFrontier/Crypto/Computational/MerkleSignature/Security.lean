@@ -76,11 +76,12 @@ hash-and-sign bound of [BonehShoup2023], Theorem 13.1, for the digest.
 * `Cslib.Crypto.MerkleSignature.eval_leafIndex`, `Cslib.Crypto.MerkleSignature.isPPTOn_leafIndex`:
   the leaf is exactly uniform and sampled efficiently.
 * `Cslib.Crypto.SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle`: one-time security of `S` and
-  collision resistance of `H` give indexed EUF-CMA security.
+  collision resistance of `H` give indexed EUF-CMA security (a step: the hash premise covers all
+  words).
 * `Cslib.Crypto.OneWay.exists_indexedEUFCMA`: a one-way function and a collision-resistant hash
   family give indexed EUF-CMA secure signatures of every polynomial capacity `2 ^ depth n`.
 * `Cslib.Crypto.OneWay.exists_counterEUFCMA`: used with a counter, they give counter-stateful
-  many-time signatures of every polynomial capacity.
+  many-time signatures of every polynomial capacity (a step toward [Merkle1989], Sections 6–7).
 
 ## References
 
@@ -964,8 +965,17 @@ end Efficiency
 
 /-! ### Security -/
 
-/-- **Merkle signatures are secure** ([Merkle1989], Section 6; [BonehShoup2023],
-Section 14.6.1): if `S` is one-time EUF-CMA secure and `H` is collision resistant, then
+/-- Step toward the security of Merkle's tree-compressed indexed signature ([Merkle1989], Section 6;
+[BonehShoup2023], Section 14.6.1, "Shrinking the public-key", p. 597), not the cited result.
+Neither source states it as a theorem: Merkle gives the construction with an informal argument, and
+Section 14.6.1 describes the tree without a security statement; the bound here is the composition
+described in the module docstring. This scheme also signs the digest `H k msg` of each message with
+the one-time key, so its premise `CollisionResistant H` asks for collision resistance on all words.
+The source's tree hashes only its own inputs, the one-time public keys and pairs of digests, and
+needs collision resistance only there; a hash may be collision resistant there and constant
+elsewhere (#5686).
+
+If `S` is one-time EUF-CMA secure and `H` is collision resistant, then
 `MerkleSignature.scheme S H depth` is an indexed EUF-CMA secure signature scheme of capacity
 `2 ^ depth n`. The reductions are `oneTimeForger`, with loss `2 ^ depth n`, and `collisionFinder`,
 with loss `1` (`succProbability_indexedEufCmaGame_le`). -/
@@ -1001,10 +1011,13 @@ theorem _root_.Cslib.Crypto.OneWay.exists_indexedEUFCMA {f : List Bool → List 
   exact ⟨scheme S H depth hH.polyTime hH.length_eq hcap, fun _ => rfl,
     hS.indexedEUFCMA_merkle hH.collisionResistant hH.polyTime hH.length_eq hcap⟩
 
-/-- **Counter-stateful many-time signatures from one-way functions and collision-resistant
-hashing** ([Merkle1989], Sections 6–7): a one-way function and a hash family give a counter
-EUF-CMA secure indexed scheme of every polynomial capacity `2 ^ depth n`; the witness is Merkle's
-tree signature over Lamport's one-time scheme, with the signer choosing the leaves by a counter. -/
+/-- Step toward Merkle's stateful tree signatures ([Merkle1989], Sections 6–7), not the cited
+result: no inspection of the primary source is recorded, and the proof rests on the steps
+`OneWay.oneTimeEUFCMA_lamport` and `SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_merkle` (#5686).
+
+A one-way function and a hash family give a counter EUF-CMA secure indexed scheme of every
+polynomial capacity `2 ^ depth n`; the witness is Merkle's tree signature over Lamport's one-time
+scheme, with the signer choosing the leaves by a counter. -/
 theorem _root_.Cslib.Crypto.OneWay.exists_counterEUFCMA {f : List Bool → List Bool}
     (hf : OneWay f) {H : List Bool → List Bool → List Bool} (hH : HashFamily H)
     {depth : ℕ → ℕ} (hcap : ComputableInPolyTime (fun n => 2 ^ depth n) encUnary encUnary) :

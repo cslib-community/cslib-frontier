@@ -97,7 +97,8 @@ messages**:
 * `Cslib.Crypto.WordSignatureScheme.EUFCMA.exists_oneWay`,
   `Cslib.Crypto.OneWay.exists_wordEUFCMA_of_targetCollisionResistant`,
   `Cslib.Crypto.OneWayPermutation.exists_wordEUFCMA`: necessity and sufficiency bridges for
-  unrestricted-message signatures.
+  unrestricted-message signatures (the last two are steps toward [NaorYung1989]: no inspection of
+  the primary source is recorded).
 
 ## References
 
@@ -1650,10 +1651,26 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
 
 end TCRSignature
 
-/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a stateless
-many-time `EUFCMA`-secure `SignatureScheme` on fixed-length bit strings and `H` is an unrestricted
-target collision-resistant `KeyedHashFamily` on `List Bool`, then `TCRSignature.wordScheme S H` is
-an `EUFCMA`-secure stateless `WordSignatureScheme` on arbitrary-length `List Bool` messages. -/
+/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a secure
+signature scheme (`EUFCMA`) and `H` is target collision resistant, then the derived scheme
+`TCRSignature.wordScheme S H` of construction `(13.2)` (p. 533) is a secure signature scheme, here
+on messages of any length.
+
+`S` is a `SignatureScheme`, whose message space at security parameter `p` is the `p`-bit words.
+The source's `S` signs the pairs `(r, h)` of `K_H × T` at the same security parameter. Here, at
+parameter `n`, the derived scheme runs `S` at the parameter `otsParam H n` (injective, computable
+in polynomial time and above `H.keyLen n + H.digestLen n`) on the `otsParam H n`-bit word
+`otsMsg H n r h`: `r`, then `h`, then zero padding. So the premise `S.EUFCMA` is Attack Game 13.1
+for `S` on all `otsParam H n`-bit words, which contain the encoded pairs, and the bound at `n` uses
+the advantage against `S` at `otsParam H n`, which is negligible in `n` since `otsParam H n ≥ n`
+(`TCRSignature.negligible_comp_otsParam`). The keys of the derived scheme also carry `n`; its
+signature is `(r, σ)`, and verification checks that `r` has `H.keyLen n` bits.
+
+`H.TargetCollisionResistant` is Attack Game 8.5 and Definition 8.7 (pp. 337–338) with every word a
+message, and the conclusion is Attack Game 13.1 on every word: security on every message space of
+polynomially bounded word length at once. Adversaries are uniform strict (oracle) PPT machines.
+`TCRSignature.exists_reduction_wordScheme_eufCmaGame_le` gives the certified reductions and the
+bound, with a polynomially bounded loss in place of the source's factor `Q`. -/
 theorem SignatureScheme.EUFCMA.eufCMA_wordScheme
     {S : SignatureScheme} (hS : S.EUFCMA)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1671,11 +1688,14 @@ theorem WordSignatureScheme.EUFCMA.exists_oneWay {S : WordSignatureScheme} (hS :
     ∃ f, OneWay f :=
   hS.toSignatureScheme.exists_oneWay
 
-/-- **Stateless unrestricted-message `EUFCMA` signatures from one-way functions and target
-collision-resistant hash families** ([NaorYung1989], Section 4; [BonehShoup2023], Sections 13.2.1
-and 14.6): any uniform `OneWay` function and any unrestricted target collision-resistant
-`KeyedHashFamily` yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all
-`List Bool` messages. -/
+/-- Step toward the signatures of [NaorYung1989], Section 4, for messages of any length, not the
+cited result: no inspection of the primary source is recorded (`manual/sources.md` lists the
+authors' manuscript without a check), so this statement has not been checked against it (#5293).
+[BonehShoup2023], Sections 13.2.1 and 14.6, give the route but state no theorem of this form.
+
+Any uniform `OneWay` function and any unrestricted target collision-resistant `KeyedHashFamily`
+yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all `List Bool`
+messages. -/
 theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
     {f : List Bool → List Bool} (hf : OneWay f)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1683,10 +1703,14 @@ theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
   obtain ⟨S, hS⟩ := hf.exists_eufCMA_of_targetCollisionResistant hH
   exact ⟨TCRSignature.wordScheme S H, hS.eufCMA_wordScheme hH⟩
 
-/-- **Unrestricted-message Naor–Yung signature theorem** ([NaorYung1989], Theorem 2 / Section 4;
-[BonehShoup2023], Section 13.2.1, Theorem 13.2): every one-way permutation implies the existence of
-a stateless many-time `EUFCMA`-secure `WordSignatureScheme` on arbitrary-length `List Bool`
-messages. -/
+/-- Step toward the Naor–Yung signature theorem ([NaorYung1989], Theorem 2 / Section 4), for
+messages of any length, not the cited result: no inspection of the primary source is recorded
+(`manual/sources.md` lists the authors' manuscript without a check), so this statement has not been
+checked against it (#5293).
+
+Every one-way permutation implies the existence of a stateless many-time `EUFCMA`-secure
+`WordSignatureScheme` on arbitrary-length `List Bool` messages; the extension to all lengths is
+[BonehShoup2023], Theorem 13.2 (`SignatureScheme.EUFCMA.eufCMA_wordScheme`). -/
 theorem OneWayPermutation.exists_wordEUFCMA
     {f : List Bool → List Bool} (hf : OneWayPermutation f) :
     ∃ W : WordSignatureScheme, W.EUFCMA := by

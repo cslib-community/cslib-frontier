@@ -286,6 +286,7 @@ import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.XorTarget
+import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
@@ -8524,6 +8525,40 @@ register_result "xor-tcr-from-second-preimage" where
     xorTargetToSecondPreimage, certified strict PPT (isPPT_xorTargetToSecondPreimage). \
     Asymptotic; succProbability_targetCollisionGame_xorTargetHash_le, in the same module, is \
     the theorem's bound TCRadv[A, H_tcr] ≤ SPRadv[B, H]."
+
+register_result "tcr-hash-and-sign-signature" where
+  title := "Signing a fresh target collision resistant hash key with the message digest extends a \
+    secure signature to messages of any length"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 13.2", locator := "Section 13.2.1, p. 534" }
+  ]
+  theorems := [
+    Cslib.Crypto.SignatureScheme.EUFCMA.eufCMA_wordScheme
+  ]
+  scope := "The derived scheme S′ of construction (13.2) (p. 533), as TCRSignature.wordScheme S \
+    H: to sign m, sample a uniform H.keyLen n-bit key r, sign the pair (r, H(r, m)) under S and \
+    output (r, σ), where the source outputs (σ, r); to verify, check that r has H.keyLen n bits \
+    and that σ verifies on (r, H(r, m)) under S. Hypotheses: S.EUFCMA, Attack Game 13.1 and \
+    Definition 13.2 (pp. 529–530) for a SignatureScheme, whose message space at security \
+    parameter p is the p-bit words, with signing queries and forgeries in that space; and \
+    H.TargetCollisionResistant, Attack Game 8.5 and Definition 8.7 (pp. 337–338) with every \
+    word a message, uniform H.keyLen n-bit keys and H.digestLen n-bit digests. The source's S \
+    signs the pairs of K_H × T at the same security parameter. Here, at parameter n, S runs at \
+    the parameter otsParam H n, injective, computable in polynomial time and above \
+    H.keyLen n + H.digestLen n, on the otsParam H n-bit word of r, then H(r, m), then zero \
+    padding. So the premise is S's security on every otsParam H n-bit word, which includes the \
+    encoded pairs, and the bound at n uses the advantage against S at otsParam H n, negligible \
+    in n since otsParam H n ≥ n. The keys of S′ carry n. Conclusion: WordSignatureScheme.EUFCMA \
+    for S′, Attack Game 13.1 with every word a message. The messages of H and of S′ are all \
+    bit strings, which is security on every message space of polynomially bounded word length \
+    at once. Forgers are uniform strict oracle-PPT machines and target-collision adversaries \
+    uniform strict PPT two-stage machines. The proof's B_S is manyTimeForger and its B_H is \
+    tcrMultiAdversary, both certified (isOraclePPT_manyTimeForger, isPPT_tcrMultiAdversary). \
+    Asymptotic; exists_reduction_wordScheme_eufCmaGame_le, in the same module, is the \
+    theorem's bound SIGadv[A, S′] ≤ SIGadv[B_S, S] + Q · TCRadv[B_H, H], with the term for S \
+    at otsParam H n and a polynomially bounded loss in place of Q. The one-time form over a \
+    one-time S (indexedEUFCMA_tcrSignature) is a step, not part of this entry."
 
 register_result "rsa-common-root-shamir-trick" where
   title := "Shamir's trick: for a unit w modulo n with w^e ≡ y^f and coprime natural exponents \
