@@ -5580,6 +5580,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Composition
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 public import CslibFrontier.Crypto.Protocols.UC.Emulation
 public import CslibFrontier.Crypto.Protocols.UC.Execution
+public import CslibFrontier.Crypto.Protocols.UC.JointState
 public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Crypto.Protocols.UC.Machine
 public import CslibFrontier.Crypto.Protocols.UC.MultiSession
