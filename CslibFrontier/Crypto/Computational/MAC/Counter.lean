@@ -38,16 +38,16 @@ and the issued triples. While `j < 2 ^ L`, it tags a requested `M.msgLen n`-bit 
 `j`-th nonce, answers with the word `encPair encBits encBits (nonce, tag)`, records
 `((msg, nonce), tag)` and advances. It answers a request of any other length, and every request
 once the counter is spent, with the empty word, recording nothing; a refused request uses no
-counter value. In `counterSufCmaGame`, the
-forger outputs a nonce-tagged message `((msg, nonce), tag)` and wins when the lengths are right,
-the triple was never issued, and the nonce-based verifier accepts it. This is strong
+counter value. In `counterSufCmaGame`, the forger outputs a nonce-tagged message
+`((msg, nonce), tag)` and wins when the lengths are right, the triple was never issued, and the
+nonce-based verifier accepts it. This is strong
 unforgeability, as in Attack Game 7.4; a nonce word of length `L` stands for the counter it
 encodes.
 
 The reduction is exact. `counterForger` runs a counter forger and answers its `j`-th request with
 one query `(msg, lowBits L j)` to the nonce-based signing oracle, and refuses the requests that the
-counter signing oracle refuses without querying. Distinct counters give distinct
-nonces, so the nonce-respecting condition of `NonceMACScheme.sufCmaGame` always holds, and the
+counter signing oracle refuses without querying. Distinct counters give distinct nonces, so the
+nonce-respecting condition of `NonceMACScheme.sufCmaGame` always holds, and the
 simulation is perfect: the counter forger's success is at most the nonce forger's
 (`succProbability_counterSufCmaGame_le`). Replies are truncated to a bound on the tag length, which
 honest tags never exceed, so that the reduction is strict oracle PPT for every external oracle

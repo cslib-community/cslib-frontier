@@ -490,7 +490,7 @@ theorem isPPT_eufOneTimeGame (M : MACScheme) {adversary : Forger}
 /-- Fresh-message existential unforgeability of a symmetric MAC under a one-time adaptive
 chosen-message attack, against uniform strict oracle-PPT forgers. It is the one-time game of
 [BonehShoup2023], Section 7.6 (p. 275), Attack Game 6.1 (pp. 218–219) with a single signing query,
-with three differences. Section 7.6 defines unconditional security, negligible advantage for all
+with two differences. Section 7.6 defines unconditional security, negligible advantage for all
 adversaries, even computationally unbounded ones; here the forgers are efficient, as for the
 one-time secure MAC of Theorem 9.2 (p. 367). A forgery counts only on a message that was not
 queried, where the source accepts any new message–tag pair (`OneTimeSUFCMA`). As in the source, the
@@ -672,9 +672,8 @@ private theorem oneTimeSigningPairOracle_eq_on (M : MACScheme) (n : ℕ) (sk : L
 ([Boneh and Shoup, Attack Game 6.1 and Section 7.6, printed p. 275][BonehShoup2023]): sample
 `sk ← M.keyGen n`, run the adaptive forger on `(n, [])` with oracle access to
 `M.oneTimeSigningPairOracle n sk` (which answers at most one signing query, on a `M.msgLen n`-bit
-message), and accept when the
-forger outputs a valid `(msg, tag)` pair on a `M.msgLen n`-bit message `msg` distinct from the
-queried `(msg, tag)` pair (if any). -/
+message), and accept when the forger outputs a valid `(msg, tag)` pair on a `M.msgLen n`-bit message
+`msg` distinct from the queried `(msg, tag)` pair (if any). -/
 noncomputable def sufOneTimeGame (M : MACScheme) (adversary : Forger) (n : ℕ) :
     ProbComp Bool := do
   let sk ← M.keyGen n
@@ -2085,7 +2084,7 @@ theorem SUFCMA.of_negligible {M : NonceMACScheme}
 
 /-- Fresh-message existential unforgeability under nonce-respecting adaptive chosen-message attack
 (`EUFCMA`) for a `NonceMACScheme` against uniform strict oracle-PPT adversaries: [BonehShoup2023],
-Attack Game 7.4 and Definition 7.6 (p. 274), with two differences. A forgery counts only on a
+Attack Game 7.4 and Definition 7.6 (p. 274), with one difference. A forgery counts only on a
 message that was never queried, where the source accepts any new triple `(m, t, N)` (`SUFCMA`). As
 in the source, tagging queries and the forgery lie in the spaces of `msgLen n`-bit messages and
 `nonceLen n`-bit nonces: the oracle answers any other query with the empty word, without tagging or
