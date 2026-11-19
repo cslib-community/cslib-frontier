@@ -413,6 +413,14 @@ private def PrivateKey.encode {s : Level} (v : PrivateKey s) : List Byte :=
   v.rho ++ (v.key ++ (v.tr ++ (packSigned width s.params.η v.s₁ ++
     (packSigned width s.params.η v.s₂ ++ packSigned 13 4096 v.t₀))))
 
+private theorem PrivateKey.length_encode {s : Level} (w : PrivateKey s)
+    (hr : w.rho.length = 32) (hk : w.key.length = 32) (ht : w.tr.length = 64) :
+    w.encode.length = 128 +
+      32 * ((2 * s.params.η).log2 + 1) * s.params.ℓ +
+      32 * ((2 * s.params.η).log2 + 1) * s.params.k + 32 * 13 * s.params.k := by
+  simp only [PrivateKey.encode, List.length_append, hr, hk, ht, packSigned, length_packCoeffs]
+  lia
+
 /-- Algorithm 25 decodes the stored private-key fields from their fixed-width encodings. -/
 def decodePrivate (s : Level) (bytes : List Byte) : Option (PrivateKey s) := do
   let width := (2 * s.params.η).log2 + 1
@@ -429,6 +437,15 @@ def decodePrivate (s : Level) (bytes : List Byte) : Option (PrivateKey s) := do
     ringVectorCoeffs (unpackSigned _ width s.params.η second),
     ringVectorCoeffs (unpackSigned _ 13 4096 low)⟩
 
+/-- Decoded seed, key and public-key hash lengths are bounded by their FIPS byte widths. -/
+theorem lengths_of_decodePrivate {s : Level} {sk : PrivateKey s} {key : List Byte}
+    (hd : decodePrivate s key = some sk) :
+    sk.rho.length ≤ 32 ∧ sk.key.length ≤ 32 ∧ sk.tr.length ≤ 64 := by
+  simp only [decodePrivate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+    Option.some.injEq] at hd
+  obtain ⟨_, _, rfl⟩ := hd
+  simp
+
 private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.length = 32)
     (hk : v.key.length = 32) (ht : v.tr.length = 64)
     (h₁ : ∀ i j, |(v.s₁ i j).valMinAbs| ≤ s.params.η)
@@ -443,17 +460,12 @@ private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.
     have small : 2 * s.params.η < 2 ^ w := by cases s <;> decide
     obtain ⟨_, _⟩ := abs_le.mp hz
     omega
-  have len : v.encode.length = 128 + 32 * w * s.params.ℓ + 32 * w * s.params.k +
-      32 * 13 * s.params.k := by
-    simp only [PrivateKey.encode, List.length_append, hr, hk, ht, fieldLen]
-    change 32 + (32 + (64 + (32 * w * _ + (32 * w * _ + _)))) = _
-    omega
   have first := List.drop_left' (l₂ := packSigned w s.params.η v.s₂ ++ packSigned 13 4096 v.t₀)
     (fieldLen w s.params.η v.s₁)
   have second := List.drop_left' (l₂ := packSigned 13 4096 v.t₀) (fieldLen w s.params.η v.s₂)
   unfold decodePrivate
   dsimp only
-  rw [len]
+  rw [v.length_encode hr hk ht]
   dsimp only [w] at first second ⊢
   simp only [guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
     Option.bind_some, PrivateKey.encode, List.take_left' hr, List.drop_left' hr, List.take_left' hk,
@@ -469,10 +481,21 @@ private theorem decodePrivate_encode {s : Level} (v : PrivateKey s) (hr : v.rho.
       unpackSigned_packSigned (width := 13) (upper := 4096) c []
       (fun i j => by have := h₀ i j; norm_num at *; omega) i j
 
+/-- Raw SHAKE256 input of FIPS 204 Algorithm 6, line 1. The 32-byte seed is followed by
+the one-byte matrix dimensions in row then column order. -/
+@[expose] def keySeedInput (s : Level) (seed : FixedBytes 32) : List Bool :=
+  Keccak.bytesToBitsLE (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ])
+
+/-- The Algorithm 6 key expansion uses a 272-bit input at each standardized level. -/
+theorem length_keySeedInput (s : Level) (seed : FixedBytes 32) :
+    (keySeedInput s seed).length = 272 := by
+  rw [keySeedInput, Keccak.length_bytesToBitsLE, List.length_append, FixedBytes.length_toList]
+  rfl
+
 /-- Algorithm 6 reads the public matrix seed, the short-vector seed and the signing key
 in one 128-byte SHAKE256 expansion of the seed and the two dimension bytes. -/
 @[expose] def Xofs.expandKeySeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
-  H.h256.readBytes (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128
+  H.h256.read (keySeedInput s seed) 128
 
 /-- Algorithm 6, from the 32-byte seed to both encoded keys (Algorithms 22, 24).
 Rejection exhaustion during the matrix or short-vector expansion yields an error. -/
@@ -565,8 +588,7 @@ theorem privateKey_of_keyGen {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys
       (∀ i j, |(sk.s₁ i j).valMinAbs| ≤ s.params.η) ∧
       (∀ i j, |(sk.s₂ i j).valMinAbs| ≤ s.params.η) := by
   unfold Xofs.keyGen Xofs.expandKeySeed at hg
-  generalize hh : H.h256.readBytes
-    (seed.toList ++ [Fin.ofNat 256 s.params.k, Fin.ofNat 256 s.params.ℓ]) 128 = expanded at hg
+  generalize hh : H.h256.read (keySeedInput s seed) 128 = expanded at hg
   have hex : expanded.length = 128 := by rw [← hh]; exact H.h256.length_read ..
   have hr : (expanded.take 32).length = 32 := by simp [hex]
   obtain ⟨rho, hrho⟩ := FixedBytes.exists_toList hr
@@ -1151,6 +1173,20 @@ def commitmentInput (s : Level) (w : Fin s.params.k → Fin 256 → ℤ) (μ : L
   let width := ((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1
   μ ++ Keccak.bytesToBitsLE (packCoeffs width fun i j => (w i j).toNat)
 
+/-- Bit length of the 512-bit representative followed by FIPS 204's packed high bits.
+It is 6656 at ML-DSA-44 and -65, and 8704 at ML-DSA-87. -/
+@[expose] def Level.commitmentInputBits (s : Level) : ℕ :=
+  512 + 8 * (32 * (((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1) * s.params.k)
+
+/-- Packing a commitment after a full message representative has the parameter-set bit width. -/
+theorem commitmentInput_length (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
+    {μ : List Bool} (hμ : μ.length = 512) :
+    (commitmentInput s w μ).length = s.commitmentInputBits := by
+  simp only [commitmentInput, List.length_append, hμ, Keccak.length_bytesToBitsLE,
+    Level.commitmentInputBits]
+  exact congrArg (fun n => 512 + 8 * n)
+    (length_packCoeffs (rows := s.params.k) (width := _) fun i j => (w i j).toNat)
+
 /-- The two SHAKE256 inputs in the FIPS challenge computation have different lengths:
 the 512-bit message representative is followed by a nonempty packed commitment, whereas the
 digest seed for Algorithm 29 occupies at most 512 bits. -/
@@ -1202,12 +1238,15 @@ private def hintedCommitment (s : Level) (pk : MLDSA.PublicKey s.params)
   fun i => useHintVec s.params.q s.params.γ₂ (σ.h i)
     (moduleSISMap pk.A σ.z i - negacyclicMul c (pk.t i))
 
+private abbrev Signature.acceptDigest {s : Level} (σ : Signature s) (digest : Unit → List Byte) :
+    Bool :=
+  decide (ResponseShort s.params σ.z) && decide (digest () = σ.digest)
+
 /-- Algorithm 8 after successful parsing and expansion. The digest from the signature must match
 the full SHAKE output byte for byte. -/
 private def Xofs.check (H : Xofs) (s : Level) (pk : MLDSA.PublicKey s.params) (μ : List Bool)
     (σ : Signature s) (c : Poly) : Bool :=
-  decide (ResponseShort s.params σ.z) &&
-    decide (H.commitmentDigest s (hintedCommitment s pk σ c) μ = σ.digest)
+  σ.acceptDigest fun _ => H.commitmentDigest s (hintedCommitment s pk σ c) μ
 
 private abbrev check := Xofs.check Xofs.shake
 

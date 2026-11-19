@@ -7,12 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
+import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
 
 /-!
 # ML-DSA digest-register clients
 
-Check a nonconstant little-endian digest and compose two coherent reads past the digest.
+Check the native signing oracle and forgery score, a nonconstant little-endian digest, and two
+coherent reads past the digest.
 -/
 
 open Cslib Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204 Cslib.Quantum Cslib.Probability
@@ -42,3 +43,27 @@ example (H : Xofs) (D : BitString Level.mlDSA44.commitmentInputBits → BitStrin
   intro native run
   exact (congrArg (run q ·) (H.xorQuery_withDigestRegister .mlDSA44 D 6656 33 m p ψ)).trans
     (H.xorQuery_withDigestRegister .mlDSA44 D 6656 33 m q ((xorQuery native p).eval ψ))
+
+-- At an adaptive signing call the service samples the real hedge, returns the exact reply and
+-- logs only a success. This is the handler used by the retained-state controller.
+example {R : Type} (H : Xofs) (s : Level) (D) (key : List Byte) (q : SigningQuery)
+    (log : List Forgery) (next : Option (List Byte) × List Forgery → PMF R) :
+    ((H.withDigestRegister s D).signingOracle s key q log).bind next =
+      (PMF.uniformOfFintype (FixedBytes 32)).bind fun rnd =>
+        let reply := OracleComp.evalPure D (H.signDigestQueries s key q rnd)
+        next (reply, q.logReply reply log) := by
+  rw [H.signingOracle_eq_digestQueries, PMF.bind_map]
+  rfl
+
+-- Score the candidate and its complete log with the two-query verifier in the original game.
+example (C : QuantumSigningForger) (H : Xofs) (s : Level) {a b : ℕ}
+    (ha : s.commitmentInputBits ≤ a) (hb : digestBytes s ≤ b) :
+    C.randomPrefixGame s H a b =
+      (H.uniformPrefixes a b).bind fun base => base.keyExperiment s fun keys =>
+        (PMF.uniformOfFintype
+          (BitString s.commitmentInputBits → BitString (8 * digestBytes s))).bind fun D =>
+          (C.transcript (base.withDigestRegister s D) s keys).map fun (f, log) =>
+            (OracleComp.evalPure D (base.verifyDigestQueries s keys.publicKey f)).getD false &&
+              !log.contains f := by
+  rw [C.randomPrefixGame_eq_digestRegister H s ha hb]
+  simp only [Xofs.winsForgery, Xofs.evalPure_verifyDigestQueries]

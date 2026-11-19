@@ -232,7 +232,7 @@ private theorem isPPTOn_S :
       (encOption encBits)
       (fun _ : (ℕ × ℕ × Bool) × ℕ => (pure none : ProbComp (Option (List Bool)))) :=
     (ComputableInPolyTime.const none).isPPTOn
-  exact IsPPTOn.cond' hcond hyes hno
+  exact IsPPTOn.cond hcond hyes hno
 
 private theorem isFPAUS_S : IsFPAUS (encPair encUnary (encPair encUnary encBool)) W S :=
   R.isFPAUS_atWitnessPrecision isPPTOn_S

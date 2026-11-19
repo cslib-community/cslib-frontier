@@ -487,7 +487,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run ()) :=
-    hrun.map_with' (computableInPolyTime_etmMACPost (encFinEnum Unit) E M)
+    hrun.map_with (computableInPolyTime_etmMACPost (encFinEnum Unit) E M)
   unfold etmToMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 
@@ -764,7 +764,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run false) :=
-    hrun.map_with' (computableInPolyTime_etmMACPost encBool E M)
+    hrun.map_with (computableInPolyTime_etmMACPost encBool E M)
   unfold etmToOneTimeMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 
@@ -1732,7 +1732,7 @@ theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}
       subst hresEq
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
   unfold cpaToPrfDistinguisher
-  exact (hrun.map' (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
+  exact (hrun.map (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
 
 /-- Running `cpaToPrfDistinguisher adversary bit` in `prfRealGame id family` produces the exact same
 output distribution as running `adversary` in `(prfCipher family hpoly hlen).cpaGame` at challenge

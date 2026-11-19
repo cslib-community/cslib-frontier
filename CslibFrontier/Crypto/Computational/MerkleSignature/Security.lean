@@ -745,7 +745,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
       ((ComputableInPolyTime.map (ComputableInPolyTime.fst encUnary encBits)).comp
         hsigned) hu))
   have hcondi := ComputableInPolyTime.decide_eq' hu hi
-  have hq := IsOraclePPTOn.query_take' (input := encHandlerInput) () hdigest hbn
+  have hq := IsOraclePPTOn.query_take (input := encHandlerInput) () hdigest hbn
   have hvki :=
     ((ComputableInPolyTime.listGetD (encA := encPair encBits encBits) ([], [])).comp
       (hkeys.prod hi)).fst'
@@ -754,7 +754,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
   have hqpost := (((hvki.comp hfst).prod
     ((ComputableInPolyTime.snd encHandlerInput encBits).prod
       (hpathi.comp hfst))).encoding_comp).prod (hlog.comp hfst)
-  have hquery := hq.map_with'
+  have hquery := hq.map_with
     (f := fun (p : (((ℕ × List Bool) × ℕ) × (List Bool × List (List Bool × List Bool))) ×
         ((Unit × List Bool) × List (ℕ × List Bool))) ots =>
       (encodeSignature (p.1.2.2.getD p.1.1.2 ([], [])).1 ots
@@ -774,7 +774,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
         (p.1.2.2.getD (IndexedSignatureScheme.requestDecoder.decode p.2.1.2).1 ([], [])).1 ots
         (merklePath H p.1.2.1 (p.1.2.2.map Prod.fst)
           (IndexedSignatureScheme.requestDecoder.decode p.2.1.2).1))) hsignPost.isPPTOn
-  have hsample := (hsign.isOraclePPTOn (Operation := Unit)).map_with'
+  have hsample := (hsign.isOraclePPTOn (Operation := Unit)).map_with
     (f := fun (p : (((ℕ × List Bool) × ℕ) × (List Bool × List (List Bool × List Bool))) ×
         ((Unit × List Bool) × List (ℕ × List Bool))) sig =>
       (sig, IndexedSignatureScheme.requestDecoder.decode p.2.1.2 :: p.2.2))
@@ -782,7 +782,7 @@ private theorem isOraclePPTOn_plantedHandler {bound : ℕ → ℕ}
   have hpure := ((ComputableInPolyTime.const (encOut := encBits) ([] : List Bool)).prod
     hsigned).isOraclePPTOn (Operation := Unit)
   unfold plantedHandler signWith
-  exact IsOraclePPTOn.ite' hcond (IsOraclePPTOn.ite' hcondi hquery hsample) hpure
+  exact IsOraclePPTOn.ite hcond (IsOraclePPTOn.ite hcondi hquery hsample) hpure
 
 /-- A per-request size bound for the planted handler's reply and added log entry. -/
 private def handlerBound (cs ds : ℕ) (bound : ℕ → ℕ)

@@ -639,11 +639,6 @@ theorem computableInPolyTime_schnorrCommitBits :
   unfold schnorrCommitBits
   fun_prop
 
-/-- `schnorrCommitBits` lifted to `ProbComp` is uniform strict PPT. -/
-theorem isPPTOn_schnorrCommitBits :
-    IsPPTOn (encPair F.encDesc encBits) encBits (fun input => pure (F.schnorrCommitBits input)) :=
-  F.computableInPolyTime_schnorrCommitBits.isPPTOn
-
 /-- Input `(d, a, b, c)` of the bit-level Schnorr response and commitment-recovery maps: a group
 description `d`, then three bit words. The description and the first two words are framed. -/
 abbrev encSchnorrBitsInput : F.Desc × List Bool × List Bool × List Bool ↪ List Bool :=
@@ -685,11 +680,6 @@ theorem computableInPolyTime_schnorrRespondBits :
   have hro_nat := ComputableInPolyTime.bitsToNat.comp hro
   exact (ComputableInPolyTime.binary_mod'
     (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq).encoding_comp
-
-/-- `schnorrRespondBits` lifted to `ProbComp` is uniform strict PPT. -/
-theorem isPPTOn_schnorrRespondBits :
-    IsPPTOn F.encSchnorrBitsInput encBits (fun input => pure (F.schnorrRespondBits input)) :=
-  F.computableInPolyTime_schnorrRespondBits.isPPTOn
 
 /-- Bit-level Schnorr commitment recovery ([BonehShoup2023], Sections 19.1 and 19.2.1): given
 `(d, pk, c, z)`, compute the encoded group element `z • g - c • pk`. -/
@@ -790,8 +780,9 @@ theorem computableInPolyTime_encodeSchnorrVerify_comp {γ : Type} {encIn : γ �
 
 /-- The uniform strict PPT program `schnorrSigKeyGen` (`isPPTOn_schnorrSigKeyGen`) computes the
 encoded commitment and scalar private state of `schnorrProbCommit` on encodings (the commitment
-`r • g` does not depend on the witness `α` or statement `u`, as noted in [BonehShoup2023],
-Example 19.1, p. 773). -/
+`r • g` uses neither the witness `α` nor the statement `u`; see [BonehShoup2023], Figure 19.1,
+p. 756, and the remark after Example 19.1, p. 773, that the prover does not use the
+statement). -/
 theorem eval_schnorrSigKeyGen_eq_schnorrProbCommit (i : ℕ × F.Desc) (α : ZMod (F.order i.2))
     (u : F.Carrier i.2) :
     ProbComp.eval (F.schnorrSigKeyGen i.1 i.2) =
@@ -836,7 +827,6 @@ theorem efficientVerifier_schnorr :
 /-- **Schnorr's fair-coin Sigma protocol has a deterministic polynomial-time verifier.** -/
 theorem efficientVerifier_schnorrProb :
     EfficientVerifier F.schnorrProbFamily F.schnorrEncoding :=
-  ⟨fun ((_, d), pk, t, c, z) => F.encodeSchnorrVerify d pk t c z, by fun_prop,
-    fun i u t c z => F.verifierRealizedBy_encodeSchnorrVerify i u t c z⟩
+  F.efficientVerifier_schnorr
 
 end Cslib.Crypto.PrimeOrderGroupFamily

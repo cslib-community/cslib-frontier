@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.DiffieHellman
+public import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 import CslibFrontier.Crypto.Negligible.Basic
@@ -37,9 +37,6 @@ protocol (`CslibFrontier.Crypto.Computational.SchnorrProtocol`) and the Chaum–
 
 ## Main results
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_uniform_sampleExp`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_map_uniform_sampleExp`: `sampleExp n d` modulo `q` is
-  within statistical distance `1 / 2 ^ n` of uniform on `ZMod q`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_transcript_linearProbFamily`: honest transcripts of
   `linearProbFamily` and `SigmaProtocol.linear` are within `1 / 2 ^ n` at every index, witness,
   statement and challenge.
@@ -68,33 +65,6 @@ open Probability Protocols Protocols.SigmaProtocol
 open scoped ENNReal NNReal
 
 variable (F : PrimeOrderGroupFamily)
-
-open Classical in
-/-- An exponent sampled by `sampleExp n d` is within statistical distance `1 / 2 ^ n` of uniform on
-`ZMod q`. -/
-theorem closeTo_uniform_sampleExp (n : ℕ) (d : F.Desc) :
-    CloseTo (PMF.uniformOfFintype (ZMod (F.order d)))
-      ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d)))
-      (1 / 2 ^ n : ℝ≥0) := by
-  refine Game.closeTo_of_advantage_decide_le fun E => ?_
-  rw [Game.advantage_comm]
-  have h := F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
-  rw [PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-  exact h
-
-open Classical in
-/-- Post-processing the modular cast of `sampleExp n d` by `f` is within `ℝ≥0∞`-distance
-`1 / 2 ^ n` of `f` applied to a uniform scalar in `ZMod q`. -/
-theorem closeTo_map_uniform_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
-    (f : ZMod (F.order d) → α) :
-    CloseTo ((PMF.uniformOfFintype (ZMod (F.order d))).map f)
-      (ProbComp.eval (f <$> ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)))
-      (1 / 2 ^ n : ℝ≥0∞) := by
-  have hδ : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  rw [ProbComp.eval_map, ProbComp.eval_map, ← hδ]
-  exact (F.closeTo_uniform_sampleExp n d).map f
 
 /-- Fair-coin commitment sampler for `SigmaProtocol.linear` over a `PrimeOrderGroupFamily`: at
 index `i = (n, d)`, draw `s ← F.sampleExp n d`, read `r = s mod q`, and return `(ψ i y r, r)`. -/

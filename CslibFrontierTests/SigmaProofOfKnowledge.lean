@@ -40,12 +40,12 @@ def echoProver (I : Type) : MaliciousProver I where
 
 /-- The echoing prover is uniform strict PPT for any index encoding. -/
 theorem isPPT_echoProver {I : Type} (encI : I ↪ List Bool) : (echoProver I).IsPPT encI where
-  commit := (ComputableInPolyTime.tidy (by fun_prop :
+  commit := (by fun_prop :
     ComputableInPolyTime (fun p : I × List Bool => (p.2, p.2)) (encPair encI encBits)
-      (encPair encBits encBits))).isPPTOn
-  respond := (ComputableInPolyTime.tidy (by fun_prop :
+      (encPair encBits encBits)).isPPTOn
+  respond := (by fun_prop :
     ComputableInPolyTime (fun p : I × List Bool × List Bool => p.2.2)
-      (encPair encI (encPair encBits encBits)) encBits)).isPPTOn
+      (encPair encI (encPair encBits encBits)) encBits).isPPTOn
 
 /-- Schnorr's knowledge extractor for the echoing prover is uniform strict PPT. -/
 example (F : PrimeOrderGroupFamily) :
@@ -105,10 +105,10 @@ private def xorSimulator : Simulator Unit (fun _ => Bool) (fun _ => Unit)
 private theorem xorSimulator_isPPT : Simulator.IsPPT xorEncoding xorSimulator := by
   refine Simulator.IsPPT.of_word
     (program := fun input => pure ([], List.zipWith xor input.2.2 input.2.1)) ?_ ?_
-  · exact (ComputableInPolyTime.tidy (by fun_prop :
+  · exact (by fun_prop :
       ComputableInPolyTime
         (fun input : Unit × List Bool × List Bool => ([], List.zipWith xor input.2.2 input.2.1))
-        (encSimulatorWordInput encUnit) (encPair encBits encBits))).isPPTOn
+        (encSimulatorWordInput encUnit) (encPair encBits encBits)).isPPTOn
   · intro i y c
     simp [xorSimulator, xorEncoding, ProbComp.eval_pure]
 

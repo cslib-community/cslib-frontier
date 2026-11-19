@@ -47,19 +47,19 @@ Private samples, measurements, gates and coherent XOF calls have zero signing co
 @[expose] def SigningCallsLe (C : QuantumSigningForger) (n : ℕ) : Prop :=
   ∀ pk, OracleComp.IsCostBounded (fun q => (isSigningCall q).toNat) (C.program pk) n
 
-private noncomputable def signingCommand (C : QuantumSigningForger) (device : Xofs) (s : Level)
-    (sk : List Byte) (sign : SigningQuery → Option (List Byte)) :=
+private noncomputable def signingCommand (C : QuantumSigningForger) (device : Xofs)
+    (sign : SigningQuery → Option (List Byte)) :=
   OracleComp.sumHandler (m := StateT (State C) PMF)
     (fun k => StateT.lift (ProbComp.unifOracle k))
     (OracleComp.sumHandler (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
       (spec₂ := fun _ : SigningQuery => Option (List Byte))
-      (fun cmd => C.commands device s sk (.inl cmd))
+      (C.deviceCommand device)
       (fun q st => PMF.pure <| let sig := sign q
         (sig, st.1, q.logReply sig st.2)))
 
 private noncomputable def hedgeCommand (C : QuantumSigningForger) (device H : Xofs) (s : Level)
     (sk : List Byte) (r : FixedBytes 32) :=
-  C.signingCommand device s sk fun q => H.sign s sk q.message q.context r
+  C.signingCommand device fun q => H.sign s sk q.message q.context r
 
 /-- The honest signed transcript with the hedge for each call read from the supplied list.
 The quantum device uses `device`, and signing uses `H`. The fallback supplies zero bytes.
@@ -108,19 +108,20 @@ theorem hedgeEmbedding_nonempty {n : ℕ} (hn : n ≤ 2 ^ 256) :
     Nonempty (Fin n ↪ FixedBytes 32) :=
   Function.Embedding.nonempty_of_card_le (by simpa only [Fintype.card_fin, card_hedge] using hn)
 
-private noncomputable def withTrialSetup {α : Type} (H : Xofs) (s : Level) (keys : Option KeyPair)
-    (failure : α) (run : KeyPair → PublicMatrix s → PMF α) : PMF α :=
+private noncomputable def withTrialSetup {α κ : Type} (H : Xofs) (s : Level)
+    (publicKey : κ → List Byte) (keys : Option κ)
+    (failure : α) (run : κ → PublicMatrix s → PMF α) : PMF α :=
   match keys with
   | none => PMF.pure failure
   | some keys =>
-    match H.expandA s (keys.publicKey.take 32) with
+    match H.expandA s ((publicKey keys).take 32) with
     | none => PMF.pure failure
     | some A => run keys A
 
 private noncomputable def scoreTranscript (H : Xofs) (s : Level)
     (score : SignedMatrixTrial s → Bool) (keys : Option KeyPair)
     (run : KeyPair → PMF (Forgery × List Forgery)) : Game :=
-  withTrialSetup H s keys false fun k A =>
+  withTrialSetup H s KeyPair.publicKey keys false fun k A =>
     (run k).map fun (f, log) => score ⟨H, A, k.publicKey, f, log⟩
 
 private noncomputable def scoreWithSetup (C : QuantumSigningForger) (s : Level)

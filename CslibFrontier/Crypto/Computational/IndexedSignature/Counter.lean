@@ -198,7 +198,7 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
           ((Unit × List Bool) × (ℕ × List (List Bool))) =>
         S.counterSigningOracle pair.1.1 pair.1.2.2 pair.2.1 pair.2.2) := by
     unfold counterSigningOracle
-    refine IsPPTOn.ite' (by fun_prop)
+    refine IsPPTOn.ite (by fun_prop)
       ((S.sign_ppt.preprocess (prepare := fun pair :
           (ℕ × (List Bool × List Bool)) × ((Unit × List Bool) × (ℕ × List (List Bool))) =>
           (pair.1.2.2, pair.2.2.1, pair.2.1.2)) (by fun_prop)).bind_with
@@ -470,9 +470,9 @@ private theorem isOraclePPTOn_counterHandler {bound : ℕ → ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × ℕ) =>
         S.counterHandler pair.1.1 bound pair.2.1 pair.2.2) := by
   unfold counterHandler
-  exact IsOraclePPTOn.ite' (by fun_prop)
-    ((IsOraclePPTOn.query_take' () (by fun_prop)
-      (computableInPolyTime_bound_comp hboundPoly (by fun_prop) (by fun_prop))).map_with'
+  exact IsOraclePPTOn.ite (by fun_prop)
+    ((IsOraclePPTOn.query_take () (by fun_prop)
+      (computableInPolyTime_bound_comp hboundPoly (by fun_prop) (by fun_prop))).map_with
       (by fun_prop))
     (ComputableInPolyTime.isOraclePPTOn (by fun_prop))
 

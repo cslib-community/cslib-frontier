@@ -241,7 +241,7 @@ private theorem isPPTOn_branch : IsPPTOn (encPair encDNF encUnary) encBool (fun 
       (encPair encDNF encUnary) encUnary := by
     have h := CNF.computableInPolyTime_numVars encNat
     fun_prop
-  exact IsPPTOn.ite' (condition := fun q : DNF ℕ × ℕ => q.2 < q.1.length) hcond
+  exact IsPPTOn.ite (condition := fun q : DNF ℕ × ℕ => q.2 < q.1.length) hcond
     (IsPPTOn.of_seeded (f := fun r : (DNF ℕ × ℕ) × List Bool => accepts r.1.1 r.1.2 r.2) hcount
       computableInPolyTime_accepts_pair)
     (ComputableInPolyTime.const false).isPPTOn

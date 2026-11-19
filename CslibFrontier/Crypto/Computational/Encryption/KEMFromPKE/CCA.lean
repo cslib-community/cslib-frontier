@@ -80,7 +80,7 @@ theorem isPPT_kemToCCAAdversary {keyLen : ℕ → ℕ} {distinguisher : OracleDi
   refine ⟨(isPPTOn_kemToPKEChoose hkeyLen).isOraclePPTOn.isOraclePPT, ?_⟩
   let hg1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
   let hg2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  exact hdist.on.preprocess'
+  exact hdist.on.preprocess
     (hg1.prod (((ComputableInPolyTime.unframe.comp' hg2.fst').prod
       ((ComputableInPolyTime.dropFrame.comp' hg2.fst').prod hg2.snd')).encoding_comp))
 

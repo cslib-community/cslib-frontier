@@ -204,7 +204,7 @@ def replayForger : Forger := fun n _ => do
 theorem isOraclePPT_replayForger : IsOraclePPT (encPair encBits encBits) replayForger := by
   refine IsOraclePPTOn.isOraclePPT ?_
   unfold replayForger
-  have hq := IsOraclePPTOn.query_take' (input := encPair encUnary encBits) ()
+  have hq := IsOraclePPTOn.query_take (input := encPair encUnary encBits) ()
     (request := fun p : ℕ × List Bool => List.replicate p.1 false)
     (limit := fun p => 2 * p.1 + 20) (by polytime) (by polytime)
   exact hq.bind_with

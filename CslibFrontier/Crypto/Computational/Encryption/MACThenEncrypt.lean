@@ -298,7 +298,7 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
         mteToCPAHandler M (GeneratorReindex.parameter ptLen p.1.1.1) (ctBound p.1.1.1)
           p.1.2 p.2) := by
     unfold mteToCPAHandler
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   have hprepare : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
@@ -357,7 +357,7 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
       (fun _ : ℕ × List Bool => (pure false : WordOracleComp Unit Bool)) :=
     (ComputableInPolyTime.const false).isOraclePPTOn (Operation := Unit)
   unfold mteToCPAAdversary
-  exact (IsOraclePPTOn.cond' houterCond hbody houterNo).isOraclePPT
+  exact (IsOraclePPTOn.cond houterCond hbody houterNo).isOraclePPT
 
 /-- When `ptLen` is strictly monotone and `ctBound (ptLen n)` bounds all ciphertexts produced by
 `E.encrypt (ptLen n)` on `ptLen n`-bit plaintexts under supported keys, `E.cpaGame` running
@@ -569,7 +569,7 @@ theorem isOraclePPT_extendCPAAdversary {ctBound : ℕ → ℕ}
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         extendCPAHandler p.1.1 (ctBound p.1.1) p.2) := by
     unfold extendCPAHandler
-    exact IsOraclePPTOn.cond' hcond hquery hno
+    exact IsOraclePPTOn.cond hcond hquery hno
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 1)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -692,7 +692,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Bool) =>
         extendOneTimeCPAHandler pair.1.1 (ctBound pair.1.1) pair.2.1 pair.2.2) := by
     unfold extendOneTimeCPAHandler
-    exact IsOraclePPTOn.cond' hcond hquery hnoReply
+    exact IsOraclePPTOn.cond hcond hquery hnoReply
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 2)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -724,7 +724,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
   unfold extendOneTimeCPAAdversary
   simpa only [bind_pure_comp] using
-    (hrun.map' (ComputableInPolyTime.fst encBool encBool)).isOraclePPT
+    (hrun.map (ComputableInPolyTime.fst encBool encBool)).isOraclePPT
 
 /-- Equivalence between `E.cpaOneTimeGame` running `extendOneTimeCPAAdversary` and
 `E.extendCipher.cpaOneTimeGame` running `adversary`. -/

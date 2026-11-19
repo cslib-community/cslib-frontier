@@ -185,7 +185,7 @@ theorem isPPT_markInverter {adversary : Inverter} (hadversary : IsPPT encBits ad
       (encPair encUnary encBits) encBits := by
     unfold mark
     polytime
-  exact hadversary.preprocess (ComputableTidilyInPolyTime.fst encUnary encBits) hprepare.tidy
+  exact hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits) hprepare
 
 /-- Inverting `collapse g` succeeds at most as often as inverting `g` with the marked challenge,
 plus the probability `2^-(n / 2)` of a low-zero input. -/

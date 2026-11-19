@@ -148,17 +148,17 @@ private theorem isOraclePPTOn_ivModePrfHandler
   have hbodyIv : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbody.preprocess' ((hn.comp (ComputableInPolyTime.fst _ _)).prod
+    hbody.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
       ((ComputableInPolyTime.snd _ _).prod (hmsg.comp (ComputableInPolyTime.fst _ _))))
   have hyes : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         (q.2 ++ ·) <$>
           bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbodyIv.map_with' (f := fun q body => q.2 ++ body)
+    hbodyIv.map_with (f := fun q body => q.2 ++ body)
       (ComputableInPolyTime.bitsAppend (by dsimp only [EIv]; fun_prop)
         (ComputableInPolyTime.snd _ _))
   unfold ivModePrfHandler
-  exact IsOraclePPTOn.cond' hcond
+  exact IsOraclePPTOn.cond hcond
     (IsOraclePPTOn.bind_with ((isPPTOn_sampleList.preprocess hn).isOraclePPTOn) hyes)
     (ComputableInPolyTime.isOraclePPTOn (ComputableInPolyTime.const []))
 
@@ -227,7 +227,7 @@ theorem isOraclePPT_ivModeToPrfDistinguisher_blockLen
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (resources := fun caller request => blockLen caller.1 + request.length)
     hadversary (by dsimp only [ECaller]; fun_prop)
-    ((isOraclePPTOn_ivModePrfHandler hbody bit).preprocess' hprepHandler) hres
+    ((isOraclePPTOn_ivModePrfHandler hbody bit).preprocess hprepHandler) hres
     fun _ _ _ hreply => length_le_of_mem_support_ivModePrfHandler hbodyLen hreply
 
 /-- **Efficiency of the reduction.** If the body queries are strict oracle PPT on
@@ -408,7 +408,7 @@ theorem isOraclePPT_ivStreamToPrfDistinguisher
       (fun a : ℕ × List Bool × List Bool => (a.1, a.2.1, a.2.2.length / a.1)) EIn
       (encPair encUnary (encPair encBits encUnary)) := by
     dsimp only [EIn]; fun_prop
-  refine isOraclePPT_ivModeToPrfDistinguisher ((hks.preprocess' hargs).map_with'
+  refine isOraclePPT_ivModeToPrfDistinguisher ((hks.preprocess hargs).map_with
     (f := fun a ks => List.zipWith xor ks a.2.2)
     (ComputableInPolyTime.bitsZipWithInput xor (ComputableInPolyTime.snd _ _)
       (by dsimp only [EIn]; fun_prop))) (fun _ _ _ _ hreply => ?_) hadversary bit

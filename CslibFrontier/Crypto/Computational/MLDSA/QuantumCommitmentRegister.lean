@@ -33,19 +33,6 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability Cslib.Quantum ExtendableOutput
 
-/-- Bit length of the 512-bit representative followed by FIPS 204's packed high bits.
-It is 6656 at ML-DSA-44 and -65, and 8704 at ML-DSA-87. -/
-@[expose] def Level.commitmentInputBits (s : Level) : ℕ :=
-  512 + 8 * (32 * (((s.params.q - 1) / (2 * s.params.γ₂) - 1).log2 + 1) * s.params.k)
-
-private theorem commitmentInput_length (s : Level) (w : Fin s.params.k → Fin 256 → ℤ)
-    {μ : List Bool} (hμ : μ.length = 512) :
-    (commitmentInput s w μ).length = s.commitmentInputBits := by
-  simp only [commitmentInput, List.length_append, hμ, Keccak.length_bytesToBitsLE,
-    Level.commitmentInputBits]
-  exact congrArg (fun n => 512 + 8 * n)
-    (length_packCoeffs (rows := s.params.k) (width := _) fun i j => (w i j).toNat)
-
 /-- Install a literal digest prefix on every SHAKE256 word of the FIPS commitment length,
 including words that are also queried in another role. Long-read suffixes and SHAKE128
 remain in the supplied XOF pair. -/

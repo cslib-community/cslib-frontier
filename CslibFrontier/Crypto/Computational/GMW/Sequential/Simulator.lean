@@ -390,7 +390,7 @@ private theorem isOraclePPTOn_VstarSession {α : Type} {enc : α ↪ List Bool}
   let encSt := encPair encUnary encCfg
   let encCtx := encPair enc (encPair encUnary encSt)
   have hctx := (ComputableInPolyTime.snd encUnary (encPair encCtx encBits)).fst'.snd'
-  have h := (isOraclePPTOn_sessionStep machine).preprocess'
+  have h := (isOraclePPTOn_sessionStep machine).preprocess
     (hctx.fst'.prod (hctx.snd'.fst'.prod ((ComputableInPolyTime.const 2).prod hctx.snd'.snd')))
   exact (congrArg (IsOraclePPTOn _ _) (by funext p; rfl)).mp h
 
@@ -482,14 +482,14 @@ theorem isPPTOn_iterate_simSessionStep_finishSessionRun {α Param : Type}
     (hn.comp' hp1) (hT.comp' hp1) (hatt.comp' hp1) (ha.comp' hp1) hp2
   have hsizePoly : PolyBounded (fun p => (input p).length)
       (fun p => (2 * cf + 3) * ((word p).length + T p + 1)) := by growth_poly
-  have hinit := hT.tidy.prod
-    (ComputableTidilyInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
-      hword.tidy machine.initial)
+  have hinit := hT.prod
+    (ComputableInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
+      hword machine.initial)
   have hiter := (IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encSt)
     (count := K) (initial := fun p => (T p, FiniteConfig.init machine.initial (word p)))
     (step := fun p => simSessionStep machine generator (n p + 7) (length (n p + 7))
       (T p) (att p) (f (a p)))
-    hK.tidy hinit hstep inv hbase hpres hsizePoly
+    hK hinit hstep inv hbase hpres hsizePoly
     (by
       intro p i st _ ⟨h1, h2⟩
       have hcfg : (encFiniteConfig st.2).length ≤ cf * (2 * ((word p).length + T p + 1)) :=
@@ -658,12 +658,12 @@ theorem isPPTOn_sessionWithPadsStep_and_support {α Param : Type}
       (fun p => 2 * (C * (limit p + (encSt (state p).1).length + 1) + 1) +
         (encList encBits (state p).2).length) := by growth_poly
   have hinit := ((ComputableInPolyTime.const (encOut := encOption encSt)
-    (none : Option (ℕ × FiniteConfig tapes Bool Control Unit))).prod hstate.snd').tidy
+    (none : Option (ℕ × FiniteConfig tapes Bool Control Unit))).prod hstate.snd')
   have hiter := IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encLoop)
     (count := att) (initial := fun p => (none, (state p).2))
     (step := fun p => attemptWithPadsStep machine generator (s p) (m p) (limit p)
       (f (a p)) (w p) (state p).1)
-    hatt.tidy hinit hstep inv hbase hpres hsizePoly
+    hatt hinit hstep inv hbase hpres hsizePoly
     (by
       intro p i cur _ ⟨h1, h2⟩
       have hcur_len : (encLoop cur).length =
@@ -750,16 +750,16 @@ theorem isPPTOn_runAllSessionsWithPads {α Param : Type}
   have hsizePoly : PolyBounded (fun p => (input p).length)
       (fun p => 2 * ((2 * cf + 3) * ((word p).length + T p + 1)) + 1 +
         (encList encBits (pads p)).length) := by growth_poly
-  have hinit := (hT.tidy.prod
-    (ComputableTidilyInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
-      hword.tidy machine.initial)).prod
-    hpads.tidy
+  have hinit := (hT.prod
+    (ComputableInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
+      hword machine.initial)).prod
+    hpads
   have hiter := (IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encOuter)
     (count := K)
     (initial := fun p => ((T p, FiniteConfig.init machine.initial (word p)), pads p))
     (step := fun p => sessionWithPadsStep machine generator (s p) (m p) (T p) (att p)
       (f (a p)) (w p))
-    hK.tidy hinit hstep_and_supp.1 inv hbase hpres hsizePoly
+    hK hinit hstep_and_supp.1 inv hbase hpres hsizePoly
     (by
       intro p i cur _ ⟨h1, h2, h3⟩
       have hcfg : (encFiniteConfig cur.1.2).length ≤ cf * (2 * ((word p).length + T p + 1)) :=
