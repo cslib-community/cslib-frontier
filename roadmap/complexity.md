@@ -10,6 +10,9 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Structure, time and space
 
+- **Real-algebraic counting bounds** ([#6560](https://github.com/cslib-community/cslib-frontier/issues/6560)): port lean-canny's ETR/∃ℝ containment in C₂₆P and existential–universal real truth in C₆₀P, with PSPACE corollaries.
+  Extract reusable implicit-polynomial, coefficient and trace algorithms while preserving uniformity, encodings and full evaluator costs.
+
 - **Planar Boolean CSP dichotomy** ([#3091](https://github.com/cslib-community/cslib-frontier/issues/3091)): extend the native Boolean classification to ordered planar instances of arbitrary fixed relation arity, preserving individual incidence occurrences and cyclic argument order.
   The endpoint must prove the embedding and recognition interface, the cyclic-difference reduction, the even delta-matroid edge-CSP algorithm and planar hardness transfer internally, including the additional self-complementary tractable family.
   Supplied-embedding or matching-realizable-only milestones leave it open.

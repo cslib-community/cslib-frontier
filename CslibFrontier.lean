@@ -2014,6 +2014,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.R
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueAccess
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueSign
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.SignParameters
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Space
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Accumulate
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Admissible
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Assembly
@@ -2042,6 +2043,7 @@ public import CslibFrontier.Computability.Complexity.Classes.EXP.Padding
 public import CslibFrontier.Computability.Complexity.Classes.EXP.Separation
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE
 public import CslibFrontier.Computability.Complexity.Classes.EXPSPACE.Separation
+public import CslibFrontier.Computability.Complexity.Classes.ExistsReal
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
@@ -2240,6 +2242,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 public import CslibFrontier.Computability.Complexity.Classes.PP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle.Closure
+public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle.Space
 public import CslibFrontier.Computability.Complexity.Classes.PP.Time
 public import CslibFrontier.Computability.Complexity.Classes.PP.TruthTable
 public import CslibFrontier.Computability.Complexity.Classes.Padding
@@ -2839,6 +2842,7 @@ public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Orac
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
 public import CslibFrontier.Computability.Complexity.Problems.RationalIntegerProgramming
+public import CslibFrontier.Computability.Complexity.Problems.RealArithmetic
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Declared
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.Drawing
@@ -7773,6 +7777,8 @@ public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+public import CslibFrontier.Logics.RealArithmetic.Basic
+public import CslibFrontier.Logics.RealArithmetic.Encoding
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential
