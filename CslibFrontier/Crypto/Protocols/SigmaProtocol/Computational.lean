@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Game.CloseTo
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 public import CslibFrontier.Languages.Probabilistic.Lift
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
 # Computational special honest-verifier zero knowledge
@@ -57,8 +58,15 @@ computationally unbounded adversaries at each index
 `EfficientSpecialHVZK.exists_computationalSpecialHVZK`). As in `EfficientSpecialHVZK`, `δ` is an
 explicit parameter of `ComputationalSpecialHVZK` rather than a bundled `Negligible` condition on the
 acceptance error alone; exact Definition 20.6 acceptance corresponds to `δ = fun _ => 0` (which
-Schnorr's simulator achieves in the ideal-sampling step
-`PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr_ideal`).
+Schnorr's simulator achieves in `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr`).
+
+When an ideal-sampling `PMF` prover `P` is replaced by a fair-coin prover `P'` whose honest
+transcripts are within statistical distance `ε` of `P`'s on valid pairs, pointwise transcript
+closeness (`SimulatorRealizedBy.closeTo_transcript_of_closeTo`), Attack Game 20.4 advantage bounds
+(`advantage_chvzkRealGame_le_of_closeTo_transcript`,
+`SimulatorRealizedBy.advantage_chvzkGame_le_of_closeTo_transcript`), and `ComputationalSpecialHVZK`
+(`ComputationalSpecialHVZK.of_closeTo_transcript`) transfer without requiring `P` and `P'` to share
+a private-state type.
 
 ## Main definitions
 
@@ -90,6 +98,13 @@ Schnorr's simulator achieves in the ideal-sampling step
   `Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.exists_computationalSpecialHVZK`:
   statistical special HVZK with negligible realization error along `setup` implies computational
   special HVZK.
+* `EfficientSpecialSoundness.of_verify_eq`,
+  `SimulatorRealizedBy.closeTo_transcript_of_closeTo`,
+  `advantage_chvzkRealGame_le_of_closeTo_transcript`,
+  `SimulatorRealizedBy.advantage_chvzkGame_le_of_closeTo_transcript`,
+  `ComputationalSpecialHVZK.of_closeTo_transcript`,
+  `closeTo_andProof_transcript`, `closeTo_orProofWith_transcript`,
+  `closeTo_parallelRepetition_transcript`
 * `Cslib.Crypto.Protocols.SigmaProtocol.exists_negligible_inv_two_pow_map`: uniform `1 / 2 ^ n`
   error along any `(setup n).map (n, ·)` distribution is negligibly bounded.
 
@@ -351,6 +366,154 @@ theorem EfficientSpecialHVZK.exists_computationalSpecialHVZK
   exact ⟨sim, hreal.computationalSpecialHVZK h.specialHVZK hppt hnegl⟩
 
 end StatisticalBridge
+
+/-! ### Transfer across protocols with close honest transcripts -/
+
+section TranscriptTransfer
+
+/-- Efficient special soundness depends only on `verify` and transfers across protocol families with
+the same verifier. -/
+theorem EfficientSpecialSoundness.of_verify_eq
+    {P P' : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    {W : I → Type} {R : ∀ i, W i → Y i → Prop}
+    {enc : Encoding I Y T C Z} {encW : ∀ i, W i ↪ List Bool}
+    {extract : ∀ i, Y i → T i → C i → Z i → C i → Z i → W i}
+    (h : EfficientSpecialSoundness P R enc encW extract)
+    (hver : ∀ i, (P' i).verify = (P i).verify) :
+    EfficientSpecialSoundness P' R enc encW extract where
+  specialSoundness i y t c z c' z' hc hz hz' := by
+    simp only [Accepts, hver i] at hz hz'
+    exact h.specialSoundness i y t c z c' z' hc hz hz'
+  polyTime := h.polyTime
+
+/-- Combining a perfect special HVZK simulator for `P`, a typed simulator realizing it up to
+`δS i`, and a second protocol family `P'` whose honest transcript is within `δP i` of `(P i)`'s
+yields `δP i + δS i` pointwise transcript closeness for `P'`. -/
+theorem SimulatorRealizedBy.closeTo_transcript_of_closeTo
+    {P P' : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    {R : ∀ i, X i → Y i → Prop}
+    {simulate : ∀ i, Y i → C i → PMF (T i × Z i)} {sim : Simulator I Y T C Z}
+    {δP δS : I → ℝ≥0∞}
+    (hS : ∀ i, (P i).SpecialHVZK (R i) (simulate i))
+    (hreal : SimulatorRealizedBy simulate sim δS)
+    {i : I} {x : X i} {y : Y i} (hxy : R i x y) {c : C i}
+    (htrans : CloseTo ((P i).transcript x y c) ((P' i).transcript x y c) (δP i)) :
+    CloseTo ((P' i).transcript x y c) (ProbComp.eval (sim i y c)) (δP i + δS i) :=
+  htrans.symm.trans (hreal.closeTo_transcript hS hxy c)
+
+/-- Replacing `P` by a protocol family `P'` whose honest transcripts are within `ε` on valid pairs
+over `(setup n).support` changes Experiment 0 of Attack Game 20.4 (`chvzkRealGame`) by at most `ε`
+in `Game.advantage`, against every adversary (including computationally unbounded ones). -/
+theorem advantage_chvzkRealGame_le_of_closeTo_transcript
+    {P P' : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
+    {R : ∀ i, X i → Y i → Prop}
+    {setup : ℕ → PMF I} {n : ℕ} {ε : ℝ≥0}
+    (htrans : ∀ i ∈ (setup n).support, ∀ x y, R i x y → ∀ c,
+      CloseTo ((P i).transcript x y c) ((P' i).transcript x y c) ε)
+    (A : CHVZKAdversary I X Y T C Z σ) :
+    Game.advantage (chvzkRealGame P' R setup A n) (chvzkRealGame P R setup A n) ≤ ε := by
+  refine Game.advantage_bind_le_of_support (setup n) _ _ fun i hi => ?_
+  refine advantage_chvzkExperiment_le (fun x y hxy => ?_) (A n i)
+  rw [(P' i).conversation_eq_bind_transcript, (P i).conversation_eq_bind_transcript]
+  exact CloseTo.bind_right _ fun c _ => ((htrans i hi x y hxy c).symm).bind_left _
+
+/-- Combining `advantage_chvzkRealGame_le_of_closeTo_transcript` and
+`SimulatorRealizedBy.advantage_chvzkGame_le` bounds Attack Game 20.4 distinguishing advantage for
+`P'` by `εP + εS` against every adversary (including computationally unbounded ones). -/
+theorem SimulatorRealizedBy.advantage_chvzkGame_le_of_closeTo_transcript
+    {P P' : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
+    {R : ∀ i, X i → Y i → Prop}
+    {setup : ℕ → PMF I}
+    {simulate : ∀ i, Y i → C i → PMF (T i × Z i)} {sim : Simulator I Y T C Z}
+    {δ : I → ℝ≥0∞} {n : ℕ} {εP εS : ℝ≥0}
+    (hS : ∀ i, (P i).SpecialHVZK (R i) (simulate i))
+    (hreal : SimulatorRealizedBy simulate sim δ)
+    (htrans : ∀ i ∈ (setup n).support, ∀ x y, R i x y → ∀ c,
+      CloseTo ((P i).transcript x y c) ((P' i).transcript x y c) εP)
+    (hδ : ∀ i ∈ (setup n).support, δ i ≤ εS)
+    (A : CHVZKAdversary I X Y T C Z σ) :
+    Game.advantage (chvzkRealGame P' R setup A n) (chvzkSimGame R setup sim A n) ≤ εP + εS :=
+  (Game.advantage_triangle _ _ _).trans
+    (add_le_add (advantage_chvzkRealGame_le_of_closeTo_transcript htrans A)
+      (hreal.advantage_chvzkGame_le hS hδ A))
+
+/-- `ComputationalSpecialHVZK` transfers from `P` to `P'` with the same simulator `sim` and
+acceptance error `δ` whenever `P'` accepts every conversation `P` accepts and their honest
+transcripts are within a negligible statistical distance along `setup` on valid pairs. -/
+theorem ComputationalSpecialHVZK.of_closeTo_transcript
+    {P P' : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
+    [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
+    {R : ∀ i, X i → Y i → Prop}
+    {enc : Encoding I Y T C Z} {encW : ∀ i, X i ↪ List Bool}
+    {setup : ℕ → PMF I} {sim : Simulator I Y T C Z} {δ : I → ℝ≥0∞}
+    (h : ComputationalSpecialHVZK P R enc encW setup sim δ)
+    (hacc : ∀ i y t c z, (P i).Accepts y t c z → (P' i).Accepts y t c z)
+    (hnegl : ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
+      ∀ n, ∀ i ∈ (setup n).support, ∀ x y, R i x y → ∀ c,
+        CloseTo ((P i).transcript x y c) ((P' i).transcript x y c) (ε n)) :
+    ComputationalSpecialHVZK P' R enc encW setup sim δ where
+  ppt := h.ppt
+  accepts i y c := (h.accepts i y c).trans
+    (MeasureTheory.measure_mono fun tz htz => hacc i y tz.1 c tz.2 htz)
+  indistinguishable encσ A hA := by
+    obtain ⟨ε, hε, hle⟩ := hnegl
+    refine negligible_of_le (hε.add (h.indistinguishable encσ A hA)) fun n => ?_
+    exact (Game.advantage_triangle _ _ _).trans
+      (add_le_add (advantage_chvzkRealGame_le_of_closeTo_transcript (hle n) A) le_rfl)
+
+/-- Honest transcripts of `andProof` add their component transcript distances (`δ₀ + δ₁`). -/
+theorem closeTo_andProof_transcript {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ C : Type}
+    {P₀ P₀' : SigmaProtocol X₀ Y₀ T₀ C Z₀} {P₁ P₁' : SigmaProtocol X₁ Y₁ T₁ C Z₁}
+    {x : X₀ × X₁} {y : Y₀ × Y₁} {c : C} {δ₀ δ₁ : ℝ≥0∞}
+    (h₀ : CloseTo (P₀.transcript x.1 y.1 c) (P₀'.transcript x.1 y.1 c) δ₀)
+    (h₁ : CloseTo (P₁.transcript x.2 y.2 c) (P₁'.transcript x.2 y.2 c) δ₁) :
+    CloseTo ((P₀.andProof P₁).transcript x y c) ((P₀'.andProof P₁').transcript x y c)
+      (δ₀ + δ₁) := by
+  rw [andProof_transcript, andProof_transcript]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  exact h₀.bind fun _ _ => h₁.bind_left _
+
+/-- Honest transcripts of `orProofWith` on any valid witness-statement pair (`orRelation R₀ R₁`)
+add the challenge-sampling error `δC`, the simulated-side error `δS`, and the witness-side honest
+transcript error `δP`. -/
+theorem closeTo_orProofWith_transcript {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ C : Type} [AddCommGroup C]
+    {sampleChallenge sampleChallenge' : PMF C}
+    {P₀ P₀' : SigmaProtocol X₀ Y₀ T₀ C Z₀} {P₁ P₁' : SigmaProtocol X₁ Y₁ T₁ C Z₁}
+    {R₀ : X₀ → Y₀ → Prop} {R₁ : X₁ → Y₁ → Prop}
+    {simulate₀ simulate₀' : Y₀ → C → PMF (T₀ × Z₀)}
+    {simulate₁ simulate₁' : Y₁ → C → PMF (T₁ × Z₁)}
+    {x : X₀ ⊕ X₁} {y : Y₀ × Y₁} (hxy : orRelation R₀ R₁ x y) (c : C) {δC δS δP : ℝ≥0∞}
+    (hc : CloseTo sampleChallenge sampleChallenge' δC)
+    (hs₀ : ∀ c₀, CloseTo (simulate₀ y.1 c₀) (simulate₀' y.1 c₀) δS)
+    (hs₁ : ∀ c₁, CloseTo (simulate₁ y.2 c₁) (simulate₁' y.2 c₁) δS)
+    (hp₀ : ∀ x₀, R₀ x₀ y.1 → ∀ c₀,
+      CloseTo (P₀.transcript x₀ y.1 c₀) (P₀'.transcript x₀ y.1 c₀) δP)
+    (hp₁ : ∀ x₁, R₁ x₁ y.2 → ∀ c₁,
+      CloseTo (P₁.transcript x₁ y.2 c₁) (P₁'.transcript x₁ y.2 c₁) δP) :
+    CloseTo ((orProofWith sampleChallenge P₀ P₁ simulate₀ simulate₁).transcript x y c)
+      ((orProofWith sampleChallenge' P₀' P₁' simulate₀' simulate₁').transcript x y c)
+      (δC + (δS + δP)) := by
+  rcases x with x₀ | x₁
+  · rw [orProofWith_transcript_inl, orProofWith_transcript_inl]
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    exact hc.bind fun c₁ _ => (hs₁ c₁).bind fun _ _ => (hp₀ x₀ hxy (c - c₁)).bind_left _
+  · rw [orProofWith_transcript_inr, orProofWith_transcript_inr]
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+    exact hc.bind fun c₀ _ => (hs₀ c₀).bind fun _ _ => (hp₁ x₁ hxy (c - c₀)).bind_left _
+
+/-- Honest transcripts of `k`-fold `parallelRepetition` multiply a uniform coordinate transcript
+distance `δ` by `k`. -/
+theorem closeTo_parallelRepetition_transcript {X Y T C Z : Type}
+    {P P' : SigmaProtocol X Y T C Z} {k : ℕ} {x : X} {y : Y} {c : Fin k → C} {δ : ℝ≥0∞}
+    (h : ∀ j, CloseTo (P.transcript x y (c j)) (P'.transcript x y (c j)) δ) :
+    CloseTo ((P.parallelRepetition k).transcript x y c)
+      ((P'.parallelRepetition k).transcript x y c) (k * δ) := by
+  rw [parallelRepetition_transcript, parallelRepetition_transcript]
+  exact (CloseTo.piFin h).map _
+
+end TranscriptTransfer
 
 /-- `1 / 2 ^ n` is bounded along any distribution paired with the security parameter by a
 negligible geometric sequence. -/

@@ -7,7 +7,7 @@ Authors: Renfei Zhou, Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Karger.Graph
@@ -117,7 +117,8 @@ private theorem hr24 : 16 ≤ 24 := by decide
 
 /-- Under `2 ≤ n` and `logWidth 4 n ≤ w`, stack workspace end-addresses up to `2 + 27 * (n * n)` fit
 in `w`-bit words. -/
-theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
+private theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n)
+    (hw : logWidth 4 n ≤ w) :
     Fits w (2 + 27 * (n * n)) := by
   by_cases hn5 : 5 ≤ n
   · refine (fits_of_lt_pow (k := 4) (n := n) ?_).mono hw
@@ -132,7 +133,7 @@ theorem fits_fastCutWorkspace_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : 
 
 /-- Under `2 ≤ n` and `logWidth 4 n ≤ w`, `fastCutTrials n = (Nat.log 2 n + 15) * (Nat.log 2 n + 2)`
 fits in `w`-bit words. -/
-theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
+private theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     Fits w (fastCutTrials n) := by
   by_cases hn4 : 4 ≤ n
   · refine (fits_of_lt_pow (k := 4) (n := n) ?_).mono hw
@@ -155,7 +156,7 @@ theorem fits_fastCutTrials_of_logWidth_four {n w : ℕ} (hn : 2 ≤ n) (hw : log
 
 /-- `logWidth 4 n ≤ w` and `Fits w (totalDoubledWeight W)` suffice for
 `InputFits w (n :: flattenMatrix W)`. -/
-theorem inputFits_fastCut {n w : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 ≤ n)
+private theorem inputFits_fastCut {n w : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 ≤ n)
     (hw : logWidth 4 n ≤ w) (htot : Fits w (totalDoubledWeight W)) :
     InputFits w (n :: flattenMatrix W) :=
   inputFits_cons_flattenMatrix (fits_fastCutWorkspace_of_logWidth_four hn hw) (by omega)
@@ -218,6 +219,14 @@ abbrev bestVal : Fin 24 := 23
 
 end KSReg
 
+/-- Caller-register preservation (`j ≥ 16`) for any routine preserving registers `16..23`. -/
+private theorem caller_regs_eq {w T : ℕ} {c : Code .standard 24} {x y : Data 24}
+    (he : ExecWithin w c x y T)
+    (hc : ∀ k : Fin 8, c.Preserves ⟨16 + k.val, by omega⟩) :
+    ∀ j : Fin 24, 16 ≤ j.val → y.regs j = x.regs j := fun j hj => by
+  have hj' : j = ⟨16 + (j.val - 16), by omega⟩ := Fin.ext (by dsimp; omega)
+  exact hj' ▸ he.regs_eq (hc ⟨j.val - 16, by omega⟩)
+
 section Subroutines
 
 open KSReg
@@ -229,7 +238,7 @@ open KSReg
 def ksCopyRegMap : Fin 7 → Fin 24 :=
   ![uReg, wBase, rem, idx, addr1, val1, one]
 
-theorem ksCopyRegMap_injective : Function.Injective ksCopyRegMap := by
+private theorem ksCopyRegMap_injective : Function.Injective ksCopyRegMap := by
   decide
 
 /-- Copy `rem` words from `uReg` to `wBase` via `Cslib.WordRAM.ArrayCopy.program`. -/
@@ -246,7 +255,7 @@ theorem holdsMatrix_of_copyPrefix {mem : ℕ → ℕ} {sb db k : ℕ} {W : Fin k
   rw [haddr_d, ArrayCopy.copyPrefix_read hlt, haddr_s]
   exact hsrc i j
 
-theorem ksCopyCode_exec {w sb db k : ℕ} {W : Fin k → Fin k → ℕ} {x : Data 24}
+private theorem ksCopyCode_exec {w sb db k : ℕ} {W : Fin k → Fin k → ℕ} {x : Data 24}
     (hsb : x.regs uReg = sb) (hdb : x.regs wBase = db) (hlen : x.regs rem = k * k)
     (hdisj : sb + k * k ≤ db) (h1 : Fits w 1) (hdEnd : Fits w (db + k * k))
     (hsrc : HoldsMatrix x.mem sb k W) :
@@ -263,45 +272,28 @@ theorem ksCopyCode_exec {w sb db k : ℕ} {W : Fin k → Fin k → ℕ} {x : Dat
   have hs_fit : Fits w ((x.comap ksCopyRegMap).regs ArrayCopy.src +
       (x.comap ksCopyRegMap).regs ArrayCopy.len) := by
     change Fits w (x.regs uReg + x.regs rem)
-    rw [hsb, hlen]
-    exact hdEnd.of_le (by omega)
+    simpa [hsb, hlen] using hdEnd.of_le (by omega)
   have hd_fit : Fits w ((x.comap ksCopyRegMap).regs ArrayCopy.dst +
       (x.comap ksCopyRegMap).regs ArrayCopy.len) := by
     change Fits w (x.regs wBase + x.regs rem)
-    rw [hdb, hlen]
-    exact hdEnd
+    simpa [hdb, hlen] using hdEnd
   have hdisj' : (x.comap ksCopyRegMap).regs ArrayCopy.src +
       (x.comap ksCopyRegMap).regs ArrayCopy.len ≤ (x.comap ksCopyRegMap).regs ArrayCopy.dst := by
     change x.regs uReg + x.regs rem ≤ x.regs wBase
-    rw [hsb, hlen, hdb]
-    exact hdisj
-  obtain ⟨y, hy₀_exec, ⟨hy₀_mem, _, _, _⟩, -⟩ := ExecWithin.rename_post ksCopyRegMap_injective
-    (ArrayCopy.exec (x.comap ksCopyRegMap) h1 hs_fit hd_fit hdisj')
-  have hsrc_c : (x.comap ksCopyRegMap).regs ArrayCopy.src = sb := hsb
-  have hdst_c : (x.comap ksCopyRegMap).regs ArrayCopy.dst = db := hdb
-  have hlen_c : (x.comap ksCopyRegMap).regs ArrayCopy.len = k * k := hlen
-  rw [hlen_c] at hy₀_exec
-  rw [hsrc_c, hdst_c, hlen_c] at hy₀_mem
-  have hex : ExecWithin w ksCopyCode x y (7 * (k * k) + 4) := hy₀_exec
-  have hym : y.mem = ArrayCopy.copyPrefix x.mem sb db (k * k) := hy₀_mem
-  have ⟨_, _, he⟩ := hex
-  have hpres : ∀ j : Fin 24, ksCopyCode.Preserves j → y.regs j = x.regs j :=
-    fun j hj => he.regs_eq hj
-  refine ⟨y, hex, hym ▸ holdsMatrix_of_copyPrefix hsrc, ?_,
-    hpres zero (by decide), hpres wBase (by decide) ▸ hdb,
-    hpres dBase (by decide), hpres stride (by decide),
-    hpres activeK (by decide), hpres targetT (by decide),
-    fun j hj => ?_⟩
-  · intro a ha
-    rw [hym]
-    apply ArrayCopy.copyPrefix_outside
-    rw [Finset.mem_Ico] at ha
-    exact ha
-  · have : j = srcBase ∨ j = nOrig ∨ j = fpReg ∨ j = spReg ∨
-        j = retVal ∨ j = numTrials ∨ j = trialIdx ∨ j = bestVal := by
-      fin_cases j <;> simp_all
-    rcases this with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-      exact hpres _ (by decide)
+    simpa [hsb, hlen, hdb] using hdisj
+  obtain ⟨y, hy_exec, ⟨hy_mem, _, hy_dst, _⟩, _⟩ :=
+    ExecWithin.rename_post ksCopyRegMap_injective
+      (ArrayCopy.exec (x.comap ksCopyRegMap) h1 hs_fit hd_fit hdisj')
+  simp only [Data.comap_regs, Data.comap_mem,
+    show ksCopyRegMap ArrayCopy.src = uReg from rfl,
+    show ksCopyRegMap ArrayCopy.dst = wBase from rfl,
+    show ksCopyRegMap ArrayCopy.len = rem from rfl,
+    hsb, hdb, hlen] at hy_exec hy_mem hy_dst
+  exact ⟨y, hy_exec, hy_mem ▸ holdsMatrix_of_copyPrefix hsrc,
+    fun a ha => hy_mem ▸ ArrayCopy.copyPrefix_outside (by rwa [Finset.mem_Ico] at ha),
+    hy_exec.regs_eq (by decide), hy_dst, hy_exec.regs_eq (by decide),
+    hy_exec.regs_eq (by decide), hy_exec.regs_eq (by decide), hy_exec.regs_eq (by decide),
+    caller_regs_eq hy_exec (by decide)⟩
 
 /-- Loop body of `thresholdCode`: advance `t` to `t + 1` while maintaining `uReg = t`
 (`= (t + 1) - 1`) and `val1 = 2 * (t + 1) * t` without subtraction. -/
@@ -330,7 +322,7 @@ def thresholdCode : Code .standard 24 := ram[
   while val1 < rem do [ ⟪thresholdLoopBody⟫ ]
 ]
 
-theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
+private theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
     (hactiveK : x.regs activeK = k) (hfit : Fits w (2 * k * (k - 1))) :
     ∃ y : Data 24, ExecWithin w thresholdCode x y (6 * k + 9) ∧
       y.mem = x.mem ∧
@@ -341,16 +333,10 @@ theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
       y.regs dBase = x.regs dBase ∧
       y.regs stride = x.regs stride ∧
       (∀ j : Fin 24, 16 ≤ j.val → y.regs j = x.regs j) := by
-  have hk42 : 42 ≤ k * (k - 1) := by
+  have hk84 : 84 ≤ 2 * k * (k - 1) := by
     obtain ⟨c, rfl⟩ : ∃ c, k = c + 7 := ⟨k - 7, by omega⟩
     have : c + 7 - 1 = c + 6 := by omega
     rw [this]; nlinarith
-  have h2k : 2 * (k * (k - 1)) = 2 * k * (k - 1) := by ring
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h2 : Fits w 2 := hfit.of_le (by omega)
-  have h4 : Fits w 4 := hfit.of_le (by omega)
-  have hkm1_fit : Fits w (k - 1) := hfit.of_le (by nlinarith)
-  have hkkm1_fit : Fits w (k * (k - 1)) := hfit.of_le (by omega)
   let t_star := fastCutThreshold k
   have ht_ge2 : 2 ≤ t_star := fastCutThreshold_ge_two (by omega)
   have ht_le_pred : t_star ≤ k - 1 := fastCutThreshold_le_pred (by omega)
@@ -369,127 +355,45 @@ theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
       ∃ z, ExecWithin w thresholdLoopBody y z 4 ∧ I z ∧
         t_star - z.regs targetT < t_star - y.regs targetT := by
     intro y ⟨hym, hy1, hyk, hyrem, hyv2, hyt_ge, hyt_le, _, hyv1⟩ hc
-    let t := y.regs targetT
-    have hlt_prod : 2 * t * (t - 1) < k * (k - 1) := by
+    have hlt_prod : 2 * y.regs targetT * (y.regs targetT - 1) < k * (k - 1) := by
       simpa [Cond.holds_lt, hyv1, hyrem] using hc
-    have ht_lt_star : t < t_star := by
+    have ht_lt_star : y.regs targetT < t_star := by
       by_contra hge
-      have heq : t = t_star := by omega
-      rw [heq] at hlt_prod
-      exact absurd ht_spec (not_le_of_gt hlt_prod)
-    have ht1_le : t + 1 ≤ k - 1 := by omega
-    have hfit_tp1 : Fits w (t + 1) := hfit.of_le (by nlinarith)
-    have hfit_2tp1 : Fits w (2 * (t + 1)) := hfit.of_le (by nlinarith)
-    have hfit_prod : Fits w (2 * (t + 1) * t) := hfit.of_le (by
-      have hmul : (t + 1) * t ≤ k * (k - 1) := Nat.mul_le_mul (by omega) (by omega)
+      exact absurd ht_spec (not_le_of_gt
+        (by rwa [show y.regs targetT = t_star by omega] at hlt_prod))
+    have hfit_tp1 : Fits w (y.regs targetT + 1) := hfit.of_le (by nlinarith)
+    have hfit_2tp1 : Fits w (2 * (y.regs targetT + 1)) := hfit.of_le (by nlinarith)
+    have hfit_prod : Fits w (2 * (y.regs targetT + 1) * y.regs targetT) := hfit.of_le (by
+      have := Nat.mul_le_mul (by omega : y.regs targetT + 1 ≤ k) (by omega : y.regs targetT ≤ k - 1)
       nlinarith)
-    let b₁ := y.set uReg t
-    let b₂ := b₁.set targetT (t + 1)
-    let b₃ := b₂.set val1 (2 * (t + 1))
-    let b₄ := b₃.set val1 (2 * (t + 1) * t)
-    have e1 : ExecWithin (B := .standard) w ram[uReg ← targetT] y b₁ 1 :=
-      (Exec.copy (B := .standard) (w := w) (d := uReg) (s := targetT) (x := y)).within
-    have e2 : ExecWithin w ram[targetT ← targetT + one] b₁ b₂ 1 := by
-      have ht' : b₁.regs targetT = t := by simp +decide [b₁, t]
-      have h1' : b₁.regs one = 1 := by simpa +decide [b₁, Function.update_apply] using hy1
-      simpa [b₂, BinOp.eval, ht', h1'] using
-        ExecWithin.bin (f := .add) (d := targetT) (i := targetT) (j := one) (x := b₁)
-          (by simpa [BinOp.eval, ht', h1'] using hfit_tp1)
-    have e3 : ExecWithin w ram[val1 ← val2 * targetT] b₂ b₃ 1 := by
-      have hv2' : b₂.regs val2 = 2 := by simpa +decide [b₂, b₁, Function.update_apply] using hyv2
-      have ht' : b₂.regs targetT = t + 1 := by simp [b₂]
-      simpa [b₃, BinOp.eval, hv2', ht'] using
-        ExecWithin.bin (f := .mul) (d := val1) (i := val2) (j := targetT) (x := b₂)
-          (by simpa [BinOp.eval, hv2', ht'] using hfit_2tp1)
-    have e4 : ExecWithin w ram[val1 ← val1 * uReg] b₃ b₄ 1 := by
-      have hv1' : b₃.regs val1 = 2 * (t + 1) := by simp [b₃]
-      have hu' : b₃.regs uReg = t := by simp +decide [b₃, b₂, b₁]
-      simpa [b₄, BinOp.eval, hv1', hu'] using
-        ExecWithin.bin (f := .mul) (d := val1) (i := val1) (j := uReg) (x := b₃)
-          (by simpa [BinOp.eval, hv1', hu'] using hfit_prod)
-    have hrun : ExecWithin w thresholdLoopBody y b₄ 4 := by
-      unfold thresholdLoopBody
-      exact (e1.seq (e2.seq (e3.seq e4))).mono (by omega)
-    have hb4_t : b₄.regs targetT = t + 1 := by simp +decide [b₄, b₃, b₂]
-    refine ⟨b₄, hrun, ?_, ?_⟩
-    · refine ⟨hym, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [b₄, b₃, b₂, b₁, Function.update_apply] using hy1
-      · simpa +decide [b₄, b₃, b₂, b₁, Function.update_apply] using hyk
-      · simpa +decide [b₄, b₃, b₂, b₁, Function.update_apply] using hyrem
-      · simpa +decide [b₄, b₃, b₂, b₁, Function.update_apply] using hyv2
-      · rw [hb4_t]; omega
-      · rw [hb4_t]; exact ht_lt_star
-      · rw [hb4_t]; simp +decide [b₄, b₃, b₂, b₁]
-      · rw [hb4_t]; simp +decide [b₄, b₃]
-    · rw [hb4_t]; omega
-  let p₁ := x.set one 1
-  let p₂ := p₁.set rem (k - 1)
-  let p₃ := p₂.set rem (k * (k - 1))
-  let p₄ := p₃.set targetT 2
-  let p₅ := p₄.set uReg 1
-  let p₆ := p₅.set val2 2
-  let x₀ := p₆.set val1 4
-  have hex_pre : ExecWithin w thresholdPre x x₀ 7 := by
-    have s1 : ExecWithin (B := .standard) w ram[one ← #1] x p₁ 1 := ExecWithin.const h1
-    have s2 : ExecWithin w ram[rem ← activeK - one] p₁ p₂ 1 := by
-      have hk' : p₁.regs activeK = k := by simpa +decide [p₁, Function.update_apply] using hactiveK
-      have h1' : p₁.regs one = 1 := by simp [p₁]
-      simpa [p₂, BinOp.eval, hk', h1'] using
-        ExecWithin.bin (f := .sub) (d := rem) (i := activeK) (j := one) (x := p₁)
-          (by simpa [BinOp.eval, hk', h1'] using hkm1_fit)
-    have s3 : ExecWithin w ram[rem ← activeK * rem] p₂ p₃ 1 := by
-      have hk' : p₂.regs activeK = k := by
-        simpa +decide [p₂, p₁, Function.update_apply] using hactiveK
-      have hr' : p₂.regs rem = k - 1 := by simp [p₂]
-      simpa [p₃, BinOp.eval, hk', hr'] using
-        ExecWithin.bin (f := .mul) (d := rem) (i := activeK) (j := rem) (x := p₂)
-          (by simpa [BinOp.eval, hk', hr'] using hkkm1_fit)
-    have s4 : ExecWithin (B := .standard) w ram[targetT ← #2] p₃ p₄ 1 := ExecWithin.const h2
-    have s5 : ExecWithin (B := .standard) w ram[uReg ← #1] p₄ p₅ 1 := ExecWithin.const h1
-    have s6 : ExecWithin (B := .standard) w ram[val2 ← #2] p₅ p₆ 1 := ExecWithin.const h2
-    have s7 : ExecWithin (B := .standard) w ram[val1 ← #4] p₆ x₀ 1 := ExecWithin.const h4
+    unfold thresholdLoopBody
+    wram_exec [hy1, hyv2]
+    exact ⟨⟨hym, by wram_simp [hy1], by wram_simp [hyk], by wram_simp [hyrem],
+      by wram_simp [hyv2], by wram_simp; omega, by wram_simp; exact ht_lt_star,
+      by wram_simp, by wram_simp⟩, by wram_simp; omega⟩
+  obtain ⟨x₀, hex_pre, hx₀, hx₀_t⟩ : ∃ x₀, ExecWithin w thresholdPre x x₀ 7 ∧
+      I x₀ ∧ x₀.regs targetT = 2 := by
+    have : Fits w 4 := hfit.of_le (by omega)
+    have : Fits w (k - 1) := hfit.of_le (by nlinarith)
+    have : Fits w (k * (k - 1)) := hfit.of_le (by nlinarith)
     unfold thresholdPre
-    exact (s1.seq (s2.seq (s3.seq (s4.seq (s5.seq (s6.seq s7)))))).mono (by omega)
-  have hx₀_t : x₀.regs targetT = 2 := by simp +decide [x₀, p₆, p₅, p₄]
-  have hx₀ : I x₀ := by
-    refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp +decide [x₀, p₆, p₅, p₄, p₃, p₂, p₁]
-    · simpa +decide [x₀, p₆, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using hactiveK
-    · simp +decide [x₀, p₆, p₅, p₄, p₃]
-    · simp +decide [x₀, p₆]
-    · rw [hx₀_t]
-    · rw [hx₀_t]; exact ht_ge2
-    · rw [hx₀_t]; simp +decide [x₀, p₆, p₅]
-    · rw [hx₀_t]; simp +decide [x₀]
+    wram_exec [hactiveK]
+    exact ⟨⟨rfl, by wram_simp, by wram_simp [hactiveK], by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp; exact ht_ge2, by wram_simp, by wram_simp⟩, by wram_simp⟩
   obtain ⟨y, hex_loop, hy, hc_exit⟩ :=
     ExecWithin.loop_invariant I (fun z => t_star - z.regs targetT) hbody hx₀
   rcases hy with ⟨hym, hy1, hyk, hyrem, _, hyt_ge, hyt_le, _, hyv1⟩
   have hyt_eq : y.regs targetT = t_star := by
     apply le_antisymm hyt_le
     by_contra hlt'
-    have hlt : y.regs targetT < t_star := Nat.lt_of_not_ge hlt'
-    have hmin := fastCutThreshold_lt_of_lt (by omega : 4 ≤ k) hyt_ge hlt
-    have hge_exit : k * (k - 1) ≤ 2 * y.regs targetT * (y.regs targetT - 1) := by
-      simp only [Cond.holds_lt, hyv1, hyrem, not_lt] at hc_exit
-      exact hc_exit
+    have hmin := fastCutThreshold_lt_of_lt (by omega : 4 ≤ k) hyt_ge (Nat.lt_of_not_ge hlt')
+    simp only [Cond.holds_lt, hyv1, hyrem, not_lt] at hc_exit
     omega
-  have htot_exec : ExecWithin w thresholdCode x y (6 * k + 9) := by
-    have hseq : ExecWithin w thresholdCode x y
-        (7 + ((t_star - x₀.regs targetT) * (4 + 2) + 2)) := hex_pre.seq hex_loop
-    refine hseq.mono ?_
-    rw [hx₀_t]
-    omega
-  have ⟨_, _, he⟩ := htot_exec
-  have hpres : ∀ j : Fin 24, thresholdCode.Preserves j → y.regs j = x.regs j :=
-    fun j hj => he.regs_eq hj
-  refine ⟨y, htot_exec, hym, hy1, hyk, hyt_eq,
-    hpres wBase (by decide), hpres dBase (by decide), hpres stride (by decide),
-    fun j hj => ?_⟩
-  have : j = srcBase ∨ j = nOrig ∨ j = fpReg ∨ j = spReg ∨
-      j = retVal ∨ j = numTrials ∨ j = trialIdx ∨ j = bestVal := by
-    fin_cases j <;> simp_all
-  rcases this with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    exact hpres _ (by decide)
+  have htot_exec : ExecWithin w thresholdCode x y (6 * k + 9) :=
+    (hex_pre.seq hex_loop).mono (by rw [hx₀_t]; omega)
+  exact ⟨y, htot_exec, hym, hy1, hyk, hyt_eq,
+    htot_exec.regs_eq (by decide), htot_exec.regs_eq (by decide), htot_exec.regs_eq (by decide),
+    caller_regs_eq htot_exec (by decide)⟩
 
 /-- Inner column loop body of `copySubmatrixCode`: copy `mem[idx + vReg]` to `mem[rem + vReg]`. -/
 def copySubColBody : Code .standard 24 := ram[
@@ -529,7 +433,8 @@ def copySubmatrixCode : Code .standard 24 := ram[
   while uReg < targetT do [ ⟪copySubRowBody⟫ ]
 ]
 
-theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t → ℕ} {x : Data 24}
+private theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t → ℕ}
+    {x : Data 24}
     (hwBase : x.regs wBase = wb) (hstride : x.regs stride = str)
     (htargetT : x.regs targetT = t) (hdst : x.regs addr2 = dstBase) (hone : x.regs one = 1)
     (hstr : t ≤ str) (hdisj : wb + str * t ≤ dstBase)
@@ -546,12 +451,11 @@ theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t �
       y.regs targetT = t ∧
       y.regs addr2 = dstBase ∧
       (∀ j : Fin 24, 16 ≤ j.val → y.regs j = x.regs j) := by
+  let Frame (q : Data 24) : Prop :=
+    q.regs one = 1 ∧ q.regs wBase = wb ∧ q.regs stride = str ∧
+      q.regs targetT = t ∧ q.regs addr2 = dstBase
   let OuterI (y : Data 24) : Prop :=
-    y.regs one = 1 ∧
-    y.regs wBase = wb ∧
-    y.regs stride = str ∧
-    y.regs targetT = t ∧
-    y.regs addr2 = dstBase ∧
+    Frame y ∧
     y.regs uReg ≤ t ∧
     y.regs idx = wb + y.regs uReg * str ∧
     y.regs rem = dstBase + y.regs uReg * t ∧
@@ -560,15 +464,11 @@ theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t �
   have houter_body : ∀ y, OuterI y → (Cond.lt uReg targetT).Holds y →
       ∃ z, ExecWithin w copySubRowBody y z (7 * t + 6) ∧ OuterI z ∧
         t - z.regs uReg < t - y.regs uReg := by
-    intro y ⟨hy1, hywb, hystr, hyt, hydst, hyu_le, hyidx, hyrem, hymod, hydone⟩ hc
-    have hu_lt : y.regs uReg < t := by simpa [Cond.holds_lt, hyt] using hc
+    intro y ⟨hyf, hyu_le, hyidx, hyrem, hymod, hydone⟩ hc
+    have hu_lt : y.regs uReg < t := by simpa [Cond.holds_lt, hyf.2.2.2.1] using hc
     let u : Fin t := ⟨y.regs uReg, hu_lt⟩
     let InnerI (q : Data 24) : Prop :=
-      q.regs one = 1 ∧
-      q.regs wBase = wb ∧
-      q.regs stride = str ∧
-      q.regs targetT = t ∧
-      q.regs addr2 = dstBase ∧
+      Frame q ∧
       q.regs uReg = u.val ∧
       q.regs idx = wb + u.val * str ∧
       q.regs rem = dstBase + u.val * t ∧
@@ -579,251 +479,103 @@ theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t �
     have hcol_body : ∀ q, InnerI q → (Cond.lt vReg targetT).Holds q →
         ∃ q', ExecWithin w copySubColBody q q' 5 ∧ InnerI q' ∧
           t - q'.regs vReg < t - q.regs vReg := by
-      intro q ⟨hq1, hqwb, hqstr, hqt, hqdst, hqu, hqidx, hqrem, hqv_le, hqmod, hqdone⟩ hcv
-      have hv_lt : q.regs vReg < t := by simpa [Cond.holds_lt, hqt] using hcv
+      intro q ⟨hqf, hqu, hqidx, hqrem, hqv_le, hqmod, hqdone⟩ hcv
+      have hv_lt : q.regs vReg < t := by simpa [Cond.holds_lt, hqf.2.2.2.1] using hcv
       let v : Fin t := ⟨q.regs vReg, hv_lt⟩
       have hsrc_lt : wb + u.val * str + v.val < wb + str * t := matAddr_lt_end hstr u v
       have hdst_lt : dstBase + u.val * t + v.val < dstBase + t * t :=
         matAddr_lt_end (le_refl t) u v
-      have hv_eq : q.regs vReg = v.val := rfl
-      have hfit_src : Fits w (wb + u.val * str + v.val) := hwEnd.of_le (by omega)
-      have hfit_dst : Fits w (dstBase + u.val * t + v.val) := hdstEnd.of_le (by omega)
-      have hfit_vp1 : Fits w (v.val + 1) := hdstEnd.of_le (by
-        have : t ≤ t * t := Nat.le_mul_self t
-        omega)
+      have : Fits w (wb + u.val * str + v.val) := hwEnd.of_le (by omega)
+      have : Fits w (dstBase + u.val * t + v.val) := hdstEnd.of_le (by omega)
+      have : Fits w (v.val + 1) := hdstEnd.of_le (by have := Nat.le_mul_self t; omega)
       have hread_src : q.mem (wb + u.val * str + v.val) = W u v := by
         rw [hqmod _ (by rw [Finset.mem_Ico]; omega)]
         exact hmat u v
-      let c₁ := q.set addr1 (wb + u.val * str + v.val)
-      let c₂ := c₁.set val1 (W u v)
-      let c₃ := c₂.set addr1 (dstBase + u.val * t + v.val)
-      let c₄ := c₃.write (dstBase + u.val * t + v.val) (W u v)
-      let q' := c₄.set vReg (v.val + 1)
-      have e1 : ExecWithin w ram[addr1 ← idx + vReg] q c₁ 1 := by
-        simpa [c₁, BinOp.eval, hqidx, hv_eq] using
-          ExecWithin.bin (f := .add) (d := addr1) (i := idx) (j := vReg) (x := q)
-            (by simpa [BinOp.eval, hqidx, hv_eq] using hfit_src)
-      have e2 : ExecWithin (B := .standard) w ram[val1 ← *addr1] c₁ c₂ 1 := by
-        have ha1 : c₁.regs addr1 = wb + u.val * str + v.val := by simp [c₁]
-        have hm1 : c₁.mem (wb + u.val * str + v.val) = W u v := hread_src
-        simpa [c₂, ha1, hm1] using
-          ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr1) (x := c₁)
-      have e3 : ExecWithin w ram[addr1 ← rem + vReg] c₂ c₃ 1 := by
-        have hrem' : c₂.regs rem = dstBase + u.val * t := by
-          simpa +decide [c₂, c₁, Function.update_apply] using hqrem
-        have hv' : c₂.regs vReg = v.val := by simp +decide [c₂, c₁, hv_eq]
-        simpa [c₃, BinOp.eval, hrem', hv'] using
-          ExecWithin.bin (f := .add) (d := addr1) (i := rem) (j := vReg) (x := c₂)
-            (by simpa [BinOp.eval, hrem', hv'] using hfit_dst)
-      have e4 : ExecWithin (B := .standard) w ram[*addr1 ← val1] c₃ c₄ 1 := by
-        have ha1 : c₃.regs addr1 = dstBase + u.val * t + v.val := by simp [c₃]
-        have hv1 : c₃.regs val1 = W u v := by simp +decide [c₃, c₂]
-        simpa [c₄, ha1, hv1] using
-          ExecWithin.store (B := .standard) (w := w) (a := addr1) (s := val1) (x := c₃)
-      have e5 : ExecWithin w ram[vReg ← vReg + one] c₄ q' 1 := by
-        have hv' : c₄.regs vReg = v.val := by simp +decide [c₄, c₃, c₂, c₁, hv_eq]
-        have h1' : c₄.regs one = 1 := by
-          simpa +decide [c₄, c₃, c₂, c₁, Function.update_apply] using hq1
-        simpa [q', BinOp.eval, hv', h1'] using
-          ExecWithin.bin (f := .add) (d := vReg) (i := vReg) (j := one) (x := c₄)
-            (by simpa [BinOp.eval, hv', h1'] using hfit_vp1)
-      have hrun : ExecWithin w copySubColBody q q' 5 := by
-        unfold copySubColBody
-        exact (e1.seq (e2.seq (e3.seq (e4.seq e5)))).mono (by omega)
-      have hq'_v : q'.regs vReg = v.val + 1 := by simp [q']
-      have hq'_mem : q'.mem = Function.update q.mem (dstBase + u.val * t + v.val) (W u v) := rfl
-      refine ⟨q', hrun, ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hq1
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqwb
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqstr
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqt
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqdst
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqu
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqidx
-        · simpa +decide [q', c₄, c₃, c₂, c₁, Function.update_apply] using hqrem
-        · rw [hq'_v]; exact hv_lt
-        · rw [hq'_mem]
-          exact modifies_trans_subset hqmod
-            (modifies_update_of_mem (matAddr_mem_Ico (le_refl t) u v) q.mem _)
-            Finset.Subset.rfl Finset.Subset.rfl
-        · intro i j hij
-          rw [hq'_v] at hij
-          rw [hq'_mem]
-          by_cases huv : i = u ∧ j = v
-          · rcases huv with ⟨rfl, rfl⟩
-            exact Function.update_self _ _ _
-          · have hne : dstBase + i.val * t + j.val ≠ dstBase + u.val * t + v.val := by
-              intro heq
-              exact huv (matAddr_inj (le_refl t) heq)
-            rw [Function.update_of_ne hne]
-            apply hqdone i j
-            rcases hij with hlt_u | ⟨rfl, hlt_vp1⟩
-            · exact Or.inl hlt_u
-            · refine Or.inr ⟨rfl, ?_⟩
-              have hjv : j.val ≠ v.val := fun h => huv ⟨rfl, Fin.ext h⟩
-              omega
-      · rw [hq'_v, hv_eq]
-        omega
+      have hv_eq : q.regs vReg = v.val := rfl
+      unfold copySubColBody
+      wram_exec [hqf.1, hqidx, hqrem, hv_eq, hread_src]
+      refine ⟨⟨⟨by wram_simp [hqf.1], by wram_simp [hqf.2.1], by wram_simp [hqf.2.2.1],
+        by wram_simp [hqf.2.2.2.1], by wram_simp [hqf.2.2.2.2]⟩,
+        by wram_simp [hqu], by wram_simp [hqidx], by wram_simp [hqrem],
+        by wram_simp; exact hv_lt,
+        modifies_trans_subset hqmod
+          (modifies_update_of_mem (matAddr_mem_Ico (le_refl t) u v) q.mem _)
+          Finset.Subset.rfl Finset.Subset.rfl,
+        fun i j hij => ?_⟩, by wram_simp [hv_eq]; omega⟩
+      simp only [Data.set_regs_self] at hij
+      change Function.update q.mem (dstBase + u.val * t + v.val) (W u v) _ = W i j
+      by_cases huv : i = u ∧ j = v
+      · rcases huv with ⟨rfl, rfl⟩
+        exact Function.update_self _ _ _
+      · rw [Function.update_of_ne (fun heq => huv (matAddr_inj (le_refl t) heq))]
+        apply hqdone i j
+        rcases hij with hlt_u | ⟨rfl, hlt_vp1⟩
+        · exact Or.inl hlt_u
+        · exact Or.inr ⟨rfl, Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hlt_vp1)
+            fun h => huv ⟨rfl, Fin.ext h⟩⟩
     let q₀ := y.set vReg 0
     have hq₀_exec : ExecWithin (B := .standard) w ram[vReg ← #0] y q₀ 1 :=
       ExecWithin.const (fits_zero w)
-    have hq₀_inv : InnerI q₀ := by
-      refine ⟨by simpa +decide [q₀, Function.update_apply] using hy1,
-        by simpa +decide [q₀, Function.update_apply] using hywb,
-        by simpa +decide [q₀, Function.update_apply] using hystr,
-        by simpa +decide [q₀, Function.update_apply] using hyt,
-        by simpa +decide [q₀, Function.update_apply] using hydst,
-        by simp +decide [q₀, u],
-        by simpa +decide [q₀, Function.update_apply, u] using hyidx,
-        by simpa +decide [q₀, Function.update_apply, u] using hyrem,
-        by simp +decide [q₀],
-        hymod,
-        fun i j hij => ?_⟩
-      have hqv0 : q₀.regs vReg = 0 := by simp [q₀]
-      rw [hqv0] at hij
-      rcases hij with hlt_u | ⟨_, hlt0⟩
-      · exact hydone i j hlt_u
-      · omega
-    obtain ⟨q₁, hex_inner, hq₁, hc_inner_exit⟩ :=
+    have hq₀_inv : InnerI q₀ :=
+      ⟨⟨by wram_simp [q₀, hyf.1], by wram_simp [q₀, hyf.2.1], by wram_simp [q₀, hyf.2.2.1],
+        by wram_simp [q₀, hyf.2.2.2.1], by wram_simp [q₀, hyf.2.2.2.2]⟩,
+        by wram_simp [q₀, u], by wram_simp [q₀, u, hyidx], by wram_simp [q₀, u, hyrem],
+        by wram_simp [q₀]; omega, hymod,
+        fun i j hij => by
+          rcases hij with hlt_u | ⟨_, hlt0⟩
+          · exact hydone i j hlt_u
+          · simp [q₀] at hlt0⟩
+    obtain ⟨q₁, hex_inner, ⟨hqf, hqu, hqidx, hqrem, hqv_le, hqmod, hqdone⟩, hc_inner_exit⟩ :=
       ExecWithin.loop_invariant InnerI (fun q => t - q.regs vReg) hcol_body hq₀_inv
-    rcases hq₁ with ⟨hq1, hqwb, hqstr, hqt, hqdst, hqu, hqidx, hqrem, hqv_le, hqmod, hqdone⟩
     have hqv_eq : q₁.regs vReg = t := by
-      simp only [Cond.holds_lt, hqt, not_lt] at hc_inner_exit
+      simp only [Cond.holds_lt, hqf.2.2.2.1, not_lt] at hc_inner_exit
       omega
-    have hfit_idx_next : Fits w (wb + u.val * str + str) :=
-      hwEnd.of_le (by
-        have hle : u.val * str + str ≤ str * t := by
-          calc
-            u.val * str + str = (u.val + 1) * str := by ring
+    obtain ⟨z, hex_post, hz_inv, hz_dec⟩ : ∃ z, ExecWithin w copySubRowPost q₁ z 3 ∧
+        OuterI z ∧ t - z.regs uReg < t - y.regs uReg := by
+      have : Fits w (wb + u.val * str + str) := hwEnd.of_le (by
+        have : u.val * str + str ≤ str * t := by
+          calc u.val * str + str = (u.val + 1) * str := by ring
             _ ≤ t * str := Nat.mul_le_mul_right str u.isLt
             _ = str * t := Nat.mul_comm t str
         omega)
-    have hfit_rem_next : Fits w (dstBase + u.val * t + t) :=
-      hdstEnd.of_le (by
-        have hle : u.val * t + t ≤ t * t := by
-          calc
-            u.val * t + t = (u.val + 1) * t := by ring
+      have : Fits w (dstBase + u.val * t + t) := hdstEnd.of_le (by
+        have : u.val * t + t ≤ t * t := by
+          calc u.val * t + t = (u.val + 1) * t := by ring
             _ ≤ t * t := Nat.mul_le_mul_right t u.isLt
         omega)
-    have hfit_up1 : Fits w (u.val + 1) := hdstEnd.of_le (by
-      have : t ≤ t * t := Nat.le_mul_self t
-      have := u.isLt
-      omega)
-    let r₁ := q₁.set idx (wb + u.val * str + str)
-    let r₂ := r₁.set rem (dstBase + u.val * t + t)
-    let z := r₂.set uReg (u.val + 1)
-    have hex_post : ExecWithin w copySubRowPost q₁ z 3 := by
-      have s1 : ExecWithin w ram[idx ← idx + stride] q₁ r₁ 1 := by
-        simpa [r₁, BinOp.eval, hqidx, hqstr] using
-          ExecWithin.bin (f := .add) (d := idx) (i := idx) (j := stride) (x := q₁)
-            (by simpa [BinOp.eval, hqidx, hqstr] using hfit_idx_next)
-      have s2 : ExecWithin w ram[rem ← rem + targetT] r₁ r₂ 1 := by
-        have hrem' : r₁.regs rem = dstBase + u.val * t := by
-          simpa +decide [r₁, Function.update_apply] using hqrem
-        have hqt' : r₁.regs targetT = t := by
-          simpa +decide [r₁, Function.update_apply] using hqt
-        simpa [r₂, BinOp.eval, hrem', hqt'] using
-          ExecWithin.bin (f := .add) (d := rem) (i := rem) (j := targetT) (x := r₁)
-            (by simpa [BinOp.eval, hrem', hqt'] using hfit_rem_next)
-      have s3 : ExecWithin w ram[uReg ← uReg + one] r₂ z 1 := by
-        have hu' : r₂.regs uReg = u.val := by
-          simpa +decide [r₂, r₁, Function.update_apply] using hqu
-        have h1' : r₂.regs one = 1 := by
-          simpa +decide [r₂, r₁, Function.update_apply] using hq1
-        simpa [z, BinOp.eval, hu', h1'] using
-          ExecWithin.bin (f := .add) (d := uReg) (i := uReg) (j := one) (x := r₂)
-            (by simpa [BinOp.eval, hu', h1'] using hfit_up1)
+      have : Fits w (u.val + 1) := hdstEnd.of_le (by
+        have := Nat.le_mul_self t; have := u.isLt; omega)
       unfold copySubRowPost
-      exact (s1.seq (s2.seq s3)).mono (by omega)
-    have hz_u : z.regs uReg = u.val + 1 := by simp [z]
-    have hz_inv : OuterI z := by
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hqmod, ?_⟩
-      · simpa +decide [z, r₂, r₁, Function.update_apply] using hq1
-      · simpa +decide [z, r₂, r₁, Function.update_apply] using hqwb
-      · simpa +decide [z, r₂, r₁, Function.update_apply] using hqstr
-      · simpa +decide [z, r₂, r₁, Function.update_apply] using hqt
-      · simpa +decide [z, r₂, r₁, Function.update_apply] using hqdst
-      · rw [hz_u]; exact u.isLt
-      · rw [hz_u]
-        simp +decide only [z, r₂, r₁, Data.set_regs, Function.update_apply, ↓reduceIte]
-        ring
-      · rw [hz_u]
-        simp +decide only [z, r₂, r₁, Data.set_regs, Function.update_apply, ↓reduceIte]
-        ring
-      · intro i j hij
-        rw [hz_u] at hij
-        apply hqdone i j
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt_u | heq_u
-        · exact Or.inl hlt_u
-        · exact Or.inr ⟨Fin.ext heq_u, hqv_eq ▸ j.isLt⟩
-    have hz_dec : t - z.regs uReg < t - y.regs uReg := by
-      rw [hz_u]
-      exact Nat.sub_lt_sub_left hu_lt (Nat.lt_succ_self _)
-    refine ⟨z, ?_, hz_inv, hz_dec⟩
-    have hqv0 : q₀.regs vReg = 0 := by simp [q₀]
-    have hrow_seq : ExecWithin w copySubRowBody y z
-        (1 + (((t - q₀.regs vReg) * (5 + 2) + 2) + 3)) :=
-      hq₀_exec.seq (hex_inner.seq hex_post)
-    refine hrow_seq.mono ?_
-    rw [hqv0]
-    omega
-  let x₀ := ((x.set idx wb).set rem dstBase).set uReg 0
-  have hx₀_exec : ExecWithin w copySubPre x x₀ 3 := by
-    have hzero := fits_zero w
-    have e1 : ExecWithin (B := .standard) w ram[idx ← wBase] x (x.set idx wb) 1 := by
-      simpa [hwBase] using
-        (Exec.copy (B := .standard) (w := w) (d := idx) (s := wBase) (x := x)).within
-    have e2 : ExecWithin (B := .standard) w ram[rem ← addr2] (x.set idx wb)
-        ((x.set idx wb).set rem dstBase) 1 := by
-      have ha2 : (x.set idx wb).regs addr2 = dstBase := by
-        simpa +decide [Function.update_apply] using hdst
-      simpa [ha2] using
-        (Exec.copy (B := .standard) (w := w) (d := rem) (s := addr2) (x := x.set idx wb)).within
-    have e3 : ExecWithin (B := .standard) w ram[uReg ← #0] ((x.set idx wb).set rem dstBase) x₀ 1 :=
-      ExecWithin.const hzero
+      wram_exec [hqf.1, hqf.2.2.1, hqf.2.2.2.1, hqidx, hqrem, hqu]
+      refine ⟨⟨⟨by wram_simp [hqf.1], by wram_simp [hqf.2.1], by wram_simp [hqf.2.2.1],
+        by wram_simp [hqf.2.2.2.1], by wram_simp [hqf.2.2.2.2]⟩,
+        by wram_simp; exact u.isLt, by wram_simp; ring, by wram_simp; ring, hqmod,
+        fun i j hij => ?_⟩, by wram_simp; exact Nat.sub_lt_sub_left hu_lt (Nat.lt_succ_self _)⟩
+      simp only [Data.set_regs_self] at hij
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt_u | heq_u
+      · exact hqdone i j (Or.inl hlt_u)
+      · exact hqdone i j (Or.inr ⟨Fin.ext heq_u, hqv_eq ▸ j.isLt⟩)
+    exact ⟨z, (hq₀_exec.seq (hex_inner.seq hex_post)).mono (by wram_simp [q₀]; omega), hz_inv,
+      hz_dec⟩
+  obtain ⟨x₀, hx₀_exec, hx₀_inv, hu0⟩ : ∃ x₀, ExecWithin w copySubPre x x₀ 3 ∧
+      OuterI x₀ ∧ x₀.regs uReg = 0 := by
     unfold copySubPre
-    exact (e1.seq (e2.seq e3)).mono (by omega)
-  have hx₀_inv : OuterI x₀ := by
-    refine ⟨by simpa +decide [x₀, Function.update_apply] using hone,
-      by simpa +decide [x₀, Function.update_apply] using hwBase,
-      by simpa +decide [x₀, Function.update_apply] using hstride,
-      by simpa +decide [x₀, Function.update_apply] using htargetT,
-      by simpa +decide [x₀, Function.update_apply] using hdst,
-      by simp +decide [x₀],
-      by simp +decide [x₀],
-      by simp +decide [x₀],
-      Modifies.refl _ _,
-      fun i j hij => ?_⟩
-    have hu0 : x₀.regs uReg = 0 := by simp [x₀]
-    rw [hu0] at hij
-    omega
-  obtain ⟨y, hex_outer, hy, hc_outer_exit⟩ :=
+    wram_exec [hwBase, hdst]
+    exact ⟨⟨⟨by wram_simp [hone], by wram_simp [hwBase], by wram_simp [hstride],
+      by wram_simp [htargetT], by wram_simp [hdst]⟩,
+      by wram_simp; omega, by wram_simp; omega, by wram_simp; omega, Modifies.refl _ _,
+      fun _ _ hij => by simp at hij⟩, by wram_simp⟩
+  obtain ⟨y, hex_outer, ⟨hyf, hyu_le, _, _, hymod, hydone⟩, hc_outer_exit⟩ :=
     ExecWithin.loop_invariant OuterI (fun z => t - z.regs uReg) houter_body hx₀_inv
-  rcases hy with ⟨hy1, hywb, hystr, hyt, hydst, hyu_le, _, _, hymod, hydone⟩
   have hyu_eq : y.regs uReg = t := by
-    simp only [Cond.holds_lt, hyt, not_lt] at hc_outer_exit
+    simp only [Cond.holds_lt, hyf.2.2.2.1, not_lt] at hc_outer_exit
     omega
-  have htot_exec : ExecWithin w copySubmatrixCode x y (7 * t ^ 2 + 8 * t + 5) := by
-    have hu0 : x₀.regs uReg = 0 := by simp [x₀]
-    have hseq : ExecWithin w copySubmatrixCode x y
-        (3 + ((t - x₀.regs uReg) * (7 * t + 6 + 2) + 2)) :=
-      hx₀_exec.seq hex_outer
-    refine hseq.mono ?_
-    rw [hu0, Nat.sub_zero]
-    exact le_of_eq (by ring)
-  have ⟨_, _, he⟩ := htot_exec
-  have hpres : ∀ j : Fin 24, copySubmatrixCode.Preserves j → y.regs j = x.regs j :=
-    fun j hj => he.regs_eq hj
-  refine ⟨y, htot_exec, fun i j => hydone i j (hyu_eq ▸ i.isLt), hymod,
-    hy1, hywb, hpres dBase (by decide), hystr,
-    hpres activeK (by decide), hyt, hydst,
-    fun j hj => ?_⟩
-  have : j = srcBase ∨ j = nOrig ∨ j = fpReg ∨ j = spReg ∨
-      j = retVal ∨ j = numTrials ∨ j = trialIdx ∨ j = bestVal := by
-    fin_cases j <;> simp_all
-  rcases this with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    exact hpres _ (by decide)
+  have htot_exec : ExecWithin w copySubmatrixCode x y (7 * t ^ 2 + 8 * t + 5) :=
+    (hx₀_exec.seq hex_outer).mono (by rw [hu0, Nat.sub_zero]; exact le_of_eq (by ring))
+  exact ⟨y, htot_exec, fun i j => hydone i j (hyu_eq ▸ i.isLt), hymod,
+    hyf.1, hyf.2.1, htot_exec.regs_eq (by decide), hyf.2.2.1,
+    htot_exec.regs_eq (by decide), hyf.2.2.2.1, hyf.2.2.2.2,
+    caller_regs_eq htot_exec (by decide)⟩
 
 /-- Contracting a multigraph never increases `totalDoubledWeight`. -/
 theorem totalDoubledWeight_le_of_isContractionOf {n k : ℕ} {W₀ : Fin n → Fin n → ℕ}
@@ -1026,7 +778,7 @@ def fastCutLoop : Code .standard 24 := ram[
   while zero < spReg do [ ⟪fastCutStep⟫ ]
 ]
 
-theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
+private theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
     (hfp : x.regs fpReg = fp) (hmem_k : x.mem (fp + 1) = k)
     (hmem_stg : x.mem (fp + 2 + k * k) = stg)
     (hfit : Fits w (fp + frameSize k)) :
@@ -1041,85 +793,24 @@ theorem stepHeader_exec {w fp k stg : ℕ} {x : Data 24} (hk2 : 2 ≤ k)
       y.regs val2 = stg ∧
       y.regs val1 = 7 ∧
       (∀ j : Fin 24, 16 ≤ j.val → y.regs j = x.regs j) := by
-  have hfs : 14 ≤ frameSize k := by
-    unfold frameSize
-    have : 4 ≤ k * k := Nat.mul_le_mul hk2 hk2
-    omega
-  have h0 : Fits w 0 := fits_zero w
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h7 : Fits w 7 := hfit.of_le (by omega)
-  have hfp1 : Fits w (fp + 1) := hfit.of_le (by unfold frameSize; omega)
-  have hfp2 : Fits w (fp + 2) := hfit.of_le (by unfold frameSize; omega)
-  have hkk : Fits w (k * k) := hfit.of_le (by unfold frameSize; omega)
-  have hstg_addr : Fits w (fp + 2 + k * k) := hfit.of_le (by unfold frameSize; omega)
-  let s₁ := x.set zero 0
-  let s₂ := s₁.set one 1
-  let s₃ := s₂.set addr1 (fp + 1)
-  let s₄ := s₃.set activeK k
-  let s₅ := s₄.set rem (k * k)
-  let s₆ := s₅.set addr1 (fp + 2)
-  let s₇ := s₆.set addr2 (fp + 2 + k * k)
-  let s₈ := s₇.set val2 stg
-  let y := s₈.set val1 7
-  have e1 : Exec (B := .standard) w ram[zero ← #0] x s₁ 1 := Exec.const h0
-  have e2 : Exec (B := .standard) w ram[one ← #1] s₁ s₂ 1 := Exec.const h1
-  have e3 : Exec w ram[addr1 ← fpReg + one] s₂ s₃ 1 := by
-    have hfp' : s₂.regs fpReg = fp := by simpa +decide [s₂, s₁, Function.update_apply] using hfp
-    have h1' : s₂.regs one = 1 := by simp [s₂]
-    simpa [s₃, BinOp.eval, hfp', h1'] using
-      Exec.bin (f := .add) (d := addr1) (i := fpReg) (j := one) (x := s₂)
-        (by simpa [BinOp.eval, hfp', h1'] using hfp1)
-  have e4 : Exec (B := .standard) w ram[activeK ← *addr1] s₃ s₄ 1 := by
-    have ha1 : s₃.regs addr1 = fp + 1 := by simp [s₃]
-    have hm1 : s₃.mem (fp + 1) = k := hmem_k
-    simpa [s₄, ha1, hm1] using Exec.load (B := .standard) (w := w) (d := activeK) (a := addr1)
-      (x := s₃)
-  have e5 : Exec w ram[rem ← activeK * activeK] s₄ s₅ 1 := by
-    have hk' : s₄.regs activeK = k := by simp [s₄]
-    simpa [s₅, BinOp.eval, hk'] using
-      Exec.bin (f := .mul) (d := rem) (i := activeK) (j := activeK) (x := s₄)
-        (by simpa [BinOp.eval, hk'] using hkk)
-  have e6 : Exec w ram[addr1 ← addr1 + one] s₅ s₆ 1 := by
-    have ha1 : s₅.regs addr1 = fp + 1 := by simp +decide [s₅, s₄, s₃]
-    have h1' : s₅.regs one = 1 := by simp +decide [s₅, s₄, s₃, s₂]
-    have heq : (fp + 1) + 1 = fp + 2 := by omega
-    simpa [s₆, BinOp.eval, ha1, h1', heq] using
-      Exec.bin (f := .add) (d := addr1) (i := addr1) (j := one) (x := s₅)
-        (by simpa [BinOp.eval, ha1, h1', heq] using hfp2)
-  have e7 : Exec w ram[addr2 ← addr1 + rem] s₆ s₇ 1 := by
-    have ha1 : s₆.regs addr1 = fp + 2 := by simp [s₆]
-    have hr' : s₆.regs rem = k * k := by simp +decide [s₆, s₅]
-    simpa [s₇, BinOp.eval, ha1, hr'] using
-      Exec.bin (f := .add) (d := addr2) (i := addr1) (j := rem) (x := s₆)
-        (by simpa [BinOp.eval, ha1, hr'] using hstg_addr)
-  have e8 : Exec (B := .standard) w ram[val2 ← *addr2] s₇ s₈ 1 := by
-    have ha2 : s₇.regs addr2 = fp + 2 + k * k := by simp [s₇]
-    have hm2 : s₇.mem (fp + 2 + k * k) = stg := hmem_stg
-    simpa [s₈, ha2, hm2] using Exec.load (B := .standard) (w := w) (d := val2) (a := addr2)
-      (x := s₇)
-  have e9 : Exec (B := .standard) w ram[val1 ← #7] s₈ y 1 := Exec.const h7
-  have hex : Exec w stepHeader x y 9 := by
+  have hfs : fp + (4 + 2 * (k * k) + k) = fp + frameSize k := rfl
+  have hkk : 4 ≤ k * k := Nat.mul_le_mul hk2 hk2
+  have : Fits w 7 := hfit.of_le (by omega)
+  have : Fits w (k * k) := hfit.of_le (by omega)
+  have : Fits w (fp + 2) := hfit.of_le (by omega)
+  have : Fits w (fp + 2 + k * k) := hfit.of_le (by omega)
+  obtain ⟨y, hex, hpost⟩ : ∃ y, Exec w stepHeader x y 9 ∧
+      (y.mem = x.mem ∧ y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs activeK = k ∧
+        y.regs rem = k * k ∧ y.regs addr1 = fp + 2 ∧ y.regs addr2 = fp + 2 + k * k ∧
+        y.regs val2 = stg ∧ y.regs val1 = 7) := by
     unfold stepHeader
-    exact e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq (e8.seq e9)))))))
-  have hpres : ∀ j : Fin 24, stepHeader.Preserves j → y.regs j = x.regs j :=
-    fun j hj => hex.regs_eq hj
-  refine ⟨y, hex, rfl,
-    by simp +decide [y, s₈, s₇, s₆, s₅, s₄, s₃, s₂, s₁],
-    by simp +decide [y, s₈, s₇, s₆, s₅, s₄, s₃, s₂],
-    by simp +decide [y, s₈, s₇, s₆, s₅, s₄],
-    by simp +decide [y, s₈, s₇, s₆, s₅],
-    by simp +decide [y, s₈, s₇, s₆],
-    by simp +decide [y, s₈, s₇],
-    by simp +decide [y, s₈],
-    by simp [y],
-    fun j hj => ?_⟩
-  have : j = srcBase ∨ j = nOrig ∨ j = fpReg ∨ j = spReg ∨
-      j = retVal ∨ j = numTrials ∨ j = trialIdx ∨ j = bestVal := by
-    fin_cases j <;> simp_all
-  rcases this with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    exact hpres _ (by decide)
+    wram_exec [hfp, hmem_k, show (fp + 1) + 1 = fp + 2 from rfl, hmem_stg]
+    exact ⟨rfl, by wram_simp⟩
+  exact ⟨y, hex, hpost.1, hpost.2.1, hpost.2.2.1, hpost.2.2.2.1, hpost.2.2.2.2.1,
+    hpost.2.2.2.2.2.1, hpost.2.2.2.2.2.2.1, hpost.2.2.2.2.2.2.2.1,
+    hpost.2.2.2.2.2.2.2.2, caller_regs_eq hex.within (by decide)⟩
 
-theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
+private theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     (hk2 : 2 ≤ k) (h0 : x.regs zero = 0) (h1 : x.regs one = 1)
     (ha2 : x.regs addr2 = fp + 2 + k * k)
     (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1) (hr2 : x.regs retVal = r2)
@@ -1131,99 +822,29 @@ theorem combineAndPop_exec {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
       y.regs fpReg = parentFp ∧
       y.regs spReg = b ∧
       y.regs retVal = min v1 r2 := by
-  have ha1_fit : Fits w (fp + 3 + k * k) := hfit.of_le (by
-    unfold frameSize
-    have : 4 ≤ k * k := Nat.mul_le_mul hk2 hk2
-    omega)
-  let s₁ := x.set addr1 (fp + 3 + k * k)
-  let s₂ := s₁.set val1 v1
-  have e1 : ExecWithin w ram[addr1 ← addr2 + one] x s₁ 1 := by
-    have heq : (fp + 2 + k * k) + 1 = fp + 3 + k * k := by omega
-    simpa [s₁, BinOp.eval, ha2, h1, heq] using
-      ExecWithin.bin (f := .add) (d := addr1) (i := addr2) (j := one) (x := x)
-        (by simpa [BinOp.eval, ha2, h1, heq] using ha1_fit)
-  have e2 : ExecWithin (B := .standard) w ram[val1 ← *addr1] s₁ s₂ 1 := by
-    have ha1' : s₁.regs addr1 = fp + 3 + k * k := by simp [s₁]
-    have hm1 : s₁.mem (fp + 3 + k * k) = v1 := hmem_v1
-    simpa [s₂, ha1', hm1] using ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr1)
-      (x := s₁)
-  have hbr : ∃ s₃ : Data 24,
-      ExecWithin (B := .standard) w
-        ram[if val1 < retVal then [ retVal ← val1 ] else [ zero ← #0 ]] s₂ s₃ 3 ∧
-      s₃.mem = x.mem ∧
-      s₃.regs zero = 0 ∧
-      s₃.regs one = 1 ∧
-      s₃.regs fpReg = fp ∧
-      s₃.regs spReg = b + 1 ∧
-      s₃.regs retVal = min v1 r2 := by
-    have hs2_v1 : s₂.regs val1 = v1 := by simp [s₂]
-    have hs2_r2 : s₂.regs retVal = r2 := by
-      simpa +decide [s₂, s₁, Function.update_apply] using hr2
-    by_cases hlt : v1 < r2
-    · have hc : (Cond.lt val1 retVal).Holds s₂ := by
-        simpa [Cond.holds_lt, hs2_v1, hs2_r2] using hlt
-      let s₃ := s₂.set retVal v1
-      have e_pos : ExecWithin (B := .standard) w ram[retVal ← val1] s₂ s₃ 1 := by
-        simpa [s₃, hs2_v1] using
-          (Exec.copy (B := .standard) (w := w) (d := retVal) (s := val1) (x := s₂)).within
-      refine ⟨s₃, (ExecWithin.branch_pos hc e_pos).mono (by omega), rfl,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using h0,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using h1,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using hfp,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using hsp, ?_⟩
-      simp only [s₃, Data.set_regs, Function.update_self]
-      omega
-    · have hnc : ¬(Cond.lt val1 retVal).Holds s₂ := by
-        simpa [Cond.holds_lt, hs2_v1, hs2_r2] using hlt
-      let s₃ := s₂.set zero 0
-      have e_neg : ExecWithin (B := .standard) w ram[zero ← #0] s₂ s₃ 1 :=
-        ExecWithin.const (fits_zero w)
-      refine ⟨s₃, (ExecWithin.branch_neg hnc e_neg).mono (by omega), rfl,
-        by simp [s₃],
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using h1,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using hfp,
-        by simpa +decide [s₃, s₂, s₁, Function.update_apply] using hsp, ?_⟩
-      have hr3 : s₃.regs retVal = r2 := by
-        simpa +decide [s₃, Function.update_apply] using hs2_r2
-      rw [hr3]
-      omega
-  obtain ⟨s₃, e3, hs3_mem, hs3_0, hs3_1, hs3_fp, hs3_sp, hs3_ret⟩ := hbr
-  let s₄ := s₃.set fpReg parentFp
-  let s₅ := s₄.set spReg b
-  have e4 : ExecWithin (B := .standard) w ram[fpReg ← *fpReg] s₃ s₄ 1 := by
-    have hm : s₃.mem fp = parentFp := hs3_mem ▸ hmem_p
-    simpa [s₄, hs3_fp, hm] using
-      ExecWithin.load (B := .standard) (w := w) (d := fpReg) (a := fpReg) (x := s₃)
-  have e5 : ExecWithin w ram[spReg ← spReg - one] s₄ s₅ 1 := by
-    have hsp' : s₄.regs spReg = b + 1 := by
-      simpa +decide [s₄, Function.update_apply] using hs3_sp
-    have h1' : s₄.regs one = 1 := by
-      simpa +decide [s₄, Function.update_apply] using hs3_1
-    have hsub : (b + 1) - 1 = b := by omega
-    simpa [s₅, BinOp.eval, hsp', h1', hsub] using
-      ExecWithin.bin (f := .sub) (d := spReg) (i := spReg) (j := one) (x := s₄)
-        (by simpa [BinOp.eval, hsp', h1', hsub] using hsp_fit)
-  refine ⟨s₅, ?_, hs3_mem,
-    by simpa +decide [s₅, s₄, Function.update_apply] using hs3_0,
-    by simp +decide [s₅, s₄],
-    by simp [s₅],
-    by simpa +decide [s₅, s₄, Function.update_apply] using hs3_ret⟩
+  have : Fits w (fp + 3 + k * k) := hfit.of_le (by
+    unfold frameSize; have := Nat.mul_le_mul hk2 hk2; omega)
   unfold combineAndPop
-  exact (e1.seq (e2.seq (e3.seq (e4.seq e5)))).mono (by omega)
+  wram_exec [h0, h1, ha2, hfp, hsp, hr2,
+    show (fp + 2 + k * k) + 1 = fp + 3 + k * k by omega, hmem_p, hmem_v1]
+  · exact ⟨rfl, by wram_simp [h0], by wram_simp, by wram_simp,
+      by wram_simp; exact (Nat.min_eq_left hc.le).symm⟩
+  · exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp [hr2]; exact (Nat.min_eq_right (Nat.le_of_not_lt hc)).symm⟩
 
 /-- The graph held by a recursive frame at its explicit invariant size. This is a view of the
 existing native memory layout, with no additional graph representation. -/
-def frameGraph (fp k : ℕ) (x : Data 24) : Lean.Karger.Graph :=
+private def frameGraph (fp k : ℕ) (x : Data 24) : Lean.Karger.Graph :=
   ⟨k, fun i j => x.mem (fp + 2 + i.val * k + j.val)⟩
 
 /-- The frame observation equals a typed graph exactly when its existing matrix invariant holds. -/
-theorem frameGraph_eq_iff {fp k : ℕ} {x : Data 24} {W : Fin k → Fin k → ℕ} :
+private theorem frameGraph_eq_iff {fp k : ℕ} {x : Data 24} {W : Fin k → Fin k → ℕ} :
     frameGraph fp k x = ⟨k, W⟩ ↔ HoldsMatrix x.mem (fp + 2) k W := by
   simp only [frameGraph, Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and]
   exact ⟨fun h i j => congrFun (congrFun h i) j, fun h => funext₂ h⟩
 
 /-- The base-case output has exactly the existing contraction-trial answer law. -/
-theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (hk_reg : x.regs activeK = k) (hrem_reg : x.regs rem = k * k)
@@ -1239,205 +860,76 @@ theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n �
       2000 (k - 2) (fun y => y.regs retVal) (Lean.Karger.answerLaw ⟨k, W_k⟩) := by
   let wb := fp + 4 + k * k
   let db := fp + 4 + 2 * (k * k)
-  have hfs_eq : fp + frameSize k = db + k := by
-    dsimp only [db]
-    unfold frameSize
-    omega
+  have hfs_eq : fp + frameSize k = db + k := by dsimp only [db]; unfold frameSize; omega
   have hkk_ge : 4 ≤ k * k := Nat.mul_le_mul hk2 hk2
   have hkk_le : k * k ≤ 36 := Nat.mul_le_mul hk6 hk6
-  have h1 : Fits w 1 := hfit.of_le (by rw [hfs_eq]; dsimp only [db]; omega)
-  have h2 : Fits w 2 := hfit.of_le (by rw [hfs_eq]; dsimp only [db]; omega)
-  have hwb_fit : Fits w wb := hfit.of_le (by rw [hfs_eq]; dsimp only [wb, db]; omega)
-  have hdb_fit : Fits w db := hfit.of_le (by rw [hfs_eq]; omega)
   have hdEnd_fit : Fits w (db + k) := hfs_eq ▸ hfit
+  have h1 : Fits w 1 := hdEnd_fit.of_le (by dsimp only [db]; omega)
+  have hdb_fit : Fits w db := hdEnd_fit.of_le (by omega)
+  have hd_eq : wb + k * k = db := by dsimp only [wb, db]; omega
+  have hwEnd_fit : Fits w (wb + k * k) := hd_eq ▸ hdb_fit
   have htot_k : Fits w (totalDoubledWeight W_k) :=
     htot.of_le (totalDoubledWeight_le_of_isContractionOf hC)
-  -- Step 1: `basePre`
-  let p₁ := x.set uReg (fp + 2)
-  let p₂ := p₁.set val1 2
-  let p₃ := p₂.set wBase wb
-  let p₄ := p₃.set dBase db
-  let p₅ := p₄.set stride k
-  let x_pre := p₅.set targetT 2
-  have hex_pre : Exec w basePre x x_pre 6 := by
-    have s1 : Exec (B := .standard) w ram[uReg ← addr1] x p₁ 1 := by
-      simpa [p₁, ha1_reg] using
-        Exec.copy (B := .standard) (w := w) (d := uReg) (s := addr1) (x := x)
-    have s2 : Exec (B := .standard) w ram[val1 ← #2] p₁ p₂ 1 := Exec.const h2
-    have s3 : Exec w ram[wBase ← addr2 + val1] p₂ p₃ 1 := by
-      have ha2' : p₂.regs addr2 = fp + 2 + k * k := by
-        simpa +decide [p₂, p₁, Function.update_apply] using ha2_reg
-      have hv1' : p₂.regs val1 = 2 := by simp [p₂]
-      have heq : (fp + 2 + k * k) + 2 = wb := by dsimp only [wb]; omega
-      simpa [p₃, BinOp.eval, ha2', hv1', heq] using
-        Exec.bin (f := .add) (d := wBase) (i := addr2) (j := val1) (x := p₂)
-          (by simpa [BinOp.eval, ha2', hv1', heq] using hwb_fit)
-    have s4 : Exec w ram[dBase ← wBase + rem] p₃ p₄ 1 := by
-      have hwb' : p₃.regs wBase = wb := by simp [p₃]
-      have hr' : p₃.regs rem = k * k := by
-        simpa +decide [p₃, p₂, p₁, Function.update_apply] using hrem_reg
-      have heq : wb + k * k = db := by dsimp only [wb, db]; omega
-      simpa [p₄, BinOp.eval, hwb', hr', heq] using
-        Exec.bin (f := .add) (d := dBase) (i := wBase) (j := rem) (x := p₃)
-          (by simpa [BinOp.eval, hwb', hr', heq] using hdb_fit)
-    have s5 : Exec (B := .standard) w ram[stride ← activeK] p₄ p₅ 1 := by
-      have hk' : p₄.regs activeK = k := by
-        simpa +decide [p₄, p₃, p₂, p₁, Function.update_apply] using hk_reg
-      simpa [p₅, hk'] using Exec.copy (B := .standard) (w := w) (d := stride) (s := activeK)
-        (x := p₄)
-    have s6 : Exec (B := .standard) w ram[targetT ← #2] p₅ x_pre 1 := Exec.const h2
+  let F_mod := Finset.Ico (fp + 2 + k * k) (fp + frameSize k)
+  obtain ⟨x_deg, e_pre, hst_deg, hmod_pre⟩ : ∃ x_deg,
+      ExecWithin w ram[⟪basePre⟫; ⟪ksCopyCode⟫; ⟪computeDegreesAndTotalAt hr24⟫]
+        x x_deg (6 + (7 * (k * k) + 4) + (6 * k ^ 2 + 12 * k + 6)) ∧
+      ContractState w wb db k k 2 W_k (x_deg.comap (Fin.castLE hr24)) ∧
+      Modifies F_mod x.mem x_deg.mem := by
+    have : Fits w 2 := hdEnd_fit.of_le (by dsimp only [db]; omega)
+    have : Fits w wb := hwEnd_fit.of_le (by omega)
+    refine WP.exists_execWithin ?_
     unfold basePre
-    exact s1.seq (s2.seq (s3.seq (s4.seq (s5.seq s6))))
-  -- Step 2: `ksCopyCode`
-  have hd_eq : wb + k * k = db := by dsimp only [wb, db]; omega
-  obtain ⟨x_cp, ⟨n_cp, hn_cp, hex_cp⟩, hmat_cp, hmod_cp, _, hwb_cp, hdb_cp, hstr_cp, hk_cp,
-      ht_cp, hhi_cp⟩ :=
-    ksCopyCode_exec (x := x_pre) (sb := fp + 2) (db := wb) (k := k) (W := W_k)
-      (by simp +decide [x_pre, p₅, p₄, p₃, p₂, p₁])
-      (by simp +decide [x_pre, p₅, p₄, p₃])
-      (by simpa +decide [x_pre, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using hrem_reg)
-      (by dsimp only [wb]; omega) h1 (hd_eq ▸ hdb_fit) hmat
-  have hdb_cp' : x_cp.regs dBase = db := by
-    rw [hdb_cp]; simp +decide [x_pre, p₅, p₄]
-  have hstr_cp' : x_cp.regs stride = k := by
-    rw [hstr_cp]; simp +decide [x_pre, p₅]
-  have hk_cp' : x_cp.regs activeK = k := by
-    rw [hk_cp]; simpa +decide [x_pre, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using hk_reg
-  have ht_cp' : x_cp.regs targetT = 2 := by
-    rw [ht_cp]; simp [x_pre]
-  -- Step 3: `computeDegreesAndTotalAt hr24`
-  obtain ⟨x_deg, ⟨n_deg, hn_deg, hex_deg⟩, hws_deg, hmod_deg, hwb_deg, hdb_deg, hstr_deg, hk_deg,
-      ht_deg, htot_deg, hhi_deg⟩ :=
-    computeDegreesAndTotalAt_exec hr24 (x := x_cp) (wb := wb) (db := db) (str := k) (k := k)
-      (W := W_k) hwb_cp hdb_cp' hstr_cp' hk_cp' (le_refl k) (Or.inl (by dsimp only [wb, db]; omega))
-      h1 (hd_eq ▸ hdb_fit) hdEnd_fit htot_k hmat_cp
-  have hfp_deg : x_deg.regs fpReg = fp := by
-    rw [hhi_deg fpReg (by decide), hhi_cp fpReg (by decide)]
-    simpa +decide [x_pre, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using hfp
-  have hsp_deg : x_deg.regs spReg = b + 1 := by
-    rw [hhi_deg spReg (by decide), hhi_cp spReg (by decide)]
-    simpa +decide [x_pre, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using hsp
-  have hst_deg : ContractState w wb db k k 2 W_k (x_deg.comap (Fin.castLE hr24)) := {
-    regs_wBase := hwb_deg
-    regs_dBase := hdb_deg
-    regs_stride := hstr_deg
-    regs_activeK := hk_deg
-    regs_targetT := ht_deg.trans ht_cp'
-    regs_totS := htot_deg
-    le_stride := le_refl k
-    disjoint_blocks := Or.inl (by dsimp only [wb, db]; omega)
-    fits_wEnd := hd_eq ▸ hdb_fit
-    fits_dEnd := hdEnd_fit
-    fits_totS := htot_k
-    workspace := hws_deg
-  }
-  -- Step 4: `contractDownToAt hr24`
-  obtain ⟨m_c, hm_c, hq_c, hsup_c, hlaw_c⟩ :=
-    contractDownToAt_law hr24 (by decide : 2 ≤ 2) hk2 hC.multigraph hst_deg
-  -- Step 5: `basePost` on every supported output of `m_c`
-  have hpost : ∀ z ∈ m_c.support, ∃ y : Data 24,
-      ExecWithin w basePost z.1 y 6 ∧
-      y.mem = z.1.mem ∧
-      y.regs zero = 0 ∧
-      y.regs fpReg = parentFp ∧
-      y.regs spReg = b ∧
-      y.regs retVal = z.1.mem (wb + 1) := by
-    intro z hz
-    rcases hsup_c z hz with ⟨⟨hmod_c, hhi_c, _, _, hst_c⟩, _⟩
-    have hz_wb : z.1.regs wBase = wb := hst_c.regs_wBase
-    have hz_fp : z.1.regs fpReg = fp := (hhi_c fpReg (by decide)).trans hfp_deg
-    have hz_sp : z.1.regs spReg = b + 1 := (hhi_c spReg (by decide)).trans hsp_deg
-    have hz_mem_p : z.1.mem fp = parentFp := by
-      have h1_out : z.1.mem fp = x_deg.mem fp :=
-        hmod_c fp (by
-          simp only [workspaceFootprint, Finset.mem_union, Finset.mem_Ico, not_or]
-          exact ⟨by dsimp only [wb]; omega, by dsimp only [db]; omega⟩)
-      have h2_out : x_deg.mem fp = x_cp.mem fp :=
-        hmod_deg fp (by rw [Finset.mem_Ico]; dsimp only [db]; omega)
-      have h3_out : x_cp.mem fp = x.mem fp :=
-        hmod_cp fp (by rw [Finset.mem_Ico]; dsimp only [wb]; omega)
-      rw [h1_out, h2_out, h3_out, hmem_p]
-    have hwb1_fit : Fits w (wb + 1) := hdEnd_fit.of_le (by dsimp only [wb, db]; omega)
-    let q₁ := z.1.set zero 0
-    let q₂ := q₁.set one 1
-    let q₃ := q₂.set addr1 (wb + 1)
-    let q₄ := q₃.set retVal (z.1.mem (wb + 1))
-    let q₅ := q₄.set fpReg parentFp
-    let y := q₅.set spReg b
-    have b1 : ExecWithin (B := .standard) w ram[zero ← #0] z.1 q₁ 1 :=
-      ExecWithin.const (fits_zero w)
-    have b2 : ExecWithin (B := .standard) w ram[one ← #1] q₁ q₂ 1 := ExecWithin.const h1
-    have b3 : ExecWithin w ram[addr1 ← wBase + one] q₂ q₃ 1 := by
-      have hwb' : q₂.regs wBase = wb := by
-        simpa +decide [q₂, q₁, Function.update_apply] using hz_wb
-      have h1' : q₂.regs one = 1 := by simp [q₂]
-      simpa [q₃, BinOp.eval, hwb', h1'] using
-        ExecWithin.bin (f := .add) (d := addr1) (i := wBase) (j := one) (x := q₂)
-          (by simpa [BinOp.eval, hwb', h1'] using hwb1_fit)
-    have b4 : ExecWithin (B := .standard) w ram[retVal ← *addr1] q₃ q₄ 1 := by
-      have ha1' : q₃.regs addr1 = wb + 1 := by simp [q₃]
-      have hm_q3 : q₃.mem (wb + 1) = z.1.mem (wb + 1) := rfl
-      simpa [q₄, ha1', hm_q3] using
-        ExecWithin.load (B := .standard) (w := w) (d := retVal) (a := addr1) (x := q₃)
-    have b5 : ExecWithin (B := .standard) w ram[fpReg ← *fpReg] q₄ q₅ 1 := by
-      have hfp' : q₄.regs fpReg = fp := by
-        simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hz_fp
-      have hm_q4 : q₄.mem fp = parentFp := hz_mem_p
-      simpa [q₅, hfp', hm_q4] using
-        ExecWithin.load (B := .standard) (w := w) (d := fpReg) (a := fpReg) (x := q₄)
-    have b6 : ExecWithin w ram[spReg ← spReg - one] q₅ y 1 := by
-      have hsp' : q₅.regs spReg = b + 1 := by
-        simpa +decide [q₅, q₄, q₃, q₂, q₁, Function.update_apply] using hz_sp
-      have h1' : q₅.regs one = 1 := by simp +decide [q₅, q₄, q₃, q₂]
-      have hsub : (b + 1) - 1 = b := by omega
-      simpa [y, BinOp.eval, hsp', h1', hsub] using
-        ExecWithin.bin (f := .sub) (d := spReg) (i := spReg) (j := one) (x := q₅)
-          (by simpa [BinOp.eval, hsp', h1', hsub] using hsp_fit)
-    refine ⟨y, ?_, rfl,
-      by simp +decide [y, q₅, q₄, q₃, q₂, q₁],
-      by simp +decide [y, q₅],
-      by simp [y],
-      by simp +decide [y, q₅, q₄]⟩
-    unfold basePost
-    exact (b1.seq (b2.seq (b3.seq (b4.seq (b5.seq b6))))).mono (by omega)
-  obtain ⟨g, hseq_post, hg⟩ := execRand_seq_det
-    (Q := fun d y => y.mem = d.mem ∧ y.regs zero = 0 ∧ y.regs fpReg = parentFp ∧
-      y.regs spReg = b ∧ y.regs retVal = d.mem (wb + 1))
-    hm_c hpost
-  have hfull_raw := hex_pre.seqRand (hex_cp.seqRand (hex_deg.seqRand hseq_post))
-  let m_out : ProbComp (Data 24 × ℕ) :=
-    (fun z => ((g z.1).1, 6 + (n_cp + (n_deg + (z.2 + (g z.1).2))))) <$> m_c
-  have hfull : ExecRand w baseCaseAndPop x m_out := by
-    unfold baseCaseAndPop
-    convert hfull_raw using 1
-    simp only [m_out, Functor.map_map]
-  refine ⟨m_out, hfull, ?_, ?_, ?_⟩
-  · simp only [m_out, OracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
-    exact hq_c
-  · intro z hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_c z₀ hz₀ with ⟨⟨hmod_c, _, W', hW', hst_c⟩, ht_c⟩
-    rcases hg z₀ hz₀ with ⟨ht_post, _, hmem_post, hz0, hzfp, hzsp, hzret⟩
-    refine ⟨⟨?_, hz0, hzfp, hzsp⟩, ?_⟩
-    · rw [hmem_post]
-      have hsub1 : Finset.Ico wb (wb + k * k) ⊆ Finset.Ico (fp + 2 + k * k) (fp + frameSize k) := by
-        intro a ha; rw [Finset.mem_Ico] at ha ⊢; rw [hfs_eq]; dsimp only [wb, db] at ha ⊢; omega
-      have hsub2 : Finset.Ico db (db + k) ⊆ Finset.Ico (fp + 2 + k * k) (fp + frameSize k) := by
-        intro a ha; rw [Finset.mem_Ico] at ha ⊢; rw [hfs_eq]; dsimp only [db] at ha ⊢; omega
-      have hsub3 : workspaceFootprint wb db k k ⊆
-          Finset.Ico (fp + 2 + k * k) (fp + frameSize k) :=
-        Finset.union_subset hsub1 hsub2
-      exact modifies_trans_subset
-        (modifies_trans_subset hmod_cp hmod_deg hsub1 hsub2) hmod_c Finset.Subset.rfl hsub3
-    · have hk2_le : k ^ 2 ≤ 36 := by simpa [sq] using hkk_le
-      omega
-  · rw [Lean.Karger.answerLaw_eq, ← hlaw_c]
-    simp only [m_out, Functor.map_map, ProbComp.eval_map, PMF.map_comp]
-    refine Probability.PMF.map_congr_on_support _ _ _ fun z hz => ?_
-    rw [ProbComp.support_eval] at hz
-    rcases hsup_c z hz with ⟨⟨_, _, W', hW', hst_c⟩, _⟩
-    rw [(hg z hz).2.2.2.2.2.2]
-    exact hst_c.mem_add_one hW'
+    wram_exec [hk_reg, hrem_reg, ha1_reg, ha2_reg,
+      show (fp + 2 + k * k) + 2 = wb by dsimp only [wb]; omega, hd_eq]
+    wram_call (ksCopyCode_exec (W := W_k) (by wram_simp) (by wram_simp)
+      (by wram_simp [hrem_reg]) (by dsimp only [wb]; omega) h1 hwEnd_fit hmat)
+      with x_cp ⟨hmat_cp, hmod_cp, _, hwb_cp, hdb_cp, hstr_cp, hk_cp, ht_cp, _⟩
+    wram_call (computeDegreesAndTotalAt_exec hr24
+      hwb_cp (by wram_simp at hdb_cp; exact hdb_cp)
+      (by wram_simp at hstr_cp; exact hstr_cp) (by wram_simp [hk_reg] at hk_cp; exact hk_cp)
+      (le_refl k) (Or.inl (by dsimp only [wb, db]; omega)) h1 hwEnd_fit hdEnd_fit htot_k hmat_cp)
+      with x_deg ⟨hws_deg, hmod_deg, hwb_deg, hdb_deg, hstr_deg, hk_deg, ht_deg, htot_deg, _⟩
+    have ht_deg' : x_deg.regs (Fin.castLE hr24 Reg.targetT) = 2 := by
+      rw [ht_deg]; change x_cp.regs targetT = 2; rw [ht_cp]; wram_simp
+    refine ⟨by omega, ⟨hwb_deg, hdb_deg, hstr_deg, hk_deg, ht_deg', htot_deg,
+      le_refl k, Or.inl (by dsimp only [wb, db]; omega), hwEnd_fit, hdEnd_fit, htot_k, hws_deg⟩,
+      modifies_trans_subset hmod_cp hmod_deg
+        (fun a ha => by rw [Finset.mem_Ico] at ha ⊢; rw [hfs_eq]; dsimp only [wb, db] at *; omega)
+        (fun a ha => by rw [Finset.mem_Ico] at ha ⊢; rw [hfs_eq]; dsimp only [db] at *; omega)⟩
+  have hrun := ExecRandLaw.seq (contractDownToAt_law hr24 (le_refl 2) hk2 hC.multigraph hst_deg)
+    (Q := fun y => Modifies F_mod x.mem y.mem ∧
+      y.regs zero = 0 ∧ y.regs fpReg = parentFp ∧ y.regs spReg = b)
+    (κ := fun G => PMF.pure (totalDoubledWeight G.weight / 2))
+    fun z ⟨hmod_c, hhi_c, W', hW', hst_c⟩ => by
+      have hz_wb : z.regs wBase = wb := hst_c.regs_wBase
+      have hz_fp : z.regs fpReg = fp :=
+        (hhi_c fpReg (by decide)).trans ((e_pre.regs_eq (by decide)).trans hfp)
+      have hz_sp : z.regs spReg = b + 1 :=
+        (hhi_c spReg (by decide)).trans ((e_pre.regs_eq (by decide)).trans hsp)
+      have hmod_z : Modifies F_mod x.mem z.mem :=
+        modifies_trans_subset hmod_pre hmod_c Finset.Subset.rfl
+          (workspaceFootprint_subset_Ico (by dsimp only [wb]; omega) (by dsimp only [wb, db]; omega)
+            (by rw [hfs_eq]))
+      have hz_mem_p : z.mem fp = parentFp := by
+        rw [hmod_z fp (by rw [Finset.mem_Ico]; omega), hmem_p]
+      obtain ⟨y_p, e_p, hm_p, hz0, hzfp, hzsp, hv_p⟩ : ∃ y_p,
+          ExecWithin w basePost z y_p 6 ∧ y_p.mem = z.mem ∧
+          y_p.regs zero = 0 ∧ y_p.regs fpReg = parentFp ∧ y_p.regs spReg = b ∧
+          y_p.regs retVal = z.mem (wb + 1) := by
+        have : Fits w (wb + 1) := hdEnd_fit.of_le (by dsimp only [wb, db]; omega)
+        unfold basePost
+        wram_exec [hz_wb, hz_fp, hz_sp, hz_mem_p]
+        exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+      have hv : z.mem (wb + 1) = _ := hst_c.mem_add_one hW'
+      exact (ExecRandLaw.of_execWithin (f := fun y => y.regs retVal) e_p
+        ⟨hm_p ▸ hmod_z, hz0, hzfp, hzsp⟩).congr_law (by rw [hv_p, hv])
+  refine ((ExecRandLaw.foldr_seq_det [basePre, ksCopyCode] e_pre hrun).congr_law ?_).mono
+    (fun _ h => h) ?_ le_rfl
+  · rw [Lean.Karger.answerLaw_eq]
+    exact PMF.bind_pure_comp _ _
+  · have : k ^ 2 ≤ 36 := by simpa [sq] using hkk_le
+    omega
 
 theorem baseCaseAndPop_spec {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
@@ -1520,7 +1012,7 @@ def ChildMinCutSurvives {n : ℕ} (W₀ : Fin n → Fin n → ℕ) (childFp t : 
     IsNonTrivialCut B₁ ∧
     cutWeight W₀ (pullbackCut part₁ B₁) = minCut W₀
 
-theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
+private theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
     (ht6 : 6 ≤ t) (htk : t ≤ k)
     (hwBase : x.regs wBase = fp + 4 + k * k)
     (hdBase : x.regs dBase = fp + 4 + 2 * (k * k))
@@ -1545,180 +1037,47 @@ theorem branchTail_exec {w fp b k t : ℕ} {x : Data 24}
   let wb := fp + 4 + k * k
   let db := fp + 4 + 2 * (k * k)
   let childFp := fp + frameSize k
-  have hcfp_eq : db + k = childFp := by
-    dsimp only [db, childFp]
-    unfold frameSize
-    omega
+  have hcfp_eq : db + k = childFp := by dsimp only [db, childFp]; unfold frameSize; omega
   have htt_ge : 36 ≤ t * t := Nat.mul_le_mul ht6 ht6
   have hfs_t : frameSize t = 4 + 2 * (t * t) + t := rfl
-  have h1 : Fits w 1 := hfit.of_le (by rw [hfs_t]; omega)
-  have h2 : Fits w 2 := hfit.of_le (by rw [hfs_t]; omega)
-  have hcfp_fit : Fits w childFp := hfit.of_le (by omega)
-  have hcfp1_fit : Fits w (childFp + 1) := hfit.of_le (by rw [hfs_t]; omega)
-  have hcfp2_fit : Fits w (childFp + 2) := hfit.of_le (by rw [hfs_t]; omega)
-  have htt_fit : Fits w (t * t) := hfit.of_le (by rw [hfs_t]; omega)
+  have : Fits w 2 := hfit.of_le (by rw [hfs_t]; omega)
+  have : Fits w childFp := hfit.of_le (by omega)
+  have : Fits w (childFp + 2) := hfit.of_le (by rw [hfs_t]; omega)
+  have : Fits w (t * t) := hfit.of_le (by rw [hfs_t]; omega)
   have hdstEnd : Fits w (childFp + 2 + t * t) := hfit.of_le (by rw [hfs_t]; omega)
   have hkt_le : k * t ≤ k * k := Nat.mul_le_mul_left k htk
-  have hwEnd : Fits w (wb + k * t) := hfit.of_le (by
-    dsimp only [wb]
-    unfold frameSize
-    omega)
-  -- Substep 1: `branchCompactPre`
-  let c₁ := x.set one 1
-  let c₂ := c₁.set val2 childFp
-  let c₃ := c₂.set val1 2
-  let x₁ := c₃.set addr2 (childFp + 2)
-  have hex_pre : ExecWithin w branchCompactPre x x₁ 4 := by
-    have s1 : ExecWithin (B := .standard) w ram[one ← #1] x c₁ 1 := ExecWithin.const h1
-    have s2 : ExecWithin w ram[val2 ← dBase + stride] c₁ c₂ 1 := by
-      have hdb' : c₁.regs dBase = db := by simpa +decide [c₁, Function.update_apply] using hdBase
-      have hstr' : c₁.regs stride = k := by simpa +decide [c₁, Function.update_apply] using hstride
-      simpa [c₂, BinOp.eval, hdb', hstr', hcfp_eq] using
-        ExecWithin.bin (f := .add) (d := val2) (i := dBase) (j := stride) (x := c₁)
-          (by simpa [BinOp.eval, hdb', hstr', hcfp_eq] using hcfp_fit)
-    have s3 : ExecWithin (B := .standard) w ram[val1 ← #2] c₂ c₃ 1 := ExecWithin.const h2
-    have s4 : ExecWithin w ram[addr2 ← val2 + val1] c₃ x₁ 1 := by
-      have hv2' : c₃.regs val2 = childFp := by simp +decide [c₃, c₂]
-      have hv1' : c₃.regs val1 = 2 := by simp [c₃]
-      simpa [x₁, BinOp.eval, hv2', hv1'] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := val2) (j := val1) (x := c₃)
-          (by simpa [BinOp.eval, hv2', hv1'] using hcfp2_fit)
-    unfold branchCompactPre
-    exact (s1.seq (s2.seq (s3.seq s4))).mono (by omega)
-  -- Substep 2: `copySubmatrixCode`
-  let W_src : Fin t → Fin t → ℕ := fun i j => x.mem (wb + i.val * k + j.val)
-  obtain ⟨x₂, hex_sub, hmat_sub, hmod_sub, _, _, hdb₂, hstr₂, _, ht₂, _, hhi₂⟩ :=
-    copySubmatrixCode_exec (W := W_src) (x := x₁) (wb := wb) (str := k) (dstBase := childFp + 2)
-      (t := t)
-      (by simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using hwBase)
-      (by simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using hstride)
-      (by simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using htargetT)
-      (by simp [x₁])
-      (by simp +decide [x₁, c₃, c₂, c₁])
-      htk
-      (by dsimp only [wb]; rw [← hcfp_eq]; dsimp only [db]; omega)
-      hwEnd hdstEnd (fun _ _ => rfl)
-  have hdb₂' : x₂.regs dBase = db := by
-    rw [hdb₂]; simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using hdBase
-  have hstr₂' : x₂.regs stride = k := hstr₂
-  have ht₂' : x₂.regs targetT = t := ht₂
-  have hfp₂ : x₂.regs fpReg = fp := by
-    rw [hhi₂ fpReg (by decide)]
-    simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using hfp
-  have hsp₂ : x₂.regs spReg = b + 1 := by
-    rw [hhi₂ spReg (by decide)]
-    simpa +decide [x₁, c₃, c₂, c₁, Function.update_apply] using hsp
-  -- Substep 3: `branchPushChild`
-  let p₁ := x₂.set zero 0
-  let p₂ := p₁.set one 1
-  let p₃ := p₂.set addr1 childFp
-  let p₄ := p₃.write childFp fp
-  let p₅ := p₄.set addr2 (childFp + 1)
-  let p₆ := p₅.write (childFp + 1) t
-  let p₇ := p₆.set rem (t * t)
-  let p₈ := p₇.set addr2 (childFp + 2)
-  let p₉ := p₈.set addr2 (childFp + 2 + t * t)
-  let p₁₀ := p₉.write (childFp + 2 + t * t) 0
-  let p₁₁ := p₁₀.set fpReg childFp
-  let y := p₁₁.set spReg (b + 2)
-  have hex_push : ExecWithin w branchPushChild x₂ y 12 := by
-    have q1 : ExecWithin (B := .standard) w ram[zero ← #0] x₂ p₁ 1 :=
-      ExecWithin.const (fits_zero w)
-    have q2 : ExecWithin (B := .standard) w ram[one ← #1] p₁ p₂ 1 := ExecWithin.const h1
-    have q3 : ExecWithin w ram[addr1 ← dBase + stride] p₂ p₃ 1 := by
-      have hdb' : p₂.regs dBase = db := by
-        simpa +decide [p₂, p₁, Function.update_apply] using hdb₂'
-      have hstr' : p₂.regs stride = k := by
-        simpa +decide [p₂, p₁, Function.update_apply] using hstr₂'
-      simpa [p₃, BinOp.eval, hdb', hstr', hcfp_eq] using
-        ExecWithin.bin (f := .add) (d := addr1) (i := dBase) (j := stride) (x := p₂)
-          (by simpa [BinOp.eval, hdb', hstr', hcfp_eq] using hcfp_fit)
-    have q4 : ExecWithin (B := .standard) w ram[*addr1 ← fpReg] p₃ p₄ 1 := by
-      have ha1 : p₃.regs addr1 = childFp := by simp [p₃]
-      have hfp' : p₃.regs fpReg = fp := by
-        simpa +decide [p₃, p₂, p₁, Function.update_apply] using hfp₂
-      simpa [p₄, ha1, hfp'] using
-        ExecWithin.store (B := .standard) (w := w) (a := addr1) (s := fpReg) (x := p₃)
-    have q5 : ExecWithin w ram[addr2 ← addr1 + one] p₄ p₅ 1 := by
-      have ha1 : p₄.regs addr1 = childFp := by simp +decide [p₄, p₃]
-      have h1' : p₄.regs one = 1 := by simp +decide [p₄, p₃, p₂]
-      simpa [p₅, BinOp.eval, ha1, h1'] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := addr1) (j := one) (x := p₄)
-          (by simpa [BinOp.eval, ha1, h1'] using hcfp1_fit)
-    have q6 : ExecWithin (B := .standard) w ram[*addr2 ← targetT] p₅ p₆ 1 := by
-      have ha2 : p₅.regs addr2 = childFp + 1 := by simp [p₅]
-      have ht' : p₅.regs targetT = t := by
-        simpa +decide [p₅, p₄, p₃, p₂, p₁, Function.update_apply] using ht₂'
-      simpa [p₆, ha2, ht'] using
-        ExecWithin.store (B := .standard) (w := w) (a := addr2) (s := targetT) (x := p₅)
-    have q7 : ExecWithin w ram[rem ← targetT * targetT] p₆ p₇ 1 := by
-      have ht' : p₆.regs targetT = t := by
-        simpa +decide [p₆, p₅, p₄, p₃, p₂, p₁, Function.update_apply] using ht₂'
-      simpa [p₇, BinOp.eval, ht'] using
-        ExecWithin.bin (f := .mul) (d := rem) (i := targetT) (j := targetT) (x := p₆)
-          (by simpa [BinOp.eval, ht'] using htt_fit)
-    have q8 : ExecWithin w ram[addr2 ← addr2 + one] p₇ p₈ 1 := by
-      have ha2 : p₇.regs addr2 = childFp + 1 := by simp +decide [p₇, p₆, p₅]
-      have h1' : p₇.regs one = 1 := by simp +decide [p₇, p₆, p₅, p₄, p₃, p₂]
-      have heq : (childFp + 1) + 1 = childFp + 2 := by omega
-      simpa [p₈, BinOp.eval, ha2, h1', heq] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := addr2) (j := one) (x := p₇)
-          (by simpa [BinOp.eval, ha2, h1', heq] using hcfp2_fit)
-    have q9 : ExecWithin w ram[addr2 ← addr2 + rem] p₈ p₉ 1 := by
-      have ha2 : p₈.regs addr2 = childFp + 2 := by simp [p₈]
-      have hr' : p₈.regs rem = t * t := by simp +decide [p₈, p₇]
-      simpa [p₉, BinOp.eval, ha2, hr'] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := addr2) (j := rem) (x := p₈)
-          (by simpa [BinOp.eval, ha2, hr'] using hdstEnd)
-    have q10 : ExecWithin (B := .standard) w ram[*addr2 ← zero] p₉ p₁₀ 1 := by
-      have ha2 : p₉.regs addr2 = childFp + 2 + t * t := by simp [p₉]
-      have hz' : p₉.regs zero = 0 := by simp +decide [p₉, p₈, p₇, p₆, p₅, p₄, p₃, p₂, p₁]
-      simpa [p₁₀, ha2, hz'] using
-        ExecWithin.store (B := .standard) (w := w) (a := addr2) (s := zero) (x := p₉)
-    have q11 : ExecWithin (B := .standard) w ram[fpReg ← addr1] p₁₀ p₁₁ 1 := by
-      have ha1 : p₁₀.regs addr1 = childFp := by simp +decide [p₁₀, p₉, p₈, p₇, p₆, p₅, p₄, p₃]
-      simpa [p₁₁, ha1] using
-        (Exec.copy (B := .standard) (w := w) (d := fpReg) (s := addr1) (x := p₁₀)).within
-    have q12 : ExecWithin w ram[spReg ← spReg + one] p₁₁ y 1 := by
-      have hsp' : p₁₁.regs spReg = b + 1 := by
-        simpa +decide [p₁₁, p₁₀, p₉, p₈, p₇, p₆, p₅, p₄, p₃, p₂, p₁, Function.update_apply]
-          using hsp₂
-      have h1' : p₁₁.regs one = 1 := by
-        simp +decide [p₁₁, p₁₀, p₉, p₈, p₇, p₆, p₅, p₄, p₃, p₂]
-      have heq : (b + 1) + 1 = b + 2 := by omega
-      simpa [y, BinOp.eval, hsp', h1', heq] using
-        ExecWithin.bin (f := .add) (d := spReg) (i := spReg) (j := one) (x := p₁₁)
-          (by simpa [BinOp.eval, hsp', h1', heq] using hsp_fit)
-    unfold branchPushChild
-    exact (q1.seq (q2.seq (q3.seq (q4.seq (q5.seq (q6.seq (q7.seq (q8.seq
-      (q9.seq (q10.seq (q11.seq q12))))))))))).mono (by omega)
-  have hym : y.mem = Function.update
-      (Function.update (Function.update x₂.mem childFp fp) (childFp + 1) t)
-      (childFp + 2 + t * t) 0 := rfl
-  refine ⟨y, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · unfold branchTail
-    exact (hex_pre.seq (hex_sub.seq hex_push)).mono (by omega)
+  have hwEnd : Fits w (wb + k * t) := hfit.of_le (by dsimp only [wb]; unfold frameSize; omega)
+  refine WP.exists_execWithin ?_
+  unfold branchTail branchCompactPre
+  wram_exec [hdBase, hstride, hcfp_eq]
+  wram_call (copySubmatrixCode_exec (W := fun i j => x.mem (wb + i.val * k + j.val))
+    (by wram_simp [hwBase]; rfl) (by wram_simp [hstride]) (by wram_simp [htargetT])
+    (by wram_simp; dsimp only [childFp, db] at *; omega) (by wram_simp) htk
+    (by dsimp only [wb]; rw [← hcfp_eq]; dsimp only [db]; omega)
+    hwEnd hdstEnd (fun _ _ => rfl))
+    with x₂ ⟨hmat_sub, hmod_sub, _, _, hdb₂, hstr₂, _, ht₂, _, hhi₂⟩
+  have hdb₂' : x₂.regs dBase = db := by wram_simp [hdBase] at hdb₂; exact hdb₂
+  have hfp₂ : x₂.regs fpReg = fp := (hhi₂ fpReg (by decide)).trans (by wram_simp [hfp])
+  have hsp₂ : x₂.regs spReg = b + 1 := (hhi₂ spReg (by decide)).trans (by wram_simp [hsp])
+  unfold branchPushChild
+  wram_exec [hdb₂', hstr₂, ht₂, hfp₂, hsp₂, hcfp_eq,
+    show (childFp + 1) + 1 = childFp + 2 from rfl, show (b + 1) + 1 = b + 2 from rfl]
+  refine ⟨?_, by wram_simp, by wram_simp; rfl, by wram_simp,
+    by dsimp only [childFp]; wram_simp, by dsimp only [childFp]; wram_simp,
+    by dsimp only [childFp]; wram_simp, ?_⟩
   · intro a ha
     rw [Finset.mem_Ico, hfs_t] at ha
-    rw [hym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-    exact hmod_sub a (by rw [Finset.mem_Ico]; omega)
-  · simp +decide [y, p₁₁, p₁₀, p₉, p₈, p₇, p₆, p₅, p₄, p₃, p₂, p₁]
-  · simp +decide [y, p₁₁, childFp]
-  · simp [y]
-  · rw [hym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_self]
-  · rw [hym, Function.update_of_ne (by omega), Function.update_self]
-  · rw [hym, Function.update_self]
+    dsimp only [childFp] at *
+    wram_simp
+    simpa using hmod_sub a (by rw [Finset.mem_Ico]; omega)
   · intro i j
-    have hlt : childFp + 2 + i.val * t + j.val < childFp + 2 + t * t :=
-      matAddr_lt_end (le_refl t) i j
-    rw [hym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
+    have hlt := matAddr_lt_end (wb := childFp + 2) (le_refl t) i j
+    dsimp only [childFp, wb] at *
+    wram_simp
     exact hmat_sub i j
 
 /-- Branch setup observes exactly one canonical contraction reply in the child frame. -/
-theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (hk_reg : x.regs activeK = k)
@@ -1746,244 +1105,96 @@ theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n →
   have ht6 : 6 ≤ t := fastCutThreshold_ge_six hk7
   have htk : t < k := fastCutThreshold_lt (by omega)
   have hscr_eq : fp + fastCutScratch k = childFp + fastCutScratch t := by
-    dsimp only [childFp, t]
-    rw [fastCutScratch_of_ge_seven hk7]
-    omega
+    dsimp only [childFp, t]; rw [fastCutScratch_of_ge_seven hk7]; omega
   have hfs_t_le : frameSize t ≤ fastCutScratch t := frameSize_le_fastCutScratch t
-  have hcfp_eq : fp + frameSize k = db + k := by
-    dsimp only [db]
-    unfold frameSize
-    omega
+  have hcfp_eq : fp + frameSize k = db + k := by dsimp only [db]; unfold frameSize; omega
   have hfit_child : Fits w (childFp + frameSize t) := hfit.of_le (by omega)
   have hfit_th : Fits w (2 * k * (k - 1)) := by
     have := two_mul_pred_le_frameSize k
     exact hfit.of_le (by dsimp only [childFp] at hfit_child; omega)
-  have hkk_ge : 49 ≤ k * k := Nat.mul_le_mul hk7 hk7
-  have h1 : Fits w 1 := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have h2 : Fits w 2 := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have h4 : Fits w 4 := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have hfp2_fit : Fits w (fp + 2) := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have hfp4_fit : Fits w (fp + 4) := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have hkk_fit : Fits w (k * k) := hfit_child.of_le (by
-    dsimp only [childFp]; rw [hcfp_eq]; dsimp only [db]; omega)
-  have hwb_fit : Fits w wb := hfit_child.of_le (by
-    dsimp only [childFp]; rw [hcfp_eq]; dsimp only [wb, db]; omega)
-  have hdb_fit : Fits w db := hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
-  have hdEnd_fit : Fits w (db + k) := hfit_child.of_le (by
-    dsimp only [childFp]; rw [hcfp_eq]; omega)
+  have hdEnd_fit : Fits w (db + k) :=
+    hfit_child.of_le (by dsimp only [childFp]; rw [hcfp_eq]; omega)
+  have h1 : Fits w 1 := hdEnd_fit.of_le (by dsimp only [db]; omega)
+  have hdb_fit : Fits w db := hdEnd_fit.of_le (by omega)
   have hd_eq : wb + k * k = db := by dsimp only [wb, db]; omega
+  have hwEnd_fit : Fits w (wb + k * k) := hd_eq ▸ hdb_fit
   have htot_k : Fits w (totalDoubledWeight W_k) :=
     htot.of_le (totalDoubledWeight_le_of_isContractionOf hC)
-  -- Step 1: `thresholdCode`
-  obtain ⟨x_th, ⟨n_th, hn_th, hex_th⟩, hmem_th, _, hk_th, ht_th, _, _, _, hhi_th⟩ :=
-    thresholdCode_exec hk7 hk_reg hfit_th
-  have hfp_th : x_th.regs fpReg = fp := (hhi_th fpReg (by decide)).trans hfp
-  have hsp_th : x_th.regs spReg = b + 1 := (hhi_th spReg (by decide)).trans hsp
-  -- Step 2: `branchSetup`
-  let s₁ := x_th.set val1 2
-  let s₂ := s₁.set uReg (fp + 2)
-  let s₃ := s₂.set rem (k * k)
-  let s₄ := s₃.set val1 4
-  let s₅ := s₄.set wBase (fp + 4)
-  let s₆ := s₅.set wBase wb
-  let s₇ := s₆.set dBase db
-  let x_set := s₇.set stride k
-  have hex_setup : Exec w branchSetup x_th x_set 8 := by
-    have e1 : Exec (B := .standard) w ram[val1 ← #2] x_th s₁ 1 := Exec.const h2
-    have e2 : Exec w ram[uReg ← fpReg + val1] s₁ s₂ 1 := by
-      have hfp' : s₁.regs fpReg = fp := by simpa +decide [s₁, Function.update_apply] using hfp_th
-      have hv1' : s₁.regs val1 = 2 := by simp [s₁]
-      simpa [s₂, BinOp.eval, hfp', hv1'] using
-        Exec.bin (f := .add) (d := uReg) (i := fpReg) (j := val1) (x := s₁)
-          (by simpa [BinOp.eval, hfp', hv1'] using hfp2_fit)
-    have e3 : Exec w ram[rem ← activeK * activeK] s₂ s₃ 1 := by
-      have hk' : s₂.regs activeK = k := by
-        simpa +decide [s₂, s₁, Function.update_apply] using hk_th
-      simpa [s₃, BinOp.eval, hk'] using
-        Exec.bin (f := .mul) (d := rem) (i := activeK) (j := activeK) (x := s₂)
-          (by simpa [BinOp.eval, hk'] using hkk_fit)
-    have e4 : Exec (B := .standard) w ram[val1 ← #4] s₃ s₄ 1 := Exec.const h4
-    have e5 : Exec w ram[wBase ← fpReg + val1] s₄ s₅ 1 := by
-      have hfp' : s₄.regs fpReg = fp := by
-        simpa +decide [s₄, s₃, s₂, s₁, Function.update_apply] using hfp_th
-      have hv1' : s₄.regs val1 = 4 := by simp [s₄]
-      simpa [s₅, BinOp.eval, hfp', hv1'] using
-        Exec.bin (f := .add) (d := wBase) (i := fpReg) (j := val1) (x := s₄)
-          (by simpa [BinOp.eval, hfp', hv1'] using hfp4_fit)
-    have e6 : Exec w ram[wBase ← wBase + rem] s₅ s₆ 1 := by
-      have hwb' : s₅.regs wBase = fp + 4 := by simp [s₅]
-      have hr' : s₅.regs rem = k * k := by simp +decide [s₅, s₄, s₃]
-      have heq : (fp + 4) + k * k = wb := rfl
-      simpa [s₆, BinOp.eval, hwb', hr', heq] using
-        Exec.bin (f := .add) (d := wBase) (i := wBase) (j := rem) (x := s₅)
-          (by simpa [BinOp.eval, hwb', hr', heq] using hwb_fit)
-    have e7 : Exec w ram[dBase ← wBase + rem] s₆ s₇ 1 := by
-      have hwb' : s₆.regs wBase = wb := by simp [s₆]
-      have hr' : s₆.regs rem = k * k := by simp +decide [s₆, s₅, s₄, s₃]
-      simpa [s₇, BinOp.eval, hwb', hr', hd_eq] using
-        Exec.bin (f := .add) (d := dBase) (i := wBase) (j := rem) (x := s₆)
-          (by simpa [BinOp.eval, hwb', hr', hd_eq] using hdb_fit)
-    have e8 : Exec (B := .standard) w ram[stride ← activeK] s₇ x_set 1 := by
-      have hk' : s₇.regs activeK = k := by
-        simpa +decide [s₇, s₆, s₅, s₄, s₃, s₂, s₁, Function.update_apply] using hk_th
-      simpa [x_set, hk'] using
-        Exec.copy (B := .standard) (w := w) (d := stride) (s := activeK) (x := s₇)
+  let S_mod := Finset.Ico wb (fp + fastCutScratch k)
+  obtain ⟨x_deg, e_pre, hst_deg, hmod_pre⟩ : ∃ x_deg,
+      ExecWithin w
+        ram[⟪thresholdCode⟫; ⟪branchSetup⟫; ⟪ksCopyCode⟫; ⟪computeDegreesAndTotalAt hr24⟫]
+        x x_deg ((6 * k + 9) + 8 + (7 * (k * k) + 4) + (6 * k ^ 2 + 12 * k + 6)) ∧
+      ContractState w wb db k k t W_k (x_deg.comap (Fin.castLE hr24)) ∧
+      Modifies S_mod x.mem x_deg.mem := by
+    have : Fits w 4 := hdEnd_fit.of_le (by dsimp only [db]; omega)
+    have : Fits w (k * k) := hdEnd_fit.of_le (by dsimp only [db]; omega)
+    have : Fits w wb := hwEnd_fit.of_le (by omega)
+    refine WP.exists_execWithin (WP.seq ?_)
+    wram_call (thresholdCode_exec hk7 hk_reg hfit_th)
+      with x_th ⟨hmem_th, _, hk_th, ht_th, _, _, _, hhi_th⟩
+    have hfp_th : x_th.regs fpReg = fp := (hhi_th fpReg (by decide)).trans hfp
     unfold branchSetup
-    exact e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq e8))))))
-  -- Step 3: `ksCopyCode`
-  obtain ⟨x_cp, ⟨n_cp, hn_cp, hex_cp⟩, hmat_cp, hmod_cp, _, hwb_cp, hdb_cp, hstr_cp, hk_cp,
-      ht_cp, hhi_cp⟩ :=
-    ksCopyCode_exec (x := x_set) (sb := fp + 2) (db := wb) (k := k) (W := W_k)
-      (by simp +decide [x_set, s₇, s₆, s₅, s₄, s₃, s₂])
-      (by simp +decide [x_set, s₇, s₆])
-      (by simp +decide [x_set, s₇, s₆, s₅, s₄, s₃])
-      (by dsimp only [wb]; omega) h1 (hd_eq ▸ hdb_fit) (hmem_th ▸ hmat)
-  have hdb_cp' : x_cp.regs dBase = db := by
-    rw [hdb_cp]; simp +decide [x_set, s₇]
-  have hstr_cp' : x_cp.regs stride = k := by
-    rw [hstr_cp]; simp [x_set]
-  have hk_cp' : x_cp.regs activeK = k := by
-    rw [hk_cp]
-    simpa +decide [x_set, s₇, s₆, s₅, s₄, s₃, s₂, s₁, Function.update_apply] using hk_th
-  have ht_cp' : x_cp.regs targetT = t := by
-    rw [ht_cp]
-    simpa +decide [x_set, s₇, s₆, s₅, s₄, s₃, s₂, s₁, Function.update_apply] using ht_th
-  -- Step 4: `computeDegreesAndTotalAt hr24`
-  obtain ⟨x_deg, ⟨n_deg, hn_deg, hex_deg⟩, hws_deg, hmod_deg, hwb_deg, hdb_deg, hstr_deg, hk_deg,
-      ht_deg, htot_deg, hhi_deg⟩ :=
-    computeDegreesAndTotalAt_exec hr24 (x := x_cp) (wb := wb) (db := db) (str := k) (k := k)
-      (W := W_k) hwb_cp hdb_cp' hstr_cp' hk_cp' (le_refl k) (Or.inl (by dsimp only [wb, db]; omega))
-      h1 (hd_eq ▸ hdb_fit) hdEnd_fit htot_k hmat_cp
-  have hfp_deg : x_deg.regs fpReg = fp := by
-    rw [hhi_deg fpReg (by decide), hhi_cp fpReg (by decide)]
-    simpa +decide [x_set, s₇, s₆, s₅, s₄, s₃, s₂, s₁, Function.update_apply] using hfp_th
-  have hsp_deg : x_deg.regs spReg = b + 1 := by
-    rw [hhi_deg spReg (by decide), hhi_cp spReg (by decide)]
-    simpa +decide [x_set, s₇, s₆, s₅, s₄, s₃, s₂, s₁, Function.update_apply] using hsp_th
-  have hst_deg : ContractState w wb db k k t W_k (x_deg.comap (Fin.castLE hr24)) := {
-    regs_wBase := hwb_deg
-    regs_dBase := hdb_deg
-    regs_stride := hstr_deg
-    regs_activeK := hk_deg
-    regs_targetT := ht_deg.trans ht_cp'
-    regs_totS := htot_deg
-    le_stride := le_refl k
-    disjoint_blocks := Or.inl (by dsimp only [wb, db]; omega)
-    fits_wEnd := hd_eq ▸ hdb_fit
-    fits_dEnd := hdEnd_fit
-    fits_totS := htot_k
-    workspace := hws_deg
-  }
-  -- Step 5: `contractDownToAt hr24`
-  obtain ⟨m_c, hm_c, hq_c, hsup_raw, hlaw_c⟩ :=
-    contractDownToAt_law hr24 (by omega : 2 ≤ t) htk.le hC.multigraph hst_deg
-  have hsup_c : ∀ z ∈ m_c.support,
-      z.2 ≤ 36 * (k ^ 2 - t ^ 2) + 4 ∧
-      Modifies (workspaceFootprint wb db k k) x_deg.mem z.1.mem ∧
-      (∀ j : Fin 24, 16 ≤ j.val → z.1.regs j = x_deg.regs j) ∧
-      ∃ (W' : Fin t → Fin t → ℕ) (part' : Fin n → Fin t),
-        IsContractionOf W₀ part' W' ∧
-        ContractState w wb db k t t W' (z.1.comap (Fin.castLE hr24)) := by
-    intro z hz
-    rcases hsup_raw z hz with ⟨⟨hmod, hhi, W', hW', hst⟩, ht⟩
-    have hobs : heldGraph wb k (z.1.comap (Fin.castLE hr24)) ∈
-        (Lean.Karger.contractLaw (⟨k, W_k⟩, t)).support := by
-      change _ ∈ ((Lean.Karger.spec.toRandomized.withCoins.run
-        (Lean.Karger.contractTimes (k - t)) ⟨k, W_k⟩).map Prod.snd).support
-      rw [← hlaw_c, ProbComp.eval_map, PMF.mem_support_map_iff]
-      exact ⟨z, (ProbComp.support_eval m_c) ▸ hz, rfl⟩
-    obtain ⟨W₁, part₁, hgraph, hC₁⟩ := Lean.Karger.isContractionOf_of_mem_support_contractLaw
-      (by omega) htk.le hC hobs
-    have heq := hst.heldGraph_eq.symm.trans hgraph
-    simp only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] at heq
-    exact ⟨ht, hmod, hhi, W', part₁, heq ▸ hC₁, hst⟩
-  -- Step 6: `branchTail` on every supported output of `m_c`
-  have htail : ∀ z ∈ m_c.support, ∃ y : Data 24,
-      ExecWithin w branchTail z.1 y (7 * t ^ 2 + 8 * t + 21) ∧
-      Modifies (Finset.Ico childFp (childFp + frameSize t)) z.1.mem y.mem ∧
-      y.regs zero = 0 ∧
-      y.regs fpReg = childFp ∧
-      y.regs spReg = b + 2 ∧
-      y.mem childFp = fp ∧
-      y.mem (childFp + 1) = t ∧
-      y.mem (childFp + 2 + t * t) = 0 ∧
-      ∀ i j : Fin t,
-        y.mem (childFp + 2 + i.val * t + j.val) = z.1.mem (wb + i.val * k + j.val) := by
-    intro z hz
-    rcases hsup_c z hz with ⟨_, _, hhi_c, _, _, _, hst_c⟩
-    exact branchTail_exec ht6 htk.le hst_c.regs_wBase hst_c.regs_dBase hst_c.regs_stride
-      hst_c.regs_targetT ((hhi_c fpReg (by decide)).trans hfp_deg)
-      ((hhi_c spReg (by decide)).trans hsp_deg) hfit_child hsp_fit
-  obtain ⟨g, hseq_tail, hg⟩ := execRand_seq_det
-    (Q := fun d y => Modifies (Finset.Ico childFp (childFp + frameSize t)) d.mem y.mem ∧
+    wram_exec [hk_th, hfp_th, hd_eq]
+    wram_call (ksCopyCode_exec (W := W_k) (by wram_simp) (by wram_simp; rfl) (by wram_simp)
+      (by dsimp only [wb]; omega) h1 hwEnd_fit (hmem_th ▸ hmat))
+      with x_cp ⟨hmat_cp, hmod_cp, _, hwb_cp, hdb_cp, hstr_cp, hk_cp, ht_cp, _⟩
+    wram_call (computeDegreesAndTotalAt_exec hr24
+      hwb_cp (by wram_simp at hdb_cp; change x_cp.regs dBase = _; dsimp only [db]; omega)
+      (by wram_simp at hstr_cp; exact hstr_cp) (by wram_simp [hk_th] at hk_cp; exact hk_cp)
+      (le_refl k) (Or.inl (by dsimp only [wb, db]; omega)) h1 hwEnd_fit hdEnd_fit htot_k hmat_cp)
+      with x_deg ⟨hws_deg, hmod_deg, hwb_deg, hdb_deg, hstr_deg, hk_deg, ht_deg, htot_deg, _⟩
+    have ht_deg' : x_deg.regs (Fin.castLE hr24 Reg.targetT) = t := by
+      rw [ht_deg]; change x_cp.regs targetT = t; rw [ht_cp]; wram_simp [ht_th]; rfl
+    refine ⟨by omega, ⟨hwb_deg, hdb_deg, hstr_deg, hk_deg, ht_deg', htot_deg,
+      le_refl k, Or.inl (by dsimp only [wb, db]; omega), hwEnd_fit, hdEnd_fit, htot_k, hws_deg⟩,
+      modifies_trans_subset (hmem_th ▸ hmod_cp) hmod_deg
+        (fun a ha => by
+          rw [Finset.mem_Ico] at ha ⊢; rw [hscr_eq]; dsimp only [childFp] at *
+          rw [hcfp_eq]; omega)
+        (fun a ha => by
+          rw [Finset.mem_Ico] at ha ⊢; rw [hscr_eq]; dsimp only [wb, childFp] at *
+          rw [hcfp_eq]; omega)⟩
+  have hc_law :=
+    (contractDownToAt_law hr24 (by omega : 2 ≤ t) htk.le hC.multigraph hst_deg).withSupport
+  have hrun := ExecRandLaw.seq hc_law
+    (Q := fun y => Modifies S_mod x.mem y.mem ∧
       y.regs zero = 0 ∧ y.regs fpReg = childFp ∧ y.regs spReg = b + 2 ∧
-      y.mem childFp = fp ∧ y.mem (childFp + 1) = t ∧ y.mem (childFp + 2 + t * t) = 0 ∧
-      ∀ i j : Fin t,
-        y.mem (childFp + 2 + i.val * t + j.val) = d.mem (wb + i.val * k + j.val))
-    hm_c htail
-  have hfull_raw := hex_th.seqRand (hex_setup.seqRand (hex_cp.seqRand (hex_deg.seqRand hseq_tail)))
-  let m_out : ProbComp (Data 24 × ℕ) :=
-    (fun z => ((g z.1).1, n_th + (8 + (n_cp + (n_deg + (z.2 + (g z.1).2)))))) <$> m_c
-  have hfull : ExecRand w branchContractAndPush x m_out := by
-    unfold branchContractAndPush
-    convert hfull_raw using 1
-    simp only [m_out, Functor.map_map]
-  have hsup_out : ∀ z ∈ m_out.support,
-      z.2 ≤ 80 * (k * k) ∧
-        (Modifies (Finset.Ico (fp + 4 + k * k) (fp + fastCutScratch k)) x.mem z.1.mem ∧
-        z.1.regs zero = 0 ∧ z.1.regs fpReg = childFp ∧ z.1.regs spReg = b + 2 ∧
-        z.1.mem childFp = fp ∧ z.1.mem (childFp + 1) = t ∧
-        z.1.mem (childFp + 2 + t * t) = 0 ∧
-        ∃ (W' : Fin t → Fin t → ℕ) (part' : Fin n → Fin t),
-          IsContractionOf W₀ part' W' ∧ HoldsMatrix z.1.mem (childFp + 2) t W') := by
-    intro z hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_c z₀ hz₀ with ⟨ht_c, hmod_c, _, W', part', hC', hst_c⟩
-    rcases hg z₀ hz₀ with
-      ⟨ht_tail, _, hmod_tail, hz0, hzfp, hzsp, hm_cfp, hm_cfp1, hm_cfp_stg, hm_sub⟩
-    refine ⟨branch_step_bound hk7 htk.le hn_th hn_cp hn_deg ht_c ht_tail,
-      ?_, hz0, hzfp, hzsp, hm_cfp, hm_cfp1, hm_cfp_stg, W', part', hC', ?_⟩
-    · let S_mod := Finset.Ico wb (fp + fastCutScratch k)
-      have hsub_cp : Finset.Ico wb (wb + k * k) ⊆ S_mod := by
-        intro a ha
-        rw [Finset.mem_Ico] at ha ⊢
-        rw [hscr_eq]; dsimp only [childFp] at *; rw [hcfp_eq]; omega
-      have hsub_deg : Finset.Ico db (db + k) ⊆ S_mod := by
-        intro a ha
-        rw [Finset.mem_Ico] at ha ⊢
-        rw [hscr_eq]; dsimp only [wb, childFp] at *; rw [hcfp_eq]; omega
-      have hsub_c : workspaceFootprint wb db k k ⊆ S_mod :=
-        Finset.union_subset hsub_cp hsub_deg
-      have hsub_tail : Finset.Ico childFp (childFp + frameSize t) ⊆ S_mod := by
-        intro a ha
-        rw [Finset.mem_Ico] at ha ⊢
-        rw [hscr_eq]; dsimp only [wb, childFp] at *; rw [hcfp_eq]; dsimp only [db]; omega
-      have hmod_xcp : Modifies S_mod x.mem x_cp.mem := by
-        have hmem_set : x_set.mem = x.mem := hmem_th
-        exact hmem_set ▸ (modifies_trans_subset (Modifies.refl S_mod x_set.mem) hmod_cp
-          Finset.Subset.rfl hsub_cp)
-      exact modifies_trans_subset
-        (modifies_trans_subset
-          (modifies_trans_subset hmod_xcp hmod_deg Finset.Subset.rfl hsub_deg)
-          hmod_c Finset.Subset.rfl hsub_c)
-        hmod_tail Finset.Subset.rfl hsub_tail
-    · intro i j
-      rw [hm_sub i j]
-      exact hst_c.workspace.1 i j
-  refine ⟨m_out, hfull,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq_c,
-    fun z hz => ⟨(hsup_out z hz).2, (hsup_out z hz).1⟩, ?_⟩
-  change ((fun z => frameGraph childFp t z.1) <$> m_out).eval =
-    ((Lean.Karger.spec.toRandomized.withCoins.run (Lean.Karger.contractTimes (k - t))
-      ⟨k, W_k⟩).map Prod.snd)
-  rw [← hlaw_c]
-  simp only [m_out, Functor.map_map, ProbComp.eval_map]
-  refine Probability.PMF.map_congr_on_support _ _ _ fun z hz => ?_
-  rw [ProbComp.support_eval] at hz
-  rcases hsup_c z hz with ⟨_, _, _, W', part', hC', hst⟩
-  have hmat' : HoldsMatrix (g z.1).1.mem (childFp + 2) t W' := fun i j =>
-    ((hg z hz).2.2.2.2.2.2.2.2.2 i j).trans (hst.workspace.1 i j)
-  exact (frameGraph_eq_iff.mpr hmat').trans hst.heldGraph_eq.symm
+      y.mem childFp = fp ∧ y.mem (childFp + 1) = t ∧
+      y.mem (childFp + 2 + t * t) = 0 ∧
+      ∃ (W' : Fin t → Fin t → ℕ) (part' : Fin n → Fin t),
+        IsContractionOf W₀ part' W' ∧ HoldsMatrix y.mem (childFp + 2) t W')
+    (κ := PMF.pure)
+    fun z ⟨⟨hmod_c, hhi_c, W', hW', hst_c⟩, hobs⟩ => by
+      obtain ⟨W₁, part₁, hgraph, hC₁⟩ :=
+        Lean.Karger.isContractionOf_of_mem_support_contractLaw (by omega) htk.le hC hobs
+      have heq := hst_c.heldGraph_eq.symm.trans hgraph
+      simp only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] at heq
+      obtain ⟨y, e_tail, hmod_tail, hz0, hzfp, hzsp, hm_cfp, hm_cfp1, hm_cfp_stg, hm_sub⟩ :=
+        branchTail_exec ht6 htk.le hst_c.regs_wBase hst_c.regs_dBase hst_c.regs_stride
+          hst_c.regs_targetT
+          ((hhi_c fpReg (by decide)).trans ((e_pre.regs_eq (by decide)).trans hfp))
+          ((hhi_c spReg (by decide)).trans ((e_pre.regs_eq (by decide)).trans hsp))
+          hfit_child hsp_fit
+      have hmat_y : HoldsMatrix y.mem (childFp + 2) t W' :=
+        fun i j => (hm_sub i j).trans (hst_c.workspace.1 i j)
+      have hmod_y : Modifies S_mod x.mem y.mem :=
+        modifies_trans_subset
+          (modifies_trans_subset hmod_pre hmod_c Finset.Subset.rfl
+            (workspaceFootprint_subset_Ico le_rfl (by dsimp only [wb, db]; omega)
+              (by rw [hscr_eq]; dsimp only [childFp] at *; rw [hcfp_eq]; omega)))
+          hmod_tail Finset.Subset.rfl
+          (fun a ha => by
+            rw [Finset.mem_Ico] at ha ⊢; rw [hscr_eq]
+            dsimp only [wb, childFp] at *; rw [hcfp_eq]; dsimp only [db]; omega)
+      exact (ExecRandLaw.of_execWithin (f := frameGraph childFp t) e_tail
+        ⟨hmod_y, hz0, hzfp, hzsp, hm_cfp, hm_cfp1, hm_cfp_stg, W', part₁, heq ▸ hC₁,
+          hmat_y⟩).congr_law (congrArg PMF.pure ((frameGraph_eq_iff.mpr hmat_y).trans
+            hst_c.heldGraph_eq.symm))
+  refine ((ExecRandLaw.foldr_seq_det [thresholdCode, branchSetup, ksCopyCode] e_pre
+    hrun).congr_law (PMF.bind_pure _)).mono (fun _ h => h) ?_ (by omega)
+  have hbound := branch_step_bound hk7 htk.le le_rfl le_rfl le_rfl le_rfl le_rfl
+  omega
 
 theorem branchContractAndPush_spec {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
@@ -2034,7 +1245,7 @@ theorem branchContractAndPush_spec {n w fp b k : ℕ} {W₀ : Fin n → Fin n �
     hpb ▸ hBmin⟩
 
 /-- Stage 0 observes one canonical contraction reply in the child frame. -/
-theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2066,81 +1277,46 @@ theorem fastCutStep_stage0_law {n w fp b k : ℕ} {W₀ : Fin n → Fin n → �
   have hfp_h : y_h.regs fpReg = fp := (hhi_h fpReg (by decide)).trans hfp
   have hsp_h : y_h.regs spReg = b + 1 := (hhi_h spReg (by decide)).trans hsp
   have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by
-    simp only [Cond.holds_lt, hk_h, hv1_h]
-    omega
-  have hc_eq0 : (Cond.eq val2 zero).Holds y_h := by
-    simp [Cond.holds_eq, hv2_h, h0_h]
+    simp only [Cond.holds_lt, hk_h, hv1_h]; omega
+  have hc_eq0 : (Cond.eq val2 zero).Holds y_h := by simp [Cond.holds_eq, hv2_h, h0_h]
   let y_s := y_h.write (fp + 2 + k * k) 1
   have hex_s0 : Exec (B := .standard) w stageZeroSet y_h y_s 1 := by
     unfold stageZeroSet
     simpa [y_s, ha2_h, h1_h] using
       Exec.store (B := .standard) (w := w) (a := addr2) (s := one) (x := y_h)
-  have hmat_s : HoldsMatrix y_s.mem (fp + 2) k W_k := by
-    intro i j
-    have hlt : fp + 2 + i.val * k + j.val < fp + 2 + k * k := matAddr_lt_end (le_refl k) i j
-    change Function.update y_h.mem (fp + 2 + k * k) 1 (fp + 2 + i.val * k + j.val) = W_k i j
+  have hmat_s : HoldsMatrix y_s.mem (fp + 2) k W_k := fun i j => by
+    have hlt := matAddr_lt_end (wb := fp + 2) (le_refl k) i j
+    change Function.update y_h.mem (fp + 2 + k * k) 1 _ = W_k i j
     rw [Function.update_of_ne (by omega), hm_h]
     exact hmat i j
-  obtain ⟨m_c, hm_c, hq_c, hsup_raw, hlaw_c⟩ :=
+  have hbcp :=
     branchContractAndPush_law (x := y_s) hk7 hk_h hfp_h hsp_h hmat_s hC hfit hsp_fit htot
-  have hsup_c := fun z hz => (hsup_raw z hz).symm
-  have hbr0 : ExecRand w
-      ram[if val2 = zero then [ ⟪stageZeroSet⟫; ⟪branchContractAndPush⟫ ] else [
-        if val2 = one then [ ⟪stageOneSaveAndSet⟫; ⟪branchContractAndPush⟫ ] else [
-          ⟪combineAndPop⟫ ] ]]
-      y_h ((fun z => (z.1, (1 + z.2) + 1)) <$> m_c) := by
-    convert ExecRand.branch_pos hc_eq0 (hex_s0.seqRand hm_c) using 1
-    simp only [Functor.map_map]
-  have hstep : ExecRand w fastCutStep x
-      ((fun z => (z.1, 9 + (((1 + z.2) + 1) + 2))) <$> m_c) := by
-    unfold fastCutStep
-    convert hex_hdr.seqRand (ExecRand.branch_neg hnc_lt hbr0) using 1
-    simp only [Functor.map_map]
-  have hseg_raw := LoopSegment.single hc_loop hstep
-  let m_out : ProbComp (Data 24 × ℕ) :=
-    (fun z => (z.1, 9 + (((1 + z.2) + 1) + 2) + 2)) <$> m_c
-  have hseg : LoopSegment w (Cond.lt zero spReg) fastCutStep x m_out := by
-    convert hseg_raw using 1
-    simp only [m_out, Functor.map_map]
-  have hsup_out : ∀ z ∈ m_out.support, z.2 ≤ 80 * (k * k) + 15 ∧
-      (Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k))
-        x.mem z.1.mem ∧
-        z.1.mem (fp + 2 + k * k) = 1 ∧
-        z.1.regs zero = 0 ∧
-        z.1.regs fpReg = childFp ∧
-        z.1.regs spReg = b + 2 ∧
-        z.1.mem childFp = fp ∧
-        z.1.mem (childFp + 1) = t ∧
-        z.1.mem (childFp + 2 + t * t) = 0 ∧
+  have hstep : ExecRandLaw w fastCutStep x
+      (fun y => Modifies (Finset.Ico (fp + 4 + k * k) (fp + fastCutScratch k)) y_s.mem y.mem ∧
+        y.regs zero = 0 ∧ y.regs fpReg = childFp ∧ y.regs spReg = b + 2 ∧
+        y.mem childFp = fp ∧ y.mem (childFp + 1) = t ∧ y.mem (childFp + 2 + t * t) = 0 ∧
         ∃ (W' : Fin t → Fin t → ℕ) (part' : Fin n → Fin t),
-          IsContractionOf W₀ part' W' ∧
-          HoldsMatrix z.1.mem (childFp + 2) t W') := by
-    intro z hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_c z₀ hz₀ with ⟨ht₀, hmod₀, rest⟩
-    have hstg_in : fp + 2 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
-      rw [Finset.mem_Ico]
-      unfold frameSize at hfs_le
-      omega
-    have hmod_s : Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k))
-        x.mem y_s.mem := by
-      change Modifies _ x.mem (Function.update y_h.mem (fp + 2 + k * k) 1)
-      rw [hm_h]
-      exact modifies_update_of_mem hstg_in x.mem 1
-    have hsub : Finset.Ico (fp + 4 + k * k) (fp + fastCutScratch k) ⊆
-        Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
-      intro a ha; rw [Finset.mem_Ico] at ha ⊢; omega
-    have hstg_val : z₀.1.mem (fp + 2 + k * k) = 1 := by
-      rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega)]
-      exact Function.update_self _ _ _
-    exact ⟨by omega, modifies_trans_subset hmod_s hmod₀ Finset.Subset.rfl hsub, hstg_val, rest⟩
-  refine ⟨m_out, hseg,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq_c,
-    fun z hz => ⟨(hsup_out z hz).2, (hsup_out z hz).1⟩, ?_⟩
-  simpa only [m_out, Functor.map_map] using hlaw_c
+          IsContractionOf W₀ part' W' ∧ HoldsMatrix y.mem (childFp + 2) t W')
+      (9 + (((1 + 80 * (k * k)) + 1) + 2)) (k - t) (frameGraph childFp t)
+      (Lean.Karger.contractLaw (⟨k, W_k⟩, t)) := by
+    unfold fastCutStep
+    exact ExecRandLaw.seq_det hex_hdr.within
+      (ExecRandLaw.branch_neg hnc_lt (ExecRandLaw.branch_pos hc_eq0
+        (ExecRandLaw.seq_det hex_s0.within hbcp)))
+  refine (LoopSegmentLaw.single hc_loop hstep).mono (fun z ⟨hmod₀, rest⟩ => ?_) (by omega) le_rfl
+  have hstg_in : fp + 2 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
+    rw [Finset.mem_Ico]; unfold frameSize at hfs_le; omega
+  have hmod_s : Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k)) x.mem y_s.mem := by
+    change Modifies _ x.mem (Function.update y_h.mem (fp + 2 + k * k) 1)
+    exact hm_h ▸ modifies_update_of_mem hstg_in x.mem 1
+  have hstg_val : z.mem (fp + 2 + k * k) = 1 := by
+    rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega)]
+    exact Function.update_self _ _ _
+  exact ⟨modifies_trans_subset hmod_s hmod₀ Finset.Subset.rfl
+    (Finset.Ico_subset_Ico (by omega) le_rfl), hstg_val, rest⟩
 
 /-- Stage 1 observes one canonical contraction reply in the child frame. -/
-theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2170,134 +1346,61 @@ theorem fastCutStep_stage1_law {n w fp b k v1 : ℕ} {W₀ : Fin n → Fin n →
   have hc_loop : (Cond.lt zero spReg).Holds x := by simp [Cond.holds_lt, h0, hsp]
   have hfs_le : frameSize k ≤ fastCutScratch k := frameSize_le_fastCutScratch k
   have hfit_fs : Fits w (fp + frameSize k) := hfit.of_le (by omega)
-  have h2_fit : Fits w 2 := hfit_fs.of_le (by unfold frameSize; omega)
-  have ha1_fit : Fits w (fp + 3 + k * k) := hfit_fs.of_le (by unfold frameSize; omega)
   obtain ⟨y_h, hex_hdr, hm_h, h0_h, h1_h, hk_h, _, _, ha2_h, hv2_h, hv1_h, hhi_h⟩ :=
     stepHeader_exec (by omega : 2 ≤ k) hfp hmem_k hmem_stg hfit_fs
   have hfp_h : y_h.regs fpReg = fp := (hhi_h fpReg (by decide)).trans hfp
   have hsp_h : y_h.regs spReg = b + 1 := (hhi_h spReg (by decide)).trans hsp
   have hret_h : y_h.regs retVal = v1 := (hhi_h retVal (by decide)).trans hret
   have hnc_lt : ¬(Cond.lt activeK val1).Holds y_h := by
-    simp only [Cond.holds_lt, hk_h, hv1_h]
-    omega
-  have hnc_eq0 : ¬(Cond.eq val2 zero).Holds y_h := by
-    simp [Cond.holds_eq, hv2_h, h0_h]
-  have hc_eq1 : (Cond.eq val2 one).Holds y_h := by
-    simp [Cond.holds_eq, hv2_h, h1_h]
-  let q₁ := y_h.set val1 2
-  let q₂ := q₁.write (fp + 2 + k * k) 2
-  let q₃ := q₂.set addr1 (fp + 3 + k * k)
-  let y_s := q₃.write (fp + 3 + k * k) v1
-  have hex_s1 : Exec w stageOneSaveAndSet y_h y_s 4 := by
-    have s1 : Exec (B := .standard) w ram[val1 ← #2] y_h q₁ 1 := Exec.const h2_fit
-    have s2 : Exec (B := .standard) w ram[*addr2 ← val1] q₁ q₂ 1 := by
-      have ha2' : q₁.regs addr2 = fp + 2 + k * k := by
-        simpa +decide [q₁, Function.update_apply] using ha2_h
-      have hv1' : q₁.regs val1 = 2 := by simp [q₁]
-      simpa [q₂, ha2', hv1'] using
-        Exec.store (B := .standard) (w := w) (a := addr2) (s := val1) (x := q₁)
-    have s3 : Exec w ram[addr1 ← addr2 + one] q₂ q₃ 1 := by
-      have ha2' : q₂.regs addr2 = fp + 2 + k * k := by
-        simpa +decide [q₂, q₁, Function.update_apply] using ha2_h
-      have h1' : q₂.regs one = 1 := by simpa +decide [q₂, q₁, Function.update_apply] using h1_h
-      have heq : (fp + 2 + k * k) + 1 = fp + 3 + k * k := by omega
-      simpa [q₃, BinOp.eval, ha2', h1', heq] using
-        Exec.bin (f := .add) (d := addr1) (i := addr2) (j := one) (x := q₂)
-          (by simpa [BinOp.eval, ha2', h1', heq] using ha1_fit)
-    have s4 : Exec (B := .standard) w ram[*addr1 ← retVal] q₃ y_s 1 := by
-      have ha1' : q₃.regs addr1 = fp + 3 + k * k := by simp [q₃]
-      have hr' : q₃.regs retVal = v1 := by
-        simpa +decide [q₃, q₂, q₁, Function.update_apply] using hret_h
-      simpa [y_s, ha1', hr'] using
-        Exec.store (B := .standard) (w := w) (a := addr1) (s := retVal) (x := q₃)
+    simp only [Cond.holds_lt, hk_h, hv1_h]; omega
+  have hnc_eq0 : ¬(Cond.eq val2 zero).Holds y_h := by simp [Cond.holds_eq, hv2_h, h0_h]
+  have hc_eq1 : (Cond.eq val2 one).Holds y_h := by simp [Cond.holds_eq, hv2_h, h1_h]
+  obtain ⟨y_s, hex_s1, hys_mem, hk_s, hfp_s, hsp_s⟩ : ∃ y_s,
+      ExecWithin w stageOneSaveAndSet y_h y_s 4 ∧
+      y_s.mem = Function.update (Function.update x.mem (fp + 2 + k * k) 2) (fp + 3 + k * k) v1 ∧
+      y_s.regs activeK = k ∧ y_s.regs fpReg = fp ∧ y_s.regs spReg = b + 1 := by
+    have : Fits w 2 := hfit_fs.of_le (by unfold frameSize; omega)
+    have : Fits w (fp + 3 + k * k) := hfit_fs.of_le (by unfold frameSize; omega)
     unfold stageOneSaveAndSet
-    exact s1.seq (s2.seq (s3.seq s4))
-  have hys_mem : y_s.mem =
-      Function.update (Function.update x.mem (fp + 2 + k * k) 2) (fp + 3 + k * k) v1 := by
-    change Function.update (Function.update y_h.mem _ _) _ _ = _
-    rw [hm_h]
-  have hmat_s : HoldsMatrix y_s.mem (fp + 2) k W_k := by
-    intro i j
-    have hlt : fp + 2 + i.val * k + j.val < fp + 2 + k * k := matAddr_lt_end (le_refl k) i j
+    wram_exec [h1_h, ha2_h, hret_h, show (fp + 2 + k * k) + 1 = fp + 3 + k * k by omega]
+    exact ⟨by simp [Data.set_mem, Data.write_mem, hm_h],
+      by wram_simp [hk_h], by wram_simp [hfp_h], by wram_simp [hsp_h]⟩
+  have hmat_s : HoldsMatrix y_s.mem (fp + 2) k W_k := fun i j => by
+    have hlt := matAddr_lt_end (wb := fp + 2) (le_refl k) i j
     rw [hys_mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
     exact hmat i j
-  have hk_s : y_s.regs activeK = k := by
-    simpa +decide [y_s, q₃, q₂, q₁, Function.update_apply] using hk_h
-  have hfp_s : y_s.regs fpReg = fp := by
-    simpa +decide [y_s, q₃, q₂, q₁, Function.update_apply] using hfp_h
-  have hsp_s : y_s.regs spReg = b + 1 := by
-    simpa +decide [y_s, q₃, q₂, q₁, Function.update_apply] using hsp_h
-  obtain ⟨m_c, hm_c, hq_c, hsup_raw, hlaw_c⟩ :=
+  have hbcp :=
     branchContractAndPush_law (x := y_s) hk7 hk_s hfp_s hsp_s hmat_s hC hfit hsp_fit htot
-  have hsup_c := fun z hz => (hsup_raw z hz).symm
-  have hbr1 : ExecRand w
-      ram[if val2 = one then [ ⟪stageOneSaveAndSet⟫; ⟪branchContractAndPush⟫ ] else [
-        ⟪combineAndPop⟫ ]]
-      y_h ((fun z => (z.1, (4 + z.2) + 1)) <$> m_c) := by
-    convert ExecRand.branch_pos hc_eq1 (hex_s1.seqRand hm_c) using 1
-    simp only [Functor.map_map]
-  have hbr0 : ExecRand w
-      ram[if val2 = zero then [ ⟪stageZeroSet⟫; ⟪branchContractAndPush⟫ ] else [
-        if val2 = one then [ ⟪stageOneSaveAndSet⟫; ⟪branchContractAndPush⟫ ] else [
-          ⟪combineAndPop⟫ ] ]]
-      y_h ((fun z => (z.1, ((4 + z.2) + 1) + 2)) <$> m_c) := by
-    convert ExecRand.branch_neg hnc_eq0 hbr1 using 1
-    simp only [Functor.map_map]
-  have hstep : ExecRand w fastCutStep x
-      ((fun z => (z.1, 9 + ((((4 + z.2) + 1) + 2) + 2))) <$> m_c) := by
-    unfold fastCutStep
-    convert hex_hdr.seqRand (ExecRand.branch_neg hnc_lt hbr0) using 1
-    simp only [Functor.map_map]
-  have hseg_raw := LoopSegment.single hc_loop hstep
-  let m_out : ProbComp (Data 24 × ℕ) :=
-    (fun z => (z.1, 9 + ((((4 + z.2) + 1) + 2) + 2) + 2)) <$> m_c
-  have hseg : LoopSegment w (Cond.lt zero spReg) fastCutStep x m_out := by
-    convert hseg_raw using 1
-    simp only [m_out, Functor.map_map]
-  have hsup_out : ∀ z ∈ m_out.support, z.2 ≤ 80 * (k * k) + 20 ∧
-      (Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k))
-        x.mem z.1.mem ∧
-        z.1.mem (fp + 2 + k * k) = 2 ∧
-        z.1.mem (fp + 3 + k * k) = v1 ∧
-        z.1.regs zero = 0 ∧
-        z.1.regs fpReg = childFp ∧
-        z.1.regs spReg = b + 2 ∧
-        z.1.mem childFp = fp ∧
-        z.1.mem (childFp + 1) = t ∧
-        z.1.mem (childFp + 2 + t * t) = 0 ∧
+  have hstep : ExecRandLaw w fastCutStep x
+      (fun y => Modifies (Finset.Ico (fp + 4 + k * k) (fp + fastCutScratch k)) y_s.mem y.mem ∧
+        y.regs zero = 0 ∧ y.regs fpReg = childFp ∧ y.regs spReg = b + 2 ∧
+        y.mem childFp = fp ∧ y.mem (childFp + 1) = t ∧ y.mem (childFp + 2 + t * t) = 0 ∧
         ∃ (W' : Fin t → Fin t → ℕ) (part' : Fin n → Fin t),
-          IsContractionOf W₀ part' W' ∧
-          HoldsMatrix z.1.mem (childFp + 2) t W') := by
-    intro z hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_c z₀ hz₀ with ⟨ht₀, hmod₀, rest⟩
-    have hstg_in : fp + 2 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
-      rw [Finset.mem_Ico]; unfold frameSize at hfs_le; omega
-    have hv1_in : fp + 3 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
-      rw [Finset.mem_Ico]; unfold frameSize at hfs_le; omega
-    have hmod_s : Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k))
-        x.mem y_s.mem := by
-      rw [hys_mem]
-      exact modifies_trans_subset
-        (modifies_update_of_mem hstg_in x.mem 2)
-        (modifies_update_of_mem hv1_in _ v1)
-        Finset.Subset.rfl Finset.Subset.rfl
-    have hsub : Finset.Ico (fp + 4 + k * k) (fp + fastCutScratch k) ⊆
-        Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
-      intro a ha; rw [Finset.mem_Ico] at ha ⊢; omega
-    have hstg_val : z₀.1.mem (fp + 2 + k * k) = 2 := by
-      rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega), hys_mem,
-        Function.update_of_ne (by omega), Function.update_self]
-    have hv1_val : z₀.1.mem (fp + 3 + k * k) = v1 := by
-      rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega), hys_mem, Function.update_self]
-    exact ⟨by omega, modifies_trans_subset hmod_s hmod₀ Finset.Subset.rfl hsub,
-      hstg_val, hv1_val, rest⟩
-  refine ⟨m_out, hseg,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq_c,
-    fun z hz => ⟨(hsup_out z hz).2, (hsup_out z hz).1⟩, ?_⟩
-  simpa only [m_out, Functor.map_map] using hlaw_c
+          IsContractionOf W₀ part' W' ∧ HoldsMatrix y.mem (childFp + 2) t W')
+      (9 + ((((4 + 80 * (k * k)) + 1) + 2) + 2)) (k - t) (frameGraph childFp t)
+      (Lean.Karger.contractLaw (⟨k, W_k⟩, t)) := by
+    unfold fastCutStep
+    exact ExecRandLaw.seq_det hex_hdr.within
+      (ExecRandLaw.branch_neg hnc_lt (ExecRandLaw.branch_neg hnc_eq0
+        (ExecRandLaw.branch_pos hc_eq1 (ExecRandLaw.seq_det hex_s1 hbcp))))
+  refine (LoopSegmentLaw.single hc_loop hstep).mono (fun z ⟨hmod₀, rest⟩ => ?_) (by omega) le_rfl
+  have hstg_in : fp + 2 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
+    rw [Finset.mem_Ico]; unfold frameSize at hfs_le; omega
+  have hv1_in : fp + 3 + k * k ∈ Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k) := by
+    rw [Finset.mem_Ico]; unfold frameSize at hfs_le; omega
+  have hmod_s : Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k)) x.mem y_s.mem := by
+    rw [hys_mem]
+    exact modifies_trans_subset (modifies_update_of_mem hstg_in x.mem 2)
+      (modifies_update_of_mem hv1_in _ v1) Finset.Subset.rfl Finset.Subset.rfl
+  have hstg_val : z.mem (fp + 2 + k * k) = 2 := by
+    rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega), hys_mem,
+      Function.update_of_ne (by omega), Function.update_self]
+  have hv1_val : z.mem (fp + 3 + k * k) = v1 := by
+    rw [hmod₀ _ (by rw [Finset.mem_Ico]; omega), hys_mem, Function.update_self]
+  exact ⟨modifies_trans_subset hmod_s hmod₀ Finset.Subset.rfl
+    (Finset.Ico_subset_Ico (by omega) le_rfl), hstg_val, hv1_val, rest⟩
 
-theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
+private theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     (hk7 : 7 ≤ k)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
     (hr2 : x.regs retVal = r2)
@@ -2334,7 +1437,7 @@ theorem fastCutStep_stage2_seg {w fp parentFp b k v1 r2 : ℕ} {x : Data 24}
     LoopSegment.detSingle hc_loop hstep, hm_f.trans hm_h, h0_f, hfp_f, hsp_f, hret_f⟩
 
 /-- A leaf loop segment has the exact recursive answer law and its original pathwise budgets. -/
-theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2367,7 +1470,7 @@ theorem fastCutStep_base_law {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n
     (Lean.Karger.fastCutLaw_leaf (by omega) _).symm).mono (fun _ h => h) (by omega) le_rfl
 
 /-- A nonrecursive node uses the same law, instruction bound and random-call bound as its leaf. -/
-theorem fastCutNode_base_law {n w d fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
+private theorem fastCutNode_base_law {n w d fp parentFp b k : ℕ} {W₀ : Fin n → Fin n → ℕ}
     {W_k : Fin k → Fin k → ℕ} {part : Fin n → Fin k} {x : Data 24}
     (hk2 : 2 ≤ k) (hk6 : k ≤ 6)
     (h0 : x.regs zero = 0) (hfp : x.regs fpReg = fp) (hsp : x.regs spReg = b + 1)
@@ -2663,201 +1766,79 @@ theorem fastCutTree_law {n w sb : ℕ} {W : Fin n → Fin n → ℕ} {x : Data 2
       (fastCutNodeTime n + 7 * (n * n) + 21) (fastCutNodeQueries n)
       (fun y => y.regs retVal) (Lean.Karger.fastCutLaw n ⟨n, W⟩) := by
   let fp₀ := sb + n * n
+  let S_all := Finset.Ico fp₀ (sb + 27 * (n * n))
   have hscr_le : fastCutScratch n ≤ 26 * (n * n) := fastCutScratch_le hn
   have hfs_le : frameSize n ≤ fastCutScratch n := frameSize_le_fastCutScratch n
   have hnn_ge : 4 ≤ n * n := Nat.mul_le_mul hn hn
   have hfit_scr : Fits w (fp₀ + fastCutScratch n) := hws_fit.of_le (by dsimp only [fp₀]; omega)
   have hfit_fs : Fits w (fp₀ + frameSize n) := hfit_scr.of_le (by omega)
-  have h0_fit : Fits w 0 := fits_zero w
   have h1_fit : Fits w 1 := hfit_fs.of_le (by unfold frameSize; omega)
-  have hnn_fit : Fits w (n * n) := hfit_fs.of_le (by unfold frameSize; omega)
-  have hfp_fit : Fits w fp₀ := hfit_fs.of_le (by omega)
-  have hfp1_fit : Fits w (fp₀ + 1) := hfit_fs.of_le (by unfold frameSize; omega)
-  have hfp2_fit : Fits w (fp₀ + 2) := hfit_fs.of_le (by unfold frameSize; omega)
   have hstg_fit : Fits w (fp₀ + 2 + n * n) := hfit_fs.of_le (by unfold frameSize; omega)
-  -- Step 1: `fastCutRootSetup`
-  let r₁ := x.set zero 0
-  let r₂ := r₁.set one 1
-  let r₃ := r₂.set rem (n * n)
-  let r₄ := r₃.set fpReg fp₀
-  let r₅ := r₄.write fp₀ 0
-  let r₆ := r₅.set addr1 (fp₀ + 1)
-  let r₇ := r₆.write (fp₀ + 1) n
-  let r₈ := r₇.set uReg sb
-  let x₁ := r₈.set wBase (fp₀ + 2)
-  have hex_rset : Exec w fastCutRootSetup x x₁ 9 := by
-    have s1 : Exec (B := .standard) w ram[zero ← #0] x r₁ 1 := Exec.const h0_fit
-    have s2 : Exec (B := .standard) w ram[one ← #1] r₁ r₂ 1 := Exec.const h1_fit
-    have s3 : Exec w ram[rem ← nOrig * nOrig] r₂ r₃ 1 := by
-      have hn' : r₂.regs nOrig = n := by simpa +decide [r₂, r₁, Function.update_apply] using hnOrig
-      simpa [r₃, BinOp.eval, hn'] using
-        Exec.bin (f := .mul) (d := rem) (i := nOrig) (j := nOrig) (x := r₂)
-          (by simpa [BinOp.eval, hn'] using hnn_fit)
-    have s4 : Exec w ram[fpReg ← srcBase + rem] r₃ r₄ 1 := by
-      have hsb' : r₃.regs srcBase = sb := by
-        simpa +decide [r₃, r₂, r₁, Function.update_apply] using hsb
-      have hr' : r₃.regs rem = n * n := by simp [r₃]
-      simpa [r₄, BinOp.eval, hsb', hr', fp₀] using
-        Exec.bin (f := .add) (d := fpReg) (i := srcBase) (j := rem) (x := r₃)
-          (by simpa [BinOp.eval, hsb', hr', fp₀] using hfp_fit)
-    have s5 : Exec (B := .standard) w ram[*fpReg ← zero] r₄ r₅ 1 := by
-      have hfp' : r₄.regs fpReg = fp₀ := by simp [r₄]
-      have hz' : r₄.regs zero = 0 := by simp +decide [r₄, r₃, r₂, r₁]
-      simpa [r₅, hfp', hz'] using
-        Exec.store (B := .standard) (w := w) (a := fpReg) (s := zero) (x := r₄)
-    have s6 : Exec w ram[addr1 ← fpReg + one] r₅ r₆ 1 := by
-      have hfp' : r₅.regs fpReg = fp₀ := by simp +decide [r₅, r₄]
-      have h1' : r₅.regs one = 1 := by simp +decide [r₅, r₄, r₃, r₂]
-      simpa [r₆, BinOp.eval, hfp', h1'] using
-        Exec.bin (f := .add) (d := addr1) (i := fpReg) (j := one) (x := r₅)
-          (by simpa [BinOp.eval, hfp', h1'] using hfp1_fit)
-    have s7 : Exec (B := .standard) w ram[*addr1 ← nOrig] r₆ r₇ 1 := by
-      have ha1 : r₆.regs addr1 = fp₀ + 1 := by simp [r₆]
-      have hn' : r₆.regs nOrig = n := by
-        simpa +decide [r₆, r₅, r₄, r₃, r₂, r₁, Function.update_apply] using hnOrig
-      simpa [r₇, ha1, hn'] using
-        Exec.store (B := .standard) (w := w) (a := addr1) (s := nOrig) (x := r₆)
-    have s8 : Exec (B := .standard) w ram[uReg ← srcBase] r₇ r₈ 1 := by
-      have hsb' : r₇.regs srcBase = sb := by
-        simpa +decide [r₇, r₆, r₅, r₄, r₃, r₂, r₁, Function.update_apply] using hsb
-      simpa [r₈, hsb'] using
-        Exec.copy (B := .standard) (w := w) (d := uReg) (s := srcBase) (x := r₇)
-    have s9 : Exec w ram[wBase ← addr1 + one] r₈ x₁ 1 := by
-      have ha1 : r₈.regs addr1 = fp₀ + 1 := by simp +decide [r₈, r₇, r₆]
-      have h1' : r₈.regs one = 1 := by simp +decide [r₈, r₇, r₆, r₅, r₄, r₃, r₂]
-      have heq : (fp₀ + 1) + 1 = fp₀ + 2 := by omega
-      simpa [x₁, BinOp.eval, ha1, h1', heq] using
-        Exec.bin (f := .add) (d := wBase) (i := addr1) (j := one) (x := r₈)
-          (by simpa [BinOp.eval, ha1, h1', heq] using hfp2_fit)
+  obtain ⟨x₃, e_pre, hx₃_0, hx₃_fp, hx₃_sp, hx₃_p, hx₃_k, hx₃_stg, hx₃_mat, hmod_pre⟩ : ∃ x₃,
+      ExecWithin w ram[⟪fastCutRootSetup⟫; ⟪ksCopyCode⟫; ⟪fastCutRootFinish⟫]
+        x x₃ (9 + (7 * (n * n) + 4) + 6) ∧
+      x₃.regs zero = 0 ∧ x₃.regs fpReg = fp₀ ∧ x₃.regs spReg = 1 ∧
+      x₃.mem fp₀ = 0 ∧ x₃.mem (fp₀ + 1) = n ∧ x₃.mem (fp₀ + 2 + n * n) = 0 ∧
+      HoldsMatrix x₃.mem (fp₀ + 2) n W ∧ Modifies S_all x.mem x₃.mem := by
+    have : Fits w (n * n) := hfit_fs.of_le (by unfold frameSize; omega)
+    have : Fits w (fp₀ + 2) := hfit_fs.of_le (by unfold frameSize; omega)
+    refine WP.exists_execWithin ?_
     unfold fastCutRootSetup
-    exact s1.seq (s2.seq (s3.seq (s4.seq (s5.seq (s6.seq (s7.seq (s8.seq s9)))))))
-  have hx₁_mem : x₁.mem = Function.update (Function.update x.mem fp₀ 0) (fp₀ + 1) n := rfl
-  have hx₁_src : HoldsMatrix x₁.mem sb n W := by
-    intro i j
-    have hlt : sb + i.val * n + j.val < fp₀ := matAddr_lt_end (wb := sb) (le_refl n) i j
-    rw [hx₁_mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    exact hmat i j
-  -- Step 2: `ksCopyCode`
-  obtain ⟨x₂, ⟨n_cp, hn_cp, hex_cp⟩, hmat_cp, hmod_cp, _, hwb₂, _, _, _, _, _⟩ :=
-    ksCopyCode_exec (x := x₁) (sb := sb) (db := fp₀ + 2) (k := n) (W := W)
-      (by simp +decide [x₁, r₈])
-      (by simp [x₁])
-      (by simp +decide [x₁, r₈, r₇, r₆, r₅, r₄, r₃])
-      (by dsimp only [fp₀]; omega) h1_fit hstg_fit hx₁_src
-  -- Step 3: `fastCutRootFinish`
-  have hn_x₂ : x₂.regs nOrig = n :=
-    (hex_cp.regs_eq (by decide)).trans (hex_rset.regs_eq (by decide) |>.trans hnOrig)
-  have hfp_x₂ : x₂.regs fpReg = fp₀ := by
-    rw [hex_cp.regs_eq (by decide)]
-    simp +decide [x₁, r₈, r₇, r₆, r₅, r₄]
-  let q₁ := x₂.set zero 0
-  let q₂ := q₁.set one 1
-  let q₃ := q₂.set rem (n * n)
-  let q₄ := q₃.set addr2 (fp₀ + 2 + n * n)
-  let q₅ := q₄.write (fp₀ + 2 + n * n) 0
-  let x₃ := q₅.set spReg 1
-  have hex_rfin : Exec w fastCutRootFinish x₂ x₃ 6 := by
-    have s1 : Exec (B := .standard) w ram[zero ← #0] x₂ q₁ 1 := Exec.const h0_fit
-    have s2 : Exec (B := .standard) w ram[one ← #1] q₁ q₂ 1 := Exec.const h1_fit
-    have s3 : Exec w ram[rem ← nOrig * nOrig] q₂ q₃ 1 := by
-      have hn' : q₂.regs nOrig = n := by
-        simpa +decide [q₂, q₁, Function.update_apply] using hn_x₂
-      simpa [q₃, BinOp.eval, hn'] using
-        Exec.bin (f := .mul) (d := rem) (i := nOrig) (j := nOrig) (x := q₂)
-          (by simpa [BinOp.eval, hn'] using hnn_fit)
-    have s4 : Exec w ram[addr2 ← wBase + rem] q₃ q₄ 1 := by
-      have hwb' : q₃.regs wBase = fp₀ + 2 := by
-        simpa +decide [q₃, q₂, q₁, Function.update_apply] using hwb₂
-      have hr' : q₃.regs rem = n * n := by simp [q₃]
-      simpa [q₄, BinOp.eval, hwb', hr'] using
-        Exec.bin (f := .add) (d := addr2) (i := wBase) (j := rem) (x := q₃)
-          (by simpa [BinOp.eval, hwb', hr'] using hstg_fit)
-    have s5 : Exec (B := .standard) w ram[*addr2 ← zero] q₄ q₅ 1 := by
-      have ha2 : q₄.regs addr2 = fp₀ + 2 + n * n := by simp [q₄]
-      have hz' : q₄.regs zero = 0 := by simp +decide [q₄, q₃, q₂, q₁]
-      simpa [q₅, ha2, hz'] using
-        Exec.store (B := .standard) (w := w) (a := addr2) (s := zero) (x := q₄)
-    have s6 : Exec (B := .standard) w ram[spReg ← #1] q₅ x₃ 1 := Exec.const h1_fit
+    wram_exec [hsb, hnOrig, show (fp₀ + 1) + 1 = fp₀ + 2 from rfl]
+    have hx₁_src : HoldsMatrix (Function.update (Function.update x.mem fp₀ 0) (fp₀ + 1) n)
+        sb n W := fun i j => by
+      have hlt : sb + i.val * n + j.val < fp₀ := matAddr_lt_end (wb := sb) (le_refl n) i j
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      exact hmat i j
+    wram_call (ksCopyCode_exec (W := W) (by wram_simp) (by wram_simp; rfl)
+      (by wram_simp) (by dsimp only [fp₀]; omega) h1_fit hstg_fit hx₁_src)
+      with x₂ ⟨hmat_cp, hmod_cp, _, hwb₂, _, _, _, _, hhi₂⟩
+    have hn_x₂ : x₂.regs nOrig = n := (hhi₂ nOrig (by decide)).trans (by wram_simp [hnOrig])
+    have hfp_x₂ : x₂.regs fpReg = fp₀ := (hhi₂ fpReg (by decide)).trans (by wram_simp; rfl)
     unfold fastCutRootFinish
-    exact s1.seq (s2.seq (s3.seq (s4.seq (s5.seq s6))))
-  have hx₃_mem : x₃.mem = Function.update x₂.mem (fp₀ + 2 + n * n) 0 := rfl
-  have hx₃_p : x₃.mem fp₀ = 0 := by
-    rw [hx₃_mem, Function.update_of_ne (by omega), hmod_cp _ (by rw [Finset.mem_Ico]; omega),
-      hx₁_mem, Function.update_of_ne (by omega), Function.update_self]
-  have hx₃_k : x₃.mem (fp₀ + 1) = n := by
-    rw [hx₃_mem, Function.update_of_ne (by omega), hmod_cp _ (by rw [Finset.mem_Ico]; omega),
-      hx₁_mem, Function.update_self]
-  have hx₃_stg : x₃.mem (fp₀ + 2 + n * n) = 0 := by
-    rw [hx₃_mem, Function.update_self]
-  have hx₃_mat : HoldsMatrix x₃.mem (fp₀ + 2) n W := by
-    intro i j
-    have hlt : fp₀ + 2 + i.val * n + j.val < fp₀ + 2 + n * n := matAddr_lt_end (le_refl n) i j
-    rw [hx₃_mem, Function.update_of_ne (by omega)]
-    exact hmat_cp i j
-  -- Step 4: `fastCutLoop` via `fastCutNode_law` + `LoopSegment.finish`
-  obtain ⟨m_seg, hseg, hq_seg, hsup_raw, hlaw_seg⟩ :=
-    fastCutNode_law htot (2 * Nat.log 2 n) (b := 0) (parentFp := 0)
-      hn (fastCutDepth_le_two_mul_log n)
-      (by simp +decide [x₃, q₅, q₄, q₃, q₂, q₁])
-      (by simpa +decide [x₃, q₅, q₄, q₃, q₂, q₁, Function.update_apply] using hfp_x₂)
-      (by simp [x₃])
-      hx₃_p hx₃_k hx₃_stg hx₃_mat (isContractionOf_id hW) hfit_scr
-      (by simpa only [Nat.zero_add, Nat.add_comm 1] using hsp_fit)
-  have hsup_seg := fun z hz => (hsup_raw z hz).symm
-  have hex_loop : ExecRand w fastCutLoop x₃ ((fun z => (z.1, z.2 + 2)) <$> m_seg) :=
-    hseg.finish fun z hz => by
-      rcases hsup_seg z hz with ⟨_, _, hz0, _, hzsp⟩
-      simp [Cond.holds_lt, hz0, hzsp]
-  have htree_raw := hex_rset.seqRand (hex_cp.seqRand (hex_rfin.seqRand hex_loop))
-  let m_out : ProbComp (Data 24 × ℕ) :=
-    (fun z => (z.1, 9 + (n_cp + (6 + (z.2 + 2))))) <$> m_seg
-  have htree : ExecRand w fastCutTree x m_out := by
-    unfold fastCutTree
-    convert htree_raw using 1
-    simp only [m_out, Functor.map_map]
-  have hsup_out : ∀ z ∈ m_out.support,
-      z.2 ≤ fastCutNodeTime n + 7 * (n * n) + 21 ∧
-      (Modifies (Finset.Ico (sb + n * n) (sb + 27 * (n * n))) x.mem z.1.mem ∧
-        z.1.regs srcBase = sb ∧
-        z.1.regs nOrig = n ∧
-        z.1.regs numTrials = x.regs numTrials ∧
-        z.1.regs trialIdx = x.regs trialIdx ∧
-        z.1.regs bestVal = x.regs bestVal) := by
-    intro z hz
-    have hsb_z : z.1.regs srcBase = sb := (htree.regs_eq (by decide) hz).trans hsb
-    have hn_z : z.1.regs nOrig = n := (htree.regs_eq (by decide) hz).trans hnOrig
-    have hnt_z : z.1.regs numTrials = x.regs numTrials := htree.regs_eq (by decide) hz
-    have hti_z : z.1.regs trialIdx = x.regs trialIdx := htree.regs_eq (by decide) hz
-    have hbv_z : z.1.regs bestVal = x.regs bestVal := htree.regs_eq (by decide) hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_seg z₀ hz₀ with ⟨ht₀, hmod₀, _, _, _⟩
-    refine ⟨by omega, ?_, hsb_z, hn_z, hnt_z, hti_z, hbv_z⟩
-    let S_all := Finset.Ico fp₀ (sb + 27 * (n * n))
+    wram_exec [hn_x₂, hwb₂]
     have hfp_in : fp₀ ∈ S_all := by rw [Finset.mem_Ico]; dsimp only [fp₀]; omega
     have hfp1_in : fp₀ + 1 ∈ S_all := by rw [Finset.mem_Ico]; dsimp only [fp₀]; omega
     have hstg_in : fp₀ + 2 + n * n ∈ S_all := by rw [Finset.mem_Ico]; dsimp only [fp₀]; omega
-    have hmod_x₁ : Modifies S_all x.mem x₁.mem := by
-      rw [hx₁_mem]
+    refine ⟨by wram_simp, by wram_simp [hfp_x₂], by wram_simp, ?_, ?_, by wram_simp, ?_, ?_⟩
+    · wram_simp
+      simpa [show sb + n * n = fp₀ from rfl, Function.update_of_ne (by omega : fp₀ ≠ fp₀ + 1)]
+        using hmod_cp fp₀ (by rw [Finset.mem_Ico]; omega)
+    · wram_simp
+      simpa [show sb + n * n = fp₀ from rfl]
+        using hmod_cp (fp₀ + 1) (by rw [Finset.mem_Ico]; omega)
+    · intro i j
+      have hlt := matAddr_lt_end (wb := fp₀ + 2) (le_refl n) i j
+      wram_simp
+      exact hmat_cp i j
+    · simp only [Data.set_mem, Data.write_mem]
       exact modifies_trans_subset
-        (modifies_update_of_mem hfp_in x.mem 0)
-        (modifies_update_of_mem hfp1_in _ n)
-        Finset.Subset.rfl Finset.Subset.rfl
-    have hsub_cp : Finset.Ico (fp₀ + 2) (fp₀ + 2 + n * n) ⊆ S_all := by
-      intro a ha; rw [Finset.mem_Ico] at ha ⊢; dsimp only [fp₀] at ha ⊢; omega
-    have hmod_x₃ : Modifies S_all x₂.mem x₃.mem := by
-      rw [hx₃_mem]
-      exact modifies_update_of_mem hstg_in x₂.mem 0
-    have hsub_seg : Finset.Ico (fp₀ + 2 + n * n) (fp₀ + fastCutScratch n) ⊆ S_all := by
-      intro a ha; rw [Finset.mem_Ico] at ha ⊢; dsimp only [fp₀] at ha ⊢; omega
-    exact modifies_trans_subset
-      (modifies_trans_subset
-        (modifies_trans_subset hmod_x₁ hmod_cp Finset.Subset.rfl hsub_cp)
-        hmod_x₃ Finset.Subset.rfl Finset.Subset.rfl)
-      hmod₀ Finset.Subset.rfl hsub_seg
-  refine ⟨m_out, htree,
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq_seg,
-    fun z hz => ⟨(hsup_out z hz).2, (hsup_out z hz).1⟩, ?_⟩
-  simpa only [m_out, Functor.map_map] using hlaw_seg
+        (modifies_trans_subset
+          (modifies_trans_subset (modifies_update_of_mem hfp_in x.mem 0)
+            (modifies_update_of_mem hfp1_in _ n) Finset.Subset.rfl Finset.Subset.rfl)
+          hmod_cp Finset.Subset.rfl
+          (fun a ha => by rw [Finset.mem_Ico] at ha ⊢; dsimp only [fp₀] at *; omega))
+        (modifies_update_of_mem hstg_in _ 0) Finset.Subset.rfl Finset.Subset.rfl
+  have hloop : ExecRandLaw w fastCutLoop x₃
+      (fun y => Modifies (Finset.Ico (fp₀ + 2 + n * n) (fp₀ + fastCutScratch n)) x₃.mem y.mem ∧
+        y.regs zero = 0 ∧ y.regs fpReg = 0 ∧ y.regs spReg = 0)
+      (fastCutNodeTime n + 2) (fastCutNodeQueries n)
+      (fun y => y.regs retVal) (Lean.Karger.fastCutLaw n ⟨n, W⟩) :=
+    (fastCutNode_law htot (2 * Nat.log 2 n) (b := 0) (parentFp := 0)
+      hn (fastCutDepth_le_two_mul_log n) hx₃_0 hx₃_fp hx₃_sp hx₃_p hx₃_k hx₃_stg hx₃_mat
+      (isContractionOf_id hW) hfit_scr
+      (by simpa only [Nat.zero_add, Nat.add_comm 1] using hsp_fit)).finish
+      fun _ ⟨_, hz0, _, hzsp⟩ => by simp [Cond.holds_lt, hz0, hzsp]
+  have htree := ((((ExecRandLaw.foldr_seq_det [fastCutRootSetup, ksCopyCode] e_pre hloop
+    |>.withPreserves (i := srcBase) (by decide))
+    |>.withPreserves (i := nOrig) (by decide))
+    |>.withPreserves (i := numTrials) (by decide))
+    |>.withPreserves (i := trialIdx) (by decide))
+    |>.withPreserves (i := bestVal) (by decide)
+  refine htree.mono (fun y ⟨⟨⟨⟨⟨⟨hmod, _⟩, hsb_y⟩, hn_y⟩, hnt_y⟩, hti_y⟩, hbv_y⟩ =>
+    ⟨modifies_trans_subset hmod_pre hmod Finset.Subset.rfl
+      (fun a ha => by rw [Finset.mem_Ico] at ha ⊢; dsimp only [fp₀] at *; omega),
+      hsb_y.trans hsb, hn_y.trans hnOrig, hnt_y, hti_y, hbv_y⟩) (by omega) le_rfl
 
 theorem fastCutTree_spec {n w sb : ℕ} {W : Fin n → Fin n → ℕ} {x : Data 24}
     (hn : 2 ≤ n) (hW : IsMultigraph W)
@@ -2942,27 +1923,17 @@ private theorem fastCutTime_bound {n : ℕ} (hn : 2 ≤ n) :
   have hov : 7 * n ^ 2 + 25 ≤ 100 * n ^ 2 * (Nat.log 2 n + 2) := by nlinarith
   linarith
 
-theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
+private theorem fastCutSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     ∃ y : Data 24, Exec w fastCutSetup (Data.init (n :: flattenMatrix W)) y 3 ∧
       y.mem = (Data.init (r := 24) (n :: flattenMatrix W)).mem ∧
       y.regs srcBase = 2 ∧
       y.regs nOrig = n := by
   have hws := fits_fastCutWorkspace_of_logWidth_four hn hw
-  have h1 : Fits w 1 := hws.of_le (by omega)
-  have h2 : Fits w 2 := hws.of_le (by omega)
-  let x₀ : Data 24 := Data.init (n :: flattenMatrix W)
-  have hm1 : x₀.mem 1 = n := rfl
-  let s₁ := x₀.set one 1
-  let s₂ := s₁.set nOrig n
-  let s₃ := s₂.set srcBase 2
-  have e1 : Exec (B := .standard) w ram[one ← #1] x₀ s₁ 1 := Exec.const h1
-  have e2 : Exec (B := .standard) w ram[nOrig ← *one] s₁ s₂ 1 := by
-    have hr : s₁.regs one = 1 := by simp [s₁]
-    simpa [s₂, s₁, hr, hm1] using
-      Exec.load (B := .standard) (w := w) (d := nOrig) (a := one) (x := s₁)
-  have e3 : Exec (B := .standard) w ram[srcBase ← #2] s₂ s₃ 1 := Exec.const h2
-  exact ⟨s₃, e1.seq (e2.seq e3), rfl, by simp [s₃], by simp +decide [s₃, s₂]⟩
+  have hm1 : (Data.init (r := 24) (n :: flattenMatrix W)).mem 1 = n := rfl
+  unfold fastCutSetup
+  wram_exec [hm1]
+  exact ⟨rfl, by wram_simp⟩
 
 /-- The single-tree code observes the recursive answer law, including the charged input setup. -/
 theorem fastCutCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
@@ -3138,7 +2109,7 @@ structure KSAmpInv (sb n R i : ℕ) (W : Fin n → Fin n → ℕ) (mem₀ : ℕ 
   modifies_ws : Modifies (Finset.Ico (sb + n * n) (sb + 27 * (n * n))) mem₀ x.mem
   best_cut : 0 < i → ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ x.regs bestVal = cutWeight W C
 
-theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
+private theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
     (hone : x.regs one = 1) (hrem : x.regs rem = n) (hidx : x.regs idx = 0)
     (hnOrig : x.regs nOrig = n)
     (hn_fit : Fits w n) (hlg_fit : Fits w (Nat.log 2 n)) :
@@ -3152,7 +2123,7 @@ theorem ksLogLoop_exec {w n : ℕ} {x : Data 24} (hn : 1 ≤ n)
   exact ⟨y, he, hm, (hframe one (by decide) (by decide)).trans hone,
     (hframe nOrig (by decide) (by decide)).trans hnOrig, hidx'⟩
 
-theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
+private theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hw : logWidth 4 n ≤ w) :
     ∃ y : Data 24,
       ExecWithin w fastCutHighProbSetup (Data.init (n :: flattenMatrix W)) y
@@ -3165,79 +2136,22 @@ theorem fastCutHighProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
       y.regs bestVal = 0 := by
   have hws := fits_fastCutWorkspace_of_logWidth_four hn hw
   have hhp_fit := fits_fastCutTrials_of_logWidth_four hn hw
-  have h1 : Fits w 1 := hws.of_le (by omega)
-  have h2 : Fits w 2 := hws.of_le (by omega)
-  have h15 : Fits w 15 := hws.of_le (by have := Nat.mul_le_mul hn hn; omega)
+  have hnn : 4 ≤ n * n := Nat.mul_le_mul hn hn
+  have : Fits w 15 := hws.of_le (by omega)
   have hn_fit : Fits w n := hws.of_le (by have := Nat.le_mul_self n; omega)
   have hlg_fit : Fits w (Nat.log 2 n) := hhp_fit.of_le (by unfold fastCutTrials; nlinarith)
-  have hlg15_fit : Fits w (Nat.log 2 n + 15) := hhp_fit.of_le (by unfold fastCutTrials; nlinarith)
-  have hlg2_fit : Fits w (Nat.log 2 n + 2) := hhp_fit.of_le (by unfold fastCutTrials; nlinarith)
-  let x₀ : Data 24 := Data.init (n :: flattenMatrix W)
-  have hm1 : x₀.mem 1 = n := rfl
-  let s₁ := x₀.set one 1
-  let s₂ := s₁.set nOrig n
-  let s₃ := s₂.set rem n
-  let s₄ := s₃.set idx 0
-  have e1 : Exec (B := .standard) w ram[one ← #1] x₀ s₁ 1 := Exec.const h1
-  have e2 : Exec (B := .standard) w ram[nOrig ← *one] s₁ s₂ 1 := by
-    have hr : s₁.regs one = 1 := by simp [s₁]
-    simpa [s₂, s₁, hr, hm1] using
-      Exec.load (B := .standard) (w := w) (d := nOrig) (a := one) (x := s₁)
-  have e3 : Exec (B := .standard) w ram[rem ← nOrig] s₂ s₃ 1 := by
-    have hr : s₂.regs nOrig = n := by simp [s₂]
-    simpa [s₃, hr] using Exec.copy (B := .standard) (w := w) (d := rem) (s := nOrig) (x := s₂)
-  have e4 : Exec (B := .standard) w ram[idx ← #0] s₃ s₄ 1 := Exec.const (fits_zero w)
-  obtain ⟨s₅, e_loop, hm5, _, hn5, hidx5⟩ :=
-    ksLogLoop_exec (x := s₄) (by omega)
-      (by simp +decide [s₄, s₃, s₂, s₁])
-      (by simp +decide [s₄, s₃])
-      (by simp [s₄])
-      (by simp +decide [s₄, s₃, s₂])
-      hn_fit hlg_fit
-  let t₁ := s₅.set val1 15
-  let t₂ := t₁.set val1 (Nat.log 2 n + 15)
-  let t₃ := t₂.set val2 2
-  let t₄ := t₃.set val2 (Nat.log 2 n + 2)
-  let t₅ := t₄.set numTrials (fastCutTrials n)
-  let t₆ := t₅.set srcBase 2
-  let t₇ := t₆.set trialIdx 0
-  let t₈ := t₇.set bestVal 0
-  have p1 : Exec (B := .standard) w ram[val1 ← #15] s₅ t₁ 1 := Exec.const h15
-  have p2 : Exec w ram[val1 ← idx + val1] t₁ t₂ 1 := by
-    have hi : t₁.regs idx = Nat.log 2 n := by simpa +decide [t₁, Function.update_apply] using hidx5
-    have hv1 : t₁.regs val1 = 15 := by simp [t₁]
-    simpa [t₂, BinOp.eval, hi, hv1] using
-      Exec.bin (w := w) (f := .add) (d := val1) (i := idx) (j := val1) (x := t₁)
-        (by simpa [BinOp.eval, hi, hv1] using hlg15_fit)
-  have p3 : Exec (B := .standard) w ram[val2 ← #2] t₂ t₃ 1 := Exec.const h2
-  have p4 : Exec w ram[val2 ← idx + val2] t₃ t₄ 1 := by
-    have hi : t₃.regs idx = Nat.log 2 n := by
-      simpa +decide [t₃, t₂, t₁, Function.update_apply] using hidx5
-    have hv2 : t₃.regs val2 = 2 := by simp [t₃]
-    simpa [t₄, BinOp.eval, hi, hv2] using
-      Exec.bin (w := w) (f := .add) (d := val2) (i := idx) (j := val2) (x := t₃)
-        (by simpa [BinOp.eval, hi, hv2] using hlg2_fit)
-  have p5 : Exec w ram[numTrials ← val1 * val2] t₄ t₅ 1 := by
-    have hv1 : t₄.regs val1 = Nat.log 2 n + 15 := by simp +decide [t₄, t₃, t₂]
-    have hv2 : t₄.regs val2 = Nat.log 2 n + 2 := by simp [t₄]
-    simpa [t₅, BinOp.eval, hv1, hv2, fastCutTrials] using
-      Exec.bin (w := w) (f := .mul) (d := numTrials) (i := val1) (j := val2) (x := t₄)
-        (by simpa [BinOp.eval, hv1, hv2, fastCutTrials] using hhp_fit)
-  have p6 : Exec (B := .standard) w ram[srcBase ← #2] t₅ t₆ 1 := Exec.const h2
-  have p7 : Exec (B := .standard) w ram[trialIdx ← #0] t₆ t₇ 1 := Exec.const (fits_zero w)
-  have p8 : Exec (B := .standard) w ram[bestVal ← #0] t₇ t₈ 1 := Exec.const (fits_zero w)
-  refine ⟨t₈, ?_, hm5, by simp +decide [t₈, t₇, t₆],
-    by simpa +decide [t₈, t₇, t₆, t₅, t₄, t₃, t₂, t₁, Function.update_apply] using hn5,
-    by simp +decide [t₈, t₇, t₆, t₅],
-    by simp +decide [t₈, t₇],
-    by simp [t₈]⟩
+  have : Fits w (Nat.log 2 n + 15) := hhp_fit.of_le (by unfold fastCutTrials; nlinarith)
+  have : Fits w (Nat.log 2 n + 2) := hhp_fit.of_le (by unfold fastCutTrials; nlinarith)
+  have hhp_eq : (Nat.log 2 n + 15) * (Nat.log 2 n + 2) = fastCutTrials n := rfl
+  have hm1 : (Data.init (r := 24) (n :: flattenMatrix W)).mem 1 = n := rfl
   unfold fastCutHighProbSetup
-  exact ((e1.within).seq ((e2.within).seq ((e3.within).seq ((e4.within).seq
-    (e_loop.seq ((p1.within).seq ((p2.within).seq ((p3.within).seq
-      ((p4.within).seq ((p5.within).seq ((p6.within).seq
-        ((p7.within).seq p8.within)))))))))))).mono (by omega)
+  wram_exec [hm1]
+  wram_call (ksLogLoop_exec (by omega) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+    hn_fit hlg_fit) with s₅ ⟨hm5, _, hn5, hidx5⟩
+  wram_exec [hn5, hidx5, hhp_eq]
+  exact ⟨hm5, by wram_simp [hn5]⟩
 
-theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
+private theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
     (hti : x.regs trialIdx = i) (hiR : i < R)
     (h1 : Fits w 1) (hR_fit : Fits w R) :
     ∃ y : Data 24, ExecWithin w fastCutAmpPost x y 8 ∧
@@ -3249,30 +2163,15 @@ theorem fastCutAmpPost_exec {w i R : ℕ} {x : Data 24}
       y.regs bestVal =
         (if i = 0 then x.regs retVal else min (x.regs retVal) (x.regs bestVal)) := by
   have hi1_fit : Fits w (i + 1) := hR_fit.of_le (by omega)
-  let s₁ := (x.set zero 0).set one 1
-  have e1 : Exec (B := .standard) w ram[zero ← #0] x (x.set zero 0) 1 :=
-    Exec.const (fits_zero w)
-  have e2 : Exec (B := .standard) w ram[one ← #1] (x.set zero 0) s₁ 1 :=
-    Exec.const h1
-  obtain ⟨s₂, e_br, hm2, hbv2, hfr⟩ := minUpdate_exec (w := w) (trial := trialIdx)
-    (zero := zero) (val := retVal) (best := bestVal) (by decide) (x := s₁) (by simp +decide [s₁])
-  have ho2 : s₂.regs one = 1 := by simp +decide [hfr one, s₁]
-  have hsb2 : s₂.regs srcBase = x.regs srcBase := by simp +decide [hfr srcBase, s₁]
-  have hn2 : s₂.regs nOrig = x.regs nOrig := by simp +decide [hfr nOrig, s₁]
-  have hnt2 : s₂.regs numTrials = x.regs numTrials := by simp +decide [hfr numTrials, s₁]
-  have hti2 : s₂.regs trialIdx = i := by simpa +decide [hfr trialIdx, s₁] using hti
-  have e_inc : ExecWithin w ram[trialIdx ← trialIdx + one] s₂ (s₂.set trialIdx (i + 1)) 1 := by
-    simpa [BinOp.eval, hti2, ho2] using
-      ExecWithin.bin (f := .add) (d := trialIdx) (i := trialIdx) (j := one) (x := s₂)
-        (by simpa [BinOp.eval, hti2, ho2] using hi1_fit)
-  refine ⟨s₂.set trialIdx (i + 1), ?_, hm2,
-    by simpa +decide [Function.update_apply] using hsb2,
-    by simpa +decide [Function.update_apply] using hn2,
-    by simpa +decide [Function.update_apply] using hnt2,
-    by simp,
-    by simpa +decide [Function.update_apply, s₁, hti] using hbv2⟩
   unfold fastCutAmpPost
-  exact ((e1.within).seq ((e2.within).seq (e_br.seq e_inc))).mono (by omega)
+  wram_exec -split
+  wram_call (minUpdate_exec (by decide) (by wram_simp)) with s₂ ⟨hm2, hbv2, hfr⟩
+  wram_exec [hfr one (by decide), hfr trialIdx (by decide), hti]
+  refine ⟨hm2, ?_, ?_, ?_, by wram_simp, ?_⟩
+  · wram_simp [hfr srcBase (by decide)]
+  · wram_simp [hfr nOrig (by decide)]
+  · wram_simp [hfr numTrials (by decide)]
+  · wram_simp [hbv2, hti]
 
 private theorem ksAmpTrial_step_bound {n t_tree n_p : ℕ} (hn : 2 ≤ n)
     (htree : t_tree ≤ fastCutNodeTime n + 7 * (n * n) + 21) (hp : n_p ≤ 8) :
@@ -3286,7 +2185,8 @@ private theorem ksAmpTrial_step_bound {n t_tree n_p : ℕ} (hn : 2 ≤ n)
   linarith
 
 /-- One native amplification trial observes a fresh recursive answer and updates the minimum. -/
-theorem fastCutAmpBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem₀ : ℕ → ℕ} {x : Data 24}
+private theorem fastCutAmpBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem₀ : ℕ → ℕ}
+    {x : Data 24}
     (hn : 2 ≤ n) (hW : IsMultigraph W) (hiR : i < R)
     (h1 : Fits w 1) (hws_fit : Fits w (sb + 27 * (n * n)))
     (hsp_fit : Fits w (2 * Nat.log 2 n + 1))
@@ -3297,67 +2197,33 @@ theorem fastCutAmpBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem
       (fun y => y.regs bestVal)
       ((Lean.Karger.fastCutLaw n ⟨n, W⟩).map
         fun v => if i = 0 then v else min v (x.regs bestVal)) := by
-  obtain ⟨m_t, hm_t, hq_t, hsup_raw, hlaw_t⟩ :=
-    fastCutTree_law hn hW hinv.regs_srcBase hinv.regs_nOrig hinv.src_matrix hws_fit hsp_fit htot
-  have hsup_t : ∀ z ∈ m_t.support,
-      z.2 ≤ fastCutNodeTime n + 7 * (n * n) + 21 ∧
-      Modifies (Finset.Ico (sb + n * n) (sb + 27 * (n * n))) x.mem z.1.mem ∧
-      z.1.regs srcBase = sb ∧ z.1.regs nOrig = n ∧
-      z.1.regs numTrials = x.regs numTrials ∧ z.1.regs trialIdx = x.regs trialIdx ∧
-      z.1.regs bestVal = x.regs bestVal ∧
-      ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ z.1.regs retVal = cutWeight W C := by
-    intro z hz
-    have hv : z.1.regs retVal ∈ (Lean.Karger.fastCutLaw n ⟨n, W⟩).support := by
-      rw [← hlaw_t, ProbComp.eval_map, PMF.mem_support_map_iff]
-      exact ⟨z, (ProbComp.support_eval m_t) ▸ hz, rfl⟩
-    exact ⟨(hsup_raw z hz).2, (hsup_raw z hz).1.1, (hsup_raw z hz).1.2.1,
-      (hsup_raw z hz).1.2.2.1, (hsup_raw z hz).1.2.2.2.1, (hsup_raw z hz).1.2.2.2.2.1,
-      (hsup_raw z hz).1.2.2.2.2.2,
-      Lean.Karger.exists_cut_of_mem_support_fastCutLaw hn (isContractionOf_id hW) hv⟩
-  let Qpost (d y : Data 24) : Prop :=
-    y.mem = d.mem ∧
-    y.regs srcBase = d.regs srcBase ∧
-    y.regs nOrig = d.regs nOrig ∧
-    y.regs numTrials = d.regs numTrials ∧
-    y.regs trialIdx = i + 1 ∧
-    y.regs bestVal = (if i = 0 then d.regs retVal else min (d.regs retVal) (d.regs bestVal))
-  have hpost : ∀ z₀ ∈ m_t.support, ∃ y, ExecWithin w fastCutAmpPost z₀.1 y 8 ∧ Qpost z₀.1 y := by
-    intro z₀ hz₀
-    have hti : z₀.1.regs trialIdx = i := (hsup_t z₀ hz₀).2.2.2.2.2.1.trans hinv.regs_trialIdx
-    exact fastCutAmpPost_exec hti hiR h1 hR_fit
-  obtain ⟨g, hm_body, hg⟩ := execRand_seq_det (Q := Qpost) hm_t hpost
-  let m_out := (fun z : Data 24 × ℕ => ((g z.1).1, z.2 + (g z.1).2)) <$> m_t
-  have hex_body : ExecRand w fastCutAmpBody x m_out := hm_body
-  refine ⟨m_out, hex_body, ?_, ?_, ?_⟩
-  · simp only [m_out, OracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
-    exact hq_t.mono (fastCutNodeQueries_le hn)
-  · intro z hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    rcases hsup_t z₀ hz₀ with ⟨ht₀, hmod₀, hsb₀, hn₀, hnt₀, _, hbv₀, C_new, hC_nt, hrv₀⟩
-    rcases hg z₀ hz₀ with ⟨ht_g, _, hym_g, hsb_g, hn_g, hnt_g, hti_g, hbv_g⟩
-    refine ⟨?_, by omega⟩
-    refine ⟨hsb_g.trans hsb₀, hn_g.trans hn₀,
-      hnt_g.trans (hnt₀.trans hinv.regs_numTrials), hti_g, ?_, ?_, ?_⟩
-    · intro u v
-      have hlt : sb + u.val * n + v.val < sb + n * n := matAddr_lt_end (le_refl n) u v
-      rw [hym_g, hmod₀ _ (by rw [Finset.mem_Ico]; omega)]
-      exact hinv.src_matrix u v
-    · rw [hym_g]
-      exact modifies_trans_subset hinv.modifies_ws hmod₀ Finset.Subset.rfl Finset.Subset.rfl
-    · intro _
-      by_cases hi0 : i = 0
-      · exact ⟨C_new, hC_nt, by simp [hbv_g, hi0, hrv₀]⟩
-      · obtain ⟨C_old, hC_old_nt, hbv_old⟩ := hinv.best_cut (Nat.pos_of_ne_zero hi0)
-        simp only [hbv_g, hi0, ↓reduceIte, hrv₀, hbv₀, hbv_old]
-        rcases min_cases (cutWeight W C_new) (cutWeight W C_old) with ⟨hmin, _⟩ | ⟨hmin, _⟩
-        · exact ⟨C_new, hC_nt, hmin⟩
-        · exact ⟨C_old, hC_old_nt, hmin⟩
-  · rw [← hlaw_t]
-    simp only [m_out, Functor.map_map, ProbComp.eval_map, PMF.map_comp]
-    refine Probability.PMF.map_congr_on_support _ _ _ fun z hz => ?_
-    rw [ProbComp.support_eval] at hz
-    rw [(hg z hz).2.2.2.2.2.2.2, (hsup_t z hz).2.2.2.2.2.2.1]
-    rfl
+  have htree := (fastCutTree_law hn hW hinv.regs_srcBase hinv.regs_nOrig hinv.src_matrix
+    hws_fit hsp_fit htot).withSupport
+  have hrun := ExecRandLaw.seq htree
+    (κ := fun v => PMF.pure (if i = 0 then v else min v (x.regs bestVal)))
+    fun d ⟨⟨hmod₀, hsb₀, hn₀, hnt₀, hti₀, hbv₀⟩, hv⟩ => by
+      obtain ⟨C_new, hC_nt, hrv₀⟩ :=
+        Lean.Karger.exists_cut_of_mem_support_fastCutLaw hn (isContractionOf_id hW) hv
+      obtain ⟨y, e_p, hym, hsb_y, hn_y, hnt_y, hti_y, hbv_y⟩ :=
+        fastCutAmpPost_exec (hti₀.trans hinv.regs_trialIdx) hiR h1 hR_fit
+      have hinv' : KSAmpInv sb n R (i + 1) W mem₀ y := by
+        refine ⟨hsb_y.trans hsb₀, hn_y.trans hn₀, hnt_y.trans (hnt₀.trans hinv.regs_numTrials),
+          hti_y, fun u v => ?_, hym ▸ modifies_trans_subset hinv.modifies_ws hmod₀
+            Finset.Subset.rfl Finset.Subset.rfl, fun _ => ?_⟩
+        · have hlt := matAddr_lt_end (wb := sb) (le_refl n) u v
+          rw [hym, hmod₀ _ (by rw [Finset.mem_Ico]; omega)]
+          exact hinv.src_matrix u v
+        · by_cases hi0 : i = 0
+          · exact ⟨C_new, hC_nt, by simp [hbv_y, hi0, hrv₀]⟩
+          · obtain ⟨C_old, hC_old_nt, hbv_old⟩ := hinv.best_cut (Nat.pos_of_ne_zero hi0)
+            simp only [hbv_y, hi0, ↓reduceIte, hrv₀, hbv₀, hbv_old]
+            rcases min_cases (cutWeight W C_new) (cutWeight W C_old) with ⟨hmin, _⟩ | ⟨hmin, _⟩
+            · exact ⟨C_new, hC_nt, hmin⟩
+            · exact ⟨C_old, hC_old_nt, hmin⟩
+      exact (ExecRandLaw.of_execWithin (f := fun y => y.regs bestVal) e_p hinv').congr_law
+        (by rw [hbv_y, hbv₀])
+  exact (hrun.congr_law (PMF.bind_pure_comp _ _)).mono (fun _ h => h) le_rfl
+    (by simpa using fastCutNodeQueries_le hn)
 
 theorem fastCutAmpBody_spec {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem₀ : ℕ → ℕ} {x : Data 24}
     (hn : 2 ≤ n) (hW : IsMultigraph W) (hiR : i < R)

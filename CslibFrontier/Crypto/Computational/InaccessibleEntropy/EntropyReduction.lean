@@ -689,8 +689,7 @@ theorem isPPT_shrunkHashEscapeInverter {n₁ m₁ : ℕ → ℕ}
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
   refine (ComputableInPolyTime.sampleList
     (by unfold outHashLen inputHashOutLen inputHashInLen; fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 private def shrunkTupleEquiv (n₁ m₁ : ℕ) :

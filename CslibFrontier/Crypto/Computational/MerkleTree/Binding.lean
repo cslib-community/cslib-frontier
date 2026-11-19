@@ -579,7 +579,7 @@ theorem isPPT_merkleCollisionFinder
       (encPair encBits (encPair (encPair encBits encBits)
         (encPair encUnary (encPair (encList encBits) (encList encBits))))) := by
     fun_prop
-  have hpost := ((computableInPolyTime_extractMerkleCollision hH hlen).comp hargs).tidy
+  have hpost := (computableInPolyTime_extractMerkleCollision hH hlen).comp hargs
   change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
     (fun p => merkleCollisionFinder H adversary p.1 p.2)
   exact hadversary.bind_with hpost.isPPTOn

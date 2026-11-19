@@ -188,7 +188,7 @@ theorem orProof_interactive_rbrSound
       (1 / (Fintype.card C : ℝ≥0∞), ()) := by
   classical
   exact SpecialSoundness.rbrSound
-    (orProof_specialSoundness (simulate₀ := simulate₀) (simulate₁ := simulate₁) h₀ h₁)
+    (orProofWith_specialSoundness (simulate₀ := simulate₀) (simulate₁ := simulate₁) h₀ h₁)
 
 theorem orProof_interactive_sound
     {extract₀ : Y₀ → T₀ → C → Z₀ → C → Z₀ → X₀}
@@ -199,7 +199,7 @@ theorem orProof_interactive_sound
       (1 / (Fintype.card C : ℝ≥0∞)) := by
   classical
   exact SpecialSoundness.sound
-    (orProof_specialSoundness (simulate₀ := simulate₀) (simulate₁ := simulate₁) h₀ h₁)
+    (orProofWith_specialSoundness (simulate₀ := simulate₀) (simulate₁ := simulate₁) h₀ h₁)
 
 theorem orProof_interactive_hvzk
     {sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀.State)}

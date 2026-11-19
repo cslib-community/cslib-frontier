@@ -90,7 +90,7 @@ theorem unary_add : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 + p.2)
 @[fun_prop]
 theorem unary_sub : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 - p.2)
     (encPair encUnary encUnary) encUnary :=
-  ComputableTidilyInDegree.unary_sub.computableTidilyInPolyTime
+  ComputableInDegree.unary_sub.computableInPolyTime.tidy
 
 /-- Multiplication of unary naturals, by repeated addition. -/
 @[fun_prop]
@@ -110,7 +110,7 @@ theorem unary_mul : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.1 * p.2)
 @[fun_prop]
 theorem unary_min : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
     (encPair encUnary encUnary) encUnary :=
-  ComputableTidilyInDegree.unary_min.computableTidilyInPolyTime
+  ComputableInDegree.unary_min.computableInPolyTime.tidy
 
 /-- Take the larger of two unary naturals. -/
 @[fun_prop]
@@ -127,7 +127,7 @@ theorem unary_max : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => max p.1 p.
 theorem unary_le : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => decide (p.1 ≤ p.2))
     (encPair encUnary encUnary) encBool := by
   simpa only [Function.comp_def, Nat.sub_eq_zero_iff_le] using
-    ComputableTidilyInDegree.unary_isZero.computableTidilyInPolyTime.comp unary_sub
+    ComputableInDegree.unary_isZero.computableInPolyTime.tidy.comp unary_sub
 
 /-- Strict comparison of unary naturals. -/
 @[fun_prop]

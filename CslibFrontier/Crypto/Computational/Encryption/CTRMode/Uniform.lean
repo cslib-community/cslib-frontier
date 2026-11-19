@@ -298,19 +298,19 @@ theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
       (fun pair : α × (ℕ × List Bool) => List.take (n pair.1) <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), ctrWordCounter (n pair.1) (iv pair.1) pair.2.1)) :=
-    IsOraclePPTOn.query_take' ()
+    IsOraclePPTOn.query_take ()
       (computableInPolyTime_ctrWordCounter hnStep (hiv.comp (ComputableInPolyTime.fst _ _))
         (by dsimp only [EStep]; fun_prop))
       hnStep
   have hstep : IsOraclePPTOn EStep (encPair encUnary encBits)
       (fun pair : α × (ℕ × List Bool) => ctrKeystreamStep (n pair.1) (iv pair.1) pair.2) :=
-    hquery.map_with' (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
+    hquery.map_with (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
       (by dsimp only [EStep]; fun_prop)
   have hnBound : PolyBounded (fun a => (input a).length) n := by
     simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
   have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=
     hnBound.add (PolyBounded.const 2)
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encUnary encBits)
     (initial := fun _ => ((0 : ℕ), ([] : List Bool))) (count := blocks)
     (step := fun a state => ctrKeystreamStep (n a) (iv a) state)
@@ -322,7 +322,7 @@ theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
       simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
         List.length_append]
       omega)
-  exact hloop.map' (ComputableInPolyTime.snd _ _)
+  exact hloop.map (ComputableInPolyTime.snd _ _)
 
 /-- **Efficiency of the reduction.** For every uniform strict oracle-PPT adversary,
 `ctrToPrfDistinguisher adversary bit` is uniform strict oracle PPT. -/

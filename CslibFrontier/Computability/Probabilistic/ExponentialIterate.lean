@@ -136,7 +136,7 @@ theorem IsPPTOn.exists_multiTapePTM_repeatAnyBool_binary {α : Type} {input : α
           machine.toNTM.RunsInSpace (input a) S := by
   have hstep : IsPPTOn (encPair input encBool) encBool
       (fun pair : α × Bool => repeatAnyStep (trialProg pair.1) pair.2) := by
-    refine IsPPTOn.cond' (ComputableInPolyTime.snd input encBool)
+    refine IsPPTOn.cond (ComputableInPolyTime.snd input encBool)
       (ComputableInPolyTime.const true).isPPTOn ?_
     exact htrial.preprocess (ComputableInPolyTime.fst input encBool)
   obtain ⟨⟨K, Control, hfin, machine, C, E, hM⟩, -⟩ :=

@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.Approximation.FGLSS
+import CslibFrontier.Computability.PCP.Approximation.FGLSSRuntime
 
 /-! Checked client of Goldreich Exercise 9.18, items 2–4: for a PCP verifier of a problem `A`,
 the FGLSS graph of a member has independence number `2 ^ r`, and that of a non-member has
@@ -20,7 +20,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.FGLSS
 
-open Cslib.Complexity
+open Cslib.Complexity Turing.MultiTapeTM
 
 example {α : Type} {enc : α ↪ List Bool} {r q : ℕ → ℕ} {V : PCPVerifier α} {A : Set α}
     (hV : IsPCPVerifier enc r q V A) {a b : α} (ha : a ∈ A) (hb : b ∉ A)
@@ -51,5 +51,24 @@ instance : IsEmpty {v : conflicting.View () // conflicting.IsFGLSSVertex () v} :
 example : (conflicting.fglssGraph ()).indepNum = 0 := by
   obtain ⟨S, hS⟩ := (conflicting.fglssGraph ()).exists_isNIndepSet_indepNum
   rw [← hS.card_eq, Finset.eq_empty_of_isEmpty S, Finset.card_empty]
+
+/-- A verifier whose random strings and answer strings are both empty. -/
+def noQueries : PCPVerifier (List Bool) where
+  coins _ := 0
+  queries _ := []
+  verdict _ := true
+
+example :
+    ∃ T S, PolyBounded (fun x : List Bool => x.length + 1) T ∧
+      PolyBounded (fun x : List Bool => x.length + 1) S ∧
+      ComputableInO noQueries.fglssEdgeList encBits encGraph T S := by
+  have h : noQueries.PolyTime encBits :=
+    ⟨ComputableInPolyTime.const _, ComputableInPolyTime.const _, ComputableInPolyTime.const _⟩
+  simpa [noQueries] using noQueries.computableInO_fglssEdgeList h (fun _ => 0) (by simp [noQueries])
+
+example : (conflicting.fglssEdgeList ()).vertices = [] := by
+  by_contra h
+  obtain ⟨n, hn⟩ := List.exists_mem_of_ne_nil _ h
+  exact isEmptyElim ((conflicting.fglssGraphIso ()).symm ⟨n, hn⟩)
 
 end CslibFrontierTests.FGLSS

@@ -225,4 +225,47 @@ theorem partialTraceLeft_sum_classicalDensityBranch [Fintype A] [Fintype κ] [De
   simpa only [outcomeProjection_conjTranspose, outcomeProjection_mul_self] using
     sum_outcomeProjection f
 
+namespace POVM
+
+variable {B : Type*} [Fintype A] [Fintype B]
+
+/-- Pull a measurement back through a coarse computational-basis read whose result chooses
+the subsequent measurement. -/
+noncomputable def afterRead (f : ι → A) (M : A → POVM B ι) : POVM B ι where
+  effect b := ∑ a, outcomeProjection f a * (M a).effect b * outcomeProjection f a
+  posSemidef b := posSemidef_sum _ fun a _ => by
+    simpa only [outcomeProjection_conjTranspose] using
+      ((M a).posSemidef b).mul_mul_conjTranspose_same (outcomeProjection f a)
+  sum_effect := by
+    rw [Finset.sum_comm]
+    simp only [← Finset.sum_mul, ← Finset.mul_sum, sum_effect, Matrix.mul_one,
+      outcomeProjection_mul_self, sum_outcomeProjection]
+
+/-- After the classical read, only supported branches enter the continuation measurement. -/
+theorem measureDensity_afterRead (f : ι → A) (M : A → POVM B ι)
+    (ρ : Matrix ι ι ℂ) (hρ : IsDensityMatrix ρ) :
+    (afterRead f M).measureDensity ρ hρ =
+      ((basis.measureDensity ρ hρ).map f).bindOnSupport fun a ha =>
+        (M a).measureDensity (normalizeDensity (classicalDensityBranch f a ρ))
+          (isDensityMatrix_normalize_classicalDensityBranch f ρ hρ a ha) := by
+  ext b
+  have branches := bindOnSupport_classicalDensityBranch_apply f ρ hρ
+    (fun _ => LinearMap.id) (fun _ _ h => h) M b
+  simp only [LinearMap.id_apply] at branches
+  rw [branches]
+  simp only [measureDensity_apply, densityProb, afterRead, Finset.sum_mul,
+    Matrix.trace_sum, Complex.re_sum]
+  have trace (a) :
+      (outcomeProjection f a * (M a).effect b * outcomeProjection f a * ρ).trace =
+        ((M a).effect b * classicalDensityBranch f a ρ).trace := by
+    rw [classicalDensityBranch, densityConj_apply, outcomeProjection_conjTranspose]
+    simp only [Matrix.mul_assoc]
+    rw [Matrix.trace_mul_comm]
+    simp only [Matrix.mul_assoc]
+  simp_rw [trace]
+  exact ENNReal.ofReal_sum_of_nonneg fun a _ =>
+    (M a).densityProb_nonneg (classicalDensityBranch_posSemidef f a hρ.posSemidef) b
+
+end POVM
+
 end Cslib.Quantum

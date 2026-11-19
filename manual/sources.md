@@ -390,7 +390,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Locators for the static-UC definitions refer to the ePrint revision of February 11, 2020 (106 pages; printed page = PDF page − 3), read through the Internet Archive copy https://web.archive.org/web/20260904164957id_/https://eprint.iacr.org/2000/067.pdf (SHA-256 `0466f041f546ce6db5e86c7ec81ea12604c4bea6c944b73b4eeac8457564703a`, first recorded in [#5680](https://github.com/cslib-community/cslib-frontier/pull/5680); its SHA-1 matches the archive's digest for that capture); the JACM version was not inspected for those static-UC locators, and its numbering may differ. For adaptive corruptions in `Protocols/UC/Adaptive.lean`, `Protocols/UC/AdaptiveToStatic.lean`, and `Protocols/UC/AdaptiveDummyAdversary.lean`, the JACM version (pagination `28:1`–`28:94`) Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), JACM p. 28:15, and Claim 11 (JACM p. 28:43) were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, standard PID-wise ideal-functionality corruption, and dummy-adversary completeness; the formalization provides a call-bounded statistical snapshot corruption model (`P.view` snapshots of every party after each inner activation, where `P.view` is arbitrary and may hide stored coins, and global inner-activation counts are exposed; Canetti §7.1.1's write-once storage restriction, mandatory coin exposure, per-party activation granularity, PPT time bounds, and adaptive composition stay open).
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Locators for the static-UC definitions refer to the ePrint revision of February 11, 2020 (106 pages; printed page = PDF page − 3), read through the Internet Archive copy https://web.archive.org/web/20260904164957id_/https://eprint.iacr.org/2000/067.pdf (SHA-256 `0466f041f546ce6db5e86c7ec81ea12604c4bea6c944b73b4eeac8457564703a`, first recorded in [#5680](https://github.com/cslib-community/cslib-frontier/pull/5680); its SHA-1 matches the archive's digest for that capture); the JACM version was not inspected for those static-UC locators, and its numbering may differ. For adaptive corruptions in `Protocols/UC/Adaptive.lean`, `Protocols/UC/AdaptiveToStatic.lean`, and `Protocols/UC/AdaptiveDummyAdversary.lean`, the JACM version (pagination `28:1`–`28:94`) Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), JACM p. 28:15, and Claim 11 (JACM p. 28:43) were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, standard PID-wise ideal-functionality corruption, and dummy-adversary completeness; the formalization provides a call-bounded statistical snapshot corruption model (`P.view` snapshots of every party after each inner activation, where `P.view` is arbitrary and may hide stored coins, and global inner-activation counts are exposed; Canetti §7.1.1's write-once storage restriction, mandatory coin exposure, per-party activation granularity, PPT time bounds, and adaptive composition stay open). For fixed-arity multi-session composition in [Protocols/UC/MultiSession.lean](../CslibFrontier/Crypto/Protocols/UC/MultiSession.lean), Section 6.1 Theorem 22 (JACM p. `28:58`; ePrint p. `61`), Corollaries 23 and 24 (JACM p. `28:59`; ePrint p. `62`), and Section 6.3 (JACM p. `28:67`; ePrint p. `70`) were checked; this adapts them to a fixed finite `Fin m` session family in the static-corruption, call-bounded model, and dynamic `SID` creation and full Theorem 22 stay open.
 
 <a id="canonne22"></a>
 ## canonne22
@@ -542,7 +542,7 @@ Chapter 13 (universal source coding): the Lempel–Ziv tree-structured (incremen
 <a id="cs03"></a>
 ## cs03
 
-Ronald Cramer and Victor Shoup. “Design and Analysis of Practical Public-Key Encryption Schemes Secure against Adaptive Chosen Ciphertext Attack.” *SIAM Journal on Computing* 33(1), 167–226, 2003. https://doi.org/10.1137/S0097539702403773 . Authors' revised manuscript (August 14, 2003): https://www.shoup.net/papers/cca2.pdf (Section 5.1, target collision resistance; Section 6.1, Figure 1, the hash key `hk` drawn at key generation and published in the public key; Section 6.2, Theorem 1). Checked against that manuscript on 2026-11-14.
+Ronald Cramer and Victor Shoup. “Design and Analysis of Practical Public-Key Encryption Schemes Secure against Adaptive Chosen Ciphertext Attack.” *SIAM Journal on Computing* 33(1), 167–226, 2003. https://doi.org/10.1137/S0097539702403773 . Authors' revised manuscript (August 14, 2003): https://www.shoup.net/papers/cca2.pdf (Section 5.1, target collision resistance; Section 6.1, Figure 1, the hash key `hk` drawn at key generation and published in the public key; Section 6.2, Theorem 1). Checked against that manuscript on 2026-11-14. A copy of the same manuscript (69 pages, dated August 14, 2003; SHA-256 `ac2250e7e5d5c156979de1629edbdb0c8248ef25455f66b55640c98a1bad1191`) was fetched from that URL on 2026-11-18 UTC, because the IACR ePrint refused automated download. Its printed page is the PDF page minus 3. Read there on 2026-11-18: Section 7.1 (key encapsulation mechanisms, with keys of `KEM.KeyLen(λ)` bits), Section 7.1.1 (soundness) and Section 7.1.2, printed pp. 38–39 (the adaptive chosen-ciphertext attack game for a KEM: Stage 1 gives the adversary the public key, Stages 2 and 4 are decryption queries, Stage 3 returns `(K†, ψ*)` with `K⁺` uniform on `ℓ`-bit strings, and `AdvCCA'` = 2 · `AdvCCA`).
 
 <a id="cslib"></a>
 ## cslib
@@ -1197,6 +1197,18 @@ correspond to n/s/w/e, reordering the last two coded components. The assembly au
 checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 directly on
 2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
 [Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
+
+<a id="jnvwy2020lowindividualdegree"></a>
+## jnvwy2020lowindividualdegree
+
+Zhengfeng Ji, Anand Natarajan, Thomas Vidick, John Wright and Henry Yuen.
+*Quantum soundness of the classical low individual degree test*. arXiv:2009.12982v1, 2020.
+Definition 3.2 and Figure 2 give the three verifier branches, their sampling, and their
+degree requirements. The formalization uses positive ambient dimension so a uniform coordinate
+can be sampled. The displayed diagonal affine image is a singleton for the sampled zero direction.
+The current result establishes the verifier and honest completeness. Theorem 3.10 is tracked
+under [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149).
+[Source, pp. 12–13](https://arxiv.org/pdf/2009.12982v1#page=12)
 
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84

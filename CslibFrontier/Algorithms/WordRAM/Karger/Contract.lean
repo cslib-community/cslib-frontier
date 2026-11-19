@@ -335,6 +335,15 @@ theorem workspaceFootprint_mono {wb db str k₁ k₂ : ℕ} (hle : k₁ ≤ k₂
   have hmul : str * k₁ ≤ str * k₂ := Nat.mul_le_mul_left str hle
   omega
 
+/-- A square workspace `workspaceFootprint wb db k k` lies in `[a, b)` whenever `a ≤ wb`,
+`wb + k * k ≤ db` and `db + k ≤ b`. -/
+theorem workspaceFootprint_subset_Ico {a b wb db k : ℕ}
+    (haw : a ≤ wb) (hwd : wb + k * k ≤ db) (hdb : db + k ≤ b) :
+    workspaceFootprint wb db k k ⊆ Finset.Ico a b := by
+  intro x hx
+  simp only [workspaceFootprint, Finset.mem_union, Finset.mem_Ico] at hx ⊢
+  omega
+
 theorem modifies_trans_subset {F F₁ F₂ : Finset ℕ} {m₀ m₁ m₂ : ℕ → ℕ}
     (h₁ : Modifies F₁ m₀ m₁) (h₂ : Modifies F₂ m₁ m₂) (hs₁ : F₁ ⊆ F) (hs₂ : F₂ ⊆ F) :
     Modifies F m₀ m₂ := fun a ha =>

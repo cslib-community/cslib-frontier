@@ -128,14 +128,6 @@ arguments' zero labels. -/
     (s : ℕ) : List (List Bool) :=
   simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) s
 
-/-- The garbler's zero-label propagation is `simPropWords` on the circuit's topology, its XOR
-flags, and the coin tape after the `k + 1` offset bits. -/
-theorem propagateWords_eq_simPropWords (k : ℕ) (f : ConventionalCircuit)
-    (coins : List Bool) (s : ℕ) :
-    propagateWords k f coins s =
-      simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) s :=
-  rfl
-
 /-- Row `i` of non-XOR gate `g` of `f` at parameter `k`, from the offset `Δ` and the zero labels
 `labels` of all wires. -/
 @[expose] def rowWord (k : ℕ) (f : ConventionalCircuit) (Δ : List Bool)

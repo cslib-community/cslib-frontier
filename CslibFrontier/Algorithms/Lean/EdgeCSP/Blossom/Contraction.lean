@@ -203,26 +203,62 @@ theorem get_contract_old (f : OccurrenceLabeling F Bool) (vs : List ℕ)
     (i : Fin F.length) : (contract f vs)[i.val]'(by simp) = constraint f vs i := by
   simp [contract]
 
-/-- The finite reference buffer at a retained original constraint. -/
-theorem get_referenceRows_old (f : OccurrenceLabeling F Bool) (vs : List ℕ)
-    (i : Fin F.length) : (referenceRows f vs).getD i.val [] =
-      if (positions vs F[i.val].scope).isEmpty then localTuple f i
-      else project (localTuple f i)
-      (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)) ++
-        [false] := by
-  rw [List.getD_eq_getElem _ _ (by simp [referenceRows, transportRows])]
-  simp [referenceRows, transportRows]
-
 /-- The central relation occupies the single newly appended constraint position. -/
 theorem get_contract_central (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
     (contract f vs)[F.length]'(by simp) =
       ⟨exactlyOne (connectors F vs), connectors F vs⟩ := by
   simp [contract, List.getElem_append_right]
 
+/-- The old-constraint row of a general transport buffer. -/
+theorem get_transportRows_old (g : OccurrenceLabeling F Bool) (vs : List ℕ)
+    (bits : Fin F.length → Bool) (central : List Bool) (i : Fin F.length) :
+    (transportRows g vs bits central).getD i.val [] =
+      if (positions vs F[i.val].scope).isEmpty then localTuple g i
+      else project (localTuple g i)
+        (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)) ++ [bits i] := by
+  rw [List.getD_eq_getElem _ _ (by simp [transportRows])]
+  simp [transportRows]
+
+/-- The general buffer retains its supplied central row verbatim. -/
+theorem get_transportRows_central (g : OccurrenceLabeling F Bool) (vs : List ℕ)
+    (bits : Fin F.length → Bool) (central : List Bool) :
+    (transportRows g vs bits central).getD F.length [] = central := by
+  simp [transportRows]
+
+/-- Every projected old row has exactly the constructor's actual scope width. -/
+theorem transportRow_length (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
+    (bits : Fin F.length → Bool) (central : List Bool) (i : Fin F.length) :
+    ((transportRows g vs bits central).getD i.val []).length =
+      (constraint f vs i).scope.length := by
+  rw [get_transportRows_old]
+  unfold constraint
+  split <;> simp [localTuple, project]
+
+/-- All actual output row widths agree when the central row has its finite scope width. -/
+theorem transportRows_length (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
+    (bits : Fin F.length → Bool) {central : List Bool}
+    (hc : central.length = (connectors F vs).length) (i : Fin (contract f vs).length) :
+    ((transportRows g vs bits central).getD i.val []).length =
+      (contract f vs)[i.val].scope.length := by
+  by_cases hi : i.val < F.length
+  · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
+      transportRow_length f g vs bits central ⟨i.val, hi⟩
+  · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
+    simpa only [he, get_transportRows_central, get_contract_central] using hc
+
+/-- The finite reference buffer at a retained original constraint. -/
+theorem get_referenceRows_old (f : OccurrenceLabeling F Bool) (vs : List ℕ)
+    (i : Fin F.length) : (referenceRows f vs).getD i.val [] =
+      if (positions vs F[i.val].scope).isEmpty then localTuple f i
+      else project (localTuple f i)
+      (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)) ++
+        [false] :=
+  get_transportRows_old f vs (fun _ => false) (listSingle (connectors F vs).length 0) i
+
 /-- The reference buffer at the central constraint is one-hot, with position zero selected. -/
 theorem get_referenceRows_central (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
-    (referenceRows f vs).getD F.length [] = listSingle (connectors F vs).length 0 := by
-  simp [referenceRows, transportRows]
+    (referenceRows f vs).getD F.length [] = listSingle (connectors F vs).length 0 :=
+  get_transportRows_central f vs (fun _ => false) (listSingle (connectors F vs).length 0)
 
 /-- Each original local reference row is accepted by its actual output constraint. -/
 theorem referenceRow_valid {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
@@ -235,14 +271,6 @@ theorem referenceRow_valid {f : OccurrenceLabeling F Bool} (hf : ValidLabeling s
   · simpa only [localTuple, List.length_ofFn] using
       sem_contract_reference (canContract_constraint hf vs i)
 
-/-- Reference rows have exactly the constructor's scope widths. -/
-theorem referenceRow_length (f : OccurrenceLabeling F Bool) (vs : List ℕ)
-    (i : Fin F.length) :
-    ((referenceRows f vs).getD i.val []).length = (constraint f vs i).scope.length := by
-  rw [get_referenceRows_old]
-  unfold constraint
-  split <;> simp [localTuple, project]
-
 /-- The constructed initial labeling satisfies all constraints. A nonempty touched set is
 necessary: exactly-one on zero connectors rejects every row. -/
 theorem valid_reference {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
@@ -250,23 +278,16 @@ theorem valid_reference {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem 
     ValidLabeling sem (reference f vs) := by
   have hpos : 0 < (connectors F vs).length := by
     simpa only [length_connectors] using List.length_pos_iff.mpr hne
-  have hlast := get_referenceRows_central f vs
-  have hconstraint := get_contract_central f vs
-  apply valid_labels
-  · intro i
-    by_cases hi : i.val < F.length
-    · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
-        referenceRow_length f vs ⟨i.val, hi⟩
-    · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
-      simp only [he, hlast, hconstraint, listSingle, List.length_map, List.length_range]
-  · intro i
-    by_cases hi : i.val < F.length
-    · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
-        referenceRow_valid hf vs ⟨i.val, hi⟩
-    · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
-      simp only [he, hlast, hconstraint]
-      apply (sem_exactlyOne_eq_true _ _).mpr
-      exact ⟨by simp [listSingle], count_true_listSingle hpos⟩
+  apply valid_labels (contract f vs) (referenceRows f vs)
+    (transportRows_length f f vs (fun _ => false) (by simp [listSingle]))
+  intro i
+  by_cases hi : i.val < F.length
+  · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
+      referenceRow_valid hf vs ⟨i.val, hi⟩
+  · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
+    simp only [he, get_referenceRows_central f vs, get_contract_central f vs]
+    apply (sem_exactlyOne_eq_true _ _).mpr
+    exact ⟨by simp [listSingle], count_true_listSingle hpos⟩
 
 /-- No output relation is empty: the explicit reference witnesses it, rather than an assumed
 model of the original instance. -/

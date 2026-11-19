@@ -394,13 +394,13 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
       (fun p =>
         (fun r => if r.isSome then SearchState.mk [] r else ⟨p.2.remaining.tail, none⟩) <$>
           select p.1 (p.2.remaining.headD ⟨false, [], []⟩)) :=
-    (hselect.preprocess' hprep).map_with' hpost
+    (hselect.preprocess hprep).map_with hpost
   have hstep : IsOraclePPTOn (encPair input encSearchState) encSearchState
       (fun p => searchStep select p.1 p.2) :=
-    IsOraclePPTOn.cond' hcond hyes hno
+    IsOraclePPTOn.cond hcond hyes hno
   have hloop : IsOraclePPTOn input encSearchState
       (fun a => OracleComp.iterate (table a).length (searchStep select a) ⟨table a, none⟩) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth'
+    refine IsOraclePPTOn.iterateWith_of_bounded_growth
       (hcount := by polytime) (hinitial := by polytime) hstep (PolyBounded.const 0) ?_
     intro a s next hnext
     simp only [searchStep, OracleComp.support] at hnext
@@ -424,7 +424,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
           have hv := hval a e v (by simpa [OracleComp.support, hrem] using hr)
           simp only [Option.isSome_some, ↓reduceIte]
           enc_len [encSearchState_apply, encDHKEMSimEntry_apply, hrem, hf]
-  refine (hloop.map' (f := SearchState.found)
+  refine (IsOraclePPTOn.map hloop (f := SearchState.found)
       (encSearchState_found_polyTime ComputableInPolyTime.id')).congr fun a State oracle s => ?_
   rw [iterate_searchStep_eq_findSomeM?]
 
@@ -496,7 +496,7 @@ private theorem isOraclePPTOn_simLookup {select : SimCall F.toPrimeOrderGroupFam
       (fun p =>
         (fun key => (key, DHKEMSimEntry.mk isDecaps p.1.word key :: p.1.table)) <$>
           ProbOracleComp.sample (BitString.sampleList (keyLen p.1.caller.input.secParam))) :=
-    (hm.sampleList.isOraclePPTOn (Operation := Unit)).map_with'
+    (hm.sampleList.isOraclePPTOn (Operation := Unit)).map_with
       (f := fun p key => (key, DHKEMSimEntry.mk isDecaps p.1.word key :: p.1.table))
       (by polytime)
   have hcont : IsOraclePPTOn (Operation := Unit)
@@ -507,7 +507,7 @@ private theorem isOraclePPTOn_simLookup {select : SimCall F.toPrimeOrderGroupFam
         | none => do
           let key ← ProbOracleComp.sample (BitString.sampleList (keyLen p.1.caller.input.secParam))
           return (key, ⟨isDecaps, p.1.word, key⟩ :: p.1.table)) := by
-    refine (IsOraclePPTOn.cond' (condition := fun p => p.2.isSome) (by polytime) hhit hmiss).congr
+    refine (IsOraclePPTOn.cond (condition := fun p => p.2.isSome) (by polytime) hhit hmiss).congr
       fun p State oracle s => ?_
     cases p.2 <;> simp [bind_pure_comp]
   exact hfind.bind_with hcont
@@ -522,14 +522,14 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
         call.1.input.groupParameters call.1.input.leftPublic call.2.1 call.2.2) := by
   have hhashSel : IsOraclePPTOn (encPair (encSimCall F.toPrimeOrderGroupFamily) encDHKEMSimEntry)
       (encOption encBits) (fun p => hashSelectWord p.1.word p.2) := by
-    refine IsOraclePPTOn.cond' (by polytime) ?_
+    refine IsOraclePPTOn.cond (by polytime) ?_
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime))
-    exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with' (by polytime)
+    exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with (by polytime)
   have hdecSel : IsOraclePPTOn (encPair (encSimCall F.toPrimeOrderGroupFamily) encDHKEMSimEntry)
       (encOption encBits) (fun p => decapsSelectWord p.1.word p.2) := by
-    refine IsOraclePPTOn.cond' (by polytime)
+    refine IsOraclePPTOn.cond (by polytime)
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)) ?_
-    exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with' (by polytime)
+    exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with (by polytime)
   have hhashLookup := F.isOraclePPTOn_simLookup (select := fun c e => hashSelectWord c.word e)
     hkeyLen false hhashSel fun _ e v hv => by
       by_cases hd : e.isDecaps
@@ -561,7 +561,7 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
       (encPair encBits (encList encDHKEMSimEntry))
       (fun c => F.simWordHandler keyLen c.caller.input.secParam c.caller.input.groupParameters
         c.caller.input.leftPublic (c.op, c.word) c.table) := by
-    refine IsOraclePPTOn.finite_cases' (Operation := Unit)
+    refine IsOraclePPTOn.finite_cases (Operation := Unit)
       (tagEncoding := encFinEnum DHKEMOp) (tag := SimCall.op)
       (branch := fun choice (c : SimCall F.toPrimeOrderGroupFamily) =>
         F.simWordHandler keyLen c.caller.input.secParam c.caller.input.groupParameters
@@ -569,14 +569,14 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
       hop fun choice => ?_
     cases choice with
     | hash =>
-      exact IsOraclePPTOn.cond' (by polytime) hhashLookup
+      exact IsOraclePPTOn.cond (by polytime) hhashLookup
         (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime))
     | decaps =>
-      exact IsOraclePPTOn.cond' (by polytime)
+      exact IsOraclePPTOn.cond (by polytime)
         (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime))
-        (hdecLookup.map' (f := fun (key, nextTable) =>
+        (IsOraclePPTOn.map hdecLookup (f := fun (key, nextTable) =>
           (encOption encBits (some key), nextTable)) (by polytime))
-  exact hsimCall.preprocess'
+  exact hsimCall.preprocess
     (prepare := fun call : ReductionCaller F.toPrimeOrderGroupFamily ×
         (DHKEMOp × List Bool) × List DHKEMSimEntry =>
       SimCall.mk call.1 call.2.1.1 call.2.1.2 call.2.2) (by polytime)
@@ -687,9 +687,9 @@ private theorem isOraclePPTOn_extractDHWord :
             DHKEMSimEntry => p.1.1.input.leftPublic)
         (encPair (encPair (encReductionCaller F.toPrimeOrderGroupFamily)
           (encPair encBool (encList encDHKEMSimEntry))) encDHKEMSimEntry) encBits := by polytime
-    refine IsOraclePPTOn.cond' (by polytime)
+    refine IsOraclePPTOn.cond (by polytime)
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)) ?_
-    exact (isOraclePPTOn_queryDDHWord hcs (by polytime)).map_with' (by polytime)
+    exact (isOraclePPTOn_queryDDHWord hcs (by polytime)).map_with (by polytime)
   have hextFind := isOraclePPTOn_findSomeM?
     (select := fun p e => extractSelectWord p.1.input.leftPublic e)
     (table := fun p : ReductionCaller F.toPrimeOrderGroupFamily × Bool × List DHKEMSimEntry =>
@@ -707,7 +707,7 @@ private theorem isOraclePPTOn_extractDHWord :
       (encPair (encPair (encReductionCaller F.toPrimeOrderGroupFamily)
         (encPair encBool (encList encDHKEMSimEntry))) (encOption encBits)) encBits :=
     PrimeOrderGroupFamily.computableInPolyTime_encode_zero (by polytime)
-  exact hextFind.map_with' (by polytime)
+  exact hextFind.map_with (by polytime)
 
 /-- **Uniform strict oracle-PPT certificate** for `dhKEMToGapCDHWord`, derived solely from
 `IsOraclePPT encBool adversary` and `ComputableInPolyTime keyLen encUnary encUnary`. -/
@@ -758,7 +758,7 @@ theorem isOraclePPTOn_dhKEMToGapCDHWord {keyLen : ℕ → ℕ}
       (second := fun (c : ReductionCaller F.toPrimeOrderGroupFamily)
           ((_, finalTable) : Bool × List DHKEMSimEntry) =>
         F.extractDHWord c.input.groupParameters c.input.leftPublic finalTable)
-      F.isOraclePPTOn_extractDHWord).preprocess'
+      F.isOraclePPTOn_extractDHWord).preprocess
       (input := encPair (encGapCDHInput F.toPrimeOrderGroupFamily) encBits)
       (prepare := fun p : GapCDHInput F.toPrimeOrderGroupFamily × List Bool =>
         ReductionCaller.mk p.1 p.2) (by polytime)
@@ -767,7 +767,7 @@ theorem isOraclePPTOn_dhKEMToGapCDHWord {keyLen : ℕ → ℕ}
       (fun input : GapCDHInput F.toPrimeOrderGroupFamily => F.encode input.groupParameters 0)
       (encGapCDHInput F.toPrimeOrderGroupFamily) encBits :=
     PrimeOrderGroupFamily.computableInPolyTime_encode_zero (by polytime)
-  exact IsOraclePPTOn.cond' (by polytime) (hzero.isOraclePPTOn (Operation := Unit)) hbody
+  exact IsOraclePPTOn.cond (by polytime) (hzero.isOraclePPTOn (Operation := Unit)) hbody
 
 /-- Specialization of `isOraclePPTOn_dhKEMToGapCDHWord` to `keyLen = id`. -/
 theorem isOraclePPTOn_dhKEMToGapCDHWord_id

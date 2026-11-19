@@ -135,9 +135,10 @@ private theorem propagateWords_eq_foldl (k : ℕ) (f : ConventionalCircuit) (coi
   | zero => simp [propagateWords, simPropWords, List.map_range_eq_ofFn]; rfl
   | succ s ih =>
     have hsq : s < f.q := hs
-    rw [List.take_add_one, List.foldl_append, ← ih hsq.le,
-      propagateWords_eq_simPropWords, simPropWords, dite_eq_left (show s < f.topo.q from hsq),
-      ← propagateWords_eq_simPropWords]
+    have hdef (t : ℕ) : propagateWords k f coins t =
+        simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) t := rfl
+    rw [List.take_add_one, List.foldl_append, ← ih hsq.le, hdef, simPropWords,
+      dite_eq_left (show s < f.topo.q from hsq), ← hdef]
     have hget : f.gateList[s]? = some (f.A ⟨s, hsq⟩, f.B ⟨s, hsq⟩,
         [f.G ⟨s, hsq⟩ false false, f.G ⟨s, hsq⟩ false true, f.G ⟨s, hsq⟩ true false,
           f.G ⟨s, hsq⟩ true true]) := by

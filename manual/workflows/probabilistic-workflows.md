@@ -603,27 +603,27 @@ tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09),
 
 - **Bhattacharyya coefficient and Hellinger distance.** Import
   [Hellinger.lean](../../CslibFrontier/Probability/Hellinger.lean). The definitions
-  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L135)
+  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L136)
   (`∑' a, √((p a).toReal * (q a).toReal) ∈ [0, 1]`),
-  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L139) (`1 - bhattacharyya p q`),
-  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L143)
+  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L140) (`1 - bhattacharyya p q`),
+  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L144)
   (`√(hellingerSq p q) ∈ [0, 1]`)—along with their symmetry, `[0, 1]` bounds, and definiteness
   (`= 0 ↔ p = q`)—apply to any `PMF α`, while the theorem API below assumes finite types
   `[Finite α]` / `[Fintype α]`. No competing `MetricSpace (PMF α)` instance is registered because
   `Cslib.Probability.PMF` already uses that slot for half-`L¹` `dist`;
-  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L306) supplies the
+  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L307) supplies the
   metric triangle inequality directly.
 - **Total-variation comparison and `n`-fold i.i.d. tensorization (finite types).**
-  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L347) and
-  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L400) give
+  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L348) and
+  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L401) give
   `h²(p, q) ≤ dist p q ≤ √2 * h(p, q)` (with `tvDist` corollaries on `toMeasure`).
-  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L428) and
-  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L446) prove multiplicative
+  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L429) and
+  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L447) prove multiplicative
   tensorization, yielding the sample-complexity acceptance bound
-  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L499):
+  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L500):
   `dist (iid p n) (iid q n) ≤ √(2 * n) * hellingerDist p q`. Markov kernel and map data
-  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L578) and
-  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L597).
+  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L611) and
+  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L630).
 - **Pearson `χ²` divergence and Ingster / Le Cam mixture bounds (finite types).** Import
   [ChiSquare.lean](../../CslibFrontier/Probability/ChiSquare.lean).
   [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L142) (`ℝ≥0∞`-valued
@@ -891,12 +891,15 @@ with values `r : V × V → R`. Its error is one-sided: `det_edmondsEval_eq_zero
 elements into a detecting choice of values. The probability is a counting ratio over
 `Fintype.piFinset`, not a `PMF`, and no machine running time is certified for the determinant.
 
-The bound comes from two lemmas in
-[MvPolynomial/SchwartzZippel.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/SchwartzZippel.lean):
-`MvPolynomial.schwartz_zippel_totalDegree_fintype` extends Mathlib's Schwartz–Zippel lemma from
-the variables `Fin n` to any finite type, and `MvPolynomial.totalDegree_det_le` bounds the total
-degree of a determinant of polynomials. Use them for other symbolic-determinant tests. The same
-module has two consequences. `MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card` finds a
+The bound combines
+`MvPolynomial.schwartz_zippel_totalDegree_fintype` in
+[MvPolynomial/SchwartzZippel.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/SchwartzZippel.lean),
+which extends Mathlib's Schwartz–Zippel lemma from the variables `Fin n` to any finite type,
+with `MvPolynomial.totalDegree_det_le` in
+[MvPolynomial/Determinant.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/Determinant.lean),
+which bounds the total degree of a polynomial determinant. Use them for other
+symbolic-determinant tests. SchwartzZippel publicly reexports the determinant bound and has two
+probabilistic consequences. `MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card` finds a
 nonvanishing point of `S ^ σ` when the total degree is below `|S|`; the `exists_det_…_ne_zero`
 theorems use it. `MvPolynomial.card_filter_eval_eq_zero_mul_card_le` is the counting form over a
 finite domain, `#zeros * q ≤ d * q ^ n`. For one variable under a uniform `PMF`,
@@ -1683,8 +1686,7 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
       return raw.take n) := by
   apply IsPPTOn.isPPT
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 ```
 

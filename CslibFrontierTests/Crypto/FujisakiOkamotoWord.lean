@@ -168,8 +168,8 @@ def queryChallengeG (_ : ℕ) (challenge : List Bool) : WordOracleComp CCAOp Boo
 
 /-- The adversary is uniform strict oracle PPT. -/
 theorem isOraclePPT_queryChallengeG : IsOraclePPT encBool queryChallengeG :=
-  ((IsOraclePPTOn.query_take' CCAOp.G (ComputableInPolyTime.snd encUnary encBits)
-    (ComputableInPolyTime.const 1)).map' (by fun_prop)).isOraclePPT
+  ((IsOraclePPTOn.query_take CCAOp.G (ComputableInPolyTime.snd encUnary encBits)
+    (ComputableInPolyTime.const 1)).map (by fun_prop)).isOraclePPT
 
 /-- Its IND-CPA reduction against the identity scheme is uniform strict PPT. -/
 example : (identityPKE.romCpaReductionWord (fun n => n) queryChallengeG).IsPPT encBits :=

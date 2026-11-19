@@ -172,7 +172,7 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
         repeatWrapperStep p.1.1 (ctBound p.1.1) p.2.1 p.2.2) := by
     unfold repeatWrapperStep
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => 4 * ctBound pair.1.1 + 2 * pair.1.1 + 6)
       (encPair (encPair encUnary encBits) encBits) encUnary := by
@@ -213,7 +213,7 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       (fun out : α × List (List Bool × List Bool) => hasDistinctCollision out.2)
       (encPair encOut EState) encBool :=
     computableInPolyTime_hasDistinctCollision.comp (ComputableInPolyTime.snd _ _)
-  simpa only [bind_pure_comp] using (hrun.map' hpost).isOraclePPT
+  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun hpost).isOraclePPT
 
 /-- In Experiment `true` (`b = 1`), every recorded entry `(c, r)` in `repeatToCPAAdversary`
 satisfies `c ∈ support(E.encrypt n k r)` when `ctBound n` bounds ciphertext lengths on `n`-bit
@@ -224,8 +224,8 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
     (ctBound : ℕ → ℕ) (A : ℕ → List Bool → WordOracleComp Unit α) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n) = PMF.pure false := by
-  rw [E.cpaGame_eq_symmetricCPAGameOn]
-  simp only [symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary, runWith_norm, pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary, runWith_norm,
+    pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
   refine PMF.map_eq_pure_iff.mpr fun out hout => ?_
   have hinv := ProbOracleComp.runWith_invariant
@@ -366,8 +366,7 @@ private theorem eval_cpaGame_repeatToCPAAdversary_false_eq {α : Type} (E : Symm
       (ProbComp.eval (E.keyGen n)).bind fun k =>
         (ProbComp.eval (((A n []).runState (E.ciEncryptionOracle n k)).run [])).bind fun out =>
           (pairWithUniform n out.2).map hasDistinctCollision := by
-  rw [E.cpaGame_eq_symmetricCPAGameOn]
-  simp only [symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary,
+  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary,
     ProbOracleComp.eval_runState, runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_simulation

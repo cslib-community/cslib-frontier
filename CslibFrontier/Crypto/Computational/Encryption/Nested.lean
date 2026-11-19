@@ -670,7 +670,7 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
           do let c ← (E x.1).nestedSuffix x.2.1.withheld x.2.1.keys x.2.2
              (A x.1).guess x.2.1.innerState ⟨c, revealKeys x.2.1.withheld x.2.1.keys⟩
           else pure false :=
-      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st).tidy
+      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st)
         (IsPPTOn.bind_pair hsuf hcall)
         (ComputableInPolyTime.const false).isPPTOn
     refine hcond.congr fun ⟨sec, st, chal⟩ => ?_

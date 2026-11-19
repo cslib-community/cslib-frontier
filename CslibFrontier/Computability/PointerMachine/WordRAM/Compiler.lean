@@ -48,6 +48,13 @@ structure ScalarResult (dst : Fin (regCount L)) (v : ℕ)
   frame : ∀ r : Fin (regCount L), r.val < L.ptrRegs + L.dataRegs + 2 → r ≠ dst →
     y.regs r = x.regs r
 
+/-- Writing the destination register alone meets the scalar routine's frame contract. -/
+theorem ScalarResult.set (x : Cslib.WordRAM.Data (regCount L))
+    (d : Fin (regCount L)) (v : ℕ) : ScalarResult d v x (x.set d v) where
+  result := by simp [Cslib.WordRAM.Data.set]
+  memory := rfl
+  frame r _ hrd := by simp [Cslib.WordRAM.Data.set, Function.update_of_ne hrd]
+
 /-- Implementations of the scalar basis in the standard word RAM. The admissibility predicates
 state any additional headroom needed by scalar routines. They concern scalar operands only;
 all pointer operations are implemented by the compiler below. -/

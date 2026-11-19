@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
+import CslibFrontier.Foundations.Data.Option
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.Uniform
 
@@ -103,16 +104,6 @@ theorem read_withMatrixPrefixes_of_ne (H : Xofs) (s : Level) (rho : List Byte)
     | some p => exact False.elim (h p.1 p.2 (address_of_cellAt ha))
   simp only [Xofs.withMatrixPrefixes, ExtendableOutput.withPrefixes, hnone, Option.map_none]
 
-private theorem ofFnM_replace {α β : Type*} {n : ℕ} (f : Fin n → Option α) (v : Fin n → β) :
-    Vector.ofFnM (fun i => (f i).map fun _ => v i) =
-      (Vector.ofFnM f).map fun _ => Vector.ofFn v := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [Vector.ofFnM_succ, Vector.ofFnM_succ, ih (fun i => f i.castSucc) (fun i => v i.castSucc)]
-    cases Vector.ofFnM (fun i : Fin n => f i.castSucc) <;>
-      cases f (Fin.last n) <;> simp [Vector.ofFn_succ, Fin.last]
-
 /-- Algorithm 32 receives the installed 894 bytes at this public row and column. -/
 theorem read_matrixEntry (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
     (i : Fin s.params.k) (j : Fin s.params.ℓ) :
@@ -160,10 +151,10 @@ theorem expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte)
     have he := funext (sample_programMatrixPrefixes s t A i)
     change Vector.ofFnM (entries (programMatrixPrefixes s t A) i) = _
     rw [show entries (programMatrixPrefixes s t A) i = _ from he]
-    exact ofFnM_replace (entries t i) (fun j => Vector.ofFn (A i j))
+    exact Vector.ofFnM_option_replace (entries t i) (fun j => Vector.ofFn (A i j))
   have hm : Vector.ofFnM (rows (programMatrixPrefixes s t A)) =
       (Vector.ofFnM (rows t)).map fun _ => Vector.ofFn target := by
-    rw [funext hr, ofFnM_replace]
+    rw [funext hr, Vector.ofFnM_option_replace]
   let unpack (v : Vector (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) s.params.k) :
       PublicMatrix s := fun i j => ((v.get i).get j).get
   have eval (u : MatrixPrefixes s) : (H.withMatrixPrefixes s rho u).expandA s rho =

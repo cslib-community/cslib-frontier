@@ -76,12 +76,9 @@ example :
       (encPair encUnary (encList encUnary)) (encList encUnary) :=
   ⟨by fun_prop, by fun_prop, by fun_prop, by fun_prop⟩
 
-example : ComputableTidilyInPolyTime (fun n => (List.range n).flatMap fun i => List.replicate i n)
+example : ComputableInPolyTime (fun n => (List.range n).flatMap fun i => List.replicate i n)
     encUnary (encList encUnary) := by
-  have hrep := (ComputableTidilyInDegree.replicate encUnary).computableTidilyInPolyTime.comp
-    ((ComputableTidilyInPolyTime.snd encUnary encUnary).prod
-      (ComputableTidilyInPolyTime.fst encUnary encUnary))
-  exact ComputableTidilyInPolyTime.flatMapWith hrep .id' ComputableTidilyInPolyTime.range
+  fun_prop
 
 -- Filtering also accepts a parameter and a list whose encoded length grows polynomially.
 example : ComputableTidilyInPolyTime
