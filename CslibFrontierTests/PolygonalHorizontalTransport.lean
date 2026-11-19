@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.HorizontalTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
@@ -26,7 +26,6 @@ the false claim that a coheight isolate stays fixed. Scalar counterexamples dist
 plateau from a triangular tent, closed-parameter from all-real identities, and whole-node
 half-spaces from endpoint-only conditions.
 
-AUTHOR SOURCE DRAFT: these clients have NOT been elaborated or independently reviewed.
 -/
 
 public section
@@ -61,7 +60,7 @@ theorem star_twenty_horizontal : ∃ r > 0, ∀ d : ℝ,
   · simpa [D, PolygonalDrawing.star, starPoint] using hv 20 (by decide)
   · intro w hw
     have hwdecl : w ∈ (starGraph 20).vertices := by simp [starGraph]; omega
-    simpa only [if_neg (Nat.ne_of_lt hw)] using hv w hwdecl
+    simpa only [ite_eq_right (Nat.ne_of_lt hw)] using hv w hwdecl
   · refine ⟨hemb.germ_ne_zero, hemb.directions_injective, ?_⟩
     intro x y z hxy hyz hne hne' hne''
     exact (horder x y z hxy hyz hne hne' hne'').trans
@@ -132,9 +131,14 @@ example : ((PolygonalDrawing.points []).plateauShear 0 1 10).IsEmbedding := by
 
 private def sharp : Route := Route.line (-2 * Complex.I) (2 * Complex.I)
 
--- Four strict interior level cuts; this exact arithmetic assertion is an UNELABORATED draft.
+-- Four strict interior level cuts, checked through the public exact-count law.
 example : (sharp.plateauShear 0 1 10).segments = 5 := by
-  norm_num [sharp, Route.plateauShear, Route.segments, Route.line]
+  rw [Route.segments_plateauShear_eq (by norm_num : (0 : ℝ) < 1) sharp
+    (by norm_num : (10 : ℝ) ≠ 0)]
+  change (Finset.univ.sum (fun i : Fin 1 => _)) = 5
+  rw [Fin.sum_univ_one]
+  dsimp only [sharp, Route.line]
+  norm_num [Finset.filter_insert, Finset.filter_singleton]
 
 example : (sharp.plateauShear 0 1 10).start = sharp.start ∧
     (sharp.plateauShear 0 1 10).finish = sharp.finish ∧
@@ -143,15 +147,17 @@ example : (sharp.plateauShear 0 1 10).start = sharp.start ∧
     intro b
     rw [Route.endpoint_plateauShear]
     apply Polygonal.plateauShear_apply_outer (by norm_num : (0 : ℝ) < 1) 10
-    cases b <;> norm_num [sharp, Route.endpoint, Route.start, Route.finish, Route.line]
+    cases b <;>
+      dsimp only [sharp, Route.endpoint, Route.start, Route.finish, Route.line] <;> norm_num
   refine ⟨he false, he true, ?_⟩
   rw [Route.support_plateauShear]
   refine ⟨0, ?_, ?_⟩
   · apply (sharp.mem_support_iff 0).mpr
     refine ⟨0, 1 / 2, by constructor <;> norm_num, ?_⟩
-    apply Complex.ext <;> norm_num [sharp, Route.eval_line, AffineMap.lineMap_apply_module',
+    apply Complex.ext <;> dsimp only [sharp, Route.eval, Route.line] <;>
+      norm_num [AffineMap.lineMap_apply_module',
       Complex.smul_re, Complex.smul_im]
-  · simpa using Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10
+  · simpa using Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
       (z := 0) (by norm_num)
 
 -- Decreasing height and both endpoint tags, through public APIs.
@@ -165,7 +171,8 @@ example : (sharp.reverse.plateauShear 0 1 10).IsSimple ∧
   refine ⟨hs.reverse.plateauShear 0 1 10, ?_, ?_⟩ <;>
     rw [Route.endpoint_plateauShear, Route.endpoint_reverse] <;>
     apply Polygonal.plateauShear_apply_outer (by norm_num : (0 : ℝ) < 1) 10 <;>
-    norm_num [sharp, Route.endpoint, Route.start, Route.finish, Route.line]
+    dsimp only [sharp, Route.endpoint, Route.start, Route.finish, Route.line] <;>
+    norm_num
 
 -- Boundary-height knots, horizontal and degenerate pieces remain admitted data.
 example : ((Route.line (-Complex.I) (-Complex.I)).append (-Complex.I)).plateauShear 0 1 10 =
@@ -173,28 +180,45 @@ example : ((Route.line (-Complex.I) (-Complex.I)).append (-Complex.I)).plateauSh
   apply Route.plateauShear_eq_self (by norm_num : (0 : ℝ) < 1)
   left
   intro i
-  fin_cases i <;> norm_num [Route.line, Route.append]
+  have hline : (Route.line (-Complex.I) (-Complex.I)).point =
+      (fun _ : Fin 2 => -Complex.I) := by
+    funext j
+    simp only [Route.line, ite_self]
+  have h : ∀ j : Fin 3,
+      (Fin.lastCases (motive := fun _ : Fin 3 => ℂ) (-Complex.I)
+        (fun _ : Fin 2 => -Complex.I) j).im ≤ -1 := by
+    intro j
+    refine Fin.lastCases ?_ (fun k => ?_) j
+    · simp only [Fin.lastCases_last]
+      norm_num
+    · simp only [Fin.lastCases_castSucc]
+      norm_num
+  norm_num only [zero_sub]
+  change (Fin.lastCases (motive := fun _ : Fin 3 => ℂ) (-Complex.I)
+    ((Route.line (-Complex.I) (-Complex.I)).point) i).im ≤ -1
+  rw [hline]
+  exact h i
 
 example (p : Route) : p.plateauShear 0 1 0 = p := Route.plateauShear_zero p 0 1
 
 -- Coheight undeclared or other declared names are moved too: no global Function.update law.
 example : Polygonal.plateauShear 0 1 10 (1 : ℂ) ≠ (1 : ℂ) := by
-  rw [Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10 (by norm_num)]
+  rw [Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10 (by norm_num)]
   norm_num
 
 -- The nonlinear identity is false when extrapolated outside a selected affine strip.
 example : Polygonal.plateauShear 0 1 10
-      (AffineMap.lineMap (0 : ℂ) (Complex.I / 2) 3) ≠
+      (AffineMap.lineMap (0 : ℂ) (Complex.I / 2) (3 : ℝ)) ≠
     AffineMap.lineMap (Polygonal.plateauShear 0 1 10 (0 : ℂ))
-      (Polygonal.plateauShear 0 1 10 (Complex.I / 2)) 3 := by
-  have hzero := Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10
+      (Polygonal.plateauShear 0 1 10 (Complex.I / 2)) (3 : ℝ) := by
+  have hzero := Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
     (z := 0) (by norm_num)
-  have hhalf := Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10
+  have hhalf := Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
     (z := Complex.I / 2) (by norm_num)
   rw [hzero, hhalf]
   have hout : Polygonal.plateauShear 0 1 10
-      (AffineMap.lineMap (0 : ℂ) (Complex.I / 2) 3) =
-      AffineMap.lineMap (0 : ℂ) (Complex.I / 2) 3 := by
+      (AffineMap.lineMap (0 : ℂ) (Complex.I / 2) (3 : ℝ)) =
+      AffineMap.lineMap (0 : ℂ) (Complex.I / 2) (3 : ℝ) := by
     apply Polygonal.plateauShear_apply_outer (by norm_num : (0 : ℝ) < 1) 10
     norm_num [AffineMap.lineMap_apply_module', Complex.smul_im]
   rw [hout]
@@ -216,15 +240,16 @@ example : (bent.plateauShear 0 1 10).endpoint false = bent.endpoint false ∧
   have he (b : Bool) : (bent.plateauShear 0 1 10).endpoint b = bent.endpoint b := by
     rw [Route.endpoint_plateauShear]
     apply Polygonal.plateauShear_apply_outer (by norm_num : (0 : ℝ) < 1) 10
-    cases b <;> norm_num [bent, Route.endpoint_append, Route.endpoint, Route.start,
-      Route.finish, Route.line]
+    cases b <;>
+      simp only [bent, Route.endpoint_append, Bool.false_eq_true, ↓reduceIte, Route.start_line] <;>
+      norm_num
   refine ⟨he false, he true, ?_⟩
   have hmid : (10 : ℂ) ∈ (bent.plateauShear 0 1 10).support := by
     rw [Route.support_plateauShear]
     refine ⟨0, ?_, ?_⟩
     · rw [bent, Route.support_append, Route.support_line]
       exact Or.inl (right_mem_segment ℝ _ _)
-    · simpa using Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10
+    · simpa using Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
         (z := 0) (by norm_num)
   intro hsame
   rw [hsame, bent, Route.support_append, Route.support_line] at hmid
@@ -239,7 +264,8 @@ example :
     Polygonal.plateauShear 0 1 10 (sharp.eval 0 (3 / 8)) = 10 - Complex.I / 2 ∧
     Polygonal.plateauShear 0 1 10 (sharp.eval 0 (5 / 8)) = 10 + Complex.I / 2 ∧
     Polygonal.plateauShear 0 1 10 (sharp.eval 0 (3 / 4)) = Complex.I := by
-  norm_num [sharp, Route.eval_line, AffineMap.lineMap_apply_module',
+  dsimp only [sharp, Route.eval, Route.line]
+  norm_num [ AffineMap.lineMap_apply_module',
     Polygonal.plateauShear_apply, Complex.ext_iff, Complex.smul_re, Complex.smul_im]
 
 -- A coheight OTHER DECLARED isolate makes the graph theorem's height premise false.
@@ -269,12 +295,16 @@ example : ∃ r > 0,
   rw [hcenter] at hemb hv hg
   let D' := D.plateauShear 0 r 10
   have hstart : (D'.route ⟨0, by decide⟩).start = (D.route ⟨0, by decide⟩).start := by
+    change (D'.route ⟨0,by decide⟩).endpoint false = (D.route ⟨0,by decide⟩).endpoint false
+    rw [D'.endpoint_eq, D.endpoint_eq]
     have hv0 := hv 0 (by decide)
-    simpa [D', D, PolygonalDrawing.star, starPoint, Route.start, Route.line,
-      Route.endpoint, Dart.vertex, Graph.edgeEndpoint] using hv0
+    exact hv0
   have hnozero : (0 : ℂ) ∉ (D'.route ⟨0, by decide⟩).support := by
-    rw [D', PolygonalDrawing.plateauShear, Route.support_plateauShear]
+    change (0 : ℂ) ∉ ((D.route ⟨0,by decide⟩).plateauShear 0 r 10).support
+    rw [Route.support_plateauShear]
     rintro ⟨z, hz, he⟩
+    dsimp only [D, PolygonalDrawing.star] at hz
+    norm_num only [Fin.val_mk, Nat.cast_zero, zero_add] at hz
     change z ∈ (Route.line (⟨1, 1⟩ : ℂ) 0).support at hz
     rw [Route.support_line, segment_eq_image_lineMap] at hz
     obtain ⟨t, _, rfl⟩ := hz
@@ -284,7 +314,9 @@ example : ∃ r > 0,
       norm_num [AffineMap.lineMap_apply_module', Complex.smul_im] at hi
       linarith
     rw [ht, AffineMap.lineMap_apply_one,
-      Polygonal.plateauShear_apply_inner hr 10 (by simp; positivity)] at he
+      Polygonal.plateauShear_apply_inner (h := 0) hr 10 (by
+        simp only [Complex.zero_im, sub_self, abs_zero]
+        positivity)] at he
     norm_num at he
   refine ⟨r, hr, hemb, hg (⟨0, by decide⟩, false), ?_⟩
   intro heq
@@ -297,8 +329,9 @@ example : ∃ r > 0,
     rw [hnear, hstart]
     change (D.route ⟨0, by decide⟩).start + D'.germ (⟨0, by decide⟩, false) = 0
     rw [heq]
-    norm_num [D, PolygonalDrawing.star, PolygonalDrawing.germ, Route.germ, Route.start,
+    dsimp only [D, PolygonalDrawing.star, PolygonalDrawing.germ, Route.germ, Route.start,
       Route.line]
+    norm_num
   exact hnozero (he ▸ hz)
 
 -- Five-valent declared stars retain the literal clockwise order, not only incidence planarity.
@@ -317,13 +350,16 @@ example : ∃ r > 0, ∀ d : ℝ, ∀ x y z : Dart (starGraph 5),
     (by decide) 5 (by decide) hsep
   refine ⟨r, hr, fun d => ?_⟩
   obtain ⟨_, _, _, horder, _, _⟩ := hm d
-  simpa only [PolygonalDrawing.star, starPoint, if_pos rfl, Complex.zero_im] using horder
+  have hz : ((PolygonalDrawing.star 5).vertex 5).im = 0 := by
+    norm_num [PolygonalDrawing.star, starPoint]
+  rw [hz] at horder
+  exact horder
 
 -- No simplicity claim is made about a degenerate piece, but its continuum image is correct.
 example : ((Route.line 0 0).plateauShear 0 1 10).support = {(10 : ℂ)} := by
   rw [Route.support_plateauShear, Route.support_line]
   have he : Polygonal.plateauShear 0 1 10 (0 : ℂ) = (10 : ℂ) := by
-    simpa using Polygonal.plateauShear_apply_inner (by norm_num : (0 : ℝ) < 1) 10
+    simpa using Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
       (z := 0) (by norm_num)
   simp only [segment_same, Set.image_singleton, he]
 

@@ -38,7 +38,7 @@ transports simplicity without assuming any geometric coordinate monotonicity.
 * `Route.support_plateauShear`, `Route.IsSimple.plateauShear`: continuum image and simplicity.
 * `Route.germ_plateauShear`: positive end factors at strictly flat endpoint heights.
 
-AUTHOR SOURCE DRAFT: all terms are UNELABORATED. Global nonlinear evaluation identities are
+Global nonlinear evaluation identities are
 confined to the unit interval; affine strip branches alone have all-real identities.
 
 This is original finite geometry towards [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091),
@@ -48,6 +48,7 @@ not an ambient forest-extension, parity move, HT or recognition theorem.
 public section
 
 namespace Cslib.Polygonal
+
 
 private noncomputable def profile (h r y : ℝ) : ℝ :=
   max 0 (min 1 (2 - 2 * |y - h| / r))
@@ -94,15 +95,14 @@ private noncomputable def coordinateShear (h r d : ℝ) : ℝ × ℝ ≃ₜ ℝ 
 /-- The actual horizontal plateau shear. It has an explicit inverse for arbitrary displacement.
 For nonpositive width the same formula is the global translation by `d`; geometric band
 properties below require positive width. The first coordinate of the internal product is height. -/
-@[expose] noncomputable def plateauShear (h r d : ℝ) : ℂ ≃ₜ ℂ :=
+noncomputable def plateauShear (h r d : ℝ) : ℂ ≃ₜ ℂ :=
   heightCoordinates.trans ((coordinateShear h r d).trans heightCoordinates.symm)
 
 /-- The concrete shear preserves height and adds the plateau displacement to the real coordinate. -/
 theorem plateauShear_apply (h r d : ℝ) (z : ℂ) :
     plateauShear h r d z = z + (d * max 0 (min 1 (2 - 2 * |z.im - h| / r)) : ℝ) := by
-  apply Complex.ext <;>
-    simp [plateauShear, heightCoordinates, coordinateShear, profile, Equiv.prodShear,
-      Complex.equivRealProdCLM, Complex.equivRealProdLm, Equiv.addLeft]
+  change Complex.equivRealProdCLM.symm (d * profile h r z.im + z.re, z.im) = _
+  apply Complex.ext <;> simp [Complex.equivRealProdCLM_symm_apply, profile]; ring
 
 /-- In the plateau the map is a literal translation, including at its two boundary heights. -/
 theorem plateauShear_apply_inner {h r : ℝ} (hr : 0 < r) (d : ℝ) {z : ℂ}
@@ -135,7 +135,7 @@ private theorem strictCuts_mem {h r : ℝ} {a b : ℂ} {t : ℝ}
     (ht : t ∈ strictCuts h r a b) : t ∈ Set.Ioo 0 1 := by
   unfold strictCuts at ht
   split_ifs at ht with heq
-  · exact False.elim (Finset.not_mem_empty t ht)
+  · exact False.elim (Finset.notMem_empty t ht)
   · exact (Finset.mem_filter.mp ht).2
 
 private theorem mem_cuts {h r : ℝ} {a b : ℂ} {t : ℝ} :
@@ -152,21 +152,25 @@ private theorem cuts_bounds {h r : ℝ} {a b : ℂ} {t : ℝ}
 private theorem cuts_strict (h r : ℝ) (a b : ℂ) : (cuts h r a b).SortedLT :=
   Finset.sortedLT_sort _
 
-private theorem cuts_length_bounds (h r : ℝ) (a b : ℂ) :
-    2 ≤ (cuts h r a b).length ∧ (cuts h r a b).length ≤ 6 := by
+private theorem cuts_length_eq (h r : ℝ) (a b : ℂ) :
+    (cuts h r a b).length = (strictCuts h r a b).card + 2 := by
   have hn₀ : (0 : ℝ) ∉ strictCuts h r a b := fun ht => (lt_irrefl 0) (strictCuts_mem ht).1
   have hn₁ : (1 : ℝ) ∉ strictCuts h r a b := fun ht => (lt_irrefl 1) (strictCuts_mem ht).2
+  simp only [cuts, Finset.length_sort, cutSet,
+    Finset.card_insert_of_notMem (by simp [hn₀] : (0 : ℝ) ∉ insert 1 (strictCuts h r a b)),
+    Finset.card_insert_of_notMem hn₁]
+
+private theorem cuts_length_bounds (h r : ℝ) (a b : ℂ) :
+    2 ≤ (cuts h r a b).length ∧ (cuts h r a b).length ≤ 6 := by
   have hc : (strictCuts h r a b).card ≤ 4 := by
     unfold strictCuts
     split_ifs
     · simp
     · exact (Finset.card_filter_le _ _).trans ((Finset.card_image_le).trans
-        (by simp [levels]; omega))
-  have hcard : (cutSet h r a b).card = (strictCuts h r a b).card + 2 := by
-    rw [cutSet, Finset.card_insert_of_notMem, Finset.card_insert_of_notMem hn₁]
-    · omega
-    · simp only [Finset.mem_insert, zero_ne_one, hn₀, or_self, not_false_eq_true]
-  rw [cuts, Finset.length_sort, hcard]
+        (by
+          change ({h-r,h-r/2,h+r/2,h+r} : Finset ℝ).card ≤ 4
+          exact Finset.card_le_four))
+  rw [cuts_length_eq]
   omega
 
 private theorem profile_lower {h r y : ℝ} (hr : 0 < r)
@@ -315,13 +319,13 @@ private theorem cut_first_last (h r : ℝ) (a b : ℂ) :
   have hlen := cuts_length_bounds h r a b
   constructor
   · apply le_antisymm
-    · exact (hmono.monotone (show (⟨0, by dsimp [L]; omega⟩ : Fin L.length) ≤ i from
+    · exact (hmono.monotone (show (⟨0, by dsimp only [L] at *; omega⟩ : Fin L.length) ≤ i from
         Nat.zero_le _)).trans_eq hi
     · exact (cuts_bounds (List.get_mem L _)).1
   · apply le_antisymm
     · exact (cuts_bounds (List.get_mem L _)).2
     · exact hj.symm.trans_le (hmono.monotone (show j ≤
-        (⟨L.length - 1, by dsimp [L]; omega⟩ : Fin L.length) from
+        (⟨L.length - 1, by dsimp only [L] at *; omega⟩ : Fin L.length) from
           Nat.le_sub_one_of_lt j.isLt))
 
 private theorem cut_adjacent_no_level {h r : ℝ} {a b : ℂ} {k : ℕ}
@@ -332,6 +336,7 @@ private theorem cut_adjacent_no_level {h r : ℝ} {a b : ℂ} {k : ℕ}
         y < max (AffineMap.lineMap a b (cuts h r a b)[k]).im
           (AffineMap.lineMap a b (cuts h r a b)[k + 1]).im) := by
   let L := cuts h r a b
+  have hkL : k + 1 < L.length := hk
   let α := L[k]
   let β := L[k + 1]
   have hmono := (cuts_strict h r a b).strictMono_get
@@ -341,7 +346,9 @@ private theorem cut_adjacent_no_level {h r : ℝ} {a b : ℂ} {k : ℕ}
   have hβ := cuts_bounds (List.getElem_mem (l := L) hk)
   intro y hy hbetween
   have him (t : ℝ) : (AffineMap.lineMap a b t).im = t * (b.im - a.im) + a.im := by
-    rw [Complex.imCLM.toLinearMap.toAffineMap.apply_lineMap, AffineMap.lineMap_apply_ring']
+    change Complex.imCLM.toLinearMap.toAffineMap (AffineMap.lineMap a b t) = _
+    rw [AffineMap.apply_lineMap, AffineMap.lineMap_apply_ring']
+    rfl
   simp only [him] at hbetween
   have hne : b.im - a.im ≠ 0 := by
     intro he
@@ -362,10 +369,10 @@ private theorem cut_adjacent_no_level {h r : ℝ} {a b : ℂ} {k : ℕ}
     · have he : α * (b.im - a.im) + a.im < β * (b.im - a.im) + a.im := by nlinarith
       rw [min_eq_left he.le, max_eq_right he.le] at hbetween
       constructor
-      · exact (mul_lt_mul_right hpos).mp (by linarith [hbetween.1])
-      · exact (mul_lt_mul_right hpos).mp (by linarith [hbetween.2])
+      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.1])
+      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.2])
   have htm : t ∈ strictCuts h r a b := by
-    rw [strictCuts, if_neg (sub_ne_zero.mp hne), Finset.mem_filter]
+    rw [strictCuts, ite_eq_right (sub_ne_zero.mp hne), Finset.mem_filter]
     exact ⟨Finset.mem_image.mpr ⟨y, hy, rfl⟩,
       lt_of_le_of_lt hα.1 ht.1, lt_of_lt_of_le ht.2 hβ.2⟩
   obtain ⟨j, hj⟩ := List.mem_iff_get.mp (mem_cuts.mpr (Or.inr (Or.inr htm)))
@@ -379,21 +386,26 @@ private theorem cut_interval {h r : ℝ} {a b : ℂ} {t : ℝ} (ht : t ∈ Set.I
     ∃ (k : ℕ) (hk : k + 1 < (cuts h r a b).length),
       (cuts h r a b)[k] ≤ t ∧ t ≤ (cuts h r a b)[k + 1] := by
   let L := cuts h r a b
-  have hlen := cuts_length_bounds h r a b
-  have hends := cut_first_last h r a b
+  have hlen : 2 ≤ L.length ∧ L.length ≤ 6 := cuts_length_bounds h r a b
+  have hends : L[0] = 0 ∧ L[L.length - 1] = 1 := cut_first_last h r a b
+  dsimp only [L] at hlen hends
   by_cases ht1 : t = 1
-  · refine ⟨L.length - 2, by dsimp [L]; omega, ?_, ?_⟩
-    · exact (cuts_bounds (List.getElem_mem (by dsimp [L]; omega))).2.trans_eq ht1.symm
-    · simpa only [show L.length - 2 + 1 = L.length - 1 by dsimp [L]; omega,
-        hends.2, ht1]
+  · refine ⟨L.length - 2, by dsimp only [L] at *; omega, ?_, ?_⟩
+    · exact (cuts_bounds (List.getElem_mem (by dsimp only [L] at *; omega))).2.trans_eq ht1.symm
+    · change t ≤ L[L.length - 2 + 1]
+      simp only [show L.length - 2 + 1 = L.length - 1 by dsimp only [L] at *; omega]
+      exact ht1.trans_le (show L[L.length - 1] = 1 from hends.2).symm.le
   · let f : Fin (L.length - 1 + 1) → ℝ := fun j => L[j.val]'(by
       have := j.isLt
-      dsimp [L] at *
+      dsimp only [L] at *
       omega)
     obtain ⟨i, hlo, hhi⟩ := Fin.exists_le_lt_adjacent (f := f) (x := t)
-      (by simpa only [f, Fin.val_zero, hends.1] using ht.1)
-      (by simpa only [f, Fin.val_last, hends.2] using lt_of_le_of_ne ht.2 ht1)
-    exact ⟨i.val, by have := i.isLt; omega, hlo, hhi.le⟩
+      (by change L[0] ≤ t; rw [show L[0] = 0 from hends.1]; exact ht.1)
+      (by
+        change t < L[L.length - 1]
+        rw [show L[L.length - 1] = 1 from hends.2]
+        exact lt_of_le_of_ne ht.2 ht1)
+    exact ⟨i.val, by have := i.isLt; dsimp only [L] at *; omega, hlo, hhi.le⟩
 
 private theorem cut_eval {h r : ℝ} (hr : 0 < r) (d : ℝ) {a b : ℂ} {k : ℕ}
     (hk : k + 1 < (cuts h r a b).length) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
@@ -420,7 +432,7 @@ private theorem dropLast_cuts_bounds {h r : ℝ} {a b : ℂ} {t : ℝ}
     (ht : t ∈ (cuts h r a b).dropLast) : 0 ≤ t ∧ t < 1 := by
   let L := cuts h r a b
   obtain ⟨i, hi⟩ := List.mem_iff_get.mp ht
-  have hlen := cuts_length_bounds h r a b
+  have hlen : 2 ≤ L.length ∧ L.length ≤ 6 := cuts_length_bounds h r a b
   have hilt : i.val < L.length - 1 := by simpa only [List.length_dropLast] using i.isLt
   have hil : i.val < L.length := by omega
   have ht' : L[i.val] = t := by simpa only [List.get_eq_getElem, List.getElem_dropLast] using hi
@@ -428,16 +440,19 @@ private theorem dropLast_cuts_bounds {h r : ℝ} {a b : ℂ} {t : ℝ}
   · exact ht' ▸ (cuts_bounds (List.getElem_mem hil)).1
   · have hm := (cuts_strict h r a b).strictMono_get
       (show (⟨i.val, hil⟩ : Fin L.length) < ⟨L.length - 1, by omega⟩ from hilt)
-    simpa only [List.get_eq_getElem, ht', (cut_first_last h r a b).2] using hm
+    change L[i.val] < L[L.length - 1] at hm
+    rw [ht', show L[L.length - 1] = 1 from (cut_first_last h r a b).2] at hm
+    exact hm
 
 private theorem sourceSamples_bounds (p : Route) (h r : ℝ)
     {x : Fin p.segments × ℝ} (hx : x ∈ sourceSamples p h r) : x.2 ∈ Set.Icc 0 1 := by
-  simp only [sourceSamples, sourceBlock] at hx
+  simp only [sourceSamples] at hx
   rcases List.mem_append.mp hx with hx | hx
   · obtain ⟨i, _, ht⟩ := List.mem_flatMap.mp hx
-    obtain ⟨t, ht, heq⟩ := List.mem_map.mp ht
+    change x ∈ (cuts h r (p.point i.castSucc) (p.point i.succ)).dropLast.map (fun t => (i,t)) at ht
+    obtain ⟨t, hcut, heq⟩ := List.mem_map.mp ht
     subst x
-    exact ⟨(dropLast_cuts_bounds ht).1, (dropLast_cuts_bounds ht).2.le⟩
+    exact ⟨(dropLast_cuts_bounds hcut).1, (dropLast_cuts_bounds hcut).2.le⟩
   · have he : x = (Fin.last p.bends, 1) := List.mem_singleton.mp hx
     rw [he]
     constructor <;> norm_num
@@ -445,7 +460,6 @@ private theorem sourceSamples_bounds (p : Route) (h r : ℝ)
 private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
     (sourceSamples p h r).Pairwise (fun a b => sourcePosition a < sourcePosition b) := by
   rw [sourceSamples, List.pairwise_append]
-  simp only [sourceBlock]
   refine ⟨?_, by simp, ?_⟩
   · rw [List.pairwise_flatMap]
     constructor
@@ -453,7 +467,7 @@ private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
       apply List.pairwise_map.mpr
       have hc := (cuts_strict h r (p.point i.castSucc) (p.point i.succ)).pairwise
       exact (hc.sublist (List.dropLast_sublist _)).imp
-        (fun _ _ hab => add_lt_add_left hab (i.val : ℝ))
+        (fun hab => by dsimp [sourcePosition]; linarith)
     · apply (List.sortedLT_finRange p.segments).pairwise.imp
       intro i j hij x hx y hy
       obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hx
@@ -465,14 +479,14 @@ private theorem sourceSamples_ordered (p : Route) (h r : ℝ) :
       linarith
   · intro x hx y hy
     obtain ⟨i, _, ht⟩ := List.mem_flatMap.mp hx
-    obtain ⟨t, ht, rfl⟩ := List.mem_map.mp ht
+    change x ∈ (cuts h r (p.point i.castSucc) (p.point i.succ)).dropLast.map (fun t => (i,t)) at ht
+    obtain ⟨t, hcut, rfl⟩ := List.mem_map.mp ht
     have hy' : y = (Fin.last p.bends, 1) := List.mem_singleton.mp hy
     subst y
     have hi : i.val ≤ p.bends := by have := i.isLt; dsimp [Route.segments] at *; omega
     have hi' : (i.val : ℝ) ≤ p.bends := by exact_mod_cast hi
-    have ht' := dropLast_cuts_bounds ht
+    have ht' := dropLast_cuts_bounds hcut
     dsimp [sourcePosition]
-    simp only [Fin.val_last]
     linarith
 
 private theorem sourceBlock_length (p : Route) (h r : ℝ) (i : Fin p.segments) :
@@ -503,12 +517,15 @@ private theorem sourceBlock_last (p : Route) (h r : ℝ) (i : Fin p.segments) :
   simp only [sourceBlock, List.length_map, List.length_dropLast, List.getElem_map,
     List.getElem_dropLast, Nat.sub_sub]
 
+private theorem sourceSamples_length_eq_sum (p : Route) (h r : ℝ) :
+    (sourceSamples p h r).length =
+      (∑ i : Fin p.segments, (sourceBlock p h r i).length) + 1 := by
+  simp only [sourceSamples, List.length_append, List.length_singleton, List.length_flatMap]
+  rw [← List.ofFn_eq_map, List.sum_ofFn]
+
 private theorem sourceSamples_length (p : Route) (h r : ℝ) :
     p.segments + 1 ≤ (sourceSamples p h r).length ∧
       (sourceSamples p h r).length ≤ 5 * p.segments + 1 := by
-  have hlength : ((List.finRange p.segments).flatMap (sourceBlock p h r)).length =
-      ∑ i : Fin p.segments, (sourceBlock p h r i).length := by
-    rw [List.length_flatMap, ← List.ofFn_eq_map, List.sum_ofFn]
   have hlo : p.segments ≤ ∑ i : Fin p.segments, (sourceBlock p h r i).length := by
     calc
       _ = ∑ _i : Fin p.segments, (1 : ℕ) := by simp
@@ -518,8 +535,18 @@ private theorem sourceSamples_length (p : Route) (h r : ℝ) :
       _ ≤ ∑ _i : Fin p.segments, (5 : ℕ) :=
         Finset.sum_le_sum fun i _ => (sourceBlock_length p h r i).2
       _ = _ := by simp [Nat.mul_comm]
-  simp only [sourceSamples, List.length_append, List.length_singleton, hlength]
+  rw [sourceSamples_length_eq_sum]
   omega
+
+private theorem sourceSamples_nontrivial (p : Route) (h r : ℝ) :
+    ∃ x y rest, sourceSamples p h r = x :: y :: rest := by
+  have hn := sourceSamples_length p h r
+  cases hw : sourceSamples p h r with
+  | nil => simp only [hw,List.length_nil,Route.segments] at hn; omega
+  | cons x xs =>
+    cases xs with
+    | nil => simp only [hw,List.length_singleton,Route.segments] at hn; omega
+    | cons y rest => exact ⟨x,y,rest,rfl⟩
 
 private theorem sourceSamples_ends (p : Route) (h r : ℝ) :
     (sourceSamples p h r)[0]'(by have := sourceSamples_length p h r; omega) = (0, 0) ∧
@@ -527,20 +554,31 @@ private theorem sourceSamples_ends (p : Route) (h r : ℝ) :
         have := sourceSamples_length p h r; omega) = (Fin.last p.bends, 1) := by
   have hfin : List.finRange p.segments ≠ [] := by
     intro he
-    have := congrArg List.length he
-    simp only [List.length_finRange, List.length_nil, Route.segments] at this
+    have hn := congrArg List.length he
+    simp only [List.length_finRange, List.length_nil, Route.segments] at hn
     omega
-  have hflat := List.flatMap_ne_nil hfin (fun i _ => sourceBlock_ne_nil p h r i)
+  have hflat : ((List.finRange p.segments).flatMap (sourceBlock p h r)) ≠ [] :=
+    List.flatMap_ne_nil hfin (fun i _ => sourceBlock_ne_nil p h r i)
+  have hsource : sourceSamples p h r ≠ [] := by
+    intro hz
+    have hn := sourceSamples_length p h r
+    simp only [hz, List.length_nil] at hn
+    omega
   constructor
-  · rw [← List.head_eq_getElem (by have := sourceSamples_length p h r; simp_all),
-      sourceSamples, List.head_append_of_ne_nil hflat,
-      List.head_flatMap hfin (fun i _ => sourceBlock_ne_nil p h r i), sourceBlock_head]
-    congr 1
-    apply Fin.ext
-    simp [List.head_eq_getElem]
-  · rw [← List.getLast_eq_getElem (by have := sourceSamples_length p h r; simp_all),
-      sourceSamples, List.getLast_append_of_ne_nil _ (List.cons_ne_nil _ _),
-      List.getLast_singleton]
+  · rw [← List.head_eq_getElem hsource]
+    have hh : (((List.finRange p.segments).flatMap (sourceBlock p h r)) ++
+        [(Fin.last p.bends,1)]).head (by simp) = (0,0) := by
+      rw [List.head_append_of_ne_nil hflat,
+        List.head_flatMap hfin (fun i _ => sourceBlock_ne_nil p h r i), sourceBlock_head]
+      congr 1
+      apply Fin.ext
+      simp [List.head_eq_getElem]
+    exact hh
+  · rw [← List.getLast_eq_getElem hsource]
+    have he : (((List.finRange p.segments).flatMap (sourceBlock p h r)) ++
+        [(Fin.last p.bends,1)]).getLast (by simp) = (Fin.last p.bends,1) := by
+      rw [List.getLast_append_of_ne_nil (by simp) (List.cons_ne_nil _ _), List.getLast_singleton]
+    exact he
 
 -- The two source descriptions at a shared old knot are retained; only their geometric
 -- endpoint equality is used. No lookup by geometric point value occurs here.
@@ -576,14 +614,13 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       have hy' : y = (i, (cuts h r (p.point i.castSucc) (p.point i.succ))[k + 1]) := by
         rw [← hy]
         simp only [f, sourceBlock, List.getElem_map, List.getElem_dropLast]
-      subst x
-      subst y
+      rw [hx', hy']
       exact ⟨i, k, hk', rfl, rfl, rfl, rfl⟩
     · obtain ⟨k, hk, hi, hj⟩ := List.mem_consecutivePairs_iff_exists_getElem.mp hij
       have hji : j.val = i.val + 1 := by
         have hi' := congrArg Fin.val hi
         have hj' := congrArg Fin.val hj
-        simp only [L, List.getElem_finRange] at hi' hj'
+        simp [L] at hi' hj'
         omega
       have hnodes : j.castSucc = i.succ := Fin.ext hji
       rw [sourceBlock_last] at hx
@@ -606,15 +643,13 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
   · rcases List.mem_cons.mp hxy with heq | hempty
     · have hlast : L.getLast hL = Fin.last p.bends := by
         apply Fin.ext
-        simp only [List.getLast_eq_getElem, L, List.length_finRange, List.getElem_finRange,
-          Fin.val_mk, Fin.val_last, Route.segments]
-        omega
+        simp [List.getLast_eq_getElem, L, Route.segments]
       have hx : x = (f (Fin.last p.bends)).getLast (hf _) := by
         have he := congrArg Prod.fst heq
-        simpa only [List.getLast_flatMap hL (fun i _ => hf i), hlast] using he.symm
+        simpa only [List.getLast_flatMap hL (fun i _ => hf i), hlast] using he
       have hy : y = (Fin.last p.bends, 1) := by
         have he := congrArg Prod.snd heq
-        simpa only [List.head_cons] using he.symm
+        simpa only [List.head_cons] using he
       rw [sourceBlock_last] at hx
       subst x
       subst y
@@ -624,8 +659,11 @@ private theorem sourceSamples_adjacent (p : Route) (h r : ℝ)
       have hend : C[C.length - 2 + 1]'(by dsimp [C]; omega) = 1 := by
         simpa only [show C.length - 2 + 1 = C.length - 1 by dsimp [C]; omega] using
           (cut_first_last h r (p.point i.castSucc) (p.point i.succ)).2
-      refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩ <;> rw [hend]
-    · simpa only [List.consecutivePairs_singleton, List.not_mem_nil] using hempty
+      refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
+      · rw [hend]
+      · dsimp only [sourcePosition, Route.position, i, Fin.val_last]
+        rw [hend]
+    · simp only [List.consecutivePairs_singleton, List.not_mem_nil] at hempty
 
 private noncomputable def rawShear (p : Route) (h r d : ℝ) : Route :=
   match sourceSamples p h r with
@@ -637,22 +675,16 @@ private noncomputable def rawShear (p : Route) (h r d : ℝ) : Route :=
 
 private theorem rawShear_segments (p : Route) (h r d : ℝ) :
     (rawShear p h r d).segments = (sourceSamples p h r).length - 1 := by
-  have hlen := sourceSamples_length p h r
-  cases hw : sourceSamples p h r with
-  | nil => simp only [hw, List.length_nil, Route.segments] at hlen; omega
-  | cons x xs =>
-    cases xs with
-    | nil => simp only [hw, List.length_singleton, Route.segments] at hlen; omega
-    | cons y rest =>
-      simp only [rawShear, hw, Route.segments_foldl_append, Route.segments, Route.line,
-        List.length_map, List.length_cons]
-      omega
+  obtain ⟨x,y,rest,hw⟩ := sourceSamples_nontrivial p h r
+  simp only [rawShear, hw, Route.segments_foldl_append, Route.segments, Route.line,
+    List.length_map, List.length_cons]
+  omega
 
 private theorem rawShear_nodeCount (p : Route) (h r d : ℝ) :
     (rawShear p h r d).bends + 2 = (sourceSamples p h r).length := by
-  have h := rawShear_segments p h r d
+  have hseg := rawShear_segments p h r d
   have hlen := sourceSamples_length p h r
-  dsimp only [Route.segments] at h
+  dsimp only [Route.segments] at hseg
   omega
 
 -- A scalar auxiliary route, not the geometric image route, records old chain positions.
@@ -666,8 +698,8 @@ private noncomputable def parameterRoute (p : Route) (h r d : ℝ) : Route where
 private theorem parameterRoute_ordered (p : Route) (h r d : ℝ) :
     StrictMono fun i => ((parameterRoute p h r d).point i).re := by
   intro i j hij
-  have hm := (sourceSamples_ordered p h r).sortedLT.strictMono_get
-  exact hm (show (⟨i.val, by rw [← rawShear_nodeCount p h r d]; exact i.isLt⟩ :
+  have hm := List.pairwise_iff_get.mp (sourceSamples_ordered p h r)
+  exact hm _ _ (show (⟨i.val, by rw [← rawShear_nodeCount p h r d]; exact i.isLt⟩ :
     Fin (sourceSamples p h r).length) < ⟨j.val, by
       rw [← rawShear_nodeCount p h r d]; exact j.isLt⟩ from hij)
 
@@ -686,41 +718,62 @@ private theorem parameterRoute_ends (p : Route) (h r d : ℝ) :
 private theorem rawShear_adjacent (p : Route) (h r d : ℝ)
     (i : Fin (rawShear p h r d).segments) :
     let W := sourceSamples p h r
-    let x := W[i.val]'(by have := i.isLt; rw [rawShear_segments] at this; omega)
-    let y := W[i.val + 1]'(by have := i.isLt; rw [rawShear_segments] at this; omega)
+    let x := W[i.val]'(by
+      have hi := i.isLt
+      have hseg := rawShear_segments p h r d
+      change _ < (sourceSamples p h r).length
+      omega)
+    let y := W[i.val + 1]'(by
+      have hi := i.isLt
+      have hseg := rawShear_segments p h r d
+      change _ < (sourceSamples p h r).length
+      omega)
     (∀ t : ℝ, (rawShear p h r d).eval i t =
       AffineMap.lineMap (plateauShear h r d (p.eval x.1 x.2))
         (plateauShear h r d (p.eval y.1 y.2)) t) ∧
     (∀ t : ℝ, ((parameterRoute p h r d).eval i t).re =
       AffineMap.lineMap (sourcePosition x) (sourcePosition y) t) := by
-  let W := sourceSamples p h r
-  have hi : i.val + 1 < W.length := by
-    have := i.isLt
-    rw [rawShear_segments] at this
-    omega
+  obtain ⟨x,y,rest,hw⟩ := sourceSamples_nontrivial p h r
+  have hraw : rawShear p h r d =
+      (rest.map fun z => plateauShear h r d (p.eval z.1 z.2)).foldl Route.append
+        (Route.line (plateauShear h r d (p.eval x.1 x.2))
+          (plateauShear h r d (p.eval y.1 y.2))) := by simp only [rawShear, hw]
   dsimp only
   constructor
   · intro t
-    have hlen := sourceSamples_length p h r
-    cases hw : sourceSamples p h r with
-    | nil => simp only [hw, List.length_nil, Route.segments] at hlen; omega
-    | cons x xs =>
-      cases xs with
-      | nil => simp only [hw, List.length_singleton, Route.segments] at hlen; omega
-      | cons y rest =>
-        simp only [rawShear, hw] at i ⊢
-        simpa only [W, hw, List.map_cons, List.getElem_cons_zero, List.getElem_cons_succ,
-          List.getElem_map] using Route.eval_foldl_append_line
-            (plateauShear h r d (p.eval x.1 x.2))
-            (plateauShear h r d (p.eval y.1 y.2))
-            (rest.map fun z => plateauShear h r d (p.eval z.1 z.2)) i t
+    let F : Fin p.segments × ℝ → ℂ := fun z => plateauShear h r d (p.eval z.1 z.2)
+    let A : ℂ := F x
+    let B : ℂ := F y
+    let nodes : List ℂ := rest.map F
+    let q : Route := nodes.foldl Route.append (Route.line A B)
+    have heq : rawShear p h r d = q := hraw
+    have hnode : ∀ (q' : Route), rawShear p h r d = q' →
+        ∀ (n : ℕ) (hn : n < (rawShear p h r d).bends+2) (hm : n < q'.bends+2),
+        (rawShear p h r d).point ⟨n,hn⟩ = q'.point ⟨n,hm⟩ := by
+      intro q' he
+      subst q'
+      intros
+      rfl
+    have hi : i.val < q.segments := heq ▸ i.isLt
+    have hev : (rawShear p h r d).eval i t = q.eval ⟨i.val,hi⟩ t := by
+      unfold Route.eval
+      congr 2
+      · exact hnode q heq i.val i.castSucc.isLt (Fin.castSucc ⟨i.val,hi⟩).isLt
+      · exact hnode q heq (i.val+1) i.succ.isLt (Fin.succ ⟨i.val,hi⟩).isLt
+    rw [hev]
+    have heall := Route.eval_foldl_append_line A B nodes
+    have he := heall ⟨i.val,hi⟩ t
+    have hword : A :: B :: nodes = (x :: y :: rest).map F := rfl
+    simpa only [hword, hw, List.getElem_map, F] using he
   · intro t
-    change Complex.reCLM.toLinearMap.toAffineMap
-      (AffineMap.lineMap _ _ t) = _
-    simpa only [parameterRoute, Complex.ofReal_re, Fin.val_castSucc, Fin.val_succ] using
-      Complex.reCLM.toLinearMap.toAffineMap.apply_lineMap
-        ((parameterRoute p h r d).point i.castSucc)
-        ((parameterRoute p h r d).point i.succ) t
+    have hi := i.isLt
+    have hseg := rawShear_segments p h r d
+    change (AffineMap.lineMap
+      ((sourcePosition ((sourceSamples p h r)[i.val])) : ℂ)
+      ((sourcePosition ((sourceSamples p h r)[i.val+1])) : ℂ) t).re = _
+    simp only [AffineMap.lineMap_apply_module', Complex.add_re, Complex.smul_re,
+      Complex.sub_re, Complex.ofReal_re]
+
 
 private theorem rawShear_parameter {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
     (i : Fin (rawShear p h r d).segments) :
@@ -735,12 +788,13 @@ private theorem rawShear_parameter {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ
         p.position j (AffineMap.lineMap α β t)) := by
   have hidx : i.val + 1 < (sourceSamples p h r).length := by
     have := i.isLt
-    rw [rawShear_segments] at this
+    have hseg := rawShear_segments p h r d
     omega
   obtain ⟨heval, hpos⟩ := rawShear_adjacent p h r d i
   obtain ⟨j, k, hk, hx, hy, hxp, hyp⟩ := sourceSamples_adjacent p h r
     (List.getElem_mem_consecutivePairs (sourceSamples p h r) i.val hidx)
   let C := cuts h r (p.point j.castSucc) (p.point j.succ)
+  have hkC : k + 1 < C.length := hk
   have hα := cuts_bounds (List.getElem_mem (by omega : k < C.length))
   have hβ := cuts_bounds (List.getElem_mem hk)
   have hαβ : C[k] < C[k + 1] := (cuts_strict h r _ _).strictMono_get
@@ -762,7 +816,7 @@ private theorem parameterRoute_real (p : Route) (h r d : ℝ)
       (((parameterRoute p h r d).eval i t).re : ℝ) := by
   apply Complex.ext
   · simp
-  · simp [Route.eval, parameterRoute, AffineMap.lineMap_apply_module', Complex.smul_im]
+  · simp [Route.eval, parameterRoute, AffineMap.lineMap_apply_module']
 
 private theorem parameterRoute_open (p : Route) (h r d : ℝ) :
     (parameterRoute p h r d).start ≠ (parameterRoute p h r d).finish := by
@@ -797,7 +851,8 @@ private theorem rawShear_atEnd (p : Route) (h r d : ℝ)
         simp [Route.eval, Route.endpoint, Route.finish, Route.segments]
       have hp := hq.position_eq_of_eval_eq (parameterRoute_open p h r d) i (Fin.last q.bends) ht
         (by constructor <;> norm_num) (hc.trans hz.symm)
-      simpa only [Route.AtEnd, ↓reduceIte, Route.position, Fin.val_last, Route.segments,
+      simpa only [q, parameterRoute, Route.AtEnd, ↓reduceIte, Route.position, Fin.val_last,
+        Route.segments,
         Nat.cast_add, Nat.cast_one] using hp
 
 private theorem rawShear_simple {h r : ℝ} (hr : 0 < r) {p : Route} (hp : p.IsSimple)
@@ -855,25 +910,36 @@ private theorem sourceSamples_piece (p : Route) (h r : ℝ) (j : Fin p.segments)
   let L := List.finRange p.segments
   let f := sourceBlock p h r
   let C := cuts h r (p.point j.castSucc) (p.point j.succ)
-  let prefix := ((L.take j.val).flatMap f).length
+  have hdef : sourceSamples p h r = L.flatMap f ++ [(Fin.last p.bends,1)] := rfl
+  have hLlen : L.length = p.segments := List.length_finRange
+  have hkC : k+1 < C.length := hk
+  let prefLen := ((L.take j.val).flatMap f).length
   have hj : j.val < L.length := by simpa only [L, List.length_finRange] using j.isLt
-  have hget : L[j.val] = j := by simp only [L, List.getElem_finRange, Fin.eta]
+  have hget : L[j.val] = j := by simp [L]
   have hkf : k < (f L[j.val]).length := by
     simp only [hget, f, sourceBlock, List.length_map, List.length_dropLast]
     omega
   have hq0 := List.flatMap_prefix_add_lt L f hj hkf
-  have hq : prefix + k + 1 < (sourceSamples p h r).length := by
-    simp only [sourceSamples, List.length_append, List.length_singleton]
+  have hq : prefLen + k + 1 < (sourceSamples p h r).length := by
+    rw [hdef, List.length_append, List.length_singleton]
+    change prefLen+k < (L.flatMap f).length at hq0
     omega
-  refine ⟨prefix + k, hq, ?_, ?_⟩
-  · rw [sourceSamples, List.getElem_append_left hq0,
+  refine ⟨prefLen + k, hq, ?_, ?_⟩
+  · have hget0 : (sourceSamples p h r)[prefLen+k] = (L.flatMap f)[prefLen+k] :=
+      List.getElem_append_left (bs := [(Fin.last p.bends,1)]) hq0
+    rw [hget0,
       List.getElem_flatMap_prefix_add L f hj hkf]
     simp only [hget, f, sourceBlock, List.getElem_map, List.getElem_dropLast]
   · by_cases hnext : k + 1 < (f j).length
     · have hq1 := List.flatMap_prefix_add_lt L f hj (hget.symm ▸ hnext)
-      rw [sourceSamples, List.getElem_append_left hq1]
-      rw [List.getElem_flatMap_prefix_add L f hj (hget.symm ▸ hnext)]
-      simp only [hget, f, sourceBlock, List.getElem_map, List.getElem_dropLast]
+      have hget1 : (sourceSamples p h r)[prefLen+k+1] = (L.flatMap f)[prefLen+k+1] :=
+        List.getElem_append_left (bs := [(Fin.last p.bends,1)]) hq1
+      rw [hget1]
+      have hge : (L.flatMap f)[prefLen+k+1] = (f j)[k+1] := by
+        simpa only [prefLen, Nat.add_assoc, hget] using
+          List.getElem_flatMap_prefix_add L f hj (hget.symm ▸ hnext)
+      rw [hge]
+      simp only [f, sourceBlock, List.getElem_map, List.getElem_dropLast]
     · have hkLast : k + 1 = (f j).length := by
         simp only [f, sourceBlock, List.length_map, List.length_dropLast] at hnext ⊢
         omega
@@ -881,41 +947,58 @@ private theorem sourceSamples_piece (p : Route) (h r : ℝ) (j : Fin p.segments)
         have hlen := cuts_length_bounds h r (p.point j.castSucc) (p.point j.succ)
         have hkLast' : k + 1 = C.length - 1 := by simpa only
           [f, sourceBlock, List.length_map, List.length_dropLast] using hkLast
-        rw [hkLast']
+        simp only [hkLast']
         exact (cut_first_last h r (p.point j.castSucc) (p.point j.succ)).2
-      have hpref : ((L.take (j.val + 1)).flatMap f).length = prefix + (f j).length := by
+      have hpref : ((L.take (j.val + 1)).flatMap f).length = prefLen + (f j).length := by
         rw [List.take_succ_eq_append_getElem hj, List.flatMap_append,
           List.flatMap_singleton, List.length_append, hget]
       by_cases hjnext : j.val + 1 < p.segments
       · let j' : Fin p.segments := ⟨j.val + 1, hjnext⟩
-        have hj' : j'.val < L.length := by simpa [L] using hjnext
+        have hj' : j'.val < L.length := by change j.val+1 < L.length; omega
         have hhead : L[j'.val] = j' := by simp [L, j']
         have hz : 0 < (f L[j'.val]).length := by
           rw [hhead]
           exact (sourceBlock_length p h r j').1
         have hflat := List.flatMap_prefix_add_lt L f hj' hz
-        have hq1 : prefix + k + 1 = ((L.take j'.val).flatMap f).length + 0 := by
-          simp only [j', Fin.val_mk, hpref, add_zero]
+        have hq1 : prefLen + k + 1 = ((L.take j'.val).flatMap f).length + 0 := by
+          simp only [j', hpref, add_zero]
           omega
-        rw [sourceSamples, hq1, List.getElem_append_left hflat,
-          List.getElem_flatMap_prefix_add L f hj' hz, hhead]
-        have hzero : (f j')[0]'hz = (j', 0) := by
+        have hqlem : (sourceSamples p h r)[prefLen+k+1] =
+            (f j')[0]'(by rw [← hhead]; exact hz) := by
+          have helem' : (sourceSamples p h r)[((L.take j'.val).flatMap f).length+0] =
+              (L.flatMap f)[((L.take j'.val).flatMap f).length+0] :=
+            List.getElem_append_left (bs := [(Fin.last p.bends,1)]) hflat
+          have heget := List.getElem_flatMap_prefix_add L f hj' hz
+          have hfinal := helem'.trans heget
+          simpa only [← hq1, hhead] using hfinal
+        rw [hqlem]
+        have hzero : (f j')[0]'(by rw [← hhead]; exact hz) = (j', 0) := by
           simpa only [List.head_eq_getElem] using sourceBlock_head p h r j'
         rw [hzero, hfinish]
         simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
         congr 1
-        exact Fin.ext (by simp [j'])
       · have hjlast : j = Fin.last p.bends := by
           apply Fin.ext
-          have := j.isLt
-          simp only [Route.segments] at this hjnext ⊢
+          change j.val = p.bends
+          have hn := j.isLt
+          change j.val < p.bends+1 at hn
+          change ¬j.val+1 < p.bends+1 at hjnext
           omega
-        have hfull : prefix + k + 1 = (L.flatMap f).length := by
-          have hjlen : j.val + 1 = L.length := by simp only [L, List.length_finRange]; omega
+        have hfull : prefLen + k + 1 = (L.flatMap f).length := by
+          have hjlen : j.val + 1 = L.length := by
+            rw [hjlast, Fin.val_last, hLlen]
           rw [hjlen, List.take_length] at hpref
           omega
-        rw [sourceSamples, hfull, List.getElem_append_right (le_refl _)]
-        simp only [Nat.sub_self, List.getElem_cons_zero, hfinish, hjlast]
+        have hqlem : (sourceSamples p h r)[prefLen+k+1] = (Fin.last p.bends,1) := by
+          have helem := List.getElem_append_right (as := L.flatMap f) (bs := [(Fin.last p.bends,1)])
+            (h₂ := by simp only [List.length_append, List.length_singleton]; omega)
+            (le_refl (L.flatMap f).length)
+          have hget : (sourceSamples p h r)[(L.flatMap f).length] = (Fin.last p.bends,1) := by
+            simpa only [← hdef, Nat.sub_self, List.getElem_cons_zero] using helem
+          simpa only [hfull] using hget
+        rw [hqlem]
+        change p.eval (Fin.last p.bends) 1 = p.eval j C[k+1]
+        rw [hfinish, hjlast]
 
 private theorem rawShear_contains {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
     (j : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
@@ -923,6 +1006,7 @@ private theorem rawShear_contains {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
   obtain ⟨k, hk, hlo, hhi⟩ := cut_interval (h := h) (r := r)
     (a := p.point j.castSucc) (b := p.point j.succ) ht
   let C := cuts h r (p.point j.castSucc) (p.point j.succ)
+  have hkC : k + 1 < C.length := hk
   have hstep : C[k] < C[k + 1] := (cuts_strict h r _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
   let u := (t - C[k]) / (C[k + 1] - C[k])
@@ -943,7 +1027,11 @@ private theorem rawShear_contains {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
   have heval := (rawShear_adjacent p h r d ⟨q, hq'⟩).1 u
   rw [hfirst, hlast] at heval
   have he : (rawShear p h r d).eval ⟨q, hq'⟩ u = plateauShear h r d (p.eval j t) := by
-    rw [heval, ← cut_eval hr d hk hu, huval]
+    rw [heval]
+    change AffineMap.lineMap (plateauShear h r d (p.eval j C[k]))
+      (plateauShear h r d (p.eval j C[k+1])) u = _
+    exact (cut_eval hr d hk hu).symm.trans (congrArg (fun t => plateauShear h r d (p.eval j t))
+        huval)
   exact he ▸ (rawShear p h r d).at_mem_support ⟨q, hq'⟩ hu
 
 private theorem rawShear_support {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) :
@@ -982,19 +1070,61 @@ private theorem untouched_eval {h r : ℝ} (hr : 0 < r) {p : Route} (hp : untouc
     rw [abs_of_nonneg (by linarith)]
     linarith
 
+private theorem strictCuts_eq_empty_of_untouched {p : Route} {h r : ℝ} (hr : 0 < r)
+    (hp : untouched p h r) (i : Fin p.segments) :
+    strictCuts h r (p.point i.castSucc) (p.point i.succ) = ∅ := by
+  apply Finset.eq_empty_iff_forall_notMem.mpr
+  intro t ht
+  unfold strictCuts at ht
+  split_ifs at ht with heq
+  · simp at ht
+  · obtain ⟨himage, hinterval⟩ := Finset.mem_filter.mp ht
+    obtain ⟨y, hlevel, hparameter⟩ := Finset.mem_image.mp himage
+    have ht : 0 < (y-(p.point i.castSucc).im)/((p.point i.succ).im-(p.point i.castSucc).im) ∧
+        (y-(p.point i.castSucc).im)/((p.point i.succ).im-(p.point i.castSucc).im) < 1 := by
+      rw [hparameter]
+      exact hinterval
+    let a := (p.point i.castSucc).im
+    let b := (p.point i.succ).im
+    have hne : b-a ≠ 0 := sub_ne_zero.mpr heq
+    have hm : ((y-a)/(b-a))*(b-a) = y-a := div_mul_cancel₀ _ hne
+    have hbetween : min a b < y ∧ y < max a b := by
+      rcases lt_or_gt_of_ne hne with hn | hn
+      · rw [min_eq_right (by linarith : b ≤ a), max_eq_left (by linarith : b ≤ a)]
+        constructor <;> nlinarith [mul_neg_of_pos_of_neg ht.1 hn,
+          mul_lt_mul_of_neg_right ht.2 hn]
+      · rw [min_eq_left (by linarith : a ≤ b), max_eq_right (by linarith : a ≤ b)]
+        constructor <;> nlinarith [mul_pos ht.1 hn, mul_lt_mul_of_pos_right ht.2 hn]
+    have hylo : h-r ≤ y ∧ y ≤ h+r := by
+      change y ∈ ({h-r,h-r/2,h+r/2,h+r} : Finset ℝ) at hlevel
+      simp only [Finset.mem_insert, Finset.mem_singleton] at hlevel
+      rcases hlevel with rfl | rfl | rfl | rfl <;> constructor <;> linarith
+    rcases hp with hp | hp
+    · have ha := hp i.castSucc
+      have hb := hp i.succ
+      have hh := hbetween.2
+      have hmax : max a b ≤ h-r := max_le ha hb
+      linarith
+    · have ha := hp i.castSucc
+      have hb := hp i.succ
+      have hh := hbetween.1
+      have hmin : h+r ≤ min a b := le_min ha hb
+      linarith
+
 namespace Route
 
+open Classical in
 /-- The finite route image under the concrete plateau shear. Nonpositive width is the
 literal translated route. Zero displacement, and routes entirely in one outer closed
 half-plane, return the literal original. Otherwise every indexed segment is split at its
 strict internal height cuts and the actual image nodes are joined in source order. -/
-@[expose] noncomputable def plateauShear (p : Route) (h r d : ℝ) : Route :=
+noncomputable def plateauShear (p : Route) (h r d : ℝ) : Route :=
   if d = 0 then p else if r ≤ 0 then p.translate (d : ℂ) else
     if untouched p h r then p else rawShear p h r d
 
 /-- Zero displacement does not leave collinear subdivision nodes behind. -/
 theorem plateauShear_zero (p : Route) (h r : ℝ) : p.plateauShear h r 0 = p := by
-  rw [plateauShear, if_pos rfl]
+  rw [plateauShear, ite_eq_left rfl]
 
 /-- A whole node half-space, rather than merely the endpoints, suffices for literal retention. -/
 theorem plateauShear_eq_self {p : Route} {h r : ℝ} (hr : 0 < r) (d : ℝ)
@@ -1017,6 +1147,31 @@ theorem segments_plateauShear (p : Route) (h r d : ℝ) :
     have hlen := sourceSamples_length p h r
     omega
 
+/-- Exact piece count for a nonzero displacement and positive width: every old indexed
+segment contributes one piece plus its distinct strict interior height-cut parameters.
+Horizontal and degenerate segments have no cuts; untouched outer routes satisfy the same law. -/
+theorem segments_plateauShear_eq {h r : ℝ} (hr : 0 < r) (p : Route) {d : ℝ} (hd : d ≠ 0) :
+    let levels : Finset ℝ := {h-r, h-r/2, h+r/2, h+r}
+    (p.plateauShear h r d).segments = ∑ i : Fin p.segments,
+      let a := p.point i.castSucc
+      let b := p.point i.succ
+      let C : Finset ℝ := if b.im = a.im then ∅ else
+        ((levels.image fun y => (y-a.im)/(b.im-a.im)).filter fun t => 0<t ∧ t<1)
+      1+C.card := by
+  change (p.plateauShear h r d).segments =
+    Finset.univ.sum (fun (i : Fin p.segments) =>
+      1+(strictCuts h r (p.point i.castSucc) (p.point i.succ)).card)
+  rw [plateauShear, ite_eq_right hd, ite_eq_right (not_le.mpr hr)]
+  by_cases hu : untouched p h r
+  · rw [ite_eq_left hu]
+    simp only [strictCuts_eq_empty_of_untouched hr hu, Finset.card_empty, add_zero,
+      Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
+  · rw [ite_eq_right hu, rawShear_segments, sourceSamples_length_eq_sum, Nat.add_sub_cancel]
+    apply Finset.sum_congr rfl
+    intro i _
+    simp only [sourceBlock, List.length_map, List.length_dropLast, cuts_length_eq]
+    omega
+
 /-- Actual continuum parameter transport. The old interval is strictly positive and lies
 in `[0,1]`; the global nonlinear map is asserted only on CLOSED unit parameters. Both
 original endpoint tags are preserved, including the two ends of a closed route. -/
@@ -1028,27 +1183,33 @@ theorem eval_plateauShear {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ)
           Cslib.Polygonal.plateauShear h r d (p.eval j (AffineMap.lineMap α β t)) ∧
         ∀ b : Bool, (p.plateauShear h r d).AtEnd i t b ↔
           p.AtEnd j (AffineMap.lineMap α β t) b := by
-  unfold plateauShear at i ⊢
-  split_ifs with hd hn hu
-  · refine ⟨i, 0, 1, le_rfl, zero_lt_one, le_rfl, ?_⟩
+  revert i
+  by_cases hd : d = 0
+  · subst d
+    rw [plateauShear_zero]
+    intro i
+    refine ⟨i,0,1,le_rfl,zero_lt_one,le_rfl,?_⟩
     intro t ht
-    constructor
-    · simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero, hd,
-        Cslib.Polygonal.plateauShear_apply, zero_mul, Complex.ofReal_zero]
-    · intro b
-      simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero]
-  · exact False.elim (not_le_of_gt hr hn)
-  · refine ⟨i, 0, 1, le_rfl, zero_lt_one, le_rfl, ?_⟩
+    simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero,
+      Cslib.Polygonal.plateauShear_apply, zero_mul, Complex.ofReal_zero, add_zero]
+    exact ⟨True.intro, fun _ => True.intro⟩
+  by_cases hu : untouched p h r
+  · have hp : p.plateauShear h r d = p := by
+      simp only [plateauShear, ite_eq_right hd, ite_eq_right (not_le.mpr hr), ite_eq_left hu]
+    rw [hp]
+    intro i
+    refine ⟨i,0,1,le_rfl,zero_lt_one,le_rfl,?_⟩
     intro t ht
-    constructor
-    · simpa only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero] using
-        (untouched_eval hr hu d i ht).symm
-    · intro b
-      simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero]
-  · obtain ⟨j, α, β, hα, hαβ, hβ, _hlevels, he, hp⟩ := rawShear_parameter hr p d i
-    refine ⟨j, α, β, hα, hαβ, hβ, fun t ht => ⟨he t ht, fun b => ?_⟩⟩
-    rw [rawShear_atEnd p h r d i ht b, hp]
-    rfl
+    simp only [AffineMap.lineMap_apply_ring', sub_zero, mul_one, add_zero]
+    exact ⟨(untouched_eval hr hu d i ht).symm, fun _ => True.intro⟩
+  have hp : p.plateauShear h r d = rawShear p h r d := by
+    simp only [plateauShear, ite_eq_right hd, ite_eq_right (not_le.mpr hr), ite_eq_right hu]
+  rw [hp]
+  intro i
+  obtain ⟨j,α,β,hα,hαβ,hβ,hn,he,hp⟩ := rawShear_parameter hr p d i
+  refine ⟨j,α,β,hα,hαβ,hβ,fun t ht => ⟨he t ht,fun b => ?_⟩⟩
+  rw [rawShear_atEnd p h r d i ht b, hp]
+  rfl
 
 /-- Either tagged endpoint is mapped by the actual shear, for every width and displacement. -/
 theorem endpoint_plateauShear (p : Route) (h r d : ℝ) (b : Bool) :
@@ -1061,7 +1222,7 @@ theorem endpoint_plateauShear (p : Route) (h r d : ℝ) (b : Bool) :
     change (d : ℂ) + p.endpoint b = p.endpoint b + (d * profile h r (p.endpoint b).im : ℝ)
     rw [profile_nonpos hn, mul_one, add_comm]
   · have he := untouched_eval (lt_of_not_ge hn) hu d (p.endSegment b)
-      (p.endTime_mem b (show (0 : ℝ) ∈ Set.Icc 0 1 by constructor <;> norm_num))
+      (Route.endTime_mem b (show (0 : ℝ) ∈ Set.Icc 0 1 by constructor <;> norm_num))
     simpa only [p.eval_near_end b 0, zero_smul, add_zero] using he.symm
   · exact rawShear_endpoint (lt_of_not_ge hn) p d b
 
@@ -1073,7 +1234,8 @@ theorem support_plateauShear (p : Route) (h r d : ℝ) :
   split_ifs with hd hn hu
   · have he : Set.EqOn (Cslib.Polygonal.plateauShear h r d) id p.support := by
       intro z _
-      simp only [hd, Cslib.Polygonal.plateauShear_apply, zero_mul, Complex.ofReal_zero, add_zero]
+      simp only [hd, Cslib.Polygonal.plateauShear_apply, zero_mul, Complex.ofReal_zero,
+        add_zero, id_eq]
     rw [Set.EqOn.image_eq he, Set.image_id]
   · rw [support_translate]
     apply Set.image_congr
@@ -1136,7 +1298,7 @@ private theorem shear_difference_flat {h r : ℝ} (hr : 0 < r) (d : ℝ) {a b : 
           ⟨(min_le_left _ _).trans_lt (by linarith : a.im < h - r),
             (lt_of_not_ge hh).trans_le (le_max_right _ _)⟩
       have hba : r ≤ |b.im - h| := by rw [abs_of_nonpos (by linarith)]; linarith
-      rw [plateauShear_apply_outer hr d (by rw [abs_of_nonpos (by linarith)]; linarith),
+      rw [plateauShear_apply_outer hr d habs,
         plateauShear_apply_outer hr d hba]
 
 private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b : Bool)
@@ -1157,10 +1319,12 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
       simp only [Route.endTime, Bool.false_eq_true, ↓reduceIte,
         AffineMap.lineMap_apply_zero, Route.position] at hpzero
       have hz : (j.val : ℝ) = 0 := by linarith
+      change j.val = 0
       exact_mod_cast hz
     have hα0 : α = 0 := by
       simp only [hj0, Route.endTime, Bool.false_eq_true, ↓reduceIte,
-        AffineMap.lineMap_apply_zero, Route.position, Fin.val_zero, Nat.cast_zero, zero_add] at hpzero
+        AffineMap.lineMap_apply_zero, Route.position, Fin.val_zero, Nat.cast_zero,
+          zero_add] at hpzero
       exact hpzero
     have hn' : ∀ y ∈ levels h r, ¬(min p.start.im (p.eval 0 β).im < y ∧
         y < max p.start.im (p.eval 0 β).im) := by
@@ -1169,7 +1333,9 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
     have hdif := shear_difference_flat hr d ha hn'
     refine ⟨β, by linarith, ?_⟩
     have hq1 := he 1 (show (1 : ℝ) ∈ Set.Icc 0 1 by constructor <;> norm_num)
-    rw [AffineMap.lineMap_apply_one, hj0, q.eval_near_end false 1,
+    rw [AffineMap.lineMap_apply_one, hj0] at hq1
+    change q.eval (q.endSegment false) (Route.endTime false 1) = _ at hq1
+    rw [q.eval_near_end false 1,
       rawShear_endpoint hr p d false, one_smul] at hq1
     have hp1 := p.eval_near_end false β
     dsimp only [Route.endSegment, Route.endTime, Bool.false_eq_true, ↓reduceIte] at hp1
@@ -1178,7 +1344,10 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
         plateauShear h r d p.start := by
       change plateauShear h r d p.start + q.germ false = _ at hq1
       exact eq_sub_iff_add_eq.mpr (by simpa only [add_comm] using hq1)
-    rw [heval, hdif, hp1, add_sub_cancel_left]
+    change plateauShear h r d (p.eval 0 β) - plateauShear h r d p.start = _ at hdif
+    change p.eval 0 β = p.start + β • p.germ false at hp1
+    rw [heval, hdif, hp1]
+    simp only [Route.endpoint, Bool.false_eq_true, ↓reduceIte, add_sub_cancel_left]
   · have hβ1 : β = 1 := by
       have hjbound : (j.val : ℝ) + 1 ≤ p.segments := by exact_mod_cast j.isLt
       simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
@@ -1198,14 +1367,19 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
     have hq1 := he 0 (show (0 : ℝ) ∈ Set.Icc 0 1 by constructor <;> norm_num)
     rw [AffineMap.lineMap_apply_zero, hjlast] at hq1
     have heval := q.eval_near_end true 1
-    rw [Route.endTime, sub_self, one_smul, hq1, rawShear_endpoint hr p d true] at heval
+    simp only [Route.endTime, ↓reduceIte, sub_self, one_smul] at heval
+    change (rawShear p h r d).eval (q.endSegment true) 0 = _ at heval
+    rw [hq1, rawShear_endpoint hr p d true] at heval
     have hp1 := p.eval_near_end true (1 - α)
     simp only [Route.endTime, Route.endSegment, ↓reduceIte, sub_sub_cancel] at hp1
     have heval' : q.germ true = plateauShear h r d (p.eval (Fin.last p.bends) α) -
         plateauShear h r d p.finish := by
       exact eq_sub_iff_add_eq.mpr (by simpa only [Route.endpoint, ↓reduceIte, add_comm] using
         heval.symm)
-    rw [heval', hdif, hp1, add_sub_cancel_left]
+    change plateauShear h r d (p.eval (Fin.last p.bends) α) -
+      plateauShear h r d p.finish = _ at hdif
+    change p.eval (Fin.last p.bends) α = p.finish + (1-α) • p.germ true at hp1
+    rw [heval', hdif, hp1]; simp only [Route.endpoint, ↓reduceIte, add_sub_cancel_left]
 
 namespace Route
 

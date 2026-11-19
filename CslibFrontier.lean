@@ -2664,6 +2664,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.FaceColors
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.FaceColorsRayParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.HorizontalTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Neighborhood
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restoration
@@ -6854,6 +6855,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Neighborhood
 public import CslibFrontier.Foundations.Geometry.Polygonal.Noncrossing
 public import CslibFrontier.Foundations.Geometry.Polygonal.NoncrossingOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
+public import CslibFrontier.Foundations.Geometry.Polygonal.PlateauShear
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors

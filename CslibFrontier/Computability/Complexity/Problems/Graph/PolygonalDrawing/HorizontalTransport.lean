@@ -25,8 +25,6 @@ The finite PL construction is original mathematics towards
 It does not straighten a frozen forest, construct arbitrary point placement, realize parity
 moves or establish HT, query sufficiency or the source criterion.
 
-AUTHOR SOURCE DRAFT: every term in this module is UNELABORATED.
-
 ## Interface
 
 * `plateauShear`: actual route subdivision and the mapped vertex function on the same graph.
@@ -152,13 +150,13 @@ theorem IsEmbedding.exists_horizontal_vertex_transport {G : Graph} {D : Polygona
     change Polygonal.plateauShear (D.vertex v).im r d (D.vertex w) = _
     by_cases he : w = v
     · subst w
-      rw [if_pos rfl]
+      rw [ite_eq_left rfl]
       apply Polygonal.plateauShear_apply_inner hr d
       rcases hflat v hv with hh | hh
       · exact hh.le
       · simp only [sub_self, abs_zero] at hh
         exact False.elim (not_lt_of_ge hr.le hh)
-    · rw [if_neg he]
+    · rw [ite_eq_right he]
       exact Polygonal.plateauShear_apply_outer hr d (hgap w hw he).le
   · intro x y z _ _ _ _ _
     rw [hd x, hd y, hd z]
