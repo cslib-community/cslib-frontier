@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropy
 public import Mathlib.InformationTheory.KullbackLeibler.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonal
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
 import CslibFrontier.Probability.Divergence
 import Mathlib.Algebra.BigOperators.WithTop
 
@@ -52,20 +53,8 @@ variable {ι X : Type*} [Fintype ι] [Fintype X] [DecidableEq X]
 theorem isDensityMatrix_classicalQuantumState (p : PMF X) {ρ : X → Matrix ι ι ℂ}
     (hρ : ∀ x, IsDensityMatrix (ρ x)) : IsDensityMatrix (classicalQuantumState p ρ) := by
   classical
-  let A (x : X) := (p x).toReal • ρ x
-  have hA (x) : (A x).PosSemidef := (hρ x).posSemidef.smul ENNReal.toReal_nonneg
-  let B (x : X) := CFC.sqrt (A x)
-  have hB (x) : (B x)ᴴ = B x := (CFC.sqrt_nonneg (A x)).posSemidef.isHermitian.eq
-  have hBB (x) : B x * (B x)ᴴ = A x := by
-    rw [hB]
-    exact CFC.sqrt_mul_sqrt_self _ (hA x).nonneg
   constructor
-  · change (blockDiagonal A).PosSemidef
-    have he : blockDiagonal B * (blockDiagonal B)ᴴ = blockDiagonal A := by
-      rw [blockDiagonal_conjTranspose, ← blockDiagonal_mul]
-      exact congrArg blockDiagonal (funext hBB)
-    rw [← he]
-    exact posSemidef_self_mul_conjTranspose _
+  · exact posSemidef_blockDiagonal fun x => (hρ x).posSemidef.smul ENNReal.toReal_nonneg
   · rw [classicalQuantumState, trace_blockDiagonal]
     simp only [trace_smul, (hρ _).trace_eq_one, Complex.real_smul, mul_one]
     exact_mod_cast Cslib.Probability.PMF.sum_toReal p

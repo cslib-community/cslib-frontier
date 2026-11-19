@@ -164,15 +164,8 @@ example :
   have hhi := hdist ▸ sq_nonneg _
   linarith
 
--- Orthogonal rank-one reductions have trace norm difference two, even with a larger purifier.
-example :
-    ∃ U ∈ unitaryGroup (Fin 3) ℂ,
-      ‖WithLp.toLp 2 (((1 : Matrix Bool Bool ℂ) ⊗ₖ U) *ᵥ
-        (ket (false, (0 : Fin 3))).ofLp) - ket (true, (1 : Fin 3))‖ ^ 2 ≤ 2 := by
-  obtain ⟨U, hU, h⟩ := exists_localUnitary_norm_sub_sq_le_traceNorm
-    (ket (false, (0 : Fin 3))) (ket (true, (1 : Fin 3))) (norm_ket _) (norm_ket _)
-  refine ⟨U, hU, h.trans_eq ?_⟩
-  rw [partialTraceRight_ket_pair, partialTraceRight_ket_pair]
+private theorem traceNorm_orthogonal_qubit_states :
+    (pureState (ket false) - pureState (ket true)).traceNorm = 2 := by
   let D : Matrix Bool Bool ℂ := diagonal fun b => if b then -1 else 1
   have hD : pureState (ket false) - pureState (ket true) = D := by
     ext i j
@@ -185,6 +178,28 @@ example :
     cases b <;> simp
   rw [hD, traceNorm, hgram, CFC.sqrt_one, trace_one]
   norm_num [Fintype.card_bool]
+
+-- Orthogonal rank-one reductions have trace norm difference two, even with a larger purifier.
+example :
+    ∃ U ∈ unitaryGroup (Fin 3) ℂ,
+      ‖WithLp.toLp 2 (((1 : Matrix Bool Bool ℂ) ⊗ₖ U) *ᵥ
+        (ket (false, (0 : Fin 3))).ofLp) - ket (true, (1 : Fin 3))‖ ^ 2 ≤ 2 := by
+  obtain ⟨U, hU, h⟩ := exists_localUnitary_norm_sub_sq_le_traceNorm
+    (ket (false, (0 : Fin 3))) (ket (true, (1 : Fin 3))) (norm_ket _) (norm_ket _)
+  refine ⟨U, hU, h.trans_eq ?_⟩
+  rw [partialTraceRight_ket_pair, partialTraceRight_ket_pair]
+  exact traceNorm_orthogonal_qubit_states
+-- The upper inequality detects zero fidelity from maximal trace distance, including at
+-- these singular density matrices.
+example : rootFidelity (pureState (ket false)) (pureState (ket true)) = 0 := by
+  have h := traceDistance_le_sqrt_one_sub_rootFidelity_sq
+    (isDensityMatrix_pureState (norm_ket false)) (isDensityMatrix_pureState (norm_ket true))
+  rw [traceDistance, traceNorm_orthogonal_qubit_states] at h
+  have hOne : (1 : ℝ) ≤ Real.sqrt (1 - rootFidelity (pureState (ket false))
+      (pureState (ket true)) ^ 2) := by simpa only [show (2 : ℝ) / 2 = 1 by norm_num] using h
+  have hSq := (Real.le_sqrt' (by norm_num : (0 : ℝ) < 1)).mp hOne
+  apply sq_eq_zero_iff.mp
+  exact le_antisymm (by linarith) (sq_nonneg _)
 
 -- Disjoint one-dimensional supports give infinite relative entropy.
 private theorem relativeEntropy_orthogonal_qubit_states :
