@@ -10882,3 +10882,15 @@ register_result "fuchs-van-de-graaf-lower" where
   scope := "Arbitrary finite-dimensional complex positive semidefinite trace-one matrices, \
     including singular states. One minus the unsquared fidelity is bounded above by the \
     trace distance, which is half the trace norm of the difference."
+
+register_result "fuchs-van-de-graaf-upper" where
+  title := "Upper Fuchs–van de Graaf inequality for finite density matrices"
+  topic := "quantum information"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Upper bound in equation (28)",
+      locator := "arXiv:1509.07466v2, §5.1, printed p. 22" }
+  ]
+  theorems := [Cslib.Quantum.traceDistance_le_sqrt_one_sub_rootFidelity_sq]
+  scope := "For finite complex positive semidefinite trace-one matrices, including singular \
+    states, trace distance is at most the square root of one minus squared root fidelity. \
+    Trace distance is half the trace norm of the difference, and root fidelity is unsquared."
