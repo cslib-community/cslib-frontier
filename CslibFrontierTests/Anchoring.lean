@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
@@ -400,7 +400,7 @@ example :
     have hmiss (i : Fin 1) (t' : _) (u : Option Bool) : 0 ≤ winningAnchorMiss P none i t' u := by
       unfold winningAnchorMiss
       split <;> norm_num
-    unfold taggedPairAnchorMissMass taggedPairScore
+    unfold taggedPairAnchorMissMass taggedPairScore taggedPairCoordinateScore
     apply sum_pos' (fun i _ => sum_nonneg fun q _ => mul_nonneg ENNReal.toReal_nonneg
       (sum_nonneg fun r' _ => mul_nonneg ENNReal.toReal_nonneg (hmiss _ _ _)))
     refine ⟨0, mem_univ _, ?_⟩
@@ -447,3 +447,57 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
   rw [le_div_iff₀ hp, mul_comm]
   have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
   simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one] using hbound
+
+/-- With a failure bound below one, the sole unchecked coordinate admits all three
+unitary choices on the original, unequal-dimensional local systems. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 3)) {τ : ℝ} (hτ : 0 < τ)
+    (hsmall : (2 + (half : ℝ)) * anchoredAlignmentBound half 1 4 1 <
+      (half : ℝ) * anchoredAlignmentScale half * τ ^ 2) :
+    let C : Finset (Fin 2) := {0}
+    let e : Fin 1 ≃ {i : Fin 2 // i ∉ C} := (Fintype.equivFinOfCardEq (by decide)).symm
+    let Q := (transcriptLaw acceptingGame half C S).filter (winsOnChecked acceptingGame half C)
+      (acceptingGame_win_supported S)
+    let Label := Cslib.PCP.ParallelRepetition.Revealed (Option Bool) (Option Bool) C ×
+      ((C → Bool) × (C → Bool))
+    let vA (i : Fin 1) (label : Label) (x : Option Bool) :=
+      let (t, a, b) := label
+      checkedVectorGivenAlice acceptingGame half C S (e i) t x a b
+    let vB (i : Fin 1) (label : Label) (y : Option Bool) :=
+      let (t, a, b) := label
+      checkedVectorGivenBob acceptingGame half C S (e i) (omitMessage C (e i) t)
+        (t.halves (e i)) y a b
+    ∃ (VA : Fin 1 → Label → Option Bool → Matrix (Fin 2) (Fin 2) ℂ)
+      (VB VAB : Fin 1 → Label → Option Bool → Matrix (Fin 3) (Fin 3) ℂ),
+      taggedPairCoordinateScore C acceptingGame half Q Prod.fst (fun _ => Sum.inr none) e
+        (fun j t x => localUnitaryError (VA j t x) (vA j t none) (vA j t x)) 0 ≤ τ ∧
+      taggedPairCoordinateScore C acceptingGame half Q Prod.snd (fun _ => Sum.inl none) e
+        (fun j t y => localUnitaryError (VB j t y) (vB j t none) (vB j t y)) 0 ≤ τ ∧
+      taggedPairCoordinateScore C acceptingGame half Q Prod.snd (Sum.inl ∘ Prod.fst) e
+        (fun j t y => localUnitaryError (VAB j t y) (vB j t y) (vB j t none)) 0 ≤ τ := by
+  classical
+  intro C e Q Label vA vB
+  have hα : 0 < (half : ℝ) := by norm_num [half]
+  obtain ⟨VA, VB, VAB, good, _, _, _, hprob, hmean⟩ :=
+    exists_good_alignment_coordinates C acceptingGame half S e
+      (acceptingGame_win_supported S) hα hτ
+  refine ⟨VA, VB, VAB, hmean 0 ?_⟩
+  by_contra hn
+  have he : {i : Fin 1 | i ∉ good} = Set.univ := by
+    ext i
+    have hi : i = 0 := Subsingleton.elim _ _
+    simp [hi, hn]
+  rw [he] at hprob
+  have hm : ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure Set.univ) = 1 :=
+    ((Cslib.Probability.PMF.uniformOfFintype (Fin 1)).toOuterMeasure_apply_eq_one_iff
+      Set.univ).mpr (Set.subset_univ _)
+  rw [hm, ENNReal.toReal_one] at hprob
+  have hc : Fintype.card (({0} : Finset (Fin 2)) → Bool × Bool) = 4 := by decide
+  have hdenom : 0 < (half : ℝ) * anchoredAlignmentScale half * τ ^ 2 := by
+    unfold anchoredAlignmentScale
+    positivity
+  have hle : 1 ≤ (2 + (half : ℝ)) * anchoredAlignmentBound half 1 4 1 /
+      ((half : ℝ) * anchoredAlignmentScale half * τ ^ 2) := by
+    simpa only [C, hc, acceptingGame_win_mass, ENNReal.toReal_one, Nat.cast_one, one_mul]
+      using hprob
+  exact (not_le_of_gt ((div_lt_one hdenom).mpr hsmall)) hle

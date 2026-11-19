@@ -47,7 +47,7 @@ the strategy for the repetition theorem.
 
 ## Main definitions
 
-* `localUnitaryErrorSq`: squared alignment error of two normalized noisy branches.
+* `localUnitaryError` and `localUnitaryErrorSq`: alignment errors of two normalized noisy branches.
 * `anchoredAlignmentScale` and `anchoredAlignmentBound`: the coefficient and error in
   the coordinate-summed bounds.
 
@@ -83,11 +83,23 @@ local notation "Transcript" => ((Info × (C → A × B)) × (Free → PairQ))
 local notation "RepeatedStrategy" => QuantumStrategy (Fin n → Option X) (Fin n → Option Y)
   (Fin n → A) (Fin n → B) ι κ
 
-/-- Squared distance after normalizing the branches and acting on the second tensor factor. -/
-noncomputable def localUnitaryErrorSq (V : Matrix κ κ ℂ)
+/-- Distance after normalizing the branches and acting on the second tensor factor. -/
+noncomputable def localUnitaryError (V : Matrix κ κ ℂ)
     (v u : EuclideanSpace ℂ (ι × κ)) : ℝ :=
   ‖WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ V) *ᵥ (NormedSpace.normalize v).ofLp) -
-    NormedSpace.normalize u‖ ^ 2
+    NormedSpace.normalize u‖
+
+/-- Squared alignment error of two normalized noisy branches. -/
+@[expose] noncomputable def localUnitaryErrorSq (V : Matrix κ κ ℂ)
+    (v u : EuclideanSpace ℂ (ι × κ)) : ℝ :=
+  localUnitaryError V v u ^ 2
+
+omit [DecidableEq κ] in
+/-- A unitary alignment error is a norm. -/
+theorem localUnitaryError_nonneg (V : Matrix κ κ ℂ) (v u : EuclideanSpace ℂ (ι × κ)) :
+    0 ≤ localUnitaryError V v u := by
+  unfold localUnitaryError
+  exact norm_nonneg _
 
 omit [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq κ] in
 private theorem norm_normalize_le_one {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
@@ -98,7 +110,7 @@ private theorem norm_normalize_le_one {E : Type*} [NormedAddCommGroup E] [Normed
 
 private theorem localUnitaryErrorSq_one_le (v u : EuclideanSpace ℂ (ι × κ)) :
     localUnitaryErrorSq 1 v u ≤ 4 := by
-  rw [localUnitaryErrorSq, one_kronecker_one, one_mulVec, WithLp.toLp_ofLp]
+  rw [localUnitaryErrorSq, localUnitaryError, one_kronecker_one, one_mulVec, WithLp.toLp_ofLp]
   have h := (norm_sub_le (NormedSpace.normalize v) (NormedSpace.normalize u)).trans
     (add_le_add (norm_normalize_le_one v) (norm_normalize_le_one u))
   simpa only [show (1 : ℝ) + 1 = 2 by norm_num, show (2 : ℝ) ^ 2 = 4 by norm_num] using
@@ -330,7 +342,7 @@ theorem localUnitaryErrorSq_conjTranspose {V : Matrix κ κ ℂ} (hV : V ∈ uni
   have he : f φ' = φ := by
     change WithLp.toLp 2 (M *ᵥ (N *ᵥ φ.ofLp)) = φ
     rw [mulVec_mulVec, hMN, one_mulVec, WithLp.toLp_ofLp]
-  unfold localUnitaryErrorSq
+  unfold localUnitaryErrorSq localUnitaryError
   change ‖φ' - ψ‖ ^ 2 = ‖f ψ - φ‖ ^ 2
   rw [← (mem_unitaryGroup_iff_forall_norm_toEuclideanCLM M).mp hM (φ' - ψ),
     map_sub, he, norm_sub_rev]

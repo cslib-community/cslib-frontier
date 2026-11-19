@@ -12,6 +12,7 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscriptDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateInformation
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredGoodCoordinates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredLocalUnitary
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredCoordinateTraceDistance
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredPriorTraceDeviation
@@ -11118,6 +11119,23 @@ register_result "anchored-averaged-local-unitary-alignment" where
     alignments go from the doubly anchored branch to the sampled question branch. Alice's \
     unitary is on the second factor of the Bob-first branch. This gives the averaged step \
     before the good-coordinate comparison and the repetition decay theorem."
+
+register_result "anchored-good-local-alignment-coordinates" where
+  title := "Common good coordinates for the three anchored local alignments"
+  topic := "parallel repetition"
+  sources := [
+    { paper := BavarianVidickYuen2022, theorem := "Lemma 5.12, equations (29)–(31)",
+      locator := "arXiv:1509.07466v2, §5.2, printed pp. 22 and 27–28" }
+  ]
+  theorems := [
+    Cslib.PCP.AnchoredDependency.exists_good_alignment_coordinates
+  ]
+  scope := "For positive anchor rate, threshold and number of unchecked coordinates, choose \
+    the three unitary families and one set of coordinates satisfying all three mean vector \
+    error bounds. The uniform probability of the complement is bounded explicitly by the \
+    summed squared alignment bound divided by the coordinate count, squared threshold and \
+    alignment scale, with the fixed-tag and sampled-tag coefficients accounted for. The \
+    normalization-weight comparisons and the repeated-game strategy are subsequent steps."
 
 register_result "synchronous-correlations-tracial-representation" where
   title := "Tracial representation of synchronous commuting correlations"
