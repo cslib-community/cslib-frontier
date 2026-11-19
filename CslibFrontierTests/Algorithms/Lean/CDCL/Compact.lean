@@ -18,7 +18,8 @@ variable `10⁹` is solved with arrays of one slot. These checks run compiled co
 uses a hash map, which the kernel does not evaluate. The certificate it returns for
 `[[], [(10⁹, true)]]` is accepted for the original formula, and on `x_{10⁹} ∧ (¬x_{10⁹} ∨ x₇)` the
 model it returns satisfies the formula. A formula with no variables, `[]` or `[[]]`, gets activity
-arrays of no slots.
+arrays of no slots; one whose greatest variable is `v` gets `v + 1`, checked on the arithmetic for
+`10⁹` and on an actual array for `x₂`.
 -/
 
 set_option linter.hashCommand false
@@ -43,6 +44,7 @@ private abbrev chain : CNF ℕ := [[(1000000000, true)], [(1000000000, false), (
 
 #guard (WExec.init ([] : CNF ℕ)).act.score.size == 0
 #guard (WExec.init ([[]] : CNF ℕ)).act.score.size == 0
-#guard (WExec.init big).act.score.size == 1000000001
+#guard varSlots big == 1000000001
+#guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ)).act.score.size == 3
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Compact

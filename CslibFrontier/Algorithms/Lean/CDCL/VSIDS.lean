@@ -17,9 +17,9 @@ MiniSat's branching heuristic, *variable state independent decaying sum*. Every 
 *bumped*: the current *increment* is added to their activity. These are all the variables of the
 conflict clause and of the reasons resolved on, including variables assigned at decision level
 `0`. MiniSat bumps a variable only when it is assigned above level `0` (`level(var(q)) > 0` in
-`analyze`), so this rule is a variant of MiniSat's. The increment then grows by about the
-factor `1 / 0.95`, so older bumps weigh exponentially less (MiniSat's `var_decay = 0.95`). The
-solver decides an unassigned variable of greatest activity.
+`analyze`), so this rule is a variant of MiniSat's. The increment then becomes `inc + inc / 19`,
+with integer division: at most the factor `1 / 0.95` (MiniSat's `var_decay = 0.95`), so older bumps
+weigh exponentially less. The solver decides an unassigned variable of greatest activity.
 
 Activities and the increment are natural numbers, so the kernel can run the solver. The decay
 step sets the increment to `inc + inc / 19`, with integer division, in place of MiniSat's
