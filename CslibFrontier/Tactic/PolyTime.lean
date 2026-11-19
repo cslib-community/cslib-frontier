@@ -96,15 +96,30 @@ attribute [program_certificate hcompute hbound]
 attribute [program_certificate hbound]
   ComputableInPolyTime.iterateWithInput_of_bounded_growth
 
+open Lean Meta in
+/-- Recover an unknown element encoding from a known canonical list representation before
+synthesizing its interface. An arbitrary list representation must determine it independently. -/
+private meta def synthListInterface (goal : MVarId) : MetaM Unit := goal.withContext do
+  let target ← instantiateMVars (← goal.getType)
+  unless target.isAppOf ``ListEncoding || target.isAppOf ``SizedListEncoding do
+    throwError "expected a list interface"
+  let element := target.getAppArgs[1]!
+  let list ← whnfR target.getAppArgs[2]!
+  if element.isMVar then
+    if list.isAppOf ``encList then
+      unless ← isDefEq element list.getAppArgs.back! do throwError "incompatible element encoding"
+    else if list.isConstOf ``encBits then
+      unless ← isDefEq element (mkConst ``encBool) do throwError "incompatible bit encoding"
+  let target ← instantiateMVars target
+  if target.hasExprMVar then throwError "encoding is not yet determined"
+  goal.assign (← synthInstance target)
+
 open Lean Meta Elab Tactic in
-/-- Synthesize a list interface once the list and element encodings are determined. -/
+/-- Synthesize list interfaces after recovering the element encoding from a known representation. -/
 @[aesop safe tactic (rule_sets := [PolyTime])
   (index := [target ListEncoding _ _, target SizedListEncoding _ _])]
 private meta def polytimeListInstance : TacticM Unit := withMainContext do
-  let goal ← getMainGoal
-  let target ← instantiateMVars (← goal.getType)
-  if target.hasExprMVar then throwError "encoding is not yet determined"
-  goal.assign (← synthInstance target)
+  synthListInterface (← getMainGoal)
   replaceMainGoal []
 
 -- Computed finite tables use the ordinary application rule. Its function-valued head cannot
@@ -721,10 +736,10 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
     guard do
       let rules : Array (TacticM Unit) := #[
         liftMetaTactic fun goal => goal.applyConst ``Internal.plain_foldl_bits_rule,
-        evalTactic (← `(tactic| apply ComputableInPolyTime.foldl_of_bounded_growth
-          (encL := encList _))),
+        -- List interfaces depend on the encoding established by hlist. Retain their goals
+        -- until that computation and its callback have fixed the encoding parameters.
         liftMetaTactic fun goal => goal.applyConst
-          ``ComputableInPolyTime.foldl_of_bounded_growth]
+          ``ComputableInPolyTime.foldl_of_bounded_growth { allowSynthFailures := true }]
       for applyRule in rules do
         let saved ← saveState
         try
@@ -736,9 +751,21 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
                   enableSimp := false
                   assumptionTransparency := .reducible })
               (rule_sets := [PolyTime])))
-          -- The callback can determine the accumulator encoding; growth and the initializer
-          -- must use that representation rather than trying to infer it independently.
-          Cslib.Tactic.solveTagged `hstep
+          -- A supplied callback may require a noncanonical element interface for this list.
+          -- Match that evidence before recovering an unknown encoding from the representation.
+          let some stepGoal ← (← getGoals).findM? fun goal =>
+              return (`hstep).isSuffixOf (← goal.getTag)
+            | throwError "fold has no callback premise"
+          if let some proof ← stepGoal.withContext do
+              knownLocalCertificate (← stepGoal.getType) then
+            stepGoal.assign proof
+          -- A callback which ignores its element cannot recover that element's encoding.
+          -- The traversed list's representation supplies it before checking the callback.
+          for goal in ← getGoals do
+            try synthListInterface goal catch _ => pure ()
+          setGoals (← (← getGoals).filterM fun goal => return !(← goal.isAssigned))
+          -- Growth and the initializer must use the callback's accumulator representation.
+          unless ← stepGoal.isAssigned do Cslib.Tactic.solveTagged `hstep
           let afterList ← saveState
           try
             evalTactic (← `(tactic| case growth => exact 0))
@@ -746,8 +773,7 @@ private meta def polytimeFold (guard : TacticM Unit → TacticM Unit) : TacticM 
           catch _ =>
             afterList.restore
             Cslib.Tactic.solveTagged `hgrowth
-          -- Commit to a representation only after all its callback and growth obligations
-          -- close. A failed canonical representation must retain the arbitrary-encoding route.
+          -- Commit only after all callback and growth obligations close.
           evalTactic (← `(tactic| all_goals solve |
             aesop
               (config :=

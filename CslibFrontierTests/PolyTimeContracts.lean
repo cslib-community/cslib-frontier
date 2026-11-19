@@ -241,6 +241,18 @@ example {α β : Type} (item : α ↪ List Bool) (stateElement : β ↪ List Boo
       (fun list : List α => let accumulated := list.foldl step []; accumulated.reverse)
       (encList item) (encList stateElement) := by polytime
 
+-- A supplied callback can select a noncanonical element interface for a canonical framed list.
+example {α : Type} (item altItem : α ↪ List Bool)
+    [ListEncoding altItem (encList item)] [SizedListEncoding altItem (encList item)]
+    (step : List Bool → α → List Bool) (growth : ℕ)
+    (hstep : ComputableInPolyTime (fun pair : List Bool × α => step pair.1 pair.2)
+      (encPair encBits altItem) encBits)
+    (hgrowth : ∀ state value, (step state value).length ≤ state.length + growth) :
+    ComputableInPolyTime (fun list : List α => list.foldl step [])
+      (encList item) encBits := by
+  fail_if_success (clear hstep; polytime)
+  polytime
+
 -- Growth outside the reachable invariant does not matter; the step still has a uniform certificate.
 example : ComputableInPolyTime
     (fun n : ℕ => (fun word : List Bool => if word.isEmpty then [] else word ++ word)^[n] [])
