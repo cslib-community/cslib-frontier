@@ -189,7 +189,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
         EHandler encUnary :=
       hctBound.comp ((ComputableInPolyTime.fst _ _).comp
         ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
-    have hq := IsOraclePPTOn.query_take' (Operation := Bool) false hreq hctLim
+    have hq := IsOraclePPTOn.query_take (Operation := Bool) false hreq hctLim
     have hpost : ComputableInPolyTime
         (fun q : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool)))) ×
             List Bool =>
@@ -225,7 +225,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       (fun pair : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool))) =>
         ciToCCAHandler pair.1.1.1 (ctBound pair.1.1.1) pair.1.2 pair.2.1 pair.2.2) := by
     unfold ciToCCAHandler
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × List Bool) × List Bool =>
         ctBound pair.1.1.1 + 2 * pair.2.length + 4)
@@ -280,7 +280,7 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       (fun q : ((ℕ × List Bool) × List Bool) × (List Bool × (ℕ × List (List Bool))) => q.1.1.1 + 2)
       (encPair ECaller (encPair encBits EState)) encUnary := by
     dsimp only [ECaller]; fun_prop
-  have hdec := IsOraclePPTOn.query_take' (Operation := Bool) true hdecReq hdecLim
+  have hdec := IsOraclePPTOn.query_take (Operation := Bool) true hdecReq hdecLim
   have hdrop1 : ComputableInPolyTime
       (fun r : (((ℕ × List Bool) × List Bool) × (List Bool × (ℕ × List (List Bool)))) × List Bool =>
         r.2.drop 1)
@@ -367,7 +367,7 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
         let ct ← List.take (ctBound p.1.1.1) <$>
           ProbOracleComp.query ((), BitString.listRow p.1.1.1 p.2.2 p.1.2)
         return (ct, p.2.2 + 1)) := by
-    have hq := IsOraclePPTOn.query_take' (Operation := Unit) () hchunk hctLim
+    have hq := IsOraclePPTOn.query_take (Operation := Unit) () hchunk hctLim
     have hpost : ComputableInPolyTime
         (fun q : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × ℕ)) × List Bool =>
           (q.2, q.1.2.2 + 1))
@@ -382,7 +382,7 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
       (fun pair : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × ℕ) =>
         ciToRandEncForgeHandler pair.1.1.1 (ctBound pair.1.1.1) pair.1.2 pair.2.1 pair.2.2) := by
     unfold ciToRandEncForgeHandler
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => ctBound pair.1.1.1 + 1)
       (encPair ECaller encBits) encUnary := by

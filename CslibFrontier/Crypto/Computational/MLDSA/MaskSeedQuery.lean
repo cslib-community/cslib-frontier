@@ -173,7 +173,7 @@ private theorem seed_hedge_of_differs {C : QuantumSigningForger} {base : Xofs} {
         refine ⟨?_, i, ?_⟩
         · have len : (Keccak.bytesToBitsLE key).length = 256 := by
             change (Keccak.bytesToBitsLE (signingSeedBytes p.background s seed)).length = 256
-            rw [bitsLength, signingSeedBytes_length]
+            rw [Keccak.length_bytesToBitsLE, signingSeedBytes_length]
           simp only [queryKeyPrefix, Option.bind_eq_bind, Option.bind_some, strength, guard,
             ↓reduceIte, Option.pure_def, hx]
           rw [← eq]

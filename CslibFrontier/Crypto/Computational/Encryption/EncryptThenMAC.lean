@@ -198,6 +198,9 @@ keys at security parameter `n` have length `M.msgLen n`, and a message authentic
   `(unframe ct).length == M.msgLen n`, and verifies
   `M.verify (dropFrame k) (unframe ct) (dropFrame ct)`; if all three hold, it returns
   `E.decrypt n (unframe k) (unframe ct)`, and otherwise `none`.
+* The ciphertext space `ctSpace n` is the canonically framed pairs `(c, tag)` with `c` an
+  `M.msgLen n`-bit word of `E.ctSpace n` and `tag` any word: the source's `C × T`, where
+  `MACScheme` declares no tag space.
 
 Canonical pair framing `encPair encBits encBits (c, tag)` establishes a bijection between valid
 encoded ciphertexts `ct` and pairs `(c, tag)` with `c.length = M.msgLen n`, so ciphertext freshness
@@ -220,6 +223,16 @@ noncomputable def encryptThenMAC (E : SymmetricCipher) (M : MACScheme)
       E.decrypt n (unframe k) (unframe ct)
     else
       none
+  ctSpace n ct :=
+    (encPair encBits encBits (unframe ct, dropFrame ct) == ct) &&
+      ((unframe ct).length == M.msgLen n) && E.ctSpace n (unframe ct)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    split_ifs with hcond
+    · simp only [Bool.and_eq_true] at hcond
+      obtain ⟨⟨hframe, hlen⟩, -⟩ := hcond
+      exact E.decrypt_eq_none_of_ctSpace_eq_false n _ _
+        (by simpa only [hframe, hlen, Bool.true_and] using h)
+    · rfl
   keyGen_ppt := by
     have hpost : ComputableInPolyTime
         (fun p : (ℕ × List Bool) × List Bool => encPair encBits encBits (p.1.2, p.2))
@@ -474,7 +487,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run ()) :=
-    hrun.map_with' (computableInPolyTime_etmMACPost (encFinEnum Unit) E M)
+    hrun.map_with (computableInPolyTime_etmMACPost (encFinEnum Unit) E M)
   unfold etmToMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 
@@ -751,7 +764,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
               (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
               (etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
             (adversary caller.1.1 [])).run false) :=
-    hrun.map_with' (computableInPolyTime_etmMACPost encBool E M)
+    hrun.map_with (computableInPolyTime_etmMACPost encBool E M)
   unfold etmToOneTimeMACForger
   exact (hke.bind_with hrunMap).isOraclePPT
 
@@ -1534,7 +1547,9 @@ keys and `n`-bit inputs to `n`-bit outputs:
 * `encrypt n k msg` samples a uniform `n`-bit nonce `r ← BitString.sampleList n` and outputs the
   `2 * n`-bit ciphertext `r ++ List.zipWith xor (family k r) msg`.
 * `decrypt n k ct` checks `ct.length == 2 * n`; if so, splits `r := ct.take n` and `c := ct.drop n`
-  and outputs `some (List.zipWith xor (family k r) c)`, and otherwise outputs `none`. -/
+  and outputs `some (List.zipWith xor (family k r) c)`, and otherwise outputs `none`.
+* The ciphertext space `ctSpace n` is the `2 * n`-bit words, the source's `X × C` with
+  `X = C = {0,1}^n`. -/
 noncomputable def prfCipher (family : List Bool → List Bool → List Bool)
     (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
       (encPair encBits encBits) encBits)
@@ -1549,6 +1564,8 @@ noncomputable def prfCipher (family : List Bool → List Bool → List Bool)
       some (List.zipWith xor (family k (ct.take n)) (ct.drop n))
     else
       none
+  ctSpace n ct := ct.length == 2 * n
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by simp_all
   keyGen_ppt := by
     exact ComputableInPolyTime.sampleList (ComputableInPolyTime.id' (encIn := encUnary))
   encrypt_ppt := by
@@ -1715,7 +1732,7 @@ theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}
       subst hresEq
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
   unfold cpaToPrfDistinguisher
-  exact (hrun.map' (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
+  exact (hrun.map (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
 
 /-- Running `cpaToPrfDistinguisher adversary bit` in `prfRealGame id family` produces the exact same
 output distribution as running `adversary` in `(prfCipher family hpoly hlen).cpaGame` at challenge

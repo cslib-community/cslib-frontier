@@ -44,13 +44,13 @@ message length. The native algorithms query two word oracles `G` and `H` (`RO`),
 `coinLen n` bits of each `G` reply and `keyLen n` bits of each `H` reply:
 
 * `WordPKE.keyGenNotBot` is `Scheme.keyGenNotBot` of the bundle;
-* `WordPKE.encaps` draws `m`, queries `G(m)`, encrypts, and queries `H(false, m, c)`;
+* `WordPKE.encaps` draws `m`, queries `G(m)`, encrypts, and queries `H(m, c)`;
 * `WordPKE.decapsNotBot` and `WordPKE.decapsBot` reject words longer than `ctLen n` with `none`,
   and otherwise run the oracle-generic decapsulations `Scheme.decapsNotBotM` and
   `Scheme.decapsBotM` of the bundle with the word oracles.
 
-The `H` request is the word `encHQuery (b, m, c)`, keeping the library's domain-separated
-`H : Bool × M × CT → K` (see `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto`).
+The wire encoding of the pair `(m, c)` is `encHQuery (false, m, c)`. On rejection the same
+encoding carries the secret seed in place of the decrypted message.
 
 ## Deviations from [HofheinzHoevelmannsKiltz2017]
 
@@ -218,16 +218,16 @@ inductive RO where
 
 instance : Fintype RO := ⟨{.G, .H}, fun x => by cases x <;> simp⟩
 
-/-- The word of an `H` query `(b, m, c)`: the domain-separation tag, then the message and the
-ciphertext as framed words. -/
+/-- The word of an `H` query `(b, m, c)`: a Boolean prefix, then the message and the
+ciphertext as framed words. The word-game domain uses the fixed prefix `false`. -/
 abbrev encHQuery : Bool × List Bool × List Bool ↪ List Bool :=
   encPair encBool (encPair encBits encBits)
 
-/-- Query `H` on `(b, m, c)` and read at most `keyLen n` bits of the reply. -/
-def queryH (keyLen : ℕ → ℕ) (n : ℕ) (x : Bool × List Bool × List Bool) :
+/-- Query `H` on the pair `(m, c)` and read at most `keyLen n` bits of the reply. -/
+def queryH (keyLen : ℕ → ℕ) (n : ℕ) (mc : List Bool × List Bool) :
     WordOracleComp RO (List Bool) :=
   List.take (keyLen n) <$>
-    ProbOracleComp.query (spec := fun _ : RO × List Bool => List Bool) (RO.H, encHQuery x)
+    ProbOracleComp.query (spec := fun _ : RO × List Bool => List Bool) (RO.H, encHQuery (false, mc))
 
 /-- The encoding of an `FO-notbot` secret key `(sk, pk, s)` as three framed words. -/
 enc_structure encImplicitSK : ImplicitSK (List Bool) (List Bool) (List Bool) where
@@ -261,13 +261,13 @@ noncomputable def keyGenNotBot (n : ℕ) :
 
 /-- Native encapsulation of `FO^⊥` and `FO-notbot` ([HofheinzHoevelmannsKiltz2017], ePrint
 2017/604 (2 Nov 2021), §3.2.1, Fig. 9 and §3.2.2, Fig. 12): draw a uniform message `m` of length
-`msgLen n`, query `r = G(m)`, encrypt `c = encDet n pk m r`, query `k = H(false, m, c)`, and output
+`msgLen n`, query `r = G(m)`, encrypt `c = encDet n pk m r`, query `k = H(m, c)`, and output
 `(c, k)`. -/
 noncomputable def encaps (n : ℕ) (pk : List Bool) : WordOracleComp RO (List Bool × List Bool) := do
   let m ← ProbOracleComp.sample (BitString.sampleList (P.msgLen n))
   let r ← P.queryG n m
   let c := P.encDet n pk m r
-  let k ← queryH keyLen n (false, m, c)
+  let k ← queryH keyLen n (m, c)
   return (c, k)
 
 /-- Native implicit-rejection decapsulation of `FO-notbot` ([HofheinzHoevelmannsKiltz2017],
@@ -355,7 +355,7 @@ theorem isOraclePPTOn_encaps (hP : P.IsEfficient)
     (hP.msgLen.comp (ComputableInPolyTime.fst _ _)).sampleList.isOraclePPTOn
   have hr : IsOraclePPTOn encEncapsDraw encBits
       (fun p : (ℕ × List Bool) × List Bool => P.queryG p.1.1 p.2) :=
-    IsOraclePPTOn.query_take' RO.G (by fun_prop) (hP.coinLen.comp (by fun_prop))
+    IsOraclePPTOn.query_take RO.G (by fun_prop) (hP.coinLen.comp (by fun_prop))
   have hc : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
         P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2) encEncapsCoin encBits :=
@@ -364,8 +364,8 @@ theorem isOraclePPTOn_encaps (hP : P.IsEfficient)
       encEncapsCoin encEncDetInput)
   have hk : IsOraclePPTOn encEncapsCoin encBits
       (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
-        queryH keyLen q.1.1.1 (false, q.1.2, P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2)) :=
-    IsOraclePPTOn.query_take' RO.H
+        queryH keyLen q.1.1.1 (q.1.2, P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2)) :=
+    IsOraclePPTOn.query_take RO.H
       (((ComputableInPolyTime.const false).prod
         ((by fun_prop : ComputableInPolyTime
           (fun q : ((ℕ × List Bool) × List Bool) × List Bool => q.1.2) encEncapsCoin encBits).prod
@@ -379,18 +379,18 @@ theorem isOraclePPTOn_encaps (hP : P.IsEfficient)
   have hck : IsOraclePPTOn encEncapsCoin (encPair encBits encBits)
       (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
         (fun k => (P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2, k)) <$>
-          queryH keyLen q.1.1.1 (false, q.1.2, P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2)) :=
-    hk.map_with' (f := fun q k => (P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2, k)) hpost
+          queryH keyLen q.1.1.1 (q.1.2, P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2)) :=
+    hk.map_with (f := fun q k => (P.encDet q.1.1.1 q.1.1.2 q.1.2 q.2, k)) hpost
   have hrest := IsOraclePPTOn.bind_with (first := fun p : (ℕ × List Bool) × List Bool =>
       P.queryG p.1.1 p.2) (second := fun p r =>
       (fun k => (P.encDet p.1.1 p.1.2 p.2 r, k)) <$>
-        queryH keyLen p.1.1 (false, p.2, P.encDet p.1.1 p.1.2 p.2 r)) hr hck
+        queryH keyLen p.1.1 (p.2, P.encDet p.1.1 p.1.2 p.2 r)) hr hck
   have hall := IsOraclePPTOn.bind_with (first := fun x : ℕ × List Bool =>
       ProbOracleComp.sample (BitString.sampleList (P.msgLen x.1)))
     (second := fun x m => do
       let r ← P.queryG x.1 m
       (fun k => (P.encDet x.1 x.2 m r, k)) <$>
-        queryH keyLen x.1 (false, m, P.encDet x.1 x.2 m r)) hm hrest
+        queryH keyLen x.1 (m, P.encDet x.1 x.2 m r)) hm hrest
   refine hall.congr fun x _ _ _ => ?_
   simp only [encaps, bind_pure_comp]
 
@@ -437,15 +437,15 @@ theorem isOraclePPTOn_decapsNotBot (hP : P.IsEfficient)
     fun_prop
   have hfallback : IsOraclePPTOn encDecapsNotBotInput encBits
       (fun x : ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool =>
-        queryH keyLen x.1 (true, x.2.1.fallback, x.2.2)) :=
-    IsOraclePPTOn.query_take' RO.H (by fun_prop) (hkeyLen.comp (by fun_prop))
+        queryH keyLen x.1 (x.2.1.fallback, x.2.2)) :=
+    IsOraclePPTOn.query_take RO.H (by fun_prop) (hkeyLen.comp (by fun_prop))
   have hn : ComputableInPolyTime
       (fun x : ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool => x.1)
       encDecapsNotBotInput encUnary := by fun_prop
   have hn' : ComputableInPolyTime
       (fun p : (ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool) × List Bool =>
         p.1.1) (encPair encDecapsNotBotInput encBits) encUnary := by fun_prop
-  have hG := IsOraclePPTOn.query_take' RO.G hm (hP.coinLen.comp hn)
+  have hG := IsOraclePPTOn.query_take RO.G hm (hP.coinLen.comp hn)
   have hmQ : ComputableInPolyTime
       (fun p : (ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool) × List Bool =>
         ((P.toExplicitCoin p.1.1).dec p.1.2.1.sk p.1.2.2).getD [])
@@ -467,26 +467,26 @@ theorem isOraclePPTOn_decapsNotBot (hP : P.IsEfficient)
   have hvalid : IsOraclePPTOn (encPair encDecapsNotBotInput encBits) encBits
       (fun p : (ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool) × List Bool =>
         queryH keyLen p.1.1
-          (false, ((P.toExplicitCoin p.1.1).dec p.1.2.1.sk p.1.2.2).getD [], p.1.2.2)) :=
-    IsOraclePPTOn.query_take' RO.H
+          (((P.toExplicitCoin p.1.1).dec p.1.2.1.sk p.1.2.2).getD [], p.1.2.2)) :=
+    IsOraclePPTOn.query_take RO.H
       (((ComputableInPolyTime.const false).prod (hmQ.prod hcQ)).encoding_comp) (hkeyLen.comp hn')
-  have hreject := hfallback.preprocess' (ComputableInPolyTime.fst encDecapsNotBotInput encBits)
-  have hafter := IsOraclePPTOn.ite' hcheck hvalid hreject
+  have hreject := hfallback.preprocess (ComputableInPolyTime.fst encDecapsNotBotInput encBits)
+  have hafter := IsOraclePPTOn.ite hcheck hvalid hreject
   have hsome := IsOraclePPTOn.bind_with
     (first := fun x : ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool =>
       P.queryG x.1 (((P.toExplicitCoin x.1).dec x.2.1.sk x.2.2).getD []))
     (second := fun x r =>
       if P.encDet x.1 x.2.1.pk (((P.toExplicitCoin x.1).dec x.2.1.sk x.2.2).getD []) r =
           x.2.2 then
-        queryH keyLen x.1 (false, ((P.toExplicitCoin x.1).dec x.2.1.sk x.2.2).getD [], x.2.2)
-      else queryH keyLen x.1 (true, x.2.1.fallback, x.2.2)) hG hafter
-  have hbody := IsOraclePPTOn.cond'
+        queryH keyLen x.1 (((P.toExplicitCoin x.1).dec x.2.1.sk x.2.2).getD [], x.2.2)
+      else queryH keyLen x.1 (x.2.1.fallback, x.2.2)) hG hafter
+  have hbody := IsOraclePPTOn.cond
     (ComputableTidilyInPolyTime.optionIsSome hD.tidy).computableInPolyTime hsome hfallback
-  have hall := IsOraclePPTOn.ite'
+  have hall := IsOraclePPTOn.ite
     (condition := fun x : ℕ × ImplicitSK (List Bool) (List Bool) (List Bool) × List Bool =>
       x.2.2.length ≤ P.ctLen x.1)
     (ComputableInPolyTime.unary_le' (by fun_prop) (hP.ctLen.comp hn))
-    (hbody.map' (by fun_prop : ComputableInPolyTime (some (α := List Bool)) encBits
+    (hbody.map (by fun_prop : ComputableInPolyTime (some (α := List Bool)) encBits
       (encOption encBits)))
     ((ComputableInPolyTime.const (none : Option (List Bool))).isOraclePPTOn)
   refine hall.congr fun x _ _ _ => ?_
@@ -533,7 +533,7 @@ theorem isOraclePPTOn_decapsBot (hP : P.IsEfficient)
   have hcQ : ComputableInPolyTime
       (fun p : (ℕ × List Bool × List Bool × List Bool) × List Bool => p.1.2.2.2)
       (encPair encDecapsBotInput encBits) encBits := by fun_prop
-  have hG := IsOraclePPTOn.query_take' RO.G hm (hP.coinLen.comp hn)
+  have hG := IsOraclePPTOn.query_take RO.G hm (hP.coinLen.comp hn)
   have hcheck : ComputableInPolyTime
       (fun p : (ℕ × List Bool × List Bool × List Bool) × List Bool =>
         decide (P.encDet p.1.1 p.1.2.1
@@ -546,16 +546,16 @@ theorem isOraclePPTOn_decapsBot (hP : P.IsEfficient)
   have hH : IsOraclePPTOn (encPair encDecapsBotInput encBits) encBits
       (fun p : (ℕ × List Bool × List Bool × List Bool) × List Bool =>
         queryH keyLen p.1.1
-          (false, ((P.toExplicitCoin p.1.1).dec p.1.2.2.1 p.1.2.2.2).getD [], p.1.2.2.2)) :=
-    IsOraclePPTOn.query_take' RO.H
+          (((P.toExplicitCoin p.1.1).dec p.1.2.2.1 p.1.2.2.2).getD [], p.1.2.2.2)) :=
+    IsOraclePPTOn.query_take RO.H
       (((ComputableInPolyTime.const false).prod (hmQ.prod hcQ)).encoding_comp) (hkeyLen.comp hn')
-  have hvalid := hH.map' (f := some) (by fun_prop : ComputableInPolyTime (some (α := List Bool))
+  have hvalid := hH.map (f := some) (by fun_prop : ComputableInPolyTime (some (α := List Bool))
     encBits (encOption encBits))
   have hnone {α : Type} {input : α ↪ List Bool} :
       IsOraclePPTOn (Operation := RO) input (encOption encBits)
         (fun _ => pure (none : Option (List Bool))) :=
     (ComputableInPolyTime.const (none : Option (List Bool))).isOraclePPTOn
-  have hafter := IsOraclePPTOn.ite' hcheck hvalid hnone
+  have hafter := IsOraclePPTOn.ite hcheck hvalid hnone
   have hsome := IsOraclePPTOn.bind_with
     (first := fun x : ℕ × List Bool × List Bool × List Bool =>
       P.queryG x.1 (((P.toExplicitCoin x.1).dec x.2.2.1 x.2.2.2).getD []))
@@ -563,11 +563,11 @@ theorem isOraclePPTOn_decapsBot (hP : P.IsEfficient)
       if P.encDet x.1 x.2.1 (((P.toExplicitCoin x.1).dec x.2.2.1 x.2.2.2).getD []) r =
           x.2.2.2 then
         some <$> queryH keyLen x.1
-          (false, ((P.toExplicitCoin x.1).dec x.2.2.1 x.2.2.2).getD [], x.2.2.2)
+          (((P.toExplicitCoin x.1).dec x.2.2.1 x.2.2.2).getD [], x.2.2.2)
       else pure none) hG hafter
-  have hbody := IsOraclePPTOn.cond'
+  have hbody := IsOraclePPTOn.cond
     (ComputableTidilyInPolyTime.optionIsSome hD.tidy).computableInPolyTime hsome hnone
-  have hall := IsOraclePPTOn.ite'
+  have hall := IsOraclePPTOn.ite
     (condition := fun x : ℕ × List Bool × List Bool × List Bool =>
       x.2.2.2.length ≤ P.ctLen x.1)
     (ComputableInPolyTime.unary_le' (by fun_prop) (hP.ctLen.comp hn)) hbody hnone

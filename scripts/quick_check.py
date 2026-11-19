@@ -16,8 +16,10 @@ import tomllib
 
 try:
     from check_progress import run_logged
+    from ci.select_checks import prose_path
 except ModuleNotFoundError:
     from scripts.check_progress import run_logged
+    from scripts.ci.select_checks import prose_path
 
 
 class FullCheck(Exception):
@@ -35,7 +37,7 @@ RATCHETS = (ENCODING_RATCHET, PROJECTION_RATCHET)
 
 # Data files that no Lean gate reads, each with the source-only check that does read it. A change
 # to one runs that check (with `{base}`, the merge base) instead of falling back to the full check.
-# Any other non-Lean change, including every Python change under `scripts/`, still falls back.
+# Mixed prose edits are handled separately. Changes to the checking tools themselves fall back.
 DATA_CHECKS = {
     # Each is read only by its ratchet, which needs no build
     # (`.github/workflows/lean_action_ci.yml`).
@@ -66,6 +68,7 @@ class Plan:
     lint: dict[str, list[str]] = field(default_factory=dict)  # lint target -> modules it checks
     restore_files: list[str] = field(default_factory=list)  # affected source paths, not target names
     restore_built: list[str] = field(default_factory=list)  # built aggregates and executable helpers
+    deferred: list[str] = field(default_factory=list)  # global test targets left to full CI
 
 
 @dataclass
@@ -249,7 +252,15 @@ def lint_scope(root: Path, aggregates: set[str], affected: set[str],
     return dict(sorted(lint.items()))
 
 
-def make_plan(root: Path, base_ref: str = "origin/main", parser=None) -> Plan:
+def mixed_prose(path: str) -> bool:
+    # The shell preflight checks manual pages. The assumptions inventory also has a whole-library
+    # compiled checker, so leave changes to it on the full route.
+    return (prose_path(path) or path == "references.bib"
+            or (re.fullmatch(r"manual/(?:[a-z][a-z0-9-]*/)?[A-Za-z0-9_-]+\.md", path) is not None
+                and path != "manual/programs-crypto-and-probability/assumptions.md"))
+
+
+def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused=False) -> Plan:
     if git(root, "ls-files", "--unmerged", "-z"):
         raise FullCheck("unresolved merge entries")
     reference = git(root, "rev-parse", "--verify", "--end-of-options", f"{base_ref}^{{commit}}").strip()
@@ -263,19 +274,35 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None) -> Plan:
         raise FullCheck("unexpected Git change-list format")
     changes = list(zip(fields[::2], fields[1::2]))
     changes += [("A", p) for p in git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0") if p]
+    mixed = any(path.endswith(".lean") for _, path in changes)
+    prose = {path for _, path in changes if mixed_prose(path)} if mixed else set()
     for status, path in changes:
         if status not in {"A", "M"}:
             raise FullCheck(f"deleted, renamed or unusual change: {path}")
-        if not path.endswith(".lean") and path not in DATA_CHECKS:
+        source = root / path
+        if path in prose and (source.resolve() != root.resolve() / path or not source.is_file()):
+            raise FullCheck(f"symlinked or missing prose input: {path}")
+        if not path.endswith(".lean") and path not in DATA_CHECKS and path not in prose:
             raise FullCheck(f"non-Lean change: {path}")
     checks = [(label, [base if part == "{base}" else part for part in command])
               for path, (label, command) in DATA_CHECKS.items() if path in {p for _, p in changes}]
-    changes = [(status, path) for status, path in changes if path not in DATA_CHECKS]
+    if "references.bib" in prose:
+        # Removed or edited entries can break existing compiled inventories. Limit the local
+        # route to inserting lines, the common case when a paper is cited for the first time.
+        new_lines = iter((root / "references.bib").read_text().splitlines())
+        if not all(line in new_lines for line in git(root, "show", f"{base}:references.bib").splitlines()):
+            raise FullCheck("existing bibliography entries changed")
+        checks.append(("documentation configuration and bibliography",
+                       [sys.executable, "-B", "scripts/check_docs.py", "--config-only"]))
+    changes = [(status, path) for status, path in changes if path not in DATA_CHECKS and path not in prose]
     hygiene = sorted(path for _, path in changes if path.startswith(HYGIENE_ROOTS))
-    if hygiene:
-        checks.insert(0, ("source hygiene (changed files)",
+    metadata = any(p in {"references.bib", "ROADMAP.md"} or p.startswith("roadmap/") for p in prose)
+    if hygiene or metadata:
+        label = "source hygiene and bibliography/roadmap checks" if metadata else "source hygiene (changed files)"
+        checks.insert(0, (label,
                           [sys.executable, "-B", "scripts/check_hygiene.py", "--check-simp",
-                           "--", *hygiene]))
+                           *(["--check-metadata"] if metadata else []), "--", *hygiene]))
+    if hygiene:
         # CI's changed-file lints that read only sources: a section-level `@[expose]` with no
         # definition, and new tests that only restate signatures. The module-doc name lint reads
         # whole-library build outputs, so it stays in the full check.
@@ -339,6 +366,14 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None) -> Plan:
             if consumer not in affected:
                 affected.add(consumer)
                 queue.append(consumer)
+    # Only named whole-library tests with no importing client may be deferred. Keep directly
+    # edited tests and every ordinary client, including clients that import the aggregate.
+    deferred = set()
+    # Executable helpers can import further local modules outside this graph.
+    if focused and not executable_targets:
+        global_tests = {"CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"}
+        deferred = {test for test in (affected & global_tests) - changed if not reverse[test]}
+        affected -= deferred
     # Traverse aggregates above: a real client importing one must never disappear from the plan.
     selected_executables = [exe for exe in executables if exe.target in executable_targets]
     # An aggregate may warn on an import even when its importing client elaborates silently.
@@ -361,7 +396,7 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None) -> Plan:
                        | {exe.path for exe in selected_executables}),
                 sorted({modules[module] for module in aggregate_checks}
                        | {exe.source.relative_to(root.resolve()).as_posix()
-                          for exe in selected_executables}))
+                          for exe in selected_executables}), sorted(deferred))
 
 
 def run_check(root: Path, command: list[str], label: str, *, progress: bool = False) -> int:
@@ -389,12 +424,14 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     args.add_argument("--no-full-fallback", action="store_true",
                       help="when quick mode cannot plan the change, report why and exit with status "
                            f"{NO_FALLBACK_STATUS} instead of running the full check")
+    args.add_argument("--focused", action="store_true",
+                      help="defer unedited global test leaves to CI and exit 3 on unsupported changes")
     options = args.parse_args(argv)
     root = root or Path(__file__).resolve().parent.parent
     try:
-        plan = make_plan(root, options.base)
+        plan = make_plan(root, options.base, focused=options.focused)
     except (FullCheck, OSError, ValueError, TypeError) as error:
-        if options.no_full_fallback:
+        if options.no_full_fallback or options.focused:
             print(f"Quick check cannot plan this change: {error}. Build the changed modules and "
                   "their clients directly, or let CI run the full check.", flush=True)
             return NO_FALLBACK_STATUS
@@ -405,6 +442,8 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
           flush=True)
     print("This is not full validation: lint covers only the affected library modules, and the "
           "test, style, init-import gates and post-build audits are skipped.", flush=True)
+    if plan.deferred:
+        print("Whole-library tests deferred to CI: " + ", ".join(plan.deferred), flush=True)
     for label, command in plan.checks:
         status = run_check(root, command, label)
         if status:

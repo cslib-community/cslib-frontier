@@ -108,8 +108,8 @@ This module formalizes:
    two-stage strict-PPT word-level forger, `wordProbPadTest` builds that test and
    `isPPTOn_wordProbPadTest` certifies it. These are concrete bounds and certificates only. The
    pad `F(k, 0ⁿ)` is the first pad of the counter MAC of item 6, so the asymptotic statement for
-   this one-query variant is the one-query case of
-   `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`.
+   this one-query variant is the one-query case of the statistical-DUF step
+   `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`.
 6. **Full nonce-based Carter–Wegman MAC (`NonceForger`, `nonceFnHandler`, `nonceSimHandler`,
    `reconstructPadFn`, `checkNonceSUF`, `checkNonceEUF`, `nonceStrongGame`, `nonceGame`,
    `nonceStrongGame_le_max`, `nonceStrongGame_le`, `nonceGame_le_max`, `nonceGame_le`,
@@ -117,21 +117,24 @@ This module formalizes:
    `prfNonceToPrfDistinguisher`, `isOraclePPT_prfNonceToPrfDistinguisher`,
    `eval_prfRealGame_prfNonceToPrfDistinguisher`,
    `eval_prfIdealGame_prfNonceToPrfDistinguisher_le`, `sufCmaGame_carterWegmanNonceMAC_toReal_le`,
-   `PseudorandomFunction.sufCma_carterWegmanNonceMAC`,
-   `PseudorandomFunction.eufCma_carterWegmanNonceMAC`,
-   `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`)**: models Boneh–Shoup Attack
-   Game 7.4 and Theorem 7.10 ([BonehShoup2023], Section 7.5.1, p. 274) both
-   information-theoretically and computationally (`NonceMACScheme`), where the adversary adaptively
-   chooses distinct signing nonces `x_i : N` and outputs a candidate forgery `((m', x'), t')` at
-   any (issued or unissued) nonce `x'`, achieving forgery probability at most
-   `max ε (1 / |Y|) ≤ ε + 1 / |Y|` under a random function `rf ← PMF.uniformOfFintype (N → Y)`,
-   and at most `ε.toReal + (2 ^ n)⁻¹` plus the PRF advantage of the explicit oracle-PPT reduction
-   `prfNonceToPrfDistinguisher` for the word-level scheme `carterWegmanNonceMAC`. Asymptotic
-   `NonceMACScheme.SUFCMA` and `NonceMACScheme.EUFCMA` security then follow for every oracle-PPT
-   forger from `PseudorandomFunction family` and `Negligible ε`, given efficient hash-key sampling
-   and hash evaluation. With the nonce implemented as an `n`-bit counter by a stateful signer
-   (Section 7.5 and the remark after Theorem 7.10), `NonceMACScheme.SUFCMA.counterSufCma` gives
-   `NonceMACScheme.CounterSUFCMA`.
+   `PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF`,
+   `PseudorandomFunction.eufCma_carterWegmanNonceMAC_of_statisticalDUF`,
+   `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`)**: models
+   Boneh–Shoup Attack Game 7.4 ([BonehShoup2023], Section 7.5.1, p. 274) and the steps of the
+   proof of Theorem 7.10 (p. 274), both information-theoretically and computationally
+   (`NonceMACScheme`), where the adversary adaptively chooses distinct signing nonces `x_i : N` and
+   outputs a candidate forgery `((m', x'), t')` at any (issued or unissued) nonce `x'`, achieving
+   forgery probability at most `max ε (1 / |Y|) ≤ ε + 1 / |Y|` under a random function
+   `rf ← PMF.uniformOfFintype (N → Y)`, and at most `ε.toReal + (2 ^ n)⁻¹` plus the PRF advantage
+   of the explicit oracle-PPT reduction `prfNonceToPrfDistinguisher` for the word-level scheme
+   `carterWegmanNonceMAC`. The asymptotic `NonceMACScheme.SUFCMA` and `NonceMACScheme.EUFCMA`
+   statements, and `NonceMACScheme.CounterSUFCMA` for the nonce implemented as an `n`-bit counter
+   by a stateful signer (Section 7.5 and the remark after Theorem 7.10, via
+   `NonceMACScheme.SUFCMA.counterSufCma`), are statistical-DUF steps toward Theorem 7.10, not the
+   theorem. They hold for every oracle-PPT forger given `PseudorandomFunction family`, efficient
+   hash-key sampling and hash evaluation, and a hash that is an `ε n`-DUF with `Negligible ε`: a
+   statistical DUF ([BonehShoup2023], Definition 7.5, p. 269), where Theorem 7.10 assumes only a
+   computational DUF (Attack Game 7.3, p. 268). The computational-DUF theorem is open (#5293).
 7. **Randomized Carter–Wegman MAC (`RandomNonceForger`, `randomNonceFnHandler`,
    `randomNonceSimHandler`, `checkRandomNonceSUF`, `checkRandomNonceEUF`,
    `randomNonceStrongGame`, `randomNonceGame`, `randomNonceStrongGame_le`, `randomNonceGame_le`,
@@ -141,23 +144,29 @@ This module formalizes:
    `eval_prfRealGame_prfRandomNonceToPrfDistinguisher`,
    `eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le`,
    `sufCmaGame_carterWegmanRandomMAC_toReal_le`,
-   `PseudorandomFunction.sufCma_carterWegmanRandomMAC`,
-   `PseudorandomFunction.eufCma_carterWegmanRandomMAC`,
-   `PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC`)**: models Boneh–Shoup Section 7.4,
-   Theorem 7.9 ([BonehShoup2023], pp. 267–270) both information-theoretically and computationally
-   (`MACScheme`), where the signer samples a fresh uniform nonce `x_i ← PMF.uniformOfFintype N` on
-   each signing query, bounding any `Q`-query adaptive forger's winning probability by
+   `PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`,
+   `PseudorandomFunction.eufCma_carterWegmanRandomMAC_of_statisticalDUF`,
+   `PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC_of_statisticalDUF`)**: models
+   Boneh–Shoup Section 7.4 ([BonehShoup2023], pp. 267–270) and the steps of the proof of
+   Theorem 7.9 (p. 270), both information-theoretically and computationally (`MACScheme`), where
+   the signer samples a fresh uniform nonce `x_i ← PMF.uniformOfFintype N` on each signing query,
+   bounding any `Q`-query adaptive forger's winning probability by
    `((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0∞) / |N| + max ε (1 / |Y|) ≤`
    `Q ^ 2 / (2 * |N|) + 1 / |Y| + ε`
    under a random function, adding the PRF distinguishing advantage of the explicit oracle-PPT
-   reduction `prfRandomNonceToPrfDistinguisher` for the word-level scheme `carterWegmanRandomMAC`,
-   and proving asymptotic `MACScheme.SUFCMA`, `MACScheme.EUFCMA`, and `MACScheme.OneTimeEUFCMA`
-   security for every oracle-PPT forger under `PseudorandomFunction family` and `Negligible ε`.
+   reduction `prfRandomNonceToPrfDistinguisher` for the word-level scheme `carterWegmanRandomMAC`.
+   The asymptotic `MACScheme.SUFCMA`, `MACScheme.EUFCMA` and `MACScheme.OneTimeEUFCMA` statements
+   are statistical-DUF steps toward Theorem 7.9, not the theorem. They hold for every oracle-PPT
+   forger given `PseudorandomFunction family` and a hash that is an `ε n`-DUF with `Negligible ε`:
+   a statistical DUF ([BonehShoup2023], Definition 7.5, p. 269), where Theorem 7.9 assumes only a
+   computational DUF (Attack Game 7.3, p. 268). The computational-DUF theorem is open (#5293).
 8. **Concrete instantiations** for Carter–Wegman polynomial hashing (`xpolyHash`, bound
    `(ℓ + 1) / |F|`), Boolean-matrix linear hashing (`BitString.LinearHash.hash` and computational
    `linearHashNonceMAC` / `linearHashRandomMAC` via `BitString.LinearHash.wordHash`, bound `2⁻ᵐ`),
    subset-sum hashing (`BitString.SubsetSum.hash`, bound `1 / |G|`), and pairwise independent
-   hash families (`IsPairwiseIndependentHash`, bound `1 / |Y|`).
+   hash families (`IsPairwiseIndependentHash`, bound `1 / |Y|`). The linear hash is a `2⁻ⁿ`-DUF,
+   hence a statistical DUF, so for `linearHashNonceMAC` and `linearHashRandomMAC` the steps of
+   items 6 and 7 give Theorems 7.10 and 7.9 themselves.
 
 ## Main definitions
 
@@ -254,12 +263,14 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfNonceToPrfDistinguisher_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_carterWegmanNonceMAC_toReal_le`,
-  `Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanNonceMAC`,
-  `Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanNonceMAC`,
-  `Cslib.Crypto.PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`: full nonce-based
-  Carter–Wegman security (Boneh–Shoup Attack Game 7.4 and Theorem 7.10), and its counter-nonce
-  stateful use.
+  `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_carterWegmanNonceMAC_toReal_le`: full
+  nonce-based Carter–Wegman bounds (Boneh–Shoup Attack Game 7.4, after Theorem 7.10).
+* `Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF`,
+  `Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanNonceMAC_of_statisticalDUF`,
+  `Cslib.Crypto.PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`:
+  statistical-DUF steps toward Boneh–Shoup Theorem 7.10 (p. 274), and its counter-nonce stateful
+  use, for a hash that is an `ε n`-DUF with negligible `ε`; the computational-DUF theorem is open
+  (#5293).
 * `Cslib.Crypto.Protocols.CarterWegman.uniform_bind_run_interpret_randomNonceFnHandler`,
 `Cslib.Crypto.Protocols.CarterWegman.probOracleComp_uniform_bind_run_interpret_randomNonceFnHandler`
   (`ProbOracleComp` lift),
@@ -272,11 +283,13 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfRandomNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfRandomNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_carterWegmanRandomMAC_toReal_le`,
-  `Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanRandomMAC`,
-  `Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanRandomMAC`,
-  `Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC`: randomized Carter–Wegman
-  security (Boneh–Shoup Section 7.4, Theorem 7.9, p. 270).
+  `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_carterWegmanRandomMAC_toReal_le`: randomized
+  Carter–Wegman bounds (after Boneh–Shoup Section 7.4, Theorem 7.9, p. 270).
+* `Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`,
+  `Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanRandomMAC_of_statisticalDUF`,
+  `Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC_of_statisticalDUF`:
+  statistical-DUF steps toward Boneh–Shoup Theorem 7.9 (p. 270), for a hash that is an `ε n`-DUF
+  with negligible `ε`; the computational-DUF theorem is open (#5293).
 * `Cslib.Crypto.Protocols.CarterWegman.oneTimeGame_xpolyHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.counterGame_xpolyHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceStrongGame_xpolyHash_le`,
@@ -1092,7 +1105,7 @@ theorem isOraclePPT_prfPadDistinguisher
   have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun p : ℕ × List Bool =>
         List.take p.1 <$> ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   apply IsOraclePPTOn.isOraclePPT
   exact hq.bind_with ((htest.preprocess
     (prepare := fun p : (ℕ × List Bool) × List Bool => (p.1.1, p.2))
@@ -1653,9 +1666,10 @@ theorem nonceGame_le_nonceStrongGame (seed : PMF K) (hash : K → M → Y)
     nonceGame seed hash forger true ≤ nonceStrongGame seed hash forger true :=
   maskedNonceGame_le_maskedNonceStrongGame seed (PMF.uniformOfFintype (N → Y)) hash forger
 
-/-- **Ideal nonce-based Carter–Wegman SUF-CMA security (`max` bound)** ([BonehShoup2023],
-Section 7.5.1, Theorem 7.10, p. 274): under `IsDeltaUniversalHash seed hash ε`, every adaptive
-`NonceForger` wins `nonceStrongGame` with probability at most `max ε (Fintype.card Y : ℝ≥0∞)⁻¹`. -/
+/-- **Ideal nonce-based Carter–Wegman SUF-CMA security (`max` bound)**, a step of the proof of
+[BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), with a truly random function in place of
+the PRF: under `IsDeltaUniversalHash seed hash ε`, every adaptive `NonceForger` wins
+`nonceStrongGame` with probability at most `max ε (Fintype.card Y : ℝ≥0∞)⁻¹`. -/
 theorem nonceStrongGame_le_max {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : NonceForger M N Y) :
     nonceStrongGame seed hash forger true ≤ max ε (Fintype.card Y : ℝ≥0∞)⁻¹ := by
@@ -1678,9 +1692,9 @@ theorem nonceStrongGame_le_max {seed : PMF K} {hash : K → M → Y} {ε : ℝ�
   pmf_hoist ((OracleComp.interpret nonceSimHandler (forger.forge s)).run [])
   exact bind_apply_le_on_support _ fun ⟨out, tr⟩ _ => seed_uniform_checkNonceSUF_le hh tr out
 
-/-- **Ideal nonce-based Carter–Wegman SUF-CMA security (`+` bound)** ([BonehShoup2023],
-Section 7.5.1, Theorem 7.10, p. 274): winning probability is at most
-`ε + (Fintype.card Y : ℝ≥0∞)⁻¹`. -/
+/-- **Ideal nonce-based Carter–Wegman SUF-CMA security (`+` bound)**, a step of the proof of
+[BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), with a truly random function in place of
+the PRF: winning probability is at most `ε + (Fintype.card Y : ℝ≥0∞)⁻¹`. -/
 theorem nonceStrongGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : NonceForger M N Y) :
     nonceStrongGame seed hash forger true ≤ ε + (Fintype.card Y : ℝ≥0∞)⁻¹ :=
@@ -1903,8 +1917,8 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
           ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         cwNonceLogHandler msgLen hash p.1.1.1 p.1.2 p.2.1 p.2.2) := by
     unfold cwNonceLogHandler
-    exact IsOraclePPTOn.cond' (by fun_prop)
-      ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop))
+    exact IsOraclePPTOn.cond (by fun_prop)
+      ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
       ((show ComputableInPolyTime
         (fun p : ((ℕ × List Bool) × List Bool) ×
             ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
@@ -1953,10 +1967,10 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
       (fun p : ((ℕ × List Bool) × List Bool) ×
           (((List Bool × List Bool) × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         List.take p.1.1.1 <$> ProbOracleComp.query ((), p.2.1.1.2)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   unfold prfNonceToPrfDistinguisher
   apply IsOraclePPTOn.isOraclePPT
-  exact hk.bind_with (hrun.bind_with (hq.map_with' (by
+  exact hk.bind_with (hrun.bind_with (hq.map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)))
 
@@ -2213,10 +2227,11 @@ private theorem eval_cwNonceLogHandler_randomFunctionOracle_le
           exact hsub.trans (List.sublist_append_left _ _)
         exact ih [] (((msg, nonce), []) :: init) tr hsub'
 
-/-- **Ideal-game bound for `prfNonceToPrfDistinguisher`** ([BonehShoup2023], Section 7.5.1,
-Theorem 7.10, p. 274): under `IsDeltaUniversalHash (ProbComp.eval (seed n)) ... ε`, the ideal-game
-acceptance probability of `prfNonceToPrfDistinguisher msgLen seed hash adversary` at parameter `n`
-is at most `max ε ((2 : ℝ≥0∞) ^ n)⁻¹`. -/
+/-- **Ideal-game bound for `prfNonceToPrfDistinguisher`**, a step of the proof of
+[BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274): under
+`IsDeltaUniversalHash (ProbComp.eval (seed n)) ... ε`, the ideal-game acceptance probability of
+`prfNonceToPrfDistinguisher msgLen seed hash adversary` at parameter `n` is at most
+`max ε ((2 : ℝ≥0∞) ^ n)⁻¹`. -/
 theorem eval_prfIdealGame_prfNonceToPrfDistinguisher_le
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool} {n : ℕ} {ε : ℝ≥0∞}
@@ -2279,9 +2294,10 @@ theorem eval_prfIdealGame_prfNonceToPrfDistinguisher_le
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
     seed_uniform_checkNonceSUF_le hh tr (toBitTriple (msgLen n) n out.1)
 
-/-- **Quantitative SUF-CMA bound for `carterWegmanNonceMAC`** ([BonehShoup2023], Section 7.5.1,
-Theorem 7.10, p. 274): at security parameter `n`, the SUF-CMA forgery probability of any
-`NonceMACForger` against `carterWegmanNonceMAC` is at most `ε.toReal + (2 ^ n)⁻¹` plus the PRF
+/-- **Quantitative SUF-CMA bound for `carterWegmanNonceMAC`** (after [BonehShoup2023],
+Theorem 7.10, Section 7.5.1, p. 274, for a hash that is an `ε`-DUF at parameter `n`, with `ε` in
+place of the theorem's DUF advantage): at security parameter `n`, the SUF-CMA forgery probability of
+any `NonceMACForger` against `carterWegmanNonceMAC` is at most `ε.toReal + (2 ^ n)⁻¹` plus the PRF
 distinguishing advantage of `prfNonceToPrfDistinguisher msgLen seed hash adversary`. -/
 theorem sufCmaGame_carterWegmanNonceMAC_toReal_le
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
@@ -2325,11 +2341,18 @@ theorem sufCmaGame_carterWegmanNonceMAC_toReal_le
       (ProbComp.eval (prfIdealGame id id
         (prfNonceToPrfDistinguisher msgLen seed hash adversary) n) true).toReal)]
 
-/-- **Asymptotic `NonceMACScheme.SUFCMA` security of `carterWegmanNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): if `family` is a `PseudorandomFunction`
-and `(seed n, hash n)` is an `(ε n)`-almost-Δ-universal hash family on `BitString (msgLen n)` into
-`BitString n` with `Negligible ε`, then `carterWegmanNonceMAC` satisfies `NonceMACScheme.SUFCMA`. -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanNonceMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), not the
+cited result: if `family` is a `PseudorandomFunction` and `(seed n, hash n)` is an
+`(ε n)`-almost-Δ-universal hash family on `BitString (msgLen n)` into `BitString n` with
+`Negligible ε`, then `carterWegmanNonceMAC` satisfies `NonceMACScheme.SUFCMA`.
+
+The hash is assumed to be an `ε n`-DUF with negligible `ε`, that is, a statistical DUF
+([BonehShoup2023], Definition 7.5, p. 269), whose bound holds against every adversary, efficient or
+not. Theorem 7.10 is stated with the notation of Theorem 7.9 (p. 270) and assumes only a
+computational DUF: negligible advantage in Attack Game 7.3 (p. 268) for every efficient adversary.
+Every statistical DUF is a computational DUF, so this premise is the stronger one and the theorem
+does not follow from this step. The computational-DUF theorem is open (#5293). -/
+theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -2351,9 +2374,13 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanNonceMAC
     sufCmaGame_carterWegmanNonceMAC_toReal_le hmsgLen hseed hhash hprf.polyTime
       (hh n) ENNReal.coe_ne_top adversary
 
-/-- **Asymptotic `NonceMACScheme.EUFCMA` security of `carterWegmanNonceMAC`**
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274). -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanNonceMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), not the
+cited result: `NonceMACScheme.EUFCMA` security of `carterWegmanNonceMAC` under the premises of
+`PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF`. The hash is assumed to be an
+`ε n`-DUF with negligible `ε`, a statistical DUF ([BonehShoup2023], Definition 7.5, p. 269), where
+the theorem assumes only a computational DUF (Attack Game 7.3, p. 268). The computational-DUF
+theorem is open (#5293). -/
+theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanNonceMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -2368,17 +2395,22 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanNonceMAC
       (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m))) (ε n))
     (hε : Negligible ε) :
     (carterWegmanNonceMAC msgLen seed hash family hmsgLen hseed hhash hprf.polyTime).EUFCMA :=
-  (hprf.sufCma_carterWegmanNonceMAC hmsgLen hseed hhash hh hε).eufCma
+  (hprf.sufCma_carterWegmanNonceMAC_of_statisticalDUF hmsgLen hseed hhash hh hε).eufCma
 
-/-- **Asymptotic counter SUF-CMA security of `carterWegmanNonceMAC`** ([BonehShoup2023],
-Section 7.5 and the remark after Theorem 7.10, p. 274): under the premises of
-`PseudorandomFunction.sufCma_carterWegmanNonceMAC`, a stateful signer that tags its `j`-th message
-under the `n`-bit counter nonce `BitString.lowBits n j`, for at most `2 ^ n` messages, is strongly
-unforgeable against every oracle-PPT forger (`NonceMACScheme.CounterSUFCMA`). The reduction is the
-explicit `NonceMACScheme.counterForger`, certified by `NonceMACScheme.isOraclePPT_counterForger`.
-The first counter nonce is `0ⁿ`, the fixed nonce of `prfOneTimeGame`, so a forgery against that
-one-time MAC is a counter forgery after one signing query. -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.counterSufCma_carterWegmanNonceMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.10 (Section 7.5.1, p. 274), not the
+cited result: with the nonce implemented as a counter (Section 7.5 and the remark after
+Theorem 7.10, p. 274), under the premises of
+`PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF`, a stateful signer that tags
+its `j`-th message under the `n`-bit counter nonce `BitString.lowBits n j`, for at most `2 ^ n`
+messages, is strongly unforgeable against every oracle-PPT forger
+(`NonceMACScheme.CounterSUFCMA`). The reduction is the explicit `NonceMACScheme.counterForger`,
+certified by `NonceMACScheme.isOraclePPT_counterForger`. The first counter nonce is `0ⁿ`, the fixed
+nonce of `prfOneTimeGame`, so a forgery against that one-time MAC is a counter forgery after one
+signing query. The hash is assumed to be an `ε n`-DUF with negligible `ε`, a statistical DUF
+([BonehShoup2023], Definition 7.5, p. 269), where the theorem assumes only a computational DUF
+(Attack Game 7.3, p. 268). The computational-DUF theorem is open (#5293). -/
+theorem
+    _root_.Cslib.Crypto.PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -2394,7 +2426,7 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.counterSufCma_carterWegmanNonce
     (hε : Negligible ε) :
     (carterWegmanNonceMAC msgLen seed hash family hmsgLen hseed hhash
       hprf.polyTime).CounterSUFCMA :=
-  (hprf.sufCma_carterWegmanNonceMAC hmsgLen hseed hhash hh hε).counterSufCma
+  (hprf.sufCma_carterWegmanNonceMAC_of_statisticalDUF hmsgLen hseed hhash hh hε).counterSufCma
 
 end Nonce
 
@@ -2802,9 +2834,10 @@ private theorem sum_range_div_add_max_le (Q cN cY : ℕ) (ε : ℝ≥0∞) :
   rw [add_assoc]
   exact add_le_add hsum hmax
 
-/-- **Ideal randomized Carter–Wegman SUF-CMA security (`∑ i < Q` + `max` bound)**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): under `IsDeltaUniversalHash seed hash ε`,
-any `Q`-query-bounded `RandomNonceForger` wins `randomNonceStrongGame` with probability at most
+/-- **Ideal randomized Carter–Wegman SUF-CMA security (`∑ i < Q` + `max` bound)**, a step of the
+proof of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), with a truly random function in place
+of the PRF: under `IsDeltaUniversalHash seed hash ε`, any `Q`-query-bounded `RandomNonceForger`
+wins `randomNonceStrongGame` with probability at most
 `((∑ i ∈ Finset.range Q, i : ℕ) : ℝ≥0∞) / Fintype.card N + max ε (Fintype.card Y : ℝ≥0∞)⁻¹`. -/
 theorem randomNonceStrongGame_le_sum_add_max {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) {forger : RandomNonceForger M N Y} {Q : ℕ}
@@ -2820,9 +2853,10 @@ theorem randomNonceStrongGame_le_sum_add_max {seed : PMF K} {hash : K → M → 
     seed_uniform_probOracleComp_checkRandomNonceSUF_le_sum_add_max hh
       (OracleComp.IsCostBounded.liftRight (hforger s) fun _ => le_rfl) (fun x => x)
 
-/-- **Ideal randomized Carter–Wegman SUF-CMA security** ([BonehShoup2023], Section 7.4,
-Theorem 7.9, p. 270): under `IsDeltaUniversalHash seed hash ε`, any `Q`-query-bounded
-`RandomNonceForger` wins `randomNonceStrongGame` with probability at most
+/-- **Ideal randomized Carter–Wegman SUF-CMA security**, a step of the proof of [BonehShoup2023],
+Theorem 7.9 (Section 7.4, p. 270), with a truly random function in place of the PRF: under
+`IsDeltaUniversalHash seed hash ε`, any `Q`-query-bounded `RandomNonceForger` wins
+`randomNonceStrongGame` with probability at most
 `(Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + (Fintype.card Y : ℝ≥0∞)⁻¹ + ε`. -/
 theorem randomNonceStrongGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) {forger : RandomNonceForger M N Y} {Q : ℕ}
@@ -2831,8 +2865,9 @@ theorem randomNonceStrongGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ
       (Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + (Fintype.card Y : ℝ≥0∞)⁻¹ + ε :=
   (randomNonceStrongGame_le_sum_add_max hh hforger).trans (sum_range_div_add_max_le _ _ _ _)
 
-/-- **Ideal randomized Carter–Wegman EUF-CMA (message-freshness) security** ([BonehShoup2023],
-Section 7.4, Theorem 7.9, p. 270). -/
+/-- **Ideal randomized Carter–Wegman EUF-CMA (message-freshness) security**, after the proof of
+[BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), with a truly random function in place of the
+PRF. -/
 theorem randomNonceGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) {forger : RandomNonceForger M N Y} {Q : ℕ}
     (hforger : ∀ s, (forger.forge s).IsQueryBounded Q) :
@@ -3039,8 +3074,8 @@ private theorem isOraclePPTOn_cwRandomNonceLogHandler
           let fullTag := encPair encBits encBits (nonce, tag)
           (fullTag, (msg, fullTag) :: q.1.2.2)) <$>
           (List.take q.1.1.1.1 <$> ProbOracleComp.query ((), q.2))) :=
-    (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop)
-  exact IsOraclePPTOn.cond' (by fun_prop) (hsample.bind_with hquery)
+    (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop)
+  exact IsOraclePPTOn.cond (by fun_prop) (hsample.bind_with hquery)
     ((show ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) ×
           ((Unit × List Bool) × List (List Bool × List Bool)) =>
@@ -3072,7 +3107,7 @@ private theorem isOraclePPTOn_cwRandomNonceCheck
             !p.2.2.contains p.2.1 &&
             (encPair encBits encBits (nonce, tag) == fullTag)) <$>
           (List.take p.1.1.1 <$> ProbOracleComp.query ((), unframe p.2.1.2))) :=
-  (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by
+  (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)
 
@@ -3133,8 +3168,8 @@ theorem isOraclePPT_prfRandomNonceToPrfDistinguisher
   apply IsOraclePPTOn.isOraclePPT
   exact hk.bind_with (hrun.bind_with hcheck)
 
-/-- **Real-game simulation for `prfRandomNonceToPrfDistinguisher`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): running `prfRandomNonceToPrfDistinguisher` in
+/-- **Real-game simulation for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
+[BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270): running `prfRandomNonceToPrfDistinguisher` in
 `prfRealGame id family` at security parameter `n` has the exact same acceptance distribution as the
 computational `MACScheme.sufCmaGame` of `carterWegmanRandomMAC`. -/
 theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
@@ -3416,8 +3451,8 @@ private theorem eval_cwRandomNonceLogHandler_randomFunctionOracle_le
           exact hsub.trans (List.sublist_append_left _ _)
         exact ih [] ((msg, []) :: init) tr hsub'
 
-/-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): under
+/-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
+[BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270): under
 `IsDeltaUniversalHash (ProbComp.eval (seed n)) ... ε`, if `adversary n []` makes at most `Q` signing
 queries, the ideal-game acceptance probability of
 `prfRandomNonceToPrfDistinguisher msgLen seed hash adversary` at parameter `n` is at most
@@ -3470,9 +3505,10 @@ theorem eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le
     seed_uniform_probOracleComp_checkRandomNonceSUF_le hh hq_adapt
       (fun out => toRandomBitTriple msgLen n out.1)
 
-/-- **Quantitative SUF-CMA bound for `carterWegmanRandomMAC`** ([BonehShoup2023], Section 7.4,
-Theorem 7.9, p. 270): at security parameter `n`, the SUF-CMA forgery probability of any `Q`-query
-`Forger` against `carterWegmanRandomMAC` is at most
+/-- **Quantitative SUF-CMA bound for `carterWegmanRandomMAC`** (after [BonehShoup2023],
+Theorem 7.9, Section 7.4, p. 270, for a hash that is an `ε`-DUF at parameter `n`, with `ε` in place
+of the theorem's DUF advantage): at security parameter `n`, the SUF-CMA forgery probability of any
+`Q`-query `Forger` against `carterWegmanRandomMAC` is at most
 `(Q : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) + ((2 : ℝ) ^ n)⁻¹ + ε.toReal` plus the PRF distinguishing
 advantage of `prfRandomNonceToPrfDistinguisher msgLen seed hash adversary`. -/
 theorem sufCmaGame_carterWegmanRandomMAC_toReal_le
@@ -3527,11 +3563,18 @@ theorem sufCmaGame_carterWegmanRandomMAC_toReal_le
         (prfIdealGame id id
           (prfRandomNonceToPrfDistinguisher msgLen seed hash adversary) n) true).toReal)]
 
-/-- **Asymptotic `MACScheme.SUFCMA` security of `carterWegmanRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): if `family` is a `PseudorandomFunction` and
-`(seed n, hash n)` is an `(ε n)`-almost-Δ-universal hash family on `BitString (msgLen n)` into
-`BitString n` with `Negligible ε`, then `carterWegmanRandomMAC` satisfies `MACScheme.SUFCMA`. -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanRandomMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), not the cited
+result: if `family` is a `PseudorandomFunction` and `(seed n, hash n)` is an
+`(ε n)`-almost-Δ-universal hash family on `BitString (msgLen n)` into `BitString n` with
+`Negligible ε`, then `carterWegmanRandomMAC` satisfies `MACScheme.SUFCMA`.
+
+The hash is assumed to be an `ε n`-DUF with negligible `ε`, that is, a statistical DUF
+([BonehShoup2023], Definition 7.5, p. 269), whose bound holds against every adversary, efficient or
+not. Theorem 7.9 assumes only a computational DUF: negligible advantage in Attack Game 7.3
+(p. 268) for every efficient adversary. Every statistical DUF is a computational DUF, so this
+premise is the stronger one and the theorem does not follow from this step. The computational-DUF
+theorem is open (#5293). -/
+theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -3555,9 +3598,13 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_carterWegmanRandomMAC
     sufCmaGame_carterWegmanRandomMAC_toReal_le hmsgLen hseed hhash hprf.polyTime
       (hh n) ENNReal.coe_ne_top (by simpa [Q] using (hbound n []).1)
 
-/-- **Asymptotic `MACScheme.EUFCMA` security of `carterWegmanRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanRandomMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), not the cited
+result: `MACScheme.EUFCMA` security of `carterWegmanRandomMAC` under the premises of
+`PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. The hash is assumed to be an
+`ε n`-DUF with negligible `ε`, a statistical DUF ([BonehShoup2023], Definition 7.5, p. 269), where
+the theorem assumes only a computational DUF (Attack Game 7.3, p. 268). The computational-DUF
+theorem is open (#5293). -/
+theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanRandomMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -3572,11 +3619,16 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_carterWegmanRandomMAC
       (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m))) (ε n))
     (hε : Negligible ε) :
     (carterWegmanRandomMAC msgLen seed hash family hmsgLen hseed hhash hprf.polyTime).EUFCMA :=
-  (hprf.sufCma_carterWegmanRandomMAC hmsgLen hseed hhash hh hε).eufCma
+  (hprf.sufCma_carterWegmanRandomMAC_of_statisticalDUF hmsgLen hseed hhash hh hε).eufCma
 
-/-- **Asymptotic `MACScheme.OneTimeEUFCMA` security of `carterWegmanRandomMAC`**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270). -/
-theorem _root_.Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC
+/-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), not the cited
+result: `MACScheme.OneTimeEUFCMA` security of `carterWegmanRandomMAC` under the premises of
+`PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. The hash is assumed to be an
+`ε n`-DUF with negligible `ε`, a statistical DUF ([BonehShoup2023], Definition 7.5, p. 269), where
+the theorem assumes only a computational DUF (Attack Game 7.3, p. 268). The computational-DUF
+theorem is open (#5293). -/
+theorem
+    _root_.Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_carterWegmanRandomMAC_of_statisticalDUF
     {msgLen : ℕ → ℕ} {seed : ℕ → ProbComp (List Bool)}
     {hash : ℕ → List Bool → List Bool → List Bool}
     {family : List Bool → List Bool → List Bool}
@@ -3592,7 +3644,7 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.oneTimeEUFCMA_carterWegmanRando
     (hε : Negligible ε) :
     (carterWegmanRandomMAC msgLen seed hash family
       hmsgLen hseed hhash hprf.polyTime).OneTimeEUFCMA :=
-  (hprf.sufCma_carterWegmanRandomMAC hmsgLen hseed hhash hh hε).oneTimeEUFCMA
+  (hprf.sufCma_carterWegmanRandomMAC_of_statisticalDUF hmsgLen hseed hhash hh hε).oneTimeEUFCMA
 
 end Randomized
 
@@ -3693,10 +3745,11 @@ theorem counterGame_of_isPairwiseIndependentHash_le {K M Y : Type} [Fintype K] [
     counterGame (PMF.uniformOfFintype K) hash forger true ≤ (Fintype.card Y : ℝ≥0∞)⁻¹ :=
   counterGame_le hh.isDeltaUniversalHash forger
 
-/-- **Polynomial Carter–Wegman nonce-based MAC (`xpolyHash`)** ([BonehShoup2023], Section 7.4.1
-and Section 7.5.1, Theorem 7.10, p. 274): over a finite field `F` and finite nonce space `N`,
-authenticating messages of length at most `ℓ` via `xpolyHash` has adaptive nonce-based SUF-CMA
-forgery probability at most `(ℓ + 1) / |F|` (since `1 / |F| ≤ (ℓ + 1) / |F|`). -/
+/-- **Polynomial Carter–Wegman nonce-based MAC (`xpolyHash`)** (after [BonehShoup2023],
+Section 7.4.1 and Section 7.5.1, Theorem 7.10, p. 274, with a truly random function in place of the
+PRF): over a finite field `F` and finite nonce space `N`, authenticating messages of length at most
+`ℓ` via `xpolyHash` has adaptive nonce-based SUF-CMA forgery probability at most `(ℓ + 1) / |F|`
+(since `1 / |F| ≤ (ℓ + 1) / |F|`). -/
 theorem nonceStrongGame_xpolyHash_le {F N : Type} [Field F] [Fintype F] [DecidableEq F]
     [Fintype N] [DecidableEq N] (ℓ : ℕ)
     (forger : NonceForger {m : List F // m.length ≤ ℓ} N F) :
@@ -3717,9 +3770,10 @@ theorem nonceGame_xpolyHash_le {F N : Type} [Field F] [Fintype F] [DecidableEq F
       (ℓ + 1) / Fintype.card F :=
   (nonceGame_le_nonceStrongGame _ _ forger).trans (nonceStrongGame_xpolyHash_le ℓ forger)
 
-/-- **Polynomial Carter–Wegman randomized MAC (`xpolyHash`)** ([BonehShoup2023], Section 7.4,
-Theorem 7.9, p. 270): over a finite field `F` and nonempty finite nonce space `N`, any
-`Q`-query-bounded `RandomNonceForger` wins `randomNonceStrongGame` with probability at most
+/-- **Polynomial Carter–Wegman randomized MAC (`xpolyHash`)** (after [BonehShoup2023],
+Section 7.4, Theorem 7.9, p. 270, with a truly random function in place of the PRF): over a finite
+field `F` and nonempty finite nonce space `N`, any `Q`-query-bounded `RandomNonceForger` wins
+`randomNonceStrongGame` with probability at most
 `(Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + (Fintype.card F : ℝ≥0∞)⁻¹ + (ℓ + 1) / Fintype.card F`. -/
 theorem randomNonceStrongGame_xpolyHash_le {F N : Type} [Field F] [Fintype F] [DecidableEq F]
     [Fintype N] [Nonempty N] [DecidableEq N] (ℓ : ℕ)
@@ -3750,9 +3804,9 @@ theorem nonceGame_linearHash_le {N : Type} [Fintype N] [DecidableEq N] (n m : �
   (nonceGame_le_nonceStrongGame _ _ forger).trans (nonceStrongGame_linearHash_le n m forger)
 
 /-- **Boolean-matrix Carter–Wegman randomized MAC (`BitString.LinearHash.hash`)**
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): any `Q`-query-bounded `RandomNonceForger`
-wins `randomNonceStrongGame` with probability at most
-`(Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + ((2 : ℝ≥0∞) ^ m)⁻¹ + ((2 : ℝ≥0∞) ^ m)⁻¹`. -/
+(after [BonehShoup2023], Section 7.4, Theorem 7.9, p. 270, with a truly random function in place of
+the PRF): any `Q`-query-bounded `RandomNonceForger` wins `randomNonceStrongGame` with probability
+at most `(Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + ((2 : ℝ≥0∞) ^ m)⁻¹ + ((2 : ℝ≥0∞) ^ m)⁻¹`. -/
 theorem randomNonceStrongGame_linearHash_le {N : Type} [Fintype N] [Nonempty N] [DecidableEq N]
     (n m : ℕ) {forger : RandomNonceForger (BitString n) N (BitString m)} {Q : ℕ}
     (hforger : ∀ s, (forger.forge s).IsQueryBounded Q) :
@@ -3882,13 +3936,16 @@ private theorem isDeltaUniversalHash_linearHashWordHash_nnreal (msgLen : ℕ →
 /-- **Asymptotic `NonceMACScheme.SUFCMA` security of `linearHashNonceMAC`**
 ([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): for any `PseudorandomFunction family` and
 polynomial-time message-length schedule `msgLen`, `linearHashNonceMAC` satisfies
-`NonceMACScheme.SUFCMA`. -/
+`NonceMACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
+(`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
+([BonehShoup2023], Definition 7.5, p. 269), so this is Theorem 7.10 for this hash; it is proved
+through `PseudorandomFunction.sufCma_carterWegmanNonceMAC_of_statisticalDUF`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashNonceMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary) :
     (linearHashNonceMAC msgLen family hmsgLen hprf.polyTime).SUFCMA :=
-  hprf.sufCma_carterWegmanNonceMAC hmsgLen (isPPTOn_linearHashSeed hmsgLen)
+  hprf.sufCma_carterWegmanNonceMAC_of_statisticalDUF hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 
@@ -3903,8 +3960,9 @@ theorem _root_.Cslib.Crypto.PseudorandomFunction.eufCma_linearHashNonceMAC
 
 /-- **Asymptotic counter SUF-CMA security of `linearHashNonceMAC`** ([BonehShoup2023],
 Section 7.5 and the remark after Theorem 7.10, p. 274): the Boolean-matrix linear hash
-instance of `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`, whose only assumption is
-that `family` is a `PseudorandomFunction`. -/
+instance of `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC_of_statisticalDUF`, whose
+only assumption is that `family` is a `PseudorandomFunction`; the hash is a statistical DUF, as
+`PseudorandomFunction.sufCma_linearHashNonceMAC` explains. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.counterSufCma_linearHashNonceMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
@@ -3960,13 +4018,16 @@ theorem sufCmaGame_linearHashRandomMAC_toReal_le
 /-- **Asymptotic `MACScheme.SUFCMA` security of `linearHashRandomMAC`**
 ([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): for any `PseudorandomFunction family` and
 polynomial-time message-length schedule `msgLen`, `linearHashRandomMAC` satisfies
-`MACScheme.SUFCMA`. -/
+`MACScheme.SUFCMA`. The Boolean-matrix linear hash is a `2⁻ⁿ`-DUF
+(`isDeltaUniversalHash_linearHashWordHash`), hence a statistical and so a computational DUF
+([BonehShoup2023], Definition 7.5, p. 269), so this is Theorem 7.9 for this hash; it is proved
+through `PseudorandomFunction.sufCma_carterWegmanRandomMAC_of_statisticalDUF`. -/
 theorem _root_.Cslib.Crypto.PseudorandomFunction.sufCma_linearHashRandomMAC
     {msgLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family)
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary) :
     (linearHashRandomMAC msgLen family hmsgLen hprf.polyTime).SUFCMA :=
-  hprf.sufCma_carterWegmanRandomMAC hmsgLen (isPPTOn_linearHashSeed hmsgLen)
+  hprf.sufCma_carterWegmanRandomMAC_of_statisticalDUF hmsgLen (isPPTOn_linearHashSeed hmsgLen)
     computableInPolyTime_linearHashWordHash (isDeltaUniversalHash_linearHashWordHash_nnreal msgLen)
     negligible_inv_two_pow
 

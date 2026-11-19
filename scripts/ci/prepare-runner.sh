@@ -12,14 +12,18 @@ if [[ "${GITHUB_ACTIONS:-}" != true || "${RUNNER_ENVIRONMENT:-}" != github-hoste
 fi
 
 df -h / || true
-# Keep 100 GiB of headroom for cache restoration and compilation. Larger runners usually have
-# ample space already; deleting their preinstalled SDKs can otherwise take several minutes.
+# Operators can calibrate this against the peak disk samples in completed job summaries.
+minimum_gib=${SDK_CLEANUP_MIN_GIB:-100}
+if [[ ! "$minimum_gib" =~ ^[1-9][0-9]{0,3}$ ]]; then
+  echo "Invalid SDK_CLEANUP_MIN_GIB; using 100 GiB."
+  minimum_gib=100
+fi
 available_kib=
 if disk_report=$(df -Pk /); then
   read -r _ _ _ available_kib _ <<< "${disk_report##*$'\n'}"
 fi
-if [[ "$available_kib" =~ ^[0-9]+$ ]] && (( available_kib >= 100 * 1024 * 1024 )); then
-  echo "Skipping SDK cleanup: at least 100 GiB is already available."
+if [[ "$available_kib" =~ ^[0-9]+$ ]] && (( available_kib >= minimum_gib * 1024 * 1024 )); then
+  echo "Skipping SDK cleanup: at least ${minimum_gib} GiB is already available."
   exit 0
 fi
 # If the space query fails or cannot be parsed, retain the existing cleanup behavior.

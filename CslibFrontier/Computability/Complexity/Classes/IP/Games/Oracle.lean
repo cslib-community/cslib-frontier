@@ -1498,7 +1498,7 @@ private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
             (msg (arg.1.1, arg.1.2, arg.2.round, arg.2.transcript))) encArg encBits :=
       ComputableInPolyTime.bitsRowWithInput hnv (ComputableInPolyTime.const 0)
         (hmsg.comp (ha.prod (hc.prod (hj.prod hp))))
-    have hqry := IsOraclePPTOn.query_take' () hm hnp
+    have hqry := IsOraclePPTOn.query_take () hm hnp
     have hy : ComputableInPolyTime
         (fun p : ((α × List Bool) × SimState) × List Bool =>
           SimState.mk (p.1.2.round + 2) (p.1.2.transcript ++
@@ -1518,14 +1518,14 @@ private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
         (ComputableInPolyTime.bitsAppend (hp.comp ha1) (hm.comp ha1))
         (ComputableInPolyTime.bitsRowWithInput (hnp.comp ha1) (ComputableInPolyTime.const 0) hy2)
       exact encSimState_mk_polyTime hj' hp'
-    simpa only [oracleStep] using hqry.map_with' hy
+    simpa only [oracleStep] using hqry.map_with hy
   obtain ⟨c₁, d₁, hqlen⟩ := hq.polyBounded_length.exists_le
   obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le
   let D := max d₁ d₂
   have hcount : ComputableInPolyTime (fun ac : α × List Bool => q (enc ac.1).length)
       encAC encUnary :=
     hq.comp ((ComputableInPolyTime.encoding_length enc).comp (.fst _ _))
-  have hiter := IsOraclePPTOn.iterateWith_spec' (input := encAC) (stateEncoding := encSt)
+  have hiter := IsOraclePPTOn.iterateWith_spec (input := encAC) (stateEncoding := encSt)
     hcount (ComputableInPolyTime.const (SimState.mk 0 [])) hstepPPT
     (fun ac i st => st.round = 2 * i ∧
       st.transcript.length = IPGame.transcriptLength ((g (enc ac.1).length).take (2 * i)))

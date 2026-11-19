@@ -107,7 +107,8 @@ open scoped NNReal ENNReal
 /-- **MAC-then-Encrypt symmetric cipher**: signs `n`-bit messages under `km ← M.keyGen n` and
 encrypts the framed pair `encPair encBits encBits (msg, tag)` under `ke ← E.keyGen (ptLen n)` at
 security parameter `ptLen n`. Because `hpairLen` guarantees the framed `(msg, tag)` pair has length
-`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. -/
+`ptLen n`, decryption completeness follows directly from `E.decrypt_encrypt (ptLen n)`. Its
+ciphertext space is `E`'s at parameter `ptLen n`. -/
 @[expose]
 noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
@@ -132,6 +133,10 @@ noncomputable def macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
         some msg
       else
         none
+  ctSpace n := E.ctSpace (ptLen n)
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    rw [E.decrypt_eq_none_of_ctSpace_eq_false _ _ _ h]
+    rfl
   keyGen_ppt := by
     have hpt := hptLenPoly.tidy
     ppt
@@ -293,7 +298,7 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
         mteToCPAHandler M (GeneratorReindex.parameter ptLen p.1.1.1) (ctBound p.1.1.1)
           p.1.2 p.2) := by
     unfold mteToCPAHandler
-    exact IsOraclePPTOn.cond' hcond hyes hno
+    exact IsOraclePPTOn.cond hcond hyes hno
   have hprepare : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
@@ -352,7 +357,7 @@ theorem isOraclePPT_mteToCPAAdversary (M : MACScheme) (ptLen ctBound : ℕ → �
       (fun _ : ℕ × List Bool => (pure false : WordOracleComp Unit Bool)) :=
     (ComputableInPolyTime.const false).isOraclePPTOn (Operation := Unit)
   unfold mteToCPAAdversary
-  exact (IsOraclePPTOn.cond' houterCond hbody houterNo).isOraclePPT
+  exact (IsOraclePPTOn.cond houterCond hbody houterNo).isOraclePPT
 
 /-- When `ptLen` is strictly monotone and `ctBound (ptLen n)` bounds all ciphertexts produced by
 `E.encrypt (ptLen n)` on `ptLen n`-bit plaintexts under supported keys, `E.cpaGame` running
@@ -488,7 +493,8 @@ theorem indcpa_macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
 namespace SymmetricCipher
 
 /-- Trailing-bit malleable extension of `E`: appends `false` to every ciphertext on encryption and
-ignores the final bit (`ct.take (ct.length - 1)`) during decryption. -/
+ignores the final bit (`ct.take (ct.length - 1)`) during decryption. Its ciphertext space is the
+nonempty words whose prefix without the final bit lies in `E.ctSpace`. -/
 @[expose]
 noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
   keyGen := E.keyGen
@@ -497,6 +503,11 @@ noncomputable def extendCipher (E : SymmetricCipher) : SymmetricCipher where
     return c ++ [false]
   decrypt n k ct :=
     if ct.length == 0 then none else E.decrypt n k (ct.take (ct.length - 1))
+  ctSpace n ct := !(ct.length == 0) && E.ctSpace n (ct.take (ct.length - 1))
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by
+    split_ifs with hlen
+    · rfl
+    · exact E.decrypt_eq_none_of_ctSpace_eq_false n k _ (by simpa [hlen] using h)
   keyGen_ppt := E.keyGen_ppt
   encrypt_ppt := by ppt
   decrypt_polyTime := by polytime
@@ -558,7 +569,7 @@ theorem isOraclePPT_extendCPAAdversary {ctBound : ℕ → ℕ}
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         extendCPAHandler p.1.1 (ctBound p.1.1) p.2) := by
     unfold extendCPAHandler
-    exact IsOraclePPTOn.cond' hcond hquery hno
+    exact IsOraclePPTOn.cond hcond hquery hno
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 1)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -681,7 +692,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Bool) =>
         extendOneTimeCPAHandler pair.1.1 (ctBound pair.1.1) pair.2.1 pair.2.2) := by
     unfold extendOneTimeCPAHandler
-    exact IsOraclePPTOn.cond' hcond hquery hnoReply
+    exact IsOraclePPTOn.cond hcond hquery hnoReply
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 2)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -713,7 +724,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
   unfold extendOneTimeCPAAdversary
   simpa only [bind_pure_comp] using
-    (hrun.map' (ComputableInPolyTime.fst encBool encBool)).isOraclePPT
+    (hrun.map (ComputableInPolyTime.fst encBool encBool)).isOraclePPT
 
 /-- Equivalence between `E.cpaOneTimeGame` running `extendOneTimeCPAAdversary` and
 `E.extendCipher.cpaOneTimeGame` running `adversary`. -/

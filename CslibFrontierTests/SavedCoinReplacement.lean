@@ -89,7 +89,7 @@ example : ∃ (budget : ℕ → ℕ)
     have h : IsOraclePPTOn encBits encBits (fun input => machine.runOracle 2 input) := by
       simpa only [encBits_apply, pow_zero, mul_one] using
         (IsOraclePPTOn.of_machine (input := encBits) machine 2 0)
-    exact h.preprocess' (prepare := fun p : ℕ × List Bool => p.2) (by fun_prop)
+    exact h.preprocess (prepare := fun p : ℕ × List Bool => p.2) (by fun_prop)
   obtain ⟨_, _, _, native, c, d, keyC, keyD, hkeys, _, _, heq⟩ :=
     hsource.exists_savedCoins_of_keyGen gen_ppt
   refine ⟨savedCoinBudget c d keyC keyD,

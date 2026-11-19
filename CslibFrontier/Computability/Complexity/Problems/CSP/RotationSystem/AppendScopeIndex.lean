@@ -7,6 +7,7 @@ Authors: OpenAI
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceAppendIndex
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Logics.Propositional.CSP.Occurrence.AppendScope
 
@@ -23,6 +24,18 @@ public section
 namespace Cslib.Complexity.CSP
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP
+
+variable {Rel V : Type} [DecidableEq V]
+
+/-- Reindexing only a final scope preserves every original body incidence index. -/
+theorem incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl (F : CSP Rel V) (r : Rel) {n : ℕ}
+    (x : Fin n → V) (o : F.Occurrence) :
+    incidenceEdgeIndex (appendOfFnOccurrenceEquiv F r x (Sum.inl o)) = incidenceEdgeIndex o := by
+  have he : appendOfFnOccurrenceEquiv F r x (Sum.inl o) =
+      appendOccurrenceEquiv F [Constraint.mk r (List.ofFn x)] (Sum.inl o) := by
+    apply Occurrence.record_injective
+    rw [record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inl]
+  rw [he, incidenceEdgeIndex_appendOccurrenceEquiv_inl]
 
 /-- The appended argument's incidence edge is the body-prefix length plus its actual slot.
 The empty-scope case has no argument to select. Variable names need not be distinct. -/

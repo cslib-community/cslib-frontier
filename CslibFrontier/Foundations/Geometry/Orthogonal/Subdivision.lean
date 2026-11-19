@@ -445,28 +445,6 @@ theorem walk_nodup (a d : Point) (k : ℕ) (hd : UnitVector d) : (walk a d k).No
 theorem segmentWalk_nodup (a b : Point) : (segmentWalk a b).Nodup :=
   walk_nodup _ _ _ (direction_unit _ _)
 
-/-- Every supported point of a route with at least two listed points belongs to one of its
-consecutive segments. In this case separate degenerate pieces for listed points are redundant. -/
-theorem mem_support_segment {r : Route} (hlen : 2 ≤ r.length) {p : ℝ × ℝ}
-    (hp : p ∈ support r) : ∃ e ∈ r.consecutivePairs, p ∈ segment e.1 e.2 := by
-  induction r with
-  | nil => simp at hlen
-  | cons a r ih =>
-    cases r with
-    | nil => simp at hlen
-    | cons b r =>
-      rw [support_cons_cons] at hp
-      rcases hp with hp | hp
-      · exact ⟨(a, b), by simp [List.consecutivePairs], hp⟩
-      · cases r with
-        | nil =>
-          have hp' : p = realPoint b := by simpa [support, List.consecutivePairs] using hp
-          exact ⟨(a, b), by simp [List.consecutivePairs], hp' ▸ right_mem_segment ℝ _ _⟩
-        | cons c r =>
-          obtain ⟨e, he, hp⟩ := ih (by simp) hp
-          exact ⟨e, by simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons,
-            List.mem_cons] using Or.inr he, hp⟩
-
 /-- The first segment of a continuously simple route meets its tail only at their common
 listed endpoint. -/
 theorem first_segment_tail_contact {a b : Point} {r : Route}

@@ -11,7 +11,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
-import all CslibFrontier.Crypto.Primitives.ByteString
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Probability.PMF.UniformExtend
 
 /-!
@@ -29,82 +29,6 @@ namespace Cslib.Crypto.MLDSA.FIPS204
 
 open Cslib.Probability ExtendableOutput
 
-private abbrev RawWord (a : ℕ) := (n : Fin (a + 1)) × BitString n.val
-
-private def word {a : ℕ} (x : List Bool) (h : x.length ≤ a) : RawWord a :=
-  ⟨⟨x.length, by lia⟩, BitString.ofList x.length x⟩
-
-private abbrev Table (a b : ℕ) := RawWord a × Fin b → Byte
-
-private def install {a b : ℕ} (base : ExtendableOutput) (t : Table a b) : ExtendableOutput :=
-  base.withPrefixes fun x => if h : x.length ≤ a then
-    some (List.ofFn (fun i => t (word x h, i))) else none
-
-private theorem word_inj {a : ℕ} {x y : List Bool} {hx : x.length ≤ a} {hy : y.length ≤ a}
-    (h : word x hx = word y hy) : x = y := by
-  simpa only [word, BitString.ofFn_ofList rfl] using
-    congrArg (fun w : RawWord a => List.ofFn w.2) h
-
-private def rows (a b : ℕ) : (Table a b × Table a b) ≃ (Bool × RawWord a → FixedBytes b) where
-  toFun t w i := if w.1 then t.1 (w.2, i) else t.2 (w.2, i)
-  invFun f := (fun p => f (true, p.1) p.2, fun p => f (false, p.1) p.2)
-  left_inv _ := rfl
-  right_inv f := by funext ⟨tag, w⟩; cases tag <;> rfl
-
-private def addressOf (a : ℕ) (w : Bool × RawWord a) : BitString (a + 2) :=
-  Xofs.queryAddress a w.1 (List.ofFn w.2.2) (by
-    rw [List.length_ofFn]
-    exact Nat.le_of_lt_succ w.2.1.isLt)
-
-private theorem addressOf_word {a : ℕ} (tag : Bool) (x : List Bool) (hx : x.length ≤ a) :
-    addressOf a (tag, word x hx) = Xofs.queryAddress a tag x hx := by
-  unfold addressOf Xofs.queryAddress word
-  simp only [BitString.ofFn_ofList rfl]
-
-private theorem addressOf_injective (a : ℕ) : Function.Injective (addressOf a) := by
-  rintro ⟨t, ⟨⟨n, hn⟩, x⟩⟩ ⟨u, ⟨⟨m, hm⟩, y⟩⟩ h
-  have ht : t = u := congrFun h 0
-  subst u
-  let decode (v : BitString (a + 2)) := Xofs.unpad (List.ofFn fun i : Fin (a + 1) => v i.succ)
-  have dec (w : RawWord a) : decode (addressOf a (t, w)) = some (List.ofFn w.2) := by
-    have len : (List.replicate (a - (List.ofFn w.2).length) false ++ true :: List.ofFn w.2).length
-        = a + 1 := by
-      simp only [List.length_append, List.length_replicate, List.length_cons, List.length_ofFn]
-      have := w.1.isLt
-      lia
-    simp only [decode, addressOf, Xofs.queryAddress, Fin.cons_succ, BitString.ofFn_ofList len,
-      Xofs.unpad_word]
-  have he := congrArg decode h
-  rw [dec, dec] at he
-  have words : List.ofFn x = List.ofFn y := Option.some.inj he
-  have sizes : n = m := by simpa only [List.length_ofFn] using congrArg List.length words
-  subst m
-  obtain rfl := List.ofFn_inj.mp words
-  rfl
-
-/-- The literal table used by the coherent device restricts to independent byte tables on
-the valid raw words for SHAKE128 and SHAKE256. Unused delimiter encodings disappear by
-restriction along an injection. -/
-private theorem independent_tables (base : Xofs) (a b : ℕ) :
-    base.uniformPrefixes a b = (PMF.uniformOfFintype (Table a b)).bind fun t₂ =>
-      (PMF.uniformOfFintype (Table a b)).map fun t₁ =>
-        ⟨install base.h128 t₁, install base.h256 t₂⟩ := by
-  let E : Bool × RawWord a ↪ BitString (a + 2) := ⟨addressOf a, addressOf_injective a⟩
-  let fromRows (T : Bool × RawWord a → FixedBytes b) : Xofs :=
-    ⟨install base.h128 (fun (w, i) => T (false, w) i),
-      install base.h256 (fun (w, i) => T (true, w) i)⟩
-  have restricted := PMF.uniformOfFintype_pi_map_comp_embedding (α := FixedBytes b) E
-  have eq := congrArg (PMF.map fromRows) restricted
-  rw [← PMF.uniformOfFintype_map_equiv (rows a b)] at eq
-  rw [PMF.map_comp, PMF.map_comp] at eq
-  rw [PMF.uniformOfFintype_bind_map]
-  refine Eq.trans ?_ eq
-  unfold Xofs.uniformPrefixes
-  congr 1
-  funext T
-  simp only [fromRows, install, Function.comp_def, E, Function.Embedding.coeFn_mk,
-    addressOf_word, FixedBytes.toList]
-
 private abbrev MatrixByte (s : Level) := Cell s × Fin 894
 
 private def flatten (s : Level) : MatrixPrefixes s ≃ (MatrixByte s → Byte) where
@@ -115,7 +39,7 @@ private def flatten (s : Level) : MatrixPrefixes s ≃ (MatrixByte s → Byte) w
 
 private theorem address_length (rho : List Byte) {s : Level} (p : Cell s) :
     (address rho p).length = 8 * (rho.length + 2) := by
-  simp [address, Keccak.bytesToBitsLE, Keccak.byteBitsLE, Nat.mul_comm, Nat.mul_add]
+  simp [address, Keccak.length_bytesToBitsLE]
 
 private def point {a b : ℕ} {s : Level} (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a)
     (hb : 894 ≤ b) (p : MatrixByte s) : RawWord a × Fin b :=
@@ -130,15 +54,6 @@ private theorem point_injective {a b : ℕ} {s : Level} (rho : List Byte)
   have hc := congrArg (cellAt s rho) hx
   simp only [cellAt_address, Option.some.injEq] at hc
   exact Prod.ext hc (Fin.ext (congrArg (fun v => v.2.val) h))
-
-private theorem byteAt_install {a b : ℕ} (base : ExtendableOutput) (t : Table a b)
-    (x : List Bool) (i : ℕ) :
-    byteAt (install base t) x i =
-      if h : x.length ≤ a ∧ i < b then t (word x h.1, ⟨i, h.2⟩) else byteAt base x i := by
-  unfold install
-  rw [byteAt_withPrefixes]
-  by_cases hx : x.length ≤ a <;> by_cases hi : i < b <;>
-    simp [hx, hi]
 
 private theorem overwrite {a b : ℕ} {s : Level} (base : Xofs) (t : Table a b)
     (rho : List Byte) (ha : 8 * (rho.length + 2) ≤ a) (hb : 894 ≤ b) (g : MatrixPrefixes s) :
@@ -295,7 +210,7 @@ theorem randomPrefixGame_forgery_le (C : QuantumSigningForger) (s : Level) (base
   have bound := SignedMatrixTrial.bound_of_verifiedLog run (by
     intro A u hu
     obtain ⟨H, _, h⟩ := (PMF.mem_support_bind_iff ..).mp hu
-    exact C.verified_programmedTrial h)
+    exact (C.verified_programmedTrial h).2)
   dsimp only at bound
   rw [eq] at bound
   rw [randomPrefixGame_eq_matrixTrial C s base ha hb, ← PMF.map_bind]

@@ -114,13 +114,10 @@ def push_target(info: dict) -> str:
             f"{info['headRepository']['name']}.git")
 
 
-def plain_conflicts(root: Path, head: str, main: str) -> set[str]:
-    """The paths on which `head` and `main` conflict under a text merge with no attributes or
-    drivers, as on GitHub, with `check_restack`'s merge settings."""
+def plain_merge(root: Path, head: str, main: str) -> tuple[str, set[str]]:
+    """Merge with ordinary text rules as on GitHub. Return the tree and conflicting paths."""
     empty = out(root, "hash-object", "-t", "tree", os.devnull)
-    return cr.merge_tree(root, (f"--attr-source={empty}", "-c",
-                                f"core.attributesFile={os.devnull}", *cr.MERGE_CONFIG),
-                         head, main)[1]
+    return cr.merge_tree(root, cr.replay_options(root, empty), head, main)
 
 
 def driver_merge(root: Path, head: str, main: str, scripts: Path) -> str:
@@ -245,7 +242,7 @@ def restack(args: argparse.Namespace, root: Path, tmp: Path) -> int:
     if git(root, "merge-base", "--is-ancestor", main, head, ok=(0, 1)).returncode == 0:
         log(f"PR #{number} already contains origin/main {main[:12]}; nothing to restack")
         return 0
-    conflicts = plain_conflicts(root, head, main)
+    _, conflicts = plain_merge(root, head, main)
     if conflicts - GENERATED:
         raise Refused("conflicts with main outside generated files: "
                       + ", ".join(sorted(conflicts - GENERATED)) + "; restack it by hand")
