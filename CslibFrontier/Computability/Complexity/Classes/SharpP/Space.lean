@@ -29,7 +29,9 @@ import CslibFrontier.Tactic.EncLen
 
 Enumerate certificates with a fixed-width binary counter and keep the number accepted in a
 binary accumulator. The exponentially many iterations reuse their workspace: a certificate of
-length `m` needs `m` cells and its acceptance count has at most `m + 1` bits. This is the usual
+length `m` needs `m` counter cells and its acceptance count has at most `m + 1` bits.
+This is additional counting storage; each verifier call also uses its certified workspace.
+This is the usual
 polynomial-space simulation of counting [AroraBarak09]. The interactive-proof simulation counts
 its accepting coins with the same counter (`Cslib.Complexity.Interaction.countAccepts`).
 

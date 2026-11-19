@@ -30,13 +30,28 @@ example : (Formula.eqZero (n := 2) (.var 0)).existsForallSolutionSet
   ext x
   simp [Formula.existsForallSolutionSet, Formula.solutionSet, Term.eval, Fin.addCases]
 
--- A polynomial equation can fail for every real assignment.
-example : ¬ (Formula.eqZero (n := 1)
-    (.add (.mul (.var 0) (.var 0)) (.const 1))).solutionSet.Nonempty := by
+-- The encoded language rejects x²+1=0, despite allowing every ambient dimension.
+example : encFormula 1 (Formula.eqZero
+    (.add (.mul (.var 0) (.var 0)) (.const 1))) ∉ ETR := by
+  rw [encFormula_mem_ETR]
   rintro ⟨x, hx⟩
   simp only [Formula.solutionSet, Set.mem_ofPred_eq, Term.eval] at hx
   norm_num at hx
   nlinarith [sq_nonneg (x 0)]
+
+-- The language-level two-block criterion retains the quantifier order.
+example : encPair encUnary encBits (1, encFormula 2
+    (Formula.eqZero (.var 0))) ∈ ExistsForallTheory := by
+  rw [encFormula_mem_ExistsForallTheory (r := 1) (s := 1)]
+  refine ⟨fun _ => 0, ?_⟩
+  simp [Formula.existsForallSolutionSet, Formula.solutionSet, Term.eval, Fin.addCases]
+
+example : encPair encUnary encBits (0, encFormula 1
+    (Formula.eqZero (.var 0))) ∉ ExistsForallTheory := by
+  rw [encFormula_mem_ExistsForallTheory (r := 0) (s := 1)]
+  rintro ⟨x, hx⟩
+  have h := hx (fun _ => 1)
+  simp [Formula.solutionSet, Term.eval, Fin.addCases] at h
 
 -- Empty universal and existential blocks have their ordinary logical meanings.
 example : (Formula.eqZero (n := 0) (.const 0)).existsForallSolutionSet

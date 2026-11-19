@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Algebra.MvPolynomial.Eval
+import Mathlib.Data.Fin.Tuple.Take
 
 /-!
 # Integer polynomial formulas over the reals
@@ -123,5 +124,31 @@ Negation, conjunction, and disjunction give complement, intersection, and union.
 The existential coordinates precede the universal coordinates; either block may be empty. -/
 @[expose] def Formula.existsForallSolutionSet {r s : ℕ} (p : Formula (r + s)) :
     Set (Fin r → ℝ) := {x | ∀ y : Fin s → ℝ, Fin.addCases x y ∈ p.solutionSet}
+
+/-- An injective renaming preserves whether the real solution set is nonempty. -/
+theorem Formula.solutionSet_nonempty_rename {n m : ℕ} {f : Fin n → Fin m}
+    (hf : Function.Injective f) (p : Formula n) :
+    (p.rename f).solutionSet.Nonempty ↔ p.solutionSet.Nonempty := by
+  rw [solutionSet_rename]
+  exact hf.surjective_comp_right.nonempty_preimage
+
+/-- Adding unused universal coordinates preserves every existential solution. -/
+theorem Formula.existsForallSolutionSet_rename_castLE {r s t : ℕ}
+    (h : s ≤ t) (p : Formula (r + s)) :
+    (p.rename (Fin.castLE (Nat.add_le_add_left h r))).existsForallSolutionSet
+      (r := r) (s := t) = p.existsForallSolutionSet (r := r) (s := s) := by
+  ext x
+  have hrestriction (z : Fin t → ℝ) :
+      Fin.addCases x z ∘ Fin.castLE (Nat.add_le_add_left h r) =
+        Fin.addCases x (z ∘ Fin.castLE h) := by
+    exact Fin.take_append_right (n := r) s h x z
+  simp only [existsForallSolutionSet, Set.mem_ofPred_eq, solutionSet_rename,
+    Set.mem_preimage, hrestriction]
+  constructor
+  · intro hx y
+    obtain ⟨z, rfl⟩ := (Fin.castLE_injective h).surjective_comp_right y
+    exact hx z
+  · intro hx z
+    exact hx (z ∘ Fin.castLE h)
 
 end Cslib.Logic.RealArithmetic

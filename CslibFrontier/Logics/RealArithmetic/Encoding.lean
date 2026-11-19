@@ -32,7 +32,22 @@ namespace Cslib.Logic.RealArithmetic
 
 open scoped Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin
 
+/-- Flat constructor stream with binary integer constants and unary variable ranks. -/
 derive_encoding encTerm (n : ℕ) : Term n
+/-- Flat Boolean constructor stream carrying complete binary-integer arithmetic term words. -/
 derive_encoding encFormula (n : ℕ) : Formula n
+
+/-- Preserving variable ranks preserves every bit of a term's encoding. -/
+theorem encTerm_rename {n m : ℕ} (f : Fin n → Fin m)
+    (hf : ∀ i, (f i).val = i.val) (t : Term n) :
+    encTerm m (t.rename f) = encTerm n t := by
+  induction t <;> simp_all [Term.rename, encTermTokenEncoding,
+    Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin.fin]
+
+/-- Preserving variable ranks preserves every bit of a formula's encoding. -/
+theorem encFormula_rename {n m : ℕ} (f : Fin n → Fin m)
+    (hf : ∀ i, (f i).val = i.val) (p : Formula n) :
+    encFormula m (p.rename f) = encFormula n p := by
+  induction p <;> simp_all [Formula.rename, encFormulaTokenEncoding, encTerm_rename f hf]
 
 end Cslib.Logic.RealArithmetic
