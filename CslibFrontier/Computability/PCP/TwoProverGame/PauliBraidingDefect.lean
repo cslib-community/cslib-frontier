@@ -51,6 +51,10 @@ when each branch deficit is bounded by `ε`. -/
 noncomputable def pauliBraidingRoundedConsistencyError (ε : ℝ) : ℝ :=
   6 * pauliBraidingRoundingError ε + 4 * (832 * ε)
 
+@[simp]
+theorem pauliBraidingRoundedConsistencyError_zero : pauliBraidingRoundedConsistencyError 0 = 0 := by
+  simp [pauliBraidingRoundedConsistencyError]
+
 /-- The mean squared twisted commutation error of the rounded X and Z families. -/
 noncomputable def pauliBraidingTwistedCommutationError (ε : ℝ) : ℝ :=
   let r := pauliBraidingRoundingError ε
@@ -65,11 +69,11 @@ noncomputable def pauliBraidingRoundedDefectError (ε : ℝ) : ℝ :=
 
 @[simp]
 theorem pauliBraidingTwistedCommutationError_zero : pauliBraidingTwistedCommutationError 0 = 0 := by
-  simp [pauliBraidingTwistedCommutationError, pauliBraidingRoundedConsistencyError]
+  simp [pauliBraidingTwistedCommutationError]
 
 @[simp]
 theorem pauliBraidingRoundedDefectError_zero : pauliBraidingRoundedDefectError 0 = 0 := by
-  simp [pauliBraidingRoundedDefectError, pauliBraidingRoundedConsistencyError]
+  simp [pauliBraidingRoundedDefectError]
 
 omit [Nonempty (Fin n)] in
 private theorem masked_expect_le_uniform_of_nonneg (f : (Fin n → Bool) → ℝ) (hf : ∀ a, 0 ≤ f a) :
@@ -206,15 +210,14 @@ private theorem rounded_character_defect_le
     (e : Matrix η η ℂ →⋆ₐ[ℂ] Matrix (ι × κ) (ι × κ) ℂ)
     (P : Bool → Measurement (Fin n → Bool) (Matrix η η ℂ))
     (hP : ∀ b, (P b).IsProjective)
-    (Q A B : Bool → (Fin n → Bool) → Matrix (ι × κ) (ι × κ) ℂ)
+    (Q B : Bool → (Fin n → Bool) → Matrix (ι × κ) (ι × κ) ℂ)
     (hQ : ∀ b x, Q b x ∈ unitary (Matrix (ι × κ) (ι × κ) ℂ))
     (hB : ∀ b x, star (B b x) * B b x ≤ 1)
     (hPQ : ∀ b b' x y, Commute (e ((P b).charObs x)) (Q b' y))
     (hPB : ∀ b b' x y, Commute (e ((P b).charObs x)) (B b' y))
     {r c a : ℝ}
-    (hPclose : ∀ b, 𝔼 x, φ.norm (A b x - e ((P b).charObs x)) ^ 2 ≤ r)
-    (hQclose : ∀ b, 𝔼 x, φ.norm (B b x - Q b x) ^ 2 ≤ r)
-    (hAB : ∀ b, 𝔼 x, φ.norm (A b x - B b x) ^ 2 ≤ c)
+    (hround : ∀ b, 𝔼 x, φ.norm (e ((P b).charObs x) - B b x) ^ 2 ≤ 2 * r + 2 * c)
+    (hcons : ∀ b, 𝔼 x, φ.norm (e ((P b).charObs x) - Q b x) ^ 2 ≤ 6 * r + 4 * c)
     (hac : oddExpect (fun x z => φ.norm (B false x * B true z + B true z * B false x) ^ 2) ≤ a) :
     let X := fun x => e ((P false).charObs x)
     let Z := fun z => e ((P true).charObs z)
@@ -227,12 +230,10 @@ private theorem rounded_character_defect_le
   let U (b : Bool) (x : Fin n → Bool) := e ((P b).charObs x)
   have hU (b : Bool) (x : Fin n → Bool) : U b x ∈ unitary (Matrix (ι × κ) (ι × κ) ℂ) :=
     Unitary.map_mem _ ((hP b).charObs_mem_unitary x)
-  have hdist (b : Bool) := cross_distances_le φ (U b) (Q b) (A b) (B b)
-    (hPclose b) (hQclose b) (hAB b)
   exact rounded_defect_le φ U Q B hU hQ hB hPQ hPB
     (by simp only [U, Measurement.charObs_zero, map_one])
     (fun b x y => by simp only [U, ← map_mul, (hP b).charObs_mul])
-    (fun b => (hdist b).1) (fun b => (hdist b).2) hac
+    hround hcons hac
 
 private theorem basis_cross_distance_le
     (T : CommutingStrategy (PauliBraidingQuestion n Bool) (PauliBraidingQuestion n Bool)
@@ -278,6 +279,8 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
         kroneckerOne ((P b).charObs x)) ^ 2) ≤ pauliBraidingRoundingError ε ∧
         (𝔼 x, T.state.norm ((𝔼 d, pauliBraidingBasisObservable T.bob b x d) -
           oneKronecker ((Q b).charObs x)) ^ 2) ≤ pauliBraidingRoundingError ε) ∧
+      (∀ b, (𝔼 x, T.state.norm (kroneckerOne ((P b).charObs x) -
+        oneKronecker ((Q b).charObs x)) ^ 2) ≤ pauliBraidingRoundedConsistencyError ε) ∧
       (let X := fun x => kroneckerOne ((P false).charObs x)
        let Z := fun z => kroneckerOne ((P true).charObs z)
        let F := pauliFamily X Z
@@ -335,13 +338,17 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
     exact (commute_kroneckerOne_oneKronecker _ _).symm
   have hBA (b : Bool) : 𝔼 x, T.state.norm (B b x - A b x) ^ 2 ≤ c :=
     (expect_sq_distance_comm T.state (B b) (A b)).le.trans (hAB b)
-  exact ⟨P, Q, fun b => ⟨hP b, hQ b⟩, fun b => ⟨hUclose b, hVclose b⟩,
-    rounded_character_defect_le T.state kroneckerOne P hP V A B hV
-      (star_pauliBraidingBasisObservable_average_mul_self_le_one T.bob) hUV hUB hUclose hVclose hAB
-      (basis_anticomm_oddExpect_le T true hcons' hac'),
-    rounded_character_defect_le T.state oneKronecker Q hQ U B A hU
+  have hUD (b : Bool) :=
+    cross_distances_le T.state (U b) (V b) (A b) (B b) (hUclose b) (hVclose b) (hAB b)
+  have hVD (b : Bool) :=
+    cross_distances_le T.state (V b) (U b) (B b) (A b) (hVclose b) (hUclose b) (hBA b)
+  exact ⟨P, Q, fun b => ⟨hP b, hQ b⟩, fun b => ⟨hUclose b, hVclose b⟩, fun b => (hUD b).2,
+    rounded_character_defect_le T.state kroneckerOne P hP V B hV
+      (star_pauliBraidingBasisObservable_average_mul_self_le_one T.bob) hUV hUB
+      (fun b => (hUD b).1) (fun b => (hUD b).2) (basis_anticomm_oddExpect_le T true hcons' hac'),
+    rounded_character_defect_le T.state oneKronecker Q hQ U A hU
       (star_pauliBraidingBasisObservable_average_mul_self_le_one T.alice)
-      (fun b b' x y => (hUV b' b y x).symm) hVA hVclose hUclose hBA
+      (fun b b' x y => (hUV b' b y x).symm) hVA (fun b => (hVD b).1) (fun b => (hVD b).2)
       (basis_anticomm_oddExpect_le T false hcons' hac')⟩
 
 /-- Local Pauli compression in a state restricted to a player's factor. The same
@@ -466,6 +473,8 @@ theorem exists_local_pauliCompression_of_pauliBraidingGame
         kroneckerOne ((P b).charObs x)) ^ 2) ≤ pauliBraidingRoundingError (3 * ε) ∧
         (𝔼 x, T.state.norm ((𝔼 d, pauliBraidingBasisObservable T.bob b x d) -
           oneKronecker ((Q b).charObs x)) ^ 2) ≤ pauliBraidingRoundingError (3 * ε)) ∧
+      (∀ b, (𝔼 x, T.state.norm (kroneckerOne ((P b).charObs x) -
+        oneKronecker ((Q b).charObs x)) ^ 2) ≤ pauliBraidingRoundedConsistencyError (3 * ε)) ∧
       (∃ (J : Type u) (_ : Fintype J) (_ : DecidableEq J)
         (W : Matrix ((Fin n → Bool) × J) ι ℂ),
         PauliBraidingLocalCompression (T.state.comap kroneckerOne (OrderHomClass.mono _))
@@ -478,9 +487,9 @@ theorem exists_local_pauliCompression_of_pauliBraidingGame
           (pauliBraidingTwistedCommutationError (3 * ε))) := by
   intro T
   obtain ⟨hlin, hcons, hac⟩ := quantum_branch_deficits_le S hwin
-  obtain ⟨P, Q, hproj, hclose, hP, hQ⟩ :=
+  obtain ⟨P, Q, hproj, hclose, hcross, hP, hQ⟩ :=
     exists_local_pauliFamily_of_pauliBraidingBranchScores S hA hB hlin hcons hac
-  exact ⟨P, Q, hproj, hclose,
+  exact ⟨P, Q, hproj, hclose, hcross,
     compress_in_joint_state T.state kroneckerOne (OrderHomClass.mono _) P (fun b => (hproj b).1) hP,
     compress_in_joint_state T.state oneKronecker (OrderHomClass.mono _) Q (fun b => (hproj b).2) hQ⟩
 

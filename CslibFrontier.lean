@@ -3991,6 +3991,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingAnticom
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingConsistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDefect
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingDiagonal
+public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingEPR
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingGame
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingLinearity
 public import CslibFrontier.Computability.PCP.TwoProverGame.PauliBraidingRounding
@@ -6867,6 +6868,7 @@ public import CslibFrontier.Foundations.Quantum.POVM.Density
 public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import CslibFrontier.Foundations.Quantum.PauliCompression
+public import CslibFrontier.Foundations.Quantum.PauliEPR
 public import CslibFrontier.Foundations.Quantum.PauliGroup
 public import CslibFrontier.Foundations.Quantum.PauliStoneVonNeumann
 public import CslibFrontier.Foundations.Quantum.PauliTwirl

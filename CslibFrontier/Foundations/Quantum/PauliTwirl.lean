@@ -74,7 +74,7 @@ noncomputable def pauliZPow (b : ι → Bool) : Matrix (ι → Bool) (ι → Boo
   diagonal fun z => (signVal (b ⬝ᵥ z) : ℂ)
 
 /-- The **Pauli string** `X^a Z^b`. -/
-noncomputable def pauliString (a b : ι → Bool) : Matrix (ι → Bool) (ι → Bool) ℂ :=
+@[expose] noncomputable def pauliString (a b : ι → Bool) : Matrix (ι → Bool) (ι → Bool) ℂ :=
   pauliXPow a * pauliZPow b
 
 omit [DecidableEq ι] in
