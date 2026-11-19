@@ -624,8 +624,8 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
   let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
     I.ports.length + 4)).size
   have hb : (2 * (H.body.occurrences.length + H.ports.length)).size ≤ B := by
-    rw [hmH, hpH]
-    exact Nat.size_le_size (by omega)
+    simpa only [hmH, hpH] using (Nat.size_le_size (Nat.mul_le_mul_left 2
+      (Nat.le_add_right (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
   have hs := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
     (by simpa only [hmJ, hpJ] using ht.2) hb

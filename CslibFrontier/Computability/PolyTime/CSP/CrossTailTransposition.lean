@@ -585,7 +585,9 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
   have hout : transposeTail g w I = rotateLeft (rotateLeft J) := by
     rw [transposeTail, if_neg (by omega)]
     rfl
-  have hports : (transposeTail g w I).ports.length = I.ports.length := by
+  have hcounts : (transposeTail g w I).ports.length = I.ports.length ∧
+      (transposeTail g w I).body.occurrences.length =
+        I.body.occurrences.length + g.body.occurrences.length := by
     rcases I with ⟨F, ps, c⟩
     induction ps using List.reverseRecOn with
     | nil => simp at h
@@ -594,21 +596,11 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
       | nil => simp at h
       | append_singleton L x =>
         rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-          simp only [List.append_assoc, List.cons_append, List.nil_append],
-          length_transposeTail_ports]
-        simp
-  have hocc : (transposeTail g w I).body.occurrences.length =
-      I.body.occurrences.length + g.body.occurrences.length := by
-    rcases I with ⟨F, ps, c⟩
-    induction ps using List.reverseRecOn with
-    | nil => simp at h
-    | append_singleton ps y _ =>
-      cases ps using List.reverseRecOn with
-      | nil => simp at h
-      | append_singleton L x =>
-        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-          simp only [List.append_assoc, List.cons_append, List.nil_append],
-          length_transposeTail_occurrences]
+          simp only [List.append_assoc, List.cons_append, List.nil_append]]
+        exact ⟨by rw [length_transposeTail_ports]; simp,
+          length_transposeTail_occurrences g w F L x y c⟩
+  have hports := hcounts.1
+  have hocc := hcounts.2
   have hpJ : J.ports.length = I.ports.length := by
     rw [hout, rotateLeft_ports, List.length_rotate, rotateLeft_ports,
       List.length_rotate] at hports
@@ -620,8 +612,8 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
   let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
     I.ports.length + 4)).size
   have hB : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B := by
-    rw [hmJ, hpJ]
-    exact Nat.size_le_size (by omega)
+    simpa only [hmJ, hpJ] using (Nat.size_le_size (Nat.mul_le_mul_left 2
+      (Nat.le_add_right (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
   have hj : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length) ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ B := by
     rcases H with ⟨F, ps, c⟩
