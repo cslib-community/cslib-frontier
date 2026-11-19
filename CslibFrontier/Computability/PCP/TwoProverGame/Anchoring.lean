@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
-public import CslibFrontier.Probability.PMF.Coin
+public import CslibFrontier.Probability.PMF.AnchorPair
 import CslibFrontier.Probability.PMF.EventBind
 
 /-!
@@ -45,19 +45,20 @@ namespace Cslib.PCP.TwoProverGame
 
 variable {X Y A B : Type*} (G : TwoProverGame X Y A B)
 
-private def maskQuestion {Q : Type*} (anchor : Bool) (q : Q) : Option Q :=
-  if anchor then none else some q
-
 /-- Independently replace each question by an anchor with probability `α`. Whenever a
 question is replaced, the verifier accepts every answer. This is Definition 1.1 of
 [Bavarian, Vidick and Yuen][BavarianVidickYuen2022]. -/
 noncomputable def anchored (α : I) : TwoProverGame (Option X) (Option Y) A B where
-  questions := (Probability.PMF.coin α).bind fun i =>
-    (Probability.PMF.coin α).bind fun j =>
-      G.questions.map fun q => (maskQuestion i q.1, maskQuestion j q.2)
+  questions := Probability.PMF.anchorPair G.questions α α
   accepts
     | some x, some y, a, b => G.accepts x y a b
     | _, _, _, _ => True
+
+/-- The anchored question law uses the same replacement rate for each player. -/
+theorem anchored_questions (α : I) :
+    (G.anchored α).questions = Probability.PMF.anchorPair G.questions α α := by
+  unfold anchored
+  rfl
 
 /-- If only one question is retained, its law is the corresponding original marginal.
 The two anchor flags contribute their independent masses in each case. -/
@@ -70,20 +71,8 @@ theorem anchored_questions_apply (α : I) (x : Option X) (y : Option Y) :
       | none, some y =>
         ENNReal.ofReal (α : ℝ) * ENNReal.ofReal (1 - (α : ℝ)) * (G.questions.map Prod.snd) y
       | some x, some y => ENNReal.ofReal (1 - (α : ℝ)) ^ 2 * G.questions (x, y) := by
-  classical
-  cases x <;> cases y
-  case some.some x y =>
-    have hm : (∑' q : X × Y, if x = q.1 ∧ y = q.2 then G.questions q else 0) =
-        G.questions (x, y) := by
-      rw [tsum_eq_single (x, y)]
-      · simp
-      · rintro ⟨x', y'⟩ h
-        exact ite_eq_right fun hp => h (Prod.ext hp.1.symm hp.2.symm)
-    simp [anchored, PMF.bind_apply, tsum_fintype, Probability.PMF.coin_apply,
-      maskQuestion, PMF.map_apply, pow_two, mul_assoc, hm]
-  all_goals
-    simp [anchored, PMF.bind_apply, tsum_fintype, Probability.PMF.coin_apply,
-      maskQuestion, PMF.map_apply, pow_two, mul_assoc]
+  cases x <;> cases y <;>
+    simpa only [anchored, pow_two] using Probability.PMF.anchorPair_apply G.questions α α _ _
 
 variable {α : I}
 
@@ -94,7 +83,7 @@ theorem answersWinProb_anchored (ans : Option X → Option Y → PMF (A × B)) :
   let coin := Probability.PMF.coin α
   let H := G.anchored α
   let R (i j : Bool) := G.questions.bind fun q =>
-    let q' := (maskQuestion i q.1, maskQuestion j q.2)
+    let q' := (if i then none else some q.1, if j then none else some q.2)
     (ans q'.1 q'.2).map (q', ·)
   let event : Set ((Option X × Option Y) × A × B) := {z | H.AcceptsRound z}
   have he (i j : Bool) :
@@ -102,7 +91,7 @@ theorem answersWinProb_anchored (ans : Option X → Option Y → PMF (A × B)) :
         G.answersWinProb (fun x y => ans (some x) (some y)) := by
     split_ifs with h
     · have hq (q : X × Y) :
-          let q' := (maskQuestion i q.1, maskQuestion j q.2)
+          let q' := (if i then none else some q.1, if j then none else some q.2)
           ((ans q'.1 q'.2).map (q', ·)).toOuterMeasure event = 1 := by
         dsimp only
         rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_eq_one_iff]
@@ -117,14 +106,15 @@ theorem answersWinProb_anchored (ans : Option X → Option Y → PMF (A × B)) :
       let e := fun z : (X × Y) × A × B => ((some z.1.1, some z.1.2), z.2)
       have hr : R false false =
           (G.questions.bind fun q => (ans (some q.1) (some q.2)).map (q, ·)).map e := by
-        simp only [R, maskQuestion, Bool.false_eq_true, ite_false, PMF.map_bind, PMF.map_comp]
+        simp only [R, Bool.false_eq_true, ite_false, PMF.map_bind, PMF.map_comp]
         rfl
       rw [hr, PMF.toOuterMeasure_map_apply]
       rfl
   change ((H.questions.bind fun q => (ans q.1 q.2).map (q, ·)).toOuterMeasure event).toReal = _
   have hr : (H.questions.bind fun q => (ans q.1 q.2).map (q, ·)) =
       coin.bind fun i => coin.bind fun j => R i j := by
-    simp only [H, anchored, PMF.bind_bind, PMF.bind_map, Function.comp_def, R, coin]
+    simp only [H, anchored, Probability.PMF.anchorPair, PMF.bind_bind, PMF.bind_map,
+      Function.comp_def, R, coin]
   rw [hr, Probability.PMF.toOuterMeasure_bind_toReal, Fintype.sum_bool]
   simp_rw [Probability.PMF.toOuterMeasure_bind_toReal, Fintype.sum_bool, he]
   simp only [Bool.or_false, Bool.or_true, Bool.false_eq_true, ite_false, ite_true,
