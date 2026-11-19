@@ -264,15 +264,28 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
       (encList (encList (encPair CookLevin.encVar encBool))) := by
     unfold gameTableau
     fun_prop
+  have hbase : ComputableInPolyTime
+      (fun q : CNF (CookLevin.Var kV StateV) × ℕ => baseVars q.1 q.2)
+      (encPair (encList (encList (encPair CookLevin.encVar encBool))) encUnary)
+      (encList encNat) := by
+    unfold baseVars
+    fun_prop
+  have hgamePairs : ComputableInPolyTime gamePairs encUnary
+      (encList (encPair encNat encNat)) := by
+    unfold gamePairs
+    fun_prop
+  have hlinks : ComputableInPolyTime (certLinkCNF kV StateV) encUnary encCNF := by
+    unfold certLinkCNF encCNF
+    fun_prop
   have hpairs : ComputableInPolyTime
       (fun a => prenexPairs (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
       enc (encList (encPair encNat encNat)) := by
-    unfold prenexPairs gamePairs baseVars
+    unfold prenexPairs
     fun_prop
   have hmatrix : ComputableInPolyTime
       (fun a => prenexMatrix (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
       enc encCNF := by
-    unfold prenexMatrix certLinkCNF encCNF
+    unfold prenexMatrix encCNF
     fun_prop
   exact hpairs.prod hmatrix
 

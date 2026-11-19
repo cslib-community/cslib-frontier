@@ -237,7 +237,8 @@ theorem computableInPolyTime_isElem :
   have heq1 : ComputableInPolyTime
       (fun p : Desc × List Bool => decide (ofBits p.2 ^ p.1.order % p.1.modulus = 1))
       (encPair encDesc encBits) encBool :=
-    (((ComputableInPolyTime.fst encNat encNat).decide_eq' (ComputableInPolyTime.snd encNat encNat))).comp
+    ((ComputableInPolyTime.fst encNat encNat).decide_eq'
+      (ComputableInPolyTime.snd encNat encNat)).comp
       (hpow.prod (ComputableInPolyTime.const 1))
   exact (hbeq.bool_and' (h0.decide_and (hlt.decide_and heq1))).of_enc_eq
     fun p => by simp only [isElem]

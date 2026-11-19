@@ -1168,7 +1168,7 @@ theorem isOraclePPT_unscaledNonceCTRAdversary :
     hr.fst'.fst'.fst'
   have hright := (hr.fst'.snd'.bitsDropWithInput
     (ComputableInPolyTime.const 1)).bitsDropWithInput hr.fst'.fst'.fst'
-  simpa only [unscaledNonceCTRAdversary, Function.comp_def, bind_pure_comp] using
+  simpa only [unscaledNonceCTRAdversary, Function.comp_def, bind_pure_comp, encBits_apply] using
     hfirst.bind_with (hsecond.map_with (hleft.beq hright))
 
 private theorem zipWith_xor_replicate_false :

@@ -116,7 +116,8 @@ theorem computableInPolyTime_pathStep :
     (ComputableInPolyTime.bitsAppend htake (ComputableInPolyTime.bitsCons hhead hdrop)) hs
   have hX := hin.ite'
     (ComputableInPolyTime.bitsAppend htake
-      (ComputableInPolyTime.bitsCons (ComputableInPolyTime.bool_xor.comp (hbit.prod hall)) hdrop)) hs
+      (ComputableInPolyTime.bitsCons
+        (ComputableInPolyTime.bool_xor.comp (hbit.prod hall)) hdrop)) hs
   have htail : ComputableInPolyTime
       (fun p : (List Bool × List Bool × Bool) × GateCode => p.1.2.1.tail)
       (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBits := by fun_prop

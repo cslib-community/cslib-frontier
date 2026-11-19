@@ -513,8 +513,8 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
   have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
-  have hbits := encSerializedKeyInputs_bits_polyTime.comp hinputs
-  have hmatrix := encSerializedKeyInputs_publicPart_polyTime.comp hinputs
+  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
+  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
   have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
   have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
   have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false

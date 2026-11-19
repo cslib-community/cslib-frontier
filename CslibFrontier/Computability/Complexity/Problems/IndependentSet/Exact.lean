@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.DP
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Exact independent set
@@ -68,8 +68,9 @@ theorem ExactIndependentSet_mem_DP : ExactIndependentSet ∈ DP encIndependentSe
     (fun x : IndependentSetInstance => (⟨x.graph, x.m + 1⟩ : IndependentSetInstance)) ⁻¹'
       IndependentSet,
     PolyTimeReducible.mem_NP ⟨fun x => ⟨x.graph, x.m + 1⟩,
-      encIndependentSetInstance_mk_polyTime encIndependentSetInstance_graph_polyTime
-        (ComputableInPolyTime.binary_add' encIndependentSetInstance_m_polyTime
+      encIndependentSetInstance_mk_polyTime
+        (encIndependentSetInstance_graph_polyTime (.id _))
+        (ComputableInPolyTime.binary_add' (encIndependentSetInstance_m_polyTime (.id _))
           (ComputableInPolyTime.const 1)), fun _ => Iff.rfl⟩
       IndependentSet.mem_NP,
     Set.ext fun _ => mem_ExactIndependentSet_iff⟩

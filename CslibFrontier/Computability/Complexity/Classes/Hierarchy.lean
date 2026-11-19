@@ -242,8 +242,6 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
 
 end Diagonal
 
--- Report the expensive reductions on timeout while diagnosing this migrated certificate.
-set_option diagnostics true in
 -- Decoder opacity removed its 77867 unfoldings, but the next hosted diagnostics still count
 -- 364160 reductions of Desc.tapes through the description encoding. Keep both implementations
 -- opaque here: only their named computability, encoding-length and resource contracts are used.
@@ -268,7 +266,7 @@ theorem computableInO_diagonal :
     let I := (eIn i).length
     have hI : I = 2 * descLen i.1 + 1 +
         (2 * (encList encUnary i.2.1).length + 1 + (encNat i.2.2).length) := by
-      simp only [I, eIn, length_encPair, descLen]
+      simp only [I, length_encPair, descLen]
     obtain ⟨ht, hs⟩ := universal_bounds_le
       (D := descLen i.1) (N := (encList encUnary i.2.1).length)
       (L := (encNat i.2.2).length) (J := i.2.2 + 1) (B := I)
@@ -331,7 +329,7 @@ theorem computableInO_diagonal :
       (hcD x) hN hL (by rw [length_encPair, length_encPair]; rfl) rfl hK hE
   refine h.mono (K * C) (fun x => ?_) fun x => ?_
   · obtain ⟨h₁, -⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₁ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₁ ⊢
     have hJ4 : 2 ^ (4 * x.length) = 2 ^ x.length * (2 ^ x.length) ^ 3 := by
       ring
     have := hC x.length
@@ -339,7 +337,7 @@ theorem computableInO_diagonal :
       _ ≤ K * (C * 2 ^ x.length * (2 ^ x.length) ^ 3) := by gcongr
       _ ≤ K * C * (2 ^ (4 * x.length) + 1) := by rw [hJ4]; nlinarith
   · obtain ⟨-, h₂⟩ := hbounds x
-    simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply] at h₂ ⊢
+    simp only [encBits, Function.Embedding.refl_apply] at h₂ ⊢
     have hJ2 : 2 ^ (2 * x.length) = 2 ^ x.length * 2 ^ x.length := by rw [two_mul, pow_add]
     have := hC x.length
     calc _ ≤ K * (_ ^ 5 * 2 ^ x.length) := h₂

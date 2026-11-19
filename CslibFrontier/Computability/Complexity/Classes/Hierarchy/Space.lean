@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm

@@ -140,8 +140,8 @@ theorem computableInPolyTime_pad :
     ComputableInPolyTime.bitsToNat.comp
       (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.snd encCNF encBits)
         (ComputableInPolyTime.const [true]))
-  have htrue := hN.prod (ComputableInPolyTime.const true)
-  have hfalse := hN.prod (ComputableInPolyTime.const false)
+  have htrue := hN.prod (ComputableInPolyTime.const (encOut := encBool) true)
+  have hfalse := hN.prod (ComputableInPolyTime.const (encOut := encBool) false)
   have hclause := ComputableInPolyTime.cons' htrue
     (ComputableInPolyTime.cons' hfalse
       (ComputableInPolyTime.cons' htrue (ComputableInPolyTime.const [])))

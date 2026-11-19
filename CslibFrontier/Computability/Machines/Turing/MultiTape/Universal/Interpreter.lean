@@ -72,7 +72,8 @@ private theorem nativeInterpreter_nonempty : Nonempty NativeInterpreter := by
     stateFinite
     machine
     computes := by
-      simpa only [universalImplementationTime, universalImplementationSpace] using computes }⟩
+      intro i
+      simpa only [universalImplementationTime, universalImplementationSpace] using computes i }⟩
 
 private noncomputable def nativeInterpreter : NativeInterpreter :=
   Classical.choice nativeInterpreter_nonempty
