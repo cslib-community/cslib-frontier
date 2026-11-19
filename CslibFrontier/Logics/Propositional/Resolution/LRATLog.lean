@@ -401,7 +401,7 @@ theorem propagate_eq (log : LRATLog φ) (t : List (Literal ℕ)) (hs : List ℕ)
   unfold propagate propagateHints
   congr 1
   funext h
-  exact log.clause?_eq h
+  rw [log.clause?_eq h, CNF.lookup_eq_find?]
 
 /-- **Closing the log** at the empty clause, numbered `i`: its steps followed by an empty-clause
 step hinting it. -/

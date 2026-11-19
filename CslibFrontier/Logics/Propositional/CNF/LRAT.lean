@@ -82,14 +82,24 @@ def CNF.propagateWith (lookup : ℕ → Option (Clause ℕ)) : List (Literal ℕ
       | [] => true
       | l :: ls => if ls.all (· == l) then propagateWith lookup (l :: trail) hs else false
 
-/-- The clause numbered `h` in a list of numbered clauses, the first one listed. -/
-def CNF.lookupDB (db : List (ℕ × Clause ℕ)) (h : ℕ) : Option (Clause ℕ) :=
-  (db.find? (·.1 == h)).map Prod.snd
-
 /-- **Unit propagation along hints** in a database of numbered clauses
-(`Cslib.Logic.PL.CNF.propagateWith`). -/
+(`Cslib.Logic.PL.CNF.propagateWith`), looking up the first clause of each number (`List.lookup`). -/
 def CNF.propagateHints (db : List (ℕ × Clause ℕ)) : List (Literal ℕ) → List ℕ → Bool :=
-  propagateWith (lookupDB db)
+  propagateWith (fun h => db.lookup h)
+
+/-- `List.lookup` is the first clause of the number found by `List.find?`. -/
+theorem CNF.lookup_eq_find? (db : List (ℕ × Clause ℕ)) (h : ℕ) :
+    db.lookup h = (db.find? (·.1 == h)).map Prod.snd := by
+  induction db with
+  | nil => rfl
+  | cons e db ih =>
+    obtain ⟨k, c⟩ := e
+    rw [List.lookup_cons, List.find?_cons]
+    by_cases hk : h = k
+    · subst hk; simp
+    · have h₁ : (h == k) = false := by simpa using hk
+      have h₂ : (k == h) = false := by simpa using Ne.symm hk
+      simp only [h₁, h₂, ih]
 
 theorem CNF.propagateHints_nil (db : List (ℕ × Clause ℕ)) (t : List (Literal ℕ)) :
     propagateHints db t [] = false := rfl
@@ -104,7 +114,7 @@ theorem CNF.propagateHints_cons (db : List (ℕ × Clause ℕ)) (t : List (Liter
         match e.2.filter (fun l => !t.contains (Std.Sat.Literal.negate l)) with
         | [] => true
         | l :: ls => if ls.all (· == l) then propagateHints db (l :: t) hs else false := by
-  simp only [propagateHints, propagateWith, lookupDB]
+  simp only [propagateHints, propagateWith, lookup_eq_find?]
   cases db.find? (·.1 == h) <;> rfl
 
 /-- The checker on a database of numbered clauses. -/
@@ -199,22 +209,15 @@ theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : 
           · exact htrail l hl
         · simp at h
 
-/-- A clause the database lookup returns is a clause of the database. -/
-theorem CNF.mem_of_lookupDB {db : List (ℕ × Clause ℕ)} {h : ℕ} {c : Clause ℕ}
-    (hc : lookupDB db h = some c) : (h, c) ∈ db := by
-  obtain ⟨e, he, rfl⟩ := Option.map_eq_some_iff.1 hc
-  have := List.find?_some he
-  simp only [beq_iff_eq] at this
-  rw [← this]
-  exact List.mem_of_find?_eq_some he
-
 /-- If unit propagation along hints succeeds, no assignment satisfies the database and makes the
 starting literals true. -/
 theorem CNF.false_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ → Bool}
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {trail : List (Literal ℕ)}
     (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {hs : List ℕ}
     (h : propagateHints db trail hs = true) : False :=
-  CNF.false_of_propagateWith (fun _ _ hc => hdb _ (CNF.mem_of_lookupDB hc)) htrail h
+  CNF.false_of_propagateWith (fun k c hc => by
+    obtain ⟨l₁, l₂, hl, -⟩ := List.lookup_eq_some_iff.1 hc
+    exact hdb (k, c) (by simp [hl])) htrail h
 
 /-- **A RUP clause holds**: if unit propagation along hints from its negation succeeds, every
 assignment satisfying the database satisfies it. -/
