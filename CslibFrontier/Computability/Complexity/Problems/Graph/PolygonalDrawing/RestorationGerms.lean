@@ -17,7 +17,7 @@ Affected ends point from the corresponding new center to their own cut port. Una
 ends retain their old argument, including when cutting the opposite end changes the
 length of a one-segment route. The selected edge keeps its ordered connector direction.
 
-## Main results
+## Interface laws
 
 * `germ_restoreLast_false`: a last attachment preserves the first outgoing germ.
 * `germ_restoreFirst_true`: a first attachment preserves the last outgoing germ.
