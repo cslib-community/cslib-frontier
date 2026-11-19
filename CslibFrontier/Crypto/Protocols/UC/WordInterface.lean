@@ -14,6 +14,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Su
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Fin
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
+public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Map
 
 /-!
@@ -24,13 +28,21 @@ communicate over indexed query-reply specifications `E : ι → Type` (`partySpe
 `protocolSpec`, `execSpec`), whereas `WordOracleComp` and `IsOraclePPTOn` execute on finite channel
 tags carrying `List Bool` payloads. This module supplies the lowering from typed `ProbOracleComp`
 programs to `WordOracleComp` programs over finitely many channels, together with the dual encoded
-oracle.
+oracle and single-query strict oracle PPT certificate.
 
 ## Modelling decisions and restrictions
 
 * **Named structures.** `WordPort` packages total polynomial-time decoders for queries and replies
   on a single `netSpec Q R` port, and `WordInterface` packages channel routing, total query/reply
   decoding, and per-channel normalization cost certificates (`replyNormalize`, `requestNormalize`).
+* **Relation to `Cslib.OracleCodec`.** `WordInterface.toOracleCodec` builds a partial
+  `OracleCodec I.Channel ι E` whose `decodeQuery` recognizes valid `(I.channel q, I.request q)`
+  requests. Unlike `OracleCodec.wordOracle` (which answers off-image requests with `[]` without
+  calling the oracle), `WordInterface.encodeOracle` decodes every incoming request through the total
+  `I.decodeQuery` and calls the typed oracle; the two agree on every in-image request
+  (`WordInterface.encodeOracle_eq_wordOracle`). Total request/reply decoders and the finite
+  `Channel` normalization certificates (`replyNormalize`, `requestNormalize`) are needed so a word
+  machine can normalize arbitrary incoming or outgoing words in polynomial time.
 * **Unary `Fin n` party rank (`[NeZero n]`).** `WordPort.party` encodes party indices in unary
   and decodes arbitrary words modulo `n`. Because a total decoder requires a nonempty target type,
   `n ≥ 1` (`[NeZero n]`) is required on `WordPort.party`.
@@ -38,10 +50,12 @@ oracle.
   `WordInterface.sum` cover `OracleSpec.empty`, `netSpec`, and `⊕ₒ`, which suffices for
   `Execution`, `Composition`, and `DummyAdversary`. Dependent-reply interfaces such as
   `SSP.sessionSpec` (`MultiSession`) are not covered here.
-* **Explicit reply truncation (`limit`).** `ProbOracleComp.lowerWith I limit` truncates each word
-  reply to `limit` bits via `List.take limit` before decoding, matching the strict clock contract
-  of `IsOraclePPTOn.query_take`. When every reply of a typed stateful oracle encodes within `limit`
-  bits, `ProbOracleComp.runWith_lowerWith` equates the lowered word run against
+* **Explicit reply truncation (`limit`).** `ProbOracleComp.lowerWith I limit` is
+  `ProbOracleComp.simulate (I.lowerQuery limit)`: it truncates each word reply to `limit` bits via
+  `List.take limit` before decoding, matching the strict clock contract of
+  `IsOraclePPTOn.query_take`. Structural equations come directly from `ProbOracleComp.simulate_*`.
+  When every reply of a typed stateful oracle encodes within `limit` bits,
+  `ProbOracleComp.runWith_lowerWith` equates the lowered word run against
   `I.encodeOracle oracle` with the original typed run.
 
 ## Main definitions
@@ -50,15 +64,21 @@ oracle.
 * `Cslib.Crypto.Protocols.UC.WordInterface`: finite-channel word presentation of a typed interface.
 * `Cslib.Crypto.Protocols.UC.WordInterface.empty`, `.net`, `.sum`, `.protocol`, `.exec`,
   `WordPort.sum`, `WordPort.party`: constructors and UC interface abbreviations.
-* `Cslib.ProbOracleComp.lowerWith`: lower a typed `ProbOracleComp` with reply bound `limit`.
-* `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle`: present a typed oracle on channels.
+* `Cslib.Crypto.Protocols.UC.WordInterface.toOracleCodec`, `.encodeOracle`, `.lowerQuery`:
+  `OracleCodec` view, total channel-encoded oracle, and single-query lowering handler.
+* `Cslib.ProbOracleComp.lowerWith`: lower a typed `ProbOracleComp` via
+  `ProbOracleComp.simulate (I.lowerQuery limit)`.
 
 ## Main results
 
-* `Cslib.ProbOracleComp.lowerWith_pure`, `.lowerWith_bind`, `.lowerWith_map`,
-  `.lowerWith_sample`, `.lowerWith_query`: structural equations for lowering.
-* `Cslib.ProbOracleComp.runWith_lowerWith`: lowered execution agrees with typed execution when
+* `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle_eq_wordOracle`: agreement with
+  `toOracleCodec.wordOracle` on encoded requests.
+* `Cslib.Crypto.Protocols.UC.WordInterface.encodeOracle_sum`: encoded sum-interface routing.
+* `Cslib.Crypto.Protocols.UC.WordInterface.runWith_lowerQuery` and
+  `Cslib.ProbOracleComp.runWith_lowerWith`: lowered execution agrees with typed execution when
   every supported reply fits within `limit` bits.
+* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_query`: a lowered, re-encoded
+  query is uniform strict oracle PPT when its channel, request, and reply bound are polynomial time.
 -/
 
 @[expose] public section
@@ -232,13 +252,95 @@ abbrev exec {n : ℕ} {In Out AdvQ AdvR : Type}
     WordInterface (execSpec n In Out AdvQ AdvR) :=
   sum (net party) (net adv)
 
-/-- Present a typed stateful oracle as a word oracle over `I.Channel`. -/
+/-- Library infrastructure (no cited result): view a `WordInterface` as a partial `OracleCodec`
+that accepts exactly canonical `(I.channel q, I.request q)` pairs. -/
+def toOracleCodec {ι : Type} {E : ι → Type} (I : WordInterface E) :
+    OracleCodec I.Channel ι E where
+  encodeQuery q := (I.channel q, I.request q)
+  decodeQuery cw :=
+    let q := I.decodeQuery cw.1 cw.2
+    if (I.channel q, I.request q) = cw then some q else none
+  decodeQuery_eq_some_iff request q := by
+    constructor
+    · intro h
+      dsimp only at h
+      split_ifs at h with heq
+      cases h
+      exact heq
+    · intro h
+      subst h
+      dsimp only
+      rw [I.decodeQuery_request]
+      simp
+  encodeReply := I.reply
+
+/-- Library infrastructure (no cited result): present a typed stateful oracle on `I.Channel` by
+totality of `I.decodeQuery`. Unlike `I.toOracleCodec.wordOracle` (which answers off-image requests
+with `[]` without querying `oracle`), `encodeOracle` decodes every request via `I.decodeQuery`;
+both agree on encoded requests (`encodeOracle_eq_wordOracle`). -/
 noncomputable def encodeOracle {ι : Type} {E : ι → Type} {σ : Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q)) :
     I.Channel × List Bool → StateT σ PMF (List Bool) :=
   fun cw s =>
     let q := I.decodeQuery cw.1 cw.2
     (oracle q s).map fun (r, s') => (I.reply q r, s')
+
+/-- Library infrastructure (no cited result): on every canonical query request
+`(I.channel q, I.request q)`, the total channel-encoded oracle agrees with
+`I.toOracleCodec.wordOracle`. Off-image requests differ: `encodeOracle` decodes totally via
+`I.decodeQuery` and calls `oracle`, whereas `OracleCodec.wordOracle` returns `[]` without calling
+`oracle`. -/
+theorem encodeOracle_eq_wordOracle {ι : Type} {E : ι → Type} {σ : Type}
+    (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q)) (q : ι) :
+    I.encodeOracle oracle (I.channel q, I.request q) =
+      I.toOracleCodec.wordOracle oracle (I.channel q, I.request q) := by
+  funext s
+  change I.encodeOracle oracle (I.channel q, I.request q) s =
+    (I.toOracleCodec.wordOracle oracle (I.toOracleCodec.encodeQuery q)) s
+  rw [OracleCodec.wordOracle_encodeQuery (c := I.toOracleCodec) oracle q]
+  dsimp only [encodeOracle, toOracleCodec]
+  rw [I.decodeQuery_request]
+  rfl
+
+/-- Library infrastructure (no cited result): the encoded oracle of a sum interface routes left and
+right channel requests to the respective component encoded oracles. -/
+theorem encodeOracle_sum {ι₁ ι₂ : Type} {E₁ : ι₁ → Type} {E₂ : ι₂ → Type} {σ : Type}
+    (I₁ : WordInterface E₁) (I₂ : WordInterface E₂)
+    (o₁ : (q : ι₁) → StateT σ PMF (E₁ q)) (o₂ : (q : ι₂) → StateT σ PMF (E₂ q)) :
+    (I₁.sum I₂).encodeOracle (OracleComp.sumHandler o₁ o₂) =
+      fun cw => Sum.elim (fun c₁ => I₁.encodeOracle o₁ (c₁, cw.2))
+        (fun c₂ => I₂.encodeOracle o₂ (c₂, cw.2)) cw.1 := by
+  funext cw
+  rcases cw with ⟨c | c, w⟩ <;> rfl
+
+/-- Library infrastructure: lower a single typed query to its channel request with reply
+truncation to `limit` bits and decoding. -/
+def lowerQuery {ι : Type} {E : ι → Type} (I : WordInterface E) (limit : ℕ) (q : ι) :
+    WordOracleComp I.Channel (E q) :=
+  I.decodeReply q <$> (List.take limit <$> ProbOracleComp.query (I.channel q, I.request q))
+
+/-- Library infrastructure: running a single lowered query against `I.encodeOracle oracle` agrees
+with running `oracle` when every supported reply fits in `limit` bits. -/
+theorem runWith_lowerQuery {ι : Type} {E : ι → Type} {σ : Type}
+    (I : WordInterface E) {limit : ℕ}
+    (oracle : (q : ι) → StateT σ PMF (E q))
+    (hfit : ∀ q s, ∀ x ∈ (oracle q s).support, (I.reply q x.1).length ≤ limit)
+    (q : ι) (s : σ) :
+    ProbOracleComp.runWith (I.encodeOracle oracle) (I.lowerQuery limit q) s =
+      oracle q s := by
+  rw [lowerQuery, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
+    ProbOracleComp.runWith_query]
+  dsimp only [encodeOracle]
+  rw [I.decodeQuery_request q]
+  simp only [PMF.map_comp, Function.comp_def]
+  have hid :
+      (oracle q s).map
+          (fun x : E q × σ => (I.decodeReply q (List.take limit (I.reply q x.1)), x.2)) =
+        (oracle q s).map id := by
+    refine Probability.PMF.map_congr_on_support (oracle q s) _ id fun x hx => ?_
+    rw [List.take_of_length_le (hfit q s x hx), I.decodeReply_reply]
+    rfl
+  exact hid.trans (PMF.map_id _)
 
 end WordInterface
 
@@ -281,81 +383,71 @@ namespace ProbOracleComp
 open Crypto.Protocols.UC
 open Cslib.Probability
 
-/-- Lower a typed program `ProbOracleComp E α` to a word program over `I.Channel`, keeping private
-samples private and truncating each word reply to `limit` bits before decoding. -/
+/-- Lower a typed program `ProbOracleComp E α` to a word program over `I.Channel` via
+`ProbOracleComp.simulate (I.lowerQuery limit)`, keeping private samples private and truncating
+each word reply to `limit` bits before decoding. -/
 def lowerWith {ι : Type} {E : ι → Type} {α : Type}
     (I : WordInterface E) (limit : ℕ) (program : ProbOracleComp E α) :
     WordOracleComp I.Channel α :=
-  OracleComp.interpret
-    (OracleComp.sumHandler
-      (fun n => sample (ProbComp.unifFin n))
-      (fun q =>
-        I.decodeReply q <$> (List.take limit <$> query (I.channel q, I.request q))))
-    program
-
-variable {ι : Type} {E : ι → Type} {α β : Type}
-
-/-- Lowering a pure value returns it directly. -/
-@[simp]
-theorem lowerWith_pure (I : WordInterface E) (limit : ℕ) (a : α) :
-    (pure a : ProbOracleComp E α).lowerWith I limit = pure a :=
-  rfl
-
-/-- Lowering commutes with sequential composition. -/
-@[simp]
-theorem lowerWith_bind (I : WordInterface E) (limit : ℕ)
-    (program : ProbOracleComp E α) (next : α → ProbOracleComp E β) :
-    (program >>= next).lowerWith I limit =
-      program.lowerWith I limit >>= fun a => (next a).lowerWith I limit :=
-  OracleComp.interpret_bind _ _ _
-
-/-- Lowering commutes with deterministic postprocessing. -/
-@[simp]
-theorem lowerWith_map (I : WordInterface E) (limit : ℕ)
-    (f : α → β) (program : ProbOracleComp E α) :
-    (f <$> program).lowerWith I limit = f <$> program.lowerWith I limit :=
-  OracleComp.interpret_map _ _ _
-
-/-- Lowering leaves embedded closed sampling programs unchanged. -/
-@[simp]
-theorem lowerWith_sample (I : WordInterface E) (limit : ℕ) (program : ProbComp α) :
-    (sample program : ProbOracleComp E α).lowerWith I limit = sample program := by
-  rw [lowerWith, interpret_sample]
-  simp only [sample_unifFin, ← OracleComp.substitute_eq_interpret]
-  rfl
-
-/-- Lowering a single typed query calls `I.channel q` with `I.request q`, truncates the word
-reply to `limit` bits, and decodes it via `I.decodeReply q`. -/
-@[simp]
-theorem lowerWith_query (I : WordInterface E) (limit : ℕ) (q : ι) :
-    (query q : ProbOracleComp E (E q)).lowerWith I limit =
-      I.decodeReply q <$> (List.take limit <$> query (I.channel q, I.request q)) :=
-  interpret_query _ _ _
+  simulate (I.lowerQuery limit) program
 
 /-- Library infrastructure (no cited result): a typed program lowered with reply bound `limit` has
 the joint law of the typed program against every typed stateful oracle whose encoded replies fit in
 `limit` bits. -/
-theorem runWith_lowerWith (I : WordInterface E) {limit : ℕ} {σ : Type}
-    (oracle : (q : ι) → StateT σ PMF (E q))
+theorem runWith_lowerWith {ι : Type} {E : ι → Type} {α : Type} (I : WordInterface E)
+    {limit : ℕ} {σ : Type} (oracle : (q : ι) → StateT σ PMF (E q))
     (hfit : ∀ q s, ∀ x ∈ (oracle q s).support, (I.reply q x.1).length ≤ limit)
     (program : ProbOracleComp E α) (s : σ) :
     runWith (I.encodeOracle oracle) (program.lowerWith I limit) s =
       runWith oracle program s := by
-  rw [lowerWith, runWith_interpret_sumHandler]
-  congr 1 with q t : 2
-  rw [runWith_map, runWith_map, runWith_query]
-  dsimp only [WordInterface.encodeOracle]
-  rw [I.decodeQuery_request q]
-  simp only [PMF.map_comp, Function.comp_def]
-  have hid :
-      (oracle q t).map
-          (fun x : E q × σ => (I.decodeReply q (List.take limit (I.reply q x.1)), x.2)) =
-        (oracle q t).map id := by
-    refine Probability.PMF.map_congr_on_support (oracle q t) _ id fun x hx => ?_
-    rw [List.take_of_length_le (hfit q t x hx), I.decodeReply_reply]
-    rfl
-  simpa [runWith_query] using hid.trans (PMF.map_id _)
+  rw [lowerWith, runWith_simulate]
+  congr 1
+  funext q t
+  exact I.runWith_lowerQuery oracle hfit q t
 
 end ProbOracleComp
+
+namespace Crypto.Protocols.UC.WordInterface
+
+open Turing.MultiTapeTM
+open Cslib.Probability
+
+/-- Library infrastructure (no cited result): one lowered typed query, re-encoded, is uniform
+strict oracle PPT on `I.Channel` when its channel, request, and reply bound are computed in
+polynomial time. This consumes the `replyNormalize` and `computable_replyNormalize` interface
+certificates. -/
+theorem isOraclePPTOn_lowerWith_query {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) {input : α ↪ List Bool}
+    {query : α → ι} {limit : α → ℕ}
+    (hchannel : ComputableInPolyTime (fun a => I.channel (query a)) input (encFinite I.Channel))
+    (hrequest : ComputableInPolyTime (fun a => I.request (query a)) input encBits)
+    (hlimit : ComputableInPolyTime limit input encUnary) :
+    IsOraclePPTOn input encBits (fun a =>
+      I.reply (query a) <$>
+        ProbOracleComp.lowerWith I (limit a) (ProbOracleComp.query (query a))) := by
+  have heq :
+      (fun a => I.reply (query a) <$>
+          ProbOracleComp.lowerWith I (limit a) (ProbOracleComp.query (query a))) =
+        fun a => I.replyNormalize (I.channel (query a)) <$>
+          (List.take (limit a) <$>
+            ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
+              (I.channel (query a), I.request (query a))) := by
+    funext a
+    simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, lowerQuery,
+      Functor.map_map, I.reply_decodeReply]
+  rw [heq]
+  refine IsOraclePPTOn.finite_cases (tagEncoding := encFinite I.Channel)
+    (tag := fun a => I.channel (query a))
+    (branch := fun c a => I.replyNormalize c <$>
+      (List.take (limit a) <$>
+        ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
+          (c, I.request (query a))))
+    hchannel fun c => ?_
+  refine (IsOraclePPTOn.query_take c hrequest hlimit).map ?_
+  exact I.computable_replyNormalize.comp
+    ((ComputableInPolyTime.const (encIn := encBits) (encOut := encFinite I.Channel) c).prod
+      ComputableInPolyTime.id')
+
+end Crypto.Protocols.UC.WordInterface
 
 end Cslib
