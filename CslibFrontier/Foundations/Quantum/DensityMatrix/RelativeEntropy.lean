@@ -46,7 +46,7 @@ open scoped MatrixOrder ComplexOrder Kronecker
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- The support of `ρ` is contained in that of `σ`, stated in terms of their kernels. -/
-def SupportLE (ρ σ : Matrix ι ι ℂ) : Prop :=
+@[expose] def SupportLE (ρ σ : Matrix ι ι ℂ) : Prop :=
   ∀ v : ι → ℂ, σ *ᵥ v = 0 → ρ *ᵥ v = 0
 
 omit [DecidableEq ι] in
@@ -71,7 +71,7 @@ theorem SupportLE.sum_smul {κ : Type*} [Fintype κ] (w : κ → ℝ) (hw : ∀ 
   · rw [hs k x (hzero k hk hwk), smul_zero]
 
 /-- The finite trace formula, with the logarithm assigned zero on the kernel. -/
-noncomputable def relativeEntropyReal (ρ σ : Matrix ι ι ℂ) : ℝ :=
+@[expose] noncomputable def relativeEntropyReal (ρ σ : Matrix ι ι ℂ) : ℝ :=
   (ρ * (cfc Real.log ρ - cfc Real.log σ)).trace.re
 
 open Classical in
@@ -231,6 +231,49 @@ theorem relativeEntropyReal_eq_sum_eigenbasis {A B : Matrix ι ι ℂ}
     simp [Matrix.one_apply]
   rw [relativeEntropyReal, mul_sub, trace_sub, Complex.sub_re, hself, trace_mul_cfc_re _ _ hA hB]
   simp only [sub_mul, sum_sub_distrib, ← Finset.mul_sum, sum_eigenbasis_overlap_row, mul_one]
+
+private theorem trace_mul_log_smul_re {A B : Matrix ι ι ℂ}
+    (hA : A.IsHermitian) (hB : B.IsHermitian) (hs : SupportLE A B) {b : ℝ} (hb : 0 < b) :
+    (A * cfc Real.log (b • B)).trace.re =
+      (A * cfc Real.log B).trace.re + Real.log b * A.trace.re := by
+  have hc := cfc_comp_const_mul (p := IsSelfAdjoint) b Real.log B
+    (((B.finite_real_spectrum).image _).continuousOn Real.log) hB
+  rw [← hc, trace_mul_cfc_re _ _ hA hB, trace_mul_cfc_re _ _ hA hB]
+  let a := hA.eigenvalues
+  let e := hB.eigenvalues
+  let w (i j : ι) := Complex.normSq
+    (((hA.eigenvectorUnitary : Matrix ι ι ℂ)ᴴ * (hB.eigenvectorUnitary : Matrix ι ι ℂ)) i j)
+  have ht (i j : ι) : a i * Real.log (b * e j) * w i j =
+      a i * Real.log (e j) * w i j + Real.log b * (a i * w i j) := by
+    by_cases hj : e j = 0
+    · have hz : a i * w i j = 0 := eigenvalue_mul_overlap_eq_zero_of_supportLE hA hB hs i j hj
+      simp only [hj, mul_zero, Real.log_zero, zero_mul, hz, add_zero]
+    · rw [Real.log_mul hb.ne' hj]
+      ring
+  have hsum : (∑ i, ∑ j, a i * w i j) = A.trace.re := by
+    have h := trace_mul_cfc_re A B hA hB (fun _ => 1)
+    rw [cfc_const (p := IsSelfAdjoint) 1 B hB, map_one, Matrix.mul_one] at h
+    simpa only [mul_one, a, w] using h.symm
+  change (∑ i, ∑ j, a i * Real.log (b * e j) * w i j) =
+    (∑ i, ∑ j, a i * Real.log (e j) * w i j) + Real.log b * A.trace.re
+  rw [← hsum]
+  simp only [ht, Finset.sum_add_distrib, Finset.mul_sum]
+
+/-- Positive scalar weights contribute a classical log likelihood to the block entropy. -/
+theorem relativeEntropyReal_smul {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix ρ)
+    (hσ : IsDensityMatrix σ) (hs : SupportLE ρ σ) {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
+    relativeEntropyReal (a • ρ) (b • σ) =
+      a * (Real.log (a / b) + relativeEntropyReal ρ σ) := by
+  unfold relativeEntropyReal
+  rw [Matrix.smul_mul, trace_smul]
+  change ((a : ℂ) * (ρ * (cfc Real.log (a • ρ) - cfc Real.log (b • σ))).trace).re = _
+  simp only [Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im, zero_mul, sub_zero,
+    mul_sub, trace_sub, Complex.sub_re]
+  rw [trace_mul_log_smul_re hρ.posSemidef.isHermitian hρ.posSemidef.isHermitian
+      (fun _ h => h) ha,
+    trace_mul_log_smul_re hρ.posSemidef.isHermitian hσ.posSemidef.isHermitian hs hb,
+    hρ.trace_eq_one, Complex.one_re, mul_one, mul_one, Real.log_div ha.ne' hb.ne']
+  ring
 
 /-- Weight the squared eigenbasis overlaps by the two sets of eigenvalues. The resulting
 distributions give the finite trace formula and the square-root trace overlap. -/

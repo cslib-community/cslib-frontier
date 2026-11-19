@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditioning
+import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredTranscript
 import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 
 /-! # Anchoring the CHSH game -/
@@ -49,3 +49,24 @@ example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option
       (fun r => let ((t, _), u) := r; t.combine u) =
         Cslib.Probability.PMF.pi (fun _ : Fin 2 => (chsh.anchored half).questions) :=
   Cslib.PCP.AnchoredDependency.map_questionPairs_transcriptLaw chsh half {0} S
+
+
+open Cslib.PCP.AnchoredDependency
+open Cslib.Probability.PMF (conditionalSnd)
+
+/-- The other retained data have the same probabilities with or without the noisy message
+when both questions at the left-out coordinate are anchors. -/
+example (S : Cslib.PCP.QuantumStrategy (Fin 2 → Option Bool) (Fin 2 → Option Bool)
+    (Fin 2 → Bool) (Fin 2 → Bool) (Fin 2) (Fin 2))
+    (hW : ∃ r ∈ winsOnChecked chsh half ({0} : Finset (Fin 2)),
+      r ∈ (transcriptLaw chsh half {0} S).support)
+    (j : {i : Fin 2 // i ∉ ({0} : Finset (Fin 2))}) (m : Option Bool ⊕ Option Bool) :
+    let Q := (transcriptLaw chsh half {0} S).filter (winsOnChecked chsh half {0}) hW
+    let J := Q.map fun r => (freeTrials {0} r j, restTranscript {0} j r)
+    let J' := Q.map fun r => ((freeTrials {0} r j).2, restTranscript {0} j r)
+    (m, (none, none)) ∈ (J.map Prod.fst).support →
+      ∀ r, conditionalSnd J (m, (none, none)) r = conditionalSnd J' (none, none) r := by
+  dsimp only
+  intro hs r
+  exact congrArg (fun p => p r)
+    (conditionalSnd_restTranscript_given_wins chsh half {0} S j hW (m, (none, none)) hs)

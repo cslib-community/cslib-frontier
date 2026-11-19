@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
+public import CslibFrontier.Languages.Probabilistic.RandomOracle.ImageCollision
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
@@ -23,11 +24,6 @@ A program queries `m : M`, and each query is answered by a lazily sampled functi
 `φ m`. Its result is statistically close to its result against a lazily sampled function on `M`
 itself; the error is the probability that the queries of the second run contain two distinct
 `m`, `m'` with `φ m = φ m'`.
-
-## Main definitions
-
-* `Cslib.RandomOracle.HasImageCollision`: two distinct keys of a cache have the same image under
-  `φ`.
 
 ## Main results
 
@@ -47,31 +43,6 @@ namespace Cslib.RandomOracle
 open Probability OracleComp
 
 variable {M Y Z α : Type} [DecidableEq M] [DecidableEq Y]
-
-/-- Two distinct keys of the cache have the same image under `φ`. Unlike
-`RandomOracle.HasOutputCollision` (which records a collision between two cached answers),
-`HasImageCollision` records a collision of cached queries under `φ` and does not involve the
-answers. -/
-@[expose] def HasImageCollision (φ : M → Y) (cache : List (M × Z)) : Prop :=
-  ∃ e ∈ cache, ∃ e' ∈ cache, e.1 ≠ e'.1 ∧ φ e.1 = φ e'.1
-
-omit [DecidableEq M] [DecidableEq Y] in
-/-- `HasImageCollision` depends only on the list of cached queries. -/
-theorem hasImageCollision_iff (φ : M → Y) (cache : List (M × Z)) :
-    HasImageCollision φ cache ↔
-      ∃ m ∈ cache.map Prod.fst, ∃ m' ∈ cache.map Prod.fst, m ≠ m' ∧ φ m = φ m' := by
-  simp only [HasImageCollision, List.mem_map]
-  constructor
-  · rintro ⟨e, he, e', he', h1, h2⟩
-    exact ⟨e.1, ⟨e, he, rfl⟩, e'.1, ⟨e', he', rfl⟩, h1, h2⟩
-  · rintro ⟨m, ⟨e, he, rfl⟩, m', ⟨e', he', rfl⟩, h1, h2⟩
-    exact ⟨e, he, e', he', h1, h2⟩
-
-omit [DecidableEq M] [DecidableEq Y] in
-private theorem HasImageCollision.mono {φ : M → Y} {s t : List (M × Z)} (hst : s ⊆ t)
-    (h : HasImageCollision φ s) : HasImageCollision φ t :=
-  let ⟨e, he, e', he', h1, h2⟩ := h
-  ⟨e, hst he, e', hst he', h1, h2⟩
 
 /-- Lazy sampling of a function on `Y` that is called at `φ m`, with the cache kept by query. In
 the cache-hit branch, `(m, z)` is still recorded when `m` is not yet cached so that `cache`

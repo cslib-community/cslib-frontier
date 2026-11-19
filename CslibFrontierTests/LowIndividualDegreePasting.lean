@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.Pasting
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PastingConsistency
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Algebra.Ring.Idempotent
 
@@ -94,6 +94,64 @@ example : pasteOutcome nodes inconsistentSlices = none := by
     exact (X_ne_zero (R := F) (0 : Fin 1)) hv'.symm
 
 
+private def twoNodes : Fin 2 ↪ F :=
+  (Fin.castSuccEmb (n := 2)).trans nodes
+
+private noncomputable def zeroTranscript (_ : Fin 2) : Option (BoundedPolynomial F 1 1) :=
+  some zeroSlice
+
+/-- A zero readout differs from the line `t ↦ t` at the unsampled coordinate two.
+The mismatch bound charges the disagreement on the sampled coordinate one. -/
+example :
+    ((PMF.pure (zeroTranscript, ())).map (Prod.map (pasteOutcome twoNodes) id)).toOuterMeasure
+        (pastedLineMismatch (d := 1) (m := 1) (0 : Fin 1 → F) 2 (fun (_ : Unit) t => t)) = 1 ∧
+      (∑ i : Fin 2, ((PMF.pure (zeroTranscript, ())).toOuterMeasure
+        (sliceLineMismatch (0 : Fin 1 → F) twoNodes (fun (_ : Unit) t => t) i)).toReal) = 1 := by
+  classical
+  let p : BoundedPolynomial F 2 1 := ⟨0, by simp⟩
+  have hp : pasteOutcome twoNodes zeroTranscript = some p := by
+    apply (pasteOutcome_eq_some_iff _ _ _).mpr
+    constructor
+    · have hs : successfulSlices zeroTranscript = Finset.univ := by
+        ext i
+        simp [zeroTranscript]
+      rw [hs]
+      decide
+    · intro i q h
+      have he : q = zeroSlice := (Option.some.inj h).symm
+      subst q
+      apply Subtype.ext
+      change specializeLast _ (0 : MvPolynomial (Fin 2) F) = 0
+      exact map_zero _
+  constructor
+  · rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_pure_apply]
+    have hm : (Prod.map (pasteOutcome twoNodes) id (zeroTranscript, ())) ∈
+        pastedLineMismatch (d := 1) (0 : Fin 1 → F) 2 (fun (_ : Unit) t => t) := by
+      unfold pastedLineMismatch
+      refine ⟨p, hp, ?_⟩
+      change eval (Fin.snoc (0 : Fin 1 → F) (2 : F)) (0 : MvPolynomial (Fin 2) F) ≠ 2
+      rw [map_zero]
+      decide
+    exact ite_eq_left hm
+  · rw [Fin.sum_univ_two]
+    have hzero :
+        (zeroTranscript, ()) ∉ sliceLineMismatch (0 : Fin 1 → F) twoNodes
+          (fun (_ : Unit) t => t) (0 : Fin 2) := by
+      rintro ⟨q, he, hne⟩
+      have hq : q = zeroSlice := (Option.some.inj he).symm
+      subst q
+      apply hne
+      change eval (0 : Fin 1 → F) (0 : MvPolynomial (Fin 1) F) = 0
+      exact map_zero _
+    have hone :
+        (zeroTranscript, ()) ∈ sliceLineMismatch (0 : Fin 1 → F) twoNodes
+          (fun (_ : Unit) t => t) (1 : Fin 2) := by
+      refine ⟨zeroSlice, rfl, ?_⟩
+      change eval (0 : Fin 1 → F) (0 : MvPolynomial (Fin 1) F) ≠ 1
+      rw [map_zero]
+      exact zero_ne_one
+    simp only [PMF.toOuterMeasure_pure_apply, hzero, hone, ↓reduceIte,
+      ENNReal.toReal_zero, ENNReal.toReal_one, zero_add]
 private noncomputable def zeroConstant : BoundedPolynomial F 0 0 := ⟨0, fun i => Fin.elim0 i⟩
 private noncomputable def zeroPaste : BoundedPolynomial F 1 0 := ⟨0, by simp⟩
 

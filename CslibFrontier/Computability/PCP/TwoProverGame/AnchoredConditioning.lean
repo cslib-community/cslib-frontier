@@ -62,20 +62,24 @@ noncomputable def infoLaw : PMF Info :=
 noncomputable def pairGiven (j : Free) (t : Info) : PMF PairQ :=
   conditionalSnd (law G.questions α) (t.halves j)
 
+/-- The law of the checked answers at a full tuple of questions. -/
+noncomputable def checkedAnswerLaw (S : RepeatedStrategy) (q : Fin n → PairQ) :
+    PMF CheckedAnswers :=
+  (S.answers (Prod.fst ∘ q) (Prod.snd ∘ q)).map fun (a, b) i => (a i, b i)
+
 /-- Sample the unchecked pairs given the revealed information and retain the strategy's
 answers on the checked coordinates. -/
 noncomputable def sideKernel (S : RepeatedStrategy) (t : Info) :
     PMF ((Free → PairQ) × CheckedAnswers) :=
   (pi fun j => pairGiven G α C j t).bind fun u =>
-    let q := t.combine u
-    (S.answers (Prod.fst ∘ q) (Prod.snd ∘ q)).map fun (a, b) => (u, fun i => (a i, b i))
+    (checkedAnswerLaw C S (t.combine u)).map (u, ·)
 
 /-- Before looking at the answers, the unchecked pairs are independent given the messages. -/
 theorem map_fst_sideKernel (S : RepeatedStrategy) (t : Info) :
     (sideKernel G α C S t).map Prod.fst = pi fun j => pairGiven G α C j t := by
   have h (u : Free → PairQ) :
-      (S.answers (fun j => (t.combine u j).1) (fun j => (t.combine u j).2)).map
-        (fun _ => u) = PMF.pure u := PMF.map_const _ _
+      (checkedAnswerLaw C S (t.combine u)).map (fun _ => u) = PMF.pure u :=
+    PMF.map_const _ _
   simp only [sideKernel, PMF.map_bind, PMF.map_comp, Function.comp_def, h, PMF.bind_pure]
 
 /-- The joint law of the transcript and the unchecked questions. -/
@@ -83,14 +87,38 @@ noncomputable def transcriptLaw (S : RepeatedStrategy) : PMF Transcript :=
   sideJoint (infoLaw G α C) (sideKernel G α C S)
 
 /-- The verifier accepts every coordinate in the checked set. -/
-def winsOnChecked : Set Transcript :=
+@[expose] def winsOnChecked : Set Transcript :=
   {r | let ((t, a), _) := r
        ∀ i : C, (G.anchored α).accepts (t.questions i).1 (t.questions i).2 (a i).1 (a i).2}
 
 /-- Discard the checked data, keeping the message and pair at every unchecked coordinate. -/
-def freeTrials (r : Transcript) : Free → (Option X ⊕ Option Y) × PairQ :=
+@[expose] def freeTrials (r : Transcript) : Free → (Option X ⊕ Option Y) × PairQ :=
   let ((t, _), u) := r
   fun i => (t.halves i, u i)
+
+/-- Attach the checked answers after sampling the checked questions and the unchecked trials. -/
+@[expose] noncomputable def completeTranscript (S : RepeatedStrategy) (checked : C → PairQ)
+    (u : Free → (Option X ⊕ Option Y) × PairQ) : PMF Transcript :=
+  let t : Info := ⟨checked, Prod.fst ∘ u⟩
+  (checkedAnswerLaw C S (t.combine (Prod.snd ∘ u))).map
+    fun v => ((t, v), Prod.snd ∘ u)
+
+/-- The transcript can equally be sampled by independent trials followed by the strategy's
+checked answers. -/
+theorem transcriptLaw_eq_complete (S : RepeatedStrategy) :
+    transcriptLaw G α C S =
+      (pi fun _ : C => (G.anchored α).questions).bind fun checked =>
+        (pi fun _ : Free => law G.questions α).bind (completeTranscript C S checked) := by
+  simp only [transcriptLaw, sideJoint, infoLaw, sideKernel, PMF.bind_bind, PMF.bind_map,
+    PMF.map_bind, PMF.map_comp, Function.comp_def, pairGiven]
+  congr 1 with checked : 1
+  have h := congrArg (fun P : PMF ((Free → Option X ⊕ Option Y) × (Free → PairQ)) =>
+    P.bind fun (m, u) =>
+      (checkedAnswerLaw C S ((⟨checked, m⟩ : Info).combine u)).map
+        fun v => (((⟨checked, m⟩ : Info), v), u))
+    (pi_joint_eq_bind_conditionalSnd (fun _ : Free => law G.questions α))
+  unfold completeTranscript
+  simpa only [PMF.bind_map, PMF.bind_bind, Function.comp_def] using h.symm
 
 /-- Before conditioning on wins, the checked questions and all unchecked trials are
 independent, with their original laws. -/
@@ -100,24 +128,12 @@ theorem map_checked_freeTrials_transcriptLaw (S : RepeatedStrategy) :
       (t.questions, freeTrials C r)) =
       (pi fun _ : C => (G.anchored α).questions).bind fun checked =>
         (pi fun _ : Free => law G.questions α).map (checked, ·) := by
-  have hk (t : Info) : (sideKernel G α C S t).map
-      (fun v => (t.questions, fun j : Free => (t.halves j, v.1 j))) =
-        (pi fun j => pairGiven G α C j t).map
-          (fun u => (t.questions, fun j => (t.halves j, u j))) := by
-    rw [← map_fst_sideKernel G α C S t, PMF.map_comp]
-    rfl
-  calc
-    _ = (infoLaw G α C).bind (fun t =>
-          (pi fun j => pairGiven G α C j t).map
-            fun u => (t.questions, fun j => (t.halves j, u j))) := by
-      simp only [transcriptLaw, sideJoint, PMF.map_bind, PMF.map_comp, Function.comp_def,
-        freeTrials, hk]
-    _ = _ := by
-      simp only [infoLaw, PMF.bind_bind, PMF.bind_map, pairGiven, Function.comp_def]
-      congr 1 with checked : 1
-      have h := congrArg (PMF.map (fun (m, u) => (checked, fun j : Free => (m j, u j))))
-        (pi_joint_eq_bind_conditionalSnd (fun _ : Free => law G.questions α))
-      simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def] using h.symm
+  rw [transcriptLaw_eq_complete]
+  simp only [PMF.map_bind, completeTranscript, PMF.map_comp, Function.comp_def, freeTrials]
+  congr 1 with checked : 1
+  rw [← PMF.bind_pure_comp]
+  congr 1 with u : 1
+  exact PMF.map_const _ _
 
 /-- The unchecked message-and-question triples have the independent prior law. -/
 theorem map_freeTrials_transcriptLaw (S : RepeatedStrategy) :
