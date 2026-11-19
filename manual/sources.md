@@ -1198,6 +1198,18 @@ checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 di
 2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
 [Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
 
+<a id="jnvwy2020lowindividualdegree"></a>
+## jnvwy2020lowindividualdegree
+
+Zhengfeng Ji, Anand Natarajan, Thomas Vidick, John Wright and Henry Yuen.
+*Quantum soundness of the classical low individual degree test*. arXiv:2009.12982v1, 2020.
+Definition 3.2 and Figure 2 give the three verifier branches, their sampling, and their
+degree requirements. The formalization uses positive ambient dimension so a uniform coordinate
+can be sampled. The displayed diagonal affine image is a singleton for the sampled zero direction.
+The current result establishes the verifier and honest completeness. Theorem 3.10 is tracked
+under [#6149](https://github.com/cslib-community/cslib-frontier/issues/6149).
+[Source, pp. 12–13](https://arxiv.org/pdf/2009.12982v1#page=12)
+
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
 

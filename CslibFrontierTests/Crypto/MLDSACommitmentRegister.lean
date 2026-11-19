@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+import CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
 
 /-!
 # ML-DSA digest-register clients
@@ -67,3 +67,35 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) {a b : ℕ}
               !log.contains f := by
   rw [C.randomPrefixGame_eq_digestRegister H s ha hb]
   simp only [Xofs.winsForgery, Xofs.evalPure_verifyDigestQueries]
+
+-- A coherent query and a measurement select the message sent to the signer. The program
+-- chooses between two independent candidates according to whether signing succeeded.
+open Cslib.Crypto.MLDSA
+
+example (C : QuantumSigningForger) (s : Level) (H : Xofs) (A : PublicMatrix s)
+    (m : BitString 512) (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s))
+    (keys : KeyPair) (onSignature onError : Forgery)
+    (w : Fin C.Width) (d : C.Device) (log : List Forgery)
+    (row : FixedBytes 2 → FixedBytes (maskPolyBytes s)) :
+    let μ := signingMaskLaw s.params (by cases s <;> decide)
+    let r y j := !(D (maskCommitmentAddress s A m y) j)
+    let δ := (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal
+    let prog : C.Program Forgery :=
+      .liftBind (.inr (.inl .query)) fun _ =>
+        .liftBind (.inr (.inl (.measure w))) fun bits =>
+          .liftBind (.inr (.inr ⟨[], bits⟩)) fun sig =>
+            .pure (if sig.isSome then onSignature else onError)
+    let win T := Game.succProbability (C.expansionContinuation s (H.withDigestRegister s T)
+      A keys prog d log [row])
+    ∑ y, (μ y).toReal * |(win (Function.update D (maskCommitmentAddress s A m y) (r y)) : ℝ) -
+        (win D : ℝ)| ≤ 4 * √δ + 817 * δ := by
+  classical
+  intro μ r δ prog win
+  have hH : OracleComp.IsCostBounded (fun x => (QuantumSigningForger.isXofQuery x).toNat)
+      prog 1 :=
+    .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .pure _ _
+  have hS : OracleComp.IsCostBounded (fun x => (QuantumSigningForger.isSigningCall x).toNat)
+      prog 1 :=
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .pure _ _
+  simpa [μ, δ, win, show (815 : ℝ) + 2 = 817 by norm_num] using
+    C.mean_expansionContinuation_gap_le s H A m D r keys prog d log [row] hH hS

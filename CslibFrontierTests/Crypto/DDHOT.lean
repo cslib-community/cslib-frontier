@@ -15,8 +15,8 @@ cyclic group `ZMod 5` of order `5` with generator `1 : ZMod 5`:
   `if σ then m₁ else m₀`.
 * Computational check (`decide`) that on the unchecked variant `ddhOTSenderReplyUnchecked`,
   `ddhOTAttackBothMessages` simultaneously recovers `(m₀, m₁)`.
-* `ddhOT_output_of_mem_support`: in every execution of `ddhOTProtocol` over `ZMod 5`, the outputs
-  equal `otOutputs x`.
+* `ddhOTProtocolWith_output_of_mem_support`: in every execution of `ddhOTProtocol` over `ZMod 5`,
+  the outputs equal `otOutputs x`.
 * `idealJoint_ddhOT_sender` and `semiHonestAdvantage_ddhOT_sender`: unconditional perfect privacy
   (zero distinguishing advantage) against a corrupted sender.
 * `semiHonestAdvantage_ddhOT_receiver_eq`: privacy against a corrupted receiver, as a per-instance
@@ -57,7 +57,7 @@ example (x : (i : Fin 2) → OTIn (ZMod 5) i)
       ((i : Fin 2) → OTOut (ZMod 5) i)}
     (hr : r ∈ ((ddhOTProtocol (1 : ZMod 5) 5).evalWith noOracleWorld x).support) :
     r.2 = otOutputs x :=
-  ddhOT_output_of_mem_support (1 : ZMod 5) 5 x hr
+  ddhOTProtocolWith_output_of_mem_support (1 : ZMod 5) 5 x hr
 
 -- Perfect privacy against a corrupted sender over ZMod 5.
 example (x : (i : Fin 2) → OTIn (ZMod 5) i) :

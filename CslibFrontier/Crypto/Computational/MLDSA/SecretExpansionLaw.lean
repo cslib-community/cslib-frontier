@@ -126,7 +126,8 @@ private theorem selected_poly {n : ℕ} (s : Level) (l : List (Pos n)) (hl : l.N
     simp_rw [parse]
     change (PMF.uniformOfFintype (Pos n → Digit s)).map (value ∘ fun d j => d (e j)) = _
     rw [← PMF.map_comp, PMF.uniformOfFintype_pi_map_comp_embedding]
-    rw [MatrixOracle.shortPolyLaw, PMF.pi_map, PMF.pi_uniformOfFintype, PMF.map_comp]
+    rw [MatrixOracle.shortPolyLaw, MatrixOracle.shortCoefficientLaw, PMF.pi_map,
+       PMF.pi_uniformOfFintype, PMF.map_comp]
     rfl
   · have parse (d : Pos n → Digit s) : asPoly (l.map fun j => shortCoeff s (d j)) = none := by
       simp [asPoly, Nat.lt_of_not_ge enough]
@@ -316,6 +317,32 @@ private theorem expandS_install {a b : ℕ} (s : Level) (rho : FixedBytes 64)
   simp only [Xofs.expandS, first, second, vectors, rejBoundedVector]
   rfl
 
+private theorem uniformPrefixes_secretRows (base : Xofs) (s : Level) (rho : FixedBytes 64)
+    {a b : ℕ} (ha : 528 ≤ a) (hb : 481 ≤ b) :
+    ((base.uniformPrefixes a b).map fun H => H.expandS s rho.toList) =
+      (PMF.uniformOfFintype (Fin s.params.ℓ → FixedBytes 481)).bind fun x =>
+      (PMF.uniformOfFintype (Fin s.params.k → FixedBytes 481)).map fun y => vectors s (x, y) := by
+  rw [independent_tables]
+  simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+  have read (t u : Table a b) :
+      (⟨install base.h128 u, install base.h256 t⟩ : Xofs).expandS s rho.toList =
+        vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j))) :=
+    expandS_install s rho ha hb {base with h128 := install base.h128 u} t
+  simp_rw [read]
+  let take (t : Table a b) := rowPair s (fun j => t (secretPoint s rho ha hb j))
+  have ignore (t : Table a b) : (PMF.uniformOfFintype (Table a b)).map
+      (fun _ => vectors s (take t)) = PMF.pure (vectors s (take t)) := PMF.map_const ..
+  change (PMF.uniformOfFintype (Table a b)).bind (fun t =>
+    (PMF.uniformOfFintype (Table a b)).map fun _ => vectors s (take t)) = _
+  simp_rw [ignore]
+  change (PMF.uniformOfFintype (Table a b)).map
+    ((vectors s ∘ rowPair s) ∘ fun t j => t (secretPoint s rho ha hb j)) = _
+  have uniform := PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) (secretPoint s rho ha hb)
+  have eq := congrArg (PMF.map (vectors s ∘ rowPair s)) uniform
+  rw [PMF.map_comp] at eq
+  apply eq.trans
+  rw [← PMF.map_comp, PMF.uniformOfFintype_map_equiv, PMF.uniformOfFintype_bind_map]
+
 /-- Algorithm 33 on the finite random SHAKE256 stream at a fixed 64-byte seed has exactly
 the joint short-secret MLWE law on success. The two vectors use disjoint little-endian nonces.
 Both sides retain the native failure probability of the 481-byte cap at every nonce. -/
@@ -331,27 +358,8 @@ theorem uniformPrefixes_expandS (base : Xofs) (s : Level) (rho : FixedBytes 64) 
   let U := PMF.uniformOfFintype (Fin s.params.ℓ → FixedBytes 481)
   let V := PMF.uniformOfFintype (Fin s.params.k → FixedBytes 481)
   let parse x y := vectors s (x, y)
-  have joint : (R.map fun H => H.expandS s rho.toList) = U.bind fun x => V.map (parse x) := by
-    rw [show R = _ from independent_tables base a b]
-    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
-    have read (t u : Table a b) :
-        (⟨install base.h128 u, install base.h256 t⟩ : Xofs).expandS s rho.toList =
-          vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j))) :=
-      expandS_install s rho ha hb {base with h128 := install base.h128 u} t
-    simp_rw [read]
-    let take (t : Table a b) := rowPair s (fun j => t (secretPoint s rho ha hb j))
-    have ignore (t : Table a b) : (PMF.uniformOfFintype (Table a b)).map
-        (fun _ => vectors s (take t)) = PMF.pure (vectors s (take t)) := PMF.map_const ..
-    change (PMF.uniformOfFintype (Table a b)).bind (fun t =>
-      (PMF.uniformOfFintype (Table a b)).map fun _ => vectors s (take t)) = _
-    simp_rw [ignore]
-    change (PMF.uniformOfFintype (Table a b)).map
-      ((vectors s ∘ rowPair s) ∘ fun t j => t (secretPoint s rho ha hb j)) = _
-    have uniform := PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) (secretPoint s rho ha hb)
-    have eq := congrArg (PMF.map (vectors s ∘ rowPair s)) uniform
-    rw [PMF.map_comp] at eq
-    apply eq.trans
-    rw [← PMF.map_comp, PMF.uniformOfFintype_map_equiv, PMF.uniformOfFintype_bind_map]
+  have joint : (R.map fun H => H.expandS s rho.toList) = U.bind fun x => V.map (parse x) :=
+    uniformPrefixes_secretRows base s rho ha hb
   let test (o : Option ((Fin s.params.ℓ → Poly) × (Fin s.params.k → Poly))) : PMF _ :=
     if o.isSome then (MatrixOracle.shortVectorLaw s s.params.ℓ).bind fun x =>
       (MatrixOracle.shortVectorLaw s s.params.k).map fun y => some (x, y) else PMF.pure none

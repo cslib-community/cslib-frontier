@@ -57,9 +57,10 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
     apply off
     simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
     cases s <;> decide
-  · intro x hx
+  · intro nonce
     apply off
-    rw [hx]
+    simp only [nonceInput, List.length_append, List.length_take, List.length_drop,
+      Xofs.expandKeySeed, H.h256.length_read, List.length_cons, List.length_nil]
     cases s <;> decide
   · intro x hx
     apply off

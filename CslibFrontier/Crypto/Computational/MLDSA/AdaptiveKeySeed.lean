@@ -97,14 +97,8 @@ private theorem mean_keySeed_hit {C : QuantumSigningForger} {α V : Type} [Zero 
   have bound : (seeds.bind fun seed =>
       hit prog (H.withKeySeedExpansion s seed out) H sign d log tape j) true ≤
       (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-    simp only [hit, scored]
-    rw [PMF.bind_comm]
-    apply PMF.bind_apply_le_on_support
-    rintro ⟨found, ⟨dev, hist⟩, rest⟩ _
-    simp only [detector, ← addressTest_law C _ found (dev, hist), ← PMF.bind_pure_comp,
-      Function.comp_def]
-    rw [PMF.bind_comm]
-    exact PMF.bind_apply_le_on_support _ fun a _ => changed_keySeed_le C s H out a
+    exact hit_mean_le seeds (fun seed => H.withKeySeedExpansion s seed out) H prog
+      sign d log tape j (fun a => changed_keySeed_le C s H out a)
   simpa only [PMF.bind_apply_toReal, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat,
     one_div, seeds] using ENNReal.toReal_mono (by simp) bound
 

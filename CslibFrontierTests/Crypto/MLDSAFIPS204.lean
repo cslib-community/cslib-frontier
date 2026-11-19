@@ -8,12 +8,13 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
-import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
+import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
@@ -91,9 +92,16 @@ private def keyAndSigningChecks : Option Bool := do
   let msg := [true, false, true]
   let ctx := List.replicate 255 11
   let σ ← sign .mlDSA44 keys.secretKey msg ctx (fun _ => 0)
+  let request : SigningQuery := ⟨[], [true]⟩
+  let reply ← sign .mlDSA44 keys.secretKey request.message request.context (fun _ => 0)
+  let log := request.logReply (some reply) []
+  let A ← Xofs.shake.expandA .mlDSA44 (keys.publicKey.take 32)
+  let fresh : Forgery := ⟨ctx, msg, σ⟩
+  let repeated : Forgery := ⟨request.context, request.message, reply⟩
+  let wins (f : Forgery) := SignedMatrixTrial.newDigestWin ⟨Xofs.shake, A, keys.publicKey, f, log⟩
   return Keccak.shake256 keys.publicKey 32 == publicKeyFingerprint &&
     Keccak.shake256 keys.secretKey 32 == secretKeyFingerprint &&
-    verify .mlDSA44 keys.publicKey msg ctx σ == some true &&
+    wins fresh && !wins repeated &&
     verify .mlDSA44 keys.publicKey msg [11] σ == some false &&
     (sign .mlDSA44 keys.secretKey msg (11 :: ctx) (fun _ => 0)).isNone
 
@@ -140,6 +148,22 @@ private def constantStream (value : List Bool → Byte) : ExtendableOutput where
   read x n := List.replicate n (value x)
   length_read _ _ := List.length_replicate
   take_read _ _ _ h := by simp [Nat.min_eq_left h]
+
+-- In the independent expansion game the private parser exhausts while the public streams
+-- accept every nibble. The key-seed read and SHAKE128 remain on the ambient table.
+private def independentSecretCheck (s : Level) : Bool :=
+  let ambient := constantStream fun _ => 0
+  let privateRows := constantStream fun _ => 255
+  let H : Xofs := ⟨ambient, ambient⟩
+  let G := H.withExpandSStream ⟨privateRows, privateRows⟩
+  let r := List.replicate 64 (0 : Byte)
+  (H.expandS s r).isSome && (G.expandS s r).isNone &&
+    G.expandKeySeed s (fun _ => 0) == List.replicate 128 0 &&
+    G.h128.read (List.replicate 528 false) 1 == [0]
+
+#guard independentSecretCheck .mlDSA44
+#guard independentSecretCheck .mlDSA65
+#guard independentSecretCheck .mlDSA87
 
 -- At every standard level the bound counts the public-key rounding correction.
 example (s : Level) : MLDSA.compressedSelfTargetRadius s.params 13 =
