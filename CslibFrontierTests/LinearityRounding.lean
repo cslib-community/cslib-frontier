@@ -199,18 +199,19 @@ example (S : QuantumStrategy (PauliBraidingQuestion 1 Bool) (PauliBraidingQuesti
       Vᴴ * V = 1 ∧ Wᴴ * W = 1 ∧
       let ψ := (V ⊗ₖ W) *ᵥ S.state.ofLp
       extractedEprProjection (Q := Fin 1 → Bool) *ᵥ ψ = ψ := by
-  obtain ⟨J, _, _, L, _, _, V, W, hV, hW, h⟩ :=
-    exists_local_eprProjection_of_pauliBraidingGame S (ε := 0) (by rw [hwin, sub_zero])
+  obtain ⟨J, _, _, L, _, _, V, W, h⟩ :=
+    exists_pauliBraidingExtraction S (ε := 0) (by rw [hwin, sub_zero])
   let E := extractedEprProjection (Q := Fin 1 → Bool) (J := J) (K := L)
   let ψ := (V ⊗ₖ W) *ᵥ S.state.ofLp
   have hle : ‖(WithLp.toLp 2 (E *ᵥ ψ - ψ) :
       EuclideanSpace ℂ (((Fin 1 → Bool) × J) × (Fin 1 → Bool) × L))‖ ^ 2 ≤ 0 := by
     simpa only [E, ψ, zero_mul, mul_zero, pauliBraidingTwistedCommutationError_zero,
       pauliBraidingRoundedConsistencyError_zero,
-      ← Matrix.mulVec_mulVec, sub_mulVec, one_mulVec, add_zero] using h
+      ← Matrix.mulVec_mulVec, sub_mulVec, one_mulVec, add_zero] using h.epr
   have hn := le_antisymm hle (sq_nonneg _)
   have hz := norm_eq_zero.mp ((pow_eq_zero_iff two_ne_zero).mp hn)
-  exact ⟨J, L, inferInstance, inferInstance, inferInstance, inferInstance, V, W, hV, hW,
+  exact ⟨J, L, inferInstance, inferInstance, inferInstance, inferInstance, V, W,
+    h.alice_isometry, h.bob_isometry,
     sub_eq_zero.mp (by
       simpa only [WithLp.ofLp_toLp, WithLp.ofLp_zero] using (congrArg WithLp.ofLp hz))⟩
 
