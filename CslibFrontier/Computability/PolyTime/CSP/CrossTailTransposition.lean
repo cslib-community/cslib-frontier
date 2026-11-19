@@ -318,6 +318,30 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     have hσ : (fun z => τ (2 * z)) = σ := funext he
     simpa only [hσ] using (recover_transposeTail g w F L x y c τ ht).1
 
+/-- Exact arity is preserved on every raw input. Old malformed scopes stay malformed;
+the fixed actual gadget supplies all new arity obligations. -/
+theorem wellFormed_transposeTail_iff (I : State Rel) :
+    (transposeTail g w I).body.WellFormed ar ↔ I.body.WellFormed ar := by
+  have hrel (F : CSP Rel ℕ) (f : ℕ → ℕ) :
+      (F.relabel f).WellFormed ar ↔ F.WellFormed ar := by
+    constructor
+    · intro h c hc
+      have h' := h (c.relabel f) (List.mem_map.mpr ⟨c, hc, rfl⟩)
+      simpa only [Constraint.relabel, List.length_map] using h'
+    · exact fun h => h.relabel f
+  by_cases hs : I.ports.length < 2
+  · rw [transposeTail_short g w I hs]
+  · rcases I with ⟨F, ports, c⟩
+    induction ports using List.reverseRecOn with
+    | nil => simp at hs
+    | append_singleton ps y _ =>
+      cases ps using List.reverseRecOn with
+      | nil => simp at hs
+      | append_singleton L x =>
+        rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
+          simp only [List.append_assoc, List.cons_append, List.nil_append]]
+        rw [(long_fields g w F L x y c).1, hrel, hrel, wellFormed_insert_iff]
+
 /-- Long-branch rows are exactly the old rows plus the fixed actual gadget rows. -/
 theorem length_transposeTail_body (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : Graph.RotationCertificate) :

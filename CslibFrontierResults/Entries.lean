@@ -234,7 +234,9 @@ import CslibFrontier.Crypto.Computational.DiffieHellman.ListCDHFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 import CslibFrontier.Crypto.Computational.DiscreteLog.Interpolation
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
+import CslibFrontier.Crypto.Computational.ElGamal.OneWay
 import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
+import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.ECB
@@ -9901,6 +9903,74 @@ register_result "cdh-inverse-order-negligible" where
     CDH.negligible_expected_inv_order, in the same module, states that the expected inverse \
     order is negligible, and DDH.negligible_expected_inv_order states the same under DDH; the \
     module labels both original, and they are not listed here."
+
+register_result "elgamal-one-way-cdh" where
+  title := "Multiplicative ElGamal is one-way under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "one-wayness of multiplicative ElGamal under CDH (unnumbered)",
+      locator := "Section 12.6.2, pp. 499–500; Attack Game 12.6 and Definition 12.5, p. 495" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_oneWay,
+    Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalOWToCDHAdversary,
+    Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalOWProbGame_cdhGame_le,
+    Cslib.Crypto.owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage
+  ]
+  scope := "Over a PrimeOrderGroupFamily with any setup law setup (which need not be efficiently \
+    samplable; the assumption is the book's when an efficient system parameterization algorithm \
+    samples it, Definition 10.9, p. 413), the scheme at security parameter n and group d is \
+    elGamalProbExplicitCoinPKE n d, written additively over F.Carrier d: key generation and \
+    encryption draw their exponents from (Nat.cast : ℕ → ZMod q) <$> sampleExp n d (certified \
+    strict PPT via isPPTOn_elGamalKeyGenProb and isPPTOn_elGamalEncryptProb, which realize it on \
+    encoded group elements by eval_fst_elGamalKeyGenProb and eval_elGamalEncryptProb_encode), \
+    and decryption is correct by elGamalExplicitCoinPKEWith_correct. In Attack Game 12.6 \
+    (elGamalOWProbGame, p. 495), the challenge message is drawn from sampleGroupElem n d \
+    (certified strict PPT via isPPTOn_encode_sampleGroupElem). Typed adversaries A : \
+    ElGamalOWAdversary read (1^n, d, u, v, y) and write an encoded group element in uniform \
+    strict PPT (ElGamalOWAdversary.IsPPT, matching CDHAdversary.IsPPT; a word-level predicate \
+    would need a group decoder, which a general PrimeOrderGroupFamily lacks). The reduction \
+    elGamalOWToCDHAdversary A draws y ← sampleGroupElem n d, runs A on u and (v, y), and outputs \
+    y − x (computed on encodings via decodeElGamal with secret key 1), certified strict PPT by \
+    isPPT_elGamalOWToCDHAdversary. Deviation from Definition 2.8 (p. 30, negligible runtime \
+    overflow): strict fair-coin sampleExp sampling adds 3/2^n from the challenger's three draws \
+    and 1/2^n from the reduction's draw, giving Game.advantage ≤ 4/2^n \
+    (advantage_elGamalOWProbGame_cdhGame_le) and negligible success under F.CDH setup \
+    (CDH.elGamal_oneWay); owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage gives the exact \
+    fixed-group equality under uniform exponents."
+
+register_result "elgamal-unpredictable-cdh" where
+  title := "Multiplicative ElGamal is (1/q + 1/2^n)-unpredictable, and unpredictable under CDH"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023,
+      theorem := "1/q-unpredictability and unpredictability under CDH of multiplicative ElGamal \
+        (unnumbered)",
+      locator := "Section 12.6.2, p. 500; Definition 12.6, p. 495" }
+  ]
+  theorems := [
+    Cslib.Crypto.PrimeOrderGroupFamily.CDH.elGamal_unpredictable,
+    Cslib.Crypto.PrimeOrderGroupFamily.epsilonUnpredictable_elGamalProbExplicitCoinPKE,
+    Cslib.Crypto.epsilonUnpredictable_elGamalExplicitCoinPKE
+  ]
+  scope := "Unpredictability is Definition 12.6 (p. 495): PKE.EpsilonUnpredictable and \
+    Encryption.Unpredictable (where rejected ciphertexts are unconstrained; multiplicative \
+    ElGamal never rejects and is correct by elGamalExplicitCoinPKEWith_correct, so this agrees \
+    with the book's default-message convention). Over any fixed ZMod q-module G with injective \
+    β ↦ β·g and exact uniform coins (elGamalExplicitCoinPKE q g), the first ciphertext component \
+    β·g determines β, giving exact 1/q-unpredictability \
+    (epsilonUnpredictable_elGamalExplicitCoinPKE). Over a PrimeOrderGroupFamily at security \
+    parameter n and group d, the fair-coin scheme elGamalProbExplicitCoinPKE n d (realized on \
+    encoded group elements by elGamalKeyGenProb, elGamalEncryptProb and elGamalDecryptDet) draws \
+    its encryption coins via sampleExp n d, relaxing exact 1/q (under Definition 2.8's negligible \
+    runtime-overflow model, p. 30) to (1/q + 1/2^n)-unpredictability \
+    (epsilonUnpredictable_elGamalProbExplicitCoinPKE). Along a deterministic group schedule d \
+    (fixing one scheme per security parameter as Encryption.Unpredictable requires; the CDH \
+    assumption is the book's when d is computable in polynomial time), F.CDH at the point-mass \
+    setup makes 1/q negligible (CDH.negligible_inv_order), so (elGamalProbExplicitCoinPKE n \
+    (d n)).toPKE is unpredictable (CDH.elGamal_unpredictable). Strong unpredictability on all \
+    public-key words (§21.4.1) is in elgamal-strongly-unpredictable-ciphertexts."
 
 open Cslib.Crypto.PrimeOrderGroupFamily in
 register_result "dlog-self-reduction-iterated" where

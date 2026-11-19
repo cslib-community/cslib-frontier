@@ -127,13 +127,15 @@ theorem rotateRight_snoc (F : CSP Rel ℕ) (ps : List ℕ) (p : ℕ)
   | cons x xs =>
     cases xs <;> simp [rotateRight, List.reverse_append, List.reverse_cons]
 
-private theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by
+/-- RIGHT boundary movement retains the entire actual body. -/
+theorem rotateRight_body (I : State Rel) : (rotateRight I).body = I.body := by
   rcases I with ⟨F, ports, c⟩
   induction ports using List.reverseRecOn with
   | nil => rfl
   | append_singleton ps p _ih => rw [rotateRight_snoc]
 
-private theorem rotateRight_ports (I : State Rel) :
+/-- RIGHT boundary movement rotates the ordered raw port word by one position. -/
+theorem rotateRight_ports (I : State Rel) :
     (rotateRight I).ports = (I.ports.reverse.rotate 1).reverse := by
   rcases I with ⟨F, ports, c⟩
   induction ports using List.reverseRecOn with
